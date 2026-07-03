@@ -13,7 +13,7 @@ Transformer une spécification textuelle structurée en une application complèt
 | **4 — AST** | Modèle intermédiaire & Validation cohérence | 🟢 Validé |
 | **5 — Génération** | Production DB, API & App fonctionnelle | 🟢 Validé |
 | **6 — Boucle complète** | Modification DSL → Changement automatique de l'app | 🟢 Validé |
-| **7 — IA** | Traduction Langage Naturel → DSL MonLang | ⬜ En attente |
+| **7 — IA** | Traduction Langage Naturel → DSL MonLang | 🟢 Validé |
 
 ## Structure du Dépôt
 - `docs/` : Notes théoriques et spécifications des phases de cadrage.
