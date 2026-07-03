@@ -9,7 +9,7 @@ Transformer une spécification textuelle structurée en une application complèt
 | **0 — Cadrage** | Vision, Problème & Objectifs | 🟢 Validé |
 | **1 — Modèle conceptuel** | Définition des 6 concepts piliers | 🟢 Validé |
 | **2 — DSL** | Syntaxe officielle & 5 Apps de validation | 🟢 Validé |
-| **3 — Parser** | Traduction DSL → JSON | ⬜ En attente |
+| **3 — Parser** | Traduction DSL → JSON | 🟢 Validé |
 | **4 — AST** | Modèle intermédiaire & Validation cohérence | ⬜ En attente |
 | **5 — Génération** | Production DB, API & App fonctionnelle | ⬜ En attente |
 | **6 — Boucle complète** | Modification DSL → Changement automatique de l'app | ⬜ En attente |
