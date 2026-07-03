@@ -1,3 +1,4 @@
+```yaml
 app MicroSocial
 
 entity User
@@ -25,3 +26,4 @@ workflow SocialActivity for Member
     Delete Tweet
     Create Like
     Read Tweet
+```

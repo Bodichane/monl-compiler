@@ -1,3 +1,4 @@
+```yaml
 app BookMe
 
 entity Professional
@@ -29,3 +30,4 @@ workflow ClientBooking for Client
 workflow ProfessionalSchedule for ProfessionalActor
     Create Slot
     Delete Slot
+```

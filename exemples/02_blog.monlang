@@ -1,3 +1,4 @@
+```yaml
 app TechBlog
 
 entity User
@@ -33,3 +34,4 @@ workflow AuthorManagePost for Author
 workflow ReaderComment for Reader
     Create Comment
     Read Post
+```

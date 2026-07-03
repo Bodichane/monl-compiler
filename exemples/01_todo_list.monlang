@@ -1,3 +1,4 @@
+```yaml
 app TodoApp
 
 entity User
@@ -20,3 +21,4 @@ workflow ManageTodo for User
     Create Todo
     Update Todo
     Delete Todo
+```

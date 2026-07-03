@@ -1,3 +1,4 @@
+```yaml
 app MinimalShop
 
 entity Product
@@ -34,3 +35,4 @@ workflow CustomerCheckout for Customer
 workflow OrderFulfillment for ShopManager
     Update Order.status
     Update Product.stock
+```
