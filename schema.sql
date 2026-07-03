@@ -1,17 +1,34 @@
--- Base de données générée automatiquement pour TodoApp
+-- Base de données générée automatiquement pour TechBlog
 
 CREATE TABLE user (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name VARCHAR(255),
-    email VARCHAR(255)
+    username VARCHAR(255),
+    email VARCHAR(255),
+    role VARCHAR(255)
 );
 
-CREATE TABLE todo (
+CREATE TABLE post (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title VARCHAR(255),
-    completed BOOLEAN
+    slug VARCHAR(255),
+    content TEXT,
+    publishedAt TIMESTAMP
 );
 
--- Relation: User hasMany Todo
-ALTER TABLE todo ADD COLUMN user_id INTEGER;
+CREATE TABLE comment (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    content TEXT,
+    createdAt TIMESTAMP
+);
+
+-- Relation: User hasMany Post
+ALTER TABLE post ADD COLUMN user_id INTEGER;
+<!-- FOREIGN KEY (user_id) REFERENCES user(id) -->;
+
+-- Relation: Post hasMany Comment
+ALTER TABLE comment ADD COLUMN post_id INTEGER;
+<!-- FOREIGN KEY (post_id) REFERENCES post(id) -->;
+
+-- Relation: User hasMany Comment
+ALTER TABLE comment ADD COLUMN user_id INTEGER;
 <!-- FOREIGN KEY (user_id) REFERENCES user(id) -->;

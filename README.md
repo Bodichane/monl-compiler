@@ -12,7 +12,7 @@ Transformer une spécification textuelle structurée en une application complèt
 | **3 — Parser** | Traduction DSL → JSON | 🟢 Validé |
 | **4 — AST** | Modèle intermédiaire & Validation cohérence | 🟢 Validé |
 | **5 — Génération** | Production DB, API & App fonctionnelle | 🟢 Validé |
-| **6 — Boucle complète** | Modification DSL → Changement automatique de l'app | ⬜ En attente |
+| **6 — Boucle complète** | Modification DSL → Changement automatique de l'app | 🟢 Validé |
 | **7 — IA** | Traduction Langage Naturel → DSL MonLang | ⬜ En attente |
 
 ## Structure du Dépôt
