@@ -1,0 +1,36 @@
+app MinimalShop
+
+entity Product
+    name: String
+    description: Text
+    price: Money
+    stock: Integer
+
+entity Order
+    reference: UUID
+    totalAmount: Money
+    status: String
+
+entity OrderItem
+    quantity: Integer
+    priceAtPurchase: Money
+
+relation Order hasMany OrderItem
+relation Product hasMany OrderItem
+relation Customer hasMany Order
+
+actor Customer
+actor ShopManager
+
+rule Product.price min 0
+rule Product.stock min 0
+rule OrderItem.quantity min 1
+
+workflow CustomerCheckout for Customer
+    Read Product
+    Create Order
+    Create OrderItem
+
+workflow OrderFulfillment for ShopManager
+    Update Order.status
+    Update Product.stock

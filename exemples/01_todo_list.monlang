@@ -1,0 +1,22 @@
+app TodoApp
+
+entity User
+    name: String
+    email: Email
+
+entity Todo
+    title: String
+    completed: Boolean
+
+relation User hasMany Todo
+
+actor User
+actor Admin
+
+rule Todo.title required
+rule User.email unique
+
+workflow ManageTodo for User
+    Create Todo
+    Update Todo
+    Delete Todo

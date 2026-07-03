@@ -1,0 +1,35 @@
+app TechBlog
+
+entity User
+    username: String
+    email: Email
+    role: String
+
+entity Post
+    title: String
+    slug: String
+    content: Text
+    publishedAt: DateTime
+
+entity Comment
+    content: Text
+    createdAt: DateTime
+
+relation User hasMany Post
+relation Post hasMany Comment
+relation User hasMany Comment
+
+actor Author
+actor Reader
+
+rule Post.title required
+rule Comment.content required
+
+workflow AuthorManagePost for Author
+    Create Post
+    Update Post
+    Delete Post
+
+workflow ReaderComment for Reader
+    Create Comment
+    Read Post

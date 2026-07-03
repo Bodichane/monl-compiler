@@ -1,0 +1,27 @@
+app MicroSocial
+
+entity User
+    handle: String
+    bio: String
+
+entity Tweet
+    content: String
+    createdAt: DateTime
+
+entity Like
+    createdAt: DateTime
+
+relation User hasMany Tweet
+relation Tweet hasMany Like
+relation User hasMany Like
+
+actor Member
+
+rule User.handle required
+rule Tweet.content max 280
+
+workflow SocialActivity for Member
+    Create Tweet
+    Delete Tweet
+    Create Like
+    Read Tweet
