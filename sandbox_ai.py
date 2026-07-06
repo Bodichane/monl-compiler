@@ -6,7 +6,8 @@ def autoArchiveTodo(context: dict) -> dict:
     """
     CONSIGNE IA : Logique métier custom.
     """
-    # TODO: Le code généré par le LLM sera injecté ici après audit statique local.
-    # Frontière d'isolation stricte.
-    return {'message': 'Coquille vide déterministe pour autoArchiveTodo'}
-
+    title = context.get('Todo.title', '')
+    if '[Archive]' in title:
+        return {'status': 'archived'}
+    else:
+        return {'status': 'active'}

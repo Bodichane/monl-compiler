@@ -3,7 +3,6 @@ import json
 from lark import Lark, Transformer, v_args
 from lark.indenter import PythonIndenter
 
-# 1. Grammaire MonLang avec règles d'actions nommées distinctes
 grammar = r"""
     ?start: app
     
@@ -24,7 +23,6 @@ grammar = r"""
     
     workflow: "workflow" NAME "for" NAME _NL _INDENT action+ _DEDENT
     
-    # Séparation claire des types d'actions pour le Transformer
     ?action: crud_action | execute_action
     crud_action: ACTION_TYPE NAME _NL
                | ACTION_TYPE REFERENCE _NL
@@ -90,11 +88,9 @@ class MonLangTransformer(Transformer):
     def workflow(self, name, actor_name, *actions):
         return {"workflow": {"name": str(name), "actor": str(actor_name), "actions": list(actions)}}
         
-    # Gestion de l'action CRUD classique (ex: Create Todo)
     def crud_action(self, action_type, target):
         return {"type": str(action_type), "target": str(target)}
 
-    # Gestion de l'action d'échappatoire IA (ex: Execute autoArchiveTodo)
     def execute_action(self, custom_block_name):
         return {"type": "Execute", "target": str(custom_block_name)}
 
@@ -106,10 +102,13 @@ class MonLangTransformer(Transformer):
 
     def custom_prop(self, key, *values):
         if str(key) == "description":
-            # Gère le nettoyage des guillemets pour la chaîne de caractères
-            clean_desc = str(values[0]).strip('"') if values else ""
+            # On extrait le texte pur du premier token Lark trouvé
+            raw_text = "".join([str(v) for v in values]) if values else ""
+            clean_desc = raw_text.strip('"')
             return {"description": clean_desc}
         return {str(key): list(values)}
+
+
 
     def io_param(self, name_or_ref, type_str=None):
         if type_str:
