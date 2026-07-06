@@ -3,13 +3,13 @@ import json
 from lark import Lark, Transformer, v_args
 from lark.indenter import PythonIndenter
 
-# 1. Définition de la grammaire révisée de MonLang
+# 1. Grammaire MonLang avec règles d'actions nommées distinctes
 grammar = r"""
     ?start: app
     
     app: "app" NAME _NL block*
     
-    ?block: entity | relation | actor | rule | workflow | _NL
+    ?block: entity | relation | actor | rule | workflow | custom_block | _NL
     
     entity: "entity" NAME _NL _INDENT attribute+ _DEDENT
     attribute: NAME ":" TYPE _NL
@@ -20,10 +20,23 @@ grammar = r"""
     
     rule: "rule" REFERENCE VALIDATION_TYPE _NL
         | "rule" REFERENCE VALIDATION_TYPE INT _NL
+        | "rule" REFERENCE "restrictedTo" NAME _NL
     
     workflow: "workflow" NAME "for" NAME _NL _INDENT action+ _DEDENT
-    action: ACTION_TYPE NAME _NL
-          | ACTION_TYPE REFERENCE _NL
+    
+    # Séparation claire des types d'actions pour le Transformer
+    ?action: crud_action | execute_action
+    crud_action: ACTION_TYPE NAME _NL
+               | ACTION_TYPE REFERENCE _NL
+    execute_action: "Execute" NAME _NL
+
+    custom_block: "custom" NAME _NL _INDENT custom_prop+ _DEDENT
+    custom_prop: "input" ":" io_param ("," io_param)* _NL
+               | "output" ":" io_param _NL
+               | "description" ":" STRING_LITERAL _NL
+
+    io_param: NAME ":" TYPE
+            | REFERENCE
 
     TYPE: "String" | "Text" | "Integer" | "Float" | "Boolean" | "Date" | "DateTime" | "Email" | "UUID" | "Money"
     RELATION_TYPE: "hasMany" | "belongsTo" | "hasOne"
@@ -32,11 +45,9 @@ grammar = r"""
     
     NAME: /[a-zA-Z_][a-zA-Z0-9_]*/
     REFERENCE: /[a-zA-Z_][a-zA-Z0-9_]*\.[a-zA-Z_][a-zA-Z0-9_]*/
+    STRING_LITERAL: /"[^"\\]*(?:\\.[^"\\]*)*"/
     
-    # Terminaux pour la gestion des fins de lignes et de blocs
     _NL: /(\r?\n[\t ]*)+/
-    
-    # Déclaration explicite pour le module d'indentation
     %declare _INDENT _DEDENT
 
     %import common.INT
@@ -44,7 +55,6 @@ grammar = r"""
     %ignore WS_INLINE
 """
 
-# 2. Le Transformer convertit l'arbre syntaxique en dictionnaire exploitable
 @v_args(inline=True)
 class MonLangTransformer(Transformer):
     def app(self, name, *blocks):
@@ -55,7 +65,8 @@ class MonLangTransformer(Transformer):
             "relations": [b["relation"] for b in valid_blocks if "relation" in b],
             "actors": [b["actor"] for b in valid_blocks if "actor" in b],
             "rules": [b["rule"] for b in valid_blocks if "rule" in b],
-            "workflows": [b["workflow"] for b in valid_blocks if "workflow" in b]
+            "workflows": [b["workflow"] for b in valid_blocks if "workflow" in b],
+            "custom_logic": [b["custom"] for b in valid_blocks if "custom" in b]
         }
         
     def entity(self, name, *attributes):
@@ -73,16 +84,38 @@ class MonLangTransformer(Transformer):
     def rule(self, reference, valid_type, value=None):
         data = {"reference": str(reference), "type": str(valid_type)}
         if value is not None:
-            data["value"] = int(value)
+            data["value"] = str(value)
         return {"rule": data}
         
     def workflow(self, name, actor_name, *actions):
         return {"workflow": {"name": str(name), "actor": str(actor_name), "actions": list(actions)}}
         
-    def action(self, action_type, target):
+    # Gestion de l'action CRUD classique (ex: Create Todo)
+    def crud_action(self, action_type, target):
         return {"type": str(action_type), "target": str(target)}
 
-# 3. Classe de configuration personnalisée de l'indenteur pour MonLang
+    # Gestion de l'action d'échappatoire IA (ex: Execute autoArchiveTodo)
+    def execute_action(self, custom_block_name):
+        return {"type": "Execute", "target": str(custom_block_name)}
+
+    def custom_block(self, name, *props):
+        prop_dict = {}
+        for p in props:
+            prop_dict.update(p)
+        return {"custom": {"name": str(name), **prop_dict}}
+
+    def custom_prop(self, key, *values):
+        if str(key) == "description":
+            # Gère le nettoyage des guillemets pour la chaîne de caractères
+            clean_desc = str(values[0]).strip('"') if values else ""
+            return {"description": clean_desc}
+        return {str(key): list(values)}
+
+    def io_param(self, name_or_ref, type_str=None):
+        if type_str:
+            return {"name": str(name_or_ref), "type": str(type_str)}
+        return {"reference": str(name_or_ref)}
+
 class MonLangIndenter(PythonIndenter):
     NL_type = '_NL'
     OPEN_PAREN_types = []
@@ -92,22 +125,15 @@ class MonLangIndenter(PythonIndenter):
     tab_len = 4
 
 def parse_monlang_file(file_path):
-    # Injection du composant d'indentation postlex
     parser = Lark(grammar, parser='lalr', postlex=MonLangIndenter())
-    
     with open(file_path, 'r', encoding='utf-8') as f:
         content = f.read()
-        
-    raw_tree = parser.parse(content + "\n")
-    json_ast = MonLangTransformer().transform(raw_tree)
-    return json_ast
+    return MonLangTransformer().transform(parser.parse(content + "\n"))
 
 if __name__ == "__main__":
     sample_path = os.path.join(os.path.dirname(__file__), "../exemples/01_todo_list.yaml")
-    
     try:
         result = parse_monlang_file(sample_path)
-        print("🎉 PARSING REUSSI ! Voici le JSON généré :\n")
-        print(json.dumps(result, indent=2, ensure_ascii=False))
+        print("🎉 PARSING RÉUSSI !\n", json.dumps(result, indent=2, ensure_ascii=False))
     except Exception as e:
         print(f"❌ Erreur lors du parsing : {e}")

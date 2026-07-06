@@ -15,8 +15,15 @@ actor Admin
 
 rule Todo.title required
 rule User.email unique
+rule User.email restrictedTo Admin
 
 workflow ManageTodo for User
     Create Todo
     Update Todo
     Delete Todo
+    Execute autoArchiveTodo
+
+custom autoArchiveTodo
+    input: Todo.title
+    output: status: String
+    description: "Analyse le titre et archive automatiquement si le mot clé [Archive] est detecté"
