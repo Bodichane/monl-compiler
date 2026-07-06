@@ -36,7 +36,7 @@ class MonLangAST:
         return self.to_normalized_ast(security_reports)
 
     def _validate_structures(self):
-        """Vérifie la cohérence de base du modèle."""
+        """Vérifie la cohérence de base du modèle (Correctif Bug n°5)."""
         # Vérification des acteurs dans les workflows
         for wf in self.workflows:
             if wf["actor"] not in self.actors:
@@ -44,15 +44,18 @@ class MonLangAST:
             
             # Vérification des cibles d'actions et appels d'exécution IA
             for action in wf["actions"]:
+                target = action["target"]
                 if action["type"] == "Execute":
-                    if action["target"] not in self.custom_logic:
-                        raise ASTValidationError(f"Architecture : L'action Execute appelle '{action['target']}', mais ce bloc custom n'est pas défini.")
+                    if target not in self.custom_logic:
+                        raise ASTValidationError(f"Architecture : L'action Execute appelle '{target}', mais ce bloc custom n'est pas défini.")
                 else:
-                    if action["target"] not in self.entities:
-                        raise ASTValidationError(f"Structure : L'action cible l'entité '{action['target']}' qui n'existe pas.")
+                    # Correctif Bug n°5 : Gérer la notation pointée (ex: Order.status -> Order)
+                    base_target = target.split(".")[0] if "." in target else target
+                    if base_target not in self.entities:
+                        raise ASTValidationError(f"Structure : L'action cible l'entité '{base_target}' qui n'existe pas.")
 
     def _audit_security_rules(self):
-        """Moteur d'analyse statique traquant les vulnérabilités de spécification."""
+        """Moteur d'analyse statique traquant les vulnérabilités (Correctif Bug n°4)."""
         reports = []
         restricted_fields = {}
         
@@ -62,22 +65,40 @@ class MonLangAST:
                 restricted_fields[rule["reference"]] = rule["value"]
 
         # Audit 1 & 2 : Analyse des Workflows et des actions critiques exposées
+        # On maintient une table de correspondance : quel bloc custom est appelé par quel acteur
+        custom_callers = {}
+
         for wf in self.workflows:
             actor = wf["actor"]
             for action in wf["actions"]:
+                target = action["target"]
                 if action["type"] == "Delete" and actor != "Admin":
-                    # Si un droit de suppression est donné à quelqu'un d'autre que l'Admin sans restriction explicite
-                    reports.append(f"⚠️  [CRITICAL_WARNING] Le workflow '{wf['name']}' permet à l'acteur '{actor}' de supprimer l'entité '{action['target']}'. Assurez-vous que cette action est hautement sécurisée au niveau infra.")
+                    reports.append(f"⚠️  [CRITICAL_WARNING] Le workflow '{wf['name']}' permet à l'acteur '{actor}' de supprimer l'entité '{target}'. Assurez-vous que cette action est hautement sécurisée au niveau infra.")
                 
+                if action["type"] == "Execute":
+                    if target not in custom_callers:
+                        custom_callers[target] = set()
+                    custom_callers[target].add(actor)
+
         # Audit 3 : Analyse de l'isolation des blocs de logique IA (Custom)
         for c_name, c_bloc in self.custom_logic.items():
             inputs = c_bloc.get("input", [])
+            
+            # Correctif Bug n°4 : On retrouve les vrais acteurs qui appellent ce bloc custom
+            calling_actors = custom_callers.get(c_name, set())
+            
             for inp in inputs:
                 if "reference" in inp:
                     ref = inp["reference"]
-                    # Alerte si l'IA touche à une variable privée non protégée
-                    if ref in restricted_fields and restricted_fields[ref] != actor:
-                        reports.append(f"🔒 [SECURITY_AUDIT] Le bloc de logique IA '{c_name}' utilise la donnée sensible '{ref}', restreinte à l'acteur '{restricted_fields[ref]}'. Le compilateur va injecter un filtre d'anonymisation strict par défaut.")
+                    
+                    # Si le champ est restreint, on vérifie si l'UN des acteurs appelants viole la restriction
+                    if ref in restricted_fields:
+                        allowed_actor = restricted_fields[ref]
+                        
+                        # Si aucun flux n'appelle ce bloc, ou si un acteur non autorisé l'appelle
+                        for caller in calling_actors:
+                            if caller != allowed_actor:
+                                reports.append(f"🔒 [SECURITY_AUDIT] Le bloc de logique IA '{c_name}' (exécuté par '{caller}') utilise la donnée sensible '{ref}' restreinte à l'acteur '{allowed_actor}'. Le compilateur va injecter un filtre d'anonymisation strict par défaut.")
 
         if not reports:
             print("🛡️  Audit : Aucune vulnérabilité ou privilège excessif détecté dans la spécification.")

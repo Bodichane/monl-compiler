@@ -40,7 +40,7 @@ class MonLangSecureGenerator:
         return mapping.get(type_str, "TEXT")
 
     def _generate_sql(self):
-        """Génère un schéma SQL déterministe et standardisé."""
+        """Génère un schéma SQL déterministe et standardisé (Correctif Bug B htmllink)."""
         sql_lines = [f"-- Socle DB Déterministe généré automatiquement pour {self.app_name}\n"]
         for ent_name, attrs in self.entities.items():
             sql_lines.append(f"CREATE TABLE {ent_name.lower()} (")
@@ -50,10 +50,20 @@ class MonLangSecureGenerator:
                 sql_lines.append(f"    {attr_name} {sql_type},")
             sql_lines[-1] = sql_lines[-1].rstrip(",")
             sql_lines.append(");\n")
+            
+        # Correction Bug B : Génération de clés étrangères en pure syntaxe SQL (pas de commentaire HTML)
+        for rel in self.relations:
+            if rel["type"] == "hasMany":
+                source = rel["source"].lower()
+                target = rel["target"].lower()
+                sql_lines.append(f"-- Relation: {rel['source']} hasMany {rel['target']}")
+                sql_lines.append(f"ALTER TABLE {target} ADD COLUMN {source}_id INTEGER;")
+                sql_lines.append(f"ALTER TABLE {target} ADD CONSTRAINT fk_{target}_{source} FOREIGN KEY ({source}_id) REFERENCES {source}(id);\n")
+                
         return "\n".join(sql_lines)
 
     def _generate_secure_fastapi(self):
-        """Génère l'API avec contrôle d'accès systématique et routage étanche."""
+        """Génère l'API avec contrôle d'accès systématique (Correctif Bugs #1, #5, D)."""
         api_lines = [
             "# API Déterministe Sécurisée par défaut - Ne pas modifier à la main",
             "from fastapi import FastAPI, HTTPException, Header",
@@ -83,22 +93,49 @@ class MonLangSecureGenerator:
                 act_type = action["type"]
                 target = action["target"]
                 
-                # Modèle de vérification de l'acteur par Header HTTP corrigé avec guillemets doubles
+                # Correctif Bug n°5 : Isoler l'entité de base si la cible contient un point (ex: Order.status -> Order)
+                base_target = target.split(".")[0] if "." in target else target
+                
+                # Modèle de vérification de l'acteur par Header HTTP
                 security_check = f'    if x_actor != "{required_actor}": raise HTTPException(status_code=403, detail="Contrôle d\'accès : Rôle {required_actor} requis")'
                 
+                # --- ACTION : CREATE ---
                 if act_type == "Create":
-                    api_lines.append(f"@app.post('/{target.lower()}', tags=['{wf_name}'])")
-                    api_lines.append(f"async def create_{target.lower()}(data: {target}Schema, x_actor: str = Header(...)):")
+                    api_lines.append(f"@app.post('/{base_target.lower()}', tags=['{wf_name}'])")
+                    api_lines.append(f"async def create_{base_target.lower()}(data: {base_target}Schema, x_actor: str = Header(...)):")
                     api_lines.append(security_check)
-                    api_lines.append(f"    return {{'status': 'success', 'action': 'create', 'target': '{target}'}}")
+                    api_lines.append(f"    return {{'status': 'success', 'action': 'create', 'target': '{base_target}'}}")
                     api_lines.append("")
                     
+                # --- ACTION : READ (Correctif hérité Bug D) ---
+                elif act_type == "Read":
+                    api_lines.append(f"@app.get('/{base_target.lower()}/{{id}}', tags=['{wf_name}'])")
+                    api_lines.append(f"async def read_{base_target.lower()}(id: int, x_actor: str = Header(...)):")
+                    api_lines.append(security_check)
+                    api_lines.append(f"    return {{'status': 'success', 'action': 'read', 'target': '{base_target}', 'id': id}}")
+                    api_lines.append("")
+
+                # --- ACTION : UPDATE (Correctif Bug n°1) ---
+                elif act_type == "Update":
+                    api_lines.append(f"@app.put('/{base_target.lower()}/{{id}}', tags=['{wf_name}'])")
+                    api_lines.append(f"async def update_{base_target.lower()}(id: int, data: {base_target}Schema, x_actor: str = Header(...)):")
+                    api_lines.append(security_check)
+                    api_lines.append(f"    return {{'status': 'success', 'action': 'update', 'target': '{target}', 'id': id}}")
+                    api_lines.append("")
+
+                # --- ACTION : DELETE (Correctif Bug n°1) ---
+                elif act_type == "Delete":
+                    api_lines.append(f"@app.delete('/{base_target.lower()}/{{id}}', tags=['{wf_name}'])")
+                    api_lines.append(f"async def delete_{base_target.lower()}(id: int, x_actor: str = Header(...)):")
+                    api_lines.append(security_check)
+                    api_lines.append(f"    return {{'status': 'success', 'action': 'delete', 'target': '{base_target}', 'id': id}}")
+                    api_lines.append("")
+                    
+                # --- ACTION : EXECUTE ---
                 elif act_type == "Execute":
-                    # L'API appelle la sandbox sans lui donner accès à la base de données
                     api_lines.append(f"@app.post('/workflow/{wf_name.lower()}/{target.lower()}', tags=['{wf_name}'])")
                     api_lines.append(f"async def execute_{target.lower()}(payload: dict, x_actor: str = Header(...)):")
                     api_lines.append(security_check)
-                    api_lines.append(f"    # Appel sécurisé à l'échappatoire IA")
                     api_lines.append(f"    result = sandbox_ai.{target}(payload)")
                     api_lines.append("    return {'status': 'executed', 'sandbox_result': result}")
                     api_lines.append("")
@@ -112,7 +149,6 @@ class MonLangSecureGenerator:
             "# Ce fichier contient uniquement des fonctions de logique pure.",
             "# L'IA a interdiction de modifier l'infrastructure ou d'accéder à la base de données.\n",
         ]
-        
         for func in self.custom_functions:
             name = func["name"]
             desc = func.get("description", "Logique métier custom.").strip()
@@ -122,10 +158,8 @@ class MonLangSecureGenerator:
             sb_lines.append(f"    CONSIGNE IA : {desc}")
             sb_lines.append(f"    \"\"\"")
             sb_lines.append(f"    # TODO: Le code généré par le LLM sera injecté ici après audit statique local.")
-            sb_lines.append(f"    # Frontière d'isolation stricte.")
             sb_lines.append(f"    return {{'message': 'Coquille vide déterministe pour {name}'}}")
             sb_lines.append("\n")
-            
         return "\n".join(sb_lines)
 
 if __name__ == "__main__":
@@ -137,6 +171,6 @@ if __name__ == "__main__":
         
         generator = MonLangSecureGenerator(normalized_ast)
         generator.generate_all()
-        print("\n🎉 PHASE 5 RÉUSSIE ! L'infrastructure sécurisée et l'échappatoire IA sont isolés.")
+        print("\n🎉 PHASE 5 RÉUSSIE ! L'infrastructure complète CRUD + Sandbox est opérationnelle.")
     except Exception as e:
         print(f"❌ Échec de la Phase 5 : {e}")

@@ -3,6 +3,7 @@ import json
 from lark import Lark, Transformer, v_args
 from lark.indenter import PythonIndenter
 
+# 1. Grammaire MonLang corrigée avec propriétés nommées explicites (Bugs #2 & #3)
 grammar = r"""
     ?start: app
     
@@ -28,10 +29,11 @@ grammar = r"""
                | ACTION_TYPE REFERENCE _NL
     execute_action: "Execute" NAME _NL
 
-    custom_block: "custom" NAME _NL _INDENT custom_prop+ _DEDENT
-    custom_prop: "input" ":" io_param ("," io_param)* _NL
-               | "output" ":" io_param _NL
-               | "description" ":" STRING_LITERAL _NL
+    # Restructuration des règles pour empêcher Lark de filtrer les mots-clés anonymes
+    custom_block: "custom" NAME _NL _INDENT (input_prop | output_prop | description_prop)+ _DEDENT
+    input_prop: "input" ":" io_param ("," io_param)* _NL
+    output_prop: "output" ":" io_param _NL
+    description_prop: "description" ":" STRING_LITERAL _NL
 
     io_param: NAME ":" TYPE
             | REFERENCE
@@ -94,26 +96,28 @@ class MonLangTransformer(Transformer):
     def execute_action(self, custom_block_name):
         return {"type": "Execute", "target": str(custom_block_name)}
 
+    # Transformation chirurgicale et explicite du bloc custom
     def custom_block(self, name, *props):
         prop_dict = {}
         for p in props:
-            prop_dict.update(p)
+            if p:
+                prop_dict.update(p)
         return {"custom": {"name": str(name), **prop_dict}}
 
-    def custom_prop(self, key, *values):
-        if str(key) == "description":
-            # On extrait le texte pur du premier token Lark trouvé
-            raw_text = "".join([str(v) for v in values]) if values else ""
-            clean_desc = raw_text.strip('"')
-            return {"description": clean_desc}
-        return {str(key): list(values)}
+    def input_prop(self, *params):
+        return {"input": list(params)}
 
+    def output_prop(self, param):
+        return {"output": param}
 
+    def description_prop(self, string_literal):
+        return {"description": str(string_literal).strip('"')}
 
     def io_param(self, name_or_ref, type_str=None):
         if type_str:
             return {"name": str(name_or_ref), "type": str(type_str)}
         return {"reference": str(name_or_ref)}
+
 
 class MonLangIndenter(PythonIndenter):
     NL_type = '_NL'
@@ -123,11 +127,13 @@ class MonLangIndenter(PythonIndenter):
     DEDENT_type = '_DEDENT'
     tab_len = 4
 
+
 def parse_monlang_file(file_path):
     parser = Lark(grammar, parser='lalr', postlex=MonLangIndenter())
     with open(file_path, 'r', encoding='utf-8') as f:
         content = f.read()
     return MonLangTransformer().transform(parser.parse(content + "\n"))
+
 
 if __name__ == "__main__":
     sample_path = os.path.join(os.path.dirname(__file__), "../exemples/01_todo_list.yaml")

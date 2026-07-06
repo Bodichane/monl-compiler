@@ -23,9 +23,18 @@ async def create_todo(data: TodoSchema, x_actor: str = Header(...)):
     if x_actor != "User": raise HTTPException(status_code=403, detail="Contrôle d'accès : Rôle User requis")
     return {'status': 'success', 'action': 'create', 'target': 'Todo'}
 
+@app.put('/todo/{id}', tags=['ManageTodo'])
+async def update_todo(id: int, data: TodoSchema, x_actor: str = Header(...)):
+    if x_actor != "User": raise HTTPException(status_code=403, detail="Contrôle d'accès : Rôle User requis")
+    return {'status': 'success', 'action': 'update', 'target': 'Todo', 'id': id}
+
+@app.delete('/todo/{id}', tags=['ManageTodo'])
+async def delete_todo(id: int, x_actor: str = Header(...)):
+    if x_actor != "User": raise HTTPException(status_code=403, detail="Contrôle d'accès : Rôle User requis")
+    return {'status': 'success', 'action': 'delete', 'target': 'Todo', 'id': id}
+
 @app.post('/workflow/managetodo/autoarchivetodo', tags=['ManageTodo'])
 async def execute_autoarchivetodo(payload: dict, x_actor: str = Header(...)):
     if x_actor != "User": raise HTTPException(status_code=403, detail="Contrôle d'accès : Rôle User requis")
-    # Appel sécurisé à l'échappatoire IA
     result = sandbox_ai.autoArchiveTodo(payload)
     return {'status': 'executed', 'sandbox_result': result}

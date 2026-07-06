@@ -4,7 +4,7 @@
 
 def autoArchiveTodo(context: dict) -> dict:
     """
-    CONSIGNE IA : Logique métier custom.
+    CONSIGNE IA : Analyse le titre et archive automatiquement si le mot clé [Archive] est detecté
     """
     title = context.get('Todo.title', '')
     if '[Archive]' in title:
