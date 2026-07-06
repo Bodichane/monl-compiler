@@ -1,45 +1,31 @@
-#, # API générée automatiquement par MonLang
-from fastapi import FastAPI, HTTPException
+# API Déterministe Sécurisée par défaut - Ne pas modifier à la main
+from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel
 from typing import List, Optional
+import sandbox_ai  # Importation de l'échappatoire IA isolé
 
-app = FastAPI(title='TechBlog API')
+app = FastAPI(title='TodoApp - Secure Core')
 
-# --- MODÈLES DE DONNÉES DE LA COMPILATION ---
+# --- VALIDATION STRICTE DES DONNÉES (PYDANTIC) ---
 class UserSchema(BaseModel):
-    username: str
+    name: str
     email: str
-    role: str
-    class Config:
-        from_attributes = True
 
-class PostSchema(BaseModel):
+
+class TodoSchema(BaseModel):
     title: str
-    slug: str
-    content: str
-    publishedAt: str
-    class Config:
-        from_attributes = True
+    completed: bool
 
-class CommentSchema(BaseModel):
-    content: str
-    createdAt: str
-    class Config:
-        from_attributes = True
 
-# --- ROUTES SÉCURISÉES PAR WORKFLOW ---
-@app.post('/post', tags=['Workflow: AuthorManagePost (Author)'])
-async def create_post(data: PostSchema):
-    return {'message': 'Post créé avec succès via le workflow AuthorManagePost par Author', 'data': data}
+# --- ENFORCEMENT DU CONTRÔLE D'ACCÈS PAR WORKFLOW ---
+@app.post('/todo', tags=['ManageTodo'])
+async def create_todo(data: TodoSchema, x_actor: str = Header(...)):
+    if x_actor != "User": raise HTTPException(status_code=403, detail="Contrôle d'accès : Rôle User requis")
+    return {'status': 'success', 'action': 'create', 'target': 'Todo'}
 
-@app.put('/post/{id}', tags=['Workflow: AuthorManagePost (Author)'])
-async def update_post(id: int, data: PostSchema):
-    return {'message': 'Post mis à jour', 'id': id, 'data': data}
-
-@app.delete('/post/{id}', tags=['Workflow: AuthorManagePost (Author)'])
-async def delete_post(id: int):
-    return {'message': 'Post supprimé', 'id': id}
-
-@app.post('/comment', tags=['Workflow: ReaderComment (Reader)'])
-async def create_comment(data: CommentSchema):
-    return {'message': 'Comment créé avec succès via le workflow ReaderComment par Reader', 'data': data}
+@app.post('/workflow/managetodo/autoarchivetodo', tags=['ManageTodo'])
+async def execute_autoarchivetodo(payload: dict, x_actor: str = Header(...)):
+    if x_actor != "User": raise HTTPException(status_code=403, detail="Contrôle d'accès : Rôle User requis")
+    # Appel sécurisé à l'échappatoire IA
+    result = sandbox_ai.autoArchiveTodo(payload)
+    return {'status': 'executed', 'sandbox_result': result}
