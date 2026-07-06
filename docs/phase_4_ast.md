@@ -1,19 +1,28 @@
-# 🟢 Phase 4 — L'Arbre de Syntaxe Abstraite (AST) et Validations
+# 🟢 Phase 4 — L'Arbre de Syntaxe Abstraite (AST) & Audit Statique de Sécurité
 
 ## Objectif
-Le dictionnaire JSON produit en Phase 3 est purement structurel. La Phase 4 introduit l'intelligence métier du compilateur (Analyse Sémantique). Son but est de valider la cohérence logique de l'application déclarée et de générer un arbre de syntaxe abstraite (AST) normalisé, propre et totalement indépendant de la technologie cible.
+L'Arbre de Syntaxe Abstraite (AST) normalise le dictionnaire brut issu du Parser (Phase 3). Cette phase implémente le moteur d'**Analyse Statique de Sécurité** (Axe : "Sécurisé et audité") conçu pour intercepter les vulnérabilités d'architecture directement au moment de la compilation, avant la génération des fichiers d'infrastructure.
 
-## Règles de Cohérence Validées (`src/ast_validator.py`)
-Le validateur d'AST agit comme un garde-fou architectural en appliquant trois tests critiques :
-1. **Validation des Relations** : Vérification stricte que chaque entité source et cible déclarée dans un bloc `relation` existe bel et bien.
-2. **Validation des Règles (`rules`)** : Vérification que la cible (format `Entite.attribut`) pointe vers une entité existante et un attribut effectivement présent dans cette entité.
-3. **Validation des Workflows** : Vérification que l'acteur (`actor`) lié au processus est déclaré, et que les actions CRUD ciblent des entités réelles.
+## Validations de Cohérence Structurelle (`src/ast_validator.py`)
+Le validateur résout les dépendances logiques et intercepte les incohérences de spécification :
+1. **Déclarations d'Acteurs** : Vérification stricte que chaque profil d'acteur attaché à un workflow a été préalablement recensé dans le bloc global `actor`.
+2. **Résolution des Notations Pointées** : Prise en charge chirurgicale des cibles de champs imbriqués (ex: `Order.status`). L'analyseur isole dynamiquement l'entité maîtresse (`Order`) pour valider son existence dans le schéma de données avant de valider l'attribut, évitant tout crash de compilation sur les applications complexes.
 
-## Résilience aux Erreurs (Crash-Test)
-Le système lève une exception explicite `ASTValidationError` et bloque immédiatement la compilation si une incohérence est détectée (ex: application d'une contrainte sur une entité imaginaire `FakeEntity`).
+## Algorithme d'Audit Statique de Sécurité
+L'analyseur statique traque activement deux vulnérabilités architecturales majeures :
 
-## Structure de l'AST Normalisé
-Une fois validé, l'AST sépare proprement l'application en trois piliers universels, prêts pour le moteur de génération de la Phase 5 :
-- `meta` : Informations globales de l'application.
-- `schema` : Structure pure des données (Entités, Attributs, Types, Relations).
-- `security` : Règles de filtrage, profils d'acteurs et cas d'usage (Workflows).
+### 1. Détection des Privilèges Destructeurs Non Protégés (Orphan Delete)
+Le moteur scanne l'intégralité des workflows. Si une action de type `Delete` est détectée sur une entité alors que le workflow est rattaché à un acteur générique autre que l'administrateur (`Admin`), le compilateur émet une alerte critique `[CRITICAL_WARNING]` pour forcer l'équipe technique à valider la sécurité de cette faille de spécification.
+
+### 2. Audit d'Isolation des Blocs IA & Résolution Dynamique des Acteurs
+Pour sécuriser l'utilisation de la donnée au sein de l'échappatoire IA (blocs `custom`), le compilateur applique un algorithme de graphe d'appels :
+- **Problématique résolue** : Les blocs `custom` n'ont pas d'acteur attitré nativement. L'analyseur cartographie l'arbre des dépendances en identifiant chaque workflow qui invoque la fonction IA via une instruction `Execute`.
+- **Analyse des Fuites** : Si un bloc `custom` reçoit en paramètre (`input`) un champ protégé par une contrainte de confidentialité stricte (`restrictedTo`), le moteur compare cette restriction à l'ensemble des acteurs ayant le droit d'exécuter ce bloc.
+- **Alerte** : Si un acteur non autorisé est capable de déclencher indirectement le bloc IA, un log de sécurité `[SECURITY_AUDIT]` est généré. Le compilateur ordonne alors l'injection de filtres d'anonymisation automatiques au niveau de la Sandbox pour protéger la donnée.
+
+## Structure de l'AST Normalisé Sécurisé
+Une fois l'audit validé, l'AST produit un objet structuré en quatre piliers étanches prêts pour le générateur déterministe :
+- `meta` : Métadonnées et historique des logs d'audit de sécurité.
+- `schema` : Structure relationnelle pure des données (Entités, Attributs, Relations).
+- `security` : Profils d'acteurs, règles de filtrage de champs et droits d'accès CRUD.
+- `sandbox_ai` : Signatures d'I/O et consignes d'isolation pour le remplissage automatisé du LLM.

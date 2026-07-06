@@ -15,3 +15,4 @@ Le générateur produit deux fichiers autonomes et exploitables à la racine du 
 
 ## Validation
 Le test de génération sur l'application `TodoApp` prouve la viabilité du pipeline. Les structures générées sont normalisées, standardisées et prêtes pour le déploiement ou l'exécution en production.
+
