@@ -1,11 +1,13 @@
-# 🟡 Phase 1 — Modèle Conceptuel
+# 🟢 Phase 1 — Modèle Conceptuel et Axes de Sécurité
 
-Pour représenter n'importe quelle application logicielle sans complexité technique, le modèle mental de MonLang repose exclusivement sur 6 concepts fondamentaux.
+Le modèle mental de MonLang s'étend pour soutenir l'isolation de la logique IA et l'analyse statique de la sécurité.
 
-## Les 6 Concepts Piliers
-1. **Entity** : Objet métier manipulé par l'application (ex: `Todo`, `User`).
-2. **Attribute** : Propriété ou donnée propre à une entité (ex: `title`, `price`).
-3. **Relation** : Lien logique unidirectionnel reliant deux entités (ex: `User hasMany Post`).
-4. **Actor** : Profil utilisateur ou système qui interagit avec l'application (ex: `Admin`, `Client`).
-5. **Rule** : Contrainte ou validation métier stricte (ex: `required`, `unique`, `min 0`).
-6. **Workflow** : Processus métier définissant les actions CRUD autorisées pour un acteur spécifique.
+## Les Deux Axes de Sécurité Évolutifs
+1. **Sécurisé par défaut** : Le générateur applique systématiquement les bonnes pratiques de l'industrie (protection contre les injections SQL, validations de types Pydantic, isolation des scopes). Aucune faille ne peut être introduite par négligence de l'utilisateur.
+2. **Sécurisé et audité** : Le compilateur embarque un moteur d'analyse statique de sécurité directement intégré au pipeline. Il scanne activement la spécification déclarée pour détecter les structures dangereuses (permissions manquantes, élévations de privilèges implicites, actions sensibles mal protégées).
+
+## Les Concepts Étendus
+- **Entity & Attribute** : Définition des structures de données et contraintes de types.
+- **Relation** : Liens logiques induisant des contraintes d'intégrité en base de données.
+- **Actor & Workflow** : Définition stricte des profils et des routes d'API associées.
+- **Custom Block (Échappatoire IA)** : Déclaration explicite des frontières d'entrées/sorties d'une fonction qui sera générée par un LLM dans une sandbox isolée.
