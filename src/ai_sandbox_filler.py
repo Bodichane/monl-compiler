@@ -6,7 +6,7 @@ from ast_validator import MonLangAST
 from parser import parse_monlang_file
 
 def generate_custom_logic_with_ai(func_name, description, inputs, output):
-    """Interroge Ollama au format JSON strict pour obtenir le corps du code."""
+    """Interroge Ollama au format JSON strict pour obtenir le corps du code (Timeout augmenté à 90s)."""
     print(f"🤖 L'IA locale (Qwen) génère le code métier pour '{func_name}'...")
     url = "http://localhost:11434/api/chat"
     
@@ -23,7 +23,7 @@ def generate_custom_logic_with_ai(func_name, description, inputs, output):
     Tu dois impérativement répondre au format JSON avec une seule clé "code" contenant les lignes de code Python pur, sans aucune indentation de départ tout à gauche (pas de ligne 'def').
     Exemple de JSON attendu :
     {{
-        "code": "title = context.get('Todo.title', '')\\nif '[Archive]' in title:\\n    return {{'status': 'archived'}}\(\nreturn {{'status': 'active'}}\)"
+        "code": "title = context.get('Todo.title', '')\\nif '[Archive]' in title:\\n    return {{'status': 'archived'}}\\nreturn {{'status': 'active'}}"
     }}
     """
 
@@ -36,7 +36,8 @@ def generate_custom_logic_with_ai(func_name, description, inputs, output):
     }
 
     try:
-        response = requests.post(url, json=payload, timeout=30)
+        # Augmentation du timeout à 90 secondes pour absorber la charge d'initialisation sur 8 Go de RAM
+        response = requests.post(url, json=payload, timeout=90)
         response.raise_for_status()
         ai_json = json.loads(response.json()["message"]["content"])
         return ai_json["code"]
@@ -124,17 +125,19 @@ def inject_code_into_sandbox(func_name, ai_code):
         
     print(f"🔒 Injection réussie ! Le code de l'IA a été scellé et aligné pour '{func_name}'.")
 
-def run_ai_filler():
-    sample_path = os.path.join(os.path.dirname(__file__), "../exemples/01_todo_list.yaml")
-    raw_json = parse_monlang_file(sample_path)
+def run_ai_filler(file_path):
+    """Extrait les fonctions custom de l'AST et pilote le remplissage par l'IA."""
+    # Utilisation dynamique du fichier passé par l'orchestrateur main.py
+    raw_json = parse_monlang_file(file_path)
     ast_manager = MonLangAST(raw_json)
     normalized_ast = ast_manager.validate_and_audit()
     
     custom_funcs = normalized_ast["sandbox_ai"]["custom_functions"]
     for func in custom_funcs:
-        description = func.get("description", "Analyse le titre et archive automatiquement si le mot clé [Archive] est detecté")
+        description = func.get("description", "Analyse le titre et archive automatiquement")
         ai_code = generate_custom_logic_with_ai(func["name"], description, func.get("input", []), func.get("output", []))
         inject_code_into_sandbox(func["name"], ai_code)
+
 
 if __name__ == "__main__":
     try:

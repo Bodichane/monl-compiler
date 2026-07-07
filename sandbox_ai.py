@@ -9,5 +9,4 @@ def autoArchiveTodo(context: dict) -> dict:
     title = context.get('Todo.title', '')
     if '[Archive]' in title:
         return {'status': 'archived'}
-    else:
-        return {'status': 'active'}
+    return {'status': 'active'}
