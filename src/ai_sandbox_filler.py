@@ -32,7 +32,7 @@ def validate_generated_code_safety(ai_code: str, func_name: str):
 
 def generate_custom_logic_with_ai(func_name, description, inputs, output):
     """Interroge Ollama au format JSON strict pour obtenir le corps du code."""
-    print(f"🤖 L'IA locale (Qwen) génère le code métier pour '{func_name}'...")
+    print(f"🤖 L'IA génère le code métier pour '{func_name}'...")
     url = "http://localhost:11434/api/chat"
     
     prompt = f"""

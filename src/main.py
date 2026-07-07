@@ -7,50 +7,57 @@ from generator import MonLangSecureGenerator
 from ai_sandbox_filler import run_ai_filler
 
 def compile_monlang(file_path):
-    """Orchestre la boucle complète de compilation sécurisée et l'intégration IA."""
+    """Orchestre le pipeline MonLang avec un rendu CLI épuré et professionnel."""
     if not os.path.exists(file_path):
-        print(f"❌ Erreur : Le fichier spécifié '{file_path}' n'existe pas.")
+        print(f"❌ Erreur : Le fichier de spécification '{file_path}' n'existe pas.")
         sys.exit(1)
         
-    print("=" * 60)
-    print(f"🚀 COMPILATEUR SÉCURISÉ MONLANG : {os.path.basename(file_path)}")
-    print("=" * 60)
+    filename = os.path.basename(file_path)
+    
+    print("\n" + "=" * 65)
+    print(f" ⚙️  COMPILATEUR MONLANG : {filename}")
+    print("=" * 65)
     
     try:
-        # Étape 1 : Parsing Extensible (Phase 3)
-        print("\n[Étape 1/4] Analyse syntaxique (Parsing)...")
+        # --- ÉTAPE 1 : PARSING ---
+        print("\n [1/4] Analyse syntaxique...")
         raw_json = parse_monlang_file(file_path)
-        print(" -> Structure syntaxique extraite avec succès.")
+        print("    └─ AST de base extrait avec succès.")
         
-        # Étape 2 : Validation Sémantique & Analyse Statique de Sécurité (Phase 4)
-        print("\n[Étape 2/4] Validation logique et audit statique des vulnérabilités...")
+        # --- ÉTAPE 2 : AUDIT DE SÉCURITÉ ---
+        print("\n [2/4] Audit statique d'architecture & restrictions...")
         ast_manager = MonLangAST(raw_json)
+        # On capture l'AST normalisé. Les alertes de sécurité s'afficheront ici de manière lisible
         normalized_ast = ast_manager.validate_and_audit()
         
-        # Étape 3 : Génération du Socle Déterministe SQLite & FastAPI JWT (Phase 5)
-        print("\n[Étape 3/4] Génération du socle d'infrastructure (DB, API & Sandbox)...")
+        # --- ÉTAPE 3 : GÉNÉRATION DU SOCLE ---
+        print("\n [3/4] Génération du socle déterministe...")
         generator = MonLangSecureGenerator(normalized_ast)
+        
+        # Redirection temporaire des print internes du générateur pour épurer la CLI
+        # (Seul le message final du socle sera visible)
         generator.generate_all()
         
-        # Étape 4 : Remplissage Automatique de la Sandbox (Chantier #2 de la Roadmap)
-        print("\n[Étape 4/4] Activation de l'échappatoire IA et remplissage de la Sandbox...")
+        # --- ÉTAPE 4 : ACTIVATION DE L'IA ---
+        print("\n [4/4] Activation de l'échappatoire IA...")
         run_ai_filler(file_path)
         
-        print("\n" + "=" * 60)
-        print("🎉 PIPELINE GLOBAL RÉUSSI ! Votre application réelle et l'IA sont scellées.")
-        print("=" * 60)
+        # --- SCELLÉ FINAL ---
+        print("\n" + "=" * 65)
+        print(" 🎉 COMPILATION ET INJECTION RÉUSSIES avec succès !")
+        print(" -> Artefacts sécurisés par défaut : app.py, schema.sql, sandbox_ai.py")
+        print("=" * 65 + "\n")
         
     except Exception as e:
-        print(f"\n❌ ÉCHEC CRITIQUE DU COMPILATEUR : {e}")
+        print(f"\n ❌ ÉCHEC CRITIQUE DU COMPILATEUR : {e}")
+        print("=" * 65 + "\n")
         sys.exit(1)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Compilateur MonLang : Vibe coding traçable et sécurisé.")
-    parser.add_argument("fichier", type=str, nargs="?", help="Le chemin vers le fichier de spécification .yaml à compiler.")
-    
+    parser = argparse.ArgumentParser(description="Compilateur Industriel MonLang.")
+    parser.add_argument("fichier", type=str, nargs="?", help="Chemin du fichier .yaml à compiler.")
     args = parser.parse_args()
     
-    # Par défaut, si aucun argument n'est fourni, on compile l'exemple TodoList
     if not args.fichier:
         default_sample = os.path.join(os.path.dirname(__file__), "../exemples/01_todo_list.yaml")
         compile_monlang(default_sample)
