@@ -2,7 +2,7 @@
 from fastapi import FastAPI, HTTPException, Header, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Any
 import sqlite3
 import jwt
 import datetime
@@ -47,7 +47,7 @@ async def login(req: LoginRequest):
     token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
     return {'access_token': token, 'token_type': 'bearer'}
 
-# --- VALIDATION STRICTE DES DONNÉES (PYDANTIC) ---
+# --- VALIDATION STRICTE DES DONNÉES CRUD (PYDANTIC) ---
 class UserSchema(BaseModel):
     name: str
     email: str
@@ -56,6 +56,11 @@ class UserSchema(BaseModel):
 class TodoSchema(BaseModel):
     title: str
     completed: bool
+
+
+# --- SCHÉMAS DE VALIDATION DÉDIÉS POUR LA SANDBOX IA ---
+class autoArchiveTodoInputSchema(BaseModel):
+    title: str
 
 
 # --- ENFORCEMENT DU CONTRÔLE D'ACCÈS PAR JWT ET PERSISTANCE ---
@@ -78,9 +83,9 @@ async def update_todo(id: int, data: TodoSchema, current_actor: str = Depends(ve
     return {'status': 'success', 'id': id}
 
 @app.post('/workflow/managetodo/autoarchivetodo', tags=['ManageTodo'])
-async def execute_autoarchivetodo(payload: dict, current_actor: str = Depends(verify_jwt_and_get_actor)):
+async def execute_autoarchivetodo(payload: autoArchiveTodoInputSchema, current_actor: str = Depends(verify_jwt_and_get_actor)):
     if current_actor != "User": raise HTTPException(status_code=403, detail="Contrôle d'accès : Rôle User requis")
-    result = sandbox_ai.autoArchiveTodo(payload)
+    result = sandbox_ai.autoArchiveTodo(payload.dict())
     return {'status': 'executed', 'sandbox_result': result}
 
 @app.delete('/todo/{id}', tags=['AdminTodo'])

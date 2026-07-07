@@ -12,11 +12,14 @@ class MonLangSecureGenerator:
         self.custom_functions = normalized_ast["sandbox_ai"]["custom_functions"]
 
     def generate_all(self):
+        """Déclenche la génération déterministe et balise l'échappatoire IA."""
         print(f"🏗️  Génération du socle déterministe réel pour '{self.app_name}'...")
+        
         sql_content = self._generate_sql()
         api_content = self._generate_secure_fastapi()
         sandbox_content = self._generate_ai_sandbox()
         
+        # Détermination des chemins physiques
         base_dir = os.path.dirname(__file__)
         sql_path = os.path.join(base_dir, "../schema.sql")
         api_path = os.path.join(base_dir, "../app.py")
@@ -29,17 +32,23 @@ class MonLangSecureGenerator:
         print("💾 Socle généré : 'schema.sql', 'app.py' et 'sandbox_ai.py' sont prêts !")
 
     def _map_type_to_sql(self, type_str):
-        mapping = {"String": "VARCHAR(255)", "Text": "TEXT", "Integer": "INTEGER", "Float": "REAL", "Boolean": "BOOLEAN", "Date": "DATE", "DateTime": "TIMESTAMP", "Email": "VARCHAR(255)", "UUID": "UUID", "Money": "NUMERIC(10, 2)"}
+        mapping = {
+            "String": "VARCHAR(255)", "Text": "TEXT", "Integer": "INTEGER",
+            "Float": "REAL", "Boolean": "BOOLEAN", "Date": "DATE",
+            "DateTime": "TIMESTAMP", "Email": "VARCHAR(255)", "UUID": "UUID", "Money": "NUMERIC(10, 2)"
+        }
         return mapping.get(type_str, "TEXT")
 
     def _generate_sql(self):
-        """Génère un schéma SQL déterministe 100% compatible avec SQLite (Fix Bug Constraint)."""
+        """Génère un schéma SQL déterministe préservant les données existantes (Bug #3)."""
         sql_lines = [f"-- Socle DB Déterministe généré automatiquement pour {self.app_name}\n"]
         for ent_name, attrs in self.entities.items():
-            sql_lines.append(f"CREATE TABLE {ent_name.lower()} (")
+            # Remplacement par IF NOT EXISTS pour éviter les plantages au redémarrage
+            sql_lines.append(f"CREATE TABLE IF NOT EXISTS {ent_name.lower()} (")
             sql_lines.append("    id INTEGER PRIMARY KEY AUTOINCREMENT,")
             for attr_name, attr_type in attrs.items():
-                sql_lines.append(f"    {attr_name} {self._map_type_to_sql(attr_type)},")
+                sql_type = self._map_type_to_sql(attr_type)
+                sql_lines.append(f"    {attr_name} {sql_type},")
             
             for rel in self.relations:
                 if rel["type"] == "hasMany" and rel["target"].lower() == ent_name.lower():
@@ -50,14 +59,15 @@ class MonLangSecureGenerator:
             sql_lines[-1] = sql_lines[-1].rstrip(",")
             sql_lines.append(");\n")
         return "\n".join(sql_lines)
+
     def _generate_secure_fastapi(self):
-        """Génère l'API avec persistance SQLite, authentification JWT forte et init automatique."""
+        """Génère l'API avec persistance SQLite, authentification JWT et schémas IA stricts."""
         api_lines = [
             "# API Déterministe Sécurisée par défaut - Ne pas modifier à la main",
             "from fastapi import FastAPI, HTTPException, Header, Depends",
             "from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials",
             "from pydantic import BaseModel",
-            "from typing import List, Optional",
+            "from typing import List, Optional, Any",
             "import sqlite3",
             "import jwt",
             "import datetime",
@@ -74,7 +84,6 @@ class MonLangSecureGenerator:
             "    except jwt.PyJWTError:",
             "        raise HTTPException(status_code=401, detail='Token invalide ou expiré')\n",
             
-            # --- CORRECTIF BUG v4 n°1 : Initialisation automatique de la base au démarrage de l'API ---
             "@app.on_event('startup')",
             "def init_db():",
             "    conn = sqlite3.connect(DB_FILE)",
@@ -98,9 +107,10 @@ class MonLangSecureGenerator:
             "    }",
             "    token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)",
             "    return {'access_token': token, 'token_type': 'bearer'}\n",
-            "# --- VALIDATION STRICTE DES DONNÉES (PYDANTIC) ---"
+            "# --- VALIDATION STRICTE DES DONNÉES CRUD (PYDANTIC) ---"
         ]
         
+        # 1. Génération des schémas CRUD standards
         for ent_name, attrs in self.entities.items():
             api_lines.append(f"class {ent_name}Schema(BaseModel):")
             for attr_name, attr_type in attrs.items():
@@ -111,6 +121,30 @@ class MonLangSecureGenerator:
                 api_lines.append(f"    {attr_name}: {py_type}")
             api_lines.append("\n")
 
+        # 2. Génération de schémas stricts pour les entrées de la Sandbox IA (Bug #4)
+        api_lines.append("# --- SCHÉMAS DE VALIDATION DÉDIÉS POUR LA SANDBOX IA ---")
+        for func in self.custom_functions:
+            func_name = func["name"]
+            inputs = func.get("input", [])
+            
+            api_lines.append(f"class {func_name}InputSchema(BaseModel):")
+            if not inputs:
+                api_lines.append("    pass")
+            else:
+                for inp in inputs:
+                    if "reference" in inp:
+                        ref = inp["reference"]
+                        ent, attr = ref.split(".") if "." in ref else (ref, "id")
+                        attr_type = self.entities.get(ent, {}).get(attr, "String")
+                        py_type = "int" if attr_type == "Integer" else ("float" if attr_type in ["Float", "Money"] else ("bool" if attr_type == "Boolean" else "str"))
+                        api_lines.append(f"    {attr.replace('.', '_')}: {py_type}")
+                    else:
+                        inp_name = inp.get("name", "context")
+                        inp_type = inp.get("type", "String")
+                        py_type = "int" if inp_type == "Integer" else ("float" if inp_type in ["Float", "Money"] else ("bool" if inp_type == "Boolean" else "str"))
+                        api_lines.append(f"    {inp_name}: {py_type}")
+            api_lines.append("\n")
+
         api_lines.append("# --- ENFORCEMENT DU CONTRÔLE D'ACCÈS PAR JWT ET PERSISTANCE ---")
         for wf in self.workflows:
             wf_name = wf["name"]
@@ -119,8 +153,6 @@ class MonLangSecureGenerator:
             for action in wf["actions"]:
                 act_type = action["type"]
                 target = action["target"]
-                
-                # Application du correctif de notation pointée Bug n°2
                 base_target = target.split(".")[0] if "." in target else target
                 
                 security_check = f'    if current_actor != "{required_actor}": raise HTTPException(status_code=403, detail="Contrôle d\'accès : Rôle {required_actor} requis")'
@@ -151,7 +183,7 @@ class MonLangSecureGenerator:
                     api_lines.append("    if not row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')")
                     api_lines.append("    return {'status': 'success', 'data': row}")
                     api_lines.append("")
-
+                    
                 elif act_type == "Update":
                     api_lines.append(f"@app.put('/{base_target.lower()}/{{id}}', tags=['{wf_name}'])")
                     api_lines.append(f"async def update_{base_target.lower()}(id: int, data: {base_target}Schema, {dependency_injection}):")
@@ -178,15 +210,16 @@ class MonLangSecureGenerator:
                     
                 elif act_type == "Execute":
                     api_lines.append(f"@app.post('/workflow/{wf_name.lower()}/{target.lower()}', tags=['{wf_name}'])")
-                    api_lines.append(f"async def execute_{target.lower()}(payload: dict, {dependency_injection}):")
+                    api_lines.append(f"async def execute_{target.lower()}(payload: {target}InputSchema, {dependency_injection}):")
                     api_lines.append(security_check)
-                    api_lines.append(f"    result = sandbox_ai.{target}(payload)")
+                    api_lines.append(f"    result = sandbox_ai.{target}(payload.dict())")
                     api_lines.append("    return {'status': 'executed', 'sandbox_result': result}")
                     api_lines.append("")
                     
         return "\n".join(api_lines)
 
     def _generate_ai_sandbox(self):
+        """Balise les frontières d'isolation pour le code généré par l'IA."""
         sb_lines = ["# ÉCHAPPATOIRE IA BALISÉ - ZONE DE SANDBOX\n"]
         for func in self.custom_functions:
             name = func["name"]
@@ -195,7 +228,7 @@ class MonLangSecureGenerator:
         return "\n".join(sb_lines)
 
 if __name__ == "__main__":
-    sample_path = os.path.join(os.path.dirname(__file__), "../exemples/01_todo_list.yaml")
+    sample_path = os.path.join(os.path.dirname(__file__), "../todo.yaml")
     try:
         raw_json = parse_monlang_file(sample_path)
         ast_manager = MonLangAST(raw_json)

@@ -3,12 +3,14 @@ import sys
 import json
 import ast
 import requests
-
 from ast_validator import MonLangAST
 from parser import parse_monlang_file
 
 def validate_generated_code_safety(ai_code: str, func_name: str):
-    """Analyse statiquement le code généré par l'IA à l'aide de l'AST de Python."""
+    """
+    Analyse statiquement le code généré par l'IA à l'aide de l'AST de Python.
+    Bloque l'injection si des patterns interdits ou des injections SQL indirectes sont détectés.
+    """
     BANNED_IMPORTS = {"os", "subprocess", "sys", "shutil", "builtins", "requests", "urllib"}
     BANNED_FUNCTIONS = {"eval", "exec", "open", "compile", "globals", "locals", "getattr", "setattr"}
 
@@ -18,6 +20,7 @@ def validate_generated_code_safety(ai_code: str, func_name: str):
         raise RuntimeError(f"🚨 [GUARDRAIL] Erreur de syntaxe Python dans le code de l'IA : {e}")
 
     for node in ast.walk(root):
+        # 1. Traque les imports interdits
         if isinstance(node, ast.Import):
             for alias in node.names:
                 if alias.name in BANNED_IMPORTS:
@@ -25,14 +28,34 @@ def validate_generated_code_safety(ai_code: str, func_name: str):
         elif isinstance(node, ast.ImportFrom):
             if node.module in BANNED_IMPORTS:
                 raise PermissionError(f"🛑 [SECURITY_BLOCKED] Import interdit depuis : '{node.module}' !")
+        
+        # 2. Traque les fonctions d'exécution dynamique interdites
         elif isinstance(node, ast.Call):
             if isinstance(node.func, ast.Name) and node.func.id in BANNED_FUNCTIONS:
                 raise PermissionError(f"🛑 [SECURITY_BLOCKED] Appel de fonction dangereuse : '{node.func.id}' !")
-    print(f"🛡️  [GUARDRAIL] Le code pour '{func_name}' a passé l'analyse statique.")
+            
+            # --- CORRECTIF BUG v6 #2 : Traque de l'injection SQL indirecte par le LLM ---
+            # On intercepte les appels de type cursor.execute() ou conn.execute()
+            if isinstance(node.func, ast.Attribute) and node.func.attr == "execute":
+                if node.args:
+                    first_arg = node.args[0]
+                    
+                    # Interdiction des f-strings au sein de la méthode execute()
+                    if isinstance(first_arg, ast.JoinedStr):
+                        raise PermissionError(f"🛑 [SQL_INJECTION_BLOCKED] L'IA a tenté d'utiliser une f-string non sécurisée au sein d'une méthode .execute() dans '{func_name}' !")
+                    
+                    # Interdiction des concaténations par l'opérateur modulo % (ex: "SELECT %s" % var)
+                    if isinstance(first_arg, ast.BinOp) and isinstance(first_arg.op, ast.Mod):
+                        raise PermissionError(f"🛑 [SQL_INJECTION_BLOCKED] L'IA a tenté d'utiliser une interpolation de chaînes par l'opérateur '%' au sein d'un .execute() dans '{func_name}' !")
+                    
+                    # Interdiction des concaténations par addition + (ex: "SELECT " + var)
+                    if isinstance(first_arg, ast.BinOp) and isinstance(first_arg.op, ast.Add):
+                        raise PermissionError(f"🛑 [SQL_INJECTION_BLOCKED] L'IA a tenté d'utiliser une concaténation de texte par l'opérateur '+' au sein d'un .execute() dans '{func_name}' !")
 
+    print(f"🛡️  [GUARDRAIL] Le code pour '{func_name}' a passé l'analyse statique et le contrôle anti-injection SQL.")
 def generate_custom_logic_with_ai(func_name, description, inputs, output):
     """Interroge Ollama au format JSON strict pour obtenir le corps du code."""
-    print(f"🤖 L'IA génère le code métier pour '{func_name}'...")
+    print(f"🤖 L'IA locale (Qwen) génère le code métier pour '{func_name}'...")
     url = "http://localhost:11434/api/chat"
     
     prompt = f"""
@@ -48,7 +71,7 @@ def generate_custom_logic_with_ai(func_name, description, inputs, output):
     Tu dois impérativement répondre au format JSON avec une seule clé "code" contenant les lignes de code Python pur, sans aucune indentation de départ tout à gauche (pas de ligne 'def').
     Exemple de JSON attendu :
     {{
-        "code": "title = context.get('Todo.title', '')\\nif '[Archive]' in title:\\n    return {{'status': 'archived'}}\\nreturn {{'status': 'active'}}"
+        "code": "title = context.get('title', '')\nif '[Archive]' in title:\n    return {{'status': 'archived'}}\nreturn {{'status': 'active'}}"
     }}
     """
 
@@ -80,7 +103,6 @@ def inject_code_into_sandbox(func_name, ai_code):
         lines = f.readlines()
 
     # Génération géométrique et standard du bloc de code via l'AST Python
-    # unparse() garantit que le if et ses return enfants auront l'indentation exacte exigée par Python
     parsed_ai_ast = ast.parse(ai_code)
     standard_formatted_code = ast.unparse(parsed_ai_ast)
 

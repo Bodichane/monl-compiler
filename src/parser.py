@@ -3,7 +3,7 @@ import json
 from lark import Lark, Transformer, v_args
 from lark.indenter import PythonIndenter
 
-# 1. Grammaire MonLang corrigée avec propriétés nommées explicites (Bugs #2 & #3)
+# Grammaire MonLang v6 - Support des descriptions multi-lignes (Bug #1)
 grammar = r"""
     ?start: app
     
@@ -29,7 +29,6 @@ grammar = r"""
                | ACTION_TYPE REFERENCE _NL
     execute_action: "Execute" NAME _NL
 
-    # Restructuration des règles pour empêcher Lark de filtrer les mots-clés anonymes
     custom_block: "custom" NAME _NL _INDENT (input_prop | output_prop | description_prop)+ _DEDENT
     input_prop: "input" ":" io_param ("," io_param)* _NL
     output_prop: "output" ":" io_param _NL
@@ -45,18 +44,19 @@ grammar = r"""
     
     NAME: /[a-zA-Z_][a-zA-Z0-9_]*/
     REFERENCE: /[a-zA-Z_][a-zA-Z0-9_]*\.[a-zA-Z_][a-zA-Z0-9_]*/
-    STRING_LITERAL: /"[^"\\]*(?:\\.[^"\\]*)*"/
+    
+    # CORRECTIF BUG v6 #1 : Ajout du flag /s pour autoriser les retours à la ligne dans les guillemets
+    STRING_LITERAL: /"(?:[^"\\]|\\.)*"/s
     
     _NL: /(\r?\n[\t ]*)+/
+    COMMENT: /#[^\n]*/
+    
     %declare _INDENT _DEDENT
 
     %import common.INT
     %import common.WS_INLINE
     %ignore WS_INLINE
-
-    COMMENT: /#[^\n]*/
     %ignore COMMENT
-
 """
 
 @v_args(inline=True)
@@ -100,7 +100,6 @@ class MonLangTransformer(Transformer):
     def execute_action(self, custom_block_name):
         return {"type": "Execute", "target": str(custom_block_name)}
 
-    # Transformation chirurgicale et explicite du bloc custom
     def custom_block(self, name, *props):
         prop_dict = {}
         for p in props:
@@ -122,7 +121,6 @@ class MonLangTransformer(Transformer):
             return {"name": str(name_or_ref), "type": str(type_str)}
         return {"reference": str(name_or_ref)}
 
-
 class MonLangIndenter(PythonIndenter):
     NL_type = '_NL'
     OPEN_PAREN_types = []
@@ -131,18 +129,8 @@ class MonLangIndenter(PythonIndenter):
     DEDENT_type = '_DEDENT'
     tab_len = 4
 
-
 def parse_monlang_file(file_path):
     parser = Lark(grammar, parser='lalr', postlex=MonLangIndenter())
     with open(file_path, 'r', encoding='utf-8') as f:
         content = f.read()
     return MonLangTransformer().transform(parser.parse(content + "\n"))
-
-
-if __name__ == "__main__":
-    sample_path = os.path.join(os.path.dirname(__file__), "../exemples/01_todo_list.yaml")
-    try:
-        result = parse_monlang_file(sample_path)
-        print("🎉 PARSING RÉUSSI !\n", json.dumps(result, indent=2, ensure_ascii=False))
-    except Exception as e:
-        print(f"❌ Erreur lors du parsing : {e}")
