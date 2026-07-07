@@ -53,6 +53,10 @@ grammar = r"""
     %import common.INT
     %import common.WS_INLINE
     %ignore WS_INLINE
+
+    COMMENT: /#[^\n]*/
+    %ignore COMMENT
+
 """
 
 @v_args(inline=True)

@@ -20,8 +20,10 @@ rule User.email restrictedTo Admin
 workflow ManageTodo for User
     Create Todo
     Update Todo
-    Delete Todo
     Execute autoArchiveTodo
+
+workflow AdminTodo for Admin
+    Delete Todo
 
 custom autoArchiveTodo
     input: Todo.title

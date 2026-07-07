@@ -1,17 +1,42 @@
 import os
 import sys
 import json
+import ast
 import requests
+
 from ast_validator import MonLangAST
 from parser import parse_monlang_file
 
+def validate_generated_code_safety(ai_code: str, func_name: str):
+    """Analyse statiquement le code généré par l'IA à l'aide de l'AST de Python."""
+    BANNED_IMPORTS = {"os", "subprocess", "sys", "shutil", "builtins", "requests", "urllib"}
+    BANNED_FUNCTIONS = {"eval", "exec", "open", "compile", "globals", "locals", "getattr", "setattr"}
+
+    try:
+        root = ast.parse(ai_code)
+    except SyntaxError as e:
+        raise RuntimeError(f"🚨 [GUARDRAIL] Erreur de syntaxe Python dans le code de l'IA : {e}")
+
+    for node in ast.walk(root):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name in BANNED_IMPORTS:
+                    raise PermissionError(f"🛑 [SECURITY_BLOCKED] Import interdit : '{alias.name}' !")
+        elif isinstance(node, ast.ImportFrom):
+            if node.module in BANNED_IMPORTS:
+                raise PermissionError(f"🛑 [SECURITY_BLOCKED] Import interdit depuis : '{node.module}' !")
+        elif isinstance(node, ast.Call):
+            if isinstance(node.func, ast.Name) and node.func.id in BANNED_FUNCTIONS:
+                raise PermissionError(f"🛑 [SECURITY_BLOCKED] Appel de fonction dangereuse : '{node.func.id}' !")
+    print(f"🛡️  [GUARDRAIL] Le code pour '{func_name}' a passé l'analyse statique.")
+
 def generate_custom_logic_with_ai(func_name, description, inputs, output):
-    """Interroge Ollama au format JSON strict pour obtenir le corps du code (Timeout augmenté à 90s)."""
+    """Interroge Ollama au format JSON strict pour obtenir le corps du code."""
     print(f"🤖 L'IA locale (Qwen) génère le code métier pour '{func_name}'...")
     url = "http://localhost:11434/api/chat"
     
     prompt = f"""
-    Tu es un module d'écriture de code. Tu dois générer uniquement le CORPS d'une fonction Python.
+    Tu es un module d'écriture de code. Tu dois générer uniquement le CORPS interne d'une fonction Python.
     La fonction reçoit un dictionnaire nommé 'context'.
     
     Spécification :
@@ -36,7 +61,6 @@ def generate_custom_logic_with_ai(func_name, description, inputs, output):
     }
 
     try:
-        # Augmentation du timeout à 90 secondes pour absorber la charge d'initialisation sur 8 Go de RAM
         response = requests.post(url, json=payload, timeout=90)
         response.raise_for_status()
         ai_json = json.loads(response.json()["message"]["content"])
@@ -45,7 +69,7 @@ def generate_custom_logic_with_ai(func_name, description, inputs, output):
         raise RuntimeError(f"Erreur d'API : {e}")
 
 def inject_code_into_sandbox(func_name, ai_code):
-    """Injecte et aligne géométriquement le code ligne par ligne sans Regex."""
+    """Injecte le code et applique une correction d'indentation via l'AST natif de Python."""
     sandbox_path = os.path.join(os.path.dirname(__file__), "../sandbox_ai.py")
     
     if not os.path.exists(sandbox_path):
@@ -55,67 +79,35 @@ def inject_code_into_sandbox(func_name, ai_code):
     with open(sandbox_path, "r", encoding="utf-8") as f:
         lines = f.readlines()
 
+    # Génération géométrique et standard du bloc de code via l'AST Python
+    # unparse() garantit que le if et ses return enfants auront l'indentation exacte exigée par Python
+    parsed_ai_ast = ast.parse(ai_code)
+    standard_formatted_code = ast.unparse(parsed_ai_ast)
+
     new_lines = []
     inside_target_func = False
-    docstring_count = 0
-    in_docstring = False
-    code_injected = False
+    todo_replaced = False
 
     for line in lines:
         if line.startswith(f"def {func_name}("):
             inside_target_func = True
             new_lines.append(line)
             continue
-            
-        if inside_target_func and not code_injected:
-            if '"""' in line:
-                docstring_count += 1
-                in_docstring = not in_docstring
-                new_lines.append(line)
-                
-                # Dès qu'on ferme la docstring de description, on injecte le code de l'IA
-                if docstring_count == 2:
-                    # Traitement géométrique des lignes de l'IA
-                    indent_level = 4
-                    for ai_line in ai_code.split("\n"):
-                        stripped = ai_line.strip()
-                        
-                        # Sécurité : Éliminer la ligne "def" parasite si l'IA l'a générée
-                        if stripped.startswith("def ") or stripped.startswith("```") or not stripped:
-                            continue
-                            
-                        # Gestion de l'indentation relative des blocs
-                        if stripped.startswith("elif ") or stripped.startswith("else:"):
-                            new_lines.append(f"    {stripped}\n")
-                            indent_level = 8
-                            continue
-                            
-                        if stripped.startswith("return ") and indent_level == 8:
-                            new_lines.append(f"        {stripped}\n")
-                            # Après un return dans un bloc, on réinitialise l'indentation
-                            indent_level = 4
-                            continue
-                            
-                        new_lines.append(f"    {stripped}\n")
-                        if stripped.endswith(":"):
-                            indent_level = 8
-                    
-                    code_injected = True
-                continue
-                
-            if in_docstring:
-                new_lines.append(line)
-                continue
-                
-            # On ignore l'ancien contenu (TODO, vieux return) tant que le code n'est pas injecté
+        
+        if inside_target_func and "# TODO:" in line and not todo_replaced:
+            # On applique un décalage de 4 espaces sur l'ensemble du bloc re-généré proprement par l'AST
+            for ai_line in standard_formatted_code.split("\n"):
+                if ai_line.strip():
+                    new_lines.append(f"    {ai_line}\n")
+                else:
+                    new_lines.append("\n")
+            todo_replaced = True
             continue
-
+            
         if inside_target_func and line.startswith("def "):
-            # Sortie de la fonction cible
             inside_target_func = False
 
-        if inside_target_func and code_injected:
-            # On ignore l'ancien code résiduel de la fonction cible
+        if inside_target_func and "return {'message':" in line and todo_replaced:
             continue
 
         new_lines.append(line)
@@ -123,11 +115,9 @@ def inject_code_into_sandbox(func_name, ai_code):
     with open(sandbox_path, "w", encoding="utf-8") as f:
         f.writelines(new_lines)
         
-    print(f"🔒 Injection réussie ! Le code de l'IA a été scellé et aligné pour '{func_name}'.")
+    print(f"🔒 Injection réussie ! L'indentation de '{func_name}' a été corrigée selon les normes de l'AST Python.")
 
 def run_ai_filler(file_path):
-    """Extrait les fonctions custom de l'AST et pilote le remplissage par l'IA."""
-    # Utilisation dynamique du fichier passé par l'orchestrateur main.py
     raw_json = parse_monlang_file(file_path)
     ast_manager = MonLangAST(raw_json)
     normalized_ast = ast_manager.validate_and_audit()
@@ -136,11 +126,5 @@ def run_ai_filler(file_path):
     for func in custom_funcs:
         description = func.get("description", "Analyse le titre et archive automatiquement")
         ai_code = generate_custom_logic_with_ai(func["name"], description, func.get("input", []), func.get("output", []))
+        validate_generated_code_safety(ai_code, func["name"])
         inject_code_into_sandbox(func["name"], ai_code)
-
-
-if __name__ == "__main__":
-    try:
-        run_ai_filler()
-    except Exception as e:
-        print(f"❌ Échec de la Phase 7 : {e}")
