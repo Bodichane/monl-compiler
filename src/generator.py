@@ -51,7 +51,7 @@ class MonLangSecureGenerator:
             sql_lines.append(");\n")
         return "\n".join(sql_lines)
     def _generate_secure_fastapi(self):
-        """Génère l'API avec persistance SQLite et authentification JWT forte (Bugs #1, #6, D)."""
+        """Génère l'API avec persistance SQLite, authentification JWT forte et init automatique."""
         api_lines = [
             "# API Déterministe Sécurisée par défaut - Ne pas modifier à la main",
             "from fastapi import FastAPI, HTTPException, Header, Depends",
@@ -64,7 +64,6 @@ class MonLangSecureGenerator:
             "import sandbox_ai  # Importation de l'échappatoire IA isolé\n",
             f"app = FastAPI(title='{self.app_name} - Secure Core')",
             "DB_FILE = 'app.db'",
-            # Clé industrielle robuste pour éliminer l'alerte InsecureKeyLengthWarning
             "JWT_SECRET = 'SUPER_SECRET_KEY_MONLANG_INDUSTRIAL_SAFETY_2026'",
             "JWT_ALGORITHM = 'HS256'\n",
             "security_bearer = HTTPBearer()\n",
@@ -74,6 +73,19 @@ class MonLangSecureGenerator:
             "        return payload.get('actor')",
             "    except jwt.PyJWTError:",
             "        raise HTTPException(status_code=401, detail='Token invalide ou expiré')\n",
+            
+            # --- CORRECTIF BUG v4 n°1 : Initialisation automatique de la base au démarrage de l'API ---
+            "@app.on_event('startup')",
+            "def init_db():",
+            "    conn = sqlite3.connect(DB_FILE)",
+            "    try:",
+            "        with open('schema.sql', 'r', encoding='utf-8') as f:",
+            "            conn.executescript(f.read())",
+            "    except Exception as e:",
+            "        print(f'ℹ️ DB déjà initialisée ou erreur de script: {e}')",
+            "    finally:",
+            "        conn.close()\n",
+            
             "class LoginRequest(BaseModel):",
             "    username: str",
             "    actor: str\n",
@@ -107,9 +119,10 @@ class MonLangSecureGenerator:
             for action in wf["actions"]:
                 act_type = action["type"]
                 target = action["target"]
-                base_target = target.split(".") if "." in target else target
                 
-                # Injection dynamique stricte du rôle requis par le workflow
+                # Application du correctif de notation pointée Bug n°2
+                base_target = target.split(".")[0] if "." in target else target
+                
                 security_check = f'    if current_actor != "{required_actor}": raise HTTPException(status_code=403, detail="Contrôle d\'accès : Rôle {required_actor} requis")'
                 dependency_injection = "current_actor: str = Depends(verify_jwt_and_get_actor)"
                 

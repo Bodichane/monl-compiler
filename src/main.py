@@ -7,7 +7,7 @@ from generator import MonLangSecureGenerator
 from ai_sandbox_filler import run_ai_filler
 
 def compile_monlang(file_path):
-    """Orchestre le pipeline MonLang avec un rendu CLI épuré et professionnel."""
+    """Orchestre le pipeline MonLang avec gestion non bloquante de l'IA (Bug #3)."""
     if not os.path.exists(file_path):
         print(f"❌ Erreur : Le fichier de spécification '{file_path}' n'existe pas.")
         sys.exit(1)
@@ -27,25 +27,32 @@ def compile_monlang(file_path):
         # --- ÉTAPE 2 : AUDIT DE SÉCURITÉ ---
         print("\n [2/4] Audit statique d'architecture & restrictions...")
         ast_manager = MonLangAST(raw_json)
-        # On capture l'AST normalisé. Les alertes de sécurité s'afficheront ici de manière lisible
         normalized_ast = ast_manager.validate_and_audit()
         
         # --- ÉTAPE 3 : GÉNÉRATION DU SOCLE ---
         print("\n [3/4] Génération du socle déterministe...")
         generator = MonLangSecureGenerator(normalized_ast)
-        
-        # Redirection temporaire des print internes du générateur pour épurer la CLI
-        # (Seul le message final du socle sera visible)
         generator.generate_all()
+        print("    └─ Artefacts d'infrastructure scellés.")
         
-        # --- ÉTAPE 4 : ACTIVATION DE L'IA ---
+        # --- ÉTAPE 4 : ACTIVATION DE L'IA (NON BLOQUANTE) ---
         print("\n [4/4] Activation de l'échappatoire IA...")
-        run_ai_filler(file_path)
+        try:
+            run_ai_filler(file_path)
+            ai_status = "Enrichie par l'IA locale (Qwen)"
+        except (RuntimeError, Exception) as ai_err:
+            # CORRECTIF BUG v4 n°3 : Interception de la panne Ollama
+            print("\n ⚠️  [AVERTISSEMENT IA NO-BLOCK]")
+            print(f"    Le remplissage automatique de la Sandbox a échoué : {ai_err}")
+            print("    -> Le socle déterministe est conservé intact.")
+            print("    -> La fonction custom reste disponible sous forme de coquille vide sécurisée.")
+            ai_status = "Coquille vide déterministe (Serveur IA hors-ligne)"
         
         # --- SCELLÉ FINAL ---
         print("\n" + "=" * 65)
-        print(" 🎉 COMPILATION ET INJECTION RÉUSSIES avec succès !")
-        print(" -> Artefacts sécurisés par défaut : app.py, schema.sql, sandbox_ai.py")
+        print(" 🎉 COMPILATION DE L'APPLICATION TERMINÉE !")
+        print(f" -> Statut Infrastructure : app.py, schema.sql validés (Init auto DB active)")
+        print(f" -> Statut Sandbox IA     : {ai_status}")
         print("=" * 65 + "\n")
         
     except Exception as e:

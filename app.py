@@ -22,6 +22,17 @@ def verify_jwt_and_get_actor(credentials: HTTPAuthorizationCredentials = Depends
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail='Token invalide ou expiré')
 
+@app.on_event('startup')
+def init_db():
+    conn = sqlite3.connect(DB_FILE)
+    try:
+        with open('schema.sql', 'r', encoding='utf-8') as f:
+            conn.executescript(f.read())
+    except Exception as e:
+        print(f'ℹ️ DB déjà initialisée ou erreur de script: {e}')
+    finally:
+        conn.close()
+
 class LoginRequest(BaseModel):
     username: str
     actor: str
