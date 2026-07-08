@@ -35,9 +35,18 @@ class MonLangAST:
         return self.to_normalized_ast(security_reports)
 
     def _validate_structures(self):
-        """Vérifie la cohérence de base et traque les collisions multi-acteurs (Bug #5)."""
+        """Vérifie la cohérence de base et traque les collisions multi-acteurs (Bug #5),
+        sauf exemption explicite via une règle 'sharedBy'."""
         # Matrice globale pour traquer les conflits d'autorisations (Entité -> Action -> Ensemble d'acteurs)
         access_matrix = {}
+
+        # CORRECTIF (post-v6) : les règles 'sharedBy' déclarent explicitement qu'un
+        # ensemble précis d'acteurs peut se partager un même droit d'écriture sur
+        # une entité, ex. : "rule Post.Delete sharedBy Admin, Moderator"
+        shared_permissions = {}
+        for rule in self.rules:
+            if rule["type"] == "sharedBy":
+                shared_permissions[rule["reference"]] = set(rule["value"])
 
         for wf in self.workflows:
             actor = wf["actor"]
@@ -65,16 +74,32 @@ class MonLangAST:
                     # Enregistrement de l'acteur pour cette action précise
                     access_matrix[base_target][act_type].add(actor)
 
-        # Analyse de la matrice : si une action d'écriture/suppression a plus d'un acteur, on lève une alerte ou on bloque
+        # Analyse de la matrice : si une action d'écriture/suppression a plus d'un acteur,
+        # on autorise si une règle 'sharedBy' couvre exactement cet ensemble d'acteurs,
+        # sinon on lève une exception stricte pour forcer le refactoring de la spécification.
         for entity, actions in access_matrix.items():
             for act_type, authorized_actors in actions.items():
                 if len(authorized_actors) > 1 and act_type in ["Create", "Update", "Delete"]:
-                    # Lever une exception stricte pour forcer le refactoring de la spécification
-                    actors_list = ", ".join(list(authorized_actors))
+                    key = f"{entity}.{act_type}"
+                    allowed_shared = shared_permissions.get(key)
+
+                    if allowed_shared and authorized_actors.issubset(allowed_shared):
+                        print(f"🤝 [SHARED_PRIVILEGE] L'action '{act_type}' sur '{entity}' est explicitement "
+                              f"partagée entre [{', '.join(sorted(authorized_actors))}] via une règle 'sharedBy'.")
+                        continue
+
+                    actors_list = ", ".join(sorted(authorized_actors))
+                    suggestion = f"'rule {entity}.{act_type} sharedBy {actors_list}'"
+                    extra = ""
+                    if allowed_shared:
+                        not_covered = authorized_actors - allowed_shared
+                        extra = (f" Une règle 'sharedBy' existe déjà pour '{key}' mais ne couvre pas : "
+                                 f"[{', '.join(sorted(not_covered))}].")
+
                     raise ASTValidationError(
                         f"🔒 [CRITICAL_COLLISION] Conflit d'autorité sur l'entité '{entity}' : "
                         f"les acteurs [{actors_list}] ont tous le droit d'exécuter l'action '{act_type}'. "
-                        f"La spécification doit séparer ces privilèges de manière étanche."
+                        f"Séparez ces privilèges, ou déclarez explicitement le partage avec : {suggestion}.{extra}"
                     )
 
     def _audit_security_rules(self):

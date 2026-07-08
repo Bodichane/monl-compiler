@@ -8,7 +8,7 @@ import jwt
 import datetime
 import sandbox_ai  # Importation de l'échappatoire IA isolé
 
-app = FastAPI(title='TodoApp - Secure Core')
+app = FastAPI(title='ModerationApp - Secure Core')
 DB_FILE = 'app.db'
 JWT_SECRET = 'SUPER_SECRET_KEY_MONLANG_INDUSTRIAL_SAFETY_2026'
 JWT_ALGORITHM = 'HS256'
@@ -33,6 +33,12 @@ def init_db():
     finally:
         conn.close()
 
+from fastapi.responses import RedirectResponse
+
+@app.get('/', include_in_schema=False)
+async def root():
+    return RedirectResponse(url='/docs')
+
 class LoginRequest(BaseModel):
     username: str
     actor: str
@@ -48,50 +54,26 @@ async def login(req: LoginRequest):
     return {'access_token': token, 'token_type': 'bearer'}
 
 # --- VALIDATION STRICTE DES DONNÉES CRUD (PYDANTIC) ---
-class UserSchema(BaseModel):
-    name: str
-    email: str
-
-
-class TodoSchema(BaseModel):
+class PostSchema(BaseModel):
     title: str
-    completed: bool
+    content: str
 
 
 # --- SCHÉMAS DE VALIDATION DÉDIÉS POUR LA SANDBOX IA ---
-class autoArchiveTodoInputSchema(BaseModel):
-    title: str
-
-
 # --- ENFORCEMENT DU CONTRÔLE D'ACCÈS PAR JWT ET PERSISTANCE ---
-@app.post('/todo', tags=['ManageTodo'])
-async def create_todo(data: TodoSchema, current_actor: str = Depends(verify_jwt_and_get_actor)):
-    if current_actor != "User": raise HTTPException(status_code=403, detail="Contrôle d'accès : Rôle User requis")
+@app.post('/post', tags=['AdminModeration'])
+async def create_post(data: PostSchema, current_actor: str = Depends(verify_jwt_and_get_actor)):
+    if current_actor != "Admin": raise HTTPException(status_code=403, detail="Contrôle d'accès : Rôle Admin requis")
     conn = sqlite3.connect(DB_FILE); cursor = conn.cursor()
-    query = 'INSERT INTO todo (title, completed) VALUES (?, ?)'
-    cursor.execute(query, (data.title, data.completed,))
+    query = 'INSERT INTO post (title, content) VALUES (?, ?)'
+    cursor.execute(query, (data.title, data.content,))
     conn.commit(); row_id = cursor.lastrowid; conn.close()
     return {'status': 'success', 'id': row_id}
 
-@app.put('/todo/{id}', tags=['ManageTodo'])
-async def update_todo(id: int, data: TodoSchema, current_actor: str = Depends(verify_jwt_and_get_actor)):
-    if current_actor != "User": raise HTTPException(status_code=403, detail="Contrôle d'accès : Rôle User requis")
+@app.delete('/post/{id}', tags=['AdminModeration'])
+async def delete_post(id: int, current_actor: str = Depends(verify_jwt_and_get_actor)):
+    if current_actor not in {"Admin", "Moderator"}: raise HTTPException(status_code=403, detail="Contrôle d'accès : Rôle parmi [Admin, Moderator] requis")
     conn = sqlite3.connect(DB_FILE); cursor = conn.cursor()
-    query = 'UPDATE todo SET title = ?, completed = ? WHERE id = ?'
-    cursor.execute(query, (data.title, data.completed, id))
-    conn.commit(); conn.close()
-    return {'status': 'success', 'id': id}
-
-@app.post('/workflow/managetodo/autoarchivetodo', tags=['ManageTodo'])
-async def execute_autoarchivetodo(payload: autoArchiveTodoInputSchema, current_actor: str = Depends(verify_jwt_and_get_actor)):
-    if current_actor != "User": raise HTTPException(status_code=403, detail="Contrôle d'accès : Rôle User requis")
-    result = sandbox_ai.autoArchiveTodo(payload.dict())
-    return {'status': 'executed', 'sandbox_result': result}
-
-@app.delete('/todo/{id}', tags=['AdminTodo'])
-async def delete_todo(id: int, current_actor: str = Depends(verify_jwt_and_get_actor)):
-    if current_actor != "Admin": raise HTTPException(status_code=403, detail="Contrôle d'accès : Rôle Admin requis")
-    conn = sqlite3.connect(DB_FILE); cursor = conn.cursor()
-    cursor.execute('DELETE FROM todo WHERE id = ?', (id,))
+    cursor.execute('DELETE FROM post WHERE id = ?', (id,))
     conn.commit(); conn.close()
     return {'status': 'success', 'id': id}

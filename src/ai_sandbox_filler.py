@@ -9,10 +9,24 @@ from parser import parse_monlang_file
 def validate_generated_code_safety(ai_code: str, func_name: str):
     """
     Analyse statiquement le code généré par l'IA à l'aide de l'AST de Python.
-    Bloque l'injection si des patterns interdits ou des injections SQL indirectes sont détectés.
+    Bloque l'injection si des patterns interdits, des injections SQL indirectes,
+    des accès réseau/système détournés, ou des boucles sans issue sont détectés.
     """
-    BANNED_IMPORTS = {"os", "subprocess", "sys", "shutil", "builtins", "requests", "urllib"}
-    BANNED_FUNCTIONS = {"eval", "exec", "open", "compile", "globals", "locals", "getattr", "setattr"}
+    # CORRECTIF (post-v6, roadmap point 1) : liste étendue au-delà de l'injection SQL.
+    # - Ajout de modules réseau/bas niveau supplémentaires (un contournement possible
+    #   du blocage de 'requests'/'urllib' était d'utiliser 'socket', 'http.client',
+    #   'ftplib' ou 'smtplib' directement).
+    # - Ajout de 'importlib' qui permettrait de recharger dynamiquement un module banni.
+    BANNED_IMPORTS = {
+        "os", "subprocess", "sys", "shutil", "builtins", "requests", "urllib",
+        "socket", "http", "ftplib", "smtplib", "importlib", "ctypes", "pickle",
+    }
+    # - Ajout de '__import__', qui permettait de contourner le blocage des imports
+    #   statiques en importation dynamique (ex: __import__('os').system(...)).
+    BANNED_FUNCTIONS = {
+        "eval", "exec", "open", "compile", "globals", "locals",
+        "getattr", "setattr", "delattr", "__import__", "vars", "input",
+    }
 
     try:
         root = ast.parse(ai_code)
@@ -23,10 +37,12 @@ def validate_generated_code_safety(ai_code: str, func_name: str):
         # 1. Traque les imports interdits
         if isinstance(node, ast.Import):
             for alias in node.names:
-                if alias.name in BANNED_IMPORTS:
+                top_level = alias.name.split(".")[0]
+                if top_level in BANNED_IMPORTS:
                     raise PermissionError(f"🛑 [SECURITY_BLOCKED] Import interdit : '{alias.name}' !")
         elif isinstance(node, ast.ImportFrom):
-            if node.module in BANNED_IMPORTS:
+            top_level = (node.module or "").split(".")[0]
+            if top_level in BANNED_IMPORTS:
                 raise PermissionError(f"🛑 [SECURITY_BLOCKED] Import interdit depuis : '{node.module}' !")
         
         # 2. Traque les fonctions d'exécution dynamique interdites
@@ -51,6 +67,25 @@ def validate_generated_code_safety(ai_code: str, func_name: str):
                     # Interdiction des concaténations par addition + (ex: "SELECT " + var)
                     if isinstance(first_arg, ast.BinOp) and isinstance(first_arg.op, ast.Add):
                         raise PermissionError(f"🛑 [SQL_INJECTION_BLOCKED] L'IA a tenté d'utiliser une concaténation de texte par l'opérateur '+' au sein d'un .execute() dans '{func_name}' !")
+
+        # 3. CORRECTIF (post-v6, roadmap point 1) : détection heuristique des boucles
+        # sans issue. Une boucle "while True"/"while 1" sans aucun "break" dans son
+        # corps ne rendra jamais la main au serveur qui l'appelle (déni de service).
+        # Heuristique simple, volontairement conservatrice : elle ne détecte que le
+        # cas le plus évident (condition littéralement constante et vraie).
+        elif isinstance(node, ast.While):
+            condition_is_constant_true = (
+                (isinstance(node.test, ast.Constant) and bool(node.test.value)) or
+                (isinstance(node.test, ast.NameConstant) and bool(node.test.value))  # compat anciennes versions d'ast
+            )
+            if condition_is_constant_true:
+                has_break = any(isinstance(n, ast.Break) for n in ast.walk(node))
+                if not has_break:
+                    raise PermissionError(
+                        f"🛑 [INFINITE_LOOP_BLOCKED] La fonction '{func_name}' contient une boucle "
+                        f"'while True'/'while 1' sans instruction 'break' détectable — risque de "
+                        f"blocage indéfini du serveur !"
+                    )
 
     print(f"🛡️  [GUARDRAIL] Le code pour '{func_name}' a passé l'analyse statique et le contrôle anti-injection SQL.")
 def generate_custom_logic_with_ai(func_name, description, inputs, output):

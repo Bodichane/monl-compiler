@@ -1,0 +1,18 @@
+app ModerationApp
+
+entity Post
+    title: String
+    content: Text
+
+actor Admin
+actor Moderator
+
+rule Post.title required
+rule Post.Delete sharedBy Admin, Moderator
+
+workflow AdminModeration for Admin
+    Create Post
+    Delete Post
+
+workflow ModeratorModeration for Moderator
+    Delete Post

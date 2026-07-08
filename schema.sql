@@ -1,15 +1,7 @@
--- Socle DB Déterministe généré automatiquement pour TodoApp
+-- Socle DB Déterministe généré automatiquement pour ModerationApp
 
-CREATE TABLE IF NOT EXISTS user (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name VARCHAR(255),
-    email VARCHAR(255)
-);
-
-CREATE TABLE IF NOT EXISTS todo (
+CREATE TABLE IF NOT EXISTS post (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title VARCHAR(255),
-    completed BOOLEAN,
-    user_id INTEGER,
-    FOREIGN KEY (user_id) REFERENCES user(id)
+    content TEXT
 );

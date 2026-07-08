@@ -94,6 +94,15 @@ class MonLangSecureGenerator:
             "        print(f'ℹ️ DB déjà initialisée ou erreur de script: {e}')",
             "    finally:",
             "        conn.close()\n",
+
+            # CORRECTIF (post-v6, roadmap point 4a) : redirection de la racine vers
+            # la documentation Swagger/OpenAPI auto-générée par FastAPI. Ça donne un
+            # « front minimal » gratuit — utilisable au navigateur, sans écrire une
+            # seule requête HTTP à la main — en attendant un vrai front dédié.
+            "from fastapi.responses import RedirectResponse\n",
+            "@app.get('/', include_in_schema=False)",
+            "async def root():",
+            "    return RedirectResponse(url='/docs')\n",
             
             "class LoginRequest(BaseModel):",
             "    username: str",
@@ -146,75 +155,108 @@ class MonLangSecureGenerator:
             api_lines.append("\n")
 
         api_lines.append("# --- ENFORCEMENT DU CONTRÔLE D'ACCÈS PAR JWT ET PERSISTANCE ---")
+
+        # CORRECTIF (post-v6) : les routes sont désormais regroupées par couple
+        # (type d'action, cible), et non plus générées une fois par workflow.
+        # Raison : avant ce correctif, deux workflows différents visant la même
+        # action sur la même entité (ex. deux acteurs autorisés à faire "Delete Post"
+        # via une règle 'sharedBy') produisaient deux définitions de route FastAPI
+        # sur le même chemin ('@app.delete(\"/post/{id}\")' deux fois) — seule la
+        # première déclarée restait effectivement joignable, la seconde était
+        # silencieusement masquée, et son acteur recevait un 403 malgré une spec
+        # valide. Le regroupement ci-dessous fusionne les acteurs autorisés en un
+        # seul contrôle d'accès par route, listant tous les acteurs légitimes.
+        route_map = {}
         for wf in self.workflows:
             wf_name = wf["name"]
             required_actor = wf["actor"]
-            
+
             for action in wf["actions"]:
                 act_type = action["type"]
                 target = action["target"]
                 base_target = target.split(".")[0] if "." in target else target
-                
-                security_check = f'    if current_actor != "{required_actor}": raise HTTPException(status_code=403, detail="Contrôle d\'accès : Rôle {required_actor} requis")'
-                dependency_injection = "current_actor: str = Depends(verify_jwt_and_get_actor)"
-                
-                if act_type == "Create":
-                    api_lines.append(f"@app.post('/{base_target.lower()}', tags=['{wf_name}'])")
-                    api_lines.append(f"async def create_{base_target.lower()}(data: {base_target}Schema, {dependency_injection}):")
-                    api_lines.append(security_check)
-                    api_lines.append("    conn = sqlite3.connect(DB_FILE); cursor = conn.cursor()")
-                    fields = list(self.entities[base_target].keys())
-                    columns = ", ".join(fields)
-                    placeholders = ", ".join(["?"] * len(fields))
-                    api_lines.append(f"    query = 'INSERT INTO {base_target.lower()} ({columns}) VALUES ({placeholders})'")
-                    values_list = ", ".join([f"data.{f}" for f in fields])
-                    api_lines.append(f"    cursor.execute(query, ({values_list},))")
-                    api_lines.append("    conn.commit(); row_id = cursor.lastrowid; conn.close()")
-                    api_lines.append(f"    return {{'status': 'success', 'id': row_id}}")
-                    api_lines.append("")
-                    
-                elif act_type == "Read":
-                    api_lines.append(f"@app.get('/{base_target.lower()}/{{id}}', tags=['{wf_name}'])")
-                    api_lines.append(f"async def read_{base_target.lower()}(id: int, {dependency_injection}):")
-                    api_lines.append(security_check)
-                    api_lines.append("    conn = sqlite3.connect(DB_FILE); cursor = conn.cursor()")
-                    api_lines.append(f"    cursor.execute('SELECT * FROM {base_target.lower()} WHERE id = ?', (id,))")
-                    api_lines.append("    row = cursor.fetchone(); conn.close()")
-                    api_lines.append("    if not row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')")
-                    api_lines.append("    return {'status': 'success', 'data': row}")
-                    api_lines.append("")
-                    
-                elif act_type == "Update":
-                    api_lines.append(f"@app.put('/{base_target.lower()}/{{id}}', tags=['{wf_name}'])")
-                    api_lines.append(f"async def update_{base_target.lower()}(id: int, data: {base_target}Schema, {dependency_injection}):")
-                    api_lines.append(security_check)
-                    api_lines.append("    conn = sqlite3.connect(DB_FILE); cursor = conn.cursor()")
-                    fields = list(self.entities[base_target].keys())
-                    update_stmt = ", ".join([f"{f} = ?" for f in fields])
-                    api_lines.append(f"    query = 'UPDATE {base_target.lower()} SET {update_stmt} WHERE id = ?'")
-                    values_list = ", ".join([f"data.{f}" for f in fields])
-                    api_lines.append(f"    cursor.execute(query, ({values_list}, id))")
-                    api_lines.append("    conn.commit(); conn.close()")
-                    api_lines.append(f"    return {{'status': 'success', 'id': id}}")
-                    api_lines.append("")
+                route_key = (act_type, base_target if act_type != "Execute" else target)
 
-                elif act_type == "Delete":
-                    api_lines.append(f"@app.delete('/{base_target.lower()}/{{id}}', tags=['{wf_name}'])")
-                    api_lines.append(f"async def delete_{base_target.lower()}(id: int, {dependency_injection}):")
-                    api_lines.append(security_check)
-                    api_lines.append("    conn = sqlite3.connect(DB_FILE); cursor = conn.cursor()")
-                    api_lines.append(f"    cursor.execute('DELETE FROM {base_target.lower()} WHERE id = ?', (id,))")
-                    api_lines.append("    conn.commit(); conn.close()")
-                    api_lines.append(f"    return {{'status': 'success', 'id': id}}")
-                    api_lines.append("")
-                    
-                elif act_type == "Execute":
-                    api_lines.append(f"@app.post('/workflow/{wf_name.lower()}/{target.lower()}', tags=['{wf_name}'])")
-                    api_lines.append(f"async def execute_{target.lower()}(payload: {target}InputSchema, {dependency_injection}):")
-                    api_lines.append(security_check)
-                    api_lines.append(f"    result = sandbox_ai.{target}(payload.dict())")
-                    api_lines.append("    return {'status': 'executed', 'sandbox_result': result}")
-                    api_lines.append("")
+                if route_key not in route_map:
+                    route_map[route_key] = {"actors": set(), "tags": [], "target": target, "base_target": base_target}
+                route_map[route_key]["actors"].add(required_actor)
+                if wf_name not in route_map[route_key]["tags"]:
+                    route_map[route_key]["tags"].append(wf_name)
+
+        for (act_type, _key), info in route_map.items():
+            allowed_actors = sorted(info["actors"])
+            base_target = info["base_target"]
+            target = info["target"]
+            tag = info["tags"][0]
+
+            if len(allowed_actors) == 1:
+                security_check = (f'    if current_actor != "{allowed_actors[0]}": '
+                                   f'raise HTTPException(status_code=403, detail="Contrôle d\'accès : '
+                                   f'Rôle {allowed_actors[0]} requis")')
+            else:
+                allowed_set_literal = ", ".join(f'"{a}"' for a in allowed_actors)
+                security_check = (f'    if current_actor not in {{{allowed_set_literal}}}: '
+                                   f'raise HTTPException(status_code=403, detail="Contrôle d\'accès : '
+                                   f'Rôle parmi [{", ".join(allowed_actors)}] requis")')
+            dependency_injection = "current_actor: str = Depends(verify_jwt_and_get_actor)"
+                
+            if act_type == "Create":
+                api_lines.append(f"@app.post('/{base_target.lower()}', tags=['{tag}'])")
+                api_lines.append(f"async def create_{base_target.lower()}(data: {base_target}Schema, {dependency_injection}):")
+                api_lines.append(security_check)
+                api_lines.append("    conn = sqlite3.connect(DB_FILE); cursor = conn.cursor()")
+                fields = list(self.entities[base_target].keys())
+                columns = ", ".join(fields)
+                placeholders = ", ".join(["?"] * len(fields))
+                api_lines.append(f"    query = 'INSERT INTO {base_target.lower()} ({columns}) VALUES ({placeholders})'")
+                values_list = ", ".join([f"data.{f}" for f in fields])
+                api_lines.append(f"    cursor.execute(query, ({values_list},))")
+                api_lines.append("    conn.commit(); row_id = cursor.lastrowid; conn.close()")
+                api_lines.append(f"    return {{'status': 'success', 'id': row_id}}")
+                api_lines.append("")
+                
+            elif act_type == "Read":
+                api_lines.append(f"@app.get('/{base_target.lower()}/{{id}}', tags=['{tag}'])")
+                api_lines.append(f"async def read_{base_target.lower()}(id: int, {dependency_injection}):")
+                api_lines.append(security_check)
+                api_lines.append("    conn = sqlite3.connect(DB_FILE); cursor = conn.cursor()")
+                api_lines.append(f"    cursor.execute('SELECT * FROM {base_target.lower()} WHERE id = ?', (id,))")
+                api_lines.append("    row = cursor.fetchone(); conn.close()")
+                api_lines.append("    if not row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')")
+                api_lines.append("    return {'status': 'success', 'data': row}")
+                api_lines.append("")
+                
+            elif act_type == "Update":
+                api_lines.append(f"@app.put('/{base_target.lower()}/{{id}}', tags=['{tag}'])")
+                api_lines.append(f"async def update_{base_target.lower()}(id: int, data: {base_target}Schema, {dependency_injection}):")
+                api_lines.append(security_check)
+                api_lines.append("    conn = sqlite3.connect(DB_FILE); cursor = conn.cursor()")
+                fields = list(self.entities[base_target].keys())
+                update_stmt = ", ".join([f"{f} = ?" for f in fields])
+                api_lines.append(f"    query = 'UPDATE {base_target.lower()} SET {update_stmt} WHERE id = ?'")
+                values_list = ", ".join([f"data.{f}" for f in fields])
+                api_lines.append(f"    cursor.execute(query, ({values_list}, id))")
+                api_lines.append("    conn.commit(); conn.close()")
+                api_lines.append(f"    return {{'status': 'success', 'id': id}}")
+                api_lines.append("")
+
+            elif act_type == "Delete":
+                api_lines.append(f"@app.delete('/{base_target.lower()}/{{id}}', tags=['{tag}'])")
+                api_lines.append(f"async def delete_{base_target.lower()}(id: int, {dependency_injection}):")
+                api_lines.append(security_check)
+                api_lines.append("    conn = sqlite3.connect(DB_FILE); cursor = conn.cursor()")
+                api_lines.append(f"    cursor.execute('DELETE FROM {base_target.lower()} WHERE id = ?', (id,))")
+                api_lines.append("    conn.commit(); conn.close()")
+                api_lines.append(f"    return {{'status': 'success', 'id': id}}")
+                api_lines.append("")
+                
+            elif act_type == "Execute":
+                api_lines.append(f"@app.post('/workflow/{tag.lower()}/{target.lower()}', tags=['{tag}'])")
+                api_lines.append(f"async def execute_{target.lower()}(payload: {target}InputSchema, {dependency_injection}):")
+                api_lines.append(security_check)
+                api_lines.append(f"    result = sandbox_ai.{target}(payload.dict())")
+                api_lines.append("    return {'status': 'executed', 'sandbox_result': result}")
+                api_lines.append("")
                     
         return "\n".join(api_lines)
 

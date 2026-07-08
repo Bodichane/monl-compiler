@@ -18,10 +18,21 @@ grammar = r"""
     
     actor: "actor" NAME _NL
     
-    rule: "rule" REFERENCE VALIDATION_TYPE _NL
-        | "rule" REFERENCE VALIDATION_TYPE INT _NL
-        | "rule" REFERENCE "restrictedTo" NAME _NL
-    
+    # CORRECTIF (post-v6) : la règle "rule" est éclatée en 3 productions nommées.
+    # Raison : dans la grammaire précédente, les mots-clés "restrictedTo"/"sharedBy"
+    # étaient des littéraux anonymes filtrés par Lark avant transformation, ce qui
+    # empêchait la méthode rule() de savoir quel type de règle elle traitait
+    # (le mot-clé "restrictedTo" n'atteignait jamais le Transformer). Conséquence :
+    # rule["type"] ne valait jamais "restrictedTo", et l'audit de sécurité associé
+    # dans ast_validator.py ne se déclenchait donc jamais. Même classe de bug que
+    # celui déjà corrigé sur le bloc "custom" en v3.
+    ?rule: constraint_rule | restriction_rule | sharing_rule
+
+    constraint_rule: "rule" REFERENCE VALIDATION_TYPE _NL
+                   | "rule" REFERENCE VALIDATION_TYPE INT _NL
+    restriction_rule: "rule" REFERENCE "restrictedTo" NAME _NL
+    sharing_rule: "rule" REFERENCE "sharedBy" NAME ("," NAME)* _NL
+
     workflow: "workflow" NAME "for" NAME _NL _INDENT action+ _DEDENT
     
     ?action: crud_action | execute_action
@@ -85,11 +96,17 @@ class MonLangTransformer(Transformer):
     def actor(self, name):
         return {"actor": str(name)}
         
-    def rule(self, reference, valid_type, value=None):
+    def constraint_rule(self, reference, valid_type, value=None):
         data = {"reference": str(reference), "type": str(valid_type)}
         if value is not None:
             data["value"] = str(value)
         return {"rule": data}
+
+    def restriction_rule(self, reference, actor_name):
+        return {"rule": {"reference": str(reference), "type": "restrictedTo", "value": str(actor_name)}}
+
+    def sharing_rule(self, reference, *actor_names):
+        return {"rule": {"reference": str(reference), "type": "sharedBy", "value": [str(a) for a in actor_names]}}
         
     def workflow(self, name, actor_name, *actions):
         return {"workflow": {"name": str(name), "actor": str(actor_name), "actions": list(actions)}}
