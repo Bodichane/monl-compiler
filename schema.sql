@@ -1,7 +1,9 @@
--- Socle DB Déterministe généré automatiquement pour ModerationApp
+-- Socle DB Déterministe généré automatiquement pour ContactManager
 
-CREATE TABLE IF NOT EXISTS post (
+CREATE TABLE IF NOT EXISTS contact (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title VARCHAR(255),
-    content TEXT
+    name VARCHAR(255),
+    email VARCHAR(255),
+    phone VARCHAR(255),
+    address TEXT
 );

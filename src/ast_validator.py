@@ -15,6 +15,7 @@ class MonLangAST:
         self.rules = raw_json.get("rules", [])
         self.workflows = raw_json.get("workflows", [])
         self.custom_logic = {c["name"]: c for c in raw_json.get("custom_logic", [])}
+        self.ownership_rules = {}
         
         for ent in raw_json.get("entities", []):
             name = ent["name"]
@@ -36,7 +37,8 @@ class MonLangAST:
 
     def _validate_structures(self):
         """Vérifie la cohérence de base et traque les collisions multi-acteurs (Bug #5),
-        sauf exemption explicite via une règle 'sharedBy'."""
+        sauf exemption explicite via une règle 'sharedBy'. Valide aussi les règles
+        'ownedBy' (roadmap : contrôle d'accès par propriété)."""
         # Matrice globale pour traquer les conflits d'autorisations (Entité -> Action -> Ensemble d'acteurs)
         access_matrix = {}
 
@@ -47,6 +49,39 @@ class MonLangAST:
         for rule in self.rules:
             if rule["type"] == "sharedBy":
                 shared_permissions[rule["reference"]] = set(rule["value"])
+
+        # AJOUT (post-v6, roadmap) : les règles 'ownedBy' restreignent une action
+        # au seul enregistrement appartenant à l'acteur courant. Elles nécessitent
+        # qu'une relation 'hasMany' existe entre l'entité "propriétaire" déclarée
+        # et l'entité cible, pour fournir la colonne de clé étrangère qui stocke
+        # le propriétaire (générée automatiquement en <source>_id).
+        self.ownership_rules = {}
+        for rule in self.rules:
+            if rule["type"] == "ownedBy":
+                if "." not in rule["reference"]:
+                    raise ASTValidationError(
+                        f"Structure : la règle 'ownedBy' doit référencer 'Entite.Action', reçu '{rule['reference']}'."
+                    )
+                entity, act_type = rule["reference"].split(".", 1)
+                owner_entity = rule["value"]
+
+                if entity not in self.entities:
+                    raise ASTValidationError(f"Structure : la règle 'ownedBy' cible l'entité '{entity}' qui n'existe pas.")
+                if act_type not in ("Create", "Read", "Update", "Delete"):
+                    raise ASTValidationError(f"Structure : action '{act_type}' invalide dans la règle 'ownedBy' sur '{entity}'.")
+
+                has_matching_relation = any(
+                    rel["type"] == "hasMany" and rel["source"] == owner_entity and rel["target"] == entity
+                    for rel in self.relations
+                )
+                if not has_matching_relation:
+                    raise ASTValidationError(
+                        f"Structure : la règle 'ownedBy' sur '{entity}.{act_type}' référence le propriétaire "
+                        f"'{owner_entity}', mais aucune relation 'relation {owner_entity} hasMany {entity}' "
+                        f"n'est déclarée pour fournir la colonne de propriété."
+                    )
+
+                self.ownership_rules[(entity, act_type)] = owner_entity
 
         for wf in self.workflows:
             actor = wf["actor"]
@@ -150,6 +185,9 @@ class MonLangAST:
         return {
             "meta": {"appName": self.app_name, "security_audit_logs": security_reports},
             "schema": {"entities": self.entities, "relations": self.relations},
-            "security": {"actors": list(self.actors), "rules": self.rules, "workflows": self.workflows},
+            "security": {
+                "actors": list(self.actors), "rules": self.rules, "workflows": self.workflows,
+                "ownership": {f"{k[0]}.{k[1]}": v for k, v in self.ownership_rules.items()},
+            },
             "sandbox_ai": {"custom_functions": list(self.custom_logic.values())}
         }

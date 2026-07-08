@@ -93,17 +93,38 @@ un humain avant déploiement.
 
 ---
 
-## 5. Contrôle d'accès JWT, sans granularité au-delà de l'acteur
+## 5. Contrôle d'accès par propriété (`ownedBy`)
 
-**Ce qu'il permet/interdit :** le contrôle d'accès généré est basé
-uniquement sur l'acteur (le rôle) porté par le token JWT — il n'y a pas de
-notion de propriétaire d'une ressource (« seul l'auteur de ce Post peut le
-modifier », par exemple).
+**Ce qu'elle permet :** une règle `rule Entite.Action ownedBy EntiteProprietaire`
+(sur `Update` ou `Delete`) restreint l'action au seul enregistrement qui
+appartient à l'acteur courant, en plus du contrôle de rôle habituel. Elle
+nécessite qu'une relation `relation EntiteProprietaire hasMany Entite` soit
+déclarée — c'est elle qui fournit la colonne de clé étrangère utilisée pour
+vérifier la propriété.
 
-**Pourquoi :** c'est une limite du modèle actuel, pas un choix de sécurité
-délibéré — le DSL ne permet pas encore d'exprimer une règle de propriété
-individuelle, seulement des règles par rôle.
+**Comment ça marche au runtime :** à la connexion (`POST /login`), le client
+fournit un `user_id` (entier). À la création d'un enregistrement, ce
+`user_id` est automatiquement enregistré comme propriétaire. Sur `Update`
+et `Delete`, l'application vérifie que le `user_id` du token correspond bien
+au propriétaire enregistré, sinon elle renvoie un `403`.
 
-**Statut :** limite connue, pas encore de syntaxe prévue pour l'exprimer.
-À considérer pour une future évolution du DSL si le besoin se présente
-(ex. une syntaxe `rule Post.Update ownedBy author` référençant une relation).
+**Limite de conception assumée :** il n'existe pas de registre d'utilisateurs
+réel dans ce prototype — le `user_id` est déclaré par le client à la
+connexion, pas vérifié contre une base d'authentification. Cette limite
+était déjà présente pour `actor` avant l'ajout d'`ownedBy` ; elle s'applique
+maintenant aussi à `user_id`. C'est un choix cohérent avec le reste du
+projet (JWT signé, mais sans registre d'identités tiers) plutôt qu'un oubli.
+Voir `exemples/07_ownership_demo.yaml` pour un exemple complet.
+
+**Effet de bord positif (gap corrigé au passage) :** avant cet ajout, les
+colonnes de clé étrangère générées dans `schema.sql` pour les relations
+`hasMany` n'étaient en réalité jamais renseignées par les routes `Create` —
+elles restaient `NULL` pour tout enregistrement créé, rendant les relations
+inertes au runtime malgré leur présence dans le schéma. Elles sont
+désormais peuplées automatiquement pour toute entité ayant une relation
+entrante, qu'une règle `ownedBy` soit déclarée ou non.
+
+**Ce qui reste une limite :** `ownedBy` ne se combine pas encore avec
+`sharedBy` (un enregistrement partagé entre plusieurs propriétaires). Non
+nécessaire pour les cas d'usage actuels, mais à garder en tête si le besoin
+se présente.

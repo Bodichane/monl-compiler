@@ -63,9 +63,29 @@ def compile_monlang(file_path):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Compilateur Industriel MonLang.")
     parser.add_argument("fichier", type=str, nargs="?", help="Chemin du fichier .yaml à compiler.")
+    parser.add_argument("--prompt", type=str, default=None,
+                         help="Décrire l'application en langage naturel au lieu de fournir un fichier "
+                              "(nécessite un serveur Ollama local, voir README.md).")
+    parser.add_argument("--model", type=str, default="qwen2.5-coder:3b",
+                         help="Nom du modèle Ollama à utiliser avec --prompt (défaut : qwen2.5-coder:3b).")
+    parser.add_argument("--save-spec-as", type=str, default=None,
+                         help="Chemin où sauvegarder la spec générée par --prompt "
+                              "(défaut : ../generated_from_prompt.yaml).")
     args = parser.parse_args()
-    
-    if not args.fichier:
+
+    if args.prompt:
+        from ai_translator import prompt_to_monlang, save_spec_to_file
+        try:
+            spec_text = prompt_to_monlang(args.prompt, model=args.model)
+        except RuntimeError as e:
+            print(f"\n{e}")
+            sys.exit(1)
+        output_path = args.save_spec_as or os.path.join(
+            os.path.dirname(__file__), "../generated_from_prompt.yaml"
+        )
+        save_spec_to_file(spec_text, output_path)
+        compile_monlang(output_path)
+    elif not args.fichier:
         default_sample = os.path.join(os.path.dirname(__file__), "../exemples/01_todo_list.yaml")
         compile_monlang(default_sample)
     else:

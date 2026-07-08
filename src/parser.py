@@ -26,12 +26,18 @@ grammar = r"""
     # rule["type"] ne valait jamais "restrictedTo", et l'audit de sécurité associé
     # dans ast_validator.py ne se déclenchait donc jamais. Même classe de bug que
     # celui déjà corrigé sur le bloc "custom" en v3.
-    ?rule: constraint_rule | restriction_rule | sharing_rule
+    ?rule: constraint_rule | restriction_rule | sharing_rule | ownership_rule
 
     constraint_rule: "rule" REFERENCE VALIDATION_TYPE _NL
                    | "rule" REFERENCE VALIDATION_TYPE INT _NL
     restriction_rule: "rule" REFERENCE "restrictedTo" NAME _NL
     sharing_rule: "rule" REFERENCE "sharedBy" NAME ("," NAME)* _NL
+    # AJOUT (post-v6, roadmap) : "ownedBy" restreint une action Update/Delete au
+    # seul enregistrement appartenant à l'acteur courant, via la relation FK
+    # existante entre l'entité et l'acteur propriétaire. Ex. :
+    #   relation User hasMany Todo
+    #   rule Todo.Update ownedBy User
+    ownership_rule: "rule" REFERENCE "ownedBy" NAME _NL
 
     workflow: "workflow" NAME "for" NAME _NL _INDENT action+ _DEDENT
     
@@ -107,6 +113,9 @@ class MonLangTransformer(Transformer):
 
     def sharing_rule(self, reference, *actor_names):
         return {"rule": {"reference": str(reference), "type": "sharedBy", "value": [str(a) for a in actor_names]}}
+
+    def ownership_rule(self, reference, owner_entity):
+        return {"rule": {"reference": str(reference), "type": "ownedBy", "value": str(owner_entity)}}
         
     def workflow(self, name, actor_name, *actions):
         return {"workflow": {"name": str(name), "actor": str(actor_name), "actions": list(actions)}}
@@ -146,8 +155,14 @@ class MonLangIndenter(PythonIndenter):
     DEDENT_type = '_DEDENT'
     tab_len = 4
 
-def parse_monlang_file(file_path):
+def parse_monlang_string(content):
+    """Parse une chaîne MonLang directement (sans passer par un fichier).
+    Utilisé par parse_monlang_file, et par ai_translator.py pour valider
+    une spec générée par l'IA avant de l'écrire sur disque."""
     parser = Lark(grammar, parser='lalr', postlex=MonLangIndenter())
+    return MonLangTransformer().transform(parser.parse(content + "\n"))
+
+def parse_monlang_file(file_path):
     with open(file_path, 'r', encoding='utf-8') as f:
         content = f.read()
-    return MonLangTransformer().transform(parser.parse(content + "\n"))
+    return parse_monlang_string(content)
