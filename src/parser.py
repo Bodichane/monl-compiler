@@ -27,7 +27,7 @@ grammar = r"""
     # rule["type"] ne valait jamais "restrictedTo", et l'audit de sécurité associé
     # dans ast_validator.py ne se déclenchait donc jamais. Même classe de bug que
     # celui déjà corrigé sur le bloc "custom" en v3.
-    ?rule: constraint_rule | restriction_rule | sharing_rule | ownership_rule | visibility_rule | masking_rule | decrement_rule | increment_rule | categorization_rule
+    ?rule: constraint_rule | restriction_rule | sharing_rule | ownership_rule | visibility_rule | masking_rule | decrement_rule | increment_rule | categorization_rule | generation_rule
 
     constraint_rule: "rule" REFERENCE VALIDATION_TYPE _NL
                    | "rule" REFERENCE VALIDATION_TYPE INT _NL
@@ -97,6 +97,18 @@ grammar = r"""
     ?category_clause: category_below | category_otherwise
     category_below: STRING_LITERAL "below" INT
     category_otherwise: STRING_LITERAL "otherwise"
+
+    # AJOUT (roadmap, écosystème de capacités -- suite de la brique 1,
+    # "capability auth") : "generated" retire un champ String du corps de
+    # requête attendu par la route Create de son entité -- le serveur le
+    # peuple seul, à partir d'un pseudonyme anonyme stable généré une seule
+    # fois par compte à l'inscription (voir /register dans generator.py),
+    # jamais fourni ni contrôlable par le client. Cas d'usage déclencheur :
+    # un champ "author" dont l'intégrité doit être garantie (contrairement
+    # à un "author" en String libre rempli à la main par le client, voir
+    # docs/design_decisions.md point 29). Ex. :
+    #   rule Post.author generated
+    generation_rule: "rule" REFERENCE "generated" _NL
 
     # AJOUT (roadmap, contrôle du rendu visuel) : bloc optionnel "ui" pour
     # surcharger ce que le générateur devine automatiquement. Ex. :
@@ -274,6 +286,9 @@ class MonLangTransformer(Transformer):
             "reference": str(reference), "type": "categorized",
             "value": list(clauses),
         }}
+
+    def generation_rule(self, reference):
+        return {"rule": {"reference": str(reference), "type": "generated"}}
 
     def ui_theme(self, name):
         return {"theme": str(name)}

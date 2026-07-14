@@ -203,6 +203,56 @@ class MonLangAST:
                     )
                 self.categorized_fields.append({"entity": entity, "field": field, "clauses": clauses})
 
+        # AJOUT (roadmap, écosystème de capacités -- suite de la brique 1) :
+        # validation des règles 'generated' -- retire un champ String du
+        # corps de requête Create attendu, peuplé côté serveur par le
+        # pseudonyme anonyme stable du compte courant (voir /register et
+        # /login dans generator.py) plutôt que fourni par le client.
+        self.generated_fields = []
+        _generated_seen_fields = set()
+        for rule in self.rules:
+            if rule["type"] == "generated":
+                if "." not in rule["reference"]:
+                    raise ASTValidationError(
+                        f"Structure : la règle 'generated' doit référencer 'Entite.champ', reçu '{rule['reference']}'."
+                    )
+                entity, field = rule["reference"].split(".", 1)
+                if entity not in self.entities:
+                    raise ASTValidationError(f"Structure : la règle 'generated' cible l'entité '{entity}' qui n'existe pas.")
+                field_type = self.entities.get(entity, {}).get(field)
+                if field_type != "String":
+                    raise ASTValidationError(
+                        f"Structure : 'generated' cible le champ '{entity}.{field}', qui doit être un attribut "
+                        f"String déclaré (reçu : {field_type or 'champ inexistant'}) -- un pseudonyme est toujours "
+                        f"du texte court."
+                    )
+                # Incompatible avec 'hidden' sur le même champ : 'generated'
+                # existe précisément pour produire une valeur sûre à
+                # afficher (un pseudonyme, jamais l'identité réelle) -- la
+                # masquer entièrement en plus n'aurait aucun sens, ce serait
+                # alors juste ne pas déclarer le champ du tout.
+                if (entity, field) in self.masked_fields:
+                    raise ASTValidationError(
+                        f"Structure : '{entity}.{field}' est à la fois 'hidden' et 'generated' -- incompatible : "
+                        f"'generated' produit déjà une valeur sûre à afficher, la masquer en plus n'a pas de sens."
+                    )
+                if (entity, field) in _generated_seen_fields:
+                    raise ASTValidationError(
+                        f"Structure : plusieurs règles 'generated' déclarées pour '{entity}.{field}' -- une seule autorisée."
+                    )
+                _generated_seen_fields.add((entity, field))
+                # Incompatible avec une action 'Create' 'public' sur la même
+                # entité : 'generated' peuple le champ depuis l'identité de
+                # l'appelant authentifié -- une route publique n'a par
+                # définition aucune identité fiable à partir de laquelle
+                # dériver un pseudonyme.
+                if (entity, "Create") in self.public_actions:
+                    raise ASTValidationError(
+                        f"Structure : '{entity}.{field}' est 'generated', mais '{entity}.Create' est 'public' -- "
+                        f"incompatible : 'generated' exige un appelant authentifié dont dériver le pseudonyme."
+                    )
+                self.generated_fields.append({"entity": entity, "field": field})
+
         # AJOUT (roadmap, écosystème de capacités -- brique 3, généralisée en
         # brique 4) : validation des règles 'decrements'/'increments' --
         # même mécanique dans les deux sens (réputation qui baisse sur
@@ -466,6 +516,7 @@ class MonLangAST:
                 "hidden_fields": [f"{e}.{f}" for e, f in self.masked_fields],
                 "reputation_rules": self.reputation_rules,
                 "categorized_fields": self.categorized_fields,
+                "generated_fields": self.generated_fields,
             },
             "sandbox_ai": {"custom_functions": list(self.custom_logic.values())},
             "ui": self.ui_overrides,

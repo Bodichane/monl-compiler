@@ -37,7 +37,8 @@ pour qui écrit une spec MonLang, et de mémoire pour le mainteneur du projet.
 [26](#26-écosystème-de-capacités--brique-3--réputation-dynamique-decrements) Réputation dynamique (brique 3) ·
 [27](#27-écosystème-de-capacités--brique-4--appréciations-increments) Appréciations (brique 4) ·
 [28](#28-écosystème-de-capacités--brique-5--likes-en-catégories-categorized) Likes en catégories (brique 5) ·
-[29](#29-écosystème-de-capacités--assemblage-final-réseau-social-anonyme) Assemblage final (réseau social anonyme)
+[29](#29-écosystème-de-capacités--assemblage-final-réseau-social-anonyme) Assemblage final (réseau social anonyme) ·
+[30](#30-écosystème-de-capacités--pseudonyme-anonyme-généré-generated) Pseudonyme anonyme généré (`generated`)
 
 ---
 
@@ -874,4 +875,58 @@ révèle jamais `author` ; 18 likes de bob (`+5` chacun, 90 au total) affichent
 réputation d'alice de 100 à 90 (vérifié directement en base) ; bob peut
 modifier son propre commentaire, alice reçoit un `403` en tentant de
 modifier celui de bob.
+
+## 30. Écosystème de capacités — pseudonyme anonyme généré (`generated`)
+
+**Cas d'usage déclencheur** : le point 29 notait que `Post.author`, dans
+l'assemblage final, reste un `String` libre rempli à la main par le
+client — rien ne garantit son intégrité (n'importe quel texte, y compris
+vide, y compris usurper le style d'un autre pseudonyme). Trois décisions
+tranchées avec l'utilisateur avant l'implémentation :
+1. **Stabilité** : le pseudonyme est généré **une seule fois par compte**,
+   à `/register` (ex. `Anon#3821`), et reste identique sur tous les
+   enregistrements créés ensuite par ce compte — pas un nouveau pseudonyme
+   à chaque création (ce qui aurait empêché de reconnaître "ces posts
+   viennent du même auteur", contraire à l'esprit d'un réseau social), ni
+   un identifiant stable de bout en bout entre toutes les entités (deux
+   entités différentes utilisant chacune leur propre règle `generated`
+   partagent quand même le MÊME pseudonyme de compte, un compromis
+   volontairement simple pour cette première version).
+2. **Syntaxe** : nouvelle règle `rule Entite.champ generated`, sur le même
+   principe qu'une ligne que `hidden`/`categorized`.
+3. **Entrée client** : le champ est retiré du schéma Pydantic de la route
+   `Create` — le client ne peut même pas tenter de le fournir (même
+   traitement que la colonne de clé étrangère peuplée par `ownedBy`).
+
+**Ce qui a changé :** `_monlang_users` gagne une colonne `anon_handle`
+(contrainte `UNIQUE`, généré à `/register` sous la forme `Anon#` + 4
+chiffres aléatoires, avec jusqu'à 10 tentatives en cas de collision plutôt
+qu'un échec d'inscription pour une coïncidence statistiquement rare). Porté
+par le JWT depuis `/login` (comme `actor`/`user_id`), donc disponible sans
+requête DB supplémentaire via une nouvelle dépendance
+`get_current_anon_handle`. Le générateur retire le champ ciblé du schéma
+Pydantic (avec un filet `pass` si l'entité n'a alors plus aucun champ) et
+peuple la colonne, à l'insertion, depuis ce pseudonyme plutôt que depuis
+`data.<champ>`.
+
+**Validation dans `ast_validator.py` :**
+- le champ ciblé doit être un attribut `String` réellement déclaré (un
+  pseudonyme est toujours du texte court, jamais un nombre/booléen/date) ;
+- incompatible avec `hidden` sur le même champ (`generated` produit déjà
+  une valeur sûre à afficher — la masquer en plus n'a pas de sens, ce
+  serait alors juste ne pas déclarer le champ du tout) ;
+- une seule règle `generated` autorisée par champ ;
+- incompatible avec une action `Create` `public` sur la même entité :
+  `generated` dérive le pseudonyme de l'appelant authentifié, qu'une route
+  publique n'a par définition pas.
+
+**Preuve, testée en conditions réelles** (`exemples/18_generated_pseudonym_demo.yaml`,
+serveur relancé, vrais appels) : alice tente d'imposer
+`"author": "JE_SUIS_QUELQUUN_D_AUTRE"` dans le corps de sa requête — ignoré
+silencieusement (absent du schéma) ; ses deux posts affichent le même
+pseudonyme (`Anon#3143`, vérifié aussi directement dans
+`_monlang_users`) ; le post de bob affiche un pseudonyme différent
+(`Anon#9658`). Chemins d'erreur également vérifiés : `generated` + `hidden`
+sur le même champ, et `generated` + `Create public` sur la même entité,
+tous deux rejetés à la compilation avec un message clair.
 

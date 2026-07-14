@@ -53,7 +53,7 @@ fois plusieurs capacités réelles éprouvées). Chaque brique est petite,
 testée avant la suivante. Progression du simple au complexe, avec un
 réseau social anonyme comme banc d'essai final.
 
-### Briques terminées et testées (points 24-29)
+### Briques terminées et testées (points 24-30)
 1. **`capability auth`** — bloc déclaratif, aucun effet sur la génération
    pour l'instant (prouvé par compilation identique avec/sans le bloc).
 2. **`rule Entite.champ hidden`** — masque un champ de toutes les réponses
@@ -94,9 +94,20 @@ réseau social anonyme comme banc d'essai final.
    QUE du commentaire, avant même que Lark ne la voie — un seul correctif
    couvrant les deux cas, plutôt que 5 règles de grammaire à corriger
    séparément (entity/workflow/custom_block/ui_block/landing_block).
+7. **`rule Entite.champ generated`** — retire un champ `String` du schéma
+   Pydantic de la route `Create` de son entité ; le serveur le peuple seul
+   avec un pseudonyme anonyme stable par compte (`Anon#3821`, généré une
+   seule fois à `/register`, porté par le JWT comme `actor`/`user_id`).
+   Ferme le trou du point 29 (`Post.author` en `String` libre, sans
+   garantie d'intégrité). Incompatible avec `hidden` sur le même champ, et
+   avec une action `Create` `public` sur la même entité (pas d'identité
+   fiable dont dériver un pseudonyme). Testé sur
+   `exemples/18_generated_pseudonym_demo.yaml`.
 
 ### Briques suivantes déjà évoquées, non cadrées
-- Identifiant généré automatiquement (probablement côté `capability auth`)
+- Contrôle d'accès à deux parties (`ownedBy` ne couvre qu'un seul
+  propriétaire ; une messagerie privée a besoin qu'expéditeur ET
+  destinataire y aient accès) — évoqué dès la brique 1, jamais repris.
 
 ### Hors de portée, assumé et documenté
 - Algorithme de recommandation basé sur les likes — moteur de scoring/ML,

@@ -296,6 +296,14 @@ class MonLangSecureGenerator:
         self.categorized_fields_by_entity = {}
         for cf in normalized_ast["security"].get("categorized_fields", []):
             self.categorized_fields_by_entity.setdefault(cf["entity"], []).append(cf)
+        # AJOUT (roadmap, écosystème de capacités -- suite de la brique 1) :
+        # champs 'generated' regroupés par entité -- retirés du schéma
+        # Pydantic de la route Create (le client ne peut même pas tenter de
+        # les fournir) et peuplés depuis le pseudonyme anonyme du compte
+        # courant plutôt que depuis le corps de requête.
+        self.generated_fields_by_entity = {}
+        for gf in normalized_ast["security"].get("generated_fields", []):
+            self.generated_fields_by_entity.setdefault(gf["entity"], []).append(gf["field"])
         # AJOUT (roadmap, contrôle du rendu visuel) : surcharges explicites du
         # thème/ordre/champ principal par entité, issues des blocs 'ui'.
         self.ui_overrides = normalized_ast.get("ui", {})
@@ -488,7 +496,12 @@ class MonLangSecureGenerator:
         sql_lines.append("    username VARCHAR(255) UNIQUE NOT NULL,")
         sql_lines.append("    password_hash VARCHAR(255) NOT NULL,")
         sql_lines.append("    salt VARCHAR(255) NOT NULL,")
-        sql_lines.append("    actor VARCHAR(255) NOT NULL")
+        sql_lines.append("    actor VARCHAR(255) NOT NULL,")
+        # AJOUT (roadmap, écosystème de capacités -- suite de la brique 1) :
+        # pseudonyme anonyme stable, généré une seule fois à l'inscription
+        # (voir /register), indépendant de la spec -- toujours présent,
+        # utilisé seulement si un champ 'generated' le référence.
+        sql_lines.append("    anon_handle VARCHAR(255) UNIQUE NOT NULL")
         sql_lines.append(");\n")
 
         # AJOUT (roadmap, révocation de token) : liste noire persistante des
@@ -609,6 +622,14 @@ class MonLangSecureGenerator:
             # des colonnes de clé étrangère à la création d'un enregistrement.
             "def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(security_bearer)) -> int:",
             "    return _decode_and_verify_token(credentials).get('user_id', 0)\n",
+
+            # AJOUT (roadmap, écosystème de capacités -- suite de la brique 1) :
+            # dépendance séparée pour récupérer le pseudonyme anonyme stable
+            # du compte courant, utilisée par les champs 'generated' -- déjà
+            # porté par le JWT depuis /login (voir plus bas), pas besoin
+            # d'une requête DB supplémentaire à chaque appel.
+            "def get_current_anon_handle(credentials: HTTPAuthorizationCredentials = Depends(security_bearer)) -> str:",
+            "    return _decode_and_verify_token(credentials).get('anon_handle', '')\n",
             
             "@app.on_event('startup')",
             "def init_db():",
@@ -715,8 +736,24 @@ class MonLangSecureGenerator:
             "        raise HTTPException(status_code=409, detail=\"Ce nom d'utilisateur existe déjà.\")",
             "    salt_hex = os.urandom(16).hex()",
             "    pwd_hash = _hash_password(req.password, salt_hex)",
-            "    cursor.execute('INSERT INTO _monlang_users (username, password_hash, salt, actor) VALUES (?, ?, ?, ?)',",
-            "                   (req.username, pwd_hash, salt_hex, req.actor))",
+            # AJOUT (roadmap, écosystème de capacités -- suite de la brique 1) :
+            # pseudonyme anonyme stable, généré une seule fois ici (jamais
+            # recalculé, jamais fourni par le client) -- 'Anon#' suivi de 4
+            # chiffres aléatoires, avec quelques tentatives en cas de
+            # collision (contrainte UNIQUE sur la colonne) plutôt qu'un échec
+            # d'inscription pour une coïncidence statistiquement rare.
+            "    anon_handle = None",
+            "    for _ in range(10):",
+            "        _candidate = f'Anon#{secrets.randbelow(9000) + 1000}'",
+            "        cursor.execute('SELECT 1 FROM _monlang_users WHERE anon_handle = ?', (_candidate,))",
+            "        if not cursor.fetchone():",
+            "            anon_handle = _candidate",
+            "            break",
+            "    if anon_handle is None:",
+            "        conn.close()",
+            "        raise HTTPException(status_code=500, detail='Impossible de générer un pseudonyme unique, réessayez.')",
+            "    cursor.execute('INSERT INTO _monlang_users (username, password_hash, salt, actor, anon_handle) VALUES (?, ?, ?, ?, ?)',",
+            "                   (req.username, pwd_hash, salt_hex, req.actor, anon_handle))",
             "    conn.commit(); new_user_id = cursor.lastrowid; conn.close()",
             "    return {'status': 'success', 'user_id': new_user_id}\n",
 
@@ -728,17 +765,21 @@ class MonLangSecureGenerator:
             "async def login(req: LoginRequest, request: Request):",
             "    _check_rate_limit('login', request.client.host if request.client else 'unknown')",
             "    conn = sqlite3.connect(DB_FILE); cursor = conn.cursor()",
-            "    cursor.execute('SELECT id, password_hash, salt, actor FROM _monlang_users WHERE username = ?', (req.username,))",
+            "    cursor.execute('SELECT id, password_hash, salt, actor, anon_handle FROM _monlang_users WHERE username = ?', (req.username,))",
             "    row = cursor.fetchone(); conn.close()",
             "    if not row:",
             "        raise HTTPException(status_code=401, detail='Identifiants invalides.')",
-            "    db_user_id, stored_hash, salt_hex, actor = row",
+            "    db_user_id, stored_hash, salt_hex, actor, anon_handle = row",
             "    if _hash_password(req.password, salt_hex) != stored_hash:",
             "        raise HTTPException(status_code=401, detail='Identifiants invalides.')",
             "    payload = {",
             "        'sub': req.username,",
             "        'actor': actor,",
             "        'user_id': db_user_id,",
+            # AJOUT (roadmap, écosystème de capacités -- suite de la brique 1) :
+            # porté par le JWT comme 'actor'/'user_id', pour que les champs
+            # 'generated' n'aient jamais besoin d'une requête DB séparée.
+            "        'anon_handle': anon_handle,",
             # AJOUT (roadmap, révocation de token) : identifiant unique par
             # token (jti), nécessaire pour pouvoir le révoquer individuellement
             # via /logout sans avoir à invalider tous les tokens de l'utilisateur.
@@ -769,12 +810,23 @@ class MonLangSecureGenerator:
         # 1. Génération des schémas CRUD standards
         for ent_name, attrs in self.entities.items():
             api_lines.append(f"class {ent_name}Schema(BaseModel):")
+            # AJOUT (roadmap, écosystème de capacités -- suite de la brique 1) :
+            # un champ 'generated' n'apparaît PAS dans le schéma Pydantic --
+            # le client ne peut même pas tenter de le fournir dans le corps de
+            # requête (comme la colonne de clé étrangère 'ownedBy', qui n'y
+            # figure pas non plus). Il est peuplé plus bas, à la création,
+            # depuis le pseudonyme anonyme du compte courant.
+            generated_here_schema = self.generated_fields_by_entity.get(ent_name, [])
+            has_schema_field = False
             for attr_name, attr_type in attrs.items():
+                if attr_name in generated_here_schema:
+                    continue
                 py_type = "str"
                 if attr_type == "Integer": py_type = "int"
                 if attr_type in ["Float", "Money"]: py_type = "float"
                 if attr_type == "Boolean": py_type = "bool"
                 api_lines.append(f"    {attr_name}: {py_type}")
+                has_schema_field = True
             # AJOUT (roadmap, écosystème de capacités -- brique 3, généralisée
             # en brique 4) : quand la relation entrante de cette entité est
             # la cible d'une règle 'decrements'/'increments' (ex.
@@ -789,6 +841,13 @@ class MonLangSecureGenerator:
                 for r in self.reputation_rules_by_trigger.get(ent_name, [])
             ):
                 api_lines.append(f"    {owner_info_for_schema['fk_column']}: int")
+                has_schema_field = True
+            # Filet de sécurité syntaxique : si TOUS les attributs d'une
+            # entité sont 'generated' (aucun autre champ, pas de colonne FK
+            # ajoutée ci-dessus), le corps de la classe serait vide --
+            # invalide en Python.
+            if not has_schema_field:
+                api_lines.append("    pass")
             api_lines.append("\n")
 
         # 2. Génération de schémas stricts pour les entrées de la Sandbox IA (Bug #4)
@@ -891,9 +950,18 @@ class MonLangSecureGenerator:
                 # appelante fiable — on ne tente pas d'y rattacher une clé
                 # étrangère "propriétaire" dans ce cas (la colonne reste NULL).
                 populate_owner = owner_info and not is_public and not is_reputation_fk
+                # AJOUT (roadmap, écosystème de capacités -- suite de la
+                # brique 1) : un champ 'generated' est peuplé depuis le
+                # pseudonyme anonyme du compte courant (déjà porté par le
+                # JWT depuis /login), jamais depuis le corps de requête --
+                # incompatible avec 'public' (validé par ast_validator.py),
+                # donc l'appelant est nécessairement authentifié ici.
+                generated_here = self.generated_fields_by_entity.get(base_target, [])
                 create_deps = dependency_injection
                 if populate_owner:
                     create_deps += ", current_user_id: int = Depends(get_current_user_id)" if create_deps else "current_user_id: int = Depends(get_current_user_id)"
+                if generated_here:
+                    create_deps += ", current_anon_handle: str = Depends(get_current_anon_handle)" if create_deps else "current_anon_handle: str = Depends(get_current_anon_handle)"
                 create_deps_suffix = f", {create_deps}" if create_deps else ""
 
                 api_lines.append(f"@app.post('/{base_target.lower()}', tags=['{tag}'])")
@@ -902,7 +970,7 @@ class MonLangSecureGenerator:
                 api_lines.append("    conn = sqlite3.connect(DB_FILE); cursor = conn.cursor()")
                 fields = list(self.entities[base_target].keys())
                 insert_columns = list(fields)
-                value_exprs = [f"data.{f}" for f in fields]
+                value_exprs = [("current_anon_handle" if f in generated_here else f"data.{f}") for f in fields]
                 if populate_owner:
                     insert_columns.append(owner_info["fk_column"])
                     value_exprs.append("current_user_id")
