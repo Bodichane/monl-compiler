@@ -27,10 +27,10 @@ actor Member
 
 capability auth
 
-# Les posts sont publics, mais leur auteur ne doit jamais apparaître dans
-# la réponse API (brique 2, masquage de champ).
+# Les posts sont publics, et leur auteur est un pseudonyme anonyme stable
+# généré par le serveur -- jamais fourni ni contrôlable par le client.
 rule Post.Read public
-rule Post.author hidden
+rule Post.author generated
 
 # Les likes s'affichent en catégories plutôt qu'en nombre exact (brique 5).
 rule Post.likes categorized: "peu" below 10, "populaire" below 100, "viral" otherwise

@@ -83,8 +83,9 @@ réseau social anonyme comme banc d'essai final.
 6. **Assemblage final : réseau social anonyme** — toutes les briques
    ci-dessus combinées dans une seule spec (`exemples/17_anon_social_network.yaml`),
    chacune dans son rôle le plus naturel plutôt qu'empilées sur la même
-   entité (`Post` anonyme/public/catégorisé, `Comment` identifié avec
-   `ownedBy`). Deux bugs réels découverts en l'assemblant (pas en le
+   entité (`Post` anonyme/public/catégorisé — auteur en pseudonyme
+   `generated`, brique 7 ci-dessous — `Comment` identifié avec `ownedBy`).
+   Deux bugs réels découverts en l'assemblant (pas en le
    relisant), tous deux résolus : un commentaire seul sur sa propre ligne
    entre deux blocs de premier niveau faisait planter la compilation
    (`Tree` non transformé) ; un commentaire seul À L'INTÉRIEUR d'un bloc

@@ -807,10 +807,10 @@ elles, pas seulement isolément. Voir `exemples/17_anon_social_network.yaml`.
 **Composition retenue**, chaque brique dans son rôle le plus naturel plutôt
 que toutes empilées sur la même entité :
 - `capability auth` (brique 1) déclarée explicitement.
-- `Post` : lecture publique (`public`, point 16) mais auteur invisible
-  (`hidden`, brique 2) — le champ `author` reste un `String` libre fourni
-  par le client (comme `exemples/13_anon_forum_demo.yaml`), pas une clé
-  étrangère réelle. Ses `likes` sont catégorisés (`categorized`, brique 5).
+- `Post` : lecture publique (`public`, point 16), auteur remplacé par un
+  pseudonyme anonyme stable généré côté serveur (`generated`, point 30 —
+  voir mise à jour ci-dessous). Ses `likes` sont catégorisés
+  (`categorized`, brique 5).
 - `Like.Create increments Post.likes` (brique 4) fait monter le compteur
   catégorisé ci-dessus.
 - `Report.Create decrements Member.reputation` (brique 3) fait baisser la
@@ -820,17 +820,17 @@ que toutes empilées sur la même entité :
   `Member hasMany Comment` — contrairement à `Post`, ses commentaires ne
   sont pas anonymes, seulement modifiables par leur auteur.
 
-**Limite de conception qui ressort de cet assemblage, assumée** :
-`hidden` ne peut cibler qu'un attribut *déclaré* de l'entité (validé contre
-`self.entities[entity]`), jamais la colonne de clé étrangère qu'une relation
-ajoute automatiquement (ex. `member_id` sur une entité liée par `ownedBy`).
-Un `Post` anonyme ne peut donc pas être *simultanément* rattaché par une
-vraie relation à son auteur (pour un `ownedBy` sur `Post.Update`/`Delete`)
-ET avoir cette relation masquée en lecture -- d'où le choix, dans cet
-assemblage, de garder `Post.author` en `String` libre (anonymat total, pas
-d'`ownedBy` sur `Post`) et de réserver `ownedBy` à `Comment` (identifié,
-pas anonyme). Étendre `hidden` aux colonnes de clé étrangère générées est
-un chantier à part, non entamé, si un cas d'usage réel l'exige un jour.
+**Mise à jour (voir point 30)** : à l'origine, `Post.author` utilisait
+`hidden` (masqué entièrement, champ rempli à la main par le client, sans
+garantie d'intégrité). Remplacé depuis par `rule Post.author generated`
+dès que la brique correspondante a existé — `hidden` avait justement pour
+limite de ne pouvoir cibler qu'un attribut *déclaré* de l'entité, jamais
+la colonne de clé étrangère qu'une relation ajoute automatiquement, ce qui
+aurait empêché de combiner anonymat ET propriété réelle (`ownedBy`) sur
+`Post` ; `generated` contourne le problème autrement, en ne s'appuyant sur
+aucune relation/FK du tout (juste le pseudonyme de compte porté par le
+JWT). `Comment` reste volontairement identifié (`ownedBy`, pas anonyme),
+par choix de composition et non par contrainte technique.
 
 **Bug réel découvert en assemblant cette spec (pas par relecture)** : une
 ligne de commentaire seule entre deux blocs de premier niveau (ex. un
@@ -868,13 +868,16 @@ restent gérés par `%ignore COMMENT` comme avant. Le correctif défensif
 `isinstance(b, dict)` dans `app()` reste en place (inoffensif, coûte rien),
 mais n'est plus strictement nécessaire pour ce cas précis.
 
-**Preuve, testée en conditions réelles** (serveur relancé, vrais appels) :
-deux comptes (`alice`, `bob`) enregistrés ; un post d'alice lu SANS jeton ne
-révèle jamais `author` ; 18 likes de bob (`+5` chacun, 90 au total) affichent
-`"likes_category": "populaire"` ; un signalement de bob fait passer la
-réputation d'alice de 100 à 90 (vérifié directement en base) ; bob peut
-modifier son propre commentaire, alice reçoit un `403` en tentant de
-modifier celui de bob.
+**Preuve, testée en conditions réelles** (serveur relancé, vrais appels,
+revérifié après le passage à `generated`) : deux comptes (`alice`, `bob`)
+enregistrés ; une tentative d'alice d'imposer `"author": "FAKE"` dans le
+corps de sa requête `POST /post` est ignorée, ses deux posts affichent le
+même pseudonyme stable (`Anon#6484`), celui de bob est différent
+(`Anon#3155`), lisibles SANS jeton ; les `likes` s'affichent toujours en
+catégorie (`"likes_category"`, jamais le nombre brut) ; un signalement de
+bob fait passer la réputation d'alice de 100 à 90 (vérifié directement en
+base) ; bob peut modifier son propre commentaire, alice reçoit un `403` en
+tentant de modifier celui de bob.
 
 ## 30. Écosystème de capacités — pseudonyme anonyme généré (`generated`)
 
