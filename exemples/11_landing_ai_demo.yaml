@@ -1,0 +1,38 @@
+app MyPortfolio
+
+entity Project
+    title: String
+    description: Text
+    year: Integer
+
+entity Message
+    author: String
+    content: Text
+
+actor Admin
+actor Visitor
+
+rule Project.title required
+rule Project.Read public
+rule Message.Create public
+
+ui Project
+    theme: editorial
+    primary: title
+    order: title, description, year
+
+workflow AdminManagePortfolio for Admin
+    Create Project
+    Update Project
+    Delete Project
+    Read Message
+
+workflow VisitorBrowse for Visitor
+    Read Project
+
+workflow VisitorContact for Visitor
+    Create Message
+
+landing
+    mode: ai
+    brief: "Un portfolio en ligne pour partager vos projets et rester joignable."

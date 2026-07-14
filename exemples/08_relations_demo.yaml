@@ -1,0 +1,27 @@
+app SupportApp
+
+entity Customer
+    name: String
+
+entity Ticket
+    subject: String
+
+entity Profile
+    bio: Text
+
+relation Ticket belongsTo Customer
+relation Customer hasOne Profile
+
+actor Customer
+actor Agent
+
+rule Ticket.subject required
+rule Ticket.Update ownedBy Customer
+
+workflow ManageTicket for Customer
+    Create Ticket
+    Read Ticket
+    Update Ticket
+
+workflow AgentSupport for Agent
+    Read Ticket

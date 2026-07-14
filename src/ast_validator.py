@@ -16,6 +16,10 @@ class MonLangAST:
         self.workflows = raw_json.get("workflows", [])
         self.custom_logic = {c["name"]: c for c in raw_json.get("custom_logic", [])}
         self.ownership_rules = {}
+        self.ui_overrides_raw = raw_json.get("ui_overrides", [])
+        self.landing_raw = raw_json.get("landing")
+        self.capabilities_raw = raw_json.get("capabilities", [])
+        self.public_actions = set()
         
         for ent in raw_json.get("entities", []):
             name = ent["name"]
@@ -70,18 +74,145 @@ class MonLangAST:
                 if act_type not in ("Create", "Read", "Update", "Delete"):
                     raise ASTValidationError(f"Structure : action '{act_type}' invalide dans la règle 'ownedBy' sur '{entity}'.")
 
+                # CORRECTIF (roadmap) : la vérification de la relation nécessaire
+                # est désormais généralisée aux 3 types (hasMany, hasOne,
+                # belongsTo), cohérente avec _compute_fk_placements() dans
+                # generator.py — avant, seul 'hasMany' était reconnu ici, alors
+                # que 'belongsTo'/'hasOne' fournissent aussi une colonne de
+                # propriété valide selon leur propre convention de placement.
                 has_matching_relation = any(
-                    rel["type"] == "hasMany" and rel["source"] == owner_entity and rel["target"] == entity
+                    (rel["type"] in ("hasMany", "hasOne") and rel["source"] == owner_entity and rel["target"] == entity)
+                    or (rel["type"] == "belongsTo" and rel["target"] == owner_entity and rel["source"] == entity)
                     for rel in self.relations
                 )
                 if not has_matching_relation:
                     raise ASTValidationError(
                         f"Structure : la règle 'ownedBy' sur '{entity}.{act_type}' référence le propriétaire "
-                        f"'{owner_entity}', mais aucune relation 'relation {owner_entity} hasMany {entity}' "
-                        f"n'est déclarée pour fournir la colonne de propriété."
+                        f"'{owner_entity}', mais aucune relation compatible ('{owner_entity} hasMany {entity}', "
+                        f"'{owner_entity} hasOne {entity}', ou '{entity} belongsTo {owner_entity}') n'est déclarée."
                     )
 
                 self.ownership_rules[(entity, act_type)] = owner_entity
+
+        # AJOUT (roadmap, cas d'usage portfolio) : validation des règles
+        # 'public' — une action ainsi marquée n'exige plus d'authentification
+        # sur la route générée (ex. lecture d'un portfolio sans compte,
+        # envoi d'un message de contact sans compte).
+        for rule in self.rules:
+            if rule["type"] == "public":
+                if "." not in rule["reference"]:
+                    raise ASTValidationError(
+                        f"Structure : la règle 'public' doit référencer 'Entite.Action', reçu '{rule['reference']}'."
+                    )
+                entity, act_type = rule["reference"].split(".", 1)
+                if entity not in self.entities:
+                    raise ASTValidationError(f"Structure : la règle 'public' cible l'entité '{entity}' qui n'existe pas.")
+                if act_type not in ("Create", "Read", "Update", "Delete"):
+                    raise ASTValidationError(f"Structure : action '{act_type}' invalide dans la règle 'public' sur '{entity}'.")
+                self.public_actions.add((entity, act_type))
+
+        # AJOUT (roadmap, écosystème de capacités -- brique 2) : validation
+        # des règles 'hidden' -- retire un champ de toutes les réponses de
+        # lecture de son entité (voir le commentaire de grammaire dans
+        # parser.py pour la distinction avec 'restrictedTo'). Vérifie que le
+        # champ référencé est un attribut réellement déclaré sur l'entité
+        # (donc jamais 'id', qui n'apparaît pas dans self.entities -- un
+        # champ structurellement nécessaire à la navigation CRUD ne peut pas
+        # être masqué, la règle échoue proprement plutôt que de casser
+        # silencieusement les routes Update/Delete/Read-par-ID).
+        self.masked_fields = set()
+        for rule in self.rules:
+            if rule["type"] == "hidden":
+                if "." not in rule["reference"]:
+                    raise ASTValidationError(
+                        f"Structure : la règle 'hidden' doit référencer 'Entite.champ', reçu '{rule['reference']}'."
+                    )
+                entity, field = rule["reference"].split(".", 1)
+                if entity not in self.entities:
+                    raise ASTValidationError(f"Structure : la règle 'hidden' cible l'entité '{entity}' qui n'existe pas.")
+                if field not in self.entities[entity]:
+                    raise ASTValidationError(
+                        f"Structure : la règle 'hidden' référence le champ '{field}', qui n'est pas un attribut "
+                        f"déclaré de '{entity}' (ou est 'id', qui ne peut pas être masqué)."
+                    )
+                self.masked_fields.add((entity, field))
+
+        # AJOUT (roadmap, contrôle du rendu visuel) : validation du bloc 'ui'
+        # optionnel — vérifie que l'entité et les champs référencés existent
+        # bien, pour éviter qu'une faute de frappe dans 'primary'/'order'
+        # passe silencieusement inaperçue jusqu'au rendu du front. Le nom du
+        # thème n'est volontairement pas validé ici (cosmétique, pas
+        # sécuritaire) — un nom de thème inconnu sera simplement ignoré par
+        # le générateur, qui retombera sur la sélection automatique.
+        self.ui_overrides = {}
+        for override in self.ui_overrides_raw:
+            entity = override["entity"]
+            if entity not in self.entities:
+                raise ASTValidationError(f"Structure : le bloc 'ui {entity}' cible une entité qui n'existe pas.")
+            primary = override.get("primary")
+            if primary and primary not in self.entities[entity]:
+                raise ASTValidationError(
+                    f"Structure : 'ui {entity}' référence 'primary: {primary}', qui n'est pas un attribut de '{entity}'."
+                )
+            order = override.get("order")
+            if order:
+                unknown = [f for f in order if f not in self.entities[entity]]
+                if unknown:
+                    raise ASTValidationError(
+                        f"Structure : 'ui {entity}' référence des champs inconnus dans 'order' : {unknown}."
+                    )
+            self.ui_overrides[entity] = {
+                "theme": override.get("theme"), "primary": primary, "order": order,
+            }
+
+        # AJOUT (roadmap, front marketing) : validation du bloc optionnel
+        # 'landing'. Volontairement strict sur ce qui touche à la sécurité
+        # (chemin de template ne pouvant pas s'échapper du projet — même
+        # logique que n'importe quelle validation de chemin fourni par
+        # l'utilisateur, pour empêcher un '../../etc/passwd' de finir lu par
+        # le générateur), mais permissif sur le reste (un 'mode' inconnu
+        # retombe silencieusement sur le gabarit déterministe, à l'image du
+        # nom de thème inconnu du bloc 'ui').
+        self.landing = None
+        if self.landing_raw is not None:
+            mode = self.landing_raw.get("mode", "ai")
+            if mode not in ("ai", "template"):
+                mode = "ai"
+            template = self.landing_raw.get("template")
+            if mode == "template":
+                if not template:
+                    raise ASTValidationError(
+                        "Structure : 'landing / mode: template' exige aussi une clé 'template: \"chemin/vers/fichier.html\"'."
+                    )
+                normalized = template.replace("\\", "/")
+                if normalized.startswith("/") or ".." in normalized.split("/"):
+                    raise ASTValidationError(
+                        f"Sécurité : 'landing / template' doit être un chemin relatif à l'intérieur du projet "
+                        f"(reçu '{template}', un chemin absolu ou remontant via '..' est refusé)."
+                    )
+            self.landing = {
+                "mode": mode,
+                "template": template,
+                "brief": self.landing_raw.get("brief"),
+            }
+
+        # AJOUT (roadmap, écosystème de capacités -- brique 1) : validation
+        # du bloc optionnel 'capability'. Volontairement strict (liste
+        # blanche de noms connus, contrairement à 'ui / theme' qui retombe
+        # silencieusement sur un défaut) : une capacité mal orthographiée
+        # doit être signalée à la compilation, pas ignorée en silence --
+        # comportement déjà établi pour tout ce qui touche à la sécurité
+        # (collision de privilèges, restriction de champ) dans ce compilateur.
+        # 'auth' est la seule capacité connue pour l'instant (brique 1,
+        # purement déclarative -- aucun effet sur la génération à ce stade).
+        KNOWN_CAPABILITIES = {"auth"}
+        unknown = [c for c in self.capabilities_raw if c not in KNOWN_CAPABILITIES]
+        if unknown:
+            raise ASTValidationError(
+                f"Structure : capacité(s) inconnue(s) déclarée(s) avec 'capability' : {', '.join(unknown)}. "
+                f"Capacités reconnues : {', '.join(sorted(KNOWN_CAPABILITIES))}."
+            )
+        self.capabilities = list(dict.fromkeys(self.capabilities_raw))  # dédoublonne, garde l'ordre
 
         for wf in self.workflows:
             actor = wf["actor"]
@@ -101,6 +232,15 @@ class MonLangAST:
                         raise ASTValidationError(f"Structure : L'action cible l'entité '{base_target}' qui n'existe pas.")
                     
                     # --- CORRECTIF BUG v6 #5 : Détection des collisions de privilèges ---
+                    # AJOUT (roadmap, public) : une action marquée 'public' ne
+                    # vérifie plus aucune identité au runtime — peu importe
+                    # combien de workflows/acteurs différents la déclarent,
+                    # ça n'a plus de sens de la faire remonter dans la
+                    # matrice de collision, qui ne concerne que les actions
+                    # réellement soumises à un contrôle de rôle.
+                    if (base_target, act_type) in self.public_actions:
+                        continue
+
                     if base_target not in access_matrix:
                         access_matrix[base_target] = {}
                     if act_type not in access_matrix[base_target]:
@@ -111,7 +251,10 @@ class MonLangAST:
 
         # Analyse de la matrice : si une action d'écriture/suppression a plus d'un acteur,
         # on autorise si une règle 'sharedBy' couvre exactement cet ensemble d'acteurs,
-        # sinon on lève une exception stricte pour forcer le refactoring de la spécification.
+        # ou si une règle 'ownedBy' protège déjà cette action au niveau de chaque
+        # enregistrement (auquel cas plusieurs acteurs peuvent légitimement partager
+        # le droit, puisque chacun ne peut de toute façon agir que sur ses propres
+        # données) — sinon on lève une exception stricte pour forcer le refactoring.
         for entity, actions in access_matrix.items():
             for act_type, authorized_actors in actions.items():
                 if len(authorized_actors) > 1 and act_type in ["Create", "Update", "Delete"]:
@@ -121,6 +264,14 @@ class MonLangAST:
                     if allowed_shared and authorized_actors.issubset(allowed_shared):
                         print(f"🤝 [SHARED_PRIVILEGE] L'action '{act_type}' sur '{entity}' est explicitement "
                               f"partagée entre [{', '.join(sorted(authorized_actors))}] via une règle 'sharedBy'.")
+                        continue
+
+                    # AJOUT (roadmap) : combinaison ownedBy + sharedBy implicite.
+                    if (entity, act_type) in self.ownership_rules:
+                        print(f"🔐 [SHARED_PRIVILEGE_VIA_OWNERSHIP] L'action '{act_type}' sur '{entity}' est partagée "
+                              f"entre [{', '.join(sorted(authorized_actors))}], mais protégée au niveau de chaque "
+                              f"enregistrement par la règle 'ownedBy' (propriétaire : "
+                              f"{self.ownership_rules[(entity, act_type)]}).")
                         continue
 
                     actors_list = ", ".join(sorted(authorized_actors))
@@ -188,6 +339,11 @@ class MonLangAST:
             "security": {
                 "actors": list(self.actors), "rules": self.rules, "workflows": self.workflows,
                 "ownership": {f"{k[0]}.{k[1]}": v for k, v in self.ownership_rules.items()},
+                "public": [f"{e}.{a}" for e, a in self.public_actions],
+                "hidden_fields": [f"{e}.{f}" for e, f in self.masked_fields],
             },
-            "sandbox_ai": {"custom_functions": list(self.custom_logic.values())}
+            "sandbox_ai": {"custom_functions": list(self.custom_logic.values())},
+            "ui": self.ui_overrides,
+            "landing": self.landing,
+            "capabilities": self.capabilities,
         }

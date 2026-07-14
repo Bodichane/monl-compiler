@@ -19,6 +19,7 @@ rule User.email restrictedTo Admin
 
 workflow ManageTodo for User
     Create Todo
+    Read Todo
     Update Todo
     Execute autoArchiveTodo
 

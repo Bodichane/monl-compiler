@@ -5,6 +5,7 @@ from parser import parse_monlang_file
 from ast_validator import MonLangAST
 from generator import MonLangSecureGenerator
 from ai_sandbox_filler import run_ai_filler
+from ai_landing_filler import run_landing_ai_filler
 
 def compile_monlang(file_path):
     """Orchestre le pipeline MonLang avec gestion non bloquante de l'IA (Bug #3)."""
@@ -47,12 +48,33 @@ def compile_monlang(file_path):
             print("    -> Le socle déterministe est conservé intact.")
             print("    -> La fonction custom reste disponible sous forme de coquille vide sécurisée.")
             ai_status = "Coquille vide déterministe (Serveur IA hors-ligne)"
-        
+
+        # --- ÉTAPE 5 : ÉCHAPPATOIRE IA POUR LA LANDING (NON BLOQUANTE) ---
+        # AJOUT (roadmap, front marketing) : ne fait rien si la spec n'a pas
+        # de bloc 'landing', ou si son mode n'est pas 'ai' — voir
+        # ai_landing_filler.py. Même filet de sécurité que l'étape 4 : si
+        # l'IA locale est indisponible, 'landing.html' généré à l'étape 3
+        # reste tel quel (déjà un gabarit complet et déterministe, pas un
+        # brouillon inutilisable).
+        landing_status = None
+        try:
+            was_ai_landing = run_landing_ai_filler(file_path)
+            if was_ai_landing:
+                print("\n [optionnel] Enrichissement IA de la landing marketing...")
+                landing_status = "Copie marketing enrichie par l'IA locale (Qwen)"
+        except (RuntimeError, Exception) as landing_err:
+            print("\n ⚠️  [AVERTISSEMENT IA NO-BLOCK]")
+            print(f"    L'enrichissement de la landing a échoué : {landing_err}")
+            print("    -> Le gabarit déterministe de 'landing.html' est conservé intact.")
+            landing_status = "Gabarit déterministe conservé (Serveur IA hors-ligne)"
+
         # --- SCELLÉ FINAL ---
         print("\n" + "=" * 65)
         print(" 🎉 COMPILATION DE L'APPLICATION TERMINÉE !")
         print(f" -> Statut Infrastructure : app.py, schema.sql validés (Init auto DB active)")
         print(f" -> Statut Sandbox IA     : {ai_status}")
+        if landing_status:
+            print(f" -> Statut Landing IA     : {landing_status}")
         print("=" * 65 + "\n")
         
     except Exception as e:

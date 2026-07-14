@@ -9,7 +9,7 @@ grammar = r"""
     
     app: "app" NAME _NL block*
     
-    ?block: entity | relation | actor | rule | workflow | custom_block | _NL
+    ?block: entity | relation | actor | rule | workflow | custom_block | ui_block | landing_block | capability_block | _NL
     
     entity: "entity" NAME _NL _INDENT attribute+ _DEDENT
     attribute: NAME ":" TYPE _NL
@@ -26,7 +26,7 @@ grammar = r"""
     # rule["type"] ne valait jamais "restrictedTo", et l'audit de sécurité associé
     # dans ast_validator.py ne se déclenchait donc jamais. Même classe de bug que
     # celui déjà corrigé sur le bloc "custom" en v3.
-    ?rule: constraint_rule | restriction_rule | sharing_rule | ownership_rule
+    ?rule: constraint_rule | restriction_rule | sharing_rule | ownership_rule | visibility_rule | masking_rule
 
     constraint_rule: "rule" REFERENCE VALIDATION_TYPE _NL
                    | "rule" REFERENCE VALIDATION_TYPE INT _NL
@@ -38,6 +38,78 @@ grammar = r"""
     #   relation User hasMany Todo
     #   rule Todo.Update ownedBy User
     ownership_rule: "rule" REFERENCE "ownedBy" NAME _NL
+    # AJOUT (roadmap, cas d'usage portfolio) : "public" retire l'obligation
+    # d'authentification pour une action précise (ex. lire des articles sans
+    # compte, envoyer un message de contact sans compte). Ex. :
+    #   rule Project.Read public
+    #   rule Message.Create public
+    visibility_rule: "rule" REFERENCE "public" _NL
+
+    # AJOUT (roadmap, écosystème de capacités -- brique 2) : "hidden" retire
+    # un CHAMP (pas une action) de toutes les réponses de lecture de son
+    # entité -- liste et détail -- sans le retirer de la base ni empêcher
+    # son utilisation en écriture. Cas d'usage : un réseau social où les
+    # posts sont publics mais leur auteur ne doit jamais apparaître dans la
+    # réponse API. Contrairement à "restrictedTo" (qui exige un acteur
+    # précis), "hidden" masque pour TOUT LE MONDE, y compris les acteurs
+    # authentifiés -- c'est la différence de fond entre "confidentiel" et
+    # "anonyme". Ex. :
+    #   rule Post.author hidden
+    masking_rule: "rule" REFERENCE "hidden" _NL
+
+    # AJOUT (roadmap, contrôle du rendu visuel) : bloc optionnel "ui" pour
+    # surcharger ce que le générateur devine automatiquement. Ex. :
+    #   ui Project
+    #       theme: market
+    #       primary: title
+    #       order: title, price, stock
+    # SUPPRESSION (roadmap, sur demande explicite) : MonLang ne génère plus
+    # de back-office CRUD par entité (voir generate_all) — seul "theme" a
+    # encore un effet (il influence l'identité visuelle de "landing.html",
+    # voir le bloc "landing" plus bas). "primary" et "order" sont conservés
+    # dans la grammaire pour ne pas casser les specs existantes qui les
+    # utilisent, mais n'ont plus aucun effet sur le rendu.
+    ui_block: "ui" NAME _NL _INDENT ui_prop+ _DEDENT
+    ?ui_prop: ui_theme | ui_primary | ui_order
+    ui_theme: "theme" ":" NAME _NL
+    ui_primary: "primary" ":" NAME _NL
+    ui_order: "order" ":" NAME ("," NAME)* _NL
+
+    # AJOUT (roadmap, écosystème de capacités -- brique 1) : bloc "capability",
+    # volontairement le plus simple possible pour l'instant -- une simple
+    # déclaration, sans sous-propriétés. Objectif de cette première brique :
+    # prouver que le concept de "capacité" tient dans tout le pipeline
+    # (grammaire -> validateur -> AST normalisé -> générateur) SANS changer
+    # aucun comportement existant. L'authentification (register/login/JWT)
+    # est déjà générée systématiquement pour toute app -- ce bloc la rend
+    # seulement explicite/déclarée plutôt qu'implicite dans le code. Les
+    # capacités futures (masquage de champ, accès à deux parties...) sont
+    # celles qui changeront réellement le comportement ; celle-ci sert de
+    # gabarit sûr, testé sur le portfolio, avant d'aller plus loin.
+    capability_block: "capability" NAME _NL
+
+    # AJOUT (roadmap, front marketing) : bloc optionnel "landing", au même
+    # titre que "custom" (échappatoire IA balisée) — active une page
+    # d'accueil marketing sur "/". C'est volontairement le SEUL front que
+    # MonLang puisse générer (aucun back-office CRUD auto-généré) : deux
+    # modes exclusifs, chacun avec son propre filet de sécurité déterministe :
+    #   landing                              landing
+    #       mode: ai                             mode: template
+    #       brief: "..." (optionnel)             template: "chemin/vers/fichier.html"
+    # "mode: ai" appelle l'IA locale (même pont Ollama que "custom") pour
+    # rédiger uniquement du TEXTE (titre, sous-titre, CTA, points forts) —
+    # jamais du HTML/CSS — injecté dans un gabarit déterministe. "mode:
+    # template" importe un fichier HTML fourni par l'utilisateur et y
+    # substitue des emplacements balisés "data-monlang=...". Dans les deux
+    # cas, si l'étape IA ou le fichier importé est absent/indisponible, un
+    # gabarit 100% déterministe est utilisé — jamais d'échec de compilation
+    # à cause de "landing". Sans bloc "landing" du tout, "/" redirige
+    # simplement vers "/docs" (documentation Swagger/OpenAPI de FastAPI).
+    landing_block: "landing" _NL _INDENT landing_prop+ _DEDENT
+    ?landing_prop: landing_mode | landing_template | landing_brief
+    landing_mode: "mode" ":" NAME _NL
+    landing_template: "template" ":" STRING_LITERAL _NL
+    landing_brief: "brief" ":" STRING_LITERAL _NL
 
     workflow: "workflow" NAME "for" NAME _NL _INDENT action+ _DEDENT
     
@@ -87,7 +159,10 @@ class MonLangTransformer(Transformer):
             "actors": [b["actor"] for b in valid_blocks if "actor" in b],
             "rules": [b["rule"] for b in valid_blocks if "rule" in b],
             "workflows": [b["workflow"] for b in valid_blocks if "workflow" in b],
-            "custom_logic": [b["custom"] for b in valid_blocks if "custom" in b]
+            "custom_logic": [b["custom"] for b in valid_blocks if "custom" in b],
+            "ui_overrides": [b["ui"] for b in valid_blocks if "ui" in b],
+            "landing": next((b["landing"] for b in valid_blocks if "landing" in b), None),
+            "capabilities": [b["capability"] for b in valid_blocks if "capability" in b],
         }
         
     def entity(self, name, *attributes):
@@ -116,7 +191,48 @@ class MonLangTransformer(Transformer):
 
     def ownership_rule(self, reference, owner_entity):
         return {"rule": {"reference": str(reference), "type": "ownedBy", "value": str(owner_entity)}}
-        
+
+    def visibility_rule(self, reference):
+        return {"rule": {"reference": str(reference), "type": "public"}}
+
+    def masking_rule(self, reference):
+        return {"rule": {"reference": str(reference), "type": "hidden"}}
+
+    def ui_theme(self, name):
+        return {"theme": str(name)}
+
+    def ui_primary(self, name):
+        return {"primary": str(name)}
+
+    def ui_order(self, *names):
+        return {"order": [str(n) for n in names]}
+
+    def ui_block(self, entity_name, *props):
+        merged = {}
+        for p in props:
+            if p:
+                merged.update(p)
+        return {"ui": {"entity": str(entity_name), **merged}}
+
+    def landing_mode(self, name):
+        return {"mode": str(name)}
+
+    def landing_template(self, string_literal):
+        return {"template": str(string_literal).strip('"')}
+
+    def landing_brief(self, string_literal):
+        return {"brief": str(string_literal).strip('"')}
+
+    def landing_block(self, *props):
+        merged = {}
+        for p in props:
+            if p:
+                merged.update(p)
+        return {"landing": merged}
+
+    def capability_block(self, name):
+        return {"capability": str(name)}
+
     def workflow(self, name, actor_name, *actions):
         return {"workflow": {"name": str(name), "actor": str(actor_name), "actions": list(actions)}}
         

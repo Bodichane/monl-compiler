@@ -1,0 +1,18 @@
+app AnonForum
+
+entity Post
+    content: Text
+    author: String
+
+actor Member
+
+rule Post.Read public
+rule Post.author hidden
+
+workflow PublishPost for Member
+    Create Post
+    Read Post
+
+landing
+    mode: ai
+    brief: "Un forum où les posts sont publics mais l'auteur reste anonyme."
