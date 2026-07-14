@@ -33,7 +33,9 @@ pour qui écrit une spec MonLang, et de mémoire pour le mainteneur du projet.
 [22](#22-suppression-du-back-office-ui--monlang-ne-génère-plus-de-front-crud) Suppression du back-office `/ui` ·
 [23](#23-tableau-de-bord-post-connexion-app-et-corrections-diverses) Tableau de bord post-connexion (`/app`) ·
 [24](#24-écosystème-de-capacités--brique-1--capability-auth) Écosystème de capacités (brique 1) ·
-[25](#25-écosystème-de-capacités--brique-2--masquage-de-champ-hidden) Masquage de champ (brique 2)
+[25](#25-écosystème-de-capacités--brique-2--masquage-de-champ-hidden) Masquage de champ (brique 2) ·
+[26](#26-écosystème-de-capacités--brique-3--réputation-dynamique-decrements) Réputation dynamique (brique 3) ·
+[27](#27-écosystème-de-capacités--brique-4--appréciations-increments) Appréciations (brique 4)
 
 ---
 
@@ -651,4 +653,88 @@ réponses API n'a évidemment aucun sens comme titre de carte d'aperçu.
 serveur relancé, vrais appels) : un post créé avec un champ `author` rempli
 est bien stocké, mais `GET /post` et `GET /post/{id}`, tous deux publics
 (sans jeton), ne renvoient jamais ce champ.
+
+## 26. Écosystème de capacités — brique 3 : réputation dynamique (`decrements`)
+
+**Cas d'usage déclencheur** : la vision d'un réseau social où la visibilité
+n'est plus liée à l'ancienneté ou à un nombre d'abonnés figé, mais à un
+score qui baisse quand le comportement est signalé — confirmé par
+l'utilisateur : le déclencheur est un signalement (`Report`), rien d'autre
+pour cette première version (pas de hausse par "like" — volontairement
+laissé à une brique suivante).
+
+**Ce qui a changé :** nouvelle règle `rule Entite.Create decrements
+Entite.champ [by N]` (défaut `N = 1`). Validée à trois niveaux :
+l'action déclenchante doit être `Create` (seule prise en charge pour
+l'instant), le champ ciblé doit être un attribut `Integer`/`Float`
+réellement déclaré, et une relation doit exister entre les deux entités
+(même vérification que pour `ownedBy`, point 5).
+
+**La vraie difficulté de cette brique, découverte en la construisant** : le
+mécanisme existant de clé étrangère peuple automatiquement la colonne avec
+l'identité de l'appelant courant (motif « ce Todo m'appartient »). Mais un
+signalement cible un membre *choisi par le client* — pas l'auteur du
+signalement lui-même. Réutiliser le mécanisme existant aurait décrémenté la
+réputation du signaleur, pas de la personne signalée. Corrigé en détectant
+ce cas précis : quand la relation entrante d'une entité est la cible d'une
+règle `decrements`, sa clé étrangère devient un champ normal du corps de
+requête (`member_id: int` dans le schéma Pydantic) plutôt qu'auto-peuplée
+par `current_user_id` — les deux motifs ("m'appartient" vs. "je désigne
+quelqu'un d'autre") ne peuvent pas partager le même mécanisme.
+
+La décrémentation elle-même s'exécute après le commit de l'insertion (le
+signalement reste valablement enregistré même si la cible n'existe plus) :
+`UPDATE cible SET champ = champ - N WHERE id = <clé fournie par le client>`.
+
+**Preuve, testée en conditions réelles** (`exemples/14_reputation_demo.yaml`,
+serveur relancé, vrais appels) : un membre créé avec `reputation = 100`,
+signalé deux fois (`decrements ... by 10`) → `90` puis `80`, vérifié
+directement en base après chaque appel.
+
+**Toujours hors de portée, assumé** : l'algorithme de recommandation basé
+sur les likes (un moteur de scoring/ML, pas quelque chose qu'un compilateur
+déclaratif peut produire — voir aussi point 27).
+
+## 27. Écosystème de capacités — brique 4 : appréciations (`increments`)
+
+**Contexte** : symétrique de `decrements` (point 26) pour la hausse d'un
+compteur — cas d'usage typique : un like sur un post fait monter son
+compteur d'appréciations. Un essai antérieur de cette brique avait été
+**explicitement annulé** dans `src/parser.py` : une seule règle de grammaire
+paramétrée par le mot-clé (`"decrements"` ou `"increments"` comme littéral
+partagé) aurait fait atteindre le Transformer sans distinction, puisque Lark
+filtre les littéraux de chaîne anonymes avant transformation — `increments`
+aurait donc été silencieusement étiqueté `decrements`. Retiré plutôt que
+laissé à moitié fait (voir aussi le point 21 sur le même piège avec
+`restrictedTo`/`sharedBy`).
+
+**Ce qui a changé :** nouvelle règle `rule Entite.Create increments
+Entite.champ [by N]` (défaut `N = 1`), en grammaire ET en Transformer via
+**deux productions Lark nommées distinctes** (`decrement_rule` et
+`increment_rule`) plutôt qu'une seule règle partagée — ce choix élimine
+structurellement le piège ci-dessus, puisque chaque production a sa propre
+méthode Python qui sait déjà quel type de règle elle construit, sans jamais
+avoir besoin d'inspecter un littéral filtré par Lark.
+
+**Généralisation, pas duplication :** `ast_validator.py` traite
+`decrements` et `increments` dans la **même boucle de validation** (mêmes
+trois conditions : `Create` uniquement, champ `Integer`/`Float` réel,
+relation existante) — chaque règle validée porte désormais un champ
+`"direction"` (`"decrements"` ou `"increments"`) dans `self.reputation_rules`,
+plutôt que deux listes séparées. `generator.py` lit ce champ pour choisir
+l'opérateur SQL de la mise à jour post-commit (`+` ou `-`) ; tout le reste du
+mécanisme (peuplement de la clé étrangère cible depuis le corps de requête
+plutôt que depuis `current_user_id`, exécution après le commit de
+l'insertion déclenchante) est strictement partagé entre les deux sens,
+puisque la difficulté de fond (« qui la clé étrangère doit-elle
+représenter ? ») ne dépend pas du signe de l'effet.
+
+**Preuve, testée en conditions réelles** (`exemples/15_likes_demo.yaml`,
+serveur relancé, vrais appels) : un post créé avec `likes = 0`, apprécié
+deux fois (`increments ... by 5`) → vérifié directement en base après les
+deux appels : `likes = 10`.
+
+**Toujours hors de portée, assumé** : identique au point 26 — l'algorithme
+de recommandation basé sur les likes reste un moteur de scoring/ML, pas
+quelque chose qu'un compilateur déclaratif peut produire.
 

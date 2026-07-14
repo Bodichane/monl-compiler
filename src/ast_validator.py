@@ -137,6 +137,63 @@ class MonLangAST:
                     )
                 self.masked_fields.add((entity, field))
 
+        # AJOUT (roadmap, écosystème de capacités -- brique 3, généralisée en
+        # brique 4) : validation des règles 'decrements'/'increments' --
+        # même mécanique dans les deux sens (réputation qui baisse sur
+        # signalement, compteur qui monte sur appréciation), donc une seule
+        # boucle partagée, distinguée par 'direction'. Trois conditions :
+        # (1) le déclencheur est bien 'Entite.Create' sur une entité
+        # existante -- seule l'action 'Create' est prise en charge pour
+        # l'instant, volontairement (une suppression ne "défait" pas l'effet,
+        # ce serait une mécanique différente à concevoir à part) ; (2) la
+        # cible est un champ Integer/Float réellement déclaré sur son
+        # entité ; (3) une relation existe entre les deux entités permettant
+        # de savoir quelle ligne de l'entité cible modifier (même
+        # vérification que pour 'ownedBy', point 5 -- répliquée ici plutôt
+        # que partagée, cette validation est encore trop jeune pour factoriser
+        # sans risquer de rigidifier les deux prématurément).
+        self.reputation_rules = []
+        for rule in self.rules:
+            if rule["type"] in ("decrements", "increments"):
+                direction = rule["type"]
+                trigger_ref, target_ref = rule["reference"], rule["value"]
+                if "." not in trigger_ref or "." not in target_ref:
+                    raise ASTValidationError(
+                        f"Structure : la règle '{direction}' doit référencer 'Entite.Create {direction} Entite.champ', "
+                        f"reçu '{trigger_ref} {direction} {target_ref}'."
+                    )
+                trigger_entity, trigger_action = trigger_ref.split(".", 1)
+                target_entity, target_field = target_ref.split(".", 1)
+                if trigger_entity not in self.entities:
+                    raise ASTValidationError(f"Structure : '{direction}' référence l'entité '{trigger_entity}' qui n'existe pas.")
+                if trigger_action != "Create":
+                    raise ASTValidationError(
+                        f"Structure : '{direction}' n'est pris en charge que sur 'Create' pour l'instant "
+                        f"(reçu '{trigger_entity}.{trigger_action}')."
+                    )
+                if target_entity not in self.entities:
+                    raise ASTValidationError(f"Structure : '{direction}' référence l'entité '{target_entity}' qui n'existe pas.")
+                target_type = self.entities[target_entity].get(target_field)
+                if target_type not in ("Integer", "Float"):
+                    raise ASTValidationError(
+                        f"Structure : '{direction}' cible le champ '{target_entity}.{target_field}', qui doit être "
+                        f"un attribut Integer ou Float déclaré (reçu : {target_type or 'champ inexistant'})."
+                    )
+                has_matching_relation = any(
+                    (rel["type"] in ("hasMany", "hasOne") and rel["source"] == target_entity and rel["target"] == trigger_entity)
+                    or (rel["type"] == "belongsTo" and rel["target"] == target_entity and rel["source"] == trigger_entity)
+                    for rel in self.relations
+                )
+                if not has_matching_relation:
+                    raise ASTValidationError(
+                        f"Structure : '{direction}' sur '{trigger_entity}.Create' vers '{target_entity}.{target_field}' "
+                        f"exige une relation entre les deux (ex. '{target_entity} hasMany {trigger_entity}'), absente ici."
+                    )
+                self.reputation_rules.append({
+                    "trigger_entity": trigger_entity, "target_entity": target_entity,
+                    "target_field": target_field, "amount": rule["amount"], "direction": direction,
+                })
+
         # AJOUT (roadmap, contrôle du rendu visuel) : validation du bloc 'ui'
         # optionnel — vérifie que l'entité et les champs référencés existent
         # bien, pour éviter qu'une faute de frappe dans 'primary'/'order'
@@ -341,6 +398,7 @@ class MonLangAST:
                 "ownership": {f"{k[0]}.{k[1]}": v for k, v in self.ownership_rules.items()},
                 "public": [f"{e}.{a}" for e, a in self.public_actions],
                 "hidden_fields": [f"{e}.{f}" for e, f in self.masked_fields],
+                "reputation_rules": self.reputation_rules,
             },
             "sandbox_ai": {"custom_functions": list(self.custom_logic.values())},
             "ui": self.ui_overrides,

@@ -26,7 +26,7 @@ grammar = r"""
     # rule["type"] ne valait jamais "restrictedTo", et l'audit de sécurité associé
     # dans ast_validator.py ne se déclenchait donc jamais. Même classe de bug que
     # celui déjà corrigé sur le bloc "custom" en v3.
-    ?rule: constraint_rule | restriction_rule | sharing_rule | ownership_rule | visibility_rule | masking_rule
+    ?rule: constraint_rule | restriction_rule | sharing_rule | ownership_rule | visibility_rule | masking_rule | decrement_rule | increment_rule
 
     constraint_rule: "rule" REFERENCE VALIDATION_TYPE _NL
                    | "rule" REFERENCE VALIDATION_TYPE INT _NL
@@ -56,6 +56,30 @@ grammar = r"""
     # "anonyme". Ex. :
     #   rule Post.author hidden
     masking_rule: "rule" REFERENCE "hidden" _NL
+
+    # AJOUT (roadmap, écosystème de capacités -- brique 3) : "decrements"
+    # déclenche, à la création d'un enregistrement d'une entité (typiquement
+    # un signalement), la décrémentation d'un champ numérique sur l'entité
+    # liée dont il dépend (via une relation existante, ex.
+    # "Member hasMany Report"). Ex. :
+    #   rule Report.Create decrements Member.reputation
+    #   rule Report.Create decrements Member.reputation by 10
+    # Le montant par défaut (sans "by N") est 1.
+    #
+    # AJOUT (roadmap, écosystème de capacités -- brique 4) : "increments",
+    # symétrique de "decrements" pour les likes/appréciations. Ex. :
+    #   rule Like.Create increments Post.likes
+    # DÉLIBÉRÉMENT deux productions Lark nommées séparées plutôt qu'une seule
+    # règle paramétrée par un mot-clé partagé : "decrements"/"increments" sont
+    # des littéraux de chaîne anonymes, filtrés par Lark avant d'atteindre le
+    # Transformer (même piège déjà rencontré et corrigé pour
+    # "restrictedTo"/"sharedBy", voir plus haut) -- un essai précédent de
+    # règle unique avait donc silencieusement étiqueté tout "increments" comme
+    # "decrements" et a été retiré plutôt que laissé à moitié fait.
+    decrement_rule: "rule" REFERENCE "decrements" REFERENCE _NL
+                   | "rule" REFERENCE "decrements" REFERENCE "by" INT _NL
+    increment_rule: "rule" REFERENCE "increments" REFERENCE _NL
+                   | "rule" REFERENCE "increments" REFERENCE "by" INT _NL
 
     # AJOUT (roadmap, contrôle du rendu visuel) : bloc optionnel "ui" pour
     # surcharger ce que le générateur devine automatiquement. Ex. :
@@ -197,6 +221,18 @@ class MonLangTransformer(Transformer):
 
     def masking_rule(self, reference):
         return {"rule": {"reference": str(reference), "type": "hidden"}}
+
+    def decrement_rule(self, trigger_ref, target_ref, amount=None):
+        return {"rule": {
+            "reference": str(trigger_ref), "type": "decrements",
+            "value": str(target_ref), "amount": int(amount) if amount is not None else 1,
+        }}
+
+    def increment_rule(self, trigger_ref, target_ref, amount=None):
+        return {"rule": {
+            "reference": str(trigger_ref), "type": "increments",
+            "value": str(target_ref), "amount": int(amount) if amount is not None else 1,
+        }}
 
     def ui_theme(self, name):
         return {"theme": str(name)}

@@ -278,6 +278,16 @@ class MonLangSecureGenerator:
         for ref in normalized_ast["security"].get("hidden_fields", []):
             entity, field = ref.split(".", 1)
             self.hidden_fields_by_entity.setdefault(entity, []).append(field)
+        # AJOUT (roadmap, écosystème de capacités -- brique 3, généralisée en
+        # brique 4) : règles 'decrements'/'increments' regroupées par entité
+        # déclenchante — voir _generate_secure_fastapi, où la route Create de
+        # cette entité gagne une étape supplémentaire après l'insertion
+        # (incrémenter/décrémenter le champ ciblé sur la ligne liée,
+        # retrouvée via la colonne de clé étrangère que la relation validée
+        # garantit d'exister).
+        self.reputation_rules_by_trigger = {}
+        for r in normalized_ast["security"].get("reputation_rules", []):
+            self.reputation_rules_by_trigger.setdefault(r["trigger_entity"], []).append(r)
         # AJOUT (roadmap, contrôle du rendu visuel) : surcharges explicites du
         # thème/ordre/champ principal par entité, issues des blocs 'ui'.
         self.ui_overrides = normalized_ast.get("ui", {})
@@ -730,6 +740,20 @@ class MonLangSecureGenerator:
                 if attr_type in ["Float", "Money"]: py_type = "float"
                 if attr_type == "Boolean": py_type = "bool"
                 api_lines.append(f"    {attr_name}: {py_type}")
+            # AJOUT (roadmap, écosystème de capacités -- brique 3, généralisée
+            # en brique 4) : quand la relation entrante de cette entité est
+            # la cible d'une règle 'decrements'/'increments' (ex.
+            # Report -> Member, ou Like -> Post), sa colonne de clé étrangère
+            # n'est PAS de la même nature qu'un "ceci m'appartient" (qui se
+            # peuple tout seul depuis l'identité JWT de l'appelant, voir plus
+            # bas) : c'est un choix du client ("je signale/j'apprécie CETTE
+            # cible précise"), donc un champ normal du corps de requête.
+            owner_info_for_schema = self._get_incoming_relation(ent_name)
+            if owner_info_for_schema and any(
+                r["target_entity"] == owner_info_for_schema["source"]
+                for r in self.reputation_rules_by_trigger.get(ent_name, [])
+            ):
+                api_lines.append(f"    {owner_info_for_schema['fk_column']}: int")
             api_lines.append("\n")
 
         # 2. Génération de schémas stricts pour les entrées de la Sandbox IA (Bug #4)
@@ -816,10 +840,22 @@ class MonLangSecureGenerator:
                 # tout enregistrement créé, rendant les relations inertes au
                 # runtime malgré leur présence dans le schéma.
                 owner_info = self._get_incoming_relation(base_target)
+                # AJOUT (roadmap, écosystème de capacités -- brique 3,
+                # généralisée en brique 4) : si cette relation entrante est la
+                # cible d'une règle 'decrements'/'increments' (ex. "je
+                # signale CE membre" ou "j'apprécie CE post"), ce n'est pas un
+                # motif "propriétaire = appelant courant" -- le client fournit
+                # explicitement la cible dans le corps de la requête (voir la
+                # génération du schéma Pydantic ci-dessus), donc on ne tente
+                # PAS de la peupler automatiquement depuis current_user_id.
+                reputation_rules_here = self.reputation_rules_by_trigger.get(base_target, [])
+                is_reputation_fk = owner_info and any(
+                    r["target_entity"] == owner_info["source"] for r in reputation_rules_here
+                )
                 # Une route publique n'a par définition aucune identité
                 # appelante fiable — on ne tente pas d'y rattacher une clé
                 # étrangère "propriétaire" dans ce cas (la colonne reste NULL).
-                populate_owner = owner_info and not is_public
+                populate_owner = owner_info and not is_public and not is_reputation_fk
                 create_deps = dependency_injection
                 if populate_owner:
                     create_deps += ", current_user_id: int = Depends(get_current_user_id)" if create_deps else "current_user_id: int = Depends(get_current_user_id)"
@@ -835,12 +871,36 @@ class MonLangSecureGenerator:
                 if populate_owner:
                     insert_columns.append(owner_info["fk_column"])
                     value_exprs.append("current_user_id")
+                elif is_reputation_fk:
+                    insert_columns.append(owner_info["fk_column"])
+                    value_exprs.append(f"data.{owner_info['fk_column']}")
                 columns = ", ".join(f'"{c}"' for c in insert_columns)
                 placeholders = ", ".join(["?"] * len(insert_columns))
                 api_lines.append(f"    query = 'INSERT INTO \"{base_target.lower()}\" ({columns}) VALUES ({placeholders})'")
                 values_list = ", ".join(value_exprs)
                 api_lines.append(f"    cursor.execute(query, ({values_list},))")
-                api_lines.append("    conn.commit(); row_id = cursor.lastrowid; conn.close()")
+                api_lines.append("    conn.commit(); row_id = cursor.lastrowid")
+                # AJOUT (roadmap, écosystème de capacités -- brique 3,
+                # généralisée en brique 4) : effet de la règle
+                # 'decrements'/'increments' -- exécuté APRÈS le commit de
+                # l'insertion (le signalement/like est déjà valablement
+                # enregistré quoi qu'il arrive à cette étape), sur la ligne
+                # cible désignée par le client via la clé étrangère
+                # ci-dessus. Une cible inexistante ne fait simplement rien
+                # (UPDATE sans ligne correspondante) plutôt que d'échouer la
+                # création de l'enregistrement déclencheur lui-même.
+                for rule in reputation_rules_here:
+                    target_table = rule["target_entity"].lower()
+                    target_field = rule["target_field"]
+                    amount = rule["amount"]
+                    sql_op = "-" if rule["direction"] == "decrements" else "+"
+                    fk_value_expr = f"data.{owner_info['fk_column']}"
+                    api_lines.append(
+                        f"    cursor.execute('UPDATE \"{target_table}\" SET \"{target_field}\" = \"{target_field}\" {sql_op} ? "
+                        f"WHERE id = ?', ({amount}, {fk_value_expr}))"
+                    )
+                    api_lines.append("    conn.commit()")
+                api_lines.append("    conn.close()")
                 api_lines.append(f"    return {{'status': 'success', 'id': row_id}}")
                 api_lines.append("")
                 
