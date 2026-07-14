@@ -35,7 +35,8 @@ pour qui écrit une spec MonLang, et de mémoire pour le mainteneur du projet.
 [24](#24-écosystème-de-capacités--brique-1--capability-auth) Écosystème de capacités (brique 1) ·
 [25](#25-écosystème-de-capacités--brique-2--masquage-de-champ-hidden) Masquage de champ (brique 2) ·
 [26](#26-écosystème-de-capacités--brique-3--réputation-dynamique-decrements) Réputation dynamique (brique 3) ·
-[27](#27-écosystème-de-capacités--brique-4--appréciations-increments) Appréciations (brique 4)
+[27](#27-écosystème-de-capacités--brique-4--appréciations-increments) Appréciations (brique 4) ·
+[28](#28-écosystème-de-capacités--brique-5--likes-en-catégories-categorized) Likes en catégories (brique 5)
 
 ---
 
@@ -737,4 +738,60 @@ deux appels : `likes = 10`.
 **Toujours hors de portée, assumé** : identique au point 26 — l'algorithme
 de recommandation basé sur les likes reste un moteur de scoring/ML, pas
 quelque chose qu'un compilateur déclaratif peut produire.
+
+## 28. Écosystème de capacités — brique 5 : likes en catégories (`categorized`)
+
+**Cas d'usage déclencheur** : afficher un compteur de likes en catégories
+("peu"/"populaire"/"viral") plutôt qu'en nombre exact — décision explicite
+de l'utilisateur sur trois points, tranchés avant l'implémentation
+(cohérent avec la méthode du projet : fixer la forme exacte d'une règle
+avant d'écrire la grammaire, comme pour `decrements` au point 26) :
+1. Syntaxe sur une seule ligne, seuils fixes déclarés dans la spec (pas un
+   bloc indenté façon `ui`, pas de paliers génériques figés).
+2. Le champ numérique brut est **remplacé**, jamais exposé à côté de la
+   catégorie — cohérent avec `hidden` qui retire un champ plutôt que d'en
+   ajouter un.
+3. Portée volontairement générale : n'importe quel champ `Integer`/`Float`
+   de n'importe quelle entité, pas seulement les champs déjà ciblés par
+   `increments`/`decrements` — utile aussi pour un prix ou un stock, pas
+   seulement des likes.
+
+**Ce qui a changé :** nouvelle règle `rule Entite.champ categorized: "label1"
+below N1, "label2" below N2, ..., "labelFinal" otherwise`. Chaque palier est
+soit `below` (seuil strict, exclusif), soit `otherwise` (palier de secours).
+Validée à plusieurs niveaux dans `ast_validator.py` :
+- le champ ciblé doit être un attribut `Integer`/`Float` réellement déclaré ;
+- incompatible avec `hidden` sur le même champ (l'un retire le champ,
+  l'autre le remplace par une valeur dérivée — les deux ne peuvent pas
+  s'appliquer en même temps sans que l'un des deux comportements soit
+  silencieusement ignoré) ;
+- une seule règle `categorized` autorisée par champ ;
+- au moins un palier `below` et un palier `otherwise` (minimum 2 paliers) ;
+- seul le **dernier** palier peut être `otherwise` — un palier de secours
+  ailleurs dans la liste est rejeté à la compilation plutôt que de produire
+  un ordre de correspondance ambigu ;
+- le dernier palier **doit** être `otherwise` — sans lui, une valeur
+  au-delà du dernier seuil n'aurait aucune catégorie ;
+- les seuils `below` doivent être strictement croissants (détecte un
+  ordre inversé ou dupliqué à la compilation plutôt qu'au runtime).
+
+**Génération :** `generator.py` construit une chaîne `if`/`elif`/`else`
+Python directement dans les routes `Read` générées (liste et détail), sur
+le même dict de ligne nommé déjà utilisé pour le masquage de champ (`hidden`,
+point 25) — une seule passe par ligne pour les deux transformations. Les
+libellés utilisateur sont injectés via `repr()` plutôt qu'une interpolation
+manuelle entre guillemets, pour rester un littéral Python valide quel que
+soit leur contenu (apostrophe, antislash...) — la validation garantit par
+ailleurs que la chaîne `if`/`elif`/`else` générée est toujours syntaxiquement
+correcte et couvre nécessairement toute valeur possible du champ, grâce au
+palier `otherwise` obligatoire en dernière position.
+
+**Preuve, testée en conditions réelles** (`exemples/16_likes_categories_demo.yaml`,
+combinant `increments` du point 27 et `categorized`, serveur relancé, vrais
+appels) : un post à 0 like → `"likes_category": "peu"` ; après 2 likes à +5
+(10 bruts) → `"populaire"` ; après 18 likes de plus (100 bruts) → `"viral"` —
+sur la route détail ET la route liste, le champ `likes` brut n'apparaissant
+jamais dans aucune réponse. Chemin d'erreur également vérifié : un
+`otherwise` placé avant le dernier palier est rejeté à la compilation avec
+un message clair.
 

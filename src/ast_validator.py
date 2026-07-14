@@ -137,6 +137,72 @@ class MonLangAST:
                     )
                 self.masked_fields.add((entity, field))
 
+        # AJOUT (roadmap, écosystème de capacités -- brique 5) : validation
+        # des règles 'categorized' -- remplace un champ Integer/Float par un
+        # libellé de catégorie (ex. "peu"/"populaire"/"viral") dans toutes
+        # les réponses de lecture, sur le même principe que 'hidden' mais en
+        # substituant une donnée dérivée plutôt qu'en supprimant purement.
+        self.categorized_fields = []
+        _categorized_seen_fields = set()
+        for rule in self.rules:
+            if rule["type"] == "categorized":
+                if "." not in rule["reference"]:
+                    raise ASTValidationError(
+                        f"Structure : la règle 'categorized' doit référencer 'Entite.champ', reçu '{rule['reference']}'."
+                    )
+                entity, field = rule["reference"].split(".", 1)
+                if entity not in self.entities:
+                    raise ASTValidationError(f"Structure : la règle 'categorized' cible l'entité '{entity}' qui n'existe pas.")
+                field_type = self.entities.get(entity, {}).get(field)
+                if field_type not in ("Integer", "Float"):
+                    raise ASTValidationError(
+                        f"Structure : 'categorized' cible le champ '{entity}.{field}', qui doit être un attribut "
+                        f"Integer ou Float déclaré (reçu : {field_type or 'champ inexistant'})."
+                    )
+                # Incompatible avec 'hidden' sur le même champ : 'hidden' retire
+                # le champ, 'categorized' le remplace par une valeur dérivée --
+                # les deux ne peuvent pas s'appliquer en même temps sans que
+                # l'un des deux comportements soit silencieusement ignoré.
+                if (entity, field) in self.masked_fields:
+                    raise ASTValidationError(
+                        f"Structure : '{entity}.{field}' est à la fois 'hidden' et 'categorized' -- incompatible : "
+                        f"'hidden' retire le champ, 'categorized' le remplace par une catégorie dérivée de sa valeur."
+                    )
+                if (entity, field) in _categorized_seen_fields:
+                    raise ASTValidationError(
+                        f"Structure : plusieurs règles 'categorized' déclarées pour '{entity}.{field}' -- une seule autorisée."
+                    )
+                _categorized_seen_fields.add((entity, field))
+
+                clauses = rule["value"]
+                if len(clauses) < 2:
+                    raise ASTValidationError(
+                        f"Structure : 'categorized' sur '{entity}.{field}' doit déclarer au moins un seuil ('below') "
+                        f"et un palier de secours ('otherwise')."
+                    )
+                for clause in clauses[:-1]:
+                    if "otherwise" in clause:
+                        raise ASTValidationError(
+                            f"Structure : 'categorized' sur '{entity}.{field}' -- seul le DERNIER palier peut être "
+                            f"'otherwise' (palier de secours), reçu ailleurs dans la liste."
+                        )
+                if "otherwise" not in clauses[-1]:
+                    raise ASTValidationError(
+                        f"Structure : 'categorized' sur '{entity}.{field}' doit se terminer par un palier 'otherwise' "
+                        f"(palier de secours qui couvre toute valeur au-delà du dernier seuil)."
+                    )
+                thresholds = [c["below"] for c in clauses[:-1]]
+                if thresholds != sorted(set(thresholds)) or len(thresholds) != len(set(thresholds)):
+                    raise ASTValidationError(
+                        f"Structure : 'categorized' sur '{entity}.{field}' -- les seuils 'below' doivent être "
+                        f"strictement croissants (reçu : {thresholds})."
+                    )
+                if any(not c["label"].strip() for c in clauses):
+                    raise ASTValidationError(
+                        f"Structure : 'categorized' sur '{entity}.{field}' -- chaque palier doit avoir un libellé non vide."
+                    )
+                self.categorized_fields.append({"entity": entity, "field": field, "clauses": clauses})
+
         # AJOUT (roadmap, écosystème de capacités -- brique 3, généralisée en
         # brique 4) : validation des règles 'decrements'/'increments' --
         # même mécanique dans les deux sens (réputation qui baisse sur
@@ -399,6 +465,7 @@ class MonLangAST:
                 "public": [f"{e}.{a}" for e, a in self.public_actions],
                 "hidden_fields": [f"{e}.{f}" for e, f in self.masked_fields],
                 "reputation_rules": self.reputation_rules,
+                "categorized_fields": self.categorized_fields,
             },
             "sandbox_ai": {"custom_functions": list(self.custom_logic.values())},
             "ui": self.ui_overrides,

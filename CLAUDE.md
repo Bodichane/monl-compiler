@@ -53,7 +53,7 @@ fois plusieurs capacités réelles éprouvées). Chaque brique est petite,
 testée avant la suivante. Progression du simple au complexe, avec un
 réseau social anonyme comme banc d'essai final.
 
-### Briques terminées et testées (points 24-27)
+### Briques terminées et testées (points 24-28)
 1. **`capability auth`** — bloc déclaratif, aucun effet sur la génération
    pour l'instant (prouvé par compilation identique avec/sans le bloc).
 2. **`rule Entite.champ hidden`** — masque un champ de toutes les réponses
@@ -69,13 +69,21 @@ réseau social anonyme comme banc d'essai final.
    annuler le premier essai). `ast_validator.py` valide les deux dans la même
    boucle, chaque règle portant un champ `"direction"`. `generator.py` choisit
    `+`/`-` selon ce champ. Testé sur `exemples/15_likes_demo.yaml`.
+5. **`rule Entite.champ categorized: "label" below N, ..., "label" otherwise`**
+   — remplace un champ `Integer`/`Float` par un libellé de catégorie dans
+   toutes les réponses de lecture (liste + détail), sur le même principe que
+   `hidden` mais avec substitution plutôt que suppression. Portée générale
+   (n'importe quel champ numérique, pas seulement ceux ciblés par
+   `increments`/`decrements`). Incompatible avec `hidden` sur le même champ
+   (erreur de compilation explicite). Dernier palier obligatoirement
+   `otherwise` (couverture totale garantie). Libellés injectés via `repr()`
+   dans le code généré (jamais d'interpolation manuelle entre guillemets).
+   Testé sur `exemples/16_likes_categories_demo.yaml`.
 
 ### Briques suivantes déjà évoquées, non cadrées
 - Identifiant généré automatiquement (probablement côté `capability auth`)
-- Likes affichés en catégories plutôt qu'en nombre (nouveau mécanisme de
-  transformation à la lecture, différent de `hidden`)
 - Assemblage final : réseau social anonyme (auth + hidden + decrements +
-  increments + public + ownedBy)
+  increments + categorized + public + ownedBy)
 
 ### Hors de portée, assumé et documenté
 - Algorithme de recommandation basé sur les likes — moteur de scoring/ML,

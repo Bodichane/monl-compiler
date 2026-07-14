@@ -26,7 +26,7 @@ grammar = r"""
     # rule["type"] ne valait jamais "restrictedTo", et l'audit de sécurité associé
     # dans ast_validator.py ne se déclenchait donc jamais. Même classe de bug que
     # celui déjà corrigé sur le bloc "custom" en v3.
-    ?rule: constraint_rule | restriction_rule | sharing_rule | ownership_rule | visibility_rule | masking_rule | decrement_rule | increment_rule
+    ?rule: constraint_rule | restriction_rule | sharing_rule | ownership_rule | visibility_rule | masking_rule | decrement_rule | increment_rule | categorization_rule
 
     constraint_rule: "rule" REFERENCE VALIDATION_TYPE _NL
                    | "rule" REFERENCE VALIDATION_TYPE INT _NL
@@ -80,6 +80,22 @@ grammar = r"""
                    | "rule" REFERENCE "decrements" REFERENCE "by" INT _NL
     increment_rule: "rule" REFERENCE "increments" REFERENCE _NL
                    | "rule" REFERENCE "increments" REFERENCE "by" INT _NL
+
+    # AJOUT (roadmap, écosystème de capacités -- brique 5) : "categorized"
+    # remplace un champ numérique (Integer/Float) par un libellé de
+    # catégorie dans toutes les réponses de lecture -- sur le même principe
+    # que "hidden" (retire un champ), mais en le substituant par une donnée
+    # dérivée plutôt qu'en le supprimant purement. Cas d'usage déclencheur :
+    # des likes affichés en catégories ("peu"/"populaire"/"viral") plutôt
+    # qu'en nombre exact. Chaque palier est soit "below" (seuil strict,
+    # exclusif), soit "otherwise" (palier de secours, un seul autorisé,
+    # obligatoirement en dernière position -- voir ast_validator.py pour la
+    # validation complète). Ex. :
+    #   rule Post.likes categorized: "peu" below 10, "populaire" below 100, "viral" otherwise
+    categorization_rule: "rule" REFERENCE "categorized" ":" category_clause ("," category_clause)* _NL
+    ?category_clause: category_below | category_otherwise
+    category_below: STRING_LITERAL "below" INT
+    category_otherwise: STRING_LITERAL "otherwise"
 
     # AJOUT (roadmap, contrôle du rendu visuel) : bloc optionnel "ui" pour
     # surcharger ce que le générateur devine automatiquement. Ex. :
@@ -232,6 +248,18 @@ class MonLangTransformer(Transformer):
         return {"rule": {
             "reference": str(trigger_ref), "type": "increments",
             "value": str(target_ref), "amount": int(amount) if amount is not None else 1,
+        }}
+
+    def category_below(self, label, threshold):
+        return {"label": str(label).strip('"'), "below": int(threshold)}
+
+    def category_otherwise(self, label):
+        return {"label": str(label).strip('"'), "otherwise": True}
+
+    def categorization_rule(self, reference, *clauses):
+        return {"rule": {
+            "reference": str(reference), "type": "categorized",
+            "value": list(clauses),
         }}
 
     def ui_theme(self, name):

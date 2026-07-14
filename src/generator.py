@@ -288,6 +288,14 @@ class MonLangSecureGenerator:
         self.reputation_rules_by_trigger = {}
         for r in normalized_ast["security"].get("reputation_rules", []):
             self.reputation_rules_by_trigger.setdefault(r["trigger_entity"], []).append(r)
+        # AJOUT (roadmap, écosystème de capacités -- brique 5) : règles
+        # 'categorized' regroupées par entité — voir _generate_secure_fastapi,
+        # où les routes Read (liste + détail) de cette entité remplacent le
+        # champ numérique ciblé par son libellé de catégorie avant de
+        # renvoyer la réponse.
+        self.categorized_fields_by_entity = {}
+        for cf in normalized_ast["security"].get("categorized_fields", []):
+            self.categorized_fields_by_entity.setdefault(cf["entity"], []).append(cf)
         # AJOUT (roadmap, contrôle du rendu visuel) : surcharges explicites du
         # thème/ordre/champ principal par entité, issues des blocs 'ui'.
         self.ui_overrides = normalized_ast.get("ui", {})
@@ -439,6 +447,33 @@ class MonLangSecureGenerator:
         for placement in self._compute_fk_placements().get(entity, []):
             columns.append(placement["fk_column"])
         return columns
+
+    def _emit_categorization_lines(self, categorized_field, row_var, indent):
+        """AJOUT (roadmap, écosystème de capacités -- brique 5) : génère le
+        code source Python qui remplace, sur un dict de ligne déjà nommé
+        (row_var), un champ numérique par son libellé de catégorie
+        (ex. 'likes' -> 'likes_category'). La validation dans
+        ast_validator.py garantit que 'clauses' se termine toujours par
+        exactement un palier 'otherwise', et que tous les paliers 'below'
+        qui précèdent sont strictement croissants -- donc la chaîne
+        if/elif/.../else générée ici est toujours syntaxiquement valide et
+        couvre nécessairement toute valeur possible."""
+        field = categorized_field["field"]
+        clauses = categorized_field["clauses"]
+        cat_key = f"{field}_category"
+        # repr() plutôt qu'une interpolation manuelle entre guillemets : le
+        # libellé vient d'un STRING_LITERAL utilisateur et peut contenir des
+        # apostrophes/antislashs -- repr() produit toujours un littéral
+        # Python syntaxiquement valide, quel que soit le contenu.
+        lines = [f"{indent}_v = {row_var}.pop('{field}')"]
+        for i, clause in enumerate(clauses):
+            label_literal = repr(clause["label"])
+            if "otherwise" in clause:
+                lines.append(f"{indent}else: {row_var}['{cat_key}'] = {label_literal}")
+            else:
+                keyword = "if" if i == 0 else "elif"
+                lines.append(f"{indent}{keyword} _v < {clause['below']}: {row_var}['{cat_key}'] = {label_literal}")
+        return lines
 
     def _generate_sql(self):
         """Génère un schéma SQL déterministe préservant les données existantes (Bug #3)."""
@@ -928,6 +963,11 @@ class MonLangSecureGenerator:
                 # à 'restrictedTo', qui autorise un acteur précis).
                 masked = self.hidden_fields_by_entity.get(base_target, [])
                 mask_literal = ", ".join(f"'{f}'" for f in masked)
+                # AJOUT (roadmap, écosystème de capacités -- brique 5) :
+                # champs 'categorized' remplacés par leur libellé de
+                # catégorie, dans la même passe que le masquage ci-dessus —
+                # un seul parcours par ligne pour les deux transformations.
+                categorized_here = self.categorized_fields_by_entity.get(base_target, [])
                 list_params = f"limit: int = 50, offset: int = 0{dep_suffix}"
                 api_lines.append(f"@app.get('/{base_target.lower()}', tags=['{tag}'])")
                 api_lines.append(f"async def list_{base_target.lower()}({list_params}):")
@@ -941,9 +981,14 @@ class MonLangSecureGenerator:
                 api_lines.append("    rows = cursor.fetchall(); conn.close()")
                 api_lines.append(f"    _columns = [{columns_literal}]")
                 api_lines.append("    named_rows = [dict(zip(_columns, row)) for row in rows]")
+                row_loop_lines = []
                 if masked:
-                    api_lines.append(f"    for _r in named_rows:")
-                    api_lines.append(f"        for _f in [{mask_literal}]: _r.pop(_f, None)")
+                    row_loop_lines.append(f"        for _f in [{mask_literal}]: _r.pop(_f, None)")
+                for cf in categorized_here:
+                    row_loop_lines.extend(self._emit_categorization_lines(cf, "_r", "        "))
+                if row_loop_lines:
+                    api_lines.append("    for _r in named_rows:")
+                    api_lines.extend(row_loop_lines)
                 api_lines.append("    return {'status': 'success', 'total': total, 'limit': limit, 'offset': offset, 'data': named_rows}")
                 api_lines.append("")
 
@@ -957,6 +1002,8 @@ class MonLangSecureGenerator:
                 api_lines.append(f"    named_row = dict(zip([{columns_literal}], row))")
                 if masked:
                     api_lines.append(f"    for _f in [{mask_literal}]: named_row.pop(_f, None)")
+                for cf in categorized_here:
+                    api_lines.extend(self._emit_categorization_lines(cf, "named_row", "    "))
                 api_lines.append("    return {'status': 'success', 'data': named_row}")
                 api_lines.append("")
                 
