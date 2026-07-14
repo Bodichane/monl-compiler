@@ -38,7 +38,8 @@ pour qui écrit une spec MonLang, et de mémoire pour le mainteneur du projet.
 [27](#27-écosystème-de-capacités--brique-4--appréciations-increments) Appréciations (brique 4) ·
 [28](#28-écosystème-de-capacités--brique-5--likes-en-catégories-categorized) Likes en catégories (brique 5) ·
 [29](#29-écosystème-de-capacités--assemblage-final-réseau-social-anonyme) Assemblage final (réseau social anonyme) ·
-[30](#30-écosystème-de-capacités--pseudonyme-anonyme-généré-generated) Pseudonyme anonyme généré (`generated`)
+[30](#30-écosystème-de-capacités--pseudonyme-anonyme-généré-generated) Pseudonyme anonyme généré (`generated`) ·
+[31](#31-front-façon-flux-social-instagramx-sur-lassemblage-final) Front façon flux social (Instagram/X)
 
 ---
 
@@ -932,4 +933,61 @@ pseudonyme (`Anon#3143`, vérifié aussi directement dans
 (`Anon#9658`). Chemins d'erreur également vérifiés : `generated` + `hidden`
 sur le même champ, et `generated` + `Create public` sur la même entité,
 tous deux rejetés à la compilation avec un message clair.
+
+## 31. Front façon flux social (Instagram/X) sur l'assemblage final
+
+**Demande utilisateur** : après avoir testé l'API brute de l'assemblage
+final (point 29), rendu visuel façon Instagram/X — clic sur un post,
+commentaires, like/dislike via icônes cliquables — plutôt que des routes
+isolées ou le tableau de bord générique (formulaires par entité).
+
+**Décision de portée, cohérente avec le point 22** : MonLang ne génère
+toujours pas ce genre de front (décision explicite, non remise en cause
+ici) — ce n'est donc PAS une nouvelle capacité du compilateur, mais une
+page HTML/CSS/JS écrite à la main, branchée sur les vraies routes de
+l'API générée, exactement dans l'esprit du gabarit `mode: template` déjà
+existant pour la landing (point 21). Sauvegardée dans
+`templates/anon_social_feed_dashboard.html` (suivi par git, contrairement
+à `dashboard.html`, régénéré et gitignored à chaque compilation) — à
+copier sur `dashboard.html` après toute recompilation de la spec pour la
+retrouver sur `/app`.
+
+**Deux ajouts réels au socle déterministe, nécessaires pour la rendre
+possible** (pas juste du front) :
+- **`Dislike`** : entité symétrique de `Like` (`rule Dislike.Create
+  increments Post.dislikes by 1`) — `increments` ne connaît pas le sens du
+  champ qu'il incrémente, seulement qu'il monte, donc aucun changement de
+  compilateur nécessaire, juste une déclaration DSL de plus.
+- **`Comment.post_id`** : champ `Integer` **normal** (pas une relation) qui
+  indique quel post un commentaire cible. Décision technique importante,
+  pas cosmétique : `_get_incoming_relation()` (`generator.py`) ne retourne
+  que la **première** relation entrante d'une entité — `Comment` a déjà
+  `Member hasMany Comment` pour `ownedBy` (point 5), donc une seconde
+  relation `Post hasMany Comment` aurait vu sa colonne de clé étrangère
+  silencieusement ignorée par le peuplement automatique à la création
+  (limite de conception non documentée jusqu'ici, découverte en construisant
+  ce front). Contournée en évitant une seconde relation : `post_id` est un
+  attribut ordinaire, fourni par le client comme n'importe quel autre champ,
+  sans contrainte `FOREIGN KEY` ni validation d'existence côté compilateur
+  — limite assumée pour ce prototype. Étendre `_get_incoming_relation` à
+  plusieurs relations entrantes par entité est un chantier à part, non
+  entamé.
+
+**Bug réel trouvé en testant l'interaction, pas la relecture** :
+soumettre un commentaire réinitialisait l'affichage du compteur de
+like/dislike avec sa valeur d'origine — `updateCard()` était appelé avec
+`post`, l'objet JavaScript capturé au rendu initial du flux (fermeture),
+périmé dès qu'un like/dislike réel se produisait entre-temps. Reproduit
+avec Playwright (12 clics sur "like" faisant passer un post de `peu` à
+`populaire`, confirmé par `GET /post/{id}` et lecture directe de la base,
+`60` likes bruts) puis un commentaire soumis juste après faisait
+réafficher `peu` malgré la vraie valeur `populaire` en base. Corrigé en
+ne mettant à jour, après l'ajout d'un commentaire, que le compteur de
+commentaires (dérivé de la liste rechargée), jamais les labels like/dislike.
+
+**Preuve, testée en conditions réelles** (Playwright, capture d'écran +
+interactions réelles, pas juste lecture du HTML généré) : flux avec
+plusieurs posts, avatars colorés dérivés du pseudonyme, catégorie de like
+et compteur de dislike par icône cliquable, panneau de commentaires qui
+s'ouvre/se ferme et accepte un nouveau commentaire sans recharger la page.
 

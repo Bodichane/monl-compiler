@@ -105,10 +105,38 @@ réseau social anonyme comme banc d'essai final.
    fiable dont dériver un pseudonyme). Testé sur
    `exemples/18_generated_pseudonym_demo.yaml`.
 
+### Front façon flux social (Instagram/X), sur demande explicite (point 31)
+
+**PAS une nouvelle capacité du compilateur** (cohérent avec le point 22 :
+MonLang ne génère toujours pas ce genre de front) — une page HTML/CSS/JS
+écrite à la main, branchée sur les vraies routes, sauvegardée dans
+`templates/anon_social_feed_dashboard.html` (suivie par git, contrairement
+à `dashboard.html`, régénéré et gitignored) — **à recopier sur
+`dashboard.html` après toute recompilation** de `17_anon_social_network.yaml`
+pour la retrouver sur `/app`.
+
+A nécessité 2 ajouts réels à la spec (pas juste du front) :
+- `Dislike`, symétrique de `Like` (`increments Post.dislikes`).
+- `Comment.post_id` en attribut `Integer` **normal**, pas une relation —
+  `_get_incoming_relation()` ne retourne que la première relation entrante
+  d'une entité, et `Comment` a déjà `Member hasMany Comment` pour
+  `ownedBy` ; une seconde relation `Post hasMany Comment` aurait vu sa FK
+  silencieusement ignorée. Limite de conception découverte à cette
+  occasion, non corrigée (chantier à part : plusieurs relations entrantes
+  par entité).
+
+Bug réel trouvé par interaction Playwright (pas relecture) : soumettre un
+commentaire réinitialisait le like/dislike affiché avec une valeur de
+fermeture JS périmée — corrigé.
+
 ### Briques suivantes déjà évoquées, non cadrées
 - Contrôle d'accès à deux parties (`ownedBy` ne couvre qu'un seul
   propriétaire ; une messagerie privée a besoin qu'expéditeur ET
   destinataire y aient accès) — évoqué dès la brique 1, jamais repris.
+- Plusieurs relations entrantes auto-peuplées par entité
+  (`_get_incoming_relation` ne retourne que la première) — découvert en
+  construisant le front flux social (point 31), contourné localement en
+  évitant une seconde relation plutôt que corrigé à la racine.
 
 ### Hors de portée, assumé et documenté
 - Algorithme de recommandation basé sur les likes — moteur de scoring/ML,

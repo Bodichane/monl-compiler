@@ -9,6 +9,7 @@ entity Post
     author: String
     # champ cible des règles 'increments' et 'categorized' plus bas
     likes: Integer
+    dislikes: Integer
 
 entity Report
     reason: String
@@ -16,11 +17,20 @@ entity Report
 entity Like
     note: String
 
+entity Dislike
+    note: String
+
 entity Comment
     content: Text
+    # champ normal (pas une relation) : quel post ce commentaire cible --
+    # un choix du client, pas "ce commentaire m'appartient", donc pas de
+    # relation dédiée (limite de conception : une seule relation entrante
+    # auto-peuplée par entité pour l'instant, voir _get_incoming_relation).
+    post_id: Integer
 
 relation Member hasMany Report
 relation Post hasMany Like
+relation Post hasMany Dislike
 relation Member hasMany Comment
 
 actor Member
@@ -37,6 +47,11 @@ rule Post.likes categorized: "peu" below 10, "populaire" below 100, "viral" othe
 
 # Un like fait monter le compteur de likes du post ciblé (brique 4).
 rule Like.Create increments Post.likes by 5
+
+# Un dislike fait monter le compteur de dislikes du post ciblé (symétrique
+# de 'Like', même mécanisme -- 'increments' ne connaît pas le sens du
+# champ qu'il incrémente, seulement qu'il monte).
+rule Dislike.Create increments Post.dislikes by 1
 
 # Un signalement fait baisser la réputation du membre signalé (brique 3).
 rule Report.Create decrements Member.reputation by 10
@@ -59,6 +74,9 @@ workflow ReportMember for Member
 
 workflow LikePost for Member
     Create Like
+
+workflow DislikePost for Member
+    Create Dislike
 
 workflow ManageComment for Member
     Create Comment
