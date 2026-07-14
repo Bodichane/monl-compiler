@@ -842,19 +842,30 @@ l'alternative `_NL` de `?block` sans qu'aucune méthode du Transformer ne le
 traite -- Lark n'inline pas ce nœud vide (0 enfant, la règle `?block`
 n'inline que les nœuds à exactement 1 enfant) et laisse passer un
 `Tree('block', [])` brut. Jamais rencontré avant, car aucun des 16 exemples
-précédents n'utilisait de commentaire sur sa propre ligne. Corrigé dans
-`MonLangTransformer.app()` en filtrant `isinstance(b, dict)` plutôt que
-seulement `b is not None`.
+précédents n'utilisait de commentaire sur sa propre ligne. Un premier
+correctif défensif (`isinstance(b, dict)` dans `MonLangTransformer.app()`)
+a d'abord traité le symptôme au niveau racine seulement.
 
-**Limite qui demeure, assumée** : ce correctif ne couvre que les
-commentaires entre blocs de PREMIER NIVEAU (`entity`, `rule`, `workflow`...).
-Un commentaire seul À L'INTÉRIEUR d'un bloc indenté (entre deux attributs
-d'`entity`, ou deux actions d'un `workflow`) fait toujours échouer le parsing
-avec une erreur `UnexpectedToken` -- `attribute+`/`action+` n'ont pas
-d'alternative `_NL` pour absorber la ligne excédentaire, contrairement à
-`?block`. Non corrigé (chantier à part si le besoin se confirme) ; en
-attendant, les commentaires internes à un bloc indenté doivent être évités
-dans les specs `.monlang`.
+**Chantier repris et résolu à la racine** : un commentaire seul À
+L'INTÉRIEUR d'un bloc indenté (entre deux attributs d'`entity`, ou deux
+actions d'un `workflow`) faisait, lui, carrément échouer le parsing
+(`UnexpectedToken`) -- `attribute+`/`action+` (et les productions
+équivalentes de `custom_block`/`ui_block`/`landing_block`) n'ont aucune
+alternative pour absorber un `_NL` isolé, contrairement à `?block`. Plutôt
+que corriger 5 règles de grammaire séparément (une par bloc indenté,
+chacune à valider indépendamment, avec le risque de perturber l'indenteur
+sur chacune), le correctif retenu agit en amont du lexer, dans
+`parse_monlang_string()` (`src/parser.py`) : toute ligne qui n'est QUE du
+commentaire (rien d'autre que des espaces avant `#`) est retirée du texte
+source via une regex (`_strip_standalone_comment_lines`) avant même que
+Lark ne le voie -- la ligne disparaît complètement, comme si elle n'avait
+jamais existé, ce qui restaure la contiguïté du run de retours à la ligne
+qui l'entourait, PARTOUT (racine ET blocs indentés), en un seul endroit.
+Les commentaires en fin de ligne réelle (ex. `entity Post  # note`) ne sont
+pas concernés par cette regex (du contenu non-blanc précède le `#`) et
+restent gérés par `%ignore COMMENT` comme avant. Le correctif défensif
+`isinstance(b, dict)` dans `app()` reste en place (inoffensif, coûte rien),
+mais n'est plus strictement nécessaire pour ce cas précis.
 
 **Preuve, testée en conditions réelles** (serveur relancé, vrais appels) :
 deux comptes (`alice`, `bob`) enregistrés ; un post d'alice lu SANS jeton ne

@@ -7,6 +7,7 @@ entity Member
 entity Post
     content: Text
     author: String
+    # champ cible des règles 'increments' et 'categorized' plus bas
     likes: Integer
 
 entity Report
@@ -62,6 +63,7 @@ workflow LikePost for Member
 workflow ManageComment for Member
     Create Comment
     Read Comment
+    # seul le propriétaire peut passer par ici, voir 'ownedBy' plus haut
     Update Comment
     Delete Comment
 

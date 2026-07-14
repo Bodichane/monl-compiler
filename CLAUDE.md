@@ -84,12 +84,16 @@ réseau social anonyme comme banc d'essai final.
    ci-dessus combinées dans une seule spec (`exemples/17_anon_social_network.yaml`),
    chacune dans son rôle le plus naturel plutôt qu'empilées sur la même
    entité (`Post` anonyme/public/catégorisé, `Comment` identifié avec
-   `ownedBy`). Bug réel découvert en l'assemblant (pas en le relisant) :
-   un commentaire seul sur sa propre ligne entre deux blocs de premier
-   niveau faisait planter la compilation (`Tree` non transformé qui
-   traverse jusqu'à `app()`) — corrigé dans `src/parser.py`. Limite
-   assumée : un commentaire seul À L'INTÉRIEUR d'un bloc indenté
-   (`entity`/`workflow`...) échoue encore (`UnexpectedToken`), non corrigé.
+   `ownedBy`). Deux bugs réels découverts en l'assemblant (pas en le
+   relisant), tous deux résolus : un commentaire seul sur sa propre ligne
+   entre deux blocs de premier niveau faisait planter la compilation
+   (`Tree` non transformé) ; un commentaire seul À L'INTÉRIEUR d'un bloc
+   indenté (`entity`/`workflow`...) faisait carrément échouer le parsing
+   (`UnexpectedToken`). Corrigé à la racine dans `src/parser.py` :
+   `parse_monlang_string()` retire du texte source toute ligne qui n'est
+   QUE du commentaire, avant même que Lark ne la voie — un seul correctif
+   couvrant les deux cas, plutôt que 5 règles de grammaire à corriger
+   séparément (entity/workflow/custom_block/ui_block/landing_block).
 
 ### Briques suivantes déjà évoquées, non cadrées
 - Identifiant généré automatiquement (probablement côté `capability auth`)
