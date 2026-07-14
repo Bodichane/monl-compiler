@@ -36,7 +36,8 @@ pour qui écrit une spec MonLang, et de mémoire pour le mainteneur du projet.
 [25](#25-écosystème-de-capacités--brique-2--masquage-de-champ-hidden) Masquage de champ (brique 2) ·
 [26](#26-écosystème-de-capacités--brique-3--réputation-dynamique-decrements) Réputation dynamique (brique 3) ·
 [27](#27-écosystème-de-capacités--brique-4--appréciations-increments) Appréciations (brique 4) ·
-[28](#28-écosystème-de-capacités--brique-5--likes-en-catégories-categorized) Likes en catégories (brique 5)
+[28](#28-écosystème-de-capacités--brique-5--likes-en-catégories-categorized) Likes en catégories (brique 5) ·
+[29](#29-écosystème-de-capacités--assemblage-final-réseau-social-anonyme) Assemblage final (réseau social anonyme)
 
 ---
 
@@ -794,4 +795,72 @@ sur la route détail ET la route liste, le champ `likes` brut n'apparaissant
 jamais dans aucune réponse. Chemin d'erreur également vérifié : un
 `otherwise` placé avant le dernier palier est rejeté à la compilation avec
 un message clair.
+
+## 29. Écosystème de capacités — assemblage final (réseau social anonyme)
+
+**Objectif** : combiner toutes les briques (1 à 5) dans une seule spec
+cohérente — le banc d'essai annoncé depuis le début de la vision produit
+(voir points 24-28) — pour prouver qu'elles composent sans interférer entre
+elles, pas seulement isolément. Voir `exemples/17_anon_social_network.yaml`.
+
+**Composition retenue**, chaque brique dans son rôle le plus naturel plutôt
+que toutes empilées sur la même entité :
+- `capability auth` (brique 1) déclarée explicitement.
+- `Post` : lecture publique (`public`, point 16) mais auteur invisible
+  (`hidden`, brique 2) — le champ `author` reste un `String` libre fourni
+  par le client (comme `exemples/13_anon_forum_demo.yaml`), pas une clé
+  étrangère réelle. Ses `likes` sont catégorisés (`categorized`, brique 5).
+- `Like.Create increments Post.likes` (brique 4) fait monter le compteur
+  catégorisé ci-dessus.
+- `Report.Create decrements Member.reputation` (brique 3) fait baisser la
+  réputation du membre ciblé.
+- `Comment` : lecture publique, mais `Update`/`Delete` restreints au
+  propriétaire réel (`ownedBy`, point 5) via une vraie relation
+  `Member hasMany Comment` — contrairement à `Post`, ses commentaires ne
+  sont pas anonymes, seulement modifiables par leur auteur.
+
+**Limite de conception qui ressort de cet assemblage, assumée** :
+`hidden` ne peut cibler qu'un attribut *déclaré* de l'entité (validé contre
+`self.entities[entity]`), jamais la colonne de clé étrangère qu'une relation
+ajoute automatiquement (ex. `member_id` sur une entité liée par `ownedBy`).
+Un `Post` anonyme ne peut donc pas être *simultanément* rattaché par une
+vraie relation à son auteur (pour un `ownedBy` sur `Post.Update`/`Delete`)
+ET avoir cette relation masquée en lecture -- d'où le choix, dans cet
+assemblage, de garder `Post.author` en `String` libre (anonymat total, pas
+d'`ownedBy` sur `Post`) et de réserver `ownedBy` à `Comment` (identifié,
+pas anonyme). Étendre `hidden` aux colonnes de clé étrangère générées est
+un chantier à part, non entamé, si un cas d'usage réel l'exige un jour.
+
+**Bug réel découvert en assemblant cette spec (pas par relecture)** : une
+ligne de commentaire seule entre deux blocs de premier niveau (ex. un
+commentaire au-dessus d'une règle, sur sa propre ligne) faisait planter la
+compilation avec `TypeError: argument of type 'Tree' is not a container or
+iterable`. Cause : le terminal `_NL` (fin de ligne) ne fusionne que des
+retours à la ligne *contigus* ; un commentaire entre deux d'entre eux casse
+cette contiguïté et produit un second token `_NL` isolé, qui matche alors
+l'alternative `_NL` de `?block` sans qu'aucune méthode du Transformer ne le
+traite -- Lark n'inline pas ce nœud vide (0 enfant, la règle `?block`
+n'inline que les nœuds à exactement 1 enfant) et laisse passer un
+`Tree('block', [])` brut. Jamais rencontré avant, car aucun des 16 exemples
+précédents n'utilisait de commentaire sur sa propre ligne. Corrigé dans
+`MonLangTransformer.app()` en filtrant `isinstance(b, dict)` plutôt que
+seulement `b is not None`.
+
+**Limite qui demeure, assumée** : ce correctif ne couvre que les
+commentaires entre blocs de PREMIER NIVEAU (`entity`, `rule`, `workflow`...).
+Un commentaire seul À L'INTÉRIEUR d'un bloc indenté (entre deux attributs
+d'`entity`, ou deux actions d'un `workflow`) fait toujours échouer le parsing
+avec une erreur `UnexpectedToken` -- `attribute+`/`action+` n'ont pas
+d'alternative `_NL` pour absorber la ligne excédentaire, contrairement à
+`?block`. Non corrigé (chantier à part si le besoin se confirme) ; en
+attendant, les commentaires internes à un bloc indenté doivent être évités
+dans les specs `.monlang`.
+
+**Preuve, testée en conditions réelles** (serveur relancé, vrais appels) :
+deux comptes (`alice`, `bob`) enregistrés ; un post d'alice lu SANS jeton ne
+révèle jamais `author` ; 18 likes de bob (`+5` chacun, 90 au total) affichent
+`"likes_category": "populaire"` ; un signalement de bob fait passer la
+réputation d'alice de 100 à 90 (vérifié directement en base) ; bob peut
+modifier son propre commentaire, alice reçoit un `403` en tentant de
+modifier celui de bob.
 

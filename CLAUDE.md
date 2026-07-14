@@ -53,7 +53,7 @@ fois plusieurs capacités réelles éprouvées). Chaque brique est petite,
 testée avant la suivante. Progression du simple au complexe, avec un
 réseau social anonyme comme banc d'essai final.
 
-### Briques terminées et testées (points 24-28)
+### Briques terminées et testées (points 24-29)
 1. **`capability auth`** — bloc déclaratif, aucun effet sur la génération
    pour l'instant (prouvé par compilation identique avec/sans le bloc).
 2. **`rule Entite.champ hidden`** — masque un champ de toutes les réponses
@@ -80,10 +80,19 @@ réseau social anonyme comme banc d'essai final.
    dans le code généré (jamais d'interpolation manuelle entre guillemets).
    Testé sur `exemples/16_likes_categories_demo.yaml`.
 
+6. **Assemblage final : réseau social anonyme** — toutes les briques
+   ci-dessus combinées dans une seule spec (`exemples/17_anon_social_network.yaml`),
+   chacune dans son rôle le plus naturel plutôt qu'empilées sur la même
+   entité (`Post` anonyme/public/catégorisé, `Comment` identifié avec
+   `ownedBy`). Bug réel découvert en l'assemblant (pas en le relisant) :
+   un commentaire seul sur sa propre ligne entre deux blocs de premier
+   niveau faisait planter la compilation (`Tree` non transformé qui
+   traverse jusqu'à `app()`) — corrigé dans `src/parser.py`. Limite
+   assumée : un commentaire seul À L'INTÉRIEUR d'un bloc indenté
+   (`entity`/`workflow`...) échoue encore (`UnexpectedToken`), non corrigé.
+
 ### Briques suivantes déjà évoquées, non cadrées
 - Identifiant généré automatiquement (probablement côté `capability auth`)
-- Assemblage final : réseau social anonyme (auth + hidden + decrements +
-  increments + categorized + public + ownedBy)
 
 ### Hors de portée, assumé et documenté
 - Algorithme de recommandation basé sur les likes — moteur de scoring/ML,

@@ -1,0 +1,70 @@
+app AnonSocialNetwork
+
+entity Member
+    name: String
+    reputation: Integer
+
+entity Post
+    content: Text
+    author: String
+    likes: Integer
+
+entity Report
+    reason: String
+
+entity Like
+    note: String
+
+entity Comment
+    content: Text
+
+relation Member hasMany Report
+relation Post hasMany Like
+relation Member hasMany Comment
+
+actor Member
+
+capability auth
+
+# Les posts sont publics, mais leur auteur ne doit jamais apparaître dans
+# la réponse API (brique 2, masquage de champ).
+rule Post.Read public
+rule Post.author hidden
+
+# Les likes s'affichent en catégories plutôt qu'en nombre exact (brique 5).
+rule Post.likes categorized: "peu" below 10, "populaire" below 100, "viral" otherwise
+
+# Un like fait monter le compteur de likes du post ciblé (brique 4).
+rule Like.Create increments Post.likes by 5
+
+# Un signalement fait baisser la réputation du membre signalé (brique 3).
+rule Report.Create decrements Member.reputation by 10
+
+# Les commentaires sont publics en lecture, mais seul leur auteur peut
+# les modifier ou les supprimer (contrôle d'accès par propriété).
+rule Comment.Read public
+rule Comment.Update ownedBy Member
+rule Comment.Delete ownedBy Member
+
+workflow ManageMember for Member
+    Create Member
+
+workflow ManagePost for Member
+    Create Post
+    Read Post
+
+workflow ReportMember for Member
+    Create Report
+
+workflow LikePost for Member
+    Create Like
+
+workflow ManageComment for Member
+    Create Comment
+    Read Comment
+    Update Comment
+    Delete Comment
+
+landing
+    mode: ai
+    brief: "Un réseau social où les posts sont publics mais l'auteur reste anonyme, la réputation baisse en cas de signalement, et les likes s'affichent en catégories."

@@ -191,7 +191,19 @@ grammar = r"""
 @v_args(inline=True)
 class MonLangTransformer(Transformer):
     def app(self, name, *blocks):
-        valid_blocks = [b for b in blocks if b is not None]
+        # CORRECTIF (roadmap, découvert en assemblant le réseau social anonyme) :
+        # une ligne de commentaire seule entre deux blocs de premier niveau (ex.
+        # un commentaire pour expliquer la règle suivante) casse la fusion
+        # contiguë du terminal '_NL' -- le lexer produit alors DEUX tokens _NL
+        # séparés (avant et après le commentaire) au lieu d'un seul. Le second,
+        # rencontré seul comme alternative de '?block', ne matche aucune règle
+        # transformée : Lark ne l'inline pas (0 enfant, pas 1) et laisse passer
+        # un Tree('block', []) brut -- jamais rencontré avant, car aucun exemple
+        # existant n'utilisait de commentaire sur sa propre ligne. isinstance()
+        # filtre ce nœud fantôme plutôt que de le laisser faire planter la
+        # compréhension de liste ci-dessous avec 'argument of type Tree is not
+        # a container or iterable'.
+        valid_blocks = [b for b in blocks if isinstance(b, dict)]
         return {
             "app": str(name),
             "entities": [b["entity"] for b in valid_blocks if "entity" in b],
