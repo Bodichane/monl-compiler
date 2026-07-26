@@ -27,6 +27,9 @@ SCENARIO_PORTFOLIO = [
     "n",               # pas de relation
     "1",               # inscription libre : 1er rôle proposé
     "o", "o",          # seed + landing
+    # Brief transmis -> l'intention visuelle est demandée (point 53) :
+    # action attendue du visiteur, registre, place des images.
+    "voir les projets et écrire", "2", "1",
 ]
 
 
@@ -146,4 +149,45 @@ def test_gestion_partagee_emet_sharedby_sans_collision():
     assert "rule Post.Create sharedBy Admin, Moderator" in spec
     assert "workflow ManagePostByAdmin for Admin" in spec
     assert "workflow ManagePostByModerator for Moderator" in spec
+    MonlAST(parse_monl_string(spec)).validate_and_audit()
+
+
+# ---- L'intention visuelle atteint le brief (point 53) ----
+
+def _scenario_portfolio(intention):
+    """SCENARIO_PORTFOLIO, dont on ne change que les réponses d'intention."""
+    return SCENARIO_PORTFOLIO[:-3] + list(intention)
+
+
+def test_intention_visuelle_arrive_dans_le_brief():
+    """Le brief transmis à l'IA UI ne doit plus se réduire à la description :
+    c'est la seule phrase du contrat qui dise à quoi sert le site, face à des
+    routes décrites au champ près. Une interface sans intention retombe sur le
+    dénominateur commun (point 53)."""
+    spec = _run(_scenario_portfolio(["parcourir la galerie", "4", "1"]))
+    ligne = next(l for l in spec.splitlines() if "brief:" in l)
+    assert "parcourir la galerie" in ligne
+    assert "affirmé et graphique" in ligne          # registre n° 4
+    assert "les images portent le site" in ligne    # imagerie n° 1
+    # La description d'origine reste en tête du brief.
+    assert ligne.index("Un portfolio") < ligne.index("parcourir la galerie")
+    MonlAST(parse_monl_string(spec)).validate_and_audit()
+
+
+def test_registres_differents_donnent_des_briefs_differents():
+    """Sans quoi les menus seraient décoratifs."""
+    a = _run(_scenario_portfolio(["voir", "1", "3"]))
+    b = _run(_scenario_portfolio(["voir", "3", "3"]))
+    assert a != b
+
+
+def test_sans_brief_aucune_question_d_intention():
+    """L'intention n'est demandée que si un brief part vers l'IA : sinon ces
+    réponses n'auraient personne à qui servir, et le dialogue ferait perdre
+    trois questions à l'utilisateur."""
+    # [:-4] retire les 3 réponses d'intention ET le « oui » au brief ; la
+    # réponse « seed » reste en place, on ne rajoute donc que le refus.
+    sans_landing = SCENARIO_PORTFOLIO[:-4] + ["n"]
+    spec = _run(sans_landing)          # ne doit PAS lever StopIteration
+    assert "landing" not in spec
     MonlAST(parse_monl_string(spec)).validate_and_audit()

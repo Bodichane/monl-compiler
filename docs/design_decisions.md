@@ -72,7 +72,8 @@ en l'état car de nombreux renvois internes s'y appuient) ·
 [49](#49-le-dialogue-montre-son-parcours-avant-de-le-faire-subir-bêta-3) Le dialogue montre son parcours ·
 [50](#50-une-règle-de-propriété-qui-ne-couvre-pas-la-lecture-nen-est-pas-une-bêta-3) Une règle de propriété doit couvrir la lecture ·
 [51](#51-un-contrat-qui-dicte-un-port-en-dur-punit-lia-qui-lui-obéit) Un contrat qui dicte un port en dur punit l'IA qui lui obéit ·
-[52](#52-proposer-une-police-que-le-même-contrat-interdit-de-charger) Proposer une police que le même contrat interdit de charger
+[52](#52-proposer-une-police-que-le-même-contrat-interdit-de-charger) Proposer une police que le même contrat interdit de charger ·
+[53](#53-le-dialogue-interrogeait-la-structure-jamais-lintention) Le dialogue interrogeait la structure, jamais l'intention
 
 ---
 
@@ -2023,3 +2024,47 @@ des quasi-équivalents (`Helvetica` pour `'Helvetica Neue'`) qu'une recherche
 textuelle ne distingue pas d'un oubli. Bloquer un build sur cette nuance
 punirait un bon parti pris pour une différence invisible — le faux positif que
 le point 48 s'interdit. Seule une couleur manquante reste bloquante.
+
+## 53. Le dialogue interrogeait la structure, jamais l'intention
+
+Suite du point 52, même question de départ : pourquoi les sites générés
+se ressemblent-ils tous, en sobre ? Les polices n'étaient qu'une moitié de la
+réponse. L'autre tenait dans ce que l'IA UI recevait comme matière.
+
+**Un brief de trois mots face à un contrat au champ près.** Le dialogue
+demandait « Décrivez le projet en une phrase », et cette phrase — souvent
+`portfolio pour photographe`, faute de frappe comprise — constituait le SEUL
+énoncé d'intention du brief. Les soixante-dix lignes restantes décrivaient des
+routes, des types de champs, la pagination et l'authentification. L'IA
+recevait donc toute la structure et presque aucun dessein. À qui ne dit rien,
+elle rend le dénominateur commun — ce n'est pas un défaut du modèle, c'est
+l'absence de commande.
+
+**Ce qu'une spec ne peut pas déduire.** Les mêmes entités, les mêmes rôles et
+les mêmes routes servent aussi bien un portfolio contemplatif qu'un
+back-office pressé. Aucune analyse du schéma ne tranchera entre les deux :
+c'est une décision, pas une déduction. Le dialogue pose donc trois questions
+— ce que le visiteur doit pouvoir faire, le registre visuel, la place des
+images — et les coud à la description dans le `brief` du bloc `landing`.
+
+**Menus fermés, pas champs libres.** Deux des trois questions sont des menus.
+Le dialogue est déterministe et sans IA (point 40) : des réponses libres
+demanderaient une interprétation qu'il n'a pas les moyens de faire, et
+produiraient des briefs de qualité très inégale. Chaque entrée porte un
+libellé court pour l'écran et une phrase complète pour le brief — ce que lit
+l'IA est ainsi toujours formulé, jamais un mot-clé nu.
+
+**Posées seulement si elles servent.** L'intention n'est demandée que si
+l'utilisateur transmet un brief. Sans page d'accueil à écrire, ces trois
+questions ne feraient perdre du temps à personne d'utile.
+
+**Limite connue, assumée pour l'instant.** Le registre déclaré n'influence pas
+encore le choix du système visuel, qui reste déduit du vocabulaire des
+entités. Un portfolio dont l'entité s'appelle `Project` reçoit toujours le
+thème `console` (sombre, chasse fixe) parce que « project » est un de ses
+mots-clés — en contradiction directe avec un registre « chaleureux et
+éditorial » fraîchement déclaré. Le raccourci tentant — faire émettre au
+dialogue un bloc `ui … theme:` — serait faux : ce bloc ÉPINGLE le thème, donc
+rend tout écart de palette bloquant (point 48), alors que l'utilisateur a
+choisi un registre, pas une palette. Une expression plus faible qu'un
+épinglage reste à concevoir ; c'est la brique suivante, pas un correctif.

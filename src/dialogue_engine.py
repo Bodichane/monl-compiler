@@ -34,6 +34,40 @@ SEEDABLE_TYPES = {"String", "Text", "Integer", "Float", "Money", "Email"}
 
 RELATION_TYPES = ["hasMany", "hasOne", "belongsTo"]
 
+# AJOUT (point 53) : intention visuelle. Le brief transmis à l'IA UI se
+# résumait à la phrase de description — souvent trois mots — face à un contrat
+# qui décrit les routes au champ près. L'IA recevait donc toute la structure et
+# presque aucune intention, et rendait le dénominateur commun. Ces deux menus
+# captent ce qu'aucune spec ne peut déduire : le registre voulu et la place des
+# images. Menus FERMÉS (le dialogue reste déterministe et sans IA) ; chaque
+# entrée porte un libellé court pour l'écran et une phrase pour le brief.
+DESIGN_REGISTERS = [
+    ("Sobre et institutionnel",
+     "registre sobre et institutionnel : lisibilité et confiance avant tout, "
+     "peu d'effets, hiérarchie typographique nette"),
+    ("Chaleureux et éditorial",
+     "registre chaleureux et éditorial : longues plages de texte, respiration "
+     "généreuse, matière et nuances plutôt que contrastes brutaux"),
+    ("Dense et fonctionnel",
+     "registre dense et fonctionnel : l'outil prime sur la vitrine, "
+     "information compacte, l'utilisateur va vite et revient souvent"),
+    ("Affirmé et graphique",
+     "registre affirmé et graphique : grandes échelles typographiques, "
+     "contrastes marqués, parti pris visuel assumé"),
+]
+
+DESIGN_IMAGERY = [
+    ("Les images portent le site",
+     "les images portent le site (photo, œuvre, produit) : elles occupent de "
+     "grandes surfaces et commandent la mise en page"),
+    ("Texte d'abord, images d'appoint",
+     "le texte porte le site, les images viennent en appui et restent "
+     "secondaires dans la mise en page"),
+    ("Aucune image",
+     "aucune image : tout repose sur la typographie, l'espacement et la "
+     "couleur"),
+]
+
 
 class DialogueError(Exception):
     """Réponse invalide répétée ou incohérence — le moteur ne devine jamais."""
@@ -130,6 +164,29 @@ class GuidedDialogue:
         return self._ask(prompt, validate, "Texte non vide, sans guillemets doubles.",
                          kind="free_text")
 
+    def _ask_design_intent(self):
+        """Intention visuelle (point 53) — posée UNIQUEMENT si l'utilisateur
+        transmet un brief : sans page d'accueil à écrire, ces réponses
+        n'auraient personne à qui servir. Rend la phrase ajoutée au brief.
+
+        Ce que la structure ne dit pas : une même spec (entités, routes,
+        rôles) sert aussi bien un portfolio contemplatif qu'un back-office
+        pressé. L'IA UI ne peut pas trancher, et sans indication elle rend
+        le dénominateur commun."""
+        self._show(self.ui.section(
+            "Intention visuelle — ce que la structure ne dit pas à l'IA "
+            "qui dessinera l'interface."))
+        action = self._ask_free_text(
+            "Que doit pouvoir faire le visiteur en arrivant ? > ")
+        registre = self._ask_choice("Quel registre visuel ?",
+                                    [court for court, _ in DESIGN_REGISTERS])
+        images = self._ask_choice("Quelle place pour les images ?",
+                                  [court for court, _ in DESIGN_IMAGERY])
+        phrase_registre = dict(DESIGN_REGISTERS)[registre]
+        phrase_images = dict(DESIGN_IMAGERY)[images]
+        return (f"le visiteur doit pouvoir {action.rstrip('.')} ; "
+                f"{phrase_registre} ; {phrase_images}")
+
     # ---------- déroulé du dialogue ----------
     def run(self):
         """Mène la conversation complète et retourne le texte de la spec .ml.
@@ -217,11 +274,13 @@ class GuidedDialogue:
             "Pré-remplir le site avec les données de démonstration du modèle ?")
         want_landing = self._ask_yes_no(
             "Transmettre votre description à l'IA frontend comme brief de page d'accueil ?")
+        design_intent = self._ask_design_intent() if want_landing else None
         self._recap(app_name, entities, actors, self_register, public_read, owned)
 
         spec = self._emit_spec(app_name, description, entities, relations, actors,
                                managers, readers, public_read, public_create,
                                owned, want_seed, want_landing,
+                               design_intent=design_intent,
                                self_register=self_register,
                                extra_rules=template["extra_rules"],
                                custom_seeds=template["seeds"])
@@ -380,6 +439,7 @@ class GuidedDialogue:
         want_seed = self._ask_yes_no("Pré-remplir le site avec des données de démonstration ?")
         want_landing = self._ask_yes_no(
             "Transmettre votre description à l'IA frontend comme brief de page d'accueil ?")
+        design_intent = self._ask_design_intent() if want_landing else None
 
         # Entités propriétaires + relations de propriété (helper partagé
         # avec le chemin « modèle » ; dédupliqué si déjà déclaré à la main).
@@ -392,6 +452,7 @@ class GuidedDialogue:
                                managers, readers, public_read,
                                [public_create] if public_create else [],
                                owned, want_seed, want_landing,
+                               design_intent=design_intent,
                                self_register=self_register)
 
         # Garantie finale : la spec émise DOIT compiler. On la revalide par le
@@ -462,7 +523,7 @@ class GuidedDialogue:
     # ---------- émission déterministe de la spec ----------
     def _emit_spec(self, app_name, description, entities, relations, actors,
                    managers, readers, public_read, public_create,
-                   owned, want_seed, want_landing,
+                   owned, want_seed, want_landing, design_intent=None,
                    self_register=None, extra_rules=(), custom_seeds=None):
         lines = [f"app {app_name}", "",
                  "# Spécification générée par le dialogue guidé monl (déterministe, sans IA).",
@@ -559,8 +620,13 @@ class GuidedDialogue:
                 lines.append("")
 
         if want_landing:
+            # Le brief porte la description ET l'intention visuelle : c'est la
+            # seule phrase du contrat qui dise à l'IA UI à quoi sert le site
+            # (point 53). Le commentaire d'en-tête, lui, reste court.
+            brief = (f"{description.rstrip('.')} — {design_intent}"
+                     if design_intent else description)
             lines.append("landing")
-            lines.append(f'    brief: "{description}"')
+            lines.append(f'    brief: "{brief}"')
             lines.append("")
 
         return "\n".join(lines)
