@@ -144,3 +144,95 @@ def test_update_rapporte_le_delta_du_contrat(tmp_path):
     assert state["spec"] == "spec.ml"
     ok, errors, _w = check_coherence(str(proj))
     assert ok, errors
+
+
+# ---- Rôles de champs et archétypes (point 54) ----
+
+SPEC_ARCHETYPES = """app Formes
+
+entity Project
+    title: String
+    description: Text
+    imageUrl: String
+    category: String
+
+entity Product
+    label: String
+    price: Money
+
+entity Shot
+    coverUrl: String
+    legend: Text
+
+entity Entry
+    name: String
+    score: Integer
+
+entity Message
+    author: String
+    content: Text
+
+actor Admin selfRegister
+
+rule Project.Read public
+rule Product.Read public
+rule Shot.Read public
+rule Entry.Read public
+
+workflow Gerer for Admin
+    Create Project
+    Read Project
+    Create Product
+    Read Product
+    Create Shot
+    Read Shot
+    Create Entry
+    Read Entry
+    Create Message
+    Read Message
+"""
+
+
+def _contrat_archetypes(tmp_path):
+    proj = tmp_path / "formes"
+    proj.mkdir()
+    spec = proj / "spec.ml"
+    spec.write_text(SPEC_ARCHETYPES, encoding="utf-8")
+    return compile_project(str(spec), str(proj))
+
+
+def test_archetype_derive_de_la_spec(tmp_path):
+    """Restauration, dans le contrat, de ce que le pivot avait supprimé avec
+    le frontend généré (points 35 puis 54). Sans lui, l'IA ne reçoit qu'une
+    liste de {nom, type} et doit tout redeviner."""
+    c = _contrat_archetypes(tmp_path)
+    formes = {e: s["archetype"] for e, s in c["entities"].items()}
+    assert formes["Project"] == "gallery"      # média + titre + description
+    assert formes["Product"] == "shop"         # un Money l'emporte
+    assert formes["Shot"] == "gallery"         # média seul : écart voulu / point 35
+    assert formes["Entry"] == "list"           # rien à montrer
+    # Lisible mais NON publique : une collection interne se gère, ne se
+    # parcourt pas — défaut réel de la 1re version, qui conseillait une
+    # galerie pour un formulaire de contact.
+    assert formes["Message"] == "list"
+
+
+def test_roles_de_champs_derives_et_jamais_sur_un_champ_masque(tmp_path):
+    c = _contrat_archetypes(tmp_path)
+    roles = {f["name"]: f["role"] for f in c["entities"]["Project"]["fields"]}
+    assert roles == {"title": "title", "description": "description",
+                     "imageUrl": "media", "category": "category"}
+    # Le titre n'est jamais l'URL, même quand elle est le premier String
+    # déclaré : afficher une URL en guise de nom est un défaut réel.
+    shot = {f["name"]: f["role"] for f in c["entities"]["Shot"]["fields"]}
+    assert shot["coverUrl"] == "media" and shot["legend"] == "description"
+
+
+def test_le_brief_transmet_la_forme_conseillee(tmp_path):
+    """Un rôle calculé mais absent du brief ne servirait à personne."""
+    proj = tmp_path / "formes"
+    _contrat_archetypes(tmp_path)
+    brief = (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    assert "Forme conseillée : galerie" in brief
+    assert "Forme conseillée : boutique" in brief
+    assert "MÉDIA" in brief and "TITRE" in brief

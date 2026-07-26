@@ -26,7 +26,106 @@ import hashlib
 import json
 import os
 
-CONTRACT_VERSION = 2  # 2 : api.base_url passe en même origine (point 51)
+CONTRACT_VERSION = 3  # 2 : base_url même origine (51) · 3 : rôles + archétypes (54)
+
+# RÔLES DE CHAMPS ET ARCHÉTYPES (point 54) — restauration, dans le CONTRAT,
+# de ce que le point 35 dérivait pour le frontend que monl générait lui-même,
+# et que le pivot (point 41) a supprimé sans le transposer. Sans ces rôles,
+# un champ n'est qu'un `{nom, type}` : l'IA UI doit redeviner depuis les noms
+# lequel est le titre, lequel est l'image de couverture, alors que monl sait
+# le déduire de façon déterministe. Même philosophie qu'aux thèmes : dérivé
+# de la spec, jamais déclaré dans le DSL métier.
+MEDIA_HINTS = ("image", "photo", "cover", "couverture", "avatar", "picture",
+               "thumbnail", "vignette", "banner", "banniere", "illustration",
+               "visuel", "url")
+CATEGORY_HINTS = ("category", "categorie", "genre", "kind", "tag", "rubrique",
+                  "status", "statut", "etat", "type")
+
+
+def _assign_field_roles(fields):
+    """Attribue un rôle à chaque champ VISIBLE, dans l'ordre de priorité du
+    point 35 : média, titre, description, prix, catégorie, puis méta (3 au
+    plus). Les champs `hidden` n'en reçoivent aucun — ils ne sont jamais
+    rendus, leur donner un rôle inviterait l'IA à les afficher."""
+    visibles = [f for f in fields if not f["hidden_in_reads"]]
+    roles = {}
+
+    media = next((f["name"] for f in visibles
+                  if f["type"] in ("String", "Text")
+                  and any(h in f["name"].lower() for h in MEDIA_HINTS)), None)
+    if media:
+        roles[media] = "media"
+    # Le titre est le premier String qui n'est pas déjà le média : sur une
+    # entité dont le seul String est `imageUrl`, prendre ce champ comme titre
+    # afficherait une URL en guise de nom (défaut réel du repli).
+    titre = next((f["name"] for f in visibles
+                  if f["type"] == "String" and f["name"] not in roles), None)
+    if titre:
+        roles[titre] = "title"
+    description = next((f["name"] for f in visibles
+                        if f["type"] == "Text" and f["name"] not in roles), None)
+    if description:
+        roles[description] = "description"
+    prix = next((f["name"] for f in visibles
+                 if f["type"] == "Money" and f["name"] not in roles), None)
+    if prix:
+        roles[prix] = "price"
+    categorie = next((f["name"] for f in visibles
+                      if f["name"] not in roles
+                      and any(h in f["name"].lower() for h in CATEGORY_HINTS)), None)
+    if categorie:
+        roles[categorie] = "category"
+    for f in visibles:                       # méta : 3 au plus (point 35)
+        if f["name"] not in roles and sum(1 for r in roles.values() if r == "meta") < 3:
+            roles[f["name"]] = "meta"
+    return roles
+
+
+def _archetype(roles, lisible, public):
+    """Forme d'interface déduite des rôles présents ET de qui peut lire.
+
+    La lisibilité PUBLIQUE est une condition du point 35 que la première
+    version de cette fonction avait laissée tomber — et le défaut s'est vu
+    tout de suite : l'entité `Message` d'un formulaire de contact (auteur +
+    contenu) se voyait conseiller « grandes vignettes en grille ». Une
+    collection interne se gère, elle ne se parcourt pas : elle mérite un
+    tableau dense, jamais une vitrine.
+
+    `shop` l'emporte sur `gallery` : un prix commande la mise en page bien
+    plus qu'une image (le point 35 déclenchait déjà la boutique sur un champ
+    Money). `list` reste le repli — sans rien à montrer, une galerie
+    n'apporterait qu'une grille nue.
+
+    ÉCART ASSUMÉ avec le point 35, qui exigeait un titre ET (un média OU une
+    description) : un média SEUL suffit désormais. Une entité `photo + légende`
+    sans champ titre — cas banal d'un portfolio — retombait en liste, et son
+    image, sa seule raison d'être, se réduisait à une rangée de tableau.
+    """
+    if not lisible:
+        return "form"
+    if not public:
+        return "list"
+    valeurs = set(roles.values())
+    if "price" in valeurs:
+        return "shop"
+    if "media" in valeurs or ("title" in valeurs and "description" in valeurs):
+        return "gallery"
+    return "list"
+
+
+ARCHETYPE_GUIDANCE = {
+    "gallery": ("galerie — le média commande la mise en page : grandes "
+                "vignettes en grille, titre et catégorie en accompagnement, "
+                "vue de détail au clic"),
+    "shop": ("boutique — le prix est l'information décisive : il doit rester "
+             "lisible sans effort à côté de chaque article, avec un appel à "
+             "l'action clair"),
+    "list": ("liste — rien à mettre en vitrine ici, ou collection réservée "
+             "aux comptes autorisés : lecture dense et rapide, en rangées "
+             "plutôt qu'en cartes"),
+    "form": ("formulaire seul — cette entité s'écrit mais ne se lit nulle "
+             "part : ne construire aucune vue de liste, juste la saisie"),
+}
 CONTRACT_FILENAME = "frontend_contract.json"
 PROMPT_FILENAME = "FRONTEND_PROMPT.md"
 
@@ -50,6 +149,14 @@ def build_contract(normalized_ast, generator):
 
     fk_placements = generator._compute_fk_placements()
 
+    # Calculés AVANT les entités : l'archétype dépend de qui peut lire, pas
+    # seulement des champs (voir _archetype). Même source de vérité que la
+    # génération FastAPI — _compute_route_map, jamais une logique parallèle.
+    route_map = generator._compute_route_map()
+    public = generator.public_actions
+    lisibles = {info["base_target"] for (act, _t), info in route_map.items()
+                if act == "Read"}
+
     entity_specs = {}
     for ent, fields in entities.items():
         field_list = []
@@ -69,11 +176,16 @@ def build_contract(normalized_ast, generator):
             {"column": p["fk_column"], "references": p["owner_entity"], "unique": p["unique"]}
             for p in fk_placements.get(ent, [])
         ]
-        entity_specs[ent] = {"fields": field_list, "foreign_keys": fks}
+        roles = _assign_field_roles(field_list)
+        for f in field_list:
+            f["role"] = roles.get(f["name"])
+        entity_specs[ent] = {
+            "fields": field_list, "foreign_keys": fks,
+            "archetype": _archetype(roles, ent in lisibles, (ent, "Read") in public),
+        }
 
-    # Routes — mêmes clés de regroupement que la génération FastAPI réelle.
-    route_map = generator._compute_route_map()
-    public = generator.public_actions
+    # Routes — mêmes clés de regroupement que la génération FastAPI réelle
+    # (route_map et public sont calculés plus haut, pour les archétypes).
     routes = []
     for (act_type, target), info in route_map.items():
         base = info["base_target"]
@@ -188,10 +300,17 @@ def _render_prompt(contract):
         auth = "public" if not r["auth_required"] else f"JWT ({', '.join(r['allowed_actors'])})"
         routes_lines.append(f"- `{r['method']} {r['path']}` — {r['action']} {r['entity']} — {auth}")
     entities_lines = []
+    ROLE_LABELS = {"title": "TITRE — l'identifie d'un coup d'œil",
+                   "media": "MÉDIA — l'image de l'enregistrement",
+                   "description": "DESCRIPTION — le texte long",
+                   "price": "PRIX", "category": "CATÉGORIE — bon pour un filtre",
+                   "meta": "méta — information secondaire"}
     for ent, spec in contract["entities"].items():
         flags = []
         for f in spec["fields"]:
             marks = []
+            if f.get("role"):
+                marks.append(ROLE_LABELS[f["role"]])
             if f["required"]:
                 marks.append("requis")
             if f["hidden_in_reads"]:
@@ -202,7 +321,9 @@ def _render_prompt(contract):
                 marks.append("lu comme libellé de catégorie")
             suffix = f" ({'; '.join(marks)})" if marks else ""
             flags.append(f"  - `{f['name']}: {f['type']}`{suffix}")
-        entities_lines.append(f"### {ent}\n" + "\n".join(flags))
+        forme = ARCHETYPE_GUIDANCE[spec["archetype"]]
+        entities_lines.append(f"### {ent}\n_Forme conseillée : {forme}._\n"
+                              + "\n".join(flags))
 
     brief_line = (f"\n**Brief produit :** {contract['brief']}\n" if contract.get("brief") else "")
     design = contract["design"]

@@ -73,7 +73,8 @@ en l'état car de nombreux renvois internes s'y appuient) ·
 [50](#50-une-règle-de-propriété-qui-ne-couvre-pas-la-lecture-nen-est-pas-une-bêta-3) Une règle de propriété doit couvrir la lecture ·
 [51](#51-un-contrat-qui-dicte-un-port-en-dur-punit-lia-qui-lui-obéit) Un contrat qui dicte un port en dur punit l'IA qui lui obéit ·
 [52](#52-proposer-une-police-que-le-même-contrat-interdit-de-charger) Proposer une police que le même contrat interdit de charger ·
-[53](#53-le-dialogue-interrogeait-la-structure-jamais-lintention) Le dialogue interrogeait la structure, jamais l'intention
+[53](#53-le-dialogue-interrogeait-la-structure-jamais-lintention) Le dialogue interrogeait la structure, jamais l'intention ·
+[54](#54-le-pivot-a-supprimé-une-intelligence-au-lieu-de-la-déplacer) Le pivot a supprimé une intelligence au lieu de la déplacer
 
 ---
 
@@ -2068,3 +2069,46 @@ dialogue un bloc `ui … theme:` — serait faux : ce bloc ÉPINGLE le thème, d
 rend tout écart de palette bloquant (point 48), alors que l'utilisateur a
 choisi un registre, pas une palette. Une expression plus faible qu'un
 épinglage reste à concevoir ; c'est la brique suivante, pas un correctif.
+
+## 54. Le pivot a supprimé une intelligence au lieu de la déplacer
+
+Question de l'utilisateur devant le site regénéré : « le site est tout court,
+page d'accueil et Travaux, pas de section à propos, et la même couleur
+partout ». Trois symptômes, une même origine pour les deux premiers.
+
+**Ce que le contrat savait dire.** Un champ n'y était qu'un
+`{nom, type, requis}`. Rien n'indiquait lequel est le titre, lequel porte
+l'image de couverture, lequel n'est qu'une donnée secondaire. L'IA UI devait
+redeviner depuis les noms ce que **monl savait déjà déduire** : le point 35
+dérivait des archétypes d'interface (galerie, boutique) et le rôle de chaque
+champ, de façon déterministe, depuis la seule spec. Le pivot du point 41 a
+supprimé ce calcul avec le frontend généré — `generator/core.py` le dit noir
+sur blanc, « landing, dashboard, archétypes — tous retirés » — **sans jamais
+le transposer dans le contrat**. Une capacité éprouvée n'a pas été remplacée :
+elle a été perdue, et c'est le modèle en aval qui a hérité du travail.
+
+**Rétabli côté contrat, pas côté rendu.** Chaque champ visible reçoit un rôle
+(`title`, `media`, `description`, `price`, `category`, `meta`), chaque entité
+une forme conseillée, et le brief les énonce en clair. monl ne dessine
+toujours rien : il transmet ce qu'il sait, ce qui est précisément le contrat
+du pivot. Même philosophie qu'aux thèmes — dérivé de la spec, jamais déclaré
+dans le DSL métier.
+
+**Un média seul suffit à une galerie.** Le point 35 exigeait un titre ET (un
+média OU une description). Une entité `photo + légende` sans champ titre — cas
+banal d'un portfolio — retombait donc en liste, réduisant à une rangée de
+tableau l'image qui est sa seule raison d'être. La règle est assouplie : un
+média suffit.
+
+**La lisibilité publique est une condition, pas un détail.** La première
+version de la dérivation l'avait laissée tomber, et le défaut a sauté aux yeux
+au premier essai : l'entité `Message` d'un formulaire de contact se voyait
+conseiller « grandes vignettes en grille ». Une collection réservée aux
+comptes autorisés se **gère** (tableau dense) ; seule une entité en lecture
+publique se **parcourt** (vitrine). Une entité qu'on écrit sans jamais la
+relire reçoit `form` : aucune vue de liste à construire.
+
+**Ce que ce point ne corrige pas.** L'absence de section « à propos » a une
+autre cause, traitée au point suivant : aucun emplacement du contrat ne peut
+porter du contenu éditorial statique. monl modélise des données, pas des
+pages — et un portfolio est surtout du contenu avec un peu de données.
