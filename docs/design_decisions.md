@@ -76,7 +76,8 @@ en l'état car de nombreux renvois internes s'y appuient) ·
 [53](#53-le-dialogue-interrogeait-la-structure-jamais-lintention) Le dialogue interrogeait la structure, jamais l'intention ·
 [54](#54-le-pivot-a-supprimé-une-intelligence-au-lieu-de-la-déplacer) Le pivot a supprimé une intelligence au lieu de la déplacer ·
 [55](#55-monl-modélisait-des-données-un-site-est-surtout-du-contenu) monl modélisait des données, un site est surtout du contenu ·
-[56](#56-cinq-couleurs-plates-ne-font-pas-une-palette) Cinq couleurs plates ne font pas une palette
+[56](#56-cinq-couleurs-plates-ne-font-pas-une-palette) Cinq couleurs plates ne font pas une palette ·
+[57](#57-un-contrat-qui-décrit-mal-le-corps-est-pire-quun-contrat-muet) Un contrat qui décrit mal le corps est pire qu'un contrat muet
 
 ---
 
@@ -2194,3 +2195,56 @@ que les cinq couleurs de base. Exiger la présence des tons dérivés
 reproduirait le faux positif écarté au point 52 : une interface peut très bien
 construire sa profondeur autrement (opacité, `color-mix`, filtres) sans que
 ces six chaînes apparaissent. Ils sont une matière offerte, pas une clause.
+
+## 57. Un contrat qui décrit mal le corps est pire qu'un contrat muet
+
+`monl frontend` a échoué deux fois de suite sur une spec de blog :
+`POST /comment avec un corps conforme au contrat a répondu 422`. Le message
+disait l'essentiel sans qu'on l'entende : le corps venait DU CONTRAT, et le
+serveur le refusait. Or l'en-tête de `frontend_contract.py` promet que
+« contrat et API ne peuvent pas diverger ».
+
+**Ce que le contrat oubliait.** `Comment` a deux parents : `Reader` (son
+propriétaire, peuplé depuis le JWT) et `Article` (la cible du commentaire,
+que seul le client peut désigner). Le générateur fait cette distinction
+depuis la bêta 3 — `_client_fk_columns` — et inscrit `article_id: int` dans
+le schéma Pydantic. Le contrat, lui, listait les seuls ATTRIBUTS de l'entité :
+`{content}`. Tout frontend qui suivait le contrat à la lettre récoltait un
+422. Un contrat muet aurait laissé l'IA lire le schéma ; un contrat faux lui
+a fait croire qu'elle avait raison.
+
+**Réutiliser, jamais réimplémenter.** Le contrat appelle désormais
+`_client_fk_columns` et reproduit la clause « cible de compteur » de
+`generator/schemas.py`. Même principe que `_compute_route_map` : quand deux
+couches doivent s'accorder, l'une des deux appelle l'autre — deux logiques
+parallèles finissent toujours par diverger, et c'est exactement ce qui s'est
+produit ici.
+
+**Le brief n'annonçait aucun corps.** Découverte au passage : la liste des
+routes ne mentionnait ni champs ni corps de requête. Même corrigé, le contrat
+JSON n'aurait rien changé — l'IA lit `FRONTEND_PROMPT.md`, pas le JSON.
+Chaque route de création ou de mise à jour affiche maintenant son corps.
+
+**Le vérificateur mentait aussi.** Le smoke test annonçait « un corps conforme
+au contrat » tout en le construisant depuis les champs de l'entité, sans
+regarder `request_fields`. Il reproduisait donc l'oubli qu'il aurait dû
+détecter. Il lit désormais le contrat, et va chercher un parent RÉEL avant de
+rattacher une création : les clés étrangères sont contraintes en base
+(`PRAGMA foreign_keys = ON`), inventer un identifiant ferait échouer
+l'insertion pour une raison étrangère au contrat. Sans parent lisible, le
+chemin n'est pas éprouvé — et le dire est plus honnête que de le déclarer
+vert ou rouge à tort.
+
+**Le garde-fou qui manquait.** Un test confronte désormais, pour chaque route
+de création et de mise à jour, le corps annoncé aux classes Pydantic
+réellement écrites dans `app.py` — comme le point 40 le faisait déjà pour les
+décorateurs de routes. La clause « corps de requête » était la dernière du
+contrat que rien ne confrontait au code généré (voir point 48).
+
+**Faux positif corrigé au passage.** L'avertissement « chemins absents du
+contrat : /edit » visait `'/edit">Modifier</a>'` — la fin d'une route de
+navigation `#/article/<id>/edit` coupée par une concaténation JavaScript.
+Le vérificateur n'examinait que le DÉBUT du littéral ; il examine maintenant
+le littéral entier et rejette ce qui contient un chevron ou une espace. Toute
+application monopage déclenchait cet avertissement : crier au loup à chaque
+génération décrédibilise les signaux qui, eux, sont vrais.

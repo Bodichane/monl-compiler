@@ -181,6 +181,7 @@ def build_contract(normalized_ast, generator):
             f["role"] = roles.get(f["name"])
         entity_specs[ent] = {
             "fields": field_list, "foreign_keys": fks,
+            "client_foreign_keys": _client_supplied_fks(generator, ent),
             "archetype": _archetype(roles, ent in lisibles, (ent, "Read") in public),
         }
 
@@ -292,17 +293,51 @@ def _route(method, path, action, entity, is_public, actors, request_fields=None,
     return r
 
 
+def _client_supplied_fks(generator, entity):
+    """Colonnes de clé étrangère que le CLIENT doit envoyer à la création.
+
+    Reproduit À L'IDENTIQUE ce que generator/schemas.py inscrit dans le
+    schéma Pydantic — et s'appuie sur ses méthodes, jamais sur une logique
+    parallèle. Le contrat les ignorait : il annonçait `POST /comment` avec le
+    seul champ `content` alors que le backend exigeait aussi `article_id`,
+    et tout frontend fidèle au contrat récoltait un 422 (point 57).
+
+    Deux origines distinctes, même conséquence pour le client :
+      - la cible d'un compteur (`increments`/`decrements`) : « j'apprécie CE
+        post » est un choix de l'appelant, pas une propriété déduite ;
+      - les parents autres que le propriétaire : le propriétaire se peuple
+        depuis le JWT, le reste doit être dit (un commentaire et SON article).
+    """
+    if not hasattr(generator, "_get_incoming_relation"):
+        return []
+    colonnes = []
+    owner = generator._get_incoming_relation(entity)
+    if owner and any(r["target_entity"] == owner["source"]
+                     for r in generator.reputation_rules_by_trigger.get(entity, [])):
+        colonnes.append(owner["fk_column"])
+    colonnes.extend(generator._client_fk_columns(entity))
+    return colonnes
+
+
 def _creatable_fields(entity_spec):
     if not entity_spec:
         return []
-    return [f["name"] for f in entity_spec["fields"] if not f["server_generated"]]
+    return ([f["name"] for f in entity_spec["fields"] if not f["server_generated"]]
+            + list(entity_spec.get("client_foreign_keys", [])))
 
 
 def _render_prompt(contract):
     routes_lines = []
     for r in contract["routes"]:
         auth = "public" if not r["auth_required"] else f"JWT ({', '.join(r['allowed_actors'])})"
-        routes_lines.append(f"- `{r['method']} {r['path']}` — {r['action']} {r['entity']} — {auth}")
+        # Le corps attendu n'apparaissait NULLE PART dans le brief : l'IA
+        # devait le déduire de la liste des champs, sans jamais voir les
+        # colonnes de rattachement (article_id d'un commentaire). Elle ne
+        # pouvait pas les deviner, et le serveur répondait 422 (point 57).
+        corps = (f" — corps : `{{{', '.join(r['request_fields'])}}}`"
+                 if r.get("request_fields") else "")
+        routes_lines.append(f"- `{r['method']} {r['path']}` — {r['action']} "
+                            f"{r['entity']} — {auth}{corps}")
     entities_lines = []
     ROLE_LABELS = {"title": "TITRE — l'identifie d'un coup d'œil",
                    "media": "MÉDIA — l'image de l'enregistrement",

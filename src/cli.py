@@ -163,8 +163,20 @@ def check_coherence(project_dir):
                 if not name.endswith((".html", ".js")):
                     continue
                 with open(os.path.join(root, name), encoding="utf-8", errors="ignore") as fh:
-                    for match in re.finditer(r"""['"`]/([a-z_]+)(?:/|\?|['"`])""", fh.read()):
-                        referenced.add(match.group(1))
+                    # Le littéral ENTIER est examiné, pas seulement son début
+                    # (point 57) : `'/edit">Modifier</a>'` est la fin d'une
+                    # route de navigation `#/article/<id>/edit` coupée par une
+                    # concaténation — du balisage, jamais une URL d'API. Toute
+                    # application monopage en produisait, et l'avertissement
+                    # criait au loup à chaque fois. Un chemin qui contient de
+                    # l'espace ou un chevron n'est pas un chemin.
+                    for match in re.finditer(r"""(['"`])(/[^'"`\n]*)\1""", fh.read()):
+                        chemin = match.group(2)
+                        if any(c in chemin for c in "<> "):
+                            continue
+                        segment = re.match(r"/([a-z_]+)(?:[/?#]|$)", chemin)
+                        if segment:
+                            referenced.add(segment.group(1))
         unknown = sorted(referenced - known_prefixes)
         if unknown:
             warnings.append("Le frontend référence des chemins absents du contrat : "

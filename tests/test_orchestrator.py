@@ -269,3 +269,109 @@ def test_sans_section_aucun_bloc_editorial_dans_le_brief(tmp_path):
     assert contract["sections"] == []
     brief = (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     assert "Contenu éditorial" not in brief
+
+
+# ---- Le corps de requête annoncé est celui qu'exige le backend (point 57) ----
+
+SPEC_DEUX_PARENTS = """app Blog
+
+entity Article
+    title: String
+
+entity Comment
+    content: Text
+
+entity Reader
+    displayName: String
+
+relation Article hasMany Comment
+relation Reader hasMany Comment
+
+actor Author
+actor Reader selfRegister
+
+rule Article.Read public
+rule Comment.Read public
+rule Comment.Update ownedBy Reader
+rule Comment.Delete ownedBy Reader
+
+workflow RedigerArticle for Author
+    Create Article
+    Read Article
+
+workflow Commenter for Reader
+    Create Comment
+    Read Comment
+    Update Comment
+    Delete Comment
+
+workflow GererReader for Reader
+    Create Reader
+    Read Reader
+"""
+
+
+def _schemas_pydantic(app_code):
+    """Champs de chaque classe `<Entite>Schema` réellement écrite dans app.py."""
+    schemas = {}
+    for bloc in re.finditer(r"class (\w+)Schema\(BaseModel\):\n((?:    .+\n)+)", app_code):
+        champs = re.findall(r"^    (\w+)\s*:", bloc.group(2), re.M)
+        schemas[bloc.group(1)] = champs
+    return schemas
+
+
+def test_le_corps_annonce_est_celui_qu_exige_le_backend(tmp_path):
+    """Le contrat annonçait `POST /comment` avec le seul champ `content`
+    alors que le backend exigeait aussi `article_id` : tout frontend fidèle
+    au contrat récoltait un 422. Un contrat qui décrit mal ce qu'il faut
+    envoyer est pire qu'un contrat muet — on croit l'avoir suivi."""
+    proj = tmp_path / "blog"
+    proj.mkdir()
+    spec = proj / "spec.ml"
+    spec.write_text(SPEC_DEUX_PARENTS, encoding="utf-8")
+    contract = compile_project(str(spec), str(proj))
+    schemas = _schemas_pydantic((proj / "app.py").read_text(encoding="utf-8"))
+
+    for route in contract["routes"]:
+        if route["action"] not in ("Create", "Update"):
+            continue
+        attendu = schemas.get(route["entity"])
+        assert attendu is not None, f"aucun schéma Pydantic pour {route['entity']}"
+        assert sorted(route["request_fields"]) == sorted(attendu), (
+            f"{route['method']} {route['path']} : le contrat annonce "
+            f"{sorted(route['request_fields'])}, le backend exige {sorted(attendu)}")
+
+    # Le cas précis qui a fait échouer la génération réelle : le parent
+    # NON propriétaire doit être demandé au client (le propriétaire, lui,
+    # se peuple depuis le JWT et ne doit surtout pas être envoyé).
+    creation = next(r for r in contract["routes"]
+                    if r["entity"] == "Comment" and r["method"] == "POST")
+    assert "article_id" in creation["request_fields"]
+    assert "reader_id" not in creation["request_fields"]
+
+
+def test_le_brief_annonce_le_corps_attendu(tmp_path):
+    """Un champ exigé mais absent du brief est indevinable : l'IA ne lit pas
+    le JSON du contrat, elle lit ce document."""
+    proj = tmp_path / "blog"
+    proj.mkdir()
+    (proj / "spec.ml").write_text(SPEC_DEUX_PARENTS, encoding="utf-8")
+    compile_project(str(proj / "spec.ml"), str(proj))
+    brief = (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    assert "corps : `{content, article_id}`" in brief
+
+
+def test_une_route_de_navigation_n_est_pas_un_chemin_hors_contrat(tmp_path):
+    """Faux positif réel : `'/edit">Modifier</a>'` est la fin d'une route
+    `#/article/<id>/edit` coupée par une concaténation. Toute application
+    monopage en produit ; avertir dessus décrédibilise les vrais signaux."""
+    proj, _spec, _c = _fresh_project(tmp_path)
+    front = proj / "frontend"
+    front.mkdir()
+    (front / "index.html").write_text(
+        "<script>fetch('/item?limit=3');"
+        "var h = '<a href=\"#/item/' + id + '/edit\">Modifier</a>';"
+        "</script>", encoding="utf-8")
+    ok, errors, warnings = check_coherence(str(proj))
+    assert ok, errors
+    assert not any("/edit" in w for w in warnings), warnings

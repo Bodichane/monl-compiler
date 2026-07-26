@@ -164,6 +164,20 @@ def _http(method, url, body=None, token=None):
         return 0, {}
 
 
+def _premier_id(base, entite, token):
+    """Identifiant d'un enregistrement RÉEL de l'entité parente, ou None si
+    la liste est vide ou hors de portée de cet acteur. Sert à rattacher une
+    création à une cible qui existe : les clés étrangères sont contraintes
+    (PRAGMA foreign_keys = ON dans le backend généré)."""
+    if not entite:
+        return None
+    status, corps = _http("GET", f"{base}/{entite.lower()}?limit=1", token=token)
+    if status != 200:
+        return None
+    donnees = (corps or {}).get("data") or []
+    return donnees[0].get("id") if donnees else None
+
+
 def _sample_value(ftype, fname):
     low = fname.lower()
     if ftype == "Integer":
@@ -348,9 +362,38 @@ def run_smoke_test(project_dir, say=print):
             for route in contract["routes"]:
                 if route["action"] != "Create" or actor not in route["allowed_actors"]:
                     continue
-                fields = {f["name"]: f for f in contract["entities"][route["entity"]]["fields"]}
-                payload = {name: _sample_value(spec["type"], name)
-                           for name, spec in fields.items() if not spec["server_generated"]}
+                entite = contract["entities"][route["entity"]]
+                fields = {f["name"]: f for f in entite["fields"]}
+                # Le corps se construit depuis request_fields DU CONTRAT, pas
+                # depuis la liste des champs de l'entité : les colonnes de
+                # rattachement (l'article d'un commentaire) n'en font pas
+                # partie, et le probe se disait « conforme au contrat » tout
+                # en omettant ce que le contrat exige (point 57).
+                references = {fk["column"]: fk["references"]
+                              for fk in entite["foreign_keys"]}
+                payload, parent_absent = {}, None
+                for nom in route.get("request_fields") or []:
+                    spec = fields.get(nom)
+                    if spec:
+                        payload[nom] = _sample_value(spec["type"], nom)
+                        continue
+                    # Les clés étrangères sont CONTRAINTES en base : inventer
+                    # un identifiant ferait échouer l'insertion pour une
+                    # raison qui n'a rien à voir avec le contrat.
+                    parent = references.get(nom)
+                    identifiant = _premier_id(base, parent, token) if parent else None
+                    if identifiant is None:
+                        parent_absent = (nom, parent)
+                        break
+                    payload[nom] = identifiant
+                if parent_absent:
+                    nom, parent = parent_absent
+                    warnings.append(
+                        f"création de {route['entity']} non éprouvée : « {nom} » "
+                        f"exige un {parent} existant, et aucun n'est lisible "
+                        f"(ajouter un bloc 'seed {parent}' rendrait ce chemin "
+                        f"vérifiable)")
+                    break
                 status, _b = _http("POST", base + route["path"], payload,
                                    token=None if not route["auth_required"] else token)
                 if status != 200:
