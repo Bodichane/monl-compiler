@@ -1,0 +1,75 @@
+# État bêta et route vers la GA
+
+## Ce que corrige la bêta 0.9.0-beta.3
+
+Audit externe du dépôt : une faille critique (auto-attribution d'un rôle
+privilégié à l'inscription), cinq défauts importants (énumération par timing,
+quota non atomique, secret en 0644, liste noire non purgée, clés étrangères
+jamais appliquées) et un défaut de déterminisme (ordre d'acteurs issu d'un
+`set`). Tous corrigés et couverts par `tests/test_beta3_regressions.py` ;
+détail dans `CHANGELOG.md`. Le générateur monolithique a été découpé en
+package `src/generator/`.
+
+## Ce que corrige la bêta 0.9.0-beta.1
+
+Tous les défauts bloquants identifiés à l'audit ont été corrigés :
+
+1. **IA générative locale retirée.** Suppression complète d'Ollama et des trois
+   fonctions qui en dépendaient (`--nl`, `--prompt`, remplissage `--fill-custom`
+   des blocs `custom`). Le compilateur est désormais entièrement déterministe et
+   hors-ligne ; les blocs `custom` sont des coquilles vides écrites à la main. La
+   seule IA du cycle de vie est celle qui construit le frontend (Claude).
+2. **Intégrité transactionnelle.** Création + effets `increments`/`decrements`
+   dans une seule transaction (commit unique, rollback sur erreur).
+3. **Hygiène de secret.** Le secret JWT peut être injecté par
+   `MONL_JWT_SECRET` (jamais sur disque). Aucun artefact généré ni secret
+   n'est inclus dans l'archive de distribution.
+4. **Comparaison à temps constant** des empreintes de mot de passe à la connexion.
+5. **Limitation de débit consciente du proxy** (`MONL_TRUST_PROXY`), sans quoi
+   `X-Forwarded-For` est ignoré (pas d'usurpation par un client direct).
+6. **Packaging.** `pyproject.toml`, dépendances épinglées avec bornes hautes,
+   commande `monl` via `pip install -e .`.
+7. **Documentation** : `docs/SECURITE.md` (modèle de sécurité), ce fichier.
+
+## Critères de sortie de la bêta (Definition of Done) — atteints
+
+- [x] `pip install -r requirements.txt` puis compilation d'un `.ml` produit un
+      backend fonctionnel, sans aucune IA ni dépendance réseau.
+- [x] Suite de tests verte, incluant l'audit offensif rejoué sur tous les
+      exemples (usurpation de rôle, JWT forgé, élévation de privilège).
+- [x] Aucun secret ni artefact généré dans l'archive livrée.
+- [x] Secret injectable par variable d'environnement.
+- [x] Opérations multi-étapes atomiques.
+
+## Ce qui reste pour une GA « outil professionnel »
+
+Par ordre de priorité :
+
+1. **Isolation d'exécution du code `custom`** (sous-processus à privilèges
+   réduits / conteneur / WASM), pour donner une frontière de sécurité au code
+   métier écrit à la main.
+2. **Couche données de production** : support PostgreSQL (ou abstraction DB),
+   pooling de connexions, moteur de migrations gérant aussi les changements
+   destructifs avec migrations descendantes.
+3. **Générateur par templates/AST** en remplacement de la construction du code
+   par concaténation de chaînes, avec *golden-file tests* sur la sortie générée
+   et fuzzing du parseur. Le découpage en package (bêta 3) a séparé les couches
+   (`runtime`, `routes`, `schemas`, `sql_schema`) : c'est le préalable, chaque
+   module pouvant migrer vers des templates indépendamment.
+4. **Prêt déploiement** : CORS configurable, logs structurés avec identifiant de
+   requête, healthchecks, conteneurisation, secrets via gestionnaire dédié.
+5. **Auth complète** : refresh tokens, réinitialisation de mot de passe,
+   verrouillage de compte, vérification email (selon périmètre).
+6. **Gouvernance du DSL** : versionner la grammaire, garantir la
+   rétrocompatibilité, politique de dépréciation.
+7. **Empaquetage en vrai paquet Python** (imports en package) et distribution
+   sur un index, en remplacement du mode editable + shim.
+8. **Audit/pentest externe** et modèle de menace écrit.
+
+## Positionnement
+
+Le cœur de valeur est le **compilateur d'intention backend, déterministe et
+sûr**. La seule IA du cycle de vie est celle qui construit le frontend, contre un
+contrat vérifié. Rester sur ce positionnement garde l'effort GA concentré sur les
+deux vrais chantiers (isolation d'exécution du code `custom` et couche données)
+plutôt que dilué dans un « générateur d'app complet par IA ».

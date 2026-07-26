@@ -1,23 +1,30 @@
 import os
 import re
-import json
 from lark import Lark, Transformer, v_args
 from lark.indenter import PythonIndenter
 
-# Grammaire MonLang v6 - Support des descriptions multi-lignes (Bug #1)
+# Grammaire monl v6 - Support des descriptions multi-lignes (Bug #1)
 grammar = r"""
     ?start: app
     
     app: "app" NAME _NL block*
     
-    ?block: entity | relation | actor | rule | workflow | custom_block | ui_block | landing_block | capability_block | _NL
+    ?block: entity | relation | actor | rule | workflow | custom_block | ui_block | landing_block | capability_block | seed_block | _NL
     
     entity: "entity" NAME _NL _INDENT attribute+ _DEDENT
     attribute: NAME ":" TYPE _NL
     
     relation: "relation" NAME RELATION_TYPE NAME _NL
     
-    actor: "actor" NAME _NL
+    # CORRECTIF (bêta 3, faille d'élévation de privilège) : un acteur n'est
+    # PAS inscriptible librement par défaut. Sans le marqueur 'selfRegister',
+    # les comptes portant ce rôle sont provisionnés hors ligne (manage.py) —
+    # sans quoi n'importe qui pouvait s'inscrire en choisissant le rôle le
+    # plus privilégié de l'application. Ex. :
+    #   actor Customer selfRegister
+    #   actor ShopManager
+    actor: "actor" NAME SELF_REGISTER? _NL
+    SELF_REGISTER: "selfRegister"
     
     # CORRECTIF (post-v6) : la règle "rule" est éclatée en 3 productions nommées.
     # Raison : dans la grammaire précédente, les mots-clés "restrictedTo"/"sharedBy"
@@ -27,7 +34,7 @@ grammar = r"""
     # rule["type"] ne valait jamais "restrictedTo", et l'audit de sécurité associé
     # dans ast_validator.py ne se déclenchait donc jamais. Même classe de bug que
     # celui déjà corrigé sur le bloc "custom" en v3.
-    ?rule: constraint_rule | restriction_rule | sharing_rule | ownership_rule | visibility_rule | masking_rule | decrement_rule | increment_rule | categorization_rule | generation_rule
+    ?rule: constraint_rule | restriction_rule | sharing_rule | ownership_rule | access_rule | visibility_rule | masking_rule | decrement_rule | increment_rule | categorization_rule | generation_rule
 
     constraint_rule: "rule" REFERENCE VALIDATION_TYPE _NL
                    | "rule" REFERENCE VALIDATION_TYPE INT _NL
@@ -39,6 +46,17 @@ grammar = r"""
     #   relation User hasMany Todo
     #   rule Todo.Update ownedBy User
     ownership_rule: "rule" REFERENCE "ownedBy" NAME _NL
+
+    # AJOUT (roadmap, écosystème de capacités -- brique "accès à deux
+    # parties") : 'ownedBy' ne couvre qu'un seul propriétaire ; une
+    # messagerie privée a besoin qu'expéditeur ET destinataire accèdent au
+    # même enregistrement. 'accessibleBy' liste les COLONNES (au moins
+    # deux, imposé par la grammaire -- avec une seule, 'ownedBy' suffit)
+    # de l'entité qui contiennent chacune un identifiant d'utilisateur
+    # autorisé. Production Lark nommée distincte, comme pour
+    # decrement_rule/increment_rule (même piège de filtrage Lark, voir
+    # CLAUDE.md).
+    access_rule: "rule" REFERENCE "accessibleBy" NAME ("," NAME)+ _NL
     # AJOUT (roadmap, cas d'usage portfolio) : "public" retire l'obligation
     # d'authentification pour une action précise (ex. lire des articles sans
     # compte, envoyer un message de contact sans compte). Ex. :
@@ -116,7 +134,7 @@ grammar = r"""
     #       theme: market
     #       primary: title
     #       order: title, price, stock
-    # SUPPRESSION (roadmap, sur demande explicite) : MonLang ne génère plus
+    # SUPPRESSION (roadmap, sur demande explicite) : monl ne génère plus
     # de back-office CRUD par entité (voir generate_all) — seul "theme" a
     # encore un effet (il influence l'identité visuelle de "landing.html",
     # voir le bloc "landing" plus bas). "primary" et "order" sont conservés
@@ -141,23 +159,13 @@ grammar = r"""
     # gabarit sûr, testé sur le portfolio, avant d'aller plus loin.
     capability_block: "capability" NAME _NL
 
-    # AJOUT (roadmap, front marketing) : bloc optionnel "landing", au même
-    # titre que "custom" (échappatoire IA balisée) — active une page
-    # d'accueil marketing sur "/". C'est volontairement le SEUL front que
-    # MonLang puisse générer (aucun back-office CRUD auto-généré) : deux
-    # modes exclusifs, chacun avec son propre filet de sécurité déterministe :
-    #   landing                              landing
-    #       mode: ai                             mode: template
-    #       brief: "..." (optionnel)             template: "chemin/vers/fichier.html"
-    # "mode: ai" appelle l'IA locale (même pont Ollama que "custom") pour
-    # rédiger uniquement du TEXTE (titre, sous-titre, CTA, points forts) —
-    # jamais du HTML/CSS — injecté dans un gabarit déterministe. "mode:
-    # template" importe un fichier HTML fourni par l'utilisateur et y
-    # substitue des emplacements balisés "data-monlang=...". Dans les deux
-    # cas, si l'étape IA ou le fichier importé est absent/indisponible, un
-    # gabarit 100% déterministe est utilisé — jamais d'échec de compilation
-    # à cause de "landing". Sans bloc "landing" du tout, "/" redirige
-    # simplement vers "/docs" (documentation Swagger/OpenAPI de FastAPI).
+    # Bloc optionnel "landing" : transmet un brief marketing (titre, ton,
+    # intention) au contrat frontend, pour orienter l'IA d'interface. C'est
+    # une simple donnée textuelle — monl ne génère aucune page lui-même.
+    # Seule la clé "brief" a un effet. Les clés "mode" et "template" sont
+    # acceptées pour compatibilité avec d'anciennes specs mais sont sans
+    # effet (l'audit émet un avertissement). Sans bloc "landing", "/"
+    # redirige vers "/docs" (documentation Swagger/OpenAPI de FastAPI).
     landing_block: "landing" _NL _INDENT landing_prop+ _DEDENT
     ?landing_prop: landing_mode | landing_template | landing_brief
     landing_mode: "mode" ":" NAME _NL
@@ -175,6 +183,21 @@ grammar = r"""
     input_prop: "input" ":" io_param ("," io_param)* _NL
     output_prop: "output" ":" io_param _NL
     description_prop: "description" ":" STRING_LITERAL _NL
+
+    # AJOUT (roadmap frontend, "je veux des sites complets") : bloc 'seed' —
+    # données de démonstration pré-remplies, insérées au démarrage si la
+    # table est vide (idempotent). Une app data-driven paraît vide sans
+    # données ; ce bloc fait qu'un portfolio, une boutique ou un fil social
+    # s'affichent avec des éléments réels dès la première ouverture. Une ligne =
+    # un enregistrement (paires 'champ: valeur'). Les valeurs peuvent être
+    # des chaînes (avec URLs d'images publiques), des entiers ou des
+    # décimaux. Ex. :
+    #   seed Project
+    #       title: "Refonte Aurora", imageUrl: "https://picsum.photos/seed/a/600/400", year: 2024
+    seed_block: "seed" NAME _NL _INDENT seed_row+ _DEDENT
+    seed_row: seed_pair ("," seed_pair)* _NL
+    seed_pair: NAME ":" seed_value
+    ?seed_value: STRING_LITERAL | SIGNED_NUMBER
 
     io_param: NAME ":" TYPE
             | REFERENCE
@@ -196,13 +219,14 @@ grammar = r"""
     %declare _INDENT _DEDENT
 
     %import common.INT
+    %import common.SIGNED_NUMBER
     %import common.WS_INLINE
     %ignore WS_INLINE
     %ignore COMMENT
 """
 
 @v_args(inline=True)
-class MonLangTransformer(Transformer):
+class MonlTransformer(Transformer):
     def app(self, name, *blocks):
         # CORRECTIF (roadmap, découvert en assemblant le réseau social anonyme) :
         # une ligne de commentaire seule entre deux blocs de premier niveau (ex.
@@ -222,12 +246,15 @@ class MonLangTransformer(Transformer):
             "entities": [b["entity"] for b in valid_blocks if "entity" in b],
             "relations": [b["relation"] for b in valid_blocks if "relation" in b],
             "actors": [b["actor"] for b in valid_blocks if "actor" in b],
+            "self_register_actors": [b["actor"] for b in valid_blocks
+                                     if "actor" in b and b.get("self_register")],
             "rules": [b["rule"] for b in valid_blocks if "rule" in b],
             "workflows": [b["workflow"] for b in valid_blocks if "workflow" in b],
             "custom_logic": [b["custom"] for b in valid_blocks if "custom" in b],
             "ui_overrides": [b["ui"] for b in valid_blocks if "ui" in b],
             "landing": next((b["landing"] for b in valid_blocks if "landing" in b), None),
             "capabilities": [b["capability"] for b in valid_blocks if "capability" in b],
+            "seeds": [b["seed"] for b in valid_blocks if "seed" in b],
         }
         
     def entity(self, name, *attributes):
@@ -239,8 +266,10 @@ class MonLangTransformer(Transformer):
     def relation(self, source, rel_type, target):
         return {"relation": {"source": str(source), "type": str(rel_type), "target": str(target)}}
         
-    def actor(self, name):
-        return {"actor": str(name)}
+    def actor(self, name, self_register=None):
+        # 'self_register' est le token SELF_REGISTER quand il est présent
+        # dans la spec, None sinon (production Lark nommée, cf. CLAUDE.md).
+        return {"actor": str(name), "self_register": self_register is not None}
         
     def constraint_rule(self, reference, valid_type, value=None):
         data = {"reference": str(reference), "type": str(valid_type)}
@@ -256,6 +285,10 @@ class MonLangTransformer(Transformer):
 
     def ownership_rule(self, reference, owner_entity):
         return {"rule": {"reference": str(reference), "type": "ownedBy", "value": str(owner_entity)}}
+
+    def access_rule(self, reference, *party_columns):
+        return {"rule": {"reference": str(reference), "type": "accessibleBy",
+                         "value": [str(c) for c in party_columns]}}
 
     def visibility_rule(self, reference):
         return {"rule": {"reference": str(reference), "type": "public"}}
@@ -355,7 +388,27 @@ class MonLangTransformer(Transformer):
             return {"name": str(name_or_ref), "type": str(type_str)}
         return {"reference": str(name_or_ref)}
 
-class MonLangIndenter(PythonIndenter):
+    # AJOUT (roadmap frontend, bloc 'seed') : données de démonstration.
+    def seed_block(self, name, *rows):
+        return {"seed": {"entity": str(name), "rows": list(rows)}}
+
+    def seed_row(self, *pairs):
+        record = {}
+        for p in pairs:
+            record.update(p)
+        return record
+
+    def seed_pair(self, name, value):
+        token = str(value)
+        if token.startswith('"'):
+            # Chaîne : on retire les guillemets et déséchappe les \" et \\.
+            parsed = token[1:-1].replace('\\"', '"').replace('\\\\', '\\')
+        else:
+            # Nombre : entier ou décimal (les Money/Float acceptent un point).
+            parsed = float(token) if ("." in token) else int(token)
+        return {str(name): parsed}
+
+class MonlIndenter(PythonIndenter):
     NL_type = '_NL'
     OPEN_PAREN_types = []
     CLOSE_PAREN_types = []
@@ -384,20 +437,122 @@ class MonLangIndenter(PythonIndenter):
 # "rule Post.author hidden  # note") ne sont PAS concernés par cette regex
 # (il y a du contenu non-blanc avant le '#') -- ils restent gérés par
 # `%ignore COMMENT` dans la grammaire, comme avant.
-_STANDALONE_COMMENT_LINE = re.compile(r"(?m)^[ \t]*#[^\n]*\n")
+_STANDALONE_COMMENT_LINE = re.compile(r"^[ \t]*#[^\n]*$")
 
 def _strip_standalone_comment_lines(content):
-    return _STANDALONE_COMMENT_LINE.sub("", content)
+    """Retire les lignes qui ne sont QUE du commentaire (voir bloc de
+    commentaires ci-dessus) et retourne (texte_nettoye, table_de_lignes) où
+    table_de_lignes[i] = numéro (1-based) de la ligne ORIGINALE correspondant
+    à la ligne i+1 du texte nettoyé. AJOUT (roadmap, erreurs lisibles) : la
+    table permet de reporter les erreurs de syntaxe sur la vraie ligne du
+    fichier de l'utilisateur, pas sur la ligne du texte nettoyé."""
+    kept_lines = []
+    line_map = []
+    for idx, line in enumerate(content.split("\n")):
+        if _STANDALONE_COMMENT_LINE.match(line):
+            continue
+        kept_lines.append(line)
+        line_map.append(idx + 1)
+    return "\n".join(kept_lines), line_map
 
-def parse_monlang_string(content):
-    """Parse une chaîne MonLang directement (sans passer par un fichier).
-    Utilisé par parse_monlang_file, et par ai_translator.py pour valider
-    une spec générée par l'IA avant de l'écrire sur disque."""
-    parser = Lark(grammar, parser='lalr', postlex=MonLangIndenter())
-    content = _strip_standalone_comment_lines(content + "\n")
-    return MonLangTransformer().transform(parser.parse(content))
 
-def parse_monlang_file(file_path):
+class MonlSyntaxError(Exception):
+    """AJOUT (roadmap, erreurs lisibles) : erreur de syntaxe monl avec
+    ligne/colonne du FICHIER SOURCE (pas du texte nettoyé des commentaires),
+    extrait de la ligne fautive, curseur, et suggestions quand Lark les
+    connaît. Avant : l'utilisateur recevait l'exception Lark brute
+    (UnexpectedToken avec numéro de ligne décalé si la spec contenait des
+    lignes de commentaire)."""
+
+    def __init__(self, message, line=None, column=None, source_line=None, file_path=None):
+        self.line = line
+        self.column = column
+        self.file_path = file_path
+        parts = []
+        location = ""
+        if file_path:
+            location = os.path.basename(file_path)
+        if line is not None:
+            location += f"{':' if location else 'ligne '}{line}"
+            if column is not None:
+                location += f":{column}"
+        if location:
+            parts.append(f"Erreur de syntaxe monl ({location}) : {message}")
+        else:
+            parts.append(f"Erreur de syntaxe monl : {message}")
+        if source_line is not None:
+            parts.append(f"    {source_line}")
+            if column is not None:
+                parts.append("    " + " " * max(column - 1, 0) + "^")
+        super().__init__("\n".join(parts))
+
+
+# Traduction des noms de tokens de la grammaire vers le vocabulaire du DSL,
+# pour que "attendu : ..." parle à l'utilisateur plutôt qu'au mainteneur.
+_TOKEN_LABELS = {
+    "NAME": "un nom (entité, acteur, champ...)",
+    "TYPE": "un type (String, Integer, Boolean, Email, Float...)",
+    "REFERENCE": "une référence Entite.champ ou Entite.Action",
+    "RELATION_TYPE": "hasMany / hasOne / belongsTo",
+    "_NL": "un retour à la ligne",
+    "_INDENT": "un bloc indenté",
+    "_DEDENT": "la fin du bloc indenté",
+    "ESCAPED_STRING": "une chaîne entre guillemets",
+    "NUMBER": "un nombre",
+    "$END": "la fin du fichier",
+    "COLON": "':'",
+    "COMMA": "','",
+}
+
+
+def _format_lark_error(err, original_content, line_map, file_path=None):
+    from lark.exceptions import UnexpectedToken, UnexpectedCharacters
+    original_lines = original_content.split("\n")
+    line = getattr(err, "line", None)
+    column = getattr(err, "column", None)
+    real_line = None
+    source_line = None
+    if isinstance(line, int) and line >= 1:
+        # Reporte la ligne du texte nettoyé sur la ligne du fichier original.
+        real_line = line_map[line - 1] if line - 1 < len(line_map) else line
+        if real_line - 1 < len(original_lines):
+            source_line = original_lines[real_line - 1]
+    if isinstance(err, UnexpectedToken):
+        token_repr = "fin de fichier" if err.token.type == "$END" else f"'{err.token}'"
+        expected = sorted(
+            {_TOKEN_LABELS.get(t, t) for t in (err.accepts or err.expected or [])}
+        )
+        message = f"élément inattendu : {token_repr}."
+        if expected:
+            message += " Attendu ici : " + " ; ".join(expected) + "."
+    elif isinstance(err, UnexpectedCharacters):
+        message = f"caractère inattendu : '{err.char}'."
+    else:
+        message = str(err).split("\n")[0]
+    return MonlSyntaxError(message, line=real_line, column=column,
+                              source_line=source_line, file_path=file_path)
+
+
+def parse_monl_string(content, file_path=None):
+    """Parse une chaîne monl directement (sans passer par un fichier).
+    Utilisé par parse_monl_file pour valider
+    une spec générée par l'IA avant de l'écrire sur disque.
+    Lève MonlSyntaxError (message localisé : fichier, ligne, colonne,
+    extrait) plutôt que l'exception Lark brute."""
+    from lark.exceptions import UnexpectedInput
+    parser = Lark(grammar, parser='lalr', postlex=MonlIndenter())
+    original = content + "\n"
+    stripped, line_map = _strip_standalone_comment_lines(original)
+    if not stripped.endswith("\n"):
+        stripped += "\n"
+        line_map.append(line_map[-1] + 1 if line_map else 1)
+    try:
+        tree = parser.parse(stripped)
+    except UnexpectedInput as err:
+        raise _format_lark_error(err, original, line_map, file_path=file_path) from None
+    return MonlTransformer().transform(tree)
+
+def parse_monl_file(file_path):
     with open(file_path, 'r', encoding='utf-8') as f:
         content = f.read()
-    return parse_monlang_string(content)
+    return parse_monl_string(content, file_path=file_path)

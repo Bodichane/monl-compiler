@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 180" role="img"
+     aria-label="Plateau de pédalier" fill="none" stroke="currentColor" stroke-width="2"
+     stroke-linecap="round" stroke-linejoin="round">
+
+  <circle cx="120" cy="86" r="62"/>
+  <circle cx="120" cy="86" r="52" stroke-width="1.4"/>
+  <circle cx="120" cy="86" r="16"/>
+  <g stroke-width="1.4">
+    <path d="M120 24v-8"/><path d="M120 148v8"/><path d="M58 86h-8"/><path d="M182 86h8"/>
+    <path d="M76 42l-6-6"/><path d="M164 130l6 6"/><path d="M164 42l6-6"/><path d="M76 130l-6 6"/>
+  </g>
+  <g stroke-width="1.4">
+    <circle cx="120" cy="52" r="4"/><circle cx="154" cy="86" r="4"/>
+    <circle cx="120" cy="120" r="4"/><circle cx="86" cy="86" r="4"/>
+  </g>
+  <g stroke-width="1" opacity=".45">
+    <path d="M20 164h48"/><path d="M20 160v8"/><path d="M68 160v8"/>
+  </g>
+</svg>

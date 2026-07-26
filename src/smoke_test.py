@@ -1,0 +1,390 @@
+# ─────────────────────────────────────────────────────────────────────
+# SMOKE TEST — pivot orchestrateur, point 1 : "cohérent" ne suffit pas,
+# il faut que ça FONCTIONNE. Avant de lancer l'application pour de vrai,
+# 'monl run' exécute ici un test de fumée comportemental :
+#
+#   1. Un serveur uvicorn ÉPHÉMÈRE est démarré dans un dossier temporaire
+#      (copie des artefacts) : base de données neuve, port libre — le smoke
+#      test ne touche JAMAIS aux données réelles du projet.
+#   2. Chaque route du contrat est éprouvée en HTTP réel : les GET publics
+#      doivent répondre 200, les routes protégées doivent REFUSER sans
+#      jeton (401/403), et un compte réel est créé (register → login) pour
+#      vérifier qu'un jeton valide ouvre bien les routes protégées.
+#   3. Si Node.js est disponible, frontend/index.html est chargé dans
+#      jsdom (scripts exécutés), ses fetch() routés vers le serveur
+#      éphémère : toute exception JavaScript ou tout appel à un chemin
+#      hors contrat fait échouer le test. Sans Node, cette étape est
+#      sautée avec un avertissement explicite — jamais silencieusement.
+#
+# Tout est piloté par frontend_contract.json : si le contrat et l'API
+# divergeaient, c'est ici que ça se verrait en conditions réelles.
+# ─────────────────────────────────────────────────────────────────────
+import json
+import os
+import shutil
+import socket
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.request
+
+from frontend_contract import CONTRACT_FILENAME
+
+JSDOM_RUNNER = r"""
+// Runner jsdom généré par monl (smoke test) — charge index.html, exécute
+// ses scripts, route fetch() vers le serveur éphémère, rapporte erreurs JS
+// et statuts des appels. Sortie : une ligne JSON sur stdout.
+const fs = require('fs');
+const path = require('path');
+const { JSDOM } = require('jsdom');
+
+const [frontendDir, baseUrl] = process.argv.slice(2);
+let html = fs.readFileSync(path.join(frontendDir, 'index.html'), 'utf-8');
+const report = { js_errors: [], fetches: [] };
+
+// fetch : jsdom n'en fournit pas, et les scripts s'exécutent PENDANT la
+// construction du DOM -> le branchement doit se faire dans beforeParse,
+// jamais après coup (bug réel trouvé par exécution : un fetch assigné
+// après 'new JSDOM' n'est jamais vu par les scripts de la page).
+// Les <script src> LOCAUX sont inlinés dans le HTML avant construction :
+// jsdom ne charge pas les ressources externes par défaut (et son API de
+// chargement a changé entre versions — ResourceLoader n'existe plus en
+// v29), donc sans cette étape un fetch vivant dans app.js n'est jamais
+// exécuté et le smoke test devient un faux positif silencieux (bug réel
+// trouvé en éprouvant 'monl import' avec un zip multi-fichiers).
+// Les scripts https:// (CDN) ne sont PAS chargés — le contrat exige un
+// frontend autonome, précisément pour rester vérifiable ici.
+html = html.replace(/<script([^>]*?)\ssrc=["']([^"']+)["']([^>]*)>\s*<\/script>/gi,
+    (m, pre, src, post) => {
+        if (/^https?:/i.test(src)) {
+            report.js_errors.push('script CDN non autonome (le contrat exige un frontend sans dépendance externe) : ' + src);
+            return '';
+        }
+        const rel = src.replace(/^\.?\//, '').replace(/^site\//, '');
+        const p = path.join(frontendDir, rel);
+        if (!fs.existsSync(p)) {
+            report.js_errors.push('script local introuvable : ' + src);
+            return '';
+        }
+        return '<script>\n' + fs.readFileSync(p, 'utf-8') + '\n</script>';
+    });
+
+const dom = new JSDOM(html, {
+    url: baseUrl + '/site/',
+    runScripts: 'dangerously',
+    pretendToBeVisual: true,
+    beforeParse(window) {
+        window.fetch = async (input, init) => {
+            let target = String(input);
+            if (target.startsWith('/')) target = baseUrl + target;
+            try {
+                const res = await fetch(target, init);
+                report.fetches.push({ url: String(input), status: res.status });
+                return res;
+            } catch (err) {
+                report.fetches.push({ url: String(input), status: 0, error: String(err) });
+                throw err;
+            }
+        };
+        window.onerror = (msg) => { report.js_errors.push(String(msg)); };
+        window.addEventListener('error', (e) => {
+            if (e.error) report.js_errors.push(String(e.error && e.error.message || e.message));
+        });
+    },
+});
+
+// Laisser les scripts + leurs fetch initiaux se dérouler, puis rapporter.
+setTimeout(() => { console.log(JSON.stringify(report)); process.exit(0); }, 2500);
+"""
+
+
+class SmokeFailure(Exception):
+    pass
+
+
+def _free_port():
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+def _http(method, url, body=None, token=None):
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(url, data=data, method=method)
+    if body is not None:
+        req.add_header("Content-Type", "application/json")
+    if token:
+        req.add_header("Authorization", f"Bearer {token}")
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            raw = resp.read()
+            try:
+                return resp.status, json.loads(raw or b"{}")
+            except json.JSONDecodeError:
+                # /docs et consorts renvoient du HTML — seul le statut compte.
+                return resp.status, {}
+    except urllib.error.HTTPError as e:
+        try:
+            payload = json.loads(e.read() or b"{}")
+        except Exception:
+            payload = {}
+        return e.code, payload  # corps d'erreur non-JSON toléré aussi
+    except urllib.error.URLError:
+        return 0, {}
+
+
+def _sample_value(ftype, fname):
+    low = fname.lower()
+    if ftype == "Integer":
+        return 1
+    if ftype in ("Float", "Money"):
+        return 1.5
+    if ftype == "Boolean":
+        return True
+    if ftype == "Email":
+        return "smoke@exemple.fr"
+    if any(k in low for k in ("image", "photo", "url")):
+        return "https://picsum.photos/seed/smoke/400/300"
+    return f"smoke-{fname}"
+
+
+def _verifier_palette(frontend_dir, contract):
+    """Confronte la palette du contrat aux feuilles de style livrées.
+
+    AJOUT (bêta 3) : la clause 'design' du contrat était la seule que rien ne
+    vérifiait — les routes sont confrontées à app.py, le comportement au
+    smoke test, mais l'identité visuelle pouvait être ignorée en silence.
+    Dans un produit dont la thèse est « le contrat fait foi », une clause
+    invérifiée décrédibilise les autres.
+
+    La sévérité dépend de l'ORIGINE de la direction, pas de son contenu :
+      - épinglée par un bloc 'ui theme:' de la spec -> l'auteur a tranché,
+        l'écart est une erreur ;
+      - déduite du vocabulaire des entités -> c'est une proposition du
+        compilateur, l'écart n'est qu'un avertissement. Faire échouer un
+        build sur une devinette punirait un bon parti pris de l'interface.
+
+    Retourne une liste de (message, bloquant).
+    """
+    design = contract.get("design") or {}
+    couleurs = {cle: design.get(cle) for cle in ("bg", "surface", "ink", "accent", "accent2")}
+    couleurs = {k: v for k, v in couleurs.items() if isinstance(v, str) and v.startswith("#")}
+    if not couleurs:
+        return []
+
+    styles = []
+    for racine, _dirs, fichiers in os.walk(frontend_dir):
+        for nom in fichiers:
+            if nom.lower().endswith((".css", ".html")):
+                with open(os.path.join(racine, nom), encoding="utf-8", errors="replace") as fh:
+                    styles.append(fh.read().lower())
+    if not styles:
+        return []
+    feuille = "\n".join(styles)
+
+    manquantes = [f"{cle} {valeur}" for cle, valeur in couleurs.items()
+                  if valeur.lower() not in feuille]
+    if not manquantes:
+        return []
+
+    epingle = bool(design.get("pinned"))
+    if epingle:
+        return [(f"la spec épingle le thème « {design.get('name')} » mais le frontend "
+                 f"n'applique pas sa palette : {', '.join(manquantes)} absent(s) des "
+                 f"styles livrés", True)]
+    return [(f"direction de design « {design.get('name')} » non suivie "
+             f"({', '.join(manquantes)}) — proposition du compilateur, non bloquante ; "
+             f"épinglez-la par un bloc 'ui … theme:' pour la rendre contraignante", False)]
+
+
+def run_smoke_test(project_dir, say=print):
+    """Retourne (ok, erreurs, avertissements). Lève seulement sur bug interne."""
+    errors, warnings = [], []
+    project_dir = os.path.abspath(project_dir)
+    with open(os.path.join(project_dir, CONTRACT_FILENAME), encoding="utf-8") as fh:
+        contract = json.load(fh)
+
+    workdir = tempfile.mkdtemp(prefix="monl_smoke_")
+    try:
+        # Copie des artefacts : base neuve, données réelles intouchées.
+        for name in ("app.py", "schema.sql", "sandbox_ai.py", ".jwt_secret"):
+            src = os.path.join(project_dir, name)
+            if os.path.exists(src):
+                shutil.copy2(src, workdir)
+        frontend_src = os.path.join(project_dir, "frontend")
+        has_frontend = os.path.isdir(frontend_src)
+        if has_frontend:
+            for probleme, bloquant in _verifier_palette(frontend_src, contract):
+                (errors if bloquant else warnings).append(probleme)
+        if has_frontend:
+            shutil.copytree(frontend_src, os.path.join(workdir, "frontend"))
+
+        port = _free_port()
+        base = f"http://127.0.0.1:{port}"
+        server = subprocess.Popen(
+            [sys.executable, "-m", "uvicorn", "app:app", "--host", "127.0.0.1",
+             "--port", str(port), "--log-level", "warning"],
+            cwd=workdir, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        try:
+            for _ in range(50):
+                status, _b = _http("GET", base + "/docs")
+                if status == 200:
+                    break
+                if server.poll() is not None:
+                    raise SmokeFailure("le serveur éphémère s'est arrêté au démarrage : "
+                                       + server.stderr.read().decode(errors="replace")[-400:])
+                time.sleep(0.2)
+            else:
+                raise SmokeFailure("le serveur éphémère n'a jamais répondu sur /docs")
+
+            # --- 2a. compte réel : register → login → jeton ---
+            # CORRECTIF (bêta 3) : le compte de test était créé avec le premier
+            # rôle par ordre alphabétique, qui est souvent un rôle privilégié
+            # — désormais refusé à l'inscription (403). On prend un rôle
+            # ouvert à l'inscription libre ; si la spec n'en déclare aucun,
+            # l'application n'a pas de parcours d'inscription à éprouver.
+            self_register = contract.get("self_register_actors") or []
+            actor, token = None, None
+            if self_register:
+                actor = self_register[0]
+                status, _b = _http("POST", base + "/register",
+                                   {"username": "smoke", "password": "smokepass123", "actor": actor})
+                if status != 200:
+                    errors.append(f"/register a répondu {status} (attendu 200)")
+                status, body = _http("POST", base + "/login",
+                                     {"username": "smoke", "password": "smokepass123"})
+                token = body.get("token") or body.get("access_token")
+                if status != 200 or not token:
+                    errors.append(f"/login a répondu {status} sans jeton exploitable")
+                    token = None
+                # Un rôle NON ouvert à l'inscription ne doit jamais pouvoir être
+                # obtenu par un simple appel HTTP : c'est la faille corrigée en
+                # bêta 3, éprouvée ici à chaque lancement.
+                for provisioned in [a for a in contract["actors"] if a not in self_register]:
+                    status, _b = _http("POST", base + "/register",
+                                       {"username": f"smoke-{provisioned.lower()}",
+                                        "password": "smokepass123", "actor": provisioned})
+                    if status == 200:
+                        errors.append(f"/register a accepté le rôle provisionné '{provisioned}' "
+                                      f"(élévation de privilège : un refus 403 était attendu)")
+            else:
+                warnings.append("Aucun rôle 'selfRegister' : parcours d'inscription non éprouvé "
+                                "(comptes provisionnés par manage.py).")
+
+            # --- 2b. chaque route du contrat, en conditions réelles ---
+            for route in contract["routes"]:
+                path, method = route["path"], route["method"]
+                concrete = path.replace("{id}", "1")
+                if route["auth_required"]:
+                    status, _b = _http(method, base + concrete,
+                                       body={} if method in ("POST", "PUT") else None)
+                    if status not in (401, 403):
+                        errors.append(f"{method} {path} sans jeton a répondu {status} "
+                                      f"(un refus 401/403 était attendu)")
+                if method == "GET" and not route["auth_required"]:
+                    status, _b = _http("GET", base + concrete)
+                    if route["action"] == "List" and status != 200:
+                        errors.append(f"GET {path} (public) a répondu {status} (attendu 200)")
+                    if route["action"] == "Read" and status not in (200, 404):
+                        errors.append(f"GET {path} (public) a répondu {status} (attendu 200/404)")
+                if method == "GET" and route["auth_required"] and token \
+                        and actor in route["allowed_actors"] and route["action"] == "List":
+                    status, _b = _http("GET", base + concrete, token=token)
+                    if status != 200:
+                        errors.append(f"GET {path} avec jeton {actor} a répondu {status} "
+                                      f"(attendu 200)")
+
+            # Une création réelle sur la première entité créable par l'acteur,
+            # pour éprouver le corps de requête du contrat de bout en bout.
+            for route in contract["routes"]:
+                if route["action"] != "Create" or actor not in route["allowed_actors"]:
+                    continue
+                fields = {f["name"]: f for f in contract["entities"][route["entity"]]["fields"]}
+                payload = {name: _sample_value(spec["type"], name)
+                           for name, spec in fields.items() if not spec["server_generated"]}
+                status, _b = _http("POST", base + route["path"], payload,
+                                   token=None if not route["auth_required"] else token)
+                if status != 200:
+                    errors.append(f"POST {route['path']} avec un corps conforme au contrat "
+                                  f"a répondu {status} (attendu 200)")
+                break
+
+            # --- 3. frontend réel dans jsdom (si Node disponible) ---
+            if has_frontend:
+                node = shutil.which("node")
+                if not node:
+                    warnings.append("Node.js introuvable — le frontend n'a pas été exécuté "
+                                    "(vérification statique seule). Installer node pour un "
+                                    "smoke test complet.")
+                else:
+                    jsdom_ok = _ensure_jsdom(workdir, say)
+                    if not jsdom_ok:
+                        warnings.append("jsdom indisponible (installation npm échouée) — "
+                                        "le frontend n'a pas été exécuté.")
+                    else:
+                        runner = os.path.join(workdir, "_smoke_runner.js")
+                        with open(runner, "w", encoding="utf-8") as fh:
+                            fh.write(JSDOM_RUNNER)
+                        proc = subprocess.run(
+                            [node, runner, os.path.join(workdir, "frontend"), base],
+                            cwd=workdir, capture_output=True, text=True, timeout=60,
+                            env={**os.environ, "NODE_PATH": _jsdom_node_path()})
+                        report = None
+                        for line in proc.stdout.splitlines():
+                            try:
+                                report = json.loads(line)
+                                break
+                            except json.JSONDecodeError:
+                                continue
+                        if report is None:
+                            errors.append("le runner jsdom n'a rendu aucun rapport : "
+                                          + (proc.stderr or proc.stdout)[-300:])
+                        else:
+                            for err in dict.fromkeys(report["js_errors"]):  # dédoublonné (onerror + listener)
+                                errors.append(f"exception JavaScript dans le frontend : {err}")
+                            known = {r["path"].split("/")[1] for r in contract["routes"]}
+                            known |= {"register", "login", "logout", "docs", "site"}
+                            for f in report["fetches"]:
+                                first = f["url"].lstrip("/").split("/")[0].split("?")[0]
+                                if f["url"].startswith("/") and first not in known:
+                                    errors.append(f"le frontend appelle un chemin hors "
+                                                  f"contrat : {f['url']}")
+                                elif f["status"] in (0, 404, 422, 500):
+                                    errors.append(f"appel frontend {f['url']} → "
+                                                  f"{f['status'] or f.get('error', '?')}")
+                            if not report["fetches"]:
+                                warnings.append("le frontend n'a émis aucun appel API au "
+                                                "chargement — rien à éprouver côté réseau.")
+        finally:
+            server.terminate()
+            try:
+                server.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                server.kill()
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+    return (not errors), errors, warnings
+
+
+# jsdom est installé UNE FOIS dans un cache utilisateur (~/.monl/jsdom),
+# jamais dans le projet : volumineux, hors dépôt, réutilisable entre projets.
+def _jsdom_cache_dir():
+    return os.path.join(os.path.expanduser("~"), ".monl", "jsdom")
+
+
+def _jsdom_node_path():
+    return os.path.join(_jsdom_cache_dir(), "node_modules")
+
+
+def _ensure_jsdom(workdir, say):
+    if os.path.isdir(os.path.join(_jsdom_node_path(), "jsdom")):
+        return True
+    cache = _jsdom_cache_dir()
+    os.makedirs(cache, exist_ok=True)
+    say(" -> Installation unique de jsdom (cache ~/.monl/jsdom)…")
+    proc = subprocess.run(["npm", "install", "--prefix", cache, "jsdom", "--silent"],
+                          capture_output=True, text=True, timeout=300)
+    return proc.returncode == 0 and os.path.isdir(os.path.join(_jsdom_node_path(), "jsdom"))

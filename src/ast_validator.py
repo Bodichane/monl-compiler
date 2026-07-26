@@ -1,24 +1,35 @@
-import os
-import json
-from parser import parse_monlang_file
 
 class ASTValidationError(Exception):
     pass
 
-class MonLangAST:
+class MonlAST:
     def __init__(self, raw_json):
         self.raw = raw_json
         self.app_name = raw_json.get("app")
         self.entities = {}
-        self.actors = set(raw_json.get("actors", []))
+        # CORRECTIF (bêta 3, déterminisme) : la liste des acteurs était un
+        # 'set', dont l'ordre d'itération dépend de PYTHONHASHSEED — deux
+        # compilations de la même spec pouvaient produire un 'VALID_ACTORS'
+        # différent dans app.py, ce qui contredisait la garantie « même
+        # entrée, même sortie à l'octet près ». L'ordre de déclaration est
+        # désormais conservé (dédoublonné).
+        self.actors = list(dict.fromkeys(raw_json.get("actors", [])))
+        # AJOUT (bêta 3) : acteurs ouverts à l'inscription libre (marqueur
+        # 'selfRegister'). Les autres sont provisionnés hors ligne.
+        self.self_register_actors = [
+            a for a in dict.fromkeys(raw_json.get("self_register_actors", []))
+            if a in self.actors
+        ]
         self.relations = raw_json.get("relations", [])
         self.rules = raw_json.get("rules", [])
         self.workflows = raw_json.get("workflows", [])
         self.custom_logic = {c["name"]: c for c in raw_json.get("custom_logic", [])}
         self.ownership_rules = {}
+        self.access_party_rules = {}
         self.ui_overrides_raw = raw_json.get("ui_overrides", [])
         self.landing_raw = raw_json.get("landing")
         self.capabilities_raw = raw_json.get("capabilities", [])
+        self.seeds_raw = raw_json.get("seeds", [])
         self.public_actions = set()
         
         for ent in raw_json.get("entities", []):
@@ -35,9 +46,46 @@ class MonLangAST:
         
         # 2. Audit de sécurité actif
         security_reports = self._audit_security_rules()
+
+        # 3. AJOUT (bêta 3) : audit du périmètre d'inscription libre. Un rôle
+        #    non marqué 'selfRegister' ne peut pas être choisi par un client à
+        #    l'inscription — c'est ce qui empêche l'élévation de privilège par
+        #    simple création de compte. On le rend visible à la compilation :
+        #    silence = personne ne s'inscrit, ce qui est sûr mais rarement
+        #    voulu ; rôle privilégié ouvert = choix explicite, tracé ici.
+        security_reports.extend(self._audit_self_registration())
         
         print("✅ Analyse de l'AST terminée.")
         return self.to_normalized_ast(security_reports)
+
+    def _audit_self_registration(self):
+        """Rapporte le périmètre d'inscription libre déclaré par la spec."""
+        reports = []
+        provisioned = [a for a in self.actors if a not in self.self_register_actors]
+        if self.self_register_actors:
+            print(f"🔓 Inscription libre : [{', '.join(self.self_register_actors)}]"
+                  + (f" — provisionnés hors ligne : [{', '.join(provisioned)}]."
+                     if provisioned else " (tous les rôles)."))
+        elif self.actors:
+            print("🔒 Aucun acteur 'selfRegister' : '/register' refusera toute inscription "
+                  "(comptes à créer via 'python3 manage.py adduser').")
+        if not self.self_register_actors:
+            reports.append(
+                "[SECURITY_NOTE] Aucun acteur n'est marqué 'selfRegister' : "
+                "'POST /register' refusera toutes les inscriptions et les comptes "
+                "devront être créés hors ligne (python3 manage.py adduser). "
+                f"Pour ouvrir l'inscription d'un rôle : 'actor {self.actors[0]} selfRegister'."
+                if self.actors else
+                "[SECURITY_NOTE] Aucun acteur déclaré."
+            )
+        else:
+            reports.append(
+                "[SECURITY_NOTE] Inscription libre ouverte à "
+                f"[{', '.join(self.self_register_actors)}]"
+                + (f" ; rôles provisionnés hors ligne : [{', '.join(provisioned)}]."
+                   if provisioned else " (tous les rôles déclarés).")
+            )
+        return reports
 
     def _validate_structures(self):
         """Vérifie la cohérence de base et traque les collisions multi-acteurs (Bug #5),
@@ -73,6 +121,17 @@ class MonLangAST:
                     raise ASTValidationError(f"Structure : la règle 'ownedBy' cible l'entité '{entity}' qui n'existe pas.")
                 if act_type not in ("Create", "Read", "Update", "Delete"):
                     raise ASTValidationError(f"Structure : action '{act_type}' invalide dans la règle 'ownedBy' sur '{entity}'.")
+                # CORRECTIF (bêta 3) : 'Create' était accepté alors que le
+                # générateur n'en fait rien — une règle de sécurité acceptée
+                # puis silencieusement ignorée est pire que son absence, car
+                # l'auteur de la spec croit la protection en place. À la
+                # création, le propriétaire est l'appelant par construction :
+                # la règle n'a rien à restreindre.
+                if act_type == "Create":
+                    raise ASTValidationError(
+                        f"Structure : 'ownedBy' n'a pas de sens sur '{entity}.Create' — "
+                        "à la création, le propriétaire est l'appelant par construction. "
+                        "Utiliser 'ownedBy' sur Read, Update ou Delete.")
 
                 # CORRECTIF (roadmap) : la vérification de la relation nécessaire
                 # est désormais généralisée aux 3 types (hasMany, hasOne,
@@ -93,6 +152,72 @@ class MonLangAST:
                     )
 
                 self.ownership_rules[(entity, act_type)] = owner_entity
+
+        # AJOUT (roadmap, écosystème de capacités -- brique "accès à deux
+        # parties") : les règles 'accessibleBy' restreignent une action aux
+        # seuls enregistrements dont l'une des colonnes listées contient
+        # l'identifiant de l'appelant. Cas d'usage canonique : messagerie
+        # privée (expéditeur via la colonne de relation auto-peuplée,
+        # destinataire via un champ Integer déclaré). Chaque colonne doit
+        # être soit un champ Integer déclaré de l'entité, soit la colonne de
+        # clé étrangère dérivée d'une relation entrante (ex. 'user_id').
+        self.access_party_rules = {}
+        for rule in self.rules:
+            if rule["type"] != "accessibleBy":
+                continue
+            if "." not in rule["reference"]:
+                raise ASTValidationError(
+                    f"Structure : la règle 'accessibleBy' doit référencer 'Entite.Action', reçu '{rule['reference']}'."
+                )
+            entity, act_type = rule["reference"].split(".", 1)
+            columns = rule["value"]
+
+            if entity not in self.entities:
+                raise ASTValidationError(f"Structure : la règle 'accessibleBy' cible l'entité '{entity}' qui n'existe pas.")
+            if act_type not in ("Read", "Update", "Delete"):
+                raise ASTValidationError(
+                    f"Structure : action '{act_type}' invalide dans la règle 'accessibleBy' sur '{entity}' "
+                    f"(seules Read/Update/Delete portent sur un enregistrement existant dont on peut vérifier les parties)."
+                )
+            if len(set(columns)) < 2:
+                raise ASTValidationError(
+                    f"Structure : la règle 'accessibleBy' sur '{entity}.{act_type}' doit lister au moins deux "
+                    f"colonnes DISTINCTES — avec une seule partie, utiliser 'ownedBy'."
+                )
+
+            # Colonnes de clé étrangère qu'une relation entrante fournit à
+            # cette entité (même convention que _compute_fk_placements dans
+            # generator.py : '<source>_id').
+            relation_fk_columns = set()
+            for rel in self.relations:
+                if rel["type"] in ("hasMany", "hasOne") and rel["target"] == entity:
+                    relation_fk_columns.add(f"{rel['source'].lower()}_id")
+                elif rel["type"] == "belongsTo" and rel["source"] == entity:
+                    relation_fk_columns.add(f"{rel['target'].lower()}_id")
+
+            for col in columns:
+                declared_type = self.entities[entity].get(col)
+                if col in relation_fk_columns:
+                    continue
+                if declared_type is None:
+                    raise ASTValidationError(
+                        f"Structure : la règle 'accessibleBy' sur '{entity}.{act_type}' référence la colonne "
+                        f"'{col}', qui n'est ni un champ déclaré de '{entity}', ni une colonne de relation "
+                        f"entrante ({', '.join(sorted(relation_fk_columns)) or 'aucune relation entrante'})."
+                    )
+                if declared_type != "Integer":
+                    raise ASTValidationError(
+                        f"Structure : la règle 'accessibleBy' sur '{entity}.{act_type}' exige que '{col}' soit "
+                        f"de type Integer (identifiant d'utilisateur), reçu '{declared_type}'."
+                    )
+
+            if (entity, act_type) in self.ownership_rules:
+                raise ASTValidationError(
+                    f"Conflit : '{entity}.{act_type}' porte à la fois 'ownedBy' et 'accessibleBy' — "
+                    f"choisir l'un des deux ('accessibleBy' généralise 'ownedBy' à plusieurs parties)."
+                )
+
+            self.access_party_rules[(entity, act_type)] = list(columns)
 
         # AJOUT (roadmap, cas d'usage portfolio) : validation des règles
         # 'public' — une action ainsi marquée n'exige plus d'authentification
@@ -338,37 +463,20 @@ class MonLangAST:
                 "theme": override.get("theme"), "primary": primary, "order": order,
             }
 
-        # AJOUT (roadmap, front marketing) : validation du bloc optionnel
-        # 'landing'. Volontairement strict sur ce qui touche à la sécurité
-        # (chemin de template ne pouvant pas s'échapper du projet — même
-        # logique que n'importe quelle validation de chemin fourni par
-        # l'utilisateur, pour empêcher un '../../etc/passwd' de finir lu par
-        # le générateur), mais permissif sur le reste (un 'mode' inconnu
-        # retombe silencieusement sur le gabarit déterministe, à l'image du
-        # nom de thème inconnu du bloc 'ui').
+        # PIVOT (point 41) : monl ne génère plus de landing — le bloc
+        # 'landing' reste ACCEPTÉ pour ne casser aucune spec existante, mais
+        # seul son 'brief' est conservé : il alimente désormais le contrat
+        # frontend (FRONTEND_PROMPT.md) destiné à l'IA qui construit
+        # l'interface. Les clés 'mode' et 'template', devenues sans effet,
+        # sont signalées (jamais une régression silencieuse).
         self.landing = None
         if self.landing_raw is not None:
-            mode = self.landing_raw.get("mode", "ai")
-            if mode not in ("ai", "template"):
-                mode = "ai"
-            template = self.landing_raw.get("template")
-            if mode == "template":
-                if not template:
-                    raise ASTValidationError(
-                        "Structure : 'landing / mode: template' exige aussi une clé 'template: \"chemin/vers/fichier.html\"'."
-                    )
-                normalized = template.replace("\\", "/")
-                if normalized.startswith("/") or ".." in normalized.split("/"):
-                    raise ASTValidationError(
-                        f"Sécurité : 'landing / template' doit être un chemin relatif à l'intérieur du projet "
-                        f"(reçu '{template}', un chemin absolu ou remontant via '..' est refusé)."
-                    )
-            self.landing = {
-                "mode": mode,
-                "template": template,
-                "brief": self.landing_raw.get("brief"),
-            }
-
+            for obsolete in ("mode", "template"):
+                if self.landing_raw.get(obsolete):
+                    print(f"⚠️  'landing / {obsolete}' est obsolète depuis le pivot "
+                          f"(point 41 de docs/design_decisions.md) : monl ne génère "
+                          f"plus de page d'accueil — seul 'brief' est transmis à l'IA frontend.")
+            self.landing = {"brief": self.landing_raw.get("brief")}
         # AJOUT (roadmap, écosystème de capacités -- brique 1) : validation
         # du bloc optionnel 'capability'. Volontairement strict (liste
         # blanche de noms connus, contrairement à 'ui / theme' qui retombe
@@ -386,6 +494,43 @@ class MonLangAST:
                 f"Capacités reconnues : {', '.join(sorted(KNOWN_CAPABILITIES))}."
             )
         self.capabilities = list(dict.fromkeys(self.capabilities_raw))  # dédoublonne, garde l'ordre
+
+        # AJOUT (roadmap frontend, bloc 'seed') : validation des données de
+        # démonstration. Chaque enregistrement doit cibler une entité
+        # déclarée, ne référencer que des champs existants de cette entité,
+        # et respecter grossièrement leur type (nombre pour Integer/Float/
+        # Money, chaîne sinon). Strict comme le reste du compilateur : une
+        # coquille dans un seed doit échouer à la compilation, pas produire
+        # une INSERT invalide au démarrage du serveur.
+        NUMERIC_TYPES = {"Integer", "Float", "Money"}
+        self.seeds = []
+        for seed in self.seeds_raw:
+            entity = seed["entity"]
+            if entity not in self.entities:
+                raise ASTValidationError(
+                    f"Structure : le bloc 'seed' cible l'entité '{entity}' qui n'existe pas."
+                )
+            entity_fields = self.entities[entity]
+            for i, row in enumerate(seed["rows"], start=1):
+                for field, value in row.items():
+                    if field not in entity_fields:
+                        raise ASTValidationError(
+                            f"Structure : le bloc 'seed {entity}' (ligne {i}) référence le champ "
+                            f"'{field}', qui n'est pas déclaré sur '{entity}'."
+                        )
+                    declared_type = entity_fields[field]
+                    is_number = isinstance(value, (int, float)) and not isinstance(value, bool)
+                    if declared_type in NUMERIC_TYPES and not is_number:
+                        raise ASTValidationError(
+                            f"Structure : 'seed {entity}' (ligne {i}), champ '{field}' de type "
+                            f"{declared_type} attend un nombre, reçu une chaîne."
+                        )
+                    if declared_type not in NUMERIC_TYPES and is_number:
+                        raise ASTValidationError(
+                            f"Structure : 'seed {entity}' (ligne {i}), champ '{field}' de type "
+                            f"{declared_type} attend une chaîne entre guillemets, reçu un nombre."
+                        )
+            self.seeds.append(seed)
 
         for wf in self.workflows:
             actor = wf["actor"]
@@ -510,10 +655,13 @@ class MonLangAST:
             "meta": {"appName": self.app_name, "security_audit_logs": security_reports},
             "schema": {"entities": self.entities, "relations": self.relations},
             "security": {
-                "actors": list(self.actors), "rules": self.rules, "workflows": self.workflows,
+                "actors": list(self.actors),
+                "self_register_actors": list(self.self_register_actors),
+                "rules": self.rules, "workflows": self.workflows,
                 "ownership": {f"{k[0]}.{k[1]}": v for k, v in self.ownership_rules.items()},
-                "public": [f"{e}.{a}" for e, a in self.public_actions],
-                "hidden_fields": [f"{e}.{f}" for e, f in self.masked_fields],
+                "access_parties": {f"{k[0]}.{k[1]}": v for k, v in self.access_party_rules.items()},
+                "public": [f"{e}.{a}" for e, a in sorted(self.public_actions)],
+                "hidden_fields": [f"{e}.{f}" for e, f in sorted(self.masked_fields)],
                 "reputation_rules": self.reputation_rules,
                 "categorized_fields": self.categorized_fields,
                 "generated_fields": self.generated_fields,
@@ -522,4 +670,5 @@ class MonLangAST:
             "ui": self.ui_overrides,
             "landing": self.landing,
             "capabilities": self.capabilities,
+            "seeds": self.seeds,
         }

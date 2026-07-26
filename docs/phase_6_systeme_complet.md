@@ -12,6 +12,6 @@ Un point d'entrée centralisé sous forme d'interface en ligne de commande (CLI)
 ## Test de la Boucle Fermée
 La validation a été éprouvée en basculant la compilation d'un cas d'usage à un autre :
 - `python3 src/main.py` -> Génère instantanément l'architecture complète pour la `TodoList`.
-- `python3 src/main.py exemples/02_blog.yaml` -> Écrase et reconfigure immédiatement la base de données et l'API FastAPI pour l'adapter au domaine fonctionnel du `TechBlog`.
+- `python3 src/main.py exemples/02_blog.ml` -> Écrase et reconfigure immédiatement la base de données et l'API FastAPI pour l'adapter au domaine fonctionnel du `TechBlog`.
 
 Le pipeline est fluide, synchrone et sans aucun effet de bord.

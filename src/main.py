@@ -1,114 +1,78 @@
 import os
 import sys
 import argparse
-from parser import parse_monlang_file
-from ast_validator import MonLangAST
-from generator import MonLangSecureGenerator
-from ai_sandbox_filler import run_ai_filler
-from ai_landing_filler import run_landing_ai_filler
+from parser import parse_monl_file
+from ast_validator import MonlAST
+from generator import MonlSecureGenerator
 
-def compile_monlang(file_path):
-    """Orchestre le pipeline MonLang avec gestion non bloquante de l'IA (Bug #3)."""
+
+def compile_monl(file_path, output_dir=None):
+    """Compile une spécification .ml en backend complet.
+
+    Le pipeline est entièrement DÉTERMINISTE et HORS-LIGNE : parsing, audit
+    statique, puis génération du schéma, de l'API, du contrôle d'accès et de
+    l'authentification. Aucune IA n'intervient. Les blocs 'custom' éventuels
+    sont générés sous forme de coquilles vides sûres dans sandbox_ai.py, que
+    le développeur complète à la main (voir docs/SECURITE.md)."""
     if not os.path.exists(file_path):
         print(f"❌ Erreur : Le fichier de spécification '{file_path}' n'existe pas.")
         sys.exit(1)
-        
+
     filename = os.path.basename(file_path)
-    
+
     print("\n" + "=" * 65)
-    print(f" ⚙️  COMPILATEUR MONLANG : {filename}")
+    print(f" ⚙️  COMPILATEUR MONL : {filename}")
     print("=" * 65)
-    
+
     try:
         # --- ÉTAPE 1 : PARSING ---
-        print("\n [1/4] Analyse syntaxique...")
-        raw_json = parse_monlang_file(file_path)
+        print("\n [1/3] Analyse syntaxique...")
+        raw_json = parse_monl_file(file_path)
         print("    └─ AST de base extrait avec succès.")
-        
-        # --- ÉTAPE 2 : AUDIT DE SÉCURITÉ ---
-        print("\n [2/4] Audit statique d'architecture & restrictions...")
-        ast_manager = MonLangAST(raw_json)
+
+        # --- ÉTAPE 2 : AUDIT STATIQUE ---
+        print("\n [2/3] Audit statique d'architecture & restrictions...")
+        ast_manager = MonlAST(raw_json)
         normalized_ast = ast_manager.validate_and_audit()
-        
+
         # --- ÉTAPE 3 : GÉNÉRATION DU SOCLE ---
-        print("\n [3/4] Génération du socle déterministe...")
-        generator = MonLangSecureGenerator(normalized_ast)
+        print("\n [3/3] Génération du socle déterministe...")
+        generator = MonlSecureGenerator(normalized_ast, output_dir=output_dir)
         generator.generate_all()
         print("    └─ Artefacts d'infrastructure scellés.")
-        
-        # --- ÉTAPE 4 : ACTIVATION DE L'IA (NON BLOQUANTE) ---
-        print("\n [4/4] Activation de l'échappatoire IA...")
-        try:
-            run_ai_filler(file_path)
-            ai_status = "Enrichie par l'IA locale (Qwen)"
-        except (RuntimeError, Exception) as ai_err:
-            # CORRECTIF BUG v4 n°3 : Interception de la panne Ollama
-            print("\n ⚠️  [AVERTISSEMENT IA NO-BLOCK]")
-            print(f"    Le remplissage automatique de la Sandbox a échoué : {ai_err}")
-            print("    -> Le socle déterministe est conservé intact.")
-            print("    -> La fonction custom reste disponible sous forme de coquille vide sécurisée.")
-            ai_status = "Coquille vide déterministe (Serveur IA hors-ligne)"
 
-        # --- ÉTAPE 5 : ÉCHAPPATOIRE IA POUR LA LANDING (NON BLOQUANTE) ---
-        # AJOUT (roadmap, front marketing) : ne fait rien si la spec n'a pas
-        # de bloc 'landing', ou si son mode n'est pas 'ai' — voir
-        # ai_landing_filler.py. Même filet de sécurité que l'étape 4 : si
-        # l'IA locale est indisponible, 'landing.html' généré à l'étape 3
-        # reste tel quel (déjà un gabarit complet et déterministe, pas un
-        # brouillon inutilisable).
-        landing_status = None
-        try:
-            was_ai_landing = run_landing_ai_filler(file_path)
-            if was_ai_landing:
-                print("\n [optionnel] Enrichissement IA de la landing marketing...")
-                landing_status = "Copie marketing enrichie par l'IA locale (Qwen)"
-        except (RuntimeError, Exception) as landing_err:
-            print("\n ⚠️  [AVERTISSEMENT IA NO-BLOCK]")
-            print(f"    L'enrichissement de la landing a échoué : {landing_err}")
-            print("    -> Le gabarit déterministe de 'landing.html' est conservé intact.")
-            landing_status = "Gabarit déterministe conservé (Serveur IA hors-ligne)"
+        has_custom = bool(normalized_ast["sandbox_ai"]["custom_functions"])
 
         # --- SCELLÉ FINAL ---
         print("\n" + "=" * 65)
         print(" 🎉 COMPILATION DE L'APPLICATION TERMINÉE !")
-        print(f" -> Statut Infrastructure : app.py, schema.sql validés (Init auto DB active)")
-        print(f" -> Statut Sandbox IA     : {ai_status}")
-        if landing_status:
-            print(f" -> Statut Landing IA     : {landing_status}")
+        print(" -> Infrastructure : app.py, schema.sql validés (init auto DB active)")
+        if has_custom:
+            print(" -> Blocs 'custom' : coquilles vides sûres dans sandbox_ai.py")
+            print("                     (logique à écrire à la main).")
         print("=" * 65 + "\n")
-        
+
     except Exception as e:
         print(f"\n ❌ ÉCHEC CRITIQUE DU COMPILATEUR : {e}")
         print("=" * 65 + "\n")
         sys.exit(1)
 
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Compilateur Industriel MonLang.")
-    parser.add_argument("fichier", type=str, nargs="?", help="Chemin du fichier .yaml à compiler.")
-    parser.add_argument("--prompt", type=str, default=None,
-                         help="Décrire l'application en langage naturel au lieu de fournir un fichier "
-                              "(nécessite un serveur Ollama local, voir README.md).")
-    parser.add_argument("--model", type=str, default="qwen2.5-coder:3b",
-                         help="Nom du modèle Ollama à utiliser avec --prompt (défaut : qwen2.5-coder:3b).")
-    parser.add_argument("--save-spec-as", type=str, default=None,
-                         help="Chemin où sauvegarder la spec générée par --prompt "
-                              "(défaut : ../generated_from_prompt.yaml).")
+    parser = argparse.ArgumentParser(description="Compilateur monl.")
+    parser.add_argument("fichier", type=str, nargs="?",
+                        help="Chemin du fichier .ml à compiler "
+                             "(l'ancienne extension .yaml reste acceptée).")
+    parser.add_argument("--output", type=str, default=None,
+                        help="Dossier où écrire les artefacts générés (app.py, schema.sql, "
+                             "sandbox_ai.py, .jwt_secret...). Par défaut : racine du dépôt. "
+                             "Permet de compiler plusieurs specs sans qu'elles s'écrasent — "
+                             "lancer ensuite le serveur DEPUIS ce dossier "
+                             "(cd DIR && python3 -m uvicorn app:app).")
     args = parser.parse_args()
 
-    if args.prompt:
-        from ai_translator import prompt_to_monlang, save_spec_to_file
-        try:
-            spec_text = prompt_to_monlang(args.prompt, model=args.model)
-        except RuntimeError as e:
-            print(f"\n{e}")
-            sys.exit(1)
-        output_path = args.save_spec_as or os.path.join(
-            os.path.dirname(__file__), "../generated_from_prompt.yaml"
-        )
-        save_spec_to_file(spec_text, output_path)
-        compile_monlang(output_path)
-    elif not args.fichier:
-        default_sample = os.path.join(os.path.dirname(__file__), "../exemples/01_todo_list.yaml")
-        compile_monlang(default_sample)
+    if not args.fichier:
+        default_sample = os.path.join(os.path.dirname(__file__), "../exemples/01_portfolio.ml")
+        compile_monl(default_sample, output_dir=args.output)
     else:
-        compile_monlang(args.fichier)
+        compile_monl(args.fichier, output_dir=args.output)

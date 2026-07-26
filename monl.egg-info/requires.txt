@@ -1,0 +1,8 @@
+fastapi<1.0,>=0.110
+uvicorn<1.0,>=0.29
+lark<2.0,>=1.1
+PyJWT<3.0,>=2.8
+requests<3.0,>=2.31
+
+[dev]
+pytest<9.0,>=8.0

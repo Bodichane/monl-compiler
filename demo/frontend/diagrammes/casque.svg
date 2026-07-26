@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 180" role="img"
+     aria-label="Casque de vélo, vue de profil" fill="none" stroke="currentColor" stroke-width="2"
+     stroke-linecap="round" stroke-linejoin="round">
+
+  <path d="M44 112a76 60 0 0 1 152 0"/>
+  <path d="M44 112h152"/>
+  <path d="M44 112c6 16 22 26 44 26h64c22 0 38-10 44-26"/>
+  <g stroke-width="1.4">
+    <path d="M78 60c4 18 4 34 0 52"/>
+    <path d="M110 50c4 22 4 40 0 62"/>
+    <path d="M142 52c4 20 4 38 0 60"/>
+    <path d="M172 66c4 14 4 30 0 46"/>
+  </g>
+  <path d="M92 138l16 26h24l16-26" stroke-width="1.4"/>
+  <circle cx="120" cy="164" r="5" stroke-width="1.4"/>
+  <g stroke-width="1" opacity=".45">
+    <path d="M20 164h48"/><path d="M20 160v8"/><path d="M68 160v8"/>
+  </g>
+</svg>

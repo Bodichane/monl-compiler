@@ -1,164 +1,236 @@
-# MonLang — Compilateur d'Intention Logicielle
+# monl
 
-Transformer une spécification textuelle structurée en une application complète générée automatiquement, sans écrire de code technique.
+**Un compilateur qui transforme une spécification déclarative en backend complet,
+déterministe et sûr.** On décrit l'intention d'une application dans un DSL dédié ;
+monl en génère la base de données, l'API REST, l'authentification et le contrôle
+d'accès — puis produit un contrat que le frontend doit respecter. La
+spécification est l'unique source de vérité : on ne maintient pas à la main le
+code d'infrastructure, on décrit ce que l'application doit faire et le
+compilateur produit — et fait évoluer — l'implémentation.
 
-## STATUT DU PROJET
+Un dialogue guidé aide à rédiger cette spécification sans connaître la syntaxe.
+Le seul recours à l'IA se situe au bout de la chaîne, pour construire le frontend
+à partir du contrat garanti par le compilateur — jamais pour produire le backend
+ni la logique métier.
 
-| Phase | Objectif | Statut |
-| :--- | :--- | :--- |
-| **0 — Cadrage** | Vision, Problème & Objectifs | 🟢 Validé |
-| **1 — Modèle conceptuel** | Définition des 6 concepts piliers | 🟢 Validé |
-| **2 — DSL** | Syntaxe officielle & 5 Apps de validation | 🟢 Validé |
-| **3 — Parser** | Traduction DSL → JSON | 🟢 Validé |
-| **4 — AST** | Modèle intermédiaire & Validation cohérence | 🟢 Validé |
-| **5 — Génération** | Production DB, API & App fonctionnelle | 🟢 Validé |
-| **6 — Boucle complète** | Modification DSL → Changement automatique de l'app | 🟢 Validé |
-| **7 — IA** | Traduction Langage Naturel → DSL MonLang | 🟢 Validé |
+Version **0.9.0-beta.3**. Voir `CHANGELOG.md`, `docs/BETA.md` (état et feuille
+de route) et `docs/SECURITE.md` (modèle de sécurité).
 
-## Authentification
+## Pourquoi monl ?
 
-Chaque application générée possède un vrai registre d'utilisateurs (table
-`_monlang_users`, mot de passe haché — voir `docs/design_decisions.md`
-point 7) :
-1. `POST /register` avec `{"username", "password", "actor"}` pour créer un
-   compte (mot de passe : 8 caractères minimum)
-2. `POST /login` avec `{"username", "password"}` pour obtenir un token JWT
-3. `POST /logout` (avec le token en en-tête `Authorization`) pour le révoquer
-   avant son expiration naturelle
-4. Le rôle (`actor`) et l'identifiant (`user_id`) portés par le token
-   viennent du compte réel, pas d'une déclaration libre du client
+**Face à un framework classique (Django, Rails, FastAPI…).** On ne rédige ni ne
+maintient le code répétitif : modèles, migrations, routes CRUD, authentification
+et contrôle d'accès sont dérivés de la spec. Il n'y a pas de dérive entre les
+couches — schéma, API et règles proviennent d'une source unique, et un changement
+se propage partout à la recompilation. Le contrôle d'accès est vérifié *à la
+compilation* (une collision de privilèges non résolue empêche de compiler) plutôt
+que de reposer sur la vigilance route par route.
 
-`/login` et `/register` sont protégées par une limitation de débit (5
-tentatives / 60 secondes / IP, par route).
+**Face à un générateur d'IA (v0, Bolt, assistants de code…).** La sortie est
+déterministe et reproductible : la même spec produit le même backend, à l'octet
+près — pas de résultat qui varie d'une génération à l'autre, pas d'hallucination.
+La sécurité est acquise par construction (requêtes paramétrées, rôle issu du
+compte réel, secret par variable d'environnement) au lieu d'être espérée. L'IA
+est cantonnée au frontend, où ses erreurs sont rattrapées par le contrat et un
+smoke test avant tout lancement.
 
-**Secret JWT :** un secret aléatoire unique est généré à la première
-compilation d'un projet et stocké dans `.jwt_secret` à la racine (fichier
-exclu de `.gitignore` — ne jamais le committer). Recompiler la spec ne le
-régénère pas ; le supprimer manuellement force le renouvellement (invalide
-alors toutes les sessions actives).
+**En résumé :**
 
-## Contenu public sans compte, et identité visuelle personnalisée
+- **Source de vérité unique** — la spécification `.ml`, dont tout le reste dérive.
+- **Déterminisme** — compilation reproductible, hors-ligne, sans IA.
+- **Migrations fiables** — additives et non destructives par défaut, données préservées.
+- **Backend reproductible** — même entrée, même sortie.
+- **Contrat frontend garanti** — un test empêche toute divergence entre le backend
+  et le contrat remis à l'IA d'interface.
 
-Deux ajouts pour des cas d'usage comme un portfolio (contenu public + zone
-d'administration) :
+## Architecture
 
-- **`rule Entite.Action public`** retire l'obligation d'authentification
-  d'une action précise (ex. `rule Project.Read public` pour un portfolio
-  lisible sans compte, `rule Message.Create public` pour un formulaire de
-  contact ouvert). Voir `docs/design_decisions.md` point 16.
-- **`ui NomEntite / theme: ...`** permet de forcer explicitement l'identité
-  visuelle (palette/typographie) utilisée par `landing.html` (voir section
-  suivante) plutôt que de la laisser se déduire automatiquement du domaine.
-  Voir `docs/design_decisions.md` points 17 et 22.
-
-Exemple complet : `exemples/10_portfolio_public.yaml`.
-
-## Landing marketing sur `/` (IA ou template importé) — seul front généré
-
-MonLang ne génère plus aucun back-office CRUD (voir point 22 de
-`docs/design_decisions.md` : le front React `/ui` a été retiré). Par défaut,
-`/` redirige simplement vers `/docs`. Un bloc optionnel `landing` active une
-vraie page d'accueil marketing sur `/`, sur le même principe d'échappatoire
-balisée que `custom` :
-
-```
-landing
-    mode: ai
-    brief: "Un portfolio en ligne pour partager vos projets." # optionnel
+```mermaid
+flowchart LR
+    D["Dialogue guidé<br/>(règles, sans IA)"] --> S["Spécification DSL .ml<br/>source de vérité"]
+    S --> B["Backend déterministe<br/>SQL · API · auth · accès · migrations"]
+    S --> C["Contrat frontend<br/>routes · champs · règles"]
+    C --> F["Frontend<br/>(IA spécialisée : Claude)"]
+    B -. vérifiés par .-> R(["monl run<br/>cohérence + smoke test"])
+    F -. vérifiés par .-> R
 ```
 
-écrit d'abord un gabarit 100% déterministe (thème calculé pour le projet),
-puis une étape IA séparée et non bloquante (Ollama local) rédige le texte —
-titre, sous-titre, CTA, 3 points forts — jamais le HTML/CSS. Si l'IA est
-indisponible, le gabarit déterministe déjà écrit reste utilisable tel quel.
+Le dialogue produit la spécification ; le compilateur en dérive **à la fois** le
+backend et le contrat frontend ; l'IA construit le frontend contre ce contrat ;
+`monl run` vérifie que backend, contrat et frontend restent cohérents avant de
+lancer l'application.
 
-```
-landing
-    mode: template
-    template: "templates/signal.html"
-```
+## Cycle de vie
 
-importe à la place un fichier HTML fourni par vous (designer, export
-Framer...), et y remplit les emplacements que vous avez balisés avec
-`data-monlang="clé"` — voir `templates/signal.html` pour un exemple
-commenté des clés reconnues. Aucun appel IA dans ce mode.
-
-Détail complet, garde-fou anti-injection, et exemples : `docs/design_decisions.md`
-point 22, `exemples/11_landing_ai_demo.yaml`, `exemples/12_landing_template_demo.yaml`.
-
-## Structure du Dépôt
-- `docs/` : Notes théoriques et spécifications des phases de cadrage.
-  Voir en particulier `docs/design_decisions.md` pour le détail des règles
-  strictes du compilateur (collisions de privilèges, restrictions de champ,
-  contrôle par propriété, garde-fou IA) et comment les contourner
-  légitimement quand c'est prévu.
-- `exemples/` : Applications écrites en syntaxe officielle `.monlang`.
-- `templates/` : gabarits HTML importables pour le bloc `landing / mode: template`
-  (voir `templates/signal.html`).
-- `src/` : Code source du compilateur (Parser, AST, Générateur, Sandbox IA
-  des fonctions `custom`, Sandbox IA de la landing (`ai_landing_filler.py`),
-  Traducteur langage naturel).
-- `tests/` : `test_exploit.py` (audit offensif sur l'exemple Todo),
-  `test_exploit_all.py` (même audit généralisé à tous les exemples),
-  `test_compile_all.py` (test pytest de non-régression sur tous les exemples).
-- `.github/workflows/ci.yml` : intégration continue (compile + audit offensif
-  à chaque push/pull request).
-
-## Utiliser l'application générée sans écrire de requêtes HTTP à la main
-
-- **`/docs`** : la documentation Swagger interactive fournie gratuitement par
-  FastAPI — toujours disponible, sans rien configurer, pour explorer et
-  tester chaque route.
-- **`/`** : si la spec contient un bloc `landing`, une vraie page d'accueil
-  marketing (voir section précédente) ; sinon, redirige vers `/docs`.
-
-MonLang ne génère plus de back-office CRUD auto-généré (voir point 22 de
-`docs/design_decisions.md`) : c'est une décision volontaire, pas une
-limitation en attente d'être comblée.
-
-La racine `/` redirige automatiquement vers `/docs`.
-
-## Générer une application depuis une description en langage naturel
-
-En plus d'écrire directement un fichier `.yaml`, il est possible de décrire
-l'application en français et de laisser un modèle IA local produire la
-spécification MonLang correspondante (celle-ci est ensuite validée par le
-vrai parseur avant compilation — si elle ne compile pas, une correction est
-retentée automatiquement une fois) :
 ```bash
-python3 src/main.py --prompt "une todo-list simple avec des utilisateurs"
+monl                    # dialogue guidé → spec.ml + backend + contrat frontend
+monl frontend <App> …   # (ou ajout manuel) l'IA écrit l'interface dans frontend/
+monl run <App>          # vérifie la cohérence, puis lance l'application
+monl update <App>       # après évolution de la spec : recompile, préserve les données
 ```
-Nécessite un serveur Ollama local (voir section suivante).
 
-## Configurer le modèle IA local (échappatoire des blocs `custom` et `--prompt`)
+`monl compile <spec.ml> --output <dir>` compile directement une spécification
+existante. Le QuickStart (`QUICKSTART.md`) détaille le parcours complet.
 
-Le remplissage automatique des blocs `custom` (`sandbox_ai.py`) et la
-traduction langage naturel → spec (`--prompt`) s'appuient tous les deux sur
-un serveur [Ollama](https://ollama.com) tournant en local, à l'adresse
-`http://localhost:11434`. Aucun modèle n'est fourni dans ce dépôt (les
-fichiers de modèle pèsent plusieurs gigaoctets) — le choix du modèle est
-laissé à l'utilisateur, selon la puissance de sa machine :
+## Installation
 
-1. Installer Ollama : voir https://ollama.com/download
-2. Télécharger un modèle adapté à du code, par exemple :
-   - `ollama pull qwen2.5-coder:3b` — léger, adapté à un ordinateur portable
-     sans GPU dédié (c'est le modèle utilisé par défaut)
-   - `ollama pull qwen2.5-coder:7b` ou plus — meilleure qualité de code
-     généré, nécessite davantage de RAM/VRAM
-3. Si un autre modèle est utilisé, adapter la valeur `"model"` dans
-   `generate_custom_logic_with_ai()` (`src/ai_sandbox_filler.py`), ou passer
-   `--model nom-du-modele` pour la commande `--prompt`.
+```bash
+pip install -e .                                  # dépendances + commande `monl`
+monl compile exemples/01_portfolio.ml --output build/portfolio
+monl run build/portfolio
+```
 
-**Si aucun serveur Ollama n'est disponible**, la compilation d'un fichier
-`.yaml` existant aboutit quand même : le socle déterministe (schéma DB,
-routes API, contrôle d'accès) est généré normalement, et chaque bloc
-`custom` reste disponible sous forme de coquille vide sécurisée à compléter
-manuellement dans `sandbox_ai.py`. (L'option `--prompt`, elle, nécessite
-évidemment Ollama puisqu'elle sert justement à produire la spec de départ.)
+Sans packaging, le compilateur s'utilise directement :
+
+```bash
+pip install -r requirements.txt
+python3 src/main.py exemples/01_portfolio.ml --output build/portfolio
+cd build/portfolio && python3 -m uvicorn app:app     # http://127.0.0.1:8000
+```
+
+Les spécifications portent l'extension `.ml`. Chaque projet se compile dans son
+propre dossier via `--output`, afin de ne pas écraser le précédent.
+
+## La spécification
+
+Une spec décrit des **entités** (tables et champs), des **acteurs** (rôles) et
+des **règles** d'accès. Le compilateur en dérive le schéma, les routes CRUD et
+le contrôle d'accès. Les identifiants sont contraints par la grammaire, ce qui
+exclut toute injection par les noms de tables ou de colonnes.
+
+La direction visuelle suit la même logique que le reste du contrat : un thème
+épinglé dans la spec (`ui <Entité>` + `theme: <nom>`) est **contraignant** — sa
+palette est vérifiée dans le frontend au smoke test — tandis qu'un thème déduit
+du vocabulaire des entités n'est qu'une **proposition**, dont l'interface peut
+s'écarter. Le compilateur ne fait échouer un build que sur ce que l'auteur a
+réellement déclaré.
+
+Un acteur n'est **pas** inscriptible librement par défaut : `actor Client
+selfRegister` ouvre `POST /register` à ce rôle, tandis qu'un `actor Admin` sans
+marqueur ne peut être obtenu que par provisionnement hors ligne (`manage.py`,
+généré à côté du backend). Choisir son rôle à l'inscription serait sinon une
+élévation de privilège en un appel HTTP.
+
+Le contrôle d'accès s'exprime au niveau de l'enregistrement, **lecture
+comprise** : `rule Expense.Read ownedBy User` filtre la liste et l'accès direct
+pour les comptes `User`, sans gêner un rôle tiers autorisé à consulter
+l'ensemble. Une règle qui n'aurait aucun effet est refusée à la compilation
+plutôt qu'ignorée en silence.
+
+Le contrôle d'accès s'exprime au niveau de l'enregistrement :
+
+- `rule Entite.Action ownedBy Acteur` — seul le propriétaire (relation
+  auto-peuplée à la création) peut exécuter l'action.
+- `rule Entite.Action accessibleBy col1, col2` — l'action n'est permise qu'aux
+  parties référencées par l'enregistrement (par exemple une messagerie privée
+  où seuls l'expéditeur et le destinataire accèdent au message).
+- `rule Entite.Action public` — retire l'obligation d'authentification d'une
+  action précise (lecture publique d'un portfolio, formulaire de contact ouvert).
+
+D'autres marqueurs affinent les champs et le comportement : `hidden`,
+`generated`, `categorized`, `increments` / `decrements` (compteurs mis à jour de
+façon transactionnelle), ainsi qu'un bloc `seed` qui pré-remplit la base au
+démarrage de manière idempotente. Les cinq exemples de `exemples/` couvrent ces
+cas (portfolio, boutique, réseau social, kanban, classement) ; le détail des
+règles strictes du compilateur est consigné dans `docs/design_decisions.md`.
+
+## Le backend généré
+
+**Comptes et rôles.** `POST /register` n'accepte que les rôles marqués
+`selfRegister` dans la spec ; tout autre rôle est refusé (403). Les comptes
+privilégiés se créent avec le `manage.py` généré, sur la machine qui héberge la
+base : `python3 manage.py adduser <utilisateur> <role>`. La même commande gère
+le changement de rôle, le mot de passe, la liste des comptes et la révocation
+globale des sessions.
+
+**Authentification.** Chaque application possède un registre d'utilisateurs
+(table `_monl_users`, mots de passe hachés en PBKDF2-HMAC-SHA256 avec sel unique
+par compte, comparaison à temps constant). Le flux est : `POST /register`
+(`{username, password, actor}`, mot de passe d'au moins 8 caractères),
+`POST /login` (`{username, password}`) qui renvoie un jeton JWT, et
+`POST /logout` qui le révoque avant expiration. Le rôle et l'identité portés par
+le jeton proviennent du compte réel, jamais d'une déclaration du client.
+
+**Secret JWT.** Un secret aléatoire unique est généré à la première compilation
+et stocké dans `.jwt_secret` (jamais versionné). En production, la variable
+d'environnement `MONL_JWT_SECRET` est prioritaire et permet de livrer un projet
+sans secret sur le disque.
+
+**Déploiement multi-workers.** Révocation de jetons et limitation de débit
+(5 tentatives / 60 s / IP sur `/register` et `/login`) sont persistées en base,
+donc partagées entre workers : `uvicorn app:app --workers N` n'en démultiplie
+pas les quotas. Derrière un reverse proxy de confiance, `MONL_TRUST_PROXY=1`
+fait lire l'IP réelle dans `X-Forwarded-For` ; sans ce réglage, l'en-tête est
+ignoré pour empêcher toute usurpation.
+
+**Migrations.** Recompiler dans le même dossier, en conservant `app.db`, ajoute
+les nouvelles colonnes par `ALTER TABLE ADD COLUMN` sans toucher aux données.
+Les changements destructifs (suppression, renommage, changement de type) ne sont
+pas automatisés à dessein ; voir `docs/MIGRATIONS.md`.
+
+## Le frontend : contrat et IA spécialisée
+
+`monl` ne génère aucune interface lui-même. Chaque compilation produit à la
+place `frontend_contract.json` — description exhaustive et machine-lisible des
+routes, de l'authentification et des règles de champ, dont un test garantit
+qu'elle ne peut pas diverger du backend — et `FRONTEND_PROMPT.md`, un brief prêt
+à confier à une IA d'interface, accompagné d'une direction de design stable
+propre au projet.
+
+L'IA écrit son résultat dans `frontend/` (point d'entrée `index.html`), que
+`monl run` sert sur `/site` sans jamais modifier le backend. Trois voies :
+
+- **Manuelle** — déposer les fichiers dans `frontend/`.
+- **`monl frontend <App> --provider claude-code`** — un agent local travaille
+  directement dans le dossier (authentification par abonnement).
+- **`monl frontend <App> --provider claude`** — appel de l'API Anthropic
+  (`ANTHROPIC_API_KEY`).
+
+Sans clé API, `monl import <zip|html|dossier> <App>` installe un résultat obtenu
+par copier-coller du brief dans claude.ai. Les trois voies partagent les mêmes
+garde-fous (extensions en liste blanche, protection contre le zip-slip, frontend
+autonome sans CDN) et la même re-vérification.
+
+Avant tout lancement, `monl run` exécute un **smoke test comportemental** sur un
+serveur éphémère à base neuve : chaque route du contrat est éprouvée en HTTP réel
+et, si Node.js est présent, `frontend/index.html` est exécuté dans jsdom contre
+ce serveur. Toute exception ou tout appel hors contrat bloque le lancement
+(`--skip-smoke` pour outrepasser en connaissance de cause).
+
+## Utiliser l'application
+
+- `/docs` — documentation interactive Swagger, toujours disponible.
+- `/` — redirige vers `/docs`.
+- `/site` — l'interface produite, lorsque `frontend/` existe et que l'application
+  est lancée par `monl run`.
+
+## Déterminisme
+
+Le compilateur ne dépend d'aucun modèle d'IA et ne fait aucun appel réseau : le
+dialogue guidé, la production de la spécification et la génération du backend
+sont entièrement déterministes et reproductibles. La seule IA du cycle de vie
+est celle qui construit le frontend (Claude), à partir du contrat.
+
+Les blocs `custom` de la spécification produisent des coquilles vides sûres dans
+`sandbox_ai.py`, dont la logique métier est écrite à la main par le développeur.
+Aucune génération de code n'est automatisée.
+
+## Structure du dépôt
+
+- `src/` — compilateur et orchestrateur : parseur, AST, dialogue guidé, CLI,
+  smoke test, contrat frontend, boucle IA frontend.
+- `src/generator/` — générateur backend, en modules : `core` (état issu de
+  l'AST et orchestration), `runtime` (socle d'authentification, base,
+  migrations), `routes` (CRUD et contrôle d'accès), `schemas`, `sql_schema`,
+  `theme`, `sandbox`, `admin_cli`.
+- `exemples/` — cinq applications de référence en syntaxe `.ml`.
+- `docs/` — spécifications de conception et notes de décision.
+- `tests/` — non-régression sur tous les exemples et audit offensif (usurpation
+  de rôle, JWT forgé, élévation de privilège) rejoué sur chacun.
+- `pyproject.toml`, `requirements.txt` — packaging et dépendances épinglées.
 
 ## Intégration continue
 
-`.github/workflows/ci.yml` compile automatiquement tous les exemples de
-`exemples/` et rejoue l'audit offensif (`tests/test_exploit_all.py`) contre
-chacun à chaque push/pull request, pour détecter une régression avant
-qu'elle ne s'accumule sur plusieurs versions.
+`.github/workflows/ci.yml` compile tous les exemples et rejoue l'audit offensif
+via la suite de tests à chaque push et pull request, pour détecter une régression
+au plus tôt.

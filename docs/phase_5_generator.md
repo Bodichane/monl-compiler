@@ -6,7 +6,7 @@ L'objectif de cette phase est de concevoir le moteur de transformation final (le
 ## Composants Générés (`src/generator.py`)
 Le générateur produit deux fichiers autonomes et exploitables à la racine du projet :
 1. **Couche de Persistance (`schema.sql`)** : 
-   - Traduction des types sémantiques MonLang en types SQL natifs (ex: `Money` -> `NUMERIC(10,2)`, `Email` -> `VARCHAR(255)`).
+   - Traduction des types sémantiques monl en types SQL natifs (ex: `Money` -> `NUMERIC(10,2)`, `Email` -> `VARCHAR(255)`).
    - Génération des requêtes `CREATE TABLE` et gestion automatique des relations d'intégrité référentielle par injection de clés étrangères (`ALTER TABLE`).
 2. **Couche Logique et API (`app.py`)** :
    - Initialisation d'une architecture moderne basée sur **FastAPI**.
@@ -18,7 +18,7 @@ Le test de génération sur l'application `TodoApp` prouve la viabilité du pipe
 
 ## ⚠️ Avertissement Crucial de Sécurité — Modèle de Menace & Limite du Prototype
 
-Bien que le générateur porte le nom de `MonLangSecureGenerator`, la structure actuelle de l'API générée (`app.py`) présente une limite architecturale majeure héritée de son statut de prototype (PoC) :
+Bien que le générateur porte le nom de `MonlSecureGenerator`, la structure actuelle de l'API générée (`app.py`) présente une limite architecturale majeure héritée de son statut de prototype (PoC) :
 
 ### L'illusion du contrôle d'accès par Header
 Les routes FastAPI générées appliquent le contrôle d'accès en lisant directement la valeur brute d'un en-tête HTTP personnalisé (`x_actor = Header(...)`). 

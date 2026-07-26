@@ -1,6 +1,6 @@
 # 🟢 Phase 1 — Modèle Conceptuel et Axes de Sécurité
 
-Le modèle mental de MonLang s'étend pour soutenir l'isolation de la logique IA et l'analyse statique de la sécurité.
+Le modèle mental de monl s'étend pour soutenir l'isolation de la logique IA et l'analyse statique de la sécurité.
 
 ## Les Deux Axes de Sécurité Évolutifs
 1. **Sécurisé par défaut** : Le générateur applique systématiquement les bonnes pratiques de l'industrie (protection contre les injections SQL, validations de types Pydantic, isolation des scopes). Aucune faille ne peut être introduite par négligence de l'utilisateur.

@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "monl"
+version = "0.9.0-beta.3"
+description = "Compilateur d'intention logicielle : dialogue dirigé (sans IA) → spec DSL déterministe → backend FastAPI sécurisé + contrat frontend."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Proprietary" }
+authors = [{ name = "monl" }]
+keywords = ["dsl", "compiler", "fastapi", "codegen", "low-code"]
+
+# Dépendances épinglées avec bornes hautes pour la reproductibilité de la bêta
+# (voir aussi requirements.txt, gardé synchronisé pour l'usage sans packaging).
+dependencies = [
+    "fastapi>=0.110,<1.0",
+    "uvicorn>=0.29,<1.0",
+    "lark>=1.1,<2.0",
+    "PyJWT>=2.8,<3.0",
+    "requests>=2.31,<3.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0,<9.0"]
+
+[project.scripts]
+monl = "run_monl:main"
+
+[tool.setuptools]
+# Structure « src plat » conservée pour la bêta : on expose le shim d'entrée
+# comme module de premier niveau ; le code du compilateur vit dans src/ et est
+# ajouté au chemin par le shim (voir run_monl.py). Le passage à un vrai
+# paquet Python est un chantier GA (docs/BETA.md).
+py-modules = ["run_monl"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
