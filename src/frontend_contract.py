@@ -225,6 +225,10 @@ def build_contract(normalized_ast, generator):
         "monl_contract_version": CONTRACT_VERSION,
         "app": app_name,
         "brief": landing.get("brief"),
+        # Contenu éditorial statique (point 55) : aucune entité, aucune route
+        # ne peut le porter — c'est la seule matière du contrat qui ne soit
+        # pas une donnée.
+        "sections": landing.get("sections") or [],
         "design": design,
         "source_of_truth": "spec monl (.ml) — ne jamais modifier le backend à la main",
         "api": {
@@ -326,6 +330,21 @@ def _render_prompt(contract):
                               + "\n".join(flags))
 
     brief_line = (f"\n**Brief produit :** {contract['brief']}\n" if contract.get("brief") else "")
+
+    # Contenu éditorial (point 55). Écrit en toutes lettres que ce texte doit
+    # être RENDU tel quel : c'est du contenu, pas une consigne de style, et
+    # rien d'autre dans le contrat n'en fournit.
+    sections_block = ""
+    if contract.get("sections"):
+        corps = "\n\n".join(f"### {s['title']}\n{s['body']}"
+                            for s in contract["sections"])
+        sections_block = (
+            "\n## Contenu éditorial à publier tel quel\n"
+            "Ces textes sont fournis par l'auteur du projet : ils doivent "
+            "apparaître dans l'interface, chacun dans sa propre section, avec "
+            "le titre donné. Ne pas les réécrire, ne pas les inventer ailleurs "
+            "— aucune route d'API ne les sert, ils n'existent qu'ici.\n\n"
+            + corps + "\n")
     design = contract["design"]
     design_block = (
         f"## Direction de design "
@@ -380,6 +399,7 @@ ci-dessous. Le backend existe déjà et ne doit pas être modifié.
 - Ne pas modifier `app.py`, `schema.sql`, la spec `.ml` ni les autres
   artefacts monl.
 
+{sections_block}
 ## Entités
 {chr(10).join(entities_lines)}
 

@@ -187,6 +187,25 @@ class GuidedDialogue:
         return (f"le visiteur doit pouvoir {action.rstrip('.')} ; "
                 f"{phrase_registre} ; {phrase_images}")
 
+    def _ask_editorial_sections(self):
+        """Contenu éditorial statique (point 55). Une entité, un champ, une
+        route décrivent des DONNÉES : rien dans une spec ne peut porter un
+        « à propos ». Sans ces sections, l'IA n'a littéralement aucune
+        matière pour autre chose qu'une liste et un formulaire."""
+        sections = []
+        if not self._ask_yes_no(
+                "Ajouter du texte de présentation (à propos, méthode, "
+                "services…) ? Aucune donnée du site ne peut le fournir."):
+            return sections
+        while True:
+            titre = self._ask_free_text(
+                f"  Titre de la section {len(sections) + 1} "
+                f"(ex. À propos) > ")
+            corps = self._ask_free_text("  Son texte > ")
+            sections.append({"title": titre, "body": corps})
+            if not self._ask_yes_no("  Ajouter une autre section ?"):
+                return sections
+
     # ---------- déroulé du dialogue ----------
     def run(self):
         """Mène la conversation complète et retourne le texte de la spec .ml.
@@ -275,12 +294,14 @@ class GuidedDialogue:
         want_landing = self._ask_yes_no(
             "Transmettre votre description à l'IA frontend comme brief de page d'accueil ?")
         design_intent = self._ask_design_intent() if want_landing else None
+        sections = self._ask_editorial_sections() if want_landing else []
         self._recap(app_name, entities, actors, self_register, public_read, owned)
 
         spec = self._emit_spec(app_name, description, entities, relations, actors,
                                managers, readers, public_read, public_create,
                                owned, want_seed, want_landing,
                                design_intent=design_intent,
+                               sections=sections,
                                self_register=self_register,
                                extra_rules=template["extra_rules"],
                                custom_seeds=template["seeds"])
@@ -440,6 +461,7 @@ class GuidedDialogue:
         want_landing = self._ask_yes_no(
             "Transmettre votre description à l'IA frontend comme brief de page d'accueil ?")
         design_intent = self._ask_design_intent() if want_landing else None
+        sections = self._ask_editorial_sections() if want_landing else []
 
         # Entités propriétaires + relations de propriété (helper partagé
         # avec le chemin « modèle » ; dédupliqué si déjà déclaré à la main).
@@ -453,6 +475,7 @@ class GuidedDialogue:
                                [public_create] if public_create else [],
                                owned, want_seed, want_landing,
                                design_intent=design_intent,
+                               sections=sections,
                                self_register=self_register)
 
         # Garantie finale : la spec émise DOIT compiler. On la revalide par le
@@ -524,6 +547,7 @@ class GuidedDialogue:
     def _emit_spec(self, app_name, description, entities, relations, actors,
                    managers, readers, public_read, public_create,
                    owned, want_seed, want_landing, design_intent=None,
+                   sections=(),
                    self_register=None, extra_rules=(), custom_seeds=None):
         lines = [f"app {app_name}", "",
                  "# Spécification générée par le dialogue guidé monl (déterministe, sans IA).",
@@ -627,6 +651,8 @@ class GuidedDialogue:
                      if design_intent else description)
             lines.append("landing")
             lines.append(f'    brief: "{brief}"')
+            for s in sections:
+                lines.append(f'    section "{s["title"]}": "{s["body"]}"')
             lines.append("")
 
         return "\n".join(lines)

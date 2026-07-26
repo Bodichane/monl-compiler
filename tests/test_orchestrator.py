@@ -236,3 +236,36 @@ def test_le_brief_transmet_la_forme_conseillee(tmp_path):
     assert "Forme conseillée : galerie" in brief
     assert "Forme conseillée : boutique" in brief
     assert "MÉDIA" in brief and "TITRE" in brief
+
+
+# ---- Le contenu éditorial traverse jusqu'au brief (point 55) ----
+
+SPEC_EDITORIALE = SPEC + """
+landing
+    brief: "vitrine de démonstration"
+    section "À propos": "Atelier fondé en 2015, spécialisé dans la pièce unique."
+"""
+
+
+def test_contenu_editorial_transmis_tel_quel(tmp_path):
+    proj = tmp_path / "edito"
+    proj.mkdir()
+    spec = proj / "spec.ml"
+    spec.write_text(SPEC_EDITORIALE, encoding="utf-8")
+    contract = compile_project(str(spec), str(proj))
+
+    assert contract["sections"] == [
+        {"title": "À propos",
+         "body": "Atelier fondé en 2015, spécialisé dans la pièce unique."}]
+    brief = (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    # Le texte doit arriver INTACT : c'est du contenu, pas une consigne de
+    # style que l'IA pourrait reformuler.
+    assert "Atelier fondé en 2015, spécialisé dans la pièce unique." in brief
+    assert "publier tel quel" in brief
+
+
+def test_sans_section_aucun_bloc_editorial_dans_le_brief(tmp_path):
+    proj, _spec, contract = _fresh_project(tmp_path)
+    assert contract["sections"] == []
+    brief = (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    assert "Contenu éditorial" not in brief

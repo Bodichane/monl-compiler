@@ -30,6 +30,7 @@ SCENARIO_PORTFOLIO = [
     # Brief transmis -> l'intention visuelle est demandée (point 53) :
     # action attendue du visiteur, registre, place des images.
     "voir les projets et écrire", "2", "1",
+    "n",               # aucune section éditoriale (point 55)
 ]
 
 
@@ -156,7 +157,7 @@ def test_gestion_partagee_emet_sharedby_sans_collision():
 
 def _scenario_portfolio(intention):
     """SCENARIO_PORTFOLIO, dont on ne change que les réponses d'intention."""
-    return SCENARIO_PORTFOLIO[:-3] + list(intention)
+    return SCENARIO_PORTFOLIO[:-4] + list(intention) + ["n"]
 
 
 def test_intention_visuelle_arrive_dans_le_brief():
@@ -187,7 +188,33 @@ def test_sans_brief_aucune_question_d_intention():
     trois questions à l'utilisateur."""
     # [:-4] retire les 3 réponses d'intention ET le « oui » au brief ; la
     # réponse « seed » reste en place, on ne rajoute donc que le refus.
-    sans_landing = SCENARIO_PORTFOLIO[:-4] + ["n"]
+    sans_landing = SCENARIO_PORTFOLIO[:-5] + ["n"]
     spec = _run(sans_landing)          # ne doit PAS lever StopIteration
     assert "landing" not in spec
     MonlAST(parse_monl_string(spec)).validate_and_audit()
+
+
+# ---- Contenu éditorial statique (point 55) ----
+
+def test_sections_editoriales_emises_et_validees():
+    """Le seul contenu du contrat qui ne soit pas une donnée. Sans lui,
+    une page « à propos » n'a aucune entité, aucun champ, aucune route d'où
+    naître — l'IA n'a littéralement rien pour la construire."""
+    scenario = SCENARIO_PORTFOLIO[:-1] + [
+        "o", "À propos", "Studio fondé en 2015 à Lyon.",
+        "o", "Méthode", "Repérage, prise de vue, retouche.",
+        "n",
+    ]
+    spec = _run(scenario)
+    assert 'section "À propos": "Studio fondé en 2015 à Lyon."' in spec
+    assert 'section "Méthode": "Repérage, prise de vue, retouche."' in spec
+    normalized = MonlAST(parse_monl_string(spec)).validate_and_audit()
+    titres = [s["title"] for s in normalized["landing"]["sections"]]
+    assert titres == ["À propos", "Méthode"], "l'ordre de saisie doit être conservé"
+
+
+def test_sections_refusees_si_aucun_brief():
+    """Même règle que l'intention visuelle : sans page d'accueil à écrire,
+    ces textes n'auraient nulle part où aller."""
+    spec = _run(SCENARIO_PORTFOLIO[:-5] + ["n"])
+    assert "section " not in spec and "landing" not in spec

@@ -74,7 +74,8 @@ en l'état car de nombreux renvois internes s'y appuient) ·
 [51](#51-un-contrat-qui-dicte-un-port-en-dur-punit-lia-qui-lui-obéit) Un contrat qui dicte un port en dur punit l'IA qui lui obéit ·
 [52](#52-proposer-une-police-que-le-même-contrat-interdit-de-charger) Proposer une police que le même contrat interdit de charger ·
 [53](#53-le-dialogue-interrogeait-la-structure-jamais-lintention) Le dialogue interrogeait la structure, jamais l'intention ·
-[54](#54-le-pivot-a-supprimé-une-intelligence-au-lieu-de-la-déplacer) Le pivot a supprimé une intelligence au lieu de la déplacer
+[54](#54-le-pivot-a-supprimé-une-intelligence-au-lieu-de-la-déplacer) Le pivot a supprimé une intelligence au lieu de la déplacer ·
+[55](#55-monl-modélisait-des-données-un-site-est-surtout-du-contenu) monl modélisait des données, un site est surtout du contenu
 
 ---
 
@@ -2112,3 +2113,46 @@ relire reçoit `form` : aucune vue de liste à construire.
 autre cause, traitée au point suivant : aucun emplacement du contrat ne peut
 porter du contenu éditorial statique. monl modélise des données, pas des
 pages — et un portfolio est surtout du contenu avec un peu de données.
+
+## 55. monl modélisait des données, un site est surtout du contenu
+
+Deuxième moitié de la réponse au point 54 : « pas de section à propos ». Il
+n'y en avait pas parce qu'il ne POUVAIT pas y en avoir.
+
+**Rien dans le contrat ne pouvait porter du texte.** Entités, champs, routes,
+règles : tout y décrit des données. Une page « à propos », une présentation de
+la méthode, une liste de services n'ont ni entité, ni champ, ni route d'où
+naître. L'IA d'interface n'avait donc aucune matière pour construire autre
+chose qu'une liste et un formulaire — et le lui reprocher n'aurait aucun sens.
+Le constat vaut au-delà du cas : **un portfolio est surtout du contenu
+éditorial avec un peu de données**, et monl ne savait exprimer que la seconde
+moitié.
+
+**Une section, pas un système de pages.** Le bloc `landing` accueille
+désormais une clé `section` répétable — un titre, un texte :
+
+```
+landing
+    brief: "portfolio de photographe"
+    section "À propos": "Photographe basée à Lyon depuis 2015…"
+```
+
+Une seule règle de grammaire couvre à propos, méthode, services, mentions —
+tout l'éditorial. La tentation d'un vrai modèle de pages (arborescence,
+gabarits, ordre, blocs imbriqués) a été écartée : ce serait un CMS, un projet
+d'une autre ampleur, alors que le besoin observé est de faire arriver du texte
+jusqu'à l'IA.
+
+**Publié tel quel, pas reformulé.** Le brief dit explicitement que ces textes
+sont de l'auteur et doivent apparaître sans réécriture. Sans cette consigne,
+un modèle traite volontiers un paragraphe comme une intention à réinterpréter
+— alors que le `brief`, lui, EST une intention. Deux natures de texte
+voisines dans le même document : les confondre produirait un « à propos »
+inventé, ce qui est pire que pas d'« à propos » du tout.
+
+**Titre et texte obligatoires.** Une section sans titre donnerait une rubrique
+anonyme, une section vide un blanc dans la page. Les deux échouent à la
+compilation plutôt qu'à l'écran.
+
+**Posées seulement si un brief part.** Comme l'intention visuelle du point 53 :
+sans page d'accueil à écrire, ces textes n'auraient nulle part où aller.

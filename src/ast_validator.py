@@ -476,7 +476,22 @@ class MonlAST:
                     print(f"⚠️  'landing / {obsolete}' est obsolète depuis le pivot "
                           f"(point 41 de docs/design_decisions.md) : monl ne génère "
                           f"plus de page d'accueil — seul 'brief' est transmis à l'IA frontend.")
-            self.landing = {"brief": self.landing_raw.get("brief")}
+            # AJOUT (point 55) : les sections éditoriales, seul contenu
+            # statique que le contrat sache porter. Un titre vide donnerait
+            # une rubrique sans nom dans l'interface : refusé à la
+            # compilation plutôt que découvert à l'écran.
+            sections = []
+            for section in self.landing_raw.get("sections") or []:
+                titre = (section.get("title") or "").strip()
+                corps = (section.get("body") or "").strip()
+                if not titre or not corps:
+                    raise ValueError(
+                        "SEMANTIC_ERROR: une 'section' de 'landing' exige un "
+                        "titre ET un texte non vides (trouvé : "
+                        f"titre={titre!r}, texte={corps!r}).")
+                sections.append({"title": titre, "body": corps})
+            self.landing = {"brief": self.landing_raw.get("brief"),
+                            "sections": sections}
         # AJOUT (roadmap, écosystème de capacités -- brique 1) : validation
         # du bloc optionnel 'capability'. Volontairement strict (liste
         # blanche de noms connus, contrairement à 'ui / theme' qui retombe

@@ -32,6 +32,7 @@ def _run_template(index, followup_answer, want_seed):
     # Le brief transmis déclenche les questions d'intention visuelle
     # (point 53) : action attendue, registre, place des images.
     answers += ["consulter et contacter", "1", "2"]
+    answers += ["n"]                                   # pas de section éditoriale
     it = iter(answers)
     return GuidedDialogue(ask=lambda p: next(it)).run()
 
@@ -101,6 +102,7 @@ def test_entite_personnalisee_en_plus_du_modele():
         "1",                 # inscription libre : 1er rôle proposé
         "o", "o",            # seeds + brief
         "lire les témoignages", "1", "2",   # intention visuelle (point 53)
+        "n",                                # pas de section éditoriale (point 55)
     ])
     spec = GuidedDialogue(ask=lambda p: next(answers)).run()
     assert "entity Testimonial" in spec

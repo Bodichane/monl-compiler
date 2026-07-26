@@ -166,11 +166,19 @@ grammar = r"""
     # acceptées pour compatibilité avec d'anciennes specs mais sont sans
     # effet (l'audit émet un avertissement). Sans bloc "landing", "/"
     # redirige vers "/docs" (documentation Swagger/OpenAPI de FastAPI).
+    # AJOUT (point 55) : "section" répétable — le seul endroit du contrat où
+    # du contenu ÉDITORIAL peut vivre. Tout le reste décrit des DONNÉES ;
+    # une page « à propos » n'a aucune entité, aucun champ, aucune route
+    # d'où naître, et l'IA d'interface n'avait donc rien pour la construire.
+    #   landing
+    #       brief: "…"
+    #       section "À propos": "Photographe basée à Lyon depuis 2015…"
     landing_block: "landing" _NL _INDENT landing_prop+ _DEDENT
-    ?landing_prop: landing_mode | landing_template | landing_brief
+    ?landing_prop: landing_mode | landing_template | landing_brief | landing_section
     landing_mode: "mode" ":" NAME _NL
     landing_template: "template" ":" STRING_LITERAL _NL
     landing_brief: "brief" ":" STRING_LITERAL _NL
+    landing_section: "section" STRING_LITERAL ":" STRING_LITERAL _NL
 
     workflow: "workflow" NAME "for" NAME _NL _INDENT action+ _DEDENT
     
@@ -348,11 +356,24 @@ class MonlTransformer(Transformer):
     def landing_brief(self, string_literal):
         return {"brief": str(string_literal).strip('"')}
 
+    def landing_section(self, titre, corps):
+        # Marqueur temporaire : les sections s'ACCUMULENT, alors que les
+        # autres clés du bloc s'écrasent. Un simple merge les perdrait
+        # toutes sauf la dernière.
+        return {"_section": {"title": str(titre).strip('"'),
+                             "body": str(corps).strip('"')}}
+
     def landing_block(self, *props):
-        merged = {}
+        merged, sections = {}, []
         for p in props:
-            if p:
+            if not p:
+                continue
+            if "_section" in p:
+                sections.append(p["_section"])
+            else:
                 merged.update(p)
+        if sections:
+            merged["sections"] = sections
         return {"landing": merged}
 
     def capability_block(self, name):
