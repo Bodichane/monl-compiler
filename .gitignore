@@ -9,3 +9,4 @@ __pycache__/
 # Projets d'essai compilés localement (demo/ est la démo de référence,
 # suivie exprès : test_demo.py et test_design_contract.py s'appuient dessus)
 /StudioNova/
+/Nova/
