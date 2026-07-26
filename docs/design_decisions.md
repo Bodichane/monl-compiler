@@ -75,7 +75,8 @@ en l'état car de nombreux renvois internes s'y appuient) ·
 [52](#52-proposer-une-police-que-le-même-contrat-interdit-de-charger) Proposer une police que le même contrat interdit de charger ·
 [53](#53-le-dialogue-interrogeait-la-structure-jamais-lintention) Le dialogue interrogeait la structure, jamais l'intention ·
 [54](#54-le-pivot-a-supprimé-une-intelligence-au-lieu-de-la-déplacer) Le pivot a supprimé une intelligence au lieu de la déplacer ·
-[55](#55-monl-modélisait-des-données-un-site-est-surtout-du-contenu) monl modélisait des données, un site est surtout du contenu
+[55](#55-monl-modélisait-des-données-un-site-est-surtout-du-contenu) monl modélisait des données, un site est surtout du contenu ·
+[56](#56-cinq-couleurs-plates-ne-font-pas-une-palette) Cinq couleurs plates ne font pas une palette
 
 ---
 
@@ -2156,3 +2157,40 @@ compilation plutôt qu'à l'écran.
 
 **Posées seulement si un brief part.** Comme l'intention visuelle du point 53 :
 sans page d'accueil à écrire, ces textes n'auraient nulle part où aller.
+
+## 56. Cinq couleurs plates ne font pas une palette
+
+Troisième symptôme du même signalement (points 54 et 55) : « la même couleur
+partout, aucune variation ».
+
+**Ce que le contrat livrait.** Cinq valeurs — fond, surface, texte, deux
+accents. Rien d'autre. Or une interface a besoin de choses qu'aucune de ces
+cinq ne fournit : un texte secondaire plus discret que le texte principal, un
+filet de séparation plus léger qu'une bordure pleine, un second niveau de
+surface, un fond teinté pour une étiquette, un état de survol. Faute de les
+recevoir, le modèle les improvise au jugé — ou, plus souvent, s'en passe. La
+mesure sur le frontend livré était nette : **un seul `rgba()`, aucun dégradé,
+aucun `color-mix`**. Cinq aplats, aucune profondeur.
+
+**Déduits, pas choisis.** Les cinq tons dérivés se calculent par mélange vers
+le fond (s'éloigner du texte) ou vers le texte (s'en rapprocher), jamais par
+un éclaircissement absolu — qui blanchirait un thème sombre. Le même calcul
+sert donc `editorial` (fond crème) et `console` (fond presque noir).
+
+**Après la variation, jamais avant.** Chaque projet décale la teinte de ses
+accents (point 20). Dériver un survol de l'accent d'origine produirait une
+nuance qui jure avec l'accent réellement affiché : les tons sont calculés en
+dernier.
+
+**Calibré sur le pire cas, pas sur la moyenne.** Le premier mélange retenu
+pour le texte secondaire donnait 4,26:1 sur le fond du thème `civic` — sous
+le seuil WCAG AA de 4,5:1. Une nuance proposée par le compilateur ne doit pas
+rendre illisible ce qu'elle sert à hiérarchiser : la valeur a été resserrée
+jusqu'à ce que **les six thèmes** passent, et un test le vérifie thème par
+thème plutôt que sur un cas représentatif.
+
+**Non vérifiés, et c'est délibéré.** Le smoke test continue de ne contrôler
+que les cinq couleurs de base. Exiger la présence des tons dérivés
+reproduirait le faux positif écarté au point 52 : une interface peut très bien
+construire sa profondeur autrement (opacité, `color-mix`, filtres) sans que
+ces six chaînes apparaissent. Ils sont une matière offerte, pas une clause.

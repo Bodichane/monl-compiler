@@ -167,3 +167,54 @@ def test_les_themes_restent_typographiquement_distincts():
             titrages[nom] = pile.split(",")[0].strip().strip("'\"").lower()
     assert len(set(titrages.values())) == len(THEMES), (
         f"deux thèmes partagent la même police de titrage : {titrages}")
+
+
+# ---- Tons dérivés : la palette n'est pas plate (point 56) ----
+
+TONS_DERIVES = ("ink_soft", "border", "surface_alt", "accent_soft", "accent_strong")
+
+
+def _luminance(hexa):
+    hexa = hexa.lstrip("#")
+    canaux = (int(hexa[i:i + 2], 16) / 255 for i in (0, 2, 4))
+    lin = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in canaux]
+    return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+
+
+def _contraste(a, b):
+    bas, haut = sorted((_luminance(a), _luminance(b)))
+    return (haut + 0.05) / (bas + 0.05)
+
+
+def test_chaque_theme_expose_ses_tons_derives():
+    """Cinq valeurs plates ne suffisent pas à une interface : sans texte
+    atténué, filet ni état de survol, le rendu paraît plat quelle que soit la
+    palette. Ces tons sont déduits, jamais laissés à l'improvisation."""
+    for nom in THEMES:
+        with tempfile.TemporaryDirectory() as workdir:
+            design = _design_du_theme(nom, workdir)
+            for ton in TONS_DERIVES:
+                assert design[ton].startswith("#") and len(design[ton]) == 7, (
+                    f"{nom}.{ton} n'est pas une couleur : {design[ton]!r}")
+
+
+def test_le_texte_attenue_reste_lisible_sur_tous_les_themes():
+    """Une nuance proposée par le compilateur ne doit pas rendre illisible ce
+    qu'elle sert à hiérarchiser. Seuil WCAG AA pour du texte : 4,5:1. Le pire
+    des six thèmes fait foi, pas la moyenne (« civic » échouait à 4,26:1)."""
+    for nom in THEMES:
+        with tempfile.TemporaryDirectory() as workdir:
+            design = _design_du_theme(nom, workdir)
+            ratio = _contraste(design["ink_soft"], design["bg"])
+            assert ratio >= 4.5, f"{nom} : texte atténué à {ratio:.2f}:1 sur son fond"
+
+
+def test_les_tons_derives_suivent_la_variation_de_teinte():
+    """Calculés APRÈS la variation propre au projet : un accent dérivé d'une
+    teinte qui n'est plus celle du projet jurerait avec elle."""
+    with tempfile.TemporaryDirectory() as workdir:
+        design = _contrat(BASE, workdir)["design"]     # thème non épinglé
+        assert design["accent_strong"] != design["accent"]
+        # accent_soft tire l'accent vers le fond : il doit s'en rapprocher.
+        assert (_contraste(design["accent_soft"], design["bg"])
+                < _contraste(design["accent"], design["bg"]))

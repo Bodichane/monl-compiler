@@ -164,7 +164,45 @@ class ThemeMixin:
             theme["radius"] = f"{round(base_radius_px * radius_factor, 1)}px"
 
         theme["pinned"] = pinned
+        # AJOUT (point 56) : tons dérivés. Le contrat ne livrait que cinq
+        # valeurs plates — aucune nuance intermédiaire, aucun état, aucun
+        # niveau de surface. Une interface a besoin d'un texte atténué, d'un
+        # filet de séparation, d'un survol : faute de les recevoir, l'IA les
+        # invente au jugé ou, plus souvent, s'en passe — d'où l'impression de
+        # platitude. Calculés APRÈS la variation de teinte, sinon ils
+        # dériveraient d'un accent qui n'est plus celui du projet.
+        theme.update(self._derive_tones(theme))
         return theme_name, theme
+
+    @classmethod
+    def _derive_tones(cls, theme):
+        """Nuances déduites des cinq couleurs de base — jamais choisies à la
+        main : elles doivent rester justes sur un thème clair comme sur un
+        thème sombre. D'où le mélange vers `bg` (s'éloigner du texte) ou vers
+        `ink` (s'en rapprocher) plutôt qu'un éclaircissement absolu, qui
+        blanchirait un fond déjà sombre."""
+        bg, ink = theme["bg"], theme["ink"]
+        return {
+            # 0.34, pas 0.38 : au-delà, le texte secondaire de « civic »
+            # tombait à 4,26:1 sur son fond, sous le seuil WCAG AA (4,5:1).
+            # Une nuance proposée par le compilateur ne doit pas rendre
+            # illisible ce qu'elle sert à hiérarchiser — valeur calibrée sur
+            # le PIRE des six thèmes, pas sur un cas moyen.
+            "ink_soft": cls._mix(ink, bg, 0.34),        # texte secondaire
+            "border": cls._mix(ink, bg, 0.86),          # filets et séparateurs
+            "surface_alt": cls._mix(theme["surface"], ink, 0.05),   # 2e niveau
+            "accent_soft": cls._mix(theme["accent"], bg, 0.86),     # fond teinté
+            "accent_strong": cls._mix(theme["accent"], ink, 0.18),  # survol/actif
+        }
+
+    @staticmethod
+    def _mix(couleur, vers, t):
+        """Mélange linéaire de deux #RRGGBB, `t` = part de `vers` (0..1)."""
+        a = couleur.lstrip("#")
+        b = vers.lstrip("#")
+        canaux = (round(int(a[i:i + 2], 16) * (1 - t) + int(b[i:i + 2], 16) * t)
+                  for i in (0, 2, 4))
+        return "#" + "".join(f"{c:02X}" for c in canaux)
 
     @staticmethod
     def _shift_hue(hex_color, degrees):

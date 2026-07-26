@@ -367,7 +367,23 @@ def _render_prompt(contract):
            if design.get("pinned") else
            "cette direction garantit une identité stable et distincte pour ce "
            "projet ; vous pouvez vous en écarter si votre parti pris sert mieux "
-           "le sujet — l'écart est signalé, pas bloquant.\n"))
+           "le sujet — l'écart est signalé, pas bloquant.\n")
+        # Point 56 : sans ces tons, une interface n'a que cinq valeurs plates
+        # et rend des aplats sans profondeur. Ils sont déduits de la palette,
+        # donc justes sur un thème sombre comme sur un thème clair.
+        + f"""
+**Tons dérivés — la palette n'est pas plate.** Déduits des cinq couleurs
+ci-dessus, à employer plutôt que d'improviser des gris :
+- `{design['ink_soft']}` texte secondaire (légendes, méta, libellés)
+- `{design['border']}` filets, séparateurs, contours de champs
+- `{design['surface_alt']}` second niveau de surface (en-têtes, zones inertes)
+- `{design['accent_soft']}` fond teinté (étiquettes, état sélectionné)
+- `{design['accent_strong']}` survol et état actif de l'accent
+
+Une interface sans texte atténué, sans filet et sans état de survol paraît
+plate quelle que soit la qualité de sa palette. Ces cinq tons existent pour
+qu'aucune de ces trois choses ne manque.
+""")
     return f"""# Brief frontend — {contract['app']} (généré par monl)
 {brief_line}
 Vous êtes une IA spécialisée en interfaces. Générez le frontend de
