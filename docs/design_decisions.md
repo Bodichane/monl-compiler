@@ -60,7 +60,18 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [43](#43-claude-code--le-travail-directement-dans-le-dossier-cible) Claude Code : le travail directement dans le dossier cible ·
 [44](#44-modèle-local-pour-comprendre-lutilisateur--linterprète-pas-le-rédacteur) Modèle local : l'interprète, pas le rédacteur ·
 [45](#45-le-dialogue-ouvre-sur-un-catalogue-de-10-modèles-dapplications) Le dialogue ouvre sur un catalogue de 10 modèles ·
-[46](#46-la-démonstration-complète-atelier-vélo-et-ce-quelle-prouve) La démonstration complète (AtelierVélo)
+[46](#46-la-démonstration-complète-ateliervélo-et-ce-quelle-prouve) La démonstration complète (AtelierVélo)
+
+**Bêta 3 et suite** — attention, la numérotation repart à 45 : les numéros 45
+et 46 désignent chacun DEUX points distincts (séquelle d'une fusion, laissée
+en l'état car de nombreux renvois internes s'y appuient) ·
+[45](#45-le-rôle-ne-peut-pas-être-choisi-par-celui-qui-sinscrit-bêta-3) Le rôle n'est pas choisi par celui qui s'inscrit ·
+[46](#46-le-déterminisme-doit-être-testé-entre-processus-bêta-3) Le déterminisme se teste entre processus ·
+[47](#47-découper-le-générateur-avant-de-le-réécrire-bêta-3) Découper le générateur avant de le réécrire ·
+[48](#48-une-clause-de-contrat-que-rien-ne-vérifie-nest-pas-une-clause-bêta-3) Une clause que rien ne vérifie n'est pas une clause ·
+[49](#49-le-dialogue-montre-son-parcours-avant-de-le-faire-subir-bêta-3) Le dialogue montre son parcours ·
+[50](#50-une-règle-de-propriété-qui-ne-couvre-pas-la-lecture-nen-est-pas-une-bêta-3) Une règle de propriété doit couvrir la lecture ·
+[51](#51-un-contrat-qui-dicte-un-port-en-dur-punit-lia-qui-lui-obéit) Un contrat qui dicte un port en dur punit l'IA qui lui obéit
 
 ---
 

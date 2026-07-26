@@ -34,8 +34,12 @@ grammaire Lark (`src/parser.py`) → validateur + audit de sécurité
 
 ## Documentation à lire avant toute nouvelle brique
 
-**`docs/design_decisions.md`** est le journal détaillé du projet — 39 points
-à ce jour, avec sommaire en tête de fichier. Chaque règle stricte du
+**`docs/design_decisions.md`** est le journal détaillé du projet — numéroté
+jusqu'à 51, avec sommaire complet en tête de fichier. Deux pièges de
+numérotation, tous deux assumés : les numéros **45 et 46 désignent chacun
+deux points distincts** (séquelle d'une fusion), et le **point 6 est un
+doublon réservé** du point 1, vide, gardé pour ne pas décaler les renvois.
+Citer un point par son titre autant que par son numéro. Chaque règle stricte du
 compilateur, chaque bug corrigé, chaque décision d'architecture y est
 expliquée avec le "pourquoi", pas seulement le "quoi". **Le consulter avant
 d'ajouter quoi que ce soit** — plusieurs pièges déjà rencontrés (voir points
@@ -45,12 +49,14 @@ d'ajouter quoi que ce soit** — plusieurs pièges déjà rencontrés (voir poin
 
 **Chaque changement est prouvé par exécution réelle, jamais par relecture
 de code seule.** Concrètement :
-- Compiler réellement (`python3 src/main.py exemples/XX.ml`)
+- Compiler réellement (`python3 src/main.py exemples/03_reseau_social.ml`)
 - Relancer un vrai serveur (`python3 -m uvicorn app:app --host 127.0.0.1 --port PORT`)
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (56 tests actuellement)
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (106 tests
+  actuellement ; `tests/test_demo.py` et `tests/test_design_contract.py`
+  s'appuient sur le dossier `demo/` versionné — ne pas le supprimer)
 
 Plusieurs bugs réels (ordre des contraintes `FOREIGN KEY`, collision avec un
 mot-clé SQL réservé, `scrollIntoView` absent masquant un vrai succès,
@@ -79,21 +85,42 @@ testée avant la suivante. Progression du simple au complexe, avec un
 réseau social anonyme comme banc d'essai final.
 
 ### Briques terminées et testées (points 24-30)
+
+> **Où sont passés les fichiers de preuve.** Chaque brique avait à l'origine
+> son `exemples/NN_xxx_demo.yaml` dédié. La bêta 3 (commit `2105a1f`) les a
+> tous supprimés au profit de 5 exemples thématiques : `01_portfolio.ml`,
+> `02_boutique.ml`, `03_reseau_social.ml`, `04_kanban.ml`,
+> `05_classement.ml`. **`exemples/03_reseau_social.ml` consolide à lui seul
+> les briques 3 à 8** ; `tests/test_compile_all.py` compile chaque exemple à
+> chaque exécution de la suite. Les références ci-dessous ont été
+> resynchronisées le 26/07/2026 — ne pas les faire pointer vers les anciens
+> fichiers, ils n'existent plus.
+>
+> Attention à la nuance : compiler n'est pas se comporter correctement. Seuls
+> `accessibleBy` (`tests/test_access_parties.py`) et le filtrage de lecture
+> d'`ownedBy` (`tests/test_lecture_privee.py`) sont éprouvés contre un vrai
+> serveur éphémère. Les autres briques n'ont que la couverture de compilation.
+
 1. **`capability auth`** — bloc déclaratif, aucun effet sur la génération
    pour l'instant (prouvé par compilation identique avec/sans le bloc).
 2. **`rule Entite.champ hidden`** — masque un champ de toutes les réponses
    de lecture (liste + détail), pour tout le monde. Reste en base, reste
-   modifiable en écriture. Testé sur `exemples/13_anon_forum_demo.ml`.
+   modifiable en écriture. ⚠️ **Plus AUCUNE couverture** : implémenté
+   (`src/parser.py` `masking_rule`, `src/generator/routes.py`) mais absent de
+   tous les exemples et de tous les tests depuis la suppression de
+   `13_anon_forum_demo.yaml`. Une régression passerait la CI sans bruit.
 3. **`rule Entite.Create decrements Entite.champ [by N]`** — décrémente un
    champ numérique sur une entité liée à la création d'un enregistrement
-   (typiquement un signalement). Testé sur `exemples/14_reputation_demo.ml`.
+   (typiquement un signalement). Compilé par `exemples/03_reseau_social.ml`
+   (`Report.Create decrements Member.reputation`).
 4. **`rule Entite.Create increments Entite.champ [by N]`** — symétrique de
    `decrements`, pour les likes/appréciations. Grammaire : deux productions
    Lark nommées distinctes (`decrement_rule`/`increment_rule`), pas une seule
    règle partagée par mot-clé (évite le piège de filtrage Lark qui avait fait
    annuler le premier essai). `ast_validator.py` valide les deux dans la même
    boucle, chaque règle portant un champ `"direction"`. `generator.py` choisit
-   `+`/`-` selon ce champ. Testé sur `exemples/15_likes_demo.ml`.
+   `+`/`-` selon ce champ. Compilé par `exemples/03_reseau_social.ml` et
+   `exemples/05_classement.ml`.
 5. **`rule Entite.champ categorized: "label" below N, ..., "label" otherwise`**
    — remplace un champ `Integer`/`Float` par un libellé de catégorie dans
    toutes les réponses de lecture (liste + détail), sur le même principe que
@@ -103,10 +130,12 @@ réseau social anonyme comme banc d'essai final.
    (erreur de compilation explicite). Dernier palier obligatoirement
    `otherwise` (couverture totale garantie). Libellés injectés via `repr()`
    dans le code généré (jamais d'interpolation manuelle entre guillemets).
-   Testé sur `exemples/16_likes_categories_demo.ml`.
+   Compilé par `exemples/03_reseau_social.ml` (`Post.likes` en peu /
+   populaire / viral).
 
 6. **Assemblage final : réseau social anonyme** — toutes les briques
-   ci-dessus combinées dans une seule spec (`exemples/17_anon_social_network.ml`),
+   ci-dessus combinées dans une seule spec (aujourd'hui
+   `exemples/03_reseau_social.ml`, héritier de `17_anon_social_network.yaml`),
    chacune dans son rôle le plus naturel plutôt qu'empilées sur la même
    entité (`Post` anonyme/public/catégorisé — auteur en pseudonyme
    `generated`, brique 7 ci-dessous — `Comment` identifié avec `ownedBy`).
@@ -127,8 +156,8 @@ réseau social anonyme comme banc d'essai final.
    Ferme le trou du point 29 (`Post.author` en `String` libre, sans
    garantie d'intégrité). Incompatible avec `hidden` sur le même champ, et
    avec une action `Create` `public` sur la même entité (pas d'identité
-   fiable dont dériver un pseudonyme). Testé sur
-   `exemples/18_generated_pseudonym_demo.ml`.
+   fiable dont dériver un pseudonyme). Compilé par
+   `exemples/03_reseau_social.ml` (`Post.author`).
 
 8. **`rule Entite.Action accessibleBy col1, col2`** — contrôle d'accès à
    deux parties (ou plus) : l'action n'est permise que si l'identifiant JWT
@@ -137,9 +166,10 @@ réseau social anonyme comme banc d'essai final.
    déclaré). Liste filtrée par WHERE ... OR ..., détail/Update/Delete en
    403 pour les tiers. Au moins deux colonnes distinctes (sinon `ownedBy`),
    conflit bloquant avec `ownedBy`, `public` l'emporte. Ferme la brique
-   « messagerie privée » évoquée dès la brique 1. Testé sur
-   `exemples/19_private_messages.ml` (`tests/test_access_parties.py`,
-   serveur réel éphémère). Voir point 31 de `docs/design_decisions.md`.
+   « messagerie privée » évoquée dès la brique 1. Éprouvé contre un serveur
+   réel éphémère par `tests/test_access_parties.py` (qui embarque sa propre
+   spec), et compilé par `exemples/03_reseau_social.ml` (`PrivateMessage`).
+   Voir point 31 de `docs/design_decisions.md`.
 
 ### Briques suivantes déjà évoquées, non cadrées
 - Rôle superviseur au-dessus d'`accessibleBy` (un modérateur qui lit tous
@@ -191,12 +221,18 @@ réseau social anonyme comme banc d'essai final.
   dossier temporaire : il ne touche jamais app.db du projet. Le fetch de
   jsdom DOIT être injecté via beforeParse (bug réel : assigné après
   construction, il n'est jamais vu par les scripts de la page).
+- Le contrat annonce `api.base_url = ""` — MÊME ORIGINE, jamais d'URL absolue
+  ni de port codé en dur : `monl run` monte frontend/ sur /site du serveur qui
+  porte déjà l'API. Y remettre une base absolue casserait `monl run --port` et
+  ferait recaler par le smoke test (port éphémère) tout frontend obéissant.
+  Le shim jsdom refuse explicitement les URL absolues plutôt que de les
+  réécrire : les réécrire serait un faux positif. Point 51.
 
 ## Commandes de référence
 
 ```bash
 pip install -r requirements.txt --break-system-packages
-cd src && python3 main.py ../exemples/01_todo_list.ml
+cd src && python3 main.py ../exemples/01_portfolio.ml
 cd .. && python3 -m uvicorn app:app --reload   # jamais `python3 app.py` directement
 python3 -m pytest tests/ -v
 ```
