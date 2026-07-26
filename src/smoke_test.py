@@ -213,15 +213,33 @@ def _verifier_palette(frontend_dir, contract):
         return []
     feuille = "\n".join(styles)
 
-    manquantes = [f"{cle} {valeur}" for cle, valeur in couleurs.items()
-                  if valeur.lower() not in feuille]
+    couleurs_absentes = [f"{cle} {valeur}" for cle, valeur in couleurs.items()
+                         if valeur.lower() not in feuille]
+
+    # AJOUT (point 52) : la typographie était la moitié NON vérifiée de la
+    # clause design — c'est ce qui a laissé prospérer une direction qui
+    # réclamait des Google Fonts que le même contrat interdit de charger.
+    # On contrôle la famille de titrage, celle qui porte l'identité ; le
+    # reste de la pile (les secours) demeure libre.
+    titrage = (design.get("font_display") or "").split(",")[0].strip().strip("'\"").lower()
+    manquantes = list(couleurs_absentes)
+    if titrage and titrage not in feuille:
+        manquantes.append(f"police de titrage {titrage}")
+
     if not manquantes:
         return []
 
-    epingle = bool(design.get("pinned"))
+    # Calibrage assumé : SEULE une couleur absente peut bloquer. Un `#D9F227`
+    # est une valeur exacte, présente ou non ; une pile de polices a des
+    # quasi-équivalents (`Helvetica` pour `'Helvetica Neue'`) qu'une recherche
+    # textuelle ne sait pas distinguer d'un oubli. Bloquer là-dessus punirait
+    # un bon parti pris pour une différence invisible à l'œil — exactement le
+    # faux positif que le point 48 s'interdit. L'écart typographique est donc
+    # toujours signalé, jamais bloquant, même thème épinglé.
+    epingle = bool(design.get("pinned")) and bool(couleurs_absentes)
     if epingle:
         return [(f"la spec épingle le thème « {design.get('name')} » mais le frontend "
-                 f"n'applique pas sa palette : {', '.join(manquantes)} absent(s) des "
+                 f"n'en applique pas la direction : {', '.join(manquantes)} absent(s) des "
                  f"styles livrés", True)]
     return [(f"direction de design « {design.get('name')} » non suivie "
              f"({', '.join(manquantes)}) — proposition du compilateur, non bloquante ; "

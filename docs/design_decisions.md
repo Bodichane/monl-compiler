@@ -71,7 +71,8 @@ en l'état car de nombreux renvois internes s'y appuient) ·
 [48](#48-une-clause-de-contrat-que-rien-ne-vérifie-nest-pas-une-clause-bêta-3) Une clause que rien ne vérifie n'est pas une clause ·
 [49](#49-le-dialogue-montre-son-parcours-avant-de-le-faire-subir-bêta-3) Le dialogue montre son parcours ·
 [50](#50-une-règle-de-propriété-qui-ne-couvre-pas-la-lecture-nen-est-pas-une-bêta-3) Une règle de propriété doit couvrir la lecture ·
-[51](#51-un-contrat-qui-dicte-un-port-en-dur-punit-lia-qui-lui-obéit) Un contrat qui dicte un port en dur punit l'IA qui lui obéit
+[51](#51-un-contrat-qui-dicte-un-port-en-dur-punit-lia-qui-lui-obéit) Un contrat qui dicte un port en dur punit l'IA qui lui obéit ·
+[52](#52-proposer-une-police-que-le-même-contrat-interdit-de-charger) Proposer une police que le même contrat interdit de charger
 
 ---
 
@@ -1978,3 +1979,47 @@ ce que le shim a déjà nommé).
 
 `monl_contract_version` passe à **2** : la lecture de `api.base_url` change de
 sens. Les projets déjà compilés se resynchronisent par `monl update`.
+
+## 52. Proposer une police que le même contrat interdit de charger
+
+Question posée devant le premier site généré : « pourquoi est-il aussi
+minimaliste ? ». Le CSS livré portait la réponse, écrite par l'IA elle-même en
+tête de fichier : *« Google Fonts non chargées (frontend autonome, sans CDN) :
+les piles de secours portent l'identité typographique. »*
+
+**Le contrat se contredisait.** Sa direction de design annonçait
+`Fraunces` et `Inter` avec l'URL Google Fonts qui va avec ; ses règles non
+négociables, quatre lignes plus bas, interdisaient toute ressource externe.
+L'IA UI a tranché correctement — l'autonomie prime — mais l'arbitrage laissait
+`Fraunces` devenir Georgia et `Inter` la police système. La moitié la plus
+visible d'une identité, sa typographie, s'évaporait à **chaque** projet, et il
+ne restait de la « direction » que cinq couleurs.
+
+**Pourquoi personne ne l'avait vu.** Le point 48 avait rendu la clause design
+vérifiable — mais pour les couleurs seulement. La typographie restait la part
+non contrôlée de cette clause, et une clause que rien ne vérifie finit par
+mentir sans que rien ne s'en aperçoive. Le smoke test confronte désormais
+aussi la police de titrage aux styles livrés.
+
+**Des piles système, pas des fontes embarquées.** Encoder les woff2 en base64
+dans le CSS généré aurait restitué les fontes exactes, au prix du poids sur
+chaque projet et d'une question de licence à trancher pour l'utilisateur.
+Autoriser un `<link>` distant aurait coûté bien plus cher : c'est l'autonomie
+du frontend qui rend le smoke test possible hors ligne, donc qui rend le reste
+vérifiable. Les six systèmes nomment maintenant des familles réellement
+présentes sur les machines — le thème `atelier` (bêta 3) l'avait déjà fait,
+les cinq autres l'ont rejoint. Un test refuse toute famille hors liste.
+
+**Rester distincts sans Google Fonts.** Le catalogue existe pour que deux
+applications ne se ressemblent jamais ; six thèmes qui retombent tous sur
+Georgia auraient perdu cette raison d'être. Chaque système garde donc une face
+de titrage qui lui est propre — Palatino pour `editorial`, Arial Narrow pour
+`market`, Georgia pour `civic`, Times pour `ledger`, chasse fixe pour
+`console`, grotesque pour `atelier` — et un test le vérifie.
+
+**Un écart typographique ne bloque jamais.** Même thème épinglé : `#D9F227`
+est une valeur exacte, présente ou absente, tandis qu'une pile de polices a
+des quasi-équivalents (`Helvetica` pour `'Helvetica Neue'`) qu'une recherche
+textuelle ne distingue pas d'un oubli. Bloquer un build sur cette nuance
+punirait un bon parti pris pour une différence invisible — le faux positif que
+le point 48 s'interdit. Seule une couleur manquante reste bloquante.

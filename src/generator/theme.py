@@ -8,6 +8,20 @@ import hashlib
 import os
 import secrets
 
+# AUCUNE POLICE DISTANTE (point 52). Les six systèmes nommaient des Google
+# Fonts que la règle « frontend AUTONOME, aucun CDN » du même contrat interdit
+# de charger : l'IA UI, prise entre les deux, retombait sur les piles de
+# secours et la moitié la plus visible de l'identité — sa typographie —
+# s'évaporait à chaque projet. La personnalité vient donc désormais du choix
+# de familles réellement présentes sur les machines, distinctes d'un système à
+# l'autre, comme le faisait déjà « atelier ». Ne pas y réintroduire de fonte
+# à télécharger sans lever d'abord la règle d'autonomie (et le smoke test hors
+# ligne qu'elle rend possible).
+SYSTEM_SANS = ("system-ui, -apple-system, 'Segoe UI', Roboto, "
+               "'Helvetica Neue', Arial, sans-serif")
+SYSTEM_MONO = ("ui-monospace, SFMono-Regular, Menlo, Consolas, "
+               "'DejaVu Sans Mono', monospace")
+
 
 class ThemeMixin:
     def _select_theme(self, seed=None):
@@ -27,9 +41,8 @@ class ThemeMixin:
             # un seul accent haute visibilité (celui des gilets et des bandes
             # réfléchissantes). Il couvre le vocabulaire de l'atelier et de la
             # pièce détachée, mal servi par « market » (pensé pour la vitrine
-            # marchande). Aucune police distante : la personnalité vient du
-            # traitement typographique, ce qui le rend compatible avec
-            # l'exigence de frontend autonome sans exception.
+            # marchande). C'est lui qui, le premier, s'est passé de police
+            # distante — les cinq autres l'ont rejoint au point 52.
             "atelier": {
                 "keywords": {"part", "piece", "repair", "atelier", "workshop", "tool",
                              "velo", "bike", "maintenance", "revision", "stock"},
@@ -37,18 +50,17 @@ class ThemeMixin:
                 "accent": "#D9F227", "accent2": "#A8412A",
                 "font_display": "'Helvetica Neue', Helvetica, Arial, sans-serif",
                 "font_body": "'Helvetica Neue', Helvetica, Arial, sans-serif",
-                "font_mono": "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-                "google_fonts": "",
+                "font_mono": SYSTEM_MONO,
                 "radius": "0px", "card_style": "atelier",
             },
             "editorial": {
                 "keywords": {"post", "article", "blog", "comment", "story", "author", "publish"},
                 "bg": "#F3EFE1", "surface": "#FFFFFF", "ink": "#241F16",
                 "accent": "#2F5D50", "accent2": "#B23A48",
-                "font_display": "'Fraunces', Georgia, serif",
-                "font_body": "'Inter', -apple-system, sans-serif",
-                "font_mono": "'IBM Plex Mono', monospace",
-                "google_fonts": "Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600",
+                "font_display": "'Palatino Linotype', 'Book Antiqua', Palatino, "
+                                "'URW Palladio L', Georgia, serif",
+                "font_body": SYSTEM_SANS,
+                "font_mono": SYSTEM_MONO,
                 "radius": "4px", "card_style": "editorial",
             },
             "market": {
@@ -56,20 +68,20 @@ class ThemeMixin:
                               "stock", "customer", "payment", "checkout"},
                 "bg": "#EFEDE4", "surface": "#FFFFFF", "ink": "#1B2420",
                 "accent": "#0B6E4F", "accent2": "#C98A00",
-                "font_display": "'Barlow Condensed', sans-serif",
-                "font_body": "'Work Sans', -apple-system, sans-serif",
-                "font_mono": "'IBM Plex Mono', monospace",
-                "google_fonts": "Barlow+Condensed:wght@600;700&family=Work+Sans:wght@400;500",
+                "font_display": "'Arial Narrow', 'Liberation Sans Narrow', "
+                                "'Helvetica Neue', Arial, sans-serif",
+                "font_body": "'Helvetica Neue', Helvetica, Arial, "
+                             "'Liberation Sans', sans-serif",
+                "font_mono": SYSTEM_MONO,
                 "radius": "2px", "card_style": "market",
             },
             "console": {
                 "keywords": {"todo", "task", "ticket", "issue", "workflow", "project", "bug", "status"},
                 "bg": "#161A1E", "surface": "#20262C", "ink": "#E7E4DC",
                 "accent": "#5B8DEF", "accent2": "#3FB68B",
-                "font_display": "'IBM Plex Mono', monospace",
-                "font_body": "'IBM Plex Sans', -apple-system, sans-serif",
-                "font_mono": "'IBM Plex Mono', monospace",
-                "google_fonts": "IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500",
+                "font_display": SYSTEM_MONO,
+                "font_body": SYSTEM_SANS,
+                "font_mono": SYSTEM_MONO,
                 "radius": "10px", "card_style": "console",
             },
             "civic": {
@@ -78,20 +90,19 @@ class ThemeMixin:
                               "professional", "schedule"},
                 "bg": "#F1ECE4", "surface": "#FFFFFF", "ink": "#2B2118",
                 "accent": "#3D5A80", "accent2": "#C9A227",
-                "font_display": "'Newsreader', Georgia, serif",
-                "font_body": "'Manrope', -apple-system, sans-serif",
-                "font_mono": "'IBM Plex Mono', monospace",
-                "google_fonts": "Newsreader:ital,wght@1,500;0,600&family=Manrope:wght@400;500;600",
+                "font_display": "Georgia, 'Times New Roman', Times, serif",
+                "font_body": "'Trebuchet MS', 'Lucida Grande', "
+                             "'Lucida Sans Unicode', 'DejaVu Sans', sans-serif",
+                "font_mono": SYSTEM_MONO,
                 "radius": "18px", "card_style": "civic",
             },
             "ledger": {
                 "keywords": set(),
                 "bg": "#EAE6DC", "surface": "#FFFFFF", "ink": "#1E1B16",
                 "accent": "#1D3557", "accent2": "#588157",
-                "font_display": "'Libre Caslon Text', Georgia, serif",
-                "font_body": "'IBM Plex Sans', -apple-system, sans-serif",
-                "font_mono": "'IBM Plex Mono', monospace",
-                "google_fonts": "Libre+Caslon+Text:wght@400;700&family=IBM+Plex+Sans:wght@400;500",
+                "font_display": "'Times New Roman', Times, 'Liberation Serif', serif",
+                "font_body": "Verdana, 'DejaVu Sans', Geneva, sans-serif",
+                "font_mono": SYSTEM_MONO,
                 "radius": "6px", "card_style": "ledger",
             },
         }

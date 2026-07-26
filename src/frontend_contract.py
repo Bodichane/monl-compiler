@@ -215,9 +215,12 @@ def _render_prompt(contract):
         f"texte `{design['ink']}`, accents `{design['accent']}` / `{design['accent2']}`, "
         f"rayon `{design['radius']}`.\n"
         f"Typographies : titres {design['font_display']}, corps {design['font_body']}"
-        + (f" (Google Fonts : `{design['google_fonts']}`)"
-           if design.get("google_fonts") else
-           " (piles système : aucune police à télécharger)")
+        # Ces piles ne contiennent QUE des familles déjà présentes sur les
+        # machines : le brief ne peut plus proposer une police que sa propre
+        # règle d'autonomie interdit de charger (point 52).
+        + " — piles système, aucune police à télécharger : c'est le choix des "
+          "familles et leur traitement (graisses, interlettrage, échelle) qui "
+          "portent l'identité, pas un fichier distant"
         + ". Vous écrivez le HTML/CSS ; "
         + ("la spec ÉPINGLE ce thème : ces cinq couleurs doivent apparaître "
            "telles quelles dans votre CSS, le smoke test le vérifie.\n"
