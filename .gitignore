@@ -1,3 +1,7 @@
 # Ignorer les modèles d'IA volumineux
 models/*
 !models/.gitkeep
+
+# Bytecode Python
+__pycache__/
+*.pyc
