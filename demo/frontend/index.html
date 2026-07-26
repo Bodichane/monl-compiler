@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AtelierVélo — catalogue et atelier de réparation</title>
+<meta name="description" content="Catalogue de pièces, accessoires et prestations d'atelier. Commande en ligne, retrait sur place.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<a class="saut" href="#catalogue">Aller au catalogue</a>
+
+<header class="bandeau">
+  <div class="bandeau__marque">
+    <span class="marque__nom">Atelier<b>Vélo</b></span>
+    <span class="marque__ref" id="reference-edition">ATV · CATALOGUE ATELIER</span>
+  </div>
+  <nav class="bandeau__nav" aria-label="Navigation principale">
+    <button type="button" class="lien" data-vue="catalogue" aria-current="page">Catalogue</button>
+    <button type="button" class="lien" data-vue="commandes" hidden id="lien-commandes">Mes commandes</button>
+    <button type="button" class="lien" data-vue="atelier" hidden id="lien-atelier">Gestion du catalogue</button>
+    <button type="button" class="lien lien--compte" id="lien-compte">Se connecter</button>
+    <button type="button" class="panier-bouton" id="panier-bouton" aria-expanded="false">
+      Commande <span class="panier-bouton__compte" id="panier-compte">0</span>
+    </button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ============ Catalogue ============ -->
+  <section class="vue" id="vue-catalogue">
+
+    <div class="couverture">
+      <p class="couverture__eyebrow">Réparation · Pièces détachées · Accessoires</p>
+      <h1>Tout ce qui<br>fait rouler<br>un vélo.</h1>
+      <p class="couverture__texte">
+        L'atelier remonte, règle et vend au comptoir depuis la rue des Peupliers.
+        Ce catalogue reprend l'inventaire réel : ce qui est affiché est en stock,
+        commandable en ligne, à retirer sur place sous 48 h.
+      </p>
+      <dl class="fiche-technique">
+        <div><dt>Références</dt><dd id="stat-references">—</dd></div>
+        <div><dt>Rayons</dt><dd id="stat-rayons">—</dd></div>
+        <div><dt>Retrait</dt><dd>48 h</dd></div>
+        <div><dt>Atelier</dt><dd>Mar – Sam</dd></div>
+      </dl>
+    </div>
+
+    <div class="catalogue" id="catalogue">
+      <aside class="index" aria-label="Rayons">
+        <h2 class="index__titre">Rayons</h2>
+        <ul class="index__liste" id="index-rayons"></ul>
+        <p class="index__note">
+          Les prix s'entendent pièce montée. Les prestations d'atelier sont
+          facturées à la fin de l'intervention.
+        </p>
+      </aside>
+
+      <div class="planche">
+        <div class="planche__entete">
+          <h2 id="titre-rayon">Toutes les références</h2>
+          <p class="planche__compte" id="compte-affiche"></p>
+        </div>
+        <div class="grille" id="grille-produits" aria-live="polite"></div>
+        <p class="etat" id="etat-catalogue" hidden></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Commandes du client ============ -->
+  <section class="vue" id="vue-commandes" hidden>
+    <div class="page-entete">
+      <h1>Mes commandes</h1>
+      <p>Chaque commande n'est visible que par le compte qui l'a passée — la règle
+         vient de la spécification, pas de l'interface.</p>
+    </div>
+    <div class="liste-commandes" id="liste-commandes"></div>
+    <p class="etat" id="etat-commandes" hidden></p>
+  </section>
+
+  <!-- ============ Gestion du catalogue (rôle atelier) ============ -->
+  <section class="vue" id="vue-atelier" hidden>
+    <div class="page-entete">
+      <h1>Gestion du catalogue</h1>
+      <p>Réservé au compte atelier. Ce rôle ne s'obtient pas par le formulaire
+         d'inscription : il est créé sur le serveur, par l'équipe.</p>
+    </div>
+
+    <form class="formulaire formulaire--large" id="form-produit" novalidate>
+      <h2 id="titre-form-produit">Ajouter une référence</h2>
+      <div class="champs">
+        <label>Nom<input name="name" required autocomplete="off"></label>
+        <label>Prix (€)<input name="price" type="number" step="0.5" min="0" required></label>
+        <label>Rayon<input name="category" required autocomplete="off"></label>
+        <label>Stock<input name="stock" type="number" step="1" min="0" required></label>
+        <label class="champ--large">Description<textarea name="description" rows="2" required></textarea></label>
+        <label class="champ--large">Diagramme (fichier SVG)<input name="imageUrl" placeholder="diagrammes/chaine.svg"></label>
+      </div>
+      <div class="actions">
+        <button type="submit" class="bouton bouton--primaire" id="bouton-produit">Ajouter au catalogue</button>
+        <button type="button" class="bouton" id="annuler-produit" hidden>Annuler la modification</button>
+      </div>
+      <p class="message" id="message-produit" hidden></p>
+    </form>
+
+    <div class="table-atelier" id="table-atelier"></div>
+  </section>
+</main>
+
+<!-- ============ Panneau commande en cours ============ -->
+<aside class="tiroir" id="tiroir-panier" hidden aria-label="Commande en cours">
+  <div class="tiroir__entete">
+    <h2>Commande en cours</h2>
+    <button type="button" class="fermer" id="fermer-panier" aria-label="Fermer la commande">×</button>
+  </div>
+  <div class="tiroir__corps" id="corps-panier"></div>
+  <div class="tiroir__pied">
+    <div class="total"><span>Total</span><b id="total-panier">0,00 €</b></div>
+    <label class="note-commande">Note pour l'atelier
+      <textarea id="note-panier" rows="2" placeholder="Réglage souhaité, date de retrait…"></textarea>
+    </label>
+    <button type="button" class="bouton bouton--primaire bouton--bloc" id="valider-panier">Envoyer la commande</button>
+    <p class="message" id="message-panier" hidden></p>
+  </div>
+</aside>
+
+<!-- ============ Panneau compte ============ -->
+<aside class="tiroir" id="tiroir-compte" hidden aria-label="Compte">
+  <div class="tiroir__entete">
+    <h2 id="titre-compte">Se connecter</h2>
+    <button type="button" class="fermer" id="fermer-compte" aria-label="Fermer">×</button>
+  </div>
+  <div class="tiroir__corps">
+    <form class="formulaire" id="form-compte" novalidate>
+      <label>Identifiant<input name="username" autocomplete="username" required></label>
+      <label>Mot de passe<input name="password" type="password" autocomplete="current-password" required minlength="8"></label>
+      <p class="aide" id="aide-compte">8 caractères minimum.</p>
+      <button type="submit" class="bouton bouton--primaire bouton--bloc" id="bouton-compte">Se connecter</button>
+      <p class="message" id="message-compte" hidden></p>
+    </form>
+    <p class="bascule">
+      <span id="bascule-texte">Pas encore de compte ?</span>
+      <button type="button" class="lien-souligne" id="bascule-compte">Créer un compte client</button>
+    </p>
+    <div class="compte-connecte" id="compte-connecte" hidden>
+      <p>Connecté en tant que <b id="compte-nom"></b> <span class="etiquette" id="compte-role"></span></p>
+      <button type="button" class="bouton bouton--bloc" id="bouton-deconnexion">Se déconnecter</button>
+    </div>
+  </div>
+</aside>
+
+<div class="voile" id="voile" hidden></div>
+
+<footer class="pied">
+  <p><b>AtelierVélo</b> — 14 rue des Peupliers · ouvert du mardi au samedi, 9 h – 19 h</p>
+  <p class="pied__mention">
+    Interface de démonstration monl. Backend, base et contrôle d'accès compilés
+    depuis <code>demo/spec.ml</code> ; cette page n'appelle que les routes du
+    contrat.
+  </p>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,365 @@
+{
+  "actors": [
+    "Admin",
+    "Customer"
+  ],
+  "api": {
+    "auth": {
+      "header": "Authorization: Bearer <token> sur toute route non publique",
+      "login": {
+        "body": {
+          "password": "str",
+          "username": "str"
+        },
+        "method": "POST",
+        "path": "/login",
+        "returns": "un token JWT (validité 2 h par défaut, réglable par MONL_TOKEN_TTL_HOURS)"
+      },
+      "logout": {
+        "method": "POST",
+        "path": "/logout"
+      },
+      "rate_limit": "5 tentatives / 60 s / IP sur /register et /login",
+      "register": {
+        "body": {
+          "actor": "un rôle parmi ['Customer']",
+          "password": "str (8+ caractères)",
+          "username": "str"
+        },
+        "method": "POST",
+        "note": "403 si le rôle demandé n'est pas ouvert à l'inscription libre",
+        "path": "/register",
+        "self_register_actors": [
+          "Customer"
+        ]
+      }
+    },
+    "base_url": "http://127.0.0.1:8000"
+  },
+  "app": "AtelierVelo",
+  "brief": "Une boutique d'accessoires vélo, réparation et pièces détachées.",
+  "design": {
+    "accent": "#D9F227",
+    "accent2": "#A8412A",
+    "bg": "#F1F3EE",
+    "card_style": "atelier",
+    "font_body": "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    "font_display": "'Helvetica Neue', Helvetica, Arial, sans-serif",
+    "font_mono": "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+    "google_fonts": "",
+    "ink": "#101C24",
+    "name": "atelier",
+    "pinned": true,
+    "radius": "0px",
+    "surface": "#FBFCFA"
+  },
+  "entities": {
+    "Customer": {
+      "fields": [
+        {
+          "categorized_in_reads": false,
+          "hidden_in_reads": false,
+          "name": "displayName",
+          "required": true,
+          "server_generated": false,
+          "type": "String"
+        }
+      ],
+      "foreign_keys": []
+    },
+    "Order": {
+      "fields": [
+        {
+          "categorized_in_reads": false,
+          "hidden_in_reads": false,
+          "name": "total",
+          "required": true,
+          "server_generated": false,
+          "type": "Money"
+        },
+        {
+          "categorized_in_reads": false,
+          "hidden_in_reads": false,
+          "name": "status",
+          "required": false,
+          "server_generated": false,
+          "type": "String"
+        },
+        {
+          "categorized_in_reads": false,
+          "hidden_in_reads": false,
+          "name": "note",
+          "required": false,
+          "server_generated": false,
+          "type": "Text"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "column": "customer_id",
+          "references": "Customer",
+          "unique": false
+        }
+      ]
+    },
+    "Product": {
+      "fields": [
+        {
+          "categorized_in_reads": false,
+          "hidden_in_reads": false,
+          "name": "name",
+          "required": true,
+          "server_generated": false,
+          "type": "String"
+        },
+        {
+          "categorized_in_reads": false,
+          "hidden_in_reads": false,
+          "name": "price",
+          "required": false,
+          "server_generated": false,
+          "type": "Money"
+        },
+        {
+          "categorized_in_reads": false,
+          "hidden_in_reads": false,
+          "name": "description",
+          "required": false,
+          "server_generated": false,
+          "type": "Text"
+        },
+        {
+          "categorized_in_reads": false,
+          "hidden_in_reads": false,
+          "name": "imageUrl",
+          "required": false,
+          "server_generated": false,
+          "type": "String"
+        },
+        {
+          "categorized_in_reads": false,
+          "hidden_in_reads": false,
+          "name": "category",
+          "required": false,
+          "server_generated": false,
+          "type": "String"
+        },
+        {
+          "categorized_in_reads": false,
+          "hidden_in_reads": false,
+          "name": "stock",
+          "required": false,
+          "server_generated": false,
+          "type": "Integer"
+        }
+      ],
+      "foreign_keys": []
+    }
+  },
+  "frontend_rules": {
+    "entry_point": "frontend/index.html",
+    "forbidden": [
+      "modifier app.py, schema.sql, sandbox_ai.py, landing.html, dashboard.html ou la spec .ml",
+      "appeler des chemins d'API absents de 'routes'",
+      "envoyer un champ server_generated à la création"
+    ],
+    "output_dir": "frontend/",
+    "served_at": "/site (par 'monl run', sans toucher app.py)"
+  },
+  "monl_contract_version": 1,
+  "routes": [
+    {
+      "action": "List",
+      "allowed_actors": [
+        "Customer"
+      ],
+      "auth_required": true,
+      "entity": "Customer",
+      "method": "GET",
+      "note": "Paramètres : limit (max 200), offset. Réponse : {status, total, limit, offset, data: [...]}.",
+      "path": "/customer"
+    },
+    {
+      "action": "Create",
+      "allowed_actors": [
+        "Customer"
+      ],
+      "auth_required": true,
+      "entity": "Customer",
+      "method": "POST",
+      "path": "/customer",
+      "request_fields": [
+        "displayName"
+      ]
+    },
+    {
+      "action": "Delete",
+      "allowed_actors": [
+        "Customer"
+      ],
+      "auth_required": true,
+      "entity": "Customer",
+      "method": "DELETE",
+      "path": "/customer/{id}"
+    },
+    {
+      "action": "Read",
+      "allowed_actors": [
+        "Customer"
+      ],
+      "auth_required": true,
+      "entity": "Customer",
+      "method": "GET",
+      "path": "/customer/{id}"
+    },
+    {
+      "action": "Update",
+      "allowed_actors": [
+        "Customer"
+      ],
+      "auth_required": true,
+      "entity": "Customer",
+      "method": "PUT",
+      "path": "/customer/{id}",
+      "request_fields": [
+        "displayName"
+      ]
+    },
+    {
+      "action": "List",
+      "allowed_actors": [
+        "Admin",
+        "Customer"
+      ],
+      "auth_required": true,
+      "entity": "Order",
+      "method": "GET",
+      "note": "Paramètres : limit (max 200), offset. Réponse : {status, total, limit, offset, data: [...]}.",
+      "path": "/order"
+    },
+    {
+      "action": "Create",
+      "allowed_actors": [
+        "Customer"
+      ],
+      "auth_required": true,
+      "entity": "Order",
+      "method": "POST",
+      "path": "/order",
+      "request_fields": [
+        "total",
+        "status",
+        "note"
+      ]
+    },
+    {
+      "action": "Delete",
+      "allowed_actors": [
+        "Customer"
+      ],
+      "auth_required": true,
+      "entity": "Order",
+      "method": "DELETE",
+      "path": "/order/{id}"
+    },
+    {
+      "action": "Read",
+      "allowed_actors": [
+        "Admin",
+        "Customer"
+      ],
+      "auth_required": true,
+      "entity": "Order",
+      "method": "GET",
+      "path": "/order/{id}"
+    },
+    {
+      "action": "Update",
+      "allowed_actors": [
+        "Customer"
+      ],
+      "auth_required": true,
+      "entity": "Order",
+      "method": "PUT",
+      "path": "/order/{id}",
+      "request_fields": [
+        "total",
+        "status",
+        "note"
+      ]
+    },
+    {
+      "action": "List",
+      "allowed_actors": [
+        "Admin",
+        "Customer"
+      ],
+      "auth_required": false,
+      "entity": "Product",
+      "method": "GET",
+      "note": "Paramètres : limit (max 200), offset. Réponse : {status, total, limit, offset, data: [...]}.",
+      "path": "/product"
+    },
+    {
+      "action": "Create",
+      "allowed_actors": [
+        "Admin"
+      ],
+      "auth_required": true,
+      "entity": "Product",
+      "method": "POST",
+      "path": "/product",
+      "request_fields": [
+        "name",
+        "price",
+        "description",
+        "imageUrl",
+        "category",
+        "stock"
+      ]
+    },
+    {
+      "action": "Delete",
+      "allowed_actors": [
+        "Admin"
+      ],
+      "auth_required": true,
+      "entity": "Product",
+      "method": "DELETE",
+      "path": "/product/{id}"
+    },
+    {
+      "action": "Read",
+      "allowed_actors": [
+        "Admin",
+        "Customer"
+      ],
+      "auth_required": false,
+      "entity": "Product",
+      "method": "GET",
+      "path": "/product/{id}"
+    },
+    {
+      "action": "Update",
+      "allowed_actors": [
+        "Admin"
+      ],
+      "auth_required": true,
+      "entity": "Product",
+      "method": "PUT",
+      "path": "/product/{id}",
+      "request_fields": [
+        "name",
+        "price",
+        "description",
+        "imageUrl",
+        "category",
+        "stock"
+      ]
+    }
+  ],
+  "self_register_actors": [
+    "Customer"
+  ],
+  "source_of_truth": "spec monl (.ml) — ne jamais modifier le backend à la main"
+}
