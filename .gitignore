@@ -5,3 +5,7 @@ models/*
 # Bytecode Python
 __pycache__/
 *.pyc
+
+# Projets d'essai compilés localement (demo/ est la démo de référence,
+# suivie exprès : test_demo.py et test_design_contract.py s'appuient dessus)
+/StudioNova/

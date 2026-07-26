@@ -48,6 +48,10 @@ fetch('/item?limit=5').then(r => r.json()).then(d => {
 BAD_FRONT = ("<!doctype html><html><body><script>"
              "fetch('/fantome/1'); casse();</script></body></html>")
 
+ABSOLUTE_FRONT = ("<!doctype html><html><body><script>"
+                  "fetch('http://127.0.0.1:8000/item?limit=5');"
+                  "</script></body></html>")
+
 
 @pytest.fixture()
 def project(tmp_path):
@@ -90,6 +94,23 @@ def test_smoke_bloque_un_frontend_casse(project):
     assert not ok
     assert any("casse" in e for e in errors), errors          # exception JS
     assert any("/fantome" in e for e in errors), errors        # hors contrat
+
+
+def test_smoke_nomme_lurl_absolue_au_lieu_de_fetch_failed(project):
+    """Régression (point 51) : le serveur éphémère écoutant sur un port
+    libre, un frontend qui vise 8000 en dur échouait en 'TypeError: fetch
+    failed' — message muet sur la cause, sur lequel la correction
+    automatique tournait en rond deux fois avant d'abandonner. L'échec doit
+    rester un échec (ce port casserait aussi 'monl run --port'), mais nommé."""
+    front = project / "frontend"
+    front.mkdir()
+    (front / "index.html").write_text(ABSOLUTE_FRONT, encoding="utf-8")
+    ok, errors, warnings = run_smoke_test(str(project), say=_quiet)
+    assert not ok
+    assert any("URL absolue" in e for e in errors), errors
+    # La tentative compte comme un appel : sans cela le rapport conclurait
+    # « aucun appel API au chargement », ce qui est faux et brouille la piste.
+    assert not any("aucun appel API" in w for w in warnings), warnings
 
 
 def test_parse_files_payload_gardes_fous():

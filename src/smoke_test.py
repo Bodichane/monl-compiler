@@ -79,6 +79,24 @@ const dom = new JSDOM(html, {
         window.fetch = async (input, init) => {
             let target = String(input);
             if (target.startsWith('/')) target = baseUrl + target;
+            else if (/^https?:/i.test(target)) {
+                // Le contrat impose des chemins relatifs (même origine). Une
+                // URL absolue vise un port codé en dur, jamais celui du
+                // serveur éphémère -> 'TypeError: fetch failed', message qui
+                // ne désigne pas la cause et que la correction automatique ne
+                // pouvait pas exploiter. On nomme le défaut, sans réécrire
+                // l'URL : la faute est réelle ('monl run --port' casserait
+                // pareil), la masquer ici serait un faux positif.
+                const msg = "URL absolue interdite — le contrat exige un chemin"
+                    + " relatif (/entite) : le frontend est servi sur /site par"
+                    + " le serveur de l'API, un port codé en dur casse dès qu'il"
+                    + " change";
+                // Consigné comme appel (et non comme erreur JS) : la tentative
+                // a bien eu lieu, sinon le rapport conclut à tort « aucun appel
+                // API au chargement ».
+                report.fetches.push({ url: target, status: 0, error: msg });
+                throw new TypeError(msg);
+            }
             try {
                 const res = await fetch(target, init);
                 report.fetches.push({ url: String(input), status: res.status });
@@ -93,6 +111,17 @@ const dom = new JSDOM(html, {
             if (e.error) report.js_errors.push(String(e.error && e.error.message || e.message));
         });
     },
+});
+
+// Un fetch en échec dont la page n'attrape pas le rejet tue le process Node
+// avant l'échéance ci-dessous : le smoke test ne rapportait alors que « le
+// runner jsdom n'a rendu aucun rapport », en perdant la vraie cause. On la
+// consigne comme erreur JS — c'en est une du point de vue de la page — sans
+// doublonner ce que le shim fetch a déjà nommé.
+process.on('unhandledRejection', (err) => {
+    const msg = String((err && err.message) || err);
+    if (report.fetches.some((f) => f.error === msg)) return;
+    report.js_errors.push('promesse rejetée sans gestion : ' + msg);
 });
 
 // Laisser les scripts + leurs fetch initiaux se dérouler, puis rapporter.

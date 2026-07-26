@@ -62,6 +62,21 @@ def test_contrat_correspond_aux_routes_reelles_de_app_py(tmp_path):
         "le contrat frontend a divergé des routes réellement générées")
 
 
+def test_contrat_impose_la_meme_origine_jamais_un_port_code_en_dur(tmp_path):
+    """Régression (point 51) : le contrat annonçait 'http://127.0.0.1:8000'
+    et le brief en faisait un ordre. Une IA obéissante produisait donc un
+    frontend qui appelle 8000 quoi qu'il arrive — cassé sous 'monl run
+    --port', et recalé par le smoke test (port éphémère) pour avoir suivi le
+    contrat. Le frontend étant servi sur /site par le serveur de l'API, la
+    seule base correcte est l'origine de la page."""
+    proj, _spec, contract = _fresh_project(tmp_path)
+    assert contract["api"]["base_url"] == ""
+    brief = (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    absolue = re.findall(r"`https?://[^`]+`", brief)
+    assert not absolue, f"le brief impose encore une URL absolue : {absolue}"
+    assert "RELATIFS" in brief
+
+
 def test_champs_du_contrat_marquent_requis(tmp_path):
     _proj, _spec, contract = _fresh_project(tmp_path)
     fields = {f["name"]: f for f in contract["entities"]["Item"]["fields"]}

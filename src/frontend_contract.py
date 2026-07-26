@@ -26,7 +26,7 @@ import hashlib
 import json
 import os
 
-CONTRACT_VERSION = 1
+CONTRACT_VERSION = 2  # 2 : api.base_url passe en même origine (point 51)
 CONTRACT_FILENAME = "frontend_contract.json"
 PROMPT_FILENAME = "FRONTEND_PROMPT.md"
 
@@ -116,7 +116,17 @@ def build_contract(normalized_ast, generator):
         "design": design,
         "source_of_truth": "spec monl (.ml) — ne jamais modifier le backend à la main",
         "api": {
-            "base_url": "http://127.0.0.1:8000",
+            # MÊME ORIGINE, jamais d'URL absolue : 'monl run' monte frontend/
+            # sur /site du serveur qui sert déjà l'API (SERVE_WRAPPER, cli.py),
+            # donc l'origine de la page EST celle de l'API. Une base absolue
+            # codée en dur (ce champ valait "http://127.0.0.1:8000") casse dès
+            # que le port change — 'monl run --port', et le port éphémère du
+            # smoke test, qui rejetait alors le frontend pour avoir suivi le
+            # contrat à la lettre (point 51 du journal).
+            "base_url": "",
+            "base_url_note": ("même origine que la page : appeler les routes "
+                              "en chemins relatifs (/entite), jamais d'URL "
+                              "absolue ni de port codé en dur"),
             "auth": {
                 # AJOUT (bêta 3) : seuls les rôles marqués 'selfRegister' dans la
                 # spec peuvent être choisis à l'inscription — les autres sont
@@ -227,7 +237,11 @@ ci-dessous. Le backend existe déjà et ne doit pas être modifié.
   comme point d'entrée (HTML/CSS/JS statiques, aucun build requis).
 - Frontend AUTONOME : aucune librairie CDN, aucun script externe — tout le
   JS/CSS vit dans `frontend/` (c'est ce qui rend le smoke test possible).
-- N'appeler QUE les routes listées plus bas, sur `{contract['api']['base_url']}`.
+- N'appeler QUE les routes listées plus bas, en chemins RELATIFS —
+  `fetch('/entite')`, JAMAIS `fetch('http://127.0.0.1:8000/entite')`. Le
+  frontend est servi sur `/site` par le serveur qui porte l'API : l'origine
+  est déjà la bonne. Une URL absolue avec un port codé en dur casse au
+  premier `monl run --port` et fait échouer le smoke test.
 - Authentification : `POST /register` (username, password 8+, actor parmi
   {contract['self_register_actors'] or "AUCUN — inscription fermée, ne pas "
    "construire de formulaire d'inscription"}), `POST /login` → token JWT, à

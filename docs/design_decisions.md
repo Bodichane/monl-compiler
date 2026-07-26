@@ -1923,3 +1923,47 @@ cas échouent désormais à la compilation.
 non lisible sans compte reçoit automatiquement la règle de lecture, écrite en
 clair dans la spec produite — visible, relisable, supprimable. Le défaut est
 sûr, mais il n'est pas caché.
+
+## 51. Un contrat qui dicte un port en dur punit l'IA qui lui obéit
+
+`monl frontend --provider claude-code` a échoué deux fois de suite sur un
+message indéchiffrable : `TypeError: fetch failed`. Le frontend produit était
+pourtant correct — il faisait exactement ce que le contrat lui ordonnait.
+
+**Le contrat mentait.** `api.base_url` valait `"http://127.0.0.1:8000"`, et le
+brief en faisait une consigne : « N'appeler QUE les routes listées plus bas,
+sur `http://127.0.0.1:8000` ». L'IA a codé `var API_BASE =
+'http://127.0.0.1:8000'`. Mais le smoke test démarre son serveur éphémère sur
+un **port libre tiré au hasard** (point 1), et le shim `fetch` du runner jsdom
+ne réécrivait que les chemins commençant par `/`. L'URL absolue filait donc
+vers un port où personne n'écoutait. Le vérificateur recalait le frontend pour
+avoir suivi le contrat à la lettre, et la correction automatique — à qui on ne
+transmettait que « fetch failed » — ne pouvait pas deviner la cause : ses deux
+tentatives étaient condamnées d'avance.
+
+**Ce n'était pas un artefact de test.** `monl run` monte `frontend/` sur
+`/site` du serveur qui porte déjà l'API (`SERVE_WRAPPER`, cli.py) : l'origine
+de la page EST celle de l'API. Un `monl run --port 9000` aurait donc produit
+une application ouvrant une interface sur 9000 qui interroge 8000. Le port en
+dur était un vrai défaut de production, que le smoke test signalait mal plutôt
+qu'à tort.
+
+**Corriger la consigne, pas le vérificateur.** `api.base_url` vaut désormais
+`""` (même origine) et le brief exige des chemins relatifs. La tentation était
+de faire réécrire les URL absolues par le shim jsdom : ç'aurait été un faux
+positif — le frontend serait passé au vert ici et cassé sous `--port`. La
+faute reste une faute ; seul son signalement change. Le shim la nomme
+explicitement (« URL absolue interdite… ») au lieu de la laisser mourir en
+`fetch failed`, et la consigne l'enregistre comme un appel tenté, sans quoi le
+rapport concluait « aucun appel API au chargement » — faux, et brouillant la
+piste.
+
+**Un runner muet n'apprend rien.** Un `fetch` rejeté que la page n'attrape pas
+tuait le process Node avant l'émission du rapport : le smoke test ne disait
+plus que « le runner jsdom n'a rendu aucun rapport ». Même famille de défaut
+que ci-dessus — la cause existe, le message la perd. Le runner intercepte
+maintenant `unhandledRejection` et le consigne comme erreur JS (dédoublonné de
+ce que le shim a déjà nommé).
+
+`monl_contract_version` passe à **2** : la lecture de `api.base_url` change de
+sens. Les projets déjà compilés se resynchronisent par `monl update`.
