@@ -86,7 +86,8 @@ en l'état car de nombreux renvois internes s'y appuient) ·
 [63](#63-mesurer-le-dépôt-pas-seulement-le-faire-passer-au-vert) Mesurer le dépôt, pas seulement le faire passer au vert ·
 [64](#64-ce-qui-traverse-mal-la-frontière-et-ce-que-personne-ne-mesurait) Ce qui traverse mal la frontière, et ce que personne ne mesurait ·
 [65](#65-un-paquet-quon-ne-peut-pas-installer-nest-pas-un-paquet) Un paquet qu'on ne peut pas installer n'est pas un paquet ·
-[66](#66-rendre-public-ne-pardonne-pas-les-exceptions-à-ses-propres-règles) Rendre public ne pardonne pas les exceptions à ses propres règles
+[66](#66-rendre-public-ne-pardonne-pas-les-exceptions-à-ses-propres-règles) Rendre public ne pardonne pas les exceptions à ses propres règles ·
+[67](#67-un-test-qui-échoue-une-fois-sur-deux-est-pire-quun-test-absent) Un test qui échoue une fois sur deux est pire qu'un test absent
 
 ---
 
@@ -2664,3 +2665,54 @@ page Actions restait vide en donnant l'illusion d'un dépôt sans intégration
 continue. Il écoute désormais toutes les branches. Les pull requests rejouent
 la même chose une seconde fois : doublon assumé, le retour immédiat vaut mieux
 que l'élégance du graphe d'exécutions.
+
+## 67. Un test qui échoue une fois sur deux est pire qu'un test absent
+
+Première vraie leçon de la CI : `verifier (3.12)` a échoué deux fois de suite
+sur la branche `readme`, puis le même code est passé au troisième essai. 3.10
+passait à chaque fois. **Aucun changement de code entre les trois** — la
+branche ne touchait que de la documentation.
+
+**Ce n'était donc pas une incompatibilité de version, mais un test instable.**
+Et c'est plus grave qu'un bug franc : dans une CI devenue bloquante, un test
+qui échoue une fois sur deux apprend à relancer jusqu'au vert. L'habitude prise,
+la protection ne protège plus rien — elle ne fait que retarder les fusions.
+
+**Le coupable : une mesure de temps sur une machine partagée.** Le test du canal
+temporel (`/login` ne doit pas trahir l'existence d'un compte par son temps de
+réponse) comparait deux mesures HTTP à la moitié du coût d'un hachage PBKDF2.
+Chez le mainteneur, machine calme, l'écart est net. Sur un runner GitHub —
+machine virtuelle mutualisée, voisins bruyants, préemption — une seule
+interruption d'ordonnancement pendant les deux mesures d'un groupe suffit à
+faire exploser l'écart mesuré.
+
+**Ce qu'il ne fallait surtout pas faire : élargir le seuil.** C'est la
+correction réflexe, et elle rend le test aveugle à la fuite qu'il surveille —
+un canal temporel exploitable, précisément ce qui avait été corrigé en bêta 3.
+Un test qu'on desserre jusqu'à ce qu'il passe ne teste plus rien.
+
+**Ce qui a été fait à la place**, sans toucher à ce qui est prouvé :
+- **cinq échantillons par groupe** au lieu de deux, en retenant le minimum — le
+  bruit ne peut qu'AJOUTER du temps, jamais en retirer ;
+- **la mesure entière rejouée jusqu'à trois fois**, l'échec n'étant déclaré que
+  si les trois tours dépassent le seuil. Une vraie fuite temporelle est
+  systématique : elle se reproduit à chaque tour. Le bruit, non ;
+- le **quota vidé entre les groupes** (5 tentatives / 60 s, persistées en base
+  depuis le point 33) : le test se limitait à cinq mesures faute de pouvoir en
+  prendre davantage. Effacer une table de compteurs côté banc d'essai
+  n'affaiblit rien du produit.
+
+**Un second défaut, trouvé en chemin.** Le serveur de ce test était démarré à la
+main et arrêté par une ligne placée APRÈS les mesures : tout échec d'assertion
+laissait un `uvicorn` orphelin et un dossier temporaire derrière lui, sur une
+machine qui allait en enchaîner d'autres. Un test instable qui fuit un
+processus contamine les suivants, et l'échec d'après n'a plus aucun rapport
+avec sa cause. Passé sous `try/finally`.
+
+**Ce que l'épisode dit de l'outillage.** Le diagnostic a été fait sans lire les
+journaux : `gh` n'est pas installé sur la machine du mainteneur, et l'API
+GitHub refuse les logs sans authentification. Restaient les métadonnées
+publiques — quel job, quelle étape, quel verdict — qui suffisaient à établir
+l'essentiel : l'étape en échec était la suite de tests, 3.10 passait, le run
+suivant était vert. **Savoir qu'un échec est intermittent vaut déjà la moitié
+du diagnostic.**

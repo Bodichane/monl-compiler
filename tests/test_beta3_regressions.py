@@ -12,6 +12,7 @@ Chaque test rejoue une faille réelle constatée sur la bêta 2 :
 """
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -91,6 +92,18 @@ class _Server:
         self.proc.wait(timeout=10)
 
 
+def _vider_quota(workdir):
+    """Efface le compteur de tentatives de l'application (point 67).
+
+    Le quota (5 / 60 s / IP) est persisté en base — c'est tout l'objet du
+    point 33. Un test qui veut plus de cinq mesures n'a donc pas à dormir une
+    minute : il lui suffit de vider la table, ce qui n'affaiblit rien du
+    produit et ne concerne que le banc d'essai."""
+    import sqlite3
+    with sqlite3.connect(os.path.join(workdir, "app.db")) as cnx:
+        cnx.execute("DELETE FROM _monl_rate_limit")
+
+
 def _login(base, username, password="motdepasse123"):
     """Se connecte en tolérant le quota partagé par les tests de ce module."""
     for tentative in range(3):
@@ -160,17 +173,43 @@ def test_login_ne_revele_pas_l_existence_du_compte():
     énumérer les comptes. On compare donc au coût d'un hachage réel, mesuré
     sur la machine courante — seule référence stable d'une machine à l'autre.
 
-    Contrainte : le quota est de 5 tentatives / 60 s / IP, donc 5 mesures au
-    total, et on retient le minimum de chaque groupe (le plus proche du coût
-    réel du traitement, le bruit ne pouvant qu'ajouter du temps).
-    """
-    import hashlib
+    Contrainte : le quota est de 5 tentatives / 60 s / IP. On le vide entre
+    les mesures (voir _vider_quota) plutôt que de s'y limiter, et on retient
+    le MINIMUM de chaque groupe — le plus proche du coût réel du traitement,
+    le bruit ne pouvant qu'ajouter du temps.
 
-    # Serveur dédié : les 5 mesures consomment à elles seules le quota de
-    # tentatives, elles ne peuvent pas partager l'instance des autres tests.
+    POINT 67 : ce test échouait par intermittence en CI, jamais en local. Un
+    runner partagé est une machine bruyante ; deux mesures suffisaient à ce
+    qu'une préemption fasse exploser l'écart. Deux corrections, aucune ne
+    touchant à ce qui est prouvé : cinq échantillons par groupe au lieu de
+    deux, et la mesure entière rejouée jusqu'à trois fois. Une vraie fuite
+    temporelle est SYSTÉMATIQUE — elle se reproduit à chaque tour ; le bruit,
+    non. Élargir le seuil aurait au contraire rendu le test aveugle à la
+    fuite qu'il surveille.
+    """
+
+    # Serveur dédié : les mesures consomment le quota de tentatives, elles ne
+    # peuvent pas partager l'instance des autres tests.
+    #
+    # POINT 67 : le serveur était démarré à la main et arrêté par une ligne
+    # placée APRÈS les mesures — un échec d'assertion laissait donc un uvicorn
+    # orphelin et un dossier temporaire derrière lui, sur une machine qui
+    # allait enchaîner d'autres serveurs. Un test instable qui fuit un
+    # processus contamine ceux d'après : l'échec suivant n'a plus rien à voir
+    # avec sa cause.
     workdir = tempfile.mkdtemp()
     _compile(workdir)
     server = _Server(workdir).__enter__()
+    try:
+        _mesurer_canal_temporel(server, workdir)
+    finally:
+        server.__exit__()
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+def _mesurer_canal_temporel(server, workdir):
+    import hashlib
+
     requests.post(server.base + "/register",
                   json={"username": "membre", "password": "motdepasse123", "actor": "Member"})
 
@@ -185,15 +224,23 @@ def test_login_ne_revele_pas_l_existence_du_compte():
         assert reponse.status_code == 401, f"quota atteint pendant la mesure ({reponse.status_code})"
         return time.perf_counter() - t0
 
-    mesure("echauffement")  # première requête : coûts de démarrage, écartée
-    existant = min(mesure("membre"), mesure("membre"))
-    inconnu = min(mesure("fantome"), mesure("fantome"))
+    def groupe(username, echantillons=5):
+        _vider_quota(workdir)
+        return min(mesure(username) for _ in range(echantillons))
 
-    server.__exit__()
-    ecart = abs(existant - inconnu)
-    assert ecart < hash_cost / 2, (
-        f"écart de {ecart * 1000:.0f} ms entre compte existant et inexistant "
-        f"(coût d'un hachage : {hash_cost * 1000:.0f} ms) — canal temporel exploitable")
+    mesure("echauffement")  # première requête : coûts de démarrage, écartée
+
+    ecarts = []
+    for _tour in range(3):
+        ecart = abs(groupe("membre") - groupe("fantome"))
+        ecarts.append(ecart)
+        if ecart < hash_cost / 2:
+            break
+
+    assert min(ecarts) < hash_cost / 2, (
+        f"écart de {min(ecarts) * 1000:.0f} ms entre compte existant et inexistant "
+        f"sur {len(ecarts)} mesures indépendantes (coût d'un hachage : "
+        f"{hash_cost * 1000:.0f} ms) — canal temporel exploitable")
 
 
 # --------------------------------------------------------------------------
