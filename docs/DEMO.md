@@ -1,8 +1,15 @@
 # Démonstration complète — AtelierVélo
 
+> **Note (point 68).** Ce récit reste exact sur le déroulé du cycle de vie,
+> mais le projet livré dans `demo/` n'est plus AtelierVélo : c'est désormais
+> **StudioNova**, un portfolio de photographe, dont le frontend a été écrit par
+> Claude Code contre le contrat. Voir `demo/README.md`. AtelierVélo est
+> conservé ici comme trace d'une exécution réelle, pas comme description de
+> l'état du dépôt.
+
 Ce document déroule le cycle de vie ENTIER d'un projet monl, tel qu'il a
 réellement été exécuté (chaque sortie ci-dessous est authentique, pas
-rédigée). Le projet final est livré dans `demo/` et un test le verrouille :
+rédigée). Un test verrouille le projet livré dans `demo/` :
 `tests/test_demo.py` recompile la spec livrée, installe le frontend livré et
 exige un smoke test vert — la démo ne peut pas pourrir en silence.
 

@@ -142,6 +142,10 @@ appel HTTP.
 
 </details>
 
+**Cinq spécifications de référence** sont commentées dans
+[`exemples/`](exemples/) — ce sont des fichiers `.ml`, pas des applications :
+chacune tient en une page et décrit à elle seule tout ce que MonL en dérive.
+
 <details>
 <summary><b>Direction visuelle : contraignante si déclarée, indicative si déduite</b></summary>
 
@@ -248,6 +252,8 @@ automatisée.
 |---|---|
 | `src/monl/` | Le paquet : parseur, validateur, dialogue, contrat frontend, CLI |
 | `src/monl/generator/` | Le générateur de backend, une couche par module |
+| `exemples/` | Cinq **spécifications** `.ml` commentées, compilées à chaque test |
+| `demo/` | La démo StudioNova : sa spec et son frontend, rien de généré |
 | `tests/` | Non-régression, audit offensif, frontières d'architecture |
 | `docs/` | Décisions de conception, sécurité, migrations |
 

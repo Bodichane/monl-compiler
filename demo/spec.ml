@@ -1,76 +1,44 @@
-app AtelierVelo
+app StudioNova
 
 # Spécification générée par le dialogue guidé monl (déterministe, sans IA).
-# Brief du projet : Une boutique d'accessoires vélo, réparation et pièces détachées.
+# Brief du projet : portoflio pour photographe
 
-entity Product
-    name: String
-    price: Money
+entity Project
+    title: String
     description: Text
     imageUrl: String
     category: String
-    stock: Integer
 
-entity Order
-    total: Money
-    status: String
-    note: Text
+entity Message
+    author: String
+    email: Email
+    content: Text
 
-entity Customer
-    displayName: String
+actor Admin selfRegister
 
-relation Customer hasMany Order
+rule Project.title required
+rule Message.author required
+rule Project.Read public
+rule Message.Create public
 
-actor Admin
-actor Customer selfRegister
+workflow ManageProject for Admin
+    Create Project
+    Read Project
+    Update Project
+    Delete Project
 
-rule Product.name required
-rule Order.total required
-rule Customer.displayName required
-rule Product.Read public
-rule Order.Update ownedBy Customer
-rule Order.Delete ownedBy Customer
+workflow ManageMessage for Admin
+    Create Message
+    Read Message
+    Update Message
+    Delete Message
 
-workflow ManageProduct for Admin
-    Create Product
-    Read Product
-    Update Product
-    Delete Product
-
-workflow ManageOrder for Customer
-    Create Order
-    Read Order
-    Update Order
-    Delete Order
-
-workflow ManageCustomer for Customer
-    Create Customer
-    Read Customer
-    Update Customer
-    Delete Customer
-
-workflow BrowseAdmin for Admin
-    Read Order
-
-workflow BrowseCustomer for Customer
-    Read Product
-
-seed Product
-    name: "Casque urbain Vent", price: 74.0, description: "Coque in-mold, aération 18 canaux, taille réglable 54-60 cm.", imageUrl: "diagrammes/casque.svg", category: "Sécurité", stock: 12
-    name: "Éclairage Nuit 600", price: 45.0, description: "Phare avant 600 lumens, autonomie 12 h, fixation sans outil.", imageUrl: "diagrammes/eclairage.svg", category: "Sécurité", stock: 26
-    name: "Chaîne 11 vitesses", price: 32.5, description: "116 maillons, traitement anticorrosion, attache rapide fournie.", imageUrl: "diagrammes/chaine.svg", category: "Transmission", stock: 40
-    name: "Plateau 50 dents", price: 58.0, description: "Aluminium usiné, entraxe 110 mm, compatible double plateau.", imageUrl: "diagrammes/plateau.svg", category: "Transmission", stock: 7
-    name: "Pneu Pavé 700x32", price: 39.9, description: "Gomme renforcée, bande antiperforation, flancs réfléchissants.", imageUrl: "diagrammes/pneu.svg", category: "Roues", stock: 34
-    name: "Sacoche Atelier 14 L", price: 89.0, description: "Toile enduite, fixation porte-bagages, poche à outils intérieure.", imageUrl: "diagrammes/sacoche.svg", category: "Bagagerie", stock: 9
-    name: "Kit outils Multi-8", price: 24.0, description: "Huit embouts, corps acier, étui coton — l'essentiel en poche.", imageUrl: "diagrammes/outils.svg", category: "Atelier", stock: 55
-    name: "Révision complète", price: 95.0, description: "Prestation atelier : transmission, freins, roues, réglages, 48 h.", imageUrl: "diagrammes/revision.svg", category: "Atelier", stock: 20
-
-# Identité visuelle IMPOSÉE par la spec (et non devinée par le compilateur) :
-# le thème 'atelier' est celui du catalogue d'un réparateur — papier
-# quadrillé, trait fin, accent haute visibilité. Épinglé ici, il devient
-# contraignant : le smoke test vérifie que le frontend l'applique vraiment.
-ui Product
-    theme: atelier
+seed Project
+    title: "Refonte Aurora", description: "Identité complète pour une marque de cosmétiques.", imageUrl: "https://loremflickr.com/1600/900/art?lock=1", category: "Identité"
+    title: "App Meridian", description: "Application mobile de suivi d'habitudes.", imageUrl: "https://loremflickr.com/1600/900/art?lock=2", category: "Produit"
+    title: "Site Horizon", description: "Site éditorial pour un festival de musique.", imageUrl: "https://loremflickr.com/1600/900/art?lock=3", category: "Web"
 
 landing
-    brief: "Une boutique d'accessoires vélo, réparation et pièces détachées."
+    brief: "portoflio pour photographe — le visiteur doit pouvoir parcourir le site et conctacter l'admin du site ; registre affirmé et graphique : grandes échelles typographiques, contrastes marqués, parti pris visuel assumé ; les images portent le site (photo, œuvre, produit) : elles occupent de grandes surfaces et commandent la mise en page"
+    section "À propos": "Je m’appelle Alexandre Moreau et je suis photographe professionnel basé à Paris. Animé par la création visuelle et la quête de précision, je mets mon expertise au service de vos projets depuis maintenant plus de 8 ans. ¶ Mon travail se situe à l'intersection de la rigueur technique et de la créativité graphique. Spécialisé dans la photographie de mode, d'architecture et le corporate, je me distingue par un sens aigu de la composition, des lignes épurées et une gestion méticuleuse des contrastes. ¶ Ce qui caractérise mon approche, c’est ma capacité à transformer une idée, un visage ou un espace en une image forte. Je ne me contente pas de documenter : je structure le cadre, je sculpte la lumière et j'élimine le superflu pour ne garder que l'essentiel. Chaque projet est une opportunité de traduire un concept en une esthétique visuelle percutante, moderne et mémorable, pensée pour valoriser votre identité, vos designs ou l'image de votre marque."
+    section "Services": "J'accompagne les marques, les agences, les architectes et les professionnels dans la création d'un patrimoine visuel fort. Mon objectif est de traduire votre identité et vos réalisations à travers des images percutantes, épurées et haut de gamme. ¶ Voici mes trois domaines d'intervention :1. Photographie d'Architecture & Design d'IntérieurPour qui : Architectes, designers d'intérieur, promoteurs immobiliers, hôtels et espaces de coworking. ¶ Ce que je propose : Un travail méticuleux sur les lignes, les perspectives et la lumière naturelle pour valoriser la structure et l'atmosphère de vos espaces. Idéal pour vos books de réalisations, vos publications éditoriales ou votre communication digitale. ¶ 2. Mode, Éditorial & LookbooksPour qui : Marques de prêt-à-porter, créateurs d'accessoires, agences de mannequins et magazines. ¶ Ce que je propose : Des séances photo en studio ou en extérieur (lifestyle urbain) pour donner vie à vos collections. Je gère la direction artistique visuelle pour créer des lookbooks et des campagnes qui capturent l'ADN de votre marque et marquent les esprits. ¶ 3. Corporate & Portrait BusinessPour qui : Entreprises, dirigeants, indépendants et équipes créatives. ¶ Ce que je propose : Des portraits professionnels modernes et valorisants (loin des clichés figés du corporate classique) ainsi que des reportages en immersion dans vos locaux. Idéal pour humaniser votre site web, alimenter vos réseaux professionnels (LinkedIn) et illustrer vos rapports annuels."
