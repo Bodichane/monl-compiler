@@ -1,5 +1,11 @@
 {
   "spec": "spec.ml",
   "spec_sha256": "757a2036317dbf950df257066a1abffefbcf08f3b769c7fc94527a7e5428549d",
-  "contract_sha256": "3fb712d214a656c244a62c28b3754286a0e4f684f6a92ff65c555febd54e155a"
+  "contract_sha256": "df86d39cbfa8b8027c87aeba1c4b3e1c118f63d83610f0c9a95b0682abbd0891",
+  "backend_sha256": {
+    "app.py": "1f1a4a4adce61002058bce7e4065a1a6da4b0cf7b5077b6767bc5051285ed1fc",
+    "schema.sql": "8bd609fdfb57d8b0a8349ee6bb02df38c84e64c77fc4eb54e73d1718e08461e4",
+    "sandbox_ai.py": "53bcf473618c141b6df5b9326c540984d16b3fa2c64b7ed7787003b5da019c07",
+    "manage.py": "373950e43977390131d278ac7b8d8f917de0d28a07bcc879a99ea8ec52bbf421"
+  }
 }

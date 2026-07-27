@@ -30,12 +30,15 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from parser import parse_monl_file  # noqa: E402
-from ast_validator import MonlAST  # noqa: E402
-from generator import MonlSecureGenerator  # noqa: E402
-from frontend_contract import (  # noqa: E402
-    generate_frontend_contract, contract_sha256, CONTRACT_FILENAME, PROMPT_FILENAME,
+from ast_validator import MonlAST
+from frontend_contract import (
+    CONTRACT_FILENAME,
+    PROMPT_FILENAME,
+    contract_sha256,
+    generate_frontend_contract,
 )
+from generator import MonlSecureGenerator
+from parser import parse_monl_file
 
 STATE_FILENAME = "monl.json"
 
@@ -49,8 +52,13 @@ def _load_state(project_dir):
     path = os.path.join(project_dir, STATE_FILENAME)
     if not os.path.exists(path):
         return None
-    with open(path, "r", encoding="utf-8") as fh:
+    with open(path, encoding="utf-8") as fh:
         return json.load(fh)
+
+
+# Ce que la spec produit et que personne ne doit retoucher à la main
+# (manage.py et sandbox_ai.py compris : ils portent des droits).
+SCELLE_ARTEFACTS = ("app.py", "schema.sql", "sandbox_ai.py", "manage.py")
 
 
 def _save_state(project_dir, spec_relpath):
@@ -58,6 +66,17 @@ def _save_state(project_dir, spec_relpath):
         "spec": spec_relpath,
         "spec_sha256": _sha256_file(os.path.join(project_dir, spec_relpath)),
         "contract_sha256": contract_sha256(project_dir),
+        # POINT 64 : empreinte du backend généré. « app.py reste scellé » était
+        # une promesse que RIEN ne mesurait : la cohérence ne vérifiait que
+        # l'existence de ces fichiers, et une retouche à la main passait sans
+        # bruit — alors que 'monl run' annonce « spec ↔ backend ↔ contrat ↔
+        # frontend » vérifiés. Découvert en écrivant le premier test du
+        # parcours de commandes, pas en relisant le code.
+        "backend_sha256": {
+            nom: _sha256_file(os.path.join(project_dir, nom))
+            for nom in SCELLE_ARTEFACTS
+            if os.path.exists(os.path.join(project_dir, nom))
+        },
     }
     with open(os.path.join(project_dir, STATE_FILENAME), "w", encoding="utf-8") as fh:
         json.dump(state, fh, indent=2)
@@ -138,6 +157,26 @@ def check_coherence(project_dir):
             errors.append(f"Artefact manquant : {artefact}")
     if errors:
         return False, errors, warnings
+
+    # Le backend est scellé (point 64) : il se régénère depuis la spec, il ne
+    # se retouche pas. Un état antérieur à cette empreinte n'est pas une
+    # erreur — il est simplement muet, et le dire vaut mieux que laisser
+    # croire à une vérification qui n'a pas eu lieu.
+    empreintes = state.get("backend_sha256")
+    if not empreintes:
+        warnings.append("État antérieur au scellé du backend : recompiler "
+                        "('monl update') pour que app.py et schema.sql soient "
+                        "réellement vérifiés.")
+    else:
+        for nom, attendu in sorted(empreintes.items()):
+            chemin = os.path.join(project_dir, nom)
+            if os.path.exists(chemin) and _sha256_file(chemin) != attendu:
+                errors.append(
+                    f"{nom} a été modifié à la main — le backend est généré "
+                    "depuis la spec. Modifier la spec puis 'monl update' ; "
+                    "toute retouche directe sera écrasée.")
+        if errors:
+            return False, errors, warnings
 
     if contract_sha256(project_dir) != state["contract_sha256"]:
         errors.append(f"{CONTRACT_FILENAME} a été modifié à la main — le contrat est "
@@ -375,6 +414,9 @@ def main(argv=None):
                               "dans le dossier (authentification par abonnement, "
                               "'claude login' — aucune clé requise).")
     p_front.add_argument("--model", default=None, help="Modèle du fournisseur.")
+    p_front.add_argument("--max-turns", type=int, default=None,
+                         help="Budget de tours de l'agent ('claude-code' "
+                              "uniquement). Défaut : 120.")
     p_front.add_argument("--update", action="store_true",
                          help="Faire évoluer le frontend existant à partir de "
                               "FRONTEND_UPDATE_PROMPT.md au lieu de repartir de zéro.")
@@ -398,11 +440,19 @@ def main(argv=None):
     elif args.command == "update":
         cmd_update(args.dir)
     elif args.command == "frontend":
-        from frontend_ai import (PROVIDERS, DEFAULT_MODEL, generate_and_verify,
-                                 generate_with_claude_code, FrontendAIError)
+        from frontend_ai import (
+            DEFAULT_MAX_TURNS,
+            DEFAULT_MODEL,
+            PROVIDERS,
+            FrontendAIError,
+            generate_and_verify,
+            generate_with_claude_code,
+        )
         try:
             if args.provider == "claude-code":
-                ok, _errors = generate_with_claude_code(args.dir, update_mode=args.update)
+                ok, _errors = generate_with_claude_code(
+                    args.dir, update_mode=args.update,
+                    max_turns=args.max_turns or DEFAULT_MAX_TURNS)
             else:
                 provider = PROVIDERS[args.provider](model=args.model or DEFAULT_MODEL)
                 ok, _errors = generate_and_verify(args.dir, provider, update_mode=args.update)
@@ -412,7 +462,7 @@ def main(argv=None):
         if not ok:
             sys.exit(1)
     elif args.command == "import":
-        from frontend_ai import import_and_verify, FrontendAIError
+        from frontend_ai import FrontendAIError, import_and_verify
         try:
             ok, _errors = import_and_verify(args.dir, args.source)
         except FrontendAIError as e:
