@@ -26,6 +26,13 @@
 #                         avancées : increments, hidden, categorized…)
 #   seeds               : {Entité: [ {champ: valeur} ]} — données de démo
 #                         réalistes (sinon repli sur le seed générique)
+#   sections            : [{"title": titre de rubrique, "ask": ce qu'on
+#                         attend dedans}] — rubriques éditoriales que les
+#                         recensements publics donnent comme attendues sur un
+#                         site de ce genre (point 61). Le dialogue en demande
+#                         DIRECTEMENT le texte, il ne demande plus s'il en
+#                         faut ; une réponse vide passe la rubrique. Liste
+#                         vide = outil interne, aucune rubrique standard.
 #   followups           : [{"ask": question o/n, "effects": {...}}] où les
 #                         effets fusionnent dans le modèle si "o" :
 #                         add_fields / add_entities / add_relations /
@@ -75,6 +82,14 @@ TEMPLATES = [
                         "public_create": True, "owned": False},
         },
         "relations": [], "extra_rules": [],
+        # POINT 61 : « about » et une offre lisible figurent dans toutes les
+        # listes d'essentiels d'un portfolio, au même titre que la galerie.
+        "sections": [
+            {"title": "À propos",
+             "ask": "qui vous êtes, depuis quand, ce qui distingue votre travail"},
+            {"title": "Services",
+             "ask": "ce que vous proposez concrètement, et pour qui"},
+        ],
         "seeds": {"Project": [
             {"title": "Refonte Aurora", "description": "Identité complète pour une marque de cosmétiques.", "imageUrl": _img("aurora")},
             {"title": "App Meridian", "description": "Application mobile de suivi d'habitudes.", "imageUrl": _img("meridian")},
@@ -102,6 +117,15 @@ TEMPLATES = [
                         "public_create": False, "owned": False},
         },
         "relations": [], "extra_rules": [],
+        # POINT 61 : la bio de l'auteur est donnée comme page centrale d'un
+        # site d'écriture ; la ligne éditoriale dit au lecteur s'il est au bon
+        # endroit — ce qu'aucune liste d'articles ne raconte.
+        "sections": [
+            {"title": "À propos de l'auteur",
+             "ask": "qui écrit ici, et pourquoi on devrait vous lire"},
+            {"title": "Ligne éditoriale",
+             "ask": "de quoi parle ce blog, à quel rythme, pour quel lecteur"},
+        ],
         "seeds": {"Article": [
             {"title": "Pourquoi j'ai quitté les frameworks", "content": "Retour d'expérience après un an de vanilla.", "imageUrl": _img("blog1"), "author": "Camille Roy", "publishedOn": "2026-05-12"},
             {"title": "Le guide du télétravail durable", "content": "Trois ans de distance, ce qui marche vraiment.", "imageUrl": _img("blog2"), "author": "Camille Roy", "publishedOn": "2026-06-03"},
@@ -134,6 +158,17 @@ TEMPLATES = [
                       "public_create": False, "owned": True},
         },
         "relations": [], "extra_rules": [],
+        # POINT 61 : livraison/retours et FAQ sont les deux textes que les
+        # recensements e-commerce placent au-dessus du reste — ils lèvent les
+        # objections d'achat, qu'aucune fiche produit ne peut porter.
+        "sections": [
+            {"title": "À propos de la boutique",
+             "ask": "qui fabrique ou sélectionne, d'où viennent les produits"},
+            {"title": "Livraison et retours",
+             "ask": "délais, frais, conditions de retour"},
+            {"title": "Questions fréquentes",
+             "ask": "les questions que les clients posent avant d'acheter"},
+        ],
         "seeds": {"Product": [
             {"name": "Théière Kyoto", "price": 39.5, "description": "Fonte émaillée, 0,8 L.", "imageUrl": _img("shop1"), "stock": 12},
             {"name": "Tasse Duo", "price": 18.0, "description": "Grès artisanal, lot de deux.", "imageUrl": _img("shop2"), "stock": 40},
@@ -158,7 +193,11 @@ TEMPLATES = [
                      "manager": "Member", "readers": [], "public_read": False,
                      "public_create": False, "owned": True},
         },
-        "relations": [], "extra_rules": [], "seeds": {},
+        # POINT 61 : outil interne, ouvert sur un tableau et non sur une page
+        # d'accueil. Aucune rubrique standard ne s'impose — le dialogue
+        # retombe donc sur l'offre générique plutôt que d'inventer un « à
+        # propos » à un kanban d'équipe.
+        "relations": [], "extra_rules": [], "seeds": {}, "sections": [],
         "followups": [
         ],
     },
@@ -172,6 +211,15 @@ TEMPLATES = [
                      "public_create": False, "owned": True},
         },
         "relations": [], "extra_rules": [],
+        # POINT 61 : des règles écrites et visibles depuis l'accueil sont le
+        # premier levier de modération cité par les guides de communauté ;
+        # le « à propos » dit à qui la communauté s'adresse.
+        "sections": [
+            {"title": "À propos de la communauté",
+             "ask": "qui se retrouve ici et autour de quoi"},
+            {"title": "Règles de la communauté",
+             "ask": "ce qui est attendu, ce qui est interdit, ce qui arrive en cas d'écart"},
+        ],
         "seeds": {"Post": [
             {"content": "Premier fil de la communauté — présentez-vous ici.", "likes": 24},
             {"content": "Quels outils utilisez-vous au quotidien ?", "likes": 51},
@@ -209,6 +257,15 @@ TEMPLATES = [
                         "public_create": True, "owned": False},
         },
         "relations": [], "extra_rules": [],
+        # POINT 61 : une place de marché entre particuliers doit dire ce
+        # qu'elle prend en charge et ce qu'elle laisse aux deux parties — les
+        # guides de sécurité en font le point de départ de tout le reste.
+        "sections": [
+            {"title": "Comment ça marche",
+             "ask": "publier, contacter un vendeur, conclure — en quelques phrases"},
+            {"title": "Conseils de sécurité",
+             "ask": "lieux de rencontre, moyens de paiement, signalement d'une annonce"},
+        ],
         "seeds": {"Listing": [
             {"title": "Vélo de ville", "price": 120.0, "description": "Bon état, révisé en mai.", "imageUrl": _img("annonce1"), "location": "Lyon"},
             {"title": "Bureau en chêne", "price": 85.0, "description": "140 × 70, à venir chercher.", "imageUrl": _img("annonce2"), "location": "Nantes"},
@@ -234,6 +291,17 @@ TEMPLATES = [
                         "public_create": False, "owned": True},
         },
         "relations": [("Service", "hasMany", "Booking")], "extra_rules": [],
+        # POINT 61 : la politique d'annulation est donnée comme devant figurer
+        # AVEC le formulaire de réservation, pas dans un coin ; horaires et
+        # accès sont l'autre information qu'on cherche avant de réserver.
+        "sections": [
+            {"title": "À propos",
+             "ask": "qui vous êtes, votre approche, votre équipe"},
+            {"title": "Horaires et accès",
+             "ask": "jours et heures d'ouverture, adresse, comment venir"},
+            {"title": "Politique d'annulation",
+             "ask": "délai pour annuler ou déplacer, frais éventuels, comment prévenir"},
+        ],
         "seeds": {"Service": [
             {"name": "Coupe & coiffage", "duration": 45, "price": 38.0, "description": "Shampoing, coupe et coiffage inclus."},
             {"name": "Coloration", "duration": 90, "price": 72.0, "description": "Couleur complète, produit professionnel."},
@@ -251,7 +319,8 @@ TEMPLATES = [
                      "manager": "Admin", "readers": [], "public_read": False,
                      "public_create": False, "owned": False},
         },
-        "relations": [], "extra_rules": [], "seeds": {},
+        # POINT 61 : outil interne — voir la note du modèle « Gestion de tâches ».
+        "relations": [], "extra_rules": [], "seeds": {}, "sections": [],
         "followups": [
             {"ask": "Suivre les fournisseurs (entité liée aux articles) ?",
              "effects": {"add_entities": {"Supplier": {"fields": [("name", "String"), ("email", "Email")],
@@ -272,7 +341,8 @@ TEMPLATES = [
                         "manager": "User", "readers": [], "public_read": False,
                         "public_create": False, "owned": True},
         },
-        "relations": [], "extra_rules": [], "seeds": {},
+        # POINT 61 : outil personnel, sans visiteur à convaincre.
+        "relations": [], "extra_rules": [], "seeds": {}, "sections": [],
         "followups": [
             {"ask": "Classer les dépenses par catégorie ?",
              "effects": {"add_fields": {"Expense": [("category", "String")]}}},
@@ -293,6 +363,14 @@ TEMPLATES = [
         },
         "relations": [("Entry", "hasMany", "Vote")],
         "extra_rules": ["rule Vote.Create increments Entry.score by 1"],
+        # POINT 61 : un classement n'est crédible que si la règle du vote est
+        # écrite — qui peut voter, combien de fois, comment on départage.
+        "sections": [
+            {"title": "À propos du classement",
+             "ask": "ce qui est classé, par qui, dans quel but"},
+            {"title": "Comment fonctionne le vote",
+             "ask": "qui peut voter, combien de fois, comment on départage une égalité"},
+        ],
         "seeds": {"Entry": [
             {"name": "Projet Solaris", "tagline": "Panneaux solaires imprimés en 3D.", "score": 128},
             {"name": "Réseau Maillage", "tagline": "Internet communautaire hors réseau.", "score": 203},
@@ -323,6 +401,11 @@ def apply_effects(template, effects):
     # (une valeur réaliste par ligne, dans l'ordre).
     for ent, per_field in effects.get("add_seed_fields", {}).items():
         for field, values in per_field.items():
-            for row, value in zip(template["seeds"].get(ent, []), values):
+            # strict=True : un modèle qui fournit 2 valeurs pour 3 lignes de
+            # seed doit ÉCHOUER ici, pas produire en silence une ligne à qui
+            # il manque un champ que les autres ont (le catalogue est testé
+            # modèle par modèle, la CI attrape donc l'erreur immédiatement).
+            for row, value in zip(template["seeds"].get(ent, []), values,
+                                  strict=True):
                 row[field] = value
     return template

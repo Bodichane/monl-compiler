@@ -8,9 +8,9 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from dialogue_engine import GuidedDialogue, DialogueError  # noqa: E402
-from parser import parse_monl_string  # noqa: E402
-from ast_validator import MonlAST  # noqa: E402
+from ast_validator import MonlAST
+from dialogue_engine import DialogueError, GuidedDialogue
+from parser import parse_monl_string
 
 SCENARIO_PORTFOLIO = [
     "11",              # partir de zéro (dialogue libre)
@@ -188,7 +188,7 @@ def test_intention_visuelle_arrive_dans_le_brief():
     routes décrites au champ près. Une interface sans intention retombe sur le
     dénominateur commun (point 53)."""
     spec = _run(_scenario_portfolio(["parcourir la galerie", "4", "1"]))
-    ligne = next(l for l in spec.splitlines() if "brief:" in l)
+    ligne = next(x for x in spec.splitlines() if "brief:" in x)
     assert "parcourir la galerie" in ligne
     assert "affirmé et graphique" in ligne          # registre n° 4
     assert "les images portent le site" in ligne    # imagerie n° 1
@@ -223,8 +223,10 @@ def test_sections_editoriales_emises_et_validees():
     une page « à propos » n'a aucune entité, aucun champ, aucune route d'où
     naître — l'IA n'a littéralement rien pour la construire."""
     scenario = SCENARIO_PORTFOLIO[:-1] + [
-        "o", "À propos", "Studio fondé en 2015 à Lyon.",
-        "o", "Méthode", "Repérage, prise de vue, retouche.",
+        # Point 64 : chaque corps se termine par une ligne vide — ici un
+        # seul paragraphe par rubrique.
+        "o", "À propos", "Studio fondé en 2015 à Lyon.", "",
+        "o", "Méthode", "Repérage, prise de vue, retouche.", "",
         "n",
     ]
     spec = _run(scenario)
@@ -240,3 +242,50 @@ def test_sections_refusees_si_aucun_brief():
     ces textes n'auraient nulle part où aller."""
     spec = _run(SCENARIO_PORTFOLIO[:-5] + ["n"])
     assert "section " not in spec and "landing" not in spec
+
+
+def test_un_texte_en_plusieurs_paragraphes_survit_jusqu_au_contrat():
+    """POINT 64 : un « à propos » collé depuis un traitement de texte
+    arrivait aplati — paragraphes recollés sans même une espace, et l'IA
+    d'interface recevait un mur de texte. La grammaire interdit toujours le
+    retour à la ligne : le dialogue demande donc les paragraphes un à un, et
+    le contrat les rétablit."""
+    import tempfile
+
+    from frontend_contract import build_contract
+    from generator import MonlSecureGenerator
+
+    scenario = SCENARIO_PORTFOLIO[:-1] + [
+        "o", "À propos",
+        "Photographe basée à Lyon depuis 2015.",
+        "Mon travail mêle rigueur technique et composition.",
+        "Chaque projet traduit une idée en image forte.",
+        "",                       # fin des paragraphes
+        "n",                      # pas d'autre section
+    ]
+    spec = _run(scenario)
+    # Dans la spec : une seule ligne, marquée — c'est ce que la grammaire
+    # sait porter.
+    ligne = next(x for x in spec.splitlines() if x.strip().startswith('section'))
+    assert ligne.count("¶") == 2, ligne
+    assert "\n" not in ligne.strip("\n")
+
+    normalized = MonlAST(parse_monl_string(spec)).validate_and_audit()
+    # output_dir : sans lui, la graine de thème atterrit dans le dépôt.
+    with tempfile.TemporaryDirectory() as sortie:
+        contrat = build_contract(
+            normalized, MonlSecureGenerator(normalized, output_dir=sortie))
+    corps = contrat["sections"][0]["body"]
+    assert corps.split("\n\n") == [
+        "Photographe basée à Lyon depuis 2015.",
+        "Mon travail mêle rigueur technique et composition.",
+        "Chaque projet traduit une idée en image forte.",
+    ], corps
+    assert "¶" not in corps, "le séparateur ne doit jamais atteindre l'IA"
+
+
+def test_un_texte_sans_marqueur_traverse_inchange():
+    """Une spec écrite à la main, ou antérieure au point 64, doit se lire
+    exactement comme avant — le marqueur est un ajout, pas un format."""
+    from frontend_contract import paragraphes
+    assert paragraphes("Un seul paragraphe.") == "Un seul paragraphe."
