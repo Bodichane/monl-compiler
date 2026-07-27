@@ -79,10 +79,9 @@ Le parcours complet — y compris l'ajout d'une interface — est détaillé dan
 | **Rôle de l'IA** | aucun | écrit tout, backend compris | **cantonnée au frontend, encadrée par un contrat et un smoke test** |
 | **Évolution du schéma** | migrations à écrire | à reprendre à la main | **additive et non destructive, données préservées** |
 
-**Ce que MonL n'est pas :** un framework à apprendre, ni un générateur qui vous
-laisse seul avec son résultat. La spécification reste lisible en une page, et
-c'est elle qu'on modifie — le code produit n'est jamais un point de départ à
-retoucher.
+**Ce que vous écrivez :** une spécification d'une page. **Ce que vous
+modifiez, ensuite :** la même page. Le code produit se recompile ; il n'est
+jamais un point de départ à retoucher.
 
 ## Architecture
 
@@ -142,9 +141,10 @@ appel HTTP.
 
 </details>
 
-**Cinq spécifications de référence** sont commentées dans
-[`exemples/`](exemples/) — ce sont des fichiers `.ml`, pas des applications :
-chacune tient en une page et décrit à elle seule tout ce que MonL en dérive.
+**Cinq spécifications de référence**, commentées, dans
+[`exemples/`](exemples/) : un fichier `.ml` d'une page par application —
+portfolio, boutique, réseau social, kanban, classement — dont MonL dérive tout
+le reste.
 
 <details>
 <summary><b>Direction visuelle : contraignante si déclarée, indicative si déduite</b></summary>
@@ -194,7 +194,8 @@ destructifs ne sont pas automatisés, à dessein — voir [docs/MIGRATIONS.md](d
 
 ## Le frontend : contrat et IA spécialisée
 
-MonL **ne génère aucune interface lui-même**. Chaque compilation produit à la place :
+L'interface est écrite par une IA, à partir de deux documents que chaque
+compilation produit :
 
 - `frontend_contract.json` — description exhaustive et machine-lisible des routes,
   de l'authentification et des règles de champ, dont un test garantit qu'elle ne
@@ -252,8 +253,8 @@ automatisée.
 |---|---|
 | `src/monl/` | Le paquet : parseur, validateur, dialogue, contrat frontend, CLI |
 | `src/monl/generator/` | Le générateur de backend, une couche par module |
-| `exemples/` | Cinq **spécifications** `.ml` commentées, compilées à chaque test |
-| `demo/` | La démo StudioNova : sa spec et son frontend, rien de généré |
+| `exemples/` | Cinq spécifications `.ml` d'une page, compilées à chaque test |
+| `demo/` | La démo StudioNova : sa spécification et son frontend |
 | `tests/` | Non-régression, audit offensif, frontières d'architecture |
 | `docs/` | Décisions de conception, sécurité, migrations |
 

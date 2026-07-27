@@ -1,9 +1,9 @@
 # Exemples de spécifications
 
-**Ce dossier ne contient pas des applications, mais les cinq fichiers `.ml` qui
-suffisent à les décrire.** C'est tout l'objet de MonL : ce qui est ci-dessous
-est la seule chose écrite à la main ; le backend, l'API, l'authentification, le
-contrôle d'accès et le contrat frontend en sont dérivés à la compilation.
+**Cinq fichiers `.ml`, une page chacun : la description complète de cinq
+applications.** C'est la seule chose écrite à la main. Le schéma de base, l'API
+REST, l'authentification, le contrôle d'accès et le contrat frontend en sont
+dérivés à la compilation.
 
 | Spécification | Ce qu'elle décrit | Ce qu'elle démontre du langage |
 |---|---|---|

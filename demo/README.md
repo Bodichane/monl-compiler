@@ -4,19 +4,18 @@ Le portfolio d'un photographe : galerie publique de projets, formulaire de
 contact, zone d'administration. Produit par le parcours complet de MonL, du
 dialogue guidé jusqu'à l'interface.
 
-Ce dossier ne contient que **ce qui n'est pas dérivable** :
+**Deux fichiers, les deux seuls écrits :**
 
 | Fichier | Écrit par |
 |---|---|
 | `spec.ml` | le dialogue guidé, à partir des réponses de l'auteur |
 | `frontend/` | une IA d'interface, contre le contrat produit par MonL |
 
-Le backend, le contrat, le brief et l'état du projet ne sont **pas** versionnés
-ici : ils se recalculent depuis `spec.ml` en une seconde. Les versionner
-reviendrait à maintenir à la main la sortie d'un compilateur — exactement ce
-que MonL existe pour éviter. Ils l'étaient jusqu'au point 68 du journal, alors
-que ce fichier affirmait déjà le contraire, et ils avaient silencieusement
-vieilli : le contrat livré datait d'avant trois évolutions du compilateur.
+Tout le reste — backend, contrat, brief, état du projet — se recalcule depuis
+`spec.ml` en une seconde, et se trouve donc dans le dossier de compilation, pas
+ici. Ces neuf fichiers ont été versionnés jusqu'au point 68 du journal ; ils
+avaient silencieusement vieilli, le contrat livré datant d'avant trois
+évolutions du compilateur.
 
 ## Le refaire tourner
 
