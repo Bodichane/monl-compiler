@@ -381,11 +381,44 @@ def _render_prompt(contract):
             "— aucune route d'API ne les sert, ils n'existent qu'ici.\n\n"
             + corps + "\n")
     design = contract["design"]
-    design_block = (
+    # POINT 58 — sans épinglage, monl ne prescrit PLUS rien du visuel. La
+    # direction déterministe n'offrait aucune surface sombre : tout ce qui
+    # était large restait crème, et le brief interdisait d'improviser. Trois
+    # générations de suite ont rendu le même aplat. Ce que monl sait
+    # (structure, rôles, contenu, intention) est transmis ; comment cela se
+    # regarde est rendu à l'IA d'interface, dont c'est le métier.
+    if not design.get("pinned"):
+        design_block = f"""## Direction de design — LIBRE
+
+monl n'impose ici **aucune** palette, aucune typographie, aucun rayon, aucune
+mise en page. Composez l'identité qui sert ce projet : c'est votre métier, pas
+celui du compilateur.
+
+Ce qui doit vous guider est ailleurs dans ce document — le brief (intention,
+registre, place des images), la forme conseillée de chaque entité, le contenu
+éditorial. Servez-les.
+
+Vous pouvez donc, et c'était impossible jusqu'ici :
+- employer des **surfaces sombres**, bandeaux contrastés, hero pleine largeur,
+  pied de page dense — alterner les fonds plutôt que tout poser sur un aplat ;
+- construire votre propre gamme, aussi large que le sujet l'exige ;
+- choisir vos familles typographiques, vos échelles, votre grille.
+
+Deux exigences seulement, qui ne sont pas des questions de goût :
+- **Contraste** : au moins 4,5:1 entre un texte et son fond (WCAG AA), 3:1
+  pour les grands titres. Une interface illisible n'est pas un parti pris.
+- **Autonomie** : tout vit dans `frontend/`, aucune ressource distante (voir
+  les règles ci-dessous). Les familles déjà présentes sur les machines
+  suffisent à porter une identité — c'est leur traitement qui la fait.
+
+Une palette déterministe reste calculée dans `frontend_contract.json` >
+`design` si vous voulez un point de départ. Elle n'est qu'une suggestion :
+l'ignorer entièrement est un choix légitime, rien ne la vérifie.
+"""
+    else:
+        design_block = (
         f"## Direction de design "
-        + ("(IMPOSÉE par la spec — vérifiée au smoke test)\n"
-           if design.get("pinned") else
-           "(proposition déterministe, propre à ce projet)\n")
+        + ("(IMPOSÉE par la spec — vérifiée au smoke test)\n")
         + f"Système « {design['name']} » — fond `{design['bg']}`, surfaces `{design['surface']}`, "
         f"texte `{design['ink']}`, accents `{design['accent']}` / `{design['accent2']}`, "
         f"rayon `{design['radius']}`.\n"
@@ -398,11 +431,8 @@ def _render_prompt(contract):
           "portent l'identité, pas un fichier distant"
         + ". Vous écrivez le HTML/CSS ; "
         + ("la spec ÉPINGLE ce thème : ces cinq couleurs doivent apparaître "
-           "telles quelles dans votre CSS, le smoke test le vérifie.\n"
-           if design.get("pinned") else
-           "cette direction garantit une identité stable et distincte pour ce "
-           "projet ; vous pouvez vous en écarter si votre parti pris sert mieux "
-           "le sujet — l'écart est signalé, pas bloquant.\n")
+           "telles quelles dans votre CSS, le smoke test le vérifie. Le reste "
+           "— mise en page, rythme, échelles — demeure votre décision.\n")
         # Point 56 : sans ces tons, une interface n'a que cinq valeurs plates
         # et rend des aplats sans profondeur. Ils sont déduits de la palette,
         # donc justes sur un thème sombre comme sur un thème clair.

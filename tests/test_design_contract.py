@@ -90,17 +90,34 @@ def test_theme_epingle_est_exact_et_contraignant():
         assert "police de titrage" in message
 
 
-def test_theme_devine_reste_une_proposition():
-    """Sans épinglage, l'écart est signalé mais ne fait pas échouer le build."""
+def test_sans_epinglage_le_visuel_appartient_a_l_ia():
+    """Renversement assumé (point 58) : sans `ui … theme:`, monl ne propose
+    plus de direction et n'a donc rien à reprocher. L'avertissement d'avant
+    portait sur une devinette du compilateur, et poussait à reproduire l'aplat
+    crème que la palette déduite rendait inévitable — elle n'offrait aucune
+    surface sombre, donc aucun contraste possible sur de grandes zones."""
     with tempfile.TemporaryDirectory() as workdir:
         contrat = _contrat(BASE, workdir)
         assert contrat["design"]["pinned"] is False
+        # Un frontend qui ignore totalement la palette déduite : rien à dire.
+        assert _verifier_palette(_frontend(workdir, "body{color:#123456}"), contrat) == []
 
-        problemes = _verifier_palette(_frontend(workdir, "body{color:#123456}"), contrat)
-        assert len(problemes) == 1
-        message, bloquant = problemes[0]
-        assert bloquant is False
-        assert "theme:" in message  # le message indique comment rendre la règle contraignante
+
+def test_le_brief_rend_la_main_a_l_ia_quand_rien_n_est_epingle(tmp_path):
+    """Le contrat JSON garde une palette calculée, mais le brief — le seul
+    document que l'IA lit vraiment — doit dire clairement qu'elle est libre."""
+    brief_path = tmp_path / "libre"
+    brief_path.mkdir()
+    (brief_path / "spec.ml").write_text(BASE, encoding="utf-8")
+    import sys as _sys
+    _sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+    from cli import compile_project  # noqa: E402
+    compile_project(str(brief_path / "spec.ml"), str(brief_path))
+    brief = (brief_path / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    assert "Direction de design — LIBRE" in brief
+    assert "surfaces sombres" in brief          # ce qui était impossible avant
+    # Les deux exigences qui ne sont pas des questions de goût subsistent.
+    assert "4,5:1" in brief and "aucune ressource distante" in brief
 
 
 def test_demo_livree_respecte_son_theme_epingle():

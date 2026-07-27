@@ -202,16 +202,20 @@ def _verifier_palette(frontend_dir, contract):
     Dans un produit dont la thèse est « le contrat fait foi », une clause
     invérifiée décrédibilise les autres.
 
-    La sévérité dépend de l'ORIGINE de la direction, pas de son contenu :
-      - épinglée par un bloc 'ui theme:' de la spec -> l'auteur a tranché,
-        l'écart est une erreur ;
-      - déduite du vocabulaire des entités -> c'est une proposition du
-        compilateur, l'écart n'est qu'un avertissement. Faire échouer un
-        build sur une devinette punirait un bon parti pris de l'interface.
+    Ne vérifie QUE ce que la spec a explicitement épinglé (point 58) :
+      - thème épinglé par un bloc 'ui theme:' -> l'auteur a tranché, l'écart
+        est une erreur ;
+      - aucun épinglage -> le visuel appartient à l'IA d'interface, monl ne
+        propose plus rien et n'a donc rien à reprocher. L'avertissement
+        d'autrefois portait sur une DEVINETTE du compilateur : il poussait à
+        reproduire un aplat crème que la palette déduite rendait inévitable,
+        faute de toute surface sombre.
 
     Retourne une liste de (message, bloquant).
     """
     design = contract.get("design") or {}
+    if not design.get("pinned"):
+        return []
     couleurs = {cle: design.get(cle) for cle in ("bg", "surface", "ink", "accent", "accent2")}
     couleurs = {k: v for k, v in couleurs.items() if isinstance(v, str) and v.startswith("#")}
     if not couleurs:
@@ -255,9 +259,10 @@ def _verifier_palette(frontend_dir, contract):
         return [(f"la spec épingle le thème « {design.get('name')} » mais le frontend "
                  f"n'en applique pas la direction : {', '.join(manquantes)} absent(s) des "
                  f"styles livrés", True)]
-    return [(f"direction de design « {design.get('name')} » non suivie "
-             f"({', '.join(manquantes)}) — proposition du compilateur, non bloquante ; "
-             f"épinglez-la par un bloc 'ui … theme:' pour la rendre contraignante", False)]
+    # Thème épinglé mais SEULE la typographie s'écarte : signalé, pas bloquant
+    # (point 52 — une pile de polices a des quasi-équivalents).
+    return [(f"la spec épingle le thème « {design.get('name')} » : "
+             f"{', '.join(manquantes)} absent(s) des styles livrés", False)]
 
 
 def run_smoke_test(project_dir, say=print):

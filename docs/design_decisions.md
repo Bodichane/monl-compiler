@@ -77,7 +77,8 @@ en l'état car de nombreux renvois internes s'y appuient) ·
 [54](#54-le-pivot-a-supprimé-une-intelligence-au-lieu-de-la-déplacer) Le pivot a supprimé une intelligence au lieu de la déplacer ·
 [55](#55-monl-modélisait-des-données-un-site-est-surtout-du-contenu) monl modélisait des données, un site est surtout du contenu ·
 [56](#56-cinq-couleurs-plates-ne-font-pas-une-palette) Cinq couleurs plates ne font pas une palette ·
-[57](#57-un-contrat-qui-décrit-mal-le-corps-est-pire-quun-contrat-muet) Un contrat qui décrit mal le corps est pire qu'un contrat muet
+[57](#57-un-contrat-qui-décrit-mal-le-corps-est-pire-quun-contrat-muet) Un contrat qui décrit mal le corps est pire qu'un contrat muet ·
+[58](#58-rendre-la-main--sans-épinglage-le-visuel-appartient-à-lia) Rendre la main : sans épinglage, le visuel appartient à l'IA
 
 ---
 
@@ -2248,3 +2249,51 @@ Le vérificateur n'examinait que le DÉBUT du littéral ; il examine maintenant
 le littéral entier et rejette ce qui contient un chevron ou une espace. Toute
 application monopage déclenchait cet avertissement : crier au loup à chaque
 génération décrédibilise les signaux qui, eux, sont vrais.
+
+## 58. Rendre la main : sans épinglage, le visuel appartient à l'IA
+
+Trois générations de suite ont rendu le même aplat crème, malgré les points 52
+(polices), 54 (archétypes) et 56 (tons dérivés). La mesure a montré pourquoi,
+et le diagnostic accuse la direction elle-même.
+
+**Une palette sans surface sombre.** Des dix tons publiés, cinq passaient au
+crible d'une luminance supérieure à 0,55 — et c'étaient les seuls utilisables
+sur de grandes zones. Les cinq autres étaient des couleurs de TEXTE et
+d'accent. Aucun bandeau contrasté, aucun hero plein, aucun pied de page dense
+n'était donc composable : tout ce qui est large restait crème ou blanc, par
+construction. Le point 56 a même aggravé le cas en écrivant « à employer
+plutôt que d'improviser des gris » : la porte à l'invention fermée, celle du
+contraste jamais ouverte.
+
+**Le fond du problème n'était pas la palette.** On pouvait y ajouter une
+surface sombre et continuer à prescrire. Le choix retenu va plus loin :
+**monl cesse de prescrire le visuel dès lors que la spec ne l'épingle pas**.
+Le compilateur sait des choses réelles — la structure, les rôles des champs,
+le contenu éditorial, l'intention déclarée au dialogue — et il les transmet
+toutes. Comment cela se regarde n'en fait pas partie ; c'est le métier du
+modèle d'interface, et une direction déduite du vocabulaire des entités était
+une devinette déguisée en consigne.
+
+**Ce qui reste opposable.** Deux exigences seulement, aucune n'étant affaire
+de goût : un contraste texte/fond d'au moins 4,5:1 (une interface illisible
+n'est pas un parti pris), et l'autonomie du frontend — aucune ressource
+distante, puisque c'est elle qui rend le smoke test possible hors ligne, donc
+tout le reste vérifiable. La règle d'autonomie a été explicitement CONSERVÉE
+au moment de rendre la main : elle n'est pas une contrainte esthétique.
+
+**L'épinglage garde tous ses droits.** `ui … theme:` reste contraignant et
+vérifié : quand l'auteur de la spec a tranché, il a tranché. L'asymétrie du
+projet ne bouge pas — stricte sur ce qui est déclaré, désormais muette sur ce
+qui n'était que deviné, au lieu de tolérante.
+
+**Ce qu'on perd, sciemment.** Le point 20 promettait que deux applications ne
+se ressembleraient jamais, garanti par une identité déterministe par projet.
+Cette garantie disparaît pour les projets sans épinglage : deux sites générés
+pourront se ressembler si le modèle a des habitudes. C'est le prix assumé —
+une ressemblance possible entre deux projets coûte moins cher qu'une
+uniformité certaine sur tous, et l'utilisateur qui veut une identité imposée
+dispose d'un bloc `ui` pour le dire.
+
+**Le vérificateur suit.** `_verifier_palette` ne contrôle plus rien en
+l'absence d'épinglage. Avertir sur l'écart à une devinette poussait à
+reproduire l'aplat, exactement le contraire du but recherché.
