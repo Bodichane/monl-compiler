@@ -7,6 +7,7 @@
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
 [![Tests](https://img.shields.io/badge/tests-153-brightgreen)](tests/)
 [![Couverture](https://img.shields.io/badge/couverture-85%25-brightgreen)](#qualité-et-vérification)
+[![Licence](https://img.shields.io/badge/licence-propriétaire-lightgrey)](LICENSE)
 
 On décrit l'intention d'une application dans un DSL dédié ; monl en génère la base
 de données, l'API REST, l'authentification et le contrôle d'accès — puis produit un
@@ -270,7 +271,17 @@ demo/                projet de démonstration complet (dont dépendent des tests
 | [docs/MIGRATIONS.md](docs/MIGRATIONS.md) | Évolution du schéma sans perte |
 | [docs/BETA.md](docs/BETA.md) | État de la bêta et feuille de route |
 | [CHANGELOG.md](CHANGELOG.md) | Historique des versions |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Méthode de travail, règles du dépôt, checklist avant PR |
+
+## Licence
+
+Dépôt **public**, logiciel **propriétaire** — tous droits réservés
+([LICENSE](LICENSE)). Le code est visible pour lecture et évaluation ; il n'est
+pas sous licence libre. Les applications *produites* par monl à partir de vos
+propres spécifications vous appartiennent.
+
+Les rapports de bug et remarques sont bienvenus dans les *issues*.
 
 ---
 
-**Version 0.9.0-beta.3** — logiciel propriétaire, tous droits réservés.
+**monl 0.9.0-beta.3**
