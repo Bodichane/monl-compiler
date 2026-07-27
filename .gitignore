@@ -10,3 +10,11 @@ __pycache__/
 # suivie exprès : test_demo.py et test_design_contract.py s'appuient dessus)
 /StudioNova/
 /Nova/
+
+# Rapport de couverture (point 63)
+.coverage
+htmlcov/
+
+# Graine de variation visuelle : le commentaire de generator/theme.py
+# affirmait depuis toujours qu'elle était ignorée — elle ne l'était pas.
+.monl_theme_seed

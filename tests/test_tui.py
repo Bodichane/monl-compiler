@@ -11,8 +11,8 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-from dialogue_engine import GuidedDialogue  # noqa: E402
-from tui import PlainDialogueUI, StyledDialogueUI, Terminal  # noqa: E402
+from dialogue_engine import GuidedDialogue
+from tui import PlainDialogueUI, StyledDialogueUI, Terminal
 
 
 class _TerminalNu(Terminal):

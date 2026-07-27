@@ -10,7 +10,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../src"))
 
-from parser import parse_monl_string, MonlSyntaxError
+from parser import MonlSyntaxError, parse_monl_string
 
 
 def test_syntax_error_is_localized():

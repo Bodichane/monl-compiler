@@ -1,5 +1,6 @@
 import os
 import re
+
 from lark import Lark, Transformer, v_args
 from lark.indenter import PythonIndenter
 
@@ -264,21 +265,21 @@ class MonlTransformer(Transformer):
             "capabilities": [b["capability"] for b in valid_blocks if "capability" in b],
             "seeds": [b["seed"] for b in valid_blocks if "seed" in b],
         }
-        
+
     def entity(self, name, *attributes):
         return {"entity": {"name": str(name), "attributes": list(attributes)}}
-        
+
     def attribute(self, name, type_str):
         return {"name": str(name), "type": str(type_str)}
-        
+
     def relation(self, source, rel_type, target):
         return {"relation": {"source": str(source), "type": str(rel_type), "target": str(target)}}
-        
+
     def actor(self, name, self_register=None):
         # 'self_register' est le token SELF_REGISTER quand il est présent
         # dans la spec, None sinon (production Lark nommée, cf. CLAUDE.md).
         return {"actor": str(name), "self_register": self_register is not None}
-        
+
     def constraint_rule(self, reference, valid_type, value=None):
         data = {"reference": str(reference), "type": str(valid_type)}
         if value is not None:
@@ -381,7 +382,7 @@ class MonlTransformer(Transformer):
 
     def workflow(self, name, actor_name, *actions):
         return {"workflow": {"name": str(name), "actor": str(actor_name), "actions": list(actions)}}
-        
+
     def crud_action(self, action_type, target):
         return {"type": str(action_type), "target": str(target)}
 
@@ -527,7 +528,7 @@ _TOKEN_LABELS = {
 
 
 def _format_lark_error(err, original_content, line_map, file_path=None):
-    from lark.exceptions import UnexpectedToken, UnexpectedCharacters
+    from lark.exceptions import UnexpectedCharacters, UnexpectedToken
     original_lines = original_content.split("\n")
     line = getattr(err, "line", None)
     column = getattr(err, "column", None)
@@ -574,6 +575,6 @@ def parse_monl_string(content, file_path=None):
     return MonlTransformer().transform(tree)
 
 def parse_monl_file(file_path):
-    with open(file_path, 'r', encoding='utf-8') as f:
+    with open(file_path, encoding='utf-8') as f:
         content = f.read()
     return parse_monl_string(content, file_path=file_path)

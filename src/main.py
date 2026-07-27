@@ -1,9 +1,10 @@
+import argparse
 import os
 import sys
-import argparse
-from parser import parse_monl_file
+
 from ast_validator import MonlAST
 from generator import MonlSecureGenerator
+from parser import parse_monl_file
 
 
 def compile_monl(file_path, output_dir=None):

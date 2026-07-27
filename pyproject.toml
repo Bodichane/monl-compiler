@@ -23,7 +23,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0,<9.0"]
+dev = [
+    "pytest>=8.0,<9.0",
+    "pytest-cov>=5.0",       # ce que les tests ne touchent pas
+    "ruff>=0.6",             # fautes, imports morts, tri des imports
+]
 
 [project.scripts]
 monl = "run_monl:main"
@@ -38,3 +42,48 @@ py-modules = ["run_monl"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+# ─────────────────────────────────────────────────────────────────────
+# Ruff — le linter. Jeu de règles CHOISI, pas le catalogue complet : un
+# linter qui crie sur du code délibéré finit ignoré, et un avertissement
+# ignoré ne vaut pas mieux que pas d'avertissement (même raisonnement
+# qu'au point 48 pour les clauses du contrat).
+# ─────────────────────────────────────────────────────────────────────
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+ignore = [
+    # Le dépôt écrit en français : « é », « — », « … » ne sont pas des
+    # caractères ambigus à corriger, ce sont la langue du projet.
+    "RUF001", "RUF002", "RUF003",
+    # Longues chaînes de brief et de grammaire : couper à 100 colonnes
+    # nuirait à la relecture de ce qui compte le plus.
+    "E501",
+    # Style assumé du dépôt, pas des défauts :
+    "E701",    # « with open(...) as f: f.write(x) » — compact et lisible
+    "RUF005",  # « liste + [x] » se lit mieux que le dépaquetage ici
+    "RUF012",  # attributs de classe exigés par l'API Lark (MonlIndenter)
+    "SIM105",  # contextlib.suppress cache le motif au profit d'un import
+    "SIM115",  # fichiers ouverts sans gestionnaire dans les tests, à dessein
+    "B007",    # variable de boucle inutilisée : lisible quand elle nomme
+    "RUF059",  # dépaquetage partiel : les noms documentent la forme
+]
+
+[tool.ruff.lint.per-file-ignores]
+# La grammaire Lark vit dans une chaîne littérale : ses lignes vides
+# PORTENT des espaces, et y toucher modifierait le texte que Lark analyse.
+# Le linter voit des lignes physiques, pas la frontière du littéral.
+"src/parser.py" = ["W293"]
+# Imports groupés par section (voie API, voie Claude Code, voie import) :
+# l'ordre raconte les trois chemins, un bloc unique en tête ne dirait rien.
+"src/frontend_ai.py" = ["E402"]
+# Le test construit le code d'un SOUS-PROCESSUS : « %r » y sert à citer des
+# chemins sans risque de guillemets, pas à formater un affichage.
+"tests/test_beta3_regressions.py" = ["UP031"]
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["*/__pycache__/*"]

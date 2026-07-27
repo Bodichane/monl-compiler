@@ -74,7 +74,7 @@ class SchemasMixin:
         for func in self.custom_functions:
             func_name = func["name"]
             inputs = func.get("input", [])
-            
+
             api_lines.append(f"class {func_name}InputSchema(BaseModel):")
             if not inputs:
                 api_lines.append("    pass")

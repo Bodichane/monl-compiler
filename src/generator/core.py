@@ -221,12 +221,12 @@ class MonlSecureGenerator(
         print(f"🏗️  Génération du socle déterministe réel pour '{self.app_name}'...")
         if self.capabilities:
             print(f"🧩 Capacités déclarées : {', '.join(self.capabilities)} (voir docs/design_decisions.md point 24).")
-        
+
         sql_content = self._generate_sql()
         api_content = self._generate_secure_fastapi()
         sandbox_content = self._generate_ai_sandbox()
         manage_content = self._generate_manage_cli()
-        
+
         # Détermination des chemins physiques (racine du dépôt par défaut,
         # ou dossier passé via --output — voir __init__).
         base_dir = self.output_dir

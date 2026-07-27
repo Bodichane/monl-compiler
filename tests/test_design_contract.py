@@ -9,11 +9,11 @@ import sys
 import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-from ast_validator import MonlAST  # noqa: E402
-from frontend_contract import build_contract  # noqa: E402
-from generator import MonlSecureGenerator  # noqa: E402
-from parser import parse_monl_file  # noqa: E402
-from smoke_test import _verifier_palette  # noqa: E402
+from ast_validator import MonlAST
+from frontend_contract import build_contract
+from generator import MonlSecureGenerator
+from parser import parse_monl_file
+from smoke_test import _verifier_palette
 
 BASE = """app Reparation
 
@@ -111,7 +111,7 @@ def test_le_brief_rend_la_main_a_l_ia_quand_rien_n_est_epingle(tmp_path):
     (brief_path / "spec.ml").write_text(BASE, encoding="utf-8")
     import sys as _sys
     _sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-    from cli import compile_project  # noqa: E402
+    from cli import compile_project
     compile_project(str(brief_path / "spec.ml"), str(brief_path))
     brief = (brief_path / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     assert "Direction de design — LIBRE" in brief

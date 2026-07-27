@@ -25,9 +25,9 @@ import requests
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../src"))
 
-from parser import parse_monl_string
 from ast_validator import MonlAST
 from generator import MonlSecureGenerator
+from parser import parse_monl_string
 
 SPEC_V1 = """app MigApp
 

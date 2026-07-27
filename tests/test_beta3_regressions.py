@@ -22,9 +22,9 @@ import pytest
 import requests
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-from ast_validator import MonlAST  # noqa: E402
-from generator import MonlSecureGenerator  # noqa: E402
-from parser import parse_monl_file  # noqa: E402
+from ast_validator import MonlAST
+from generator import MonlSecureGenerator
+from parser import parse_monl_file
 
 SPEC = """app PrivApp
 
