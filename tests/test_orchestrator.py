@@ -375,3 +375,18 @@ def test_une_route_de_navigation_n_est_pas_un_chemin_hors_contrat(tmp_path):
     ok, errors, warnings = check_coherence(str(proj))
     assert ok, errors
     assert not any("/edit" in w for w in warnings), warnings
+
+
+def test_le_contenu_editorial_est_exige_sur_la_page_d_accueil(tmp_path):
+    """Défaut constaté : l'« à propos » était rendu sur une page à part
+    (`#/apropos`), atteignable par le seul menu. Un visiteur qui n'ouvre que
+    l'accueil ne le voyait jamais — pour un « à propos », c'est manquer sa
+    raison d'être. Rien dans le contrat ne disait OÙ ce texte devait vivre."""
+    proj = tmp_path / "edito"
+    proj.mkdir()
+    (proj / "spec.ml").write_text(SPEC_EDITORIALE, encoding="utf-8")
+    compile_project(str(proj / "spec.ml"), str(proj))
+    brief = (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    assert "page d'accueil, pas seulement derrière un lien" in brief
+    # Un texte long garde le droit d'avoir sa propre page EN PLUS.
+    assert "se prolonger sur sa propre page" in brief

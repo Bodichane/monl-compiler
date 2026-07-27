@@ -28,6 +28,8 @@ def _run_template(index, followup_answer, want_seed):
     answers += ["1"]                                   # inscription libre : 1er rôle proposé
     if tpl["seeds"]:                                   # question seed posée
         answers += ["o" if want_seed else "n"]
+    if want_seed and tpl["seeds"]:                     # sujet des images (point 59)
+        answers += ["n"]
     answers += ["o"]                                   # brief
     # Le brief transmis déclenche les questions d'intention visuelle
     # (point 53) : action attendue, registre, place des images.
@@ -100,7 +102,9 @@ def test_entite_personnalisee_en_plus_du_modele():
         "o",                 # lisible sans compte
         "n",                 # pas d'autre entité perso
         "1",                 # inscription libre : 1er rôle proposé
-        "o", "o",            # seeds + brief
+        "o",                 # seeds
+        "n",                 # images génériques (point 59)
+        "o",                 # brief
         "lire les témoignages", "1", "2",   # intention visuelle (point 53)
         "n",                                # pas de section éditoriale (point 55)
     ])

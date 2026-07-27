@@ -33,7 +33,28 @@
 # ─────────────────────────────────────────────────────────────────────
 
 def _img(seed):
-    return f"https://picsum.photos/seed/{seed}/800/600"
+    """Image de démonstration, SANS sujet : le modèle du catalogue est chargé
+    avant le dialogue, il ignore encore de quoi parle le projet. Le dialogue
+    réécrit ces URL avec le mot-clé choisi (voir image_topic_url).
+
+    1600×900, pas 800×600 (point 59) : un hero occupe toute la largeur d'un
+    conteneur de ~1120 px, doublée sur un écran haute densité. La source
+    était donc agrandie près de trois fois — l'image paraissait molle.
+    """
+    return f"https://picsum.photos/seed/{seed}/1600/900"
+
+
+def image_topic_url(sujet, index):
+    """URL d'une image RELATIVE AU SUJET du projet (point 59).
+
+    `picsum` ne sait rendre que des photos au hasard : un blog de
+    cybersécurité s'illustrait de paysages. `loremflickr` accepte un mot-clé,
+    et son paramètre `lock` fige le tirage — sans lui, chaque rechargement
+    changerait l'image et le rendu cesserait d'être reproductible, ce que le
+    déterminisme du compilateur interdit.
+    """
+    mot = "".join(c for c in sujet.lower() if c.isalnum() or c in "-,") or "abstract"
+    return f"https://loremflickr.com/1600/900/{mot}?lock={index}"
 
 
 TEMPLATES = [

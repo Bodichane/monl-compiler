@@ -379,6 +379,14 @@ def _render_prompt(contract):
             "apparaître dans l'interface, chacun dans sa propre section, avec "
             "le titre donné. Ne pas les réécrire, ne pas les inventer ailleurs "
             "— aucune route d'API ne les sert, ils n'existent qu'ici.\n\n"
+            # Point 59 : sans cette phrase, ces textes finissaient derrière un
+            # lien de menu, sur une page à part. Un visiteur qui n'ouvre que
+            # l'accueil ne les voyait jamais — pour un « à propos », c'est
+            # manquer sa raison d'être.
+            "**Sur la page d'accueil, pas seulement derrière un lien.** Chaque "
+            "section doit être lisible au fil de l'accueil. Un texte long peut "
+            "y figurer en version courte et se prolonger sur sa propre page, "
+            "mais il ne doit jamais en être absent.\n\n"
             + corps + "\n")
     design = contract["design"]
     # POINT 58 — sans épinglage, monl ne prescrit PLUS rien du visuel. La

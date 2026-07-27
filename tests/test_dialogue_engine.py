@@ -26,7 +26,9 @@ SCENARIO_PORTFOLIO = [
     "n", "n",          # Visitor ne lit rien de plus
     "n",               # pas de relation
     "1",               # inscription libre : 1er rôle proposé
-    "o", "o",          # seed + landing
+    "o",               # seed
+    "n",               # images génériques (point 59)
+    "o",               # landing
     # Brief transmis -> l'intention visuelle est demandée (point 53) :
     # action attendue du visiteur, registre, place des images.
     "voir les projets et écrire", "2", "1",
@@ -54,9 +56,29 @@ def test_determinisme_memes_reponses_meme_spec():
     assert _run(SCENARIO_PORTFOLIO) == _run(SCENARIO_PORTFOLIO)
 
 
-def test_champ_image_seede_avec_une_vraie_url():
+def test_champ_image_seede_en_resolution_suffisante():
+    """1600×900, pas 800×600 (point 59) : un hero occupe toute la largeur d'un
+    conteneur d'environ 1120 px, doublée sur un écran haute densité. La source
+    était agrandie près de trois fois, et l'image paraissait molle."""
     spec = _run(SCENARIO_PORTFOLIO)
-    assert "https://picsum.photos/seed/demo1/800/600" in spec
+    assert "https://picsum.photos/seed/demo1/1600/900" in spec
+    assert "800/600" not in spec
+
+
+def test_sujet_d_images_choisi_remplace_les_photos_au_hasard():
+    """`picsum` ne rend que des photos arbitraires : un blog de cybersécurité
+    s'illustrait de paysages. Le sujet ne peut pas être déduit d'une phrase
+    libre en français sans interprétation — donc on le demande (point 59)."""
+    scenario = list(SCENARIO_PORTFOLIO)
+    scenario[scenario.index("n", scenario.index("o", 28))] = "o"   # sujet précis
+    scenario.insert(scenario.index("o", 28) + 2, "cybersecurity")
+    spec = _run(scenario)
+    assert "loremflickr.com/1600/900/cybersecurity" in spec
+    assert "picsum" not in spec
+    # `lock` fige le tirage : sans lui le rendu changerait à chaque
+    # rechargement, ce que le déterminisme du compilateur interdit.
+    assert "?lock=" in spec
+    MonlAST(parse_monl_string(spec)).validate_and_audit()
 
 
 def test_reponse_invalide_redemandee_puis_erreur():

@@ -187,6 +187,25 @@ class GuidedDialogue:
         return (f"le visiteur doit pouvoir {action.rstrip('.')} ; "
                 f"{phrase_registre} ; {phrase_images}")
 
+    def _ask_image_topic(self):
+        """Sujet des images de démonstration (point 59). Le compilateur ne
+        peut pas le déduire : « Blog pour des experts en cyber » est une
+        phrase libre, en français, dont extraire un mot-clé d'illustration
+        relèverait de l'interprétation — ce que le dialogue s'interdit. On
+        demande donc, plutôt que de rendre des photos au hasard."""
+        if not self._ask_yes_no(
+                "Les images de démonstration doivent-elles illustrer un sujet "
+                "précis ? (sinon : photos génériques)"):
+            return None
+        return self._ask_free_text(
+            "  Mot-clé d'illustration, en anglais de préférence "
+            "(ex. cybersecurity, pottery, architecture) > ")
+
+    @staticmethod
+    def _est_champ_image(nom):
+        return any(k in nom.lower() for k in ("image", "photo", "cover", "avatar",
+                                              "picture", "visuel", "illustration"))
+
     def _ask_editorial_sections(self):
         """Contenu éditorial statique (point 55). Une entité, un champ, une
         route décrivent des DONNÉES : rien dans une spec ne peut porter un
@@ -291,6 +310,7 @@ class GuidedDialogue:
         self_register = self._ask_self_register(actors, managers, owned)
         want_seed = bool(template["seeds"]) and self._ask_yes_no(
             "Pré-remplir le site avec les données de démonstration du modèle ?")
+        image_topic = self._ask_image_topic() if want_seed else None
         want_landing = self._ask_yes_no(
             "Transmettre votre description à l'IA frontend comme brief de page d'accueil ?")
         design_intent = self._ask_design_intent() if want_landing else None
@@ -302,6 +322,7 @@ class GuidedDialogue:
                                owned, want_seed, want_landing,
                                design_intent=design_intent,
                                sections=sections,
+                               image_topic=image_topic,
                                self_register=self_register,
                                extra_rules=template["extra_rules"],
                                custom_seeds=template["seeds"])
@@ -458,6 +479,7 @@ class GuidedDialogue:
         self._show(self.ui.phase(6))
         self_register = self._ask_self_register(actors, managers, owned)
         want_seed = self._ask_yes_no("Pré-remplir le site avec des données de démonstration ?")
+        image_topic = self._ask_image_topic() if want_seed else None
         want_landing = self._ask_yes_no(
             "Transmettre votre description à l'IA frontend comme brief de page d'accueil ?")
         design_intent = self._ask_design_intent() if want_landing else None
@@ -476,6 +498,7 @@ class GuidedDialogue:
                                owned, want_seed, want_landing,
                                design_intent=design_intent,
                                sections=sections,
+                               image_topic=image_topic,
                                self_register=self_register)
 
         # Garantie finale : la spec émise DOIT compiler. On la revalide par le
@@ -548,6 +571,7 @@ class GuidedDialogue:
                    managers, readers, public_read, public_create,
                    owned, want_seed, want_landing, design_intent=None,
                    sections=(),
+                   image_topic=None,
                    self_register=None, extra_rules=(), custom_seeds=None):
         lines = [f"app {app_name}", "",
                  "# Spécification générée par le dialogue guidé monl (déterministe, sans IA).",
@@ -623,12 +647,22 @@ class GuidedDialogue:
             custom_seeds = custom_seeds or {}
             # Données réalistes du modèle en priorité ; repli générique pour
             # les entités publiques qui n'en ont pas.
+            from app_templates import image_topic_url
+            verrou = 0
             for ent, rows in custom_seeds.items():
                 if not rows or ent not in entities:
                     continue
                 lines.append(f"seed {ent}")
                 for row in rows:
-                    parts = [f"{f}: {self._literal(v)}" for f, v in row.items()]
+                    parts = []
+                    for f, v in row.items():
+                        # Le catalogue est chargé avant le dialogue : ses URL
+                        # d'illustration ignorent le sujet du projet. On les
+                        # remplace ici, une fois qu'il est connu (point 59).
+                        if image_topic and self._est_champ_image(f):
+                            verrou += 1
+                            v = image_topic_url(image_topic, verrou)
+                        parts.append(f"{f}: {self._literal(v)}")
                     lines.append("    " + ", ".join(parts))
                 lines.append("")
             for ent in public_read:
@@ -639,7 +673,8 @@ class GuidedDialogue:
                     continue
                 lines.append(f"seed {ent}")
                 for n in (1, 2, 3):
-                    parts = [f"{f}: {self._seed_value(f, t, n)}" for f, t in seedable]
+                    parts = [f"{f}: {self._seed_value(f, t, n, image_topic)}"
+                             for f, t in seedable]
                     lines.append("    " + ", ".join(parts))
                 lines.append("")
 
@@ -668,7 +703,7 @@ class GuidedDialogue:
         return '"' + str(value).replace('"', "'") + '"'
 
     @staticmethod
-    def _seed_value(field_name, ftype, n):
+    def _seed_value(field_name, ftype, n, image_topic=None):
         low = field_name.lower()
         if ftype in ("Integer",):
             return str(n * 10)
@@ -677,7 +712,12 @@ class GuidedDialogue:
         if ftype == "Email":
             return f'"demo{n}@exemple.fr"'
         if any(k in low for k in ("image", "photo", "url", "cover", "avatar")):
-            return f'"https://picsum.photos/seed/demo{n}/800/600"'
+            # 1600×900 : la source doit tenir un hero pleine largeur sur écran
+            # haute densité, sinon elle est agrandie et paraît molle (point 59).
+            if image_topic:
+                from app_templates import image_topic_url
+                return f'"{image_topic_url(image_topic, n)}"'
+            return f'"https://picsum.photos/seed/demo{n}/1600/900"'
         if ftype == "Text":
             return f'"Contenu de démonstration numéro {n}, généré par le dialogue guidé."'
         return f'"Exemple {n}"'

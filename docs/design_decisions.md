@@ -78,7 +78,8 @@ en l'état car de nombreux renvois internes s'y appuient) ·
 [55](#55-monl-modélisait-des-données-un-site-est-surtout-du-contenu) monl modélisait des données, un site est surtout du contenu ·
 [56](#56-cinq-couleurs-plates-ne-font-pas-une-palette) Cinq couleurs plates ne font pas une palette ·
 [57](#57-un-contrat-qui-décrit-mal-le-corps-est-pire-quun-contrat-muet) Un contrat qui décrit mal le corps est pire qu'un contrat muet ·
-[58](#58-rendre-la-main--sans-épinglage-le-visuel-appartient-à-lia) Rendre la main : sans épinglage, le visuel appartient à l'IA
+[58](#58-rendre-la-main--sans-épinglage-le-visuel-appartient-à-lia) Rendre la main : sans épinglage, le visuel appartient à l'IA ·
+[59](#59-où-vit-un-contenu-et-à-quoi-ressemblent-les-images-de-démonstration) Où vit un contenu, et à quoi ressemblent les images de démonstration
 
 ---
 
@@ -2297,3 +2298,44 @@ dispose d'un bloc `ui` pour le dire.
 **Le vérificateur suit.** `_verifier_palette` ne contrôle plus rien en
 l'absence d'épinglage. Avertir sur l'écart à une devinette poussait à
 reproduire l'aplat, exactement le contraire du but recherché.
+
+## 59. Où vit un contenu, et à quoi ressemblent les images de démonstration
+
+Deux reproches d'usage après la remise de main du point 58, tous deux
+imputables à ce que le contrat NE DIT PAS.
+
+**« L'à propos n'apparaît pas sur la page principale. »** Il était pourtant
+bien là — sur une route à part, `#/apropos`, atteignable par le seul menu. Le
+point 55 disait quoi publier, jamais OÙ. Or un visiteur qui n'ouvre que
+l'accueil ne voyait jamais ce texte : pour un « à propos », c'est manquer sa
+raison d'être. Même défaut que le formulaire de contact relégué en vue
+séparée quelques essais plus tôt — l'IA choisit une application à vues, et
+tout ce qui n'est pas la liste principale disparaît de la page d'accueil.
+Le brief exige désormais la présence AU FIL de l'accueil, en autorisant une
+version courte prolongée par une page dédiée : la contrainte porte sur la
+présence, pas sur la longueur.
+
+**« Fais en sorte que les images soient plus précises. »** Deux défauts
+distincts se cachaient derrière la même phrase, et la mesure les a séparés.
+
+*Netteté.* Les seeds servaient du 800×600. Un hero occupe toute la largeur
+d'un conteneur d'environ 1120 px, doublée sur un écran haute densité : la
+source était agrandie près de trois fois, donc molle. Les images de
+démonstration sont passées en 1600×900 — format qui correspond aussi mieux
+aux proportions d'un hero ou d'une carte que le 4:3 d'origine.
+
+*Pertinence.* `picsum.photos` ne rend que des photos arbitraires : un blog de
+cybersécurité s'illustrait de paysages. Le sujet ne se déduit pas de la
+description — « Blog pour des experts en cyber » est une phrase libre, en
+français, dont extraire un mot-clé d'illustration relèverait de
+l'interprétation, ce que le dialogue s'interdit depuis le point 40. Il le
+DEMANDE donc, et n'émet la question que si des données de démonstration sont
+réellement produites. Le service retenu (`loremflickr`) accepte un mot-clé ;
+son paramètre `lock` fige le tirage, sans quoi chaque rechargement changerait
+l'image et le rendu cesserait d'être reproductible.
+
+**Le catalogue ne peut pas connaître le sujet.** Les modèles d'applications
+sont chargés avant le dialogue : leurs URL d'illustration sont écrites sans
+savoir de quoi parlera le projet. Elles sont donc réécrites à l'émission de
+la spec, une fois le mot-clé connu — plutôt que de dupliquer la logique
+d'image dans chacun des dix modèles.
