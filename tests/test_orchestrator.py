@@ -5,11 +5,8 @@
 import json
 import os
 import re
-import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
-from cli import compile_project, check_coherence, _load_state  # noqa: E402
+from monl.cli import _load_state, check_coherence, compile_project
 
 REPO = os.path.join(os.path.dirname(__file__), "..")
 

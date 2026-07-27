@@ -11,7 +11,6 @@ Deux volets :
      le message, un tiers du même rôle est filtré de la liste et reçoit 403
      sur l'accès direct.
 """
-import os
 import socket
 import subprocess
 import sys
@@ -21,11 +20,9 @@ import time
 import pytest
 import requests
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../src"))
-
-from parser import parse_monl_string
-from ast_validator import MonlAST, ASTValidationError
-from generator import MonlSecureGenerator
+from monl.ast_validator import ASTValidationError, MonlAST
+from monl.generator import MonlSecureGenerator
+from monl.parser import parse_monl_string
 
 # (spec e2e désormais autonome, voir E2E_SPEC plus bas)
 
@@ -81,7 +78,7 @@ def test_create_action_is_rejected():
 
 
 def test_conflict_with_ownedby_is_rejected():
-    with pytest.raises(ASTValidationError, match="ownedBy.*accessibleBy|accessibleBy.*ownedBy"):
+    with pytest.raises(ASTValidationError, match=r"ownedBy.*accessibleBy|accessibleBy.*ownedBy"):
         _validate(BASE_SPEC.format(recipient_type="Integer", action="Delete",
                                    columns="user_id, recipient_id",
                                    extra_rule="rule Message.Delete ownedBy User\n"))

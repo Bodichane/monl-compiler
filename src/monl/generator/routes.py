@@ -152,9 +152,9 @@ class RoutesMixin:
                 api_lines.append("    except Exception:")
                 api_lines.append("        conn.rollback(); conn.close(); raise")
                 api_lines.append("    conn.close()")
-                api_lines.append(f"    return {{'status': 'success', 'id': row_id}}")
+                api_lines.append("    return {'status': 'success', 'id': row_id}")
                 api_lines.append("")
-                
+
             elif act_type == "Read":
                 # AJOUT (roadmap point 3, complété) : route de liste, en plus
                 # de la lecture par ID déjà existante — jusqu'ici il n'existait
@@ -284,7 +284,7 @@ class RoutesMixin:
                     api_lines.extend(self._emit_categorization_lines(cf, "named_row", "    "))
                 api_lines.append("    return {'status': 'success', 'data': named_row}")
                 api_lines.append("")
-                
+
             elif act_type == "Update":
                 # AJOUT (post-v6, roadmap) : si une règle 'ownedBy' cible cette
                 # action, un contrôle supplémentaire vérifie que l'acteur courant
@@ -354,7 +354,7 @@ class RoutesMixin:
                 values_list = ", ".join([f"data.{f}" for f in fields])
                 api_lines.append(f"    cursor.execute(query, ({values_list}, id))")
                 api_lines.append("    conn.commit(); conn.close()")
-                api_lines.append(f"    return {{'status': 'success', 'id': id}}")
+                api_lines.append("    return {'status': 'success', 'id': id}")
                 api_lines.append("")
 
             elif act_type == "Delete":
@@ -414,9 +414,9 @@ class RoutesMixin:
                 api_lines.append("            'par des données liées. Supprimez-les d\\'abord.'")
                 api_lines.append("        ))")
                 api_lines.append("    conn.close()")
-                api_lines.append(f"    return {{'status': 'success', 'id': id}}")
+                api_lines.append("    return {'status': 'success', 'id': id}")
                 api_lines.append("")
-                
+
             elif act_type == "Execute":
                 api_lines.append(f"@app.post('/workflow/{tag.lower()}/{target.lower()}', tags=['{tag}'])")
                 api_lines.append(f"def execute_{target.lower()}(payload: {target}InputSchema, {dependency_injection}):")
@@ -424,5 +424,5 @@ class RoutesMixin:
                 api_lines.append(f"    result = sandbox_ai.{target}(payload.dict())")
                 api_lines.append("    return {'status': 'executed', 'sandbox_result': result}")
                 api_lines.append("")
-                    
+
         return api_lines

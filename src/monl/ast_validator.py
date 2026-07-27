@@ -31,7 +31,7 @@ class MonlAST:
         self.capabilities_raw = raw_json.get("capabilities", [])
         self.seeds_raw = raw_json.get("seeds", [])
         self.public_actions = set()
-        
+
         for ent in raw_json.get("entities", []):
             name = ent["name"]
             attrs = {attr["name"]: attr["type"] for attr in ent["attributes"]}
@@ -40,10 +40,10 @@ class MonlAST:
     def validate_and_audit(self):
         """Exécute la validation de cohérence et l'analyse statique de sécurité."""
         print(f"🔬 Analyse statique et audit de sécurité pour '{self.app_name}'...")
-        
+
         # 1. Validations structurelles obligatoires
         self._validate_structures()
-        
+
         # 2. Audit de sécurité actif
         security_reports = self._audit_security_rules()
 
@@ -54,7 +54,7 @@ class MonlAST:
         #    silence = personne ne s'inscrit, ce qui est sûr mais rarement
         #    voulu ; rôle privilégié ouvert = choix explicite, tracé ici.
         security_reports.extend(self._audit_self_registration())
-        
+
         print("✅ Analyse de l'AST terminée.")
         return self.to_normalized_ast(security_reports)
 
@@ -551,11 +551,11 @@ class MonlAST:
             actor = wf["actor"]
             if actor not in self.actors:
                 raise ASTValidationError(f"Structure : L'acteur '{actor}' dans le workflow '{wf['name']}' n'est pas déclaré.")
-            
+
             for action in wf["actions"]:
                 target = action["target"]
                 act_type = action["type"]
-                
+
                 if act_type == "Execute":
                     if target not in self.custom_logic:
                         raise ASTValidationError(f"Architecture : L'action Execute appelle '{target}', mais ce bloc custom n'est pas défini.")
@@ -563,7 +563,7 @@ class MonlAST:
                     base_target = target.split(".")[0] if "." in target else target
                     if base_target not in self.entities:
                         raise ASTValidationError(f"Structure : L'action cible l'entité '{base_target}' qui n'existe pas.")
-                    
+
                     # --- CORRECTIF BUG v6 #5 : Détection des collisions de privilèges ---
                     # AJOUT (roadmap, public) : une action marquée 'public' ne
                     # vérifie plus aucune identité au runtime — peu importe
@@ -578,7 +578,7 @@ class MonlAST:
                         access_matrix[base_target] = {}
                     if act_type not in access_matrix[base_target]:
                         access_matrix[base_target][act_type] = set()
-                    
+
                     # Enregistrement de l'acteur pour cette action précise
                     access_matrix[base_target][act_type].add(actor)
 
@@ -625,7 +625,7 @@ class MonlAST:
         """Moteur d'analyse statique traquant les vulnérabilités complexes."""
         reports = []
         restricted_fields = {}
-        
+
         for rule in self.rules:
             if rule["type"] == "restrictedTo":
                 restricted_fields[rule["reference"]] = rule["value"]
@@ -637,7 +637,7 @@ class MonlAST:
                 target = action["target"]
                 if action["type"] == "Delete" and actor != "Admin":
                     reports.append(f"⚠️  [CRITICAL_WARNING] Le workflow '{wf['name']}' permet à l'acteur '{actor}' de supprimer l'entité '{target}'. Assurez-vous que cette action est hautement sécurisée au niveau infra.")
-                
+
                 if action["type"] == "Execute":
                     if target not in custom_callers:
                         custom_callers[target] = set()
@@ -646,7 +646,7 @@ class MonlAST:
         for c_name, c_bloc in self.custom_logic.items():
             inputs = c_bloc.get("input", [])
             calling_actors = custom_callers.get(c_name, set())
-            
+
             for inp in inputs:
                 if "reference" in inp:
                     ref = inp["reference"]
@@ -662,7 +662,7 @@ class MonlAST:
             print(f"🛑 Audit : {len(reports)} point(s) de vigilance sécurité identifié(s) :")
             for r in reports:
                 print(f"   {r}")
-                
+
         return reports
 
     def to_normalized_ast(self, security_reports):

@@ -49,12 +49,13 @@ d'ajouter quoi que ce soit** — plusieurs pièges déjà rencontrés (voir poin
 
 **Chaque changement est prouvé par exécution réelle, jamais par relecture
 de code seule.** Concrètement :
-- Compiler réellement (`python3 src/main.py exemples/03_reseau_social.ml`)
+- Compiler réellement (`python3 -m monl.main exemples/03_reseau_social.ml`,
+  depuis la racine avec `src/` sur le PYTHONPATH — ou `./monl compile`)
 - Relancer un vrai serveur (`python3 -m uvicorn app:app --host 127.0.0.1 --port PORT`)
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (106 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (152 tests
   actuellement ; `tests/test_demo.py` et `tests/test_design_contract.py`
   s'appuient sur le dossier `demo/` versionné — ne pas le supprimer)
 
@@ -65,7 +66,21 @@ de clé étrangère qui décrémentait le mauvais enregistrement) ne se seraient
 JAMAIS révélés par simple lecture — ne pas sauter cette étape pour aller
 plus vite.
 
-**Toujours nettoyer avant/après compilation** :
+**Outillage de vérification** (point 63) — trois questions, trois commandes :
+```bash
+ruff check src tests                                  # zéro attendu : tout
+                                                      # signalement est un vrai
+python3 -m pytest tests/ -q --cov=src --cov-report=term-missing   # 85 %
+python3 -m pytest tests/test_architecture.py -q       # les frontières de ce
+                                                      # fichier, vérifiées
+```
+Les exceptions de `ruff` vivent dans `pyproject.toml` et portent chacune sa
+raison — en ajouter une sans raison écrite, c'est rouvrir la porte que le
+point 63 ferme. La CI (`.github/workflows/ci.yml`) rejoue lint + suite.
+
+**Toujours nettoyer avant/après compilation** (depuis le point 64, la suite
+de tests ne salit plus la racine : ce nettoyage ne concerne que VOS
+compilations manuelles) :
 ```bash
 rm -f app.py schema.sql sandbox_ai.py .jwt_secret .monl_theme_seed *.db \
       frontend_contract.json FRONTEND_PROMPT.md FRONTEND_UPDATE_PROMPT.md monl.json serve.py
@@ -96,19 +111,23 @@ réseau social anonyme comme banc d'essai final.
 > resynchronisées le 26/07/2026 — ne pas les faire pointer vers les anciens
 > fichiers, ils n'existent plus.
 >
-> Attention à la nuance : compiler n'est pas se comporter correctement. Seuls
-> `accessibleBy` (`tests/test_access_parties.py`) et le filtrage de lecture
-> d'`ownedBy` (`tests/test_lecture_privee.py`) sont éprouvés contre un vrai
-> serveur éphémère. Les autres briques n'ont que la couverture de compilation.
+> Attention à la nuance : compiler n'est pas se comporter correctement. Trois
+> briques sont éprouvées contre un vrai serveur éphémère : `accessibleBy`
+> (`tests/test_access_parties.py`), le filtrage de lecture d'`ownedBy`
+> (`tests/test_lecture_privee.py`) et le masquage `hidden`
+> (`tests/test_masquage_hidden.py`, point 64). Les autres n'ont que la
+> couverture de compilation.
 
 1. **`capability auth`** — bloc déclaratif, aucun effet sur la génération
    pour l'instant (prouvé par compilation identique avec/sans le bloc).
 2. **`rule Entite.champ hidden`** — masque un champ de toutes les réponses
    de lecture (liste + détail), pour tout le monde. Reste en base, reste
-   modifiable en écriture. ⚠️ **Plus AUCUNE couverture** : implémenté
-   (`src/parser.py` `masking_rule`, `src/generator/routes.py`) mais absent de
-   tous les exemples et de tous les tests depuis la suppression de
-   `13_anon_forum_demo.yaml`. Une régression passerait la CI sans bruit.
+   modifiable en écriture. Implémenté dans `src/parser.py` (`masking_rule`)
+   et `src/generator/routes.py`. Couvert depuis le point 64 par
+   `tests/test_masquage_hidden.py`, contre un vrai serveur : masquage en
+   liste ET en détail, connecté comme anonyme, champ toujours écrivable et
+   toujours en base (vérifié par lecture SQLite directe). Reste absent de
+   tous les exemples — la couverture vient du test, pas d'une compilation.
 3. **`rule Entite.Create decrements Entite.champ [by N]`** — décrémente un
    champ numérique sur une entité liée à la création d'un enregistrement
    (typiquement un signalement). Compilé par `exemples/03_reseau_social.ml`
@@ -184,7 +203,10 @@ réseau social anonyme comme banc d'essai final.
 
 ## Repères utiles dans le code
 
-- `src/generator/` est un PACKAGE depuis la bêta 3 (l'ancien module de 1 307
+- Depuis le point 65, tout le code vit dans le paquet `src/monl/` :
+  les imports internes sont RELATIFS (`from .parser import …`) et les tests
+  importent `monl.xxx` sans manipuler `sys.path` (voir `tests/conftest.py`).
+  `src/monl/generator/` est un sous-package depuis la bêta 3 (l'ancien module de 1 307
   lignes a été découpé) : `core.py` (état issu de l'AST, orchestration,
   `_compute_route_map`), `runtime.py` (socle du app.py généré : secret,
   `_connect`, init/migrations/seed, register/login/logout, quota),
@@ -231,8 +253,8 @@ réseau social anonyme comme banc d'essai final.
 ## Commandes de référence
 
 ```bash
-pip install -r requirements.txt --break-system-packages
-cd src && python3 main.py ../exemples/01_portfolio.ml
-cd .. && python3 -m uvicorn app:app --reload   # jamais `python3 app.py` directement
+pip install -e . --break-system-packages   # point 65 : vrai paquet, commande 'monl'
+./monl compile exemples/01_portfolio.ml --output build/portfolio
+python3 -m uvicorn app:app --reload        # jamais `python3 app.py` directement
 python3 -m pytest tests/ -v
 ```

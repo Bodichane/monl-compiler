@@ -3,18 +3,16 @@
 # jamais de simple relecture — seul le FOURNISSEUR d'IA est factice
 # (l'orchestration, elle, s'exécute pour de vrai de bout en bout).
 import json
-import os
-import sys
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
-from cli import compile_project  # noqa: E402
-from smoke_test import run_smoke_test  # noqa: E402
-from frontend_ai import (  # noqa: E402
-    parse_files_payload, generate_and_verify, FrontendAIError,
+from monl.cli import compile_project
+from monl.frontend_ai import (
+    FrontendAIError,
+    generate_and_verify,
+    parse_files_payload,
 )
+from monl.smoke_test import run_smoke_test
 
 SPEC = """app SmokeApp
 
@@ -156,9 +154,9 @@ def test_boucle_ia_echoue_apres_une_seule_correction(project):
 
 
 # ---- 'monl import' : la voie SANS clé API (abonnement claude.ai) ----
-import zipfile  # noqa: E402
+import zipfile
 
-from frontend_ai import import_and_verify, load_frontend_source  # noqa: E402
+from monl.frontend_ai import import_and_verify, load_frontend_source
 
 GOOD_SPLIT_HTML = ('<!doctype html><html><body><div id="l"></div>'
                    '<script src="app.js"></script></body></html>')
@@ -211,10 +209,10 @@ def test_import_html_seul_et_sauvegarde_du_precedent(project, tmp_path):
 
 
 # ---- Claude Code : le travail directement dans le dossier cible ----
-import stat  # noqa: E402
+import stat
 
-from frontend_ai import generate_with_claude_code  # noqa: E402
-from frontend_contract import PROJECT_CLAUDE_MD_MARKER  # noqa: E402
+from monl.frontend_ai import generate_with_claude_code
+from monl.frontend_contract import PROJECT_CLAUDE_MD_MARKER
 
 
 def _fake_agent(tmp_path, body):
@@ -273,6 +271,52 @@ def test_claude_code_recoit_les_erreurs_et_se_corrige(project, tmp_path):
     ok, errors = generate_with_claude_code(str(project), command=agent, say=msgs.append)
     assert ok, errors
     assert any("Correction automatique" in m for m in msgs)
+
+
+MAXTURNS_AGENT = """os.makedirs("frontend", exist_ok=True)
+open("frontend/index.html", "w").write('''<html><body><div id="l"></div>
+<script>fetch('/item?limit=5').then(r=>r.json()).then(d=>{
+document.getElementById('l').textContent=d.total;});</script></body></html>''')
+sys.stderr.write("Error: Reached max turns (40)\\n")
+sys.exit(1)
+"""
+
+MAXTURNS_VIDE_AGENT = """sys.stderr.write("Error: Reached max turns (40)\\n")
+sys.exit(1)
+"""
+
+CRASH_AGENT = """sys.stderr.write("Error: authentication failed\\n")
+sys.exit(1)
+"""
+
+
+def test_budget_de_tours_epuise_mais_frontend_valide(project, tmp_path):
+    """POINT 62 : l'agent peut finir son travail au dernier tour et dépasser
+    d'un cheveu. Le frontend produit doit être vérifié sur pièces, pas jeté
+    parce que le processus a rendu un code de sortie non nul."""
+    agent = _fake_agent(tmp_path, MAXTURNS_AGENT)
+    ok, errors = generate_with_claude_code(str(project), command=agent, say=_quiet)
+    assert ok, errors
+
+
+def test_budget_epuise_sans_rien_produire_passe_par_la_correction(project, tmp_path):
+    """Le même dépassement, mais sans frontend : c'est un échec — qui doit
+    emprunter la boucle de correction, pas interrompre la commande."""
+    agent = _fake_agent(tmp_path, MAXTURNS_VIDE_AGENT)
+    msgs = []
+    ok, errors = generate_with_claude_code(str(project), command=agent, say=msgs.append)
+    assert not ok
+    assert any("index.html absent" in e for e in errors), errors
+    assert any("Correction automatique" in m for m in msgs)
+
+
+def test_une_vraie_erreur_dagent_reste_une_erreur(project, tmp_path):
+    """Le relâchement ne vaut QUE pour le budget de tours : une panne
+    d'authentification doit continuer d'arrêter net."""
+    from monl.frontend_ai import FrontendAIError
+    agent = _fake_agent(tmp_path, CRASH_AGENT)
+    with pytest.raises(FrontendAIError):
+        generate_with_claude_code(str(project), command=agent, say=_quiet)
 
 
 def test_claude_code_ne_peut_pas_toucher_le_backend(project, tmp_path):

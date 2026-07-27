@@ -34,6 +34,13 @@ SEEDABLE_TYPES = {"String", "Text", "Integer", "Float", "Money", "Email"}
 
 RELATION_TYPES = ["hasMany", "hasOne", "belongsTo"]
 
+# POINT 64 : séparateur de paragraphes dans un texte éditorial. La grammaire
+# n'accepte pas de retour à la ligne dans un STRING_LITERAL ; ce caractère
+# tient sa place dans la spec et n'existe QUE là — le contrat frontend le
+# retraduit en saut de paragraphe (frontend_contract.paragraphes). Choisi
+# parce qu'il ne se tape pas par accident dans de la prose française.
+PARAGRAPH_SEP = " ¶ "
+
 # AJOUT (point 53) : intention visuelle. Le brief transmis à l'IA UI se
 # résumait à la phrase de description — souvent trois mots — face à un contrat
 # qui décrit les routes au champ près. L'IA recevait donc toute la structure et
@@ -88,7 +95,7 @@ class GuidedDialogue:
         # scriptés et toute sortie redirigée sont insensibles à l'habillage.
         # L'entrée interactive (run_interactive_dialogue) injecte le rendu
         # stylé. Le moteur, lui, ne connaît que cette interface.
-        from tui import PlainDialogueUI
+        from .tui import PlainDialogueUI
         self.ui = ui or PlainDialogueUI()
 
     def _show(self, rendu):
@@ -164,6 +171,44 @@ class GuidedDialogue:
         return self._ask(prompt, validate, "Texte non vide, sans guillemets doubles.",
                          kind="free_text")
 
+    def _ask_optional_free_text(self, prompt):
+        """Comme _ask_free_text, mais une réponse vide vaut « passer »."""
+        prompt = self.ui.field(prompt)
+
+        def validate(a):
+            if a == "":
+                return True, None
+            if '"' not in a and "\n" not in a:
+                return True, a
+            return False, None
+        return self._ask(prompt, validate,
+                         "Texte sans guillemets doubles (ou vide pour passer).",
+                         kind="free_text")
+
+    def _ask_paragraphs(self, prompt):
+        """Un texte éditorial en PLUSIEURS paragraphes (point 64).
+
+        Une saisie d'une seule ligne était un piège silencieux : un « à
+        propos » collé depuis un traitement de texte arrivait aplati, ses
+        paragraphes recollés sans même une espace (« …8 ans.Mon travail… »),
+        et l'IA d'interface recevait un mur de texte sans césure possible.
+        Le retour à la ligne reste interdit — il casserait le
+        STRING_LITERAL émis — donc on demande les paragraphes l'un après
+        l'autre, et on les joint par un séparateur que le contrat retraduit
+        en vrais sauts de paragraphe.
+
+        Rend None si le premier paragraphe est vide (rubrique passée)."""
+        premier = self._ask_optional_free_text(prompt)
+        if not premier:
+            return None
+        paragraphes = [premier]
+        while True:
+            suite = self._ask_optional_free_text(
+                "    … paragraphe suivant (vide pour terminer) > ")
+            if not suite:
+                return PARAGRAPH_SEP.join(paragraphes)
+            paragraphes.append(suite)
+
     def _ask_design_intent(self):
         """Intention visuelle (point 53) — posée UNIQUEMENT si l'utilisateur
         transmet un brief : sans page d'accueil à écrire, ces réponses
@@ -206,13 +251,35 @@ class GuidedDialogue:
         return any(k in nom.lower() for k in ("image", "photo", "cover", "avatar",
                                               "picture", "visuel", "illustration"))
 
-    def _ask_editorial_sections(self):
+    def _ask_editorial_sections(self, defaults=()):
         """Contenu éditorial statique (point 55). Une entité, un champ, une
         route décrivent des DONNÉES : rien dans une spec ne peut porter un
         « à propos ». Sans ces sections, l'IA n'a littéralement aucune
-        matière pour autre chose qu'une liste et un formulaire."""
+        matière pour autre chose qu'une liste et un formulaire.
+
+        POINT 61 : quand le modèle choisi porte des rubriques attendues de sa
+        catégorie, on n'en demande plus l'EXISTENCE — on en demande le TEXTE,
+        rubrique par rubrique. Demander « voulez-vous un à propos ? » à qui
+        construit un portfolio est la même faute qu'au point 60. Une réponse
+        vide passe la rubrique : le standard est proposé, jamais imposé."""
         sections = []
-        if not self._ask_yes_no(
+        entete_montree = False
+        for spec in defaults:
+            if not entete_montree:
+                entete_montree = True
+                self._show(self.ui.section(
+                    "Textes de présentation — ces rubriques sont attendues sur "
+                    "un site de ce type. Aucune donnée ne peut les fournir : "
+                    "seul votre texte le peut. Un paragraphe par saisie ; "
+                    "laisser vide pour passer."))
+            corps = self._ask_paragraphs(
+                f"  {spec['title']} — {spec['ask']} > ")
+            if corps:
+                sections.append({"title": spec["title"], "body": corps})
+        if defaults:
+            if not self._ask_yes_no("  Ajouter une autre section ?"):
+                return sections
+        elif not self._ask_yes_no(
                 "Ajouter du texte de présentation (à propos, méthode, "
                 "services…) ? Aucune donnée du site ne peut le fournir."):
             return sections
@@ -220,8 +287,9 @@ class GuidedDialogue:
             titre = self._ask_free_text(
                 f"  Titre de la section {len(sections) + 1} "
                 f"(ex. À propos) > ")
-            corps = self._ask_free_text("  Son texte > ")
-            sections.append({"title": titre, "body": corps})
+            corps = self._ask_paragraphs("  Son texte > ")
+            if corps:
+                sections.append({"title": titre, "body": corps})
             if not self._ask_yes_no("  Ajouter une autre section ?"):
                 return sections
 
@@ -232,7 +300,7 @@ class GuidedDialogue:
         d'applications les plus construits par les devs web — choisir un
         modèle pré-remplit tout et ne pose que les questions de suivi
         propres au modèle. « Partir de zéro » conserve le dialogue libre."""
-        from app_templates import TEMPLATES, FREE_MODE_LABEL
+        from .app_templates import FREE_MODE_LABEL, TEMPLATES
         self._show(self.ui.banner())
         # AJOUT (bêta 3) : le libellé et son explication sont désormais deux
         # colonnes distinctes du menu, au lieu d'une seule chaîne « nom — aide »
@@ -248,8 +316,8 @@ class GuidedDialogue:
                                  "Options du modèle", "Finitions"]))
         self._show(self.ui.phase(0))
         choisi_court = self._ask_choice("Quel type d'application construisez-vous ?",
-                                        [courts[l] for l in labels], hints=aides)
-        picked = labels[[courts[l] for l in labels].index(choisi_court)]
+                                        [courts[label] for label in labels], hints=aides)
+        picked = labels[[courts[label] for label in labels].index(choisi_court)]
         if picked == FREE_MODE_LABEL:
             return self._run_free()
         template = TEMPLATES[labels.index(picked)]
@@ -260,7 +328,8 @@ class GuidedDialogue:
         finitions communes. Le modèle est copié en profondeur — le catalogue
         n'est jamais muté entre deux exécutions (déterminisme)."""
         import copy
-        from app_templates import apply_effects
+
+        from .app_templates import apply_effects
         template = copy.deepcopy(template)
 
         self._show(self.ui.phase(1))
@@ -314,7 +383,8 @@ class GuidedDialogue:
         want_landing = self._ask_yes_no(
             "Transmettre votre description à l'IA frontend comme brief de page d'accueil ?")
         design_intent = self._ask_design_intent() if want_landing else None
-        sections = self._ask_editorial_sections() if want_landing else []
+        sections = (self._ask_editorial_sections(template.get("sections", []))
+                    if want_landing else [])
         self._recap(app_name, entities, actors, self_register, public_read, owned)
 
         spec = self._emit_spec(app_name, description, entities, relations, actors,
@@ -326,8 +396,8 @@ class GuidedDialogue:
                                self_register=self_register,
                                extra_rules=template["extra_rules"],
                                custom_seeds=template["seeds"])
-        from parser import parse_monl_string
-        from ast_validator import MonlAST
+        from .ast_validator import MonlAST
+        from .parser import parse_monl_string
         MonlAST(parse_monl_string(spec)).validate_and_audit()
         return spec
 
@@ -505,8 +575,8 @@ class GuidedDialogue:
         # vrai pipeline — si ce n'est pas le cas, c'est un bug du moteur, pas
         # de l'utilisateur, et on échoue bruyamment plutôt que de rendre un
         # fichier cassé.
-        from parser import parse_monl_string
-        from ast_validator import MonlAST
+        from .ast_validator import MonlAST
+        from .parser import parse_monl_string
         MonlAST(parse_monl_string(spec)).validate_and_audit()
         return spec
 
@@ -647,7 +717,7 @@ class GuidedDialogue:
             custom_seeds = custom_seeds or {}
             # Données réalistes du modèle en priorité ; repli générique pour
             # les entités publiques qui n'en ont pas.
-            from app_templates import image_topic_url
+            from .app_templates import image_topic_url
             verrou = 0
             for ent, rows in custom_seeds.items():
                 if not rows or ent not in entities:
@@ -715,7 +785,7 @@ class GuidedDialogue:
             # 1600×900 : la source doit tenir un hero pleine largeur sur écran
             # haute densité, sinon elle est agrandie et paraît molle (point 59).
             if image_topic:
-                from app_templates import image_topic_url
+                from .app_templates import image_topic_url
                 return f'"{image_topic_url(image_topic, n)}"'
             return f'"https://picsum.photos/seed/demo{n}/1600/900"'
         if ftype == "Text":
@@ -729,7 +799,7 @@ def run_interactive_dialogue():
     C'est le seul endroit où le rendu stylé est injecté : partout ailleurs
     (tests, sortie redirigée), le moteur reste en rendu nu.
     """
-    from tui import PlainDialogueUI, StyledDialogueUI, Terminal
+    from .tui import PlainDialogueUI, StyledDialogueUI, Terminal
     terminal = Terminal()
     # Hors terminal interactif (sortie redirigée, CI), rendu nu : un journal
     # ne doit contenir ni séquence ANSI ni caractère de dessin.

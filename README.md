@@ -84,7 +84,7 @@ Sans packaging, le compilateur s'utilise directement :
 
 ```bash
 pip install -r requirements.txt
-python3 src/main.py exemples/01_portfolio.ml --output build/portfolio
+monl compile exemples/01_portfolio.ml --output build/portfolio
 cd build/portfolio && python3 -m uvicorn app:app     # http://127.0.0.1:8000
 ```
 

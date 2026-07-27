@@ -3,14 +3,10 @@ erreurs de syntaxe localisées (MonlSyntaxError avec fichier, ligne,
 colonne, extrait) au lieu des exceptions Lark brutes, et que la numérotation
 des lignes reste celle du FICHIER ORIGINAL même quand la spec contient des
 lignes de commentaire (retirées avant Lark — voir parser.py)."""
-import os
-import sys
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../src"))
-
-from parser import parse_monl_string, MonlSyntaxError
+from monl.parser import MonlSyntaxError, parse_monl_string
 
 
 def test_syntax_error_is_localized():

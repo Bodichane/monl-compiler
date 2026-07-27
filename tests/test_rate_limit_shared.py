@@ -7,7 +7,6 @@ autorisé 2×5 = 10 tentatives avant de bloquer. Le compteur étant désormais
 en base (partagée), le 6e échec est bloqué (429) quel que soit le nombre de
 workers.
 """
-import os
 import socket
 import subprocess
 import sys
@@ -16,11 +15,9 @@ import time
 
 import requests
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../src"))
-
-from parser import parse_monl_string
-from ast_validator import MonlAST
-from generator import MonlSecureGenerator
+from monl.ast_validator import MonlAST
+from monl.generator import MonlSecureGenerator
+from monl.parser import parse_monl_string
 
 SPEC = """app RL
 

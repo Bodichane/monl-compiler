@@ -214,10 +214,10 @@ class ThemeMixin:
         bg/surface/ink, pour ne pas risquer de dégrader le contraste texte."""
         hex_color = hex_color.lstrip("#")
         r, g, b = (int(hex_color[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
-        h, l, s = colorsys.rgb_to_hls(r, g, b)
+        h, lum, sat = colorsys.rgb_to_hls(r, g, b)
         h = (h + degrees / 360.0) % 1.0
-        r, g, b = colorsys.hls_to_rgb(h, l, s)
-        return "#{:02X}{:02X}{:02X}".format(round(r * 255), round(g * 255), round(b * 255))
+        r, g, b = colorsys.hls_to_rgb(h, lum, sat)
+        return f"#{round(r * 255):02X}{round(g * 255):02X}{round(b * 255):02X}"
 
     def _load_or_create_theme_seed(self):
         """AJOUT (roadmap, unicité visuelle par projet) : génère, à la toute
@@ -235,6 +235,6 @@ class ThemeMixin:
                 f.write(new_seed)
             print("🎨 Nouvelle graine de variation visuelle générée et stockée dans '.monl_theme_seed'.")
             return new_seed
-        with open(seed_path, "r", encoding="utf-8") as f:
+        with open(seed_path, encoding="utf-8") as f:
             return f.read().strip()
 

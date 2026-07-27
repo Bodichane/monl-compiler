@@ -80,7 +80,13 @@ en l'état car de nombreux renvois internes s'y appuient) ·
 [57](#57-un-contrat-qui-décrit-mal-le-corps-est-pire-quun-contrat-muet) Un contrat qui décrit mal le corps est pire qu'un contrat muet ·
 [58](#58-rendre-la-main--sans-épinglage-le-visuel-appartient-à-lia) Rendre la main : sans épinglage, le visuel appartient à l'IA ·
 [59](#59-où-vit-un-contenu-et-à-quoi-ressemblent-les-images-de-démonstration) Où vit un contenu, et à quoi ressemblent les images de démonstration ·
-[60](#60-ce-qui-est-standard-nest-pas-une-question) Ce qui est standard n'est pas une question
+[60](#60-ce-qui-est-standard-nest-pas-une-question) Ce qui est standard n'est pas une question ·
+[61](#61-demander-le-texte-dune-rubrique-plutôt-que-son-existence) Demander le texte d'une rubrique plutôt que son existence ·
+[62](#62-un-budget-épuisé-nest-pas-une-panne) Un budget épuisé n'est pas une panne ·
+[63](#63-mesurer-le-dépôt-pas-seulement-le-faire-passer-au-vert) Mesurer le dépôt, pas seulement le faire passer au vert ·
+[64](#64-ce-qui-traverse-mal-la-frontière-et-ce-que-personne-ne-mesurait) Ce qui traverse mal la frontière, et ce que personne ne mesurait ·
+[65](#65-un-paquet-quon-ne-peut-pas-installer-nest-pas-un-paquet) Un paquet qu'on ne peut pas installer n'est pas un paquet ·
+[66](#66-rendre-public-ne-pardonne-pas-les-exceptions-à-ses-propres-règles) Rendre public ne pardonne pas les exceptions à ses propres règles
 
 ---
 
@@ -2386,3 +2392,275 @@ Sources principales consultées : recensements d'éléments de fiche produit
 d'essentiels de portfolio (Fueler, Pixpa), de carte kanban (Asana, Wrike,
 ClickUp), de page de réservation (Microsoft Bookings, Trafft) et de petites
 annonces (aDirectory, RadiusTheme).
+
+## 61. Demander le texte d'une rubrique plutôt que son existence
+
+Suite directe du point 60, appliquée cette fois au **contenu éditorial** et
+non plus aux champs. Même méthode : confronter chaque modèle du catalogue aux
+recensements publics de ce que contient une page de son genre.
+
+**Le point 55 avait ouvert la porte, le dialogue la refermait.** Le bloc
+`landing` sait porter des sections depuis le point 55, mais le dialogue les
+introduisait par une question o/n générique — « ajouter du texte de
+présentation ? » — suivie d'un formulaire vide : titre, puis texte. Trois
+défauts cumulés. La question porte sur quelque chose que personne ne refuse
+sur un site vitrine. Le parcours « tout refuser », éprouvé par la CI, produit
+donc un portfolio **sans à propos** — exactement l'amputation que le point 60
+corrigeait ailleurs. Et l'utilisateur qui accepte se retrouve devant une page
+blanche : à lui de deviner quelles rubriques un site de son genre comporte,
+alors que la réponse est publique et documentée.
+
+**Chaque modèle porte donc ses rubriques attendues, et le dialogue en demande
+le TEXTE.** Le portfolio ne demande plus s'il faut un à propos : il demande
+« À propos — qui vous êtes, depuis quand, ce qui distingue votre travail ».
+Le titre est acquis, l'intitulé dit ce qu'on attend dedans, seul le contenu
+est demandé. Rubriques retenues, une source par ligne :
+
+| Modèle | Rubriques | Ce que la source donne pour acquis |
+|---|---|---|
+| Portfolio | À propos, Services | « about » et une offre lisible figurent dans tous les essentiels de portfolio |
+| Blog | À propos de l'auteur, Ligne éditoriale | la bio est la page centrale d'un site d'écriture ; la ligne éditoriale dit au lecteur s'il est au bon endroit |
+| Boutique | À propos, Livraison et retours, FAQ | livraison/retours et FAQ sont placés au-dessus du reste : ils lèvent les objections d'achat |
+| Forum | À propos, Règles de la communauté | des règles écrites et visibles depuis l'accueil sont le premier levier de modération |
+| Petites annonces | Comment ça marche, Conseils de sécurité | une place de marché entre particuliers doit dire ce qu'elle prend en charge et ce qu'elle laisse aux deux parties |
+| Réservation | À propos, Horaires et accès, Politique d'annulation | la politique d'annulation doit figurer **avec** le formulaire, pas dans un coin |
+| Classement | À propos, Comment fonctionne le vote | un classement n'est crédible que si la règle du vote est écrite (qui vote, combien de fois, comment on départage) |
+
+**Vide passe la rubrique.** Le standard est proposé, jamais imposé : une
+réponse vide n'écrit pas la section. C'est la différence avec le point 60, où
+l'acquis est un champ que l'utilisateur ne voit plus — ici il voit la
+proposition et peut la refuser d'une touche. Un texte, contrairement à un
+champ, ne peut pas être fourni par défaut : personne d'autre que l'auteur ne
+sait ce qu'il y a à dire, et l'inventer serait exactement le « à propos
+inventé » que le point 55 écartait.
+
+**Trois modèles n'en reçoivent aucune, délibérément.** Kanban, inventaire,
+dépenses sont des outils internes : ils s'ouvrent sur un tableau, pas sur une
+page d'accueil, et aucune source ne donne de rubrique attendue pour un écran
+sans visiteur à convaincre. Ils retombent sur l'offre générique historique.
+Leur inventer un « à propos » aurait été décider sans mesure — la limite déjà
+posée au point 60.
+
+**Ce que les tests figent.** Que les invites réellement posées nomment chaque
+rubrique du modèle (le test lit les prompts, il ne relit pas le code) ; que
+l'ancienne question o/n ait disparu là où des rubriques existent ; qu'une
+rubrique laissée vide soit absente de la spec ; et que les trois outils
+internes n'en portent aucune. Les deux parcours de bout en bout du catalogue
+(tout refuser / tout accepter) traversent désormais ces questions et
+recompilent la spec produite.
+
+Sources principales consultées : essentiels de portfolio (Fueler, Portfolio
+Studio, Prismic), sites d'auteur et pages de bio (Tertulia, SCBWI,
+ProductiveShop), homepage et FAQ e-commerce (ConvertCart, Smith.ai,
+StoreYa), lignes directrices de communauté (Hivebrite, Later, Guild),
+sécurité des petites annonces (ConnectingDeals, FasterCapital), politiques
+d'annulation (Acuity, Square, vcita, Microsoft Bookings) et règles de
+concours à vote communautaire (AmusementRating, MLB).
+
+## 62. Un budget épuisé n'est pas une panne
+
+Signalé en usage réel, sur le projet StudioNova : `monl frontend
+--provider claude-code` s'arrête sur `Error: Reached max turns (40)`, sans
+frontend et sans diagnostic.
+
+**Le chiffre avait vieilli.** 40 tours ont été posés quand le brief tenait en
+quelques lignes. Depuis, il porte l'intention visuelle (point 53), les
+attentes d'archétype (point 60) et les rubriques éditoriales (points 55 et
+61) : un frontend réel se construit fichier par fichier, chacun coûtant un
+tour, et le budget s'épuisait AVANT que `index.html` n'existe. Relevé à 120,
+et exposé en `--max-turns` — un site à trois rubriques ne coûte pas ce que
+coûte un catalogue, et figer une valeur unique reproduirait la même dette.
+
+**Le code de sortie mentait sur ce qui s'était passé.** L'orchestrateur
+traitait tout retour non nul comme une panne d'exécution et remontait une
+`FrontendAIError`, qui interrompt la commande. Or l'agent peut très bien
+avoir écrit un frontend complet au 39e tour et dépasser au 40e : le travail
+était jeté sans jamais être regardé, alors que la vérification (cohérence +
+smoke test) existait précisément pour trancher sur pièces. Le dépassement de
+budget est donc devenu un avertissement — le frontend produit, s'il existe,
+est vérifié comme n'importe quel autre ; s'il n'existe pas, l'échec emprunte
+la boucle de correction au lieu d'arrêter net.
+
+**Le relâchement s'arrête là, et c'est testé.** Une panne d'authentification,
+un binaire absent, un plantage : tout ce qui n'est pas un dépassement de
+budget continue d'interrompre. La distinction se lit dans la sortie de
+l'agent, pas dans le code de retour — seul `max turns` est reconnu. Trois
+tests couvrent les trois cas (budget épuisé avec frontend valide, budget
+épuisé sans rien produire, vraie erreur), chacun avec un exécutable factice :
+l'orchestration s'exécute pour de vrai, seul l'agent est simulé.
+
+## 63. Mesurer le dépôt, pas seulement le faire passer au vert
+
+137 tests qui passent disent qu'aucune régression connue n'est revenue. Ils
+ne disent ni ce qui n'est pas couvert, ni si les frontières d'architecture
+tiennent encore, ni si un avertissement traîne depuis six mois. Trois outils
+ont été retenus, un par question — et un quatrième écarté.
+
+**Ruff, avec un jeu de règles choisi.** Le catalogue complet crie sur du code
+délibéré ; un linter qu'on apprend à ignorer ne vaut pas mieux que pas de
+linter (point 48, encore). D'où un `select` restreint et, surtout, des
+exceptions QUI PORTENT LEUR RAISON : les caractères « ambigus » sont la
+langue du projet ; les lignes vides à espaces de `parser.py` sont à
+l'intérieur du littéral de grammaire Lark, et y toucher modifierait le texte
+analysé ; les imports en milieu de `frontend_ai.py` sont groupés par voie
+(API, Claude Code, import). 152 signalements au départ, 103 corrigés
+mécaniquement, **zéro restant** — donc tout nouveau signalement est un vrai.
+
+**Deux défauts réels trouvés, pas du style.** `apply_effects` enrichissait les
+lignes de seed avec `zip()` : un modèle qui fournirait deux valeurs pour trois
+lignes aurait produit, en silence, une ligne à qui il manque un champ que les
+autres ont. `strict=True` en fait une erreur immédiate. Et une exception de
+lecture JSON était relancée sans sa cause, ce qui coupait la trace au moment
+précis où l'on cherche pourquoi le modèle a rendu du texte illisible.
+
+**La couverture chiffre un manque déjà connu.** 82 % au total. Le point bas
+est `cli.py` à 35 %, en partie parce que plusieurs de ses chemins ne sont
+éprouvés qu'à travers des sous-processus, que l'instrument ne suit pas. Et la
+mesure confirme l'avertissement de `CLAUDE.md` : **`rule … hidden` n'apparaît
+dans aucun test ni aucun exemple** — une régression y passerait sans bruit.
+
+**Les frontières deviennent un test, pas une dépendance.** import-linter était
+le meilleur choix sur le papier ; il exige des paquets, or `src/` est plat
+pendant toute la bêta (chantier GA assumé). Plutôt que de tordre
+l'arborescence pour un outil, `tests/test_architecture.py` construit le graphe
+d'imports avec `ast` — **imports en tête de fichier ET dans les fonctions**,
+puisque c'est là que les dépendances interdites se cachent — et vérifie six
+contrats énoncés depuis toujours dans `CLAUDE.md` : le compilateur ignore
+l'orchestrateur, le catalogue est de la donnée, la présentation ne connaît pas
+le moteur. Ils tiennent tous. Le seul cycle du dépôt, `cli ↔ frontend_ai`, est
+déclaré comme connu : le test échouera sur le suivant, pas sur celui-là.
+
+**Sans CI, rien de tout cela ne survit.** Le dépôt n'avait aucun workflow :
+tout reposait sur la discipline de lancer les commandes. `.github/workflows/
+ci.yml` joue ruff puis la suite complète avec couverture, sur la borne basse
+déclarée (3.10) et une version récente.
+
+**Écartés, et pourquoi.** `pydeps` et `pyreverse` exigent graphviz, retiré de
+la machine — et la carte du code rend déjà ce service. `mutmut` (tests des
+tests) est le prochain palier logique, mais il fait tourner la suite des
+dizaines de fois : à ouvrir quand elle sera plus rapide, pas avant.
+
+## 64. Ce qui traverse mal la frontière, et ce que personne ne mesurait
+
+Quatre corrections issues du même mouvement : appliquer les outils du point 63
+plutôt que de se contenter de les installer.
+
+**Un texte n'est pas une ligne.** Les rubriques éditoriales (point 61)
+arrivaient jusqu'à l'IA, mais aplaties : un « à propos » collé depuis un
+traitement de texte y perdait ses paragraphes, recollés sans même une espace
+(« …8 ans.Mon travail… »), et une liste numérotée perdait sa structure. Le
+retour à la ligne reste interdit — il casserait le `STRING_LITERAL` émis, et
+assouplir la grammaire pour ça reviendrait à faire porter au langage un
+problème de saisie. Le dialogue demande donc **un paragraphe par saisie**,
+ligne vide pour terminer, et joint le tout par un séparateur (`¶`) qui
+n'existe QUE dans la spec : `frontend_contract.paragraphes()` le retraduit en
+vrais sauts. Une spec écrite à la main, ou antérieure à ce point, traverse
+inchangée — le marqueur est un ajout, pas un format.
+
+**Une règle du langage que rien n'éprouvait.** `rule Entite.champ hidden`
+(brique 2) n'apparaissait dans aucun test ni aucun exemple depuis la bêta 3.
+`tests/test_masquage_hidden.py` la confronte à un vrai serveur : le champ
+disparaît de la liste ET du détail, pour l'appelant connecté comme pour
+l'anonyme, tout en restant écrivable et bien présent en base — vérifié par
+lecture SQLite directe, pas par une réponse d'API qui pourrait mentir de la
+même façon. La règle tient. Ce n'est plus une supposition.
+
+**La suite de tests salissait le dépôt qu'elle vérifiait.**
+`tests/test_compile_all.py` compilait dans la RACINE : chaque exécution y
+redéposait `app.py`, `schema.sql`, `sandbox_ai.py`, `manage.py` et
+`.jwt_secret` — et le rituel de nettoyage de `CLAUDE.md` existait pour ça. Le
+générateur accepte un `output_dir` depuis toujours ; il est désormais employé.
+Effet de bord utile : un artefact trouvé ne peut plus être le reliquat d'une
+compilation précédente, donc l'assertion vaut vraiment quelque chose.
+
+**« app.py reste scellé » n'était mesuré par rien.** Découvert en écrivant le
+premier test du parcours de commandes, pas en relisant le code :
+`check_coherence` vérifiait l'empreinte de la spec et celle du contrat, mais
+seulement l'EXISTENCE de `app.py` et `schema.sql`. Une retouche manuelle
+passait donc sans un mot — pendant que `monl run` affichait « Cohérence
+statique vérifiée (spec ↔ backend ↔ contrat ↔ frontend) ». L'état
+(`monl.json`) porte maintenant l'empreinte des quatre artefacts scellés
+(`app.py`, `schema.sql`, `sandbox_ai.py`, `manage.py` — les deux derniers
+portent des droits). Un projet compilé avant ce point n'est pas en erreur : il
+est muet, et le dire vaut mieux que laisser croire à une vérification qui n'a
+pas eu lieu.
+
+**Ce que ça dit de la méthode.** Le trou du scellé n'a pas été trouvé par la
+mesure de couverture, ni par le linter, ni par la relecture : il est apparu en
+écrivant l'assertion « une retouche manuelle doit être détectée », qui a
+échoué. Écrire un test, c'est formuler une promesse — et c'est là qu'on
+s'aperçoit qu'elle n'était pas tenue.
+
+## 65. Un paquet qu'on ne peut pas installer n'est pas un paquet
+
+Le chantier repoussé depuis la bêta 3, fait ici parce qu'il bloquait tout le
+reste : outillage, distribution, et la crédibilité du mot « installable ».
+
+**Ce que la structure plate coûtait vraiment.** `src/` contenait dix modules
+de premier niveau. Rien ne les rendait importables : chaque fichier de tests
+ouvrait sur un `sys.path.insert` suivi d'imports marqués `noqa: E402`, `cli.py`
+en faisait autant pour lui-même, et l'installation passait par un shim
+(`run_monl.py`) dont le seul rôle était de rejouer cette manipulation. Vingt
+fois la même incantation, un ordre d'instructions à respecter sous peine
+d'`ImportError`, et un `pip install` qui ne donnait pas vraiment un paquet.
+Trois conséquences en cascade : import-linter inutilisable (il exige des
+paquets), distribution impossible, et un `parser.py` de premier niveau qui
+entrait en concurrence avec le nom d'un module de la bibliothèque standard.
+
+**Le code vit désormais dans `src/monl/`**, les dépendances internes s'écrivent
+en relatif (`from .parser import …`), `pip install -e .` fournit la commande
+`monl`, et `import monl` fonctionne depuis n'importe quel dossier. Les tests
+importent `monl.xxx` ; la seule incantation restante est concentrée dans
+`tests/conftest.py`, pour le cas où la suite tourne sans installation.
+
+**Le piège du déménagement, et pourquoi il aurait été invisible.** Le test des
+frontières (point 63) lit le graphe d'imports avec `ast` en ignorant les
+imports relatifs — ce qui était juste quand « relatif » ne désignait que
+l'intérieur de `generator/`. En passant tout le code en paquet, TOUTES les
+dépendances internes sont devenues relatives : le test aurait continué à
+passer en ne regardant plus rien. Il connaît maintenant l'étage de chaque
+fichier (`from .parser` dans `monl/` désigne un module de premier niveau, le
+même écrit dans `monl/generator/` désigne un voisin du sous-paquet), et un
+test supplémentaire vérifie que le graphe voit encore les dépendances connues
+du dépôt. **Un garde-fou muet est pire qu'un garde-fou absent : il rassure.**
+
+**Le dossier de sortie par défaut était faux depuis toujours.** Le générateur
+déduisait sa racine de l'emplacement de son propre fichier — deux niveaux
+au-dessus de `src/generator/`. Tant que le code vivait dans le dépôt, ça
+tombait sur la racine et faisait illusion ; une fois monl installé, le même
+calcul aurait écrit l'application au milieu de `site-packages`. C'est
+désormais le dossier courant, ce qu'attend n'importe quel outil en ligne de
+commande — et ce qui coïncide avec l'ancien comportement quand on lance depuis
+la racine du dépôt.
+
+**Vérifié pour de vrai**, conformément à la méthode : `pip install -e .`, puis
+`monl compile` lancé depuis un dossier temporaire hors du dépôt, qui produit
+une application complète là où on l'appelle. La CI le rejoue à chaque push —
+un dépôt vert dont le `pip install` échoue n'est utilisable que par son
+auteur.
+
+## 66. Rendre public ne pardonne pas les exceptions à ses propres règles
+
+Le dépôt est passé en public. Deux choses l'attendaient.
+
+**Un secret versionné.** `.jwt_secret` est généré en permissions 0600 et ignoré
+par git depuis toujours — mais celui de `demo/` avait échappé à la règle,
+committé en même temps que le dossier de démonstration dont la suite de tests
+dépend. Sa portée réelle est faible (rien n'est déployé), sa portée symbolique
+ne l'est pas : le projet traitait comme sensible un fichier qu'il publiait.
+Retiré du suivi, avec `demo/app.db` qui l'accompagnait — une base contenant un
+compte, son hash de mot de passe et trois lignes de limitation de débit. Les
+deux se régénèrent au premier démarrage ; vérifié en les retirant du disque
+avant de rejouer les tests de `demo/`, qui passent sans eux.
+
+**L'historique n'est pas réécrit, et c'est un choix.** Le secret d'une démo
+locale ne justifie pas de casser tous les clones existants. La règle
+générale reste l'inverse : un secret réel exige la réécriture ET sa
+révocation, parce que retirer un fichier ne retire rien de l'historique.
+
+**Une CI qui ne se déclenchait jamais.** Le workflow n'écoutait que `main` et
+les pull requests — donc pousser une branche de travail ne lançait rien, et la
+page Actions restait vide en donnant l'illusion d'un dépôt sans intégration
+continue. Il écoute désormais toutes les branches. Les pull requests rejouent
+la même chose une seconde fois : doublon assumé, le retour immédiat vaut mieux
+que l'élégance du graphe d'exécutions.

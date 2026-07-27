@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
-"""Lanceur 'monl' — délègue au CLI orchestrateur (src/cli.py).
-Installer : ajouter ce dépôt au PATH, ou 'ln -s $(pwd)/monl ~/.local/bin/monl'."""
+"""Lanceur 'monl' pour le dépôt non installé — délègue au paquet src/monl/.
+
+Depuis le point 65, monl est un vrai paquet : `pip install .` fournit la
+commande 'monl' sans ce fichier. Il ne reste utile que pour lancer le dépôt
+tel quel, sans installation.
+"""
 import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "src"))
-from cli import main  # noqa: E402
+from monl.cli import main
 
 main()

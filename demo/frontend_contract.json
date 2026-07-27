@@ -34,33 +34,41 @@
         ]
       }
     },
-    "base_url": "http://127.0.0.1:8000"
+    "base_url": "",
+    "base_url_note": "même origine que la page : appeler les routes en chemins relatifs (/entite), jamais d'URL absolue ni de port codé en dur"
   },
   "app": "AtelierVelo",
   "brief": "Une boutique d'accessoires vélo, réparation et pièces détachées.",
   "design": {
     "accent": "#D9F227",
     "accent2": "#A8412A",
+    "accent_soft": "#EEF3D2",
+    "accent_strong": "#B5CB26",
     "bg": "#F1F3EE",
+    "border": "#D2D5D2",
     "card_style": "atelier",
     "font_body": "'Helvetica Neue', Helvetica, Arial, sans-serif",
     "font_display": "'Helvetica Neue', Helvetica, Arial, sans-serif",
-    "font_mono": "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-    "google_fonts": "",
+    "font_mono": "ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace",
     "ink": "#101C24",
+    "ink_soft": "#5D6569",
     "name": "atelier",
     "pinned": true,
     "radius": "0px",
-    "surface": "#FBFCFA"
+    "surface": "#FBFCFA",
+    "surface_alt": "#EFF1EF"
   },
   "entities": {
     "Customer": {
+      "archetype": "list",
+      "client_foreign_keys": [],
       "fields": [
         {
           "categorized_in_reads": false,
           "hidden_in_reads": false,
           "name": "displayName",
           "required": true,
+          "role": "title",
           "server_generated": false,
           "type": "String"
         }
@@ -68,12 +76,15 @@
       "foreign_keys": []
     },
     "Order": {
+      "archetype": "list",
+      "client_foreign_keys": [],
       "fields": [
         {
           "categorized_in_reads": false,
           "hidden_in_reads": false,
           "name": "total",
           "required": true,
+          "role": "price",
           "server_generated": false,
           "type": "Money"
         },
@@ -82,6 +93,7 @@
           "hidden_in_reads": false,
           "name": "status",
           "required": false,
+          "role": "title",
           "server_generated": false,
           "type": "String"
         },
@@ -90,6 +102,7 @@
           "hidden_in_reads": false,
           "name": "note",
           "required": false,
+          "role": "description",
           "server_generated": false,
           "type": "Text"
         }
@@ -103,12 +116,15 @@
       ]
     },
     "Product": {
+      "archetype": "shop",
+      "client_foreign_keys": [],
       "fields": [
         {
           "categorized_in_reads": false,
           "hidden_in_reads": false,
           "name": "name",
           "required": true,
+          "role": "title",
           "server_generated": false,
           "type": "String"
         },
@@ -117,6 +133,7 @@
           "hidden_in_reads": false,
           "name": "price",
           "required": false,
+          "role": "price",
           "server_generated": false,
           "type": "Money"
         },
@@ -125,6 +142,7 @@
           "hidden_in_reads": false,
           "name": "description",
           "required": false,
+          "role": "description",
           "server_generated": false,
           "type": "Text"
         },
@@ -133,6 +151,7 @@
           "hidden_in_reads": false,
           "name": "imageUrl",
           "required": false,
+          "role": "media",
           "server_generated": false,
           "type": "String"
         },
@@ -141,6 +160,7 @@
           "hidden_in_reads": false,
           "name": "category",
           "required": false,
+          "role": "category",
           "server_generated": false,
           "type": "String"
         },
@@ -149,6 +169,7 @@
           "hidden_in_reads": false,
           "name": "stock",
           "required": false,
+          "role": "stock",
           "server_generated": false,
           "type": "Integer"
         }
@@ -166,7 +187,7 @@
     "output_dir": "frontend/",
     "served_at": "/site (par 'monl run', sans toucher app.py)"
   },
-  "monl_contract_version": 1,
+  "monl_contract_version": 3,
   "routes": [
     {
       "action": "List",
@@ -358,6 +379,7 @@
       ]
     }
   ],
+  "sections": [],
   "self_register_actors": [
     "Customer"
   ],

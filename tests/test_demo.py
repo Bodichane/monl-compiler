@@ -5,12 +5,9 @@
 # la démo ne peut pas pourrir en silence.
 import os
 import shutil
-import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
-from cli import compile_project, check_coherence  # noqa: E402
-from smoke_test import run_smoke_test  # noqa: E402
+from monl.cli import check_coherence, compile_project
+from monl.smoke_test import run_smoke_test
 
 DEMO_DIR = os.path.join(os.path.dirname(__file__), "..", "demo")
 

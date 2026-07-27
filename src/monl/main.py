@@ -1,9 +1,10 @@
+import argparse
 import os
 import sys
-import argparse
-from parser import parse_monl_file
-from ast_validator import MonlAST
-from generator import MonlSecureGenerator
+
+from .ast_validator import MonlAST
+from .generator import MonlSecureGenerator
+from .parser import parse_monl_file
 
 
 def compile_monl(file_path, output_dir=None):
@@ -72,7 +73,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if not args.fichier:
-        default_sample = os.path.join(os.path.dirname(__file__), "../exemples/01_portfolio.ml")
+        default_sample = os.path.join(os.path.dirname(__file__), "..", "..", "exemples", "01_portfolio.ml")
         compile_monl(default_sample, output_dir=args.output)
     else:
         compile_monl(args.fichier, output_dir=args.output)

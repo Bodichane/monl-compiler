@@ -7,12 +7,10 @@ Deux garanties tenues ici :
   2. le rendu stylé dégrade proprement (aucune séquence ANSI ni caractère
      de dessin quand le terminal ne les gère pas).
 """
-import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-from dialogue_engine import GuidedDialogue  # noqa: E402
-from tui import PlainDialogueUI, StyledDialogueUI, Terminal  # noqa: E402
+from monl.dialogue_engine import GuidedDialogue
+from monl.tui import PlainDialogueUI, StyledDialogueUI, Terminal
 
 
 class _TerminalNu(Terminal):

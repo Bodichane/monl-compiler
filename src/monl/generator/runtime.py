@@ -80,11 +80,11 @@ class RuntimeMixin:
             "# init_db() pour appliquer les ALTER TABLE ADD COLUMN manquants au",
             "# démarrage. Injecté via repr() pour un littéral Python toujours",
             "# valide, quel que soit le nom des colonnes.",
-            f"_EXPECTED_COLUMNS = {repr(self._compute_expected_columns())}\n",
+            f"_EXPECTED_COLUMNS = {self._compute_expected_columns()!r}\n",
             "# AJOUT (roadmap frontend, bloc 'seed') : données de démonstration",
             "# regroupées par table, injectées via repr() pour un littéral toujours",
             "# valide. Consommées par init_db() (insertion idempotente si vide).",
-            f"_SEED_DATA = {repr(self._compute_seed_data())}\n",
+            f"_SEED_DATA = {self._compute_seed_data()!r}\n",
             "security_bearer = HTTPBearer()\n",
             # CORRECTIF (roadmap, révocation de token) : la vérification du
             # token est centralisée dans une seule fonction, appelée par les
@@ -128,7 +128,7 @@ class RuntimeMixin:
             # d'une requête DB supplémentaire à chaque appel.
             "def get_current_anon_handle(credentials: HTTPAuthorizationCredentials = Depends(security_bearer)) -> str:",
             "    return _decode_and_verify_token(credentials).get('anon_handle', '')\n",
-            
+
             # CORRECTIF (bêta 3) : '@app.on_event' est déprécié par Starlette et
             # disparaîtra ; le cycle de vie passe par un gestionnaire 'lifespan'.
             # init_db() ouvre volontairement une connexion SANS contrainte de clé

@@ -3,17 +3,13 @@
 # doit produire une spec qui passe le vrai parseur + l'audit AST. Un modèle
 # ajouté au catalogue sans respecter les règles strictes du compilateur
 # (collisions, ownedBy sans relation…) casse immédiatement la CI.
-import os
-import sys
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
-from app_templates import TEMPLATES, FREE_MODE_LABEL  # noqa: E402
-from dialogue_engine import GuidedDialogue  # noqa: E402
-from parser import parse_monl_string  # noqa: E402
-from ast_validator import MonlAST  # noqa: E402
+from monl.app_templates import FREE_MODE_LABEL, TEMPLATES
+from monl.ast_validator import MonlAST
+from monl.dialogue_engine import GuidedDialogue
+from monl.parser import parse_monl_string
 
 
 def _run_template(index, followup_answer, want_seed):
@@ -34,7 +30,15 @@ def _run_template(index, followup_answer, want_seed):
     # Le brief transmis déclenche les questions d'intention visuelle
     # (point 53) : action attendue, registre, place des images.
     answers += ["consulter et contacter", "1", "2"]
-    answers += ["n"]                                   # pas de section éditoriale
+    # Rubriques éditoriales du modèle (point 61) : leur TEXTE est demandé
+    # directement. Chemin « tout refuser » = tout laisser vide.
+    for section in tpl.get("sections", []):
+        # Point 64 : le corps se saisit paragraphe par paragraphe, une ligne
+        # vide le termine. Refuser la rubrique = premier paragraphe vide,
+        # et aucune relance n'est alors posée.
+        answers += ([f"Texte de la rubrique {section['title']}.", ""]
+                    if followup_answer == "o" else [""])
+    answers += ["n"]                                   # pas de section en plus
     it = iter(answers)
     return GuidedDialogue(ask=lambda p: next(it)).run()
 
@@ -62,8 +66,8 @@ def test_chaque_modele_ouvre_l_inscription_a_un_role(index=3):
     'selfRegister', personne ne peut créer de compte sur l'application
     produite (régression introduite puis corrigée en bêta 3)."""
     spec = _run_template(index, "o", want_seed=True)
-    inscriptibles = [l for l in spec.splitlines() if l.startswith("actor ")
-                     and l.endswith("selfRegister")]
+    inscriptibles = [ligne for ligne in spec.splitlines() if ligne.startswith("actor ")
+                     and ligne.endswith("selfRegister")]
     assert len(inscriptibles) == 1, spec
     normalized = MonlAST(parse_monl_string(spec)).validate_and_audit()
     # Le premier rôle proposé doit être celui qui n'écrit que sur SES données
@@ -107,7 +111,8 @@ def test_entite_personnalisee_en_plus_du_modele():
         "n",                 # images génériques (point 59)
         "o",                 # brief
         "lire les témoignages", "1", "2",   # intention visuelle (point 53)
-        "n",                                # pas de section éditoriale (point 55)
+        "", "",                             # rubriques du portfolio passées (point 61)
+        "n",                                # pas de section en plus (point 55)
     ])
     spec = GuidedDialogue(ask=lambda p: next(answers)).run()
     assert "entity Testimonial" in spec
@@ -147,6 +152,53 @@ def test_les_elements_standards_ne_sont_plus_des_questions():
             assert attendu in spec, (
                 f"modèle {index} ({TEMPLATES[index - 1]['name']}) : « {attendu} » "
                 f"devrait être acquis, il manque quand tout est refusé")
+
+
+def test_les_rubriques_editoriales_sont_demandees_pas_proposees():
+    """Point 61 : sur un modèle qui porte des rubriques standard, le dialogue
+    ne demande plus S'IL en faut — il en demande le texte, rubrique par
+    rubrique, en la nommant. Ce test lit les invites réellement posées."""
+    poses = []
+
+    def ask(prompt):
+        poses.append(prompt)
+        return next(it)
+
+    tpl = TEMPLATES[0]                                   # Portfolio
+    answers = ["1", "AppTest", "Un portfolio.", "n", "n", "1", "o", "n", "o",
+               "consulter", "1", "2",
+               "Photographe à Lyon depuis 2015.", "",
+               "Reportage et portrait.", "",
+               "n"]
+    it = iter(answers)
+    spec = GuidedDialogue(ask=ask).run()
+    for section in tpl["sections"]:
+        assert any(section["title"] in p for p in poses), (
+            f"la rubrique « {section['title']} » n'a jamais été demandée")
+    assert not any("Ajouter du texte de présentation" in p for p in poses), (
+        "l'ancienne question o/n subsiste alors que le modèle a des rubriques")
+    assert 'section "À propos": "Photographe à Lyon depuis 2015."' in spec
+    assert 'section "Services": "Reportage et portrait."' in spec
+    MonlAST(parse_monl_string(spec)).validate_and_audit()
+
+
+def test_une_rubrique_laissee_vide_est_simplement_absente():
+    answers = iter(["1", "AppTest", "Un portfolio.", "n", "n", "1", "o", "n", "o",
+                    "consulter", "1", "2",
+                    "", "Reportage et portrait.", "", "n"])
+    spec = GuidedDialogue(ask=lambda p: next(answers)).run()
+    assert "À propos" not in spec
+    assert 'section "Services": "Reportage et portrait."' in spec
+
+
+def test_un_outil_interne_ne_se_voit_imposer_aucune_rubrique():
+    """Kanban, inventaire, dépenses : aucune source ne donne de rubrique
+    attendue pour un outil sans visiteur. Le dialogue retombe donc sur
+    l'offre générique plutôt que d'inventer un « à propos »."""
+    for nom in ("Gestion de tâches", "Inventaire / gestion de stock",
+                "Suivi de dépenses personnelles"):
+        tpl = next(t for t in TEMPLATES if t["name"] == nom)
+        assert tpl["sections"] == [], nom
 
 
 def test_le_dialogue_a_bien_ete_allege():

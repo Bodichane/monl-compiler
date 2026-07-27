@@ -25,7 +25,7 @@ import json
 import os
 import re
 
-from frontend_contract import PROMPT_FILENAME
+from .frontend_contract import PROMPT_FILENAME
 
 ALLOWED_EXTENSIONS = (".html", ".css", ".js", ".svg", ".json")
 MAX_TOTAL_BYTES = 2_000_000
@@ -89,7 +89,7 @@ def parse_files_payload(raw_text):
     try:
         payload = json.loads(text)
     except json.JSONDecodeError as e:
-        raise FrontendAIError(f"réponse du modèle illisible (JSON attendu) : {e}")
+        raise FrontendAIError(f"réponse du modèle illisible (JSON attendu) : {e}") from e
     files = payload.get("files")
     if not isinstance(files, dict) or not files:
         raise FrontendAIError("réponse du modèle sans clé 'files' exploitable")
@@ -162,8 +162,8 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print):
     """La boucle complète du point 4 : générer → écrire → RE-VÉRIFIER
     (cohérence + smoke test) → si échec, renvoyer les erreurs au modèle une
     seule fois → re-vérifier. Retourne (ok, erreurs)."""
-    from cli import check_coherence
-    from smoke_test import run_smoke_test
+    from .cli import check_coherence
+    from .smoke_test import run_smoke_test
 
     project_dir = os.path.abspath(project_dir)
     prompt = build_generation_prompt(project_dir, update_mode)
@@ -291,8 +291,8 @@ def load_frontend_source(source):
 def import_and_verify(project_dir, source, say=print):
     """'monl import' : installer la source dans frontend/ puis re-vérifier
     exactement comme la voie API. Retourne (ok, erreurs)."""
-    from cli import check_coherence
-    from smoke_test import run_smoke_test
+    from .cli import check_coherence
+    from .smoke_test import run_smoke_test
 
     project_dir = os.path.abspath(project_dir)
     files, skipped = load_frontend_source(source)
@@ -310,7 +310,7 @@ def import_and_verify(project_dir, source, say=print):
         backup = frontend_dir + ".precedent"
         shutil.rmtree(backup, ignore_errors=True)
         os.rename(frontend_dir, backup)
-        say(f" -> Frontend existant conservé dans frontend.precedent/ (rien n'est perdu).")
+        say(" -> Frontend existant conservé dans frontend.precedent/ (rien n'est perdu).")
     _write_files(project_dir, files)
     say(f" -> {len(files)} fichier(s) installés dans frontend/ ({', '.join(sorted(files))})")
     for rel in skipped:
@@ -363,6 +363,15 @@ PROTECTED_ARTEFACTS = ("spec.ml", "app.py", "schema.sql", "sandbox_ai.py",
                        "frontend_contract.json", "FRONTEND_PROMPT.md",
                        "monl.json", ".jwt_secret")
 
+# POINT 62 : budget de tours de l'agent. 40 était un chiffre posé avant que le
+# brief ne porte l'intention visuelle (point 53), les rubriques éditoriales
+# (points 55 et 61) et les attentes d'archétype (point 60) : un frontend réel
+# se construit fichier par fichier, chacun coûtant un tour, et le budget
+# s'épuisait AVANT que index.html n'existe. Relevé à 120, et rendu réglable
+# depuis la ligne de commande — un site à trois rubriques ne coûte pas ce que
+# coûte un catalogue.
+DEFAULT_MAX_TURNS = 120
+
 CLAUDE_CODE_INSTRUCTION = (
     "Lis {brief} et construis le frontend demandé, en écrivant UNIQUEMENT "
     "dans le dossier frontend/ (point d'entrée frontend/index.html, "
@@ -382,11 +391,18 @@ def _fingerprint_protected(project_dir):
     return prints
 
 
-def run_claude_code(project_dir, instruction, max_turns=40, command=None):
+def run_claude_code(project_dir, instruction, max_turns=DEFAULT_MAX_TURNS,
+                    command=None):
     """Invoque 'claude -p' dans le dossier du projet. 'command' est
     injectable pour les tests (exécutable factice) — même approche que le
     fournisseur factice de la voie API : l'orchestration s'exécute pour de
-    vrai, seul l'agent est simulé."""
+    vrai, seul l'agent est simulé.
+
+    POINT 62 : l'épuisement du budget de tours n'est PAS une erreur
+    d'exécution. L'agent a pu écrire un frontend complet au tour 39 et
+    dépasser au 40e ; le traiter comme un échec dur jetait un travail que la
+    vérification aurait peut-être accepté, et privait la boucle de sa passe
+    de correction. Rendu comme un avertissement, la suite tranche sur pièces."""
     binary = command or shutil.which("claude")
     if not binary:
         raise FrontendAIError(
@@ -398,19 +414,22 @@ def run_claude_code(project_dir, instruction, max_turns=40, command=None):
          "--permission-mode", "acceptEdits",
          "--max-turns", str(max_turns)],
         cwd=project_dir, capture_output=True, text=True, timeout=1800)
+    sortie = (proc.stderr or proc.stdout) or ""
     if proc.returncode != 0:
+        if "max turns" in sortie.lower():
+            return sortie          # budget épuisé : la vérification tranchera
         raise FrontendAIError("Claude Code a terminé en erreur : "
-                              + (proc.stderr or proc.stdout)[-400:])
+                              + sortie[-400:])
     return proc.stdout
 
 
 def generate_with_claude_code(project_dir, update_mode=False, say=print,
-                              command=None, max_turns=40):
+                              command=None, max_turns=DEFAULT_MAX_TURNS):
     """La boucle du point 4, version Claude Code : exécuter l'agent dans le
     dossier cible → vérifier les artefacts protégés → re-vérifier (cohérence
     + smoke test) → une correction au plus. Retourne (ok, erreurs)."""
-    from cli import check_coherence
-    from smoke_test import run_smoke_test
+    from .cli import check_coherence
+    from .smoke_test import run_smoke_test
 
     project_dir = os.path.abspath(project_dir)
     brief = "FRONTEND_UPDATE_PROMPT.md" if update_mode else "FRONTEND_PROMPT.md"

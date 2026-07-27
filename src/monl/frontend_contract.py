@@ -179,6 +179,20 @@ CONTRACT_FILENAME = "frontend_contract.json"
 PROMPT_FILENAME = "FRONTEND_PROMPT.md"
 
 
+def paragraphes(texte):
+    """Retraduit le séparateur de paragraphes de la spec en vrais sauts
+    (point 64). La grammaire interdit le retour à la ligne dans un
+    STRING_LITERAL : un « à propos » de trois paragraphes voyage donc en une
+    seule ligne, marquée. Le contrat est le premier endroit où cette
+    contrainte d'écriture cesse d'exister — et l'IA d'interface reçoit du
+    texte structuré au lieu d'un bloc sans césure.
+
+    Sans marqueur, le texte ressort tel quel : un contrat écrit avant le
+    point 64, ou une spec rédigée à la main, se lit exactement comme avant.
+    """
+    return "\n\n".join(p.strip() for p in texte.split("¶") if p.strip())
+
+
 def build_contract(normalized_ast, generator):
     """Construit le dictionnaire du contrat depuis l'AST normalisé et une
     instance de MonlSecureGenerator (réutilisée UNIQUEMENT pour ses
@@ -278,7 +292,8 @@ def build_contract(normalized_ast, generator):
         # Contenu éditorial statique (point 55) : aucune entité, aucune route
         # ne peut le porter — c'est la seule matière du contrat qui ne soit
         # pas une donnée.
-        "sections": landing.get("sections") or [],
+        "sections": [{"title": s["title"], "body": paragraphes(s["body"])}
+                     for s in (landing.get("sections") or [])],
         "design": design,
         "source_of_truth": "spec monl (.ml) — ne jamais modifier le backend à la main",
         "api": {
@@ -452,7 +467,7 @@ def _render_prompt(contract):
     # (structure, rôles, contenu, intention) est transmis ; comment cela se
     # regarde est rendu à l'IA d'interface, dont c'est le métier.
     if not design.get("pinned"):
-        design_block = f"""## Direction de design — LIBRE
+        design_block = """## Direction de design — LIBRE
 
 monl n'impose ici **aucune** palette, aucune typographie, aucun rayon, aucune
 mise en page. Composez l'identité qui sert ce projet : c'est votre métier, pas
@@ -481,7 +496,7 @@ l'ignorer entièrement est un choix légitime, rien ne la vérifie.
 """
     else:
         design_block = (
-        f"## Direction de design "
+        "## Direction de design "
         + ("(IMPOSÉE par la spec — vérifiée au smoke test)\n")
         + f"Système « {design['name']} » — fond `{design['bg']}`, surfaces `{design['surface']}`, "
         f"texte `{design['ink']}`, accents `{design['accent']}` / `{design['accent2']}`, "
