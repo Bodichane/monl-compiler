@@ -390,3 +390,45 @@ def test_le_contenu_editorial_est_exige_sur_la_page_d_accueil(tmp_path):
     assert "page d'accueil, pas seulement derrière un lien" in brief
     # Un texte long garde le droit d'avoir sa propre page EN PLUS.
     assert "se prolonger sur sa propre page" in brief
+
+
+def test_le_brief_donne_l_anatomie_et_les_voisins(tmp_path):
+    """Le contrat disait quelles DONNÉES existent, jamais ce qu'un visiteur
+    s'attend à trouver sur une page de cette nature (point 60). Deux sites du
+    même genre se ressemblent parce qu'ils répondent aux mêmes attentes :
+    les nommer donne un repère au modèle, là où la seule liste des champs le
+    laissait improviser."""
+    proj = tmp_path / "formes"
+    _contrat_archetypes(tmp_path)
+    brief = (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    assert "Proche de :" in brief
+    assert "Ce qu'un visiteur s'attend à y trouver" in brief
+    # Chaque forme apporte ses propres attentes, jamais une liste unique.
+    assert "prix et disponibilité visibles sans défiler" in brief   # shop
+    assert "un visuel dominant" in brief                            # gallery
+
+
+def test_la_disponibilite_n_est_pas_une_donnee_secondaire(tmp_path):
+    """`stock` recevait le rôle « méta », donc traité comme un détail, alors
+    que la disponibilité est un essentiel de fiche produit au même rang que
+    le prix (point 60)."""
+    proj = tmp_path / "shop"
+    proj.mkdir()
+    (proj / "spec.ml").write_text("""app Boutique
+
+entity Product
+    name: String
+    price: Money
+    stock: Integer
+
+actor Admin selfRegister
+rule Product.Read public
+
+workflow W for Admin
+    Create Product
+    Read Product
+""", encoding="utf-8")
+    contract = compile_project(str(proj / "spec.ml"), str(proj))
+    roles = {f["name"]: f["role"] for f in contract["entities"]["Product"]["fields"]}
+    assert roles["stock"] == "stock"
+    assert "DISPONIBILITÉ" in (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")

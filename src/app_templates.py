@@ -67,6 +67,12 @@ TEMPLATES = [
                                    ("imageUrl", "String")],
                         "manager": "Admin", "readers": [], "public_read": True,
                         "public_create": False, "owned": False},
+            # ACQUIS (point 60) : « a clear contact method » figure dans toutes
+            # les listes d'essentiels d'un portfolio — c'était une question.
+            "Message": {"fields": [("author", "String"), ("email", "Email"),
+                                   ("content", "Text")],
+                        "manager": "Admin", "readers": [], "public_read": False,
+                        "public_create": True, "owned": False},
         },
         "relations": [], "extra_rules": [],
         "seeds": {"Project": [
@@ -75,10 +81,6 @@ TEMPLATES = [
             {"title": "Site Horizon", "description": "Site éditorial pour un festival de musique.", "imageUrl": _img("horizon")},
         ]},
         "followups": [
-            {"ask": "Ajouter un formulaire de contact (messages envoyés sans compte) ?",
-             "effects": {"add_entities": {"Message": {"fields": [("author", "String"), ("email", "Email"), ("content", "Text")],
-                                                      "manager": "Admin", "readers": [], "public_read": False,
-                                                      "public_create": True, "owned": False}}}},
             {"ask": "Classer les projets par catégorie ?",
              "effects": {"add_fields": {"Project": [("category", "String")]},
                          "add_seed_fields": {"Project": {"category": ["Identité", "Produit", "Web"]}}}},
@@ -89,16 +91,21 @@ TEMPLATES = [
         "hint": "articles publics, commentaires des lecteurs",
         "actors": ["Author"],
         "entities": {
+            # ACQUIS (point 60) : l'auteur humanise le billet, la date dit si
+            # l'information est encore d'actualité. Les deux sont donnés comme
+            # essentiels par l'anatomie d'un article ; la date était une
+            # question, l'auteur manquait purement et simplement.
             "Article": {"fields": [("title", "String"), ("content", "Text"),
-                                   ("imageUrl", "String")],
+                                   ("imageUrl", "String"), ("author", "String"),
+                                   ("publishedOn", "String")],
                         "manager": "Author", "readers": [], "public_read": True,
                         "public_create": False, "owned": False},
         },
         "relations": [], "extra_rules": [],
         "seeds": {"Article": [
-            {"title": "Pourquoi j'ai quitté les frameworks", "content": "Retour d'expérience après un an de vanilla.", "imageUrl": _img("blog1")},
-            {"title": "Le guide du télétravail durable", "content": "Trois ans de distance, ce qui marche vraiment.", "imageUrl": _img("blog2")},
-            {"title": "Apprendre en public", "content": "Documenter ses progrès change tout.", "imageUrl": _img("blog3")},
+            {"title": "Pourquoi j'ai quitté les frameworks", "content": "Retour d'expérience après un an de vanilla.", "imageUrl": _img("blog1"), "author": "Camille Roy", "publishedOn": "2026-05-12"},
+            {"title": "Le guide du télétravail durable", "content": "Trois ans de distance, ce qui marche vraiment.", "imageUrl": _img("blog2"), "author": "Camille Roy", "publishedOn": "2026-06-03"},
+            {"title": "Apprendre en public", "content": "Documenter ses progrès change tout.", "imageUrl": _img("blog3"), "author": "Sacha Nedel", "publishedOn": "2026-07-01"},
         ]},
         "followups": [
             {"ask": "Permettre aux lecteurs inscrits de commenter (chacun gère ses commentaires) ?",
@@ -107,9 +114,6 @@ TEMPLATES = [
                                                       "manager": "Reader", "readers": ["Author"],
                                                       "public_read": True, "public_create": False, "owned": True}},
                          "add_relations": [("Article", "hasMany", "Comment")]}},
-            {"ask": "Dater les articles (champ de date de publication) ?",
-             "effects": {"add_fields": {"Article": [("publishedOn", "String")]},
-                         "add_seed_fields": {"Article": {"publishedOn": ["2026-05-12", "2026-06-03", "2026-07-01"]}}}},
         ],
     },
     {
@@ -117,8 +121,12 @@ TEMPLATES = [
         "hint": "catalogue public, commandes des clients",
         "actors": ["Admin", "Customer"],
         "entities": {
+            # ACQUIS (point 60) : la disponibilité figure au-dessus de la ligne
+            # de flottaison d'une fiche produit, au même titre que le nom, le
+            # prix et l'image. C'était une question.
             "Product": {"fields": [("name", "String"), ("price", "Money"),
-                                   ("description", "Text"), ("imageUrl", "String")],
+                                   ("description", "Text"), ("imageUrl", "String"),
+                                   ("stock", "Integer")],
                         "manager": "Admin", "readers": ["Customer"], "public_read": True,
                         "public_create": False, "owned": False},
             "Order": {"fields": [("total", "Money"), ("status", "String")],
@@ -127,17 +135,14 @@ TEMPLATES = [
         },
         "relations": [], "extra_rules": [],
         "seeds": {"Product": [
-            {"name": "Théière Kyoto", "price": 39.5, "description": "Fonte émaillée, 0,8 L.", "imageUrl": _img("shop1")},
-            {"name": "Tasse Duo", "price": 18.0, "description": "Grès artisanal, lot de deux.", "imageUrl": _img("shop2")},
-            {"name": "Thé vert Sencha", "price": 12.5, "description": "Récolte de printemps, 100 g.", "imageUrl": _img("shop3")},
+            {"name": "Théière Kyoto", "price": 39.5, "description": "Fonte émaillée, 0,8 L.", "imageUrl": _img("shop1"), "stock": 12},
+            {"name": "Tasse Duo", "price": 18.0, "description": "Grès artisanal, lot de deux.", "imageUrl": _img("shop2"), "stock": 40},
+            {"name": "Thé vert Sencha", "price": 12.5, "description": "Récolte de printemps, 100 g.", "imageUrl": _img("shop3"), "stock": 87},
         ]},
         "followups": [
             {"ask": "Classer les produits par catégorie ?",
              "effects": {"add_fields": {"Product": [("category", "String")]},
                          "add_seed_fields": {"Product": {"category": ["Théières", "Tasses", "Thés"]}}}},
-            {"ask": "Suivre le stock de chaque produit ?",
-             "effects": {"add_fields": {"Product": [("stock", "Integer")]},
-                         "add_seed_fields": {"Product": {"stock": [12, 40, 87]}}}},
         ],
     },
     {
@@ -145,16 +150,16 @@ TEMPLATES = [
         "hint": "chaque membre gère ses propres tâches (kanban)",
         "actors": ["Member"],
         "entities": {
-            "Task": {"fields": [("title", "String"), ("status", "String")],
+            # ACQUIS (point 60) : « title, assignee, due date, and a simple
+            # priority signal right on the card » — les deux étaient des
+            # questions alors qu'aucune carte kanban ne s'en passe.
+            "Task": {"fields": [("title", "String"), ("status", "String"),
+                                ("priority", "String"), ("dueDate", "String")],
                      "manager": "Member", "readers": [], "public_read": False,
                      "public_create": False, "owned": True},
         },
         "relations": [], "extra_rules": [], "seeds": {},
         "followups": [
-            {"ask": "Ajouter une priorité aux tâches ?",
-             "effects": {"add_fields": {"Task": [("priority", "String")]}}},
-            {"ask": "Ajouter une date d'échéance ?",
-             "effects": {"add_fields": {"Task": [("dueDate", "String")]}}},
         ],
     },
     {
@@ -191,25 +196,25 @@ TEMPLATES = [
         "hint": "annonces publiques, chaque vendeur gère les siennes",
         "actors": ["Seller"],
         "entities": {
+            # ACQUIS (point 60) : l'acheteur regarde le lieu pour savoir si
+            # l'objet est proche, et attend de pouvoir joindre le vendeur.
+            # Les deux étaient des questions.
             "Listing": {"fields": [("title", "String"), ("price", "Money"),
-                                   ("description", "Text"), ("imageUrl", "String")],
+                                   ("description", "Text"), ("imageUrl", "String"),
+                                   ("location", "String")],
                         "manager": "Seller", "readers": [], "public_read": True,
                         "public_create": False, "owned": True},
+            "Inquiry": {"fields": [("email", "Email"), ("content", "Text")],
+                        "manager": "Seller", "readers": [], "public_read": False,
+                        "public_create": True, "owned": False},
         },
         "relations": [], "extra_rules": [],
         "seeds": {"Listing": [
-            {"title": "Vélo de ville", "price": 120.0, "description": "Bon état, révisé en mai.", "imageUrl": _img("annonce1")},
-            {"title": "Bureau en chêne", "price": 85.0, "description": "140 × 70, à venir chercher.", "imageUrl": _img("annonce2")},
-            {"title": "Appareil photo argentique", "price": 60.0, "description": "Testé, fonctionne.", "imageUrl": _img("annonce3")},
+            {"title": "Vélo de ville", "price": 120.0, "description": "Bon état, révisé en mai.", "imageUrl": _img("annonce1"), "location": "Lyon"},
+            {"title": "Bureau en chêne", "price": 85.0, "description": "140 × 70, à venir chercher.", "imageUrl": _img("annonce2"), "location": "Nantes"},
+            {"title": "Appareil photo argentique", "price": 60.0, "description": "Testé, fonctionne.", "imageUrl": _img("annonce3"), "location": "Lille"},
         ]},
         "followups": [
-            {"ask": "Indiquer une localisation sur chaque annonce ?",
-             "effects": {"add_fields": {"Listing": [("location", "String")]},
-                         "add_seed_fields": {"Listing": {"location": ["Lyon", "Nantes", "Lille"]}}}},
-            {"ask": "Permettre de contacter le vendeur sans compte (formulaire) ?",
-             "effects": {"add_entities": {"Inquiry": {"fields": [("email", "Email"), ("content", "Text")],
-                                                      "manager": "Seller", "readers": [], "public_read": False,
-                                                      "public_create": True, "owned": False}}}},
         ],
     },
     {
@@ -217,8 +222,11 @@ TEMPLATES = [
         "hint": "prestations publiques, réservations des clients",
         "actors": ["Admin", "Client"],
         "entities": {
+            # ACQUIS (point 60) : nom, description, durée et prix forment le
+            # socle d'une prestation ; « clear descriptions increase conversion
+            # and reduce no-shows ». C'était l'unique question du modèle.
             "Service": {"fields": [("name", "String"), ("duration", "Integer"),
-                                   ("price", "Money")],
+                                   ("price", "Money"), ("description", "Text")],
                         "manager": "Admin", "readers": ["Client"], "public_read": True,
                         "public_create": False, "owned": False},
             "Booking": {"fields": [("date", "String"), ("notes", "Text")],
@@ -227,18 +235,11 @@ TEMPLATES = [
         },
         "relations": [("Service", "hasMany", "Booking")], "extra_rules": [],
         "seeds": {"Service": [
-            {"name": "Coupe & coiffage", "duration": 45, "price": 38.0},
-            {"name": "Coloration", "duration": 90, "price": 72.0},
-            {"name": "Soin barbe", "duration": 30, "price": 22.0},
+            {"name": "Coupe & coiffage", "duration": 45, "price": 38.0, "description": "Shampoing, coupe et coiffage inclus."},
+            {"name": "Coloration", "duration": 90, "price": 72.0, "description": "Couleur complète, produit professionnel."},
+            {"name": "Soin barbe", "duration": 30, "price": 22.0, "description": "Taille, contours et soin à l'huile."},
         ]},
-        "followups": [
-            {"ask": "Décrire chaque prestation (champ description) ?",
-             "effects": {"add_fields": {"Service": [("description", "Text")]},
-                         "add_seed_fields": {"Service": {"description": [
-                             "Shampoing, coupe et coiffage inclus.",
-                             "Couleur complète, produit professionnel.",
-                             "Taille, contours et soin à l'huile."]}}}},
-        ],
+        "followups": [],
     },
     {
         "name": "Inventaire / gestion de stock",

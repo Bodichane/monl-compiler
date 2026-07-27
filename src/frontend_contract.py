@@ -40,6 +40,10 @@ MEDIA_HINTS = ("image", "photo", "cover", "couverture", "avatar", "picture",
                "visuel", "url")
 CATEGORY_HINTS = ("category", "categorie", "genre", "kind", "tag", "rubrique",
                   "status", "statut", "etat", "type")
+# La disponibilité est un essentiel de fiche produit, au même rang que le prix
+# (point 60) : la reléguer en « méta » la faisait traiter comme un détail.
+STOCK_HINTS = ("stock", "quantity", "quantite", "inventaire", "disponib",
+               "available", "restant")
 
 
 def _assign_field_roles(fields):
@@ -70,6 +74,11 @@ def _assign_field_roles(fields):
                  if f["type"] == "Money" and f["name"] not in roles), None)
     if prix:
         roles[prix] = "price"
+    dispo = next((f["name"] for f in visibles
+                  if f["type"] in ("Integer", "Float") and f["name"] not in roles
+                  and any(h in f["name"].lower() for h in STOCK_HINTS)), None)
+    if dispo:
+        roles[dispo] = "stock"
     categorie = next((f["name"] for f in visibles
                       if f["name"] not in roles
                       and any(h in f["name"].lower() for h in CATEGORY_HINTS)), None)
@@ -126,6 +135,46 @@ ARCHETYPE_GUIDANCE = {
     "form": ("formulaire seul — cette entité s'écrit mais ne se lit nulle "
              "part : ne construire aucune vue de liste, juste la saisie"),
 }
+# ANATOMIE ATTENDUE PAR FORME (point 60) — relevé sur les recensements
+# publics de « ce que contient une page de ce type » (fiche produit,
+# article de blog, portfolio, carte kanban, annonce, page de réservation).
+# Le contrat disait à l'IA quelles DONNÉES existent, jamais ce qu'un visiteur
+# s'attend à trouver sur une page de cette nature. Deux sites du même genre se
+# ressemblent parce qu'ils répondent aux mêmes attentes : les nommer donne au
+# modèle un repère, là où la seule liste des champs le laissait improviser.
+ARCHETYPE_ANATOMY = {
+    "gallery": {
+        "attendus": ["un visuel dominant, jamais une vignette timide",
+                     "le titre lisible sans survol",
+                     "une vue de détail qui donne le contexte, pas seulement l'image en grand",
+                     "un filtre ou un regroupement dès qu'il y a une catégorie"],
+        "voisins": ("les pages projet d'une agence, une fiche d'article de "
+                    "magazine en ligne, une galerie de photographe"),
+    },
+    "shop": {
+        "attendus": ["prix et disponibilité visibles sans défiler",
+                     "un appel à l'action évident sur chaque article",
+                     "plusieurs vues du produit si les données le permettent",
+                     "la description structurée (usage, matière, dimensions)"],
+        "voisins": ("une vitrine de commerce en ligne standard : liste "
+                    "filtrable, fiche produit dense, panier explicite"),
+    },
+    "list": {
+        "attendus": ["des rangées scannables, alignées en colonnes",
+                     "un tri et une recherche dès que la liste s'allonge",
+                     "les actions d'édition à portée, sans changer de page",
+                     "un état vide qui explique quoi faire"],
+        "voisins": ("un tableau de bord d'administration, une grille de "
+                    "gestion interne, un tableau de suivi"),
+    },
+    "form": {
+        "attendus": ["un formulaire court, un champ par ligne",
+                     "les erreurs affichées au champ concerné",
+                     "une confirmation explicite après envoi"],
+        "voisins": "un formulaire de contact ou de demande",
+    },
+}
+
 CONTRACT_FILENAME = "frontend_contract.json"
 PROMPT_FILENAME = "FRONTEND_PROMPT.md"
 
@@ -342,7 +391,9 @@ def _render_prompt(contract):
     ROLE_LABELS = {"title": "TITRE — l'identifie d'un coup d'œil",
                    "media": "MÉDIA — l'image de l'enregistrement",
                    "description": "DESCRIPTION — le texte long",
-                   "price": "PRIX", "category": "CATÉGORIE — bon pour un filtre",
+                   "price": "PRIX",
+                   "stock": "DISPONIBILITÉ — à montrer près du prix, pas en note de bas de page",
+                   "category": "CATÉGORIE — bon pour un filtre",
                    "meta": "méta — information secondaire"}
     for ent, spec in contract["entities"].items():
         flags = []
@@ -361,8 +412,13 @@ def _render_prompt(contract):
             suffix = f" ({'; '.join(marks)})" if marks else ""
             flags.append(f"  - `{f['name']}: {f['type']}`{suffix}")
         forme = ARCHETYPE_GUIDANCE[spec["archetype"]]
-        entities_lines.append(f"### {ent}\n_Forme conseillée : {forme}._\n"
-                              + "\n".join(flags))
+        anatomie = ARCHETYPE_ANATOMY[spec["archetype"]]
+        attendus = "\n".join(f"  - {a}" for a in anatomie["attendus"])
+        entities_lines.append(
+            f"### {ent}\n_Forme conseillée : {forme}._\n"
+            f"_Proche de : {anatomie['voisins']}._\n"
+            f"Ce qu'un visiteur s'attend à y trouver :\n{attendus}\n"
+            + "\n".join(flags))
 
     brief_line = (f"\n**Brief produit :** {contract['brief']}\n" if contract.get("brief") else "")
 

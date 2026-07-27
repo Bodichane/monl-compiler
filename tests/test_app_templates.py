@@ -80,6 +80,7 @@ def test_catalogue_a_dix_modeles_et_le_mode_libre():
 
 def test_boutique_options_tissees_jusqu_aux_seeds():
     spec = _run_template(3, "o", want_seed=True)   # Boutique en ligne
+    # stock : acquis depuis le point 60 ; category : encore optionnelle.
     assert "category: String" in spec and "stock: Integer" in spec
     assert 'category: "Théières"' in spec and "stock: 12" in spec
     assert "rule Order.Update ownedBy Customer" in spec
@@ -96,7 +97,7 @@ def test_entite_personnalisee_en_plus_du_modele():
     # Portfolio + entité perso "Testimonial" lisible publiquement.
     answers = iter([
         "1", "StudioPerso", "Un portfolio avec témoignages.",
-        "n", "n",            # questions de suivi refusées
+        "n",                 # unique question de suivi refusée (catégories)
         "o",                 # entité personnalisée ?
         "Testimonial", "author", "1", "quote", "2", "",
         "o",                 # lisible sans compte
@@ -119,5 +120,43 @@ def test_catalogue_jamais_mute_entre_deux_executions():
     avec des réponses différentes ne doivent pas se contaminer."""
     spec_oui = _run_template(3, "o", want_seed=True)
     spec_non = _run_template(3, "n", want_seed=True)
-    assert "stock: Integer" in spec_oui
-    assert "stock: Integer" not in spec_non, "le catalogue a été muté !"
+    # La catégorie reste optionnelle (le stock, lui, est devenu un acquis) :
+    # c'est donc elle qui distingue une exécution « tout oui » d'une « tout non ».
+    assert "category: String" in spec_oui
+    assert "category: String" not in spec_non, "le catalogue a été muté !"
+
+
+# ---- Éléments devenus des acquis (point 60) ----
+
+def test_les_elements_standards_ne_sont_plus_des_questions():
+    """Recherche à l'appui (point 60) : ces éléments figurent dans les
+    recensements publics d'essentiels de leur catégorie. Les demander faisait
+    porter à l'utilisateur un choix qui n'en est pas un, et produisait par
+    défaut des applications amputées de l'évident."""
+    acquis = {
+        1: ["entity Message"],                          # contact d'un portfolio
+        2: ["author: String", "publishedOn: String"],    # signature et date
+        3: ["stock: Integer"],                           # disponibilité produit
+        4: ["priority: String", "dueDate: String"],      # carte kanban
+        6: ["location: String", "entity Inquiry"],       # lieu + contact vendeur
+        7: ["description: Text"],                        # prestation décrite
+    }
+    for index, attendus in acquis.items():
+        spec = _run_template(index, "n", want_seed=False)   # TOUT refusé
+        for attendu in attendus:
+            assert attendu in spec, (
+                f"modèle {index} ({TEMPLATES[index - 1]['name']}) : « {attendu} » "
+                f"devrait être acquis, il manque quand tout est refusé")
+
+
+def test_le_dialogue_a_bien_ete_allege():
+    """Le nombre de questions de suivi est passé de 16 à 8. Ce test fige le
+    gain : y rajouter une question demande de justifier qu'elle n'est pas un
+    standard de sa catégorie."""
+    total = sum(len(t["followups"]) for t in TEMPLATES)
+    assert total == 8, f"{total} questions de suivi (8 attendues)"
+    # Les modèles dont chaque élément est standard n'en posent plus aucune.
+    sans_question = [t["name"] for t in TEMPLATES if not t["followups"]]
+    assert "Gestion de tâches" in sans_question
+    assert "Petites annonces" in sans_question
+    assert "Réservation de rendez-vous" in sans_question

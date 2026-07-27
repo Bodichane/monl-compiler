@@ -79,7 +79,8 @@ en l'état car de nombreux renvois internes s'y appuient) ·
 [56](#56-cinq-couleurs-plates-ne-font-pas-une-palette) Cinq couleurs plates ne font pas une palette ·
 [57](#57-un-contrat-qui-décrit-mal-le-corps-est-pire-quun-contrat-muet) Un contrat qui décrit mal le corps est pire qu'un contrat muet ·
 [58](#58-rendre-la-main--sans-épinglage-le-visuel-appartient-à-lia) Rendre la main : sans épinglage, le visuel appartient à l'IA ·
-[59](#59-où-vit-un-contenu-et-à-quoi-ressemblent-les-images-de-démonstration) Où vit un contenu, et à quoi ressemblent les images de démonstration
+[59](#59-où-vit-un-contenu-et-à-quoi-ressemblent-les-images-de-démonstration) Où vit un contenu, et à quoi ressemblent les images de démonstration ·
+[60](#60-ce-qui-est-standard-nest-pas-une-question) Ce qui est standard n'est pas une question
 
 ---
 
@@ -2339,3 +2340,49 @@ sont chargés avant le dialogue : leurs URL d'illustration sont écrites sans
 savoir de quoi parlera le projet. Elles sont donc réécrites à l'émission de
 la spec, une fois le mot-clé connu — plutôt que de dupliquer la logique
 d'image dans chacun des dix modèles.
+
+## 60. Ce qui est standard n'est pas une question
+
+Deux demandes liées : alléger le dialogue, et donner à l'IA de quoi
+« ressembler à des sites similaires ». Les recensements publics de ce que
+contient une page de chaque type ont servi de source aux deux.
+
+**Une question dont la réponse est toujours « oui » n'est pas une question.**
+Le catalogue posait seize questions de suivi. Confrontées aux listes
+d'essentiels de leur catégorie, huit décrivaient des éléments que personne ne
+refuse : le moyen de contact d'un portfolio, la date d'un article, la
+disponibilité d'un produit, la priorité et l'échéance d'une carte kanban, le
+lieu et le contact vendeur d'une annonce, la description d'une prestation.
+Les demander faisait porter à l'utilisateur un choix qui n'en est pas un — et,
+pire, produisait par défaut des applications amputées de l'évident, puisque le
+parcours « tout refuser » est un chemin réel, éprouvé par la CI. Elles sont
+devenues des acquis du modèle. Huit questions restent, celles qui tranchent
+vraiment : catégories, commentaires, likes, fournisseurs, seuil d'alerte.
+
+**Un manque révélé par la même source.** Le modèle Blog n'avait pas de champ
+`author`, alors que la signature figure dans toutes les anatomies d'article —
+elle est ce qui distingue un billet d'une page institutionnelle. Ajoutée.
+
+**Ce que le contrat ne disait pas : à quoi ressemble une page de ce genre.**
+Il annonçait les données disponibles, jamais les attentes que l'on a en
+arrivant sur une galerie, une fiche produit ou un tableau de gestion. Or deux
+sites du même genre se ressemblent précisément parce qu'ils répondent aux
+mêmes attentes. Chaque archétype porte donc désormais, dans le brief, ce qu'un
+visiteur s'attend à y trouver et de quoi cette page est voisine. C'est un
+repère, pas une maquette : après le point 58, monl ne prescrit plus de forme —
+il décrit un genre, et laisse le modèle le traiter.
+
+**La disponibilité n'est pas une donnée secondaire.** Le champ `stock` se
+voyait attribuer le rôle « méta », donc traité comme un détail de bas de
+fiche, alors qu'il figure au-dessus de la ligne de flottaison d'une fiche
+produit, au même rang que le prix. Il a son rôle propre.
+
+**Limite de la méthode.** Trois modèles — inventaire, dépenses, forum — n'ont
+pas été confrontés à une source : leurs questions restent en l'état. Décider
+sans mesure y aurait été du même ordre que ce que ce point corrige.
+
+Sources principales consultées : recensements d'éléments de fiche produit
+(Qikify, VWO, Martech Zone), d'anatomie d'article (Equinet, HubSpot),
+d'essentiels de portfolio (Fueler, Pixpa), de carte kanban (Asana, Wrike,
+ClickUp), de page de réservation (Microsoft Bookings, Trafft) et de petites
+annonces (aDirectory, RadiusTheme).
