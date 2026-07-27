@@ -49,7 +49,8 @@ d'ajouter quoi que ce soit** — plusieurs pièges déjà rencontrés (voir poin
 
 **Chaque changement est prouvé par exécution réelle, jamais par relecture
 de code seule.** Concrètement :
-- Compiler réellement (`python3 src/main.py exemples/03_reseau_social.ml`)
+- Compiler réellement (`python3 -m monl.main exemples/03_reseau_social.ml`,
+  depuis la racine avec `src/` sur le PYTHONPATH — ou `./monl compile`)
 - Relancer un vrai serveur (`python3 -m uvicorn app:app --host 127.0.0.1 --port PORT`)
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
@@ -202,7 +203,10 @@ réseau social anonyme comme banc d'essai final.
 
 ## Repères utiles dans le code
 
-- `src/generator/` est un PACKAGE depuis la bêta 3 (l'ancien module de 1 307
+- Depuis le point 65, tout le code vit dans le paquet `src/monl/` :
+  les imports internes sont RELATIFS (`from .parser import …`) et les tests
+  importent `monl.xxx` sans manipuler `sys.path` (voir `tests/conftest.py`).
+  `src/monl/generator/` est un sous-package depuis la bêta 3 (l'ancien module de 1 307
   lignes a été découpé) : `core.py` (état issu de l'AST, orchestration,
   `_compute_route_map`), `runtime.py` (socle du app.py généré : secret,
   `_connect`, init/migrations/seed, register/login/logout, quota),
@@ -249,8 +253,8 @@ réseau social anonyme comme banc d'essai final.
 ## Commandes de référence
 
 ```bash
-pip install -r requirements.txt --break-system-packages
-cd src && python3 main.py ../exemples/01_portfolio.ml
-cd .. && python3 -m uvicorn app:app --reload   # jamais `python3 app.py` directement
+pip install -e . --break-system-packages   # point 65 : vrai paquet, commande 'monl'
+./monl compile exemples/01_portfolio.ml --output build/portfolio
+python3 -m uvicorn app:app --reload        # jamais `python3 app.py` directement
 python3 -m pytest tests/ -v
 ```

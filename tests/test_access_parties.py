@@ -11,7 +11,6 @@ Deux volets :
      le message, un tiers du même rôle est filtré de la liste et reçoit 403
      sur l'accès direct.
 """
-import os
 import socket
 import subprocess
 import sys
@@ -21,11 +20,9 @@ import time
 import pytest
 import requests
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../src"))
-
-from ast_validator import ASTValidationError, MonlAST
-from generator import MonlSecureGenerator
-from parser import parse_monl_string
+from monl.ast_validator import ASTValidationError, MonlAST
+from monl.generator import MonlSecureGenerator
+from monl.parser import parse_monl_string
 
 # (spec e2e désormais autonome, voir E2E_SPEC plus bas)
 

@@ -32,8 +32,16 @@ jobs:
       - name: Installer les dépendances
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -e .            # point 65 : le paquet, comme un utilisateur
           pip install pytest-cov ruff
+
+      # Ce que la suite ne dit pas : que le paquet s'installe et que la
+      # commande existe. Un dépôt vert dont le 'pip install' échoue n'est
+      # utilisable que par son auteur (point 65).
+      - name: Le paquet s'installe et la commande répond
+        run: |
+          monl --help
+          cd "$(mktemp -d)" && python -c "import monl; print(monl.__version__)"
 
       - name: Linter (jeu de règles de pyproject.toml)
         run: ruff check src tests

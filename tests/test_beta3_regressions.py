@@ -21,10 +21,9 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 import requests
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-from ast_validator import MonlAST
-from generator import MonlSecureGenerator
-from parser import parse_monl_file
+from monl.ast_validator import MonlAST
+from monl.generator import MonlSecureGenerator
+from monl.parser import parse_monl_file
 
 SPEC = """app PrivApp
 
@@ -270,9 +269,9 @@ def test_compilation_reproductible_entre_processus():
                 f.write(SPEC)
             code = (
                 "import sys; sys.path.insert(0, %r)\n"
-                "from parser import parse_monl_file\n"
-                "from ast_validator import MonlAST\n"
-                "from generator import MonlSecureGenerator\n"
+                "from monl.parser import parse_monl_file\n"
+                "from monl.ast_validator import MonlAST\n"
+                "from monl.generator import MonlSecureGenerator\n"
                 "ast = MonlAST(parse_monl_file(%r)).validate_and_audit()\n"
                 "MonlSecureGenerator(ast, output_dir=%r).generate_all()\n"
                 % (os.path.join(os.path.dirname(__file__), "..", "src"), spec_path, workdir)
@@ -294,7 +293,7 @@ def test_compilation_reproductible_entre_processus():
 # --------------------------------------------------------------------------
 
 def test_contrat_publie_le_perimetre_d_inscription():
-    from frontend_contract import build_contract
+    from monl.frontend_contract import build_contract
     with tempfile.TemporaryDirectory() as workdir:
         spec_path = os.path.join(workdir, "spec.ml")
         with open(spec_path, "w", encoding="utf-8") as f:

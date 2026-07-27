@@ -30,14 +30,18 @@ dev = [
 ]
 
 [project.scripts]
-monl = "run_monl:main"
+monl = "monl.cli:main"
 
-[tool.setuptools]
-# Structure « src plat » conservée pour la bêta : on expose le shim d'entrée
-# comme module de premier niveau ; le code du compilateur vit dans src/ et est
-# ajouté au chemin par le shim (voir run_monl.py). Le passage à un vrai
-# paquet Python est un chantier GA (docs/BETA.md).
-py-modules = ["run_monl"]
+# POINT 65 : vrai paquet Python. La « structure src plat » de la bêta
+# n'était installable qu'à travers un shim qui manipulait sys.path ; le code
+# vit désormais dans src/monl/ et s'importe comme n'importe quelle
+# bibliothèque — y compris depuis les tests, qui n'ont plus d'incantation en
+# tête de fichier.
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -76,14 +80,18 @@ ignore = [
 # La grammaire Lark vit dans une chaîne littérale : ses lignes vides
 # PORTENT des espaces, et y toucher modifierait le texte que Lark analyse.
 # Le linter voit des lignes physiques, pas la frontière du littéral.
-"src/parser.py" = ["W293"]
+"src/monl/parser.py" = ["W293"]
 # Imports groupés par section (voie API, voie Claude Code, voie import) :
 # l'ordre raconte les trois chemins, un bloc unique en tête ne dirait rien.
-"src/frontend_ai.py" = ["E402"]
+"src/monl/frontend_ai.py" = ["E402"]
+# Trois sections successives dans un même fichier (voie API, voie import,
+# voie Claude Code), chacune avec ses imports : c'est la lecture du fichier
+# qui commande, pas la convention.
+"tests/test_smoke_and_frontend_ai.py" = ["E402"]
 # Le test construit le code d'un SOUS-PROCESSUS : « %r » y sert à citer des
 # chemins sans risque de guillemets, pas à formater un affichage.
 "tests/test_beta3_regressions.py" = ["UP031"]
 
 [tool.coverage.run]
-source = ["src"]
+source = ["src/monl"]
 omit = ["*/__pycache__/*"]

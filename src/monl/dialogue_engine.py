@@ -95,7 +95,7 @@ class GuidedDialogue:
         # scriptés et toute sortie redirigée sont insensibles à l'habillage.
         # L'entrée interactive (run_interactive_dialogue) injecte le rendu
         # stylé. Le moteur, lui, ne connaît que cette interface.
-        from tui import PlainDialogueUI
+        from .tui import PlainDialogueUI
         self.ui = ui or PlainDialogueUI()
 
     def _show(self, rendu):
@@ -300,7 +300,7 @@ class GuidedDialogue:
         d'applications les plus construits par les devs web — choisir un
         modèle pré-remplit tout et ne pose que les questions de suivi
         propres au modèle. « Partir de zéro » conserve le dialogue libre."""
-        from app_templates import FREE_MODE_LABEL, TEMPLATES
+        from .app_templates import FREE_MODE_LABEL, TEMPLATES
         self._show(self.ui.banner())
         # AJOUT (bêta 3) : le libellé et son explication sont désormais deux
         # colonnes distinctes du menu, au lieu d'une seule chaîne « nom — aide »
@@ -329,7 +329,7 @@ class GuidedDialogue:
         n'est jamais muté entre deux exécutions (déterminisme)."""
         import copy
 
-        from app_templates import apply_effects
+        from .app_templates import apply_effects
         template = copy.deepcopy(template)
 
         self._show(self.ui.phase(1))
@@ -396,8 +396,8 @@ class GuidedDialogue:
                                self_register=self_register,
                                extra_rules=template["extra_rules"],
                                custom_seeds=template["seeds"])
-        from ast_validator import MonlAST
-        from parser import parse_monl_string
+        from .ast_validator import MonlAST
+        from .parser import parse_monl_string
         MonlAST(parse_monl_string(spec)).validate_and_audit()
         return spec
 
@@ -575,8 +575,8 @@ class GuidedDialogue:
         # vrai pipeline — si ce n'est pas le cas, c'est un bug du moteur, pas
         # de l'utilisateur, et on échoue bruyamment plutôt que de rendre un
         # fichier cassé.
-        from ast_validator import MonlAST
-        from parser import parse_monl_string
+        from .ast_validator import MonlAST
+        from .parser import parse_monl_string
         MonlAST(parse_monl_string(spec)).validate_and_audit()
         return spec
 
@@ -717,7 +717,7 @@ class GuidedDialogue:
             custom_seeds = custom_seeds or {}
             # Données réalistes du modèle en priorité ; repli générique pour
             # les entités publiques qui n'en ont pas.
-            from app_templates import image_topic_url
+            from .app_templates import image_topic_url
             verrou = 0
             for ent, rows in custom_seeds.items():
                 if not rows or ent not in entities:
@@ -785,7 +785,7 @@ class GuidedDialogue:
             # 1600×900 : la source doit tenir un hero pleine largeur sur écran
             # haute densité, sinon elle est agrandie et paraît molle (point 59).
             if image_topic:
-                from app_templates import image_topic_url
+                from .app_templates import image_topic_url
                 return f'"{image_topic_url(image_topic, n)}"'
             return f'"https://picsum.photos/seed/demo{n}/1600/900"'
         if ftype == "Text":
@@ -799,7 +799,7 @@ def run_interactive_dialogue():
     C'est le seul endroit où le rendu stylé est injecté : partout ailleurs
     (tests, sortie redirigée), le moteur reste en rendu nu.
     """
-    from tui import PlainDialogueUI, StyledDialogueUI, Terminal
+    from .tui import PlainDialogueUI, StyledDialogueUI, Terminal
     terminal = Terminal()
     # Hors terminal interactif (sortie redirigée, CI), rendu nu : un journal
     # ne doit contenir ni séquence ANSI ni caractère de dessin.

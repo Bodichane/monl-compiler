@@ -3,17 +3,13 @@
 # doit produire une spec qui passe le vrai parseur + l'audit AST. Un modèle
 # ajouté au catalogue sans respecter les règles strictes du compilateur
 # (collisions, ownedBy sans relation…) casse immédiatement la CI.
-import os
-import sys
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
-from app_templates import FREE_MODE_LABEL, TEMPLATES
-from ast_validator import MonlAST
-from dialogue_engine import GuidedDialogue
-from parser import parse_monl_string
+from monl.app_templates import FREE_MODE_LABEL, TEMPLATES
+from monl.ast_validator import MonlAST
+from monl.dialogue_engine import GuidedDialogue
+from monl.parser import parse_monl_string
 
 
 def _run_template(index, followup_answer, want_seed):

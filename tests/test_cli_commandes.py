@@ -14,13 +14,10 @@ serveur et est déjà éprouvé par tests/test_smoke_and_frontend_ai.py — le
 rejouer ici n'ajouterait que de la lenteur.
 """
 import json
-import os
-import sys
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-from cli import STATE_FILENAME, check_coherence, cmd_run, cmd_update, compile_project
+from monl.cli import STATE_FILENAME, check_coherence, cmd_run, cmd_update, compile_project
 
 SPEC = """app Carnet
 

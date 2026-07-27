@@ -28,17 +28,15 @@ import re
 import subprocess
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-from ast_validator import MonlAST
-from frontend_contract import (
+from .ast_validator import MonlAST
+from .frontend_contract import (
     CONTRACT_FILENAME,
     PROMPT_FILENAME,
     contract_sha256,
     generate_frontend_contract,
 )
-from generator import MonlSecureGenerator
-from parser import parse_monl_file
+from .generator import MonlSecureGenerator
+from .parser import parse_monl_file
 
 STATE_FILENAME = "monl.json"
 
@@ -88,7 +86,7 @@ def compile_project(spec_path, project_dir):
     """Pipeline complet : spec → backend + contrat frontend + état.
     Réutilise compile_monl (main.py) pour le backend — même pipeline,
     mêmes échappatoires IA non bloquantes — puis ajoute la couche contrat."""
-    from main import compile_monl
+    from .main import compile_monl
     compile_monl(spec_path, output_dir=project_dir)
 
     raw = parse_monl_file(spec_path)
@@ -111,7 +109,7 @@ def cmd_init(project_dir=None):
     # Dialogue guidé à règles, entièrement déterministe (aucune IA, aucun
     # appel réseau). La spec produite est revalidée par le vrai parseur avant
     # d'être écrite.
-    from dialogue_engine import run_interactive_dialogue
+    from .dialogue_engine import run_interactive_dialogue
     spec_text = run_interactive_dialogue()
     app_match = re.match(r"app\s+(\w+)", spec_text)
     app_name = app_match.group(1) if app_match else "MonProjet"
@@ -252,7 +250,7 @@ def cmd_run(project_dir, check_only=False, port=8000, skip_smoke=False):
     # neuve, données réelles intouchées) : routes du contrat éprouvées en
     # HTTP réel, frontend exécuté dans jsdom si Node est disponible.
     if not skip_smoke:
-        from smoke_test import run_smoke_test
+        from .smoke_test import run_smoke_test
         print(" -> Smoke test comportemental (serveur éphémère, base neuve)…")
         smoke_ok, smoke_errors, smoke_warnings = run_smoke_test(project_dir)
         for w in smoke_warnings:
@@ -440,7 +438,7 @@ def main(argv=None):
     elif args.command == "update":
         cmd_update(args.dir)
     elif args.command == "frontend":
-        from frontend_ai import (
+        from .frontend_ai import (
             DEFAULT_MAX_TURNS,
             DEFAULT_MODEL,
             PROVIDERS,
@@ -462,7 +460,7 @@ def main(argv=None):
         if not ok:
             sys.exit(1)
     elif args.command == "import":
-        from frontend_ai import FrontendAIError, import_and_verify
+        from .frontend_ai import FrontendAIError, import_and_verify
         try:
             ok, _errors = import_and_verify(args.dir, args.source)
         except FrontendAIError as e:

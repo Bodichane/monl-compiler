@@ -30,7 +30,7 @@ import time
 import urllib.error
 import urllib.request
 
-from frontend_contract import CONTRACT_FILENAME
+from .frontend_contract import CONTRACT_FILENAME
 
 JSDOM_RUNNER = r"""
 // Runner jsdom généré par monl (smoke test) — charge index.html, exécute

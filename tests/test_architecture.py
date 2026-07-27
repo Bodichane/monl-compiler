@@ -6,30 +6,38 @@
 # s'en souvenait. Une clause que rien ne vérifie n'est pas une clause
 # (point 48) : ce fichier les vérifie.
 #
-# Pourquoi un test et pas import-linter : l'outil (comme grimp, son moteur)
-# exige des PAQUETS, or src/ est délibérément plat pendant la bêta — le
-# passage à un vrai paquet Python est un chantier GA assumé (pyproject.toml,
-# docs/BETA.md). Plutôt que de tordre l'arborescence pour un outil, la même
-# garantie est obtenue en 60 lignes de stdlib, et elle tourne dans la suite
-# existante au lieu d'une étape de CI séparée.
+# Pourquoi ce test plutôt qu'import-linter : l'outil est désormais utilisable
+# (src/monl/ est un vrai paquet depuis le point 65), mais il ajouterait une
+# dépendance et une étape de CI pour ce que 60 lignes de stdlib obtiennent
+# déjà — en tournant dans la suite existante. Il devient le bon choix le jour
+# où les contrats se compteront par dizaines, pas par six.
 #
 # Les imports DANS les fonctions comptent autant que ceux en tête de
 # fichier : c'est précisément là que les dépendances interdites se cachent.
 import ast
 import os
 
-SRC = os.path.join(os.path.dirname(__file__), "..", "src")
+SRC = os.path.join(os.path.dirname(__file__), "..", "src", "monl")
 
 # Les modules du projet (le package generator compte pour un seul nœud :
 # son découpage interne est une affaire de couches, pas de frontières).
 MODULES = sorted(
-    [f[:-3] for f in os.listdir(SRC) if f.endswith(".py") and f != "main.py"]
+    [f[:-3] for f in os.listdir(SRC)
+     if f.endswith(".py") and f not in ("main.py", "__init__.py")]
     + ["generator"])
 
 
-def _imports_du_projet(chemin):
+def _imports_du_projet(chemin, profondeur=0):
     """Tous les modules du projet importés par un fichier, où que l'import
-    se trouve — en tête, dans une fonction, dans une méthode."""
+    se trouve — en tête, dans une fonction, dans une méthode.
+
+    PIÈGE (point 65) : depuis le passage en paquet, les dépendances internes
+    s'écrivent en RELATIF (`from .parser import …`). Les ignorer, comme le
+    faisait la première version, aurait rendu ce test muet du jour au
+    lendemain — il aurait continué à passer en ne regardant plus rien.
+    `profondeur` dit à quel étage du paquet vit le fichier : un `from .x`
+    dans monl/ désigne un module de premier niveau, le même écrit dans
+    monl/generator/ désigne un voisin du sous-paquet."""
     with open(chemin, encoding="utf-8") as fh:
         arbre = ast.parse(fh.read(), filename=chemin)
     trouves = set()
@@ -38,10 +46,17 @@ def _imports_du_projet(chemin):
             for alias in noeud.names:
                 trouves.add(alias.name.split(".")[0])
         elif isinstance(noeud, ast.ImportFrom):
-            if noeud.level:            # import relatif : reste dans generator
-                continue
-            if noeud.module:
-                trouves.add(noeud.module.split(".")[0])
+            if noeud.level == 0:
+                if noeud.module:
+                    trouves.add(noeud.module.split(".")[0])
+            elif noeud.level == profondeur + 1:
+                # Remonte jusqu'à la racine du paquet : c'est un module de
+                # premier niveau. `from . import generator` compte aussi,
+                # via les noms importés.
+                if noeud.module:
+                    trouves.add(noeud.module.split(".")[0])
+                else:
+                    trouves.update(a.name for a in noeud.names)
     return {m for m in trouves if m in MODULES}
 
 
@@ -52,7 +67,7 @@ def _depend_de(module):
         vus = set()
         for nom in os.listdir(dossier):
             if nom.endswith(".py"):
-                vus |= _imports_du_projet(os.path.join(dossier, nom))
+                vus |= _imports_du_projet(os.path.join(dossier, nom), profondeur=1)
         return vus - {"generator"}
     return _imports_du_projet(os.path.join(SRC, module + ".py"))
 
@@ -111,3 +126,12 @@ def test_aucun_module_ne_simporte_lui_meme_en_cercle():
             if source in graphe.get(cible, set()):
                 cycles.add((source, cible))
     assert cycles <= connu, f"nouveaux cycles d'import : {sorted(cycles - connu)}"
+
+
+def test_le_graphe_voit_vraiment_quelque_chose():
+    """Garde-fou du garde-fou : un test de frontières qui ne détecte plus
+    aucune dépendance passerait toujours, et ne dirait plus rien. Les
+    dépendances connues du dépôt doivent donc apparaître."""
+    assert {"parser", "generator", "frontend_contract"} <= _depend_de("cli")
+    assert {"tui", "app_templates", "parser"} <= _depend_de("dialogue_engine")
+    assert "frontend_contract" in _depend_de("smoke_test")

@@ -25,7 +25,7 @@ import json
 import os
 import re
 
-from frontend_contract import PROMPT_FILENAME
+from .frontend_contract import PROMPT_FILENAME
 
 ALLOWED_EXTENSIONS = (".html", ".css", ".js", ".svg", ".json")
 MAX_TOTAL_BYTES = 2_000_000
@@ -162,8 +162,8 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print):
     """La boucle complète du point 4 : générer → écrire → RE-VÉRIFIER
     (cohérence + smoke test) → si échec, renvoyer les erreurs au modèle une
     seule fois → re-vérifier. Retourne (ok, erreurs)."""
-    from cli import check_coherence
-    from smoke_test import run_smoke_test
+    from .cli import check_coherence
+    from .smoke_test import run_smoke_test
 
     project_dir = os.path.abspath(project_dir)
     prompt = build_generation_prompt(project_dir, update_mode)
@@ -291,8 +291,8 @@ def load_frontend_source(source):
 def import_and_verify(project_dir, source, say=print):
     """'monl import' : installer la source dans frontend/ puis re-vérifier
     exactement comme la voie API. Retourne (ok, erreurs)."""
-    from cli import check_coherence
-    from smoke_test import run_smoke_test
+    from .cli import check_coherence
+    from .smoke_test import run_smoke_test
 
     project_dir = os.path.abspath(project_dir)
     files, skipped = load_frontend_source(source)
@@ -428,8 +428,8 @@ def generate_with_claude_code(project_dir, update_mode=False, say=print,
     """La boucle du point 4, version Claude Code : exécuter l'agent dans le
     dossier cible → vérifier les artefacts protégés → re-vérifier (cohérence
     + smoke test) → une correction au plus. Retourne (ok, erreurs)."""
-    from cli import check_coherence
-    from smoke_test import run_smoke_test
+    from .cli import check_coherence
+    from .smoke_test import run_smoke_test
 
     project_dir = os.path.abspath(project_dir)
     brief = "FRONTEND_UPDATE_PROMPT.md" if update_mode else "FRONTEND_PROMPT.md"

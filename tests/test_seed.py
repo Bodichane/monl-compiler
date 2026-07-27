@@ -3,7 +3,6 @@ démonstration — validation à la compilation, insertion idempotente au
 démarrage (pas de doublons au redémarrage, données réelles préservées), et
 remplissage synthétique des champs 'generated' (pseudonyme anonyme).
 """
-import os
 import socket
 import subprocess
 import sys
@@ -13,11 +12,9 @@ import time
 import pytest
 import requests
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../src"))
-
-from ast_validator import ASTValidationError, MonlAST
-from generator import MonlSecureGenerator
-from parser import parse_monl_string
+from monl.ast_validator import ASTValidationError, MonlAST
+from monl.generator import MonlSecureGenerator
+from monl.parser import parse_monl_string
 
 SEED_SPEC = """app Boutique
 

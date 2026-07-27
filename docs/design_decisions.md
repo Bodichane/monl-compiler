@@ -84,7 +84,8 @@ en l'état car de nombreux renvois internes s'y appuient) ·
 [61](#61-demander-le-texte-dune-rubrique-plutôt-que-son-existence) Demander le texte d'une rubrique plutôt que son existence ·
 [62](#62-un-budget-épuisé-nest-pas-une-panne) Un budget épuisé n'est pas une panne ·
 [63](#63-mesurer-le-dépôt-pas-seulement-le-faire-passer-au-vert) Mesurer le dépôt, pas seulement le faire passer au vert ·
-[64](#64-ce-qui-traverse-mal-la-frontière-et-ce-que-personne-ne-mesurait) Ce qui traverse mal la frontière, et ce que personne ne mesurait
+[64](#64-ce-qui-traverse-mal-la-frontière-et-ce-que-personne-ne-mesurait) Ce qui traverse mal la frontière, et ce que personne ne mesurait ·
+[65](#65-un-paquet-quon-ne-peut-pas-installer-nest-pas-un-paquet) Un paquet qu'on ne peut pas installer n'est pas un paquet
 
 ---
 
@@ -2588,3 +2589,51 @@ mesure de couverture, ni par le linter, ni par la relecture : il est apparu en
 écrivant l'assertion « une retouche manuelle doit être détectée », qui a
 échoué. Écrire un test, c'est formuler une promesse — et c'est là qu'on
 s'aperçoit qu'elle n'était pas tenue.
+
+## 65. Un paquet qu'on ne peut pas installer n'est pas un paquet
+
+Le chantier repoussé depuis la bêta 3, fait ici parce qu'il bloquait tout le
+reste : outillage, distribution, et la crédibilité du mot « installable ».
+
+**Ce que la structure plate coûtait vraiment.** `src/` contenait dix modules
+de premier niveau. Rien ne les rendait importables : chaque fichier de tests
+ouvrait sur un `sys.path.insert` suivi d'imports marqués `noqa: E402`, `cli.py`
+en faisait autant pour lui-même, et l'installation passait par un shim
+(`run_monl.py`) dont le seul rôle était de rejouer cette manipulation. Vingt
+fois la même incantation, un ordre d'instructions à respecter sous peine
+d'`ImportError`, et un `pip install` qui ne donnait pas vraiment un paquet.
+Trois conséquences en cascade : import-linter inutilisable (il exige des
+paquets), distribution impossible, et un `parser.py` de premier niveau qui
+entrait en concurrence avec le nom d'un module de la bibliothèque standard.
+
+**Le code vit désormais dans `src/monl/`**, les dépendances internes s'écrivent
+en relatif (`from .parser import …`), `pip install -e .` fournit la commande
+`monl`, et `import monl` fonctionne depuis n'importe quel dossier. Les tests
+importent `monl.xxx` ; la seule incantation restante est concentrée dans
+`tests/conftest.py`, pour le cas où la suite tourne sans installation.
+
+**Le piège du déménagement, et pourquoi il aurait été invisible.** Le test des
+frontières (point 63) lit le graphe d'imports avec `ast` en ignorant les
+imports relatifs — ce qui était juste quand « relatif » ne désignait que
+l'intérieur de `generator/`. En passant tout le code en paquet, TOUTES les
+dépendances internes sont devenues relatives : le test aurait continué à
+passer en ne regardant plus rien. Il connaît maintenant l'étage de chaque
+fichier (`from .parser` dans `monl/` désigne un module de premier niveau, le
+même écrit dans `monl/generator/` désigne un voisin du sous-paquet), et un
+test supplémentaire vérifie que le graphe voit encore les dépendances connues
+du dépôt. **Un garde-fou muet est pire qu'un garde-fou absent : il rassure.**
+
+**Le dossier de sortie par défaut était faux depuis toujours.** Le générateur
+déduisait sa racine de l'emplacement de son propre fichier — deux niveaux
+au-dessus de `src/generator/`. Tant que le code vivait dans le dépôt, ça
+tombait sur la racine et faisait illusion ; une fois monl installé, le même
+calcul aurait écrit l'application au milieu de `site-packages`. C'est
+désormais le dossier courant, ce qu'attend n'importe quel outil en ligne de
+commande — et ce qui coïncide avec l'ancien comportement quand on lance depuis
+la racine du dépôt.
+
+**Vérifié pour de vrai**, conformément à la méthode : `pip install -e .`, puis
+`monl compile` lancé depuis un dossier temporaire hors du dépôt, qui produit
+une application complète là où on l'appelle. La CI le rejoue à chaque push —
+un dépôt vert dont le `pip install` échoue n'est utilisable que par son
+auteur.

@@ -30,12 +30,15 @@ class MonlSecureGenerator(
         # main.py) au lieu d'écraser systématiquement les artefacts à la
         # racine du dépôt. Par défaut (None), le comportement historique est
         # conservé : tout est écrit à la racine du dépôt.
-        # CORRECTIF (bêta 3) : le module vit désormais dans le package
-        # src/generator/ et non plus dans src/ — sans ce niveau supplémentaire,
-        # une compilation sans --output écrivait ses artefacts dans src/ (au
-        # milieu du code du compilateur) au lieu de la racine du dépôt.
-        default_root = os.path.join(os.path.dirname(__file__), "..", "..")
-        self.output_dir = os.path.abspath(output_dir or default_root)
+        # POINT 65 : le défaut est le DOSSIER COURANT, plus un chemin déduit
+        # de l'emplacement du module. Tant que le code vivait dans le dépôt,
+        # remonter de deux niveaux depuis src/generator/ tombait sur la racine
+        # et faisait illusion ; une fois monl installé (site-packages), le même
+        # calcul écrivait l'application au milieu des paquets Python. Le
+        # dossier courant est ce qu'attend n'importe quel outil en ligne de
+        # commande, et il coïncide avec l'ancien comportement quand on lance
+        # depuis la racine du dépôt.
+        self.output_dir = os.path.abspath(output_dir or os.getcwd())
         os.makedirs(self.output_dir, exist_ok=True)
         self.ast = normalized_ast
         self.app_name = normalized_ast["meta"]["appName"]

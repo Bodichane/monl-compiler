@@ -1,16 +1,12 @@
 # Tests du moteur de dialogue guidé (pivot orchestrateur, brique 1).
 # Conformément à la méthode du projet : la spec produite est réellement
 # parsée ET validée par le vrai pipeline, jamais seulement relue.
-import os
-import sys
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
-from ast_validator import MonlAST
-from dialogue_engine import DialogueError, GuidedDialogue
-from parser import parse_monl_string
+from monl.ast_validator import MonlAST
+from monl.dialogue_engine import DialogueError, GuidedDialogue
+from monl.parser import parse_monl_string
 
 SCENARIO_PORTFOLIO = [
     "11",              # partir de zéro (dialogue libre)
@@ -252,8 +248,8 @@ def test_un_texte_en_plusieurs_paragraphes_survit_jusqu_au_contrat():
     le contrat les rétablit."""
     import tempfile
 
-    from frontend_contract import build_contract
-    from generator import MonlSecureGenerator
+    from monl.frontend_contract import build_contract
+    from monl.generator import MonlSecureGenerator
 
     scenario = SCENARIO_PORTFOLIO[:-1] + [
         "o", "À propos",
@@ -287,5 +283,5 @@ def test_un_texte_en_plusieurs_paragraphes_survit_jusqu_au_contrat():
 def test_un_texte_sans_marqueur_traverse_inchange():
     """Une spec écrite à la main, ou antérieure au point 64, doit se lire
     exactement comme avant — le marqueur est un ajout, pas un format."""
-    from frontend_contract import paragraphes
+    from monl.frontend_contract import paragraphes
     assert paragraphes("Un seul paragraphe.") == "Un seul paragraphe."

@@ -17,16 +17,13 @@ précédente.
 """
 import glob
 import os
-import sys
 import tempfile
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../src"))
-
-from ast_validator import MonlAST
-from generator import MonlSecureGenerator
-from parser import parse_monl_file
+from monl.ast_validator import MonlAST
+from monl.generator import MonlSecureGenerator
+from monl.parser import parse_monl_file
 
 EXEMPLES_DIR = os.path.join(os.path.dirname(__file__), "../exemples")
 EXAMPLE_FILES = sorted(glob.glob(os.path.join(EXEMPLES_DIR, "*.ml")) + glob.glob(os.path.join(EXEMPLES_DIR, "*.monl")) + glob.glob(os.path.join(EXEMPLES_DIR, "*.yaml")))

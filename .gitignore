@@ -18,3 +18,7 @@ htmlcov/
 # Graine de variation visuelle : le commentaire de generator/theme.py
 # affirmait depuis toujours qu'elle était ignorée — elle ne l'était pas.
 .monl_theme_seed
+
+# Artefacts de build du paquet (point 65) et archives locales de bêta
+*.egg-info/
+archives/

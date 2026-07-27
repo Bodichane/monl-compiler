@@ -3,20 +3,16 @@
 # jamais de simple relecture — seul le FOURNISSEUR d'IA est factice
 # (l'orchestration, elle, s'exécute pour de vrai de bout en bout).
 import json
-import os
-import sys
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
-from cli import compile_project
-from frontend_ai import (
+from monl.cli import compile_project
+from monl.frontend_ai import (
     FrontendAIError,
     generate_and_verify,
     parse_files_payload,
 )
-from smoke_test import run_smoke_test
+from monl.smoke_test import run_smoke_test
 
 SPEC = """app SmokeApp
 
@@ -158,9 +154,9 @@ def test_boucle_ia_echoue_apres_une_seule_correction(project):
 
 
 # ---- 'monl import' : la voie SANS clé API (abonnement claude.ai) ----
-import zipfile  # noqa: E402
+import zipfile
 
-from frontend_ai import import_and_verify, load_frontend_source  # noqa: E402
+from monl.frontend_ai import import_and_verify, load_frontend_source
 
 GOOD_SPLIT_HTML = ('<!doctype html><html><body><div id="l"></div>'
                    '<script src="app.js"></script></body></html>')
@@ -213,10 +209,10 @@ def test_import_html_seul_et_sauvegarde_du_precedent(project, tmp_path):
 
 
 # ---- Claude Code : le travail directement dans le dossier cible ----
-import stat  # noqa: E402
+import stat
 
-from frontend_ai import generate_with_claude_code  # noqa: E402
-from frontend_contract import PROJECT_CLAUDE_MD_MARKER  # noqa: E402
+from monl.frontend_ai import generate_with_claude_code
+from monl.frontend_contract import PROJECT_CLAUDE_MD_MARKER
 
 
 def _fake_agent(tmp_path, body):
@@ -317,7 +313,7 @@ def test_budget_epuise_sans_rien_produire_passe_par_la_correction(project, tmp_p
 def test_une_vraie_erreur_dagent_reste_une_erreur(project, tmp_path):
     """Le relâchement ne vaut QUE pour le budget de tours : une panne
     d'authentification doit continuer d'arrêter net."""
-    from frontend_ai import FrontendAIError
+    from monl.frontend_ai import FrontendAIError
     agent = _fake_agent(tmp_path, CRASH_AGENT)
     with pytest.raises(FrontendAIError):
         generate_with_claude_code(str(project), command=agent, say=_quiet)

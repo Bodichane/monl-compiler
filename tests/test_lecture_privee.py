@@ -7,7 +7,6 @@ l'enregistrement d'autrui. Seul 'PUT' était refusé.
 
 Le test lance une vraie application générée et rejoue le scénario complet.
 """
-import os
 import socket
 import subprocess
 import sys
@@ -17,10 +16,9 @@ import time
 import pytest
 import requests
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-from ast_validator import MonlAST
-from generator import MonlSecureGenerator
-from parser import parse_monl_string
+from monl.ast_validator import MonlAST
+from monl.generator import MonlSecureGenerator
+from monl.parser import parse_monl_string
 
 SPEC_PRIVEE = """app Depenses
 
@@ -135,7 +133,7 @@ def test_un_role_tiers_autorise_continue_de_tout_voir(application):
 
 def test_ownedby_sur_create_est_refuse_a_la_compilation():
     """Une règle sans effet doit échouer, pas être ignorée en silence."""
-    from ast_validator import ASTValidationError
+    from monl.ast_validator import ASTValidationError
     spec = SPEC_PRIVEE.replace("rule Expense.Read ownedBy User",
                                "rule Expense.Create ownedBy User")
     with pytest.raises(ASTValidationError, match="Create"):

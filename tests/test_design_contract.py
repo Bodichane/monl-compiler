@@ -5,15 +5,13 @@ au livrable. Ces tests fixent la règle retenue : épinglée par la spec, elle
 est contraignante ; déduite du vocabulaire, elle reste une proposition.
 """
 import os
-import sys
 import tempfile
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-from ast_validator import MonlAST
-from frontend_contract import build_contract
-from generator import MonlSecureGenerator
-from parser import parse_monl_file
-from smoke_test import _verifier_palette
+from monl.ast_validator import MonlAST
+from monl.frontend_contract import build_contract
+from monl.generator import MonlSecureGenerator
+from monl.parser import parse_monl_file
+from monl.smoke_test import _verifier_palette
 
 BASE = """app Reparation
 
@@ -111,7 +109,7 @@ def test_le_brief_rend_la_main_a_l_ia_quand_rien_n_est_epingle(tmp_path):
     (brief_path / "spec.ml").write_text(BASE, encoding="utf-8")
     import sys as _sys
     _sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-    from cli import compile_project
+    from monl.cli import compile_project
     compile_project(str(brief_path / "spec.ml"), str(brief_path))
     brief = (brief_path / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     assert "Direction de design — LIBRE" in brief

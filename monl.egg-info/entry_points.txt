@@ -1,2 +1,0 @@
-[console_scripts]
-monl = run_monl:main
