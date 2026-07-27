@@ -6,6 +6,12 @@ models/*
 __pycache__/
 *.pyc
 
+# Secret de signature et base de la démo : régénérés au premier démarrage.
+# Le .jwt_secret de la racine était ignoré depuis toujours, celui de demo/
+# avait échappé à la règle — et le dépôt est devenu public (point 66).
+demo/.jwt_secret
+demo/app.db
+
 # Projets d'essai compilés localement (demo/ est la démo de référence,
 # suivie exprès : test_demo.py et test_design_contract.py s'appuient dessus)
 /StudioNova/

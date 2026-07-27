@@ -6,10 +6,11 @@
 # éphémères et exécute le vrai dialogue, elle est donc lente — c'est assumé.
 name: CI
 
-on:
-  push:
-    branches: [main]
-  pull_request:
+# Sur TOUTES les branches, pas seulement main : une CI qui ne se déclenche
+# qu'à la fusion arrive trop tard pour servir. Les pull requests rejouent
+# donc la même chose une seconde fois — un doublon assumé, le retour
+# immédiat vaut mieux que l'élégance du graphe d'exécutions.
+on: [push, pull_request]
 
 jobs:
   verifier:

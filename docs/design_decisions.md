@@ -85,7 +85,8 @@ en l'état car de nombreux renvois internes s'y appuient) ·
 [62](#62-un-budget-épuisé-nest-pas-une-panne) Un budget épuisé n'est pas une panne ·
 [63](#63-mesurer-le-dépôt-pas-seulement-le-faire-passer-au-vert) Mesurer le dépôt, pas seulement le faire passer au vert ·
 [64](#64-ce-qui-traverse-mal-la-frontière-et-ce-que-personne-ne-mesurait) Ce qui traverse mal la frontière, et ce que personne ne mesurait ·
-[65](#65-un-paquet-quon-ne-peut-pas-installer-nest-pas-un-paquet) Un paquet qu'on ne peut pas installer n'est pas un paquet
+[65](#65-un-paquet-quon-ne-peut-pas-installer-nest-pas-un-paquet) Un paquet qu'on ne peut pas installer n'est pas un paquet ·
+[66](#66-rendre-public-ne-pardonne-pas-les-exceptions-à-ses-propres-règles) Rendre public ne pardonne pas les exceptions à ses propres règles
 
 ---
 
@@ -2637,3 +2638,29 @@ la racine du dépôt.
 une application complète là où on l'appelle. La CI le rejoue à chaque push —
 un dépôt vert dont le `pip install` échoue n'est utilisable que par son
 auteur.
+
+## 66. Rendre public ne pardonne pas les exceptions à ses propres règles
+
+Le dépôt est passé en public. Deux choses l'attendaient.
+
+**Un secret versionné.** `.jwt_secret` est généré en permissions 0600 et ignoré
+par git depuis toujours — mais celui de `demo/` avait échappé à la règle,
+committé en même temps que le dossier de démonstration dont la suite de tests
+dépend. Sa portée réelle est faible (rien n'est déployé), sa portée symbolique
+ne l'est pas : le projet traitait comme sensible un fichier qu'il publiait.
+Retiré du suivi, avec `demo/app.db` qui l'accompagnait — une base contenant un
+compte, son hash de mot de passe et trois lignes de limitation de débit. Les
+deux se régénèrent au premier démarrage ; vérifié en les retirant du disque
+avant de rejouer les tests de `demo/`, qui passent sans eux.
+
+**L'historique n'est pas réécrit, et c'est un choix.** Le secret d'une démo
+locale ne justifie pas de casser tous les clones existants. La règle
+générale reste l'inverse : un secret réel exige la réécriture ET sa
+révocation, parce que retirer un fichier ne retire rien de l'historique.
+
+**Une CI qui ne se déclenchait jamais.** Le workflow n'écoutait que `main` et
+les pull requests — donc pousser une branche de travail ne lançait rien, et la
+page Actions restait vide en donnant l'illusion d'un dépôt sans intégration
+continue. Il écoute désormais toutes les branches. Les pull requests rejouent
+la même chose une seconde fois : doublon assumé, le retour immédiat vaut mieux
+que l'élégance du graphe d'exécutions.
