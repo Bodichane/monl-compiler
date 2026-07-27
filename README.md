@@ -38,18 +38,34 @@ logique métier.
 
 ## Démarrage rapide
 
+**1. Installer**
+
 ```bash
-pip install .                                            # fournit la commande `monl`
-monl compile exemples/01_portfolio.ml --output build/portfolio
-monl run build/portfolio                                 # vérifie, puis lance
+pip install .
 ```
+
+**2. Décrire l'application.** `monl` sans argument ouvre le dialogue guidé : des
+questions fermées, aucune IA, aucun appel réseau. Il écrit la spécification, en
+dérive le backend et le contrat frontend dans un dossier au nom du projet.
+
+```bash
+monl
+```
+
+**3. Lancer.** La cohérence et le smoke test sont vérifiés avant tout démarrage.
+
+```bash
+monl run MonProjet
+```
+
+L'API répond alors sur `http://127.0.0.1:8000`, sa documentation sur `/docs`.
 
 > **Ubuntu / Debian.** Le Python système est protégé (PEP 668). Préférez
 > `pipx install .`, qui isole l'outil dans son propre environnement, plutôt que
 > `pip install . --break-system-packages`.
 
-Pour partir d'une page blanche, `monl` sans argument ouvre le dialogue guidé. Le
-parcours complet est détaillé dans [QUICKSTART.md](QUICKSTART.md).
+Le parcours complet — y compris l'ajout d'une interface — est détaillé dans
+[QUICKSTART.md](QUICKSTART.md).
 
 ## Pourquoi MonL ?
 
@@ -139,9 +155,6 @@ réellement déclaré.
 
 </details>
 
-Les cinq exemples de [`exemples/`](exemples/) couvrent ces cas — portfolio,
-boutique, réseau social, kanban, classement.
-
 ## Le backend généré
 
 **Comptes et rôles.** `POST /register` n'accepte que les rôles marqués
@@ -210,13 +223,16 @@ serveur. Toute exception ou tout appel hors contrat bloque le lancement
 |---|---|
 | **153 tests** | Serveurs réels et éphémères, pas de simulacre du pipeline |
 | **85 % de couverture** | `pytest --cov=src` |
-| **Audit offensif** | Usurpation de rôle, JWT forgé, élévation de privilège — rejoué sur chaque exemple |
+| **Audit offensif** | Usurpation de rôle, JWT forgé, élévation de privilège |
 | **Frontières d'architecture** | Six contrats d'import vérifiés par un test, pas par la mémoire |
 | **Lint** | `ruff check src tests` — zéro signalement, exceptions justifiées dans `pyproject.toml` |
 | **CI** | Python 3.10 et 3.12 à chaque push ; `main` protégée par ces vérifications |
 
 ```bash
 python3 -m pytest tests/ -q --cov=src --cov-report=term-missing
+```
+
+```bash
 ruff check src tests
 ```
 
@@ -232,10 +248,8 @@ automatisée.
 |---|---|
 | `src/monl/` | Le paquet : parseur, validateur, dialogue, contrat frontend, CLI |
 | `src/monl/generator/` | Le générateur de backend, une couche par module |
-| `exemples/` | Cinq applications de référence en syntaxe `.ml` |
 | `tests/` | Non-régression, audit offensif, frontières d'architecture |
 | `docs/` | Décisions de conception, sécurité, migrations |
-| `demo/` | Projet de démonstration complet (des tests en dépendent) |
 
 ## Documentation
 
