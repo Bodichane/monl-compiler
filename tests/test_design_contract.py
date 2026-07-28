@@ -118,14 +118,40 @@ def test_le_brief_rend_la_main_a_l_ia_quand_rien_n_est_epingle(tmp_path):
     assert "4,5:1" in brief and "aucune ressource distante" in brief
 
 
-def test_demo_livree_respecte_son_theme_epingle():
-    """Le frontend de la démo applique réellement la palette que sa spec épingle."""
+def test_la_demo_livree_prouve_la_liberte_laissee_a_l_ia():
+    """La règle du point 58, sur un livrable RÉEL et non sur un cas construit.
+
+    La démo (StudioNova) n'épingle aucun thème : sa spec ne porte pas de bloc
+    `ui … theme:`. Le frontend écrit par l'IA s'est donc autorisé une palette
+    sombre entièrement différente de celle que le contrat proposait — et monl
+    doit l'accepter sans un mot. C'est la moitié la moins intuitive de la
+    règle : on vérifie facilement qu'un compilateur INTERDIT quelque chose,
+    beaucoup moins qu'il se TAIT quand il n'a rien à dire.
+
+    L'ancienne version de ce test portait sur une démo à thème épinglé. La
+    contrainte, elle, reste éprouvée juste au-dessus
+    (test_theme_epingle_est_exact_et_contraignant), sur un frontend construit
+    pour l'occasion."""
     racine = os.path.join(os.path.dirname(__file__), "..")
     ast = MonlAST(parse_monl_file(os.path.join(racine, "demo", "spec.ml"))).validate_and_audit()
     with tempfile.TemporaryDirectory() as workdir:
         contrat = build_contract(ast, MonlSecureGenerator(ast, output_dir=workdir))
-    assert contrat["design"]["pinned"] is True
-    assert _verifier_palette(os.path.join(racine, "demo", "frontend"), contrat) == []
+
+    assert contrat["design"]["pinned"] is False, (
+        "la démo doit rester un cas SANS épinglage : c'est ce qu'elle démontre")
+    frontend = os.path.join(racine, "demo", "frontend")
+    assert _verifier_palette(frontend, contrat) == [], (
+        "un thème seulement déduit ne peut pas faire échouer un livrable")
+
+    # Et l'écart est réel, sinon le test ne prouverait rien : la palette
+    # proposée n'est pas celle qui a été employée.
+    css = ""
+    for nom in os.listdir(frontend):
+        if nom.endswith((".css", ".html")):
+            with open(os.path.join(frontend, nom), encoding="utf-8") as fh:
+                css += fh.read()
+    assert contrat["design"]["accent"].lower() not in css.lower(), (
+        "la démo emploie l'accent proposé : elle ne démontre plus aucune liberté")
 
 
 # ---- Aucune police distante dans aucun thème (point 52) ----

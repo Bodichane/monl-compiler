@@ -1,4 +1,4 @@
-# monl
+# MonL
 
 **Un compilateur qui transforme une spécification déclarative en backend complet, déterministe et sûr.**
 
@@ -9,7 +9,7 @@
 [![Couverture](https://img.shields.io/badge/couverture-85%25-brightgreen)](#qualité-et-vérification)
 [![Licence](https://img.shields.io/badge/licence-propriétaire-lightgrey)](LICENSE)
 
-On décrit l'intention d'une application dans un DSL dédié ; monl en génère la base
+On décrit l'intention d'une application dans un DSL dédié ; MonL en génère la base
 de données, l'API REST, l'authentification et le contrôle d'accès — puis produit un
 contrat que le frontend doit respecter. **La spécification est l'unique source de
 vérité** : on ne maintient pas le code d'infrastructure à la main.
@@ -24,7 +24,7 @@ logique métier.
 ## Sommaire
 
 - [Démarrage rapide](#démarrage-rapide)
-- [Pourquoi monl ?](#pourquoi-monl-)
+- [Pourquoi MonL ?](#pourquoi-monl-)
 - [Architecture](#architecture)
 - [Commandes](#commandes)
 - [La spécification](#la-spécification)
@@ -38,67 +38,60 @@ logique métier.
 
 ## Démarrage rapide
 
+**1. Installer**
+
 ```bash
-pip install .                                            # fournit la commande `monl`
-monl compile exemples/01_portfolio.ml --output build/portfolio
-monl run build/portfolio                                 # vérifie, puis lance
+pip install .
 ```
+
+**2. Décrire l'application.** `monl` sans argument ouvre le dialogue guidé : des
+questions fermées, aucune IA, aucun appel réseau. Il écrit la spécification, en
+dérive le backend et le contrat frontend dans un dossier au nom du projet.
+
+```bash
+monl
+```
+
+**3. Lancer.** La cohérence et le smoke test sont vérifiés avant tout démarrage.
+
+```bash
+monl run MonProjet
+```
+
+L'API répond alors sur `http://127.0.0.1:8000`, sa documentation sur `/docs`.
 
 > **Ubuntu / Debian.** Le Python système est protégé (PEP 668). Préférez
 > `pipx install .`, qui isole l'outil dans son propre environnement, plutôt que
 > `pip install . --break-system-packages`.
 
-Pour partir d'une page blanche, `monl` sans argument ouvre le dialogue guidé. Le
-parcours complet est détaillé dans [QUICKSTART.md](QUICKSTART.md).
+Le parcours complet — y compris l'ajout d'une interface — est détaillé dans
+[QUICKSTART.md](QUICKSTART.md).
 
-## Pourquoi monl ?
+## Pourquoi MonL ?
 
-<table>
-<tr><th>Face à un framework classique</th><th>Face à un générateur d'IA</th></tr>
-<tr valign="top"><td>
+| | Framework classique<br><sub>Django, Rails, FastAPI…</sub> | Générateur d'IA<br><sub>v0, Bolt, assistants de code</sub> | **MonL** |
+|---|---|---|---|
+| **Code d'infrastructure** | écrit et maintenu à la main | produit une fois, à reprendre ensuite | **dérivé de la spec, jamais maintenu** |
+| **Deux compilations identiques** | sans objet | résultat différent à chaque fois | **le même backend, à l'octet près** |
+| **Contrôle d'accès** | vérifié route par route, à la vigilance | ce que le modèle a compris | **vérifié à la compilation : une collision de privilèges empêche de compiler** |
+| **Cohérence schéma / API / règles** | trois endroits à synchroniser | aucune garantie | **une source unique, propagée à la recompilation** |
+| **Sécurité** | dépend de l'auteur | espérée | **acquise par construction : requêtes paramétrées, rôle issu du compte réel, secret hors du code** |
+| **Rôle de l'IA** | aucun | écrit tout, backend compris | **cantonnée au frontend, encadrée par un contrat et un smoke test** |
+| **Évolution du schéma** | migrations à écrire | à reprendre à la main | **additive et non destructive, données préservées** |
 
-Django, Rails, FastAPI…
-
-- Ni rédaction ni maintenance du code répétitif : modèles, migrations, routes
-  CRUD, authentification et contrôle d'accès dérivent de la spec.
-- **Aucune dérive entre couches** — schéma, API et règles ont une source unique,
-  et un changement se propage partout à la recompilation.
-- Le contrôle d'accès est vérifié **à la compilation** : une collision de
-  privilèges non résolue empêche de compiler, au lieu de reposer sur la vigilance
-  route par route.
-
-</td><td>
-
-v0, Bolt, assistants de code…
-
-- Sortie **déterministe** : la même spec produit le même backend, à l'octet près.
-  Aucune variation d'une génération à l'autre, aucune hallucination.
-- Sécurité **par construction** : requêtes paramétrées, rôle issu du compte réel,
-  secret par variable d'environnement — acquise, pas espérée.
-- L'IA est cantonnée au frontend, où ses erreurs sont rattrapées par le contrat et
-  un smoke test avant tout lancement.
-
-</td></tr>
-</table>
-
-**En résumé :** source de vérité unique · compilation reproductible et hors-ligne ·
-migrations additives non destructives · contrat frontend qu'un test empêche de
-diverger du backend.
+**Ce que vous écrivez :** une spécification d'une page. **Ce que vous
+modifiez, ensuite :** la même page. Le code produit se recompile ; il n'est
+jamais un point de départ à retoucher.
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    D["Dialogue guidé<br/>(règles, sans IA)"] --> S["Spécification DSL .ml<br/>source de vérité"]
-    S --> B["Backend déterministe<br/>SQL · API · auth · accès · migrations"]
-    S --> C["Contrat frontend<br/>routes · champs · règles"]
-    C --> F["Frontend<br/>(IA spécialisée : Claude)"]
-    B -. vérifiés par .-> R(["monl run<br/>cohérence + smoke test"])
-    F -. vérifiés par .-> R
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/architecture-sombre.svg">
+  <img alt="Dialogue guidé → spec.ml → backend et contrat frontend → frontend écrit par une IA, le tout vérifié par monl run" src="docs/images/architecture-clair.svg" width="100%">
+</picture>
 
 Le dialogue produit la spécification ; le compilateur en dérive **à la fois** le
-backend et le contrat frontend ; l'IA construit le frontend contre ce contrat ;
+backend et le contrat frontend ; l'IA écrit l'interface contre ce contrat ;
 `monl run` vérifie que les trois restent cohérents avant de lancer l'application.
 
 ## Commandes
@@ -148,6 +141,11 @@ appel HTTP.
 
 </details>
 
+**Cinq spécifications de référence**, commentées, dans
+[`exemples/`](exemples/) : un fichier `.ml` d'une page par application —
+portfolio, boutique, réseau social, kanban, classement — dont MonL dérive tout
+le reste.
+
 <details>
 <summary><b>Direction visuelle : contraignante si déclarée, indicative si déduite</b></summary>
 
@@ -160,9 +158,6 @@ s'écarter. Le compilateur ne fait échouer un build que sur ce que l'auteur a
 réellement déclaré.
 
 </details>
-
-Les cinq exemples de [`exemples/`](exemples/) couvrent ces cas — portfolio,
-boutique, réseau social, kanban, classement.
 
 ## Le backend généré
 
@@ -199,7 +194,8 @@ destructifs ne sont pas automatisés, à dessein — voir [docs/MIGRATIONS.md](d
 
 ## Le frontend : contrat et IA spécialisée
 
-monl **ne génère aucune interface lui-même**. Chaque compilation produit à la place :
+L'interface est écrite par une IA, à partir de deux documents que chaque
+compilation produit :
 
 - `frontend_contract.json` — description exhaustive et machine-lisible des routes,
   de l'authentification et des règles de champ, dont un test garantit qu'elle ne
@@ -232,17 +228,20 @@ serveur. Toute exception ou tout appel hors contrat bloque le lancement
 |---|---|
 | **153 tests** | Serveurs réels et éphémères, pas de simulacre du pipeline |
 | **85 % de couverture** | `pytest --cov=src` |
-| **Audit offensif** | Usurpation de rôle, JWT forgé, élévation de privilège — rejoué sur chaque exemple |
+| **Audit offensif** | Usurpation de rôle, JWT forgé, élévation de privilège |
 | **Frontières d'architecture** | Six contrats d'import vérifiés par un test, pas par la mémoire |
 | **Lint** | `ruff check src tests` — zéro signalement, exceptions justifiées dans `pyproject.toml` |
 | **CI** | Python 3.10 et 3.12 à chaque push ; `main` protégée par ces vérifications |
 
 ```bash
 python3 -m pytest tests/ -q --cov=src --cov-report=term-missing
+```
+
+```bash
 ruff check src tests
 ```
 
-Le compilateur ne dépend d'aucun modèle d'IA et ne fait aucun appel réseau :
+MonL ne dépend d'aucun modèle d'IA et ne fait aucun appel réseau :
 dialogue, spécification et génération du backend sont entièrement déterministes.
 Les blocs `custom` produisent des coquilles vides sûres dans `sandbox_ai.py`, dont
 la logique métier est écrite à la main — aucune génération de code n'est
@@ -250,16 +249,14 @@ automatisée.
 
 ## Structure du dépôt
 
-```
-src/monl/            paquet installable : parseur, AST, dialogue, CLI,
-                     smoke test, contrat frontend, boucle IA
-  └── generator/     backend par couches : core · runtime · routes · schemas
-                     sql_schema · theme · sandbox · admin_cli
-exemples/            cinq applications de référence en syntaxe .ml
-tests/               non-régression, audit offensif, frontières d'architecture
-docs/                décisions de conception, sécurité, migrations, seed
-demo/                projet de démonstration complet (dont dépendent des tests)
-```
+| Dossier | Contenu |
+|---|---|
+| `src/monl/` | Le paquet : parseur, validateur, dialogue, contrat frontend, CLI |
+| `src/monl/generator/` | Le générateur de backend, une couche par module |
+| `exemples/` | Cinq spécifications `.ml` d'une page, compilées à chaque test |
+| `demo/` | La démo StudioNova : sa spécification et son frontend |
+| `tests/` | Non-régression, audit offensif, frontières d'architecture |
+| `docs/` | Décisions de conception, sécurité, migrations |
 
 ## Documentation
 
@@ -277,11 +274,11 @@ demo/                projet de démonstration complet (dont dépendent des tests
 
 Dépôt **public**, logiciel **propriétaire** — tous droits réservés
 ([LICENSE](LICENSE)). Le code est visible pour lecture et évaluation ; il n'est
-pas sous licence libre. Les applications *produites* par monl à partir de vos
+pas sous licence libre. Les applications *produites* par MonL à partir de vos
 propres spécifications vous appartiennent.
 
 Les rapports de bug et remarques sont bienvenus dans les *issues*.
 
 ---
 
-**monl 0.9.0-beta.3**
+**MonL 0.9.0-beta.3**

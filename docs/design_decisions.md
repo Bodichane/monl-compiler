@@ -87,7 +87,8 @@ en l'état car de nombreux renvois internes s'y appuient) ·
 [64](#64-ce-qui-traverse-mal-la-frontière-et-ce-que-personne-ne-mesurait) Ce qui traverse mal la frontière, et ce que personne ne mesurait ·
 [65](#65-un-paquet-quon-ne-peut-pas-installer-nest-pas-un-paquet) Un paquet qu'on ne peut pas installer n'est pas un paquet ·
 [66](#66-rendre-public-ne-pardonne-pas-les-exceptions-à-ses-propres-règles) Rendre public ne pardonne pas les exceptions à ses propres règles ·
-[67](#67-un-test-qui-échoue-une-fois-sur-deux-est-pire-quun-test-absent) Un test qui échoue une fois sur deux est pire qu'un test absent
+[67](#67-un-test-qui-échoue-une-fois-sur-deux-est-pire-quun-test-absent) Un test qui échoue une fois sur deux est pire qu'un test absent ·
+[68](#68-une-démo-qui-versionne-sa-propre-sortie-se-contredit) Une démo qui versionne sa propre sortie se contredit
 
 ---
 
@@ -2716,3 +2717,54 @@ publiques — quel job, quelle étape, quel verdict — qui suffisaient à étab
 l'essentiel : l'étape en échec était la suite de tests, 3.10 passait, le run
 suivant était vert. **Savoir qu'un échec est intermittent vaut déjà la moitié
 du diagnostic.**
+
+## 68. Une démo qui versionne sa propre sortie se contredit
+
+Deux corrections d'un même geste : ce que le dépôt montre de lui-même.
+
+**`demo/` versionnait le code que MonL génère.** `app.py`, `schema.sql`,
+`manage.py`, `sandbox_ai.py`, `monl.json`, le contrat, le brief, le wrapper de
+service : neuf fichiers dérivés, committés à côté de la spec dont ils
+découlent. Dans un projet dont toute la thèse est « la spécification est
+l'unique source de vérité, on ne maintient pas le code produit », c'est une
+contradiction affichée en page d'accueil du dépôt.
+
+**Et le README du dossier affirmait déjà le contraire** — « ce dossier ne
+contient que ce qui fait foi ». Personne ne l'avait vérifié. Même motif qu'au
+point 64 : une promesse écrite que rien ne mesure finit par devenir fausse
+sans que personne ne s'en aperçoive.
+
+**La preuve du dommage était là.** Le contrat livré dans `demo/` datait
+d'avant les points 51, 52 et 56 : il annonçait encore une URL absolue avec un
+port codé en dur, une police à télécharger, et aucun ton dérivé. Un lecteur
+qui l'aurait pris pour référence aurait construit contre un contrat périmé.
+Du code généré versionné ne prévient pas quand il devient faux.
+
+**Ne restent que `spec.ml` et `frontend/`** — l'écrit humain et l'écrit de
+l'IA, les deux seules choses qu'aucune recompilation ne peut reproduire. Les
+tests, eux, n'ont rien perdu : ils compilaient DÉJÀ dans un dossier temporaire
+à partir de ces deux entrées. Les neuf autres fichiers n'étaient utiles à
+personne.
+
+**La démo change de projet : AtelierVélo cède la place à StudioNova.** Un
+portfolio de photographe, dont le frontend a été écrit par Claude Code contre
+le contrat, en conditions réelles. Ce changement a un effet secondaire qu'il
+fallait choisir plutôt que subir : l'ancienne démo épinglait un thème, et un
+test s'en servait pour prouver qu'un frontend livré respecte une palette
+imposée. StudioNova n'épingle rien — et son IA s'est autorisé une palette
+sombre entièrement différente de celle qui lui était proposée.
+
+Le test n'a donc pas été supprimé, il a été **retourné** : il prouve désormais
+la moitié la moins intuitive du point 58, sur un livrable réel. Qu'un
+compilateur INTERDISE quelque chose se vérifie facilement ; qu'il se TAISE
+quand il n'a rien à dire est beaucoup plus rare à tester — et c'est
+précisément ce qui distingue une direction de design proposée d'une direction
+imposée. La contrainte, elle, reste éprouvée sur un frontend construit pour
+l'occasion, juste à côté.
+
+**Les exemples restent, mais disent enfin ce qu'ils sont.** `exemples/` ne
+contient pas cinq applications : il contient les cinq fichiers `.ml` qui
+suffisent à les décrire — la seule chose écrite à la main. Un `README.md` le
+dit maintenant en première ligne, avec ce que chaque spécification démontre du
+langage. Un lecteur qui croit ouvrir des applications passe à côté de la thèse
+du projet.

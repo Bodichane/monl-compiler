@@ -1,166 +1,227 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AtelierVélo — catalogue et atelier de réparation</title>
-<meta name="description" content="Catalogue de pièces, accessoires et prestations d'atelier. Commande en ligne, retrait sur place.">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alexandre Moreau — Photographe</title>
+<meta name="description" content="Portfolio d'Alexandre Moreau, photographe professionnel basé à Paris — mode, architecture, corporate.">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<a class="saut" href="#catalogue">Aller au catalogue</a>
+<a class="skip-link" href="#contenu">Aller au contenu</a>
 
-<header class="bandeau">
-  <div class="bandeau__marque">
-    <span class="marque__nom">Atelier<b>Vélo</b></span>
-    <span class="marque__ref" id="reference-edition">ATV · CATALOGUE ATELIER</span>
-  </div>
-  <nav class="bandeau__nav" aria-label="Navigation principale">
-    <button type="button" class="lien" data-vue="catalogue" aria-current="page">Catalogue</button>
-    <button type="button" class="lien" data-vue="commandes" hidden id="lien-commandes">Mes commandes</button>
-    <button type="button" class="lien" data-vue="atelier" hidden id="lien-atelier">Gestion du catalogue</button>
-    <button type="button" class="lien lien--compte" id="lien-compte">Se connecter</button>
-    <button type="button" class="panier-bouton" id="panier-bouton" aria-expanded="false">
-      Commande <span class="panier-bouton__compte" id="panier-compte">0</span>
+<header class="site-header" id="site-header">
+  <div class="header-inner">
+    <a href="#accueil" class="brand">Alexandre&nbsp;Moreau</a>
+    <button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="site-nav">
+      <span></span><span></span><span></span>
+      <span class="sr-only">Menu</span>
     </button>
-  </nav>
+    <nav class="site-nav" id="site-nav">
+      <a href="#galerie">Galerie</a>
+      <a href="#a-propos">À propos</a>
+      <a href="#services">Services</a>
+      <a href="#contact" class="nav-cta">Contact</a>
+    </nav>
+  </div>
 </header>
 
-<main>
+<main id="contenu">
 
-  <!-- ============ Catalogue ============ -->
-  <section class="vue" id="vue-catalogue">
-
-    <div class="couverture">
-      <p class="couverture__eyebrow">Réparation · Pièces détachées · Accessoires</p>
-      <h1>Tout ce qui<br>fait rouler<br>un vélo.</h1>
-      <p class="couverture__texte">
-        L'atelier remonte, règle et vend au comptoir depuis la rue des Peupliers.
-        Ce catalogue reprend l'inventaire réel : ce qui est affiché est en stock,
-        commandable en ligne, à retirer sur place sous 48 h.
-      </p>
-      <dl class="fiche-technique">
-        <div><dt>Références</dt><dd id="stat-references">—</dd></div>
-        <div><dt>Rayons</dt><dd id="stat-rayons">—</dd></div>
-        <div><dt>Retrait</dt><dd>48 h</dd></div>
-        <div><dt>Atelier</dt><dd>Mar – Sam</dd></div>
-      </dl>
-    </div>
-
-    <div class="catalogue" id="catalogue">
-      <aside class="index" aria-label="Rayons">
-        <h2 class="index__titre">Rayons</h2>
-        <ul class="index__liste" id="index-rayons"></ul>
-        <p class="index__note">
-          Les prix s'entendent pièce montée. Les prestations d'atelier sont
-          facturées à la fin de l'intervention.
-        </p>
-      </aside>
-
-      <div class="planche">
-        <div class="planche__entete">
-          <h2 id="titre-rayon">Toutes les références</h2>
-          <p class="planche__compte" id="compte-affiche"></p>
-        </div>
-        <div class="grille" id="grille-produits" aria-live="polite"></div>
-        <p class="etat" id="etat-catalogue" hidden></p>
+  <section class="hero" id="accueil">
+    <div class="hero-inner">
+      <p class="eyebrow">Photographe — Paris</p>
+      <h1 class="hero-title"><span>Alexandre</span><span class="accent-text">Moreau</span></h1>
+      <p class="hero-tagline">Mode. Architecture. Corporate. — des images qui structurent, sculptent la lumière et ne gardent que l'essentiel.</p>
+      <div class="hero-actions">
+        <a href="#galerie" class="btn btn-primary">Voir les projets</a>
+        <a href="#contact" class="btn btn-ghost">Me contacter</a>
       </div>
+    </div>
+    <div class="hero-grid" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span><span></span>
     </div>
   </section>
 
-  <!-- ============ Commandes du client ============ -->
-  <section class="vue" id="vue-commandes" hidden>
-    <div class="page-entete">
-      <h1>Mes commandes</h1>
-      <p>Chaque commande n'est visible que par le compte qui l'a passée — la règle
-         vient de la spécification, pas de l'interface.</p>
+  <section class="gallery-section" id="galerie">
+    <div class="section-head">
+      <p class="eyebrow">Sélection</p>
+      <h2 class="section-title">Galerie</h2>
     </div>
-    <div class="liste-commandes" id="liste-commandes"></div>
-    <p class="etat" id="etat-commandes" hidden></p>
+    <div class="gallery-filters" id="gallery-filters" aria-label="Filtrer par catégorie"></div>
+    <div class="gallery-grid" id="gallery-grid" aria-live="polite">
+      <p class="gallery-status" id="gallery-status">Chargement des projets…</p>
+    </div>
+    <div class="gallery-more" id="gallery-more" hidden>
+      <button class="btn btn-ghost" id="gallery-more-btn" type="button">Charger plus</button>
+    </div>
   </section>
 
-  <!-- ============ Gestion du catalogue (rôle atelier) ============ -->
-  <section class="vue" id="vue-atelier" hidden>
-    <div class="page-entete">
-      <h1>Gestion du catalogue</h1>
-      <p>Réservé au compte atelier. Ce rôle ne s'obtient pas par le formulaire
-         d'inscription : il est créé sur le serveur, par l'équipe.</p>
+  <section class="about-section" id="a-propos">
+    <div class="editorial-head">
+      <span class="editorial-index">01</span>
+      <h2 class="section-title">À propos</h2>
     </div>
+    <div class="editorial-body" id="about-body"></div>
+  </section>
 
-    <form class="formulaire formulaire--large" id="form-produit" novalidate>
-      <h2 id="titre-form-produit">Ajouter une référence</h2>
-      <div class="champs">
-        <label>Nom<input name="name" required autocomplete="off"></label>
-        <label>Prix (€)<input name="price" type="number" step="0.5" min="0" required></label>
-        <label>Rayon<input name="category" required autocomplete="off"></label>
-        <label>Stock<input name="stock" type="number" step="1" min="0" required></label>
-        <label class="champ--large">Description<textarea name="description" rows="2" required></textarea></label>
-        <label class="champ--large">Diagramme (fichier SVG)<input name="imageUrl" placeholder="diagrammes/chaine.svg"></label>
+  <section class="services-section" id="services">
+    <div class="editorial-head">
+      <span class="editorial-index">02</span>
+      <h2 class="section-title">Services</h2>
+    </div>
+    <div class="editorial-body" id="services-body"></div>
+  </section>
+
+  <section class="contact-section" id="contact">
+    <div class="section-head">
+      <p class="eyebrow">Parlons-en</p>
+      <h2 class="section-title">Contact</h2>
+      <p class="contact-lede">Un projet de mode, d'architecture ou corporate en tête ? Écrivez-moi, je réponds personnellement à chaque message.</p>
+    </div>
+    <form class="contact-form" id="contact-form" novalidate>
+      <div class="field">
+        <label for="contact-author">Nom <span aria-hidden="true">*</span></label>
+        <input type="text" id="contact-author" name="author" autocomplete="name" required maxlength="255">
       </div>
-      <div class="actions">
-        <button type="submit" class="bouton bouton--primaire" id="bouton-produit">Ajouter au catalogue</button>
-        <button type="button" class="bouton" id="annuler-produit" hidden>Annuler la modification</button>
+      <div class="field">
+        <label for="contact-email">Email</label>
+        <input type="email" id="contact-email" name="email" autocomplete="email" maxlength="320">
       </div>
-      <p class="message" id="message-produit" hidden></p>
+      <div class="field">
+        <label for="contact-content">Message <span aria-hidden="true">*</span></label>
+        <textarea id="contact-content" name="content" rows="6" required maxlength="20000"></textarea>
+      </div>
+      <div class="form-feedback" id="contact-feedback" role="status" aria-live="polite"></div>
+      <button type="submit" class="btn btn-primary" id="contact-submit">Envoyer le message</button>
     </form>
-
-    <div class="table-atelier" id="table-atelier"></div>
   </section>
+
 </main>
 
-<!-- ============ Panneau commande en cours ============ -->
-<aside class="tiroir" id="tiroir-panier" hidden aria-label="Commande en cours">
-  <div class="tiroir__entete">
-    <h2>Commande en cours</h2>
-    <button type="button" class="fermer" id="fermer-panier" aria-label="Fermer la commande">×</button>
+<footer class="site-footer">
+  <div class="footer-inner">
+    <p class="footer-brand">Alexandre Moreau</p>
+    <p class="footer-tagline">Photographe professionnel — Paris</p>
+    <button type="button" class="admin-link" id="open-admin">Espace admin</button>
   </div>
-  <div class="tiroir__corps" id="corps-panier"></div>
-  <div class="tiroir__pied">
-    <div class="total"><span>Total</span><b id="total-panier">0,00 €</b></div>
-    <label class="note-commande">Note pour l'atelier
-      <textarea id="note-panier" rows="2" placeholder="Réglage souhaité, date de retrait…"></textarea>
-    </label>
-    <button type="button" class="bouton bouton--primaire bouton--bloc" id="valider-panier">Envoyer la commande</button>
-    <p class="message" id="message-panier" hidden></p>
-  </div>
-</aside>
+</footer>
 
-<!-- ============ Panneau compte ============ -->
-<aside class="tiroir" id="tiroir-compte" hidden aria-label="Compte">
-  <div class="tiroir__entete">
-    <h2 id="titre-compte">Se connecter</h2>
-    <button type="button" class="fermer" id="fermer-compte" aria-label="Fermer">×</button>
-  </div>
-  <div class="tiroir__corps">
-    <form class="formulaire" id="form-compte" novalidate>
-      <label>Identifiant<input name="username" autocomplete="username" required></label>
-      <label>Mot de passe<input name="password" type="password" autocomplete="current-password" required minlength="8"></label>
-      <p class="aide" id="aide-compte">8 caractères minimum.</p>
-      <button type="submit" class="bouton bouton--primaire bouton--bloc" id="bouton-compte">Se connecter</button>
-      <p class="message" id="message-compte" hidden></p>
-    </form>
-    <p class="bascule">
-      <span id="bascule-texte">Pas encore de compte ?</span>
-      <button type="button" class="lien-souligne" id="bascule-compte">Créer un compte client</button>
-    </p>
-    <div class="compte-connecte" id="compte-connecte" hidden>
-      <p>Connecté en tant que <b id="compte-nom"></b> <span class="etiquette" id="compte-role"></span></p>
-      <button type="button" class="bouton bouton--bloc" id="bouton-deconnexion">Se déconnecter</button>
+<div class="overlay" id="project-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="project-overlay-title">
+  <div class="overlay-panel project-panel">
+    <button type="button" class="overlay-close" id="project-overlay-close" aria-label="Fermer">&times;</button>
+    <div class="project-panel-media" id="project-panel-media"></div>
+    <div class="project-panel-body">
+      <p class="eyebrow" id="project-panel-category"></p>
+      <h2 id="project-overlay-title"></h2>
+      <p id="project-panel-description"></p>
     </div>
   </div>
-</aside>
+</div>
 
-<div class="voile" id="voile" hidden></div>
+<div class="overlay admin-overlay" id="admin-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="admin-overlay-title">
+  <div class="overlay-panel admin-panel">
+    <button type="button" class="overlay-close" id="admin-overlay-close" aria-label="Fermer l'espace admin">&times;</button>
 
-<footer class="pied">
-  <p><b>AtelierVélo</b> — 14 rue des Peupliers · ouvert du mardi au samedi, 9 h – 19 h</p>
-  <p class="pied__mention">
-    Interface de démonstration monl. Backend, base et contrôle d'accès compilés
-    depuis <code>demo/spec.ml</code> ; cette page n'appelle que les routes du
-    contrat.
-  </p>
-</footer>
+    <div id="admin-auth" class="admin-auth">
+      <h2 id="admin-overlay-title">Espace admin</h2>
+      <div class="admin-auth-tabs">
+        <button type="button" class="admin-tab is-active" data-auth-tab="login">Connexion</button>
+        <button type="button" class="admin-tab" data-auth-tab="register">Créer un compte</button>
+      </div>
+
+      <form id="login-form" class="admin-form">
+        <div class="field">
+          <label for="login-username">Identifiant</label>
+          <input type="text" id="login-username" name="username" autocomplete="username" required>
+        </div>
+        <div class="field">
+          <label for="login-password">Mot de passe</label>
+          <input type="password" id="login-password" name="password" autocomplete="current-password" required>
+        </div>
+        <div class="form-feedback" id="login-feedback" role="status" aria-live="polite"></div>
+        <button type="submit" class="btn btn-primary">Se connecter</button>
+      </form>
+
+      <form id="register-form" class="admin-form" hidden>
+        <p class="admin-form-note">Réservé au premier compte administrateur du site.</p>
+        <div class="field">
+          <label for="register-username">Identifiant</label>
+          <input type="text" id="register-username" name="username" autocomplete="username" required>
+        </div>
+        <div class="field">
+          <label for="register-password">Mot de passe (8 caractères minimum)</label>
+          <input type="password" id="register-password" name="password" autocomplete="new-password" required minlength="8">
+        </div>
+        <div class="form-feedback" id="register-feedback" role="status" aria-live="polite"></div>
+        <button type="submit" class="btn btn-primary">Créer le compte administrateur</button>
+      </form>
+    </div>
+
+    <div id="admin-dashboard" class="admin-dashboard" hidden>
+      <div class="admin-dashboard-head">
+        <h2>Espace admin</h2>
+        <div class="admin-dashboard-user">
+          <span id="admin-username"></span>
+          <button type="button" class="btn btn-ghost btn-small" id="admin-logout">Se déconnecter</button>
+        </div>
+      </div>
+
+      <div class="admin-tabs">
+        <button type="button" class="admin-tab is-active" data-admin-tab="projects">Projets</button>
+        <button type="button" class="admin-tab" data-admin-tab="messages">Messages</button>
+      </div>
+
+      <section class="admin-panel-section" id="admin-projects" data-admin-panel="projects">
+        <div class="admin-panel-head">
+          <p id="admin-projects-count" class="admin-count"></p>
+          <button type="button" class="btn btn-primary btn-small" id="new-project-btn">+ Nouveau projet</button>
+        </div>
+
+        <form id="project-form" class="admin-form" hidden>
+          <input type="hidden" id="project-id" value="">
+          <div class="field">
+            <label for="project-title">Titre <span aria-hidden="true">*</span></label>
+            <input type="text" id="project-title" name="title" required maxlength="255">
+          </div>
+          <div class="field">
+            <label for="project-category">Catégorie</label>
+            <input type="text" id="project-category" name="category" maxlength="255">
+          </div>
+          <div class="field">
+            <label for="project-imageUrl">URL de l'image</label>
+            <input type="text" id="project-imageUrl" name="imageUrl" maxlength="255" placeholder="https://…">
+          </div>
+          <div class="field">
+            <label for="project-description">Description</label>
+            <textarea id="project-description" name="description" rows="4" maxlength="20000"></textarea>
+          </div>
+          <div class="form-feedback" id="project-form-feedback" role="status" aria-live="polite"></div>
+          <div class="admin-form-actions">
+            <button type="submit" class="btn btn-primary btn-small">Enregistrer</button>
+            <button type="button" class="btn btn-ghost btn-small" id="project-form-cancel">Annuler</button>
+          </div>
+        </form>
+
+        <div id="admin-projects-list" class="admin-list" aria-live="polite"></div>
+        <div class="gallery-more" id="admin-projects-more" hidden>
+          <button class="btn btn-ghost btn-small" id="admin-projects-more-btn" type="button">Charger plus</button>
+        </div>
+      </section>
+
+      <section class="admin-panel-section" id="admin-messages" data-admin-panel="messages" hidden>
+        <div class="admin-panel-head">
+          <p id="admin-messages-count" class="admin-count"></p>
+        </div>
+        <div id="admin-messages-list" class="admin-list" aria-live="polite"></div>
+        <div class="gallery-more" id="admin-messages-more" hidden>
+          <button class="btn btn-ghost btn-small" id="admin-messages-more-btn" type="button">Charger plus</button>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
 
 <script src="app.js"></script>
 </body>
