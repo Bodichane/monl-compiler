@@ -1,5 +1,104 @@
 # Journal des modifications
 
+## 0.9.0-beta.4 — Ouverture publique : licence, documentation, démonstration
+
+**Le compilateur est inchangé.** Aucune règle, aucune route générée, aucun
+contrat ne diffère de la bêta 3 : cette version rend le dépôt lisible par
+quelqu'un qui le découvre, maintenant qu'il est public. Mettre à jour ne
+demande donc rien de plus qu'un `pip install -e .`.
+
+### Licence et gouvernance
+
+- **`LICENSE` ajouté.** Le dépôt est devenu public *sans* fichier de licence.
+  Juridiquement, l'absence vaut déjà « tous droits réservés » — mais le lecteur
+  ne peut pas distinguer un choix d'un oubli, et cette ambiguïté ne sert
+  personne. Le fichier met par écrit ce que `pyproject.toml` déclare depuis
+  toujours (`license = "Proprietary"`) : public pour lecture et évaluation, pas
+  libre. Précision qui n'allait pas de soi : les applications *produites* par
+  MonL appartiennent à leur auteur — la licence porte sur le compilateur, pas
+  sur sa sortie.
+- **`CONTRIBUTING.md` ajouté.** Documente la méthode plutôt qu'il n'invite aux
+  contributions, qui ne sont pas ouvertes : preuve par exécution réelle,
+  checklist avant PR, frontières exécutables, format des messages de commit,
+  table « où intervenir ». S'adresse au mainteneur, à un futur collaborateur
+  autorisé, et à toute IA de développement travaillant sur le dépôt.
+- **`demo/.jwt_secret` et `demo/app.db` retirés du suivi.** Le `.jwt_secret` de
+  la racine était ignoré depuis toujours ; l'exception avait suivi le dossier de
+  démonstration. Portée réelle faible (rien n'est déployé), portée symbolique
+  non : le projet publiait ce qu'il traite comme sensible. Les deux se
+  régénèrent au premier démarrage. L'historique n'est **pas** réécrit — le
+  secret d'une démo locale ne justifie pas de casser les clones existants.
+
+### Démonstration
+
+- **`demo/` ne versionne plus sa propre sortie.** Neuf fichiers générés
+  (`app.py`, `schema.sql`, `manage.py`, le contrat, le brief, `serve.py`…)
+  étaient commités à côté de la spec dont ils découlent — une contradiction en
+  page d'accueil, dans un projet dont la thèse est que la spec est l'unique
+  source de vérité. Le dommage était constaté : le contrat livré datait d'avant
+  les points 51, 52 et 56 (URL absolue avec port en dur, police à télécharger,
+  aucun ton dérivé). Ne restent que `spec.ml` et `frontend/`, les deux seuls
+  écrits qu'aucune recompilation ne reproduit. Les tests ne perdent rien : ils
+  compilaient déjà dans un dossier temporaire à partir de ces deux entrées.
+- **StudioNova remplace AtelierVélo** — un portfolio de photographe dont le
+  frontend a été écrit par Claude Code contre le contrat.
+- **`tests/test_design_contract.py` est retourné plutôt que supprimé.**
+  L'ancienne démo épinglait un thème et le test s'en servait pour vérifier
+  qu'un frontend livré respecte une palette imposée ; StudioNova n'épingle
+  rien, et son IA s'est autorisé une palette entièrement différente. Le test
+  prouve désormais, sur un livrable réel, que MonL se **tait** quand le thème
+  n'est que déduit — la moitié la moins intuitive du point 58. La contrainte
+  reste éprouvée juste à côté, sur un frontend construit pour l'occasion.
+
+### Documentation
+
+- **README refait.** Démarrage rapide en trois lignes au-dessus de la ligne de
+  flottaison, qui n'exige aucun fichier préexistant et mène à une application à
+  soi — l'entrée réelle du produit est le dialogue guidé, pas la compilation de
+  l'exemple de quelqu'un d'autre. Badges, sommaire, tableaux pour les commandes
+  et les règles d'accès, section « Qualité et vérification ». Faits
+  resynchronisés : `src/` est devenu le paquet `src/monl/` (point 65).
+- **Le schéma d'architecture devient une vraie image** : deux SVG (clair et
+  sombre) servis par `<picture>` selon le thème du lecteur, générés depuis un
+  seul modèle pour qu'ils ne puissent pas diverger. La géométrie est vérifiée —
+  aucune boîte chevauchée, aucun trait traversant une boîte *ou un texte*, aucun
+  libellé plus large que sa boîte.
+- **La section « Pourquoi » compare enfin MonL à quelque chose.** Elle critiquait
+  un framework et un générateur d'IA sans jamais dire ce que MonL fait ; c'est
+  désormais un tableau à trois colonnes où MonL a la sienne, ligne par ligne.
+- **`exemples/` gagne un README** : le dossier ne contient pas cinq applications
+  mais les cinq fichiers `.ml` qui suffisent à les décrire. Un lecteur qui croit
+  ouvrir des applications passe à côté de la thèse du projet.
+- **Les ouvertures affirment leur contenu au lieu de le nier.** Plusieurs
+  passages commençaient par une absence (« ce dossier ne contient pas… », « MonL
+  ne génère aucune interface ») : le lecteur devait retenir ce qui manquait
+  avant d'apprendre ce qu'il avait sous les yeux.
+- Nomenclature unifiée : **MonL** dans les titres et la prose, `monl` pour la
+  commande et le paquet.
+
+### Tests et intégration continue
+
+- **Le test du canal temporel ne dépend plus de la charge de la machine.** Il
+  échouait par intermittence en CI (deux fois de suite sur 3.12, puis vert au
+  troisième essai, sur une branche qui ne touchait que de la documentation) :
+  il comparait deux mesures HTTP à la moitié du coût d'un PBKDF2, et une seule
+  préemption du runner suffisait à faire exploser l'écart. Élargir le seuil
+  aurait rendu le test aveugle à la fuite qu'il surveille ; à la place, cinq
+  échantillons par groupe dont on retient le minimum (le bruit ne peut
+  qu'ajouter du temps), mesure entière rejouée jusqu'à trois fois (une vraie
+  fuite est systématique, le bruit non), quota vidé entre les groupes.
+- **Un serveur de test n'est plus laissé orphelin en cas d'échec.** Son arrêt
+  était écrit après les mesures : tout échec abandonnait un `uvicorn` et un
+  dossier temporaire sur une machine qui allait enchaîner d'autres tests. Passé
+  sous `try/finally`.
+- **La CI écoute toutes les branches.** Elle ne se déclenchait que sur `main` et
+  les pull requests : pousser une branche de travail ne lançait rien, et la page
+  Actions restait vide en donnant l'illusion d'un dépôt sans intégration
+  continue.
+- `dist/` et `build/` sont ignorés par git — la sortie de `python -m build` et
+  le dossier de sortie que le démarrage rapide propose n'ont jamais à être
+  versionnés.
+
 ## 0.9.0-beta.3 — Correctifs d'audit et découpage du générateur
 
 ### Sécurité (seconde relecture, avant test externe)
