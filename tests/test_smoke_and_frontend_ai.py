@@ -324,3 +324,145 @@ def test_claude_code_ne_peut_pas_toucher_le_backend(project, tmp_path):
     ok, errors = generate_with_claude_code(str(project), command=agent, say=_quiet)
     assert not ok
     assert any("app.py" in e for e in errors), errors
+
+
+# ─────────────────────────────────────────────────────────────────────
+# POINT 69 : n'importe quelle clé API, n'importe quel agent
+#
+# Deux voies ouvertes, deux façons de les éprouver sans réseau ni binaire
+# tiers : la requête HTTP est interceptée (on vérifie ce que monl ENVOIE),
+# et l'agent est un exécutable factice qui enregistre son argv (on vérifie
+# ce que monl LANCE). L'orchestration, elle, s'exécute pour de vrai.
+# ─────────────────────────────────────────────────────────────────────
+from monl.frontend_ai import (
+    CLI_AGENTS,
+    OPENAI_COMPATIBLE,
+    PROVIDERS,
+    build_agent_argv,
+    generate_with_cli_agent,
+)
+
+
+def test_fournisseur_openai_compatible_forme_la_requete(monkeypatch):
+    monkeypatch.setenv("GROQ_API_KEY", "cle-de-test")
+    vu = {}
+
+    class Reponse:
+        status_code = 200
+        text = ""
+
+        def json(self):
+            return {"choices": [{"message": {"content": '{"files": {}}'}}]}
+
+    def faux_post(url, headers=None, json=None, timeout=None):
+        vu.update(url=url, headers=headers, body=json)
+        return Reponse()
+
+    import requests
+    monkeypatch.setattr(requests, "post", faux_post)
+
+    call = PROVIDERS["groq"](model="un-modele")
+    assert call("le brief") == '{"files": {}}'
+    assert vu["url"] == "https://api.groq.com/openai/v1/chat/completions"
+    assert vu["headers"]["Authorization"] == "Bearer cle-de-test"
+    assert vu["body"]["model"] == "un-modele"
+    assert vu["body"]["messages"][0]["content"] == "le brief"
+
+
+def test_chaque_prereglage_nomme_sa_propre_variable_de_cle(monkeypatch):
+    """Une clé absente doit nommer LA variable attendue : « clé manquante »
+    sans dire laquelle envoie l'utilisateur lire le code."""
+    from monl.frontend_ai import FrontendAIError
+    for nom, (_url, variable) in OPENAI_COMPATIBLE.items():
+        if nom == "ollama":
+            continue                      # serveur local : pas de clé exigée
+        monkeypatch.delenv(variable, raising=False)
+        with pytest.raises(FrontendAIError) as e:
+            PROVIDERS[nom](model="un-modele")
+        assert variable in str(e.value), nom
+
+
+def test_aucun_modele_par_defaut_hors_voie_anthropic(monkeypatch):
+    """Le message doit demander --model, pas laisser partir une requête
+    vers un identifiant deviné."""
+    from monl.frontend_ai import FrontendAIError
+    monkeypatch.setenv("GROQ_API_KEY", "cle-de-test")
+    with pytest.raises(FrontendAIError) as e:
+        PROVIDERS["groq"](model=None)
+    assert "--model" in str(e.value)
+
+
+def test_point_de_terminaison_libre_par_lenvironnement(monkeypatch):
+    monkeypatch.setenv("MONL_AI_BASE_URL", "https://exemple.interne/v1")
+    monkeypatch.setenv("MONL_AI_API_KEY", "cle-maison")
+    vu = {}
+
+    class Reponse:
+        status_code = 200
+        text = ""
+
+        def json(self):
+            return {"choices": [{"message": {"content": "ok"}}]}
+
+    import requests
+    monkeypatch.setattr(requests, "post",
+                        lambda url, **kw: (vu.update(url=url), Reponse())[1])
+    call = PROVIDERS["openai-compatible"](model="modele-maison")
+    assert call("brief") == "ok"
+    assert vu["url"] == "https://exemple.interne/v1/chat/completions"
+
+
+def test_chaque_agent_a_sa_propre_ligne_de_commande():
+    """Le point de la généralisation : l'instruction voyage jusqu'à l'agent,
+    quelle que soit la forme de son argv."""
+    for nom in CLI_AGENTS:
+        binaire, args = build_agent_argv(nom, "CONSIGNE", 120)
+        assert binaire == CLI_AGENTS[nom]["binary"]
+        assert "CONSIGNE" in args, nom
+    assert build_agent_argv("codex", "CONSIGNE", 120)[1][0] == "exec"
+
+
+def test_gabarit_libre_pour_un_agent_hors_liste():
+    binaire, args = build_agent_argv(None, "CONSIGNE", 120,
+                                     agent_command="mon-agent --auto {instruction}")
+    assert (binaire, args) == ("mon-agent", ["--auto", "CONSIGNE"])
+
+
+def test_gabarit_sans_instruction_est_refuse():
+    from monl.frontend_ai import FrontendAIError
+    with pytest.raises(FrontendAIError) as e:
+        build_agent_argv(None, "CONSIGNE", 120, agent_command="mon-agent --auto")
+    assert "{instruction}" in str(e.value)
+
+
+def test_agent_inconnu_est_refuse_en_nommant_les_connus():
+    from monl.frontend_ai import FrontendAIError
+    with pytest.raises(FrontendAIError) as e:
+        build_agent_argv("inexistant", "CONSIGNE", 120)
+    assert "claude-code" in str(e.value) and "--agent-command" in str(e.value)
+
+
+def test_un_agent_tiers_construit_et_verifie_pour_de_vrai(project, tmp_path):
+    """La boucle complète (exécution → empreintes → cohérence → smoke test)
+    par la voie 'codex', avec un binaire factice."""
+    agent = _fake_agent(tmp_path, GOOD_AGENT)
+    ok, errors = generate_with_cli_agent(str(project), command=agent,
+                                         agent="codex", say=_quiet)
+    assert ok, errors
+
+
+def test_un_agent_tiers_ne_peut_pas_davantage_toucher_le_backend(project, tmp_path):
+    """Le garde-fou ne dépend PAS de qui écrit : c'est tout l'enjeu de la
+    généralisation du point 69."""
+    agent = _fake_agent(tmp_path, EVIL_AGENT)
+    ok, errors = generate_with_cli_agent(str(project), command=agent,
+                                         agent="codex", say=_quiet)
+    assert not ok
+    assert any("app.py" in e for e in errors), errors
+
+
+def test_le_gabarit_libre_traverse_toute_la_boucle(project, tmp_path):
+    agent = _fake_agent(tmp_path, GOOD_AGENT)
+    ok, errors = generate_with_cli_agent(
+        str(project), agent_command=f"{agent} {{instruction}}", say=_quiet)
+    assert ok, errors

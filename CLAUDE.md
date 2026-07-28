@@ -15,11 +15,16 @@ point 45 — chaque modèle est testé compilable en tout-non/tout-oui) et
 fonctionne en saisie stricte, entièrement déterministe : aucune IA, aucun
 appel réseau. La spec produite est revalidée par le vrai parseur avant
 d'être écrite.
-`monl frontend` appelle l'IA via API (ANTHROPIC_API_KEY) ou via Claude
-Code (`--provider claude-code`, authentification par abonnement — point
-43) ; `monl import` couvre le copier/coller claude.ai (point 42). Dans
-tous les cas : mêmes garde-fous, même re-vérification (cohérence + smoke
-test). ATTENTION : chaque projet compilé reçoit son PROPRE CLAUDE.md
+`monl frontend` appelle l'IA soit par clé API — Anthropic, ou n'importe
+quel fournisseur au dialecte OpenAI via la table `OPENAI_COMPATIBLE` et
+l'échappatoire `--provider openai-compatible` (point 69) — soit par un
+agent en ligne de commande (`--provider claude-code|codex|gemini`, ou
+`--agent-command` pour tout autre, point 69 ; authentification par
+abonnement — point 43) ; `monl import` couvre le copier/coller claude.ai
+(point 42). Dans tous les cas : mêmes garde-fous, même re-vérification
+(cohérence + smoke test). Le garde-fou d'empreinte des artefacts protégés
+ne dépend PAS de l'agent utilisé — ne jamais le contourner en ajoutant une
+voie. ATTENTION : chaque projet compilé reçoit son PROPRE CLAUDE.md
 (généré par write_project_claude_md) — ne pas confondre avec ce fichier-ci,
 qui est la mémoire du dépôt monl lui-même. Le cœur
 ci-dessous est inchangé et reste la source de vérité :
@@ -55,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (152 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (164 tests
   actuellement ; `tests/test_demo.py` et `tests/test_design_contract.py`
   s'appuient sur le dossier `demo/` versionné — ne pas le supprimer)
 

@@ -405,13 +405,24 @@ def main(argv=None):
         "frontend", help="Générer le frontend par une IA spécialisée, avec "
                          "re-vérification automatique (cohérence + smoke test).")
     p_front.add_argument("dir", nargs="?", default=".")
-    p_front.add_argument("--provider", default="claude",
-                         choices=["claude", "claude-code"],
-                         help="'claude' : API Anthropic (clé dans ANTHROPIC_API_KEY). "
-                              "'claude-code' : l'agent Claude Code travaille directement "
-                              "dans le dossier (authentification par abonnement, "
-                              "'claude login' — aucune clé requise).")
+    from .frontend_ai import CLI_AGENTS, GENERIC_PROVIDER, OPENAI_COMPATIBLE
+    _voies = sorted({"claude", GENERIC_PROVIDER} | set(OPENAI_COMPATIBLE) | set(CLI_AGENTS))
+    p_front.add_argument("--provider", default="claude", choices=_voies,
+                         help="Clé API : 'claude' (ANTHROPIC_API_KEY) ; "
+                              + ", ".join(f"'{n}' ({v})" for n, (_u, v) in
+                                          sorted(OPENAI_COMPATIBLE.items()))
+                              + f" ; '{GENERIC_PROVIDER}' pour tout autre point de "
+                                "terminaison au dialecte OpenAI (MONL_AI_BASE_URL + "
+                                "MONL_AI_API_KEY). Hors 'claude', '--model' est exigé. "
+                                "Agent en ligne de commande, sans clé : "
+                              + ", ".join(f"'{n}'" for n in sorted(CLI_AGENTS))
+                              + " — l'agent travaille dans le dossier du projet.")
     p_front.add_argument("--model", default=None, help="Modèle du fournisseur.")
+    p_front.add_argument("--agent-command", default=None,
+                         help="Gabarit de commande pour un agent absent de la "
+                              "liste, {instruction} étant substitué — par exemple "
+                              "\"mon-agent --auto {instruction}\". L'emporte sur "
+                              "--provider et permet aussi de corriger un préréglage.")
     p_front.add_argument("--max-turns", type=int, default=None,
                          help="Budget de tours de l'agent ('claude-code' "
                               "uniquement). Défaut : 120.")
@@ -439,20 +450,25 @@ def main(argv=None):
         cmd_update(args.dir)
     elif args.command == "frontend":
         from .frontend_ai import (
+            CLI_AGENTS,
             DEFAULT_MAX_TURNS,
             DEFAULT_MODEL,
             PROVIDERS,
             FrontendAIError,
             generate_and_verify,
-            generate_with_claude_code,
+            generate_with_cli_agent,
         )
         try:
-            if args.provider == "claude-code":
-                ok, _errors = generate_with_claude_code(
+            if args.agent_command or args.provider in CLI_AGENTS:
+                ok, _errors = generate_with_cli_agent(
                     args.dir, update_mode=args.update,
-                    max_turns=args.max_turns or DEFAULT_MAX_TURNS)
+                    max_turns=args.max_turns or DEFAULT_MAX_TURNS,
+                    agent=args.provider, agent_command=args.agent_command)
             else:
-                provider = PROVIDERS[args.provider](model=args.model or DEFAULT_MODEL)
+                # Le modèle par défaut n'existe QUE pour la voie Anthropic ;
+                # ailleurs, openai_provider exige --model et le dit.
+                defaut = DEFAULT_MODEL if args.provider == "claude" else None
+                provider = PROVIDERS[args.provider](model=args.model or defaut)
                 ok, _errors = generate_and_verify(args.dir, provider, update_mode=args.update)
         except FrontendAIError as e:
             print(f" ❌ {e}")

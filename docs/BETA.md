@@ -1,5 +1,17 @@
 # État bêta et route vers la GA
 
+## Ce que corrige la bêta 0.9.0-beta.5
+
+Un défaut d'ouverture, pas de correction : le dernier maillon du cycle — l'IA
+qui écrit le frontend — n'acceptait qu'Anthropic, alors que le module promettait
+depuis le pivot une abstraction « extensible sans toucher à la boucle
+d'orchestration ». Elle l'est désormais : n'importe quelle clé au dialecte
+OpenAI (`groq`, `openai`, `openrouter`, `deepseek`, `mistral`, `together`,
+`xai`, `ollama`, plus une échappatoire pour tout autre point de terminaison), et
+n'importe quel agent en ligne de commande (`codex`, `gemini`, ou `--agent-command`).
+Aucun garde-fou n'est relâché au passage — c'est le point 69. Le compilateur
+lui-même est inchangé.
+
 ## Ce que corrige la bêta 0.9.0-beta.4
 
 Rien dans le compilateur : aucune règle, aucune route générée, aucun contrat ne
