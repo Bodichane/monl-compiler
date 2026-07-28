@@ -38,33 +38,21 @@ logique métier.
 
 ## Démarrage rapide
 
-**1. Installer**
+`monl` seul ouvre un dialogue guidé — des questions fermées, aucune IA, aucun
+appel réseau — puis écrit la spécification, le backend et le contrat frontend
+dans un dossier au nom du projet. `monl run` vérifie la cohérence et joue le
+smoke test avant de démarrer sur `http://127.0.0.1:8000`.
 
 ```bash
 pip install .
-```
-
-**2. Décrire l'application.** `monl` sans argument ouvre le dialogue guidé : des
-questions fermées, aucune IA, aucun appel réseau. Il écrit la spécification, en
-dérive le backend et le contrat frontend dans un dossier au nom du projet.
-
-```bash
 monl
-```
-
-**3. Lancer.** La cohérence et le smoke test sont vérifiés avant tout démarrage.
-
-```bash
 monl run MonProjet
 ```
 
-L'API répond alors sur `http://127.0.0.1:8000`, sa documentation sur `/docs`.
+> **Ubuntu / Debian.** Le Python système est protégé (PEP 668) : préférez
+> `pipx install .` à `pip install . --break-system-packages`.
 
-> **Ubuntu / Debian.** Le Python système est protégé (PEP 668). Préférez
-> `pipx install .`, qui isole l'outil dans son propre environnement, plutôt que
-> `pip install . --break-system-packages`.
-
-Le parcours complet — y compris l'ajout d'une interface — est détaillé dans
+Le parcours complet, interface comprise, est détaillé dans
 [QUICKSTART.md](QUICKSTART.md).
 
 ## Pourquoi MonL ?
