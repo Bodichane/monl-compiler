@@ -28,3 +28,9 @@ htmlcov/
 # Artefacts de build du paquet (point 65) et archives locales de bêta
 *.egg-info/
 archives/
+# dist/ est la sortie de `python -m build`, jointe aux releases mais jamais
+# versionnée ; build/ sert à setuptools ET au dossier de sortie que le
+# démarrage rapide propose (`--output build/...`) — deux artefacts, aucun
+# écrit à la main.
+/dist/
+/build/

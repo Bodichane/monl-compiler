@@ -11,4 +11,4 @@ comme en tête de chaque fichier de tests. C'est désormais un vrai paquet :
 installé, sans préparatif.
 """
 
-__version__ = "0.9.0-beta.3"
+__version__ = "0.9.0-beta.4"

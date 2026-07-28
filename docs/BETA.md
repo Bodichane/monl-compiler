@@ -1,5 +1,15 @@
 # État bêta et route vers la GA
 
+## Ce que corrige la bêta 0.9.0-beta.4
+
+Rien dans le compilateur : aucune règle, aucune route générée, aucun contrat ne
+diffère de la bêta 3. Cette version rend le dépôt lisible par quelqu'un qui le
+découvre, maintenant qu'il est public — `LICENSE` et `CONTRIBUTING.md` ajoutés,
+README refait, `demo/` cesse de versionner sa propre sortie. Deux correctifs
+réels tout de même, côté vérification : le test du canal temporel ne dépend plus
+de la charge de la machine (il échouait par intermittence en CI), et il ne
+laisse plus de serveur orphelin en cas d'échec. Détail dans `CHANGELOG.md`.
+
 ## Ce que corrige la bêta 0.9.0-beta.3
 
 Audit externe du dépôt : une faille critique (auto-attribution d'un rôle

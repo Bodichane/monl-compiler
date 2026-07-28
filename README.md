@@ -3,7 +3,7 @@
 **Un compilateur qui transforme une spécification déclarative en backend complet, déterministe et sûr.**
 
 [![CI](https://github.com/Bodichane/MonL/actions/workflows/ci.yml/badge.svg)](https://github.com/Bodichane/MonL/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.9.0--beta.3-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.9.0--beta.4-blue)](CHANGELOG.md)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
 [![Tests](https://img.shields.io/badge/tests-153-brightgreen)](tests/)
 [![Couverture](https://img.shields.io/badge/couverture-85%25-brightgreen)](#qualité-et-vérification)
@@ -269,4 +269,4 @@ Les rapports de bug et remarques sont bienvenus dans les *issues*.
 
 ---
 
-**MonL 0.9.0-beta.3**
+**MonL 0.9.0-beta.4**
