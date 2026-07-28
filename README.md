@@ -3,9 +3,9 @@
 **Un compilateur qui transforme une spécification déclarative en backend complet, déterministe et sûr.**
 
 [![CI](https://github.com/Bodichane/MonL/actions/workflows/ci.yml/badge.svg)](https://github.com/Bodichane/MonL/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.9.0--beta.4-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.9.0--beta.5-blue)](CHANGELOG.md)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
-[![Tests](https://img.shields.io/badge/tests-153-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-164-brightgreen)](tests/)
 [![Couverture](https://img.shields.io/badge/couverture-85%25-brightgreen)](#qualité-et-vérification)
 [![Licence](https://img.shields.io/badge/licence-propriétaire-lightgrey)](LICENSE)
 
@@ -197,9 +197,20 @@ L'IA écrit dans `frontend/` (point d'entrée `index.html`), que `monl run` sert
 | Voie | Commande | Authentification |
 |---|---|---|
 | Manuelle | déposer les fichiers dans `frontend/` | — |
-| Agent local | `monl frontend <App> --provider claude-code` | abonnement Claude |
-| API | `monl frontend <App> --provider claude` | `ANTHROPIC_API_KEY` |
 | Copier-coller | `monl import <zip\|html\|dossier> <App>` | aucune |
+| Agent local | `monl frontend <App> --provider claude-code\|codex\|gemini` | abonnement de l'agent |
+| Agent quelconque | `monl frontend <App> --agent-command "<cmd> {instruction}"` | celle de l'agent |
+| API Anthropic | `monl frontend <App> --provider claude` | `ANTHROPIC_API_KEY` |
+| API tierce | `monl frontend <App> --provider groq --model <id>` | `GROQ_API_KEY`, etc. |
+
+**N'importe quelle clé fait l'affaire.** Les fournisseurs au dialecte OpenAI —
+`groq`, `openai`, `openrouter`, `deepseek`, `mistral`, `together`, `xai`,
+`ollama` — sont préréglés, chacun lisant sa propre variable d'environnement. Pour
+un point de terminaison absent de cette liste, `--provider openai-compatible`
+avec `MONL_AI_BASE_URL` et `MONL_AI_API_KEY`. Hors voie Anthropic, `--model` est
+exigé : monl ne code aucun identifiant de modèle en dur, les catalogues changeant
+trop vite pour qu'une valeur figée reste vraie. La clé se lit toujours dans
+l'environnement, jamais en argument — le shell l'archiverait.
 
 Garde-fous communs : extensions en liste blanche, protection contre le zip-slip,
 frontend autonome sans CDN, et re-vérification systématique.
@@ -214,7 +225,7 @@ serveur. Toute exception ou tout appel hors contrat bloque le lancement
 
 | | |
 |---|---|
-| **153 tests** | Serveurs réels et éphémères, pas de simulacre du pipeline |
+| **164 tests** | Serveurs réels et éphémères, pas de simulacre du pipeline |
 | **85 % de couverture** | `pytest --cov=src` |
 | **Audit offensif** | Usurpation de rôle, JWT forgé, élévation de privilège |
 | **Frontières d'architecture** | Six contrats d'import vérifiés par un test, pas par la mémoire |
@@ -269,4 +280,4 @@ Les rapports de bug et remarques sont bienvenus dans les *issues*.
 
 ---
 
-**MonL 0.9.0-beta.4**
+**MonL 0.9.0-beta.5**

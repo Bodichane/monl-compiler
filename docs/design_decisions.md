@@ -88,7 +88,8 @@ en l'état car de nombreux renvois internes s'y appuient) ·
 [65](#65-un-paquet-quon-ne-peut-pas-installer-nest-pas-un-paquet) Un paquet qu'on ne peut pas installer n'est pas un paquet ·
 [66](#66-rendre-public-ne-pardonne-pas-les-exceptions-à-ses-propres-règles) Rendre public ne pardonne pas les exceptions à ses propres règles ·
 [67](#67-un-test-qui-échoue-une-fois-sur-deux-est-pire-quun-test-absent) Un test qui échoue une fois sur deux est pire qu'un test absent ·
-[68](#68-une-démo-qui-versionne-sa-propre-sortie-se-contredit) Une démo qui versionne sa propre sortie se contredit
+[68](#68-une-démo-qui-versionne-sa-propre-sortie-se-contredit) Une démo qui versionne sa propre sortie se contredit ·
+[69](#69-le-garde-fou-ne-doit-pas-dépendre-de-qui-écrit) Le garde-fou ne doit pas dépendre de qui écrit
 
 ---
 
@@ -2768,3 +2769,58 @@ suffisent à les décrire — la seule chose écrite à la main. Un `README.md` 
 dit maintenant en première ligne, avec ce que chaque spécification démontre du
 langage. Un lecteur qui croit ouvrir des applications passe à côté de la thèse
 du projet.
+
+---
+
+## 69. Le garde-fou ne doit pas dépendre de qui écrit
+
+Demande du mainteneur : « je veux qu'on puisse utiliser n'importe quelle clé
+API et aussi codex et autre ». Deux voies existaient, toutes deux nommées
+d'après un seul fournisseur — `PROVIDERS = {"claude": claude_provider}` avec
+l'URL d'Anthropic en dur, et `run_claude_code` avec `claude` en dur. Le
+commentaire d'en-tête du module promettait pourtant depuis le pivot que
+l'abstraction était « une simple fonction `provider(prompt) -> str` […]
+extensible (GPT ou autre) sans toucher à la boucle d'orchestration ». La
+promesse était juste ; personne ne l'avait honorée.
+
+**Voie API : deux dialectes suffisent.** Anthropic Messages d'un côté, OpenAI
+Chat Completions de l'autre — ce second dialecte est parlé par Groq, OpenAI,
+OpenRouter, DeepSeek, Mistral, xAI, Together et tout serveur local (Ollama,
+llama.cpp, vLLM). Écrire un fournisseur par marque aurait produit du code
+dupliqué et une liste éternellement en retard d'un acteur. À la place, un seul
+`openai_provider(model, base_url, key_env)`, une table de préréglages qui
+n'épargne que la frappe, et `--provider openai-compatible` +
+`MONL_AI_BASE_URL` pour tout point de terminaison que la table ignore. La clé
+reste lue dans l'environnement, jamais en argument : la règle posée pour la
+voie Anthropic n'avait aucune raison d'être plus laxiste ailleurs.
+
+**Aucun modèle par défaut hors voie Anthropic, à dessein.** La tentation était
+d'inscrire `llama-3.3-70b-versatile` pour Groq, `gpt-4o` pour OpenAI. Les
+catalogues changent tous les mois : un identifiant périmé en dur transforme une
+erreur claire (« préciser `--model` ») en 404 obscur six mois plus tard, chez
+un utilisateur qui n'a rien changé. `--model` est donc exigé, et le message le
+dit avec sa raison.
+
+**Voie agent : la partie variable est la ligne de commande, rien d'autre.**
+L'empreinte des artefacts protégés, la re-vérification (cohérence + smoke test)
+et la correction unique du point 43 ne doivent rien à Claude Code. Seuls le
+binaire et son argv changent — d'où une table `CLI_AGENTS` réduite à cela, et
+`run_cli_agent` qui reprend mot pour mot le corps écrit pour Claude Code. Un
+agent tiers ne relâche AUCUN garde-fou : c'est le sens de la généralisation,
+et deux tests l'établissent en faisant tenter à un agent « codex » factice
+exactement l'intrusion que l'agent Claude factice ne pouvait pas commettre.
+
+**Ce qui est vérifié et ce qui ne l'est pas — dit franchement.** Seul `claude`
+est éprouvé contre le vrai binaire. `codex` et `gemini` suivent l'invocation non
+interactive publiée par ces outils, mais aucun des deux n'était installé sur la
+machine de développement : ce sont des préréglages, pas des garanties, et le
+commentaire de la table le dit à cet endroit précis plutôt que dans un coin de
+documentation. C'est exactement pourquoi `--agent-command` existe : un gabarit
+libre où `{instruction}` est substitué permet de câbler n'importe quel agent, ou
+de corriger un préréglage devenu faux, sans attendre une version de monl.
+Refuser un gabarit sans `{instruction}` plutôt que de lancer l'agent muet est
+la même politique qu'ailleurs — échouer en nommant la cause.
+
+Les anciens noms (`run_claude_code`, `generate_with_claude_code`) sont conservés
+comme cas particuliers : la voie du point 43 reste ce qu'elle était, et les
+tests écrits pour elle continuent de la couvrir sans réécriture.

@@ -1,5 +1,63 @@
 # Journal des modifications
 
+## 0.9.0-beta.5 — N'importe quelle clé API, n'importe quel agent
+
+**Le compilateur reste inchangé.** Aucune règle, aucune route générée, aucun
+contrat ne diffère de la bêta 4. Cette version ouvre le dernier maillon — celui
+où une IA écrit le frontend — à autre chose qu'Anthropic. Détail et raisons
+complètes au point 69 de `docs/design_decisions.md`.
+
+### Voie API : n'importe quelle clé
+
+- **Fournisseurs au dialecte OpenAI.** `groq`, `openai`, `openrouter`,
+  `deepseek`, `mistral`, `together`, `xai` et `ollama` sont préréglés, chacun
+  lisant **sa propre** variable d'environnement (`GROQ_API_KEY`,
+  `OPENAI_API_KEY`…) — une clé absente nomme la variable attendue plutôt que de
+  renvoyer « clé manquante » sans dire laquelle.
+- **Échappatoire totale** pour un point de terminaison absent de la table
+  (serveur maison, vLLM, llama.cpp) : `--provider openai-compatible` avec
+  `MONL_AI_BASE_URL` et `MONL_AI_API_KEY`.
+- Un seul fournisseur paramétré plutôt qu'un par marque : écrire du code par
+  acteur aurait produit de la duplication et une liste éternellement en retard.
+  Deux dialectes — Anthropic Messages et OpenAI Chat Completions — couvrent le
+  marché.
+- **`--model` est exigé hors voie Anthropic**, à dessein. Inscrire `gpt-4o` ou
+  `llama-3.3-70b-versatile` en dur aurait transformé une erreur claire en 404
+  obscur six mois plus tard, chez un utilisateur qui n'a rien changé.
+- La clé reste lue dans l'environnement, jamais en argument de ligne de
+  commande : la règle posée pour la voie Anthropic n'avait aucune raison d'être
+  plus laxiste ailleurs.
+
+### Voie agent : Codex, Gemini, et tout autre
+
+- **`--provider codex` et `--provider gemini`** s'ajoutent à `claude-code`.
+- **`--agent-command "<cmd> {instruction}"`** câble n'importe quel agent en
+  ligne de commande, et permet aussi de corriger un préréglage devenu faux sans
+  attendre une version de monl. Un gabarit dépourvu de `{instruction}` est
+  refusé plutôt que lancé muet.
+- **Aucun garde-fou n'est relâché pour un agent tiers.** L'empreinte des
+  artefacts protégés, la re-vérification (cohérence + smoke test) et la
+  correction unique sont exactement celles écrites pour Claude Code : seule la
+  ligne de commande change. Deux tests l'établissent en faisant tenter à un
+  agent factice « codex » l'intrusion dans `app.py` que l'agent Claude factice
+  ne pouvait pas commettre — elle est bloquée de la même façon.
+- **Ce qui est vérifié, dit franchement** : seul `claude` est éprouvé contre le
+  vrai binaire. Les préréglages `codex` et `gemini` suivent l'invocation non
+  interactive publiée par ces outils, mais aucun des deux n'était installé sur
+  la machine de développement. Ce sont des préréglages, pas des garanties, et
+  le commentaire de la table le dit à cet endroit précis.
+- Les noms d'origine (`run_claude_code`, `generate_with_claude_code`) sont
+  conservés comme cas particuliers : la voie du point 43 reste ce qu'elle était.
+
+### Vérification
+
+- **164 tests** (11 nouveaux) : requête réellement formée pour la voie API
+  (URL, en-tête `Bearer`, corps, extraction de la réponse), variable de clé
+  nommée pour chaque préréglage, ligne de commande de chaque agent, gabarit
+  libre traversant la boucle complète, et les deux tests d'intrusion.
+- Couverture maintenue à 85 %, `ruff` sans signalement, frontières
+  d'architecture inchangées.
+
 ## 0.9.0-beta.4 — Ouverture publique : licence, documentation, démonstration
 
 **Le compilateur est inchangé.** Aucune règle, aucune route générée, aucun

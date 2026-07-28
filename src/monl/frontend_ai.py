@@ -73,7 +73,101 @@ def claude_provider(model=DEFAULT_MODEL):
     return call
 
 
-PROVIDERS = {"claude": claude_provider}
+# ─────────────────────────────────────────────────────────────────────
+# POINT 69 : « n'importe quelle clé API ». Deux dialectes couvrent le
+# marché — Anthropic Messages (ci-dessus) et OpenAI Chat Completions, que
+# parlent Groq, OpenAI, OpenRouter, DeepSeek, Mistral, xAI, Together et
+# tout serveur local (Ollama, llama.cpp, vLLM). Plutôt qu'un fournisseur
+# par marque — code dupliqué, liste toujours en retard d'un acteur — un
+# seul fournisseur paramétré, et une table de préréglages qui n'épargne
+# que la frappe de l'URL et du nom de variable.
+#
+# AUCUN modèle par défaut n'est codé pour ces fournisseurs, à dessein :
+# les catalogues changent tous les mois, et un identifiant périmé en dur
+# transforme une erreur claire ('--model manquant') en 404 obscur six mois
+# plus tard. '--model' est donc exigé hors voie Anthropic.
+# ─────────────────────────────────────────────────────────────────────
+OPENAI_COMPATIBLE = {
+    # nom            base_url                         variable d'environnement portant la clé
+    "groq":       ("https://api.groq.com/openai/v1",  "GROQ_API_KEY"),
+    "openai":     ("https://api.openai.com/v1",       "OPENAI_API_KEY"),
+    "openrouter": ("https://openrouter.ai/api/v1",    "OPENROUTER_API_KEY"),
+    "deepseek":   ("https://api.deepseek.com",        "DEEPSEEK_API_KEY"),
+    "mistral":    ("https://api.mistral.ai/v1",       "MISTRAL_API_KEY"),
+    "together":   ("https://api.together.xyz/v1",     "TOGETHER_API_KEY"),
+    "xai":        ("https://api.x.ai/v1",             "XAI_API_KEY"),
+    # Serveur local : pas de clé, mais l'en-tête Bearer reste accepté.
+    "ollama":     ("http://localhost:11434/v1",       "OLLAMA_API_KEY"),
+}
+
+# Échappatoire totale, pour un point de terminaison que la table ignore :
+# --provider openai-compatible + MONL_AI_BASE_URL (+ MONL_AI_API_KEY).
+GENERIC_PROVIDER = "openai-compatible"
+
+
+def openai_provider(model=None, base_url=None, key_env="MONL_AI_API_KEY",
+                    key_required=True):
+    """Fournisseur au dialecte OpenAI (POST {base_url}/chat/completions).
+
+    Même contrat que claude_provider : rend une fonction prompt -> texte.
+    La clé vient de l'environnement, JAMAIS d'un argument de ligne de
+    commande — elle finirait dans l'historique du shell (règle posée pour
+    la voie Anthropic, elle vaut pour toutes)."""
+    if not base_url:
+        raise FrontendAIError(
+            "base_url manquante — préciser MONL_AI_BASE_URL pour "
+            f"'--provider {GENERIC_PROVIDER}', ou choisir un fournisseur "
+            "de la table : " + ", ".join(sorted(OPENAI_COMPATIBLE)))
+    if not model:
+        raise FrontendAIError(
+            "modèle manquant — préciser '--model <identifiant>'. monl ne code "
+            "aucun modèle par défaut hors voie Anthropic : les catalogues "
+            "changent, et un identifiant périmé en dur donnerait un 404 "
+            "obscur au lieu de ce message.")
+    api_key = os.environ.get(key_env)
+    if not api_key and key_required:
+        raise FrontendAIError(
+            f"{key_env} absent de l'environnement — exporter la clé avant "
+            "'monl frontend' (jamais en argument : le shell l'archiverait).")
+
+    def call(prompt):
+        import requests
+        resp = requests.post(
+            base_url.rstrip("/") + "/chat/completions",
+            headers={"Authorization": f"Bearer {api_key or 'sans-cle'}",
+                     "content-type": "application/json"},
+            json={"model": model, "max_tokens": 16000,
+                  "messages": [{"role": "user", "content": prompt}]},
+            timeout=300)
+        if resp.status_code != 200:
+            raise FrontendAIError(f"API {base_url} : {resp.status_code} — {resp.text[:300]}")
+        choices = resp.json().get("choices", [])
+        if not choices:
+            raise FrontendAIError(f"API {base_url} : réponse sans 'choices' — {resp.text[:300]}")
+        return choices[0].get("message", {}).get("content") or ""
+    return call
+
+
+def _openai_preset(name):
+    """Construit le fournisseur d'un préréglage de OPENAI_COMPATIBLE."""
+    base_url, key_env = OPENAI_COMPATIBLE[name]
+
+    def build(model=None):
+        return openai_provider(model=model, base_url=base_url, key_env=key_env,
+                               key_required=(name != "ollama"))
+    return build
+
+
+def _generic_openai(model=None):
+    """--provider openai-compatible : tout est dans l'environnement."""
+    return openai_provider(model=model,
+                           base_url=os.environ.get("MONL_AI_BASE_URL"),
+                           key_env="MONL_AI_API_KEY",
+                           key_required=bool(os.environ.get("MONL_AI_BASE_URL")))
+
+
+PROVIDERS = {"claude": claude_provider, GENERIC_PROVIDER: _generic_openai}
+PROVIDERS.update({name: _openai_preset(name) for name in OPENAI_COMPATIBLE})
 
 
 # ------------------------------------------------------- parsing + gardes --
@@ -357,6 +451,7 @@ def import_and_verify(project_dir, source, say=print):
 # est une erreur bloquante, même si le frontend rendu est correct.
 # ─────────────────────────────────────────────────────────────────────
 import hashlib
+import shlex
 import subprocess
 
 PROTECTED_ARTEFACTS = ("spec.ml", "app.py", "schema.sql", "sandbox_ai.py",
@@ -380,6 +475,68 @@ CLAUDE_CODE_INSTRUCTION = (
     "détaille le contexte."
 )
 
+# ─────────────────────────────────────────────────────────────────────
+# POINT 69 (suite) : « et aussi codex et autre ». La voie agentique ne
+# dépendait de Claude Code que par sa ligne de commande — le garde-fou
+# d'empreinte, la re-vérification et la correction unique sont communs à
+# tout agent qui écrit sur le disque. La table ci-dessous n'est donc que
+# la partie variable : quel binaire, quels arguments.
+#
+# HONNÊTETÉ SUR LA VÉRIFICATION : seul 'claude' est éprouvé contre le vrai
+# binaire (tests avec agent factice + usage réel). Les lignes 'codex' et
+# 'gemini' suivent l'invocation non interactive publiée par ces outils,
+# mais AUCUN des deux n'était installé sur la machine de développement :
+# elles sont données comme préréglages, pas comme garanties. C'est
+# précisément pourquoi '--agent-command' existe — un gabarit libre permet
+# de câbler n'importe quel agent (ou de corriger un préréglage devenu
+# faux) sans attendre une version de monl.
+# ─────────────────────────────────────────────────────────────────────
+CLI_AGENTS = {
+    "claude-code": {
+        "binary": "claude",
+        "args": lambda instruction, max_turns: [
+            "-p", instruction, "--permission-mode", "acceptEdits",
+            "--max-turns", str(max_turns)],
+        "auth": "Claude Code : 'claude login' (abonnement, aucune clé)",
+    },
+    "codex": {
+        "binary": "codex",
+        "args": lambda instruction, max_turns: [
+            "exec", "--sandbox", "workspace-write", "--skip-git-repo-check",
+            instruction],
+        "auth": "Codex CLI : 'codex login' (abonnement ChatGPT) ou OPENAI_API_KEY",
+    },
+    "gemini": {
+        "binary": "gemini",
+        "args": lambda instruction, max_turns: ["--yolo", "-p", instruction],
+        "auth": "Gemini CLI : 'gemini' (compte Google) ou GEMINI_API_KEY",
+    },
+}
+
+
+def build_agent_argv(agent, instruction, max_turns, agent_command=None):
+    """Rend la ligne de commande complète d'un agent.
+
+    'agent_command' est un gabarit libre où {instruction} est substitué —
+    par exemple 'mon-agent --auto {instruction}'. Il l'emporte sur la
+    table, ce qui permet aussi de corriger un préréglage sur place."""
+    if agent_command:
+        parts = shlex.split(agent_command)
+        if not parts:
+            raise FrontendAIError("--agent-command est vide.")
+        if not any("{instruction}" in p for p in parts):
+            raise FrontendAIError(
+                "--agent-command doit contenir {instruction} — sans lui, "
+                "l'agent serait lancé sans savoir quoi faire.")
+        argv = [p.replace("{instruction}", instruction) for p in parts]
+        return argv[0], argv[1:]
+    if agent not in CLI_AGENTS:
+        raise FrontendAIError(
+            f"agent inconnu : {agent} — connus : {', '.join(sorted(CLI_AGENTS))} "
+            "(ou --agent-command pour tout autre).")
+    entry = CLI_AGENTS[agent]
+    return entry["binary"], entry["args"](instruction, max_turns)
+
 
 def _fingerprint_protected(project_dir):
     prints = {}
@@ -391,46 +548,63 @@ def _fingerprint_protected(project_dir):
     return prints
 
 
-def run_claude_code(project_dir, instruction, max_turns=DEFAULT_MAX_TURNS,
-                    command=None):
-    """Invoque 'claude -p' dans le dossier du projet. 'command' est
-    injectable pour les tests (exécutable factice) — même approche que le
-    fournisseur factice de la voie API : l'orchestration s'exécute pour de
-    vrai, seul l'agent est simulé.
+def run_cli_agent(project_dir, instruction, max_turns=DEFAULT_MAX_TURNS,
+                  command=None, agent="claude-code", agent_command=None):
+    """Invoque l'agent dans le dossier du projet. 'command' est injectable
+    pour les tests (exécutable factice) — même approche que le fournisseur
+    factice de la voie API : l'orchestration s'exécute pour de vrai, seul
+    l'agent est simulé.
 
     POINT 62 : l'épuisement du budget de tours n'est PAS une erreur
     d'exécution. L'agent a pu écrire un frontend complet au tour 39 et
     dépasser au 40e ; le traiter comme un échec dur jetait un travail que la
     vérification aurait peut-être accepté, et privait la boucle de sa passe
     de correction. Rendu comme un avertissement, la suite tranche sur pièces."""
-    binary = command or shutil.which("claude")
+    wanted, args = build_agent_argv(agent, instruction, max_turns, agent_command)
+    binary = command or shutil.which(wanted)
     if not binary:
+        auth = CLI_AGENTS.get(agent, {}).get("auth", "")
         raise FrontendAIError(
-            "l'exécutable 'claude' (Claude Code) est introuvable — installer "
-            "Claude Code puis s'authentifier avec l'abonnement : voir "
-            "https://docs.claude.com/en/docs/claude-code/overview")
+            f"l'exécutable '{wanted}' est introuvable — l'installer puis "
+            "s'authentifier" + (f" ({auth})" if auth else "")
+            + ". Sans agent en ligne de commande, deux voies restent : "
+              "'monl frontend --provider <api>' avec une clé, ou 'monl import' "
+              "après un copier/coller dans n'importe quel chat.")
     proc = subprocess.run(
-        [binary, "-p", instruction,
-         "--permission-mode", "acceptEdits",
-         "--max-turns", str(max_turns)],
+        [binary] + args,
         cwd=project_dir, capture_output=True, text=True, timeout=1800)
     sortie = (proc.stderr or proc.stdout) or ""
     if proc.returncode != 0:
         if "max turns" in sortie.lower():
             return sortie          # budget épuisé : la vérification tranchera
-        raise FrontendAIError("Claude Code a terminé en erreur : "
+        raise FrontendAIError(f"l'agent '{agent}' a terminé en erreur : "
                               + sortie[-400:])
     return proc.stdout
 
 
-def generate_with_claude_code(project_dir, update_mode=False, say=print,
-                              command=None, max_turns=DEFAULT_MAX_TURNS):
-    """La boucle du point 4, version Claude Code : exécuter l'agent dans le
-    dossier cible → vérifier les artefacts protégés → re-vérifier (cohérence
-    + smoke test) → une correction au plus. Retourne (ok, erreurs)."""
+def run_claude_code(project_dir, instruction, max_turns=DEFAULT_MAX_TURNS,
+                    command=None):
+    """Conservé : la voie Claude Code est celle du point 43, et son nom est
+    utilisé ailleurs. Elle n'est plus qu'un cas particulier de run_cli_agent."""
+    return run_cli_agent(project_dir, instruction, max_turns=max_turns,
+                         command=command, agent="claude-code")
+
+
+def generate_with_cli_agent(project_dir, update_mode=False, say=print,
+                            command=None, max_turns=DEFAULT_MAX_TURNS,
+                            agent="claude-code", agent_command=None):
+    """La boucle du point 4, version agent en ligne de commande : exécuter
+    l'agent dans le dossier cible → vérifier les artefacts protégés →
+    re-vérifier (cohérence + smoke test) → une correction au plus.
+    Retourne (ok, erreurs).
+
+    POINT 69 : le corps est rigoureusement celui écrit pour Claude Code. Un
+    agent tiers ne relâche AUCUN garde-fou — c'est le sens de la
+    généralisation : ce qui protège le projet ne dépend pas de qui écrit."""
     from .cli import check_coherence
     from .smoke_test import run_smoke_test
 
+    nom = agent_command.split()[0] if agent_command else agent
     project_dir = os.path.abspath(project_dir)
     brief = "FRONTEND_UPDATE_PROMPT.md" if update_mode else "FRONTEND_PROMPT.md"
     if not os.path.exists(os.path.join(project_dir, brief)):
@@ -441,21 +615,22 @@ def generate_with_claude_code(project_dir, update_mode=False, say=print,
     last_errors = []
     for attempt in (1, 2):
         if attempt == 2:
-            say(" -> Correction automatique : erreurs renvoyées à Claude Code (1 seule fois)…")
+            say(f" -> Correction automatique : erreurs renvoyées à {nom} (1 seule fois)…")
             instruction = (CLAUDE_CODE_INSTRUCTION.format(brief=brief)
                            + " Ta précédente tentative a échoué à la vérification "
                              "monl, corrige le frontend en conséquence : "
                            + " ; ".join(last_errors))
-        say(f" -> Claude Code travaille dans {project_dir} (tentative {attempt}/2)…")
+        say(f" -> {nom} travaille dans {project_dir} (tentative {attempt}/2)…")
         before = _fingerprint_protected(project_dir)
-        run_claude_code(project_dir, instruction, max_turns=max_turns, command=command)
+        run_cli_agent(project_dir, instruction, max_turns=max_turns,
+                      command=command, agent=agent, agent_command=agent_command)
 
         # Garde-fou : rien d'autre que frontend/ ne doit avoir bougé.
         after = _fingerprint_protected(project_dir)
         touched = sorted(set(before) ^ set(after)
                          | {n for n in before if n in after and before[n] != after[n]})
         if touched:
-            say(" ❌ Claude Code a modifié des artefacts protégés : "
+            say(f" ❌ {nom} a modifié des artefacts protégés : "
                 + ", ".join(touched))
             say("    Restaurer depuis votre gestion de versions, puis relancer — "
                 "le frontend est le SEUL périmètre autorisé.")
@@ -476,7 +651,7 @@ def generate_with_claude_code(project_dir, update_mode=False, say=print,
         for w in warnings:
             say(f" ⚠️  {w}")
         if ok:
-            say(" ✅ Frontend construit par Claude Code et vérifié : 'monl run' est prêt.")
+            say(f" ✅ Frontend construit par {nom} et vérifié : 'monl run' est prêt.")
             return True, []
         last_errors = errors
         for e in errors:
@@ -485,3 +660,12 @@ def generate_with_claude_code(project_dir, update_mode=False, say=print,
     say(" ❌ Échec après correction — les fichiers restent dans frontend/ pour "
         "inspection ; 'monl run' refusera de lancer tant que le smoke test échoue.")
     return False, last_errors
+
+
+def generate_with_claude_code(project_dir, update_mode=False, say=print,
+                              command=None, max_turns=DEFAULT_MAX_TURNS):
+    """Nom d'origine (point 43), conservé : la voie Claude Code est un cas
+    particulier de generate_with_cli_agent."""
+    return generate_with_cli_agent(project_dir, update_mode=update_mode, say=say,
+                                   command=command, max_turns=max_turns,
+                                   agent="claude-code")
