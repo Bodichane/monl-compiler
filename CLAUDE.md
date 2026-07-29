@@ -215,7 +215,8 @@ réseau social anonyme comme banc d'essai final.
    le smoke test restent verts hors ligne. Le webhook vérifie la signature du
    prestataire : c'est le SEUL endroit du backend généré où un tiers non
    authentifié écrit en base, ne jamais l'affaiblir. Éprouvé contre un serveur
-   réel et un faux Stripe embarqué par `tests/test_paiement.py`. Voir point 74.
+   réel et un faux Stripe embarqué par `tests/test_paiement.py`, et compilé par
+   `exemples/02_boutique.ml` (`Order.totalAmount`). Voir point 74.
 
 ### Briques suivantes déjà évoquées, non cadrées
 - Rôle superviseur au-dessus d'`accessibleBy` (un modérateur qui lit tous

@@ -30,6 +30,13 @@ rule Product.price min 0
 rule Product.stock min 0
 rule Product.Read public
 
+# Le champ nommé porte le MONTANT : c'est donc la commande qu'on encaisse.
+# monl en dérive POST /order/{id}/paiement (aucun corps — le montant est relu
+# en base à chaque appel) et POST /paiement/webhook, dont la signature est
+# vérifiée avant toute écriture. Sans STRIPE_SECRET_KEY, ces deux routes
+# répondent 503 en nommant la variable ; le reste de la boutique fonctionne.
+rule Order.totalAmount payable
+
 workflow BrowseShop for Customer
     Read Product
     Create Order

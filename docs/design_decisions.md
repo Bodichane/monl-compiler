@@ -3213,6 +3213,11 @@ signature authentique couvrant un **autre** corps, et une signature bien formée
 produite avec une **autre** clé —, tous deux refusés sans que la commande
 bouge.
 
+`exemples/02_boutique.ml` porte la règle (`Order.totalAmount`), donc la brique
+est recompilée à chaque exécution de la suite par `tests/test_compile_all.py`,
+comme les huit précédentes. Un test dédié prouve un comportement ; un exemple
+prouve qu'une spec réaliste continue de compiler autour.
+
 ### Le défaut que seule l'exécution a montré
 
 La suite était verte, `ruff` muet, et `monl run` échouait quand même sur toute
