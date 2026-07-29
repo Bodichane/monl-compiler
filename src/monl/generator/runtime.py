@@ -25,6 +25,13 @@ class RuntimeMixin:
             "import hmac",
             "import os",
             "import secrets",
+            # BRIQUE PAIEMENT (point 74) : premier appel SORTANT du backend
+            # généré. json/urllib ne servaient à rien tant que monl restait
+            # hors-ligne ; encaisser change cela, et il faut le dire.
+            "import json",
+            "import urllib.parse",
+            "import urllib.request",
+            "import urllib.error",
             "import sandbox_ai  # Fonctions 'custom' écrites à la main (module isolé)\n",
             "from contextlib import asynccontextmanager\n",
             "DB_FILE = 'app.db'\n",

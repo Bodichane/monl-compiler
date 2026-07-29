@@ -35,7 +35,7 @@ grammar = r"""
     # rule["type"] ne valait jamais "restrictedTo", et l'audit de sécurité associé
     # dans ast_validator.py ne se déclenchait donc jamais. Même classe de bug que
     # celui déjà corrigé sur le bloc "custom" en v3.
-    ?rule: constraint_rule | restriction_rule | sharing_rule | ownership_rule | access_rule | visibility_rule | masking_rule | decrement_rule | increment_rule | categorization_rule | generation_rule
+    ?rule: constraint_rule | restriction_rule | sharing_rule | ownership_rule | access_rule | visibility_rule | masking_rule | decrement_rule | increment_rule | categorization_rule | generation_rule | payable_rule
 
     constraint_rule: "rule" REFERENCE VALIDATION_TYPE _NL
                    | "rule" REFERENCE VALIDATION_TYPE INT _NL
@@ -129,6 +129,13 @@ grammar = r"""
     #   rule Post.author generated
     generation_rule: "rule" REFERENCE "generated" _NL
 
+    # AJOUT (roadmap, écosystème de capacités -- brique paiement, point 74) :
+    #   rule Order.total payable
+    # désigne le champ qui porte le MONTANT, donc l'entité à encaisser. Une
+    # production nommée à part, comme pour 'increments'/'decrements' : un
+    # mot-clé partagé rouvrirait le piège de filtrage Lark du point 27.
+    payable_rule: "rule" REFERENCE "payable" _NL
+
     # AJOUT (roadmap, contrôle du rendu visuel) : bloc optionnel "ui" pour
     # surcharger ce que le générateur devine automatiquement. Ex. :
     #   ui Project
@@ -136,11 +143,13 @@ grammar = r"""
     #       primary: title
     #       order: title, price, stock
     # SUPPRESSION (roadmap, sur demande explicite) : monl ne génère plus
-    # de back-office CRUD par entité (voir generate_all) — seul "theme" a
-    # encore un effet (il influence l'identité visuelle de "landing.html",
-    # voir le bloc "landing" plus bas). "primary" et "order" sont conservés
-    # dans la grammaire pour ne pas casser les specs existantes qui les
-    # utilisent, mais n'ont plus aucun effet sur le rendu.
+    # de back-office CRUD par entité (voir generate_all).
+    # POINT 72 : "theme" n'a plus d'effet non plus — le compilateur ne décide
+    # RIEN du visuel, il n'a donc plus de thème à épingler. Les trois clés
+    # restent ACCEPTÉES par la grammaire pour ne casser aucune spec
+    # existante (même politique qu'au point 41 pour 'landing mode/template'),
+    # mais aucune n'influence quoi que ce soit. La direction de design vient
+    # du dialogue, et voyage par le brief.
     ui_block: "ui" NAME _NL _INDENT ui_prop+ _DEDENT
     ?ui_prop: ui_theme | ui_primary | ui_order
     ui_theme: "theme" ":" NAME _NL
@@ -331,6 +340,9 @@ class MonlTransformer(Transformer):
 
     def generation_rule(self, reference):
         return {"rule": {"reference": str(reference), "type": "generated"}}
+
+    def payable_rule(self, reference):
+        return {"rule": {"reference": str(reference), "type": "payable"}}
 
     def ui_theme(self, name):
         return {"theme": str(name)}

@@ -89,7 +89,12 @@ en l'état car de nombreux renvois internes s'y appuient) ·
 [66](#66-rendre-public-ne-pardonne-pas-les-exceptions-à-ses-propres-règles) Rendre public ne pardonne pas les exceptions à ses propres règles ·
 [67](#67-un-test-qui-échoue-une-fois-sur-deux-est-pire-quun-test-absent) Un test qui échoue une fois sur deux est pire qu'un test absent ·
 [68](#68-une-démo-qui-versionne-sa-propre-sortie-se-contredit) Une démo qui versionne sa propre sortie se contredit ·
-[69](#69-le-garde-fou-ne-doit-pas-dépendre-de-qui-écrit) Le garde-fou ne doit pas dépendre de qui écrit
+[69](#69-le-garde-fou-ne-doit-pas-dépendre-de-qui-écrit) Le garde-fou ne doit pas dépendre de qui écrit ·
+[70](#70-compiler-nest-pas-se-comporter-et-le-câblage-ne-se-relit-pas) Compiler n'est pas se comporter, et le câblage ne se relit pas ·
+[71](#71-ce-que-le-compilateur-refuse-nétait-presque-pas-mesuré) Ce que le compilateur refuse n'était presque pas mesuré ·
+[72](#72-le-compilateur-na-pas-davis-sur-le-visuel) Le compilateur n'a pas d'avis sur le visuel ·
+[73](#73-un-agent-qui-ne-touche-à-rien-a-quand-même--construit-) Un agent qui ne touche à rien a quand même « construit » ·
+[74](#74-encaisser-et-le-montant-qui-ne-vient-jamais-du-client) Encaisser, et le montant qui ne vient jamais du client
 
 ---
 
@@ -2824,3 +2829,415 @@ la même politique qu'ailleurs — échouer en nommant la cause.
 Les anciens noms (`run_claude_code`, `generate_with_claude_code`) sont conservés
 comme cas particuliers : la voie du point 43 reste ce qu'elle était, et les
 tests écrits pour elle continuent de la couvrir sans réécriture.
+
+---
+
+## 70. Compiler n'est pas se comporter, et le câblage ne se relit pas
+
+Trois écarts entre ce que le dépôt promettait et ce qu'il mesurait, tous
+trouvés en regardant la couverture plutôt que le code.
+
+**Cinq briques sur huit n'étaient prouvées que par compilation.**
+`exemples/03_reseau_social.ml` fait passer `generated`, `increments`,
+`decrements`, `categorized` et `capability auth` par le compilateur à chaque
+exécution de la suite — et c'est tout ce qu'il en prouve. CLAUDE.md
+l'avertissait déjà en toutes lettres (« compiler n'est pas se comporter
+correctement »), sans que personne n'en tire la conséquence. Même motif qu'au
+point 64 : l'avertissement écrit ne remplace pas la mesure.
+
+`tests/test_briques_comportement.py` les éprouve désormais contre un serveur
+réel, sur une spec qui les assemble comme le fait le réseau social — c'est
+l'assemblage qui avait révélé deux bugs au point 29, pas les briques prises
+isolément. Ce que chaque test cherche est choisi, pas décoratif :
+
+- **`generated`** — un client qui envoie quand même `author` ne doit pas voir
+  sa valeur atterrir en base. C'est la seule des cinq dont un défaut serait une
+  faille d'intégrité et non un affichage faux ; elle ouvre donc la marche. La
+  stabilité du pseudonyme est vérifiée *à travers une reconnexion* : tiré à
+  chaque session, il casserait le fil d'un même auteur, et une création unique
+  ne peut pas le voir.
+- **`increments` / `decrements`** — le témoin voisin EST le test. Un compteur
+  qui monte prouve seulement qu'un UPDATE a eu lieu ; c'est le post non visé,
+  resté à sa valeur, qui prouve que la clé étrangère désigne le bon
+  enregistrement. CLAUDE.md liste précisément « un mécanisme de clé étrangère
+  qui décrémentait le mauvais enregistrement » parmi les bugs jamais révélés à
+  la lecture.
+- **`categorized`** — la borne, et elle seule, est l'endroit où une chaîne
+  `if/elif` générée peut se décaler d'un cran sans bruit. `below 10` est
+  strict : 9, 10, 99 et 100 l'encadrent des deux côtés.
+- **L'atomicité de la bêta 1**, au passage : une clé étrangère qui ne pointe
+  sur rien est refusée en 409, et l'enregistrement déclencheur ne subsiste pas.
+  Un like orphelin dont le compteur n'a jamais bougé serait exactement l'état
+  partiel que la transaction unique existe pour interdire.
+
+**Une assertion écrite au jugé, corrigée par l'exécution.** Le test du schéma
+OpenAPI vérifiait d'abord qu'`author` apparaît côté lecture. Il échoue : les
+routes de lecture générées ne déclarent aucun `response_model`, donc rien n'y
+est typé. L'assertion a été refaite contre le composant réellement référencé
+par la requête de création plutôt que contre le texte de la route — `author`
+absent d'une chaîne prouverait aussi bien que le champ a disparu qu'il n'a
+jamais été cherché au bon endroit.
+
+**Le quota, encore.** Ouvrir un compte par test dépasse les 5 tentatives / 60 s
+du point 13. La table de compteurs est vidée entre les tests, exactement comme
+au point 67 et pour la même raison : desserrer le quota lui-même rendrait
+aveugle un garde-fou du produit, vider une table côté banc d'essai ne coûte
+rien.
+
+**`main()` n'était traversée par aucun test.** `tests/test_cli_commandes.py`
+(point 64) éprouvait ce que font `compile_project`, `check_coherence`,
+`cmd_run` et `cmd_update` ; personne n'éprouvait ce qui les appelle. Les cent
+lignes d'argparse et de dispatch de `cli.py` étaient le seul chemin qu'un
+utilisateur emprunte réellement, et le seul que rien ne regardait — d'où
+`cli.py` à 58 %, point bas du dépôt pour la deuxième fois après le point 64.
+
+Une erreur de câblage y est silencieuse par construction : un `--skip-smoke`
+non transmis lance le smoke test quand même, un `--port` perdu en route ramène
+tout le monde sur 8000 alors que le point 51 a fait tout un travail pour que le
+port ne soit pas figé, et un code de sortie 0 sur échec fait passer au vert
+n'importe quelle CI qui appelle `monl run --check`. Rien de tout cela ne casse
+un test existant. `tests/test_cli_dispatch.py` vérifie l'aiguillage et les
+arguments transmis — pas le travail au bout, qui a déjà ses tests — y compris
+les deux promesses du point 69 que le dispatch porte seul : `--agent-command`
+l'emporte sur `--provider` (sans quoi il ne pourrait corriger aucun préréglage)
+et le modèle par défaut n'existe QUE pour la voie Anthropic.
+
+**Le stub qui manquait, et ce qu'il apprend.** Le premier jet interceptait les
+deux voies de `monl frontend` sans remplacer `PROVIDERS` : les vrais
+fournisseurs exigent leur clé dès leur *construction*, donc le dispatch
+échouait avant d'avoir choisi sa voie et le test mesurait l'absence de clé.
+Un test vert pour la mauvaise raison est le même défaut qu'un garde-fou muet.
+
+**Résultat mesuré** : 189 tests (contre 164), couverture 87 % (contre 85),
+`cli.py` de 58 % à 79 %. Le chiffre global n'est pas l'objet — les deux
+fichiers couvrent ce dont l'échec serait silencieux, pas ce qui remonte un
+pourcentage.
+
+**Et une dette de documentation soldée en chemin.** `docs/BETA.md` listait
+encore « empaqueter en vrai paquet Python » parmi les chantiers restants alors
+que le point 65 l'a livré, faisant passer pour dû ce qui était fait. La
+priorité n°1 de la même liste — isoler l'exécution du code `custom` — a été
+descendue au rang 6 avec sa raison écrite : elle datait de l'époque où les
+blocs `custom` étaient remplis par une IA locale, fonction retirée en bêta 1.
+Le générateur n'y écrit plus que des coquilles vides que l'auteur du projet
+complète lui-même ; isoler du code écrit sciemment par l'auteur n'est plus la
+même frontière de sécurité. La couche données devient le chantier bloquant,
+seule à plafonner l'usage réel.
+
+---
+
+## 71. Ce que le compilateur refuse n'était presque pas mesuré
+
+Suite immédiate du point 70, sur la moitié du dépôt que la mesure désignait
+encore.
+
+**La thèse du projet vivait dans des `raise` que personne n'atteignait.** Le
+README affiche comme différence de fond avec un générateur d'IA qu'« une règle
+sans effet est refusée à la compilation plutôt qu'ignorée en silence ».
+`test_parser_errors.py` couvrait les erreurs de SYNTAXE (Lark, trois tests) et
+`test_exploit*.py` les attaques au runtime. Entre les deux, la cinquantaine de
+refus d'`ast_validator.py` — l'endroit exact où cette promesse se tient —
+n'était exercée par presque rien : 76 %, et les lignes manquantes étaient très
+majoritairement des `raise`.
+
+`tests/test_validateur_refus.py` les met sous tension : cibles inexistantes,
+types incompatibles, paliers `categorized` mal formés, règles qui se
+contredisent (`hidden`+`categorized`, `hidden`+`generated`, `generated`+Create
+`public`, `ownedBy`+`accessibleBy`), collision de privilèges, workflows visant
+un acteur ou une entité absents, `Execute` sur un bloc `custom` inexistant,
+blocs `ui` et `seed` mal câblés. Chaque test vérifie AUSSI que le message
+nomme la cause : refuser sans dire quoi laisse à l'auteur de la spec la moitié
+du travail que le compilateur existe pour éviter.
+
+**Les témoins ne sont pas un ornement, ils sont le test.** Un validateur cassé
+qui refuserait TOUTE spec passerait une suite composée uniquement de refus —
+et paraîtrait plus robuste que jamais. Chaque famille de refus est donc
+accompagnée de la spec valide la plus proche possible, celle qui ne diffère que
+par ce qui est fautif, et cette spec doit compiler. C'est le corollaire écrit
+dans CONTRIBUTING.md (« un test qui ne peut pas échouer ne vaut rien ») appliqué
+à une suite entière plutôt qu'à un test isolé.
+
+**Le témoin a trouvé un garde-fou que la lecture n'avait pas listé.** En
+construisant la spec valide de `increments`, elle est refusée : un compteur
+exige une relation entre l'entité déclencheuse et l'entité cible, sans quoi il
+n'existe aucune clé étrangère d'où tirer QUEL enregistrement incrémenter — la
+règle ne serait pas seulement inefficace, elle serait ambiguë. Ce refus a gagné
+son propre test, ainsi que celui qui limite les compteurs à `Create`.
+
+**Où vit un garde-fou compte autant que son existence.** Le « au moins deux
+colonnes » d'`accessibleBy` (point 31) n'est PAS dans le validateur : la
+grammaire exige la virgule, donc une colonne unique ne l'atteint jamais. Le
+test le dit explicitement plutôt que d'attendre un `ASTValidationError` qui ne
+viendra pas — savoir quelle couche tient un garde-fou est ce qui permet de ne
+pas le déplacer par mégarde.
+
+Résultat : `ast_validator.py` de 76 % à 86 %.
+
+## Deux fuites de descripteurs, dont une dans le produit
+
+La suite émettait des `ResourceWarning` depuis longtemps, traités comme du
+bruit. Le point 67 avait pourtant déjà montré ce que coûte une ressource
+laissée derrière soi : un `uvicorn` orphelin contamine les tests suivants, et
+l'échec d'après n'a plus aucun rapport avec sa cause. Passer la suite sous
+`-W error::ResourceWarning` a séparé trois origines.
+
+**Côté banc d'essai, un piège Python classique** : `with sqlite3.connect(...)`
+ne ferme PAS la connexion — il ne fait que valider ou annuler la transaction.
+Six occurrences venaient d'être introduites au point 70, deux préexistaient.
+Un gestionnaire de contexte local fait les deux.
+
+**Côté produit, deux vraies fuites** dans `src/monl/smoke_test.py` :
+
+- un `urllib.error.HTTPError` **est** la réponse : le lire ne suffit pas, il
+  faut le fermer. Chaque 401 attendu — et le smoke test en provoque à dessein,
+  pour vérifier que les routes protégées le sont — laissait un descripteur ;
+- `stderr=PIPE` sur le serveur éphémère ouvre un tuyau que ni `terminate()` ni
+  `wait()` ne referment.
+
+Les deux sont modestes en volume, mais le smoke test tourne à **chaque
+`monl run`** : c'est du code que l'utilisateur exécute, pas seulement la CI. La
+suite passe désormais sans un seul `ResourceWarning`, ce qui rend le prochain
+détectable.
+
+**Ce que l'épisode confirme** : le code généré, lui, était propre — il ferme
+ses connexions explicitement (`generator/runtime.py`). Le défaut était dans
+l'outillage qui l'entoure, c'est-à-dire précisément la partie que la thèse du
+projet ne protège pas, puisqu'elle n'est pas dérivée d'une spec.
+
+---
+
+## 72. Le compilateur n'a pas d'avis sur le visuel
+
+Demande du mainteneur : « retire les contraintes pour les polices et autre,
+monl ne doit s'occuper de rien concernant le frontend, cela doit être décidé
+seulement dans le dialogue. »
+
+**Ce qui existait.** `generator/theme.py` choisissait un système visuel complet
+— palette, piles typographiques, rayon, style de carte — parmi six, d'après le
+vocabulaire de la spec (`product`/`order`/`price` → `market`,
+`post`/`article` → `editorial`), avec une variation de teinte par projet tirée
+de `.monl_theme_seed`. Le résultat partait dans `frontend_contract.json` >
+`design` et occupait une bonne page du brief.
+
+**Pourquoi c'était là.** Le point 20 ne cherchait pas à rendre service : il
+cherchait à ce que deux applications ne se ressemblent pas. Le point 58 avait
+déjà reculé une première fois, en rendant la direction non contraignante sauf
+épinglage explicite.
+
+**Pourquoi ça tombe.** Une suggestion écrite dans le document qui fait foi
+n'est pas neutre — elle oriente. Et le compilateur oriente mal : il ne sait pas
+à quoi ce projet-là doit ressembler, il ne connaît que des noms de tables. La
+seule direction légitime est celle que l'auteur a formulée lui-même, et il l'a
+déjà formulée : le dialogue lui demande son registre visuel et la place qu'il
+veut donner aux images. Cette réponse voyage dans le brief. Il y avait donc
+deux directions concurrentes dans le même document, l'une déclarée par un
+humain, l'autre déduite d'un dictionnaire de mots-clés.
+
+**Ce qui a été retiré** : `generator/theme.py` en entier (et son mixin dans
+`core.py`), le bloc `design` du contrat, la page de prescription du brief,
+la graine `.monl_theme_seed`, et `_verifier_palette` du smoke test — qui n'a
+plus rien à vérifier puisque plus rien n'est imposé.
+
+**Ce qui reste, et ce n'est pas une inconséquence** : le contraste WCAG
+(4,5:1) et l'autonomie du frontend. Ni l'un ni l'autre n'est une question de
+goût — le premier rend l'interface lisible, le second la rend vérifiable par le
+smoke test. Les confondre avec de la prescription esthétique les aurait fait
+tomber avec elle.
+
+**Le bloc `ui … theme:` reste ACCEPTÉ mais inerte**, même politique qu'au
+point 41 pour `landing mode/template` : aucune spec existante ne casse, mais
+plus rien ne s'en sert. Aucun exemple ni la démo n'en utilisait — le périmètre
+réel se limitait à deux fichiers de tests.
+
+**Le prix, assumé.** Ce que le point 20 protégeait disparaît : deux projets
+génériques peuvent désormais converger vers ce que l'IA d'interface produit par
+défaut. C'était le sens même de la demande — monl cesse de compenser par une
+devinette ce qui relève de l'auteur et de l'IA. Qui veut une identité
+distinctive la décrit dans le dialogue.
+
+**Ce que les tests vérifient maintenant.** `tests/test_design_contract.py` est
+retourné : il ne prouve plus qu'une palette épinglée est respectée, il prouve
+que le compilateur **se tait**. Aucun bloc `design`, aucune couleur
+hexadécimale nulle part dans le contrat, aucune famille typographique citée
+dans le brief, un bloc `ui` rigoureusement sans effet sur le contrat, et deux
+domaines opposés (boutique, journal) qui reçoivent le même paragraphe mot pour
+mot. Prouver qu'un compilateur interdit quelque chose est facile ; prouver
+qu'il se tait l'est beaucoup moins — et un silence que rien ne mesure finit par
+se remplir à nouveau.
+
+---
+
+## 73. Un agent qui ne touche à rien a quand même « construit »
+
+Le garde-fou d'empreinte (`_fingerprint_protected`, point 69) surveillait les
+artefacts **protégés** — ce qu'un agent ne doit pas modifier. Personne ne
+mesurait ce qu'il était censé **produire**.
+
+**Le scénario, réel.** Un `frontend/index.html` valide existe déjà, hérité
+d'une génération précédente. L'agent est lancé, examine le contrat, juge que
+l'existant y répond, et n'écrit pas une ligne. Ensuite : les artefacts protégés
+sont intacts (aucune alerte), la vérification de cohérence passe (le contrat
+correspond toujours), le smoke test passe (la page se charge et appelle des
+routes légitimes). monl annonce « Frontend construit ». Rien n'est faux dans
+chacun de ces contrôles pris isolément — et pourtant la conclusion l'est.
+
+**Le correctif** : `_fingerprint_frontend` prend l'empreinte de TOUT le contenu
+de `frontend/` avant l'appel et la compare après. Identique = l'agent n'a rien
+écrit, et monl le dit, avec les deux issues possibles (vider `frontend/` pour
+forcer une réécriture, ou `--update` pour demander une évolution de
+l'existant). Le retour reste un succès : rien n'est cassé, et féliciter l'agent
+pour le travail de son prédécesseur est le seul défaut à corriger.
+
+**La leçon, généralisable** : un contrôle qui ne sait pas distinguer
+« construit » de « laissé intact » ne contrôle rien. Le point 69 avait posé la
+bonne moitié du garde-fou — ce qui ne doit pas bouger — sans jamais poser
+l'autre : ce qui doit bouger.
+
+---
+
+## 74. Encaisser, et le montant qui ne vient jamais du client
+
+Première brique de l'écosystème de capacités depuis l'assemblage du réseau
+social (points 24-31), et la première dont un défaut ne se paie pas en
+affichage faux mais en argent.
+
+```
+rule Commande.total payable
+```
+
+La règle nomme le champ qui porte le **montant** ; l'entité qui le contient est
+celle qu'on encaisse. Deux colonnes de suivi apparaissent dans `schema.sql`
+(`payment_status`, `payment_ref`, jamais fournies par le client — retirées des
+schémas d'entrée comme un champ `generated`, et ajoutées aux bases existantes
+par le mécanisme de migration du point 32 — avec leur `DEFAULT`, sans quoi
+ajouter `payable` à une spec en production laisserait les anciennes lignes à
+`NULL` et les nouvelles à `en_attente`, deux façons de dire la même chose que
+toute lecture devrait ensuite réconcilier), et deux routes dans `app.py` :
+`POST /commande/{id}/paiement` et `POST /paiement/webhook`.
+
+### Le principe, et il n'y en a qu'un
+
+**Le montant encaissé vient de la BASE, jamais du client.** La route de
+règlement n'accepte aucun corps de requête : elle relit le champ `payable` à
+chaque demande. Un panier qui envoie son propre prix est un panier qu'on peut
+négocier. C'est aussi pourquoi le montant est relu à *chaque* appel plutôt que
+figé à la création : un prix corrigé en base ne doit pas laisser encaisser
+l'ancien.
+
+### Ce que le compilateur refuse
+
+Six refus, tous à la compilation — un paiement mal déclaré doit échouer avant
+d'être mis en ligne, jamais au moment d'encaisser :
+
+- **entité inexistante**, **champ inexistant** — les deux cibles manquées ;
+- **champ non numérique** (`Money`, `Float` ou `Integer` seulement) : on
+  n'encaisse pas du texte, et en tirer un nombre serait deviner ;
+- **`hidden` sur le même champ** : un montant qu'on ne peut pas lire ne peut
+  pas être vérifié par celui qui le règle ;
+- **deux champs `payable` sur la même entité** : plus rien ne dit lequel
+  encaisser. Additionner serait une invention, prendre le premier un tirage au
+  sort ;
+- **création `public` sur la même entité** : encaisser exige de savoir qui
+  paie — et à qui rembourser. Même raisonnement qu'au point 30 pour
+  `generated`, avec de l'argent au bout.
+
+Un septième `raise` existe dans `ast_validator.py` — la référence qui ne
+nommerait pas `Entite.champ` — et il est **inatteignable** : le terminal
+`REFERENCE` de la grammaire exige le point. Le vrai garde-fou est dans
+`parser.py`. C'est exactement la situation du point 71 avec `accessibleBy` :
+`tests/test_validateur_refus.py` le dit explicitement plutôt que d'attendre un
+`ASTValidationError` qui ne viendra pas. Savoir quelle couche tient un
+garde-fou est ce qui permet de ne pas le déplacer un jour en croyant le
+renforcer.
+
+### Le premier appel sortant
+
+Jusqu'ici, un backend généré par monl ne parlait à personne : il servait des
+routes, lisait un SQLite, et c'était tout. Encaisser change cela, et il faut le
+dire — `json` et `urllib` entrent dans `runtime.py` pour cette seule raison.
+
+Trois conséquences ont été traitées comme telles, pas comme des détails :
+
+- **Les secrets viennent de l'environnement**, même règle que le secret JWT
+  (point 11). `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`.
+- **Absents, les routes existent et répondent 503 en nommant la variable
+  manquante.** Un paiement doit refuser bruyamment, jamais échouer en silence
+  — et, corollaire qui compte autant : le reste du serveur démarre et
+  fonctionne normalement, donc `monl run` et le smoke test restent verts hors
+  ligne, sur un projet fraîchement compilé qui n'a évidemment aucune clé.
+- **Le point de terminaison est surchargeable** (`MONL_STRIPE_BASE_URL`).
+  Sans cela, la brique ne serait éprouvable qu'en appelant le vrai Stripe,
+  c'est-à-dire jamais.
+
+### La signature du webhook
+
+C'est le seul endroit de tout le backend généré où un tiers **non authentifié**
+écrit en base. Sans vérification de signature, `curl` suffit à marquer
+n'importe quelle commande comme payée. La signature Stripe
+(`t=<horodatage>,v1=<HMAC-SHA256 de « horodatage.corps »>`) est donc recalculée
+et comparée en temps constant, et le lien entre session et enregistrement passe
+par `client_reference_id` — le seul fil qui relie un règlement réussi à une
+ligne de la base.
+
+### Ce que le contrat frontend ignorait
+
+Ces deux routes ne naissent pas d'un workflow : elles échappent à
+`_compute_route_map`, donc au contrat. Le défaut n'était pas cosmétique — le
+contrat interdit par ailleurs à l'IA d'interface d'appeler un chemin absent de
+`routes`. Autrement dit : **une brique que le contrat ne décrit pas est une
+brique sans interface**, et le bouton de règlement était indessinable.
+
+En le corrigeant, un second manque est apparu : le champ `note` des routes
+existait dans le contrat JSON mais **n'atteignait pas le brief**, alors que
+c'est le brief que l'IA lit. La forme de la réponse paginée y manquait depuis
+toujours. Le webhook, lui, est listé pour que l'inventaire reste exhaustif,
+mais explicitement écarté — signature du prestataire, pas un JWT, et une
+interdiction en toutes lettres dans `frontend_rules.forbidden`.
+
+### Ce que les tests prouvent
+
+`tests/test_paiement.py` embarque un **faux Stripe** : un serveur HTTP local
+qui parle le dialecte de la vraie API et, surtout, **enregistre ce qu'on lui
+envoie**. Un banc d'essai qui se contenterait de répondre 200 laisserait passer
+exactement le bug qui coûte de l'argent. Le test central envoie donc un corps
+de requête annonçant un tout autre montant, puis vérifie le `unit_amount`
+réellement reçu.
+
+Le reste couvre les cinq refus au runtime (403 pour l'enregistrement d'autrui,
+404, 409 sur un règlement déjà encaissé, 400 sur un montant nul, 503 sans clé),
+le 502 qui remonte le message du prestataire, le parcours complet
+commande → session → notification signée, et cinq formes de signature invalide
+essayées séparément : une seule branche défaillante de l'analyse de l'en-tête
+suffirait à ouvrir la porte. Deux cas méritaient leur propre test — une
+signature authentique couvrant un **autre** corps, et une signature bien formée
+produite avec une **autre** clé —, tous deux refusés sans que la commande
+bouge.
+
+### Le défaut que seule l'exécution a montré
+
+La suite était verte, `ruff` muet, et `monl run` échouait quand même sur toute
+spec déclarant `payable`. Le smoke test exige qu'une route non publique refuse
+une requête sans jeton, en **401 ou 403** ; `/paiement/webhook` est bien
+protégée, mais par la signature du prestataire — sans clé configurée elle
+répond 503, avec clé 400. Elle faisait exactement son travail et se faisait
+recaler pour cela.
+
+Rien dans le code ne trahissait le conflit : les deux couches avaient raison
+séparément. Il a fallu compiler un projet payable et lancer le smoke test — la
+règle de CLAUDE.md, appliquée à la lettre, et le seul chemin qui menait à ce
+défaut.
+
+La correction distingue les deux régimes d'authentification par ce que le
+contrat dit **déjà** : une route protégée sans aucun acteur autorisé n'est pas
+une route à jeton. Ce qui reste exigé dans les deux cas est ce qui compte
+vraiment — une requête nue est refusée. `tests/test_paiement.py` compile un
+projet payable, vérifie sa cohérence et rejoue le smoke test sans aucune clé,
+pour que la régression ne puisse pas revenir en silence.
+
+### Ce qui est hors périmètre, et assumé
+
+La devise est `eur` en dur ; il n'y a ni remboursement, ni abonnement, ni
+paiement échelonné ; le seul prestataire câblé est Stripe. Le webhook n'a pas
+d'autre idempotence que le verrou `payee`. Aucun de ces manques n'est un oubli
+— chacun est une brique à part entière, et la méthode du projet est d'en
+éprouver une avant d'en commencer une autre.

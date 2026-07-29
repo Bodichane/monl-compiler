@@ -273,16 +273,40 @@ def build_contract(normalized_ast, generator):
             tag = info["tags"][0]
             routes.append(_route("POST", f"/workflow/{tag.lower()}/{target.lower()}",
                                  "Execute", target, is_public, actors))
+
+    # BRIQUE PAIEMENT (point 74). Ces deux routes ne sortent PAS de
+    # route_map — elles ne naissent pas d'un workflow mais d'une règle
+    # `payable` — et le contrat les ignorait donc. Conséquence concrète :
+    # l'IA d'interface ne pouvait pas dessiner le bouton de règlement, et
+    # se le serait de toute façon interdit, puisque le contrat lui défend
+    # d'appeler un chemin absent de `routes`. Une brique que le contrat ne
+    # décrit pas est une brique sans interface.
+    payables = getattr(generator, "payable_by_entity", {})
+    for entite, champ in sorted(payables.items()):
+        routes.append(_route(
+            "POST", f"/{entite.lower()}/{{id}}/paiement", "Pay", entite,
+            False, sorted(generator.actors),
+            note=("Ouvre une session de règlement pour cet enregistrement. "
+                  "AUCUN corps : le montant est lu dans la base depuis "
+                  f"`{champ}`, jamais reçu du client. Réponse : {{status, url, "
+                  "session_id, montant_centimes} — rediriger le navigateur "
+                  "vers `url`. 403 si l'enregistrement appartient à "
+                  "quelqu'un d'autre, 409 s'il est déjà réglé, 503 si le "
+                  "serveur n'a pas de clé de paiement configurée.")))
+    if payables:
+        routes.append(_route(
+            "POST", "/paiement/webhook", "Webhook", "Paiement", False, [],
+            note=("Appelée par le PRESTATAIRE de paiement, jamais par le "
+                  "frontend : elle exige une signature que seul le "
+                  "prestataire sait produire. Listée ici pour que la liste "
+                  "des routes reste exhaustive, pas pour être appelée.")))
+
     routes.sort(key=lambda r: (r["entity"], r["path"], r["method"]))
 
-    # Identité visuelle déterministe (point 20 : stable par projet via
-    # .monl_theme_seed) — transmise à l'IA frontend comme DIRECTION de
-    # design, pas comme rendu : c'est elle qui écrit le HTML/CSS, monl
-    # fournit palette/typos pour que deux apps ne se ressemblent jamais.
-    theme_name, theme = generator._select_theme(seed=generator._load_or_create_theme_seed())
-    design = {k: v for k, v in theme.items() if k != "keywords"}
-    design["name"] = theme_name
-
+    # POINT 72 : plus AUCUNE identité visuelle calculée. Le contrat décrit ce
+    # que monl sait — structure, rôles, routes, contenu, intention déclarée —
+    # et rien de ce qu'il devinait : ni palette, ni typographies, ni rayon.
+    # La direction de design remonte du dialogue, par le brief.
     landing = normalized_ast.get("landing") or {}
 
     contract = {
@@ -294,7 +318,6 @@ def build_contract(normalized_ast, generator):
         # pas une donnée.
         "sections": [{"title": s["title"], "body": paragraphes(s["body"])}
                      for s in (landing.get("sections") or [])],
-        "design": design,
         "source_of_truth": "spec monl (.ml) — ne jamais modifier le backend à la main",
         "api": {
             # MÊME ORIGINE, jamais d'URL absolue : 'monl run' monte frontend/
@@ -341,7 +364,11 @@ def build_contract(normalized_ast, generator):
             "forbidden": ["modifier app.py, schema.sql, sandbox_ai.py, landing.html, "
                           "dashboard.html ou la spec .ml",
                           "appeler des chemins d'API absents de 'routes'",
-                          "envoyer un champ server_generated à la création"],
+                          "envoyer un champ server_generated à la création"]
+                         + (["appeler POST /paiement/webhook : c'est la route "
+                             "du prestataire de paiement, elle exige une "
+                             "signature et refusera toute requête du navigateur"]
+                            if payables else []),
         },
     }
     return contract
@@ -393,15 +420,29 @@ def _creatable_fields(entity_spec):
 def _render_prompt(contract):
     routes_lines = []
     for r in contract["routes"]:
-        auth = "public" if not r["auth_required"] else f"JWT ({', '.join(r['allowed_actors'])})"
+        if not r["auth_required"]:
+            auth = "public"
+        elif r["allowed_actors"]:
+            auth = f"JWT ({', '.join(r['allowed_actors'])})"
+        else:
+            # Point 74 : le webhook de paiement est authentifié, mais pas par
+            # un JWT — par une signature du prestataire. Annoncer « JWT () »
+            # laisserait croire à une route ouverte à tout compte connecté.
+            auth = "signature du prestataire, pas un JWT"
+
         # Le corps attendu n'apparaissait NULLE PART dans le brief : l'IA
         # devait le déduire de la liste des champs, sans jamais voir les
         # colonnes de rattachement (article_id d'un commentaire). Elle ne
         # pouvait pas les deviner, et le serveur répondait 422 (point 57).
         corps = (f" — corps : `{{{', '.join(r['request_fields'])}}}`"
                  if r.get("request_fields") else "")
+        # Point 74 : les notes de route existaient dans le contrat JSON mais
+        # n'atteignaient PAS le brief — or c'est le brief que l'IA lit. La
+        # forme de la réponse paginée y manquait depuis toujours, et la
+        # marche à suivre du règlement y aurait manqué de même.
+        note = f" — {r['note']}" if r.get("note") else ""
         routes_lines.append(f"- `{r['method']} {r['path']}` — {r['action']} "
-                            f"{r['entity']} — {auth}{corps}")
+                            f"{r['entity']} — {auth}{corps}{note}")
     entities_lines = []
     ROLE_LABELS = {"title": "TITRE — l'identifie d'un coup d'œil",
                    "media": "MÉDIA — l'image de l'enregistrement",
@@ -459,75 +500,49 @@ def _render_prompt(contract):
             "y figurer en version courte et se prolonger sur sa propre page, "
             "mais il ne doit jamais en être absent.\n\n"
             + corps + "\n")
-    design = contract["design"]
-    # POINT 58 — sans épinglage, monl ne prescrit PLUS rien du visuel. La
-    # direction déterministe n'offrait aucune surface sombre : tout ce qui
-    # était large restait crème, et le brief interdisait d'improviser. Trois
-    # générations de suite ont rendu le même aplat. Ce que monl sait
-    # (structure, rôles, contenu, intention) est transmis ; comment cela se
-    # regarde est rendu à l'IA d'interface, dont c'est le métier.
-    if not design.get("pinned"):
-        design_block = """## Direction de design — LIBRE
+    # POINT 72 — monl ne décide RIEN du visuel. Il ne calculait pas une
+    # palette pour rendre service : il la calculait pour que deux projets ne
+    # se ressemblent pas (point 20). Mais ce que le compilateur devine du
+    # goût d'un projet, il le devine mal — et une suggestion posée dans le
+    # contrat pèse, même annoncée comme facultative. La seule direction
+    # légitime est celle que l'auteur a formulée lui-même, dans le dialogue :
+    # elle voyage dans le brief, pas dans un bloc de couleurs inventé.
+    design_block = """## Direction de design — elle ne vient PAS de monl
 
-monl n'impose ici **aucune** palette, aucune typographie, aucun rayon, aucune
-mise en page. Composez l'identité qui sert ce projet : c'est votre métier, pas
-celui du compilateur.
+Le compilateur n'a **aucun** avis sur le visuel : ni palette, ni typographie,
+ni rayon, ni grille, ni mise en page. Il n'en propose pas davantage qu'il n'en
+impose — il ne sait pas à quoi ce projet doit ressembler, et il ne fait pas
+semblant de le savoir.
 
-Ce qui doit vous guider est ailleurs dans ce document — le brief (intention,
-registre, place des images), la forme conseillée de chaque entité, le contenu
-éditorial. Servez-les.
+La direction est celle que l'auteur a formulée : le **brief** ci-dessus
+(intention, registre, place des images), la forme conseillée de chaque entité,
+le contenu éditorial. C'est cela qu'il faut servir. Pour le reste — familles
+typographiques, gamme chromatique, échelles, rythme, surfaces sombres ou
+claires — la décision vous appartient entièrement, c'est votre métier.
 
-Vous pouvez donc, et c'était impossible jusqu'ici :
-- employer des **surfaces sombres**, bandeaux contrastés, hero pleine largeur,
-  pied de page dense — alterner les fonds plutôt que tout poser sur un aplat ;
-- construire votre propre gamme, aussi large que le sujet l'exige ;
-- choisir vos familles typographiques, vos échelles, votre grille.
-
-Deux exigences seulement, qui ne sont pas des questions de goût :
+Deux exigences seulement, et ce ne sont pas des questions de goût :
 - **Contraste** : au moins 4,5:1 entre un texte et son fond (WCAG AA), 3:1
   pour les grands titres. Une interface illisible n'est pas un parti pris.
 - **Autonomie** : tout vit dans `frontend/`, aucune ressource distante (voir
   les règles ci-dessous). Les familles déjà présentes sur les machines
   suffisent à porter une identité — c'est leur traitement qui la fait.
-
-Une palette déterministe reste calculée dans `frontend_contract.json` >
-`design` si vous voulez un point de départ. Elle n'est qu'une suggestion :
-l'ignorer entièrement est un choix légitime, rien ne la vérifie.
 """
-    else:
-        design_block = (
-        "## Direction de design "
-        + ("(IMPOSÉE par la spec — vérifiée au smoke test)\n")
-        + f"Système « {design['name']} » — fond `{design['bg']}`, surfaces `{design['surface']}`, "
-        f"texte `{design['ink']}`, accents `{design['accent']}` / `{design['accent2']}`, "
-        f"rayon `{design['radius']}`.\n"
-        f"Typographies : titres {design['font_display']}, corps {design['font_body']}"
-        # Ces piles ne contiennent QUE des familles déjà présentes sur les
-        # machines : le brief ne peut plus proposer une police que sa propre
-        # règle d'autonomie interdit de charger (point 52).
-        + " — piles système, aucune police à télécharger : c'est le choix des "
-          "familles et leur traitement (graisses, interlettrage, échelle) qui "
-          "portent l'identité, pas un fichier distant"
-        + ". Vous écrivez le HTML/CSS ; "
-        + ("la spec ÉPINGLE ce thème : ces cinq couleurs doivent apparaître "
-           "telles quelles dans votre CSS, le smoke test le vérifie. Le reste "
-           "— mise en page, rythme, échelles — demeure votre décision.\n")
-        # Point 56 : sans ces tons, une interface n'a que cinq valeurs plates
-        # et rend des aplats sans profondeur. Ils sont déduits de la palette,
-        # donc justes sur un thème sombre comme sur un thème clair.
-        + f"""
-**Tons dérivés — la palette n'est pas plate.** Déduits des cinq couleurs
-ci-dessus, à employer plutôt que d'improviser des gris :
-- `{design['ink_soft']}` texte secondaire (légendes, méta, libellés)
-- `{design['border']}` filets, séparateurs, contours de champs
-- `{design['surface_alt']}` second niveau de surface (en-têtes, zones inertes)
-- `{design['accent_soft']}` fond teinté (étiquettes, état sélectionné)
-- `{design['accent_strong']}` survol et état actif de l'accent
 
-Une interface sans texte atténué, sans filet et sans état de survol paraît
-plate quelle que soit la qualité de sa palette. Ces cinq tons existent pour
-qu'aucune de ces trois choses ne manque.
-""")
+    # POINT 74 : la note de la route le dit déjà, mais c'est ici que l'IA lit
+    # ce qui n'est pas négociable. Le règlement est le seul parcours du
+    # frontend où une erreur d'interface coûte de l'argent — il mérite sa
+    # ligne, pas seulement une mention dans l'inventaire des routes.
+    paiement = [r for r in contract["routes"] if r["action"] == "Pay"]
+    paiement_block = ""
+    if paiement:
+        chemins = ", ".join(f"`{r['path']}`" for r in paiement)
+        paiement_block = (
+            f"\n- Règlement : {chemins} s'appelle **sans aucun corps** — le "
+            "montant vient de la base, pas de vous. Rediriger ensuite le "
+            "navigateur vers l'`url` renvoyée. Ne JAMAIS appeler "
+            "`POST /paiement/webhook` : c'est la route du prestataire, elle "
+            "exige une signature et refusera toute requête du navigateur.")
+
     return f"""# Brief frontend — {contract['app']} (généré par monl)
 {brief_line}
 Vous êtes une IA spécialisée en interfaces. Générez le frontend de
@@ -557,7 +572,7 @@ ci-dessous. Le backend existe déjà et ne doit pas être modifié.
   `{{status, total, limit, offset, data}}`.
 - Ne jamais envoyer un champ marqué « généré serveur » à la création.
 - Ne pas modifier `app.py`, `schema.sql`, la spec `.ml` ni les autres
-  artefacts monl.
+  artefacts monl.{paiement_block}
 
 {sections_block}
 ## Entités

@@ -40,7 +40,7 @@ grammaire Lark (`src/parser.py`) → validateur + audit de sécurité
 ## Documentation à lire avant toute nouvelle brique
 
 **`docs/design_decisions.md`** est le journal détaillé du projet — numéroté
-jusqu'à 51, avec sommaire complet en tête de fichier. Deux pièges de
+jusqu'à 74, avec sommaire complet en tête de fichier. Deux pièges de
 numérotation, tous deux assumés : les numéros **45 et 46 désignent chacun
 deux points distincts** (séquelle d'une fusion), et le **point 6 est un
 doublon réservé** du point 1, vide, gardé pour ne pas décaler les renvois.
@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (164 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (260 tests
   actuellement ; `tests/test_demo.py` et `tests/test_design_contract.py`
   s'appuient sur le dossier `demo/` versionné — ne pas le supprimer)
 
@@ -75,7 +75,7 @@ plus vite.
 ```bash
 ruff check src tests                                  # zéro attendu : tout
                                                       # signalement est un vrai
-python3 -m pytest tests/ -q --cov=src --cov-report=term-missing   # 85 %
+python3 -m pytest tests/ -q --cov=src --cov-report=term-missing   # 88 %
 python3 -m pytest tests/test_architecture.py -q       # les frontières de ce
                                                       # fichier, vérifiées
 ```
@@ -87,7 +87,7 @@ point 63 ferme. La CI (`.github/workflows/ci.yml`) rejoue lint + suite.
 de tests ne salit plus la racine : ce nettoyage ne concerne que VOS
 compilations manuelles) :
 ```bash
-rm -f app.py schema.sql sandbox_ai.py .jwt_secret .monl_theme_seed *.db \
+rm -f app.py schema.sql sandbox_ai.py .jwt_secret *.db \
       frontend_contract.json FRONTEND_PROMPT.md FRONTEND_UPDATE_PROMPT.md monl.json serve.py
 find . -name "__pycache__" -exec rm -rf {} +
 ```
@@ -104,7 +104,7 @@ fois plusieurs capacités réelles éprouvées). Chaque brique est petite,
 testée avant la suivante. Progression du simple au complexe, avec un
 réseau social anonyme comme banc d'essai final.
 
-### Briques terminées et testées (points 24-30)
+### Briques terminées et testées (points 24-31, puis 74)
 
 > **Où sont passés les fichiers de preuve.** Chaque brique avait à l'origine
 > son `exemples/NN_xxx_demo.yaml` dédié. La bêta 3 (commit `2105a1f`) les a
@@ -116,12 +116,18 @@ réseau social anonyme comme banc d'essai final.
 > resynchronisées le 26/07/2026 — ne pas les faire pointer vers les anciens
 > fichiers, ils n'existent plus.
 >
-> Attention à la nuance : compiler n'est pas se comporter correctement. Trois
-> briques sont éprouvées contre un vrai serveur éphémère : `accessibleBy`
-> (`tests/test_access_parties.py`), le filtrage de lecture d'`ownedBy`
-> (`tests/test_lecture_privee.py`) et le masquage `hidden`
-> (`tests/test_masquage_hidden.py`, point 64). Les autres n'ont que la
-> couverture de compilation.
+> Attention à la nuance : compiler n'est pas se comporter correctement.
+> **Huit briques sur neuf sont désormais éprouvées contre un vrai serveur
+> éphémère** : `accessibleBy` (`tests/test_access_parties.py`), le filtrage de
+> lecture d'`ownedBy` (`tests/test_lecture_privee.py`), le masquage `hidden`
+> (`tests/test_masquage_hidden.py`, point 64), puis `generated`, `increments`,
+> `decrements` et `categorized` (`tests/test_briques_comportement.py`,
+> point 70), enfin `payable` (`tests/test_paiement.py`, point 74 — avec son
+> faux Stripe embarqué). Seule `capability auth` n'a que la couverture de
+> compilation — c'est cohérent, elle n'a par construction aucun effet sur la
+> génération (brique 1). Toute NOUVELLE brique doit arriver avec son test
+> contre serveur : la couverture de compilation, à elle seule, a laissé passer
+> cinq briques pendant toute la vie du projet.
 
 1. **`capability auth`** — bloc déclaratif, aucun effet sur la génération
    pour l'instant (prouvé par compilation identique avec/sans le bloc).
@@ -195,6 +201,22 @@ réseau social anonyme comme banc d'essai final.
    spec), et compilé par `exemples/03_reseau_social.ml` (`PrivateMessage`).
    Voir point 31 de `docs/design_decisions.md`.
 
+9. **`rule Entite.champ payable`** — la règle nomme le champ qui porte le
+   MONTANT, donc l'entité qu'on encaisse. Ajoute deux colonnes de suivi
+   (`payment_status`, `payment_ref`, jamais fournies par le client) et deux
+   routes : `POST /entite/{id}/paiement` et `POST /paiement/webhook`.
+   **Le montant vient de la BASE, jamais du corps de requête** — la route de
+   règlement n'accepte aucun corps, et relit le champ à chaque appel. Six
+   refus à la compilation (entité ou champ inexistant, champ non numérique,
+   cumul avec `hidden`, deux champs `payable` sur une entité, création
+   `public`). Premier appel SORTANT d'un backend monl : secrets par
+   l'environnement (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`), 503 en
+   nommant la variable absente, et le reste du serveur intact — `monl run` et
+   le smoke test restent verts hors ligne. Le webhook vérifie la signature du
+   prestataire : c'est le SEUL endroit du backend généré où un tiers non
+   authentifié écrit en base, ne jamais l'affaiblir. Éprouvé contre un serveur
+   réel et un faux Stripe embarqué par `tests/test_paiement.py`. Voir point 74.
+
 ### Briques suivantes déjà évoquées, non cadrées
 - Rôle superviseur au-dessus d'`accessibleBy` (un modérateur qui lit tous
   les messages privés via `sharedBy`) — exclu volontairement de la première
@@ -216,7 +238,7 @@ réseau social anonyme comme banc d'essai final.
   `_compute_route_map`), `runtime.py` (socle du app.py généré : secret,
   `_connect`, init/migrations/seed, register/login/logout, quota),
   `routes.py` (une route par couple action/entité + contrôle d'accès),
-  `schemas.py`, `sql_schema.py`, `theme.py`, `sandbox.py`, `admin_cli.py`
+  `schemas.py`, `sql_schema.py`, `sandbox.py`, `admin_cli.py`
   (manage.py). La classe est recomposée par mixins dans `core.py` : une
   nouvelle brique de génération s'ajoute dans le module de sa couche, pas
   dans `core.py`. `from generator import MonlSecureGenerator` reste l'import
@@ -235,15 +257,25 @@ réseau social anonyme comme banc d'essai final.
   l'interface `PlainDialogueUI` (rendu nu = chaînes historiques) ; le rendu
   stylé n'est injecté que par `run_interactive_dialogue`. Ne jamais mettre de
   logique de dialogue dans tui.py, ni de mise en forme dans dialogue_engine.py.
-- Direction de design (bêta 3) : un thème épinglé par un bloc `ui … theme:`
-  est CONTRAIGNANT (palette exacte, sans variation de teinte, vérifiée par
-  `_verifier_palette` dans src/smoke_test.py) ; un thème déduit du vocabulaire
-  reste une proposition (écart = avertissement). Ne pas inverser cette
-  asymétrie : strict sur ce qui est déclaré, tolérant sur ce qui est deviné.
-- `_select_theme` / `_load_or_create_theme_seed` (generator/theme.py) : identité
-  visuelle déterministe par projet — plus aucun HTML n'en dérive depuis le
-  point 41, elle est transmise à l'IA frontend comme direction de design
-  via le contrat.
+- Direction de design (point 72) : le compilateur ne décide RIEN du visuel —
+  ni palette, ni typographie, ni rayon. Le bloc `ui … theme:` reste accepté
+  par la grammaire mais n'a plus aucun effet, `.monl_theme_seed` a disparu, et
+  `_verifier_palette` avec elle. La direction vient du DIALOGUE (registre
+  visuel, place des images) et voyage par le brief. Ne pas réintroduire de
+  suggestion « facultative » dans le contrat : elle oriente quand même.
+- Paiement (point 74) : `_generate_payment_routes` (generator/routes.py) est
+  la seule couche qui parle à l'extérieur. Trois invariants à ne jamais
+  assouplir — le montant est lu en base et la route n'accepte AUCUN corps ;
+  la signature du webhook est vérifiée avant toute écriture (seul endroit du
+  backend généré où un tiers non authentifié écrit) ; une clé absente donne
+  503 en la nommant, sans empêcher le reste du serveur de fonctionner.
+  `MONL_STRIPE_BASE_URL` existe pour que la brique soit éprouvable sans
+  appeler le vrai Stripe (`tests/test_paiement.py` embarque son prestataire).
+- Deux garde-fous d'empreinte dans src/frontend_ai.py, complémentaires
+  (point 73) : `_fingerprint_protected` vérifie ce qui NE DOIT PAS bouger
+  (app.py & consorts, point 69), `_fingerprint_frontend` vérifie ce qui DOIT
+  bouger. Sans le second, un frontend valide préexistant franchissait tous les
+  contrôles et monl annonçait une construction qui n'avait pas eu lieu.
 - Le smoke test (src/smoke_test.py) démarre un serveur ÉPHÉMÈRE dans un
   dossier temporaire : il ne touche jamais app.db du projet. Le fetch de
   jsdom DOIT être injecté via beforeParse (bug réel : assigné après

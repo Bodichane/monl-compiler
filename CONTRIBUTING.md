@@ -47,7 +47,7 @@ fusionne sans que les deux vérifications passent.
 ## Les règles du dépôt
 
 **Le journal d'abord.** [`docs/design_decisions.md`](docs/design_decisions.md)
-contient 66 points, chacun expliquant le *pourquoi* d'une règle, pas seulement le
+contient 74 points, chacun expliquant le *pourquoi* d'une règle, pas seulement le
 *quoi*. **Le consulter avant d'ajouter quoi que ce soit** : plusieurs pièges ne
 sont pas devinables depuis le code. Toute décision structurante y gagne un point
 numéroté, avec ce qui a été écarté et pourquoi.

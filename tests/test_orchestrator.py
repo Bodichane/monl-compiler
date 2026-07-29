@@ -429,3 +429,95 @@ workflow W for Admin
     roles = {f["name"]: f["role"] for f in contract["entities"]["Product"]["fields"]}
     assert roles["stock"] == "stock"
     assert "DISPONIBILITÉ" in (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+
+
+# ------------------------------------------- paiement (point 74) ------------
+SPEC_PAYABLE = """app Boutique
+
+entity Client
+    nom: String
+
+entity Commande
+    libelle: String
+    total: Money
+
+relation Client hasMany Commande
+
+actor Client selfRegister
+
+rule Commande.total payable
+
+workflow Acheter for Client
+    Create Commande
+    Read Commande
+"""
+
+
+def _projet_payable(tmp_path):
+    proj = tmp_path / "boutique"
+    proj.mkdir()
+    (proj / "spec.ml").write_text(SPEC_PAYABLE, encoding="utf-8")
+    return proj, compile_project(str(proj / "spec.ml"), str(proj))
+
+
+def test_les_routes_de_paiement_sont_dans_le_contrat(tmp_path):
+    """Les deux routes de la brique `payable` ne naissent pas d'un workflow :
+    elles échappent donc à `_compute_route_map`, et le contrat les ignorait.
+    Conséquence concrète, et pas théorique : l'IA d'interface ne pouvait pas
+    dessiner le bouton de règlement — le contrat lui interdit par ailleurs
+    d'appeler un chemin absent de `routes`. Une brique que le contrat ne
+    décrit pas est une brique sans interface.
+
+    Le test est celui de la non-divergence, appliqué à une spec payable : ce
+    n'est pas la présence des deux chemins qui est vérifiée, mais l'égalité
+    avec les décorateurs réellement écrits dans app.py."""
+    proj, contract = _projet_payable(tmp_path)
+    app_code = (proj / "app.py").read_text(encoding="utf-8")
+    real_routes = {(m.group(1).upper(), m.group(2)) for m in
+                   re.finditer(r"@app\.(get|post|put|delete)\('([^']+)'", app_code)}
+    infra = {("POST", "/register"), ("POST", "/login"), ("POST", "/logout"),
+             ("GET", "/")}
+    contract_routes = {(r["method"], r["path"]) for r in contract["routes"]}
+    assert contract_routes == real_routes - infra
+    assert ("POST", "/commande/{id}/paiement") in contract_routes
+    assert ("POST", "/paiement/webhook") in contract_routes
+
+
+def test_le_brief_dit_comment_regler_et_de_ne_pas_appeler_le_webhook(tmp_path):
+    """L'IA ne lit pas le JSON du contrat, elle lit le brief. Une route
+    listée sans sa marche à suivre — aucun corps, rediriger vers `url` — se
+    devine mal ; et le webhook, lui, doit être explicitement écarté, sinon
+    une interface consciencieuse tentera de le notifier elle-même."""
+    proj, _contract = _projet_payable(tmp_path)
+    brief = (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    assert "POST /commande/{id}/paiement" in brief
+    assert "AUCUN corps" in brief and "montant_centimes" in brief
+    assert "jamais par le frontend" in brief
+    # Et pas seulement dans l'inventaire des routes : le règlement est le seul
+    # parcours du frontend où une erreur coûte de l'argent, il figure dans les
+    # règles non négociables, que l'IA lit avant la liste.
+    regles = brief.split("## Entités")[0].split("## Règles non négociables")[1]
+    assert "sans aucun corps" in regles
+    assert "Ne JAMAIS appeler `POST /paiement/webhook`" in regles
+
+
+def test_sans_payable_le_brief_ne_parle_jamais_de_paiement(tmp_path):
+    """Le témoin : une règle qui n'existe pas dans la spec ne doit laisser
+    aucune trace dans le brief. Une consigne de règlement sur un portfolio
+    enverrait l'IA construire un bouton qui n'a pas de route."""
+    proj, _spec, _contract = _fresh_project(tmp_path)
+    brief = (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    assert "paiement" not in brief.lower()
+
+
+def test_les_colonnes_de_suivi_ne_sont_pas_annoncees_en_entree(tmp_path):
+    """`payment_status` et `payment_ref` sont au serveur. Le contrat ne doit
+    pas les faire figurer dans le corps de la création : un frontend fidèle
+    les enverrait, et croirait pouvoir décider lui-même qu'une commande est
+    payée."""
+    _proj, contract = _projet_payable(tmp_path)
+    creation = next(r for r in contract["routes"]
+                    if r["method"] == "POST" and r["path"] == "/commande")
+    assert "total" in creation["request_fields"]
+    assert "payment_status" not in creation["request_fields"]
+    assert "payment_ref" not in creation["request_fields"]

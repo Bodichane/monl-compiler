@@ -378,6 +378,54 @@ class MonlAST:
                     )
                 self.generated_fields.append({"entity": entity, "field": field})
 
+        # AJOUT (roadmap, brique paiement -- point 74) : validation de
+        # 'payable'. La règle nomme le champ qui porte le MONTANT ; l'entité
+        # qui le contient est celle qu'on encaisse. Les refus ci-dessous sont
+        # le cœur de la brique : un paiement mal déclaré doit échouer à la
+        # compilation, jamais au moment d'encaisser.
+        self.payable_fields = []
+        for rule in self.rules:
+            if rule["type"] != "payable":
+                continue
+            if "." not in rule["reference"]:
+                raise ASTValidationError(
+                    f"Structure : la règle 'payable' doit référencer 'Entite.champ', reçu '{rule['reference']}'."
+                )
+            entity, field = rule["reference"].split(".", 1)
+            if entity not in self.entities:
+                raise ASTValidationError(
+                    f"Structure : la règle 'payable' cible l'entité '{entity}' qui n'existe pas."
+                )
+            field_type = self.entities.get(entity, {}).get(field)
+            if field_type not in ("Money", "Float", "Integer"):
+                raise ASTValidationError(
+                    f"Structure : 'payable' cible le champ '{entity}.{field}', qui doit être un attribut "
+                    f"Money, Float ou Integer déclaré (reçu : {field_type or 'champ inexistant'}) -- "
+                    f"on n'encaisse pas du texte."
+                )
+            # Un montant masqué serait invérifiable par le client qui paie :
+            # il ne pourrait pas confronter ce qu'on lui demande à ce qu'il a
+            # commandé.
+            if (entity, field) in self.masked_fields:
+                raise ASTValidationError(
+                    f"Structure : '{entity}.{field}' est à la fois 'hidden' et 'payable' -- incompatible : "
+                    f"un montant qu'on ne peut pas lire ne peut pas être vérifié par celui qui le règle."
+                )
+            if any(p["entity"] == entity for p in self.payable_fields):
+                raise ASTValidationError(
+                    f"Structure : '{entity}' porte plusieurs champs 'payable' -- un seul montant par entité, "
+                    f"sinon rien ne dit lequel encaisser."
+                )
+            # Encaisser exige de savoir QUI paie : une création publique n'a
+            # aucune identité à rattacher au règlement, ni personne à qui
+            # rendre l'argent.
+            if (entity, "Create") in self.public_actions:
+                raise ASTValidationError(
+                    f"Structure : '{entity}.{field}' est 'payable', mais '{entity}.Create' est 'public' -- "
+                    f"incompatible : un paiement exige un appelant identifié."
+                )
+            self.payable_fields.append({"entity": entity, "field": field})
+
         # AJOUT (roadmap, écosystème de capacités -- brique 3, généralisée en
         # brique 4) : validation des règles 'decrements'/'increments' --
         # même mécanique dans les deux sens (réputation qui baisse sur
@@ -501,7 +549,7 @@ class MonlAST:
         # (collision de privilèges, restriction de champ) dans ce compilateur.
         # 'auth' est la seule capacité connue pour l'instant (brique 1,
         # purement déclarative -- aucun effet sur la génération à ce stade).
-        KNOWN_CAPABILITIES = {"auth"}
+        KNOWN_CAPABILITIES = {"auth", "payment"}
         unknown = [c for c in self.capabilities_raw if c not in KNOWN_CAPABILITIES]
         if unknown:
             raise ASTValidationError(
@@ -680,6 +728,7 @@ class MonlAST:
                 "reputation_rules": self.reputation_rules,
                 "categorized_fields": self.categorized_fields,
                 "generated_fields": self.generated_fields,
+                "payable_fields": self.payable_fields,
             },
             "sandbox_ai": {"custom_functions": list(self.custom_logic.values())},
             "ui": self.ui_overrides,

@@ -155,10 +155,15 @@ def _http(method, url, body=None, token=None):
                 # /docs et consorts renvoient du HTML — seul le statut compte.
                 return resp.status, {}
     except urllib.error.HTTPError as e:
-        try:
-            payload = json.loads(e.read() or b"{}")
-        except Exception:
-            payload = {}
+        # Un HTTPError EST la réponse : le lire ne suffit pas, il faut le
+        # fermer. Sans ce close, chaque 401 attendu (et le smoke test en
+        # provoque à dessein, pour vérifier que les routes protégées le sont)
+        # laissait un descripteur derrière lui.
+        with e:
+            try:
+                payload = json.loads(e.read() or b"{}")
+            except Exception:
+                payload = {}
         return e.code, payload  # corps d'erreur non-JSON toléré aussi
     except urllib.error.URLError:
         return 0, {}
@@ -193,78 +198,6 @@ def _sample_value(ftype, fname):
     return f"smoke-{fname}"
 
 
-def _verifier_palette(frontend_dir, contract):
-    """Confronte la palette du contrat aux feuilles de style livrées.
-
-    AJOUT (bêta 3) : la clause 'design' du contrat était la seule que rien ne
-    vérifiait — les routes sont confrontées à app.py, le comportement au
-    smoke test, mais l'identité visuelle pouvait être ignorée en silence.
-    Dans un produit dont la thèse est « le contrat fait foi », une clause
-    invérifiée décrédibilise les autres.
-
-    Ne vérifie QUE ce que la spec a explicitement épinglé (point 58) :
-      - thème épinglé par un bloc 'ui theme:' -> l'auteur a tranché, l'écart
-        est une erreur ;
-      - aucun épinglage -> le visuel appartient à l'IA d'interface, monl ne
-        propose plus rien et n'a donc rien à reprocher. L'avertissement
-        d'autrefois portait sur une DEVINETTE du compilateur : il poussait à
-        reproduire un aplat crème que la palette déduite rendait inévitable,
-        faute de toute surface sombre.
-
-    Retourne une liste de (message, bloquant).
-    """
-    design = contract.get("design") or {}
-    if not design.get("pinned"):
-        return []
-    couleurs = {cle: design.get(cle) for cle in ("bg", "surface", "ink", "accent", "accent2")}
-    couleurs = {k: v for k, v in couleurs.items() if isinstance(v, str) and v.startswith("#")}
-    if not couleurs:
-        return []
-
-    styles = []
-    for racine, _dirs, fichiers in os.walk(frontend_dir):
-        for nom in fichiers:
-            if nom.lower().endswith((".css", ".html")):
-                with open(os.path.join(racine, nom), encoding="utf-8", errors="replace") as fh:
-                    styles.append(fh.read().lower())
-    if not styles:
-        return []
-    feuille = "\n".join(styles)
-
-    couleurs_absentes = [f"{cle} {valeur}" for cle, valeur in couleurs.items()
-                         if valeur.lower() not in feuille]
-
-    # AJOUT (point 52) : la typographie était la moitié NON vérifiée de la
-    # clause design — c'est ce qui a laissé prospérer une direction qui
-    # réclamait des Google Fonts que le même contrat interdit de charger.
-    # On contrôle la famille de titrage, celle qui porte l'identité ; le
-    # reste de la pile (les secours) demeure libre.
-    titrage = (design.get("font_display") or "").split(",")[0].strip().strip("'\"").lower()
-    manquantes = list(couleurs_absentes)
-    if titrage and titrage not in feuille:
-        manquantes.append(f"police de titrage {titrage}")
-
-    if not manquantes:
-        return []
-
-    # Calibrage assumé : SEULE une couleur absente peut bloquer. Un `#D9F227`
-    # est une valeur exacte, présente ou non ; une pile de polices a des
-    # quasi-équivalents (`Helvetica` pour `'Helvetica Neue'`) qu'une recherche
-    # textuelle ne sait pas distinguer d'un oubli. Bloquer là-dessus punirait
-    # un bon parti pris pour une différence invisible à l'œil — exactement le
-    # faux positif que le point 48 s'interdit. L'écart typographique est donc
-    # toujours signalé, jamais bloquant, même thème épinglé.
-    epingle = bool(design.get("pinned")) and bool(couleurs_absentes)
-    if epingle:
-        return [(f"la spec épingle le thème « {design.get('name')} » mais le frontend "
-                 f"n'en applique pas la direction : {', '.join(manquantes)} absent(s) des "
-                 f"styles livrés", True)]
-    # Thème épinglé mais SEULE la typographie s'écarte : signalé, pas bloquant
-    # (point 52 — une pile de polices a des quasi-équivalents).
-    return [(f"la spec épingle le thème « {design.get('name')} » : "
-             f"{', '.join(manquantes)} absent(s) des styles livrés", False)]
-
-
 def run_smoke_test(project_dir, say=print):
     """Retourne (ok, erreurs, avertissements). Lève seulement sur bug interne."""
     errors, warnings = [], []
@@ -281,9 +214,6 @@ def run_smoke_test(project_dir, say=print):
                 shutil.copy2(src, workdir)
         frontend_src = os.path.join(project_dir, "frontend")
         has_frontend = os.path.isdir(frontend_src)
-        if has_frontend:
-            for probleme, bloquant in _verifier_palette(frontend_src, contract):
-                (errors if bloquant else warnings).append(probleme)
         if has_frontend:
             shutil.copytree(frontend_src, os.path.join(workdir, "frontend"))
 
@@ -343,12 +273,24 @@ def run_smoke_test(project_dir, say=print):
             for route in contract["routes"]:
                 path, method = route["path"], route["method"]
                 concrete = path.replace("{id}", "1")
-                if route["auth_required"]:
+                if route["auth_required"] and route["allowed_actors"]:
                     status, _b = _http(method, base + concrete,
                                        body={} if method in ("POST", "PUT") else None)
                     if status not in (401, 403):
                         errors.append(f"{method} {path} sans jeton a répondu {status} "
                                       f"(un refus 401/403 était attendu)")
+                elif route["auth_required"]:
+                    # POINT 74 : une route protégée AUTREMENT que par un JWT —
+                    # le webhook de paiement, authentifié par la signature du
+                    # prestataire. Aucun acteur ne l'ouvre, donc exiger 401/403
+                    # n'a pas de sens : sans clé configurée elle répond 503, et
+                    # avec clé 400 (signature absente). Ce qui doit être vrai
+                    # dans tous les cas, c'est qu'une requête nue est REFUSÉE.
+                    status, _b = _http(method, base + concrete,
+                                       body={} if method in ("POST", "PUT") else None)
+                    if status < 400:
+                        errors.append(f"{method} {path} a accepté une requête sans "
+                                      f"aucune authentification (réponse {status})")
                 if method == "GET" and not route["auth_required"]:
                     status, _b = _http("GET", base + concrete)
                     if route["action"] == "List" and status != 200:
@@ -458,6 +400,11 @@ def run_smoke_test(project_dir, say=print):
                 server.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 server.kill()
+            # `stderr=PIPE` ouvre un descripteur que ni terminate() ni wait()
+            # ne referment. Sans ce close, chaque smoke test en laisse un
+            # derrière lui — et le smoke test tourne à chaque `monl run`.
+            if server.stderr:
+                server.stderr.close()
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
 

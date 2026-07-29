@@ -548,6 +548,26 @@ def _fingerprint_protected(project_dir):
     return prints
 
 
+def _fingerprint_frontend(project_dir):
+    """Empreinte de TOUT le contenu de frontend/ (POINT 73).
+
+    Le garde-fou d'empreinte ne surveillait que les artefacts PROTÉGÉS —
+    ce qu'un agent ne doit pas toucher. Personne ne mesurait ce qu'il était
+    censé produire : `frontend/index.html` existait déjà, la cohérence
+    passait, le smoke test aussi, et monl annonçait « Frontend construit »
+    alors que l'agent n'avait pas écrit une ligne. Un contrôle qui ne peut
+    pas distinguer « construit » de « laissé intact » ne contrôle rien.
+    """
+    prints = {}
+    racine = os.path.join(project_dir, "frontend")
+    for dossier, _sous, fichiers in os.walk(racine):
+        for nom in fichiers:
+            chemin = os.path.join(dossier, nom)
+            with open(chemin, "rb") as fh:
+                prints[os.path.relpath(chemin, racine)] = hashlib.sha256(fh.read()).hexdigest()
+    return prints
+
+
 def run_cli_agent(project_dir, instruction, max_turns=DEFAULT_MAX_TURNS,
                   command=None, agent="claude-code", agent_command=None):
     """Invoque l'agent dans le dossier du projet. 'command' est injectable
@@ -622,6 +642,7 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
                            + " ; ".join(last_errors))
         say(f" -> {nom} travaille dans {project_dir} (tentative {attempt}/2)…")
         before = _fingerprint_protected(project_dir)
+        front_avant = _fingerprint_frontend(project_dir)
         run_cli_agent(project_dir, instruction, max_turns=max_turns,
                       command=command, agent=agent, agent_command=agent_command)
 
@@ -641,6 +662,21 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
                            "point d'entrée exigé par le contrat n'a pas été produit"]
             say(f" ❌ {last_errors[0]}")
             continue
+
+        # POINT 73 : l'agent n'a rien écrit. Un frontend valide préexistant
+        # franchit sinon TOUS les contrôles suivants — index.html est là, la
+        # cohérence tient, le smoke test passe — et monl annonce une
+        # construction qui n'a pas eu lieu. On le dit, plutôt que de féliciter
+        # l'agent pour le travail de son prédécesseur.
+        if _fingerprint_frontend(project_dir) == front_avant:
+            say(f" ⚠️  {nom} n'a modifié AUCUN fichier de frontend/.")
+            say("    Un frontend valide existait déjà : l'agent a jugé qu'il")
+            say("    répondait au contrat et n'a rien réécrit. Rien n'est cassé,")
+            say("    mais rien n'a été construit non plus.")
+            say("    Pour forcer une réécriture, videz frontend/ d'abord ")
+            say("    (sauvegardez-le), ou utilisez 'monl frontend --update' pour")
+            say("    demander une ÉVOLUTION de l'existant.")
+            return True, []
 
         say(" -> Re-vérification automatique (cohérence + smoke test)…")
         ok, errors, warnings = check_coherence(project_dir)

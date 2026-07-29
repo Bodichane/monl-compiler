@@ -425,4 +425,150 @@ class RoutesMixin:
                 api_lines.append("    return {'status': 'executed', 'sandbox_result': result}")
                 api_lines.append("")
 
+        api_lines.extend(self._generate_payment_routes())
         return api_lines
+
+    # ─────────────────────────────────────────────────────────────────
+    # BRIQUE PAIEMENT (point 74). Deux routes seulement, et un principe :
+    # le montant encaissé vient de la BASE, jamais du client. Un panier
+    # qui envoie son propre prix est un panier qu'on peut négocier.
+    #
+    # Les secrets viennent de l'environnement (même règle que le secret
+    # JWT). Absents, les routes existent mais répondent 503 en nommant la
+    # variable manquante : un paiement doit refuser bruyamment, jamais
+    # échouer en silence — et le smoke test reste vert hors ligne.
+    # ─────────────────────────────────────────────────────────────────
+    def _generate_payment_routes(self):
+        if not self.payable_by_entity:
+            return []
+        lignes = [
+            "",
+            "# ── Paiement (brique 'payable') ──────────────────────────────",
+            "STRIPE_SECRET_KEY = (os.environ.get('STRIPE_SECRET_KEY') or '').strip()",
+            "STRIPE_WEBHOOK_SECRET = (os.environ.get('STRIPE_WEBHOOK_SECRET') or '').strip()",
+            "# Point de terminaison surchargeable : indispensable pour éprouver",
+            "# le parcours complet sans appeler Stripe (voir tests).",
+            "STRIPE_BASE_URL = (os.environ.get('MONL_STRIPE_BASE_URL')",
+            "                   or 'https://api.stripe.com').rstrip('/')",
+            "",
+            "def _exiger_cle_paiement(nom, valeur):",
+            "    if not valeur:",
+            "        raise HTTPException(status_code=503, detail=(",
+            "            f\"Paiement indisponible : la variable d'environnement {nom} n'est pas \"",
+            "            'définie sur le serveur. Aucun règlement ne peut être accepté tant '",
+            "            \"qu'elle manque.\"))",
+            "",
+            "def _session_paiement(montant_centimes, devise, reference, retour):",
+            "    \"\"\"Crée une session de règlement. Le montant est en CENTIMES,",
+            "    calculé côté serveur depuis la base.\"\"\"",
+            "    corps = urllib.parse.urlencode({",
+            "        'mode': 'payment',",
+            "        'success_url': retour + '?paiement=ok',",
+            "        'cancel_url': retour + '?paiement=annule',",
+            "        'client_reference_id': str(reference),",
+            "        'line_items[0][quantity]': '1',",
+            "        'line_items[0][price_data][currency]': devise,",
+            "        'line_items[0][price_data][unit_amount]': str(montant_centimes),",
+            "        'line_items[0][price_data][product_data][name]': f'Commande {reference}',",
+            "    }).encode()",
+            "    requete = urllib.request.Request(",
+            "        STRIPE_BASE_URL + '/v1/checkout/sessions', data=corps, method='POST')",
+            "    requete.add_header('Authorization', 'Bearer ' + STRIPE_SECRET_KEY)",
+            "    requete.add_header('Content-Type', 'application/x-www-form-urlencoded')",
+            "    try:",
+            "        with urllib.request.urlopen(requete, timeout=15) as reponse:",
+            "            return json.loads(reponse.read() or b'{}')",
+            "    except urllib.error.HTTPError as e:",
+            "        with e:",
+            "            detail = (e.read() or b'')[:400].decode('utf-8', 'replace')",
+            "        raise HTTPException(status_code=502, detail=(",
+            "            f'Le prestataire de paiement a refusé la demande ({e.code}) : {detail}'))",
+            "    except urllib.error.URLError as e:",
+            "        raise HTTPException(status_code=502, detail=(",
+            "            f'Prestataire de paiement injoignable : {e.reason}'))",
+            "",
+        ]
+        for entite, champ in sorted(self.payable_by_entity.items()):
+            table = entite.lower()
+            proprio = self._get_incoming_relation(entite)
+            # Le montant, l'état et le propriétaire sortent de la MÊME lecture :
+            # deux requêtes séparées laissaient une fenêtre entre le contrôle
+            # d'accès et le calcul du montant.
+            colonnes = f'"{champ}", payment_status'
+            if proprio:
+                colonnes += f', "{proprio["fk_column"]}"'
+            lignes += [
+                f"@app.post('/{table}/{{id}}/paiement', tags=['Paiement'])",
+                f"def payer_{table}(id: int, request: Request, "
+                "current_user_id: int = Depends(get_current_user_id)):",
+                "    _exiger_cle_paiement('STRIPE_SECRET_KEY', STRIPE_SECRET_KEY)",
+                "    conn = _connect(); cursor = conn.cursor()",
+                f"    cursor.execute('SELECT {colonnes} FROM \"{table}\" WHERE id = ?', (id,))",
+                "    ligne = cursor.fetchone()",
+                "    conn.close()",
+                "    if not ligne:",
+                "        raise HTTPException(status_code=404, detail='Introuvable.')",
+            ]
+            if proprio:
+                lignes += [
+                    "    montant, etat, proprietaire = ligne",
+                    "    if proprietaire is not None and proprietaire != current_user_id:",
+                    "        raise HTTPException(status_code=403, detail="
+                    "'Cet enregistrement ne vous appartient pas.')",
+                ]
+            else:
+                lignes.append("    montant, etat = ligne")
+            lignes += [
+                "    if etat == 'payee':",
+                "        raise HTTPException(status_code=409, detail='Déjà réglé.')",
+                "    centimes = int(round(float(montant or 0) * 100))",
+                "    if centimes <= 0:",
+                "        raise HTTPException(status_code=400, detail=(",
+                "            'Montant nul ou négatif : rien à encaisser.'))",
+                "    retour = str(request.base_url).rstrip('/') + '/site/'",
+                "    session = _session_paiement(centimes, 'eur', id, retour)",
+                "    return {'status': 'success', 'url': session.get('url'),",
+                "            'session_id': session.get('id'), 'montant_centimes': centimes}",
+                "",
+            ]
+        lignes += [
+            "@app.post('/paiement/webhook', tags=['Paiement'])",
+            "async def paiement_webhook(request: Request):",
+            "    _exiger_cle_paiement('STRIPE_WEBHOOK_SECRET', STRIPE_WEBHOOK_SECRET)",
+            "    brut = await request.body()",
+            "    entete = request.headers.get('stripe-signature', '')",
+            "    # Signature Stripe : t=<horodatage>,v1=<hmac sha256 de \"t.corps\">.",
+            "    # Sans cette vérification, n'importe qui marquerait n'importe",
+            "    # quelle commande comme payée avec un simple curl.",
+            "    horodatage, signatures = None, []",
+            "    for morceau in entete.split(','):",
+            "        cle, _, valeur = morceau.partition('=')",
+            "        if cle.strip() == 't': horodatage = valeur.strip()",
+            "        elif cle.strip() == 'v1': signatures.append(valeur.strip())",
+            "    if not horodatage or not signatures:",
+            "        raise HTTPException(status_code=400, detail='Signature absente ou malformée.')",
+            "    attendue = hmac.new(STRIPE_WEBHOOK_SECRET.encode(),",
+            "                        (horodatage + '.').encode() + brut, hashlib.sha256).hexdigest()",
+            "    if not any(hmac.compare_digest(attendue, s) for s in signatures):",
+            "        raise HTTPException(status_code=400, detail='Signature invalide.')",
+            "    evenement = json.loads(brut or b'{}')",
+            "    objet = (evenement.get('data') or {}).get('object') or {}",
+            "    reference = objet.get('client_reference_id')",
+            "    if evenement.get('type') != 'checkout.session.completed' or not reference:",
+            "        return {'status': 'ignored'}",
+            "    conn = _connect(); cursor = conn.cursor()",
+            "    try:",
+        ]
+        for entite in sorted(self.payable_by_entity):
+            lignes.append(
+                f"        cursor.execute('UPDATE \"{entite.lower()}\" SET payment_status = ?, "
+                f"payment_ref = ? WHERE id = ?', ('payee', objet.get('id'), int(reference)))")
+        lignes += [
+            "        conn.commit()",
+            "    except Exception:",
+            "        conn.rollback(); conn.close(); raise",
+            "    conn.close()",
+            "    return {'status': 'success'}",
+            "",
+        ]
+        return lignes

@@ -12,6 +12,7 @@ Chaque test rejoue une faille réelle constatée sur la bêta 2 :
 """
 import json
 import os
+import pathlib
 import shutil
 import subprocess
 import sys
@@ -100,8 +101,15 @@ def _vider_quota(workdir):
     minute : il lui suffit de vider la table, ce qui n'affaiblit rien du
     produit et ne concerne que le banc d'essai."""
     import sqlite3
-    with sqlite3.connect(os.path.join(workdir, "app.db")) as cnx:
-        cnx.execute("DELETE FROM _monl_rate_limit")
+    cnx = sqlite3.connect(os.path.join(workdir, "app.db"))
+    try:
+        with cnx:
+            cnx.execute("DELETE FROM _monl_rate_limit")
+    finally:
+        # `with sqlite3.connect(...)` valide la transaction mais ne FERME
+        # pas la connexion : sans ce close, la suite fuit un descripteur par
+        # appel et le signale en ResourceWarning.
+        cnx.close()
 
 
 def _login(base, username, password="motdepasse123"):
@@ -280,9 +288,11 @@ def test_liste_noire_des_jetons_purgeable():
     """La table des jetons révoqués porte la date d'expiration nécessaire à sa purge."""
     with tempfile.TemporaryDirectory() as workdir:
         _compile(workdir)
-        schema = open(os.path.join(workdir, "schema.sql"), encoding="utf-8").read()
+        with open(os.path.join(workdir, "schema.sql"), encoding="utf-8") as fh:
+            schema = fh.read()
         assert "expires_at" in schema
-        app = open(os.path.join(workdir, "app.py"), encoding="utf-8").read()
+        with open(os.path.join(workdir, "app.py"), encoding="utf-8") as fh:
+            app = fh.read()
         assert "DELETE FROM _monl_revoked_tokens WHERE expires_at" in app
 
 
@@ -326,7 +336,7 @@ def test_compilation_reproductible_entre_processus():
             env = {**os.environ, "PYTHONHASHSEED": seed}
             subprocess.run([sys.executable, "-c", code], check=True, capture_output=True, env=env)
             sources[seed] = {
-                name: open(os.path.join(workdir, name), encoding="utf-8").read()
+                name: pathlib.Path(workdir, name).read_text(encoding="utf-8")
                 for name in ("app.py", "schema.sql", "manage.py")
             }
     for name in sources["0"]:

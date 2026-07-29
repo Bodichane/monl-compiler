@@ -12,7 +12,6 @@ from .runtime import RuntimeMixin
 from .sandbox import SandboxMixin
 from .schemas import SchemasMixin
 from .sql_schema import SqlSchemaMixin
-from .theme import ThemeMixin
 
 
 class MonlSecureGenerator(
@@ -21,7 +20,6 @@ class MonlSecureGenerator(
     RuntimeMixin,
     SchemasMixin,
     RoutesMixin,
-    ThemeMixin,
     SandboxMixin,
 ):
     def __init__(self, normalized_ast, output_dir=None):
@@ -104,6 +102,13 @@ class MonlSecureGenerator(
         self.generated_fields_by_entity = {}
         for gf in normalized_ast["security"].get("generated_fields", []):
             self.generated_fields_by_entity.setdefault(gf["entity"], []).append(gf["field"])
+        # AJOUT (brique paiement, point 74) : entité encaissable et champ
+        # portant le montant. {Entite: champ} — le validateur garantit au
+        # plus un champ payable par entité.
+        self.payable_by_entity = {
+            pf["entity"]: pf["field"]
+            for pf in normalized_ast["security"].get("payable_fields", [])
+        }
         # AJOUT (roadmap, contrôle du rendu visuel) : surcharges explicites du
         # thème/ordre/champ principal par entité, issues des blocs 'ui'.
         self.ui_overrides = normalized_ast.get("ui", {})
@@ -325,6 +330,15 @@ class MonlSecureGenerator(
             columns = []
             for attr_name, attr_type in attrs.items():
                 columns.append((attr_name, self._map_type_to_sql(attr_type)))
+            if ent_name in self.payable_by_entity:
+                # Le DEFAULT compte ici autant que dans le CREATE TABLE : sur
+                # une base existante, SQLite l'applique aux lignes déjà
+                # présentes. Sans lui, ajouter `payable` à une spec en
+                # production laisserait les anciens enregistrements à NULL et
+                # les nouveaux à 'en_attente' — deux façons de dire la même
+                # chose, que toute lecture devrait ensuite réconcilier.
+                columns.append(("payment_status", "VARCHAR(32) DEFAULT 'en_attente'"))
+                columns.append(("payment_ref", "VARCHAR(255)"))
             for placement in fk_placements.get(ent_name, []):
                 columns.append((placement["fk_column"], "INTEGER"))
             expected[table] = columns
@@ -345,6 +359,8 @@ class MonlSecureGenerator(
         API plutôt que des tableaux positionnels — nécessaire pour un rendu
         front lisible (roadmap : front visuel, pas de JSON brut)."""
         columns = ["id"] + list(self.entities[entity].keys())
+        if entity in self.payable_by_entity:
+            columns += ["payment_status", "payment_ref"]
         for placement in self._compute_fk_placements().get(entity, []):
             columns.append(placement["fk_column"])
         return columns

@@ -77,6 +77,13 @@ class SqlSchemaMixin:
             for attr_name, attr_type in attrs.items():
                 sql_type = self._map_type_to_sql(attr_type)
                 sql_lines.append(f'    "{attr_name}" {sql_type},')
+            # AJOUT (brique paiement, point 74) : deux colonnes de suivi du
+            # règlement, jamais fournies par le client (retirées des schémas
+            # d'entrée, comme un champ 'generated'). 'en_attente' au départ :
+            # une commande existe avant d'être payée.
+            if ent_name in getattr(self, "payable_by_entity", {}):
+                sql_lines.append('    "payment_status" VARCHAR(32) DEFAULT \'en_attente\',')
+                sql_lines.append('    "payment_ref" VARCHAR(255),')
 
             # CORRECTIF (roadmap, second bug -- masqué jusqu'ici par le
             # premier) : les colonnes de clé étrangère et leur contrainte
