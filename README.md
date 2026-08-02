@@ -5,8 +5,8 @@
 [![CI](https://github.com/Bodichane/MonL/actions/workflows/ci.yml/badge.svg)](https://github.com/Bodichane/MonL/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/badge/version-0.9.0--beta.5-blue)](CHANGELOG.md)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
-[![Tests](https://img.shields.io/badge/tests-164-brightgreen)](tests/)
-[![Couverture](https://img.shields.io/badge/couverture-85%25-brightgreen)](#qualité-et-vérification)
+[![Tests](https://img.shields.io/badge/tests-260-brightgreen)](tests/)
+[![Couverture](https://img.shields.io/badge/couverture-88%25-brightgreen)](#qualité-et-vérification)
 [![Licence](https://img.shields.io/badge/licence-propriétaire-lightgrey)](LICENSE)
 
 On décrit l'intention d'une application dans un DSL dédié ; MonL en génère la base
@@ -92,6 +92,8 @@ backend et le contrat frontend ; l'IA écrit l'interface contre ce contrat ;
 | `monl import <zip\|html\|dossier> <App>` | Installe un frontend obtenu sans clé API |
 | `monl run <App>` | Vérifie la cohérence, joue le smoke test, puis lance |
 | `monl update <App>` | Recompile après évolution de la spec, préserve les données |
+| `monl assets add <fichier> --for "<fiche>"` | Installe une photo et la déclare dans la spec |
+| `monl assets list <App>` | Ce que la spec déclare, ce qui est présent, ce qui traîne |
 
 Chaque projet se compile dans son propre dossier via `--output`, afin de ne pas
 écraser le précédent. Les spécifications portent l'extension `.ml`.
@@ -111,10 +113,52 @@ toute injection par les noms de tables ou de colonnes.
 | `rule Entite.Action accessibleBy col1, col2` | Réservé aux parties référencées par l'enregistrement (messagerie privée : expéditeur et destinataire) |
 | `rule Entite.Action public` | Retire l'authentification d'une action précise (galerie publique, formulaire de contact) |
 
+**Les contraintes de champ sont appliquées, pas seulement déclarées :**
+
+| Règle | Effet |
+|---|---|
+| `rule Produit.prix min 0` | Borne d'entrée — **422 avant tout INSERT**. Valeur sur les types nombre, longueur sur les types texte |
+| `rule Membre.pseudo unique` | Index unique en base — un doublon répond 409, à la création comme à la modification |
+| `rule Produit.nom required` | Assertion vérifiée : le champ doit exister (les schémas rendent déjà tout champ obligatoire) |
+| `rule Ligne.Create decrements Produit.stock by quantite` | Décompte **la quantité demandée**, et refuse en 409 de passer sous le `min` déclaré |
+| `rule Commande.passeeLe timestamp` | Date de création écrite par le **serveur** (ISO 8601 UTC), absente des corps de requête — création comme modification |
+
 D'autres marqueurs affinent champs et comportement : `hidden`, `generated`,
-`categorized`, `increments` / `decrements` (compteurs transactionnels), ainsi qu'un
-bloc `seed` idempotent qui pré-remplit la base au démarrage. Une règle sans effet
-est **refusée à la compilation** plutôt qu'ignorée en silence.
+`categorized`, `derivedFrom` / `sumOf` (montants calculés par le serveur),
+`payable` (encaissement, ci-dessous), ainsi qu'un bloc `seed` idempotent qui
+pré-remplit la base au démarrage. Une règle sans effet est **refusée à la
+compilation** plutôt qu'ignorée en silence — et une règle qui désigne un champ
+inexistant aussi : une contrainte à laquelle rien ne correspond laisse croire à
+une protection qui n'existe pas.
+
+<details>
+<summary><b>Encaisser : <code>rule Commande.total payable</code></b></summary>
+
+<br>
+
+La règle nomme le champ qui porte le **montant** ; l'entité qui le contient est
+celle qu'on encaisse. MonL en dérive deux colonnes de suivi et deux routes —
+`POST /commande/{id}/paiement`, qui ouvre une session de règlement, et
+`POST /paiement/webhook`, qui reçoit la confirmation du prestataire.
+
+**Le montant vient de la base, jamais du client.** La route de règlement
+n'accepte aucun corps de requête : elle relit le champ à chaque appel. Un panier
+qui envoie son propre prix est un panier qu'on peut négocier. Le webhook, lui,
+vérifie la signature du prestataire avant d'écrire quoi que ce soit — c'est le
+seul endroit du backend généré où un tiers non authentifié touche à la base.
+
+Six situations sont refusées **à la compilation** plutôt qu'au moment
+d'encaisser : entité ou champ inexistant, champ non numérique, cumul avec
+`hidden` (un montant illisible est invérifiable par celui qui le règle), deux
+champs `payable` sur une même entité (plus rien ne dit lequel encaisser), et
+création `public` (un paiement exige un appelant identifié).
+
+Les clés (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`) viennent de
+l'environnement, comme le secret JWT. Absentes, les routes répondent 503 **en
+nommant la variable manquante** et le reste du serveur fonctionne normalement :
+un projet fraîchement compilé se lance et se teste hors ligne.
+
+</details>
 
 <details>
 <summary><b>Inscription : pourquoi un rôle ne s'obtient pas en un appel HTTP</b></summary>
@@ -135,15 +179,19 @@ portfolio, boutique, réseau social, kanban, classement — dont MonL dérive to
 le reste.
 
 <details>
-<summary><b>Direction visuelle : contraignante si déclarée, indicative si déduite</b></summary>
+<summary><b>Direction visuelle : elle ne vient pas du compilateur</b></summary>
 
 <br>
 
-Un thème épinglé dans la spec (`ui <Entité>` + `theme: <nom>`) est **contraignant** :
-sa palette est vérifiée dans le frontend au smoke test. Un thème déduit du
-vocabulaire des entités n'est qu'une **proposition**, dont l'interface peut
-s'écarter. Le compilateur ne fait échouer un build que sur ce que l'auteur a
-réellement déclaré.
+MonL n'a **aucun** avis sur le visuel — ni palette, ni typographie, ni grille.
+Il ne sait pas à quoi un projet doit ressembler ; il ne connaît que des noms de
+tables. La direction est celle que l'auteur formule dans le dialogue (registre
+visuel, place des images) : elle voyage dans le brief, et c'est l'IA
+d'interface qui la sert.
+
+Deux exigences seulement subsistent, et ce ne sont pas des questions de goût :
+le **contraste** (WCAG AA), qui rend l'interface lisible, et l'**autonomie** du
+frontend, qui la rend vérifiable par le smoke test.
 
 </details>
 
@@ -180,6 +228,40 @@ destructifs ne sont pas automatisés, à dessein — voir [docs/MIGRATIONS.md](d
 `/docs`) · `/site` (l'interface, si `frontend/` existe et que l'app est lancée par
 `monl run`).
 
+## Vos fichiers : photos, logo, favicon
+
+Une image cassée ne se voit qu'à l'œil, en ligne — le pire endroit pour découvrir
+une faute de frappe. Les fichiers que vous fournissez se déclarent donc dans la
+spec, et le compilateur **refuse de compiler s'ils ne sont pas là** :
+
+```monl
+assets
+    dir: "assets"
+    logo: "logo.svg"
+
+entity Produit
+    photo: Image          # un fichier LOCAL, vérifié présent
+```
+
+`Image` désigne un fichier du projet : une URL y est refusée, parce que monl ne
+fait aucun appel réseau et ne pourrait rien affirmer d'une adresse distante —
+`String` reste là pour ce cas, non vérifié. Le dossier vit **hors de
+`frontend/`**, qui est renommé à chaque reconstruction du frontend.
+
+Pour ne pas écrire ces chemins à la main :
+
+```bash
+monl assets add ~/photos/IMG_4821.jpg --for "Halo RS"   # → assets/halo-rs.jpg
+monl assets add ~/logo.svg --logo
+monl assets list                                        # présents, manquants, orphelins
+```
+
+La commande copie le fichier, le renomme en slug, écrit la déclaration — puis fait
+**revalider la spec obtenue par le compilateur avant de l'enregistrer**. En cas de
+refus, ni la spec ni le dossier ne sont modifiés. Elle ne supprime jamais un
+fichier : remplacer une photo signale l'ancienne comme orpheline, elle ne l'efface
+pas.
+
 ## Le frontend : contrat et IA spécialisée
 
 L'interface est écrite par une IA, à partir de deux documents que chaque
@@ -188,8 +270,8 @@ compilation produit :
 - `frontend_contract.json` — description exhaustive et machine-lisible des routes,
   de l'authentification et des règles de champ, dont un test garantit qu'elle ne
   peut pas diverger du backend ;
-- `FRONTEND_PROMPT.md` — un brief prêt à confier à une IA d'interface, avec une
-  direction de design stable propre au projet.
+- `FRONTEND_PROMPT.md` — un brief prêt à confier à une IA d'interface : structure,
+  rôles, contenu et intention déclarée, sans aucune prescription visuelle.
 
 L'IA écrit dans `frontend/` (point d'entrée `index.html`), que `monl run` sert sur
 `/site` sans jamais toucher au backend. Trois voies, mêmes garde-fous :
@@ -225,8 +307,8 @@ serveur. Toute exception ou tout appel hors contrat bloque le lancement
 
 | | |
 |---|---|
-| **164 tests** | Serveurs réels et éphémères, pas de simulacre du pipeline |
-| **85 % de couverture** | `pytest --cov=src` |
+| **260 tests** | Serveurs réels et éphémères, pas de simulacre du pipeline |
+| **88 % de couverture** | `pytest --cov=src` |
 | **Audit offensif** | Usurpation de rôle, JWT forgé, élévation de privilège |
 | **Frontières d'architecture** | Six contrats d'import vérifiés par un test, pas par la mémoire |
 | **Lint** | `ruff check src tests` — zéro signalement, exceptions justifiées dans `pyproject.toml` |
@@ -262,7 +344,7 @@ automatisée.
 | Fichier | Contenu |
 |---|---|
 | [QUICKSTART.md](QUICKSTART.md) | Le parcours complet, en trois étapes |
-| [docs/design_decisions.md](docs/design_decisions.md) | Le journal du projet : 66 points, chacun avec son *pourquoi* |
+| [docs/design_decisions.md](docs/design_decisions.md) | Le journal du projet : 74 points, chacun avec son *pourquoi* |
 | [docs/SECURITE.md](docs/SECURITE.md) | Modèle de sécurité |
 | [docs/MIGRATIONS.md](docs/MIGRATIONS.md) | Évolution du schéma sans perte |
 | [docs/BETA.md](docs/BETA.md) | État de la bêta et feuille de route |

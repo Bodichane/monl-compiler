@@ -63,35 +63,48 @@ Tous les défauts bloquants identifiés à l'audit ont été corrigés :
 - [x] Secret injectable par variable d'environnement.
 - [x] Opérations multi-étapes atomiques.
 
+## Ce qui est fait depuis que cette liste a été écrite
+
+- [x] **Empaquetage en vrai paquet Python** — le code vit dans `src/monl/`,
+      `pip install -e .` fournit la commande `monl`, et `import monl` fonctionne
+      depuis n'importe quel dossier. Le shim et les `sys.path.insert` ont
+      disparu ; la CI rejoue l'installation à chaque push. Voir le point 65.
+      C'était l'item 7 de la liste ci-dessous, et le laisser parmi les chantiers
+      restants faisait passer pour dû ce qui était livré.
+
 ## Ce qui reste pour une GA « outil professionnel »
 
 Par ordre de priorité :
 
-1. **Isolation d'exécution du code `custom`** (sous-processus à privilèges
-   réduits / conteneur / WASM), pour donner une frontière de sécurité au code
-   métier écrit à la main.
-2. **Couche données de production** : support PostgreSQL (ou abstraction DB),
+1. **Couche données de production** : support PostgreSQL (ou abstraction DB),
    pooling de connexions, moteur de migrations gérant aussi les changements
    destructifs avec migrations descendantes.
-3. **Générateur par templates/AST** en remplacement de la construction du code
+2. **Générateur par templates/AST** en remplacement de la construction du code
    par concaténation de chaînes, avec *golden-file tests* sur la sortie générée
    et fuzzing du parseur. Le découpage en package (bêta 3) a séparé les couches
    (`runtime`, `routes`, `schemas`, `sql_schema`) : c'est le préalable, chaque
    module pouvant migrer vers des templates indépendamment.
-4. **Prêt déploiement** : CORS configurable, logs structurés avec identifiant de
+3. **Prêt déploiement** : CORS configurable, logs structurés avec identifiant de
    requête, healthchecks, conteneurisation, secrets via gestionnaire dédié.
-5. **Auth complète** : refresh tokens, réinitialisation de mot de passe,
+4. **Auth complète** : refresh tokens, réinitialisation de mot de passe,
    verrouillage de compte, vérification email (selon périmètre).
-6. **Gouvernance du DSL** : versionner la grammaire, garantir la
+5. **Gouvernance du DSL** : versionner la grammaire, garantir la
    rétrocompatibilité, politique de dépréciation.
-7. **Empaquetage en vrai paquet Python** (imports en package) et distribution
-   sur un index, en remplacement du mode editable + shim.
-8. **Audit/pentest externe** et modèle de menace écrit.
+6. **Isolation d'exécution du code `custom`** (sous-processus à privilèges
+   réduits / conteneur / WASM). **Descendu de la première à cette place, et
+   pourquoi** : cette priorité datait de l'époque où les blocs `custom` étaient
+   remplis par une IA locale — fonction retirée en bêta 1. Le générateur n'y
+   écrit plus que des coquilles vides que l'auteur du projet complète lui-même
+   (`src/monl/generator/sandbox.py`). Isoler du code que l'auteur a écrit
+   sciemment n'est plus la même frontière de sécurité qu'isoler du code produit
+   par un modèle ; l'item reste légitime pour une exécution multi-tenant, il
+   n'est simplement plus le chantier qui débloque le reste.
+7. **Audit/pentest externe** et modèle de menace écrit.
 
 ## Positionnement
 
 Le cœur de valeur est le **compilateur d'intention backend, déterministe et
 sûr**. La seule IA du cycle de vie est celle qui construit le frontend, contre un
-contrat vérifié. Rester sur ce positionnement garde l'effort GA concentré sur les
-deux vrais chantiers (isolation d'exécution du code `custom` et couche données)
+contrat vérifié. Rester sur ce positionnement garde l'effort GA concentré sur le
+vrai chantier bloquant — la couche données, seule à plafonner l'usage réel —
 plutôt que dilué dans un « générateur d'app complet par IA ».

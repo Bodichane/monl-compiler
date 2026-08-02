@@ -14,6 +14,16 @@ class AdminCliMixin:
         """Retourne le source de manage.py pour cette application."""
         actors = ", ".join(repr(a) for a in self.actors)
         self_reg = ", ".join(repr(a) for a in self.self_register_actors)
+        # POINT 95 : manage.py doit appliquer la MÊME normalisation que
+        # '/register' et '/login'. Sans elle, un compte créé hors ligne avec
+        # 'Patron@Ex.com' serait stocké tel quel, et la connexion — qui
+        # normalise, elle — chercherait 'patron@ex.com' : un compte qu'on vient
+        # de créer et auquel on ne peut pas se connecter. Le contrôle de forme,
+        # en revanche, n'est PAS appliqué ici : l'administrateur travaille sur
+        # la machine qui héberge la base, et provisionne parfois des rôles de
+        # service ('supervision', 'sauvegarde') qui n'ont ni adresse ni numéro.
+        formes = self.auth_identifier or []
+        prefixe = self.auth_phone_prefix
         return f'''"""Administration hors ligne de {self.app_name} — généré par monl.
 
 Les rôles ouverts à l'inscription libre ({self_reg or "aucun"}) se créent par
@@ -32,12 +42,36 @@ import datetime
 import getpass
 import hashlib
 import os
+import re
 import secrets
 import sqlite3
 import sys
 
 DB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app.db")
 VALID_ACTORS = [{actors}]
+AUTH_IDENTIFIER_FORMS = {formes!r}
+AUTH_PHONE_PREFIX = {prefixe!r}
+_RE_PHONE = re.compile(r'^\\+?[0-9][0-9 .\\-()]{{4,20}}$')
+
+
+def _normalize_identifier(valeur):
+    """MÊME forme canonique que '/register' et '/login' du app.py généré.
+    Diverger ici crée des comptes auxquels on ne peut pas se connecter."""
+    valeur = (valeur or "").strip()
+    if not AUTH_IDENTIFIER_FORMS:
+        return valeur
+    if "@" in valeur:
+        return valeur.lower()
+    if _RE_PHONE.match(valeur):
+        chiffres = "".join(c for c in valeur if c.isdigit())
+        if valeur.lstrip().startswith("+"):
+            return "+" + chiffres
+        if AUTH_PHONE_PREFIX and chiffres.startswith("0"):
+            return AUTH_PHONE_PREFIX + chiffres[1:]
+        return chiffres
+    return valeur
+
+
 SELF_REGISTER_ACTORS = [{self_reg}]
 MIN_PASSWORD_LENGTH = 8
 
@@ -96,19 +130,20 @@ def cmd_adduser(args):
     _check_actor(args.actor)
     conn = _connect()
     cur = conn.cursor()
-    cur.execute("SELECT 1 FROM _monl_users WHERE username = ?", (args.username,))
+    _identifiant = _normalize_identifier(args.username)
+    cur.execute("SELECT 1 FROM _monl_users WHERE username = ?", (_identifiant,))
     if cur.fetchone():
-        sys.exit(f"Le compte '{{args.username}}' existe déjà.")
+        sys.exit(f"Le compte '{{_identifiant}}' existe déjà.")
     password = _ask_password()
     salt_hex = os.urandom(16).hex()
     cur.execute(
         "INSERT INTO _monl_users (username, password_hash, salt, actor, anon_handle) "
         "VALUES (?, ?, ?, ?, ?)",
-        (args.username, _hash_password(password, salt_hex), salt_hex, args.actor,
+        (_identifiant, _hash_password(password, salt_hex), salt_hex, args.actor,
          _unique_anon_handle(cur)),
     )
     conn.commit()
-    print(f"✅ Compte '{{args.username}}' créé avec le rôle '{{args.actor}}'.")
+    print(f"✅ Compte '{{_identifiant}}' créé avec le rôle '{{args.actor}}'.")
     conn.close()
 
 
@@ -116,7 +151,7 @@ def cmd_setactor(args):
     _check_actor(args.actor)
     conn = _connect()
     cur = conn.cursor()
-    cur.execute("UPDATE _monl_users SET actor = ? WHERE username = ?", (args.actor, args.username))
+    cur.execute("UPDATE _monl_users SET actor = ? WHERE username = ?", (args.actor, _normalize_identifier(args.username)))
     if cur.rowcount == 0:
         sys.exit(f"Compte introuvable : {{args.username}}")
     conn.commit()
@@ -131,14 +166,15 @@ def cmd_setactor(args):
 def cmd_passwd(args):
     conn = _connect()
     cur = conn.cursor()
-    cur.execute("SELECT 1 FROM _monl_users WHERE username = ?", (args.username,))
+    cur.execute("SELECT 1 FROM _monl_users WHERE username = ?", (_normalize_identifier(args.username),))
     if not cur.fetchone():
         sys.exit(f"Compte introuvable : {{args.username}}")
     password = _ask_password()
     salt_hex = os.urandom(16).hex()
     cur.execute(
         "UPDATE _monl_users SET password_hash = ?, salt = ? WHERE username = ?",
-        (_hash_password(password, salt_hex), salt_hex, args.username),
+        (_hash_password(password, salt_hex), salt_hex,
+         _normalize_identifier(args.username)),
     )
     conn.commit()
     print(f"✅ Mot de passe de '{{args.username}}' mis à jour.")

@@ -1,17 +1,28 @@
-"""La direction de design est vérifiable quand la spec la déclare (bêta 3).
+"""Le compilateur ne décide RIEN du visuel (point 72).
 
-La clause 'design' du contrat était la seule qu'aucun contrôle ne confrontait
-au livrable. Ces tests fixent la règle retenue : épinglée par la spec, elle
-est contraignante ; déduite du vocabulaire, elle reste une proposition.
+monl calculait une palette et des piles typographiques, les posait dans le
+contrat, et les décrivait longuement dans le brief. C'était présenté comme une
+suggestion — mais une suggestion écrite dans le document qui fait foi n'est pas
+neutre : elle oriente, et le compilateur oriente mal, faute de savoir à quoi ce
+projet-là doit ressembler.
+
+La règle est désormais nette : **la direction de design vient du dialogue**,
+formulée par l'auteur, et voyage par le brief. Le compilateur transmet ce qu'il
+sait — structure, rôles, routes, contenu, intention déclarée — et se tait sur
+le reste.
+
+Prouver qu'un compilateur INTERDIT quelque chose est facile. Prouver qu'il se
+TAIT l'est beaucoup moins, et c'est précisément ce que ce fichier vérifie : un
+silence que rien ne mesure finit par se remplir à nouveau.
 """
 import os
+import re
 import tempfile
 
 from monl.ast_validator import MonlAST
-from monl.frontend_contract import build_contract
+from monl.frontend_contract import _render_prompt, build_contract
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_file
-from monl.smoke_test import _verifier_palette
 
 BASE = """app Reparation
 
@@ -25,10 +36,22 @@ workflow Catalogue for Client
     Read Piece
 """
 
-EPINGLE = BASE + """
+AVEC_UI = BASE + """
 ui Piece
     theme: atelier
+    primary: label
 """
+
+AVEC_BRIEF = BASE + """
+landing
+    brief: "Un atelier de réparation qui veut un registre sobre et technique."
+"""
+
+# Une couleur écrite en dur, sous n'importe quelle forme.
+HEX = re.compile(r"#[0-9a-fA-F]{3,8}\b")
+# Les familles que le compilateur proposait dans ses piles système.
+POLICES = ("Helvetica", "Arial", "Georgia", "Palatino", "Verdana", "Trebuchet",
+           "Times New Roman", "Menlo", "Consolas", "SFMono", "ui-monospace")
 
 
 def _contrat(spec_source, workdir):
@@ -40,222 +63,100 @@ def _contrat(spec_source, workdir):
     return build_contract(ast, generateur)
 
 
-def _frontend(workdir, css):
-    dossier = os.path.join(workdir, "frontend")
-    os.makedirs(dossier, exist_ok=True)
-    with open(os.path.join(dossier, "style.css"), "w", encoding="utf-8") as fh:
-        fh.write(css)
-    return dossier
+def _brief(spec_source, workdir):
+    contrat = _contrat(spec_source, workdir)
+    return contrat, _render_prompt(contrat)
 
 
-def test_theme_epingle_est_exact_et_contraignant():
-    """Un thème épinglé échappe à la variation de teinte et lie le frontend."""
-    with tempfile.TemporaryDirectory() as workdir:
-        contrat = _contrat(EPINGLE, workdir)
-        design = contrat["design"]
-        assert design["name"] == "atelier"
-        assert design["pinned"] is True
-        # Valeurs exactes du thème : une palette vérifiable ne peut pas être
-        # décalée par la graine de variation propre au projet.
-        assert design["accent"] == "#D9F227"
-        assert design["bg"] == "#F1F3EE"
-
-        # La direction couvre aussi la typographie (point 52) : un frontend
-        # conforme applique la police de titrage, pas seulement la palette.
-        TYPO = "h1{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;}"
-        conforme = _frontend(workdir, ":root{--a:#F1F3EE;--b:#FBFCFA;--c:#101C24;"
-                                      "--d:#D9F227;--e:#A8412A;}" + TYPO)
-        assert _verifier_palette(conforme, contrat) == []
-
-        ecart = _frontend(workdir, ":root{--a:#F1F3EE;--b:#FBFCFA;--c:#101C24;"
-                                   "--d:#FF00FF;--e:#A8412A;}" + TYPO)
-        problemes = _verifier_palette(ecart, contrat)
-        assert len(problemes) == 1
-        message, bloquant = problemes[0]
-        assert bloquant is True
-        assert "#D9F227" in message
-
-        # Thème épinglé mais SEULE la typographie s'écarte : signalé, jamais
-        # bloquant — une pile de polices a des quasi-équivalents qu'une
-        # recherche textuelle ne sait pas distinguer d'un oubli.
-        typo_seule = _frontend(workdir, ":root{--a:#F1F3EE;--b:#FBFCFA;--c:#101C24;"
-                                        "--d:#D9F227;--e:#A8412A;}"
-                                        "h1{font-family:Futura,sans-serif;}")
-        problemes = _verifier_palette(typo_seule, contrat)
-        assert len(problemes) == 1
-        message, bloquant = problemes[0]
-        assert bloquant is False
-        assert "police de titrage" in message
-
-
-def test_sans_epinglage_le_visuel_appartient_a_l_ia():
-    """Renversement assumé (point 58) : sans `ui … theme:`, monl ne propose
-    plus de direction et n'a donc rien à reprocher. L'avertissement d'avant
-    portait sur une devinette du compilateur, et poussait à reproduire l'aplat
-    crème que la palette déduite rendait inévitable — elle n'offrait aucune
-    surface sombre, donc aucun contraste possible sur de grandes zones."""
+# ------------------------------------------------- ce que le contrat ne dit plus --
+def test_le_contrat_ne_porte_plus_aucun_bloc_design():
+    """Le bloc 'design' portait palette, typographies, rayon et style de
+    carte. Il n'existe plus : le contrat décrit ce que monl sait, pas ce
+    qu'il devinait."""
     with tempfile.TemporaryDirectory() as workdir:
         contrat = _contrat(BASE, workdir)
-        assert contrat["design"]["pinned"] is False
-        # Un frontend qui ignore totalement la palette déduite : rien à dire.
-        assert _verifier_palette(_frontend(workdir, "body{color:#123456}"), contrat) == []
+    assert "design" not in contrat, sorted(contrat)
 
 
-def test_le_brief_rend_la_main_a_l_ia_quand_rien_n_est_epingle(tmp_path):
-    """Le contrat JSON garde une palette calculée, mais le brief — le seul
-    document que l'IA lit vraiment — doit dire clairement qu'elle est libre."""
-    brief_path = tmp_path / "libre"
-    brief_path.mkdir()
-    (brief_path / "spec.ml").write_text(BASE, encoding="utf-8")
-    import sys as _sys
-    _sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-    from monl.cli import compile_project
-    compile_project(str(brief_path / "spec.ml"), str(brief_path))
-    brief = (brief_path / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
-    assert "Direction de design — LIBRE" in brief
-    assert "surfaces sombres" in brief          # ce qui était impossible avant
-    # Les deux exigences qui ne sont pas des questions de goût subsistent.
-    assert "4,5:1" in brief and "aucune ressource distante" in brief
-
-
-def test_la_demo_livree_prouve_la_liberte_laissee_a_l_ia():
-    """La règle du point 58, sur un livrable RÉEL et non sur un cas construit.
-
-    La démo (StudioNova) n'épingle aucun thème : sa spec ne porte pas de bloc
-    `ui … theme:`. Le frontend écrit par l'IA s'est donc autorisé une palette
-    sombre entièrement différente de celle que le contrat proposait — et monl
-    doit l'accepter sans un mot. C'est la moitié la moins intuitive de la
-    règle : on vérifie facilement qu'un compilateur INTERDIT quelque chose,
-    beaucoup moins qu'il se TAIT quand il n'a rien à dire.
-
-    L'ancienne version de ce test portait sur une démo à thème épinglé. La
-    contrainte, elle, reste éprouvée juste au-dessus
-    (test_theme_epingle_est_exact_et_contraignant), sur un frontend construit
-    pour l'occasion."""
-    racine = os.path.join(os.path.dirname(__file__), "..")
-    ast = MonlAST(parse_monl_file(os.path.join(racine, "demo", "spec.ml"))).validate_and_audit()
+def test_le_contrat_ne_contient_aucune_couleur_ecrite_en_dur():
+    """Retirer la clé ne suffirait pas si les couleurs ressortaient
+    ailleurs — dans une note, un exemple, un champ voisin."""
     with tempfile.TemporaryDirectory() as workdir:
-        contrat = build_contract(ast, MonlSecureGenerator(ast, output_dir=workdir))
-
-    assert contrat["design"]["pinned"] is False, (
-        "la démo doit rester un cas SANS épinglage : c'est ce qu'elle démontre")
-    frontend = os.path.join(racine, "demo", "frontend")
-    assert _verifier_palette(frontend, contrat) == [], (
-        "un thème seulement déduit ne peut pas faire échouer un livrable")
-
-    # Et l'écart est réel, sinon le test ne prouverait rien : la palette
-    # proposée n'est pas celle qui a été employée.
-    css = ""
-    for nom in os.listdir(frontend):
-        if nom.endswith((".css", ".html")):
-            with open(os.path.join(frontend, nom), encoding="utf-8") as fh:
-                css += fh.read()
-    assert contrat["design"]["accent"].lower() not in css.lower(), (
-        "la démo emploie l'accent proposé : elle ne démontre plus aucune liberté")
+        contrat = _contrat(BASE, workdir)
+    trouvees = HEX.findall(str(contrat))
+    assert not trouvees, f"couleurs imposées par le compilateur : {trouvees}"
 
 
-# ---- Aucune police distante dans aucun thème (point 52) ----
-
-# Familles présentes sur les machines sans rien télécharger : génériques CSS,
-# mots-clés système, et faces livrées avec macOS / Windows / les distributions
-# Linux courantes. Toute police ABSENTE de cette liste devrait être chargée
-# depuis un CDN — ce que la règle « frontend AUTONOME » du même contrat
-# interdit. C'est cette contradiction qui vidait l'identité typographique de
-# chaque projet ; ce test la rend impossible à réintroduire par distraction.
-FAMILLES_LOCALES = {
-    "serif", "sans-serif", "monospace", "system-ui", "ui-monospace",
-    "-apple-system", "sfmono-regular", "blinkmacsystemfont",
-    "segoe ui", "roboto", "helvetica neue", "helvetica", "arial",
-    "arial narrow", "liberation sans", "liberation sans narrow",
-    "liberation serif", "georgia", "times new roman", "times",
-    "palatino linotype", "book antiqua", "palatino", "urw palladio l",
-    "trebuchet ms", "lucida grande", "lucida sans unicode",
-    "dejavu sans", "dejavu sans mono", "verdana", "geneva",
-    "menlo", "consolas", "courier new", "monaco",
-}
-
-THEMES = ("atelier", "editorial", "market", "console", "civic", "ledger")
-
-
-def _design_du_theme(nom, workdir):
-    spec = BASE + f"\nui Piece\n    theme: {nom}\n"
-    return _contrat(spec, workdir)["design"]
-
-
-def test_aucun_theme_ne_reclame_une_police_a_telecharger():
-    for nom in THEMES:
-        with tempfile.TemporaryDirectory() as workdir:
-            design = _design_du_theme(nom, workdir)
-            assert "google_fonts" not in design, (
-                f"le thème « {nom} » réexpose google_fonts : le contrat "
-                f"proposerait une police que sa règle d'autonomie interdit")
-            for cle in ("font_display", "font_body", "font_mono"):
-                for famille in design[cle].split(","):
-                    famille = famille.strip().strip("'\"").lower()
-                    assert famille in FAMILLES_LOCALES, (
-                        f"{nom}.{cle} nomme « {famille} », absente des familles "
-                        f"disponibles localement — il faudrait la télécharger")
-
-
-def test_les_themes_restent_typographiquement_distincts():
-    """Se passer de Google Fonts ne doit pas fondre les six systèmes en un
-    seul : c'est la raison d'être du catalogue (deux apps ne se ressemblent
-    jamais). On compare la face de TITRAGE, celle qui signe l'identité."""
-    titrages = {}
-    for nom in THEMES:
-        with tempfile.TemporaryDirectory() as workdir:
-            pile = _design_du_theme(nom, workdir)["font_display"]
-            titrages[nom] = pile.split(",")[0].strip().strip("'\"").lower()
-    assert len(set(titrages.values())) == len(THEMES), (
-        f"deux thèmes partagent la même police de titrage : {titrages}")
-
-
-# ---- Tons dérivés : la palette n'est pas plate (point 56) ----
-
-TONS_DERIVES = ("ink_soft", "border", "surface_alt", "accent_soft", "accent_strong")
-
-
-def _luminance(hexa):
-    hexa = hexa.lstrip("#")
-    canaux = (int(hexa[i:i + 2], 16) / 255 for i in (0, 2, 4))
-    lin = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in canaux]
-    return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
-
-
-def _contraste(a, b):
-    bas, haut = sorted((_luminance(a), _luminance(b)))
-    return (haut + 0.05) / (bas + 0.05)
-
-
-def test_chaque_theme_expose_ses_tons_derives():
-    """Cinq valeurs plates ne suffisent pas à une interface : sans texte
-    atténué, filet ni état de survol, le rendu paraît plat quelle que soit la
-    palette. Ces tons sont déduits, jamais laissés à l'improvisation."""
-    for nom in THEMES:
-        with tempfile.TemporaryDirectory() as workdir:
-            design = _design_du_theme(nom, workdir)
-            for ton in TONS_DERIVES:
-                assert design[ton].startswith("#") and len(design[ton]) == 7, (
-                    f"{nom}.{ton} n'est pas une couleur : {design[ton]!r}")
-
-
-def test_le_texte_attenue_reste_lisible_sur_tous_les_themes():
-    """Une nuance proposée par le compilateur ne doit pas rendre illisible ce
-    qu'elle sert à hiérarchiser. Seuil WCAG AA pour du texte : 4,5:1. Le pire
-    des six thèmes fait foi, pas la moyenne (« civic » échouait à 4,26:1)."""
-    for nom in THEMES:
-        with tempfile.TemporaryDirectory() as workdir:
-            design = _design_du_theme(nom, workdir)
-            ratio = _contraste(design["ink_soft"], design["bg"])
-            assert ratio >= 4.5, f"{nom} : texte atténué à {ratio:.2f}:1 sur son fond"
-
-
-def test_les_tons_derives_suivent_la_variation_de_teinte():
-    """Calculés APRÈS la variation propre au projet : un accent dérivé d'une
-    teinte qui n'est plus celle du projet jurerait avec elle."""
+def test_le_brief_ne_prescrit_ni_couleur_ni_police():
+    """Le brief est le document que l'IA d'interface lit vraiment. C'est là
+    que la prescription se réinstallerait le plus naturellement."""
     with tempfile.TemporaryDirectory() as workdir:
-        design = _contrat(BASE, workdir)["design"]     # thème non épinglé
-        assert design["accent_strong"] != design["accent"]
-        # accent_soft tire l'accent vers le fond : il doit s'en rapprocher.
-        assert (_contraste(design["accent_soft"], design["bg"])
-                < _contraste(design["accent"], design["bg"]))
+        _contrat_, brief = _brief(BASE, workdir)
+
+    couleurs = HEX.findall(brief)
+    assert not couleurs, f"le brief impose des couleurs : {couleurs}"
+
+    citees = [p for p in POLICES if p.lower() in brief.lower()]
+    assert not citees, f"le brief impose des familles typographiques : {citees}"
+
+
+# ------------------------------------------ ce que le brief doit continuer à dire --
+def test_le_brief_transmet_l_intention_venue_du_dialogue():
+    """Se taire sur le goût ne veut pas dire se taire tout court : ce que
+    l'AUTEUR a formulé doit arriver intact à l'IA d'interface. C'est la
+    seule direction légitime."""
+    with tempfile.TemporaryDirectory() as workdir:
+        contrat, brief = _brief(AVEC_BRIEF, workdir)
+    assert "registre sobre et technique" in contrat["brief"]
+    assert "registre sobre et technique" in brief
+
+
+def test_le_brief_garde_les_deux_exigences_qui_ne_sont_pas_du_gout():
+    """Contraste et autonomie ne sont pas des partis pris : l'un rend
+    l'interface lisible, l'autre la rend vérifiable par le smoke test.
+    Les confondre avec de la prescription esthétique les ferait tomber
+    avec elle."""
+    with tempfile.TemporaryDirectory() as workdir:
+        _contrat_, brief = _brief(BASE, workdir)
+    assert "4,5:1" in brief and "WCAG" in brief
+    assert "aucune ressource distante" in brief
+
+
+def test_le_brief_dit_explicitement_que_le_visuel_ne_vient_pas_du_compilateur():
+    """Un brief muet laisserait croire à un oubli. Il doit énoncer la règle,
+    sinon l'IA d'interface cherchera la direction qu'elle croit manquante."""
+    with tempfile.TemporaryDirectory() as workdir:
+        _contrat_, brief = _brief(BASE, workdir)
+    assert "ne vient PAS de monl" in brief
+
+
+# ------------------------------------------------------ le bloc 'ui' est inerte --
+def test_un_bloc_ui_reste_accepte_mais_sans_effet():
+    """Même politique qu'au point 41 pour 'landing mode/template' : la
+    grammaire continue d'accepter la clé pour ne casser aucune spec
+    existante, mais plus rien ne s'en sert. Le contrat doit être
+    RIGOUREUSEMENT identique avec et sans le bloc."""
+    with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
+        sans = _contrat(BASE, a)
+        avec = _contrat(AVEC_UI, b)
+    assert sans == avec, "le bloc 'ui' influence encore le contrat"
+
+
+def test_deux_projets_de_domaines_opposes_recoivent_le_meme_silence():
+    """Le compilateur choisissait autrefois son système visuel d'après le
+    vocabulaire (boutique -> 'market', blog -> 'editorial'). Cette déduction
+    a disparu : deux domaines opposés ne doivent plus différer que par ce
+    qu'ils déclarent réellement."""
+    boutique = BASE.replace("Piece", "Product").replace("Reparation", "Boutique")
+    journal = BASE.replace("Piece", "Article").replace("Reparation", "Journal")
+    with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
+        c1, b1 = _brief(boutique, a)
+        c2, b2 = _brief(journal, b)
+
+    assert "design" not in c1 and "design" not in c2
+    # Le paragraphe de direction de design est le MÊME mot pour mot : il ne
+    # dépend plus d'aucune déduction sur le domaine.
+    extrait = "## Direction de design — elle ne vient PAS de monl"
+    bloc1 = b1[b1.index(extrait):b1.index("## Règles non négociables")]
+    bloc2 = b2[b2.index(extrait):b2.index("## Règles non négociables")]
+    assert bloc1 == bloc2, "la direction de design dépend encore du domaine"

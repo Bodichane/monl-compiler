@@ -33,7 +33,10 @@ def compile_monl(file_path, output_dir=None):
 
         # --- ÉTAPE 2 : AUDIT STATIQUE ---
         print("\n [2/3] Audit statique d'architecture & restrictions...")
-        ast_manager = MonlAST(raw_json)
+        # AJOUT (brique 13, point 83) : le dossier de la SPEC est la référence
+        # des assets — c'est là que vivent 'assets/', les photos, le logo. Sans
+        # lui, le validateur ne peut pas vérifier qu'un fichier déclaré existe.
+        ast_manager = MonlAST(raw_json, base_dir=os.path.dirname(os.path.abspath(file_path)))
         normalized_ast = ast_manager.validate_and_audit()
 
         # --- ÉTAPE 3 : GÉNÉRATION DU SOCLE ---

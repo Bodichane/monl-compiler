@@ -89,7 +89,36 @@ en l'état car de nombreux renvois internes s'y appuient) ·
 [66](#66-rendre-public-ne-pardonne-pas-les-exceptions-à-ses-propres-règles) Rendre public ne pardonne pas les exceptions à ses propres règles ·
 [67](#67-un-test-qui-échoue-une-fois-sur-deux-est-pire-quun-test-absent) Un test qui échoue une fois sur deux est pire qu'un test absent ·
 [68](#68-une-démo-qui-versionne-sa-propre-sortie-se-contredit) Une démo qui versionne sa propre sortie se contredit ·
-[69](#69-le-garde-fou-ne-doit-pas-dépendre-de-qui-écrit) Le garde-fou ne doit pas dépendre de qui écrit
+[69](#69-le-garde-fou-ne-doit-pas-dépendre-de-qui-écrit) Le garde-fou ne doit pas dépendre de qui écrit ·
+[70](#70-compiler-nest-pas-se-comporter-et-le-câblage-ne-se-relit-pas) Compiler n'est pas se comporter, et le câblage ne se relit pas ·
+[71](#71-ce-que-le-compilateur-refuse-nétait-presque-pas-mesuré) Ce que le compilateur refuse n'était presque pas mesuré ·
+[72](#72-le-compilateur-na-pas-davis-sur-le-visuel) Le compilateur n'a pas d'avis sur le visuel ·
+[73](#73-un-agent-qui-ne-touche-à-rien-a-quand-même--construit-) Un agent qui ne touche à rien a quand même « construit » ·
+[74](#74-encaisser-et-le-montant-qui-ne-vient-jamais-du-client) Encaisser, et le montant qui ne vient jamais du client ·
+[75](#75-payable-accessible-depuis-le-dialogue-et-deux-trous-que-lassemblage-a-montrés) `payable` accessible depuis le dialogue, et deux trous que l'assemblage a montrés ·
+[76](#76-un-champ-que-lapi-renvoie-et-que-le-contrat-taisait) Un champ que l'API renvoie et que le contrat taisait ·
+[77](#77-le-montant-venait-bien-de-la-base--et-cest-le-client-qui-lavait-écrit) Le montant venait bien de la base — et c'est le client qui l'avait écrit ·
+[78](#78-derivedfrom-et-le-champ-serveur-que-la-route-update-réécrivait) `derivedFrom`, et le champ serveur que la route Update réécrivait ·
+[79](#79-le-refus-cassant--une-boutique-quon-peut-voler-ne-doit-pas-compiler) Le refus cassant : une boutique qu'on peut voler ne doit pas compiler ·
+[80](#80-le-propriétaire-est-un-compte-et-le-panier-qui-la-révélé) Le propriétaire est un compte, et le panier qui l'a révélé ·
+[81](#81-la-propriété-transitive--quand-le-contrôle-daccès-devient-une-jointure) La propriété transitive : quand le contrôle d'accès devient une jointure ·
+[82](#82-le-panier-qui-sait-ce-quil-coûte-et-la-faille-du-point-77-arrêtée-à-lentrée) Le panier qui sait ce qu'il coûte, et la faille du point 77 arrêtée à l'entrée ·
+[83](#83-monl-ne-savait-pas-quun-fichier-existe--le-type-image-et-le-bloc-assets) monl ne savait pas qu'un fichier existe : le type `Image` et le bloc `assets` ·
+[84](#84-loutil-qui-écrit-dans-la-spec-et-la-garantie-quil-fallait-énoncer-juste) L'outil qui écrit dans la spec, et la garantie qu'il fallait énoncer juste ·
+[85](#85-les-quatre-règles-qui-ne-faisaient-rien) Les quatre règles qui ne faisaient rien ·
+[86](#86-décompter-ce-que-le-client-a-demandé-et-le-plancher-qui-larme) Décompter ce que le client a demandé, et le plancher qui l'arme ·
+[87](#87-encaisser-une-ligne-et-le-refus-qui-protégeait-dautre-chose-que-ce-quil-disait) Encaisser une ligne, et le refus qui protégeait d'autre chose que ce qu'il disait ·
+[88](#88-le-back-office-et-les-deux-mensonges-quil-a-fait-tomber) Le back-office, et les deux mensonges qu'il a fait tomber ·
+[89](#89-la-date-que-personne-ne-peut-se-donner-et-la-colonne-quon-ne-rattrape-pas) La date que personne ne peut se donner, et la colonne qu'on ne rattrape pas ·
+[90](#90-on-ne-commande-pas-sans-être-identifié) On ne commande pas sans être identifié ·
+[91](#91-ce-quon-a-encaissé-ne-se-remodifie-plus) Ce qu'on a encaissé ne se remodifie plus ·
+[92](#92-le-stock-qui-ne-revenait-jamais-et-la-variable-qui-fuyait) Le stock qui ne revenait jamais, et la variable qui fuyait ·
+[93](#93-retoucher-sans-reconstruire) Retoucher sans reconstruire ·
+[94](#94-une-faq-est-une-liste-et-le-contenu-que-le-delta-ne-regardait-pas) Une FAQ est une liste, et le contenu que le delta ne regardait pas ·
+[95](#95-sinscrire-avec-son-adresse-et-la-forme-canonique-qui-porte-la-brique) S'inscrire avec son adresse, et la forme canonique qui porte la brique ·
+[96](#96-un-statut-nest-pas-du-texte-et-la-fiche-quon-pouvait-effacer) Un statut n'est pas du texte, et la fiche qu'on pouvait effacer ·
+[97](#97-le-message-qui-devinait-à-la-place-de-lagent) Le message qui devinait à la place de l'agent ·
+[98](#98-annuler-rend-les-paires-et-la-transition-quon-ne-joue-quune-fois) Annuler rend les paires, et la transition qu'on ne joue qu'une fois
 
 ---
 
@@ -2824,3 +2853,3000 @@ la même politique qu'ailleurs — échouer en nommant la cause.
 Les anciens noms (`run_claude_code`, `generate_with_claude_code`) sont conservés
 comme cas particuliers : la voie du point 43 reste ce qu'elle était, et les
 tests écrits pour elle continuent de la couvrir sans réécriture.
+
+---
+
+## 70. Compiler n'est pas se comporter, et le câblage ne se relit pas
+
+Trois écarts entre ce que le dépôt promettait et ce qu'il mesurait, tous
+trouvés en regardant la couverture plutôt que le code.
+
+**Cinq briques sur huit n'étaient prouvées que par compilation.**
+`exemples/03_reseau_social.ml` fait passer `generated`, `increments`,
+`decrements`, `categorized` et `capability auth` par le compilateur à chaque
+exécution de la suite — et c'est tout ce qu'il en prouve. CLAUDE.md
+l'avertissait déjà en toutes lettres (« compiler n'est pas se comporter
+correctement »), sans que personne n'en tire la conséquence. Même motif qu'au
+point 64 : l'avertissement écrit ne remplace pas la mesure.
+
+`tests/test_briques_comportement.py` les éprouve désormais contre un serveur
+réel, sur une spec qui les assemble comme le fait le réseau social — c'est
+l'assemblage qui avait révélé deux bugs au point 29, pas les briques prises
+isolément. Ce que chaque test cherche est choisi, pas décoratif :
+
+- **`generated`** — un client qui envoie quand même `author` ne doit pas voir
+  sa valeur atterrir en base. C'est la seule des cinq dont un défaut serait une
+  faille d'intégrité et non un affichage faux ; elle ouvre donc la marche. La
+  stabilité du pseudonyme est vérifiée *à travers une reconnexion* : tiré à
+  chaque session, il casserait le fil d'un même auteur, et une création unique
+  ne peut pas le voir.
+- **`increments` / `decrements`** — le témoin voisin EST le test. Un compteur
+  qui monte prouve seulement qu'un UPDATE a eu lieu ; c'est le post non visé,
+  resté à sa valeur, qui prouve que la clé étrangère désigne le bon
+  enregistrement. CLAUDE.md liste précisément « un mécanisme de clé étrangère
+  qui décrémentait le mauvais enregistrement » parmi les bugs jamais révélés à
+  la lecture.
+- **`categorized`** — la borne, et elle seule, est l'endroit où une chaîne
+  `if/elif` générée peut se décaler d'un cran sans bruit. `below 10` est
+  strict : 9, 10, 99 et 100 l'encadrent des deux côtés.
+- **L'atomicité de la bêta 1**, au passage : une clé étrangère qui ne pointe
+  sur rien est refusée en 409, et l'enregistrement déclencheur ne subsiste pas.
+  Un like orphelin dont le compteur n'a jamais bougé serait exactement l'état
+  partiel que la transaction unique existe pour interdire.
+
+**Une assertion écrite au jugé, corrigée par l'exécution.** Le test du schéma
+OpenAPI vérifiait d'abord qu'`author` apparaît côté lecture. Il échoue : les
+routes de lecture générées ne déclarent aucun `response_model`, donc rien n'y
+est typé. L'assertion a été refaite contre le composant réellement référencé
+par la requête de création plutôt que contre le texte de la route — `author`
+absent d'une chaîne prouverait aussi bien que le champ a disparu qu'il n'a
+jamais été cherché au bon endroit.
+
+**Le quota, encore.** Ouvrir un compte par test dépasse les 5 tentatives / 60 s
+du point 13. La table de compteurs est vidée entre les tests, exactement comme
+au point 67 et pour la même raison : desserrer le quota lui-même rendrait
+aveugle un garde-fou du produit, vider une table côté banc d'essai ne coûte
+rien.
+
+**`main()` n'était traversée par aucun test.** `tests/test_cli_commandes.py`
+(point 64) éprouvait ce que font `compile_project`, `check_coherence`,
+`cmd_run` et `cmd_update` ; personne n'éprouvait ce qui les appelle. Les cent
+lignes d'argparse et de dispatch de `cli.py` étaient le seul chemin qu'un
+utilisateur emprunte réellement, et le seul que rien ne regardait — d'où
+`cli.py` à 58 %, point bas du dépôt pour la deuxième fois après le point 64.
+
+Une erreur de câblage y est silencieuse par construction : un `--skip-smoke`
+non transmis lance le smoke test quand même, un `--port` perdu en route ramène
+tout le monde sur 8000 alors que le point 51 a fait tout un travail pour que le
+port ne soit pas figé, et un code de sortie 0 sur échec fait passer au vert
+n'importe quelle CI qui appelle `monl run --check`. Rien de tout cela ne casse
+un test existant. `tests/test_cli_dispatch.py` vérifie l'aiguillage et les
+arguments transmis — pas le travail au bout, qui a déjà ses tests — y compris
+les deux promesses du point 69 que le dispatch porte seul : `--agent-command`
+l'emporte sur `--provider` (sans quoi il ne pourrait corriger aucun préréglage)
+et le modèle par défaut n'existe QUE pour la voie Anthropic.
+
+**Le stub qui manquait, et ce qu'il apprend.** Le premier jet interceptait les
+deux voies de `monl frontend` sans remplacer `PROVIDERS` : les vrais
+fournisseurs exigent leur clé dès leur *construction*, donc le dispatch
+échouait avant d'avoir choisi sa voie et le test mesurait l'absence de clé.
+Un test vert pour la mauvaise raison est le même défaut qu'un garde-fou muet.
+
+**Résultat mesuré** : 189 tests (contre 164), couverture 87 % (contre 85),
+`cli.py` de 58 % à 79 %. Le chiffre global n'est pas l'objet — les deux
+fichiers couvrent ce dont l'échec serait silencieux, pas ce qui remonte un
+pourcentage.
+
+**Et une dette de documentation soldée en chemin.** `docs/BETA.md` listait
+encore « empaqueter en vrai paquet Python » parmi les chantiers restants alors
+que le point 65 l'a livré, faisant passer pour dû ce qui était fait. La
+priorité n°1 de la même liste — isoler l'exécution du code `custom` — a été
+descendue au rang 6 avec sa raison écrite : elle datait de l'époque où les
+blocs `custom` étaient remplis par une IA locale, fonction retirée en bêta 1.
+Le générateur n'y écrit plus que des coquilles vides que l'auteur du projet
+complète lui-même ; isoler du code écrit sciemment par l'auteur n'est plus la
+même frontière de sécurité. La couche données devient le chantier bloquant,
+seule à plafonner l'usage réel.
+
+---
+
+## 71. Ce que le compilateur refuse n'était presque pas mesuré
+
+Suite immédiate du point 70, sur la moitié du dépôt que la mesure désignait
+encore.
+
+**La thèse du projet vivait dans des `raise` que personne n'atteignait.** Le
+README affiche comme différence de fond avec un générateur d'IA qu'« une règle
+sans effet est refusée à la compilation plutôt qu'ignorée en silence ».
+`test_parser_errors.py` couvrait les erreurs de SYNTAXE (Lark, trois tests) et
+`test_exploit*.py` les attaques au runtime. Entre les deux, la cinquantaine de
+refus d'`ast_validator.py` — l'endroit exact où cette promesse se tient —
+n'était exercée par presque rien : 76 %, et les lignes manquantes étaient très
+majoritairement des `raise`.
+
+`tests/test_validateur_refus.py` les met sous tension : cibles inexistantes,
+types incompatibles, paliers `categorized` mal formés, règles qui se
+contredisent (`hidden`+`categorized`, `hidden`+`generated`, `generated`+Create
+`public`, `ownedBy`+`accessibleBy`), collision de privilèges, workflows visant
+un acteur ou une entité absents, `Execute` sur un bloc `custom` inexistant,
+blocs `ui` et `seed` mal câblés. Chaque test vérifie AUSSI que le message
+nomme la cause : refuser sans dire quoi laisse à l'auteur de la spec la moitié
+du travail que le compilateur existe pour éviter.
+
+**Les témoins ne sont pas un ornement, ils sont le test.** Un validateur cassé
+qui refuserait TOUTE spec passerait une suite composée uniquement de refus —
+et paraîtrait plus robuste que jamais. Chaque famille de refus est donc
+accompagnée de la spec valide la plus proche possible, celle qui ne diffère que
+par ce qui est fautif, et cette spec doit compiler. C'est le corollaire écrit
+dans CONTRIBUTING.md (« un test qui ne peut pas échouer ne vaut rien ») appliqué
+à une suite entière plutôt qu'à un test isolé.
+
+**Le témoin a trouvé un garde-fou que la lecture n'avait pas listé.** En
+construisant la spec valide de `increments`, elle est refusée : un compteur
+exige une relation entre l'entité déclencheuse et l'entité cible, sans quoi il
+n'existe aucune clé étrangère d'où tirer QUEL enregistrement incrémenter — la
+règle ne serait pas seulement inefficace, elle serait ambiguë. Ce refus a gagné
+son propre test, ainsi que celui qui limite les compteurs à `Create`.
+
+**Où vit un garde-fou compte autant que son existence.** Le « au moins deux
+colonnes » d'`accessibleBy` (point 31) n'est PAS dans le validateur : la
+grammaire exige la virgule, donc une colonne unique ne l'atteint jamais. Le
+test le dit explicitement plutôt que d'attendre un `ASTValidationError` qui ne
+viendra pas — savoir quelle couche tient un garde-fou est ce qui permet de ne
+pas le déplacer par mégarde.
+
+Résultat : `ast_validator.py` de 76 % à 86 %.
+
+## Deux fuites de descripteurs, dont une dans le produit
+
+La suite émettait des `ResourceWarning` depuis longtemps, traités comme du
+bruit. Le point 67 avait pourtant déjà montré ce que coûte une ressource
+laissée derrière soi : un `uvicorn` orphelin contamine les tests suivants, et
+l'échec d'après n'a plus aucun rapport avec sa cause. Passer la suite sous
+`-W error::ResourceWarning` a séparé trois origines.
+
+**Côté banc d'essai, un piège Python classique** : `with sqlite3.connect(...)`
+ne ferme PAS la connexion — il ne fait que valider ou annuler la transaction.
+Six occurrences venaient d'être introduites au point 70, deux préexistaient.
+Un gestionnaire de contexte local fait les deux.
+
+**Côté produit, deux vraies fuites** dans `src/monl/smoke_test.py` :
+
+- un `urllib.error.HTTPError` **est** la réponse : le lire ne suffit pas, il
+  faut le fermer. Chaque 401 attendu — et le smoke test en provoque à dessein,
+  pour vérifier que les routes protégées le sont — laissait un descripteur ;
+- `stderr=PIPE` sur le serveur éphémère ouvre un tuyau que ni `terminate()` ni
+  `wait()` ne referment.
+
+Les deux sont modestes en volume, mais le smoke test tourne à **chaque
+`monl run`** : c'est du code que l'utilisateur exécute, pas seulement la CI. La
+suite passe désormais sans un seul `ResourceWarning`, ce qui rend le prochain
+détectable.
+
+**Ce que l'épisode confirme** : le code généré, lui, était propre — il ferme
+ses connexions explicitement (`generator/runtime.py`). Le défaut était dans
+l'outillage qui l'entoure, c'est-à-dire précisément la partie que la thèse du
+projet ne protège pas, puisqu'elle n'est pas dérivée d'une spec.
+
+---
+
+## 72. Le compilateur n'a pas d'avis sur le visuel
+
+Demande du mainteneur : « retire les contraintes pour les polices et autre,
+monl ne doit s'occuper de rien concernant le frontend, cela doit être décidé
+seulement dans le dialogue. »
+
+**Ce qui existait.** `generator/theme.py` choisissait un système visuel complet
+— palette, piles typographiques, rayon, style de carte — parmi six, d'après le
+vocabulaire de la spec (`product`/`order`/`price` → `market`,
+`post`/`article` → `editorial`), avec une variation de teinte par projet tirée
+de `.monl_theme_seed`. Le résultat partait dans `frontend_contract.json` >
+`design` et occupait une bonne page du brief.
+
+**Pourquoi c'était là.** Le point 20 ne cherchait pas à rendre service : il
+cherchait à ce que deux applications ne se ressemblent pas. Le point 58 avait
+déjà reculé une première fois, en rendant la direction non contraignante sauf
+épinglage explicite.
+
+**Pourquoi ça tombe.** Une suggestion écrite dans le document qui fait foi
+n'est pas neutre — elle oriente. Et le compilateur oriente mal : il ne sait pas
+à quoi ce projet-là doit ressembler, il ne connaît que des noms de tables. La
+seule direction légitime est celle que l'auteur a formulée lui-même, et il l'a
+déjà formulée : le dialogue lui demande son registre visuel et la place qu'il
+veut donner aux images. Cette réponse voyage dans le brief. Il y avait donc
+deux directions concurrentes dans le même document, l'une déclarée par un
+humain, l'autre déduite d'un dictionnaire de mots-clés.
+
+**Ce qui a été retiré** : `generator/theme.py` en entier (et son mixin dans
+`core.py`), le bloc `design` du contrat, la page de prescription du brief,
+la graine `.monl_theme_seed`, et `_verifier_palette` du smoke test — qui n'a
+plus rien à vérifier puisque plus rien n'est imposé.
+
+**Ce qui reste, et ce n'est pas une inconséquence** : le contraste WCAG
+(4,5:1) et l'autonomie du frontend. Ni l'un ni l'autre n'est une question de
+goût — le premier rend l'interface lisible, le second la rend vérifiable par le
+smoke test. Les confondre avec de la prescription esthétique les aurait fait
+tomber avec elle.
+
+**Le bloc `ui … theme:` reste ACCEPTÉ mais inerte**, même politique qu'au
+point 41 pour `landing mode/template` : aucune spec existante ne casse, mais
+plus rien ne s'en sert. Aucun exemple ni la démo n'en utilisait — le périmètre
+réel se limitait à deux fichiers de tests.
+
+**Le prix, assumé.** Ce que le point 20 protégeait disparaît : deux projets
+génériques peuvent désormais converger vers ce que l'IA d'interface produit par
+défaut. C'était le sens même de la demande — monl cesse de compenser par une
+devinette ce qui relève de l'auteur et de l'IA. Qui veut une identité
+distinctive la décrit dans le dialogue.
+
+**Ce que les tests vérifient maintenant.** `tests/test_design_contract.py` est
+retourné : il ne prouve plus qu'une palette épinglée est respectée, il prouve
+que le compilateur **se tait**. Aucun bloc `design`, aucune couleur
+hexadécimale nulle part dans le contrat, aucune famille typographique citée
+dans le brief, un bloc `ui` rigoureusement sans effet sur le contrat, et deux
+domaines opposés (boutique, journal) qui reçoivent le même paragraphe mot pour
+mot. Prouver qu'un compilateur interdit quelque chose est facile ; prouver
+qu'il se tait l'est beaucoup moins — et un silence que rien ne mesure finit par
+se remplir à nouveau.
+
+---
+
+## 73. Un agent qui ne touche à rien a quand même « construit »
+
+Le garde-fou d'empreinte (`_fingerprint_protected`, point 69) surveillait les
+artefacts **protégés** — ce qu'un agent ne doit pas modifier. Personne ne
+mesurait ce qu'il était censé **produire**.
+
+**Le scénario, réel.** Un `frontend/index.html` valide existe déjà, hérité
+d'une génération précédente. L'agent est lancé, examine le contrat, juge que
+l'existant y répond, et n'écrit pas une ligne. Ensuite : les artefacts protégés
+sont intacts (aucune alerte), la vérification de cohérence passe (le contrat
+correspond toujours), le smoke test passe (la page se charge et appelle des
+routes légitimes). monl annonce « Frontend construit ». Rien n'est faux dans
+chacun de ces contrôles pris isolément — et pourtant la conclusion l'est.
+
+**Le correctif** : `_fingerprint_frontend` prend l'empreinte de TOUT le contenu
+de `frontend/` avant l'appel et la compare après. Identique = l'agent n'a rien
+écrit, et monl le dit, avec les deux issues possibles (vider `frontend/` pour
+forcer une réécriture, ou `--update` pour demander une évolution de
+l'existant). Le retour reste un succès : rien n'est cassé, et féliciter l'agent
+pour le travail de son prédécesseur est le seul défaut à corriger.
+
+**La leçon, généralisable** : un contrôle qui ne sait pas distinguer
+« construit » de « laissé intact » ne contrôle rien. Le point 69 avait posé la
+bonne moitié du garde-fou — ce qui ne doit pas bouger — sans jamais poser
+l'autre : ce qui doit bouger.
+
+---
+
+## 74. Encaisser, et le montant qui ne vient jamais du client
+
+Première brique de l'écosystème de capacités depuis l'assemblage du réseau
+social (points 24-31), et la première dont un défaut ne se paie pas en
+affichage faux mais en argent.
+
+```
+rule Commande.total payable
+```
+
+La règle nomme le champ qui porte le **montant** ; l'entité qui le contient est
+celle qu'on encaisse. Deux colonnes de suivi apparaissent dans `schema.sql`
+(`payment_status`, `payment_ref`, jamais fournies par le client — retirées des
+schémas d'entrée comme un champ `generated`, et ajoutées aux bases existantes
+par le mécanisme de migration du point 32 — avec leur `DEFAULT`, sans quoi
+ajouter `payable` à une spec en production laisserait les anciennes lignes à
+`NULL` et les nouvelles à `en_attente`, deux façons de dire la même chose que
+toute lecture devrait ensuite réconcilier), et deux routes dans `app.py` :
+`POST /commande/{id}/paiement` et `POST /paiement/webhook`.
+
+### Le principe, et il n'y en a qu'un
+
+**Le montant encaissé vient de la BASE, jamais du client.** La route de
+règlement n'accepte aucun corps de requête : elle relit le champ `payable` à
+chaque demande. Un panier qui envoie son propre prix est un panier qu'on peut
+négocier. C'est aussi pourquoi le montant est relu à *chaque* appel plutôt que
+figé à la création : un prix corrigé en base ne doit pas laisser encaisser
+l'ancien.
+
+### Ce que le compilateur refuse
+
+Six refus, tous à la compilation — un paiement mal déclaré doit échouer avant
+d'être mis en ligne, jamais au moment d'encaisser :
+
+- **entité inexistante**, **champ inexistant** — les deux cibles manquées ;
+- **champ non numérique** (`Money`, `Float` ou `Integer` seulement) : on
+  n'encaisse pas du texte, et en tirer un nombre serait deviner ;
+- **`hidden` sur le même champ** : un montant qu'on ne peut pas lire ne peut
+  pas être vérifié par celui qui le règle ;
+- **deux champs `payable` sur la même entité** : plus rien ne dit lequel
+  encaisser. Additionner serait une invention, prendre le premier un tirage au
+  sort ;
+- **création `public` sur la même entité** : encaisser exige de savoir qui
+  paie — et à qui rembourser. Même raisonnement qu'au point 30 pour
+  `generated`, avec de l'argent au bout.
+
+Un septième `raise` existe dans `ast_validator.py` — la référence qui ne
+nommerait pas `Entite.champ` — et il est **inatteignable** : le terminal
+`REFERENCE` de la grammaire exige le point. Le vrai garde-fou est dans
+`parser.py`. C'est exactement la situation du point 71 avec `accessibleBy` :
+`tests/test_validateur_refus.py` le dit explicitement plutôt que d'attendre un
+`ASTValidationError` qui ne viendra pas. Savoir quelle couche tient un
+garde-fou est ce qui permet de ne pas le déplacer un jour en croyant le
+renforcer.
+
+### Le premier appel sortant
+
+Jusqu'ici, un backend généré par monl ne parlait à personne : il servait des
+routes, lisait un SQLite, et c'était tout. Encaisser change cela, et il faut le
+dire — `json` et `urllib` entrent dans `runtime.py` pour cette seule raison.
+
+Trois conséquences ont été traitées comme telles, pas comme des détails :
+
+- **Les secrets viennent de l'environnement**, même règle que le secret JWT
+  (point 11). `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`.
+- **Absents, les routes existent et répondent 503 en nommant la variable
+  manquante.** Un paiement doit refuser bruyamment, jamais échouer en silence
+  — et, corollaire qui compte autant : le reste du serveur démarre et
+  fonctionne normalement, donc `monl run` et le smoke test restent verts hors
+  ligne, sur un projet fraîchement compilé qui n'a évidemment aucune clé.
+- **Le point de terminaison est surchargeable** (`MONL_STRIPE_BASE_URL`).
+  Sans cela, la brique ne serait éprouvable qu'en appelant le vrai Stripe,
+  c'est-à-dire jamais.
+
+### La signature du webhook
+
+C'est le seul endroit de tout le backend généré où un tiers **non authentifié**
+écrit en base. Sans vérification de signature, `curl` suffit à marquer
+n'importe quelle commande comme payée. La signature Stripe
+(`t=<horodatage>,v1=<HMAC-SHA256 de « horodatage.corps »>`) est donc recalculée
+et comparée en temps constant, et le lien entre session et enregistrement passe
+par `client_reference_id` — le seul fil qui relie un règlement réussi à une
+ligne de la base.
+
+### Ce que le contrat frontend ignorait
+
+Ces deux routes ne naissent pas d'un workflow : elles échappent à
+`_compute_route_map`, donc au contrat. Le défaut n'était pas cosmétique — le
+contrat interdit par ailleurs à l'IA d'interface d'appeler un chemin absent de
+`routes`. Autrement dit : **une brique que le contrat ne décrit pas est une
+brique sans interface**, et le bouton de règlement était indessinable.
+
+En le corrigeant, un second manque est apparu : le champ `note` des routes
+existait dans le contrat JSON mais **n'atteignait pas le brief**, alors que
+c'est le brief que l'IA lit. La forme de la réponse paginée y manquait depuis
+toujours. Le webhook, lui, est listé pour que l'inventaire reste exhaustif,
+mais explicitement écarté — signature du prestataire, pas un JWT, et une
+interdiction en toutes lettres dans `frontend_rules.forbidden`.
+
+### Ce que les tests prouvent
+
+`tests/test_paiement.py` embarque un **faux Stripe** : un serveur HTTP local
+qui parle le dialecte de la vraie API et, surtout, **enregistre ce qu'on lui
+envoie**. Un banc d'essai qui se contenterait de répondre 200 laisserait passer
+exactement le bug qui coûte de l'argent. Le test central envoie donc un corps
+de requête annonçant un tout autre montant, puis vérifie le `unit_amount`
+réellement reçu.
+
+Le reste couvre les cinq refus au runtime (403 pour l'enregistrement d'autrui,
+404, 409 sur un règlement déjà encaissé, 400 sur un montant nul, 503 sans clé),
+le 502 qui remonte le message du prestataire, le parcours complet
+commande → session → notification signée, et cinq formes de signature invalide
+essayées séparément : une seule branche défaillante de l'analyse de l'en-tête
+suffirait à ouvrir la porte. Deux cas méritaient leur propre test — une
+signature authentique couvrant un **autre** corps, et une signature bien formée
+produite avec une **autre** clé —, tous deux refusés sans que la commande
+bouge.
+
+`exemples/02_boutique.ml` porte la règle (`Order.totalAmount`), donc la brique
+est recompilée à chaque exécution de la suite par `tests/test_compile_all.py`,
+comme les huit précédentes. Un test dédié prouve un comportement ; un exemple
+prouve qu'une spec réaliste continue de compiler autour.
+
+### Le défaut que seule l'exécution a montré
+
+La suite était verte, `ruff` muet, et `monl run` échouait quand même sur toute
+spec déclarant `payable`. Le smoke test exige qu'une route non publique refuse
+une requête sans jeton, en **401 ou 403** ; `/paiement/webhook` est bien
+protégée, mais par la signature du prestataire — sans clé configurée elle
+répond 503, avec clé 400. Elle faisait exactement son travail et se faisait
+recaler pour cela.
+
+Rien dans le code ne trahissait le conflit : les deux couches avaient raison
+séparément. Il a fallu compiler un projet payable et lancer le smoke test — la
+règle de CLAUDE.md, appliquée à la lettre, et le seul chemin qui menait à ce
+défaut.
+
+La correction distingue les deux régimes d'authentification par ce que le
+contrat dit **déjà** : une route protégée sans aucun acteur autorisé n'est pas
+une route à jeton. Ce qui reste exigé dans les deux cas est ce qui compte
+vraiment — une requête nue est refusée. `tests/test_paiement.py` compile un
+projet payable, vérifie sa cohérence et rejoue le smoke test sans aucune clé,
+pour que la régression ne puisse pas revenir en silence.
+
+### Ce qui est hors périmètre, et assumé
+
+La devise est `eur` en dur ; il n'y a ni remboursement, ni abonnement, ni
+paiement échelonné ; le seul prestataire câblé est Stripe. Le webhook n'a pas
+d'autre idempotence que le verrou `payee`. Aucun de ces manques n'est un oubli
+— chacun est une brique à part entière, et la méthode du projet est d'en
+éprouver une avant d'en commencer une autre.
+
+## 75. `payable` accessible depuis le dialogue, et deux trous que l'assemblage a montrés
+
+Le point 74 avait donné la brique `payable`, mais un seul chemin pour
+l'écrire : la spec à la main. Le dialogue guidé (`src/dialogue_engine.py`),
+qui est le chemin que la quasi-totalité des utilisateurs empruntent, ne savait
+pas la proposer — une capacité qu'un dialogue déterministe ne sait pas
+exprimer n'existe pour personne d'autre que qui lit `docs/`.
+
+### La question part de la spec, pas d'un drapeau de modèle
+
+`_ask_payable` ne regarde pas un réglage porté par le catalogue
+(`src/app_templates.py`) : elle regarde ce que la spec en cours de
+construction CONTIENT déjà — un champ `Money` sur une entité possédée par son
+créateur. Un drapeau dans le catalogue n'aurait servi que les modèles qui y
+pensent ; partir du contenu réel fait marcher la question aussi bien pour une
+entité de modèle que pour une entité personnalisée ajoutée à la main, ou pour
+le mode libre. Un seul champ candidat : la question est posée telle quelle,
+avec un rappel que le montant est relu en base et jamais envoyé par le
+navigateur. Plusieurs champs candidats (rare — un seul `payable` par entité,
+voir point 74) : un choix supplémentaire nomme lequel.
+
+**Pourquoi seulement une entité possédée.** Sans propriétaire, la route de
+règlement n'a personne à qui opposer un 403 : n'importe quel compte pourrait
+ouvrir une session de paiement sur l'enregistrement d'un autre et en découvrir
+le montant par la réponse. Le dialogue ne propose donc que la forme dont
+l'objet — l'argent — supporte d'être pris au sérieux, même si le validateur,
+lui, autorisait jusqu'ici une forme plus faible (voir plus bas).
+
+### Deux trous que seul le fait d'assembler a montrés
+
+Écrire la question a obligé à relire le reste de la brique en s'imaginant
+utilisateur plutôt qu'auteur du validateur, et deux trous sont apparus — ni
+l'un ni l'autre visible en relisant `payable` isolément :
+
+**Premier trou : `payable` sans relation entrante passait la compilation.**
+Rien n'empêchait `rule Entite.champ payable` sur une entité sans aucun
+`hasMany`/`hasOne`/`belongsTo` la ciblant. Le générateur n'a alors AUCUN moyen
+de déterminer un propriétaire pour la route de règlement, qui accepte alors
+n'importe quel appelant authentifié pour n'importe quel enregistrement — un
+IDOR, sur la brique dont l'objet est l'argent. La même exigence existait déjà
+pour `increments`/`decrements` (points 3-4) ; `payable` ne l'avait pas héritée.
+Corrigé dans `ast_validator.py` par le même test qu'utilise déjà
+`_get_incoming_relation` (`generator/core.py`) pour trouver le propriétaire à
+la génération : une relation `hasMany`/`hasOne` ciblant l'entité, ou
+`belongsTo` la portant, sinon refus explicite à la compilation.
+`tests/test_validateur_refus.py` ajoute la relation manquante à ses deux specs
+`payable` pour rester dans le cas désormais exigé, et
+`tests/test_app_templates.py` doit désormais tenir compte de la nouvelle
+question pour les trois modèles du catalogue qui portent un champ `Money` sur
+une entité possédée (Boutique en ligne, Petites annonces, Suivi de dépenses
+personnelles) — sans cela, le dialogue attend une réponse pour `payable` que
+le test ne fournit pas, et toute réponse suivante se retrouve décalée d'un
+cran.
+
+**Second trou : deux entités `payable` dans la même app pouvaient se
+confondre au webhook.** La référence envoyée à Stripe
+(`client_reference_id`) n'était qu'un id numérique. Avec une seule entité
+`payable` par app (le seul cas éprouvé jusqu'ici), l'id suffisait. Dès qu'une
+deuxième entité `payable` existe, deux enregistrements de tables différentes
+peuvent partager le même id — et le webhook, qui ne savait lire qu'un entier,
+aurait marqué payé le mauvais enregistrement, dans la mauvaise table. Corrigé
+en qualifiant la référence par le nom de l'entité (`'Order:42'` plutôt que
+`'42'`, `generator/routes.py`) : la route de règlement l'écrit à la création
+de la session, le webhook la découpe sur `:` et n'agit que si le nom qualifie
+une entité `payable` réellement déclarée — un `if`/`elif` par entité plutôt
+qu'un `UPDATE` unique, pour qu'ajouter une entité `payable` n'introduise
+jamais une ambiguïté silencieuse entre ses tables.
+
+### Ce que les tests prouvent
+
+`tests/test_paiement.py` fait désormais transiter la référence qualifiée de
+bout en bout contre le faux Stripe embarqué (point 74) : la session envoyée
+porte `'Commande:<id>'`, et le webhook ne règle que l'enregistrement que cette
+référence nomme. `tests/test_validateur_refus.py` couvre le nouveau refus (pas
+de relation entrante). Aucun des deux trous n'était visible en relisant le
+code de `payable` isolément — c'est en écrivant la question du dialogue, donc
+en s'imaginant utilisateur du bout en bout, qu'ils sont apparus. Conforme à la
+méthode du projet : chaque brique assemblée dans un chemin réel révèle ce
+qu'une lecture isolée ne montre pas (voir points 26, 31, 70).
+
+## 76. Un champ que l'API renvoie et que le contrat taisait
+
+Le point 74 avait tiré une leçon en une phrase : **une brique que le contrat ne
+décrit pas est une brique sans interface.** Elle avait été appliquée aux
+*routes* de `payable`, et s'est arrêtée là. Les deux colonnes de suivi
+(`payment_status`, `payment_ref`) que la même brique ajoute à l'entité
+n'étaient déclarées **nulle part** dans le contrat.
+
+Ce n'est pas un oubli cosmétique, parce que le backend les renvoie bel et bien :
+les routes de lecture générées font un `SELECT *`. Toute réponse contient donc
+`payment_status`, mais aucun artefact censé décrire le backend ne le mentionne
+— ni `entities.Order.fields`, ni le brief. Une IA d'interface fidèle au contrat
+ne pouvait pas savoir que le champ existe, donc ne pouvait pas afficher l'issue
+d'un règlement : **le bouton de paiement était dessinable, son résultat non.**
+
+Le défaut est apparu en câblant réellement le bouton sur une boutique (voir
+point 75 pour la brique elle-même) : il a fallu lire `app.py` puis interroger un
+serveur pour découvrir un champ que le contrat aurait dû annoncer. Un
+orchestrateur dont le contrat est incomplet fait faire ce travail à chaque IA
+d'interface, à chaque projet.
+
+### Déclarer sans laisser croire que c'est modifiable
+
+Les deux colonnes sont ajoutées à `entities.<Entite>.fields` avec
+`server_generated: true` — le même marqueur que la brique `generated` (point 30),
+et l'interdit qui l'accompagne déjà dans `frontend_rules.forbidden` (« envoyer
+un champ server_generated à la création ») s'applique sans qu'il faille en
+écrire un second. `_creatable_fields` les exclut donc des corps de requête
+annoncés, ce qu'un test garantissait déjà **dans l'autre sens** : le point 74
+vérifiait qu'elles ne figurent pas en entrée, sans jamais vérifier qu'elles
+figurent en sortie. Un garde-fou peut être exact et pourtant laisser passer le
+défaut symétrique.
+
+### Pourquoi elles n'ont aucun rôle
+
+Les rôles de champ (point 35, restaurés dans le contrat au point 54) commandent
+la mise en page, et « méta » n'a que **trois** emplacements. Passées à
+`_assign_field_roles`, ces deux colonnes en prenaient deux : elles se faisaient
+afficher comme des informations secondaires quelconques, tout en évinçant de
+vrais champs de la spec. Elles sont donc ajoutées **après** l'attribution des
+rôles, et n'en reçoivent aucun.
+
+C'est cohérent avec le point 72 : le compilateur ne décide pas du visuel. Ce
+qu'il faut faire de ces champs est dit **en toutes lettres** dans le brief, pas
+déduit d'un rôle de mise en page qui orienterait le rendu sans le dire.
+
+### Ce que « décrire » veut dire
+
+Annoncer `payment_status: String` n'aurait presque rien réglé : sans les
+valeurs, une IA doit deviner à quoi comparer, et devinera `paid`. Le contrat
+porte donc l'explication — `'en_attente'` tant que rien n'est encaissé,
+`'payee'` une fois le webhook reçu — et la note de la route de règlement y
+renvoie : savoir *ouvrir* un paiement ne dit pas comment en *montrer* l'issue.
+Avec la précision qui compte pour l'honnêteté de l'interface : **le champ n'est
+pas à jour au retour de l'utilisateur**, puisque c'est le webhook du prestataire
+qui l'écrit, plus tard. Une interface qui annonce « payé » au retour mentira une
+fois sur dix.
+
+Un défaut de plus, trouvé en relisant le brief **produit** et non le code qui le
+produit : une explication commune aux deux colonnes faisait annoncer
+« 'en_attente' / 'payee' » pour `payment_ref`, qui contient une référence de
+session. Chaque colonne porte désormais la sienne.
+
+### Une cinquième copie évitée
+
+Les deux noms de colonnes étaient écrits en dur dans quatre couches (schéma
+SQL, liste de colonnes de lecture, routes de paiement, et maintenant le
+contrat). Quatre copies d'un nom, c'est quatre occasions de le faire dériver —
+`PAYMENT_STATUS_COLUMN` / `PAYMENT_REF_COLUMN` vivent désormais dans
+`generator/core.py`, la couche qui les crée, et le contrat les importe. Pas de
+cycle : le générateur n'importe pas `frontend_contract`.
+
+`CONTRACT_VERSION` passe à 4. L'ajout est additif — un frontend existant
+continue de fonctionner — mais la version est ce qui permet de dire *depuis
+quand* un champ est annonçable.
+
+### Ce que les tests prouvent
+
+Quatre tests, dont un témoin (sans `payable`, aucune trace de ces colonnes : les
+déclarer partout enverrait une IA lire un champ toujours absent). Les trois
+autres ont été **vérifiés par contre-épreuve** — neutraliser le correctif les
+fait échouer tous les trois. Un test qui passe avant comme après le correctif ne
+prouve rien, et c'est précisément ce qui était arrivé au point 74 : la
+couverture existante était exacte, et muette sur le défaut.
+
+## 77. Le montant venait bien de la base — et c'est le client qui l'avait écrit
+
+Le point 74 avait posé l'invariant central de `payable` : **le montant vient de
+la BASE, jamais du corps de requête.** La route de règlement n'accepte aucun
+corps, relit le champ à chaque appel, et un test l'atteste en envoyant un corps
+qui annonce un tout autre montant.
+
+Cet invariant est vrai. Il ne protège rien.
+
+En câblant une vraie boutique (SneakerLab, ~500 lignes de frontend, catalogue de
+14 produits), la question qui n'avait jamais été posée s'est posée d'elle-même :
+**qui a écrit le montant que la route relit ?** La réponse est le client, et par
+deux chemins indépendants.
+
+### Le premier chemin : la création
+
+Rien dans monl ne sait calculer un montant côté serveur. Le frontend fait donc
+l'évident — `total = prix × quantité` dans le navigateur — puis l'envoie :
+
+```
+POST /order  {"total": 0.01, "status": "5x Peak Cement (189 EUR chacune)"}
+POST /order/1/paiement
+  → le prestataire reçoit unit_amount = 1
+```
+
+**Un centime encaissé pour 945 euros de marchandise.** La brique a fait
+exactement son travail : elle a lu le montant en base. Le montant en base valait
+un centime.
+
+### Le second chemin : la modification
+
+Fermer la création ne suffirait pas, et c'est le piège que seule l'exécution a
+montré. Une commande parfaitement honnête peut être réécrite ensuite :
+
+```
+POST /order  {"total": 189.0, ...}      → total = 189 en base
+PUT  /order/1 {"total": 0.01, ...}      → 200, total = 0.01 en base
+POST /order/1/paiement                  → le prestataire reçoit 1
+```
+
+`rule Order.Update ownedBy Customer` donne ce droit au propriétaire — c'est
+précisément ce qu'`ownedBy` est censé accorder — et `total` figure dans le corps
+du `PUT`. Aucune règle de la spec n'est violée. **Le champ encaissé doit être
+inécrivable à la création ET à la modification** ; une brique qui ne traiterait
+que la création laisserait le trou entier.
+
+### Ce que ce défaut dit de la méthode
+
+Les deux exploits tiennent en trois requêtes `curl`. Aucun test ne les
+couvrait, et pourtant `tests/test_paiement.py` compte 24 tests, dont un
+consacré à cette garantie exacte. Il vérifiait que la ROUTE ignore le corps
+qu'on lui donne — ce qu'elle fait — sans jamais demander d'où venait la valeur
+qu'elle relit. Un test peut être juste, ciblé, et mesurer le maillon voisin de
+celui qui casse.
+
+Ce que la compilation d'exemples ne montrait pas non plus : `exemples/02_boutique.ml`
+compile `Order.totalAmount payable` à chaque exécution de la suite. Compiler
+n'est pas se comporter (point 70), et se comporter correctement sur le chemin
+prévu n'est pas résister au chemin détourné.
+
+C'est le premier défaut du projet trouvé en **construisant un site complet
+plutôt qu'une brique**. Les briques 1 à 9 avaient chacune leur test dédié ; il a
+fallu un frontend réel, avec un panier, un prix et une quantité, pour que la
+question « qui écrit ce nombre ? » devienne inévitable.
+
+### Ce qui est décidé
+
+La correction n'est pas dans la route de paiement, qui est correcte. Elle est en
+amont, en deux temps :
+
+1. **Une brique `derivedFrom`** — un champ calculé par le serveur depuis une
+   ligne liée (`rule Order.total derivedFrom Product.price by quantity`), retiré
+   des schémas de création ET de modification. Trois des quatre mécanismes
+   nécessaires existent déjà : la FK fournie par le client
+   (`_client_fk_columns`), le retrait d'un champ du schéma de création (brique
+   `generated`), et l'écriture SQL sur une ligne liée dans la transaction de
+   création (`increments`/`decrements`). Seule manque la **lecture** d'une
+   valeur sur cette ligne avant l'insertion.
+2. **Puis un refus dans `payable`** : un champ de montant que le client peut
+   écrire doit faire échouer la compilation. Aujourd'hui monl compile sans
+   broncher une boutique qu'on peut voler. Ce refus est cassant — la spec de
+   SneakerLab cesserait de compiler — et c'est le comportement correct : elle
+   n'aurait jamais dû compiler. La garantie du point 74 cesse alors d'être une
+   promesse de documentation pour devenir une propriété que le compilateur
+   vérifie, comme ses sept autres refus.
+
+Le hors-périmètre du point 74 listait la devise en dur, l'absence de
+remboursement, d'abonnement et d'idempotence au-delà du verrou `payee`. Il ne
+mentionnait pas celle-ci, qui était la seule à coûter de l'argent.
+
+## 78. `derivedFrom`, et le champ serveur que la route Update réécrivait
+
+Brique 10, réponse directe au point 77. `rule Order.total derivedFrom Product.price by quantity`
+déclare un champ **calculé par le serveur** depuis une ligne liée. Le client
+envoie l'article et la quantité ; il n'envoie jamais le montant.
+
+### Trois mécanismes sur quatre existaient déjà
+
+C'est ce qui a rendu la brique petite, et ce qui la rend cohérente avec le
+reste plutôt que posée à côté :
+
+| Besoin | Réutilisé de |
+|---|---|
+| Le client désigne la ligne liée | `_client_fk_columns` (bêta 3) |
+| Retirer un champ du schéma d'entrée | brique `generated` (point 30) |
+| Toucher une ligne liée en SQL dans la transaction de création, 409 si la référence est bidon | `increments`/`decrements` (points 27-28) |
+| **Lire** une valeur sur cette ligne avant d'insérer | nouveau |
+
+Le schéma Pydantic est **unique par entité** (`{Ent}Schema`, partagé entre
+`POST` et `PUT`). En retirer le champ calculé ferme donc d'un seul geste les
+**deux** chemins du point 77 — c'est la propriété d'architecture qui a permis
+que la correction soit une brique et non un chantier.
+
+### Treize refus à la compilation
+
+Un calcul mal déclaré doit échouer à la compilation : c'est un montant à
+encaisser, un échec au runtime coûterait de l'argent. Deux refus méritent leur
+justification, les autres sont de simple cohérence de types :
+
+- **Le multiplicateur doit porter `required`.** Sans lui, un client qui omet la
+  quantité ferait calculer sur du vide.
+- **La source ne peut pas être le propriétaire.** La clé étrangère du
+  propriétaire est peuplée depuis le JETON, jamais choisie par le client : si la
+  source possédait l'entité, aucune ligne ne pourrait être désignée à la
+  création. Corollaire : l'entité calculée doit AVOIR un propriétaire, puisque
+  c'est lui qui distingue la clé étrangère du serveur de celle du client.
+
+### Le défaut que seule l'exécution a montré, et dans les deux sens
+
+Le montant doit être **recalculé** au `PUT`, sinon la faille se déplace
+simplement : créer à quantité 1 puis modifier à quantité 5 donnerait cinq
+articles au prix d'un. Reste à savoir depuis QUELLE ligne liée recalculer.
+
+Une version intermédiaire calculait depuis `data.<fk>` — la valeur du corps de
+requête — en croyant corriger un décalage. C'était une régression, et elle a été
+vue en éprouvant la brique, pas en la relisant : **la route `Update` de monl
+n'écrit pas les colonnes de clé étrangère.** La FK en base reste donc la seule
+vérité sur « quel article », et un client pouvait facturer 89 € un article à
+189 € en déclarant un article bon marché qu'il ne pointait pas. Le calcul se
+fait sur la FK **stockée**, relue en base.
+
+Les deux sens ont été essayés contre un serveur réel avant de trancher. C'est
+exactement le motif que CLAUDE.md décrit : « un mécanisme de clé étrangère qui
+décrémentait le mauvais enregistrement » ne s'était pas révélé autrement, et
+celui-ci non plus.
+
+### Un défaut préexistant, trouvé en passant
+
+En excluant les champs calculés de la route `Update`, une question s'est posée
+d'elle-même : comment les champs `generated` y survivaient-ils, eux qui sont
+absents du schéma pour la même raison ? Ils n'y survivaient pas.
+
+`update_<entite>` lisait `data.<champ>` pour **tous** les attributs de
+l'entité. Toute entité combinant `generated` et une action `Update` produisait
+donc un **HTTP 500** : `AttributeError: 'PostSchema' object has no attribute 'author'`.
+
+Latent depuis le point 30, et invisible pour une raison précise :
+`exemples/03_reseau_social.ml` porte `rule Post.author generated` mais son
+workflow ne déclare que `Create Post`. La compilation passait, la brique avait
+son test de comportement — et la combinaison des deux n'existait nulle part.
+**Neuf briques testées une par une ne testent pas leurs paires.**
+
+Le correctif est le même geste que pour `derivedFrom` : un champ peuplé par le
+serveur n'a pas à être réécrit depuis le corps de requête, et l'exclure préserve
+sa valeur — le pseudonyme d'un compte ne doit pas changer parce qu'on a modifié
+le texte d'un message. Un garde-fou syntaxique accompagne l'exclusion : une
+entité dont TOUS les attributs seraient peuplés par le serveur produirait
+`UPDATE ... SET  WHERE id = ?`, du SQL invalide ; ne rien avoir à écrire est un
+succès, pas une erreur.
+
+### Ce que la brique ne couvre pas
+
+Une commande = **un** article × quantité. Un panier multi-articles demande une
+entité de jonction et une agrégation (somme des lignes) : `derivedFrom` y
+resterait utile — elle calculerait le sous-total de chaque ligne — mais
+l'agrégat est une brique à part, à éprouver après celle-ci.
+
+Le refus qui rendrait la garantie du point 74 structurelle — **`payable` doit
+refuser un champ de montant que le client peut écrire** — n'est pas encore en
+place. Il est cassant (la spec de SneakerLab cesserait de compiler, ce qui est
+le comportement correct : elle n'aurait jamais dû compiler) et suppose que
+`derivedFrom` existe pour offrir l'alternative. C'est désormais le cas.
+
+## 79. Le refus cassant : une boutique qu'on peut voler ne doit pas compiler
+
+Le point 77 a montré que la garantie de `payable` ne protégeait rien ; le point
+78 a donné `derivedFrom`, de quoi la rendre vraie. Restait à la rendre
+**obligatoire**. C'est l'objet de ce point, et le premier refus cassant du
+projet.
+
+### Le raisonnement, en trois pas
+
+Ce refus n'est pas une précaution générale : il découle d'une chaîne que
+l'architecture rend inévitable.
+
+1. La clé étrangère du propriétaire est peuplée avec `current_user_id` à la
+   création (`populate_owner`, generator/routes.py). Donc **le créateur d'un
+   enregistrement en est toujours le propriétaire.**
+2. La route de règlement oppose un 403 à quiconque n'est pas le propriétaire.
+   Donc **le propriétaire est le payeur.**
+3. Par conséquent, si le montant figure dans le corps de création, **le payeur
+   écrit lui-même ce qu'il paie.**
+
+Il n'y a donc aucun cas légitime à préserver : pas même la facture qu'un
+administrateur créerait pour un client, puisque cet administrateur en
+deviendrait le propriétaire et que le client se ferait refuser le règlement.
+`payable` exige désormais que son champ de montant porte une règle
+`derivedFrom`, et le message de refus nomme la sortie plutôt que le seul
+problème.
+
+Le refus vit dans un recoupement final, après les deux boucles de validation :
+il a besoin des deux listes. Les refus antérieurs de `payable` (deux champs
+payables, création `public`) se déclenchent toujours **avant** lui, ce que les
+tests exploitent — leurs specs n'ont pas eu besoin d'ajouter un calcul.
+
+### Ce que la cascade a révélé
+
+Casser volontairement fait apparaître ce que la compilation autorisait. La suite
+a désigné 41 échecs dans 5 fichiers, et parmi eux une découverte qui ne
+concernait pas le compilateur mais le **dialogue** :
+
+`_ask_payable` (point 75) proposait l'encaissement dès qu'un champ `Money`
+existait sur une entité possédée. Trois modèles du catalogue remplissaient cette
+condition ; **deux n'avaient aucun catalogue à référencer**, et pour une bonne
+raison :
+
+- « Petites annonces » — le vendeur crée son annonce, donc il en est le
+  propriétaire, donc le payeur. Il se paierait lui-même.
+- « Suivi de dépenses personnelles » — un registre personnel. Payer sa propre
+  dépense, à qui ?
+
+La question n'aurait jamais dû leur être posée. **Un refus du compilateur a
+corrigé une question du dialogue** : `_ask_payable` exige maintenant un
+catalogue — une autre entité, qui ne soit pas le propriétaire, portant un prix —
+et construit lui-même la structure complète (quantité, relation, les trois
+règles) au lieu de laisser l'auteur l'assembler de tête.
+
+### Le défaut du point 76, reproduit sur la brique qui le corrigeait
+
+Après recompilation, le contrat de SneakerLab annonçait encore `total` parmi les
+champs à envoyer (`request_fields`), alors que le serveur l'ignore désormais.
+Une IA d'interface fidèle au contrat aurait bâti un champ de prix inutile — et
+aurait pu croire ce prix respecté.
+
+C'est exactement le défaut du point 76, sur la brique née pour le corriger. La
+leçon écrite alors — « déclarer ce que le backend fait VRAIMENT » — avait été
+formulée pour une brique qui **ajoute** une colonne ; elle vaut tout autant
+quand une brique **retire** la possibilité d'écrire un champ. Les champs
+`derivedFrom` sont donc marqués `server_generated` dans le contrat, avec leur
+formule et une consigne explicite : ne pas l'envoyer, et ne pas le calculer côté
+navigateur pour l'afficher avant création — relire la valeur renvoyée par le
+serveur, c'est elle qui sera encaissée.
+
+### Le prix payé, et pourquoi il valait la peine
+
+Sept fichiers ont dû changer : l'exemple de référence, trois specs de test, le
+dialogue, le critère du test de catalogue, et la boutique SneakerLab elle-même
+(spec + frontend, qui calculait son total dans le navigateur).
+
+Aucune de ces retouches n'était un contournement du refus : chacune consistait à
+donner à une boutique la forme qu'elle aurait dû avoir. `exemples/02_boutique.ml`
+gagne une quantité, une relation vers le catalogue et la règle de calcul — c'est
+la boutique qu'on aurait écrite si la brique avait existé.
+
+**Une suite verte n'est pas une preuve d'absence de faille.** Les 24 tests de
+`test_paiement.py` passaient tous avant le point 77, et la boutique était
+volable en trois requêtes. Ce que ces tests mesuraient était juste ; ce qu'ils ne
+mesuraient pas ne se voyait pas. Construire un site complet l'a montré — c'est
+la seule méthode qui l'a montré.
+
+## 80. Le propriétaire est un compte, et le panier qui l'a révélé
+
+Manque suivant sur la liste : le **panier multi-articles**. Une commande ne sait
+toujours pas ce qu'elle contient — depuis le point 78 elle porte un article et
+une quantité, donc un seul article. Avant de cadrer une brique, la question
+préalable : monl sait-il déjà exprimer une entité de jonction ?
+
+La sonde est une spec de trois entités — `Commande hasMany Ligne`,
+`Product hasMany Ligne` — donc une `Ligne` à deux parents. Elle a répondu deux
+fois, et la seconde réponse était un défaut.
+
+### Premier retour : le refus de `derivedFrom`, à juste titre
+
+`rule Ligne.sousTotal derivedFrom Product.prix by quantite` est refusé : `Ligne`
+n'a pas de propriétaire. Le refus du point 78 fait son travail — mais il pose la
+vraie question. **Qui possède une ligne de commande ?** Elle appartient à une
+commande, qui appartient à un client. La propriété est *transitive*, et rien dans
+monl ne l'exprime.
+
+### Second retour : `ownedBy Commande` compilait
+
+Écrire `rule Ligne.Read ownedBy Commande` passait la compilation sans un mot.
+Le code produit, lui, était incohérent sur trois points :
+
+```sql
+CREATE TABLE "ligne" (
+    ...
+    "commande_id" INTEGER,
+    FOREIGN KEY ("commande_id") REFERENCES _monl_users(id)   -- vers les COMPTES
+);
+```
+
+```python
+cursor.execute(query, (data.quantite, _calcul_sousTotal, current_user_id, ...))
+#                                                        ^^^^^^^^^^^^^^^ l'appelant,
+#                                                        pas la commande demandée
+_own_where = ' WHERE "commande_id" = ?'   # un id de commande comparé à un id de compte
+```
+
+Éprouvé contre un vrai serveur, avec plusieurs commandes pour que les
+identifiants divergent : le client demande explicitement le rattachement à la
+commande 3, et la ligne enregistre `commande_id = 2` — l'identifiant de son
+propre compte. **Le rattachement demandé est ignoré en silence.** La coïncidence
+des premiers identifiants (utilisateur 1, commande 1) masquait le défaut sur un
+essai naïf ; il a fallu créer deux comptes et trois commandes pour le voir.
+
+### Pourquoi c'est le défaut le plus grave de la série
+
+Les points 77 à 79 concernaient une brique jeune. Celui-ci touche `ownedBy`,
+**brique 5, présente depuis les premières versions**, et il contredit la phrase
+que le README affiche comme la différence de fond avec un générateur d'IA :
+
+> une règle sans effet est refusée à la compilation plutôt qu'ignorée en silence
+
+Ici la règle n'était pas sans effet : elle avait un effet FAUX. C'est pire, et
+c'était silencieux.
+
+### Ce qui est décidé : refuser, pas rattraper
+
+La propriété se matérialise par une colonne peuplée avec `current_user_id` et
+déclarée `REFERENCES _monl_users(id)`. Elle désigne donc **forcément un compte**.
+`ownedBy` exige désormais que le propriétaire nommé soit un **acteur**, et le
+message de refus dit à la fois ce qui cloche et ce qui manque — la propriété
+transitive, qui n'existe pas encore.
+
+Implémenter la transitivité maintenant serait tentant : c'est la brique du
+panier, et elle est à portée. Mais le refus vaut d'être livré seul et tout de
+suite. Une spec qui compile en produisant un rattachement qui ne marche pas
+coûte plus cher qu'une spec qui ne compile pas : le premier défaut se découvre en
+production, le second à la compilation. Et la brique transitive mérite d'être
+cadrée pour elle-même, pas bricolée dans la foulée d'un correctif.
+
+### Ce que la brique du panier devra résoudre
+
+Le cadrage que cette sonde a produit, pour la suite :
+
+- **Propriété transitive** — `Ligne` appartient à qui possède sa `Commande`. Le
+  contrôle d'accès devient une jointure, plus une comparaison de colonne.
+- **Clé étrangère vers un enregistrement, fournie par le client** — le
+  mécanisme existe (`_client_fk_columns`) mais il est réservé aux parents
+  NON-propriétaires ; ici le parent propriétaire est justement celui que le
+  client doit désigner.
+- **Agrégation** — `Commande.total` comme somme des `Ligne.sousTotal`.
+  `derivedFrom` calcule depuis UNE ligne liée ; sommer plusieurs enfants est un
+  autre mécanisme, et le montant doit rester recalculé à chaque écriture d'une
+  ligne, sinon la faille du point 77 revient par la porte du panier.
+
+Trois briques, donc, pas une. C'est exactement ce qu'une sonde est censée
+apprendre avant qu'on écrive la première ligne.
+
+---
+
+## 81. La propriété transitive : quand le contrôle d'accès devient une jointure
+
+**Brique 11.** `rule Ligne.Read ownedBy Commande` — le propriétaire nommé est
+une ENTITÉ, et la chaîne remonte jusqu'à un compte par la règle `ownedBy` de cet
+intermédiaire. Première des trois briques du panier cadrées au point 80.
+
+### Ce qui change, et pourquoi c'est un renversement
+
+En propriété directe, la colonne de propriété est **déduite du jeton** : le
+serveur y écrit `current_user_id`, le client ne la voit même pas dans le schéma
+Pydantic. C'est ce qui rendait la garantie facile — personne ne peut mentir sur
+une valeur qu'il ne fournit pas.
+
+En propriété transitive, cette colonne est **fournie par le client** : « cette
+ligne va dans CETTE commande ». Le client désigne son parent, donc il peut
+désigner celui d'un autre. La brique déplace la garantie d'un cran : au lieu
+d'être vraie par construction, elle devient vraie **par vérification**.
+
+D'où la règle de conception qui tient toute la brique : *une clé étrangère que
+le client fournit doit être validée à l'écriture, une clé étrangère déduite du
+jeton n'a rien à valider.* La brique n'aurait pas de sens sans le contrôle
+qu'elle ajoute à la création — elle ouvrirait un trou plus large que celui
+qu'elle ferme, puisque n'importe quel compte pourrait déposer une ligne dans le
+panier d'autrui.
+
+### Les quatre chemins, et la forme du filtre
+
+`_transitive_chain()` (generator/core.py) est la source unique : elle rend les
+DEUX colonnes que la jointure met en regard — celle qui désigne l'intermédiaire
+sur l'entité, celle qui porte l'id de compte sur l'intermédiaire.
+
+- **Création** — lecture du parent désigné, 403 si absent OU si le compte ne
+  correspond pas. Une seule réponse pour les deux cas : les distinguer
+  permettrait d'énumérer les commandes des autres, exactement ce que le 404 de
+  la lecture détail évite déjà. Vérifié : sans le contrôle, « inexistante »
+  donne 409 (contrainte de clé étrangère) et « pas à vous » donne 200 — les deux
+  cas étaient bel et bien distinguables.
+- **Liste** — `WHERE "commande_id" IN (SELECT id FROM "commande" WHERE
+  "client_id" = ?)`.
+- **Détail** — la chaîne se remonte d'un cran depuis la ligne lue, 404 en cas de
+  refus (précédent du projet : un enregistrement qu'on n'a pas le droit de lire
+  doit être indiscernable d'un enregistrement absent).
+- **Modification / suppression** — une jointure qui rend l'id de COMPTE du
+  propriétaire. Elle renvoie donc la même chose qu'en propriété directe, ce qui
+  laisse la comparaison qui suit **inchangée** : les deux cas se rejoignent dans
+  `_owner_lookup_sql()`. Ces deux blocs de routes.py étaient identiques et
+  auraient dû être corrigés deux fois ; ils partagent désormais leur requête.
+
+Un intermédiaire absent ne rend aucune ligne, donc 404 : une ligne orpheline
+n'appartient à personne, et c'est la bonne réponse.
+
+### Ce qui reste refusé, et pourquoi
+
+Le point 80 refusait toute entité comme propriétaire. Le refus se resserre au
+lieu de disparaître — cinq cas, chacun parce qu'il produirait du code faux :
+
+1. **L'intermédiaire n'a pas de propriétaire** — la chaîne ne remonte à aucun
+   compte, il n'y a rien à comparer. C'est le cas exact que le point 80 avait
+   trouvé en train de compiler en silence.
+2. **Chaîne à deux niveaux** (`Detail` → `Ligne` → `Commande` → `Client`) — la
+   jointure générée n'a qu'un seul niveau. Accepter compilerait un filtre sur le
+   mauvais maillon : la classe de défaut que le point 80 a fermée, qu'on ne
+   rouvre pas par la profondeur.
+3. **Intermédiaire à plusieurs propriétaires** — chaîne ambiguë, le serveur ne
+   saurait pas lequel vérifier.
+4. **Mélange direct + transitif sur la même entité** — sa colonne de propriété
+   serait à la fois peuplée depuis le jeton et fournie par le client.
+5. **`payable` sur une entité possédée transitivement** — la route de règlement
+   identifie le payeur par une clé étrangère de COMPTE, qu'une chaîne transitive
+   ne fournit pas. C'est le point 80 qui reviendrait par la caisse. Le message
+   nomme l'entité qu'il faut encaisser à la place (la commande, pas la ligne).
+
+### La composition, qui est là où les briques se cassent
+
+Leçon du point 78 : *neuf briques testées une par une ne testent pas leurs
+paires.* `derivedFrom` + propriété transitive fonctionne, et il fallait le
+vérifier plutôt que l'espérer — le montant de la ligne reste calculé par le
+serveur, et **recalculé au `PUT` depuis la clé étrangère stockée**, jamais celle
+du corps de requête (l'invariant du point 78 tient sur une entité dont la
+colonne de propriété est désormais cliente).
+
+Un test fige aussi un comportement dont dépend la sécurité de la brique : la
+route Update de monl **n'écrit pas les clés étrangères**. Sans cela, un client
+déposerait une ligne dans le panier d'un tiers en passant par la modification.
+
+### Le contrat, troisième récidive du même défaut
+
+Points 76 et 79 : *le contrat doit décrire ce que le backend FAIT.* Il annonçait
+`order_id` dans le corps du `PUT` — vrai (le schéma Pydantic est unique par
+entité, donc l'omettre donne 422) et trompeur : la route ne l'écrit pas. Une IA
+d'interface fidèle au contrat aurait proposé « changer l'article de cette
+ligne », le backend aurait répondu 200, et rien n'aurait changé. Une note
+explicite le dit maintenant, sur toute route `PUT` qui porte des clés étrangères
+clientes — donc pas seulement pour cette brique : le défaut préexistait pour
+tout parent non-propriétaire, le panier l'a simplement rendu atteignable.
+
+La colonne transitive, elle, est arrivée correctement dans le contrat sans une
+ligne de code supplémentaire : `_client_fk_columns()` est partagé avec le
+générateur de schémas. C'est le bénéfice direct d'avoir mis le changement dans
+le helper commun plutôt qu'en ligne dans routes.py.
+
+### Ce que la sonde du point 80 avait appris, et qui a servi
+
+Les identifiants du test sont volontairement **divergents** (trois commandes
+créées avant celles qui portent les assertions). Le premier essai de la sonde
+n'avait rien montré parce que « utilisateur 1 » et « commande 1 » coïncidaient :
+une comparaison fausse passait pour juste. Le test l'affirme explicitement
+(`assert commande != compte, "identifiants confondus : le test ne prouve rien"`)
+plutôt que d'en dépendre en silence.
+
+### Contre-épreuves
+
+Les douze tests sont passés du premier coup, ce qui est un motif de méfiance et
+non de satisfaction. Trois neutralisations, chacune isolant son test :
+
+- retirer le contrôle du parent à la création → seuls les deux tests de refus
+  d'écriture tombent (et révèlent la distinguabilité 409/200 décrite plus haut) ;
+- remettre le filtre de liste en comparaison directe (la forme du point 80) →
+  seul le test de liste tombe, et de la façon caractéristique du défaut : le
+  client ne voit plus **ses propres** lignes ;
+- neutraliser aussi l'écriture de la clé étrangère → dix tests sur douze
+  tombent. Contre-épreuve trop grossière pour conclure quoi que ce soit de
+  précis, refaite en version chirurgicale ci-dessus. Une contre-épreuve qui
+  casse tout ne prouve rien de plus qu'une qui casse le bon test.
+
+### Ce qui reste pour que le panier existe vraiment
+
+`Commande.total` comme **somme** des `Ligne.sousTotal` — brique 3 du cadrage du
+point 80, toujours à faire. Sans elle, une commande à plusieurs lignes ne sait
+pas ce qu'elle coûte, donc `exemples/02_boutique.ml` reste sur son modèle à un
+article : y ajouter des lignes maintenant produirait un total incohérent avec
+son contenu. Le refus n° 5 ci-dessus est la version « échoue à la compilation »
+de cette limite.
+
+### Gap trouvé en chemin, non corrigé : le contrôle de cohérence est muet sur la version du compilateur
+
+`monl run --check` annonce « Cohérence statique vérifiée (spec ↔ backend ↔
+contrat ↔ frontend) ». Il compare aux **empreintes enregistrées à la
+compilation** (`monl.json`), ce qui détecte une retouche à la main — son but — et
+rien d'autre. `monl.json` ne retient aucune version de compilateur.
+
+Conséquence vérifiée sur `projets/SneakerLab` : son `frontend_contract.json`
+n'a pas la note `PUT` que le compilateur courant produirait, et le contrôle
+affiche ✅. Un projet reste donc sur le compilateur qui l'a construit sans que
+rien ne le dise — y compris quand le compilateur a depuis fermé un trou.
+Correctif évident (inscrire la version dans `monl.json`, avertir si elle
+diffère), mais le choix entre avertissement et erreur touche tous les projets
+existants : à décider, pas à trancher en passant.
+
+---
+
+## 82. Le panier qui sait ce qu'il coûte, et la faille du point 77 arrêtée à l'entrée
+
+**Brique 12.** `rule Commande.total sumOf Ligne.sousTotal` — le champ nommé est
+la SOMME d'un champ de toutes les lignes enfants, recalculée par le serveur à
+chaque écriture de ligne. Troisième et dernière brique du panier cadrée au
+point 80 ; avec elle, `exemples/02_boutique.ml` devient une vraie boutique à
+plusieurs articles.
+
+### Ce que `derivedFrom` ne pouvait pas faire
+
+`derivedFrom` lit UNE ligne liée : prix × quantité. Une commande ne pouvait donc
+porter qu'un seul article, et c'est exactement ce qu'était la boutique d'exemple
+depuis le point 77 — une commande avec un `product_id` et une `quantity`. La
+propriété transitive (point 81) lui a donné des lignes correctement protégées,
+mais la commande ne savait toujours pas ce qu'elle coûtait.
+
+### Le refus qui porte toute la brique
+
+Le cadrage du point 80 l'annonçait : *« le montant doit rester recalculé à chaque
+écriture d'une ligne, sinon la faille du point 77 revient par la porte du
+panier »*. Elle revenait par une porte de plus, qu'il fallait fermer aussi.
+
+Un champ `sumOf` est calculé par le serveur : il satisfait donc le refus cassant
+du point 79, qui exige que le montant encaissé ne soit pas écrivable par le
+client. Mais **additionner un montant que le client écrit ne produit pas un total
+sûr** — il produit un total que le client contrôle, en une addition de plus. Le
+payeur reprend la main sur ce qu'il règle, exactement comme au point 77 : la
+brique qui rend le panier chiffrable aurait rouvert le trou que la précédente
+avait fermé.
+
+D'où le refus : ce qu'on somme pour encaisser doit être lui-même calculé par le
+serveur. Et son emplacement, qui est le point de conception intéressant — il vit
+dans le **recoupement avec `payable`**, pas dans la boucle `sumOf`. Parce que
+sommer un champ que le client fournit reste parfaitement légitime hors paiement :
+`rule Commande.nbArticles sumOf Ligne.quantite` compte des articles, il
+n'encaisse rien. C'est le CUMUL qui est fautif, pas la somme. Un refus posé au
+mauvais endroit aurait interdit un usage sain pour empêcher un usage dangereux.
+
+### Recalculer, jamais ajuster
+
+La somme est **relue depuis la table** à chaque écriture, pas ajustée d'un delta.
+Un ajustement (`total = total + sousTotal`) se désynchronise dès qu'une écriture
+échoue à mi-chemin, et rien ne le rattrape ensuite ; un recalcul est toujours
+juste, même après un incident. `COALESCE` pour qu'un panier vidé retombe à 0 et
+non à NULL — aucune interface n'affiche « null € », et en SQLite une somme
+partant de NULL reste NULL.
+
+Trois branchements, et le troisième est celui qu'on oublie :
+
+- **Création** de ligne : recalcul DANS la même transaction que l'insertion. Un
+  commit séparé pourrait laisser une ligne créée et un total resté en arrière —
+  un panier qui ne dit pas ce qu'il coûte, et sur une entité `payable`, un
+  montant faux à encaisser.
+- **Modification** : le parent est relu EN BASE, jamais pris dans le corps de
+  requête. La route Update de monl n'écrit pas les clés étrangères, donc
+  `data.<fk>` peut désigner un parent auquel la ligne n'appartient pas : on
+  recalculerait le total d'une autre commande et pas celui de la vraie. Même
+  leçon que le point 78, sur une autre brique.
+- **Suppression** : le parent est lu AVANT le `DELETE`. Après, la ligne n'existe
+  plus et sa clé étrangère avec elle — plus rien ne dit quel total recalculer.
+
+### Contre-épreuves
+
+Douze tests verts du premier coup, donc quatre neutralisations, chacune isolant
+son test — et chacune donnant un chiffre concret plutôt qu'un échec abstrait :
+
+- pas de recalcul au `DELETE` → le règlement demande **50,35 € au lieu de
+  10,15 €** : l'article rendu, encaissé quand même ;
+- pas de recalcul au `PUT` → **10,05 € au lieu de 100,50 €** : dix articles au
+  prix d'un, la faille du point 77 déplacée sur la quantité ;
+- pas de recalcul à la création → le total reste à 0 et la route de règlement
+  répond « Montant nul : rien à encaisser » ;
+- `ROUND` retiré → **101,19999999999999**.
+
+Ce dernier a demandé une correction du test lui-même : mes premiers prix (12,35 et
+7,80) ne dérivaient PAS, donc le test d'arrondi passait avec ou sans `ROUND` —
+une tautologie. Il a fallu chercher des valeurs qui dérivent réellement
+(`round(10.05×3, 2) + round(10.15×7, 2) == 101.19999999999999`). Le test porte
+maintenant une assertion qui le protège de retomber dans ce piège :
+`assert brute != round(brute, 2), "les prix du banc ne dérivent plus : ce test
+redevient tautologique"`. **Une contre-épreuve sert autant à valider le test qu'à
+valider le code.**
+
+### Deux tests qui visaient la mauvaise garde
+
+Deux refus, écrits d'abord sur la spec commune, atteignaient un refus ANTÉRIEUR :
+
+- le cumul `derivedFrom` + `sumOf` était intercepté par le contrôle du
+  multiplicateur (`Commande` n'a pas de champ quantité) — il a fallu une spec où
+  la règle `derivedFrom` est elle-même valide pour que le recoupement soit
+  atteint ;
+- l'exigence de propriétaire sur l'entité sommée était interceptée par la même
+  exigence de `derivedFrom` (point 78) — le test validait la garde d'une autre
+  brique. Corrigé en sommant un champ ordinaire (`Ligne.quantite`).
+
+Un test de refus qui passe ne prouve rien tant qu'on n'a pas vérifié QUEL refus a
+répondu. C'est la troisième fois que ce piège se présente (déjà au point 78).
+
+### Le contrat, sans attendre la récidive
+
+Le défaut du point 76 s'était déjà reproduit deux fois (points 79 et 81). Cette
+fois le champ `sumOf` est déclaré `server_generated` d'emblée, avec une note qui
+dit ce qu'une interface doit en faire : relire le parent après chaque écriture de
+ligne plutôt que tenir un total côté navigateur, qui divergerait. Un total de
+panier est justement le cas où l'écart se verrait le plus vite.
+
+### Ce que la chaîne complète permet maintenant
+
+Points 74 à 82, bout à bout : la brique 10 calcule chaque ligne, la brique 11 la
+rattache à son panier et la protège, la brique 12 les somme, la brique 9 encaisse
+le résultat. Éprouvé de bout en bout par
+`tests/test_agregation.py::test_le_montant_encaisse_est_la_somme_du_panier`, qui
+vérifie le montant sur ce que le PRESTATAIRE reçoit — décodé de son corps de
+requête, pas lu dans la base.
+
+---
+
+## 83. monl ne savait pas qu'un fichier existe : le type `Image` et le bloc `assets`
+
+**Brique 13.** Un type de champ `Image` et un bloc `assets` qui déclare le dossier
+des fichiers fournis par l'humain, son logo, son icône. Née d'une question
+d'ergonomie — « comment faciliter l'intégration des logos et photos ? » — et
+arrivée ailleurs : le problème n'était pas la saisie, c'était que **rien ne
+vérifiait quoi que ce soit**.
+
+### Ce que la sonde a trouvé, avant d'écrire une ligne
+
+Quatre constats, tous vérifiés plutôt que supposés :
+
+1. **Il n'existait aucun type `Image`.** Un champ portant une image se
+   reconnaissait à son NOM (`MEDIA_HINTS = ("image", "photo", "cover", …)`).
+   `imageUrl` marchait par chance ; `apercu` ou `cliche` n'auraient pas été
+   reconnus, et l'IA d'interface n'en aurait pas fait un `<img>`.
+2. **Un chemin faux compilait en silence.** Trois cas essayés, trois succès :
+   `"images/ce-fichier-n-existe-pas.jpg"`, `"imgs/halo-rs.jpeg"` (dossier ET
+   extension mal tapés), et `"/etc/passwd"`.
+3. **Le smoke test ne chargeait aucune image** — jsdom ne récupère pas les
+   ressources externes. Un site aux douze images mortes le passait.
+4. **Le plus grave : `monl frontend` égarait les photos.** Le dossier `frontend/`
+   est *renommé* en `frontend.precedent/` puis réécrit depuis les fichiers de
+   l'IA, et la liste blanche est `.html .css .js .svg .json` — **`.jpg` en est
+   absent**. Le seul endroit où l'humain déposait ses photos était précisément
+   celui que monl traite comme un jetable d'IA. Rien ne l'avertissait.
+
+### La décision de conception : deux couches, la brique d'abord
+
+Il y avait deux réponses possibles, et l'ordre importe. Un outil
+(`monl assets add photo.jpg --for "Halo RS"`) répond littéralement à la question
+posée. Mais **l'outil seul aurait automatisé l'écriture de chaînes que personne
+ne vérifie** — il aurait rendu les fautes plus rapides à produire. La brique
+seule apporte déjà l'essentiel : plus aucune image cassée ne franchit la
+compilation. L'outil reste à faire, ensuite.
+
+### Forme et existence, séparées à dessein
+
+`_verifier_forme_chemin_asset` est **pur** : chemin absolu, remontée `..`, URL
+distante sous un type `Image`. Il s'applique toujours, y compris quand une spec
+est validée en mémoire. `_verifier_asset_present` demande `base_dir` (le dossier
+de la spec) et se **tait** sans lui — un faux refus serait pire que l'absence de
+contrôle, et le silence est explicite plutôt qu'accidentel. C'est ce partage qui
+permet aux tests d'exercer trois refus sans écrire un seul fichier.
+
+Le refus d'URL distante mérite son mot : `Image` promet un fichier *vérifiable*,
+et monl ne fait aucun appel réseau — il ne peut donc rien affirmer d'une URL.
+`String` reste là pour ce cas, non vérifié. Interdire l'un pour garantir l'autre
+aurait été le mauvais échange ; un test fige d'ailleurs que `String` +
+`https://…` compile toujours.
+
+### Déclaré bat devine
+
+Le rôle `media` du contrat vient désormais du TYPE, l'heuristique de nom ne
+servant plus que de repli pour les specs qui n'ont pas adopté `Image`. Un test
+le prouve avec un nom qu'aucune heuristique ne reconnaît (`cliche`).
+
+Et le contrat porte enfin une section `assets` : dossier, `served_at`, logo,
+favicon. Sans elle, une IA d'interface ne pouvait pas savoir qu'un logo
+existait — l'en-tête de la boutique de démonstration était un mot en texte,
+faute de mieux.
+
+### « Existe » n'est pas « servi »
+
+C'est l'autre moitié de la question, et la seule qui compte pour un navigateur.
+Le smoke test lançait `app:app` : **ni `/site` ni les assets ne passaient par
+HTTP**, donc « servi » n'était vérifié nulle part. Il monte maintenant le projet
+avec le MÊME wrapper que `monl run`, et fait un vrai GET sur chaque asset
+déclaré.
+
+Ce partage a demandé un module : `serving.py`. Le wrapper vivait dans `cli.py`,
+et `cli` importe `smoke_test` — l'inverse ferait un cycle. Le dupliquer aurait
+créé deux wrappers à faire dériver, ce que le projet refuse ailleurs
+(`PAYMENT_*_COLUMN`, `_compute_route_map`). D'où une **feuille** volontaire, qui
+n'importe rien du projet, avec sa frontière inscrite dans
+`tests/test_architecture.py`.
+
+**Le montage des assets doit précéder celui de `/site`** : Starlette teste les
+routes dans l'ordre d'enregistrement, et `/site` monté d'abord absorberait
+`/site/assets/…` pour aller le chercher dans `frontend/`, où il n'est pas.
+Contre-épreuve faite en inversant l'ordre : **trois 404**, et le smoke test
+refuse de lancer l'application. C'est exactement le défaut que ce contrôle
+existe pour attraper, et il n'aurait été visible qu'à l'œil, sur la page.
+
+### Deux défauts trouvés en chemin
+
+**Dans le client HTTP du smoke test.** Il décodait toute réponse en JSON et
+n'attrapait que `json.JSONDecodeError` — or `UnicodeDecodeError` n'en est pas un.
+Le premier octet d'un PNG faisait remonter la trace complète. Latent depuis
+toujours : rien de binaire n'était jamais demandé. Le commentaire d'origine
+disait « /docs renvoie du HTML » — le texte avait été prévu, le binaire non.
+
+**Dans mon propre correctif du point 81.** En branchant `base_dir`, j'ai écrit
+`base_dir=project_dir` dans `_empreintes_regenerees(spec_path)`, où cette
+variable n'existe pas. Le `except Exception` de la fonction l'aurait **masqué**
+en désactivant silencieusement le contrôle de version du compilateur. C'est le
+test du point 81 qui l'a rattrapé — une garde qui protège une garde.
+
+### Adopté par un vrai projet
+
+`projets/SneakerLab` est migré : `frontend/images/` → `assets/`, `imageUrl:
+String` → `Image`, chemins de seed et références en dur du frontend
+resynchronisés. Un détail qui n'allait pas de soi — le seed ne s'applique qu'à
+une base NEUVE, donc les douze lignes existantes gardaient l'ancien chemin et le
+site aurait montré douze cadres vides. Vérifié en réel après migration : les
+images répondent 200 sur `/site/assets/…`, et l'ancien chemin donne bien 404.
+
+Ce que la brique n'a pas pu éprouver là-bas : le logo. SneakerLab n'en a pas —
+son en-tête reste un mot-symbole en texte. Déclarer `logo:` sans fichier ferait
+échouer la compilation, ce qui est le comportement voulu.
+
+---
+
+## 84. L'outil qui écrit dans la spec, et la garantie qu'il fallait énoncer juste
+
+Couche 2 du point 83, délibérément remise à plus tard : `monl assets add
+photo.jpg --for "Halo RS"`. La raison de l'attente vaut d'être répétée, parce
+qu'elle est la décision de conception la plus utile de la paire — **un outil qui
+écrit `assets/halo-rs.jpg` dans un seed automatise l'écriture d'une chaîne.**
+Avant la couche 1, personne ne vérifiait cette chaîne : l'outil aurait
+industrialisé la production d'images cassées, plus vite et plus proprement. La
+brique d'abord, l'ergonomie ensuite.
+
+Le contrat de l'outil tient en une phrase : **il écrit, le compilateur prouve.**
+Chaque édition est reparsée par le vrai parseur et revalidée par le vrai
+validateur, en mémoire, avant d'être écrite sur disque. Un échec ne laisse rien
+derrière : ni spec à demi modifiée, ni fichier copié. C'est la discipline du
+dialogue guidé — « la spec produite est revalidée par le vrai parseur avant
+d'être écrite » — appliquée à une édition chirurgicale.
+
+### L'édition est textuelle, et ce n'était pas de la paresse
+
+Un aller-retour parse → regénère aurait été plus court à écrire. Il aurait aussi
+effacé tous les commentaires de la spec. Or la spec de `projets/SneakerLab` est
+plus qu'à moitié faite de commentaires, et ce sont eux qui expliquent quelle
+brique fait quoi et pourquoi le compilateur refuserait autre chose : **détruire
+la documentation du projet pour poser une photo** aurait été un mauvais échange.
+
+L'édition textuelle a son prix, payé en petits scanners qui suivent l'état
+« dans une chaîne » : découper une ligne de seed sur les virgules HORS
+guillemets (un descriptif en contient presque toujours une, et découper
+naïvement en ferait deux champs dont l'un est du texte libre), et isoler un
+commentaire de fin de ligne sans couper au premier dièse rencontré. Un test fige
+la propriété entière : le nombre de `#` du fichier est identique avant et après,
+et la ligne réécrite conserve son indentation, ses autres champs et son
+commentaire terminal.
+
+### Une fiche n'est pas une ligne
+
+Le terminal du parseur est `STRING_LITERAL: /"(?:[^"\\]|\\.)*"/s` — drapeau `/s`,
+et la classe accepte déjà le retour à la ligne. **Une valeur de seed peut donc
+tenir sur deux lignes**, et le parseur l'accepte : vérifié en le lui donnant, pas
+déduit de la lecture de la grammaire.
+
+La première version repérait les fiches en comptant les lignes de contenu du
+bloc. Une description sur deux lignes décalait donc toutes les fiches suivantes,
+et une photo écrite sur la mauvaise fiche produit une spec **parfaitement
+compilable** : aucun contrôle n'aurait rien vu, l'erreur ne se serait montrée
+qu'à l'œil, sur la page. Exactement le genre de défaut que le point 83 existe
+pour empêcher, reproduit par sa propre couche 2.
+
+Ce qui a sauvé la situation n'était pas le repérage mais le **filet posé par
+défiance** : l'outil compare le nombre de fiches trouvées dans le fichier à celui
+de l'AST, et refuse si les deux diffèrent. Une valeur multi-lignes rend toujours
+« lignes > fiches », donc le cas tombait sur un refus, jamais sur une écriture
+fausse. Un filet écrit sans savoir ce qu'il attraperait a attrapé quelque chose.
+
+Le repérage travaille désormais en **plages** `(première ligne, dernière ligne)`,
+l'état « chaîne ouverte » étant reporté d'une ligne à la suivante — une
+continuation n'est alors testée ni pour son indentation ni pour un `#` en tête,
+puisque dans une chaîne ces caractères ne veulent plus rien dire. Le refus reste
+en place derrière, par principe.
+
+### Le défaut que les tests ont trouvé : une garantie trop large
+
+Première version : charger et revalider la spec **avec `base_dir`**, donc avec la
+vérification d'existence de la couche 1. Cela semblait la position la plus sûre.
+C'était un défaut, et il avait deux faces, dont une trouvée par un test écrit
+sans y penser :
+
+* **`monl assets list` ne pouvait pas rapporter un asset manquant.** Charger la
+  spec échouait sur ce manquant même — le rapport refusait de tourner dans le
+  seul cas où il servait ;
+* **`add` était inutilisable sur une spec déclarant deux photos absentes.**
+  Impossible d'en poser une : l'autre faisait échouer la revalidation. L'outil
+  refusait de réparer ce qu'il était fait pour réparer.
+
+La correction n'est pas d'affaiblir le contrôle, c'est de l'**énoncer juste**. Ce
+qu'il faut prouver n'est pas « toute la spec est complète » — c'est « le chemin
+que je viens d'écrire résout vers un vrai fichier ». Donc : revalidation SANS
+`base_dir` (tous les refus structurels et de forme s'appliquent, la coupure
+forme/existence du point 83 rendant cela possible), puis vérification ciblée de
+l'écriture avec `resoudre_asset`, **le résolveur du compilateur**, sorti du
+validateur pour être partagé au lieu d'être réécrit. Ce qui manque encore
+ailleurs est dit en avertissement, nommé, plutôt que bloqué.
+
+Leçon générale, valable au-delà des assets : **une garantie trop large n'est pas
+plus sûre, elle est fausse ailleurs.** Elle bloque des usages légitimes en
+prétendant protéger, et le prix se paie dans le seul cas où l'outil servait.
+
+### Ce que l'outil refuse, et pourquoi deviner serait pire
+
+La fiche est désignée par une de ses **valeurs** (`--for "Halo RS"`), pas par un
+numéro : c'est ce que l'humain a sous les yeux. D'où les refus :
+
+* valeur inconnue → refus **avec suggestion** (`difflib`), parce qu'une faute de
+  frappe est le cas le plus probable ;
+* valeur partagée par deux entités → refus nommant les candidates et exigeant
+  `--entity`. Écrire la photo sur l'une des deux au hasard ne se verrait qu'en
+  ligne ;
+* entité sans champ `Image` → refus **nommant le remède** (`photo: Image`), parce
+  qu'un champ `String` accepterait n'importe quel chemin en silence ;
+* deux champs `Image` → `--field` exigé ; `--field` sur un champ non-`Image` →
+  refus disant son type ;
+* `--as` recevant un chemin → refus : accepter un chemin rouvrirait la porte que
+  la couche 1 ferme ;
+* source sans extension → refus : servie telle quelle, elle arrive en
+  octet-stream et le navigateur ne l'affiche pas ;
+* spec déjà cassée → refus d'y écrire. Sans lui, l'échec de la revalidation
+  ferait accuser l'outil d'un défaut qui existait avant lui.
+
+### Ce que l'outil ne fait pas
+
+**Il ne supprime rien.** Remplacer la photo d'une fiche laisse l'ancien fichier
+orphelin : il est SIGNALÉ, pas effacé. Un fichier déposé par l'humain ne
+s'efface pas sur la déduction d'un outil de déclaration — et le frontend de
+SneakerLab référence en dur des photos que la spec ignore.
+
+**Il n'écrit aucun crédit.** C'est la règle du point 83 tenue : *monl vérifie la
+complétude, jamais la véracité*. Un champ d'attribution obligatoire et
+invérifiable invite à l'inventer — expérience faite avec quatre photographes
+inconnus. En revanche, si le dossier porte déjà un fichier de crédits, l'outil
+dit quand le nouveau fichier n'y figure pas. Constater une absence est de la
+complétude ; remplir la ligne serait de la véracité.
+
+**Il ne recompile pas.** `monl update` reste le geste explicite, avec son
+rapport de delta à lire. L'outil le rappelle — mais seulement si la spec a
+vraiment changé : redéclarer à l'identique n'écrit rien, sinon l'empreinte de
+`monl run --check` serait invalidée pour rien.
+
+**Il n'écrase pas sans le dire.** Un fichier de même nom au contenu différent
+exige `--force`, et l'écrasement reste réversible le temps de la revalidation —
+sans quoi un refus détruirait l'ancien fichier pour rien.
+
+### Deux détails qui ne se devinent pas
+
+**Le logo se déclare par son SEUL nom.** C'est le contrat frontend qui préfixe
+par le dossier (`_assets_contract`) : écrire `assets/logo.svg` dans le bloc
+`assets` donnerait `/site/assets/assets/logo.svg` au navigateur. Une valeur de
+seed, elle, porte le dossier — c'est l'URL que la page demandera. Deux formes,
+deux raisons, et le résolveur accepte les deux.
+
+**Le slug translittère ce que NFKD ne décompose pas.** « Sørlund » donnait
+« srlund », « Bæk » donnait « bk » — un nom de fichier muet là où le nom était
+lisible. Le catalogue de SneakerLab porte déjà une maison nordique : le cas
+n'est pas théorique. Petite table explicite (ø, æ, œ, ß, þ, ð, đ, ł…), pas une
+bibliothèque de plus.
+
+### Le filet, éprouvé en le forçant
+
+L'outil est construit pour que la ligne de commande ne PUISSE pas produire une
+spec invalide : tous les chemins fautifs sont interceptés avant l'écriture. Le
+retour en arrière n'est donc atteignable qu'en provoquant l'échec — et **un
+filet que rien n'éprouve n'est pas un filet, c'est une décoration.** Deux tests
+le forcent : revalidation qui refuse (la spec est inchangée, le fichier copié est
+retiré), et refus après `--force` (l'ancien fichier est RESTAURÉ, et le fichier
+de sauvegarde ne traîne pas). Un troisième neutralise la copie pour vérifier que
+la garantie finale — « ce chemin résout-il ? » — n'est pas décorative non plus.
+
+`tests/test_assets_tool.py` (33 tests) et une frontière de plus dans
+`test_architecture.py` : `assets_tool` ne connaît que `parser` et
+`ast_validator`. C'est ce qui lui permet de revalider une spec sans rien
+compiler, et ce qui empêche le cycle avec `cli`, qui l'appelle.
+
+### Adopté par un vrai projet, et la case cochée du point 83
+
+Le point 83 se terminait sur un manque : *« Ce que la brique n'a pas pu éprouver
+là-bas : le logo. SneakerLab n'en a pas. »* Il en a un maintenant, et il a été
+posé **par l'outil** — pas à la main :
+
+```
+monl assets add sneakerlab-mark.svg --logo --dir projets/SneakerLab
+monl assets add projets/SneakerLab/assets/logo.svg --favicon --as logo.svg --dir projets/SneakerLab
+```
+
+Le second appel exerce le cas « le fichier est déjà à sa place » : rien n'est
+copié, seule la déclaration est ajoutée, et logo et favicon désignent le même
+fichier. Le contrat sort `assets/logo.svg` pour les deux (préfixe appliqué une
+seule fois), le smoke test fait un vrai GET sur chacun, et le serveur réel
+répond 200 en `image/svg+xml`. `monl assets list` sur le projet dit la vérité
+sans qu'on lui souffle : douze photos déclarées et présentes, trois fichiers
+présents et non déclarés — le fichier de crédits, et les deux sneakers retirés
+du catalogue au point 83, laissés sur disque à dessein.
+
+---
+
+## 85. Les quatre règles qui ne faisaient rien
+
+`required`, `unique`, `min` et `max` sont les plus ANCIENNES règles du
+compilateur — antérieures à toutes les briques. Elles étaient acceptées par la
+grammaire, et **c'est tout**.
+
+Le point de départ n'était pas un soupçon, c'était un chiffre : `schemas.py`
+plafonnait à 65 % de couverture, le plus mauvais du générateur. J'ai annoncé au
+passage que c'était « le seul endroit où je ne peux pas affirmer que ce qui
+n'est pas couvert est sans conséquence », et je suis allé lire. Le bloc non
+couvert n'était pas la logique d'écriture client — c'étaient les schémas
+d'entrée des blocs `custom`, qu'aucun exemple ni aucun test n'exerçait. En les
+éprouvant, deux défauts sont tombés, dont un qui n'avait rien à voir.
+
+### Le premier : `payload.dict()`
+
+La route d'un bloc `custom` appelait `payload.dict()` — **déprécié en Pydantic
+v2, retiré en v3**. Vérifié en le déclenchant sous `-W error::DeprecationWarning`,
+pas déduit. Tout backend généré portant un bloc `custom` aurait cessé de
+fonctionner à la première installation sur Pydantic 3, et rien dans le dépôt ne
+l'aurait signalé : aucun exemple, aucun test n'empruntait ce chemin.
+
+### Le second, trouvé par une faute de frappe
+
+En écrivant la spec d'épreuve j'ai tapé `rule Colis.nom required` sur une entité
+qui n'a pas de champ `nom`. **Ça a compilé.** En élargissant :
+
+```
+⛔ SILENCE : rule Colis.champFantome required
+⛔ SILENCE : rule Colis.champFantome unique
+   ok refus : rule Colis.champFantome hidden
+   ok refus : rule Colis.champFantome generated
+   ok refus : rule Colis.champFantome categorized: …
+   ok refus : rule Colis.champFantome payable
+   ok refus : rule Colis.champFantome derivedFrom …
+   ok refus : rule Colis.champFantome sumOf …
+⛔ SILENCE : rule Fantome.reference required
+```
+
+**Toutes les briques ajoutées depuis le point 24 valident leur référence ; les
+quatre règles d'origine, jamais.** L'auteur croit tenir une contrainte, il n'en
+a aucune, et rien ne le dit.
+
+### Ce qui a rendu la chose sérieuse
+
+Compilé deux fois le même projet, une fois avec `rule X.f required` et
+`rule X.g unique`, une fois sans. **`diff` muet sur `app.py` ET sur
+`schema.sql`.** Les quatre règles ne produisaient rien du tout.
+
+Éprouvé contre un vrai serveur : deux POST du même `poids` sur un champ déclaré
+`unique` → deux fois 200, deux lignes en base. Puis, sur `exemples/02_boutique.ml`
+qui déclare `rule Product.price min 0` et `rule Product.stock min 0` :
+
+```
+POST price=-99 stock=-5 → {"status":"success","id":7}
+en base → [('Sonde', -99, -5)]
+```
+
+**L'exemple livré avec monl portait deux contraintes qui ne faisaient rien.** Et
+dans cette boutique-là le prix se multiplie en sous-total (`derivedFrom`), se
+somme en total (`sumOf`) et part chez le prestataire (`payable`) : cette borne
+était la dernière chose entre le catalogue et un montant négatif encaissé.
+
+### Ce qui a été fait
+
+**La référence est validée** — entité et champ doivent exister, avec suggestion
+sur une faute de casse. **`min`/`max` deviennent des contraintes Pydantic**,
+donc un 422 avant tout INSERT ; leur portée dépend du type, et cette lecture est
+écrite plutôt que devinée : longueur sur `String`/`Text`/`Email`, valeur sur
+`Integer`/`Float`/`Money`. Un `max` au-delà de la colonne SQL est refusé (il
+promettrait une donnée que la base ne peut pas tenir), un type qui ne se borne
+pas aussi, et des bornes contradictoires également.
+
+**`unique` devient un index unique.** Un INDEX et non une contrainte de colonne,
+pour une raison qui commande : SQLite ne sait pas ajouter `UNIQUE` à une colonne
+existante, alors que `CREATE UNIQUE INDEX IF NOT EXISTS` s'applique à une table
+déjà peuplée et reste idempotent — la promesse de migration additive (point 32)
+est donc tenue. Sur une base qui contient DÉJÀ des doublons, l'index ne peut pas
+naître : c'est un changement non automatisable, et le serveur le NOMME au
+démarrage en continuant de tourner, plutôt que de le laisser disparaître dans le
+`ℹ️ DB déjà initialisée` qui aurait aussi avalé tout le reste du script.
+
+`required`, lui, reste une assertion : les schémas Pydantic de monl rendent
+DÉJÀ tout champ obligatoire. Il est désormais vérifié, pas appliqué — et c'est
+dit, plutôt que laissé croire.
+
+### Deux détails qui ne se devinent pas
+
+**Le 409 avait déjà une cause, il en a maintenant deux.** Répondre « référence
+invalide » à un doublon enverrait l'appelant chercher un problème qu'il n'a pas :
+le message distingue.
+
+**SQLite lève à l'`execute`, pas au `commit`.** La première version entourait le
+seul `conn.commit()` de la route Update : le PUT en doublon répondait **500**.
+Trouvé contre un vrai serveur. La route Update n'écrivant aucune clé étrangère,
+elle n'avait jamais eu de garde — `unique` est la première chose qui pouvait l'y
+faire lever.
+
+### Un refus de plus, venu du dialogue
+
+`required` sur un champ que le SERVEUR calcule est désormais refusé. Le contrat
+frontend dirait sinon deux choses opposées sur le même champ — « à remplir » via
+`required`, « à ne pas envoyer » via `server_generated` — et l'IA d'interface
+recevrait deux consignes contradictoires. `unique` reste permis sur ces
+champs-là : un pseudonyme `generated` a toutes les raisons d'être unique, et
+l'index s'applique en base sans rien demander au client.
+
+`tests/test_contraintes_de_champ.py` (22 tests), dont le plus utile est celui
+qui compile avec et sans les quatre règles et **exige que les sorties diffèrent** :
+il échoue le jour où l'une d'elles redevient décorative.
+
+---
+
+## 86. Décompter ce que le client a demandé, et le plancher qui l'arme
+
+`decrements` savait retirer une CONSTANTE (`by 3`). C'est juste pour une
+réputation ou un like. Une boutique a besoin de retirer *ce que le client a
+commandé* — et `exemples/02_boutique.ml` encaissait pour de vrai depuis le
+point 74 **sans jamais toucher à son stock** : on pouvait commander cinquante
+paires sur douze, et payer. L'interface de `projets/SneakerLab` limitait la
+quantité au stock affiché ; l'API, non, et c'est elle qui compte.
+
+La grammaire accepte donc `by <champ>` en plus de `by <entier>`, avec la même
+exigence que le multiplicateur de `derivedFrom` (point 77) et pour la même
+raison : le champ doit porter `required`, sinon un client qui l'omet ferait
+décompter sur du vide.
+
+### Le plancher n'est pas câblé, il est déclaré
+
+Un décompte qui passe sous zéro est un stock qui MENT — la fiche afficherait
+« -3 disponibles » après avoir encaissé les huit qu'elle n'avait pas. Mais une
+réputation, elle, a parfaitement le droit d'être négative : c'est même l'usage
+d'origine de la brique.
+
+Ce qui distingue les deux n'est pas le nom du champ, et surtout pas une
+exception « stock » écrite en dur dans le compilateur. C'est la DÉCLARATION
+`rule Product.stock min 0`, arrivée la veille avec le point 85. **La
+vérification de disponibilité s'arme donc toute seule à partir de ce que la spec
+dit**, et reste absente là où rien ne la demande. Les deux points se sont
+rencontrés sans avoir été pensés ensemble.
+
+Une SEULE instruction SQL porte la condition et l'écriture :
+
+```sql
+UPDATE "product" SET "stock" = "stock" - ? WHERE id = ? AND "stock" - ? >= ?
+```
+
+puis `rowcount == 0` → 409, dans la transaction de création : le refus ne laisse
+donc aucune ligne derrière lui. Lire le stock puis l'écrire aurait laissé deux
+commandes simultanées lire le même chiffre et décompter chacune de son côté.
+
+### Le bug que le SQL généré a montré
+
+La première version écrivait `WHERE id = data.commande_id` : elle décomptait le
+stock du produit **portant l'identifiant de la commande**. La colonne visée
+venait de `_get_incoming_relation`, c'est-à-dire de la relation « propriétaire »
+— et tant qu'une entité déclenchante n'avait qu'UNE relation entrante
+(`Report → Member`, `Like → Post`), les deux coïncidaient. `OrderLine` en a
+deux. Le compilateur avait déjà connu ce défaut (« un mécanisme de clé étrangère
+qui décrémentait le mauvais enregistrement ») ; il est revenu par la porte de la
+deuxième relation. Trouvé en LISANT le SQL généré, pas en relisant le code.
+
+Le test correspondant compare avec des identifiants volontairement divergents —
+même précaution qu'à la sonde du point 81, où « utilisateur 1 » et « commande 1 »
+coïncidaient et ne prouvaient rien.
+
+Second défaut, trouvé contre le serveur : le refus répondait **500**. Le
+`raise HTTPException` fermait la connexion avant de lever, et le `except
+Exception` de la création la refermait — sur une connexion déjà close.
+
+### Contre-épreuve
+
+Garde-fou neutralisé dans le générateur : exactement trois tests tombent, et la
+boutique accepte de vendre ce qu'elle n'a pas (`[200, 200, 200, 200]` au lieu de
+`[200, 200, 200, 409]`). Remis : vert.
+
+### Le dialogue guidé rattrape le DSL
+
+Même argument qu'au point 75, resté valable quatre briques plus tard : **une
+capacité que le dialogue n'exprime pas n'existe pas** pour qui n'écrit pas la
+spec à la main. Le dialogue produisait encore la forme MONO-ARTICLE du point 77
+— une commande à un seul article — alors que le compilateur sait faire un panier
+depuis le point 82.
+
+Deux questions de plus (« plusieurs articles ? », « décompter un stock ? »), et
+il produit désormais la chaîne entière :
+
+```
+entity LigneOrder
+rule LigneOrder.Read ownedBy Order                              (point 81)
+rule LigneOrder.sousTotal derivedFrom Product.price by quantite (point 77)
+rule Order.total sumOf LigneOrder.sousTotal                     (point 82)
+rule Product.stock min 0                                        (point 85)
+rule LigneOrder.Create decrements Product.stock by quantite     (point 86)
+rule Order.total payable                                        (point 74)
+```
+
+Le champ du stock n'est pas DEVINÉ parmi les entiers du catalogue : le deviner
+mal ferait décompter autre chose que ce qu'on croit, en silence. Il est demandé.
+
+Cette sortie a révélé un dernier défaut : le dialogue écrivait `rule Order.total
+required` sur un champ que le serveur calcule — d'où le refus ajouté au
+point 85. Un dialogue a corrigé un validateur, après qu'un validateur eut
+corrigé une question du dialogue (point 75). C'est la troisième fois que les
+deux couches se rattrapent l'une l'autre.
+
+### Éprouvé sur la vraie boutique
+
+`projets/SneakerLab`, sur son stock réel de 12 Halo RS :
+
+```
+commander 17 paires → 409 « Product.stock insuffisant »
+commander 2         → 200
+stock 12            → 10
+```
+
+`tests/test_stock.py` (11 tests) tient la brique ; `exemples/02_boutique.ml` la
+compile.
+
+---
+
+## 87. Encaisser une ligne, et le refus qui protégeait d'autre chose que ce qu'il disait
+
+Le point 81 refusait `payable` sur toute entité possédée à travers un
+intermédiaire, avec ce motif :
+
+> la route de règlement identifie le payeur par une clé étrangère de COMPTE,
+> qu'une chaîne transitive ne fournit pas.
+
+**C'était exact du code d'alors, et faux de la brique.** La propriété transitive
+livrait déjà, dans `_owner_lookup_sql`, la jointure qui rend l'id de compte —
+Update et Delete l'employaient depuis le point 81. Seule la route de règlement
+avait été écrite avant, et continuait de comparer `current_user_id` à la clé
+étrangère brute. Le refus protégeait donc d'une **comparaison fausse**, pas
+d'une impossibilité : il fermait un cas légitime pour un défaut situé ailleurs.
+
+Une facture rattachée à un contrat, une prestation rattachée à un dossier, une
+ligne d'une commande : toutes ont la même forme, et aucune n'avait de raison
+d'être exclue.
+
+### Ce qui a changé, et ce qui ne devait pas changer
+
+La jointure entre **DANS le SELECT existant**, jamais à côté. C'est l'invariant
+du point 74 : *le montant, l'état et le propriétaire sortent de la MÊME
+lecture*, sinon une fenêtre se rouvre entre le contrôle d'accès et le calcul du
+montant. La requête devient
+
+```sql
+SELECT t."<montant>", t.payment_status, p."<actor_fk>"
+FROM "<table>" t JOIN "<intermédiaire>" p ON p.id = t."<via_fk>"
+WHERE t.id = ?
+```
+
+et rend exactement le même triplet qu'en propriété directe — donc **la
+comparaison qui suit est inchangée**, comme pour Update et Delete au point 81.
+Un test compte les `cursor.execute` de la route générée et exige qu'il n'y en
+ait qu'un.
+
+Conséquence gratuite et correcte : une ligne ORPHELINE (intermédiaire disparu)
+ne rend aucun résultat, donc 404. Elle n'appartient à personne — surtout pas
+« payable par quiconque ».
+
+### Ce qui garde la brique sûre n'a pas bougé
+
+Trois refus, tous vérifiés ailleurs et intacts : la chaîne doit remonter à un
+acteur (point 81), le montant doit rester incalculable par le client
+(point 79 — un test le confirme explicitement sur une entité transitive), et une
+relation entrante doit exister (point 75). Le raisonnement du point 79 tient
+d'ailleurs mieux ici qu'ailleurs : le créateur d'une ligne doit **prouver qu'il
+possède** la commande à laquelle il la rattache (contrôle de création du
+point 81), donc il en est bien le propriétaire, donc le payeur.
+
+### La contre-épreuve, et ce qu'elle a montré
+
+Jointure neutralisée dans le générateur, tests relancés :
+
+```
+FAILED test_un_tiers_ne_peut_pas_payer
+  AssertionError: {"status":"success","url":"https://paiement.example/s", …}
+```
+
+**Bob règle la ligne d'Alice, avec succès.** C'est très exactement le trou dont
+le refus du point 81 protégeait — et la preuve que le refus visait juste, même
+si sa formulation attribuait le défaut à la brique plutôt qu'à la route. Le test
+de la ligne orpheline tombe aussi, en 403 au lieu de 404 : un verdict faux dans
+l'autre sens.
+
+Les identifiants du banc sont volontairement DIVERGENTS (compte, commande et
+ligne portent des id différents). Sans cette précaution, la sonde du point 81
+n'avait rien montré parce que « utilisateur 1 » et « commande 1 » coïncidaient ;
+la même erreur ici aurait fait passer la contre-épreuve pour un succès.
+
+`tests/test_paiement_transitif.py` (5 tests, faux Stripe embarqué — le montant
+est vérifié sur ce que le PRESTATAIRE reçoit). Le test du point 81 qui gardait
+le refus a été retourné : il garde désormais l'inverse, avec un témoin qui
+vérifie que le refus du point 79 n'a pas été levé au passage.
+
+### Ce qui reste ouvert
+
+La chaîne de propriété ne remonte toujours qu'**UN** intermédiaire. Ce n'est pas
+un oubli du point 87 : c'est une décision distincte, avec son propre coût
+(jointures à profondeur variable dans quatre chemins d'accès), et rien ne l'a
+encore réclamée.
+
+---
+
+## 88. Le back-office, et les deux mensonges qu'il a fait tomber
+
+Demande : la page où le marchand gère les commandes de ses clients. J'ai
+commencé par vérifier ce que l'API permettait déjà, plutôt que par imaginer une
+brique.
+
+### Ce qui existait déjà, et que je croyais à faire
+
+Je m'attendais à devoir construire un « rôle superviseur » — c'est même listé
+comme brique non cadrée depuis le point 31. **Il existe.** Le contrôle de
+propriété généré est GARDÉ par l'acteur :
+
+```python
+if current_actor not in {"Client", "Patron"}: … 403
+if current_actor == "Client":        # ← le filtre ne s'applique qu'à lui
+    … vérifie que la commande lui appartient
+```
+
+Donc `rule Commande.Update sharedBy Client, Patron` donne exactement la
+sémantique voulue : le client ne touche que ses commandes, le patron toutes.
+Idem en lecture — `list_order` ne pose son `WHERE customer_id = ?` que pour le
+propriétaire désigné. **Zéro ligne de compilateur.** Ce qui manquait à
+`projets/SneakerLab` était dans sa propre spec (l'admin n'avait que `Read Order`)
+et dans son registre de comptes (aucun compte Admin n'existait).
+
+La leçon est celle du point 87, deux jours plus tôt : *un refus, ou une absence,
+peut protéger d'autre chose que ce qu'il annonce*. Il vaut mieux compiler et
+lire le code produit que raisonner sur ce dont on se souvient.
+
+### Premier mensonge : la clé étrangère
+
+Le contrat annonçait à l'IA d'interface :
+
+```json
+"foreign_keys": [{"column": "customer_id", "references": "Customer"}]
+```
+
+et `schema.sql`, dans le même projet :
+
+```sql
+FOREIGN KEY ("customer_id") REFERENCES _monl_users(id)
+```
+
+**Une clé étrangère de monl référence l'une de DEUX choses** — le registre des
+comptes quand la route Create la peuple depuis le jeton (`_identity_fk_columns`,
+bêta 3), l'`id` d'une table métier sinon. Le générateur connaît la distinction
+depuis longtemps ; le contrat ne la transportait pas.
+
+Ce que ça coûte, sur les données réelles de SneakerLab :
+
+| commande | `customer_id` | jointure suggérée par le contrat | vraie fiche |
+|---|---|---|---|
+| 7 | 1 | `customer.id = 1` → « bodi » | **bodi** ✅ |
+| 8 | 5 | `customer.id = 5` → rien | Sonde (fiche 2) ❌ |
+
+**Une jointure qui marche à moitié.** La pire espèce : juste sur les premiers
+enregistrements, c'est-à-dire tant que l'identifiant de compte et celui de la
+fiche coïncident, c'est-à-dire pendant les tests. Le back-office aurait affiché
+le bon nom sur la commande la plus ancienne, et rien sur les suivantes.
+
+Même motif qu'aux points 76 et 79 : *le contrat décrit ce que la spec déclare,
+pas ce que le backend fait vraiment*. Il porte désormais `references_account` et
+une note qui dit quoi faire à la place — chercher la fiche dont la colonne
+HOMONYME porte la même valeur, jamais celle dont l'`id` la porte. Le brief
+lisible le dit aussi : les colonnes de liaison n'y figuraient pas du tout, alors
+qu'une page d'administration ne fait presque que ça.
+
+Le test confronte le contrat aux `REFERENCES` **réellement écrits** dans
+`schema.sql` — même principe que la confrontation aux décorateurs d'`app.py`
+(point 40) — et exige que les DEUX sortes soient représentées dans le jeu
+d'essai : un banc qui n'en contiendrait qu'une laisserait passer un contrat qui
+répond toujours pareil. Contre-épreuve : ancien contrat rétabli, le test tombe
+en nommant les deux versions.
+
+### Second mensonge : « aucun changement d'interface »
+
+Après avoir ouvert le carnet à l'administrateur, `monl update` a répondu :
+
+```
+─── Delta du contrat frontend ───
+  (aucun changement d'interface — le frontend existant reste valide)
+```
+
+Faux. L'admin venait de gagner six accès. `_contract_signature` comparait
+`{méthode} {chemin}` et `{Entité}.{champ}` — **jamais QUI a le droit d'appeler**.
+Or ouvrir une route existante à un rôle de plus ne crée aucune route : c'est le
+changement le plus silencieux qui soit, et c'est précisément celui qui réclame
+un écran entier.
+
+« Le frontend existant reste valide » était vrai et trompeur : rien n'était
+cassé, et pourtant tout un back-office manquait. Le rapport de delta existe pour
+dire ce qu'il reste à écrire, pas seulement ce qui est cassé.
+
+Le delta rapporte désormais `+ accès ouvert` / `- accès retiré`, et la consigne
+pour l'IA frontend contient une rubrique dédiée. Un détail qui compte : les
+accès d'une route qui vient d'apparaître sont ignorés — ils sont déjà dits par
+« route ajoutée », et les compter deux fois noierait le signal qu'on vient
+d'ajouter. Un test le vérifie.
+
+### Ce que ça donne en réel
+
+```
+── l'admin voit TOUTES les commandes ──
+total : 3
+  commande   7  en préparation     89 EUR  compte 1  payee
+  commande   8  panier              0 EUR  compte 5  en_attente
+  commande   9  panier            298 EUR  compte 5  en_attente
+── fiches clients, indexées par la colonne homonyme ──
+{1: 'bodi', 5: 'Sonde'}
+
+── l'admin fait avancer la commande 7 (compte 1, pas la sienne) → 200
+── le client 5 tente la même commande 7                          → 403
+```
+
+### Ce qui reste avant la page elle-même
+
+**La date.** Aucune table métier générée par monl ne porte d'horodatage — un
+carnet de commandes sans date n'est pas un carnet. C'est le seul vrai manque de
+compilateur pour ce back-office, et il ne se rattrape pas : les commandes déjà
+passées n'auront jamais de date rétroactive. Prochaine brique.
+
+**Le filtrage.** La route de liste n'offre que `limit`/`offset`. « Les commandes
+à expédier » se fera donc côté navigateur, ce qui passe à l'échelle de
+SneakerLab et pas au-delà. À décider une fois la page écrite, sur ce qui coince
+vraiment — pas maintenant.
+
+---
+
+## 89. La date que personne ne peut se donner, et la colonne qu'on ne rattrape pas
+
+Le point 88 s'achevait sur un constat : aucune table métier générée par monl ne
+portait d'horodatage. Un carnet de commandes sans date ne dit ni ce qui est
+récent, ni dans quel ordre honorer — le back-office de `projets/SneakerLab`
+affichait trois commandes sans moyen de savoir laquelle attendait depuis le plus
+longtemps.
+
+```
+rule Order.placedAt timestamp
+```
+
+Le champ doit être déclaré `DateTime`. Le serveur l'écrit à la création, en
+ISO 8601 UTC, et jamais ensuite.
+
+### Ce qui fait la brique, et qui n'allait pas de soi
+
+**Le client ne peut pas la fournir — ni à la création, ni à la modification.**
+C'est la même raison que `generated` (point 30) et `derivedFrom` (point 77) :
+une date qu'on se donne à soi-même n'atteste de rien. La contre-épreuve tient en
+une requête — un POST portant `"placedAt": "2019-01-01T00:00:00+00:00"` doit
+produire une commande datée d'aujourd'hui. L'exclure du `SET` de la route Update
+évite en prime le 500 du point 78 (`data.<champ>` absent du schéma) : la leçon
+« neuf briques testées une par une ne testent pas leurs paires » a servi ici
+avant de coûter quelque chose, pour la première fois.
+
+**`Date` est refusé, et le refus explique.** Tronquer au jour perdrait une
+information que le serveur possède, et rendrait deux enregistrements du même
+jour impossibles à ordonner — c'est-à-dire l'usage même d'un horodatage. `Date`
+reste un type légitime partout ailleurs : c'est `timestamp` qui n'en veut pas,
+donc c'est `timestamp` qui doit le dire.
+
+**La milliseconde, pas la seconde.** Le contrat annonce que ces chaînes se
+trient comme du texte — vrai parce que le décalage est toujours `+00:00` et le
+format de largeur fixe. À la seconde près, deux commandes passées coup sur coup
+portaient la MÊME date : la propriété qu'on venait d'annoncer devenait fausse
+exactement au moment où un carnet en a besoin. Quatre caractères, et le tri
+redevient total. Vérifié — deux créations à 30 ms d'écart :
+
+```
+  NOUVELLE-1   2026-07-31T01:39:03.397+00:00
+  NOUVELLE-2   2026-07-31T01:39:03.427+00:00
+```
+
+**Aucun refus nouveau pour les cumuls.** `generated` exige un `String`,
+`derivedFrom` et `sumOf` un champ numérique, `payable` de même : un `DateTime`
+ne peut porter aucune des trois, et le refus de type tombe avant. Écrire un
+quatrième refus inatteignable aurait fait croire à une protection. De même,
+`required` et les bornes sont hérités du recoupement du point 85 — il a suffi
+d'ajouter les champs horodatés à `peuples_par_le_serveur`, sans une ligne de
+plus. C'est le bénéfice de l'avoir groupé là plutôt qu'éparpillé.
+
+### La colonne qu'on ne rattrape pas
+
+La migration additive (point 32) rattrape une colonne absente. Elle ne rattrape
+jamais son contenu — et pour toute brique jusqu'ici, ça n'avait aucune
+importance : une colonne vide est une colonne vide, le client la remplira. Une
+date de création, elle, est **irréparable** : l'instant est passé et le serveur
+ne l'a pas vu.
+
+La tentation était un `DEFAULT CURRENT_TIMESTAMP`. Il aurait daté d'aujourd'hui
+toutes les commandes d'avant-hier — une base de données qui MENT, ce qui est
+strictement pire qu'une case vide. On compte, on nomme, on laisse à `NULL` :
+
+```
+🔧 Migration : colonne "placedAt" ajoutée à "order" (TIMESTAMP).
+ℹ️ "order"."placedAt" : 3 enregistrement(s) créé(s) avant l'ajout de
+   l'horodatage restent sans date. Elle ne peut pas être reconstituée —
+   les dater après coup serait faux.
+```
+
+Et le contrat frontend le dit à l'IA d'interface : *« PEUT ÊTRE VIDE […] :
+afficher un tiret, jamais la date du jour — cette date-là n'a pas été perdue,
+elle n'a jamais existé. »* C'est le prolongement de la règle du point 83 —
+**monl vérifie la complétude, jamais la véracité** : ici il refuse d'inventer
+une donnée qu'il ne peut pas constater.
+
+Sur SneakerLab, en réel — trois commandes d'avant la brique, deux d'après, dont
+une où le client a tenté une date de 2001 :
+
+```
+  n°7   — jamais horodatee —                    89 EUR  expédiée
+  n°8   — jamais horodatee —                     0 EUR  panier
+  n°9   — jamais horodatee —                   298 EUR  panier
+  n°10  2026-07-31T01:52:55.611+00:00            0 EUR  panier
+  n°11  2026-07-31T01:52:55.639+00:00            0 EUR  panier
+```
+
+### L'angle mort du point 88, sur l'autre moitié du contrat
+
+En posant la règle sur SneakerLab, `monl update` a annoncé :
+
+```
+  + champ ajouté : Order.placedAt
+```
+
+dans une rubrique intitulée « Nouveaux champs à afficher/**saisir** ». Faux : ce
+champ ne se saisit pas. Et en tirant le fil, un trou plus large est apparu — le
+delta comparait des NOMS de champs. Poser `rule Order.total derivedFrom …` sur
+un champ qui existait déjà ne renomme rien : la réponse était « aucun changement
+d'interface », pendant que le formulaire de prix devenait un champ que le
+serveur ignore.
+
+C'est exactement le point 88 sur l'autre moitié du contrat : là, un acteur de
+plus sur une route existante ; ici, un sens de plus sur un champ existant. Dans
+les deux cas rien n'est cassé, et pourtant l'interface est fausse. **Le pire des
+deux, d'ailleurs** : envoyer la valeur n'échoue même pas, elle est silencieusement
+écartée — l'utilisateur croit avoir saisi une date.
+
+La signature de contrat porte donc un quatrième ensemble, les champs en lecture
+seule, et le delta rapporte `! champ devenu en lecture seule` avec sa rubrique
+dans la consigne. Un champ neuf, lui, est annoncé annoté plutôt que dans une
+nouvelle rubrique — il est déjà dans « champs ajoutés », l'y compter deux fois
+noierait le signal (même arbitrage qu'au point 88).
+
+### Le dialogue guidé l'émet sans poser de question
+
+`_ask_payable` ajoute le champ et la règle à l'entité encaissée, en QUEUE de la
+liste — la règle « premier champ requis » de l'émetteur porterait sinon sur un
+champ que le client ne peut pas envoyer, et la compilation échouerait sur le
+recoupement du point 85.
+
+Aucune question ne le propose, volontairement : la date est écrite par le
+serveur, donc elle ne peut pas être fausse, et une commande sans date n'est pas
+une commande — la seule réponse utile serait « oui ». Le dialogue émet déjà de
+même le total, le plancher de stock et le décompte sans les faire arbitrer un
+par un.
+
+### Éprouvé par
+
+`tests/test_horodatage.py` (20 tests) : dix refus de compilation, quatre
+vérifications sur le code écrit — dont celle qui exige que compiler AVEC et SANS
+la règle donne des sorties différentes, discipline du point 85 — et six contre un
+serveur réel, y compris le redémarrage sur une base déjà peuplée. Les deux
+garde-fous ont été neutralisés un par un : sans l'exclusion du schéma d'entrée,
+quatre tests tombent ; sans celle du `SET`, deux. Plus deux tests de delta dans
+`tests/test_orchestrator.py`, et un dans `tests/test_app_templates.py` pour le
+dialogue.
+
+---
+
+## 90. On ne commande pas sans être identifié
+
+Le point 89 posé, le back-office avait sa date. Il lui manquait toujours le
+client. Une inspection de la base de `projets/SneakerLab` a montré pourquoi :
+
+```
+commande 7   compte 1  login=bodi       fiche=bodi
+commande 8   compte 5  login=sonde_neg  fiche=Sonde
+commande 10  compte 7  login=sondeur    fiche=— AUCUNE —
+commande 11  compte 7  login=sondeur    fiche=— AUCUNE —
+```
+
+**Rien n'obligeait à créer une fiche avant de commander.** Et le registre des
+comptes (`_monl_users`) n'est exposé par aucune route — délibérément, il porte
+les empreintes de mots de passe. L'administrateur voyait donc une commande qu'il
+ne pouvait attribuer à personne : ni nom, ni adresse, ni moyen d'en obtenir un.
+Pour une boutique, ce n'est pas un défaut d'affichage : c'est une **commande
+inexpédiable**.
+
+```
+rule Order.Create requiresOwn Customer
+```
+
+### Le choix entre deux voies, et pourquoi celle-ci
+
+La première idée était d'exposer l'identité du compte aux rôles autorisés — un
+`revealsAccount` déclaratif. Elle a été écartée pour deux raisons qui se
+renforcent : **un login ne s'expédie pas** (l'admin aurait su *qui*, sans jamais
+savoir *où*), et ça entamait la promesse du pseudonyme `generated` (brique 7),
+qui existe précisément pour qu'une identité de compte ne transpire jamais dans
+une réponse.
+
+Garantir la fiche règle le fond sans toucher à l'authentification. Et une fois la
+fiche garantie, lui ajouter `email` et `address` suffit à rendre la commande
+expédiable — ce qui est le vrai besoin, et ne demande aucun compilateur.
+
+### Les décisions
+
+**La vérification vient EN PREMIER**, avant le contrôle du parent (point 81) et
+avant tout calcul `derivedFrom`. Deux raisons distinctes : un appelant sans fiche
+n'a pas à apprendre si tel produit existe, et sur une entité qui décompte du
+stock, une vérification tardive laisserait le décompte se produire avant le
+refus.
+
+**409, pas 403.** Ce n'est pas un droit qui manque — c'est un état à corriger, et
+le message dit lequel : *« Créez d'abord votre fiche Customer. »* Un 403
+laisserait croire à un compte mal provisionné, donc à un problème qu'on ne peut
+pas résoudre soi-même.
+
+**La fiche est cherchée par identifiant de COMPTE**, via `_identity_fk_columns` —
+la source unique installée au point 88. Un `WHERE id = ?` trouverait la fiche de
+quelqu'un d'autre dès que l'id de compte et l'id de ligne divergent, c'est-à-dire
+partout sauf sur les premiers enregistrements. Un test l'exige explicitement.
+
+**Seule `Create` peut l'exiger.** Sur Read, Update ou Delete, l'enregistrement
+existe déjà : une fiche exigée a posteriori ne protégerait rien et rendrait
+inaccessibles des données qu'on possède. Refus explicite.
+
+L'erreur qu'on écrit naturellement — « existe-t-il au moins une fiche ? » — est
+attrapée par un test qui emploie DEUX comptes dont un seul a la sienne. Sans lui,
+la première fiche créée sur la boutique ouvrirait la commande à tout le monde.
+
+### Le troisième angle mort du delta
+
+En posant la règle sur SneakerLab, `monl update` a répondu **« aucun changement
+d'interface »**. La route n'avait ni changé de chemin, ni d'acteurs, ni de
+champs. Elle avait gagné une CONDITION — et c'est tout le parcours d'achat qu'il
+fallait reprendre.
+
+C'est la troisième fois que le même angle mort se manifeste :
+
+| Point | Ce qui change sans rien renommer |
+|---|---|
+| 88 | un ACTEUR de plus sur une route existante |
+| 89 | un champ qui devient calculé par le serveur |
+| 90 | une route qui gagne un PRÉALABLE |
+
+Trois fois la même leçon : **le delta doit comparer tout ce que le contrat
+promet, pas seulement ce qui porte un nom nouveau.** La signature de contrat
+compte désormais cinq ensembles. Le contrat, lui, porte `requires_own` et une
+note qui dit *quand* vérifier — « proposer la création AVANT le formulaire » :
+découvert à la fin, le refus tombe là où l'utilisateur a déjà tout rempli.
+
+### Ce que ça ne répare pas
+
+Les commandes 10 et 11 restent orphelines. La règle empêche les suivantes, elle
+ne reconstitue pas les précédentes — même limite que l'horodatage du point 89, et
+pour la même raison : monl vérifie la complétude, il n'invente pas de donnée.
+
+### Éprouvé par
+
+`tests/test_fiche_obligatoire.py` (17 tests) : neuf refus de compilation, quatre
+vérifications sur le code écrit — dont l'ordre des requêtes et la colonne
+employée — et quatre contre un serveur réel, dont celui des deux comptes. Les
+deux erreurs plausibles ont été injectées : vérification non portée sur
+l'appelant (2 tests tombent), garde-fou retiré (5 tombent). Plus un test de delta
+dans `tests/test_orchestrator.py`.
+
+---
+
+## 91. Ce qu'on a encaissé ne se remodifie plus
+
+`payable` (point 74) garantissait que le montant encaissé venait de la BASE, et
+les points 77 à 82 ont fermé, un par un, les chemins par lesquels le client
+pouvait écrire ce montant. Aucun de ces points ne s'est demandé ce qui se passe
+**après** l'encaissement. La réponse, mesurée sur `projets/SneakerLab` avant
+d'écrire une ligne de code, était : tout.
+
+Une commande réglée 89 € acceptait une paire à 149 € — la route `POST /orderline`
+recalculait consciencieusement le total à **238 €**, `payment_status` restant
+`payee`. Porter la quantité à cinq donnait **594 €**. Le back-office affichait
+« Payée » en face d'un montant que personne n'avait réglé. C'est la faille du
+point 77 revenue par la seule porte que ces points n'avaient pas regardée : non
+plus « quel montant le client peut-il écrire », mais « pendant combien de temps ».
+
+### Le verrou, et pourquoi il ne pouvait pas se poser sur la seule commande
+
+Verrouiller l'entité payable en `Update` et `Delete` était l'idée évidente, et
+elle n'aurait servi à rien : le total ne se modifie pas par la commande, il se
+modifie par la LIGNE. Le verrou vit donc là où le total se recalcule —
+`_payment_locked_parents` (generator/core.py) est le pendant exact de
+`_aggregation_recomputes` : **partout où une écriture recalcule la somme d'un
+parent, ce parent peut déjà avoir été encaissé.** Cinq portes, pas une : Update
+et Delete de la commande, Create, Update et Delete de la ligne.
+
+Trois décisions à ne pas rouvrir.
+
+**409 et non 403.** Ce n'est pas un droit qui manque — le propriétaire est bien
+chez lui — c'est un état devenu définitif. Le message renvoie vers un
+remboursement chez le prestataire, seul endroit où l'argent peut revenir.
+
+**Le parent est relu EN BASE en `Update`/`Delete`, depuis la clé étrangère
+STOCKÉE.** Le corps de requête peut désigner une autre commande que celle à
+laquelle la ligne appartient : on verrouillerait sur la commande d'à côté et on
+laisserait modifier celle qui est payée. C'est la leçon du point 78, pour la
+troisième fois — elle vaut pour toute lecture de parent, pas seulement pour les
+montants. En `Create`, le parent vient de `data.<fk>`, mais il a été validé juste
+au-dessus par la propriété transitive (point 81) : c'est bien la commande de
+l'appelant.
+
+**La garde vient AVANT tout calcul et tout décompte.** Placée après, un refus
+aurait déjà consommé du stock — même raisonnement qu'au point 90.
+
+La contre-épreuve est dans le test, et elle est la moitié qui compte : *avant*
+règlement, les cinq écritures passent toujours. Un verrou qui figerait tout
+ferait passer les cinq premiers tests sans rien garantir, et rendrait la boutique
+inutilisable.
+
+### L'angle mort du contrat et du delta, quatrième fois
+
+Un backend qui refuse et un frontend qui l'ignore font une interface qui ment.
+Le verrou ne change **ni chemin, ni acteur, ni champ** : c'est exactement la
+forme des angles morts des points 88 (un acteur de plus), 89 (un champ devenu
+calculé) et 90 (une route qui gagne un préalable). Quatrième fois, même
+conclusion, et il faut la considérer comme une règle plutôt que comme une série
+de coïncidences : **toute brique qui ajoute une promesse au contrat doit se
+demander si `_contract_signature` (cli.py) la voit.** Elle compte désormais
+**six** ensembles.
+
+Le contrat porte donc `payment_locked` sur chaque route verrouillée, plus une
+note qui dit quoi en faire — conditionner le bouton à `payment_status`, que les
+routes de lecture renvoient déjà (point 76). Et `monl update` rapporte
+`! verrou de paiement : PUT /commande/{id} → figé une fois Commande réglé`, avec
+la rubrique correspondante dans la consigne pour l'IA. Un verrou porté par une
+route qui vient d'APPARAÎTRE est exclu du rapport : déjà dit par « route
+ajoutée », même arbitrage anti-doublon qu'aux trois points précédents.
+
+**Le trou que l'écriture du contrat a révélé, lui, était dans le contrat.** La
+note du verrou n'avait été posée que sur `Update` et `Delete` — les deux routes
+auxquelles on pense quand on dit « figé ». `POST /ligne` ne portait rien, alors
+que le backend refusait déjà d'y rattacher une ligne de plus : une IA fidèle au
+contrat dessinait un « + Ajouter un article » sur une commande payée, et le refus
+se découvrait au clic. C'est la cinquième porte du verrou, celle par laquelle le
+total remontait, oubliée dans la seule couche qui parle à l'interface.
+
+La nuance qui va avec : la création se verrouille par un **parent** réglé,
+jamais par l'entité payable elle-même — d'où le `inclure_soi=False` de
+`_verrou_paiement`. Ouvrir une commande de plus reste permis ; c'est y ajouter
+une ligne qui est refusé. Un verrou annoncé là ferait disparaître le bouton
+« Commander », et le témoin qui l'interdit est dans les tests.
+
+La route de règlement, elle, lit aussi `payment_status` et refuse un second
+paiement — mais ce n'est pas ce verrou-ci, et sa propre note le disait déjà
+(« 409 s'il est déjà réglé »). Le test de non-divergence les distingue par le
+message de `_payment_lock_lines`, pas par la simple présence de `'payee'` : ce
+qui est confronté n'est pas une liste de chemins attendus, mais l'ÉGALITÉ entre
+ce que le contrat annonce et ce que `app.py` garde réellement.
+
+### Le décompte qui ne s'armait qu'une fois
+
+Même sonde, autre trou : `rule OrderLine.Create decrements Product.stock by
+quantity` (point 86) ne s'armait qu'à la CRÉATION. Créer une ligne à 1 puis la
+passer à 4 facturait quatre paires et n'en décomptait qu'une — stock 16 → 15
+pour 528 € facturés. Le point 78 déplacé de l'argent vers la marchandise.
+
+La route `Update` applique désormais le **DELTA**, pas la nouvelle quantité : la
+ligne a déjà consommé son ancienne valeur. Un delta négatif rend du stock, et la
+condition `>= plancher` reste vraie — inutile de traiter les deux sens
+séparément, une seule instruction SQL suffit, comme à la création. Quantité et
+clé étrangère sont relues en base, toujours pour la même raison.
+
+### Deux réparations plus petites, du même passage
+
+**Le type `Email` ne vérifiait rien.** Il ne fixait qu'une longueur de colonne
+(320) : `'pas-un-courriel'` entrait en base avec un 200, et le colis ne partait
+nulle part. C'est exactement ce que le point 85 refuse — une règle qui ne produit
+rien. Un motif est désormais posé dans le schéma Pydantic. Il est volontairement
+large (une arobase, un point après, aucun espace) : **monl vérifie la forme, il
+ne peut pas attester qu'une boîte existe** — cela demanderait un envoi, donc un
+appel sortant que le compilateur s'interdit partout ailleurs que chez le
+prestataire de paiement.
+
+**La signature du webhook n'était pas datée.** L'horodatage était LU pour
+vérifier la signature, jamais comparé à l'heure. Un appel légitime capté une fois
+restait donc rejouable indéfiniment. Tolérance de cinq minutes, comme le
+documente Stripe. Les tests existants signaient avec `t=1700000000` — une date de
+novembre 2023 — et passaient précisément parce que le serveur ne datait rien :
+ils signent maintenant à l'heure courante, comme le vrai prestataire.
+
+### Ce que ça ne répare pas
+
+**Le statut reste un texte libre.** Sur une commande NON réglée, le client pose
+encore `status: "livrée"` et le serveur l'accepte : il n'existe aucune brique
+« valeur parmi une liste ». Le verrou ne le couvre qu'une fois l'encaissement
+fait. C'est la prochaine brique évidente de cette série, et elle n'est pas
+écrite.
+
+Restent aussi hors de portée, et assumés : les frais de port et la TVA (le total
+est la somme des lignes, rien d'autre — une décision produit, pas un défaut du
+compilateur), l'unicité d'une adresse (une ligne de spec, `rule X.email unique`,
+la brique existe depuis le point 85), et tout envoi de courriel.
+
+### Éprouvé par
+
+`tests/test_verrou_paiement.py` (15 tests) : les cinq portes fermées contre un
+vrai serveur et un faux Stripe, avec vérification que le total n'a pas bougé d'un
+centime après chaque refus ; la contre-épreuve des cinq écritures avant
+règlement ; le non-débordement sur la commande d'à côté ; le rejeu d'un webhook
+vieux de dix minutes ; et le type `Email` dans les deux sens (cinq adresses
+refusées, deux acceptées — un motif trop strict passerait le premier test).
+Plus trois tests de décompte au PUT dans `tests/test_stock.py`, qui a gagné
+`Update Ligne` dans son banc : sans cette action, la brique n'avait aucune façon
+d'être prise en défaut.
+
+Et quatre tests dans `tests/test_orchestrator.py` pour la couche contrat : la
+non-divergence entre `payment_locked` et les gardes réellement écrites dans
+`app.py` (avec le témoin `POST /commande`, qui ne doit JAMAIS être verrouillé),
+le témoin sans `payable` — un panier de pièces détachées reste modifiable, sans
+quoi un verrou qui figerait tout passerait tous les autres — le delta de
+`monl update`, et le non-doublon sur une route qui naît déjà verrouillée.
+
+## 92. Le stock qui ne revenait jamais, et la variable qui fuyait
+
+Le point 91 fermé, une seconde sonde a été passée sur `projets/SneakerLab` —
+serveur réel, appels réels, quatorze questions posées au serveur plutôt qu'au
+code. Le contrôle d'accès tient, les rôles tiennent, le préalable de fiche tient,
+l'horodatage tient. Trois défauts sont tombés, dont **deux introduits par le
+point 91 lui-même**.
+
+### Le troisième branchement, celui qu'on oublie
+
+Commander trois paires puis vider son panier laissait le stock à **9 sur 12**.
+Le décompte s'armait à la création (point 86), puis à la modification
+(point 91) — jamais à la suppression. Le total du parent, lui, redescendait bien
+à zéro depuis le point 82 : la base se contredisait donc elle-même, et le
+catalogue s'épuisait sans qu'une seule paire ait été vendue. Sur une boutique
+dont les stocks vont de 5 à 28, il suffit de quelques paniers abandonnés pour
+afficher « épuisé » sur toute une série.
+
+Le point 82 avait pourtant NOMMÉ le piège, pour l'agrégation : « trois
+branchements, et le troisième est celui qu'on oublie — création, modification,
+suppression ». Il l'avait nommé et traité pour `sumOf`. Le décompte, arrivé
+quatre points plus tard, ne l'a pas hérité : **une leçon écrite dans un point ne
+protège pas la brique du point suivant**, et c'est la seule raison pour laquelle
+ce défaut a vécu six points.
+
+**La restitution ne porte AUCUN garde-fou de plancher**, et c'est le seul choix
+qui tienne : elle rétablit un état qui a existé et qui était valide. Un
+`decrements` rendu ne fait que remonter ; un `increments` repris ne redescend pas
+plus bas que la valeur d'avant la création. Un plancher ici ne protégerait rien
+et interdirait d'annuler une commande — exactement ce qu'on répare. La quantité
+et la clé étrangère sont relues EN BASE **avant** le `DELETE` : après, la ligne
+n'existe plus et rien ne dit quoi rendre ni à qui (même ordre qu'au point 82,
+deux instructions plus haut dans la même route).
+
+La restitution rend la quantité **courante**, pas celle de la création : une
+ligne créée à 1 puis passée à 3 a consommé 3. C'est automatique puisqu'on lit la
+base, mais c'est ce que le test vérifie — le lire ailleurs laisserait deux paires
+évaporées.
+
+### La variable qui fuyait d'une branche à l'autre
+
+Le décompte au PUT (point 91) lisait `reputation_rules_here` : une variable
+assignée dans la branche `Create` de la boucle de génération, relue dans la
+branche `Update`. Elle contenait donc les règles de la **dernière entité créée**,
+pas de celle qu'on modifie. Deux conséquences, les deux vérifiées :
+
+* une spec qui a un `Update` **sans aucun `Create`** faisait planter le
+  compilateur — `cannot access local variable`. Aucun exemple, aucun test
+  n'exerçait ce chemin : toutes les specs du dépôt créent quelque chose ;
+* un `Update` précédé de la création d'une **autre** entité héritait de ses
+  règles. Sur une spec à deux entités liées au même produit, **modifier un avis
+  décomptait le stock** — la règle appartenait à la ligne de commande.
+
+Ce qui masquait le défaut est instructif : quand `Create X` précède
+immédiatement `Update X` dans l'ordre des routes, la variable contient les bonnes
+règles et tout fonctionne. Il suffit qu'une autre entité s'intercale. **Un bug
+d'ordre d'itération ne se voit pas sur la spec qui l'a fait naître.**
+
+Le correctif tient en une ligne — relire les règles depuis
+`reputation_rules_by_trigger` dans la branche qui en a besoin — mais il vient
+avec une source unique, `_decrement_fk_column` (generator/core.py) : la colonne
+de rattachement était recalculée à l'identique dans chaque branchement, et c'est
+précisément là qu'a vécu le bug du point 86. La recopier une troisième fois,
+c'était en préparer la troisième occurrence.
+
+### L'avertissement qui criait au loup
+
+`monl run --check` signalait quatre chemins « absents du contrat » sur
+SneakerLab : `/admin`, `/catalogue`, `/commandes`, `/compte`. Aucun n'était un
+défaut — ce sont les routes de NAVIGATION d'une application monopage
+(`href="#/catalogue"`, puis `aller('/catalogue')` en JavaScript). Le vérificateur
+prenait tout littéral commençant par `/` pour une URL d'API.
+
+Un avertissement qui se trompe sur un site correct n'est pas prudent : **il
+apprend à ne plus lire les avertissements**, et le jour où il dit vrai personne
+ne le lit. Il valait donc mieux l'affûter que le supprimer — la preuve est dans
+le fichier lui-même : si `#/x` y figure, `/x` est une route de navigation. Un
+vrai chemin d'API mal tapé, lui, n'apparaît jamais derrière un dièse, et reste
+signalé. C'est le même arbitrage qu'au point 57, sur le même avertissement.
+
+### Ce que la sonde a confirmé, et qui ne change pas
+
+Le reste tient, et le dire vaut autant que le reste : un client ne voit ni les
+commandes ni les fiches d'autrui, ne crée pas de ligne chez un tiers (403), ne
+s'inscrit pas en `Admin` (403), ne commande pas sans fiche (409) ; l'`Admin` voit
+tout le carnet et modifie les statuts (point 88) ; prix et stock négatifs sont
+refusés (422), un produit encore commandé n'est pas supprimable (409), le
+rattachement d'une ligne ne se déplace pas, et `placedAt` comme `total` ignorent
+ce que le client prétend leur donner.
+
+Deux constats sans correctif, assumés : le **statut reste un texte libre**
+(déjà noté au point 91 — c'est la prochaine brique), et **annuler** une commande
+côté SneakerLab la passe en `annulée` sans rendre le stock, puisque ses lignes
+demeurent. Rendre le stock sur un changement de statut supposerait une brique
+« effet déclenché par une valeur », qui n'existe pas et qui commence par
+« valeur parmi une liste ». Le parcours qui rend vraiment le stock — supprimer
+les lignes puis la commande — est celui du bouton « Vider le panier », et il est
+correct depuis ce point.
+
+### Ce que ça ne répare pas
+
+**Les unités déjà perdues.** Comme au point 90, la brique ne rattrape pas
+l'existant : un stock amputé par un panier abandonné avant ce correctif le reste,
+et seul un `UPDATE` à la main le rétablit. La migration additive (point 32)
+rattrape une colonne, jamais l'historique de ce qui s'est passé dessus.
+
+### Éprouvé par
+
+`tests/test_stock.py`, qui gagne `Delete Ligne` dans son banc — sans cette
+action, la brique n'avait toujours aucune façon d'être prise en défaut, exactement
+comme il avait fallu ajouter `Update Ligne` au point 91. Huit tests : la
+restitution simple, la quantité courante et non celle de la création, le produit
+visé et pas un autre, le cycle vider/recommander trois fois (la forme sous
+laquelle le défaut se voyait en production), l'absence de plancher sur la
+restitution, l'ordre lecture-avant-suppression, et les deux régressions de la
+variable qui fuyait — la spec sans `Create`, et l'entité qui héritait des règles
+d'une autre. Plus un test dans `tests/test_orchestrator.py` pour l'avertissement
+affûté, avec son témoin : un chemin réellement fautif doit rester signalé.
+
+## 93. Retoucher sans reconstruire
+
+Le site de `projets/SneakerLab` était juste au regard du contrat, vérifié vert
+par `monl run --check` — et ses trois images de tendance étaient mal cadrées.
+Entre ces deux états, monl n'avait **aucun geste** :
+
+* `monl frontend` RECONSTRUIT. On jette un site bon à 95 % pour un tirage non
+  déterministe, dont on peut perdre ce qu'on aimait ;
+* `monl update` ne parle que du **delta de spec**. Ici la spec n'a pas bougé :
+  il répond, à juste titre, « aucun changement d'interface » ;
+* restait l'édition à la main, c'est-à-dire hors de la boucle de vérification.
+
+`monl retouche "<ce qui cloche>"` comble exactement ce trou, et **ne fait rien
+de neuf** : elle réutilise la voie d'évolution du point 4 en changeant la seule
+chose qui manquait — l'origine du brief, une phrase humaine au lieu d'un diff.
+
+### Une seule voie vers l'IA, et c'est le point
+
+Le dispatch appelait l'IA en ligne dans `main()`. Recopier ces quinze lignes
+pour la retouche aurait fait **deux chemins vers le modèle, donc deux endroits
+où les garde-fous peuvent diverger** — ce que CLAUDE.md interdit nommément
+(« ne jamais contourner le garde-fou d'empreinte en ajoutant une voie »). D'où
+`_lancer_ia`, partagé, et `brief_evolution()` qui ne décide QUE du nom du brief.
+Empreinte des artefacts protégés, empreinte du frontend qui doit bouger
+(point 73), cohérence, smoke test, une correction au plus : tout est commun, et
+un test le vérifie en lançant un agent malveillant par la voie retouche.
+
+### Trois décisions
+
+**Ne rien changer est un ÉCHEC.** Sur une construction, « l'agent n'a rien
+écrit » est un avertissement : un frontend valide existait déjà (point 73). Sur
+une retouche, c'est la demande non traitée — l'humain a signalé un défaut qu'il
+VOIT, et répondre « tout va bien » serait le contraire d'un rapport honnête. La
+commande sort en erreur et suggère de nommer l'écran et l'élément.
+
+**L'interprétation la plus ÉTROITE.** Sans cette consigne, « les images sont mal
+cadrées » invite à refaire la mise en page — et une retouche trop large ne se
+distingue plus d'une reconstruction, c'est-à-dire de ce qu'on évite. La consigne
+le dit, et le résultat l'a confirmé : 20 lignes modifiées sur ~2500, les seules
+tuiles de tendance.
+
+**Une sauvegarde systématique.** `monl import` sauvegarde depuis toujours ; la
+retouche en a plus besoin encore, puisqu'elle porte sur un site qui MARCHE. Une
+COPIE et non un déplacement : l'IA doit trouver l'existant en place pour le
+faire évoluer.
+
+### Ce que monl ne promet pas, et qu'il faut dire
+
+Que le résultat soit plus **beau**. Le smoke test prouve que la page tourne
+encore et respecte le contrat, jamais que le cadrage s'est amélioré. Même
+honnêteté qu'au point 83 : **monl vérifie la complétude, pas le goût.** C'est
+précisément pourquoi la sauvegarde est systématique — la seule garantie qu'on
+puisse offrir sur une question de goût, c'est de pouvoir revenir en arrière.
+
+### Éprouvée en réel
+
+Sur SneakerLab, par la voie `claude-code`. La demande — « les trois images de la
+section Tendances sont mal cadrées, la chaussure apparaît petite et placée trop
+bas » — a produit un `--cadrage` réglable par photo (1,12 / 1,18 / 1,42), avec
+`object-position: center bottom`. Les trois valeurs suivent réellement le vide de
+chaque cliché : `tendance-ville.jpg` a ~45 % de blanc au-dessus du sujet, et
+c'est elle qui reçoit le cadrage le plus fort. Plus huit tests dans
+`tests/test_smoke_and_frontend_ai.py`, avec agent factice : la consigne et la
+sauvegarde, les deux refus (pas de frontend, demande vide), le contenu du prompt,
+l'instruction de retouche distincte de celle de construction, la retouche vide
+qui échoue, l'agent malveillant qui reste bloqué, et le bout en bout où
+l'existant n'est PAS réécrit.
+
+## 94. Une FAQ est une liste, et le contenu que le delta ne regardait pas
+
+Sur SneakerLab, les quatre questions fréquentes sortaient **collées en un seul
+paragraphe**. Le premier réflexe était d'accuser le frontend ; il était fidèle.
+Dans la spec, les quatre questions tenaient dans UNE chaîne :
+
+```
+section "Questions fréquentes": "Comment choisir ma taille ? Nos paires
+taillent normalement… Puis-je annuler une commande ? Oui, tant qu'elle est…"
+```
+
+Et la grammaire ne connaissait qu'une forme — `section "titre": "texte"`. L'IA a
+reçu un bloc de prose et en a fait un `<p>`. **C'est le modèle de contenu qui ne
+savait pas dire « une FAQ ».**
+
+La leçon vaut au-delà du cas : une retouche n'aurait pas réparé ça proprement.
+Elle aurait fait deviner à l'IA où commencent les questions, en découpant sur
+les points d'interrogation — une structure devinée, qui se reperd à la
+reconstruction suivante. La consigne de retouche le dit désormais en toutes
+lettres : un défaut qui vient de ce que la spec ne dit pas doit être signalé, pas
+contourné par une astuce d'affichage.
+
+### La forme retenue, et celle qui a été écartée
+
+`question "…": "…"` **répétable dans `landing`**, exactement comme `section`.
+Un sous-bloc `faq` indenté aurait ajouté un niveau d'indentation à la seule
+grammaire où l'indentation a déjà coûté deux bugs (point 6 : un commentaire seul
+dans un bloc indenté faisait échouer le parsing). La FAQ est donc la collection
+des `question` du bloc, et **l'ordre de déclaration est conservé** : dans une
+FAQ il porte du sens — on répond d'abord à ce qu'on demande le plus — et rien ne
+permettrait de le retrouver après coup.
+
+Le contrat porte `faq` comme une liste de couples, et le brief le dit en toutes
+lettres : *une LISTE, pas un texte suivi ; jamais en un seul paragraphe*. Sans
+cette phrase, déposer les couples dans la même rubrique que les sections laissait
+refaire exactement le pavé qu'on répare — l'IA ne lit pas le JSON, elle lit le
+brief.
+
+### L'angle mort du delta, cinquième fois — et la première hors des données
+
+En écrivant la brique, la question du point 88 s'est posée d'elle-même : *est-ce
+que `_contract_signature` la voit ?* Non. Et pas seulement la FAQ : **le contenu
+éditorial n'y a JAMAIS figuré**. Ajouter une rubrique « à propos » ne touche
+aucune route, aucun champ — `monl update` répondait « aucun changement
+d'interface » avec un bloc entier à écrire sur l'accueil. L'angle mort existait
+pour `section` depuis le point 55 ; la FAQ y serait tombée le jour de sa
+naissance.
+
+Le delta compte donc **sept** ensembles, et le septième est un DICTIONNAIRE là
+où les six autres sont des ensembles : le texte compte autant que le titre.
+Comparer les seuls titres serait l'erreur exacte du point 89 — réécrire
+« Livraison et retours » de fond en comble ne renomme rien, et il faut pourtant
+re-rendre la page. D'où trois cas et non deux : ajouté, retiré, **réécrit**.
+
+Cinq fois la même leçon, sur cinq briques différentes. Ce n'est plus une série de
+coïncidences : c'est une question à poser à chaque brique qui ajoute une promesse
+au contrat, et elle mérite d'être posée avant d'écrire le code plutôt qu'après.
+
+### Éprouvé par
+
+Six tests dans `tests/test_orchestrator.py` : la FAQ comme liste de couples et sa
+non-confusion avec les sections, l'ordre conservé, le brief qui dit qu'il s'agit
+d'une liste, le témoin (sans `question`, aucune trace dans le brief), le refus
+d'une question sans réponse, et le delta sur ses trois cas — dont le silencieux.
+Appliqué en réel à `projets/SneakerLab` : `monl update` a rapporté les quatre
+questions ajoutées et la section retirée, et l'IA a rendu un `<dl>` de quatre
+entrées numérotées, dans l'ordre déclaré.
+
+## 95. S'inscrire avec son adresse, et la forme canonique qui porte la brique
+
+`POST /register` prenait un `username` libre. Sur une boutique réelle, c'est un
+non-sens : `projets/SneakerLab` demandait un pseudonyme au compte, puis une
+adresse e-mail dans la fiche client — **deux identités pour une personne**, et
+un compte auquel on ne peut rien envoyer.
+
+La brique 1 (`capability auth`) attendait depuis le début. Elle traversait tout
+le pipeline — grammaire, validateur, AST normalisé, générateur — sans changer une
+ligne du code produit ; CLAUDE.md le notait comme « cohérent, elle n'a par
+construction aucun effet sur la génération ». C'est sa **première vraie
+fonction** :
+
+```
+capability auth
+    identifier: email, phone
+```
+
+Le bloc indenté est **optionnel**, et c'est la condition pour qu'une brique
+dormante se réveille sans rien casser : toute spec écrite avant ce point compile
+à l'octet près. `None` (rien de déclaré) n'est pas `[]` (aucune forme valide) —
+deviner « email par défaut » aurait verrouillé tous les projets existants au
+premier recompilage.
+
+### Ce que la brique n'est PAS : de la validation
+
+Vérifier qu'une chaîne ressemble à une adresse est la partie facile, et la moins
+utile. **La substance est la NORMALISATION.** `Jean@Ex.com` et `jean@ex.com` sont
+la même boîte ; `06 12 34 56 78`, `+33612345678` et `+33 (6) 12.34.56.78` le même
+numéro. Sans forme canonique :
+
+* le contrôle d'unicité se contourne en changeant une majuscule — **deux comptes
+  pour une personne**, et le second reçoit les commandes du premier ;
+* la connexion échoue selon la façon dont on tape, ce que personne ne retient.
+
+La valeur STOCKÉE est donc la forme canonique, et c'est sur elle que porte
+l'unicité. Sur l'e-mail, seul le domaine est officiellement insensible à la
+casse — mais aucun fournisseur réel ne distingue la partie locale, et ne pas
+l'abaisser laisserait ouvrir deux comptes pour une seule boîte : exactement ce
+que l'unicité est censée empêcher.
+
+**Aux TROIS endroits, et le troisième est celui qu'on oublie.** `/register`,
+`/login` et **`manage.py`**. Normaliser d'un seul côté crée des comptes auxquels
+on ne peut pas se connecter : un compte provisionné hors ligne avec
+`Patron@Ex.com` serait stocké tel quel pendant que la connexion, elle,
+chercherait `patron@ex.com`. Le contrôle de FORME, en revanche, n'est
+délibérément pas appliqué dans `manage.py` : l'administrateur travaille sur la
+machine qui héberge la base et provisionne parfois des rôles de service, qui
+n'ont ni adresse ni numéro.
+
+### Trois décisions de plus
+
+**Le champ reste `username` sur le fil.** Le renommer en `email` aurait cassé le
+formulaire d'inscription de tout projet existant pour un gain cosmétique. C'est
+le CONTRAT qui dit ce qu'il doit contenir (`identifier_forms`, plus une note qui
+dit d'étiqueter l'écran et de choisir `type="email"` ou `type="tel"`), et l'IA
+d'interface qui en tire l'écran. Le contrat décrit ce que le backend fait
+vraiment — points 76, 79, 88, 89 — et ici « ce qu'il fait » inclut ce qu'il
+REFUSE.
+
+**401 à la connexion, jamais 422.** La forme n'est pas vérifiée à `/login` : un
+identifiant mal formé n'existe simplement pas en base, et le 401 habituel répond
+sans apprendre à un attaquant quelle forme les comptes ont. Même famille de
+raisonnement que le correctif d'énumération par canal temporel de la bêta 3.
+
+**Le message de conflit nomme ce qui est en conflit.** « Ce nom d'utilisateur
+existe déjà » ne veut rien dire sur une inscription par e-mail — d'autant que le
+conflit est souvent invisible pour l'appelant, puisqu'il porte sur la forme
+normalisée de ce qu'il a tapé.
+
+### Le delta, sixième fois — et la question posée AVANT cette fois
+
+Le point 94 concluait que « toute brique qui ajoute une promesse au contrat doit
+se demander si `_contract_signature` la voit » mérite d'être posée **avant**
+d'écrire le code. Elle l'a été. Réponse : non. Déclarer `identifier: email` ne
+crée aucune route et ne renomme aucun champ — le corps de `/register` garde les
+mêmes clés — mais l'écran d'inscription change entièrement : étiquette, type de
+saisie, message d'erreur. Sans ajout, `monl update` aurait répondu « aucun
+changement d'interface » pendant qu'un formulaire se mettait à répondre 422 sans
+expliquer pourquoi.
+
+### Ce que ça ne répare pas, et ce que monl ne peut pas faire
+
+**Les comptes existants.** Déclarer `identifier: email` ne les efface pas et ne
+les convertit pas — on n'invente pas une adresse. Ils continuent de se connecter,
+et le serveur les COMPTE et les NOMME au démarrage, comme le point 89 le fait
+pour les horodatages manquants. La règle ne vaut que pour les inscriptions à
+venir, et le dire vaut mieux que laisser croire à une application uniforme.
+
+**La vérification.** monl contrôle la FORME, jamais l'existence : attester
+qu'une boîte reçoit ou qu'une ligne sonne demanderait un envoi, donc un appel
+sortant que le compilateur s'interdit partout ailleurs que chez le prestataire
+de paiement. C'est la limite déjà énoncée au point 91 pour le type `Email`, et
+elle emporte le reste : **pas de code de confirmation, pas de récupération de
+mot de passe par courriel.** Ce sont des briques à part, qui commencent toutes
+par « monl sait envoyer un message » — ce qu'il ne sait pas faire.
+
+Le motif de numéro est volontairement large (indicatif optionnel, séparateurs
+usuels, 6 à 15 chiffres — E.164 plafonne à 15). Un motif strict refuserait des
+numéros valides ailleurs qu'en France, et monl n'a aucun moyen de savoir d'où
+appelle l'utilisateur.
+
+### Un défaut que seule l'exécution a montré
+
+Le `app.py` généré **ne démarrait pas** : `NameError: name 're' is not defined`.
+Le générateur n'ajoutait pas `import re` aux imports du fichier produit. Invisible
+en relisant le générateur — le code qui manque ne saute pas aux yeux — et
+immédiat au premier `uvicorn`. La méthode du projet, une fois de plus.
+
+### Éprouvé par
+
+`tests/test_identifiant_de_compte.py` (26 tests). Contre un vrai serveur : les
+quatre formes acceptées, les six refusées, **les deux écritures d'une même
+adresse et d'un même numéro qui doivent être UN seul compte**, la reconnexion
+quelle que soit la façon de taper, le 401 (et non 422) à la connexion, la forme
+canonique dans le `sub` du jeton, `manage.py` qui normalise comme le serveur — et
+un compte antérieur qui continue de fonctionner. Ce dernier test contenait le
+piège habituel : sans compte préalable, son `INSERT ... SELECT` ne copiait rien
+et il passait en prouvant l'inverse de ce qu'il annonçait (un 401 pour compte
+inexistant). Il compte désormais les lignes copiées avant de conclure.
+
+### Le vérificateur qui n'obéissait pas à sa propre règle
+
+Trouvé en appliquant la brique à `projets/SneakerLab`, pas en la testant. Le
+smoke test inscrit un compte pour éprouver le parcours ; il le faisait sous
+`'smoke'`, codé en dur. Sur une app déclarant `identifier: email`, il recevait
+donc **422 sur sa propre inscription**, puis 401 partout ensuite — trois erreurs
+qui ne venaient ni du backend ni du frontend, mais de monl lui-même, et qui
+accusaient une application parfaitement saine.
+
+`_identifiant_smoke` dérive désormais l'identifiant du CONTRAT, comme tout le
+reste du smoke test. Un rang distingue les comptes d'un même passage : la boucle
+d'élévation de privilège en essaie un par rôle provisionné, et deux inscriptions
+sous le même identifiant donneraient un 409 qu'on lirait à tort comme un refus
+de rôle. Le domaine `.test` est réservé par la RFC 2606 — jamais routable, donc
+jamais un vrai destinataire par accident.
+
+La leçon dépasse le cas : **un vérificateur est un client comme un autre.**
+Toute brique qui contraint une entrée doit se demander si le smoke test, qui
+appelle ces mêmes routes, respecte la contrainte — sinon il déclare cassé ce
+qu'il devrait valider.
+
+### « 06 12 34 56 78 » et « +33612345678 » sont la même ligne
+
+Trouvé en éprouvant la brique de bout en bout sur la vraie boutique, après que
+les tests soient passés au vert : ils n'essayaient que des variantes
+INTERNATIONALES du même numéro. Les deux notations donnaient donc deux comptes,
+et la promesse centrale de la brique — « deux écritures = un compte » — était
+fausse dans le cas le plus courant.
+
+monl ne peut pas le deviner : l'indicatif dépend du pays, et rien dans une spec
+ne le dit. Il le fait donc **déclarer** :
+
+```
+capability auth
+    identifier: email, phone
+    phone_prefix: "+33"
+```
+
+Déclaré, un numéro national est mis sous forme internationale (`0` initial
+remplacé par l'indicatif) ; absent, les deux notations restent deux comptes — et
+un test le vérifie, pour que ce soit un choix visible et non un oubli. La forme
+STOCKÉE est l'internationale : c'est celle qui ne dépend pas du pays, donc la
+seule qu'on puisse relire ailleurs. Un indicatif sans `phone` dans `identifier`
+est refusé : il ne s'appliquerait à rien.
+
+C'est la même logique qu'au point 86, où `min` ARME la vérification de stock :
+**ce que le compilateur ne peut pas savoir, il le fait déclarer plutôt que de le
+supposer.**
+
+## 96. Un statut n'est pas du texte, et la fiche qu'on pouvait effacer
+
+Le parcours de SneakerLab a été rejoué en entier contre celui d'une boutique
+classique — commander, payer, expédier, annuler — et confronté à ce qu'un
+marchand attend. Deux trous en sont sortis, dont un que le point 90 croyait
+fermé.
+
+### La fiche qu'on pouvait effacer
+
+`DELETE /customer` répondait **200** alors que la cliente avait une commande. En
+base : **1 commande, 0 fiche.** C'est exactement l'état que le point 90 a été
+écrit pour empêcher — une commande que l'administrateur ne peut attribuer à
+personne, donc inexpédiable. `requiresOwn` gardait la CRÉATION et rien d'autre :
+**le trou se rouvrait par l'autre bout.**
+
+`_profile_dependents` est le pendant exact de `_profile_lookup`, à l'autre bout
+du cycle de vie. Deux décisions :
+
+**Seule la DERNIÈRE fiche est protégée.** `requiresOwn` exige « au moins une » ;
+supprimer l'avant-dernière reste donc légitime, et refuser serait plus strict que
+la règle qu'on applique. Le décompte porte sur les fiches de CE compte — avec un
+seul compte dans le banc, « existe-t-il une fiche quelque part ? » passerait, et
+c'est le piège habituel de ce projet.
+
+**409 et non 403**, comme au point 90 : un état à corriger, pas un droit qui
+manque. Le message nomme ce qui dépend de la fiche.
+
+Le témoin compte autant que le refus : sans commande, la fiche reste supprimable.
+Un garde qui refuserait toute suppression passerait le premier test sans rien
+garantir, et rendrait le compte impossible à fermer.
+
+### Un statut n'est pas du texte
+
+Sur une commande NON réglée, le client posait `status: "livrée"` et le serveur
+l'acceptait — il se déclarait livré tout seul. Le défaut était NOMMÉ comme « la
+prochaine brique évidente » aux points 91 et 92 ; il aura fallu comparer la
+boutique à une vraie pour le traiter.
+
+```
+rule Order.status oneOf "panier", "à régler", "en préparation", "expédiée", "livrée", "annulée"
+```
+
+**`Literal` plutôt qu'un motif.** Le refus tombe à la validation Pydantic — un
+422 AVANT tout INSERT, même place que les bornes du point 85 — et la liste sort
+telle quelle dans le schéma OpenAPI, donc dans `/docs`, sans qu'on ait à la
+recopier. Le message d'erreur ÉNUMÈRE les valeurs permises : un 422 qui ne dit
+pas ce qu'il attend oblige à lire la documentation.
+
+**Types TEXTE seulement.** Pour un nombre, `min`/`max` (point 85) et
+`categorized` (brique 5) disent déjà cela ; une troisième façon d'exprimer la
+même contrainte finirait par en contredire une autre. Refusés aussi : une seule
+valeur (le champ n'aurait pas à être saisi), une valeur vide (indistinguable
+d'un champ non rempli à l'écran), un doublon, et le cumul avec `generated` (le
+serveur écrit le champ, la liste ne serait jamais lue).
+
+**L'ORDRE de déclaration est conservé** : sur un statut c'est celui du cycle de
+vie, et c'est celui qu'un menu déroulant doit présenter.
+
+Le contrat porte `allowed_values`, et le brief dit **MENU DÉROULANT** en toutes
+lettres : sans cela l'IA dessine un champ texte, et l'utilisateur invente une
+valeur qui récolte un 422 alors que la liste tenait dans un menu.
+
+### Le delta, sixième fois
+
+Poser `oneOf` ne renomme rien — et la liste peut changer sans que le champ bouge
+(« remboursée » ajoutée au carnet). Le digest porte donc les VALEURS et pas leur
+seule présence : comparer les noms serait l'erreur du point 89, pour la troisième
+fois.
+
+### Le vérificateur, deuxième occurrence
+
+Le point 95 avait établi qu'« un vérificateur est un client comme un autre ». La
+règle s'est appliquée immédiatement : le smoke test construit ses corps de
+requête depuis `request_fields`, avec `smoke-<champ>` pour toute chaîne — refusé
+par un `Literal`. Il lit désormais `allowed_values` et prend la première valeur
+déclarée (sur un statut, l'état initial). **Toute brique qui contraint une entrée
+contraint aussi le smoke test**, et il n'a aucun moyen de le savoir s'il code ses
+valeurs en dur.
+
+### Ce que la comparaison a montré et que ce point NE traite PAS
+
+* **Pas de taille.** Une boutique de sneakers où l'on commande sans pointure.
+  Le modèle juste n'est pas évident — une taille sur la ligne de commande se
+  déclare en deux lignes avec `oneOf`, mais un vrai marchand tient son stock PAR
+  TAILLE, ce qui demande une entité `Variant` (`Product hasMany Variant`, le
+  stock et le décompte portés par elle). Les deux ne coûtent pas la même chose et
+  ne disent pas la même chose : c'est une décision produit, pas un défaut du
+  compilateur.
+* **Pas de référence de commande lisible** (« SL-2026-0001 ») : seul l'`id`
+  technique existe. Une brique « numéro lisible » supposerait une séquence
+  formatée, que rien ne porte aujourd'hui.
+* **Pas de numéro de suivi transporteur** : un champ à ajouter, une décision à
+  prendre sur qui l'écrit.
+* Et toujours hors de portée, assumé : frais de port, TVA, courriels.
+
+### Éprouvé par
+
+`tests/test_valeur_parmi_une_liste.py` (24 tests) : les refus de compilation,
+le test qui exige une sortie DIFFÉRENTE avec et sans la règle (point 85), le
+contrat et le brief, le témoin sans règle, le delta, et contre un vrai serveur
+les quatre valeurs acceptées, les quatre refusées, le message qui énumère, la
+contrainte au PUT — le branchement qu'on oublie — et le refus qui ne laisse rien
+en base. Plus quatre tests dans `tests/test_fiche_obligatoire.py`, dont le banc a
+gagné `Delete Client` : sans cette action la brique n'avait aucune façon d'être
+prise en défaut, comme il avait fallu ajouter `Update Ligne` au point 91 et
+`Delete Ligne` au point 92.
+
+## 97. Le message qui devinait à la place de l'agent
+
+Une retouche réelle : « retire À propos de la page principale. Pour livraison et
+retours améliore l'affichage, je veux pas un paragraphe. » monl a répondu :
+
+```
+❌ claude-code n'a modifié AUCUN fichier de frontend/ — la retouche n'a pas été faite.
+   Reformuler la demande en nommant l'écran et l'élément…
+```
+
+**La demande les nommait.** Le conseil était donc faux, et il envoyait
+l'utilisateur reformuler une phrase déjà claire.
+
+L'agent, lui, avait une raison — et une bonne : ces deux rubriques viennent du
+bloc `landing` de la SPEC, et `FRONTEND_PROMPT.md` exige qu'elles soient lisibles
+au fil de l'accueil. Les retirer ou les restructurer depuis `frontend/` aurait été
+exactement ce que la consigne de retouche lui interdit : *« si le défaut vient de
+ce que la spec dit, le signaler plutôt que le contourner par une astuce
+d'affichage »*. Il a obéi. **monl a jeté sa réponse avec la sortie du
+processus**, puis a inventé une explication à la place.
+
+Le correctif tient en une variable : `run_cli_agent` RENDAIT déjà la sortie de
+l'agent, personne ne la lisait. Elle s'affiche désormais quand rien n'a bougé,
+suivie du geste qui convient — la spec puis `monl update`, pas une retouche. Le
+conseil de reformulation reste, mais seulement quand l'agent n'a rien dit : un
+agent muet ne laisse aucune piste, et le supprimer aurait laissé l'utilisateur
+sans rien.
+
+**La leçon, plus large que le cas.** Un outil qui orchestre une IA reçoit deux
+choses : un résultat, et un compte rendu. Ne garder que le premier revient à
+supposer que l'échec est toujours de la même nature — ici « la demande est trop
+vague » — alors que la brique avait justement été écrite pour qu'un autre cas
+existe. **Une hypothèse affichée comme un diagnostic est pire qu'un message
+vague** : elle envoie corriger ce qui n'est pas cassé.
+
+### Ce que la demande est devenue
+
+Les deux moitiés se réglaient dans la spec, et aucune n'avait besoin d'une
+brique nouvelle :
+
+* « À propos » retirée du bloc `landing` — sur monl il n'y a qu'une page, donc
+  retirer la rubrique la retire du site ;
+* « Livraison et retours » découpée avec le séparateur `¶` du point 64, que la
+  grammaire acceptait depuis toujours et que personne n'avait employé ici : même
+  texte, mot pour mot, mais quatre paragraphes au lieu d'un dans le contrat.
+
+Puis — et seulement là — une retouche a fait le reste : 25 lignes de CSS, aucun
+mot ni balise touchés, les quatre blocs numérotés et filetés comme la FAQ juste
+en dessous. **Le partage est celui que le point 94 décrivait : la structure vient
+de la spec, la forme vient de la retouche.** Demander la forme avant d'avoir la
+structure, c'est demander à l'IA de deviner — et c'est ce que le premier appel a
+refusé de faire.
+
+### Éprouvé par
+
+Deux tests dans `tests/test_smoke_and_frontend_ai.py` : un agent factice qui
+décline en expliquant (sa raison doit s'afficher, et l'ancienne hypothèse
+disparaître), et le témoin d'un agent muet (le conseil de reformulation doit
+rester — sinon on retire la seule piste quand il n'y en a pas d'autre).
+
+## 98. Annuler rend les paires, et la transition qu'on ne joue qu'une fois
+
+Le dernier bug vivant qu'avait laissé la comparaison à une boutique classique
+(point 96) : annuler une commande la passait en « annulée » et **gardait ses
+lignes**, donc le stock restait consommé pour de bon. Supprimer les lignes le
+rendait depuis le point 92 — mais efface la commande du carnet. **Un marchand
+veut les deux** : la trace et les paires.
+
+```
+rule Order.status "annulée" releases OrderLine
+```
+
+`oneOf` (point 96) était le préalable, et pas seulement par commodité : c'est
+lui qui rend le refus possible. Sans liste de valeurs déclarée, la valeur
+déclencheuse serait une chaîne libre, et une faute de frappe donnerait une règle
+qui **ne se déclenche jamais** — exactement ce que le point 85 refuse. La règle
+exige donc `oneOf` sur le champ, et que la valeur y figure.
+
+### Ne rendre QU'UNE FOIS
+
+L'état est lu AVANT l'écriture, et la libération n'a lieu qu'à la **transition**.
+Sans cette garde, deux `PUT` successifs à « annulée » rendraient le stock deux
+fois et la boutique s'inventerait des paires. C'est le genre de défaut qu'aucune
+relecture ne donne : il faut appeler la route deux fois de suite.
+
+### L'état libéré est TERMINAL
+
+Le trou que la première version laissait ouvert, trouvé en l'éprouvant : annuler
+rendait le stock, puis **réactiver** laissait la commande vivante sans rien avoir
+consommé. Du stock gratuit — même famille que les exploits du point 77.
+
+Reprendre le stock au retour supposerait qu'il soit encore disponible, ce que
+rien ne garantit : une autre commande a pu passer entre-temps. Le refus est donc
+la seule réponse honnête, et le message dit quoi faire à la place (en créer une
+nouvelle). Le contrat le porte (`releases_on.terminal`) et le brief l'écrit :
+**ne pas proposer de réactiver.**
+
+Le refus vit AVANT la transaction d'écriture : le `except sqlite3.IntegrityError`
+qui enveloppe les écritures ne fermerait pas la connexion pour lui.
+
+Aucun plancher sur la restitution, comme au point 92 — on rend un état qui a
+existé et qui était valide.
+
+### Ce qui n'a PAS eu besoin d'être écrit
+
+Le cumul avec le verrou du point 91 : une commande RÉGLÉE refuse déjà tout
+`Update`, donc son statut ne peut pas passer à « annulée » et la question du
+remboursement ne se pose pas ici. Un refus de cumul aurait été inatteignable, et
+un refus inatteignable fait croire à une protection.
+
+### Le delta, septième fois
+
+`releases` ne crée aucune route et ne change aucun champ — mais un bouton
+« réactiver » devient un 409, et un écran doit expliquer que l'annulation rend
+les paires. Septième ensemble à entrer dans `_contract_signature`, et la question
+a été posée avant d'écrire le code, comme le point 94 le demandait.
+
+### Éprouvé par
+
+`tests/test_liberation.py` (16 tests) : les sept refus de compilation, le test
+qui exige une sortie différente avec et sans la règle, le contrat, le delta — et
+contre un vrai serveur : annuler rend le stock, **annuler GARDE les lignes**
+(toute la raison d'être de la brique), trois annulations de suite ne rendent
+qu'une fois, la réactivation est refusée sans rien consommer, un autre statut ne
+libère rien (le témoin), et annuler une commande ne rend pas ce que la commande
+d'à côté avait consommé.
+
+Vérifié en réel sur `projets/SneakerLab` : Halo RS 12 → 9 à la commande, 12 à
+l'annulation, 12 encore après deux ré-annulations, 409 à la réactivation, et la
+commande reste au carnet en « annulée ».

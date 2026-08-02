@@ -377,6 +377,7 @@ class GuidedDialogue:
 
         self._show(self.ui.phase(3))
         self_register = self._ask_self_register(actors, managers, owned)
+        payable = self._ask_payable(entities, owned, relations, managers, readers)
         want_seed = bool(template["seeds"]) and self._ask_yes_no(
             "Pré-remplir le site avec les données de démonstration du modèle ?")
         image_topic = self._ask_image_topic() if want_seed else None
@@ -385,7 +386,8 @@ class GuidedDialogue:
         design_intent = self._ask_design_intent() if want_landing else None
         sections = (self._ask_editorial_sections(template.get("sections", []))
                     if want_landing else [])
-        self._recap(app_name, entities, actors, self_register, public_read, owned)
+        self._recap(app_name, entities, actors, self_register, public_read, owned,
+                    payable=payable)
 
         spec = self._emit_spec(app_name, description, entities, relations, actors,
                                managers, readers, public_read, public_create,
@@ -395,7 +397,8 @@ class GuidedDialogue:
                                image_topic=image_topic,
                                self_register=self_register,
                                extra_rules=template["extra_rules"],
-                               custom_seeds=template["seeds"])
+                               custom_seeds=template["seeds"],
+                               payable=payable)
         from .ast_validator import MonlAST
         from .parser import parse_monl_string
         MonlAST(parse_monl_string(spec)).validate_and_audit()
@@ -548,6 +551,7 @@ class GuidedDialogue:
 
         self._show(self.ui.phase(6))
         self_register = self._ask_self_register(actors, managers, owned)
+        payable = self._ask_payable(entities, owned, relations, managers, readers)
         want_seed = self._ask_yes_no("Pré-remplir le site avec des données de démonstration ?")
         image_topic = self._ask_image_topic() if want_seed else None
         want_landing = self._ask_yes_no(
@@ -561,7 +565,8 @@ class GuidedDialogue:
         managers = {e: managers.get(e, [actors[0]]) for e in entities}
         self._ensure_ownership_structure(entities, managers, readers, owned, relations)
 
-        self._recap(app_name, entities, actors, self_register, public_read, owned)
+        self._recap(app_name, entities, actors, self_register, public_read, owned,
+                    payable=payable)
         spec = self._emit_spec(app_name, description, entities, relations, actors,
                                managers, readers, public_read,
                                [public_create] if public_create else [],
@@ -569,7 +574,8 @@ class GuidedDialogue:
                                design_intent=design_intent,
                                sections=sections,
                                image_topic=image_topic,
-                               self_register=self_register)
+                               self_register=self_register,
+                               payable=payable)
 
         # Garantie finale : la spec émise DOIT compiler. On la revalide par le
         # vrai pipeline — si ce n'est pas le cas, c'est un bug du moteur, pas
@@ -579,6 +585,153 @@ class GuidedDialogue:
         from .parser import parse_monl_string
         MonlAST(parse_monl_string(spec)).validate_and_audit()
         return spec
+
+    CHAMP_QUANTITE = "quantite"
+    # POINT 86 : le sous-total d'une ligne de panier. Nommé ici plutôt qu'en dur
+    # dans l'émetteur — deux endroits finiraient par diverger.
+    CHAMP_SOUS_TOTAL = "sousTotal"
+    # POINT 89 : la date d'arrivée de ce qu'on encaisse. AUCUNE question ne la
+    # propose, volontairement : elle est écrite par le serveur, ne peut donc pas
+    # être fausse, et une commande sans date n'est pas une commande — la seule
+    # réponse utile serait « oui ». Le dialogue émet déjà de même le total, le
+    # plancher de stock et le décompte sans les faire arbitrer un par un.
+    CHAMP_DATE = "creeLe"
+
+    def _ask_payable(self, entities, owned, relations, managers, readers):
+        """Quel montant cette application encaisse-t-elle ? (points 75 et 79)
+
+        La brique `payable` (point 74) était inaccessible depuis le seul
+        chemin que la plupart des utilisateurs empruntent : il fallait écrire
+        la spec à la main. Une capacité que le dialogue ne sait pas exprimer
+        n'existe pas pour eux.
+
+        **Ce que le point 79 a changé.** La question partait d'un champ `Money`
+        sur une entité possédée. C'était trop peu : le créateur d'un
+        enregistrement en devient le propriétaire, donc le payeur — et si le
+        montant est un champ ordinaire, le payeur fixe lui-même ce qu'il règle.
+        Le compilateur le refuse désormais. Le dialogue ne peut donc plus poser
+        la question sur la seule présence d'un `Money` : il lui faut de quoi
+        faire CALCULER le montant par le serveur.
+
+        Concrètement il faut un catalogue : une AUTRE entité portant un prix,
+        que l'entité encaissée peut référencer. Le dialogue construit alors la
+        structure complète — une quantité, la relation vers le catalogue, et les
+        deux règles — au lieu de laisser l'auteur assembler ça de tête.
+
+        **Ce que cette exigence a révélé.** Sur les trois modèles du catalogue
+        qui portaient un `Money` sur une entité possédée, deux n'avaient aucun
+        catalogue à référencer — et pour une bonne raison : dans « Petites
+        annonces » le vendeur crée son annonce, donc il en est le propriétaire,
+        donc le payeur ; il se paierait lui-même. Dans « Suivi de dépenses », le
+        registre est personnel. La question n'aurait jamais dû leur être posée.
+        Un refus du compilateur a corrigé une question du dialogue.
+
+        Renvoie None, ou un dictionnaire décrivant la dérivation. Mute
+        `entities` et `relations` pour y ajouter ce que la brique exige.
+        """
+        candidats = []
+        for ent in entities:
+            if ent not in owned:
+                continue
+            montants = [c for c, t in entities[ent] if t == "Money"]
+            if not montants:
+                continue
+            # Un catalogue : une autre entité portant un prix. C'est lui qui
+            # permet au serveur de calculer, donc de ne pas croire le client.
+            for source in entities:
+                # Ni l'entité elle-même, ni son PROPRIÉTAIRE : la clé étrangère
+                # du propriétaire vient du jeton, pas du client, donc aucune
+                # ligne ne pourrait y être désignée. Le validateur le refuse ;
+                # le dialogue ne doit pas proposer ce que le compilateur rejette.
+                if source == ent or source == owned.get(ent):
+                    continue
+                prix = [c for c, t in entities[source]
+                        if t in ("Money", "Float", "Integer")]
+                if prix:
+                    candidats.append((ent, montants[0], source, prix[0]))
+        if not candidats:
+            return None
+        if not self._ask_yes_no(
+                "Cette application encaisse-t-elle un paiement en ligne ?"):
+            return None
+        if len(candidats) == 1:
+            choix = candidats[0]
+        else:
+            libelles = [f"{e}.{m} (calculé depuis {s}.{p})"
+                        for e, m, s, p in candidats]
+            choix = candidats[libelles.index(
+                self._ask_choice("Quel montant encaisser ?", libelles))]
+        entite, montant, source, prix = choix
+        resultat = {"entity": entite, "field": montant,
+                    "source_entity": source, "source_field": prix,
+                    "factor": self.CHAMP_QUANTITE}
+        # POINT 89 : l'horodatage, ajouté en QUEUE — la règle « premier champ
+        # requis » de l'émetteur porterait sinon sur un champ que le client ne
+        # peut pas envoyer, et la compilation échouerait (recoupement du
+        # point 85).
+        if not any(c == self.CHAMP_DATE for c, _t in entities[entite]):
+            entities[entite].append((self.CHAMP_DATE, "DateTime"))
+
+        # POINT 86 : le dialogue savait produire une commande à UN article — la
+        # forme du point 77 — alors que le compilateur sait faire un panier
+        # depuis le point 82. Une capacité que le dialogue n'exprime pas
+        # n'existe pas pour qui n'écrit pas la spec à la main : c'est
+        # exactement l'argument qui avait fait naître cette question au
+        # point 75, resté valable quatre briques plus tard.
+        panier = self._ask_yes_no(
+            f"Un(e) {entite} peut-il contenir PLUSIEURS articles différents ?")
+        if panier:
+            ligne = self._nom_de_ligne(entite, entities)
+            # La quantité EN PREMIER : la règle « premier champ requis » de
+            # l'émetteur la rend obligatoire, ce dont le calcul a besoin.
+            entities[ligne] = [(self.CHAMP_QUANTITE, "Integer"),
+                               (self.CHAMP_SOUS_TOTAL, "Money")]
+            for rel in ((entite, "hasMany", ligne), (source, "hasMany", ligne)):
+                if rel not in relations:
+                    relations.append(rel)
+            managers[ligne] = list(managers.get(entite, []))
+            readers[ligne] = set(readers.get(entite, set()))
+            # Propriété TRANSITIVE (point 81) : la ligne appartient à qui possède
+            # sa commande. L'émetteur écrit 'ownedBy <entite>' depuis ce
+            # dictionnaire — aucune syntaxe particulière à inventer ici.
+            owned[ligne] = entite
+            resultat["line_entity"] = ligne
+            self._show(self.ui.note(
+                f"Panier : chaque {ligne} porte un article et sa quantité ; "
+                f"{entite}.{montant} en est la SOMME, recalculée par le serveur "
+                f"à chaque ligne ajoutée, modifiée ou supprimée."))
+        else:
+            # Forme mono-article : la quantité vit sur l'entité encaissée.
+            if not any(c == self.CHAMP_QUANTITE for c, _t in entities[entite]):
+                entities[entite].append((self.CHAMP_QUANTITE, "Integer"))
+            if not any(r[0] == source and r[2] == entite for r in relations):
+                relations.append((source, "hasMany", entite))
+
+        # POINT 86 : le décompte de stock, rendu atteignable ici. Le champ n'est
+        # pas DEVINÉ parmi les entiers du catalogue — le deviner mal ferait
+        # décompter autre chose que ce qu'on croit, en silence.
+        stocks = [c for c, t in entities[source] if t == "Integer" and c != prix]
+        if stocks and self._ask_yes_no(
+                f"Faut-il décompter un stock de {source} à chaque achat ?"):
+            resultat["stock_field"] = (stocks[0] if len(stocks) == 1 else
+                                       self._ask_choice("Quel champ porte le stock ?",
+                                                        stocks))
+
+        self._show(self.ui.note(
+            f"Montant encaissé : {entite}.{montant} — CALCULÉ par le serveur, "
+            "jamais envoyé par le navigateur. Sans ce calcul, l'acheteur "
+            "fixerait lui-même son prix."))
+        return resultat
+
+    @staticmethod
+    def _nom_de_ligne(entite, entities):
+        """Un nom d'entité libre pour la ligne de panier. Une collision
+        silencieuse écraserait une entité de l'utilisateur."""
+        base = f"Ligne{entite}"
+        nom, n = base, 2
+        while nom in entities:
+            nom, n = f"{base}{n}", n + 1
+        return nom
 
     def _ask_self_register(self, actors, managers, owned):
         """Quel rôle peut créer son compte depuis le site ?
@@ -619,7 +772,8 @@ class GuidedDialogue:
                 "serveur avec 'python3 manage.py adduser'."))
         return choisi
 
-    def _recap(self, app_name, entities, actors, self_register, public_read, owned):
+    def _recap(self, app_name, entities, actors, self_register, public_read, owned,
+               payable=None):
         """Dernier regard sur ce qui va être écrit, avant compilation."""
         lignes = [
             ("Application", app_name),
@@ -634,6 +788,12 @@ class GuidedDialogue:
         if owned:
             lignes.append(("Propriété par créateur",
                            ", ".join(f"{e} ({a})" for e, a in owned.items())))
+        if payable:
+            lignes.append((
+                "Montant encaissé",
+                f"{payable['entity']}.{payable['field']} — calculé par le serveur "
+                f"({payable['source_entity']}.{payable['source_field']} × "
+                f"{payable['factor']}), clé Stripe requise"))
         self._show(self.ui.recap("Ce que la spec va déclarer", lignes))
 
     # ---------- émission déterministe de la spec ----------
@@ -642,7 +802,8 @@ class GuidedDialogue:
                    owned, want_seed, want_landing, design_intent=None,
                    sections=(),
                    image_topic=None,
-                   self_register=None, extra_rules=(), custom_seeds=None):
+                   self_register=None, extra_rules=(), custom_seeds=None,
+                   payable=None):
         lines = [f"app {app_name}", "",
                  "# Spécification générée par le dialogue guidé monl (déterministe, sans IA).",
                  f"# Brief du projet : {description}", ""]
@@ -666,9 +827,23 @@ class GuidedDialogue:
                          else f"actor {act}")
         lines.append("")
 
+        # POINT 86 : les champs que le SERVEUR calcule ne peuvent pas être
+        # « requis » — le client ne peut pas les envoyer. Le dialogue posait la
+        # règle sur le premier champ de chaque entité sans regarder si la brique
+        # de paiement venait de lui retirer le droit d'être écrit.
+        calcules_par_le_serveur = set()
+        if payable:
+            porte = payable.get("line_entity") or payable["entity"]
+            calcules_par_le_serveur.add((payable["entity"], payable["field"]))
+            calcules_par_le_serveur.add(
+                (porte, self.CHAMP_SOUS_TOTAL if payable.get("line_entity")
+                 else payable["field"]))
+
         # Règles : premier champ requis, lecture/création publiques
         for ent, fields in entities.items():
             first_field = fields[0][0]
+            if (ent, first_field) in calcules_par_le_serveur:
+                continue
             lines.append(f"rule {ent}.{first_field} required")
         for ent in public_read:
             lines.append(f"rule {ent}.Read public")
@@ -690,6 +865,72 @@ class GuidedDialogue:
                 shared_list = ", ".join(managers[ent])
                 for action in ("Create", "Update", "Delete"):
                     lines.append(f"rule {ent}.{action} sharedBy {shared_list}")
+        if payable:
+            # POINT 75 : les règles sont écrites en clair, avec ce qu'elles
+            # déclenchent. L'auteur doit pouvoir les relire — et les supprimer —
+            # sans ouvrir la documentation : c'est le seul endroit de la spec
+            # qui fasse sortir une requête du backend.
+            entite, montant = payable["entity"], payable["field"]
+            source, prix = payable["source_entity"], payable["source_field"]
+            lines.append("")
+            lines.append("# POINT 89 : la date d'arrivée, écrite par le serveur à la")
+            lines.append("# création et jamais ensuite. Elle disparaît des corps de")
+            lines.append("# requête : une date qu'on se donne à soi-même n'atteste de")
+            lines.append(f"# rien, et un carnet de {entite} où chacun choisit ses dates")
+            lines.append("# ne dit plus dans quel ordre honorer.")
+            lines.append(f"rule {entite}.{self.CHAMP_DATE} timestamp")
+            facteur = payable["factor"]
+            ligne = payable.get("line_entity")
+            # POINT 86 : deux formes possibles. Sans panier, le montant est
+            # calculé sur l'entité encaissée elle-même (forme du point 77) ;
+            # avec panier, il est la SOMME des sous-totaux de ses lignes
+            # (point 82). Les deux satisfont l'exigence du point 79 — un montant
+            # qu'aucun corps de requête ne peut porter.
+            porteur = ligne or entite
+            calcule = payable.get("line_subtotal", self.CHAMP_SOUS_TOTAL) if ligne else montant
+            lines.append("")
+            if not ligne:
+                lines.append("# La quantité est le seul chiffre que l'acheteur fournit,")
+                lines.append("# et elle est obligatoire : sans elle le calcul ci-dessous")
+                lines.append("# porterait sur du vide.")
+                lines.append(f"rule {entite}.{facteur} required")
+                lines.append("")
+            lines.append("# POINT 79 : le montant est CALCULÉ PAR LE SERVEUR — prix au")
+            lines.append(f"# catalogue ({source}.{prix}) multiplié par la quantité. Le")
+            lines.append(f"# champ {porteur}.{calcule} disparaît donc des corps de requête,")
+            lines.append("# à la création comme à la modification. Sans ce calcul,")
+            lines.append("# l'acheteur fixerait lui-même ce qu'il règle : il devient")
+            lines.append("# propriétaire de ce qu'il crée, donc le payeur.")
+            lines.append(f"rule {porteur}.{calcule} derivedFrom {source}.{prix} by {facteur}")
+            lines.append("")
+            if ligne:
+                lines.append("# POINT 82 : le total du panier est la SOMME de ses lignes,")
+                lines.append("# recalculée par le serveur à chaque ligne ajoutée, modifiée")
+                lines.append("# ou supprimée. Sommer un sous-total que le navigateur")
+                lines.append("# écrirait serait la faille du point 77 en une addition de")
+                lines.append("# plus : le compilateur le refuse.")
+                lines.append(f"rule {entite}.{montant} sumOf {ligne}.{calcule}")
+                lines.append("")
+            if payable.get("stock_field"):
+                stock = payable["stock_field"]
+                lines.append("# POINT 85 : ce plancher n'est pas décoratif — c'est lui qui")
+                lines.append("# arme la vérification de disponibilité ci-dessous. Sans lui,")
+                lines.append("# le décompte passerait sous zéro et le stock mentirait.")
+                lines.append(f"rule {source}.{stock} min 0")
+                lines.append("")
+                lines.append("# POINT 86 : le stock suit les commandes, et retire CE QUE LE")
+                lines.append("# CLIENT A DEMANDÉ — pas une constante. Commander plus que le")
+                lines.append("# stock disponible répond 409, sans rien décompter.")
+                lines.append(f"rule {porteur}.Create decrements {source}.{stock} by {facteur}")
+                lines.append("")
+            lines.append("# Encaissement : le champ nommé porte le MONTANT, donc")
+            lines.append("# l'entité à encaisser. Deux routes en découlent —")
+            lines.append("# POST /entite/{id}/paiement (aucun corps : le montant est")
+            lines.append("# relu en base) et POST /paiement/webhook, dont la")
+            lines.append("# signature est vérifiée. Sans STRIPE_SECRET_KEY, elles")
+            lines.append("# répondent 503 ; le reste de l'application fonctionne.")
+            lines.append(f"rule {entite}.{montant} payable")
+            lines.append("")
         # Règles avancées portées par les modèles du catalogue (increments,
         # hidden, categorized…) — émises telles quelles, validées comme tout
         # le reste par le parseur + l'audit en sortie de dialogue.

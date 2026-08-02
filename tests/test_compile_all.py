@@ -14,6 +14,13 @@ générateur accepte un output_dir depuis longtemps ; il est désormais utilisé
 Compiler ailleurs que dans le dépôt rend aussi les assertions plus fortes :
 un artefact trouvé ne peut plus être le reliquat d'une compilation
 précédente.
+
+POINT 85 : `base_dir` est désormais passé au validateur. Sans lui, la
+vérification d'EXISTENCE des assets (brique 13, point 83) se tait — et se
+taisait ici, puisque aucun exemple ne déclarait d'assets. `01_portfolio.ml` en
+déclare maintenant : ces tests vérifient donc aussi que les fichiers du dossier
+`exemples/assets/` sont RÉELLEMENT là. Retirer `base_dir` rendrait ces
+compilations muettes sur la moitié de ce qu'elles éprouvent.
 """
 import glob
 import os
@@ -34,7 +41,7 @@ def test_example_compiles(yaml_path):
     """Compile le socle déterministe (parsing + audit + génération) pour
     chaque exemple, et vérifie qu'il aboutit sans erreur."""
     raw_json = parse_monl_file(yaml_path)
-    ast_manager = MonlAST(raw_json)
+    ast_manager = MonlAST(raw_json, base_dir=EXEMPLES_DIR)
     normalized_ast = ast_manager.validate_and_audit()
     with tempfile.TemporaryDirectory() as sortie:
         MonlSecureGenerator(normalized_ast, output_dir=sortie).generate_all()
@@ -61,7 +68,7 @@ def test_no_example_ever_produces_frontend_html():
     une régression qui restaure _generate_frontend), ce test doit échouer."""
     for yaml_path in EXAMPLE_FILES:
         raw_json = parse_monl_file(yaml_path)
-        normalized_ast = MonlAST(raw_json).validate_and_audit()
+        normalized_ast = MonlAST(raw_json, base_dir=EXEMPLES_DIR).validate_and_audit()
         with tempfile.TemporaryDirectory() as sortie:
             MonlSecureGenerator(normalized_ast, output_dir=sortie).generate_all()
             frontend_path = os.path.join(sortie, "frontend.html")
@@ -78,7 +85,7 @@ def test_no_example_ever_produces_any_generated_frontend():
     l'interface vient exclusivement de l'IA frontend, via le contrat."""
     for yaml_path in EXAMPLE_FILES:
         raw_json = parse_monl_file(yaml_path)
-        normalized_ast = MonlAST(raw_json).validate_and_audit()
+        normalized_ast = MonlAST(raw_json, base_dir=EXEMPLES_DIR).validate_and_audit()
         with tempfile.TemporaryDirectory() as sortie:
             MonlSecureGenerator(normalized_ast, output_dir=sortie).generate_all()
             fantomes = {g: os.path.exists(os.path.join(sortie, g))

@@ -95,6 +95,14 @@ INTERDITS = [
      "par l'interface PlainDialogueUI"),
     ("frontend_contract", ["cli", "frontend_ai", "dialogue_engine", "smoke_test"],
      "le contrat se déduit de la spec compilée, pas de qui l'a demandé"),
+    ("serving", MODULES,
+     "serving ne porte QUE le texte du wrapper : c'est une feuille, et c'est "
+     "ce qui permet à cli et smoke_test de le partager sans cycle (point 83)"),
+    ("assets_tool", ["cli", "generator", "frontend_contract", "dialogue_engine",
+                     "tui", "app_templates", "smoke_test", "frontend_ai", "serving"],
+     "l'outil d'assets n'a besoin que de PARSER et VALIDER : c'est ce qui lui "
+     "permet de revalider une spec avant de l'écrire sans rien compiler, et ce "
+     "qui empêche le cycle avec cli qui l'appelle (point 84)"),
 ]
 
 

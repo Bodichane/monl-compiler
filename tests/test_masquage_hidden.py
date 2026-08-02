@@ -122,12 +122,15 @@ def test_le_champ_masque_disparait_de_la_lecture_et_reste_en_base(application):
     assert maj.status_code == 200, maj.text
 
     # 5. Et il est bien en base : masqué à la lecture, pas perdu.
-    with sqlite3.connect(os.path.join(dossier, "app.db")) as cnx:
+    cnx = sqlite3.connect(os.path.join(dossier, "app.db"))
+    try:  # `with connect(...)` valide la transaction, il ne ferme pas.
         table = next(nom for (nom,) in cnx.execute(
             "SELECT name FROM sqlite_master WHERE type='table'")
             if nom.lower().startswith("note"))
         valeur = cnx.execute(
             f'SELECT internalNote FROM "{table}" WHERE id = ?', (note_id,)).fetchone()
+    finally:
+        cnx.close()
     assert valeur and valeur[0] == "marge revue à 38%", valeur
 
 
