@@ -31,6 +31,7 @@ import urllib.error
 import urllib.request
 
 from .frontend_contract import CONTRACT_FILENAME
+from .serving import rendre_wrapper
 
 JSDOM_RUNNER = r"""
 // Runner jsdom généré par monl (smoke test) — charge index.html, exécute
@@ -139,6 +140,25 @@ def _free_port():
         return s.getsockname()[1]
 
 
+def _identifiant_smoke(contract, rang=0):
+    """Identifiant de compte de test conforme à ce que l'app EXIGE (point 95).
+
+    `rang` distingue les comptes d'un même passage : la boucle d'élévation de
+    privilège en essaie un par rôle provisionné, et deux inscriptions sous le
+    même identifiant donneraient un 409 qu'on lirait à tort comme un refus de
+    rôle. Le domaine `.test` est réservé par la RFC 2606 — jamais routable,
+    donc jamais un vrai destinataire par accident."""
+    formes = (contract.get("api", {}).get("auth", {}).get("register", {})
+              .get("identifier_forms") or [])
+    suffixe = f"-{rang}" if rang else ""
+    if "email" in formes:
+        return f"smoke{suffixe}@monl.test"
+    if "phone" in formes:
+        # Plage 06 99 00 00 xx : de la longueur d'un vrai numéro, sans en être un.
+        return f"+3369900{rang:04d}"
+    return f"smoke{suffixe}"
+
+
 def _http(method, url, body=None, token=None):
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(url, data=data, method=method)
@@ -151,8 +171,13 @@ def _http(method, url, body=None, token=None):
             raw = resp.read()
             try:
                 return resp.status, json.loads(raw or b"{}")
-            except json.JSONDecodeError:
-                # /docs et consorts renvoient du HTML — seul le statut compte.
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                # /docs et consorts renvoient du HTML, et depuis la brique 13 on
+                # récupère aussi des assets BINAIRES (png, jpg) — seul le statut
+                # compte. `UnicodeDecodeError` n'est PAS un `JSONDecodeError` :
+                # ne l'attraper qu'en JSON faisait remonter la trace complète
+                # dès le premier octet non-UTF-8. Défaut latent jusqu'ici parce
+                # que rien de binaire n'était jamais demandé.
                 return resp.status, {}
     except urllib.error.HTTPError as e:
         # Un HTTPError EST la réponse : le lire ne suffit pas, il faut le
@@ -183,7 +208,16 @@ def _premier_id(base, entite, token):
     return donnees[0].get("id") if donnees else None
 
 
-def _sample_value(ftype, fname):
+def _sample_value(ftype, fname, spec=None):
+    # POINT 96 : un champ `oneOf` n'accepte QUE ses valeurs — 'smoke-status'
+    # récolterait un 422, et le smoke test déclarerait cassée une application
+    # saine. Deuxième occurrence de la leçon du point 95 : le vérificateur est
+    # un client comme un autre, et toute brique qui contraint une ENTRÉE le
+    # contraint aussi. La première valeur déclarée fait l'affaire — sur un
+    # statut, c'est l'état initial.
+    choix = (spec or {}).get("allowed_values")
+    if choix:
+        return choix[0]
     low = fname.lower()
     if ftype == "Integer":
         return 1
@@ -216,11 +250,26 @@ def run_smoke_test(project_dir, say=print):
         has_frontend = os.path.isdir(frontend_src)
         if has_frontend:
             shutil.copytree(frontend_src, os.path.join(workdir, "frontend"))
+        # AJOUT (brique 13, point 83) : les assets déclarés sont copiés et
+        # SERVIS, via le même wrapper que 'monl run'. Jusqu'ici le smoke test
+        # lançait `app:app` : ni /site ni les assets ne passaient par HTTP,
+        # donc « servi » n'était vérifié nulle part — seul l'œil, sur la page,
+        # aurait vu un montage mal placé.
+        assets_dir = (contract.get("assets") or {}).get("dir")
+        assets_src = os.path.join(project_dir, assets_dir) if assets_dir else None
+        has_assets = bool(assets_src and os.path.isdir(assets_src))
+        if has_assets:
+            shutil.copytree(assets_src, os.path.join(workdir, assets_dir))
+        module = "app:app"
+        if has_frontend:
+            with open(os.path.join(workdir, "serve.py"), "w", encoding="utf-8") as fh:
+                fh.write(rendre_wrapper(assets_dir if has_assets else None))
+            module = "serve:app"
 
         port = _free_port()
         base = f"http://127.0.0.1:{port}"
         server = subprocess.Popen(
-            [sys.executable, "-m", "uvicorn", "app:app", "--host", "127.0.0.1",
+            [sys.executable, "-m", "uvicorn", module, "--host", "127.0.0.1",
              "--port", str(port), "--log-level", "warning"],
             cwd=workdir, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         try:
@@ -245,12 +294,20 @@ def run_smoke_test(project_dir, say=print):
             actor, token = None, None
             if self_register:
                 actor = self_register[0]
+                # POINT 95 : l'identifiant du compte de test doit respecter la
+                # forme que l'application EXIGE. Codé en dur, 'smoke' recevait un
+                # 422 sur toute app déclarant 'identifier: email' — et le smoke
+                # test, censé prouver que l'app fonctionne, échouait sur sa
+                # propre inscription. Le vérificateur ne peut pas ignorer une
+                # règle qu'il fait par ailleurs appliquer.
+                identifiant = _identifiant_smoke(contract)
                 status, _b = _http("POST", base + "/register",
-                                   {"username": "smoke", "password": "smokepass123", "actor": actor})
+                                   {"username": identifiant, "password": "smokepass123",
+                                    "actor": actor})
                 if status != 200:
                     errors.append(f"/register a répondu {status} (attendu 200)")
                 status, body = _http("POST", base + "/login",
-                                     {"username": "smoke", "password": "smokepass123"})
+                                     {"username": identifiant, "password": "smokepass123"})
                 token = body.get("token") or body.get("access_token")
                 if status != 200 or not token:
                     errors.append(f"/login a répondu {status} sans jeton exploitable")
@@ -258,9 +315,10 @@ def run_smoke_test(project_dir, say=print):
                 # Un rôle NON ouvert à l'inscription ne doit jamais pouvoir être
                 # obtenu par un simple appel HTTP : c'est la faille corrigée en
                 # bêta 3, éprouvée ici à chaque lancement.
-                for provisioned in [a for a in contract["actors"] if a not in self_register]:
+                for rang, provisioned in enumerate(
+                        [a for a in contract["actors"] if a not in self_register], start=1):
                     status, _b = _http("POST", base + "/register",
-                                       {"username": f"smoke-{provisioned.lower()}",
+                                       {"username": _identifiant_smoke(contract, rang),
                                         "password": "smokepass123", "actor": provisioned})
                     if status == 200:
                         errors.append(f"/register a accepté le rôle provisionné '{provisioned}' "
@@ -322,7 +380,7 @@ def run_smoke_test(project_dir, say=print):
                 for nom in route.get("request_fields") or []:
                     spec = fields.get(nom)
                     if spec:
-                        payload[nom] = _sample_value(spec["type"], nom)
+                        payload[nom] = _sample_value(spec["type"], nom, spec)
                         continue
                     # Les clés étrangères sont CONTRAINTES en base : inventer
                     # un identifiant ferait échouer l'insertion pour une
@@ -347,6 +405,34 @@ def run_smoke_test(project_dir, say=print):
                     errors.append(f"POST {route['path']} avec un corps conforme au contrat "
                                   f"a répondu {status} (attendu 200)")
                 break
+
+            # --- 2c. assets déclarés : réellement servis ? (brique 13) ---
+            # Le validateur a déjà vérifié que chaque fichier EXISTE sur disque.
+            # Ce contrôle-ci répond à l'autre moitié de la question, la seule
+            # qui compte pour un navigateur : le serveur le rend-il, à l'URL que
+            # le contrat annonce ? Un montage placé après celui de /site
+            # existerait sans jamais répondre, et rien ne l'aurait dit.
+            if has_assets:
+                assets = contract.get("assets") or {}
+                for cle in ("logo", "favicon"):
+                    if not assets.get(cle):
+                        continue
+                    url = f"{base}/site/{assets[cle]}"
+                    status, _b = _http("GET", url)
+                    if status != 200:
+                        errors.append(
+                            f"l'asset déclaré '{cle}' ({assets[cle]}) a répondu {status} sur "
+                            f"/site/{assets[cle]} : le fichier existe mais n'est pas SERVI.")
+                # Un dossier d'assets déclaré mais monté nulle part est un piège
+                # silencieux : on l'éprouve sur un fichier réel du dossier.
+                temoin = next((n for n in sorted(os.listdir(assets_src))
+                               if os.path.isfile(os.path.join(assets_src, n))), None)
+                if temoin:
+                    status, _b = _http("GET", f"{base}/site/{assets_dir}/{temoin}")
+                    if status != 200:
+                        errors.append(
+                            f"le dossier d'assets '{assets_dir}/' n'est pas servi : "
+                            f"/site/{assets_dir}/{temoin} a répondu {status}.")
 
             # --- 3. frontend réel dans jsdom (si Node disponible) ---
             if has_frontend:

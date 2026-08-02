@@ -31,6 +31,13 @@ ALLOWED_EXTENSIONS = (".html", ".css", ".js", ".svg", ".json")
 MAX_TOTAL_BYTES = 2_000_000
 DEFAULT_MODEL = "claude-sonnet-4-6"
 
+# Les deux briefs d'ÉVOLUTION (par opposition à FRONTEND_PROMPT.md, qui décrit
+# une construction neuve). Nommés ici plutôt que chez leur producteur : c'est
+# frontend_ai qui les consomme, et cli.py les importe — l'inverse ferait
+# dépendre la couche IA de la couche commande.
+UPDATE_PROMPT_FILENAME = "FRONTEND_UPDATE_PROMPT.md"
+RETOUCHE_PROMPT_FILENAME = "FRONTEND_RETOUCHE_PROMPT.md"
+
 RESPONSE_FORMAT_INSTRUCTIONS = """
 ## Format de réponse EXIGÉ
 Répondre UNIQUEMENT avec un objet JSON, sans préambule ni balises Markdown :
@@ -232,17 +239,36 @@ def _read_existing_frontend(project_dir):
 
 
 # ------------------------------------------------------------ orchestration --
-def build_generation_prompt(project_dir, update_mode):
+def brief_evolution(update_mode, retouche_mode):
+    """Nom du brief d'ÉVOLUTION à donner à l'IA, ou None pour une construction
+    neuve (point 93).
+
+    Les deux modes d'évolution ne diffèrent QUE par l'origine du brief : un
+    delta de spec pour `monl update`, une phrase humaine pour `monl retouche`.
+    Tout le reste — joindre les fichiers actuels, rappeler le contrat,
+    re-vérifier, empreindre — leur est commun, et le rester est le but : une
+    seconde voie vers l'IA qui aurait ses propres garde-fous serait une voie
+    par laquelle les contourner."""
+    if retouche_mode:
+        return RETOUCHE_PROMPT_FILENAME
+    if update_mode:
+        return UPDATE_PROMPT_FILENAME
+    return None
+
+
+def build_generation_prompt(project_dir, update_mode, retouche_mode=False):
     with open(os.path.join(project_dir, PROMPT_FILENAME), encoding="utf-8") as fh:
         base_prompt = fh.read()
-    if not update_mode:
+    brief = brief_evolution(update_mode, retouche_mode)
+    if brief is None:
         return base_prompt + RESPONSE_FORMAT_INSTRUCTIONS
 
-    update_path = os.path.join(project_dir, "FRONTEND_UPDATE_PROMPT.md")
-    if not os.path.exists(update_path):
-        raise FrontendAIError("--update demandé mais FRONTEND_UPDATE_PROMPT.md est "
-                              "absent — lancer d'abord 'monl update'.")
-    with open(update_path, encoding="utf-8") as fh:
+    brief_path = os.path.join(project_dir, brief)
+    if not os.path.exists(brief_path):
+        origine = ("'monl retouche' n'a pas écrit sa consigne"
+                   if retouche_mode else "lancer d'abord 'monl update'")
+        raise FrontendAIError(f"{brief} est absent — {origine}.")
+    with open(brief_path, encoding="utf-8") as fh:
         delta = fh.read()
     existing = _read_existing_frontend(project_dir)
     files_block = "\n\n".join(
@@ -252,7 +278,8 @@ def build_generation_prompt(project_dir, update_mode):
             f"d'origine\n{base_prompt}{RESPONSE_FORMAT_INSTRUCTIONS}")
 
 
-def generate_and_verify(project_dir, provider, update_mode=False, say=print):
+def generate_and_verify(project_dir, provider, update_mode=False, say=print,
+                        retouche_mode=False):
     """La boucle complète du point 4 : générer → écrire → RE-VÉRIFIER
     (cohérence + smoke test) → si échec, renvoyer les erreurs au modèle une
     seule fois → re-vérifier. Retourne (ok, erreurs)."""
@@ -260,7 +287,7 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print):
     from .smoke_test import run_smoke_test
 
     project_dir = os.path.abspath(project_dir)
-    prompt = build_generation_prompt(project_dir, update_mode)
+    prompt = build_generation_prompt(project_dir, update_mode, retouche_mode)
 
     last_errors = []
     for attempt in (1, 2):
@@ -475,6 +502,18 @@ CLAUDE_CODE_INSTRUCTION = (
     "détaille le contexte."
 )
 
+# POINT 93 : une retouche n'est pas une construction. L'instruction générique
+# (« construis le frontend demandé ») invitait à repartir de zéro, ce qui est
+# exactement ce qu'on veut éviter — le site est bon à 95 %, et une
+# reconstruction est un tirage dont on peut perdre ce qu'on aimait.
+RETOUCHE_INSTRUCTION = (
+    "Lis {brief} : il décrit un défaut CONSTATÉ sur le site en marche. Corrige "
+    "ce défaut-là dans le frontend EXISTANT (dossier frontend/), et lui seul — "
+    "ne réécris pas ce qui fonctionne déjà, ne refais pas la mise en page "
+    "générale. Ne modifie AUCUN autre fichier du projet : ni la spec .ml, ni "
+    "app.py, ni le contrat. Le CLAUDE.md du dossier détaille le contexte."
+)
+
 # ─────────────────────────────────────────────────────────────────────
 # POINT 69 (suite) : « et aussi codex et autre ». La voie agentique ne
 # dépendait de Claude Code que par sa ligne de commande — le garde-fou
@@ -612,7 +651,8 @@ def run_claude_code(project_dir, instruction, max_turns=DEFAULT_MAX_TURNS,
 
 def generate_with_cli_agent(project_dir, update_mode=False, say=print,
                             command=None, max_turns=DEFAULT_MAX_TURNS,
-                            agent="claude-code", agent_command=None):
+                            agent="claude-code", agent_command=None,
+                            retouche_mode=False):
     """La boucle du point 4, version agent en ligne de commande : exécuter
     l'agent dans le dossier cible → vérifier les artefacts protégés →
     re-vérifier (cohérence + smoke test) → une correction au plus.
@@ -626,25 +666,34 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
 
     nom = agent_command.split()[0] if agent_command else agent
     project_dir = os.path.abspath(project_dir)
-    brief = "FRONTEND_UPDATE_PROMPT.md" if update_mode else "FRONTEND_PROMPT.md"
+    brief = brief_evolution(update_mode, retouche_mode) or PROMPT_FILENAME
     if not os.path.exists(os.path.join(project_dir, brief)):
-        raise FrontendAIError(f"{brief} absent du projet — lancer d'abord "
-                              + ("'monl update'." if update_mode else "'monl compile'."))
-    instruction = CLAUDE_CODE_INSTRUCTION.format(brief=brief)
+        origine = ("'monl retouche' n'a pas écrit sa consigne" if retouche_mode
+                   else "lancer d'abord 'monl update'" if update_mode
+                   else "lancer d'abord 'monl compile'")
+        raise FrontendAIError(f"{brief} absent du projet — {origine}.")
+    gabarit = RETOUCHE_INSTRUCTION if retouche_mode else CLAUDE_CODE_INSTRUCTION
+    instruction = gabarit.format(brief=brief)
 
     last_errors = []
     for attempt in (1, 2):
         if attempt == 2:
             say(f" -> Correction automatique : erreurs renvoyées à {nom} (1 seule fois)…")
-            instruction = (CLAUDE_CODE_INSTRUCTION.format(brief=brief)
+            instruction = (gabarit.format(brief=brief)
                            + " Ta précédente tentative a échoué à la vérification "
                              "monl, corrige le frontend en conséquence : "
                            + " ; ".join(last_errors))
         say(f" -> {nom} travaille dans {project_dir} (tentative {attempt}/2)…")
         before = _fingerprint_protected(project_dir)
         front_avant = _fingerprint_frontend(project_dir)
-        run_cli_agent(project_dir, instruction, max_turns=max_turns,
-                      command=command, agent=agent, agent_command=agent_command)
+        # POINT 97 : la réponse de l'agent est CONSERVÉE. Elle était jetée, et
+        # c'est précisément ce qu'il faut lire quand rien n'a bougé : un agent
+        # qui décline explique pourquoi — la consigne de retouche lui demande
+        # même de le faire — et monl affichait à la place une hypothèse fausse
+        # (« reformuler en nommant l'écran »), sur une demande qui les nommait.
+        reponse_agent = run_cli_agent(
+            project_dir, instruction, max_turns=max_turns,
+            command=command, agent=agent, agent_command=agent_command)
 
         # Garde-fou : rien d'autre que frontend/ ne doit avoir bougé.
         after = _fingerprint_protected(project_dir)
@@ -669,6 +718,31 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
         # construction qui n'a pas eu lieu. On le dit, plutôt que de féliciter
         # l'agent pour le travail de son prédécesseur.
         if _fingerprint_frontend(project_dir) == front_avant:
+            # POINT 93 : sur une RETOUCHE, ne rien changer n'est pas un état
+            # neutre — c'est la demande non traitée. L'humain a signalé un
+            # défaut qu'il VOIT ; répondre « tout va bien » serait le contraire
+            # d'un rapport honnête, et le point 73 dit déjà qu'on ne félicite
+            # pas un agent pour le travail de son prédécesseur.
+            if retouche_mode:
+                say(f" ❌ {nom} n'a modifié AUCUN fichier de frontend/ — la "
+                    "retouche demandée n'a pas été faite.")
+                explication = (reponse_agent or "").strip()
+                if explication:
+                    # LE point : deviner à la place de l'agent, c'est ce qui
+                    # rendait le message faux. Il a une raison, elle est là.
+                    say("    Ce que l'agent répond :")
+                    for ligne in explication.splitlines()[-12:]:
+                        if ligne.strip():
+                            say(f"      {ligne.rstrip()}")
+                    say("    Si la demande touche au CONTENU (une rubrique à "
+                        "retirer, un texte à structurer),")
+                    say("    elle se règle dans la spec puis 'monl update' — "
+                        "pas par une retouche d'affichage.")
+                else:
+                    say("    Reformuler la demande en nommant l'écran et l'élément "
+                        "(« les images de la section Tendances sont mal cadrées »)")
+                    say("    donne à l'IA de quoi la situer.")
+                return False, ["aucune modification du frontend : retouche non appliquée"]
             say(f" ⚠️  {nom} n'a modifié AUCUN fichier de frontend/.")
             say("    Un frontend valide existait déjà : l'agent a jugé qu'il")
             say("    répondait au contrat et n'a rien réécrit. Rien n'est cassé,")

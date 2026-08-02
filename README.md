@@ -92,6 +92,8 @@ backend et le contrat frontend ; l'IA écrit l'interface contre ce contrat ;
 | `monl import <zip\|html\|dossier> <App>` | Installe un frontend obtenu sans clé API |
 | `monl run <App>` | Vérifie la cohérence, joue le smoke test, puis lance |
 | `monl update <App>` | Recompile après évolution de la spec, préserve les données |
+| `monl assets add <fichier> --for "<fiche>"` | Installe une photo et la déclare dans la spec |
+| `monl assets list <App>` | Ce que la spec déclare, ce qui est présent, ce qui traîne |
 
 Chaque projet se compile dans son propre dossier via `--output`, afin de ne pas
 écraser le précédent. Les spécifications portent l'extension `.ml`.
@@ -111,11 +113,23 @@ toute injection par les noms de tables ou de colonnes.
 | `rule Entite.Action accessibleBy col1, col2` | Réservé aux parties référencées par l'enregistrement (messagerie privée : expéditeur et destinataire) |
 | `rule Entite.Action public` | Retire l'authentification d'une action précise (galerie publique, formulaire de contact) |
 
+**Les contraintes de champ sont appliquées, pas seulement déclarées :**
+
+| Règle | Effet |
+|---|---|
+| `rule Produit.prix min 0` | Borne d'entrée — **422 avant tout INSERT**. Valeur sur les types nombre, longueur sur les types texte |
+| `rule Membre.pseudo unique` | Index unique en base — un doublon répond 409, à la création comme à la modification |
+| `rule Produit.nom required` | Assertion vérifiée : le champ doit exister (les schémas rendent déjà tout champ obligatoire) |
+| `rule Ligne.Create decrements Produit.stock by quantite` | Décompte **la quantité demandée**, et refuse en 409 de passer sous le `min` déclaré |
+| `rule Commande.passeeLe timestamp` | Date de création écrite par le **serveur** (ISO 8601 UTC), absente des corps de requête — création comme modification |
+
 D'autres marqueurs affinent champs et comportement : `hidden`, `generated`,
-`categorized`, `increments` / `decrements` (compteurs transactionnels), `payable`
-(encaissement, ci-dessous), ainsi qu'un bloc `seed` idempotent qui pré-remplit la
-base au démarrage. Une règle sans effet est **refusée à la compilation** plutôt
-qu'ignorée en silence.
+`categorized`, `derivedFrom` / `sumOf` (montants calculés par le serveur),
+`payable` (encaissement, ci-dessous), ainsi qu'un bloc `seed` idempotent qui
+pré-remplit la base au démarrage. Une règle sans effet est **refusée à la
+compilation** plutôt qu'ignorée en silence — et une règle qui désigne un champ
+inexistant aussi : une contrainte à laquelle rien ne correspond laisse croire à
+une protection qui n'existe pas.
 
 <details>
 <summary><b>Encaisser : <code>rule Commande.total payable</code></b></summary>
@@ -213,6 +227,40 @@ destructifs ne sont pas automatisés, à dessein — voir [docs/MIGRATIONS.md](d
 **Routes servies.** `/docs` (Swagger, toujours disponible) · `/` (redirige vers
 `/docs`) · `/site` (l'interface, si `frontend/` existe et que l'app est lancée par
 `monl run`).
+
+## Vos fichiers : photos, logo, favicon
+
+Une image cassée ne se voit qu'à l'œil, en ligne — le pire endroit pour découvrir
+une faute de frappe. Les fichiers que vous fournissez se déclarent donc dans la
+spec, et le compilateur **refuse de compiler s'ils ne sont pas là** :
+
+```monl
+assets
+    dir: "assets"
+    logo: "logo.svg"
+
+entity Produit
+    photo: Image          # un fichier LOCAL, vérifié présent
+```
+
+`Image` désigne un fichier du projet : une URL y est refusée, parce que monl ne
+fait aucun appel réseau et ne pourrait rien affirmer d'une adresse distante —
+`String` reste là pour ce cas, non vérifié. Le dossier vit **hors de
+`frontend/`**, qui est renommé à chaque reconstruction du frontend.
+
+Pour ne pas écrire ces chemins à la main :
+
+```bash
+monl assets add ~/photos/IMG_4821.jpg --for "Halo RS"   # → assets/halo-rs.jpg
+monl assets add ~/logo.svg --logo
+monl assets list                                        # présents, manquants, orphelins
+```
+
+La commande copie le fichier, le renomme en slug, écrit la déclaration — puis fait
+**revalider la spec obtenue par le compilateur avant de l'enregistrer**. En cas de
+refus, ni la spec ni le dossier ne sont modifiés. Elle ne supprime jamais un
+fichier : remplacer une photo signale l'ancienne comme orpheline, elle ne l'efface
+pas.
 
 ## Le frontend : contrat et IA spécialisée
 

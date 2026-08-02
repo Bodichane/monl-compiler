@@ -8,6 +8,89 @@ lors du découpage en package — voir docs/design_decisions.md.
 
 
 class RuntimeMixin:
+    def _generate_identifier_helpers(self):
+        """Normalisation + contrôle de forme de l'identifiant de compte (95).
+
+        Émis MÊME sans déclaration : la fonction existe alors et rend la valeur
+        inchangée. Un seul chemin de code dans le app.py généré vaut mieux que
+        deux, dont un jamais exercé — et `/register`, `/login` et `manage.py`
+        DOIVENT s'accorder, sinon on crée des comptes auxquels on ne peut pas
+        se connecter."""
+        formes = self.auth_identifier or []
+        return [
+            f"AUTH_IDENTIFIER_FORMS = {formes!r}",
+            f"AUTH_PHONE_PREFIX = {self.auth_phone_prefix!r}",
+            "",
+            "def _normalize_identifier(valeur: str) -> str:",
+            "    \"\"\"Forme canonique de l'identifiant : c'est elle qui est STOCKÉE",
+            "    et c'est sur elle que porte l'unicité.\"\"\"",
+            "    valeur = (valeur or '').strip()",
+            "    if not AUTH_IDENTIFIER_FORMS:",
+            "        return valeur",
+            "    if '@' in valeur:",
+            "        # Seul le domaine est officiellement insensible à la casse,",
+            "        # mais aucun fournisseur réel ne distingue la partie locale :",
+            "        # ne pas l'abaisser laisserait ouvrir deux comptes pour une",
+            "        # seule boîte, ce que l'unicité est censée empêcher.",
+            "        return valeur.lower()",
+            "    if _RE_PHONE.match(valeur):",
+            "        # Un numéro se tape avec des espaces, des points, des tirets",
+            "        # ou des parenthèses — jamais deux fois pareil.",
+            "        chiffres = ''.join(c for c in valeur if c.isdigit())",
+            "        if valeur.lstrip().startswith('+'):",
+            "            return '+' + chiffres",
+            # Un numéro NATIONAL ('06 12 34 56 78') désigne la même ligne que sa
+            # forme internationale — mais seulement si l'on sait de quel pays.
+            # Déclaré, on canonicalise ; sinon on laisse tel quel, et les deux
+            # notations restent deux comptes (limite énoncée, pas devinée).
+            "        if AUTH_PHONE_PREFIX and chiffres.startswith('0'):",
+            "            return AUTH_PHONE_PREFIX + chiffres[1:]",
+            "        return chiffres",
+            "    return valeur",
+            "",
+            # Motif d'e-mail identique à celui du type `Email` (point 91) : deux
+            # motifs différents pour la même chose finiraient par diverger.
+            r"_RE_EMAIL = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]{2,}$')",
+            # Volontairement large : indicatif optionnel, séparateurs usuels,
+            # 6 à 15 chiffres (E.164 plafonne à 15). monl vérifie la FORME ; il
+            # ne peut pas attester qu'une ligne existe — cela demanderait un
+            # appel sortant, que le compilateur s'interdit partout ailleurs que
+            # chez le prestataire de paiement (même limite qu'au point 91 pour
+            # l'e-mail).
+            r"_RE_PHONE = re.compile(r'^\+?[0-9][0-9 .\-()]{4,20}$')",
+            "",
+            "def _forme_valide(valeur: str) -> bool:",
+            "    \"\"\"Prédicat pur : sert au refus de '/register' ET au décompte des",
+            "    comptes antérieurs au démarrage. Deux implémentations de « est-ce",
+            "    une adresse ? » finiraient par ne plus dire la même chose.\"\"\"",
+            "    if not AUTH_IDENTIFIER_FORMS or 'libre' in AUTH_IDENTIFIER_FORMS:",
+            "        return True",
+            "    if 'email' in AUTH_IDENTIFIER_FORMS and _RE_EMAIL.match(valeur):",
+            "        return True",
+            "    if 'phone' in AUTH_IDENTIFIER_FORMS and _RE_PHONE.match(valeur):",
+            "        return 6 <= sum(c.isdigit() for c in valeur) <= 15",
+            "    return False",
+            "",
+            "def _conflit_identifiant() -> str:",
+            "    if AUTH_IDENTIFIER_FORMS == ['email']:",
+            "        return 'Cette adresse e-mail est déjà utilisée.'",
+            "    if AUTH_IDENTIFIER_FORMS == ['phone']:",
+            "        return 'Ce numéro de téléphone est déjà utilisé.'",
+            "    if AUTH_IDENTIFIER_FORMS and 'libre' not in AUTH_IDENTIFIER_FORMS:",
+            "        return 'Cet identifiant est déjà utilisé.'",
+            "    return \"Ce nom d'utilisateur existe déjà.\"",
+            "",
+            "def _check_identifier(valeur: str) -> None:",
+            "    if not _forme_valide(valeur):",
+            "        _attendu = {'email': 'une adresse e-mail',",
+            "                    'phone': 'un numéro de téléphone'}",
+            "        _libelle = ' ou '.join(_attendu[f] for f in AUTH_IDENTIFIER_FORMS",
+            "                               if f in _attendu)",
+            "        raise HTTPException(status_code=422, detail=(",
+            "            f\"L'identifiant de compte doit être {_libelle}.\"))",
+            "",
+        ]
+
     def _generate_runtime_lines(self):
         """Lignes de app.py jusqu'aux schémas Pydantic (incluses)."""
         actors_literal = ", ".join(f'"{a}"' for a in self.actors)
@@ -17,7 +100,11 @@ class RuntimeMixin:
             "from fastapi import FastAPI, HTTPException, Header, Depends, Request",
             "from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials",
             "from pydantic import BaseModel, Field",
-            "from typing import List, Optional, Any",
+            # BRIQUE 19 (point 96) : 'Literal' porte les listes de valeurs
+            # autorisées dans les schémas Pydantic. Absent, le app.py généré
+            # ne démarre pas — même défaut que 're' au point 95, et trouvé
+            # pareillement en lançant le serveur.
+            "from typing import List, Optional, Any, Literal",
             "import sqlite3",
             "import jwt",
             "import datetime",
@@ -25,6 +112,11 @@ class RuntimeMixin:
             "import hmac",
             "import os",
             "import secrets",
+            # POINT 95 : la forme de l'identifiant de compte se vérifie par
+            # motif. Absent, le app.py généré ne démarrait même pas
+            # (NameError sur 're') — trouvé en lançant le serveur, jamais
+            # visible en relisant le générateur.
+            "import re",
             # BRIQUE PAIEMENT (point 74) : premier appel SORTANT du backend
             # généré. json/urllib ne servaient à rien tant que monl restait
             # hors-ligne ; encaisser change cela, et il faut le dire.
@@ -46,6 +138,23 @@ class RuntimeMixin:
             "    conn.execute('PRAGMA foreign_keys = ON')",
             "    conn.execute('PRAGMA busy_timeout = 10000')",
             "    return conn\n",
+            # AJOUT (brique 16, point 89) : l'instant de création d'un
+            # enregistrement, en ISO 8601 UTC. Deux choix qui tiennent la
+            # brique :
+            #  - UTC, jamais l'heure locale du serveur : une machine
+            #    redéployée ailleurs ne doit pas faire reculer les dates.
+            #  - texte trié lexicographiquement = trié chronologiquement,
+            #    parce que le décalage est TOUJOURS '+00:00' et le format de
+            #    largeur fixe. C'est ce qui rend 'ORDER BY' juste sur une
+            #    colonne TEXT, donc ce qui dispense d'un type SQLite qui
+            #    n'existe pas.
+            # La milliseconde n'est pas de la précision pour la précision :
+            # à la seconde, deux commandes passées coup sur coup portent la
+            # MÊME date et ne sont plus ordonnables — ce qui vide de son sens
+            # la propriété qu'on vient d'annoncer. Quatre caractères de plus,
+            # et le tri redevient total.
+            "def _horodatage():",
+            "    return datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='milliseconds')\n",
             # CORRECTIF (bêta, hygiène de secret) : le secret JWT est lu en
             # priorité depuis la variable d'environnement MONL_JWT_SECRET
             # (recommandé en production — le secret ne touche jamais le disque
@@ -92,6 +201,19 @@ class RuntimeMixin:
             "# regroupées par table, injectées via repr() pour un littéral toujours",
             "# valide. Consommées par init_db() (insertion idempotente si vide).",
             f"_SEED_DATA = {self._compute_seed_data()!r}\n",
+            # POINT 85 : 'rule Entite.champ unique' ne produisait RIEN — deux
+            # lignes de même valeur étaient acceptées (vérifié contre un vrai
+            # serveur). Un INDEX plutôt qu'une contrainte de colonne, pour une
+            # raison qui commande : SQLite ne sait pas ajouter UNIQUE à une
+            # colonne existante, alors que CREATE UNIQUE INDEX IF NOT EXISTS
+            # s'applique à une table déjà peuplée et reste idempotent. La
+            # promesse de migration additive (point 32) est donc tenue.
+            f"_UNIQUE_INDEXES = {self._compute_unique_indexes()!r}\n",
+            # POINT 89 : les colonnes horodatées, pour que le démarrage puisse
+            # DIRE combien d'enregistrements n'auront jamais de date. Voir le
+            # bloc de migration : c'est le seul cas du compilateur où une
+            # colonne ajoutée ne peut pas être rattrapée.
+            f"_TIMESTAMP_COLUMNS = {self._compute_timestamp_columns()!r}\n",
             "security_bearer = HTTPBearer()\n",
             # CORRECTIF (roadmap, révocation de token) : la vérification du
             # token est centralisée dans une seule fonction, appelée par les
@@ -175,6 +297,50 @@ class RuntimeMixin:
             "        conn.commit()",
             "    except Exception as e:",
             "        print(f'⚠️ Migration additive ignorée : {e}')",
+            # POINT 85 : les index uniques, APRÈS la migration additive (la
+            # colonne à indexer peut venir d'être ajoutée). Chacun dans son
+            # propre try : un échec doit nommer SON champ, pas faire taire les
+            # suivants. Sur une base qui contient déjà des doublons, l'index ne
+            # peut pas être créé -- c'est un changement non automatisable
+            # (docs/MIGRATIONS.md), donc on le DIT au lieu de l'avaler.
+            "    for _table, _col, _index in _UNIQUE_INDEXES:",
+            "        try:",
+            "            conn.execute(f'CREATE UNIQUE INDEX IF NOT EXISTS \"{_index}\" ON \"{_table}\" (\"{_col}\")')",
+            "            conn.commit()",
+            "        except sqlite3.IntegrityError:",
+            "            _dups = conn.execute(f'SELECT COUNT(*) FROM (SELECT \"{_col}\" FROM \"{_table}\" GROUP BY \"{_col}\" HAVING COUNT(*) > 1)').fetchone()[0]",
+            "            print(f'❌ \"{_table}\".\"{_col}\" est déclaré unique dans la spec, mais la base contient déjà {_dups} valeur(s) en double : l\\'unicité NE PEUT PAS être appliquée. Dédoublonner, puis redémarrer (docs/MIGRATIONS.md).')",
+            "        except Exception as e:",
+            "            print(f'⚠️ Index unique sur \"{_table}\".\"{_col}\" ignoré : {e}')",
+            # POINT 89 : la migration additive rattrape une colonne, jamais son
+            # contenu. Pour toutes les autres briques ça n'a aucune importance
+            # (une colonne vide est une colonne vide) ; pour une date de
+            # création, c'est irréparable — l'instant est passé et le serveur ne
+            # l'a pas vu. La remplir avec l'heure du démarrage daterait toutes
+            # les vieilles commandes d'aujourd'hui : ce serait une base de
+            # données qui MENT, ce qui est pire que des cases vides. On compte,
+            # on nomme, et on laisse à NULL.
+            "    for _table, _col in _TIMESTAMP_COLUMNS:",
+            "        try:",
+            "            _sans = conn.execute(f'SELECT COUNT(*) FROM \"{_table}\" WHERE \"{_col}\" IS NULL').fetchone()[0]",
+            "            if _sans:",
+            "                print(f'ℹ️ \"{_table}\".\"{_col}\" : {_sans} enregistrement(s) créé(s) avant l\\'ajout de l\\'horodatage restent sans date. Elle ne peut pas être reconstituée — les dater après coup serait faux.')",
+            "        except Exception:",
+            "            pass  # table absente : rien à compter",
+            # POINT 95 : même honnêteté que ci-dessus, sur les comptes. Déclarer
+            # 'identifier: email' n'efface pas les comptes ouverts avant : ils
+            # existent, leur mot de passe est valide, et ils continuent de se
+            # connecter. Les convertir serait impossible (on n'invente pas une
+            # adresse) et les supprimer serait pire. On les COMPTE et on le dit
+            # — sans quoi l'auteur croirait sa règle appliquée partout.
+            "    if AUTH_IDENTIFIER_FORMS and 'libre' not in AUTH_IDENTIFIER_FORMS:",
+            "        try:",
+            "            _anciens = [r[0] for r in conn.execute('SELECT username FROM _monl_users').fetchall()]",
+            "            _hors = [u for u in _anciens if not _forme_valide(u)]",
+            "            if _hors:",
+            "                print(f'ℹ️ {len(_hors)} compte(s) existant(s) ne suivent pas la forme d\\'identifiant déclarée ({\", \".join(AUTH_IDENTIFIER_FORMS)}) : {\", \".join(_hors[:5])}{\"…\" if len(_hors) > 5 else \"\"}. Ils continuent de fonctionner ; la règle ne vaut que pour les inscriptions à venir.')",
+            "        except Exception:",
+            "            pass",
             "    # AJOUT (roadmap frontend, bloc 'seed') : insertion des données de",
             "    # démonstration si (et seulement si) la table est VIDE — idempotent,",
             "    # donc un redémarrage n'empile pas les doublons, et des données",
@@ -247,6 +413,22 @@ class RuntimeMixin:
             "    username: str",
             "    password: str",
             "    actor: str\n",
+        ]
+
+        # ── POINT 95 : la forme de l'identifiant de compte ──────────────
+        # Le champ reste nommé 'username' SUR LE FIL. Le renommer en 'email'
+        # aurait cassé le formulaire d'inscription de tout projet existant,
+        # pour un gain cosmétique ; c'est le CONTRAT qui dit désormais quelle
+        # forme il attend, et l'IA d'interface qui étiquette le champ.
+        #
+        # LA substance de la brique n'est pas la validation, c'est la
+        # NORMALISATION. 'Jean@Ex.com' et 'jean@ex.com' sont la même boîte,
+        # '06 12 34 56 78' et '+33612345678' le même numéro : sans forme
+        # canonique, le contrôle d'unicité est contournable (deux comptes pour
+        # une personne) et la connexion échoue selon la façon dont on tape.
+        api_lines += self._generate_identifier_helpers()
+
+        api_lines += [
             "def _hash_password(password: str, salt_hex: str) -> str:",
             "    return hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), bytes.fromhex(salt_hex), 100_000).hex()\n",
             "# CORRECTIF (bêta 3, énumération de comptes par canal temporel) :",
@@ -327,11 +509,20 @@ class RuntimeMixin:
             "        raise HTTPException(status_code=400, detail='Le mot de passe doit contenir au moins 8 caractères.')",
             "    if len(req.password) > 256:",
             "        raise HTTPException(status_code=400, detail='Mot de passe trop long (256 caractères maximum).')",
+            # POINT 95 : la forme est contrôlée AVANT toute écriture, et la
+            # valeur normalisée AVANT le contrôle d'unicité — l'inverse
+            # laisserait 'Jean@Ex.com' passer à côté de 'jean@ex.com'.
+            "    _identifiant = _normalize_identifier(req.username)",
+            "    _check_identifier(_identifiant)",
             "    conn = _connect(); cursor = conn.cursor()",
-            "    cursor.execute('SELECT id FROM _monl_users WHERE username = ?', (req.username,))",
+            "    cursor.execute('SELECT id FROM _monl_users WHERE username = ?', (_identifiant,))",
             "    if cursor.fetchone():",
             "        conn.close()",
-            "        raise HTTPException(status_code=409, detail=\"Ce nom d'utilisateur existe déjà.\")",
+            # Le message doit nommer ce qui est réellement en conflit : sur une
+            # inscription par e-mail, « ce nom d'utilisateur » ne veut rien dire
+            # — et le conflit est souvent invisible pour l'appelant, puisqu'il
+            # porte sur la forme NORMALISÉE de ce qu'il a tapé.
+            "        raise HTTPException(status_code=409, detail=_conflit_identifiant())",
             "    salt_hex = os.urandom(16).hex()",
             "    pwd_hash = _hash_password(req.password, salt_hex)",
             # AJOUT (roadmap, écosystème de capacités -- suite de la brique 1) :
@@ -351,7 +542,7 @@ class RuntimeMixin:
             "        conn.close()",
             "        raise HTTPException(status_code=500, detail='Impossible de générer un pseudonyme unique, réessayez.')",
             "    cursor.execute('INSERT INTO _monl_users (username, password_hash, salt, actor, anon_handle) VALUES (?, ?, ?, ?, ?)',",
-            "                   (req.username, pwd_hash, salt_hex, req.actor, anon_handle))",
+            "                   (_identifiant, pwd_hash, salt_hex, req.actor, anon_handle))",
             "    conn.commit(); new_user_id = cursor.lastrowid; conn.close()",
             "    return {'status': 'success', 'user_id': new_user_id}\n",
 
@@ -362,8 +553,15 @@ class RuntimeMixin:
             "@app.post('/login', tags=['Authentication'])",
             "def login(req: LoginRequest, request: Request):",
             "    _check_rate_limit('login', _client_ip(request))",
+            # POINT 95 : MÊME normalisation qu'à l'inscription, et c'est la
+            # moitié qui compte. Normaliser d'un seul côté crée des comptes
+            # auxquels on ne peut plus se connecter — la casse d'une adresse ne
+            # se retient pas. Aucun contrôle de FORME ici en revanche : un
+            # identifiant mal formé n'existe simplement pas en base, et le 401
+            # habituel répond sans révéler la règle.
+            "    _identifiant = _normalize_identifier(req.username)",
             "    conn = _connect(); cursor = conn.cursor()",
-            "    cursor.execute('SELECT id, password_hash, salt, actor, anon_handle FROM _monl_users WHERE username = ?', (req.username,))",
+            "    cursor.execute('SELECT id, password_hash, salt, actor, anon_handle FROM _monl_users WHERE username = ?', (_identifiant,))",
             "    row = cursor.fetchone(); conn.close()",
             "    if not row:",
             "        hmac.compare_digest(_hash_password(req.password[:256], _DUMMY_SALT_HEX), _DUMMY_HASH)",
@@ -372,7 +570,7 @@ class RuntimeMixin:
             "    if not hmac.compare_digest(_hash_password(req.password, salt_hex), stored_hash):",
             "        raise HTTPException(status_code=401, detail='Identifiants invalides.')",
             "    payload = {",
-            "        'sub': req.username,",
+            "        'sub': _identifiant,",
             "        'actor': actor,",
             "        'user_id': db_user_id,",
             # AJOUT (roadmap, écosystème de capacités -- suite de la brique 1) :

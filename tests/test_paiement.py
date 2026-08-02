@@ -53,14 +53,27 @@ SPEC_BOUTIQUE = """app Boutique
 entity Client
     nom: String
 
+entity Article
+    nom: String
+    prix: Money
+
 entity Commande
     libelle: String
+    quantite: Integer
     total: Money
 
 relation Client hasMany Commande
+relation Article hasMany Commande
 
 actor Client selfRegister
 
+rule Commande.quantite required
+rule Commande.Read ownedBy Client
+
+# Depuis le point 79, `payable` EXIGE que le montant soit calculé par le
+# serveur : le créateur d'une commande en devient le propriétaire, donc le
+# payeur, et un montant qu'il peut écrire est un montant qu'il peut négocier.
+rule Commande.total derivedFrom Article.prix by quantite
 rule Commande.total payable
 
 workflow Acheter for Client
@@ -222,15 +235,41 @@ def _entetes(application, identifiant):
     return {"Authorization": "Bearer " + jeton["access_token"]}
 
 
-def _commande(base, entetes, libelle, total):
+def _commande(application, entetes, libelle, total):
+    """Crée une commande dont le montant DÉRIVÉ vaut `total`.
+
+    Depuis le point 79, `payable` exige un montant calculé par le serveur : le
+    client ne peut plus l'envoyer, et ce fichier ne peut donc plus le fixer
+    directement. Le banc d'essai insère un article au prix voulu et en commande
+    une unité — le montant obtenu est le même qu'avant, et les seize appels de
+    ce fichier gardent exactement le sens qu'ils avaient.
+
+    L'article est inséré en base plutôt que par une route : la spec du banc
+    d'essai n'ouvre aucun workflow d'administration, et en ajouter un pour les
+    besoins du test élargirait la surface éprouvée sans rien prouver de plus.
+    """
+    base, dossier = application
+    with _base(dossier) as cnx:
+        curseur = cnx.execute('INSERT INTO article (nom, prix) VALUES (?, ?)',
+                              (libelle, total))
+        article = curseur.lastrowid
     reponse = requests.post(f"{base}/commande", headers=entetes,
-                            json={"libelle": libelle, "total": total})
+                            json={"libelle": libelle, "quantite": 1,
+                                  "article_id": article})
     assert reponse.status_code in (200, 201), reponse.text
     return reponse.json()["id"]
 
 
-def _signer(corps, secret=CLE_WEBHOOK, horodatage="1700000000", version="v1"):
-    """Reproduit la signature Stripe : HMAC-SHA256 de « horodatage.corps »."""
+def _signer(corps, secret=CLE_WEBHOOK, horodatage=None, version="v1"):
+    """Reproduit la signature Stripe : HMAC-SHA256 de « horodatage.corps ».
+
+    POINT 91 : l'horodatage vaut désormais l'heure COURANTE par défaut, comme
+    celui qu'envoie le vrai prestataire. Il était figé à '1700000000' — une date
+    de novembre 2023 — et les tests passaient parce que le serveur ne la datait
+    jamais. C'est précisément le rejeu que la fraîcheur ferme : un appel signé
+    capté une fois restait valable indéfiniment."""
+    if horodatage is None:
+        horodatage = str(int(time.time()))
     empreinte = hmac.new(secret.encode(),
                          (horodatage + ".").encode() + corps,
                          hashlib.sha256).hexdigest()
@@ -238,10 +277,14 @@ def _signer(corps, secret=CLE_WEBHOOK, horodatage="1700000000", version="v1"):
 
 
 def _evenement(session_id, reference, type_evenement="checkout.session.completed"):
+    # La référence est qualifiée par l'entité ('Commande:id') : c'est ce que
+    # le serveur envoie désormais, pour que le webhook ne confonde jamais un
+    # id d'une entité payable avec celui d'une AUTRE, dans une app qui en
+    # déclarerait plusieurs.
     return json.dumps({
         "type": type_evenement,
         "data": {"object": {"id": session_id,
-                            "client_reference_id": str(reference)}},
+                            "client_reference_id": f"Commande:{reference}"}},
     }).encode()
 
 
@@ -260,7 +303,7 @@ def test_le_montant_encaisse_vient_de_la_base_jamais_du_client(application, faux
     RÉELLEMENT reçu, pas ce que le serveur a répondu."""
     base, _dossier = application
     entetes = _entetes(application, "acheteuse")
-    identifiant = _commande(base, entetes, "chaise", 42.50)
+    identifiant = _commande(application, entetes, "chaise", 42.50)
 
     avant = len(faux_stripe.recu)
     reponse = requests.post(f"{base}/commande/{identifiant}/paiement",
@@ -282,7 +325,7 @@ def test_le_montant_suit_la_base_quand_elle_change(application, faux_stripe):
     périmé après une correction en base."""
     base, dossier = application
     entetes = _entetes(application, "revisee")
-    identifiant = _commande(base, entetes, "table", 10.00)
+    identifiant = _commande(application, entetes, "table", 10.00)
 
     requests.post(f"{base}/commande/{identifiant}/paiement", headers=entetes)
     with _base(dossier) as cnx:
@@ -300,14 +343,14 @@ def test_la_session_porte_la_reference_et_la_cle_du_serveur(application, faux_st
     lui, un paiement réussi n'atterrit sur aucune commande."""
     base, _dossier = application
     entetes = _entetes(application, "referencee")
-    identifiant = _commande(base, entetes, "lampe", 7.00)
+    identifiant = _commande(application, entetes, "lampe", 7.00)
 
     avant = len(faux_stripe.recu)
     requests.post(f"{base}/commande/{identifiant}/paiement", headers=entetes)
     demande = faux_stripe.recu[avant]
 
     assert demande["chemin"] == "/v1/checkout/sessions"
-    assert demande["champs"]["client_reference_id"] == str(identifiant)
+    assert demande["champs"]["client_reference_id"] == f"Commande:{identifiant}"
     # La clé part en en-tête, jamais dans l'URL ni dans le corps.
     assert demande["autorisation"] == f"Bearer {CLE_SECRETE}"
     assert CLE_SECRETE not in demande["chemin"]
@@ -321,7 +364,7 @@ def test_payer_l_enregistrement_d_un_autre_compte_est_refuse(application):
     montant par la réponse."""
     base, _dossier = application
     proprietaire = _entetes(application, "proprietaire")
-    identifiant = _commande(base, proprietaire, "vélo", 300.00)
+    identifiant = _commande(application, proprietaire, "vélo", 300.00)
 
     intruse = _entetes(application, "intruse")
     refus = requests.post(f"{base}/commande/{identifiant}/paiement",
@@ -343,7 +386,7 @@ def test_un_montant_nul_n_est_pas_encaisse(application, faux_stripe):
     loin de sa cause."""
     base, _dossier = application
     entetes = _entetes(application, "gratuite")
-    identifiant = _commande(base, entetes, "échantillon", 0)
+    identifiant = _commande(application, entetes, "échantillon", 0)
 
     avant = len(faux_stripe.recu)
     refus = requests.post(f"{base}/commande/{identifiant}/paiement",
@@ -359,7 +402,7 @@ def test_une_demande_sans_jeton_est_refusee(application):
     rattacher le paiement."""
     base, _dossier = application
     entetes = _entetes(application, "anonyme")
-    identifiant = _commande(base, entetes, "livre", 15.00)
+    identifiant = _commande(application, entetes, "livre", 15.00)
     refus = requests.post(f"{base}/commande/{identifiant}/paiement")
     assert refus.status_code in (401, 403), refus.text
 
@@ -370,7 +413,7 @@ def test_le_refus_du_prestataire_remonte_en_502_avec_son_message(application, fa
     information dont dispose celui qui débogue."""
     base, _dossier = application
     entetes = _entetes(application, "recalee")
-    identifiant = _commande(base, entetes, "canapé", 800.00)
+    identifiant = _commande(application, entetes, "canapé", 800.00)
 
     faux_stripe.refuser = True
     try:
@@ -390,7 +433,7 @@ def test_sans_cle_le_serveur_refuse_bruyamment_en_nommant_la_variable(
     d'autre."""
     base, _dossier = application_sans_cles
     entetes = _entetes(application_sans_cles, "sansclef")
-    identifiant = _commande(base, entetes, "étagère", 55.00)
+    identifiant = _commande(application_sans_cles, entetes, "étagère", 55.00)
 
     refus = requests.post(f"{base}/commande/{identifiant}/paiement",
                           headers=entetes)
@@ -409,7 +452,7 @@ def test_le_serveur_sans_cle_demarre_et_sert_le_reste(application_sans_cles):
     rendrait `monl run` impossible hors ligne."""
     base, _dossier = application_sans_cles
     entetes = _entetes(application_sans_cles, "ordinaire")
-    identifiant = _commande(base, entetes, "tabouret", 20.00)
+    identifiant = _commande(application_sans_cles, entetes, "tabouret", 20.00)
     lu = requests.get(f"{base}/commande/{identifiant}", headers=entetes)
     assert lu.status_code == 200, lu.text
 
@@ -421,7 +464,7 @@ def test_le_webhook_signe_marque_l_enregistrement_paye(application):
     métier ne le touche."""
     base, dossier = application
     entetes = _entetes(application, "reglee")
-    identifiant = _commande(base, entetes, "bureau", 120.00)
+    identifiant = _commande(application, entetes, "bureau", 120.00)
 
     session = requests.post(f"{base}/commande/{identifiant}/paiement",
                             headers=entetes).json()
@@ -457,7 +500,7 @@ def test_un_webhook_mal_signe_ne_paie_rien(application, entete):
     ouvrir la porte."""
     base, dossier = application
     entetes = _entetes(application, f"tentative{abs(hash(str(entete))) % 10000}")
-    identifiant = _commande(base, entetes, "coffre", 60.00)
+    identifiant = _commande(application, entetes, "coffre", 60.00)
 
     corps = _evenement("cs_forge", identifiant)
     envoi = {} if entete is None else {"stripe-signature": entete}
@@ -474,7 +517,7 @@ def test_une_signature_valide_pour_un_autre_corps_est_refusee(application):
     substituerait la référence d'une commande à une autre."""
     base, dossier = application
     entetes = _entetes(application, "substituee")
-    cible = _commande(base, entetes, "armoire", 200.00)
+    cible = _commande(application, entetes, "armoire", 200.00)
 
     autre_corps = _evenement("cs_autre", 1)
     signature_valide = _signer(autre_corps)
@@ -492,7 +535,7 @@ def test_une_signature_faite_avec_une_autre_cle_est_refusee(application):
     que peut fabriquer quelqu'un qui a lu le code généré sans avoir la clé."""
     base, dossier = application
     entetes = _entetes(application, "mauvaiseclef")
-    identifiant = _commande(base, entetes, "buffet", 90.00)
+    identifiant = _commande(application, entetes, "buffet", 90.00)
 
     corps = _evenement("cs_pirate", identifiant)
     refus = requests.post(
@@ -508,7 +551,7 @@ def test_un_evenement_d_un_autre_type_est_ignore_sans_rien_changer(application):
     dont la session a seulement expiré."""
     base, dossier = application
     entetes = _entetes(application, "expiree")
-    identifiant = _commande(base, entetes, "miroir", 30.00)
+    identifiant = _commande(application, entetes, "miroir", 30.00)
 
     corps = _evenement("cs_expiree", identifiant,
                        type_evenement="checkout.session.expired")
@@ -524,7 +567,7 @@ def test_regler_deux_fois_le_meme_enregistrement_est_refuse(application, faux_st
     verrou, un double clic sur un lien de règlement encaisse deux fois."""
     base, _dossier = application
     entetes = _entetes(application, "doublee")
-    identifiant = _commande(base, entetes, "fauteuil", 250.00)
+    identifiant = _commande(application, entetes, "fauteuil", 250.00)
 
     session = requests.post(f"{base}/commande/{identifiant}/paiement",
                             headers=entetes).json()
@@ -548,13 +591,22 @@ def test_le_client_ne_peut_pas_se_declarer_paye_a_la_creation(application):
     base, dossier = application
     entetes = _entetes(application, "autoproclamee")
 
+    with _base(dossier) as cnx:
+        article = cnx.execute('INSERT INTO article (nom, prix) VALUES (?, ?)',
+                              ("gratuite", 500.00)).lastrowid
+    # `total` est envoyé lui aussi, et lui aussi ignoré depuis le point 79 : le
+    # corps tente les trois champs que le serveur se réserve.
     reponse = requests.post(f"{base}/commande", headers=entetes,
-                            json={"libelle": "gratuite", "total": 500.00,
+                            json={"libelle": "gratuite", "quantite": 1,
+                                  "article_id": article, "total": 0.01,
                                   "payment_status": "payee",
                                   "payment_ref": "cs_invente"})
     identifiant = reponse.json()["id"]
     assert _etat_en_base(dossier, identifiant) == ("en_attente", None), (
         _etat_en_base(dossier, identifiant))
+    with _base(dossier) as cnx:
+        assert cnx.execute("SELECT total FROM commande WHERE id = ?",
+                           (identifiant,)).fetchone()[0] == 500.00
 
 
 def test_une_mise_a_jour_ne_peut_pas_changer_l_etat_de_paiement(application):
@@ -563,21 +615,33 @@ def test_une_mise_a_jour_ne_peut_pas_changer_l_etat_de_paiement(application):
     remettre « en attente » — ou l'inverse — vide le verrou de son sens."""
     base, dossier = application
     entetes = _entetes(application, "modifiee")
-    identifiant = _commande(base, entetes, "commode", 75.00)
+    identifiant = _commande(application, entetes, "commode", 75.00)
 
+    with _base(dossier) as cnx:
+        article = cnx.execute('SELECT article_id FROM commande WHERE id = ?',
+                              (identifiant,)).fetchone()[0]
     modif = requests.put(f"{base}/commande/{identifiant}", headers=entetes,
-                         json={"libelle": "commode restaurée", "total": 75.00,
+                         json={"libelle": "commode restaurée", "quantite": 1,
+                               "article_id": article, "total": 0.01,
                                "payment_status": "payee",
                                "payment_ref": "cs_invente"})
     assert modif.status_code in (200, 201), modif.text
     assert _etat_en_base(dossier, identifiant) == ("en_attente", None)
+    # Le montant non plus ne se réécrit pas par cette route (point 79).
+    with _base(dossier) as cnx:
+        assert cnx.execute("SELECT total FROM commande WHERE id = ?",
+                           (identifiant,)).fetchone()[0] == 75.00
 
 
 def test_les_colonnes_de_suivi_sont_absentes_des_schemas_d_entree(application):
-    """Le contrat public dit la même chose que le serveur : les deux colonnes
-    sont lisibles mais jamais proposées en entrée. On interroge le composant
+    """Le contrat public dit la même chose que le serveur : ces colonnes sont
+    lisibles mais jamais proposées en entrée. On interroge le composant
     réellement référencé par la requête plutôt que le texte de la route — leur
-    absence d'une chaîne prouverait aussi bien qu'on a mal cherché."""
+    absence d'une chaîne prouverait aussi bien qu'on a mal cherché.
+
+    Depuis le point 79, `total` a rejoint cette liste : il est CALCULÉ par le
+    serveur, donc absent de l'entrée lui aussi. Le témoin devient `quantite` —
+    il en faut un, sinon un schéma vide passerait le test."""
     base, _dossier = application
     schema = requests.get(f"{base}/openapi.json").json()
 
@@ -586,9 +650,9 @@ def test_les_colonnes_de_suivi_sont_absentes_des_schemas_d_entree(application):
             "application/json"]["schema"]["$ref"]
         proprietes = schema["components"]["schemas"][
             reference.rsplit("/", 1)[-1]]["properties"]
-        assert "total" in proprietes, proprietes
-        assert "payment_status" not in proprietes, (methode, proprietes)
-        assert "payment_ref" not in proprietes, (methode, proprietes)
+        assert "quantite" in proprietes, proprietes
+        for reserve in ("total", "payment_status", "payment_ref"):
+            assert reserve not in proprietes, (methode, reserve, proprietes)
 
 
 # ==================================== la brique n'empêche pas 'monl run' ====

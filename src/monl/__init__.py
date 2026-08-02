@@ -11,4 +11,11 @@ comme en tête de chaque fichier de tests. C'est désormais un vrai paquet :
 installé, sans préparatif.
 """
 
-__version__ = "0.9.0-beta.5"
+# POINT 85 : ce numéro n'avait pas bougé des points 74 à 85 — cinq briques, un
+# outil, un correctif de sécurité. Il ne disait donc rien, et le point 81 a dû
+# construire sa détection d'artefacts périmés sur une RÉGÉNÉRATION plutôt que
+# sur lui. Il reste secondaire par construction : la version n'est pas une
+# preuve, la recompilation en est une. Mais un numéro faux est pire qu'un
+# numéro secondaire — il est désormais enregistré dans monl.json, pour que
+# l'avertissement du point 81 puisse dire AVEC QUOI le projet a été construit.
+__version__ = "0.9.0-beta.6"

@@ -26,7 +26,14 @@ import hashlib
 import json
 import os
 
-CONTRACT_VERSION = 3  # 2 : base_url même origine (51) · 3 : rôles + archétypes (54)
+# Les noms des colonnes de suivi du paiement viennent de la couche qui les
+# crée — les réécrire ici en dur ferait une cinquième copie à faire dériver
+# (point 76). Pas de cycle : le générateur n'importe pas ce module.
+from .generator.core import PAYMENT_REF_COLUMN, PAYMENT_STATUS_COLUMN
+
+CONTRACT_VERSION = 5  # 2 : base_url même origine (51) · 3 : rôles + archétypes (54)
+#                     # 4 : champs de suivi du paiement déclarés (76)
+#                     # 5 : assets déclarés — logo, favicon, dossier (83)
 
 # RÔLES DE CHAMPS ET ARCHÉTYPES (point 54) — restauration, dans le CONTRAT,
 # de ce que le point 35 dérivait pour le frontend que monl générait lui-même,
@@ -54,9 +61,17 @@ def _assign_field_roles(fields):
     visibles = [f for f in fields if not f["hidden_in_reads"]]
     roles = {}
 
-    media = next((f["name"] for f in visibles
-                  if f["type"] in ("String", "Text")
-                  and any(h in f["name"].lower() for h in MEDIA_HINTS)), None)
+    # AJOUT (brique 13, point 83) : le type DÉCLARÉ prime sur la devinette par
+    # nom. Jusqu'ici le média se reconnaissait uniquement à son nom
+    # (`MEDIA_HINTS`) : `imageUrl` marchait par chance, `apercu` ou `cliche` non,
+    # et l'IA d'interface n'en faisait alors pas une image. Un champ 'Image' dit
+    # ce qu'il est ; l'heuristique ne sert plus que de repli pour les specs qui
+    # n'ont pas encore adopté le type.
+    media = next((f["name"] for f in visibles if f["type"] == "Image"), None)
+    if not media:
+        media = next((f["name"] for f in visibles
+                      if f["type"] in ("String", "Text")
+                      and any(h in f["name"].lower() for h in MEDIA_HINTS)), None)
     if media:
         roles[media] = "media"
     # Le titre est le premier String qui n'est pas déjà le média : sur une
@@ -205,11 +220,12 @@ def build_contract(normalized_ast, generator):
         ent: [c["field"] for c in rules]
         for ent, rules in generator.categorized_fields_by_entity.items()
     }
-    required = set()
-    for rule in normalized_ast["security"].get("rules", []):
-        if isinstance(rule, dict) and rule.get("type") == "required":
-            required.add(rule.get("reference", ""))
-
+    # POINT 91 : la liste des 'rule X.y required' ne sert PLUS à peupler le
+    # `required` du contrat — les schémas générés rendent tout champ d'entrée
+    # obligatoire, déclaré ou non, et le contrat doit dire ce que le serveur
+    # exige. Elle n'est donc plus lue ici : la garder pour « information »
+    # rouvrirait la porte à ce qu'on vient de fermer, deux sources pour une
+    # même question.
     fk_placements = generator._compute_fk_placements()
 
     # Calculés AVANT les entités : l'archétype dépend de qui peut lire, pas
@@ -220,28 +236,191 @@ def build_contract(normalized_ast, generator):
     lisibles = {info["base_target"] for (act, _t), info in route_map.items()
                 if act == "Read"}
 
+    # POINT 79 : un champ 'derivedFrom' est CALCULÉ par le serveur, donc absent
+    # des corps de requête — exactement comme un champ 'generated'. Le contrat
+    # devait le dire : sans cela il annonçait `total` parmi les champs à
+    # envoyer, et une IA d'interface fidèle au contrat aurait bâti un
+    # formulaire de prix que le serveur ignore. C'est le défaut du point 76,
+    # reproduit sur la brique qui venait de le corriger — la leçon « déclarer
+    # ce que le backend fait VRAIMENT » vaut aussi quand une brique retire
+    # quelque chose, pas seulement quand elle ajoute une colonne.
+    derives = {ent: {r["field"]: r for r in regles}
+               for ent, regles in getattr(generator, "derived_by_entity", {}).items()}
+    # POINT 82 : même exigence pour 'sumOf'. Le défaut du point 76 s'est déjà
+    # reproduit deux fois (points 79 et 81) : le déclarer d'emblée ici plutôt
+    # que d'attendre qu'une IA d'interface bâtisse un champ « total » que le
+    # serveur recalcule. Un total de panier est le cas où l'écart se voit le
+    # plus vite — il change à chaque ligne ajoutée.
+    sommes = {ent: {r["field"]: r for r in regles}
+              for ent, regles in getattr(generator, "aggregated_by_entity", {}).items()}
+    # POINT 89 : quatrième membre de la même famille. Le défaut du point 76 s'est
+    # reproduit sur chacune des trois précédentes ; celle-ci arrive déclarée.
+    horodates = getattr(generator, "timestamp_fields_by_entity", {})
+
     entity_specs = {}
     for ent, fields in entities.items():
         field_list = []
         for fname, ftype in fields.items():
-            field_list.append({
+            derive = derives.get(ent, {}).get(fname)
+            somme = sommes.get(ent, {}).get(fname)
+            peuple_par_le_serveur = (fname in generated.get(ent, [])
+                                     or derive is not None or somme is not None
+                                     or fname in horodates.get(ent, []))
+            champ = {
                 "name": fname,
                 "type": ftype,
-                "required": f"{ent}.{fname}" in required,
+                # POINT 91 : ce que le SERVEUR exige, pas ce que la spec déclare.
+                # Le contrat reflétait `rule X.y required` — or les schémas
+                # Pydantic générés rendent obligatoire TOUT champ d'entrée, sans
+                # exception (point 85 : « required reste une assertion, les
+                # schémas rendent déjà tout champ obligatoire »). Un frontend
+                # fidèle au contrat omettait donc les champs non déclarés et
+                # récoltait un 422. Vu en vrai : ajouter `email` et `address` à
+                # une fiche client a cassé le formulaire d'un site en marche,
+                # alors que le contrat les annonçait facultatifs.
+                "required": not peuple_par_le_serveur,
                 # hidden : jamais présent dans les réponses de lecture
                 "hidden_in_reads": fname in hidden.get(ent, []),
-                # generated : à NE PAS envoyer à la création (rejeté sinon)
-                "server_generated": fname in generated.get(ent, []),
+                # generated, derivedFrom ou sumOf : à NE PAS envoyer, le serveur
+                # le peuple lui-même (et l'ignorerait dans le corps de requête)
+                "server_generated": peuple_par_le_serveur,
                 # categorized : la lecture renvoie un libellé, pas le nombre
                 "categorized_in_reads": fname in categorized.get(ent, []),
-            })
-        fks = [
-            {"column": p["fk_column"], "references": p["owner_entity"], "unique": p["unique"]}
-            for p in fk_placements.get(ent, [])
-        ]
+            }
+            # BRIQUE 19 (point 96) : les valeurs permises. Sans elles, l'IA
+            # dessine un champ TEXTE et l'utilisateur invente un statut qui
+            # récolte un 422 — alors que la liste tient dans un menu déroulant.
+            # Même raison que les bornes ci-dessous : le contrat décrit ce que le
+            # backend REFUSE autant que ce qu'il accepte.
+            choix = (getattr(generator, "enumerated_fields", {})
+                     .get(ent, {}).get(fname))
+            if choix:
+                champ["allowed_values"] = list(choix)
+            # POINT 85 : les bornes 'min'/'max' donnent un 422 avant tout INSERT.
+            # Le contrat DOIT les annoncer : une interface qui les ignore laisse
+            # l'utilisateur remplir un formulaire pour se faire refuser au bout,
+            # alors qu'elle pouvait le dire tout de suite. Même raison que pour
+            # `server_generated` (point 79) — le contrat décrit ce que le backend
+            # fait VRAIMENT, y compris ce qu'il REFUSE.
+            for nom in ("min", "max"):
+                borne = generator.field_constraints.get(ent, {}).get(fname, {}).get(nom)
+                if borne:
+                    champ[f"{nom}_{'length' if borne['portee'] == 'longueur' else 'value'}"] = \
+                        borne["valeur"]
+            if generator.field_constraints.get(ent, {}).get(fname, {}).get("unique"):
+                champ["unique"] = True
+                champ["unique_note"] = ("valeur unique imposée par la base : une "
+                                        "création ou une modification en doublon "
+                                        "répond 409, pas 422 — le dire à l'utilisateur "
+                                        "plutôt que de rejouer la requête.")
+            if derive:
+                champ["derived_from"] = (f"{derive['source_entity']}."
+                                         f"{derive['source_field']}")
+                champ["derived_factor"] = derive["factor"]
+                champ["note"] = (
+                    f"calculé par le serveur : {derive['source_entity']}."
+                    f"{derive['source_field']} × {derive['factor']}. Ne pas "
+                    f"l'envoyer, et ne pas le calculer côté navigateur pour "
+                    f"l'afficher avant création — relire la valeur renvoyée par "
+                    f"le serveur, c'est elle qui sera encaissée.")
+            if somme:
+                champ["summed_from"] = (f"{somme['source_entity']}."
+                                        f"{somme['source_field']}")
+                champ["note"] = (
+                    f"total recalculé par le serveur : somme des "
+                    f"{somme['source_entity']}.{somme['source_field']} rattachés. "
+                    f"Ne pas l'envoyer. Il change à chaque {somme['source_entity']} "
+                    f"ajouté, modifié ou supprimé : relire le "
+                    f"{ent} après chaque écriture de ligne plutôt que de tenir un "
+                    f"total côté navigateur, qui divergerait.")
+            if fname in horodates.get(ent, []):
+                champ["created_at"] = True
+                champ["note"] = (
+                    "instant de création, écrit par le serveur en ISO 8601 UTC "
+                    "(ex. '2026-07-31T04:18:22.310+00:00'), et jamais modifié ensuite. "
+                    "Ne pas l'envoyer : ni à la création, ni à la modification. "
+                    "Il se trie comme du texte — comparer les chaînes suffit, "
+                    "inutile de les convertir pour ordonner une liste. "
+                    "PEUT ÊTRE VIDE sur les enregistrements créés avant l'ajout "
+                    "de la règle : afficher un tiret, jamais la date du jour — "
+                    "cette date-là n'a pas été perdue, elle n'a jamais existé.")
+            field_list.append(champ)
+        # POINT 88 : une clé étrangère de monl référence l'une de DEUX choses,
+        # et le contrat n'en disait qu'une. Celles que la route Create peuple
+        # depuis le jeton portent un identifiant de COMPTE (`_monl_users.id`) ;
+        # les autres portent l'`id` de la table métier. `schema.sql` écrit
+        # d'ailleurs deux `REFERENCES` différents — le contrat, lui, annonçait
+        # « references: Customer » dans les deux cas.
+        #
+        # Ce que ça coûtait : une interface qui suit le contrat joint
+        # `order.customer_id` à `customer.id`, alors que la bonne jointure est
+        # `customer.customer_id`. Une jointure qui marche À MOITIÉ — juste tant
+        # que l'id de compte et l'id de fiche coïncident, c'est-à-dire sur les
+        # premiers enregistrements, c'est-à-dire pendant les tests.
+        identity_cols = generator._identity_fk_columns().get(ent, set())
+        fks = []
+        for p in fk_placements.get(ent, []):
+            lien = {"column": p["fk_column"], "references": p["owner_entity"],
+                    "unique": p["unique"]}
+            if p["fk_column"] in identity_cols:
+                lien["references_account"] = True
+                # La fiche métier se retrouve par la colonne HOMONYME, qui porte
+                # le même identifiant de compte — pas par son `id`.
+                lien["note"] = (
+                    f"contient un identifiant de COMPTE (celui du titulaire), "
+                    f"pas l'`id` d'un enregistrement {p['owner_entity']}. Pour "
+                    f"retrouver la fiche : chercher le {p['owner_entity']} dont "
+                    f"`{p['fk_column']}` vaut cette même valeur — jamais celui "
+                    f"dont `id` la vaut, la correspondance serait fortuite.")
+            else:
+                lien["references_account"] = False
+                lien["note"] = (f"contient l'`id` d'un enregistrement "
+                                f"{p['owner_entity']}.")
+            fks.append(lien)
         roles = _assign_field_roles(field_list)
         for f in field_list:
             f["role"] = roles.get(f["name"])
+        # POINT 76 : les deux colonnes de suivi de la brique 'payable' sont
+        # présentes dans toutes les réponses de lecture (le générateur fait un
+        # SELECT *) mais n'étaient déclarées NULLE PART dans le contrat. Une IA
+        # d'interface qui le suit à la lettre ne pouvait donc pas savoir
+        # qu'elles existent, et ne pouvait pas afficher l'état d'un règlement :
+        # le bouton de paiement était dessinable, son résultat non.
+        #
+        # Ajoutées APRÈS l'attribution des rôles, volontairement : passées à
+        # _assign_field_roles, elles auraient pris deux des trois emplacements
+        # « méta » (point 35) et se seraient fait afficher comme des
+        # informations secondaires quelconques, en évinçant de vrais champs de
+        # la spec. Elles n'ont donc aucun rôle — ce qu'il faut en faire est dit
+        # en toutes lettres dans le brief, pas déduit d'un rôle de mise en page.
+        if ent in getattr(generator, "payable_by_entity", {}):
+            # Chaque colonne porte SA propre explication : les décrire d'une
+            # seule phrase commune faisait annoncer « 'en_attente' / 'payee' »
+            # pour `payment_ref`, qui contient une référence de session — vu en
+            # relisant le brief produit, pas le code.
+            suivi = (
+                (PAYMENT_STATUS_COLUMN,
+                 "état du règlement, écrit par le serveur seul : 'en_attente' "
+                 "tant que rien n'est encaissé, 'payee' une fois le webhook du "
+                 "prestataire reçu — c'est ce champ qui dit si c'est payé"),
+                (PAYMENT_REF_COLUMN,
+                 "référence de la session chez le prestataire, écrite par le "
+                 "serveur seul ; utile pour un rapprochement comptable, sans "
+                 "intérêt pour le visiteur — vide tant que rien n'est encaissé"),
+            )
+            for colonne, explication in suivi:
+                field_list.append({
+                    "name": colonne,
+                    "type": "String",
+                    "required": False,
+                    "hidden_in_reads": False,
+                    # Jamais fourni par le client : même interdit que 'generated'.
+                    "server_generated": True,
+                    "categorized_in_reads": False,
+                    "payment_tracking": True,
+                    "note": explication,
+                    "role": None,
+                })
         entity_specs[ent] = {
             "fields": field_list, "foreign_keys": fks,
             "client_foreign_keys": _client_supplied_fks(generator, ent),
@@ -257,18 +436,74 @@ def build_contract(normalized_ast, generator):
         is_public = (base, act_type) in public
         actors = sorted(info["actors"])
         if act_type == "Create":
+            # POINT 90 : sans cette note, une IA d'interface bâtit un tunnel
+            # d'achat qui bute en 409 au tout dernier écran — le seul endroit où
+            # l'utilisateur a déjà tout rempli. La contrainte doit se voir AVANT,
+            # pas se découvrir à la fin.
+            requise = getattr(generator, "required_profiles", {}).get(base)
+            note_create = (
+                f"PRÉALABLE : l'appelant doit déjà posséder un {requise}. Sinon "
+                f"cette route répond 409 sans rien créer. Vérifier au chargement "
+                f"(GET /{requise.lower()} renvoie les siens) et proposer la "
+                f"création de la fiche AVANT le formulaire, pas après."
+                if requise else None)
+            # POINT 91 : la création AUSSI est verrouillée — mais seulement par
+            # un PARENT réglé, jamais par l'entité elle-même : rien n'empêche
+            # d'ouvrir une commande de plus, c'est y AJOUTER une ligne qui
+            # remonterait le total déjà encaissé. D'où `inclure_soi=False`.
+            # Le contrat le taisait alors que le backend refusait déjà : une IA
+            # fidèle dessinait un « + Ajouter un article » sur une commande
+            # payée (vérifié sur `exemples/02_boutique.ml`).
+            verrou_parent = _verrou_paiement(generator, base, inclure_soi=False)
             routes.append(_route("POST", f"/{low}", act_type, base, is_public, actors,
-                                 request_fields=_creatable_fields(entity_specs.get(base))))
+                                 request_fields=_creatable_fields(entity_specs.get(base)),
+                                 note=_joindre(note_create,
+                                               _note_verrou(verrou_parent, creation=True))))
+            if requise:
+                routes[-1]["requires_own"] = requise
+            if verrou_parent:
+                routes[-1]["payment_locked"] = verrou_parent
         elif act_type == "Read":
             routes.append(_route("GET", f"/{low}", "List", base, is_public, actors,
                                  note="Paramètres : limit (max 200), offset. Réponse : "
                                       "{status, total, limit, offset, data: [...]}."))
             routes.append(_route("GET", f"/{low}/{{id}}", "Read", base, is_public, actors))
         elif act_type == "Update":
+            # AJOUT (point 81) : le schéma Pydantic est UNIQUE par entité, donc
+            # ces clés étrangères doivent être envoyées (sinon 422) -- mais la
+            # route Update de monl ne les écrit pas : un rattachement se fixe à
+            # la création. Sans cette note, le contrat laissait croire qu'une
+            # interface pouvait déplacer une ligne d'un panier à l'autre, ce que
+            # le backend accepte (200) sans rien changer. Même exigence que les
+            # points 76 et 79 : le contrat décrit ce que le backend FAIT.
+            liens = list(entity_specs.get(base, {}).get("client_foreign_keys", []))
+            note_liens = None
+            if liens:
+                accord = ("doivent figurer dans le corps (schéma unique par entité) mais ne "
+                          "sont PAS modifiés" if len(liens) > 1 else
+                          "doit figurer dans le corps (schéma unique par entité) mais n'est "
+                          "PAS modifié")
+                note_liens = (
+                    f"{', '.join(liens)} {accord} : un rattachement se fixe à la création. "
+                    f"Ne pas proposer de le changer — renvoyer la valeur actuelle.")
+            # POINT 91 : quatrième forme de l'angle mort des points 88 à 90. Une
+            # route ne change ni de chemin, ni d'acteurs, ni de champs, et gagne
+            # pourtant un refus : dès l'encaissement, elle répond 409. Sans cette
+            # note, une interface fidèle au contrat dessine un bouton « Modifier »
+            # sur une commande payée — et l'utilisateur découvre le refus après
+            # avoir rempli le formulaire.
+            verrou = _verrou_paiement(generator, base)
             routes.append(_route("PUT", f"/{low}/{{id}}", act_type, base, is_public, actors,
+                                 note=_joindre(note_liens, _note_verrou(verrou)),
                                  request_fields=_creatable_fields(entity_specs.get(base))))
+            if verrou:
+                routes[-1]["payment_locked"] = verrou
         elif act_type == "Delete":
-            routes.append(_route("DELETE", f"/{low}/{{id}}", act_type, base, is_public, actors))
+            verrou = _verrou_paiement(generator, base)
+            routes.append(_route("DELETE", f"/{low}/{{id}}", act_type, base, is_public,
+                                 actors, note=_note_verrou(verrou)))
+            if verrou:
+                routes[-1]["payment_locked"] = verrou
         elif act_type == "Execute":
             tag = info["tags"][0]
             routes.append(_route("POST", f"/workflow/{tag.lower()}/{target.lower()}",
@@ -283,16 +518,33 @@ def build_contract(normalized_ast, generator):
     # décrit pas est une brique sans interface.
     payables = getattr(generator, "payable_by_entity", {})
     for entite, champ in sorted(payables.items()):
+        # POINT 87 : sous propriété transitive, « appartient » se lit à travers
+        # l'intermédiaire, et un enregistrement dont l'intermédiaire a disparu
+        # répond 404. L'interface doit connaître les deux, sinon elle traite un
+        # 404 comme une erreur technique là où c'est une réponse métier.
+        chaine = getattr(generator, "transitive_ownership", {}).get(entite)
+        via = (f"Ce {entite} appartient à qui possède son/sa "
+               f"{chaine['via']} : c'est cette chaîne que le 403 vérifie, et "
+               f"un {entite} dont le/la {chaine['via']} n'existe plus répond "
+               f"404. " if chaine else "")
         routes.append(_route(
             "POST", f"/{entite.lower()}/{{id}}/paiement", "Pay", entite,
             False, sorted(generator.actors),
-            note=("Ouvre une session de règlement pour cet enregistrement. "
+            note=(via + "Ouvre une session de règlement pour cet enregistrement. "
                   "AUCUN corps : le montant est lu dans la base depuis "
                   f"`{champ}`, jamais reçu du client. Réponse : {{status, url, "
                   "session_id, montant_centimes} — rediriger le navigateur "
                   "vers `url`. 403 si l'enregistrement appartient à "
                   "quelqu'un d'autre, 409 s'il est déjà réglé, 503 si le "
-                  "serveur n'a pas de clé de paiement configurée.")))
+                  "serveur n'a pas de clé de paiement configurée. "
+                  # Point 76 : boucler la boucle. Savoir ouvrir un règlement
+                  # ne dit pas comment en montrer l'issue ; c'est le champ de
+                  # suivi qui la porte, et il n'est PAS à jour au retour du
+                  # prestataire (c'est son webhook qui l'écrit, plus tard).
+                  f"L'issue se lit dans `{PAYMENT_STATUS_COLUMN}` de "
+                  f"{entite} ('en_attente' / 'payee') : ne pas l'annoncer "
+                  "payé au retour de l'utilisateur, le webhook du "
+                  "prestataire peut n'être pas encore arrivé.")))
     if payables:
         routes.append(_route(
             "POST", "/paiement/webhook", "Webhook", "Paiement", False, [],
@@ -318,7 +570,18 @@ def build_contract(normalized_ast, generator):
         # pas une donnée.
         "sections": [{"title": s["title"], "body": paragraphes(s["body"])}
                      for s in (landing.get("sections") or [])],
+        # POINT 94 : la FAQ est une LISTE, et le contrat doit le dire. Rendue
+        # comme une section, elle redevient le pavé de prose qu'elle était —
+        # l'interface ne peut pas deviner une structure qu'on ne lui donne pas.
+        "faq": [{"question": q["question"], "answer": paragraphes(q["answer"])}
+                for q in (landing.get("faq") or [])],
         "source_of_truth": "spec monl (.ml) — ne jamais modifier le backend à la main",
+        # AJOUT (brique 13, point 83) : les assets FOURNIS PAR L'HUMAIN. Le
+        # contrat n'en disait rien, donc une IA d'interface ne pouvait pas savoir
+        # qu'un logo existait — l'en-tête de la boutique de démonstration était
+        # un simple mot en texte, faute de mieux. Chaque fichier nommé ici a été
+        # vérifié présent à la compilation : l'IA peut s'y référer sans risque.
+        "assets": _assets_contract(getattr(generator, "assets", None) or {}),
         "api": {
             # MÊME ORIGINE, jamais d'URL absolue : 'monl run' monte frontend/
             # sur /site du serveur qui sert déjà l'API (SERVE_WRAPPER, cli.py),
@@ -338,12 +601,21 @@ def build_contract(normalized_ast, generator):
                 # L'interface ne doit donc proposer QUE cette liste.
                 "register": {"method": "POST", "path": "/register",
                              "self_register_actors": list(generator.self_register_actors),
-                             "body": {"username": "str", "password": "str (8+ caractères)",
+                             "body": {"username": _libelle_identifiant(generator),
+                                      "password": "str (8+ caractères)",
                                       "actor": f"un rôle parmi {list(generator.self_register_actors)}"},
-                             "note": ("403 si le rôle demandé n'est pas ouvert à l'inscription libre"
-                                      if generator.self_register_actors else
-                                      "aucun rôle ouvert : l'inscription est fermée, "
-                                      "les comptes sont créés par manage.py")},
+                             # POINT 95 : le champ reste nommé 'username' SUR LE
+                             # FIL (le renommer casserait le formulaire de tout
+                             # projet existant) — c'est ici que le contrat dit
+                             # ce qu'il doit vraiment contenir, et l'IA qui
+                             # étiquette l'écran en conséquence.
+                             "identifier_forms": generator.auth_identifier or [],
+                             "note": _joindre(
+                                 ("403 si le rôle demandé n'est pas ouvert à l'inscription libre"
+                                  if generator.self_register_actors else
+                                  "aucun rôle ouvert : l'inscription est fermée, "
+                                  "les comptes sont créés par manage.py"),
+                                 _note_identifiant(generator.auth_identifier))},
                 "login": {"method": "POST", "path": "/login",
                           "body": {"username": "str", "password": "str"},
                           "returns": "un token JWT (validité 2 h par défaut, "
@@ -372,6 +644,73 @@ def build_contract(normalized_ast, generator):
         },
     }
     return contract
+
+
+_LIBELLES_IDENTIFIANT = {"email": "une adresse e-mail",
+                         "phone": "un numéro de téléphone"}
+
+
+def _libelle_identifiant(generator):
+    """Ce que le champ 'username' doit RÉELLEMENT contenir (point 95)."""
+    formes = [f for f in (generator.auth_identifier or [])
+              if f in _LIBELLES_IDENTIFIANT]
+    if not formes:
+        return "str"
+    return "str — " + " ou ".join(_LIBELLES_IDENTIFIANT[f] for f in formes)
+
+
+def _note_identifiant(formes):
+    """Sans cette note, l'IA étiquette « nom d'utilisateur » et laisse un champ
+    texte libre : l'utilisateur saisit un pseudo, récolte un 422, et l'écran ne
+    lui dit pas pourquoi (point 95)."""
+    formes = [f for f in (formes or []) if f in _LIBELLES_IDENTIFIANT]
+    if not formes:
+        return None
+    quoi = " ou ".join(_LIBELLES_IDENTIFIANT[f] for f in formes)
+    saisie = ("type=\"email\"" if formes == ["email"]
+              else "type=\"tel\"" if formes == ["phone"]
+              else "un champ texte acceptant les deux")
+    return (f"IDENTIFIANT : le champ `username` doit contenir {quoi} — 422 "
+            f"sinon. L'étiqueter en conséquence à l'inscription ET à la "
+            f"connexion (utiliser {saisie}), jamais « nom d'utilisateur ». "
+            f"Le serveur met la valeur sous forme canonique (adresse en "
+            f"minuscules, numéro réduit à ses chiffres) : deux écritures de la "
+            f"même adresse sont le MÊME compte, et la connexion accepte l'une "
+            f"comme l'autre.")
+
+
+def _verrou_paiement(generator, entite, inclure_soi=True):
+    """Entité dont l'encaissement FIGE les écritures sur 'entite' — elle-même si
+    elle est payable, sinon le parent dont elle alimente le total (point 91).
+
+    `inclure_soi=False` pour la CRÉATION : une entité payable ne se verrouille
+    pas elle-même à la création (elle n'existe pas encore), seul un parent déjà
+    réglé refuse une ligne de plus.
+
+    Source unique partagée avec le générateur : `_payment_locked_parents` est ce
+    qui produit réellement les gardes dans app.py. Recalculer la chaîne ici en
+    ferait deux vérités, dont l'une finirait fausse."""
+    if inclure_soi and entite in getattr(generator, "payable_by_entity", {}):
+        return entite
+    verrous = generator._payment_locked_parents(entite)
+    return verrous[0]["entity"] if verrous else None
+
+
+def _note_verrou(verrou, creation=False):
+    if not verrou:
+        return None
+    action = ("cette route refuse d'y rattacher un enregistrement de plus"
+              if creation else "cette route répond 409 et n'écrit rien")
+    return (f"VERROU : dès que le/la {verrou} est réglé (payment_status vaut "
+            f"'payee'), {action} — 409. Masquer ou "
+            f"désactiver l'action sur un enregistrement payé plutôt que de "
+            f"laisser l'utilisateur la découvrir refusée — un montant encaissé "
+            f"ne se modifie plus, il se rembourse chez le prestataire.")
+
+
+def _joindre(*notes):
+    retenues = [n for n in notes if n]
+    return " ".join(retenues) if retenues else None
 
 
 def _route(method, path, action, entity, is_public, actors, request_fields=None, note=None):
@@ -415,6 +754,28 @@ def _creatable_fields(entity_spec):
         return []
     return ([f["name"] for f in entity_spec["fields"] if not f["server_generated"]]
             + list(entity_spec.get("client_foreign_keys", [])))
+
+
+def _assets_contract(assets):
+    """Section 'assets' du contrat : où sont les fichiers de l'humain, et
+    lesquels sont déclarés. `served_at` dit l'URL réelle, pas le chemin disque —
+    c'est celle-là que le navigateur demandera."""
+    dossier = assets.get("dir") or "assets"
+    contrat = {
+        "dir": dossier,
+        "served_at": f"/site/{dossier}/",
+        "note": (f"Fichiers fournis par l'humain (photos, logo). Les référencer en chemin "
+                 f"RELATIF depuis la page : '{dossier}/…'. Ne jamais les modifier ni les "
+                 f"déplacer : ils ne sont pas produits par l'IA, et ce dossier vit HORS de "
+                 f"frontend/ pour survivre à une reconstruction du frontend."),
+    }
+    for cle in ("logo", "favicon"):
+        if assets.get(cle):
+            contrat[cle] = f"{dossier}/{assets[cle]}"
+    if "logo" in contrat:
+        contrat["logo_note"] = ("Un vrai logo est fourni : l'utiliser dans l'en-tête plutôt "
+                                "qu'un mot-symbole en texte.")
+    return contrat
 
 
 def _render_prompt(contract):
@@ -465,16 +826,43 @@ def _render_prompt(contract):
                 marks.append("généré serveur — NE PAS envoyer")
             if f["categorized_in_reads"]:
                 marks.append("lu comme libellé de catégorie")
+            # BRIQUE 19 (point 96) : l'IA lit le brief, pas le JSON. Y écrire la
+            # liste, c'est la différence entre un menu déroulant et un champ
+            # texte qui récolte un 422 sur la valeur que l'utilisateur invente.
+            if f.get("allowed_values"):
+                marks.append("MENU DÉROULANT, valeurs imposées (422 sinon) : "
+                             + ", ".join(f"« {v} »" for v in f["allowed_values"]))
+            # Point 76 : dire à quoi sert le champ, pas seulement qu'il existe.
+            # Sans les valeurs possibles, l'IA doit deviner quoi comparer pour
+            # savoir si c'est réglé — et devinera 'paid'.
+            if f.get("note"):
+                marks.append(f["note"])
             suffix = f" ({'; '.join(marks)})" if marks else ""
             flags.append(f"  - `{f['name']}: {f['type']}`{suffix}")
         forme = ARCHETYPE_GUIDANCE[spec["archetype"]]
         anatomie = ARCHETYPE_ANATOMY[spec["archetype"]]
         attendus = "\n".join(f"  - {a}" for a in anatomie["attendus"])
+        # POINT 88 : les colonnes de liaison sortent dans les réponses (SELECT *)
+        # mais n'apparaissaient QUE dans le JSON. Or c'est ici que se joue la
+        # jointure la plus facile à rater — celle qui rattache un enregistrement
+        # à son titulaire — et une page d'administration ne fait presque que ça.
+        liaisons = ""
+        if spec["foreign_keys"]:
+            lignes_liens = [
+                f"  - `{li['column']}` → "
+                + (f"identifiant de COMPTE. Retrouver la fiche {li['references']} "
+                   f"dont `{li['column']}` porte la MÊME valeur — pas celle dont "
+                   f"`id` la porte." if li["references_account"]
+                   else f"`id` d'un enregistrement {li['references']}.")
+                for li in spec["foreign_keys"]
+            ]
+            liaisons = ("\nColonnes de liaison présentes dans les réponses :\n"
+                        + "\n".join(lignes_liens))
         entities_lines.append(
             f"### {ent}\n_Forme conseillée : {forme}._\n"
             f"_Proche de : {anatomie['voisins']}._\n"
             f"Ce qu'un visiteur s'attend à y trouver :\n{attendus}\n"
-            + "\n".join(flags))
+            + "\n".join(flags) + liaisons)
 
     brief_line = (f"\n**Brief produit :** {contract['brief']}\n" if contract.get("brief") else "")
 
@@ -500,6 +888,28 @@ def _render_prompt(contract):
             "y figurer en version courte et se prolonger sur sa propre page, "
             "mais il ne doit jamais en être absent.\n\n"
             + corps + "\n")
+
+    # POINT 94 : la FAQ, dite comme une LISTE. Rendue dans la même rubrique que
+    # les sections, elle redevenait un pavé de prose — c'est exactement le
+    # défaut constaté sur SneakerLab, où quatre questions tenaient dans une
+    # seule chaîne et sortaient collées en un paragraphe. L'interface était
+    # fidèle : c'est le contrat qui ne savait pas dire « questions/réponses ».
+    faq_block = ""
+    if contract.get("faq"):
+        couples = "\n\n".join(f"**{q['question']}**\n{q['answer']}"
+                              for q in contract["faq"])
+        faq_block = (
+            "\n## Questions fréquentes — une LISTE, pas un texte suivi\n"
+            "Chaque couple ci-dessous est une question et sa réponse, dans "
+            "l'ordre voulu par l'auteur. Les rendre comme des entrées "
+            "DISTINCTES et repérables au premier coup d'œil — accordéon, liste "
+            "de définitions, ou question en gras suivie de sa réponse. Jamais "
+            "en un seul paragraphe : une FAQ dont les questions se touchent ne "
+            "se lit pas, et c'est le format qui porte l'information autant que "
+            "le texte.\n\n"
+            "Ne pas réécrire ces textes, ne pas en ajouter, ne pas les "
+            "réordonner.\n\n"
+            + couples + "\n")
     # POINT 72 — monl ne décide RIEN du visuel. Il ne calculait pas une
     # palette pour rendre service : il la calculait pour que deux projets ne
     # se ressemblent pas (point 20). Mais ce que le compilateur devine du
@@ -574,7 +984,7 @@ ci-dessous. Le backend existe déjà et ne doit pas être modifié.
 - Ne pas modifier `app.py`, `schema.sql`, la spec `.ml` ni les autres
   artefacts monl.{paiement_block}
 
-{sections_block}
+{sections_block}{faq_block}
 ## Entités
 {chr(10).join(entities_lines)}
 

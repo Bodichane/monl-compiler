@@ -12,6 +12,37 @@ from monl.dialogue_engine import GuidedDialogue
 from monl.parser import parse_monl_string
 
 
+def _champs_payables(tpl):
+    """Reproduit le critère de `_ask_payable` (points 75 et 79).
+
+    Depuis le point 79, un `Money` sur une entité possédée ne suffit plus : le
+    montant doit être CALCULÉ par le serveur, donc il faut aussi un catalogue —
+    une autre entité, qui ne soit pas le propriétaire, portant un prix. Sans
+    lui, le dialogue ne pose plus la question, et c'est un progrès : sur les
+    trois modèles qui portaient un `Money` possédé, deux n'avaient aucun
+    catalogue parce que l'encaissement n'y avait aucun sens (dans « Petites
+    annonces » le vendeur se paierait lui-même ; « Suivi de dépenses » est un
+    registre personnel)."""
+    candidats = []
+    for name, meta in tpl["entities"].items():
+        if not meta["owned"]:
+            continue
+        montants = [f for f, t in meta["fields"] if t == "Money"]
+        if not montants:
+            continue
+        for source, m2 in tpl["entities"].items():
+            if source == name or source == meta["manager"]:
+                continue
+            prix = [f for f, t in m2["fields"] if t in ("Money", "Float", "Integer")]
+            if prix:
+                # POINT 86 : la SOURCE est retournée aussi. Les questions qui
+                # suivent (panier, stock) en dépendent, et un harnais qui ne les
+                # connaît pas décale toutes les réponses scriptées.
+                candidats.append((f"{name}.{montants[0]}", source, prix[0]))
+                break
+    return candidats
+
+
 def _run_template(index, followup_answer, want_seed):
     """Déroule le dialogue sur le modèle n° index (1-based) avec la même
     réponse à toutes les questions de suivi. Exécution réelle du dialogue,
@@ -22,6 +53,23 @@ def _run_template(index, followup_answer, want_seed):
     answers += [followup_answer] * len(tpl["followups"])
     answers += ["n"]                                   # pas d'entité perso
     answers += ["1"]                                   # inscription libre : 1er rôle proposé
+    candidats_payables = _champs_payables(tpl)
+    if candidats_payables:                             # question payable posée (point 75)
+        answers += [followup_answer]
+        if followup_answer == "o" and len(candidats_payables) > 1:
+            answers += ["1"]                           # champ à choisir : le premier
+        if followup_answer == "o":
+            # POINT 86 : deux questions de plus, dans cet ordre — panier
+            # multi-articles, puis décompte de stock. Le catalogue retenu est
+            # celui du premier candidat, que le choix ci-dessus sélectionne.
+            answers += ["o"]                           # panier multi-articles
+            _montant, source, prix = candidats_payables[0]
+            stocks = [f for f, t in tpl["entities"][source]["fields"]
+                      if t == "Integer" and f != prix]
+            if stocks:
+                answers += ["o"]                       # décompter le stock
+                if len(stocks) > 1:
+                    answers += ["1"]                   # quel champ porte le stock
     if tpl["seeds"]:                                   # question seed posée
         answers += ["o" if want_seed else "n"]
     if want_seed and tpl["seeds"]:                     # sujet des images (point 59)
@@ -89,6 +137,19 @@ def test_boutique_options_tissees_jusqu_aux_seeds():
     assert 'category: "Théières"' in spec and "stock: 12" in spec
     assert "rule Order.Update ownedBy Customer" in spec
     assert "entity Customer" in spec and "relation Customer hasMany Order" in spec
+
+
+def test_la_boutique_guidee_date_ses_commandes():
+    """POINT 89 : aucune question ne propose l'horodatage — le dialogue l'émet
+    avec le reste de la chaîne d'encaissement. Une capacité que le dialogue
+    n'exprime pas n'existe pas pour qui n'écrit pas la spec à la main (leçon du
+    point 75), et un carnet de commandes sans dates n'est pas un carnet."""
+    spec = _run_template(3, "o", want_seed=True)   # Boutique en ligne
+    assert "creeLe: DateTime" in spec
+    assert "rule Order.creeLe timestamp" in spec
+    # Et le refus du point 85 ne doit pas se déclencher : le champ est ajouté en
+    # QUEUE, donc la règle « premier champ requis » ne le vise pas.
+    assert "rule Order.creeLe required" not in spec
 
 
 def test_forum_likes_via_increments():
@@ -212,3 +273,63 @@ def test_le_dialogue_a_bien_ete_allege():
     assert "Gestion de tâches" in sans_question
     assert "Petites annonces" in sans_question
     assert "Réservation de rendez-vous" in sans_question
+
+
+def test_le_dialogue_sait_produire_un_panier_complet():
+    """POINT 86 : le dialogue produisait la forme MONO-ARTICLE du point 77 —
+    une commande à un seul article — alors que le compilateur sait faire un
+    panier depuis le point 82. Quatre briques étaient hors d'atteinte de qui
+    n'écrit pas la spec à la main : `sumOf`, la propriété transitive, `min` et
+    le décompte de stock. Une capacité que le dialogue n'exprime pas n'existe
+    pas pour ces utilisateurs — c'est l'argument même qui avait fait naître la
+    question `payable` au point 75.
+
+    Ce test tient la chaîne entière : sans elle, on retomberait sur une
+    boutique à un article, ou pire sur un montant que l'acheteur écrit."""
+    index = next(i for i, t in enumerate(TEMPLATES, 1) if t["name"] == "Boutique en ligne")
+    spec = _run_template(index, "o", want_seed=True)
+    regles = [li for li in spec.splitlines() if li.startswith("rule ")]
+
+    assert "entity LigneOrder" in spec
+    # Propriété TRANSITIVE : la ligne appartient à qui possède sa commande.
+    assert "rule LigneOrder.Read ownedBy Order" in regles
+    # Le sous-total est CALCULÉ, le total est la SOMME, et c'est lui qu'on encaisse.
+    assert "rule LigneOrder.sousTotal derivedFrom Product.price by quantite" in regles
+    assert "rule Order.total sumOf LigneOrder.sousTotal" in regles
+    assert "rule Order.total payable" in regles
+    # Le stock : un plancher DÉCLARÉ, et le décompte qu'il arme.
+    assert "rule Product.stock min 0" in regles
+    assert "rule LigneOrder.Create decrements Product.stock by quantite" in regles
+    # Aucun champ calculé par le serveur n'est déclaré « requis » : le contrat
+    # dirait à la fois « à remplir » et « à ne pas envoyer ».
+    assert "rule Order.total required" not in regles
+
+    normalized = MonlAST(parse_monl_string(spec)).validate_and_audit()
+    assert normalized["security"]["aggregated_fields"]
+    assert normalized["security"]["transitive_ownership"]
+
+
+def test_le_dialogue_sait_encore_produire_une_commande_simple():
+    """Le témoin du test ci-dessus : répondre « non » au panier doit rendre la
+    forme mono-article, pas une spec cassée."""
+    index = next(i for i, t in enumerate(TEMPLATES, 1) if t["name"] == "Boutique en ligne")
+    tpl = TEMPLATES[index - 1]
+    answers = [str(index), "AppTest", "Une boutique."]
+    answers += ["n"] * len(tpl["followups"])
+    answers += ["n", "1"]                     # pas d'entité perso ; inscription libre
+    answers += ["o"]                          # encaisser un paiement
+    candidats = _champs_payables(tpl)
+    if len(candidats) > 1:
+        answers += ["1"]
+    answers += ["n"]                          # PAS de panier
+    _montant, source, prix = candidats[0]
+    if [f for f, t in tpl["entities"][source]["fields"] if t == "Integer" and f != prix]:
+        answers += ["n"]                      # pas de décompte de stock
+    answers += ["n"]                          # pas de seed
+    answers += ["n"]                          # pas de brief
+    answers += ["n"]                          # pas de section en plus
+    it = iter(answers)
+    spec = GuidedDialogue(ask=lambda p: next(it)).run()
+    assert "entity LigneOrder" not in spec
+    assert "rule Order.total derivedFrom Product.price by quantite" in spec
+    MonlAST(parse_monl_string(spec)).validate_and_audit()

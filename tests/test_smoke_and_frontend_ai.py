@@ -8,6 +8,7 @@ import pytest
 
 from monl.cli import compile_project
 from monl.frontend_ai import (
+    RETOUCHE_PROMPT_FILENAME,
     FrontendAIError,
     generate_and_verify,
     parse_files_payload,
@@ -466,3 +467,223 @@ def test_le_gabarit_libre_traverse_toute_la_boucle(project, tmp_path):
     ok, errors = generate_with_cli_agent(
         str(project), agent_command=f"{agent} {{instruction}}", say=_quiet)
     assert ok, errors
+
+
+# --------------------------------------------------------------------------
+# POINT 93 : la retouche — corriger sans reconstruire
+# --------------------------------------------------------------------------
+
+DEMANDE = "les images de la section Tendances sont mal cadrées"
+
+NOOP_AGENT = "pass  # l'agent ne touche à rien\n"
+
+RETOUCHE_AGENT = """open("frontend/index.html", "a").write(
+    "<!-- object-position ajusté -->")
+"""
+
+
+def _projet_avec_frontend(project):
+    front = project / "frontend"
+    front.mkdir(exist_ok=True)
+    (front / "index.html").write_text(GOOD_FRONT, encoding="utf-8")
+    return front
+
+
+def test_la_retouche_ecrit_sa_consigne_et_sauvegarde_lexistant(project):
+    """La sauvegarde n'est pas du zèle : aucune vérification automatique ne peut
+    trancher une question de goût, donc la seule garantie qu'on puisse offrir
+    est de pouvoir revenir en arrière. C'est une COPIE — l'IA doit trouver
+    l'existant en place pour le faire évoluer."""
+    from monl.cli import cmd_retouche
+
+    front = _projet_avec_frontend(project)
+    cmd_retouche(str(project), DEMANDE, say=_quiet)
+
+    consigne = (project / RETOUCHE_PROMPT_FILENAME).read_text(encoding="utf-8")
+    assert DEMANDE in consigne
+    assert (project / "frontend.precedent" / "index.html").read_text(
+        encoding="utf-8") == GOOD_FRONT
+    assert front.joinpath("index.html").exists(), "l'existant doit rester en place"
+
+
+def test_la_retouche_refuse_un_projet_sans_frontend(project):
+    """Retoucher ce qui n'existe pas n'a pas de sens — et le message doit
+    envoyer vers la commande qui construit, pas laisser deviner."""
+    from monl.cli import cmd_retouche
+
+    with pytest.raises(SystemExit):
+        cmd_retouche(str(project), DEMANDE, say=_quiet)
+
+
+def test_la_retouche_refuse_une_demande_vide(project):
+    from monl.cli import cmd_retouche
+
+    _projet_avec_frontend(project)
+    with pytest.raises(SystemExit):
+        cmd_retouche(str(project), "   ", say=_quiet)
+
+
+def test_le_prompt_de_retouche_porte_la_demande_les_fichiers_et_le_contrat(project):
+    """Les trois morceaux sont indispensables ensemble : la demande dit QUOI,
+    les fichiers actuels disent qu'il s'agit d'une évolution et non d'une page
+    neuve, le contrat rappelle ce qui reste non négociable."""
+    from monl.cli import cmd_retouche
+    from monl.frontend_ai import build_generation_prompt
+
+    _projet_avec_frontend(project)
+    cmd_retouche(str(project), DEMANDE, say=_quiet)
+
+    prompt = build_generation_prompt(str(project), False, retouche_mode=True)
+    assert DEMANDE in prompt
+    assert "Fichiers actuels du frontend" in prompt
+    assert "fetch('/item?limit=5')" in prompt, "l'existant doit être joint"
+    assert "Rappel du contrat d'origine" in prompt
+
+
+def test_la_retouche_demande_linterpretation_la_plus_etroite(project):
+    """Sans cette consigne, « les images sont mal cadrées » invite à refaire
+    toute la mise en page — et une retouche trop large ne se distingue plus
+    d'une reconstruction, c'est-à-dire de ce que la commande évite."""
+    from monl.cli import cmd_retouche
+
+    _projet_avec_frontend(project)
+    chemin = cmd_retouche(str(project), DEMANDE, say=_quiet)
+    consigne = open(chemin, encoding="utf-8").read()
+    assert "ÉTROITE" in consigne
+    assert "ne pas refaire la mise en page générale" in consigne.lower()
+    # Et le garde-fou de contenu : ce qui vient de la spec ne se rattrape pas
+    # par une astuce d'affichage (c'est le cas de la FAQ, point 94).
+    assert "structure devinée" in consigne
+
+
+def test_lagent_recoit_une_instruction_de_retouche_et_non_de_construction(project, tmp_path):
+    """La voie agent doit changer de gabarit : « construis le frontend demandé »
+    invitait à repartir de zéro."""
+    from monl.cli import cmd_retouche
+    from monl.frontend_ai import generate_with_cli_agent
+
+    _projet_avec_frontend(project)
+    cmd_retouche(str(project), DEMANDE, say=_quiet)
+    mouchard = tmp_path / "argv.json"
+    agent = _fake_agent(tmp_path, RETOUCHE_AGENT + f"""
+import json
+json.dump(sys.argv, open({str(mouchard)!r}, "w"))
+""")
+    generate_with_cli_agent(str(project), command=agent, say=_quiet,
+                            retouche_mode=True)
+
+    argv = json.loads(mouchard.read_text(encoding="utf-8"))
+    instruction = " ".join(argv)
+    assert RETOUCHE_PROMPT_FILENAME in instruction
+    assert "défaut CONSTATÉ" in instruction
+    assert "construis le frontend demandé" not in instruction
+
+
+def test_une_retouche_qui_ne_change_rien_est_un_echec(project, tmp_path):
+    """POINT 73 poussé d'un cran. Sur une CONSTRUCTION, « l'agent n'a rien
+    écrit » est un avertissement : un frontend valide existait déjà. Sur une
+    RETOUCHE, c'est la demande non traitée — l'humain a signalé un défaut qu'il
+    VOIT, et répondre « tout va bien » serait le contraire d'un rapport
+    honnête."""
+    from monl.cli import cmd_retouche
+    from monl.frontend_ai import generate_with_cli_agent
+
+    _projet_avec_frontend(project)
+    cmd_retouche(str(project), DEMANDE, say=_quiet)
+    agent = _fake_agent(tmp_path, NOOP_AGENT)
+
+    ok, errors = generate_with_cli_agent(str(project), command=agent, say=_quiet,
+                                         retouche_mode=True)
+
+    assert not ok
+    assert any("retouche non appliquée" in e for e in errors), errors
+
+
+def test_la_retouche_ne_peut_pas_davantage_toucher_le_backend(project, tmp_path):
+    """Le garde-fou ne dépend pas de la commande qui l'emprunte — c'est tout
+    l'enjeu d'avoir UNE voie vers l'IA et non deux."""
+    from monl.cli import cmd_retouche
+    from monl.frontend_ai import generate_with_cli_agent
+
+    _projet_avec_frontend(project)
+    cmd_retouche(str(project), DEMANDE, say=_quiet)
+    agent = _fake_agent(tmp_path, EVIL_AGENT)
+
+    ok, errors = generate_with_cli_agent(str(project), command=agent, say=_quiet,
+                                         retouche_mode=True)
+
+    assert not ok
+    assert any("app.py" in e for e in errors), errors
+
+
+def test_une_retouche_reussie_evolue_lexistant_et_reverifie(project, tmp_path):
+    """Le bout en bout : l'agent modifie, monl re-vérifie (cohérence + smoke
+    test), et ce que l'agent a écrit est TOUJOURS là après la vérification."""
+    from monl.cli import cmd_retouche
+    from monl.frontend_ai import generate_with_cli_agent
+
+    _projet_avec_frontend(project)
+    cmd_retouche(str(project), DEMANDE, say=_quiet)
+    agent = _fake_agent(tmp_path, RETOUCHE_AGENT)
+
+    ok, errors = generate_with_cli_agent(str(project), command=agent, say=_quiet,
+                                         retouche_mode=True)
+
+    assert ok, errors
+    rendu = (project / "frontend" / "index.html").read_text(encoding="utf-8")
+    assert "object-position ajusté" in rendu
+    assert "fetch('/item?limit=5')" in rendu, "l'existant ne doit pas être réécrit"
+
+
+DECLINING_AGENT = """print("Je ne peux pas retirer cette rubrique depuis frontend/ :")
+print("elle vient du bloc 'landing' de la spec, et FRONTEND_PROMPT.md exige")
+print("qu'elle soit lisible au fil de l'accueil. Cela se règle dans la spec.")
+"""
+
+
+def test_quand_lagent_decline_sa_raison_est_affichee(project, tmp_path):
+    """POINT 97 : le message d'échec était une HYPOTHÈSE, et elle était fausse.
+    « Reformuler en nommant l'écran et l'élément » s'affichait sur une demande
+    qui les nommait — parce que la vraie raison (« cette rubrique vient de la
+    spec, pas du frontend ») avait été jetée avec la sortie de l'agent.
+
+    La consigne de retouche demande explicitement à l'IA de SIGNALER ce cas
+    plutôt que de le contourner ; l'entendre et ne pas le répéter était le
+    défaut le plus coûteux possible — il envoyait l'utilisateur reformuler une
+    demande déjà claire."""
+    from monl.cli import cmd_retouche
+    from monl.frontend_ai import generate_with_cli_agent
+
+    _projet_avec_frontend(project)
+    cmd_retouche(str(project), "retire la rubrique À propos de l'accueil", say=_quiet)
+    agent = _fake_agent(tmp_path, DECLINING_AGENT)
+    msgs = []
+
+    ok, _errors = generate_with_cli_agent(str(project), command=agent,
+                                          say=msgs.append, retouche_mode=True)
+
+    sortie = "\n".join(msgs)
+    assert not ok
+    assert "elle vient du bloc 'landing' de la spec" in sortie, sortie
+    # Et l'ancienne hypothèse ne doit PLUS s'afficher quand l'agent a parlé.
+    assert "Reformuler la demande" not in sortie, sortie
+    # …remplacée par le geste qui convient vraiment.
+    assert "monl update" in sortie, sortie
+
+
+def test_sans_explication_le_conseil_de_reformulation_reste(project, tmp_path):
+    """Le témoin : un agent muet ne dit rien d'utile, et là le conseil de
+    reformulation garde tout son sens. Le supprimer pour de bon aurait laissé
+    l'utilisateur sans piste."""
+    from monl.cli import cmd_retouche
+    from monl.frontend_ai import generate_with_cli_agent
+
+    _projet_avec_frontend(project)
+    cmd_retouche(str(project), DEMANDE, say=_quiet)
+    agent = _fake_agent(tmp_path, NOOP_AGENT)
+    msgs = []
+
+    generate_with_cli_agent(str(project), command=agent, say=msgs.append,
+                            retouche_mode=True)
+
+    assert "Reformuler la demande" in "\n".join(msgs)

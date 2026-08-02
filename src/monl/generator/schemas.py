@@ -19,9 +19,28 @@ class SchemasMixin:
             # figure pas non plus). Il est peuplé plus bas, à la création,
             # depuis le pseudonyme anonyme du compte courant.
             generated_here_schema = self.generated_fields_by_entity.get(ent_name, [])
+            # AJOUT (brique 10, point 77) : un champ 'derivedFrom' est calculé
+            # par le serveur, donc absent du schéma pour la même raison qu'un
+            # champ 'generated'. Ce schéma sert à la création ET à la
+            # modification (un seul {Ent}Schema) : l'en retirer ferme d'un coup
+            # les deux chemins par lesquels le client écrivait le montant que
+            # `payable` relisait ensuite.
+            derives_ici = self._derived_field_names(ent_name)
+            # AJOUT (brique 12, point 82) : un champ 'sumOf' est recalculé par le
+            # serveur à chaque écriture d'une ligne enfant. Même traitement, même
+            # raison : le laisser dans le schéma reviendrait à laisser le client
+            # écrire le total d'un panier, c'est-à-dire la faille du point 77
+            # revenue par le panier.
+            sommes_ici = self._aggregated_field_names(ent_name)
+            # AJOUT (brique 16, point 89) : un champ 'timestamp' est écrit par le
+            # serveur à la création. Le laisser dans le schéma rendrait la date
+            # déclarative — c'est-à-dire sans valeur : un carnet de commandes
+            # dont chacun choisit ses dates n'atteste de rien.
+            horodates_ici = self.timestamp_fields_by_entity.get(ent_name, [])
             has_schema_field = False
             for attr_name, attr_type in attrs.items():
-                if attr_name in generated_here_schema:
+                if (attr_name in generated_here_schema or attr_name in derives_ici
+                        or attr_name in sommes_ici or attr_name in horodates_ici):
                     continue
                 py_type = "str"
                 if attr_type == "Integer": py_type = "int"
@@ -35,9 +54,53 @@ class SchemasMixin:
                 # Email, texte long pour Text) : le refus arrive à la
                 # validation d'entrée, avec un 422 explicite, plutôt qu'au
                 # milieu d'un INSERT.
+                # POINT 85 : 'min'/'max' n'avaient AUCUN effet. Ils arrivent ici,
+                # au seul endroit où une borne d'entrée peut vivre — la
+                # validation Pydantic, donc un 422 avant tout INSERT. Le
+                # validateur a déjà tranché ce que chaque borne signifie selon le
+                # type (longueur pour du texte, valeur pour un nombre) et refusé
+                # ce qu'elle ne sait pas borner : ici on ne fait que l'écrire.
+                # BRIQUE 19 (point 96) : une valeur PARMI UNE LISTE. `Literal`
+                # plutôt qu'un motif : Pydantic refuse en 422 AVANT tout INSERT
+                # (même place que les bornes du point 85), et la liste sort
+                # telle quelle dans le schéma OpenAPI — donc dans /docs, sans
+                # qu'on ait à la recopier. Les valeurs passent par `repr()` :
+                # jamais d'interpolation manuelle entre guillemets, c'est la
+                # leçon de `categorized` (brique 5).
+                choix = self.enumerated_fields.get(ent_name, {}).get(attr_name)
+                if choix:
+                    valeurs = ", ".join(repr(v) for v in choix)
+                    api_lines.append(f"    {attr_name}: Literal[{valeurs}]")
+                    has_schema_field = True
+                    continue
+                contraintes = self.field_constraints.get(ent_name, {}).get(attr_name, {})
+                bornes = []
+                for nom, mot_texte, mot_nombre in (("min", "min_length", "ge"),
+                                                   ("max", "max_length", "le")):
+                    borne_regle = contraintes.get(nom)
+                    if not borne_regle:
+                        continue
+                    mot = mot_texte if borne_regle["portee"] == "longueur" else mot_nombre
+                    bornes.append(f"{mot}={borne_regle['valeur']}")
                 if py_type == "str":
                     borne = {"Text": 20000, "Email": 320}.get(attr_type, 255)
-                    api_lines.append(f"    {attr_name}: str = Field(..., max_length={borne})")
+                    # Un 'max' déclaré l'emporte sur la borne de colonne : le
+                    # validateur a vérifié qu'il ne la dépasse pas.
+                    if not any(b.startswith("max_length=") for b in bornes):
+                        bornes.append(f"max_length={borne}")
+                    # POINT 91 : le type 'Email' ne fixait qu'une LONGUEUR —
+                    # 'pas-un-courriel' entrait en base avec un 200. Un type qui
+                    # nomme une adresse et n'en vérifie aucune est exactement ce
+                    # que le point 85 refuse : une règle qui ne produit rien.
+                    # Le motif est volontairement large (une arobase, un point
+                    # après, aucun espace) : monl vérifie la FORME, il ne peut
+                    # pas attester qu'une boîte existe — cela demanderait un
+                    # envoi, donc un appel sortant que le compilateur s'interdit.
+                    if attr_type == "Email":
+                        bornes.append(r"pattern=r'^[^@\s]+@[^@\s]+\.[^@\s]{2,}$'")
+                    api_lines.append(f"    {attr_name}: str = Field(..., {', '.join(bornes)})")
+                elif bornes:
+                    api_lines.append(f"    {attr_name}: {py_type} = Field(..., {', '.join(bornes)})")
                 else:
                     api_lines.append(f"    {attr_name}: {py_type}")
                 has_schema_field = True

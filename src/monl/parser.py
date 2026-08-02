@@ -10,7 +10,7 @@ grammar = r"""
     
     app: "app" NAME _NL block*
     
-    ?block: entity | relation | actor | rule | workflow | custom_block | ui_block | landing_block | capability_block | seed_block | _NL
+    ?block: entity | relation | actor | rule | workflow | custom_block | ui_block | landing_block | capability_block | seed_block | assets_block | _NL
     
     entity: "entity" NAME _NL _INDENT attribute+ _DEDENT
     attribute: NAME ":" TYPE _NL
@@ -35,10 +35,17 @@ grammar = r"""
     # rule["type"] ne valait jamais "restrictedTo", et l'audit de sécurité associé
     # dans ast_validator.py ne se déclenchait donc jamais. Même classe de bug que
     # celui déjà corrigé sur le bloc "custom" en v3.
-    ?rule: constraint_rule | restriction_rule | sharing_rule | ownership_rule | access_rule | visibility_rule | masking_rule | decrement_rule | increment_rule | categorization_rule | generation_rule | payable_rule
+    ?rule: constraint_rule | restriction_rule | sharing_rule | ownership_rule | access_rule | visibility_rule | masking_rule | decrement_rule | increment_rule | categorization_rule | generation_rule | payable_rule | derivation_rule | aggregation_rule | timestamp_rule | requirement_rule | oneof_rule
 
     constraint_rule: "rule" REFERENCE VALIDATION_TYPE _NL
                    | "rule" REFERENCE VALIDATION_TYPE INT _NL
+    # AJOUT (brique 19, point 96) : une valeur PARMI UNE LISTE. Nommée comme
+    # « la prochaine brique évidente » aux points 91 et 92, et pour cause : sur
+    # une commande NON réglée, le client posait `status: "livrée"` et le serveur
+    # l'acceptait. Un statut n'est pas du texte, c'est un état parmi quelques-uns
+    # — et une pointure n'est pas une chaîne libre.
+    #   rule Order.status oneOf "panier", "en préparation", "expédiée"
+    oneof_rule: "rule" REFERENCE "oneOf" STRING_LITERAL ("," STRING_LITERAL)* _NL
     restriction_rule: "rule" REFERENCE "restrictedTo" NAME _NL
     sharing_rule: "rule" REFERENCE "sharedBy" NAME ("," NAME)* _NL
     # AJOUT (post-v6, roadmap) : "ownedBy" restreint une action Update/Delete au
@@ -96,10 +103,18 @@ grammar = r"""
     # "restrictedTo"/"sharedBy", voir plus haut) -- un essai précédent de
     # règle unique avait donc silencieusement étiqueté tout "increments" comme
     # "decrements" et a été retiré plutôt que laissé à moitié fait.
+    # AJOUT (brique 14, point 86) : « by » accepte un NOM DE CHAMP en plus d'un
+    # entier. 'by 1' retire toujours la même chose (une réputation, un like) ;
+    # 'by quantity' retire CE QUE LE CLIENT A DEMANDÉ — c'est ce qui manquait
+    # pour qu'une boutique décompte son stock. Deux alternatives distinctes
+    # plutôt qu'un terminal commun : INT et NAME ne se lisent pas pareil, et le
+    # transformateur doit savoir lequel il a reçu.
     decrement_rule: "rule" REFERENCE "decrements" REFERENCE _NL
                    | "rule" REFERENCE "decrements" REFERENCE "by" INT _NL
+                   | "rule" REFERENCE "decrements" REFERENCE "by" NAME _NL
     increment_rule: "rule" REFERENCE "increments" REFERENCE _NL
                    | "rule" REFERENCE "increments" REFERENCE "by" INT _NL
+                   | "rule" REFERENCE "increments" REFERENCE "by" NAME _NL
 
     # AJOUT (roadmap, écosystème de capacités -- brique 5) : "categorized"
     # remplace un champ numérique (Integer/Float) par un libellé de
@@ -136,6 +151,44 @@ grammar = r"""
     # mot-clé partagé rouvrirait le piège de filtrage Lark du point 27.
     payable_rule: "rule" REFERENCE "payable" _NL
 
+    # AJOUT (roadmap, écosystème de capacités -- brique 10, point 77) :
+    #   rule Order.total derivedFrom Product.price by quantity
+    # le champ nommé à gauche est CALCULÉ PAR LE SERVEUR depuis un champ d'une
+    # ligne liée, multiplié par un champ de l'entité elle-même. Il disparaît
+    # des corps de requête (création ET modification) : c'est tout l'objet de
+    # la brique. Sans elle, `payable` relisait en base un montant que le client
+    # y avait écrit -- deux exploits prouvés, voir point 77.
+    # Production nommée à part, comme 'increments'/'decrements' et 'payable' :
+    # un mot-clé partagé rouvrirait le piège de filtrage Lark du point 27.
+    derivation_rule: "rule" REFERENCE "derivedFrom" REFERENCE "by" NAME _NL
+
+    # AJOUT (roadmap, écosystème de capacités -- brique 12, point 82) :
+    #   rule Commande.total sumOf Ligne.sousTotal
+    # le champ nommé à gauche est la SOMME d'un champ de toutes les lignes
+    # enfants. Recalculé par le serveur à chaque écriture d'une ligne (création,
+    # modification, suppression), donc absent des corps de requête comme un
+    # champ 'derivedFrom'. C'est la brique qui rend une commande à plusieurs
+    # articles chiffrable -- `derivedFrom` ne sait lire qu'UNE ligne liée.
+    # Production nommée à part, même raison que ci-dessus (piège Lark, point 27).
+    aggregation_rule: "rule" REFERENCE "sumOf" REFERENCE _NL
+
+    # AJOUT (roadmap, écosystème de capacités -- brique 16, point 89) :
+    #   rule Order.placedAt timestamp
+    # le champ nommé porte l'instant de CRÉATION de l'enregistrement, écrit par
+    # le serveur et jamais ensuite. Absent des corps de requête comme un champ
+    # 'generated' : une date qu'on peut se donner n'atteste de rien.
+    # Production nommée à part, même raison que ci-dessus (piège Lark, point 27).
+    timestamp_rule: "rule" REFERENCE "timestamp" _NL
+
+    # AJOUT (roadmap, écosystème de capacités -- brique 17, point 90) :
+    #   rule Order.Create requiresOwn Customer
+    # l'appelant doit DÉJÀ posséder un enregistrement de l'entité nommée pour
+    # pouvoir créer celui-ci. Née d'un constat sur une boutique réelle : deux
+    # commandes portaient un compte sans aucune fiche client, donc sans nom ni
+    # adresse — des commandes qu'on ne peut pas expédier.
+    # Production nommée à part, même raison que ci-dessus (piège Lark, point 27).
+    requirement_rule: "rule" REFERENCE "requiresOwn" NAME _NL
+
     # AJOUT (roadmap, contrôle du rendu visuel) : bloc optionnel "ui" pour
     # surcharger ce que le générateur devine automatiquement. Ex. :
     #   ui Project
@@ -167,7 +220,24 @@ grammar = r"""
     # capacités futures (masquage de champ, accès à deux parties...) sont
     # celles qui changeront réellement le comportement ; celle-ci sert de
     # gabarit sûr, testé sur le portfolio, avant d'aller plus loin.
-    capability_block: "capability" NAME _NL
+    # AJOUT (point 95) : 'capability auth' gagne sa PREMIÈRE fonction, après
+    # avoir été purement déclaratif depuis la brique 1. Le bloc indenté est
+    # OPTIONNEL — toute spec écrite avant ce point continue de compiler à
+    # l'identique, ce qui est la condition pour qu'une brique dormante se
+    # réveille sans casser ce qui existe.
+    #   capability auth
+    #       identifier: email, phone
+    capability_block: "capability" NAME _NL [_INDENT capability_prop+ _DEDENT]
+    ?capability_prop: capability_identifier | capability_phone_prefix
+    capability_identifier: "identifier" ":" NAME ("," NAME)* _NL
+    # AJOUT (point 95, trouvé en éprouvant la brique sur un vrai site) :
+    # '06 12 34 56 78' et '+33612345678' sont le MÊME numéro, et faisaient deux
+    # comptes. monl ne peut pas le deviner — l'indicatif dépend du pays, et
+    # rien dans une spec ne le dit. Il le fait donc DÉCLARER, faute de quoi la
+    # promesse « deux écritures = un compte » serait fausse dans le cas le plus
+    # courant.
+    #       phone_prefix: "+33"
+    capability_phone_prefix: "phone_prefix" ":" STRING_LITERAL _NL
 
     # Bloc optionnel "landing" : transmet un brief marketing (titre, ton,
     # intention) au contrat frontend, pour orienter l'IA d'interface. C'est
@@ -183,12 +253,39 @@ grammar = r"""
     #   landing
     #       brief: "…"
     #       section "À propos": "Photographe basée à Lyon depuis 2015…"
+    # AJOUT (roadmap, brique 13 -- point 83) : bloc optionnel "assets", qui
+    # déclare les fichiers fournis par l'HUMAIN (logo, icône, photos) et le
+    # dossier où ils vivent. Il existe parce que monl ne savait pas qu'un asset
+    # existe : un chemin d'image faux compilait en silence, et `monl frontend`
+    # renommait frontend/ -- donc égarait les photos qu'on y avait déposées.
+    #   assets
+    #       dir: "assets"
+    #       logo: "logo.svg"
+    #       favicon: "favicon.png"
+    assets_block: "assets" _NL _INDENT assets_prop+ _DEDENT
+    ?assets_prop: assets_dir | assets_logo | assets_favicon
+    assets_dir: "dir" ":" STRING_LITERAL _NL
+    assets_logo: "logo" ":" STRING_LITERAL _NL
+    assets_favicon: "favicon" ":" STRING_LITERAL _NL
+
     landing_block: "landing" _NL _INDENT landing_prop+ _DEDENT
     ?landing_prop: landing_mode | landing_template | landing_brief | landing_section
+                 | landing_question
     landing_mode: "mode" ":" NAME _NL
     landing_template: "template" ":" STRING_LITERAL _NL
     landing_brief: "brief" ":" STRING_LITERAL _NL
     landing_section: "section" STRING_LITERAL ":" STRING_LITERAL _NL
+    # AJOUT (point 94) : "question" répétable — une FAQ est une LISTE de
+    # couples, et `section` ne savait dire qu'un titre et un texte. Les quatre
+    # questions de `projets/SneakerLab` tenaient donc dans UNE chaîne, et
+    # l'interface les rendait collées en un seul paragraphe : elle était
+    # fidèle, c'est le modèle de contenu qui ne savait pas dire « une FAQ ».
+    # Forme PLATE, comme `section` : une FAQ est la collection des `question`
+    # du bloc. Un sous-bloc indenté aurait ajouté un niveau à la seule
+    # grammaire où l'indentation a déjà coûté deux bugs (point 6).
+    #   landing
+    #       question "Comment choisir ma taille ?": "Nos paires taillent…"
+    landing_question: "question" STRING_LITERAL ":" STRING_LITERAL _NL
 
     workflow: "workflow" NAME "for" NAME _NL _INDENT action+ _DEDENT
     
@@ -220,7 +317,7 @@ grammar = r"""
     io_param: NAME ":" TYPE
             | REFERENCE
 
-    TYPE: "String" | "Text" | "Integer" | "Float" | "Boolean" | "Date" | "DateTime" | "Email" | "UUID" | "Money"
+    TYPE: "String" | "Text" | "Integer" | "Float" | "Boolean" | "Date" | "DateTime" | "Email" | "UUID" | "Money" | "Image"
     RELATION_TYPE: "hasMany" | "belongsTo" | "hasOne"
     ACTION_TYPE: "Create" | "Read" | "Update" | "Delete"
     VALIDATION_TYPE: "required" | "unique" | "min" | "max"
@@ -273,6 +370,7 @@ class MonlTransformer(Transformer):
             "landing": next((b["landing"] for b in valid_blocks if "landing" in b), None),
             "capabilities": [b["capability"] for b in valid_blocks if "capability" in b],
             "seeds": [b["seed"] for b in valid_blocks if "seed" in b],
+            "assets": next((b["assets"] for b in valid_blocks if "assets" in b), None),
         }
 
     def entity(self, name, *attributes):
@@ -295,6 +393,10 @@ class MonlTransformer(Transformer):
             data["value"] = str(value)
         return {"rule": data}
 
+    def oneof_rule(self, reference, *valeurs):
+        return {"rule": {"reference": str(reference), "type": "oneOf",
+                         "value": [str(v).strip('"') for v in valeurs]}}
+
     def restriction_rule(self, reference, actor_name):
         return {"rule": {"reference": str(reference), "type": "restrictedTo", "value": str(actor_name)}}
 
@@ -314,16 +416,26 @@ class MonlTransformer(Transformer):
     def masking_rule(self, reference):
         return {"rule": {"reference": str(reference), "type": "hidden"}}
 
+    def _quantite(self, amount):
+        """« by 3 » ou « by quantity » — l'un est une constante, l'autre un champ
+        de l'entité déclenchante (brique 14, point 86). Le type du jeton Lark
+        les distingue : ne pas le perdre ici, le validateur en a besoin."""
+        if amount is None:
+            return {"amount": 1, "amount_field": None}
+        if getattr(amount, "type", None) == "INT" or str(amount).isdigit():
+            return {"amount": int(amount), "amount_field": None}
+        return {"amount": None, "amount_field": str(amount)}
+
     def decrement_rule(self, trigger_ref, target_ref, amount=None):
         return {"rule": {
             "reference": str(trigger_ref), "type": "decrements",
-            "value": str(target_ref), "amount": int(amount) if amount is not None else 1,
+            "value": str(target_ref), **self._quantite(amount),
         }}
 
     def increment_rule(self, trigger_ref, target_ref, amount=None):
         return {"rule": {
             "reference": str(trigger_ref), "type": "increments",
-            "value": str(target_ref), "amount": int(amount) if amount is not None else 1,
+            "value": str(target_ref), **self._quantite(amount),
         }}
 
     def category_below(self, label, threshold):
@@ -343,6 +455,25 @@ class MonlTransformer(Transformer):
 
     def payable_rule(self, reference):
         return {"rule": {"reference": str(reference), "type": "payable"}}
+
+    def derivation_rule(self, reference, source_ref, factor):
+        return {"rule": {
+            "reference": str(reference), "type": "derivedFrom",
+            "value": str(source_ref), "factor": str(factor),
+        }}
+
+    def aggregation_rule(self, reference, source_ref):
+        return {"rule": {
+            "reference": str(reference), "type": "sumOf",
+            "value": str(source_ref),
+        }}
+
+    def timestamp_rule(self, reference):
+        return {"rule": {"reference": str(reference), "type": "timestamp"}}
+
+    def requirement_rule(self, reference, owner_entity):
+        return {"rule": {"reference": str(reference), "type": "requiresOwn",
+                         "value": str(owner_entity)}}
 
     def ui_theme(self, name):
         return {"theme": str(name)}
@@ -376,21 +507,62 @@ class MonlTransformer(Transformer):
         return {"_section": {"title": str(titre).strip('"'),
                              "body": str(corps).strip('"')}}
 
+    def landing_question(self, question, reponse):
+        # Même marqueur temporaire que les sections, même raison : les
+        # questions s'ACCUMULENT là où les autres clés s'écrasent.
+        return {"_question": {"question": str(question).strip('"'),
+                              "answer": str(reponse).strip('"')}}
+
     def landing_block(self, *props):
-        merged, sections = {}, []
+        merged, sections, faq = {}, [], []
         for p in props:
             if not p:
                 continue
             if "_section" in p:
                 sections.append(p["_section"])
+            elif "_question" in p:
+                faq.append(p["_question"])
             else:
                 merged.update(p)
         if sections:
             merged["sections"] = sections
+        # L'ORDRE DE DÉCLARATION est conservé : dans une FAQ il porte du sens
+        # (on répond d'abord à ce qu'on demande le plus), et rien ne permet de
+        # le retrouver après coup.
+        if faq:
+            merged["faq"] = faq
         return {"landing": merged}
 
-    def capability_block(self, name):
-        return {"capability": str(name)}
+    def assets_dir(self, valeur):
+        return {"dir": str(valeur).strip('"')}
+
+    def assets_logo(self, valeur):
+        return {"logo": str(valeur).strip('"')}
+
+    def assets_favicon(self, valeur):
+        return {"favicon": str(valeur).strip('"')}
+
+    def assets_block(self, *props):
+        merged = {}
+        for p in props:
+            if p:
+                merged.update(p)
+        return {"assets": merged}
+
+    def capability_identifier(self, *formes):
+        return {"identifier": [str(f) for f in formes]}
+
+    def capability_phone_prefix(self, valeur):
+        return {"phone_prefix": str(valeur).strip('"')}
+
+    def capability_block(self, name, *props):
+        # Le bloc indenté étant optionnel, Lark passe None quand il est absent :
+        # une capacité sans propriété reste exactement ce qu'elle était.
+        options = {}
+        for p in props:
+            if p:
+                options.update(p)
+        return {"capability": {"name": str(name), **options}}
 
     def workflow(self, name, actor_name, *actions):
         return {"workflow": {"name": str(name), "actor": str(actor_name), "actions": list(actions)}}
