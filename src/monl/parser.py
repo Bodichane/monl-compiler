@@ -35,7 +35,7 @@ grammar = r"""
     # rule["type"] ne valait jamais "restrictedTo", et l'audit de sécurité associé
     # dans ast_validator.py ne se déclenchait donc jamais. Même classe de bug que
     # celui déjà corrigé sur le bloc "custom" en v3.
-    ?rule: constraint_rule | restriction_rule | sharing_rule | ownership_rule | access_rule | visibility_rule | masking_rule | decrement_rule | increment_rule | categorization_rule | generation_rule | payable_rule | derivation_rule | aggregation_rule | timestamp_rule | requirement_rule | oneof_rule
+    ?rule: constraint_rule | restriction_rule | sharing_rule | ownership_rule | access_rule | visibility_rule | masking_rule | decrement_rule | increment_rule | categorization_rule | generation_rule | payable_rule | derivation_rule | aggregation_rule | timestamp_rule | requirement_rule | oneof_rule | release_rule
 
     constraint_rule: "rule" REFERENCE VALIDATION_TYPE _NL
                    | "rule" REFERENCE VALIDATION_TYPE INT _NL
@@ -46,6 +46,14 @@ grammar = r"""
     # — et une pointure n'est pas une chaîne libre.
     #   rule Order.status oneOf "panier", "en préparation", "expédiée"
     oneof_rule: "rule" REFERENCE "oneOf" STRING_LITERAL ("," STRING_LITERAL)* _NL
+    # AJOUT (brique 20, point 98) : atteindre une VALEUR défait un effet.
+    # Le seul bug vivant que la comparaison à une boutique classique avait
+    # laissé (point 96) : annuler une commande la passait en « annulée » et
+    # gardait ses lignes — donc le stock restait consommé. Supprimer les lignes
+    # le rendait (point 92), mais effaçait l'historique ; un marchand veut les
+    # deux. `oneOf` était le préalable : il fallait pouvoir désigner un état.
+    #   rule Order.status "annulée" releases OrderLine
+    release_rule: "rule" REFERENCE STRING_LITERAL "releases" NAME _NL
     restriction_rule: "rule" REFERENCE "restrictedTo" NAME _NL
     sharing_rule: "rule" REFERENCE "sharedBy" NAME ("," NAME)* _NL
     # AJOUT (post-v6, roadmap) : "ownedBy" restreint une action Update/Delete au
@@ -396,6 +404,10 @@ class MonlTransformer(Transformer):
     def oneof_rule(self, reference, *valeurs):
         return {"rule": {"reference": str(reference), "type": "oneOf",
                          "value": [str(v).strip('"') for v in valeurs]}}
+
+    def release_rule(self, reference, valeur, entite):
+        return {"rule": {"reference": str(reference), "type": "releases",
+                         "value": str(valeur).strip('"'), "entity": str(entite)}}
 
     def restriction_rule(self, reference, actor_name):
         return {"rule": {"reference": str(reference), "type": "restrictedTo", "value": str(actor_name)}}

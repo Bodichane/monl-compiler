@@ -661,6 +661,72 @@ class RoutesMixin:
                 # une garde autour du seul commit donnait 500 (vérifié contre un
                 # vrai serveur, pas déduit).
                 lignes_ecriture = []
+                # BRIQUE 20 (point 98) : atteindre une valeur DÉFAIT un effet.
+                # Annuler une commande la passait en « annulée » et gardait ses
+                # lignes : le stock restait consommé. La restitution existait
+                # depuis le point 92, mais seulement à la SUPPRESSION — ce qui
+                # efface l'historique, et un marchand veut les deux.
+                #
+                # LE point de la brique : ne rendre QU'UNE FOIS. L'état est lu
+                # AVANT l'écriture, et la libération n'a lieu que sur la
+                # TRANSITION — deux PUT successifs à « annulée » rendraient
+                # sinon le stock deux fois, et la boutique s'inventerait des
+                # paires. C'est ce que seul un vrai serveur montre.
+                for regle in self.release_rules_by_entity.get(base_target, []):
+                    enfant = regle["releases"]
+                    fk_enfant = next(
+                        (p["fk_column"] for p
+                         in self._compute_fk_placements().get(enfant, [])
+                         if p["owner_entity"] == base_target), None)
+                    if not fk_enfant:
+                        continue
+                    # L'état est lu AVANT la transaction : le refus qui suit doit
+                    # pouvoir fermer la connexion, ce que le `except
+                    # IntegrityError` des écritures ne ferait pas pour lui.
+                    api_lines += [
+                        f"    cursor.execute('SELECT \"{regle['field']}\" FROM "
+                        f'"{base_target.lower()}" WHERE id = ?\', (id,))',
+                        "    _etat_avant = cursor.fetchone()",
+                        # LE trou que la première version laissait ouverte :
+                        # annuler rendait le stock, puis RÉACTIVER la commande la
+                        # laissait vivante sans rien consommer — du stock gratuit,
+                        # de la même famille que les exploits du point 77. Le
+                        # reprendre au retour supposerait qu'il soit encore
+                        # disponible, ce que rien ne garantit : l'état libéré est
+                        # donc TERMINAL, et le message dit quoi faire à la place.
+                        f"    if (_etat_avant and _etat_avant[0] == {regle['value']!r}",
+                        f"            and data.{regle['field']} != {regle['value']!r}):",
+                        "        conn.close()",
+                        "        raise HTTPException(status_code=409, detail=(",
+                        f"            \"Cet enregistrement est {regle['value']} : ce qu'il "
+                        f"avait consommé a été rendu, \"",
+                        "            'et rien ne garantit que ce soit encore disponible. "
+                        "En créer un nouveau.'))",
+                        f"    _bascule = (_etat_avant and _etat_avant[0] != {regle['value']!r}",
+                        f"                and data.{regle['field']} == {regle['value']!r})",
+                    ]
+                    lignes_ecriture.append("if _bascule:")
+                    for decompte in self.reputation_rules_by_trigger.get(enfant, []):
+                        if decompte["direction"] != "decrements":
+                            continue
+                        fk_cible = self._decrement_fk_column(enfant, decompte)
+                        if not fk_cible:
+                            continue
+                        champ = decompte.get("amount_field")
+                        quantite = "_l[1]" if champ else str(decompte["amount"])
+                        colonnes = (f'"{fk_cible}", "{champ}"' if champ
+                                    else f'"{fk_cible}"')
+                        lignes_ecriture += [
+                            f"    cursor.execute('SELECT {colonnes} FROM "
+                            f'"{enfant.lower()}" WHERE "{fk_enfant}" = ?\', (id,))',
+                            "    for _l in cursor.fetchall():",
+                            # Aucun plancher : on rend un état qui a existé et
+                            # qui était valide (même raison qu'au point 92).
+                            f"        cursor.execute('UPDATE "
+                            f'"{decompte["target_entity"].lower()}" SET '
+                            f'"{decompte["target_field"]}" = "{decompte["target_field"]}" '
+                            f"+ ? WHERE id = ?', (int({quantite} or 0), _l[0]))",
+                        ]
                 # BRIQUE 19 (point 91) : le décompte suit la quantité MODIFIÉE.
                 # `decrements` ne s'armait qu'à la création : créer une ligne à 1
                 # puis la passer à 4 facturait quatre paires et n'en décomptait

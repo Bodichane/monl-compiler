@@ -815,6 +815,7 @@ class MonlAST:
                     f"le serveur l'écrit lui-même, la liste de choix ne serait jamais lue.")
             self.enumerated_fields.setdefault(entity, {})[field] = list(valeurs)
 
+
         # AJOUT (roadmap, écosystème de capacités -- brique 17, point 90) :
         # validation de 'requiresOwn'. L'appelant doit DÉJÀ posséder un
         # enregistrement de l'entité nommée pour pouvoir créer celui-ci.
@@ -1371,6 +1372,74 @@ class MonlAST:
                     "amount_field": champ_quantite, "direction": direction,
                 })
 
+        # AJOUT (brique 20, point 98) : atteindre une valeur DÉFAIT un effet.
+        # Ce bloc vit APRÈS la boucle des décomptes, et pas au milieu des
+        # autres règles : il lui faut `reputation_rules` complet pour vérifier
+        # qu'il y a bien quelque chose à rendre. Même placement, et même
+        # raison, que le recoupement `payable`/`derivedFrom` du point 79.
+        # Annuler une commande la passait en « annulée » et gardait ses lignes :
+        # le stock restait consommé. La restitution existait déjà (point 92),
+        # mais seulement à la SUPPRESSION — ce qui efface l'historique.
+        self.release_rules = []
+        for rule in self.rules:
+            if rule["type"] != "releases":
+                continue
+            if "." not in rule["reference"]:
+                raise ASTValidationError(
+                    f"Structure : la règle 'releases' doit référencer 'Entite.champ', "
+                    f"reçu '{rule['reference']}'.")
+            entity, field = rule["reference"].split(".", 1)
+            if entity not in self.entities:
+                raise ASTValidationError(
+                    f"Structure : la règle 'releases' cible l'entité '{entity}' qui "
+                    f"n'existe pas.")
+            # LE refus qui porte la brique. Sans 'oneOf', la valeur déclarée est
+            # une chaîne libre : une faute de frappe donnerait une règle qui ne
+            # se déclenche JAMAIS, sans que rien ne le dise. C'est exactement ce
+            # que le point 85 refuse — une règle qui ne produit rien.
+            choix = self.enumerated_fields.get(entity, {}).get(field)
+            if not choix:
+                raise ASTValidationError(
+                    f"Structure : 'releases' exige que '{entity}.{field}' porte un "
+                    f"'oneOf' — sans liste de valeurs, une faute de frappe donnerait "
+                    f"une règle qui ne se déclenche jamais.")
+            if rule["value"] not in choix:
+                raise ASTValidationError(
+                    f"Structure : 'releases' se déclenche sur la valeur "
+                    f"{rule['value']!r}, absente du 'oneOf' de '{entity}.{field}' "
+                    f"({', '.join(repr(c) for c in choix)}) — elle ne surviendrait "
+                    f"jamais.")
+            libere = rule["entity"]
+            if libere not in self.entities:
+                raise ASTValidationError(
+                    f"Structure : 'releases' nomme l'entité '{libere}', qui n'existe pas.")
+            # Ce qu'on libère, c'est un décompte : sans lui il n'y a rien à rendre.
+            decomptes = [r for r in self.reputation_rules
+                         if r["trigger_entity"] == libere
+                         and r["direction"] == "decrements"]
+            if not decomptes:
+                raise ASTValidationError(
+                    f"Structure : 'releases {libere}' ne libérerait rien — cette "
+                    f"entité ne porte aucune règle 'decrements'. C'est ce qu'un "
+                    f"décompte a consommé que l'on rend.")
+            # Il faut savoir QUELLES lignes libérer : celles rattachées à
+            # l'enregistrement dont le champ change. Sans relation, la question
+            # n'a pas de réponse.
+            if not any(r["source"] == entity and r["target"] == libere
+                       for r in self.relations):
+                raise ASTValidationError(
+                    f"Structure : 'releases' exige une relation "
+                    f"'{entity} hasMany {libere}' — sans elle, rien ne dit quelles "
+                    f"lignes de {libere} dépendent de ce {entity}.")
+            if any(r["entity"] == entity and r["field"] == field
+                   for r in self.release_rules):
+                raise ASTValidationError(
+                    f"Structure : deux règles 'releases' sur '{entity}.{field}' — "
+                    f"la première libération rendrait déjà le décompte, la seconde "
+                    f"le rendrait une deuxième fois.")
+            self.release_rules.append({"entity": entity, "field": field,
+                                       "value": rule["value"], "releases": libere})
+
         # AJOUT (roadmap, contrôle du rendu visuel) : validation du bloc 'ui'
         # optionnel — vérifie que l'entité et les champs référencés existent
         # bien, pour éviter qu'une faute de frappe dans 'primary'/'order'
@@ -1681,6 +1750,9 @@ class MonlAST:
                 "auth_phone_prefix": self.auth_phone_prefix,
                 # BRIQUE 19 (point 96) : {Entite: {champ: [valeurs]}}.
                 "enumerated_fields": self.enumerated_fields,
+                # BRIQUE 20 (point 98) : [{entity, field, value, releases}] —
+                # atteindre la valeur rend ce que les enfants ont consommé.
+                "release_rules": self.release_rules,
             },
             "sandbox_ai": {"custom_functions": list(self.custom_logic.values())},
             "ui": self.ui_overrides,

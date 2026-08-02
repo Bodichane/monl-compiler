@@ -594,6 +594,15 @@ def _contract_signature(contract):
     # changer sans que le champ bouge (« expédiée » ajoutée au carnet). Le
     # digest porte donc les valeurs, pas seulement leur présence : comparer les
     # seuls noms serait l'erreur du point 89, pour la troisième fois.
+    # POINT 98 : septième fois. Poser `releases` ne crée aucune route et ne
+    # change aucun champ — mais un bouton « réactiver » devient un 409, et un
+    # écran doit expliquer que l'annulation rend le stock. Le delta le dit.
+    for r in contract["routes"]:
+        lib = r.get("releases_on")
+        if lib:
+            contenus[f"libération de {r['method']} {r['path']}"] = hashlib.sha256(
+                f"{lib['field']}\n{lib['value']}\n{lib['releases']}".encode()
+            ).hexdigest()
     for entite, spec in sorted((contract.get("entities") or {}).items()):
         for champ in spec.get("fields") or []:
             if champ.get("allowed_values"):

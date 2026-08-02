@@ -493,11 +493,21 @@ def build_contract(normalized_ast, generator):
             # sur une commande payée — et l'utilisateur découvre le refus après
             # avoir rempli le formulaire.
             verrou = _verrou_paiement(generator, base)
+            # POINT 98 : la valeur qui LIBÈRE, et l'aller sans retour. Sans
+            # cette note, une interface propose « repasser en préparation » sur
+            # une commande annulée et découvre un 409 au clic.
+            liberation = (getattr(generator, "release_rules_by_entity", {})
+                          .get(base) or [None])[0]
             routes.append(_route("PUT", f"/{low}/{{id}}", act_type, base, is_public, actors,
-                                 note=_joindre(note_liens, _note_verrou(verrou)),
+                                 note=_joindre(note_liens, _note_verrou(verrou),
+                                               _note_liberation(liberation)),
                                  request_fields=_creatable_fields(entity_specs.get(base))))
             if verrou:
                 routes[-1]["payment_locked"] = verrou
+            if liberation:
+                routes[-1]["releases_on"] = {
+                    "field": liberation["field"], "value": liberation["value"],
+                    "releases": liberation["releases"], "terminal": True}
         elif act_type == "Delete":
             verrou = _verrou_paiement(generator, base)
             routes.append(_route("DELETE", f"/{low}/{{id}}", act_type, base, is_public,
@@ -677,6 +687,19 @@ def _note_identifiant(formes):
             f"minuscules, numéro réduit à ses chiffres) : deux écritures de la "
             f"même adresse sont le MÊME compte, et la connexion accepte l'une "
             f"comme l'autre.")
+
+
+def _note_liberation(regle):
+    """Ce que l'interface doit savoir d'une valeur qui libère (point 98)."""
+    if not regle:
+        return None
+    return (f"LIBÉRATION : passer `{regle['field']}` à « {regle['value']} » rend "
+            f"ce que les {regle['releases']} liés avaient décompté (le stock, "
+            f"typiquement). L'opération n'a lieu qu'à la TRANSITION : y repasser "
+            f"une seconde fois ne rend rien de plus. Et c'est un aller SANS "
+            f"retour — toute autre valeur est ensuite refusée en 409, car rien "
+            f"ne garantit que ce qui a été rendu soit encore disponible. Ne pas "
+            f"proposer de réactiver : proposer d'en créer un nouveau.")
 
 
 def _verrou_paiement(generator, entite, inclure_soi=True):

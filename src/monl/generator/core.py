@@ -187,6 +187,12 @@ class MonlSecureGenerator(
         # état parmi quelques-uns, pas du texte libre.
         self.enumerated_fields = (normalized_ast.get("security", {})
                                   .get("enumerated_fields") or {})
+        # BRIQUE 20 (point 98) : {Entite: [règle]} — atteindre une valeur rend
+        # ce que les enfants ont décompté. Indexé par l'entité PORTEUSE du
+        # champ, qui est celle dont la route Update déclenche la libération.
+        self.release_rules_by_entity = {}
+        for regle in (normalized_ast.get("security", {}).get("release_rules") or []):
+            self.release_rules_by_entity.setdefault(regle["entity"], []).append(regle)
         # AJOUT (roadmap frontend, bloc 'seed') : données de démonstration à
         # insérer au démarrage si les tables sont vides (voir init_db).
         self.seeds = normalized_ast.get("seeds", [])

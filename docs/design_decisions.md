@@ -117,7 +117,8 @@ en l'état car de nombreux renvois internes s'y appuient) ·
 [94](#94-une-faq-est-une-liste-et-le-contenu-que-le-delta-ne-regardait-pas) Une FAQ est une liste, et le contenu que le delta ne regardait pas ·
 [95](#95-sinscrire-avec-son-adresse-et-la-forme-canonique-qui-porte-la-brique) S'inscrire avec son adresse, et la forme canonique qui porte la brique ·
 [96](#96-un-statut-nest-pas-du-texte-et-la-fiche-quon-pouvait-effacer) Un statut n'est pas du texte, et la fiche qu'on pouvait effacer ·
-[97](#97-le-message-qui-devinait-à-la-place-de-lagent) Le message qui devinait à la place de l'agent
+[97](#97-le-message-qui-devinait-à-la-place-de-lagent) Le message qui devinait à la place de l'agent ·
+[98](#98-annuler-rend-les-paires-et-la-transition-quon-ne-joue-quune-fois) Annuler rend les paires, et la transition qu'on ne joue qu'une fois
 
 ---
 
@@ -5778,3 +5779,74 @@ Deux tests dans `tests/test_smoke_and_frontend_ai.py` : un agent factice qui
 décline en expliquant (sa raison doit s'afficher, et l'ancienne hypothèse
 disparaître), et le témoin d'un agent muet (le conseil de reformulation doit
 rester — sinon on retire la seule piste quand il n'y en a pas d'autre).
+
+## 98. Annuler rend les paires, et la transition qu'on ne joue qu'une fois
+
+Le dernier bug vivant qu'avait laissé la comparaison à une boutique classique
+(point 96) : annuler une commande la passait en « annulée » et **gardait ses
+lignes**, donc le stock restait consommé pour de bon. Supprimer les lignes le
+rendait depuis le point 92 — mais efface la commande du carnet. **Un marchand
+veut les deux** : la trace et les paires.
+
+```
+rule Order.status "annulée" releases OrderLine
+```
+
+`oneOf` (point 96) était le préalable, et pas seulement par commodité : c'est
+lui qui rend le refus possible. Sans liste de valeurs déclarée, la valeur
+déclencheuse serait une chaîne libre, et une faute de frappe donnerait une règle
+qui **ne se déclenche jamais** — exactement ce que le point 85 refuse. La règle
+exige donc `oneOf` sur le champ, et que la valeur y figure.
+
+### Ne rendre QU'UNE FOIS
+
+L'état est lu AVANT l'écriture, et la libération n'a lieu qu'à la **transition**.
+Sans cette garde, deux `PUT` successifs à « annulée » rendraient le stock deux
+fois et la boutique s'inventerait des paires. C'est le genre de défaut qu'aucune
+relecture ne donne : il faut appeler la route deux fois de suite.
+
+### L'état libéré est TERMINAL
+
+Le trou que la première version laissait ouvert, trouvé en l'éprouvant : annuler
+rendait le stock, puis **réactiver** laissait la commande vivante sans rien avoir
+consommé. Du stock gratuit — même famille que les exploits du point 77.
+
+Reprendre le stock au retour supposerait qu'il soit encore disponible, ce que
+rien ne garantit : une autre commande a pu passer entre-temps. Le refus est donc
+la seule réponse honnête, et le message dit quoi faire à la place (en créer une
+nouvelle). Le contrat le porte (`releases_on.terminal`) et le brief l'écrit :
+**ne pas proposer de réactiver.**
+
+Le refus vit AVANT la transaction d'écriture : le `except sqlite3.IntegrityError`
+qui enveloppe les écritures ne fermerait pas la connexion pour lui.
+
+Aucun plancher sur la restitution, comme au point 92 — on rend un état qui a
+existé et qui était valide.
+
+### Ce qui n'a PAS eu besoin d'être écrit
+
+Le cumul avec le verrou du point 91 : une commande RÉGLÉE refuse déjà tout
+`Update`, donc son statut ne peut pas passer à « annulée » et la question du
+remboursement ne se pose pas ici. Un refus de cumul aurait été inatteignable, et
+un refus inatteignable fait croire à une protection.
+
+### Le delta, septième fois
+
+`releases` ne crée aucune route et ne change aucun champ — mais un bouton
+« réactiver » devient un 409, et un écran doit expliquer que l'annulation rend
+les paires. Septième ensemble à entrer dans `_contract_signature`, et la question
+a été posée avant d'écrire le code, comme le point 94 le demandait.
+
+### Éprouvé par
+
+`tests/test_liberation.py` (16 tests) : les sept refus de compilation, le test
+qui exige une sortie différente avec et sans la règle, le contrat, le delta — et
+contre un vrai serveur : annuler rend le stock, **annuler GARDE les lignes**
+(toute la raison d'être de la brique), trois annulations de suite ne rendent
+qu'une fois, la réactivation est refusée sans rien consommer, un autre statut ne
+libère rien (le témoin), et annuler une commande ne rend pas ce que la commande
+d'à côté avait consommé.
+
+Vérifié en réel sur `projets/SneakerLab` : Halo RS 12 → 9 à la commande, 12 à
+l'annulation, 12 encore après deux ré-annulations, 409 à la réactivation, et la
+commande reste au carnet en « annulée ».

@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (575 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (591 tests
   actuellement ; `tests/test_demo.py` et `tests/test_design_contract.py`
   s'appuient sur le dossier `demo/` versionné — ne pas le supprimer)
 
@@ -117,7 +117,7 @@ réseau social anonyme comme banc d'essai final.
 > fichiers, ils n'existent plus.
 >
 > Attention à la nuance : compiler n'est pas se comporter correctement.
-> **Les dix-neuf briques sont désormais éprouvées contre un vrai serveur
+> **Les vingt briques sont désormais éprouvées contre un vrai serveur
 > éphémère** : `accessibleBy` (`tests/test_access_parties.py`), le filtrage de
 > lecture d'`ownedBy` (`tests/test_lecture_privee.py`), le masquage `hidden`
 > (`tests/test_masquage_hidden.py`, point 64), puis `generated`, `increments`,
@@ -520,6 +520,21 @@ réseau social anonyme comme banc d'essai final.
     **MENU DÉROULANT** : sans ça l'IA dessine un champ texte. Éprouvée par
     `tests/test_valeur_parmi_une_liste.py` (24 tests), compilée par
     `projets/SneakerLab`. Voir point 96.
+
+20. **`rule Entite.champ "valeur" releases Entite`** — atteindre une VALEUR
+    défait un effet. Annuler une commande la passait en « annulée » en gardant
+    ses lignes : le stock restait consommé. Supprimer les lignes le rendait
+    (point 92) mais effaçait la trace — un marchand veut les deux. **Ne rendre
+    QU'UNE FOIS** : l'état est lu avant l'écriture, la libération n'a lieu qu'à
+    la TRANSITION (deux PUT rendraient sinon deux fois). **L'état libéré est
+    TERMINAL** : réactiver laisserait une commande vivante sans rien avoir
+    consommé — du stock gratuit, famille du point 77 ; et le reprendre
+    supposerait qu'il soit encore disponible. Exige `oneOf` sur le champ, sans
+    quoi une faute de frappe donnerait une règle qui ne se déclenche jamais.
+    Aucun refus de cumul avec le verrou du point 91 : une commande réglée
+    refuse déjà tout Update, un refus inatteignable ferait croire à une
+    protection. Éprouvée par `tests/test_liberation.py` (16 tests), adoptée par
+    `projets/SneakerLab`. Voir point 98.
 
 ### Briques suivantes déjà évoquées, non cadrées
 - Rôle superviseur au-dessus d'`accessibleBy` (un modérateur qui lit tous
