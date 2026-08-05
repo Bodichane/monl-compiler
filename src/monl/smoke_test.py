@@ -227,6 +227,13 @@ def _sample_value(ftype, fname, spec=None):
         return True
     if ftype == "Email":
         return "smoke@exemple.fr"
+    # POINT 101 : TROISIÈME occurrence de la leçon des points 95 et 96. Le type
+    # 'UUID' vérifie enfin sa forme ; `smoke-reference` récolterait donc un 422
+    # et le smoke test déclarerait cassée une boutique saine. Valeur FIXE et non
+    # tirée au sort : un vérificateur doit donner deux fois le même verdict sur
+    # la même application.
+    if ftype == "UUID":
+        return "3f2504e0-4f89-41d3-9a0c-0305e82c3301"
     if any(k in low for k in ("image", "photo", "url")):
         return "https://picsum.photos/seed/smoke/400/300"
     return f"smoke-{fname}"

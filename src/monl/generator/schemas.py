@@ -83,7 +83,7 @@ class SchemasMixin:
                     mot = mot_texte if borne_regle["portee"] == "longueur" else mot_nombre
                     bornes.append(f"{mot}={borne_regle['valeur']}")
                 if py_type == "str":
-                    borne = {"Text": 20000, "Email": 320}.get(attr_type, 255)
+                    borne = {"Text": 20000, "Email": 320, "UUID": 36}.get(attr_type, 255)
                     # Un 'max' déclaré l'emporte sur la borne de colonne : le
                     # validateur a vérifié qu'il ne la dépasse pas.
                     if not any(b.startswith("max_length=") for b in bornes):
@@ -98,6 +98,22 @@ class SchemasMixin:
                     # envoi, donc un appel sortant que le compilateur s'interdit.
                     if attr_type == "Email":
                         bornes.append(r"pattern=r'^[^@\s]+@[^@\s]+\.[^@\s]{2,}$'")
+                    # POINT 101 : le type frère avait le même défaut, et il est
+                    # resté debout dix points de plus. 'UUID' ne fixait qu'une
+                    # longueur de 255 : `smoke-reference` entrait en base sous un
+                    # nom qui promet un identifiant universellement unique. Le
+                    # raisonnement du point 91 s'applique mot pour mot — un type
+                    # qui NOMME une chose et n'en vérifie aucune est une règle
+                    # qui ne produit rien (point 85).
+                    #
+                    # La forme canonique, et rien de plus : ni version ni
+                    # variante. Exiger le chiffre de version rejetterait l'UUID
+                    # nul et les versions à venir, alors qu'ils sont bien formés
+                    # -- monl vérifie la FORME, il ne juge pas la provenance.
+                    if attr_type == "UUID":
+                        bornes.append(
+                            r"pattern=r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-"
+                            r"[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'")
                     api_lines.append(f"    {attr_name}: str = Field(..., {', '.join(bornes)})")
                 elif bornes:
                     api_lines.append(f"    {attr_name}: {py_type} = Field(..., {', '.join(bornes)})")

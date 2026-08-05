@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (624 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (639 tests
   actuellement ; `tests/test_demo.py` et `tests/test_design_contract.py`
   s'appuient sur le dossier `demo/` versionné — ne pas le supprimer)
 
@@ -858,7 +858,9 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   toute brique qui contraint une ENTRÉE contraint aussi le smoke test, qui code
   ses valeurs en dur et n'a aucun moyen de le savoir. Deux fois de suite il a
   déclaré cassée une application saine — `'smoke'` refusé par `identifier:
-  email`, puis `'smoke-status'` refusé par `oneOf`. **Le point 100 l'élargit** :
+  email`, puis `'smoke-status'` refusé par `oneOf` ; au point 101 la question a
+  été posée AVANT d'écrire le motif (`'smoke-reference'` n'est pas un `UUID`),
+  et c'est la seule différence qui compte. **Le point 100 l'élargit** :
   toute brique qui change la FORME d'une ligne de spec contraint aussi les outils
   qui la lisent TEXTUELLEMENT. `assets_tool.py` détecte les blocs `seed` par une
   regex ancrée en fin de ligne ; la désignation de parent la faisait échouer en

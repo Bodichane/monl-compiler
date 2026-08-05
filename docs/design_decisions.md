@@ -120,7 +120,8 @@ en l'état car de nombreux renvois internes s'y appuient) ·
 [97](#97-le-message-qui-devinait-à-la-place-de-lagent) Le message qui devinait à la place de l'agent ·
 [98](#98-annuler-rend-les-paires-et-la-transition-quon-ne-joue-quune-fois) Annuler rend les paires, et la transition qu'on ne joue qu'une fois ·
 [99](#99-le-rattachement-fantôme-et-la-sécurité-qui-nétait-quun-accident) Le rattachement fantôme, et la sécurité qui n'était qu'un accident ·
-[100](#100-une-vitrine-qui-montre-des-enfants-et-la-désignation-qui-se-lit) Une vitrine qui montre des enfants, et la désignation qui se lit
+[100](#100-une-vitrine-qui-montre-des-enfants-et-la-désignation-qui-se-lit) Une vitrine qui montre des enfants, et la désignation qui se lit ·
+[101](#101-le-type-frère-resté-debout-dix-points-de-plus) Le type frère, resté debout dix points de plus
 
 ---
 
@@ -6163,3 +6164,73 @@ Découvert au passage, sans rapport avec la brique : `Order.reference` est de ty
 librement. Une commande sans référence répond 422, et deux commandes peuvent
 porter la même. C'est la motivation d'une brique `reference` à venir, et la
 question à trancher d'abord : que devient le type `UUID` le jour où elle existe ?
+
+## 101. Le type frère, resté debout dix points de plus
+
+Trouvé en préparant la brique `reference`, et en vérifiant d'abord ce que le
+compilateur promettait déjà. `exemples/02_boutique.ml` déclare :
+
+```
+entity Order
+    reference: UUID
+```
+
+Le serveur acceptait `CMD-1`, `smoke-reference`, et la chaîne vide. Le type
+`UUID` ne produisait qu'une chose : `VARCHAR` avec une longueur de 255. Deux
+commandes pouvaient donc porter la même « référence », sous un nom qui promet un
+identifiant universellement unique.
+
+### Ce n'était pas un arbitrage à ouvrir
+
+Le point 91 a déjà tranché cette question exacte, pour le type d'à côté :
+
+> le type `Email` ne fixait qu'une LONGUEUR — `pas-un-courriel` entrait en base
+> avec un 200. Un type qui nomme une adresse et n'en vérifie aucune est
+> exactement ce que le point 85 refuse : une règle qui ne produit rien.
+
+`UUID` est le même péché, laissé debout dix points de plus. La correction
+applique la décision existante au type frère, avec le même motif dans le schéma
+Pydantic — donc un 422 avant tout INSERT, et la forme visible dans `/docs`.
+
+**La forme canonique, et rien de plus** : ni chiffre de version, ni variante.
+Les exiger rejetterait l'UUID nul et les versions à venir, alors qu'ils sont
+parfaitement bien formés. monl vérifie la FORME ; juger la provenance d'un
+identifiant n'est pas de son ressort — même frontière qu'au point 95, où il
+vérifie qu'une adresse est bien écrite sans prétendre qu'une boîte la reçoit.
+
+**La contre-épreuve compte autant que le refus.** Un motif trop strict ferait
+passer tous les tests de rejet en cassant les vrais identifiants ; le banc
+vérifie donc aussi que l'UUID nul et la casse majuscule restent acceptés. C'est
+la structure du point 91, reprise telle quelle.
+
+### Le vérificateur est un client comme un autre — TROISIÈME fois
+
+`_sample_value` envoyait `smoke-reference` pour un champ `UUID`. Le smoke test
+aurait donc déclaré cassée une boutique saine, après `'smoke'` refusé par
+`identifier: email` (point 95) et `'smoke-status'` refusé par `oneOf`
+(point 96). Cette fois la question a été posée AVANT d'écrire le motif, pas
+après un faux diagnostic — c'est la seule différence, et c'est celle qui compte.
+
+La valeur est FIXE et non tirée au sort : un vérificateur doit rendre deux fois
+le même verdict sur la même application.
+
+### Ce que ça ne répare pas
+
+Aucune donnée existante n'est convertie : une base qui contient déjà des
+références mal formées continue de les rendre. La règle ne vaut que pour les
+écritures à venir — comme au point 95, et pour la même raison. Contrairement au
+point 95, en revanche, le serveur ne les COMPTE pas au démarrage : le constat de
+démarrage existe pour les comptes, dont la forme conditionne la connexion ; une
+référence mal formée n'empêche rien.
+
+### Éprouvé par
+
+`tests/test_type_uuid.py` (15 tests) : sept formes refusées, trois acceptées
+(dont l'UUID nul et les majuscules), le témoin d'un champ `String` voisin qui ne
+gagne aucun motif, le test qui exige une sortie DIFFÉRENTE de celle d'un
+`String`, et deux tests sur le vérificateur — sa valeur d'échantillon, puis le
+smoke test lancé pour de vrai sur une spec à `UUID`.
+
+Ce point laisse entière la vraie question de `Order.reference` : un numéro de
+commande lisible n'est pas un UUID, et le client n'a rien à faire à l'écrire.
+C'est la brique suivante.
