@@ -1372,6 +1372,47 @@ class MonlAST:
                     "amount_field": champ_quantite, "direction": direction,
                 })
 
+        # AJOUT (point 99) : encaisser exige un propriétaire qui soit un COMPTE.
+        # Ce recoupement vit ici, après la boucle des décomptes, parce qu'il lui
+        # faut `reputation_rules` complet — et il double le refus posé plus haut
+        # avec les autres contrôles de 'payable', qui n'exigeait qu'une relation
+        # entrante, N'IMPORTE laquelle.
+        #
+        # Ce que ça laissait passer : 'relation Produit hasMany Facture' suffisait
+        # à compiler, et la route de règlement comparait `produit_id` à l'id du
+        # compte appelant. La comparaison n'était juste que par accident — la
+        # colonne recevait `current_user_id` faute de savoir faire autrement,
+        # c'est-à-dire à cause du défaut que ce point corrige. Le rattachement
+        # redevenu honnête, l'accident disparaît et le refus doit être écrit.
+        #
+        # Deux formes acceptées, et deux seulement : un parent ACTEUR (propriété
+        # directe, la colonne porte un id de compte) ou une chaîne transitive
+        # (point 87, la jointure rend ce même id de compte). La cible d'un
+        # compteur est exclue même quand c'est un acteur : cette colonne-là est
+        # choisie par le client, elle ne dit pas à qui la ligne appartient.
+        for _paye in self.payable_fields:
+            _entite = _paye["entity"]
+            if _entite in self.transitive_ownership:
+                continue
+            _cibles = {r["target_entity"] for r in self.reputation_rules
+                       if r["trigger_entity"] == _entite}
+            _parents_acteurs = {
+                (rel["source"] if rel["type"] in ("hasMany", "hasOne") else rel["target"])
+                for rel in self.relations
+                if (rel["type"] in ("hasMany", "hasOne") and rel["target"] == _entite)
+                or (rel["type"] == "belongsTo" and rel["source"] == _entite)
+            } & set(self.actors) - _cibles
+            if not _parents_acteurs:
+                raise ASTValidationError(
+                    f"Structure : '{_entite}.{_paye['field']}' est 'payable', mais aucun "
+                    f"ACTEUR ne possède un enregistrement de '{_entite}'. Une relation vers "
+                    f"une table métier ne suffit pas : la colonne qu'elle produit porte "
+                    f"l'id de cette ligne, pas celui d'un compte, et la route de règlement "
+                    f"la compare à l'appelant. Déclarer 'un_acteur hasMany {_entite}', ou "
+                    f"rattacher '{_entite}' à un acteur à travers son parent "
+                    f"('rule {_entite}.Read ownedBy <Parent>')."
+                )
+
         # AJOUT (brique 20, point 98) : atteindre une valeur DÉFAIT un effet.
         # Ce bloc vit APRÈS la boucle des décomptes, et pas au milieu des
         # autres règles : il lui faut `reputation_rules` complet pour vérifier

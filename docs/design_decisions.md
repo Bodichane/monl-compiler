@@ -118,7 +118,8 @@ en l'état car de nombreux renvois internes s'y appuient) ·
 [95](#95-sinscrire-avec-son-adresse-et-la-forme-canonique-qui-porte-la-brique) S'inscrire avec son adresse, et la forme canonique qui porte la brique ·
 [96](#96-un-statut-nest-pas-du-texte-et-la-fiche-quon-pouvait-effacer) Un statut n'est pas du texte, et la fiche qu'on pouvait effacer ·
 [97](#97-le-message-qui-devinait-à-la-place-de-lagent) Le message qui devinait à la place de l'agent ·
-[98](#98-annuler-rend-les-paires-et-la-transition-quon-ne-joue-quune-fois) Annuler rend les paires, et la transition qu'on ne joue qu'une fois
+[98](#98-annuler-rend-les-paires-et-la-transition-quon-ne-joue-quune-fois) Annuler rend les paires, et la transition qu'on ne joue qu'une fois ·
+[99](#99-le-rattachement-fantôme-et-la-sécurité-qui-nétait-quun-accident) Le rattachement fantôme, et la sécurité qui n'était qu'un accident
 
 ---
 
@@ -5850,3 +5851,168 @@ d'à côté avait consommé.
 Vérifié en réel sur `projets/SneakerLab` : Halo RS 12 → 9 à la commande, 12 à
 l'annulation, 12 encore après deux ré-annulations, 409 à la réactivation, et la
 commande reste au carnet en « annulée ».
+
+## 99. Le rattachement fantôme, et la sécurité qui n'était qu'un accident
+
+Ce point ne vient pas d'un besoin nouveau. Il vient d'une **sonde** : pour juger
+une proposition extérieure qui présentait le « stock par taille » comme une
+grosse brique à écrire (parseur, validateur, générateur SQL, routes), il fallait
+d'abord vérifier ce que le compilateur savait déjà faire. Le modèle s'écrit
+entièrement avec la syntaxe existante — `relation Produit hasMany Variante` — et
+il compile. Ce n'était donc pas une brique.
+
+Mais le `schema.sql` produit disait ceci :
+
+```sql
+CREATE TABLE IF NOT EXISTS "variante" ( ... "produit_id" INTEGER,
+    FOREIGN KEY ("produit_id") REFERENCES _monl_users(id) )
+```
+
+et le `app.py` cela :
+
+```python
+INSERT INTO "variante" ("taille", "prix", "stock", "produit_id") VALUES (?,?,?,?)
+    (data.taille, data.prix, data.stock, current_user_id,)
+```
+
+**La variante était rattachée au vendeur qui l'avait créée, jamais à son
+produit** — et le client n'avait aucun moyen d'en désigner un : la colonne
+n'existait dans aucun schéma d'entrée. Le nom disait le lien métier, le contenu
+portait un identifiant de compte, et le contrat annonçait fidèlement
+`references_account: true`. Rien n'échouait nulle part.
+
+### Ce qui manquait, en une ligne
+
+`_identity_fk_columns` (generator/core.py) répond à la question « cette colonne
+se peuple-t-elle depuis le jeton ? ». Elle écartait bien trois cas — création
+publique, cible de compteur, propriété transitive — mais retenait **n'importe
+quelle relation entrante** pour le quatrième. Or « peuplée depuis l'identité de
+l'appelant » n'a de sens que si le parent EST un compte. La condition manquante
+tient en cinq mots : *le parent doit être un acteur*.
+
+C'est le **défaut du point 80 par l'autre bout**. Là on nommait explicitement une
+entité comme propriétaire et le rattachement produit était faux ; ici on n'en
+nomme aucune, et il l'est tout autant. Les deux fois, une clé étrangère
+recevait une valeur qui n'était pas de sa nature, en silence.
+
+### Pourquoi personne ne l'avait vu en vingt briques
+
+Aucun exemple du dépôt ne présente une entité fille d'une table **métier**.
+`Like` et `Report` y échappent parce qu'ils sont cibles d'un compteur (« CE
+post »), `Comment` parce qu'il déclare `ownedBy Member`, `OrderLine` parce qu'il
+est possédé transitivement, `Order` et `Post` parce que leur parent est un
+acteur. Les cinq exemples et `projets/SneakerLab` compilent tous des enfants
+d'acteurs. La sonde qui a révélé le défaut tenait en trois relations, et elle a
+été écrite pour évaluer une proposition, pas pour chercher un bug.
+
+C'est le pendant exact de la leçon du point 78 — *neuf briques testées une par
+une ne testent pas leurs paires* — appliquée cette fois non aux paires de
+briques, mais aux **formes de spec qu'aucun exemple n'écrit**.
+
+### L'ordre de déclaration ne décide plus
+
+Le correctif en emporte un second, plus discret. Avec deux parents et aucune
+règle `ownedBy`, l'ancien code retenait `placements[0]` : le propriétaire se
+décidait à l'ordre d'écriture de la spec, et un parent métier déclaré en premier
+volait la place de l'acteur. Désormais seuls les parents acteurs sont candidats,
+et `ownedBy` tranche entre eux. Le correctif de la bêta 3 avait déjà cherché à
+supprimer cette dépendance à l'ordre ; il ne l'avait fait qu'à moitié.
+
+### `payable` perd une sécurité ACCIDENTELLE, donc gagne un refus
+
+C'est la partie du point qu'il ne fallait surtout pas oublier. La route de
+règlement compare la colonne de propriété à `current_user_id`. Cette spec
+compilait, et la comparaison était juste :
+
+```
+relation Produit hasMany Facture
+rule Facture.total payable
+```
+
+Juste **par accident** : la colonne recevait `current_user_id` faute de savoir
+faire autrement, c'est-à-dire à cause du défaut que ce point corrige. Le
+rattachement redevenu honnête, `produit_id` porte l'id d'une ligne de catalogue,
+et la comparaison devient fausse dans les deux sens — le propriétaire ne peut
+plus payer, et un inconnu le peut dès que les deux identifiants coïncident.
+
+Le refus doit donc être écrit, sans quoi la correction ouvrirait un trou plus
+large que celui qu'elle ferme (même raisonnement qu'à la brique 11, point 81).
+Deux formes sont acceptées, et deux seulement : un parent **acteur** (la colonne
+porte un id de compte) ou une **chaîne transitive** (point 87, la jointure rend
+ce même id). La cible d'un compteur est exclue même quand c'est un acteur :
+cette colonne-là est choisie par le client, elle ne dit pas à qui la ligne
+appartient.
+
+Le refus vit dans un recoupement APRÈS la boucle des décomptes — il lui faut
+`reputation_rules` complet, même placement et même raison que le recoupement
+`payable`/`derivedFrom` du point 79. Et la route de règlement **échoue
+désormais à la génération** si aucune colonne de compte n'est disponible :
+écrire une route de paiement sans contrôle d'accès vaut moins qu'un compilateur
+qui s'arrête, même raisonnement que `_derived_source_fk`.
+
+### L'angle mort du delta, sixième fois — mais la question posée d'avance
+
+Une clé étrangère ne vit pas dans `entities.<E>.fields` : elle vit dans
+`foreign_keys`. `_contract_signature` ne la regardait donc pas, et `monl update`
+aurait répondu « aucun changement d'interface » pendant qu'un formulaire de
+création gagnait un champ obligatoire. La signature compte un **huitième
+ensemble**, qui porte les deux façons dont un rattachement change sans changer
+de nom :
+
+- **ce qu'il contient** — un id de compte ou l'id d'une ligne métier ; c'est la
+  raison d'être du point 88, une jointure faite sur la mauvaise des deux marche
+  À MOITIÉ ;
+- **qui le renseigne** — le serveur depuis le jeton, ou le client. Passer du
+  premier au second ajoute un menu déroulant au formulaire ; sans lui, la
+  création répond 422.
+
+La consigne écrite pour l'IA frontend dit les deux séparément : une jointure à
+refaire et un champ à ajouter ne se corrigent pas au même endroit.
+
+Corrigé au passage dans le même rapport : le verrou de paiement était **imprimé
+deux fois** (deux boucles identiques sur `added_verrous`).
+
+### Ce que ça ne répare pas
+
+Les enregistrements déjà en base gardent la valeur fautive : la migration
+additive rattrape une colonne, jamais son contenu (point 89, et pour la même
+raison — inventer une correspondance serait une base qui MENT). Et
+`CREATE TABLE IF NOT EXISTS` laisse à une base existante son ancienne contrainte
+`REFERENCES`. Un projet qui aurait compilé une entité dans ce cas doit être
+repris à la main ; aucun projet du dépôt n'est concerné.
+
+### Un voisin repéré, laissé ouvert
+
+`requiresOwn` (point 90) devient un **no-op silencieux** quand l'entité exigée
+n'a aucune colonne de compte — `_profile_lookup` rend `None` et la règle ne
+produit rien. Ce n'est pas né ici (c'était déjà le cas sous propriété transitive
+ou création publique), mais le point 85 est formel : une règle qui ne produit
+rien doit être refusée. Le refus n'est pas écrit, faute de pouvoir l'exprimer
+dans le validateur sans y recopier `_identity_fk_columns` — deux vérités
+finiraient par diverger. À traiter avec la question plus large de savoir où doit
+vivre cette distinction.
+
+### Éprouvé par
+
+`tests/test_rattachement.py` (18 tests). **11 d'entre eux échouent sans la
+correction** — dont, contre un vrai serveur, `assert 4 == 2` : l'identifiant du
+compte écrit là où celui du produit devait être. Le banc inscrit trois figurants
+avant le vendeur pour que son identifiant ne coïncide avec celui d'aucun
+produit : c'est la leçon de la sonde du point 81, et sans elle le rattachement
+fautif passerait le test.
+
+Le reste : le schéma SQL et le schéma d'entrée, l'indépendance à l'ordre des
+relations, le contrat et le huitième ensemble du delta, les trois refus autour
+de `payable` (dont le témoin transitif, qui doit continuer de passer), et la
+chaîne complète du « stock par taille » — deux tailles du même produit ont des
+stocks indépendants, le plancher tient par variante, et un produit inexistant
+ne crée pas de variante orpheline.
+
+Les **non-régressions** comptent autant : une entité fille d'un acteur continue
+de se peupler depuis le jeton et sa colonne reste hors du corps de requête ; la
+cible d'un compteur reste désignée par le client. Une correction qui rendrait
+toutes les clés étrangères clientes ouvrirait un trou bien plus large.
+
+Vérifié enfin par comparaison octet à octet : les cinq exemples et
+`projets/SneakerLab` produisent des artefacts **identiques** avant et après. La
+correction ne change que le cas qui était cassé.

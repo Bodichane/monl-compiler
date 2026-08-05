@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (591 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (609 tests
   actuellement ; `tests/test_demo.py` et `tests/test_design_contract.py`
   s'appuient sur le dossier `demo/` versionné — ne pas le supprimer)
 
@@ -664,6 +664,26 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   du point 76 s'est reproduit sur `derivedFrom`, la brique née pour le
   corriger). Tout champ peuplé par le serveur doit sortir des
   `request_fields`, via `server_generated`.
+- **POINT 99 : « peuplée depuis l'identité » exige que le parent soit un ACTEUR.**
+  `_identity_fk_columns` écartait la création publique, la cible d'un compteur et
+  la propriété transitive — mais retenait n'importe quelle relation entrante pour
+  le reste. Une entité fille d'une table MÉTIER (`relation Produit hasMany
+  Variante`) recevait donc `current_user_id` dans `produit_id`, déclarée
+  `REFERENCES _monl_users` : **la variante était rattachée au vendeur, jamais à
+  son produit**, et le client ne pouvait en désigner aucun. Défaut du point 80 par
+  l'autre bout, invisible en vingt briques parce qu'**aucun exemple du dépôt
+  n'écrit un enfant de table métier** (les cinq compilent des enfants d'acteurs).
+  Le choix ne dépend plus de l'ordre des relations : seuls les parents acteurs
+  sont candidats, `ownedBy` tranche entre eux. `populate_owner` (routes.py) LIT
+  désormais ce helper au lieu de recalculer les mêmes conditions à côté.
+  **Le corollaire à ne pas oublier** : `payable` perdait ici une sécurité
+  ACCIDENTELLE — la route de règlement comparait la colonne de propriété à
+  l'appelant, et ça ne marchait que parce que la colonne recevait
+  `current_user_id` faute de mieux. D'où un refus (parent acteur ou chaîne
+  transitive obligatoires) et une ERREUR DE GÉNÉRATION si la colonne de compte
+  manque : mieux vaut un compilateur qui s'arrête qu'une route de paiement sans
+  contrôle d'accès. Éprouvé par `tests/test_rattachement.py` (18 tests, dont 11
+  échouent sans la correction). Voir point 99.
 - POINT 88 : une clé étrangère référence l'une de DEUX choses — le registre des
   COMPTES (`_monl_users`) quand la route Create la peuple depuis le jeton, l'`id`
   d'une table métier sinon. `_identity_fk_columns` (core.py) tranche ; le contrat
@@ -672,21 +692,27 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   affiche le bon nom sur le premier enregistrement et rien sur les suivants —
   une jointure qui marche à moitié. Un test confronte le contrat aux
   `REFERENCES` réellement écrits dans schema.sql.
-- **L'ANGLE MORT DU DELTA, cinq fois** (points 88, 89, 90, 91, 94) : un changement
+- **L'ANGLE MORT DU DELTA, six fois** (points 88, 89, 90, 91, 94, 99) : un changement
   qui ne renomme rien oblige quand même à réécrire le frontend — un ACTEUR de plus
   sur une route (88), un champ qui devient calculé par le serveur (89), une route
   qui gagne un PRÉALABLE (90), une route qui gagne un VERROU de paiement (91), et
   du CONTENU éditorial ajouté ou RÉÉCRIT (94 — le premier qui ne touche pas aux
-  données ; `section` y échappait depuis le point 55). La signature de contrat
-  compte donc sept ensembles, dont le septième est un DICTIONNAIRE : sur du
-  contenu, le texte compte autant que le titre, et ne comparer que les titres
-  serait l'erreur du point 89. **Toute brique qui ajoute une promesse au contrat
-  doit se demander si `_contract_signature` (cli.py) la voit** — cinq fois la
-  réponse a été non, et cinq fois `monl update` a répondu « aucun changement
+  données ; `section` y échappait depuis le point 55), et une clé étrangère qui
+  change de NATURE sans changer de nom (99 — ce qu'elle CONTIENT, un id de compte
+  ou l'id d'une ligne métier, et QUI la renseigne, le serveur depuis le jeton ou
+  le client : le second cas ajoute un champ obligatoire au formulaire de création,
+  donc un 422). La signature de contrat compte donc HUIT ensembles, dont le
+  septième est un DICTIONNAIRE : sur du contenu, le texte compte autant que le
+  titre, et ne comparer que les titres serait l'erreur du point 89. **Toute brique
+  qui ajoute une promesse au contrat doit se demander si `_contract_signature`
+  (cli.py) la voit** — six fois la
+  réponse a été non, et six fois `monl update` aurait répondu « aucun changement
   d'interface » en laissant un écran ou un parcours entier à écrire. Ce n'est plus
   une série de coïncidences : c'est la question à poser à chaque brique, AVANT
   d'écrire le code. Un préalable/accès/verrou porté par une route qui vient
-  d'apparaître est EXCLU du rapport : déjà dit par « route ajoutée ».
+  d'apparaître est EXCLU du rapport : déjà dit par « route ajoutée » — et depuis le
+  point 99, les rattachements d'une entité qui vient d'apparaître le sont aussi,
+  même arbitrage porté cette fois sur les entités.
 - POINT 89 : le delta de `monl update` compare aussi la LECTURE SEULE des
   champs. Il ne comparait que des noms : poser `derivedFrom` (ou `timestamp`)
   sur un champ existant ne renomme rien, donc « aucun changement d'interface »

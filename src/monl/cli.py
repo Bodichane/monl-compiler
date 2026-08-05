@@ -399,7 +399,7 @@ def _write_update_brief(project_dir, added_routes, removed_routes,
                         added_prea=(), removed_prea=(),
                         added_verrous=(), removed_verrous=(),
                         added_contenus=(), removed_contenus=(),
-                        modifies_contenus=()):
+                        modifies_contenus=(), changed_liens=()):
     """Point 3 du pivot : le delta n'est pas qu'informatif, il devient une
     CONSIGNE prête à donner à l'IA frontend — la boucle se ferme sans que
     l'humain ait à reformuler le changement."""
@@ -434,6 +434,20 @@ def _write_update_brief(project_dir, added_routes, removed_routes,
         sections.append(
             "## Accès RETIRÉS — masquer ce qui répondra 403\n"
             + bullet(removed_acces, "ne plus proposer à"))
+    # POINT 99 : la clé étrangère change de nature sans changer de nom. Deux
+    # conséquences bien distinctes pour l'interface — une jointure à refaire, ou
+    # un champ obligatoire de plus au formulaire de création — d'où les deux
+    # consignes séparées plutôt qu'une phrase qui couvrirait les deux à moitié.
+    if changed_liens:
+        sections.append(
+            "## Rattachements dont la nature a changé\n"
+            "Pour chacun : si la ligne dit « un identifiant de compte », joindre "
+            "par la colonne HOMONYME de la fiche, jamais par son `id`. Si elle "
+            "dit « à envoyer par le client », le formulaire de création doit "
+            "proposer de CHOISIR l'enregistrement lié (une liste déroulante "
+            "alimentée par la route de lecture correspondante) — sans ce champ, "
+            "la création répond 422.\n"
+            + bullet(changed_liens, "revoir"))
     # POINT 89 : le champ existe toujours et porte le même nom — seul son sens a
     # changé. C'est le second cas silencieux du delta : rien n'est cassé, et
     # pourtant un formulaire est devenu un affichage.
@@ -608,7 +622,29 @@ def _contract_signature(contract):
             if champ.get("allowed_values"):
                 contenus[f"choix de {entite}.{champ['name']}"] = hashlib.sha256(
                     "\n".join(champ["allowed_values"]).encode("utf-8")).hexdigest()
-    return routes, fields, acces, lecture_seule, prealables, verrous, contenus
+    # POINT 99 : huitième ensemble, et la question posée AVANT d'écrire le code
+    # pour la deuxième fois seulement. Une clé étrangère ne vit pas dans
+    # `fields` — le delta ne pouvait donc rien dire quand elle change de NATURE.
+    # Or elle en change de deux façons, et les deux réécrivent un écran :
+    #
+    #   - ce qu'elle CONTIENT : un id de compte ou l'id d'une ligne métier. Le
+    #     contrat le dit depuis le point 88, précisément parce qu'une jointure
+    #     faite sur la mauvaise des deux marche À MOITIÉ ;
+    #   - qui la RENSEIGNE : le serveur depuis le jeton, ou le client. Passer du
+    #     premier au second ajoute un champ obligatoire au formulaire de
+    #     création — un menu de produits sur « nouvelle variante » — sans
+    #     renommer quoi que ce soit. Sans cette ligne, `monl update` répondait
+    #     « aucun changement d'interface » et le POST récoltait un 422.
+    liens = set()
+    for entite, spec in sorted((contract.get("entities") or {}).items()):
+        designees = set(spec.get("client_foreign_keys") or [])
+        for lien in spec.get("foreign_keys") or []:
+            porte = ("un identifiant de compte" if lien.get("references_account")
+                     else f"l'id d'un {lien['references']}")
+            par = "à envoyer par le client" if lien["column"] in designees \
+                else "renseigné par le serveur"
+            liens.add(f"{entite}.{lien['column']} → {porte}, {par}")
+    return routes, fields, acces, lecture_seule, prealables, verrous, contenus, liens
 
 
 def cmd_update(project_dir):
@@ -620,18 +656,19 @@ def cmd_update(project_dir):
     spec_path = state["spec"] if os.path.isabs(state["spec"]) \
         else os.path.join(project_dir, state["spec"])
 
-    old_routes, old_fields, old_acces, old_ro, old_prea, old_verrous = (
-        set(), set(), set(), set(), set(), set())
+    old_routes, old_fields, old_acces, old_ro, old_prea, old_verrous, old_liens = (
+        set(), set(), set(), set(), set(), set(), set())
     old_contenus = {}
     contract_path = os.path.join(project_dir, CONTRACT_FILENAME)
     if os.path.exists(contract_path):
         with open(contract_path, encoding="utf-8") as fh:
             (old_routes, old_fields, old_acces, old_ro,
-             old_prea, old_verrous, old_contenus) = _contract_signature(json.load(fh))
+             old_prea, old_verrous, old_contenus,
+             old_liens) = _contract_signature(json.load(fh))
 
     new_contract = compile_project(spec_path, project_dir)
     (new_routes, new_fields, new_acces, new_ro,
-     new_prea, new_verrous, new_contenus) = _contract_signature(new_contract)
+     new_prea, new_verrous, new_contenus, new_liens) = _contract_signature(new_contract)
 
     added_routes, removed_routes = new_routes - old_routes, old_routes - new_routes
     added_fields, removed_fields = new_fields - old_fields, old_fields - new_fields
@@ -664,10 +701,18 @@ def cmd_update(project_dir):
     removed_contenus = set(old_contenus) - set(new_contenus)
     modifies_contenus = {c for c in set(new_contenus) & set(old_contenus)
                          if new_contenus[c] != old_contenus[c]}
+    # POINT 99 : même arbitrage anti-doublon qu'aux points 88 à 91, appliqué aux
+    # entités plutôt qu'aux routes. Les rattachements d'une entité qui vient
+    # d'apparaître sont déjà dits par ses routes et ses champs ; seuls ceux
+    # d'une entité qui existait des deux côtés méritent une ligne.
+    entites_stables = {f.split(".", 1)[0] for f in new_fields & old_fields}
+    changed_liens = {li for li in (new_liens - old_liens)
+                     if li.split(".", 1)[0] in entites_stables}
     changes = any((added_routes, removed_routes, added_fields, removed_fields,
                    added_acces, removed_acces, scelles, liberes,
                    added_prea, removed_prea, added_verrous, removed_verrous,
-                   added_contenus, removed_contenus, modifies_contenus))
+                   added_contenus, removed_contenus, modifies_contenus,
+                   changed_liens))
     # Le nom seul ne dit pas qu'un champ neuf est en lecture seule ; la rubrique
     # du brief s'intitule « à afficher/saisir », ce qui serait un contresens sur
     # un horodatage ou un total calculé.
@@ -697,10 +742,10 @@ def cmd_update(project_dir):
         print(f"  ! préalable levé : {item}")
     for item in sorted(added_verrous):
         print(f"  ! verrou de paiement : {item}")
-    for item in sorted(added_verrous):
-        print(f"  ! verrou de paiement : {item}")
     for item in sorted(removed_verrous):
         print(f"  ! verrou de paiement levé : {item}")
+    for item in sorted(changed_liens):
+        print(f"  ! rattachement : {item}")
     for item in sorted(added_contenus):
         print(f"  + contenu ajouté : {item}")
     for item in sorted(removed_contenus):
@@ -717,7 +762,7 @@ def cmd_update(project_dir):
                                          added_prea, removed_prea,
                                          added_verrous, removed_verrous,
                                          added_contenus, removed_contenus,
-                                         modifies_contenus)
+                                         modifies_contenus, changed_liens)
         print(f"  → Consigne prête pour l'IA frontend : {os.path.basename(brief_path)}")
     print("──────────────────────────────────────────────────────────────────")
     print("La base de données existante est préservée : les nouvelles colonnes "

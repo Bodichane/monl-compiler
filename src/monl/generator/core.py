@@ -434,28 +434,39 @@ class MonlSecureGenerator(
     def _client_fk_columns(self, entity):
         """Colonnes de clé étrangère que le CLIENT doit fournir à la création.
 
-        Ce sont les parents de l'entité autres que le parent « propriétaire »
-        (peuplé, lui, depuis l'identité JWT) : sans elles, une entité à deux
-        parents ne peut pas être rattachée à sa cible (un commentaire à son
-        post). N'a de sens que lorsqu'un parent propriétaire existe : sur une
-        création publique, aucune identité n'est disponible et le
+        Le complément exact de `_identity_fk_columns` : tout parent que le
+        jeton ne désigne pas doit être désigné par l'appelant, sans quoi la
+        colonne reste NULL et le rattachement demandé disparaît (un commentaire
+        sans son article, une variante sans son produit). Deux exclusions, et
+        deux seulement — la colonne d'identité, peuplée depuis le JWT, et la
+        cible d'un compteur, déclarée à part par `schemas.py` et la branche
+        `is_reputation_fk` de `routes.py` : la répéter ici l'écrirait deux fois.
+
+        Sur une création publique, aucune identité n'est disponible et le
         comportement historique (colonnes laissées à NULL) est conservé.
+
+        POINT 99 : le cas « aucune colonne d'identité » n'est plus réservé aux
+        entités transitives. Une entité fille d'une table MÉTIER (une variante
+        et son produit) n'a pas de propriétaire déduit du jeton : toutes ses
+        clés étrangères viennent donc du client.
         """
-        owner_info = self._get_incoming_relation(entity)
-        if not owner_info or (entity, "Create") in self.public_actions:
+        if (entity, "Create") in self.public_actions:
             return []
-        if any(r["target_entity"] == owner_info["source"]
-               for r in self.reputation_rules_by_trigger.get(entity, [])):
-            return []  # cible de compteur : déjà fournie par le client
-        # AJOUT (brique 11, point 81) : sous propriété transitive, le parent
+        placements = self._compute_fk_placements().get(entity, [])
+        if not placements:
+            return []
+        exclues = set(self._identity_fk_columns().get(entity, set()))
+        owner_info = self._get_incoming_relation(entity)
+        if owner_info and any(r["target_entity"] == owner_info["source"]
+                              for r in self.reputation_rules_by_trigger.get(entity, [])):
+            exclues.add(owner_info["fk_column"])  # cible de compteur
+        # Brique 11 (point 81) : sous propriété transitive, le parent
         # « propriétaire » est justement celui que le CLIENT doit désigner (« je
         # rattache cette ligne à CETTE commande ») -- il n'est plus déduit du
-        # jeton. Il rejoint donc les autres parents, et la route Create vérifie
-        # ensuite que l'enregistrement désigné appartient bien à l'appelant.
-        if entity in self.transitive_ownership:
-            return [p["fk_column"] for p in self._compute_fk_placements().get(entity, [])]
-        return [p["fk_column"] for p in self._compute_fk_placements().get(entity, [])
-                if p["fk_column"] != owner_info["fk_column"]]
+        # jeton. Il rejoint donc les autres parents (aucune colonne d'identité
+        # n'existe alors), et la route Create vérifie ensuite que
+        # l'enregistrement désigné appartient bien à l'appelant.
+        return [p["fk_column"] for p in placements if p["fk_column"] not in exclues]
 
     def _identity_fk_columns(self):
         """Colonnes de clé étrangère peuplées depuis l'identité JWT de l'appelant.
@@ -463,10 +474,25 @@ class MonlSecureGenerator(
         Retourne {entité: {colonnes}}. Ce sont celles que la route Create
         remplit avec 'current_user_id' (identifiant de compte), et non avec
         une valeur du corps de requête — elles référencent donc le registre
-        des comptes, pas la table métier homonyme. Même logique que
-        'populate_owner' dans routes.py : une seule source de vérité mènerait
-        à un couplage plus fort entre schéma et routes, les deux consomment
-        donc ce helper commun.
+        des comptes, pas la table métier homonyme. C'est la source UNIQUE de
+        cette distinction : le schéma SQL en tire son 'REFERENCES', le contrat
+        son 'references_account', la route Create son 'populate_owner', la
+        route de règlement la colonne qu'elle compare à l'appelant, et
+        'requiresOwn' la colonne où chercher une fiche.
+
+        POINT 99 : le parent doit être un ACTEUR. « Peuplée depuis l'identité de
+        l'appelant » n'a de sens que si le parent EST un compte : une entité
+        fille d'une table métier (une variante et son produit) n'a pas de
+        propriétaire à déduire du jeton. Sans cette condition, une telle colonne
+        recevait `current_user_id` et se déclarait `REFERENCES _monl_users` — la
+        variante était rattachée au vendeur qui l'avait créée, jamais à son
+        produit, et le client ne pouvait désigner aucun parent. Le nom de la
+        colonne disait une chose, son contenu une autre : le défaut du point 80,
+        par l'autre bout du même mécanisme.
+
+        Le choix ne dépend PAS de l'ordre de déclaration des relations : seuls
+        les parents acteurs sont candidats, et la règle 'ownedBy' tranche entre
+        eux s'il y en a plusieurs.
         """
         route_map = self._compute_route_map()
         creatable = {info["base_target"] for (act, _k), info in route_map.items() if act == "Create"}
@@ -474,12 +500,6 @@ class MonlSecureGenerator(
         for entity in self.entities:
             if entity not in creatable:
                 continue
-            owner_info = self._get_incoming_relation(entity)
-            if not owner_info:
-                continue
-            if any(r["target_entity"] == owner_info["source"]
-                   for r in self.reputation_rules_by_trigger.get(entity, [])):
-                continue  # cible choisie par le client : vraie référence métier
             if (entity, "Create") in self.public_actions:
                 continue  # aucune identité fiable : la colonne reste NULL
             if entity in self.transitive_ownership:
@@ -487,7 +507,19 @@ class MonlSecureGenerator(
                 # intermédiaire, pas un id de compte -- elle référence donc la
                 # vraie table métier, et non '_monl_users'.
                 continue
-            identity_cols.setdefault(entity, set()).add(owner_info["fk_column"])
+            cibles_compteur = {r["target_entity"]
+                               for r in self.reputation_rules_by_trigger.get(entity, [])}
+            candidats = [p for p in self._compute_fk_placements().get(entity, [])
+                         if p["owner_entity"] in self.actors
+                         # cible choisie par le client : vraie référence métier
+                         and p["owner_entity"] not in cibles_compteur]
+            if not candidats:
+                continue
+            proprietaires = {v for k, v in self.ownership.items()
+                             if k.split(".", 1)[0] == entity}
+            choisi = next((p for p in candidats if p["owner_entity"] in proprietaires),
+                          candidats[0])
+            identity_cols.setdefault(entity, set()).add(choisi["fk_column"])
         return identity_cols
 
     def generate_all(self):

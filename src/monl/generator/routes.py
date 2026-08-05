@@ -82,19 +82,23 @@ class RoutesMixin:
                 is_reputation_fk = owner_info and any(
                     r["target_entity"] == owner_info["source"] for r in reputation_rules_here
                 )
-                # Une route publique n'a par définition aucune identité
-                # appelante fiable — on ne tente pas d'y rattacher une clé
-                # étrangère "propriétaire" dans ce cas (la colonne reste NULL).
-                # AJOUT (brique 11, point 81) : sous propriété transitive, la
-                # colonne « propriétaire » ne se peuple PAS depuis le jeton --
-                # c'est le client qui désigne l'enregistrement de rattachement
-                # (« cette ligne va dans CETTE commande »). Y écrire
-                # `current_user_id` était le défaut du point 80 : le
-                # rattachement demandé disparaissait en silence, remplacé par
-                # l'id du compte appelant.
+                # POINT 99 : la question « cette colonne se peuple-t-elle depuis
+                # le jeton ? » a UNE réponse, `_identity_fk_columns`, et cette
+                # ligne la lit au lieu de la recalculer. Les quatre conditions
+                # qui vivaient ici (route publique, cible de compteur, propriété
+                # transitive, et désormais parent non-acteur) y sont réunies :
+                # les tenir à deux endroits, c'était deux endroits où elles
+                # pouvaient diverger — et la quatrième manquait des deux côtés.
+                # Rappel des trois premières : une route publique n'a aucune
+                # identité appelante fiable ; une cible de compteur est choisie
+                # par le client (« j'apprécie CE post ») ; et sous propriété
+                # transitive, c'est le client qui désigne le rattachement
+                # (« cette ligne va dans CETTE commande ») — y écrire
+                # `current_user_id` était le défaut du point 80.
                 chaine_create = self._transitive_chain(base_target)
-                populate_owner = (owner_info and not is_public
-                                  and not is_reputation_fk and not chaine_create)
+                colonnes_identite = self._identity_fk_columns().get(base_target, set())
+                colonne_identite = sorted(colonnes_identite)[0] if colonnes_identite else None
+                populate_owner = colonne_identite is not None
                 verifie_parent = bool(chaine_create) and not is_public
                 # AJOUT (roadmap, écosystème de capacités -- suite de la
                 # brique 1) : un champ 'generated' est peuplé depuis le
@@ -220,21 +224,23 @@ class RoutesMixin:
                     for f in fields
                 ]
                 if populate_owner:
-                    insert_columns.append(owner_info["fk_column"])
+                    insert_columns.append(colonne_identite)
                     value_exprs.append("current_user_id")
-                    for _client_fk in self._client_fk_columns(base_target):
-                        insert_columns.append(_client_fk)
-                        value_exprs.append(f"data.{_client_fk}")
-                elif verifie_parent:
-                    # Toutes les clés étrangères viennent du client ici, y
-                    # compris celle du parent propriétaire — que la
-                    # vérification ci-dessus vient de valider.
-                    for _client_fk in self._client_fk_columns(base_target):
-                        insert_columns.append(_client_fk)
-                        value_exprs.append(f"data.{_client_fk}")
                 elif is_reputation_fk:
                     insert_columns.append(owner_info["fk_column"])
                     value_exprs.append(f"data.{owner_info['fk_column']}")
+                # Tout parent que le jeton ne désigne pas doit être désigné par
+                # l'appelant. Trois cas y mènent : les parents SECONDAIRES d'une
+                # entité possédée (un commentaire et son article) ; sous
+                # propriété transitive, le parent propriétaire lui-même — que la
+                # vérification plus haut vient de valider ; et depuis le
+                # point 99, TOUS les parents d'une entité fille d'une table
+                # métier, qui n'a aucun propriétaire à déduire. Sur une création
+                # publique la liste est vide et les colonnes restent NULL,
+                # comportement historique conservé.
+                for _client_fk in self._client_fk_columns(base_target):
+                    insert_columns.append(_client_fk)
+                    value_exprs.append(f"data.{_client_fk}")
                 columns = ", ".join(f'"{c}"' for c in insert_columns)
                 placeholders = ", ".join(["?"] * len(insert_columns))
                 api_lines.append(f"    query = 'INSERT INTO \"{base_target.lower()}\" ({columns}) VALUES ({placeholders})'")
@@ -1093,7 +1099,18 @@ class RoutesMixin:
         ]
         for entite, champ in sorted(self.payable_by_entity.items()):
             table = entite.lower()
-            proprio = self._get_incoming_relation(entite)
+            # POINT 99 : la colonne comparée à `current_user_id` doit porter un
+            # identifiant de COMPTE — donc celle de `_identity_fk_columns`, et
+            # non la première relation entrante venue. Sur une entité fille
+            # d'une table métier, cette première relation porte l'id d'une ligne
+            # de catalogue : la comparaison aurait été fausse dans les deux sens
+            # (le propriétaire ne peut plus payer, un inconnu le peut si les
+            # deux identifiants coïncident). Le validateur refuse désormais ce
+            # cas ; l'assertion plus bas garantit qu'aucune divergence entre lui
+            # et cette ligne ne puisse écrire une route sans contrôle.
+            colonnes_compte = self._identity_fk_columns().get(entite, set())
+            proprio = ({"fk_column": sorted(colonnes_compte)[0]}
+                       if colonnes_compte else None)
             # POINT 87 : sous propriété TRANSITIVE, la clé étrangère de l'entité
             # désigne l'intermédiaire, pas un compte — c'est pourquoi le
             # point 81 refusait d'encaisser ici. Une jointure d'un cran rend
@@ -1106,17 +1123,24 @@ class RoutesMixin:
             # montant — donc la jointure entre DANS le SELECT, elle ne s'ajoute
             # pas à côté.
             chaine = self._transitive_chain(entite)
+            if not chaine and not proprio:
+                # POINT 99 : sans propriétaire, la route encaisserait n'importe
+                # quel enregistrement pour n'importe quel appelant authentifié
+                # (IDOR). Le validateur l'interdit — arriver ici signifie qu'il a
+                # divergé de cette couche. Échouer à la génération vaut mieux
+                # qu'écrire une route de paiement sans contrôle d'accès, même
+                # raisonnement que `_derived_source_fk`.
+                raise ValueError(
+                    f"Génération : '{entite}' est 'payable' mais aucune colonne ne "
+                    f"porte l'identifiant du compte propriétaire — la route de "
+                    f"règlement ne pourrait opposer de 403 à personne.")
             if chaine:
                 colonnes = f't."{champ}", t.payment_status, p."{chaine["actor_fk"]}"'
                 depuis = (f'"{table}" t JOIN "{chaine["via_table"]}" p '
                           f'ON p.id = t."{chaine["via_fk"]}"')
-                a_un_proprietaire = True
             else:
-                colonnes = f'"{champ}", payment_status'
-                if proprio:
-                    colonnes += f', "{proprio["fk_column"]}"'
+                colonnes = (f'"{champ}", payment_status, "{proprio["fk_column"]}"')
                 depuis = f'"{table}"'
-                a_un_proprietaire = bool(proprio)
             lignes += [
                 f"@app.post('/{table}/{{id}}/paiement', tags=['Paiement'])",
                 f"def payer_{table}(id: int, request: Request, "
@@ -1133,15 +1157,12 @@ class RoutesMixin:
                 "    if not ligne:",
                 "        raise HTTPException(status_code=404, detail='Introuvable.')",
             ]
-            if a_un_proprietaire:
-                lignes += [
-                    "    montant, etat, proprietaire = ligne",
-                    "    if proprietaire is not None and proprietaire != current_user_id:",
-                    "        raise HTTPException(status_code=403, detail="
-                    "'Cet enregistrement ne vous appartient pas.')",
-                ]
-            else:
-                lignes.append("    montant, etat = ligne")
+            lignes += [
+                "    montant, etat, proprietaire = ligne",
+                "    if proprietaire is not None and proprietaire != current_user_id:",
+                "        raise HTTPException(status_code=403, detail="
+                "'Cet enregistrement ne vous appartient pas.')",
+            ]
             lignes += [
                 "    if etat == 'payee':",
                 "        raise HTTPException(status_code=409, detail='Déjà réglé.')",
