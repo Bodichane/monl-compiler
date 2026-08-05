@@ -21,12 +21,15 @@
 # 'update' de mesurer le delta.
 # ─────────────────────────────────────────────────────────────────────
 import argparse
+import contextlib
 import hashlib
+import io
 import json
 import os
 import re
 import subprocess
 import sys
+import tempfile
 
 from .ast_validator import MonlAST
 from .frontend_ai import RETOUCHE_PROMPT_FILENAME, UPDATE_PROMPT_FILENAME
@@ -91,15 +94,22 @@ def _save_state(project_dir, spec_relpath):
 
 
 # ---------------------------------------------------------------- compile --
-def compile_project(spec_path, project_dir):
+def compile_project(spec_path, project_dir, base_dir=None, save_state=True):
     """Pipeline complet : spec → backend + contrat frontend + état.
     Réutilise compile_monl (main.py) pour le backend — même pipeline,
-    mêmes échappatoires IA non bloquantes — puis ajoute la couche contrat."""
+    mêmes échappatoires IA non bloquantes — puis ajoute la couche contrat.
+
+    POINT 103 : `base_dir` et `save_state` existent pour `monl diff`, qui
+    compile dans un dossier JETABLE. Les assets déclarés vivent, eux, dans le
+    vrai projet — les chercher dans le dossier temporaire ferait échouer la
+    compilation pour une raison qui n'existe pas. Et un dry-run n'a pas à
+    déposer d'état. Les deux paramètres gardent le comportement historique par
+    défaut : aucun appelant existant ne change."""
     from .main import compile_monl
     compile_monl(spec_path, output_dir=project_dir)
 
     raw = parse_monl_file(spec_path)
-    normalized = MonlAST(raw, base_dir=project_dir).validate_and_audit()
+    normalized = MonlAST(raw, base_dir=base_dir or project_dir).validate_and_audit()
     generator = MonlSecureGenerator(normalized, output_dir=project_dir)
     contract = generate_frontend_contract(normalized, generator, project_dir)
 
@@ -107,9 +117,10 @@ def compile_project(spec_path, project_dir):
     proj_abs = os.path.abspath(project_dir)
     spec_rel = (os.path.relpath(spec_abs, proj_abs)
                 if spec_abs.startswith(proj_abs + os.sep) else spec_abs)
-    _save_state(proj_abs, spec_rel)
     print(f" -> Contrat frontend      : {CONTRACT_FILENAME} + {PROMPT_FILENAME}")
-    print(f" -> État du projet        : {STATE_FILENAME}")
+    if save_state:
+        _save_state(proj_abs, spec_rel)
+        print(f" -> État du projet        : {STATE_FILENAME}")
     return contract
 
 
@@ -647,28 +658,43 @@ def _contract_signature(contract):
     return routes, fields, acces, lecture_seule, prealables, verrous, contenus, liens
 
 
-def cmd_update(project_dir):
+def _situer_projet(project_dir, geste):
+    """(dossier absolu, chemin de la spec) — ou sortie en erreur.
+
+    Partagé par 'update' et 'diff' : les deux partent du même état, et un seul
+    des deux qui saurait le lire serait une divergence de plus."""
     project_dir = os.path.abspath(project_dir)
     state = _load_state(project_dir)
     if state is None:
-        print(f" ❌ {STATE_FILENAME} introuvable — rien à mettre à jour ici.")
+        print(f" ❌ {STATE_FILENAME} introuvable — rien à {geste} ici.")
         sys.exit(1)
     spec_path = state["spec"] if os.path.isabs(state["spec"]) \
         else os.path.join(project_dir, state["spec"])
+    return project_dir, spec_path
 
-    old_routes, old_fields, old_acces, old_ro, old_prea, old_verrous, old_liens = (
-        set(), set(), set(), set(), set(), set(), set())
-    old_contenus = {}
+
+def _signature_precedente(project_dir):
+    """La signature du contrat DÉJÀ posé, ou des ensembles vides s'il n'y en a
+    pas encore — auquel cas tout est « ajouté », ce qui est exact."""
     contract_path = os.path.join(project_dir, CONTRACT_FILENAME)
-    if os.path.exists(contract_path):
-        with open(contract_path, encoding="utf-8") as fh:
-            (old_routes, old_fields, old_acces, old_ro,
-             old_prea, old_verrous, old_contenus,
-             old_liens) = _contract_signature(json.load(fh))
+    if not os.path.exists(contract_path):
+        return (set(), set(), set(), set(), set(), set(), {}, set())
+    with open(contract_path, encoding="utf-8") as fh:
+        return _contract_signature(json.load(fh))
 
-    new_contract = compile_project(spec_path, project_dir)
-    (new_routes, new_fields, new_acces, new_ro,
-     new_prea, new_verrous, new_contenus, new_liens) = _contract_signature(new_contract)
+
+def _rapporter_delta(ancienne, nouvelle, project_dir, ecrire_brief=True):
+    """Compare deux signatures de contrat, imprime le delta, et rend True s'il
+    y a de quoi réécrire quelque chose.
+
+    POINT 103 : extrait de `cmd_update` pour que `monl diff` en soit le MÊME
+    rapport, et pas une deuxième implémentation. Deux calculs de delta
+    finiraient par diverger — et c'est précisément le calcul dont cinq points
+    (88 à 91, 94, 99) ont montré qu'il est difficile à tenir juste."""
+    (old_routes, old_fields, old_acces, old_ro, old_prea, old_verrous,
+     old_contenus, old_liens) = ancienne
+    (new_routes, new_fields, new_acces, new_ro, new_prea, new_verrous,
+     new_contenus, new_liens) = nouvelle
 
     added_routes, removed_routes = new_routes - old_routes, old_routes - new_routes
     added_fields, removed_fields = new_fields - old_fields, old_fields - new_fields
@@ -754,7 +780,7 @@ def cmd_update(project_dir):
         print(f"  ! contenu réécrit : {item}")
     if not changes:
         print("  (aucun changement d'interface — le frontend existant reste valide)")
-    else:
+    elif ecrire_brief:
         brief_path = _write_update_brief(project_dir, added_routes, removed_routes,
                                          added_fields, removed_fields,
                                          added_acces, removed_acces,
@@ -765,8 +791,55 @@ def cmd_update(project_dir):
                                          modifies_contenus, changed_liens)
         print(f"  → Consigne prête pour l'IA frontend : {os.path.basename(brief_path)}")
     print("──────────────────────────────────────────────────────────────────")
+    return changes
+
+
+def cmd_update(project_dir):
+    project_dir, spec_path = _situer_projet(project_dir, "mettre à jour")
+    ancienne = _signature_precedente(project_dir)
+    nouveau = compile_project(spec_path, project_dir)
+    _rapporter_delta(ancienne, _contract_signature(nouveau), project_dir)
     print("La base de données existante est préservée : les nouvelles colonnes "
           "sont ajoutées par migration additive au démarrage (docs/MIGRATIONS.md).")
+
+
+# ------------------------------------------------------------------- diff --
+# POINT 103 : `monl update` écrit PUIS rapporte. Tant que le rapport dit ce
+# qu'on attendait, l'ordre est sans conséquence ; le jour où il annonce un
+# écran entier à réécrire, on aimerait l'avoir su avant d'avoir recompilé et
+# remplacé le contrat de référence.
+#
+# `monl diff` répond à la même question sans rien toucher : il compile dans un
+# dossier TEMPORAIRE, compare, imprime, et s'en va. Aucun fichier du projet
+# n'est écrit — ni app.py, ni le contrat, ni monl.json, ni la consigne
+# d'évolution.
+def cmd_diff(project_dir):
+    project_dir, spec_path = _situer_projet(project_dir, "comparer")
+    ancienne = _signature_precedente(project_dir)
+
+    # Le dossier de sortie est jetable, mais `base_dir` doit rester le VRAI
+    # projet : c'est lui qui porte les assets déclarés, et les vérifier dans un
+    # dossier vide ferait échouer la compilation pour une raison qui n'existe
+    # pas (brique 13, point 83).
+    with tempfile.TemporaryDirectory(prefix="monl-diff-") as atelier:
+        tampon = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(tampon):
+                nouveau = compile_project(spec_path, atelier,
+                                          base_dir=project_dir, save_state=False)
+        except BaseException:
+            # La compilation a échoué : c'est SON message qui est utile, pas le
+            # nôtre. `SystemExit` compris — le pipeline sort par là.
+            print(tampon.getvalue(), end="")
+            raise
+
+    print("\n[DRY-RUN] Aucun fichier modifié — comparaison seule.")
+    changes = _rapporter_delta(ancienne, _contract_signature(nouveau),
+                               project_dir, ecrire_brief=False)
+    if changes:
+        print("Pour appliquer ce changement et écrire la consigne d'évolution : "
+              "monl update")
+    return changes
 
 
 # --------------------------------------------------------------- retouche --
@@ -1007,6 +1080,11 @@ def main(argv=None):
     p_update = sub.add_parser("update", help="Recompiler après évolution de la spec.")
     p_update.add_argument("dir", nargs="?", default=".")
 
+    p_diff = sub.add_parser(
+        "diff",
+        help="Voir le delta du contrat SANS rien recompiler ni écrire.")
+    p_diff.add_argument("dir", nargs="?", default=".")
+
     p_front = sub.add_parser(
         "frontend", help="Générer le frontend par une IA spécialisée, avec "
                          "re-vérification automatique (cohérence + smoke test).")
@@ -1111,6 +1189,8 @@ def main(argv=None):
         cmd_run(args.dir, check_only=args.check, port=args.port, skip_smoke=args.skip_smoke)
     elif args.command == "update":
         cmd_update(args.dir)
+    elif args.command == "diff":
+        cmd_diff(args.dir)
     elif args.command == "assets":
         if args.assets_command == "add":
             if args.logo and args.favicon:

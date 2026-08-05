@@ -1011,6 +1011,14 @@ ci-dessous. Le backend existe déjà et ne doit pas être modifié.
   comme point d'entrée (HTML/CSS/JS statiques, aucun build requis).
 - Frontend AUTONOME : aucune librairie CDN, aucun script externe — tout le
   JS/CSS vit dans `frontend/` (c'est ce qui rend le smoke test possible).
+- Iconographie : aucune librairie d'icônes (Font Awesome, Material, Lucide,
+  Bootstrap Icons…) n'est atteignable, puisque aucun CDN ne l'est — et une
+  police d'icônes distante ne le serait pas davantage. Ce qui FONCTIONNE et est
+  servi : le SVG écrit EN LIGNE dans le HTML, et les fichiers `.svg` déposés
+  dans `frontend/` (extension en liste blanche). monl ne dit pas s'il faut des
+  icônes, ni lesquelles, ni dans quel style — il dit seulement par quel moyen
+  elles sont possibles, parce que la règle ci-dessus, lue seule, laisse croire
+  qu'elles ne le sont pas.
 - N'appeler QUE les routes listées plus bas, en chemins RELATIFS —
   `fetch('/entite')`, JAMAIS `fetch('http://127.0.0.1:8000/entite')`. Le
   frontend est servi sur `/site` par le serveur qui porte l'API : l'origine

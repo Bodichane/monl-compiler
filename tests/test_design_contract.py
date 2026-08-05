@@ -122,6 +122,36 @@ def test_le_brief_garde_les_deux_exigences_qui_ne_sont_pas_du_gout():
     assert "aucune ressource distante" in brief
 
 
+def test_le_brief_dit_par_quel_moyen_une_icone_est_possible():
+    """POINT 104 : constat du mainteneur — aucun site produit n'employait
+    d'icône. Ce n'était pas un défaut de l'IA : le brief interdit les CDN et ne
+    disait NULLE PART que le SVG en ligne fonctionne. Lue seule, la règle
+    d'autonomie se lit « pas d'icônes possibles ».
+
+    Énoncer un MOYEN n'est pas prescrire un goût — même frontière qu'au
+    point 72 pour le contraste WCAG et l'autonomie."""
+    with tempfile.TemporaryDirectory() as workdir:
+        _contrat_, brief = _brief(BASE, workdir)
+    assert "SVG" in brief
+    assert "en liste blanche" in brief or ".svg" in brief
+
+
+def test_le_brief_ne_recommande_aucune_icone_ni_aucun_style_dicone():
+    """La contre-épreuve du test précédent, et la garantie du point 72 : monl
+    dit par quel MOYEN, jamais s'il en faut ni lesquelles. Sans ce test, la
+    ligne ajoutée au point 104 pourrait dériver vers de la prescription à la
+    première réécriture."""
+    with tempfile.TemporaryDirectory() as workdir:
+        _contrat_, brief = _brief(BASE, workdir)
+    bas = brief.lower()
+    # Les librairies ne sont nommées que pour dire qu'elles sont HORS D'ATTEINTE.
+    for interdit in ("style d'icône", "icônes arrondies", "icônes pleines",
+                     "jeu d'icônes recommandé", "utiliser des icônes pour",
+                     "ajouter une icône"):
+        assert interdit not in bas, interdit
+    assert "n'est atteignable" in bas or "atteignable" in bas
+
+
 def test_le_brief_dit_explicitement_que_le_visuel_ne_vient_pas_du_compilateur():
     """Un brief muet laisserait croire à un oubli. Il doit énoncer la règle,
     sinon l'IA d'interface cherchera la direction qu'elle croit manquante."""

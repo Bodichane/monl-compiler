@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (663 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (675 tests
   actuellement ; `tests/test_demo.py` et `tests/test_design_contract.py`
   s'appuient sur le dossier `demo/` versionné — ne pas le supprimer)
 
@@ -623,6 +623,7 @@ réseau social anonyme comme banc d'essai final.
   **monl vérifie la complétude, jamais la véracité** ; `CREDITS.json` reste une
   convention de projet, et `monl assets add` se borne à signaler qu'un fichier
   n'y figure pas (point 84).
+- (FERMÉ au point 103 : le dry-run du delta, par `monl diff`.)
 - (FERMÉ : `monl run --check` signale les artefacts produits par un compilateur
   antérieur. La détection compare à une RÉGÉNÉRATION et non à un numéro de
   version — `__version__` n'avait pas bougé pendant les points 74 à 81, un
@@ -646,10 +647,16 @@ réseau social anonyme comme banc d'essai final.
 - (Le mode `template` de l'ancienne landing n'existe plus : tout le
   frontend généré par monl a été retiré au point 41.)
 
-## Trois gestes sur un site en marche, et lequel choisir
+## Quatre gestes sur un site en marche, et lequel choisir
 
+- **`monl diff`** (point 103) — la question de `monl update`, posée SANS rien
+  écrire. Compile dans un dossier temporaire, imprime le MÊME rapport
+  (`_rapporter_delta` est partagé — deux calculs de delta divergeraient, et
+  c'est le calcul que six points ont eu du mal à tenir juste), et s'en va.
+  Aucun fichier du projet n'est touché, contrat de référence compris.
 - **`monl update`** — la SPEC a changé. Recompile et rapporte le delta du
-  contrat (routes, champs, accès, lecture seule, préalables, verrous, contenu).
+  contrat (routes, champs, accès, lecture seule, préalables, verrous, contenu,
+  rattachements).
 - **`monl retouche "<ce qui cloche>"`** (point 93) — la spec n'a PAS changé, le
   site est juste au regard du contrat, mais quelque chose cloche à l'œil.
   Corrige sans reconstruire, sauvegarde dans `frontend.precedent/`, et **échoue
@@ -802,6 +809,14 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   l'interface `PlainDialogueUI` (rendu nu = chaînes historiques) ; le rendu
   stylé n'est injecté que par `run_interactive_dialogue`. Ne jamais mettre de
   logique de dialogue dans tui.py, ni de mise en forme dans dialogue_engine.py.
+- POINT 104 : le brief dit désormais **par quel MOYEN une icône est possible**
+  (SVG en ligne, fichiers `.svg` en liste blanche). Constat du mainteneur :
+  aucun site produit n'employait d'icône — pas un défaut de l'IA, mais une
+  lecture correcte d'un brief qui interdisait les CDN sans jamais dire ce qui
+  restait faisable. Énoncer un MOYEN n'est pas prescrire un goût : même
+  frontière que le contraste WCAG et l'autonomie, gardés par le point 72
+  lui-même. Frontière mince, donc gardée par un test — le brief ne doit
+  recommander aucune icône ni aucun style d'icône.
 - Direction de design (point 72) : le compilateur ne décide RIEN du visuel —
   ni palette, ni typographie, ni rayon. Le bloc `ui … theme:` reste accepté
   par la grammaire mais n'a plus aucun effet, `.monl_theme_seed` a disparu, et

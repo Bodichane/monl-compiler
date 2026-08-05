@@ -122,7 +122,9 @@ en l'état car de nombreux renvois internes s'y appuient) ·
 [99](#99-le-rattachement-fantôme-et-la-sécurité-qui-nétait-quun-accident) Le rattachement fantôme, et la sécurité qui n'était qu'un accident ·
 [100](#100-une-vitrine-qui-montre-des-enfants-et-la-désignation-qui-se-lit) Une vitrine qui montre des enfants, et la désignation qui se lit ·
 [101](#101-le-type-frère-resté-debout-dix-points-de-plus) Le type frère, resté debout dix points de plus ·
-[102](#102-le-numéro-que-lhumain-lit-et-dicte) Le numéro que l'humain lit et dicte
+[102](#102-le-numéro-que-lhumain-lit-et-dicte) Le numéro que l'humain lit et dicte ·
+[103](#103-voir-le-delta-avant-décrire) Voir le delta avant d'écrire ·
+[104](#104-les-icônes-quon-croyait-interdites) Les icônes qu'on croyait interdites
 
 ---
 
@@ -6359,3 +6361,118 @@ laisser croire.
 Vérifié en réel sur `exemples/02_boutique.ml`, qui abandonne son `UUID` : trois
 commandes créées sans qu'aucun corps ne porte de référence sortent
 `CMD-2026-0001`, `-0002`, `-0003`, et le smoke test passe sans un avertissement.
+
+## 103. Voir le delta avant d'écrire
+
+`monl update` écrit PUIS rapporte. Tant que le rapport dit ce qu'on attendait,
+l'ordre est sans conséquence. Le jour où il annonce un écran entier à réécrire
+— et six points ont montré que ça arrive (88 à 91, 94, 99) — on aimerait
+l'avoir su avant d'avoir recompilé et remplacé le contrat de référence.
+
+```bash
+monl diff        # même rapport, aucun fichier touché
+```
+
+### Une source, pas deux
+
+La tentation était d'écrire un second calcul de delta, plus simple, « juste pour
+regarder ». C'est exactement ce que ce dépôt refuse : le calcul du delta est
+celui dont **six points** ont montré qu'il est difficile à tenir juste, et deux
+implémentations divergeraient au premier ajout. `_rapporter_delta` est donc
+extrait de `cmd_update` et partagé, avec `_situer_projet` et
+`_signature_precedente`. Le test qui l'atteste compare les deux sorties ligne à
+ligne.
+
+### Le piège du dossier jetable
+
+Un dry-run compile dans un dossier temporaire. Mais `compile_project` validait
+les assets déclarés **dans son dossier de sortie** — donc un projet
+parfaitement valide aurait échoué en annonçant un logo manquant qui, lui, est
+bien là. C'est le seul endroit où le geste a demandé de rouvrir du code
+existant : `compile_project` accepte désormais `base_dir` (où sont les fichiers
+de l'humain) séparément du dossier de sortie, et `save_state` pour ne pas
+déposer d'état pendant un essai. Les deux gardent le comportement historique
+par défaut.
+
+Cette asymétrie existait déjà, discrètement : `compile_monl` résout les assets
+depuis le dossier de la SPEC, `compile_project` depuis le dossier de sortie. Sur
+un projet ordinaire les deux coïncident, ce qui est la raison pour laquelle
+personne ne l'avait vue.
+
+### Ce qui n'est pas écrit
+
+Ni `app.py`, ni `schema.sql`, ni le contrat, ni `monl.json`, ni
+`FRONTEND_UPDATE_PROMPT.md`. Le test ne vérifie pas une LISTE de fichiers — il
+compare l'empreinte de l'ARBRE entier avant et après. Une liste laisse passer le
+fichier auquel on n'a pas pensé ; c'est le raisonnement des garde-fous
+d'empreinte du point 73, appliqué en sens inverse.
+
+Le contrat déjà posé mérite une mention à part : il est la RÉFÉRENCE de la
+comparaison. L'écraser pendant un dry-run rendrait le geste suivant aveugle.
+
+### Détail d'ergonomie
+
+La compilation d'essai est silencieuse — son bandeau et son audit n'apprennent
+rien à qui demande un diff. Mais si elle échoue, c'est SON message qui
+s'affiche : le nôtre ne dirait que « ça n'a pas marché ». Et `diff` ne renvoie
+vers `monl update` que lorsqu'il y a quelque chose à appliquer — envoyer
+appliquer un changement qui n'existe pas apprend à ne plus lire les messages
+(même arbitrage qu'aux points 57 et 92).
+
+### Éprouvé par
+
+`tests/test_diff.py` (10 tests) : l'empreinte de l'arbre inchangée, le contrat
+de référence intact, la consigne d'évolution non écrite (et écrite par `update`,
+sur la même spec), l'égalité ligne à ligne des deux rapports, le silence quand
+la spec n'a pas bougé, l'arrêt sans `monl.json`, le message du compilateur
+laissé passer, et le projet à assets qui compile sans se plaindre d'un fichier
+qui existe.
+
+## 104. Les icônes qu'on croyait interdites
+
+Constat du mainteneur, en regardant les sites produits : **aucun n'emploie
+d'icône**. Aucune, jamais, quel que soit le projet.
+
+La tentation était de conclure à un défaut de l'IA d'interface, ou à un manque
+de direction visuelle. C'est le brief qu'il fallait lire — même réflexe qu'au
+point 94, où une FAQ collée venait de la SPEC et non du frontend.
+
+Le brief dit :
+
+> Frontend AUTONOME : aucune librairie CDN, aucun script externe
+
+et ne dit **nulle part** ce qui reste possible. Une IA qui lit cette ligne
+conclut correctement que Font Awesome, Material Icons et Lucide sont hors
+d'atteinte — et, faute de savoir que le SVG en ligne fonctionne, elle joue la
+sécurité et n'en met aucune. Le `.svg` est pourtant en liste blanche depuis
+toujours (`ALLOWED_EXTENSIONS`, frontend_ai.py) : le moyen existait, il n'était
+simplement écrit nulle part.
+
+### Pourquoi ce n'est pas une entorse au point 72
+
+Le point 72 a retiré du contrat toute prescription visuelle — palette,
+typographie, rayon — au motif qu'« une suggestion écrite dans le document qui
+fait foi n'est pas neutre ». Il a en même temps gardé deux choses, et l'a écrit :
+le contraste WCAG et l'autonomie du frontend, parce que « ni l'un ni l'autre
+n'est une question de goût ».
+
+Un MOYEN tombe du même côté que ces deux-là. Le brief ne dit pas s'il faut des
+icônes, ni lesquelles, ni dans quel style — il dit par quel moyen elles sont
+possibles, précisément parce que la règle d'autonomie, lue seule, laisse croire
+qu'elles ne le sont pas. Corriger une lecture erronée n'est pas orienter le
+goût.
+
+La frontière est mince, et elle est donc gardée par un TEST : le brief ne doit
+recommander aucune icône ni aucun style d'icône. Sans ce garde-fou, la ligne
+ajoutée ici dériverait vers de la prescription à la première réécriture.
+
+### Éprouvé par
+
+Deux tests dans `tests/test_design_contract.py` — le fichier qui prouve que le
+compilateur se TAIT sur le visuel, et qui est donc le bon endroit pour poser la
+limite de ce silence : l'un exige que le moyen soit énoncé, l'autre qu'aucune
+recommandation ne le soit.
+
+Ce point ne fait rien reconstruire : les sites existants n'ont pas d'icônes et
+n'en auront pas tant qu'ils ne sont pas régénérés. Il change ce que la
+PROCHAINE construction saura.
