@@ -124,7 +124,8 @@ en l'état car de nombreux renvois internes s'y appuient) ·
 [101](#101-le-type-frère-resté-debout-dix-points-de-plus) Le type frère, resté debout dix points de plus ·
 [102](#102-le-numéro-que-lhumain-lit-et-dicte) Le numéro que l'humain lit et dicte ·
 [103](#103-voir-le-delta-avant-décrire) Voir le delta avant d'écrire ·
-[104](#104-les-icônes-quon-croyait-interdites) Les icônes qu'on croyait interdites
+[104](#104-les-icônes-quon-croyait-interdites) Les icônes qu'on croyait interdites ·
+[105](#105-deux-messages-qui-envoyaient-corriger-ce-qui-nétait-pas-cassé) Deux messages qui envoyaient corriger ce qui n'était pas cassé
 
 ---
 
@@ -6476,3 +6477,75 @@ recommandation ne le soit.
 Ce point ne fait rien reconstruire : les sites existants n'ont pas d'icônes et
 n'en auront pas tant qu'ils ne sont pas régénérés. Il change ce que la
 PROCHAINE construction saura.
+
+## 105. Deux messages qui envoyaient corriger ce qui n'était pas cassé
+
+Constat du mainteneur, en lançant une retouche sur un vrai projet :
+
+```
+monl retouche /projets/SneakerLab "utilise plutôt des icônes …" --provider claude-code
+❌ monl.json introuvable — ce dossier n'est pas un projet monl.
+```
+
+Une seule ligne de réponse, et deux fautes distinctes dedans — dont aucune n'est
+celle que le message désigne.
+
+### Le dossier n'existait pas du tout
+
+`_load_state` rend `None` aussi bien pour « dossier absent » que pour « dossier
+sans monl.json », et les quatre appels concluaient à la seconde. `monl frontend`
+allait plus loin encore : « lancer 'monl' ou 'monl compile' » — il envoyait
+recompiler un projet que monl n'avait jamais trouvé.
+
+C'est le reproche du point 97, sur un autre message : **une hypothèse affichée
+comme un diagnostic est pire qu'un message vague.** Là-bas, monl conseillait de
+reformuler une demande qui était déjà claire ; ici, il conseille de compiler un
+dossier qui n'existe pas.
+
+Les deux questions se posent dans un ordre, et il faut le respecter : le dossier
+existe-t-il, PUIS porte-t-il un projet. Répondre à la seconde quand la première
+a échoué, c'est répondre à côté.
+
+`_erreur_de_chemin` (cli.py) est cette première question, partagée par les
+quatre points d'entrée. Elle explique aussi la faute qui a motivé le point :
+**une barre oblique de tête**. `/projets/SneakerLab` n'est pas « projets/SneakerLab
+ici » — c'est `SneakerLab` dans un dossier `projets` à la RACINE DU SYSTÈME.
+Quand le voisin relatif existe, monl le propose ; quand il n'existe pas non
+plus, il ne propose rien, parce qu'un chemin inventé enverrait chercher une
+deuxième fois pour rien.
+
+### Et les deux arguments étaient inversés
+
+`retouche` est le SEUL geste dont le premier argument n'est pas le dossier :
+`run`, `update`, `diff`, `compile` et `frontend` le prennent tous en tête.
+Écrire le dossier d'abord est donc le réflexe — et monl répondait « ce dossier
+n'est pas un projet monl » en parlant de la PHRASE qu'on venait de lui donner.
+
+Trois façons de traiter ça, et le choix n'est pas neutre :
+
+- **inverser l'ordre des arguments** : casse `monl retouche "texte"`, la forme
+  la plus courante, puisque le dossier vaut « . » par défaut ;
+- **accepter les deux ordres en devinant** : magique, et faux le jour où une
+  demande ressemble à un chemin ;
+- **NOMMER l'inversion**, et laisser l'auteur la corriger. C'est ce qui est
+  fait.
+
+Le diagnostic ne s'appuie pas sur une intuition mais sur deux faits opposés :
+la demande ne contient aucune espace et ressemble à un chemin, tandis que le
+« dossier » contient des espaces. Un faux positif ne coûterait qu'un message —
+il ne change aucun comportement — mais il refuserait une retouche bien écrite,
+d'où le test qui l'interdit explicitement.
+
+**La commande proposée doit MARCHER telle quelle.** Recopier le chemin dont on
+vient de dire qu'il est faux ferait buter une deuxième fois, sur un autre
+message : la suggestion corrige donc aussi la barre oblique quand elle le peut.
+
+### Éprouvé par
+
+`tests/test_chemins_et_arguments.py` (13 tests) : le dossier absent nommé comme
+tel et sans un mot sur monl.json ni la compilation, la barre oblique expliquée,
+la suggestion qui ne s'invente pas de voisin, les gestes qui s'arrêtent sur le
+chemin plutôt que sur l'état, la vérification de cohérence qui ne conseille plus
+de recompiler — puis l'inversion détectée, l'ordre correct qui ne déclenche
+rien (le témoin qui compte le plus : un faux positif refuserait une retouche
+valide), et la commande proposée dont le chemin est déjà corrigé.

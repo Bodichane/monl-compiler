@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (675 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (688 tests
   actuellement ; `tests/test_demo.py` et `tests/test_design_contract.py`
   s'appuient sur le dossier `demo/` versionné — ne pas le supprimer)
 
@@ -904,6 +904,18 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   regex ancrée en fin de ligne ; la désignation de parent la faisait échouer en
   silence, alors que l'AST contenait bien le bloc. La question rejoint celle
   de `_contract_signature` dans la liste à poser AVANT d'écrire une brique.
+- POINT 105 : **le dossier existe-t-il, PUIS porte-t-il un projet.** `_load_state`
+  rend `None` dans les deux cas, et les quatre points d'entrée concluaient à la
+  seconde — `monl frontend` conseillait même « lancer 'monl compile' » pour un
+  dossier jamais trouvé. `_erreur_de_chemin` (cli.py) pose la première question,
+  partagée, et explique la barre oblique de tête (`/projets/X` est cherché à la
+  RACINE DU SYSTÈME). Même reproche qu'au point 97 : une hypothèse affichée
+  comme un diagnostic envoie corriger ce qui n'est pas cassé.
+  **`retouche` est le SEUL geste dont le premier argument n'est pas le dossier**
+  (`run`, `update`, `diff`, `compile`, `frontend` le prennent tous en tête) :
+  l'inversion est donc l'erreur attendue, elle est DÉTECTÉE et NOMMÉE — jamais
+  corrigée d'office, ce serait deviner. Le témoin à ne pas perdre : un faux
+  positif refuserait une retouche bien écrite.
 - POINT 97 : la sortie de l'agent est CONSERVÉE et affichée quand rien n'a
   bougé. `run_cli_agent` la rendait déjà, personne ne la lisait — monl affichait
   « reformuler en nommant l'écran » sur une demande qui les nommait, pendant que

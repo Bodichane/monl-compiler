@@ -59,6 +59,38 @@ def _load_state(project_dir):
         return json.load(fh)
 
 
+def _erreur_de_chemin(project_dir):
+    """Message d'erreur quand le DOSSIER lui-même n'existe pas, ou None.
+
+    POINT 105 : « monl.json introuvable — ce dossier n'est pas un projet monl »
+    s'affichait aussi quand le dossier n'existait pas du tout, et `monl frontend`
+    allait jusqu'à conseiller « lancer 'monl compile' ». Le message envoyait donc
+    corriger une compilation absente alors que c'est le CHEMIN qui était faux —
+    une hypothèse affichée comme un diagnostic, exactement ce que le point 97
+    reproche au conseil de reformulation.
+
+    Deux niveaux, dans l'ordre où les questions se posent : le dossier
+    existe-t-il, PUIS porte-t-il un projet. Répondre à la seconde quand la
+    première a échoué, c'est répondre à côté."""
+    if os.path.isdir(project_dir):
+        return None
+    lignes = [f" ❌ Dossier introuvable : {project_dir}"]
+    # La faute la plus courante, et celle qui a motivé ce point : un chemin
+    # RELATIF écrit avec une barre oblique de tête. `/projets/X` n'est pas
+    # « projets/X ici » — c'est « X dans le dossier projets À LA RACINE DU
+    # SYSTÈME », qui n'existe évidemment pas.
+    if project_dir.startswith(os.sep):
+        voisin = project_dir.lstrip(os.sep)
+        if os.path.isdir(voisin):
+            lignes.append(
+                f"    Le chemin commence par « {os.sep} » : il est cherché à la "
+                f"racine du système, pas depuis ici.")
+            lignes.append(f"    Vouliez-vous dire : {voisin}")
+    lignes.append("    (le contenu du dossier n'a pas encore été regardé : "
+                  "c'est le chemin qui bloque, pas la compilation)")
+    return "\n".join(lignes)
+
+
 # Ce que la spec produit et que personne ne doit retoucher à la main
 # (manage.py et sandbox_ai.py compris : ils portent des droits).
 SCELLE_ARTEFACTS = ("app.py", "schema.sql", "sandbox_ai.py", "manage.py")
@@ -187,6 +219,11 @@ def check_coherence(project_dir):
     cohérent. Retourne (ok, erreurs, avertissements)."""
     errors, warnings = [], []
     project_dir = os.path.abspath(project_dir)
+
+    souci = _erreur_de_chemin(project_dir)
+    if souci:
+        errors.append(souci.replace(" ❌ ", "").strip())
+        return False, errors, warnings
 
     state = _load_state(project_dir)
     if state is None:
@@ -664,6 +701,10 @@ def _situer_projet(project_dir, geste):
     Partagé par 'update' et 'diff' : les deux partent du même état, et un seul
     des deux qui saurait le lire serait une divergence de plus."""
     project_dir = os.path.abspath(project_dir)
+    souci = _erreur_de_chemin(project_dir)
+    if souci:
+        print(souci)
+        sys.exit(1)
     state = _load_state(project_dir)
     if state is None:
         print(f" ❌ {STATE_FILENAME} introuvable — rien à {geste} ici.")
@@ -956,11 +997,48 @@ def _lancer_ia(args, update_mode=False, retouche_mode=False):
         sys.exit(1)
 
 
+def _arguments_inverses(demande, dossier):
+    """`monl retouche <dossier> "<ce qui cloche>"` — l'erreur attendue.
+
+    POINT 105 : `retouche` est le SEUL geste dont le premier argument n'est pas
+    le dossier ; `run`, `update`, `diff`, `compile` et `frontend` le prennent
+    tous en tête. Écrire le dossier en premier est donc le réflexe, et monl
+    répondait « ce dossier n'est pas un projet monl » en parlant de la PHRASE.
+
+    Le diagnostic NOMME l'inversion, il ne la corrige pas : remettre les
+    arguments en place à la place de l'auteur, ce serait deviner — et se
+    tromper le jour où une demande ressemble à un chemin. Même arbitrage que
+    partout ailleurs dans ce dépôt."""
+    demande, dossier = demande or "", dossier or ""
+    ressemble_a_un_chemin = " " not in demande and (
+        os.sep in demande or os.path.isdir(demande))
+    return ressemble_a_un_chemin and " " in dossier
+
+
 def cmd_retouche(project_dir, demande, say=print):
     """Écrit la consigne et prépare le terrain. L'appel à l'IA est fait par
     l'appelant (main), qui porte déjà le choix du fournisseur — la retouche
     n'ouvre AUCUNE voie nouvelle vers le modèle."""
+    if _arguments_inverses(demande, project_dir):
+        say(" ❌ Les deux arguments semblent inversés.")
+        say(f"    « {demande} » ressemble à un dossier, et « {project_dir[:50]}"
+            f"{'…' if len(project_dir) > 50 else ''} » à ce qui cloche.")
+        say("    'retouche' attend la DEMANDE d'abord (c'est le seul geste dans "
+            "ce sens) :")
+        # La commande proposée doit MARCHER telle quelle : recopier un chemin
+        # dont on sait déjà qu'il est faux ferait buter l'auteur une deuxième
+        # fois, sur un autre message.
+        cible = demande
+        if not os.path.isdir(cible) and cible.startswith(os.sep) \
+                and os.path.isdir(cible.lstrip(os.sep)):
+            cible = cible.lstrip(os.sep)
+        say(f'      monl retouche "{project_dir}" {cible}')
+        sys.exit(1)
     project_dir = os.path.abspath(project_dir)
+    souci = _erreur_de_chemin(project_dir)
+    if souci:
+        say(souci)
+        sys.exit(1)
     if _load_state(project_dir) is None:
         say(f" ❌ {STATE_FILENAME} introuvable — ce dossier n'est pas un projet monl.")
         sys.exit(1)
@@ -985,6 +1063,10 @@ def _spec_du_projet(project_dir):
     Passer le chemin à assets_tool plutôt que de lui faire relire monl.json :
     l'état du projet est une affaire du CLI, et un second lecteur de monl.json
     serait un second endroit à corriger."""
+    souci = _erreur_de_chemin(os.path.abspath(project_dir))
+    if souci:
+        print(souci)
+        sys.exit(1)
     state = _load_state(os.path.abspath(project_dir))
     if state is None:
         print(f" ❌ {STATE_FILENAME} introuvable — ce dossier n'est pas un projet "
