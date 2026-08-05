@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (639 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (663 tests
   actuellement ; `tests/test_demo.py` et `tests/test_design_contract.py`
   s'appuient sur le dossier `demo/` versionné — ne pas le supprimer)
 
@@ -117,7 +117,7 @@ réseau social anonyme comme banc d'essai final.
 > fichiers, ils n'existent plus.
 >
 > Attention à la nuance : compiler n'est pas se comporter correctement.
-> **Les vingt-et-une briques sont désormais éprouvées contre un vrai serveur
+> **Les vingt-deux briques sont désormais éprouvées contre un vrai serveur
 > éphémère** : `accessibleBy` (`tests/test_access_parties.py`), le filtrage de
 > lecture d'`ownedBy` (`tests/test_lecture_privee.py`), le masquage `hidden`
 > (`tests/test_masquage_hidden.py`, point 64), puis `generated`, `increments`,
@@ -564,6 +564,28 @@ réseau social anonyme comme banc d'essai final.
     TEXTUELLEMENT — sa regex a dû apprendre la nouvelle forme, sinon il sautait
     le bloc en silence. Voir point 100.
 
+22. **`rule Entite.champ numbered "CMD-{YYYY}-{NNNN}"`** — le numéro que
+    l'humain lit et dicte, attribué par le serveur à la création et jamais
+    ensuite. Même famille que `timestamp` : absent des corps de requête,
+    création ET modification. Née du point 101 : `Order.reference` était un
+    `UUID`, donc une chaîne que le CLIENT écrivait — personne ne dicte un UUID au
+    téléphone. **Le compteur vit dans une table SYSTÈME** (`_monl_sequences`,
+    clé primaire `(entite, champ, periode)`) et jamais dans un `MAX(...) + 1` sur
+    la table métier, qui redonnerait le numéro d'un enregistrement SUPPRIMÉ —
+    deux factures, une référence. C'est la PÉRIODE qui fait repartir la séquence
+    (année, mois ou jour selon les jalons du gabarit ; `''` = séquence globale).
+    **L'attribution vit DANS la transaction de création** : hors d'elle, une
+    insertion refusée laisserait le compteur avancé. **L'index unique est créé
+    sans qu'on déclare `unique`** — faire dépendre cette garantie d'une ligne
+    qu'on peut oublier rouvrirait la porte du point 85. Six refus, dont le
+    gabarit sans séquence (tous les enregistrements porteraient le même numéro)
+    et le mois sans année (`CMD-03-0001` revient chaque mars — l'index unique
+    l'attraperait un an plus tard). Le mot-clé n'est PAS `reference` : il se
+    confondrait avec le nom du champ. Les enregistrements antérieurs restent
+    sans numéro et sont comptés au démarrage (point 89, mot pour mot). Éprouvée
+    par `tests/test_numerotation.py` (24 tests), compilée par
+    `exemples/02_boutique.ml`. Voir point 102.
+
 ### Briques suivantes déjà évoquées, non cadrées
 - Rôle superviseur au-dessus d'`accessibleBy` (un modérateur qui lit tous
   les messages privés via `sharedBy`) — exclu volontairement de la première
@@ -583,9 +605,10 @@ réseau social anonyme comme banc d'essai final.
   l'appliquer à `projets/SneakerLab`, qui est une décision de MIGRATION plus que
   de spec — les `OrderLine` existantes visent des produits, `Product.stock` perdrait
   son sens, et la migration additive ne rattrape jamais un contenu (points 89 et
-  99). Restent aussi ouverts : une référence de commande lisible
-  (« SL-2026-0001 », il n'y a que l'`id` — et `Order.reference` est un `UUID` que
-  le CLIENT écrit, voir la fin du point 100) et un numéro de suivi transporteur.
+  99). Restent aussi ouverts : un numéro de suivi transporteur.
+  (FERMÉ au point 102 : la référence de commande lisible, par la brique 22
+  `numbered` — `exemples/02_boutique.ml` délivre `CMD-2026-0001`. Reste à
+  l'adopter sur `projets/SneakerLab`.)
 - **(historique) Un statut restait un texte libre** (point 91) — sur une commande NON réglée, le
   client pose `status: "livrée"` et le serveur l'accepte : il n'existe aucune
   brique « valeur parmi une liste ». Le verrou de la brique 18 ne couvre l'entité

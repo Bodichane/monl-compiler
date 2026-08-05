@@ -256,6 +256,13 @@ def build_contract(normalized_ast, generator):
     # POINT 89 : quatrième membre de la même famille. Le défaut du point 76 s'est
     # reproduit sur chacune des trois précédentes ; celle-ci arrive déclarée.
     horodates = getattr(generator, "timestamp_fields_by_entity", {})
+    # POINT 102 : cinquième membre de la même famille, déclarée d'emblée elle
+    # aussi. Sans ça le contrat annoncerait un « numéro de commande » parmi les
+    # champs à saisir, et une IA d'interface fidèle au contrat dessinerait un
+    # formulaire que le serveur ignore.
+    numeros = {ent: {r["field"]: r for r in regles}
+               for ent, regles in getattr(generator, "numbered_fields_by_entity",
+                                          {}).items()}
 
     entity_specs = {}
     for ent, fields in entities.items():
@@ -263,8 +270,10 @@ def build_contract(normalized_ast, generator):
         for fname, ftype in fields.items():
             derive = derives.get(ent, {}).get(fname)
             somme = sommes.get(ent, {}).get(fname)
+            numero = numeros.get(ent, {}).get(fname)
             peuple_par_le_serveur = (fname in generated.get(ent, [])
                                      or derive is not None or somme is not None
+                                     or numero is not None
                                      or fname in horodates.get(ent, []))
             champ = {
                 "name": fname,
@@ -344,6 +353,20 @@ def build_contract(normalized_ast, generator):
                     "PEUT ÊTRE VIDE sur les enregistrements créés avant l'ajout "
                     "de la règle : afficher un tiret, jamais la date du jour — "
                     "cette date-là n'a pas été perdue, elle n'a jamais existé.")
+            if numero:
+                champ["numbered_as"] = numero["format"]
+                champ["note"] = (
+                    f"numéro lisible attribué par le serveur à la création, sur le "
+                    f"gabarit « {numero['format']} », et jamais modifié ensuite. "
+                    f"Ne pas l'envoyer : ni à la création, ni à la modification. "
+                    f"C'est la référence que l'humain lit et dicte — l'AFFICHER "
+                    f"partout où l'enregistrement est identifié (liste, détail, "
+                    f"accusé de commande), de préférence avant l'`id` technique, "
+                    f"et la rendre copiable. "
+                    + ("Il se trie comme du texte, la partie séquence étant "
+                       "complétée par des zéros. " if "{N" in numero["format"] else "")
+                    + "PEUT ÊTRE VIDE sur les enregistrements créés avant l'ajout "
+                      "de la règle : afficher un tiret, jamais un numéro inventé.")
             field_list.append(champ)
         # POINT 88 : une clé étrangère de monl référence l'une de DEUX choses,
         # et le contrat n'en disait qu'une. Celles que la route Create peuple

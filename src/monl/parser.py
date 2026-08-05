@@ -35,7 +35,7 @@ grammar = r"""
     # rule["type"] ne valait jamais "restrictedTo", et l'audit de sécurité associé
     # dans ast_validator.py ne se déclenchait donc jamais. Même classe de bug que
     # celui déjà corrigé sur le bloc "custom" en v3.
-    ?rule: constraint_rule | restriction_rule | sharing_rule | ownership_rule | access_rule | visibility_rule | masking_rule | decrement_rule | increment_rule | categorization_rule | generation_rule | payable_rule | derivation_rule | aggregation_rule | timestamp_rule | requirement_rule | oneof_rule | release_rule
+    ?rule: constraint_rule | restriction_rule | sharing_rule | ownership_rule | access_rule | visibility_rule | masking_rule | decrement_rule | increment_rule | categorization_rule | generation_rule | payable_rule | derivation_rule | aggregation_rule | timestamp_rule | numbering_rule | requirement_rule | oneof_rule | release_rule
 
     constraint_rule: "rule" REFERENCE VALIDATION_TYPE _NL
                    | "rule" REFERENCE VALIDATION_TYPE INT _NL
@@ -187,6 +187,15 @@ grammar = r"""
     # 'generated' : une date qu'on peut se donner n'atteste de rien.
     # Production nommée à part, même raison que ci-dessus (piège Lark, point 27).
     timestamp_rule: "rule" REFERENCE "timestamp" _NL
+
+    # AJOUT (brique 22, point 102) :
+    #   rule Order.reference numbered "CMD-{YYYY}-{NNNN}"
+    # le champ nommé porte un NUMÉRO LISIBLE, attribué par le serveur à la
+    # création et jamais ensuite. Même famille que 'timestamp' : absent des corps
+    # de requête, création comme modification. Le mot-clé n'est pas 'reference' —
+    # il se confondrait avec le nom du champ qu'on lui donne presque toujours,
+    # et 'rule Order.reference reference …' ne se lit pas.
+    numbering_rule: "rule" REFERENCE "numbered" STRING_LITERAL _NL
 
     # AJOUT (roadmap, écosystème de capacités -- brique 17, point 90) :
     #   rule Order.Create requiresOwn Customer
@@ -492,6 +501,12 @@ class MonlTransformer(Transformer):
 
     def timestamp_rule(self, reference):
         return {"rule": {"reference": str(reference), "type": "timestamp"}}
+
+    def numbering_rule(self, reference, gabarit):
+        token = str(gabarit)
+        return {"rule": {"reference": str(reference), "type": "numbered",
+                         "value": token[1:-1].replace('\\"', '"')
+                                             .replace('\\\\', '\\')}}
 
     def requirement_rule(self, reference, owner_entity):
         return {"rule": {"reference": str(reference), "type": "requiresOwn",

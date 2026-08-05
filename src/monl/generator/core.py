@@ -133,6 +133,12 @@ class MonlSecureGenerator(
         self.timestamp_fields_by_entity = {}
         for tf in normalized_ast["security"].get("timestamp_fields", []):
             self.timestamp_fields_by_entity.setdefault(tf["entity"], []).append(tf["field"])
+        # BRIQUE 22 (point 102) : {Entite: [{champ, format, periode}]}. Même
+        # famille que l'horodatage ci-dessus — peuplé par le serveur à la
+        # création, absent des corps de requête, jamais réécrit.
+        self.numbered_fields_by_entity = {}
+        for nf in normalized_ast["security"].get("numbered_fields", []):
+            self.numbered_fields_by_entity.setdefault(nf["entity"], []).append(nf)
         # AJOUT (brique paiement, point 74) : entité encaissable et champ
         # portant le montant. {Entite: champ} — le validateur garantit au
         # plus un champ payable par entité.
@@ -647,12 +653,25 @@ class MonlSecureGenerator(
 
         Source unique du nom d'index, pour que la création au démarrage et toute
         vérification ultérieure désignent le même objet. Le nom porte la table et
-        la colonne : deux entités peuvent avoir un champ homonyme."""
+        la colonne : deux entités peuvent avoir un champ homonyme.
+
+        POINT 102 : un champ 'numbered' y entre sans avoir à déclarer 'unique'.
+        Un numéro de commande en double n'est pas un numéro — l'exiger dans la
+        spec ferait dépendre la garantie d'une ligne qu'on peut oublier d'écrire.
+        Le nom d'index étant dérivé de la table et de la colonne, déclarer les
+        deux ne produit qu'un seul index."""
+        vises = {
+            (entite, champ)
+            for entite, champs in self.field_constraints.items()
+            for champ, contraintes in champs.items()
+            if contraintes.get("unique")
+        }
+        vises |= {(entite, regle["field"])
+                  for entite, regles in self.numbered_fields_by_entity.items()
+                  for regle in regles}
         return [
             (entite.lower(), champ, f"idx_unique_{entite.lower()}_{champ.lower()}")
-            for entite, champs in sorted(self.field_constraints.items())
-            for champ, contraintes in sorted(champs.items())
-            if contraintes.get("unique")
+            for entite, champ in sorted(vises)
         ]
 
     def _profile_lookup(self, entity):
@@ -702,6 +721,19 @@ class MonlSecureGenerator(
         l'avant-dernière est donc légitime, seule la DERNIÈRE est refusée."""
         colonnes = self._identity_fk_columns().get(entity, set())
         return sorted(colonnes)[0] if colonnes else None
+
+    def _compute_numbered_columns(self):
+        """POINT 102 : [(table, colonne)] pour chaque 'rule Entite.champ numbered'.
+
+        Même usage que `_compute_timestamp_columns` et même honnêteté : les
+        enregistrements antérieurs à la règle n'ont PAS de numéro, et on ne leur
+        en invente pas — les numéroter au démarrage prétendrait un ordre
+        d'arrivée que le serveur n'a pas observé."""
+        return [
+            (entite.lower(), regle["field"])
+            for entite, regles in sorted(self.numbered_fields_by_entity.items())
+            for regle in regles
+        ]
 
     def _compute_timestamp_columns(self):
         """POINT 89 : [(table, colonne)] pour chaque 'rule Entite.champ timestamp'.

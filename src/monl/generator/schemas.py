@@ -37,6 +37,11 @@ class SchemasMixin:
             # déclarative — c'est-à-dire sans valeur : un carnet de commandes
             # dont chacun choisit ses dates n'atteste de rien.
             horodates_ici = self.timestamp_fields_by_entity.get(ent_name, [])
+            # BRIQUE 22 (point 102) : un numéro que le client pourrait écrire ne
+            # numéroterait rien — il choisirait le sien, et deux clients
+            # choisiraient le même.
+            horodates_ici = list(horodates_ici) + [
+                n["field"] for n in self.numbered_fields_by_entity.get(ent_name, [])]
             has_schema_field = False
             for attr_name, attr_type in attrs.items():
                 if (attr_name in generated_here_schema or attr_name in derives_ici

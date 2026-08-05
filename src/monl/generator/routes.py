@@ -218,6 +218,21 @@ class RoutesMixin:
                 # une date de création qui bouge n'est pas une date de création.
                 for nom_date in self.timestamp_fields_by_entity.get(base_target, []):
                     calcules[nom_date] = "_horodatage()"
+                # BRIQUE 22 (point 102) : le numéro lisible. Le compteur est lu
+                # ET incrémenté en base ; ces lignes partent donc DANS le `try`
+                # ci-dessous, pas ici — hors de la transaction, une insertion
+                # refusée laisserait le compteur avancé et le numéro suivant
+                # sauterait. Jamais `MAX(...) + 1` sur la table métier : il
+                # redonnerait le numéro d'un enregistrement supprimé, et se
+                # tromperait dès que deux créations se croisent.
+                lignes_numerotation = []
+                for regle in self.numbered_fields_by_entity.get(base_target, []):
+                    var = f"_numero_{regle['field']}"
+                    lignes_numerotation.append(
+                        f"        {var} = _attribuer_numero(cursor, "
+                        f"{base_target!r}, {regle['field']!r}, "
+                        f"{regle['format']!r}, {regle['periode']!r})")
+                    calcules[regle["field"]] = var
                 value_exprs = [
                     calcules.get(f, "current_anon_handle" if f in generated_here
                                  else f"data.{f}")
@@ -255,6 +270,7 @@ class RoutesMixin:
                 # d'effet inexistante ne lève toujours pas d'erreur (UPDATE sans
                 # ligne correspondante) — elle ne fait simplement rien.
                 api_lines.append("    try:")
+                api_lines += lignes_numerotation
                 api_lines.append(f"        cursor.execute(query, ({values_list},))")
                 api_lines.append("        row_id = cursor.lastrowid")
                 # AJOUT (brique 12, point 82) : le total du parent est recalculé
@@ -658,6 +674,10 @@ class RoutesMixin:
                 # qui le rend digne de foi ; l'y laisser aurait en plus donné
                 # 500 (`data.<champ>` absent du schéma), le défaut du point 78.
                 horodates_upd = set(self.timestamp_fields_by_entity.get(base_target, []))
+                # BRIQUE 22 (point 102) : un numéro de commande qui change n'est
+                # plus une référence — le client l'a noté, le vendeur aussi.
+                horodates_upd |= {n["field"] for n
+                                  in self.numbered_fields_by_entity.get(base_target, [])}
                 ecrits = [f for f in fields
                           if f not in generated_upd and f not in sommes_upd
                           and f not in horodates_upd]

@@ -121,7 +121,8 @@ en l'état car de nombreux renvois internes s'y appuient) ·
 [98](#98-annuler-rend-les-paires-et-la-transition-quon-ne-joue-quune-fois) Annuler rend les paires, et la transition qu'on ne joue qu'une fois ·
 [99](#99-le-rattachement-fantôme-et-la-sécurité-qui-nétait-quun-accident) Le rattachement fantôme, et la sécurité qui n'était qu'un accident ·
 [100](#100-une-vitrine-qui-montre-des-enfants-et-la-désignation-qui-se-lit) Une vitrine qui montre des enfants, et la désignation qui se lit ·
-[101](#101-le-type-frère-resté-debout-dix-points-de-plus) Le type frère, resté debout dix points de plus
+[101](#101-le-type-frère-resté-debout-dix-points-de-plus) Le type frère, resté debout dix points de plus ·
+[102](#102-le-numéro-que-lhumain-lit-et-dicte) Le numéro que l'humain lit et dicte
 
 ---
 
@@ -6234,3 +6235,127 @@ smoke test lancé pour de vrai sur une spec à `UUID`.
 Ce point laisse entière la vraie question de `Order.reference` : un numéro de
 commande lisible n'est pas un UUID, et le client n'a rien à faire à l'écrire.
 C'est la brique suivante.
+
+## 102. Le numéro que l'humain lit et dicte
+
+Le point 101 a rendu le type `UUID` honnête, et ce faisant a rendu visible le
+vrai problème. `exemples/02_boutique.ml` déclarait :
+
+```
+entity Order
+    reference: UUID
+```
+
+Un champ que le CLIENT remplissait, et qui exige désormais la forme canonique
+d'un UUID. Or personne ne dicte `3f2504e0-4f89-41d3-9a0c-0305e82c3301` au
+téléphone, et personne ne l'écrit sur un bon de livraison. Un carnet de
+commandes veut « CMD-2026-0001 » — et ce numéro-là n'est pas une donnée du
+client : c'est le marchand qui l'attribue.
+
+```
+rule Order.reference numbered "CMD-{YYYY}-{NNNN}"
+```
+
+Même famille que `timestamp` (point 89) : peuplé par le serveur à la création,
+absent des corps de requête à la création COMME à la modification. Un numéro de
+commande qui change n'est plus une référence — le client l'a noté, le vendeur
+aussi.
+
+### Le mot-clé n'est pas `reference`
+
+`rule Order.reference reference "…"` ne se lit pas, et le champ s'appelle
+« reference » dans à peu près tous les cas d'usage. `numbered` rejoint la famille
+des participes du DSL — `hidden`, `generated`, `categorized`, `payable`.
+
+### Le compteur vit dans une table SYSTÈME
+
+C'est la décision de fond, et elle se justifie par ce qu'elle interdit.
+`MAX(reference) + 1` sur la table métier aurait été plus simple et faux deux
+fois : il **redonne le numéro d'un enregistrement supprimé** — deux factures
+portant la même référence, à des mois d'intervalle — et il se trompe dès que
+deux créations se croisent.
+
+`_monl_sequences (entite, champ, periode, dernier)` a pour clé primaire le
+triplet, et c'est la PÉRIODE qui fait repartir la séquence : à chaque année, ou
+mois, ou jour, selon les jalons du gabarit. Rien n'est jamais effacé, et une
+période vide (`''`) désigne une séquence globale — le cas d'un gabarit sans
+date.
+
+L'attribution vit **dans la transaction de création**. Hors d'elle, une
+insertion refusée — stock insuffisant, parent introuvable, verrou de paiement —
+laisserait le compteur avancé et le numéro suivant sauterait sans raison.
+
+L'index unique est créé **sans qu'on ait à déclarer `unique`**. Un numéro en
+double n'est pas un numéro ; faire dépendre cette garantie d'une ligne de spec
+qu'on peut oublier d'écrire serait rouvrir la porte du point 85. Le nom d'index
+étant dérivé de la table et de la colonne, déclarer les deux ne produit qu'un
+seul index.
+
+### Six refus, et celui qui porte la brique
+
+Un gabarit **sans séquence** (`"CMD-{YYYY}"`) est refusé : tous les
+enregistrements porteraient le même numéro, ce qui n'en est pas un. C'est le
+point 85 appliqué au gabarit lui-même — et sans ce refus, l'index unique
+transformerait la faute en 409 à la deuxième commande, en production.
+
+Un **mois sans année** (`"CMD-{MM}-{NNNN}"`) est refusé aussi, et c'est le plus
+subtil : la séquence repart chaque mois, donc `CMD-03-0001` revient tous les mois
+de mars. L'index unique l'attraperait — un an plus tard.
+
+Les quatre autres sont mécaniques : deux séquences (rien ne dit laquelle
+s'incrémente), un jalon inconnu, une accolade orpheline, un champ qui n'est pas
+`String`. Ce dernier **nomme explicitement `UUID`** dans son message : c'est le
+type qu'on est tenté de choisir pour une référence, et depuis le point 101 un
+numéro lisible n'y entrerait jamais. Un refus qui ne dit pas pourquoi envoie
+essayer autre chose au hasard.
+
+`min`/`max` sur un champ numéroté sont refusés **sans une ligne de plus** : la
+brique rejoint le recoupement groupé du point 89, exactement ce que ce
+regroupement avait été fait pour gagner.
+
+### Les enregistrements antérieurs restent SANS numéro
+
+Point 89, mot pour mot. La migration additive rattrape une colonne, jamais son
+contenu. Numéroter au démarrage les commandes déjà en base prétendrait un ordre
+d'arrivée que le serveur n'a pas observé — et sur un carnet de commandes, un
+numéro inventé finit sur une facture. Le serveur les COMPTE, les nomme, et le
+contrat dit à l'IA d'afficher un tiret.
+
+La séquence, elle, repart de 1. Une base de quarante commandes anciennes verra
+donc sa quarante-et-unième porter `CMD-2026-0001` : c'est honnête, et toute autre
+règle demanderait de deviner ce que les quarante premières auraient porté.
+
+### Ce que le contrat doit dire
+
+`numbered_as` porte le gabarit, et la note dit trois choses : ne pas l'envoyer,
+l'AFFICHER partout où l'enregistrement est identifié (de préférence avant l'`id`
+technique, et copiable), et afficher un tiret sur les anciens. Sans la deuxième,
+une IA d'interface range le numéro parmi les champs techniques et l'humain
+continue de dicter un `id`.
+
+`_contract_signature` le voit sans une ligne de plus : le champ devient
+`server_generated`, donc l'ensemble « lecture seule » du point 89 le rapporte.
+La question a été posée avant d'écrire le code, et pour une fois la réponse
+existante suffisait.
+
+### Éprouvé par
+
+`tests/test_numerotation.py` (24 tests) : les douze refus de compilation, la
+disparition du champ des deux schémas, l'index unique, le test qui exige une
+sortie différente sans la règle, le contrat — et contre un vrai serveur : les
+numéros qui se suivent, le client qui ne peut ni les choisir ni les modifier,
+huit créations simultanées qui donnent huit numéros distincts, une période
+antérieure qui ne décale pas la séquence, et la base déjà peuplée dont les
+anciennes lignes restent vides.
+
+Le test qui porte la conception est
+`test_le_numero_ne_recule_pas_apres_une_suppression` : c'est lui, et pas celui
+sur la concurrence, qui départage la table système d'un `MAX(...) + 1`. SQLite
+sérialise les écritures, et cette sérialisation masquerait la différence sous
+une charge de huit requêtes — le test de concurrence prouve l'absence de
+collision et de « database is locked », pas l'atomicité. Le dire plutôt que de
+laisser croire.
+
+Vérifié en réel sur `exemples/02_boutique.ml`, qui abandonne son `UUID` : trois
+commandes créées sans qu'aucun corps ne porte de référence sortent
+`CMD-2026-0001`, `-0002`, `-0003`, et le smoke test passe sans un avertissement.

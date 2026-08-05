@@ -56,6 +56,23 @@ class SqlSchemaMixin:
         sql_lines.append(");")
         sql_lines.append('CREATE INDEX IF NOT EXISTS idx_rate_limit_lookup ON _monl_rate_limit (bucket, client_ip, attempted_at);\n')
 
+        # BRIQUE 22 (point 102) : les compteurs des numéros lisibles. Table
+        # SYSTÈME et non colonne métier — compter les enregistrements existants
+        # redonnerait le numéro d'un supprimé. La clé PRIMAIRE porte la période :
+        # c'est elle qui fait repartir la séquence à chaque année (ou mois, ou
+        # jour) sans qu'une ligne ait à être effacée, et elle vaut '' quand le
+        # gabarit ne porte aucune date — la séquence est alors globale.
+        # Écrite sans condition : une table système vide ne coûte rien, et la
+        # rendre conditionnelle ferait dépendre la MIGRATION d'une base
+        # existante de la règle qu'on vient d'ajouter.
+        sql_lines.append("CREATE TABLE IF NOT EXISTS _monl_sequences (")
+        sql_lines.append("    entite VARCHAR(64) NOT NULL,")
+        sql_lines.append("    champ VARCHAR(64) NOT NULL,")
+        sql_lines.append("    periode VARCHAR(16) NOT NULL,")
+        sql_lines.append("    dernier INTEGER NOT NULL DEFAULT 0,")
+        sql_lines.append("    PRIMARY KEY (entite, champ, periode)")
+        sql_lines.append(");\n")
+
         # CORRECTIF (roadmap) : placement des FK généralisé aux 3 types de
         # relation (hasMany, hasOne, belongsTo) via _compute_fk_placements,
         # au lieu de ne traiter que 'hasMany' comme précédemment.

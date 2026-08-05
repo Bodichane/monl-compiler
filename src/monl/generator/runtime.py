@@ -155,6 +155,48 @@ class RuntimeMixin:
             # et le tri redevient total.
             "def _horodatage():",
             "    return datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='milliseconds')\n",
+            # BRIQUE 22 (point 102) : le numéro lisible. Le compteur vit dans une
+            # table SYSTÈME et non dans la table métier : compter les lignes
+            # existantes redonnerait le numéro d'un enregistrement supprimé, et
+            # `MAX(...) + 1` se tromperait dès que deux créations se croisent.
+            #
+            # L'UPDATE conditionnel puis le test de `rowcount` sont le même
+            # motif qu'au décompte de stock (point 86) : une seule instruction
+            # porte la lecture et l'écriture, donc deux transactions ne peuvent
+            # pas lire le même compteur. L'INSERT d'amorçage vient AVANT, et son
+            # 'ON CONFLICT DO NOTHING' rend l'ordre indifférent.
+            "def _periode_courante(gabarit_periode):",
+            "    if not gabarit_periode:",
+            "        return ''",
+            "    _m = datetime.datetime.now(datetime.timezone.utc)",
+            "    _parts = {'YYYY': f'{_m.year:04d}', 'MM': f'{_m.month:02d}',",
+            "              'DD': f'{_m.day:02d}'}",
+            "    return '-'.join(_parts[_j] for _j in gabarit_periode.split('-'))\n",
+            "def _attribuer_numero(cursor, entite, champ, gabarit, gabarit_periode):",
+            "    periode = _periode_courante(gabarit_periode)",
+            "    cursor.execute('INSERT INTO _monl_sequences (entite, champ, periode, dernier)'",
+            "                   ' VALUES (?, ?, ?, 0) ON CONFLICT DO NOTHING',",
+            "                   (entite, champ, periode))",
+            "    cursor.execute('UPDATE _monl_sequences SET dernier = dernier + 1'",
+            "                   ' WHERE entite = ? AND champ = ? AND periode = ?',",
+            "                   (entite, champ, periode))",
+            "    cursor.execute('SELECT dernier FROM _monl_sequences'",
+            "                   ' WHERE entite = ? AND champ = ? AND periode = ?',",
+            "                   (entite, champ, periode))",
+            "    rang = cursor.fetchone()[0]",
+            "    numero = gabarit",
+            "    _m = datetime.datetime.now(datetime.timezone.utc)",
+            "    for _jalon, _valeur in (('YYYY', f'{_m.year:04d}'),",
+            "                            ('MM', f'{_m.month:02d}'),",
+            "                            ('DD', f'{_m.day:02d}')):",
+            "        numero = numero.replace('{' + _jalon + '}', _valeur)",
+            # La largeur vient du nombre de N écrits dans le gabarit. Un rang qui
+            # la dépasse n'est PAS tronqué : mieux vaut un numéro plus long que
+            # deux enregistrements portant le même.
+            "    _seq = re.search(r'\\{(N+)\\}', numero)",
+            "    if _seq:",
+            "        numero = numero.replace(_seq.group(0), str(rang).zfill(len(_seq.group(1))))",
+            "    return numero\n",
             # CORRECTIF (bêta, hygiène de secret) : le secret JWT est lu en
             # priorité depuis la variable d'environnement MONL_JWT_SECRET
             # (recommandé en production — le secret ne touche jamais le disque
@@ -214,6 +256,7 @@ class RuntimeMixin:
             # bloc de migration : c'est le seul cas du compilateur où une
             # colonne ajoutée ne peut pas être rattrapée.
             f"_TIMESTAMP_COLUMNS = {self._compute_timestamp_columns()!r}\n",
+            f"_NUMBERED_COLUMNS = {self._compute_numbered_columns()!r}\n",
             "security_bearer = HTTPBearer()\n",
             # CORRECTIF (roadmap, révocation de token) : la vérification du
             # token est centralisée dans une seule fonction, appelée par les
@@ -325,6 +368,17 @@ class RuntimeMixin:
             "            _sans = conn.execute(f'SELECT COUNT(*) FROM \"{_table}\" WHERE \"{_col}\" IS NULL').fetchone()[0]",
             "            if _sans:",
             "                print(f'ℹ️ \"{_table}\".\"{_col}\" : {_sans} enregistrement(s) créé(s) avant l\\'ajout de l\\'horodatage restent sans date. Elle ne peut pas être reconstituée — les dater après coup serait faux.')",
+            "        except Exception:",
+            "            pass  # table absente : rien à compter",
+            # POINT 102 : même constat, même raison, sur les numéros lisibles.
+            # Numéroter après coup prétendrait un ordre d'arrivée que le serveur
+            # n'a pas observé — et sur un carnet de commandes, un numéro inventé
+            # se retrouve sur une facture.
+            "    for _table, _col in _NUMBERED_COLUMNS:",
+            "        try:",
+            "            _sans = conn.execute(f'SELECT COUNT(*) FROM \"{_table}\" WHERE \"{_col}\" IS NULL').fetchone()[0]",
+            "            if _sans:",
+            "                print(f'ℹ️ \"{_table}\".\"{_col}\" : {_sans} enregistrement(s) créé(s) avant l\\'ajout de la numérotation restent sans numéro. La séquence repart de 1 ; leur attribuer un numéro maintenant inventerait un ordre d\\'arrivée.')",
             "        except Exception:",
             "            pass  # table absente : rien à compter",
             # POINT 95 : même honnêteté que ci-dessus, sur les comptes. Déclarer

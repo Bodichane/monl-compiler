@@ -29,7 +29,7 @@ entity Variant
     stock: Integer
 
 entity Order
-    reference: UUID
+    reference: String
     totalAmount: Money
     status: String
     # Brique 16 (point 89) : l'instant où la commande est née. Écrit par le
@@ -117,6 +117,16 @@ rule Order.totalAmount payable
 # Format ISO 8601 UTC, à la milliseconde : trier ces chaînes, c'est trier le
 # temps, sans conversion et sans ex aequo entre deux commandes rapprochées.
 rule Order.placedAt timestamp
+
+# BRIQUE 22 (point 102) : le numéro que l'humain lit et dicte. Ce champ était un
+# 'UUID' — c'est-à-dire, jusqu'au point 101, une chaîne libre que le CLIENT
+# remplissait : deux commandes pouvaient porter la même « référence », et rien
+# n'obligeait à en fournir une qui ressemble à quoi que ce soit. Personne ne
+# dicte un UUID au téléphone. Le serveur l'attribue donc à la création, une fois,
+# depuis un compteur en base qui repart à 1 chaque année. Il disparaît des corps
+# de requête (création ET modification) et porte un index unique sans qu'on ait
+# à déclarer 'unique' : un numéro en double n'est pas un numéro.
+rule Order.reference numbered "CMD-{YYYY}-{NNNN}"
 
 workflow BrowseShop for Customer
     Read Product

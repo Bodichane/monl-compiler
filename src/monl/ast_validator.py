@@ -1,4 +1,5 @@
 import os
+import re
 
 # Dossier par défaut des assets fournis par l'humain (brique 13, point 83).
 # HORS de frontend/ : ce dossier-là est renommé par 'monl frontend' à chaque
@@ -416,6 +417,62 @@ class MonlAST:
                 f"'{champ}: \"{valeur}\"', mais {len(correspondances)} lignes de "
                 f"'seed {cible}' portent cette valeur -- rien ne dit à laquelle. "
                 f"Désigner par un champ dont les valeurs sont distinctes.")
+
+    # Jalons acceptés dans un gabarit de numéro. La séquence est le seul
+    # obligatoire : sans elle, tous les enregistrements porteraient le même
+    # numéro — une règle qui ne produit rien (point 85), doublée d'un index
+    # unique qui refuserait la deuxième création.
+    JALONS_DATE = ("YYYY", "MM", "DD")
+
+    def _periode_du_gabarit(self, gabarit):
+        """Sur quoi la séquence se REMET À ZÉRO : '' (jamais), 'YYYY',
+        'YYYY-MM' ou 'YYYY-MM-DD'.
+
+        Déduite des jalons de date présents, jamais déclarée à part : deux
+        façons de dire la même chose finiraient par se contredire."""
+        présents = [j for j in self.JALONS_DATE if "{" + j + "}" in gabarit]
+        return "-".join(présents)
+
+    def _valider_gabarit_de_numero(self, entity, field, gabarit):
+        """Cinq refus sur la forme du gabarit lui-même."""
+        jalons = re.findall(r"\{([^{}]*)\}", gabarit)
+        # Une accolade orpheline ne serait pas vue par la recherche ci-dessus :
+        # la compter séparément, sinon 'CMD-{YYYY' passerait pour du texte.
+        if gabarit.count("{") != len(jalons) or gabarit.count("}") != len(jalons):
+            raise ASTValidationError(
+                f"Structure : le gabarit de 'numbered' sur '{entity}.{field}' a une "
+                f"accolade orpheline : {gabarit!r}.")
+        sequences = [j for j in jalons if set(j) == {"N"}]
+        inconnus = [j for j in jalons
+                    if j not in self.JALONS_DATE and set(j) != {"N"}]
+        if inconnus:
+            raise ASTValidationError(
+                f"Structure : le gabarit de 'numbered' sur '{entity}.{field}' emploie "
+                f"{', '.join(repr('{' + j + '}') for j in inconnus)}, qui ne veut rien "
+                f"dire. Jalons acceptés : '{{YYYY}}', '{{MM}}', '{{DD}}', et une suite "
+                f"de N pour la séquence ('{{NNNN}}' = quatre chiffres).")
+        if not sequences:
+            raise ASTValidationError(
+                f"Structure : le gabarit de 'numbered' sur '{entity}.{field}' n'a aucune "
+                f"séquence ('{{NNNN}}') -- tous les enregistrements porteraient le MÊME "
+                f"numéro, ce qui n'en est pas un.")
+        if len(sequences) > 1:
+            raise ASTValidationError(
+                f"Structure : le gabarit de 'numbered' sur '{entity}.{field}' contient "
+                f"{len(sequences)} séquences -- rien ne dit laquelle s'incrémente.")
+        # Une date incomplète fait se répéter la séquence : 'CMD-{MM}-{NNNN}'
+        # redonne 'CMD-03-0001' tous les mois de mars. L'index unique
+        # l'attraperait, mais un an plus tard et en production.
+        # strict=False assumé : on apparie chaque jalon avec le SUIVANT, donc
+        # les deux suites n'ont volontairement pas la même longueur.
+        for précédent, suivant in zip(self.JALONS_DATE, self.JALONS_DATE[1:],
+                                      strict=False):
+            if "{" + suivant + "}" in gabarit and "{" + précédent + "}" not in gabarit:
+                raise ASTValidationError(
+                    f"Structure : le gabarit de 'numbered' sur '{entity}.{field}' emploie "
+                    f"'{{{suivant}}}' sans '{{{précédent}}}' -- la séquence se remettrait "
+                    f"à zéro sans que le numéro dise de quelle période il s'agit, et "
+                    f"deux enregistrements finiraient par porter le même.")
 
     def _validate_structures(self):
         """Vérifie la cohérence de base et traque les collisions multi-acteurs (Bug #5),
@@ -843,6 +900,50 @@ class MonlAST:
                 )
             _timestamp_seen.add((entity, field))
             self.timestamp_fields.append({"entity": entity, "field": field})
+
+        # AJOUT (brique 22, point 102) : validation de 'numbered'. Le champ porte
+        # un NUMÉRO LISIBLE attribué par le serveur — même famille que
+        # 'timestamp' juste au-dessus, et mêmes conséquences.
+        self.numbered_fields = []
+        for rule in self.rules:
+            if rule["type"] != "numbered":
+                continue
+            if "." not in rule["reference"]:
+                raise ASTValidationError(
+                    f"Structure : la règle 'numbered' doit référencer 'Entite.champ', "
+                    f"reçu '{rule['reference']}'.")
+            entity, field = rule["reference"].split(".", 1)
+            if entity not in self.entities:
+                raise ASTValidationError(
+                    f"Structure : la règle 'numbered' cible l'entité '{entity}' qui "
+                    f"n'existe pas.")
+            field_type = self.entities.get(entity, {}).get(field)
+            if field_type != "String":
+                # 'UUID' est refusé en le NOMMANT : c'est le type qu'on est
+                # tenté de choisir pour une référence, et depuis le point 101 il
+                # vérifie sa forme — un numéro lisible n'y entrerait jamais.
+                indice = (" -- un 'UUID' vérifie sa forme depuis le point 101, et "
+                          "un numéro lisible n'en a pas la forme"
+                          if field_type == "UUID" else "")
+                raise ASTValidationError(
+                    f"Structure : 'numbered' cible le champ '{entity}.{field}', qui doit "
+                    f"être un attribut String déclaré (reçu : "
+                    f"{field_type or 'champ inexistant'}){indice}.")
+            if (entity, field) in self.masked_fields:
+                raise ASTValidationError(
+                    f"Structure : '{entity}.{field}' est à la fois 'hidden' et "
+                    f"'numbered' -- incompatible : le client ne peut pas l'écrire et ne "
+                    f"pourrait pas le lire, donc ce numéro n'existerait pour personne.")
+            if any(n["entity"] == entity and n["field"] == field
+                   for n in self.numbered_fields):
+                raise ASTValidationError(
+                    f"Structure : plusieurs règles 'numbered' déclarées pour "
+                    f"'{entity}.{field}' -- une seule autorisée.")
+            self._valider_gabarit_de_numero(entity, field, rule["value"])
+            self.numbered_fields.append({
+                "entity": entity, "field": field, "format": rule["value"],
+                "periode": self._periode_du_gabarit(rule["value"]),
+            })
 
         # AJOUT (brique 19, point 96) : validation de 'oneOf'. Un statut n'est
         # pas du texte, c'est un état parmi quelques-uns — et sur une commande
@@ -1313,6 +1414,10 @@ class MonlAST:
             # l'intérêt d'avoir groupé ce recoupement : la brique 16 hérite des
             # trois refus sans une ligne de plus.
             | {(t["entity"], t["field"]) for t in self.timestamp_fields}
+            # POINT 102 : un champ 'numbered' rejoint la même famille, et hérite
+            # des trois refus sans une ligne de plus — exactement ce que le
+            # point 89 avait gagné à grouper ce recoupement.
+            | {(n["entity"], n["field"]) for n in self.numbered_fields}
         )
         for (entite, champ), contraintes in sorted(self.field_constraints.items()):
             if (entite, champ) not in peuples_par_le_serveur:
@@ -1861,6 +1966,7 @@ class MonlAST:
                 "categorized_fields": self.categorized_fields,
                 "generated_fields": self.generated_fields,
                 "timestamp_fields": self.timestamp_fields,
+                "numbered_fields": self.numbered_fields,
                 "required_profiles": self.required_profiles,
                 "payable_fields": self.payable_fields,
                 "derived_fields": self.derived_fields,
