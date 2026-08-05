@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (609 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (624 tests
   actuellement ; `tests/test_demo.py` et `tests/test_design_contract.py`
   s'appuient sur le dossier `demo/` versionné — ne pas le supprimer)
 
@@ -117,7 +117,7 @@ réseau social anonyme comme banc d'essai final.
 > fichiers, ils n'existent plus.
 >
 > Attention à la nuance : compiler n'est pas se comporter correctement.
-> **Les vingt briques sont désormais éprouvées contre un vrai serveur
+> **Les vingt-et-une briques sont désormais éprouvées contre un vrai serveur
 > éphémère** : `accessibleBy` (`tests/test_access_parties.py`), le filtrage de
 > lecture d'`ownedBy` (`tests/test_lecture_privee.py`), le masquage `hidden`
 > (`tests/test_masquage_hidden.py`, point 64), puis `generated`, `increments`,
@@ -136,9 +136,13 @@ réseau social anonyme comme banc d'essai final.
 > sans quoi « existe-t-il au moins une fiche ? » passerait) et le verrou de
 > paiement (`tests/test_verrou_paiement.py`, point 91 — les cinq portes fermées,
 > ET la contre-épreuve des cinq écritures AVANT règlement, sans quoi un verrou
-> qui figerait tout passerait pour bon).
-> Depuis le point 95, **les dix-huit briques sont éprouvées contre un vrai
-> serveur** : `capability auth` était la dernière à n'avoir que la couverture de
+> qui figerait tout passerait pour bon), et le rattachement d'un jeu de
+> démonstration (`tests/test_seed_parent.py`, point 100 — dont la base
+> pré-peuplée d'identifiants divergents, seule façon de départager la résolution
+> au démarrage d'un rang calculé à la compilation).
+> Depuis le point 95, **aucune brique n'a plus la seule couverture de
+> compilation** : `capability auth` était la dernière, ce qui était cohérent
+> tant qu'elle ne produisait rien — elle
 > compilation, ce qui était cohérent tant qu'elle ne produisait rien — elle
 > contraint désormais la forme de l'identifiant de compte
 > (`tests/test_identifiant_de_compte.py`). Toute NOUVELLE brique doit arriver
@@ -536,6 +540,30 @@ réseau social anonyme comme banc d'essai final.
     protection. Éprouvée par `tests/test_liberation.py` (16 tests), adoptée par
     `projets/SneakerLab`. Voir point 98.
 
+21. **`seed Enfant for Parent.champ "valeur"`** — un jeu de démonstration peut
+    RATTACHER un enfant. Née du point 99 : la clé étrangère d'une entité fille
+    d'une table métier était devenue honnête, mais un `seed` n'accepte que des
+    champs DÉCLARÉS et une colonne de rattachement n'en est pas un — une boutique
+    à variantes s'ouvrait donc sur un catalogue dont rien n'était commandable.
+    **Désigner par une VALEUR, jamais par un rang** : un numéro ne se lit pas et
+    se décale à la première insertion ; c'est déjà le choix de
+    `monl assets add --for "Halo RS"` (point 84), même phrase dans le code.
+    **La résolution se fait au DÉMARRAGE**, par un `SELECT` sur le parent : un
+    `id` figé à la compilation supposerait que le parent vient d'être semé, or le
+    socle ne sème que dans une table VIDE — sur une base déjà peuplée, le rang
+    désignerait la mauvaise ligne (`test_le_rattachement_suit_lid_reel_pas_le_rang`
+    le départage). Sept refus, dont l'AMBIGUÏTÉ (deux lignes portant la valeur →
+    vitrine non déterministe), la valeur que personne ne porte, un parent ACTEUR
+    (sa colonne porte un id de COMPTE, point 99 — et aucun compte n'existe au
+    démarrage), et l'ORDRE (un parent semé après son enfant est refusé, jamais
+    réordonné en silence). Éprouvée par `tests/test_seed_parent.py` (15 tests),
+    compilée par `exemples/02_boutique.ml` — qui gagne au passage son entité
+    `Variant` (le produit est ce qu'on MONTRE, la variante ce qu'on VEND) et
+    ferme le trou de corpus qui avait laissé passer les points 99 et 100.
+    **Contrainte inattendue** : `assets_tool.py` lit les blocs `seed`
+    TEXTUELLEMENT — sa regex a dû apprendre la nouvelle forme, sinon il sautait
+    le bloc en silence. Voir point 100.
+
 ### Briques suivantes déjà évoquées, non cadrées
 - Rôle superviseur au-dessus d'`accessibleBy` (un modérateur qui lit tous
   les messages privés via `sharedBy`) — exclu volontairement de la première
@@ -546,14 +574,18 @@ réseau social anonyme comme banc d'essai final.
   de propriété ne remonte qu'UN intermédiaire. `payable` sur une entité possédée
   transitivement, lui, est ACQUIS depuis le point 87.
 - (FERMÉ au point 96 : le statut en texte libre, par la brique 19 `oneOf`.)
-- **Une boutique de sneakers sans TAILLE** (point 96) — constaté en comparant
-  SneakerLab à une boutique classique. Deux modèles possibles, qui ne coûtent
-  pas la même chose : une taille sur la ligne de commande (deux lignes de spec
-  avec `oneOf`), ou un stock PAR TAILLE, qui demande une entité `Variant`
-  (`Product hasMany Variant`, stock et décompte portés par elle) — ce qu'un
-  vrai marchand tient. Décision produit, pas défaut du compilateur. Restent
-  aussi ouverts : une référence de commande lisible (« SL-2026-0001 », il n'y a
-  que l'`id`) et un numéro de suivi transporteur.
+- **Le stock PAR VARIANTE est acquis** (points 99 et 100) — le modèle `Product
+  hasMany Variant` (stock, prix et décompte portés par la variante) ne demande
+  AUCUNE syntaxe nouvelle, et `exemples/02_boutique.ml` le compile désormais avec
+  une vitrine réellement remplie. Il était hors de portée pour deux raisons
+  distinctes, toutes deux corrigées : le rattachement fantôme (99) et
+  l'impossibilité de semer un enfant (100). **Reste ouvert et purement produit** :
+  l'appliquer à `projets/SneakerLab`, qui est une décision de MIGRATION plus que
+  de spec — les `OrderLine` existantes visent des produits, `Product.stock` perdrait
+  son sens, et la migration additive ne rattrape jamais un contenu (points 89 et
+  99). Restent aussi ouverts : une référence de commande lisible
+  (« SL-2026-0001 », il n'y a que l'`id` — et `Order.reference` est un `UUID` que
+  le CLIENT écrit, voir la fin du point 100) et un numéro de suivi transporteur.
 - **(historique) Un statut restait un texte libre** (point 91) — sur une commande NON réglée, le
   client pose `status: "livrée"` et le serveur l'accepte : il n'existe aucune
   brique « valeur parmi une liste ». Le verrou de la brique 18 ne couvre l'entité
@@ -822,11 +854,15 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   la DERNIÈRE fiche est protégée (« au moins une »), et le décompte porte sur
   le compte de l'appelant : avec un seul compte au banc, « existe-t-il une
   fiche quelque part ? » passerait.
-- **LE VÉRIFICATEUR EST UN CLIENT COMME UN AUTRE** (points 95 puis 96) : toute
-  brique qui contraint une ENTRÉE contraint aussi le smoke test, qui code ses
-  valeurs en dur et n'a aucun moyen de le savoir. Deux fois de suite il a
+- **LE VÉRIFICATEUR EST UN CLIENT COMME UN AUTRE** (points 95, 96, puis 100) :
+  toute brique qui contraint une ENTRÉE contraint aussi le smoke test, qui code
+  ses valeurs en dur et n'a aucun moyen de le savoir. Deux fois de suite il a
   déclaré cassée une application saine — `'smoke'` refusé par `identifier:
-  email`, puis `'smoke-status'` refusé par `oneOf`. La question rejoint celle
+  email`, puis `'smoke-status'` refusé par `oneOf`. **Le point 100 l'élargit** :
+  toute brique qui change la FORME d'une ligne de spec contraint aussi les outils
+  qui la lisent TEXTUELLEMENT. `assets_tool.py` détecte les blocs `seed` par une
+  regex ancrée en fin de ligne ; la désignation de parent la faisait échouer en
+  silence, alors que l'AST contenait bien le bloc. La question rejoint celle
   de `_contract_signature` dans la liste à poser AVANT d'écrire une brique.
 - POINT 97 : la sortie de l'agent est CONSERVÉE et affichée quand rien n'a
   bougé. `run_cli_agent` la rendait déjà, personne ne la lisait — monl affichait

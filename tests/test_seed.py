@@ -97,7 +97,13 @@ seed Post
     with tempfile.TemporaryDirectory() as workdir:
         gen = MonlSecureGenerator(ast, output_dir=workdir)
         seed_data = gen._compute_seed_data()
-    rows = seed_data["post"]
+    # BRIQUE 21 (point 100) : chaque entrée est désormais un couple
+    # {"values": …, "parent": …} — le rattachement d'un enfant ne peut pas vivre
+    # dans la ligne elle-même, la colonne qui le porte n'étant pas un champ
+    # déclaré. Un seed sans parent le laisse à None, et les valeurs sont
+    # inchangées.
+    rows = [entree["values"] for entree in seed_data["post"]]
+    assert all(entree["parent"] is None for entree in seed_data["post"])
     assert len(rows) == 2
     assert all(r["author"].startswith("Anon#") for r in rows)
     assert rows[0]["author"] != rows[1]["author"]  # uniques

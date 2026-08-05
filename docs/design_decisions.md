@@ -119,7 +119,8 @@ en l'état car de nombreux renvois internes s'y appuient) ·
 [96](#96-un-statut-nest-pas-du-texte-et-la-fiche-quon-pouvait-effacer) Un statut n'est pas du texte, et la fiche qu'on pouvait effacer ·
 [97](#97-le-message-qui-devinait-à-la-place-de-lagent) Le message qui devinait à la place de l'agent ·
 [98](#98-annuler-rend-les-paires-et-la-transition-quon-ne-joue-quune-fois) Annuler rend les paires, et la transition qu'on ne joue qu'une fois ·
-[99](#99-le-rattachement-fantôme-et-la-sécurité-qui-nétait-quun-accident) Le rattachement fantôme, et la sécurité qui n'était qu'un accident
+[99](#99-le-rattachement-fantôme-et-la-sécurité-qui-nétait-quun-accident) Le rattachement fantôme, et la sécurité qui n'était qu'un accident ·
+[100](#100-une-vitrine-qui-montre-des-enfants-et-la-désignation-qui-se-lit) Une vitrine qui montre des enfants, et la désignation qui se lit
 
 ---
 
@@ -6016,3 +6017,149 @@ toutes les clés étrangères clientes ouvrirait un trou bien plus large.
 Vérifié enfin par comparaison octet à octet : les cinq exemples et
 `projets/SneakerLab` produisent des artefacts **identiques** avant et après. La
 correction ne change que le cas qui était cassé.
+
+## 100. Une vitrine qui montre des enfants, et la désignation qui se lit
+
+Le point 99 a rendu honnête la clé étrangère d'une entité fille d'une table
+métier. Il restait qu'une telle entité **ne pouvait pas figurer dans les données
+de démonstration** : un bloc `seed` n'accepte que des champs DÉCLARÉS, et une
+colonne de rattachement n'en est pas un.
+
+```
+REFUSÉ : le bloc 'seed Variante' référence le champ 'produit_id',
+         qui n'est pas déclaré sur 'Variante'.
+```
+
+Conséquence concrète : une boutique à variantes s'ouvrait sur un catalogue dont
+**rien n'était commandable**. Le compilateur savait produire la forme, le serveur
+savait la servir, et la vitrine restait vide — la couverture de compilation sans
+le comportement, exactement ce que le point 95 dénonce.
+
+C'est le même angle mort que le point 99, par une troisième porte. Aucun exemple
+n'écrivait d'enfant de table métier ; aucun `seed` n'avait donc jamais eu à en
+déclarer un.
+
+```
+seed Variant for Product.name "Chaise Ligne"
+    finish: "Chêne naturel", price: 249.90, stock: 12
+    finish: "Noyer fumé", price: 289.00, stock: 5
+```
+
+### Désigner par une valeur, jamais par un rang
+
+Le rang (« la 3ᵉ ligne du bloc `seed Product` ») était la forme la plus simple à
+implémenter, et c'est la mauvaise. Un numéro ne se lit pas — dans une spec où
+plus de la moitié du texte sert à expliquer, `for Product 3` n'apprend rien — et
+il se décale silencieusement dès qu'on insère une ligne au milieu du bloc
+parent. La désignation nomme donc un CHAMP et une VALEUR.
+
+Ce n'est pas une invention : `monl assets add --for "Halo RS"` (point 84) tranche
+déjà pareil, avec la même phrase dans son code — *la fiche est désignée par une
+de ses VALEURS, et non par un numéro : c'est ce que l'humain a sous les yeux*.
+Deux outils, une seule façon de montrer du doigt.
+
+Le champ est nommé explicitement (`Product.name`) plutôt que deviné. monl a un
+mécanisme d'attribution de rôles qui saurait proposer un « titre » — s'en servir
+ici aurait fait dépendre le rattachement d'une heuristique d'affichage.
+
+### Les sept refus, et celui qui porte la brique
+
+Le premier est **l'ambiguïté** : deux lignes parentes portant la valeur désignée
+font échouer la compilation, en disant combien. Deviner donnerait une vitrine
+différente d'une compilation à l'autre, et personne ne le verrait avant de
+regarder l'écran. Symétriquement, une valeur que **personne ne porte** est
+refusée : c'est la coquille type, et sans ce refus elle amputerait la vitrine
+d'une rubrique entière sans un mot.
+
+Le troisième mérite d'être connu : **un parent ACTEUR est refusé**. Cette
+colonne-là porte un identifiant de COMPTE (point 99) ; or un jeu de
+démonstration s'insère au démarrage, quand aucun compte n'existe encore. Il n'y a
+personne à désigner. La brique hérite ainsi, sans une ligne de plus, de la
+distinction que le point 99 venait d'établir.
+
+Le quatrième porte sur le TYPE du champ de désignation : texte seulement.
+Rapprocher deux flottants est déjà douteux ; surtout, un prix ou un stock ne
+NOMME rien.
+
+Le cinquième est **l'ordre** : un parent semé après son enfant est refusé. Les
+données sont insérées table par table, dans l'ordre de déclaration des blocs ;
+un parent qui arrive après ne serait pas en base au moment de rattacher.
+Réordonner en silence aurait été possible — et c'est précisément ce qu'il ne
+faut pas faire : la spec dirait une chose et le serveur en ferait une autre.
+
+Les deux derniers sont mécaniques : l'entité parente doit exister, et une
+relation doit les lier (sans elle, aucune colonne ne porte le rattachement).
+
+### Le rattachement se résout au DÉMARRAGE
+
+C'est la décision qu'un test départage, pas un raisonnement. Résoudre à la
+compilation aurait voulu dire écrire un `id` en dur dans `_SEED_DATA`, en
+supposant que le parent vient d'être semé et porte donc l'`id` de son rang. Or le
+socle ne sème une table que **si elle est vide** : sur une base où les produits
+existent déjà, le parent n'est pas réinséré et son `id` réel n'a aucun rapport
+avec un rang.
+
+La désignation voyage donc telle quelle jusqu'au serveur, et se résout par un
+`SELECT id FROM "product" WHERE "name" = ?` au démarrage.
+`test_le_rattachement_suit_lid_reel_pas_le_rang` peuple la table parente avec les
+identifiants 17 et 41 avant le premier démarrage : les variantes s'y rattachent.
+Un rang aurait écrit 1 et 3, et la vitrine aurait montré des variantes
+orphelines.
+
+Quand la résolution échoue — seul chemin possible, une base dont la table
+parente est déjà peuplée AUTREMENT — la ligne est écartée et le serveur **le
+dit**. Une vitrine amputée sans un mot enverrait chercher la panne dans le
+frontend.
+
+### Ce que la brique a contraint ailleurs, et qu'on a failli oublier
+
+`src/monl/assets_tool.py` lit les blocs `seed` **textuellement**, par une
+expression régulière ancrée en fin de ligne (`^seed\s+(\w+)\s*(#.*)?$`). La
+nouvelle forme d'en-tête ne correspondait plus : l'outil sautait le bloc en
+silence alors que l'AST le contenait, et la correspondance fichier ↔ AST — sur
+laquelle repose toute l'écriture de photos — ne tenait plus.
+
+C'est la leçon des points 95 et 96 (*le vérificateur est un client comme un
+autre*) élargie : **toute brique qui change la FORME d'une ligne de spec
+contraint aussi les outils qui la lisent textuellement**, pas seulement ceux qui
+l'exécutent. Il n'y en a qu'un aujourd'hui, et il est nommé dans `CLAUDE.md`
+comme le seul endroit du dépôt qui écrive dans la spec de l'humain — raison de
+plus pour ne pas l'oublier la prochaine fois.
+
+Question posée d'avance, comme le veut la règle des points 88 à 99 : est-ce que
+`_contract_signature` doit voir cette brique ? **Non**, et c'est la première fois
+que la réponse est un vrai non. Un jeu de démonstration ne change ni les routes,
+ni les champs, ni les accès : il remplit une base. Le contrat décrit ce que le
+serveur EXPOSE, pas ce qu'il contient.
+
+### L'exemple qui ferme le trou de corpus
+
+`exemples/02_boutique.ml` gagne son entité `Variant` : le produit est ce qu'on
+MONTRE, la variante ce qu'on VEND. `price` et `stock` quittent `Product`,
+`derivedFrom` lit `Variant.price`, le décompte vise `Variant.stock`, et neuf
+variantes sont semées sur six produits — dont une épuisée et une en stock faible,
+pour que la vitrine montre les deux cas dès l'ouverture.
+
+Le corpus cesse ainsi d'être aveugle à la forme qui a produit les points 99 et
+100. C'est le vrai enjeu : ces deux défauts n'ont pas été trouvés par une revue,
+mais par une spec de trois relations que personne n'avait jamais écrite.
+
+### Éprouvé par
+
+`tests/test_seed_parent.py` (15 tests) : les sept refus, la forme du socle
+généré, la non-régression d'une spec qui n'emploie pas la brique — et contre un
+vrai serveur, le rattachement correct de trois variantes sur deux produits,
+l'idempotence au redémarrage, la résolution par `id` réel contre rang, et le
+parent introuvable qui est NOMMÉ.
+
+Vérifié en réel sur `exemples/02_boutique.ml` : les 9 variantes s'attachent à
+leurs 6 produits au démarrage ; commander 2 « Noyer fumé » fait passer son stock
+de 5 à 3 pendant que le « Chêne naturel » du même produit reste à 12 ; le total
+de la commande vaut 578,00 € (2 × 289,00, dérivé puis sommé) ; et en commander 99
+répond 409 sans rien avoir consommé.
+
+Découvert au passage, sans rapport avec la brique : `Order.reference` est de type
+`UUID`, et `UUID` ne génère RIEN — c'est un champ texte que le client remplit
+librement. Une commande sans référence répond 422, et deux commandes peuvent
+porter la même. C'est la motivation d'une brique `reference` à venir, et la
+question à trancher d'abord : que devient le type `UUID` le jour où elle existe ?

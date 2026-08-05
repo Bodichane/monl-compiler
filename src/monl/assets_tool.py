@@ -205,10 +205,22 @@ def _remplacer_entree(lignes, plage, editeur):
 
 
 def _blocs_seed(lignes):
-    """[(entité, [plages de lignes]), …] dans l'ordre du fichier."""
+    """[(entité, [plages de lignes]), …] dans l'ordre du fichier.
+
+    BRIQUE 21 (point 100) : l'en-tête accepte une désignation de parent
+    (`seed Variant for Product.name "Chaise Ligne"`). Sans l'accepter ICI, cet
+    outil sautait le bloc en silence alors que l'AST le contient : la
+    correspondance fichier ↔ AST, sur laquelle repose tout l'écriture de photos,
+    ne tenait plus. Toute brique qui change la FORME d'une ligne de spec
+    contraint aussi les outils qui la lisent textuellement — c'est la leçon des
+    points 95 et 96, appliquée hors du smoke test."""
     blocs = []
     for i, ligne in enumerate(lignes):
-        m = re.match(r"^seed[ \t]+([A-Za-z_]\w*)[ \t]*(#.*)?$", ligne.rstrip("\n"))
+        m = re.match(
+            r"^seed[ \t]+([A-Za-z_]\w*)"
+            r"(?:[ \t]+for[ \t]+[A-Za-z_]\w*\.[A-Za-z_]\w*[ \t]+\"(?:[^\"\\]|\\.)*\")?"
+            r"[ \t]*(#.*)?$",
+            ligne.rstrip("\n"))
         if m:
             blocs.append((m.group(1), _entrees_du_bloc(lignes, i)))
     return blocs

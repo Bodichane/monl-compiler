@@ -317,7 +317,17 @@ grammar = r"""
     # décimaux. Ex. :
     #   seed Project
     #       title: "Refonte Aurora", imageUrl: "https://picsum.photos/seed/a/600/400", year: 2024
-    seed_block: "seed" NAME _NL _INDENT seed_row+ _DEDENT
+    #
+    # BRIQUE 21 (point 100) : un seed d'ENFANT désigne sa ligne parente. Sans
+    # cette forme, une entité fille d'une table métier ne pouvait pas figurer
+    # dans les données de démonstration -- sa clé étrangère n'est pas un champ
+    # déclaré, donc le validateur la refusait. Le parent est nommé par un CHAMP
+    # et une VALEUR, jamais par un rang : un numéro de ligne ne dit rien à la
+    # lecture, et se décale dès qu'on insère une ligne au milieu. Ex. :
+    #   seed Variant for Product.name "Chaise Ligne"
+    #       finish: "Chêne naturel", price: 249.90, stock: 12
+    seed_block: "seed" NAME seed_parent? _NL _INDENT seed_row+ _DEDENT
+    seed_parent: "for" NAME "." NAME STRING_LITERAL
     seed_row: seed_pair ("," seed_pair)* _NL
     seed_pair: NAME ":" seed_value
     ?seed_value: STRING_LITERAL | SIGNED_NUMBER
@@ -607,8 +617,25 @@ class MonlTransformer(Transformer):
         return {"reference": str(name_or_ref)}
 
     # AJOUT (roadmap frontend, bloc 'seed') : données de démonstration.
-    def seed_block(self, name, *rows):
-        return {"seed": {"entity": str(name), "rows": list(rows)}}
+    def seed_block(self, name, *reste):
+        # BRIQUE 21 : la désignation de parent est OPTIONNELLE et arrive, quand
+        # elle existe, avant les lignes. On la reconnaît à sa clé plutôt qu'à sa
+        # position : une spec sans `for` doit produire exactement ce qu'elle
+        # produisait avant ce point.
+        parent, rows = None, []
+        for item in reste:
+            if isinstance(item, dict) and "__seed_parent__" in item:
+                parent = item["__seed_parent__"]
+            else:
+                rows.append(item)
+        return {"seed": {"entity": str(name), "parent": parent, "rows": rows}}
+
+    def seed_parent(self, entity, field, value):
+        token = str(value)
+        return {"__seed_parent__": {
+            "entity": str(entity), "field": str(field),
+            "value": token[1:-1].replace('\\"', '"').replace('\\\\', '\\'),
+        }}
 
     def seed_row(self, *pairs):
         record = {}

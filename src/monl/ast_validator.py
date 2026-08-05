@@ -333,6 +333,90 @@ class MonlAST:
                     f"Structure : '{entite}.{champ}' a min {bas['valeur']} et "
                     f"max {haut['valeur']} : aucune valeur ne satisfait les deux.")
 
+    # Types sur lesquels une valeur de seed peut DÉSIGNER une ligne parente.
+    # Un nombre est exclu : rapprocher deux flottants est déjà douteux, et un
+    # prix ou un stock ne nomme rien — la désignation doit se lire.
+    TYPES_DESIGNATION = ("String", "Text", "Email", "UUID")
+
+    def _valider_parent_de_seed(self, entity, parent):
+        """BRIQUE 21 (point 100) : `seed Enfant for Parent.champ "valeur"`.
+
+        Sept refus, et le premier est celui qui porte la brique : la ligne
+        parente doit être désignée SANS AMBIGUÏTÉ à la compilation. Un seed qui
+        rattacherait « au hasard parmi deux » produirait une vitrine différente
+        d'une compilation à l'autre, et personne ne le verrait avant de regarder
+        l'écran."""
+        cible = parent["entity"]
+        champ = parent["field"]
+        valeur = parent["value"]
+        if cible not in self.entities:
+            raise ASTValidationError(
+                f"Structure : le bloc 'seed {entity}' se rattache à '{cible}', "
+                f"qui n'est pas une entité déclarée.")
+        # Même convention de relation que partout ailleurs (voir
+        # _compute_fk_placements) : sans elle, aucune colonne ne porterait le
+        # rattachement.
+        lie = any(
+            (rel["type"] in ("hasMany", "hasOne")
+             and rel["source"] == cible and rel["target"] == entity)
+            or (rel["type"] == "belongsTo"
+                and rel["source"] == entity and rel["target"] == cible)
+            for rel in self.relations
+        )
+        if not lie:
+            raise ASTValidationError(
+                f"Structure : le bloc 'seed {entity}' se rattache à '{cible}', mais "
+                f"aucune relation ne les lie (ex. '{cible} hasMany {entity}') -- il "
+                f"n'existe donc aucune colonne où écrire ce rattachement.")
+        # POINT 99 : la colonne d'un parent ACTEUR porte un identifiant de
+        # COMPTE, pas l'id d'une ligne. Un seed s'insère avant qu'aucun compte
+        # n'existe : il n'y a rien à y désigner.
+        if cible in self.actors:
+            raise ASTValidationError(
+                f"Structure : le bloc 'seed {entity}' se rattache à l'acteur "
+                f"'{cible}'. Cette colonne-là porte un identifiant de COMPTE, "
+                f"renseigné à la création depuis le jeton de l'appelant -- un jeu "
+                f"de démonstration s'insère au démarrage, quand aucun compte "
+                f"n'existe encore, et n'a donc personne à désigner.")
+        if champ not in self.entities[cible]:
+            raise ASTValidationError(
+                f"Structure : le bloc 'seed {entity}' désigne son parent par "
+                f"'{cible}.{champ}', qui n'est pas un champ déclaré sur '{cible}'.")
+        type_declare = self.entities[cible][champ]
+        if type_declare not in self.TYPES_DESIGNATION:
+            raise ASTValidationError(
+                f"Structure : le bloc 'seed {entity}' désigne son parent par "
+                f"'{cible}.{champ}', de type {type_declare}. Désigner une ligne "
+                f"demande un champ qui la NOMME : "
+                f"{', '.join(self.TYPES_DESIGNATION)}.")
+        # L'ordre compte pour de vrai : les données de démonstration sont
+        # insérées table par table, dans l'ordre de DÉCLARATION des blocs. Un
+        # parent semé après son enfant ne serait pas encore en base au moment de
+        # rattacher, et la ligne serait écartée au démarrage. Refuser ici plutôt
+        # que de réordonner en silence : la spec dirait une chose et le serveur
+        # en ferait une autre.
+        deja = [s for s in self.seeds if s["entity"] == cible]
+        if not deja:
+            raise ASTValidationError(
+                f"Structure : le bloc 'seed {entity}' se rattache à un "
+                f"'{cible}' qu'aucun bloc 'seed' n'a encore déclaré. Les données "
+                f"de démonstration sont insérées dans l'ordre des blocs : "
+                f"écrire 'seed {cible}' AVANT 'seed {entity}'.")
+        correspondances = [ligne for bloc in deja for ligne in bloc["rows"]
+                           if ligne.get(champ) == valeur]
+        if not correspondances:
+            raise ASTValidationError(
+                f"Structure : le bloc 'seed {entity}' se rattache au {cible} "
+                f"'{champ}: \"{valeur}\"', qu'aucune ligne de 'seed {cible}' ne "
+                f"porte. Une coquille ici donnerait une vitrine amputée sans que "
+                f"rien ne le dise.")
+        if len(correspondances) > 1:
+            raise ASTValidationError(
+                f"Structure : le bloc 'seed {entity}' se rattache au {cible} "
+                f"'{champ}: \"{valeur}\"', mais {len(correspondances)} lignes de "
+                f"'seed {cible}' portent cette valeur -- rien ne dit à laquelle. "
+                f"Désigner par un champ dont les valeurs sont distinctes.")
+
     def _validate_structures(self):
         """Vérifie la cohérence de base et traque les collisions multi-acteurs (Bug #5),
         sauf exemption explicite via une règle 'sharedBy'. Valide aussi les règles
@@ -1612,6 +1696,8 @@ class MonlAST:
                     f"Structure : le bloc 'seed' cible l'entité '{entity}' qui n'existe pas."
                 )
             entity_fields = self.entities[entity]
+            if seed.get("parent"):
+                self._valider_parent_de_seed(entity, seed["parent"])
             for i, row in enumerate(seed["rows"], start=1):
                 for field, value in row.items():
                     if field not in entity_fields:

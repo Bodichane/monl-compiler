@@ -351,13 +351,31 @@ class RuntimeMixin:
             "            _scur.execute(f'SELECT COUNT(*) FROM \"{_table}\"')",
             "            if _scur.fetchone()[0] > 0:",
             "                continue  # déjà des données : on ne touche à rien",
-            "            for _row in _rows:",
+            "            _poses = 0",
+            "            for _entree in _rows:",
+            "                _row = dict(_entree['values'])",
+            # BRIQUE 21 (point 100) : le rattachement se résout ICI, par une
+            # lecture du parent, et jamais par un rang calculé à la compilation.
+            # Le parent peut avoir été semé à l'instant (cas normal) comme
+            # préexister dans une base déjà peuplée : dans les deux cas c'est son
+            # `id` réel qu'on écrit.
+            "                _p = _entree.get('parent')",
+            "                if _p:",
+            "                    _scur.execute(f'SELECT id FROM \"{_p[\"table\"]}\" WHERE \"{_p[\"field\"]}\" = ?', (_p['value'],))",
+            "                    _cible = _scur.fetchone()",
+            "                    if not _cible:",
+            # Jamais en silence : une vitrine amputée sans un mot enverrait
+            # chercher la panne dans le frontend.
+            "                        print(f'⚠️ Donnée de démonstration ignorée : aucun \"{_p[\"table\"]}\" dont {_p[\"field\"]} vaut \"{_p[\"value\"]}\" pour y rattacher une ligne de \"{_table}\".')",
+            "                        continue",
+            "                    _row[_p['column']] = _cible[0]",
             "                _cols = list(_row.keys())",
             "                _placeholders = ', '.join(['?'] * len(_cols))",
             "                _colnames = ', '.join(f'\"{_c}\"' for _c in _cols)",
             "                _scur.execute(f'INSERT INTO \"{_table}\" ({_colnames}) VALUES ({_placeholders})', tuple(_row.values()))",
-            "            if _rows:",
-            "                print(f'🌱 Données de démonstration insérées dans \"{_table}\" ({len(_rows)}).')",
+            "                _poses += 1",
+            "            if _poses:",
+            "                print(f'🌱 Données de démonstration insérées dans \"{_table}\" ({_poses}).')",
             "        conn.commit()",
             "    except Exception as e:",
             "        print(f'⚠️ Données de démonstration ignorées : {e}')",

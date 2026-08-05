@@ -601,12 +601,30 @@ class MonlSecureGenerator(
         ils sont assignés par le serveur, on leur donne ici une valeur
         synthétique déterministe ('Anon#1000', 'Anon#1001'…) pour que le seed
         produise des enregistrements complets et cohérents avec le rendu
-        (fil social, etc.)."""
+        (fil social, etc.).
+
+        BRIQUE 21 (point 100) : chaque entrée est désormais un COUPLE
+        {"values": {...}, "parent": None | {...}}, et non plus la seule ligne.
+        Le rattachement d'un enfant ne peut pas être résolu ici : l'`id` du
+        parent n'existe qu'une fois la ligne insérée, et le socle ne sème une
+        table que si elle est VIDE — un parent déjà peuplé par de vraies données
+        ne serait donc pas réinséré, et un rang calculé à la compilation
+        désignerait la mauvaise ligne. La désignation voyage telle quelle et se
+        résout par un SELECT au démarrage."""
         seed_data = {}
         for seed in self.seeds:
             entity = seed["entity"]
             table = entity.lower()
             generated = self.generated_fields_by_entity.get(entity, [])
+            parent = seed.get("parent")
+            rattachement = None
+            if parent:
+                rattachement = {
+                    "column": f"{parent['entity'].lower()}_id",
+                    "table": parent["entity"].lower(),
+                    "field": parent["field"],
+                    "value": parent["value"],
+                }
             seed_data.setdefault(table, [])
             for row in seed["rows"]:
                 filled = dict(row)
@@ -614,7 +632,7 @@ class MonlSecureGenerator(
                     if gfield not in filled:
                         # Pseudonyme synthétique stable, unique par ligne.
                         filled[gfield] = f"Anon#{1000 + len(seed_data[table])}"
-                seed_data[table].append(filled)
+                seed_data[table].append({"values": filled, "parent": rattachement})
         return seed_data
 
     def _unique_fields(self, entity):
