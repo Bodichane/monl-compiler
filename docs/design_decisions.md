@@ -6467,12 +6467,32 @@ La frontière est mince, et elle est donc gardée par un TEST : le brief ne doit
 recommander aucune icône ni aucun style d'icône. Sans ce garde-fou, la ligne
 ajoutée ici dériverait vers de la prescription à la première réécriture.
 
+### DEUX briefs, et la moitié qui manquait
+
+Trouvé en LANÇANT une retouche, pas en relisant le code : la ligne ci-dessus
+n'était posée que sur le brief de CONSTRUCTION. La consigne de `monl retouche`
+est un document séparé, et elle disait « même autonomie (aucun CDN) » sans un
+mot de plus. La retouche qui a servi de banc a réussi — mais parce que l'auteur
+avait demandé des icônes explicitement. Une demande du type « rends cette
+section plus lisible » se serait heurtée au même mur.
+
+C'est la leçon du point 93 sur un autre objet. Il n'y a qu'UNE voie vers l'IA
+(`_lancer_ia`), et c'est ce qui garde les garde-fous identiques — mais il y a
+DEUX briefs, et ce qu'on écrit dans l'un ne se propage pas à l'autre. Toute
+règle ajoutée au brief de construction doit donc se demander si la retouche en
+a besoin.
+
 ### Éprouvé par
 
-Deux tests dans `tests/test_design_contract.py` — le fichier qui prouve que le
+Trois tests dans `tests/test_design_contract.py` — le fichier qui prouve que le
 compilateur se TAIT sur le visuel, et qui est donc le bon endroit pour poser la
-limite de ce silence : l'un exige que le moyen soit énoncé, l'autre qu'aucune
-recommandation ne le soit.
+limite de ce silence : l'un exige que le moyen soit énoncé dans le brief de
+construction, le deuxième qu'aucune recommandation ne le soit, le troisième que
+la consigne de retouche porte le même rappel.
+
+Vérifié en réel sur `projets/SneakerLab` : une retouche demandant « des icônes
+et un peu de texte » sur la rubrique livraison/retours a produit quatre SVG en
+ligne — zéro auparavant — avec `aria-hidden` et un texte court par carte.
 
 Ce point ne fait rien reconstruire : les sites existants n'ont pas d'icônes et
 n'en auront pas tant qu'ils ne sont pas régénérés. Il change ce que la

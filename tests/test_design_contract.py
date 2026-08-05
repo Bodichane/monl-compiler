@@ -190,3 +190,26 @@ def test_deux_projets_de_domaines_opposes_recoivent_le_meme_silence():
     bloc1 = b1[b1.index(extrait):b1.index("## Règles non négociables")]
     bloc2 = b2[b2.index(extrait):b2.index("## Règles non négociables")]
     assert bloc1 == bloc2, "la direction de design dépend encore du domaine"
+
+
+def test_la_consigne_de_retouche_rappelle_le_moyen_des_icones():
+    """POINT 104, seconde moitié — trouvée en LANÇANT une retouche, pas en
+    relisant le code. La ligne du point 104 n'était posée que sur le brief de
+    CONSTRUCTION ; la consigne de retouche, elle, disait « même autonomie
+    (aucun CDN) » et rien d'autre. Une retouche du type « rends cette section
+    plus lisible » se serait donc heurtée au même mur.
+
+    C'est la leçon du point 93 sur un autre objet : il n'y a qu'une voie vers
+    l'IA, mais DEUX briefs — et ce qu'on écrit dans l'un ne se propage pas à
+    l'autre."""
+    from monl.cli import _write_retouche_brief
+    with tempfile.TemporaryDirectory() as workdir:
+        chemin = _write_retouche_brief(workdir, "la section retours est terne")
+        with open(chemin, encoding="utf-8") as fh:
+            texte = fh.read()
+    # Le brief est mis en forme sur 79 colonnes : chercher une phrase telle
+    # quelle échouerait au premier retour à la ligne inséré au milieu.
+    continu = " ".join(texte.split())
+    assert "SVG" in continu
+    assert "pas une consigne" in continu, \
+        "le rappel doit dire que c'est un MOYEN, jamais une prescription"

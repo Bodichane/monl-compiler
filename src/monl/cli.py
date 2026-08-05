@@ -932,6 +932,12 @@ Le contrat complet reste `frontend_contract.json`, et les règles de
 `FRONTEND_PROMPT.md` restent toutes en vigueur — mêmes routes, même origine
 d'API, même autonomie (aucun CDN). Ne modifier aucun autre fichier du projet.
 
+Rappel sur l'iconographie, parce que « aucun CDN » se lit facilement comme
+« pas d'icônes possibles » : aucune librairie d'icônes n'est atteignable, mais
+le SVG écrit EN LIGNE dans le HTML et les fichiers `.svg` déposés dans
+`frontend/` fonctionnent et sont servis. C'est un MOYEN disponible, pas une
+consigne : rien n'oblige à en mettre.
+
 Après modification, `monl run` revalidera l'ensemble (cohérence statique
 + smoke test comportemental) avant tout lancement.
 """
