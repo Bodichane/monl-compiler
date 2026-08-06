@@ -97,6 +97,51 @@ paramétrées, pas d'exécution dynamique, pas d'accès système non maîtrisé.
 Une isolation d'exécution dédiée pour ce code (sous-processus à privilèges
 réduits, conteneur, ou WASM) est un objectif GA — voir `docs/BETA.md`.
 
+## Validation par audit offensif (branche `paiement-et-outillage`)
+
+`tests/test_exploit_all.py` compile puis sert chaque exemple de `exemples/` et y
+rejoue trois attaques (usurpation de rôle par en-tête brut, JWT forgé,
+élévation de privilège). Résultat sur les cinq exemples : **vert** — aucune
+attaque n'atteint la couche de données (aucun accès 2xx).
+
+Deux signaux apparus lors de l'analyse approfondie sont des **faux positifs**,
+reproduits en direct, pas des vulnérabilités :
+
+- **`01_portfolio` (StudioNova)** — création ciblée publique. L'audit visait
+  `Message`, une route **publique** (`rule Message.Create public`, formulaire de
+  contact) : il n'y a aucune authentification à détourner. Le `422` venait d'un
+  champ `email` invalide dans le payload de test. Avec un `email` valide et sans
+  token, la route répond `200` par conception.
+- **`02_boutique` (AtelierBoutique)** — élévation `ShopManager`. `ShopManager`
+  n'est pas `selfRegister` (provisionné hors ligne) : l'audit ne pouvait pas
+  obtenir de token, d'où un `401` (échec d'**initiation**) confondu avec un
+  `403` (échec d'**autorisation**). Repro avec un vrai compte hors ligne :
+  `PUT`/`DELETE /orderline` → `403`, ownership transitive → `403`, action
+  légitime `PUT /order/{id}` (statut) → `200`.
+
+L'outillage a été durci pour refléter ce modèle : cible `Create` non publique
+préférée, « bloqué » = toute réponse non-2xx, routes publiques et rôles non
+auto-inscriptibles traités en « N/A ».
+
+**Statut des `[CRITICAL_WARNING]` statiques.** L'audit statique signale toute
+suppression par un acteur non-`Admin` (`ast_validator.py`, `_audit_security_rules`).
+C'est une heuristique volontairement prudente, pas une preuve de bug : `monl` ne
+peut pas décider de la politique de suppression de son utilisateur. Sur
+`02_boutique`, les trois signalements sont effectivement couverts au runtime par
+le backend généré :
+
+| Signalement | Gardes générées au runtime |
+|---|---|
+| `Customer` → `Delete OrderLine` | rôle `403` (Customer requis) + ownership transitive `403` + verrou de paiement `409` (commande réglée intouchable) |
+| `ShopManager` → `Delete Product` | rôle `403` + intégrité référentielle `409` (FK `NO ACTION` : refusé tant qu'il reste des variantes) |
+| `ShopManager` → `Delete Variant` | rôle `403` + intégrité référentielle `409` (refusé tant qu'il reste des lignes de commande) |
+
+**Conclusion** : aucune vulnérabilité identifiée sur la branche
+`paiement-et-outillage` ; le générateur n'a pas eu besoin d'être modifié. Le seul
+point d'arbitrage restant n'est pas une faille mais un choix de politique métier
+situé côté infra (suppression d'un produit déjà commandé), signalé par
+l'heuristique — à trancher au déploiement, pas dans le compilateur.
+
 ## Limites connues de la bêta
 
 - Base SQLite : convient au prototypage et aux déploiements légers ; la
