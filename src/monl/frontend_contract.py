@@ -487,10 +487,23 @@ def build_contract(normalized_ast, generator):
             if verrou_parent:
                 routes[-1]["payment_locked"] = verrou_parent
         elif act_type == "Read":
+            # AJOUT (brique 23, point 106) : un rôle superviseur (declare via
+            # 'sharedBy' sur la meme reference que 'accessibleBy') transperce
+            # le controle par colonnes. Sans cette note, une IA d'interface
+            # appliquerait le filtre de parties au moderateur lui-meme et lui
+            # taillerait une vue vide — alors que le backend lui montre tout.
+            _sup_lecture = getattr(generator, "access_supervisors", {}).get(f"{base}.Read")
+            _note_lecture = _note_superviseurs(_sup_lecture, "lecture")
             routes.append(_route("GET", f"/{low}", "List", base, is_public, actors,
-                                 note="Paramètres : limit (max 200), offset. Réponse : "
-                                      "{status, total, limit, offset, data: [...]}."))
-            routes.append(_route("GET", f"/{low}/{{id}}", "Read", base, is_public, actors))
+                                 note=_joindre(
+                                     "Paramètres : limit (max 200), offset. Réponse : "
+                                     "{status, total, limit, offset, data: [...]}.",
+                                     _note_lecture)))
+            routes.append(_route("GET", f"/{low}/{{id}}", "Read", base, is_public, actors,
+                                 note=_note_lecture))
+            if _sup_lecture:
+                routes[-1]["supervisors"] = _sup_lecture
+                routes[-2]["supervisors"] = _sup_lecture
         elif act_type == "Update":
             # AJOUT (point 81) : le schéma Pydantic est UNIQUE par entité, donc
             # ces clés étrangères doivent être envoyées (sinon 422) -- mais la
@@ -533,8 +546,15 @@ def build_contract(normalized_ast, generator):
                     "releases": liberation["releases"], "terminal": True}
         elif act_type == "Delete":
             verrou = _verrou_paiement(generator, base)
+            # AJOUT (brique 23, point 106) : voir le bloc Read — un superviseur
+            # de la suppression voit/supprime tous les enregistrements.
+            _sup_delete = getattr(generator, "access_supervisors", {}).get(f"{base}.Delete")
             routes.append(_route("DELETE", f"/{low}/{{id}}", act_type, base, is_public,
-                                 actors, note=_note_verrou(verrou)))
+                                 actors,
+                                 note=_joindre(_note_verrou(verrou),
+                                               _note_superviseurs(_sup_delete, "suppression"))))
+            if _sup_delete:
+                routes[-1]["supervisors"] = _sup_delete
             if verrou:
                 routes[-1]["payment_locked"] = verrou
         elif act_type == "Execute":
@@ -757,6 +777,20 @@ def _note_verrou(verrou, creation=False):
 def _joindre(*notes):
     retenues = [n for n in notes if n]
     return " ".join(retenues) if retenues else None
+
+
+def _note_superviseurs(supers, action_nom):
+    """AJOUT (brique 23, point 106) : le rôle superviseur (declare via
+    'sharedBy' sur une action regie par 'accessibleBy') transperce le controle
+    par colonnes. Note de contrat : l'IA d'interface doit donner à ce rôle la
+    vision/maîtrise de TOUT, et aux autres rôles seulement leurs parties."""
+    if not supers:
+        return None
+    roles = ", ".join(supers)
+    return (f"SUPERVISION ({action_nom}) : le rôle {roles} accède à TOUS les "
+            f"enregistrements, sans restriction de parties. Les autres rôles "
+            f"autorisés ici ne voient/modifient que les enregistrements dont "
+            f"ils sont une des parties.")
 
 
 def _route(method, path, action, entity, is_public, actors, request_fields=None, note=None):

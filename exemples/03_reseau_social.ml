@@ -53,6 +53,10 @@ relation Member hasMany PrivateMessage
 
 actor Member selfRegister
 
+# Modérateur : provisionné hors ligne (manage.py), il LIT et SUPPRIME tous les
+# messages privés — le rôle superviseur au-dessus d'accessibleBy (brique 23).
+actor Moderator
+
 capability auth
 
 # Posts publics ; l'auteur est un pseudonyme anonyme stable généré serveur.
@@ -77,6 +81,9 @@ rule Comment.Delete ownedBy Member
 # Messagerie privée : expéditeur (member_id auto) ET destinataire seulement.
 rule PrivateMessage.Read accessibleBy member_id, recipient_id
 rule PrivateMessage.Delete accessibleBy member_id, recipient_id
+# Le modérateur supervise les deux : il voit et supprime tous les messages.
+rule PrivateMessage.Read sharedBy Moderator
+rule PrivateMessage.Delete sharedBy Moderator
 
 workflow Onboard for Member
     Create Member
@@ -99,6 +106,10 @@ workflow Discuss for Member
 
 workflow DirectMessage for Member
     Create PrivateMessage
+    Read PrivateMessage
+    Delete PrivateMessage
+
+workflow Moderate for Moderator
     Read PrivateMessage
     Delete PrivateMessage
 

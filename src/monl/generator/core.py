@@ -78,6 +78,12 @@ class MonlSecureGenerator(
         # validées par ast_validator.py — chaque colonne contient
         # l'identifiant d'un utilisateur autorisé sur l'enregistrement.
         self.access_parties = normalized_ast["security"].get("access_parties", {})
+        # AJOUT (brique 23, point 106) : table {\"Entite.Action\": [rôles]}
+        # des rôles SUPERVISEURS qui transpercent le contrôle 'accessibleBy'.
+        # Un rôle listé lit/modifie/supprime TOUS les enregistrements de
+        # l'action, sans restriction de partie — les autres restent confinés
+        # à leurs colonnes.
+        self.access_supervisors = normalized_ast["security"].get("access_supervisors", {})
         # AJOUT (roadmap, cas d'usage portfolio) : ensemble des "Entite.Action"
         # marquées 'public' — ces routes ne requièrent aucune authentification.
         # Reconstruit en tuples (entité, action) pour être comparable

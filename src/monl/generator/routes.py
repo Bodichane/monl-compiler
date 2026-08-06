@@ -399,6 +399,8 @@ class RoutesMixin:
                 # (pas d'identité appelante sur une route publique).
                 read_parties = self.access_parties.get(f"{base_target}.Read")
                 apply_read_parties = bool(read_parties) and not is_public
+                read_supers = self.access_supervisors.get(f"{base_target}.Read") or []
+                apply_read_super = bool(read_supers) and apply_read_parties
                 read_dep_suffix = dep_suffix
                 parties_where = parties_params = ""
                 if apply_read_parties:
@@ -447,8 +449,17 @@ class RoutesMixin:
                     api_lines.append(f"    if current_actor == \"{read_actor}\":")
                     api_lines.append(f"        _own_where = {own_where_sql!r}")
                     api_lines.append("        _own_params = (current_user_id,)")
+                elif apply_read_super:
+                    # Le superviseur voit tout (WHERE vide) ; les parties restent
+                    # confinees a leurs colonnes. Meme mecanisme conditionnel que la
+                    # branche ownedBy juste au-dessus.
+                    _superset = ", ".join(f'"{s}"' for s in read_supers)
+                    api_lines.append("    _own_where, _own_params = '', ()")
+                    api_lines.append(f"    if current_actor not in {{{_superset}}}:")
+                    api_lines.append(f"        _own_where = ' WHERE {parties_where}'")
+                    api_lines.append(f"        _own_params = ({parties_params},)")
                 api_lines.append("    conn = _connect(); cursor = conn.cursor()")
-                if apply_read_owner:
+                if apply_read_owner or apply_read_super:
                     api_lines.append(f"    cursor.execute('SELECT COUNT(*) FROM \"{base_target.lower()}\"' + _own_where, _own_params)")
                     api_lines.append("    total = cursor.fetchone()[0]")
                     api_lines.append(f"    cursor.execute('SELECT * FROM \"{base_target.lower()}\"' + _own_where + ' LIMIT ? OFFSET ?', _own_params + (limit, offset))")
@@ -456,7 +467,7 @@ class RoutesMixin:
                     api_lines.append(f"    cursor.execute('SELECT COUNT(*) FROM \"{base_target.lower()}\" WHERE {parties_where}', ({parties_params},))")
                 else:
                     api_lines.append(f"    cursor.execute('SELECT COUNT(*) FROM \"{base_target.lower()}\"')")
-                if not apply_read_owner:
+                if not (apply_read_owner or apply_read_super):
                     api_lines.append("    total = cursor.fetchone()[0]")
                     if apply_read_parties:
                         api_lines.append(f"    cursor.execute('SELECT * FROM \"{base_target.lower()}\" WHERE {parties_where} LIMIT ? OFFSET ?', ({parties_params}, limit, offset))")
@@ -518,8 +529,14 @@ class RoutesMixin:
                     # une colonne de partie peut légitimement être masquée
                     # en lecture tout en servant au contrôle d'accès.
                     parties_tuple = ", ".join(f"named_row.get('{c}')" for c in read_parties)
-                    api_lines.append(f"    if current_user_id not in ({parties_tuple}):")
-                    api_lines.append("        raise HTTPException(status_code=403, detail=\"Contrôle d'accès : seules les parties de la ressource peuvent la consulter\")")
+                    if apply_read_super:
+                        _superset = ", ".join(f'"{s}"' for s in read_supers)
+                        api_lines.append(f"    if current_actor not in {{{_superset}}}:")
+                        api_lines.append(f"        if current_user_id not in ({parties_tuple}):")
+                        api_lines.append("            raise HTTPException(status_code=403, detail=\"Contrôle d'accès : seules les parties de la ressource peuvent la consulter\")")
+                    else:
+                        api_lines.append(f"    if current_user_id not in ({parties_tuple}):")
+                        api_lines.append("        raise HTTPException(status_code=403, detail=\"Contrôle d'accès : seules les parties de la ressource peuvent la consulter\")")
                 if masked:
                     api_lines.append(f"    for _f in [{mask_literal}]: named_row.pop(_f, None)")
                 for cf in categorized_here:
@@ -542,12 +559,14 @@ class RoutesMixin:
                 # AJOUT (roadmap, brique "accès à deux parties") : même
                 # principe que 'ownedBy' mais l'appelant doit être l'UNE des
                 # colonnes-parties listées. Contrairement à 'ownedBy', le
-                # contrôle s'applique à tous les acteurs de la route (les
-                # parties sont des colonnes de données, pas des rôles) —
-                # combiner avec 'sharedBy' pour un rôle superviseur n'est
-                # pas couvert par cette première version (documenté).
+                # contrôle s'applique à tous les acteurs de la route, sauf à
+                # un rôle SUPERVISEUR déclaré via sharedBy sur la même
+                # référence (brique 23, point 106) — celui-là transperce le
+                # contrôle et modifie tous les enregistrements.
                 update_parties = self.access_parties.get(f"{base_target}.Update")
                 apply_update_parties = bool(update_parties) and not is_public
+                update_supers = self.access_supervisors.get(f"{base_target}.Update") or []
+                apply_update_super = bool(update_supers) and apply_update_parties
                 update_deps = dependency_injection
                 ownership_check_lines = []
                 if apply_update_parties:
@@ -558,9 +577,15 @@ class RoutesMixin:
                         f"    _p_cur.execute('SELECT {cols_literal} FROM \"{base_target.lower()}\" WHERE id = ?', (id,))",
                         "    _p_row = _p_cur.fetchone(); _p_conn.close()",
                         "    if not _p_row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
-                        "    if current_user_id not in _p_row: raise HTTPException(status_code=403, "
-                        "detail=\"Contrôle d'accès : seules les parties de la ressource peuvent exécuter cette action\")",
                     ]
+                    if apply_update_super:
+                        _superset = ", ".join(f'"{s}"' for s in update_supers)
+                        ownership_check_lines.append(f"    if current_actor not in {{{_superset}}}:")
+                        ownership_check_lines.append("        if current_user_id not in _p_row: raise HTTPException(status_code=403, ")
+                        ownership_check_lines.append("        detail=\"Contrôle d'accès : seules les parties de la ressource peuvent exécuter cette action\")")
+                    else:
+                        ownership_check_lines.append("    if current_user_id not in _p_row: raise HTTPException(status_code=403, ")
+                        ownership_check_lines.append("        detail=\"Contrôle d'accès : seules les parties de la ressource peuvent exécuter cette action\")")
                 elif apply_ownership:
                     check_actor, owner_select = self._owner_lookup_sql(base_target, owner_entity)
                     update_deps += ", current_user_id: int = Depends(get_current_user_id)" if update_deps else "current_user_id: int = Depends(get_current_user_id)"
@@ -865,6 +890,8 @@ class RoutesMixin:
                 # commentaire équivalent sur la route Update.
                 delete_parties = self.access_parties.get(f"{base_target}.Delete")
                 apply_delete_parties = bool(delete_parties) and not is_public
+                delete_supers = self.access_supervisors.get(f"{base_target}.Delete") or []
+                apply_delete_super = bool(delete_supers) and apply_delete_parties
                 delete_deps = dependency_injection
                 ownership_check_lines = []
                 if apply_delete_parties:
@@ -875,9 +902,15 @@ class RoutesMixin:
                         f"    _p_cur.execute('SELECT {cols_literal} FROM \"{base_target.lower()}\" WHERE id = ?', (id,))",
                         "    _p_row = _p_cur.fetchone(); _p_conn.close()",
                         "    if not _p_row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
-                        "    if current_user_id not in _p_row: raise HTTPException(status_code=403, "
-                        "detail=\"Contrôle d'accès : seules les parties de la ressource peuvent exécuter cette action\")",
                     ]
+                    if apply_delete_super:
+                        _superset = ", ".join(f'"{s}"' for s in delete_supers)
+                        ownership_check_lines.append(f"    if current_actor not in {{{_superset}}}:")
+                        ownership_check_lines.append("        if current_user_id not in _p_row: raise HTTPException(status_code=403, ")
+                        ownership_check_lines.append("        detail=\"Contrôle d'accès : seules les parties de la ressource peuvent exécuter cette action\")")
+                    else:
+                        ownership_check_lines.append("    if current_user_id not in _p_row: raise HTTPException(status_code=403, ")
+                        ownership_check_lines.append("        detail=\"Contrôle d'accès : seules les parties de la ressource peuvent exécuter cette action\")")
                 elif apply_ownership:
                     check_actor, owner_select = self._owner_lookup_sql(base_target, owner_entity)
                     delete_deps += ", current_user_id: int = Depends(get_current_user_id)" if delete_deps else "current_user_id: int = Depends(get_current_user_id)"

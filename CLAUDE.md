@@ -117,7 +117,7 @@ réseau social anonyme comme banc d'essai final.
 > fichiers, ils n'existent plus.
 >
 > Attention à la nuance : compiler n'est pas se comporter correctement.
-> **Les vingt-deux briques sont désormais éprouvées contre un vrai serveur
+> **Les vingt-trois briques sont désormais éprouvées contre un vrai serveur
 > éphémère** : `accessibleBy` (`tests/test_access_parties.py`), le filtrage de
 > lecture d'`ownedBy` (`tests/test_lecture_privee.py`), le masquage `hidden`
 > (`tests/test_masquage_hidden.py`, point 64), puis `generated`, `increments`,
@@ -140,6 +140,9 @@ réseau social anonyme comme banc d'essai final.
 > démonstration (`tests/test_seed_parent.py`, point 100 — dont la base
 > pré-peuplée d'identifiants divergents, seule façon de départager la résolution
 > au démarrage d'un rang calculé à la compilation).
+> Puis le rôle superviseur au-dessus d'`accessibleBy` (`tests/test_access_parties.py`,
+> volet superviseur, point 106 — le modérateur voit/supprime tout, les parties
+> restent dans leurs colonnes).
 > Depuis le point 95, **aucune brique n'a plus la seule couverture de
 > compilation** : `capability auth` était la dernière, ce qui était cohérent
 > tant qu'elle ne produisait rien — elle
@@ -586,10 +589,20 @@ réseau social anonyme comme banc d'essai final.
     par `tests/test_numerotation.py` (24 tests), compilée par
     `exemples/02_boutique.ml`. Voir point 102.
 
+23. **Rôle superviseur au-dessus d'`accessibleBy`** — un `sharedBy` porté sur la
+    MÊME référence qu'une action régie par `accessibleBy` nomme les rôles qui
+    transpercent le contrôle par colonnes : ils listent, lisent, modifient et
+    suppriment TOUS les enregistrements, quand les parties restent confinées
+    aux leurs. C'est le pendant exact du superviseur déjà acquis pour `ownedBy`
+    au point 88 (`rule X.Update sharedBy Proprietaire, Patron`). L'action
+    `accessibleBy` devient **exempte de CRITICAL_COLLISION** (miroir d'`ownedBy`) :
+    plusieurs rôles peuvent légitimement viser la même route, chacun restant
+    cantonné soit à ses messages, soit à tout — s'il est déclaré superviseur.
+    Éprouvé contre un vrai serveur éphémère par `tests/test_access_parties.py`
+    (volet superviseur, serveur + Sessions) et compilé par
+    `exemples/03_reseau_social.ml` (`Moderator`). Voir point 106.
+
 ### Briques suivantes déjà évoquées, non cadrées
-- Rôle superviseur au-dessus d'`accessibleBy` (un modérateur qui lit tous
-  les messages privés via `sharedBy`) — exclu volontairement de la première
-  version de la brique 8, voir point 31.
 - Le **panier multi-articles est terminé** : ses trois briques cadrées au
   point 80 sont faites (11 = propriété transitive et clé étrangère cliente sur le
   parent propriétaire, 12 = agrégation). Ce qui reste ouvert autour : la chaîne

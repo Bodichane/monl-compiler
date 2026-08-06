@@ -21,7 +21,8 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [11](#11-secret-jwt-unique-par-projet-faille-corrigée) Secret JWT unique par projet ·
 [12](#12-révocation-de-token-logout) Révocation de token ·
 [13](#13-limitation-de-débit-sur-register) Limitation de débit `/register` ·
-[16](#16-actions-publiques-public--cas-dusage-portfolio) Actions publiques (`public`)
+[16](#16-actions-publiques-public--cas-dusage-portfolio) Actions publiques (`public`) ·
+[106](#106-rôle-superviseur-au-dessus-daccessibleby-brique-23) Rôle superviseur (`accessibleBy`)
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -6569,3 +6570,82 @@ chemin plutôt que sur l'état, la vérification de cohérence qui ne conseille 
 de recompiler — puis l'inversion détectée, l'ordre correct qui ne déclenche
 rien (le témoin qui compte le plus : un faux positif refuserait une retouche
 valide), et la commande proposée dont le chemin est déjà corrigé.
+
+---
+
+## 106. Rôle superviseur au-dessus d'`accessibleBy` (brique 23)
+
+**Le problème :** la brique 8 (`accessibleBy`, point 31) enferme chaque action
+dans ses colonnes-parties : seuls l'expéditeur et le destinataire d'un message
+privé le lisent/suppriment. Une messagerie a presque toujours besoin d'un tiers
+superviseur — un modérateur qui doit pouvoir lire, voire retirer, TOUS les
+messages, sans être artificiellement compté parmi les parties de chacun. Les
+colonnes ne disent pas « qui peut tout voir » ; il faut le déclarer.
+
+**La syntaxe retenue :** on réutilise `sharedBy` sur la MÊME référence qu'une
+action déjà régie par `accessibleBy` :
+```
+rule PrivateMessage.Read   accessibleBy member_id, recipient_id
+rule PrivateMessage.Delete accessibleBy member_id, recipient_id
+rule PrivateMessage.Read   sharedBy Moderator
+rule PrivateMessage.Delete sharedBy Moderator
+```
+Le rôle ainsi nommé devient **superviseur** de cette action : il liste, lit,
+modifie et supprime TOUS les enregistrements, sans restriction de parties. Les
+parties, elles, restent confinées à leurs colonnes. Un rôle non répertorié dans
+le `sharedBy` d'une action `accessibleBy` — même s'il a un workflow qui l'y fait
+entrer — subit, lui, le filtre de parties. C'est le pendant exact du superviseur
+personne déjà acquis pour `ownedBy` au point 88 (`rule X.Update sharedBy
+Proprietaire, Patron` : chacun ne touche que les siens, l'autre voit tout).
+
+Un seul froncement de sourcil possible : pourquoi `sharedBy` plutôt qu'une
+nouvelle syntaxe ? Parce que le mot dit déjà, dans monl, « ce rôle partage
+l'accès à cette action au-delà du propriétaire » — relire le point 88. Une
+syntaxe neuve ajouterait une règle à apprendre pour un cas que `sharedBy`
+recouvre sémantiquement. La différence de comportement (transpercer les
+colonnes) n'est pas une syntaxe mais une conséquence de la présence conjointe
+d'`accessibleBy`.
+
+**Ce qui change dans le validateur (`ast_validator.py`) :**
+- chaque action `accessibleBy` collecte désormais les rôles porte-parole d'un
+  `sharedBy` de même référence → `access_supervisors`;
+- chaque rôle ainsi nommé doit être un acteur déclaré (pas de fantôme);
+- **exemption de CRITICAL_COLLISION pour les actions `accessibleBy`**, miroir
+  exact de celle déjà reconnue aux actions `ownedBy`. Le point 1 (deux acteurs
+  sur une même écriture) est une collision de PRIVILÈGES ; `accessibleBy`,
+  comme `ownedBy`, décide l'accès à CHAQUE enregistrement par ses données, pas
+  par les rôles — un rôle Membre et un rôle Modérateur peuvent donc
+  légitimement partager la même route. Sans cette exemption, ajouter un
+  superviseur forcerait à nommer les parties dans le `sharedBy` pour couvrir
+  la collision, ce qui les déclarerait (à tort) superviseurs à leur tour.
+
+**Ce qui change dans le générateur (`routes.py`) :** sur une action
+`accessibleBy` qui a des superviseurs, le contrôle par colonnes devient
+conditionnel :
+- **liste (Read)** : `WHERE col1 = ? OR col2 = ?` n'est posé que si le rôle
+  appelant n'est pas superviseur — le superviseur voit tout (WHERE vide);
+- **détail / Update / Delete** : le 403 de parties est gardé derrière
+  `if current_actor not in {"Moderateur"}`.
+Le mécanisme conditionnel réutilise exactement celui déjà en place pour
+`ownedBy` (`_own_where`), donc il n'ajoute pas une troisième voie mais étend la
+deuxième.
+
+**Dans le contrat frontend :** chaque route de lecture/suppression gagne, quand
+il y a un superviseur, un champ `supervisors` et une note `SUPERVISION` — sans
+quoi une IA d'interface appliquerait le filtre de parties au modérateur lui-même
+et lui dessinerait une vue LITÉRALEMENT VIDE.
+
+**Preuve, testée en conditions réelles** (`tests/test_access_parties.py`, volet
+superviseur, serveur éphémère + Sessions) : le modérateur provisionné hors
+ligne (insérer dans `_monl_users` avec le hachage pbkdf2 de `manage.py`) voit la
+liste complète, lit un message dont il n'est ni émetteur ni destinataire, et le
+supprime — quand Carol, tier du même rôle `User`, reste à 0 en liste et reçoit
+403 en direct. Compilé par `exemples/03_reseau_social.ml`. Validations
+supplémentaires : superviseur inconnu refusé, absence de collision, `sharedBy`
+sans `accessibleBy` qui ne fabrique aucun superviseur.
+
+**La formulation en garde-fou :** un `sharedBy` posé sur une action qui n'est
+PAS régie par `accessibleBy` ne produit AUCUN superviseur — il reste le partage
+de privilèges historique, inchangé au point 1. Les deux lectures de `sharedBy`
+ne se font pas concurrence : elles sont disjointes par la présence ou non
+d'`accessibleBy` sur la même référence.

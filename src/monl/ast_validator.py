@@ -67,6 +67,12 @@ class MonlAST:
         self.transitive_ownership = {}
         self.aggregated_fields = []
         self.access_party_rules = {}
+        # AJOUT (brique 23, point 106) : rôles SUPERVISEURS par action régie
+        # par 'accessibleBy'. Un rôle nommé ici (via une règle 'sharedBy' sur
+        # la MÊME référence) transperce le contrôle par colonnes : il lit,
+        # modifie ou supprime TOUS les enregistrements, quand les parties
+        # restent enfermées dans les leurs.
+        self.access_supervisors = {}
         self.ui_overrides_raw = raw_json.get("ui_overrides", [])
         self.landing_raw = raw_json.get("landing")
         self.capabilities_raw = raw_json.get("capabilities", [])
@@ -685,6 +691,31 @@ class MonlAST:
                 )
 
             self.access_party_rules[(entity, act_type)] = list(columns)
+
+            # AJOUT (brique 23, point 106) : un rôle SUPERVISEUR peut
+            # transpercer ce contrôle par colonnes. Syntaxe : une règle
+            # 'sharedBy' portant la MÊME référence — 'rule Message.Delete
+            # sharedBy Moderator' posé à côté de 'rule Message.Delete
+            # accessibleBy member_id, recipient_id'. Le rôle ainsi nommé
+            # voit/supprime/modifie tous les enregistrements ; les parties,
+            # elles, restent confinées aux leurs. C'est pour 'accessibleBy' le
+            # pendant exact du superviseur déjà acquis pour 'ownedBy' au
+            # point 88 ('rule X.Update sharedBy Proprietaire, Patron'). Les
+            # rôles nommés doivent être des acteurs déclarés.
+            ref = f"{entity}.{act_type}"
+            superviseurs = []
+            for r in self.rules:
+                if r["type"] == "sharedBy" and r["reference"] == ref:
+                    for role in r["value"]:
+                        if role not in self.actors:
+                            raise ASTValidationError(
+                                f"Structure : le rôle superviseur '{role}' de la règle "
+                                f"'sharedBy' sur '{ref}' n'est pas un acteur déclaré."
+                            )
+                        if role not in superviseurs:
+                            superviseurs.append(role)
+            if superviseurs:
+                self.access_supervisors[(entity, act_type)] = superviseurs
 
         # AJOUT (roadmap, cas d'usage portfolio) : validation des règles
         # 'public' — une action ainsi marquée n'exige plus d'authentification
@@ -1891,6 +1922,24 @@ class MonlAST:
                               f"{self.ownership_rules[(entity, act_type)]}).")
                         continue
 
+                    # AJOUT (brique 23, point 106) : une action régie par
+                    # 'accessibleBy' est exemptée comme 'ownedBy' — l'accès à
+                    # CHAQUE enregistrement est décidé par ses colonnes-parties,
+                    # pas par un couplage rôle/action. Plusieurs acteurs peuvent
+                    # donc légitimement viser la même route (le rôle 'Membre',
+                    # en plus d'un rôle 'Modérateur' superviseur) : chacun reste
+                    # cantonné soit à ses propres enregistrements, soit à tout —
+                    # s'il est déclaré superviseur via 'sharedBy' sur la même
+                    # référence. Sans cette exemption, ajouter un superviseur
+                    # forcerait à nommer les parties dans le 'sharedBy', ce qui
+                    # les déclarerait (à tort) superviseurs à leur tour.
+                    if (entity, act_type) in self.access_party_rules:
+                        print(f"🔐 [SHARED_PRIVILEGE_VIA_ACCESS] L'action '{act_type}' sur '{entity}' est partagée "
+                              f"entre [{', '.join(sorted(authorized_actors))}], mais protégée au niveau de chaque "
+                              f"enregistrement par la règle 'accessibleBy' "
+                              f"(parties : {self.access_party_rules[(entity, act_type)]}).")
+                        continue
+
                     actors_list = ", ".join(sorted(authorized_actors))
                     suggestion = f"'rule {entity}.{act_type} sharedBy {actors_list}'"
                     extra = ""
@@ -1960,6 +2009,9 @@ class MonlAST:
                 "ownership": {f"{k[0]}.{k[1]}": v for k, v in self.ownership_rules.items()},
                 "transitive_ownership": self.transitive_ownership,
                 "access_parties": {f"{k[0]}.{k[1]}": v for k, v in self.access_party_rules.items()},
+                # AJOUT (brique 23) : rôles superviseurs qui transpercent le
+                # contrôle 'accessibleBy' — item par item, même clé.
+                "access_supervisors": {f"{k[0]}.{k[1]}": v for k, v in self.access_supervisors.items()},
                 "public": [f"{e}.{a}" for e, a in sorted(self.public_actions)],
                 "hidden_fields": [f"{e}.{f}" for e, f in sorted(self.masked_fields)],
                 "reputation_rules": self.reputation_rules,
