@@ -3,7 +3,13 @@
 
 Extrait de l'ancien module monolithique src/generator.py (1307 lignes)
 lors du découpage en package — voir docs/design_decisions.md.
+
+Tout le SQL de contrôle d'accès passe par la couche d'émission typée `sql`
+(point 108) : une valeur ne peut y entrer que liée en paramètre, jamais collée
+dans le texte. Voir generator/sql.py.
 """
+
+from . import sql
 
 
 class RoutesMixin:
@@ -158,12 +164,24 @@ class RoutesMixin:
                 # les distinguer permettrait d'énumérer les commandes des
                 # autres, exactement ce que le 404 de la lecture détail évite.
                 if verifie_parent:
+                    # La chaîne (transitive, de profondeur quelconque) se remonte
+                    # en un coup, depuis le parent que le CLIENT désigne via sa
+                    # clé étrangère (data.<fk>). Un parent absent ou étranger rend
+                    # le même refus : le scalaire vaut NULL ou un compte différent.
+                    # 403 unique pour « n'existe pas » et « pas à vous » : les
+                    # distinguer permettrait d'énumérer les commandes des autres,
+                    # exactement ce que le 404 de la lecture détail évite.
+                    # La valeur que le CLIENT désigne (data.<fk>) entre par
+                    # sql.bind : elle sort en '?' + paramètre lié, jamais dans le
+                    # texte. C'est la classe de défaut du point 107 rendue
+                    # impossible — texte et params sortent ENSEMBLE de l'objet Sql.
+                    _owner_q = self._chain_owner_scalar(
+                        base_target, sql.bind(f"data.{chaine_create['via_fk']}"))
+                    _sql_lit, _params_lit = sql.execute_args(_owner_q, prefix="SELECT ")
                     api_lines += [
-                        f"    cursor.execute('SELECT \"{chaine_create['actor_fk']}\" FROM "
-                        f'"{chaine_create["via_table"]}" WHERE id = ?\', '
-                        f"(data.{chaine_create['via_fk']},))",
+                        f"    cursor.execute({_sql_lit}, {_params_lit})",
                         "    _parent = cursor.fetchone()",
-                        "    if not _parent or _parent[0] != current_user_id:",
+                        "    if not _parent or _parent[0] is None or _parent[0] != current_user_id:",
                         "        conn.close()",
                         "        raise HTTPException(status_code=403, detail=(",
                         f"            \"Contrôle d'accès : ce {chaine_create['via']} ne vous \"",
@@ -428,14 +446,16 @@ class RoutesMixin:
                 if apply_read_owner:
                     if chaine_lecture:
                         read_actor = chaine_lecture["actor"]
-                        own_where_sql = (
-                            f' WHERE "{chaine_lecture["via_fk"]}" IN '
-                            f'(SELECT id FROM "{chaine_lecture["via_table"]}" '
-                            f'WHERE "{chaine_lecture["actor_fk"]}" = ?)'
-                        )
+                        # Briques 11 et 24 : le filtre est un IN imbriqué par
+                        # maillon, quelle que soit la profondeur de la chaîne.
+                        # Le compte est lié (sql.bind), jamais collé dans le texte.
+                        own_where_sql = self._chain_read_where(
+                            base_target, sql.bind("current_user_id"))
                     else:
                         read_actor = read_owner
-                        own_where_sql = f' WHERE "{read_owner.lower()}_id" = ?'
+                        own_where_sql = sql.cat(
+                            sql.kw(' WHERE '), sql.ident(f"{read_owner.lower()}_id"),
+                            sql.kw(' = '), sql.bind("current_user_id"))
                     if ", current_user_id" not in read_dep_suffix:
                         read_dep_suffix += ", current_user_id: int = Depends(get_current_user_id)"
                 list_params = f"limit: int = 50, offset: int = 0{read_dep_suffix}"
@@ -447,8 +467,8 @@ class RoutesMixin:
                 if apply_read_owner:
                     api_lines.append("    _own_where, _own_params = '', ()")
                     api_lines.append(f"    if current_actor == \"{read_actor}\":")
-                    api_lines.append(f"        _own_where = {own_where_sql!r}")
-                    api_lines.append("        _own_params = (current_user_id,)")
+                    api_lines.append(f"        _own_where = {own_where_sql.text!r}")
+                    api_lines.append(f"        _own_params = {sql.params_tuple(own_where_sql)}")
                 elif apply_read_super:
                     # Le superviseur voit tout (WHERE vide) ; les parties restent
                     # confinees a leurs colonnes. Meme mecanisme conditionnel que la
@@ -506,18 +526,20 @@ class RoutesMixin:
                     # d'un tiers. Un enregistrement qu'on n'a pas le droit de
                     # lire doit être indiscernable d'un enregistrement absent.
                     if chaine_lecture:
-                        # La chaîne se remonte d'un cran : à qui appartient
-                        # l'enregistrement intermédiaire que celui-ci désigne ?
-                        # Un intermédiaire absent est traité comme un refus —
-                        # une ligne orpheline n'appartient à personne.
+                        # Une seule sous-requête scalaire remonte toute la chaîne
+                        # jusqu'au compte, quelle que soit sa profondeur. Un
+                        # maillon absent rend NULL donc « appartient à personne »,
+                        # et 404 est la bonne réponse pour les deux cas.
+                        _owner_q = self._chain_owner_scalar(
+                            base_target,
+                            sql.bind(f"named_row.get('{chaine_lecture['via_fk']}')"))
+                        _sql_lit, _params_lit = sql.execute_args(_owner_q, prefix="SELECT ")
                         api_lines += [
                             f"    if current_actor == \"{read_actor}\":",
                             "        _tc = _connect(); _tcur = _tc.cursor()",
-                            f"        _tcur.execute('SELECT \"{chaine_lecture['actor_fk']}\" FROM "
-                            f'"{chaine_lecture["via_table"]}" WHERE id = ?\', '
-                            f"(named_row.get('{chaine_lecture['via_fk']}'),))",
+                            f"        _tcur.execute({_sql_lit}, {_params_lit})",
                             "        _tr = _tcur.fetchone(); _tc.close()",
-                            "        if not _tr or _tr[0] != current_user_id:",
+                            "        if not _tr or _tr[0] is None or _tr[0] != current_user_id:",
                             "            raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
                         ]
                     else:
@@ -602,7 +624,7 @@ class RoutesMixin:
                     ownership_check_lines = [
                         f"    if current_actor == \"{check_actor}\":",
                         "        _owner_conn = _connect(); _owner_cur = _owner_conn.cursor()",
-                        f"        _owner_cur.execute({owner_select!r}, (id,))",
+                        f"        _owner_cur.execute({owner_select.text!r}, {sql.params_tuple(owner_select)})",
                         "        _owner_row = _owner_cur.fetchone(); _owner_conn.close()",
                         "        if not _owner_row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
                         "        if _owner_row[0] != current_user_id: raise HTTPException(status_code=403, "
@@ -920,7 +942,7 @@ class RoutesMixin:
                     ownership_check_lines = [
                         f"    if current_actor == \"{check_actor}\":",
                         "        _owner_conn = _connect(); _owner_cur = _owner_conn.cursor()",
-                        f"        _owner_cur.execute({owner_select!r}, (id,))",
+                        f"        _owner_cur.execute({owner_select.text!r}, {sql.params_tuple(owner_select)})",
                         "        _owner_row = _owner_cur.fetchone(); _owner_conn.close()",
                         "        if not _owner_row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
                         "        if _owner_row[0] != current_user_id: raise HTTPException(status_code=403, "
@@ -1188,9 +1210,11 @@ class RoutesMixin:
                     f"porte l'identifiant du compte propriétaire — la route de "
                     f"règlement ne pourrait opposer de 403 à personne.")
             if chaine:
-                colonnes = f't."{champ}", t.payment_status, p."{chaine["actor_fk"]}"'
-                depuis = (f'"{table}" t JOIN "{chaine["via_table"]}" p '
-                          f'ON p.id = t."{chaine["via_fk"]}"')
+                # Briques 11 et 24 : une chaîne de JOIN, une par maillon, jusqu'au
+                # compte. Montant, état et propriétaire sortent de la MÊME lecture.
+                _depuis, _cur, _fk = self._chain_join(entite)
+                colonnes = f't."{champ}", t.payment_status, {_cur}."{_fk}"'
+                depuis = _depuis
             else:
                 colonnes = (f'"{champ}", payment_status, "{proprio["fk_column"]}"')
                 depuis = f'"{table}"'

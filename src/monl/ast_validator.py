@@ -480,23 +480,21 @@ class MonlAST:
                     f"à zéro sans que le numéro dise de quelle période il s'agit, et "
                     f"deux enregistrements finiraient par porter le même.")
 
-    def _validate_structures(self):
-        """Vérifie la cohérence de base et traque les collisions multi-acteurs (Bug #5),
-        sauf exemption explicite via une règle 'sharedBy'. Valide aussi les règles
-        'ownedBy' (roadmap : contrôle d'accès par propriété)."""
-        # Matrice globale pour traquer les conflits d'autorisations (Entité -> Action -> Ensemble d'acteurs)
-        access_matrix = {}
+    def _valider_controle_dacces(self):
+        """Le noyau du contrôle d'accès — frontière de sécurité (point 109).
 
-        # CORRECTIF (post-v6) : les règles 'sharedBy' déclarent explicitement qu'un
-        # ensemble précis d'acteurs peut se partager un même droit d'écriture sur
-        # une entité, ex. : "rule Post.Delete sharedBy Admin, Moderator"
-        shared_permissions = {}
-        for rule in self.rules:
-            if rule["type"] == "sharedBy":
-                shared_permissions[rule["reference"]] = set(rule["value"])
+        Rassemble, hors de la grande méthode de validation structurelle, TOUT
+        ce qui décide QUI peut toucher QUOI : les règles 'ownedBy' (propriété
+        directe), la résolution de la chaîne transitive jusqu'à un acteur
+        (briques 11 et 24), les règles 'accessibleBy' (accès à plusieurs
+        parties) et le rôle superviseur (brique 23). Peuple self.ownership_rules,
+        self.transitive_ownership et self.access_supervisors, lus ensuite par le
+        générateur via _transitive_chain / _owner_lookup_sql.
 
-        self._valider_contraintes_de_champ()
-
+        N'utilise que self.* : aucune dépendance aux variables locales de
+        _validate_structures (la matrice de collision et shared_permissions
+        restent chez elle). C'est ce qui rend cette frontière nette.
+        """
         # AJOUT (post-v6, roadmap) : les règles 'ownedBy' restreignent une action
         # au seul enregistrement appartenant à l'acteur courant. Elles nécessitent
         # qu'une relation 'hasMany' existe entre l'entité "propriétaire" déclarée
@@ -581,37 +579,43 @@ class MonlAST:
             if owner_entity in self.actors:
                 continue
 
-            # L'intermédiaire doit lui-même déclarer un propriétaire : c'est le
-            # seul maillon qui relie la chaîne à un compte.
-            maillons = proprietaires_par_entite.get(owner_entity, set())
-            if not maillons:
-                raise ASTValidationError(
-                    f"Structure : la règle 'ownedBy' sur '{entity}.{act_type}' désigne "
-                    f"'{owner_entity}' comme propriétaire, mais '{owner_entity}' n'est ni un acteur, "
-                    f"ni possédé lui-même -- la chaîne ne remonte à aucun compte, donc le serveur ne "
-                    f"peut vérifier À QUI appartient un '{entity}'. Ajouter une règle "
-                    f"'{owner_entity}.Read ownedBy <Acteur>', ou rattacher '{entity}' directement à "
-                    f"un acteur."
-                )
-            if len(maillons) > 1:
-                raise ASTValidationError(
-                    f"Structure : la règle 'ownedBy' sur '{entity}.{act_type}' passe par "
-                    f"'{owner_entity}', qui déclare plusieurs propriétaires différents "
-                    f"({', '.join(sorted(maillons))}) -- la chaîne est ambiguë : le serveur ne saurait "
-                    f"pas lequel vérifier. N'en désigner qu'un seul sur '{owner_entity}'."
-                )
-            acteur = next(iter(maillons))
-            # Une seule indirection pour l'instant : la jointure générée est à
-            # un seul niveau. Deux niveaux compileraient en filtrant sur le
-            # mauvais maillon -- c'est exactement la classe de défaut que le
-            # point 80 a fermée, on ne la rouvre pas par la profondeur.
-            if acteur not in self.actors:
-                raise ASTValidationError(
-                    f"Structure : la règle 'ownedBy' sur '{entity}.{act_type}' formerait une chaîne de "
-                    f"propriété à plus d'un niveau ('{entity}' -> '{owner_entity}' -> '{acteur}', qui "
-                    f"n'est toujours pas un acteur). monl ne sait remonter qu'UN intermédiaire : "
-                    f"rattacher '{entity}' à '{acteur}' directement, ou à un acteur."
-                )
+            # AJOUT (brique 24, point 107) : la chaîne remontait jadis UN seul
+            # intermédiaire ('{entity} -> via -> acteur'). Elle remonte
+            # désormais toute la profondeur, maillon par maillon, jusqu'à un
+            # ACTEUR. Chaque maillon doit être possédé par UN SEUL propriétaire
+            # (sinon ambiguïté : quel chemin vérifier ?) et la marche ne doit
+            # ni boucler ni aboutir dans le vide.
+            maillon = owner_entity
+            vus = set()
+            chaine = []
+            while maillon not in self.actors:
+                if maillon in vus:
+                    raise ASTValidationError(
+                        f"Structure : la chaîne de propriété de '{entity}' boucle à '{maillon}' "
+                        f"('{entity}' -> {' -> '.join(chaine)} ...) -- le serveur ne peut la "
+                        f"résoudre. Couper le cycle."
+                    )
+                vus.add(maillon)
+                chaine.append(maillon)
+                parents = proprietaires_par_entite.get(maillon, set())
+                if not parents:
+                    raise ASTValidationError(
+                        f"Structure : la règle 'ownedBy' sur '{entity}.{act_type}' désigne "
+                        f"'{owner_entity}' comme propriétaire, mais la chaîne '{entity}' -> "
+                        f"{' -> '.join(chaine)} ne remonte à AUCUN acteur -- le serveur ne peut "
+                        f"vérifier À QUI appartient un '{entity}'. Ajouter une règle "
+                        f"'<dernier maillon>.Read ownedBy <Acteur>', ou rattacher '{entity}' "
+                        f"directement à un acteur."
+                    )
+                if len(parents) > 1:
+                    raise ASTValidationError(
+                        f"Structure : la chaîne de propriété de '{entity}' est ambiguë à "
+                        f"'{maillon}' : celui-ci est possédé par plusieurs entités différentes "
+                        f"({', '.join(sorted(parents))}) -- le serveur ne saurait pas laquelle "
+                        f"vérifier. N'en désigner qu'une seule sur '{maillon}'."
+                    )
+                maillon = next(iter(parents))
+            acteur = maillon
             # Mélanger propriété directe et transitive sur la MÊME entité
             # rendrait sa clé étrangère à la fois peuplée depuis le jeton (pour
             # l'une des règles) et fournie par le client (pour l'autre) : deux
@@ -624,7 +628,7 @@ class MonlAST:
                     f"-- sa clé étrangère de propriété serait à la fois fournie par le client et "
                     f"déduite du jeton. Ne désigner qu'un seul propriétaire pour '{entity}'."
                 )
-            self.transitive_ownership[entity] = {"via": owner_entity, "actor": acteur}
+            self.transitive_ownership[entity] = {"chain": chaine, "actor": acteur}
 
         # AJOUT (roadmap, écosystème de capacités -- brique "accès à deux
         # parties") : les règles 'accessibleBy' restreignent une action aux
@@ -716,6 +720,30 @@ class MonlAST:
                             superviseurs.append(role)
             if superviseurs:
                 self.access_supervisors[(entity, act_type)] = superviseurs
+
+    def _validate_structures(self):
+        """Vérifie la cohérence de base et traque les collisions multi-acteurs (Bug #5),
+        sauf exemption explicite via une règle 'sharedBy'. Valide aussi les règles
+        'ownedBy' (roadmap : contrôle d'accès par propriété)."""
+        # Matrice globale pour traquer les conflits d'autorisations (Entité -> Action -> Ensemble d'acteurs)
+        access_matrix = {}
+
+        # CORRECTIF (post-v6) : les règles 'sharedBy' déclarent explicitement qu'un
+        # ensemble précis d'acteurs peut se partager un même droit d'écriture sur
+        # une entité, ex. : "rule Post.Delete sharedBy Admin, Moderator"
+        shared_permissions = {}
+        for rule in self.rules:
+            if rule["type"] == "sharedBy":
+                shared_permissions[rule["reference"]] = set(rule["value"])
+
+        self._valider_contraintes_de_champ()
+
+        # Le noyau du CONTRÔLE D'ACCÈS (propriété directe, chaîne
+        # transitive, accessibleBy, superviseur) vit dans sa propre méthode :
+        # c'est la frontière de sécurité du validateur (point 109). Le défaut
+        # du point 107 vivait dans exactement ce genre de logique de sécurité
+        # noyée dans une méthode fourre-tout — on la sort à la lumière.
+        self._valider_controle_dacces()
 
         # AJOUT (roadmap, cas d'usage portfolio) : validation des règles
         # 'public' — une action ainsi marquée n'exige plus d'authentification

@@ -6,6 +6,7 @@ lors du découpage en package — voir docs/design_decisions.md.
 import os
 import secrets
 
+from . import sql
 from .admin_cli import AdminCliMixin
 from .routes import RoutesMixin
 from .runtime import RuntimeMixin
@@ -261,36 +262,142 @@ class MonlSecureGenerator(
             f"pour 'derivedFrom'."
         )
 
-    def _transitive_chain(self, entity):
-        """Chaîne de propriété transitive de 'entity', ou None (brique 11).
+    def _fk_to(self, child, parent):
+        """Colonne de clé étrangère sur 'child' qui désigne 'parent'.
 
-        Retourne les DEUX colonnes que la jointure de contrôle d'accès met en
-        regard : celle qui, sur 'entity', désigne l'enregistrement
-        intermédiaire (fournie par le client), et celle qui, sur cet
-        intermédiaire, porte l'identifiant du compte propriétaire (peuplée
-        depuis le jeton). Source unique de vérité de la brique : routes,
-        schémas et contrat frontend passent tous par ici."""
+        Même convention et même garde que _derived_source_fk : si la colonne
+        manque, la validation et le placement des clés étrangères ont divergé —
+        et écrire une jointure sur None rendrait tout visible à tous."""
+        for p in self._compute_fk_placements().get(child, []):
+            if p["owner_entity"] == parent:
+                return p["fk_column"]
+        raise ValueError(
+            f"Génération : aucune colonne de clé étrangère de '{child}' ne désigne "
+            f"'{parent}', alors que le validateur exigeait cette relation pour une "
+            f"chaîne de propriété transitive."
+        )
+
+    def _transitive_chain(self, entity):
+        """Chaîne de propriété transitive de 'entity', ou None (briques 11 et 24).
+
+        Retourne ce qu'il faut pour TOUTES les jointures de contrôle d'accès,
+        quelle que soit la profondeur : l'acteur au bout de la chaîne, la
+        colonne qui, sur le DERNIER maillon, porte l'identifiant du compte
+        propriétaire ('actor_fk'), et la liste 'hops' des maillons, de bas en
+        haut, chacun avec sa table et la colonne de clé étrangère qui, sur le
+        niveau juste dessous, désigne ce maillon :
+          - hops[0].ref : sur 'entity', pointe vers hops[0].table ;
+          - hops[i].ref : sur hops[i-1].table, pointe vers hops[i].table.
+        Source unique de vérité de la brique : routes, schémas et contrat
+        frontend passent tous par ici."""
         chaine = self.transitive_ownership.get(entity)
         if not chaine:
             return None
-        placements = self._compute_fk_placements()
-        via, acteur = chaine["via"], chaine["actor"]
-        via_fk = next((p["fk_column"] for p in placements.get(entity, [])
-                       if p["owner_entity"] == via), None)
-        actor_fk = next((p["fk_column"] for p in placements.get(via, [])
-                         if p["owner_entity"] == acteur), None)
-        # Le validateur a exigé les deux relations : arriver ici sans colonne
-        # signifie que validation et placement des clés étrangères ont divergé.
-        # Échouer à la génération vaut mieux qu'écrire une jointure sur None,
-        # qui filtrerait sur rien -- donc rendrait tout visible à tous.
-        if not via_fk or not actor_fk:
+        hops_raw = chaine["chain"]
+        acteur = chaine["actor"]
+        if not hops_raw:
             raise ValueError(
-                f"Génération : la chaîne de propriété '{entity}' -> '{via}' -> "
-                f"'{acteur}' manque d'une colonne de clé étrangère "
-                f"(via={via_fk}, acteur={actor_fk})."
+                f"Génération : '{entity}' est en propriété transitive mais sa chaîne "
+                f"est vide -- le validateur a divergé. Echec plutôt que jointure "
+                f"sur rien."
             )
-        return {"via": via, "via_fk": via_fk, "via_table": via.lower(),
-                "actor": acteur, "actor_fk": actor_fk}
+        # Maillon du bas : la clé étrangère sur 'entity' vers le premier maillon.
+        hop_bas = {"table": hops_raw[0].lower(),
+                   "ref": self._fk_to(entity, hops_raw[0])}
+        hops = [hop_bas]
+        for i in range(1, len(hops_raw)):
+            hops.append({"table": hops_raw[i].lower(),
+                         "ref": self._fk_to(hops_raw[i - 1], hops_raw[i])})
+        actor_fk = self._fk_to(hops_raw[-1], acteur)
+        return {"via": hops_raw[0], "via_fk": hop_bas["ref"],
+                "via_table": hop_bas["table"], "actor": acteur,
+                "actor_fk": actor_fk, "hops": hops, "len": len(hops)}
+
+    def _chain_read_where(self, entity, actor_frag):
+        """Fragment SQL 'WHERE' (objet sql.Sql) qui borne 'entity' aux lignes du
+        compte courant. 'actor_frag' est la valeur du compte, liée par sql.bind
+        — jamais un fragment de texte.
+
+        Sous chaîne à un ou plusieurs maillons, un 'IN' imbriqué par maillon :
+        la colonne de clé étrangère du niveau courant est comparée aux
+        identifiants du maillon suivant, jusqu'au maillon final filtré par
+        'actor_fk = ?'. Un maillon absent ne rend aucune ligne (une ligne
+        orpheline n'appartient à personne). Retourne None si 'entity' n'est pas
+        en propriété transitive."""
+        chaine = self._transitive_chain(entity)
+        if not chaine:
+            return None
+        frag = sql.cat(sql.ident(chaine["actor_fk"]), sql.kw(" = "), actor_frag)
+        for h in reversed(chaine["hops"]):
+            frag = sql.cat(sql.ident(h["ref"]), sql.kw(" IN (SELECT id FROM "),
+                           sql.ident(h["table"]), sql.kw(" WHERE "), frag,
+                           sql.kw(")"))
+        return sql.cat(sql.kw(" WHERE "), frag)
+
+    def _chain_owner_scalar(self, entity, first_hop):
+        """Sous-requête scalaire (objet sql.Sql) qui rend l'id de COMPTE du
+        propriétaire d'un enregistrement, à partir de l'id du PREMIER maillon.
+        'first_hop' est ce PREMIER maillon sous forme de fragment sql.Sql — soit
+        une valeur liée (sql.bind, cas des routes qui reçoivent la clé étrangère
+        du client), soit une sous-requête (cas de _chain_owner_from_row). Dans
+        tous les cas, aucune valeur ne traverse le texte SQL.
+
+        Grimpe la chaîne maillon par maillon : la colonne de clé étrangère du
+        niveau courant désigne le maillon suivant, et la dernière sélection
+        'actor_fk' rend le compte. Tout maillon absent rend NULL donc
+        « appartient à personne ». None si 'entity' n'est pas transitive."""
+        chaine = self._transitive_chain(entity)
+        if not chaine:
+            return None
+        hops = chaine["hops"]
+        expr = sql.cat(sql.kw("("), first_hop, sql.kw(")"))
+        for i in range(1, len(hops)):
+            h = hops[i]
+            prev = hops[i - 1]
+            expr = sql.cat(sql.kw('(SELECT '), sql.ident(h["ref"]),
+                           sql.kw(' FROM '), sql.ident(prev["table"]),
+                           sql.kw(' WHERE id = '), expr, sql.kw(')'))
+        dernier = hops[-1]
+        return sql.cat(sql.kw('(SELECT '), sql.ident(chaine["actor_fk"]),
+                       sql.kw(' FROM '), sql.ident(dernier["table"]),
+                       sql.kw(' WHERE id = '), expr, sql.kw(')'))
+
+    def _chain_owner_from_row(self, entity, id_frag=None):
+        """id de COMPTE du propriétaire d'une ligne de 'entity' (objet sql.Sql),
+        sous chaîne transitive de profondeur quelconque. None si non transitive.
+        'id_frag' est l'identifiant de la ligne sous forme de fragment sql.Sql
+        (par défaut la valeur liée 'id', l'usage de _owner_lookup_sql)."""
+        chaine = self._transitive_chain(entity)
+        if not chaine:
+            return None
+        if id_frag is None:
+            id_frag = sql.bind("id")
+        ref_bas = chaine["hops"][0]["ref"]
+        first_hop = sql.cat(sql.kw('(SELECT '), sql.ident(ref_bas),
+                            sql.kw(' FROM '), sql.ident(entity.lower()),
+                            sql.kw(' WHERE id = '), id_frag, sql.kw(')'))
+        return self._chain_owner_scalar(entity, first_hop)
+
+    def _chain_join(self, entity, alias_root="t"):
+        """Séquence de JOIN qui fait remonter 'entity' jusqu'au maillon final.
+
+        Retourne (depuis_sql, alias_dernier_maillon, acteur_fk) pour les routes
+        de règlement : chaque maillon rejoint son parent par sa clé étrangère,
+        et le dernier maillon 'alias_dernier_maillon' porte la colonne 'acteur_fk'
+        du compte. Le montant, l'état et le propriétaire sortent ainsi de la
+        MÊME lecture — l'invariant du point 87. Ne porte aucune valeur client,
+        rien que des identifiants et des alias internes."""
+        chaine = self._transitive_chain(entity)
+        # (appelé seulement quand chaine n'est pas None ; sinon erreur claire)
+        depuis = sql.cat(sql.ident(entity.lower()), sql.kw(f" {alias_root}"))
+        cur = alias_root
+        for i, h in enumerate(chaine["hops"]):
+            alias = f"m{i + 1}"
+            depuis = sql.cat(depuis, sql.kw(" JOIN "), sql.ident(h["table"]),
+                             sql.kw(f" {alias} ON {alias}.id = {cur}."),
+                             sql.ident(h["ref"]))
+            cur = alias
+        return depuis.text, cur, chaine["actor_fk"]
 
     def _aggregated_field_names(self, entity):
         """Champs de 'entity' qui sont une SOMME de ses enfants (brique 12).
@@ -416,14 +523,16 @@ class MonlSecureGenerator(
         orpheline n'appartient à personne, et le 404 de l'appelant convient."""
         chaine = self._transitive_chain(entity)
         if chaine:
-            return chaine["actor"], (
-                f'SELECT p."{chaine["actor_fk"]}" FROM "{entity.lower()}" t '
-                f'JOIN "{chaine["via_table"]}" p ON p.id = t."{chaine["via_fk"]}" '
-                f'WHERE t.id = ?'
-            )
-        return owner_entity, (
-            f'SELECT "{owner_entity.lower()}_id" FROM "{entity.lower()}" WHERE id = ?'
-        )
+            # Briques 11 et 24 : une sous-requête scalaire remonte toute la
+            # chaîne jusqu'au compte, quelle que soit sa profondeur. Elle rend
+            # un id de compte (None si un maillon manque), donc la comparaison
+            # chez l'appelant est inchangée par rapport à la propriété directe.
+            return chaine["actor"], sql.cat(
+                sql.kw("SELECT "), self._chain_owner_from_row(entity))
+        return owner_entity, sql.cat(
+            sql.kw("SELECT "), sql.ident(f"{owner_entity.lower()}_id"),
+            sql.kw(" FROM "), sql.ident(entity.lower()),
+            sql.kw(" WHERE id = "), sql.bind("id"))
 
     def _get_incoming_relation(self, entity):
         """Retourne la première relation entrante sur 'entity' (hasMany, hasOne,

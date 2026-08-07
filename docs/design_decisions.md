@@ -22,7 +22,11 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [12](#12-révocation-de-token-logout) Révocation de token ·
 [13](#13-limitation-de-débit-sur-register) Limitation de débit `/register` ·
 [16](#16-actions-publiques-public--cas-dusage-portfolio) Actions publiques (`public`) ·
-[106](#106-rôle-superviseur-au-dessus-daccessibleby-brique-23) Rôle superviseur (`accessibleBy`)
+[106](#106-rôle-superviseur-au-dessus-daccessibleby-brique-23) Rôle superviseur (`accessibleBy`) ·
+[107](#107-la-chaîne-de-propriété-qui-remonte-toute-la-profondeur-brique-24) Propriété transitive en profondeur (brique 24) ·
+[108](#108-lémission-sql-typée-la-frontière-de-sécurité) Émission SQL typée (frontière de sécurité) ·
+[109](#109-le-contrôle-daccès-sort-de-lombre-du-validateur) Le contrôle d'accès, sorti du fourre-tout du validateur ·
+[110](#110-rust-évalué-par-un-spike-mesuré--et-écarté) Rust évalué par un spike mesuré, et écarté
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -6649,3 +6653,237 @@ PAS régie par `accessibleBy` ne produit AUCUN superviseur — il reste le parta
 de privilèges historique, inchangé au point 1. Les deux lectures de `sharedBy`
 ne se font pas concurrence : elles sont disjointes par la présence ou non
 d'`accessibleBy` sur la même référence.
+
+---
+
+## 107. La chaîne de propriété qui remonte toute la profondeur (brique 24)
+
+Le point 87 laissait un « ce qui reste ouvert » explicite : la propriété
+transitive (brique 11) ne remontait qu'**UN** intermédiaire. `Ligne → Commande
+→ Client` marchait ; `Ligne → Bloc → Commande → Client` était REFUSÉ à la
+compilation (« plus d'un niveau »), et le refus se réclamait du point 80 — deux
+indirections « compileraient en filtrant sur le mauvais maillon ». La décision
+était assumée, avec son coût nommé : des jointures à profondeur variable dans
+quatre chemins d'accès.
+
+Cette brique lève le refus. La marche de la chaîne remonte désormais maillon par
+maillon jusqu'à un ACTEUR, quelle que soit la profondeur, et la classe de défaut
+du point 80 ne reparaît PAS : un **cycle**, un **cul-de-sac** (aucun compte au
+bout) et un **maillon possédé par plusieurs entités** (chemin ambigu) restent
+trois refus à la compilation. Le validateur (`ast_validator.py`) remplace la
+résolution à un cran par une boucle `while maillon not in self.actors`, et
+`transitive_ownership[entity]` porte maintenant `{"chain": [...], "actor": ...}`
+au lieu de `{"via": ..., "actor": ...}` — la liste, du bas vers le haut.
+
+### Une seule source par chemin, comme au point 81
+
+Cinq chemins doivent filtrer sur le compte : création (403 si le parent n'est
+pas à l'appelant), liste (`WHERE ... IN`), détail (404), Update et Delete
+(jointure rendant l'id de compte). Chacun a désormais son constructeur dans
+`generator/core.py`, tous bâtis sur `_transitive_chain` (la source unique) :
+`_chain_owner_scalar` (sous-requête scalaire imbriquée par maillon),
+`_chain_read_where` (le `IN` imbriqué de la liste), `_chain_owner_from_row` (le
+propriétaire d'une ligne depuis son id) et `_chain_join` (la séquence de `JOIN`
+des routes de règlement). Ne pas réécrire une remontée ailleurs — c'est le même
+principe que `_owner_lookup_sql` au point 81, généralisé à N maillons.
+
+### Ce qu'une relecture n'aurait pas montré — et n'a pas montré
+
+La première version de la brique **compilait, et plantait**. Deux défauts, de la
+même famille, invisibles à la lecture et fatals à l'exécution :
+
+- La vérification du parent à la **création** collait la valeur que le client
+  désigne DANS le texte SQL (`... WHERE id = (data.bloc_id)`), au lieu de la
+  passer en paramètre lié. SQLite y lisait un nom de colonne : `no such column:
+  data.commande_id`. Toute création d'entité transitive répondait **500** — pas
+  seulement la profondeur 2 neuve, mais la **brique 11 elle-même**, qui marchait.
+- La lecture **détail** écrivait `(_via,)` dans le tuple de paramètres du code
+  généré, où `_via` n'était le nom d'aucune variable de la route (l'expression
+  `named_row.get(...)` avait été mise dans une variable de génération, puis
+  recopiée telle quelle) : `NameError`, 500 à chaque détail.
+
+Les routes Update et Delete, elles, liaient correctement (`', (id,))`) — la
+preuve que le défaut n'était pas conceptuel mais un oubli de liaison, deux fois.
+Les deux n'ont été trouvés qu'en **générant un vrai serveur et en frappant les
+routes** : 14 tests déjà verts (`test_propriete_transitive.py`,
+`test_paiement_transitif.py`) tombaient en *Internal Server Error*. Correctif :
+lier le paramètre partout, comme Update/Delete le faisait déjà. C'est,
+une fois de plus, la leçon de méthode du projet — **compiler n'est pas se
+comporter correctement**, et une brique de sécurité qui n'a pas été exécutée
+n'est pas une brique.
+
+### Le piège du banc, transposé à la profondeur 2
+
+`tests/test_transitive_profondeur.py` éprouve la résolution (2 et 3 maillons),
+les trois refus, et la profondeur 2 contre un vrai serveur (création, détail,
+liste, Update, Delete, refus croisés entre deux clients). Le témoin du point 80
+a dû être étendu : faire diverger non seulement les id de commande mais aussi
+ceux de **bloc**, sans quoi le premier bloc (id 1) coïncide avec le premier
+compte (id 1) et « le maillon stocké est-il bien le bloc, pas le compte ? » passe
+par accident. Même précaution qu'au point 81, un cran plus bas.
+
+---
+
+## 108. L'émission SQL typée, la frontière de sécurité
+
+Le point 107 s'est corrigé en deux lignes : lier `data.<fk>` en paramètre au
+lieu de le coller dans le texte SQL. Mais le correctif ne fermait que
+*l'occurrence* ; la **possibilité** restait. `_chain_owner_scalar` acceptait un
+« fragment de premier maillon » sous forme de chaîne — rien n'empêchait un
+appelant de lui repasser une valeur comme texte, exactement ce qu'avait fait la
+brique 24. Une classe de défaut qui se corrige par vigilance reviendra. Cette
+décision la rend **structurellement impossible.**
+
+### La couche : `generator/sql.py`
+
+Un fragment `Sql` porte son TEXTE (du SQL fixe où chaque valeur est un `?`) et
+ses PARAMÈTRES (les expressions Python source à lier, dans l'ordre des `?`).
+Trois portes d'entrée, et trois seulement :
+
+- **`bind(expr)`** — LA SEULE façon de faire entrer une valeur : elle sort en
+  `?`, l'expression est retenue à part. Il n'existe aucune fonction qui place
+  une valeur dans le texte.
+- **`ident(nom)`** — un identifiant entre guillemets, qui REFUSE un guillemet
+  interne plutôt que de l'échapper en silence (une entité ou colonne validée
+  n'en porte jamais ; deviner masquerait une divergence amont).
+- **`kw(texte)`** — du SQL fixe, qui refuse un `?` : un placeholder ne s'écrit
+  qu'avec `bind`, sinon une valeur pourrait se glisser dans un fragment réputé
+  « fixe ».
+
+On compose avec `cat`. À l'émission (`execute_args`, `params_tuple`), un
+garde-fou vérifie que le nombre de `?` égale le nombre de paramètres — un
+builder mal écrit échoue à la génération plutôt que de produire un `execute`
+qui planterait. **Texte et paramètres sortent ENSEMBLE d'un seul objet** :
+l'appelant ne peut plus les désolidariser, ce qui était la faille du point 107.
+
+### Ce qui a bougé, et ce qui n'a pas bougé
+
+Les builders du contrôle d'accès (`_chain_owner_scalar`, `_chain_read_where`,
+`_chain_owner_from_row`, `_chain_join`, `_owner_lookup_sql` dans
+`generator/core.py`) et leurs cinq sites d'appel dans `generator/routes.py`
+(création, liste, détail, Update, Delete) passent tous par cette couche. **Le
+SQL généré est resté identique à l'octet** — vérifié en régénérant : mêmes `?`,
+mêmes jointures. Les 706 tests restent donc l'oracle, inchangés, et la preuve
+que le refactor n'a rien déplacé du comportement. `sql.py` vit DANS le package
+`generator` (un seul nœud d'architecture, point 65) : aucune frontière déplacée.
+
+### La portée, honnête
+
+C'est la **première pierre** de « séparer le code de sécurité », pas la
+séparation entière. Ce qui est acquis : toute construction de SQL de contrôle
+d'accès passe désormais par une frontière typée où une valeur ne peut pas fuir
+dans le texte. Ce qui reste : consolider les refus du validateur et l'audit de
+sécurité dans un noyau explicite. Et c'est le **préalable à tout portage Rust** :
+cette couche définit noir sur blanc le contrat d'émission qu'un cœur Rust devrait
+reproduire — la frontière se conçoit une fois, dans le langage qu'on maîtrise,
+avant de la traduire.
+
+Éprouvée par `tests/test_sql_emission.py` : l'invariant de la couche (une valeur
+ne traverse jamais le texte, un identifiant à guillemet refusé, l'équilibre
+`?`/params), ET un garde-fou de régression qui compile une chaîne à deux maillons
+et **interdit sur le code réellement généré** le motif du point 107 — une valeur
+client collée dans une comparaison SQL.
+
+**L'enforcement à l'échelle du projet** vit dans `tests/test_invariants_securite.py` :
+il compile CHAQUE spec du dépôt (les cinq exemples + une spec profondeur 2), parse
+l'`app.py` généré en AST, et exige qu'aucun littéral de chaîne qui est du SQL ne
+contienne une expression client ou d'exécution (`data.`, `named_row`,
+`current_user_id`) — ces valeurs doivent toujours être liées, jamais dans le
+texte. La méthode est en AST et non en sous-chaîne : un `x = data.y` Python n'est
+pas un littéral, donc jamais un faux positif ; seul un `'... = data.y ...'` DANS
+une requête est fautif, ce qui est exactement la forme du point 107. Avec le
+garde-fou du garde-fou (l'invariant DOIT voir passer du contrôle d'accès qui lie
+ses valeurs), le défaut du point 107 devient inexpédiable sur toute spec, pas
+seulement sur celle qui l'avait révélé.
+
+---
+
+## 109. Le contrôle d'accès, sorti de l'ombre du validateur
+
+Le point 108 a séparé le versant ÉMISSION de la sécurité (le SQL généré). Restait
+le versant DÉCISION : les refus qui déterminent qui peut toucher quoi. Ils
+vivaient noyés au milieu de `_validate_structures`, une méthode de ~1480 lignes
+qui valide aussi les contraintes de champ, les gabarits de numéro, les seeds, les
+assets… La leçon du point 107 est directe : **le défaut de la brique 24 vivait
+dans exactement ce genre de logique de sécurité anonyme, perdue dans un
+fourre-tout.** Ce qu'on ne voit pas, on ne le relit pas.
+
+Le modèle de contrôle d'accès forme pourtant un bloc cohérent — propriété directe
+(`ownedBy`), résolution de la chaîne transitive jusqu'à un acteur (briques 11 et
+24), accès à plusieurs parties (`accessibleBy`), rôle superviseur (brique 23). Ces
+225 lignes sont désormais une méthode nommée, `_valider_controle_dacces()`,
+appelée par `_validate_structures`. Une frontière de lecture, pas seulement de
+code : quand on cherche « comment monl décide-t-il l'accès ? », il y a un endroit.
+
+### Ce qui a rendu l'extraction sûre
+
+Le bloc n'utilise que `self.*`. Les deux variables locales de
+`_validate_structures` qui pouvaient l'accrocher — la matrice de collision
+multi-acteurs (`access_matrix`) et `shared_permissions` — sont posées en tête de
+la méthode et consommées tout en bas, pour un AUTRE contrôle (les collisions
+d'autorisation) ; le cluster d'accès ne les touche pas. Vérifié avant de couper,
+puis prouvé après : **déplacement d'octets exact, zéro ligne réécrite, les 717
+tests inchangés comme oracle.** Sur du code de sécurité, un refactor se prouve
+par la suite qui ne bouge pas, pas par relecture.
+
+### La portée, honnête (suite du point 108)
+
+C'est la deuxième pierre de « séparer le code de sécurité », pas la dernière. Ce
+qui est acquis : le *modèle d'accès* (qui possède, qui partage, qui supervise) est
+un bloc nommé, comme l'émission SQL l'est déjà. Ce qui reste dans
+`_validate_structures` : `public`, `restrictedTo`, et les refus de sécurité
+adossés à d'autres briques (`requiresOwn`, l'exigence de propriétaire de
+`payable`) — chacun petit et collé à sa brique, moins urgent à isoler. Et
+`_validate_structures` reste un fourre-tout de 1250 lignes : le décomposer par
+préoccupation est un chantier distinct, à mener quand il coûtera vraiment.
+Ensemble, 108 et 109 délimitent le noyau sécurité (émission + décision d'accès) —
+c'est ce périmètre-là qu'un éventuel portage Rust aurait à reproduire.
+
+---
+
+## 110. Rust évalué par un spike mesuré, et écarté
+
+Question posée : introduire un langage (Rust ?) pour de meilleures performances,
+sécurité et stabilité, sur le cœur compilateur. Décision de méthode : ne pas
+trancher sur une intuition, mais **mesurer**. Un spike a été écrit — un parser
+Monl en Rust, isolé, hors dépendances, testé en différentiel contre le parser
+Lark existant. Puis retiré du dépôt : sa valeur était la mesure, pas le code.
+
+### Ce que le spike a montré
+
+- **Faisabilité : oui.** Le parser Rust reproduisait l'AST de Lark **à
+  l'identique** sur 6/6 specs (les cinq exemples réduits au sous-ensemble
+  couvert + un corpus exerçant toutes les formes de règles). Un portage est
+  possible, et le test différentiel est le bon garde-fou.
+- **Sécurité : hors sujet pour Rust.** La sécurité de monl est celle de l'app
+  GÉNÉRÉE (contrôle d'accès, pas d'injection), pas la sécurité mémoire du
+  compilateur — Python est déjà memory-safe, et le défaut du point 107 était une
+  faute de logique, pas de mémoire. Le vrai gain (un modèle typé) est déjà pris
+  côté Python aux points 108 et 109.
+- **Performance : un piège.** Au premier jet, Rust semblait 56× plus rapide
+  (0,9 ms contre 50 ms/parse). En creusant : `parse_monl_string` **reconstruisait
+  le parseur Lark à chaque appel** — la compilation de grammaire (~50 ms)
+  dominait tout. Parseur mis en cache (correctif d'une ligne), Python parse en
+  **0,4 ms** — plus vite que le binaire Rust (0,9 ms, spawn de process inclus).
+  Le « gain Rust » était une inefficacité Python corrigeable gratuitement.
+- **Erreurs : gain marginal.** Rust disait « ligne 3 : type attendu après
+  'title:' » là où Lark dit « élément inattendu » — un peu mieux, pas de quoi
+  justifier un second langage.
+
+### Le verdict, et ce qu'il a rapporté
+
+Aucun endroit ne passe le critère « utile », coût compris (second toolchain,
+build, CI, frontière sous-process, deux parsers à maintenir en phase). **Rust
+n'est pas adopté.** Le spike a exactement rempli son office : éviter d'engager un
+langage sur une hypothèse, en la réfutant par la mesure.
+
+Le vrai gain a été trouvé en chemin, en Python : **mettre le parseur Lark en
+cache** (`_get_parser`, parser.py) — de ~50 ms à 0,4 ms par parse. Sur une
+compilation isolée c'est invisible ; sur la suite de tests, qui compile des
+centaines de specs, elle est passée de ~344 s à ~200 s. Un one-liner valait, ici
+et maintenant, plus qu'une réécriture.
+
+**Règle à retenir** : « quel langage pour aller plus vite / plus sûr » se répond
+en mesurant sur le code réel, pas sur les propriétés d'un langage. La bonne
+première question n'était pas « Rust ou Go ? » mais « où le temps part-il
+vraiment ? » — et la réponse était une ligne de Python.

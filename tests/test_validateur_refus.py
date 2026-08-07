@@ -610,15 +610,19 @@ def test_un_intermediaire_sans_proprietaire_ne_mene_a_aucun_compte():
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC_PROPRIETE.format(regles="rule Ligne.Read ownedBy Commande"))
     message = str(refus.value)
-    assert "ne remonte à aucun compte" in message
+    assert "ne remonte à AUCUN acteur" in message
     # Le message doit dire ce qui manque, pas seulement ce qui cloche.
     assert "ownedBy" in message
 
 
-def test_une_chaine_a_deux_niveaux_est_refusee():
-    """La jointure générée n'a qu'un seul niveau. Deux indirections
-    compileraient en filtrant sur le mauvais maillon — la classe de défaut que
-    le point 80 a fermée, qu'on ne rouvre pas par la profondeur."""
+def test_une_chaine_a_deux_niveaux_est_desormais_resolue():
+    """BRIQUE 24 (point 107) : ce cas était REFUSÉ (« plus d'un niveau »), la
+    jointure générée ne remontant qu'un maillon. La marche remonte désormais
+    toute la profondeur jusqu'à un acteur, maillon par maillon. La classe de
+    défaut du point 80 ne reparaît PAS pour autant : cycle, cul-de-sac et
+    maillon ambigu restent refusés (tests dédiés dans
+    tests/test_transitive_profondeur.py), et la profondeur 2 est éprouvée
+    contre un vrai serveur dans le même fichier."""
     spec = """app P
 
 entity Commande
@@ -648,9 +652,10 @@ workflow W for Client
     Create Detail
     Read Detail
 """
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(spec)
-    assert "plus d'un niveau" in str(refus.value)
+    ast = _valide(spec)
+    transitif = ast["security"]["transitive_ownership"]
+    assert transitif["Ligne"] == {"chain": ["Commande"], "actor": "Client"}
+    assert transitif["Detail"] == {"chain": ["Ligne", "Commande"], "actor": "Client"}
 
 
 def test_un_intermediaire_a_deux_proprietaires_rend_la_chaine_ambigue():
@@ -768,7 +773,7 @@ workflow W for Client
 """
     ast = _valide(spec)
     assert ast["security"]["payable_fields"] == [{"entity": "Ligne", "field": "sousTotal"}]
-    assert ast["security"]["transitive_ownership"]["Ligne"]["via"] == "Commande"
+    assert ast["security"]["transitive_ownership"]["Ligne"] == {"chain": ["Commande"], "actor": "Client"}
 
 
 def test_payable_transitif_exige_toujours_un_montant_incalculable_par_le_client():

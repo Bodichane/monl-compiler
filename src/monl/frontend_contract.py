@@ -576,10 +576,12 @@ def build_contract(normalized_ast, generator):
         # répond 404. L'interface doit connaître les deux, sinon elle traite un
         # 404 comme une erreur technique là où c'est une réponse métier.
         chaine = getattr(generator, "transitive_ownership", {}).get(entite)
+        premier = chaine["chain"][0] if chaine else None
         via = (f"Ce {entite} appartient à qui possède son/sa "
-               f"{chaine['via']} : c'est cette chaîne que le 403 vérifie, et "
-               f"un {entite} dont le/la {chaine['via']} n'existe plus répond "
-               f"404. " if chaine else "")
+               f"{premier} : c'est cette chaîne (de profondeur "
+               f"{len(chaine['chain'])} maillon(s)) que le 403 vérifie, et "
+               f"un {entite} dont le/la {premier} n'existe plus répond "
+               f"404. " if premier else "")
         routes.append(_route(
             "POST", f"/{entite.lower()}/{{id}}/paiement", "Pay", entite,
             False, sorted(generator.actors),

@@ -605,9 +605,10 @@ réseau social anonyme comme banc d'essai final.
 ### Briques suivantes déjà évoquées, non cadrées
 - Le **panier multi-articles est terminé** : ses trois briques cadrées au
   point 80 sont faites (11 = propriété transitive et clé étrangère cliente sur le
-  parent propriétaire, 12 = agrégation). Ce qui reste ouvert autour : la chaîne
-  de propriété ne remonte qu'UN intermédiaire. `payable` sur une entité possédée
-  transitivement, lui, est ACQUIS depuis le point 87.
+  parent propriétaire, 12 = agrégation). (FERMÉ au point 107 : la chaîne de
+  propriété remonte désormais toute la profondeur jusqu'à un acteur — brique 24 ;
+  cycle, cul-de-sac et maillon ambigu restent refusés.) `payable` sur une entité
+  possédée transitivement, lui, est ACQUIS depuis le point 87.
 - (FERMÉ au point 96 : le statut en texte libre, par la brique 19 `oneOf`.)
 - **Le stock PAR VARIANTE est acquis** (points 99 et 100) — le modèle `Product
   hasMany Variant` (stock, prix et décompte portés par la variante) ne demande
@@ -723,6 +724,32 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   generator/core.py — ne pas réécrire la jointure ailleurs. `_owner_lookup_sql()`
   a au passage fusionné les blocs Update et Delete de routes.py, qui étaient
   identiques et qu'il fallait donc corriger deux fois.
+- **POINT 108 : tout le SQL de contrôle d'accès passe par `generator/sql.py`,
+  la frontière d'émission typée.** Une valeur n'entre dans une requête que par
+  `sql.bind()` (→ `?` + paramètre lié) ; `sql.ident()` pour un identifiant,
+  `sql.kw()` pour du SQL fixe (qui refuse un `?`). Il n'existe AUCUNE API pour
+  coller une valeur dans le texte — c'est la classe de défaut du point 107
+  rendue impossible. Ne jamais reconstruire une requête de contrôle d'accès par
+  f-string : passer par cette couche. Éprouvée par `tests/test_sql_emission.py`,
+  dont un garde-fou qui interdit le motif du point 107 sur le code généré, ET par
+  `tests/test_invariants_securite.py` qui étend ce garde-fou à TOUTES les specs du
+  dépôt (AST sur l'app.py généré : aucune valeur client dans un littéral SQL).
+- **POINT 109 : le modèle de contrôle d'accès (côté validateur) vit dans
+  `_valider_controle_dacces()` (ast_validator.py), pas éparpillé dans
+  `_validate_structures`.** Y vivent : `ownedBy` (propriété directe), la
+  résolution de la chaîne transitive (briques 11 et 24), `accessibleBy` et le
+  superviseur (brique 23). C'est là qu'on ajoute ou relit un refus d'accès —
+  jamais en le glissant ailleurs dans le fourre-tout. Le bloc n'utilise que
+  `self.*` (la matrice de collision et `shared_permissions` restent dans
+  `_validate_structures`). Avec le point 108 (émission SQL typée), les deux
+  versants de la sécurité — décision et émission — sont désormais des frontières
+  nommées.
+- **POINT 110 : le parseur Lark est mis en cache** (`_get_parser`, parser.py) —
+  construit une fois, pas à chaque `parse_monl_string`. La construction (~50 ms)
+  dominait le parsing ; en cache, 0,4 ms/parse, et la suite est passée de ~344 s
+  à ~200 s. Né d'un spike Rust (écarté) : la question « quel langage pour aller
+  plus vite » s'est résolue en une ligne de Python. Ne pas reconstruire le
+  parseur ailleurs. Voir point 110.
 - Un rôle n'est inscriptible que s'il porte `selfRegister` dans la spec
   (bêta 3). Toute évolution touchant `/register`, le contrat frontend ou le
   smoke test doit conserver cette frontière : c'est elle qui empêche un
