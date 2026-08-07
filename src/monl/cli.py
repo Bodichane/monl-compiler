@@ -21,12 +21,15 @@
 # 'update' de mesurer le delta.
 # ─────────────────────────────────────────────────────────────────────
 import argparse
+import contextlib
 import hashlib
+import io
 import json
 import os
 import re
 import subprocess
 import sys
+import tempfile
 
 from .ast_validator import MonlAST
 from .frontend_ai import RETOUCHE_PROMPT_FILENAME, UPDATE_PROMPT_FILENAME
@@ -54,6 +57,38 @@ def _load_state(project_dir):
         return None
     with open(path, encoding="utf-8") as fh:
         return json.load(fh)
+
+
+def _erreur_de_chemin(project_dir):
+    """Message d'erreur quand le DOSSIER lui-même n'existe pas, ou None.
+
+    POINT 105 : « monl.json introuvable — ce dossier n'est pas un projet monl »
+    s'affichait aussi quand le dossier n'existait pas du tout, et `monl frontend`
+    allait jusqu'à conseiller « lancer 'monl compile' ». Le message envoyait donc
+    corriger une compilation absente alors que c'est le CHEMIN qui était faux —
+    une hypothèse affichée comme un diagnostic, exactement ce que le point 97
+    reproche au conseil de reformulation.
+
+    Deux niveaux, dans l'ordre où les questions se posent : le dossier
+    existe-t-il, PUIS porte-t-il un projet. Répondre à la seconde quand la
+    première a échoué, c'est répondre à côté."""
+    if os.path.isdir(project_dir):
+        return None
+    lignes = [f" ❌ Dossier introuvable : {project_dir}"]
+    # La faute la plus courante, et celle qui a motivé ce point : un chemin
+    # RELATIF écrit avec une barre oblique de tête. `/projets/X` n'est pas
+    # « projets/X ici » — c'est « X dans le dossier projets À LA RACINE DU
+    # SYSTÈME », qui n'existe évidemment pas.
+    if project_dir.startswith(os.sep):
+        voisin = project_dir.lstrip(os.sep)
+        if os.path.isdir(voisin):
+            lignes.append(
+                f"    Le chemin commence par « {os.sep} » : il est cherché à la "
+                f"racine du système, pas depuis ici.")
+            lignes.append(f"    Vouliez-vous dire : {voisin}")
+    lignes.append("    (le contenu du dossier n'a pas encore été regardé : "
+                  "c'est le chemin qui bloque, pas la compilation)")
+    return "\n".join(lignes)
 
 
 # Ce que la spec produit et que personne ne doit retoucher à la main
@@ -91,15 +126,22 @@ def _save_state(project_dir, spec_relpath):
 
 
 # ---------------------------------------------------------------- compile --
-def compile_project(spec_path, project_dir):
+def compile_project(spec_path, project_dir, base_dir=None, save_state=True):
     """Pipeline complet : spec → backend + contrat frontend + état.
     Réutilise compile_monl (main.py) pour le backend — même pipeline,
-    mêmes échappatoires IA non bloquantes — puis ajoute la couche contrat."""
+    mêmes échappatoires IA non bloquantes — puis ajoute la couche contrat.
+
+    POINT 103 : `base_dir` et `save_state` existent pour `monl diff`, qui
+    compile dans un dossier JETABLE. Les assets déclarés vivent, eux, dans le
+    vrai projet — les chercher dans le dossier temporaire ferait échouer la
+    compilation pour une raison qui n'existe pas. Et un dry-run n'a pas à
+    déposer d'état. Les deux paramètres gardent le comportement historique par
+    défaut : aucun appelant existant ne change."""
     from .main import compile_monl
     compile_monl(spec_path, output_dir=project_dir)
 
     raw = parse_monl_file(spec_path)
-    normalized = MonlAST(raw, base_dir=project_dir).validate_and_audit()
+    normalized = MonlAST(raw, base_dir=base_dir or project_dir).validate_and_audit()
     generator = MonlSecureGenerator(normalized, output_dir=project_dir)
     contract = generate_frontend_contract(normalized, generator, project_dir)
 
@@ -107,9 +149,10 @@ def compile_project(spec_path, project_dir):
     proj_abs = os.path.abspath(project_dir)
     spec_rel = (os.path.relpath(spec_abs, proj_abs)
                 if spec_abs.startswith(proj_abs + os.sep) else spec_abs)
-    _save_state(proj_abs, spec_rel)
     print(f" -> Contrat frontend      : {CONTRACT_FILENAME} + {PROMPT_FILENAME}")
-    print(f" -> État du projet        : {STATE_FILENAME}")
+    if save_state:
+        _save_state(proj_abs, spec_rel)
+        print(f" -> État du projet        : {STATE_FILENAME}")
     return contract
 
 
@@ -176,6 +219,11 @@ def check_coherence(project_dir):
     cohérent. Retourne (ok, erreurs, avertissements)."""
     errors, warnings = [], []
     project_dir = os.path.abspath(project_dir)
+
+    souci = _erreur_de_chemin(project_dir)
+    if souci:
+        errors.append(souci.replace(" ❌ ", "").strip())
+        return False, errors, warnings
 
     state = _load_state(project_dir)
     if state is None:
@@ -399,7 +447,7 @@ def _write_update_brief(project_dir, added_routes, removed_routes,
                         added_prea=(), removed_prea=(),
                         added_verrous=(), removed_verrous=(),
                         added_contenus=(), removed_contenus=(),
-                        modifies_contenus=()):
+                        modifies_contenus=(), changed_liens=()):
     """Point 3 du pivot : le delta n'est pas qu'informatif, il devient une
     CONSIGNE prête à donner à l'IA frontend — la boucle se ferme sans que
     l'humain ait à reformuler le changement."""
@@ -434,6 +482,20 @@ def _write_update_brief(project_dir, added_routes, removed_routes,
         sections.append(
             "## Accès RETIRÉS — masquer ce qui répondra 403\n"
             + bullet(removed_acces, "ne plus proposer à"))
+    # POINT 99 : la clé étrangère change de nature sans changer de nom. Deux
+    # conséquences bien distinctes pour l'interface — une jointure à refaire, ou
+    # un champ obligatoire de plus au formulaire de création — d'où les deux
+    # consignes séparées plutôt qu'une phrase qui couvrirait les deux à moitié.
+    if changed_liens:
+        sections.append(
+            "## Rattachements dont la nature a changé\n"
+            "Pour chacun : si la ligne dit « un identifiant de compte », joindre "
+            "par la colonne HOMONYME de la fiche, jamais par son `id`. Si elle "
+            "dit « à envoyer par le client », le formulaire de création doit "
+            "proposer de CHOISIR l'enregistrement lié (une liste déroulante "
+            "alimentée par la route de lecture correspondante) — sans ce champ, "
+            "la création répond 422.\n"
+            + bullet(changed_liens, "revoir"))
     # POINT 89 : le champ existe toujours et porte le même nom — seul son sens a
     # changé. C'est le second cas silencieux du delta : rien n'est cassé, et
     # pourtant un formulaire est devenu un affichage.
@@ -608,30 +670,72 @@ def _contract_signature(contract):
             if champ.get("allowed_values"):
                 contenus[f"choix de {entite}.{champ['name']}"] = hashlib.sha256(
                     "\n".join(champ["allowed_values"]).encode("utf-8")).hexdigest()
-    return routes, fields, acces, lecture_seule, prealables, verrous, contenus
+    # POINT 99 : huitième ensemble, et la question posée AVANT d'écrire le code
+    # pour la deuxième fois seulement. Une clé étrangère ne vit pas dans
+    # `fields` — le delta ne pouvait donc rien dire quand elle change de NATURE.
+    # Or elle en change de deux façons, et les deux réécrivent un écran :
+    #
+    #   - ce qu'elle CONTIENT : un id de compte ou l'id d'une ligne métier. Le
+    #     contrat le dit depuis le point 88, précisément parce qu'une jointure
+    #     faite sur la mauvaise des deux marche À MOITIÉ ;
+    #   - qui la RENSEIGNE : le serveur depuis le jeton, ou le client. Passer du
+    #     premier au second ajoute un champ obligatoire au formulaire de
+    #     création — un menu de produits sur « nouvelle variante » — sans
+    #     renommer quoi que ce soit. Sans cette ligne, `monl update` répondait
+    #     « aucun changement d'interface » et le POST récoltait un 422.
+    liens = set()
+    for entite, spec in sorted((contract.get("entities") or {}).items()):
+        designees = set(spec.get("client_foreign_keys") or [])
+        for lien in spec.get("foreign_keys") or []:
+            porte = ("un identifiant de compte" if lien.get("references_account")
+                     else f"l'id d'un {lien['references']}")
+            par = "à envoyer par le client" if lien["column"] in designees \
+                else "renseigné par le serveur"
+            liens.add(f"{entite}.{lien['column']} → {porte}, {par}")
+    return routes, fields, acces, lecture_seule, prealables, verrous, contenus, liens
 
 
-def cmd_update(project_dir):
+def _situer_projet(project_dir, geste):
+    """(dossier absolu, chemin de la spec) — ou sortie en erreur.
+
+    Partagé par 'update' et 'diff' : les deux partent du même état, et un seul
+    des deux qui saurait le lire serait une divergence de plus."""
     project_dir = os.path.abspath(project_dir)
+    souci = _erreur_de_chemin(project_dir)
+    if souci:
+        print(souci)
+        sys.exit(1)
     state = _load_state(project_dir)
     if state is None:
-        print(f" ❌ {STATE_FILENAME} introuvable — rien à mettre à jour ici.")
+        print(f" ❌ {STATE_FILENAME} introuvable — rien à {geste} ici.")
         sys.exit(1)
     spec_path = state["spec"] if os.path.isabs(state["spec"]) \
         else os.path.join(project_dir, state["spec"])
+    return project_dir, spec_path
 
-    old_routes, old_fields, old_acces, old_ro, old_prea, old_verrous = (
-        set(), set(), set(), set(), set(), set())
-    old_contenus = {}
+
+def _signature_precedente(project_dir):
+    """La signature du contrat DÉJÀ posé, ou des ensembles vides s'il n'y en a
+    pas encore — auquel cas tout est « ajouté », ce qui est exact."""
     contract_path = os.path.join(project_dir, CONTRACT_FILENAME)
-    if os.path.exists(contract_path):
-        with open(contract_path, encoding="utf-8") as fh:
-            (old_routes, old_fields, old_acces, old_ro,
-             old_prea, old_verrous, old_contenus) = _contract_signature(json.load(fh))
+    if not os.path.exists(contract_path):
+        return (set(), set(), set(), set(), set(), set(), {}, set())
+    with open(contract_path, encoding="utf-8") as fh:
+        return _contract_signature(json.load(fh))
 
-    new_contract = compile_project(spec_path, project_dir)
-    (new_routes, new_fields, new_acces, new_ro,
-     new_prea, new_verrous, new_contenus) = _contract_signature(new_contract)
+
+def _rapporter_delta(ancienne, nouvelle, project_dir, ecrire_brief=True):
+    """Compare deux signatures de contrat, imprime le delta, et rend True s'il
+    y a de quoi réécrire quelque chose.
+
+    POINT 103 : extrait de `cmd_update` pour que `monl diff` en soit le MÊME
+    rapport, et pas une deuxième implémentation. Deux calculs de delta
+    finiraient par diverger — et c'est précisément le calcul dont cinq points
+    (88 à 91, 94, 99) ont montré qu'il est difficile à tenir juste."""
+    (old_routes, old_fields, old_acces, old_ro, old_prea, old_verrous,
+     old_contenus, old_liens) = ancienne
+    (new_routes, new_fields, new_acces, new_ro, new_prea, new_verrous,
+     new_contenus, new_liens) = nouvelle
 
     added_routes, removed_routes = new_routes - old_routes, old_routes - new_routes
     added_fields, removed_fields = new_fields - old_fields, old_fields - new_fields
@@ -664,10 +768,18 @@ def cmd_update(project_dir):
     removed_contenus = set(old_contenus) - set(new_contenus)
     modifies_contenus = {c for c in set(new_contenus) & set(old_contenus)
                          if new_contenus[c] != old_contenus[c]}
+    # POINT 99 : même arbitrage anti-doublon qu'aux points 88 à 91, appliqué aux
+    # entités plutôt qu'aux routes. Les rattachements d'une entité qui vient
+    # d'apparaître sont déjà dits par ses routes et ses champs ; seuls ceux
+    # d'une entité qui existait des deux côtés méritent une ligne.
+    entites_stables = {f.split(".", 1)[0] for f in new_fields & old_fields}
+    changed_liens = {li for li in (new_liens - old_liens)
+                     if li.split(".", 1)[0] in entites_stables}
     changes = any((added_routes, removed_routes, added_fields, removed_fields,
                    added_acces, removed_acces, scelles, liberes,
                    added_prea, removed_prea, added_verrous, removed_verrous,
-                   added_contenus, removed_contenus, modifies_contenus))
+                   added_contenus, removed_contenus, modifies_contenus,
+                   changed_liens))
     # Le nom seul ne dit pas qu'un champ neuf est en lecture seule ; la rubrique
     # du brief s'intitule « à afficher/saisir », ce qui serait un contresens sur
     # un horodatage ou un total calculé.
@@ -697,10 +809,10 @@ def cmd_update(project_dir):
         print(f"  ! préalable levé : {item}")
     for item in sorted(added_verrous):
         print(f"  ! verrou de paiement : {item}")
-    for item in sorted(added_verrous):
-        print(f"  ! verrou de paiement : {item}")
     for item in sorted(removed_verrous):
         print(f"  ! verrou de paiement levé : {item}")
+    for item in sorted(changed_liens):
+        print(f"  ! rattachement : {item}")
     for item in sorted(added_contenus):
         print(f"  + contenu ajouté : {item}")
     for item in sorted(removed_contenus):
@@ -709,7 +821,7 @@ def cmd_update(project_dir):
         print(f"  ! contenu réécrit : {item}")
     if not changes:
         print("  (aucun changement d'interface — le frontend existant reste valide)")
-    else:
+    elif ecrire_brief:
         brief_path = _write_update_brief(project_dir, added_routes, removed_routes,
                                          added_fields, removed_fields,
                                          added_acces, removed_acces,
@@ -717,11 +829,58 @@ def cmd_update(project_dir):
                                          added_prea, removed_prea,
                                          added_verrous, removed_verrous,
                                          added_contenus, removed_contenus,
-                                         modifies_contenus)
+                                         modifies_contenus, changed_liens)
         print(f"  → Consigne prête pour l'IA frontend : {os.path.basename(brief_path)}")
     print("──────────────────────────────────────────────────────────────────")
+    return changes
+
+
+def cmd_update(project_dir):
+    project_dir, spec_path = _situer_projet(project_dir, "mettre à jour")
+    ancienne = _signature_precedente(project_dir)
+    nouveau = compile_project(spec_path, project_dir)
+    _rapporter_delta(ancienne, _contract_signature(nouveau), project_dir)
     print("La base de données existante est préservée : les nouvelles colonnes "
           "sont ajoutées par migration additive au démarrage (docs/MIGRATIONS.md).")
+
+
+# ------------------------------------------------------------------- diff --
+# POINT 103 : `monl update` écrit PUIS rapporte. Tant que le rapport dit ce
+# qu'on attendait, l'ordre est sans conséquence ; le jour où il annonce un
+# écran entier à réécrire, on aimerait l'avoir su avant d'avoir recompilé et
+# remplacé le contrat de référence.
+#
+# `monl diff` répond à la même question sans rien toucher : il compile dans un
+# dossier TEMPORAIRE, compare, imprime, et s'en va. Aucun fichier du projet
+# n'est écrit — ni app.py, ni le contrat, ni monl.json, ni la consigne
+# d'évolution.
+def cmd_diff(project_dir):
+    project_dir, spec_path = _situer_projet(project_dir, "comparer")
+    ancienne = _signature_precedente(project_dir)
+
+    # Le dossier de sortie est jetable, mais `base_dir` doit rester le VRAI
+    # projet : c'est lui qui porte les assets déclarés, et les vérifier dans un
+    # dossier vide ferait échouer la compilation pour une raison qui n'existe
+    # pas (brique 13, point 83).
+    with tempfile.TemporaryDirectory(prefix="monl-diff-") as atelier:
+        tampon = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(tampon):
+                nouveau = compile_project(spec_path, atelier,
+                                          base_dir=project_dir, save_state=False)
+        except BaseException:
+            # La compilation a échoué : c'est SON message qui est utile, pas le
+            # nôtre. `SystemExit` compris — le pipeline sort par là.
+            print(tampon.getvalue(), end="")
+            raise
+
+    print("\n[DRY-RUN] Aucun fichier modifié — comparaison seule.")
+    changes = _rapporter_delta(ancienne, _contract_signature(nouveau),
+                               project_dir, ecrire_brief=False)
+    if changes:
+        print("Pour appliquer ce changement et écrire la consigne d'évolution : "
+              "monl update")
+    return changes
 
 
 # --------------------------------------------------------------- retouche --
@@ -772,6 +931,12 @@ est une structure devinée, qui se reperdra à la prochaine construction.
 Le contrat complet reste `frontend_contract.json`, et les règles de
 `FRONTEND_PROMPT.md` restent toutes en vigueur — mêmes routes, même origine
 d'API, même autonomie (aucun CDN). Ne modifier aucun autre fichier du projet.
+
+Rappel sur l'iconographie, parce que « aucun CDN » se lit facilement comme
+« pas d'icônes possibles » : aucune librairie d'icônes n'est atteignable, mais
+le SVG écrit EN LIGNE dans le HTML et les fichiers `.svg` déposés dans
+`frontend/` fonctionnent et sont servis. C'est un MOYEN disponible, pas une
+consigne : rien n'oblige à en mettre.
 
 Après modification, `monl run` revalidera l'ensemble (cohérence statique
 + smoke test comportemental) avant tout lancement.
@@ -838,11 +1003,48 @@ def _lancer_ia(args, update_mode=False, retouche_mode=False):
         sys.exit(1)
 
 
+def _arguments_inverses(demande, dossier):
+    """`monl retouche <dossier> "<ce qui cloche>"` — l'erreur attendue.
+
+    POINT 105 : `retouche` est le SEUL geste dont le premier argument n'est pas
+    le dossier ; `run`, `update`, `diff`, `compile` et `frontend` le prennent
+    tous en tête. Écrire le dossier en premier est donc le réflexe, et monl
+    répondait « ce dossier n'est pas un projet monl » en parlant de la PHRASE.
+
+    Le diagnostic NOMME l'inversion, il ne la corrige pas : remettre les
+    arguments en place à la place de l'auteur, ce serait deviner — et se
+    tromper le jour où une demande ressemble à un chemin. Même arbitrage que
+    partout ailleurs dans ce dépôt."""
+    demande, dossier = demande or "", dossier or ""
+    ressemble_a_un_chemin = " " not in demande and (
+        os.sep in demande or os.path.isdir(demande))
+    return ressemble_a_un_chemin and " " in dossier
+
+
 def cmd_retouche(project_dir, demande, say=print):
     """Écrit la consigne et prépare le terrain. L'appel à l'IA est fait par
     l'appelant (main), qui porte déjà le choix du fournisseur — la retouche
     n'ouvre AUCUNE voie nouvelle vers le modèle."""
+    if _arguments_inverses(demande, project_dir):
+        say(" ❌ Les deux arguments semblent inversés.")
+        say(f"    « {demande} » ressemble à un dossier, et « {project_dir[:50]}"
+            f"{'…' if len(project_dir) > 50 else ''} » à ce qui cloche.")
+        say("    'retouche' attend la DEMANDE d'abord (c'est le seul geste dans "
+            "ce sens) :")
+        # La commande proposée doit MARCHER telle quelle : recopier un chemin
+        # dont on sait déjà qu'il est faux ferait buter l'auteur une deuxième
+        # fois, sur un autre message.
+        cible = demande
+        if not os.path.isdir(cible) and cible.startswith(os.sep) \
+                and os.path.isdir(cible.lstrip(os.sep)):
+            cible = cible.lstrip(os.sep)
+        say(f'      monl retouche "{project_dir}" {cible}')
+        sys.exit(1)
     project_dir = os.path.abspath(project_dir)
+    souci = _erreur_de_chemin(project_dir)
+    if souci:
+        say(souci)
+        sys.exit(1)
     if _load_state(project_dir) is None:
         say(f" ❌ {STATE_FILENAME} introuvable — ce dossier n'est pas un projet monl.")
         sys.exit(1)
@@ -867,6 +1069,10 @@ def _spec_du_projet(project_dir):
     Passer le chemin à assets_tool plutôt que de lui faire relire monl.json :
     l'état du projet est une affaire du CLI, et un second lecteur de monl.json
     serait un second endroit à corriger."""
+    souci = _erreur_de_chemin(os.path.abspath(project_dir))
+    if souci:
+        print(souci)
+        sys.exit(1)
     state = _load_state(os.path.abspath(project_dir))
     if state is None:
         print(f" ❌ {STATE_FILENAME} introuvable — ce dossier n'est pas un projet "
@@ -961,6 +1167,11 @@ def main(argv=None):
 
     p_update = sub.add_parser("update", help="Recompiler après évolution de la spec.")
     p_update.add_argument("dir", nargs="?", default=".")
+
+    p_diff = sub.add_parser(
+        "diff",
+        help="Voir le delta du contrat SANS rien recompiler ni écrire.")
+    p_diff.add_argument("dir", nargs="?", default=".")
 
     p_front = sub.add_parser(
         "frontend", help="Générer le frontend par une IA spécialisée, avec "
@@ -1066,6 +1277,8 @@ def main(argv=None):
         cmd_run(args.dir, check_only=args.check, port=args.port, skip_smoke=args.skip_smoke)
     elif args.command == "update":
         cmd_update(args.dir)
+    elif args.command == "diff":
+        cmd_diff(args.dir)
     elif args.command == "assets":
         if args.assets_command == "add":
             if args.logo and args.favicon:

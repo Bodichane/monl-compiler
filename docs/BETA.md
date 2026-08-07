@@ -71,6 +71,13 @@ Tous les défauts bloquants identifiés à l'audit ont été corrigés :
       disparu ; la CI rejoue l'installation à chaque push. Voir le point 65.
       C'était l'item 7 de la liste ci-dessous, et le laisser parmi les chantiers
       restants faisait passer pour dû ce qui était livré.
+- [x] **Audit offensif généralisé et vert** — `test_exploit_all.py` rejoue les
+      trois attaques sur chaque exemple (usurpation de rôle, JWT forgé,
+      élévation de privilège) : aucune ne passe. Les deux signaux étudiés en
+      profondeur sont des faux positifs (route publique, rôle non auto-inscrit),
+      et les `CRITICAL_WARNING` statiques sont couverts au runtime (rôle,
+      ownership, verrou de paiement, intégrité référentielle). Détail et statut
+      dans `docs/SECURITE.md`.
 
 ## Ce qui reste pour une GA « outil professionnel »
 

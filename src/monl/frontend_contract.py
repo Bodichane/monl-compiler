@@ -256,6 +256,13 @@ def build_contract(normalized_ast, generator):
     # POINT 89 : quatrième membre de la même famille. Le défaut du point 76 s'est
     # reproduit sur chacune des trois précédentes ; celle-ci arrive déclarée.
     horodates = getattr(generator, "timestamp_fields_by_entity", {})
+    # POINT 102 : cinquième membre de la même famille, déclarée d'emblée elle
+    # aussi. Sans ça le contrat annoncerait un « numéro de commande » parmi les
+    # champs à saisir, et une IA d'interface fidèle au contrat dessinerait un
+    # formulaire que le serveur ignore.
+    numeros = {ent: {r["field"]: r for r in regles}
+               for ent, regles in getattr(generator, "numbered_fields_by_entity",
+                                          {}).items()}
 
     entity_specs = {}
     for ent, fields in entities.items():
@@ -263,8 +270,10 @@ def build_contract(normalized_ast, generator):
         for fname, ftype in fields.items():
             derive = derives.get(ent, {}).get(fname)
             somme = sommes.get(ent, {}).get(fname)
+            numero = numeros.get(ent, {}).get(fname)
             peuple_par_le_serveur = (fname in generated.get(ent, [])
                                      or derive is not None or somme is not None
+                                     or numero is not None
                                      or fname in horodates.get(ent, []))
             champ = {
                 "name": fname,
@@ -344,6 +353,20 @@ def build_contract(normalized_ast, generator):
                     "PEUT ÊTRE VIDE sur les enregistrements créés avant l'ajout "
                     "de la règle : afficher un tiret, jamais la date du jour — "
                     "cette date-là n'a pas été perdue, elle n'a jamais existé.")
+            if numero:
+                champ["numbered_as"] = numero["format"]
+                champ["note"] = (
+                    f"numéro lisible attribué par le serveur à la création, sur le "
+                    f"gabarit « {numero['format']} », et jamais modifié ensuite. "
+                    f"Ne pas l'envoyer : ni à la création, ni à la modification. "
+                    f"C'est la référence que l'humain lit et dicte — l'AFFICHER "
+                    f"partout où l'enregistrement est identifié (liste, détail, "
+                    f"accusé de commande), de préférence avant l'`id` technique, "
+                    f"et la rendre copiable. "
+                    + ("Il se trie comme du texte, la partie séquence étant "
+                       "complétée par des zéros. " if "{N" in numero["format"] else "")
+                    + "PEUT ÊTRE VIDE sur les enregistrements créés avant l'ajout "
+                      "de la règle : afficher un tiret, jamais un numéro inventé.")
             field_list.append(champ)
         # POINT 88 : une clé étrangère de monl référence l'une de DEUX choses,
         # et le contrat n'en disait qu'une. Celles que la route Create peuple
@@ -464,10 +487,23 @@ def build_contract(normalized_ast, generator):
             if verrou_parent:
                 routes[-1]["payment_locked"] = verrou_parent
         elif act_type == "Read":
+            # AJOUT (brique 23, point 106) : un rôle superviseur (declare via
+            # 'sharedBy' sur la meme reference que 'accessibleBy') transperce
+            # le controle par colonnes. Sans cette note, une IA d'interface
+            # appliquerait le filtre de parties au moderateur lui-meme et lui
+            # taillerait une vue vide — alors que le backend lui montre tout.
+            _sup_lecture = getattr(generator, "access_supervisors", {}).get(f"{base}.Read")
+            _note_lecture = _note_superviseurs(_sup_lecture, "lecture")
             routes.append(_route("GET", f"/{low}", "List", base, is_public, actors,
-                                 note="Paramètres : limit (max 200), offset. Réponse : "
-                                      "{status, total, limit, offset, data: [...]}."))
-            routes.append(_route("GET", f"/{low}/{{id}}", "Read", base, is_public, actors))
+                                 note=_joindre(
+                                     "Paramètres : limit (max 200), offset. Réponse : "
+                                     "{status, total, limit, offset, data: [...]}.",
+                                     _note_lecture)))
+            routes.append(_route("GET", f"/{low}/{{id}}", "Read", base, is_public, actors,
+                                 note=_note_lecture))
+            if _sup_lecture:
+                routes[-1]["supervisors"] = _sup_lecture
+                routes[-2]["supervisors"] = _sup_lecture
         elif act_type == "Update":
             # AJOUT (point 81) : le schéma Pydantic est UNIQUE par entité, donc
             # ces clés étrangères doivent être envoyées (sinon 422) -- mais la
@@ -510,8 +546,15 @@ def build_contract(normalized_ast, generator):
                     "releases": liberation["releases"], "terminal": True}
         elif act_type == "Delete":
             verrou = _verrou_paiement(generator, base)
+            # AJOUT (brique 23, point 106) : voir le bloc Read — un superviseur
+            # de la suppression voit/supprime tous les enregistrements.
+            _sup_delete = getattr(generator, "access_supervisors", {}).get(f"{base}.Delete")
             routes.append(_route("DELETE", f"/{low}/{{id}}", act_type, base, is_public,
-                                 actors, note=_note_verrou(verrou)))
+                                 actors,
+                                 note=_joindre(_note_verrou(verrou),
+                                               _note_superviseurs(_sup_delete, "suppression"))))
+            if _sup_delete:
+                routes[-1]["supervisors"] = _sup_delete
             if verrou:
                 routes[-1]["payment_locked"] = verrou
         elif act_type == "Execute":
@@ -533,10 +576,12 @@ def build_contract(normalized_ast, generator):
         # répond 404. L'interface doit connaître les deux, sinon elle traite un
         # 404 comme une erreur technique là où c'est une réponse métier.
         chaine = getattr(generator, "transitive_ownership", {}).get(entite)
+        premier = chaine["chain"][0] if chaine else None
         via = (f"Ce {entite} appartient à qui possède son/sa "
-               f"{chaine['via']} : c'est cette chaîne que le 403 vérifie, et "
-               f"un {entite} dont le/la {chaine['via']} n'existe plus répond "
-               f"404. " if chaine else "")
+               f"{premier} : c'est cette chaîne (de profondeur "
+               f"{len(chaine['chain'])} maillon(s)) que le 403 vérifie, et "
+               f"un {entite} dont le/la {premier} n'existe plus répond "
+               f"404. " if premier else "")
         routes.append(_route(
             "POST", f"/{entite.lower()}/{{id}}/paiement", "Pay", entite,
             False, sorted(generator.actors),
@@ -734,6 +779,20 @@ def _note_verrou(verrou, creation=False):
 def _joindre(*notes):
     retenues = [n for n in notes if n]
     return " ".join(retenues) if retenues else None
+
+
+def _note_superviseurs(supers, action_nom):
+    """AJOUT (brique 23, point 106) : le rôle superviseur (declare via
+    'sharedBy' sur une action regie par 'accessibleBy') transperce le controle
+    par colonnes. Note de contrat : l'IA d'interface doit donner à ce rôle la
+    vision/maîtrise de TOUT, et aux autres rôles seulement leurs parties."""
+    if not supers:
+        return None
+    roles = ", ".join(supers)
+    return (f"SUPERVISION ({action_nom}) : le rôle {roles} accède à TOUS les "
+            f"enregistrements, sans restriction de parties. Les autres rôles "
+            f"autorisés ici ne voient/modifient que les enregistrements dont "
+            f"ils sont une des parties.")
 
 
 def _route(method, path, action, entity, is_public, actors, request_fields=None, note=None):
@@ -988,6 +1047,14 @@ ci-dessous. Le backend existe déjà et ne doit pas être modifié.
   comme point d'entrée (HTML/CSS/JS statiques, aucun build requis).
 - Frontend AUTONOME : aucune librairie CDN, aucun script externe — tout le
   JS/CSS vit dans `frontend/` (c'est ce qui rend le smoke test possible).
+- Iconographie : aucune librairie d'icônes (Font Awesome, Material, Lucide,
+  Bootstrap Icons…) n'est atteignable, puisque aucun CDN ne l'est — et une
+  police d'icônes distante ne le serait pas davantage. Ce qui FONCTIONNE et est
+  servi : le SVG écrit EN LIGNE dans le HTML, et les fichiers `.svg` déposés
+  dans `frontend/` (extension en liste blanche). monl ne dit pas s'il faut des
+  icônes, ni lesquelles, ni dans quel style — il dit seulement par quel moyen
+  elles sont possibles, parce que la règle ci-dessus, lue seule, laisse croire
+  qu'elles ne le sont pas.
 - N'appeler QUE les routes listées plus bas, en chemins RELATIFS —
   `fetch('/entite')`, JAMAIS `fetch('http://127.0.0.1:8000/entite')`. Le
   frontend est servi sur `/site` par le serveur qui porte l'API : l'origine

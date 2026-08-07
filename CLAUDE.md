@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (591 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (688 tests
   actuellement ; `tests/test_demo.py` et `tests/test_design_contract.py`
   s'appuient sur le dossier `demo/` versionné — ne pas le supprimer)
 
@@ -117,7 +117,7 @@ réseau social anonyme comme banc d'essai final.
 > fichiers, ils n'existent plus.
 >
 > Attention à la nuance : compiler n'est pas se comporter correctement.
-> **Les vingt briques sont désormais éprouvées contre un vrai serveur
+> **Les vingt-trois briques sont désormais éprouvées contre un vrai serveur
 > éphémère** : `accessibleBy` (`tests/test_access_parties.py`), le filtrage de
 > lecture d'`ownedBy` (`tests/test_lecture_privee.py`), le masquage `hidden`
 > (`tests/test_masquage_hidden.py`, point 64), puis `generated`, `increments`,
@@ -136,9 +136,16 @@ réseau social anonyme comme banc d'essai final.
 > sans quoi « existe-t-il au moins une fiche ? » passerait) et le verrou de
 > paiement (`tests/test_verrou_paiement.py`, point 91 — les cinq portes fermées,
 > ET la contre-épreuve des cinq écritures AVANT règlement, sans quoi un verrou
-> qui figerait tout passerait pour bon).
-> Depuis le point 95, **les dix-huit briques sont éprouvées contre un vrai
-> serveur** : `capability auth` était la dernière à n'avoir que la couverture de
+> qui figerait tout passerait pour bon), et le rattachement d'un jeu de
+> démonstration (`tests/test_seed_parent.py`, point 100 — dont la base
+> pré-peuplée d'identifiants divergents, seule façon de départager la résolution
+> au démarrage d'un rang calculé à la compilation).
+> Puis le rôle superviseur au-dessus d'`accessibleBy` (`tests/test_access_parties.py`,
+> volet superviseur, point 106 — le modérateur voit/supprime tout, les parties
+> restent dans leurs colonnes).
+> Depuis le point 95, **aucune brique n'a plus la seule couverture de
+> compilation** : `capability auth` était la dernière, ce qui était cohérent
+> tant qu'elle ne produisait rien — elle
 > compilation, ce qui était cohérent tant qu'elle ne produisait rien — elle
 > contraint désormais la forme de l'identifiant de compte
 > (`tests/test_identifiant_de_compte.py`). Toute NOUVELLE brique doit arriver
@@ -536,24 +543,86 @@ réseau social anonyme comme banc d'essai final.
     protection. Éprouvée par `tests/test_liberation.py` (16 tests), adoptée par
     `projets/SneakerLab`. Voir point 98.
 
+21. **`seed Enfant for Parent.champ "valeur"`** — un jeu de démonstration peut
+    RATTACHER un enfant. Née du point 99 : la clé étrangère d'une entité fille
+    d'une table métier était devenue honnête, mais un `seed` n'accepte que des
+    champs DÉCLARÉS et une colonne de rattachement n'en est pas un — une boutique
+    à variantes s'ouvrait donc sur un catalogue dont rien n'était commandable.
+    **Désigner par une VALEUR, jamais par un rang** : un numéro ne se lit pas et
+    se décale à la première insertion ; c'est déjà le choix de
+    `monl assets add --for "Halo RS"` (point 84), même phrase dans le code.
+    **La résolution se fait au DÉMARRAGE**, par un `SELECT` sur le parent : un
+    `id` figé à la compilation supposerait que le parent vient d'être semé, or le
+    socle ne sème que dans une table VIDE — sur une base déjà peuplée, le rang
+    désignerait la mauvaise ligne (`test_le_rattachement_suit_lid_reel_pas_le_rang`
+    le départage). Sept refus, dont l'AMBIGUÏTÉ (deux lignes portant la valeur →
+    vitrine non déterministe), la valeur que personne ne porte, un parent ACTEUR
+    (sa colonne porte un id de COMPTE, point 99 — et aucun compte n'existe au
+    démarrage), et l'ORDRE (un parent semé après son enfant est refusé, jamais
+    réordonné en silence). Éprouvée par `tests/test_seed_parent.py` (15 tests),
+    compilée par `exemples/02_boutique.ml` — qui gagne au passage son entité
+    `Variant` (le produit est ce qu'on MONTRE, la variante ce qu'on VEND) et
+    ferme le trou de corpus qui avait laissé passer les points 99 et 100.
+    **Contrainte inattendue** : `assets_tool.py` lit les blocs `seed`
+    TEXTUELLEMENT — sa regex a dû apprendre la nouvelle forme, sinon il sautait
+    le bloc en silence. Voir point 100.
+
+22. **`rule Entite.champ numbered "CMD-{YYYY}-{NNNN}"`** — le numéro que
+    l'humain lit et dicte, attribué par le serveur à la création et jamais
+    ensuite. Même famille que `timestamp` : absent des corps de requête,
+    création ET modification. Née du point 101 : `Order.reference` était un
+    `UUID`, donc une chaîne que le CLIENT écrivait — personne ne dicte un UUID au
+    téléphone. **Le compteur vit dans une table SYSTÈME** (`_monl_sequences`,
+    clé primaire `(entite, champ, periode)`) et jamais dans un `MAX(...) + 1` sur
+    la table métier, qui redonnerait le numéro d'un enregistrement SUPPRIMÉ —
+    deux factures, une référence. C'est la PÉRIODE qui fait repartir la séquence
+    (année, mois ou jour selon les jalons du gabarit ; `''` = séquence globale).
+    **L'attribution vit DANS la transaction de création** : hors d'elle, une
+    insertion refusée laisserait le compteur avancé. **L'index unique est créé
+    sans qu'on déclare `unique`** — faire dépendre cette garantie d'une ligne
+    qu'on peut oublier rouvrirait la porte du point 85. Six refus, dont le
+    gabarit sans séquence (tous les enregistrements porteraient le même numéro)
+    et le mois sans année (`CMD-03-0001` revient chaque mars — l'index unique
+    l'attraperait un an plus tard). Le mot-clé n'est PAS `reference` : il se
+    confondrait avec le nom du champ. Les enregistrements antérieurs restent
+    sans numéro et sont comptés au démarrage (point 89, mot pour mot). Éprouvée
+    par `tests/test_numerotation.py` (24 tests), compilée par
+    `exemples/02_boutique.ml`. Voir point 102.
+
+23. **Rôle superviseur au-dessus d'`accessibleBy`** — un `sharedBy` porté sur la
+    MÊME référence qu'une action régie par `accessibleBy` nomme les rôles qui
+    transpercent le contrôle par colonnes : ils listent, lisent, modifient et
+    suppriment TOUS les enregistrements, quand les parties restent confinées
+    aux leurs. C'est le pendant exact du superviseur déjà acquis pour `ownedBy`
+    au point 88 (`rule X.Update sharedBy Proprietaire, Patron`). L'action
+    `accessibleBy` devient **exempte de CRITICAL_COLLISION** (miroir d'`ownedBy`) :
+    plusieurs rôles peuvent légitimement viser la même route, chacun restant
+    cantonné soit à ses messages, soit à tout — s'il est déclaré superviseur.
+    Éprouvé contre un vrai serveur éphémère par `tests/test_access_parties.py`
+    (volet superviseur, serveur + Sessions) et compilé par
+    `exemples/03_reseau_social.ml` (`Moderator`). Voir point 106.
+
 ### Briques suivantes déjà évoquées, non cadrées
-- Rôle superviseur au-dessus d'`accessibleBy` (un modérateur qui lit tous
-  les messages privés via `sharedBy`) — exclu volontairement de la première
-  version de la brique 8, voir point 31.
 - Le **panier multi-articles est terminé** : ses trois briques cadrées au
   point 80 sont faites (11 = propriété transitive et clé étrangère cliente sur le
-  parent propriétaire, 12 = agrégation). Ce qui reste ouvert autour : la chaîne
-  de propriété ne remonte qu'UN intermédiaire. `payable` sur une entité possédée
-  transitivement, lui, est ACQUIS depuis le point 87.
+  parent propriétaire, 12 = agrégation). (FERMÉ au point 107 : la chaîne de
+  propriété remonte désormais toute la profondeur jusqu'à un acteur — brique 24 ;
+  cycle, cul-de-sac et maillon ambigu restent refusés.) `payable` sur une entité
+  possédée transitivement, lui, est ACQUIS depuis le point 87.
 - (FERMÉ au point 96 : le statut en texte libre, par la brique 19 `oneOf`.)
-- **Une boutique de sneakers sans TAILLE** (point 96) — constaté en comparant
-  SneakerLab à une boutique classique. Deux modèles possibles, qui ne coûtent
-  pas la même chose : une taille sur la ligne de commande (deux lignes de spec
-  avec `oneOf`), ou un stock PAR TAILLE, qui demande une entité `Variant`
-  (`Product hasMany Variant`, stock et décompte portés par elle) — ce qu'un
-  vrai marchand tient. Décision produit, pas défaut du compilateur. Restent
-  aussi ouverts : une référence de commande lisible (« SL-2026-0001 », il n'y a
-  que l'`id`) et un numéro de suivi transporteur.
+- **Le stock PAR VARIANTE est acquis** (points 99 et 100) — le modèle `Product
+  hasMany Variant` (stock, prix et décompte portés par la variante) ne demande
+  AUCUNE syntaxe nouvelle, et `exemples/02_boutique.ml` le compile désormais avec
+  une vitrine réellement remplie. Il était hors de portée pour deux raisons
+  distinctes, toutes deux corrigées : le rattachement fantôme (99) et
+  l'impossibilité de semer un enfant (100). **Reste ouvert et purement produit** :
+  l'appliquer à `projets/SneakerLab`, qui est une décision de MIGRATION plus que
+  de spec — les `OrderLine` existantes visent des produits, `Product.stock` perdrait
+  son sens, et la migration additive ne rattrape jamais un contenu (points 89 et
+  99). Restent aussi ouverts : un numéro de suivi transporteur.
+  (FERMÉ au point 102 : la référence de commande lisible, par la brique 22
+  `numbered` — `exemples/02_boutique.ml` délivre `CMD-2026-0001`. Reste à
+  l'adopter sur `projets/SneakerLab`.)
 - **(historique) Un statut restait un texte libre** (point 91) — sur une commande NON réglée, le
   client pose `status: "livrée"` et le serveur l'accepte : il n'existe aucune
   brique « valeur parmi une liste ». Le verrou de la brique 18 ne couvre l'entité
@@ -568,6 +637,7 @@ réseau social anonyme comme banc d'essai final.
   **monl vérifie la complétude, jamais la véracité** ; `CREDITS.json` reste une
   convention de projet, et `monl assets add` se borne à signaler qu'un fichier
   n'y figure pas (point 84).
+- (FERMÉ au point 103 : le dry-run du delta, par `monl diff`.)
 - (FERMÉ : `monl run --check` signale les artefacts produits par un compilateur
   antérieur. La détection compare à une RÉGÉNÉRATION et non à un numéro de
   version — `__version__` n'avait pas bougé pendant les points 74 à 81, un
@@ -591,10 +661,16 @@ réseau social anonyme comme banc d'essai final.
 - (Le mode `template` de l'ancienne landing n'existe plus : tout le
   frontend généré par monl a été retiré au point 41.)
 
-## Trois gestes sur un site en marche, et lequel choisir
+## Quatre gestes sur un site en marche, et lequel choisir
 
+- **`monl diff`** (point 103) — la question de `monl update`, posée SANS rien
+  écrire. Compile dans un dossier temporaire, imprime le MÊME rapport
+  (`_rapporter_delta` est partagé — deux calculs de delta divergeraient, et
+  c'est le calcul que six points ont eu du mal à tenir juste), et s'en va.
+  Aucun fichier du projet n'est touché, contrat de référence compris.
 - **`monl update`** — la SPEC a changé. Recompile et rapporte le delta du
-  contrat (routes, champs, accès, lecture seule, préalables, verrous, contenu).
+  contrat (routes, champs, accès, lecture seule, préalables, verrous, contenu,
+  rattachements).
 - **`monl retouche "<ce qui cloche>"`** (point 93) — la spec n'a PAS changé, le
   site est juste au regard du contrat, mais quelque chose cloche à l'œil.
   Corrige sans reconstruire, sauvegarde dans `frontend.precedent/`, et **échoue
@@ -648,6 +724,32 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   generator/core.py — ne pas réécrire la jointure ailleurs. `_owner_lookup_sql()`
   a au passage fusionné les blocs Update et Delete de routes.py, qui étaient
   identiques et qu'il fallait donc corriger deux fois.
+- **POINT 108 : tout le SQL de contrôle d'accès passe par `generator/sql.py`,
+  la frontière d'émission typée.** Une valeur n'entre dans une requête que par
+  `sql.bind()` (→ `?` + paramètre lié) ; `sql.ident()` pour un identifiant,
+  `sql.kw()` pour du SQL fixe (qui refuse un `?`). Il n'existe AUCUNE API pour
+  coller une valeur dans le texte — c'est la classe de défaut du point 107
+  rendue impossible. Ne jamais reconstruire une requête de contrôle d'accès par
+  f-string : passer par cette couche. Éprouvée par `tests/test_sql_emission.py`,
+  dont un garde-fou qui interdit le motif du point 107 sur le code généré, ET par
+  `tests/test_invariants_securite.py` qui étend ce garde-fou à TOUTES les specs du
+  dépôt (AST sur l'app.py généré : aucune valeur client dans un littéral SQL).
+- **POINT 109 : le modèle de contrôle d'accès (côté validateur) vit dans
+  `_valider_controle_dacces()` (ast_validator.py), pas éparpillé dans
+  `_validate_structures`.** Y vivent : `ownedBy` (propriété directe), la
+  résolution de la chaîne transitive (briques 11 et 24), `accessibleBy` et le
+  superviseur (brique 23). C'est là qu'on ajoute ou relit un refus d'accès —
+  jamais en le glissant ailleurs dans le fourre-tout. Le bloc n'utilise que
+  `self.*` (la matrice de collision et `shared_permissions` restent dans
+  `_validate_structures`). Avec le point 108 (émission SQL typée), les deux
+  versants de la sécurité — décision et émission — sont désormais des frontières
+  nommées.
+- **POINT 110 : le parseur Lark est mis en cache** (`_get_parser`, parser.py) —
+  construit une fois, pas à chaque `parse_monl_string`. La construction (~50 ms)
+  dominait le parsing ; en cache, 0,4 ms/parse, et la suite est passée de ~344 s
+  à ~200 s. Né d'un spike Rust (écarté) : la question « quel langage pour aller
+  plus vite » s'est résolue en une ligne de Python. Ne pas reconstruire le
+  parseur ailleurs. Voir point 110.
 - Un rôle n'est inscriptible que s'il porte `selfRegister` dans la spec
   (bêta 3). Toute évolution touchant `/register`, le contrat frontend ou le
   smoke test doit conserver cette frontière : c'est elle qui empêche un
@@ -664,6 +766,26 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   du point 76 s'est reproduit sur `derivedFrom`, la brique née pour le
   corriger). Tout champ peuplé par le serveur doit sortir des
   `request_fields`, via `server_generated`.
+- **POINT 99 : « peuplée depuis l'identité » exige que le parent soit un ACTEUR.**
+  `_identity_fk_columns` écartait la création publique, la cible d'un compteur et
+  la propriété transitive — mais retenait n'importe quelle relation entrante pour
+  le reste. Une entité fille d'une table MÉTIER (`relation Produit hasMany
+  Variante`) recevait donc `current_user_id` dans `produit_id`, déclarée
+  `REFERENCES _monl_users` : **la variante était rattachée au vendeur, jamais à
+  son produit**, et le client ne pouvait en désigner aucun. Défaut du point 80 par
+  l'autre bout, invisible en vingt briques parce qu'**aucun exemple du dépôt
+  n'écrit un enfant de table métier** (les cinq compilent des enfants d'acteurs).
+  Le choix ne dépend plus de l'ordre des relations : seuls les parents acteurs
+  sont candidats, `ownedBy` tranche entre eux. `populate_owner` (routes.py) LIT
+  désormais ce helper au lieu de recalculer les mêmes conditions à côté.
+  **Le corollaire à ne pas oublier** : `payable` perdait ici une sécurité
+  ACCIDENTELLE — la route de règlement comparait la colonne de propriété à
+  l'appelant, et ça ne marchait que parce que la colonne recevait
+  `current_user_id` faute de mieux. D'où un refus (parent acteur ou chaîne
+  transitive obligatoires) et une ERREUR DE GÉNÉRATION si la colonne de compte
+  manque : mieux vaut un compilateur qui s'arrête qu'une route de paiement sans
+  contrôle d'accès. Éprouvé par `tests/test_rattachement.py` (18 tests, dont 11
+  échouent sans la correction). Voir point 99.
 - POINT 88 : une clé étrangère référence l'une de DEUX choses — le registre des
   COMPTES (`_monl_users`) quand la route Create la peuple depuis le jeton, l'`id`
   d'une table métier sinon. `_identity_fk_columns` (core.py) tranche ; le contrat
@@ -672,21 +794,27 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   affiche le bon nom sur le premier enregistrement et rien sur les suivants —
   une jointure qui marche à moitié. Un test confronte le contrat aux
   `REFERENCES` réellement écrits dans schema.sql.
-- **L'ANGLE MORT DU DELTA, cinq fois** (points 88, 89, 90, 91, 94) : un changement
+- **L'ANGLE MORT DU DELTA, six fois** (points 88, 89, 90, 91, 94, 99) : un changement
   qui ne renomme rien oblige quand même à réécrire le frontend — un ACTEUR de plus
   sur une route (88), un champ qui devient calculé par le serveur (89), une route
   qui gagne un PRÉALABLE (90), une route qui gagne un VERROU de paiement (91), et
   du CONTENU éditorial ajouté ou RÉÉCRIT (94 — le premier qui ne touche pas aux
-  données ; `section` y échappait depuis le point 55). La signature de contrat
-  compte donc sept ensembles, dont le septième est un DICTIONNAIRE : sur du
-  contenu, le texte compte autant que le titre, et ne comparer que les titres
-  serait l'erreur du point 89. **Toute brique qui ajoute une promesse au contrat
-  doit se demander si `_contract_signature` (cli.py) la voit** — cinq fois la
-  réponse a été non, et cinq fois `monl update` a répondu « aucun changement
+  données ; `section` y échappait depuis le point 55), et une clé étrangère qui
+  change de NATURE sans changer de nom (99 — ce qu'elle CONTIENT, un id de compte
+  ou l'id d'une ligne métier, et QUI la renseigne, le serveur depuis le jeton ou
+  le client : le second cas ajoute un champ obligatoire au formulaire de création,
+  donc un 422). La signature de contrat compte donc HUIT ensembles, dont le
+  septième est un DICTIONNAIRE : sur du contenu, le texte compte autant que le
+  titre, et ne comparer que les titres serait l'erreur du point 89. **Toute brique
+  qui ajoute une promesse au contrat doit se demander si `_contract_signature`
+  (cli.py) la voit** — six fois la
+  réponse a été non, et six fois `monl update` aurait répondu « aucun changement
   d'interface » en laissant un écran ou un parcours entier à écrire. Ce n'est plus
   une série de coïncidences : c'est la question à poser à chaque brique, AVANT
   d'écrire le code. Un préalable/accès/verrou porté par une route qui vient
-  d'apparaître est EXCLU du rapport : déjà dit par « route ajoutée ».
+  d'apparaître est EXCLU du rapport : déjà dit par « route ajoutée » — et depuis le
+  point 99, les rattachements d'une entité qui vient d'apparaître le sont aussi,
+  même arbitrage porté cette fois sur les entités.
 - POINT 89 : le delta de `monl update` compare aussi la LECTURE SEULE des
   champs. Il ne comparait que des noms : poser `derivedFrom` (ou `timestamp`)
   sur un champ existant ne renomme rien, donc « aucun changement d'interface »
@@ -721,6 +849,14 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   l'interface `PlainDialogueUI` (rendu nu = chaînes historiques) ; le rendu
   stylé n'est injecté que par `run_interactive_dialogue`. Ne jamais mettre de
   logique de dialogue dans tui.py, ni de mise en forme dans dialogue_engine.py.
+- POINT 104 : le brief dit désormais **par quel MOYEN une icône est possible**
+  (SVG en ligne, fichiers `.svg` en liste blanche). Constat du mainteneur :
+  aucun site produit n'employait d'icône — pas un défaut de l'IA, mais une
+  lecture correcte d'un brief qui interdisait les CDN sans jamais dire ce qui
+  restait faisable. Énoncer un MOYEN n'est pas prescrire un goût : même
+  frontière que le contraste WCAG et l'autonomie, gardés par le point 72
+  lui-même. Frontière mince, donc gardée par un test — le brief ne doit
+  recommander aucune icône ni aucun style d'icône.
 - Direction de design (point 72) : le compilateur ne décide RIEN du visuel —
   ni palette, ni typographie, ni rayon. Le bloc `ui … theme:` reste accepté
   par la grammaire mais n'a plus aucun effet, `.monl_theme_seed` a disparu, et
@@ -796,12 +932,30 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   la DERNIÈRE fiche est protégée (« au moins une »), et le décompte porte sur
   le compte de l'appelant : avec un seul compte au banc, « existe-t-il une
   fiche quelque part ? » passerait.
-- **LE VÉRIFICATEUR EST UN CLIENT COMME UN AUTRE** (points 95 puis 96) : toute
-  brique qui contraint une ENTRÉE contraint aussi le smoke test, qui code ses
-  valeurs en dur et n'a aucun moyen de le savoir. Deux fois de suite il a
+- **LE VÉRIFICATEUR EST UN CLIENT COMME UN AUTRE** (points 95, 96, puis 100) :
+  toute brique qui contraint une ENTRÉE contraint aussi le smoke test, qui code
+  ses valeurs en dur et n'a aucun moyen de le savoir. Deux fois de suite il a
   déclaré cassée une application saine — `'smoke'` refusé par `identifier:
-  email`, puis `'smoke-status'` refusé par `oneOf`. La question rejoint celle
+  email`, puis `'smoke-status'` refusé par `oneOf` ; au point 101 la question a
+  été posée AVANT d'écrire le motif (`'smoke-reference'` n'est pas un `UUID`),
+  et c'est la seule différence qui compte. **Le point 100 l'élargit** :
+  toute brique qui change la FORME d'une ligne de spec contraint aussi les outils
+  qui la lisent TEXTUELLEMENT. `assets_tool.py` détecte les blocs `seed` par une
+  regex ancrée en fin de ligne ; la désignation de parent la faisait échouer en
+  silence, alors que l'AST contenait bien le bloc. La question rejoint celle
   de `_contract_signature` dans la liste à poser AVANT d'écrire une brique.
+- POINT 105 : **le dossier existe-t-il, PUIS porte-t-il un projet.** `_load_state`
+  rend `None` dans les deux cas, et les quatre points d'entrée concluaient à la
+  seconde — `monl frontend` conseillait même « lancer 'monl compile' » pour un
+  dossier jamais trouvé. `_erreur_de_chemin` (cli.py) pose la première question,
+  partagée, et explique la barre oblique de tête (`/projets/X` est cherché à la
+  RACINE DU SYSTÈME). Même reproche qu'au point 97 : une hypothèse affichée
+  comme un diagnostic envoie corriger ce qui n'est pas cassé.
+  **`retouche` est le SEUL geste dont le premier argument n'est pas le dossier**
+  (`run`, `update`, `diff`, `compile`, `frontend` le prennent tous en tête) :
+  l'inversion est donc l'erreur attendue, elle est DÉTECTÉE et NOMMÉE — jamais
+  corrigée d'office, ce serait deviner. Le témoin à ne pas perdre : un faux
+  positif refuserait une retouche bien écrite.
 - POINT 97 : la sortie de l'agent est CONSERVÉE et affichée quand rien n'a
   bougé. `run_cli_agent` la rendait déjà, personne ne la lisait — monl affichait
   « reformuler en nommant l'écran » sur une demande qui les nommait, pendant que

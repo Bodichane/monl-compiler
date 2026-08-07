@@ -21,7 +21,12 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [11](#11-secret-jwt-unique-par-projet-faille-corrigée) Secret JWT unique par projet ·
 [12](#12-révocation-de-token-logout) Révocation de token ·
 [13](#13-limitation-de-débit-sur-register) Limitation de débit `/register` ·
-[16](#16-actions-publiques-public--cas-dusage-portfolio) Actions publiques (`public`)
+[16](#16-actions-publiques-public--cas-dusage-portfolio) Actions publiques (`public`) ·
+[106](#106-rôle-superviseur-au-dessus-daccessibleby-brique-23) Rôle superviseur (`accessibleBy`) ·
+[107](#107-la-chaîne-de-propriété-qui-remonte-toute-la-profondeur-brique-24) Propriété transitive en profondeur (brique 24) ·
+[108](#108-lémission-sql-typée-la-frontière-de-sécurité) Émission SQL typée (frontière de sécurité) ·
+[109](#109-le-contrôle-daccès-sort-de-lombre-du-validateur) Le contrôle d'accès, sorti du fourre-tout du validateur ·
+[110](#110-rust-évalué-par-un-spike-mesuré--et-écarté) Rust évalué par un spike mesuré, et écarté
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -118,7 +123,14 @@ en l'état car de nombreux renvois internes s'y appuient) ·
 [95](#95-sinscrire-avec-son-adresse-et-la-forme-canonique-qui-porte-la-brique) S'inscrire avec son adresse, et la forme canonique qui porte la brique ·
 [96](#96-un-statut-nest-pas-du-texte-et-la-fiche-quon-pouvait-effacer) Un statut n'est pas du texte, et la fiche qu'on pouvait effacer ·
 [97](#97-le-message-qui-devinait-à-la-place-de-lagent) Le message qui devinait à la place de l'agent ·
-[98](#98-annuler-rend-les-paires-et-la-transition-quon-ne-joue-quune-fois) Annuler rend les paires, et la transition qu'on ne joue qu'une fois
+[98](#98-annuler-rend-les-paires-et-la-transition-quon-ne-joue-quune-fois) Annuler rend les paires, et la transition qu'on ne joue qu'une fois ·
+[99](#99-le-rattachement-fantôme-et-la-sécurité-qui-nétait-quun-accident) Le rattachement fantôme, et la sécurité qui n'était qu'un accident ·
+[100](#100-une-vitrine-qui-montre-des-enfants-et-la-désignation-qui-se-lit) Une vitrine qui montre des enfants, et la désignation qui se lit ·
+[101](#101-le-type-frère-resté-debout-dix-points-de-plus) Le type frère, resté debout dix points de plus ·
+[102](#102-le-numéro-que-lhumain-lit-et-dicte) Le numéro que l'humain lit et dicte ·
+[103](#103-voir-le-delta-avant-décrire) Voir le delta avant d'écrire ·
+[104](#104-les-icônes-quon-croyait-interdites) Les icônes qu'on croyait interdites ·
+[105](#105-deux-messages-qui-envoyaient-corriger-ce-qui-nétait-pas-cassé) Deux messages qui envoyaient corriger ce qui n'était pas cassé
 
 ---
 
@@ -5850,3 +5862,1028 @@ d'à côté avait consommé.
 Vérifié en réel sur `projets/SneakerLab` : Halo RS 12 → 9 à la commande, 12 à
 l'annulation, 12 encore après deux ré-annulations, 409 à la réactivation, et la
 commande reste au carnet en « annulée ».
+
+## 99. Le rattachement fantôme, et la sécurité qui n'était qu'un accident
+
+Ce point ne vient pas d'un besoin nouveau. Il vient d'une **sonde** : pour juger
+une proposition extérieure qui présentait le « stock par taille » comme une
+grosse brique à écrire (parseur, validateur, générateur SQL, routes), il fallait
+d'abord vérifier ce que le compilateur savait déjà faire. Le modèle s'écrit
+entièrement avec la syntaxe existante — `relation Produit hasMany Variante` — et
+il compile. Ce n'était donc pas une brique.
+
+Mais le `schema.sql` produit disait ceci :
+
+```sql
+CREATE TABLE IF NOT EXISTS "variante" ( ... "produit_id" INTEGER,
+    FOREIGN KEY ("produit_id") REFERENCES _monl_users(id) )
+```
+
+et le `app.py` cela :
+
+```python
+INSERT INTO "variante" ("taille", "prix", "stock", "produit_id") VALUES (?,?,?,?)
+    (data.taille, data.prix, data.stock, current_user_id,)
+```
+
+**La variante était rattachée au vendeur qui l'avait créée, jamais à son
+produit** — et le client n'avait aucun moyen d'en désigner un : la colonne
+n'existait dans aucun schéma d'entrée. Le nom disait le lien métier, le contenu
+portait un identifiant de compte, et le contrat annonçait fidèlement
+`references_account: true`. Rien n'échouait nulle part.
+
+### Ce qui manquait, en une ligne
+
+`_identity_fk_columns` (generator/core.py) répond à la question « cette colonne
+se peuple-t-elle depuis le jeton ? ». Elle écartait bien trois cas — création
+publique, cible de compteur, propriété transitive — mais retenait **n'importe
+quelle relation entrante** pour le quatrième. Or « peuplée depuis l'identité de
+l'appelant » n'a de sens que si le parent EST un compte. La condition manquante
+tient en cinq mots : *le parent doit être un acteur*.
+
+C'est le **défaut du point 80 par l'autre bout**. Là on nommait explicitement une
+entité comme propriétaire et le rattachement produit était faux ; ici on n'en
+nomme aucune, et il l'est tout autant. Les deux fois, une clé étrangère
+recevait une valeur qui n'était pas de sa nature, en silence.
+
+### Pourquoi personne ne l'avait vu en vingt briques
+
+Aucun exemple du dépôt ne présente une entité fille d'une table **métier**.
+`Like` et `Report` y échappent parce qu'ils sont cibles d'un compteur (« CE
+post »), `Comment` parce qu'il déclare `ownedBy Member`, `OrderLine` parce qu'il
+est possédé transitivement, `Order` et `Post` parce que leur parent est un
+acteur. Les cinq exemples et `projets/SneakerLab` compilent tous des enfants
+d'acteurs. La sonde qui a révélé le défaut tenait en trois relations, et elle a
+été écrite pour évaluer une proposition, pas pour chercher un bug.
+
+C'est le pendant exact de la leçon du point 78 — *neuf briques testées une par
+une ne testent pas leurs paires* — appliquée cette fois non aux paires de
+briques, mais aux **formes de spec qu'aucun exemple n'écrit**.
+
+### L'ordre de déclaration ne décide plus
+
+Le correctif en emporte un second, plus discret. Avec deux parents et aucune
+règle `ownedBy`, l'ancien code retenait `placements[0]` : le propriétaire se
+décidait à l'ordre d'écriture de la spec, et un parent métier déclaré en premier
+volait la place de l'acteur. Désormais seuls les parents acteurs sont candidats,
+et `ownedBy` tranche entre eux. Le correctif de la bêta 3 avait déjà cherché à
+supprimer cette dépendance à l'ordre ; il ne l'avait fait qu'à moitié.
+
+### `payable` perd une sécurité ACCIDENTELLE, donc gagne un refus
+
+C'est la partie du point qu'il ne fallait surtout pas oublier. La route de
+règlement compare la colonne de propriété à `current_user_id`. Cette spec
+compilait, et la comparaison était juste :
+
+```
+relation Produit hasMany Facture
+rule Facture.total payable
+```
+
+Juste **par accident** : la colonne recevait `current_user_id` faute de savoir
+faire autrement, c'est-à-dire à cause du défaut que ce point corrige. Le
+rattachement redevenu honnête, `produit_id` porte l'id d'une ligne de catalogue,
+et la comparaison devient fausse dans les deux sens — le propriétaire ne peut
+plus payer, et un inconnu le peut dès que les deux identifiants coïncident.
+
+Le refus doit donc être écrit, sans quoi la correction ouvrirait un trou plus
+large que celui qu'elle ferme (même raisonnement qu'à la brique 11, point 81).
+Deux formes sont acceptées, et deux seulement : un parent **acteur** (la colonne
+porte un id de compte) ou une **chaîne transitive** (point 87, la jointure rend
+ce même id). La cible d'un compteur est exclue même quand c'est un acteur :
+cette colonne-là est choisie par le client, elle ne dit pas à qui la ligne
+appartient.
+
+Le refus vit dans un recoupement APRÈS la boucle des décomptes — il lui faut
+`reputation_rules` complet, même placement et même raison que le recoupement
+`payable`/`derivedFrom` du point 79. Et la route de règlement **échoue
+désormais à la génération** si aucune colonne de compte n'est disponible :
+écrire une route de paiement sans contrôle d'accès vaut moins qu'un compilateur
+qui s'arrête, même raisonnement que `_derived_source_fk`.
+
+### L'angle mort du delta, sixième fois — mais la question posée d'avance
+
+Une clé étrangère ne vit pas dans `entities.<E>.fields` : elle vit dans
+`foreign_keys`. `_contract_signature` ne la regardait donc pas, et `monl update`
+aurait répondu « aucun changement d'interface » pendant qu'un formulaire de
+création gagnait un champ obligatoire. La signature compte un **huitième
+ensemble**, qui porte les deux façons dont un rattachement change sans changer
+de nom :
+
+- **ce qu'il contient** — un id de compte ou l'id d'une ligne métier ; c'est la
+  raison d'être du point 88, une jointure faite sur la mauvaise des deux marche
+  À MOITIÉ ;
+- **qui le renseigne** — le serveur depuis le jeton, ou le client. Passer du
+  premier au second ajoute un menu déroulant au formulaire ; sans lui, la
+  création répond 422.
+
+La consigne écrite pour l'IA frontend dit les deux séparément : une jointure à
+refaire et un champ à ajouter ne se corrigent pas au même endroit.
+
+Corrigé au passage dans le même rapport : le verrou de paiement était **imprimé
+deux fois** (deux boucles identiques sur `added_verrous`).
+
+### Ce que ça ne répare pas
+
+Les enregistrements déjà en base gardent la valeur fautive : la migration
+additive rattrape une colonne, jamais son contenu (point 89, et pour la même
+raison — inventer une correspondance serait une base qui MENT). Et
+`CREATE TABLE IF NOT EXISTS` laisse à une base existante son ancienne contrainte
+`REFERENCES`. Un projet qui aurait compilé une entité dans ce cas doit être
+repris à la main ; aucun projet du dépôt n'est concerné.
+
+### Un voisin repéré, laissé ouvert
+
+`requiresOwn` (point 90) devient un **no-op silencieux** quand l'entité exigée
+n'a aucune colonne de compte — `_profile_lookup` rend `None` et la règle ne
+produit rien. Ce n'est pas né ici (c'était déjà le cas sous propriété transitive
+ou création publique), mais le point 85 est formel : une règle qui ne produit
+rien doit être refusée. Le refus n'est pas écrit, faute de pouvoir l'exprimer
+dans le validateur sans y recopier `_identity_fk_columns` — deux vérités
+finiraient par diverger. À traiter avec la question plus large de savoir où doit
+vivre cette distinction.
+
+### Éprouvé par
+
+`tests/test_rattachement.py` (18 tests). **11 d'entre eux échouent sans la
+correction** — dont, contre un vrai serveur, `assert 4 == 2` : l'identifiant du
+compte écrit là où celui du produit devait être. Le banc inscrit trois figurants
+avant le vendeur pour que son identifiant ne coïncide avec celui d'aucun
+produit : c'est la leçon de la sonde du point 81, et sans elle le rattachement
+fautif passerait le test.
+
+Le reste : le schéma SQL et le schéma d'entrée, l'indépendance à l'ordre des
+relations, le contrat et le huitième ensemble du delta, les trois refus autour
+de `payable` (dont le témoin transitif, qui doit continuer de passer), et la
+chaîne complète du « stock par taille » — deux tailles du même produit ont des
+stocks indépendants, le plancher tient par variante, et un produit inexistant
+ne crée pas de variante orpheline.
+
+Les **non-régressions** comptent autant : une entité fille d'un acteur continue
+de se peupler depuis le jeton et sa colonne reste hors du corps de requête ; la
+cible d'un compteur reste désignée par le client. Une correction qui rendrait
+toutes les clés étrangères clientes ouvrirait un trou bien plus large.
+
+Vérifié enfin par comparaison octet à octet : les cinq exemples et
+`projets/SneakerLab` produisent des artefacts **identiques** avant et après. La
+correction ne change que le cas qui était cassé.
+
+## 100. Une vitrine qui montre des enfants, et la désignation qui se lit
+
+Le point 99 a rendu honnête la clé étrangère d'une entité fille d'une table
+métier. Il restait qu'une telle entité **ne pouvait pas figurer dans les données
+de démonstration** : un bloc `seed` n'accepte que des champs DÉCLARÉS, et une
+colonne de rattachement n'en est pas un.
+
+```
+REFUSÉ : le bloc 'seed Variante' référence le champ 'produit_id',
+         qui n'est pas déclaré sur 'Variante'.
+```
+
+Conséquence concrète : une boutique à variantes s'ouvrait sur un catalogue dont
+**rien n'était commandable**. Le compilateur savait produire la forme, le serveur
+savait la servir, et la vitrine restait vide — la couverture de compilation sans
+le comportement, exactement ce que le point 95 dénonce.
+
+C'est le même angle mort que le point 99, par une troisième porte. Aucun exemple
+n'écrivait d'enfant de table métier ; aucun `seed` n'avait donc jamais eu à en
+déclarer un.
+
+```
+seed Variant for Product.name "Chaise Ligne"
+    finish: "Chêne naturel", price: 249.90, stock: 12
+    finish: "Noyer fumé", price: 289.00, stock: 5
+```
+
+### Désigner par une valeur, jamais par un rang
+
+Le rang (« la 3ᵉ ligne du bloc `seed Product` ») était la forme la plus simple à
+implémenter, et c'est la mauvaise. Un numéro ne se lit pas — dans une spec où
+plus de la moitié du texte sert à expliquer, `for Product 3` n'apprend rien — et
+il se décale silencieusement dès qu'on insère une ligne au milieu du bloc
+parent. La désignation nomme donc un CHAMP et une VALEUR.
+
+Ce n'est pas une invention : `monl assets add --for "Halo RS"` (point 84) tranche
+déjà pareil, avec la même phrase dans son code — *la fiche est désignée par une
+de ses VALEURS, et non par un numéro : c'est ce que l'humain a sous les yeux*.
+Deux outils, une seule façon de montrer du doigt.
+
+Le champ est nommé explicitement (`Product.name`) plutôt que deviné. monl a un
+mécanisme d'attribution de rôles qui saurait proposer un « titre » — s'en servir
+ici aurait fait dépendre le rattachement d'une heuristique d'affichage.
+
+### Les sept refus, et celui qui porte la brique
+
+Le premier est **l'ambiguïté** : deux lignes parentes portant la valeur désignée
+font échouer la compilation, en disant combien. Deviner donnerait une vitrine
+différente d'une compilation à l'autre, et personne ne le verrait avant de
+regarder l'écran. Symétriquement, une valeur que **personne ne porte** est
+refusée : c'est la coquille type, et sans ce refus elle amputerait la vitrine
+d'une rubrique entière sans un mot.
+
+Le troisième mérite d'être connu : **un parent ACTEUR est refusé**. Cette
+colonne-là porte un identifiant de COMPTE (point 99) ; or un jeu de
+démonstration s'insère au démarrage, quand aucun compte n'existe encore. Il n'y a
+personne à désigner. La brique hérite ainsi, sans une ligne de plus, de la
+distinction que le point 99 venait d'établir.
+
+Le quatrième porte sur le TYPE du champ de désignation : texte seulement.
+Rapprocher deux flottants est déjà douteux ; surtout, un prix ou un stock ne
+NOMME rien.
+
+Le cinquième est **l'ordre** : un parent semé après son enfant est refusé. Les
+données sont insérées table par table, dans l'ordre de déclaration des blocs ;
+un parent qui arrive après ne serait pas en base au moment de rattacher.
+Réordonner en silence aurait été possible — et c'est précisément ce qu'il ne
+faut pas faire : la spec dirait une chose et le serveur en ferait une autre.
+
+Les deux derniers sont mécaniques : l'entité parente doit exister, et une
+relation doit les lier (sans elle, aucune colonne ne porte le rattachement).
+
+### Le rattachement se résout au DÉMARRAGE
+
+C'est la décision qu'un test départage, pas un raisonnement. Résoudre à la
+compilation aurait voulu dire écrire un `id` en dur dans `_SEED_DATA`, en
+supposant que le parent vient d'être semé et porte donc l'`id` de son rang. Or le
+socle ne sème une table que **si elle est vide** : sur une base où les produits
+existent déjà, le parent n'est pas réinséré et son `id` réel n'a aucun rapport
+avec un rang.
+
+La désignation voyage donc telle quelle jusqu'au serveur, et se résout par un
+`SELECT id FROM "product" WHERE "name" = ?` au démarrage.
+`test_le_rattachement_suit_lid_reel_pas_le_rang` peuple la table parente avec les
+identifiants 17 et 41 avant le premier démarrage : les variantes s'y rattachent.
+Un rang aurait écrit 1 et 3, et la vitrine aurait montré des variantes
+orphelines.
+
+Quand la résolution échoue — seul chemin possible, une base dont la table
+parente est déjà peuplée AUTREMENT — la ligne est écartée et le serveur **le
+dit**. Une vitrine amputée sans un mot enverrait chercher la panne dans le
+frontend.
+
+### Ce que la brique a contraint ailleurs, et qu'on a failli oublier
+
+`src/monl/assets_tool.py` lit les blocs `seed` **textuellement**, par une
+expression régulière ancrée en fin de ligne (`^seed\s+(\w+)\s*(#.*)?$`). La
+nouvelle forme d'en-tête ne correspondait plus : l'outil sautait le bloc en
+silence alors que l'AST le contenait, et la correspondance fichier ↔ AST — sur
+laquelle repose toute l'écriture de photos — ne tenait plus.
+
+C'est la leçon des points 95 et 96 (*le vérificateur est un client comme un
+autre*) élargie : **toute brique qui change la FORME d'une ligne de spec
+contraint aussi les outils qui la lisent textuellement**, pas seulement ceux qui
+l'exécutent. Il n'y en a qu'un aujourd'hui, et il est nommé dans `CLAUDE.md`
+comme le seul endroit du dépôt qui écrive dans la spec de l'humain — raison de
+plus pour ne pas l'oublier la prochaine fois.
+
+Question posée d'avance, comme le veut la règle des points 88 à 99 : est-ce que
+`_contract_signature` doit voir cette brique ? **Non**, et c'est la première fois
+que la réponse est un vrai non. Un jeu de démonstration ne change ni les routes,
+ni les champs, ni les accès : il remplit une base. Le contrat décrit ce que le
+serveur EXPOSE, pas ce qu'il contient.
+
+### L'exemple qui ferme le trou de corpus
+
+`exemples/02_boutique.ml` gagne son entité `Variant` : le produit est ce qu'on
+MONTRE, la variante ce qu'on VEND. `price` et `stock` quittent `Product`,
+`derivedFrom` lit `Variant.price`, le décompte vise `Variant.stock`, et neuf
+variantes sont semées sur six produits — dont une épuisée et une en stock faible,
+pour que la vitrine montre les deux cas dès l'ouverture.
+
+Le corpus cesse ainsi d'être aveugle à la forme qui a produit les points 99 et
+100. C'est le vrai enjeu : ces deux défauts n'ont pas été trouvés par une revue,
+mais par une spec de trois relations que personne n'avait jamais écrite.
+
+### Éprouvé par
+
+`tests/test_seed_parent.py` (15 tests) : les sept refus, la forme du socle
+généré, la non-régression d'une spec qui n'emploie pas la brique — et contre un
+vrai serveur, le rattachement correct de trois variantes sur deux produits,
+l'idempotence au redémarrage, la résolution par `id` réel contre rang, et le
+parent introuvable qui est NOMMÉ.
+
+Vérifié en réel sur `exemples/02_boutique.ml` : les 9 variantes s'attachent à
+leurs 6 produits au démarrage ; commander 2 « Noyer fumé » fait passer son stock
+de 5 à 3 pendant que le « Chêne naturel » du même produit reste à 12 ; le total
+de la commande vaut 578,00 € (2 × 289,00, dérivé puis sommé) ; et en commander 99
+répond 409 sans rien avoir consommé.
+
+Découvert au passage, sans rapport avec la brique : `Order.reference` est de type
+`UUID`, et `UUID` ne génère RIEN — c'est un champ texte que le client remplit
+librement. Une commande sans référence répond 422, et deux commandes peuvent
+porter la même. C'est la motivation d'une brique `reference` à venir, et la
+question à trancher d'abord : que devient le type `UUID` le jour où elle existe ?
+
+## 101. Le type frère, resté debout dix points de plus
+
+Trouvé en préparant la brique `reference`, et en vérifiant d'abord ce que le
+compilateur promettait déjà. `exemples/02_boutique.ml` déclare :
+
+```
+entity Order
+    reference: UUID
+```
+
+Le serveur acceptait `CMD-1`, `smoke-reference`, et la chaîne vide. Le type
+`UUID` ne produisait qu'une chose : `VARCHAR` avec une longueur de 255. Deux
+commandes pouvaient donc porter la même « référence », sous un nom qui promet un
+identifiant universellement unique.
+
+### Ce n'était pas un arbitrage à ouvrir
+
+Le point 91 a déjà tranché cette question exacte, pour le type d'à côté :
+
+> le type `Email` ne fixait qu'une LONGUEUR — `pas-un-courriel` entrait en base
+> avec un 200. Un type qui nomme une adresse et n'en vérifie aucune est
+> exactement ce que le point 85 refuse : une règle qui ne produit rien.
+
+`UUID` est le même péché, laissé debout dix points de plus. La correction
+applique la décision existante au type frère, avec le même motif dans le schéma
+Pydantic — donc un 422 avant tout INSERT, et la forme visible dans `/docs`.
+
+**La forme canonique, et rien de plus** : ni chiffre de version, ni variante.
+Les exiger rejetterait l'UUID nul et les versions à venir, alors qu'ils sont
+parfaitement bien formés. monl vérifie la FORME ; juger la provenance d'un
+identifiant n'est pas de son ressort — même frontière qu'au point 95, où il
+vérifie qu'une adresse est bien écrite sans prétendre qu'une boîte la reçoit.
+
+**La contre-épreuve compte autant que le refus.** Un motif trop strict ferait
+passer tous les tests de rejet en cassant les vrais identifiants ; le banc
+vérifie donc aussi que l'UUID nul et la casse majuscule restent acceptés. C'est
+la structure du point 91, reprise telle quelle.
+
+### Le vérificateur est un client comme un autre — TROISIÈME fois
+
+`_sample_value` envoyait `smoke-reference` pour un champ `UUID`. Le smoke test
+aurait donc déclaré cassée une boutique saine, après `'smoke'` refusé par
+`identifier: email` (point 95) et `'smoke-status'` refusé par `oneOf`
+(point 96). Cette fois la question a été posée AVANT d'écrire le motif, pas
+après un faux diagnostic — c'est la seule différence, et c'est celle qui compte.
+
+La valeur est FIXE et non tirée au sort : un vérificateur doit rendre deux fois
+le même verdict sur la même application.
+
+### Ce que ça ne répare pas
+
+Aucune donnée existante n'est convertie : une base qui contient déjà des
+références mal formées continue de les rendre. La règle ne vaut que pour les
+écritures à venir — comme au point 95, et pour la même raison. Contrairement au
+point 95, en revanche, le serveur ne les COMPTE pas au démarrage : le constat de
+démarrage existe pour les comptes, dont la forme conditionne la connexion ; une
+référence mal formée n'empêche rien.
+
+### Éprouvé par
+
+`tests/test_type_uuid.py` (15 tests) : sept formes refusées, trois acceptées
+(dont l'UUID nul et les majuscules), le témoin d'un champ `String` voisin qui ne
+gagne aucun motif, le test qui exige une sortie DIFFÉRENTE de celle d'un
+`String`, et deux tests sur le vérificateur — sa valeur d'échantillon, puis le
+smoke test lancé pour de vrai sur une spec à `UUID`.
+
+Ce point laisse entière la vraie question de `Order.reference` : un numéro de
+commande lisible n'est pas un UUID, et le client n'a rien à faire à l'écrire.
+C'est la brique suivante.
+
+## 102. Le numéro que l'humain lit et dicte
+
+Le point 101 a rendu le type `UUID` honnête, et ce faisant a rendu visible le
+vrai problème. `exemples/02_boutique.ml` déclarait :
+
+```
+entity Order
+    reference: UUID
+```
+
+Un champ que le CLIENT remplissait, et qui exige désormais la forme canonique
+d'un UUID. Or personne ne dicte `3f2504e0-4f89-41d3-9a0c-0305e82c3301` au
+téléphone, et personne ne l'écrit sur un bon de livraison. Un carnet de
+commandes veut « CMD-2026-0001 » — et ce numéro-là n'est pas une donnée du
+client : c'est le marchand qui l'attribue.
+
+```
+rule Order.reference numbered "CMD-{YYYY}-{NNNN}"
+```
+
+Même famille que `timestamp` (point 89) : peuplé par le serveur à la création,
+absent des corps de requête à la création COMME à la modification. Un numéro de
+commande qui change n'est plus une référence — le client l'a noté, le vendeur
+aussi.
+
+### Le mot-clé n'est pas `reference`
+
+`rule Order.reference reference "…"` ne se lit pas, et le champ s'appelle
+« reference » dans à peu près tous les cas d'usage. `numbered` rejoint la famille
+des participes du DSL — `hidden`, `generated`, `categorized`, `payable`.
+
+### Le compteur vit dans une table SYSTÈME
+
+C'est la décision de fond, et elle se justifie par ce qu'elle interdit.
+`MAX(reference) + 1` sur la table métier aurait été plus simple et faux deux
+fois : il **redonne le numéro d'un enregistrement supprimé** — deux factures
+portant la même référence, à des mois d'intervalle — et il se trompe dès que
+deux créations se croisent.
+
+`_monl_sequences (entite, champ, periode, dernier)` a pour clé primaire le
+triplet, et c'est la PÉRIODE qui fait repartir la séquence : à chaque année, ou
+mois, ou jour, selon les jalons du gabarit. Rien n'est jamais effacé, et une
+période vide (`''`) désigne une séquence globale — le cas d'un gabarit sans
+date.
+
+L'attribution vit **dans la transaction de création**. Hors d'elle, une
+insertion refusée — stock insuffisant, parent introuvable, verrou de paiement —
+laisserait le compteur avancé et le numéro suivant sauterait sans raison.
+
+L'index unique est créé **sans qu'on ait à déclarer `unique`**. Un numéro en
+double n'est pas un numéro ; faire dépendre cette garantie d'une ligne de spec
+qu'on peut oublier d'écrire serait rouvrir la porte du point 85. Le nom d'index
+étant dérivé de la table et de la colonne, déclarer les deux ne produit qu'un
+seul index.
+
+### Six refus, et celui qui porte la brique
+
+Un gabarit **sans séquence** (`"CMD-{YYYY}"`) est refusé : tous les
+enregistrements porteraient le même numéro, ce qui n'en est pas un. C'est le
+point 85 appliqué au gabarit lui-même — et sans ce refus, l'index unique
+transformerait la faute en 409 à la deuxième commande, en production.
+
+Un **mois sans année** (`"CMD-{MM}-{NNNN}"`) est refusé aussi, et c'est le plus
+subtil : la séquence repart chaque mois, donc `CMD-03-0001` revient tous les mois
+de mars. L'index unique l'attraperait — un an plus tard.
+
+Les quatre autres sont mécaniques : deux séquences (rien ne dit laquelle
+s'incrémente), un jalon inconnu, une accolade orpheline, un champ qui n'est pas
+`String`. Ce dernier **nomme explicitement `UUID`** dans son message : c'est le
+type qu'on est tenté de choisir pour une référence, et depuis le point 101 un
+numéro lisible n'y entrerait jamais. Un refus qui ne dit pas pourquoi envoie
+essayer autre chose au hasard.
+
+`min`/`max` sur un champ numéroté sont refusés **sans une ligne de plus** : la
+brique rejoint le recoupement groupé du point 89, exactement ce que ce
+regroupement avait été fait pour gagner.
+
+### Les enregistrements antérieurs restent SANS numéro
+
+Point 89, mot pour mot. La migration additive rattrape une colonne, jamais son
+contenu. Numéroter au démarrage les commandes déjà en base prétendrait un ordre
+d'arrivée que le serveur n'a pas observé — et sur un carnet de commandes, un
+numéro inventé finit sur une facture. Le serveur les COMPTE, les nomme, et le
+contrat dit à l'IA d'afficher un tiret.
+
+La séquence, elle, repart de 1. Une base de quarante commandes anciennes verra
+donc sa quarante-et-unième porter `CMD-2026-0001` : c'est honnête, et toute autre
+règle demanderait de deviner ce que les quarante premières auraient porté.
+
+### Ce que le contrat doit dire
+
+`numbered_as` porte le gabarit, et la note dit trois choses : ne pas l'envoyer,
+l'AFFICHER partout où l'enregistrement est identifié (de préférence avant l'`id`
+technique, et copiable), et afficher un tiret sur les anciens. Sans la deuxième,
+une IA d'interface range le numéro parmi les champs techniques et l'humain
+continue de dicter un `id`.
+
+`_contract_signature` le voit sans une ligne de plus : le champ devient
+`server_generated`, donc l'ensemble « lecture seule » du point 89 le rapporte.
+La question a été posée avant d'écrire le code, et pour une fois la réponse
+existante suffisait.
+
+### Éprouvé par
+
+`tests/test_numerotation.py` (24 tests) : les douze refus de compilation, la
+disparition du champ des deux schémas, l'index unique, le test qui exige une
+sortie différente sans la règle, le contrat — et contre un vrai serveur : les
+numéros qui se suivent, le client qui ne peut ni les choisir ni les modifier,
+huit créations simultanées qui donnent huit numéros distincts, une période
+antérieure qui ne décale pas la séquence, et la base déjà peuplée dont les
+anciennes lignes restent vides.
+
+Le test qui porte la conception est
+`test_le_numero_ne_recule_pas_apres_une_suppression` : c'est lui, et pas celui
+sur la concurrence, qui départage la table système d'un `MAX(...) + 1`. SQLite
+sérialise les écritures, et cette sérialisation masquerait la différence sous
+une charge de huit requêtes — le test de concurrence prouve l'absence de
+collision et de « database is locked », pas l'atomicité. Le dire plutôt que de
+laisser croire.
+
+Vérifié en réel sur `exemples/02_boutique.ml`, qui abandonne son `UUID` : trois
+commandes créées sans qu'aucun corps ne porte de référence sortent
+`CMD-2026-0001`, `-0002`, `-0003`, et le smoke test passe sans un avertissement.
+
+## 103. Voir le delta avant d'écrire
+
+`monl update` écrit PUIS rapporte. Tant que le rapport dit ce qu'on attendait,
+l'ordre est sans conséquence. Le jour où il annonce un écran entier à réécrire
+— et six points ont montré que ça arrive (88 à 91, 94, 99) — on aimerait
+l'avoir su avant d'avoir recompilé et remplacé le contrat de référence.
+
+```bash
+monl diff        # même rapport, aucun fichier touché
+```
+
+### Une source, pas deux
+
+La tentation était d'écrire un second calcul de delta, plus simple, « juste pour
+regarder ». C'est exactement ce que ce dépôt refuse : le calcul du delta est
+celui dont **six points** ont montré qu'il est difficile à tenir juste, et deux
+implémentations divergeraient au premier ajout. `_rapporter_delta` est donc
+extrait de `cmd_update` et partagé, avec `_situer_projet` et
+`_signature_precedente`. Le test qui l'atteste compare les deux sorties ligne à
+ligne.
+
+### Le piège du dossier jetable
+
+Un dry-run compile dans un dossier temporaire. Mais `compile_project` validait
+les assets déclarés **dans son dossier de sortie** — donc un projet
+parfaitement valide aurait échoué en annonçant un logo manquant qui, lui, est
+bien là. C'est le seul endroit où le geste a demandé de rouvrir du code
+existant : `compile_project` accepte désormais `base_dir` (où sont les fichiers
+de l'humain) séparément du dossier de sortie, et `save_state` pour ne pas
+déposer d'état pendant un essai. Les deux gardent le comportement historique
+par défaut.
+
+Cette asymétrie existait déjà, discrètement : `compile_monl` résout les assets
+depuis le dossier de la SPEC, `compile_project` depuis le dossier de sortie. Sur
+un projet ordinaire les deux coïncident, ce qui est la raison pour laquelle
+personne ne l'avait vue.
+
+### Ce qui n'est pas écrit
+
+Ni `app.py`, ni `schema.sql`, ni le contrat, ni `monl.json`, ni
+`FRONTEND_UPDATE_PROMPT.md`. Le test ne vérifie pas une LISTE de fichiers — il
+compare l'empreinte de l'ARBRE entier avant et après. Une liste laisse passer le
+fichier auquel on n'a pas pensé ; c'est le raisonnement des garde-fous
+d'empreinte du point 73, appliqué en sens inverse.
+
+Le contrat déjà posé mérite une mention à part : il est la RÉFÉRENCE de la
+comparaison. L'écraser pendant un dry-run rendrait le geste suivant aveugle.
+
+### Détail d'ergonomie
+
+La compilation d'essai est silencieuse — son bandeau et son audit n'apprennent
+rien à qui demande un diff. Mais si elle échoue, c'est SON message qui
+s'affiche : le nôtre ne dirait que « ça n'a pas marché ». Et `diff` ne renvoie
+vers `monl update` que lorsqu'il y a quelque chose à appliquer — envoyer
+appliquer un changement qui n'existe pas apprend à ne plus lire les messages
+(même arbitrage qu'aux points 57 et 92).
+
+### Éprouvé par
+
+`tests/test_diff.py` (10 tests) : l'empreinte de l'arbre inchangée, le contrat
+de référence intact, la consigne d'évolution non écrite (et écrite par `update`,
+sur la même spec), l'égalité ligne à ligne des deux rapports, le silence quand
+la spec n'a pas bougé, l'arrêt sans `monl.json`, le message du compilateur
+laissé passer, et le projet à assets qui compile sans se plaindre d'un fichier
+qui existe.
+
+## 104. Les icônes qu'on croyait interdites
+
+Constat du mainteneur, en regardant les sites produits : **aucun n'emploie
+d'icône**. Aucune, jamais, quel que soit le projet.
+
+La tentation était de conclure à un défaut de l'IA d'interface, ou à un manque
+de direction visuelle. C'est le brief qu'il fallait lire — même réflexe qu'au
+point 94, où une FAQ collée venait de la SPEC et non du frontend.
+
+Le brief dit :
+
+> Frontend AUTONOME : aucune librairie CDN, aucun script externe
+
+et ne dit **nulle part** ce qui reste possible. Une IA qui lit cette ligne
+conclut correctement que Font Awesome, Material Icons et Lucide sont hors
+d'atteinte — et, faute de savoir que le SVG en ligne fonctionne, elle joue la
+sécurité et n'en met aucune. Le `.svg` est pourtant en liste blanche depuis
+toujours (`ALLOWED_EXTENSIONS`, frontend_ai.py) : le moyen existait, il n'était
+simplement écrit nulle part.
+
+### Pourquoi ce n'est pas une entorse au point 72
+
+Le point 72 a retiré du contrat toute prescription visuelle — palette,
+typographie, rayon — au motif qu'« une suggestion écrite dans le document qui
+fait foi n'est pas neutre ». Il a en même temps gardé deux choses, et l'a écrit :
+le contraste WCAG et l'autonomie du frontend, parce que « ni l'un ni l'autre
+n'est une question de goût ».
+
+Un MOYEN tombe du même côté que ces deux-là. Le brief ne dit pas s'il faut des
+icônes, ni lesquelles, ni dans quel style — il dit par quel moyen elles sont
+possibles, précisément parce que la règle d'autonomie, lue seule, laisse croire
+qu'elles ne le sont pas. Corriger une lecture erronée n'est pas orienter le
+goût.
+
+La frontière est mince, et elle est donc gardée par un TEST : le brief ne doit
+recommander aucune icône ni aucun style d'icône. Sans ce garde-fou, la ligne
+ajoutée ici dériverait vers de la prescription à la première réécriture.
+
+### DEUX briefs, et la moitié qui manquait
+
+Trouvé en LANÇANT une retouche, pas en relisant le code : la ligne ci-dessus
+n'était posée que sur le brief de CONSTRUCTION. La consigne de `monl retouche`
+est un document séparé, et elle disait « même autonomie (aucun CDN) » sans un
+mot de plus. La retouche qui a servi de banc a réussi — mais parce que l'auteur
+avait demandé des icônes explicitement. Une demande du type « rends cette
+section plus lisible » se serait heurtée au même mur.
+
+C'est la leçon du point 93 sur un autre objet. Il n'y a qu'UNE voie vers l'IA
+(`_lancer_ia`), et c'est ce qui garde les garde-fous identiques — mais il y a
+DEUX briefs, et ce qu'on écrit dans l'un ne se propage pas à l'autre. Toute
+règle ajoutée au brief de construction doit donc se demander si la retouche en
+a besoin.
+
+### Éprouvé par
+
+Trois tests dans `tests/test_design_contract.py` — le fichier qui prouve que le
+compilateur se TAIT sur le visuel, et qui est donc le bon endroit pour poser la
+limite de ce silence : l'un exige que le moyen soit énoncé dans le brief de
+construction, le deuxième qu'aucune recommandation ne le soit, le troisième que
+la consigne de retouche porte le même rappel.
+
+Vérifié en réel sur `projets/SneakerLab` : une retouche demandant « des icônes
+et un peu de texte » sur la rubrique livraison/retours a produit quatre SVG en
+ligne — zéro auparavant — avec `aria-hidden` et un texte court par carte.
+
+Ce point ne fait rien reconstruire : les sites existants n'ont pas d'icônes et
+n'en auront pas tant qu'ils ne sont pas régénérés. Il change ce que la
+PROCHAINE construction saura.
+
+## 105. Deux messages qui envoyaient corriger ce qui n'était pas cassé
+
+Constat du mainteneur, en lançant une retouche sur un vrai projet :
+
+```
+monl retouche /projets/SneakerLab "utilise plutôt des icônes …" --provider claude-code
+❌ monl.json introuvable — ce dossier n'est pas un projet monl.
+```
+
+Une seule ligne de réponse, et deux fautes distinctes dedans — dont aucune n'est
+celle que le message désigne.
+
+### Le dossier n'existait pas du tout
+
+`_load_state` rend `None` aussi bien pour « dossier absent » que pour « dossier
+sans monl.json », et les quatre appels concluaient à la seconde. `monl frontend`
+allait plus loin encore : « lancer 'monl' ou 'monl compile' » — il envoyait
+recompiler un projet que monl n'avait jamais trouvé.
+
+C'est le reproche du point 97, sur un autre message : **une hypothèse affichée
+comme un diagnostic est pire qu'un message vague.** Là-bas, monl conseillait de
+reformuler une demande qui était déjà claire ; ici, il conseille de compiler un
+dossier qui n'existe pas.
+
+Les deux questions se posent dans un ordre, et il faut le respecter : le dossier
+existe-t-il, PUIS porte-t-il un projet. Répondre à la seconde quand la première
+a échoué, c'est répondre à côté.
+
+`_erreur_de_chemin` (cli.py) est cette première question, partagée par les
+quatre points d'entrée. Elle explique aussi la faute qui a motivé le point :
+**une barre oblique de tête**. `/projets/SneakerLab` n'est pas « projets/SneakerLab
+ici » — c'est `SneakerLab` dans un dossier `projets` à la RACINE DU SYSTÈME.
+Quand le voisin relatif existe, monl le propose ; quand il n'existe pas non
+plus, il ne propose rien, parce qu'un chemin inventé enverrait chercher une
+deuxième fois pour rien.
+
+### Et les deux arguments étaient inversés
+
+`retouche` est le SEUL geste dont le premier argument n'est pas le dossier :
+`run`, `update`, `diff`, `compile` et `frontend` le prennent tous en tête.
+Écrire le dossier d'abord est donc le réflexe — et monl répondait « ce dossier
+n'est pas un projet monl » en parlant de la PHRASE qu'on venait de lui donner.
+
+Trois façons de traiter ça, et le choix n'est pas neutre :
+
+- **inverser l'ordre des arguments** : casse `monl retouche "texte"`, la forme
+  la plus courante, puisque le dossier vaut « . » par défaut ;
+- **accepter les deux ordres en devinant** : magique, et faux le jour où une
+  demande ressemble à un chemin ;
+- **NOMMER l'inversion**, et laisser l'auteur la corriger. C'est ce qui est
+  fait.
+
+Le diagnostic ne s'appuie pas sur une intuition mais sur deux faits opposés :
+la demande ne contient aucune espace et ressemble à un chemin, tandis que le
+« dossier » contient des espaces. Un faux positif ne coûterait qu'un message —
+il ne change aucun comportement — mais il refuserait une retouche bien écrite,
+d'où le test qui l'interdit explicitement.
+
+**La commande proposée doit MARCHER telle quelle.** Recopier le chemin dont on
+vient de dire qu'il est faux ferait buter une deuxième fois, sur un autre
+message : la suggestion corrige donc aussi la barre oblique quand elle le peut.
+
+### Éprouvé par
+
+`tests/test_chemins_et_arguments.py` (13 tests) : le dossier absent nommé comme
+tel et sans un mot sur monl.json ni la compilation, la barre oblique expliquée,
+la suggestion qui ne s'invente pas de voisin, les gestes qui s'arrêtent sur le
+chemin plutôt que sur l'état, la vérification de cohérence qui ne conseille plus
+de recompiler — puis l'inversion détectée, l'ordre correct qui ne déclenche
+rien (le témoin qui compte le plus : un faux positif refuserait une retouche
+valide), et la commande proposée dont le chemin est déjà corrigé.
+
+---
+
+## 106. Rôle superviseur au-dessus d'`accessibleBy` (brique 23)
+
+**Le problème :** la brique 8 (`accessibleBy`, point 31) enferme chaque action
+dans ses colonnes-parties : seuls l'expéditeur et le destinataire d'un message
+privé le lisent/suppriment. Une messagerie a presque toujours besoin d'un tiers
+superviseur — un modérateur qui doit pouvoir lire, voire retirer, TOUS les
+messages, sans être artificiellement compté parmi les parties de chacun. Les
+colonnes ne disent pas « qui peut tout voir » ; il faut le déclarer.
+
+**La syntaxe retenue :** on réutilise `sharedBy` sur la MÊME référence qu'une
+action déjà régie par `accessibleBy` :
+```
+rule PrivateMessage.Read   accessibleBy member_id, recipient_id
+rule PrivateMessage.Delete accessibleBy member_id, recipient_id
+rule PrivateMessage.Read   sharedBy Moderator
+rule PrivateMessage.Delete sharedBy Moderator
+```
+Le rôle ainsi nommé devient **superviseur** de cette action : il liste, lit,
+modifie et supprime TOUS les enregistrements, sans restriction de parties. Les
+parties, elles, restent confinées à leurs colonnes. Un rôle non répertorié dans
+le `sharedBy` d'une action `accessibleBy` — même s'il a un workflow qui l'y fait
+entrer — subit, lui, le filtre de parties. C'est le pendant exact du superviseur
+personne déjà acquis pour `ownedBy` au point 88 (`rule X.Update sharedBy
+Proprietaire, Patron` : chacun ne touche que les siens, l'autre voit tout).
+
+Un seul froncement de sourcil possible : pourquoi `sharedBy` plutôt qu'une
+nouvelle syntaxe ? Parce que le mot dit déjà, dans monl, « ce rôle partage
+l'accès à cette action au-delà du propriétaire » — relire le point 88. Une
+syntaxe neuve ajouterait une règle à apprendre pour un cas que `sharedBy`
+recouvre sémantiquement. La différence de comportement (transpercer les
+colonnes) n'est pas une syntaxe mais une conséquence de la présence conjointe
+d'`accessibleBy`.
+
+**Ce qui change dans le validateur (`ast_validator.py`) :**
+- chaque action `accessibleBy` collecte désormais les rôles porte-parole d'un
+  `sharedBy` de même référence → `access_supervisors`;
+- chaque rôle ainsi nommé doit être un acteur déclaré (pas de fantôme);
+- **exemption de CRITICAL_COLLISION pour les actions `accessibleBy`**, miroir
+  exact de celle déjà reconnue aux actions `ownedBy`. Le point 1 (deux acteurs
+  sur une même écriture) est une collision de PRIVILÈGES ; `accessibleBy`,
+  comme `ownedBy`, décide l'accès à CHAQUE enregistrement par ses données, pas
+  par les rôles — un rôle Membre et un rôle Modérateur peuvent donc
+  légitimement partager la même route. Sans cette exemption, ajouter un
+  superviseur forcerait à nommer les parties dans le `sharedBy` pour couvrir
+  la collision, ce qui les déclarerait (à tort) superviseurs à leur tour.
+
+**Ce qui change dans le générateur (`routes.py`) :** sur une action
+`accessibleBy` qui a des superviseurs, le contrôle par colonnes devient
+conditionnel :
+- **liste (Read)** : `WHERE col1 = ? OR col2 = ?` n'est posé que si le rôle
+  appelant n'est pas superviseur — le superviseur voit tout (WHERE vide);
+- **détail / Update / Delete** : le 403 de parties est gardé derrière
+  `if current_actor not in {"Moderateur"}`.
+Le mécanisme conditionnel réutilise exactement celui déjà en place pour
+`ownedBy` (`_own_where`), donc il n'ajoute pas une troisième voie mais étend la
+deuxième.
+
+**Dans le contrat frontend :** chaque route de lecture/suppression gagne, quand
+il y a un superviseur, un champ `supervisors` et une note `SUPERVISION` — sans
+quoi une IA d'interface appliquerait le filtre de parties au modérateur lui-même
+et lui dessinerait une vue LITÉRALEMENT VIDE.
+
+**Preuve, testée en conditions réelles** (`tests/test_access_parties.py`, volet
+superviseur, serveur éphémère + Sessions) : le modérateur provisionné hors
+ligne (insérer dans `_monl_users` avec le hachage pbkdf2 de `manage.py`) voit la
+liste complète, lit un message dont il n'est ni émetteur ni destinataire, et le
+supprime — quand Carol, tier du même rôle `User`, reste à 0 en liste et reçoit
+403 en direct. Compilé par `exemples/03_reseau_social.ml`. Validations
+supplémentaires : superviseur inconnu refusé, absence de collision, `sharedBy`
+sans `accessibleBy` qui ne fabrique aucun superviseur.
+
+**La formulation en garde-fou :** un `sharedBy` posé sur une action qui n'est
+PAS régie par `accessibleBy` ne produit AUCUN superviseur — il reste le partage
+de privilèges historique, inchangé au point 1. Les deux lectures de `sharedBy`
+ne se font pas concurrence : elles sont disjointes par la présence ou non
+d'`accessibleBy` sur la même référence.
+
+---
+
+## 107. La chaîne de propriété qui remonte toute la profondeur (brique 24)
+
+Le point 87 laissait un « ce qui reste ouvert » explicite : la propriété
+transitive (brique 11) ne remontait qu'**UN** intermédiaire. `Ligne → Commande
+→ Client` marchait ; `Ligne → Bloc → Commande → Client` était REFUSÉ à la
+compilation (« plus d'un niveau »), et le refus se réclamait du point 80 — deux
+indirections « compileraient en filtrant sur le mauvais maillon ». La décision
+était assumée, avec son coût nommé : des jointures à profondeur variable dans
+quatre chemins d'accès.
+
+Cette brique lève le refus. La marche de la chaîne remonte désormais maillon par
+maillon jusqu'à un ACTEUR, quelle que soit la profondeur, et la classe de défaut
+du point 80 ne reparaît PAS : un **cycle**, un **cul-de-sac** (aucun compte au
+bout) et un **maillon possédé par plusieurs entités** (chemin ambigu) restent
+trois refus à la compilation. Le validateur (`ast_validator.py`) remplace la
+résolution à un cran par une boucle `while maillon not in self.actors`, et
+`transitive_ownership[entity]` porte maintenant `{"chain": [...], "actor": ...}`
+au lieu de `{"via": ..., "actor": ...}` — la liste, du bas vers le haut.
+
+### Une seule source par chemin, comme au point 81
+
+Cinq chemins doivent filtrer sur le compte : création (403 si le parent n'est
+pas à l'appelant), liste (`WHERE ... IN`), détail (404), Update et Delete
+(jointure rendant l'id de compte). Chacun a désormais son constructeur dans
+`generator/core.py`, tous bâtis sur `_transitive_chain` (la source unique) :
+`_chain_owner_scalar` (sous-requête scalaire imbriquée par maillon),
+`_chain_read_where` (le `IN` imbriqué de la liste), `_chain_owner_from_row` (le
+propriétaire d'une ligne depuis son id) et `_chain_join` (la séquence de `JOIN`
+des routes de règlement). Ne pas réécrire une remontée ailleurs — c'est le même
+principe que `_owner_lookup_sql` au point 81, généralisé à N maillons.
+
+### Ce qu'une relecture n'aurait pas montré — et n'a pas montré
+
+La première version de la brique **compilait, et plantait**. Deux défauts, de la
+même famille, invisibles à la lecture et fatals à l'exécution :
+
+- La vérification du parent à la **création** collait la valeur que le client
+  désigne DANS le texte SQL (`... WHERE id = (data.bloc_id)`), au lieu de la
+  passer en paramètre lié. SQLite y lisait un nom de colonne : `no such column:
+  data.commande_id`. Toute création d'entité transitive répondait **500** — pas
+  seulement la profondeur 2 neuve, mais la **brique 11 elle-même**, qui marchait.
+- La lecture **détail** écrivait `(_via,)` dans le tuple de paramètres du code
+  généré, où `_via` n'était le nom d'aucune variable de la route (l'expression
+  `named_row.get(...)` avait été mise dans une variable de génération, puis
+  recopiée telle quelle) : `NameError`, 500 à chaque détail.
+
+Les routes Update et Delete, elles, liaient correctement (`', (id,))`) — la
+preuve que le défaut n'était pas conceptuel mais un oubli de liaison, deux fois.
+Les deux n'ont été trouvés qu'en **générant un vrai serveur et en frappant les
+routes** : 14 tests déjà verts (`test_propriete_transitive.py`,
+`test_paiement_transitif.py`) tombaient en *Internal Server Error*. Correctif :
+lier le paramètre partout, comme Update/Delete le faisait déjà. C'est,
+une fois de plus, la leçon de méthode du projet — **compiler n'est pas se
+comporter correctement**, et une brique de sécurité qui n'a pas été exécutée
+n'est pas une brique.
+
+### Le piège du banc, transposé à la profondeur 2
+
+`tests/test_transitive_profondeur.py` éprouve la résolution (2 et 3 maillons),
+les trois refus, et la profondeur 2 contre un vrai serveur (création, détail,
+liste, Update, Delete, refus croisés entre deux clients). Le témoin du point 80
+a dû être étendu : faire diverger non seulement les id de commande mais aussi
+ceux de **bloc**, sans quoi le premier bloc (id 1) coïncide avec le premier
+compte (id 1) et « le maillon stocké est-il bien le bloc, pas le compte ? » passe
+par accident. Même précaution qu'au point 81, un cran plus bas.
+
+---
+
+## 108. L'émission SQL typée, la frontière de sécurité
+
+Le point 107 s'est corrigé en deux lignes : lier `data.<fk>` en paramètre au
+lieu de le coller dans le texte SQL. Mais le correctif ne fermait que
+*l'occurrence* ; la **possibilité** restait. `_chain_owner_scalar` acceptait un
+« fragment de premier maillon » sous forme de chaîne — rien n'empêchait un
+appelant de lui repasser une valeur comme texte, exactement ce qu'avait fait la
+brique 24. Une classe de défaut qui se corrige par vigilance reviendra. Cette
+décision la rend **structurellement impossible.**
+
+### La couche : `generator/sql.py`
+
+Un fragment `Sql` porte son TEXTE (du SQL fixe où chaque valeur est un `?`) et
+ses PARAMÈTRES (les expressions Python source à lier, dans l'ordre des `?`).
+Trois portes d'entrée, et trois seulement :
+
+- **`bind(expr)`** — LA SEULE façon de faire entrer une valeur : elle sort en
+  `?`, l'expression est retenue à part. Il n'existe aucune fonction qui place
+  une valeur dans le texte.
+- **`ident(nom)`** — un identifiant entre guillemets, qui REFUSE un guillemet
+  interne plutôt que de l'échapper en silence (une entité ou colonne validée
+  n'en porte jamais ; deviner masquerait une divergence amont).
+- **`kw(texte)`** — du SQL fixe, qui refuse un `?` : un placeholder ne s'écrit
+  qu'avec `bind`, sinon une valeur pourrait se glisser dans un fragment réputé
+  « fixe ».
+
+On compose avec `cat`. À l'émission (`execute_args`, `params_tuple`), un
+garde-fou vérifie que le nombre de `?` égale le nombre de paramètres — un
+builder mal écrit échoue à la génération plutôt que de produire un `execute`
+qui planterait. **Texte et paramètres sortent ENSEMBLE d'un seul objet** :
+l'appelant ne peut plus les désolidariser, ce qui était la faille du point 107.
+
+### Ce qui a bougé, et ce qui n'a pas bougé
+
+Les builders du contrôle d'accès (`_chain_owner_scalar`, `_chain_read_where`,
+`_chain_owner_from_row`, `_chain_join`, `_owner_lookup_sql` dans
+`generator/core.py`) et leurs cinq sites d'appel dans `generator/routes.py`
+(création, liste, détail, Update, Delete) passent tous par cette couche. **Le
+SQL généré est resté identique à l'octet** — vérifié en régénérant : mêmes `?`,
+mêmes jointures. Les 706 tests restent donc l'oracle, inchangés, et la preuve
+que le refactor n'a rien déplacé du comportement. `sql.py` vit DANS le package
+`generator` (un seul nœud d'architecture, point 65) : aucune frontière déplacée.
+
+### La portée, honnête
+
+C'est la **première pierre** de « séparer le code de sécurité », pas la
+séparation entière. Ce qui est acquis : toute construction de SQL de contrôle
+d'accès passe désormais par une frontière typée où une valeur ne peut pas fuir
+dans le texte. Ce qui reste : consolider les refus du validateur et l'audit de
+sécurité dans un noyau explicite. Et c'est le **préalable à tout portage Rust** :
+cette couche définit noir sur blanc le contrat d'émission qu'un cœur Rust devrait
+reproduire — la frontière se conçoit une fois, dans le langage qu'on maîtrise,
+avant de la traduire.
+
+Éprouvée par `tests/test_sql_emission.py` : l'invariant de la couche (une valeur
+ne traverse jamais le texte, un identifiant à guillemet refusé, l'équilibre
+`?`/params), ET un garde-fou de régression qui compile une chaîne à deux maillons
+et **interdit sur le code réellement généré** le motif du point 107 — une valeur
+client collée dans une comparaison SQL.
+
+**L'enforcement à l'échelle du projet** vit dans `tests/test_invariants_securite.py` :
+il compile CHAQUE spec du dépôt (les cinq exemples + une spec profondeur 2), parse
+l'`app.py` généré en AST, et exige qu'aucun littéral de chaîne qui est du SQL ne
+contienne une expression client ou d'exécution (`data.`, `named_row`,
+`current_user_id`) — ces valeurs doivent toujours être liées, jamais dans le
+texte. La méthode est en AST et non en sous-chaîne : un `x = data.y` Python n'est
+pas un littéral, donc jamais un faux positif ; seul un `'... = data.y ...'` DANS
+une requête est fautif, ce qui est exactement la forme du point 107. Avec le
+garde-fou du garde-fou (l'invariant DOIT voir passer du contrôle d'accès qui lie
+ses valeurs), le défaut du point 107 devient inexpédiable sur toute spec, pas
+seulement sur celle qui l'avait révélé.
+
+---
+
+## 109. Le contrôle d'accès, sorti de l'ombre du validateur
+
+Le point 108 a séparé le versant ÉMISSION de la sécurité (le SQL généré). Restait
+le versant DÉCISION : les refus qui déterminent qui peut toucher quoi. Ils
+vivaient noyés au milieu de `_validate_structures`, une méthode de ~1480 lignes
+qui valide aussi les contraintes de champ, les gabarits de numéro, les seeds, les
+assets… La leçon du point 107 est directe : **le défaut de la brique 24 vivait
+dans exactement ce genre de logique de sécurité anonyme, perdue dans un
+fourre-tout.** Ce qu'on ne voit pas, on ne le relit pas.
+
+Le modèle de contrôle d'accès forme pourtant un bloc cohérent — propriété directe
+(`ownedBy`), résolution de la chaîne transitive jusqu'à un acteur (briques 11 et
+24), accès à plusieurs parties (`accessibleBy`), rôle superviseur (brique 23). Ces
+225 lignes sont désormais une méthode nommée, `_valider_controle_dacces()`,
+appelée par `_validate_structures`. Une frontière de lecture, pas seulement de
+code : quand on cherche « comment monl décide-t-il l'accès ? », il y a un endroit.
+
+### Ce qui a rendu l'extraction sûre
+
+Le bloc n'utilise que `self.*`. Les deux variables locales de
+`_validate_structures` qui pouvaient l'accrocher — la matrice de collision
+multi-acteurs (`access_matrix`) et `shared_permissions` — sont posées en tête de
+la méthode et consommées tout en bas, pour un AUTRE contrôle (les collisions
+d'autorisation) ; le cluster d'accès ne les touche pas. Vérifié avant de couper,
+puis prouvé après : **déplacement d'octets exact, zéro ligne réécrite, les 717
+tests inchangés comme oracle.** Sur du code de sécurité, un refactor se prouve
+par la suite qui ne bouge pas, pas par relecture.
+
+### La portée, honnête (suite du point 108)
+
+C'est la deuxième pierre de « séparer le code de sécurité », pas la dernière. Ce
+qui est acquis : le *modèle d'accès* (qui possède, qui partage, qui supervise) est
+un bloc nommé, comme l'émission SQL l'est déjà. Ce qui reste dans
+`_validate_structures` : `public`, `restrictedTo`, et les refus de sécurité
+adossés à d'autres briques (`requiresOwn`, l'exigence de propriétaire de
+`payable`) — chacun petit et collé à sa brique, moins urgent à isoler. Et
+`_validate_structures` reste un fourre-tout de 1250 lignes : le décomposer par
+préoccupation est un chantier distinct, à mener quand il coûtera vraiment.
+Ensemble, 108 et 109 délimitent le noyau sécurité (émission + décision d'accès) —
+c'est ce périmètre-là qu'un éventuel portage Rust aurait à reproduire.
+
+---
+
+## 110. Rust évalué par un spike mesuré, et écarté
+
+Question posée : introduire un langage (Rust ?) pour de meilleures performances,
+sécurité et stabilité, sur le cœur compilateur. Décision de méthode : ne pas
+trancher sur une intuition, mais **mesurer**. Un spike a été écrit — un parser
+Monl en Rust, isolé, hors dépendances, testé en différentiel contre le parser
+Lark existant. Puis retiré du dépôt : sa valeur était la mesure, pas le code.
+
+### Ce que le spike a montré
+
+- **Faisabilité : oui.** Le parser Rust reproduisait l'AST de Lark **à
+  l'identique** sur 6/6 specs (les cinq exemples réduits au sous-ensemble
+  couvert + un corpus exerçant toutes les formes de règles). Un portage est
+  possible, et le test différentiel est le bon garde-fou.
+- **Sécurité : hors sujet pour Rust.** La sécurité de monl est celle de l'app
+  GÉNÉRÉE (contrôle d'accès, pas d'injection), pas la sécurité mémoire du
+  compilateur — Python est déjà memory-safe, et le défaut du point 107 était une
+  faute de logique, pas de mémoire. Le vrai gain (un modèle typé) est déjà pris
+  côté Python aux points 108 et 109.
+- **Performance : un piège.** Au premier jet, Rust semblait 56× plus rapide
+  (0,9 ms contre 50 ms/parse). En creusant : `parse_monl_string` **reconstruisait
+  le parseur Lark à chaque appel** — la compilation de grammaire (~50 ms)
+  dominait tout. Parseur mis en cache (correctif d'une ligne), Python parse en
+  **0,4 ms** — plus vite que le binaire Rust (0,9 ms, spawn de process inclus).
+  Le « gain Rust » était une inefficacité Python corrigeable gratuitement.
+- **Erreurs : gain marginal.** Rust disait « ligne 3 : type attendu après
+  'title:' » là où Lark dit « élément inattendu » — un peu mieux, pas de quoi
+  justifier un second langage.
+
+### Le verdict, et ce qu'il a rapporté
+
+Aucun endroit ne passe le critère « utile », coût compris (second toolchain,
+build, CI, frontière sous-process, deux parsers à maintenir en phase). **Rust
+n'est pas adopté.** Le spike a exactement rempli son office : éviter d'engager un
+langage sur une hypothèse, en la réfutant par la mesure.
+
+Le vrai gain a été trouvé en chemin, en Python : **mettre le parseur Lark en
+cache** (`_get_parser`, parser.py) — de ~50 ms à 0,4 ms par parse. Sur une
+compilation isolée c'est invisible ; sur la suite de tests, qui compile des
+centaines de specs, elle est passée de ~344 s à ~200 s. Un one-liner valait, ici
+et maintenant, plus qu'une réécriture.
+
+**Règle à retenir** : « quel langage pour aller plus vite / plus sûr » se répond
+en mesurant sur le code réel, pas sur les propriétés d'un langage. La bonne
+première question n'était pas « Rust ou Go ? » mais « où le temps part-il
+vraiment ? » — et la réponse était une ligne de Python.

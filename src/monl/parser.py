@@ -35,7 +35,7 @@ grammar = r"""
     # rule["type"] ne valait jamais "restrictedTo", et l'audit de sécurité associé
     # dans ast_validator.py ne se déclenchait donc jamais. Même classe de bug que
     # celui déjà corrigé sur le bloc "custom" en v3.
-    ?rule: constraint_rule | restriction_rule | sharing_rule | ownership_rule | access_rule | visibility_rule | masking_rule | decrement_rule | increment_rule | categorization_rule | generation_rule | payable_rule | derivation_rule | aggregation_rule | timestamp_rule | requirement_rule | oneof_rule | release_rule
+    ?rule: constraint_rule | restriction_rule | sharing_rule | ownership_rule | access_rule | visibility_rule | masking_rule | decrement_rule | increment_rule | categorization_rule | generation_rule | payable_rule | derivation_rule | aggregation_rule | timestamp_rule | numbering_rule | requirement_rule | oneof_rule | release_rule
 
     constraint_rule: "rule" REFERENCE VALIDATION_TYPE _NL
                    | "rule" REFERENCE VALIDATION_TYPE INT _NL
@@ -188,6 +188,15 @@ grammar = r"""
     # Production nommée à part, même raison que ci-dessus (piège Lark, point 27).
     timestamp_rule: "rule" REFERENCE "timestamp" _NL
 
+    # AJOUT (brique 22, point 102) :
+    #   rule Order.reference numbered "CMD-{YYYY}-{NNNN}"
+    # le champ nommé porte un NUMÉRO LISIBLE, attribué par le serveur à la
+    # création et jamais ensuite. Même famille que 'timestamp' : absent des corps
+    # de requête, création comme modification. Le mot-clé n'est pas 'reference' —
+    # il se confondrait avec le nom du champ qu'on lui donne presque toujours,
+    # et 'rule Order.reference reference …' ne se lit pas.
+    numbering_rule: "rule" REFERENCE "numbered" STRING_LITERAL _NL
+
     # AJOUT (roadmap, écosystème de capacités -- brique 17, point 90) :
     #   rule Order.Create requiresOwn Customer
     # l'appelant doit DÉJÀ posséder un enregistrement de l'entité nommée pour
@@ -317,7 +326,17 @@ grammar = r"""
     # décimaux. Ex. :
     #   seed Project
     #       title: "Refonte Aurora", imageUrl: "https://picsum.photos/seed/a/600/400", year: 2024
-    seed_block: "seed" NAME _NL _INDENT seed_row+ _DEDENT
+    #
+    # BRIQUE 21 (point 100) : un seed d'ENFANT désigne sa ligne parente. Sans
+    # cette forme, une entité fille d'une table métier ne pouvait pas figurer
+    # dans les données de démonstration -- sa clé étrangère n'est pas un champ
+    # déclaré, donc le validateur la refusait. Le parent est nommé par un CHAMP
+    # et une VALEUR, jamais par un rang : un numéro de ligne ne dit rien à la
+    # lecture, et se décale dès qu'on insère une ligne au milieu. Ex. :
+    #   seed Variant for Product.name "Chaise Ligne"
+    #       finish: "Chêne naturel", price: 249.90, stock: 12
+    seed_block: "seed" NAME seed_parent? _NL _INDENT seed_row+ _DEDENT
+    seed_parent: "for" NAME "." NAME STRING_LITERAL
     seed_row: seed_pair ("," seed_pair)* _NL
     seed_pair: NAME ":" seed_value
     ?seed_value: STRING_LITERAL | SIGNED_NUMBER
@@ -483,6 +502,12 @@ class MonlTransformer(Transformer):
     def timestamp_rule(self, reference):
         return {"rule": {"reference": str(reference), "type": "timestamp"}}
 
+    def numbering_rule(self, reference, gabarit):
+        token = str(gabarit)
+        return {"rule": {"reference": str(reference), "type": "numbered",
+                         "value": token[1:-1].replace('\\"', '"')
+                                             .replace('\\\\', '\\')}}
+
     def requirement_rule(self, reference, owner_entity):
         return {"rule": {"reference": str(reference), "type": "requiresOwn",
                          "value": str(owner_entity)}}
@@ -607,8 +632,25 @@ class MonlTransformer(Transformer):
         return {"reference": str(name_or_ref)}
 
     # AJOUT (roadmap frontend, bloc 'seed') : données de démonstration.
-    def seed_block(self, name, *rows):
-        return {"seed": {"entity": str(name), "rows": list(rows)}}
+    def seed_block(self, name, *reste):
+        # BRIQUE 21 : la désignation de parent est OPTIONNELLE et arrive, quand
+        # elle existe, avant les lignes. On la reconnaît à sa clé plutôt qu'à sa
+        # position : une spec sans `for` doit produire exactement ce qu'elle
+        # produisait avant ce point.
+        parent, rows = None, []
+        for item in reste:
+            if isinstance(item, dict) and "__seed_parent__" in item:
+                parent = item["__seed_parent__"]
+            else:
+                rows.append(item)
+        return {"seed": {"entity": str(name), "parent": parent, "rows": rows}}
+
+    def seed_parent(self, entity, field, value):
+        token = str(value)
+        return {"__seed_parent__": {
+            "entity": str(entity), "field": str(field),
+            "value": token[1:-1].replace('\\"', '"').replace('\\\\', '\\'),
+        }}
 
     def seed_row(self, *pairs):
         record = {}
@@ -751,6 +793,23 @@ def _format_lark_error(err, original_content, line_map, file_path=None):
                               source_line=source_line, file_path=file_path)
 
 
+_PARSER = None
+
+
+def _get_parser():
+    """Le parseur Lark, construit UNE fois et réutilisé (point 110).
+
+    Sa construction — la compilation de la grammaire LALR — coûte ~50 ms ; la
+    refaire à chaque appel dominait le temps de parsing (mesuré : parseur en
+    cache 0,4 ms/parse contre 50 ms en le reconstruisant). Un parseur Lark est
+    réutilisable entre parses ; seul le Transformer est réinstancié à chaque
+    appel, pour rester sans état."""
+    global _PARSER
+    if _PARSER is None:
+        _PARSER = Lark(grammar, parser='lalr', postlex=MonlIndenter())
+    return _PARSER
+
+
 def parse_monl_string(content, file_path=None):
     """Parse une chaîne monl directement (sans passer par un fichier).
     Utilisé par parse_monl_file pour valider
@@ -758,7 +817,7 @@ def parse_monl_string(content, file_path=None):
     Lève MonlSyntaxError (message localisé : fichier, ligne, colonne,
     extrait) plutôt que l'exception Lark brute."""
     from lark.exceptions import UnexpectedInput
-    parser = Lark(grammar, parser='lalr', postlex=MonlIndenter())
+    parser = _get_parser()
     original = content + "\n"
     stripped, line_map = _strip_standalone_comment_lines(original)
     if not stripped.endswith("\n"):

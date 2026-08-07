@@ -1,4 +1,5 @@
 import os
+import re
 
 # Dossier par défaut des assets fournis par l'humain (brique 13, point 83).
 # HORS de frontend/ : ce dossier-là est renommé par 'monl frontend' à chaque
@@ -66,6 +67,12 @@ class MonlAST:
         self.transitive_ownership = {}
         self.aggregated_fields = []
         self.access_party_rules = {}
+        # AJOUT (brique 23, point 106) : rôles SUPERVISEURS par action régie
+        # par 'accessibleBy'. Un rôle nommé ici (via une règle 'sharedBy' sur
+        # la MÊME référence) transperce le contrôle par colonnes : il lit,
+        # modifie ou supprime TOUS les enregistrements, quand les parties
+        # restent enfermées dans les leurs.
+        self.access_supervisors = {}
         self.ui_overrides_raw = raw_json.get("ui_overrides", [])
         self.landing_raw = raw_json.get("landing")
         self.capabilities_raw = raw_json.get("capabilities", [])
@@ -333,23 +340,161 @@ class MonlAST:
                     f"Structure : '{entite}.{champ}' a min {bas['valeur']} et "
                     f"max {haut['valeur']} : aucune valeur ne satisfait les deux.")
 
-    def _validate_structures(self):
-        """Vérifie la cohérence de base et traque les collisions multi-acteurs (Bug #5),
-        sauf exemption explicite via une règle 'sharedBy'. Valide aussi les règles
-        'ownedBy' (roadmap : contrôle d'accès par propriété)."""
-        # Matrice globale pour traquer les conflits d'autorisations (Entité -> Action -> Ensemble d'acteurs)
-        access_matrix = {}
+    # Types sur lesquels une valeur de seed peut DÉSIGNER une ligne parente.
+    # Un nombre est exclu : rapprocher deux flottants est déjà douteux, et un
+    # prix ou un stock ne nomme rien — la désignation doit se lire.
+    TYPES_DESIGNATION = ("String", "Text", "Email", "UUID")
 
-        # CORRECTIF (post-v6) : les règles 'sharedBy' déclarent explicitement qu'un
-        # ensemble précis d'acteurs peut se partager un même droit d'écriture sur
-        # une entité, ex. : "rule Post.Delete sharedBy Admin, Moderator"
-        shared_permissions = {}
-        for rule in self.rules:
-            if rule["type"] == "sharedBy":
-                shared_permissions[rule["reference"]] = set(rule["value"])
+    def _valider_parent_de_seed(self, entity, parent):
+        """BRIQUE 21 (point 100) : `seed Enfant for Parent.champ "valeur"`.
 
-        self._valider_contraintes_de_champ()
+        Sept refus, et le premier est celui qui porte la brique : la ligne
+        parente doit être désignée SANS AMBIGUÏTÉ à la compilation. Un seed qui
+        rattacherait « au hasard parmi deux » produirait une vitrine différente
+        d'une compilation à l'autre, et personne ne le verrait avant de regarder
+        l'écran."""
+        cible = parent["entity"]
+        champ = parent["field"]
+        valeur = parent["value"]
+        if cible not in self.entities:
+            raise ASTValidationError(
+                f"Structure : le bloc 'seed {entity}' se rattache à '{cible}', "
+                f"qui n'est pas une entité déclarée.")
+        # Même convention de relation que partout ailleurs (voir
+        # _compute_fk_placements) : sans elle, aucune colonne ne porterait le
+        # rattachement.
+        lie = any(
+            (rel["type"] in ("hasMany", "hasOne")
+             and rel["source"] == cible and rel["target"] == entity)
+            or (rel["type"] == "belongsTo"
+                and rel["source"] == entity and rel["target"] == cible)
+            for rel in self.relations
+        )
+        if not lie:
+            raise ASTValidationError(
+                f"Structure : le bloc 'seed {entity}' se rattache à '{cible}', mais "
+                f"aucune relation ne les lie (ex. '{cible} hasMany {entity}') -- il "
+                f"n'existe donc aucune colonne où écrire ce rattachement.")
+        # POINT 99 : la colonne d'un parent ACTEUR porte un identifiant de
+        # COMPTE, pas l'id d'une ligne. Un seed s'insère avant qu'aucun compte
+        # n'existe : il n'y a rien à y désigner.
+        if cible in self.actors:
+            raise ASTValidationError(
+                f"Structure : le bloc 'seed {entity}' se rattache à l'acteur "
+                f"'{cible}'. Cette colonne-là porte un identifiant de COMPTE, "
+                f"renseigné à la création depuis le jeton de l'appelant -- un jeu "
+                f"de démonstration s'insère au démarrage, quand aucun compte "
+                f"n'existe encore, et n'a donc personne à désigner.")
+        if champ not in self.entities[cible]:
+            raise ASTValidationError(
+                f"Structure : le bloc 'seed {entity}' désigne son parent par "
+                f"'{cible}.{champ}', qui n'est pas un champ déclaré sur '{cible}'.")
+        type_declare = self.entities[cible][champ]
+        if type_declare not in self.TYPES_DESIGNATION:
+            raise ASTValidationError(
+                f"Structure : le bloc 'seed {entity}' désigne son parent par "
+                f"'{cible}.{champ}', de type {type_declare}. Désigner une ligne "
+                f"demande un champ qui la NOMME : "
+                f"{', '.join(self.TYPES_DESIGNATION)}.")
+        # L'ordre compte pour de vrai : les données de démonstration sont
+        # insérées table par table, dans l'ordre de DÉCLARATION des blocs. Un
+        # parent semé après son enfant ne serait pas encore en base au moment de
+        # rattacher, et la ligne serait écartée au démarrage. Refuser ici plutôt
+        # que de réordonner en silence : la spec dirait une chose et le serveur
+        # en ferait une autre.
+        deja = [s for s in self.seeds if s["entity"] == cible]
+        if not deja:
+            raise ASTValidationError(
+                f"Structure : le bloc 'seed {entity}' se rattache à un "
+                f"'{cible}' qu'aucun bloc 'seed' n'a encore déclaré. Les données "
+                f"de démonstration sont insérées dans l'ordre des blocs : "
+                f"écrire 'seed {cible}' AVANT 'seed {entity}'.")
+        correspondances = [ligne for bloc in deja for ligne in bloc["rows"]
+                           if ligne.get(champ) == valeur]
+        if not correspondances:
+            raise ASTValidationError(
+                f"Structure : le bloc 'seed {entity}' se rattache au {cible} "
+                f"'{champ}: \"{valeur}\"', qu'aucune ligne de 'seed {cible}' ne "
+                f"porte. Une coquille ici donnerait une vitrine amputée sans que "
+                f"rien ne le dise.")
+        if len(correspondances) > 1:
+            raise ASTValidationError(
+                f"Structure : le bloc 'seed {entity}' se rattache au {cible} "
+                f"'{champ}: \"{valeur}\"', mais {len(correspondances)} lignes de "
+                f"'seed {cible}' portent cette valeur -- rien ne dit à laquelle. "
+                f"Désigner par un champ dont les valeurs sont distinctes.")
 
+    # Jalons acceptés dans un gabarit de numéro. La séquence est le seul
+    # obligatoire : sans elle, tous les enregistrements porteraient le même
+    # numéro — une règle qui ne produit rien (point 85), doublée d'un index
+    # unique qui refuserait la deuxième création.
+    JALONS_DATE = ("YYYY", "MM", "DD")
+
+    def _periode_du_gabarit(self, gabarit):
+        """Sur quoi la séquence se REMET À ZÉRO : '' (jamais), 'YYYY',
+        'YYYY-MM' ou 'YYYY-MM-DD'.
+
+        Déduite des jalons de date présents, jamais déclarée à part : deux
+        façons de dire la même chose finiraient par se contredire."""
+        présents = [j for j in self.JALONS_DATE if "{" + j + "}" in gabarit]
+        return "-".join(présents)
+
+    def _valider_gabarit_de_numero(self, entity, field, gabarit):
+        """Cinq refus sur la forme du gabarit lui-même."""
+        jalons = re.findall(r"\{([^{}]*)\}", gabarit)
+        # Une accolade orpheline ne serait pas vue par la recherche ci-dessus :
+        # la compter séparément, sinon 'CMD-{YYYY' passerait pour du texte.
+        if gabarit.count("{") != len(jalons) or gabarit.count("}") != len(jalons):
+            raise ASTValidationError(
+                f"Structure : le gabarit de 'numbered' sur '{entity}.{field}' a une "
+                f"accolade orpheline : {gabarit!r}.")
+        sequences = [j for j in jalons if set(j) == {"N"}]
+        inconnus = [j for j in jalons
+                    if j not in self.JALONS_DATE and set(j) != {"N"}]
+        if inconnus:
+            raise ASTValidationError(
+                f"Structure : le gabarit de 'numbered' sur '{entity}.{field}' emploie "
+                f"{', '.join(repr('{' + j + '}') for j in inconnus)}, qui ne veut rien "
+                f"dire. Jalons acceptés : '{{YYYY}}', '{{MM}}', '{{DD}}', et une suite "
+                f"de N pour la séquence ('{{NNNN}}' = quatre chiffres).")
+        if not sequences:
+            raise ASTValidationError(
+                f"Structure : le gabarit de 'numbered' sur '{entity}.{field}' n'a aucune "
+                f"séquence ('{{NNNN}}') -- tous les enregistrements porteraient le MÊME "
+                f"numéro, ce qui n'en est pas un.")
+        if len(sequences) > 1:
+            raise ASTValidationError(
+                f"Structure : le gabarit de 'numbered' sur '{entity}.{field}' contient "
+                f"{len(sequences)} séquences -- rien ne dit laquelle s'incrémente.")
+        # Une date incomplète fait se répéter la séquence : 'CMD-{MM}-{NNNN}'
+        # redonne 'CMD-03-0001' tous les mois de mars. L'index unique
+        # l'attraperait, mais un an plus tard et en production.
+        # strict=False assumé : on apparie chaque jalon avec le SUIVANT, donc
+        # les deux suites n'ont volontairement pas la même longueur.
+        for précédent, suivant in zip(self.JALONS_DATE, self.JALONS_DATE[1:],
+                                      strict=False):
+            if "{" + suivant + "}" in gabarit and "{" + précédent + "}" not in gabarit:
+                raise ASTValidationError(
+                    f"Structure : le gabarit de 'numbered' sur '{entity}.{field}' emploie "
+                    f"'{{{suivant}}}' sans '{{{précédent}}}' -- la séquence se remettrait "
+                    f"à zéro sans que le numéro dise de quelle période il s'agit, et "
+                    f"deux enregistrements finiraient par porter le même.")
+
+    def _valider_controle_dacces(self):
+        """Le noyau du contrôle d'accès — frontière de sécurité (point 109).
+
+        Rassemble, hors de la grande méthode de validation structurelle, TOUT
+        ce qui décide QUI peut toucher QUOI : les règles 'ownedBy' (propriété
+        directe), la résolution de la chaîne transitive jusqu'à un acteur
+        (briques 11 et 24), les règles 'accessibleBy' (accès à plusieurs
+        parties) et le rôle superviseur (brique 23). Peuple self.ownership_rules,
+        self.transitive_ownership et self.access_supervisors, lus ensuite par le
+        générateur via _transitive_chain / _owner_lookup_sql.
+
+        N'utilise que self.* : aucune dépendance aux variables locales de
+        _validate_structures (la matrice de collision et shared_permissions
+        restent chez elle). C'est ce qui rend cette frontière nette.
+        """
         # AJOUT (post-v6, roadmap) : les règles 'ownedBy' restreignent une action
         # au seul enregistrement appartenant à l'acteur courant. Elles nécessitent
         # qu'une relation 'hasMany' existe entre l'entité "propriétaire" déclarée
@@ -434,37 +579,43 @@ class MonlAST:
             if owner_entity in self.actors:
                 continue
 
-            # L'intermédiaire doit lui-même déclarer un propriétaire : c'est le
-            # seul maillon qui relie la chaîne à un compte.
-            maillons = proprietaires_par_entite.get(owner_entity, set())
-            if not maillons:
-                raise ASTValidationError(
-                    f"Structure : la règle 'ownedBy' sur '{entity}.{act_type}' désigne "
-                    f"'{owner_entity}' comme propriétaire, mais '{owner_entity}' n'est ni un acteur, "
-                    f"ni possédé lui-même -- la chaîne ne remonte à aucun compte, donc le serveur ne "
-                    f"peut vérifier À QUI appartient un '{entity}'. Ajouter une règle "
-                    f"'{owner_entity}.Read ownedBy <Acteur>', ou rattacher '{entity}' directement à "
-                    f"un acteur."
-                )
-            if len(maillons) > 1:
-                raise ASTValidationError(
-                    f"Structure : la règle 'ownedBy' sur '{entity}.{act_type}' passe par "
-                    f"'{owner_entity}', qui déclare plusieurs propriétaires différents "
-                    f"({', '.join(sorted(maillons))}) -- la chaîne est ambiguë : le serveur ne saurait "
-                    f"pas lequel vérifier. N'en désigner qu'un seul sur '{owner_entity}'."
-                )
-            acteur = next(iter(maillons))
-            # Une seule indirection pour l'instant : la jointure générée est à
-            # un seul niveau. Deux niveaux compileraient en filtrant sur le
-            # mauvais maillon -- c'est exactement la classe de défaut que le
-            # point 80 a fermée, on ne la rouvre pas par la profondeur.
-            if acteur not in self.actors:
-                raise ASTValidationError(
-                    f"Structure : la règle 'ownedBy' sur '{entity}.{act_type}' formerait une chaîne de "
-                    f"propriété à plus d'un niveau ('{entity}' -> '{owner_entity}' -> '{acteur}', qui "
-                    f"n'est toujours pas un acteur). monl ne sait remonter qu'UN intermédiaire : "
-                    f"rattacher '{entity}' à '{acteur}' directement, ou à un acteur."
-                )
+            # AJOUT (brique 24, point 107) : la chaîne remontait jadis UN seul
+            # intermédiaire ('{entity} -> via -> acteur'). Elle remonte
+            # désormais toute la profondeur, maillon par maillon, jusqu'à un
+            # ACTEUR. Chaque maillon doit être possédé par UN SEUL propriétaire
+            # (sinon ambiguïté : quel chemin vérifier ?) et la marche ne doit
+            # ni boucler ni aboutir dans le vide.
+            maillon = owner_entity
+            vus = set()
+            chaine = []
+            while maillon not in self.actors:
+                if maillon in vus:
+                    raise ASTValidationError(
+                        f"Structure : la chaîne de propriété de '{entity}' boucle à '{maillon}' "
+                        f"('{entity}' -> {' -> '.join(chaine)} ...) -- le serveur ne peut la "
+                        f"résoudre. Couper le cycle."
+                    )
+                vus.add(maillon)
+                chaine.append(maillon)
+                parents = proprietaires_par_entite.get(maillon, set())
+                if not parents:
+                    raise ASTValidationError(
+                        f"Structure : la règle 'ownedBy' sur '{entity}.{act_type}' désigne "
+                        f"'{owner_entity}' comme propriétaire, mais la chaîne '{entity}' -> "
+                        f"{' -> '.join(chaine)} ne remonte à AUCUN acteur -- le serveur ne peut "
+                        f"vérifier À QUI appartient un '{entity}'. Ajouter une règle "
+                        f"'<dernier maillon>.Read ownedBy <Acteur>', ou rattacher '{entity}' "
+                        f"directement à un acteur."
+                    )
+                if len(parents) > 1:
+                    raise ASTValidationError(
+                        f"Structure : la chaîne de propriété de '{entity}' est ambiguë à "
+                        f"'{maillon}' : celui-ci est possédé par plusieurs entités différentes "
+                        f"({', '.join(sorted(parents))}) -- le serveur ne saurait pas laquelle "
+                        f"vérifier. N'en désigner qu'une seule sur '{maillon}'."
+                    )
+                maillon = next(iter(parents))
+            acteur = maillon
             # Mélanger propriété directe et transitive sur la MÊME entité
             # rendrait sa clé étrangère à la fois peuplée depuis le jeton (pour
             # l'une des règles) et fournie par le client (pour l'autre) : deux
@@ -477,7 +628,7 @@ class MonlAST:
                     f"-- sa clé étrangère de propriété serait à la fois fournie par le client et "
                     f"déduite du jeton. Ne désigner qu'un seul propriétaire pour '{entity}'."
                 )
-            self.transitive_ownership[entity] = {"via": owner_entity, "actor": acteur}
+            self.transitive_ownership[entity] = {"chain": chaine, "actor": acteur}
 
         # AJOUT (roadmap, écosystème de capacités -- brique "accès à deux
         # parties") : les règles 'accessibleBy' restreignent une action aux
@@ -544,6 +695,55 @@ class MonlAST:
                 )
 
             self.access_party_rules[(entity, act_type)] = list(columns)
+
+            # AJOUT (brique 23, point 106) : un rôle SUPERVISEUR peut
+            # transpercer ce contrôle par colonnes. Syntaxe : une règle
+            # 'sharedBy' portant la MÊME référence — 'rule Message.Delete
+            # sharedBy Moderator' posé à côté de 'rule Message.Delete
+            # accessibleBy member_id, recipient_id'. Le rôle ainsi nommé
+            # voit/supprime/modifie tous les enregistrements ; les parties,
+            # elles, restent confinées aux leurs. C'est pour 'accessibleBy' le
+            # pendant exact du superviseur déjà acquis pour 'ownedBy' au
+            # point 88 ('rule X.Update sharedBy Proprietaire, Patron'). Les
+            # rôles nommés doivent être des acteurs déclarés.
+            ref = f"{entity}.{act_type}"
+            superviseurs = []
+            for r in self.rules:
+                if r["type"] == "sharedBy" and r["reference"] == ref:
+                    for role in r["value"]:
+                        if role not in self.actors:
+                            raise ASTValidationError(
+                                f"Structure : le rôle superviseur '{role}' de la règle "
+                                f"'sharedBy' sur '{ref}' n'est pas un acteur déclaré."
+                            )
+                        if role not in superviseurs:
+                            superviseurs.append(role)
+            if superviseurs:
+                self.access_supervisors[(entity, act_type)] = superviseurs
+
+    def _validate_structures(self):
+        """Vérifie la cohérence de base et traque les collisions multi-acteurs (Bug #5),
+        sauf exemption explicite via une règle 'sharedBy'. Valide aussi les règles
+        'ownedBy' (roadmap : contrôle d'accès par propriété)."""
+        # Matrice globale pour traquer les conflits d'autorisations (Entité -> Action -> Ensemble d'acteurs)
+        access_matrix = {}
+
+        # CORRECTIF (post-v6) : les règles 'sharedBy' déclarent explicitement qu'un
+        # ensemble précis d'acteurs peut se partager un même droit d'écriture sur
+        # une entité, ex. : "rule Post.Delete sharedBy Admin, Moderator"
+        shared_permissions = {}
+        for rule in self.rules:
+            if rule["type"] == "sharedBy":
+                shared_permissions[rule["reference"]] = set(rule["value"])
+
+        self._valider_contraintes_de_champ()
+
+        # Le noyau du CONTRÔLE D'ACCÈS (propriété directe, chaîne
+        # transitive, accessibleBy, superviseur) vit dans sa propre méthode :
+        # c'est la frontière de sécurité du validateur (point 109). Le défaut
+        # du point 107 vivait dans exactement ce genre de logique de sécurité
+        # noyée dans une méthode fourre-tout — on la sort à la lumière.
+        self._valider_controle_dacces()
 
         # AJOUT (roadmap, cas d'usage portfolio) : validation des règles
         # 'public' — une action ainsi marquée n'exige plus d'authentification
@@ -759,6 +959,50 @@ class MonlAST:
                 )
             _timestamp_seen.add((entity, field))
             self.timestamp_fields.append({"entity": entity, "field": field})
+
+        # AJOUT (brique 22, point 102) : validation de 'numbered'. Le champ porte
+        # un NUMÉRO LISIBLE attribué par le serveur — même famille que
+        # 'timestamp' juste au-dessus, et mêmes conséquences.
+        self.numbered_fields = []
+        for rule in self.rules:
+            if rule["type"] != "numbered":
+                continue
+            if "." not in rule["reference"]:
+                raise ASTValidationError(
+                    f"Structure : la règle 'numbered' doit référencer 'Entite.champ', "
+                    f"reçu '{rule['reference']}'.")
+            entity, field = rule["reference"].split(".", 1)
+            if entity not in self.entities:
+                raise ASTValidationError(
+                    f"Structure : la règle 'numbered' cible l'entité '{entity}' qui "
+                    f"n'existe pas.")
+            field_type = self.entities.get(entity, {}).get(field)
+            if field_type != "String":
+                # 'UUID' est refusé en le NOMMANT : c'est le type qu'on est
+                # tenté de choisir pour une référence, et depuis le point 101 il
+                # vérifie sa forme — un numéro lisible n'y entrerait jamais.
+                indice = (" -- un 'UUID' vérifie sa forme depuis le point 101, et "
+                          "un numéro lisible n'en a pas la forme"
+                          if field_type == "UUID" else "")
+                raise ASTValidationError(
+                    f"Structure : 'numbered' cible le champ '{entity}.{field}', qui doit "
+                    f"être un attribut String déclaré (reçu : "
+                    f"{field_type or 'champ inexistant'}){indice}.")
+            if (entity, field) in self.masked_fields:
+                raise ASTValidationError(
+                    f"Structure : '{entity}.{field}' est à la fois 'hidden' et "
+                    f"'numbered' -- incompatible : le client ne peut pas l'écrire et ne "
+                    f"pourrait pas le lire, donc ce numéro n'existerait pour personne.")
+            if any(n["entity"] == entity and n["field"] == field
+                   for n in self.numbered_fields):
+                raise ASTValidationError(
+                    f"Structure : plusieurs règles 'numbered' déclarées pour "
+                    f"'{entity}.{field}' -- une seule autorisée.")
+            self._valider_gabarit_de_numero(entity, field, rule["value"])
+            self.numbered_fields.append({
+                "entity": entity, "field": field, "format": rule["value"],
+                "periode": self._periode_du_gabarit(rule["value"]),
+            })
 
         # AJOUT (brique 19, point 96) : validation de 'oneOf'. Un statut n'est
         # pas du texte, c'est un état parmi quelques-uns — et sur une commande
@@ -1229,6 +1473,10 @@ class MonlAST:
             # l'intérêt d'avoir groupé ce recoupement : la brique 16 hérite des
             # trois refus sans une ligne de plus.
             | {(t["entity"], t["field"]) for t in self.timestamp_fields}
+            # POINT 102 : un champ 'numbered' rejoint la même famille, et hérite
+            # des trois refus sans une ligne de plus — exactement ce que le
+            # point 89 avait gagné à grouper ce recoupement.
+            | {(n["entity"], n["field"]) for n in self.numbered_fields}
         )
         for (entite, champ), contraintes in sorted(self.field_constraints.items()):
             if (entite, champ) not in peuples_par_le_serveur:
@@ -1371,6 +1619,47 @@ class MonlAST:
                     "target_field": target_field, "amount": rule.get("amount"),
                     "amount_field": champ_quantite, "direction": direction,
                 })
+
+        # AJOUT (point 99) : encaisser exige un propriétaire qui soit un COMPTE.
+        # Ce recoupement vit ici, après la boucle des décomptes, parce qu'il lui
+        # faut `reputation_rules` complet — et il double le refus posé plus haut
+        # avec les autres contrôles de 'payable', qui n'exigeait qu'une relation
+        # entrante, N'IMPORTE laquelle.
+        #
+        # Ce que ça laissait passer : 'relation Produit hasMany Facture' suffisait
+        # à compiler, et la route de règlement comparait `produit_id` à l'id du
+        # compte appelant. La comparaison n'était juste que par accident — la
+        # colonne recevait `current_user_id` faute de savoir faire autrement,
+        # c'est-à-dire à cause du défaut que ce point corrige. Le rattachement
+        # redevenu honnête, l'accident disparaît et le refus doit être écrit.
+        #
+        # Deux formes acceptées, et deux seulement : un parent ACTEUR (propriété
+        # directe, la colonne porte un id de compte) ou une chaîne transitive
+        # (point 87, la jointure rend ce même id de compte). La cible d'un
+        # compteur est exclue même quand c'est un acteur : cette colonne-là est
+        # choisie par le client, elle ne dit pas à qui la ligne appartient.
+        for _paye in self.payable_fields:
+            _entite = _paye["entity"]
+            if _entite in self.transitive_ownership:
+                continue
+            _cibles = {r["target_entity"] for r in self.reputation_rules
+                       if r["trigger_entity"] == _entite}
+            _parents_acteurs = {
+                (rel["source"] if rel["type"] in ("hasMany", "hasOne") else rel["target"])
+                for rel in self.relations
+                if (rel["type"] in ("hasMany", "hasOne") and rel["target"] == _entite)
+                or (rel["type"] == "belongsTo" and rel["source"] == _entite)
+            } & set(self.actors) - _cibles
+            if not _parents_acteurs:
+                raise ASTValidationError(
+                    f"Structure : '{_entite}.{_paye['field']}' est 'payable', mais aucun "
+                    f"ACTEUR ne possède un enregistrement de '{_entite}'. Une relation vers "
+                    f"une table métier ne suffit pas : la colonne qu'elle produit porte "
+                    f"l'id de cette ligne, pas celui d'un compte, et la route de règlement "
+                    f"la compare à l'appelant. Déclarer 'un_acteur hasMany {_entite}', ou "
+                    f"rattacher '{_entite}' à un acteur à travers son parent "
+                    f"('rule {_entite}.Read ownedBy <Parent>')."
+                )
 
         # AJOUT (brique 20, point 98) : atteindre une valeur DÉFAIT un effet.
         # Ce bloc vit APRÈS la boucle des décomptes, et pas au milieu des
@@ -1571,6 +1860,8 @@ class MonlAST:
                     f"Structure : le bloc 'seed' cible l'entité '{entity}' qui n'existe pas."
                 )
             entity_fields = self.entities[entity]
+            if seed.get("parent"):
+                self._valider_parent_de_seed(entity, seed["parent"])
             for i, row in enumerate(seed["rows"], start=1):
                 for field, value in row.items():
                     if field not in entity_fields:
@@ -1659,6 +1950,24 @@ class MonlAST:
                               f"{self.ownership_rules[(entity, act_type)]}).")
                         continue
 
+                    # AJOUT (brique 23, point 106) : une action régie par
+                    # 'accessibleBy' est exemptée comme 'ownedBy' — l'accès à
+                    # CHAQUE enregistrement est décidé par ses colonnes-parties,
+                    # pas par un couplage rôle/action. Plusieurs acteurs peuvent
+                    # donc légitimement viser la même route (le rôle 'Membre',
+                    # en plus d'un rôle 'Modérateur' superviseur) : chacun reste
+                    # cantonné soit à ses propres enregistrements, soit à tout —
+                    # s'il est déclaré superviseur via 'sharedBy' sur la même
+                    # référence. Sans cette exemption, ajouter un superviseur
+                    # forcerait à nommer les parties dans le 'sharedBy', ce qui
+                    # les déclarerait (à tort) superviseurs à leur tour.
+                    if (entity, act_type) in self.access_party_rules:
+                        print(f"🔐 [SHARED_PRIVILEGE_VIA_ACCESS] L'action '{act_type}' sur '{entity}' est partagée "
+                              f"entre [{', '.join(sorted(authorized_actors))}], mais protégée au niveau de chaque "
+                              f"enregistrement par la règle 'accessibleBy' "
+                              f"(parties : {self.access_party_rules[(entity, act_type)]}).")
+                        continue
+
                     actors_list = ", ".join(sorted(authorized_actors))
                     suggestion = f"'rule {entity}.{act_type} sharedBy {actors_list}'"
                     extra = ""
@@ -1728,12 +2037,16 @@ class MonlAST:
                 "ownership": {f"{k[0]}.{k[1]}": v for k, v in self.ownership_rules.items()},
                 "transitive_ownership": self.transitive_ownership,
                 "access_parties": {f"{k[0]}.{k[1]}": v for k, v in self.access_party_rules.items()},
+                # AJOUT (brique 23) : rôles superviseurs qui transpercent le
+                # contrôle 'accessibleBy' — item par item, même clé.
+                "access_supervisors": {f"{k[0]}.{k[1]}": v for k, v in self.access_supervisors.items()},
                 "public": [f"{e}.{a}" for e, a in sorted(self.public_actions)],
                 "hidden_fields": [f"{e}.{f}" for e, f in sorted(self.masked_fields)],
                 "reputation_rules": self.reputation_rules,
                 "categorized_fields": self.categorized_fields,
                 "generated_fields": self.generated_fields,
                 "timestamp_fields": self.timestamp_fields,
+                "numbered_fields": self.numbered_fields,
                 "required_profiles": self.required_profiles,
                 "payable_fields": self.payable_fields,
                 "derived_fields": self.derived_fields,

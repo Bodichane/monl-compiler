@@ -12,6 +12,17 @@ __pycache__/
 demo/.jwt_secret
 demo/app.db
 
+# Artefacts de l'audit offensif généralisé (tests/test_exploit_all.py) :
+# chaque exemple est complilé puis servi DEPUIS LA RACINE du dépôt, ce qui y
+# dépose l'application générée et sa base jetable. Les ignorer à la racine
+# évite de versionner par mégarde un secret ({/,}app.py + .jwt_secret).
+app.py
+schema.sql
+app.db
+manage.py
+sandbox_ai.py
+/.jwt_secret
+
 # Projets compilés localement. Tout ce qui est produit par 'monl' vit dans
 # projets/ — un seul dossier à ignorer plutôt qu'une ligne par application,
 # et la racine du dépôt cesse de se remplir d'applications au milieu du code

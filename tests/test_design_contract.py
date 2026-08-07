@@ -122,6 +122,36 @@ def test_le_brief_garde_les_deux_exigences_qui_ne_sont_pas_du_gout():
     assert "aucune ressource distante" in brief
 
 
+def test_le_brief_dit_par_quel_moyen_une_icone_est_possible():
+    """POINT 104 : constat du mainteneur — aucun site produit n'employait
+    d'icône. Ce n'était pas un défaut de l'IA : le brief interdit les CDN et ne
+    disait NULLE PART que le SVG en ligne fonctionne. Lue seule, la règle
+    d'autonomie se lit « pas d'icônes possibles ».
+
+    Énoncer un MOYEN n'est pas prescrire un goût — même frontière qu'au
+    point 72 pour le contraste WCAG et l'autonomie."""
+    with tempfile.TemporaryDirectory() as workdir:
+        _contrat_, brief = _brief(BASE, workdir)
+    assert "SVG" in brief
+    assert "en liste blanche" in brief or ".svg" in brief
+
+
+def test_le_brief_ne_recommande_aucune_icone_ni_aucun_style_dicone():
+    """La contre-épreuve du test précédent, et la garantie du point 72 : monl
+    dit par quel MOYEN, jamais s'il en faut ni lesquelles. Sans ce test, la
+    ligne ajoutée au point 104 pourrait dériver vers de la prescription à la
+    première réécriture."""
+    with tempfile.TemporaryDirectory() as workdir:
+        _contrat_, brief = _brief(BASE, workdir)
+    bas = brief.lower()
+    # Les librairies ne sont nommées que pour dire qu'elles sont HORS D'ATTEINTE.
+    for interdit in ("style d'icône", "icônes arrondies", "icônes pleines",
+                     "jeu d'icônes recommandé", "utiliser des icônes pour",
+                     "ajouter une icône"):
+        assert interdit not in bas, interdit
+    assert "n'est atteignable" in bas or "atteignable" in bas
+
+
 def test_le_brief_dit_explicitement_que_le_visuel_ne_vient_pas_du_compilateur():
     """Un brief muet laisserait croire à un oubli. Il doit énoncer la règle,
     sinon l'IA d'interface cherchera la direction qu'elle croit manquante."""
@@ -160,3 +190,26 @@ def test_deux_projets_de_domaines_opposes_recoivent_le_meme_silence():
     bloc1 = b1[b1.index(extrait):b1.index("## Règles non négociables")]
     bloc2 = b2[b2.index(extrait):b2.index("## Règles non négociables")]
     assert bloc1 == bloc2, "la direction de design dépend encore du domaine"
+
+
+def test_la_consigne_de_retouche_rappelle_le_moyen_des_icones():
+    """POINT 104, seconde moitié — trouvée en LANÇANT une retouche, pas en
+    relisant le code. La ligne du point 104 n'était posée que sur le brief de
+    CONSTRUCTION ; la consigne de retouche, elle, disait « même autonomie
+    (aucun CDN) » et rien d'autre. Une retouche du type « rends cette section
+    plus lisible » se serait donc heurtée au même mur.
+
+    C'est la leçon du point 93 sur un autre objet : il n'y a qu'une voie vers
+    l'IA, mais DEUX briefs — et ce qu'on écrit dans l'un ne se propage pas à
+    l'autre."""
+    from monl.cli import _write_retouche_brief
+    with tempfile.TemporaryDirectory() as workdir:
+        chemin = _write_retouche_brief(workdir, "la section retours est terne")
+        with open(chemin, encoding="utf-8") as fh:
+            texte = fh.read()
+    # Le brief est mis en forme sur 79 colonnes : chercher une phrase telle
+    # quelle échouerait au premier retour à la ligne inséré au milieu.
+    continu = " ".join(texte.split())
+    assert "SVG" in continu
+    assert "pas une consigne" in continu, \
+        "le rappel doit dire que c'est un MOYEN, jamais une prescription"

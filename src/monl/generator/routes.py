@@ -3,7 +3,13 @@
 
 Extrait de l'ancien module monolithique src/generator.py (1307 lignes)
 lors du découpage en package — voir docs/design_decisions.md.
+
+Tout le SQL de contrôle d'accès passe par la couche d'émission typée `sql`
+(point 108) : une valeur ne peut y entrer que liée en paramètre, jamais collée
+dans le texte. Voir generator/sql.py.
 """
+
+from . import sql
 
 
 class RoutesMixin:
@@ -82,19 +88,23 @@ class RoutesMixin:
                 is_reputation_fk = owner_info and any(
                     r["target_entity"] == owner_info["source"] for r in reputation_rules_here
                 )
-                # Une route publique n'a par définition aucune identité
-                # appelante fiable — on ne tente pas d'y rattacher une clé
-                # étrangère "propriétaire" dans ce cas (la colonne reste NULL).
-                # AJOUT (brique 11, point 81) : sous propriété transitive, la
-                # colonne « propriétaire » ne se peuple PAS depuis le jeton --
-                # c'est le client qui désigne l'enregistrement de rattachement
-                # (« cette ligne va dans CETTE commande »). Y écrire
-                # `current_user_id` était le défaut du point 80 : le
-                # rattachement demandé disparaissait en silence, remplacé par
-                # l'id du compte appelant.
+                # POINT 99 : la question « cette colonne se peuple-t-elle depuis
+                # le jeton ? » a UNE réponse, `_identity_fk_columns`, et cette
+                # ligne la lit au lieu de la recalculer. Les quatre conditions
+                # qui vivaient ici (route publique, cible de compteur, propriété
+                # transitive, et désormais parent non-acteur) y sont réunies :
+                # les tenir à deux endroits, c'était deux endroits où elles
+                # pouvaient diverger — et la quatrième manquait des deux côtés.
+                # Rappel des trois premières : une route publique n'a aucune
+                # identité appelante fiable ; une cible de compteur est choisie
+                # par le client (« j'apprécie CE post ») ; et sous propriété
+                # transitive, c'est le client qui désigne le rattachement
+                # (« cette ligne va dans CETTE commande ») — y écrire
+                # `current_user_id` était le défaut du point 80.
                 chaine_create = self._transitive_chain(base_target)
-                populate_owner = (owner_info and not is_public
-                                  and not is_reputation_fk and not chaine_create)
+                colonnes_identite = self._identity_fk_columns().get(base_target, set())
+                colonne_identite = sorted(colonnes_identite)[0] if colonnes_identite else None
+                populate_owner = colonne_identite is not None
                 verifie_parent = bool(chaine_create) and not is_public
                 # AJOUT (roadmap, écosystème de capacités -- suite de la
                 # brique 1) : un champ 'generated' est peuplé depuis le
@@ -154,12 +164,24 @@ class RoutesMixin:
                 # les distinguer permettrait d'énumérer les commandes des
                 # autres, exactement ce que le 404 de la lecture détail évite.
                 if verifie_parent:
+                    # La chaîne (transitive, de profondeur quelconque) se remonte
+                    # en un coup, depuis le parent que le CLIENT désigne via sa
+                    # clé étrangère (data.<fk>). Un parent absent ou étranger rend
+                    # le même refus : le scalaire vaut NULL ou un compte différent.
+                    # 403 unique pour « n'existe pas » et « pas à vous » : les
+                    # distinguer permettrait d'énumérer les commandes des autres,
+                    # exactement ce que le 404 de la lecture détail évite.
+                    # La valeur que le CLIENT désigne (data.<fk>) entre par
+                    # sql.bind : elle sort en '?' + paramètre lié, jamais dans le
+                    # texte. C'est la classe de défaut du point 107 rendue
+                    # impossible — texte et params sortent ENSEMBLE de l'objet Sql.
+                    _owner_q = self._chain_owner_scalar(
+                        base_target, sql.bind(f"data.{chaine_create['via_fk']}"))
+                    _sql_lit, _params_lit = sql.execute_args(_owner_q, prefix="SELECT ")
                     api_lines += [
-                        f"    cursor.execute('SELECT \"{chaine_create['actor_fk']}\" FROM "
-                        f'"{chaine_create["via_table"]}" WHERE id = ?\', '
-                        f"(data.{chaine_create['via_fk']},))",
+                        f"    cursor.execute({_sql_lit}, {_params_lit})",
                         "    _parent = cursor.fetchone()",
-                        "    if not _parent or _parent[0] != current_user_id:",
+                        "    if not _parent or _parent[0] is None or _parent[0] != current_user_id:",
                         "        conn.close()",
                         "        raise HTTPException(status_code=403, detail=(",
                         f"            \"Contrôle d'accès : ce {chaine_create['via']} ne vous \"",
@@ -214,27 +236,44 @@ class RoutesMixin:
                 # une date de création qui bouge n'est pas une date de création.
                 for nom_date in self.timestamp_fields_by_entity.get(base_target, []):
                     calcules[nom_date] = "_horodatage()"
+                # BRIQUE 22 (point 102) : le numéro lisible. Le compteur est lu
+                # ET incrémenté en base ; ces lignes partent donc DANS le `try`
+                # ci-dessous, pas ici — hors de la transaction, une insertion
+                # refusée laisserait le compteur avancé et le numéro suivant
+                # sauterait. Jamais `MAX(...) + 1` sur la table métier : il
+                # redonnerait le numéro d'un enregistrement supprimé, et se
+                # tromperait dès que deux créations se croisent.
+                lignes_numerotation = []
+                for regle in self.numbered_fields_by_entity.get(base_target, []):
+                    var = f"_numero_{regle['field']}"
+                    lignes_numerotation.append(
+                        f"        {var} = _attribuer_numero(cursor, "
+                        f"{base_target!r}, {regle['field']!r}, "
+                        f"{regle['format']!r}, {regle['periode']!r})")
+                    calcules[regle["field"]] = var
                 value_exprs = [
                     calcules.get(f, "current_anon_handle" if f in generated_here
                                  else f"data.{f}")
                     for f in fields
                 ]
                 if populate_owner:
-                    insert_columns.append(owner_info["fk_column"])
+                    insert_columns.append(colonne_identite)
                     value_exprs.append("current_user_id")
-                    for _client_fk in self._client_fk_columns(base_target):
-                        insert_columns.append(_client_fk)
-                        value_exprs.append(f"data.{_client_fk}")
-                elif verifie_parent:
-                    # Toutes les clés étrangères viennent du client ici, y
-                    # compris celle du parent propriétaire — que la
-                    # vérification ci-dessus vient de valider.
-                    for _client_fk in self._client_fk_columns(base_target):
-                        insert_columns.append(_client_fk)
-                        value_exprs.append(f"data.{_client_fk}")
                 elif is_reputation_fk:
                     insert_columns.append(owner_info["fk_column"])
                     value_exprs.append(f"data.{owner_info['fk_column']}")
+                # Tout parent que le jeton ne désigne pas doit être désigné par
+                # l'appelant. Trois cas y mènent : les parents SECONDAIRES d'une
+                # entité possédée (un commentaire et son article) ; sous
+                # propriété transitive, le parent propriétaire lui-même — que la
+                # vérification plus haut vient de valider ; et depuis le
+                # point 99, TOUS les parents d'une entité fille d'une table
+                # métier, qui n'a aucun propriétaire à déduire. Sur une création
+                # publique la liste est vide et les colonnes restent NULL,
+                # comportement historique conservé.
+                for _client_fk in self._client_fk_columns(base_target):
+                    insert_columns.append(_client_fk)
+                    value_exprs.append(f"data.{_client_fk}")
                 columns = ", ".join(f'"{c}"' for c in insert_columns)
                 placeholders = ", ".join(["?"] * len(insert_columns))
                 api_lines.append(f"    query = 'INSERT INTO \"{base_target.lower()}\" ({columns}) VALUES ({placeholders})'")
@@ -249,6 +288,7 @@ class RoutesMixin:
                 # d'effet inexistante ne lève toujours pas d'erreur (UPDATE sans
                 # ligne correspondante) — elle ne fait simplement rien.
                 api_lines.append("    try:")
+                api_lines += lignes_numerotation
                 api_lines.append(f"        cursor.execute(query, ({values_list},))")
                 api_lines.append("        row_id = cursor.lastrowid")
                 # AJOUT (brique 12, point 82) : le total du parent est recalculé
@@ -377,6 +417,8 @@ class RoutesMixin:
                 # (pas d'identité appelante sur une route publique).
                 read_parties = self.access_parties.get(f"{base_target}.Read")
                 apply_read_parties = bool(read_parties) and not is_public
+                read_supers = self.access_supervisors.get(f"{base_target}.Read") or []
+                apply_read_super = bool(read_supers) and apply_read_parties
                 read_dep_suffix = dep_suffix
                 parties_where = parties_params = ""
                 if apply_read_parties:
@@ -404,14 +446,16 @@ class RoutesMixin:
                 if apply_read_owner:
                     if chaine_lecture:
                         read_actor = chaine_lecture["actor"]
-                        own_where_sql = (
-                            f' WHERE "{chaine_lecture["via_fk"]}" IN '
-                            f'(SELECT id FROM "{chaine_lecture["via_table"]}" '
-                            f'WHERE "{chaine_lecture["actor_fk"]}" = ?)'
-                        )
+                        # Briques 11 et 24 : le filtre est un IN imbriqué par
+                        # maillon, quelle que soit la profondeur de la chaîne.
+                        # Le compte est lié (sql.bind), jamais collé dans le texte.
+                        own_where_sql = self._chain_read_where(
+                            base_target, sql.bind("current_user_id"))
                     else:
                         read_actor = read_owner
-                        own_where_sql = f' WHERE "{read_owner.lower()}_id" = ?'
+                        own_where_sql = sql.cat(
+                            sql.kw(' WHERE '), sql.ident(f"{read_owner.lower()}_id"),
+                            sql.kw(' = '), sql.bind("current_user_id"))
                     if ", current_user_id" not in read_dep_suffix:
                         read_dep_suffix += ", current_user_id: int = Depends(get_current_user_id)"
                 list_params = f"limit: int = 50, offset: int = 0{read_dep_suffix}"
@@ -423,10 +467,19 @@ class RoutesMixin:
                 if apply_read_owner:
                     api_lines.append("    _own_where, _own_params = '', ()")
                     api_lines.append(f"    if current_actor == \"{read_actor}\":")
-                    api_lines.append(f"        _own_where = {own_where_sql!r}")
-                    api_lines.append("        _own_params = (current_user_id,)")
+                    api_lines.append(f"        _own_where = {own_where_sql.text!r}")
+                    api_lines.append(f"        _own_params = {sql.params_tuple(own_where_sql)}")
+                elif apply_read_super:
+                    # Le superviseur voit tout (WHERE vide) ; les parties restent
+                    # confinees a leurs colonnes. Meme mecanisme conditionnel que la
+                    # branche ownedBy juste au-dessus.
+                    _superset = ", ".join(f'"{s}"' for s in read_supers)
+                    api_lines.append("    _own_where, _own_params = '', ()")
+                    api_lines.append(f"    if current_actor not in {{{_superset}}}:")
+                    api_lines.append(f"        _own_where = ' WHERE {parties_where}'")
+                    api_lines.append(f"        _own_params = ({parties_params},)")
                 api_lines.append("    conn = _connect(); cursor = conn.cursor()")
-                if apply_read_owner:
+                if apply_read_owner or apply_read_super:
                     api_lines.append(f"    cursor.execute('SELECT COUNT(*) FROM \"{base_target.lower()}\"' + _own_where, _own_params)")
                     api_lines.append("    total = cursor.fetchone()[0]")
                     api_lines.append(f"    cursor.execute('SELECT * FROM \"{base_target.lower()}\"' + _own_where + ' LIMIT ? OFFSET ?', _own_params + (limit, offset))")
@@ -434,7 +487,7 @@ class RoutesMixin:
                     api_lines.append(f"    cursor.execute('SELECT COUNT(*) FROM \"{base_target.lower()}\" WHERE {parties_where}', ({parties_params},))")
                 else:
                     api_lines.append(f"    cursor.execute('SELECT COUNT(*) FROM \"{base_target.lower()}\"')")
-                if not apply_read_owner:
+                if not (apply_read_owner or apply_read_super):
                     api_lines.append("    total = cursor.fetchone()[0]")
                     if apply_read_parties:
                         api_lines.append(f"    cursor.execute('SELECT * FROM \"{base_target.lower()}\" WHERE {parties_where} LIMIT ? OFFSET ?', ({parties_params}, limit, offset))")
@@ -473,18 +526,20 @@ class RoutesMixin:
                     # d'un tiers. Un enregistrement qu'on n'a pas le droit de
                     # lire doit être indiscernable d'un enregistrement absent.
                     if chaine_lecture:
-                        # La chaîne se remonte d'un cran : à qui appartient
-                        # l'enregistrement intermédiaire que celui-ci désigne ?
-                        # Un intermédiaire absent est traité comme un refus —
-                        # une ligne orpheline n'appartient à personne.
+                        # Une seule sous-requête scalaire remonte toute la chaîne
+                        # jusqu'au compte, quelle que soit sa profondeur. Un
+                        # maillon absent rend NULL donc « appartient à personne »,
+                        # et 404 est la bonne réponse pour les deux cas.
+                        _owner_q = self._chain_owner_scalar(
+                            base_target,
+                            sql.bind(f"named_row.get('{chaine_lecture['via_fk']}')"))
+                        _sql_lit, _params_lit = sql.execute_args(_owner_q, prefix="SELECT ")
                         api_lines += [
                             f"    if current_actor == \"{read_actor}\":",
                             "        _tc = _connect(); _tcur = _tc.cursor()",
-                            f"        _tcur.execute('SELECT \"{chaine_lecture['actor_fk']}\" FROM "
-                            f'"{chaine_lecture["via_table"]}" WHERE id = ?\', '
-                            f"(named_row.get('{chaine_lecture['via_fk']}'),))",
+                            f"        _tcur.execute({_sql_lit}, {_params_lit})",
                             "        _tr = _tcur.fetchone(); _tc.close()",
-                            "        if not _tr or _tr[0] != current_user_id:",
+                            "        if not _tr or _tr[0] is None or _tr[0] != current_user_id:",
                             "            raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
                         ]
                     else:
@@ -496,8 +551,14 @@ class RoutesMixin:
                     # une colonne de partie peut légitimement être masquée
                     # en lecture tout en servant au contrôle d'accès.
                     parties_tuple = ", ".join(f"named_row.get('{c}')" for c in read_parties)
-                    api_lines.append(f"    if current_user_id not in ({parties_tuple}):")
-                    api_lines.append("        raise HTTPException(status_code=403, detail=\"Contrôle d'accès : seules les parties de la ressource peuvent la consulter\")")
+                    if apply_read_super:
+                        _superset = ", ".join(f'"{s}"' for s in read_supers)
+                        api_lines.append(f"    if current_actor not in {{{_superset}}}:")
+                        api_lines.append(f"        if current_user_id not in ({parties_tuple}):")
+                        api_lines.append("            raise HTTPException(status_code=403, detail=\"Contrôle d'accès : seules les parties de la ressource peuvent la consulter\")")
+                    else:
+                        api_lines.append(f"    if current_user_id not in ({parties_tuple}):")
+                        api_lines.append("        raise HTTPException(status_code=403, detail=\"Contrôle d'accès : seules les parties de la ressource peuvent la consulter\")")
                 if masked:
                     api_lines.append(f"    for _f in [{mask_literal}]: named_row.pop(_f, None)")
                 for cf in categorized_here:
@@ -520,12 +581,14 @@ class RoutesMixin:
                 # AJOUT (roadmap, brique "accès à deux parties") : même
                 # principe que 'ownedBy' mais l'appelant doit être l'UNE des
                 # colonnes-parties listées. Contrairement à 'ownedBy', le
-                # contrôle s'applique à tous les acteurs de la route (les
-                # parties sont des colonnes de données, pas des rôles) —
-                # combiner avec 'sharedBy' pour un rôle superviseur n'est
-                # pas couvert par cette première version (documenté).
+                # contrôle s'applique à tous les acteurs de la route, sauf à
+                # un rôle SUPERVISEUR déclaré via sharedBy sur la même
+                # référence (brique 23, point 106) — celui-là transperce le
+                # contrôle et modifie tous les enregistrements.
                 update_parties = self.access_parties.get(f"{base_target}.Update")
                 apply_update_parties = bool(update_parties) and not is_public
+                update_supers = self.access_supervisors.get(f"{base_target}.Update") or []
+                apply_update_super = bool(update_supers) and apply_update_parties
                 update_deps = dependency_injection
                 ownership_check_lines = []
                 if apply_update_parties:
@@ -536,9 +599,15 @@ class RoutesMixin:
                         f"    _p_cur.execute('SELECT {cols_literal} FROM \"{base_target.lower()}\" WHERE id = ?', (id,))",
                         "    _p_row = _p_cur.fetchone(); _p_conn.close()",
                         "    if not _p_row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
-                        "    if current_user_id not in _p_row: raise HTTPException(status_code=403, "
-                        "detail=\"Contrôle d'accès : seules les parties de la ressource peuvent exécuter cette action\")",
                     ]
+                    if apply_update_super:
+                        _superset = ", ".join(f'"{s}"' for s in update_supers)
+                        ownership_check_lines.append(f"    if current_actor not in {{{_superset}}}:")
+                        ownership_check_lines.append("        if current_user_id not in _p_row: raise HTTPException(status_code=403, ")
+                        ownership_check_lines.append("        detail=\"Contrôle d'accès : seules les parties de la ressource peuvent exécuter cette action\")")
+                    else:
+                        ownership_check_lines.append("    if current_user_id not in _p_row: raise HTTPException(status_code=403, ")
+                        ownership_check_lines.append("        detail=\"Contrôle d'accès : seules les parties de la ressource peuvent exécuter cette action\")")
                 elif apply_ownership:
                     check_actor, owner_select = self._owner_lookup_sql(base_target, owner_entity)
                     update_deps += ", current_user_id: int = Depends(get_current_user_id)" if update_deps else "current_user_id: int = Depends(get_current_user_id)"
@@ -555,7 +624,7 @@ class RoutesMixin:
                     ownership_check_lines = [
                         f"    if current_actor == \"{check_actor}\":",
                         "        _owner_conn = _connect(); _owner_cur = _owner_conn.cursor()",
-                        f"        _owner_cur.execute({owner_select!r}, (id,))",
+                        f"        _owner_cur.execute({owner_select.text!r}, {sql.params_tuple(owner_select)})",
                         "        _owner_row = _owner_cur.fetchone(); _owner_conn.close()",
                         "        if not _owner_row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
                         "        if _owner_row[0] != current_user_id: raise HTTPException(status_code=403, "
@@ -652,6 +721,10 @@ class RoutesMixin:
                 # qui le rend digne de foi ; l'y laisser aurait en plus donné
                 # 500 (`data.<champ>` absent du schéma), le défaut du point 78.
                 horodates_upd = set(self.timestamp_fields_by_entity.get(base_target, []))
+                # BRIQUE 22 (point 102) : un numéro de commande qui change n'est
+                # plus une référence — le client l'a noté, le vendeur aussi.
+                horodates_upd |= {n["field"] for n
+                                  in self.numbered_fields_by_entity.get(base_target, [])}
                 ecrits = [f for f in fields
                           if f not in generated_upd and f not in sommes_upd
                           and f not in horodates_upd]
@@ -839,6 +912,8 @@ class RoutesMixin:
                 # commentaire équivalent sur la route Update.
                 delete_parties = self.access_parties.get(f"{base_target}.Delete")
                 apply_delete_parties = bool(delete_parties) and not is_public
+                delete_supers = self.access_supervisors.get(f"{base_target}.Delete") or []
+                apply_delete_super = bool(delete_supers) and apply_delete_parties
                 delete_deps = dependency_injection
                 ownership_check_lines = []
                 if apply_delete_parties:
@@ -849,9 +924,15 @@ class RoutesMixin:
                         f"    _p_cur.execute('SELECT {cols_literal} FROM \"{base_target.lower()}\" WHERE id = ?', (id,))",
                         "    _p_row = _p_cur.fetchone(); _p_conn.close()",
                         "    if not _p_row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
-                        "    if current_user_id not in _p_row: raise HTTPException(status_code=403, "
-                        "detail=\"Contrôle d'accès : seules les parties de la ressource peuvent exécuter cette action\")",
                     ]
+                    if apply_delete_super:
+                        _superset = ", ".join(f'"{s}"' for s in delete_supers)
+                        ownership_check_lines.append(f"    if current_actor not in {{{_superset}}}:")
+                        ownership_check_lines.append("        if current_user_id not in _p_row: raise HTTPException(status_code=403, ")
+                        ownership_check_lines.append("        detail=\"Contrôle d'accès : seules les parties de la ressource peuvent exécuter cette action\")")
+                    else:
+                        ownership_check_lines.append("    if current_user_id not in _p_row: raise HTTPException(status_code=403, ")
+                        ownership_check_lines.append("        detail=\"Contrôle d'accès : seules les parties de la ressource peuvent exécuter cette action\")")
                 elif apply_ownership:
                     check_actor, owner_select = self._owner_lookup_sql(base_target, owner_entity)
                     delete_deps += ", current_user_id: int = Depends(get_current_user_id)" if delete_deps else "current_user_id: int = Depends(get_current_user_id)"
@@ -861,7 +942,7 @@ class RoutesMixin:
                     ownership_check_lines = [
                         f"    if current_actor == \"{check_actor}\":",
                         "        _owner_conn = _connect(); _owner_cur = _owner_conn.cursor()",
-                        f"        _owner_cur.execute({owner_select!r}, (id,))",
+                        f"        _owner_cur.execute({owner_select.text!r}, {sql.params_tuple(owner_select)})",
                         "        _owner_row = _owner_cur.fetchone(); _owner_conn.close()",
                         "        if not _owner_row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
                         "        if _owner_row[0] != current_user_id: raise HTTPException(status_code=403, "
@@ -1093,7 +1174,18 @@ class RoutesMixin:
         ]
         for entite, champ in sorted(self.payable_by_entity.items()):
             table = entite.lower()
-            proprio = self._get_incoming_relation(entite)
+            # POINT 99 : la colonne comparée à `current_user_id` doit porter un
+            # identifiant de COMPTE — donc celle de `_identity_fk_columns`, et
+            # non la première relation entrante venue. Sur une entité fille
+            # d'une table métier, cette première relation porte l'id d'une ligne
+            # de catalogue : la comparaison aurait été fausse dans les deux sens
+            # (le propriétaire ne peut plus payer, un inconnu le peut si les
+            # deux identifiants coïncident). Le validateur refuse désormais ce
+            # cas ; l'assertion plus bas garantit qu'aucune divergence entre lui
+            # et cette ligne ne puisse écrire une route sans contrôle.
+            colonnes_compte = self._identity_fk_columns().get(entite, set())
+            proprio = ({"fk_column": sorted(colonnes_compte)[0]}
+                       if colonnes_compte else None)
             # POINT 87 : sous propriété TRANSITIVE, la clé étrangère de l'entité
             # désigne l'intermédiaire, pas un compte — c'est pourquoi le
             # point 81 refusait d'encaisser ici. Une jointure d'un cran rend
@@ -1106,17 +1198,26 @@ class RoutesMixin:
             # montant — donc la jointure entre DANS le SELECT, elle ne s'ajoute
             # pas à côté.
             chaine = self._transitive_chain(entite)
+            if not chaine and not proprio:
+                # POINT 99 : sans propriétaire, la route encaisserait n'importe
+                # quel enregistrement pour n'importe quel appelant authentifié
+                # (IDOR). Le validateur l'interdit — arriver ici signifie qu'il a
+                # divergé de cette couche. Échouer à la génération vaut mieux
+                # qu'écrire une route de paiement sans contrôle d'accès, même
+                # raisonnement que `_derived_source_fk`.
+                raise ValueError(
+                    f"Génération : '{entite}' est 'payable' mais aucune colonne ne "
+                    f"porte l'identifiant du compte propriétaire — la route de "
+                    f"règlement ne pourrait opposer de 403 à personne.")
             if chaine:
-                colonnes = f't."{champ}", t.payment_status, p."{chaine["actor_fk"]}"'
-                depuis = (f'"{table}" t JOIN "{chaine["via_table"]}" p '
-                          f'ON p.id = t."{chaine["via_fk"]}"')
-                a_un_proprietaire = True
+                # Briques 11 et 24 : une chaîne de JOIN, une par maillon, jusqu'au
+                # compte. Montant, état et propriétaire sortent de la MÊME lecture.
+                _depuis, _cur, _fk = self._chain_join(entite)
+                colonnes = f't."{champ}", t.payment_status, {_cur}."{_fk}"'
+                depuis = _depuis
             else:
-                colonnes = f'"{champ}", payment_status'
-                if proprio:
-                    colonnes += f', "{proprio["fk_column"]}"'
+                colonnes = (f'"{champ}", payment_status, "{proprio["fk_column"]}"')
                 depuis = f'"{table}"'
-                a_un_proprietaire = bool(proprio)
             lignes += [
                 f"@app.post('/{table}/{{id}}/paiement', tags=['Paiement'])",
                 f"def payer_{table}(id: int, request: Request, "
@@ -1133,15 +1234,12 @@ class RoutesMixin:
                 "    if not ligne:",
                 "        raise HTTPException(status_code=404, detail='Introuvable.')",
             ]
-            if a_un_proprietaire:
-                lignes += [
-                    "    montant, etat, proprietaire = ligne",
-                    "    if proprietaire is not None and proprietaire != current_user_id:",
-                    "        raise HTTPException(status_code=403, detail="
-                    "'Cet enregistrement ne vous appartient pas.')",
-                ]
-            else:
-                lignes.append("    montant, etat = ligne")
+            lignes += [
+                "    montant, etat, proprietaire = ligne",
+                "    if proprietaire is not None and proprietaire != current_user_id:",
+                "        raise HTTPException(status_code=403, detail="
+                "'Cet enregistrement ne vous appartient pas.')",
+            ]
             lignes += [
                 "    if etat == 'payee':",
                 "        raise HTTPException(status_code=409, detail='Déjà réglé.')",
