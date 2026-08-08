@@ -26,7 +26,12 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [107](#107-la-chaîne-de-propriété-qui-remonte-toute-la-profondeur-brique-24) Propriété transitive en profondeur (brique 24) ·
 [108](#108-lémission-sql-typée-la-frontière-de-sécurité) Émission SQL typée (frontière de sécurité) ·
 [109](#109-le-contrôle-daccès-sort-de-lombre-du-validateur) Le contrôle d'accès, sorti du fourre-tout du validateur ·
-[110](#110-rust-évalué-par-un-spike-mesuré--et-écarté) Rust évalué par un spike mesuré, et écarté
+[110](#110-rust-évalué-par-un-spike-mesuré--et-écarté) Rust évalué par un spike mesuré, et écarté ·
+[111](#111-public-requiresown-et-payable-sortent-du-fourre-tout) `public`, `requiresOwn` et `payable` sortent du fourre-tout ·
+[112](#112-restrictedto-jamais-validé-structurellement) `restrictedTo` jamais validé structurellement ·
+[113](#113-le-verrou-de-paiement-bloquait-aussi-le-superviseur-et-personne-ne-le-savait) Le verrou de paiement bloquait aussi le superviseur ·
+[114](#114-le-point-113-fermé-sur-les-deux-sites-et-un-trou-quil-avait-laissé) Point 113 adopté sur les deux sites, et son propre trou refermé ·
+[115](#115-brique-26--monl-content-exportimport-le-contenu-en-masse) Brique 26 : `monl content export`/`import`, le contenu en masse
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -6887,3 +6892,332 @@ et maintenant, plus qu'une réécriture.
 en mesurant sur le code réel, pas sur les propriétés d'un langage. La bonne
 première question n'était pas « Rust ou Go ? » mais « où le temps part-il
 vraiment ? » — et la réponse était une ligne de Python.
+
+---
+
+## 111. `public`, `requiresOwn` et `payable` sortent du fourre-tout
+
+Suite directe des points 108-109 : ce qu'ils laissaient explicitement ouvert
+comme « reste dans `_validate_structures` ». Deux blocs de sécurité,
+commentés mais encore anonymes dans la méthode fourre-tout, en sortent :
+
+- **`_valider_regle_public()`** — la règle `public` (une action qui n'exige
+  plus d'authentification).
+- **`_valider_requires_own_et_payable()`** — `requiresOwn` (brique 17) et
+  `payable` (brique paiement), extraits ENSEMBLE parce que contigus dans le
+  fichier d'origine. `payable` lit `self.masked_fields`, peuplé par la
+  validation `hidden` qui reste dans `_validate_structures` et s'exécute
+  avant cet appel : contrairement au point 109 (un seul bloc contigu), ici il
+  fallait vérifier qu'aucun ordre d'exécution ne bougeait, pas seulement que
+  le bloc ne dépendait que de `self.*`. Les appels remplacent les blocs
+  exactement à leur position d'origine — aucune réorganisation.
+
+**Preuve** : déplacement d'octets exact (vérifié par relecture du diff : les
+lignes supprimées d'un endroit sont les lignes ajoutées ailleurs, à
+l'indentation près, aucun texte réécrit), 728 tests contre 724 avant ce point
+— les 4 nouveaux sont ceux du point 112, aucune régression sur les 724
+existants.
+
+**Méthode de travail, une première** : ce chantier est le premier mené avec
+la nouvelle répartition orchestrateur/exécuteur — Claude conçoit le
+découpage exact (quels blocs, quelles méthodes, quelle contrainte d'ordre à
+préserver, quels messages d'erreur ne pas toucher) et vérifie après coup ;
+Codex CLI exécute le déplacement mécanique. La vérification est restée
+intégralement indépendante de ce que Codex a rapporté : relecture du diff
+complet, `ruff check` et suite de tests relancés dans mon propre
+environnement, pas seulement lus dans son rapport.
+
+---
+
+## 112. `restrictedTo`, jamais validé structurellement
+
+Trouvé en auditant ce qui restait de logique de sécurité anonyme dans
+`_validate_structures` pour le point 111 : `restrictedTo` (point 2 — marque
+un champ sensible pour l'audit `[SECURITY_AUDIT]` des blocs `custom`) n'avait
+AUCUNE validation structurelle. Il est seulement lu par
+`_audit_security_rules` pour construire un dictionnaire utilisé dans un
+rapport — rien ne vérifiait que l'entité existe, que le champ est déclaré
+dessus, ni que l'acteur nommé est un acteur déclaré.
+
+Le point 2 est explicite : `restrictedTo` est volontairement un
+avertissement, pas un refus de compilation — inchangé ici. Mais une faute de
+frappe sur le champ ou l'acteur ne déclenche alors ni l'avertissement ni
+aucun signal : `_audit_security_rules` ne trouve simplement jamais de
+correspondance. Une protection qu'on croit posée et qui ne l'est pas, en
+silence — exactement le défaut que `ownedBy`/`requiresOwn`/`public` refusent
+déjà à la compilation, plus jamais accepté ailleurs dans le validateur depuis
+le point 90.
+
+`_valider_regle_restrictedTo()` referme cet écart : entité, champ et acteur
+doivent exister, sinon `ASTValidationError`. Quatre tests l'éprouvent dans
+`tests/test_validateur_refus.py` — entité absente et champ absent via le
+tableau `CIBLES_INEXISTANTES` existant, acteur non déclaré et le témoin bien
+formé en tests dédiés (l'acteur fautif ne peut pas passer par le socle
+commun, qui n'a qu'un seul acteur).
+
+### La portée, honnête
+
+Ce n'est pas un chantier de sécurité découvert par accident : c'est le genre
+de trou qu'un audit systématique de « qu'est-ce qui manque encore dans le
+fourre-tout ? » trouve, précisément parce que 108-111 ont réduit ce
+fourre-tout à presque rien. Avec 111 et 112, `_validate_structures` ne porte
+plus aucune règle de contrôle d'accès ou de visibilité anonyme — tout ce qui
+décide qui peut voir, toucher ou payer quoi vit dans une méthode nommée.
+
+---
+
+## 113. Le verrou de paiement bloquait aussi le superviseur, et personne ne le savait
+
+Parti de « numéro de suivi transporteur » (noté ouvert depuis les points 91
+et 96 : « un champ à ajouter, une décision à prendre sur qui l'écrit »). La
+décision à prendre s'est avérée plus large que le champ : **vérifié contre un
+vrai serveur**, un acteur superviseur (`sharedBy` sur `Update`, distinct du
+propriétaire) reçoit le même 409 que le propriétaire une fois l'entité
+réglée. `_payment_lock_lines` (point 91) n'a jamais été conditionné par
+l'acteur — ce n'est pas un oubli du point 91, c'est ce qu'il a délibérément
+choisi (« le verrou ne change ni chemin, ni acteur, ni champ »), mais
+personne n'avait mesuré la conséquence : **une fois une commande payée,
+personne — client ou administrateur — ne peut plus jamais faire avancer son
+statut vers "expédiée" ou "livrée".** La brique `oneOf` (point 96) déclare
+ces valeurs ; rien ne pouvait jamais les atteindre après paiement.
+
+### La décision, et celle qui a été écartée
+
+Deux voies possibles. **Assouplir le verrou générique** par un marqueur
+conditionnel à l'acteur — rejetée : le verrou de paiement reste la seule
+protection ABSOLUE et INCONDITIONNELLE du compilateur ; y coudre une
+exception, même étroite, en aurait fait une protection qui dépend d'une
+lecture attentive de toutes ses exceptions pour être comprise. **Une route
+dédiée**, sur le modèle exact de `payable` (qui a déjà ce précédent : deux
+routes séparées plutôt qu'un trou dans le CRUD générique) — retenue.
+
+### `rule Entite.champ writableAfterPayment Acteur`
+
+Un champ ainsi marqué reste modifiable après paiement, mais SEULEMENT par
+l'acteur nommé, via une route dédiée `PUT /entite/{id}/apres-paiement` —
+jamais par la route `Update` générique, qui reste verrouillée sans exception,
+strictement inchangée. Neuf refus à la compilation : référence mal formée,
+entité ou champ inexistant, entité non `payable` (la règle n'aurait rien à
+débloquer), acteur non déclaré, cumul avec `generated`/`derivedFrom`/
+`timestamp`/`numbered` (ces règles interdisent déjà toute écriture cliente,
+pour toujours), **l'acteur ne peut pas être le propriétaire** (sinon le
+verrou se contournerait par la bande — c'est le refus qui compte), un seul
+acteur par entité, pas de doublon de champ.
+
+La route ne lit JAMAIS `payment_status` : c'est un canal réservé au
+superviseur, pas un canal « seulement après paiement » — il fonctionne aussi
+avant, redondant avec `Update` mais sans y nuire. Le corps est un schéma
+Pydantic dédié où chaque champ marqué est optionnel (seuls les champs fournis
+s'écrivent, les autres restent inchangés), et respecte les contraintes déjà
+posées sur le champ — un `oneOf` reste un `Literal`, un refus 422 sur une
+valeur hors liste, exactement comme ailleurs. L'écriture SQL passe par
+`sql.*` (point 108), comme tout le reste du contrôle d'accès.
+
+### Ce que Codex a trouvé que la spec n'avait pas anticipé
+
+`self.transitive_ownership` (point 107/109) ne couvre QUE la propriété
+transitive : `_valider_controle_dacces` fait `continue` sans y écrire une
+entrée quand le propriétaire déclaré est déjà un acteur (propriété directe).
+La détection « l'acteur ne peut pas être le propriétaire » a donc un repli
+sur `self.ownership_rules` pour ce cas — trouvé et corrigé par Codex en
+écrivant le validateur, pas par moi en le concevant. Repéré en relisant le
+diff, confirmé correct : le repli ne s'applique que si un seul propriétaire
+direct est déclaré, ce qui couvre le cas réel (Order/Commande, propriétaire
+unique) sans fragiliser rien d'existant.
+
+### Éprouvé par
+
+Neuf tests structurels dans `tests/test_validateur_refus.py` (les neuf
+refus). Et surtout, contre un **vrai serveur, un vrai paiement (webhook
+Stripe signé), une vraie base SQLite** — écrit avant la conception, pas
+après, pour ÉTABLIR le problème plutôt que le confirmer, puis réutilisé pour
+prouver le correctif :
+
+- `PUT /commande/{id}` générique par l'Admin sur une commande réglée → 409,
+  **inchangé** — le verrou générique ne bouge pas d'un bit.
+- `PUT /commande/{id}/apres-paiement` par Alice (propriétaire) → **403** :
+  la garantie qui compte le plus, le propriétaire ne contourne jamais son
+  propre verrou.
+- `PUT /commande/{id}/apres-paiement` par l'Admin → **200**, `status` et
+  `trackingNumber` réellement écrits en base, vérifié par lecture SQL directe
+  (pas par la réponse HTTP seule).
+- Un statut hors de la liste `oneOf` sur cette route → **422**, le `Literal`
+  fonctionne identiquement à la route standard.
+
+### La portée, honnête
+
+Deux chantiers volontairement PAS ouverts ici. `frontend_contract.py` ne
+décrit pas encore cette route — un frontend généré par IA ne saurait pas
+qu'elle existe. `projets/SneakerLab/spec.ml` n'adopte pas encore la règle :
+son propre `CLAUDE.md` de projet est explicite — la spec s'y fait évoluer
+par décision du propriétaire du projet, pas en silence depuis une session
+qui travaille sur le compilateur. Les deux sont des suites naturelles, pas
+des oublis.
+
+### Méthode
+
+Deuxième chantier mené en orchestrateur/exécuteur. Le découpage était plus
+fin que pour 111-112 : conception complète (grammaire, refus, forme de la
+route, ce qui ne doit PAS bouger) écrite avant délégation, parce que du code
+NEUF n'a pas l'ancre d'un diff byte-exact à vérifier après coup. Codex a
+exécuté, corrigé un écart réel dans ma spec (`transitive_ownership`) en le
+documentant plutôt qu'en le camouflant, et a rapporté honnêtement que son
+bac à sable interdit les sockets — 193 tests réseau en erreur dans SON
+rapport, comptés ni passés ni skippés. La suite complète, rejouée dans mon
+propre environnement (qui, lui, autorise les sockets) : 740 tests, 0 échec.
+Le serveur réel, le paiement réel et la preuve par lecture SQL directe sont
+restés de mon ressort — c'est la partie qu'un bac à sable sans réseau ne peut
+tout simplement pas exécuter.
+
+---
+
+## 114. Le point 113 fermé sur les deux sites, et un trou qu'il avait laissé
+
+En vérifiant ce qui restait à « terminer » sur les sites e-commerce du
+dépôt : `exemples/02_boutique.ml` portait `payable` sans jamais avoir eu
+`oneOf` sur `status` ni `releases` sur l'annulation — le MÊME défaut que
+SneakerLab avant les points 96 et 98, jamais corrigé sur l'exemple parce que
+personne ne l'avait rejoué contre un vrai marchand. Un audit systématique
+(comparer chaque site aux briques qui existent) l'a trouvé, pas une
+relecture ciblée.
+
+### Le trou que 113 avait lui-même laissé
+
+En adoptant la règle sur un cas réel (`trackingNumber` sur SneakerLab), un
+défaut du point 113 est apparu : un champ `writableAfterPayment` restait
+présent dans le schéma `Create`/`Update` standard — donc un CLIENT pouvait
+encore l'écrire par les routes génériques. Inoffensif pour `status` (déjà
+écrivable par ailleurs avant paiement), mais absurde pour `trackingNumber` :
+le schéma de création l'aurait rendu **obligatoire**, forçant le client à
+inventer un numéro de suivi pour sa propre commande avant même de payer.
+
+Corrigé dans `_generate_schema_lines` (schemas.py) : les champs
+`writableAfterPayment` rejoignent `generated`/`derivedFrom`/`sumOf`/
+`timestamp`/`numbered` dans l'exclusion du schéma standard — même famille de
+raison, même ligne de code. Seule la route dédiée du point 113 peut désormais
+les écrire, à aucun moment ailleurs.
+
+### Adopté
+
+- `exemples/02_boutique.ml` : `oneOf` sur `status`, `releases` sur
+  l'annulation, `writableAfterPayment ShopManager` sur `status`.
+- `projets/SneakerLab/spec.ml` : `trackingNumber: String` (nouveau champ),
+  `writableAfterPayment Admin` sur `status` ET `trackingNumber`.
+
+### Éprouvé par
+
+`tests/test_invariants_securite.py` compile déjà TOUS les `exemples/*.ml` —
+`02_boutique.ml` y passe avec les nouvelles règles, aucun test à ajouter.
+Suite complète : 740 tests, 0 échec, inchangée (fermer un trou de sécurité
+ne devait rien casser, et rien n'a bougé). `monl update projets/SneakerLab`
+: migration additive propre, colonne `trackingNumber` ajoutée sans toucher
+aux données existantes (voir `docs/MIGRATIONS.md`). `monl run
+projets/SneakerLab --check` : **smoke test réel** (serveur éphémère, base
+neuve, frontend existant exécuté en jsdom) réussi — la preuve que le champ
+ajouté ne casse pas un frontend qui ne le connaît pas encore.
+
+### La portée, honnête
+
+Le frontend de SneakerLab ne sait pas encore que `writableAfterPayment`
+existe : `monl update` a généré `FRONTEND_UPDATE_PROMPT.md` avec le delta
+(`+ champ ajouté : Order.trackingNumber`), mais l'écrire est le travail de
+l'agent FRONTEND du projet (voir son propre `CLAUDE.md` : « ton rôle ici, le
+frontend, rien d'autre »), pas de cette session compilateur. Délibérément
+laissé pour une session dédiée au frontend de SneakerLab.
+
+### Méthode
+
+Troisième délégation Codex de la session, la plus large : trois fichiers
+indépendants (un correctif compilateur, deux specs) en un seul brief. Codex
+a tout livré sans écart. Vérification indépendante inchangée : diff relu
+intégralement, `ruff check`, suite complète rejouée hors du bac à sable de
+Codex, ET les deux commandes `monl` officielles du projet (`update`, `run
+--check`) — jamais une édition manuelle de `projets/SneakerLab/spec.ml`
+sans repasser par l'outillage qui régénère tout ce qui en dépend.
+
+---
+
+## 115. Brique 26 : `monl content export`/`import`, le contenu en masse
+
+**Le trou.** `monl assets add` (points 83-84) n'attache une photo qu'à une
+fiche de seed qui existe DÉJÀ — il n'a jamais eu vocation à en créer. Et le
+dialogue guidé (`monl init`) ne demande aucun vrai contenu : il propose de
+« pré-remplir avec des données de démonstration », donc des fiches
+PLACEHOLDER (noms inventés, photos `picsum.photos`). Le vrai besoin — un
+commerçant qui veut remplacer douze fiches inventées par ses douze vrais
+produits et leurs vraies photos — n'avait aucun outil : soit éditer le DSL à
+la main, soit poser les photos une par une sur des fiches déjà là.
+
+### Deux commandes, sur le modèle exact du point 84
+
+`monl content export [dossier]` écrit `content/<Entite>.csv` — une entité
+par fichier, une colonne par champ déclaré (dans l'ordre de l'entité), moins
+les champs que le client ne peut jamais fournir : même famille d'exclusion
+que le schéma Create/Update (`generated`, `derivedFrom`, `sumOf`,
+`timestamp`, `numbered`, et depuis le point 113 `writableAfterPayment`) —
+réutilisée telle quelle, pas redéfinie. Un champ `Boolean` est exclu aussi :
+la grammaire des seeds n'a AUCUN littéral vrai/faux
+(`?seed_value: STRING_LITERAL | SIGNED_NUMBER`), donc rien à proposer.
+`content/LISEZMOI.txt` accompagne chaque export : les valeurs `oneOf`
+permises, les colonnes obligatoires, où déposer les photos.
+
+`monl content import [dossier]` relit les CSV et **remplace en entier** le
+bloc `seed` de chaque entité — pas de fusion ligne à ligne, décision prise
+au moment de la conception pour éviter la classe de bug déjà rencontrée au
+point 84 (une fiche qui n'est pas une ligne). Passe par EXACTEMENT la même
+discipline que `assets add`, sans la redupliquer : `_valider`/`_revalider`/
+`_charger`, `_blocs_seed`, `_litteral`, `resoudre_asset` sont importés
+depuis `assets_tool.py`, pas réécrits. Une valeur manquante dans une cellule
+est OMISE de la fiche plutôt que d'inventer une valeur par défaut — c'est
+au vrai validateur de refuser un champ `required` absent, pas à cet outil
+de deviner.
+
+### Ce qui a exigé une décision, pas une simple transposition
+
+**Les entités enfants de catalogue** (brique 21, point 100 —
+`seed Variant for Product.name "Chaise Ligne"`) ont besoin de savoir à quel
+parent chaque ligne CSV se rattache : une colonne `_parent` en tête,
+détectée depuis la forme des blocs `seed` déjà présents. Si l'entité n'a
+encore AUCUN seed, l'export refuse plutôt que deviner si elle a besoin d'un
+parent — un exemple écrit à la main d'abord fixe la forme.
+
+**Blocs non contigus refusés.** Si les blocs `seed` d'une entité sont
+dispersés dans le fichier (un autre bloc d'une autre entité entre les deux),
+l'import refuse plutôt que de choisir où écrire — même discipline que
+partout ailleurs dans ce module : deviner serait pire qu'un refus nommé.
+
+### Éprouvé
+
+Huit tests unitaires (aller-retour stable à l'octet sans modification, une
+valeur changée ne touche rien d'autre, image absente nommée avec la ligne
+CSV, nombre invalide refusé avant compilation, blocs non contigus refusés,
+regroupement `_parent` correct, entité sans seed signalée sans bloquer les
+autres, `LISEZMOI.txt` énumère les valeurs `oneOf`). Suite complète : 748
+tests, 0 échec (740 + les 8 nouveaux).
+
+Et surtout, sur un **vrai petit projet compilé** (pas seulement en mémoire) :
+`monl compile` → `monl content export` → édition RÉELLE du CSV (nouvelle
+fiche, nouvelle photo posée dans `assets/`) → `monl content import` →
+`monl update` → un vrai serveur démarré, `GET /product` renvoie les trois
+fiches avec le bon texte (accents compris) et les bons chemins de photo. Le
+service HTTP des assets (`/site/assets/…`) n'a pas pu être re-testé ici sans
+détour : il dépend de l'existence d'un dossier `frontend/`
+(`cli.py:cmd_run`), ce qui est un comportement PRÉEXISTANT du point 83, déjà
+couvert par sa propre suite de tests — pas une propriété de cette brique.
+
+### Méthode, et une leçon de process
+
+Quatrième délégation Codex de la session, conception la plus détaillée des
+quatre (fichier neuf, pas d'ancre de diff byte-exact possible). Aucun écart
+non justifié.
+
+**Un vrai faux-positif rencontré pendant la vérification, entièrement de
+mon fait.** En testant l'outil sur un vrai projet, j'ai lancé une suite
+complète en tâche de fond PUIS, en parallèle, manipulé mes propres serveurs
+de test avec `pkill -9 -f uvicorn` — qui a tué les serveurs que la suite
+elle-même lançait pour ses propres tests E2E, produisant deux `ERROR`
+qui n'avaient rien à voir avec le code. Relancé proprement, sans rien en
+parallèle : 748 passés, 0 échec. La leçon, générale : **ne jamais tuer des
+processus par un motif large (`-f uvicorn`) pendant qu'une suite de tests
+tourne** — un serveur qui semble « orphelin » peut appartenir à un test en
+cours.

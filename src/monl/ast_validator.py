@@ -721,6 +721,308 @@ class MonlAST:
             if superviseurs:
                 self.access_supervisors[(entity, act_type)] = superviseurs
 
+    def _valider_regle_public(self):
+        """La règle 'public' — une action qui n'exige plus d'authentification
+        (point 111). Sortie de _validate_structures pour la même raison qu'aux
+        points 108/109 : nommer la logique de sécurité plutôt que la laisser
+        anonyme dans le fourre-tout. N'utilise que self.rules, self.entities,
+        self.public_actions."""
+        # AJOUT (roadmap, cas d'usage portfolio) : validation des règles
+        # 'public' — une action ainsi marquée n'exige plus d'authentification
+        # sur la route générée (ex. lecture d'un portfolio sans compte,
+        # envoi d'un message de contact sans compte).
+        for rule in self.rules:
+            if rule["type"] == "public":
+                if "." not in rule["reference"]:
+                    raise ASTValidationError(
+                        f"Structure : la règle 'public' doit référencer 'Entite.Action', reçu '{rule['reference']}'."
+                    )
+                entity, act_type = rule["reference"].split(".", 1)
+                if entity not in self.entities:
+                    raise ASTValidationError(f"Structure : la règle 'public' cible l'entité '{entity}' qui n'existe pas.")
+                if act_type not in ("Create", "Read", "Update", "Delete"):
+                    raise ASTValidationError(f"Structure : action '{act_type}' invalide dans la règle 'public' sur '{entity}'.")
+                self.public_actions.add((entity, act_type))
+
+    def _valider_requires_own_et_payable(self):
+        """'requiresOwn' (brique 17) et 'payable' (brique paiement) — les
+        prérequis de création qui protègent qui peut agir et qui peut encaisser
+        (point 111). Extraits ensemble parce que contigus dans le fichier
+        d'origine : 'payable' lit self.masked_fields, peuplé par la validation
+        'hidden' qui RESTE dans _validate_structures et s'exécute avant cet
+        appel — ne pas changer la position relative de l'appel par rapport au
+        bloc 'hidden'/'generated'/'oneOf'."""
+        # AJOUT (roadmap, écosystème de capacités -- brique 17, point 90) :
+        # validation de 'requiresOwn'. L'appelant doit DÉJÀ posséder un
+        # enregistrement de l'entité nommée pour pouvoir créer celui-ci.
+        #
+        # Le constat qui l'a fait naître, sur une boutique réelle : deux
+        # commandes portaient un compte SANS aucune fiche client. Rien
+        # n'obligeait à en créer une avant de commander, et le registre des
+        # comptes n'est exposé par aucune route — l'administrateur voyait donc
+        # une commande qu'il ne pouvait attribuer à personne. Pour une boutique,
+        # ce n'est pas un défaut d'affichage : c'est une commande inexpédiable.
+        self.required_profiles = {}
+        for rule in self.rules:
+            if rule["type"] != "requiresOwn":
+                continue
+            if "." not in rule["reference"]:
+                raise ASTValidationError(
+                    f"Structure : la règle 'requiresOwn' doit référencer 'Entite.Action', "
+                    f"reçu '{rule['reference']}'."
+                )
+            entity, act_type = rule["reference"].split(".", 1)
+            requise = rule["value"]
+            if entity not in self.entities:
+                raise ASTValidationError(
+                    f"Structure : la règle 'requiresOwn' cible l'entité '{entity}' qui n'existe pas."
+                )
+            # Seule la création peut l'exiger : c'est le moment où
+            # l'enregistrement naît sans propriétaire nommé. Sur Read/Update/
+            # Delete, l'enregistrement existe déjà — exiger une fiche a
+            # posteriori rendrait inaccessibles des données qu'on possède.
+            if act_type != "Create":
+                raise ASTValidationError(
+                    f"Structure : 'requiresOwn' ne vaut que sur '{entity}.Create' "
+                    f"(reçu '{entity}.{act_type}') -- sur une action de lecture ou de "
+                    f"modification, l'enregistrement existe déjà et sa fiche ne peut "
+                    f"plus rien empêcher."
+                )
+            if requise not in self.entities:
+                raise ASTValidationError(
+                    f"Structure : la règle 'requiresOwn' sur '{entity}.Create' exige un "
+                    f"'{requise}', qui n'est pas une entité déclarée."
+                )
+            if requise == entity:
+                raise ASTValidationError(
+                    f"Structure : '{entity}.Create requiresOwn {entity}' -- une entité ne "
+                    f"peut pas exiger d'elle-même : le premier enregistrement ne pourrait "
+                    f"jamais être créé."
+                )
+            # L'entité exigée doit être possédée DIRECTEMENT par un acteur :
+            # « en posséder un » n'a de sens que si la propriété se déduit du
+            # jeton. Une entité possédée transitivement (brique 11) ne dit pas
+            # à quel COMPTE elle appartient sans jointure, et une entité sans
+            # propriétaire du tout n'appartient à personne.
+            proprietaires = {v for (ent, _act), v in self.ownership_rules.items()
+                             if ent == requise}
+            if not (proprietaires & set(self.actors)):
+                raise ASTValidationError(
+                    f"Structure : '{entity}.Create requiresOwn {requise}', mais "
+                    f"'{requise}' n'est possédé par aucun acteur -- « en posséder un » "
+                    f"ne veut alors rien dire. Ajouter une règle "
+                    f"'rule {requise}.Read ownedBy <Acteur>'."
+                )
+            # Une création publique n'a aucune identité : impossible de chercher
+            # « sa » fiche. Même refus que 'generated' et 'payable', même raison.
+            if (entity, "Create") in self.public_actions:
+                raise ASTValidationError(
+                    f"Structure : '{entity}.Create' est 'public' et exige pourtant un "
+                    f"'{requise}' possédé -- incompatible : sans appelant identifié, "
+                    f"aucune fiche ne peut être cherchée."
+                )
+            if entity in self.required_profiles:
+                raise ASTValidationError(
+                    f"Structure : plusieurs règles 'requiresOwn' déclarées pour "
+                    f"'{entity}.Create' -- une seule autorisée."
+                )
+            self.required_profiles[entity] = requise
+
+        # AJOUT (roadmap, brique paiement -- point 74) : validation de
+        # 'payable'. La règle nomme le champ qui porte le MONTANT ; l'entité
+        # qui le contient est celle qu'on encaisse. Les refus ci-dessous sont
+        # le cœur de la brique : un paiement mal déclaré doit échouer à la
+        # compilation, jamais au moment d'encaisser.
+        self.payable_fields = []
+        for rule in self.rules:
+            if rule["type"] != "payable":
+                continue
+            if "." not in rule["reference"]:
+                raise ASTValidationError(
+                    f"Structure : la règle 'payable' doit référencer 'Entite.champ', reçu '{rule['reference']}'."
+                )
+            entity, field = rule["reference"].split(".", 1)
+            if entity not in self.entities:
+                raise ASTValidationError(
+                    f"Structure : la règle 'payable' cible l'entité '{entity}' qui n'existe pas."
+                )
+            field_type = self.entities.get(entity, {}).get(field)
+            if field_type not in ("Money", "Float", "Integer"):
+                raise ASTValidationError(
+                    f"Structure : 'payable' cible le champ '{entity}.{field}', qui doit être un attribut "
+                    f"Money, Float ou Integer déclaré (reçu : {field_type or 'champ inexistant'}) -- "
+                    f"on n'encaisse pas du texte."
+                )
+            # Un montant masqué serait invérifiable par le client qui paie :
+            # il ne pourrait pas confronter ce qu'on lui demande à ce qu'il a
+            # commandé.
+            if (entity, field) in self.masked_fields:
+                raise ASTValidationError(
+                    f"Structure : '{entity}.{field}' est à la fois 'hidden' et 'payable' -- incompatible : "
+                    f"un montant qu'on ne peut pas lire ne peut pas être vérifié par celui qui le règle."
+                )
+            if any(p["entity"] == entity for p in self.payable_fields):
+                raise ASTValidationError(
+                    f"Structure : '{entity}' porte plusieurs champs 'payable' -- un seul montant par entité, "
+                    f"sinon rien ne dit lequel encaisser."
+                )
+            # Encaisser exige de savoir QUI paie : une création publique n'a
+            # aucune identité à rattacher au règlement, ni personne à qui
+            # rendre l'argent.
+            if (entity, "Create") in self.public_actions:
+                raise ASTValidationError(
+                    f"Structure : '{entity}.{field}' est 'payable', mais '{entity}.Create' est 'public' -- "
+                    f"incompatible : un paiement exige un appelant identifié."
+                )
+            # CORRECTIF SÉCURITÉ : sans relation entrante, le générateur ne
+            # peut déterminer AUCUN propriétaire pour la route de règlement,
+            # qui accepte alors n'importe quel appelant authentifié pour
+            # n'importe quel enregistrement (IDOR). Même exigence que pour
+            # 'increments'/'decrements' ci-dessous -- une relation doit
+            # exister pour savoir QUI possède la ligne qu'on encaisse.
+            has_owner_relation = any(
+                (rel["type"] in ("hasMany", "hasOne") and rel["target"] == entity)
+                or (rel["type"] == "belongsTo" and rel["source"] == entity)
+                for rel in self.relations
+            )
+            if not has_owner_relation:
+                raise ASTValidationError(
+                    f"Structure : '{entity}.{field}' est 'payable', mais aucune relation ne désigne qui "
+                    f"possède un enregistrement de '{entity}' (ex. 'Client hasMany {entity}') -- sans elle, "
+                    f"la route de règlement ne pourrait vérifier qui a le droit de payer."
+                )
+            # LEVÉ AU POINT 87. Le point 81 refusait ici toute entité possédée
+            # TRANSITIVEMENT, parce que la route de règlement comparait la clé
+            # étrangère de propriété à `current_user_id` — or sous chaîne cette
+            # colonne porte un id d'enregistrement intermédiaire, pas un id de
+            # compte. Le refus protégeait donc d'une comparaison fausse, pas
+            # d'une impossibilité : la même brique 11 fournissait déjà, dans
+            # `_owner_lookup_sql`, la jointure qui rend l'id de COMPTE. La route
+            # l'emploie désormais, et la comparaison redevient exacte.
+            #
+            # Ce qui garde la brique sûre n'a pas bougé : la chaîne doit
+            # remonter à un acteur (refus du point 81, plus haut), le montant
+            # doit rester incalculable par le client (refus du point 79, dans le
+            # recoupement plus bas), et une relation entrante doit exister
+            # (juste au-dessus). Aucun de ces trois refus n'est affaibli.
+            self.payable_fields.append({"entity": entity, "field": field})
+
+    def _valider_regle_restrictedTo(self):
+        """La règle 'restrictedTo' — jamais validée structurellement
+        (point 112). Trouvée en vidant _validate_structures de sa dernière
+        logique de sécurité anonyme (points 108-111) : contrairement à
+        'public'/'ownedBy'/'requiresOwn', rien ne vérifiait qu'un champ ou un
+        acteur référencé par 'restrictedTo' existe réellement. Une faute de
+        frappe sur le nom du champ ou de l'acteur désactivait silencieusement
+        la restriction : _audit_security_rules ne trouverait jamais de
+        correspondance, sans qu'aucun avertissement n'apparaisse -- exactement
+        le genre de défaut que ownedBy/requiresOwn refusent déjà à la
+        compilation."""
+        for rule in self.rules:
+            if rule["type"] != "restrictedTo":
+                continue
+            if "." not in rule["reference"]:
+                raise ASTValidationError(
+                    f"Structure : la règle 'restrictedTo' doit référencer "
+                    f"'Entite.champ', reçu '{rule['reference']}'."
+                )
+            entity, field = rule["reference"].split(".", 1)
+            if entity not in self.entities:
+                raise ASTValidationError(
+                    f"Structure : la règle 'restrictedTo' cible l'entité "
+                    f"'{entity}' qui n'existe pas."
+                )
+            if field not in self.entities[entity]:
+                raise ASTValidationError(
+                    f"Structure : la règle 'restrictedTo' cible le champ "
+                    f"'{entity}.{field}', qui n'est pas un attribut déclaré -- "
+                    f"une faute de frappe désactiverait silencieusement la "
+                    f"restriction."
+                )
+            actor = rule["value"]
+            if actor not in self.actors:
+                raise ASTValidationError(
+                    f"Structure : la règle 'restrictedTo' sur "
+                    f"'{entity}.{field}' restreint à l'acteur '{actor}', qui "
+                    f"n'est pas un acteur déclaré."
+                )
+
+    def _valider_regle_apres_paiement(self):
+        """Valide le canal d'écriture réservé qui contourne le CRUD verrouillé."""
+        self.postpayment_writable = {}
+        champs_vus = set()
+        regles_serveur = (
+            ("generated", self.generated_fields),
+            ("derivedFrom", self.derived_fields),
+            ("sumOf", self.aggregated_fields),
+            ("timestamp", self.timestamp_fields),
+            ("numbered", self.numbered_fields),
+        )
+        for rule in self.rules:
+            if rule["type"] != "writableAfterPayment":
+                continue
+            reference = rule["reference"]
+            if "." not in reference:
+                raise ASTValidationError(
+                    f"Structure : la règle 'writableAfterPayment' doit référencer "
+                    f"'Entite.champ', reçu '{reference}'.")
+            entity, field = reference.split(".", 1)
+            if entity not in self.entities:
+                raise ASTValidationError(
+                    f"Structure : la règle 'writableAfterPayment' cible l'entité "
+                    f"'{entity}' qui n'existe pas.")
+            if field not in self.entities[entity]:
+                raise ASTValidationError(
+                    f"Structure : la règle 'writableAfterPayment' cible le champ "
+                    f"'{entity}.{field}', qui n'est pas un attribut déclaré.")
+            if not any(pf["entity"] == entity for pf in self.payable_fields):
+                raise ASTValidationError(
+                    f"Structure : la règle 'writableAfterPayment' ne vaut que sur "
+                    f"une entité 'payable' — '{entity}' ne l'est pas.")
+            actor = rule["value"]
+            if actor not in self.actors:
+                raise ASTValidationError(
+                    f"Structure : la règle 'writableAfterPayment' sur "
+                    f"'{entity}.{field}' nomme l'acteur '{actor}', qui n'est pas "
+                    f"un acteur déclaré.")
+            for type_regle, champs in regles_serveur:
+                if any(c["entity"] == entity and c["field"] == field
+                       for c in champs):
+                    raise ASTValidationError(
+                        f"Structure : '{entity}.{field}' est à la fois "
+                        f"'writableAfterPayment' et '{type_regle}' — incompatible : "
+                        f"'{type_regle}' interdit toute écriture cliente.")
+            proprietaire = self.transitive_ownership.get(entity, {}).get("actor")
+            if proprietaire is None:
+                proprietaires_directs = {
+                    owner for (owned_entity, _action), owner
+                    in self.ownership_rules.items()
+                    if owned_entity == entity and owner in self.actors
+                }
+                if len(proprietaires_directs) == 1:
+                    proprietaire = next(iter(proprietaires_directs))
+            if proprietaire == actor:
+                raise ASTValidationError(
+                    f"Structure : la règle 'writableAfterPayment' sur "
+                    f"'{entity}.{field}' nomme '{actor}', qui est déjà propriétaire "
+                    f"de '{entity}' — le verrou de paiement serait contournable par "
+                    f"son propriétaire.")
+            config = self.postpayment_writable.get(entity)
+            if config and config["actor"] != actor:
+                raise ASTValidationError(
+                    f"Structure : deux acteurs différents sont déclarés "
+                    f"'writableAfterPayment' sur '{entity}' : "
+                    f"'{config['actor']}' et '{actor}' — un seul acteur autorisé.")
+            if (entity, field) in champs_vus:
+                raise ASTValidationError(
+                    f"Structure : plusieurs règles 'writableAfterPayment' déclarées "
+                    f"pour '{entity}.{field}' — une seule autorisée.")
+            champs_vus.add((entity, field))
+            if config is None:
+                config = {"actor": actor, "fields": []}
+                self.postpayment_writable[entity] = config
+            config["fields"].append(field)
+
     def _validate_structures(self):
         """Vérifie la cohérence de base et traque les collisions multi-acteurs (Bug #5),
         sauf exemption explicite via une règle 'sharedBy'. Valide aussi les règles
@@ -745,22 +1047,9 @@ class MonlAST:
         # noyée dans une méthode fourre-tout — on la sort à la lumière.
         self._valider_controle_dacces()
 
-        # AJOUT (roadmap, cas d'usage portfolio) : validation des règles
-        # 'public' — une action ainsi marquée n'exige plus d'authentification
-        # sur la route générée (ex. lecture d'un portfolio sans compte,
-        # envoi d'un message de contact sans compte).
-        for rule in self.rules:
-            if rule["type"] == "public":
-                if "." not in rule["reference"]:
-                    raise ASTValidationError(
-                        f"Structure : la règle 'public' doit référencer 'Entite.Action', reçu '{rule['reference']}'."
-                    )
-                entity, act_type = rule["reference"].split(".", 1)
-                if entity not in self.entities:
-                    raise ASTValidationError(f"Structure : la règle 'public' cible l'entité '{entity}' qui n'existe pas.")
-                if act_type not in ("Create", "Read", "Update", "Delete"):
-                    raise ASTValidationError(f"Structure : action '{act_type}' invalide dans la règle 'public' sur '{entity}'.")
-                self.public_actions.add((entity, act_type))
+        # La règle publique vit dans sa propre méthode (point 111).
+        self._valider_regle_public()
+        self._valider_regle_restrictedTo()
 
         # AJOUT (roadmap, écosystème de capacités -- brique 2) : validation
         # des règles 'hidden' -- retire un champ de toutes les réponses de
@@ -1060,160 +1349,8 @@ class MonlAST:
             self.enumerated_fields.setdefault(entity, {})[field] = list(valeurs)
 
 
-        # AJOUT (roadmap, écosystème de capacités -- brique 17, point 90) :
-        # validation de 'requiresOwn'. L'appelant doit DÉJÀ posséder un
-        # enregistrement de l'entité nommée pour pouvoir créer celui-ci.
-        #
-        # Le constat qui l'a fait naître, sur une boutique réelle : deux
-        # commandes portaient un compte SANS aucune fiche client. Rien
-        # n'obligeait à en créer une avant de commander, et le registre des
-        # comptes n'est exposé par aucune route — l'administrateur voyait donc
-        # une commande qu'il ne pouvait attribuer à personne. Pour une boutique,
-        # ce n'est pas un défaut d'affichage : c'est une commande inexpédiable.
-        self.required_profiles = {}
-        for rule in self.rules:
-            if rule["type"] != "requiresOwn":
-                continue
-            if "." not in rule["reference"]:
-                raise ASTValidationError(
-                    f"Structure : la règle 'requiresOwn' doit référencer 'Entite.Action', "
-                    f"reçu '{rule['reference']}'."
-                )
-            entity, act_type = rule["reference"].split(".", 1)
-            requise = rule["value"]
-            if entity not in self.entities:
-                raise ASTValidationError(
-                    f"Structure : la règle 'requiresOwn' cible l'entité '{entity}' qui n'existe pas."
-                )
-            # Seule la création peut l'exiger : c'est le moment où
-            # l'enregistrement naît sans propriétaire nommé. Sur Read/Update/
-            # Delete, l'enregistrement existe déjà — exiger une fiche a
-            # posteriori rendrait inaccessibles des données qu'on possède.
-            if act_type != "Create":
-                raise ASTValidationError(
-                    f"Structure : 'requiresOwn' ne vaut que sur '{entity}.Create' "
-                    f"(reçu '{entity}.{act_type}') -- sur une action de lecture ou de "
-                    f"modification, l'enregistrement existe déjà et sa fiche ne peut "
-                    f"plus rien empêcher."
-                )
-            if requise not in self.entities:
-                raise ASTValidationError(
-                    f"Structure : la règle 'requiresOwn' sur '{entity}.Create' exige un "
-                    f"'{requise}', qui n'est pas une entité déclarée."
-                )
-            if requise == entity:
-                raise ASTValidationError(
-                    f"Structure : '{entity}.Create requiresOwn {entity}' -- une entité ne "
-                    f"peut pas exiger d'elle-même : le premier enregistrement ne pourrait "
-                    f"jamais être créé."
-                )
-            # L'entité exigée doit être possédée DIRECTEMENT par un acteur :
-            # « en posséder un » n'a de sens que si la propriété se déduit du
-            # jeton. Une entité possédée transitivement (brique 11) ne dit pas
-            # à quel COMPTE elle appartient sans jointure, et une entité sans
-            # propriétaire du tout n'appartient à personne.
-            proprietaires = {v for (ent, _act), v in self.ownership_rules.items()
-                             if ent == requise}
-            if not (proprietaires & set(self.actors)):
-                raise ASTValidationError(
-                    f"Structure : '{entity}.Create requiresOwn {requise}', mais "
-                    f"'{requise}' n'est possédé par aucun acteur -- « en posséder un » "
-                    f"ne veut alors rien dire. Ajouter une règle "
-                    f"'rule {requise}.Read ownedBy <Acteur>'."
-                )
-            # Une création publique n'a aucune identité : impossible de chercher
-            # « sa » fiche. Même refus que 'generated' et 'payable', même raison.
-            if (entity, "Create") in self.public_actions:
-                raise ASTValidationError(
-                    f"Structure : '{entity}.Create' est 'public' et exige pourtant un "
-                    f"'{requise}' possédé -- incompatible : sans appelant identifié, "
-                    f"aucune fiche ne peut être cherchée."
-                )
-            if entity in self.required_profiles:
-                raise ASTValidationError(
-                    f"Structure : plusieurs règles 'requiresOwn' déclarées pour "
-                    f"'{entity}.Create' -- une seule autorisée."
-                )
-            self.required_profiles[entity] = requise
-
-        # AJOUT (roadmap, brique paiement -- point 74) : validation de
-        # 'payable'. La règle nomme le champ qui porte le MONTANT ; l'entité
-        # qui le contient est celle qu'on encaisse. Les refus ci-dessous sont
-        # le cœur de la brique : un paiement mal déclaré doit échouer à la
-        # compilation, jamais au moment d'encaisser.
-        self.payable_fields = []
-        for rule in self.rules:
-            if rule["type"] != "payable":
-                continue
-            if "." not in rule["reference"]:
-                raise ASTValidationError(
-                    f"Structure : la règle 'payable' doit référencer 'Entite.champ', reçu '{rule['reference']}'."
-                )
-            entity, field = rule["reference"].split(".", 1)
-            if entity not in self.entities:
-                raise ASTValidationError(
-                    f"Structure : la règle 'payable' cible l'entité '{entity}' qui n'existe pas."
-                )
-            field_type = self.entities.get(entity, {}).get(field)
-            if field_type not in ("Money", "Float", "Integer"):
-                raise ASTValidationError(
-                    f"Structure : 'payable' cible le champ '{entity}.{field}', qui doit être un attribut "
-                    f"Money, Float ou Integer déclaré (reçu : {field_type or 'champ inexistant'}) -- "
-                    f"on n'encaisse pas du texte."
-                )
-            # Un montant masqué serait invérifiable par le client qui paie :
-            # il ne pourrait pas confronter ce qu'on lui demande à ce qu'il a
-            # commandé.
-            if (entity, field) in self.masked_fields:
-                raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' est à la fois 'hidden' et 'payable' -- incompatible : "
-                    f"un montant qu'on ne peut pas lire ne peut pas être vérifié par celui qui le règle."
-                )
-            if any(p["entity"] == entity for p in self.payable_fields):
-                raise ASTValidationError(
-                    f"Structure : '{entity}' porte plusieurs champs 'payable' -- un seul montant par entité, "
-                    f"sinon rien ne dit lequel encaisser."
-                )
-            # Encaisser exige de savoir QUI paie : une création publique n'a
-            # aucune identité à rattacher au règlement, ni personne à qui
-            # rendre l'argent.
-            if (entity, "Create") in self.public_actions:
-                raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' est 'payable', mais '{entity}.Create' est 'public' -- "
-                    f"incompatible : un paiement exige un appelant identifié."
-                )
-            # CORRECTIF SÉCURITÉ : sans relation entrante, le générateur ne
-            # peut déterminer AUCUN propriétaire pour la route de règlement,
-            # qui accepte alors n'importe quel appelant authentifié pour
-            # n'importe quel enregistrement (IDOR). Même exigence que pour
-            # 'increments'/'decrements' ci-dessous -- une relation doit
-            # exister pour savoir QUI possède la ligne qu'on encaisse.
-            has_owner_relation = any(
-                (rel["type"] in ("hasMany", "hasOne") and rel["target"] == entity)
-                or (rel["type"] == "belongsTo" and rel["source"] == entity)
-                for rel in self.relations
-            )
-            if not has_owner_relation:
-                raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' est 'payable', mais aucune relation ne désigne qui "
-                    f"possède un enregistrement de '{entity}' (ex. 'Client hasMany {entity}') -- sans elle, "
-                    f"la route de règlement ne pourrait vérifier qui a le droit de payer."
-                )
-            # LEVÉ AU POINT 87. Le point 81 refusait ici toute entité possédée
-            # TRANSITIVEMENT, parce que la route de règlement comparait la clé
-            # étrangère de propriété à `current_user_id` — or sous chaîne cette
-            # colonne porte un id d'enregistrement intermédiaire, pas un id de
-            # compte. Le refus protégeait donc d'une comparaison fausse, pas
-            # d'une impossibilité : la même brique 11 fournissait déjà, dans
-            # `_owner_lookup_sql`, la jointure qui rend l'id de COMPTE. La route
-            # l'emploie désormais, et la comparaison redevient exacte.
-            #
-            # Ce qui garde la brique sûre n'a pas bougé : la chaîne doit
-            # remonter à un acteur (refus du point 81, plus haut), le montant
-            # doit rester incalculable par le client (refus du point 79, dans le
-            # recoupement plus bas), et une relation entrante doit exister
-            # (juste au-dessus). Aucun de ces trois refus n'est affaibli.
-            self.payable_fields.append({"entity": entity, "field": field})
+        # Validation des prérequis de création et de paiement (point 111).
+        self._valider_requires_own_et_payable()
 
         # AJOUT (roadmap, écosystème de capacités -- brique 10, point 77) :
         # validation de 'derivedFrom'. La règle nomme un champ CALCULÉ PAR LE
@@ -1982,6 +2119,10 @@ class MonlAST:
                         f"Séparez ces privilèges, ou déclarez explicitement le partage avec : {suggestion}.{extra}"
                     )
 
+        # Doit rester la toute dernière validation structurelle : elle dépend
+        # de toutes les familles de champs serveur et de la propriété transitive.
+        self._valider_regle_apres_paiement()
+
     def _audit_security_rules(self):
         """Moteur d'analyse statique traquant les vulnérabilités complexes."""
         reports = []
@@ -2049,6 +2190,7 @@ class MonlAST:
                 "numbered_fields": self.numbered_fields,
                 "required_profiles": self.required_profiles,
                 "payable_fields": self.payable_fields,
+                "writable_after_payment": self.postpayment_writable,
                 "derived_fields": self.derived_fields,
                 "aggregated_fields": self.aggregated_fields,
                 # POINT 85 : {(entite, champ): {"required"|"unique": True,

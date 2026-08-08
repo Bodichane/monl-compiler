@@ -386,6 +386,22 @@ réseau social anonyme comme banc d'essai final.
     `tests/test_assets_tool.py` (33 tests) ; c'est elle qui a posé le logo et le
     favicon de `projets/SneakerLab`.
 
+13bis. **Brique 26 (point 115) : `monl content export`/`import`** — remplacer
+    en masse le contenu placeholder du dialogue guidé par du vrai texte et de
+    vraies photos, sans toucher au DSL à la main. `export` écrit
+    `content/<Entite>.csv` (une colonne par champ, moins ceux que le client ne
+    peut jamais fournir — même exclusion que le schéma Create/Update) et
+    `content/LISEZMOI.txt` ; `import` REMPLACE en entier le bloc `seed` de
+    chaque entité depuis le CSV (pas de fusion ligne à ligne). Réutilise SANS
+    LES RÉÉCRIRE la discipline du point 84 (`_valider`/`_revalider`,
+    `_blocs_seed`, `_litteral`, `resoudre_asset`, importés depuis
+    `assets_tool.py`). Une entité enfant de catalogue (brique 21) gagne une
+    colonne `_parent` ; des blocs `seed` non contigus pour une même entité
+    font refuser l'import plutôt que deviner où écrire. `src/monl/content_tool.py`,
+    `tests/test_content_tool.py` (8 tests) — éprouvée aussi sur un vrai projet
+    compilé (export → édition réelle du CSV et d'une photo → import → `monl
+    update` → serveur réel).
+
 14. **`required` / `unique` / `min` / `max` enfin appliqués** (point 85) — les
     quatre plus ANCIENNES règles du compilateur ne faisaient **rien** : sortie
     identique à l'octet avec ou sans elles, et référence fantôme acceptée en
@@ -619,10 +635,13 @@ réseau social anonyme comme banc d'essai final.
   l'appliquer à `projets/SneakerLab`, qui est une décision de MIGRATION plus que
   de spec — les `OrderLine` existantes visent des produits, `Product.stock` perdrait
   son sens, et la migration additive ne rattrape jamais un contenu (points 89 et
-  99). Restent aussi ouverts : un numéro de suivi transporteur.
+  99). (FERMÉ au point 113 sur `exemples/02_boutique.ml` ET `projets/
+  SneakerLab` : `writableAfterPayment` adopté — statut d'expédition sur les
+  deux, `trackingNumber` en plus sur SneakerLab, éprouvé par un vrai smoke
+  test `monl run --check`.)
   (FERMÉ au point 102 : la référence de commande lisible, par la brique 22
-  `numbered` — `exemples/02_boutique.ml` délivre `CMD-2026-0001`. Reste à
-  l'adopter sur `projets/SneakerLab`.)
+  `numbered` — `exemples/02_boutique.ml` délivre `CMD-2026-0001`,
+  `projets/SneakerLab` délivre `SL-2026-0001`. Les deux l'ont déjà adopté.)
 - **(historique) Un statut restait un texte libre** (point 91) — sur une commande NON réglée, le
   client pose `status: "livrée"` et le serveur l'accepte : il n'existe aucune
   brique « valeur parmi une liste ». Le verrou de la brique 18 ne couvre l'entité
@@ -750,6 +769,25 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   à ~200 s. Né d'un spike Rust (écarté) : la question « quel langage pour aller
   plus vite » s'est résolue en une ligne de Python. Ne pas reconstruire le
   parseur ailleurs. Voir point 110.
+- **POINT 111 : `public` et `requiresOwn`+`payable` vivent aussi dans des
+  méthodes nommées** — `_valider_regle_public()` et
+  `_valider_requires_own_et_payable()` (ast_validator.py). Suite de 108-109 :
+  `_validate_structures` ne porte plus AUCUNE règle de contrôle d'accès ou de
+  visibilité anonyme.
+- **POINT 112 : `restrictedTo` (point 2) exige désormais une entité, un champ
+  et un acteur déclarés** — `_valider_regle_restrictedTo()`. Avant, une faute
+  de frappe désactivait la restriction sans le moindre avertissement ;
+  l'audit `[SECURITY_AUDIT]` reste un AVERTISSEMENT (inchangé depuis le point
+  2), seule l'existence des références citées est désormais vérifiée à la
+  compilation.
+- **POINT 113 : le verrou de paiement (point 91) bloque TOUS les acteurs,
+  superviseur compris — vérifié contre un vrai serveur.** Pour faire avancer
+  un champ après paiement (ex. le statut d'expédition), utiliser
+  `rule Entite.champ writableAfterPayment Acteur` : route dédiée
+  `PUT /entite/{id}/apres-paiement`, réservée à l'acteur nommé (jamais le
+  propriétaire), sans toucher au verrou générique d'`Update` qui reste
+  absolu. Ne PAS ajouter d'exception d'acteur dans `_payment_lock_lines` —
+  c'est la voie explicitement écartée.
 - Un rôle n'est inscriptible que s'il porte `selfRegister` dans la spec
   (bêta 3). Toute évolution touchant `/register`, le contrat frontend ou le
   smoke test doit conserver cette frontière : c'est elle qui empêche un

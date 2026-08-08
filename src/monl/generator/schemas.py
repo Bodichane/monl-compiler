@@ -42,10 +42,16 @@ class SchemasMixin:
             # choisiraient le même.
             horodates_ici = list(horodates_ici) + [
                 n["field"] for n in self.numbered_fields_by_entity.get(ent_name, [])]
+            # BRIQUE 25 (point 113) : un champ 'writableAfterPayment' ne doit
+            # être écrit QUE par la route dédiée, et jamais par les routes de
+            # création ou de modification générique accessibles au client.
+            postpaiement_ici = self.postpayment_writable_by_entity.get(
+                ent_name, {}).get("fields", [])
             has_schema_field = False
             for attr_name, attr_type in attrs.items():
                 if (attr_name in generated_here_schema or attr_name in derives_ici
-                        or attr_name in sommes_ici or attr_name in horodates_ici):
+                        or attr_name in sommes_ici or attr_name in horodates_ici
+                        or attr_name in postpaiement_ici):
                     continue
                 py_type = "str"
                 if attr_type == "Integer": py_type = "int"

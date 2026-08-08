@@ -81,7 +81,8 @@ class DialogueError(Exception):
 
 
 class GuidedDialogue:
-    def __init__(self, ask, say=None, max_retries=3, ui=None):
+    def __init__(self, ask, say=None, max_retries=3, ui=None, express=False,
+                 choose_experience=False):
         """Dialogue guidé à règles, entièrement déterministe : aucune IA,
         aucun appel réseau. Chaque réponse est validée en saisie stricte
         (numéros, o/n, identifiants) et redemandée tant qu'elle est invalide.
@@ -90,6 +91,8 @@ class GuidedDialogue:
         self._ask_fn = ask
         self._say = say or (lambda *_: None)
         self.max_retries = max_retries
+        self.express = express
+        self.choose_experience = choose_experience
         # AJOUT (bêta 3) : couche de présentation. Par défaut, rendu nu —
         # chaînes strictement identiques à l'historique, donc les tests
         # scriptés et toute sortie redirigée sont insensibles à l'habillage.
@@ -321,7 +324,75 @@ class GuidedDialogue:
         if picked == FREE_MODE_LABEL:
             return self._run_free()
         template = TEMPLATES[labels.index(picked)]
+        if self.choose_experience:
+            experience = self._ask_choice(
+                "Quelle expérience souhaitez-vous ?",
+                ["Création rapide avec l’IA", "Personnalisation détaillée"],
+                hints={
+                    "Création rapide avec l’IA":
+                        "recommandé — Monl prépare structure, contenu et direction visuelle",
+                    "Personnalisation détaillée":
+                        "toutes les questions de structure, contenu et présentation",
+                })
+            self.express = experience.startswith("Création rapide")
         return self._run_from_template(template)
+
+    @staticmethod
+    def _express_intent(template):
+        """Direction sûre et suffisamment précise pour le mode express.
+
+        Elle ne change jamais le contrat fonctionnel : elle autorise seulement
+        l'IA frontend à faire son métier éditorial et visuel à partir du modèle.
+        """
+        name = template["name"]
+        if name in {"Portfolio / site vitrine", "Blog"}:
+            register, imagery = DESIGN_REGISTERS[1][1], DESIGN_IMAGERY[0][1]
+        elif name in {"Gestion de tâches", "Inventaire / gestion de stock",
+                      "Suivi de dépenses personnelles"}:
+            register, imagery = DESIGN_REGISTERS[2][1], DESIGN_IMAGERY[1][1]
+        elif name in {"Boutique en ligne", "Classement communautaire"}:
+            register, imagery = DESIGN_REGISTERS[3][1], DESIGN_IMAGERY[0][1]
+        else:
+            register, imagery = DESIGN_REGISTERS[1][1], DESIGN_IMAGERY[0][1]
+        return (
+            "utiliser immédiatement le parcours principal attendu pour cette "
+            f"catégorie ; {register} ; {imagery} ; mode express : l’IA frontend "
+            "rédige les textes de présentation manquants, crée une page dense en "
+            "blocs utiles et produit des illustrations SVG locales cohérentes, "
+            "sans inventer de donnée, de route ni de fonctionnalité"
+        )
+
+    @staticmethod
+    def _default_self_register(actors, managers, owned):
+        """Choix prudent du rôle public, pendant déterministe de la question."""
+        privilegies = {
+            actor
+            for entity, entity_managers in managers.items()
+            for actor in entity_managers
+            if owned.get(entity) != actor and entity != actor
+        }
+        return next((actor for actor in actors if actor not in privilegies), None)
+
+    @staticmethod
+    def _express_image_topic(template):
+        """Mot-clé public par catégorie, sans divulguer le brief libre.
+
+        Les URL sont chargées chez un tiers par le navigateur. Y injecter la
+        description transmettrait potentiellement un client, un lieu ou une
+        idée encore confidentielle.
+        """
+        return {
+            "Portfolio / site vitrine": "creative-studio",
+            "Blog": "editorial",
+            "Boutique en ligne": "products",
+            "Gestion de tâches": "workspace",
+            "Forum / réseau social": "community",
+            "Petites annonces": "marketplace",
+            "Réservation de rendez-vous": "wellness-service",
+            "Inventaire / gestion de stock": "warehouse",
+            "Suivi de dépenses personnelles": "finance-desk",
+            "Classement communautaire": "competition",
+        }.get(template["name"], "abstract")
 
     def _run_from_template(self, template):
         """Chemin « modèle » : questions de suivi spécifiques, puis les
@@ -336,6 +407,38 @@ class GuidedDialogue:
         app_name = self._ask_identifier("Nom de l'application (ex. StudioNova) > ")
         description = self._ask_free_text(
             "Décrivez le projet en une phrase (servira de brief frontend) > ")
+
+        if self.express:
+            entities = {name: list(meta["fields"])
+                        for name, meta in template["entities"].items()}
+            actors = list(template["actors"])
+            managers = {name: [meta["manager"]]
+                        for name, meta in template["entities"].items()}
+            readers = {name: set(meta["readers"])
+                       for name, meta in template["entities"].items()}
+            public_read = [name for name, meta in template["entities"].items()
+                           if meta["public_read"]]
+            public_create = [name for name, meta in template["entities"].items()
+                             if meta["public_create"]]
+            owned = {name: meta["manager"]
+                     for name, meta in template["entities"].items() if meta["owned"]}
+            relations = list(template["relations"])
+            self._ensure_ownership_structure(
+                entities, managers, readers, owned, relations)
+            self_register = self._default_self_register(actors, managers, owned)
+            self._recap(app_name, entities, actors, self_register, public_read, owned)
+            spec = self._emit_spec(
+                app_name, description, entities, relations, actors, managers,
+                readers, public_read, public_create, owned,
+                want_seed=bool(template["seeds"]), want_landing=True,
+                design_intent=self._express_intent(template), sections=(),
+                image_topic=self._express_image_topic(template),
+                self_register=self_register,
+                extra_rules=template["extra_rules"], custom_seeds=template["seeds"])
+            from .ast_validator import MonlAST
+            from .parser import parse_monl_string
+            MonlAST(parse_monl_string(spec)).validate_and_audit()
+            return spec
 
         self._show(self.ui.phase(2))
         for followup in template["followups"]:
@@ -1045,5 +1148,6 @@ def run_interactive_dialogue():
     # Hors terminal interactif (sortie redirigée, CI), rendu nu : un journal
     # ne doit contenir ni séquence ANSI ni caractère de dessin.
     ui = StyledDialogueUI(terminal) if terminal.color else PlainDialogueUI()
-    dialogue = GuidedDialogue(ask=input, say=print, ui=ui)
+    dialogue = GuidedDialogue(ask=input, say=print, ui=ui,
+                              choose_experience=True)
     return dialogue.run()

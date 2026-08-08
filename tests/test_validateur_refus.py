@@ -61,6 +61,16 @@ CIBLES_INEXISTANTES = [
      "action 'Manger' invalide"),
     ("public sur une entité absente", "rule Fantome.Read public",
      "'public' cible l'entité 'Fantome'"),
+    ("restrictedTo sur une entité absente", "rule Fantome.titre restrictedTo Admin",
+     "'restrictedTo' cible l'entité 'Fantome'"),
+    ("restrictedTo sur un champ absent", "rule Note.fantome restrictedTo Admin",
+     "cible le champ 'Note.fantome'"),
+    ("writableAfterPayment sur une entité absente",
+     "rule Fantome.titre writableAfterPayment Admin",
+     "'writableAfterPayment' cible l'entité 'Fantome'"),
+    ("writableAfterPayment sur un champ absent",
+     "rule Note.fantome writableAfterPayment Admin",
+     "cible le champ 'Note.fantome'"),
     ("hidden sur une entité absente", "rule Fantome.titre hidden",
      "'hidden' cible l'entité 'Fantome'"),
     ("hidden sur un champ absent", "rule Note.fantome hidden",
@@ -324,6 +334,35 @@ workflow W for Membre
     Read Msg
 """)
     assert "ownedBy" in str(refus.value) and "accessibleBy" in str(refus.value)
+
+
+def test_restrictedto_sur_un_acteur_non_declare():
+    """Point 112 : avant, rien ne vérifiait que l'acteur nommé par
+    'restrictedTo' existe — une faute de frappe désactivait la restriction
+    en silence, sans qu'aucun avertissement n'apparaisse."""
+    with pytest.raises(ASTValidationError) as refus:
+        _valide("""app T
+entity Note
+    titre: String
+actor Admin selfRegister
+rule Note.titre restrictedTo Fantome
+workflow W for Admin
+    Read Note
+""")
+    assert "restrictedTo" in str(refus.value) and "Fantome" in str(refus.value)
+
+
+def test_restrictedto_bien_forme_compile():
+    """Le témoin : sans lui, un validateur qui refuserait tout 'restrictedTo'
+    passerait aussi le test précédent."""
+    assert _valide("""app T
+entity Note
+    titre: String
+actor Admin selfRegister
+rule Note.titre restrictedTo Admin
+workflow W for Admin
+    Read Note
+""")
 
 
 def test_ownedby_sans_relation_correspondante_est_refuse():
@@ -872,6 +911,144 @@ def test_un_panier_somme_est_encaissable():
     point 79."""
     assert _valide(SPEC_PANIER.format(
         regles=SOMME + "\nrule Commande.total payable"))
+
+
+# ---------------- écriture supervisée après paiement ------------------------
+
+SPEC_APRES_PAIEMENT = SPEC_PANIER.replace(
+    "    libelle: String", "    libelle: String\n    statut: String\n    creeLe: DateTime\n"
+    "    reference: String\n    quantite: Integer\n    calcule: Money"
+).replace(
+    "relation Client hasMany Commande",
+    "relation Client hasMany Commande\nrelation Article hasMany Commande"
+).replace(
+    "actor Client selfRegister", "actor Client selfRegister\nactor Superviseur"
+)
+
+
+def _apres_paiement(regles):
+    base = (SOMME + "\nrule Commande.total payable"
+            "\nrule Commande.quantite required")
+    return SPEC_APRES_PAIEMENT.format(regles=base + "\n" + regles)
+
+
+def test_writable_after_payment_sur_acteur_non_declare_est_refuse():
+    with pytest.raises(ASTValidationError) as refus:
+        _valide(_apres_paiement(
+            "rule Commande.statut writableAfterPayment Fantome"))
+    assert "writableAfterPayment" in str(refus.value)
+    assert "Fantome" in str(refus.value)
+
+
+def test_writable_after_payment_exige_une_entite_payable():
+    with pytest.raises(ASTValidationError) as refus:
+        _valide(SPEC_PANIER.format(
+            regles=SOMME
+            + "\nrule Commande.libelle writableAfterPayment Client"))
+    assert "ne vaut que sur une entité 'payable'" in str(refus.value)
+
+
+@pytest.mark.parametrize("regle_serveur", [
+    "rule Commande.statut generated",
+    "rule Commande.calcule derivedFrom Article.prix by quantite",
+    "rule Commande.creeLe timestamp",
+    'rule Commande.reference numbered "CMD-{YYYY}-{NNNN}"',
+], ids=["generated", "derivedFrom", "timestamp", "numbered"])
+def test_writable_after_payment_refuse_un_champ_ecrit_par_le_serveur(
+        regle_serveur):
+    cible = {
+        "generated": "statut",
+        "derivedFrom": "calcule",
+        "timestamp": "creeLe",
+        "numbered": "reference",
+    }[regle_serveur.split()[2]]
+    spec = _apres_paiement(
+        regle_serveur
+        + f"\nrule Commande.{cible} writableAfterPayment Superviseur")
+    with pytest.raises(ASTValidationError) as refus:
+        _valide(spec)
+    assert "writableAfterPayment" in str(refus.value)
+    assert regle_serveur.split()[2] in str(refus.value)
+
+
+def test_writable_after_payment_refuse_un_champ_somme():
+    """`sumOf` manquait à la liste des familles serveur ci-dessus : une entité
+    'payable' dont le montant est 'sumOf' (le panier à plusieurs lignes,
+    seule forme éprouvée depuis le point 82 pour un total encaissable)
+    pouvait déclarer 'writableAfterPayment' sur CE MÊME champ. La route
+    dédiée qui en résulte écrit le total en base sans recalcul ET sans le
+    verrou de paiement — exactement la faille des points 77/82 rouverte par
+    une combinaison de règles que rien ne signalait à la compilation."""
+    with pytest.raises(ASTValidationError) as refus:
+        _valide(_apres_paiement(
+            "rule Commande.total writableAfterPayment Superviseur"))
+    assert "writableAfterPayment" in str(refus.value)
+    assert "sumOf" in str(refus.value)
+
+
+def test_writable_after_payment_refuse_le_proprietaire():
+    with pytest.raises(ASTValidationError) as refus:
+        _valide(_apres_paiement(
+            "rule Commande.statut writableAfterPayment Client"))
+    assert "déjà propriétaire" in str(refus.value)
+
+
+def test_writable_after_payment_refuse_deux_acteurs_par_entite():
+    spec = _apres_paiement(
+        "actor AutreSuperviseur\n"
+        "rule Commande.statut writableAfterPayment Superviseur\n"
+        "rule Commande.libelle writableAfterPayment AutreSuperviseur")
+    with pytest.raises(ASTValidationError) as refus:
+        _valide(spec)
+    assert "Superviseur" in str(refus.value)
+    assert "AutreSuperviseur" in str(refus.value)
+
+
+def test_writable_after_payment_refuse_un_doublon_de_champ():
+    regle = "rule Commande.statut writableAfterPayment Superviseur"
+    with pytest.raises(ASTValidationError) as refus:
+        _valide(_apres_paiement(regle + "\n" + regle))
+    assert "plusieurs règles 'writableAfterPayment'" in str(refus.value)
+
+
+def test_writable_after_payment_bien_forme_compile_et_normalise():
+    ast = _valide(_apres_paiement(
+        "rule Commande.statut writableAfterPayment Superviseur\n"
+        "rule Commande.libelle writableAfterPayment Superviseur"))
+    assert ast["security"]["writable_after_payment"] == {
+        "Commande": {
+            "actor": "Superviseur",
+            "fields": ["statut", "libelle"],
+        }
+    }
+
+
+def test_writable_after_payment_ne_casse_ni_create_ni_update(tmp_path):
+    """Un champ absent du schéma générique ne doit jamais être lu sur `data`.
+
+    Le checkout réel de CodexShop révélait sinon un AttributeError avant même
+    l'insertion de la commande : les champs de suivi, réservés au superviseur,
+    n'existent légitimement pas encore à la création.
+    """
+    from monl.generator import MonlSecureGenerator
+
+    spec = _apres_paiement(
+        "rule Commande.statut writableAfterPayment Superviseur\n"
+        "rule Commande.libelle writableAfterPayment Superviseur")
+    spec = spec.replace(
+        "rule Commande.Read ownedBy Client",
+        "rule Commande.Read ownedBy Client\nrule Commande.Update ownedBy Client",
+    ).replace("    Read Commande\n", "    Read Commande\n    Update Commande\n")
+    ast = _valide(spec)
+    MonlSecureGenerator(ast, output_dir=str(tmp_path)).generate_all()
+    genere = (tmp_path / "app.py").read_text(encoding="utf-8")
+    creation = genere.split("def create_commande(", 1)[1].split("@app.", 1)[0]
+    modification = genere.split("def update_commande(", 1)[1].split("@app.", 1)[0]
+
+    assert "data.statut" not in creation
+    assert "data.libelle" not in creation
+    assert "data.statut" not in modification
+    assert "data.libelle" not in modification
 
 
 @pytest.mark.parametrize("regle, attendu", [
