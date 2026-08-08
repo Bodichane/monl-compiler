@@ -83,10 +83,7 @@ jamais un point de départ à retoucher.
 
 ## Architecture
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/architecture-sombre.svg">
-  <img alt="Dialogue guidé → spec.ml → backend et contrat frontend → frontend écrit par une IA, le tout vérifié par monl run" src="docs/images/architecture-clair.svg" width="100%">
-</picture>
+<img alt="Dialogue express ou détaillé et contenu CSV vers spec.ml ; compilation et audit vers backend et contrat ; frontend écrit par une IA puis ensemble vérifié par monl run" src="docs/images/architecture-clair.svg" width="100%">
 
 Le dialogue produit la spécification ; le compilateur en dérive **à la fois** le
 backend et le contrat frontend ; l'IA écrit l'interface contre ce contrat ;
