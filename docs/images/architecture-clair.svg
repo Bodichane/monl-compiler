@@ -1,99 +1,66 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 520" width="1120" height="520" role="img" aria-labelledby="title desc" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-  <title id="title">Architecture de monl-compiler</title>
-  <desc id="desc">Le dialogue et les fichiers de contenu alimentent la spécification, compilée en backend et contrat frontend. Une IA produit uniquement l'interface. monl-compiler vérifie ensuite l'ensemble avant lancement.</desc>
-  <rect width="1120" height="520" fill="#ffffff"/>
-  <defs>
-    <filter id="shadow" x="-10%" y="-15%" width="120%" height="140%">
-      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#172033" flood-opacity="0.09"/>
-    </filter>
-    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M0 0 10 5 0 10Z" fill="#718096"/>
-    </marker>
-    <marker id="arrowAccent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M0 0 10 5 0 10Z" fill="#087f72"/>
-    </marker>
-  </defs>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 360" width="1000" height="360" role="img" aria-labelledby="title desc" font-family="Arial,Helvetica,sans-serif">
+  <title id="title">Fonctionnement simple de monl-compiler</title>
+  <desc id="desc">L'utilisateur décrit son projet. Une spécification est créée. monl-compiler génère le backend et un contrat utilisé par l'intelligence artificielle pour créer le frontend. La commande monl run vérifie et lance le site.</desc>
+  <rect width="1000" height="360" fill="#ffffff"/>
 
-  <text x="48" y="45" font-size="13" font-weight="700" letter-spacing="1.8" fill="#087f72">ARCHITECTURE MONL-COMPILER</text>
-  <text x="48" y="78" font-size="25" font-weight="750" fill="#172033">Une source de vérité, deux productions, une vérification finale</text>
-  <text x="48" y="104" font-size="14" fill="#5f6b7a">Le backend reste déterministe. L'IA intervient uniquement après le contrat, pour l'interface.</text>
+  <text x="500" y="35" text-anchor="middle" font-size="23" font-weight="700" fill="#172033">Comment fonctionne monl-compiler ?</text>
+  <text x="500" y="59" text-anchor="middle" font-size="13" fill="#667085">De votre idée à une application vérifiée</text>
 
-  <g filter="url(#shadow)">
-    <rect x="48" y="146" width="220" height="112" rx="14" fill="#f7f9fc" stroke="#cbd5e1" stroke-width="1.5"/>
-    <circle cx="78" cy="177" r="16" fill="#e3f3f0"/>
-    <text x="78" y="182" text-anchor="middle" font-size="14" font-weight="700" fill="#087f72">1</text>
-    <text x="104" y="182" font-size="17" font-weight="700" fill="#172033">Décrire le projet</text>
-    <text x="70" y="211" font-size="13" fill="#5f6b7a">Mode express · 3 réponses</text>
-    <text x="70" y="232" font-size="13" fill="#5f6b7a">ou personnalisation détaillée</text>
-  </g>
+  <rect x="35" y="105" width="160" height="92" rx="12" fill="#f5f7fa" stroke="#aeb8c5" stroke-width="1.5"/>
+  <circle cx="65" cy="133" r="15" fill="#dff3ef"/>
+  <text x="65" y="138" text-anchor="middle" font-size="13" font-weight="700" fill="#087f72">1</text>
+  <text x="115" y="139" text-anchor="middle" font-size="16" font-weight="700" fill="#172033">Votre idée</text>
+  <text x="115" y="166" text-anchor="middle" font-size="12.5" fill="#667085">3 réponses suffisent</text>
+  <text x="115" y="184" text-anchor="middle" font-size="12.5" fill="#667085">textes et photos possibles</text>
 
-  <g filter="url(#shadow)">
-    <rect x="48" y="286" width="220" height="112" rx="14" fill="#f7f9fc" stroke="#cbd5e1" stroke-width="1.5"/>
-    <circle cx="78" cy="317" r="16" fill="#fff1dc"/>
-    <text x="78" y="322" text-anchor="middle" font-size="14" font-weight="700" fill="#9a5b00">+</text>
-    <text x="104" y="322" font-size="17" font-weight="700" fill="#172033">Apporter le contenu</text>
-    <text x="70" y="351" font-size="13" fill="#5f6b7a">CSV · textes · produits</text>
-    <text x="70" y="372" font-size="13" fill="#5f6b7a">assets · photos · logo</text>
-  </g>
+  <line x1="195" y1="151" x2="235" y2="151" stroke="#667085" stroke-width="2.5"/>
+  <polygon points="235,144 247,151 235,158" fill="#667085"/>
 
-  <path d="M268 202H315" fill="none" stroke="#718096" stroke-width="2" marker-end="url(#arrow)"/>
-  <path d="M268 342H292Q315 342 315 319V225" fill="none" stroke="#718096" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="247" y="105" width="150" height="92" rx="12" fill="#e7f5f2" stroke="#087f72" stroke-width="1.8"/>
+  <circle cx="275" cy="133" r="15" fill="#ccebe5"/>
+  <text x="275" y="138" text-anchor="middle" font-size="13" font-weight="700" fill="#087f72">2</text>
+  <text x="322" y="140" text-anchor="middle" font-size="18" font-weight="700" fill="#172033">spec.ml</text>
+  <text x="322" y="167" text-anchor="middle" font-size="12.5" fill="#52635f">Données et permissions</text>
+  <text x="322" y="185" text-anchor="middle" font-size="12.5" fill="#52635f">une seule source</text>
 
-  <g filter="url(#shadow)">
-    <rect x="325" y="174" width="210" height="146" rx="16" fill="#e8f5f2" stroke="#087f72" stroke-width="2"/>
-    <text x="430" y="211" text-anchor="middle" font-size="20" font-weight="750" fill="#172033">spec.ml</text>
-    <text x="430" y="236" text-anchor="middle" font-size="13" font-weight="650" fill="#087f72">SOURCE DE VÉRITÉ</text>
-    <line x1="363" y1="251" x2="497" y2="251" stroke="#acd7d0"/>
-    <text x="430" y="278" text-anchor="middle" font-size="13" fill="#4d6260">entités · relations · rôles</text>
-    <text x="430" y="299" text-anchor="middle" font-size="13" fill="#4d6260">règles · seeds · brief</text>
-  </g>
+  <line x1="397" y1="151" x2="437" y2="151" stroke="#667085" stroke-width="2.5"/>
+  <polygon points="437,144 449,151 437,158" fill="#667085"/>
 
-  <path d="M535 247H582" fill="none" stroke="#087f72" stroke-width="2.2" marker-end="url(#arrowAccent)"/>
-  <text x="558" y="230" text-anchor="middle" font-size="11" font-weight="650" fill="#087f72">compile</text>
+  <rect x="449" y="105" width="175" height="92" rx="12" fill="#172033" stroke="#172033" stroke-width="1.5"/>
+  <circle cx="478" cy="133" r="15" fill="#2d6b66"/>
+  <text x="478" y="138" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">3</text>
+  <text x="552" y="139" text-anchor="middle" font-size="15" font-weight="700" fill="#ffffff">monl-compiler</text>
+  <text x="537" y="167" text-anchor="middle" font-size="12.5" fill="#d2d8e0">Compile et sécurise</text>
+  <text x="537" y="185" text-anchor="middle" font-size="12.5" fill="#d2d8e0">sans IA</text>
 
-  <g filter="url(#shadow)">
-    <rect x="592" y="174" width="210" height="146" rx="16" fill="#172033" stroke="#172033" stroke-width="2"/>
-    <text x="697" y="211" text-anchor="middle" font-size="19" font-weight="750" fill="#ffffff">Compilateur + audit</text>
-    <text x="697" y="236" text-anchor="middle" font-size="12" font-weight="650" fill="#72d5c8">DÉTERMINISTE · HORS LIGNE</text>
-    <line x1="625" y1="251" x2="769" y2="251" stroke="#3b4658"/>
-    <text x="697" y="278" text-anchor="middle" font-size="13" fill="#d4dae3">validation structurelle</text>
-    <text x="697" y="299" text-anchor="middle" font-size="13" fill="#d4dae3">contrôle d'accès · SQL typé</text>
-  </g>
+  <line x1="624" y1="151" x2="664" y2="151" stroke="#667085" stroke-width="2.5"/>
+  <polygon points="664,144 676,151 664,158" fill="#667085"/>
 
-  <path d="M802 218H849" fill="none" stroke="#718096" stroke-width="2" marker-end="url(#arrow)"/>
-  <path d="M802 278H825Q849 278 849 302" fill="none" stroke="#718096" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="676" y="83" width="142" height="72" rx="12" fill="#f5f7fa" stroke="#aeb8c5" stroke-width="1.5"/>
+  <text x="747" y="113" text-anchor="middle" font-size="16" font-weight="700" fill="#172033">Backend</text>
+  <text x="747" y="136" text-anchor="middle" font-size="12.5" fill="#667085">API · base · comptes</text>
 
-  <g filter="url(#shadow)">
-    <rect x="859" y="142" width="213" height="112" rx="14" fill="#f7f9fc" stroke="#cbd5e1" stroke-width="1.5"/>
-    <text x="883" y="176" font-size="16" font-weight="700" fill="#172033">Backend généré</text>
-    <text x="883" y="202" font-size="13" fill="#5f6b7a">SQLite · API REST · JWT</text>
-    <text x="883" y="223" font-size="13" fill="#5f6b7a">permissions · migrations</text>
-  </g>
+  <rect x="676" y="171" width="142" height="72" rx="12" fill="#f5f1ff" stroke="#8b5cf6" stroke-width="1.5"/>
+  <text x="747" y="201" text-anchor="middle" font-size="16" font-weight="700" fill="#172033">Contrat</text>
+  <text x="747" y="224" text-anchor="middle" font-size="12.5" fill="#667085">guide du frontend</text>
 
-  <g filter="url(#shadow)">
-    <rect x="859" y="286" width="213" height="112" rx="14" fill="#f7f2ff" stroke="#8b5cf6" stroke-width="1.5"/>
-    <text x="883" y="320" font-size="16" font-weight="700" fill="#172033">Contrat frontend</text>
-    <text x="883" y="346" font-size="13" fill="#5f6b7a">routes · champs · parcours</text>
-    <text x="883" y="367" font-size="13" fill="#5f6b7a">brief éditorial et visuel</text>
-  </g>
+  <line x1="818" y1="207" x2="852" y2="207" stroke="#8b5cf6" stroke-width="2.5"/>
+  <polygon points="852,200 864,207 852,214" fill="#8b5cf6"/>
 
-  <path d="M965 398V431" fill="none" stroke="#8b5cf6" stroke-width="2" marker-end="url(#arrow)"/>
-  <rect x="859" y="440" width="213" height="48" rx="12" fill="#ffffff" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="5 4"/>
-  <text x="965" y="461" text-anchor="middle" font-size="14" font-weight="700" fill="#5b35b5">IA frontend uniquement</text>
-  <text x="965" y="479" text-anchor="middle" font-size="11.5" fill="#6f6289">HTML · CSS · JS · SVG</text>
+  <rect x="864" y="171" width="110" height="72" rx="12" fill="#f5f1ff" stroke="#8b5cf6" stroke-width="1.5"/>
+  <text x="919" y="201" text-anchor="middle" font-size="15" font-weight="700" fill="#5b35b5">Frontend</text>
+  <text x="919" y="224" text-anchor="middle" font-size="12.5" fill="#667085">créé par l'IA</text>
 
-  <path d="M965 254V270" fill="none" stroke="#087f72" stroke-width="1.8" stroke-dasharray="5 4"/>
-  <path d="M859 464H697Q672 464 672 439V368" fill="none" stroke="#087f72" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrowAccent)"/>
-  <path d="M965 254V270" fill="none" stroke="#087f72" stroke-width="2"/>
+  <line x1="747" y1="243" x2="747" y2="275" stroke="#087f72" stroke-width="2"/>
+  <path d="M676 119H650V275H747" fill="none" stroke="#087f72" stroke-width="2"/>
+  <line x1="919" y1="243" x2="919" y2="275" stroke="#087f72" stroke-width="2"/>
+  <line x1="747" y1="275" x2="919" y2="275" stroke="#087f72" stroke-width="2"/>
+  <line x1="833" y1="275" x2="833" y2="291" stroke="#087f72" stroke-width="2.5"/>
+  <polygon points="826,291 833,303 840,291" fill="#087f72"/>
 
-  <g filter="url(#shadow)">
-    <rect x="528" y="366" width="288" height="92" rx="16" fill="#ffffff" stroke="#087f72" stroke-width="2"/>
-    <text x="672" y="400" text-anchor="middle" font-size="18" font-weight="750" fill="#087f72">monl run</text>
-    <text x="672" y="426" text-anchor="middle" font-size="13" fill="#4d6260">cohérence · smoke test · lancement</text>
-    <text x="672" y="446" text-anchor="middle" font-size="11.5" fill="#718096">backend + contrat + interface vérifiés ensemble</text>
-  </g>
+  <rect x="676" y="303" width="298" height="42" rx="10" fill="#ffffff" stroke="#087f72" stroke-width="2"/>
+  <text x="825" y="329" text-anchor="middle" font-size="14" font-weight="700" fill="#087f72">monl run vérifie puis lance l'application</text>
 
-  <path d="M697 320V358" fill="none" stroke="#087f72" stroke-width="2" marker-end="url(#arrowAccent)"/>
-  <text x="48" y="484" font-size="12.5" font-weight="650" fill="#087f72">VERT : chaîne déterministe et vérifiée</text>
-  <text x="48" y="505" font-size="12.5" fill="#6f6289">VIOLET : liberté de présentation, bornée par le contrat</text>
+  <text x="35" y="330" font-size="12" font-weight="700" fill="#087f72">Vert et noir : produits par le compilateur</text>
+  <text x="35" y="349" font-size="12" fill="#6f6289">Violet : interface créée par l'IA</text>
 </svg>
