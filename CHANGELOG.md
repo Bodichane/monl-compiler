@@ -73,7 +73,7 @@ demande donc rien de plus qu'un `pip install -e .`.
   personne. Le fichier met par écrit ce que `pyproject.toml` déclare depuis
   toujours (`license = "Proprietary"`) : public pour lecture et évaluation, pas
   libre. Précision qui n'allait pas de soi : les applications *produites* par
-  MonL appartiennent à leur auteur — la licence porte sur le compilateur, pas
+  monl-compiler appartiennent à leur auteur — la licence porte sur le compilateur, pas
   sur sa sortie.
 - **`CONTRIBUTING.md` ajouté.** Documente la méthode plutôt qu'il n'invite aux
   contributions, qui ne sont pas ouvertes : preuve par exécution réelle,
@@ -104,7 +104,7 @@ demande donc rien de plus qu'un `pip install -e .`.
   L'ancienne démo épinglait un thème et le test s'en servait pour vérifier
   qu'un frontend livré respecte une palette imposée ; StudioNova n'épingle
   rien, et son IA s'est autorisé une palette entièrement différente. Le test
-  prouve désormais, sur un livrable réel, que MonL se **tait** quand le thème
+  prouve désormais, sur un livrable réel, que monl-compiler se **tait** quand le thème
   n'est que déduit — la moitié la moins intuitive du point 58. La contrainte
   reste éprouvée juste à côté, sur un frontend construit pour l'occasion.
 
@@ -121,17 +121,17 @@ demande donc rien de plus qu'un `pip install -e .`.
   seul modèle pour qu'ils ne puissent pas diverger. La géométrie est vérifiée —
   aucune boîte chevauchée, aucun trait traversant une boîte *ou un texte*, aucun
   libellé plus large que sa boîte.
-- **La section « Pourquoi » compare enfin MonL à quelque chose.** Elle critiquait
-  un framework et un générateur d'IA sans jamais dire ce que MonL fait ; c'est
-  désormais un tableau à trois colonnes où MonL a la sienne, ligne par ligne.
+- **La section « Pourquoi » compare enfin monl-compiler à quelque chose.** Elle critiquait
+  un framework et un générateur d'IA sans jamais dire ce que monl-compiler fait ; c'est
+  désormais un tableau à trois colonnes où monl-compiler a la sienne, ligne par ligne.
 - **`exemples/` gagne un README** : le dossier ne contient pas cinq applications
   mais les cinq fichiers `.ml` qui suffisent à les décrire. Un lecteur qui croit
   ouvrir des applications passe à côté de la thèse du projet.
 - **Les ouvertures affirment leur contenu au lieu de le nier.** Plusieurs
-  passages commençaient par une absence (« ce dossier ne contient pas… », « MonL
+  passages commençaient par une absence (« ce dossier ne contient pas… », « monl-compiler
   ne génère aucune interface ») : le lecteur devait retenir ce qui manquait
   avant d'apprendre ce qu'il avait sous les yeux.
-- Nomenclature unifiée : **MonL** dans les titres et la prose, `monl` pour la
+- Nomenclature unifiée : **monl-compiler** dans les titres et la prose, `monl` pour la
   commande et le paquet.
 
 ### Tests et intégration continue
