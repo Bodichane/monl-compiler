@@ -153,6 +153,8 @@ class MonlSecureGenerator(
             pf["entity"]: pf["field"]
             for pf in normalized_ast["security"].get("payable_fields", [])
         }
+        self.postpayment_writable_by_entity = normalized_ast["security"].get(
+            "writable_after_payment", {})
         # AJOUT (brique 10, point 77) : champs CALCULÉS PAR LE SERVEUR depuis
         # une ligne liée. {Entite: [règle, ...]} — le validateur garantit au
         # plus une règle par champ, mais une entité peut en porter plusieurs.

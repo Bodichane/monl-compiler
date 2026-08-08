@@ -236,6 +236,19 @@ class RoutesMixin:
                 # une date de création qui bouge n'est pas une date de création.
                 for nom_date in self.timestamp_fields_by_entity.get(base_target, []):
                     calcules[nom_date] = "_horodatage()"
+                # BRIQUE 25 (point 113) : un champ réservé à la route
+                # `apres-paiement` est absent du schéma d'entrée générique.
+                # À la création il naît donc vide, exactement comme une valeur
+                # de suivi qui n'existe pas encore. Le laisser tomber sur le
+                # repli `data.<champ>` donnait un AttributeError et un 500 sur
+                # TOUTE création de l'entité — découvert sur le checkout réel
+                # de CodexShop, où fulfillmentStatus et trackingNumber sont
+                # légitimement inconnus avant paiement.
+                postpaiement_ici = set(
+                    self.postpayment_writable_by_entity.get(
+                        base_target, {}).get("fields", []))
+                for nom_postpaiement in postpaiement_ici:
+                    calcules[nom_postpaiement] = "None"
                 # BRIQUE 22 (point 102) : le numéro lisible. Le compteur est lu
                 # ET incrémenté en base ; ces lignes partent donc DANS le `try`
                 # ci-dessous, pas ici — hors de la transaction, une insertion
@@ -725,9 +738,16 @@ class RoutesMixin:
                 # plus une référence — le client l'a noté, le vendeur aussi.
                 horodates_upd |= {n["field"] for n
                                   in self.numbered_fields_by_entity.get(base_target, [])}
+                # Même exclusion sur l'Update générique : ces champs n'existent
+                # pas dans son schéma Pydantic et ne s'écrivent que par la route
+                # dédiée au superviseur.
+                postpaiement_upd = set(
+                    self.postpayment_writable_by_entity.get(
+                        base_target, {}).get("fields", []))
                 ecrits = [f for f in fields
                           if f not in generated_upd and f not in sommes_upd
-                          and f not in horodates_upd]
+                          and f not in horodates_upd
+                          and f not in postpaiement_upd]
                 # POINT 85 : les écritures sont rassemblées AVANT d'être émises,
                 # pour pouvoir les envelopper d'un try quand l'entité porte un
                 # 'unique'. C'est SQLite qui lève à l'`execute`, pas au `commit` —
@@ -1110,7 +1130,88 @@ class RoutesMixin:
                 api_lines.append("")
 
         api_lines.extend(self._generate_payment_routes())
+        api_lines.extend(self._generate_postpayment_routes())
         return api_lines
+
+    def _generate_postpayment_routes(self):
+        lignes = []
+        for entite, config in sorted(self.postpayment_writable_by_entity.items()):
+            table = entite.lower()
+            schema = f"{entite}ApresPaiementSchema"
+            lignes += ["", f"class {schema}(BaseModel):"]
+            for field in config["fields"]:
+                field_type = self.entities[entite][field]
+                py_type = "str"
+                if field_type == "Integer":
+                    py_type = "int"
+                elif field_type in ("Float", "Money"):
+                    py_type = "float"
+                elif field_type == "Boolean":
+                    py_type = "bool"
+                choix = self.enumerated_fields.get(entite, {}).get(field)
+                if choix:
+                    valeurs = ", ".join(repr(v) for v in choix)
+                    py_type = f"Literal[{valeurs}]"
+                contraintes = self.field_constraints.get(entite, {}).get(field, {})
+                bornes = []
+                for nom, mot_texte, mot_nombre in (("min", "min_length", "ge"),
+                                                    ("max", "max_length", "le")):
+                    borne = contraintes.get(nom)
+                    if borne:
+                        mot = mot_texte if borne["portee"] == "longueur" else mot_nombre
+                        bornes.append(f"{mot}={borne['valeur']}")
+                if py_type == "str":
+                    limite = {"Text": 20000, "Email": 320, "UUID": 36}.get(
+                        field_type, 255)
+                    if not any(b.startswith("max_length=") for b in bornes):
+                        bornes.append(f"max_length={limite}")
+                    if field_type == "Email":
+                        bornes.append(r"pattern=r'^[^@\s]+@[^@\s]+\.[^@\s]{2,}$'")
+                    if field_type == "UUID":
+                        bornes.append(
+                            r"pattern=r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-"
+                            r"[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'")
+                if bornes and not choix:
+                    lignes.append(
+                        f"    {field}: Optional[{py_type}] = Field(None, {', '.join(bornes)})")
+                else:
+                    lignes.append(f"    {field}: Optional[{py_type}] = None")
+
+            existence = sql.cat(
+                sql.kw("SELECT id FROM "), sql.ident(table),
+                sql.kw(" WHERE id = "), sql.bind("id"))
+            existence_sql, existence_params = sql.execute_args(existence)
+            lignes += [
+                "",
+                f"@app.put('/{table}/{{id}}/apres-paiement', tags=['Paiement'])",
+                f"def modifier_{table}_apres_paiement(id: int, data: {schema}, "
+                "current_actor: str = Depends(verify_jwt_and_get_actor)):",
+                f"    if current_actor != {config['actor']!r}:",
+                "        raise HTTPException(status_code=403, detail=(",
+                "            \"Contrôle d'accès : seules les parties de la ressource \"",
+                "            'peuvent exécuter cette action'))",
+                "    conn = _connect(); cursor = conn.cursor()",
+                f"    cursor.execute({existence_sql}, {existence_params})",
+                "    if not cursor.fetchone():",
+                "        conn.close()",
+                "        raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
+            ]
+            for field in config["fields"]:
+                update = sql.cat(
+                    sql.kw("UPDATE "), sql.ident(table), sql.kw(" SET "),
+                    sql.ident(field), sql.kw(" = "), sql.bind(f"data.{field}"),
+                    sql.kw(" WHERE id = "), sql.bind("id"))
+                update_sql, update_params = sql.execute_args(update)
+                lignes += [
+                    f"    if data.{field} is not None:",
+                    f"        cursor.execute({update_sql}, {update_params})",
+                ]
+            lignes += [
+                "    conn.commit(); conn.close()",
+                "    return {'status': 'success', 'id': id}",
+                "",
+            ]
+        return lignes
 
     # ─────────────────────────────────────────────────────────────────
     # BRIQUE PAIEMENT (point 74). Deux routes seulement, et un principe :

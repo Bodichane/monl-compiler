@@ -1020,6 +1020,29 @@ Deux exigences seulement, et ce ne sont pas des questions de goût :
   suffisent à porter une identité — c'est leur traitement qui la fait.
 """
 
+    express_block = ""
+    if "mode express" in (contract.get("brief") or "").lower():
+        express_block = """
+## Mode express — compléter la matière éditoriale et visuelle
+
+L'auteur a volontairement fourni un brief court. À partir de celui-ci et de
+la catégorie décrite par le contrat :
+- rédiger les textes d'interface et de présentation nécessaires (accroche,
+  bénéfices, méthode, réassurance, appels à l'action, textes d'états vides) ;
+- construire une page dense en blocs réellement utiles, pas une simple liste
+  suivie d'un formulaire ;
+- créer dans `frontend/` des illustrations `.svg` originales et cohérentes
+  lorsque le projet appelle des images. Elles sont locales, accessibles et
+  peuvent servir aux blocs éditoriaux ; ne pas embarquer de photo distante ;
+- rendre les vraies images et les vraies fiches renvoyées par l'API quand elles
+  existent. Ne jamais fabriquer côté navigateur de faux produits, projets,
+  rendez-vous ou autres enregistrements qui contrediraient la base.
+
+Cette liberté concerne la rédaction et la présentation seulement. Elle
+n'autorise aucune route, donnée métier, permission ou promesse absente du
+contrat.
+"""
+
     # POINT 74 : la note de la route le dit déjà, mais c'est ici que l'IA lit
     # ce qui n'est pas négociable. Le règlement est le seul parcours du
     # frontend où une erreur d'interface coûte de l'argent — il mérite sa
@@ -1041,7 +1064,7 @@ Vous êtes une IA spécialisée en interfaces. Générez le frontend de
 l'application **{contract['app']}** en respectant STRICTEMENT le contrat
 ci-dessous. Le backend existe déjà et ne doit pas être modifié.
 
-{design_block}
+{design_block}{express_block}
 ## Règles non négociables
 - Écrire tous les fichiers dans `frontend/`, avec `frontend/index.html`
   comme point d'entrée (HTML/CSS/JS statiques, aucun build requis).

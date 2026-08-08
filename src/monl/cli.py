@@ -1142,6 +1142,42 @@ def cmd_assets_list(project_dir):
               "dans une page : ce rapport constate, il ne reproche rien)")
 
 
+def cmd_content_export(project_dir):
+    from .content_tool import ContentToolError, exporter_contenu
+    spec_path = _spec_du_projet(project_dir)
+    try:
+        rapport = exporter_contenu(spec_path, project_dir)
+    except ContentToolError as err:
+        print(f" ❌ {err}")
+        sys.exit(1)
+    for entite, info in rapport["entites"].items():
+        print(f" -> {entite}.csv : {info['fiches']} fiche(s), "
+              f"{len(info['colonnes'])} colonne(s)")
+    for entite, raison in rapport["ignorees"].items():
+        print(f" ⚠️  {entite} non exportée : {raison}.")
+    print(" ✅ Contenu exporté dans content/ — lire content/LISEZMOI.txt.")
+
+
+def cmd_content_import(project_dir):
+    from .content_tool import ContentToolError, importer_contenu
+    spec_path = _spec_du_projet(project_dir)
+    try:
+        rapport = importer_contenu(spec_path, project_dir)
+    except ContentToolError as err:
+        print(f" ❌ {err}")
+        sys.exit(1)
+    for entite, info in rapport["entites"].items():
+        print(f" -> {entite} : {info['fiches']} fiche(s) lue(s)")
+    message = ("Spec revalidée par le compilateur et contenu remplacé."
+               if rapport["spec_changee"]
+               else "Contenu inchangé : la spec n'a pas été réécrite.")
+    print(f" ✅ {message}")
+    avertissements = next(iter(rapport["entites"].values()), {}).get(
+        "avertissements", [])
+    for message in avertissements:
+        print(f" ⚠️  {message}")
+
+
 # ------------------------------------------------------------------- main --
 def main(argv=None):
     parser = argparse.ArgumentParser(
@@ -1259,6 +1295,16 @@ def main(argv=None):
         "list", help="Ce que la spec déclare, ce qui est présent, ce qui traîne.")
     p_alist.add_argument("dir", nargs="?", default=".")
 
+    p_content = sub.add_parser(
+        "content", help="Exporter ou réimporter les fiches de démonstration en CSV.")
+    sub_content = p_content.add_subparsers(dest="content_command")
+    p_cexport = sub_content.add_parser(
+        "export", help="Créer content/<Entite>.csv depuis les blocs seed.")
+    p_cexport.add_argument("dir", nargs="?", default=".")
+    p_cimport = sub_content.add_parser(
+        "import", help="Remplacer les blocs seed depuis les fichiers CSV.")
+    p_cimport.add_argument("dir", nargs="?", default=".")
+
     p_import = sub.add_parser(
         "import", help="Installer un frontend obtenu SANS clé API (brief collé "
                        "dans claude.ai, résultat téléchargé) puis re-vérifier.")
@@ -1293,6 +1339,14 @@ def main(argv=None):
             cmd_assets_list(args.dir)
         else:
             p_assets.print_help()
+            sys.exit(1)
+    elif args.command == "content":
+        if args.content_command == "export":
+            cmd_content_export(args.dir)
+        elif args.content_command == "import":
+            cmd_content_import(args.dir)
+        else:
+            p_content.print_help()
             sys.exit(1)
     elif args.command == "frontend":
         _lancer_ia(args, update_mode=args.update)

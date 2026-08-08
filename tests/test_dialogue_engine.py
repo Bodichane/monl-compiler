@@ -37,6 +37,46 @@ def _run(answers):
     return GuidedDialogue(ask=lambda p: next(it)).run()
 
 
+def test_mode_express_ne_pose_que_identite_et_description_apres_le_modele():
+    """Le parcours recommandé ne transforme pas les finitions en questionnaire.
+
+    L'itérateur ne contient volontairement aucune réponse supplémentaire :
+    toute nouvelle question ferait échouer le test par StopIteration.
+    """
+    answers = iter(["1", "StudioExpress", "Portfolio de céramique contemporaine."])
+    spec = GuidedDialogue(ask=lambda p: next(answers), express=True).run()
+    normalized = MonlAST(parse_monl_string(spec)).validate_and_audit()
+    assert normalized["meta"]["appName"] == "StudioExpress"
+    assert normalized["seeds"]
+    assert "landing" in spec
+    assert "mode express" in spec
+    assert "loremflickr.com/1600/900/creative-studio" in spec
+
+
+def test_mode_express_ouvre_seulement_le_role_non_privilegie():
+    answers = iter(["3", "BoutiqueExpress", "Boutique de mobilier français."])
+    spec = GuidedDialogue(ask=lambda p: next(answers), express=True).run()
+    normalized = MonlAST(parse_monl_string(spec)).validate_and_audit()
+    assert normalized["security"]["self_register_actors"] == ["Customer"]
+    assert "Admin selfRegister" not in spec
+
+
+def test_le_menu_interactif_propose_express_avant_la_personnalisation():
+    prompts = []
+    answers = iter([
+        "1", "1", "StudioExpress", "Portfolio de céramique contemporaine."
+    ])
+
+    def ask(prompt):
+        prompts.append(prompt)
+        return next(answers)
+
+    spec = GuidedDialogue(ask=ask, choose_experience=True).run()
+    assert "app StudioExpress" in spec
+    experience = next(p for p in prompts if "expérience" in p)
+    assert experience.index("Création rapide") < experience.index("Personnalisation")
+
+
 def test_spec_produite_compile_reellement():
     spec = _run(SCENARIO_PORTFOLIO)
     normalized = MonlAST(parse_monl_string(spec)).validate_and_audit()

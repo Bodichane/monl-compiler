@@ -128,6 +128,13 @@ rule Order.placedAt timestamp
 # à déclarer 'unique' : un numéro en double n'est pas un numéro.
 rule Order.reference numbered "CMD-{YYYY}-{NNNN}"
 
+# BRIQUE 25 (points 96, 98 et 113) : le statut était encore du texte libre, le
+# stock ne revenait pas à l'annulation, et le verrou de paiement empêchait
+# ensuite tout le monde de faire avancer la commande.
+rule Order.status oneOf "panier", "à régler", "en préparation", "expédiée", "livrée", "annulée"
+rule Order.status "annulée" releases OrderLine
+rule Order.status writableAfterPayment ShopManager
+
 workflow BrowseShop for Customer
     Read Product
     Read Variant

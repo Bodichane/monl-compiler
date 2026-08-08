@@ -35,7 +35,7 @@ grammar = r"""
     # rule["type"] ne valait jamais "restrictedTo", et l'audit de sécurité associé
     # dans ast_validator.py ne se déclenchait donc jamais. Même classe de bug que
     # celui déjà corrigé sur le bloc "custom" en v3.
-    ?rule: constraint_rule | restriction_rule | sharing_rule | ownership_rule | access_rule | visibility_rule | masking_rule | decrement_rule | increment_rule | categorization_rule | generation_rule | payable_rule | derivation_rule | aggregation_rule | timestamp_rule | numbering_rule | requirement_rule | oneof_rule | release_rule
+    ?rule: constraint_rule | restriction_rule | postpayment_rule | sharing_rule | ownership_rule | access_rule | visibility_rule | masking_rule | decrement_rule | increment_rule | categorization_rule | generation_rule | payable_rule | derivation_rule | aggregation_rule | timestamp_rule | numbering_rule | requirement_rule | oneof_rule | release_rule
 
     constraint_rule: "rule" REFERENCE VALIDATION_TYPE _NL
                    | "rule" REFERENCE VALIDATION_TYPE INT _NL
@@ -55,6 +55,7 @@ grammar = r"""
     #   rule Order.status "annulée" releases OrderLine
     release_rule: "rule" REFERENCE STRING_LITERAL "releases" NAME _NL
     restriction_rule: "rule" REFERENCE "restrictedTo" NAME _NL
+    postpayment_rule: "rule" REFERENCE "writableAfterPayment" NAME _NL
     sharing_rule: "rule" REFERENCE "sharedBy" NAME ("," NAME)* _NL
     # AJOUT (post-v6, roadmap) : "ownedBy" restreint une action Update/Delete au
     # seul enregistrement appartenant à l'acteur courant, via la relation FK
@@ -430,6 +431,10 @@ class MonlTransformer(Transformer):
 
     def restriction_rule(self, reference, actor_name):
         return {"rule": {"reference": str(reference), "type": "restrictedTo", "value": str(actor_name)}}
+
+    def postpayment_rule(self, reference, actor_name):
+        return {"rule": {"reference": str(reference), "type": "writableAfterPayment",
+                         "value": str(actor_name)}}
 
     def sharing_rule(self, reference, *actor_names):
         return {"rule": {"reference": str(reference), "type": "sharedBy", "value": [str(a) for a in actor_names]}}

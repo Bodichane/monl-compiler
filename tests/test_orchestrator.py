@@ -10,6 +10,7 @@ import re
 import pytest
 
 from monl.cli import _load_state, check_coherence, compile_project
+from monl.dialogue_engine import GuidedDialogue
 
 REPO = os.path.join(os.path.dirname(__file__), "..")
 
@@ -46,6 +47,22 @@ def _fresh_project(tmp_path):
     spec_path.write_text(SPEC, encoding="utf-8")
     contract = compile_project(str(spec_path), str(proj))
     return proj, spec_path, contract
+
+
+def test_brief_express_autorise_textes_blocs_et_illustrations_locales(tmp_path):
+    answers = iter(["1", "StudioExpress", "Portfolio de céramique contemporaine."])
+    spec_text = GuidedDialogue(
+        ask=lambda prompt: next(answers), express=True).run()
+    proj = tmp_path / "express"
+    proj.mkdir()
+    spec = proj / "spec.ml"
+    spec.write_text(spec_text, encoding="utf-8")
+    compile_project(str(spec), str(proj))
+    prompt = (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    assert "Mode express" in prompt
+    assert "page dense en blocs réellement utiles" in prompt
+    assert "illustrations `.svg` originales" in prompt
+    assert "Ne jamais fabriquer côté navigateur de faux produits" in prompt
 
 
 def test_contrat_correspond_aux_routes_reelles_de_app_py(tmp_path):
