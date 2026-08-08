@@ -2769,7 +2769,7 @@ du diagnostic.**
 
 Deux corrections d'un même geste : ce que le dépôt montre de lui-même.
 
-**`demo/` versionnait le code que MonL génère.** `app.py`, `schema.sql`,
+**`demo/` versionnait le code que monl-compiler génère.** `app.py`, `schema.sql`,
 `manage.py`, `sandbox_ai.py`, `monl.json`, le contrat, le brief, le wrapper de
 service : neuf fichiers dérivés, committés à côté de la spec dont ils
 découlent. Dans un projet dont toute la thèse est « la spécification est

@@ -1,7 +1,7 @@
 # StudioNova — la démonstration versionnée
 
 Le portfolio d'un photographe : galerie publique de projets, formulaire de
-contact, zone d'administration. Produit par le parcours complet de MonL, du
+contact, zone d'administration. Produit par le parcours complet de monl-compiler, du
 dialogue guidé jusqu'à l'interface.
 
 **Deux fichiers, les deux seuls écrits :**
@@ -9,7 +9,7 @@ dialogue guidé jusqu'à l'interface.
 | Fichier | Écrit par |
 |---|---|
 | `spec.ml` | le dialogue guidé, à partir des réponses de l'auteur |
-| `frontend/` | une IA d'interface, contre le contrat produit par MonL |
+| `frontend/` | une IA d'interface, contre le contrat produit par monl-compiler |
 
 Tout le reste — backend, contrat, brief, état du projet — se recalcule depuis
 `spec.ml` en une seconde, et se trouve donc dans le dossier de compilation, pas
@@ -39,7 +39,7 @@ monl run /tmp/studionova
   serveur éphémère. La démo ne peut donc pas pourrir en silence.
 - `tests/test_design_contract.py` s'en sert pour prouver la moitié la moins
   intuitive du point 58 : cette spec n'épingle aucun thème, l'IA s'est autorisé
-  une palette entièrement différente de celle qui lui était proposée, et MonL
+  une palette entièrement différente de celle qui lui était proposée, et monl-compiler
   doit l'accepter sans un mot.
 
 ## Ce qu'elle montre du langage

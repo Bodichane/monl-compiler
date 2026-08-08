@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 520" width="1120" height="520" role="img" aria-labelledby="title desc" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
-  <title id="title">Architecture de MonL</title>
-  <desc id="desc">Le dialogue et les fichiers de contenu alimentent la spécification, compilée en backend et contrat frontend. Une IA produit uniquement l'interface. MonL vérifie ensuite l'ensemble avant lancement.</desc>
+  <title id="title">Architecture de monl-compiler</title>
+  <desc id="desc">Le dialogue et les fichiers de contenu alimentent la spécification, compilée en backend et contrat frontend. Une IA produit uniquement l'interface. monl-compiler vérifie ensuite l'ensemble avant lancement.</desc>
   <rect width="1120" height="520" fill="#ffffff"/>
   <defs>
     <filter id="shadow" x="-10%" y="-15%" width="120%" height="140%">
@@ -14,7 +14,7 @@
     </marker>
   </defs>
 
-  <text x="48" y="45" font-size="13" font-weight="700" letter-spacing="1.8" fill="#087f72">ARCHITECTURE MONL</text>
+  <text x="48" y="45" font-size="13" font-weight="700" letter-spacing="1.8" fill="#087f72">ARCHITECTURE MONL-COMPILER</text>
   <text x="48" y="78" font-size="25" font-weight="750" fill="#172033">Une source de vérité, deux productions, une vérification finale</text>
   <text x="48" y="104" font-size="14" fill="#5f6b7a">Le backend reste déterministe. L'IA intervient uniquement après le contrat, pour l'interface.</text>
 

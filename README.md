@@ -1,22 +1,22 @@
-# MonL
+# monl-compiler
 
 **Un compilateur qui transforme une spécification déclarative en backend complet, déterministe et sûr.**
 
-[![CI](https://github.com/Bodichane/MonL/actions/workflows/ci.yml/badge.svg)](https://github.com/Bodichane/MonL/actions/workflows/ci.yml)
+[![CI](https://github.com/Bodichane/monl-compiler/actions/workflows/ci.yml/badge.svg)](https://github.com/Bodichane/monl-compiler/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/badge/version-0.9.0--beta.5-blue)](CHANGELOG.md)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
 [![Tests](https://img.shields.io/badge/tests-756-brightgreen)](tests/)
 [![Couverture](https://img.shields.io/badge/couverture-88%25-brightgreen)](#qualité-et-vérification)
 [![Licence](https://img.shields.io/badge/licence-propriétaire-lightgrey)](LICENSE)
 
-On décrit l'intention d'une application dans un DSL dédié ; MonL en génère la base
+On décrit l'intention d'une application dans un DSL dédié ; monl-compiler en génère la base
 de données, l'API REST, l'authentification et le contrôle d'accès — puis produit un
 contrat que le frontend doit respecter. **La spécification est l'unique source de
 vérité** : on ne maintient pas le code d'infrastructure à la main.
 
 Un dialogue guidé aide à rédiger cette spécification sans connaître la syntaxe.
 Son mode express demande seulement le type de site, son nom et une phrase de
-description ; MonL prépare ensuite la structure, les données de démonstration et
+description ; monl-compiler prépare ensuite la structure, les données de démonstration et
 un brief éditorial complet. Le seul recours à l'IA se situe au bout de la chaîne,
 pour construire le frontend à partir du contrat garanti par le compilateur —
 **jamais** pour le backend, les permissions ni la logique métier.
@@ -26,7 +26,7 @@ pour construire le frontend à partir du contrat garanti par le compilateur —
 ## Sommaire
 
 - [Démarrage rapide](#démarrage-rapide)
-- [Pourquoi MonL ?](#pourquoi-monl-)
+- [Pourquoi monl-compiler ?](#pourquoi-monl-compiler-)
 - [Architecture](#architecture)
 - [Commandes](#commandes)
 - [La spécification](#la-spécification)
@@ -65,9 +65,9 @@ ou le fichier HTML obtenu avec `monl import`.
 Le parcours complet, interface comprise, est détaillé dans
 [QUICKSTART.md](QUICKSTART.md).
 
-## Pourquoi MonL ?
+## Pourquoi monl-compiler ?
 
-| | Framework classique<br><sub>Django, Rails, FastAPI…</sub> | Générateur d'IA<br><sub>v0, Bolt, assistants de code</sub> | **MonL** |
+| | Framework classique<br><sub>Django, Rails, FastAPI…</sub> | Générateur d'IA<br><sub>v0, Bolt, assistants de code</sub> | **monl-compiler** |
 |---|---|---|---|
 | **Code d'infrastructure** | écrit et maintenu à la main | produit une fois, à reprendre ensuite | **dérivé de la spec, jamais maintenu** |
 | **Deux compilations identiques** | sans objet | résultat différent à chaque fois | **le même backend, à l'octet près** |
@@ -149,7 +149,7 @@ une protection qui n'existe pas.
 <br>
 
 La règle nomme le champ qui porte le **montant** ; l'entité qui le contient est
-celle qu'on encaisse. MonL en dérive deux colonnes de suivi et deux routes —
+celle qu'on encaisse. monl-compiler en dérive deux colonnes de suivi et deux routes —
 `POST /commande/{id}/paiement`, qui ouvre une session de règlement, et
 `POST /paiement/webhook`, qui reçoit la confirmation du prestataire.
 
@@ -187,7 +187,7 @@ appel HTTP.
 
 **Cinq spécifications de référence**, commentées, dans
 [`exemples/`](exemples/) : un fichier `.ml` d'une page par application —
-portfolio, boutique, réseau social, kanban, classement — dont MonL dérive tout
+portfolio, boutique, réseau social, kanban, classement — dont monl-compiler dérive tout
 le reste.
 
 <details>
@@ -195,7 +195,7 @@ le reste.
 
 <br>
 
-MonL n'a **aucun** avis sur le visuel — ni palette, ni typographie, ni grille.
+monl-compiler n'a **aucun** avis sur le visuel — ni palette, ni typographie, ni grille.
 Il ne sait pas à quoi un projet doit ressembler ; il ne connaît que des noms de
 tables. La direction est celle que l'auteur formule dans le dialogue (registre
 visuel, place des images) : elle voyage dans le brief, et c'est l'IA
@@ -355,7 +355,7 @@ python3 -m pytest tests/ -q --cov=src --cov-report=term-missing
 ruff check src tests
 ```
 
-MonL ne dépend d'aucun modèle d'IA et ne fait aucun appel réseau :
+monl-compiler ne dépend d'aucun modèle d'IA et ne fait aucun appel réseau :
 dialogue, spécification et génération du backend sont entièrement déterministes.
 Les blocs `custom` produisent des coquilles vides sûres dans `sandbox_ai.py`, dont
 la logique métier est écrite à la main — aucune génération de code n'est
@@ -388,11 +388,11 @@ automatisée.
 
 Dépôt **public**, logiciel **propriétaire** — tous droits réservés
 ([LICENSE](LICENSE)). Le code est visible pour lecture et évaluation ; il n'est
-pas sous licence libre. Les applications *produites* par MonL à partir de vos
+pas sous licence libre. Les applications *produites* par monl-compiler à partir de vos
 propres spécifications vous appartiennent.
 
 Les rapports de bug et remarques sont bienvenus dans les *issues*.
 
 ---
 
-**MonL 0.9.0-beta.5**
+**monl-compiler 0.9.0-beta.5**
