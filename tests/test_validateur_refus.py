@@ -971,6 +971,21 @@ def test_writable_after_payment_refuse_un_champ_ecrit_par_le_serveur(
     assert regle_serveur.split()[2] in str(refus.value)
 
 
+def test_writable_after_payment_refuse_un_champ_somme():
+    """`sumOf` manquait à la liste des familles serveur ci-dessus : une entité
+    'payable' dont le montant est 'sumOf' (le panier à plusieurs lignes,
+    seule forme éprouvée depuis le point 82 pour un total encaissable)
+    pouvait déclarer 'writableAfterPayment' sur CE MÊME champ. La route
+    dédiée qui en résulte écrit le total en base sans recalcul ET sans le
+    verrou de paiement — exactement la faille des points 77/82 rouverte par
+    une combinaison de règles que rien ne signalait à la compilation."""
+    with pytest.raises(ASTValidationError) as refus:
+        _valide(_apres_paiement(
+            "rule Commande.total writableAfterPayment Superviseur"))
+    assert "writableAfterPayment" in str(refus.value)
+    assert "sumOf" in str(refus.value)
+
+
 def test_writable_after_payment_refuse_le_proprietaire():
     with pytest.raises(ASTValidationError) as refus:
         _valide(_apres_paiement(

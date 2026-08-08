@@ -954,6 +954,7 @@ class MonlAST:
         regles_serveur = (
             ("generated", self.generated_fields),
             ("derivedFrom", self.derived_fields),
+            ("sumOf", self.aggregated_fields),
             ("timestamp", self.timestamp_fields),
             ("numbered", self.numbered_fields),
         )
