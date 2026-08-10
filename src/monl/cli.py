@@ -134,14 +134,17 @@ def compile_project(spec_path, project_dir, base_dir=None, save_state=True):
     POINT 103 : `base_dir` et `save_state` existent pour `monl diff`, qui
     compile dans un dossier JETABLE. Les assets déclarés vivent, eux, dans le
     vrai projet — les chercher dans le dossier temporaire ferait échouer la
-    compilation pour une raison qui n'existe pas. Et un dry-run n'a pas à
-    déposer d'état. Les deux paramètres gardent le comportement historique par
-    défaut : aucun appelant existant ne change."""
+    compilation pour une raison qui n'existe pas. Hors `diff`, le projet de
+    référence est par défaut le dossier de la spec, pas le dossier de sortie :
+    c'est ce qui permet à `monl compile spec.ml --output build/` de fonctionner
+    avec des assets voisins de la spec. Un dry-run, lui, n'a pas à déposer
+    d'état."""
     from .main import compile_monl
     compile_monl(spec_path, output_dir=project_dir)
 
     raw = parse_monl_file(spec_path)
-    normalized = MonlAST(raw, base_dir=base_dir or project_dir).validate_and_audit()
+    reference_dir = base_dir or os.path.dirname(os.path.abspath(spec_path))
+    normalized = MonlAST(raw, base_dir=reference_dir).validate_and_audit()
     generator = MonlSecureGenerator(normalized, output_dir=project_dir)
     contract = generate_frontend_contract(normalized, generator, project_dir)
 

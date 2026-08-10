@@ -3,7 +3,7 @@
 **Un compilateur qui transforme une spécification déclarative en backend complet, déterministe et sûr.**
 
 [![CI](https://github.com/Bodichane/monl-compiler/actions/workflows/ci.yml/badge.svg)](https://github.com/Bodichane/monl-compiler/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.9.0--beta.5-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.9.0--beta.6-blue)](CHANGELOG.md)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
 [![Tests](https://img.shields.io/badge/tests-756-brightgreen)](tests/)
 [![Couverture](https://img.shields.io/badge/couverture-88%25-brightgreen)](#qualité-et-vérification)
@@ -345,7 +345,7 @@ serveur. Toute exception ou tout appel hors contrat bloque le lancement
 | **Audit offensif** | Usurpation de rôle, JWT forgé, élévation de privilège |
 | **Frontières d'architecture** | Six contrats d'import vérifiés par un test, pas par la mémoire |
 | **Lint** | `ruff check src tests` — zéro signalement, exceptions justifiées dans `pyproject.toml` |
-| **CI** | Python 3.10 et 3.12 à chaque push ; `main` protégée par ces vérifications |
+| **CI** | Python 3.10, 3.12 et 3.14 à chaque push ; `main` protégée par ces vérifications |
 
 ```bash
 python3 -m pytest tests/ -q --cov=src --cov-report=term-missing
@@ -395,4 +395,4 @@ Les rapports de bug et remarques sont bienvenus dans les *issues*.
 
 ---
 
-**monl-compiler 0.9.0-beta.5**
+**monl-compiler 0.9.0-beta.6**

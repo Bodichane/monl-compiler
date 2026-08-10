@@ -9,11 +9,11 @@
 ## Mise en place
 
 ```bash
-pipx install -e .        # ou : pip install -e . --break-system-packages
+pipx install -e ".[dev]" # ou : pip install -e ".[dev]" --break-system-packages
 python3 -m pytest tests/ -q
 ```
 
-La suite dure environ deux minutes : elle démarre de vrais serveurs. C'est
+La suite dure environ six minutes : elle démarre de vrais serveurs. C'est
 délibéré, voir ci-dessous.
 
 ## La règle non négociable
@@ -41,8 +41,8 @@ python3 -m pytest tests/ -q --cov=src --cov-report=term-missing
 python3 -m pytest tests/test_architecture.py -q        # frontières d'architecture
 ```
 
-La CI rejoue tout cela sur Python 3.10 et 3.12, et `main` est protégée : rien ne
-fusionne sans que les deux vérifications passent.
+La CI rejoue tout cela sur Python 3.10, 3.12 et 3.14, et `main` est protégée :
+rien ne fusionne sans que les trois vérifications passent.
 
 ## Les règles du dépôt
 

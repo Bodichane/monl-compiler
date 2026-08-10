@@ -1,5 +1,17 @@
 # Journal des modifications
 
+## 0.9.0-beta.6 — Capacités métier et contrôle d'accès approfondi
+
+Cette version complète le noyau déclaratif avec les capacités ajoutées depuis
+la bêta 5 : calculs serveur (`derivedFrom`, `sumOf`), propriété transitive,
+décompte de stock, horodatage et numérotation serveur, contraintes de champs,
+valeurs énumérées, profils obligatoires, verrouillage après paiement et
+outillage de retouche du frontend. Le contrôle d'accès SQL typé et ses
+invariants de sécurité sont également consolidés.
+
+La version du paquet, du contrat de suivi (`monl.json`) et de la documentation
+est désormais alignée sur `0.9.0-beta.6`.
+
 ## 0.9.0-beta.5 — N'importe quelle clé API, n'importe quel agent
 
 **Le compilateur reste inchangé.** Aucune règle, aucune route générée, aucun
