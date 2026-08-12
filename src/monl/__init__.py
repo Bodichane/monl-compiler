@@ -18,4 +18,4 @@ installé, sans préparatif.
 # preuve, la recompilation en est une. Mais un numéro faux est pire qu'un
 # numéro secondaire — il est désormais enregistré dans monl.json, pour que
 # l'avertissement du point 81 puisse dire AVEC QUOI le projet a été construit.
-__version__ = "0.9.0-beta.6"
+__version__ = "0.9.0-beta.7"

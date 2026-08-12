@@ -1,5 +1,15 @@
 # État bêta et route vers la GA
 
+## Ce qu'apporte la bêta 0.9.0-beta.7
+
+Le backend généré est **déployable** (CORS, healthchecks, journaux structurés,
+conteneur), parle **PostgreSQL** autant que SQLite, sait **migrer** un schéma
+non additif sans perdre de données, accepte un **fichier téléversé**, sait
+**envoyer un message**, sait **filtrer et trier** côté serveur sans exposer de
+langage de requête, et porte une **authentification complète** (verrouillage par
+compte, réinitialisation, jetons de rafraîchissement rotatifs, TOTP). Points 117
+à 124 de `docs/design_decisions.md`.
+
 ## Ce que corrige la bêta 0.9.0-beta.6
 
 Cette version ajoute les capacités métier et le contrôle d'accès approfondi

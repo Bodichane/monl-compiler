@@ -1,6 +1,16 @@
 # Journal des modifications
 
-## Après 0.9.0-beta.6 — Stabilisation du compilateur
+## 0.9.0-beta.7 — Prêt production
+
+Deux familles de chantiers menées jusqu'au bout : ce qui bloquait la mise en
+ligne (déploiement, couche données, migrations) et ce que le backend généré ne
+savait pas faire (téléversement, courriel, filtrage/tri, authentification
+complète). Huit points de conception, 117 à 124, chacun éprouvé contre un vrai
+serveur — et un vrai PostgreSQL — avant d'être intégré.
+
+891 tests, `ruff` propre, et les golden tests inchangés pour toute spec qui ne
+demande pas les nouvelles briques : rien de tout cela ne modifie un projet
+existant qui ne le réclame pas.
 
 - Les fonctions de bibliothèque lèvent désormais une famille commune
   `MonlError` ; la conversion en code de sortie reste à la frontière CLI.

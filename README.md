@@ -407,4 +407,4 @@ Les rapports de bug et remarques sont bienvenus dans les *issues*.
 
 ---
 
-**monl-compiler 0.9.0-beta.6**
+**monl-compiler 0.9.0-beta.7**

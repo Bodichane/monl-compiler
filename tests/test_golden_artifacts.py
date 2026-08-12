@@ -47,7 +47,10 @@ GOLDENS = {
     # Revue A2 : manage.py NOMME le remède au lieu de laisser filer une
     # trace quand la base attend une migration. app.py ne bouge PAS —
     # la preuve que le correctif ne touche que la commande d'administration.
-    "monl.json": "45923f5465e1120ee9cfdebe1246182354a99cd7b8bbffc2f2969cfe16e9850c",
+    # 0.9.0-beta.7 : seul monl.json bouge, parce qu'il SCELLE la version du
+    # compilateur. Tous les autres artefacts restent identiques a l'octet —
+    # la preuve que la montee de version ne change rien a ce qui est genere.
+    "monl.json": "9a9e7051ec83536623d8cc91d3702f4dd93b8dbaa2df107e3fabb9269d5f19ea",
 }
 
 
