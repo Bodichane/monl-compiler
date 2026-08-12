@@ -38,7 +38,9 @@ class SqlSchemaMixin:
         # chaque requête authentifiée. Un jeton expiré est de toute façon
         # rejeté par la vérification de signature : le garder en liste noire
         # n'apporte rien.
-        sql_lines.append("    expires_at REAL")
+        # DOUBLE PRECISION est compris par SQLite (même affinité réelle) et
+        # porte un type natif explicite côté PostgreSQL.
+        sql_lines.append("    expires_at DOUBLE PRECISION")
         sql_lines.append(");\n")
 
         # AJOUT (roadmap long terme, rate limiting multi-workers) : la
@@ -52,7 +54,7 @@ class SqlSchemaMixin:
         sql_lines.append("CREATE TABLE IF NOT EXISTS _monl_rate_limit (")
         sql_lines.append("    bucket VARCHAR(32) NOT NULL,")
         sql_lines.append("    client_ip VARCHAR(64) NOT NULL,")
-        sql_lines.append("    attempted_at REAL NOT NULL")
+        sql_lines.append("    attempted_at DOUBLE PRECISION NOT NULL")
         sql_lines.append(");")
         sql_lines.append('CREATE INDEX IF NOT EXISTS idx_rate_limit_lookup ON _monl_rate_limit (bucket, client_ip, attempted_at);\n')
 
@@ -136,4 +138,3 @@ class SqlSchemaMixin:
             sql_lines[-1] = sql_lines[-1].rstrip(",")
             sql_lines.append(");\n")
         return "\n".join(sql_lines)
-

@@ -1139,7 +1139,11 @@ class MonlSecureGenerator(
     def _map_type_to_sql(self, type_str):
         mapping = {
             "String": "VARCHAR(255)", "Text": "TEXT", "Integer": "INTEGER",
-            "Float": "REAL", "Boolean": "BOOLEAN", "Date": "DATE",
+            # Float est un nombre binaire, pas une monnaie : DOUBLE PRECISION
+            # est le type partagé SQLite/PostgreSQL. Money reste NUMERIC à
+            # échelle fixe ci-dessous, car ses valeurs partent chez Stripe et
+            # un flottant binaire n'est pas un type d'argent.
+            "Float": "DOUBLE PRECISION", "Boolean": "BOOLEAN", "Date": "DATE",
             "DateTime": "TIMESTAMP", "Email": "VARCHAR(255)", "UUID": "UUID",
             "Money": "NUMERIC(10, 2)",
             # Brique 13 (point 83) : 'Image' stocke un CHEMIN relatif au projet,

@@ -47,6 +47,34 @@
   Communauté livraient une modération à sens unique, le modérateur perdant de vue
   ce qu'il venait de masquer.
 
+### La couche données choisit son dialecte au démarrage (point 119)
+
+- **PostgreSQL à côté de SQLite.** `MONL_DATABASE_URL` absente : SQLite,
+  comportement strictement inchangé. `postgresql://` : psycopg v3. Le choix est
+  fait au DÉMARRAGE et non à la compilation, pour que le même artefact scellé
+  tourne en développement et en production sans être recompilé. `psycopg` est
+  une dépendance optionnelle (`.[postgres]`), et son absence avec un DSN est
+  nommée explicitement.
+- **La traduction `?` → `%s` est sûre par le point 108** : aucune valeur client
+  n'entre jamais dans le texte d'une requête, donc le texte traduit ne contient
+  que du SQL fixe. Sans cet invariant, la traduction serait une faille.
+- `AUTOINCREMENT` devient une identité PostgreSQL, `PRAGMA table_info` devient
+  `information_schema`, `lastrowid` devient `RETURNING id`, `Float` devient
+  `DOUBLE PRECISION`. `Money` reste `NUMERIC(10, 2)` : un flottant binaire
+  n'est pas un type d'argent.
+- **Les erreurs d'intégrité sont lues structurées** (SQLSTATE `23505`/`23503`
+  et nom de contrainte) au lieu du message SQLite, qui n'existe pas sur
+  PostgreSQL. Les trois 409 restent distincts.
+- La CI lance un vrai service PostgreSQL ; les tests se sautent proprement sans
+  `MONL_TEST_DATABASE_URL`.
+- **Deux défauts trouvés en revue et corrigés.** Le bloc d'intégrité ne se
+  terminait plus par un `raise` : une erreur d'une quatrième espèce en sortait
+  sans rien lever et la route allait jusqu'à `return success` après un
+  `rollback` (mesuré : 500 `UnboundLocalError` sur une référence `numbered` en
+  double). Et `manage.py`, important `app` en tête de fichier, ne fonctionnait
+  plus depuis un autre dossier — or c'est le seul chemin pour créer un compte à
+  rôle privilégié.
+
 ### Le backend généré est déployable (point 118)
 
 - **CORS opt-in.** `MONL_CORS_ORIGINS` liste des origines explicites ; absente,

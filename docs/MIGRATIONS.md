@@ -16,7 +16,8 @@ Au démarrage du serveur, après avoir exécuté `schema.sql`, `init_db()`
 rattrape cet écart :
 
 1. pour chaque table métier, il lit les colonnes réellement présentes
-   (`PRAGMA table_info`) ;
+   (`PRAGMA table_info` sur SQLite, `information_schema.columns` sur
+   PostgreSQL) ;
 2. il les compare aux colonnes attendues par la spec courante (constante
    `_EXPECTED_COLUMNS`, figée dans `app.py` à la compilation) ;
 3. pour chaque colonne manquante, il exécute
@@ -45,7 +46,8 @@ entity Note
     priority: Integer
 ```
 
-En recompilant **dans le même dossier** (donc en conservant `app.db`) et en
+En recompilant **dans le même dossier** (donc en conservant `app.db` pour
+SQLite, ou la même base PostgreSQL indiquée par `MONL_DATABASE_URL`) et en
 redémarrant, les colonnes `body` et `priority` sont ajoutées, les notes
 existantes sont intactes (leur `title` est préservé, `body`/`priority`
 valent `NULL`), et les nouvelles notes peuvent renseigner les nouveaux

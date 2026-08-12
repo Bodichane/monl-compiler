@@ -44,7 +44,6 @@ import hashlib
 import os
 import re
 import secrets
-import sqlite3
 import sys
 
 DB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app.db")
@@ -88,19 +87,28 @@ def _connect():
     Le premier compte doit pouvoir être provisionné avant le tout premier
     lancement du serveur : sans cela, une application sans rôle en inscription
     libre n'aurait aucun moyen d'obtenir son premier utilisateur.
+
+    A1 : la connexion vient du app.py généré, seul porteur du choix de
+    dialecte (SQLite ou PostgreSQL selon MONL_DATABASE_URL). Sans ce partage,
+    manage.py écrirait dans une autre base que '/register' et '/login'.
+    L'import est fait ICI et non en tête de fichier : app.py lit '.jwt_secret'
+    et 'schema.sql' relativement au dossier courant, donc il ne peut être
+    importé qu'une fois placé dans le dossier du projet. Importé en tête,
+    manage.py cessait de fonctionner depuis n'importe quel autre dossier —
+    or c'est le SEUL chemin pour créer un compte à rôle privilégié.
     """
-    schema_path = os.path.join(os.path.dirname(DB_FILE), "schema.sql")
-    fresh = not os.path.exists(DB_FILE)
-    conn = sqlite3.connect(DB_FILE, timeout=10.0)
-    if fresh:
-        if not os.path.exists(schema_path):
-            sys.exit("Ni 'app.db' ni 'schema.sql' : lancez d'abord la compilation monl.")
-        with open(schema_path, encoding="utf-8") as f:
-            conn.executescript(f.read())
-        conn.commit()
-        print("🗄️  Base initialisée depuis schema.sql.")
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+    dossier = os.path.dirname(DB_FILE)
+    courant = os.getcwd()
+    try:
+        os.chdir(dossier)
+        if dossier not in sys.path:
+            sys.path.insert(0, dossier)
+        from app import _connect as _database_connect
+        from app import init_db as _init_db
+        _init_db()
+        return _database_connect()
+    finally:
+        os.chdir(courant)
 
 
 def _ask_password():

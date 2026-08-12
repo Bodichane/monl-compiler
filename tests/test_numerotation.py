@@ -410,3 +410,67 @@ def test_les_enregistrements_anterieurs_restent_sans_numero(tmp_path):
     assert refs[-1].endswith("0001")
     assert refs[0] != refs[-1]
     assert "sans numéro" in journal or refs[0] == ""
+
+
+def test_un_numero_en_double_rend_409_et_jamais_un_succes(carnet):
+    """CHANTIER A1, défaut trouvé en revue. Le classement des erreurs
+    d'intégrité par SQLSTATE avait laissé l'`except` se terminer SANS `raise` :
+    une intégrité violée d'une espèce non nommée sortait du bloc sans rien
+    lever, et la route continuait jusqu'à son `return {'status': 'success'}` —
+    après un `rollback`. Mesuré ici : la référence en double rendait 500
+    (`UnboundLocalError` sur `row_id`) au lieu d'un 409, et le même trou aurait
+    annoncé écrit ce qui venait d'être défait dès que `row_id` était déjà lié.
+
+    Le compteur remis à zéro n'est pas une hypothèse d'école : c'est ce que
+    produit la restauration d'une sauvegarde partielle. Un `except` qui
+    n'aboutit pas à un `raise` est un `except` qui ment."""
+    base, jeton, dossier = carnet
+    code, _ = _appel(base + "/commande", {"libelle": "premiere"}, jeton)
+    assert code == 200
+
+    conn = sqlite3.connect(str(dossier / "app.db"))
+    conn.execute("UPDATE _monl_sequences SET dernier = 0")
+    conn.commit()
+    conn.close()
+
+    code, reponse = _appel(base + "/commande", {"libelle": "doublon"}, jeton)
+    assert code == 409, f"attendu 409, reçu {code} : {reponse}"
+    assert "status" not in reponse or reponse.get("status") != "success"
+
+    conn = sqlite3.connect(str(dossier / "app.db"))
+    lignes = conn.execute("SELECT COUNT(*) FROM commande").fetchone()[0]
+    conn.close()
+    assert lignes == 1, "l'écriture refusée ne doit rien avoir laissé en base"
+
+
+def test_aucun_except_dintegrite_ne_se_termine_sans_raise(tmp_path):
+    """Le témoin structurel du test précédent : il vaut pour TOUTES les routes,
+    pas seulement celle que le banc exerce. Un bloc d'intégrité qui ne finit pas
+    par un `raise` laisse passer une écriture annulée pour un succès."""
+    (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
+    compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
+    lignes = (tmp_path / "app.py").read_text(encoding="utf-8").splitlines()
+
+    # Le bloc d'intégrité d'`init_db` est EXCLU, et c'est délibéré : sur une
+    # base contenant déjà des doublons, il NOMME le champ et laisse le serveur
+    # tourner (point 85). Lui imposer un `raise` immobiliserait un projet
+    # existant au démarrage. Le témoin ne porte donc que sur les routes, d'où
+    # le découpage au premier décorateur.
+    premiere_route = next(i for i, ligne in enumerate(lignes)
+                          if ligne.startswith("@app."))
+    blocs = [i for i, ligne in enumerate(lignes)
+             if "except _DATABASE_INTEGRITY_ERRORS" in ligne and i > premiere_route]
+    assert blocs, "aucun bloc d'intégrité généré : le témoin ne prouverait rien"
+    for depart in blocs:
+        indentation = len(lignes[depart]) - len(lignes[depart].lstrip())
+        derniere = None
+        for ligne in lignes[depart + 1:]:
+            if not ligne.strip():
+                continue
+            if len(ligne) - len(ligne.lstrip()) <= indentation:
+                break
+            derniere = ligne.strip()
+        assert derniere is not None
+        assert derniere.startswith("raise") or derniere.endswith("))"), (
+            f"le bloc d'intégrité ligne {depart + 1} se termine par {derniere!r} : "
+            "il doit aboutir à un raise")

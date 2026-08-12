@@ -34,7 +34,8 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [115](#115-brique-26--monl-content-exportimport-le-contenu-en-masse) Brique 26 : `monl content export`/`import`, le contenu en masse ·
 [116](#116-briques-27-et-28--publicwhen-et-onceper-livrées-sans-leurs-garde-fous) Briques 27 et 28 : `publicWhen` et `oncePer`, livrées sans leurs garde-fous ·
 [117](#117-la-colonne-du-compteur-avait-deux-sources-et-lordre-des-relations-tranchait) La colonne du compteur avait deux sources, et l'ordre des relations tranchait ·
-[118](#118-le-backend-savait-tout-faire-sauf-se-déployer) Le backend savait tout faire sauf se déployer
+[118](#118-le-backend-savait-tout-faire-sauf-se-déployer) Le backend savait tout faire sauf se déployer ·
+[119](#119-la-couche-données-choisit-son-dialecte-au-démarrage) La couche données choisit son dialecte au démarrage
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -7527,3 +7528,89 @@ modifie ce que le frontend doit dessiner. C'est la première fois que la
 réponse est négative après vérification plutôt que par omission.
 
 Éprouvé par `tests/test_deploiement.py` (9 tests contre de vrais serveurs).
+
+---
+
+## 119. La couche données choisit son dialecte au démarrage
+
+Le backend généré devait pouvoir sortir du mono-fichier SQLite sans faire
+diverger l'artefact scellé entre développement et production. Le choix est
+donc **au démarrage**, par `MONL_DATABASE_URL`, et non à la compilation :
+variable absente = SQLite strictement comme avant; `postgresql://` ou
+`postgres://` = psycopg v3. `psycopg` est une dépendance optionnelle (`.[postgres]`)
+et une absence avec un DSN est nommée explicitement au démarrage.
+
+### Une seule source de SQL, deux paramétrages
+
+Le générateur continue d'émettre `?` et les paramètres dans un tuple. La
+connexion PostgreSQL traduit uniquement le marqueur en `%s`. Cette réécriture
+est sûre pour la raison du point 108 : aucune valeur client n'entre dans le
+texte d'une requête, `sql.py` n'offre pas d'API pour le faire, et les tests
+`test_sql_emission.py` et `test_invariants_securite.py` l'interdisent. Le texte
+reste donc du SQL fixe; la traduction ne peut déplacer aucune valeur.
+
+Le `schema.sql` conservé pour SQLite est adapté au moment où PostgreSQL est
+connu : `INTEGER PRIMARY KEY AUTOINCREMENT` devient une identité PostgreSQL.
+`DOUBLE PRECISION` est utilisé pour les nombres flottants. `Money` reste
+`NUMERIC(10, 2)` : les montants partent chez Stripe et un flottant binaire
+n'est pas un type d'argent.
+
+### Les erreurs d'intégrité sont des données structurées
+
+Les routes ne déduisent plus la cause d'un 409 PostgreSQL depuis un message
+humain. Elles lisent SQLSTATE `23505`/`23503` et, pour `23505`, le nom de
+contrainte psycopg (`idx_once_per_…` ou index de champ unique). SQLite conserve
+son repli historique. Les trois réponses restent distinctes : `oncePer`,
+`unique`, et clé étrangère invalide.
+
+Le compteur `_monl_sequences` reste dans la transaction de création; le
+verrou de ligne PostgreSQL et l'index unique du champ numéroté sont éprouvés
+par deux créations simultanées. Le stock conserve une seule instruction
+conditionnelle `UPDATE`, qui départage deux commandes concurrentes sans lecture
+préalable.
+
+### Ce que le frontend ne voit pas
+
+`_contract_signature` n'a pas à changer : le choix de moteur, les placeholders,
+les types SQL, les migrations et les erreurs internes ne modifient ni routes,
+ni champs, ni accès, ni forme de réponse. Les empreintes de `app.py`,
+`schema.sql`, `manage.py` et `monl.json` changent parce que le backend généré
+change; `frontend_contract.json` et `FRONTEND_PROMPT.md` restent identiques.
+
+Éprouvé contre un vrai serveur par `tests/test_postgresql.py` (6 cas, sautés
+proprement sans `MONL_TEST_DATABASE_URL`), et par la suite SQLite complète.
+
+### Deux défauts trouvés en revue, et ce qu'ils apprennent
+
+Le classement structuré des erreurs d'intégrité a été écrit en trois branches
+nommées — `oncePer`, `unique`, clé étrangère — et le `raise` inconditionnel qui
+terminait le bloc a disparu avec elles. **Un `except` qui n'aboutit pas à un
+`raise` est un `except` qui ment** : une intégrité violée d'une quatrième
+espèce (NOT NULL, CHECK, ou un index unique que la spec ne DÉCLARE pas)
+sortait du bloc sans rien lever, et la route continuait jusqu'à son
+`return {'status': 'success'}` — après un `rollback`.
+
+Le cas est atteignable sans rien forcer : la brique 22 pose un index unique
+sans qu'on écrive `unique`, donc `uniques_ici` est vide et la branche `unique`
+n'était même pas émise. Mesuré sur un vrai serveur, compteur remis à zéro comme
+le ferait la restauration d'une sauvegarde partielle : **500
+`UnboundLocalError` sur `row_id`** au lieu d'un 409. Et là où `row_id` est déjà
+lié — une intégrité levée par une instruction plus tardive du même `try`,
+recalcul d'agrégat ou décompte — la route aurait annoncé écrit ce qui venait
+d'être défait. C'est la faute la plus grave possible pour une couche données :
+mentir sur ce qui est en base.
+
+Le second défaut est d'une autre famille. `manage.py` réutilise désormais
+`_connect()` du `app.py` généré — décision juste, c'est lui qui porte le choix
+de dialecte, et deux connexions divergentes créeraient des comptes dans une
+autre base que `/register`. Mais l'import était en TÊTE de fichier, or `app.py`
+lit `.jwt_secret` et `schema.sql` relativement au dossier courant : `manage.py`
+cessait de fonctionner depuis n'importe quel autre dossier. **C'est le SEUL
+chemin pour créer un compte à rôle privilégié** (un rôle sans `selfRegister`
+n'est inscriptible par aucune route), donc casser son usage depuis ailleurs
+casse le provisionnement. L'import vit maintenant dans `_connect()`, après le
+`chdir`. La leçon rejoint le point 105 : le dossier courant est un état, pas
+une constante.
+
+Aucun des deux ne se voyait en relisant le diff — le premier demandait de
+regarder le code GÉNÉRÉ, le second de lancer la commande depuis ailleurs.

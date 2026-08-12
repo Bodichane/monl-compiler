@@ -326,7 +326,7 @@ class RoutesMixin:
             value_exprs.append(f"data.{_client_fk}")
         columns = ", ".join(f'"{c}"' for c in insert_columns)
         placeholders = ", ".join(["?"] * len(insert_columns))
-        api_lines.append(f"    query = 'INSERT INTO \"{base_target.lower()}\" ({columns}) VALUES ({placeholders})'")
+        api_lines.append(f"    query = 'INSERT INTO \"{base_target.lower()}\" ({columns}) VALUES ({placeholders}) RETURNING id'")
         values_list = ", ".join(value_exprs)
         # CORRECTIF (bêta, intégrité transactionnelle) : l'insertion et
         # les effets 'increments'/'decrements' liés sont exécutés dans
@@ -340,7 +340,7 @@ class RoutesMixin:
         api_lines.append("    try:")
         api_lines += lignes_numerotation
         api_lines.append(f"        cursor.execute(query, ({values_list},))")
-        api_lines.append("        row_id = cursor.lastrowid")
+        api_lines.append("        row_id = cursor.fetchone()[0]")
         # AJOUT (brique 12, point 82) : le total du parent est recalculé
         # DANS la même transaction que l'insertion de la ligne. Un commit
         # séparé pourrait laisser une ligne créée et un total resté en
@@ -426,30 +426,52 @@ class RoutesMixin:
         uniques_ici = self._unique_fields(base_target)
         once_ici = [index for index in self._compute_once_per_indexes()
                     if index[0] == base_target.lower()]
-        api_lines.append("    except sqlite3.IntegrityError as _err:")
+        # A1 : le classement passe par SQLSTATE côté PostgreSQL et par le
+        # message historique côté SQLite. TROIS branches nommées, puis un
+        # `raise` INCONDITIONNEL — sans lui, une intégrité violée d'une
+        # quatrième espèce (NOT NULL, CHECK, un index unique que la spec ne
+        # déclare pas) sort de l'`except` sans rien lever : la route continue
+        # jusqu'au `return {'status': 'success'}` APRÈS un rollback, et
+        # annonce comme écrit ce qui vient d'être défait. Mesuré : une
+        # référence `numbered` en double rendait 500 (UnboundLocalError sur
+        # `row_id`) au lieu d'un 409, et le cas où `row_id` est déjà lié
+        # aurait rendu un faux succès. Un `except` qui n'aboutit pas à un
+        # `raise` est un `except` qui ment.
+        once_names = tuple(index[2] for index in once_ici)
+        once_signatures = tuple(
+            f"{table}.{col}" for table, columns, _index in once_ici for col in columns)
+        api_lines.append("    except _DATABASE_INTEGRITY_ERRORS as _err:")
         api_lines.append("        conn.rollback(); conn.close()")
-        if uniques_ici or once_ici:
-            api_lines.append("        if 'UNIQUE constraint failed' in str(_err):")
-            for table, columns, _index in once_ici:
-                signature = ", ".join(f"{table}.{col}" for col in columns)
-                api_lines.append(f"            if {signature!r} in str(_err):")
-                api_lines.append("                raise HTTPException(status_code=409, detail=(")
-                api_lines.append(
-                    "                    'Cette action a déjà été effectuée pour cette "
-                    "cible par ce compte.'))")
+        api_lines.append(
+            f"        _integrity_kind = _database_integrity_kind(_err, {once_names!r}, "
+            f"{once_signatures!r})")
+        if once_ici:
+            api_lines.append("        if _integrity_kind == 'once_per':")
             api_lines.append("            raise HTTPException(status_code=409, detail=(")
-            if uniques_ici:
-                api_lines.append(
-                    f"                'Valeur déjà utilisée : {', '.join(uniques_ici)} "
-                    f"doit être unique.'))")
-            else:
-                api_lines.append(
-                    "                'Valeur déjà utilisée : cet enregistrement "
-                    "existe déjà.'))")
+            api_lines.append(
+                "                'Cette action a déjà été effectuée pour cette "
+                "cible par ce compte.'))")
+        # La branche `unique` est émise MÊME sans champ `unique` déclaré : la
+        # brique 22 (`numbered`) pose un index unique sans qu'on le déclare,
+        # et le point 85 en pose un par `unique`. Ne l'émettre que sur la
+        # seconde laissait la première sans réponse.
+        api_lines.append("        if _integrity_kind == 'unique':")
+        api_lines.append("            raise HTTPException(status_code=409, detail=(")
+        if uniques_ici:
+            api_lines.append(
+                f"                'Valeur déjà utilisée : {', '.join(uniques_ici)} "
+                f"doit être unique.'))")
+        else:
+            api_lines.append(
+                "                'Valeur déjà utilisée : cet enregistrement "
+                "existe déjà.'))")
+        api_lines.append("        if _integrity_kind == 'foreign_key':")
+        api_lines.append("            raise HTTPException(status_code=409, detail=(")
+        api_lines.append("                'Référence invalide : un identifiant lié fourni ne correspond à aucun '")
+        api_lines.append("                'enregistrement existant.'))")
         api_lines.append("        raise HTTPException(status_code=409, detail=(")
-        api_lines.append("            'Référence invalide : un identifiant lié fourni ne correspond à aucun '")
-        api_lines.append("            'enregistrement existant.'")
-        api_lines.append("        ))")
+        api_lines.append("            \"Conflit d'intégrité en base : l'écriture a été annulée, \"")
+        api_lines.append("            'rien n\\'a été enregistré.'))")
         api_lines.append("    except Exception:")
         api_lines.append("        conn.rollback(); conn.close(); raise")
         api_lines.append("    conn.close()")
@@ -1077,7 +1099,7 @@ class RoutesMixin:
             api_lines.append("    try:")
             api_lines += [f"        {ligne}" for ligne in lignes_ecriture]
             api_lines.append("        conn.commit()")
-            api_lines.append("    except sqlite3.IntegrityError:")
+            api_lines.append("    except _DATABASE_INTEGRITY_ERRORS:")
             api_lines.append("        conn.rollback(); conn.close()")
             api_lines.append("        raise HTTPException(status_code=409, detail=(")
             api_lines.append(
@@ -1280,7 +1302,7 @@ class RoutesMixin:
                 f"WHERE id = ?', ({rendu['montant']}, {var}[{rendu['fk_index']}]))",
             ]
         api_lines.append("        conn.commit()")
-        api_lines.append("    except sqlite3.IntegrityError:")
+        api_lines.append("    except _DATABASE_INTEGRITY_ERRORS:")
         api_lines.append("        conn.rollback(); conn.close()")
         api_lines.append("        raise HTTPException(status_code=409, detail=(")
         api_lines.append("            \"Suppression impossible : cet enregistrement est encore référencé \"")
