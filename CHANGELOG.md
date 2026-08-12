@@ -47,6 +47,30 @@
   Communauté livraient une modération à sens unique, le modérateur perdant de vue
   ce qu'il venait de masquer.
 
+### Le backend généré est déployable (point 118)
+
+- **CORS opt-in.** `MONL_CORS_ORIGINS` liste des origines explicites ; absente,
+  aucun en-tête CORS n'est émis et le comportement est inchangé. L'origine `*`
+  fait échouer le démarrage : combinée aux identifiants, elle laisserait
+  n'importe quel site lire les réponses authentifiées d'un utilisateur connecté.
+  Les méthodes annoncées sont calculées depuis les routes réellement émises.
+- **Deux healthchecks.** `/health` ne touche pas la base (vivacité),
+  `/health/ready` exécute un `SELECT 1` et rend 503 si elle ne répond pas
+  (disponibilité). Les deux restent hors du contrat frontend.
+- **Journaux structurés.** `MONL_LOG_FORMAT=json` émet une ligne JSON par
+  requête. Aucun corps, aucun en-tête entrant, aucune query string n'y entre —
+  le corps de `/register` contient le mot de passe en clair. L'`X-Request-ID`
+  fourni n'est repris que s'il passe un motif étroit, sinon il est régénéré.
+- **`MONL_ENV=production` exige `MONL_JWT_SECRET`.** Le refus vaut même si un
+  `.jwt_secret` est présent : ce repli fait dépendre tous les jetons émis d'un
+  fichier qui ne suit pas l'image, donc perdu au premier redéploiement.
+- **`Dockerfile` et `.dockerignore` sont produits, jamais scellés.** Écrits
+  s'ils manquent, préservés ensuite, et hors des empreintes d'artefacts
+  protégés : adapter l'image est le cas normal d'un déploiement réel.
+- Éprouvé par `tests/test_deploiement.py` (9 tests) et par une construction
+  d'image réelle : conteneur refusant de démarrer sans secret, puis servant
+  inscription, connexion, création et lecture, secret absent de l'image.
+
 ## 0.9.0-beta.6 — Capacités métier et contrôle d'accès approfondi
 
 Cette version complète le noyau déclaratif avec les capacités ajoutées depuis

@@ -101,8 +101,15 @@ Par ordre de priorité :
    et fuzzing du parseur. Le découpage en package (bêta 3) a séparé les couches
    (`runtime`, `routes`, `schemas`, `sql_schema`) : c'est le préalable, chaque
    module pouvant migrer vers des templates indépendamment.
-3. **Prêt déploiement** : CORS configurable, logs structurés avec identifiant de
-   requête, healthchecks, conteneurisation, secrets via gestionnaire dédié.
+3. ~~**Prêt déploiement**~~ — **FAIT (point 118)** : CORS opt-in par
+   `MONL_CORS_ORIGINS` (`*` refusé au démarrage), logs JSON avec identifiant de
+   requête par `MONL_LOG_FORMAT=json`, healthchecks `/health` et
+   `/health/ready`, `Dockerfile`/`.dockerignore` produits et préservés, refus de
+   démarrer si `MONL_ENV=production` sans `MONL_JWT_SECRET`. Prouvé par une
+   construction d'image réelle. **Reste ouvert** : l'intégration à un
+   gestionnaire de secrets dédié (Vault, SSM) — le secret vient aujourd'hui de
+   l'environnement, ce qui est le contrat attendu par ces gestionnaires mais ne
+   les remplace pas.
 4. **Auth complète** : refresh tokens, réinitialisation de mot de passe,
    verrouillage de compte, vérification email (selon périmètre).
 5. **Gouvernance du DSL** : versionner la grammaire, garantir la

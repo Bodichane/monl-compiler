@@ -73,7 +73,7 @@ def test_contrat_correspond_aux_routes_reelles_de_app_py(tmp_path):
         real_routes.add((m.group(1).upper(), m.group(2)))
     # Routes hors périmètre du contrat métier (auth systématique + pages).
     infra = {("POST", "/register"), ("POST", "/login"), ("POST", "/logout"),
-             ("GET", "/")}
+             ("GET", "/"), ("GET", "/health"), ("GET", "/health/ready")}
     contract_routes = {(r["method"], r["path"]) for r in contract["routes"]}
     assert contract_routes == real_routes - infra, (
         "le contrat frontend a divergé des routes réellement générées")
@@ -609,7 +609,7 @@ def test_les_routes_de_paiement_sont_dans_le_contrat(tmp_path):
     real_routes = {(m.group(1).upper(), m.group(2)) for m in
                    re.finditer(r"@app\.(get|post|put|delete)\('([^']+)'", app_code)}
     infra = {("POST", "/register"), ("POST", "/login"), ("POST", "/logout"),
-             ("GET", "/")}
+             ("GET", "/"), ("GET", "/health"), ("GET", "/health/ready")}
     contract_routes = {(r["method"], r["path"]) for r in contract["routes"]}
     assert contract_routes == real_routes - infra
     assert ("POST", "/commande/{id}/paiement") in contract_routes

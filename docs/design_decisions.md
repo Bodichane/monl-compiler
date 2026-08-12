@@ -33,7 +33,8 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [114](#114-le-point-113-fermé-sur-les-deux-sites-et-un-trou-quil-avait-laissé) Point 113 adopté sur les deux sites, et son propre trou refermé ·
 [115](#115-brique-26--monl-content-exportimport-le-contenu-en-masse) Brique 26 : `monl content export`/`import`, le contenu en masse ·
 [116](#116-briques-27-et-28--publicwhen-et-onceper-livrées-sans-leurs-garde-fous) Briques 27 et 28 : `publicWhen` et `oncePer`, livrées sans leurs garde-fous ·
-[117](#117-la-colonne-du-compteur-avait-deux-sources-et-lordre-des-relations-tranchait) La colonne du compteur avait deux sources, et l'ordre des relations tranchait
+[117](#117-la-colonne-du-compteur-avait-deux-sources-et-lordre-des-relations-tranchait) La colonne du compteur avait deux sources, et l'ordre des relations tranchait ·
+[118](#118-le-backend-savait-tout-faire-sauf-se-déployer) Le backend savait tout faire sauf se déployer
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -7418,3 +7419,111 @@ exécutant.
 Éprouvé par `tests/test_colonne_compteur_independante_de_l_ordre.py` (les deux
 ordres donnent la même ligne en base) et deux assertions de catalogue dans
 `tests/test_app_templates.py`.
+
+---
+
+## 118. Le backend savait tout faire sauf se déployer
+
+Vingt-huit briques, un contrôle d'accès éprouvé contre un vrai serveur, une
+frontière d'émission SQL typée — et un `app.py` qu'on ne pouvait pas mettre en
+ligne. Il manquait quatre choses, aucune d'elles n'étant une brique du DSL :
+un frontend hébergé ailleurs ne pouvait pas appeler l'API (pas de CORS), un
+orchestrateur ne pouvait pas savoir si le service répondait (pas de
+healthcheck), un exploitant ne pouvait rien tirer des journaux (texte libre
+d'uvicorn), et rien n'empêchait de démarrer en production avec un secret JWT
+généré sur place — donc invalidé au prochain redémarrage, donc tous les jetons
+révoqués sans que personne l'ait demandé.
+
+Ces quatre manques ont un point commun : ils ne se voient pas en compilant, ni
+en lançant le serveur sur son poste. Ils ne se voient qu'en DÉPLOYANT.
+
+### CORS est opt-in, et `*` est refusé au démarrage
+
+`MONL_CORS_ORIGINS` liste des origines explicites, séparées par des virgules.
+Absente, **aucun en-tête CORS n'est émis** : le comportement d'avant ce point
+est strictement inchangé, et un backend monl reste par défaut inappelable
+depuis une autre origine.
+
+L'étoile est refusée, et le refus est un **arrêt au démarrage**, pas un
+avertissement. La raison n'est pas le purisme : le middleware émet
+`allow_credentials=True`, et « toutes les origines » plus « avec les
+identifiants » est la combinaison exacte qui laisse n'importe quel site lire
+les réponses authentifiées d'un utilisateur connecté. Un avertissement dans un
+journal que personne ne lit aurait laissé cette porte ouverte en production —
+même arbitrage qu'au point 92 sur les avertissements qui se trompent : un
+message qu'on apprend à ignorer ne protège de rien.
+
+Les méthodes annoncées sont **calculées depuis les routes réellement émises**
+(`_cors_methods`, generator/runtime.py) et non listées en dur. Une application
+qui n'a aucune route `Delete` n'annonce pas `DELETE` : le contrat CORS dit ce
+que le backend fait, comme le contrat frontend (points 76 et 79).
+
+### Deux healthchecks, et ils ne sont pas dans le contrat
+
+`/health` répond sans toucher à la base — c'est la VIVACITÉ, la question
+« le processus est-il vivant ? ». La faire dépendre de SQLite ferait
+redémarrer en boucle un service dont seule la base est momentanément
+indisponible. `/health/ready` exécute un `SELECT 1` — c'est la
+DISPONIBILITÉ, et elle rend 503 quand la base ne répond pas.
+
+Les deux sont `include_in_schema=False` et **absents du contrat frontend** :
+une IA d'interface n'a rien à dessiner avec elles. Elles rejoignent donc la
+liste `infra` de `tests/test_orchestrator.py` — délibérément, en la nommant,
+plutôt qu'en affaiblissant l'égalité stricte entre le contrat et les
+décorateurs réellement écrits dans `app.py`.
+
+### Les journaux structurés ne recopient rien
+
+`MONL_LOG_FORMAT=json` fait émettre une ligne JSON par requête : horodatage,
+méthode, chemin, code, durée, identifiant de requête. **Aucun corps, aucun
+en-tête entrant, aucune query string** n'y entre. Ce n'est pas une économie de
+place : le corps de `/register` et de `/login` contient le mot de passe en
+clair, et un journal est ce qui se recopie, s'archive et se donne à lire. Le
+test l'exige explicitement — il inscrit un compte avec un mot de passe témoin
+et vérifie qu'il n'apparaît nulle part.
+
+L'`X-Request-ID` fourni par l'appelant est REPRIS, mais seulement s'il passe
+un motif étroit (alphanumérique, points, tirets, 64 caractères au plus) ;
+sinon il est remplacé par une valeur tirée au hasard. Un identifiant de
+requête va dans une ligne de journal : accepter n'importe quoi laisserait
+écrire des sauts de ligne dans le journal, c'est-à-dire y fabriquer de fausses
+entrées.
+
+### Le refus de démarrer sans secret en production
+
+`MONL_ENV=production` sans `MONL_JWT_SECRET` **arrête le processus**, même
+quand un fichier `.jwt_secret` est présent dans le dossier — vérifié en réel,
+c'est le cas qui compte. Le repli sur `.jwt_secret` est correct en
+développement et faux en production : il fait dépendre la validité de tous les
+jetons émis d'un fichier qui ne suit pas l'image, donc perdu au premier
+redéploiement.
+
+### `Dockerfile` et `.dockerignore` : produits, jamais scellés
+
+La compilation les écrit s'ils n'existent pas, et **ne les touche plus
+ensuite**. Ils rejoignent `.jwt_secret` et `CLAUDE.md` dans les fichiers
+préservés du staging (point sur la publication transactionnelle), et
+n'entrent PAS dans les empreintes d'artefacts protégés : un déploiement réel
+demande presque toujours d'adapter l'image (dépendance système, port,
+utilisateur non-root), et un fichier scellé rendrait cette adaptation
+impossible sans contourner le garde-fou — ce que ce dépôt refuse partout
+ailleurs.
+
+Le `.dockerignore` exclut `.jwt_secret` : le secret n'entre pas dans l'image,
+il vient de l'environnement. Vérifié en réel — `ls /app` dans le conteneur ne
+le montre pas.
+
+### Ce qui a été prouvé
+
+Un projet compilé, construit avec `podman build`, lancé en conteneur :
+démarrage refusé sans `MONL_JWT_SECRET` (l'image portant `MONL_ENV=production`),
+puis avec le secret — inscription, connexion, création et lecture d'un
+enregistrement réel, en-tête CORS correct pour l'origine déclarée et absent
+pour une autre, journaux JSON parsables, secret absent de l'image.
+
+`_contract_signature` a été interrogée, comme l'exige la liste de questions à
+poser avant toute brique : la réponse est NON, aucun de ces changements ne
+modifie ce que le frontend doit dessiner. C'est la première fois que la
+réponse est négative après vérification plutôt que par omission.
+
+Éprouvé par `tests/test_deploiement.py` (9 tests contre de vrais serveurs).

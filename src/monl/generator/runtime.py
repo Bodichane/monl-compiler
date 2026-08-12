@@ -8,6 +8,27 @@ lors du découpage en package — voir docs/design_decisions.md.
 
 
 class RuntimeMixin:
+    def _cors_methods(self):
+        """Méthodes réellement émises par l'application générée."""
+        methods = {"GET", "POST"}  # racine, santé et authentification
+        action_methods = {
+            "Read": "GET",
+            "Create": "POST",
+            "Update": "PUT",
+            "Delete": "DELETE",
+            "Execute": "POST",
+        }
+        for plan in self._compute_route_map().values():
+            method = action_methods.get(plan.action)
+            if method:
+                methods.add(method)
+        if self.payable_by_entity:
+            methods.add("POST")
+        if self.postpayment_writable_by_entity:
+            methods.add("PUT")
+        return [method for method in ("GET", "POST", "PUT", "DELETE")
+                if method in methods]
+
     def _generate_identifier_helpers(self):
         """Normalisation + contrôle de forme de l'identifiant de compte (95).
 
@@ -112,6 +133,7 @@ class RuntimeMixin:
             "import hmac",
             "import os",
             "import secrets",
+            "import time",
             # POINT 95 : la forme de l'identifiant de compte se vérifie par
             # motif. Absent, le app.py généré ne démarrait même pas
             # (NameError sur 're') — trouvé en lançant le serveur, jamais
@@ -204,6 +226,12 @@ class RuntimeMixin:
             # généré à la compilation. Un projet peut ainsi être livré SANS
             # secret embarqué et se le voir injecter au déploiement.
             "JWT_SECRET = (os.environ.get('MONL_JWT_SECRET') or '').strip()",
+            "_MONL_ENV = os.environ.get('MONL_ENV', '').strip().lower()",
+            "if _MONL_ENV == 'production' and not JWT_SECRET:",
+            "    raise RuntimeError(",
+            "        'MONL_ENV=production exige la variable MONL_JWT_SECRET ; '",
+            "        'aucun secret JWT ne sera généré ni lu depuis .jwt_secret.'",
+            "    )",
             "if not JWT_SECRET:",
             "    try:",
             "        with open('.jwt_secret', 'r', encoding='utf-8') as _f:",
@@ -495,6 +523,77 @@ class RuntimeMixin:
             "               docs_url='/docs' if _docs_actives else None,",
             "               redoc_url='/redoc' if _docs_actives else None,",
             "               openapi_url='/openapi.json' if _docs_actives else None)\n",
+
+            # Déploiement : CORS est opt-in. Une liste explicite est la seule
+            # forme acceptée ; '*' ouvrirait l'API à n'importe quelle origine.
+            "_CORS_ORIGINS = [origin.strip() for origin in os.environ.get(",
+            "    'MONL_CORS_ORIGINS', '').split(',') if origin.strip()]",
+            "if '*' in _CORS_ORIGINS:",
+            "    raise RuntimeError(",
+            "        \"MONL_CORS_ORIGINS refuse l'origine '*' : listez des origines \"",
+            "        'explicites, séparées par des virgules.'",
+            "    )",
+            "if _CORS_ORIGINS:",
+            "    from fastapi.middleware.cors import CORSMiddleware",
+            "    app.add_middleware(",
+            "        CORSMiddleware,",
+            "        allow_origins=_CORS_ORIGINS,",
+            "        allow_credentials=True,",
+            f"        allow_methods={self._cors_methods()!r},",
+            "        allow_headers=['Authorization', 'Content-Type', 'X-Request-ID'],",
+            "        expose_headers=['X-Request-ID'],",
+            "    )\n",
+
+            # Healthchecks infra : ils ne sont ni dans les workflows ni dans
+            # le contrat frontend. La vivacité ne touche jamais SQLite ; la
+            # readiness exécute une seule requête triviale.
+            "@app.get('/health', include_in_schema=False)",
+            "def health():",
+            "    return {'status': 'ok'}\n",
+            "@app.get('/health/ready', include_in_schema=False)",
+            "def health_ready():",
+            "    conn = None",
+            "    try:",
+            "        conn = _connect()",
+            "        conn.execute('SELECT 1')",
+            "        return {'status': 'ready'}",
+            "    except Exception:",
+            "        raise HTTPException(status_code=503, detail='Service indisponible') from None",
+            "    finally:",
+            "        if conn is not None:",
+            "            conn.close()\n",
+
+            # Logs structurés opt-in. Aucun corps ni en-tête entrant n'est
+            # copié dans le journal ; le chemin est privé de sa query string.
+            "_LOG_JSON = os.environ.get('MONL_LOG_FORMAT', '').strip().lower() == 'json'",
+            "_REQUEST_ID_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$')",
+            "def _request_id(request):",
+            "    candidate = request.headers.get('x-request-id', '')",
+            "    if _REQUEST_ID_RE.fullmatch(candidate):",
+            "        return candidate",
+            "    return secrets.token_hex(16)\n",
+            "def _write_request_log(request, request_id, status_code, started):",
+            "    print(json.dumps({",
+            "        'timestamp': datetime.datetime.now(datetime.timezone.utc).isoformat(),",
+            "        'method': request.method,",
+            "        'path': request.url.path,",
+            "        'status_code': status_code,",
+            "        'duration_ms': round((time.perf_counter() - started) * 1000, 3),",
+            "        'request_id': request_id,",
+            "    }, ensure_ascii=False), flush=True)\n",
+            "if _LOG_JSON:",
+            "    @app.middleware('http')",
+            "    async def _structured_request_log(request: Request, call_next):",
+            "        started = time.perf_counter()",
+            "        request_id = _request_id(request)",
+            "        try:",
+            "            response = await call_next(request)",
+            "        except Exception:",
+            "            _write_request_log(request, request_id, 500, started)",
+            "            raise",
+            "        response.headers['X-Request-ID'] = request_id",
+            "        _write_request_log(request, request_id, response.status_code, started)",
+            "        return response\n",
 
             # Redirection de la racine vers la documentation Swagger/OpenAPI
             # auto-générée par FastAPI — le seul front que monl fournit

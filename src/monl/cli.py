@@ -96,14 +96,55 @@ def _erreur_de_chemin(project_dir):
 # Ce que la spec produit et que personne ne doit retoucher à la main
 # (manage.py et sandbox_ai.py compris : ils portent des droits).
 SCELLE_ARTEFACTS = ("app.py", "schema.sql", "sandbox_ai.py", "manage.py")
+# Artefacts de déploiement éditables par l'auteur. Ils sont publiés avec la
+# compilation, mais ne sont ni scellés ni inclus dans les empreintes backend :
+# une adaptation locale du conteneur doit survivre à `monl compile`.
+CONTAINER_ARTEFACTS = ("Dockerfile", ".dockerignore")
 PROJECT_ARTEFACTS = (
     *SCELLE_ARTEFACTS,
+    *CONTAINER_ARTEFACTS,
     ".jwt_secret",
     CONTRACT_FILENAME,
     PROMPT_FILENAME,
     "CLAUDE.md",
     STATE_FILENAME,
 )
+
+DEFAULT_DOCKERFILE = """FROM python:3.12-slim
+
+WORKDIR /app
+ENV PYTHONDONTWRITEBYTECODE=1 \\
+    PYTHONUNBUFFERED=1 \\
+    MONL_ENV=production
+
+COPY . .
+RUN pip install --no-cache-dir \\
+    'fastapi>=0.110,<1.0' \\
+    'uvicorn>=0.29,<1.0' \\
+    'PyJWT>=2.8,<3.0'
+
+EXPOSE 8000
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+"""
+
+DEFAULT_DOCKERIGNORE = """.jwt_secret
+*.db
+__pycache__
+frontend.precedent/
+"""
+
+
+def _ensure_container_artifacts(staging_dir):
+    """Émet les gabarits de conteneur sans écraser ceux de l'auteur."""
+    defaults = {
+        "Dockerfile": DEFAULT_DOCKERFILE,
+        ".dockerignore": DEFAULT_DOCKERIGNORE,
+    }
+    for name, content in defaults.items():
+        path = os.path.join(staging_dir, name)
+        if not os.path.exists(path):
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(content)
 
 
 def _save_state(project_dir, spec_relpath, spec_source_path=None):
@@ -157,14 +198,18 @@ def compile_project(spec_path, project_dir, base_dir=None, save_state=True):
     spec_rel = (os.path.relpath(spec_abs, proj_abs)
                 if spec_abs.startswith(proj_abs + os.sep) else spec_abs)
     with staging_directory(proj_abs) as temporary:
-        # Le secret et un éventuel CLAUDE.md personnel ne sont jamais
-        # régénérés depuis zéro dans le staging : ils survivent à la
+        # Le secret, CLAUDE.md et les deux artefacts de conteneur ne sont
+        # jamais régénérés depuis zéro dans le staging : ils survivent à la
         # compilation et restent protégés contre un remplacement accidentel.
-        copy_preserved_files(proj_abs, temporary, (".jwt_secret", "CLAUDE.md"))
+        copy_preserved_files(
+            proj_abs, temporary,
+            (".jwt_secret", "CLAUDE.md", *CONTAINER_ARTEFACTS),
+        )
         compilation = compile_monl(
             spec_path, output_dir=temporary, base_dir=reference_dir)
         contract = generate_frontend_contract(
             compilation.ir, compilation.plans, temporary)
+        _ensure_container_artifacts(temporary)
         if save_state:
             _save_state(temporary, spec_rel, spec_source_path=spec_abs)
         artefacts = PROJECT_ARTEFACTS if save_state else tuple(
