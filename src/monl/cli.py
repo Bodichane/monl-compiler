@@ -804,9 +804,13 @@ def _contract_signature(contract):
     # décimales, et ne comparer que le code serait l'erreur du point 89.
     paiement = regles_metier.get("payment")
     if paiement:
+        # Le PRESTATAIRE entre dans le même digest (brique 2b) : passer de
+        # Stripe à FedaPay ne change ni route ni champ, mais l'écran de
+        # règlement cesse de parler de carte bancaire pour parler d'opérateurs
+        # de mobile money.
         contenus["devise d'encaissement"] = hashlib.sha256(
-            f"{paiement.get('currency')}\n{paiement.get('minor_unit_exponent')}"
-            .encode()).hexdigest()
+            f"{paiement.get('provider')}\n{paiement.get('currency')}\n"
+            f"{paiement.get('minor_unit_exponent')}".encode()).hexdigest()
     # BRIQUE B2 : un message n'ajoute pas de route, mais il change le parcours
     # après une création et le texte que l'interface doit afficher. Le delta
     # porte sur le déclencheur, le destinataire annoncé et le contenu complet ;

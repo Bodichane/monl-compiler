@@ -44,6 +44,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [125](#125-le-contrat-nommait-le-jeton-sans-dire-sous-quel-nom-le-lire) Le contrat nommait le jeton sans dire sous quel nom le lire ·
 [126](#126-la-devise-dencaissement-et-son-exposant) La devise d'encaissement et son exposant ·
 [127](#127-la-demonstration-nallait-plus-chercher-ses-images-chez-un-tiers) La démonstration n'allait plus chercher ses images chez un tiers ·
+[128](#128-encaisser-par-mobile-money--le-prestataire-devient-enfichable) Encaisser par mobile money : le prestataire devient enfichable ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -8282,3 +8283,89 @@ tient là où un exemple précis laissait rentrer le prochain hôte distant.
 
 **Les golden tests n'ont pas bougé** : la spec figée n'a aucun champ
 d'illustration, et le changement ne touche ni le générateur ni le contrat.
+
+## 128. Encaisser par mobile money : le prestataire devient enfichable
+
+Stripe n'opère pas en Afrique de l'Ouest. L'argent y passe par le **mobile
+money** — MTN MoMo, Moov Money, Wave — derrière un agrégateur. Une application
+monl compilée pour Cotonou savait donc tout faire sauf encaisser.
+
+```
+capability payment
+    provider: fedapay
+    currency: XOF
+```
+
+**FedaPay est une SECONDE émission, pas une généralisation de la première.**
+L'émission Stripe est laissée intacte à l'octet — c'est la condition pour
+qu'aucun projet existant ne voie son `app.py` bouger, et les golden tests le
+vérifient. Ce qui se factorise est le **noyau de sécurité** (montant lu en
+base, signature vérifiée avant toute écriture, 503 nommant la variable
+absente, référence qualifiée `Entite:id`), jamais la forme du fil.
+
+**Deux appels là où Stripe en fait un** : `POST /v1/transactions` rend un `id`,
+puis `POST /v1/transactions/{id}/token` rend l'`url` de paiement. La création
+seule ne donne AUCUNE URL — s'y arrêter livrerait un bouton « Payer » qui ne
+mène nulle part.
+
+**La recette cryptographique a été relue dans le SDK officiel, pas déduite
+d'une prose** (`fedapay-node`, `Webhook.ts`) : schéma `s`, message
+`timestamp + "." + corps brut`, HMAC-SHA256 hexadécimal, tolérance de 300
+secondes. C'est la seule source acceptable pour une vérification de signature,
+et elle s'est trouvée identique en forme à celle de Stripe — d'où la
+factorisation, qui n'aurait pas été légitime si on l'avait supposée.
+
+**monl est PLUS STRICT que le SDK officiel, délibérément.** `Webhook.ts` ne
+teste que `timestampAge > tolerance` : un horodatage situé dans le FUTUR y
+passe. monl refuse `abs(maintenant - t) > 300`. Un horodatage qu'on ne
+contrôle pas dans les deux sens n'est plus une protection contre le rejeu
+(point 91).
+
+**KKiaPay est REFUSÉ, et refusé en le DISANT.** Sa documentation publique
+expose un widget navigateur, sans endpoint serveur de création de session, et
+ne publie ni l'algorithme ni les données signées de son webhook. Le construire
+par analogie avec Stripe ou FedaPay ne serait pas une approximation : ce serait
+un trou de sécurité à l'unique endroit du backend généré où un tiers non
+authentifié écrit en base. Le message nomme la raison, parce que « prestataire
+inconnu » enverrait chercher une faute de frappe dans un nom correct. CinetPay
+est écarté pour une autre raison, également écrite : son webhook exige une
+revalidation par un second appel, et ses bacs à sable sont annoncés
+indisponibles.
+
+**LE FAIL-CLOSED, ET CE QUI RESTE NON PROUVÉ.** La documentation publique de
+FedaPay établit que `merchant_reference` et `custom_metadata` existent, mais
+n'imprime aucune charge utile de webhook complète : **le chemin JSON exact de
+la référence n'est pas prouvé**. Le code généré regarde les deux emplacements
+qu'emploient ses SDK et, s'il n'y trouve rien, **n'écrit RIEN**. Se tromper de
+forme coûte alors un règlement non enregistré — un appel au support — au lieu
+du mauvais enregistrement marqué payé, qui coûte de l'argent. La référence est
+envoyée dans les DEUX champs documentés, pour ne pas parier sur celui que
+l'événement rendra. **Ce point doit être confirmé sur un compte de bac à sable
+réel** ; le faux prestataire des tests prouve monl, il ne prouve pas FedaPay.
+
+**Le bug tombé pendant l'écriture, et sa leçon.** Le webhook a été paramétré
+(secret, en-tête, lettre de schéma) et la **route de règlement oubliée** :
+elle exigeait toujours `STRIPE_SECRET_KEY`, absente du prélude FedaPay, d'où
+un `NameError` et un **500** au premier essai. La brique de paiement a DEUX
+points d'entrée, pas un ; c'est la même famille que les « trois branchements »
+du point 92 et que le troisième oubli du point 95 (`manage.py`). Seul un test
+qui appelle réellement la route l'a montré — la compilation, elle, réussissait.
+
+**La question de `_contract_signature`** (treizième fois) : le prestataire
+entre dans le digest, avec la devise. Changer de prestataire ne crée aucune
+route et ne renomme aucun champ, mais l'écran de règlement cesse de parler de
+carte bancaire pour parler d'opérateurs de mobile money — et le brief le dit
+désormais mot pour mot, sans quoi l'IA écrit « carte bancaire » par défaut.
+
+**Un refus qui n'a PAS été écrit**, et c'est assumé : rien n'interdit
+`provider: fedapay` avec `currency: EUR`. Ce serait probablement faux à
+l'exécution, mais monl ne peut pas prouver la couverture géographique d'un
+prestataire, et un refus qu'on ne peut pas justifier vaut moins que pas de
+refus du tout.
+
+Éprouvée par `tests/test_fedapay.py` (13 tests, vrai serveur + faux FedaPay) :
+les deux appels et leur ordre, le montant en unité mineure, la référence
+qualifiée dans les deux champs, le webhook signé qui paie, trois signatures
+invalides qui ne paient rien, l'horodatage du futur refusé, la charge utile de
+forme inconnue qui n'écrit rien, et la clé absente qui rend 503 en la nommant
+sans empêcher le reste du serveur de répondre.

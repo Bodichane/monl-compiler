@@ -663,6 +663,10 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
     # le code : c'est lui qui dit s'il faut diviser `montant_centimes` par cent
     # (euro) ou pas du tout (franc CFA).
     devise = plans.payment_currency or {"code": "EUR", "exponent": 2}
+    # BRIQUE 2b : le prestataire fait partie de l'interface. « Payer par
+    # carte » et « Payer par Mobile Money » ne se dessinent pas pareil, et
+    # l'IA écrirait « carte bancaire » par défaut faute de le savoir.
+    prestataire = plans.payment_provider or "stripe"
     for entite, champ in sorted(payables.items()):
         # POINT 87 : sous propriété transitive, « appartient » se lit à travers
         # l'intermédiaire, et un enregistrement dont l'intermédiaire a disparu
@@ -689,7 +693,14 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
                   # c'est l'unité mineure de la devise. Le dire est la seule
                   # façon d'empêcher une interface de diviser par cent un
                   # montant en francs CFA.
-                  f"Les montants sont en **{devise['code']}** : afficher "
+                  + (f"Le règlement passe par **{prestataire}** : "
+                     + ("le payeur choisit son opérateur de MOBILE MONEY "
+                        "(MTN MoMo, Moov, Wave) sur la page du prestataire — "
+                        "ne pas écrire « carte bancaire ». "
+                        if prestataire == "fedapay"
+                        else "le payeur règle par carte sur la page du "
+                             "prestataire. "))
+                  + f"Les montants sont en **{devise['code']}** : afficher "
                   f"`montant` tel quel avec ce code, et ne JAMAIS diviser "
                   f"`montant_centimes` par cent sans regarder l'exposant — "
                   + ("cette devise n'a pas de sous-unité, les deux champs "
@@ -816,6 +827,7 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
     # ne réécrive pas les projets qui ne s'en servent pas.
     if plans.payable_by_entity:
         business_rules["payment"] = {
+            "provider": prestataire,
             "currency": devise["code"],
             # L'exposant est DONNÉ, pas laissé à déduire : c'est lui qui dit si
             # `montant_centimes` se divise par cent ou pas, et une interface

@@ -284,7 +284,7 @@ grammar = r"""
     #   capability auth
     #       identifier: email, phone
     capability_block: "capability" NAME _NL [_INDENT capability_prop+ _DEDENT]
-    ?capability_prop: capability_identifier | capability_phone_prefix | capability_lockout | capability_password_reset | capability_refresh_tokens | capability_totp | capability_currency
+    ?capability_prop: capability_identifier | capability_phone_prefix | capability_lockout | capability_password_reset | capability_refresh_tokens | capability_totp | capability_currency | capability_provider
     capability_identifier: "identifier" ":" NAME ("," NAME)* _NL
     # AJOUT (point 95, trouvé en éprouvant la brique sur un vrai site) :
     # '06 12 34 56 78' et '+33612345678' sont le MÊME numéro, et faisaient deux
@@ -313,6 +313,12 @@ grammar = r"""
     #   capability payment
     #       currency: XOF
     capability_currency: "currency" ":" NAME _NL
+    # BRIQUE 2b : le PRESTATAIRE d'encaissement. Stripe n'opère pas en Afrique
+    # de l'Ouest, où l'argent passe par le mobile money derrière un agrégateur.
+    #   capability payment
+    #       provider: fedapay
+    #       currency: XOF
+    capability_provider: "provider" ":" NAME _NL
 
     # Bloc optionnel "landing" : transmet un brief marketing (titre, ton,
     # intention) au contrat frontend, pour orienter l'IA d'interface. C'est
@@ -730,6 +736,12 @@ class MonlTransformer(Transformer):
 
     def capability_totp(self):
         return {"totp": True}
+
+    def capability_provider(self, nom):
+        # Minuscules dès le parsing : 'FedaPay' et 'fedapay' sont le même
+        # prestataire, et laisser passer les deux ferait deux specs pour une
+        # seule intention (même raison que pour la devise).
+        return {"provider": str(nom).lower()}
 
     def capability_currency(self, code):
         # Normalisé en majuscules dès le parsing : 'xof' et 'XOF' sont le même

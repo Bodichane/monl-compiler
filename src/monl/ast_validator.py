@@ -48,6 +48,35 @@ DEVISES = {
 
 DEVISE_PAR_DEFAUT = "EUR"
 
+# ---------------------------------------------------------------------------
+# PRESTATAIRES D'ENCAISSEMENT (brique 2b). Stripe n'opère pas en Afrique de
+# l'Ouest ; l'argent y passe par le mobile money (MTN MoMo, Moov, Wave)
+# derrière un agrégateur. FedaPay est le premier ajouté : son flux serveur et
+# sa vérification de webhook sont documentés, et la recette cryptographique a
+# été relue dans son SDK officiel plutôt que déduite d'une prose.
+#
+# Ce qui est délibérément ABSENT : KKiaPay. Sa documentation publique expose un
+# widget navigateur, sans endpoint serveur de création de session, et ne publie
+# ni l'algorithme ni les données signées de son en-tête de webhook. Construire
+# cette vérification par analogie avec Stripe ou FedaPay ne serait pas une
+# approximation : ce serait un trou de sécurité à l'unique endroit du backend
+# généré où un tiers non authentifié écrit en base. Il est donc refusé EN LE
+# DISANT, plutôt qu'implémenté à peu près.
+PRESTATAIRES = {"stripe", "fedapay"}
+PRESTATAIRE_PAR_DEFAUT = "stripe"
+
+# Prestataires connus mais volontairement non implémentés, avec la raison —
+# le message vaut mieux que « prestataire inconnu », qui enverrait chercher
+# une faute de frappe dans un nom parfaitement correct.
+PRESTATAIRES_ECARTES = {
+    "kkiapay": ("sa documentation publique ne donne ni l'algorithme ni les "
+                "données signées de son webhook ; monl ne devinera pas une "
+                "vérification de signature"),
+    "cinetpay": ("son webhook exige une revalidation par un second appel, non "
+                 "encore écrite, et ses bacs à sable sont annoncés "
+                 "indisponibles"),
+}
+
 
 def candidats_asset(base_dir, dossier, chemin):
     """Les deux endroits où un asset déclaré peut vivre, dans l'ordre d'essai.
@@ -145,6 +174,7 @@ class MonlAST:
         # règle du point 95 — une spec écrite avant cette brique doit compiler
         # à l'identique, et le défaut n'est appliqué qu'au moment d'encaisser.
         self.payment_currency = None
+        self.payment_provider = None
 
         for ent in raw_json.get("entities", []):
             name = ent["name"]
@@ -2041,6 +2071,20 @@ class MonlAST:
             faq.append({"question": question, "answer": answer})
         self.landing = {"brief": self.landing_raw.get("brief"), "sections": sections, "faq": faq}
 
+    def _valider_prestataire(self, nom):
+        """Résout le prestataire d'encaissement — ou refuse en l'expliquant."""
+        nom = str(nom).lower()
+        if nom in PRESTATAIRES:
+            return nom
+        if nom in PRESTATAIRES_ECARTES:
+            raise ASTValidationError(
+                f"Structure : le prestataire '{nom}' n'est pas implémenté par "
+                f"monl, et ce n'est pas un oubli : {PRESTATAIRES_ECARTES[nom]}. "
+                f"Prestataires disponibles : {', '.join(sorted(PRESTATAIRES))}.")
+        raise ASTValidationError(
+            f"Structure : prestataire de paiement inconnu : '{nom}'. "
+            f"Disponibles : {', '.join(sorted(PRESTATAIRES))}.")
+
     def _valider_devise(self, code):
         """Résout un code ISO en {code, exponent} — ou refuse en l'expliquant.
 
@@ -2086,13 +2130,14 @@ class MonlAST:
         # 'capability auth'. La grammaire partage un seul jeu de propriétés
         # entre toutes les capacités — c'est donc ici, et nulle part ailleurs,
         # que chaque option est rattachée à sa capacité.
-        allowed_payment_options = {"currency"}
+        allowed_payment_options = {"currency", "provider"}
         options_par_capacite = {
             "auth": allowed_auth_options - {"name"},
             "payment": allowed_payment_options,
         }
         features = {}
         self.payment_currency = None
+        self.payment_provider = None
         for capability in self.capabilities_raw:
             nom = capability["name"]
             options = set(capability) - {"name"}
@@ -2114,6 +2159,15 @@ class MonlAST:
                 raise ASTValidationError(
                     f"Structure : option(s) déplacée(s) ou inconnue(s) sur "
                     f"'capability {nom}' — {detail}.")
+            if nom == "payment" and "provider" in capability:
+                if self.payment_provider is not None:
+                    raise ASTValidationError(
+                        "Structure : le prestataire de paiement est déclaré "
+                        "deux fois — une application encaisse par UNE seule "
+                        "voie, sinon le webhook ne sait plus quelle signature "
+                        "vérifier.")
+                self.payment_provider = self._valider_prestataire(
+                    capability["provider"])
             if nom == "payment" and "currency" in capability:
                 if self.payment_currency is not None:
                     raise ASTValidationError(
@@ -2169,13 +2223,19 @@ class MonlAST:
         # est posé dès l'étape 228. Même famille que le point 92 — une garde
         # qui lit une variable pas encore assignée est une garde qui ment, et
         # seul un test qui EXIGE le refus le révèle.
-        if self.payment_currency and not self.payable_fields:
-            raise ASTValidationError(
-                f"Structure : 'capability payment' déclare la devise "
-                f"'{self.payment_currency['code']}', mais aucune règle "
-                f"'payable' ne dit quoi encaisser — la devise ne s'appliquerait "
-                f"à rien. Ajouter 'rule Entite.champ payable', ou retirer la "
-                f"ligne 'currency'.")
+        if not self.payable_fields:
+            declare = []
+            if self.payment_currency:
+                declare.append(f"la devise '{self.payment_currency['code']}'")
+            if self.payment_provider:
+                declare.append(f"le prestataire '{self.payment_provider}'")
+            if declare:
+                raise ASTValidationError(
+                    f"Structure : 'capability payment' déclare "
+                    f"{' et '.join(declare)}, mais aucune règle 'payable' ne "
+                    f"dit quoi encaisser — cette configuration ne "
+                    f"s'appliquerait à rien. Ajouter "
+                    f"'rule Entite.champ payable', ou retirer ces lignes.")
 
     def _valider_regles_message(self):
         """Valide les notifications e-mail déclenchées par une création.
@@ -2644,6 +2704,7 @@ class MonlAST:
                 # spec ne demande aucune capacité nouvelle.
                 "auth_features": self.auth_features,
                 "payment_currency": self.payment_currency,
+                "payment_provider": self.payment_provider,
             },
             "sandbox_ai": {"custom_functions": list(self.custom_logic.values())},
             "ui": self.ui_overrides,
