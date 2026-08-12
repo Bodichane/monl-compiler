@@ -61,8 +61,12 @@ de code seule.** Concrètement :
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
 - Lancer la suite de tests : `python3 -m pytest tests/ -q` (832 tests
-  actuellement ; `tests/test_demo.py` et `tests/test_design_contract.py`
-  s'appuient sur le dossier `demo/` versionné — ne pas le supprimer)
+  actuellement ; `tests/test_demo.py` s'appuie sur le dossier `demo/`
+  versionné — ne pas le supprimer. La démo est **CodexShop**, une papeterie
+  qui exerce la chaîne marchande entière ; ses ENTRÉES seules sont suivies
+  (`spec.ml`, `frontend/`, `assets/`), jamais sa sortie compilée ni son
+  `.jwt_secret`. `test_design_contract.py` ne s'en sert plus : il construit
+  sa propre spec)
 
 Plusieurs bugs réels (ordre des contraintes `FOREIGN KEY`, collision avec un
 mot-clé SQL réservé, `scrollIntoView` absent masquant un vrai succès,

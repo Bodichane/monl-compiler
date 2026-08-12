@@ -17,6 +17,10 @@ def test_la_demo_livree_compile_et_passe_le_smoke_test(tmp_path):
     proj.mkdir()
     shutil.copy2(os.path.join(DEMO_DIR, "spec.ml"), proj / "spec.ml")
     shutil.copytree(os.path.join(DEMO_DIR, "frontend"), proj / "frontend")
+    # Les photos font partie des ENTRÉES de la démo au même titre que le
+    # frontend (brique 13) : sans elles, le smoke test servirait une boutique
+    # dont chaque produit affiche une image cassée — et ne le dirait pas.
+    shutil.copytree(os.path.join(DEMO_DIR, "assets"), proj / "assets")
 
     compile_project(str(proj / "spec.ml"), str(proj))
 
@@ -31,7 +35,15 @@ def test_la_demo_livree_compile_et_passe_le_smoke_test(tmp_path):
 def test_le_frontend_de_la_demo_respecte_le_contrat_a_la_lettre():
     """Autonomie exigée par le contrat : aucun script externe, extensions
     dans la liste blanche (.html/.css/.js/.svg/.json), y compris dans les
-    sous-dossiers — la démo embarque ses diagrammes."""
+    sous-dossiers.
+
+    Le décompte ne porte plus qu'un minimum de 1 : la démo actuelle tient dans
+    un seul `index.html` (CSS et JS en ligne), ce qui est une forme légitime et
+    non un frontend incomplet. Ce sont la liste blanche et l'absence de CDN qui
+    portent l'invariant — exiger trois fichiers mesurait une habitude, pas une
+    propriété. Les photos, elles, vivent hors de `frontend/` : c'est tout
+    l'objet de la brique 13, et c'est pourquoi `.webp` n'a pas à figurer dans
+    la liste blanche."""
     frontend = os.path.join(DEMO_DIR, "frontend")
     autorisees = (".html", ".css", ".js", ".svg", ".json")
     fichiers = 0
@@ -43,4 +55,4 @@ def test_le_frontend_de_la_demo_respecte_le_contrat_a_la_lettre():
                 content = fh.read()
             assert "https://cdn" not in content and "<script src=\"http" not in content
             fichiers += 1
-    assert fichiers >= 3
+    assert fichiers >= 1
