@@ -1,6 +1,8 @@
 # Travailler sur monl
 
-> **Statut.** Dépôt public, logiciel **propriétaire** (voir [LICENSE](LICENSE)).
+> **Statut.** Dépôt public sous **FSL-1.1-ALv2** — usage libre hors usage
+> concurrent, bascule Apache-2.0 à deux ans (voir [LICENSE](LICENSE) et
+> [LICENSE-FAQ.md](LICENSE-FAQ.md)).
 > Les contributions extérieures ne sont pas ouvertes pour l'instant. Ce document
 > décrit comment travailler sur le dépôt — il s'adresse au mainteneur, à un
 > futur collaborateur autorisé, et à toute IA de développement travaillant ici.

@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
 [![Tests](https://img.shields.io/badge/tests-CI-brightgreen)](tests/)
 [![Couverture](https://img.shields.io/badge/couverture-CI-brightgreen)](#qualité-et-vérification)
-[![Licence](https://img.shields.io/badge/licence-propriétaire-lightgrey)](LICENSE)
+[![Licence](https://img.shields.io/badge/licence-FSL--1.1--ALv2-blue)](LICENSE)
 
 On décrit l'intention d'une application dans un DSL dédié ; monl-compiler en génère la base
 de données, l'API REST, l'authentification et le contrôle d'accès — puis produit un
@@ -398,10 +398,18 @@ automatisée.
 
 ## Licence
 
-Dépôt **public**, logiciel **propriétaire** — tous droits réservés
-([LICENSE](LICENSE)). Le code est visible pour lecture et évaluation ; il n'est
-pas sous licence libre. Les applications *produites* par monl-compiler à partir de vos
-propres spécifications vous appartiennent.
+**FSL-1.1-ALv2** — *Functional Source License*, avec bascule automatique vers
+**Apache-2.0 deux ans après la publication de chaque version**
+([LICENSE](LICENSE)).
+
+Vous pouvez utiliser monl-compiler librement, y compris en contexte
+professionnel, le modifier, le redistribuer, et **vous en servir pour livrer
+des applications à vos clients**. La seule restriction est l'usage
+*concurrent* : en faire un produit ou un service commercial qui se substitue à
+monl-compiler. Les applications *produites* à partir de vos propres
+spécifications vous appartiennent.
+
+Le détail en français : [LICENSE-FAQ.md](LICENSE-FAQ.md).
 
 Les rapports de bug et remarques sont bienvenus dans les *issues*.
 
