@@ -100,6 +100,7 @@ class MonlAST:
         # entrée) — elles deviennent des index uniques multi-colonnes.
         self.once_per_rules = []
         self.upload_fields = []
+        self.message_rules = []
 
         for ent in raw_json.get("entities", []):
             name = ent["name"]
@@ -1887,6 +1888,80 @@ class MonlAST:
         self.capabilities = list(dict.fromkeys(names))
         self.auth_identifier = self._valider_identifiant_de_compte(self.capabilities_raw)
 
+    def _valider_regles_message(self):
+        """Valide les notifications e-mail déclenchées par une création.
+
+        B2 choisit délibérément une seule transition : Create. La cible
+        est le compte authentifié qui vient de créer la ligne, donc son
+        identifiant canonique en base. Aucun champ métier libre nommé
+        email ne participe à cette décision.
+        """
+        self.message_rules = []
+        references = set()
+        for rule in self.rules:
+            if rule["type"] != "sends":
+                continue
+            reference = rule["reference"]
+            if "." not in reference:
+                raise ASTValidationError(
+                    f"Structure : la règle 'sends' doit référencer "
+                    f"'Entite.Create', reçu '{reference}'.")
+            entity, action = reference.split(".", 1)
+            if entity not in self.entities:
+                raise ASTValidationError(
+                    f"Structure : 'sends' cible l'entité '{entity}' qui n'existe pas.")
+            if action != "Create":
+                raise ASTValidationError(
+                    f"Structure : 'sends' ne vaut que sur 'Entite.Create' "
+                    f"(reçu '{reference}'). La transition oneOf est volontairement "
+                    "hors de cette brique.")
+            if reference in references:
+                raise ASTValidationError(
+                    f"Structure : plusieurs règles 'sends' sur '{reference}' -- "
+                    "une création ne doit déclencher qu'un seul message.")
+            references.add(reference)
+            if (entity, "Create") in self.public_actions:
+                raise ASTValidationError(
+                    f"Structure : '{reference}' est public, mais 'sends' doit "
+                    "connaître le compte destinataire. Une création publique "
+                    "n'offre aucune identité à laquelle écrire.")
+            if not any(
+                    action_["type"] == "Create" and action_["target"] == entity
+                    for workflow in self.workflows
+                    for action_ in workflow["actions"]):
+                raise ASTValidationError(
+                    f"Structure : '{reference}' porte 'sends', mais aucune route "
+                    f"Create {entity} n'est déclarée -- l'envoi ne se déclencherait jamais.")
+            if not self.auth_identifier or "email" not in self.auth_identifier:
+                raise ASTValidationError(
+                    f"Structure : '{reference}' veut envoyer un courriel, mais la spec "
+                    "ne déclare pas 'capability auth' avec 'identifier: email'. "
+                    "Sans cette identité de compte, monl n'a aucune adresse où écrire ; "
+                    "un champ texte libre nommé 'email' ne vaut pas une adresse de compte.")
+
+            subject = rule.get("subject", "")
+            body = rule.get("body", "")
+            if not subject.strip():
+                raise ASTValidationError(
+                    f"Structure : le sujet du message '{reference}' ne peut pas être vide.")
+            if not body.strip():
+                raise ASTValidationError(
+                    f"Structure : le corps du message '{reference}' ne peut pas être vide.")
+            if "\r" in subject or "\n" in subject:
+                raise ASTValidationError(
+                    f"Structure : le sujet de '{reference}' contient un saut de ligne. "
+                    "Refusé pour empêcher une injection d'en-têtes SMTP (Bcc, Cc, etc.).")
+            if "\r" in body or "\n" in body:
+                raise ASTValidationError(
+                    f"Structure : le corps de '{reference}' contient un saut de ligne brut. "
+                    "Utiliser le séparateur '¶' entre les paragraphes.")
+            self.message_rules.append({
+                "trigger_entity": entity,
+                "trigger_action": action,
+                "subject": subject,
+                "body": body,
+            })
+
     def _valider_assets_et_seeds(self):
         """Valide les assets locaux et les données de démonstration."""
         self.assets = dict(self.assets_raw)
@@ -2269,6 +2344,7 @@ class MonlAST:
                 # atteindre la valeur rend ce que les enfants ont consommé.
                 "release_rules": self.release_rules,
                 "upload_fields": self.upload_fields,
+                "message_rules": self.message_rules,
             },
             "sandbox_ai": {"custom_functions": list(self.custom_logic.values())},
             "ui": self.ui_overrides,

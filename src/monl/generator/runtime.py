@@ -196,6 +196,82 @@ class RuntimeMixin:
             "",
         ]
 
+    def _generate_message_runtime_lines(self):
+        """Socle d'envoi asynchrone d'un message B2, émis à la demande."""
+        if not self.message_rules_by_trigger:
+            return []
+        return [
+            "# --- MESSAGES SORTANTS (brique B2) ---",
+            f"MESSAGE_RULES = {self.message_rules_by_trigger!r}",
+            "MESSAGE_LOGGER = logging.getLogger('monl.messages')",
+            "",
+            "def _message_header_safe(value, name):",
+            "    if not isinstance(value, str) or '\\r' in value or '\\n' in value:",
+            "        raise ValueError(f\"{name} contient un saut de ligne interdit\")",
+            "",
+            "def _message_body(text):",
+            "    return '\\n\\n'.join(text.split('¶'))",
+            "",
+            "def _envoyer_message(rule, user_id, record_id):",
+            "    try:",
+            "        _conn = _connect()",
+            "        try:",
+            "            _row = _conn.execute('SELECT username FROM _monl_users WHERE id = ?',",
+            "                                 (user_id,)).fetchone()",
+            "        finally:",
+            "            _conn.close()",
+            "        if not _row:",
+            "            raise RuntimeError(f'compte {user_id} introuvable')",
+            "        _destinataire = _row[0]",
+            "        _message_header_safe(_destinataire, 'Le destinataire')",
+            "        if not _RE_EMAIL.fullmatch(_destinataire):",
+            "            raise ValueError('Le compte ne porte pas une adresse e-mail utilisable')",
+            "        _hote = (os.environ.get('MONL_SMTP_HOST') or '').strip()",
+            "        if not _hote:",
+            "            raise RuntimeError('la variable d\\'environnement MONL_SMTP_HOST est absente')",
+            "        _expediteur = (os.environ.get('MONL_SMTP_FROM') or '').strip()",
+            "        if not _expediteur:",
+            "            raise RuntimeError('la variable d\\'environnement MONL_SMTP_FROM est absente')",
+            "        _message_header_safe(_expediteur, 'L\\'expéditeur')",
+            "        if not _RE_EMAIL.fullmatch(_expediteur):",
+            "            raise ValueError('MONL_SMTP_FROM ne porte pas une adresse e-mail utilisable')",
+            "        try:",
+            "            _port = int(os.environ.get('MONL_SMTP_PORT', '587'))",
+            "        except ValueError as _error:",
+            "            raise RuntimeError('MONL_SMTP_PORT doit être un entier') from _error",
+            "        _utilisateur = (os.environ.get('MONL_SMTP_USERNAME') or '').strip()",
+            "        _mot_de_passe = os.environ.get('MONL_SMTP_PASSWORD') or ''",
+            "        if bool(_utilisateur) != bool(_mot_de_passe):",
+            "            raise RuntimeError('MONL_SMTP_USERNAME et MONL_SMTP_PASSWORD doivent être fournis ensemble')",
+            "        _courriel = EmailMessage()",
+            "        _courriel['From'] = _expediteur",
+            "        _courriel['To'] = _destinataire",
+            "        _courriel['Subject'] = rule['subject']",
+            "        _courriel.set_content(_message_body(rule['body']))",
+            "        with smtplib.SMTP(_hote, _port, timeout=5) as _smtp:",
+            "            if _utilisateur:",
+            "                _smtp.login(_utilisateur, _mot_de_passe)",
+            "            _smtp.send_message(_courriel)",
+            "        MESSAGE_LOGGER.info('[MONL_MESSAGE] message envoyé : %s#%s vers %s',",
+            "                            rule['trigger_entity'], record_id, _destinataire)",
+            "    except Exception as _error:",
+            "        # Le métier est déjà committé. La panne est volontairement",
+            "        # détachée de la réponse HTTP, mais jamais avalée : la trace",
+            "        # explicite permet à l'exploitant de savoir que le message n'est",
+            "        # pas parti et pourquoi.",
+            "        MESSAGE_LOGGER.exception('[MONL_MESSAGE] envoi non effectué pour %s#%s : %s',",
+            "                                 rule.get('trigger_entity'), record_id, _error)",
+            "",
+            "def _declencher_message(entity, user_id, record_id):",
+            "    _rule = MESSAGE_RULES.get(entity)",
+            "    if not _rule:",
+            "        return",
+            "    threading.Thread(target=_envoyer_message,",
+            "                     args=(_rule, user_id, record_id),",
+            "                     daemon=True, name=f'monl-message-{entity.lower()}').start()",
+            "",
+        ]
+
     def _generate_database_runtime_lines(self):
         """Lignes générées pour le socle DB et les migrations explicites."""
         return [
@@ -544,6 +620,12 @@ class RuntimeMixin:
         """Lignes de app.py jusqu'aux schémas Pydantic (incluses)."""
         actors_literal = ", ".join(f'"{a}"' for a in self.actors)
         self_register_literal = ", ".join(f'"{a}"' for a in self.self_register_actors)
+        message_imports = ([
+            "import logging",
+            "import smtplib",
+            "import threading",
+            "from email.message import EmailMessage",
+        ] if self.message_rules_by_trigger else [])
         api_lines = [
             "# API Déterministe Sécurisée par défaut - Ne pas modifier à la main",
             f"from fastapi import FastAPI, HTTPException, Header, Depends, Request{', UploadFile, File' if self.upload_fields else ''}",
@@ -562,6 +644,7 @@ class RuntimeMixin:
             "import os",
             "import secrets",
             "import time",
+            *message_imports,
             # POINT 95 : la forme de l'identifiant de compte se vérifie par
             # motif. Absent, le app.py généré ne démarrait même pas
             # (NameError sur 're') — trouvé en lançant le serveur, jamais
@@ -1224,6 +1307,7 @@ class RuntimeMixin:
         # canonique, le contrôle d'unicité est contournable (deux comptes pour
         # une personne) et la connexion échoue selon la façon dont on tape.
         api_lines += self._generate_identifier_helpers()
+        api_lines += self._generate_message_runtime_lines()
 
         api_lines += [
             "def _hash_password(password: str, salt_hex: str) -> str:",

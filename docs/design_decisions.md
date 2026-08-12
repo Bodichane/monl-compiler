@@ -38,6 +38,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [119](#119-la-couche-données-choisit-son-dialecte-au-démarrage) La couche données choisit son dialecte au démarrage ·
 [120](#120-les-migrations-non-additives-sont-nommées-et-refusent-le-démarrage) Migrations non additives nommées ·
 [121](#121-le-fichier-déposé-par-le-client-est-un-upload-pas-une-image) Le fichier déposé par le client est un `Upload`, pas une `Image`
+[122](#122-monl-sait-envoyer-un-message-sans-promettre-sa-remise) Envoi de message sans promettre sa remise ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -7750,3 +7751,93 @@ déni de service en une ligne de `curl`.
 broncher — et n'écrit rien hors de la zone de dépôt, parce que le nom du client
 n'est jamais un chemin. Refuser le nom aurait été un contrôle de plus à tenir
 juste ; ne jamais s'en servir est un contrôle de moins à tenir.
+
+## 122. Monl sait envoyer un message sans promettre sa remise
+
+La brique B2 choisit le plus petit déclencheur utile :
+
+    capability auth
+        identifier: email
+
+    rule Order.Create sends "Commande reçue" "Votre commande¶est prise en compte"
+
+Un envoi part après chaque création métier réussie, vers le compte authentifié
+qui vient de créer la ligne. Le déclencheur oneOf/transition n'est pas retenu
+ici : il appartient à une notification d'état, avec la question des transitions
+réelles et des rejouements ; la brique reste creation-only. Il n'y a donc ni
+confirmation d'adresse, ni mot de passe oublié, ni autre preuve qu'une boîte
+reçoit un message. Monl ne vérifie que la forme déclarée de l'identité.
+
+Le refus de compilation le plus important est volontaire : une règle sends
+exige capability auth avec identifier: email. Sans ce lien d'identité, monl
+n'a aucune adresse de compte où écrire. Un champ métier libre nommé email ne
+vaut pas une adresse de compte vérifiée. Une création publique est également
+refusée, puisqu'elle ne fournit aucun compte destinataire. Le corps reste un
+littéral monoligne et ¶ devient une séparation de paragraphes dans le
+message.
+
+Le sujet ne peut contenir ni retour chariot ni saut de ligne : le compilateur
+refuse l'injection d'en-têtes SMTP à cet endroit. Le destinataire et
+l'expéditeur sont contrôlés à nouveau au runtime, avant de construire
+EmailMessage, pour neutraliser une adresse de compte historique ou une
+configuration empoisonnée contenant CR/LF. Une identité email reste une
+forme ; monl ne contacte jamais la boîte pour la vérifier.
+
+Les variables de transport sont uniquement l'environnement :
+MONL_SMTP_HOST et MONL_SMTP_FROM sont obligatoires, MONL_SMTP_PORT vaut
+587 par défaut, et MONL_SMTP_USERNAME/MONL_SMTP_PASSWORD sont optionnelles
+mais doivent venir ensemble. Une variable requise absente est nommée dans la
+trace. La création est commitée avant le lancement d'un thread daemon
+éphémère : un SMTP lent ou injoignable ne retarde pas la route et ne défait
+jamais l'écriture métier. Il n'y a ni file persistante, ni retry, ni garantie
+de remise ; l'échec est une trace [MONL_MESSAGE] explicite côté serveur,
+visible par l'exploitant.
+
+Le contrat frontend porte le déclencheur, le destinataire, le sujet, le corps
+structuré et la limite de garantie. _contract_signature inclut le digest de
+ces éléments : monl update doit donc signaler une notification ajoutée,
+retirée ou réécrite, même si aucune route ni aucun champ ne change. Le delta
+est l'endroit où l'interface apprend d'afficher qu'une tentative de message a
+été lancée — et de ne pas promettre une remise que cette brique ne garantit
+pas.
+
+La forme rule ne change rien à la lecture textuelle de assets_tool.py et
+content_tool.py : ils ne reconnaissent que leurs blocs seed/assets, qu'une
+règle sends ne modifie pas. L'envoi ouvre une connexion indépendante à
+_monl_users et fonctionne de la même façon quand le dialecte de démarrage
+est SQLite ou PostgreSQL. Le compilateur lui-même ne fait aucun appel réseau.
+
+### Ce que la revue a mesuré contre un vrai faux SMTP
+
+Un serveur SMTP minimal écrit pour l'occasion enregistre TOUT ce qui passe sur
+le fil — c'est la seule façon de vérifier qu'un message est parti, plutôt que
+de croire un code 200. Ce qu'il a reçu :
+
+```
+MAIL FROM:<boutique@exemple.test>
+RCPT TO:<cliente@exemple.test>
+From / To / Subject: Votre commande
+Merci pour votre commande.
+Elle est prise en compte.
+```
+
+Le `¶` du point 64 est bien devenu un saut de paragraphe, sans nouvelle
+syntaxe multiligne. Deux créations donnent deux messages, jamais trois.
+
+**L'injection d'en-têtes est fermée en amont, pas dans le formateur.** Une
+inscription sous `pirate@exemple.test\nBcc: victime@ailleurs.test` est refusée
+en 422 par le contrôle de forme du point 95 : l'adresse d'envoi étant
+l'identifiant de COMPTE, et un identifiant ne pouvant pas contenir
+d'espacement, il n'existe aucun chemin par lequel un client fabrique un
+destinataire caché. C'est la conséquence utile du refus de compilation qui
+porte la brique — sans `identifier: email`, il aurait fallu défendre un champ
+texte libre, ce qui est un contrôle de plus à tenir juste.
+
+**La résilience, mesurée plutôt que déduite.** SMTP injoignable : la route
+métier rend 200 en 3,7 ms, l'écriture est conservée, et la trace nomme
+l'entité, l'identifiant et la cause (`[Errno 111] Connection refused`). Aucune
+variable configurée : 200 en 3,8 ms, et la trace NOMME `MONL_SMTP_HOST`. Les
+deux chiffres comptent autant que les codes : une route qui attendrait
+l'expiration d'un SMTP mort mettrait plusieurs secondes, et une brique
+d'envoi rendrait alors l'application inutilisable le jour où le fournisseur
+tombe. Le smoke test reste vert hors ligne, sans erreur ni alerte.

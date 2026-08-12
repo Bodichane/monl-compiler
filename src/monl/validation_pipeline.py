@@ -59,6 +59,8 @@ class ValidationContext(Protocol):
 
     def _valider_capacites(self) -> None: ...
 
+    def _valider_regles_message(self) -> None: ...
+
     def _valider_assets_et_seeds(self) -> None: ...
 
     def _valider_migrations(self) -> None: ...
@@ -325,6 +327,17 @@ class CapabilityValidationPass:
 
 
 @dataclass(frozen=True, slots=True)
+class MessageRuleValidationPass:
+    """Valide les messages sortants après résolution de l'identité du compte."""
+
+    name: str = "message_rules"
+
+    def run(self, context: ValidationContext) -> list[str]:
+        context._valider_regles_message()
+        return []
+
+
+@dataclass(frozen=True, slots=True)
 class AssetsSeedValidationPass:
     """Valide les assets locaux et les données de démonstration."""
 
@@ -407,6 +420,7 @@ DEFAULT_VALIDATION_PIPELINE = ValidationPipeline((
     UIOverrideValidationPass(),
     LandingValidationPass(),
     CapabilityValidationPass(),
+    MessageRuleValidationPass(),
     AssetsSeedValidationPass(),
     MigrationValidationPass(),
     PostPaymentValidationPass(),

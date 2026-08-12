@@ -794,6 +794,16 @@ def _contract_signature(contract):
     for regle in regles_metier.get("once_per") or []:
         contenus[f"unicité de {regle['trigger_entity']}"] = hashlib.sha256(
             "\n".join(regle["parents"]).encode("utf-8")).hexdigest()
+    # BRIQUE B2 : un message n'ajoute pas de route, mais il change le parcours
+    # après une création et le texte que l'interface doit afficher. Le delta
+    # porte sur le déclencheur, le destinataire annoncé et le contenu complet ;
+    # comparer seulement la présence de la règle laisserait passer une
+    # modification de sujet ou de corps.
+    for message in regles_metier.get("messages") or []:
+        reference = message["trigger"]
+        contenus[f"message sortant de {reference}"] = hashlib.sha256(
+            json.dumps(message, sort_keys=True, ensure_ascii=False).encode("utf-8")
+        ).hexdigest()
     # POINT 99 : huitième ensemble, et la question posée AVANT d'écrire le code
     # pour la deuxième fois seulement. Une clé étrangère ne vit pas dans
     # `fields` — le delta ne pouvait donc rien dire quand elle change de NATURE.

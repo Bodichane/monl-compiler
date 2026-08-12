@@ -512,10 +512,12 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
             # fidèle dessinait un « + Ajouter un article » sur une commande
             # payée (vérifié sur `exemples/02_boutique.ml`).
             verrou_parent = _verrou_paiement(plans, base, inclure_soi=False)
+            message = plans.message_rules_by_trigger.get(base)
             routes.append(_route("POST", f"/{low}", act_type, base, is_public, actors,
                                  request_fields=_creatable_fields(entity_specs.get(base)),
                                  note=_joindre(note_create,
-                                               _note_verrou(verrou_parent, creation=True))))
+                                               _note_verrou(verrou_parent, creation=True),
+                                               _note_message(message))))
             if requise:
                 routes[-1]["requires_own"] = requise
             if verrou_parent:
@@ -699,6 +701,31 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
     landing = normalized_ast.get("landing") or {}
 
     design_skills = select_design_skills(entity_specs, routes)
+    message_contracts = [
+        {
+            "trigger": f"{rule['trigger_entity']}.{rule['trigger_action']}",
+            "recipient": "le compte authentifié, via son identifiant email",
+            "subject": rule["subject"],
+            "body": paragraphes(rule["body"]),
+            "delivery": "tentative asynchrone après commit, sans retry ni garantie de remise",
+            "note": ("Après le succès de la création, informer l'utilisateur "
+                     "qu'une tentative de message a été lancée. Ne pas "
+                     "promettre la remise ; les échecs sont journalisés "
+                     "côté serveur."),
+        }
+        for rule in sorted(
+            plans.message_rules_by_trigger.values(),
+            key=lambda item: (item["trigger_entity"], item["trigger_action"]))
+    ]
+    business_rules = {
+        "public_when": {
+            f"{entity}.{action}": dict(condition)
+            for (entity, action), condition in sorted(public_conditions.items())
+        },
+        "once_per": list(plans.once_per_rules),
+    }
+    if message_contracts:
+        business_rules["messages"] = message_contracts
     contract = {
         "monl_contract_version": CONTRACT_VERSION,
         "app": app_name,
@@ -772,13 +799,7 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
         # frontend doit savoir qu'un contenu public est filtré par son statut
         # et qu'un compte ne peut créer qu'une occurrence par combinaison de
         # cibles (like/vote, par exemple).
-        "business_rules": {
-            "public_when": {
-                f"{entity}.{action}": dict(condition)
-                for (entity, action), condition in sorted(public_conditions.items())
-            },
-            "once_per": list(plans.once_per_rules),
-        },
+        "business_rules": business_rules,
         "entities": entity_specs,
         "routes": routes,
         "frontend_rules": {
@@ -876,6 +897,18 @@ def _note_verrou(verrou, creation=False):
             f"désactiver l'action sur un enregistrement payé plutôt que de "
             f"laisser l'utilisateur la découvrir refusée — un montant encaissé "
             f"ne se modifie plus, il se rembourse chez le prestataire.")
+
+
+def _note_message(regle):
+    """Note de contrat pour une notification déclenchée par Create."""
+    if not regle:
+        return None
+    return (
+        "NOTIFICATION : après le commit réussi de cette création, une tentative "
+        f"asynchrone envoie à l'adresse du compte le sujet « {regle['subject']} ». "
+        "Afficher qu'une tentative de message a été lancée, sans promettre la "
+        "remise : une panne SMTP n'annule pas l'écriture et est journalisée côté "
+        "serveur.")
 
 
 def _joindre(*notes):

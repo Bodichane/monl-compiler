@@ -47,6 +47,29 @@
   Communauté livraient une modération à sens unique, le modérateur perdant de vue
   ce qu'il venait de masquer.
 
+### monl sait envoyer un message (point 122)
+
+- La capacité NOMMÉE comme préalable depuis le point 95 : `rule Entite.Create
+  sends "<sujet>" "<corps>"`. Pas la réinitialisation de mot de passe, pas la
+  vérification d'adresse — la capacité d'envoyer, et rien de plus.
+- **Le refus qui porte la brique** : une spec qui veut écrire sans déclarer
+  `capability auth` + `identifier: email` n'a aucune adresse où écrire. Un
+  champ métier libre nommé `email` ne vaut pas une adresse de compte, et le
+  message de refus le dit.
+- **L'adresse est l'identifiant de COMPTE**, ce qui ferme l'injection
+  d'en-têtes en amont : un identifiant ne peut pas contenir d'espacement, donc
+  aucun client ne fabrique de destinataire caché (vérifié, 422 à l'inscription).
+- Le corps se structure avec le `¶` du point 64 — aucune syntaxe multiligne
+  n'a été inventée.
+- **Un échec d'envoi ne défait jamais une écriture métier et n'est jamais
+  avalé** : la route rend 200 en moins de 4 ms même SMTP mort, et la trace
+  nomme l'entité, l'identifiant et la cause. Secrets par l'environnement,
+  variable absente NOMMÉE — mêmes invariants que `payable` (points 74-75).
+- Ce que la brique ne promet PAS, et le dit : aucun réessai, aucune file
+  persistante, aucune garantie de remise.
+- Une spec sans message produit des artefacts identiques à l'octet ; le smoke
+  test reste vert hors ligne.
+
 ### L'utilisateur final peut déposer un fichier (point 121)
 
 - **`Upload` n'est pas `Image`.** La brique 13 désigne ce que l'AUTEUR fournit

@@ -1,3 +1,4 @@
+import ast as py_ast
 import os
 import re
 
@@ -37,7 +38,7 @@ grammar = r"""
     # rule["type"] ne valait jamais "restrictedTo", et l'audit de sécurité associé
     # dans ast_validator.py ne se déclenchait donc jamais. Même classe de bug que
     # celui déjà corrigé sur le bloc "custom" en v3.
-    ?rule: constraint_rule | restriction_rule | postpayment_rule | sharing_rule | ownership_rule | access_rule | visibility_rule | conditional_visibility_rule | uniqueness_rule | masking_rule | decrement_rule | increment_rule | categorization_rule | generation_rule | payable_rule | derivation_rule | aggregation_rule | timestamp_rule | numbering_rule | requirement_rule | oneof_rule | release_rule | upload_rule
+    ?rule: constraint_rule | restriction_rule | postpayment_rule | sharing_rule | ownership_rule | access_rule | visibility_rule | conditional_visibility_rule | uniqueness_rule | masking_rule | decrement_rule | increment_rule | categorization_rule | generation_rule | payable_rule | derivation_rule | aggregation_rule | timestamp_rule | numbering_rule | requirement_rule | oneof_rule | release_rule | upload_rule | send_rule
 
     constraint_rule: "rule" REFERENCE VALIDATION_TYPE _NL
                    | "rule" REFERENCE VALIDATION_TYPE INT _NL
@@ -65,6 +66,11 @@ grammar = r"""
     # Le type réel est déterminé côté backend par signature d'octets, jamais par
     # l'extension ou le nom fournis par le client.
     upload_rule: "rule" REFERENCE "upload" "max" INT "types" STRING_LITERAL ("," STRING_LITERAL)* _NL
+    # BRIQUE B2 : un message part après une création métier réussie. Le
+    # séparateur '¶' structure le corps en paragraphes ; inventer une grammaire
+    # multiligne ici ferait traverser à nouveau la frontière d'indentation.
+    #   rule Order.Create sends "Commande reçue" "Votre commande¶est prise en compte"
+    send_rule: "rule" REFERENCE "sends" STRING_LITERAL STRING_LITERAL _NL
     restriction_rule: "rule" REFERENCE "restrictedTo" NAME _NL
     postpayment_rule: "rule" REFERENCE "writableAfterPayment" NAME _NL
     sharing_rule: "rule" REFERENCE "sharedBy" NAME ("," NAME)* _NL
@@ -467,6 +473,21 @@ class MonlTransformer(Transformer):
             "reference": str(reference), "type": "upload",
             "max_bytes": int(maximum),
             "accepted_types": [str(value).strip('"') for value in types],
+        }}
+
+    def send_rule(self, reference, subject, body):
+        def decode(token):
+            try:
+                return str(py_ast.literal_eval(str(token)))
+            except (SyntaxError, ValueError):
+                # Le lexer a déjà garanti un STRING_LITERAL. Ce repli garde un
+                # diagnostic de validation lisible si une future évolution de
+                # la grammaire accepte une séquence d'échappement inconnue.
+                return str(token)[1:-1]
+
+        return {"rule": {
+            "reference": str(reference), "type": "sends",
+            "subject": decode(subject), "body": decode(body),
         }}
 
     def restriction_rule(self, reference, actor_name):

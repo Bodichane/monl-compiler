@@ -256,13 +256,14 @@ class RoutesMixin:
         # incompatible avec 'public' (validé par ast_validator.py),
         # donc l'appelant est nécessairement authentifié ici.
         generated_here = self.generated_fields_by_entity.get(base_target, [])
+        message_here = self.message_rules_by_trigger.get(base_target)
         # AJOUT (brique 17, point 90) : la fiche que l'appelant doit
         # déjà posséder. Elle se cherche par son identifiant de COMPTE,
         # donc la route a besoin de `current_user_id` même quand rien
         # d'autre ne l'exigeait.
         fiche_exigee = self._profile_lookup(base_target)
         create_deps = dependency_injection
-        if populate_owner or verifie_parent or fiche_exigee:
+        if populate_owner or verifie_parent or fiche_exigee or message_here:
             create_deps += ", current_user_id: int = Depends(get_current_user_id)" if create_deps else "current_user_id: int = Depends(get_current_user_id)"
         if generated_here:
             create_deps += ", current_anon_handle: str = Depends(get_current_anon_handle)" if create_deps else "current_anon_handle: str = Depends(get_current_anon_handle)"
@@ -585,6 +586,12 @@ class RoutesMixin:
         api_lines.append("    except Exception:")
         api_lines.append("        conn.rollback(); conn.close(); raise")
         api_lines.append("    conn.close()")
+        if message_here:
+            # Le commit métier est terminé avant le lancement du thread. Une
+            # panne SMTP ne peut donc ni annuler la ligne ni transformer une
+            # route métier en route d'attente réseau.
+            api_lines.append(
+                f"    _declencher_message({base_target!r}, current_user_id, row_id)")
         api_lines.append("    return {'status': 'success', 'id': row_id}")
         api_lines.append("")
 

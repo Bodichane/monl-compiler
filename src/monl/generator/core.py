@@ -98,6 +98,13 @@ class MonlSecureGenerator(
         self.upload_fields_by_entity = {}
         for upload in self.upload_fields:
             self.upload_fields_by_entity.setdefault(upload["entity"], []).append(upload)
+        # BRIQUE B2 : un seul message sortant par création déclarée. Le
+        # validateur a déjà exigé une identité de compte e-mail ; ce dictionnaire
+        # sert à brancher la route Create et le contrat sur la même règle.
+        self.message_rules_by_trigger = {
+            rule["trigger_entity"]: dict(rule)
+            for rule in normalized_ast["security"].get("message_rules", [])
+        }
         # AJOUT (roadmap, brique "accès à deux parties") : table
         # {"Entite.Action": [colonnes]} issue des règles 'accessibleBy'
         # validées par ast_validator.py — chaque colonne contient
@@ -375,6 +382,11 @@ class MonlSecureGenerator(
             kind="postpayment_write", trigger_entity=entity, target_entity=entity,
             field=None, source_entity=None, source_field=None, config=config,
         ) for entity, config in self.postpayment_writable_by_entity.items())
+        plans.extend(EffectPlan(
+            kind="message", trigger_entity=rule["trigger_entity"],
+            target_entity=rule["trigger_entity"], field=None,
+            source_entity=None, source_field=None, config=rule,
+        ) for rule in self.message_rules_by_trigger.values())
         return tuple(plans)
 
     def _effects(self, kind, *, trigger=None, target=None):
@@ -1299,6 +1311,10 @@ class MonlSecureGenerator(
             assets=self.assets,
             once_per_rules=tuple(dict(rule) for rule in self.once_per_rules),
             upload_fields=tuple(dict(field) for field in self.upload_fields),
+            message_rules_by_trigger={
+                entity: dict(rule)
+                for entity, rule in self.message_rules_by_trigger.items()
+            },
         )
 
     def _generate_secure_fastapi(self):

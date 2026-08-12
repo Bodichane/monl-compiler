@@ -20,6 +20,7 @@ EffectKind = Literal[
     "release",
     "payment_lock",
     "postpayment_write",
+    "message",
 ]
 
 # Colonnes sémantiques communes au schéma, au runtime et au contrat frontend.
@@ -68,6 +69,7 @@ class SecurityIR(TypedDict):
     enumerated_fields: dict[str, dict[str, list[str]]]
     release_rules: list[dict[str, Any]]
     upload_fields: list[dict[str, Any]]
+    message_rules: list[dict[str, Any]]
 
 
 class SandboxIR(TypedDict):
@@ -230,6 +232,7 @@ class CompilationPlans:
     assets: Mapping[str, Any]
     once_per_rules: tuple[Mapping[str, Any], ...]
     upload_fields: tuple[Mapping[str, Any], ...]
+    message_rules_by_trigger: Mapping[str, Mapping[str, Any]]
 
 
 @dataclass(frozen=True, slots=True)
