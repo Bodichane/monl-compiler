@@ -12,6 +12,42 @@ from .validation_pipeline import DEFAULT_VALIDATION_PIPELINE, ValidationPipeline
 # déposait finissaient donc dans frontend.precedent/ sans un mot.
 DEFAULT_ASSETS_DIR = "assets"
 
+# ---------------------------------------------------------------------------
+# DEVISES D'ENCAISSEMENT (brique 2a). L'exposant est le nombre de décimales de
+# la devise : le prestataire attend un ENTIER dans l'unité mineure, donc
+# `montant × 10**exposant`.
+#
+# La raison d'être de cette table tient en un exemple. Le code figeait
+# `int(round(montant * 100))` pour toute devise. Le franc CFA (XOF) n'a AUCUNE
+# sous-unité : une commande de 5 000 FCFA serait partie chez le prestataire
+# pour 500 000 FCFA — cent fois le prix, sans qu'aucun test ne s'en aperçoive,
+# puisque le calcul est juste pour l'euro. C'est la famille du point 77 (le
+# montant que le client contrôle), par une porte que personne n'avait ouverte :
+# celle des UNITÉS.
+#
+# Une devise ABSENTE de cette table est REFUSÉE, jamais devinée à 2 décimales.
+# Deviner, c'est reprendre exactement le bug qu'on ferme : un défaut d'unité ne
+# se voit pas à la lecture, il se voit sur le relevé bancaire.
+#
+# Les devises à TROIS décimales (BHD, JOD, KWD, OMR, TND…) sont volontairement
+# absentes : les prestataires y imposent un arrondi particulier (montants
+# multiples de 10 chez Stripe), et une brique qui l'ignorerait serait fausse
+# d'une façon plus discrète encore. Les refuser en le DISANT vaut mieux que les
+# accepter à moitié.
+DEVISES = {
+    # Sans sous-unité — c'est le cas qui a motivé la brique.
+    "XOF": 0,  # franc CFA (UEMOA : Bénin, Côte d'Ivoire, Sénégal, Togo…)
+    "XAF": 0,  # franc CFA (CEMAC)
+    "XPF": 0,  # franc Pacifique
+    "BIF": 0, "CLP": 0, "DJF": 0, "GNF": 0, "JPY": 0, "KMF": 0,
+    "KRW": 0, "PYG": 0, "RWF": 0, "UGX": 0, "VND": 0, "VUV": 0,
+    # Deux décimales.
+    "EUR": 2, "USD": 2, "GBP": 2, "CHF": 2, "CAD": 2,
+    "MAD": 2, "NGN": 2, "GHS": 2, "KES": 2, "ZAR": 2,
+}
+
+DEVISE_PAR_DEFAUT = "EUR"
+
 
 def candidats_asset(base_dir, dossier, chemin):
     """Les deux endroits où un asset déclaré peut vivre, dans l'ordre d'essai.
@@ -105,6 +141,10 @@ class MonlAST:
         # Un dictionnaire vide est volontaire : il ne réveille aucune sortie
         # dans les specs historiques.
         self.auth_features = {}
+        # BRIQUE 2a. None (et non EUR) tant que rien n'est déclaré : c'est la
+        # règle du point 95 — une spec écrite avant cette brique doit compiler
+        # à l'identique, et le défaut n'est appliqué qu'au moment d'encaisser.
+        self.payment_currency = None
 
         for ent in raw_json.get("entities", []):
             name = ent["name"]
@@ -2001,6 +2041,30 @@ class MonlAST:
             faq.append({"question": question, "answer": answer})
         self.landing = {"brief": self.landing_raw.get("brief"), "sections": sections, "faq": faq}
 
+    def _valider_devise(self, code):
+        """Résout un code ISO en {code, exponent} — ou refuse en l'expliquant.
+
+        L'exposant est calculé ICI et une seule fois : le générateur le LIT, il
+        ne le redérive pas. Deux tables finiraient par diverger, et une
+        divergence d'unité se paie sur le relevé bancaire (voir DEVISES).
+        """
+        code = str(code).upper()
+        if code in DEVISES:
+            return {"code": code, "exponent": DEVISES[code]}
+        # Trois décimales : refusées NOMMÉMENT, pour que le message n'envoie
+        # pas chercher une faute de frappe dans un code parfaitement valide.
+        if code in {"BHD", "IQD", "JOD", "KWD", "LYD", "OMR", "TND"}:
+            raise ASTValidationError(
+                f"Structure : la devise '{code}' a trois décimales, et les "
+                f"prestataires de paiement y imposent un arrondi particulier "
+                f"que monl ne sait pas encore appliquer. Elle est refusée "
+                f"plutôt qu'encaissée à peu près.")
+        raise ASTValidationError(
+            f"Structure : devise '{code}' inconnue de monl. Elle n'est pas "
+            f"devinée à deux décimales : une devise sans sous-unité facturée "
+            f"comme l'euro multiplierait chaque montant par cent. Devises "
+            f"reconnues : {', '.join(sorted(DEVISES))}.")
+
     def _valider_capacites(self):
         """Valide les capacités déclarées et prépare l'authentification B4."""
         known_capabilities = {"auth", "payment"}
@@ -2018,20 +2082,47 @@ class MonlAST:
             "name", "identifier", "phone_prefix", "lockout", "password_reset",
             "refresh_tokens", "totp",
         }
+        # BRIQUE 2a : 'currency' est la première option qui n'appartient PAS à
+        # 'capability auth'. La grammaire partage un seul jeu de propriétés
+        # entre toutes les capacités — c'est donc ici, et nulle part ailleurs,
+        # que chaque option est rattachée à sa capacité.
+        allowed_payment_options = {"currency"}
+        options_par_capacite = {
+            "auth": allowed_auth_options - {"name"},
+            "payment": allowed_payment_options,
+        }
         features = {}
+        self.payment_currency = None
         for capability in self.capabilities_raw:
+            nom = capability["name"]
             options = set(capability) - {"name"}
-            inconnues = options - (allowed_auth_options - {"name"})
-            if capability["name"] != "auth" and options:
+            permises = options_par_capacite.get(nom, set())
+            hors_sujet = options - permises
+            if hors_sujet:
+                # Nommer la capacité qui ACCEPTE l'option, quand elle existe :
+                # « currency n'a pas de sens ici » enverrait chercher une faute
+                # de frappe alors que la ligne est simplement au mauvais
+                # endroit.
+                accueil = {opt: cap
+                           for cap, opts in options_par_capacite.items()
+                           for opt in opts}
+                remedes = sorted(
+                    f"'{opt}' appartient à 'capability {accueil[opt]}'"
+                    for opt in hors_sujet if opt in accueil)
+                inconnues = sorted(opt for opt in hors_sujet if opt not in accueil)
+                detail = " ; ".join(remedes + [f"'{o}' est inconnue" for o in inconnues])
                 raise ASTValidationError(
-                    f"Structure : les options {', '.join(sorted(options))} "
-                    f"n'ont de sens que sur 'capability auth' (trouvées sur "
-                    f"'{capability['name']}').")
-            if inconnues:
-                raise ASTValidationError(
-                    f"Structure : option(s) d'authentification inconnue(s) : "
-                    f"{', '.join(sorted(inconnues))}.")
-            if capability["name"] != "auth":
+                    f"Structure : option(s) déplacée(s) ou inconnue(s) sur "
+                    f"'capability {nom}' — {detail}.")
+            if nom == "payment" and "currency" in capability:
+                if self.payment_currency is not None:
+                    raise ASTValidationError(
+                        "Structure : la devise est déclarée deux fois — une "
+                        "application encaisse dans UNE seule devise, sinon "
+                        "'montant' ne veut plus rien dire d'une commande à "
+                        "l'autre.")
+                self.payment_currency = self._valider_devise(capability["currency"])
+            if nom != "auth":
                 continue
             for option in ("lockout", "password_reset", "refresh_tokens", "totp"):
                 if option not in capability:
@@ -2062,6 +2153,29 @@ class MonlAST:
                 "'identifier: email' : le message de récupération doit avoir "
                 "une adresse de compte, sans deviner un champ métier.")
         self.auth_features = features
+
+        # BRIQUE 2a : une devise déclarée sans rien à encaisser ne produit
+        # RIEN. C'est le point 85 mot pour mot — refuser une règle sans effet
+        # plutôt que l'ignorer en silence, sinon l'auteur croit avoir configuré
+        # son application.
+        #
+        # LE RECOUPEMENT VIT ICI, ET C'EST UNE QUESTION D'ORDRE, PAS DE GOÛT.
+        # Écrit d'abord dans `_valider_securite_calculs_paiement` — l'endroit
+        # « logique », auprès des autres refus de paiement — il ne se
+        # déclenchait JAMAIS : le pipeline y passe à l'étape 261, et
+        # `_valider_capacites` ne pose `payment_currency` qu'à l'étape 344. La
+        # garde lisait donc toujours `None`. Elle est ici parce que c'est le
+        # premier moment où les DEUX informations existent : `payable_fields`
+        # est posé dès l'étape 228. Même famille que le point 92 — une garde
+        # qui lit une variable pas encore assignée est une garde qui ment, et
+        # seul un test qui EXIGE le refus le révèle.
+        if self.payment_currency and not self.payable_fields:
+            raise ASTValidationError(
+                f"Structure : 'capability payment' déclare la devise "
+                f"'{self.payment_currency['code']}', mais aucune règle "
+                f"'payable' ne dit quoi encaisser — la devise ne s'appliquerait "
+                f"à rien. Ajouter 'rule Entite.champ payable', ou retirer la "
+                f"ligne 'currency'.")
 
     def _valider_regles_message(self):
         """Valide les notifications e-mail déclenchées par une création.
@@ -2529,6 +2643,7 @@ class MonlAST:
                 # BRIQUE B4 : configuration d'authentification, vide quand la
                 # spec ne demande aucune capacité nouvelle.
                 "auth_features": self.auth_features,
+                "payment_currency": self.payment_currency,
             },
             "sandbox_ai": {"custom_functions": list(self.custom_logic.values())},
             "ui": self.ui_overrides,

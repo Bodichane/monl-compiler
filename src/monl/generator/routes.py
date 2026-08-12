@@ -1873,6 +1873,14 @@ class RoutesMixin:
     def _generate_payment_routes(self):
         if not self.payable_by_entity:
             return []
+        # BRIQUE 2a : la devise vient du validateur DÉJÀ résolue en
+        # {code, exponent} ; ici on ne fait que la lire. Le défaut n'est
+        # appliqué qu'à cet endroit — pas dans le validateur — pour qu'une spec
+        # muette continue de produire exactement ce qu'elle produisait
+        # (`payment_currency is None` ⇒ EUR, exposant 2 ⇒ ×100 comme avant).
+        devise = self.payment_currency or {"code": "EUR", "exponent": 2}
+        code_devise = devise["code"].lower()
+        exposant_devise = devise["exponent"]
         lignes = [
             "",
             "# ── Paiement (brique 'payable') ──────────────────────────────",
@@ -1991,7 +1999,14 @@ class RoutesMixin:
             lignes += [
                 "    if etat == 'payee':",
                 "        raise HTTPException(status_code=409, detail='Déjà réglé.')",
-                "    centimes = int(round(float(montant or 0) * 100))",
+                # BRIQUE 2a : le prestataire attend un ENTIER dans l'unité
+                # mineure de la devise, donc `montant × 10**exposant`. Le `×100`
+                # figé d'avant était juste pour l'euro et faux partout ailleurs :
+                # le franc CFA n'a pas de sous-unité, une commande de 5 000 FCFA
+                # serait partie pour 500 000. La variable garde le nom
+                # `centimes` — c'est le mot du code, pas du fil (voir plus bas).
+                "    centimes = int(round(float(montant or 0) * "
+                f"{10 ** exposant_devise}))",
                 "    if centimes <= 0:",
                 "        raise HTTPException(status_code=400, detail=(",
                 "            'Montant nul ou négatif : rien à encaisser.'))",
@@ -2002,9 +2017,20 @@ class RoutesMixin:
                 # marquait alors comme payé un enregistrement d'une table
                 # totalement différente, portant seulement le même id.
                 f"    reference = '{entite}:' + str(id)",
-                "    session = _session_paiement(centimes, 'eur', reference, retour)",
+                f"    session = _session_paiement(centimes, '{code_devise}', "
+                "reference, retour)",
+                # POINT 95 APPLIQUÉ AU FIL : `montant_centimes` GARDE son nom.
+                # Le renommer casserait le bouton « Payer » de tout projet
+                # existant, pour un gain cosmétique — c'est le raisonnement
+                # exact tenu pour `username`. Le contrat dit ce que le champ
+                # CONTIENT (le montant dans l'unité mineure de la devise ; pour
+                # une devise sans sous-unité comme le XOF, c'est le montant
+                # lui-même), et `devise` + `montant` sont ajoutés à côté pour
+                # qu'aucune interface n'ait plus à diviser par cent au hasard.
                 "    return {'status': 'success', 'url': session.get('url'),",
-                "            'session_id': session.get('id'), 'montant_centimes': centimes}",
+                "            'session_id': session.get('id'), "
+                "'montant_centimes': centimes,",
+                f"            'devise': '{devise['code']}', 'montant': montant}}",
                 "",
             ]
         lignes += [

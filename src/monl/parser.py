@@ -284,7 +284,7 @@ grammar = r"""
     #   capability auth
     #       identifier: email, phone
     capability_block: "capability" NAME _NL [_INDENT capability_prop+ _DEDENT]
-    ?capability_prop: capability_identifier | capability_phone_prefix | capability_lockout | capability_password_reset | capability_refresh_tokens | capability_totp
+    ?capability_prop: capability_identifier | capability_phone_prefix | capability_lockout | capability_password_reset | capability_refresh_tokens | capability_totp | capability_currency
     capability_identifier: "identifier" ":" NAME ("," NAME)* _NL
     # AJOUT (point 95, trouvé en éprouvant la brique sur un vrai site) :
     # '06 12 34 56 78' et '+33612345678' sont le MÊME numéro, et faisaient deux
@@ -305,6 +305,14 @@ grammar = r"""
     capability_password_reset: ("password_reset" | "passwordReset") ":" INT _NL
     capability_refresh_tokens: ("refresh_tokens" | "refreshTokens") ":" INT _NL
     capability_totp: "totp" _NL | "totp" ":" "true" _NL
+    # BRIQUE 2a : la DEVISE de l'encaissement, déclarée sur 'capability payment'.
+    # Elle existe parce que le code figeait 'eur' et multipliait tout montant
+    # par 100 — or le franc CFA n'a PAS de sous-unité : facturer 5 000 XOF
+    # aurait envoyé 500 000 au prestataire. Ce n'est pas une préférence de
+    # présentation, c'est l'unité dans laquelle on encaisse.
+    #   capability payment
+    #       currency: XOF
+    capability_currency: "currency" ":" NAME _NL
 
     # Bloc optionnel "landing" : transmet un brief marketing (titre, ton,
     # intention) au contrat frontend, pour orienter l'IA d'interface. C'est
@@ -722,6 +730,12 @@ class MonlTransformer(Transformer):
 
     def capability_totp(self):
         return {"totp": True}
+
+    def capability_currency(self, code):
+        # Normalisé en majuscules dès le parsing : 'xof' et 'XOF' sont le même
+        # code ISO, et laisser passer les deux ferait deux specs différentes
+        # pour une seule intention.
+        return {"currency": str(code).upper()}
 
     def capability_block(self, name, *props):
         # Le bloc indenté étant optionnel, Lark passe None quand il est absent :

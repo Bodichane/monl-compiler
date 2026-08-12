@@ -657,6 +657,12 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
     # d'appeler un chemin absent de `routes`. Une brique que le contrat ne
     # décrit pas est une brique sans interface.
     payables = plans.payable_by_entity
+    # BRIQUE 2a : la DEVISE fait partie de l'interface. Sans elle, l'IA écrit
+    # « € » parce que c'est ce qu'elle a vu partout ailleurs, et une boutique
+    # de Cotonou affiche des euros sur des francs CFA. L'exposant voyage avec
+    # le code : c'est lui qui dit s'il faut diviser `montant_centimes` par cent
+    # (euro) ou pas du tout (franc CFA).
+    devise = plans.payment_currency or {"code": "EUR", "exponent": 2}
     for entite, champ in sorted(payables.items()):
         # POINT 87 : sous propriété transitive, « appartient » se lit à travers
         # l'intermédiaire, et un enregistrement dont l'intermédiaire a disparu
@@ -675,8 +681,21 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
             note=(via + "Ouvre une session de règlement pour cet enregistrement. "
                   "AUCUN corps : le montant est lu dans la base depuis "
                   f"`{champ}`, jamais reçu du client. Réponse : {{status, url, "
-                  "session_id, montant_centimes} — rediriger le navigateur "
-                  "vers `url`. 403 si l'enregistrement appartient à "
+                  "session_id, montant_centimes, devise, montant} — rediriger "
+                  "le navigateur vers `url`. "
+                  # Le nom `montant_centimes` est conservé (point 95 : le
+                  # renommer casserait le bouton « Payer » de tout projet
+                  # existant), mais il ne veut PAS dire « centimes » partout :
+                  # c'est l'unité mineure de la devise. Le dire est la seule
+                  # façon d'empêcher une interface de diviser par cent un
+                  # montant en francs CFA.
+                  f"Les montants sont en **{devise['code']}** : afficher "
+                  f"`montant` tel quel avec ce code, et ne JAMAIS diviser "
+                  f"`montant_centimes` par cent sans regarder l'exposant — "
+                  + ("cette devise n'a pas de sous-unité, les deux champs "
+                     "portent la même valeur. " if devise["exponent"] == 0
+                     else f"ici l'exposant vaut {devise['exponent']}. ")
+                  + "403 si l'enregistrement appartient à "
                   "quelqu'un d'autre, 409 s'il est déjà réglé, 503 si le "
                   "serveur n'a pas de clé de paiement configurée. "
                   # Point 76 : boucler la boucle. Savoir ouvrir un règlement
@@ -791,6 +810,19 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
     }
     if message_contracts:
         business_rules["messages"] = message_contracts
+    # BRIQUE 2a : la devise n'est déclarée QUE s'il y a quelque chose à
+    # encaisser. Une spec sans `payable` n'ajoute donc aucune clé, et son
+    # contrat reste identique à l'octet — condition pour qu'une brique nouvelle
+    # ne réécrive pas les projets qui ne s'en servent pas.
+    if plans.payable_by_entity:
+        business_rules["payment"] = {
+            "currency": devise["code"],
+            # L'exposant est DONNÉ, pas laissé à déduire : c'est lui qui dit si
+            # `montant_centimes` se divise par cent ou pas, et une interface
+            # qui devrait connaître la liste des devises sans sous-unité
+            # finirait par se tromper sur la moins courante.
+            "minor_unit_exponent": devise["exponent"],
+        }
     auth_contract = {
         # AJOUT (bêta 3) : seuls les rôles marqués 'selfRegister' dans la
         # spec peuvent être choisis à l'inscription — les autres sont

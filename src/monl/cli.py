@@ -794,6 +794,19 @@ def _contract_signature(contract):
     for regle in regles_metier.get("once_per") or []:
         contenus[f"unicité de {regle['trigger_entity']}"] = hashlib.sha256(
             "\n".join(regle["parents"]).encode("utf-8")).hexdigest()
+    # BRIQUE 2a : douzième fois, et la question posée AVANT d'écrire la brique.
+    # Passer de EUR à XOF ne crée aucune route, ne renomme aucun champ et ne
+    # change aucun acteur — mais TOUS les prix affichés changent de symbole, et
+    # la division par cent qu'une interface fait pour l'euro devient fausse. Un
+    # frontend écrit avant le changement affiche donc des euros sur des francs
+    # CFA, ou un centième du montant. L'EXPOSANT entre dans le digest autant
+    # que le code : deux devises peuvent partager un symbole et pas leurs
+    # décimales, et ne comparer que le code serait l'erreur du point 89.
+    paiement = regles_metier.get("payment")
+    if paiement:
+        contenus["devise d'encaissement"] = hashlib.sha256(
+            f"{paiement.get('currency')}\n{paiement.get('minor_unit_exponent')}"
+            .encode()).hexdigest()
     # BRIQUE B2 : un message n'ajoute pas de route, mais il change le parcours
     # après une création et le texte que l'interface doit afficher. Le delta
     # porte sur le déclencheur, le destinataire annoncé et le contenu complet ;

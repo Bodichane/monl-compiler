@@ -42,6 +42,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [123](#123-filtrer-et-trier-sans-inventer-un-langage-de-requête) Filtrer et trier sans inventer un langage de requête ·
 [124](#124-authentification-complète--verrouillage-réinitialisation-rafraîchissement-et-totp) Authentification complète : verrouillage, réinitialisation, rafraîchissement et TOTP ·
 [125](#125-le-contrat-nommait-le-jeton-sans-dire-sous-quel-nom-le-lire) Le contrat nommait le jeton sans dire sous quel nom le lire ·
+[126](#126-la-devise-dencaissement-et-son-exposant) La devise d'encaissement et son exposant ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -8141,3 +8142,79 @@ contrat, le test tombe. Les golden tests confirment la portée — seuls
 `frontend_contract.json`, `FRONTEND_PROMPT.md` et `monl.json` bougent ;
 `app.py`, `schema.sql` et `manage.py` restent identiques à l'octet. La
 correction porte sur ce que le backend DÉCLARE, pas sur ce qu'il fait.
+
+## 126. La devise d'encaissement et son exposant
+
+**Le code figeait deux choses, et la seconde était dangereuse.** La route de
+règlement écrivait `_session_paiement(centimes, 'eur', …)` avec
+`centimes = int(round(montant * 100))`. La devise en dur n'est qu'une limite ;
+le facteur `100`, lui, est un **bug d'unité**.
+
+Un prestataire attend un entier dans l'unité mineure de la devise. Pour l'euro
+c'est le centime, donc ×100. **Le franc CFA (XOF) n'a aucune sous-unité** : une
+commande de 5 000 FCFA serait partie chez le prestataire pour **500 000 FCFA**,
+cent fois le prix.
+
+**Pourquoi il ne se serait pas vu.** Le calcul est juste pour l'euro, donc la
+relecture ne dit rien. Tous les tests de paiement encaissaient en euros, donc
+la suite ne dit rien. Le serveur répond 200, donc l'exécution ne dit rien. Il
+se voit sur le relevé bancaire du client. C'est la famille du point 77 — le
+montant que quelqu'un d'autre décide — par une porte que personne n'avait
+ouverte : celle des **unités**.
+
+Il a été trouvé en CADRANT la brique, pas en la codant : la question « que
+devient `× 100` en franc CFA ? » s'est posée avant la première ligne. C'est la
+troisième fois seulement que ce dépôt pose la question avant d'écrire (après
+les points 100 et 101), et la première où elle rapporte un défaut déjà en
+production.
+
+**Ce qui a été écrit.** `capability payment` / `currency: XOF`, une table
+`DEVISES` qui donne l'EXPOSANT de chaque devise, et
+`montant × 10**exposant`. Trois décisions à ne pas rouvrir :
+
+* **une devise absente de la table est REFUSÉE, jamais devinée à deux
+  décimales.** Deviner, c'est reprendre exactement le bug qu'on ferme ;
+* **les devises à TROIS décimales (BHD, JOD, KWD, TND…) sont refusées
+  NOMMÉMENT**, parce que les prestataires y imposent un arrondi particulier.
+  Le message dit « trois décimales » et non « devise inconnue » : sinon il
+  enverrait chercher une faute de frappe dans un code parfaitement valide ;
+* **l'exposant est résolu par le VALIDATEUR et lu par le générateur**, jamais
+  recalculé. Deux tables de devises finiraient par diverger, et une divergence
+  d'unité se paie sur un relevé bancaire.
+
+**`montant_centimes` GARDE son nom sur le fil.** C'est le point 95 mot pour
+mot : le renommer casserait le bouton « Payer » de tout projet existant pour un
+gain cosmétique, exactement comme renommer `username` en `email`. Le CONTRAT
+dit ce que le champ contient — l'unité mineure de la devise — et `devise` et
+`montant` sont ajoutés à côté, pour qu'aucune interface n'ait plus à diviser
+par cent au hasard.
+
+**Le piège d'ORDRE, tombé pendant l'écriture.** Le refus « devise déclarée sans
+rien à encaisser » (point 85 : une règle sans effet est refusée) avait été
+écrit dans `_valider_securite_calculs_paiement`, l'endroit logique, auprès des
+autres refus de paiement. Il ne se déclenchait **jamais** : le pipeline y passe
+à l'étape 261, et `_valider_capacites` ne pose `payment_currency` qu'à l'étape
+344 — la garde lisait toujours `None`. Elle vit désormais dans
+`_valider_capacites`, premier moment où les DEUX informations existent
+(`payable_fields` est posé dès l'étape 228). Même famille que le point 92 : une
+garde qui lit une variable pas encore assignée est une garde qui ment, et seul
+un test qui EXIGE le refus le révèle.
+
+**La question de `_contract_signature`, posée avant d'écrire** (douzième fois) :
+la réponse est **oui, une entrée nouvelle**. Passer de EUR à XOF ne crée aucune
+route, ne renomme aucun champ, ne change aucun acteur — mais tous les prix
+affichés changent de symbole, et la division par cent qu'une interface fait
+pour l'euro devient fausse. L'EXPOSANT entre dans le digest autant que le code :
+ne comparer que le code serait l'erreur du point 89.
+
+**Le test qui porte la brique est une PAIRE** : la même commande de 5 000,
+compilée en XOF puis en EUR, et ce que le faux prestataire a RÉELLEMENT reçu
+(`5000` contre `500000`, `xof` contre `eur`). Pris seul, le cas XOF passerait
+si un facteur 1 était appliqué partout ; pris seul, le cas EUR ne prouverait
+aucune régression. Ensemble, ils épinglent le facteur.
+`tests/test_devise.py`, 10 tests.
+
+**Les golden tests n'ont pas bougé** — la spec figée n'encaisse rien, donc
+`business_rules.payment` n'est pas émis et son contrat reste identique à
+l'octet. C'est la preuve que la brique ne touche pas les specs qui ne s'en
+servent pas.

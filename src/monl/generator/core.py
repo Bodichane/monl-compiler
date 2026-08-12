@@ -243,6 +243,11 @@ class MonlSecureGenerator(
         # est vide ; c'est la garantie byte-for-byte des specs historiques.
         self.auth_features = dict(normalized_ast.get("security", {})
                                    .get("auth_features") or {})
+        # BRIQUE 2a : la devise d'encaissement, DEJA resolue en
+        # {code, exponent} par le validateur. None quand rien n'est declare —
+        # le defaut n'est applique qu'a l'endroit ou l'on encaisse.
+        self.payment_currency = (normalized_ast.get("security", {})
+                                 .get("payment_currency"))
         # BRIQUE 19 (point 96) : {Entite: {champ: [valeurs]}} — un statut est un
         # état parmi quelques-uns, pas du texte libre.
         self.enumerated_fields = (normalized_ast.get("security", {})
@@ -1313,6 +1318,7 @@ class MonlSecureGenerator(
             auth_identifier=tuple(self.auth_identifier) if self.auth_identifier else None,
             auth_phone_prefix=self.auth_phone_prefix,
             auth_features=self.auth_features,
+            payment_currency=self.payment_currency,
             public_conditions=self.public_conditions,
             required_profiles=self.required_profiles,
             payable_by_entity=self.payable_by_entity,
