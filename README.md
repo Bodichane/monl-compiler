@@ -5,8 +5,8 @@
 [![CI](https://github.com/Bodichane/monl-compiler/actions/workflows/ci.yml/badge.svg)](https://github.com/Bodichane/monl-compiler/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/badge/version-0.9.0--beta.6-blue)](CHANGELOG.md)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
-[![Tests](https://img.shields.io/badge/tests-756-brightgreen)](tests/)
-[![Couverture](https://img.shields.io/badge/couverture-88%25-brightgreen)](#qualité-et-vérification)
+[![Tests](https://img.shields.io/badge/tests-CI-brightgreen)](tests/)
+[![Couverture](https://img.shields.io/badge/couverture-CI-brightgreen)](#qualité-et-vérification)
 [![Licence](https://img.shields.io/badge/licence-propriétaire-lightgrey)](LICENSE)
 
 On décrit l'intention d'une application dans un DSL dédié ; monl-compiler en génère la base
@@ -53,6 +53,10 @@ monl
 monl frontend MonProjet --provider codex
 monl run MonProjet
 ```
+
+Les fournisseurs frontend par API nécessitent l'extra optionnel :
+`pip install 'monl-compiler[ai]'`. Les agents locaux et `monl import` n'en ont
+pas besoin.
 
 Le parcours **Personnalisation détaillée** reste disponible pour choisir chaque
 option, rôle, contenu éditorial et intention visuelle. Sans agent local ni clé
@@ -121,6 +125,8 @@ toute injection par les noms de tables ou de colonnes.
 | `rule Entite.Action ownedBy Acteur` | Seul le propriétaire (relation auto-peuplée à la création) peut agir — **le filtrage couvre aussi la lecture**, liste et accès direct |
 | `rule Entite.Action accessibleBy col1, col2` | Réservé aux parties référencées par l'enregistrement (messagerie privée : expéditeur et destinataire) |
 | `rule Entite.Action public` | Retire l'authentification d'une action précise (galerie publique, formulaire de contact) |
+| `rule Article.Read publicWhen status "published"` | Lecture publique **sous condition** : liste filtrée, détail en 404. Un `sharedBy` sur la même référence exempte les modérateurs ; le propriétaire retrouve toujours les siens |
+| `rule Vote.Create oncePer Participant, Entry` | Index unique composite : un compte ne peut effectuer l'action qu'une fois par cible |
 
 **Les contraintes de champ sont appliquées, pas seulement déclarées :**
 
@@ -340,8 +346,8 @@ serveur. Toute exception ou tout appel hors contrat bloque le lancement
 
 | | |
 |---|---|
-| **756 tests collectés** | Validations unitaires et serveurs éphémères pour les parcours HTTP |
-| **88 % de couverture** | `pytest --cov=src` |
+| **832 tests validés lors du dernier audit** | Validations unitaires et serveurs éphémères pour les parcours HTTP ; le nombre officiel est celui publié par la CI |
+| **Couverture publiée par la CI** | `pytest --cov=src --cov-report=term-missing` |
 | **Audit offensif** | Usurpation de rôle, JWT forgé, élévation de privilège |
 | **Frontières d'architecture** | Six contrats d'import vérifiés par un test, pas par la mémoire |
 | **Lint** | `ruff check src tests` — zéro signalement, exceptions justifiées dans `pyproject.toml` |
@@ -353,6 +359,11 @@ python3 -m pytest tests/ -q --cov=src --cov-report=term-missing
 
 ```bash
 ruff check src tests
+```
+
+```bash
+python3 -m mypy src/monl/ir.py src/monl/errors.py src/monl/generator/emitters.py --strict
+vulture src/monl --min-confidence 90
 ```
 
 monl-compiler ne dépend d'aucun modèle d'IA et ne fait aucun appel réseau :
@@ -381,6 +392,7 @@ automatisée.
 | [docs/SECURITE.md](docs/SECURITE.md) | Modèle de sécurité |
 | [docs/MIGRATIONS.md](docs/MIGRATIONS.md) | Évolution du schéma sans perte |
 | [docs/BETA.md](docs/BETA.md) | État de la bêta et feuille de route |
+| [docs/DEPRECATIONS.md](docs/DEPRECATIONS.md) | Compatibilités historiques et politique de retrait |
 | [CHANGELOG.md](CHANGELOG.md) | Historique des versions |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Méthode de travail, règles du dépôt, checklist avant PR |
 

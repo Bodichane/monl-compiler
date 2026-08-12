@@ -26,7 +26,6 @@ Ce que la brique décide, et qui n'allait pas de soi :
   qui MENT, ce qui est pire qu'une case vide.
 """
 import json
-import socket
 import subprocess
 import sys
 import time
@@ -38,6 +37,7 @@ import pytest
 from monl.ast_validator import ASTValidationError, MonlAST
 from monl.cli import compile_project
 from monl.parser import parse_monl_string
+from tests.support.server import free_port as _port_libre
 
 SPEC = """app BancHorodatage
 
@@ -243,12 +243,6 @@ def test_le_contrat_annonce_le_champ_comme_peuple_par_le_serveur(tmp_path, capsy
 # --------------------------------------------------------------------------
 # Le comportement, contre un vrai serveur
 # --------------------------------------------------------------------------
-
-def _port_libre():
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
 
 def _appel(url, corps=None, jeton=None, methode=None):
     donnees = json.dumps(corps).encode() if corps is not None else None

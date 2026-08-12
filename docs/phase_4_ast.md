@@ -1,5 +1,8 @@
 # 🟢 Phase 4 — L'Arbre de Syntaxe Abstraite (AST) & Audit Statique de Sécurité
 
+> **Document historique.** Cette page décrit une étape de conception ; elle ne
+> remplace pas l'architecture courante. Voir `README.md` et `CODEBASE_AUDIT.md`.
+
 ## Objectif
 L'Arbre de Syntaxe Abstraite (AST) normalise le dictionnaire brut issu du Parser (Phase 3). Cette phase implémente le moteur d'**Analyse Statique de Sécurité** (Axe : "Sécurisé et audité") conçu pour intercepter les vulnérabilités d'architecture directement au moment de la compilation, avant la génération des fichiers d'infrastructure.
 

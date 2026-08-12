@@ -6,8 +6,21 @@ lors du découpage en package — voir docs/design_decisions.md.
 import os
 import secrets
 
+from ..artifacts import copy_preserved_files, publish_files, staging_directory
+from ..ir import (
+    PAYMENT_STATUS_COLUMN,
+    AccessPolicy,
+    CompilationIR,
+    CompilationPlans,
+    EffectPlan,
+    EntityModel,
+    FieldPolicy,
+    RelationModel,
+    RoutePlan,
+)
 from . import sql
 from .admin_cli import AdminCliMixin
+from .emitters import BackendEmitter
 from .routes import RoutesMixin
 from .runtime import RuntimeMixin
 from .sandbox import SandboxMixin
@@ -20,9 +33,8 @@ from .sql_schema import SqlSchemaMixin
 # couches (schéma SQL, liste de colonnes, routes, et — depuis le point 76 —
 # le contrat frontend). Quatre copies d'un nom de colonne, c'est quatre
 # occasions de le faire dériver.
-PAYMENT_STATUS_COLUMN = "payment_status"
-PAYMENT_REF_COLUMN = "payment_ref"
-PAYMENT_TRACKING_COLUMNS = (PAYMENT_STATUS_COLUMN, PAYMENT_REF_COLUMN)
+BACKEND_ARTIFACTS = ("app.py", "schema.sql", "sandbox_ai.py", "manage.py",
+                     ".jwt_secret")
 
 
 class MonlSecureGenerator(
@@ -33,7 +45,7 @@ class MonlSecureGenerator(
     RoutesMixin,
     SandboxMixin,
 ):
-    def __init__(self, normalized_ast, output_dir=None):
+    def __init__(self, normalized_ast: CompilationIR, output_dir=None):
         # AJOUT (roadmap, compilation multi-projets) : 'output_dir' permet de
         # compiler chaque spec dans son propre dossier (option --output de
         # main.py) au lieu d'écraser systématiquement les artefacts à la
@@ -53,6 +65,11 @@ class MonlSecureGenerator(
         self.app_name = normalized_ast["meta"]["appName"]
         self.entities = normalized_ast["schema"]["entities"]
         self.relations = normalized_ast["schema"]["relations"]
+        self.relation_models = [
+            RelationModel(source=relation["source"], kind=relation["type"],
+                          target=relation["target"])
+            for relation in self.relations
+        ]
         self.workflows = normalized_ast["security"]["workflows"]
         self.actors = normalized_ast["security"]["actors"]
         # AJOUT (bêta 3, correctif d'élévation de privilège) : seuls ces
@@ -92,6 +109,16 @@ class MonlSecureGenerator(
         self.public_actions = {
             tuple(ref.split(".", 1)) for ref in normalized_ast["security"].get("public", [])
         }
+        # BRIQUE visibilité conditionnelle : un contenu marqué publicWhen
+        # reste filtré par l'API, liste et détail compris.
+        self.public_conditions = {
+            tuple(ref.split(".", 1)): value
+            for ref, value in normalized_ast["security"].get(
+                "public_conditions", {}).items()
+        }
+        # BRIQUE unicité métier : une combinaison de clés étrangères ne peut
+        # être créée deux fois pour le même compte et la même cible.
+        self.once_per_rules = normalized_ast["security"].get("once_per", [])
         # AJOUT (roadmap, écosystème de capacités -- brique 2) : ensemble des
         # "Entite.champ" marquées 'hidden' — voir _generate_secure_fastapi,
         # où ces champs sont retirés des réponses de lecture (liste et
@@ -211,6 +238,138 @@ class MonlSecureGenerator(
         # AJOUT (roadmap frontend, bloc 'seed') : données de démonstration à
         # insérer au démarrage si les tables sont vides (voir init_db).
         self.seeds = normalized_ast.get("seeds", [])
+        # Vue typée commune aux consommateurs de la sémantique des champs.
+        # Les dictionnaires historiques restent disponibles pendant la
+        # migration des émetteurs SQL et API.
+        self.entity_models = self._build_entity_models()
+        # Carte de routes calculée avant les politiques qui en dépendent.
+        self.route_plans = self._compute_route_map()
+        self.access_policies = self._build_access_policies()
+        self.effect_plans = self._build_effect_plans()
+        # Le catalogue de plans devient l'analyse canonique de cette instance.
+        # Les anciens attributs restent exposés aux mixins pendant la migration,
+        # mais les consommateurs modernes réutilisent désormais cet objet.
+        self.compilation_plans = self.build_compilation_plans()
+        # Façade composée : les mixins restent l'implémentation historique,
+        # mais l'orchestrateur ne choisit plus chaque couche individuellement.
+        self.emitters = BackendEmitter(self)
+
+    def _build_entity_models(self) -> dict[str, EntityModel]:
+        """Consolide une fois les politiques réparties dans l'IR validée."""
+        models = {}
+        for entity, fields in self.entities.items():
+            derived = {r["field"]: r for r in self.derived_by_entity.get(entity, [])}
+            aggregated = {
+                r["field"]: r for r in self.aggregated_by_entity.get(entity, [])
+            }
+            numbered = {
+                r["field"]: r for r in self.numbered_fields_by_entity.get(entity, [])
+            }
+            generated = set(self.generated_fields_by_entity.get(entity, []))
+            hidden = set(self.hidden_fields_by_entity.get(entity, []))
+            categorized = {
+                r["field"] for r in self.categorized_fields_by_entity.get(entity, [])
+            }
+            timestamped = set(self.timestamp_fields_by_entity.get(entity, []))
+            postpayment = set(
+                self.postpayment_writable_by_entity.get(entity, {}).get("fields", [])
+            )
+            policies = {}
+            for name, type_ in fields.items():
+                derived_rule = derived.get(name)
+                aggregate_rule = aggregated.get(name)
+                numbering_rule = numbered.get(name)
+                server_generated = (
+                    name in generated
+                    or derived_rule is not None
+                    or aggregate_rule is not None
+                    or numbering_rule is not None
+                    or name in timestamped
+                )
+                policies[name] = FieldPolicy(
+                    name=name,
+                    type=type_,
+                    hidden_in_reads=name in hidden,
+                    server_generated=server_generated,
+                    categorized_in_reads=name in categorized,
+                    postpayment_only=name in postpayment,
+                    allowed_values=tuple(
+                        self.enumerated_fields.get(entity, {}).get(name, [])
+                    ),
+                    constraints=self.field_constraints.get(entity, {}).get(name, {}),
+                    derived_rule=derived_rule,
+                    aggregate_rule=aggregate_rule,
+                    timestamped=name in timestamped,
+                    numbering_rule=numbering_rule,
+                )
+            models[entity] = EntityModel(name=entity, fields=policies)
+        return models
+
+    def _build_access_policies(self) -> dict[tuple[str, str], AccessPolicy]:
+        """Consolide les sources de contrôle d'accès par route logique."""
+        policies = {}
+        for (action, _key), route in self._compute_route_map().items():
+            entity = route.base_target
+            reference = f"{entity}.{action}"
+            condition = self.public_conditions.get((entity, "Read")) \
+                if action == "Read" else None
+            policies[(entity, action)] = AccessPolicy(
+                entity=entity,
+                action=action,
+                actors=frozenset(route.actors),
+                public=((entity, action) in self.public_actions or condition is not None),
+                public_condition=condition,
+                owner_entity=self.ownership.get(reference),
+                transitive_ownership=self.transitive_ownership.get(entity),
+                party_fields=tuple(self.access_parties.get(reference, [])),
+                supervisors=frozenset(self.access_supervisors.get(reference, [])),
+            )
+        return policies
+
+    def _build_effect_plans(self) -> tuple[EffectPlan, ...]:
+        """Réunit les effets validés dans un catalogue commun et ordonné."""
+        plans = []
+        for entity, rules in self.derived_by_entity.items():
+            plans.extend(EffectPlan(
+                kind="derive", trigger_entity=entity, target_entity=entity,
+                field=rule["field"], source_entity=rule["source_entity"],
+                source_field=rule["source_field"], config=rule,
+            ) for rule in rules)
+        for source, rules in self.aggregations_by_source.items():
+            plans.extend(EffectPlan(
+                kind="aggregate", trigger_entity=source,
+                target_entity=rule["entity"], field=rule["field"],
+                source_entity=source, source_field=rule["source_field"], config=rule,
+            ) for rule in rules)
+        for trigger, rules in self.reputation_rules_by_trigger.items():
+            plans.extend(EffectPlan(
+                kind="increment" if rule["direction"] == "increments" else "decrement",
+                trigger_entity=trigger, target_entity=rule["target_entity"],
+                field=rule["target_field"], source_entity=None,
+                source_field=rule.get("amount_field"), config=rule,
+            ) for rule in rules)
+        for entity, rules in self.release_rules_by_entity.items():
+            plans.extend(EffectPlan(
+                kind="release", trigger_entity=entity,
+                target_entity=rule["releases"], field=rule["field"],
+                source_entity=None, source_field=None, config=rule,
+            ) for rule in rules)
+        plans.extend(EffectPlan(
+            kind="payment_lock", trigger_entity=entity, target_entity=entity,
+            field=field, source_entity=None, source_field=None,
+            config={"entity": entity, "field": field},
+        ) for entity, field in self.payable_by_entity.items())
+        plans.extend(EffectPlan(
+            kind="postpayment_write", trigger_entity=entity, target_entity=entity,
+            field=None, source_entity=None, source_field=None, config=config,
+        ) for entity, config in self.postpayment_writable_by_entity.items())
+        return tuple(plans)
+
+    def _effects(self, kind, *, trigger=None, target=None):
+        return [plan for plan in self.effect_plans
+                if plan.kind == kind
+                and (trigger is None or plan.trigger_entity == trigger)
+                and (target is None or plan.target_entity == target)]
 
     def _compute_fk_placements(self):
         """CORRECTIF (roadmap) : jusqu'ici, seul le type de relation 'hasMany'
@@ -225,17 +384,11 @@ class MonlSecureGenerator(
         Retourne : {entité_qui_porte_la_colonne: [{"fk_column", "owner_entity", "unique"}]}
         """
         placements = {}
-        for rel in self.relations:
-            if rel["type"] in ("hasMany", "hasOne"):
-                owner_entity, held_entity = rel["source"], rel["target"]
-            elif rel["type"] == "belongsTo":
-                owner_entity, held_entity = rel["target"], rel["source"]
-            else:
-                continue
-            placements.setdefault(held_entity, []).append({
-                "fk_column": f"{owner_entity.lower()}_id",
-                "owner_entity": owner_entity,
-                "unique": rel["type"] == "hasOne",
+        for relation in self.relation_models:
+            placements.setdefault(relation.held_entity, []).append({
+                "fk_column": relation.fk_column,
+                "owner_entity": relation.owner_entity,
+                "unique": relation.unique,
             })
         return placements
 
@@ -245,7 +398,7 @@ class MonlSecureGenerator(
         Ils doivent être traités comme les champs 'generated' partout où le
         client pourrait les fournir : absents du schéma Pydantic, et exclus des
         valeurs d'écriture qu'on lit dans `data`."""
-        return [r["field"] for r in self.derived_by_entity.get(entity, [])]
+        return [plan.field for plan in self._effects("derive", target=entity)]
 
     def _derived_source_fk(self, entity, source_entity):
         """Colonne de clé étrangère de 'entity' qui désigne la ligne de
@@ -406,7 +559,7 @@ class MonlSecureGenerator(
 
         Traités partout comme les champs 'derivedFrom' : absents du schéma
         Pydantic, et jamais lus dans `data`."""
-        return [r["field"] for r in self.aggregated_by_entity.get(entity, [])]
+        return [plan.field for plan in self._effects("aggregate", target=entity)]
 
     def _aggregation_recomputes(self, source_entity):
         """Sommes à recalculer après toute écriture sur 'source_entity'.
@@ -419,9 +572,9 @@ class MonlSecureGenerator(
         somme de flottants dérive (0.1 + 0.2), et c'est un montant."""
         recalculs = []
         placements = self._compute_fk_placements().get(source_entity, [])
-        for regle in self.aggregations_by_source.get(source_entity, []):
+        for plan in self._effects("aggregate", trigger=source_entity):
             fk = next((p["fk_column"] for p in placements
-                       if p["owner_entity"] == regle["entity"]), None)
+                       if p["owner_entity"] == plan.target_entity), None)
             # Le validateur a exigé la relation parent-enfant : arriver ici sans
             # colonne signifie que validation et placement des clés étrangères
             # ont divergé. Échouer à la génération vaut mieux qu'émettre une
@@ -429,13 +582,13 @@ class MonlSecureGenerator(
             if not fk:
                 raise ValueError(
                     f"Génération : aucune colonne de clé étrangère de "
-                    f"'{source_entity}' ne désigne '{regle['entity']}', alors que "
+                    f"'{source_entity}' ne désigne '{plan.target_entity}', alors que "
                     f"le validateur l'exigeait pour 'sumOf'."
                 )
             recalculs.append({
                 "fk_column": fk,
-                "sql": (f'UPDATE "{regle["entity"].lower()}" SET "{regle["field"]}" = '
-                        f'(SELECT ROUND(COALESCE(SUM("{regle["source_field"]}"), 0), 2) '
+                "sql": (f'UPDATE "{plan.target_entity.lower()}" SET "{plan.field}" = '
+                        f'(SELECT ROUND(COALESCE(SUM("{plan.source_field}"), 0), 2) '
                         f'FROM "{source_entity.lower()}" WHERE "{fk}" = ?) '
                         f'WHERE id = ?'),
             })
@@ -478,8 +631,8 @@ class MonlSecureGenerator(
         verrous = []
         vus = set()
         placements = self._compute_fk_placements().get(source_entity, [])
-        for regle in self.aggregations_by_source.get(source_entity, []):
-            parent = regle["entity"]
+        for plan in self._effects("aggregate", trigger=source_entity):
+            parent = plan.target_entity
             if parent not in self.payable_by_entity or parent in vus:
                 continue
             fk = next((p["fk_column"] for p in placements
@@ -618,7 +771,8 @@ class MonlSecureGenerator(
         eux s'il y en a plusieurs.
         """
         route_map = self._compute_route_map()
-        creatable = {info["base_target"] for (act, _k), info in route_map.items() if act == "Create"}
+        creatable = {plan.base_target for (act, _k), plan in route_map.items()
+                     if act == "Create"}
         identity_cols = {}
         for entity in self.entities:
             if entity not in creatable:
@@ -658,53 +812,48 @@ class MonlSecureGenerator(
         if self.capabilities:
             print(f"🧩 Capacités déclarées : {', '.join(self.capabilities)} (voir docs/design_decisions.md point 24).")
 
-        sql_content = self._generate_sql()
-        api_content = self._generate_secure_fastapi()
-        sandbox_content = self._generate_ai_sandbox()
-        manage_content = self._generate_manage_cli()
+        sources = self.emitters.render()
+        sql_content = sources.schema
+        api_content = sources.app
+        sandbox_content = sources.sandbox
+        manage_content = sources.manage
 
-        # Détermination des chemins physiques (racine du dépôt par défaut,
-        # ou dossier passé via --output — voir __init__).
-        base_dir = self.output_dir
-        sql_path = os.path.join(base_dir, "schema.sql")
-        api_path = os.path.join(base_dir, "app.py")
-        sandbox_path = os.path.join(base_dir, "sandbox_ai.py")
-        manage_path = os.path.join(base_dir, "manage.py")
-        secret_path = os.path.join(base_dir, ".jwt_secret")
+        # Détermination des chemins physiques dans un staging voisin. La
+        # publication ne touche au projet courant qu'après la génération
+        # complète des cinq artefacts backend.
+        target_dir = self.output_dir
+        with staging_directory(target_dir) as temporary:
+            copy_preserved_files(target_dir, temporary, (".jwt_secret",))
+            self.output_dir = os.path.abspath(temporary)
+            base_dir = self.output_dir
+            sql_path = os.path.join(base_dir, "schema.sql")
+            api_path = os.path.join(base_dir, "app.py")
+            sandbox_path = os.path.join(base_dir, "sandbox_ai.py")
+            manage_path = os.path.join(base_dir, "manage.py")
+            secret_path = os.path.join(base_dir, ".jwt_secret")
 
-        # CORRECTIF (roadmap, faille signalée) : le secret JWT était jusqu'ici
-        # une chaîne fixe codée en dur dans generator.py, IDENTIQUE dans
-        # absolument toutes les applications générées par monl. Un token
-        # forgé pour une app était donc valide sur n'importe quelle autre
-        # app générée par le même compilateur — quiconque lit le code source
-        # public de monl connaît la clé secrète de toutes les applications
-        # qui en sont issues. Un secret aléatoire de 32 octets est désormais
-        # généré une seule fois par projet, à la première compilation, et
-        # conservé dans '.jwt_secret' (à ajouter au .gitignore, jamais commité).
-        # Recompiler la spec NE régénère PAS ce secret (pour ne pas invalider
-        # les sessions déjà émises) — il faut le supprimer manuellement pour
-        # en forcer le renouvellement.
-        # CORRECTIF (bêta 3) : le fichier était créé avec les permissions par
-        # défaut (0644 sur la plupart des systèmes) — n'importe quel compte
-        # local pouvait lire le secret de signature et forger des jetons
-        # valides. Il est désormais créé en 0600 (propriétaire seul), et une
-        # compilation sur un projet existant resserre les permissions.
-        if not os.path.exists(secret_path):
-            fd = os.open(secret_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                f.write(secrets.token_hex(32))
-            print("🔑 Nouveau secret JWT généré dans '.jwt_secret' (32 octets, permissions 0600).")
-        else:
             try:
-                os.chmod(secret_path, 0o600)
-            except OSError:
-                pass
-            print("🔑 Secret JWT existant conservé ('.jwt_secret', permissions 0600).")
+                # Le secret est généré une fois par projet, conservé entre
+                # compilations et toujours publié avec le mode propriétaire seul.
+                if not os.path.exists(secret_path):
+                    fd = os.open(secret_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                    with os.fdopen(fd, "w", encoding="utf-8") as f:
+                        f.write(secrets.token_hex(32))
+                    print("🔑 Nouveau secret JWT généré dans '.jwt_secret' (32 octets, permissions 0600).")
+                else:
+                    try:
+                        os.chmod(secret_path, 0o600)
+                    except OSError:
+                        pass
+                    print("🔑 Secret JWT existant conservé ('.jwt_secret', permissions 0600).")
 
-        with open(sql_path, "w", encoding="utf-8") as f: f.write(sql_content)
-        with open(api_path, "w", encoding="utf-8") as f: f.write(api_content)
-        with open(sandbox_path, "w", encoding="utf-8") as f: f.write(sandbox_content)
-        with open(manage_path, "w", encoding="utf-8") as f: f.write(manage_content)
+                with open(sql_path, "w", encoding="utf-8") as f: f.write(sql_content)
+                with open(api_path, "w", encoding="utf-8") as f: f.write(api_content)
+                with open(sandbox_path, "w", encoding="utf-8") as f: f.write(sandbox_content)
+                with open(manage_path, "w", encoding="utf-8") as f: f.write(manage_content)
+            finally:
+                self.output_dir = target_dir
+            publish_files(temporary, target_dir, BACKEND_ARTIFACTS)
 
         print("💾 Socle généré : 'schema.sql', 'app.py', 'sandbox_ai.py' et 'manage.py' sont prêts !")
         if not self.self_register_actors:
@@ -763,6 +912,73 @@ class MonlSecureGenerator(
         return sorted(champ for champ, contraintes
                       in self.field_constraints.get(entity, {}).items()
                       if contraintes.get("unique"))
+
+    def _once_per_rules_for(self, entity):
+        return [rule for rule in self.once_per_rules
+                if rule["trigger_entity"] == entity]
+
+    def _condition_exemptions(self, entity):
+        """POINT 116 : QUI échappe à la condition 'publicWhen' de cette entité.
+
+        Rend (superviseurs déclarés, colonnes d'identité du propriétaire).
+        Source UNIQUE des deux exemptions : la route de lecture les émet, et
+        `runtime.py` s'en sert pour n'écrire la dépendance d'identité
+        facultative QUE si au moins une exemption existe — sans quoi une spec
+        sans superviseur ni propriétaire porterait une fonction que rien
+        n'appelle. Deux calculs séparés finiraient par diverger, et c'est le
+        genre d'écart qui rouvre un contrôle d'accès.
+        """
+        if (entity, "Read") not in self.public_conditions:
+            return [], []
+        superviseurs = sorted(self.access_supervisors.get(f"{entity}.Read", []))
+        proprietaire = sorted(self._identity_fk_columns().get(entity, set()))
+        return superviseurs, proprietaire
+
+    def _condition_identity_needed(self):
+        """Vrai si au moins une lecture conditionnée porte une exemption."""
+        return any(any(self._condition_exemptions(entity))
+                   for entity, action in self.public_conditions
+                   if action == "Read")
+
+    def _compute_once_per_indexes(self):
+        """Index uniques multi-colonnes issus des règles `oncePer`."""
+        indexes = []
+        placements = self._compute_fk_placements()
+        for rule in self.once_per_rules:
+            entity = rule["trigger_entity"]
+            columns = []
+            for parent in rule["parents"]:
+                placement = next(
+                    (p for p in placements.get(entity, [])
+                     if p["owner_entity"] == parent), None)
+                if not placement:
+                    raise ValueError(
+                        f"Génération : aucune clé étrangère de '{entity}' ne désigne "
+                        f"'{parent}', alors que 'oncePer' l'exige.")
+                # POINT 116 : un index composite sur une colonne que la route
+                # Create n'écrit JAMAIS ne refuse rien — SQLite tient deux NULL
+                # pour distincts, donc la règle passe la compilation, crée son
+                # index, et laisse voter dix fois. C'est arrivé sur
+                # `exemples/03_reseau_social.ml` : la colonne visée par un
+                # `increments` sort de l'INSERT quand elle est la PREMIÈRE
+                # relation entrante, et `oncePer Member, Post` ne mordait plus.
+                # Refuser plutôt que produire une règle sans effet — c'est
+                # exactement ce que le point 85 a fermé pour `unique`.
+                ecrites = set(self._client_fk_columns(entity))
+                ecrites |= set(self._identity_fk_columns().get(entity, set()))
+                if placement["fk_column"] not in ecrites:
+                    raise ValueError(
+                        f"Génération : 'oncePer' sur '{entity}' désigne '{parent}', "
+                        f"mais la colonne '{placement['fk_column']}' n'est jamais "
+                        f"écrite à la création — l'unicité ne refuserait rien. "
+                        f"Déclarer la relation vers l'acteur AVANT celle visée par "
+                        f"un 'increments'/'decrements', pour que la colonne du "
+                        f"parent reste fournie par le client.")
+                columns.append(placement["fk_column"])
+            index_name = "idx_once_per_{}_{}".format(
+                entity.lower(), "_".join(c.lower() for c in columns))
+            indexes.append((entity.lower(), columns, index_name))
+        return indexes
 
     def _compute_unique_indexes(self):
         """POINT 85 : [(table, colonne, nom_d_index)] pour chaque 'rule
@@ -909,19 +1125,6 @@ class MonlSecureGenerator(
         }
         return mapping.get(type_str, "TEXT")
 
-    def _get_row_column_names(self, entity):
-        """Reconstruit l'ordre exact des colonnes SQL d'une entité (id, puis
-        attributs déclarés dans l'ordre, puis clé(s) étrangère(s) entrante(s)),
-        pour convertir les tuples renvoyés par sqlite3 en objets nommés côté
-        API plutôt que des tableaux positionnels — nécessaire pour un rendu
-        front lisible (roadmap : front visuel, pas de JSON brut)."""
-        columns = ["id"] + list(self.entities[entity].keys())
-        if entity in self.payable_by_entity:
-            columns += list(PAYMENT_TRACKING_COLUMNS)
-        for placement in self._compute_fk_placements().get(entity, []):
-            columns.append(placement["fk_column"])
-        return columns
-
     def _emit_categorization_lines(self, categorized_field, row_var, indent):
         """AJOUT (roadmap, écosystème de capacités -- brique 5) : génère le
         code source Python qui remplace, sur un dict de ligne déjà nommé
@@ -949,7 +1152,7 @@ class MonlSecureGenerator(
                 lines.append(f"{indent}{keyword} _v < {clause['below']}: {row_var}['{cat_key}'] = {label_literal}")
         return lines
 
-    def _compute_route_map(self):
+    def _compute_route_map(self) -> dict[tuple[str, str], RoutePlan]:
         """Regroupe les actions par (type, cible) avec la liste des acteurs
         autorisés et le 'tag' (nom du premier workflow qui déclare l'action)
         -- extrait de _generate_secure_fastapi pour être réutilisé aussi par
@@ -958,7 +1161,9 @@ class MonlSecureGenerator(
         'custom' au bon endroit). Une seule source de vérité : si cette
         logique de regroupement change un jour, les deux consommateurs
         restent forcément synchronisés."""
-        route_map = {}
+        if hasattr(self, "route_plans"):
+            return self.route_plans
+        route_map: dict[tuple[str, str], RoutePlan] = {}
         for wf in self.workflows:
             wf_name = wf["name"]
             required_actor = wf["actor"]
@@ -968,11 +1173,68 @@ class MonlSecureGenerator(
                 base_target = target.split(".")[0] if "." in target else target
                 route_key = (act_type, base_target if act_type != "Execute" else target)
                 if route_key not in route_map:
-                    route_map[route_key] = {"actors": set(), "tags": [], "target": target, "base_target": base_target}
-                route_map[route_key]["actors"].add(required_actor)
-                if wf_name not in route_map[route_key]["tags"]:
-                    route_map[route_key]["tags"].append(wf_name)
+                    route_map[route_key] = RoutePlan(
+                        action=act_type,
+                        key=route_key[1],
+                        target=target,
+                        base_target=base_target,
+                        actors=set(),
+                        tags=[],
+                    )
+                route_map[route_key].allow(required_actor, wf_name)
         return route_map
+
+    def build_compilation_plans(self) -> CompilationPlans:
+        """Expose les analyses communes aux émetteurs backend et frontend."""
+        if hasattr(self, "compilation_plans"):
+            return self.compilation_plans
+        placements = self._compute_fk_placements()
+        identity = self._identity_fk_columns()
+        return CompilationPlans(
+            route_map=self._compute_route_map(),
+            foreign_key_placements={
+                entity: tuple(dict(placement) for placement in values)
+                for entity, values in placements.items()
+            },
+            identity_foreign_keys={
+                entity: frozenset(columns)
+                for entity, columns in identity.items()
+            },
+            client_foreign_keys={
+                entity: tuple(self._client_fk_columns(entity))
+                for entity in self.entities
+            },
+            incoming_relations={
+                entity: (dict(relation) if relation else None)
+                for entity in self.entities
+                for relation in [self._get_incoming_relation(entity)]
+            },
+            payment_locked_parents={
+                entity: tuple(dict(lock) for lock in self._payment_locked_parents(entity))
+                for entity in self.entities
+            },
+            reputation_rules_by_trigger={
+                entity: tuple(dict(rule) for rule in rules)
+                for entity, rules in self.reputation_rules_by_trigger.items()
+            },
+            entity_models=self.entity_models,
+            access_policies=self.access_policies,
+            actors=tuple(self.actors),
+            self_register_actors=tuple(self.self_register_actors),
+            auth_identifier=tuple(self.auth_identifier) if self.auth_identifier else None,
+            auth_phone_prefix=self.auth_phone_prefix,
+            public_conditions=self.public_conditions,
+            required_profiles=self.required_profiles,
+            payable_by_entity=self.payable_by_entity,
+            release_rules_by_entity={
+                entity: tuple(dict(rule) for rule in rules)
+                for entity, rules in self.release_rules_by_entity.items()
+            },
+            transitive_ownership=self.transitive_ownership,
+            postpayment_writable_by_entity=self.postpayment_writable_by_entity,
+            assets=self.assets,
+            once_per_rules=tuple(dict(rule) for rule in self.once_per_rules),
+        )
 
     def _generate_secure_fastapi(self):
         """Assemble app.py à partir des trois couches générées séparément :

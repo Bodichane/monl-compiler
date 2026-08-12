@@ -26,7 +26,6 @@ références mal formées continue de les rendre. La règle ne vaut que pour les
 écritures à venir, comme au point 95.
 """
 import json
-import socket
 import subprocess
 import sys
 import time
@@ -37,6 +36,7 @@ import pytest
 
 from monl.cli import compile_project
 from monl.smoke_test import _sample_value, run_smoke_test
+from tests.support.server import free_port as _port_libre
 
 SPEC = """app BancUUID
 
@@ -142,12 +142,6 @@ def test_le_smoke_test_passe_sur_une_spec_a_uuid(tmp_path, capsys):
 # --------------------------------------------------------------------------
 # Le comportement, contre un vrai serveur
 # --------------------------------------------------------------------------
-
-def _port_libre():
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
 
 def _appel(url, corps=None, jeton=None):
     donnees = json.dumps(corps).encode() if corps is not None else None

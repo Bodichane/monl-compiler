@@ -480,7 +480,8 @@ class GuidedDialogue:
 
         self._show(self.ui.phase(3))
         self_register = self._ask_self_register(actors, managers, owned)
-        payable = self._ask_payable(entities, owned, relations, managers, readers)
+        payable = (self._ask_payable(entities, owned, relations, managers, readers)
+                   if template.get("accept_payments", True) else None)
         want_seed = bool(template["seeds"]) and self._ask_yes_no(
             "Pré-remplir le site avec les données de démonstration du modèle ?")
         image_topic = self._ask_image_topic() if want_seed else None
@@ -500,6 +501,7 @@ class GuidedDialogue:
                                image_topic=image_topic,
                                self_register=self_register,
                                extra_rules=template["extra_rules"],
+                               extra_workflows=template.get("extra_workflows", ()),
                                custom_seeds=template["seeds"],
                                payable=payable)
         from .ast_validator import MonlAST
@@ -746,7 +748,7 @@ class GuidedDialogue:
                 # du propriétaire vient du jeton, pas du client, donc aucune
                 # ligne ne pourrait y être désignée. Le validateur le refuse ;
                 # le dialogue ne doit pas proposer ce que le compilateur rejette.
-                if source == ent or source == owned.get(ent):
+                if source == ent or source == owned.get(ent) or source in owned:
                     continue
                 prix = [c for c, t in entities[source]
                         if t in ("Money", "Float", "Integer")]
@@ -905,7 +907,8 @@ class GuidedDialogue:
                    owned, want_seed, want_landing, design_intent=None,
                    sections=(),
                    image_topic=None,
-                   self_register=None, extra_rules=(), custom_seeds=None,
+                   self_register=None, extra_rules=(), extra_workflows=(),
+                   custom_seeds=None,
                    payable=None):
         lines = [f"app {app_name}", "",
                  "# Spécification générée par le dialogue guidé monl (déterministe, sans IA).",
@@ -948,8 +951,17 @@ class GuidedDialogue:
             if (ent, first_field) in calcules_par_le_serveur:
                 continue
             lines.append(f"rule {ent}.{first_field} required")
+        # Une visibilité conditionnelle remplace la visibilité publique
+        # inconditionnelle : conserver les deux règles ferait échouer le
+        # validateur et, surtout, rendrait le filtre métier inopérant.
+        public_when_entities = {
+            rule.split()[1].split(".", 1)[0]
+            for rule in extra_rules
+            if rule.startswith("rule ") and " publicWhen " in rule
+        }
         for ent in public_read:
-            lines.append(f"rule {ent}.Read public")
+            if ent not in public_when_entities:
+                lines.append(f"rule {ent}.Read public")
         for ent in public_create:
             lines.append(f"rule {ent}.Create public")
         for ent, owner in owned.items():
@@ -1037,7 +1049,14 @@ class GuidedDialogue:
         # Règles avancées portées par les modèles du catalogue (increments,
         # hidden, categorized…) — émises telles quelles, validées comme tout
         # le reste par le parseur + l'audit en sortie de dialogue.
-        lines.extend(extra_rules)
+        # Les règles post-paiement ne sont valides que si le dialogue a
+        # effectivement activé le paiement. Le modèle reste donc compilable
+        # quand l'utilisateur refuse cette option.
+        rules_to_emit = [
+            rule for rule in extra_rules
+            if payable or " writableAfterPayment " not in f" {rule} "
+        ]
+        lines.extend(rules_to_emit)
         lines.append("")
 
         # Workflows : un gestionnaire CRUD complet par entité (jamais de
@@ -1049,6 +1068,11 @@ class GuidedDialogue:
                 for action in ("Create", "Read", "Update", "Delete"):
                     lines.append(f"    {action} {ent}")
                 lines.append("")
+        for workflow in extra_workflows:
+            lines.append(f"workflow {workflow['name']} for {workflow['actor']}")
+            for action, target in workflow["actions"]:
+                lines.append(f"    {action} {target}")
+            lines.append("")
         for act in actors:
             readable = [ent for ent in entities if act in readers[ent]]
             if readable:

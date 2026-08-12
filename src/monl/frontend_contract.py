@@ -26,14 +26,30 @@ import hashlib
 import json
 import os
 
+from .artifacts import copy_preserved_files, publish_files, staging_directory
+from .design_skills import render_skill_block, select_design_skills
+
 # Les noms des colonnes de suivi du paiement viennent de la couche qui les
 # crée — les réécrire ici en dur ferait une cinquième copie à faire dériver
 # (point 76). Pas de cycle : le générateur n'importe pas ce module.
-from .generator.core import PAYMENT_REF_COLUMN, PAYMENT_STATUS_COLUMN
+from .ir import (
+    PAYMENT_REF_COLUMN,
+    PAYMENT_STATUS_COLUMN,
+    CompilationIR,
+    CompilationPlans,
+)
 
-CONTRACT_VERSION = 5  # 2 : base_url même origine (51) · 3 : rôles + archétypes (54)
+CONTRACT_VERSION = 9  # 2 : base_url même origine (51) · 3 : rôles + archétypes (54)
 #                     # 4 : champs de suivi du paiement déclarés (76)
 #                     # 5 : assets déclarés — logo, favicon, dossier (83)
+#                     # 6 : route d'écriture après paiement déclarée (113)
+#                     # 7 : indicatif téléphone transmis au frontend (95)
+#                     # 8 : design skills de densité sélectionnés
+#                     # 9 : règles métier — publicWhen et oncePer (116)
+# Les numéros entre parenthèses renvoient à docs/design_decisions.md. Ceux des
+# versions 6 et 7 désignaient les points 107-109, qui parlent d'autre chose
+# (émission SQL typée, contrôle d'accès, spike Rust) : corrigés ici plutôt que
+# laissés induire en erreur — ce fichier cite ces numéros pour qu'on les suive.
 
 # RÔLES DE CHAMPS ET ARCHÉTYPES (point 54) — restauration, dans le CONTRAT,
 # de ce que le point 35 dérivait pour le frontend que monl générait lui-même,
@@ -192,6 +208,7 @@ ARCHETYPE_ANATOMY = {
 
 CONTRACT_FILENAME = "frontend_contract.json"
 PROMPT_FILENAME = "FRONTEND_PROMPT.md"
+FRONTEND_ARTIFACTS = (CONTRACT_FILENAME, PROMPT_FILENAME, "CLAUDE.md")
 
 
 def paragraphes(texte):
@@ -208,32 +225,37 @@ def paragraphes(texte):
     return "\n\n".join(p.strip() for p in texte.split("¶") if p.strip())
 
 
-def build_contract(normalized_ast, generator):
-    """Construit le dictionnaire du contrat depuis l'AST normalisé et une
-    instance de MonlSecureGenerator (réutilisée UNIQUEMENT pour ses
-    calculs — _compute_route_map, champs masqués… — jamais pour générer)."""
+def _coerce_plans(source) -> CompilationPlans:
+    """Compatibilité de bibliothèque pour les anciens appels avec générateur."""
+    if isinstance(source, CompilationPlans):
+        return source
+    return source.build_compilation_plans()
+
+
+def build_contract(normalized_ast: CompilationIR, plans_or_generator):
+    """Construit le contrat depuis l'IR et les analyses communes.
+
+    La voie de production transmet ``CompilationPlans``. L'acceptation d'un
+    générateur reste volontairement conservée pour les intégrations Python
+    historiques ; elle ne fait que construire l'objet de plans une fois.
+    """
+    plans = _coerce_plans(plans_or_generator)
     app_name = normalized_ast["meta"]["appName"]
     entities = normalized_ast["schema"]["entities"]
-    hidden = generator.hidden_fields_by_entity
-    generated = generator.generated_fields_by_entity
-    categorized = {
-        ent: [c["field"] for c in rules]
-        for ent, rules in generator.categorized_fields_by_entity.items()
-    }
     # POINT 91 : la liste des 'rule X.y required' ne sert PLUS à peupler le
     # `required` du contrat — les schémas générés rendent tout champ d'entrée
     # obligatoire, déclaré ou non, et le contrat doit dire ce que le serveur
     # exige. Elle n'est donc plus lue ici : la garder pour « information »
     # rouvrirait la porte à ce qu'on vient de fermer, deux sources pour une
     # même question.
-    fk_placements = generator._compute_fk_placements()
+    fk_placements = plans.foreign_key_placements
 
     # Calculés AVANT les entités : l'archétype dépend de qui peut lire, pas
     # seulement des champs (voir _archetype). Même source de vérité que la
     # génération FastAPI — _compute_route_map, jamais une logique parallèle.
-    route_map = generator._compute_route_map()
-    public = generator.public_actions
-    lisibles = {info["base_target"] for (act, _t), info in route_map.items()
+    route_map = plans.route_map
+    public_conditions = plans.public_conditions
+    lisibles = {plan.base_target for (act, _t), plan in route_map.items()
                 if act == "Read"}
 
     # POINT 79 : un champ 'derivedFrom' est CALCULÉ par le serveur, donc absent
@@ -244,37 +266,27 @@ def build_contract(normalized_ast, generator):
     # reproduit sur la brique qui venait de le corriger — la leçon « déclarer
     # ce que le backend fait VRAIMENT » vaut aussi quand une brique retire
     # quelque chose, pas seulement quand elle ajoute une colonne.
-    derives = {ent: {r["field"]: r for r in regles}
-               for ent, regles in getattr(generator, "derived_by_entity", {}).items()}
     # POINT 82 : même exigence pour 'sumOf'. Le défaut du point 76 s'est déjà
     # reproduit deux fois (points 79 et 81) : le déclarer d'emblée ici plutôt
     # que d'attendre qu'une IA d'interface bâtisse un champ « total » que le
     # serveur recalcule. Un total de panier est le cas où l'écart se voit le
     # plus vite — il change à chaque ligne ajoutée.
-    sommes = {ent: {r["field"]: r for r in regles}
-              for ent, regles in getattr(generator, "aggregated_by_entity", {}).items()}
     # POINT 89 : quatrième membre de la même famille. Le défaut du point 76 s'est
     # reproduit sur chacune des trois précédentes ; celle-ci arrive déclarée.
-    horodates = getattr(generator, "timestamp_fields_by_entity", {})
     # POINT 102 : cinquième membre de la même famille, déclarée d'emblée elle
     # aussi. Sans ça le contrat annoncerait un « numéro de commande » parmi les
     # champs à saisir, et une IA d'interface fidèle au contrat dessinerait un
     # formulaire que le serveur ignore.
-    numeros = {ent: {r["field"]: r for r in regles}
-               for ent, regles in getattr(generator, "numbered_fields_by_entity",
-                                          {}).items()}
-
     entity_specs = {}
     for ent, fields in entities.items():
         field_list = []
+        entity_model = plans.entity_models[ent]
         for fname, ftype in fields.items():
-            derive = derives.get(ent, {}).get(fname)
-            somme = sommes.get(ent, {}).get(fname)
-            numero = numeros.get(ent, {}).get(fname)
-            peuple_par_le_serveur = (fname in generated.get(ent, [])
-                                     or derive is not None or somme is not None
-                                     or numero is not None
-                                     or fname in horodates.get(ent, []))
+            policy = entity_model.fields[fname]
+            derive = policy.derived_rule
+            somme = policy.aggregate_rule
+            numero = policy.numbering_rule
+            peuple_par_le_serveur = policy.server_generated
             champ = {
                 "name": fname,
                 "type": ftype,
@@ -289,20 +301,20 @@ def build_contract(normalized_ast, generator):
                 # alors que le contrat les annonçait facultatifs.
                 "required": not peuple_par_le_serveur,
                 # hidden : jamais présent dans les réponses de lecture
-                "hidden_in_reads": fname in hidden.get(ent, []),
+                "hidden_in_reads": policy.hidden_in_reads,
                 # generated, derivedFrom ou sumOf : à NE PAS envoyer, le serveur
                 # le peuple lui-même (et l'ignorerait dans le corps de requête)
                 "server_generated": peuple_par_le_serveur,
                 # categorized : la lecture renvoie un libellé, pas le nombre
-                "categorized_in_reads": fname in categorized.get(ent, []),
+                "categorized_in_reads": policy.categorized_in_reads,
+                "postpayment_only": policy.postpayment_only,
             }
             # BRIQUE 19 (point 96) : les valeurs permises. Sans elles, l'IA
             # dessine un champ TEXTE et l'utilisateur invente un statut qui
             # récolte un 422 — alors que la liste tient dans un menu déroulant.
             # Même raison que les bornes ci-dessous : le contrat décrit ce que le
             # backend REFUSE autant que ce qu'il accepte.
-            choix = (getattr(generator, "enumerated_fields", {})
-                     .get(ent, {}).get(fname))
+            choix = policy.allowed_values
             if choix:
                 champ["allowed_values"] = list(choix)
             # POINT 85 : les bornes 'min'/'max' donnent un 422 avant tout INSERT.
@@ -312,11 +324,11 @@ def build_contract(normalized_ast, generator):
             # `server_generated` (point 79) — le contrat décrit ce que le backend
             # fait VRAIMENT, y compris ce qu'il REFUSE.
             for nom in ("min", "max"):
-                borne = generator.field_constraints.get(ent, {}).get(fname, {}).get(nom)
+                borne = policy.constraints.get(nom)
                 if borne:
                     champ[f"{nom}_{'length' if borne['portee'] == 'longueur' else 'value'}"] = \
                         borne["valeur"]
-            if generator.field_constraints.get(ent, {}).get(fname, {}).get("unique"):
+            if policy.constraints.get("unique"):
                 champ["unique"] = True
                 champ["unique_note"] = ("valeur unique imposée par la base : une "
                                         "création ou une modification en doublon "
@@ -342,7 +354,7 @@ def build_contract(normalized_ast, generator):
                     f"ajouté, modifié ou supprimé : relire le "
                     f"{ent} après chaque écriture de ligne plutôt que de tenir un "
                     f"total côté navigateur, qui divergerait.")
-            if fname in horodates.get(ent, []):
+            if policy.timestamped:
                 champ["created_at"] = True
                 champ["note"] = (
                     "instant de création, écrit par le serveur en ISO 8601 UTC "
@@ -380,7 +392,7 @@ def build_contract(normalized_ast, generator):
         # `customer.customer_id`. Une jointure qui marche À MOITIÉ — juste tant
         # que l'id de compte et l'id de fiche coïncident, c'est-à-dire sur les
         # premiers enregistrements, c'est-à-dire pendant les tests.
-        identity_cols = generator._identity_fk_columns().get(ent, set())
+        identity_cols = plans.identity_foreign_keys.get(ent, frozenset())
         fks = []
         for p in fk_placements.get(ent, []):
             lien = {"column": p["fk_column"], "references": p["owner_entity"],
@@ -416,7 +428,7 @@ def build_contract(normalized_ast, generator):
         # informations secondaires quelconques, en évinçant de vrais champs de
         # la spec. Elles n'ont donc aucun rôle — ce qu'il faut en faire est dit
         # en toutes lettres dans le brief, pas déduit d'un rôle de mise en page.
-        if ent in getattr(generator, "payable_by_entity", {}):
+        if ent in plans.payable_by_entity:
             # Chaque colonne porte SA propre explication : les décrire d'une
             # seule phrase commune faisait annoncer « 'en_attente' / 'payee' »
             # pour `payment_ref`, qui contient une référence de session — vu en
@@ -446,24 +458,28 @@ def build_contract(normalized_ast, generator):
                 })
         entity_specs[ent] = {
             "fields": field_list, "foreign_keys": fks,
-            "client_foreign_keys": _client_supplied_fks(generator, ent),
-            "archetype": _archetype(roles, ent in lisibles, (ent, "Read") in public),
+            "client_foreign_keys": _client_supplied_fks(plans, ent),
+            "archetype": _archetype(
+                roles, ent in lisibles,
+                bool(plans.access_policies.get((ent, "Read"), None)
+                     and plans.access_policies[(ent, "Read")].public)),
         }
 
     # Routes — mêmes clés de regroupement que la génération FastAPI réelle
     # (route_map et public sont calculés plus haut, pour les archétypes).
     routes = []
-    for (act_type, target), info in route_map.items():
-        base = info["base_target"]
+    for (act_type, target), plan in route_map.items():
+        base = plan.base_target
         low = base.lower()
-        is_public = (base, act_type) in public
-        actors = sorted(info["actors"])
+        access = plans.access_policies[(base, act_type)]
+        is_public = access.public
+        actors = sorted(access.actors)
         if act_type == "Create":
             # POINT 90 : sans cette note, une IA d'interface bâtit un tunnel
             # d'achat qui bute en 409 au tout dernier écran — le seul endroit où
             # l'utilisateur a déjà tout rempli. La contrainte doit se voir AVANT,
             # pas se découvrir à la fin.
-            requise = getattr(generator, "required_profiles", {}).get(base)
+            requise = plans.required_profiles.get(base)
             note_create = (
                 f"PRÉALABLE : l'appelant doit déjà posséder un {requise}. Sinon "
                 f"cette route répond 409 sans rien créer. Vérifier au chargement "
@@ -477,7 +493,7 @@ def build_contract(normalized_ast, generator):
             # Le contrat le taisait alors que le backend refusait déjà : une IA
             # fidèle dessinait un « + Ajouter un article » sur une commande
             # payée (vérifié sur `exemples/02_boutique.ml`).
-            verrou_parent = _verrou_paiement(generator, base, inclure_soi=False)
+            verrou_parent = _verrou_paiement(plans, base, inclure_soi=False)
             routes.append(_route("POST", f"/{low}", act_type, base, is_public, actors,
                                  request_fields=_creatable_fields(entity_specs.get(base)),
                                  note=_joindre(note_create,
@@ -492,7 +508,7 @@ def build_contract(normalized_ast, generator):
             # le controle par colonnes. Sans cette note, une IA d'interface
             # appliquerait le filtre de parties au moderateur lui-meme et lui
             # taillerait une vue vide — alors que le backend lui montre tout.
-            _sup_lecture = getattr(generator, "access_supervisors", {}).get(f"{base}.Read")
+            _sup_lecture = sorted(access.supervisors)
             _note_lecture = _note_superviseurs(_sup_lecture, "lecture")
             routes.append(_route("GET", f"/{low}", "List", base, is_public, actors,
                                  note=_joindre(
@@ -528,12 +544,11 @@ def build_contract(normalized_ast, generator):
             # note, une interface fidèle au contrat dessine un bouton « Modifier »
             # sur une commande payée — et l'utilisateur découvre le refus après
             # avoir rempli le formulaire.
-            verrou = _verrou_paiement(generator, base)
+            verrou = _verrou_paiement(plans, base)
             # POINT 98 : la valeur qui LIBÈRE, et l'aller sans retour. Sans
             # cette note, une interface propose « repasser en préparation » sur
             # une commande annulée et découvre un 409 au clic.
-            liberation = (getattr(generator, "release_rules_by_entity", {})
-                          .get(base) or [None])[0]
+            liberation = (plans.release_rules_by_entity.get(base) or [None])[0]
             routes.append(_route("PUT", f"/{low}/{{id}}", act_type, base, is_public, actors,
                                  note=_joindre(note_liens, _note_verrou(verrou),
                                                _note_liberation(liberation)),
@@ -545,10 +560,10 @@ def build_contract(normalized_ast, generator):
                     "field": liberation["field"], "value": liberation["value"],
                     "releases": liberation["releases"], "terminal": True}
         elif act_type == "Delete":
-            verrou = _verrou_paiement(generator, base)
+            verrou = _verrou_paiement(plans, base)
             # AJOUT (brique 23, point 106) : voir le bloc Read — un superviseur
             # de la suppression voit/supprime tous les enregistrements.
-            _sup_delete = getattr(generator, "access_supervisors", {}).get(f"{base}.Delete")
+            _sup_delete = sorted(access.supervisors)
             routes.append(_route("DELETE", f"/{low}/{{id}}", act_type, base, is_public,
                                  actors,
                                  note=_joindre(_note_verrou(verrou),
@@ -558,7 +573,7 @@ def build_contract(normalized_ast, generator):
             if verrou:
                 routes[-1]["payment_locked"] = verrou
         elif act_type == "Execute":
-            tag = info["tags"][0]
+            tag = plan.tags[0]
             routes.append(_route("POST", f"/workflow/{tag.lower()}/{target.lower()}",
                                  "Execute", target, is_public, actors))
 
@@ -569,13 +584,13 @@ def build_contract(normalized_ast, generator):
     # se le serait de toute façon interdit, puisque le contrat lui défend
     # d'appeler un chemin absent de `routes`. Une brique que le contrat ne
     # décrit pas est une brique sans interface.
-    payables = getattr(generator, "payable_by_entity", {})
+    payables = plans.payable_by_entity
     for entite, champ in sorted(payables.items()):
         # POINT 87 : sous propriété transitive, « appartient » se lit à travers
         # l'intermédiaire, et un enregistrement dont l'intermédiaire a disparu
         # répond 404. L'interface doit connaître les deux, sinon elle traite un
         # 404 comme une erreur technique là où c'est une réponse métier.
-        chaine = getattr(generator, "transitive_ownership", {}).get(entite)
+        chaine = plans.transitive_ownership.get(entite)
         premier = chaine["chain"][0] if chaine else None
         via = (f"Ce {entite} appartient à qui possède son/sa "
                f"{premier} : c'est cette chaîne (de profondeur "
@@ -584,7 +599,7 @@ def build_contract(normalized_ast, generator):
                f"404. " if premier else "")
         routes.append(_route(
             "POST", f"/{entite.lower()}/{{id}}/paiement", "Pay", entite,
-            False, sorted(generator.actors),
+            False, sorted(plans.actors),
             note=(via + "Ouvre une session de règlement pour cet enregistrement. "
                   "AUCUN corps : le montant est lu dans la base depuis "
                   f"`{champ}`, jamais reçu du client. Réponse : {{status, url, "
@@ -608,6 +623,23 @@ def build_contract(normalized_ast, generator):
                   "prestataire sait produire. Listée ici pour que la liste "
                   "des routes reste exhaustive, pas pour être appelée.")))
 
+    # BRIQUE writableAfterPayment. Cette route est générée hors de route_map,
+    # comme celles de paiement ci-dessus : elle doit donc rejoindre le contrat
+    # explicitement. Sinon les champs sont bien marqués `postpayment_only`,
+    # mais l'interface n'a aucun chemin autorisé pour les modifier.
+    postpayment = plans.postpayment_writable_by_entity
+    for entite, config in sorted(postpayment.items()):
+        fields = list(config["fields"])
+        routes.append(_route(
+            "PUT", f"/{entite.lower()}/{{id}}/apres-paiement",
+            "UpdateAfterPayment", entite, False, [config["actor"]],
+            request_fields=fields,
+            note=("Écriture réservée au rôle superviseur après règlement : "
+                  f"permet de renseigner {', '.join(f'`{f}`' for f in fields)}. "
+                  "Tous les champs sont facultatifs dans le corps ; envoyer "
+                  "uniquement ceux qui changent. 404 si l'enregistrement "
+                  "n'existe pas, 403 pour tout autre rôle.")))
+
     routes.sort(key=lambda r: (r["entity"], r["path"], r["method"]))
 
     # POINT 72 : plus AUCUNE identité visuelle calculée. Le contrat décrit ce
@@ -616,10 +648,12 @@ def build_contract(normalized_ast, generator):
     # La direction de design remonte du dialogue, par le brief.
     landing = normalized_ast.get("landing") or {}
 
+    design_skills = select_design_skills(entity_specs, routes)
     contract = {
         "monl_contract_version": CONTRACT_VERSION,
         "app": app_name,
         "brief": landing.get("brief"),
+        "design_skills": design_skills,
         # Contenu éditorial statique (point 55) : aucune entité, aucune route
         # ne peut le porter — c'est la seule matière du contrat qui ne soit
         # pas une donnée.
@@ -636,7 +670,7 @@ def build_contract(normalized_ast, generator):
         # qu'un logo existait — l'en-tête de la boutique de démonstration était
         # un simple mot en texte, faute de mieux. Chaque fichier nommé ici a été
         # vérifié présent à la compilation : l'IA peut s'y référer sans risque.
-        "assets": _assets_contract(getattr(generator, "assets", None) or {}),
+        "assets": _assets_contract(plans.assets or {}),
         "api": {
             # MÊME ORIGINE, jamais d'URL absolue : 'monl run' monte frontend/
             # sur /site du serveur qui sert déjà l'API (SERVE_WRAPPER, cli.py),
@@ -655,22 +689,24 @@ def build_contract(normalized_ast, generator):
                 # provisionnés hors ligne (manage.py) et renvoient 403 ici.
                 # L'interface ne doit donc proposer QUE cette liste.
                 "register": {"method": "POST", "path": "/register",
-                             "self_register_actors": list(generator.self_register_actors),
-                             "body": {"username": _libelle_identifiant(generator),
+                             "self_register_actors": list(plans.self_register_actors),
+                             "body": {"username": _libelle_identifiant(plans.auth_identifier),
                                       "password": "str (8+ caractères)",
-                                      "actor": f"un rôle parmi {list(generator.self_register_actors)}"},
+                                      "actor": f"un rôle parmi {list(plans.self_register_actors)}"},
                              # POINT 95 : le champ reste nommé 'username' SUR LE
                              # FIL (le renommer casserait le formulaire de tout
                              # projet existant) — c'est ici que le contrat dit
                              # ce qu'il doit vraiment contenir, et l'IA qui
                              # étiquette l'écran en conséquence.
-                             "identifier_forms": generator.auth_identifier or [],
+                             "identifier_forms": list(plans.auth_identifier or ()),
+                             "phone_prefix": plans.auth_phone_prefix,
                              "note": _joindre(
                                  ("403 si le rôle demandé n'est pas ouvert à l'inscription libre"
-                                  if generator.self_register_actors else
+                                  if plans.self_register_actors else
                                   "aucun rôle ouvert : l'inscription est fermée, "
                                   "les comptes sont créés par manage.py"),
-                                 _note_identifiant(generator.auth_identifier))},
+                                 _note_identifiant(plans.auth_identifier,
+                                                   plans.auth_phone_prefix))},
                 "login": {"method": "POST", "path": "/login",
                           "body": {"username": "str", "password": "str"},
                           "returns": "un token JWT (validité 2 h par défaut, "
@@ -680,8 +716,19 @@ def build_contract(normalized_ast, generator):
                 "rate_limit": "5 tentatives / 60 s / IP sur /register et /login",
             },
         },
-        "actors": sorted(generator.actors),
-        "self_register_actors": list(generator.self_register_actors),
+        "actors": sorted(plans.actors),
+        "self_register_actors": list(plans.self_register_actors),
+        # Règles métier qui ne se réduisent pas à un simple CRUD : le contrat
+        # frontend doit savoir qu'un contenu public est filtré par son statut
+        # et qu'un compte ne peut créer qu'une occurrence par combinaison de
+        # cibles (like/vote, par exemple).
+        "business_rules": {
+            "public_when": {
+                f"{entity}.{action}": dict(condition)
+                for (entity, action), condition in sorted(public_conditions.items())
+            },
+            "once_per": list(plans.once_per_rules),
+        },
         "entities": entity_specs,
         "routes": routes,
         "frontend_rules": {
@@ -705,16 +752,16 @@ _LIBELLES_IDENTIFIANT = {"email": "une adresse e-mail",
                          "phone": "un numéro de téléphone"}
 
 
-def _libelle_identifiant(generator):
+def _libelle_identifiant(formes):
     """Ce que le champ 'username' doit RÉELLEMENT contenir (point 95)."""
-    formes = [f for f in (generator.auth_identifier or [])
+    formes = [f for f in (formes or [])
               if f in _LIBELLES_IDENTIFIANT]
     if not formes:
         return "str"
     return "str — " + " ou ".join(_LIBELLES_IDENTIFIANT[f] for f in formes)
 
 
-def _note_identifiant(formes):
+def _note_identifiant(formes, phone_prefix=None):
     """Sans cette note, l'IA étiquette « nom d'utilisateur » et laisse un champ
     texte libre : l'utilisateur saisit un pseudo, récolte un 422, et l'écran ne
     lui dit pas pourquoi (point 95)."""
@@ -725,13 +772,18 @@ def _note_identifiant(formes):
     saisie = ("type=\"email\"" if formes == ["email"]
               else "type=\"tel\"" if formes == ["phone"]
               else "un champ texte acceptant les deux")
+    prefix_note = (
+        f" Pour le téléphone, l'indicatif déclaré est `{phone_prefix}` : "
+        "accepter aussi la notation nationale et l'annoncer près du champ."
+        if phone_prefix and "phone" in formes else ""
+    )
     return (f"IDENTIFIANT : le champ `username` doit contenir {quoi} — 422 "
             f"sinon. L'étiqueter en conséquence à l'inscription ET à la "
             f"connexion (utiliser {saisie}), jamais « nom d'utilisateur ». "
             f"Le serveur met la valeur sous forme canonique (adresse en "
             f"minuscules, numéro réduit à ses chiffres) : deux écritures de la "
             f"même adresse sont le MÊME compte, et la connexion accepte l'une "
-            f"comme l'autre.")
+            f"comme l'autre.{prefix_note}")
 
 
 def _note_liberation(regle):
@@ -747,7 +799,7 @@ def _note_liberation(regle):
             f"proposer de réactiver : proposer d'en créer un nouveau.")
 
 
-def _verrou_paiement(generator, entite, inclure_soi=True):
+def _verrou_paiement(plans: CompilationPlans, entite, inclure_soi=True):
     """Entité dont l'encaissement FIGE les écritures sur 'entite' — elle-même si
     elle est payable, sinon le parent dont elle alimente le total (point 91).
 
@@ -758,9 +810,9 @@ def _verrou_paiement(generator, entite, inclure_soi=True):
     Source unique partagée avec le générateur : `_payment_locked_parents` est ce
     qui produit réellement les gardes dans app.py. Recalculer la chaîne ici en
     ferait deux vérités, dont l'une finirait fausse."""
-    if inclure_soi and entite in getattr(generator, "payable_by_entity", {}):
+    if inclure_soi and entite in plans.payable_by_entity:
         return entite
-    verrous = generator._payment_locked_parents(entite)
+    verrous = plans.payment_locked_parents.get(entite, ())
     return verrous[0]["entity"] if verrous else None
 
 
@@ -805,7 +857,7 @@ def _route(method, path, action, entity, is_public, actors, request_fields=None,
     return r
 
 
-def _client_supplied_fks(generator, entity):
+def _client_supplied_fks(plans: CompilationPlans, entity):
     """Colonnes de clé étrangère que le CLIENT doit envoyer à la création.
 
     Reproduit À L'IDENTIQUE ce que generator/schemas.py inscrit dans le
@@ -820,21 +872,22 @@ def _client_supplied_fks(generator, entity):
       - les parents autres que le propriétaire : le propriétaire se peuple
         depuis le JWT, le reste doit être dit (un commentaire et SON article).
     """
-    if not hasattr(generator, "_get_incoming_relation"):
-        return []
     colonnes = []
-    owner = generator._get_incoming_relation(entity)
-    if owner and any(r["target_entity"] == owner["source"]
-                     for r in generator.reputation_rules_by_trigger.get(entity, [])):
+    owner = plans.incoming_relations.get(entity)
+    owners = {
+        r["target_entity"] for r in plans.reputation_rules_by_trigger.get(entity, ())
+    }
+    if owner and owner["source"] in owners:
         colonnes.append(owner["fk_column"])
-    colonnes.extend(generator._client_fk_columns(entity))
+    colonnes.extend(plans.client_foreign_keys.get(entity, ()))
     return colonnes
 
 
 def _creatable_fields(entity_spec):
     if not entity_spec:
         return []
-    return ([f["name"] for f in entity_spec["fields"] if not f["server_generated"]]
+    return ([f["name"] for f in entity_spec["fields"]
+             if not f["server_generated"] and not f.get("postpayment_only")]
             + list(entity_spec.get("client_foreign_keys", [])))
 
 
@@ -862,6 +915,7 @@ def _assets_contract(assets):
 
 def _render_prompt(contract):
     routes_lines = []
+    skills_block = render_skill_block(contract.get("design_skills", ["monl-showcase"]))
     for r in contract["routes"]:
         if not r["auth_required"]:
             auth = "public"
@@ -906,6 +960,8 @@ def _render_prompt(contract):
                 marks.append("jamais renvoyé en lecture")
             if f["server_generated"]:
                 marks.append("généré serveur — NE PAS envoyer")
+            if f.get("postpayment_only"):
+                marks.append("modifiable uniquement via la route après paiement")
             if f["categorized_in_reads"]:
                 marks.append("lu comme libellé de catégorie")
             # BRIQUE 19 (point 96) : l'IA lit le brief, pas le JSON. Y écrire la
@@ -1058,13 +1114,16 @@ contrat.
             "`POST /paiement/webhook` : c'est la route du prestataire, elle "
             "exige une signature et refusera toute requête du navigateur.")
 
+    identifiant_note = contract["api"]["auth"]["register"].get("note")
+    identifiant_block = (f"\n- {identifiant_note}" if identifiant_note else "")
+
     return f"""# Brief frontend — {contract['app']} (généré par monl)
 {brief_line}
 Vous êtes une IA spécialisée en interfaces. Générez le frontend de
 l'application **{contract['app']}** en respectant STRICTEMENT le contrat
 ci-dessous. Le backend existe déjà et ne doit pas être modifié.
 
-{design_block}{express_block}
+{design_block}{skills_block}{express_block}
 ## Règles non négociables
 - Écrire tous les fichiers dans `frontend/`, avec `frontend/index.html`
   comme point d'entrée (HTML/CSS/JS statiques, aucun build requis).
@@ -1090,7 +1149,7 @@ ci-dessous. Le backend existe déjà et ne doit pas être modifié.
   non publique. Les rôles déclarés mais absents de cette liste
   ({[a for a in contract['actors'] if a not in contract['self_register_actors']] or "aucun"})
   sont provisionnés hors ligne : ils se connectent par `/login`, jamais par
-  `/register`.
+  `/register`.{identifiant_block}
 - Les routes de liste sont paginées : `?limit=&offset=`, réponse
   `{{status, total, limit, offset, data}}`.
 - Ne jamais envoyer un champ marqué « généré serveur » à la création.
@@ -1172,15 +1231,20 @@ def write_project_claude_md(app_name, output_dir):
         fh.write(PROJECT_CLAUDE_MD.format(marker=PROJECT_CLAUDE_MD_MARKER, app=app_name))
 
 
-def generate_frontend_contract(normalized_ast, generator, output_dir):
-    """Écrit frontend_contract.json + FRONTEND_PROMPT.md ; retourne le contrat."""
-    contract = build_contract(normalized_ast, generator)
-    contract_path = os.path.join(output_dir, CONTRACT_FILENAME)
-    with open(contract_path, "w", encoding="utf-8") as fh:
-        json.dump(contract, fh, ensure_ascii=False, indent=2, sort_keys=True)
-    with open(os.path.join(output_dir, PROMPT_FILENAME), "w", encoding="utf-8") as fh:
-        fh.write(_render_prompt(contract))
-    write_project_claude_md(contract["app"], output_dir)
+def generate_frontend_contract(normalized_ast: CompilationIR, plans_or_generator, output_dir):
+    """Écrit le contrat depuis l'IR et les plans partagés, transactionnellement."""
+    contract = build_contract(normalized_ast, plans_or_generator)
+
+    target_dir = os.path.abspath(output_dir)
+    with staging_directory(target_dir) as temporary:
+        copy_preserved_files(target_dir, temporary, ("CLAUDE.md",))
+        contract_path = os.path.join(temporary, CONTRACT_FILENAME)
+        with open(contract_path, "w", encoding="utf-8") as fh:
+            json.dump(contract, fh, ensure_ascii=False, indent=2, sort_keys=True)
+        with open(os.path.join(temporary, PROMPT_FILENAME), "w", encoding="utf-8") as fh:
+            fh.write(_render_prompt(contract))
+        write_project_claude_md(contract["app"], temporary)
+        publish_files(temporary, target_dir, FRONTEND_ARTIFACTS)
     return contract
 
 

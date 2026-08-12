@@ -1,5 +1,8 @@
 # 🟢 Phase 0 — Cadrage, Vision et Positionnement Sécurisé
 
+> **Document historique.** Cette page décrit une étape de conception ; elle ne
+> remplace pas l'architecture courante. Voir `README.md` et `CODEBASE_AUDIT.md`.
+
 ## Constat de départ
 De nombreux débutants ou développeurs intermédiaires utilisent l’IA (prompts itératifs, “vibe coding”) pour créer des applications. Ils se retrouvent rapidement avec une masse critique de code qu’ils ne comprennent pas et ne peuvent donc pas maintenir, faire évoluer, ou sécuriser correctement. 
 

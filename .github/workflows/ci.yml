@@ -46,5 +46,11 @@ jobs:
       - name: Linter (jeu de règles de pyproject.toml)
         run: ruff check src tests
 
+      - name: Contrat IR strictement typé
+        run: python -m mypy src/monl/ir.py src/monl/errors.py src/monl/generator/emitters.py --strict
+
+      - name: Recherche de code mort (confiance haute)
+        run: vulture src/monl --min-confidence 90
+
       - name: Suite complète, avec couverture
         run: python -m pytest tests/ -q --cov=src --cov-report=term-missing

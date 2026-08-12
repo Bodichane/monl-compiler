@@ -29,12 +29,8 @@ révélé deux bugs réels au point 29, pas les briques prises isolément.
 """
 import contextlib
 import os
-import socket
 import sqlite3
-import subprocess
-import sys
 import tempfile
-import time
 
 import pytest
 import requests
@@ -42,6 +38,7 @@ import requests
 from monl.ast_validator import MonlAST
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
+from tests.support.server import uvicorn_server
 
 SPEC_BANC = """app BancEssai
 
@@ -88,35 +85,13 @@ workflow Reagir for Member
 MOT_DE_PASSE = "motdepasse123"
 
 
-def _port_libre():
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
-
 @pytest.fixture(scope="module")
 def application():
     with tempfile.TemporaryDirectory() as dossier:
         ast = MonlAST(parse_monl_string(SPEC_BANC)).validate_and_audit()
         MonlSecureGenerator(ast, output_dir=dossier).generate_all()
-        port = _port_libre()
-        serveur = subprocess.Popen(
-            [sys.executable, "-m", "uvicorn", "app:app", "--port", str(port)],
-            cwd=dossier, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        base = f"http://127.0.0.1:{port}"
-        try:
-            for _ in range(80):
-                try:
-                    requests.get(f"{base}/openapi.json", timeout=1)
-                    break
-                except requests.exceptions.ConnectionError:
-                    time.sleep(0.25)
-            else:
-                pytest.skip("serveur non démarré")
+        with uvicorn_server(dossier) as base:
             yield base, dossier
-        finally:
-            serveur.terminate()
-            serveur.wait(timeout=10)
 
 
 @contextlib.contextmanager

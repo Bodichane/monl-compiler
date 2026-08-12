@@ -7,11 +7,9 @@ l'enregistrement d'autrui. Seul 'PUT' était refusé.
 
 Le test lance une vraie application générée et rejoue le scénario complet.
 """
-import socket
 import subprocess
 import sys
 import tempfile
-import time
 
 import pytest
 import requests
@@ -19,6 +17,7 @@ import requests
 from monl.ast_validator import MonlAST
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
+from tests.support.server import uvicorn_server
 
 SPEC_PRIVEE = """app Depenses
 
@@ -49,12 +48,6 @@ workflow Controle for Auditor
 """
 
 
-def _port_libre():
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
-
 def _compte(base, nom):
     requests.post(f"{base}/register",
                   json={"username": nom, "password": "motdepasse123", "actor": "User"})
@@ -69,24 +62,8 @@ def application():
     with tempfile.TemporaryDirectory() as dossier:
         ast = MonlAST(parse_monl_string(SPEC_PRIVEE)).validate_and_audit()
         MonlSecureGenerator(ast, output_dir=dossier).generate_all()
-        port = _port_libre()
-        serveur = subprocess.Popen(
-            [sys.executable, "-m", "uvicorn", "app:app", "--port", str(port)],
-            cwd=dossier, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        base = f"http://127.0.0.1:{port}"
-        try:
-            for _ in range(80):
-                try:
-                    requests.get(f"{base}/openapi.json", timeout=1)
-                    break
-                except requests.exceptions.ConnectionError:
-                    time.sleep(0.25)
-            else:
-                pytest.skip("serveur non démarré")
+        with uvicorn_server(dossier) as base:
             yield base, dossier
-        finally:
-            serveur.terminate()
-            serveur.wait(timeout=10)
 
 
 def test_un_compte_ne_lit_pas_les_donnees_d_un_autre(application):

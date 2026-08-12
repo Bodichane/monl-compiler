@@ -1,5 +1,8 @@
 # 🟢 Phase 6 — Système Complet (Boucle Fermée)
 
+> **Document historique.** Cette page décrit une étape de conception ; elle ne
+> remplace pas l'architecture courante. Voir `README.md` et `CODEBASE_AUDIT.md`.
+
 ## Objectif
 L'objectif de cette phase est de sceller l'intégration de toutes les briques logicielles développées précédemment (`parser.py`, `ast_validator.py`, `generator.py`) au sein d'un orchestrateur central unique. La validation repose sur la capacité du compilateur à reconfigurer instantanément l'intégralité de l'infrastructure logicielle cible dès que le fichier source DSL est modifié.
 

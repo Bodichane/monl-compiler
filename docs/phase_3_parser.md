@@ -1,5 +1,8 @@
 # 🟢 Phase 3 — Le Parser Syntaxique
 
+> **Document historique.** Cette page décrit une étape de conception ; elle ne
+> remplace pas l'architecture courante. Voir `README.md` et `CODEBASE_AUDIT.md`.
+
 ## Objectif
 L'objectif de cette phase est de concevoir un analyseur syntaxique (Parser) capable de lire un fichier brut écrit en DSL monl (extension `.ml` — historiquement `.yaml`, avant que le projet n'adopte son extension propre) et de le convertir en une structure de données informatique brute au format JSON.
 

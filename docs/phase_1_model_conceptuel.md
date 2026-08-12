@@ -1,5 +1,8 @@
 # 🟢 Phase 1 — Modèle Conceptuel et Axes de Sécurité
 
+> **Document historique.** Cette page décrit une étape de conception ; elle ne
+> remplace pas l'architecture courante. Voir `README.md` et `CODEBASE_AUDIT.md`.
+
 Le modèle mental de monl s'étend pour soutenir l'isolation de la logique IA et l'analyse statique de la sécurité.
 
 ## Les Deux Axes de Sécurité Évolutifs

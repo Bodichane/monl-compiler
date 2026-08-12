@@ -13,7 +13,6 @@ Deux volets :
 """
 import hashlib
 import os
-import socket
 import sqlite3
 import subprocess
 import sys
@@ -26,6 +25,7 @@ import requests
 from monl.ast_validator import ASTValidationError, MonlAST
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
+from tests.support.server import free_port as _find_free_port
 
 # (spec e2e désormais autonome, voir E2E_SPEC plus bas)
 
@@ -96,12 +96,6 @@ def test_identical_parties_are_rejected():
 # ---------------------------------------------------------------------------
 # Volet 2 : scénario réel contre l'exemple canonique
 # ---------------------------------------------------------------------------
-
-def _find_free_port():
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
 
 def _wait_for_server(port, timeout=15):
     start = time.time()

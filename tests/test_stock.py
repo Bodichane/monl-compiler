@@ -25,7 +25,6 @@ Ce que la brique décide, et qui n'allait pas de soi :
   — le bug est décrit plus bas, il a été trouvé en lisant le SQL généré.
 """
 import json
-import socket
 import sqlite3
 import subprocess
 import sys
@@ -38,6 +37,7 @@ import pytest
 from monl.ast_validator import ASTValidationError, MonlAST
 from monl.cli import compile_project
 from monl.parser import parse_monl_string
+from tests.support.server import free_port as _port_libre
 
 SPEC = """app BancStock
 
@@ -182,12 +182,6 @@ def test_sans_plancher_declare_le_decompte_reste_libre(tmp_path, capsys):
 # Le comportement, contre un vrai serveur
 # --------------------------------------------------------------------------
 
-def _port_libre():
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
-
 def _appel(url, corps=None, jeton=None, methode=None):
     donnees = json.dumps(corps).encode() if corps is not None else None
     requete = urllib.request.Request(url, data=donnees, method=methode)
@@ -198,11 +192,13 @@ def _appel(url, corps=None, jeton=None, methode=None):
         with urllib.request.urlopen(requete, timeout=10) as reponse:
             return reponse.status, json.loads(reponse.read() or b"{}")
     except urllib.error.HTTPError as err:
-        brut = err.read()
         try:
+            brut = err.read()
             return err.code, json.loads(brut or b"{}")
         except ValueError:
             return err.code, {"brut": brut[:300].decode("utf-8", "replace")}
+        finally:
+            err.close()
 
 
 @pytest.fixture
@@ -220,7 +216,8 @@ def boutique(tmp_path):
             if processus.poll() is not None:
                 pytest.fail(processus.stdout.read().decode("utf-8", "replace")[-2000:])
             try:
-                urllib.request.urlopen(base + "/docs", timeout=5).read()
+                with urllib.request.urlopen(base + "/docs", timeout=5):
+                    pass
                 break
             except OSError:
                 time.sleep(0.25)
@@ -246,6 +243,9 @@ def boutique(tmp_path):
             processus.wait(timeout=10)
         except subprocess.TimeoutExpired:
             processus.kill()
+            processus.wait(timeout=5)
+        if processus.stdout is not None:
+            processus.stdout.close()
 
 
 def _stock(base, produit_id):
@@ -276,8 +276,11 @@ def test_commander_plus_que_le_stock_est_refuse(boutique):
     assert "insuffisant" in reponse["detail"]
     assert _stock(base, halo) == 3, "un refus ne doit rien avoir décompté"
     # Et la ligne ne doit pas exister : le refus arrive DANS la transaction.
-    with sqlite3.connect(dossier / "app.db") as base_donnees:
+    base_donnees = sqlite3.connect(dossier / "app.db")
+    try:
         assert base_donnees.execute("SELECT COUNT(*) FROM ligne").fetchone()[0] == 0
+    finally:
+        base_donnees.close()
 
 
 def test_un_produit_epuise_refuse_toute_ligne(boutique):

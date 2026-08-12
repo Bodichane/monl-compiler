@@ -26,7 +26,6 @@ Ce que la brique décide, et qui n'allait pas de soi :
   `test_le_rattachement_suit_lid_reel_pas_le_rang`.
 """
 import json
-import socket
 import sqlite3
 import subprocess
 import sys
@@ -39,6 +38,7 @@ import pytest
 from monl.ast_validator import ASTValidationError, MonlAST
 from monl.cli import compile_project
 from monl.parser import parse_monl_string
+from tests.support.server import free_port as _port_libre
 
 SPEC = """app BancSemis
 
@@ -234,12 +234,6 @@ def test_une_spec_sans_rattachement_seme_comme_avant(tmp_path, capsys):
 # --------------------------------------------------------------------------
 # Le comportement, contre un vrai serveur
 # --------------------------------------------------------------------------
-
-def _port_libre():
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
 
 def _appel(url):
     try:

@@ -3,7 +3,6 @@ démonstration — validation à la compilation, insertion idempotente au
 démarrage (pas de doublons au redémarrage, données réelles préservées), et
 remplissage synthétique des champs 'generated' (pseudonyme anonyme).
 """
-import socket
 import subprocess
 import sys
 import tempfile
@@ -15,6 +14,7 @@ import requests
 from monl.ast_validator import ASTValidationError, MonlAST
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
+from tests.support.server import free_port as _find_free_port
 
 SEED_SPEC = """app Boutique
 
@@ -110,12 +110,6 @@ seed Post
 
 
 # --- Insertion idempotente au démarrage (serveur réel) ---
-
-def _find_free_port():
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
 
 def _wait(port, timeout=15):
     start = time.time()

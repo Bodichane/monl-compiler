@@ -20,7 +20,6 @@ Ce que la brique décide :
   qui a existé et qui était valide.
 """
 import json
-import socket
 import subprocess
 import sys
 import time
@@ -32,6 +31,7 @@ import pytest
 from monl.ast_validator import ASTValidationError, MonlAST
 from monl.cli import compile_project
 from monl.parser import parse_monl_string
+from tests.support.server import free_port as _port_libre
 
 SPEC = """app BancLiberation
 
@@ -194,12 +194,6 @@ def test_le_delta_signale_une_liberation_ajoutee(tmp_path, capsys):
 # --------------------------------------------------------------------------
 # Le comportement, contre un vrai serveur
 # --------------------------------------------------------------------------
-
-def _port_libre():
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
 
 def _appel(url, corps=None, jeton=None, methode=None):
     donnees = json.dumps(corps).encode() if corps is not None else None

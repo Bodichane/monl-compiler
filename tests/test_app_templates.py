@@ -23,6 +23,8 @@ def _champs_payables(tpl):
     catalogue parce que l'encaissement n'y avait aucun sens (dans « Petites
     annonces » le vendeur se paierait lui-même ; « Suivi de dépenses » est un
     registre personnel)."""
+    if not tpl.get("accept_payments", True):
+        return []
     candidats = []
     for name, meta in tpl["entities"].items():
         if not meta["owned"]:
@@ -31,7 +33,7 @@ def _champs_payables(tpl):
         if not montants:
             continue
         for source, m2 in tpl["entities"].items():
-            if source == name or source == meta["manager"]:
+            if source == name or source == meta["manager"] or tpl["entities"][source]["owned"]:
                 continue
             prix = [f for f, t in m2["fields"] if t in ("Money", "Float", "Integer")]
             if prix:
@@ -267,7 +269,7 @@ def test_le_dialogue_a_bien_ete_allege():
     gain : y rajouter une question demande de justifier qu'elle n'est pas un
     standard de sa catégorie."""
     total = sum(len(t["followups"]) for t in TEMPLATES)
-    assert total == 8, f"{total} questions de suivi (8 attendues)"
+    assert total == 6, f"{total} questions de suivi (6 attendues)"
     # Les modèles dont chaque élément est standard n'en posent plus aucune.
     sans_question = [t["name"] for t in TEMPLATES if not t["followups"]]
     assert "Gestion de tâches" in sans_question

@@ -7,7 +7,6 @@ autorisé 2×5 = 10 tentatives avant de bloquer. Le compteur étant désormais
 en base (partagée), le 6e échec est bloqué (429) quel que soit le nombre de
 workers.
 """
-import socket
 import subprocess
 import sys
 import tempfile
@@ -18,6 +17,7 @@ import requests
 from monl.ast_validator import MonlAST
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
+from tests.support.server import free_port as _find_free_port
 
 SPEC = """app RL
 
@@ -29,12 +29,6 @@ actor User selfRegister
 workflow W for User
     Read User
 """
-
-
-def _find_free_port():
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
 
 
 def _wait(port, timeout=20):

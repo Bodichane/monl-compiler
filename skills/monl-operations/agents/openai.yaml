@@ -1,0 +1,4 @@
+interface:
+  display_name: "Monl Operations"
+  short_description: "Build professional operational workspaces"
+  default_prompt: "Use $monl-operations to build a professional operations workspace."

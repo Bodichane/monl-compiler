@@ -251,6 +251,8 @@ class RuntimeMixin:
             # s'applique à une table déjà peuplée et reste idempotent. La
             # promesse de migration additive (point 32) est donc tenue.
             f"_UNIQUE_INDEXES = {self._compute_unique_indexes()!r}\n",
+            "# Unicités métier multi-colonnes (ex. un vote par compte et par entrée).\n",
+            f"_ONCE_PER_INDEXES = {self._compute_once_per_indexes()!r}\n",
             # POINT 89 : les colonnes horodatées, pour que le démarrage puisse
             # DIRE combien d'enregistrements n'auront jamais de date. Voir le
             # bloc de migration : c'est le seul cas du compilateur où une
@@ -300,7 +302,29 @@ class RuntimeMixin:
             # d'une requête DB supplémentaire à chaque appel.
             "def get_current_anon_handle(credentials: HTTPAuthorizationCredentials = Depends(security_bearer)) -> str:",
             "    return _decode_and_verify_token(credentials).get('anon_handle', '')\n",
-
+        ]
+        # POINT 116 : identité FACULTATIVE, et elle n'existe que pour les
+        # lectures publiques conditionnées ('publicWhen'). Une route publique
+        # ne doit JAMAIS répondre 401 : un jeton absent, invalide ou révoqué
+        # laisse simplement l'appelant anonyme. Cette dépendance ne peut donc
+        # que DONNER des droits (superviseur, propriétaire), jamais en retirer
+        # — c'est ce qui la rend sûre sur une route ouverte à tous. Émise
+        # seulement si une EXEMPTION existe (`_condition_exemptions`, source
+        # unique) : sans superviseur ni propriétaire, aucune route ne l'appelle
+        # et l'app.py produit reste celui d'avant le point 116.
+        if self._condition_identity_needed():
+            api_lines += [
+                "def get_optional_identity(request: Request) -> dict:",
+                "    _auth = request.headers.get('authorization') or ''",
+                "    if not _auth.lower().startswith('bearer '):",
+                "        return {}",
+                "    _creds = HTTPAuthorizationCredentials(scheme='Bearer', credentials=_auth[7:].strip())",
+                "    try:",
+                "        return _decode_and_verify_token(_creds)",
+                "    except HTTPException:",
+                "        return {}\n",
+            ]
+        api_lines += [
             # CORRECTIF (bêta 3) : '@app.on_event' est déprécié par Starlette et
             # disparaîtra ; le cycle de vie passe par un gestionnaire 'lifespan'.
             # init_db() ouvre volontairement une connexion SANS contrainte de clé
@@ -355,6 +379,16 @@ class RuntimeMixin:
             "            print(f'❌ \"{_table}\".\"{_col}\" est déclaré unique dans la spec, mais la base contient déjà {_dups} valeur(s) en double : l\\'unicité NE PEUT PAS être appliquée. Dédoublonner, puis redémarrer (docs/MIGRATIONS.md).')",
             "        except Exception as e:",
             "            print(f'⚠️ Index unique sur \"{_table}\".\"{_col}\" ignoré : {e}')",
+            "    for _table, _cols, _index in _ONCE_PER_INDEXES:",
+            "        try:",
+            "            _columns = ', '.join(f'\"{_col}\"' for _col in _cols)",
+            "            conn.execute(f'CREATE UNIQUE INDEX IF NOT EXISTS \"{_index}\" ON \"{_table}\" ({_columns})')",
+            "            conn.commit()",
+            "        except sqlite3.IntegrityError:",
+            "            _columns = ', '.join(f'\"{_col}\"' for _col in _cols)",
+            "            print(f'❌ Unicité métier déjà violée sur \"{_table}\" ({_columns}) : corriger les doublons avant de redémarrer.')",
+            "        except Exception as e:",
+            "            print(f'⚠️ Index oncePer sur \"{_table}\" ignoré : {e}')",
             # POINT 89 : la migration additive rattrape une colonne, jamais son
             # contenu. Pour toutes les autres briques ça n'a aucune importance
             # (une colonne vide est une colonne vide) ; pour une date de

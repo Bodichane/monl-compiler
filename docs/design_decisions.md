@@ -31,7 +31,8 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [112](#112-restrictedto-jamais-validé-structurellement) `restrictedTo` jamais validé structurellement ·
 [113](#113-le-verrou-de-paiement-bloquait-aussi-le-superviseur-et-personne-ne-le-savait) Le verrou de paiement bloquait aussi le superviseur ·
 [114](#114-le-point-113-fermé-sur-les-deux-sites-et-un-trou-quil-avait-laissé) Point 113 adopté sur les deux sites, et son propre trou refermé ·
-[115](#115-brique-26--monl-content-exportimport-le-contenu-en-masse) Brique 26 : `monl content export`/`import`, le contenu en masse
+[115](#115-brique-26--monl-content-exportimport-le-contenu-en-masse) Brique 26 : `monl content export`/`import`, le contenu en masse ·
+[116](#116-briques-27-et-28--publicwhen-et-onceper-livrées-sans-leurs-garde-fous) Briques 27 et 28 : `publicWhen` et `oncePer`, livrées sans leurs garde-fous
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -7221,3 +7222,124 @@ parallèle : 748 passés, 0 échec. La leçon, générale : **ne jamais tuer des
 processus par un motif large (`-f uvicorn`) pendant qu'une suite de tests
 tourne** — un serveur qui semble « orphelin » peut appartenir à un test en
 cours.
+
+---
+
+## 116. Briques 27 et 28 : `publicWhen` et `oncePer`, livrées sans leurs garde-fous
+
+Deux briques étaient arrivées dans l'arbre de travail — `rule X.Read publicWhen
+champ "valeur"` (publication conditionnelle) et `rule X.Create oncePer A, B`
+(unicité composite) — avec leur grammaire, leur validation, leur émission SQL et
+leur place dans le contrat. Elles compilaient. Ce point ne raconte pas leur
+conception : il raconte ce que **sauter trois garde-fous du dépôt** avait laissé
+passer, et ce qu'a coûté chaque vérification omise.
+
+### Ce que la couverture de compilation ne pouvait pas voir
+
+Les deux briques n'avaient que des assertions de compilation : un dictionnaire
+d'IR relu, un nom d'index cherché dans le TEXTE de `app.py`. C'est exactement ce
+que le point 95 déclarait clos (« aucune brique n'a plus la seule couverture de
+compilation »), et la sanction est tombée au premier serveur réel.
+
+**`publicWhen` cachait le contenu filtré À TOUT LE MONDE.** Le modérateur qui
+venait de masquer un post ne pouvait plus ni le lister (`total: 0`) ni le rouvrir
+(404) ; l'auteur d'un brouillon ne retrouvait jamais son brouillon. Une
+modération à SENS UNIQUE : on masque, on ne révise pas, on ne revient pas en
+arrière. Le modèle « Communauté » du catalogue livrait précisément cette
+configuration, commentaire à l'appui (« le modérateur change le statut du
+post ») et workflow `Read Post` compris.
+
+Le correctif suit le mécanisme déjà acquis plutôt que d'en inventer un : un
+`sharedBy` sur la MÊME référence nomme les rôles qui transpercent la condition —
+pendant exact du superviseur d'`accessibleBy` (brique 23, point 106) et
+d'`ownedBy` (point 88). `_superviseurs_declares()` devient la source UNIQUE des
+deux, sans quoi la validation des rôles (celle qui empêche une faute de frappe
+de désactiver la supervision, point 112) existerait en deux exemplaires.
+
+**Deux exemptions, toutes deux déclaratives**, et rien d'implicite : le
+superviseur nommé, et le PROPRIÉTAIRE par sa colonne d'identité (point 99), qui
+voit ses propres enregistrements quel que soit leur état. Un rôle qui lit
+l'entité sans être déclaré superviseur reste soumis à la condition — sinon
+« masqué » ne voudrait plus rien dire dès qu'on est connecté.
+
+**L'identité devient FACULTATIVE, et c'est la décision à ne pas rouvrir.** Une
+route publique ne doit JAMAIS répondre 401 : `get_optional_identity` rend `{}`
+sur un jeton absent, invalide ou révoqué. Elle ne peut donc que DONNER des
+droits, jamais faire échouer une requête — c'est ce qui la rend sûre sur une
+route ouverte à tous, et un test le vérifie avec un jeton bidon. Elle n'est
+émise que si une exemption existe (`_condition_exemptions`, source unique
+partagée par la route et le runtime) : une spec sans superviseur ni
+propriétaire produit l'app.py d'avant ce point, à l'octet.
+
+### `oncePer` avait volé la phrase de `unique`
+
+Troisième cause pour le même 409, et sa phrase prenait le pas sur les autres :
+un simple doublon de champ `unique`, sur une AUTRE cible et par un AUTRE compte,
+s'entendait répondre « vous l'avez déjà fait pour cette cible ». C'est le défaut
+que le point 85 avait nommé et fermé, rouvert par la brique suivante. Les deux
+causes se distinguent désormais sur les COLONNES que SQLite nomme dans son
+erreur, au lieu de deviner laquelle des deux règles a parlé.
+
+### Le pire : un index composite qui ne refusait rien
+
+Posé sur `exemples/03_reseau_social.ml`, `oncePer Member, Post` laissait liker
+dix fois le même post. **La colonne visée par un `increments` sort de l'INSERT
+quand elle est la PREMIÈRE relation entrante** (`_client_fk_columns` tranche sur
+`_get_incoming_relation`, pas sur `_decrement_fk_column`) : `post_id` restait
+NULL, et SQLite tient deux NULL pour distincts. L'index existait, la règle était
+déclarée, et rien n'était protégé.
+
+Bug d'ORDRE, donc invisible sur la spec qui l'a fait naître : mon banc d'essai
+déclarait la relation vers l'acteur en premier et fonctionnait parfaitement.
+Même famille que le point 92, à un autre endroit du même calcul.
+
+La génération REFUSE désormais un `oncePer` dont une colonne n'est jamais écrite
+à la création, et le message dit quoi réordonner. Refuser plutôt que produire une
+règle sans effet : c'est mot pour mot ce que le point 85 a établi pour `unique`.
+La cause profonde — deux sources pour « quelle colonne porte le compteur » —
+reste ouverte et n'est pas traitée ici ; le refus empêche seulement qu'elle
+produise une garantie fausse.
+
+### L'angle mort du delta, neuvième et dixième fois
+
+`_contract_signature` ne lisait pas `business_rules`. Poser
+`rule Article.Read publicWhen status "published"` ne crée aucune route, ne
+renomme aucun champ, ne change aucun acteur : `monl update` répondait « aucun
+changement d'interface — le frontend existant reste valide » pendant qu'il
+fallait dessiner un état brouillon, un filtre de liste et un écran de
+modération. `oncePer` est le même angle mort côté écriture : le bouton « voter »
+gagne un 409 que personne n'avait annoncé.
+
+Vérifié par exécution, pas par lecture : `monl diff` sur une spec passée de
+`public` à `publicWhen` imprimait bien « aucun changement ». La VALEUR entre dans
+le digest, pas seulement la présence de la règle — passer de `"published"` à
+`"validated"` ne renomme rien non plus (leçon des points 89 et 96).
+
+**Ce n'est plus une série de coïncidences, c'est la question à poser AVANT
+d'écrire une brique** — et elle a encore été sautée deux fois.
+
+### Une suite qui ne pouvait pas passer sur un clone neuf
+
+`tests/test_projets_metier.py` lisait `projets/CommunauteHub` et
+`projets/GestionPro`. Or `/projets/` est ignoré par git : la suite passait sur le
+poste de son auteur et échouait en CI par six `FileNotFoundError`. Un test ne
+peut pas dépendre de ce que le dépôt ne transporte pas — les specs vivent
+désormais dans le fichier de test, comme le fait déjà
+`tests/test_access_parties.py`.
+
+### Ce que ce point coûte, et ce qu'il rappelle
+
+Trois questions du dépôt, sautées, trois défauts :
+
+| Question omise | Ce qu'elle aurait attrapé |
+|---|---|
+| Un test contre SERVEUR ? | La modération à sens unique, l'index qui ne refuse rien |
+| `_contract_signature` la voit-elle ? | Deux briques muettes pour `monl update` |
+| Un EXEMPLE la compile-t-il ? | La colonne NULL — le trou de corpus des points 99 et 100 |
+
+Aucune n'est nouvelle. Toutes trois sont écrites dans `CLAUDE.md`, chacune
+payée par un point antérieur. Les briques 27 et 28 sont désormais éprouvées par
+`tests/test_publication_conditionnelle.py` (10 tests, trois comptes distincts)
+et `tests/test_unicite_composite.py` (8 tests, deux comptes et deux cibles —
+avec un seul de chaque, une règle qui figerait tout passerait pour bonne), et
+compilées par `exemples/03_reseau_social.ml`.

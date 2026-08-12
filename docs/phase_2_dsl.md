@@ -1,5 +1,8 @@
 # 🟡 Phase 2 — Conception du DSL
 
+> **Document historique.** Cette page décrit une étape de conception ; elle ne
+> remplace pas l'architecture courante. Voir `README.md` et `CODEBASE_AUDIT.md`.
+
 ## Principes de Syntaxe
 - **Déclaratif & Lisible** : Compréhensible immédiatement sans explication technique.
 - **Indentation propre** : Utilisation stricte de 4 espaces pour la hiérarchie.

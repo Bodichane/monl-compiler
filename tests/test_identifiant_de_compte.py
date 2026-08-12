@@ -24,7 +24,6 @@ Ce que la brique décide, et qui ne va pas de soi :
   projets existants au premier recompilage.
 """
 import json
-import socket
 import sqlite3
 import subprocess
 import sys
@@ -37,6 +36,7 @@ import pytest
 from monl.ast_validator import ASTValidationError, MonlAST
 from monl.cli import compile_project
 from monl.parser import parse_monl_string
+from tests.support.server import free_port as _port_libre
 
 SPEC = """app BancIdentifiant
 
@@ -124,12 +124,6 @@ def test_une_spec_sans_bloc_indente_compile_comme_avant(tmp_path, capsys):
 # Le comportement, contre un vrai serveur
 # --------------------------------------------------------------------------
 
-def _port_libre():
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
-
 def _appel(url, corps=None, jeton=None, methode=None):
     donnees = json.dumps(corps).encode() if corps is not None else None
     requete = urllib.request.Request(url, data=donnees, method=methode)
@@ -140,11 +134,13 @@ def _appel(url, corps=None, jeton=None, methode=None):
         with urllib.request.urlopen(requete, timeout=10) as reponse:
             return reponse.status, json.loads(reponse.read() or b"{}")
     except urllib.error.HTTPError as err:
-        brut = err.read()
         try:
+            brut = err.read()
             return err.code, json.loads(brut or b"{}")
         except ValueError:
             return err.code, {"detail": brut.decode("utf-8", "replace")}
+        finally:
+            err.close()
 
 
 @pytest.fixture
@@ -162,7 +158,8 @@ def serveur(tmp_path):
             if proc.poll() is not None:
                 pytest.fail(proc.stdout.read().decode("utf-8", "replace")[-2000:])
             try:
-                urllib.request.urlopen(base + "/docs", timeout=5).read()
+                with urllib.request.urlopen(base + "/docs", timeout=5):
+                    pass
                 break
             except OSError:
                 time.sleep(0.25)
@@ -175,6 +172,9 @@ def serveur(tmp_path):
             proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
             proc.kill()
+            proc.wait(timeout=5)
+        if proc.stdout is not None:
+            proc.stdout.close()
 
 
 def _degeler(dossier):
@@ -280,8 +280,12 @@ def test_manage_py_normalise_comme_le_serveur(serveur):
         capture_output=True, text=True, timeout=60)
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
-    stocke = sqlite3.connect(str(dossier / "app.db")).execute(
-        "SELECT username FROM _monl_users WHERE actor = 'Patron'").fetchone()[0]
+    connexion = sqlite3.connect(str(dossier / "app.db"))
+    try:
+        stocke = connexion.execute(
+            "SELECT username FROM _monl_users WHERE actor = 'Patron'").fetchone()[0]
+    finally:
+        connexion.close()
     assert stocke == "patron@exemple.fr", "manage.py a stocké la forme tapée"
     code, reponse = _connecter(base, dossier, "Patron@Exemple.FR")
     assert code == 200, reponse
@@ -379,6 +383,20 @@ def test_un_indicatif_sans_forme_phone_est_refuse(capsys):
     capsys.readouterr()
 
 
+def test_le_contrat_transmet_lindicatif_au_frontend(tmp_path, capsys):
+    (tmp_path / "spec.ml").write_text(SPEC_PREFIXE, encoding="utf-8")
+    compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
+    contrat = json.loads(
+        (tmp_path / "frontend_contract.json").read_text(encoding="utf-8")
+    )
+    inscription = contrat["api"]["auth"]["register"]
+    assert inscription["identifier_forms"] == ["email", "phone"]
+    assert inscription["phone_prefix"] == "+33"
+    assert "+33" in inscription["note"]
+    assert "+33" in (tmp_path / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    capsys.readouterr()
+
+
 @pytest.fixture
 def serveur_prefixe(tmp_path):
     (tmp_path / "spec.ml").write_text(SPEC_PREFIXE, encoding="utf-8")
@@ -394,7 +412,8 @@ def serveur_prefixe(tmp_path):
             if proc.poll() is not None:
                 pytest.fail(proc.stdout.read().decode("utf-8", "replace")[-2000:])
             try:
-                urllib.request.urlopen(base + "/docs", timeout=5).read()
+                with urllib.request.urlopen(base + "/docs", timeout=5):
+                    pass
                 break
             except OSError:
                 time.sleep(0.25)
@@ -407,6 +426,9 @@ def serveur_prefixe(tmp_path):
             proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
             proc.kill()
+            proc.wait(timeout=5)
+        if proc.stdout is not None:
+            proc.stdout.close()
 
 
 def test_national_et_international_sont_UN_seul_compte(serveur_prefixe):
@@ -426,8 +448,12 @@ def test_la_forme_stockee_est_linternationale(serveur_prefixe):
     elle qu'on enverra un jour à un prestataire, et elle ne se relit pas."""
     base, dossier = serveur_prefixe
     _inscrire(base, dossier, "06 12 34 56 78")
-    stocke = sqlite3.connect(str(dossier / "app.db")).execute(
-        "SELECT username FROM _monl_users").fetchone()[0]
+    connexion = sqlite3.connect(str(dossier / "app.db"))
+    try:
+        stocke = connexion.execute(
+            "SELECT username FROM _monl_users").fetchone()[0]
+    finally:
+        connexion.close()
     assert stocke == "+33612345678"
 
 
