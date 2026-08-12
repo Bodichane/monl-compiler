@@ -336,6 +336,42 @@ l'environnement, jamais en argument — le shell l'archiverait.
 Garde-fous communs : extensions en liste blanche, protection contre le zip-slip,
 frontend autonome sans CDN, et re-vérification systématique.
 
+### Sans clé API, sans carte bancaire, sans réseau
+
+**Le compilateur n'appelle jamais l'extérieur.** `monl compile` produit `app.py`,
+`schema.sql`, `manage.py`, le contrat et le brief entièrement hors ligne : le
+parseur, le validateur et le générateur ne contiennent aucun appel réseau. Tout
+le backend — routes, base, JWT, contrôle d'accès, paiement, back-office —
+s'obtient sans compte chez qui que ce soit.
+
+L'IA n'intervient qu'à l'étape frontend, et cette étape a une voie **sans aucune
+clé** :
+
+```bash
+monl compile boutique.ml --output ./Boutique   # hors ligne
+# coller le contenu de Boutique/FRONTEND_PROMPT.md dans n'importe quel
+# assistant accessible par navigateur, récupérer le résultat…
+monl import interface.zip ./Boutique           # mêmes garde-fous, même vérification
+monl run ./Boutique
+```
+
+`monl import` n'est pas une porte dérobée : la source vient d'une conversation,
+elle est donc traitée comme une entrée non fiable — liste blanche d'extensions,
+refus du zip-slip, refus des CDN, `index.html` obligatoire, puis contrôle de
+cohérence et smoke test, exactement comme une réponse d'API.
+
+Restent, selon ce que vous avez sous la main : `--provider ollama` pour un modèle
+entièrement local, les agents en ligne de commande qui s'authentifient par
+abonnement plutôt que par clé, et les fournisseurs au dialecte OpenAI dont
+plusieurs proposent un palier gratuit. monl n'en privilégie aucun et n'en revend
+aucun : il ne consomme aucun jeton pour son propre compte.
+
+> **Ce qui est prouvé, et ce qui ne l'est pas.** Le parcours hors ligne, la voie
+> copier-coller et la voie Anthropic sont éprouvés de bout en bout contre un vrai
+> serveur. Les préréglages `codex` et `gemini` sont écrits et couverts au niveau
+> de la plomberie, mais n'ont pas été éprouvés contre les binaires réels — les
+> employer, c'est essuyer les plâtres.
+
 **Avant tout lancement**, `monl run` exécute un smoke test comportemental sur un
 serveur éphémère à base neuve : chaque route du contrat est éprouvée en HTTP réel
 et, si Node.js est présent, `frontend/index.html` est exécuté dans jsdom contre ce
