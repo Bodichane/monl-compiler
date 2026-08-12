@@ -123,6 +123,7 @@ TEMPLATES = [
         "extra_rules": [
             'rule Article.status oneOf "published", "hidden"',
             'rule Article.Read publicWhen status "published"',
+            'rule Article.Read sharedBy Moderator',
             'rule Article.Update sharedBy Author, Moderator',
             'rule Report.status oneOf "open", "resolved", "dismissed"',
             'rule Report.Create sharedBy Reader, Moderator',
@@ -253,6 +254,7 @@ TEMPLATES = [
         "extra_rules": [
             'rule Post.status oneOf "published", "hidden"',
             'rule Post.Read publicWhen status "published"',
+            'rule Post.Read sharedBy Moderator',
             'rule Like.Create increments Post.likes by 1',
             'rule Like.Create oncePer Member, Post',
             'rule Report.status oneOf "open", "resolved", "dismissed"',

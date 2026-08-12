@@ -609,6 +609,21 @@ class MonlSecureGenerator(
         return next((p["fk_column"] for p in placements
                      if p["owner_entity"] == rule["target_entity"]), None)
 
+    def _counter_fk_columns(self, trigger_entity):
+        """FK écrites par la branche compteur à la création.
+
+        Chaque colonne vient de `_decrement_fk_column`, quelle que soit la
+        position de la relation dans la spec. La liste est dédoublonnée pour
+        qu'une entité qui porte plusieurs effets sur la même cible n'ajoute
+        cette FK qu'une seule fois à son schéma et à son INSERT.
+        """
+        colonnes = []
+        for rule in self.reputation_rules_by_trigger.get(trigger_entity, []):
+            fk_column = self._decrement_fk_column(trigger_entity, rule)
+            if fk_column and fk_column not in colonnes:
+                colonnes.append(fk_column)
+        return colonnes
+
     def _payment_lock_field(self, entity):
         """Champ 'payable' de 'entity', ou None. Un enregistrement encaissé ne
         se modifie plus : c'est ce que verrouille la brique 18 (point 91)."""
@@ -732,10 +747,15 @@ class MonlSecureGenerator(
         if not placements:
             return []
         exclues = set(self._identity_fk_columns().get(entity, set()))
-        owner_info = self._get_incoming_relation(entity)
-        if owner_info and any(r["target_entity"] == owner_info["source"]
-                              for r in self.reputation_rules_by_trigger.get(entity, [])):
-            exclues.add(owner_info["fk_column"])  # cible de compteur
+        # POINT 92 : la colonne d'une cible de compteur est celle que
+        # `_decrement_fk_column` trouve pour CHAQUE règle, pas celle de la
+        # première relation entrante. Avec deux relations (Post et Member),
+        # `_get_incoming_relation` peut désigner Post alors que l'identité
+        # peuple member_id ; l'ancienne décision excluait alors post_id de
+        # l'INSERT et créait une ligne orpheline. La branche
+        # `is_reputation_fk` de routes.py écrit déjà chaque cible : on l'exclut
+        # ici pour qu'elle soit écrite exactement une fois.
+        exclues.update(self._counter_fk_columns(entity))
         # Brique 11 (point 81) : sous propriété transitive, le parent
         # « propriétaire » est justement celui que le CLIENT doit désigner (« je
         # rattache cette ligne à CETTE commande ») -- il n'est plus déduit du
@@ -966,6 +986,11 @@ class MonlSecureGenerator(
                 # exactement ce que le point 85 a fermé pour `unique`.
                 ecrites = set(self._client_fk_columns(entity))
                 ecrites |= set(self._identity_fk_columns().get(entity, set()))
+                # La branche compteur de la route Create écrit ces colonnes
+                # hors des FK client. Le refus reste donc actif pour une
+                # colonne réellement jamais écrite, sans rejeter une écriture
+                # serveur réelle.
+                ecrites |= set(self._counter_fk_columns(entity))
                 if placement["fk_column"] not in ecrites:
                     raise ValueError(
                         f"Génération : 'oncePer' sur '{entity}' désigne '{parent}', "

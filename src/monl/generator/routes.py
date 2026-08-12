@@ -121,19 +121,9 @@ class RoutesMixin:
         # jamais incluse dans la requête INSERT — elle restait NULL pour
         # tout enregistrement créé, rendant les relations inertes au
         # runtime malgré leur présence dans le schéma.
-        owner_info = self._get_incoming_relation(base_target)
-        # AJOUT (roadmap, écosystème de capacités -- brique 3,
-        # généralisée en brique 4) : si cette relation entrante est la
-        # cible d'une règle 'decrements'/'increments' (ex. "je
-        # signale CE membre" ou "j'apprécie CE post"), ce n'est pas un
-        # motif "propriétaire = appelant courant" -- le client fournit
-        # explicitement la cible dans le corps de la requête (voir la
-        # génération du schéma Pydantic ci-dessus), donc on ne tente
-        # PAS de la peupler automatiquement depuis current_user_id.
         reputation_rules_here = self.reputation_rules_by_trigger.get(base_target, [])
-        is_reputation_fk = owner_info and any(
-            r["target_entity"] == owner_info["source"] for r in reputation_rules_here
-        )
+        counter_fk_columns = self._counter_fk_columns(base_target)
+        is_reputation_fk = bool(counter_fk_columns)
         # POINT 99 : la question « cette colonne se peuple-t-elle depuis
         # le jeton ? » a UNE réponse, `_identity_fk_columns`, et cette
         # ligne la lit au lieu de la recalculer. Les quatre conditions
@@ -318,9 +308,10 @@ class RoutesMixin:
         if populate_owner:
             insert_columns.append(colonne_identite)
             value_exprs.append("current_user_id")
-        elif is_reputation_fk:
-            insert_columns.append(owner_info["fk_column"])
-            value_exprs.append(f"data.{owner_info['fk_column']}")
+        if is_reputation_fk:
+            for counter_fk in counter_fk_columns:
+                insert_columns.append(counter_fk)
+                value_exprs.append(f"data.{counter_fk}")
         # Tout parent que le jeton ne désigne pas doit être désigné par
         # l'appelant. Trois cas y mènent : les parents SECONDAIRES d'une
         # entité possédée (un commentaire et son article) ; sous
@@ -373,8 +364,11 @@ class RoutesMixin:
             # a déjà connu ce défaut (« un mécanisme de clé étrangère qui
             # décrémentait le mauvais enregistrement ») : il est revenu
             # par la porte de la deuxième relation.
-            fk_vers_cible = (self._decrement_fk_column(base_target, rule)
-                             or owner_info["fk_column"])
+            fk_vers_cible = self._decrement_fk_column(base_target, rule)
+            if not fk_vers_cible:
+                raise ValueError(
+                    f"Génération : aucune clé étrangère de '{base_target}' ne désigne "
+                    f"'{rule['target_entity']}', alors que l'effet compteur l'exige.")
             fk_value_expr = f"data.{fk_vers_cible}"
             # BRIQUE 14 (point 86) : la quantité est soit une constante,
             # soit un champ du corps de requête ('by quantity').

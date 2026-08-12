@@ -32,7 +32,8 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [113](#113-le-verrou-de-paiement-bloquait-aussi-le-superviseur-et-personne-ne-le-savait) Le verrou de paiement bloquait aussi le superviseur ·
 [114](#114-le-point-113-fermé-sur-les-deux-sites-et-un-trou-quil-avait-laissé) Point 113 adopté sur les deux sites, et son propre trou refermé ·
 [115](#115-brique-26--monl-content-exportimport-le-contenu-en-masse) Brique 26 : `monl content export`/`import`, le contenu en masse ·
-[116](#116-briques-27-et-28--publicwhen-et-onceper-livrées-sans-leurs-garde-fous) Briques 27 et 28 : `publicWhen` et `oncePer`, livrées sans leurs garde-fous
+[116](#116-briques-27-et-28--publicwhen-et-onceper-livrées-sans-leurs-garde-fous) Briques 27 et 28 : `publicWhen` et `oncePer`, livrées sans leurs garde-fous ·
+[117](#117-la-colonne-du-compteur-avait-deux-sources-et-lordre-des-relations-tranchait) La colonne du compteur avait deux sources, et l'ordre des relations tranchait
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -7343,3 +7344,77 @@ payée par un point antérieur. Les briques 27 et 28 sont désormais éprouvées
 et `tests/test_unicite_composite.py` (8 tests, deux comptes et deux cibles —
 avec un seul de chaque, une règle qui figerait tout passerait pour bonne), et
 compilées par `exemples/03_reseau_social.ml`.
+
+---
+
+## 117. La colonne du compteur avait deux sources, et l'ordre des relations tranchait
+
+Le point 92 avait posé `_decrement_fk_column` comme source UNIQUE de la colonne
+visée par un `increments`/`decrements`, après un bug où le stock d'un produit
+était décompté en portant l'identifiant de la commande. La leçon écrite alors —
+« ne jamais recalculer ce que cette fonction sait » — n'avait pas été appliquée
+partout : trois autres endroits déduisaient la même colonne de
+`_get_incoming_relation`, c'est-à-dire de la PREMIÈRE relation entrante déclarée.
+
+### Le défaut, mesuré avant d'être corrigé
+
+Sur une entité à DEUX relations entrantes dont celle du compteur est déclarée en
+premier (`relation Post hasMany Like` avant `relation Member hasMany Like`), la
+route `Create` produisait :
+
+```
+INSERT INTO "like" ("note", "member_id") VALUES (?, ?)
+```
+
+`post_id` n'y figurait pas. Après un like : le compteur du post valait bien 1,
+et la ligne en base était `(1, 'bravo', None, 1)`. **Le like ne savait pas quel
+post il likait.** Aucune erreur, aucun avertissement — la colonne existe au
+schéma, elle est déclarée au contrat, et elle reste vide.
+
+Inverser les deux relations suffisait à tout faire fonctionner. C'est donc un
+bug d'ORDRE, de la même famille que celui du point 92 : **il ne se voit pas sur
+la spec qui l'a fait naître**, et le banc d'essai qui a servi à valider `oncePer`
+au point 116 déclarait justement l'acteur en premier.
+
+### Ce qu'il emportait avec lui
+
+Le point 116 avait ajouté un refus à la compilation pour `oncePer` posé sur une
+colonne jamais écrite — SQLite tenant deux NULL pour distincts, l'index existait
+et ne refusait rien. Ce refus traitait le SYMPTÔME. La cause était ici, et elle
+touchait toute entité portant un compteur, `oncePer` ou pas.
+
+### Le correctif
+
+`_counter_fk_columns` (generator/core.py) dérive la colonne de
+`_decrement_fk_column` pour CHAQUE règle de l'entité, dédoublonnée. Les trois
+lecteurs la partagent : `_client_fk_columns` l'exclut des clés étrangères
+client, `schemas.py` l'expose au corps de requête, `routes.py` l'écrit à
+l'insertion. **La colonne est écrite exactement une fois, jamais zéro, jamais
+deux.**
+
+Un `elif` devenu `if` porte l'essentiel : la branche du compteur était
+mutuellement exclusive avec le peuplement depuis l'identité, alors que les deux
+colonnes coexistent — `member_id` vient du jeton, `post_id` du client. Et le
+repli silencieux `or owner_info["fk_column"]` de `routes.py` devient une erreur
+de génération : mieux vaut un compilateur qui s'arrête qu'une route qui
+décrémente la mauvaise ligne — même arbitrage qu'au point 99.
+
+Le refus d'`oncePer` du point 116 n'est PAS supprimé : il devient inatteignable
+pour une colonne correctement écrite, et reste actif pour une colonne qui ne
+l'est réellement jamais. Le supprimer parce qu'un cas connu ne le déclenche plus
+supposerait qu'aucun autre ne le déclenchera.
+
+### Méthode
+
+Délégué à Codex avec la reproduction minimale, l'interdiction de commiter, et
+les vérifications exigées. **Son rapport n'a pas été pris pour argent
+comptant** : les épreuves ont été REJOUÉES ici — suite complète (836 tests,
+91,87 %), `ruff`, les trois formes de spec (compteur d'abord, acteur d'abord,
+relation unique) compilées et servies, et le parcours modérateur rejoué de bout
+en bout sur une application produite par le VRAI dialogue guidé, pas par un
+assemblage direct du modèle. C'est la règle du dépôt, et elle vaut pour tout
+exécutant.
+
+Éprouvé par `tests/test_colonne_compteur_independante_de_l_ordre.py` (les deux
+ordres donnent la même ligne en base) et deux assertions de catalogue dans
+`tests/test_app_templates.py`.

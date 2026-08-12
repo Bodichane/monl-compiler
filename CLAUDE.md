@@ -657,9 +657,12 @@ réseau social anonyme comme banc d'essai final.
     Post` laissait liker dix fois. Bug d'ORDRE, donc invisible sur la spec qui
     l'a fait naître. La génération REFUSE désormais ce cas en nommant la
     relation à déplacer — refuser plutôt que produire une règle sans effet, mot
-    pour mot le point 85. **La cause profonde (deux sources pour « quelle
-    colonne porte le compteur ») reste ouverte** : le refus empêche la garantie
-    fausse, il ne réconcilie pas les deux calculs. Le 409 d'`oncePer` et celui
+    pour mot le point 85. **La cause profonde est FERMÉE au point 117** :
+    `_counter_fk_columns` (generator/core.py) dérive la colonne de
+    `_decrement_fk_column` pour CHAQUE règle, et `_client_fk_columns`,
+    `schemas.py` et `routes.py` la lisent tous les trois — la colonne est
+    écrite exactement une fois, jamais zéro. Le refus reste actif, mais
+    seulement pour une colonne réellement jamais écrite. Le 409 d'`oncePer` et celui
     d'`unique` se distinguent sur les COLONNES nommées par SQLite, sinon le
     premier volait la phrase du second (défaut du point 85, rouvert).
     Éprouvée par `tests/test_unicite_composite.py` (8 tests, DEUX comptes et

@@ -31,6 +31,22 @@
   (`tests/test_publication_conditionnelle.py`, `tests/test_unicite_composite.py`)
   et compilées par `exemples/03_reseau_social.ml`.
 
+### La colonne du compteur ne dépend plus de l'ordre des relations (point 117)
+
+- **Correction de données.** Une entité à deux relations entrantes dont celle du
+  compteur était déclarée en premier créait ses lignes avec la clé étrangère de
+  la cible à `NULL` : le compteur montait, mais l'enregistrement ne savait pas
+  sur quoi il portait. Inverser les deux relations suffisait à tout réparer —
+  bug d'ordre, invisible sur la spec qui l'a fait naître.
+- `_counter_fk_columns` dérive désormais cette colonne de `_decrement_fk_column`
+  pour chaque règle, et le schéma Pydantic, les clés étrangères client et
+  l'INSERT la lisent tous les trois : écrite exactement une fois, jamais zéro.
+- Le repli silencieux vers la première relation entrante devient une erreur de
+  génération explicite.
+- **Le catalogue déclare le superviseur de lecture** : les modèles Blog et
+  Communauté livraient une modération à sens unique, le modérateur perdant de vue
+  ce qu'il venait de masquer.
+
 ## 0.9.0-beta.6 — Capacités métier et contrôle d'accès approfondi
 
 Cette version complète le noyau déclaratif avec les capacités ajoutées depuis
