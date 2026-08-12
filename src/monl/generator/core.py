@@ -238,7 +238,11 @@ class MonlSecureGenerator(
                                 .get("auth_identifier"))
         # Indicatif déclaré : sans lui, '06…' et '+336…' restent deux comptes.
         self.auth_phone_prefix = (normalized_ast.get("security", {})
-                                  .get("auth_phone_prefix"))
+                                .get("auth_phone_prefix"))
+        # BRIQUE B4 : aucune branche runtime n'est émise quand ce dictionnaire
+        # est vide ; c'est la garantie byte-for-byte des specs historiques.
+        self.auth_features = dict(normalized_ast.get("security", {})
+                                   .get("auth_features") or {})
         # BRIQUE 19 (point 96) : {Entite: {champ: [valeurs]}} — un statut est un
         # état parmi quelques-uns, pas du texte libre.
         self.enumerated_fields = (normalized_ast.get("security", {})
@@ -1308,6 +1312,7 @@ class MonlSecureGenerator(
             self_register_actors=tuple(self.self_register_actors),
             auth_identifier=tuple(self.auth_identifier) if self.auth_identifier else None,
             auth_phone_prefix=self.auth_phone_prefix,
+            auth_features=self.auth_features,
             public_conditions=self.public_conditions,
             required_profiles=self.required_profiles,
             payable_by_entity=self.payable_by_entity,

@@ -66,6 +66,7 @@ class SecurityIR(TypedDict):
     field_constraints: dict[tuple[str, str], dict[str, Any]]
     auth_identifier: list[str] | None
     auth_phone_prefix: str | None
+    auth_features: dict[str, Any]
     enumerated_fields: dict[str, dict[str, list[str]]]
     filterable_fields: list[dict[str, Any]]
     sortable_fields: list[dict[str, Any]]
@@ -225,6 +226,7 @@ class CompilationPlans:
     self_register_actors: tuple[str, ...]
     auth_identifier: tuple[str, ...] | None
     auth_phone_prefix: str | None
+    auth_features: Mapping[str, Any]
     public_conditions: Mapping[tuple[str, str], Mapping[str, Any]]
     required_profiles: Mapping[str, str]
     payable_by_entity: Mapping[str, str]

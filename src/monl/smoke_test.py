@@ -365,7 +365,17 @@ def run_smoke_test(project_dir, say=print):
             for route in contract["routes"]:
                 path, method = route["path"], route["method"]
                 concrete = path.replace("{id}", "1")
-                if route["auth_required"] and route["allowed_actors"]:
+                if route.get("auth_mode") == "refresh_token":
+                    # BRIQUE B4 : /refresh est authentifiée par un jeton
+                    # opaque dédié, jamais par le JWT d'accès. Une requête
+                    # vide doit être refusée, sans exiger un Bearer qui n'a
+                    # précisément rien à faire ici.
+                    status, _b = _http(method, base + concrete,
+                                       body={} if method in ("POST", "PUT") else None)
+                    if status < 400:
+                        errors.append(f"{method} {path} a accepté un rafraîchissement vide "
+                                      f"(réponse {status})")
+                elif route["auth_required"] and route["allowed_actors"]:
                     status, _b = _http(method, base + concrete,
                                        body={} if method in ("POST", "PUT") else None)
                     if status not in (401, 403):

@@ -101,6 +101,10 @@ class MonlAST:
         self.once_per_rules = []
         self.upload_fields = []
         self.message_rules = []
+        # BRIQUE B4 : options d'authentification déclarées sur capability auth.
+        # Un dictionnaire vide est volontaire : il ne réveille aucune sortie
+        # dans les specs historiques.
+        self.auth_features = {}
 
         for ent in raw_json.get("entities", []):
             name = ent["name"]
@@ -1998,7 +2002,7 @@ class MonlAST:
         self.landing = {"brief": self.landing_raw.get("brief"), "sections": sections, "faq": faq}
 
     def _valider_capacites(self):
-        """Valide les capacités déclarées et prépare l'identifiant de compte."""
+        """Valide les capacités déclarées et prépare l'authentification B4."""
         known_capabilities = {"auth", "payment"}
         names = [capability["name"] for capability in self.capabilities_raw]
         unknown = [name for name in names if name not in known_capabilities]
@@ -2009,6 +2013,55 @@ class MonlAST:
             )
         self.capabilities = list(dict.fromkeys(names))
         self.auth_identifier = self._valider_identifiant_de_compte(self.capabilities_raw)
+
+        allowed_auth_options = {
+            "name", "identifier", "phone_prefix", "lockout", "password_reset",
+            "refresh_tokens", "totp",
+        }
+        features = {}
+        for capability in self.capabilities_raw:
+            options = set(capability) - {"name"}
+            inconnues = options - (allowed_auth_options - {"name"})
+            if capability["name"] != "auth" and options:
+                raise ASTValidationError(
+                    f"Structure : les options {', '.join(sorted(options))} "
+                    f"n'ont de sens que sur 'capability auth' (trouvées sur "
+                    f"'{capability['name']}').")
+            if inconnues:
+                raise ASTValidationError(
+                    f"Structure : option(s) d'authentification inconnue(s) : "
+                    f"{', '.join(sorted(inconnues))}.")
+            if capability["name"] != "auth":
+                continue
+            for option in ("lockout", "password_reset", "refresh_tokens", "totp"):
+                if option not in capability:
+                    continue
+                if option in features:
+                    raise ASTValidationError(
+                        f"Structure : l'option '{option}' est déclarée deux fois "
+                        "sur 'capability auth'.")
+                features[option] = capability[option]
+
+        lockout = features.get("lockout")
+        if lockout:
+            if lockout["max_attempts"] < 1:
+                raise ASTValidationError(
+                    "Structure : 'lockout' exige au moins 1 échec avant verrouillage.")
+            if lockout["window_seconds"] < 1:
+                raise ASTValidationError(
+                    "Structure : la fenêtre de 'lockout' doit être exprimée en secondes positives.")
+        for option, libelle in (("password_reset", "password_reset"),
+                                ("refresh_tokens", "refresh_tokens")):
+            if option in features and features[option] < 1:
+                raise ASTValidationError(
+                    f"Structure : '{libelle}' doit être une durée positive en secondes.")
+        if "password_reset" in features and (
+                not self.auth_identifier or "email" not in self.auth_identifier):
+            raise ASTValidationError(
+                "Structure : 'password_reset' exige 'capability auth' avec "
+                "'identifier: email' : le message de récupération doit avoir "
+                "une adresse de compte, sans deviner un champ métier.")
+        self.auth_features = features
 
     def _valider_regles_message(self):
         """Valide les notifications e-mail déclenchées par une création.
@@ -2473,6 +2526,9 @@ class MonlAST:
                 "release_rules": self.release_rules,
                 "upload_fields": self.upload_fields,
                 "message_rules": self.message_rules,
+                # BRIQUE B4 : configuration d'authentification, vide quand la
+                # spec ne demande aucune capacité nouvelle.
+                "auth_features": self.auth_features,
             },
             "sandbox_ai": {"custom_functions": list(self.custom_logic.values())},
             "ui": self.ui_overrides,

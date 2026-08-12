@@ -814,6 +814,15 @@ def _contract_signature(contract):
             contenus[f"capacités de liste de {route['method']} {route['path']}"] = hashlib.sha256(
                 json.dumps(query, sort_keys=True, ensure_ascii=False).encode("utf-8")
             ).hexdigest()
+    # BRIQUE B4 : le verrouillage et les paramètres de session/TOTP changent
+    # des écrans sans forcément ajouter un champ métier. La signature porte
+    # la configuration complète, y compris les durées et les garanties de
+    # rotation/rejeu. Une spec sans B4 n'ajoute aucune entrée.
+    auth_features = (contract.get("api", {}).get("auth", {}).get("features") or {})
+    if auth_features:
+        contenus["authentification B4"] = hashlib.sha256(
+            json.dumps(auth_features, sort_keys=True, ensure_ascii=False).encode("utf-8")
+        ).hexdigest()
     # POINT 99 : huitième ensemble, et la question posée AVANT d'écrire le code
     # pour la deuxième fois seulement. Une clé étrangère ne vit pas dans
     # `fields` — le delta ne pouvait donc rien dire quand elle change de NATURE.

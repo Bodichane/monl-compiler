@@ -284,7 +284,7 @@ grammar = r"""
     #   capability auth
     #       identifier: email, phone
     capability_block: "capability" NAME _NL [_INDENT capability_prop+ _DEDENT]
-    ?capability_prop: capability_identifier | capability_phone_prefix
+    ?capability_prop: capability_identifier | capability_phone_prefix | capability_lockout | capability_password_reset | capability_refresh_tokens | capability_totp
     capability_identifier: "identifier" ":" NAME ("," NAME)* _NL
     # AJOUT (point 95, trouvé en éprouvant la brique sur un vrai site) :
     # '06 12 34 56 78' et '+33612345678' sont le MÊME numéro, et faisaient deux
@@ -294,6 +294,17 @@ grammar = r"""
     # courant.
     #       phone_prefix: "+33"
     capability_phone_prefix: "phone_prefix" ":" STRING_LITERAL _NL
+    # BRIQUE B4 : options d'authentification déclaratives. Les durées sont en
+    # secondes et aucune valeur par défaut n'est injectée dans une spec qui ne
+    # demande pas la capacité.
+    #   lockout: 5 in 300
+    #   password_reset: 900
+    #   refresh_tokens: 2592000
+    #   totp
+    capability_lockout: "lockout" ":" INT "in" INT _NL
+    capability_password_reset: ("password_reset" | "passwordReset") ":" INT _NL
+    capability_refresh_tokens: ("refresh_tokens" | "refreshTokens") ":" INT _NL
+    capability_totp: "totp" _NL | "totp" ":" "true" _NL
 
     # Bloc optionnel "landing" : transmet un brief marketing (titre, ton,
     # intention) au contrat frontend, pour orienter l'IA d'interface. C'est
@@ -698,6 +709,19 @@ class MonlTransformer(Transformer):
 
     def capability_phone_prefix(self, valeur):
         return {"phone_prefix": str(valeur).strip('"')}
+
+    def capability_lockout(self, maximum, fenetre):
+        return {"lockout": {"max_attempts": int(maximum),
+                             "window_seconds": int(fenetre)}}
+
+    def capability_password_reset(self, duree):
+        return {"password_reset": int(duree)}
+
+    def capability_refresh_tokens(self, duree):
+        return {"refresh_tokens": int(duree)}
+
+    def capability_totp(self):
+        return {"totp": True}
 
     def capability_block(self, name, *props):
         # Le bloc indenté étant optionnel, Lark passe None quand il est absent :

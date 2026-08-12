@@ -24,6 +24,64 @@ class AdminCliMixin:
         # service ('supervision', 'sauvegarde') qui n'ont ni adresse ni numéro.
         formes = self.auth_identifier or []
         prefixe = self.auth_phone_prefix
+        password_invalidation = ""
+        if any(self.auth_features.get(name) for name in
+               ("password_reset", "refresh_tokens", "lockout")):
+            password_invalidation += (
+                "    user_id = cur.execute(\"SELECT id FROM _monl_users WHERE "
+                "username = ?\", (_normalize_identifier(args.username),)).fetchone()[0]\n"
+            )
+        if self.auth_features.get("password_reset"):
+            password_invalidation += (
+                "    cur.execute(\"UPDATE _monl_password_reset_tokens SET "
+                "used_at = COALESCE(used_at, ?) WHERE user_id = ?\", "
+                "(datetime.datetime.now(datetime.timezone.utc).timestamp(), user_id))\n"
+            )
+        if self.auth_features.get("refresh_tokens"):
+            password_invalidation += (
+                "    cur.execute(\"UPDATE _monl_refresh_tokens SET revoked_at = ? "
+                "WHERE user_id = ? AND revoked_at IS NULL\", "
+                "(datetime.datetime.now(datetime.timezone.utc).timestamp(), user_id))\n"
+            )
+        if self.auth_features.get("lockout"):
+            password_invalidation += (
+                "    cur.execute(\"UPDATE _monl_account_lockouts SET failed_count = 0, "
+                "first_failed_at = ?, locked_until = NULL WHERE user_id = ?\", "
+                "(datetime.datetime.now(datetime.timezone.utc).timestamp(), user_id))\n"
+            )
+        unlock_command = ""
+        unlock_parser = ""
+        if self.auth_features.get("lockout"):
+            unlock_command = (
+                "    python3 manage.py unlock <utilisateur>                 # lève un verrou\n"
+            )
+            unlock_parser = '''
+
+def cmd_unlock(args):
+    conn = _connect()
+    cur = conn.cursor()
+    username = _normalize_identifier(args.username)
+    cur.execute("SELECT id FROM _monl_users WHERE username = ?", (username,))
+    row = cur.fetchone()
+    if not row:
+        sys.exit(f"Compte introuvable : {{args.username}}")
+    now = datetime.datetime.now(datetime.timezone.utc).timestamp()
+    cur.execute(
+        "UPDATE _monl_account_lockouts SET failed_count = 0, first_failed_at = ?, "
+        "locked_until = NULL WHERE user_id = ?",
+        (now, row[0]),
+    )
+    conn.commit()
+    print(f"✅ Verrou levé pour '{{args.username}}'.")
+    conn.close()
+'''
+        unlock_parser_entry = ""
+        if self.auth_features.get("lockout"):
+            unlock_parser_entry = (
+                "    p = sub.add_parser(\"unlock\", help=\"lever le verrouillage d'un compte\")\n"
+                "    p.add_argument(\"username\")\n"
+                "    p.set_defaults(func=cmd_unlock)\n\n"
+            )
         return f'''"""Administration hors ligne de {self.app_name} — généré par monl.
 
 Les rôles ouverts à l'inscription libre ({self_reg or "aucun"}) se créent par
@@ -34,7 +92,7 @@ s'attribuer un rôle privilégié.
     python3 manage.py adduser <utilisateur> <role>     # mot de passe demandé
     python3 manage.py setactor <utilisateur> <role>
     python3 manage.py passwd <utilisateur>
-    python3 manage.py users
+{unlock_command}    python3 manage.py users
     python3 manage.py revoke-all                       # invalide les sessions
 """
 import argparse
@@ -196,12 +254,12 @@ def cmd_passwd(args):
         (_hash_password(password, salt_hex), salt_hex,
          _normalize_identifier(args.username)),
     )
-    conn.commit()
+{password_invalidation}    conn.commit()
     print(f"✅ Mot de passe de '{{args.username}}' mis à jour.")
     conn.close()
 
 
-def cmd_users(_args):
+{unlock_parser}def cmd_users(_args):
     conn = _connect()
     cur = conn.cursor()
     cur.execute("SELECT id, username, actor FROM _monl_users ORDER BY id")
@@ -247,7 +305,7 @@ def main():
     p.add_argument("username")
     p.set_defaults(func=cmd_passwd)
 
-    sub.add_parser("users", help="lister les comptes").set_defaults(func=cmd_users)
+{unlock_parser_entry}    sub.add_parser("users", help="lister les comptes").set_defaults(func=cmd_users)
     sub.add_parser("revoke-all", help="invalider toutes les sessions").set_defaults(func=cmd_revoke_all)
 
     args = parser.parse_args()

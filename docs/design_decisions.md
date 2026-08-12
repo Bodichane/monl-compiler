@@ -40,6 +40,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [121](#121-le-fichier-déposé-par-le-client-est-un-upload-pas-une-image) Le fichier déposé par le client est un `Upload`, pas une `Image`
 [122](#122-monl-sait-envoyer-un-message-sans-promettre-sa-remise) Envoi de message sans promettre sa remise ·
 [123](#123-filtrer-et-trier-sans-inventer-un-langage-de-requête) Filtrer et trier sans inventer un langage de requête ·
+[124](#124-authentification-complète--verrouillage-réinitialisation-rafraîchissement-et-totp) Authentification complète : verrouillage, réinitialisation, rafraîchissement et TOTP ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -7938,3 +7939,143 @@ Ce que la brique ne fait PAS, et l'assume : aucune recherche textuelle
 (`LIKE`, casse, opérateurs), aucun index créé automatiquement, aucune promesse
 de performance sur une colonne non indexée. La ligne rouge de CLAUDE.md tient :
 rien de ce qui est filtrable n'est choisi par le client, tout est déclaré.
+
+## 124. Authentification complète : verrouillage, réinitialisation, rafraîchissement et TOTP
+
+Le chantier B4 est déclaratif : rien ne change dans app.py, schema.sql, le
+contrat ou le serveur d'une spec qui ne porte aucune des options ci-dessous.
+La syntaxe retenue, portée par capability auth, est :
+
+    lockout: 5 in 900
+    password_reset: 3600
+    refresh_tokens: 2592000
+    totp
+
+Les durées sont des secondes. password_reset exige identifier: email, parce
+que le message doit avoir un destinataire ; aucun appel réseau n'est fait par
+le compilateur. Les tables et routes nécessaires sont ajoutées
+conditionnellement, et les colonnes TOTP restent NULL pour une base existante.
+Au démarrage, les colonnes manquantes sont ajoutées et le nombre de comptes
+sans TOTP est compté ; aucune activation n'est inventée. Un compte sans TOTP
+activé reste un compte normal.
+
+### Le verrouillage est par compte, mais n'est pas un oracle
+
+Le compteur est indexé par l'identifiant interne du compte, pas par l'adresse
+IP. La limitation historique par IP de /login reste en place comme défense
+indépendante : un NAT partagé ne partage donc pas le verrouillage de compte,
+et répartir l'attaque sur plusieurs adresses ne répartit pas le compteur de la
+victime. Après N échecs dans la fenêtre déclarée, le bon mot de passe répond
+toujours 401 jusqu'à l'expiration ou à une levée opérateur (manage.py unlock).
+
+Le verrou ne répond jamais « compte verrouillé ». Un compte existant verrouillé
+et un compte absent suivent le même chemin observable : normalisation, travail
+PBKDF2 avec le même sel factice si nécessaire, 401 Identifiants invalides. et
+durée comparable. Dire « verrouillé » pour l'un révélerait son existence ;
+dire « identifiants invalides » pour les deux refuse donc volontairement
+l'information utile à l'attaquant. Une connexion réussie remet le compteur à
+zéro.
+
+### La réinitialisation est un parcours à deux écrans, pas un JWT
+
+POST /password-reset/request répond de façon générique, avec un plancher de
+durée identique que l'adresse existe ou non : « Si le compte existe, un message
+a été envoyé. » Le thread SMTP est lancé après le commit et une panne de
+transport devient une trace, jamais une erreur de la route. Cela réutilise la
+brique du point 122 sans introduire d'appel réseau dans le compilateur.
+
+Le jeton envoyé est opaque, stocké uniquement sous forme de hash, limité dans
+le temps et consommable une seule fois. Il est refusé pour un autre compte,
+refusé après expiration, et tous les anciens jetons sont invalidés après un
+changement de mot de passe, y compris via manage.py passwd. Il ne peut pas
+changer le rôle : la confirmation ne met à jour que le hash et le sel du mot
+de passe. Il n'existe aucune route GET de lecture du jeton. Le secret de
+réinitialisation n'est ni dans le contrat frontend ni dans les logs.
+
+### Le rafraîchissement sépare les deux secrets de session
+
+Quand refresh_tokens est déclaré, /login conserve les clés historiques
+access_token et token_type: bearer, et ajoute refresh_token. Le frontend doit
+stocker et rejouer ce dernier sur POST /refresh, pas le présenter comme un
+Bearer. Le jeton de rafraîchissement est aléatoire et opaque, son hash est en
+base, sa rotation révoque l'ancien et en émet un nouveau ; un ancien, expiré
+ou révoqué répond 401. Le JWT d'accès peut avoir une durée courte via
+MONL_TOKEN_TTL_SECONDS dans cette variante. logout et un changement de mot de
+passe révoquent également les refresh tokens.
+
+Le contrat machine-readable décrit le stockage/rejeu, les routes et les
+durées, et _contract_signature inclut la configuration B4 complète. C'est
+nécessaire : ajouter un refresh change l'état local du frontend même si la
+forme historique de /login est conservée pour le smoke test.
+
+### TOTP reste hors ligne, avec une protection de rejeu
+
+totp utilise uniquement la bibliothèque standard : secret aléatoire, HMAC-SHA1,
+compteur de 30 secondes et troncature dynamique de RFC 6238. POST /totp/setup
+et POST /totp/enable sont des parcours d'enrôlement authentifiés ; le secret
+n'est émis que dans la réponse ponctuelle de setup, jamais par une route de
+lecture, un log ou le contrat frontend. Le contrat décrit les routes et le
+champ de code, mais pas la valeur ni le nom du secret.
+
+À la connexion, seul le code de la fenêtre courante est accepté et la dernière
+fenêtre consommée est enregistrée atomiquement. Un code d'une autre fenêtre ou
+le même code rejoué répond donc 401. L'activation ne consomme pas la première
+fenêtre de connexion. Rien de cette brique ne permet de choisir un rôle :
+selfRegister reste la seule frontière HTTP, et manage.py reste le chemin des
+rôles privilégiés.
+
+### Lecteurs textuels, SQL et moteurs
+
+Ces formes n'ajoutent aucune syntaxe aux blocs seed ou assets :
+assets_tool.py et content_tool.py, qui lisent leur spec textuellement,
+continuent de ne reconnaître que leurs blocs. Les valeurs SQL restent liées
+par le générateur typé ; les vérifications d'accès restent dans les méthodes
+nommées existantes. Les tables, migrations additives, comparaisons constantes
+et transactions sont émises pour SQLite et PostgreSQL. Les colonnes nouvelles
+restent vides et comptées, jamais remplies avec une valeur supposée.
+
+La preuve d'exécution correspondante est dans
+tests/test_authentification_b4.py : deux comptes, faux SMTP, vrai uvicorn,
+SQLite et PostgreSQL, avec verrou, reset à usage unique/expiration/autre
+compte, expiration/rotation/révocation des sessions et TOTP valide,
+hors-fenêtre et rejeu. Une spec sans B4 conserve aussi la forme de réponse
+historique de /login, notamment access_token et token_type.
+
+### Ce que la revue a mesuré, et l'oracle qu'il fallait fermer
+
+**Le verrou ne dit pas si le compte existe.** Mesuré sur vingt rounds, en
+purgeant entre chaque le limiteur par IP du point 9 pour qu'il ne masque pas
+le résultat : un compte VERROUILLÉ interrogé avec le bon mot de passe et un
+compte INEXISTANT rendent la même réponse — 401, `Identifiants invalides.`,
+une seule variante observée de part et d'autre — et l'écart de temps médian
+est de **1,28 ms sur une base de 47 ms**, le PBKDF2 à temps constant dominant
+tout le reste. C'était la question qui décidait de la brique : un verrou qui
+répondrait « compte verrouillé » ne protégerait pas un compte, il en
+publierait la liste. C'est la même décision qu'au point 95 (« 401 et jamais
+422 »), prise une seconde fois pour une seconde raison.
+
+Et le verrou verrouille vraiment : pendant le verrou, le BON mot de passe est
+refusé. Sans cette épreuve-là, un verrou qui ne bloquerait que les mauvais
+mots de passe passerait pour bon.
+
+**La réinitialisation ne révèle rien non plus** : « Si le compte existe, un
+message a été envoyé » pour une adresse connue comme pour une inconnue, et le
+faux SMTP ne reçoit qu'UN message. Le jeton est à usage unique (rejeu refusé),
+lié au compte (celui de zoé appliqué à un autre compte : refusé), et
+l'ancien mot de passe cesse immédiatement de fonctionner.
+
+**Le rafraîchissement fait TOURNER le jeton.** `/refresh` rend un couple neuf
+et l'ancien jeton de rafraîchissement est aussitôt rejeté — c'est ce qui
+transforme un vol de jeton en incident détectable plutôt qu'en accès
+permanent. Un jeton de rafraîchissement présenté comme jeton d'accès sur une
+route métier rend 401 : les deux ne sont pas interchangeables.
+
+**Le TOTP refuse le rejeu.** Un code valide passe une fois ; le même code
+rejoué dans sa propre fenêtre est refusé, comme celui d'une fenêtre voisine.
+Le secret ne sort d'aucune route de lecture.
+
+**Rien n'est cassé pour l'existant.** Un compte créé par le compilateur d'avant
+ce point se connecte encore après recompilation, et le serveur ANNONCE au
+démarrage : « 1 compte(s) restent sans double facteur TOTP : aucune activation
+n'est inventée. » C'est le motif du point 89, mot pour mot : la migration
+rattrape une colonne, jamais son contenu.

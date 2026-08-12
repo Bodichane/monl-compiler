@@ -712,6 +712,51 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
                   "uniquement ceux qui changent. 404 si l'enregistrement "
                   "n'existe pas, 403 pour tout autre rôle.")))
 
+    # BRIQUE B4 : ces parcours ne viennent d'aucun workflow métier. Ils sont
+    # donc ajoutés ici, exactement comme les routes de paiement, et seulement
+    # si la spec les déclare. Une spec historique ne gagne ainsi ni route ni
+    # octet de contrat par défaut.
+    auth_features = dict(plans.auth_features or {})
+    auth_actors = sorted(plans.actors)
+    if auth_features.get("password_reset"):
+        routes.extend([
+            _route(
+                "POST", "/password-reset/request", "PasswordResetRequest",
+                "Authentication", True, [], request_fields=["username"],
+                note=("Réponse générique et de durée plancher identique que le "
+                      "compte existe ou non ; ne jamais annoncer si un message "
+                      "est parti.")),
+            _route(
+                "POST", "/password-reset/confirm", "PasswordResetConfirm",
+                "Authentication", True, [],
+                request_fields=["username", "token", "password"],
+                note=("Jeton opaque à usage unique et durée limitée : le "
+                      "serveur ne le renvoie jamais par une route de lecture ; "
+                      "un changement de mot de passe ne change pas le rôle.")),
+        ])
+    if auth_features.get("refresh_tokens"):
+        refresh_route = _route(
+            "POST", "/refresh", "Refresh", "Authentication", False,
+            auth_actors, request_fields=["refresh_token"],
+            note=("Présenter le jeton de rafraîchissement opaque, pas le JWT "
+                  "d'accès. Chaque succès le révoque et en émet un nouveau ; "
+                  "un jeton révoqué ou expiré répond 401."))
+        refresh_route["auth_mode"] = "refresh_token"
+        routes.append(refresh_route)
+    if auth_features.get("totp"):
+        routes.extend([
+            _route(
+                "POST", "/totp/setup", "TotpSetup", "Authentication", False,
+                auth_actors,
+                note=("Parcours d'activation authentifié, à afficher une seule "
+                      "fois ; ne pas transformer sa réponse en route de lecture.")),
+            _route(
+                "POST", "/totp/enable", "TotpEnable", "Authentication", False,
+                auth_actors, request_fields=["code"],
+                note=("Active le double facteur après vérification d'un code "
+                      "TOTP courant.")),
+        ])
+
     routes.sort(key=lambda r: (r["entity"], r["path"], r["method"]))
 
     # POINT 72 : plus AUCUNE identité visuelle calculée. Le contrat décrit ce
@@ -746,8 +791,82 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
     }
     if message_contracts:
         business_rules["messages"] = message_contracts
+    auth_contract = {
+        # AJOUT (bêta 3) : seuls les rôles marqués 'selfRegister' dans la
+        # spec peuvent être choisis à l'inscription — les autres sont
+        # provisionnés hors ligne (manage.py) et renvoient 403 ici.
+        # L'interface ne doit donc proposer QUE cette liste.
+        "register": {"method": "POST", "path": "/register",
+                     "self_register_actors": list(plans.self_register_actors),
+                     "body": {"username": _libelle_identifiant(plans.auth_identifier),
+                              "password": "str (8+ caractères)",
+                              "actor": f"un rôle parmi {list(plans.self_register_actors)}"},
+                     # POINT 95 : le champ reste nommé 'username' SUR LE
+                     # FIL (le renommer casserait le formulaire de tout
+                     # projet existant) — c'est ici que le contrat dit
+                     # ce qu'il doit vraiment contenir, et l'IA qui
+                     # étiquette l'écran en conséquence.
+                     "identifier_forms": list(plans.auth_identifier or ()),
+                     "phone_prefix": plans.auth_phone_prefix,
+                     "note": _joindre(
+                         ("403 si le rôle demandé n'est pas ouvert à l'inscription libre"
+                          if plans.self_register_actors else
+                          "aucun rôle ouvert : l'inscription est fermée, "
+                          "les comptes sont créés par manage.py"),
+                         _note_identifiant(plans.auth_identifier,
+                                           plans.auth_phone_prefix))},
+        "login": {"method": "POST", "path": "/login",
+                  "body": {"username": "str", "password": "str"},
+                  "returns": "un token JWT (validité 2 h par défaut, "
+                             "réglable par MONL_TOKEN_TTL_HOURS)"},
+        "logout": {"method": "POST", "path": "/logout"},
+        "header": "Authorization: Bearer <token> sur toute route non publique",
+        "rate_limit": "5 tentatives / 60 s / IP sur /register et /login",
+    }
+    if auth_features.get("totp"):
+        auth_contract["login"]["body"]["totp_code"] = (
+            "str (6 chiffres, requis après activation du double facteur)")
+    if auth_features.get("refresh_tokens"):
+        auth_contract["login"]["returns"] = (
+            "un token JWT d'accès (validité réglable par "
+            "MONL_TOKEN_TTL_SECONDS) et un jeton de rafraîchissement opaque")
+    b4_contract = {}
+    if auth_features.get("lockout"):
+        b4_contract["account_lockout"] = {
+            "max_attempts": auth_features["lockout"]["max_attempts"],
+            "window_seconds": auth_features["lockout"]["window_seconds"],
+            "failure_response": "401 générique, identique à un compte inexistant",
+        }
+    if auth_features.get("password_reset"):
+        b4_contract["password_reset"] = {
+            "request_path": "/password-reset/request",
+            "confirm_path": "/password-reset/confirm",
+            "ttl_seconds": auth_features["password_reset"],
+            "single_use": True,
+            "invalidated_on_password_change": True,
+            "privacy": "réponse générique et durée plancher identique, sans énumération",
+        }
+    if auth_features.get("refresh_tokens"):
+        b4_contract["refresh_tokens"] = {
+            "path": "/refresh",
+            "ttl_seconds": auth_features["refresh_tokens"],
+            "rotation": True,
+            "access_token_is_jwt": True,
+            "refresh_token_is_jwt": False,
+        }
+    if auth_features.get("totp"):
+        b4_contract["totp"] = {
+            "setup_path": "/totp/setup",
+            "enable_path": "/totp/enable",
+            "step_seconds": 30,
+            "replay_protection": True,
+        }
+    if b4_contract:
+        auth_contract["features"] = b4_contract
     contract = {
-        "monl_contract_version": CONTRACT_VERSION,
+        # Une spec sans B4 conserve la version et la forme historiques à
+        # l'octet ; une spec B4 rend son delta visible au frontend.
+        "monl_contract_version": CONTRACT_VERSION + (1 if b4_contract else 0),
         "app": app_name,
         "brief": landing.get("brief"),
         "design_skills": design_skills,
@@ -780,38 +899,7 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
             "base_url_note": ("même origine que la page : appeler les routes "
                               "en chemins relatifs (/entite), jamais d'URL "
                               "absolue ni de port codé en dur"),
-            "auth": {
-                # AJOUT (bêta 3) : seuls les rôles marqués 'selfRegister' dans la
-                # spec peuvent être choisis à l'inscription — les autres sont
-                # provisionnés hors ligne (manage.py) et renvoient 403 ici.
-                # L'interface ne doit donc proposer QUE cette liste.
-                "register": {"method": "POST", "path": "/register",
-                             "self_register_actors": list(plans.self_register_actors),
-                             "body": {"username": _libelle_identifiant(plans.auth_identifier),
-                                      "password": "str (8+ caractères)",
-                                      "actor": f"un rôle parmi {list(plans.self_register_actors)}"},
-                             # POINT 95 : le champ reste nommé 'username' SUR LE
-                             # FIL (le renommer casserait le formulaire de tout
-                             # projet existant) — c'est ici que le contrat dit
-                             # ce qu'il doit vraiment contenir, et l'IA qui
-                             # étiquette l'écran en conséquence.
-                             "identifier_forms": list(plans.auth_identifier or ()),
-                             "phone_prefix": plans.auth_phone_prefix,
-                             "note": _joindre(
-                                 ("403 si le rôle demandé n'est pas ouvert à l'inscription libre"
-                                  if plans.self_register_actors else
-                                  "aucun rôle ouvert : l'inscription est fermée, "
-                                  "les comptes sont créés par manage.py"),
-                                 _note_identifiant(plans.auth_identifier,
-                                                   plans.auth_phone_prefix))},
-                "login": {"method": "POST", "path": "/login",
-                          "body": {"username": "str", "password": "str"},
-                          "returns": "un token JWT (validité 2 h par défaut, "
-                                     "réglable par MONL_TOKEN_TTL_HOURS)"},
-                "logout": {"method": "POST", "path": "/logout"},
-                "header": "Authorization: Bearer <token> sur toute route non publique",
-                "rate_limit": "5 tentatives / 60 s / IP sur /register et /login",
-            },
+            "auth": auth_contract,
         },
         "actors": sorted(plans.actors),
         "self_register_actors": list(plans.self_register_actors),
@@ -1283,6 +1371,36 @@ contrat.
 
     identifiant_note = contract["api"]["auth"]["register"].get("note")
     identifiant_block = (f"\n- {identifiant_note}" if identifiant_note else "")
+    auth_features = contract["api"]["auth"].get("features") or {}
+    auth_feature_lines = []
+    if "account_lockout" in auth_features:
+        lockout = auth_features["account_lockout"]
+        auth_feature_lines.append(
+            f"- Verrouillage de compte : après {lockout['max_attempts']} échecs "
+            f"dans {lockout['window_seconds']} s, afficher l'échec générique "
+            "sans tenter de deviner si l'adresse existe.")
+    if "password_reset" in auth_features:
+        reset = auth_features["password_reset"]
+        auth_feature_lines.append(
+            f"- Réinitialisation : afficher les deux écrans "
+            f"{reset['request_path']} puis {reset['confirm_path']}. "
+            "La première réponse est volontairement générique ; le jeton reçu "
+            "par le canal de message se rejoue dans le second écran une seule fois "
+            "avant expiration.")
+    if "refresh_tokens" in auth_features:
+        refresh = auth_features["refresh_tokens"]
+        auth_feature_lines.append(
+            f"- Session : stocker et rejouer le jeton opaque refresh_token sur "
+            f"{refresh['path']} ; chaque succès le remplace. Ne jamais l'envoyer "
+            "comme Authorization: Bearer, qui reste réservé au JWT d'accès.")
+    if "totp" in auth_features:
+        totp = auth_features["totp"]
+        auth_feature_lines.append(
+            f"- Double facteur : proposer l'activation via {totp['setup_path']} "
+            f"puis {totp['enable_path']}, et demander totp_code à la connexion "
+            "après activation. Un code ne se rejoue pas.")
+    auth_feature_block = ("\n" + "\n".join(auth_feature_lines)
+                          if auth_feature_lines else "")
 
     return f"""# Brief frontend — {contract['app']} (généré par monl)
 {brief_line}
@@ -1316,7 +1434,7 @@ ci-dessous. Le backend existe déjà et ne doit pas être modifié.
   non publique. Les rôles déclarés mais absents de cette liste
   ({[a for a in contract['actors'] if a not in contract['self_register_actors']] or "aucun"})
   sont provisionnés hors ligne : ils se connectent par `/login`, jamais par
-  `/register`.{identifiant_block}
+  `/register`.{identifiant_block}{auth_feature_block}
 - Les routes de liste sont paginées : `?limit=&offset=`, réponse
   `{{status, total, limit, offset, data}}`.
 - Ne jamais envoyer un champ marqué « généré serveur » à la création.

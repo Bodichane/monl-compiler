@@ -47,6 +47,34 @@
   Communauté livraient une modération à sens unique, le modérateur perdant de vue
   ce qu'il venait de masquer.
 
+### Authentification complète (point 124)
+
+- Quatre capacités DÉCLARATIVES sous `capability auth` : `lockout: N in S`,
+  `password_reset: S`, `refresh_tokens: S`, `totp`. Une spec qui n'en demande
+  aucune produit des artefacts identiques à l'octet.
+- **Verrouillage PAR COMPTE**, là où la limitation du point 9 était par IP :
+  un attaquant réparti la contournait, et un utilisateur derrière un NAT
+  partagé était puni pour les autres.
+- **Le verrou n'est pas un oracle d'existence** : un compte verrouillé et un
+  compte inexistant rendent la même réponse, et l'écart de temps médian est de
+  1,28 ms sur 47 ms. Un verrou qui annoncerait « compte verrouillé » ne
+  protégerait pas un compte, il en publierait la liste. Et pendant le verrou,
+  le BON mot de passe est refusé.
+- **Réinitialisation de mot de passe**, débloquée par le point 122 : réponse
+  identique pour une adresse connue ou non, jeton à usage unique, lié au
+  compte, et l'ancien mot de passe cesse aussitôt de fonctionner.
+- **Jetons de rafraîchissement avec ROTATION** : `/refresh` rend un couple
+  neuf et rejette l'ancien — un vol devient un incident détectable plutôt
+  qu'un accès permanent. Un jeton de rafraîchissement ne vaut pas comme jeton
+  d'accès.
+- **Double facteur TOTP** (RFC 6238, pur calcul, donc hors ligne) : le rejeu
+  d'un code est refusé, y compris dans sa propre fenêtre ; le secret ne sort
+  d'aucune route de lecture.
+- Aucun compte existant n'est cassé : ils se connectent encore et sont COMPTÉS
+  au démarrage, sans qu'aucune activation soit inventée (point 89).
+- `manage.py` gagne `unlock` et continue de fonctionner depuis n'importe quel
+  dossier.
+
 ### Filtrer et trier côté serveur, sans langage de requête (point 123)
 
 - `rule Entite.Read filter <champ>` et `rule Entite.Read sort <champ>`. Ce qui
