@@ -219,7 +219,6 @@ def _sample_value(ftype, fname, spec=None):
     choix = (spec or {}).get("allowed_values")
     if choix:
         return choix[0]
-    low = fname.lower()
     if ftype == "Integer":
         return 1
     if ftype in ("Float", "Money"):
@@ -235,8 +234,12 @@ def _sample_value(ftype, fname, spec=None):
     # la même application.
     if ftype == "UUID":
         return "3f2504e0-4f89-41d3-9a0c-0305e82c3301"
-    if any(k in low for k in ("image", "photo", "url")):
-        return "https://picsum.photos/seed/smoke/400/300"
+    # Un champ d'illustration recevait ici une URL `picsum.photos`. Le
+    # vérificateur est un client comme un autre (points 95, 96, 100) : il n'a
+    # pas à nommer un hôte distant que le reste du projet ne nomme plus. Il
+    # tombe donc dans le repli générique — non vide, pour qu'une contrainte
+    # `min` de longueur (point 85) continue de passer, et déterministe, parce
+    # qu'un vérificateur doit rendre deux fois le même verdict.
     return f"smoke-{fname}"
 
 

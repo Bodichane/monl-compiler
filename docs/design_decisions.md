@@ -43,6 +43,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [124](#124-authentification-complète--verrouillage-réinitialisation-rafraîchissement-et-totp) Authentification complète : verrouillage, réinitialisation, rafraîchissement et TOTP ·
 [125](#125-le-contrat-nommait-le-jeton-sans-dire-sous-quel-nom-le-lire) Le contrat nommait le jeton sans dire sous quel nom le lire ·
 [126](#126-la-devise-dencaissement-et-son-exposant) La devise d'encaissement et son exposant ·
+[127](#127-la-demonstration-nallait-plus-chercher-ses-images-chez-un-tiers) La démonstration n'allait plus chercher ses images chez un tiers ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -8218,3 +8219,66 @@ aucune régression. Ensemble, ils épinglent le facteur.
 `business_rules.payment` n'est pas émis et son contrat reste identique à
 l'octet. C'est la preuve que la brique ne touche pas les specs qui ne s'en
 servent pas.
+
+## 127. La démonstration n'allait plus chercher ses images chez un tiers
+
+**Le défaut le plus visible du dépôt, et personne ne le voyait.** Les dix
+modèles d'application semaient des `https://picsum.photos/…` dans leurs fiches
+de démonstration, et `loremflickr.com` dès qu'un sujet d'illustration était
+choisi. La toute première page qu'un prospect ouvre allait donc chercher ses
+images chez un tiers — pendant que le README promet une application
+**autonome** dont le compilateur **n'appelle jamais l'extérieur**.
+
+Hors ligne, sur une connexion lente ou sur un forfait de données compté, la
+vitrine s'ouvrait cassée. Ce n'est pas un détail de présentation : c'est
+l'argument de vente contredit par la démonstration censée le porter, et il
+compte double sur le marché visé.
+
+**Trois raisons de laisser le champ VIDE plutôt que d'y mettre autre chose**,
+chacune ayant écarté une solution qui semblait meilleure :
+
+* une image en `data:` URI tiendrait dans le champ et serait déterministe,
+  mais mettrait 250 caractères illisibles dans **chaque** ligne `seed`. La spec
+  est faite pour être lue et modifiée à la main — c'est le raisonnement du
+  point 84, qui édite la spec TEXTUELLEMENT pour ne pas perdre les
+  commentaires — et `monl content export` la déverse en CSV ;
+* une photo livrée avec monl serait un **choix visuel du compilateur**, ce que
+  le point 72 lui interdit explicitement ;
+* le chemin d'une vraie photo existe déjà, il est documenté et il est
+  meilleur : `monl assets add <fichier> --for "<fiche>"` (brique 13,
+  point 84), qui **vérifie le fichier à la compilation** au lieu d'espérer
+  qu'un serveur distant réponde.
+
+**La question du dialogue garde un effet, et c'est la moitié la plus
+intéressante.** `_ask_image_topic` (point 59) existait pour qu'un blog de
+cybersécurité ne s'illustre pas de paysages. Supprimer son effet en aurait
+fait une question sans conséquence — ce que le point 85 interdit au
+compilateur, et qui vaut autant pour le dialogue qui écrit la spec. Le sujet
+part donc désormais dans le **brief** (`Les illustrations doivent évoquer :
+cybersecurity`), la seule phrase du contrat que l'IA d'interface lit pour
+savoir à quoi sert le site — et **aussi en commentaire d'en-tête**, parce
+qu'une spec sans bloc `landing` n'aurait aucun brief où le porter et que
+l'humain qui rouvre le fichier doit retrouver ce qu'il avait demandé. Un
+commentaire ne va pas au contrat : il documente, il ne promet rien.
+
+**La question n'a PAS été supprimée**, alors que c'était tentant : elle est
+posée après `_ask_self_register`, et `tests/test_app_templates.py` répond aux
+questions par leur RANG. Retirer une question décale toutes les réponses
+scriptées des dix modèles — piège que `CLAUDE.md` signale depuis le point 75.
+Changer ce qu'une question produit coûte moins cher que changer combien il y
+en a.
+
+**Le vérificateur aussi.** `smoke_test.py` donnait une URL `picsum` aux champs
+d'illustration. Il tombe désormais dans le repli générique — non vide, pour
+qu'une contrainte `min` de longueur (point 85) continue de passer, et
+déterministe. Quatrième application de « le vérificateur est un client comme
+un autre » (points 95, 96, 100) : cette fois il ne s'agissait pas d'une entrée
+refusée, mais d'une valeur qui contredisait la promesse du reste du projet.
+
+**Le test dit la règle, pas l'exemple.** L'ancien test vérifiait la RÉSOLUTION
+des photos (`1600/900` et non `800/600`). Le nouveau balaie la spec entière et
+refuse `picsum`, `loremflickr`, `http://` et `https://` — une règle générale
+tient là où un exemple précis laissait rentrer le prochain hôte distant.
+
+**Les golden tests n'ont pas bougé** : la spec figée n'a aucun champ
+d'illustration, et le changement ne touche ni le générateur ni le contrat.

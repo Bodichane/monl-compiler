@@ -392,7 +392,7 @@ grammar = r"""
     # des chaînes (avec URLs d'images publiques), des entiers ou des
     # décimaux. Ex. :
     #   seed Project
-    #       title: "Refonte Aurora", imageUrl: "https://picsum.photos/seed/a/600/400", year: 2024
+    #       title: "Refonte Aurora", imageUrl: "assets/aurora.jpg", year: 2024
     #
     # BRIQUE 21 (point 100) : un seed d'ENFANT désigne sa ligne parente. Sans
     # cette forme, une entité fille d'une table métier ne pouvait pas figurer
