@@ -24,6 +24,64 @@ class AdminCliMixin:
         # service ('supervision', 'sauvegarde') qui n'ont ni adresse ni numéro.
         formes = self.auth_identifier or []
         prefixe = self.auth_phone_prefix
+        password_invalidation = ""
+        if any(self.auth_features.get(name) for name in
+               ("password_reset", "refresh_tokens", "lockout")):
+            password_invalidation += (
+                "    user_id = cur.execute(\"SELECT id FROM _monl_users WHERE "
+                "username = ?\", (_normalize_identifier(args.username),)).fetchone()[0]\n"
+            )
+        if self.auth_features.get("password_reset"):
+            password_invalidation += (
+                "    cur.execute(\"UPDATE _monl_password_reset_tokens SET "
+                "used_at = COALESCE(used_at, ?) WHERE user_id = ?\", "
+                "(datetime.datetime.now(datetime.timezone.utc).timestamp(), user_id))\n"
+            )
+        if self.auth_features.get("refresh_tokens"):
+            password_invalidation += (
+                "    cur.execute(\"UPDATE _monl_refresh_tokens SET revoked_at = ? "
+                "WHERE user_id = ? AND revoked_at IS NULL\", "
+                "(datetime.datetime.now(datetime.timezone.utc).timestamp(), user_id))\n"
+            )
+        if self.auth_features.get("lockout"):
+            password_invalidation += (
+                "    cur.execute(\"UPDATE _monl_account_lockouts SET failed_count = 0, "
+                "first_failed_at = ?, locked_until = NULL WHERE user_id = ?\", "
+                "(datetime.datetime.now(datetime.timezone.utc).timestamp(), user_id))\n"
+            )
+        unlock_command = ""
+        unlock_parser = ""
+        if self.auth_features.get("lockout"):
+            unlock_command = (
+                "    python3 manage.py unlock <utilisateur>                 # lève un verrou\n"
+            )
+            unlock_parser = '''
+
+def cmd_unlock(args):
+    conn = _connect()
+    cur = conn.cursor()
+    username = _normalize_identifier(args.username)
+    cur.execute("SELECT id FROM _monl_users WHERE username = ?", (username,))
+    row = cur.fetchone()
+    if not row:
+        sys.exit(f"Compte introuvable : {{args.username}}")
+    now = datetime.datetime.now(datetime.timezone.utc).timestamp()
+    cur.execute(
+        "UPDATE _monl_account_lockouts SET failed_count = 0, first_failed_at = ?, "
+        "locked_until = NULL WHERE user_id = ?",
+        (now, row[0]),
+    )
+    conn.commit()
+    print(f"✅ Verrou levé pour '{{args.username}}'.")
+    conn.close()
+'''
+        unlock_parser_entry = ""
+        if self.auth_features.get("lockout"):
+            unlock_parser_entry = (
+                "    p = sub.add_parser(\"unlock\", help=\"lever le verrouillage d'un compte\")\n"
+                "    p.add_argument(\"username\")\n"
+                "    p.set_defaults(func=cmd_unlock)\n\n"
+            )
         return f'''"""Administration hors ligne de {self.app_name} — généré par monl.
 
 Les rôles ouverts à l'inscription libre ({self_reg or "aucun"}) se créent par
@@ -34,7 +92,7 @@ s'attribuer un rôle privilégié.
     python3 manage.py adduser <utilisateur> <role>     # mot de passe demandé
     python3 manage.py setactor <utilisateur> <role>
     python3 manage.py passwd <utilisateur>
-    python3 manage.py users
+{unlock_command}    python3 manage.py users
     python3 manage.py revoke-all                       # invalide les sessions
 """
 import argparse
@@ -44,7 +102,6 @@ import hashlib
 import os
 import re
 import secrets
-import sqlite3
 import sys
 
 DB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app.db")
@@ -88,19 +145,40 @@ def _connect():
     Le premier compte doit pouvoir être provisionné avant le tout premier
     lancement du serveur : sans cela, une application sans rôle en inscription
     libre n'aurait aucun moyen d'obtenir son premier utilisateur.
+
+    A1 : la connexion vient du app.py généré, seul porteur du choix de
+    dialecte (SQLite ou PostgreSQL selon MONL_DATABASE_URL). Sans ce partage,
+    manage.py écrirait dans une autre base que '/register' et '/login'.
+    L'import est fait ICI et non en tête de fichier : app.py lit '.jwt_secret'
+    et 'schema.sql' relativement au dossier courant, donc il ne peut être
+    importé qu'une fois placé dans le dossier du projet. Importé en tête,
+    manage.py cessait de fonctionner depuis n'importe quel autre dossier —
+    or c'est le SEUL chemin pour créer un compte à rôle privilégié.
     """
-    schema_path = os.path.join(os.path.dirname(DB_FILE), "schema.sql")
-    fresh = not os.path.exists(DB_FILE)
-    conn = sqlite3.connect(DB_FILE, timeout=10.0)
-    if fresh:
-        if not os.path.exists(schema_path):
-            sys.exit("Ni 'app.db' ni 'schema.sql' : lancez d'abord la compilation monl.")
-        with open(schema_path, encoding="utf-8") as f:
-            conn.executescript(f.read())
-        conn.commit()
-        print("🗄️  Base initialisée depuis schema.sql.")
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+    dossier = os.path.dirname(DB_FILE)
+    courant = os.getcwd()
+    try:
+        os.chdir(dossier)
+        if dossier not in sys.path:
+            sys.path.insert(0, dossier)
+        from app import _connect as _database_connect
+        from app import init_db as _init_db
+        try:
+            _init_db()
+        except RuntimeError as erreur:
+            # A2 : une base qui attend une migration non additive ne se sert
+            # pas, et ne s'administre pas non plus — écrire des comptes dans
+            # un schéma en attente les mettrait au même risque. Mais le
+            # diagnostic d'app.py vient d'être imprimé juste au-dessus : le
+            # laisser suivre d'une trace de quinze lignes le noierait, et une
+            # trace n'apprend rien à qui doit décider. On sort en NOMMANT le
+            # remède et le dossier, jamais sur un traceback.
+            sys.exit(f"{{erreur}}\\n"
+                     f"Remède : déclarez la migration dans la spec, puis "
+                     f"lancez 'monl migrate {{dossier}} --name <migration>'.")
+        return _database_connect()
+    finally:
+        os.chdir(courant)
 
 
 def _ask_password():
@@ -176,12 +254,12 @@ def cmd_passwd(args):
         (_hash_password(password, salt_hex), salt_hex,
          _normalize_identifier(args.username)),
     )
-    conn.commit()
+{password_invalidation}    conn.commit()
     print(f"✅ Mot de passe de '{{args.username}}' mis à jour.")
     conn.close()
 
 
-def cmd_users(_args):
+{unlock_parser}def cmd_users(_args):
     conn = _connect()
     cur = conn.cursor()
     cur.execute("SELECT id, username, actor FROM _monl_users ORDER BY id")
@@ -227,7 +305,7 @@ def main():
     p.add_argument("username")
     p.set_defaults(func=cmd_passwd)
 
-    sub.add_parser("users", help="lister les comptes").set_defaults(func=cmd_users)
+{unlock_parser_entry}    sub.add_parser("users", help="lister les comptes").set_defaults(func=cmd_users)
     sub.add_parser("revoke-all", help="invalider toutes les sessions").set_defaults(func=cmd_revoke_all)
 
     args = parser.parse_args()

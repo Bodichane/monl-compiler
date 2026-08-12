@@ -74,7 +74,10 @@ def _assign_field_roles(fields):
     point 35 : média, titre, description, prix, catégorie, puis méta (3 au
     plus). Les champs `hidden` n'en reçoivent aucun — ils ne sont jamais
     rendus, leur donner un rôle inviterait l'IA à les afficher."""
-    visibles = [f for f in fields if not f["hidden_in_reads"]]
+    # Un Upload n'est pas un média fourni par l'auteur et ne se rend pas comme
+    # un champ de lecture JSON : ses routes multipart sont décrites à part.
+    visibles = [f for f in fields
+                if not f["hidden_in_reads"] and f["type"] != "Upload"]
     roles = {}
 
     # AJOUT (brique 13, point 83) : le type DÉCLARÉ prime sur la devinette par
@@ -299,7 +302,7 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
                 # récoltait un 422. Vu en vrai : ajouter `email` et `address` à
                 # une fiche client a cassé le formulaire d'un site en marche,
                 # alors que le contrat les annonçait facultatifs.
-                "required": not peuple_par_le_serveur,
+                "required": not peuple_par_le_serveur and not policy.upload_rule,
                 # hidden : jamais présent dans les réponses de lecture
                 "hidden_in_reads": policy.hidden_in_reads,
                 # generated, derivedFrom ou sumOf : à NE PAS envoyer, le serveur
@@ -309,6 +312,37 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
                 "categorized_in_reads": policy.categorized_in_reads,
                 "postpayment_only": policy.postpayment_only,
             }
+            # BRIQUE B3 : seules les déclarations de la spec apparaissent.
+            # L'absence de ces clés signifie « non filtrable/triable » ; cela
+            # garde le contrat des specs historiques inchangé à l'octet.
+            if fname in plans.filterable_fields.get(ent, ()):
+                valeurs_filtre = (list(policy.allowed_values)
+                                   if policy.allowed_values else None)
+                if ftype == "Boolean":
+                    valeurs_filtre = ["true", "false"]
+                champ["filterable"] = True
+                champ["filter"] = {
+                    "parameter": fname,
+                    "kind": "exact",
+                    "allowed_values": valeurs_filtre,
+                }
+            if fname in plans.sortable_fields.get(ent, ()):
+                champ["sortable"] = True
+            if policy.upload_rule:
+                # BRIQUE B1 : le champ est une entrée multipart dédiée, pas
+                # une valeur JSON et pas un asset Image. Le contrat expose la
+                # limite, les types, le nom exact du champ et les deux routes
+                # ajoutées plus bas ; l'IA frontend n'a rien à deviner.
+                champ["upload"] = {
+                    "field_name": fname,
+                    "max_bytes": policy.upload_rule["max_bytes"],
+                    "accepted_types": list(policy.upload_rule["accepted_types"]),
+                    "storage": "server_disk_reference",
+                    "note": ("octets reçus à l'exécution ; le nom de fichier et le "
+                             "Content-Type client sont ignorés, le type est établi "
+                             "par signature d'octets ; lecture privée selon l'ACL de "
+                             "la ligne, en téléchargement octet/octet"),
+                }
             # BRIQUE 19 (point 96) : les valeurs permises. Sans elles, l'IA
             # dessine un champ TEXTE et l'utilisateur invente un statut qui
             # récolte un 422 — alors que la liste tient dans un menu déroulant.
@@ -494,10 +528,12 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
             # fidèle dessinait un « + Ajouter un article » sur une commande
             # payée (vérifié sur `exemples/02_boutique.ml`).
             verrou_parent = _verrou_paiement(plans, base, inclure_soi=False)
+            message = plans.message_rules_by_trigger.get(base)
             routes.append(_route("POST", f"/{low}", act_type, base, is_public, actors,
                                  request_fields=_creatable_fields(entity_specs.get(base)),
                                  note=_joindre(note_create,
-                                               _note_verrou(verrou_parent, creation=True))))
+                                               _note_verrou(verrou_parent, creation=True),
+                                               _note_message(message))))
             if requise:
                 routes[-1]["requires_own"] = requise
             if verrou_parent:
@@ -510,11 +546,15 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
             # taillerait une vue vide — alors que le backend lui montre tout.
             _sup_lecture = sorted(access.supervisors)
             _note_lecture = _note_superviseurs(_sup_lecture, "lecture")
-            routes.append(_route("GET", f"/{low}", "List", base, is_public, actors,
-                                 note=_joindre(
-                                     "Paramètres : limit (max 200), offset. Réponse : "
-                                     "{status, total, limit, offset, data: [...]}.",
-                                     _note_lecture)))
+            list_query = _list_query_contract(plans, base)
+            routes.append(_route(
+                "GET", f"/{low}", "List", base, is_public, actors,
+                note=_joindre(
+                    "Paramètres : limit (max 200), offset. Réponse : "
+                    "{status, total, limit, offset, data: [...]}.",
+                    _note_list_query(list_query), _note_lecture)))
+            if list_query:
+                routes[-1]["list_query"] = list_query
             routes.append(_route("GET", f"/{low}/{{id}}", "Read", base, is_public, actors,
                                  note=_note_lecture))
             if _sup_lecture:
@@ -576,6 +616,38 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
             tag = plan.tags[0]
             routes.append(_route("POST", f"/workflow/{tag.lower()}/{target.lower()}",
                                  "Execute", target, is_public, actors))
+
+    # BRIQUE B1 : ces routes ne sont pas des CRUD JSON. Elles sont produites
+    # par une déclaration Upload et doivent donc être décrites séparément dans
+    # le contrat : nom multipart, limite explicite, types réellement reconnus,
+    # dépôt POST et lecture GET privée.
+    for upload in plans.upload_fields:
+        entite = upload["entity"]
+        champ = upload["field"]
+        chemin = f"/{entite.lower()}/{{id}}/{champ}"
+        for action, method, contract_action, note in (
+                ("Update", "POST", "Upload", (
+                    f"multipart/form-data obligatoire, champ de fichier '{champ}'. "
+                    f"Limite exacte : {upload['max_bytes']} octets. Types acceptés "
+                    f"par signature d'octets : {', '.join(upload['accepted_types'])}. "
+                    "Le nom de fichier et le Content-Type déclarés par le client "
+                    "sont ignorés ; le dépôt remplace l'ancien fichier après "
+                    "validation.")),
+                ("Read", "GET", "Download", (
+                    "réponse octet/octet en téléchargement avec Content-Type "
+                    "application/octet-stream et nosniff ; l'ACL de la ligne "
+                    "s'applique aussi au fichier, un chemin connu ne suffit pas.")),
+        ):
+            access = plans.access_policies[(entite, action)]
+            route = _route(method, chemin, contract_action, entite, False,
+                           sorted(access.actors), note=note)
+            route["upload"] = {
+                "field_name": champ,
+                "max_bytes": upload["max_bytes"],
+                "accepted_types": list(upload["accepted_types"]),
+                "storage": "server_disk_reference",
+            }
+            routes.append(route)
 
     # BRIQUE PAIEMENT (point 74). Ces deux routes ne sortent PAS de
     # route_map — elles ne naissent pas d'un workflow mais d'une règle
@@ -640,6 +712,51 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
                   "uniquement ceux qui changent. 404 si l'enregistrement "
                   "n'existe pas, 403 pour tout autre rôle.")))
 
+    # BRIQUE B4 : ces parcours ne viennent d'aucun workflow métier. Ils sont
+    # donc ajoutés ici, exactement comme les routes de paiement, et seulement
+    # si la spec les déclare. Une spec historique ne gagne ainsi ni route ni
+    # octet de contrat par défaut.
+    auth_features = dict(plans.auth_features or {})
+    auth_actors = sorted(plans.actors)
+    if auth_features.get("password_reset"):
+        routes.extend([
+            _route(
+                "POST", "/password-reset/request", "PasswordResetRequest",
+                "Authentication", True, [], request_fields=["username"],
+                note=("Réponse générique et de durée plancher identique que le "
+                      "compte existe ou non ; ne jamais annoncer si un message "
+                      "est parti.")),
+            _route(
+                "POST", "/password-reset/confirm", "PasswordResetConfirm",
+                "Authentication", True, [],
+                request_fields=["username", "token", "password"],
+                note=("Jeton opaque à usage unique et durée limitée : le "
+                      "serveur ne le renvoie jamais par une route de lecture ; "
+                      "un changement de mot de passe ne change pas le rôle.")),
+        ])
+    if auth_features.get("refresh_tokens"):
+        refresh_route = _route(
+            "POST", "/refresh", "Refresh", "Authentication", False,
+            auth_actors, request_fields=["refresh_token"],
+            note=("Présenter le jeton de rafraîchissement opaque, pas le JWT "
+                  "d'accès. Chaque succès le révoque et en émet un nouveau ; "
+                  "un jeton révoqué ou expiré répond 401."))
+        refresh_route["auth_mode"] = "refresh_token"
+        routes.append(refresh_route)
+    if auth_features.get("totp"):
+        routes.extend([
+            _route(
+                "POST", "/totp/setup", "TotpSetup", "Authentication", False,
+                auth_actors,
+                note=("Parcours d'activation authentifié, à afficher une seule "
+                      "fois ; ne pas transformer sa réponse en route de lecture.")),
+            _route(
+                "POST", "/totp/enable", "TotpEnable", "Authentication", False,
+                auth_actors, request_fields=["code"],
+                note=("Active le double facteur après vérification d'un code "
+                      "TOTP courant.")),
+        ])
+
     routes.sort(key=lambda r: (r["entity"], r["path"], r["method"]))
 
     # POINT 72 : plus AUCUNE identité visuelle calculée. Le contrat décrit ce
@@ -649,8 +766,107 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
     landing = normalized_ast.get("landing") or {}
 
     design_skills = select_design_skills(entity_specs, routes)
+    message_contracts = [
+        {
+            "trigger": f"{rule['trigger_entity']}.{rule['trigger_action']}",
+            "recipient": "le compte authentifié, via son identifiant email",
+            "subject": rule["subject"],
+            "body": paragraphes(rule["body"]),
+            "delivery": "tentative asynchrone après commit, sans retry ni garantie de remise",
+            "note": ("Après le succès de la création, informer l'utilisateur "
+                     "qu'une tentative de message a été lancée. Ne pas "
+                     "promettre la remise ; les échecs sont journalisés "
+                     "côté serveur."),
+        }
+        for rule in sorted(
+            plans.message_rules_by_trigger.values(),
+            key=lambda item: (item["trigger_entity"], item["trigger_action"]))
+    ]
+    business_rules = {
+        "public_when": {
+            f"{entity}.{action}": dict(condition)
+            for (entity, action), condition in sorted(public_conditions.items())
+        },
+        "once_per": list(plans.once_per_rules),
+    }
+    if message_contracts:
+        business_rules["messages"] = message_contracts
+    auth_contract = {
+        # AJOUT (bêta 3) : seuls les rôles marqués 'selfRegister' dans la
+        # spec peuvent être choisis à l'inscription — les autres sont
+        # provisionnés hors ligne (manage.py) et renvoient 403 ici.
+        # L'interface ne doit donc proposer QUE cette liste.
+        "register": {"method": "POST", "path": "/register",
+                     "self_register_actors": list(plans.self_register_actors),
+                     "body": {"username": _libelle_identifiant(plans.auth_identifier),
+                              "password": "str (8+ caractères)",
+                              "actor": f"un rôle parmi {list(plans.self_register_actors)}"},
+                     # POINT 95 : le champ reste nommé 'username' SUR LE
+                     # FIL (le renommer casserait le formulaire de tout
+                     # projet existant) — c'est ici que le contrat dit
+                     # ce qu'il doit vraiment contenir, et l'IA qui
+                     # étiquette l'écran en conséquence.
+                     "identifier_forms": list(plans.auth_identifier or ()),
+                     "phone_prefix": plans.auth_phone_prefix,
+                     "note": _joindre(
+                         ("403 si le rôle demandé n'est pas ouvert à l'inscription libre"
+                          if plans.self_register_actors else
+                          "aucun rôle ouvert : l'inscription est fermée, "
+                          "les comptes sont créés par manage.py"),
+                         _note_identifiant(plans.auth_identifier,
+                                           plans.auth_phone_prefix))},
+        "login": {"method": "POST", "path": "/login",
+                  "body": {"username": "str", "password": "str"},
+                  "returns": "un token JWT (validité 2 h par défaut, "
+                             "réglable par MONL_TOKEN_TTL_HOURS)"},
+        "logout": {"method": "POST", "path": "/logout"},
+        "header": "Authorization: Bearer <token> sur toute route non publique",
+        "rate_limit": "5 tentatives / 60 s / IP sur /register et /login",
+    }
+    if auth_features.get("totp"):
+        auth_contract["login"]["body"]["totp_code"] = (
+            "str (6 chiffres, requis après activation du double facteur)")
+    if auth_features.get("refresh_tokens"):
+        auth_contract["login"]["returns"] = (
+            "un token JWT d'accès (validité réglable par "
+            "MONL_TOKEN_TTL_SECONDS) et un jeton de rafraîchissement opaque")
+    b4_contract = {}
+    if auth_features.get("lockout"):
+        b4_contract["account_lockout"] = {
+            "max_attempts": auth_features["lockout"]["max_attempts"],
+            "window_seconds": auth_features["lockout"]["window_seconds"],
+            "failure_response": "401 générique, identique à un compte inexistant",
+        }
+    if auth_features.get("password_reset"):
+        b4_contract["password_reset"] = {
+            "request_path": "/password-reset/request",
+            "confirm_path": "/password-reset/confirm",
+            "ttl_seconds": auth_features["password_reset"],
+            "single_use": True,
+            "invalidated_on_password_change": True,
+            "privacy": "réponse générique et durée plancher identique, sans énumération",
+        }
+    if auth_features.get("refresh_tokens"):
+        b4_contract["refresh_tokens"] = {
+            "path": "/refresh",
+            "ttl_seconds": auth_features["refresh_tokens"],
+            "rotation": True,
+            "access_token_is_jwt": True,
+            "refresh_token_is_jwt": False,
+        }
+    if auth_features.get("totp"):
+        b4_contract["totp"] = {
+            "setup_path": "/totp/setup",
+            "enable_path": "/totp/enable",
+            "step_seconds": 30,
+            "replay_protection": True,
+        }
+    if b4_contract:
+        auth_contract["features"] = b4_contract
     contract = {
-        "monl_contract_version": CONTRACT_VERSION,
+        # Une spec sans B4 conserve la version et la forme historiques à
+        # l'octet ; une spec B4 rend son delta visible au frontend.
+        "monl_contract_version": CONTRACT_VERSION + (1 if b4_contract else 0),
         "app": app_name,
         "brief": landing.get("brief"),
         "design_skills": design_skills,
@@ -683,38 +899,7 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
             "base_url_note": ("même origine que la page : appeler les routes "
                               "en chemins relatifs (/entite), jamais d'URL "
                               "absolue ni de port codé en dur"),
-            "auth": {
-                # AJOUT (bêta 3) : seuls les rôles marqués 'selfRegister' dans la
-                # spec peuvent être choisis à l'inscription — les autres sont
-                # provisionnés hors ligne (manage.py) et renvoient 403 ici.
-                # L'interface ne doit donc proposer QUE cette liste.
-                "register": {"method": "POST", "path": "/register",
-                             "self_register_actors": list(plans.self_register_actors),
-                             "body": {"username": _libelle_identifiant(plans.auth_identifier),
-                                      "password": "str (8+ caractères)",
-                                      "actor": f"un rôle parmi {list(plans.self_register_actors)}"},
-                             # POINT 95 : le champ reste nommé 'username' SUR LE
-                             # FIL (le renommer casserait le formulaire de tout
-                             # projet existant) — c'est ici que le contrat dit
-                             # ce qu'il doit vraiment contenir, et l'IA qui
-                             # étiquette l'écran en conséquence.
-                             "identifier_forms": list(plans.auth_identifier or ()),
-                             "phone_prefix": plans.auth_phone_prefix,
-                             "note": _joindre(
-                                 ("403 si le rôle demandé n'est pas ouvert à l'inscription libre"
-                                  if plans.self_register_actors else
-                                  "aucun rôle ouvert : l'inscription est fermée, "
-                                  "les comptes sont créés par manage.py"),
-                                 _note_identifiant(plans.auth_identifier,
-                                                   plans.auth_phone_prefix))},
-                "login": {"method": "POST", "path": "/login",
-                          "body": {"username": "str", "password": "str"},
-                          "returns": "un token JWT (validité 2 h par défaut, "
-                                     "réglable par MONL_TOKEN_TTL_HOURS)"},
-                "logout": {"method": "POST", "path": "/logout"},
-                "header": "Authorization: Bearer <token> sur toute route non publique",
-                "rate_limit": "5 tentatives / 60 s / IP sur /register et /login",
-            },
+            "auth": auth_contract,
         },
         "actors": sorted(plans.actors),
         "self_register_actors": list(plans.self_register_actors),
@@ -722,13 +907,7 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
         # frontend doit savoir qu'un contenu public est filtré par son statut
         # et qu'un compte ne peut créer qu'une occurrence par combinaison de
         # cibles (like/vote, par exemple).
-        "business_rules": {
-            "public_when": {
-                f"{entity}.{action}": dict(condition)
-                for (entity, action), condition in sorted(public_conditions.items())
-            },
-            "once_per": list(plans.once_per_rules),
-        },
+        "business_rules": business_rules,
         "entities": entity_specs,
         "routes": routes,
         "frontend_rules": {
@@ -828,6 +1007,18 @@ def _note_verrou(verrou, creation=False):
             f"ne se modifie plus, il se rembourse chez le prestataire.")
 
 
+def _note_message(regle):
+    """Note de contrat pour une notification déclenchée par Create."""
+    if not regle:
+        return None
+    return (
+        "NOTIFICATION : après le commit réussi de cette création, une tentative "
+        f"asynchrone envoie à l'adresse du compte le sujet « {regle['subject']} ». "
+        "Afficher qu'une tentative de message a été lancée, sans promettre la "
+        "remise : une panne SMTP n'annule pas l'écriture et est journalisée côté "
+        "serveur.")
+
+
 def _joindre(*notes):
     retenues = [n for n in notes if n]
     return " ".join(retenues) if retenues else None
@@ -855,6 +1046,58 @@ def _route(method, path, action, entity, is_public, actors, request_fields=None,
     if note:
         r["note"] = note
     return r
+
+
+def _list_query_contract(plans: CompilationPlans, entity):
+    """Contrat explicite des capacités de liste déclarées pour une entité."""
+    model = plans.entity_models[entity]
+    filters = []
+    for field in plans.filterable_fields.get(entity, ()):
+        policy = model.fields[field]
+        values = list(policy.allowed_values) if policy.allowed_values else None
+        if policy.type == "Boolean":
+            values = ["true", "false"]
+        filters.append({
+            "field": field,
+            "parameter": field,
+            "kind": "exact",
+            "allowed_values": values,
+        })
+    sort_fields = list(plans.sortable_fields.get(entity, ()))
+    result = {}
+    if filters:
+        result["filters"] = filters
+    if sort_fields:
+        result["sort"] = {
+            "parameter": "sort",
+            "direction_parameter": "direction",
+            "fields": sort_fields,
+            "directions": ["asc", "desc"],
+        }
+    return result
+
+
+def _note_list_query(query):
+    """Texte court transmis à l'IA frontend avec le contrat JSON."""
+    if not query:
+        return None
+    notes = []
+    if query.get("filters"):
+        filtres = []
+        for item in query["filters"]:
+            valeurs = item["allowed_values"]
+            suffixe = (" parmi " + ", ".join(repr(v) for v in valeurs)
+                       if valeurs is not None else " une valeur exacte du type du champ")
+            filtres.append(f"paramètre {item['parameter']}{suffixe}")
+        notes.append("FILTRAGE exact, seulement sur les champs déclarés : "
+                     + "; ".join(filtres))
+    if query.get("sort"):
+        tri = query["sort"]
+        notes.append("TRI : paramètre sort parmi "
+                     + ", ".join(tri["fields"])
+                     + ", avec direction=asc ou direction=desc. Aucun autre "
+                     "champ, opérateur ou langage de recherche n'est accepté.")
+    return " ".join(notes)
 
 
 def _client_supplied_fks(plans: CompilationPlans, entity):
@@ -887,7 +1130,8 @@ def _creatable_fields(entity_spec):
     if not entity_spec:
         return []
     return ([f["name"] for f in entity_spec["fields"]
-             if not f["server_generated"] and not f.get("postpayment_only")]
+             if not f["server_generated"] and not f.get("postpayment_only")
+             and not f.get("upload")]
             + list(entity_spec.get("client_foreign_keys", [])))
 
 
@@ -933,6 +1177,11 @@ def _render_prompt(contract):
         # pouvait pas les deviner, et le serveur répondait 422 (point 57).
         corps = (f" — corps : `{{{', '.join(r['request_fields'])}}}`"
                  if r.get("request_fields") else "")
+        if r.get("upload"):
+            upload = r["upload"]
+            corps = (f" — multipart/form-data, champ fichier `{upload['field_name']}`, "
+                     f"{upload['max_bytes']} octets maximum, types : "
+                     f"{', '.join(upload['accepted_types'])}")
         # Point 74 : les notes de route existaient dans le contrat JSON mais
         # n'atteignaient PAS le brief — or c'est le brief que l'IA lit. La
         # forme de la réponse paginée y manquait depuis toujours, et la
@@ -962,6 +1211,12 @@ def _render_prompt(contract):
                 marks.append("généré serveur — NE PAS envoyer")
             if f.get("postpayment_only"):
                 marks.append("modifiable uniquement via la route après paiement")
+            if f.get("upload"):
+                upload = f["upload"]
+                marks.append(
+                    f"Upload multipart via POST/GET sur le champ `{upload['field_name']}`, "
+                    f"{upload['max_bytes']} octets maximum ; types : "
+                    f"{', '.join(upload['accepted_types'])}. Ne pas l'envoyer en JSON.")
             if f["categorized_in_reads"]:
                 marks.append("lu comme libellé de catégorie")
             # BRIQUE 19 (point 96) : l'IA lit le brief, pas le JSON. Y écrire la
@@ -1116,6 +1371,36 @@ contrat.
 
     identifiant_note = contract["api"]["auth"]["register"].get("note")
     identifiant_block = (f"\n- {identifiant_note}" if identifiant_note else "")
+    auth_features = contract["api"]["auth"].get("features") or {}
+    auth_feature_lines = []
+    if "account_lockout" in auth_features:
+        lockout = auth_features["account_lockout"]
+        auth_feature_lines.append(
+            f"- Verrouillage de compte : après {lockout['max_attempts']} échecs "
+            f"dans {lockout['window_seconds']} s, afficher l'échec générique "
+            "sans tenter de deviner si l'adresse existe.")
+    if "password_reset" in auth_features:
+        reset = auth_features["password_reset"]
+        auth_feature_lines.append(
+            f"- Réinitialisation : afficher les deux écrans "
+            f"{reset['request_path']} puis {reset['confirm_path']}. "
+            "La première réponse est volontairement générique ; le jeton reçu "
+            "par le canal de message se rejoue dans le second écran une seule fois "
+            "avant expiration.")
+    if "refresh_tokens" in auth_features:
+        refresh = auth_features["refresh_tokens"]
+        auth_feature_lines.append(
+            f"- Session : stocker et rejouer le jeton opaque refresh_token sur "
+            f"{refresh['path']} ; chaque succès le remplace. Ne jamais l'envoyer "
+            "comme Authorization: Bearer, qui reste réservé au JWT d'accès.")
+    if "totp" in auth_features:
+        totp = auth_features["totp"]
+        auth_feature_lines.append(
+            f"- Double facteur : proposer l'activation via {totp['setup_path']} "
+            f"puis {totp['enable_path']}, et demander totp_code à la connexion "
+            "après activation. Un code ne se rejoue pas.")
+    auth_feature_block = ("\n" + "\n".join(auth_feature_lines)
+                          if auth_feature_lines else "")
 
     return f"""# Brief frontend — {contract['app']} (généré par monl)
 {brief_line}
@@ -1149,7 +1434,7 @@ ci-dessous. Le backend existe déjà et ne doit pas être modifié.
   non publique. Les rôles déclarés mais absents de cette liste
   ({[a for a in contract['actors'] if a not in contract['self_register_actors']] or "aucun"})
   sont provisionnés hors ligne : ils se connectent par `/login`, jamais par
-  `/register`.{identifiant_block}
+  `/register`.{identifiant_block}{auth_feature_block}
 - Les routes de liste sont paginées : `?limit=&offset=`, réponse
   `{{status, total, limit, offset, data}}`.
 - Ne jamais envoyer un champ marqué « généré serveur » à la création.

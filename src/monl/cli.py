@@ -23,6 +23,7 @@
 import argparse
 import contextlib
 import hashlib
+import importlib.util
 import io
 import json
 import os
@@ -96,14 +97,74 @@ def _erreur_de_chemin(project_dir):
 # Ce que la spec produit et que personne ne doit retoucher à la main
 # (manage.py et sandbox_ai.py compris : ils portent des droits).
 SCELLE_ARTEFACTS = ("app.py", "schema.sql", "sandbox_ai.py", "manage.py")
+# Artefacts de déploiement éditables par l'auteur. Ils sont publiés avec la
+# compilation, mais ne sont ni scellés ni inclus dans les empreintes backend :
+# une adaptation locale du conteneur doit survivre à `monl compile`.
+CONTAINER_ARTEFACTS = ("Dockerfile", ".dockerignore")
 PROJECT_ARTEFACTS = (
     *SCELLE_ARTEFACTS,
+    *CONTAINER_ARTEFACTS,
     ".jwt_secret",
     CONTRACT_FILENAME,
     PROMPT_FILENAME,
     "CLAUDE.md",
     STATE_FILENAME,
 )
+
+DEFAULT_DOCKERFILE = """FROM python:3.12-slim
+
+WORKDIR /app
+ENV PYTHONDONTWRITEBYTECODE=1 \\
+    PYTHONUNBUFFERED=1 \\
+    MONL_ENV=production
+
+COPY . .
+RUN pip install --no-cache-dir \\
+    'fastapi>=0.110,<1.0' \\
+    'uvicorn>=0.29,<1.0' \\
+    'PyJWT>=2.8,<3.0'
+
+EXPOSE 8000
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+"""
+
+DEFAULT_DOCKERIGNORE = """.jwt_secret
+*.db
+__pycache__
+frontend.precedent/
+"""
+
+
+def _ensure_container_artifacts(staging_dir, uploads=False):
+    """Émet les gabarits de conteneur sans écraser ceux de l'auteur."""
+    dockerfile = DEFAULT_DOCKERFILE
+    dockerignore = DEFAULT_DOCKERIGNORE
+    if uploads:
+        dockerfile = dockerfile.replace(
+            "    'PyJWT>=2.8,<3.0'\n",
+            "    'PyJWT>=2.8,<3.0' " + "\\\n"
+            "    'python-multipart>=0.0.9,<1.0'\n",
+        )
+        dockerignore += ".monl_uploads/\n"
+    defaults = {
+        "Dockerfile": dockerfile,
+        ".dockerignore": dockerignore,
+    }
+    for name, content in defaults.items():
+        path = os.path.join(staging_dir, name)
+        if not os.path.exists(path):
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(content)
+        elif uploads:
+            # Un gabarit émis lors d'une compilation antérieure peut devenir
+            # un gabarit Upload ; un fichier Docker réellement personnalisé
+            # reste, lui, sous la responsabilité de l'auteur.
+            with open(path, encoding="utf-8") as fh:
+                actuel = fh.read()
+            ancien = DEFAULT_DOCKERFILE if name == "Dockerfile" else DEFAULT_DOCKERIGNORE
+            if actuel == ancien:
+                with open(path, "w", encoding="utf-8") as fh:
+                    fh.write(content)
 
 
 def _save_state(project_dir, spec_relpath, spec_source_path=None):
@@ -157,14 +218,19 @@ def compile_project(spec_path, project_dir, base_dir=None, save_state=True):
     spec_rel = (os.path.relpath(spec_abs, proj_abs)
                 if spec_abs.startswith(proj_abs + os.sep) else spec_abs)
     with staging_directory(proj_abs) as temporary:
-        # Le secret et un éventuel CLAUDE.md personnel ne sont jamais
-        # régénérés depuis zéro dans le staging : ils survivent à la
+        # Le secret, CLAUDE.md et les deux artefacts de conteneur ne sont
+        # jamais régénérés depuis zéro dans le staging : ils survivent à la
         # compilation et restent protégés contre un remplacement accidentel.
-        copy_preserved_files(proj_abs, temporary, (".jwt_secret", "CLAUDE.md"))
+        copy_preserved_files(
+            proj_abs, temporary,
+            (".jwt_secret", "CLAUDE.md", *CONTAINER_ARTEFACTS),
+        )
         compilation = compile_monl(
             spec_path, output_dir=temporary, base_dir=reference_dir)
         contract = generate_frontend_contract(
             compilation.ir, compilation.plans, temporary)
+        _ensure_container_artifacts(
+            temporary, uploads=bool(compilation.ir["security"].get("upload_fields")))
         if save_state:
             _save_state(temporary, spec_rel, spec_source_path=spec_abs)
         artefacts = PROJECT_ARTEFACTS if save_state else tuple(
@@ -468,7 +534,8 @@ def _write_update_brief(project_dir, added_routes, removed_routes,
                         added_prea=(), removed_prea=(),
                         added_verrous=(), removed_verrous=(),
                         added_contenus=(), removed_contenus=(),
-                        modifies_contenus=(), changed_liens=()):
+                        modifies_contenus=(), changed_liens=(),
+                        changed_types=()):
     """Point 3 du pivot : le delta n'est pas qu'informatif, il devient une
     CONSIGNE prête à donner à l'IA frontend — la boucle se ferme sans que
     l'humain ait à reformuler le changement."""
@@ -487,6 +554,13 @@ def _write_update_brief(project_dir, added_routes, removed_routes,
     if removed_fields:
         sections.append("## Champs SUPPRIMÉS — retirer des vues et formulaires\n"
                         + bullet(removed_fields, "retirer"))
+    if changed_types:
+        sections.append(
+            "## Types de champs MODIFIÉS — revoir saisie et affichage\n"
+            "Le nom du champ n'a pas bougé, mais sa valeur attendue si : "
+            "adapter le contrôle de saisie, le formatage et les messages "
+            "d'erreur au nouveau type.\n"
+            + bullet(changed_types, "adapter"))
     # POINT 88 : un rôle qui gagne l'accès à une route existante n'ajoute aucune
     # route, mais réclame souvent tout un écran (un back-office, une vue de
     # supervision). C'est le cas le plus silencieux du delta : rien n'est cassé,
@@ -610,6 +684,9 @@ def _contract_signature(contract):
     routes = {f"{r['method']} {r['path']}" for r in contract["routes"]}
     fields = {f"{e}.{f['name']}" for e, spec in contract["entities"].items()
               for f in spec["fields"]}
+    field_types = {f"{e}.{f['name']}": f["type"]
+                   for e, spec in contract["entities"].items()
+                   for f in spec["fields"]}
     # POINT 88 : QUI a le droit d'appeler une route fait partie de l'interface.
     # Le delta ne comparait que méthode+chemin : ouvrir le carnet de commandes
     # à l'administrateur ne créait aucune route nouvelle — seulement un acteur
@@ -691,6 +768,15 @@ def _contract_signature(contract):
             if champ.get("allowed_values"):
                 contenus[f"choix de {entite}.{champ['name']}"] = hashlib.sha256(
                     "\n".join(champ["allowed_values"]).encode("utf-8")).hexdigest()
+            # BRIQUE B1 : un Upload contraint une entrée frontend même si le
+            # champ existait déjà. La signature porte les octets de contrat
+            # (nom multipart, limite et MIME), pas une valeur téléversée.
+            # Une modification de max/types déclenche donc bien le delta ; une
+            # spec sans Upload n'ajoute aucune entrée et conserve sa signature.
+            if champ.get("upload"):
+                contenus[f"upload de {entite}.{champ['name']}"] = hashlib.sha256(
+                    json.dumps(champ["upload"], sort_keys=True,
+                               ensure_ascii=False).encode("utf-8")).hexdigest()
     # POINT 116 : neuvième et dixième fois. `publicWhen` et `oncePer` vivent
     # dans `business_rules`, que la signature ne lisait pas : poser
     # 'rule Article.Read publicWhen status "published"' ne crée aucune route,
@@ -708,6 +794,35 @@ def _contract_signature(contract):
     for regle in regles_metier.get("once_per") or []:
         contenus[f"unicité de {regle['trigger_entity']}"] = hashlib.sha256(
             "\n".join(regle["parents"]).encode("utf-8")).hexdigest()
+    # BRIQUE B2 : un message n'ajoute pas de route, mais il change le parcours
+    # après une création et le texte que l'interface doit afficher. Le delta
+    # porte sur le déclencheur, le destinataire annoncé et le contenu complet ;
+    # comparer seulement la présence de la règle laisserait passer une
+    # modification de sujet ou de corps.
+    for message in regles_metier.get("messages") or []:
+        reference = message["trigger"]
+        contenus[f"message sortant de {reference}"] = hashlib.sha256(
+            json.dumps(message, sort_keys=True, ensure_ascii=False).encode("utf-8")
+        ).hexdigest()
+    # BRIQUE B3 : un filtre ou un tri ajoute un travail frontend même si les
+    # routes et les champs portent les mêmes noms. Le digest porte la whitelist,
+    # les valeurs finies et les deux sens de tri ; une modification de cette
+    # capacité doit donc déclencher le delta de contrat.
+    for route in contract.get("routes") or []:
+        query = route.get("list_query")
+        if query:
+            contenus[f"capacités de liste de {route['method']} {route['path']}"] = hashlib.sha256(
+                json.dumps(query, sort_keys=True, ensure_ascii=False).encode("utf-8")
+            ).hexdigest()
+    # BRIQUE B4 : le verrouillage et les paramètres de session/TOTP changent
+    # des écrans sans forcément ajouter un champ métier. La signature porte
+    # la configuration complète, y compris les durées et les garanties de
+    # rotation/rejeu. Une spec sans B4 n'ajoute aucune entrée.
+    auth_features = (contract.get("api", {}).get("auth", {}).get("features") or {})
+    if auth_features:
+        contenus["authentification B4"] = hashlib.sha256(
+            json.dumps(auth_features, sort_keys=True, ensure_ascii=False).encode("utf-8")
+        ).hexdigest()
     # POINT 99 : huitième ensemble, et la question posée AVANT d'écrire le code
     # pour la deuxième fois seulement. Une clé étrangère ne vit pas dans
     # `fields` — le delta ne pouvait donc rien dire quand elle change de NATURE.
@@ -730,7 +845,8 @@ def _contract_signature(contract):
             par = "à envoyer par le client" if lien["column"] in designees \
                 else "renseigné par le serveur"
             liens.add(f"{entite}.{lien['column']} → {porte}, {par}")
-    return routes, fields, acces, lecture_seule, prealables, verrous, contenus, liens
+    return (routes, fields, acces, lecture_seule, prealables, verrous,
+            contenus, liens, field_types)
 
 
 def _situer_projet(project_dir, geste):
@@ -757,7 +873,7 @@ def _signature_precedente(project_dir):
     pas encore — auquel cas tout est « ajouté », ce qui est exact."""
     contract_path = os.path.join(project_dir, CONTRACT_FILENAME)
     if not os.path.exists(contract_path):
-        return (set(), set(), set(), set(), set(), set(), {}, set())
+        return (set(), set(), set(), set(), set(), set(), {}, set(), {})
     with open(contract_path, encoding="utf-8") as fh:
         return _contract_signature(json.load(fh))
 
@@ -771,9 +887,9 @@ def _rapporter_delta(ancienne, nouvelle, project_dir, ecrire_brief=True):
     finiraient par diverger — et c'est précisément le calcul dont cinq points
     (88 à 91, 94, 99) ont montré qu'il est difficile à tenir juste."""
     (old_routes, old_fields, old_acces, old_ro, old_prea, old_verrous,
-     old_contenus, old_liens) = ancienne
+     old_contenus, old_liens, old_types) = ancienne
     (new_routes, new_fields, new_acces, new_ro, new_prea, new_verrous,
-     new_contenus, new_liens) = nouvelle
+     new_contenus, new_liens, new_types) = nouvelle
 
     added_routes, removed_routes = new_routes - old_routes, old_routes - new_routes
     added_fields, removed_fields = new_fields - old_fields, old_fields - new_fields
@@ -813,11 +929,14 @@ def _rapporter_delta(ancienne, nouvelle, project_dir, ecrire_brief=True):
     entites_stables = {f.split(".", 1)[0] for f in new_fields & old_fields}
     changed_liens = {li for li in (new_liens - old_liens)
                      if li.split(".", 1)[0] in entites_stables}
+    changed_types = {f"{field} : {old_types[field]} → {new_types[field]}"
+                     for field in (new_fields & old_fields)
+                     if old_types.get(field) != new_types.get(field)}
     changes = any((added_routes, removed_routes, added_fields, removed_fields,
                    added_acces, removed_acces, scelles, liberes,
                    added_prea, removed_prea, added_verrous, removed_verrous,
                    added_contenus, removed_contenus, modifies_contenus,
-                   changed_liens))
+                   changed_liens, changed_types))
     # Le nom seul ne dit pas qu'un champ neuf est en lecture seule ; la rubrique
     # du brief s'intitule « à afficher/saisir », ce qui serait un contresens sur
     # un horodatage ou un total calculé.
@@ -851,6 +970,8 @@ def _rapporter_delta(ancienne, nouvelle, project_dir, ecrire_brief=True):
         print(f"  ! verrou de paiement levé : {item}")
     for item in sorted(changed_liens):
         print(f"  ! rattachement : {item}")
+    for item in sorted(changed_types):
+        print(f"  ! type de champ changé : {item}")
     for item in sorted(added_contenus):
         print(f"  + contenu ajouté : {item}")
     for item in sorted(removed_contenus):
@@ -867,7 +988,8 @@ def _rapporter_delta(ancienne, nouvelle, project_dir, ecrire_brief=True):
                                          added_prea, removed_prea,
                                          added_verrous, removed_verrous,
                                          added_contenus, removed_contenus,
-                                         modifies_contenus, changed_liens)
+                                         modifies_contenus, changed_liens,
+                                         changed_types)
         print(f"  → Consigne prête pour l'IA frontend : {os.path.basename(brief_path)}")
     print("──────────────────────────────────────────────────────────────────")
     return changes
@@ -920,6 +1042,54 @@ def cmd_diff(project_dir):
         print("Pour appliquer ce changement et écrire la consigne d'évolution : "
               "monl update")
     return changes
+
+
+def cmd_migrate(project_dir, name=None, down=False, list_only=False):
+    """Applique explicitement une migration du backend déjà compilé."""
+    project_dir, _spec_path = _situer_projet(project_dir, "migrer")
+    app_path = os.path.join(project_dir, "app.py")
+    if not os.path.exists(app_path):
+        print(f" ❌ Artefact manquant : {app_path} — lancer 'monl update'.")
+        raise SystemExit(1)
+    courant = os.getcwd()
+    module = None
+    try:
+        os.chdir(project_dir)
+        if project_dir not in sys.path:
+            sys.path.insert(0, project_dir)
+        module_name = f"_monl_migration_app_{id(project_dir)}"
+        spec = importlib.util.spec_from_file_location(module_name, app_path)
+        if spec is None or spec.loader is None:
+            raise RuntimeError("impossible de charger app.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+        if list_only:
+            conn = module._connect()
+            try:
+                module._prepare_database(conn)
+                for migration in module._MIGRATIONS:
+                    state = module._migration_is_applied(conn, migration)
+                    irreversible = any(not op["reversible"] for op in migration["operations"])
+                    suffix = " ; down irréversible (DROP)" if irreversible else " ; down disponible"
+                    status = "✅ appliquée" if state else "⏳ en attente"
+                    print(f"{status}  {migration['name']}{suffix}")
+            finally:
+                conn.close()
+            return
+        if not name:
+            print(" ❌ Indiquer --name NOM, ou utiliser --list.")
+            raise SystemExit(1)
+        module.apply_migration(name, "down" if down else "up")
+    except SystemExit:
+        raise
+    except Exception as error:
+        print(f" ❌ Migration échouée : {error}")
+        raise SystemExit(1) from error
+    finally:
+        os.chdir(courant)
+        if module is not None:
+            sys.modules.pop(module.__name__, None)
 
 
 # --------------------------------------------------------------- retouche --
@@ -1248,6 +1418,16 @@ def _dispatch(argv=None):
         help="Voir le delta du contrat SANS rien recompiler ni écrire.")
     p_diff.add_argument("dir", nargs="?", default=".")
 
+    p_migrate = sub.add_parser(
+        "migrate", help="Appliquer ou défaire une migration de schéma nommée.")
+    p_migrate.add_argument("dir", nargs="?", default=".")
+    p_migrate.add_argument("--name", default=None, metavar="NOM",
+                           help="Nom déclaré par un bloc 'migration'.")
+    p_migrate.add_argument("--down", action="store_true",
+                           help="Défaire la migration quand l'opération est réversible.")
+    p_migrate.add_argument("--list", action="store_true",
+                           help="Afficher l'état des migrations sans en appliquer.")
+
     p_front = sub.add_parser(
         "frontend", help="Générer le frontend par une IA spécialisée, avec "
                          "re-vérification automatique (cohérence + smoke test).")
@@ -1364,6 +1544,8 @@ def _dispatch(argv=None):
         cmd_update(args.dir)
     elif args.command == "diff":
         cmd_diff(args.dir)
+    elif args.command == "migrate":
+        cmd_migrate(args.dir, name=args.name, down=args.down, list_only=args.list)
     elif args.command == "assets":
         if args.assets_command == "add":
             if args.logo and args.favicon:

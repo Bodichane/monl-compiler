@@ -1,11 +1,12 @@
 # Démonstration complète — AtelierVélo
 
-> **Note (point 68).** Ce récit reste exact sur le déroulé du cycle de vie,
-> mais le projet livré dans `demo/` n'est plus AtelierVélo : c'est désormais
-> **StudioNova**, un portfolio de photographe, dont le frontend a été écrit par
-> Claude Code contre le contrat. Voir `demo/README.md`. AtelierVélo est
-> conservé ici comme trace d'une exécution réelle, pas comme description de
-> l'état du dépôt.
+> **Note.** Ce récit reste exact sur le déroulé du cycle de vie, mais le projet
+> livré dans `demo/` n'est ni AtelierVélo ni StudioNova : c'est désormais
+> **CodexShop**, une papeterie en ligne dont le frontend a été écrit par Codex
+> contre le contrat, et qui exerce la chaîne marchande entière (panier,
+> montants calculés par le serveur, paiement, stock, expédition après
+> règlement). Voir `demo/README.md`. AtelierVélo est conservé ici comme trace
+> d'une exécution réelle, pas comme description de l'état du dépôt.
 
 Ce document déroule le cycle de vie ENTIER d'un projet monl, tel qu'il a
 réellement été exécuté (chaque sortie ci-dessous est authentique, pas

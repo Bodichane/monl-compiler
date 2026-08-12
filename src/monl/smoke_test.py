@@ -28,6 +28,7 @@ import sys
 import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 from .frontend_contract import CONTRACT_FILENAME
@@ -239,6 +240,32 @@ def _sample_value(ftype, fname, spec=None):
     return f"smoke-{fname}"
 
 
+def _list_query_probe(route, contract):
+    """Construit une requête de liste conforme aux capacités déclarées."""
+    query = route.get("list_query") or {}
+    if not query:
+        return ""
+    fields = {
+        field["name"]: field
+        for field in (contract.get("entities", {}).get(route["entity"], {})
+                      .get("fields") or [])
+    }
+    pairs = []
+    for filtre in query.get("filters") or []:
+        spec = fields[filtre["field"]]
+        choices = filtre.get("allowed_values")
+        value = choices[0] if choices else _sample_value(
+            spec["type"], spec["name"], spec)
+        if spec["type"] == "Boolean":
+            value = str(value).lower()
+        pairs.append((filtre["parameter"], value))
+    tri = query.get("sort")
+    if tri:
+        pairs.extend(((tri["parameter"], tri["fields"][0]),
+                      (tri["direction_parameter"], "asc")))
+    return "?" + urllib.parse.urlencode(pairs)
+
+
 def run_smoke_test(project_dir, say=print):
     """Retourne (ok, erreurs, avertissements). Lève seulement sur bug interne."""
     errors, warnings = [], []
@@ -338,7 +365,17 @@ def run_smoke_test(project_dir, say=print):
             for route in contract["routes"]:
                 path, method = route["path"], route["method"]
                 concrete = path.replace("{id}", "1")
-                if route["auth_required"] and route["allowed_actors"]:
+                if route.get("auth_mode") == "refresh_token":
+                    # BRIQUE B4 : /refresh est authentifiée par un jeton
+                    # opaque dédié, jamais par le JWT d'accès. Une requête
+                    # vide doit être refusée, sans exiger un Bearer qui n'a
+                    # précisément rien à faire ici.
+                    status, _b = _http(method, base + concrete,
+                                       body={} if method in ("POST", "PUT") else None)
+                    if status < 400:
+                        errors.append(f"{method} {path} a accepté un rafraîchissement vide "
+                                      f"(réponse {status})")
+                elif route["auth_required"] and route["allowed_actors"]:
                     status, _b = _http(method, base + concrete,
                                        body={} if method in ("POST", "PUT") else None)
                     if status not in (401, 403):
@@ -367,6 +404,20 @@ def run_smoke_test(project_dir, say=print):
                     status, _b = _http("GET", base + concrete, token=token)
                     if status != 200:
                         errors.append(f"GET {path} avec jeton {actor} a répondu {status} "
+                                      f"(attendu 200)")
+                    if status == 200 and route.get("list_query"):
+                        probe = _list_query_probe(route, contract)
+                        status, _b = _http("GET", base + concrete + probe,
+                                           token=token)
+                        if status != 200:
+                            errors.append(f"GET {path}{probe} avec les capacités de liste "
+                                          f"du contrat a répondu {status} (attendu 200)")
+                if method == "GET" and not route["auth_required"] \
+                        and route["action"] == "List" and route.get("list_query"):
+                    probe = _list_query_probe(route, contract)
+                    status, _b = _http("GET", base + concrete + probe)
+                    if status != 200:
+                        errors.append(f"GET {path}{probe} (public) a répondu {status} "
                                       f"(attendu 200)")
 
             # Une création réelle sur la première entité créable par l'acteur,

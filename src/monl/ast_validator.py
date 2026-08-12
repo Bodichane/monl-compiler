@@ -39,6 +39,13 @@ class ASTValidationError(ValidationError):
     pass
 
 class MonlAST:
+    # Formats dont le détecteur d'octets et le service de lecture ont une
+    # politique sûre. HTML et SVG ne sont pas acceptés : ils pourraient être
+    # interprétés comme du code depuis l'origine de l'application.
+    UPLOAD_TYPES = {
+        "image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf",
+    }
+
     def __init__(self, raw_json: dict[str, Any], base_dir: str | None = None):
         # AJOUT (brique 13, point 83) : 'base_dir' est le dossier du projet
         # (celui de la spec). Il n'est nécessaire qu'aux contrôles qui touchent
@@ -83,6 +90,7 @@ class MonlAST:
         self.capabilities_raw = raw_json.get("capabilities", [])
         self.seeds_raw = raw_json.get("seeds", [])
         self.assets_raw = raw_json.get("assets") or {}
+        self.migrations_raw = raw_json.get("migrations", [])
         self.assets = {}
         self.public_actions = set()
         # Conditions de publication portées par `publicWhen` : elles doivent
@@ -91,6 +99,12 @@ class MonlAST:
         # Unicités composites `oncePer` (ex. un compte ne vote qu'une fois par
         # entrée) — elles deviennent des index uniques multi-colonnes.
         self.once_per_rules = []
+        self.upload_fields = []
+        self.message_rules = []
+        # BRIQUE B4 : options d'authentification déclarées sur capability auth.
+        # Un dictionnaire vide est volontaire : il ne réveille aucune sortie
+        # dans les specs historiques.
+        self.auth_features = {}
 
         for ent in raw_json.get("entities", []):
             name = ent["name"]
@@ -201,6 +215,19 @@ class MonlAST:
     # une spec qui ne dit rien compile exactement comme avant.
     FORMES_IDENTIFIANT = ("email", "phone", "libre")
 
+    # BRIQUE B3 : ce sont les seuls types dont une égalité ou un tri a une
+    # sémantique de donnée ordinaire. `Image` reste un chemin d'asset, et
+    # `Upload` une référence de fichier : ni l'un ni l'autre ne devient un
+    # critère d'énumération par accident.
+    LIST_QUERY_TYPES = (
+        "String", "Text", "Integer", "Float", "Boolean", "Date", "DateTime",
+        "Email", "UUID", "Money",
+    )
+    LIST_QUERY_RESERVED = {"limit", "offset", "sort", "direction"}
+    LIST_QUERY_SECRET_PARTS = (
+        "password", "passwd", "secret", "token", "apikey", "api_key",
+    )
+
     def _valider_identifiant_de_compte(self, capacites):
         """Formes acceptées par '/register', déclarées sur 'capability auth'.
 
@@ -301,6 +328,12 @@ class MonlAST:
                     f"'{entite}' ne déclare pas.{indice} Champs de {entite} : "
                     f"{', '.join(self.entities[entite])}. Une contrainte sur un champ "
                     f"inexistant ne s'applique à rien -- et laisse croire le contraire.")
+
+            if type_champ == "Upload":
+                raise ASTValidationError(
+                    f"Structure : '{ou}' ne s'applique pas à '{reference}' de type Upload. "
+                    "Un dépôt se contraint par 'upload max … types …', qui produit "
+                    "les refus multipart réels du backend.")
 
             contraintes = self.field_constraints.setdefault((entite, champ), {})
             if type_regle in contraintes:
@@ -708,6 +741,124 @@ class MonlAST:
             superviseurs = self._superviseurs_declares(entity, act_type)
             if superviseurs:
                 self.access_supervisors[(entity, act_type)] = superviseurs
+
+    def _valider_champs_uploades(self):
+        """Valide la déclaration complète d'un dépôt client.
+
+        ``Image`` reste un chemin d'asset contrôlé à la compilation. Un
+        ``Upload`` n'est accepté que s'il est relié à une règle complète, à
+        une route d'écriture et de lecture, et à une ACL privée par
+        enregistrement.
+        """
+        for custom in self.custom_logic.values():
+            for input_ in custom.get("input", []):
+                reference = input_.get("reference")
+                input_type = input_.get("type")
+                referenced_type = None
+                if reference and "." in reference:
+                    ref_entity, ref_field = reference.split(".", 1)
+                    referenced_type = self.entities.get(ref_entity, {}).get(ref_field)
+                if input_type == "Upload" or referenced_type == "Upload":
+                    raise ASTValidationError(
+                        f"Structure : le bloc custom '{custom['name']}' ne peut pas "
+                        "prendre un Upload en entrée. Les octets passent uniquement "
+                        "par la route multipart de l'entité, jamais par la sandbox.")
+        regles = {}
+        for rule in self.rules:
+            if rule.get("type") != "upload":
+                continue
+            reference = rule.get("reference", "")
+            if "." not in reference:
+                raise ASTValidationError(
+                    f"Structure : la règle 'upload' doit référencer 'Entite.champ', "
+                    f"reçu '{reference}'.")
+            entity, field = reference.split(".", 1)
+            if entity not in self.entities:
+                raise ASTValidationError(
+                    f"Structure : la règle 'upload' cible l'entité '{entity}', "
+                    "qui n'existe pas.")
+            declared = self.entities[entity].get(field)
+            if declared is None:
+                raise ASTValidationError(
+                    f"Structure : la règle 'upload' cible le champ '{reference}', "
+                    "qui n'est pas déclaré.")
+            if declared != "Upload":
+                raise ASTValidationError(
+                    f"Structure : la règle 'upload' cible '{reference}' de type "
+                    f"'{declared}'. Seul le type Upload accepte un dépôt client ; "
+                    "Image reste un asset fourni à la compilation.")
+            if reference in regles:
+                raise ASTValidationError(
+                    f"Structure : plusieurs règles 'upload' déclarent '{reference}'.")
+            maximum = rule.get("max_bytes")
+            if not isinstance(maximum, int) or maximum <= 0:
+                raise ASTValidationError(
+                    f"Structure : la taille maximale de '{reference}' doit être un "
+                    f"entier strictement positif (reçu {maximum!r}).")
+            accepted = list(rule.get("accepted_types") or [])
+            if not accepted:
+                raise ASTValidationError(
+                    f"Structure : la règle 'upload' de '{reference}' doit déclarer "
+                    "au moins un type MIME autorisé.")
+            if len(set(accepted)) != len(accepted):
+                raise ASTValidationError(
+                    f"Structure : la règle 'upload' de '{reference}' répète un type "
+                    "MIME ; chaque type doit être déclaré une seule fois.")
+            inconnus = [mime for mime in accepted if mime not in self.UPLOAD_TYPES]
+            if inconnus:
+                raise ASTValidationError(
+                    f"Structure : type(s) MIME non autorisé(s) pour '{reference}' : "
+                    f"{', '.join(inconnus)}. Formats sûrs reconnus : "
+                    f"{', '.join(sorted(self.UPLOAD_TYPES))}. HTML et SVG exécutables "
+                    "sont refusés par conception.")
+            regles[reference] = {
+                "entity": entity, "field": field, "max_bytes": maximum,
+                "accepted_types": accepted,
+            }
+
+        for entity, fields in self.entities.items():
+            for field, declared in fields.items():
+                reference = f"{entity}.{field}"
+                if declared == "Upload" and reference not in regles:
+                    raise ASTValidationError(
+                        f"Structure : '{reference}: Upload' n'a aucune règle de dépôt. "
+                        f"Déclarer 'rule {reference} upload max N types \"…\"' : "
+                        "le type seul ne produirait ni limite ni route.")
+
+        for reference, rule in regles.items():
+            entity = rule["entity"]
+            has_actions = {
+                action["type"]
+                for workflow in self.workflows
+                for action in workflow["actions"]
+                if action["type"] in ("Read", "Update")
+                and action["target"].split(".", 1)[0] == entity
+            }
+            missing = {"Read", "Update"} - has_actions
+            if missing:
+                raise ASTValidationError(
+                    f"Structure : '{reference}' nécessite des workflows Read et Update "
+                    f"sur '{entity}' pour produire les routes de lecture/dépôt ; "
+                    f"il manque {', '.join(sorted(missing))}.")
+            for action in ("Read", "Update"):
+                if (entity, action) in self.public_actions or (
+                        action == "Read" and (entity, "Read") in self.public_conditions):
+                    raise ASTValidationError(
+                        f"Sécurité : le fichier '{reference}' est privé par défaut ; "
+                        f"'{entity}.{action}' ne peut pas être public. Le contenu d'un "
+                        "Upload ne doit jamais être lisible sans l'ACL de la ligne.")
+                if (entity, action) not in self.ownership_rules and (
+                        entity, action) not in self.access_party_rules:
+                    raise ASTValidationError(
+                        f"Sécurité : '{entity}.{action}' doit porter 'ownedBy' ou "
+                        "'accessibleBy' pour qu'un fichier Upload ne soit pas lisible "
+                        "par simple connaissance de son chemin.")
+        self.upload_fields = [
+            regles[f"{entity}.{field}"]
+            for entity, fields in self.entities.items()
+            for field, declared in fields.items()
+            if declared == "Upload"
+        ]
 
     def _superviseurs_declares(self, entity, act_type):
         """Les rôles nommés par un 'sharedBy' portant la référence exacte.
@@ -1312,6 +1463,115 @@ class MonlAST:
                 )
             self.enumerated_fields.setdefault(entity, {})[field] = list(values)
 
+    def _valider_capacites_de_liste(self):
+        """Valide les filtres et tris déclarés, sans ouvrir un langage de requête.
+
+        BRIQUE B3. La route ne reçoit ni opérateur, ni expression, ni champ
+        libre : chaque paramètre de filtre et chaque colonne de tri sont
+        nommés dans la spec. Les champs retirés ou transformés en lecture sont
+        refusés ici, car un filtre exact permettrait d'en déduire la valeur par
+        différence de compte (oracle), même si la réponse ne contient jamais
+        le champ.
+        """
+        self.filterable_fields = []
+        self.sortable_fields = []
+        seen_filters = set()
+        seen_sorts = set()
+        has_read = {
+            action["target"].split(".", 1)[0]
+            for workflow in self.workflows
+            for action in workflow["actions"]
+            if action["type"] == "Read"
+        }
+
+        def reference_parts(rule, kind):
+            reference = rule["reference"]
+            if "." not in reference:
+                raise ASTValidationError(
+                    f"Structure : la règle '{kind}' doit référencer "
+                    f"'Entite.Read', reçu '{reference}'."
+                )
+            entity, action = reference.split(".", 1)
+            if entity not in self.entities:
+                raise ASTValidationError(
+                    f"Structure : la règle '{kind}' cible l'entité "
+                    f"'{entity}' qui n'existe pas."
+                )
+            if action != "Read":
+                raise ASTValidationError(
+                    f"Structure : '{kind}' ne vaut que sur une route Read "
+                    f"(reçu '{reference}')."
+                )
+            if entity not in has_read:
+                raise ASTValidationError(
+                    f"Structure : '{reference}' n'a aucune route de lecture "
+                    f"dans les workflows."
+                )
+            field = rule.get("field")
+            if field not in self.entities[entity]:
+                raise ASTValidationError(
+                    f"Structure : '{kind}' cible le champ '{entity}.{field}', "
+                    "qui n'est pas un attribut déclaré."
+                )
+            if field in self.LIST_QUERY_RESERVED:
+                raise ASTValidationError(
+                    f"Structure : le champ '{entity}.{field}' ne peut pas être "
+                    f"{kind} : son nom est réservé aux paramètres de liste "
+                    "(limit, offset, sort, direction)."
+                )
+            return entity, field
+
+        def refuser_oracle(entity, field, kind):
+            type_champ = self.entities[entity][field]
+            if (entity, field) in self.masked_fields:
+                raison = "hidden : le compter révélerait une valeur masquée"
+            elif any(item["entity"] == entity and item["field"] == field
+                     for item in self.categorized_fields):
+                raison = "categorized : le compter révélerait le nombre remplacé par un libellé"
+            elif type_champ == "Upload":
+                raison = "Upload : le compter révélerait l'existence d'un fichier"
+            else:
+                compact = field.lower().replace("-", "_")
+                if any(part in compact for part in self.LIST_QUERY_SECRET_PARTS):
+                    raison = "nom de secret : le compter révélerait une donnée sensible"
+                else:
+                    return type_champ
+            raise ASTValidationError(
+                f"Sécurité : '{entity}.{field}' ne peut pas être {kind} : "
+                f"{raison}. Un filtre ou un tri est un oracle ; déclarer un "
+                "champ visible et non transformé."
+            )
+
+        for rule in self.rules:
+            kind = rule["type"]
+            if kind not in ("filter", "sort"):
+                continue
+            entity, field = reference_parts(rule, kind)
+            type_champ = refuser_oracle(entity, field, kind)
+            if type_champ not in self.LIST_QUERY_TYPES:
+                raise ASTValidationError(
+                    f"Structure : '{kind}' ne peut viser que les champs scalaires "
+                    f"déclarés ({', '.join(self.LIST_QUERY_TYPES)}), reçu "
+                    f"'{entity}.{field}: {type_champ}'."
+                )
+            cible = (entity, field)
+            if kind == "filter":
+                if cible in seen_filters:
+                    raise ASTValidationError(
+                        f"Structure : plusieurs règles 'filter' sur "
+                        f"'{entity}.{field}' -- une seule déclaration suffit."
+                    )
+                seen_filters.add(cible)
+                self.filterable_fields.append({"entity": entity, "field": field})
+            else:
+                if cible in seen_sorts:
+                    raise ASTValidationError(
+                        f"Structure : plusieurs règles 'sort' sur "
+                        f"'{entity}.{field}' -- une seule déclaration suffit."
+                    )
+                seen_sorts.add(cible)
+                self.sortable_fields.append({"entity": entity, "field": field})
+
     def _valider_champs_derives(self):
         """Valide les champs numériques calculés depuis une ligne liée."""
         self.derived_fields = []
@@ -1742,7 +2002,7 @@ class MonlAST:
         self.landing = {"brief": self.landing_raw.get("brief"), "sections": sections, "faq": faq}
 
     def _valider_capacites(self):
-        """Valide les capacités déclarées et prépare l'identifiant de compte."""
+        """Valide les capacités déclarées et prépare l'authentification B4."""
         known_capabilities = {"auth", "payment"}
         names = [capability["name"] for capability in self.capabilities_raw]
         unknown = [name for name in names if name not in known_capabilities]
@@ -1753,6 +2013,129 @@ class MonlAST:
             )
         self.capabilities = list(dict.fromkeys(names))
         self.auth_identifier = self._valider_identifiant_de_compte(self.capabilities_raw)
+
+        allowed_auth_options = {
+            "name", "identifier", "phone_prefix", "lockout", "password_reset",
+            "refresh_tokens", "totp",
+        }
+        features = {}
+        for capability in self.capabilities_raw:
+            options = set(capability) - {"name"}
+            inconnues = options - (allowed_auth_options - {"name"})
+            if capability["name"] != "auth" and options:
+                raise ASTValidationError(
+                    f"Structure : les options {', '.join(sorted(options))} "
+                    f"n'ont de sens que sur 'capability auth' (trouvées sur "
+                    f"'{capability['name']}').")
+            if inconnues:
+                raise ASTValidationError(
+                    f"Structure : option(s) d'authentification inconnue(s) : "
+                    f"{', '.join(sorted(inconnues))}.")
+            if capability["name"] != "auth":
+                continue
+            for option in ("lockout", "password_reset", "refresh_tokens", "totp"):
+                if option not in capability:
+                    continue
+                if option in features:
+                    raise ASTValidationError(
+                        f"Structure : l'option '{option}' est déclarée deux fois "
+                        "sur 'capability auth'.")
+                features[option] = capability[option]
+
+        lockout = features.get("lockout")
+        if lockout:
+            if lockout["max_attempts"] < 1:
+                raise ASTValidationError(
+                    "Structure : 'lockout' exige au moins 1 échec avant verrouillage.")
+            if lockout["window_seconds"] < 1:
+                raise ASTValidationError(
+                    "Structure : la fenêtre de 'lockout' doit être exprimée en secondes positives.")
+        for option, libelle in (("password_reset", "password_reset"),
+                                ("refresh_tokens", "refresh_tokens")):
+            if option in features and features[option] < 1:
+                raise ASTValidationError(
+                    f"Structure : '{libelle}' doit être une durée positive en secondes.")
+        if "password_reset" in features and (
+                not self.auth_identifier or "email" not in self.auth_identifier):
+            raise ASTValidationError(
+                "Structure : 'password_reset' exige 'capability auth' avec "
+                "'identifier: email' : le message de récupération doit avoir "
+                "une adresse de compte, sans deviner un champ métier.")
+        self.auth_features = features
+
+    def _valider_regles_message(self):
+        """Valide les notifications e-mail déclenchées par une création.
+
+        B2 choisit délibérément une seule transition : Create. La cible
+        est le compte authentifié qui vient de créer la ligne, donc son
+        identifiant canonique en base. Aucun champ métier libre nommé
+        email ne participe à cette décision.
+        """
+        self.message_rules = []
+        references = set()
+        for rule in self.rules:
+            if rule["type"] != "sends":
+                continue
+            reference = rule["reference"]
+            if "." not in reference:
+                raise ASTValidationError(
+                    f"Structure : la règle 'sends' doit référencer "
+                    f"'Entite.Create', reçu '{reference}'.")
+            entity, action = reference.split(".", 1)
+            if entity not in self.entities:
+                raise ASTValidationError(
+                    f"Structure : 'sends' cible l'entité '{entity}' qui n'existe pas.")
+            if action != "Create":
+                raise ASTValidationError(
+                    f"Structure : 'sends' ne vaut que sur 'Entite.Create' "
+                    f"(reçu '{reference}'). La transition oneOf est volontairement "
+                    "hors de cette brique.")
+            if reference in references:
+                raise ASTValidationError(
+                    f"Structure : plusieurs règles 'sends' sur '{reference}' -- "
+                    "une création ne doit déclencher qu'un seul message.")
+            references.add(reference)
+            if (entity, "Create") in self.public_actions:
+                raise ASTValidationError(
+                    f"Structure : '{reference}' est public, mais 'sends' doit "
+                    "connaître le compte destinataire. Une création publique "
+                    "n'offre aucune identité à laquelle écrire.")
+            if not any(
+                    action_["type"] == "Create" and action_["target"] == entity
+                    for workflow in self.workflows
+                    for action_ in workflow["actions"]):
+                raise ASTValidationError(
+                    f"Structure : '{reference}' porte 'sends', mais aucune route "
+                    f"Create {entity} n'est déclarée -- l'envoi ne se déclencherait jamais.")
+            if not self.auth_identifier or "email" not in self.auth_identifier:
+                raise ASTValidationError(
+                    f"Structure : '{reference}' veut envoyer un courriel, mais la spec "
+                    "ne déclare pas 'capability auth' avec 'identifier: email'. "
+                    "Sans cette identité de compte, monl n'a aucune adresse où écrire ; "
+                    "un champ texte libre nommé 'email' ne vaut pas une adresse de compte.")
+
+            subject = rule.get("subject", "")
+            body = rule.get("body", "")
+            if not subject.strip():
+                raise ASTValidationError(
+                    f"Structure : le sujet du message '{reference}' ne peut pas être vide.")
+            if not body.strip():
+                raise ASTValidationError(
+                    f"Structure : le corps du message '{reference}' ne peut pas être vide.")
+            if "\r" in subject or "\n" in subject:
+                raise ASTValidationError(
+                    f"Structure : le sujet de '{reference}' contient un saut de ligne. "
+                    "Refusé pour empêcher une injection d'en-têtes SMTP (Bcc, Cc, etc.).")
+            if "\r" in body or "\n" in body:
+                raise ASTValidationError(
+                    f"Structure : le corps de '{reference}' contient un saut de ligne brut. "
+                    "Utiliser le séparateur '¶' entre les paragraphes.")
+            self.message_rules.append({
+                "trigger_entity": entity,
+                "trigger_action": action,
+                "subject": subject,
+                "body": body,
+            })
 
     def _valider_assets_et_seeds(self):
         """Valide les assets locaux et les données de démonstration."""
@@ -1795,11 +2178,113 @@ class MonlAST:
                             f"Structure : 'seed {entity}' (ligne {index}), champ '{field}' de type "
                             f"{declared_type} attend une chaîne entre guillemets, reçu un nombre."
                         )
+                    if declared_type == "Upload":
+                        raise ASTValidationError(
+                            f"Structure : un seed ne peut pas fournir '{entity}.{field}' "
+                            "de type Upload. Les octets arrivent uniquement à "
+                            "l'exécution par la route multipart, jamais dans la spec "
+                            "ou les artefacts scellés.")
                     if declared_type == "Image":
                         location = f"seed {entity} (ligne {index}), champ '{field}'"
                         self._verifier_forme_chemin_asset(value, location, image=True)
                         self._verifier_asset_present(value, location)
             self.seeds.append(seed)
+
+    def _valider_migrations(self):
+        """Valide les opérations de schéma qui ne sont pas additives.
+
+        Une migration décrit l'état cible de la spec, donc son ancienne
+        colonne peut légitimement ne plus figurer dans ``self.entities``.
+        L'ancienne forme est néanmoins conservée dans l'opération afin que le
+        runtime puisse vérifier la précondition au moment où l'opérateur la
+        lance, plutôt que de deviner un renommage depuis deux noms proches.
+        """
+        self.migrations = []
+        names = set()
+        seen_operations = set()
+        known_types = {
+            "String", "Text", "Integer", "Float", "Boolean", "Date",
+            "DateTime", "Email", "UUID", "Money", "Image", "Upload",
+        }
+        for migration in self.migrations_raw:
+            name = migration["name"]
+            if name in names:
+                raise ASTValidationError(
+                    f"Structure : la migration '{name}' est déclarée plusieurs fois.")
+            names.add(name)
+            operations = []
+            if not migration.get("operations"):
+                raise ASTValidationError(
+                    f"Structure : la migration '{name}' ne contient aucune opération.")
+            for index, operation in enumerate(migration["operations"], start=1):
+                reference = operation["reference"]
+                if "." not in reference:
+                    raise ASTValidationError(
+                        f"Structure : l'opération {index} de la migration '{name}' doit "
+                        f"référencer 'Entite.champ', reçu '{reference}'.")
+                entity, field = reference.split(".", 1)
+                if entity not in self.entities:
+                    raise ASTValidationError(
+                        f"Structure : la migration '{name}' cible l'entité '{entity}', "
+                        "qui n'existe pas dans la spec courante.")
+                kind = operation["kind"]
+                key = (kind, entity, field, operation.get("new_name"),
+                       operation.get("from_type"), operation.get("to_type"))
+                if key in seen_operations:
+                    raise ASTValidationError(
+                        f"Structure : l'opération {index} de la migration '{name}' "
+                        "est déclarée en double.")
+                seen_operations.add(key)
+                if kind == "rename":
+                    new_field = operation["new_name"]
+                    if field == new_field:
+                        raise ASTValidationError(
+                            f"Structure : la migration '{name}' renomme "
+                            f"'{reference}' vers lui-même.")
+                    if field in self.entities[entity]:
+                        raise ASTValidationError(
+                            f"Structure : la colonne source '{reference}' existe encore "
+                            "dans la spec cible ; retirez-la avant de la renommer.")
+                    if new_field not in self.entities[entity]:
+                        raise ASTValidationError(
+                            f"Structure : le renommage '{reference}' vers "
+                            f"'{entity}.{new_field}' ne trouve pas la colonne cible "
+                            "dans la spec courante.")
+                    operations.append({
+                        "kind": kind, "entity": entity, "table": entity.lower(),
+                        "old": field, "new": new_field, "reversible": True,
+                    })
+                elif kind == "alter":
+                    old_type = operation["from_type"]
+                    new_type = operation["to_type"]
+                    if old_type not in known_types or new_type not in known_types:
+                        raise ASTValidationError(
+                            f"Structure : la migration '{name}' porte des types "
+                            f"inconnus ({old_type} -> {new_type}).")
+                    if old_type == new_type:
+                        raise ASTValidationError(
+                            f"Structure : la migration '{name}' ne change pas le type "
+                            f"de '{reference}'.")
+                    actual_type = self.entities[entity].get(field)
+                    if actual_type != new_type:
+                        raise ASTValidationError(
+                            f"Structure : la cible de '{name}' déclare '{reference}' "
+                            f"en {actual_type}, mais l'opération annonce {new_type}.")
+                    operations.append({
+                        "kind": kind, "entity": entity, "table": entity.lower(),
+                        "field": field, "from_type": old_type, "to_type": new_type,
+                        "reversible": True,
+                    })
+                else:
+                    if field in self.entities[entity]:
+                        raise ASTValidationError(
+                            f"Structure : la colonne retirée '{reference}' existe encore "
+                            "dans la spec cible ; retirez-la avant le DROP explicite.")
+                    operations.append({
+                        "kind": kind, "entity": entity, "table": entity.lower(),
+                        "old": field, "reversible": False,
+                    })
+            self.migrations.append({"name": name, "operations": operations})
 
     def _valider_workflows_et_collisions(self):
         """Valide les workflows et détecte les collisions d'autorité."""
@@ -2030,9 +2515,20 @@ class MonlAST:
                 "auth_phone_prefix": self.auth_phone_prefix,
                 # BRIQUE 19 (point 96) : {Entite: {champ: [valeurs]}}.
                 "enumerated_fields": self.enumerated_fields,
+                # BRIQUE B3 : capacités de liste déclarées une par une. Ces
+                # listes sont la whitelist de compilation consommée par le
+                # générateur ; le client ne peut donc ni inventer une colonne
+                # ni un opérateur.
+                "filterable_fields": self.filterable_fields,
+                "sortable_fields": self.sortable_fields,
                 # BRIQUE 20 (point 98) : [{entity, field, value, releases}] —
                 # atteindre la valeur rend ce que les enfants ont consommé.
                 "release_rules": self.release_rules,
+                "upload_fields": self.upload_fields,
+                "message_rules": self.message_rules,
+                # BRIQUE B4 : configuration d'authentification, vide quand la
+                # spec ne demande aucune capacité nouvelle.
+                "auth_features": self.auth_features,
             },
             "sandbox_ai": {"custom_functions": list(self.custom_logic.values())},
             "ui": self.ui_overrides,
@@ -2040,5 +2536,6 @@ class MonlAST:
             "capabilities": self.capabilities,
             "seeds": self.seeds,
             "assets": self.assets,
+            "migrations": self.migrations,
         }
         return normalized

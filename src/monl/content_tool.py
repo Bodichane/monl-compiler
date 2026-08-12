@@ -80,7 +80,7 @@ def _colonnes(normalized, entite, parent=False):
     exclus = _exclus(normalized, entite)
     colonnes = (["_parent"] if parent else []) + [
         nom for nom, type_ in champs.items()
-        if nom not in exclus and type_ != "Boolean"
+        if nom not in exclus and type_ not in ("Boolean", "Upload")
     ]
     return colonnes
 

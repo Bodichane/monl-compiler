@@ -35,6 +35,8 @@ class ValidationContext(Protocol):
 
     def _valider_champs_enumeres(self) -> None: ...
 
+    def _valider_capacites_de_liste(self) -> None: ...
+
     def _valider_requires_own_et_payable(self) -> None: ...
 
     def _valider_champs_derives(self) -> None: ...
@@ -51,13 +53,19 @@ class ValidationContext(Protocol):
 
     def _valider_workflows_et_collisions(self) -> None: ...
 
+    def _valider_champs_uploades(self) -> None: ...
+
     def _valider_ui_overrides(self) -> None: ...
 
     def _valider_landing(self) -> None: ...
 
     def _valider_capacites(self) -> None: ...
 
+    def _valider_regles_message(self) -> None: ...
+
     def _valider_assets_et_seeds(self) -> None: ...
+
+    def _valider_migrations(self) -> None: ...
 
     def _valider_regle_apres_paiement(self) -> None: ...
 
@@ -194,6 +202,23 @@ class EnumeratedFieldValidationPass:
 
 
 @dataclass(frozen=True, slots=True)
+class ListQueryCapabilityValidationPass:
+    """Valide les filtres exacts et tris déclarés sur les listes."""
+
+    name: str = "list_query_capabilities"
+
+    def run(self, context: ValidationContext) -> list[str]:
+        # La pipeline est aussi exercée par des faux contextes de tests et par
+        # des intégrations historiques. Une nouvelle passe optionnelle ne doit
+        # pas rendre ces contextes incapables de vérifier l'ordre des passes
+        # qu'ils connaissaient déjà.
+        validation = getattr(context, "_valider_capacites_de_liste", None)
+        if validation is not None:
+            validation()
+        return []
+
+
+@dataclass(frozen=True, slots=True)
 class CreationPaymentPrerequisitePass:
     """Valide les prérequis de propriété et d'encaissement."""
 
@@ -278,6 +303,12 @@ class WorkflowCollisionValidationPass:
 
     def run(self, context: ValidationContext) -> list[str]:
         context._valider_workflows_et_collisions()
+        # B1 partage la frontière "workflows puis validations dépendantes".
+        # Le getattr garde la compatibilité avec les contextes de test et les
+        # intégrations historiques qui implémentent encore l'ancien protocole.
+        upload_validation = getattr(context, "_valider_champs_uploades", None)
+        if upload_validation is not None:
+            upload_validation()
         return []
 
 
@@ -315,6 +346,17 @@ class CapabilityValidationPass:
 
 
 @dataclass(frozen=True, slots=True)
+class MessageRuleValidationPass:
+    """Valide les messages sortants après résolution de l'identité du compte."""
+
+    name: str = "message_rules"
+
+    def run(self, context: ValidationContext) -> list[str]:
+        context._valider_regles_message()
+        return []
+
+
+@dataclass(frozen=True, slots=True)
 class AssetsSeedValidationPass:
     """Valide les assets locaux et les données de démonstration."""
 
@@ -322,6 +364,17 @@ class AssetsSeedValidationPass:
 
     def run(self, context: ValidationContext) -> list[str]:
         context._valider_assets_et_seeds()
+        return []
+
+
+@dataclass(frozen=True, slots=True)
+class MigrationValidationPass:
+    """Valide les opérations de schéma non additives déclarées."""
+
+    name: str = "migrations"
+
+    def run(self, context: ValidationContext) -> list[str]:
+        context._valider_migrations()
         return []
 
 
@@ -375,6 +428,7 @@ DEFAULT_VALIDATION_PIPELINE = ValidationPipeline((
     TimestampFieldValidationPass(),
     NumberedFieldValidationPass(),
     EnumeratedFieldValidationPass(),
+    ListQueryCapabilityValidationPass(),
     CreationPaymentPrerequisitePass(),
     DerivedFieldValidationPass(),
     AggregatedFieldValidationPass(),
@@ -386,7 +440,9 @@ DEFAULT_VALIDATION_PIPELINE = ValidationPipeline((
     UIOverrideValidationPass(),
     LandingValidationPass(),
     CapabilityValidationPass(),
+    MessageRuleValidationPass(),
     AssetsSeedValidationPass(),
+    MigrationValidationPass(),
     PostPaymentValidationPass(),
     SecurityAuditPass(),
     SelfRegistrationAuditPass(),

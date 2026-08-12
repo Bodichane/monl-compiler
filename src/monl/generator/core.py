@@ -91,6 +91,20 @@ class MonlSecureGenerator(
         # AJOUT (brique 13, point 83) : assets déclarés (dossier, logo, favicon),
         # validés à la compilation — chaque fichier nommé existe réellement.
         self.assets = normalized_ast.get("assets") or {}
+        # BRIQUE B1 : Upload est distinct d'Image. La colonne ne contient
+        # qu'une référence opaque ; les octets vivent dans .monl_uploads/ au
+        # runtime, jamais dans les artefacts compilés.
+        self.upload_fields = normalized_ast["security"].get("upload_fields", [])
+        self.upload_fields_by_entity = {}
+        for upload in self.upload_fields:
+            self.upload_fields_by_entity.setdefault(upload["entity"], []).append(upload)
+        # BRIQUE B2 : un seul message sortant par création déclarée. Le
+        # validateur a déjà exigé une identité de compte e-mail ; ce dictionnaire
+        # sert à brancher la route Create et le contrat sur la même règle.
+        self.message_rules_by_trigger = {
+            rule["trigger_entity"]: dict(rule)
+            for rule in normalized_ast["security"].get("message_rules", [])
+        }
         # AJOUT (roadmap, brique "accès à deux parties") : table
         # {"Entite.Action": [colonnes]} issue des règles 'accessibleBy'
         # validées par ast_validator.py — chaque colonne contient
@@ -224,11 +238,24 @@ class MonlSecureGenerator(
                                 .get("auth_identifier"))
         # Indicatif déclaré : sans lui, '06…' et '+336…' restent deux comptes.
         self.auth_phone_prefix = (normalized_ast.get("security", {})
-                                  .get("auth_phone_prefix"))
+                                .get("auth_phone_prefix"))
+        # BRIQUE B4 : aucune branche runtime n'est émise quand ce dictionnaire
+        # est vide ; c'est la garantie byte-for-byte des specs historiques.
+        self.auth_features = dict(normalized_ast.get("security", {})
+                                   .get("auth_features") or {})
         # BRIQUE 19 (point 96) : {Entite: {champ: [valeurs]}} — un statut est un
         # état parmi quelques-uns, pas du texte libre.
         self.enumerated_fields = (normalized_ast.get("security", {})
                                   .get("enumerated_fields") or {})
+        # BRIQUE B3 : whitelists de compilation pour les paramètres des listes.
+        # Les routes et le contrat lisent la même analyse, afin qu'un champ
+        # annoncé filtrable/triable soit exactement celui que le backend accepte.
+        self.filterable_fields_by_entity = {}
+        for item in normalized_ast["security"].get("filterable_fields", []):
+            self.filterable_fields_by_entity.setdefault(item["entity"], []).append(item["field"])
+        self.sortable_fields_by_entity = {}
+        for item in normalized_ast["security"].get("sortable_fields", []):
+            self.sortable_fields_by_entity.setdefault(item["entity"], []).append(item["field"])
         # BRIQUE 20 (point 98) : {Entite: [règle]} — atteindre une valeur rend
         # ce que les enfants ont décompté. Indexé par l'entité PORTEUSE du
         # champ, qui est celle dont la route Update déclenche la libération.
@@ -238,6 +265,7 @@ class MonlSecureGenerator(
         # AJOUT (roadmap frontend, bloc 'seed') : données de démonstration à
         # insérer au démarrage si les tables sont vides (voir init_db).
         self.seeds = normalized_ast.get("seeds", [])
+        self.migrations = normalized_ast.get("migrations", [])
         # Vue typée commune aux consommateurs de la sémantique des champs.
         # Les dictionnaires historiques restent disponibles pendant la
         # migration des émetteurs SQL et API.
@@ -279,6 +307,9 @@ class MonlSecureGenerator(
                 derived_rule = derived.get(name)
                 aggregate_rule = aggregated.get(name)
                 numbering_rule = numbered.get(name)
+                upload_rule = next(
+                    (u for u in self.upload_fields_by_entity.get(entity, [])
+                     if u["field"] == name), None)
                 server_generated = (
                     name in generated
                     or derived_rule is not None
@@ -301,6 +332,7 @@ class MonlSecureGenerator(
                     aggregate_rule=aggregate_rule,
                     timestamped=name in timestamped,
                     numbering_rule=numbering_rule,
+                    upload_rule=upload_rule,
                 )
             models[entity] = EntityModel(name=entity, fields=policies)
         return models
@@ -363,6 +395,11 @@ class MonlSecureGenerator(
             kind="postpayment_write", trigger_entity=entity, target_entity=entity,
             field=None, source_entity=None, source_field=None, config=config,
         ) for entity, config in self.postpayment_writable_by_entity.items())
+        plans.extend(EffectPlan(
+            kind="message", trigger_entity=rule["trigger_entity"],
+            target_entity=rule["trigger_entity"], field=None,
+            source_entity=None, source_field=None, config=rule,
+        ) for rule in self.message_rules_by_trigger.values())
         return tuple(plans)
 
     def _effects(self, kind, *, trigger=None, target=None):
@@ -609,6 +646,21 @@ class MonlSecureGenerator(
         return next((p["fk_column"] for p in placements
                      if p["owner_entity"] == rule["target_entity"]), None)
 
+    def _counter_fk_columns(self, trigger_entity):
+        """FK écrites par la branche compteur à la création.
+
+        Chaque colonne vient de `_decrement_fk_column`, quelle que soit la
+        position de la relation dans la spec. La liste est dédoublonnée pour
+        qu'une entité qui porte plusieurs effets sur la même cible n'ajoute
+        cette FK qu'une seule fois à son schéma et à son INSERT.
+        """
+        colonnes = []
+        for rule in self.reputation_rules_by_trigger.get(trigger_entity, []):
+            fk_column = self._decrement_fk_column(trigger_entity, rule)
+            if fk_column and fk_column not in colonnes:
+                colonnes.append(fk_column)
+        return colonnes
+
     def _payment_lock_field(self, entity):
         """Champ 'payable' de 'entity', ou None. Un enregistrement encaissé ne
         se modifie plus : c'est ce que verrouille la brique 18 (point 91)."""
@@ -732,10 +784,15 @@ class MonlSecureGenerator(
         if not placements:
             return []
         exclues = set(self._identity_fk_columns().get(entity, set()))
-        owner_info = self._get_incoming_relation(entity)
-        if owner_info and any(r["target_entity"] == owner_info["source"]
-                              for r in self.reputation_rules_by_trigger.get(entity, [])):
-            exclues.add(owner_info["fk_column"])  # cible de compteur
+        # POINT 92 : la colonne d'une cible de compteur est celle que
+        # `_decrement_fk_column` trouve pour CHAQUE règle, pas celle de la
+        # première relation entrante. Avec deux relations (Post et Member),
+        # `_get_incoming_relation` peut désigner Post alors que l'identité
+        # peuple member_id ; l'ancienne décision excluait alors post_id de
+        # l'INSERT et créait une ligne orpheline. La branche
+        # `is_reputation_fk` de routes.py écrit déjà chaque cible : on l'exclut
+        # ici pour qu'elle soit écrite exactement une fois.
+        exclues.update(self._counter_fk_columns(entity))
         # Brique 11 (point 81) : sous propriété transitive, le parent
         # « propriétaire » est justement celui que le CLIENT doit désigner (« je
         # rattache cette ligne à CETTE commande ») -- il n'est plus déduit du
@@ -966,6 +1023,11 @@ class MonlSecureGenerator(
                 # exactement ce que le point 85 a fermé pour `unique`.
                 ecrites = set(self._client_fk_columns(entity))
                 ecrites |= set(self._identity_fk_columns().get(entity, set()))
+                # La branche compteur de la route Create écrit ces colonnes
+                # hors des FK client. Le refus reste donc actif pour une
+                # colonne réellement jamais écrite, sans rejeter une écriture
+                # serveur réelle.
+                ecrites |= set(self._counter_fk_columns(entity))
                 if placement["fk_column"] not in ecrites:
                     raise ValueError(
                         f"Génération : 'oncePer' sur '{entity}' désigne '{parent}', "
@@ -1111,10 +1173,33 @@ class MonlSecureGenerator(
             expected[table] = columns
         return expected
 
+    def _compute_migrations(self):
+        """Prépare les migrations validées pour l'app générée.
+
+        Les types DSL sont conservés pour les messages et leurs types SQL sont
+        ajoutés ici afin que le runtime n'ait aucune table de correspondance
+        indépendante du générateur.
+        """
+        prepared = []
+        for migration in self.migrations:
+            operations = []
+            for operation in migration["operations"]:
+                item = dict(operation)
+                if item["kind"] == "alter":
+                    item["from_sql_type"] = self._map_type_to_sql(item["from_type"])
+                    item["to_sql_type"] = self._map_type_to_sql(item["to_type"])
+                operations.append(item)
+            prepared.append({"name": migration["name"], "operations": operations})
+        return prepared
+
     def _map_type_to_sql(self, type_str):
         mapping = {
             "String": "VARCHAR(255)", "Text": "TEXT", "Integer": "INTEGER",
-            "Float": "REAL", "Boolean": "BOOLEAN", "Date": "DATE",
+            # Float est un nombre binaire, pas une monnaie : DOUBLE PRECISION
+            # est le type partagé SQLite/PostgreSQL. Money reste NUMERIC à
+            # échelle fixe ci-dessous, car ses valeurs partent chez Stripe et
+            # un flottant binaire n'est pas un type d'argent.
+            "Float": "DOUBLE PRECISION", "Boolean": "BOOLEAN", "Date": "DATE",
             "DateTime": "TIMESTAMP", "Email": "VARCHAR(255)", "UUID": "UUID",
             "Money": "NUMERIC(10, 2)",
             # Brique 13 (point 83) : 'Image' stocke un CHEMIN relatif au projet,
@@ -1122,6 +1207,10 @@ class MonlSecureGenerator(
             # ailleurs : le validateur vérifie que le fichier existe, et le
             # contrat le déclare comme média sans avoir à deviner d'après le nom.
             "Image": "VARCHAR(255)",
+            # Brique B1 : référence opaque vers le stockage runtime, jamais
+            # les octets. Contrairement à Image, aucune existence n'est
+            # vérifiée à la compilation.
+            "Upload": "VARCHAR(255)",
         }
         return mapping.get(type_str, "TEXT")
 
@@ -1223,6 +1312,7 @@ class MonlSecureGenerator(
             self_register_actors=tuple(self.self_register_actors),
             auth_identifier=tuple(self.auth_identifier) if self.auth_identifier else None,
             auth_phone_prefix=self.auth_phone_prefix,
+            auth_features=self.auth_features,
             public_conditions=self.public_conditions,
             required_profiles=self.required_profiles,
             payable_by_entity=self.payable_by_entity,
@@ -1234,6 +1324,19 @@ class MonlSecureGenerator(
             postpayment_writable_by_entity=self.postpayment_writable_by_entity,
             assets=self.assets,
             once_per_rules=tuple(dict(rule) for rule in self.once_per_rules),
+            upload_fields=tuple(dict(field) for field in self.upload_fields),
+            message_rules_by_trigger={
+                entity: dict(rule)
+                for entity, rule in self.message_rules_by_trigger.items()
+            },
+            filterable_fields={
+                entity: tuple(fields)
+                for entity, fields in self.filterable_fields_by_entity.items()
+            },
+            sortable_fields={
+                entity: tuple(fields)
+                for entity, fields in self.sortable_fields_by_entity.items()
+            },
         )
 
     def _generate_secure_fastapi(self):

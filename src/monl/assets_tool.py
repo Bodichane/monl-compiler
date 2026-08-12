@@ -71,7 +71,8 @@ TRANSLITTERATIONS = {
 # 'assets' créé de toutes pièces : après l'en-tête du fichier (le nom de
 # l'app et ses commentaires de tête), avant la première déclaration.
 DEBUTS_DE_BLOC = ("entity", "relation", "actor", "rule", "workflow", "seed",
-                  "landing", "ui", "capability", "custom", "assets")
+                  "landing", "ui", "capability", "custom", "migration",
+                  "assets")
 
 # Noms de fichiers de crédits reconnus — convention de projet, pas format monl.
 NOMS_DE_CREDITS = ("CREDITS.json", "CREDITS.md", "CREDITS.txt", "credits.json")

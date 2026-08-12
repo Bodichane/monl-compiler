@@ -20,6 +20,7 @@ EffectKind = Literal[
     "release",
     "payment_lock",
     "postpayment_write",
+    "message",
 ]
 
 # Colonnes sémantiques communes au schéma, au runtime et au contrat frontend.
@@ -65,8 +66,13 @@ class SecurityIR(TypedDict):
     field_constraints: dict[tuple[str, str], dict[str, Any]]
     auth_identifier: list[str] | None
     auth_phone_prefix: str | None
+    auth_features: dict[str, Any]
     enumerated_fields: dict[str, dict[str, list[str]]]
+    filterable_fields: list[dict[str, Any]]
+    sortable_fields: list[dict[str, Any]]
     release_rules: list[dict[str, Any]]
+    upload_fields: list[dict[str, Any]]
+    message_rules: list[dict[str, Any]]
 
 
 class SandboxIR(TypedDict):
@@ -85,6 +91,7 @@ class CompilationIR(TypedDict):
     capabilities: list[str]
     seeds: list[dict[str, Any]]
     assets: dict[str, Any]
+    migrations: list[dict[str, Any]]
 
 
 class CompilationGenerator(Protocol):
@@ -133,6 +140,7 @@ class FieldPolicy:
     aggregate_rule: Mapping[str, Any] | None
     timestamped: bool
     numbering_rule: Mapping[str, Any] | None
+    upload_rule: Mapping[str, Any] | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -218,6 +226,7 @@ class CompilationPlans:
     self_register_actors: tuple[str, ...]
     auth_identifier: tuple[str, ...] | None
     auth_phone_prefix: str | None
+    auth_features: Mapping[str, Any]
     public_conditions: Mapping[tuple[str, str], Mapping[str, Any]]
     required_profiles: Mapping[str, str]
     payable_by_entity: Mapping[str, str]
@@ -226,6 +235,10 @@ class CompilationPlans:
     postpayment_writable_by_entity: Mapping[str, Mapping[str, Any]]
     assets: Mapping[str, Any]
     once_per_rules: tuple[Mapping[str, Any], ...]
+    upload_fields: tuple[Mapping[str, Any], ...]
+    message_rules_by_trigger: Mapping[str, Mapping[str, Any]]
+    filterable_fields: Mapping[str, tuple[str, ...]]
+    sortable_fields: Mapping[str, tuple[str, ...]]
 
 
 @dataclass(frozen=True, slots=True)

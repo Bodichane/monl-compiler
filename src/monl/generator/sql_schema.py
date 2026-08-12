@@ -24,7 +24,15 @@ class SqlSchemaMixin:
         # pseudonyme anonyme stable, généré une seule fois à l'inscription
         # (voir /register), indépendant de la spec -- toujours présent,
         # utilisé seulement si un champ 'generated' le référence.
-        sql_lines.append("    anon_handle VARCHAR(255) UNIQUE NOT NULL")
+        sql_lines.append("    anon_handle VARCHAR(255) UNIQUE NOT NULL" +
+                         ("," if self.auth_features.get("totp") else ""))
+        if self.auth_features.get("totp"):
+            # BRIQUE B4 : NULL signifie « double facteur non activé ». Une
+            # base existante n'est jamais convertie et un compte historique
+            # reste donc connectable.
+            sql_lines.append("    totp_secret VARCHAR(64),")
+            sql_lines.append("    totp_enabled BOOLEAN,")
+            sql_lines.append("    totp_last_step BIGINT")
         sql_lines.append(");\n")
 
         # AJOUT (roadmap, révocation de token) : liste noire persistante des
@@ -38,7 +46,9 @@ class SqlSchemaMixin:
         # chaque requête authentifiée. Un jeton expiré est de toute façon
         # rejeté par la vérification de signature : le garder en liste noire
         # n'apporte rien.
-        sql_lines.append("    expires_at REAL")
+        # DOUBLE PRECISION est compris par SQLite (même affinité réelle) et
+        # porte un type natif explicite côté PostgreSQL.
+        sql_lines.append("    expires_at DOUBLE PRECISION")
         sql_lines.append(");\n")
 
         # AJOUT (roadmap long terme, rate limiting multi-workers) : la
@@ -52,9 +62,40 @@ class SqlSchemaMixin:
         sql_lines.append("CREATE TABLE IF NOT EXISTS _monl_rate_limit (")
         sql_lines.append("    bucket VARCHAR(32) NOT NULL,")
         sql_lines.append("    client_ip VARCHAR(64) NOT NULL,")
-        sql_lines.append("    attempted_at REAL NOT NULL")
+        sql_lines.append("    attempted_at DOUBLE PRECISION NOT NULL")
         sql_lines.append(");")
         sql_lines.append('CREATE INDEX IF NOT EXISTS idx_rate_limit_lookup ON _monl_rate_limit (bucket, client_ip, attempted_at);\n')
+
+        if self.auth_features.get("lockout"):
+            sql_lines.append("CREATE TABLE IF NOT EXISTS _monl_account_lockouts (")
+            sql_lines.append("    user_id INTEGER PRIMARY KEY,")
+            sql_lines.append("    failed_count INTEGER NOT NULL,")
+            sql_lines.append("    first_failed_at DOUBLE PRECISION NOT NULL,")
+            sql_lines.append("    locked_until DOUBLE PRECISION,")
+            sql_lines.append("    FOREIGN KEY (user_id) REFERENCES _monl_users(id)")
+            sql_lines.append(");\n")
+
+        if self.auth_features.get("password_reset"):
+            sql_lines.append("CREATE TABLE IF NOT EXISTS _monl_password_reset_tokens (")
+            sql_lines.append("    token_hash VARCHAR(64) PRIMARY KEY,")
+            sql_lines.append("    user_id INTEGER NOT NULL,")
+            sql_lines.append("    created_at DOUBLE PRECISION NOT NULL,")
+            sql_lines.append("    expires_at DOUBLE PRECISION NOT NULL,")
+            sql_lines.append("    used_at DOUBLE PRECISION,")
+            sql_lines.append("    FOREIGN KEY (user_id) REFERENCES _monl_users(id)")
+            sql_lines.append(");")
+            sql_lines.append("CREATE INDEX IF NOT EXISTS idx_password_reset_user ON _monl_password_reset_tokens (user_id, expires_at);\n")
+
+        if self.auth_features.get("refresh_tokens"):
+            sql_lines.append("CREATE TABLE IF NOT EXISTS _monl_refresh_tokens (")
+            sql_lines.append("    token_hash VARCHAR(64) PRIMARY KEY,")
+            sql_lines.append("    user_id INTEGER NOT NULL,")
+            sql_lines.append("    issued_at DOUBLE PRECISION NOT NULL,")
+            sql_lines.append("    expires_at DOUBLE PRECISION NOT NULL,")
+            sql_lines.append("    revoked_at DOUBLE PRECISION,")
+            sql_lines.append("    FOREIGN KEY (user_id) REFERENCES _monl_users(id)")
+            sql_lines.append(");")
+            sql_lines.append("CREATE INDEX IF NOT EXISTS idx_refresh_user ON _monl_refresh_tokens (user_id, expires_at);\n")
 
         # BRIQUE 22 (point 102) : les compteurs des numéros lisibles. Table
         # SYSTÈME et non colonne métier — compter les enregistrements existants
@@ -71,6 +112,21 @@ class SqlSchemaMixin:
         sql_lines.append("    periode VARCHAR(16) NOT NULL,")
         sql_lines.append("    dernier INTEGER NOT NULL DEFAULT 0,")
         sql_lines.append("    PRIMARY KEY (entite, champ, periode)")
+        sql_lines.append(");\n")
+
+        # Historique lisible des migrations, y compris les ajouts automatiques.
+        # La table est créée dans l'artefact initial et reste rattrapée par
+        # init_db() pour les bases produites avant A2.
+        sql_lines.append("CREATE TABLE IF NOT EXISTS _monl_migrations (")
+        sql_lines.append("    id INTEGER PRIMARY KEY AUTOINCREMENT,")
+        sql_lines.append("    migration_name VARCHAR(255) NOT NULL,")
+        sql_lines.append("    operation_index INTEGER NOT NULL,")
+        sql_lines.append("    operation VARCHAR(64) NOT NULL,")
+        sql_lines.append("    table_name VARCHAR(255) NOT NULL,")
+        sql_lines.append("    direction VARCHAR(8) NOT NULL,")
+        sql_lines.append("    details TEXT NOT NULL,")
+        sql_lines.append("    applied_at TIMESTAMP NOT NULL,")
+        sql_lines.append("    schema_fingerprint VARCHAR(64) NOT NULL")
         sql_lines.append(");\n")
 
         # CORRECTIF (roadmap) : placement des FK généralisé aux 3 types de
@@ -136,4 +192,3 @@ class SqlSchemaMixin:
             sql_lines[-1] = sql_lines[-1].rstrip(",")
             sql_lines.append(");\n")
         return "\n".join(sql_lines)
-

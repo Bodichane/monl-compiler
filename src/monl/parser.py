@@ -1,3 +1,4 @@
+import ast as py_ast
 import os
 import re
 
@@ -12,7 +13,7 @@ grammar = r"""
     
     app: "app" NAME _NL block*
     
-    ?block: entity | relation | actor | rule | workflow | custom_block | ui_block | landing_block | capability_block | seed_block | assets_block | _NL
+    ?block: entity | relation | actor | rule | workflow | custom_block | ui_block | landing_block | capability_block | seed_block | assets_block | migration_block | _NL
     
     entity: "entity" NAME _NL _INDENT attribute+ _DEDENT
     attribute: NAME ":" TYPE _NL
@@ -37,7 +38,7 @@ grammar = r"""
     # rule["type"] ne valait jamais "restrictedTo", et l'audit de sécurité associé
     # dans ast_validator.py ne se déclenchait donc jamais. Même classe de bug que
     # celui déjà corrigé sur le bloc "custom" en v3.
-    ?rule: constraint_rule | restriction_rule | postpayment_rule | sharing_rule | ownership_rule | access_rule | visibility_rule | conditional_visibility_rule | uniqueness_rule | masking_rule | decrement_rule | increment_rule | categorization_rule | generation_rule | payable_rule | derivation_rule | aggregation_rule | timestamp_rule | numbering_rule | requirement_rule | oneof_rule | release_rule
+    ?rule: constraint_rule | restriction_rule | postpayment_rule | sharing_rule | ownership_rule | access_rule | visibility_rule | conditional_visibility_rule | uniqueness_rule | masking_rule | decrement_rule | increment_rule | categorization_rule | generation_rule | payable_rule | derivation_rule | aggregation_rule | timestamp_rule | numbering_rule | requirement_rule | oneof_rule | release_rule | upload_rule | send_rule | filter_rule | sort_rule
 
     constraint_rule: "rule" REFERENCE VALIDATION_TYPE _NL
                    | "rule" REFERENCE VALIDATION_TYPE INT _NL
@@ -56,6 +57,29 @@ grammar = r"""
     # deux. `oneOf` était le préalable : il fallait pouvoir désigner un état.
     #   rule Order.status "annulée" releases OrderLine
     release_rule: "rule" REFERENCE STRING_LITERAL "releases" NAME _NL
+    # BRIQUE B1 : un Upload est un fichier envoyé à l'exécution par le client.
+    # Il ne partage volontairement pas la sémantique d'Image : Image est un
+    # chemin d'asset fourni à la compilation, tandis qu'Upload est une colonne
+    # de référence opaque accompagnée d'une route multipart générée.
+    # La limite et les types sont obligatoires : une déclaration qui ne produit
+    # pas un refus observable (taille/type) serait une syntaxe de confort vide.
+    # Le type réel est déterminé côté backend par signature d'octets, jamais par
+    # l'extension ou le nom fournis par le client.
+    upload_rule: "rule" REFERENCE "upload" "max" INT "types" STRING_LITERAL ("," STRING_LITERAL)* _NL
+    # BRIQUE B2 : un message part après une création métier réussie. Le
+    # séparateur '¶' structure le corps en paragraphes ; inventer une grammaire
+    # multiligne ici ferait traverser à nouveau la frontière d'indentation.
+    #   rule Order.Create sends "Commande reçue" "Votre commande¶est prise en compte"
+    send_rule: "rule" REFERENCE "sends" STRING_LITERAL STRING_LITERAL _NL
+    # BRIQUE B3 : capacités de lecture explicites, sans langage de requête.
+    # Chaque champ est déclaré séparément ; le client ne choisit jamais un
+    # opérateur ni une expression. Ex. :
+    #   rule Order.Read filter status
+    #   rule Order.Read sort placedAt
+    # La direction est une des deux valeurs fixes de la route (asc/desc), pas
+    # un fragment SQL envoyé par le client.
+    filter_rule: "rule" REFERENCE "filter" NAME _NL
+    sort_rule: "rule" REFERENCE "sort" NAME _NL
     restriction_rule: "rule" REFERENCE "restrictedTo" NAME _NL
     postpayment_rule: "rule" REFERENCE "writableAfterPayment" NAME _NL
     sharing_rule: "rule" REFERENCE "sharedBy" NAME ("," NAME)* _NL
@@ -260,7 +284,7 @@ grammar = r"""
     #   capability auth
     #       identifier: email, phone
     capability_block: "capability" NAME _NL [_INDENT capability_prop+ _DEDENT]
-    ?capability_prop: capability_identifier | capability_phone_prefix
+    ?capability_prop: capability_identifier | capability_phone_prefix | capability_lockout | capability_password_reset | capability_refresh_tokens | capability_totp
     capability_identifier: "identifier" ":" NAME ("," NAME)* _NL
     # AJOUT (point 95, trouvé en éprouvant la brique sur un vrai site) :
     # '06 12 34 56 78' et '+33612345678' sont le MÊME numéro, et faisaient deux
@@ -270,6 +294,17 @@ grammar = r"""
     # courant.
     #       phone_prefix: "+33"
     capability_phone_prefix: "phone_prefix" ":" STRING_LITERAL _NL
+    # BRIQUE B4 : options d'authentification déclaratives. Les durées sont en
+    # secondes et aucune valeur par défaut n'est injectée dans une spec qui ne
+    # demande pas la capacité.
+    #   lockout: 5 in 300
+    #   password_reset: 900
+    #   refresh_tokens: 2592000
+    #   totp
+    capability_lockout: "lockout" ":" INT "in" INT _NL
+    capability_password_reset: ("password_reset" | "passwordReset") ":" INT _NL
+    capability_refresh_tokens: ("refresh_tokens" | "refreshTokens") ":" INT _NL
+    capability_totp: "totp" _NL | "totp" ":" "true" _NL
 
     # Bloc optionnel "landing" : transmet un brief marketing (titre, ton,
     # intention) au contrat frontend, pour orienter l'IA d'interface. C'est
@@ -299,6 +334,15 @@ grammar = r"""
     assets_dir: "dir" ":" STRING_LITERAL _NL
     assets_logo: "logo" ":" STRING_LITERAL _NL
     assets_favicon: "favicon" ":" STRING_LITERAL _NL
+
+    # Une migration non additive doit être NOMMÉE et exécutée explicitement.
+    # La spec décrit l'état cible ; l'opération conserve assez d'information
+    # pour vérifier sa précondition et, quand c'est possible, la défaire.
+    migration_block: "migration" NAME _NL _INDENT migration_operation+ _DEDENT
+    ?migration_operation: rename_migration | alter_migration | drop_migration
+    rename_migration: "rename" REFERENCE "to" NAME _NL
+    alter_migration: "alter" REFERENCE "from" TYPE "to" TYPE _NL
+    drop_migration: "drop" REFERENCE _NL
 
     landing_block: "landing" _NL _INDENT landing_prop+ _DEDENT
     ?landing_prop: landing_mode | landing_template | landing_brief | landing_section
@@ -359,7 +403,7 @@ grammar = r"""
     io_param: NAME ":" TYPE
             | REFERENCE
 
-    TYPE: "String" | "Text" | "Integer" | "Float" | "Boolean" | "Date" | "DateTime" | "Email" | "UUID" | "Money" | "Image"
+    TYPE: "String" | "Text" | "Integer" | "Float" | "Boolean" | "Date" | "DateTime" | "Email" | "UUID" | "Money" | "Image" | "Upload"
     RELATION_TYPE: "hasMany" | "belongsTo" | "hasOne"
     ACTION_TYPE: "Create" | "Read" | "Update" | "Delete"
     VALIDATION_TYPE: "required" | "unique" | "min" | "max"
@@ -413,6 +457,7 @@ class MonlTransformer(Transformer):
             "capabilities": [b["capability"] for b in valid_blocks if "capability" in b],
             "seeds": [b["seed"] for b in valid_blocks if "seed" in b],
             "assets": next((b["assets"] for b in valid_blocks if "assets" in b), None),
+            "migrations": [b["migration"] for b in valid_blocks if "migration" in b],
         }
 
     def entity(self, name, *attributes):
@@ -442,6 +487,36 @@ class MonlTransformer(Transformer):
     def release_rule(self, reference, valeur, entite):
         return {"rule": {"reference": str(reference), "type": "releases",
                          "value": str(valeur).strip('"'), "entity": str(entite)}}
+
+    def upload_rule(self, reference, maximum, *types):
+        return {"rule": {
+            "reference": str(reference), "type": "upload",
+            "max_bytes": int(maximum),
+            "accepted_types": [str(value).strip('"') for value in types],
+        }}
+
+    def send_rule(self, reference, subject, body):
+        def decode(token):
+            try:
+                return str(py_ast.literal_eval(str(token)))
+            except (SyntaxError, ValueError):
+                # Le lexer a déjà garanti un STRING_LITERAL. Ce repli garde un
+                # diagnostic de validation lisible si une future évolution de
+                # la grammaire accepte une séquence d'échappement inconnue.
+                return str(token)[1:-1]
+
+        return {"rule": {
+            "reference": str(reference), "type": "sends",
+            "subject": decode(subject), "body": decode(body),
+        }}
+
+    def filter_rule(self, reference, field):
+        return {"rule": {"reference": str(reference), "type": "filter",
+                          "field": str(field)}}
+
+    def sort_rule(self, reference, field):
+        return {"rule": {"reference": str(reference), "type": "sort",
+                          "field": str(field)}}
 
     def restriction_rule(self, reference, actor_name):
         return {"rule": {"reference": str(reference), "type": "restrictedTo", "value": str(actor_name)}}
@@ -614,11 +689,39 @@ class MonlTransformer(Transformer):
                 merged.update(p)
         return {"assets": merged}
 
+    def rename_migration(self, reference, new_name):
+        return {"kind": "rename", "reference": str(reference),
+                "new_name": str(new_name)}
+
+    def alter_migration(self, reference, old_type, new_type):
+        return {"kind": "alter", "reference": str(reference),
+                "from_type": str(old_type), "to_type": str(new_type)}
+
+    def drop_migration(self, reference):
+        return {"kind": "drop", "reference": str(reference)}
+
+    def migration_block(self, name, *operations):
+        return {"migration": {"name": str(name),
+                               "operations": list(operations)}}
+
     def capability_identifier(self, *formes):
         return {"identifier": [str(f) for f in formes]}
 
     def capability_phone_prefix(self, valeur):
         return {"phone_prefix": str(valeur).strip('"')}
+
+    def capability_lockout(self, maximum, fenetre):
+        return {"lockout": {"max_attempts": int(maximum),
+                             "window_seconds": int(fenetre)}}
+
+    def capability_password_reset(self, duree):
+        return {"password_reset": int(duree)}
+
+    def capability_refresh_tokens(self, duree):
+        return {"refresh_tokens": int(duree)}
+
+    def capability_totp(self):
+        return {"totp": True}
 
     def capability_block(self, name, *props):
         # Le bloc indenté étant optionnel, Lark passe None quand il est absent :

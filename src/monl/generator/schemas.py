@@ -51,7 +51,8 @@ class SchemasMixin:
             for attr_name, attr_type in attrs.items():
                 if (attr_name in generated_here_schema or attr_name in derives_ici
                         or attr_name in sommes_ici or attr_name in horodates_ici
-                        or attr_name in postpaiement_ici):
+                        or attr_name in postpaiement_ici
+                        or attr_type == "Upload"):
                     continue
                 py_type = "str"
                 if attr_type == "Integer": py_type = "int"
@@ -132,19 +133,13 @@ class SchemasMixin:
                     api_lines.append(f"    {attr_name}: {py_type}")
                 has_schema_field = True
             # AJOUT (roadmap, écosystème de capacités -- brique 3, généralisée
-            # en brique 4) : quand la relation entrante de cette entité est
-            # la cible d'une règle 'decrements'/'increments' (ex.
-            # Report -> Member, ou Like -> Post), sa colonne de clé étrangère
-            # n'est PAS de la même nature qu'un "ceci m'appartient" (qui se
-            # peuple tout seul depuis l'identité JWT de l'appelant, voir plus
-            # bas) : c'est un choix du client ("je signale/j'apprécie CETTE
-            # cible précise"), donc un champ normal du corps de requête.
-            owner_info_for_schema = self._get_incoming_relation(ent_name)
-            if owner_info_for_schema and any(
-                r["target_entity"] == owner_info_for_schema["source"]
-                for r in self.reputation_rules_by_trigger.get(ent_name, [])
-            ):
-                api_lines.append(f"    {owner_info_for_schema['fk_column']}: int")
+            # en brique 4) : chaque relation vers une cible de
+            # 'decrements'/'increments' est un choix du client ("je
+            # signale/j'apprécie CETTE cible précise"), quelle que soit sa
+            # position parmi les relations entrantes. La source unique de la
+            # colonne est `_decrement_fk_column` via `_counter_fk_columns`.
+            for _counter_fk in self._counter_fk_columns(ent_name):
+                api_lines.append(f"    {_counter_fk}: int")
                 has_schema_field = True
             # AJOUT (bêta 3) : parents autres que le propriétaire — le client
             # doit pouvoir dire à quel enregistrement lié il se rattache.

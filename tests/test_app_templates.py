@@ -160,6 +160,17 @@ def test_forum_likes_via_increments():
     assert "relation Post hasMany Like" in spec
 
 
+@pytest.mark.parametrize(
+    ("index", "reference"),
+    [(2, "Article.Read"), (5, "Post.Read")],
+    ids=["blog", "forum"],
+)
+def test_les_modeles_public_when_declarent_le_superviseur(index, reference):
+    """Un modérateur doit garder accès aux publications masquées."""
+    spec = _run_template(index, "n", want_seed=False)
+    assert f"rule {reference} sharedBy Moderator" in spec
+
+
 def test_entite_personnalisee_en_plus_du_modele():
     # Portfolio + entité perso "Testimonial" lisible publiquement.
     answers = iter([

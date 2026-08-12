@@ -93,18 +93,34 @@ Tous les défauts bloquants identifiés à l'audit ont été corrigés :
 
 Par ordre de priorité :
 
-1. **Couche données de production** : support PostgreSQL (ou abstraction DB),
-   pooling de connexions, moteur de migrations gérant aussi les changements
-   destructifs avec migrations descendantes.
+1. ~~**Couche données de production**~~ — **FAIT (chantier A1)** : le même
+   `app.py` choisit SQLite ou PostgreSQL au démarrage via
+   `MONL_DATABASE_URL`; `psycopg` reste optionnel dans `.[postgres]`. Les
+   migrations additives, intégrités, numérotation et décompte de stock sont
+   éprouvés contre un vrai PostgreSQL et la CI lance le service. **Reste
+   ouvert** : pooling de connexions et migrations descendantes destructives.
 2. **Générateur par templates/AST** en remplacement de la construction du code
    par concaténation de chaînes, avec *golden-file tests* sur la sortie générée
    et fuzzing du parseur. Le découpage en package (bêta 3) a séparé les couches
    (`runtime`, `routes`, `schemas`, `sql_schema`) : c'est le préalable, chaque
    module pouvant migrer vers des templates indépendamment.
-3. **Prêt déploiement** : CORS configurable, logs structurés avec identifiant de
-   requête, healthchecks, conteneurisation, secrets via gestionnaire dédié.
-4. **Auth complète** : refresh tokens, réinitialisation de mot de passe,
-   verrouillage de compte, vérification email (selon périmètre).
+3. ~~**Prêt déploiement**~~ — **FAIT (point 118)** : CORS opt-in par
+   `MONL_CORS_ORIGINS` (`*` refusé au démarrage), logs JSON avec identifiant de
+   requête par `MONL_LOG_FORMAT=json`, healthchecks `/health` et
+   `/health/ready`, `Dockerfile`/`.dockerignore` produits et préservés, refus de
+   démarrer si `MONL_ENV=production` sans `MONL_JWT_SECRET`. Prouvé par une
+   construction d'image réelle. **Reste ouvert** : l'intégration à un
+   gestionnaire de secrets dédié (Vault, SSM) — le secret vient aujourd'hui de
+   l'environnement, ce qui est le contrat attendu par ces gestionnaires mais ne
+   les remplace pas.
+4. ~~**Auth complète**~~ — **FAIT (point 124)** : verrouillage PAR COMPTE (la
+   limitation du point 9 était par IP), réinitialisation de mot de passe
+   (débloquée par le point 122), jetons de rafraîchissement AVEC ROTATION, et
+   double facteur TOTP hors ligne. Le verrou n'est pas un oracle d'existence :
+   compte verrouillé et compte inexistant rendent la même réponse, à 1,28 ms
+   près. **Reste ouvert** : la vérification d'adresse à l'inscription — monl
+   sait désormais envoyer, mais confirmer une adresse est une décision de
+   parcours (que fait-on d'un compte non confirmé ?) qui n'a pas été prise.
 5. **Gouvernance du DSL** : versionner la grammaire, garantir la
    rétrocompatibilité, politique de dépréciation.
 6. **Isolation d'exécution du code `custom`** (sous-processus à privilèges
@@ -121,7 +137,8 @@ Par ordre de priorité :
 ## Positionnement
 
 Le cœur de valeur est le **compilateur d'intention backend, déterministe et
-sûr**. La seule IA du cycle de vie est celle qui construit le frontend, contre un
-contrat vérifié. Rester sur ce positionnement garde l'effort GA concentré sur le
-vrai chantier bloquant — la couche données, seule à plafonner l'usage réel —
-plutôt que dilué dans un « générateur d'app complet par IA ».
+sûr**. La seule IA du cycle de vie est celle qui construit le frontend, contre
+un contrat vérifié. La couche données de production est désormais éprouvée;
+l'effort GA peut donc se concentrer sur le pooling, les migrations
+destructives et les autres chantiers ci-dessus plutôt que sur un « générateur
+d'app complet par IA ».

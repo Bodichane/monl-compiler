@@ -15,6 +15,21 @@ on: [push, pull_request]
 jobs:
   verifier:
     runs-on: ubuntu-latest
+    env:
+      MONL_TEST_DATABASE_URL: postgresql://postgres:monl@127.0.0.1:5432/monltest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: monl
+          POSTGRES_DB: monltest
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d monltest"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
     strategy:
       fail-fast: false
       matrix:
@@ -33,7 +48,7 @@ jobs:
       - name: Installer les dépendances
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"       # paquet + outils déclarés par le projet
+          pip install -e ".[dev,postgres]"  # paquet + outils + PostgreSQL réel
 
       # Ce que la suite ne dit pas : que le paquet s'installe et que la
       # commande existe. Un dépôt vert dont le 'pip install' échoue n'est

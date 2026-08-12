@@ -9,7 +9,13 @@ import re
 
 import pytest
 
-from monl.cli import _load_state, check_coherence, compile_project
+from monl.cli import (
+    _contract_signature,
+    _load_state,
+    _rapporter_delta,
+    check_coherence,
+    compile_project,
+)
 from monl.dialogue_engine import GuidedDialogue
 
 REPO = os.path.join(os.path.dirname(__file__), "..")
@@ -49,6 +55,25 @@ def _fresh_project(tmp_path):
     return proj, spec_path, contract
 
 
+def test_delta_signale_un_type_de_champ_modifie(tmp_path, capsys):
+    ancienne = {
+        "routes": [],
+        "entities": {"Note": {"fields": [{"name": "priority", "type": "String"}]}},
+    }
+    nouvelle = {
+        "routes": [],
+        "entities": {"Note": {"fields": [{"name": "priority", "type": "Integer"}]}},
+    }
+
+    assert _rapporter_delta(
+        _contract_signature(ancienne),
+        _contract_signature(nouvelle),
+        str(tmp_path),
+        ecrire_brief=False,
+    )
+    assert "type de champ changé : Note.priority : String → Integer" in capsys.readouterr().out
+
+
 def test_brief_express_autorise_textes_blocs_et_illustrations_locales(tmp_path):
     answers = iter(["1", "StudioExpress", "Portfolio de céramique contemporaine."])
     spec_text = GuidedDialogue(
@@ -73,7 +98,7 @@ def test_contrat_correspond_aux_routes_reelles_de_app_py(tmp_path):
         real_routes.add((m.group(1).upper(), m.group(2)))
     # Routes hors périmètre du contrat métier (auth systématique + pages).
     infra = {("POST", "/register"), ("POST", "/login"), ("POST", "/logout"),
-             ("GET", "/")}
+             ("GET", "/"), ("GET", "/health"), ("GET", "/health/ready")}
     contract_routes = {(r["method"], r["path"]) for r in contract["routes"]}
     assert contract_routes == real_routes - infra, (
         "le contrat frontend a divergé des routes réellement générées")
@@ -609,7 +634,7 @@ def test_les_routes_de_paiement_sont_dans_le_contrat(tmp_path):
     real_routes = {(m.group(1).upper(), m.group(2)) for m in
                    re.finditer(r"@app\.(get|post|put|delete)\('([^']+)'", app_code)}
     infra = {("POST", "/register"), ("POST", "/login"), ("POST", "/logout"),
-             ("GET", "/")}
+             ("GET", "/"), ("GET", "/health"), ("GET", "/health/ready")}
     contract_routes = {(r["method"], r["path"]) for r in contract["routes"]}
     assert contract_routes == real_routes - infra
     assert ("POST", "/commande/{id}/paiement") in contract_routes

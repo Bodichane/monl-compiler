@@ -19,6 +19,7 @@ demo/app.db
 app.py
 schema.sql
 app.db
+.monl_uploads/
 manage.py
 sandbox_ai.py
 /.jwt_secret
@@ -27,7 +28,10 @@ sandbox_ai.py
 # projets/ — un seul dossier à ignorer plutôt qu'une ligne par application,
 # et la racine du dépôt cesse de se remplir d'applications au milieu du code
 # du compilateur. (demo/ est la démo de référence, suivie exprès :
-# test_demo.py et test_design_contract.py s'appuient dessus.)
+# test_demo.py s'appuie dessus. Ses ENTRÉES seules y sont versionnées —
+# spec.ml, frontend/, assets/ — jamais app.db ni .jwt_secret, ignorés
+# ci-dessus. projets/ reste le bac à sable local : y verser six .jwt_secret
+# dans un dépôt public rouvrirait le point 66.)
 /projets/
 
 # Rapport de couverture (point 63)

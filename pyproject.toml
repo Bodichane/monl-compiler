@@ -19,6 +19,7 @@ dependencies = [
     "uvicorn>=0.29,<1.0",
     "lark>=1.1,<2.0",
     "PyJWT>=2.8,<3.0",
+    "python-multipart>=0.0.9,<1.0",
 ]
 
 [project.optional-dependencies]
@@ -32,6 +33,9 @@ dev = [
     "mypy>=1.10,<2.0",       # contrats typés aux frontières de l'IR
     "vulture>=2.11,<3.0",    # recherche de code mort, revue manuelle conservée
     "requests>=2.31,<3.0",   # tests HTTP et fournisseurs frontend
+]
+postgres = [
+    "psycopg>=3.1,<4.0",
 ]
 
 [project.scripts]

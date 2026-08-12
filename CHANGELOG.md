@@ -31,6 +31,188 @@
   (`tests/test_publication_conditionnelle.py`, `tests/test_unicite_composite.py`)
   et compilées par `exemples/03_reseau_social.ml`.
 
+### La colonne du compteur ne dépend plus de l'ordre des relations (point 117)
+
+- **Correction de données.** Une entité à deux relations entrantes dont celle du
+  compteur était déclarée en premier créait ses lignes avec la clé étrangère de
+  la cible à `NULL` : le compteur montait, mais l'enregistrement ne savait pas
+  sur quoi il portait. Inverser les deux relations suffisait à tout réparer —
+  bug d'ordre, invisible sur la spec qui l'a fait naître.
+- `_counter_fk_columns` dérive désormais cette colonne de `_decrement_fk_column`
+  pour chaque règle, et le schéma Pydantic, les clés étrangères client et
+  l'INSERT la lisent tous les trois : écrite exactement une fois, jamais zéro.
+- Le repli silencieux vers la première relation entrante devient une erreur de
+  génération explicite.
+- **Le catalogue déclare le superviseur de lecture** : les modèles Blog et
+  Communauté livraient une modération à sens unique, le modérateur perdant de vue
+  ce qu'il venait de masquer.
+
+### Authentification complète (point 124)
+
+- Quatre capacités DÉCLARATIVES sous `capability auth` : `lockout: N in S`,
+  `password_reset: S`, `refresh_tokens: S`, `totp`. Une spec qui n'en demande
+  aucune produit des artefacts identiques à l'octet.
+- **Verrouillage PAR COMPTE**, là où la limitation du point 9 était par IP :
+  un attaquant réparti la contournait, et un utilisateur derrière un NAT
+  partagé était puni pour les autres.
+- **Le verrou n'est pas un oracle d'existence** : un compte verrouillé et un
+  compte inexistant rendent la même réponse, et l'écart de temps médian est de
+  1,28 ms sur 47 ms. Un verrou qui annoncerait « compte verrouillé » ne
+  protégerait pas un compte, il en publierait la liste. Et pendant le verrou,
+  le BON mot de passe est refusé.
+- **Réinitialisation de mot de passe**, débloquée par le point 122 : réponse
+  identique pour une adresse connue ou non, jeton à usage unique, lié au
+  compte, et l'ancien mot de passe cesse aussitôt de fonctionner.
+- **Jetons de rafraîchissement avec ROTATION** : `/refresh` rend un couple
+  neuf et rejette l'ancien — un vol devient un incident détectable plutôt
+  qu'un accès permanent. Un jeton de rafraîchissement ne vaut pas comme jeton
+  d'accès.
+- **Double facteur TOTP** (RFC 6238, pur calcul, donc hors ligne) : le rejeu
+  d'un code est refusé, y compris dans sa propre fenêtre ; le secret ne sort
+  d'aucune route de lecture.
+- Aucun compte existant n'est cassé : ils se connectent encore et sont COMPTÉS
+  au démarrage, sans qu'aucune activation soit inventée (point 89).
+- `manage.py` gagne `unlock` et continue de fonctionner depuis n'importe quel
+  dossier.
+
+### Filtrer et trier côté serveur, sans langage de requête (point 123)
+
+- `rule Entite.Read filter <champ>` et `rule Entite.Read sort <champ>`. Ce qui
+  est filtrable ou triable est DÉCLARÉ ; le client ne choisit ni le champ, ni
+  l'opérateur, ni l'expression. La ligne rouge de `CLAUDE.md` tient.
+- **Un filtre est un oracle** : filtrer ou trier sur un champ `hidden` ou
+  `categorized` est refusé à la compilation. Compter les lignes qui reviennent
+  pour chaque valeur lit un champ que la brique 2 retire de toutes les
+  réponses, et retrouve le nombre exact que la brique 5 remplace par un
+  libellé — une fuite qui passe par le TOTAL, pas par une réponse.
+- **Deux bornes qui ne tombent pas ensemble** : la valeur de filtre est typée
+  par le `Literal` du `oneOf` (422 avant toute requête), puis liée par
+  `sql.bind()`. Le nom de colonne de tri est élu dans un dictionnaire construit
+  à la compilation — jamais concaténé —, le sens est du SQL fixe.
+- **Le filtre s'AJOUTE au contrôle d'accès, il ne le remplace pas** : avec deux
+  comptes, la liste filtrée de l'un ne montre jamais une ligne de l'autre.
+- `limit`/`offset` sont inchangés ; une spec sans filtre ni tri produit des
+  artefacts identiques à l'octet, et les tests de la frontière SQL (point 108)
+  restent verts sans avoir été assouplis.
+- Ce que la brique n'offre PAS et le dit : aucune recherche textuelle, aucun
+  index automatique, aucune promesse de performance sur colonne non indexée.
+
+### monl sait envoyer un message (point 122)
+
+- La capacité NOMMÉE comme préalable depuis le point 95 : `rule Entite.Create
+  sends "<sujet>" "<corps>"`. Pas la réinitialisation de mot de passe, pas la
+  vérification d'adresse — la capacité d'envoyer, et rien de plus.
+- **Le refus qui porte la brique** : une spec qui veut écrire sans déclarer
+  `capability auth` + `identifier: email` n'a aucune adresse où écrire. Un
+  champ métier libre nommé `email` ne vaut pas une adresse de compte, et le
+  message de refus le dit.
+- **L'adresse est l'identifiant de COMPTE**, ce qui ferme l'injection
+  d'en-têtes en amont : un identifiant ne peut pas contenir d'espacement, donc
+  aucun client ne fabrique de destinataire caché (vérifié, 422 à l'inscription).
+- Le corps se structure avec le `¶` du point 64 — aucune syntaxe multiligne
+  n'a été inventée.
+- **Un échec d'envoi ne défait jamais une écriture métier et n'est jamais
+  avalé** : la route rend 200 en moins de 4 ms même SMTP mort, et la trace
+  nomme l'entité, l'identifiant et la cause. Secrets par l'environnement,
+  variable absente NOMMÉE — mêmes invariants que `payable` (points 74-75).
+- Ce que la brique ne promet PAS, et le dit : aucun réessai, aucune file
+  persistante, aucune garantie de remise.
+- Une spec sans message produit des artefacts identiques à l'octet ; le smoke
+  test reste vert hors ligne.
+
+### L'utilisateur final peut déposer un fichier (point 121)
+
+- **`Upload` n'est pas `Image`.** La brique 13 désigne ce que l'AUTEUR fournit
+  à la compilation et que le compilateur vérifie présent ; `Upload` désigne des
+  octets que le CLIENT envoie à l'exécution, dont le compilateur ne sait rien.
+  Les fusionner ferait vérifier l'existence d'un fichier avant son envoi.
+- `rule Entite.champ upload max <octets> types "…", "…"` — limite et types sont
+  OBLIGATOIRES : deviner un plafond serait deviner faux.
+- **Le type est établi par signature d'octets**, jamais par le nom ni le
+  `Content-Type` du client, et le nom du client n'est jamais un chemin. HTML et
+  SVG sont refusés ; la lecture répond en `application/octet-stream` avec
+  `nosniff` et `Content-Disposition: attachment` — un fichier déposé ne doit
+  jamais pouvoir s'exécuter en même origine.
+- **L'ACL porte sur le FICHIER, pas seulement sur la ligne** : connaître la
+  référence ne suffit pas, un tiers reçoit 404. C'est la leçon du point 116.
+- Les octets vivent hors de `frontend/` (que `monl frontend` renomme en
+  silence), hors des artefacts scellés, ignorés par git et par Docker.
+- Une spec sans dépôt produit des artefacts identiques à l'octet.
+
+### Les migrations non additives sont nommées, appliquées à la main, réversibles (point 120)
+
+- **Le moteur ne devine plus rien.** Un renommage était vu comme une
+  suppression suivie d'un ajout : l'ancienne colonne restait pleine, la
+  nouvelle arrivait vide, et rien ne le disait. Un changement de type n'était
+  pas appliqué du tout. Une colonne retirée restait indéfiniment sans être
+  rapportée.
+- **Une syntaxe déclarative et NOMMÉE** : `migration <nom>` avec `rename`,
+  `alter … from … to …` et `drop`, appliquée par `monl migrate PROJET --name
+  <nom>` et défaite par `--down`.
+- **Un changement destructif ne s'applique jamais tout seul au démarrage.**
+  Le serveur REFUSE de démarrer en nommant la colonne et la commande à lancer,
+  au lieu d'avaler l'échec et de servir une base à moitié migrée.
+- **Une table d'historique** `_monl_migrations` enregistre chaque opération
+  avec l'empreinte du schéma résultant. La descente d'un `drop` est refusée :
+  elle ne se défait pas sans sauvegarde, et prétendre le contraire serait pire
+  que ne rien offrir.
+- La migration additive reste automatique : elle ne détruit rien. Une base
+  créée par le compilateur d'avant démarre sans rien perdre — vérifié.
+- **Un défaut trouvé en revue** : `manage.py` sortait sur une trace de quinze
+  lignes qui noyait le diagnostic. Il nomme désormais le remède et le dossier.
+
+### La couche données choisit son dialecte au démarrage (point 119)
+
+- **PostgreSQL à côté de SQLite.** `MONL_DATABASE_URL` absente : SQLite,
+  comportement strictement inchangé. `postgresql://` : psycopg v3. Le choix est
+  fait au DÉMARRAGE et non à la compilation, pour que le même artefact scellé
+  tourne en développement et en production sans être recompilé. `psycopg` est
+  une dépendance optionnelle (`.[postgres]`), et son absence avec un DSN est
+  nommée explicitement.
+- **La traduction `?` → `%s` est sûre par le point 108** : aucune valeur client
+  n'entre jamais dans le texte d'une requête, donc le texte traduit ne contient
+  que du SQL fixe. Sans cet invariant, la traduction serait une faille.
+- `AUTOINCREMENT` devient une identité PostgreSQL, `PRAGMA table_info` devient
+  `information_schema`, `lastrowid` devient `RETURNING id`, `Float` devient
+  `DOUBLE PRECISION`. `Money` reste `NUMERIC(10, 2)` : un flottant binaire
+  n'est pas un type d'argent.
+- **Les erreurs d'intégrité sont lues structurées** (SQLSTATE `23505`/`23503`
+  et nom de contrainte) au lieu du message SQLite, qui n'existe pas sur
+  PostgreSQL. Les trois 409 restent distincts.
+- La CI lance un vrai service PostgreSQL ; les tests se sautent proprement sans
+  `MONL_TEST_DATABASE_URL`.
+- **Deux défauts trouvés en revue et corrigés.** Le bloc d'intégrité ne se
+  terminait plus par un `raise` : une erreur d'une quatrième espèce en sortait
+  sans rien lever et la route allait jusqu'à `return success` après un
+  `rollback` (mesuré : 500 `UnboundLocalError` sur une référence `numbered` en
+  double). Et `manage.py`, important `app` en tête de fichier, ne fonctionnait
+  plus depuis un autre dossier — or c'est le seul chemin pour créer un compte à
+  rôle privilégié.
+
+### Le backend généré est déployable (point 118)
+
+- **CORS opt-in.** `MONL_CORS_ORIGINS` liste des origines explicites ; absente,
+  aucun en-tête CORS n'est émis et le comportement est inchangé. L'origine `*`
+  fait échouer le démarrage : combinée aux identifiants, elle laisserait
+  n'importe quel site lire les réponses authentifiées d'un utilisateur connecté.
+  Les méthodes annoncées sont calculées depuis les routes réellement émises.
+- **Deux healthchecks.** `/health` ne touche pas la base (vivacité),
+  `/health/ready` exécute un `SELECT 1` et rend 503 si elle ne répond pas
+  (disponibilité). Les deux restent hors du contrat frontend.
+- **Journaux structurés.** `MONL_LOG_FORMAT=json` émet une ligne JSON par
+  requête. Aucun corps, aucun en-tête entrant, aucune query string n'y entre —
+  le corps de `/register` contient le mot de passe en clair. L'`X-Request-ID`
+  fourni n'est repris que s'il passe un motif étroit, sinon il est régénéré.
+- **`MONL_ENV=production` exige `MONL_JWT_SECRET`.** Le refus vaut même si un
+  `.jwt_secret` est présent : ce repli fait dépendre tous les jetons émis d'un
+  fichier qui ne suit pas l'image, donc perdu au premier redéploiement.
+- **`Dockerfile` et `.dockerignore` sont produits, jamais scellés.** Écrits
+  s'ils manquent, préservés ensuite, et hors des empreintes d'artefacts
+  protégés : adapter l'image est le cas normal d'un déploiement réel.
+- Éprouvé par `tests/test_deploiement.py` (9 tests) et par une construction
+  d'image réelle : conteneur refusant de démarrer sans secret, puis servant
+  inscription, connexion, création et lecture, secret absent de l'image.
+
 ## 0.9.0-beta.6 — Capacités métier et contrôle d'accès approfondi
 
 Cette version complète le noyau déclaratif avec les capacités ajoutées depuis

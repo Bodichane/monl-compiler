@@ -17,8 +17,115 @@ class RoutesMixin:
         """Assemble les familles de routes dans un ordre stable."""
         api_lines = ["# --- ENFORCEMENT DU CONTRÔLE D'ACCÈS PAR JWT ET PERSISTANCE ---"]
         api_lines.extend(self._generate_crud_and_action_route_lines())
+        api_lines.extend(self._generate_upload_route_lines())
         api_lines.extend(self._generate_payment_routes())
         api_lines.extend(self._generate_postpayment_routes())
+        return api_lines
+
+    def _upload_access_context(self, action, entity):
+        """ACL de la ligne pour le dépôt ou la relecture d'un Upload."""
+        plan = self.compilation_plans.route_map[(action, entity)]
+        context = self._route_access_context(plan)
+        access = context["access"]
+        dependencies = context["dependency_injection"]
+        lines = [context["security_check"]]
+        if access.party_fields:
+            dependencies += ", current_user_id: int = Depends(get_current_user_id)"
+            columns = ", ".join(f'"{column}"' for column in access.party_fields)
+            lines += [
+                "    _acl_conn = _connect(); _acl_cur = _acl_conn.cursor()",
+                f"    _acl_cur.execute('SELECT {columns} FROM \"{entity.lower()}\" WHERE id = ?', (id,))",
+                "    _acl_row = _acl_cur.fetchone(); _acl_conn.close()",
+                "    if not _acl_row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
+            ]
+            supervisors = sorted(access.supervisors)
+            if supervisors:
+                literal = ", ".join(repr(actor) for actor in supervisors)
+                lines += [
+                    f"    if current_actor not in {{{literal}}} and current_user_id not in _acl_row:",
+                    "        raise HTTPException(status_code=404, detail='Fichier introuvable')",
+                ]
+            else:
+                lines += [
+                    "    if current_user_id not in _acl_row:",
+                    "        raise HTTPException(status_code=404, detail='Fichier introuvable')",
+                ]
+        elif access.owner_entity:
+            check_actor, owner_select = self._owner_lookup_sql(
+                entity, access.owner_entity)
+            dependencies += ", current_user_id: int = Depends(get_current_user_id)"
+            lines += [
+                f"    if current_actor == {check_actor!r}:",
+                "        _acl_conn = _connect(); _acl_cur = _acl_conn.cursor()",
+                f"        _acl_cur.execute({owner_select.text!r}, {sql.params_tuple(owner_select)})",
+                "        _acl_row = _acl_cur.fetchone(); _acl_conn.close()",
+                "        if not _acl_row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
+                "        if _acl_row[0] != current_user_id:",
+                "            raise HTTPException(status_code=404, detail='Fichier introuvable')",
+            ]
+        else:
+            raise ValueError(
+                f"Génération : aucune ACL par ligne pour {entity}.{action} Upload")
+        return context, dependencies, lines
+
+    def _generate_upload_route_lines(self):
+        """Routes multipart et téléchargement privé des champs Upload."""
+        api_lines = []
+        for upload in self.upload_fields:
+            entity = upload["entity"]
+            field = upload["field"]
+            table = entity.lower()
+            path = f"/{table}/{{id}}/{field}"
+            _write_context, write_deps, write_acl = self._upload_access_context(
+                "Update", entity)
+            write_suffix = f", {write_deps}" if write_deps else ""
+            api_lines += [
+                f"@app.post({path!r}, tags=['Upload'])",
+                f"def upload_{table}_{field}(id: int, upload_file: UploadFile = File(..., alias={field!r}){write_suffix}):",
+                *write_acl,
+                "    _conn = _connect(); _cursor = _conn.cursor()",
+                f"    _cursor.execute('SELECT \"{field}\" FROM \"{table}\" WHERE id = ?', (id,))",
+                "    _row = _cursor.fetchone()",
+                "    if not _row:",
+                "        _conn.close()",
+                "        raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
+                "    _old_reference = _row[0]",
+                "    _new_reference = None",
+                "    try:",
+                f"        _new_reference, _byte_count, _actual_type = _save_upload(upload_file, {table!r}, id, {field!r}, {upload['max_bytes']}, {upload['accepted_types']!r})",
+                f"        _cursor.execute('UPDATE \"{table}\" SET \"{field}\" = ? WHERE id = ?', (_new_reference, id))",
+                "        _conn.commit()",
+                "    except Exception:",
+                "        _conn.rollback()",
+                "        _conn.close()",
+                "        if _new_reference:",
+                f"            _remove_upload({table!r}, id, {field!r}, _new_reference)",
+                "        raise",
+                "    _conn.close()",
+                "    if _old_reference:",
+                f"        _remove_upload({table!r}, id, {field!r}, _old_reference)",
+                "    return {'status': 'success', 'id': id, 'field': " + repr(field) + ", 'bytes': _byte_count, 'content_type': _actual_type}",
+                "",
+            ]
+
+            _read_context, read_deps, read_acl = self._upload_access_context(
+                "Read", entity)
+            read_suffix = f", {read_deps}" if read_deps else ""
+            api_lines += [
+                f"@app.get({path!r}, tags=['Upload'])",
+                f"def read_{table}_{field}(id: int{read_suffix}):",
+                *read_acl,
+                "    _conn = _connect(); _cursor = _conn.cursor()",
+                f"    _cursor.execute('SELECT \"{field}\" FROM \"{table}\" WHERE id = ?', (id,))",
+                "    _row = _cursor.fetchone(); _conn.close()",
+                "    if not _row or not _row[0]:",
+                "        raise HTTPException(status_code=404, detail='Fichier introuvable')",
+                f"    _file_path = _upload_path({table!r}, id, {field!r}, _row[0])",
+                "    if not _file_path or not os.path.isfile(_file_path):",
+                "        raise HTTPException(status_code=404, detail='Fichier introuvable')",
+                "    return FileResponse(_file_path, media_type='application/octet-stream', filename='download', headers={'X-Content-Type-Options': 'nosniff'})",
+                "",
+            ]
         return api_lines
 
     def _route_access_context(self, plan):
@@ -121,19 +228,9 @@ class RoutesMixin:
         # jamais incluse dans la requête INSERT — elle restait NULL pour
         # tout enregistrement créé, rendant les relations inertes au
         # runtime malgré leur présence dans le schéma.
-        owner_info = self._get_incoming_relation(base_target)
-        # AJOUT (roadmap, écosystème de capacités -- brique 3,
-        # généralisée en brique 4) : si cette relation entrante est la
-        # cible d'une règle 'decrements'/'increments' (ex. "je
-        # signale CE membre" ou "j'apprécie CE post"), ce n'est pas un
-        # motif "propriétaire = appelant courant" -- le client fournit
-        # explicitement la cible dans le corps de la requête (voir la
-        # génération du schéma Pydantic ci-dessus), donc on ne tente
-        # PAS de la peupler automatiquement depuis current_user_id.
         reputation_rules_here = self.reputation_rules_by_trigger.get(base_target, [])
-        is_reputation_fk = owner_info and any(
-            r["target_entity"] == owner_info["source"] for r in reputation_rules_here
-        )
+        counter_fk_columns = self._counter_fk_columns(base_target)
+        is_reputation_fk = bool(counter_fk_columns)
         # POINT 99 : la question « cette colonne se peuple-t-elle depuis
         # le jeton ? » a UNE réponse, `_identity_fk_columns`, et cette
         # ligne la lit au lieu de la recalculer. Les quatre conditions
@@ -159,13 +256,14 @@ class RoutesMixin:
         # incompatible avec 'public' (validé par ast_validator.py),
         # donc l'appelant est nécessairement authentifié ici.
         generated_here = self.generated_fields_by_entity.get(base_target, [])
+        message_here = self.message_rules_by_trigger.get(base_target)
         # AJOUT (brique 17, point 90) : la fiche que l'appelant doit
         # déjà posséder. Elle se cherche par son identifiant de COMPTE,
         # donc la route a besoin de `current_user_id` même quand rien
         # d'autre ne l'exigeait.
         fiche_exigee = self._profile_lookup(base_target)
         create_deps = dependency_injection
-        if populate_owner or verifie_parent or fiche_exigee:
+        if populate_owner or verifie_parent or fiche_exigee or message_here:
             create_deps += ", current_user_id: int = Depends(get_current_user_id)" if create_deps else "current_user_id: int = Depends(get_current_user_id)"
         if generated_here:
             create_deps += ", current_anon_handle: str = Depends(get_current_anon_handle)" if create_deps else "current_anon_handle: str = Depends(get_current_anon_handle)"
@@ -175,7 +273,10 @@ class RoutesMixin:
         api_lines.append(f"def create_{base_target.lower()}(data: {base_target}Schema{create_deps_suffix}):")
         api_lines.append(security_check)
         api_lines.append("    conn = _connect(); cursor = conn.cursor()")
-        fields = list(self.entities[base_target].keys())
+        fields = [
+            field for field, type_ in self.entities[base_target].items()
+            if type_ != "Upload"
+        ]
         insert_columns = list(fields)
         # AJOUT (brique 17, point 90) : « on ne commande pas sans être
         # identifié ». La vérification vient EN PREMIER, avant même le
@@ -318,9 +419,10 @@ class RoutesMixin:
         if populate_owner:
             insert_columns.append(colonne_identite)
             value_exprs.append("current_user_id")
-        elif is_reputation_fk:
-            insert_columns.append(owner_info["fk_column"])
-            value_exprs.append(f"data.{owner_info['fk_column']}")
+        if is_reputation_fk:
+            for counter_fk in counter_fk_columns:
+                insert_columns.append(counter_fk)
+                value_exprs.append(f"data.{counter_fk}")
         # Tout parent que le jeton ne désigne pas doit être désigné par
         # l'appelant. Trois cas y mènent : les parents SECONDAIRES d'une
         # entité possédée (un commentaire et son article) ; sous
@@ -335,7 +437,7 @@ class RoutesMixin:
             value_exprs.append(f"data.{_client_fk}")
         columns = ", ".join(f'"{c}"' for c in insert_columns)
         placeholders = ", ".join(["?"] * len(insert_columns))
-        api_lines.append(f"    query = 'INSERT INTO \"{base_target.lower()}\" ({columns}) VALUES ({placeholders})'")
+        api_lines.append(f"    query = 'INSERT INTO \"{base_target.lower()}\" ({columns}) VALUES ({placeholders}) RETURNING id'")
         values_list = ", ".join(value_exprs)
         # CORRECTIF (bêta, intégrité transactionnelle) : l'insertion et
         # les effets 'increments'/'decrements' liés sont exécutés dans
@@ -349,7 +451,7 @@ class RoutesMixin:
         api_lines.append("    try:")
         api_lines += lignes_numerotation
         api_lines.append(f"        cursor.execute(query, ({values_list},))")
-        api_lines.append("        row_id = cursor.lastrowid")
+        api_lines.append("        row_id = cursor.fetchone()[0]")
         # AJOUT (brique 12, point 82) : le total du parent est recalculé
         # DANS la même transaction que l'insertion de la ligne. Un commit
         # séparé pourrait laisser une ligne créée et un total resté en
@@ -373,8 +475,11 @@ class RoutesMixin:
             # a déjà connu ce défaut (« un mécanisme de clé étrangère qui
             # décrémentait le mauvais enregistrement ») : il est revenu
             # par la porte de la deuxième relation.
-            fk_vers_cible = (self._decrement_fk_column(base_target, rule)
-                             or owner_info["fk_column"])
+            fk_vers_cible = self._decrement_fk_column(base_target, rule)
+            if not fk_vers_cible:
+                raise ValueError(
+                    f"Génération : aucune clé étrangère de '{base_target}' ne désigne "
+                    f"'{rule['target_entity']}', alors que l'effet compteur l'exige.")
             fk_value_expr = f"data.{fk_vers_cible}"
             # BRIQUE 14 (point 86) : la quantité est soit une constante,
             # soit un champ du corps de requête ('by quantity').
@@ -432,33 +537,61 @@ class RoutesMixin:
         uniques_ici = self._unique_fields(base_target)
         once_ici = [index for index in self._compute_once_per_indexes()
                     if index[0] == base_target.lower()]
-        api_lines.append("    except sqlite3.IntegrityError as _err:")
+        # A1 : le classement passe par SQLSTATE côté PostgreSQL et par le
+        # message historique côté SQLite. TROIS branches nommées, puis un
+        # `raise` INCONDITIONNEL — sans lui, une intégrité violée d'une
+        # quatrième espèce (NOT NULL, CHECK, un index unique que la spec ne
+        # déclare pas) sort de l'`except` sans rien lever : la route continue
+        # jusqu'au `return {'status': 'success'}` APRÈS un rollback, et
+        # annonce comme écrit ce qui vient d'être défait. Mesuré : une
+        # référence `numbered` en double rendait 500 (UnboundLocalError sur
+        # `row_id`) au lieu d'un 409, et le cas où `row_id` est déjà lié
+        # aurait rendu un faux succès. Un `except` qui n'aboutit pas à un
+        # `raise` est un `except` qui ment.
+        once_names = tuple(index[2] for index in once_ici)
+        once_signatures = tuple(
+            f"{table}.{col}" for table, columns, _index in once_ici for col in columns)
+        api_lines.append("    except _DATABASE_INTEGRITY_ERRORS as _err:")
         api_lines.append("        conn.rollback(); conn.close()")
-        if uniques_ici or once_ici:
-            api_lines.append("        if 'UNIQUE constraint failed' in str(_err):")
-            for table, columns, _index in once_ici:
-                signature = ", ".join(f"{table}.{col}" for col in columns)
-                api_lines.append(f"            if {signature!r} in str(_err):")
-                api_lines.append("                raise HTTPException(status_code=409, detail=(")
-                api_lines.append(
-                    "                    'Cette action a déjà été effectuée pour cette "
-                    "cible par ce compte.'))")
+        api_lines.append(
+            f"        _integrity_kind = _database_integrity_kind(_err, {once_names!r}, "
+            f"{once_signatures!r})")
+        if once_ici:
+            api_lines.append("        if _integrity_kind == 'once_per':")
             api_lines.append("            raise HTTPException(status_code=409, detail=(")
-            if uniques_ici:
-                api_lines.append(
-                    f"                'Valeur déjà utilisée : {', '.join(uniques_ici)} "
-                    f"doit être unique.'))")
-            else:
-                api_lines.append(
-                    "                'Valeur déjà utilisée : cet enregistrement "
-                    "existe déjà.'))")
+            api_lines.append(
+                "                'Cette action a déjà été effectuée pour cette "
+                "cible par ce compte.'))")
+        # La branche `unique` est émise MÊME sans champ `unique` déclaré : la
+        # brique 22 (`numbered`) pose un index unique sans qu'on le déclare,
+        # et le point 85 en pose un par `unique`. Ne l'émettre que sur la
+        # seconde laissait la première sans réponse.
+        api_lines.append("        if _integrity_kind == 'unique':")
+        api_lines.append("            raise HTTPException(status_code=409, detail=(")
+        if uniques_ici:
+            api_lines.append(
+                f"                'Valeur déjà utilisée : {', '.join(uniques_ici)} "
+                f"doit être unique.'))")
+        else:
+            api_lines.append(
+                "                'Valeur déjà utilisée : cet enregistrement "
+                "existe déjà.'))")
+        api_lines.append("        if _integrity_kind == 'foreign_key':")
+        api_lines.append("            raise HTTPException(status_code=409, detail=(")
+        api_lines.append("                'Référence invalide : un identifiant lié fourni ne correspond à aucun '")
+        api_lines.append("                'enregistrement existant.'))")
         api_lines.append("        raise HTTPException(status_code=409, detail=(")
-        api_lines.append("            'Référence invalide : un identifiant lié fourni ne correspond à aucun '")
-        api_lines.append("            'enregistrement existant.'")
-        api_lines.append("        ))")
+        api_lines.append("            \"Conflit d'intégrité en base : l'écriture a été annulée, \"")
+        api_lines.append("            'rien n\\'a été enregistré.'))")
         api_lines.append("    except Exception:")
         api_lines.append("        conn.rollback(); conn.close(); raise")
         api_lines.append("    conn.close()")
+        if message_here:
+            # Le commit métier est terminé avant le lancement du thread. Une
+            # panne SMTP ne peut donc ni annuler la ligne ni transformer une
+            # route métier en route d'attente réseau.
+            api_lines.append(
+                f"    _declencher_message({base_target!r}, current_user_id, row_id)")
         api_lines.append("    return {'status': 'success', 'id': row_id}")
         api_lines.append("")
 
@@ -466,6 +599,13 @@ class RoutesMixin:
 
     def _generate_read_route_lines(self, plan, context, act_type):
         """Rend la famille de route ``Read``."""
+        # BRIQUE B3 : conserver le chemin historique byte pour byte quand la
+        # spec ne déclare aucune capacité de liste. La nouvelle émission est
+        # isolée ci-dessous afin que pagination et golden artifacts restent
+        # inchangés pour toutes les specs existantes.
+        if (self.filterable_fields_by_entity.get(context["base_target"])
+                or self.sortable_fields_by_entity.get(context["base_target"])):
+            return self._generate_read_route_lines_with_query(plan, context, act_type)
         api_lines = []
         base_target = context["base_target"]
         tag = context["tag"]
@@ -742,6 +882,307 @@ class RoutesMixin:
 
         return api_lines
 
+    def _list_query_annotation(self, entity, field):
+        """Type FastAPI du paramètre de filtre exact déclaré en spec."""
+        choices = self.enumerated_fields.get(entity, {}).get(field)
+        if choices:
+            return "Optional[Literal[{}]]".format(
+                ", ".join(repr(value) for value in choices))
+        type_map = {
+            "Integer": "int", "Float": "float", "Money": "float",
+            "Boolean": "bool",
+        }
+        return f"Optional[{type_map.get(self.entities[entity][field], 'str')}]"
+
+    def _generate_read_route_lines_with_query(self, plan, context, act_type):
+        """Liste avec filtres exacts et tri whitelisté (brique B3).
+
+        Cette voie est conditionnelle. Elle compose toujours le WHERE d'ACL
+        avant d'y ajouter les égalités de filtre. Les fragments de colonne et
+        de direction sont produits par ``generator.sql`` au moment de la
+        compilation ; à l'exécution le client ne choisit qu'une clé déjà
+        présente dans les dictionnaires générés.
+        """
+        api_lines = []
+        base_target = context["base_target"]
+        tag = context["tag"]
+        access = context["access"]
+        is_public = context["is_public"]
+        security_check = context["security_check"]
+        dep_suffix = context["dep_suffix"]
+        filter_fields = self.filterable_fields_by_entity.get(base_target, [])
+        sort_fields = self.sortable_fields_by_entity.get(base_target, [])
+        table = base_target.lower()
+
+        masked = self.hidden_fields_by_entity.get(base_target, [])
+        mask_literal = ", ".join(repr(field) for field in masked)
+        categorized_here = self.categorized_fields_by_entity.get(base_target, [])
+        public_condition = access.public_condition
+        condition_fragment = None
+        condition_supervisors, condition_owner_columns = (
+            self._condition_exemptions(base_target))
+        apply_condition_identity = bool(
+            condition_supervisors or condition_owner_columns)
+        if public_condition:
+            condition_fragment = sql.cat(
+                sql.ident(public_condition["field"]), sql.kw(" = "),
+                sql.bind(repr(public_condition["value"])))
+
+        read_parties = access.party_fields
+        apply_read_parties = bool(read_parties) and not is_public
+        read_supers = access.supervisors
+        apply_read_super = bool(read_supers) and apply_read_parties
+        read_dep_suffix = dep_suffix
+        if apply_condition_identity:
+            read_dep_suffix += ", _ident: dict = Depends(get_optional_identity)"
+        if apply_read_parties:
+            read_dep_suffix += ", current_user_id: int = Depends(get_current_user_id)"
+
+        read_owner = access.owner_entity
+        apply_read_owner = bool(read_owner) and not is_public and not apply_read_parties
+        chain = self._transitive_chain(base_target) if apply_read_owner else None
+        read_actor = None
+        owner_where = None
+        if apply_read_owner:
+            if chain:
+                read_actor = chain["actor"]
+                owner_where = self._chain_read_where(
+                    base_target, sql.bind("current_user_id"))
+            else:
+                read_actor = read_owner
+                owner_where = sql.cat(
+                    sql.kw(" WHERE "),
+                    sql.ident(f"{read_owner.lower()}_id"),
+                    sql.kw(" = "), sql.bind("current_user_id"))
+            if condition_fragment:
+                owner_where = sql.cat(owner_where, sql.kw(" AND "), condition_fragment)
+            if ", current_user_id" not in read_dep_suffix:
+                read_dep_suffix += ", current_user_id: int = Depends(get_current_user_id)"
+
+        filter_fragments = {}
+        for field in filter_fields:
+            # La valeur est le nom de la variable Python générée pour ce champ;
+            # sql.bind refuse toute autre porte d'entrée.
+            fragment = sql.cat(sql.ident(field), sql.kw(" = "), sql.bind(field))
+            filter_fragments[field] = fragment
+
+        list_params = ["limit: int = 50", "offset: int = 0"]
+        list_params.extend(
+            f"{field}: {self._list_query_annotation(base_target, field)} = None"
+            for field in filter_fields)
+        if sort_fields:
+            list_params.extend(["sort: Optional[str] = None",
+                                "direction: str = 'asc'"])
+        if read_dep_suffix:
+            list_params.append(read_dep_suffix.lstrip(", "))
+        api_lines += [
+            f"@app.get('/{table}', tags=['{tag}'])",
+            f"def list_{table}({', '.join(list_params)}):",
+            security_check,
+            "    limit = max(1, min(limit, 200))",
+            "    offset = max(0, offset)",
+        ]
+
+        if apply_read_owner:
+            api_lines += [
+                "    _base_where, _base_params = '', ()",
+                f"    if current_actor == {read_actor!r}:",
+                f"        _base_where = {owner_where.text!r}",
+                f"        _base_params = {sql.params_tuple(owner_where)}",
+            ]
+        elif apply_read_super:
+            # `sql.cat` n'est pas un builder de listes : construire ce fragment
+            # explicitement garde chaque colonne issue de la spec sous ident().
+            party_parts = [sql.kw(" WHERE (")]
+            for index, column in enumerate(read_parties):
+                if index:
+                    party_parts.append(sql.kw(" OR "))
+                party_parts.extend([
+                    sql.ident(column), sql.kw(" = "), sql.bind("current_user_id")])
+            party_parts.append(sql.kw(")"))
+            parties = sql.cat(*party_parts)
+            supers = ", ".join(repr(actor) for actor in sorted(read_supers))
+            api_lines += [
+                "    _base_where, _base_params = '', ()",
+                f"    if current_actor not in {{{supers}}}:",
+                f"        _base_where = {parties.text!r}",
+                f"        _base_params = {sql.params_tuple(parties)}",
+            ]
+        elif apply_condition_identity:
+            base_where = sql.cat(sql.kw(" WHERE "), condition_fragment)
+            api_lines += [
+                f"    _base_where = {base_where.text!r}",
+                f"    _base_params = {sql.params_tuple(base_where)}",
+            ]
+            if condition_owner_columns:
+                owner_parts = [sql.kw(" WHERE ("), condition_fragment]
+                for column in condition_owner_columns:
+                    owner_parts.extend([
+                        sql.kw(" OR "), sql.ident(column), sql.kw(" = "),
+                        sql.bind("_ident.get('user_id')")])
+                owner_parts.append(sql.kw(")"))
+                owner_condition = sql.cat(*owner_parts)
+                api_lines += [
+                    "    if _ident.get('user_id'):",
+                    f"        _base_where = {owner_condition.text!r}",
+                    f"        _base_params = {sql.params_tuple(owner_condition)}",
+                ]
+            if condition_supervisors:
+                supervisors = ", ".join(repr(actor)
+                                         for actor in sorted(condition_supervisors))
+                api_lines += [
+                    f"    if _ident.get('actor') in {{{supervisors}}}:",
+                    "        _base_where, _base_params = '', ()",
+                ]
+        elif apply_read_parties:
+            party_parts = [sql.kw(" WHERE (")]
+            for index, column in enumerate(read_parties):
+                if index:
+                    party_parts.append(sql.kw(" OR "))
+                party_parts.extend([
+                    sql.ident(column), sql.kw(" = "), sql.bind("current_user_id")])
+            party_parts.append(sql.kw(")"))
+            parties = sql.cat(*party_parts)
+            api_lines += [
+                f"    _base_where = {parties.text!r}",
+                f"    _base_params = {sql.params_tuple(parties)}",
+            ]
+        else:
+            api_lines += ["    _base_where, _base_params = '', ()"]
+
+        api_lines += [
+            "    _filter_parts, _filter_params = [], []",
+        ]
+        for field in filter_fields:
+            fragment = filter_fragments[field]
+            api_lines += [
+                f"    if {field} is not None:",
+                f"        _filter_parts.append({fragment.text!r})",
+                f"        _filter_params.append({field})",
+            ]
+        api_lines += [
+            "    if _filter_parts:",
+            "        _filter_where = ' AND '.join(_filter_parts)",
+            "        if _base_where:",
+            "            _query_where = _base_where + ' AND ' + _filter_where",
+            "            _query_params = _base_params + tuple(_filter_params)",
+            "        else:",
+            "            _query_where = ' WHERE ' + _filter_where",
+            "            _query_params = tuple(_filter_params)",
+            "    else:",
+            "        _query_where, _query_params = _base_where, _base_params",
+        ]
+        if sort_fields:
+            columns = ", ".join(
+                f"{field!r}: {sql.ident(field).text!r}" for field in sort_fields)
+            directions = ", ".join(
+                f"{direction!r}: {sql.kw(direction.upper()).text!r}"
+                for direction in ("asc", "desc"))
+            api_lines += [
+                f"    _sort_columns = {{{columns}}}",
+                f"    _sort_directions = {{{directions}}}",
+                "    _order_by = ''",
+                "    if sort is not None:",
+                "        _sort_column = _sort_columns.get(sort)",
+                "        if _sort_column is None:",
+                "            raise HTTPException(status_code=422, detail='Colonne de tri non déclarée')",
+                "        _sort_direction = _sort_directions.get(direction.lower())",
+                "        if _sort_direction is None:",
+                "            raise HTTPException(status_code=422, detail=\"Sens de tri attendu : asc ou desc\")",
+                "        _order_by = ' ORDER BY ' + _sort_column + ' ' + _sort_direction",
+            ]
+        else:
+            api_lines.append("    _order_by = ''")
+        api_lines += [
+            "    conn = _connect(); cursor = conn.cursor()",
+            f"    cursor.execute('SELECT COUNT(*) FROM \"{table}\"' + _query_where, _query_params)",
+            "    total = cursor.fetchone()[0]",
+            f"    cursor.execute('SELECT * FROM \"{table}\"' + _query_where + _order_by + ' LIMIT ? OFFSET ?', _query_params + (limit, offset))",
+            "    rows = cursor.fetchall()",
+            "    _columns = [d[0] for d in cursor.description]  # ordre réel en base (robuste aux migrations)",
+            "    conn.close()",
+            "    named_rows = [dict(zip(_columns, row)) for row in rows]",
+        ]
+        row_loop_lines = []
+        if masked:
+            row_loop_lines.append(f"        for _f in [{mask_literal}]: _r.pop(_f, None)")
+        for cf in categorized_here:
+            row_loop_lines.extend(self._emit_categorization_lines(cf, "_r", "        "))
+        if row_loop_lines:
+            api_lines += ["    for _r in named_rows:", *row_loop_lines]
+        api_lines += [
+            "    return {'status': 'success', 'total': total, 'limit': limit, 'offset': offset, 'data': named_rows}",
+            "",
+            f"@app.get('/{table}/{{id}}', tags=['{tag}'])",
+            f"def read_{table}(id: int{read_dep_suffix}):",
+            security_check,
+            "    conn = _connect(); cursor = conn.cursor()",
+            f"    cursor.execute('SELECT * FROM \"{table}\" WHERE id = ?', (id,))",
+            "    row = cursor.fetchone()",
+            "    _columns = [d[0] for d in cursor.description]  # ordre réel en base (robuste aux migrations)",
+            "    conn.close()",
+            "    if not row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
+            "    named_row = dict(zip(_columns, row))",
+        ]
+        if public_condition:
+            guard = (f"    if named_row.get({public_condition['field']!r}) != "
+                     f"{public_condition['value']!r}")
+            if apply_condition_identity:
+                exemptions = []
+                if condition_supervisors:
+                    supervisors = ", ".join(repr(actor)
+                                             for actor in sorted(condition_supervisors))
+                    exemptions.append(f"_ident.get('actor') in {{{supervisors}}}")
+                exemptions.extend(
+                    f"(_ident.get('user_id') and named_row.get({column!r}) == _ident.get('user_id'))"
+                    for column in condition_owner_columns)
+                guard += " and not (" + " or ".join(exemptions) + ")"
+            api_lines.append(
+                guard + ": raise HTTPException(status_code=404, detail='Enregistrement introuvable')")
+        if apply_read_owner:
+            if chain:
+                owner_query = self._chain_owner_scalar(
+                    base_target, sql.bind(f"named_row.get('{chain['via_fk']}')"))
+                sql_literal, params_literal = sql.execute_args(owner_query, prefix="SELECT ")
+                api_lines += [
+                    f"    if current_actor == {read_actor!r}:",
+                    "        _tc = _connect(); _tcur = _tc.cursor()",
+                    f"        _tcur.execute({sql_literal}, {params_literal})",
+                    "        _tr = _tcur.fetchone(); _tc.close()",
+                    "        if not _tr or _tr[0] is None or _tr[0] != current_user_id:",
+                    "            raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
+                ]
+            else:
+                api_lines += [
+                    f"    if current_actor == {read_actor!r} and named_row.get('{read_owner.lower()}_id') != current_user_id:",
+                    "        raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
+                ]
+        if apply_read_parties:
+            parties_tuple = ", ".join(f"named_row.get('{column}')"
+                                       for column in read_parties)
+            if apply_read_super:
+                supervisors = ", ".join(repr(actor)
+                                         for actor in sorted(read_supers))
+                api_lines += [
+                    f"    if current_actor not in {{{supervisors}}}:",
+                    f"        if current_user_id not in ({parties_tuple},):",
+                    "            raise HTTPException(status_code=403, detail=\"Contrôle d'accès : seules les parties de la ressource peuvent la consulter\")",
+                ]
+            else:
+                api_lines += [
+                    f"    if current_user_id not in ({parties_tuple},):",
+                    "        raise HTTPException(status_code=403, detail=\"Contrôle d'accès : seules les parties de la ressource peuvent la consulter\")",
+                ]
+        if masked:
+            api_lines.append(f"    for _f in [{mask_literal}]: named_row.pop(_f, None)")
+        for cf in categorized_here:
+            api_lines.extend(self._emit_categorization_lines(cf, "named_row", "    "))
+        api_lines += [
+            "    return {'status': 'success', 'data': named_row}",
+            "",
+        ]
+        return api_lines
+
     def _generate_update_route_lines(self, plan, context, act_type):
         """Rend la famille de route ``Update``."""
         api_lines = []
@@ -918,7 +1359,8 @@ class RoutesMixin:
         ecrits = [f for f in fields
                   if f not in generated_upd and f not in sommes_upd
                   and f not in horodates_upd
-                  and f not in postpaiement_upd]
+                  and f not in postpaiement_upd
+                  and self.entities[base_target][f] != "Upload"]
         # POINT 85 : les écritures sont rassemblées AVANT d'être émises,
         # pour pouvoir les envelopper d'un try quand l'entité porte un
         # 'unique'. C'est SQLite qui lève à l'`execute`, pas au `commit` —
@@ -1083,7 +1525,7 @@ class RoutesMixin:
             api_lines.append("    try:")
             api_lines += [f"        {ligne}" for ligne in lignes_ecriture]
             api_lines.append("        conn.commit()")
-            api_lines.append("    except sqlite3.IntegrityError:")
+            api_lines.append("    except _DATABASE_INTEGRITY_ERRORS:")
             api_lines.append("        conn.rollback(); conn.close()")
             api_lines.append("        raise HTTPException(status_code=409, detail=(")
             api_lines.append(
@@ -1269,6 +1711,14 @@ class RoutesMixin:
                             else str(rule["amount"])),
                 "fk_index": 1 if champ else 0,
             })
+        upload_refs = []
+        for upload in self.upload_fields_by_entity.get(base_target, []):
+            ref_var = f"_upload_ref_{upload['field']}"
+            api_lines += [
+                f"    cursor.execute('SELECT \"{upload['field']}\" FROM \"{base_target.lower()}\" WHERE id = ?', (id,))",
+                f"    {ref_var} = cursor.fetchone()",
+            ]
+            upload_refs.append((upload, ref_var))
         api_lines.append("    try:")
         api_lines.append(f"        cursor.execute('DELETE FROM \"{base_target.lower()}\" WHERE id = ?', (id,))")
         for recalcul in recalculs_del:
@@ -1286,13 +1736,18 @@ class RoutesMixin:
                 f"WHERE id = ?', ({rendu['montant']}, {var}[{rendu['fk_index']}]))",
             ]
         api_lines.append("        conn.commit()")
-        api_lines.append("    except sqlite3.IntegrityError:")
+        api_lines.append("    except _DATABASE_INTEGRITY_ERRORS:")
         api_lines.append("        conn.rollback(); conn.close()")
         api_lines.append("        raise HTTPException(status_code=409, detail=(")
         api_lines.append("            \"Suppression impossible : cet enregistrement est encore référencé \"")
         api_lines.append("            'par des données liées. Supprimez-les d\\'abord.'")
         api_lines.append("        ))")
         api_lines.append("    conn.close()")
+        for upload, ref_var in upload_refs:
+            api_lines += [
+                f"    if {ref_var} and {ref_var}[0]:",
+                f"        _remove_upload({base_target.lower()!r}, id, {upload['field']!r}, {ref_var}[0])",
+            ]
         api_lines.append("    return {'status': 'success', 'id': id}")
         api_lines.append("")
 
