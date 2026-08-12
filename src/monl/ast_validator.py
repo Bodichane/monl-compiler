@@ -211,6 +211,19 @@ class MonlAST:
     # une spec qui ne dit rien compile exactement comme avant.
     FORMES_IDENTIFIANT = ("email", "phone", "libre")
 
+    # BRIQUE B3 : ce sont les seuls types dont une égalité ou un tri a une
+    # sémantique de donnée ordinaire. `Image` reste un chemin d'asset, et
+    # `Upload` une référence de fichier : ni l'un ni l'autre ne devient un
+    # critère d'énumération par accident.
+    LIST_QUERY_TYPES = (
+        "String", "Text", "Integer", "Float", "Boolean", "Date", "DateTime",
+        "Email", "UUID", "Money",
+    )
+    LIST_QUERY_RESERVED = {"limit", "offset", "sort", "direction"}
+    LIST_QUERY_SECRET_PARTS = (
+        "password", "passwd", "secret", "token", "apikey", "api_key",
+    )
+
     def _valider_identifiant_de_compte(self, capacites):
         """Formes acceptées par '/register', déclarées sur 'capability auth'.
 
@@ -1446,6 +1459,115 @@ class MonlAST:
                 )
             self.enumerated_fields.setdefault(entity, {})[field] = list(values)
 
+    def _valider_capacites_de_liste(self):
+        """Valide les filtres et tris déclarés, sans ouvrir un langage de requête.
+
+        BRIQUE B3. La route ne reçoit ni opérateur, ni expression, ni champ
+        libre : chaque paramètre de filtre et chaque colonne de tri sont
+        nommés dans la spec. Les champs retirés ou transformés en lecture sont
+        refusés ici, car un filtre exact permettrait d'en déduire la valeur par
+        différence de compte (oracle), même si la réponse ne contient jamais
+        le champ.
+        """
+        self.filterable_fields = []
+        self.sortable_fields = []
+        seen_filters = set()
+        seen_sorts = set()
+        has_read = {
+            action["target"].split(".", 1)[0]
+            for workflow in self.workflows
+            for action in workflow["actions"]
+            if action["type"] == "Read"
+        }
+
+        def reference_parts(rule, kind):
+            reference = rule["reference"]
+            if "." not in reference:
+                raise ASTValidationError(
+                    f"Structure : la règle '{kind}' doit référencer "
+                    f"'Entite.Read', reçu '{reference}'."
+                )
+            entity, action = reference.split(".", 1)
+            if entity not in self.entities:
+                raise ASTValidationError(
+                    f"Structure : la règle '{kind}' cible l'entité "
+                    f"'{entity}' qui n'existe pas."
+                )
+            if action != "Read":
+                raise ASTValidationError(
+                    f"Structure : '{kind}' ne vaut que sur une route Read "
+                    f"(reçu '{reference}')."
+                )
+            if entity not in has_read:
+                raise ASTValidationError(
+                    f"Structure : '{reference}' n'a aucune route de lecture "
+                    f"dans les workflows."
+                )
+            field = rule.get("field")
+            if field not in self.entities[entity]:
+                raise ASTValidationError(
+                    f"Structure : '{kind}' cible le champ '{entity}.{field}', "
+                    "qui n'est pas un attribut déclaré."
+                )
+            if field in self.LIST_QUERY_RESERVED:
+                raise ASTValidationError(
+                    f"Structure : le champ '{entity}.{field}' ne peut pas être "
+                    f"{kind} : son nom est réservé aux paramètres de liste "
+                    "(limit, offset, sort, direction)."
+                )
+            return entity, field
+
+        def refuser_oracle(entity, field, kind):
+            type_champ = self.entities[entity][field]
+            if (entity, field) in self.masked_fields:
+                raison = "hidden : le compter révélerait une valeur masquée"
+            elif any(item["entity"] == entity and item["field"] == field
+                     for item in self.categorized_fields):
+                raison = "categorized : le compter révélerait le nombre remplacé par un libellé"
+            elif type_champ == "Upload":
+                raison = "Upload : le compter révélerait l'existence d'un fichier"
+            else:
+                compact = field.lower().replace("-", "_")
+                if any(part in compact for part in self.LIST_QUERY_SECRET_PARTS):
+                    raison = "nom de secret : le compter révélerait une donnée sensible"
+                else:
+                    return type_champ
+            raise ASTValidationError(
+                f"Sécurité : '{entity}.{field}' ne peut pas être {kind} : "
+                f"{raison}. Un filtre ou un tri est un oracle ; déclarer un "
+                "champ visible et non transformé."
+            )
+
+        for rule in self.rules:
+            kind = rule["type"]
+            if kind not in ("filter", "sort"):
+                continue
+            entity, field = reference_parts(rule, kind)
+            type_champ = refuser_oracle(entity, field, kind)
+            if type_champ not in self.LIST_QUERY_TYPES:
+                raise ASTValidationError(
+                    f"Structure : '{kind}' ne peut viser que les champs scalaires "
+                    f"déclarés ({', '.join(self.LIST_QUERY_TYPES)}), reçu "
+                    f"'{entity}.{field}: {type_champ}'."
+                )
+            cible = (entity, field)
+            if kind == "filter":
+                if cible in seen_filters:
+                    raise ASTValidationError(
+                        f"Structure : plusieurs règles 'filter' sur "
+                        f"'{entity}.{field}' -- une seule déclaration suffit."
+                    )
+                seen_filters.add(cible)
+                self.filterable_fields.append({"entity": entity, "field": field})
+            else:
+                if cible in seen_sorts:
+                    raise ASTValidationError(
+                        f"Structure : plusieurs règles 'sort' sur "
+                        f"'{entity}.{field}' -- une seule déclaration suffit."
+                    )
+                seen_sorts.add(cible)
+                self.sortable_fields.append({"entity": entity, "field": field})
+
     def _valider_champs_derives(self):
         """Valide les champs numériques calculés depuis une ligne liée."""
         self.derived_fields = []
@@ -2340,6 +2462,12 @@ class MonlAST:
                 "auth_phone_prefix": self.auth_phone_prefix,
                 # BRIQUE 19 (point 96) : {Entite: {champ: [valeurs]}}.
                 "enumerated_fields": self.enumerated_fields,
+                # BRIQUE B3 : capacités de liste déclarées une par une. Ces
+                # listes sont la whitelist de compilation consommée par le
+                # générateur ; le client ne peut donc ni inventer une colonne
+                # ni un opérateur.
+                "filterable_fields": self.filterable_fields,
+                "sortable_fields": self.sortable_fields,
                 # BRIQUE 20 (point 98) : [{entity, field, value, releases}] —
                 # atteindre la valeur rend ce que les enfants ont consommé.
                 "release_rules": self.release_rules,

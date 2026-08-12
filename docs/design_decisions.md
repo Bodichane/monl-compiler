@@ -39,6 +39,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [120](#120-les-migrations-non-additives-sont-nommées-et-refusent-le-démarrage) Migrations non additives nommées ·
 [121](#121-le-fichier-déposé-par-le-client-est-un-upload-pas-une-image) Le fichier déposé par le client est un `Upload`, pas une `Image`
 [122](#122-monl-sait-envoyer-un-message-sans-promettre-sa-remise) Envoi de message sans promettre sa remise ·
+[123](#123-filtrer-et-trier-sans-inventer-un-langage-de-requête) Filtrer et trier sans inventer un langage de requête ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -7841,3 +7842,99 @@ deux chiffres comptent autant que les codes : une route qui attendrait
 l'expiration d'un SMTP mort mettrait plusieurs secondes, et une brique
 d'envoi rendrait alors l'application inutilisable le jour où le fournisseur
 tombe. Le smoke test reste vert hors ligne, sans erreur ni alerte.
+
+## 123. Filtrer et trier sans inventer un langage de requête
+
+La brique B3 retient deux déclarations séparées et aucune recherche textuelle :
+
+    rule Order.Read filter status
+    rule Order.Read filter shipped
+    rule Order.Read sort placedAt
+
+Un filtre est une égalité exacte sur un champ déclaré. Les champs texte libres
+restent possibles si l'auteur les déclare, mais monl ne fournit ni LIKE, ni
+recherche insensible à la casse, ni tokenisation : ce serait à la fois plus
+cher et divergent entre SQLite et PostgreSQL. Une valeur de oneOf apparaît
+dans le contrat comme liste de choix ; un booléen y apparaît comme true/false.
+Les autres champs scalaires acceptent leur valeur typée exacte. Plusieurs
+filtres se combinent par AND, sans opérateur que le client choisit.
+
+Un tri accepte sort parmi les colonnes déclarées et direction=asc|desc. La
+colonne vient d'une whitelist calculée à la compilation et est rendue par
+sql.ident(). Les deux directions sont des mots SQL fixes produits par
+sql.kw(). Les valeurs de filtre passent par sql.bind(). Une valeur client ne
+peut donc entrer dans le texte SQL, et le tri ne peut pas devenir une
+expression.
+
+Le filtre est ajouté au WHERE d'accès déjà présent : propriété directe ou
+transitive, accessibleBy, superviseur et publicWhen gardent leur sémantique.
+Une liste filtrée est donc toujours un sous-ensemble de la liste non filtrée
+pour le même compte. Un champ hidden, categorized ou Upload est refusé à la
+compilation : compter les réponses permettrait de retrouver respectivement
+une valeur masquée, le nombre remplacé par une catégorie, ou l'existence d'un
+fichier. Les noms explicitement évocateurs d'un secret (password, secret,
+token, api_key) sont refusés par la même garde. Le DSL n'a pas de type Secret ;
+si ce type apparaît un jour, il devra rejoindre cette liste avant d'être
+filtrable ou triable.
+
+Le contrat frontend indique les champs concernés, le paramètre exact, les
+valeurs permises et la whitelist de tri. _contract_signature inclut ce bloc :
+ajouter ou modifier une capacité réécrit donc le frontend, même si aucune
+route ni aucun champ ne change. Le smoke test lit ce contrat et appelle les
+routes de liste avec une requête conforme, comme tout autre client.
+
+La forme n'ajoute pas de syntaxe aux blocs seed ou assets : leurs lecteurs
+textuels restent inchangés. Elle ne change pas la signature des listes
+historiques, où limit et offset gardent leurs bornes. Pour une spec qui ne
+déclare ni filter ni sort, app.py reste inchangé à l'octet.
+
+Le compilateur ne crée pas d'index automatiquement. Un filtre sans index peut
+faire un balayage complet ; la cardinalité et la charge réelle appartiennent
+au projet, et monl ne promet aucune performance qu'il n'a pas mesurée.
+L'auteur peut choisir une stratégie d'indexation adaptée à sa base. Les tris
+textuels suivent la collation du moteur ; les dates ISO UTC produites par
+timestamp restent ordonnables comme du texte. La brique ne fait pas de
+recherche textuelle, donc elle ne promet pas un comportement de casse entre
+SQLite et PostgreSQL.
+
+La sortie générée est conditionnelle, et les invariants de l'émission SQL
+restent ceux des points 108 et 109. Le vérificateur est concerné dès que les
+paramètres apparaissent dans une route ; les tests contre serveur couvrent
+SQLite et PostgreSQL, sans exécuter deux suites en parallèle.
+
+### Ce que la revue a mesuré, et pourquoi le filtre est borné DEUX fois
+
+Quatorze contrôles contre un vrai serveur. Les deux qui décident de la brique :
+
+**Une valeur de filtre n'atteint jamais le SQL si elle n'est pas déjà légale.**
+Le paramètre est typé `Optional[Literal['nouvelle', 'expediee', 'annulee']]`,
+c'est-à-dire borné par le `oneOf` de la brique 19 : `' OR 1=1 --`, `%`, et une
+valeur de 6000 caractères rendent 422 AVANT toute requête. Le `sql.bind()`
+derrière est la seconde barrière, pas la première. Deux bornes valent mieux
+qu'une parce qu'elles ne tombent pas ensemble : la première dit ce qui est
+légal, la seconde dit que rien n'est interprété.
+
+**Le tri ne concatène rien.** La chaîne du client sert de CLÉ dans un
+dictionnaire construit à la compilation (`{'placeeLe': '"placeeLe"'}`), et
+une clé absente rend 422. Un nom de colonne ne peut pas être lié par `?` :
+la seule façon sûre de le choisir est donc de ne jamais le lire, mais de
+l'élire dans une liste close. `id"; DROP TABLE commande;--` et
+`ASC; DROP TABLE commande` rendent 422 ; la table a toujours ses cinq lignes.
+
+**Le filtre s'AJOUTE à la propriété.** Avec deux comptes, la liste filtrée du
+second ne montre que sa propre ligne. Le `WHERE` d'accès reste la base, le
+filtre est joint par `AND` — l'inverse aurait fait d'un paramètre d'URL une
+façon de lire les lignes d'autrui.
+
+**Les cinq refus de compilation sont ceux qui manquaient.** Filtrer ou trier
+sur un champ `hidden` ou `categorized` est refusé, et le message porte le
+raisonnement : *« un filtre ou un tri est un oracle »*. Compter les lignes qui
+reviennent pour chaque valeur essayée lit un champ que la brique 2 retire de
+toutes les réponses, et retrouve le nombre exact que la brique 5 remplace
+volontairement par un libellé. C'est une fuite qui ne passe par aucune
+réponse : elle passe par le TOTAL.
+
+Ce que la brique ne fait PAS, et l'assume : aucune recherche textuelle
+(`LIKE`, casse, opérateurs), aucun index créé automatiquement, aucune promesse
+de performance sur une colonne non indexée. La ligne rouge de CLAUDE.md tient :
+rien de ce qui est filtrable n'est choisi par le client, tout est déclaré.

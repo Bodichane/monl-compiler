@@ -312,6 +312,22 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
                 "categorized_in_reads": policy.categorized_in_reads,
                 "postpayment_only": policy.postpayment_only,
             }
+            # BRIQUE B3 : seules les déclarations de la spec apparaissent.
+            # L'absence de ces clés signifie « non filtrable/triable » ; cela
+            # garde le contrat des specs historiques inchangé à l'octet.
+            if fname in plans.filterable_fields.get(ent, ()):
+                valeurs_filtre = (list(policy.allowed_values)
+                                   if policy.allowed_values else None)
+                if ftype == "Boolean":
+                    valeurs_filtre = ["true", "false"]
+                champ["filterable"] = True
+                champ["filter"] = {
+                    "parameter": fname,
+                    "kind": "exact",
+                    "allowed_values": valeurs_filtre,
+                }
+            if fname in plans.sortable_fields.get(ent, ()):
+                champ["sortable"] = True
             if policy.upload_rule:
                 # BRIQUE B1 : le champ est une entrée multipart dédiée, pas
                 # une valeur JSON et pas un asset Image. Le contrat expose la
@@ -530,11 +546,15 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
             # taillerait une vue vide — alors que le backend lui montre tout.
             _sup_lecture = sorted(access.supervisors)
             _note_lecture = _note_superviseurs(_sup_lecture, "lecture")
-            routes.append(_route("GET", f"/{low}", "List", base, is_public, actors,
-                                 note=_joindre(
-                                     "Paramètres : limit (max 200), offset. Réponse : "
-                                     "{status, total, limit, offset, data: [...]}.",
-                                     _note_lecture)))
+            list_query = _list_query_contract(plans, base)
+            routes.append(_route(
+                "GET", f"/{low}", "List", base, is_public, actors,
+                note=_joindre(
+                    "Paramètres : limit (max 200), offset. Réponse : "
+                    "{status, total, limit, offset, data: [...]}.",
+                    _note_list_query(list_query), _note_lecture)))
+            if list_query:
+                routes[-1]["list_query"] = list_query
             routes.append(_route("GET", f"/{low}/{{id}}", "Read", base, is_public, actors,
                                  note=_note_lecture))
             if _sup_lecture:
@@ -938,6 +958,58 @@ def _route(method, path, action, entity, is_public, actors, request_fields=None,
     if note:
         r["note"] = note
     return r
+
+
+def _list_query_contract(plans: CompilationPlans, entity):
+    """Contrat explicite des capacités de liste déclarées pour une entité."""
+    model = plans.entity_models[entity]
+    filters = []
+    for field in plans.filterable_fields.get(entity, ()):
+        policy = model.fields[field]
+        values = list(policy.allowed_values) if policy.allowed_values else None
+        if policy.type == "Boolean":
+            values = ["true", "false"]
+        filters.append({
+            "field": field,
+            "parameter": field,
+            "kind": "exact",
+            "allowed_values": values,
+        })
+    sort_fields = list(plans.sortable_fields.get(entity, ()))
+    result = {}
+    if filters:
+        result["filters"] = filters
+    if sort_fields:
+        result["sort"] = {
+            "parameter": "sort",
+            "direction_parameter": "direction",
+            "fields": sort_fields,
+            "directions": ["asc", "desc"],
+        }
+    return result
+
+
+def _note_list_query(query):
+    """Texte court transmis à l'IA frontend avec le contrat JSON."""
+    if not query:
+        return None
+    notes = []
+    if query.get("filters"):
+        filtres = []
+        for item in query["filters"]:
+            valeurs = item["allowed_values"]
+            suffixe = (" parmi " + ", ".join(repr(v) for v in valeurs)
+                       if valeurs is not None else " une valeur exacte du type du champ")
+            filtres.append(f"paramètre {item['parameter']}{suffixe}")
+        notes.append("FILTRAGE exact, seulement sur les champs déclarés : "
+                     + "; ".join(filtres))
+    if query.get("sort"):
+        tri = query["sort"]
+        notes.append("TRI : paramètre sort parmi "
+                     + ", ".join(tri["fields"])
+                     + ", avec direction=asc ou direction=desc. Aucun autre "
+                     "champ, opérateur ou langage de recherche n'est accepté.")
+    return " ".join(notes)
 
 
 def _client_supplied_fks(plans: CompilationPlans, entity):

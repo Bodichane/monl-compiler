@@ -804,6 +804,16 @@ def _contract_signature(contract):
         contenus[f"message sortant de {reference}"] = hashlib.sha256(
             json.dumps(message, sort_keys=True, ensure_ascii=False).encode("utf-8")
         ).hexdigest()
+    # BRIQUE B3 : un filtre ou un tri ajoute un travail frontend même si les
+    # routes et les champs portent les mêmes noms. Le digest porte la whitelist,
+    # les valeurs finies et les deux sens de tri ; une modification de cette
+    # capacité doit donc déclencher le delta de contrat.
+    for route in contract.get("routes") or []:
+        query = route.get("list_query")
+        if query:
+            contenus[f"capacités de liste de {route['method']} {route['path']}"] = hashlib.sha256(
+                json.dumps(query, sort_keys=True, ensure_ascii=False).encode("utf-8")
+            ).hexdigest()
     # POINT 99 : huitième ensemble, et la question posée AVANT d'écrire le code
     # pour la deuxième fois seulement. Une clé étrangère ne vit pas dans
     # `fields` — le delta ne pouvait donc rien dire quand elle change de NATURE.

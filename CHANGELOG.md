@@ -47,6 +47,28 @@
   Communauté livraient une modération à sens unique, le modérateur perdant de vue
   ce qu'il venait de masquer.
 
+### Filtrer et trier côté serveur, sans langage de requête (point 123)
+
+- `rule Entite.Read filter <champ>` et `rule Entite.Read sort <champ>`. Ce qui
+  est filtrable ou triable est DÉCLARÉ ; le client ne choisit ni le champ, ni
+  l'opérateur, ni l'expression. La ligne rouge de `CLAUDE.md` tient.
+- **Un filtre est un oracle** : filtrer ou trier sur un champ `hidden` ou
+  `categorized` est refusé à la compilation. Compter les lignes qui reviennent
+  pour chaque valeur lit un champ que la brique 2 retire de toutes les
+  réponses, et retrouve le nombre exact que la brique 5 remplace par un
+  libellé — une fuite qui passe par le TOTAL, pas par une réponse.
+- **Deux bornes qui ne tombent pas ensemble** : la valeur de filtre est typée
+  par le `Literal` du `oneOf` (422 avant toute requête), puis liée par
+  `sql.bind()`. Le nom de colonne de tri est élu dans un dictionnaire construit
+  à la compilation — jamais concaténé —, le sens est du SQL fixe.
+- **Le filtre s'AJOUTE au contrôle d'accès, il ne le remplace pas** : avec deux
+  comptes, la liste filtrée de l'un ne montre jamais une ligne de l'autre.
+- `limit`/`offset` sont inchangés ; une spec sans filtre ni tri produit des
+  artefacts identiques à l'octet, et les tests de la frontière SQL (point 108)
+  restent verts sans avoir été assouplis.
+- Ce que la brique n'offre PAS et le dit : aucune recherche textuelle, aucun
+  index automatique, aucune promesse de performance sur colonne non indexée.
+
 ### monl sait envoyer un message (point 122)
 
 - La capacité NOMMÉE comme préalable depuis le point 95 : `rule Entite.Create

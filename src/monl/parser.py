@@ -38,7 +38,7 @@ grammar = r"""
     # rule["type"] ne valait jamais "restrictedTo", et l'audit de sécurité associé
     # dans ast_validator.py ne se déclenchait donc jamais. Même classe de bug que
     # celui déjà corrigé sur le bloc "custom" en v3.
-    ?rule: constraint_rule | restriction_rule | postpayment_rule | sharing_rule | ownership_rule | access_rule | visibility_rule | conditional_visibility_rule | uniqueness_rule | masking_rule | decrement_rule | increment_rule | categorization_rule | generation_rule | payable_rule | derivation_rule | aggregation_rule | timestamp_rule | numbering_rule | requirement_rule | oneof_rule | release_rule | upload_rule | send_rule
+    ?rule: constraint_rule | restriction_rule | postpayment_rule | sharing_rule | ownership_rule | access_rule | visibility_rule | conditional_visibility_rule | uniqueness_rule | masking_rule | decrement_rule | increment_rule | categorization_rule | generation_rule | payable_rule | derivation_rule | aggregation_rule | timestamp_rule | numbering_rule | requirement_rule | oneof_rule | release_rule | upload_rule | send_rule | filter_rule | sort_rule
 
     constraint_rule: "rule" REFERENCE VALIDATION_TYPE _NL
                    | "rule" REFERENCE VALIDATION_TYPE INT _NL
@@ -71,6 +71,15 @@ grammar = r"""
     # multiligne ici ferait traverser à nouveau la frontière d'indentation.
     #   rule Order.Create sends "Commande reçue" "Votre commande¶est prise en compte"
     send_rule: "rule" REFERENCE "sends" STRING_LITERAL STRING_LITERAL _NL
+    # BRIQUE B3 : capacités de lecture explicites, sans langage de requête.
+    # Chaque champ est déclaré séparément ; le client ne choisit jamais un
+    # opérateur ni une expression. Ex. :
+    #   rule Order.Read filter status
+    #   rule Order.Read sort placedAt
+    # La direction est une des deux valeurs fixes de la route (asc/desc), pas
+    # un fragment SQL envoyé par le client.
+    filter_rule: "rule" REFERENCE "filter" NAME _NL
+    sort_rule: "rule" REFERENCE "sort" NAME _NL
     restriction_rule: "rule" REFERENCE "restrictedTo" NAME _NL
     postpayment_rule: "rule" REFERENCE "writableAfterPayment" NAME _NL
     sharing_rule: "rule" REFERENCE "sharedBy" NAME ("," NAME)* _NL
@@ -489,6 +498,14 @@ class MonlTransformer(Transformer):
             "reference": str(reference), "type": "sends",
             "subject": decode(subject), "body": decode(body),
         }}
+
+    def filter_rule(self, reference, field):
+        return {"rule": {"reference": str(reference), "type": "filter",
+                          "field": str(field)}}
+
+    def sort_rule(self, reference, field):
+        return {"rule": {"reference": str(reference), "type": "sort",
+                          "field": str(field)}}
 
     def restriction_rule(self, reference, actor_name):
         return {"rule": {"reference": str(reference), "type": "restrictedTo", "value": str(actor_name)}}

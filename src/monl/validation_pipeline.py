@@ -35,6 +35,8 @@ class ValidationContext(Protocol):
 
     def _valider_champs_enumeres(self) -> None: ...
 
+    def _valider_capacites_de_liste(self) -> None: ...
+
     def _valider_requires_own_et_payable(self) -> None: ...
 
     def _valider_champs_derives(self) -> None: ...
@@ -196,6 +198,23 @@ class EnumeratedFieldValidationPass:
 
     def run(self, context: ValidationContext) -> list[str]:
         context._valider_champs_enumeres()
+        return []
+
+
+@dataclass(frozen=True, slots=True)
+class ListQueryCapabilityValidationPass:
+    """Valide les filtres exacts et tris déclarés sur les listes."""
+
+    name: str = "list_query_capabilities"
+
+    def run(self, context: ValidationContext) -> list[str]:
+        # La pipeline est aussi exercée par des faux contextes de tests et par
+        # des intégrations historiques. Une nouvelle passe optionnelle ne doit
+        # pas rendre ces contextes incapables de vérifier l'ordre des passes
+        # qu'ils connaissaient déjà.
+        validation = getattr(context, "_valider_capacites_de_liste", None)
+        if validation is not None:
+            validation()
         return []
 
 
@@ -409,6 +428,7 @@ DEFAULT_VALIDATION_PIPELINE = ValidationPipeline((
     TimestampFieldValidationPass(),
     NumberedFieldValidationPass(),
     EnumeratedFieldValidationPass(),
+    ListQueryCapabilityValidationPass(),
     CreationPaymentPrerequisitePass(),
     DerivedFieldValidationPass(),
     AggregatedFieldValidationPass(),

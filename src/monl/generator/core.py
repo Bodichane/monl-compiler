@@ -243,6 +243,15 @@ class MonlSecureGenerator(
         # état parmi quelques-uns, pas du texte libre.
         self.enumerated_fields = (normalized_ast.get("security", {})
                                   .get("enumerated_fields") or {})
+        # BRIQUE B3 : whitelists de compilation pour les paramètres des listes.
+        # Les routes et le contrat lisent la même analyse, afin qu'un champ
+        # annoncé filtrable/triable soit exactement celui que le backend accepte.
+        self.filterable_fields_by_entity = {}
+        for item in normalized_ast["security"].get("filterable_fields", []):
+            self.filterable_fields_by_entity.setdefault(item["entity"], []).append(item["field"])
+        self.sortable_fields_by_entity = {}
+        for item in normalized_ast["security"].get("sortable_fields", []):
+            self.sortable_fields_by_entity.setdefault(item["entity"], []).append(item["field"])
         # BRIQUE 20 (point 98) : {Entite: [règle]} — atteindre une valeur rend
         # ce que les enfants ont décompté. Indexé par l'entité PORTEUSE du
         # champ, qui est celle dont la route Update déclenche la libération.
@@ -1314,6 +1323,14 @@ class MonlSecureGenerator(
             message_rules_by_trigger={
                 entity: dict(rule)
                 for entity, rule in self.message_rules_by_trigger.items()
+            },
+            filterable_fields={
+                entity: tuple(fields)
+                for entity, fields in self.filterable_fields_by_entity.items()
+            },
+            sortable_fields={
+                entity: tuple(fields)
+                for entity, fields in self.sortable_fields_by_entity.items()
             },
         )
 

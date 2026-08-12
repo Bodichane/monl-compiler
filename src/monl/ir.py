@@ -67,6 +67,8 @@ class SecurityIR(TypedDict):
     auth_identifier: list[str] | None
     auth_phone_prefix: str | None
     enumerated_fields: dict[str, dict[str, list[str]]]
+    filterable_fields: list[dict[str, Any]]
+    sortable_fields: list[dict[str, Any]]
     release_rules: list[dict[str, Any]]
     upload_fields: list[dict[str, Any]]
     message_rules: list[dict[str, Any]]
@@ -233,6 +235,8 @@ class CompilationPlans:
     once_per_rules: tuple[Mapping[str, Any], ...]
     upload_fields: tuple[Mapping[str, Any], ...]
     message_rules_by_trigger: Mapping[str, Mapping[str, Any]]
+    filterable_fields: Mapping[str, tuple[str, ...]]
+    sortable_fields: Mapping[str, tuple[str, ...]]
 
 
 @dataclass(frozen=True, slots=True)
