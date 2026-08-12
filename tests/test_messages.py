@@ -107,19 +107,56 @@ def faux_smtp():
 
 
 class _RunningServer:
+    """Serveur uvicorn dont la sortie est lisible PENDANT qu'il tourne.
+
+    L'envoi de message est DÉTACHÉ de la route (point 122) : c'est tout
+    l'intérêt de la brique, la route rend 200 en quelques millisecondes même
+    SMTP mort. Mais la trace d'échec, elle, arrive après — et lire la sortie
+    seulement à l'arrêt du processus revenait à parier que le fil d'envoi a été
+    ordonnancé entre-temps. Sur un runner chargé, ce pari se perd : la CI a
+    échoué sur `[MONL_MESSAGE]` absent alors que le serveur était sain.
+
+    Un fil lecteur accumule donc la sortie au fil de l'eau, et `attendre()`
+    laisse un délai franc au lieu d'un `sleep` calibré à la main. Même reproche
+    qu'à la bêta 4 et au point 124 : un test ne doit pas dépendre de la charge
+    de la machine."""
+
     def __init__(self, process, base):
         self.process = process
         self.base = base
-        self.output = ""
+        self._morceaux = []
+        self._lecteur = threading.Thread(target=self._lire, daemon=True)
+        self._lecteur.start()
+
+    def _lire(self):
+        for ligne in self.process.stdout:
+            self._morceaux.append(ligne)
+
+    @property
+    def output(self):
+        return "".join(self._morceaux)
+
+    def attendre(self, motif, delai=15.0):
+        """Attend que `motif` apparaisse dans la sortie, et le rend visible
+        dans le message d'échec s'il n'arrive jamais."""
+        limite = time.monotonic() + delai
+        while time.monotonic() < limite:
+            if motif in self.output:
+                return True
+            time.sleep(0.05)
+        raise AssertionError(
+            f"{motif!r} absent de la sortie du serveur après {delai:.0f} s :\n"
+            f"{self.output[-3000:]}")
 
     def stop(self):
         if self.process.poll() is None:
             self.process.terminate()
         try:
-            self.output, _ = self.process.communicate(timeout=10)
+            self.process.wait(timeout=10)
         except subprocess.TimeoutExpired:
             self.process.kill()
-            self.output, _ = self.process.communicate()
+            self.process.wait(timeout=5)
+        self._lecteur.join(timeout=5)
 
 
 @contextlib.contextmanager
@@ -138,8 +175,9 @@ def _uvicorn_with_output(directory, env):
     try:
         for _ in range(100):
             if process.poll() is not None:
-                output, _ = process.communicate()
-                pytest.fail(f"serveur arrêté au démarrage : {output[-3000:]}")
+                time.sleep(0.2)  # laisse le fil lecteur vider le tube
+                pytest.fail(
+                    f"serveur arrêté au démarrage : {running.output[-3000:]}")
             try:
                 response = requests.get(running.base + "/health", timeout=1)
                 if response.status_code == 200:
@@ -367,10 +405,9 @@ def test_le_destinataire_crlf_n_est_jamais_envoye(database_kind, faux_smtp,
             timeout=10,
         )
         assert response.status_code == 200, response.text
-        time.sleep(0.4)
-        assert not faux_smtp.messages
         assert requests.get(f"{server.base}/health", timeout=10).status_code == 200
-    assert "[MONL_MESSAGE]" in server.output
+        server.attendre("[MONL_MESSAGE]")
+        assert not faux_smtp.messages
 
 
 def test_smtp_injoignable_ne_defait_pas_la_route_et_nomme_la_variable(
@@ -390,7 +427,7 @@ def test_smtp_injoignable_ne_defait_pas_la_route_et_nomme_la_variable(
         assert response.status_code == 200, response.text
         assert elapsed < 2, f"la route attend le SMTP ({elapsed:.3f}s)"
         assert requests.get(f"{server.base}/health", timeout=10).status_code == 200
-    assert "[MONL_MESSAGE]" in server.output
+        server.attendre("[MONL_MESSAGE]")
 
 
 def test_variable_smtp_absente_est_nommee(database_kind, faux_smtp, tmp_path):
@@ -405,7 +442,7 @@ def test_variable_smtp_absente_est_nommee(database_kind, faux_smtp, tmp_path):
             timeout=10,
         )
         assert response.status_code == 200, response.text
-    assert "MONL_SMTP_HOST" in server.output
+        server.attendre("MONL_SMTP_HOST")
 
 
 def test_contrat_et_delta_voient_un_message(tmp_path, capsys):
