@@ -74,7 +74,10 @@ def _assign_field_roles(fields):
     point 35 : média, titre, description, prix, catégorie, puis méta (3 au
     plus). Les champs `hidden` n'en reçoivent aucun — ils ne sont jamais
     rendus, leur donner un rôle inviterait l'IA à les afficher."""
-    visibles = [f for f in fields if not f["hidden_in_reads"]]
+    # Un Upload n'est pas un média fourni par l'auteur et ne se rend pas comme
+    # un champ de lecture JSON : ses routes multipart sont décrites à part.
+    visibles = [f for f in fields
+                if not f["hidden_in_reads"] and f["type"] != "Upload"]
     roles = {}
 
     # AJOUT (brique 13, point 83) : le type DÉCLARÉ prime sur la devinette par
@@ -299,7 +302,7 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
                 # récoltait un 422. Vu en vrai : ajouter `email` et `address` à
                 # une fiche client a cassé le formulaire d'un site en marche,
                 # alors que le contrat les annonçait facultatifs.
-                "required": not peuple_par_le_serveur,
+                "required": not peuple_par_le_serveur and not policy.upload_rule,
                 # hidden : jamais présent dans les réponses de lecture
                 "hidden_in_reads": policy.hidden_in_reads,
                 # generated, derivedFrom ou sumOf : à NE PAS envoyer, le serveur
@@ -309,6 +312,21 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
                 "categorized_in_reads": policy.categorized_in_reads,
                 "postpayment_only": policy.postpayment_only,
             }
+            if policy.upload_rule:
+                # BRIQUE B1 : le champ est une entrée multipart dédiée, pas
+                # une valeur JSON et pas un asset Image. Le contrat expose la
+                # limite, les types, le nom exact du champ et les deux routes
+                # ajoutées plus bas ; l'IA frontend n'a rien à deviner.
+                champ["upload"] = {
+                    "field_name": fname,
+                    "max_bytes": policy.upload_rule["max_bytes"],
+                    "accepted_types": list(policy.upload_rule["accepted_types"]),
+                    "storage": "server_disk_reference",
+                    "note": ("octets reçus à l'exécution ; le nom de fichier et le "
+                             "Content-Type client sont ignorés, le type est établi "
+                             "par signature d'octets ; lecture privée selon l'ACL de "
+                             "la ligne, en téléchargement octet/octet"),
+                }
             # BRIQUE 19 (point 96) : les valeurs permises. Sans elles, l'IA
             # dessine un champ TEXTE et l'utilisateur invente un statut qui
             # récolte un 422 — alors que la liste tient dans un menu déroulant.
@@ -576,6 +594,38 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
             tag = plan.tags[0]
             routes.append(_route("POST", f"/workflow/{tag.lower()}/{target.lower()}",
                                  "Execute", target, is_public, actors))
+
+    # BRIQUE B1 : ces routes ne sont pas des CRUD JSON. Elles sont produites
+    # par une déclaration Upload et doivent donc être décrites séparément dans
+    # le contrat : nom multipart, limite explicite, types réellement reconnus,
+    # dépôt POST et lecture GET privée.
+    for upload in plans.upload_fields:
+        entite = upload["entity"]
+        champ = upload["field"]
+        chemin = f"/{entite.lower()}/{{id}}/{champ}"
+        for action, method, contract_action, note in (
+                ("Update", "POST", "Upload", (
+                    f"multipart/form-data obligatoire, champ de fichier '{champ}'. "
+                    f"Limite exacte : {upload['max_bytes']} octets. Types acceptés "
+                    f"par signature d'octets : {', '.join(upload['accepted_types'])}. "
+                    "Le nom de fichier et le Content-Type déclarés par le client "
+                    "sont ignorés ; le dépôt remplace l'ancien fichier après "
+                    "validation.")),
+                ("Read", "GET", "Download", (
+                    "réponse octet/octet en téléchargement avec Content-Type "
+                    "application/octet-stream et nosniff ; l'ACL de la ligne "
+                    "s'applique aussi au fichier, un chemin connu ne suffit pas.")),
+        ):
+            access = plans.access_policies[(entite, action)]
+            route = _route(method, chemin, contract_action, entite, False,
+                           sorted(access.actors), note=note)
+            route["upload"] = {
+                "field_name": champ,
+                "max_bytes": upload["max_bytes"],
+                "accepted_types": list(upload["accepted_types"]),
+                "storage": "server_disk_reference",
+            }
+            routes.append(route)
 
     # BRIQUE PAIEMENT (point 74). Ces deux routes ne sortent PAS de
     # route_map — elles ne naissent pas d'un workflow mais d'une règle
@@ -887,7 +937,8 @@ def _creatable_fields(entity_spec):
     if not entity_spec:
         return []
     return ([f["name"] for f in entity_spec["fields"]
-             if not f["server_generated"] and not f.get("postpayment_only")]
+             if not f["server_generated"] and not f.get("postpayment_only")
+             and not f.get("upload")]
             + list(entity_spec.get("client_foreign_keys", [])))
 
 
@@ -933,6 +984,11 @@ def _render_prompt(contract):
         # pouvait pas les deviner, et le serveur répondait 422 (point 57).
         corps = (f" — corps : `{{{', '.join(r['request_fields'])}}}`"
                  if r.get("request_fields") else "")
+        if r.get("upload"):
+            upload = r["upload"]
+            corps = (f" — multipart/form-data, champ fichier `{upload['field_name']}`, "
+                     f"{upload['max_bytes']} octets maximum, types : "
+                     f"{', '.join(upload['accepted_types'])}")
         # Point 74 : les notes de route existaient dans le contrat JSON mais
         # n'atteignaient PAS le brief — or c'est le brief que l'IA lit. La
         # forme de la réponse paginée y manquait depuis toujours, et la
@@ -962,6 +1018,12 @@ def _render_prompt(contract):
                 marks.append("généré serveur — NE PAS envoyer")
             if f.get("postpayment_only"):
                 marks.append("modifiable uniquement via la route après paiement")
+            if f.get("upload"):
+                upload = f["upload"]
+                marks.append(
+                    f"Upload multipart via POST/GET sur le champ `{upload['field_name']}`, "
+                    f"{upload['max_bytes']} octets maximum ; types : "
+                    f"{', '.join(upload['accepted_types'])}. Ne pas l'envoyer en JSON.")
             if f["categorized_in_reads"]:
                 marks.append("lu comme libellé de catégorie")
             # BRIQUE 19 (point 96) : l'IA lit le brief, pas le JSON. Y écrire la

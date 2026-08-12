@@ -19,6 +19,7 @@ demo/app.db
 app.py
 schema.sql
 app.db
+.monl_uploads/
 manage.py
 sandbox_ai.py
 /.jwt_secret

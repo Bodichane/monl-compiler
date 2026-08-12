@@ -8,6 +8,90 @@ lors du découpage en package — voir docs/design_decisions.md.
 
 
 class RuntimeMixin:
+    def _generate_upload_runtime_lines(self):
+        """Socle disque des Uploads, émis uniquement quand la spec en porte.
+
+        Le nom du client et son ``Content-Type`` ne servent jamais à choisir
+        le chemin ou le type. Le fichier est écrit dans un temporaire sous la
+        racine dédiée, contrôlé par signature d'octets, puis renommé vers une
+        référence hexadécimale aléatoire.
+        """
+        return [
+            "# --- STOCKAGE DES UPLOADS CLIENTS (hors frontend et artefacts) ---",
+            "UPLOADS_ROOT = os.path.abspath(os.environ.get('MONL_UPLOADS_DIR') or '.monl_uploads')",
+            "_UPLOAD_SIGNATURES = {",
+            "    'image/png': (b'\\x89PNG\\r\\n\\x1a\\n',),",
+            "    'image/jpeg': (b'\\xff\\xd8\\xff',),",
+            "    'image/gif': (b'GIF87a', b'GIF89a'),",
+            "    'image/webp': (b'RIFF',),",
+            "    'application/pdf': (b'%PDF-',),",
+            "}",
+            "def _detect_upload_type(prefix):",
+            "    if prefix.startswith(b'RIFF') and prefix[8:12] == b'WEBP':",
+            "        return 'image/webp'",
+            "    for _mime, _signatures in _UPLOAD_SIGNATURES.items():",
+            "        if any(prefix.startswith(_signature) for _signature in _signatures):",
+            "            return _mime",
+            "    return None",
+            "",
+            "def _upload_path(table, row_id, field, reference):",
+            "    if not isinstance(reference, str) or not re.fullmatch(r'[0-9a-f]{64}', reference):",
+            "        return None",
+            "    _root = os.path.abspath(UPLOADS_ROOT)",
+            "    _path = os.path.abspath(os.path.join(_root, table, str(row_id), field, reference))",
+            "    try:",
+            "        if os.path.commonpath((_root, _path)) != _root:",
+            "            return None",
+            "    except ValueError:",
+            "        return None",
+            "    return _path",
+            "",
+            "def _remove_upload(table, row_id, field, reference):",
+            "    _path = _upload_path(table, row_id, field, reference)",
+            "    if not _path or not os.path.isfile(_path):",
+            "        return True",
+            "    try:",
+            "        os.unlink(_path)",
+            "        return True",
+            "    except OSError as _error:",
+            "        print(f'⚠️ Upload non supprimé après suppression de la ligne : {_error}')",
+            "        return False",
+            "",
+            "def _save_upload(upload_file, table, row_id, field, max_bytes, accepted_types):",
+            "    _reference = secrets.token_hex(32)",
+            "    _directory = os.path.join(UPLOADS_ROOT, table, str(row_id), field)",
+            "    os.makedirs(_directory, mode=0o700, exist_ok=True)",
+            "    _final = _upload_path(table, row_id, field, _reference)",
+            "    _temporary = _final + '.part'",
+            "    _written = 0",
+            "    _prefix = b''",
+            "    try:",
+            "        with open(_temporary, 'wb') as _output:",
+            "            while True:",
+            "                _chunk = upload_file.file.read(1024 * 1024)",
+            "                if not _chunk:",
+            "                    break",
+            "                if _written + len(_chunk) > max_bytes:",
+            "                    raise HTTPException(status_code=413, detail=f'Fichier trop gros : {max_bytes} octets maximum.')",
+            "                if len(_prefix) < 64:",
+            "                    _prefix += _chunk[:64 - len(_prefix)]",
+            "                _output.write(_chunk)",
+            "                _written += len(_chunk)",
+            "        _actual_type = _detect_upload_type(_prefix)",
+            "        if _actual_type not in accepted_types:",
+            "            raise HTTPException(status_code=415, detail='Type de fichier interdit : signature d\\'octets non autorisée.')",
+            "        os.replace(_temporary, _final)",
+            "        return _reference, _written, _actual_type",
+            "    except Exception:",
+            "        try:",
+            "            if os.path.exists(_temporary):",
+            "                os.unlink(_temporary)",
+            "        except OSError:",
+            "            pass",
+            "        raise",
+            "",
+        ]
+
     def _cors_methods(self):
         """Méthodes réellement émises par l'application générée."""
         methods = {"GET", "POST"}  # racine, santé et authentification
@@ -462,7 +546,7 @@ class RuntimeMixin:
         self_register_literal = ", ".join(f'"{a}"' for a in self.self_register_actors)
         api_lines = [
             "# API Déterministe Sécurisée par défaut - Ne pas modifier à la main",
-            "from fastapi import FastAPI, HTTPException, Header, Depends, Request",
+            f"from fastapi import FastAPI, HTTPException, Header, Depends, Request{', UploadFile, File' if self.upload_fields else ''}",
             "from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials",
             "from pydantic import BaseModel, Field",
             # BRIQUE 19 (point 96) : 'Literal' porte les listes de valeurs
@@ -1099,7 +1183,7 @@ class RuntimeMixin:
             # auto-générée par FastAPI — le seul front que monl fournit
             # encore (pivot, point 41) : l'interface réelle vient de l'IA
             # frontend, servie sur '/site' par 'monl run' (wrapper serve.py).
-            "from fastapi.responses import RedirectResponse\n",
+            f"from fastapi.responses import RedirectResponse{', FileResponse' if self.upload_fields else ''}\n",
             "@app.get('/', include_in_schema=False)",
             "async def root():",
             "    return RedirectResponse(url='/docs')\n",
@@ -1109,6 +1193,9 @@ class RuntimeMixin:
         api_lines = (api_lines[:legacy_db_start]
                      + self._generate_database_runtime_lines()
                      + api_lines[legacy_db_end + 1:])
+
+        if self.upload_fields:
+            api_lines += self._generate_upload_runtime_lines()
 
         api_lines += [
 

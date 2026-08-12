@@ -47,6 +47,25 @@
   Communauté livraient une modération à sens unique, le modérateur perdant de vue
   ce qu'il venait de masquer.
 
+### L'utilisateur final peut déposer un fichier (point 121)
+
+- **`Upload` n'est pas `Image`.** La brique 13 désigne ce que l'AUTEUR fournit
+  à la compilation et que le compilateur vérifie présent ; `Upload` désigne des
+  octets que le CLIENT envoie à l'exécution, dont le compilateur ne sait rien.
+  Les fusionner ferait vérifier l'existence d'un fichier avant son envoi.
+- `rule Entite.champ upload max <octets> types "…", "…"` — limite et types sont
+  OBLIGATOIRES : deviner un plafond serait deviner faux.
+- **Le type est établi par signature d'octets**, jamais par le nom ni le
+  `Content-Type` du client, et le nom du client n'est jamais un chemin. HTML et
+  SVG sont refusés ; la lecture répond en `application/octet-stream` avec
+  `nosniff` et `Content-Disposition: attachment` — un fichier déposé ne doit
+  jamais pouvoir s'exécuter en même origine.
+- **L'ACL porte sur le FICHIER, pas seulement sur la ligne** : connaître la
+  référence ne suffit pas, un tiers reçoit 404. C'est la leçon du point 116.
+- Les octets vivent hors de `frontend/` (que `monl frontend` renomme en
+  silence), hors des artefacts scellés, ignorés par git et par Docker.
+- Une spec sans dépôt produit des artefacts identiques à l'octet.
+
 ### Les migrations non additives sont nommées, appliquées à la main, réversibles (point 120)
 
 - **Le moteur ne devine plus rien.** Un renommage était vu comme une

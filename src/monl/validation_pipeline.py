@@ -51,6 +51,8 @@ class ValidationContext(Protocol):
 
     def _valider_workflows_et_collisions(self) -> None: ...
 
+    def _valider_champs_uploades(self) -> None: ...
+
     def _valider_ui_overrides(self) -> None: ...
 
     def _valider_landing(self) -> None: ...
@@ -280,6 +282,12 @@ class WorkflowCollisionValidationPass:
 
     def run(self, context: ValidationContext) -> list[str]:
         context._valider_workflows_et_collisions()
+        # B1 partage la frontière "workflows puis validations dépendantes".
+        # Le getattr garde la compatibilité avec les contextes de test et les
+        # intégrations historiques qui implémentent encore l'ancien protocole.
+        upload_validation = getattr(context, "_valider_champs_uploades", None)
+        if upload_validation is not None:
+            upload_validation()
         return []
 
 

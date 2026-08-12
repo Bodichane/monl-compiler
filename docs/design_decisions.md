@@ -36,7 +36,8 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [117](#117-la-colonne-du-compteur-avait-deux-sources-et-lordre-des-relations-tranchait) La colonne du compteur avait deux sources, et l'ordre des relations tranchait ·
 [118](#118-le-backend-savait-tout-faire-sauf-se-déployer) Le backend savait tout faire sauf se déployer ·
 [119](#119-la-couche-données-choisit-son-dialecte-au-démarrage) La couche données choisit son dialecte au démarrage ·
-[120](#120-les-migrations-non-additives-sont-nommées-et-refusent-le-démarrage) Migrations non additives nommées
+[120](#120-les-migrations-non-additives-sont-nommées-et-refusent-le-démarrage) Migrations non additives nommées ·
+[121](#121-le-fichier-déposé-par-le-client-est-un-upload-pas-une-image) Le fichier déposé par le client est un `Upload`, pas une `Image`
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -7673,3 +7674,79 @@ antislash y est consommé une fois (`\\n` pour produire `\n`). Les deux erreurs
 ont été faites, et **aucune des deux n'était visible dans le diff** : la
 première faisait échouer la génération, la seconde produisait un `manage.py`
 au `SyntaxError`. Seule la recompilation réelle les a montrées.
+
+---
+
+## 121. Le fichier déposé par le client est un `Upload`, pas une `Image`
+
+`Image` et `Upload` ne fusionnent pas. `Image` est un chemin relatif vers un
+asset fourni par l'auteur avant la compilation : le compilateur en vérifie la
+présence, `assets_tool.py` le liste, et `monl frontend` le laisse hors de
+`frontend/`. `Upload` est au contraire une déclaration d'octets qui
+n'existent qu'à l'exécution ; lui appliquer le validateur d'assets refuserait
+un fichier avant même que le client ne l'ait envoyé. `content_tool.py` et
+`assets_tool.py` ignorent donc explicitement `Upload` au lieu d'en faire un
+seed ou un média éditorial.
+
+La plus petite forme retenue est celle qui produit effectivement les trois
+contraintes indispensables et les routes :
+
+```
+avatar: Upload
+rule Profile.avatar upload max 5242880 types "image/png", "image/jpeg"
+```
+
+Il n'y a ni option de confort ni plafond implicite : la limite est en octets
+et les MIME sont obligatoires. Le compilateur ne fait aucun appel réseau. Au
+runtime, le type est établi par signature d'octets (magic number), jamais par
+le nom ou le `Content-Type` du client. La liste actuellement sûre est PNG,
+JPEG, GIF, WebP et PDF ; HTML et SVG sont refusés. La lecture renvoie toujours
+`application/octet-stream`, `Content-Disposition: attachment` et `nosniff`,
+afin qu'un fichier déposé ne puisse pas devenir un HTML ou un SVG exécutable
+depuis la même origine.
+
+La colonne SQL contient uniquement une référence hexadécimale aléatoire. Les
+octets sont écrits sous `.monl_uploads/<entite>/<id>/<champ>/<reference>`, ou
+dans `MONL_UPLOADS_DIR`, qui doit être un volume dédié. Ce dossier est hors de
+`frontend/`, hors des artefacts scellés, ajouté au `.dockerignore` et ignoré
+par git. C'est nécessaire parce que `monl frontend` renomme `frontend/` en
+`frontend.precedent/` : y placer le dépôt ferait disparaître les fichiers sans
+message. Le nom fourni par le client n'est jamais un chemin.
+
+La protection porte sur le fichier autant que sur la ligne : une déclaration
+Upload exige Read et Update non publics et une règle `ownedBy` ou
+`accessibleBy` sur chacun. Les routes multipart et de lecture réutilisent
+l'ACL de la ligne et renvoient `404` à un tiers ; connaître la référence ne
+suffit pas. Le dépôt remplace l'ancien fichier après commit. La suppression
+de la ligne supprime le fichier après commit ; il n'y a pas de ramasse-miettes
+inventé. Une erreur de suppression physique est seulement signalée, et le
+fichier reste inaccessible faute de ligne et d'URL statique.
+
+Le contrat frontend donne le nom du champ multipart, la limite, les types, la
+route POST et la route GET. `_contract_signature` inclut le digest de ces
+contraintes : changer la limite ou les types déclenche le delta, y compris
+pour un champ déjà présent. Le smoke test garde ces valeurs en dur comme un
+client quelconque. La génération est conditionnelle : une spec sans Upload
+ne change pas `app.py`, et les deux moteurs SQLite/PostgreSQL n'écrivent que
+la même colonne de référence.
+
+### Ce que la revue a mesuré, et qui n'était pas dans les tests
+
+Trois angles éprouvés en plus contre un vrai serveur, parce qu'ils décident de
+la solidité de la brique plutôt que de sa fonction :
+
+**Un type hors liste blanche mais parfaitement bénin** — un GIF sur une
+déclaration `"image/png", "application/pdf"` — est refusé en 415. Sans ce
+contrôle, la brique n'aurait interdit que HTML et SVG, c'est-à-dire seulement
+ce à quoi on avait pensé.
+
+**Trente mébioctets envoyés contre une limite de 2048 octets** rendent 413 en
+0,07 seconde, avec 11 Mo de mémoire crête, et le serveur reste vivant. C'est la
+question qui compte vraiment sur un téléversement : un plafond qui n'est
+appliqué qu'APRÈS avoir lu le corps entier n'est pas un plafond, c'est un
+déni de service en une ligne de `curl`.
+
+**Un nom de fichier hostile** (`../../../../tmp/EVASION.png`) est accepté sans
+broncher — et n'écrit rien hors de la zone de dépôt, parce que le nom du client
+n'est jamais un chemin. Refuser le nom aurait été un contrôle de plus à tenir
+juste ; ne jamais s'en servir est un contrôle de moins à tenir.

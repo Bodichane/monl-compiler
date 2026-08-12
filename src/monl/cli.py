@@ -135,17 +135,36 @@ frontend.precedent/
 """
 
 
-def _ensure_container_artifacts(staging_dir):
+def _ensure_container_artifacts(staging_dir, uploads=False):
     """Émet les gabarits de conteneur sans écraser ceux de l'auteur."""
+    dockerfile = DEFAULT_DOCKERFILE
+    dockerignore = DEFAULT_DOCKERIGNORE
+    if uploads:
+        dockerfile = dockerfile.replace(
+            "    'PyJWT>=2.8,<3.0'\n",
+            "    'PyJWT>=2.8,<3.0' " + "\\\n"
+            "    'python-multipart>=0.0.9,<1.0'\n",
+        )
+        dockerignore += ".monl_uploads/\n"
     defaults = {
-        "Dockerfile": DEFAULT_DOCKERFILE,
-        ".dockerignore": DEFAULT_DOCKERIGNORE,
+        "Dockerfile": dockerfile,
+        ".dockerignore": dockerignore,
     }
     for name, content in defaults.items():
         path = os.path.join(staging_dir, name)
         if not os.path.exists(path):
             with open(path, "w", encoding="utf-8") as fh:
                 fh.write(content)
+        elif uploads:
+            # Un gabarit émis lors d'une compilation antérieure peut devenir
+            # un gabarit Upload ; un fichier Docker réellement personnalisé
+            # reste, lui, sous la responsabilité de l'auteur.
+            with open(path, encoding="utf-8") as fh:
+                actuel = fh.read()
+            ancien = DEFAULT_DOCKERFILE if name == "Dockerfile" else DEFAULT_DOCKERIGNORE
+            if actuel == ancien:
+                with open(path, "w", encoding="utf-8") as fh:
+                    fh.write(content)
 
 
 def _save_state(project_dir, spec_relpath, spec_source_path=None):
@@ -210,7 +229,8 @@ def compile_project(spec_path, project_dir, base_dir=None, save_state=True):
             spec_path, output_dir=temporary, base_dir=reference_dir)
         contract = generate_frontend_contract(
             compilation.ir, compilation.plans, temporary)
-        _ensure_container_artifacts(temporary)
+        _ensure_container_artifacts(
+            temporary, uploads=bool(compilation.ir["security"].get("upload_fields")))
         if save_state:
             _save_state(temporary, spec_rel, spec_source_path=spec_abs)
         artefacts = PROJECT_ARTEFACTS if save_state else tuple(
@@ -748,6 +768,15 @@ def _contract_signature(contract):
             if champ.get("allowed_values"):
                 contenus[f"choix de {entite}.{champ['name']}"] = hashlib.sha256(
                     "\n".join(champ["allowed_values"]).encode("utf-8")).hexdigest()
+            # BRIQUE B1 : un Upload contraint une entrée frontend même si le
+            # champ existait déjà. La signature porte les octets de contrat
+            # (nom multipart, limite et MIME), pas une valeur téléversée.
+            # Une modification de max/types déclenche donc bien le delta ; une
+            # spec sans Upload n'ajoute aucune entrée et conserve sa signature.
+            if champ.get("upload"):
+                contenus[f"upload de {entite}.{champ['name']}"] = hashlib.sha256(
+                    json.dumps(champ["upload"], sort_keys=True,
+                               ensure_ascii=False).encode("utf-8")).hexdigest()
     # POINT 116 : neuvième et dixième fois. `publicWhen` et `oncePer` vivent
     # dans `business_rules`, que la signature ne lisait pas : poser
     # 'rule Article.Read publicWhen status "published"' ne crée aucune route,

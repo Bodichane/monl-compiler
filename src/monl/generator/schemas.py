@@ -51,7 +51,8 @@ class SchemasMixin:
             for attr_name, attr_type in attrs.items():
                 if (attr_name in generated_here_schema or attr_name in derives_ici
                         or attr_name in sommes_ici or attr_name in horodates_ici
-                        or attr_name in postpaiement_ici):
+                        or attr_name in postpaiement_ici
+                        or attr_type == "Upload"):
                     continue
                 py_type = "str"
                 if attr_type == "Integer": py_type = "int"

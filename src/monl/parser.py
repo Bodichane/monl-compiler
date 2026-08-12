@@ -37,7 +37,7 @@ grammar = r"""
     # rule["type"] ne valait jamais "restrictedTo", et l'audit de sécurité associé
     # dans ast_validator.py ne se déclenchait donc jamais. Même classe de bug que
     # celui déjà corrigé sur le bloc "custom" en v3.
-    ?rule: constraint_rule | restriction_rule | postpayment_rule | sharing_rule | ownership_rule | access_rule | visibility_rule | conditional_visibility_rule | uniqueness_rule | masking_rule | decrement_rule | increment_rule | categorization_rule | generation_rule | payable_rule | derivation_rule | aggregation_rule | timestamp_rule | numbering_rule | requirement_rule | oneof_rule | release_rule
+    ?rule: constraint_rule | restriction_rule | postpayment_rule | sharing_rule | ownership_rule | access_rule | visibility_rule | conditional_visibility_rule | uniqueness_rule | masking_rule | decrement_rule | increment_rule | categorization_rule | generation_rule | payable_rule | derivation_rule | aggregation_rule | timestamp_rule | numbering_rule | requirement_rule | oneof_rule | release_rule | upload_rule
 
     constraint_rule: "rule" REFERENCE VALIDATION_TYPE _NL
                    | "rule" REFERENCE VALIDATION_TYPE INT _NL
@@ -56,6 +56,15 @@ grammar = r"""
     # deux. `oneOf` était le préalable : il fallait pouvoir désigner un état.
     #   rule Order.status "annulée" releases OrderLine
     release_rule: "rule" REFERENCE STRING_LITERAL "releases" NAME _NL
+    # BRIQUE B1 : un Upload est un fichier envoyé à l'exécution par le client.
+    # Il ne partage volontairement pas la sémantique d'Image : Image est un
+    # chemin d'asset fourni à la compilation, tandis qu'Upload est une colonne
+    # de référence opaque accompagnée d'une route multipart générée.
+    # La limite et les types sont obligatoires : une déclaration qui ne produit
+    # pas un refus observable (taille/type) serait une syntaxe de confort vide.
+    # Le type réel est déterminé côté backend par signature d'octets, jamais par
+    # l'extension ou le nom fournis par le client.
+    upload_rule: "rule" REFERENCE "upload" "max" INT "types" STRING_LITERAL ("," STRING_LITERAL)* _NL
     restriction_rule: "rule" REFERENCE "restrictedTo" NAME _NL
     postpayment_rule: "rule" REFERENCE "writableAfterPayment" NAME _NL
     sharing_rule: "rule" REFERENCE "sharedBy" NAME ("," NAME)* _NL
@@ -368,7 +377,7 @@ grammar = r"""
     io_param: NAME ":" TYPE
             | REFERENCE
 
-    TYPE: "String" | "Text" | "Integer" | "Float" | "Boolean" | "Date" | "DateTime" | "Email" | "UUID" | "Money" | "Image"
+    TYPE: "String" | "Text" | "Integer" | "Float" | "Boolean" | "Date" | "DateTime" | "Email" | "UUID" | "Money" | "Image" | "Upload"
     RELATION_TYPE: "hasMany" | "belongsTo" | "hasOne"
     ACTION_TYPE: "Create" | "Read" | "Update" | "Delete"
     VALIDATION_TYPE: "required" | "unique" | "min" | "max"
@@ -452,6 +461,13 @@ class MonlTransformer(Transformer):
     def release_rule(self, reference, valeur, entite):
         return {"rule": {"reference": str(reference), "type": "releases",
                          "value": str(valeur).strip('"'), "entity": str(entite)}}
+
+    def upload_rule(self, reference, maximum, *types):
+        return {"rule": {
+            "reference": str(reference), "type": "upload",
+            "max_bytes": int(maximum),
+            "accepted_types": [str(value).strip('"') for value in types],
+        }}
 
     def restriction_rule(self, reference, actor_name):
         return {"rule": {"reference": str(reference), "type": "restrictedTo", "value": str(actor_name)}}

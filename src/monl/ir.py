@@ -67,6 +67,7 @@ class SecurityIR(TypedDict):
     auth_phone_prefix: str | None
     enumerated_fields: dict[str, dict[str, list[str]]]
     release_rules: list[dict[str, Any]]
+    upload_fields: list[dict[str, Any]]
 
 
 class SandboxIR(TypedDict):
@@ -134,6 +135,7 @@ class FieldPolicy:
     aggregate_rule: Mapping[str, Any] | None
     timestamped: bool
     numbering_rule: Mapping[str, Any] | None
+    upload_rule: Mapping[str, Any] | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -227,6 +229,7 @@ class CompilationPlans:
     postpayment_writable_by_entity: Mapping[str, Mapping[str, Any]]
     assets: Mapping[str, Any]
     once_per_rules: tuple[Mapping[str, Any], ...]
+    upload_fields: tuple[Mapping[str, Any], ...]
 
 
 @dataclass(frozen=True, slots=True)

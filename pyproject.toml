@@ -19,6 +19,7 @@ dependencies = [
     "uvicorn>=0.29,<1.0",
     "lark>=1.1,<2.0",
     "PyJWT>=2.8,<3.0",
+    "python-multipart>=0.0.9,<1.0",
 ]
 
 [project.optional-dependencies]

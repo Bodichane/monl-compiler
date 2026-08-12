@@ -17,8 +17,115 @@ class RoutesMixin:
         """Assemble les familles de routes dans un ordre stable."""
         api_lines = ["# --- ENFORCEMENT DU CONTRÔLE D'ACCÈS PAR JWT ET PERSISTANCE ---"]
         api_lines.extend(self._generate_crud_and_action_route_lines())
+        api_lines.extend(self._generate_upload_route_lines())
         api_lines.extend(self._generate_payment_routes())
         api_lines.extend(self._generate_postpayment_routes())
+        return api_lines
+
+    def _upload_access_context(self, action, entity):
+        """ACL de la ligne pour le dépôt ou la relecture d'un Upload."""
+        plan = self.compilation_plans.route_map[(action, entity)]
+        context = self._route_access_context(plan)
+        access = context["access"]
+        dependencies = context["dependency_injection"]
+        lines = [context["security_check"]]
+        if access.party_fields:
+            dependencies += ", current_user_id: int = Depends(get_current_user_id)"
+            columns = ", ".join(f'"{column}"' for column in access.party_fields)
+            lines += [
+                "    _acl_conn = _connect(); _acl_cur = _acl_conn.cursor()",
+                f"    _acl_cur.execute('SELECT {columns} FROM \"{entity.lower()}\" WHERE id = ?', (id,))",
+                "    _acl_row = _acl_cur.fetchone(); _acl_conn.close()",
+                "    if not _acl_row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
+            ]
+            supervisors = sorted(access.supervisors)
+            if supervisors:
+                literal = ", ".join(repr(actor) for actor in supervisors)
+                lines += [
+                    f"    if current_actor not in {{{literal}}} and current_user_id not in _acl_row:",
+                    "        raise HTTPException(status_code=404, detail='Fichier introuvable')",
+                ]
+            else:
+                lines += [
+                    "    if current_user_id not in _acl_row:",
+                    "        raise HTTPException(status_code=404, detail='Fichier introuvable')",
+                ]
+        elif access.owner_entity:
+            check_actor, owner_select = self._owner_lookup_sql(
+                entity, access.owner_entity)
+            dependencies += ", current_user_id: int = Depends(get_current_user_id)"
+            lines += [
+                f"    if current_actor == {check_actor!r}:",
+                "        _acl_conn = _connect(); _acl_cur = _acl_conn.cursor()",
+                f"        _acl_cur.execute({owner_select.text!r}, {sql.params_tuple(owner_select)})",
+                "        _acl_row = _acl_cur.fetchone(); _acl_conn.close()",
+                "        if not _acl_row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
+                "        if _acl_row[0] != current_user_id:",
+                "            raise HTTPException(status_code=404, detail='Fichier introuvable')",
+            ]
+        else:
+            raise ValueError(
+                f"Génération : aucune ACL par ligne pour {entity}.{action} Upload")
+        return context, dependencies, lines
+
+    def _generate_upload_route_lines(self):
+        """Routes multipart et téléchargement privé des champs Upload."""
+        api_lines = []
+        for upload in self.upload_fields:
+            entity = upload["entity"]
+            field = upload["field"]
+            table = entity.lower()
+            path = f"/{table}/{{id}}/{field}"
+            _write_context, write_deps, write_acl = self._upload_access_context(
+                "Update", entity)
+            write_suffix = f", {write_deps}" if write_deps else ""
+            api_lines += [
+                f"@app.post({path!r}, tags=['Upload'])",
+                f"def upload_{table}_{field}(id: int, upload_file: UploadFile = File(..., alias={field!r}){write_suffix}):",
+                *write_acl,
+                "    _conn = _connect(); _cursor = _conn.cursor()",
+                f"    _cursor.execute('SELECT \"{field}\" FROM \"{table}\" WHERE id = ?', (id,))",
+                "    _row = _cursor.fetchone()",
+                "    if not _row:",
+                "        _conn.close()",
+                "        raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
+                "    _old_reference = _row[0]",
+                "    _new_reference = None",
+                "    try:",
+                f"        _new_reference, _byte_count, _actual_type = _save_upload(upload_file, {table!r}, id, {field!r}, {upload['max_bytes']}, {upload['accepted_types']!r})",
+                f"        _cursor.execute('UPDATE \"{table}\" SET \"{field}\" = ? WHERE id = ?', (_new_reference, id))",
+                "        _conn.commit()",
+                "    except Exception:",
+                "        _conn.rollback()",
+                "        _conn.close()",
+                "        if _new_reference:",
+                f"            _remove_upload({table!r}, id, {field!r}, _new_reference)",
+                "        raise",
+                "    _conn.close()",
+                "    if _old_reference:",
+                f"        _remove_upload({table!r}, id, {field!r}, _old_reference)",
+                "    return {'status': 'success', 'id': id, 'field': " + repr(field) + ", 'bytes': _byte_count, 'content_type': _actual_type}",
+                "",
+            ]
+
+            _read_context, read_deps, read_acl = self._upload_access_context(
+                "Read", entity)
+            read_suffix = f", {read_deps}" if read_deps else ""
+            api_lines += [
+                f"@app.get({path!r}, tags=['Upload'])",
+                f"def read_{table}_{field}(id: int{read_suffix}):",
+                *read_acl,
+                "    _conn = _connect(); _cursor = _conn.cursor()",
+                f"    _cursor.execute('SELECT \"{field}\" FROM \"{table}\" WHERE id = ?', (id,))",
+                "    _row = _cursor.fetchone(); _conn.close()",
+                "    if not _row or not _row[0]:",
+                "        raise HTTPException(status_code=404, detail='Fichier introuvable')",
+                f"    _file_path = _upload_path({table!r}, id, {field!r}, _row[0])",
+                "    if not _file_path or not os.path.isfile(_file_path):",
+                "        raise HTTPException(status_code=404, detail='Fichier introuvable')",
+                "    return FileResponse(_file_path, media_type='application/octet-stream', filename='download', headers={'X-Content-Type-Options': 'nosniff'})",
+                "",
+            ]
         return api_lines
 
     def _route_access_context(self, plan):
@@ -165,7 +272,10 @@ class RoutesMixin:
         api_lines.append(f"def create_{base_target.lower()}(data: {base_target}Schema{create_deps_suffix}):")
         api_lines.append(security_check)
         api_lines.append("    conn = _connect(); cursor = conn.cursor()")
-        fields = list(self.entities[base_target].keys())
+        fields = [
+            field for field, type_ in self.entities[base_target].items()
+            if type_ != "Upload"
+        ]
         insert_columns = list(fields)
         # AJOUT (brique 17, point 90) : « on ne commande pas sans être
         # identifié ». La vérification vient EN PREMIER, avant même le
@@ -934,7 +1044,8 @@ class RoutesMixin:
         ecrits = [f for f in fields
                   if f not in generated_upd and f not in sommes_upd
                   and f not in horodates_upd
-                  and f not in postpaiement_upd]
+                  and f not in postpaiement_upd
+                  and self.entities[base_target][f] != "Upload"]
         # POINT 85 : les écritures sont rassemblées AVANT d'être émises,
         # pour pouvoir les envelopper d'un try quand l'entité porte un
         # 'unique'. C'est SQLite qui lève à l'`execute`, pas au `commit` —
@@ -1285,6 +1396,14 @@ class RoutesMixin:
                             else str(rule["amount"])),
                 "fk_index": 1 if champ else 0,
             })
+        upload_refs = []
+        for upload in self.upload_fields_by_entity.get(base_target, []):
+            ref_var = f"_upload_ref_{upload['field']}"
+            api_lines += [
+                f"    cursor.execute('SELECT \"{upload['field']}\" FROM \"{base_target.lower()}\" WHERE id = ?', (id,))",
+                f"    {ref_var} = cursor.fetchone()",
+            ]
+            upload_refs.append((upload, ref_var))
         api_lines.append("    try:")
         api_lines.append(f"        cursor.execute('DELETE FROM \"{base_target.lower()}\" WHERE id = ?', (id,))")
         for recalcul in recalculs_del:
@@ -1309,6 +1428,11 @@ class RoutesMixin:
         api_lines.append("            'par des données liées. Supprimez-les d\\'abord.'")
         api_lines.append("        ))")
         api_lines.append("    conn.close()")
+        for upload, ref_var in upload_refs:
+            api_lines += [
+                f"    if {ref_var} and {ref_var}[0]:",
+                f"        _remove_upload({base_target.lower()!r}, id, {upload['field']!r}, {ref_var}[0])",
+            ]
         api_lines.append("    return {'status': 'success', 'id': id}")
         api_lines.append("")
 

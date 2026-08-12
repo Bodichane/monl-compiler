@@ -91,6 +91,13 @@ class MonlSecureGenerator(
         # AJOUT (brique 13, point 83) : assets déclarés (dossier, logo, favicon),
         # validés à la compilation — chaque fichier nommé existe réellement.
         self.assets = normalized_ast.get("assets") or {}
+        # BRIQUE B1 : Upload est distinct d'Image. La colonne ne contient
+        # qu'une référence opaque ; les octets vivent dans .monl_uploads/ au
+        # runtime, jamais dans les artefacts compilés.
+        self.upload_fields = normalized_ast["security"].get("upload_fields", [])
+        self.upload_fields_by_entity = {}
+        for upload in self.upload_fields:
+            self.upload_fields_by_entity.setdefault(upload["entity"], []).append(upload)
         # AJOUT (roadmap, brique "accès à deux parties") : table
         # {"Entite.Action": [colonnes]} issue des règles 'accessibleBy'
         # validées par ast_validator.py — chaque colonne contient
@@ -280,6 +287,9 @@ class MonlSecureGenerator(
                 derived_rule = derived.get(name)
                 aggregate_rule = aggregated.get(name)
                 numbering_rule = numbered.get(name)
+                upload_rule = next(
+                    (u for u in self.upload_fields_by_entity.get(entity, [])
+                     if u["field"] == name), None)
                 server_generated = (
                     name in generated
                     or derived_rule is not None
@@ -302,6 +312,7 @@ class MonlSecureGenerator(
                     aggregate_rule=aggregate_rule,
                     timestamped=name in timestamped,
                     numbering_rule=numbering_rule,
+                    upload_rule=upload_rule,
                 )
             models[entity] = EntityModel(name=entity, fields=policies)
         return models
@@ -1171,6 +1182,10 @@ class MonlSecureGenerator(
             # ailleurs : le validateur vérifie que le fichier existe, et le
             # contrat le déclare comme média sans avoir à deviner d'après le nom.
             "Image": "VARCHAR(255)",
+            # Brique B1 : référence opaque vers le stockage runtime, jamais
+            # les octets. Contrairement à Image, aucune existence n'est
+            # vérifiée à la compilation.
+            "Upload": "VARCHAR(255)",
         }
         return mapping.get(type_str, "TEXT")
 
@@ -1283,6 +1298,7 @@ class MonlSecureGenerator(
             postpayment_writable_by_entity=self.postpayment_writable_by_entity,
             assets=self.assets,
             once_per_rules=tuple(dict(rule) for rule in self.once_per_rules),
+            upload_fields=tuple(dict(field) for field in self.upload_fields),
         )
 
     def _generate_secure_fastapi(self):
