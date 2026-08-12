@@ -19,6 +19,7 @@ entity Member
 entity Post
     content: Text
     author: String
+    status: String
     likes: Integer
     dislikes: Integer
     reposts: Integer
@@ -43,6 +44,11 @@ entity PrivateMessage
     recipient_id: Integer
 
 relation Member hasMany Post
+# L'ordre COMPTE : la relation vers l'acteur d'abord, sinon la colonne
+# 'post_id' — visée par 'increments' — sortirait de l'INSERT et
+# 'oncePer' porterait sur une colonne toujours NULL (refus à la
+# compilation depuis le point 116).
+relation Member hasMany Like
 relation Post hasMany Like
 relation Post hasMany Dislike
 relation Post hasMany Repost
@@ -59,8 +65,13 @@ actor Moderator
 
 capability auth
 
-# Posts publics ; l'auteur est un pseudonyme anonyme stable généré serveur.
-rule Post.Read public
+# Posts publics SOUS CONDITION (brique 27) : un post masqué par la modération
+# cesse d'être lisible, y compris par son URL directe. Le modérateur, lui,
+# continue de le voir — sans quoi masquer voudrait dire perdre — et l'auteur
+# retrouve les siens.
+rule Post.status oneOf "published", "hidden"
+rule Post.Read publicWhen status "published"
+rule Post.Read sharedBy Moderator
 rule Post.author generated
 
 # Les likes s'affichent en catégories (brique 5).
@@ -68,6 +79,9 @@ rule Post.likes categorized: "confidentiel" below 10, "populaire" below 100, "vi
 
 # Réactions Twitter-like : like, dislike, repost font monter les compteurs ;
 # un signalement baisse la réputation du membre visé.
+# Brique 28 : un compte ne like qu'UNE fois chaque post — l'unicité tient à un
+# index composite (compte + post), pas à une empreinte fournie par le client.
+rule Like.Create oncePer Member, Post
 rule Like.Create increments Post.likes by 1
 rule Dislike.Create increments Post.dislikes by 1
 rule Repost.Create increments Post.reposts by 1
@@ -112,16 +126,18 @@ workflow DirectMessage for Member
 workflow Moderate for Moderator
     Read PrivateMessage
     Delete PrivateMessage
+    Read Post
+    Update Post
 
 # Fil de démonstration : posts publics déjà likés (catégories variées).
 # L'auteur affiché sera le pseudonyme anonyme généré, pas ces valeurs — le
 # champ 'author' est 'generated', donc le seed ne le renseigne pas.
 seed Post
-    content: "Premier jour sur RezoAnon. L'anonymat change vraiment la façon de s'exprimer.", likes: 4
-    content: "Astuce : les likes ne montrent qu'une catégorie, pas un score exact. Moins de course aux chiffres.", likes: 42
-    content: "Ce post part pour devenir viral, on dirait. Merci à tous !", likes: 230
-    content: "Question ouverte : préférez-vous l'anonymat total ou un pseudonyme stable ?", likes: 17
-    content: "La réputation baisse quand on est signalé — ça calme les trolls.", likes: 8
+    content: "Premier jour sur RezoAnon. L'anonymat change vraiment la façon de s'exprimer.", status: "published", likes: 4
+    content: "Astuce : les likes ne montrent qu'une catégorie, pas un score exact. Moins de course aux chiffres.", status: "published", likes: 42
+    content: "Ce post part pour devenir viral, on dirait. Merci à tous !", status: "published", likes: 230
+    content: "Question ouverte : préférez-vous l'anonymat total ou un pseudonyme stable ?", status: "published", likes: 17
+    content: "La réputation baisse quand on est signalé — ça calme les trolls.", status: "published", likes: 8
 
 landing
     brief: "RezoAnon est un réseau social où les posts sont publics mais les auteurs restent anonymes, les likes s'affichent en catégories, et la réputation protège la communauté."

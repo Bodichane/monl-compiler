@@ -56,7 +56,8 @@ def _app_source(spec_ou_chemin, depuis_fichier, base_dir):
     normalized = ast_manager.validate_and_audit()
     with tempfile.TemporaryDirectory() as sortie:
         MonlSecureGenerator(normalized, output_dir=sortie).generate_all()
-        return open(os.path.join(sortie, "app.py"), encoding="utf-8").read()
+        with open(os.path.join(sortie, "app.py"), encoding="utf-8") as fichier:
+            return fichier.read()
 
 
 # Une spec taillée pour exercer TOUTE la surface du contrôle d'accès transitif

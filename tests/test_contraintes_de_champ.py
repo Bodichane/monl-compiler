@@ -29,7 +29,6 @@ projet.
 """
 import json
 import os
-import socket
 import sqlite3
 import subprocess
 import sys
@@ -42,6 +41,7 @@ import pytest
 from monl.ast_validator import ASTValidationError, MonlAST
 from monl.cli import compile_project
 from monl.parser import parse_monl_string
+from tests.support.server import free_port as _port_libre
 
 SPEC = """app BancContraintes
 
@@ -283,12 +283,6 @@ workflow Suivre for Client
 # Le comportement, contre un vrai serveur
 # --------------------------------------------------------------------------
 
-def _port_libre():
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
-
 def _appel(url, corps=None, jeton=None, methode=None):
     donnees = json.dumps(corps).encode() if corps is not None else None
     requete = urllib.request.Request(url, data=donnees, method=methode)
@@ -299,11 +293,13 @@ def _appel(url, corps=None, jeton=None, methode=None):
         with urllib.request.urlopen(requete, timeout=10) as reponse:
             return reponse.status, json.loads(reponse.read() or b"{}")
     except urllib.error.HTTPError as err:
-        brut = err.read()
         try:
+            brut = err.read()
             return err.code, json.loads(brut or b"{}")
         except ValueError:
             return err.code, {"brut": brut[:200].decode("utf-8", "replace")}
+        finally:
+            err.close()
 
 
 @pytest.fixture
@@ -325,7 +321,8 @@ def serveur(tmp_path):
             try:
                 # /docs renvoie du HTML : sonder avec _appel (qui décode du
                 # JSON) ferait passer un serveur PRÊT pour un serveur muet.
-                urllib.request.urlopen(base + "/docs", timeout=5).read()
+                with urllib.request.urlopen(base + "/docs", timeout=5):
+                    pass
                 break
             except OSError:
                 time.sleep(0.25)
@@ -342,6 +339,9 @@ def serveur(tmp_path):
             processus.wait(timeout=10)
         except subprocess.TimeoutExpired:
             processus.kill()
+            processus.wait(timeout=5)
+        if processus.stdout is not None:
+            processus.stdout.close()
 
 
 def test_unique_refuse_un_doublon_a_la_creation(serveur):
@@ -357,9 +357,12 @@ def test_unique_refuse_un_doublon_a_la_creation(serveur):
     # étrangères, et « référence invalide » enverrait chercher ailleurs.
     assert "unique" in corps2["detail"] and "pseudo" in corps2["detail"]
 
-    with sqlite3.connect(dossier / "app.db") as base_donnees:
+    base_donnees = sqlite3.connect(dossier / "app.db")
+    try:
         lignes = base_donnees.execute(
             "SELECT COUNT(*) FROM membre WHERE pseudo = 'zoe'").fetchone()[0]
+    finally:
+        base_donnees.close()
     assert lignes == 1, "l'unicité doit tenir EN BASE, pas seulement dans la réponse"
 
 
@@ -392,8 +395,11 @@ def test_les_bornes_donnent_un_422_avant_tout_insert(serveur, corps, champ):
     code, reponse = _appel(base + "/membre", corps, jeton)
     assert code == 422
     assert any(champ in str(e.get("loc", "")) for e in reponse["detail"])
-    with sqlite3.connect(dossier / "app.db") as base_donnees:
+    base_donnees = sqlite3.connect(dossier / "app.db")
+    try:
         assert base_donnees.execute("SELECT COUNT(*) FROM membre").fetchone()[0] == 0
+    finally:
+        base_donnees.close()
 
 
 def test_une_valeur_dans_les_bornes_passe(serveur):
@@ -414,12 +420,16 @@ def test_une_base_avec_doublons_le_dit_au_lieu_de_le_taire(tmp_path, capsys):
     capsys.readouterr()
 
     # Une base peuplée AVANT que 'unique' n'existe dans la spec.
-    with sqlite3.connect(tmp_path / "app.db") as base_donnees:
-        base_donnees.executescript(
-            (tmp_path / "schema.sql").read_text(encoding="utf-8"))
-        base_donnees.executemany(
-            'INSERT INTO membre ("pseudo", "courriel", "age") VALUES (?, ?, ?)',
-            [("zoe", "a@x.fr", 30), ("zoe", "b@x.fr", 40)])
+    base_donnees = sqlite3.connect(tmp_path / "app.db")
+    try:
+        with base_donnees:
+            base_donnees.executescript(
+                (tmp_path / "schema.sql").read_text(encoding="utf-8"))
+            base_donnees.executemany(
+                'INSERT INTO membre ("pseudo", "courriel", "age") VALUES (?, ?, ?)',
+                [("zoe", "a@x.fr", 30), ("zoe", "b@x.fr", 40)])
+    finally:
+        base_donnees.close()
 
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))

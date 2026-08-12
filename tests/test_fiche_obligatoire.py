@@ -34,7 +34,6 @@ Ce que la brique décide, et qui n'allait pas de soi :
   inaccessibles des données qu'on possède.
 """
 import json
-import socket
 import sqlite3
 import subprocess
 import sys
@@ -47,6 +46,7 @@ import pytest
 from monl.ast_validator import ASTValidationError, MonlAST
 from monl.cli import compile_project
 from monl.parser import parse_monl_string
+from tests.support.server import free_port as _port_libre
 
 SPEC = """app BancFiche
 
@@ -239,12 +239,6 @@ def test_le_contrat_annonce_le_prealable(tmp_path, capsys):
 # --------------------------------------------------------------------------
 # Le comportement, contre un vrai serveur
 # --------------------------------------------------------------------------
-
-def _port_libre():
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
 
 def _appel(url, corps=None, jeton=None, methode=None):
     donnees = json.dumps(corps).encode() if corps is not None else None

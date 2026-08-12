@@ -1049,6 +1049,8 @@ def test_writable_after_payment_ne_casse_ni_create_ni_update(tmp_path):
     assert "data.libelle" not in creation
     assert "data.statut" not in modification
     assert "data.libelle" not in modification
+    assert "if enregistrement[1] != 'payee':" in genere
+    assert "uniquement après confirmation du paiement" in genere
 
 
 @pytest.mark.parametrize("regle, attendu", [

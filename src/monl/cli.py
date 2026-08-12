@@ -31,7 +31,9 @@ import subprocess
 import sys
 import tempfile
 
+from .artifacts import copy_preserved_files, publish_files, staging_directory
 from .ast_validator import MonlAST
+from .errors import MonlError
 from .frontend_ai import RETOUCHE_PROMPT_FILENAME, UPDATE_PROMPT_FILENAME
 from .frontend_contract import (
     CONTRACT_FILENAME,
@@ -94,10 +96,19 @@ def _erreur_de_chemin(project_dir):
 # Ce que la spec produit et que personne ne doit retoucher à la main
 # (manage.py et sandbox_ai.py compris : ils portent des droits).
 SCELLE_ARTEFACTS = ("app.py", "schema.sql", "sandbox_ai.py", "manage.py")
+PROJECT_ARTEFACTS = (
+    *SCELLE_ARTEFACTS,
+    ".jwt_secret",
+    CONTRACT_FILENAME,
+    PROMPT_FILENAME,
+    "CLAUDE.md",
+    STATE_FILENAME,
+)
 
 
-def _save_state(project_dir, spec_relpath):
+def _save_state(project_dir, spec_relpath, spec_source_path=None):
     from . import __version__
+    spec_path = spec_source_path or os.path.join(project_dir, spec_relpath)
     state = {
         "spec": spec_relpath,
         # POINT 85 : avec QUOI ce projet a été construit. Purement informatif —
@@ -106,7 +117,7 @@ def _save_state(project_dir, spec_relpath):
         # la génération, elle, a changé. C'est exactement ce qui s'est produit
         # des points 74 à 84. Le numéro sert à NOMMER l'écart, pas à le trouver.
         "compiler_version": __version__,
-        "spec_sha256": _sha256_file(os.path.join(project_dir, spec_relpath)),
+        "spec_sha256": _sha256_file(spec_path),
         "contract_sha256": contract_sha256(project_dir),
         # POINT 64 : empreinte du backend généré. « app.py reste scellé » était
         # une promesse que RIEN ne mesurait : la cohérence ne vérifiait que
@@ -128,30 +139,40 @@ def _save_state(project_dir, spec_relpath):
 # ---------------------------------------------------------------- compile --
 def compile_project(spec_path, project_dir, base_dir=None, save_state=True):
     """Pipeline complet : spec → backend + contrat frontend + état.
-    Réutilise compile_monl (main.py) pour le backend — même pipeline,
-    mêmes échappatoires IA non bloquantes — puis ajoute la couche contrat.
+    Réutilise compile_monl (main.py) pour le backend et son résultat validé,
+    puis ajoute la couche contrat sans reparsing ni second audit.
 
     POINT 103 : `base_dir` et `save_state` existent pour `monl diff`, qui
     compile dans un dossier JETABLE. Les assets déclarés vivent, eux, dans le
     vrai projet — les chercher dans le dossier temporaire ferait échouer la
-    compilation pour une raison qui n'existe pas. Et un dry-run n'a pas à
-    déposer d'état. Les deux paramètres gardent le comportement historique par
-    défaut : aucun appelant existant ne change."""
+    compilation pour une raison qui n'existe pas. Hors `diff`, le projet de
+    référence est par défaut le dossier de la spec, pas le dossier de sortie :
+    c'est ce qui permet à `monl compile spec.ml --output build/` de fonctionner
+    avec des assets voisins de la spec. Un dry-run, lui, n'a pas à déposer
+    d'état."""
     from .main import compile_monl
-    compile_monl(spec_path, output_dir=project_dir)
-
-    raw = parse_monl_file(spec_path)
-    normalized = MonlAST(raw, base_dir=base_dir or project_dir).validate_and_audit()
-    generator = MonlSecureGenerator(normalized, output_dir=project_dir)
-    contract = generate_frontend_contract(normalized, generator, project_dir)
-
+    reference_dir = base_dir or os.path.dirname(os.path.abspath(spec_path))
     spec_abs = os.path.abspath(spec_path)
     proj_abs = os.path.abspath(project_dir)
     spec_rel = (os.path.relpath(spec_abs, proj_abs)
                 if spec_abs.startswith(proj_abs + os.sep) else spec_abs)
+    with staging_directory(proj_abs) as temporary:
+        # Le secret et un éventuel CLAUDE.md personnel ne sont jamais
+        # régénérés depuis zéro dans le staging : ils survivent à la
+        # compilation et restent protégés contre un remplacement accidentel.
+        copy_preserved_files(proj_abs, temporary, (".jwt_secret", "CLAUDE.md"))
+        compilation = compile_monl(
+            spec_path, output_dir=temporary, base_dir=reference_dir)
+        contract = generate_frontend_contract(
+            compilation.ir, compilation.plans, temporary)
+        if save_state:
+            _save_state(temporary, spec_rel, spec_source_path=spec_abs)
+        artefacts = PROJECT_ARTEFACTS if save_state else tuple(
+            name for name in PROJECT_ARTEFACTS if name != STATE_FILENAME)
+        publish_files(temporary, proj_abs, artefacts)
+
     print(f" -> Contrat frontend      : {CONTRACT_FILENAME} + {PROMPT_FILENAME}")
     if save_state:
-        _save_state(proj_abs, spec_rel)
         print(f" -> État du projet        : {STATE_FILENAME}")
     return contract
 
@@ -670,6 +691,23 @@ def _contract_signature(contract):
             if champ.get("allowed_values"):
                 contenus[f"choix de {entite}.{champ['name']}"] = hashlib.sha256(
                     "\n".join(champ["allowed_values"]).encode("utf-8")).hexdigest()
+    # POINT 116 : neuvième et dixième fois. `publicWhen` et `oncePer` vivent
+    # dans `business_rules`, que la signature ne lisait pas : poser
+    # 'rule Article.Read publicWhen status "published"' ne crée aucune route,
+    # ne renomme aucun champ et ne change aucun acteur — `monl update`
+    # répondait « aucun changement d'interface » pendant qu'il fallait
+    # dessiner un état « brouillon », un filtre de liste et un écran de
+    # modération. `oncePer` est le même angle mort côté écriture : le bouton
+    # « voter » gagne un 409 que personne n'a annoncé. La VALEUR entre dans le
+    # digest, pas seulement la présence de la règle : passer de "published" à
+    # "validated" ne renomme rien non plus (leçon des points 89 et 96).
+    regles_metier = contract.get("business_rules") or {}
+    for reference, condition in sorted((regles_metier.get("public_when") or {}).items()):
+        contenus[f"publication conditionnelle de {reference}"] = hashlib.sha256(
+            f"{condition.get('field')}\n{condition.get('value')}".encode()).hexdigest()
+    for regle in regles_metier.get("once_per") or []:
+        contenus[f"unicité de {regle['trigger_entity']}"] = hashlib.sha256(
+            "\n".join(regle["parents"]).encode("utf-8")).hexdigest()
     # POINT 99 : huitième ensemble, et la question posée AVANT d'écrire le code
     # pour la deuxième fois seulement. Une clé étrangère ne vit pas dans
     # `fields` — le delta ne pouvait donc rien dire quand elle change de NATURE.
@@ -868,11 +906,12 @@ def cmd_diff(project_dir):
             with contextlib.redirect_stdout(tampon):
                 nouveau = compile_project(spec_path, atelier,
                                           base_dir=project_dir, save_state=False)
-        except BaseException:
+        except MonlError as err:
             # La compilation a échoué : c'est SON message qui est utile, pas le
-            # nôtre. `SystemExit` compris — le pipeline sort par là.
+            # nôtre. Les interruptions système remontent naturellement.
             print(tampon.getvalue(), end="")
-            raise
+            print(f" ❌ {err}")
+            raise SystemExit(1) from err
 
     print("\n[DRY-RUN] Aucun fichier modifié — comparaison seule.")
     changes = _rapporter_delta(ancienne, _contract_signature(nouveau),
@@ -1179,7 +1218,7 @@ def cmd_content_import(project_dir):
 
 
 # ------------------------------------------------------------------- main --
-def main(argv=None):
+def _dispatch(argv=None):
     parser = argparse.ArgumentParser(
         prog="monl",
         description="monl — plateforme d'orchestration : dialogue guidé → "
@@ -1368,5 +1407,14 @@ def main(argv=None):
             sys.exit(1)
 
 
+def main(argv=None):
+    """Point d'entrée CLI : traduit les erreurs MONL en code de sortie."""
+    try:
+        return _dispatch(argv)
+    except MonlError as err:
+        print(f" ❌ {err}")
+        raise SystemExit(1) from err
+
+
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

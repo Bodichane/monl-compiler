@@ -1,5 +1,15 @@
 # État bêta et route vers la GA
 
+## Ce que corrige la bêta 0.9.0-beta.6
+
+Cette version ajoute les capacités métier et le contrôle d'accès approfondi
+développés depuis la bêta 5 : calculs serveur (`derivedFrom`, `sumOf`),
+agrégations (`sumOf`), propriété transitive, stock, horodatage, numérotation,
+contraintes de champs, valeurs énumérées, profils obligatoires et verrouillage
+des enregistrements après paiement. Elle ajoute aussi l'outillage de retouche
+du frontend et aligne les métadonnées de version du paquet et des projets
+compilés.
+
 ## Ce que corrige la bêta 0.9.0-beta.5
 
 Un défaut d'ouverture, pas de correction : le dernier maillon du cycle — l'IA

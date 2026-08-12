@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (688 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (832 tests
   actuellement ; `tests/test_demo.py` et `tests/test_design_contract.py`
   s'appuient sur le dossier `demo/` versionné — ne pas le supprimer)
 
@@ -618,6 +618,49 @@ réseau social anonyme comme banc d'essai final.
     (volet superviseur, serveur + Sessions) et compilé par
     `exemples/03_reseau_social.ml` (`Moderator`). Voir point 106.
 
+27. **`rule Entite.Read publicWhen champ "valeur"`** — une lecture publique
+    SOUS CONDITION : la liste est filtrée et le détail répond 404 tant que le
+    champ ne porte pas la valeur. Appliqué côté API, jamais côté frontend — un
+    contenu modéré ne doit pas rester lisible par son URL. **Deux exemptions,
+    toutes deux DÉCLARATIVES** (point 116) : le SUPERVISEUR nommé par un
+    `sharedBy` sur la même référence — même mot-clé et même sens qu'aux
+    points 88 et 106 — et le PROPRIÉTAIRE par sa colonne d'identité
+    (point 99), qui retrouve toujours les siens. Sans elles, la brique cachait
+    le contenu À TOUT LE MONDE : le modérateur qui venait de masquer un post ne
+    pouvait plus ni le lister ni le rouvrir, et l'auteur perdait son brouillon
+    — une modération à sens unique, trouvée contre un vrai serveur et pas en
+    relisant. Un rôle simplement connecté reste soumis à la condition : sinon
+    « masqué » ne voudrait plus rien dire dès qu'on a un compte.
+    **`get_optional_identity` ne peut que DONNER des droits** — un jeton absent,
+    invalide ou révoqué laisse anonyme, et une route publique ne répond jamais
+    401 ; elle n'est émise que si une exemption existe
+    (`_condition_exemptions`, generator/core.py, source unique partagée par la
+    route et le runtime). Éprouvée par
+    `tests/test_publication_conditionnelle.py` (10 tests, TROIS comptes — avec
+    un seul, « le contenu masqué est-il caché ? » passerait même caché à tous),
+    compilée par `exemples/03_reseau_social.ml`. Voir point 116.
+
+28. **`rule Entite.Create oncePer Parent, Parent`** — un compte n'agit qu'UNE
+    fois par cible (un like par post, un vote par entrée). L'unicité tient à un
+    **index composite SQLite**, jamais à une vérification applicative : c'est
+    lui qui protège aussi deux requêtes concurrentes, et les colonnes viennent
+    des relations, jamais d'une empreinte fournie par le client.
+    **Le piège qui a coûté le plus** (point 116) : un index sur une colonne que
+    la route Create n'écrit JAMAIS ne refuse rien — SQLite tient deux NULL pour
+    distincts. La colonne visée par un `increments` sort de l'INSERT quand elle
+    est la PREMIÈRE relation entrante (`_client_fk_columns` tranche sur
+    `_get_incoming_relation`, pas sur `_decrement_fk_column`) : `oncePer Member,
+    Post` laissait liker dix fois. Bug d'ORDRE, donc invisible sur la spec qui
+    l'a fait naître. La génération REFUSE désormais ce cas en nommant la
+    relation à déplacer — refuser plutôt que produire une règle sans effet, mot
+    pour mot le point 85. **La cause profonde (deux sources pour « quelle
+    colonne porte le compteur ») reste ouverte** : le refus empêche la garantie
+    fausse, il ne réconcilie pas les deux calculs. Le 409 d'`oncePer` et celui
+    d'`unique` se distinguent sur les COLONNES nommées par SQLite, sinon le
+    premier volait la phrase du second (défaut du point 85, rouvert).
+    Éprouvée par `tests/test_unicite_composite.py` (8 tests, DEUX comptes et
+    DEUX cibles), compilée par `exemples/03_reseau_social.ml`. Voir point 116.
+
 ### Briques suivantes déjà évoquées, non cadrées
 - Le **panier multi-articles est terminé** : ses trois briques cadrées au
   point 80 sont faites (11 = propriété transitive et clé étrangère cliente sur le
@@ -832,7 +875,13 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   affiche le bon nom sur le premier enregistrement et rien sur les suivants —
   une jointure qui marche à moitié. Un test confronte le contrat aux
   `REFERENCES` réellement écrits dans schema.sql.
-- **L'ANGLE MORT DU DELTA, six fois** (points 88, 89, 90, 91, 94, 99) : un changement
+- **L'ANGLE MORT DU DELTA, HUIT fois** (points 88, 89, 90, 91, 94, 99, puis DEUX
+  fois au point 116) : `publicWhen` et `oncePer` vivaient dans `business_rules`,
+  que la signature ne lisait pas — une lecture devenait filtrée par un état, une
+  création gagnait un 409, et `monl update` répondait « aucun changement
+  d'interface ». Les deux briques ont sauté la question, écrite ici depuis le
+  point 99. Détail ci-dessous, l'énoncé d'origine reste valable mot pour mot :
+  un changement
   qui ne renomme rien oblige quand même à réécrire le frontend — un ACTEUR de plus
   sur une route (88), un champ qui devient calculé par le serveur (89), une route
   qui gagne un PRÉALABLE (90), une route qui gagne un VERROU de paiement (91), et

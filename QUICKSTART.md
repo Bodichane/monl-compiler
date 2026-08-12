@@ -11,6 +11,8 @@ pip install -e .
 ```
 
 Installe les dépendances et la commande `monl`.
+Pour utiliser les fournisseurs frontend par API, installer aussi l'extra
+optionnel : `pip install -e '.[ai]'`.
 
 ## 2. Génération du projet (dialogue guidé)
 

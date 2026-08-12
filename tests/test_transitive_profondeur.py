@@ -24,12 +24,8 @@ avant les assertions), comme en brique 11.
 
 import contextlib
 import os
-import socket
 import sqlite3
-import subprocess
-import sys
 import tempfile
-import time
 
 import pytest
 import requests
@@ -37,6 +33,7 @@ import requests
 from monl.ast_validator import ASTValidationError, MonlAST
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
+from tests.support.server import uvicorn_server
 
 
 def _validate(spec):
@@ -260,12 +257,6 @@ MOT_DE_PASSE = "motdepasse123"
 PRIX = 42.5
 
 
-def _port_libre():
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
-
 @contextlib.contextmanager
 def _base(dossier):
     cnx = sqlite3.connect(os.path.join(dossier, "app.db"))
@@ -281,27 +272,11 @@ def application():
     with tempfile.TemporaryDirectory() as dossier:
         ast = MonlAST(parse_monl_string(SPEC)).validate_and_audit()
         MonlSecureGenerator(ast, output_dir=dossier).generate_all()
-        port = _port_libre()
-        serveur = subprocess.Popen(
-            [sys.executable, "-m", "uvicorn", "app:app", "--port", str(port)],
-            cwd=dossier, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        base = f"http://127.0.0.1:{port}"
-        try:
-            for _ in range(80):
-                try:
-                    requests.get(f"{base}/openapi.json", timeout=1)
-                    break
-                except requests.exceptions.ConnectionError:
-                    time.sleep(0.25)
-            else:
-                pytest.skip("serveur non démarré")
+        with uvicorn_server(dossier) as base:
             with _base(dossier) as cnx:
                 cnx.execute('INSERT INTO article (nom, prix) VALUES (?, ?)',
                             ("Article test", PRIX))
             yield base, dossier
-        finally:
-            serveur.terminate()
-            serveur.wait(timeout=10)
 
 
 def _vider_quota(dossier):

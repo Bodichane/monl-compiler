@@ -78,6 +78,15 @@ def test_le_contrat_ne_porte_plus_aucun_bloc_design():
     assert "design" not in contrat, sorted(contrat)
 
 
+def test_le_contrat_porte_des_competences_de_finition_sans_theme_visuel():
+    """Les skills imposent une profondeur, pas une palette calculée."""
+    with tempfile.TemporaryDirectory() as workdir:
+        contrat, brief = _brief(BASE, workdir)
+    assert contrat["design_skills"][0] == "monl-showcase"
+    assert "$monl-showcase" in brief
+    assert "niveau de profondeur et de finition" in brief
+
+
 def test_le_contrat_ne_contient_aucune_couleur_ecrite_en_dur():
     """Retirer la clé ne suffirait pas si les couleurs ressortaient
     ailleurs — dans une note, un exemple, un champ voisin."""

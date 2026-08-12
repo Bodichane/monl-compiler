@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "monl-compiler"
-version = "0.9.0-beta.5"
+version = "0.9.0-beta.6"
 description = "Compilateur d'intention logicielle : dialogue dirigé (sans IA) → spec DSL déterministe → backend FastAPI sécurisé + contrat frontend."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -19,14 +19,19 @@ dependencies = [
     "uvicorn>=0.29,<1.0",
     "lark>=1.1,<2.0",
     "PyJWT>=2.8,<3.0",
-    "requests>=2.31,<3.0",
 ]
 
 [project.optional-dependencies]
+ai = [
+    "requests>=2.31,<3.0",
+]
 dev = [
     "pytest>=8.0,<9.0",
     "pytest-cov>=5.0",       # ce que les tests ne touchent pas
     "ruff>=0.6",             # fautes, imports morts, tri des imports
+    "mypy>=1.10,<2.0",       # contrats typés aux frontières de l'IR
+    "vulture>=2.11,<3.0",    # recherche de code mort, revue manuelle conservée
+    "requests>=2.31,<3.0",   # tests HTTP et fournisseurs frontend
 ]
 
 [project.scripts]
@@ -95,3 +100,8 @@ ignore = [
 [tool.coverage.run]
 source = ["src/monl"]
 omit = ["*/__pycache__/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+fail_under = 90

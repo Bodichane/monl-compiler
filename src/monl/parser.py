@@ -4,6 +4,8 @@ import re
 from lark import Lark, Transformer, v_args
 from lark.indenter import PythonIndenter
 
+from .errors import ParseError
+
 # Grammaire monl v6 - Support des descriptions multi-lignes (Bug #1)
 grammar = r"""
     ?start: app
@@ -35,7 +37,7 @@ grammar = r"""
     # rule["type"] ne valait jamais "restrictedTo", et l'audit de sécurité associé
     # dans ast_validator.py ne se déclenchait donc jamais. Même classe de bug que
     # celui déjà corrigé sur le bloc "custom" en v3.
-    ?rule: constraint_rule | restriction_rule | postpayment_rule | sharing_rule | ownership_rule | access_rule | visibility_rule | masking_rule | decrement_rule | increment_rule | categorization_rule | generation_rule | payable_rule | derivation_rule | aggregation_rule | timestamp_rule | numbering_rule | requirement_rule | oneof_rule | release_rule
+    ?rule: constraint_rule | restriction_rule | postpayment_rule | sharing_rule | ownership_rule | access_rule | visibility_rule | conditional_visibility_rule | uniqueness_rule | masking_rule | decrement_rule | increment_rule | categorization_rule | generation_rule | payable_rule | derivation_rule | aggregation_rule | timestamp_rule | numbering_rule | requirement_rule | oneof_rule | release_rule
 
     constraint_rule: "rule" REFERENCE VALIDATION_TYPE _NL
                    | "rule" REFERENCE VALIDATION_TYPE INT _NL
@@ -80,6 +82,18 @@ grammar = r"""
     #   rule Project.Read public
     #   rule Message.Create public
     visibility_rule: "rule" REFERENCE "public" _NL
+    # Publication conditionnelle : une ressource peut être publique seulement
+    # dans un état métier précis. Exemple :
+    #   rule Article.Read publicWhen status "published"
+    # La condition est appliquée côté API (liste ET détail), jamais seulement
+    # dans le frontend : un contenu modéré ne doit pas rester accessible par
+    # son identifiant.
+    conditional_visibility_rule: "rule" REFERENCE "publicWhen" NAME STRING_LITERAL _NL
+    # Un vote ou un like est souvent unique par compte et par cible. Une règle
+    # composite vaut mieux qu'un champ-fingerprint fourni par le client : les
+    # colonnes de relation sont déterminées par le serveur et l'index SQLite
+    # protège aussi les requêtes concurrentes.
+    uniqueness_rule: "rule" REFERENCE "oncePer" NAME ("," NAME)+ _NL
 
     # AJOUT (roadmap, écosystème de capacités -- brique 2) : "hidden" retire
     # un CHAMP (pas une action) de toutes les réponses de lecture de son
@@ -449,6 +463,15 @@ class MonlTransformer(Transformer):
     def visibility_rule(self, reference):
         return {"rule": {"reference": str(reference), "type": "public"}}
 
+    def conditional_visibility_rule(self, reference, field, value):
+        return {"rule": {"reference": str(reference), "type": "publicWhen",
+                          "field": str(field),
+                          "value": str(value).strip('"')}}
+
+    def uniqueness_rule(self, reference, *parents):
+        return {"rule": {"reference": str(reference), "type": "oncePer",
+                          "parents": [str(parent) for parent in parents]}}
+
     def masking_rule(self, reference):
         return {"rule": {"reference": str(reference), "type": "hidden"}}
 
@@ -721,7 +744,7 @@ def _strip_standalone_comment_lines(content):
     return "\n".join(kept_lines), line_map
 
 
-class MonlSyntaxError(Exception):
+class MonlSyntaxError(ParseError):
     """AJOUT (roadmap, erreurs lisibles) : erreur de syntaxe monl avec
     ligne/colonne du FICHIER SOURCE (pas du texte nettoyé des commentaires),
     extrait de la ligne fautive, curseur, et suggestions quand Lark les

@@ -28,7 +28,6 @@ Ce que le point décide, et qui n'allait pas de soi :
   fausse : le refus doit être écrit.
 """
 import json
-import socket
 import sqlite3
 import subprocess
 import sys
@@ -41,6 +40,7 @@ import pytest
 from monl.ast_validator import ASTValidationError, MonlAST
 from monl.cli import _contract_signature, compile_project
 from monl.parser import parse_monl_string
+from tests.support.server import free_port as _port_libre
 
 # La relation MÉTIER (`Produit hasMany Variante`) est déclarée AVANT les autres,
 # à dessein : l'ancienne implémentation retenait la première relation entrante
@@ -406,12 +406,6 @@ def test_le_refus_laisse_passer_la_propriete_transitive(capsys):
 # --------------------------------------------------------------------------
 # Le comportement, contre un vrai serveur
 # --------------------------------------------------------------------------
-
-def _port_libre():
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
 
 def _appel(url, corps=None, jeton=None, methode=None):
     donnees = json.dumps(corps).encode() if corps is not None else None

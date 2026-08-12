@@ -1,5 +1,48 @@
 # Journal des modifications
 
+## Après 0.9.0-beta.6 — Stabilisation du compilateur
+
+- Les fonctions de bibliothèque lèvent désormais une famille commune
+  `MonlError` ; la conversion en code de sortie reste à la frontière CLI.
+- `CompilationPlans` est calculé une seule fois par générateur et devient le
+  catalogue canonique partagé par les renderers backend et le contrat frontend.
+- Des golden tests verrouillent les artefacts déterministes d'une compilation
+  représentative, y compris le contrat et l'état du projet.
+- `requests` est déplacé dans l'extra optionnel `.[ai]` et les compatibilités
+  historiques sont documentées dans `docs/DEPRECATIONS.md`.
+
+### Briques 27 et 28 remises d'aplomb (point 116)
+
+- **`publicWhen` ne cache plus le contenu à qui doit le voir.** Un `sharedBy`
+  sur la même référence nomme les rôles superviseurs, et le propriétaire
+  retrouve toujours ses enregistrements. Avant ce correctif, masquer un contenu
+  le retirait AUSSI au modérateur qui venait de le masquer, et à son auteur.
+- **`oncePer` refusait parfois sans rien protéger.** Un index composite posé sur
+  une colonne que la route `Create` n'écrit jamais laissait passer tous les
+  doublons ; la génération refuse désormais ce cas en nommant la relation à
+  déplacer. Son 409 ne vole plus le message de `unique`.
+- **`monl update` voit les deux règles.** Elles vivaient dans `business_rules`,
+  que la signature de contrat ne lisait pas : le delta répondait « aucun
+  changement d'interface ». Contrat en version 9.
+- **La suite passe sur un clone neuf.** `tests/test_projets_metier.py` lisait
+  `projets/`, ignoré par git : six tests échouaient en CI. Les specs sont
+  désormais dans le fichier de test.
+- Les deux briques sont éprouvées contre un vrai serveur
+  (`tests/test_publication_conditionnelle.py`, `tests/test_unicite_composite.py`)
+  et compilées par `exemples/03_reseau_social.ml`.
+
+## 0.9.0-beta.6 — Capacités métier et contrôle d'accès approfondi
+
+Cette version complète le noyau déclaratif avec les capacités ajoutées depuis
+la bêta 5 : calculs serveur (`derivedFrom`, `sumOf`), propriété transitive,
+décompte de stock, horodatage et numérotation serveur, contraintes de champs,
+valeurs énumérées, profils obligatoires, verrouillage après paiement et
+outillage de retouche du frontend. Le contrôle d'accès SQL typé et ses
+invariants de sécurité sont également consolidés.
+
+La version du paquet, du contrat de suivi (`monl.json`) et de la documentation
+est désormais alignée sur `0.9.0-beta.6`.
+
 ## 0.9.0-beta.5 — N'importe quelle clé API, n'importe quel agent
 
 **Le compilateur reste inchangé.** Aucune règle, aucune route générée, aucun

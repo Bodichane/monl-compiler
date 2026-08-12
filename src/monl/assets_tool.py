@@ -50,10 +50,11 @@ import shutil
 import unicodedata
 
 from .ast_validator import DEFAULT_ASSETS_DIR, MonlAST, resoudre_asset
+from .errors import ToolError
 from .parser import parse_monl_string
 
 
-class AssetsToolError(Exception):
+class AssetsToolError(ToolError):
     pass
 
 

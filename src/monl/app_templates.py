@@ -104,7 +104,7 @@ TEMPLATES = [
     {
         "name": "Blog",
         "hint": "articles publics, commentaires des lecteurs",
-        "actors": ["Author"],
+        "actors": ["Author", "Reader", "Moderator"],
         "entities": {
             # ACQUIS (point 60) : l'auteur humanise le billet, la date dit si
             # l'information est encore d'actualité. Les deux sont donnés comme
@@ -112,11 +112,29 @@ TEMPLATES = [
             # question, l'auteur manquait purement et simplement.
             "Article": {"fields": [("title", "String"), ("content", "Text"),
                                    ("imageUrl", "String"), ("author", "String"),
-                                   ("publishedOn", "String")],
+                                   ("publishedOn", "String"), ("status", "String")],
                         "manager": "Author", "readers": [], "public_read": True,
                         "public_create": False, "owned": False},
+            "Report": {"fields": [("reason", "Text"), ("status", "String")],
+                        "manager": "Moderator", "readers": [], "public_read": False,
+                        "public_create": False, "owned": False},
         },
-        "relations": [], "extra_rules": [],
+        "relations": [("Article", "hasMany", "Report")],
+        "extra_rules": [
+            'rule Article.status oneOf "published", "hidden"',
+            'rule Article.Read publicWhen status "published"',
+            'rule Article.Update sharedBy Author, Moderator',
+            'rule Report.status oneOf "open", "resolved", "dismissed"',
+            'rule Report.Create sharedBy Reader, Moderator',
+        ],
+        "extra_workflows": [
+            {"name": "SubmitReport", "actor": "Reader",
+             "actions": [("Create", "Report")]},
+            {"name": "ModerateBlog", "actor": "Moderator",
+             "actions": [("Read", "Article"), ("Update", "Article"),
+                          ("Read", "Report"), ("Update", "Report"),
+                          ("Delete", "Report")]},
+        ],
         # POINT 61 : la bio de l'auteur est donnée comme page centrale d'un
         # site d'écriture ; la ligne éditoriale dit au lecteur s'il est au bon
         # endroit — ce qu'aucune liste d'articles ne raconte.
@@ -127,9 +145,9 @@ TEMPLATES = [
              "ask": "de quoi parle ce blog, à quel rythme, pour quel lecteur"},
         ],
         "seeds": {"Article": [
-            {"title": "Pourquoi j'ai quitté les frameworks", "content": "Retour d'expérience après un an de vanilla.", "imageUrl": _img("blog1"), "author": "Camille Roy", "publishedOn": "2026-05-12"},
-            {"title": "Le guide du télétravail durable", "content": "Trois ans de distance, ce qui marche vraiment.", "imageUrl": _img("blog2"), "author": "Camille Roy", "publishedOn": "2026-06-03"},
-            {"title": "Apprendre en public", "content": "Documenter ses progrès change tout.", "imageUrl": _img("blog3"), "author": "Sacha Nedel", "publishedOn": "2026-07-01"},
+            {"title": "Pourquoi j'ai quitté les frameworks", "content": "Retour d'expérience après un an de vanilla.", "imageUrl": _img("blog1"), "author": "Camille Roy", "publishedOn": "2026-05-12", "status": "published"},
+            {"title": "Le guide du télétravail durable", "content": "Trois ans de distance, ce qui marche vraiment.", "imageUrl": _img("blog2"), "author": "Camille Roy", "publishedOn": "2026-06-03", "status": "published"},
+            {"title": "Apprendre en public", "content": "Documenter ses progrès change tout.", "imageUrl": _img("blog3"), "author": "Sacha Nedel", "publishedOn": "2026-07-01", "status": "published"},
         ]},
         "followups": [
             {"ask": "Permettre aux lecteurs inscrits de commenter (chacun gère ses commentaires) ?",
@@ -189,7 +207,8 @@ TEMPLATES = [
             # priority signal right on the card » — les deux étaient des
             # questions alors qu'aucune carte kanban ne s'en passe.
             "Task": {"fields": [("title", "String"), ("status", "String"),
-                                ("priority", "String"), ("dueDate", "String")],
+                                ("priority", "String"), ("dueDate", "String"),
+                                ("assignee", "String")],
                      "manager": "Member", "readers": [], "public_read": False,
                      "public_create": False, "owned": True},
         },
@@ -197,20 +216,57 @@ TEMPLATES = [
         # d'accueil. Aucune rubrique standard ne s'impose — le dialogue
         # retombe donc sur l'offre générique plutôt que d'inventer un « à
         # propos » à un kanban d'équipe.
-        "relations": [], "extra_rules": [], "seeds": {}, "sections": [],
+        "relations": [],
+        "extra_rules": [
+            'rule Task.status oneOf "à faire", "en cours", "terminée"',
+            'rule Task.priority oneOf "basse", "moyenne", "haute"',
+        ],
+        "seeds": {}, "sections": [],
         "followups": [
         ],
     },
     {
         "name": "Forum / réseau social",
         "hint": "publications, commentaires, appréciations",
-        "actors": ["Member"],
+        "actors": ["Member", "Moderator"],
         "entities": {
-            "Post": {"fields": [("content", "Text"), ("likes", "Integer")],
+            "Post": {"fields": [("content", "Text"), ("likes", "Integer"),
+                                   ("status", "String")],
                      "manager": "Member", "readers": [], "public_read": True,
                      "public_create": False, "owned": True},
+            # Acquis : un signalement ouvre une file de modération ; le
+            # modérateur change le statut du post, et publicWhen empêche qu'un
+            # post masqué reste lisible par son URL.
+            "Report": {"fields": [("reason", "Text"), ("status", "String")],
+                        "manager": "Moderator", "readers": [], "public_read": False,
+                        "public_create": False, "owned": False},
+            # Le like est possédé par son compte : cela permet à oncePer de
+            # composer une unicité solide (compte + post), sans fingerprint
+            # fourni par le navigateur.
+            "Like": {"fields": [("note", "String")],
+                      "manager": "Member", "readers": [], "public_read": False,
+                      "public_create": False, "owned": True},
         },
-        "relations": [], "extra_rules": [],
+        "relations": [("Post", "hasMany", "Like"),
+                       ("Member", "hasMany", "Like"),
+                       ("Post", "hasMany", "Report")],
+        "extra_rules": [
+            'rule Post.status oneOf "published", "hidden"',
+            'rule Post.Read publicWhen status "published"',
+            'rule Like.Create increments Post.likes by 1',
+            'rule Like.Create oncePer Member, Post',
+            'rule Report.status oneOf "open", "resolved", "dismissed"',
+            'rule Report.Create sharedBy Member, Moderator',
+            'rule Post.Update sharedBy Member, Moderator',
+        ],
+        "extra_workflows": [
+            {"name": "ReportPost", "actor": "Member",
+             "actions": [("Create", "Report")]},
+            {"name": "ModerateCommunity", "actor": "Moderator",
+             "actions": [("Read", "Post"), ("Update", "Post"),
+                          ("Read", "Report"), ("Update", "Report"),
+                          ("Delete", "Report")]},
+        ],
         # POINT 61 : des règles écrites et visibles depuis l'accueil sont le
         # premier levier de modération cité par les guides de communauté ;
         # le « à propos » dit à qui la communauté s'adresse.
@@ -221,17 +277,11 @@ TEMPLATES = [
              "ask": "ce qui est attendu, ce qui est interdit, ce qui arrive en cas d'écart"},
         ],
         "seeds": {"Post": [
-            {"content": "Premier fil de la communauté — présentez-vous ici.", "likes": 24},
-            {"content": "Quels outils utilisez-vous au quotidien ?", "likes": 51},
-            {"content": "Retour sur le meetup de jeudi, merci à tous !", "likes": 13},
+            {"content": "Premier fil de la communauté — présentez-vous ici.", "likes": 24, "status": "published"},
+            {"content": "Quels outils utilisez-vous au quotidien ?", "likes": 51, "status": "published"},
+            {"content": "Retour sur le meetup de jeudi, merci à tous !", "likes": 13, "status": "published"},
         ]},
         "followups": [
-            {"ask": "Activer les likes (chaque like fait monter le compteur du post) ?",
-             "effects": {"add_entities": {"Like": {"fields": [("note", "String")],
-                                                   "manager": "Member", "readers": [], "public_read": False,
-                                                   "public_create": False, "owned": False}},
-                         "add_relations": [("Post", "hasMany", "Like")],
-                         "add_rules": ["rule Like.Create increments Post.likes by 1"]}},
             {"ask": "Permettre les commentaires (chacun gère les siens) ?",
              "effects": {"add_entities": {"Comment": {"fields": [("content", "Text")],
                                                       "manager": "Member", "readers": [], "public_read": True,
@@ -242,7 +292,7 @@ TEMPLATES = [
     {
         "name": "Petites annonces",
         "hint": "annonces publiques, chaque vendeur gère les siennes",
-        "actors": ["Seller"],
+        "actors": ["Seller", "Buyer"],
         "entities": {
             # ACQUIS (point 60) : l'acheteur regarde le lieu pour savoir si
             # l'objet est proche, et attend de pouvoir joindre le vendeur.
@@ -255,8 +305,25 @@ TEMPLATES = [
             "Inquiry": {"fields": [("email", "Email"), ("content", "Text")],
                         "manager": "Seller", "readers": [], "public_read": False,
                         "public_create": True, "owned": False},
+            # Transaction métier : l'acheteur possède sa demande, son montant
+            # est calculé depuis l'annonce, puis le vendeur renseigne la
+            # livraison sur la route dédiée après paiement.
+            "Purchase": {"fields": [("status", "String"), ("quantity", "Integer"),
+                                      ("deliveryAddress", "Text"), ("total", "Money"),
+                                      ("deliveryStatus", "String"),
+                                      ("trackingNumber", "String")],
+                         "manager": "Buyer", "readers": ["Seller"],
+                         "public_read": False, "public_create": False, "owned": True},
         },
-        "relations": [], "extra_rules": [],
+        "relations": [("Listing", "hasMany", "Purchase")],
+        "extra_rules": [
+            'rule Purchase.status oneOf "en attente", "payée", "annulée"',
+            'rule Purchase.quantity min 1',
+            'rule Purchase.deliveryStatus oneOf "à préparer", "expédiée", "livrée"',
+            'rule Purchase.deliveryStatus writableAfterPayment Seller',
+            'rule Purchase.trackingNumber writableAfterPayment Seller',
+        ],
+        "extra_workflows": [],
         # POINT 61 : une place de marché entre particuliers doit dire ce
         # qu'elle prend en charge et ce qu'elle laisse aux deux parties — les
         # guides de sécurité en font le point de départ de tout le reste.
@@ -318,9 +385,32 @@ TEMPLATES = [
                                 ("location", "String")],
                      "manager": "Admin", "readers": [], "public_read": False,
                      "public_create": False, "owned": False},
+            "StockReceipt": {"fields": [("quantity", "Integer"), ("reason", "Text"),
+                                          ("occurredAt", "DateTime")],
+                             "manager": "Admin", "readers": [], "public_read": False,
+                             "public_create": False, "owned": False},
+            "StockIssue": {"fields": [("quantity", "Integer"), ("reason", "Text"),
+                                        ("occurredAt", "DateTime")],
+                           "manager": "Admin", "readers": [], "public_read": False,
+                           "public_create": False, "owned": False},
         },
         # POINT 61 : outil interne — voir la note du modèle « Gestion de tâches ».
-        "relations": [], "extra_rules": [], "seeds": {}, "sections": [],
+        "relations": [("Item", "hasMany", "StockReceipt"),
+                       ("Item", "hasMany", "StockIssue")],
+        "extra_rules": [
+            'rule Item.quantity min 0',
+            'rule StockReceipt.quantity min 1',
+            'rule StockReceipt.Create increments Item.quantity by quantity',
+            'rule StockReceipt.occurredAt timestamp',
+            'rule StockIssue.quantity min 1',
+            'rule StockIssue.Create decrements Item.quantity by quantity',
+            'rule StockIssue.occurredAt timestamp',
+        ],
+        "seeds": {"Item": [
+            {"name": "Cartons d'expédition", "quantity": 84, "location": "A-01"},
+            {"name": "Étiquettes thermiques", "quantity": 240, "location": "A-02"},
+            {"name": "Câbles USB-C", "quantity": 18, "location": "B-04"},
+        ]}, "sections": [],
         "followups": [
             {"ask": "Suivre les fournisseurs (entité liée aux articles) ?",
              "effects": {"add_entities": {"Supplier": {"fields": [("name", "String"), ("email", "Email")],
@@ -337,16 +427,26 @@ TEMPLATES = [
         "actors": ["User"],
         "entities": {
             "Expense": {"fields": [("label", "String"), ("amount", "Money"),
-                                   ("spentOn", "String")],
+                                   ("spentOn", "String"), ("category", "String")],
                         "manager": "User", "readers": [], "public_read": False,
                         "public_create": False, "owned": True},
+            "Budget": {"fields": [("name", "String"), ("limit", "Money"),
+                                    ("spent", "Money")],
+                       "manager": "User", "readers": [], "public_read": False,
+                       "public_create": False, "owned": True},
         },
         # POINT 61 : outil personnel, sans visiteur à convaincre.
-        "relations": [], "extra_rules": [], "seeds": {}, "sections": [],
-        "followups": [
-            {"ask": "Classer les dépenses par catégorie ?",
-             "effects": {"add_fields": {"Expense": [("category", "String")]}}},
+        "relations": [("Budget", "hasMany", "Expense")],
+        "extra_rules": [
+            'rule Expense.amount min 0',
+            'rule Budget.limit min 0',
+            'rule Budget.spent sumOf Expense.amount',
         ],
+        # Un budget personnel sert à piloter les dépenses, pas à encaisser un
+        # paiement. Cette décision évite que le détecteur générique transforme
+        # les deux montants du suivi en faux catalogue de paiement.
+        "accept_payments": False,
+        "seeds": {}, "sections": [], "followups": [],
     },
     {
         "name": "Classement communautaire",
@@ -354,15 +454,20 @@ TEMPLATES = [
         "actors": ["Participant"],
         "entities": {
             "Entry": {"fields": [("name", "String"), ("tagline", "Text"),
-                                 ("score", "Integer")],
+                                 ("score", "Integer"), ("submittedOn", "DateTime")],
                       "manager": "Participant", "readers": [], "public_read": True,
                       "public_create": False, "owned": False},
             "Vote": {"fields": [("note", "String")],
                      "manager": "Participant", "readers": [], "public_read": False,
                      "public_create": False, "owned": False},
         },
-        "relations": [("Entry", "hasMany", "Vote")],
-        "extra_rules": ["rule Vote.Create increments Entry.score by 1"],
+        "relations": [("Participant", "hasMany", "Vote"),
+                       ("Entry", "hasMany", "Vote")],
+        "extra_rules": [
+            "rule Vote.Create increments Entry.score by 1",
+            "rule Vote.Create oncePer Participant, Entry",
+            "rule Entry.submittedOn timestamp",
+        ],
         # POINT 61 : un classement n'est crédible que si la règle du vote est
         # écrite — qui peut voter, combien de fois, comment on départage.
         "sections": [

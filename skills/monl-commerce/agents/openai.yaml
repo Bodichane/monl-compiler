@@ -1,0 +1,4 @@
+interface:
+  display_name: "Monl Commerce"
+  short_description: "Build complete premium commerce experiences"
+  default_prompt: "Use $monl-commerce to build a complete premium commerce experience."

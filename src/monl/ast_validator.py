@@ -1,5 +1,10 @@
 import os
 import re
+from typing import Any
+
+from .errors import ValidationError
+from .ir import CompilationIR
+from .validation_pipeline import DEFAULT_VALIDATION_PIPELINE, ValidationPipeline
 
 # Dossier par défaut des assets fournis par l'humain (brique 13, point 83).
 # HORS de frontend/ : ce dossier-là est renommé par 'monl frontend' à chaque
@@ -30,11 +35,11 @@ def resoudre_asset(base_dir, dossier, chemin):
                  if os.path.isfile(c)), None)
 
 
-class ASTValidationError(Exception):
+class ASTValidationError(ValidationError):
     pass
 
 class MonlAST:
-    def __init__(self, raw_json, base_dir=None):
+    def __init__(self, raw_json: dict[str, Any], base_dir: str | None = None):
         # AJOUT (brique 13, point 83) : 'base_dir' est le dossier du projet
         # (celui de la spec). Il n'est nécessaire qu'aux contrôles qui touchent
         # le DISQUE — vérifier qu'un asset déclaré existe vraiment. Les contrôles
@@ -80,29 +85,25 @@ class MonlAST:
         self.assets_raw = raw_json.get("assets") or {}
         self.assets = {}
         self.public_actions = set()
+        # Conditions de publication portées par `publicWhen` : elles doivent
+        # être connues du générateur, pas seulement du frontend.
+        self.public_conditions = {}
+        # Unicités composites `oncePer` (ex. un compte ne vote qu'une fois par
+        # entrée) — elles deviennent des index uniques multi-colonnes.
+        self.once_per_rules = []
 
         for ent in raw_json.get("entities", []):
             name = ent["name"]
             attrs = {attr["name"]: attr["type"] for attr in ent["attributes"]}
             self.entities[name] = attrs
 
-    def validate_and_audit(self):
+    def validate_and_audit(
+            self, pipeline: ValidationPipeline = DEFAULT_VALIDATION_PIPELINE
+    ) -> CompilationIR:
         """Exécute la validation de cohérence et l'analyse statique de sécurité."""
         print(f"🔬 Analyse statique et audit de sécurité pour '{self.app_name}'...")
 
-        # 1. Validations structurelles obligatoires
-        self._validate_structures()
-
-        # 2. Audit de sécurité actif
-        security_reports = self._audit_security_rules()
-
-        # 3. AJOUT (bêta 3) : audit du périmètre d'inscription libre. Un rôle
-        #    non marqué 'selfRegister' ne peut pas être choisi par un client à
-        #    l'inscription — c'est ce qui empêche l'élévation de privilège par
-        #    simple création de compte. On le rend visible à la compilation :
-        #    silence = personne ne s'inscrit, ce qui est sûr mais rarement
-        #    voulu ; rôle privilégié ouvert = choix explicite, tracé ici.
-        security_reports.extend(self._audit_self_registration())
+        security_reports = pipeline.run(self)
 
         print("✅ Analyse de l'AST terminée.")
         return self.to_normalized_ast(security_reports)
@@ -483,17 +484,15 @@ class MonlAST:
     def _valider_controle_dacces(self):
         """Le noyau du contrôle d'accès — frontière de sécurité (point 109).
 
-        Rassemble, hors de la grande méthode de validation structurelle, TOUT
-        ce qui décide QUI peut toucher QUOI : les règles 'ownedBy' (propriété
+        Rassemble, dans une passe dédiée du pipeline, TOUT ce qui décide QUI
+        peut toucher QUOI : les règles 'ownedBy' (propriété
         directe), la résolution de la chaîne transitive jusqu'à un acteur
         (briques 11 et 24), les règles 'accessibleBy' (accès à plusieurs
         parties) et le rôle superviseur (brique 23). Peuple self.ownership_rules,
         self.transitive_ownership et self.access_supervisors, lus ensuite par le
         générateur via _transitive_chain / _owner_lookup_sql.
 
-        N'utilise que self.* : aucune dépendance aux variables locales de
-        _validate_structures (la matrice de collision et shared_permissions
-        restent chez elle). C'est ce qui rend cette frontière nette.
+        N'utilise que self.* et constitue une frontière autonome du pipeline.
         """
         # AJOUT (post-v6, roadmap) : les règles 'ownedBy' restreignent une action
         # au seul enregistrement appartenant à l'acteur courant. Elles nécessitent
@@ -706,26 +705,36 @@ class MonlAST:
             # pendant exact du superviseur déjà acquis pour 'ownedBy' au
             # point 88 ('rule X.Update sharedBy Proprietaire, Patron'). Les
             # rôles nommés doivent être des acteurs déclarés.
-            ref = f"{entity}.{act_type}"
-            superviseurs = []
-            for r in self.rules:
-                if r["type"] == "sharedBy" and r["reference"] == ref:
-                    for role in r["value"]:
-                        if role not in self.actors:
-                            raise ASTValidationError(
-                                f"Structure : le rôle superviseur '{role}' de la règle "
-                                f"'sharedBy' sur '{ref}' n'est pas un acteur déclaré."
-                            )
-                        if role not in superviseurs:
-                            superviseurs.append(role)
+            superviseurs = self._superviseurs_declares(entity, act_type)
             if superviseurs:
                 self.access_supervisors[(entity, act_type)] = superviseurs
 
+    def _superviseurs_declares(self, entity, act_type):
+        """Les rôles nommés par un 'sharedBy' portant la référence exacte.
+
+        Source UNIQUE du superviseur, partagée par 'accessibleBy' (brique 23,
+        point 106) et par 'publicWhen' (point 116). Deux résolutions
+        parallèles finiraient par diverger sur la validation des rôles — et
+        c'est justement cette validation qui empêche qu'une faute de frappe
+        désactive silencieusement la supervision (même leçon qu'au point 112).
+        """
+        ref = f"{entity}.{act_type}"
+        superviseurs = []
+        for r in self.rules:
+            if r["type"] == "sharedBy" and r["reference"] == ref:
+                for role in r["value"]:
+                    if role not in self.actors:
+                        raise ASTValidationError(
+                            f"Structure : le rôle superviseur '{role}' de la règle "
+                            f"'sharedBy' sur '{ref}' n'est pas un acteur déclaré."
+                        )
+                    if role not in superviseurs:
+                        superviseurs.append(role)
+        return superviseurs
+
     def _valider_regle_public(self):
         """La règle 'public' — une action qui n'exige plus d'authentification
-        (point 111). Sortie de _validate_structures pour la même raison qu'aux
-        points 108/109 : nommer la logique de sécurité plutôt que la laisser
-        anonyme dans le fourre-tout. N'utilise que self.rules, self.entities,
+        (point 111). N'utilise que self.rules, self.entities,
         self.public_actions."""
         # AJOUT (roadmap, cas d'usage portfolio) : validation des règles
         # 'public' — une action ainsi marquée n'exige plus d'authentification
@@ -743,15 +752,118 @@ class MonlAST:
                 if act_type not in ("Create", "Read", "Update", "Delete"):
                     raise ASTValidationError(f"Structure : action '{act_type}' invalide dans la règle 'public' sur '{entity}'.")
                 self.public_actions.add((entity, act_type))
+            elif rule["type"] == "publicWhen":
+                reference = rule["reference"]
+                if "." not in reference:
+                    raise ASTValidationError(
+                        f"Structure : 'publicWhen' doit référencer 'Entite.Read', reçu '{reference}'."
+                    )
+                entity, act_type = reference.split(".", 1)
+                if entity not in self.entities:
+                    raise ASTValidationError(
+                        f"Structure : 'publicWhen' cible l'entité '{entity}' qui n'existe pas."
+                    )
+                if act_type != "Read":
+                    raise ASTValidationError(
+                        f"Structure : 'publicWhen' ne vaut que sur 'Read' (reçu '{reference}')."
+                    )
+                field = rule.get("field")
+                if field not in self.entities[entity]:
+                    raise ASTValidationError(
+                        f"Structure : 'publicWhen' cible le champ '{field}' qui n'existe pas sur '{entity}'."
+                    )
+                if self.entities[entity][field] not in ("String", "Text", "Email", "UUID"):
+                    raise ASTValidationError(
+                        f"Structure : 'publicWhen' exige un champ texte, reçu '{entity}.{field}' "
+                        f"de type '{self.entities[entity][field]}'."
+                    )
+                if (entity, act_type) in self.public_actions:
+                    raise ASTValidationError(
+                        f"Structure : '{reference}' est à la fois 'public' et 'publicWhen' — "
+                        "une seule politique de visibilité est autorisée."
+                    )
+                if (entity, act_type) in self.public_conditions:
+                    raise ASTValidationError(
+                        f"Structure : plusieurs règles 'publicWhen' sur '{reference}' — "
+                        "la condition serait ambiguë."
+                    )
+                self.public_actions.add((entity, act_type))
+                self.public_conditions[(entity, act_type)] = {
+                    "field": field, "value": rule.get("value", "")
+                }
+                # POINT 116 : un 'sharedBy' sur la MÊME référence nomme les
+                # rôles qui transpercent la condition — même mot-clé et même
+                # sens que le superviseur d'accessibleBy (brique 23). Sans
+                # lui, masquer un contenu le retirait AUSSI au modérateur qui
+                # venait de le masquer : il ne pouvait plus ni le relire ni
+                # revenir en arrière.
+                superviseurs = self._superviseurs_declares(entity, act_type)
+                if superviseurs:
+                    self.access_supervisors[(entity, act_type)] = superviseurs
+
+    def _valider_regles_once_per(self):
+        """Valide l'unicité métier d'une action par compte et par cibles.
+
+        `oncePer Member, Entry` désigne les deux relations qui composent la
+        clé unique de Vote. Le parent acteur est alimenté depuis le JWT ; les
+        autres parents restent fournis comme clés étrangères normales.
+        """
+        self.once_per_rules = []
+        for rule in self.rules:
+            if rule["type"] != "oncePer":
+                continue
+            reference = rule["reference"]
+            if "." not in reference:
+                raise ASTValidationError(
+                    f"Structure : 'oncePer' doit référencer 'Entite.Create', reçu '{reference}'."
+                )
+            entity, action = reference.split(".", 1)
+            if entity not in self.entities:
+                raise ASTValidationError(
+                    f"Structure : 'oncePer' cible l'entité '{entity}' qui n'existe pas."
+                )
+            if action != "Create":
+                raise ASTValidationError(
+                    f"Structure : 'oncePer' ne vaut que sur 'Create' (reçu '{reference}')."
+                )
+            parents = list(rule.get("parents") or [])
+            if len(parents) < 2 or len(set(parents)) != len(parents):
+                raise ASTValidationError(
+                    f"Structure : 'oncePer' sur '{reference}' exige au moins deux parents distincts."
+                )
+            for parent in parents:
+                if parent not in self.entities and parent not in self.actors:
+                    raise ASTValidationError(
+                        f"Structure : 'oncePer' référence le parent '{parent}', qui n'existe pas."
+                    )
+                relie = any(
+                    (rel["type"] in ("hasMany", "hasOne")
+                     and rel["source"] == parent and rel["target"] == entity)
+                    or (rel["type"] == "belongsTo"
+                        and rel["target"] == parent and rel["source"] == entity)
+                    for rel in self.relations
+                )
+                if not relie:
+                    raise ASTValidationError(
+                        f"Structure : 'oncePer' exige une relation entre '{parent}' et '{entity}'."
+                    )
+            if not any(parent in self.actors for parent in parents):
+                raise ASTValidationError(
+                    f"Structure : 'oncePer' sur '{reference}' doit inclure un parent acteur "
+                    "pour identifier le compte courant."
+                )
+            if (entity, "Create") in self.public_actions:
+                raise ASTValidationError(
+                    f"Structure : '{reference}' est public, donc aucun compte ne peut porter "
+                    "l'unicité 'oncePer'."
+                )
+            self.once_per_rules.append({"trigger_entity": entity, "parents": parents})
 
     def _valider_requires_own_et_payable(self):
         """'requiresOwn' (brique 17) et 'payable' (brique paiement) — les
         prérequis de création qui protègent qui peut agir et qui peut encaisser
-        (point 111). Extraits ensemble parce que contigus dans le fichier
-        d'origine : 'payable' lit self.masked_fields, peuplé par la validation
-        'hidden' qui RESTE dans _validate_structures et s'exécute avant cet
-        appel — ne pas changer la position relative de l'appel par rapport au
-        bloc 'hidden'/'generated'/'oneOf'."""
+        (point 111). Extraits ensemble parce qu'ils partagent les prérequis de
+        propriété, de visibilité publique et de champs masqués."""
         # AJOUT (roadmap, écosystème de capacités -- brique 17, point 90) :
         # validation de 'requiresOwn'. L'appelant doit DÉJÀ posséder un
         # enregistrement de l'entité nommée pour pouvoir créer celui-ci.
@@ -908,9 +1020,7 @@ class MonlAST:
             self.payable_fields.append({"entity": entity, "field": field})
 
     def _valider_regle_restrictedTo(self):
-        """La règle 'restrictedTo' — jamais validée structurellement
-        (point 112). Trouvée en vidant _validate_structures de sa dernière
-        logique de sécurité anonyme (points 108-111) : contrairement à
+        """Valide la règle 'restrictedTo' (point 112). Contrairement à
         'public'/'ownedBy'/'requiresOwn', rien ne vérifiait qu'un champ ou un
         acteur référencé par 'restrictedTo' existe réellement. Une faute de
         frappe sur le nom du champ ou de l'acteur désactivait silencieusement
@@ -945,6 +1055,816 @@ class MonlAST:
                     f"Structure : la règle 'restrictedTo' sur "
                     f"'{entity}.{field}' restreint à l'acteur '{actor}', qui "
                     f"n'est pas un acteur déclaré."
+                )
+
+    def _valider_champs_masques(self):
+        """Valide les règles ``hidden`` et prépare les champs à masquer."""
+        self.masked_fields = set()
+        for rule in self.rules:
+            if rule["type"] != "hidden":
+                continue
+            if "." not in rule["reference"]:
+                raise ASTValidationError(
+                    f"Structure : la règle 'hidden' doit référencer 'Entite.champ', reçu '{rule['reference']}'."
+                )
+            entity, field = rule["reference"].split(".", 1)
+            if entity not in self.entities:
+                raise ASTValidationError(f"Structure : la règle 'hidden' cible l'entité '{entity}' qui n'existe pas.")
+            if field not in self.entities[entity]:
+                raise ASTValidationError(
+                    f"Structure : la règle 'hidden' référence le champ '{field}', qui n'est pas un attribut "
+                    f"déclaré de '{entity}' (ou est 'id', qui ne peut pas être masqué)."
+                )
+            self.masked_fields.add((entity, field))
+
+    def _valider_champs_categorises(self):
+        """Valide les règles ``categorized`` après les champs ``hidden``."""
+        self.categorized_fields = []
+        seen_fields = set()
+        for rule in self.rules:
+            if rule["type"] != "categorized":
+                continue
+            if "." not in rule["reference"]:
+                raise ASTValidationError(
+                    f"Structure : la règle 'categorized' doit référencer 'Entite.champ', reçu '{rule['reference']}'."
+                )
+            entity, field = rule["reference"].split(".", 1)
+            if entity not in self.entities:
+                raise ASTValidationError(f"Structure : la règle 'categorized' cible l'entité '{entity}' qui n'existe pas.")
+            field_type = self.entities.get(entity, {}).get(field)
+            if field_type not in ("Integer", "Float"):
+                raise ASTValidationError(
+                    f"Structure : 'categorized' cible le champ '{entity}.{field}', qui doit être un attribut "
+                    f"Integer ou Float déclaré (reçu : {field_type or 'champ inexistant'})."
+                )
+            if (entity, field) in self.masked_fields:
+                raise ASTValidationError(
+                    f"Structure : '{entity}.{field}' est à la fois 'hidden' et 'categorized' -- incompatible : "
+                    f"'hidden' retire le champ, 'categorized' le remplace par une catégorie dérivée de sa valeur."
+                )
+            if (entity, field) in seen_fields:
+                raise ASTValidationError(
+                    f"Structure : plusieurs règles 'categorized' déclarées pour '{entity}.{field}' -- une seule autorisée."
+                )
+            seen_fields.add((entity, field))
+
+            clauses = rule["value"]
+            if len(clauses) < 2:
+                raise ASTValidationError(
+                    f"Structure : 'categorized' sur '{entity}.{field}' doit déclarer au moins un seuil ('below') "
+                    f"et un palier de secours ('otherwise')."
+                )
+            for clause in clauses[:-1]:
+                if "otherwise" in clause:
+                    raise ASTValidationError(
+                        f"Structure : 'categorized' sur '{entity}.{field}' -- seul le DERNIER palier peut être "
+                        f"'otherwise' (palier de secours), reçu ailleurs dans la liste."
+                    )
+            if "otherwise" not in clauses[-1]:
+                raise ASTValidationError(
+                    f"Structure : 'categorized' sur '{entity}.{field}' doit se terminer par un palier 'otherwise' "
+                    f"(palier de secours qui couvre toute valeur au-delà du dernier seuil)."
+                )
+            thresholds = [clause["below"] for clause in clauses[:-1]]
+            if thresholds != sorted(set(thresholds)) or len(thresholds) != len(set(thresholds)):
+                raise ASTValidationError(
+                    f"Structure : 'categorized' sur '{entity}.{field}' -- les seuils 'below' doivent être "
+                    f"strictement croissants (reçu : {thresholds})."
+                )
+            if any(not clause["label"].strip() for clause in clauses):
+                raise ASTValidationError(
+                    f"Structure : 'categorized' sur '{entity}.{field}' -- chaque palier doit avoir un libellé non vide."
+                )
+            self.categorized_fields.append({"entity": entity, "field": field, "clauses": clauses})
+
+    def _valider_champs_generes(self):
+        """Valide les pseudonymes générés côté serveur."""
+        self.generated_fields = []
+        seen_fields = set()
+        for rule in self.rules:
+            if rule["type"] != "generated":
+                continue
+            if "." not in rule["reference"]:
+                raise ASTValidationError(
+                    f"Structure : la règle 'generated' doit référencer 'Entite.champ', reçu '{rule['reference']}'."
+                )
+            entity, field = rule["reference"].split(".", 1)
+            if entity not in self.entities:
+                raise ASTValidationError(f"Structure : la règle 'generated' cible l'entité '{entity}' qui n'existe pas.")
+            field_type = self.entities.get(entity, {}).get(field)
+            if field_type != "String":
+                raise ASTValidationError(
+                    f"Structure : 'generated' cible le champ '{entity}.{field}', qui doit être un attribut "
+                    f"String déclaré (reçu : {field_type or 'champ inexistant'}) -- un pseudonyme est toujours "
+                    f"du texte court."
+                )
+            if (entity, field) in self.masked_fields:
+                raise ASTValidationError(
+                    f"Structure : '{entity}.{field}' est à la fois 'hidden' et 'generated' -- incompatible : "
+                    f"'generated' produit déjà une valeur sûre à afficher, la masquer en plus n'a pas de sens."
+                )
+            if (entity, field) in seen_fields:
+                raise ASTValidationError(
+                    f"Structure : plusieurs règles 'generated' déclarées pour '{entity}.{field}' -- une seule autorisée."
+                )
+            seen_fields.add((entity, field))
+            if (entity, "Create") in self.public_actions:
+                raise ASTValidationError(
+                    f"Structure : '{entity}.{field}' est 'generated', mais '{entity}.Create' est 'public' -- "
+                    f"incompatible : 'generated' exige un appelant authentifié dont dériver le pseudonyme."
+                )
+            self.generated_fields.append({"entity": entity, "field": field})
+
+    def _valider_champs_horodates(self):
+        """Valide les instants de création attribués par le serveur."""
+        self.timestamp_fields = []
+        seen_fields = set()
+        for rule in self.rules:
+            if rule["type"] != "timestamp":
+                continue
+            if "." not in rule["reference"]:
+                raise ASTValidationError(
+                    f"Structure : la règle 'timestamp' doit référencer 'Entite.champ', reçu '{rule['reference']}'."
+                )
+            entity, field = rule["reference"].split(".", 1)
+            if entity not in self.entities:
+                raise ASTValidationError(
+                    f"Structure : la règle 'timestamp' cible l'entité '{entity}' qui n'existe pas."
+                )
+            field_type = self.entities.get(entity, {}).get(field)
+            if field_type != "DateTime":
+                indice = (
+                    " -- 'Date' tronquerait l'heure que le serveur connaît, et deux enregistrements du même jour "
+                    "ne seraient plus ordonnables" if field_type == "Date" else ""
+                )
+                raise ASTValidationError(
+                    f"Structure : 'timestamp' cible le champ '{entity}.{field}', qui doit être "
+                    f"un attribut DateTime déclaré (reçu : {field_type or 'champ inexistant'}){indice}."
+                )
+            if (entity, field) in self.masked_fields:
+                raise ASTValidationError(
+                    f"Structure : '{entity}.{field}' est à la fois 'hidden' et 'timestamp' -- "
+                    f"incompatible : le client ne peut pas l'écrire et ne pourrait pas le lire, "
+                    f"donc ce champ n'existerait nulle part."
+                )
+            if (entity, field) in seen_fields:
+                raise ASTValidationError(
+                    f"Structure : plusieurs règles 'timestamp' déclarées pour '{entity}.{field}' -- une seule autorisée."
+                )
+            if any(timestamp["entity"] == entity for timestamp in self.timestamp_fields):
+                other = next(timestamp["field"] for timestamp in self.timestamp_fields if timestamp["entity"] == entity)
+                raise ASTValidationError(
+                    f"Structure : '{entity}' porte deux champs 'timestamp' ('{other}' et "
+                    f"'{field}') -- tous deux recevraient le MÊME instant de création. "
+                    f"Un horodatage de modification serait une autre brique, pas celle-ci."
+                )
+            seen_fields.add((entity, field))
+            self.timestamp_fields.append({"entity": entity, "field": field})
+
+    def _valider_champs_numerotes(self):
+        """Valide les numéros lisibles générés côté serveur."""
+        self.numbered_fields = []
+        for rule in self.rules:
+            if rule["type"] != "numbered":
+                continue
+            if "." not in rule["reference"]:
+                raise ASTValidationError(
+                    f"Structure : la règle 'numbered' doit référencer 'Entite.champ', reçu '{rule['reference']}'."
+                )
+            entity, field = rule["reference"].split(".", 1)
+            if entity not in self.entities:
+                raise ASTValidationError(
+                    f"Structure : la règle 'numbered' cible l'entité '{entity}' qui n'existe pas."
+                )
+            field_type = self.entities.get(entity, {}).get(field)
+            if field_type != "String":
+                indice = (
+                    " -- un 'UUID' vérifie sa forme depuis le point 101, et un numéro lisible n'en a pas la forme"
+                    if field_type == "UUID" else ""
+                )
+                raise ASTValidationError(
+                    f"Structure : 'numbered' cible le champ '{entity}.{field}', qui doit "
+                    f"être un attribut String déclaré (reçu : {field_type or 'champ inexistant'}){indice}."
+                )
+            if (entity, field) in self.masked_fields:
+                raise ASTValidationError(
+                    f"Structure : '{entity}.{field}' est à la fois 'hidden' et "
+                    f"'numbered' -- incompatible : le client ne peut pas l'écrire et ne "
+                    f"pourrait pas le lire, donc ce numéro n'existerait pour personne."
+                )
+            if any(numbered["entity"] == entity and numbered["field"] == field for numbered in self.numbered_fields):
+                raise ASTValidationError(
+                    f"Structure : plusieurs règles 'numbered' déclarées pour '{entity}.{field}' -- une seule autorisée."
+                )
+            self._valider_gabarit_de_numero(entity, field, rule["value"])
+            self.numbered_fields.append({
+                "entity": entity, "field": field, "format": rule["value"],
+                "periode": self._periode_du_gabarit(rule["value"]),
+            })
+
+    def _valider_champs_enumeres(self):
+        """Valide les champs texte limités à une liste de valeurs."""
+        self.enumerated_fields = {}
+        for rule in self.rules:
+            if rule["type"] != "oneOf":
+                continue
+            if "." not in rule["reference"]:
+                raise ASTValidationError(
+                    f"Structure : la règle 'oneOf' doit référencer 'Entite.champ', reçu '{rule['reference']}'."
+                )
+            entity, field = rule["reference"].split(".", 1)
+            if entity not in self.entities:
+                raise ASTValidationError(f"Structure : la règle 'oneOf' cible l'entité '{entity}' qui n'existe pas.")
+            field_type = self.entities.get(entity, {}).get(field)
+            if field_type not in ("String", "Text"):
+                raise ASTValidationError(
+                    f"Structure : 'oneOf' cible '{entity}.{field}', qui doit être un champ String ou Text "
+                    f"(reçu : {field_type or 'champ inexistant'}) — pour un nombre, 'min'/'max' ou "
+                    f"'categorized' disent déjà cela."
+                )
+            values = rule["value"]
+            if len(values) < 2:
+                raise ASTValidationError(
+                    f"Structure : 'oneOf' sur '{entity}.{field}' n'énumère qu'une valeur — "
+                    f"un champ qui n'a qu'une valeur possible n'a pas besoin d'être saisi."
+                )
+            empty_values = [value for value in values if not value.strip()]
+            if empty_values:
+                raise ASTValidationError(
+                    f"Structure : 'oneOf' sur '{entity}.{field}' contient une valeur vide — "
+                    f"elle serait indistinguable d'un champ non rempli à l'écran."
+                )
+            duplicates = [value for value in set(values) if values.count(value) > 1]
+            if duplicates:
+                raise ASTValidationError(
+                    f"Structure : 'oneOf' sur '{entity}.{field}' répète "
+                    f"{', '.join(repr(duplicate) for duplicate in sorted(duplicates))} — une liste de choix "
+                    f"qui propose deux fois la même chose est une erreur de saisie."
+                )
+            if entity in self.enumerated_fields and field in self.enumerated_fields[entity]:
+                raise ASTValidationError(
+                    f"Structure : deux règles 'oneOf' sur '{entity}.{field}' — laquelle des deux listes s'appliquerait ?"
+                )
+            if any(generated["entity"] == entity and generated["field"] == field for generated in self.generated_fields):
+                raise ASTValidationError(
+                    f"Structure : '{entity}.{field}' est à la fois 'generated' et 'oneOf' — "
+                    f"le serveur l'écrit lui-même, la liste de choix ne serait jamais lue."
+                )
+            self.enumerated_fields.setdefault(entity, {})[field] = list(values)
+
+    def _valider_champs_derives(self):
+        """Valide les champs numériques calculés depuis une ligne liée."""
+        self.derived_fields = []
+        for rule in self.rules:
+            if rule["type"] != "derivedFrom":
+                continue
+            reference, source_ref = rule["reference"], rule["value"]
+            factor = rule["factor"]
+            if "." not in reference or "." not in source_ref:
+                raise ASTValidationError(
+                    f"Structure : 'derivedFrom' doit référencer 'Entite.champ derivedFrom Entite.champ by champ', "
+                    f"reçu '{reference} derivedFrom {source_ref}'."
+                )
+            entity, field = reference.split(".", 1)
+            source_entity, source_field = source_ref.split(".", 1)
+            if entity not in self.entities:
+                raise ASTValidationError(f"Structure : 'derivedFrom' cible l'entité '{entity}' qui n'existe pas.")
+            if source_entity not in self.entities:
+                raise ASTValidationError(f"Structure : 'derivedFrom' lit l'entité '{source_entity}' qui n'existe pas.")
+            field_type = self.entities[entity].get(field)
+            if field_type not in ("Money", "Float", "Integer"):
+                raise ASTValidationError(
+                    f"Structure : 'derivedFrom' calcule '{entity}.{field}', qui doit être un attribut "
+                    f"Money, Float ou Integer déclaré (reçu : {field_type or 'champ inexistant'})."
+                )
+            source_type = self.entities[source_entity].get(source_field)
+            if source_type not in ("Money", "Float", "Integer"):
+                raise ASTValidationError(
+                    f"Structure : 'derivedFrom' lit '{source_entity}.{source_field}', qui doit être un attribut "
+                    f"Money, Float ou Integer déclaré (reçu : {source_type or 'champ inexistant'})."
+                )
+            factor_type = self.entities[entity].get(factor)
+            if factor_type != "Integer":
+                raise ASTValidationError(
+                    f"Structure : 'derivedFrom ... by {factor}' exige que '{entity}.{factor}' soit un attribut "
+                    f"Integer déclaré (reçu : {factor_type or 'champ inexistant'}) -- on multiplie par une quantité."
+                )
+            required_fields = {r["reference"] for r in self.rules if r.get("type") == "required"}
+            if f"{entity}.{factor}" not in required_fields:
+                raise ASTValidationError(
+                    f"Structure : '{entity}.{factor}' sert de multiplicateur à 'derivedFrom' et doit donc porter "
+                    f"'rule {entity}.{factor} required' -- sinon un client qui l'omet ferait calculer sur du vide."
+                )
+            if factor == field:
+                raise ASTValidationError(f"Structure : '{entity}.{field}' ne peut pas être son propre multiplicateur.")
+            if (entity, field) in self.masked_fields:
+                raise ASTValidationError(
+                    f"Structure : '{entity}.{field}' est à la fois 'hidden' et 'derivedFrom' -- incompatible : "
+                    f"un montant calculé qu'on ne peut pas lire ne peut pas être vérifié."
+                )
+            if any(g["entity"] == entity and g["field"] == field for g in self.generated_fields):
+                raise ASTValidationError(
+                    f"Structure : '{entity}.{field}' est à la fois 'generated' et 'derivedFrom' -- deux façons "
+                    f"concurrentes de le peupler côté serveur, il faut choisir."
+                )
+            if any(d["entity"] == entity and d["field"] == field for d in self.derived_fields):
+                raise ASTValidationError(
+                    f"Structure : '{entity}.{field}' porte plusieurs règles 'derivedFrom' -- un seul calcul par champ."
+                )
+            has_source_relation = any(
+                (rel["type"] in ("hasMany", "hasOne")
+                 and rel["source"] == source_entity and rel["target"] == entity)
+                or (rel["type"] == "belongsTo"
+                    and rel["source"] == entity and rel["target"] == source_entity)
+                for rel in self.relations
+            )
+            if not has_source_relation:
+                raise ASTValidationError(
+                    f"Structure : 'derivedFrom' lit '{source_entity}.{source_field}' depuis '{entity}', ce qui exige "
+                    f"une relation entre les deux (ex. '{source_entity} hasMany {entity}'), absente ici -- sans "
+                    f"elle, rien ne dit QUELLE ligne de '{source_entity}' lire."
+                )
+            owners = {v for (ent, _act), v in self.ownership_rules.items() if ent == entity}
+            if owners and source_entity in owners:
+                raise ASTValidationError(
+                    f"Structure : 'derivedFrom' lit '{source_entity}', qui est aussi le propriétaire de "
+                    f"'{entity}' (règle 'ownedBy') -- sa clé étrangère vient du jeton, pas du client, donc "
+                    f"aucune ligne de '{source_entity}' ne peut être désignée à la création."
+                )
+            if not owners:
+                raise ASTValidationError(
+                    f"Structure : 'derivedFrom' sur '{entity}.{field}' exige que '{entity}' ait un propriétaire "
+                    f"(une règle 'ownedBy') -- c'est lui qui distingue la clé étrangère peuplée par le serveur "
+                    f"de celle que le client fournit pour désigner la ligne à lire."
+                )
+            self.derived_fields.append({
+                "entity": entity, "field": field,
+                "source_entity": source_entity, "source_field": source_field,
+                "factor": factor,
+            })
+
+    def _valider_champs_agreges(self):
+        """Valide les champs calculés par somme des lignes enfants."""
+        self.aggregated_fields = []
+        for rule in self.rules:
+            if rule["type"] != "sumOf":
+                continue
+            reference, source_ref = rule["reference"], rule["value"]
+            if "." not in reference or "." not in source_ref:
+                raise ASTValidationError(
+                    f"Structure : 'sumOf' doit référencer 'Entite.champ sumOf Entite.champ', "
+                    f"reçu '{reference} sumOf {source_ref}'."
+                )
+            entity, field = reference.split(".", 1)
+            source_entity, source_field = source_ref.split(".", 1)
+            if entity not in self.entities:
+                raise ASTValidationError(f"Structure : 'sumOf' cible l'entité '{entity}' qui n'existe pas.")
+            if source_entity not in self.entities:
+                raise ASTValidationError(f"Structure : 'sumOf' additionne l'entité '{source_entity}' qui n'existe pas.")
+            field_type = self.entities[entity].get(field)
+            if field_type not in ("Money", "Float", "Integer"):
+                raise ASTValidationError(
+                    f"Structure : 'sumOf' calcule '{entity}.{field}', qui doit être un attribut "
+                    f"Money, Float ou Integer déclaré (reçu : {field_type or 'champ inexistant'})."
+                )
+            source_type = self.entities[source_entity].get(source_field)
+            if source_type not in ("Money", "Float", "Integer"):
+                raise ASTValidationError(
+                    f"Structure : 'sumOf' additionne '{source_entity}.{source_field}', qui doit être un "
+                    f"attribut Money, Float ou Integer déclaré (reçu : {source_type or 'champ inexistant'})."
+                )
+            if source_entity == entity:
+                raise ASTValidationError(
+                    f"Structure : 'sumOf' fait de '{entity}.{field}' la somme d'un champ de '{entity}' lui-même "
+                    f"-- une entité ne peut pas s'additionner. La somme porte sur une entité ENFANT "
+                    f"(ex. 'Commande hasMany Ligne')."
+                )
+            child_relation = any(
+                (rel["type"] in ("hasMany", "hasOne")
+                 and rel["source"] == entity and rel["target"] == source_entity)
+                or (rel["type"] == "belongsTo"
+                    and rel["source"] == source_entity and rel["target"] == entity)
+                for rel in self.relations
+            )
+            if not child_relation:
+                raise ASTValidationError(
+                    f"Structure : 'sumOf' additionne '{source_entity}' depuis '{entity}', ce qui exige "
+                    f"une relation parent-enfant (ex. '{entity} hasMany {source_entity}'), absente ici -- "
+                    f"sans elle, rien ne dit QUELLES lignes de '{source_entity}' additionner, et la somme "
+                    f"porterait sur la table entière."
+                )
+            if (entity, field) in self.masked_fields:
+                raise ASTValidationError(
+                    f"Structure : '{entity}.{field}' est à la fois 'hidden' et 'sumOf' -- incompatible : "
+                    f"un total calculé qu'on ne peut pas lire ne peut pas être vérifié."
+                )
+            if any(g["entity"] == entity and g["field"] == field for g in self.generated_fields):
+                raise ASTValidationError(
+                    f"Structure : '{entity}.{field}' est à la fois 'generated' et 'sumOf' -- deux façons "
+                    f"concurrentes de le peupler côté serveur, il faut choisir."
+                )
+            if any(d["entity"] == entity and d["field"] == field for d in self.derived_fields):
+                raise ASTValidationError(
+                    f"Structure : '{entity}.{field}' porte à la fois 'derivedFrom' et 'sumOf' -- deux "
+                    f"calculs concurrents pour un seul champ. 'derivedFrom' lit UNE ligne liée, 'sumOf' "
+                    f"additionne des enfants : choisir lequel."
+                )
+            if any(a["entity"] == entity and a["field"] == field for a in self.aggregated_fields):
+                raise ASTValidationError(
+                    f"Structure : '{entity}.{field}' porte plusieurs règles 'sumOf' -- une seule somme par champ."
+                )
+            source_owners = {v for (ent, _act), v in self.ownership_rules.items() if ent == source_entity}
+            if not source_owners:
+                raise ASTValidationError(
+                    f"Structure : 'sumOf' additionne '{source_entity}', qui n'a pas de propriétaire "
+                    f"(une règle 'ownedBy') -- c'est lui qui distingue la clé étrangère peuplée par le "
+                    f"serveur de celle que le client fournit pour désigner le parent. Sans elle, "
+                    f"n'importe quel compte pourrait ajouter une ligne au total d'un tiers."
+                )
+            self.aggregated_fields.append({
+                "entity": entity, "field": field,
+                "source_entity": source_entity, "source_field": source_field,
+            })
+
+    def _valider_securite_calculs_paiement(self):
+        """Recoupe champs serveur, bornes et montants encaissables."""
+        derived = {(item["entity"], item["field"]) for item in self.derived_fields}
+        sums = {(item["entity"], item["field"]): item for item in self.aggregated_fields}
+        server_fields = (
+            derived
+            | set(sums)
+            | {(item["entity"], item["field"]) for item in self.generated_fields}
+            | {(item["entity"], item["field"]) for item in self.timestamp_fields}
+            | {(item["entity"], item["field"]) for item in self.numbered_fields}
+        )
+        for (entity, field), constraints in sorted(self.field_constraints.items()):
+            if (entity, field) not in server_fields:
+                continue
+            bounds = [name for name in ("min", "max") if name in constraints]
+            if bounds:
+                raise ASTValidationError(
+                    f"Structure : '{entity}.{field}' porte "
+                    f"'{ '/'.join(bounds) }' alors que le SERVEUR calcule ce champ : il "
+                    f"est absent du corps de requête, donc la borne ne s'appliquerait "
+                    f"à rien. La retirer, ou borner le champ d'où la valeur vient."
+                )
+            if "required" in constraints:
+                raise ASTValidationError(
+                    f"Structure : '{entity}.{field}' est 'required' alors que le SERVEUR "
+                    f"le calcule : le client ne peut pas le fournir, et le contrat "
+                    f"dirait à la fois « à remplir » et « à ne pas envoyer »."
+                )
+
+        for payable in self.payable_fields:
+            entity, field = payable["entity"], payable["field"]
+            if (entity, field) not in derived and (entity, field) not in sums:
+                raise ASTValidationError(
+                    f"Structure : '{entity}.{field}' est 'payable' mais le client peut l'écrire -- "
+                    f"le créateur d'un '{entity}' en devient le propriétaire, donc le payeur : il "
+                    f"fixerait lui-même ce qu'il règle. Ajouter une règle qui fait calculer le "
+                    f"montant par le serveur, par exemple "
+                    f"'rule {entity}.{field} derivedFrom Article.prix by quantite', ou "
+                    f"'rule {entity}.{field} sumOf Ligne.sousTotal' pour un panier."
+                )
+            total = sums.get((entity, field))
+            if total is not None:
+                source = (total["source_entity"], total["source_field"])
+                if source not in derived and source not in sums:
+                    raise ASTValidationError(
+                        f"Structure : '{entity}.{field}' est 'payable' et somme "
+                        f"'{total['source_entity']}.{total['source_field']}', que le client peut "
+                        f"écrire -- additionner un montant fourni par le payeur donne un total que le "
+                        f"payeur fixe encore, en une addition de plus. Faire calculer la ligne par le "
+                        f"serveur, par exemple 'rule {total['source_entity']}."
+                        f"{total['source_field']} derivedFrom Article.prix by quantite'."
+                    )
+
+    def _valider_effets_compteurs(self):
+        """Valide les effets de compteur déclenchés à la création."""
+        self.reputation_rules = []
+        for rule in self.rules:
+            if rule["type"] not in ("decrements", "increments"):
+                continue
+            direction = rule["type"]
+            trigger_ref, target_ref = rule["reference"], rule["value"]
+            if "." not in trigger_ref or "." not in target_ref:
+                raise ASTValidationError(
+                    f"Structure : la règle '{direction}' doit référencer 'Entite.Create {direction} Entite.champ', "
+                    f"reçu '{trigger_ref} {direction} {target_ref}'."
+                )
+            trigger_entity, trigger_action = trigger_ref.split(".", 1)
+            target_entity, target_field = target_ref.split(".", 1)
+            if trigger_entity not in self.entities:
+                raise ASTValidationError(f"Structure : '{direction}' référence l'entité '{trigger_entity}' qui n'existe pas.")
+            if trigger_action != "Create":
+                raise ASTValidationError(
+                    f"Structure : '{direction}' n'est pris en charge que sur 'Create' pour l'instant "
+                    f"(reçu '{trigger_entity}.{trigger_action}')."
+                )
+            if target_entity not in self.entities:
+                raise ASTValidationError(f"Structure : '{direction}' référence l'entité '{target_entity}' qui n'existe pas.")
+            target_type = self.entities[target_entity].get(target_field)
+            if target_type not in ("Integer", "Float"):
+                raise ASTValidationError(
+                    f"Structure : '{direction}' cible le champ '{target_entity}.{target_field}', qui doit être "
+                    f"un attribut Integer ou Float déclaré (reçu : {target_type or 'champ inexistant'})."
+                )
+            matching_relation = any(
+                (rel["type"] in ("hasMany", "hasOne")
+                 and rel["source"] == target_entity and rel["target"] == trigger_entity)
+                or (rel["type"] == "belongsTo"
+                    and rel["target"] == target_entity and rel["source"] == trigger_entity)
+                for rel in self.relations
+            )
+            if not matching_relation:
+                raise ASTValidationError(
+                    f"Structure : '{direction}' sur '{trigger_entity}.Create' vers '{target_entity}.{target_field}' "
+                    f"exige une relation entre les deux (ex. '{target_entity} hasMany {trigger_entity}'), absente ici."
+                )
+            amount_field = rule.get("amount_field")
+            if amount_field:
+                amount_type = self.entities[trigger_entity].get(amount_field)
+                if amount_type != "Integer":
+                    raise ASTValidationError(
+                        f"Structure : '{direction} ... by {amount_field}' désigne un champ de "
+                        f"'{trigger_entity}' qui doit être un Integer déclaré "
+                        f"(reçu : {amount_type or 'champ inexistant'})."
+                    )
+                required = {r["reference"] for r in self.rules if r.get("type") == "required"}
+                if f"{trigger_entity}.{amount_field}" not in required:
+                    raise ASTValidationError(
+                        f"Structure : '{trigger_entity}.{amount_field}' sert de quantité à "
+                        f"'{direction}' : il lui faut 'rule {trigger_entity}.{amount_field} "
+                        f"required', sinon un client qui l'omet ferait décompter sur du vide."
+                    )
+            self.reputation_rules.append({
+                "trigger_entity": trigger_entity, "target_entity": target_entity,
+                "target_field": target_field, "amount": rule.get("amount"),
+                "amount_field": amount_field, "direction": direction,
+            })
+
+    def _valider_proprietaire_paiement(self):
+        """Vérifie qu'un montant payable remonte réellement jusqu'à un compte."""
+        for payable in self.payable_fields:
+            entity = payable["entity"]
+            if entity in self.transitive_ownership:
+                continue
+            targets = {
+                rule["target_entity"] for rule in self.reputation_rules
+                if rule["trigger_entity"] == entity
+            }
+            actor_parents = {
+                (rel["source"] if rel["type"] in ("hasMany", "hasOne") else rel["target"])
+                for rel in self.relations
+                if (rel["type"] in ("hasMany", "hasOne") and rel["target"] == entity)
+                or (rel["type"] == "belongsTo" and rel["source"] == entity)
+            } & set(self.actors) - targets
+            if not actor_parents:
+                raise ASTValidationError(
+                    f"Structure : '{entity}.{payable['field']}' est 'payable', mais aucun "
+                    f"ACTEUR ne possède un enregistrement de '{entity}'. Une relation vers "
+                    f"une table métier ne suffit pas : la colonne qu'elle produit porte "
+                    f"l'id de cette ligne, pas celui d'un compte, et la route de règlement "
+                    f"la compare à l'appelant. Déclarer 'un_acteur hasMany {entity}', ou "
+                    f"rattacher '{entity}' à un acteur à travers son parent "
+                    f"('rule {entity}.Read ownedBy <Parent>')."
+                )
+
+    def _valider_regles_liberation(self):
+        """Valide les transitions qui rendent un compteur décrémenté."""
+        self.release_rules = []
+        for rule in self.rules:
+            if rule["type"] != "releases":
+                continue
+            if "." not in rule["reference"]:
+                raise ASTValidationError(
+                    f"Structure : la règle 'releases' doit référencer 'Entite.champ', "
+                    f"reçu '{rule['reference']}'."
+                )
+            entity, field = rule["reference"].split(".", 1)
+            if entity not in self.entities:
+                raise ASTValidationError(
+                    f"Structure : la règle 'releases' cible l'entité '{entity}' qui n'existe pas."
+                )
+            choices = self.enumerated_fields.get(entity, {}).get(field)
+            if not choices:
+                raise ASTValidationError(
+                    f"Structure : 'releases' exige que '{entity}.{field}' porte un 'oneOf' — "
+                    f"sans liste de valeurs, une faute de frappe donnerait une règle qui ne se déclenche jamais."
+                )
+            if rule["value"] not in choices:
+                raise ASTValidationError(
+                    f"Structure : 'releases' se déclenche sur la valeur {rule['value']!r}, "
+                    f"absente du 'oneOf' de '{entity}.{field}' "
+                    f"({', '.join(repr(choice) for choice in choices)}) — elle ne surviendrait jamais."
+                )
+            released_entity = rule["entity"]
+            if released_entity not in self.entities:
+                raise ASTValidationError(
+                    f"Structure : 'releases' nomme l'entité '{released_entity}', qui n'existe pas."
+                )
+            decrements = [
+                item for item in self.reputation_rules
+                if item["trigger_entity"] == released_entity and item["direction"] == "decrements"
+            ]
+            if not decrements:
+                raise ASTValidationError(
+                    f"Structure : 'releases {released_entity}' ne libérerait rien — cette entité ne porte "
+                    f"aucune règle 'decrements'. C'est ce qu'un décompte a consommé que l'on rend."
+                )
+            if not any(rel["source"] == entity and rel["target"] == released_entity for rel in self.relations):
+                raise ASTValidationError(
+                    f"Structure : 'releases' exige une relation '{entity} hasMany {released_entity}' — "
+                    f"sans elle, rien ne dit quelles lignes de {released_entity} dépendent de ce {entity}."
+                )
+            if any(item["entity"] == entity and item["field"] == field for item in self.release_rules):
+                raise ASTValidationError(
+                    f"Structure : deux règles 'releases' sur '{entity}.{field}' — la première libération "
+                    f"rendrait déjà le décompte, la seconde le rendrait une deuxième fois."
+                )
+            self.release_rules.append({
+                "entity": entity, "field": field, "value": rule["value"], "releases": released_entity,
+            })
+
+    def _valider_ui_overrides(self):
+        """Valide les entités et champs référencés par le bloc ``ui``."""
+        self.ui_overrides = {}
+        for override in self.ui_overrides_raw:
+            entity = override["entity"]
+            if entity not in self.entities:
+                raise ASTValidationError(f"Structure : le bloc 'ui {entity}' cible une entité qui n'existe pas.")
+            primary = override.get("primary")
+            if primary and primary not in self.entities[entity]:
+                raise ASTValidationError(
+                    f"Structure : 'ui {entity}' référence 'primary: {primary}', qui n'est pas un attribut de '{entity}'."
+                )
+            order = override.get("order")
+            if order:
+                unknown = [field for field in order if field not in self.entities[entity]]
+                if unknown:
+                    raise ASTValidationError(
+                        f"Structure : 'ui {entity}' référence des champs inconnus dans 'order' : {unknown}."
+                    )
+            self.ui_overrides[entity] = {
+                "theme": override.get("theme"), "primary": primary, "order": order,
+            }
+
+    def _valider_landing(self):
+        """Normalise le contenu éditorial conservé pour le contrat frontend."""
+        self.landing = None
+        if self.landing_raw is None:
+            return
+        for obsolete in ("mode", "template"):
+            if self.landing_raw.get(obsolete):
+                print(f"⚠️  'landing / {obsolete}' est obsolète depuis le pivot "
+                      f"(point 41 de docs/design_decisions.md) : monl ne génère "
+                      f"plus de page d'accueil — seul 'brief' est transmis à l'IA frontend.")
+        sections = []
+        for section in self.landing_raw.get("sections") or []:
+            title = (section.get("title") or "").strip()
+            body = (section.get("body") or "").strip()
+            if not title or not body:
+                raise ValueError(
+                    "SEMANTIC_ERROR: une 'section' de 'landing' exige un titre ET un texte non vides "
+                    f"(trouvé : titre={title!r}, texte={body!r})."
+                )
+            sections.append({"title": title, "body": body})
+        faq = []
+        for entry in self.landing_raw.get("faq") or []:
+            question = (entry.get("question") or "").strip()
+            answer = (entry.get("answer") or "").strip()
+            if not question or not answer:
+                raise ValueError(
+                    "SEMANTIC_ERROR: une 'question' de 'landing' exige une question ET une réponse non vides "
+                    f"(trouvé : question={question!r}, réponse={answer!r})."
+                )
+            faq.append({"question": question, "answer": answer})
+        self.landing = {"brief": self.landing_raw.get("brief"), "sections": sections, "faq": faq}
+
+    def _valider_capacites(self):
+        """Valide les capacités déclarées et prépare l'identifiant de compte."""
+        known_capabilities = {"auth", "payment"}
+        names = [capability["name"] for capability in self.capabilities_raw]
+        unknown = [name for name in names if name not in known_capabilities]
+        if unknown:
+            raise ASTValidationError(
+                f"Structure : capacité(s) inconnue(s) déclarée(s) avec 'capability' : {', '.join(unknown)}. "
+                f"Capacités reconnues : {', '.join(sorted(known_capabilities))}."
+            )
+        self.capabilities = list(dict.fromkeys(names))
+        self.auth_identifier = self._valider_identifiant_de_compte(self.capabilities_raw)
+
+    def _valider_assets_et_seeds(self):
+        """Valide les assets locaux et les données de démonstration."""
+        self.assets = dict(self.assets_raw)
+        assets_dir = self.assets.get("dir", DEFAULT_ASSETS_DIR)
+        self._verifier_forme_chemin_asset(assets_dir, "assets.dir")
+        self.assets["dir"] = assets_dir
+        for key in ("logo", "favicon"):
+            if key not in self.assets_raw:
+                continue
+            value = self.assets_raw[key]
+            self._verifier_forme_chemin_asset(value, f"assets.{key}")
+            self._verifier_asset_present(value, f"assets.{key}")
+
+        numeric_types = {"Integer", "Float", "Money"}
+        self.seeds = []
+        for seed in self.seeds_raw:
+            entity = seed["entity"]
+            if entity not in self.entities:
+                raise ASTValidationError(f"Structure : le bloc 'seed' cible l'entité '{entity}' qui n'existe pas.")
+            entity_fields = self.entities[entity]
+            if seed.get("parent"):
+                self._valider_parent_de_seed(entity, seed["parent"])
+            for index, row in enumerate(seed["rows"], start=1):
+                for field, value in row.items():
+                    if field not in entity_fields:
+                        raise ASTValidationError(
+                            f"Structure : le bloc 'seed {entity}' (ligne {index}) référence le champ "
+                            f"'{field}', qui n'est pas déclaré sur '{entity}'."
+                        )
+                    declared_type = entity_fields[field]
+                    is_number = isinstance(value, (int, float)) and not isinstance(value, bool)
+                    if declared_type in numeric_types and not is_number:
+                        raise ASTValidationError(
+                            f"Structure : 'seed {entity}' (ligne {index}), champ '{field}' de type "
+                            f"{declared_type} attend un nombre, reçu une chaîne."
+                        )
+                    if declared_type not in numeric_types and is_number:
+                        raise ASTValidationError(
+                            f"Structure : 'seed {entity}' (ligne {index}), champ '{field}' de type "
+                            f"{declared_type} attend une chaîne entre guillemets, reçu un nombre."
+                        )
+                    if declared_type == "Image":
+                        location = f"seed {entity} (ligne {index}), champ '{field}'"
+                        self._verifier_forme_chemin_asset(value, location, image=True)
+                        self._verifier_asset_present(value, location)
+            self.seeds.append(seed)
+
+    def _valider_workflows_et_collisions(self):
+        """Valide les workflows et détecte les collisions d'autorité."""
+        access_matrix = {}
+        shared_permissions = {
+            rule["reference"]: set(rule["value"])
+            for rule in self.rules if rule["type"] == "sharedBy"
+        }
+        for workflow in self.workflows:
+            actor = workflow["actor"]
+            if actor not in self.actors:
+                raise ASTValidationError(
+                    f"Structure : L'acteur '{actor}' dans le workflow '{workflow['name']}' n'est pas déclaré."
+                )
+            for action in workflow["actions"]:
+                target = action["target"]
+                action_type = action["type"]
+                if action_type == "Execute":
+                    if target not in self.custom_logic:
+                        raise ASTValidationError(
+                            f"Architecture : L'action Execute appelle '{target}', mais ce bloc custom n'est pas défini."
+                        )
+                    continue
+                entity = target.split(".")[0] if "." in target else target
+                if entity not in self.entities:
+                    raise ASTValidationError(
+                        f"Structure : L'action cible l'entité '{entity}' qui n'existe pas."
+                    )
+                if (entity, action_type) in self.public_actions:
+                    continue
+                access_matrix.setdefault(entity, {}).setdefault(action_type, set()).add(actor)
+
+        for entity, actions in access_matrix.items():
+            for action_type, authorized_actors in actions.items():
+                if len(authorized_actors) <= 1 or action_type not in ("Create", "Update", "Delete"):
+                    continue
+                key = f"{entity}.{action_type}"
+                allowed_shared = shared_permissions.get(key)
+                if allowed_shared and authorized_actors.issubset(allowed_shared):
+                    print(f"🤝 [SHARED_PRIVILEGE] L'action '{action_type}' sur '{entity}' est explicitement "
+                          f"partagée entre [{', '.join(sorted(authorized_actors))}] via une règle 'sharedBy'.")
+                    continue
+                if (entity, action_type) in self.ownership_rules:
+                    print(f"🔐 [SHARED_PRIVILEGE_VIA_OWNERSHIP] L'action '{action_type}' sur '{entity}' est partagée "
+                          f"entre [{', '.join(sorted(authorized_actors))}], mais protégée au niveau de chaque "
+                          f"enregistrement par la règle 'ownedBy' (propriétaire : "
+                          f"{self.ownership_rules[(entity, action_type)]}).")
+                    continue
+                if (entity, action_type) in self.access_party_rules:
+                    print(f"🔐 [SHARED_PRIVILEGE_VIA_ACCESS] L'action '{action_type}' sur '{entity}' est partagée "
+                          f"entre [{', '.join(sorted(authorized_actors))}], mais protégée au niveau de chaque "
+                          f"enregistrement par la règle 'accessibleBy' "
+                          f"(parties : {self.access_party_rules[(entity, action_type)]}).")
+                    continue
+                actors = ", ".join(sorted(authorized_actors))
+                suggestion = f"'rule {entity}.{action_type} sharedBy {actors}'"
+                extra = ""
+                if allowed_shared:
+                    uncovered = authorized_actors - allowed_shared
+                    extra = (f" Une règle 'sharedBy' existe déjà pour '{key}' mais ne couvre pas : "
+                             f"[{', '.join(sorted(uncovered))}].")
+                raise ASTValidationError(
+                    f"🔒 [CRITICAL_COLLISION] Conflit d'autorité sur l'entité '{entity}' : "
+                    f"les acteurs [{actors}] ont tous le droit d'exécuter l'action '{action_type}'. "
+                    f"Séparez ces privilèges, ou déclarez explicitement le partage avec : {suggestion}.{extra}"
                 )
 
     def _valider_regle_apres_paiement(self):
@@ -1023,1106 +1943,6 @@ class MonlAST:
                 self.postpayment_writable[entity] = config
             config["fields"].append(field)
 
-    def _validate_structures(self):
-        """Vérifie la cohérence de base et traque les collisions multi-acteurs (Bug #5),
-        sauf exemption explicite via une règle 'sharedBy'. Valide aussi les règles
-        'ownedBy' (roadmap : contrôle d'accès par propriété)."""
-        # Matrice globale pour traquer les conflits d'autorisations (Entité -> Action -> Ensemble d'acteurs)
-        access_matrix = {}
-
-        # CORRECTIF (post-v6) : les règles 'sharedBy' déclarent explicitement qu'un
-        # ensemble précis d'acteurs peut se partager un même droit d'écriture sur
-        # une entité, ex. : "rule Post.Delete sharedBy Admin, Moderator"
-        shared_permissions = {}
-        for rule in self.rules:
-            if rule["type"] == "sharedBy":
-                shared_permissions[rule["reference"]] = set(rule["value"])
-
-        self._valider_contraintes_de_champ()
-
-        # Le noyau du CONTRÔLE D'ACCÈS (propriété directe, chaîne
-        # transitive, accessibleBy, superviseur) vit dans sa propre méthode :
-        # c'est la frontière de sécurité du validateur (point 109). Le défaut
-        # du point 107 vivait dans exactement ce genre de logique de sécurité
-        # noyée dans une méthode fourre-tout — on la sort à la lumière.
-        self._valider_controle_dacces()
-
-        # La règle publique vit dans sa propre méthode (point 111).
-        self._valider_regle_public()
-        self._valider_regle_restrictedTo()
-
-        # AJOUT (roadmap, écosystème de capacités -- brique 2) : validation
-        # des règles 'hidden' -- retire un champ de toutes les réponses de
-        # lecture de son entité (voir le commentaire de grammaire dans
-        # parser.py pour la distinction avec 'restrictedTo'). Vérifie que le
-        # champ référencé est un attribut réellement déclaré sur l'entité
-        # (donc jamais 'id', qui n'apparaît pas dans self.entities -- un
-        # champ structurellement nécessaire à la navigation CRUD ne peut pas
-        # être masqué, la règle échoue proprement plutôt que de casser
-        # silencieusement les routes Update/Delete/Read-par-ID).
-        self.masked_fields = set()
-        for rule in self.rules:
-            if rule["type"] == "hidden":
-                if "." not in rule["reference"]:
-                    raise ASTValidationError(
-                        f"Structure : la règle 'hidden' doit référencer 'Entite.champ', reçu '{rule['reference']}'."
-                    )
-                entity, field = rule["reference"].split(".", 1)
-                if entity not in self.entities:
-                    raise ASTValidationError(f"Structure : la règle 'hidden' cible l'entité '{entity}' qui n'existe pas.")
-                if field not in self.entities[entity]:
-                    raise ASTValidationError(
-                        f"Structure : la règle 'hidden' référence le champ '{field}', qui n'est pas un attribut "
-                        f"déclaré de '{entity}' (ou est 'id', qui ne peut pas être masqué)."
-                    )
-                self.masked_fields.add((entity, field))
-
-        # AJOUT (roadmap, écosystème de capacités -- brique 5) : validation
-        # des règles 'categorized' -- remplace un champ Integer/Float par un
-        # libellé de catégorie (ex. "peu"/"populaire"/"viral") dans toutes
-        # les réponses de lecture, sur le même principe que 'hidden' mais en
-        # substituant une donnée dérivée plutôt qu'en supprimant purement.
-        self.categorized_fields = []
-        _categorized_seen_fields = set()
-        for rule in self.rules:
-            if rule["type"] == "categorized":
-                if "." not in rule["reference"]:
-                    raise ASTValidationError(
-                        f"Structure : la règle 'categorized' doit référencer 'Entite.champ', reçu '{rule['reference']}'."
-                    )
-                entity, field = rule["reference"].split(".", 1)
-                if entity not in self.entities:
-                    raise ASTValidationError(f"Structure : la règle 'categorized' cible l'entité '{entity}' qui n'existe pas.")
-                field_type = self.entities.get(entity, {}).get(field)
-                if field_type not in ("Integer", "Float"):
-                    raise ASTValidationError(
-                        f"Structure : 'categorized' cible le champ '{entity}.{field}', qui doit être un attribut "
-                        f"Integer ou Float déclaré (reçu : {field_type or 'champ inexistant'})."
-                    )
-                # Incompatible avec 'hidden' sur le même champ : 'hidden' retire
-                # le champ, 'categorized' le remplace par une valeur dérivée --
-                # les deux ne peuvent pas s'appliquer en même temps sans que
-                # l'un des deux comportements soit silencieusement ignoré.
-                if (entity, field) in self.masked_fields:
-                    raise ASTValidationError(
-                        f"Structure : '{entity}.{field}' est à la fois 'hidden' et 'categorized' -- incompatible : "
-                        f"'hidden' retire le champ, 'categorized' le remplace par une catégorie dérivée de sa valeur."
-                    )
-                if (entity, field) in _categorized_seen_fields:
-                    raise ASTValidationError(
-                        f"Structure : plusieurs règles 'categorized' déclarées pour '{entity}.{field}' -- une seule autorisée."
-                    )
-                _categorized_seen_fields.add((entity, field))
-
-                clauses = rule["value"]
-                if len(clauses) < 2:
-                    raise ASTValidationError(
-                        f"Structure : 'categorized' sur '{entity}.{field}' doit déclarer au moins un seuil ('below') "
-                        f"et un palier de secours ('otherwise')."
-                    )
-                for clause in clauses[:-1]:
-                    if "otherwise" in clause:
-                        raise ASTValidationError(
-                            f"Structure : 'categorized' sur '{entity}.{field}' -- seul le DERNIER palier peut être "
-                            f"'otherwise' (palier de secours), reçu ailleurs dans la liste."
-                        )
-                if "otherwise" not in clauses[-1]:
-                    raise ASTValidationError(
-                        f"Structure : 'categorized' sur '{entity}.{field}' doit se terminer par un palier 'otherwise' "
-                        f"(palier de secours qui couvre toute valeur au-delà du dernier seuil)."
-                    )
-                thresholds = [c["below"] for c in clauses[:-1]]
-                if thresholds != sorted(set(thresholds)) or len(thresholds) != len(set(thresholds)):
-                    raise ASTValidationError(
-                        f"Structure : 'categorized' sur '{entity}.{field}' -- les seuils 'below' doivent être "
-                        f"strictement croissants (reçu : {thresholds})."
-                    )
-                if any(not c["label"].strip() for c in clauses):
-                    raise ASTValidationError(
-                        f"Structure : 'categorized' sur '{entity}.{field}' -- chaque palier doit avoir un libellé non vide."
-                    )
-                self.categorized_fields.append({"entity": entity, "field": field, "clauses": clauses})
-
-        # AJOUT (roadmap, écosystème de capacités -- suite de la brique 1) :
-        # validation des règles 'generated' -- retire un champ String du
-        # corps de requête Create attendu, peuplé côté serveur par le
-        # pseudonyme anonyme stable du compte courant (voir /register et
-        # /login dans generator.py) plutôt que fourni par le client.
-        self.generated_fields = []
-        _generated_seen_fields = set()
-        for rule in self.rules:
-            if rule["type"] == "generated":
-                if "." not in rule["reference"]:
-                    raise ASTValidationError(
-                        f"Structure : la règle 'generated' doit référencer 'Entite.champ', reçu '{rule['reference']}'."
-                    )
-                entity, field = rule["reference"].split(".", 1)
-                if entity not in self.entities:
-                    raise ASTValidationError(f"Structure : la règle 'generated' cible l'entité '{entity}' qui n'existe pas.")
-                field_type = self.entities.get(entity, {}).get(field)
-                if field_type != "String":
-                    raise ASTValidationError(
-                        f"Structure : 'generated' cible le champ '{entity}.{field}', qui doit être un attribut "
-                        f"String déclaré (reçu : {field_type or 'champ inexistant'}) -- un pseudonyme est toujours "
-                        f"du texte court."
-                    )
-                # Incompatible avec 'hidden' sur le même champ : 'generated'
-                # existe précisément pour produire une valeur sûre à
-                # afficher (un pseudonyme, jamais l'identité réelle) -- la
-                # masquer entièrement en plus n'aurait aucun sens, ce serait
-                # alors juste ne pas déclarer le champ du tout.
-                if (entity, field) in self.masked_fields:
-                    raise ASTValidationError(
-                        f"Structure : '{entity}.{field}' est à la fois 'hidden' et 'generated' -- incompatible : "
-                        f"'generated' produit déjà une valeur sûre à afficher, la masquer en plus n'a pas de sens."
-                    )
-                if (entity, field) in _generated_seen_fields:
-                    raise ASTValidationError(
-                        f"Structure : plusieurs règles 'generated' déclarées pour '{entity}.{field}' -- une seule autorisée."
-                    )
-                _generated_seen_fields.add((entity, field))
-                # Incompatible avec une action 'Create' 'public' sur la même
-                # entité : 'generated' peuple le champ depuis l'identité de
-                # l'appelant authentifié -- une route publique n'a par
-                # définition aucune identité fiable à partir de laquelle
-                # dériver un pseudonyme.
-                if (entity, "Create") in self.public_actions:
-                    raise ASTValidationError(
-                        f"Structure : '{entity}.{field}' est 'generated', mais '{entity}.Create' est 'public' -- "
-                        f"incompatible : 'generated' exige un appelant authentifié dont dériver le pseudonyme."
-                    )
-                self.generated_fields.append({"entity": entity, "field": field})
-
-        # AJOUT (roadmap, écosystème de capacités -- brique 16, point 89) :
-        # validation de 'timestamp'. Le champ porte l'instant de CRÉATION,
-        # écrit par le serveur et jamais ensuite : même famille que
-        # 'generated' et 'derivedFrom', donc mêmes conséquences (absent du
-        # schéma d'entrée, absent du SET de la route Update).
-        self.timestamp_fields = []
-        _timestamp_seen = set()
-        for rule in self.rules:
-            if rule["type"] != "timestamp":
-                continue
-            if "." not in rule["reference"]:
-                raise ASTValidationError(
-                    f"Structure : la règle 'timestamp' doit référencer 'Entite.champ', "
-                    f"reçu '{rule['reference']}'."
-                )
-            entity, field = rule["reference"].split(".", 1)
-            if entity not in self.entities:
-                raise ASTValidationError(
-                    f"Structure : la règle 'timestamp' cible l'entité '{entity}' qui n'existe pas."
-                )
-            field_type = self.entities.get(entity, {}).get(field)
-            if field_type != "DateTime":
-                # 'Date' est refusé explicitement, et pas par simple omission :
-                # le serveur CONNAÎT l'heure, la tronquer au jour perdrait de
-                # l'information sans que personne ne le demande -- et rendrait
-                # deux enregistrements du même jour impossibles à ordonner, ce
-                # qui est justement l'usage d'un horodatage.
-                indice = (" -- 'Date' tronquerait l'heure que le serveur connaît, "
-                          "et deux enregistrements du même jour ne seraient plus "
-                          "ordonnables" if field_type == "Date" else "")
-                raise ASTValidationError(
-                    f"Structure : 'timestamp' cible le champ '{entity}.{field}', qui doit être "
-                    f"un attribut DateTime déclaré (reçu : {field_type or 'champ inexistant'})"
-                    f"{indice}."
-                )
-            if (entity, field) in self.masked_fields:
-                raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' est à la fois 'hidden' et 'timestamp' -- "
-                    f"incompatible : le client ne peut pas l'écrire et ne pourrait pas le lire, "
-                    f"donc ce champ n'existerait nulle part."
-                )
-            if (entity, field) in _timestamp_seen:
-                raise ASTValidationError(
-                    f"Structure : plusieurs règles 'timestamp' déclarées pour '{entity}.{field}' "
-                    f"-- une seule autorisée."
-                )
-            if any(t["entity"] == entity for t in self.timestamp_fields):
-                autre = next(t["field"] for t in self.timestamp_fields if t["entity"] == entity)
-                raise ASTValidationError(
-                    f"Structure : '{entity}' porte deux champs 'timestamp' ('{autre}' et "
-                    f"'{field}') -- tous deux recevraient le MÊME instant de création. "
-                    f"Un horodatage de modification serait une autre brique, pas celle-ci."
-                )
-            _timestamp_seen.add((entity, field))
-            self.timestamp_fields.append({"entity": entity, "field": field})
-
-        # AJOUT (brique 22, point 102) : validation de 'numbered'. Le champ porte
-        # un NUMÉRO LISIBLE attribué par le serveur — même famille que
-        # 'timestamp' juste au-dessus, et mêmes conséquences.
-        self.numbered_fields = []
-        for rule in self.rules:
-            if rule["type"] != "numbered":
-                continue
-            if "." not in rule["reference"]:
-                raise ASTValidationError(
-                    f"Structure : la règle 'numbered' doit référencer 'Entite.champ', "
-                    f"reçu '{rule['reference']}'.")
-            entity, field = rule["reference"].split(".", 1)
-            if entity not in self.entities:
-                raise ASTValidationError(
-                    f"Structure : la règle 'numbered' cible l'entité '{entity}' qui "
-                    f"n'existe pas.")
-            field_type = self.entities.get(entity, {}).get(field)
-            if field_type != "String":
-                # 'UUID' est refusé en le NOMMANT : c'est le type qu'on est
-                # tenté de choisir pour une référence, et depuis le point 101 il
-                # vérifie sa forme — un numéro lisible n'y entrerait jamais.
-                indice = (" -- un 'UUID' vérifie sa forme depuis le point 101, et "
-                          "un numéro lisible n'en a pas la forme"
-                          if field_type == "UUID" else "")
-                raise ASTValidationError(
-                    f"Structure : 'numbered' cible le champ '{entity}.{field}', qui doit "
-                    f"être un attribut String déclaré (reçu : "
-                    f"{field_type or 'champ inexistant'}){indice}.")
-            if (entity, field) in self.masked_fields:
-                raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' est à la fois 'hidden' et "
-                    f"'numbered' -- incompatible : le client ne peut pas l'écrire et ne "
-                    f"pourrait pas le lire, donc ce numéro n'existerait pour personne.")
-            if any(n["entity"] == entity and n["field"] == field
-                   for n in self.numbered_fields):
-                raise ASTValidationError(
-                    f"Structure : plusieurs règles 'numbered' déclarées pour "
-                    f"'{entity}.{field}' -- une seule autorisée.")
-            self._valider_gabarit_de_numero(entity, field, rule["value"])
-            self.numbered_fields.append({
-                "entity": entity, "field": field, "format": rule["value"],
-                "periode": self._periode_du_gabarit(rule["value"]),
-            })
-
-        # AJOUT (brique 19, point 96) : validation de 'oneOf'. Un statut n'est
-        # pas du texte, c'est un état parmi quelques-uns — et sur une commande
-        # NON réglée, le client posait `status: "livrée"` et le serveur
-        # l'acceptait (constaté sur `projets/SneakerLab`).
-        self.enumerated_fields = {}
-        for rule in self.rules:
-            if rule["type"] != "oneOf":
-                continue
-            if "." not in rule["reference"]:
-                raise ASTValidationError(
-                    f"Structure : la règle 'oneOf' doit référencer 'Entite.champ', "
-                    f"reçu '{rule['reference']}'.")
-            entity, field = rule["reference"].split(".", 1)
-            if entity not in self.entities:
-                raise ASTValidationError(
-                    f"Structure : la règle 'oneOf' cible l'entité '{entity}' qui n'existe pas.")
-            field_type = self.entities.get(entity, {}).get(field)
-            # Volontairement restreint aux types TEXTE. Une valeur parmi une
-            # liste de nombres se dirait 'min'/'max' (point 85) ou
-            # 'categorized' (brique 5) ; ouvrir 'oneOf' aux nombres ferait trois
-            # façons d'exprimer la même contrainte, dont deux se contrediraient.
-            if field_type not in ("String", "Text"):
-                raise ASTValidationError(
-                    f"Structure : 'oneOf' cible '{entity}.{field}', qui doit être un "
-                    f"champ String ou Text (reçu : {field_type or 'champ inexistant'}) — "
-                    f"pour un nombre, 'min'/'max' ou 'categorized' disent déjà cela.")
-            valeurs = rule["value"]
-            if len(valeurs) < 2:
-                raise ASTValidationError(
-                    f"Structure : 'oneOf' sur '{entity}.{field}' n'énumère qu'une valeur — "
-                    f"un champ qui n'a qu'une valeur possible n'a pas besoin d'être saisi.")
-            vides = [v for v in valeurs if not v.strip()]
-            if vides:
-                raise ASTValidationError(
-                    f"Structure : 'oneOf' sur '{entity}.{field}' contient une valeur vide — "
-                    f"elle serait indistinguable d'un champ non rempli à l'écran.")
-            doublons = [v for v in set(valeurs) if valeurs.count(v) > 1]
-            if doublons:
-                raise ASTValidationError(
-                    f"Structure : 'oneOf' sur '{entity}.{field}' répète "
-                    f"{', '.join(repr(d) for d in sorted(doublons))} — une liste de choix "
-                    f"qui propose deux fois la même chose est une erreur de saisie.")
-            if entity in self.enumerated_fields and field in self.enumerated_fields[entity]:
-                raise ASTValidationError(
-                    f"Structure : deux règles 'oneOf' sur '{entity}.{field}' — laquelle "
-                    f"des deux listes s'appliquerait ?")
-            # Un champ que le SERVEUR peuple ne se choisit pas : la liste ne
-            # serait jamais consultée, et l'écran proposerait un menu inerte.
-            if any(g["entity"] == entity and g["field"] == field
-                   for g in self.generated_fields):
-                raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' est à la fois 'generated' et 'oneOf' — "
-                    f"le serveur l'écrit lui-même, la liste de choix ne serait jamais lue.")
-            self.enumerated_fields.setdefault(entity, {})[field] = list(valeurs)
-
-
-        # Validation des prérequis de création et de paiement (point 111).
-        self._valider_requires_own_et_payable()
-
-        # AJOUT (roadmap, écosystème de capacités -- brique 10, point 77) :
-        # validation de 'derivedFrom'. La règle nomme un champ CALCULÉ PAR LE
-        # SERVEUR depuis une ligne liée. Elle existe parce que `payable`
-        # relisait en base un montant que le client y avait écrit -- vrai à la
-        # création comme à la modification, deux exploits prouvés. Les refus
-        # ci-dessous sont le cœur de la brique : un calcul mal déclaré doit
-        # échouer à la compilation, jamais donner un montant faux à encaisser.
-        self.derived_fields = []
-        for rule in self.rules:
-            if rule["type"] != "derivedFrom":
-                continue
-            reference, source_ref = rule["reference"], rule["value"]
-            facteur = rule["factor"]
-            if "." not in reference or "." not in source_ref:
-                raise ASTValidationError(
-                    f"Structure : 'derivedFrom' doit référencer 'Entite.champ derivedFrom Entite.champ by champ', "
-                    f"reçu '{reference} derivedFrom {source_ref}'."
-                )
-            entity, field = reference.split(".", 1)
-            source_entity, source_field = source_ref.split(".", 1)
-            if entity not in self.entities:
-                raise ASTValidationError(
-                    f"Structure : 'derivedFrom' cible l'entité '{entity}' qui n'existe pas."
-                )
-            if source_entity not in self.entities:
-                raise ASTValidationError(
-                    f"Structure : 'derivedFrom' lit l'entité '{source_entity}' qui n'existe pas."
-                )
-            field_type = self.entities[entity].get(field)
-            if field_type not in ("Money", "Float", "Integer"):
-                raise ASTValidationError(
-                    f"Structure : 'derivedFrom' calcule '{entity}.{field}', qui doit être un attribut "
-                    f"Money, Float ou Integer déclaré (reçu : {field_type or 'champ inexistant'})."
-                )
-            source_type = self.entities[source_entity].get(source_field)
-            if source_type not in ("Money", "Float", "Integer"):
-                raise ASTValidationError(
-                    f"Structure : 'derivedFrom' lit '{source_entity}.{source_field}', qui doit être un attribut "
-                    f"Money, Float ou Integer déclaré (reçu : {source_type or 'champ inexistant'})."
-                )
-            # Le multiplicateur vit sur l'entité calculée et doit être fourni :
-            # sans 'required', un client qui l'omet donnerait 'NULL x prix'.
-            facteur_type = self.entities[entity].get(facteur)
-            if facteur_type != "Integer":
-                raise ASTValidationError(
-                    f"Structure : 'derivedFrom ... by {facteur}' exige que '{entity}.{facteur}' soit un attribut "
-                    f"Integer déclaré (reçu : {facteur_type or 'champ inexistant'}) -- on multiplie par une quantité."
-                )
-            champs_requis = {r["reference"] for r in self.rules
-                             if r.get("type") == "required"}
-            if f"{entity}.{facteur}" not in champs_requis:
-                raise ASTValidationError(
-                    f"Structure : '{entity}.{facteur}' sert de multiplicateur à 'derivedFrom' et doit donc porter "
-                    f"'rule {entity}.{facteur} required' -- sinon un client qui l'omet ferait calculer sur du vide."
-                )
-            if facteur == field:
-                raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' ne peut pas être son propre multiplicateur."
-                )
-            # Un montant calculé mais masqué serait invérifiable par celui qui
-            # le règle -- même raison que pour 'payable' (point 74).
-            if (entity, field) in self.masked_fields:
-                raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' est à la fois 'hidden' et 'derivedFrom' -- incompatible : "
-                    f"un montant calculé qu'on ne peut pas lire ne peut pas être vérifié."
-                )
-            if any(g["entity"] == entity and g["field"] == field
-                   for g in self.generated_fields):
-                raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' est à la fois 'generated' et 'derivedFrom' -- deux façons "
-                    f"concurrentes de le peupler côté serveur, il faut choisir."
-                )
-            if any(d["entity"] == entity and d["field"] == field
-                   for d in self.derived_fields):
-                raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' porte plusieurs règles 'derivedFrom' -- un seul calcul par champ."
-                )
-            # Il faut une relation qui donne à l'entité calculée une clé
-            # étrangère vers la source : c'est elle qui dit QUELLE ligne lire.
-            # Même vérification que pour 'increments' (point 27), répliquée
-            # plutôt que partagée -- la brique est trop jeune pour factoriser.
-            has_source_relation = any(
-                (rel["type"] in ("hasMany", "hasOne")
-                 and rel["source"] == source_entity and rel["target"] == entity)
-                or (rel["type"] == "belongsTo"
-                    and rel["source"] == entity and rel["target"] == source_entity)
-                for rel in self.relations
-            )
-            if not has_source_relation:
-                raise ASTValidationError(
-                    f"Structure : 'derivedFrom' lit '{source_entity}.{source_field}' depuis '{entity}', ce qui exige "
-                    f"une relation entre les deux (ex. '{source_entity} hasMany {entity}'), absente ici -- sans "
-                    f"elle, rien ne dit QUELLE ligne de '{source_entity}' lire."
-                )
-            # La source ne peut pas être le propriétaire : la clé étrangère du
-            # propriétaire est peuplée depuis le JWT, jamais choisie par le
-            # client. Si '{source_entity}' possédait '{entity}', le client
-            # n'aurait aucun moyen de désigner la ligne à lire.
-            proprietaires = {v for (ent, _act), v in self.ownership_rules.items()
-                             if ent == entity}
-            if proprietaires and source_entity in proprietaires:
-                raise ASTValidationError(
-                    f"Structure : 'derivedFrom' lit '{source_entity}', qui est aussi le propriétaire de "
-                    f"'{entity}' (règle 'ownedBy') -- sa clé étrangère vient du jeton, pas du client, donc "
-                    f"aucune ligne de '{source_entity}' ne peut être désignée à la création."
-                )
-            if not proprietaires:
-                raise ASTValidationError(
-                    f"Structure : 'derivedFrom' sur '{entity}.{field}' exige que '{entity}' ait un propriétaire "
-                    f"(une règle 'ownedBy') -- c'est lui qui distingue la clé étrangère peuplée par le serveur "
-                    f"de celle que le client fournit pour désigner la ligne à lire."
-                )
-            self.derived_fields.append({
-                "entity": entity, "field": field,
-                "source_entity": source_entity, "source_field": source_field,
-                "factor": facteur,
-            })
-
-        # AJOUT (roadmap, écosystème de capacités -- brique 12, point 82) :
-        # validation de 'sumOf'. `derivedFrom` ne sait lire qu'UNE ligne liée ;
-        # une commande à plusieurs articles a besoin de la SOMME de ses lignes.
-        # C'est la troisième et dernière brique du panier cadrée au point 80.
-        self.aggregated_fields = []
-        for rule in self.rules:
-            if rule["type"] != "sumOf":
-                continue
-            reference, source_ref = rule["reference"], rule["value"]
-            if "." not in reference or "." not in source_ref:
-                raise ASTValidationError(
-                    f"Structure : 'sumOf' doit référencer 'Entite.champ sumOf Entite.champ', "
-                    f"reçu '{reference} sumOf {source_ref}'."
-                )
-            entity, field = reference.split(".", 1)
-            source_entity, source_field = source_ref.split(".", 1)
-            if entity not in self.entities:
-                raise ASTValidationError(
-                    f"Structure : 'sumOf' cible l'entité '{entity}' qui n'existe pas."
-                )
-            if source_entity not in self.entities:
-                raise ASTValidationError(
-                    f"Structure : 'sumOf' additionne l'entité '{source_entity}' qui n'existe pas."
-                )
-            field_type = self.entities[entity].get(field)
-            if field_type not in ("Money", "Float", "Integer"):
-                raise ASTValidationError(
-                    f"Structure : 'sumOf' calcule '{entity}.{field}', qui doit être un attribut "
-                    f"Money, Float ou Integer déclaré (reçu : {field_type or 'champ inexistant'})."
-                )
-            source_type = self.entities[source_entity].get(source_field)
-            if source_type not in ("Money", "Float", "Integer"):
-                raise ASTValidationError(
-                    f"Structure : 'sumOf' additionne '{source_entity}.{source_field}', qui doit être un "
-                    f"attribut Money, Float ou Integer déclaré "
-                    f"(reçu : {source_type or 'champ inexistant'})."
-                )
-            if source_entity == entity:
-                raise ASTValidationError(
-                    f"Structure : 'sumOf' fait de '{entity}.{field}' la somme d'un champ de "
-                    f"'{entity}' lui-même -- une entité ne peut pas s'additionner. La somme porte "
-                    f"sur une entité ENFANT (ex. 'Commande hasMany Ligne')."
-                )
-            # Sans relation parent → enfant, il n'y a pas de colonne qui dise
-            # QUELLES lignes additionner : la somme porterait sur toute la table.
-            a_relation_enfant = any(
-                (rel["type"] in ("hasMany", "hasOne")
-                 and rel["source"] == entity and rel["target"] == source_entity)
-                or (rel["type"] == "belongsTo"
-                    and rel["source"] == source_entity and rel["target"] == entity)
-                for rel in self.relations
-            )
-            if not a_relation_enfant:
-                raise ASTValidationError(
-                    f"Structure : 'sumOf' additionne '{source_entity}' depuis '{entity}', ce qui exige "
-                    f"une relation parent-enfant (ex. '{entity} hasMany {source_entity}'), absente ici -- "
-                    f"sans elle, rien ne dit QUELLES lignes de '{source_entity}' additionner, et la somme "
-                    f"porterait sur la table entière."
-                )
-            if (entity, field) in self.masked_fields:
-                raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' est à la fois 'hidden' et 'sumOf' -- incompatible : "
-                    f"un total calculé qu'on ne peut pas lire ne peut pas être vérifié."
-                )
-            if any(g["entity"] == entity and g["field"] == field
-                   for g in self.generated_fields):
-                raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' est à la fois 'generated' et 'sumOf' -- deux façons "
-                    f"concurrentes de le peupler côté serveur, il faut choisir."
-                )
-            if any(d["entity"] == entity and d["field"] == field
-                   for d in self.derived_fields):
-                raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' porte à la fois 'derivedFrom' et 'sumOf' -- deux "
-                    f"calculs concurrents pour un seul champ. 'derivedFrom' lit UNE ligne liée, 'sumOf' "
-                    f"additionne des enfants : choisir lequel."
-                )
-            if any(a["entity"] == entity and a["field"] == field
-                   for a in self.aggregated_fields):
-                raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' porte plusieurs règles 'sumOf' -- une seule somme "
-                    f"par champ."
-                )
-            # Même exigence que 'derivedFrom', et pour la même raison : c'est le
-            # propriétaire déclaré qui distingue la clé étrangère peuplée par le
-            # serveur depuis le jeton de celle que le client fournit. Sans lui,
-            # la colonne qui relie la ligne à sa commande pourrait recevoir un id
-            # de COMPTE (voir _identity_fk_columns), et la somme se recalculerait
-            # sur le mauvais parent. Une ligne sans propriétaire serait de toute
-            # façon créable par n'importe qui, donc le total d'un tiers
-            # déplaçable à volonté -- ce qui le rendrait inencaissable.
-            proprietaires_source = {v for (ent, _act), v in self.ownership_rules.items()
-                                    if ent == source_entity}
-            if not proprietaires_source:
-                raise ASTValidationError(
-                    f"Structure : 'sumOf' additionne '{source_entity}', qui n'a pas de propriétaire "
-                    f"(une règle 'ownedBy') -- c'est lui qui distingue la clé étrangère peuplée par le "
-                    f"serveur de celle que le client fournit pour désigner le parent. Sans elle, "
-                    f"n'importe quel compte pourrait ajouter une ligne au total d'un tiers."
-                )
-            self.aggregated_fields.append({
-                "entity": entity, "field": field,
-                "source_entity": source_entity, "source_field": source_field,
-            })
-
-        # AJOUT (point 79) : recoupement des deux briques, et le refus qui rend
-        # STRUCTURELLE la garantie du point 74. Il vient après les deux boucles
-        # parce qu'il a besoin des deux listes.
-        #
-        # Le raisonnement, en trois pas : la clé étrangère du propriétaire est
-        # peuplée avec `current_user_id` à la création, donc le CRÉATEUR d'un
-        # enregistrement en est toujours le propriétaire ; la route de règlement
-        # oppose un 403 à quiconque n'est pas le propriétaire, donc le
-        # propriétaire est le PAYEUR ; par conséquent, si le montant figure dans
-        # le corps de création, le payeur écrit lui-même ce qu'il paie.
-        #
-        # C'était le cas de toute boutique compilée jusqu'ici : deux exploits de
-        # trois requêtes suffisaient à encaisser un centime pour 945 euros
-        # (point 77). Le seul montant sûr est donc celui qu'aucun corps de
-        # requête ne peut porter -- un champ 'derivedFrom' ou, depuis le
-        # point 82, un champ 'sumOf' (le total d'un panier à plusieurs lignes).
-        champs_derives = {(d["entity"], d["field"]) for d in self.derived_fields}
-        champs_sommes = {(a["entity"], a["field"]): a for a in self.aggregated_fields}
-
-        # POINT 85 : une borne 'min'/'max' vit dans le schéma Pydantic, donc dans
-        # le corps de requête. Sur un champ que le SERVEUR peuple ('generated',
-        # 'derivedFrom', 'sumOf'), ce champ n'est pas dans le schéma : la borne
-        # n'aurait aucun endroit pour s'appliquer. Refuser plutôt que l'écrire
-        # nulle part -- c'est la faute même que le point 85 corrige, et la
-        # reproduire ici serait grotesque. Recoupement APRÈS les trois boucles,
-        # comme le refus du point 79 : il lui faut leurs listes.
-        peuples_par_le_serveur = (
-            champs_derives
-            | set(champs_sommes)
-            | {(g["entity"], g["field"]) for g in self.generated_fields}
-            # POINT 89 : un champ 'timestamp' rejoint la même famille. Le
-            # rattacher ICI plutôt que d'écrire un refus à lui seul est tout
-            # l'intérêt d'avoir groupé ce recoupement : la brique 16 hérite des
-            # trois refus sans une ligne de plus.
-            | {(t["entity"], t["field"]) for t in self.timestamp_fields}
-            # POINT 102 : un champ 'numbered' rejoint la même famille, et hérite
-            # des trois refus sans une ligne de plus — exactement ce que le
-            # point 89 avait gagné à grouper ce recoupement.
-            | {(n["entity"], n["field"]) for n in self.numbered_fields}
-        )
-        for (entite, champ), contraintes in sorted(self.field_constraints.items()):
-            if (entite, champ) not in peuples_par_le_serveur:
-                continue
-            bornes = [n for n in ("min", "max") if n in contraintes]
-            if bornes:
-                raise ASTValidationError(
-                    f"Structure : '{entite}.{champ}' porte "
-                    f"'{'/'.join(bornes)}' alors que le SERVEUR calcule ce champ : il "
-                    f"est absent du corps de requête, donc la borne ne s'appliquerait "
-                    f"à rien. La retirer, ou borner le champ d'où la valeur vient.")
-            # 'required' sur un champ que le client ne PEUT pas envoyer met le
-            # contrat frontend en contradiction avec lui-même : « remplis-le »
-            # d'un côté, « ne l'envoie pas » de l'autre. L'IA d'interface reçoit
-            # alors deux consignes opposées sur le même champ.
-            # 'unique', lui, reste permis : un pseudonyme 'generated' a toutes
-            # les raisons d'être unique, et l'index s'applique en base sans rien
-            # demander au client.
-            if "required" in contraintes:
-                raise ASTValidationError(
-                    f"Structure : '{entite}.{champ}' est 'required' alors que le SERVEUR "
-                    f"le calcule : le client ne peut pas le fournir, et le contrat "
-                    f"dirait à la fois « à remplir » et « à ne pas envoyer ».")
-
-        for payable in self.payable_fields:
-            entity, field = payable["entity"], payable["field"]
-            if (entity, field) not in champs_derives and (entity, field) not in champs_sommes:
-                raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' est 'payable' mais le client peut l'écrire -- "
-                    f"le créateur d'un '{entity}' en devient le propriétaire, donc le payeur : il "
-                    f"fixerait lui-même ce qu'il règle. Ajouter une règle qui fait calculer le "
-                    f"montant par le serveur, par exemple "
-                    f"'rule {entity}.{field} derivedFrom Article.prix by quantite', ou "
-                    f"'rule {entity}.{field} sumOf Ligne.sousTotal' pour un panier."
-                )
-            # AJOUT (point 82) : la faille du point 77 qui revenait par le
-            # panier, et que le cadrage du point 80 annonçait.
-            #
-            # Un champ 'sumOf' est calculé par le serveur : il satisfait donc le
-            # refus ci-dessus. Mais additionner un champ que le CLIENT écrit ne
-            # produit pas un total sûr -- il produit un total que le client
-            # contrôle, en une addition de plus. Le payeur reprend la main sur ce
-            # qu'il règle, exactement comme au point 77 : la brique qui rend le
-            # panier chiffrable aurait rouvert le trou que la précédente a fermé.
-            #
-            # Donc : ce qu'on somme pour encaisser doit être lui-même calculé par
-            # le serveur. La contrainte vit ICI et non dans la boucle 'sumOf',
-            # parce que sommer un champ client reste légitime hors paiement
-            # (`Commande.nbArticles sumOf Ligne.quantite` compte des articles, il
-            # n'encaisse rien) : c'est le cumul avec `payable` qui est fautif, pas
-            # la somme.
-            somme = champs_sommes.get((entity, field))
-            if somme is not None:
-                source = (somme["source_entity"], somme["source_field"])
-                if source not in champs_derives and source not in champs_sommes:
-                    raise ASTValidationError(
-                        f"Structure : '{entity}.{field}' est 'payable' et somme "
-                        f"'{somme['source_entity']}.{somme['source_field']}', que le client peut "
-                        f"écrire -- additionner un montant fourni par le payeur donne un total que le "
-                        f"payeur fixe encore, en une addition de plus. Faire calculer la ligne par le "
-                        f"serveur, par exemple 'rule {somme['source_entity']}."
-                        f"{somme['source_field']} derivedFrom Article.prix by quantite'."
-                    )
-
-        # AJOUT (roadmap, écosystème de capacités -- brique 3, généralisée en
-        # brique 4) : validation des règles 'decrements'/'increments' --
-        # même mécanique dans les deux sens (réputation qui baisse sur
-        # signalement, compteur qui monte sur appréciation), donc une seule
-        # boucle partagée, distinguée par 'direction'. Trois conditions :
-        # (1) le déclencheur est bien 'Entite.Create' sur une entité
-        # existante -- seule l'action 'Create' est prise en charge pour
-        # l'instant, volontairement (une suppression ne "défait" pas l'effet,
-        # ce serait une mécanique différente à concevoir à part) ; (2) la
-        # cible est un champ Integer/Float réellement déclaré sur son
-        # entité ; (3) une relation existe entre les deux entités permettant
-        # de savoir quelle ligne de l'entité cible modifier (même
-        # vérification que pour 'ownedBy', point 5 -- répliquée ici plutôt
-        # que partagée, cette validation est encore trop jeune pour factoriser
-        # sans risquer de rigidifier les deux prématurément).
-        self.reputation_rules = []
-        for rule in self.rules:
-            if rule["type"] in ("decrements", "increments"):
-                direction = rule["type"]
-                trigger_ref, target_ref = rule["reference"], rule["value"]
-                if "." not in trigger_ref or "." not in target_ref:
-                    raise ASTValidationError(
-                        f"Structure : la règle '{direction}' doit référencer 'Entite.Create {direction} Entite.champ', "
-                        f"reçu '{trigger_ref} {direction} {target_ref}'."
-                    )
-                trigger_entity, trigger_action = trigger_ref.split(".", 1)
-                target_entity, target_field = target_ref.split(".", 1)
-                if trigger_entity not in self.entities:
-                    raise ASTValidationError(f"Structure : '{direction}' référence l'entité '{trigger_entity}' qui n'existe pas.")
-                if trigger_action != "Create":
-                    raise ASTValidationError(
-                        f"Structure : '{direction}' n'est pris en charge que sur 'Create' pour l'instant "
-                        f"(reçu '{trigger_entity}.{trigger_action}')."
-                    )
-                if target_entity not in self.entities:
-                    raise ASTValidationError(f"Structure : '{direction}' référence l'entité '{target_entity}' qui n'existe pas.")
-                target_type = self.entities[target_entity].get(target_field)
-                if target_type not in ("Integer", "Float"):
-                    raise ASTValidationError(
-                        f"Structure : '{direction}' cible le champ '{target_entity}.{target_field}', qui doit être "
-                        f"un attribut Integer ou Float déclaré (reçu : {target_type or 'champ inexistant'})."
-                    )
-                has_matching_relation = any(
-                    (rel["type"] in ("hasMany", "hasOne") and rel["source"] == target_entity and rel["target"] == trigger_entity)
-                    or (rel["type"] == "belongsTo" and rel["target"] == target_entity and rel["source"] == trigger_entity)
-                    for rel in self.relations
-                )
-                if not has_matching_relation:
-                    raise ASTValidationError(
-                        f"Structure : '{direction}' sur '{trigger_entity}.Create' vers '{target_entity}.{target_field}' "
-                        f"exige une relation entre les deux (ex. '{target_entity} hasMany {trigger_entity}'), absente ici."
-                    )
-                # BRIQUE 14 (point 86) : « by <champ> » retire ce que le client a
-                # demandé, au lieu d'une constante. C'est ce qui manquait pour
-                # décompter un stock — 'decrements' ne savait retirer que 1.
-                champ_quantite = rule.get("amount_field")
-                if champ_quantite:
-                    type_quantite = self.entities[trigger_entity].get(champ_quantite)
-                    if type_quantite != "Integer":
-                        raise ASTValidationError(
-                            f"Structure : '{direction} ... by {champ_quantite}' désigne un champ "
-                            f"de '{trigger_entity}' qui doit être un Integer déclaré "
-                            f"(reçu : {type_quantite or 'champ inexistant'}).")
-                    # Même exigence que le multiplicateur de 'derivedFrom'
-                    # (point 77) et pour la même raison : un champ que le client
-                    # peut omettre ferait décompter sur du vide.
-                    requis = {r["reference"] for r in self.rules
-                              if r.get("type") == "required"}
-                    if f"{trigger_entity}.{champ_quantite}" not in requis:
-                        raise ASTValidationError(
-                            f"Structure : '{trigger_entity}.{champ_quantite}' sert de quantité à "
-                            f"'{direction}' : il lui faut 'rule {trigger_entity}.{champ_quantite} "
-                            f"required', sinon un client qui l'omet ferait décompter sur du vide.")
-                self.reputation_rules.append({
-                    "trigger_entity": trigger_entity, "target_entity": target_entity,
-                    "target_field": target_field, "amount": rule.get("amount"),
-                    "amount_field": champ_quantite, "direction": direction,
-                })
-
-        # AJOUT (point 99) : encaisser exige un propriétaire qui soit un COMPTE.
-        # Ce recoupement vit ici, après la boucle des décomptes, parce qu'il lui
-        # faut `reputation_rules` complet — et il double le refus posé plus haut
-        # avec les autres contrôles de 'payable', qui n'exigeait qu'une relation
-        # entrante, N'IMPORTE laquelle.
-        #
-        # Ce que ça laissait passer : 'relation Produit hasMany Facture' suffisait
-        # à compiler, et la route de règlement comparait `produit_id` à l'id du
-        # compte appelant. La comparaison n'était juste que par accident — la
-        # colonne recevait `current_user_id` faute de savoir faire autrement,
-        # c'est-à-dire à cause du défaut que ce point corrige. Le rattachement
-        # redevenu honnête, l'accident disparaît et le refus doit être écrit.
-        #
-        # Deux formes acceptées, et deux seulement : un parent ACTEUR (propriété
-        # directe, la colonne porte un id de compte) ou une chaîne transitive
-        # (point 87, la jointure rend ce même id de compte). La cible d'un
-        # compteur est exclue même quand c'est un acteur : cette colonne-là est
-        # choisie par le client, elle ne dit pas à qui la ligne appartient.
-        for _paye in self.payable_fields:
-            _entite = _paye["entity"]
-            if _entite in self.transitive_ownership:
-                continue
-            _cibles = {r["target_entity"] for r in self.reputation_rules
-                       if r["trigger_entity"] == _entite}
-            _parents_acteurs = {
-                (rel["source"] if rel["type"] in ("hasMany", "hasOne") else rel["target"])
-                for rel in self.relations
-                if (rel["type"] in ("hasMany", "hasOne") and rel["target"] == _entite)
-                or (rel["type"] == "belongsTo" and rel["source"] == _entite)
-            } & set(self.actors) - _cibles
-            if not _parents_acteurs:
-                raise ASTValidationError(
-                    f"Structure : '{_entite}.{_paye['field']}' est 'payable', mais aucun "
-                    f"ACTEUR ne possède un enregistrement de '{_entite}'. Une relation vers "
-                    f"une table métier ne suffit pas : la colonne qu'elle produit porte "
-                    f"l'id de cette ligne, pas celui d'un compte, et la route de règlement "
-                    f"la compare à l'appelant. Déclarer 'un_acteur hasMany {_entite}', ou "
-                    f"rattacher '{_entite}' à un acteur à travers son parent "
-                    f"('rule {_entite}.Read ownedBy <Parent>')."
-                )
-
-        # AJOUT (brique 20, point 98) : atteindre une valeur DÉFAIT un effet.
-        # Ce bloc vit APRÈS la boucle des décomptes, et pas au milieu des
-        # autres règles : il lui faut `reputation_rules` complet pour vérifier
-        # qu'il y a bien quelque chose à rendre. Même placement, et même
-        # raison, que le recoupement `payable`/`derivedFrom` du point 79.
-        # Annuler une commande la passait en « annulée » et gardait ses lignes :
-        # le stock restait consommé. La restitution existait déjà (point 92),
-        # mais seulement à la SUPPRESSION — ce qui efface l'historique.
-        self.release_rules = []
-        for rule in self.rules:
-            if rule["type"] != "releases":
-                continue
-            if "." not in rule["reference"]:
-                raise ASTValidationError(
-                    f"Structure : la règle 'releases' doit référencer 'Entite.champ', "
-                    f"reçu '{rule['reference']}'.")
-            entity, field = rule["reference"].split(".", 1)
-            if entity not in self.entities:
-                raise ASTValidationError(
-                    f"Structure : la règle 'releases' cible l'entité '{entity}' qui "
-                    f"n'existe pas.")
-            # LE refus qui porte la brique. Sans 'oneOf', la valeur déclarée est
-            # une chaîne libre : une faute de frappe donnerait une règle qui ne
-            # se déclenche JAMAIS, sans que rien ne le dise. C'est exactement ce
-            # que le point 85 refuse — une règle qui ne produit rien.
-            choix = self.enumerated_fields.get(entity, {}).get(field)
-            if not choix:
-                raise ASTValidationError(
-                    f"Structure : 'releases' exige que '{entity}.{field}' porte un "
-                    f"'oneOf' — sans liste de valeurs, une faute de frappe donnerait "
-                    f"une règle qui ne se déclenche jamais.")
-            if rule["value"] not in choix:
-                raise ASTValidationError(
-                    f"Structure : 'releases' se déclenche sur la valeur "
-                    f"{rule['value']!r}, absente du 'oneOf' de '{entity}.{field}' "
-                    f"({', '.join(repr(c) for c in choix)}) — elle ne surviendrait "
-                    f"jamais.")
-            libere = rule["entity"]
-            if libere not in self.entities:
-                raise ASTValidationError(
-                    f"Structure : 'releases' nomme l'entité '{libere}', qui n'existe pas.")
-            # Ce qu'on libère, c'est un décompte : sans lui il n'y a rien à rendre.
-            decomptes = [r for r in self.reputation_rules
-                         if r["trigger_entity"] == libere
-                         and r["direction"] == "decrements"]
-            if not decomptes:
-                raise ASTValidationError(
-                    f"Structure : 'releases {libere}' ne libérerait rien — cette "
-                    f"entité ne porte aucune règle 'decrements'. C'est ce qu'un "
-                    f"décompte a consommé que l'on rend.")
-            # Il faut savoir QUELLES lignes libérer : celles rattachées à
-            # l'enregistrement dont le champ change. Sans relation, la question
-            # n'a pas de réponse.
-            if not any(r["source"] == entity and r["target"] == libere
-                       for r in self.relations):
-                raise ASTValidationError(
-                    f"Structure : 'releases' exige une relation "
-                    f"'{entity} hasMany {libere}' — sans elle, rien ne dit quelles "
-                    f"lignes de {libere} dépendent de ce {entity}.")
-            if any(r["entity"] == entity and r["field"] == field
-                   for r in self.release_rules):
-                raise ASTValidationError(
-                    f"Structure : deux règles 'releases' sur '{entity}.{field}' — "
-                    f"la première libération rendrait déjà le décompte, la seconde "
-                    f"le rendrait une deuxième fois.")
-            self.release_rules.append({"entity": entity, "field": field,
-                                       "value": rule["value"], "releases": libere})
-
-        # AJOUT (roadmap, contrôle du rendu visuel) : validation du bloc 'ui'
-        # optionnel — vérifie que l'entité et les champs référencés existent
-        # bien, pour éviter qu'une faute de frappe dans 'primary'/'order'
-        # passe silencieusement inaperçue jusqu'au rendu du front. Le nom du
-        # thème n'est volontairement pas validé ici (cosmétique, pas
-        # sécuritaire) — un nom de thème inconnu sera simplement ignoré par
-        # le générateur, qui retombera sur la sélection automatique.
-        self.ui_overrides = {}
-        for override in self.ui_overrides_raw:
-            entity = override["entity"]
-            if entity not in self.entities:
-                raise ASTValidationError(f"Structure : le bloc 'ui {entity}' cible une entité qui n'existe pas.")
-            primary = override.get("primary")
-            if primary and primary not in self.entities[entity]:
-                raise ASTValidationError(
-                    f"Structure : 'ui {entity}' référence 'primary: {primary}', qui n'est pas un attribut de '{entity}'."
-                )
-            order = override.get("order")
-            if order:
-                unknown = [f for f in order if f not in self.entities[entity]]
-                if unknown:
-                    raise ASTValidationError(
-                        f"Structure : 'ui {entity}' référence des champs inconnus dans 'order' : {unknown}."
-                    )
-            self.ui_overrides[entity] = {
-                "theme": override.get("theme"), "primary": primary, "order": order,
-            }
-
-        # PIVOT (point 41) : monl ne génère plus de landing — le bloc
-        # 'landing' reste ACCEPTÉ pour ne casser aucune spec existante, mais
-        # seul son 'brief' est conservé : il alimente désormais le contrat
-        # frontend (FRONTEND_PROMPT.md) destiné à l'IA qui construit
-        # l'interface. Les clés 'mode' et 'template', devenues sans effet,
-        # sont signalées (jamais une régression silencieuse).
-        self.landing = None
-        if self.landing_raw is not None:
-            for obsolete in ("mode", "template"):
-                if self.landing_raw.get(obsolete):
-                    print(f"⚠️  'landing / {obsolete}' est obsolète depuis le pivot "
-                          f"(point 41 de docs/design_decisions.md) : monl ne génère "
-                          f"plus de page d'accueil — seul 'brief' est transmis à l'IA frontend.")
-            # AJOUT (point 55) : les sections éditoriales, seul contenu
-            # statique que le contrat sache porter. Un titre vide donnerait
-            # une rubrique sans nom dans l'interface : refusé à la
-            # compilation plutôt que découvert à l'écran.
-            sections = []
-            for section in self.landing_raw.get("sections") or []:
-                titre = (section.get("title") or "").strip()
-                corps = (section.get("body") or "").strip()
-                if not titre or not corps:
-                    raise ValueError(
-                        "SEMANTIC_ERROR: une 'section' de 'landing' exige un "
-                        "titre ET un texte non vides (trouvé : "
-                        f"titre={titre!r}, texte={corps!r}).")
-                sections.append({"title": titre, "body": corps})
-            # AJOUT (point 94) : la FAQ. Même exigence que les sections, pour la
-            # même raison — une question sans réponse, ou une réponse sans
-            # question, donnerait une entrée muette à l'écran. Le refus tombe à
-            # la compilation, pas devant le visiteur.
-            faq = []
-            for entree in self.landing_raw.get("faq") or []:
-                question = (entree.get("question") or "").strip()
-                reponse = (entree.get("answer") or "").strip()
-                if not question or not reponse:
-                    raise ValueError(
-                        "SEMANTIC_ERROR: une 'question' de 'landing' exige une "
-                        "question ET une réponse non vides (trouvé : "
-                        f"question={question!r}, réponse={reponse!r}).")
-                faq.append({"question": question, "answer": reponse})
-            self.landing = {"brief": self.landing_raw.get("brief"),
-                            "sections": sections, "faq": faq}
-        # AJOUT (roadmap, écosystème de capacités -- brique 1) : validation
-        # du bloc optionnel 'capability'. Volontairement strict (liste
-        # blanche de noms connus, contrairement à 'ui / theme' qui retombe
-        # silencieusement sur un défaut) : une capacité mal orthographiée
-        # doit être signalée à la compilation, pas ignorée en silence --
-        # comportement déjà établi pour tout ce qui touche à la sécurité
-        # (collision de privilèges, restriction de champ) dans ce compilateur.
-        # 'auth' est la seule capacité connue pour l'instant (brique 1,
-        # purement déclarative -- aucun effet sur la génération à ce stade).
-        KNOWN_CAPABILITIES = {"auth", "payment"}
-        # POINT 95 : une capacité est désormais un dict {name, …options}. Le nom
-        # seul reste ce qui voyage dans l'AST normalisé (aucun consommateur
-        # existant ne doit changer) ; les options sont extraites à part.
-        noms = [c["name"] for c in self.capabilities_raw]
-        unknown = [c for c in noms if c not in KNOWN_CAPABILITIES]
-        if unknown:
-            raise ASTValidationError(
-                f"Structure : capacité(s) inconnue(s) déclarée(s) avec 'capability' : {', '.join(unknown)}. "
-                f"Capacités reconnues : {', '.join(sorted(KNOWN_CAPABILITIES))}."
-            )
-        self.capabilities = list(dict.fromkeys(noms))  # dédoublonne, garde l'ordre
-        self.auth_identifier = self._valider_identifiant_de_compte(
-            self.capabilities_raw)
-
-        # AJOUT (roadmap frontend, bloc 'seed') : validation des données de
-        # démonstration. Chaque enregistrement doit cibler une entité
-        # déclarée, ne référencer que des champs existants de cette entité,
-        # et respecter grossièrement leur type (nombre pour Integer/Float/
-        # Money, chaîne sinon). Strict comme le reste du compilateur : une
-        # coquille dans un seed doit échouer à la compilation, pas produire
-        # une INSERT invalide au démarrage du serveur.
-        # AJOUT (roadmap, brique 13 -- point 83) : les ASSETS. monl ne savait pas
-        # qu'un fichier existe : `imageUrl: "images/absent.jpg"` compilait sans
-        # un mot, et l'image cassée ne se voyait qu'à l'œil, en ligne. Trois
-        # chemins fautifs ont été essayés (fichier absent, dossier et extension
-        # mal tapés, "/etc/passwd") : tous les trois compilaient.
-        #
-        # Deux familles de contrôles, séparées à dessein :
-        #   - de FORME (toujours) : chemin absolu, remontée '..', URL distante ;
-        #   - d'EXISTENCE (si base_dir est connu) : le fichier est-il là ?
-        self.assets = dict(self.assets_raw)
-        dossier_assets = self.assets.get("dir", DEFAULT_ASSETS_DIR)
-        self._verifier_forme_chemin_asset(dossier_assets, "assets.dir")
-        self.assets["dir"] = dossier_assets
-        for cle in ("logo", "favicon"):
-            if cle not in self.assets_raw:
-                continue
-            valeur = self.assets_raw[cle]
-            self._verifier_forme_chemin_asset(valeur, f"assets.{cle}")
-            self._verifier_asset_present(valeur, f"assets.{cle}")
-
-        NUMERIC_TYPES = {"Integer", "Float", "Money"}
-        self.seeds = []
-        for seed in self.seeds_raw:
-            entity = seed["entity"]
-            if entity not in self.entities:
-                raise ASTValidationError(
-                    f"Structure : le bloc 'seed' cible l'entité '{entity}' qui n'existe pas."
-                )
-            entity_fields = self.entities[entity]
-            if seed.get("parent"):
-                self._valider_parent_de_seed(entity, seed["parent"])
-            for i, row in enumerate(seed["rows"], start=1):
-                for field, value in row.items():
-                    if field not in entity_fields:
-                        raise ASTValidationError(
-                            f"Structure : le bloc 'seed {entity}' (ligne {i}) référence le champ "
-                            f"'{field}', qui n'est pas déclaré sur '{entity}'."
-                        )
-                    declared_type = entity_fields[field]
-                    is_number = isinstance(value, (int, float)) and not isinstance(value, bool)
-                    if declared_type in NUMERIC_TYPES and not is_number:
-                        raise ASTValidationError(
-                            f"Structure : 'seed {entity}' (ligne {i}), champ '{field}' de type "
-                            f"{declared_type} attend un nombre, reçu une chaîne."
-                        )
-                    if declared_type not in NUMERIC_TYPES and is_number:
-                        raise ASTValidationError(
-                            f"Structure : 'seed {entity}' (ligne {i}), champ '{field}' de type "
-                            f"{declared_type} attend une chaîne entre guillemets, reçu un nombre."
-                        )
-                    # Brique 13 : un champ 'Image' désigne un fichier LOCAL. Le
-                    # vérifier ici, c'est transformer « image cassée en ligne,
-                    # visible à l'œil » en « échec de compilation, nommé ».
-                    if declared_type == "Image":
-                        ou = f"seed {entity} (ligne {i}), champ '{field}'"
-                        self._verifier_forme_chemin_asset(value, ou, image=True)
-                        self._verifier_asset_present(value, ou)
-            self.seeds.append(seed)
-
-        for wf in self.workflows:
-            actor = wf["actor"]
-            if actor not in self.actors:
-                raise ASTValidationError(f"Structure : L'acteur '{actor}' dans le workflow '{wf['name']}' n'est pas déclaré.")
-
-            for action in wf["actions"]:
-                target = action["target"]
-                act_type = action["type"]
-
-                if act_type == "Execute":
-                    if target not in self.custom_logic:
-                        raise ASTValidationError(f"Architecture : L'action Execute appelle '{target}', mais ce bloc custom n'est pas défini.")
-                else:
-                    base_target = target.split(".")[0] if "." in target else target
-                    if base_target not in self.entities:
-                        raise ASTValidationError(f"Structure : L'action cible l'entité '{base_target}' qui n'existe pas.")
-
-                    # --- CORRECTIF BUG v6 #5 : Détection des collisions de privilèges ---
-                    # AJOUT (roadmap, public) : une action marquée 'public' ne
-                    # vérifie plus aucune identité au runtime — peu importe
-                    # combien de workflows/acteurs différents la déclarent,
-                    # ça n'a plus de sens de la faire remonter dans la
-                    # matrice de collision, qui ne concerne que les actions
-                    # réellement soumises à un contrôle de rôle.
-                    if (base_target, act_type) in self.public_actions:
-                        continue
-
-                    if base_target not in access_matrix:
-                        access_matrix[base_target] = {}
-                    if act_type not in access_matrix[base_target]:
-                        access_matrix[base_target][act_type] = set()
-
-                    # Enregistrement de l'acteur pour cette action précise
-                    access_matrix[base_target][act_type].add(actor)
-
-        # Analyse de la matrice : si une action d'écriture/suppression a plus d'un acteur,
-        # on autorise si une règle 'sharedBy' couvre exactement cet ensemble d'acteurs,
-        # ou si une règle 'ownedBy' protège déjà cette action au niveau de chaque
-        # enregistrement (auquel cas plusieurs acteurs peuvent légitimement partager
-        # le droit, puisque chacun ne peut de toute façon agir que sur ses propres
-        # données) — sinon on lève une exception stricte pour forcer le refactoring.
-        for entity, actions in access_matrix.items():
-            for act_type, authorized_actors in actions.items():
-                if len(authorized_actors) > 1 and act_type in ["Create", "Update", "Delete"]:
-                    key = f"{entity}.{act_type}"
-                    allowed_shared = shared_permissions.get(key)
-
-                    if allowed_shared and authorized_actors.issubset(allowed_shared):
-                        print(f"🤝 [SHARED_PRIVILEGE] L'action '{act_type}' sur '{entity}' est explicitement "
-                              f"partagée entre [{', '.join(sorted(authorized_actors))}] via une règle 'sharedBy'.")
-                        continue
-
-                    # AJOUT (roadmap) : combinaison ownedBy + sharedBy implicite.
-                    if (entity, act_type) in self.ownership_rules:
-                        print(f"🔐 [SHARED_PRIVILEGE_VIA_OWNERSHIP] L'action '{act_type}' sur '{entity}' est partagée "
-                              f"entre [{', '.join(sorted(authorized_actors))}], mais protégée au niveau de chaque "
-                              f"enregistrement par la règle 'ownedBy' (propriétaire : "
-                              f"{self.ownership_rules[(entity, act_type)]}).")
-                        continue
-
-                    # AJOUT (brique 23, point 106) : une action régie par
-                    # 'accessibleBy' est exemptée comme 'ownedBy' — l'accès à
-                    # CHAQUE enregistrement est décidé par ses colonnes-parties,
-                    # pas par un couplage rôle/action. Plusieurs acteurs peuvent
-                    # donc légitimement viser la même route (le rôle 'Membre',
-                    # en plus d'un rôle 'Modérateur' superviseur) : chacun reste
-                    # cantonné soit à ses propres enregistrements, soit à tout —
-                    # s'il est déclaré superviseur via 'sharedBy' sur la même
-                    # référence. Sans cette exemption, ajouter un superviseur
-                    # forcerait à nommer les parties dans le 'sharedBy', ce qui
-                    # les déclarerait (à tort) superviseurs à leur tour.
-                    if (entity, act_type) in self.access_party_rules:
-                        print(f"🔐 [SHARED_PRIVILEGE_VIA_ACCESS] L'action '{act_type}' sur '{entity}' est partagée "
-                              f"entre [{', '.join(sorted(authorized_actors))}], mais protégée au niveau de chaque "
-                              f"enregistrement par la règle 'accessibleBy' "
-                              f"(parties : {self.access_party_rules[(entity, act_type)]}).")
-                        continue
-
-                    actors_list = ", ".join(sorted(authorized_actors))
-                    suggestion = f"'rule {entity}.{act_type} sharedBy {actors_list}'"
-                    extra = ""
-                    if allowed_shared:
-                        not_covered = authorized_actors - allowed_shared
-                        extra = (f" Une règle 'sharedBy' existe déjà pour '{key}' mais ne couvre pas : "
-                                 f"[{', '.join(sorted(not_covered))}].")
-
-                    raise ASTValidationError(
-                        f"🔒 [CRITICAL_COLLISION] Conflit d'autorité sur l'entité '{entity}' : "
-                        f"les acteurs [{actors_list}] ont tous le droit d'exécuter l'action '{act_type}'. "
-                        f"Séparez ces privilèges, ou déclarez explicitement le partage avec : {suggestion}.{extra}"
-                    )
-
-        # Doit rester la toute dernière validation structurelle : elle dépend
-        # de toutes les familles de champs serveur et de la propriété transitive.
-        self._valider_regle_apres_paiement()
-
     def _audit_security_rules(self):
         """Moteur d'analyse statique traquant les vulnérabilités complexes."""
         reports = []
@@ -2167,8 +1987,8 @@ class MonlAST:
 
         return reports
 
-    def to_normalized_ast(self, security_reports):
-        return {
+    def to_normalized_ast(self, security_reports: list[str]) -> CompilationIR:
+        normalized: CompilationIR = {
             "meta": {"appName": self.app_name, "security_audit_logs": security_reports},
             "schema": {"entities": self.entities, "relations": self.relations},
             "security": {
@@ -2182,6 +2002,11 @@ class MonlAST:
                 # contrôle 'accessibleBy' — item par item, même clé.
                 "access_supervisors": {f"{k[0]}.{k[1]}": v for k, v in self.access_supervisors.items()},
                 "public": [f"{e}.{a}" for e, a in sorted(self.public_actions)],
+                "public_conditions": {
+                    f"{e}.{a}": value
+                    for (e, a), value in sorted(self.public_conditions.items())
+                },
+                "once_per": list(self.once_per_rules),
                 "hidden_fields": [f"{e}.{f}" for e, f in sorted(self.masked_fields)],
                 "reputation_rules": self.reputation_rules,
                 "categorized_fields": self.categorized_fields,
@@ -2216,3 +2041,4 @@ class MonlAST:
             "seeds": self.seeds,
             "assets": self.assets,
         }
+        return normalized

@@ -1,10 +1,13 @@
 # 🟢 Phase 3 — Le Parser Syntaxique
 
+> **Document historique.** Cette page décrit une étape de conception ; elle ne
+> remplace pas l'architecture courante. Voir `README.md` et `CODEBASE_AUDIT.md`.
+
 ## Objectif
 L'objectif de cette phase est de concevoir un analyseur syntaxique (Parser) capable de lire un fichier brut écrit en DSL monl (extension `.ml` — historiquement `.yaml`, avant que le projet n'adopte son extension propre) et de le convertir en une structure de données informatique brute au format JSON.
 
 ## Choix Techniques
-- **Langage** : Python 3.14+
+- **Langage** : Python 3.10+
 - **Bibliothèque** : `lark` (Analyseur syntaxique LALR)
 - **Gestion de l'indentation** : Utilisation du module natif `PythonIndenter` réadapté pour monl (`MonlIndenter`) afin de capturer proprement les blocs logiques de 4 espaces sans accolades.
 

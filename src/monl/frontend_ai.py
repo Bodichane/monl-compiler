@@ -25,6 +25,7 @@ import json
 import os
 import re
 
+from .errors import FrontendError
 from .frontend_contract import PROMPT_FILENAME
 
 ALLOWED_EXTENSIONS = (".html", ".css", ".js", ".svg", ".json")
@@ -48,8 +49,20 @@ absolu). Extensions autorisées : .html, .css, .js, .svg, .json.
 """
 
 
-class FrontendAIError(Exception):
+class FrontendAIError(FrontendError):
     pass
+
+
+def _requests_module():
+    """Charge le client HTTP uniquement pour l'extra ``.[ai]``."""
+    try:
+        import requests
+    except ImportError as exc:
+        raise FrontendAIError(
+            "Le fournisseur frontend par API nécessite l'extra optionnel : "
+            "pip install 'monl-compiler[ai]'."
+        ) from exc
+    return requests
 
 
 # ------------------------------------------------------------- providers --
@@ -64,7 +77,7 @@ def claude_provider(model=DEFAULT_MODEL):
             "avant 'monl frontend --provider claude'.")
 
     def call(prompt):
-        import requests
+        requests = _requests_module()
         resp = requests.post(
             "https://api.anthropic.com/v1/messages",
             headers={"x-api-key": api_key,
@@ -138,7 +151,7 @@ def openai_provider(model=None, base_url=None, key_env="MONL_AI_API_KEY",
             "'monl frontend' (jamais en argument : le shell l'archiverait).")
 
     def call(prompt):
-        import requests
+        requests = _requests_module()
         resp = requests.post(
             base_url.rstrip("/") + "/chat/completions",
             headers={"Authorization": f"Bearer {api_key or 'sans-cle'}",
@@ -643,8 +656,11 @@ def run_cli_agent(project_dir, instruction, max_turns=DEFAULT_MAX_TURNS,
 
 def run_claude_code(project_dir, instruction, max_turns=DEFAULT_MAX_TURNS,
                     command=None):
-    """Conservé : la voie Claude Code est celle du point 43, et son nom est
-    utilisé ailleurs. Elle n'est plus qu'un cas particulier de run_cli_agent."""
+    """Alias conservé pour compatibilité.
+
+    Utiliser ``run_cli_agent(..., agent="claude-code")`` dans le nouveau code.
+    Voir ``docs/DEPRECATIONS.md`` pour la politique de retrait.
+    """
     return run_cli_agent(project_dir, instruction, max_turns=max_turns,
                          command=command, agent="claude-code")
 

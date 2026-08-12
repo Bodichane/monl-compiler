@@ -1,5 +1,8 @@
 # Exemples de spécifications
 
+Les fonctions métier supplémentaires du dialogue sont regroupées dans deux
+projets complets sous `projets/` : `CommunauteHub` et `GestionPro`.
+
 **Cinq fichiers `.ml`, une page chacun : la description complète de cinq
 applications.** C'est la seule chose écrite à la main. Le schéma de base, l'API
 REST, l'authentification, le contrôle d'accès et le contrat frontend en sont

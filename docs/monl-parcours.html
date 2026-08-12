@@ -1,0 +1,580 @@
+<title>monl — le parcours d'une commande</title>
+<style>
+  :root{
+    --papier:#F1F2F4; --surface:#FFFFFF; --surface2:#E9EBEF;
+    --encre:#15181E; --encre2:#4A5260; --encre3:#727B8A;
+    --trait:#D3D7DE; --trait-fort:#B8BEC9;
+    --accent:#0E6B60; --accent-doux:#D8E9E6;
+    --ok:#2C6E49; --alerte:#8A5A17; --scelle:#9C3B2E;
+    --ombre:0 1px 2px rgba(21,24,30,.05), 0 8px 24px -12px rgba(21,24,30,.18);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --papier:#101319; --surface:#171B22; --surface2:#1E232C;
+      --encre:#E7EAEF; --encre2:#A8B0BD; --encre3:#7C8595;
+      --trait:#2A303B; --trait-fort:#3A4250;
+      --accent:#4CC5B3; --accent-doux:#153029;
+      --ok:#6FBF8E; --alerte:#D6A44E; --scelle:#E08472;
+      --ombre:0 1px 2px rgba(0,0,0,.3), 0 10px 30px -14px rgba(0,0,0,.7);
+    }
+  }
+  :root[data-theme="light"]{
+    --papier:#F1F2F4; --surface:#FFFFFF; --surface2:#E9EBEF;
+    --encre:#15181E; --encre2:#4A5260; --encre3:#727B8A;
+    --trait:#D3D7DE; --trait-fort:#B8BEC9;
+    --accent:#0E6B60; --accent-doux:#D8E9E6;
+    --ok:#2C6E49; --alerte:#8A5A17; --scelle:#9C3B2E;
+    --ombre:0 1px 2px rgba(21,24,30,.05), 0 8px 24px -12px rgba(21,24,30,.18);
+  }
+  :root[data-theme="dark"]{
+    --papier:#101319; --surface:#171B22; --surface2:#1E232C;
+    --encre:#E7EAEF; --encre2:#A8B0BD; --encre3:#7C8595;
+    --trait:#2A303B; --trait-fort:#3A4250;
+    --accent:#4CC5B3; --accent-doux:#153029;
+    --ok:#6FBF8E; --alerte:#D6A44E; --scelle:#E08472;
+    --ombre:0 1px 2px rgba(0,0,0,.3), 0 10px 30px -14px rgba(0,0,0,.7);
+  }
+
+
+  /* ---------- graphe d'ensemble ---------- */
+  .graphe-cadre{
+    background:var(--surface); border:1px solid var(--trait);
+    border-radius:6px; padding:8px 4px; margin:22px 0 14px;
+    overflow-x:auto; box-shadow:var(--ombre);
+  }
+  .graphe-cadre svg{min-width:900px;}
+  ul.legende-graphe{
+    list-style:none; margin:0 0 8px; padding:0;
+    display:flex; flex-wrap:wrap; gap:6px 20px;
+    font-size:13px; color:var(--encre2);
+  }
+  ul.legende-graphe li{display:flex; align-items:center; gap:8px;}
+  .pastille{width:15px; height:11px; border-radius:3px; display:inline-block;
+            border:1.4px solid var(--trait-fort); background:var(--surface);}
+  .pastille-entree{background:var(--accent-doux); border-color:var(--accent);}
+  .pastille-donnee{background:var(--surface2); border-color:var(--trait); border-style:dashed;}
+  .pastille-artefact{border-color:var(--accent);}
+  .pastille-scelle{border-color:var(--scelle);}
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--papier); color:var(--encre);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    font-size:16px; line-height:1.6; -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;}
+
+  .page{max-width:1180px; margin:0 auto; padding:0 24px 96px;}
+
+  /* ---------- en-tête ---------- */
+  header.tete{padding:64px 0 40px; border-bottom:1px solid var(--trait);}
+  .eyebrow{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:12px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--accent); margin:0 0 14px;
+  }
+  h1{
+    font-family:Georgia,"Iowan Old Style","Times New Roman",serif;
+    font-weight:600; font-size:clamp(32px,5vw,52px); line-height:1.1;
+    margin:0 0 18px; text-wrap:balance; letter-spacing:-.01em;
+  }
+  .chapo{max-width:62ch; color:var(--encre2); font-size:18px; margin:0;}
+  .chapo strong{color:var(--encre); font-weight:600;}
+
+  /* ---------- corps en deux colonnes ---------- */
+  .corps{display:grid; grid-template-columns:230px minmax(0,1fr); gap:56px; margin-top:48px; align-items:start;}
+  @media (max-width:900px){ .corps{grid-template-columns:1fr; gap:32px;} }
+
+  nav.rail{position:sticky; top:24px; display:flex; flex-direction:column; gap:2px;}
+  @media (max-width:900px){ nav.rail{position:static; flex-direction:row; flex-wrap:wrap; gap:8px;} }
+  nav.rail .titre{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--encre3); margin-bottom:10px;
+  }
+  @media (max-width:900px){ nav.rail .titre{display:none;} }
+  nav.rail a{
+    display:flex; gap:10px; align-items:baseline; text-decoration:none;
+    color:var(--encre2); padding:7px 10px; border-radius:3px; font-size:14px;
+    border-left:2px solid transparent;
+  }
+  nav.rail a .n{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:11px; color:var(--encre3);
+  }
+  nav.rail a:hover{background:var(--surface2); color:var(--encre);}
+  nav.rail a:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+
+  /* ---------- actes ---------- */
+  section.acte{padding:44px 0; border-bottom:1px solid var(--trait);}
+  section.acte:first-of-type{padding-top:0;}
+  .acte-num{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:12px; letter-spacing:.12em; color:var(--accent); margin:0 0 8px;
+  }
+  h2{
+    font-family:Georgia,"Iowan Old Style","Times New Roman",serif;
+    font-size:clamp(24px,3vw,32px); line-height:1.2; font-weight:600;
+    margin:0 0 12px; text-wrap:balance;
+  }
+  h3{font-size:15px; font-weight:650; margin:28px 0 10px; letter-spacing:.01em;}
+  p{margin:0 0 14px; max-width:66ch; color:var(--encre2);}
+  p strong{color:var(--encre); font-weight:600;}
+
+  .cmd{
+    display:inline-block; background:var(--surface); border:1px solid var(--trait-fort);
+    border-radius:4px; padding:6px 12px; margin:0 0 18px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:14px; color:var(--encre);
+  }
+  .cmd::before{content:"$ "; color:var(--encre3);}
+
+  /* ---------- étapes ---------- */
+  ol.etapes{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:0;}
+  ol.etapes > li{
+    display:grid; grid-template-columns:26px minmax(0,1fr); gap:18px;
+    padding:0 0 22px; position:relative;
+  }
+  ol.etapes > li::before{
+    content:""; position:absolute; left:12px; top:24px; bottom:0; width:1px; background:var(--trait);
+  }
+  ol.etapes > li:last-child::before{display:none;}
+  .puce{
+    width:25px; height:25px; border-radius:50%; background:var(--surface);
+    border:1px solid var(--trait-fort); color:var(--encre2);
+    display:flex; align-items:center; justify-content:center;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px;
+    position:relative; z-index:1;
+  }
+  .etape-corps h4{
+    margin:2px 0 6px; font-size:16px; font-weight:650; color:var(--encre); line-height:1.35;
+  }
+  .etape-corps p{margin:0 0 8px; font-size:15px;}
+
+  /* ---------- puces fichiers ---------- */
+  .fichier, .artefact{
+    display:inline-flex; align-items:center; gap:6px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:12.5px; padding:2px 8px; border-radius:3px; white-space:nowrap;
+  }
+  .fichier{background:var(--surface2); color:var(--encre); border:1px solid var(--trait);}
+  .artefact{background:var(--accent-doux); color:var(--accent); border:1px solid transparent;}
+  .lot{display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 0;}
+  .lot .legende{
+    font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--encre3);
+    align-self:center; margin-right:2px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+
+  /* ---------- encadrés ---------- */
+  .note{
+    border-left:2px solid var(--trait-fort); padding:2px 0 2px 16px; margin:16px 0;
+    max-width:66ch;
+  }
+  .note.regle{border-left-color:var(--scelle);}
+  .note.preuve{border-left-color:var(--ok);}
+  .note .etiquette{
+    display:block; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:11px; letter-spacing:.12em; text-transform:uppercase; margin-bottom:4px;
+  }
+  .note.regle .etiquette{color:var(--scelle);}
+  .note.preuve .etiquette{color:var(--ok);}
+  .note p{margin:0; font-size:14.5px;}
+
+  /* ---------- branches (3 voies frontend) ---------- */
+  .voies{display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:14px; margin:18px 0 4px;}
+  .voie{
+    background:var(--surface); border:1px solid var(--trait); border-radius:5px;
+    padding:16px; box-shadow:var(--ombre);
+  }
+  .voie h4{margin:0 0 6px; font-size:14px; font-weight:650;}
+  .voie code{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:12px; color:var(--accent); display:block; margin-bottom:8px; word-break:break-word;
+  }
+  .voie p{font-size:13.5px; margin:0; color:var(--encre2);}
+
+  /* ---------- tableau repères ---------- */
+  .tableau-enveloppe{overflow-x:auto; margin:14px 0 0; border:1px solid var(--trait); border-radius:5px; background:var(--surface);}
+  table{border-collapse:collapse; width:100%; font-size:14.5px; min-width:520px;}
+  th,td{text-align:left; padding:11px 14px; border-bottom:1px solid var(--trait); vertical-align:top;}
+  th{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--encre3); font-weight:500;
+    background:var(--surface2);
+  }
+  tr:last-child td{border-bottom:none;}
+  td:first-child{color:var(--encre); width:44%;}
+  td .fichier{margin-top:2px;}
+
+  footer{margin-top:56px; color:var(--encre3); font-size:13.5px; max-width:66ch;}
+  footer a{color:var(--accent);}
+  a:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+</style>
+
+<div class="page">
+  <header class="tete">
+    <p class="eyebrow">Carte du code · monl</p>
+    <h1>Ce qui se passe entre la première question&nbsp;et le site qui tourne</h1>
+    <p class="chapo">Une commande, six actes. À chaque étape : <strong>qui prend la main</strong>, <strong>ce qu'il pose sur le disque</strong>, et <strong>ce qu'il ne doit jamais faire</strong>. Les chemins de fichiers sont ceux du dépôt, avec les numéros de ligne quand ils aident.</p>
+  </header>
+
+  <div class="corps">
+    <nav class="rail">
+      <div class="titre">Le parcours</div>
+      <a href="#graphe"><span class="n">◆</span> Vue d'ensemble</a>
+      <a href="#a1"><span class="n">01</span> Le dialogue</a>
+      <a href="#a2"><span class="n">02</span> La compilation</a>
+      <a href="#a3"><span class="n">03</span> Le contrat</a>
+      <a href="#a4"><span class="n">04</span> L'IA frontend</a>
+      <a href="#a5"><span class="n">05</span> La vérification</a>
+      <a href="#a6"><span class="n">06</span> L'évolution</a>
+      <a href="#reperes"><span class="n">↓</span> Où regarder</a>
+    </nav>
+
+    <main>
+      <section class="acte" id="graphe">
+        <p class="acte-num">VUE D'ENSEMBLE</p>
+        <h2>Le graphe — d'une commande au site vérifié</h2>
+        <p>Le même parcours que les six actes qui suivent, mais d'un seul regard : qui appelle qui, et ce qui tombe sur le disque à chaque bande. Les flèches vertes marquent le passage d'une étape à la suivante ; les boîtes en pointillés sont de la <strong>matière</strong> (modèles, options, sous-modules), pas des maillons de la chaîne.</p>
+        <div class="graphe-cadre">
+<svg viewBox="0 0 1180 998" width="100%" role="img" aria-label="Graphe du parcours d'une commande monl, de la spec au site vérifié" style="max-width:100%;height:auto;display:block;">
+<defs><marker id="fleche" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--trait-fort)"/></marker><marker id="fleche-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker></defs>
+<rect x="24" y="34" width="1132" height="198" rx="8" fill="none" stroke="var(--trait)" stroke-dasharray="3 4"/>
+<text x="38" y="58" font-size="12" font-family="ui-monospace,Menlo,Consolas,monospace" letter-spacing="1.4" fill="var(--accent)">01 · LE DIALOGUE</text>
+<text x="234" y="58" font-size="12" fill="var(--encre3)">aucune IA, aucun réseau</text>
+<rect x="24" y="238" width="1132" height="198" rx="8" fill="none" stroke="var(--trait)" stroke-dasharray="3 4"/>
+<text x="38" y="262" font-size="12" font-family="ui-monospace,Menlo,Consolas,monospace" letter-spacing="1.4" fill="var(--accent)">02 · LA COMPILATION</text>
+<text x="234" y="262" font-size="12" fill="var(--encre3)">le cœur, inchangé depuis le pivot</text>
+<rect x="24" y="442" width="1132" height="122" rx="8" fill="none" stroke="var(--trait)" stroke-dasharray="3 4"/>
+<text x="38" y="466" font-size="12" font-family="ui-monospace,Menlo,Consolas,monospace" letter-spacing="1.4" fill="var(--accent)">03 · LE CONTRAT</text>
+<text x="234" y="466" font-size="12" fill="var(--encre3)">ce que monl dit à l&#x27;IA d&#x27;interface</text>
+<rect x="24" y="570" width="1132" height="198" rx="8" fill="none" stroke="var(--trait)" stroke-dasharray="3 4"/>
+<text x="38" y="594" font-size="12" font-family="ui-monospace,Menlo,Consolas,monospace" letter-spacing="1.4" fill="var(--accent)">04 · L&#x27;IA FRONTEND</text>
+<text x="234" y="594" font-size="12" fill="var(--encre3)">trois voies, mêmes garde-fous</text>
+<rect x="24" y="774" width="1132" height="122" rx="8" fill="none" stroke="var(--trait)" stroke-dasharray="3 4"/>
+<text x="38" y="798" font-size="12" font-family="ui-monospace,Menlo,Consolas,monospace" letter-spacing="1.4" fill="var(--accent)">05 · LA VÉRIFICATION</text>
+<text x="234" y="798" font-size="12" fill="var(--encre3)">statique, puis comportementale</text>
+<path d="M210,107.0 L246,107.0" fill="none" stroke="var(--trait-fort)" stroke-width="1.4" marker-end="url(#fleche)"/>
+<path d="M440,107.0 L476,107.0" fill="none" stroke="var(--trait-fort)" stroke-width="1.4" marker-end="url(#fleche)"/>
+<path d="M690,107.0 L726,107.0" fill="none" stroke="var(--trait-fort)" stroke-width="1.4" marker-end="url(#fleche)"/>
+<path d="M585.0,154 L585.0,140" fill="none" stroke="var(--trait-fort)" stroke-width="1.4" marker-end="url(#fleche)"/>
+<path d="M345.0,154 L345.0,140" fill="none" stroke="var(--trait-fort)" stroke-width="1.4" marker-end="url(#fleche)"/>
+<path d="M815.0,136 L815.0,209.0 L135.0,209.0 L135.0,278" fill="none" stroke="var(--accent)" stroke-width="1.4" marker-end="url(#fleche-a)"/>
+<path d="M230,311.0 L246,311.0" fill="none" stroke="var(--trait-fort)" stroke-width="1.4" marker-end="url(#fleche)"/>
+<path d="M460,311.0 L476,311.0" fill="none" stroke="var(--trait-fort)" stroke-width="1.4" marker-end="url(#fleche)"/>
+<path d="M670,311.0 L726,311.0" fill="none" stroke="var(--trait-fort)" stroke-width="1.4" marker-end="url(#fleche)"/>
+<path d="M645.0,358 L575.0,344" fill="none" stroke="var(--trait-fort)" stroke-width="1.4" marker-end="url(#fleche)"/>
+<path d="M575.0,340 L575.0,413.0 L140.0,413.0 L140.0,482" fill="none" stroke="var(--accent)" stroke-width="1.4" marker-end="url(#fleche-a)"/>
+<path d="M240,515.0 L246,515.0" fill="none" stroke="var(--trait-fort)" stroke-width="1.4" marker-end="url(#fleche)"/>
+<path d="M460,515.0 L476,515.0" fill="none" stroke="var(--trait-fort)" stroke-width="1.4" marker-end="url(#fleche)"/>
+<path d="M460,515.0 L726,515.0" fill="none" stroke="var(--trait-fort)" stroke-width="1.4" marker-end="url(#fleche)"/>
+<path d="M595.0,544 L595.0,579.0 L135.0,579.0 L135.0,610" fill="none" stroke="var(--accent)" stroke-width="1.4" marker-end="url(#fleche-a)"/>
+<path d="M230,643.0 L246,643.0" fill="none" stroke="var(--trait-fort)" stroke-width="1.4" marker-end="url(#fleche)"/>
+<path d="M440,643.0 L476,643.0" fill="none" stroke="var(--trait-fort)" stroke-width="1.4" marker-end="url(#fleche)"/>
+<path d="M690,643.0 L726,643.0" fill="none" stroke="var(--trait-fort)" stroke-width="1.4" marker-end="url(#fleche)"/>
+<path d="M585.0,672 L585.0,686" fill="none" stroke="var(--trait-fort)" stroke-width="1.4" marker-end="url(#fleche)"/>
+<path d="M585.0,748 L585.0,783.0 L140.0,783.0 L140.0,814" fill="none" stroke="var(--accent)" stroke-width="1.4" marker-end="url(#fleche-a)"/>
+<path d="M240,847.0 L246,847.0" fill="none" stroke="var(--trait-fort)" stroke-width="1.4" marker-end="url(#fleche)"/>
+<path d="M460,847.0 L476,847.0" fill="none" stroke="var(--trait-fort)" stroke-width="1.4" marker-end="url(#fleche)"/>
+<path d="M690,847.0 L726,847.0" fill="none" stroke="var(--trait-fort)" stroke-width="1.4" marker-end="url(#fleche)"/>
+<rect x="40" y="78" width="170" height="58" rx="5" fill="var(--accent-doux)" stroke="var(--accent)" stroke-width="1.4"/>
+<text x="125.0" y="109" text-anchor="middle" font-size="14" font-family="ui-monospace,Menlo,Consolas,monospace" fill="var(--encre)">./monl</text>
+<rect x="250" y="78" width="190" height="58" rx="5" fill="var(--surface)" stroke="var(--trait-fort)" stroke-width="1.4"/>
+<text x="345.0" y="105" text-anchor="middle" font-size="14" font-family="ui-monospace,Menlo,Consolas,monospace" fill="var(--encre)">cli.py</text>
+<text x="345.0" y="122" text-anchor="middle" font-size="11.5" fill="var(--encre3)">main() · cmd_init()</text>
+<rect x="480" y="78" width="210" height="58" rx="5" fill="var(--surface)" stroke="var(--trait-fort)" stroke-width="1.4"/>
+<text x="585.0" y="105" text-anchor="middle" font-size="14" font-family="ui-monospace,Menlo,Consolas,monospace" fill="var(--encre)">dialogue_engine.py</text>
+<text x="585.0" y="122" text-anchor="middle" font-size="11.5" fill="var(--encre3)">le moteur, ask(prompt)</text>
+<rect x="730" y="78" width="170" height="58" rx="5" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.4"/>
+<text x="815.0" y="105" text-anchor="middle" font-size="14" font-family="ui-monospace,Menlo,Consolas,monospace" fill="var(--encre)">spec.ml</text>
+<text x="815.0" y="122" text-anchor="middle" font-size="11.5" fill="var(--encre3)">la spécification</text>
+<rect x="480" y="154" width="210" height="58" rx="5" fill="var(--surface2)" stroke="var(--trait)" stroke-width="1.4" stroke-dasharray="4 3"/>
+<text x="585.0" y="181" text-anchor="middle" font-size="14" font-family="ui-monospace,Menlo,Consolas,monospace" fill="var(--encre2)">app_templates.py</text>
+<text x="585.0" y="198" text-anchor="middle" font-size="11.5" fill="var(--encre3)">10 modèles · rubriques</text>
+<rect x="250" y="154" width="190" height="58" rx="5" fill="var(--surface)" stroke="var(--trait-fort)" stroke-width="1.4"/>
+<text x="345.0" y="181" text-anchor="middle" font-size="14" font-family="ui-monospace,Menlo,Consolas,monospace" fill="var(--encre)">tui.py</text>
+<text x="345.0" y="198" text-anchor="middle" font-size="11.5" fill="var(--encre3)">présentation seule</text>
+<rect x="40" y="282" width="190" height="58" rx="5" fill="var(--surface)" stroke="var(--trait-fort)" stroke-width="1.4"/>
+<text x="135.0" y="309" text-anchor="middle" font-size="14" font-family="ui-monospace,Menlo,Consolas,monospace" fill="var(--encre)">parser.py</text>
+<text x="135.0" y="326" text-anchor="middle" font-size="11.5" fill="var(--encre3)">grammaire Lark</text>
+<rect x="250" y="282" width="210" height="58" rx="5" fill="var(--surface)" stroke="var(--trait-fort)" stroke-width="1.4"/>
+<text x="355.0" y="309" text-anchor="middle" font-size="14" font-family="ui-monospace,Menlo,Consolas,monospace" fill="var(--encre)">ast_validator.py</text>
+<text x="355.0" y="326" text-anchor="middle" font-size="11.5" fill="var(--encre3)">validation + audit</text>
+<rect x="480" y="282" width="190" height="58" rx="5" fill="var(--surface)" stroke="var(--trait-fort)" stroke-width="1.4"/>
+<text x="575.0" y="309" text-anchor="middle" font-size="14" font-family="ui-monospace,Menlo,Consolas,monospace" fill="var(--encre)">generator/</text>
+<text x="575.0" y="326" text-anchor="middle" font-size="11.5" fill="var(--encre3)">package, par couches</text>
+<rect x="730" y="282" width="210" height="58" rx="5" fill="var(--surface)" stroke="var(--scelle)" stroke-width="1.4"/>
+<text x="835.0" y="309" text-anchor="middle" font-size="14" font-family="ui-monospace,Menlo,Consolas,monospace" fill="var(--scelle)">app.py · schema.sql</text>
+<text x="835.0" y="326" text-anchor="middle" font-size="11.5" fill="var(--encre3)">manage.py · sandbox_ai.py</text>
+<rect x="480" y="358" width="330" height="58" rx="5" fill="var(--surface2)" stroke="var(--trait)" stroke-width="1.4" stroke-dasharray="4 3"/>
+<text x="645.0" y="385" text-anchor="middle" font-size="14" font-family="ui-monospace,Menlo,Consolas,monospace" fill="var(--encre2)">core · runtime · routes · schemas</text>
+<text x="645.0" y="402" text-anchor="middle" font-size="11.5" fill="var(--encre3)">sql_schema · theme · sandbox · admin_cli</text>
+<rect x="40" y="486" width="200" height="58" rx="5" fill="var(--surface)" stroke="var(--trait-fort)" stroke-width="1.4"/>
+<text x="140.0" y="513" text-anchor="middle" font-size="14" font-family="ui-monospace,Menlo,Consolas,monospace" fill="var(--encre)">_compute_route_map()</text>
+<text x="140.0" y="530" text-anchor="middle" font-size="11.5" fill="var(--encre3)">generator/core.py</text>
+<rect x="250" y="486" width="210" height="58" rx="5" fill="var(--surface)" stroke="var(--trait-fort)" stroke-width="1.4"/>
+<text x="355.0" y="517" text-anchor="middle" font-size="14" font-family="ui-monospace,Menlo,Consolas,monospace" fill="var(--encre)">frontend_contract.py</text>
+<rect x="480" y="486" width="230" height="58" rx="5" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.4"/>
+<text x="595.0" y="513" text-anchor="middle" font-size="14" font-family="ui-monospace,Menlo,Consolas,monospace" fill="var(--encre)">frontend_contract.json</text>
+<text x="595.0" y="530" text-anchor="middle" font-size="11.5" fill="var(--encre3)">FRONTEND_PROMPT.md</text>
+<rect x="730" y="486" width="190" height="58" rx="5" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.4"/>
+<text x="825.0" y="513" text-anchor="middle" font-size="14" font-family="ui-monospace,Menlo,Consolas,monospace" fill="var(--encre)">CLAUDE.md du projet</text>
+<text x="825.0" y="530" text-anchor="middle" font-size="11.5" fill="var(--encre3)">≠ celui du dépôt</text>
+<rect x="40" y="614" width="190" height="58" rx="5" fill="var(--surface)" stroke="var(--trait-fort)" stroke-width="1.4"/>
+<text x="135.0" y="641" text-anchor="middle" font-size="14" font-family="ui-monospace,Menlo,Consolas,monospace" fill="var(--encre)">frontend_ai.py</text>
+<text x="135.0" y="658" text-anchor="middle" font-size="11.5" fill="var(--encre3)">la boucle, 2 tentatives</text>
+<rect x="250" y="614" width="190" height="58" rx="5" fill="var(--surface2)" stroke="var(--trait)" stroke-width="1.4" stroke-dasharray="4 3"/>
+<text x="345.0" y="641" text-anchor="middle" font-size="14" font-family="ui-monospace,Menlo,Consolas,monospace" fill="var(--encre2)">--provider claude</text>
+<text x="345.0" y="658" text-anchor="middle" font-size="11.5" fill="var(--encre3)">clé API</text>
+<rect x="480" y="614" width="210" height="58" rx="5" fill="var(--surface2)" stroke="var(--trait)" stroke-width="1.4" stroke-dasharray="4 3"/>
+<text x="585.0" y="641" text-anchor="middle" font-size="14" font-family="ui-monospace,Menlo,Consolas,monospace" fill="var(--encre2)">--provider claude-code</text>
+<text x="585.0" y="658" text-anchor="middle" font-size="11.5" fill="var(--encre3)">abonnement · 120 tours</text>
+<rect x="730" y="614" width="190" height="58" rx="5" fill="var(--surface2)" stroke="var(--trait)" stroke-width="1.4" stroke-dasharray="4 3"/>
+<text x="825.0" y="641" text-anchor="middle" font-size="14" font-family="ui-monospace,Menlo,Consolas,monospace" fill="var(--encre2)">monl import</text>
+<text x="825.0" y="658" text-anchor="middle" font-size="11.5" fill="var(--encre3)">copier/coller</text>
+<rect x="480" y="690" width="210" height="58" rx="5" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.4"/>
+<text x="585.0" y="717" text-anchor="middle" font-size="14" font-family="ui-monospace,Menlo,Consolas,monospace" fill="var(--encre)">frontend/index.html</text>
+<text x="585.0" y="734" text-anchor="middle" font-size="11.5" fill="var(--encre3)">le SEUL périmètre permis</text>
+<rect x="40" y="818" width="200" height="58" rx="5" fill="var(--surface)" stroke="var(--trait-fort)" stroke-width="1.4"/>
+<text x="140.0" y="845" text-anchor="middle" font-size="14" font-family="ui-monospace,Menlo,Consolas,monospace" fill="var(--encre)">check_coherence()</text>
+<text x="140.0" y="862" text-anchor="middle" font-size="11.5" fill="var(--encre3)">cli.py — empreintes</text>
+<rect x="250" y="818" width="210" height="58" rx="5" fill="var(--surface)" stroke="var(--trait-fort)" stroke-width="1.4"/>
+<text x="355.0" y="845" text-anchor="middle" font-size="14" font-family="ui-monospace,Menlo,Consolas,monospace" fill="var(--encre)">smoke_test.py</text>
+<text x="355.0" y="862" text-anchor="middle" font-size="11.5" fill="var(--encre3)">serveur éphémère + jsdom</text>
+<rect x="480" y="818" width="210" height="58" rx="5" fill="var(--accent-doux)" stroke="var(--accent)" stroke-width="1.4"/>
+<text x="585.0" y="845" text-anchor="middle" font-size="14" font-family="ui-monospace,Menlo,Consolas,monospace" fill="var(--encre)">monl run</text>
+<text x="585.0" y="862" text-anchor="middle" font-size="11.5" fill="var(--encre3)">frontend/ monté sur /site</text>
+<rect x="730" y="818" width="190" height="58" rx="5" fill="var(--accent-doux)" stroke="var(--accent)" stroke-width="1.4"/>
+<text x="825.0" y="845" text-anchor="middle" font-size="14" font-family="ui-monospace,Menlo,Consolas,monospace" fill="var(--encre)">monl update</text>
+<text x="825.0" y="862" text-anchor="middle" font-size="11.5" fill="var(--encre3)">le delta, pas tout</text>
+</svg>
+        </div>
+        <ul class="legende-graphe">
+          <li><span class="pastille pastille-entree"></span> commande</li>
+          <li><span class="pastille pastille-etape"></span> module</li>
+          <li><span class="pastille pastille-donnee"></span> matière</li>
+          <li><span class="pastille pastille-artefact"></span> artefact écrit</li>
+          <li><span class="pastille pastille-scelle"></span> scellé — l'IA n'y touche jamais</li>
+        </ul>
+      </section>
+
+      <section class="acte" id="a1">
+        <p class="acte-num">ACTE 01</p>
+        <h2>Le dialogue — aucune IA, aucun réseau</h2>
+        <span class="cmd">./monl</span>
+        <p>Le script <span class="fichier">monl</span> à la racine appelle <span class="fichier">src/cli.py</span> → <span class="fichier">main()</span>. Sans argument, c'est <span class="fichier">cmd_init()</span> (ligne 91) qui prend la main.</p>
+
+        <ol class="etapes">
+          <li>
+            <div class="puce">1</div>
+            <div class="etape-corps">
+              <h4>Le moteur pose les questions, la présentation les habille</h4>
+              <p><span class="fichier">dialogue_engine.py</span> ne reçoit jamais <code>stdin</code> : il consomme une fonction <code>ask(prompt)</code>. En usage réel c'est <code>input</code> ; en test, un itérateur de réponses scriptées. C'est pour ça que les tests exécutent le vrai dialogue au lieu de le simuler.</p>
+              <p><span class="fichier">tui.py</span> ne fait que la mise en forme. Le moteur ne le connaît que par l'interface <code>PlainDialogueUI</code> — rendu nu par défaut, donc insensible à l'habillage.</p>
+              <div class="note regle">
+                <span class="etiquette">Frontière</span>
+                <p>Aucune logique de dialogue dans <code>tui.py</code>, aucune mise en forme dans <code>dialogue_engine.py</code>. Les mélanger casse les tests scriptés.</p>
+              </div>
+            </div>
+          </li>
+          <li>
+            <div class="puce">2</div>
+            <div class="etape-corps">
+              <h4>Le catalogue pré-remplit tout</h4>
+              <p><span class="fichier">app_templates.py</span> tient 10 modèles d'applications — entités, acteurs, règles, données de démo, rubriques éditoriales. Ce sont des <strong>données, pas du code</strong> : le dialogue les assemble avec le même émetteur que le mode libre.</p>
+            </div>
+          </li>
+          <li>
+            <div class="puce">3</div>
+            <div class="etape-corps">
+              <h4>La spec est revalidée avant d'être écrite</h4>
+              <p>En fin de parcours, le texte produit repasse par le vrai parseur et le vrai audit. Un modèle du catalogue ne peut donc pas produire une spec cassée sans casser la compilation immédiatement.</p>
+              <div class="lot">
+                <span class="legende">écrit</span>
+                <span class="artefact">MonProjet/spec.ml</span>
+              </div>
+            </div>
+          </li>
+        </ol>
+      </section>
+
+      <section class="acte" id="a2">
+        <p class="acte-num">ACTE 02</p>
+        <h2>La compilation — le cœur, inchangé depuis le pivot</h2>
+        <span class="cmd">monl compile spec.ml</span>
+        <p><span class="fichier">cli.py:68</span> <code>compile_project()</code> délègue au compilateur historique, <span class="fichier">main.py</span> <code>compile_monl()</code>, puis ajoute la couche contrat. Trois étapes, toujours les mêmes.</p>
+
+        <ol class="etapes">
+          <li>
+            <div class="puce">1</div>
+            <div class="etape-corps">
+              <h4>Analyse syntaxique</h4>
+              <p><span class="fichier">parser.py</span> — grammaire Lark avec indentation. Avant que Lark ne voie quoi que ce soit, <code>_strip_standalone_comment_lines()</code> retire les lignes qui ne sont qu'un commentaire : deux bugs de parsing réels ont été fermés là, à la racine, plutôt que dans cinq règles de grammaire.</p>
+            </div>
+          </li>
+          <li>
+            <div class="puce">2</div>
+            <div class="etape-corps">
+              <h4>Audit statique</h4>
+              <p><span class="fichier">ast_validator.py</span> — <code>MonlAST.validate_and_audit()</code> normalise l'AST <em>et</em> refuse les specs dangereuses : collision de privilèges, propriété sans structure, règles incompatibles entre elles. C'est ici qu'une erreur doit apparaître, pas à l'écran.</p>
+            </div>
+          </li>
+          <li>
+            <div class="puce">3</div>
+            <div class="etape-corps">
+              <h4>Génération</h4>
+              <p><span class="fichier">generator/</span> est un <strong>package de mixins</strong> recomposés dans <span class="fichier">core.py:18</span>. Chaque couche a son module : <code>sql_schema</code>, <code>runtime</code> (secret JWT, connexion, migrations, register/login), <code>routes</code> (une route par couple action/entité + contrôle d'accès), <code>schemas</code>, <code>theme</code>, <code>sandbox</code>, <code>admin_cli</code>.</p>
+              <div class="lot">
+                <span class="legende">écrit</span>
+                <span class="artefact">app.py</span>
+                <span class="artefact">schema.sql</span>
+                <span class="artefact">sandbox_ai.py</span>
+                <span class="artefact">manage.py</span>
+                <span class="artefact">.jwt_secret</span>
+              </div>
+              <div class="note regle">
+                <span class="etiquette">Où intervenir</span>
+                <p>Une nouvelle brique de génération va dans le module de <em>sa couche</em>, jamais dans <code>core.py</code>. Le secret JWT est propre au projet et n'est jamais régénéré par une recompilation.</p>
+              </div>
+            </div>
+          </li>
+        </ol>
+      </section>
+
+      <section class="acte" id="a3">
+        <p class="acte-num">ACTE 03</p>
+        <h2>Le contrat — ce que monl dit à l'IA qui dessinera l'interface</h2>
+        <p>Depuis le pivot, monl ne génère plus aucun frontend. <span class="fichier">frontend_contract.py</span> <code>build_contract()</code> (ligne 182) traduit l'AST en un document destiné à une IA UI : routes exactes, rôles, champs et leur <em>rôle d'affichage</em>, archétype d'écran, direction de design, et le texte éditorial saisi au dialogue.</p>
+
+        <div class="lot">
+          <span class="legende">écrit</span>
+          <span class="artefact">frontend_contract.json</span>
+          <span class="artefact">FRONTEND_PROMPT.md</span>
+          <span class="artefact">CLAUDE.md</span>
+          <span class="artefact">monl.json</span>
+        </div>
+
+        <h3>Les deux clauses à ne pas toucher</h3>
+        <div class="note regle">
+          <span class="etiquette">Source unique</span>
+          <p><code>_compute_route_map()</code> (<span class="fichier">generator/core.py:376</span>) est partagé entre la génération FastAPI et le contrat. Dupliquer cette logique ailleurs ferait diverger l'API annoncée de l'API réelle — un test confronte le contrat aux décorateurs réellement écrits dans <code>app.py</code>.</p>
+        </div>
+        <div class="note regle">
+          <span class="etiquette">Même origine</span>
+          <p><code>api.base_url</code> vaut la chaîne vide. Jamais d'URL absolue ni de port en dur : <code>monl run</code> monte le frontend sur <code>/site</code> du serveur qui porte déjà l'API. Y remettre une base absolue casserait <code>--port</code> et ferait recaler tout frontend obéissant.</p>
+        </div>
+        <p><span class="fichier">monl.json</span> retient le chemin de la spec et deux empreintes SHA-256 (spec compilée, contrat). C'est ce fichier qui permettra de détecter, plus tard, une spec modifiée mais non recompilée.</p>
+      </section>
+
+      <section class="acte" id="a4">
+        <p class="acte-num">ACTE 04</p>
+        <h2>L'IA frontend — trois voies, mêmes garde-fous</h2>
+        <p><span class="fichier">frontend_ai.py</span>. Quelle que soit la voie, le périmètre autorisé est <strong>le seul dossier <code>frontend/</code></strong>, et le résultat repasse par la même vérification que le reste.</p>
+
+        <div class="voies">
+          <div class="voie">
+            <h4>Par API</h4>
+            <code>monl frontend</code>
+            <p>Clé dans <code>ANTHROPIC_API_KEY</code>. Le brief part, le résultat revient, il est vérifié.</p>
+          </div>
+          <div class="voie">
+            <h4>Par abonnement</h4>
+            <code>monl frontend --provider claude-code</code>
+            <p>L'agent travaille directement dans le dossier. Budget de tours réglable par <code>--max-turns</code>.</p>
+          </div>
+          <div class="voie">
+            <h4>Sans clé</h4>
+            <code>monl import &lt;source&gt;</code>
+            <p>Brief collé dans claude.ai, résultat téléchargé puis installé et vérifié.</p>
+          </div>
+        </div>
+
+        <div class="note regle">
+          <span class="etiquette">Scellé</span>
+          <p>Avant et après le passage de l'agent, <code>_fingerprint_protected()</code> compare les empreintes de <code>app.py</code>, <code>schema.sql</code>, du contrat et de la spec. Un seul octet modifié : la commande refuse le résultat et vous renvoie à votre gestion de versions.</p>
+        </div>
+      </section>
+
+      <section class="acte" id="a5">
+        <p class="acte-num">ACTE 05</p>
+        <h2>La vérification — statique, puis comportementale</h2>
+        <span class="cmd">monl run</span>
+
+        <ol class="etapes">
+          <li>
+            <div class="puce">1</div>
+            <div class="etape-corps">
+              <h4>Cohérence</h4>
+              <p><span class="fichier">cli.py:114</span> <code>check_coherence()</code> : la spec correspond-elle à son empreinte ? Les artefacts sont-ils là ? Le contrat a-t-il été édité à la main ? Le frontend appelle-t-il des chemins absents du contrat ?</p>
+              <p>Le dernier point <strong>avertit sans bloquer</strong> — un chemin peut être construit dynamiquement, et l'avertissement criait au loup sur toute application monopage avant d'être resserré.</p>
+            </div>
+          </li>
+          <li>
+            <div class="puce">2</div>
+            <div class="etape-corps">
+              <h4>Smoke test</h4>
+              <p><span class="fichier">smoke_test.py</span> <code>run_smoke_test()</code> démarre un serveur <strong>éphémère</strong> dans un dossier temporaire, sur une base neuve : il ne touche jamais l'<code>app.db</code> du projet. Les routes du contrat sont éprouvées en HTTP réel ; si Node est disponible, le frontend est exécuté dans jsdom.</p>
+              <div class="note preuve">
+                <span class="etiquette">Pourquoi c'est là</span>
+                <p>La cohérence statique ne garantit pas que ça fonctionne. Plusieurs bugs réels — ordre des contraintes <code>FOREIGN KEY</code>, collision avec un mot-clé SQL réservé, sur-échappement entre couches de templating — ne se seraient jamais révélés par relecture.</p>
+              </div>
+            </div>
+          </li>
+          <li>
+            <div class="puce">3</div>
+            <div class="etape-corps">
+              <h4>Lancement</h4>
+              <p>Si un <code>frontend/</code> existe, <code>cmd_run()</code> écrit un wrapper <span class="artefact">serve.py</span> qui monte le dossier sur <code>/site</code> — <strong>sans jamais modifier <code>app.py</code></strong> — puis lance <code>uvicorn serve:app</code>. Sinon, <code>app:app</code> directement.</p>
+            </div>
+          </li>
+        </ol>
+      </section>
+
+      <section class="acte" id="a6">
+        <p class="acte-num">ACTE 06</p>
+        <h2>L'évolution — le delta, pas la reconstruction</h2>
+        <span class="cmd">monl update</span>
+        <p><code>cmd_update()</code> (<span class="fichier">cli.py:299</span>) relit la signature de l'ancien contrat, recompile, puis compare : routes ajoutées ou retirées, champs ajoutés ou retirés. S'il y a du changement, il écrit une consigne prête à donner à l'IA frontend.</p>
+        <div class="lot">
+          <span class="legende">écrit</span>
+          <span class="artefact">FRONTEND_UPDATE_PROMPT.md</span>
+        </div>
+        <div class="note preuve">
+          <span class="etiquette">Données préservées</span>
+          <p>La base existante n'est pas reconstruite : les nouvelles colonnes sont ajoutées par migration additive au démarrage du serveur.</p>
+        </div>
+      </section>
+
+      <section class="acte" id="reperes">
+        <p class="acte-num">RÉFÉRENCE</p>
+        <h2>Où regarder en premier</h2>
+        <p>Les questions qui reviennent, et le fichier qui y répond.</p>
+        <div class="tableau-enveloppe">
+          <table>
+            <thead>
+              <tr><th>Ce que vous cherchez</th><th>Où</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Ajouter une question au dialogue</td><td><span class="fichier">src/dialogue_engine.py</span></td></tr>
+              <tr><td>Ajouter ou modifier un modèle d'application</td><td><span class="fichier">src/app_templates.py</span></td></tr>
+              <tr><td>Nouveau mot-clé dans le langage <code>.ml</code></td><td><span class="fichier">src/parser.py</span> puis <span class="fichier">src/ast_validator.py</span></td></tr>
+              <tr><td>Changer ce que le backend génère</td><td>le module de la couche concernée dans <span class="fichier">src/generator/</span></td></tr>
+              <tr><td>Changer ce que l'IA frontend reçoit</td><td><span class="fichier">src/frontend_contract.py</span></td></tr>
+              <tr><td>Ajouter une vérification au lancement</td><td><span class="fichier">src/cli.py</span> (statique) ou <span class="fichier">src/smoke_test.py</span> (réelle)</td></tr>
+              <tr><td>Comprendre <em>pourquoi</em> une règle existe</td><td><span class="fichier">docs/design_decisions.md</span> — 62 points, sommaire en tête</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>La règle de travail qui explique tout le reste</h3>
+        <p>Chaque changement est prouvé par exécution réelle : compiler pour de vrai, relancer un vrai serveur, faire de vrais appels, lancer la suite. Jamais par relecture de code seule. C'est pourquoi les tests démarrent des serveurs et exécutent le vrai dialogue plutôt que de le simuler — et pourquoi ils sont lents.</p>
+        <span class="cmd">python3 -m pytest tests/ -q</span>
+      </section>
+
+      <footer>
+        <p>Carte du dépôt <strong>monl</strong> au 27 juillet 2026 — 137 tests, 6 765 lignes sous <code>src/</code>. Le <em>quoi</em> et le <em>comment</em> sont ici ; le <em>pourquoi</em> de chaque règle est dans <code>docs/design_decisions.md</code>.</p>
+      </footer>
+    </main>
+  </div>
+</div>

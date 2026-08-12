@@ -1,5 +1,8 @@
 # 🟢 Phase 5 — Moteur de Génération de Code
 
+> **Document historique.** Cette page décrit une étape de conception ; elle ne
+> remplace pas l'architecture courante. Voir `README.md` et `CODEBASE_AUDIT.md`.
+
 ## Objectif
 L'objectif de cette phase est de concevoir le moteur de transformation final (le générateur). Il prend en entrée l'Arbre de Syntaxe Abstraite (AST) normalisé et validé en Phase 4, puis produit automatiquement les livrables d'infrastructure (Base de données et API Backend) sans aucune écriture de code métier à la main.
 

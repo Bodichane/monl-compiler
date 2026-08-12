@@ -29,10 +29,7 @@ import hashlib
 import hmac
 import json
 import os
-import socket
 import sqlite3
-import subprocess
-import sys
 import tempfile
 import threading
 import time
@@ -45,6 +42,7 @@ import requests
 from monl.ast_validator import MonlAST
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
+from tests.support.server import uvicorn_server
 
 SPEC = """app BancVerrou
 
@@ -101,12 +99,6 @@ PRIX = 89.00
 PRIX_CHER = 149.00
 
 
-def _port_libre():
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
-
 class _PrestataireFactice(BaseHTTPRequestHandler):
     def do_POST(self):  # nom imposé par BaseHTTPRequestHandler
         brut = self.rfile.read(int(self.headers.get("Content-Length", 0)))
@@ -156,34 +148,17 @@ def application(faux_stripe):
     with tempfile.TemporaryDirectory() as dossier:
         ast = MonlAST(parse_monl_string(SPEC)).validate_and_audit()
         MonlSecureGenerator(ast, output_dir=dossier).generate_all()
-        port = _port_libre()
         env = {**os.environ,
                "STRIPE_SECRET_KEY": CLE_SECRETE,
                "STRIPE_WEBHOOK_SECRET": CLE_WEBHOOK,
                "MONL_STRIPE_BASE_URL": f"http://{hote}:{port_stripe}"}
-        serveur = subprocess.Popen(
-            [sys.executable, "-m", "uvicorn", "app:app", "--port", str(port)],
-            cwd=dossier, env=env,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        base = f"http://127.0.0.1:{port}"
-        try:
-            for _ in range(80):
-                try:
-                    requests.get(f"{base}/openapi.json", timeout=1)
-                    break
-                except requests.exceptions.ConnectionError:
-                    time.sleep(0.25)
-            else:
-                pytest.skip("serveur non démarré")
+        with uvicorn_server(dossier, env=env) as base:
             with _base(dossier) as cnx:
                 cnx.execute('INSERT INTO article (nom, prix) VALUES (?, ?)',
                             ("Deck", PRIX))
                 cnx.execute('INSERT INTO article (nom, prix) VALUES (?, ?)',
                             ("Halo", PRIX_CHER))
             yield base, dossier
-        finally:
-            serveur.terminate()
-            serveur.wait(timeout=10)
 
 
 def _entetes(application, identifiant):

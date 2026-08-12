@@ -25,6 +25,8 @@ corrigent rien toutes seules. Remettre les arguments en place à la place de
 l'auteur, ce serait deviner — et se tromper le jour où une demande ressemble à
 un chemin.
 """
+from pathlib import Path
+
 import pytest
 
 from monl.cli import (
@@ -36,6 +38,8 @@ from monl.cli import (
     cmd_update,
     compile_project,
 )
+
+EXAMPLES_DIR = Path(__file__).parents[1] / "exemples"
 
 SPEC = """app BancChemin
 
@@ -179,3 +183,12 @@ def test_une_retouche_bien_ecrite_passe_le_controle(projet, capsys):
     sortie = capsys.readouterr().out
     assert "inversés" not in sortie
     assert "Aucun frontend à retoucher" in sortie
+
+
+def test_compile_avec_output_cherche_les_assets_a_cote_de_la_spec(tmp_path, capsys):
+    """`--output` ne doit pas déplacer la racine de résolution des assets."""
+    compile_project(str(EXAMPLES_DIR / "01_portfolio.ml"), str(tmp_path))
+
+    assert (tmp_path / "app.py").exists()
+    assert (tmp_path / "frontend_contract.json").exists()
+    capsys.readouterr()

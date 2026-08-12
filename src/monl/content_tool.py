@@ -14,9 +14,10 @@ from .assets_tool import (
     chemins_declares,
     resoudre_asset,
 )
+from .errors import ToolError
 
 
-class ContentToolError(Exception):
+class ContentToolError(ToolError):
     pass
 
 

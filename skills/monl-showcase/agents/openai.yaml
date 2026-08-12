@@ -1,0 +1,4 @@
+interface:
+  display_name: "Monl Showcase"
+  short_description: "Build dense, polished Monl demo interfaces"
+  default_prompt: "Use $monl-showcase to build a polished, production-dense Monl demo interface."

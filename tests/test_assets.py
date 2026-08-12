@@ -25,7 +25,6 @@ Deux moitiés de question, deux familles de tests ici :
 import contextlib
 import json
 import os
-import socket
 import subprocess
 import sys
 import time
@@ -37,6 +36,7 @@ from monl.ast_validator import ASTValidationError, MonlAST
 from monl.cli import compile_project
 from monl.parser import parse_monl_string
 from monl.serving import rendre_wrapper
+from tests.support.server import free_port as _port_libre
 
 SPEC = """app BancAssets
 
@@ -210,12 +210,6 @@ def test_le_role_media_vient_du_type_et_non_du_nom(tmp_path, capsys):
 # --------------------------------------------------------------------------
 # Existe n'est pas servi
 # --------------------------------------------------------------------------
-
-def _port_libre():
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
 
 @contextlib.contextmanager
 def _serveur(dossier, assets_dir="assets"):
