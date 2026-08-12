@@ -41,8 +41,15 @@ GOLDENS = {
     # additives/explicites ; ces artefacts restent déterministes.
     # Le contrat et le brief restent identiques à l'octet : A2 ne change pas
     # ce que le frontend doit dessiner.
-    "frontend_contract.json": "9ac0c4b0fc7c2100f1b94dbe626131384d2b6927310240c23986d56198ff5884",
-    "FRONTEND_PROMPT.md": "3ffc727a681395fee8800b4554e929dd0f15a9d80d3d025555292c8673f746a6",
+    # CONTRAT D'AUTHENTIFICATION : le contrat et le brief NOMMENT désormais les
+    # champs que /register et /login renvoient (`access_token`, `token_type`,
+    # `status`, `user_id`) au lieu d'annoncer « un token JWT » sans dire sous
+    # quel nom le lire. Seuls ces deux artefacts bougent, plus monl.json qui
+    # scelle leur empreinte : app.py, schema.sql et manage.py restent
+    # identiques à l'octet — la preuve que la correction porte sur ce que le
+    # backend DÉCLARE, pas sur ce qu'il fait.
+    "frontend_contract.json": "8c2a7691b2a408c6c5624b65a7e70e77584812a4ac475f2e2d3ae38a8cd0e919",
+    "FRONTEND_PROMPT.md": "4bc7696e3b31ac7ee13f5389c11f9e1770e0a6cb7725c07b83850481f0475cb4",
     "CLAUDE.md": "ebf07f5ca26ffa6bf8571ca6e0379afc31978b600b2cecd2ffe330719495183f",
     # Revue A2 : manage.py NOMME le remède au lieu de laisser filer une
     # trace quand la base attend une migration. app.py ne bouge PAS —
@@ -50,7 +57,7 @@ GOLDENS = {
     # 0.9.0-beta.7 : seul monl.json bouge, parce qu'il SCELLE la version du
     # compilateur. Tous les autres artefacts restent identiques a l'octet —
     # la preuve que la montee de version ne change rien a ce qui est genere.
-    "monl.json": "9a9e7051ec83536623d8cc91d3702f4dd93b8dbaa2df107e3fabb9269d5f19ea",
+    "monl.json": "ae75de61dceabd4d5f39882978db2924b3d90b84cf2523be7163f532fa26aeb8",
 }
 
 

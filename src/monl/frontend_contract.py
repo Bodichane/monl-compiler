@@ -797,6 +797,8 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
         # provisionnés hors ligne (manage.py) et renvoient 403 ici.
         # L'interface ne doit donc proposer QUE cette liste.
         "register": {"method": "POST", "path": "/register",
+                     "response": {"status": "'success'",
+                                  "user_id": "int — l'identifiant du compte créé"},
                      "self_register_actors": list(plans.self_register_actors),
                      "body": {"username": _libelle_identifiant(plans.auth_identifier),
                               "password": "str (8+ caractères)",
@@ -815,11 +817,37 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
                           "les comptes sont créés par manage.py"),
                          _note_identifiant(plans.auth_identifier,
                                            plans.auth_phone_prefix))},
+        # POINT 76 APPLIQUÉ À L'AUTHENTIFICATION. Le contrat doit dire ce que
+        # le backend renvoie VRAIMENT, pas seulement qu'il renvoie quelque
+        # chose. `returns` annonçait « un token JWT » sans jamais NOMMER la
+        # clé JSON : une IA d'interface devait deviner entre `token`,
+        # `access_token` et `jwt`. Trompée, elle envoie
+        # `Authorization: Bearer undefined` — et c'est le pire cas de figure :
+        # aucune exception JavaScript, aucun appel hors contrat, donc LE SMOKE
+        # TEST PASSE et personne ne peut se connecter.
+        #
+        # Que ce soit un oubli et non un choix se lit dans le brief lui-même :
+        # la réponse paginée y est nommée au caractère près depuis toujours
+        # (`{status, total, limit, offset, data}`), et la brique B4 nomme son
+        # `refresh_token`. Seule la réponse d'origine ne s'était jamais
+        # décrite.
+        #
+        # AUCUNE entrée nouvelle dans `_contract_signature` (cli.py), et c'est
+        # délibéré : la seule chose qui fasse varier cette forme est
+        # `capability refresh_tokens`, dont la configuration est déjà hachée
+        # sous « authentification B4 ». Ajouter un second témoin de la même
+        # variation ferait rapporter deux fois le même changement.
         "login": {"method": "POST", "path": "/login",
                   "body": {"username": "str", "password": "str"},
-                  "returns": "un token JWT (validité 2 h par défaut, "
+                  "response": {
+                      "access_token": "str — le JWT, à placer dans l'en-tête "
+                                      "Authorization: Bearer",
+                      "token_type": "'bearer'"},
+                  "returns": "un token JWT dans le champ `access_token` "
+                             "(validité 2 h par défaut, "
                              "réglable par MONL_TOKEN_TTL_HOURS)"},
-        "logout": {"method": "POST", "path": "/logout"},
+        "logout": {"method": "POST", "path": "/logout",
+                   "response": {"status": "'success'", "detail": "str"}},
         "header": "Authorization: Bearer <token> sur toute route non publique",
         "rate_limit": "5 tentatives / 60 s / IP sur /register et /login",
     }
@@ -828,8 +856,12 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
             "str (6 chiffres, requis après activation du double facteur)")
     if auth_features.get("refresh_tokens"):
         auth_contract["login"]["returns"] = (
-            "un token JWT d'accès (validité réglable par "
-            "MONL_TOKEN_TTL_SECONDS) et un jeton de rafraîchissement opaque")
+            "un token JWT d'accès dans `access_token` (validité réglable par "
+            "MONL_TOKEN_TTL_SECONDS) et un jeton de rafraîchissement opaque "
+            "dans `refresh_token`")
+        auth_contract["login"]["response"]["refresh_token"] = (
+            "str — jeton OPAQUE de rafraîchissement (ce n'est pas un JWT), "
+            "à conserver et à rejouer sur POST /refresh")
     b4_contract = {}
     if auth_features.get("lockout"):
         b4_contract["account_lockout"] = {
@@ -1429,9 +1461,12 @@ ci-dessous. Le backend existe déjà et ne doit pas être modifié.
   premier `monl run --port` et fait échouer le smoke test.
 - Authentification : `POST /register` (username, password 8+, actor parmi
   {contract['self_register_actors'] or "AUCUN — inscription fermée, ne pas "
-   "construire de formulaire d'inscription"}), `POST /login` → token JWT, à
-  envoyer ensuite en en-tête `Authorization: Bearer <token>` sur toute route
-  non publique. Les rôles déclarés mais absents de cette liste
+   "construire de formulaire d'inscription"}) → `{{status, user_id}}`,
+  `POST /login` → `{{access_token, token_type}}`. Le JWT est dans
+  `access_token` — le lire sous CE nom exact, puis l'envoyer en en-tête
+  `Authorization: Bearer <access_token>` sur toute route non publique. Lire
+  un autre nom ne lève aucune erreur : la requête part avec
+  `Bearer undefined` et le serveur répond 401 sans que rien ne dise pourquoi. Les rôles déclarés mais absents de cette liste
   ({[a for a in contract['actors'] if a not in contract['self_register_actors']] or "aucun"})
   sont provisionnés hors ligne : ils se connectent par `/login`, jamais par
   `/register`.{identifiant_block}{auth_feature_block}

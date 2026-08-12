@@ -41,6 +41,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [122](#122-monl-sait-envoyer-un-message-sans-promettre-sa-remise) Envoi de message sans promettre sa remise ·
 [123](#123-filtrer-et-trier-sans-inventer-un-langage-de-requête) Filtrer et trier sans inventer un langage de requête ·
 [124](#124-authentification-complète--verrouillage-réinitialisation-rafraîchissement-et-totp) Authentification complète : verrouillage, réinitialisation, rafraîchissement et TOTP ·
+[125](#125-le-contrat-nommait-le-jeton-sans-dire-sous-quel-nom-le-lire) Le contrat nommait le jeton sans dire sous quel nom le lire ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -8079,3 +8080,64 @@ ce point se connecte encore après recompilation, et le serveur ANNONCE au
 démarrage : « 1 compte(s) restent sans double facteur TOTP : aucune activation
 n'est inventée. » C'est le motif du point 89, mot pour mot : la migration
 rattrape une colonne, jamais son contenu.
+
+## 125. Le contrat nommait le jeton sans dire sous quel nom le lire
+
+**Trouvé en éprouvant autre chose.** Le chantier en cours était de prouver que
+monl s'utilise sans carte bancaire : compiler hors ligne, écrire le frontend
+depuis `FRONTEND_PROMPT.md` dans un assistant gratuit, l'installer par
+`monl import`. En jouant ce rôle — écrire l'interface à la main, avec pour
+seule documentation le brief — la question s'est posée d'elle-même : **sous
+quel nom le jeton arrive-t-il ?**
+
+Le brief disait « `POST /login` → token JWT ». Le contrat disait
+`"returns": "un token JWT (validité 2 h…)"`. Ni l'un ni l'autre ne nommait la
+clé JSON. Le serveur, lui, renvoie `{'access_token': …, 'token_type':
+'bearer'}` (`runtime.py`).
+
+**Pourquoi c'est le pire cas de figure.** Une IA d'interface qui devine `token`
+lit `undefined` et envoie `Authorization: Bearer undefined`. Il n'y a alors
+aucune exception JavaScript à signaler, et aucun appel hors contrat à
+dénoncer : **le smoke test passe, `monl run` démarre, et personne ne peut se
+connecter.** Un défaut qui franchit le vérificateur est plus grave qu'un défaut
+bruyant — c'est exactement ce que le point 73 disait des frontends qui passent
+tous les contrôles sans avoir été construits.
+
+**Que ce soit un oubli et non un choix se lit dans le brief lui-même.** La
+réponse paginée y est nommée au caractère près depuis toujours
+(`{status, total, limit, offset, data}`), et la brique B4 nomme son
+`refresh_token` (point 124). Seule la réponse d'origine — la plus ancienne, la
+seule que tout projet utilise — ne s'était jamais décrite. C'est la forme la
+plus banale de l'angle mort du point 76 : *le contrat doit décrire ce que le
+backend renvoie VRAIMENT*, et on l'avait appliqué à toutes les briques
+nouvelles sans jamais le retourner vers les routes historiques.
+
+**Ce qui a été écrit.** `register`, `login` et `logout` portent désormais une
+clé `response` machine-lisible qui NOMME chaque champ, et le brief donne les
+deux formes en clair. La ligne du brief dit aussi ce qui arrive quand on se
+trompe — « la requête part avec `Bearer undefined` et le serveur répond 401
+sans que rien ne dise pourquoi » — parce qu'une règle sans sa conséquence se
+contourne sans le savoir.
+
+**La question de `_contract_signature`, posée AVANT d'écrire** (elle a manqué
+onze fois, points 88 à 116) : la réponse est **aucune entrée nouvelle**, et
+c'est délibéré. La seule chose qui fasse varier cette forme est `capability
+refresh_tokens`, dont la configuration complète est déjà hachée sous
+« authentification B4 ». Un second témoin de la même variation ferait
+rapporter deux fois le même changement — même arbitrage anti-doublon qu'aux
+points 88 à 90.
+
+**Le test confronte le contrat au VRAI serveur**, jamais au code qui l'écrit :
+les deux sortent du même fichier, et comparer un générateur à lui-même ne
+prouverait rien. `tests/test_contrat_authentification.py` (7 tests) inscrit,
+connecte, puis vérifie que chaque champ annoncé existe dans la réponse reçue —
+et que le jeton annoncé ouvre RÉELLEMENT une route protégée, une clé présente
+mais vide passant sinon la boucle. Le témoin inverse est là aussi : une spec
+sans `refresh_tokens` ne doit rien promettre de plus, sans quoi un contrat qui
+promettrait ce champ à tout le monde passerait tous les autres tests.
+
+**Contre-épreuve faite** : en remplaçant `access_token` par `token` dans le
+contrat, le test tombe. Les golden tests confirment la portée — seuls
+`frontend_contract.json`, `FRONTEND_PROMPT.md` et `monl.json` bougent ;
+`app.py`, `schema.sql` et `manage.py` restent identiques à l'octet. La
+correction porte sur ce que le backend DÉCLARE, pas sur ce qu'il fait.
