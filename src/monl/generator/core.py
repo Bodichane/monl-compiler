@@ -238,6 +238,7 @@ class MonlSecureGenerator(
         # AJOUT (roadmap frontend, bloc 'seed') : données de démonstration à
         # insérer au démarrage si les tables sont vides (voir init_db).
         self.seeds = normalized_ast.get("seeds", [])
+        self.migrations = normalized_ast.get("migrations", [])
         # Vue typée commune aux consommateurs de la sémantique des champs.
         # Les dictionnaires historiques restent disponibles pendant la
         # migration des émetteurs SQL et API.
@@ -1135,6 +1136,25 @@ class MonlSecureGenerator(
                 columns.append((placement["fk_column"], "INTEGER"))
             expected[table] = columns
         return expected
+
+    def _compute_migrations(self):
+        """Prépare les migrations validées pour l'app générée.
+
+        Les types DSL sont conservés pour les messages et leurs types SQL sont
+        ajoutés ici afin que le runtime n'ait aucune table de correspondance
+        indépendante du générateur.
+        """
+        prepared = []
+        for migration in self.migrations:
+            operations = []
+            for operation in migration["operations"]:
+                item = dict(operation)
+                if item["kind"] == "alter":
+                    item["from_sql_type"] = self._map_type_to_sql(item["from_type"])
+                    item["to_sql_type"] = self._map_type_to_sql(item["to_type"])
+                operations.append(item)
+            prepared.append({"name": migration["name"], "operations": operations})
+        return prepared
 
     def _map_type_to_sql(self, type_str):
         mapping = {

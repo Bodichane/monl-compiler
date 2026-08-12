@@ -35,7 +35,8 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [116](#116-briques-27-et-28--publicwhen-et-onceper-livrées-sans-leurs-garde-fous) Briques 27 et 28 : `publicWhen` et `oncePer`, livrées sans leurs garde-fous ·
 [117](#117-la-colonne-du-compteur-avait-deux-sources-et-lordre-des-relations-tranchait) La colonne du compteur avait deux sources, et l'ordre des relations tranchait ·
 [118](#118-le-backend-savait-tout-faire-sauf-se-déployer) Le backend savait tout faire sauf se déployer ·
-[119](#119-la-couche-données-choisit-son-dialecte-au-démarrage) La couche données choisit son dialecte au démarrage
+[119](#119-la-couche-données-choisit-son-dialecte-au-démarrage) La couche données choisit son dialecte au démarrage ·
+[120](#120-les-migrations-non-additives-sont-nommées-et-refusent-le-démarrage) Migrations non additives nommées
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -7571,11 +7572,13 @@ préalable.
 
 ### Ce que le frontend ne voit pas
 
-`_contract_signature` n'a pas à changer : le choix de moteur, les placeholders,
-les types SQL, les migrations et les erreurs internes ne modifient ni routes,
-ni champs, ni accès, ni forme de réponse. Les empreintes de `app.py`,
-`schema.sql`, `manage.py` et `monl.json` changent parce que le backend généré
-change; `frontend_contract.json` et `FRONTEND_PROMPT.md` restent identiques.
+`_contract_signature` ne tient toujours pas compte du choix de moteur, des
+placeholders, des types SQL internes, des migrations ou des erreurs internes :
+ils ne modifient ni routes, ni accès, ni forme de réponse. En revanche, le
+type d'un champ exposé appartient au contrat frontend : A2 le compare et
+signale par exemple `Note.priority : String → Integer`. Les empreintes de
+`app.py`, `schema.sql`, `manage.py` et `monl.json` changent parce que le
+backend généré change; le contrat reste identique pour un changement interne.
 
 Éprouvé contre un vrai serveur par `tests/test_postgresql.py` (6 cas, sautés
 proprement sans `MONL_TEST_DATABASE_URL`), et par la suite SQLite complète.
@@ -7614,3 +7617,59 @@ une constante.
 
 Aucun des deux ne se voyait en relisant le diff — le premier demandait de
 regarder le code GÉNÉRÉ, le second de lancer la commande depuis ailleurs.
+
+---
+
+## 120. Les migrations non additives sont nommées et refusent le démarrage
+
+Le point 32 ne rattrapait volontairement que les colonnes ajoutées. Une
+comparaison de schéma ne peut pas prouver qu'une colonne `heading` est
+l'ancien `title`, ni qu'un texte se convertira sans perte en entier. Le
+compilateur accepte donc un seul moyen explicite de franchir cette frontière :
+
+```
+migration note_fields
+    rename Note.title to heading
+    alter Note.priority from String to Integer
+    drop Note.legacy
+```
+
+Le nom de la migration est l'identifiant de l'opération demandée ; il ne sert
+pas de commentaire. Au démarrage, une différence non additive sans migration
+correspondante est rapportée et le serveur refuse de servir l'application.
+L'auteur doit exécuter `monl migrate PROJET --name note_fields`. La montée et
+la descente des renommages et changements de type sont transactionnelles et
+inscrites dans `_monl_migrations`; un `drop` reste irréversible sans
+sauvegarde et sa descente est refusée.
+
+L'historique porte l'opération, la table, le sens, la date, les détails et
+l'empreinte SHA-256 du schéma résultant. Les ajouts automatiques sont eux
+aussi enregistrés. Il rend une base lisible sans faire croire qu'il constitue
+une sauvegarde.
+
+La syntaxe est un bloc de premier niveau. `assets_tool.py` le reconnaît pour
+positionner textuellement un éventuel bloc `assets`; `content_tool.py` ne lit
+que les blocs `seed` et laisse les migrations intactes. Le changement ne
+contredit donc pas les outils qui lisent la spec sans construire un AST.
+
+### Un défaut trouvé en revue : la trace qui noie le diagnostic
+
+`manage.py` refuse d'écrire dans une base qui attend une migration non
+additive, et c'est juste : provisionner un compte dans un schéma en attente
+l'expose au même risque que le servir. Mais il sortait sur un `RuntimeError`
+NON RATTRAPÉ — le diagnostic d'`app.py`, correct et précis, se retrouvait noyé
+sous quinze lignes de trace.
+
+**Une trace n'apprend rien à qui doit décider quoi faire.** C'est le reproche
+des points 97 et 105, sur un troisième point d'entrée. La sortie NOMME
+désormais le remède et le dossier concerné, et `manage.py` est justement le
+message que lit un exploitant bloqué : c'est le seul chemin pour créer un
+compte à rôle privilégié.
+
+Le correctif a lui-même buté sur un piège du dépôt, qui mérite d'être écrit :
+`admin_cli.py` est un GABARIT formaté, pas du code Python ordinaire. Une
+accolade y est un champ de format (`{{}}` pour en produire une) et un
+antislash y est consommé une fois (`\\n` pour produire `\n`). Les deux erreurs
+ont été faites, et **aucune des deux n'était visible dans le diff** : la
+première faisait échouer la génération, la seconde produisait un `manage.py`
+au `SyntaxError`. Seule la recompilation réelle les a montrées.

@@ -47,6 +47,28 @@
   Communauté livraient une modération à sens unique, le modérateur perdant de vue
   ce qu'il venait de masquer.
 
+### Les migrations non additives sont nommées, appliquées à la main, réversibles (point 120)
+
+- **Le moteur ne devine plus rien.** Un renommage était vu comme une
+  suppression suivie d'un ajout : l'ancienne colonne restait pleine, la
+  nouvelle arrivait vide, et rien ne le disait. Un changement de type n'était
+  pas appliqué du tout. Une colonne retirée restait indéfiniment sans être
+  rapportée.
+- **Une syntaxe déclarative et NOMMÉE** : `migration <nom>` avec `rename`,
+  `alter … from … to …` et `drop`, appliquée par `monl migrate PROJET --name
+  <nom>` et défaite par `--down`.
+- **Un changement destructif ne s'applique jamais tout seul au démarrage.**
+  Le serveur REFUSE de démarrer en nommant la colonne et la commande à lancer,
+  au lieu d'avaler l'échec et de servir une base à moitié migrée.
+- **Une table d'historique** `_monl_migrations` enregistre chaque opération
+  avec l'empreinte du schéma résultant. La descente d'un `drop` est refusée :
+  elle ne se défait pas sans sauvegarde, et prétendre le contraire serait pire
+  que ne rien offrir.
+- La migration additive reste automatique : elle ne détruit rien. Une base
+  créée par le compilateur d'avant démarre sans rien perdre — vérifié.
+- **Un défaut trouvé en revue** : `manage.py` sortait sur une trace de quinze
+  lignes qui noyait le diagnostic. Il nomme désormais le remède et le dossier.
+
 ### La couche données choisit son dialecte au démarrage (point 119)
 
 - **PostgreSQL à côté de SQLite.** `MONL_DATABASE_URL` absente : SQLite,

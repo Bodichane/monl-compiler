@@ -11,6 +11,8 @@ from __future__ import annotations
 import contextlib
 import os
 import re
+import subprocess
+import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -21,9 +23,10 @@ import pytest
 import requests
 
 from monl.ast_validator import MonlAST
+from monl.cli import compile_project
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
-from tests.support.server import uvicorn_server
+from tests.support.server import free_port, uvicorn_server
 
 
 def _psycopg():
@@ -41,7 +44,7 @@ def database_url(request):
     return request.getfixturevalue("postgres_dsn")
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def postgres_dsn():
     base = os.environ.get("MONL_TEST_DATABASE_URL", "").strip()
     if not base:
@@ -75,6 +78,28 @@ def postgres_dsn():
 def _compile(spec: str, directory: str) -> None:
     ast = MonlAST(parse_monl_string(spec)).validate_and_audit()
     MonlSecureGenerator(ast, output_dir=directory).generate_all()
+
+
+def _compile_cli(spec: str, directory: str) -> None:
+    path = Path(directory) / "spec.ml"
+    path.write_text(spec, encoding="utf-8")
+    compile_project(str(path), directory)
+
+
+def _server_expected_failure(directory: str, env: dict[str, str]):
+    port = free_port()
+    process = subprocess.Popen(
+        [sys.executable, "-m", "uvicorn", "app:app", "--port", str(port)],
+        cwd=directory, env=env, stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT, text=True,
+    )
+    try:
+        output, _ = process.communicate(timeout=15)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        output, _ = process.communicate()
+        raise AssertionError("PostgreSQL : le serveur a démarré malgré le schéma non migré") from None
+    return process.returncode, output
 
 
 @contextlib.contextmanager
@@ -365,3 +390,230 @@ workflow W for User
         finally:
             conn.close()
         assert ("body",) in columns
+
+
+def test_migrations_non_additives_postgresql_sont_detectees_et_historisees(postgres_dsn):
+    spec_v1 = """app PgNonAdditive
+
+entity User
+    name: String
+
+entity Note
+    title: String
+    priority: String
+    legacy: String
+
+relation User hasMany Note
+actor User selfRegister
+workflow W for User
+    Create Note
+    Read Note
+"""
+    spec_v2 = spec_v1.replace("    title: String\n", "    heading: String\n")
+    spec_v2 = spec_v2.replace("    priority: String\n", "    priority: Integer\n")
+    spec_v2 = spec_v2.replace("    legacy: String\n", "")
+    spec_v2 += """
+migration note_fields
+    rename Note.title to heading
+    alter Note.priority from String to Integer
+    drop Note.legacy
+"""
+    with tempfile.TemporaryDirectory(prefix="monl-pg-nonadditive-") as directory:
+        _compile_cli(spec_v1, directory)
+        env = os.environ.copy()
+        env["MONL_DATABASE_URL"] = postgres_dsn
+        env["MONL_JWT_SECRET"] = "postgres-nonadditive-secret-32-bytes-min"
+        env["MONL_TRUST_PROXY"] = "1"
+        with uvicorn_server(directory, env=env) as base:
+            headers = _register(base, f"nonadditive-{uuid4().hex[:8]}")
+            created = requests.post(
+                f"{base}/note", headers=headers,
+                json={"title": "avant", "priority": "7", "legacy": "vieux"},
+                timeout=10,
+            )
+            assert created.status_code == 200, created.text
+            note_id = created.json()["id"]
+
+        _compile_cli(spec_v2, directory)
+        returncode, output = _server_expected_failure(directory, env)
+        assert returncode != 0
+        assert "Schéma non additif détecté" in output
+        assert "renommage non appliqué" in output
+        assert "type de note.priority" in output
+        assert "colonne retirée" in output
+        assert "base ne sera pas servie" in output
+
+        cli_env = {**env, "PYTHONPATH": str(Path(__file__).parents[1] / "src")}
+        applied = subprocess.run(
+            [sys.executable, "-m", "monl.cli", "migrate", directory,
+             "--name", "note_fields"], cwd="/tmp", env=cli_env,
+            capture_output=True, text=True, check=False,
+        )
+        assert applied.returncode == 0, applied.stdout + applied.stderr
+        assert "Migration 'note_fields' (up) appliquée" in applied.stdout
+
+        with uvicorn_server(directory, env=env) as base:
+            # L'état est vérifié directement en base ; le serveur prouve que
+            # le lifespan sert bien après migration.
+            read = requests.get(f"{base}/note/{note_id}", headers=headers, timeout=10)
+            assert read.status_code == 200, read.text
+            assert read.json()["data"]["heading"] == "avant"
+            assert read.json()["data"]["priority"] == 7
+
+        psycopg = _psycopg()
+        conn = psycopg.connect(postgres_dsn)
+        try:
+            columns = conn.execute(
+                "SELECT column_name, data_type FROM information_schema.columns "
+                "WHERE table_schema = current_schema() AND table_name = 'note' "
+                "ORDER BY ordinal_position"
+            ).fetchall()
+            history = conn.execute(
+                "SELECT migration_name, operation_index, direction, schema_fingerprint "
+                "FROM _monl_migrations ORDER BY id"
+            ).fetchall()
+        finally:
+            conn.close()
+        assert [row[0] for row in columns] == ["id", "heading", "priority", "user_id"]
+        assert dict(columns)["priority"] == "integer"
+        assert len(history) == 3 and all(
+            row[0] == "note_fields" and row[2] == "up" and len(row[3]) == 64
+            for row in history
+        )
+
+        refused_down = subprocess.run(
+            [sys.executable, "-m", "monl.cli", "migrate", directory,
+             "--name", "note_fields", "--down"], cwd="/tmp", env=cli_env,
+            capture_output=True, text=True, check=False,
+        )
+        assert refused_down.returncode != 0
+        assert "DROP irréversible" in refused_down.stdout
+
+
+def test_migration_postgresql_echec_atomique_ne_sert_pas_une_moitie(postgres_dsn):
+    spec_v1 = """app PgAtomic
+
+entity User
+    name: String
+
+entity Note
+    title: String
+    priority: String
+
+relation User hasMany Note
+actor User selfRegister
+workflow W for User
+    Create Note
+    Read Note
+"""
+    spec_v2 = spec_v1.replace("    title: String\n", "    heading: String\n")
+    spec_v2 = spec_v2.replace("    priority: String\n", "    priority: Float\n")
+    spec_v2 += """
+migration broken
+    rename Note.title to heading
+    alter Note.priority from Integer to Float
+"""
+    with tempfile.TemporaryDirectory(prefix="monl-pg-atomic-") as directory:
+        _compile_cli(spec_v1, directory)
+        env = os.environ.copy()
+        env["MONL_DATABASE_URL"] = postgres_dsn
+        env["MONL_JWT_SECRET"] = "postgres-atomic-secret-32-bytes-min"
+        env["MONL_TRUST_PROXY"] = "1"
+        with uvicorn_server(directory, env=env) as base:
+            headers = _register(base, f"atomic-{uuid4().hex[:8]}")
+            created = requests.post(
+                f"{base}/note", headers=headers,
+                json={"title": "avant", "priority": "7"}, timeout=10,
+            )
+            assert created.status_code == 200, created.text
+
+        _compile_cli(spec_v2, directory)
+        cli_env = {**env, "PYTHONPATH": str(Path(__file__).parents[1] / "src")}
+        failed = subprocess.run(
+            [sys.executable, "-m", "monl.cli", "migrate", directory,
+             "--name", "broken"], cwd="/tmp", env=cli_env,
+            capture_output=True, text=True, check=False,
+        )
+        assert failed.returncode != 0
+        assert "Précondition du changement de type" in failed.stdout
+
+        psycopg = _psycopg()
+        conn = psycopg.connect(postgres_dsn)
+        try:
+            columns = conn.execute(
+                "SELECT column_name, data_type FROM information_schema.columns "
+                "WHERE table_schema = current_schema() AND table_name = 'note' "
+                "ORDER BY ordinal_position"
+            ).fetchall()
+            row = conn.execute("SELECT title, priority FROM note").fetchone()
+            history_count = conn.execute("SELECT COUNT(*) FROM _monl_migrations").fetchone()[0]
+        finally:
+            conn.close()
+        assert [row[0] for row in columns] == ["id", "title", "priority", "user_id"]
+        assert row == ("avant", "7")
+        assert history_count == 0
+
+        returncode, output = _server_expected_failure(directory, env)
+        assert returncode != 0 and "base ne sera pas servie" in output
+
+
+def test_migration_postgresql_down_retablit_noms_types_et_donnees(postgres_dsn):
+    spec_v1 = """app PgDown
+
+entity Note
+    title: String
+    priority: String
+
+actor User selfRegister
+workflow W for User
+    Create Note
+    Read Note
+"""
+    spec_v2 = spec_v1.replace("    title: String", "    heading: String")
+    spec_v2 = spec_v2.replace("    priority: String", "    priority: Integer")
+    spec_v2 += """
+migration note_fields
+    rename Note.title to heading
+    alter Note.priority from String to Integer
+"""
+    with tempfile.TemporaryDirectory(prefix="monl-pg-down-") as directory:
+        _compile_cli(spec_v1, directory)
+        env = os.environ.copy()
+        env["MONL_DATABASE_URL"] = postgres_dsn
+        env["MONL_JWT_SECRET"] = "postgres-down-secret-32-bytes-min"
+        with uvicorn_server(directory, env=env) as base:
+            headers = _register(base, f"down-{uuid4().hex[:8]}")
+            created = requests.post(
+                f"{base}/note", headers=headers,
+                json={"title": "avant", "priority": "7"}, timeout=10,
+            )
+            assert created.status_code == 200, created.text
+
+        _compile_cli(spec_v2, directory)
+        cli_env = {**env, "PYTHONPATH": str(Path(__file__).parents[1] / "src")}
+        for extra in ([], ["--down"]):
+            result = subprocess.run(
+                [sys.executable, "-m", "monl.cli", "migrate", directory,
+                 "--name", "note_fields", *extra], cwd="/tmp", env=cli_env,
+                capture_output=True, text=True, check=False,
+            )
+            assert result.returncode == 0, result.stdout + result.stderr
+
+        psycopg = _psycopg()
+        conn = psycopg.connect(postgres_dsn)
+        try:
+            columns = conn.execute(
+                "SELECT column_name, data_type FROM information_schema.columns "
+                "WHERE table_schema = current_schema() AND table_name = 'note' "
+                "ORDER BY ordinal_position"
+            ).fetchall()
+            row = conn.execute("SELECT title, priority FROM note").fetchone()
+        finally:
+            conn.close()
+        assert [item[0] for item in columns] == ["id", "title", "priority"]
+        assert dict(columns)["priority"] == "character varying"
+        assert row == ("avant", "7")
+
+        _compile_cli(spec_v1, directory)
+        with uvicorn_server(directory, env=env) as base:
+            assert requests.get(f"{base}/health", timeout=10).status_code == 200

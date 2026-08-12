@@ -12,7 +12,7 @@ grammar = r"""
     
     app: "app" NAME _NL block*
     
-    ?block: entity | relation | actor | rule | workflow | custom_block | ui_block | landing_block | capability_block | seed_block | assets_block | _NL
+    ?block: entity | relation | actor | rule | workflow | custom_block | ui_block | landing_block | capability_block | seed_block | assets_block | migration_block | _NL
     
     entity: "entity" NAME _NL _INDENT attribute+ _DEDENT
     attribute: NAME ":" TYPE _NL
@@ -300,6 +300,15 @@ grammar = r"""
     assets_logo: "logo" ":" STRING_LITERAL _NL
     assets_favicon: "favicon" ":" STRING_LITERAL _NL
 
+    # Une migration non additive doit être NOMMÉE et exécutée explicitement.
+    # La spec décrit l'état cible ; l'opération conserve assez d'information
+    # pour vérifier sa précondition et, quand c'est possible, la défaire.
+    migration_block: "migration" NAME _NL _INDENT migration_operation+ _DEDENT
+    ?migration_operation: rename_migration | alter_migration | drop_migration
+    rename_migration: "rename" REFERENCE "to" NAME _NL
+    alter_migration: "alter" REFERENCE "from" TYPE "to" TYPE _NL
+    drop_migration: "drop" REFERENCE _NL
+
     landing_block: "landing" _NL _INDENT landing_prop+ _DEDENT
     ?landing_prop: landing_mode | landing_template | landing_brief | landing_section
                  | landing_question
@@ -413,6 +422,7 @@ class MonlTransformer(Transformer):
             "capabilities": [b["capability"] for b in valid_blocks if "capability" in b],
             "seeds": [b["seed"] for b in valid_blocks if "seed" in b],
             "assets": next((b["assets"] for b in valid_blocks if "assets" in b), None),
+            "migrations": [b["migration"] for b in valid_blocks if "migration" in b],
         }
 
     def entity(self, name, *attributes):
@@ -613,6 +623,21 @@ class MonlTransformer(Transformer):
             if p:
                 merged.update(p)
         return {"assets": merged}
+
+    def rename_migration(self, reference, new_name):
+        return {"kind": "rename", "reference": str(reference),
+                "new_name": str(new_name)}
+
+    def alter_migration(self, reference, old_type, new_type):
+        return {"kind": "alter", "reference": str(reference),
+                "from_type": str(old_type), "to_type": str(new_type)}
+
+    def drop_migration(self, reference):
+        return {"kind": "drop", "reference": str(reference)}
+
+    def migration_block(self, name, *operations):
+        return {"migration": {"name": str(name),
+                               "operations": list(operations)}}
 
     def capability_identifier(self, *formes):
         return {"identifier": [str(f) for f in formes]}

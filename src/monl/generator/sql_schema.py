@@ -75,6 +75,21 @@ class SqlSchemaMixin:
         sql_lines.append("    PRIMARY KEY (entite, champ, periode)")
         sql_lines.append(");\n")
 
+        # Historique lisible des migrations, y compris les ajouts automatiques.
+        # La table est créée dans l'artefact initial et reste rattrapée par
+        # init_db() pour les bases produites avant A2.
+        sql_lines.append("CREATE TABLE IF NOT EXISTS _monl_migrations (")
+        sql_lines.append("    id INTEGER PRIMARY KEY AUTOINCREMENT,")
+        sql_lines.append("    migration_name VARCHAR(255) NOT NULL,")
+        sql_lines.append("    operation_index INTEGER NOT NULL,")
+        sql_lines.append("    operation VARCHAR(64) NOT NULL,")
+        sql_lines.append("    table_name VARCHAR(255) NOT NULL,")
+        sql_lines.append("    direction VARCHAR(8) NOT NULL,")
+        sql_lines.append("    details TEXT NOT NULL,")
+        sql_lines.append("    applied_at TIMESTAMP NOT NULL,")
+        sql_lines.append("    schema_fingerprint VARCHAR(64) NOT NULL")
+        sql_lines.append(");\n")
+
         # CORRECTIF (roadmap) : placement des FK généralisé aux 3 types de
         # relation (hasMany, hasOne, belongsTo) via _compute_fk_placements,
         # au lieu de ne traiter que 'hasMany' comme précédemment.

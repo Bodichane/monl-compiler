@@ -9,7 +9,13 @@ import re
 
 import pytest
 
-from monl.cli import _load_state, check_coherence, compile_project
+from monl.cli import (
+    _contract_signature,
+    _load_state,
+    _rapporter_delta,
+    check_coherence,
+    compile_project,
+)
 from monl.dialogue_engine import GuidedDialogue
 
 REPO = os.path.join(os.path.dirname(__file__), "..")
@@ -47,6 +53,25 @@ def _fresh_project(tmp_path):
     spec_path.write_text(SPEC, encoding="utf-8")
     contract = compile_project(str(spec_path), str(proj))
     return proj, spec_path, contract
+
+
+def test_delta_signale_un_type_de_champ_modifie(tmp_path, capsys):
+    ancienne = {
+        "routes": [],
+        "entities": {"Note": {"fields": [{"name": "priority", "type": "String"}]}},
+    }
+    nouvelle = {
+        "routes": [],
+        "entities": {"Note": {"fields": [{"name": "priority", "type": "Integer"}]}},
+    }
+
+    assert _rapporter_delta(
+        _contract_signature(ancienne),
+        _contract_signature(nouvelle),
+        str(tmp_path),
+        ecrire_brief=False,
+    )
+    assert "type de champ changé : Note.priority : String → Integer" in capsys.readouterr().out
 
 
 def test_brief_express_autorise_textes_blocs_et_illustrations_locales(tmp_path):

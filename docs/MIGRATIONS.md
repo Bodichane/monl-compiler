@@ -1,43 +1,45 @@
 # Migrations de schéma dans monl
 
-Ce document décrit ce que fait monl quand la spec d'une application
-évolue et qu'une base de données existe déjà, et surtout ce qu'il ne fait
-**pas**, volontairement.
+Ce document décrit la politique de migration du backend généré. Elle est la
+même pour SQLite et PostgreSQL : le moteur est choisi au démarrage
+(`MONL_DATABASE_URL` absent pour SQLite, DSN `postgresql://` pour PostgreSQL),
+mais la décision de migration vient toujours de la spec compilée.
 
-## Le principe : migration additive, sans perte de données
+## Historique lisible
 
-Le schéma généré (`schema.sql`) crée les tables avec
-`CREATE TABLE IF NOT EXISTS` : une table déjà présente n'est jamais
-recréée ni écrasée. Mais `IF NOT EXISTS` ne suffit pas dès qu'on **ajoute
-un champ** à une entité existante — la table est déjà là, donc le nouveau
-champ n'apparaîtrait jamais.
+Chaque backend crée la table interne `_monl_migrations` si elle n'existe pas.
+Elle conserve, pour chaque opération effectivement appliquée :
 
-Au démarrage du serveur, après avoir exécuté `schema.sql`, `init_db()`
-rattrape cet écart :
+- le nom de la migration et son numéro d'opération ;
+- l'opération (`add_column`, `rename_column`, `alter_column_type`, etc.), la
+  table, et le sens (`up` ou `down`) ;
+- les détails JSON de l'opération et `applied_at` ;
+- l'empreinte SHA-256 du schéma résultant.
 
-1. pour chaque table métier, il lit les colonnes réellement présentes
-   (`PRAGMA table_info` sur SQLite, `information_schema.columns` sur
-   PostgreSQL) ;
-2. il les compare aux colonnes attendues par la spec courante (constante
-   `_EXPECTED_COLUMNS`, figée dans `app.py` à la compilation) ;
-3. pour chaque colonne manquante, il exécute
-   `ALTER TABLE <table> ADD COLUMN <col> <type>`.
+Une ancienne base reçoit cette table sans modification de ses données. Les
+ajouts automatiques de colonnes y sont aussi inscrits sous le nom
+`__auto_add_column__`. La table rend donc l'état observable sans prétendre
+remplacer une sauvegarde.
 
-Cette opération est **purement additive** : aucune donnée existante n'est
-lue, déplacée, réécrite ou supprimée. Les lignes déjà en base reçoivent
-simplement `NULL` sur les nouvelles colonnes. Un message
-`🔧 Migration : colonne ... ajoutée` est affiché pour chaque ajout.
+## Ajout automatique : la seule opération implicite
 
-### Exemple
+Au démarrage, `init_db()` compare les colonnes attendues par la spec aux
+colonnes existantes (`PRAGMA table_info` sur SQLite,
+`information_schema.columns` sur PostgreSQL). Chaque colonne manquante est
+ajoutée par `ALTER TABLE ... ADD COLUMN`, puis enregistrée dans l'historique.
 
-Spec v1 :
+Cette migration ne lit, ne déplace et ne remplit jamais le contenu. Les lignes
+existantes reçoivent `NULL` dans la nouvelle colonne ; aucune date, valeur par
+défaut ou donnée inventée n'est écrite (point 89).
+
+Exemple :
 
 ```
 entity Note
     title: String
 ```
 
-On crée quelques notes, puis on fait évoluer la spec :
+devient :
 
 ```
 entity Note
@@ -46,35 +48,94 @@ entity Note
     priority: Integer
 ```
 
-En recompilant **dans le même dossier** (donc en conservant `app.db` pour
-SQLite, ou la même base PostgreSQL indiquée par `MONL_DATABASE_URL`) et en
-redémarrant, les colonnes `body` et `priority` sont ajoutées, les notes
-existantes sont intactes (leur `title` est préservé, `body`/`priority`
-valent `NULL`), et les nouvelles notes peuvent renseigner les nouveaux
-champs.
+`body` et `priority` apparaissent, le `title` et toutes les lignes restent
+intacts. Le serveur continue ensuite son démarrage normal.
 
-## Ce qui n'est PAS fait (et pourquoi)
+## Changements non additifs : déclarés, nommés, jamais devinés
 
-- **Supprimer une colonne retirée de la spec.** SQLite ne supporte pas
-  `DROP COLUMN` sans reconstruire toute la table, et surtout : supprimer
-  une colonne détruit les données qu'elle contient. monl laisse donc
-  les colonnes orphelines en place. Elles sont inertes (plus aucune route
-  ne les lit ni ne les écrit) mais leurs données restent récupérables.
-- **Changer le type d'une colonne existante.** Un changement de type peut
-  être destructif (troncature, échec de conversion). monl ne tente
-  aucune conversion automatique. Si un changement de type est nécessaire,
-  c'est une migration manuelle, à faire hors monl.
-- **Renommer une colonne.** Indistinguable, pour le moteur, d'une
-  suppression suivie d'un ajout — donc traité comme tel (ancienne colonne
-  conservée inerte, nouvelle colonne ajoutée vide). Un vrai renommage
-  préservant les données est une opération manuelle.
+Un renommage ne peut pas être déduit d'une ressemblance entre deux noms. Un
+changement de type ne peut pas être déduit d'une intention. Une colonne
+retirée n'indique pas, à elle seule, si ses données sont encore nécessaires.
+La spec doit donc porter une migration explicite, avec le plus petit langage
+qui produit effectivement une opération :
 
-En résumé : monl automatise le seul cas qui est **toujours sûr**
-(ajouter), et refuse d'automatiser les cas qui peuvent détruire des
-données. Ceux-ci restent du ressort d'une intervention explicite.
+```
+migration note_fields
+    rename Note.title to heading
+    alter Note.priority from String to Integer
+    drop Note.legacy
+```
 
-## Repartir de zéro
+La spec est l'état cible : `heading` et `priority: Integer` doivent déjà y
+exister, tandis que `title` et `legacy` n'y figurent plus. Cela empêche une
+syntaxe décorative qui ne serait jamais reliée au schéma ; le compilateur
+refuse également les migrations incohérentes ou ambiguës.
 
-Pour réinitialiser complètement une application (perte de toutes les
-données assumée), il suffit de supprimer `app.db` avant de redémarrer : le
-`CREATE TABLE` recrée alors tout le schéma à neuf.
+Si une différence non additive existe sans migration nommée correspondante,
+le serveur affiche les colonnes concernées et refuse de servir l'application.
+Il ne transforme donc pas silencieusement un renommage en colonne vide, ne
+laisse pas un ancien type en place et ne fait pas croire qu'un `drop` a eu
+lieu. Une migration qui échoue est rollbackée et l'exception remonte ; le
+serveur ne sert pas une base à moitié migrée.
+
+## Commande explicite
+
+Les migrations non additives ne s'appliquent jamais au démarrage d'un serveur.
+La commande dédiée charge le `app.py` du projet depuis son propre dossier,
+même si elle est lancée ailleurs :
+
+```
+monl migrate PROJET --list
+monl migrate PROJET --name note_fields
+monl migrate PROJET --name note_fields --down
+```
+
+`--list` prépare seulement la base et affiche l'état historique. `--name`
+applique le sens montant ; `--down` demande le sens descendant. Chaque
+opération et l'empreinte finale sont enregistrées dans la même transaction
+que le changement de schéma. En cas d'échec, toute la transaction est
+rollbackée et la commande retourne un code d'erreur.
+
+## Descente et irréversibilité
+
+Les opérations `rename` et `alter` sont descendantes : le nom ou le type
+précédent est vérifié avant d'être restauré, et les données sont conservées
+par la réécriture appropriée du moteur.
+
+`drop` est explicitement irréversible sans sauvegarde : après un
+`DROP COLUMN`, le contenu supprimé ne peut pas être recréé. Une migration qui
+contient un `drop` peut monter sur demande, mais `--down` la refuse au lieu de
+prétendre restaurer ce qui n'existe plus. Il faut restaurer une sauvegarde
+avant toute tentative de retour.
+
+## Questions obligatoires
+
+### `_contract_signature` voit-il A2 ?
+
+Oui pour ce qui change l'interface : le type d'un champ exposé est conservé
+dans la signature et `monl update` signale par exemple
+`Note.priority : String → Integer`, avec une consigne de revoir la saisie et
+l'affichage. Les migrations, l'historique, l'empreinte SQL et le choix
+SQLite/PostgreSQL n'y entrent pas : ce sont des détails backend qui ne
+changent pas le contrat frontend. Un renommage ou une suppression apparaît
+déjà comme champ ajouté/retiré, puisque le contrat cible change réellement.
+
+### Point 100 : les outils qui lisent textuellement la spec sont-ils gênés ?
+
+Non. `migration` est un bloc de premier niveau reconnu par le parseur et par
+`assets_tool.py` pour positionner un bloc `assets`. `content_tool.py` ne
+réécrit ni n'interprète les migrations : il ne lit que les blocs `seed` et
+laisse ce texte intact. Les déclarations de migration ne changent donc pas
+la syntaxe des seeds, ni la lecture textuelle des contenus.
+
+## Ce qui reste volontairement hors périmètre
+
+- aucun remplissage automatique de contenu et aucun défaut rétroactif ;
+- aucune déduction de renommage ;
+- aucun `drop` automatique au démarrage ;
+- aucune promesse de récupération après un `drop` sans sauvegarde ;
+- aucune sauvegarde ou restauration produite par monl.
+
+Les cas couverts sont éprouvés contre de vraies bases SQLite. Les tests
+PostgreSQL utilisent `MONL_TEST_DATABASE_URL` et sont sautés proprement quand
+ce DSN n'est pas fourni ; un saut n'est pas une preuve PostgreSQL.

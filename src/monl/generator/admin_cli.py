@@ -105,7 +105,19 @@ def _connect():
             sys.path.insert(0, dossier)
         from app import _connect as _database_connect
         from app import init_db as _init_db
-        _init_db()
+        try:
+            _init_db()
+        except RuntimeError as erreur:
+            # A2 : une base qui attend une migration non additive ne se sert
+            # pas, et ne s'administre pas non plus — écrire des comptes dans
+            # un schéma en attente les mettrait au même risque. Mais le
+            # diagnostic d'app.py vient d'être imprimé juste au-dessus : le
+            # laisser suivre d'une trace de quinze lignes le noierait, et une
+            # trace n'apprend rien à qui doit décider. On sort en NOMMANT le
+            # remède et le dossier, jamais sur un traceback.
+            sys.exit(f"{{erreur}}\\n"
+                     f"Remède : déclarez la migration dans la spec, puis "
+                     f"lancez 'monl migrate {{dossier}} --name <migration>'.")
         return _database_connect()
     finally:
         os.chdir(courant)

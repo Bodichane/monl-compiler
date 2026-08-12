@@ -31,6 +31,7 @@ class FakeContext:
         fail_landing=False,
         fail_capabilities=False,
         fail_assets_seeds=False,
+        fail_migrations=False,
         fail_post_payment_writes=False,
     ):
         self.calls = []
@@ -57,6 +58,7 @@ class FakeContext:
         self.fail_landing = fail_landing
         self.fail_capabilities = fail_capabilities
         self.fail_assets_seeds = fail_assets_seeds
+        self.fail_migrations = fail_migrations
         self.fail_post_payment_writes = fail_post_payment_writes
 
     def _valider_contraintes_de_champ(self):
@@ -174,6 +176,11 @@ class FakeContext:
         if self.fail_assets_seeds:
             raise ValueError("assets/seeds invalides")
 
+    def _valider_migrations(self):
+        self.calls.append("migrations")
+        if self.fail_migrations:
+            raise ValueError("migrations invalides")
+
     def _valider_regle_apres_paiement(self):
         self.calls.append("post_payment_writes")
         if self.fail_post_payment_writes:
@@ -201,7 +208,7 @@ def test_pipeline_execute_les_passes_dans_lordre_et_agrege_les_rapports():
         "hidden_fields", "categorized_fields", "generated_fields", "timestamp_fields", "numbered_fields",
         "enumerated_fields", "creation_payment_prerequisites", "derived_fields", "aggregated_fields",
         "calculation_payment_safety", "counter_effects", "payable_owner", "release_rules", "workflow_collisions",
-        "ui_overrides", "landing", "capabilities", "assets_seeds", "post_payment_writes", "security",
+        "ui_overrides", "landing", "capabilities", "assets_seeds", "migrations", "post_payment_writes", "security",
         "registration",
     ]
     assert reports == ["rapport sécurité", "rapport inscription"]
@@ -218,7 +225,7 @@ def test_pipeline_sarrete_immediatement_sur_une_validation_invalide():
         "hidden_fields", "categorized_fields", "generated_fields", "timestamp_fields", "numbered_fields",
         "enumerated_fields", "creation_payment_prerequisites", "derived_fields", "aggregated_fields",
         "calculation_payment_safety", "counter_effects", "payable_owner", "release_rules", "workflow_collisions",
-        "ui_overrides", "landing", "capabilities", "assets_seeds", "post_payment_writes",
+        "ui_overrides", "landing", "capabilities", "assets_seeds", "migrations", "post_payment_writes",
     ]
 
 

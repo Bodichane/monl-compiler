@@ -59,6 +59,8 @@ class ValidationContext(Protocol):
 
     def _valider_assets_et_seeds(self) -> None: ...
 
+    def _valider_migrations(self) -> None: ...
+
     def _valider_regle_apres_paiement(self) -> None: ...
 
     def _audit_security_rules(self) -> list[str]: ...
@@ -326,6 +328,17 @@ class AssetsSeedValidationPass:
 
 
 @dataclass(frozen=True, slots=True)
+class MigrationValidationPass:
+    """Valide les opérations de schéma non additives déclarées."""
+
+    name: str = "migrations"
+
+    def run(self, context: ValidationContext) -> list[str]:
+        context._valider_migrations()
+        return []
+
+
+@dataclass(frozen=True, slots=True)
 class PostPaymentValidationPass:
     """Valide les champs réservés à l'écriture après règlement."""
 
@@ -387,6 +400,7 @@ DEFAULT_VALIDATION_PIPELINE = ValidationPipeline((
     LandingValidationPass(),
     CapabilityValidationPass(),
     AssetsSeedValidationPass(),
+    MigrationValidationPass(),
     PostPaymentValidationPass(),
     SecurityAuditPass(),
     SelfRegistrationAuditPass(),

@@ -23,6 +23,7 @@
 import argparse
 import contextlib
 import hashlib
+import importlib.util
 import io
 import json
 import os
@@ -513,7 +514,8 @@ def _write_update_brief(project_dir, added_routes, removed_routes,
                         added_prea=(), removed_prea=(),
                         added_verrous=(), removed_verrous=(),
                         added_contenus=(), removed_contenus=(),
-                        modifies_contenus=(), changed_liens=()):
+                        modifies_contenus=(), changed_liens=(),
+                        changed_types=()):
     """Point 3 du pivot : le delta n'est pas qu'informatif, il devient une
     CONSIGNE prête à donner à l'IA frontend — la boucle se ferme sans que
     l'humain ait à reformuler le changement."""
@@ -532,6 +534,13 @@ def _write_update_brief(project_dir, added_routes, removed_routes,
     if removed_fields:
         sections.append("## Champs SUPPRIMÉS — retirer des vues et formulaires\n"
                         + bullet(removed_fields, "retirer"))
+    if changed_types:
+        sections.append(
+            "## Types de champs MODIFIÉS — revoir saisie et affichage\n"
+            "Le nom du champ n'a pas bougé, mais sa valeur attendue si : "
+            "adapter le contrôle de saisie, le formatage et les messages "
+            "d'erreur au nouveau type.\n"
+            + bullet(changed_types, "adapter"))
     # POINT 88 : un rôle qui gagne l'accès à une route existante n'ajoute aucune
     # route, mais réclame souvent tout un écran (un back-office, une vue de
     # supervision). C'est le cas le plus silencieux du delta : rien n'est cassé,
@@ -655,6 +664,9 @@ def _contract_signature(contract):
     routes = {f"{r['method']} {r['path']}" for r in contract["routes"]}
     fields = {f"{e}.{f['name']}" for e, spec in contract["entities"].items()
               for f in spec["fields"]}
+    field_types = {f"{e}.{f['name']}": f["type"]
+                   for e, spec in contract["entities"].items()
+                   for f in spec["fields"]}
     # POINT 88 : QUI a le droit d'appeler une route fait partie de l'interface.
     # Le delta ne comparait que méthode+chemin : ouvrir le carnet de commandes
     # à l'administrateur ne créait aucune route nouvelle — seulement un acteur
@@ -775,7 +787,8 @@ def _contract_signature(contract):
             par = "à envoyer par le client" if lien["column"] in designees \
                 else "renseigné par le serveur"
             liens.add(f"{entite}.{lien['column']} → {porte}, {par}")
-    return routes, fields, acces, lecture_seule, prealables, verrous, contenus, liens
+    return (routes, fields, acces, lecture_seule, prealables, verrous,
+            contenus, liens, field_types)
 
 
 def _situer_projet(project_dir, geste):
@@ -802,7 +815,7 @@ def _signature_precedente(project_dir):
     pas encore — auquel cas tout est « ajouté », ce qui est exact."""
     contract_path = os.path.join(project_dir, CONTRACT_FILENAME)
     if not os.path.exists(contract_path):
-        return (set(), set(), set(), set(), set(), set(), {}, set())
+        return (set(), set(), set(), set(), set(), set(), {}, set(), {})
     with open(contract_path, encoding="utf-8") as fh:
         return _contract_signature(json.load(fh))
 
@@ -816,9 +829,9 @@ def _rapporter_delta(ancienne, nouvelle, project_dir, ecrire_brief=True):
     finiraient par diverger — et c'est précisément le calcul dont cinq points
     (88 à 91, 94, 99) ont montré qu'il est difficile à tenir juste."""
     (old_routes, old_fields, old_acces, old_ro, old_prea, old_verrous,
-     old_contenus, old_liens) = ancienne
+     old_contenus, old_liens, old_types) = ancienne
     (new_routes, new_fields, new_acces, new_ro, new_prea, new_verrous,
-     new_contenus, new_liens) = nouvelle
+     new_contenus, new_liens, new_types) = nouvelle
 
     added_routes, removed_routes = new_routes - old_routes, old_routes - new_routes
     added_fields, removed_fields = new_fields - old_fields, old_fields - new_fields
@@ -858,11 +871,14 @@ def _rapporter_delta(ancienne, nouvelle, project_dir, ecrire_brief=True):
     entites_stables = {f.split(".", 1)[0] for f in new_fields & old_fields}
     changed_liens = {li for li in (new_liens - old_liens)
                      if li.split(".", 1)[0] in entites_stables}
+    changed_types = {f"{field} : {old_types[field]} → {new_types[field]}"
+                     for field in (new_fields & old_fields)
+                     if old_types.get(field) != new_types.get(field)}
     changes = any((added_routes, removed_routes, added_fields, removed_fields,
                    added_acces, removed_acces, scelles, liberes,
                    added_prea, removed_prea, added_verrous, removed_verrous,
                    added_contenus, removed_contenus, modifies_contenus,
-                   changed_liens))
+                   changed_liens, changed_types))
     # Le nom seul ne dit pas qu'un champ neuf est en lecture seule ; la rubrique
     # du brief s'intitule « à afficher/saisir », ce qui serait un contresens sur
     # un horodatage ou un total calculé.
@@ -896,6 +912,8 @@ def _rapporter_delta(ancienne, nouvelle, project_dir, ecrire_brief=True):
         print(f"  ! verrou de paiement levé : {item}")
     for item in sorted(changed_liens):
         print(f"  ! rattachement : {item}")
+    for item in sorted(changed_types):
+        print(f"  ! type de champ changé : {item}")
     for item in sorted(added_contenus):
         print(f"  + contenu ajouté : {item}")
     for item in sorted(removed_contenus):
@@ -912,7 +930,8 @@ def _rapporter_delta(ancienne, nouvelle, project_dir, ecrire_brief=True):
                                          added_prea, removed_prea,
                                          added_verrous, removed_verrous,
                                          added_contenus, removed_contenus,
-                                         modifies_contenus, changed_liens)
+                                         modifies_contenus, changed_liens,
+                                         changed_types)
         print(f"  → Consigne prête pour l'IA frontend : {os.path.basename(brief_path)}")
     print("──────────────────────────────────────────────────────────────────")
     return changes
@@ -965,6 +984,54 @@ def cmd_diff(project_dir):
         print("Pour appliquer ce changement et écrire la consigne d'évolution : "
               "monl update")
     return changes
+
+
+def cmd_migrate(project_dir, name=None, down=False, list_only=False):
+    """Applique explicitement une migration du backend déjà compilé."""
+    project_dir, _spec_path = _situer_projet(project_dir, "migrer")
+    app_path = os.path.join(project_dir, "app.py")
+    if not os.path.exists(app_path):
+        print(f" ❌ Artefact manquant : {app_path} — lancer 'monl update'.")
+        raise SystemExit(1)
+    courant = os.getcwd()
+    module = None
+    try:
+        os.chdir(project_dir)
+        if project_dir not in sys.path:
+            sys.path.insert(0, project_dir)
+        module_name = f"_monl_migration_app_{id(project_dir)}"
+        spec = importlib.util.spec_from_file_location(module_name, app_path)
+        if spec is None or spec.loader is None:
+            raise RuntimeError("impossible de charger app.py")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+        if list_only:
+            conn = module._connect()
+            try:
+                module._prepare_database(conn)
+                for migration in module._MIGRATIONS:
+                    state = module._migration_is_applied(conn, migration)
+                    irreversible = any(not op["reversible"] for op in migration["operations"])
+                    suffix = " ; down irréversible (DROP)" if irreversible else " ; down disponible"
+                    status = "✅ appliquée" if state else "⏳ en attente"
+                    print(f"{status}  {migration['name']}{suffix}")
+            finally:
+                conn.close()
+            return
+        if not name:
+            print(" ❌ Indiquer --name NOM, ou utiliser --list.")
+            raise SystemExit(1)
+        module.apply_migration(name, "down" if down else "up")
+    except SystemExit:
+        raise
+    except Exception as error:
+        print(f" ❌ Migration échouée : {error}")
+        raise SystemExit(1) from error
+    finally:
+        os.chdir(courant)
+        if module is not None:
+            sys.modules.pop(module.__name__, None)
 
 
 # --------------------------------------------------------------- retouche --
@@ -1293,6 +1360,16 @@ def _dispatch(argv=None):
         help="Voir le delta du contrat SANS rien recompiler ni écrire.")
     p_diff.add_argument("dir", nargs="?", default=".")
 
+    p_migrate = sub.add_parser(
+        "migrate", help="Appliquer ou défaire une migration de schéma nommée.")
+    p_migrate.add_argument("dir", nargs="?", default=".")
+    p_migrate.add_argument("--name", default=None, metavar="NOM",
+                           help="Nom déclaré par un bloc 'migration'.")
+    p_migrate.add_argument("--down", action="store_true",
+                           help="Défaire la migration quand l'opération est réversible.")
+    p_migrate.add_argument("--list", action="store_true",
+                           help="Afficher l'état des migrations sans en appliquer.")
+
     p_front = sub.add_parser(
         "frontend", help="Générer le frontend par une IA spécialisée, avec "
                          "re-vérification automatique (cohérence + smoke test).")
@@ -1409,6 +1486,8 @@ def _dispatch(argv=None):
         cmd_update(args.dir)
     elif args.command == "diff":
         cmd_diff(args.dir)
+    elif args.command == "migrate":
+        cmd_migrate(args.dir, name=args.name, down=args.down, list_only=args.list)
     elif args.command == "assets":
         if args.assets_command == "add":
             if args.logo and args.favicon:

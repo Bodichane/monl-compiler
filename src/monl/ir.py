@@ -85,6 +85,7 @@ class CompilationIR(TypedDict):
     capabilities: list[str]
     seeds: list[dict[str, Any]]
     assets: dict[str, Any]
+    migrations: list[dict[str, Any]]
 
 
 class CompilationGenerator(Protocol):
