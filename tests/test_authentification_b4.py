@@ -151,7 +151,14 @@ def b4_application(request, tmp_path, faux_smtp):
     env.update({
         "MONL_JWT_SECRET": "b4-integration-secret-32-bytes-min",
         "MONL_TRUST_PROXY": "1",
-        "MONL_TOKEN_TTL_SECONDS": "1",
+        # Court, pour PROUVER que le jeton d'accès expire — mais pas au point
+        # qu'un simple aller-retour HTTP le périme. À 1 seconde, la phase TOTP
+        # échouait par intermittence sous la charge de la suite complète : le
+        # jeton obtenu à la connexion était déjà expiré à l'appel suivant, et
+        # le test dénonçait alors une application saine. C'est le reproche que
+        # la bêta 4 avait déjà traité sur le test du canal temporel : un test
+        # ne doit pas dépendre de la charge de la machine.
+        "MONL_TOKEN_TTL_SECONDS": "3",
         "MONL_SMTP_HOST": faux_smtp.server_address[0],
         "MONL_SMTP_PORT": str(faux_smtp.server_address[1]),
         "MONL_SMTP_FROM": "no-reply@example.invalid",
@@ -388,7 +395,7 @@ def test_authentification_b4_complete_sur_les_deux_moteurs(b4_application):
 
     # 3. Le JWT d'accès expire, le jeton opaque tourne, et il n'est pas
     # interchangeable avec un Bearer JWT.
-    time.sleep(1.3)
+    time.sleep(3.3)  # au-delà de MONL_TOKEN_TTL_SECONDS, réglé à 3
     assert _call("GET", base, "/note", token=alice_token,
                  ip="expired-access").status_code == 401
     refresh = _login(base, alice, "nouveau-alice-8", ip="refresh-login").json()
@@ -417,7 +424,12 @@ def test_authentification_b4_complete_sur_les_deux_moteurs(b4_application):
     assert setup.status_code == 200, setup.text
     secret = setup.json()["secret"]
     assert setup.json()["otpauth_uri"].startswith("otpauth://totp/")
-    enabled = _call("POST", base, "/totp/enable", token=bob_token,
+    # Jeton NEUF : 'setup' et 'enable' sont deux appels, et le jeton d'accès
+    # est volontairement court. Le réutiliser rendrait le test sensible à la
+    # durée du premier appel plutôt qu'au comportement mesuré.
+    enabled = _call("POST", base, "/totp/enable",
+                    token=_token(_login(base, bob, "motdepasse8",
+                                        ip="totp-enable-session")),
                     body={"code": _totp_code(secret)}, ip="totp-enable")
     assert enabled.status_code == 200, enabled.text
     valid = _login(base, bob, "motdepasse8", ip="totp-valid",

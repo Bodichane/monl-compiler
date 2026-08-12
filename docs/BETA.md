@@ -113,8 +113,14 @@ Par ordre de priorité :
    gestionnaire de secrets dédié (Vault, SSM) — le secret vient aujourd'hui de
    l'environnement, ce qui est le contrat attendu par ces gestionnaires mais ne
    les remplace pas.
-4. **Auth complète** : refresh tokens, réinitialisation de mot de passe,
-   verrouillage de compte, vérification email (selon périmètre).
+4. ~~**Auth complète**~~ — **FAIT (point 124)** : verrouillage PAR COMPTE (la
+   limitation du point 9 était par IP), réinitialisation de mot de passe
+   (débloquée par le point 122), jetons de rafraîchissement AVEC ROTATION, et
+   double facteur TOTP hors ligne. Le verrou n'est pas un oracle d'existence :
+   compte verrouillé et compte inexistant rendent la même réponse, à 1,28 ms
+   près. **Reste ouvert** : la vérification d'adresse à l'inscription — monl
+   sait désormais envoyer, mais confirmer une adresse est une décision de
+   parcours (que fait-on d'un compte non confirmé ?) qui n'a pas été prise.
 5. **Gouvernance du DSL** : versionner la grammaire, garantir la
    rétrocompatibilité, politique de dépréciation.
 6. **Isolation d'exécution du code `custom`** (sous-processus à privilèges
