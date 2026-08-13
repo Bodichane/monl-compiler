@@ -494,7 +494,35 @@ import hashlib
 import shlex
 import subprocess
 
+# POINT 134 : CETTE LISTE EST UN INVARIANT *PENDANT* LE PASSAGE DE L'AGENT,
+# PAS UNE DÉCLARATION DE PROPRIÉTÉ. L'empreinte est prise juste avant de
+# lancer l'agent et comparée juste après : l'auteur reste donc parfaitement
+# libre d'adapter son Dockerfile entre deux exécutions. C'est cette confusion
+# qui avait laissé dehors des fichiers EXÉCUTABLES au prétexte qu'ils sont
+# éditables.
+#
+# `manage.py` est le trou grave (revue Codex, vérifiée ligne à ligne) : il
+# CRÉE les comptes administrateurs — c'est la frontière que `selfRegister`
+# tient côté API. Il était scellé dans monl.json mais absent d'ici, et le
+# contrôle de cohérence qui l'aurait vu n'est même pas atteint quand l'agent
+# ne touche pas à frontend/ : `generate_with_cli_agent` retourne un SUCCÈS
+# avant lui. Un agent réécrivant manage.py sans rien changer d'autre n'était
+# donc vu par personne, et le code injecté s'exécutait à la première création
+# de compte privilégié.
+#
+# `Dockerfile` et `.dockerignore` suivent le même raisonnement : ils décrivent
+# ce qui s'exécute au déploiement, y compris des `RUN`.
+#
+# `serve.py` (point 133) n'y était pas parce qu'il n'existait qu'après
+# 'monl run'. Émis dès la compilation, il est là quand l'IA passe, et c'est
+# LUI qui décide quels dossiers sont servis.
+#
+# La liste reste une ÉNUMÉRATION, et c'est sa faiblesse : chaque artefact
+# nouveau doit y être ajouté à la main, et trois l'ont été après coup. La
+# renverser — « rien hors de frontend/ ne bouge » — est la bonne forme, et
+# demande de parcourir le projet entier ; à faire, pas à improviser ici.
 PROTECTED_ARTEFACTS = ("spec.ml", "app.py", "schema.sql", "sandbox_ai.py",
+                       "manage.py", "serve.py", "Dockerfile", ".dockerignore",
                        "frontend_contract.json", "FRONTEND_PROMPT.md",
                        "monl.json", ".jwt_secret")
 

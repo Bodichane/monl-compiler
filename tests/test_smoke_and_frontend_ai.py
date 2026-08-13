@@ -327,6 +327,88 @@ def test_claude_code_ne_peut_pas_toucher_le_backend(project, tmp_path):
     assert any("app.py" in e for e in errors), errors
 
 
+# POINT 134 : l'agent SOURNOIS ne touche PAS à frontend/. C'est tout l'écart
+# avec EVIL_AGENT — et c'est le chemin qui échappait au garde-fou.
+SNEAKY_AGENT = """open("manage.py", "a").write("\\n# porte derobee\\n")
+"""
+
+
+def test_un_agent_ne_peut_pas_reecrire_manage_py(project, tmp_path):
+    """manage.py CRÉE les comptes administrateurs — c'est la frontière que
+    `selfRegister` tient côté API. Il était scellé dans monl.json mais absent
+    des artefacts dont l'empreinte est comparée avant/après le passage de
+    l'agent.
+
+    Le pire cas est reproduit ici : un frontend VALIDE existe déjà et l'agent
+    n'y touche pas. `generate_with_cli_agent` retourne alors un SUCCÈS avant
+    même d'appeler `check_coherence` — donc sans le correctif, monl répondait
+    « rien n'est cassé » sur un manage.py piégé. Le code injecté s'exécutait à
+    la première création de compte privilégié.
+    """
+    frontend = project / "frontend"
+    frontend.mkdir(exist_ok=True)
+    (frontend / "index.html").write_text(
+        "<html><body>déjà là</body></html>", encoding="utf-8")
+    avant = (project / "manage.py").read_text(encoding="utf-8")
+
+    agent = _fake_agent(tmp_path, SNEAKY_AGENT)
+    ok, errors = generate_with_claude_code(str(project), command=agent, say=_quiet)
+
+    assert not ok, "un manage.py réécrit doit faire ÉCHOUER la construction"
+    assert any("manage.py" in e for e in errors), errors
+    # Le fichier reste sur disque — monl dit de le restaurer, il ne le fait
+    # pas à votre place (point 73). Le test le CONSTATE plutôt que de laisser
+    # croire à une remise en état.
+    assert (project / "manage.py").read_text(encoding="utf-8") != avant
+
+
+# L'agent fait un VRAI travail de frontend — et en profite au passage. C'est
+# le cas qui passait tous les contrôles : empreintes protégées OK, cohérence
+# OK, smoke test OK (il ne lit pas le Dockerfile), succès annoncé.
+SABOTEUR_DOCKER = """os.makedirs("frontend", exist_ok=True)
+open("frontend/index.html", "w").write("<html><body>ok</body></html>")
+open("Dockerfile", "w").write(
+    open("Dockerfile").read().replace('"serve:app"', '"app:app"'))
+"""
+
+SABOTEUR_SECRET = """os.makedirs("frontend", exist_ok=True)
+open("frontend/index.html", "w").write("<html><body>ok</body></html>")
+open(".dockerignore", "w").write("*.db\\n__pycache__\\n")
+"""
+
+
+def test_un_agent_ne_peut_pas_remettre_le_conteneur_en_404(project, tmp_path):
+    """Annuler le point 133 dans le Dockerfile ne casse RIEN de vérifiable :
+    la cohérence passe, le smoke test ne lit pas le Dockerfile, et l'image
+    suivante répond à nouveau 404 sur /site. Seule l'empreinte protégée
+    pouvait le voir — et elle ne regardait pas ce fichier."""
+    agent = _fake_agent(tmp_path, SABOTEUR_DOCKER)
+    ok, errors = generate_with_claude_code(str(project), command=agent, say=_quiet)
+    assert not ok
+    assert any("Dockerfile" in e for e in errors), errors
+
+
+def test_un_agent_ne_peut_pas_faire_embarquer_le_secret_jwt(project, tmp_path):
+    """Le pire des deux : `.dockerignore` exclut `.jwt_secret` du `COPY . .`
+    du gabarit. L'en retirer fait entrer le secret de signature des jetons
+    dans l'image — donc dans tout registre où elle est poussée. Aucun autre
+    contrôle de monl ne regarde ce fichier."""
+    agent = _fake_agent(tmp_path, SABOTEUR_SECRET)
+    ok, errors = generate_with_claude_code(str(project), command=agent, say=_quiet)
+    assert not ok
+    assert any(".dockerignore" in e for e in errors), errors
+
+
+def test_tout_ce_qui_sexecute_hors_frontend_est_protege():
+    """L'empreinte protégée est un invariant PENDANT le passage de l'agent,
+    pas une déclaration de propriété : l'auteur adapte son Dockerfile entre
+    deux exécutions sans que ça gêne. C'est cette confusion qui avait laissé
+    dehors des fichiers exécutables au prétexte qu'ils sont éditables."""
+    from monl.frontend_ai import PROTECTED_ARTEFACTS
+    for nom in ("manage.py", "serve.py", "Dockerfile", ".dockerignore"):
+        assert nom in PROTECTED_ARTEFACTS, nom
+
+
 # ─────────────────────────────────────────────────────────────────────
 # POINT 69 : n'importe quelle clé API, n'importe quel agent
 #

@@ -41,10 +41,10 @@ def _environnement(**valeurs):
 
 
 @contextlib.contextmanager
-def _serveur(projet, **variables):
+def _serveur(projet, module="app:app", **variables):
     port = _port_libre()
     processus = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "app:app", "--host", "127.0.0.1",
+        [sys.executable, "-m", "uvicorn", module, "--host", "127.0.0.1",
          "--port", str(port), "--no-access-log"],
         cwd=str(projet), env=_environnement(**variables),
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
@@ -211,3 +211,130 @@ def test_les_healthchecks_ne_sont_pas_dans_le_contrat_frontend(projet):
 
     assert "/health" not in chemins
     assert "/health/ready" not in chemins
+
+
+# --------------------------------------------------------------------------
+# POINT 133 : le conteneur sert le SITE, pas seulement l'API
+# --------------------------------------------------------------------------
+
+def test_le_wrapper_est_ecrit_des_la_compilation(projet):
+    """Il n'était écrit que par 'monl run'. Le Dockerfile, lui, est produit par
+    'monl compile' : l'image ne pouvait donc pas le lancer."""
+    wrapper = projet / "serve.py"
+    assert wrapper.exists()
+    etat = json.loads((projet / "monl.json").read_text(encoding="utf-8"))
+    assert "serve.py" in etat["backend_sha256"], (
+        "le wrapper décide quels dossiers sont servis : il doit être scellé "
+        "comme le reste du backend généré")
+
+
+def test_le_conteneur_lance_le_wrapper_et_non_lapi_nue(projet):
+    contenu = (projet / "Dockerfile").read_text(encoding="utf-8")
+    assert '"serve:app"' in contenu
+    assert '"app:app"' not in contenu
+
+
+def test_un_dockerfile_herite_est_rafraichi(projet):
+    """Un gabarit jamais touché se rafraîchit ; un fichier personnalisé non
+    (c'est le test voisin qui garde ce second versant). Sans ce rattrapage,
+    tout projet déjà compilé garderait un conteneur qui répond 404 sur /site,
+    et rien ne le lui dirait."""
+    from monl.cli import DOCKERFILES_HERITES
+    dockerfile = projet / "Dockerfile"
+    dockerfile.write_text(DOCKERFILES_HERITES[0], encoding="utf-8")
+    compile_project(str(projet / "spec.ml"), str(projet))
+    assert '"serve:app"' in dockerfile.read_text(encoding="utf-8")
+
+
+def test_le_wrapper_est_protege_de_lia():
+    """Il est là quand l'agent d'interface passe, et c'est LUI qui décide
+    quels dossiers sont servis."""
+    from monl.frontend_ai import PROTECTED_ARTEFACTS
+    assert "serve.py" in PROTECTED_ARTEFACTS
+
+
+def test_le_wrapper_demarre_sans_frontend(projet):
+    """L'interface est construite APRÈS la compilation : le wrapper doit
+    démarrer avant qu'elle n'existe, sinon l'image ne démarrerait pas du tout.
+    Et l'absence est DITE — un /site en 404 muet est le défaut que ce wrapper
+    existe pour empêcher."""
+    assert not (projet / "frontend").exists()
+    with _serveur(projet, module="serve:app") as (base, processus):
+        assert requests.get(f"{base}/health", timeout=5).status_code == 200
+        assert requests.get(f"{base}/site/", timeout=5).status_code == 404
+    assert "frontend/ absent" in (processus._monl_sortie or "")
+
+
+def test_le_wrapper_sert_le_site_quand_le_frontend_existe(projet):
+    frontend = projet / "frontend"
+    frontend.mkdir()
+    (frontend / "index.html").write_text(
+        "<!doctype html><title>Vitrine</title><p>ok", encoding="utf-8")
+    with _serveur(projet, module="serve:app") as (base, _processus):
+        page = requests.get(f"{base}/site/", timeout=5)
+        assert page.status_code == 200
+        assert "Vitrine" in page.text
+
+
+# --------------------------------------------------------------------------
+# POINT 134 : le scellé du wrapper, jusqu'au bout
+# --------------------------------------------------------------------------
+
+def test_un_artefact_scelle_mais_absent_fait_echouer_la_coherence(projet):
+    """La boucle ne comparait un artefact que s'il EXISTAIT : un fichier
+    disparu ne disait rien. Depuis le point 133, 'monl run --check' pouvait
+    donc certifier « cohérence vérifiée » sur un projet dont le Dockerfile
+    lance `serve:app` alors que le module n'est plus là. Le trou valait aussi
+    pour manage.py et sandbox_ai.py — il ne se voyait pas parce qu'aucun
+    artefact n'était encore désigné par le conteneur."""
+    from monl.cli import check_coherence
+    (projet / "serve.py").unlink()
+    ok, erreurs, _ = check_coherence(str(projet))
+    assert not ok
+    assert any("serve.py" in e and "absent" in e for e in erreurs), erreurs
+
+
+def test_monl_run_ninvalide_pas_letat_quil_vient_de_verifier(projet, monkeypatch):
+    """'monl run' réécrivait le wrapper à chaque lancement. Depuis qu'il est
+    scellé, cette réécriture se retournait contre le projet : qu'une version
+    ultérieure de monl change le rendu, et le lancement SUIVANT refusait de
+    démarrer en accusant à tort une « modification à la main »."""
+    import monl.cli as cli
+    from monl.cli import check_coherence, cmd_run
+    rendu = cli.rendre_wrapper
+    monkeypatch.setattr(cli, "rendre_wrapper",
+                        lambda a=None: rendu(a) + "\n# version ultérieure\n")
+    monkeypatch.setattr(cli.subprocess, "run", lambda *a, **k: None)
+
+    cmd_run(str(projet), skip_smoke=True)
+
+    ok, erreurs, _ = check_coherence(str(projet))
+    assert ok, erreurs
+
+
+def test_un_projet_ancien_recoit_son_wrapper_au_lancement(projet, monkeypatch):
+    """Le pendant du test précédent : ne plus réécrire ne doit pas priver de
+    wrapper un projet compilé par un monl antérieur, qui n'en a pas et dont
+    l'état n'en scelle aucun. Il n'a rien à contredire, donc on l'écrit."""
+    import monl.cli as cli
+    from monl.cli import cmd_run
+    (projet / "serve.py").unlink()
+    etat = json.loads((projet / "monl.json").read_text(encoding="utf-8"))
+    etat["backend_sha256"].pop("serve.py")
+    (projet / "monl.json").write_text(json.dumps(etat, indent=2), encoding="utf-8")
+    monkeypatch.setattr(cli.subprocess, "run", lambda *a, **k: None)
+
+    cmd_run(str(projet), skip_smoke=True)
+
+    assert (projet / "serve.py").exists()
+
+
+def test_le_gabarit_herite_upload_est_rafraichi_aussi(projet):
+    """Deux gabarits ont réellement été émis dans l'histoire du dépôt : la
+    forme de base et la variante Upload. Ne rattraper que la première
+    laisserait tout projet à téléversement avec un conteneur en 404."""
+    from monl.cli import DOCKERFILES_HERITES
+    dockerfile = projet / "Dockerfile"
+    dockerfile.write_text(DOCKERFILES_HERITES[1], encoding="utf-8")
+    compile_project(str(projet / "spec.ml"), str(projet))
+    assert '"serve:app"' in dockerfile.read_text(encoding="utf-8")

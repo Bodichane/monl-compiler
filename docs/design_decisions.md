@@ -49,6 +49,8 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [130](#130-une-sonde-qui-prouve-quun-worker-repond-ne-prouve-rien-des-autres) Une sonde qui prouve qu'UN worker répond ne prouve rien des autres ·
 [131](#131-fedapay--la-devise-quil-encaisse-vraiment-et-lappariement-prouve-du-webhook) FedaPay : la devise qu'il encaisse vraiment, et l'appariement prouvé du webhook ·
 [132](#132-le-serveur-mourait-au-demarrage-a-plusieurs-workers) Le serveur mourait au démarrage à plusieurs workers ·
+[133](#133-limage-servait-lapi-et-repondait-404-sur-le-site) L'image servait l'API et répondait 404 sur le site ·
+[134](#134-la-frontiere-de-lagent-etait-une-enumeration-incomplete) La frontière de l'agent était une énumération incomplète ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -8632,3 +8634,158 @@ Seuls `app.py` et `monl.json` (qui scelle son empreinte) bougent :
 `schema.sql`, `manage.py` et le `Dockerfile` restent identiques à l'octet
 près. Le changement vit dans le runtime et nulle part ailleurs — les goldens
 du point 122 servent ici exactement à ça.
+
+
+## 133. L'image servait l'API et répondait 404 sur le site
+
+Trouvé en cherchant ce qui manquait pour mettre CodexShop en ligne comme
+vitrine publique — donc en construisant réellement l'image, pas en relisant le
+`Dockerfile`.
+
+```
+/product                       200   <- l'API répond
+/docs                          200
+/site/                         404   <- la vitrine
+/site/assets/carnet-lin.webp   404   <- les photos
+```
+
+**La cause est une frontière mal placée entre deux commandes.** Le `Dockerfile`
+est produit par `monl compile` et lance `uvicorn app:app`. Or `app.py` ne monte
+rien : c'est `serve.py` qui monte `frontend/` sur `/site` et `assets/` avant lui
+(brique 13, point 83) — et `serve.py` n'était écrit que par `monl run`. Le
+conteneur ne pouvait donc pas le lancer, puisqu'il n'existait pas au moment où
+l'image se construit. **Un produit dont l'argument est « un site livré »
+livrait une API sans site**, et le seul moyen de s'en apercevoir était de
+déployer.
+
+### La correction, et les quatre décisions qu'elle porte
+
+**`serve.py` est émis par `monl compile`.** Le dossier d'assets vient du
+CONTRAT, déjà dérivé de la spec et vérifié cohérent avec elle — relire la spec
+ici ferait un second parseur à faire dériver. C'est le pendant exact
+d'`_assets_dir_du_projet`, côté compilation.
+
+**Le wrapper tolère l'absence de `frontend/`, et le DIT.** L'interface est
+construite APRÈS la compilation : le wrapper est donc émis avant qu'elle
+n'existe et doit démarrer quand même, sinon l'image ne démarrerait pas du tout.
+Mais un montage absent en silence est précisément le défaut qu'on répare — d'où
+une ligne sur stderr au démarrage, et le même message dans `monl run`.
+
+**`monl run` lance TOUJOURS `serve:app`.** Il choisissait auparavant entre
+`app:app` et `serve:app` selon la présence d'un frontend. Le garder aurait
+laissé deux comportements pour un seul projet — celui qu'on éprouve en local et
+celui qui part en production — dont un seul serait vérifié.
+
+**Un `Dockerfile` hérité se rafraîchit, un `Dockerfile` personnalisé non.** Sans
+rattrapage, tout projet déjà compilé garderait un conteneur qui répond 404 sur
+`/site`, et rien ne le lui dirait ; en rafraîchissant sans condition, on
+écraserait l'adaptation locale de l'auteur. Le départage se fait à l'octet
+près : un fichier resté identique à l'un des gabarits connus n'a jamais été
+touché par personne. C'est l'arbitrage déjà retenu pour le gabarit Upload,
+repris tel quel et généralisé.
+
+### Deux effets de bord, tous deux voulus
+
+`serve.py` rejoint **`SCELLE_ARTEFACTS`** : il est généré, il porte « ne pas
+éditer » dans sa première ligne, et c'est lui qui décide quels dossiers sont
+servis. Un projet compilé par un monl antérieur n'a pas la clé dans son
+`monl.json` — la vérification ne compare que les empreintes ENREGISTRÉES, donc
+rien ne casse, et `monl run` réécrit le wrapper à chaque lancement.
+
+`serve.py` rejoint **`PROTECTED_ARTEFACTS`** (le garde-fou d'empreinte du
+point 73). Il n'y était pas parce qu'il n'existait qu'après `monl run`, donc
+rarement au moment où l'agent d'interface travaille. Émis dès la compilation,
+il est là quand l'IA passe — et le laisser dehors reviendrait à protéger le
+backend tout en laissant réécrire ce qui l'expose.
+
+### La preuve
+
+Image construite et lancée pour de vrai : avec `frontend/`, `/site/` rend
+70 904 octets et la photo 122 560 ; sans `frontend/`, le conteneur démarre,
+`/product` répond 200, `/site/` rend 404, et le journal dit pourquoi. Six tests
+dans `tests/test_deploiement.py`, tous en échec sans la correction. Les
+empreintes figées confirment la portée : seuls `Dockerfile`, `monl.json` et le
+nouveau `serve.py` bougent — `app.py`, `schema.sql`, `manage.py` et
+`sandbox_ai.py` restent identiques à l'octet.
+
+
+## 134. La frontière de l'agent était une énumération incomplète
+
+Le point 133 a été soumis à une revue indépendante (Codex, `gpt-5.6-sol`,
+lecture seule). Elle a confirmé le correctif et rapporté quatre défauts, dont
+deux introduits par lui et deux préexistants. **Tous ont été revérifiés ici,
+en exécutant** — une revue qui affirme n'est pas une revue qui prouve.
+
+### Deux défauts introduits par le point 133
+
+**Un artefact scellé mais ABSENT ne disait rien.** La boucle de vérification
+lisait `if os.path.exists(chemin) and _sha256_file(...) != attendu` : un
+fichier disparu sortait par la première condition. Vérifié — `serve.py`
+supprimé après compilation, `check_coherence` rend `ok=True`, sans une
+erreur. Le trou existait déjà pour `manage.py` et `sandbox_ai.py` ; il ne se
+voyait pas parce qu'aucun artefact n'était encore DÉSIGNÉ par le conteneur.
+Depuis le point 133, `monl run --check` pouvait certifier « cohérence
+vérifiée » sur un projet dont le `Dockerfile` lance `serve:app` alors que le
+module n'est plus là. Un artefact enregistré et manquant est désormais une
+erreur qui le nomme.
+
+**`monl run` invalidait l'état qu'il venait de vérifier.** Il réécrivait le
+wrapper à chaque lancement — inoffensif tant que le fichier n'était scellé
+nulle part. Scellé, la réécriture devient une bombe à retardement : qu'une
+version ultérieure de monl change le rendu du wrapper, et `monl run` écrit un
+texte que `monl.json` ne reconnaît pas ; **le lancement SUIVANT refuse de
+démarrer en accusant à tort une « modification à la main »**. Reproduit ici en
+simulant une V2 du rendu. Le wrapper n'est donc plus écrit que s'il MANQUE, ou
+si l'état ne le scelle pas — c'est-à-dire pour un projet compilé par un monl
+antérieur, qui n'a rien à contredire. Le rafraîchir reste le travail de
+`monl update`, qui recompile ET réenregistre l'empreinte. Le témoin est gardé :
+un projet ancien sans wrapper en reçoit toujours un au lancement.
+
+### La vraie leçon : deux listes, deux sens, et une confusion
+
+`SCELLE_ARTEFACTS` dit « ceci est généré, ne le retouchez pas ».
+`PROTECTED_ARTEFACTS` (point 73) dit tout autre chose : **l'empreinte est prise
+juste avant de lancer l'agent et comparée juste après**. C'est un invariant
+PENDANT un appel, pas une déclaration de propriété — l'auteur reste
+parfaitement libre d'adapter son `Dockerfile` entre deux exécutions.
+
+Cette confusion a laissé dehors des fichiers EXÉCUTABLES au prétexte qu'ils
+sont éditables :
+
+- **`manage.py`** — il CRÉE les comptes administrateurs, c'est la frontière que
+  `selfRegister` tient côté API. Scellé dans `monl.json`, absent d'ici. Et le
+  contrôle de cohérence qui l'aurait vu **n'est même pas atteint** quand
+  l'agent ne touche pas à `frontend/` : `generate_with_cli_agent` retourne un
+  SUCCÈS avant lui. Un agent réécrivant `manage.py` sans rien changer d'autre
+  n'était donc vu par personne, et le code injecté s'exécutait à la première
+  création de compte privilégié — par le chemin légitime et documenté.
+- **`Dockerfile`** — un agent qui fait un vrai travail de frontend et remet
+  `app:app` au passage annule le point 133 sans qu'aucun contrôle ne bronche :
+  la cohérence passe, le smoke test ne lit pas ce fichier, le succès est
+  annoncé, et l'image suivante répond de nouveau 404.
+- **`.dockerignore`** — le pire des trois. Il exclut `.jwt_secret` du
+  `COPY . .` du gabarit. L'en retirer fait entrer **le secret de signature des
+  jetons dans l'image**, donc dans tout registre où elle est poussée.
+
+Les quatre noms rejoignent `PROTECTED_ARTEFACTS`. Trois tests de sabotage les
+éprouvent, chacun avec un agent qui produit un frontend valide et triche à
+côté — le cas qui passait tous les contrôles.
+
+### Ce que cette liste reste, et qu'il faudra changer
+
+Une ÉNUMÉRATION. Chaque artefact nouveau doit y être ajouté à la main, et
+**quatre l'ont été après coup**. La bonne forme est l'inverse — « rien hors de
+`frontend/` ne bouge » — et demande de parcourir le projet entier. C'est une
+brique à faire, pas à improviser dans un correctif : elle doit décider du sort
+des fichiers que l'auteur dépose lui-même (`assets/`, un `README`), et se
+tromper dans ce sens-là rendrait `monl frontend` inutilisable.
+
+### Ce que la revue a cherché sans rien trouver
+
+Le rattrapage du `Dockerfile` hérité n'écrase aucun fichier personnalisé :
+l'égalité est exigée à l'octet près, un commentaire suffit à préserver. Les
+deux gabarits réellement émis dans l'histoire du dépôt sont reconnus — la
+variante Upload manquait au test, elle y est. Le wrapper tolérant ne masque
+aucun échec qui devait être bruyant : juste après `monl compile`, l'absence de
+`frontend/` est normale par ordre de travail, et faire lever `StaticFiles`
+rendrait inutilisable une image fraîchement compilée.
