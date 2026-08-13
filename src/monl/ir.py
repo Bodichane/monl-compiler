@@ -67,6 +67,12 @@ class SecurityIR(TypedDict):
     auth_identifier: list[str] | None
     auth_phone_prefix: str | None
     auth_features: dict[str, Any]
+    # BRIQUE 2a : {'code': 'XOF', 'exponent': 0} ou None. L'exposant est
+    # RESOLU par le validateur, jamais recalcule ici : deux tables de devises
+    # finiraient par diverger, et une divergence d'unite se paie sur le releve
+    # bancaire.
+    payment_currency: dict[str, Any] | None
+    payment_provider: str | None
     enumerated_fields: dict[str, dict[str, list[str]]]
     filterable_fields: list[dict[str, Any]]
     sortable_fields: list[dict[str, Any]]
@@ -227,6 +233,8 @@ class CompilationPlans:
     auth_identifier: tuple[str, ...] | None
     auth_phone_prefix: str | None
     auth_features: Mapping[str, Any]
+    payment_currency: Mapping[str, Any] | None
+    payment_provider: str | None
     public_conditions: Mapping[tuple[str, str], Mapping[str, Any]]
     required_profiles: Mapping[str, str]
     payable_by_entity: Mapping[str, str]

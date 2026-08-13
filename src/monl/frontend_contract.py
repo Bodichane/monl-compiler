@@ -657,6 +657,16 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
     # d'appeler un chemin absent de `routes`. Une brique que le contrat ne
     # décrit pas est une brique sans interface.
     payables = plans.payable_by_entity
+    # BRIQUE 2a : la DEVISE fait partie de l'interface. Sans elle, l'IA écrit
+    # « € » parce que c'est ce qu'elle a vu partout ailleurs, et une boutique
+    # de Cotonou affiche des euros sur des francs CFA. L'exposant voyage avec
+    # le code : c'est lui qui dit s'il faut diviser `montant_centimes` par cent
+    # (euro) ou pas du tout (franc CFA).
+    devise = plans.payment_currency or {"code": "EUR", "exponent": 2}
+    # BRIQUE 2b : le prestataire fait partie de l'interface. « Payer par
+    # carte » et « Payer par Mobile Money » ne se dessinent pas pareil, et
+    # l'IA écrirait « carte bancaire » par défaut faute de le savoir.
+    prestataire = plans.payment_provider or "stripe"
     for entite, champ in sorted(payables.items()):
         # POINT 87 : sous propriété transitive, « appartient » se lit à travers
         # l'intermédiaire, et un enregistrement dont l'intermédiaire a disparu
@@ -675,8 +685,28 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
             note=(via + "Ouvre une session de règlement pour cet enregistrement. "
                   "AUCUN corps : le montant est lu dans la base depuis "
                   f"`{champ}`, jamais reçu du client. Réponse : {{status, url, "
-                  "session_id, montant_centimes} — rediriger le navigateur "
-                  "vers `url`. 403 si l'enregistrement appartient à "
+                  "session_id, montant_centimes, devise, montant} — rediriger "
+                  "le navigateur vers `url`. "
+                  # Le nom `montant_centimes` est conservé (point 95 : le
+                  # renommer casserait le bouton « Payer » de tout projet
+                  # existant), mais il ne veut PAS dire « centimes » partout :
+                  # c'est l'unité mineure de la devise. Le dire est la seule
+                  # façon d'empêcher une interface de diviser par cent un
+                  # montant en francs CFA.
+                  + (f"Le règlement passe par **{prestataire}** : "
+                     + ("le payeur choisit son opérateur de MOBILE MONEY "
+                        "(MTN MoMo, Moov, Wave) sur la page du prestataire — "
+                        "ne pas écrire « carte bancaire ». "
+                        if prestataire == "fedapay"
+                        else "le payeur règle par carte sur la page du "
+                             "prestataire. "))
+                  + f"Les montants sont en **{devise['code']}** : afficher "
+                  f"`montant` tel quel avec ce code, et ne JAMAIS diviser "
+                  f"`montant_centimes` par cent sans regarder l'exposant — "
+                  + ("cette devise n'a pas de sous-unité, les deux champs "
+                     "portent la même valeur. " if devise["exponent"] == 0
+                     else f"ici l'exposant vaut {devise['exponent']}. ")
+                  + "403 si l'enregistrement appartient à "
                   "quelqu'un d'autre, 409 s'il est déjà réglé, 503 si le "
                   "serveur n'a pas de clé de paiement configurée. "
                   # Point 76 : boucler la boucle. Savoir ouvrir un règlement
@@ -791,12 +821,28 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
     }
     if message_contracts:
         business_rules["messages"] = message_contracts
+    # BRIQUE 2a : la devise n'est déclarée QUE s'il y a quelque chose à
+    # encaisser. Une spec sans `payable` n'ajoute donc aucune clé, et son
+    # contrat reste identique à l'octet — condition pour qu'une brique nouvelle
+    # ne réécrive pas les projets qui ne s'en servent pas.
+    if plans.payable_by_entity:
+        business_rules["payment"] = {
+            "provider": prestataire,
+            "currency": devise["code"],
+            # L'exposant est DONNÉ, pas laissé à déduire : c'est lui qui dit si
+            # `montant_centimes` se divise par cent ou pas, et une interface
+            # qui devrait connaître la liste des devises sans sous-unité
+            # finirait par se tromper sur la moins courante.
+            "minor_unit_exponent": devise["exponent"],
+        }
     auth_contract = {
         # AJOUT (bêta 3) : seuls les rôles marqués 'selfRegister' dans la
         # spec peuvent être choisis à l'inscription — les autres sont
         # provisionnés hors ligne (manage.py) et renvoient 403 ici.
         # L'interface ne doit donc proposer QUE cette liste.
         "register": {"method": "POST", "path": "/register",
+                     "response": {"status": "'success'",
+                                  "user_id": "int — l'identifiant du compte créé"},
                      "self_register_actors": list(plans.self_register_actors),
                      "body": {"username": _libelle_identifiant(plans.auth_identifier),
                               "password": "str (8+ caractères)",
@@ -815,11 +861,37 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
                           "les comptes sont créés par manage.py"),
                          _note_identifiant(plans.auth_identifier,
                                            plans.auth_phone_prefix))},
+        # POINT 76 APPLIQUÉ À L'AUTHENTIFICATION. Le contrat doit dire ce que
+        # le backend renvoie VRAIMENT, pas seulement qu'il renvoie quelque
+        # chose. `returns` annonçait « un token JWT » sans jamais NOMMER la
+        # clé JSON : une IA d'interface devait deviner entre `token`,
+        # `access_token` et `jwt`. Trompée, elle envoie
+        # `Authorization: Bearer undefined` — et c'est le pire cas de figure :
+        # aucune exception JavaScript, aucun appel hors contrat, donc LE SMOKE
+        # TEST PASSE et personne ne peut se connecter.
+        #
+        # Que ce soit un oubli et non un choix se lit dans le brief lui-même :
+        # la réponse paginée y est nommée au caractère près depuis toujours
+        # (`{status, total, limit, offset, data}`), et la brique B4 nomme son
+        # `refresh_token`. Seule la réponse d'origine ne s'était jamais
+        # décrite.
+        #
+        # AUCUNE entrée nouvelle dans `_contract_signature` (cli.py), et c'est
+        # délibéré : la seule chose qui fasse varier cette forme est
+        # `capability refresh_tokens`, dont la configuration est déjà hachée
+        # sous « authentification B4 ». Ajouter un second témoin de la même
+        # variation ferait rapporter deux fois le même changement.
         "login": {"method": "POST", "path": "/login",
                   "body": {"username": "str", "password": "str"},
-                  "returns": "un token JWT (validité 2 h par défaut, "
+                  "response": {
+                      "access_token": "str — le JWT, à placer dans l'en-tête "
+                                      "Authorization: Bearer",
+                      "token_type": "'bearer'"},
+                  "returns": "un token JWT dans le champ `access_token` "
+                             "(validité 2 h par défaut, "
                              "réglable par MONL_TOKEN_TTL_HOURS)"},
-        "logout": {"method": "POST", "path": "/logout"},
+        "logout": {"method": "POST", "path": "/logout",
+                   "response": {"status": "'success'", "detail": "str"}},
         "header": "Authorization: Bearer <token> sur toute route non publique",
         "rate_limit": "5 tentatives / 60 s / IP sur /register et /login",
     }
@@ -828,8 +900,12 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
             "str (6 chiffres, requis après activation du double facteur)")
     if auth_features.get("refresh_tokens"):
         auth_contract["login"]["returns"] = (
-            "un token JWT d'accès (validité réglable par "
-            "MONL_TOKEN_TTL_SECONDS) et un jeton de rafraîchissement opaque")
+            "un token JWT d'accès dans `access_token` (validité réglable par "
+            "MONL_TOKEN_TTL_SECONDS) et un jeton de rafraîchissement opaque "
+            "dans `refresh_token`")
+        auth_contract["login"]["response"]["refresh_token"] = (
+            "str — jeton OPAQUE de rafraîchissement (ce n'est pas un JWT), "
+            "à conserver et à rejouer sur POST /refresh")
     b4_contract = {}
     if auth_features.get("lockout"):
         b4_contract["account_lockout"] = {
@@ -1429,9 +1505,12 @@ ci-dessous. Le backend existe déjà et ne doit pas être modifié.
   premier `monl run --port` et fait échouer le smoke test.
 - Authentification : `POST /register` (username, password 8+, actor parmi
   {contract['self_register_actors'] or "AUCUN — inscription fermée, ne pas "
-   "construire de formulaire d'inscription"}), `POST /login` → token JWT, à
-  envoyer ensuite en en-tête `Authorization: Bearer <token>` sur toute route
-  non publique. Les rôles déclarés mais absents de cette liste
+   "construire de formulaire d'inscription"}) → `{{status, user_id}}`,
+  `POST /login` → `{{access_token, token_type}}`. Le JWT est dans
+  `access_token` — le lire sous CE nom exact, puis l'envoyer en en-tête
+  `Authorization: Bearer <access_token>` sur toute route non publique. Lire
+  un autre nom ne lève aucune erreur : la requête part avec
+  `Bearer undefined` et le serveur répond 401 sans que rien ne dise pourquoi. Les rôles déclarés mais absents de cette liste
   ({[a for a in contract['actors'] if a not in contract['self_register_actors']] or "aucun"})
   sont provisionnés hors ligne : ils se connectent par `/login`, jamais par
   `/register`.{identifiant_block}{auth_feature_block}

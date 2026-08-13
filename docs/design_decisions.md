@@ -41,6 +41,12 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [122](#122-monl-sait-envoyer-un-message-sans-promettre-sa-remise) Envoi de message sans promettre sa remise ·
 [123](#123-filtrer-et-trier-sans-inventer-un-langage-de-requête) Filtrer et trier sans inventer un langage de requête ·
 [124](#124-authentification-complète--verrouillage-réinitialisation-rafraîchissement-et-totp) Authentification complète : verrouillage, réinitialisation, rafraîchissement et TOTP ·
+[125](#125-le-contrat-nommait-le-jeton-sans-dire-sous-quel-nom-le-lire) Le contrat nommait le jeton sans dire sous quel nom le lire ·
+[126](#126-la-devise-dencaissement-et-son-exposant) La devise d'encaissement et son exposant ·
+[127](#127-la-demonstration-nallait-plus-chercher-ses-images-chez-un-tiers) La démonstration n'allait plus chercher ses images chez un tiers ·
+[128](#128-encaisser-par-mobile-money--le-prestataire-devient-enfichable) Encaisser par mobile money : le prestataire devient enfichable ·
+[129](#129-loracle-temporel-se-mesure-par-paires-jamais-par-series) L'oracle temporel se mesure par PAIRES, jamais par séries ·
+[130](#130-une-sonde-qui-prouve-quun-worker-repond-ne-prouve-rien-des-autres) Une sonde qui prouve qu'UN worker répond ne prouve rien des autres ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -8079,3 +8085,388 @@ ce point se connecte encore après recompilation, et le serveur ANNONCE au
 démarrage : « 1 compte(s) restent sans double facteur TOTP : aucune activation
 n'est inventée. » C'est le motif du point 89, mot pour mot : la migration
 rattrape une colonne, jamais son contenu.
+
+## 125. Le contrat nommait le jeton sans dire sous quel nom le lire
+
+**Trouvé en éprouvant autre chose.** Le chantier en cours était de prouver que
+monl s'utilise sans carte bancaire : compiler hors ligne, écrire le frontend
+depuis `FRONTEND_PROMPT.md` dans un assistant gratuit, l'installer par
+`monl import`. En jouant ce rôle — écrire l'interface à la main, avec pour
+seule documentation le brief — la question s'est posée d'elle-même : **sous
+quel nom le jeton arrive-t-il ?**
+
+Le brief disait « `POST /login` → token JWT ». Le contrat disait
+`"returns": "un token JWT (validité 2 h…)"`. Ni l'un ni l'autre ne nommait la
+clé JSON. Le serveur, lui, renvoie `{'access_token': …, 'token_type':
+'bearer'}` (`runtime.py`).
+
+**Pourquoi c'est le pire cas de figure.** Une IA d'interface qui devine `token`
+lit `undefined` et envoie `Authorization: Bearer undefined`. Il n'y a alors
+aucune exception JavaScript à signaler, et aucun appel hors contrat à
+dénoncer : **le smoke test passe, `monl run` démarre, et personne ne peut se
+connecter.** Un défaut qui franchit le vérificateur est plus grave qu'un défaut
+bruyant — c'est exactement ce que le point 73 disait des frontends qui passent
+tous les contrôles sans avoir été construits.
+
+**Que ce soit un oubli et non un choix se lit dans le brief lui-même.** La
+réponse paginée y est nommée au caractère près depuis toujours
+(`{status, total, limit, offset, data}`), et la brique B4 nomme son
+`refresh_token` (point 124). Seule la réponse d'origine — la plus ancienne, la
+seule que tout projet utilise — ne s'était jamais décrite. C'est la forme la
+plus banale de l'angle mort du point 76 : *le contrat doit décrire ce que le
+backend renvoie VRAIMENT*, et on l'avait appliqué à toutes les briques
+nouvelles sans jamais le retourner vers les routes historiques.
+
+**Ce qui a été écrit.** `register`, `login` et `logout` portent désormais une
+clé `response` machine-lisible qui NOMME chaque champ, et le brief donne les
+deux formes en clair. La ligne du brief dit aussi ce qui arrive quand on se
+trompe — « la requête part avec `Bearer undefined` et le serveur répond 401
+sans que rien ne dise pourquoi » — parce qu'une règle sans sa conséquence se
+contourne sans le savoir.
+
+**La question de `_contract_signature`, posée AVANT d'écrire** (elle a manqué
+onze fois, points 88 à 116) : la réponse est **aucune entrée nouvelle**, et
+c'est délibéré. La seule chose qui fasse varier cette forme est `capability
+refresh_tokens`, dont la configuration complète est déjà hachée sous
+« authentification B4 ». Un second témoin de la même variation ferait
+rapporter deux fois le même changement — même arbitrage anti-doublon qu'aux
+points 88 à 90.
+
+**Le test confronte le contrat au VRAI serveur**, jamais au code qui l'écrit :
+les deux sortent du même fichier, et comparer un générateur à lui-même ne
+prouverait rien. `tests/test_contrat_authentification.py` (7 tests) inscrit,
+connecte, puis vérifie que chaque champ annoncé existe dans la réponse reçue —
+et que le jeton annoncé ouvre RÉELLEMENT une route protégée, une clé présente
+mais vide passant sinon la boucle. Le témoin inverse est là aussi : une spec
+sans `refresh_tokens` ne doit rien promettre de plus, sans quoi un contrat qui
+promettrait ce champ à tout le monde passerait tous les autres tests.
+
+**Contre-épreuve faite** : en remplaçant `access_token` par `token` dans le
+contrat, le test tombe. Les golden tests confirment la portée — seuls
+`frontend_contract.json`, `FRONTEND_PROMPT.md` et `monl.json` bougent ;
+`app.py`, `schema.sql` et `manage.py` restent identiques à l'octet. La
+correction porte sur ce que le backend DÉCLARE, pas sur ce qu'il fait.
+
+## 126. La devise d'encaissement et son exposant
+
+**Le code figeait deux choses, et la seconde était dangereuse.** La route de
+règlement écrivait `_session_paiement(centimes, 'eur', …)` avec
+`centimes = int(round(montant * 100))`. La devise en dur n'est qu'une limite ;
+le facteur `100`, lui, est un **bug d'unité**.
+
+Un prestataire attend un entier dans l'unité mineure de la devise. Pour l'euro
+c'est le centime, donc ×100. **Le franc CFA (XOF) n'a aucune sous-unité** : une
+commande de 5 000 FCFA serait partie chez le prestataire pour **500 000 FCFA**,
+cent fois le prix.
+
+**Pourquoi il ne se serait pas vu.** Le calcul est juste pour l'euro, donc la
+relecture ne dit rien. Tous les tests de paiement encaissaient en euros, donc
+la suite ne dit rien. Le serveur répond 200, donc l'exécution ne dit rien. Il
+se voit sur le relevé bancaire du client. C'est la famille du point 77 — le
+montant que quelqu'un d'autre décide — par une porte que personne n'avait
+ouverte : celle des **unités**.
+
+Il a été trouvé en CADRANT la brique, pas en la codant : la question « que
+devient `× 100` en franc CFA ? » s'est posée avant la première ligne. C'est la
+troisième fois seulement que ce dépôt pose la question avant d'écrire (après
+les points 100 et 101), et la première où elle rapporte un défaut déjà en
+production.
+
+**Ce qui a été écrit.** `capability payment` / `currency: XOF`, une table
+`DEVISES` qui donne l'EXPOSANT de chaque devise, et
+`montant × 10**exposant`. Trois décisions à ne pas rouvrir :
+
+* **une devise absente de la table est REFUSÉE, jamais devinée à deux
+  décimales.** Deviner, c'est reprendre exactement le bug qu'on ferme ;
+* **les devises à TROIS décimales (BHD, JOD, KWD, TND…) sont refusées
+  NOMMÉMENT**, parce que les prestataires y imposent un arrondi particulier.
+  Le message dit « trois décimales » et non « devise inconnue » : sinon il
+  enverrait chercher une faute de frappe dans un code parfaitement valide ;
+* **l'exposant est résolu par le VALIDATEUR et lu par le générateur**, jamais
+  recalculé. Deux tables de devises finiraient par diverger, et une divergence
+  d'unité se paie sur un relevé bancaire.
+
+**`montant_centimes` GARDE son nom sur le fil.** C'est le point 95 mot pour
+mot : le renommer casserait le bouton « Payer » de tout projet existant pour un
+gain cosmétique, exactement comme renommer `username` en `email`. Le CONTRAT
+dit ce que le champ contient — l'unité mineure de la devise — et `devise` et
+`montant` sont ajoutés à côté, pour qu'aucune interface n'ait plus à diviser
+par cent au hasard.
+
+**Le piège d'ORDRE, tombé pendant l'écriture.** Le refus « devise déclarée sans
+rien à encaisser » (point 85 : une règle sans effet est refusée) avait été
+écrit dans `_valider_securite_calculs_paiement`, l'endroit logique, auprès des
+autres refus de paiement. Il ne se déclenchait **jamais** : le pipeline y passe
+à l'étape 261, et `_valider_capacites` ne pose `payment_currency` qu'à l'étape
+344 — la garde lisait toujours `None`. Elle vit désormais dans
+`_valider_capacites`, premier moment où les DEUX informations existent
+(`payable_fields` est posé dès l'étape 228). Même famille que le point 92 : une
+garde qui lit une variable pas encore assignée est une garde qui ment, et seul
+un test qui EXIGE le refus le révèle.
+
+**La question de `_contract_signature`, posée avant d'écrire** (douzième fois) :
+la réponse est **oui, une entrée nouvelle**. Passer de EUR à XOF ne crée aucune
+route, ne renomme aucun champ, ne change aucun acteur — mais tous les prix
+affichés changent de symbole, et la division par cent qu'une interface fait
+pour l'euro devient fausse. L'EXPOSANT entre dans le digest autant que le code :
+ne comparer que le code serait l'erreur du point 89.
+
+**Le test qui porte la brique est une PAIRE** : la même commande de 5 000,
+compilée en XOF puis en EUR, et ce que le faux prestataire a RÉELLEMENT reçu
+(`5000` contre `500000`, `xof` contre `eur`). Pris seul, le cas XOF passerait
+si un facteur 1 était appliqué partout ; pris seul, le cas EUR ne prouverait
+aucune régression. Ensemble, ils épinglent le facteur.
+`tests/test_devise.py`, 10 tests.
+
+**Les golden tests n'ont pas bougé** — la spec figée n'encaisse rien, donc
+`business_rules.payment` n'est pas émis et son contrat reste identique à
+l'octet. C'est la preuve que la brique ne touche pas les specs qui ne s'en
+servent pas.
+
+## 127. La démonstration n'allait plus chercher ses images chez un tiers
+
+**Le défaut le plus visible du dépôt, et personne ne le voyait.** Les dix
+modèles d'application semaient des `https://picsum.photos/…` dans leurs fiches
+de démonstration, et `loremflickr.com` dès qu'un sujet d'illustration était
+choisi. La toute première page qu'un prospect ouvre allait donc chercher ses
+images chez un tiers — pendant que le README promet une application
+**autonome** dont le compilateur **n'appelle jamais l'extérieur**.
+
+Hors ligne, sur une connexion lente ou sur un forfait de données compté, la
+vitrine s'ouvrait cassée. Ce n'est pas un détail de présentation : c'est
+l'argument de vente contredit par la démonstration censée le porter, et il
+compte double sur le marché visé.
+
+**Trois raisons de laisser le champ VIDE plutôt que d'y mettre autre chose**,
+chacune ayant écarté une solution qui semblait meilleure :
+
+* une image en `data:` URI tiendrait dans le champ et serait déterministe,
+  mais mettrait 250 caractères illisibles dans **chaque** ligne `seed`. La spec
+  est faite pour être lue et modifiée à la main — c'est le raisonnement du
+  point 84, qui édite la spec TEXTUELLEMENT pour ne pas perdre les
+  commentaires — et `monl content export` la déverse en CSV ;
+* une photo livrée avec monl serait un **choix visuel du compilateur**, ce que
+  le point 72 lui interdit explicitement ;
+* le chemin d'une vraie photo existe déjà, il est documenté et il est
+  meilleur : `monl assets add <fichier> --for "<fiche>"` (brique 13,
+  point 84), qui **vérifie le fichier à la compilation** au lieu d'espérer
+  qu'un serveur distant réponde.
+
+**La question du dialogue garde un effet, et c'est la moitié la plus
+intéressante.** `_ask_image_topic` (point 59) existait pour qu'un blog de
+cybersécurité ne s'illustre pas de paysages. Supprimer son effet en aurait
+fait une question sans conséquence — ce que le point 85 interdit au
+compilateur, et qui vaut autant pour le dialogue qui écrit la spec. Le sujet
+part donc désormais dans le **brief** (`Les illustrations doivent évoquer :
+cybersecurity`), la seule phrase du contrat que l'IA d'interface lit pour
+savoir à quoi sert le site — et **aussi en commentaire d'en-tête**, parce
+qu'une spec sans bloc `landing` n'aurait aucun brief où le porter et que
+l'humain qui rouvre le fichier doit retrouver ce qu'il avait demandé. Un
+commentaire ne va pas au contrat : il documente, il ne promet rien.
+
+**La question n'a PAS été supprimée**, alors que c'était tentant : elle est
+posée après `_ask_self_register`, et `tests/test_app_templates.py` répond aux
+questions par leur RANG. Retirer une question décale toutes les réponses
+scriptées des dix modèles — piège que `CLAUDE.md` signale depuis le point 75.
+Changer ce qu'une question produit coûte moins cher que changer combien il y
+en a.
+
+**Le vérificateur aussi.** `smoke_test.py` donnait une URL `picsum` aux champs
+d'illustration. Il tombe désormais dans le repli générique — non vide, pour
+qu'une contrainte `min` de longueur (point 85) continue de passer, et
+déterministe. Quatrième application de « le vérificateur est un client comme
+un autre » (points 95, 96, 100) : cette fois il ne s'agissait pas d'une entrée
+refusée, mais d'une valeur qui contredisait la promesse du reste du projet.
+
+**Le test dit la règle, pas l'exemple.** L'ancien test vérifiait la RÉSOLUTION
+des photos (`1600/900` et non `800/600`). Le nouveau balaie la spec entière et
+refuse `picsum`, `loremflickr`, `http://` et `https://` — une règle générale
+tient là où un exemple précis laissait rentrer le prochain hôte distant.
+
+**Les golden tests n'ont pas bougé** : la spec figée n'a aucun champ
+d'illustration, et le changement ne touche ni le générateur ni le contrat.
+
+## 128. Encaisser par mobile money : le prestataire devient enfichable
+
+Stripe n'opère pas en Afrique de l'Ouest. L'argent y passe par le **mobile
+money** — MTN MoMo, Moov Money, Wave — derrière un agrégateur. Une application
+monl compilée pour Cotonou savait donc tout faire sauf encaisser.
+
+```
+capability payment
+    provider: fedapay
+    currency: XOF
+```
+
+**FedaPay est une SECONDE émission, pas une généralisation de la première.**
+L'émission Stripe est laissée intacte à l'octet — c'est la condition pour
+qu'aucun projet existant ne voie son `app.py` bouger, et les golden tests le
+vérifient. Ce qui se factorise est le **noyau de sécurité** (montant lu en
+base, signature vérifiée avant toute écriture, 503 nommant la variable
+absente, référence qualifiée `Entite:id`), jamais la forme du fil.
+
+**Deux appels là où Stripe en fait un** : `POST /v1/transactions` rend un `id`,
+puis `POST /v1/transactions/{id}/token` rend l'`url` de paiement. La création
+seule ne donne AUCUNE URL — s'y arrêter livrerait un bouton « Payer » qui ne
+mène nulle part.
+
+**La recette cryptographique a été relue dans le SDK officiel, pas déduite
+d'une prose** (`fedapay-node`, `Webhook.ts`) : schéma `s`, message
+`timestamp + "." + corps brut`, HMAC-SHA256 hexadécimal, tolérance de 300
+secondes. C'est la seule source acceptable pour une vérification de signature,
+et elle s'est trouvée identique en forme à celle de Stripe — d'où la
+factorisation, qui n'aurait pas été légitime si on l'avait supposée.
+
+**monl est PLUS STRICT que le SDK officiel, délibérément.** `Webhook.ts` ne
+teste que `timestampAge > tolerance` : un horodatage situé dans le FUTUR y
+passe. monl refuse `abs(maintenant - t) > 300`. Un horodatage qu'on ne
+contrôle pas dans les deux sens n'est plus une protection contre le rejeu
+(point 91).
+
+**KKiaPay est REFUSÉ, et refusé en le DISANT.** Sa documentation publique
+expose un widget navigateur, sans endpoint serveur de création de session, et
+ne publie ni l'algorithme ni les données signées de son webhook. Le construire
+par analogie avec Stripe ou FedaPay ne serait pas une approximation : ce serait
+un trou de sécurité à l'unique endroit du backend généré où un tiers non
+authentifié écrit en base. Le message nomme la raison, parce que « prestataire
+inconnu » enverrait chercher une faute de frappe dans un nom correct. CinetPay
+est écarté pour une autre raison, également écrite : son webhook exige une
+revalidation par un second appel, et ses bacs à sable sont annoncés
+indisponibles.
+
+**LE FAIL-CLOSED, ET CE QUI RESTE NON PROUVÉ.** La documentation publique de
+FedaPay établit que `merchant_reference` et `custom_metadata` existent, mais
+n'imprime aucune charge utile de webhook complète : **le chemin JSON exact de
+la référence n'est pas prouvé**. Le code généré regarde les deux emplacements
+qu'emploient ses SDK et, s'il n'y trouve rien, **n'écrit RIEN**. Se tromper de
+forme coûte alors un règlement non enregistré — un appel au support — au lieu
+du mauvais enregistrement marqué payé, qui coûte de l'argent. La référence est
+envoyée dans les DEUX champs documentés, pour ne pas parier sur celui que
+l'événement rendra. **Ce point doit être confirmé sur un compte de bac à sable
+réel** ; le faux prestataire des tests prouve monl, il ne prouve pas FedaPay.
+
+**Le bug tombé pendant l'écriture, et sa leçon.** Le webhook a été paramétré
+(secret, en-tête, lettre de schéma) et la **route de règlement oubliée** :
+elle exigeait toujours `STRIPE_SECRET_KEY`, absente du prélude FedaPay, d'où
+un `NameError` et un **500** au premier essai. La brique de paiement a DEUX
+points d'entrée, pas un ; c'est la même famille que les « trois branchements »
+du point 92 et que le troisième oubli du point 95 (`manage.py`). Seul un test
+qui appelle réellement la route l'a montré — la compilation, elle, réussissait.
+
+**La question de `_contract_signature`** (treizième fois) : le prestataire
+entre dans le digest, avec la devise. Changer de prestataire ne crée aucune
+route et ne renomme aucun champ, mais l'écran de règlement cesse de parler de
+carte bancaire pour parler d'opérateurs de mobile money — et le brief le dit
+désormais mot pour mot, sans quoi l'IA écrit « carte bancaire » par défaut.
+
+**Un refus qui n'a PAS été écrit**, et c'est assumé : rien n'interdit
+`provider: fedapay` avec `currency: EUR`. Ce serait probablement faux à
+l'exécution, mais monl ne peut pas prouver la couverture géographique d'un
+prestataire, et un refus qu'on ne peut pas justifier vaut moins que pas de
+refus du tout.
+
+Éprouvée par `tests/test_fedapay.py` (13 tests, vrai serveur + faux FedaPay) :
+les deux appels et leur ordre, le montant en unité mineure, la référence
+qualifiée dans les deux champs, le webhook signé qui paie, trois signatures
+invalides qui ne paient rien, l'horodatage du futur refusé, la charge utile de
+forme inconnue qui n'écrit rien, et la clé absente qui rend 503 en la nommant
+sans empêcher le reste du serveur de répondre.
+
+
+## 129. L'oracle temporel se mesure par PAIRES, jamais par séries
+
+**Ce qui a cassé.** La CI est tombée sur l'assertion d'oracle temporel du
+point 124 — celle qui exige qu'un compte VERROUILLÉ et un compte INEXISTANT
+répondent en des temps indiscernables — **à 0,4 ms près sur un seuil de
+200 ms** (`assert 0.2044 < 0.2`), pendant que la même version de Python
+passait sur l'exécution voisine. Rien n'avait changé dans le code
+d'authentification. Le test mesurait UN tirage de chaque chemin sur un runner
+partagé.
+
+**Ce qu'un test de sécurité qui se trompe coûte.** C'est l'arbitrage déjà posé
+au point 57 : un signalement faux sur du code correct apprend à ne plus lire
+les signalements. Un test d'oracle temporel qui échoue une fois sur deux finit
+en `@pytest.mark.flaky`, puis en test supprimé — et la garantie disparaît avec
+lui. La réparation ne pouvait donc pas être « élargir le seuil » : ça rend le
+test vert en le rendant aveugle.
+
+**Première correction, insuffisante : la médiane.** Un oracle temporel est une
+TENDANCE, pas un instant — une vraie fuite déplace TOUTES les mesures, un
+sursaut d'ordonnanceur une seule. Cinq tirages, médiane, seuil RESSERRÉ de 200
+à 100 ms : plus strict qu'avant, pas plus lâche. Vert à vide. Rejoué sous huit
+cœurs saturés — pour reproduire le runner, pas pour se rassurer — **il tombait
+encore une fois sur trois**.
+
+**Ce que la mesure a montré, et que le raisonnement n'aurait pas trouvé.** En
+imprimant les tirages bruts :
+
+```
+verrouille [0.199, 0.368, 0.291, 0.347, 0.302]   <- mesuré en PREMIER
+inexistant [0.167, 0.161, 0.172, 0.200, 0.197]   <- mesuré ENSUITE
+```
+
+La première série DÉRIVE vers le haut pendant que la seconde reste plate.
+L'écart de 130 ms n'appartenait pas au verrouillage : il appartenait à
+l'ORDRE des mesures. Mesurer un chemin en entier PUIS l'autre laisse toute la
+dérive de la machine dans la différence — et sur un runner chargé, cette
+dérive est plus grande que le signal cherché. Le test n'était pas seulement
+instable : sur ces chiffres-là, **il accusait un oracle qui n'existait pas**.
+
+**La correction : appeler en ALTERNANCE et différencier PAIRE PAR PAIRE.**
+`_ecart_apparie` (tests/test_authentification_b4.py) appelle A, B, A, B… et
+retient la médiane des différences `duree_A - duree_B` de chaque tour. Un
+sursaut frappe les deux membres d'une même paire et s'annule dans leur
+différence ; une vraie fuite, elle, est présente dans CHAQUE paire et survit à
+la médiane. Le seuil reste à 100 ms. Mesuré sous huit cœurs saturés, l'écart
+médian apparié ne dépasse plus **14 ms** — sept fois la marge — et huit
+exécutions consécutives sont vertes.
+
+**Un effet de bord à connaître.** La spec du test déclarait `lockout: 3 in 2`.
+Les dix appels de mesure dépassaient cette fenêtre de deux secondes et
+expiraient le verrou AVANT l'assertion « toujours fermé », qui échouait alors
+en accusant le mauvais coupable. La fenêtre passe à 10 s et le `time.sleep`
+qui suit à 10,5 s. Ce `sleep` n'est pas remplacé par un vieillissement en base
+(comme `_expire_reset_token` le fait pour le jeton de réinitialisation) :
+écrire `locked_until` dans le passé prouverait qu'un verrou périmé laisse
+entrer, jamais que **le verrou se rouvre TOUT SEUL au bout du temps
+déclaré** — et c'est cette seconde phrase qui est la promesse du point 124.
+
+**La règle qui reste.** Une mesure de temps qui compare deux chemins les
+appelle en alternance. Le corollaire vaut au-delà de ce test : un écart mesuré
+entre deux séries successives contient la dérive de la machine, et sur une
+machine chargée cette dérive domine. C'est le même défaut de méthode qu'un bug
+d'ordre d'itération (point 92) — invisible sur la machine qui l'a fait naître,
+révélé seulement en reproduisant les conditions de celle qui échoue.
+
+
+## 130. Une sonde qui prouve qu'UN worker répond ne prouve rien des autres
+
+Même exécution de CI que le point 129, autre test, même famille de défaut :
+`tests/test_rate_limit_shared.py` tombait sur Python 3.10 avec
+`ConnectionResetError(104)` au milieu de sa rafale de sept `POST /login` —
+alors que le quota partagé qu'il vérifie fonctionne parfaitement.
+
+**Pourquoi la sonde mentait.** Le test démarre `uvicorn --workers 2`, puis
+attend en bouclant sur `GET /docs` jusqu'à une réponse. Or avec plusieurs
+workers, c'est le SUPERVISEUR qui ouvre la socket, puis il fork : un GET
+réussi prouve que la socket accepte, pas qu'il y a quelqu'un derrière chaque
+worker. Une connexion distribuée à un worker encore en train de démarrer est
+réinitialisée. La sonde répondait donc à « le service accepte-t-il ? » quand
+la question était « les DEUX workers servent-ils ? ».
+
+**La correction.** uvicorn écrit `Application startup complete` **une fois par
+worker** : on compte ces lignes au lieu de deviner. Le tuyau de sortie est
+vidé dans un fil séparé — laissé plein, il finirait par bloquer le serveur
+qu'on observe, ce qui remplacerait un test instable par un test qui pend.
+L'échec, s'il survient, imprime les vingt dernières lignes du journal : un
+futur changement de formulation d'uvicorn se diagnostique en le lisant, au
+lieu de se deviner.
+
+Ne PAS se rabattre en silence sur la sonde HTTP quand le marqueur manque :
+ça rendrait le test vert en lui rendant son instabilité, et c'est l'arbitrage
+du point 57 pris à l'envers.
+
+**La règle qui reste**, jumelle de celle du point 129 : une attente de
+démarrage doit attendre ce dont le test a réellement besoin. Ici, ce n'est pas
+« une réponse », c'est « N workers ». Vérifié sous huit cœurs saturés, trois
+exécutions vertes.

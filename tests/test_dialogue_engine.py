@@ -50,7 +50,10 @@ def test_mode_express_ne_pose_que_identite_et_description_apres_le_modele():
     assert normalized["seeds"]
     assert "landing" in spec
     assert "mode express" in spec
-    assert "loremflickr.com/1600/900/creative-studio" in spec
+    # Le mode express déduit un sujet d'illustration du modèle choisi ; il
+    # part dans le brief, plus dans une URL distante.
+    assert "Les illustrations doivent évoquer : creative-studio" in spec
+    assert "loremflickr" not in spec and "picsum" not in spec
 
 
 def test_mode_express_ouvre_seulement_le_role_non_privilegie():
@@ -92,28 +95,41 @@ def test_determinisme_memes_reponses_meme_spec():
     assert _run(SCENARIO_PORTFOLIO) == _run(SCENARIO_PORTFOLIO)
 
 
-def test_champ_image_seede_en_resolution_suffisante():
-    """1600×900, pas 800×600 (point 59) : un hero occupe toute la largeur d'un
-    conteneur d'environ 1120 px, doublée sur un écran haute densité. La source
-    était agrandie près de trois fois, et l'image paraissait molle."""
+def test_aucune_spec_ne_nomme_un_hote_distant():
+    """Le point 59 réglait la RÉSOLUTION des photos de démonstration (1600×900
+    plutôt que 800×600). La question ne se pose plus : il n'y a plus de photo
+    de démonstration du tout.
+
+    Une application monl est autonome et son compilateur n'appelle jamais
+    l'extérieur — mais la première page que le prospect ouvrait allait chercher
+    ses images chez un tiers, et ne s'ouvrait donc pas hors ligne ni sur un
+    forfait de données compté. La vraie photo passe par `monl assets add`,
+    qui la vérifie à la compilation."""
     spec = _run(SCENARIO_PORTFOLIO)
-    assert "https://picsum.photos/seed/demo1/1600/900" in spec
-    assert "800/600" not in spec
+    for hote in ("picsum", "loremflickr", "http://", "https://"):
+        assert hote not in spec, f"la spec nomme un hôte distant : {hote}"
 
 
-def test_sujet_d_images_choisi_remplace_les_photos_au_hasard():
-    """`picsum` ne rend que des photos arbitraires : un blog de cybersécurité
-    s'illustrait de paysages. Le sujet ne peut pas être déduit d'une phrase
-    libre en français sans interprétation — donc on le demande (point 59)."""
+def test_le_sujet_dillustration_part_dans_le_brief_et_non_dans_une_url():
+    """La question du dialogue GARDE un effet — sinon elle serait une question
+    sans conséquence, ce que le point 85 interdit au compilateur et qui vaut
+    autant pour le dialogue qui écrit la spec.
+
+    Le sujet ne peut pas être déduit d'une phrase libre en français sans
+    interprétation, donc on le demande (point 59) ; ce qu'on en fait a changé.
+    Il atteint l'IA d'interface par le brief, la seule phrase du contrat qui
+    dise à quoi sert le site."""
     scenario = list(SCENARIO_PORTFOLIO)
     scenario[scenario.index("n", scenario.index("o", 28))] = "o"   # sujet précis
     scenario.insert(scenario.index("o", 28) + 2, "cybersecurity")
     spec = _run(scenario)
-    assert "loremflickr.com/1600/900/cybersecurity" in spec
-    assert "picsum" not in spec
-    # `lock` fige le tirage : sans lui le rendu changerait à chaque
-    # rechargement, ce que le déterminisme du compilateur interdit.
-    assert "?lock=" in spec
+    assert "Les illustrations doivent évoquer : cybersecurity" in spec
+    # Écrit AUSSI en commentaire : sans bloc `landing`, la spec n'aurait pas de
+    # brief où le porter, et l'humain qui rouvre le fichier doit retrouver ce
+    # qu'il avait demandé.
+    assert "# Sujet des illustrations : cybersecurity" in spec
+    for hote in ("picsum", "loremflickr", "http://", "https://"):
+        assert hote not in spec
     MonlAST(parse_monl_string(spec)).validate_and_audit()
 
 

@@ -39,29 +39,34 @@
 #                         add_rules / add_seeds
 # ─────────────────────────────────────────────────────────────────────
 
-def _img(seed):
-    """Image de démonstration, SANS sujet : le modèle du catalogue est chargé
-    avant le dialogue, il ignore encore de quoi parle le projet. Le dialogue
-    réécrit ces URL avec le mot-clé choisi (voir image_topic_url).
+def _img(_seed=None):
+    """Champ d'illustration d'une fiche de démonstration : VIDE, et c'est le
+    sujet de la brique.
 
-    1600×900, pas 800×600 (point 59) : un hero occupe toute la largeur d'un
-    conteneur de ~1120 px, doublée sur un écran haute densité. La source
-    était donc agrandie près de trois fois — l'image paraissait molle.
+    Ces fiches portaient une URL `picsum.photos` (et `loremflickr` dès qu'un
+    sujet était choisi). Le résultat contredisait la promesse la plus nette du
+    projet : une application monl est AUTONOME et son compilateur n'appelle
+    jamais l'extérieur — mais la toute première page que le prospect ouvrait
+    allait chercher ses images chez un tiers. Hors ligne, sur une connexion
+    lente ou sur un forfait de données compté, la vitrine s'ouvrait cassée.
+
+    Trois raisons de laisser VIDE plutôt que de mettre autre chose :
+
+    * une image en `data:` URI tiendrait dans le champ, mais mettrait 250
+      caractères illisibles dans chaque ligne `seed` de la spec — or la spec
+      est faite pour être lue et modifiée à la main, et `monl content export`
+      la déverse en CSV ;
+    * une photo livrée avec monl serait un choix VISUEL du compilateur, ce que
+      le point 72 lui interdit explicitement ;
+    * le vrai chemin d'une vraie photo existe déjà et il est documenté :
+      `monl assets add <fichier> --for "<fiche>"` (brique 13, point 84), qui
+      vérifie le fichier à la compilation au lieu d'espérer un serveur distant.
+
+    Le sujet d'illustration demandé par le dialogue n'est pas perdu : il part
+    dans le brief du contrat, pour que l'IA d'interface sache ce que les
+    visuels doivent évoquer (voir `_emit_spec`).
     """
-    return f"https://picsum.photos/seed/{seed}/1600/900"
-
-
-def image_topic_url(sujet, index):
-    """URL d'une image RELATIVE AU SUJET du projet (point 59).
-
-    `picsum` ne sait rendre que des photos au hasard : un blog de
-    cybersécurité s'illustrait de paysages. `loremflickr` accepte un mot-clé,
-    et son paramètre `lock` fige le tirage — sans lui, chaque rechargement
-    changerait l'image et le rendu cesserait d'être reproductible, ce que le
-    déterminisme du compilateur interdit.
-    """
-    mot = "".join(c for c in sujet.lower() if c.isalnum() or c in "-,") or "abstract"
-    return f"https://loremflickr.com/1600/900/{mot}?lock={index}"
+    return ""
 
 
 TEMPLATES = [

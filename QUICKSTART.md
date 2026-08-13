@@ -27,11 +27,19 @@ le brief `FRONTEND_PROMPT.md` destiné à l'interface.
 
 ## 3. Ajout du frontend dans `<App>/frontend/`
 
-Trois méthodes, au choix. Le brief `FRONTEND_PROMPT.md` sert de consigne à l'IA
-dans les deux dernières.
+Quatre méthodes, au choix. Le brief `FRONTEND_PROMPT.md` sert de consigne à l'IA
+dans les trois dernières.
 
 - **Manuellement** : placer les fichiers directement dans `<App>/frontend/`.
-- **Avec Claude Code**, dans le dossier cible :
+- **Sans aucune clé API** — coller le contenu de `FRONTEND_PROMPT.md` dans
+  n'importe quel assistant accessible par navigateur, récupérer le résultat, puis :
+  ```bash
+  monl import <fichier-ou-zip> <App>
+  ```
+  Le résultat passe exactement les mêmes garde-fous qu'une réponse d'API
+  (liste blanche, refus des CDN, cohérence, smoke test).
+- **Avec un agent en ligne de commande** (authentification par abonnement),
+  dans le dossier cible :
   ```bash
   monl frontend <App> --provider claude-code
   ```
@@ -41,8 +49,8 @@ dans les deux dernières.
   monl frontend <App> --provider claude
   ```
 
-Sans clé API : coller le contenu de `FRONTEND_PROMPT.md` dans claude.ai,
-télécharger le résultat, puis l'installer avec `monl import <fichier-ou-zip> <App>`.
+Rappel : les étapes 1 et 2 ci-dessus n'appellent jamais le réseau. Seule cette
+étape-ci fait intervenir une IA, et elle a une voie sans clé.
 
 ## 3 bis. Comptes privilégiés
 

@@ -236,14 +236,18 @@ class GuidedDialogue:
                 f"{phrase_registre} ; {phrase_images}")
 
     def _ask_image_topic(self):
-        """Sujet des images de démonstration (point 59). Le compilateur ne
-        peut pas le déduire : « Blog pour des experts en cyber » est une
-        phrase libre, en français, dont extraire un mot-clé d'illustration
-        relèverait de l'interprétation — ce que le dialogue s'interdit. On
-        demande donc, plutôt que de rendre des photos au hasard."""
+        """Sujet des illustrations (point 59, réécrit). Le compilateur ne peut
+        pas le déduire : « Blog pour des experts en cyber » est une phrase
+        libre, en français, dont extraire un mot-clé relèverait de
+        l'interprétation — ce que le dialogue s'interdit.
+
+        Ce que la réponse produit a CHANGÉ : plus aucune URL distante, mais
+        une phrase du brief qui dit à l'IA d'interface ce que les visuels
+        doivent évoquer. La question garde donc un effet ; ce sont les images
+        de démonstration livrées par un tiers qui ont disparu."""
         if not self._ask_yes_no(
-                "Les images de démonstration doivent-elles illustrer un sujet "
-                "précis ? (sinon : photos génériques)"):
+                "Les illustrations doivent-elles évoquer un sujet précis ? "
+                "(sinon : aucune indication visuelle)"):
             return None
         return self._ask_free_text(
             "  Mot-clé d'illustration, en anglais de préférence "
@@ -912,7 +916,14 @@ class GuidedDialogue:
                    payable=None):
         lines = [f"app {app_name}", "",
                  "# Spécification générée par le dialogue guidé monl (déterministe, sans IA).",
-                 f"# Brief du projet : {description}", ""]
+                 f"# Brief du projet : {description}"]
+        # Écrit AUSSI en commentaire : sans bloc `landing`, la spec n'a pas de
+        # brief où porter le sujet, et l'humain qui rouvre le fichier doit
+        # quand même savoir ce qu'il avait demandé. Un commentaire ne va pas au
+        # contrat — c'est assumé : il documente, il ne promet rien.
+        if image_topic:
+            lines.append(f"# Sujet des illustrations : {image_topic}")
+        lines.append("")
 
         for ent, fields in entities.items():
             lines.append(f"entity {ent}")
@@ -1085,8 +1096,6 @@ class GuidedDialogue:
             custom_seeds = custom_seeds or {}
             # Données réalistes du modèle en priorité ; repli générique pour
             # les entités publiques qui n'en ont pas.
-            from .app_templates import image_topic_url
-            verrou = 0
             for ent, rows in custom_seeds.items():
                 if not rows or ent not in entities:
                     continue
@@ -1094,12 +1103,6 @@ class GuidedDialogue:
                 for row in rows:
                     parts = []
                     for f, v in row.items():
-                        # Le catalogue est chargé avant le dialogue : ses URL
-                        # d'illustration ignorent le sujet du projet. On les
-                        # remplace ici, une fois qu'il est connu (point 59).
-                        if image_topic and self._est_champ_image(f):
-                            verrou += 1
-                            v = image_topic_url(image_topic, verrou)
                         parts.append(f"{f}: {self._literal(v)}")
                     lines.append("    " + ", ".join(parts))
                 lines.append("")
@@ -1122,6 +1125,15 @@ class GuidedDialogue:
             # (point 53). Le commentaire d'en-tête, lui, reste court.
             brief = (f"{description.rstrip('.')} — {design_intent}"
                      if design_intent else description)
+            # Le sujet d'illustration ne produit plus d'URL distante : il part
+            # ICI, dans la seule phrase du contrat que l'IA d'interface lit
+            # pour savoir à quoi sert le site. Sans ce report, la question du
+            # dialogue deviendrait une question sans effet — ce que le
+            # point 85 interdit au compilateur, et qui vaut autant pour le
+            # dialogue qui écrit la spec.
+            if image_topic:
+                brief = (f"{brief.rstrip('.')}. Les illustrations doivent "
+                         f"évoquer : {image_topic}.")
             lines.append("landing")
             lines.append(f'    brief: "{brief}"')
             for s in sections:
@@ -1150,12 +1162,11 @@ class GuidedDialogue:
         if ftype == "Email":
             return f'"demo{n}@exemple.fr"'
         if any(k in low for k in ("image", "photo", "url", "cover", "avatar")):
-            # 1600×900 : la source doit tenir un hero pleine largeur sur écran
-            # haute densité, sinon elle est agrandie et paraît molle (point 59).
-            if image_topic:
-                from .app_templates import image_topic_url
-                return f'"{image_topic_url(image_topic, n)}"'
-            return f'"https://picsum.photos/seed/demo{n}/1600/900"'
+            # VIDE, jamais une URL distante : une démonstration qui va chercher
+            # ses images chez un tiers contredit l'autonomie que monl promet, et
+            # ne s'ouvre pas hors ligne. La vraie photo passe par
+            # `monl assets add` (brique 13). Voir `_img` dans app_templates.py.
+            return '""'
         if ftype == "Text":
             return f'"Contenu de démonstration numéro {n}, généré par le dialogue guidé."'
         return f'"Exemple {n}"'

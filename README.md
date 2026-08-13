@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
 [![Tests](https://img.shields.io/badge/tests-CI-brightgreen)](tests/)
 [![Couverture](https://img.shields.io/badge/couverture-CI-brightgreen)](#qualité-et-vérification)
-[![Licence](https://img.shields.io/badge/licence-propriétaire-lightgrey)](LICENSE)
+[![Licence](https://img.shields.io/badge/licence-FSL--1.1--ALv2-blue)](LICENSE)
 
 On décrit l'intention d'une application dans un DSL dédié ; monl-compiler en génère la base
 de données, l'API REST, l'authentification et le contrôle d'accès — puis produit un
@@ -336,6 +336,42 @@ l'environnement, jamais en argument — le shell l'archiverait.
 Garde-fous communs : extensions en liste blanche, protection contre le zip-slip,
 frontend autonome sans CDN, et re-vérification systématique.
 
+### Sans clé API, sans carte bancaire, sans réseau
+
+**Le compilateur n'appelle jamais l'extérieur.** `monl compile` produit `app.py`,
+`schema.sql`, `manage.py`, le contrat et le brief entièrement hors ligne : le
+parseur, le validateur et le générateur ne contiennent aucun appel réseau. Tout
+le backend — routes, base, JWT, contrôle d'accès, paiement, back-office —
+s'obtient sans compte chez qui que ce soit.
+
+L'IA n'intervient qu'à l'étape frontend, et cette étape a une voie **sans aucune
+clé** :
+
+```bash
+monl compile boutique.ml --output ./Boutique   # hors ligne
+# coller le contenu de Boutique/FRONTEND_PROMPT.md dans n'importe quel
+# assistant accessible par navigateur, récupérer le résultat…
+monl import interface.zip ./Boutique           # mêmes garde-fous, même vérification
+monl run ./Boutique
+```
+
+`monl import` n'est pas une porte dérobée : la source vient d'une conversation,
+elle est donc traitée comme une entrée non fiable — liste blanche d'extensions,
+refus du zip-slip, refus des CDN, `index.html` obligatoire, puis contrôle de
+cohérence et smoke test, exactement comme une réponse d'API.
+
+Restent, selon ce que vous avez sous la main : `--provider ollama` pour un modèle
+entièrement local, les agents en ligne de commande qui s'authentifient par
+abonnement plutôt que par clé, et les fournisseurs au dialecte OpenAI dont
+plusieurs proposent un palier gratuit. monl n'en privilégie aucun et n'en revend
+aucun : il ne consomme aucun jeton pour son propre compte.
+
+> **Ce qui est prouvé, et ce qui ne l'est pas.** Le parcours hors ligne, la voie
+> copier-coller et la voie Anthropic sont éprouvés de bout en bout contre un vrai
+> serveur. Les préréglages `codex` et `gemini` sont écrits et couverts au niveau
+> de la plomberie, mais n'ont pas été éprouvés contre les binaires réels — les
+> employer, c'est essuyer les plâtres.
+
 **Avant tout lancement**, `monl run` exécute un smoke test comportemental sur un
 serveur éphémère à base neuve : chaque route du contrat est éprouvée en HTTP réel
 et, si Node.js est présent, `frontend/index.html` est exécuté dans jsdom contre ce
@@ -398,10 +434,18 @@ automatisée.
 
 ## Licence
 
-Dépôt **public**, logiciel **propriétaire** — tous droits réservés
-([LICENSE](LICENSE)). Le code est visible pour lecture et évaluation ; il n'est
-pas sous licence libre. Les applications *produites* par monl-compiler à partir de vos
-propres spécifications vous appartiennent.
+**FSL-1.1-ALv2** — *Functional Source License*, avec bascule automatique vers
+**Apache-2.0 deux ans après la publication de chaque version**
+([LICENSE](LICENSE)).
+
+Vous pouvez utiliser monl-compiler librement, y compris en contexte
+professionnel, le modifier, le redistribuer, et **vous en servir pour livrer
+des applications à vos clients**. La seule restriction est l'usage
+*concurrent* : en faire un produit ou un service commercial qui se substitue à
+monl-compiler. Les applications *produites* à partir de vos propres
+spécifications vous appartiennent.
+
+Le détail en français : [LICENSE-FAQ.md](LICENSE-FAQ.md).
 
 Les rapports de bug et remarques sont bienvenus dans les *issues*.
 

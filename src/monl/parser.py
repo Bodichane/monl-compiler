@@ -284,7 +284,7 @@ grammar = r"""
     #   capability auth
     #       identifier: email, phone
     capability_block: "capability" NAME _NL [_INDENT capability_prop+ _DEDENT]
-    ?capability_prop: capability_identifier | capability_phone_prefix | capability_lockout | capability_password_reset | capability_refresh_tokens | capability_totp
+    ?capability_prop: capability_identifier | capability_phone_prefix | capability_lockout | capability_password_reset | capability_refresh_tokens | capability_totp | capability_currency | capability_provider
     capability_identifier: "identifier" ":" NAME ("," NAME)* _NL
     # AJOUT (point 95, trouvé en éprouvant la brique sur un vrai site) :
     # '06 12 34 56 78' et '+33612345678' sont le MÊME numéro, et faisaient deux
@@ -305,6 +305,20 @@ grammar = r"""
     capability_password_reset: ("password_reset" | "passwordReset") ":" INT _NL
     capability_refresh_tokens: ("refresh_tokens" | "refreshTokens") ":" INT _NL
     capability_totp: "totp" _NL | "totp" ":" "true" _NL
+    # BRIQUE 2a : la DEVISE de l'encaissement, déclarée sur 'capability payment'.
+    # Elle existe parce que le code figeait 'eur' et multipliait tout montant
+    # par 100 — or le franc CFA n'a PAS de sous-unité : facturer 5 000 XOF
+    # aurait envoyé 500 000 au prestataire. Ce n'est pas une préférence de
+    # présentation, c'est l'unité dans laquelle on encaisse.
+    #   capability payment
+    #       currency: XOF
+    capability_currency: "currency" ":" NAME _NL
+    # BRIQUE 2b : le PRESTATAIRE d'encaissement. Stripe n'opère pas en Afrique
+    # de l'Ouest, où l'argent passe par le mobile money derrière un agrégateur.
+    #   capability payment
+    #       provider: fedapay
+    #       currency: XOF
+    capability_provider: "provider" ":" NAME _NL
 
     # Bloc optionnel "landing" : transmet un brief marketing (titre, ton,
     # intention) au contrat frontend, pour orienter l'IA d'interface. C'est
@@ -384,7 +398,7 @@ grammar = r"""
     # des chaînes (avec URLs d'images publiques), des entiers ou des
     # décimaux. Ex. :
     #   seed Project
-    #       title: "Refonte Aurora", imageUrl: "https://picsum.photos/seed/a/600/400", year: 2024
+    #       title: "Refonte Aurora", imageUrl: "assets/aurora.jpg", year: 2024
     #
     # BRIQUE 21 (point 100) : un seed d'ENFANT désigne sa ligne parente. Sans
     # cette forme, une entité fille d'une table métier ne pouvait pas figurer
@@ -722,6 +736,18 @@ class MonlTransformer(Transformer):
 
     def capability_totp(self):
         return {"totp": True}
+
+    def capability_provider(self, nom):
+        # Minuscules dès le parsing : 'FedaPay' et 'fedapay' sont le même
+        # prestataire, et laisser passer les deux ferait deux specs pour une
+        # seule intention (même raison que pour la devise).
+        return {"provider": str(nom).lower()}
+
+    def capability_currency(self, code):
+        # Normalisé en majuscules dès le parsing : 'xof' et 'XOF' sont le même
+        # code ISO, et laisser passer les deux ferait deux specs différentes
+        # pour une seule intention.
+        return {"currency": str(code).upper()}
 
     def capability_block(self, name, *props):
         # Le bloc indenté étant optionnel, Lark passe None quand il est absent :
