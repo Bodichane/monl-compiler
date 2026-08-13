@@ -123,8 +123,15 @@ def _normalize_identifier(valeur):
         chiffres = "".join(c for c in valeur if c.isdigit())
         if valeur.lstrip().startswith("+"):
             return "+" + chiffres
-        if AUTH_PHONE_PREFIX and chiffres.startswith("0"):
-            return AUTH_PHONE_PREFIX + chiffres[1:]
+        # POINT 138 : le zéro de tête n'est pas universel — voir runtime.py.
+        # Ces deux fonctions DOIVENT rester identiques : diverger ici crée un
+        # compte que 'manage.py' sait écrire et que personne ne sait ouvrir.
+        if AUTH_PHONE_PREFIX:
+            if chiffres.startswith("0"):
+                return AUTH_PHONE_PREFIX + chiffres[1:]
+            if chiffres.startswith(AUTH_PHONE_PREFIX.lstrip("+")):
+                return "+" + chiffres
+            return AUTH_PHONE_PREFIX + chiffres
         return chiffres
     return valeur
 

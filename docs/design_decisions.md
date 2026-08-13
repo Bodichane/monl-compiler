@@ -52,6 +52,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [133](#133-limage-servait-lapi-et-repondait-404-sur-le-site) L'image servait l'API et répondait 404 sur le site ·
 [134](#134-la-frontiere-de-lagent-etait-une-enumeration-incomplete) La frontière de l'agent était une énumération incomplète ·
 [137](#137-brique-29--le-site-reclamait-six-fichiers-que-personne-navait-livres) Brique 29 : le site réclamait six fichiers que personne n'avait livrés ·
+[138](#138-le-dialogue-ne-demandait-jamais-comment-on-se-connecte-et-lindicatif-ne-servait-quen-europe) Le dialogue ne demandait jamais comment on se connecte, et l'indicatif ne servait qu'en Europe ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -8867,3 +8868,87 @@ réel, par deux copies d'AtelierNaya mesurées côte à côte : la copie intacte
 reste verte, la copie privée de ses six SVG devient rouge et les nomme tous les
 six. La contre-épreuve compte autant que le contrôle — sans la copie intacte,
 un contrôle qui refuserait TOUT frontend aurait passé l'épreuve.
+
+---
+
+## 138. Le dialogue ne demandait jamais comment on se connecte, et l'indicatif ne servait qu'en Europe
+
+**Le constat, fait par le mainteneur en créant un compte.** Sur
+`projets/AtelierNaya` — un atelier de beauté à Cotonou — l'inscription ne
+demandait ni adresse ni numéro. Vérifié contre un vrai serveur : `'zzz'`,
+`'!!!'` et même **deux espaces** créaient un compte, tous en 200. L'atelier
+recevait donc des réservations qu'il ne pouvait honorer, faute de pouvoir
+joindre qui que ce soit. C'est mot pour mot le point 90 sur SneakerLab — des
+commandes inexpédiables — par une autre porte.
+
+**Deux défauts distincts, trouvés l'un derrière l'autre.**
+
+### 1. Une brique que personne ne pouvait atteindre
+
+Le point 95 avait construit `capability auth` + `identifier: email, phone` :
+37 tests, trois points d'application, normalisation prouvée. Et le **dialogue
+guidé ne posait jamais la question**. Aucun des dix modèles d'applications ne
+déclarait d'identifiant. Recensé sur le dépôt : les cinq exemples, AtelierNaya
+et StudioNova étaient en texte libre ; seules les specs retouchées À LA MAIN
+déclaraient quelque chose.
+
+C'est le symétrique du point 85. Là-bas, une règle écrite ne produisait rien ;
+ici, une brique qui produit beaucoup n'était offerte à personne. Le résultat
+est le même : la promesse existe dans le compilateur et pas dans les
+applications. **Toute brique qui contraint une ENTRÉE doit être branchée au
+dialogue, sinon elle ne protège que les specs écrites à la main** — et le
+dialogue est précisément la voie recommandée aux débutants.
+
+La question est posée juste après `_ask_self_register`, et **seulement si
+quelqu'un s'inscrit en ligne** : sans inscription, les comptes naissent dans
+`manage.py`, d'où le contrôle de forme est volontairement absent (point 95,
+rôles de service sans adresse). L'ORDRE des options porte la recommandation,
+comme dans `_ask_self_register` : le téléphone d'abord, parce que sur le marché
+visé c'est le canal de rappel réel. Ne rien choisir laisse la spec **sans bloc**
+`capability auth` — pas un bloc vide : `None` n'est pas `[]` (point 95), et
+c'est ce qui garantit qu'une spec antérieure compile à l'identique.
+
+### 2. L'indicatif ne canonicalisait qu'un numéro commençant par zéro
+
+Découvert en prouvant le premier correctif, pas en le relisant. Le point 95
+écrit : « `0` initial remplacé par l'indicatif ». C'est exact — et c'est un
+**préfixe interurbain européen**, déduit de l'unique exemple qui avait servi à
+écrire la règle, `phone_prefix: "+33"` (`06…` → `+336…`).
+
+Au Bénin, le numéro local s'écrit **sans zéro de tête**. `phone_prefix: "+229"`
+ne produisait donc **rien du tout** : `97123456` était stocké tel quel, et la
+personne inscrite ainsi ne se reconnaissait pas en `+22997123456` — soit
+exactement les deux comptes que l'indicatif existe pour empêcher. Mesuré :
+inscription en `97123456` puis connexion en `+22997123456` → **401**.
+
+Une règle déclarée qui ne produit rien est ce que le point 85 refuse. La
+correction applique l'indicatif dès qu'il est déclaré, en retirant le zéro de
+tête s'il y en a un.
+
+**Le piège que la correction pouvait introduire, et qui est gardé par un
+test** : un numéro déjà international tapé sans le `+` (`22997123456`) serait
+préfixé une SECONDE fois — `+22922997123456`, un troisième compte fabriqué par
+le correctif lui-même. D'où le test explicite du chiffre d'indicatif déjà
+présent.
+
+**Les deux fonctions doivent rester identiques** — `runtime.py` (le serveur) et
+`admin_cli.py` (`manage.py`). Diverger ici crée un compte que `manage.py` sait
+écrire et que personne ne sait ouvrir : c'est le troisième endroit, celui que le
+point 95 nommait déjà « celui qu'on oublie », et il a été corrigé dans le même
+geste.
+
+**La limite qui reste, énoncée.** Le zéro de tête est retiré quand il est là ;
+pour un plan de numérotation où ce zéro est significatif, la forme obtenue sera
+fausse. monl n'embarque aucun plan de numérotation et n'en embarquera pas — il
+ne fait aucun appel réseau. C'est strictement meilleur que l'état antérieur, où
+un indicatif déclaré ne faisait rien du tout, et la forme `+` reste toujours
+sans ambiguïté.
+
+**Éprouvé par** `tests/test_identifiant_de_compte.py` (47 tests, dont un
+serveur `+229` dédié : six notations d'un même numéro béninois ouvrent le même
+compte, la forme stockée est vérifiée en base par lecture SQLite directe, et
+`manage.py` est confronté au serveur). Les tests français préexistants sont
+inchangés — la correction ne touche que la branche où un indicatif est déclaré.
+Le harnais des dix modèles exerce désormais les deux chemins : « tout refuser »
+n'émet aucun bloc, « tout accepter » émet `identifier: phone` + `phone_prefix`,
+et les dix modèles prouvent que le bloc émis compile.

@@ -55,6 +55,11 @@ def _run_template(index, followup_answer, want_seed):
     answers += [followup_answer] * len(tpl["followups"])
     answers += ["n"]                                   # pas d'entité perso
     answers += ["1"]                                   # inscription libre : 1er rôle proposé
+    # POINT 138 : identifiant de compte. Chemin « tout refuser » = aucun
+    # (spec sans bloc `capability auth`, comme avant la question) ; chemin
+    # « tout accepter » = téléphone + indicatif, pour que les DIX modèles
+    # prouvent que le bloc émis compile.
+    answers += (["1", "+229"] if followup_answer == "o" else ["0"])
     candidats_payables = _champs_payables(tpl)
     if candidats_payables:                             # question payable posée (point 75)
         answers += [followup_answer]
@@ -181,6 +186,7 @@ def test_entite_personnalisee_en_plus_du_modele():
         "o",                 # lisible sans compte
         "n",                 # pas d'autre entité perso
         "1",                 # inscription libre : 1er rôle proposé
+        "0",                 # identifiant de compte : aucun (point 138)
         "o",                 # seeds
         "n",                 # images génériques (point 59)
         "o",                 # brief
@@ -239,7 +245,7 @@ def test_les_rubriques_editoriales_sont_demandees_pas_proposees():
         return next(it)
 
     tpl = TEMPLATES[0]                                   # Portfolio
-    answers = ["1", "AppTest", "Un portfolio.", "n", "n", "1", "o", "n", "o",
+    answers = ["1", "AppTest", "Un portfolio.", "n", "n", "1", "0", "o", "n", "o",
                "consulter", "1", "2",
                "Photographe à Lyon depuis 2015.", "",
                "Reportage et portrait.", "",
@@ -257,7 +263,7 @@ def test_les_rubriques_editoriales_sont_demandees_pas_proposees():
 
 
 def test_une_rubrique_laissee_vide_est_simplement_absente():
-    answers = iter(["1", "AppTest", "Un portfolio.", "n", "n", "1", "o", "n", "o",
+    answers = iter(["1", "AppTest", "Un portfolio.", "n", "n", "1", "0", "o", "n", "o",
                     "consulter", "1", "2",
                     "", "Reportage et portrait.", "", "n"])
     spec = GuidedDialogue(ask=lambda p: next(answers)).run()
@@ -330,6 +336,7 @@ def test_le_dialogue_sait_encore_produire_une_commande_simple():
     answers = [str(index), "AppTest", "Une boutique."]
     answers += ["n"] * len(tpl["followups"])
     answers += ["n", "1"]                     # pas d'entité perso ; inscription libre
+    answers += ["0"]                          # identifiant de compte : aucun (point 138)
     answers += ["o"]                          # encaisser un paiement
     candidats = _champs_payables(tpl)
     if len(candidats) > 1:

@@ -181,8 +181,27 @@ réseau social anonyme comme banc d'essai final.
    contrat). **`phone_prefix: "+33"`** rend « 06… » et « +336… » canoniques : sans lui
    les deux notations sont deux comptes (limite ÉNONCÉE, avec son témoin —
    monl fait DÉCLARER ce qu'il ne peut pas savoir, comme `min` arme le stock au
-   point 86). Éprouvée par `tests/test_identifiant_de_compte.py` (37 tests).
+   point 86). Éprouvée par `tests/test_identifiant_de_compte.py` (47 tests).
    Voir point 95.
+   **POINT 138, deux corrections.** (a) Le **dialogue guidé ne posait jamais la
+   question** : aucun des dix modèles ne déclarait d'identifiant, et tout projet
+   né du dialogue acceptait `'!!!'` ou deux espaces comme identifiant de compte
+   (constaté sur `projets/AtelierNaya`, atelier à Cotonou — des réservations
+   qu'on ne peut honorer faute de pouvoir joindre personne, le point 90 par une
+   autre porte). `_ask_account_identifier` la pose juste après
+   `_ask_self_register`, et SEULEMENT si quelqu'un s'inscrit en ligne. C'est le
+   symétrique du point 85 : là-bas une règle écrite ne produisait rien, ici une
+   brique qui produit beaucoup n'était offerte à personne — **toute brique qui
+   contraint une ENTRÉE doit être branchée au dialogue**, sinon elle ne protège
+   que les specs écrites à la main. (b) **`phone_prefix` ne canonicalisait qu'un
+   numéro commençant par `0`** — un préfixe interurbain européen, déduit du seul
+   exemple `"+33"` qui avait servi à écrire la règle. Au Bénin le numéro s'écrit
+   sans zéro de tête, donc `"+229"` ne produisait RIEN : inscrit en `97123456`,
+   on récoltait 401 en se connectant en `+22997123456` (mesuré). L'indicatif
+   s'applique désormais dès qu'il est déclaré ; le zéro de tête est retiré s'il
+   existe, et un numéro déjà international tapé sans `+` n'est jamais préfixé
+   deux fois (sinon le correctif fabriquait lui-même un troisième compte). Les
+   DEUX fonctions — `runtime.py` et `admin_cli.py` — doivent rester identiques.
 2. **`rule Entite.champ hidden`** — masque un champ de toutes les réponses
    de lecture (liste + détail), pour tout le monde. Reste en base, reste
    modifiable en écriture. Implémenté dans `src/parser.py` (`masking_rule`)
