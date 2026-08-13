@@ -51,6 +51,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [132](#132-le-serveur-mourait-au-demarrage-a-plusieurs-workers) Le serveur mourait au démarrage à plusieurs workers ·
 [133](#133-limage-servait-lapi-et-repondait-404-sur-le-site) L'image servait l'API et répondait 404 sur le site ·
 [134](#134-la-frontiere-de-lagent-etait-une-enumeration-incomplete) La frontière de l'agent était une énumération incomplète ·
+[137](#137-brique-29--le-site-reclamait-six-fichiers-que-personne-navait-livres) Brique 29 : le site réclamait six fichiers que personne n'avait livrés ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -8789,3 +8790,80 @@ variante Upload manquait au test, elle y est. Le wrapper tolérant ne masque
 aucun échec qui devait être bruyant : juste après `monl compile`, l'absence de
 `frontend/` est normale par ordre de travail, et faire lever `StaticFiles`
 rendrait inutilisable une image fraîchement compilée.
+
+---
+
+## 137. Brique 29 : le site réclamait six fichiers que personne n'avait livrés
+
+> **Numérotation.** Les points 135 et 136 sont RÉSERVÉS à la branche
+> `systeme-de-design` (journal de consommation IA, système de design), qui
+> attend un arbitrage. Écrire 135 ici aurait produit une collision, pire qu'un
+> trou — le fichier en assume déjà deux (points 45, 46) et un doublon réservé
+> (point 6).
+
+**Le constat.** `projets/AtelierNaya` a été construit par DeepSeek pour
+48 roubles. Le site tournait, `monl run --check` répondait vert des deux côtés
+— cohérence statique ET smoke test. Il manquait pourtant six images :
+`hero-wellness.svg`, `about-atelier.svg` et quatre icônes. La page les
+réclamait, personne ne les avait livrées, et le site s'affichait avec six
+trous.
+
+**Pourquoi rien ne l'a vu.** Un fichier absent ne lève aucune exception
+JavaScript. Le navigateur — et jsdom avec lui — demande la ressource, reçoit
+404, et passe à la suite sans un mot : c'est le comportement normal du Web, une
+image cassée n'interrompt pas une page. Les trois couches de vérification
+regardaient donc ailleurs :
+
+- la **cohérence statique** compare la spec, le backend et le contrat — aucun
+  des trois ne connaît un fichier que l'IA a inventé en écrivant la page ;
+- le **smoke test** éprouvait les routes de l'API et l'exécution des scripts ;
+- le contrôle d'assets du **point 83** éprouvait les assets *déclarés*. C'est
+  exactement la bonne question, posée sur le mauvais ensemble : ces six-là,
+  personne ne les avait déclarés.
+
+Le point 136 (branche `systeme-de-design`) ajoute un `ASSET_MANIFEST.json` et
+vérifie ce qu'il contient. Vérifié en exécutant : sur AtelierNaya, `products`
+et `editorial` sont vides et `planned_assets` aussi — le manifeste décrit ce
+que le contrat prévoit, pas ce que l'IA a écrit. Les deux contrôles ne se
+recouvrent donc pas, et le second ne rend pas celui-ci inutile.
+
+**La brique.** Le smoke test demande en HTTP réel chaque fichier local que le
+frontend réclame. C'est la forme de preuve du point 83, mot pour mot —
+*« existe » n'est pas « servi »* — appliquée cette fois à ce que l'IA a écrit.
+Un 404 fait échouer, en nommant la page fautive, la référence et l'URL.
+
+**Ce qui n'est PAS contrôlé, et pourquoi c'est écrit.** Seules les références
+portant une EXTENSION de fichier connue sont retenues. `<img src="/photos/hero">`
+passe donc au travers. C'est le prix assumé pour ne jamais confondre un fichier
+avec une route du contrat (`/item`) ou une navigation par fragment (`#/panier`)
+— le point 92 avait déjà vu ce même avertissement dénoncer quatre routes
+correctes sur SneakerLab, et le point 57 dit pourquoi c'est grave : *un
+avertissement qui se trompe sur un site correct apprend à ne plus lire les
+avertissements.* Quatre tests gardent cette frontière (route, fragment, ancre,
+URL absolue, `data:`, `mailto:`, et le paramètre de cache `?v=3`). Le
+JavaScript n'est pas lu non plus : une URL construite à l'exécution ne se
+devine pas, et jsdom éprouve déjà les `fetch()`.
+
+**Une référence enracinée n'est pas réécrite.** `/photo.svg` part à la racine
+du serveur, alors que le frontend est monté sous `/site` : c'est un vrai
+défaut, et le 404 le dit. Le corriger d'office masquerait une page qui ne
+marcherait pas ailleurs — même arbitrage qu'au point 105 sur l'inversion
+d'arguments de `retouche`, qui est NOMMÉE et jamais devinée.
+
+**Deux hypothèses fausses, corrigées par le test et pas par la relecture.**
+J'allais écrire qu'une image déposée dans `frontend/` y est filtrée sans un
+mot. Faux deux fois : `StaticFiles` sert TOUT le dossier, donc une image posée
+à la main fonctionne parfaitement ; et la liste blanche gouverne ce que l'IA a
+le droit de LIVRER, pas ce que le serveur rend. Le message que je m'apprêtais à
+afficher aurait envoyé corriger ce qui n'est pas cassé — le reproche du
+point 97. La vraie voie silencieuse est ailleurs : `parse_files_payload`
+REFUSE bruyamment une extension hors liste, mais `monl import` **retire** de
+l'archive ce qui n'y est pas, sans un mot. C'est ce chemin-là qui est désormais
+éprouvé de bout en bout, et le message ne conseille les assets que là où c'est
+vrai. Un test garde l'hypothèse fausse elle-même, pour qu'on ne la réécrive pas.
+
+**Éprouvée par** `tests/test_fichiers_reclames.py` (12 tests) et, sur le cas
+réel, par deux copies d'AtelierNaya mesurées côte à côte : la copie intacte
+reste verte, la copie privée de ses six SVG devient rouge et les nomme tous les
+six. La contre-épreuve compte autant que le contrôle — sans la copie intacte,
+un contrôle qui refuserait TOUT frontend aurait passé l'épreuve.

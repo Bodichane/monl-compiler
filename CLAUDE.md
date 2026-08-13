@@ -668,6 +668,31 @@ réseau social anonyme comme banc d'essai final.
     Éprouvée par `tests/test_unicite_composite.py` (8 tests, DEUX comptes et
     DEUX cibles), compilée par `exemples/03_reseau_social.ml`. Voir point 116.
 
+29. **Tout fichier local RÉCLAMÉ par le frontend doit être servi** — aucune
+    syntaxe nouvelle : le smoke test demande en HTTP réel chaque référence
+    locale du HTML et du CSS, et un 404 fait échouer en nommant la page, la
+    référence et l'URL. Née de `projets/AtelierNaya`, construit par DeepSeek
+    pour 48 roubles : six SVG référencés, aucun livré, et `monl run --check`
+    au VERT des deux côtés. **Rien ne l'avait vu parce qu'un fichier absent ne
+    lève aucune exception** — jsdom reçoit le 404 et continue, comme un vrai
+    navigateur. C'est la forme de preuve du point 83 (*« existe » n'est pas
+    « servi »*) appliquée non plus aux assets DÉCLARÉS mais à ce que l'IA a
+    écrit ; le manifeste du point 136 ne la rend pas inutile (vérifié en
+    exécutant : ses sections sont vides sur AtelierNaya, il décrit ce que le
+    contrat prévoit, pas ce que l'IA invente). **La limite est ÉNONCÉE** : seules
+    les références portant une extension connue sont retenues, pour ne jamais
+    confondre un fichier avec une route (`/item`) ou une navigation (`#/panier`)
+    — le point 92 avait déjà vu cet avertissement dénoncer quatre routes
+    correctes. Une référence enracinée (`/photo.svg`) n'est PAS réécrite vers
+    `/site/` : c'est un vrai défaut, et le réécrire le masquerait. **Deux
+    hypothèses fausses corrigées par le test** : `StaticFiles` sert TOUT le
+    dossier `frontend/` (une image posée à la main marche), et la liste blanche
+    gouverne ce que l'IA a le droit de LIVRER, pas ce que le serveur rend ; la
+    vraie voie silencieuse est `monl import`, qui RETIRE de l'archive ce qui
+    n'est pas en liste blanche. Éprouvée par `tests/test_fichiers_reclames.py`
+    (12 tests) et sur AtelierNaya, copie intacte VERTE contre copie amputée
+    ROUGE. Voir point 137.
+
 ### Briques suivantes déjà évoquées, non cadrées
 - Le **panier multi-articles est terminé** : ses trois briques cadrées au
   point 80 sont faites (11 = propriété transitive et clé étrangère cliente sur le
