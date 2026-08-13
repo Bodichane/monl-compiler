@@ -48,6 +48,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [129](#129-loracle-temporel-se-mesure-par-paires-jamais-par-series) L'oracle temporel se mesure par PAIRES, jamais par séries ·
 [130](#130-une-sonde-qui-prouve-quun-worker-repond-ne-prouve-rien-des-autres) Une sonde qui prouve qu'UN worker répond ne prouve rien des autres ·
 [131](#131-fedapay--la-devise-quil-encaisse-vraiment-et-lappariement-prouve-du-webhook) FedaPay : la devise qu'il encaisse vraiment, et l'appariement prouvé du webhook ·
+[132](#132-le-serveur-mourait-au-demarrage-a-plusieurs-workers) Le serveur mourait au démarrage à plusieurs workers ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -8556,3 +8557,78 @@ brique n'en dépend plus : le repli couvre le cas, et les deux voies sont
 éprouvées contre un vrai serveur et un faux prestataire embarqué
 (`tests/test_fedapay.py`, 19 tests). Les quatre tests nouveaux échouent tous
 sans la correction — contre-épreuve faite, pas supposée.
+
+
+## 132. Le serveur mourait au démarrage à plusieurs workers
+
+Le point 130 avait remplacé une sonde de démarrage qui mentait par une sonde
+qui compte les workers réellement prêts, et lui avait fait imprimer le journal
+en cas d'échec. Deux exécutions de CI plus tard, cette impression a livré
+autre chose qu'un changement de formulation d'uvicorn :
+
+```
+sqlite3.OperationalError: database is locked
+ERROR:    Application startup failed. Exiting.
+INFO:     Application startup complete.
+ERROR:    Child process [4596] failed to start, stopping the parent process.
+```
+
+Un worker démarre, **l'autre meurt**, et uvicorn arrête le serveur entier. Le
+défaut a plusieurs mois. La sonde HTTP le masquait parfaitement : le worker
+survivant répondait à `/docs`, le test croyait le service prêt, et la rafale
+tombait de temps en temps sur une connexion réinitialisée — un symptôme rangé
+sous « CI capricieuse ». **Un test qu'on croyait instable décrivait un vrai
+défaut.**
+
+### Ce que la mesure a établi
+
+Impossible à reproduire ici, même à huit workers sous huit cœurs saturés. Au
+lieu de multiplier les essais, l'hypothèse a été isolée : `PRAGMA journal_mode
+= WAL` respecte-t-il `busy_timeout` ?
+
+| autre connexion | résultat |
+|---|---|
+| transaction de **lecture** | attend le délai ENTIER (10 s) puis échoue quand même |
+| transaction d'**écriture** | échoue **immédiatement**, en 0,00 s |
+
+`busy_timeout` ne protège pas ce pragma. C'est le seul endroit du socle dans
+ce cas — d'où un worker qui meurt sur-le-champ pendant que l'autre écrit le
+schéma.
+
+### La correction, et pourquoi elle ne s'arrête pas au pragma
+
+`_activer_wal` rend la bascule **tolérante** : le mode de journal est une
+propriété persistante du FICHIER, pas de la connexion — le premier processus
+qui y arrive le règle pour tous, et échouer ne coûte que de la concurrence,
+jamais une donnée.
+
+Mais corriger la seule instruction observée aurait laissé tomber la suivante :
+une fois le pragma tolérant, l'échec s'est **déplacé** sur le `COMMIT`
+implicite d'`executescript`, que `busy_timeout` ne couvre pas davantage. C'est
+pourquoi l'initialisation entière est désormais **réessayée** (20 s, pas de
+plafond d'essais) plutôt que rafistolée instruction par instruction : le DDL
+du socle est idempotent (`CREATE TABLE IF NOT EXISTS`), donc le rejouer ne
+coûte rien. `_verrou_passager` distingue « quelqu'un d'autre écrit » d'un
+schéma fautif — réessayer une vraie erreur de schéma ne ferait que retarder le
+diagnostic de vingt secondes.
+
+### Le test ne COURSE pas
+
+`test_le_demarrage_survit_a_une_base_deja_verrouillee` tient lui-même le
+verrou d'écriture pendant que le serveur démarre, puis le relâche : sans la
+correction il échoue à tous les coups, avec elle il passe. Une course
+reproduite au petit bonheur n'aurait rien prouvé — c'est justement ce qui a
+laissé ce défaut vivre des mois.
+
+Un piège rencontré en l'écrivant, et qui vaut d'être noté : le verrou était
+d'abord relâché par un `threading.Timer`. **Une connexion SQLite n'appartient
+qu'au fil qui l'a ouverte** — le relâchement échouait en silence dans le fil du
+minuteur, le verrou restait posé, et le test accusait la correction qu'il
+venait de vérifier. Il est relâché depuis le fil principal.
+
+### Portée vérifiée par les empreintes
+
+Seuls `app.py` et `monl.json` (qui scelle son empreinte) bougent :
+`schema.sql`, `manage.py` et le `Dockerfile` restent identiques à l'octet
+près. Le changement vit dans le runtime et nulle part ailleurs — les goldens
+du point 122 servent ici exactement à ça.

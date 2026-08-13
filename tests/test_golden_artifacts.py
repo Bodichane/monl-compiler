@@ -31,7 +31,12 @@ GOLDENS = {
     # (sans lui une quatrième espèce d'erreur sortait sans rien lever), et
     # manage.py importe app.py depuis _connect() et non en tête de fichier
     # (importé en tête, il cessait de fonctionner depuis un autre dossier).
-    "app.py": "ea2749849e13d3d8313fe1d57e8fbaee1672f67fdda24e7acb668defc2c8c9c0",
+    # POINT 132 : le socle démarre désormais sans mourir sur une base qu'un
+    # autre processus écrit — `_activer_wal` tolérant, et l'initialisation
+    # réessayée. Le changement vit dans le RUNTIME, donc seuls app.py et
+    # monl.json (qui scelle son empreinte) bougent : schema.sql, manage.py et
+    # le Dockerfile restent à l'octet près, ce qui est le contrôle de portée.
+    "app.py": "bf70d7faa168f08415a443d8e010c4f7010ae1b3e857e34009ff6be4480b837c",
     "schema.sql": "244eb93ba9a727aa855bca0a96d76b2a329f8ee69c6b5bf2ba693d4c6eacba1f",
     "sandbox_ai.py": "53bcf473618c141b6df5b9326c540984d16b3fa2c64b7ed7787003b5da019c07",
     "manage.py": "5da45949451f1da15d17b84fcbe89ea4670116469897941ccd53daaa9c75ca46",
@@ -57,7 +62,7 @@ GOLDENS = {
     # 0.9.0-beta.7 : seul monl.json bouge, parce qu'il SCELLE la version du
     # compilateur. Tous les autres artefacts restent identiques a l'octet —
     # la preuve que la montee de version ne change rien a ce qui est genere.
-    "monl.json": "ae75de61dceabd4d5f39882978db2924b3d90b84cf2523be7163f532fa26aeb8",
+    "monl.json": "8374682c48d23642e58ed171e91ce356e422e429628c7396f050faab64431299",
 }
 
 
