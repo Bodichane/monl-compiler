@@ -96,7 +96,8 @@ def _erreur_de_chemin(project_dir):
 
 # Ce que la spec produit et que personne ne doit retoucher à la main
 # (manage.py et sandbox_ai.py compris : ils portent des droits).
-SCELLE_ARTEFACTS = ("app.py", "schema.sql", "sandbox_ai.py", "manage.py")
+SCELLE_ARTEFACTS = ("app.py", "schema.sql", "sandbox_ai.py", "manage.py",
+                    "serve.py")
 # Artefacts de déploiement éditables par l'auteur. Ils sont publiés avec la
 # compilation, mais ne sont ni scellés ni inclus dans les empreintes backend :
 # une adaptation locale du conteneur doit survivre à `monl compile`.
@@ -125,7 +126,7 @@ RUN pip install --no-cache-dir \\
     'PyJWT>=2.8,<3.0'
 
 EXPOSE 8000
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "serve:app", "--host", "0.0.0.0", "--port", "8000"]
 """
 
 DEFAULT_DOCKERIGNORE = """.jwt_secret
@@ -133,6 +134,21 @@ DEFAULT_DOCKERIGNORE = """.jwt_secret
 __pycache__
 frontend.precedent/
 """
+
+
+# GABARITS HÉRITÉS — la version `app:app`, émise jusqu'à ce que le point 133
+# la corrige. Un Dockerfile RESTÉ IDENTIQUE à l'un d'eux n'a jamais été touché
+# par personne : le rafraîchir est un service, pas une intrusion. Un fichier
+# réellement personnalisé, lui, reste sous la responsabilité de son auteur —
+# c'est déjà l'arbitrage retenu pour le gabarit Upload, repris tel quel.
+_DOCKERFILE_HERITE_BASE = DEFAULT_DOCKERFILE.replace(
+    '"serve:app"', '"app:app"')
+_DOCKERFILE_HERITE_UPLOAD = _DOCKERFILE_HERITE_BASE.replace(
+    "    'PyJWT>=2.8,<3.0'\n",
+    "    'PyJWT>=2.8,<3.0' " + "\\\n"
+    "    'python-multipart>=0.0.9,<1.0'\n",
+)
+DOCKERFILES_HERITES = (_DOCKERFILE_HERITE_BASE, _DOCKERFILE_HERITE_UPLOAD)
 
 
 def _ensure_container_artifacts(staging_dir, uploads=False):
@@ -155,16 +171,45 @@ def _ensure_container_artifacts(staging_dir, uploads=False):
         if not os.path.exists(path):
             with open(path, "w", encoding="utf-8") as fh:
                 fh.write(content)
-        elif uploads:
-            # Un gabarit émis lors d'une compilation antérieure peut devenir
-            # un gabarit Upload ; un fichier Docker réellement personnalisé
-            # reste, lui, sous la responsabilité de l'auteur.
-            with open(path, encoding="utf-8") as fh:
-                actuel = fh.read()
-            ancien = DEFAULT_DOCKERFILE if name == "Dockerfile" else DEFAULT_DOCKERIGNORE
-            if actuel == ancien:
-                with open(path, "w", encoding="utf-8") as fh:
-                    fh.write(content)
+            continue
+        # Un gabarit émis lors d'une compilation antérieure se rafraîchit ;
+        # un fichier Docker réellement personnalisé reste, lui, sous la
+        # responsabilité de l'auteur.
+        with open(path, encoding="utf-8") as fh:
+            actuel = fh.read()
+        if name == "Dockerfile":
+            # `content` est le gabarit courant, Upload appliqué ou non : les
+            # DEUX formes courantes doivent être reconnues comme « jamais
+            # touchées », sinon une spec qui perd son Upload garderait la
+            # dépendance devenue inutile.
+            connus = (DEFAULT_DOCKERFILE, content, *DOCKERFILES_HERITES)
+        else:
+            connus = (DEFAULT_DOCKERIGNORE,)
+        if actuel in connus and actuel != content:
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(content)
+
+
+def _emettre_wrapper(staging_dir, contract):
+    """Écrit serve.py DÈS LA COMPILATION, et non plus au seul 'monl run'.
+
+    POINT 133. Le Dockerfile produit par 'monl compile' lançait `app:app` :
+    l'image servait l'API et répondait 404 sur /site et sur les photos, parce
+    que le wrapper qui les monte n'était écrit que par 'monl run'. Un produit
+    dont l'argument est « un site livré » livrait donc une API sans site.
+    Vérifié en construisant réellement l'image, pas en relisant le code.
+
+    Le dossier d'assets vient du CONTRAT, déjà dérivé de la spec et vérifié
+    cohérent avec elle — relire la spec ici ferait un second parseur à faire
+    dériver (même raison qu'`_assets_dir_du_projet`, dont ceci est le pendant
+    à la compilation).
+
+    Écrit sans condition : c'est du code généré, pas un gabarit que l'auteur
+    adapte. Le Dockerfile, lui, reste éditable — d'où deux traitements.
+    """
+    assets_dir = (contract.get("assets") or {}).get("dir") or None
+    with open(os.path.join(staging_dir, "serve.py"), "w", encoding="utf-8") as fh:
+        fh.write(rendre_wrapper(assets_dir))
 
 
 def _save_state(project_dir, spec_relpath, spec_source_path=None):
@@ -231,6 +276,7 @@ def compile_project(spec_path, project_dir, base_dir=None, save_state=True):
             compilation.ir, compilation.plans, temporary)
         _ensure_container_artifacts(
             temporary, uploads=bool(compilation.ir["security"].get("upload_fields")))
+        _emettre_wrapper(temporary, contract)
         if save_state:
             _save_state(temporary, spec_rel, spec_source_path=spec_abs)
         artefacts = PROJECT_ARTEFACTS if save_state else tuple(
@@ -346,7 +392,20 @@ def check_coherence(project_dir):
     else:
         for nom, attendu in sorted(empreintes.items()):
             chemin = os.path.join(project_dir, nom)
-            if os.path.exists(chemin) and _sha256_file(chemin) != attendu:
+            # POINT 134 : un artefact ENREGISTRÉ mais ABSENT était ignoré. La
+            # boucle ne disait donc rien d'un fichier disparu — et depuis le
+            # point 133, 'monl run --check' pouvait certifier « cohérence
+            # vérifiée » sur un projet dont le Dockerfile lance `serve:app`
+            # alors que le module n'est plus là. Le trou existait aussi pour
+            # manage.py et sandbox_ai.py ; il ne se voyait pas parce qu'aucun
+            # artefact n'était encore désigné par le conteneur.
+            if not os.path.exists(chemin):
+                errors.append(
+                    f"{nom} est enregistré dans {STATE_FILENAME} mais absent "
+                    "du projet — il est généré depuis la spec : recompiler "
+                    "('monl update').")
+                continue
+            if _sha256_file(chemin) != attendu:
                 errors.append(
                     f"{nom} a été modifié à la main — le backend est généré "
                     "depuis la spec. Modifier la spec puis 'monl update' ; "
@@ -507,16 +566,39 @@ def cmd_run(project_dir, check_only=False, port=8000, skip_smoke=False):
 
     project_dir = os.path.abspath(project_dir)
     has_frontend = os.path.isdir(os.path.join(project_dir, "frontend"))
-    module = "app:app"
-    if has_frontend:
-        assets_dir = _assets_dir_du_projet(project_dir)
-        with open(os.path.join(project_dir, "serve.py"), "w", encoding="utf-8") as fh:
+    assets_dir = _assets_dir_du_projet(project_dir)
+    # POINT 133 : TOUJOURS `serve:app`, avec ou sans frontend. Le wrapper sait
+    # désormais démarrer sans lui — et lancer `app:app` ici pendant que l'image
+    # Docker lance `serve:app` ferait deux comportements pour un seul projet,
+    # dont un seul serait éprouvé.
+    #
+    # POINT 134 : mais il n'est PLUS réécrit à chaque lancement. Il l'était,
+    # et depuis qu'il est scellé cette réécriture retournait contre le projet :
+    # qu'une version ultérieure de monl change le rendu du wrapper, et 'monl
+    # run' écrivait un texte que `monl.json` ne reconnaît pas — le lancement
+    # SUIVANT refusait de démarrer en accusant à tort une « modification à la
+    # main ». Une commande qui invalide l'état qu'elle vient de vérifier.
+    #
+    # Il n'est donc écrit que s'il MANQUE, ou si l'état ne le scelle pas —
+    # c'est-à-dire pour un projet compilé par un monl antérieur, qui n'a rien
+    # à contredire. Un wrapper scellé vient d'être vérifié à l'octet par la
+    # cohérence : le réécrire n'apporterait rien. Le rafraîchir reste le
+    # travail de 'monl update', qui recompile ET réenregistre l'empreinte.
+    wrapper = os.path.join(project_dir, "serve.py")
+    etat = _load_state(project_dir) or {}
+    scelle = "serve.py" in (etat.get("backend_sha256") or {})
+    if not os.path.exists(wrapper) or not scelle:
+        with open(wrapper, "w", encoding="utf-8") as fh:
             fh.write(rendre_wrapper(assets_dir))
-        module = "serve:app"
+    module = "serve:app"
+    if has_frontend:
         print(f" -> Frontend monté sur http://127.0.0.1:{port}/site")
         if assets_dir and os.path.isdir(os.path.join(project_dir, assets_dir)):
             print(f" -> Assets ({assets_dir}/) montés sur "
                   f"http://127.0.0.1:{port}/site/{assets_dir}/")
+    else:
+        print(" -> Aucun frontend : l'API répond, /site renverra 404 "
+              "(construire l'interface avec 'monl frontend').")
     print(f" -> Lancement : uvicorn {module} (port {port})")
     subprocess.run([sys.executable, "-m", "uvicorn", module,
                     "--host", "127.0.0.1", "--port", str(port)], cwd=project_dir)

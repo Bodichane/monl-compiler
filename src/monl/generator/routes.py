@@ -2132,6 +2132,31 @@ class RoutesMixin:
                 f"    reference = '{entite}:' + str(id)",
                 f"    session = _session_paiement(centimes, '{code_devise}', "
                 "reference, retour)",
+            ]
+            if prestataire == "fedapay":
+                lignes += [
+                    # PROUVÉ, PAS DEVINÉ : le plugin Odoo officiel de FedaPay
+                    # (fedapay/fedapay-odoo, payment_transaction.py) retrouve
+                    # sa commande par `notification_data.get('id')`, l'id de
+                    # transaction qu'il a mémorisé à la création. On mémorise
+                    # donc le même, ce qui donne au webhook une seconde façon
+                    # de reconnaître l'enregistrement — indépendante de
+                    # `merchant_reference`, dont l'écho dans la charge utile
+                    # n'est établi par aucune documentation.
+                    #
+                    # Écrit AVANT de répondre : le webhook ne peut arriver
+                    # qu'après que le client a payé, donc après cette ligne.
+                    # Un second appel à la route écrase la référence — c'est
+                    # voulu, la session la plus récente est celle que le client
+                    # a sous les yeux ; l'ancienne reste rattrapée par
+                    # `merchant_reference`, qui ne bouge pas. Les deux voies se
+                    # couvrent l'une l'autre.
+                    "    _c_ref = _connect()",
+                    f"    _c_ref.execute('UPDATE \"{table}\" SET payment_ref = ? "
+                    "WHERE id = ?', (str(session.get('id')), id))",
+                    "    _c_ref.commit(); _c_ref.close()",
+                ]
+            lignes += [
                 # POINT 95 APPLIQUÉ AU FIL : `montant_centimes` GARDE son nom.
                 # Le renommer casserait le bouton « Payer » de tout projet
                 # existant, pour un gain cosmétique — c'est le raisonnement
@@ -2183,16 +2208,16 @@ class RoutesMixin:
         ]
         if prestataire == "fedapay":
             lignes += [
-            "    # FAIL-CLOSED, et c'est une DÉCISION, pas un oubli. La",
-            "    # documentation publique de FedaPay établit que",
-            "    # `merchant_reference` et `custom_metadata` existent, mais",
-            "    # n'imprime aucune charge utile de webhook complète : le chemin",
-            "    # JSON exact n'est donc PAS prouvé. On regarde les deux",
-            "    # emplacements que ses SDK emploient, et si la référence n'y est",
-            "    # pas, on n'écrit RIEN. Se tromper de forme coûte alors un",
-            "    # règlement non enregistré — un appel au support — au lieu du",
-            "    # mauvais enregistrement marqué payé, qui coûte de l'argent.",
-            "    # À CONFIRMER sur un vrai événement de bac à sable.",
+            "    # La clé `entity` est PROUVÉE : le plugin Odoo officiel de",
+            "    # FedaPay (fedapay/fedapay-odoo, controllers/main.py) lit le",
+            "    # corps brut du webhook et fait `data.get('entity', {})`. Ce",
+            "    # qui reste non prouvé, c'est que `merchant_reference` soit",
+            "    # RÉÉMIS dans cette charge utile — la documentation l'établit",
+            "    # sur la transaction, jamais sur l'événement. D'où le repli",
+            "    # ci-dessous par l'identifiant du prestataire, et le",
+            "    # FAIL-CLOSED si aucune des deux voies ne reconnaît la ligne :",
+            "    # un règlement non enregistré coûte un appel au support, le",
+            "    # mauvais enregistrement marqué payé coûte de l'argent.",
             "    objet = (evenement.get('entity')",
             "             or (evenement.get('data') or {}).get('object') or {})",
             "    reference = (objet.get('merchant_reference')",
@@ -2200,6 +2225,32 @@ class RoutesMixin:
             "                 or '')",
             "    _type_evenement = evenement.get('name') or evenement.get('type')",
             "    _attendu = 'transaction.approved'",
+            # REPLI PAR L'IDENTIFIANT DU PRESTATAIRE. C'est la voie que le
+            # plugin Odoo officiel emploie (`notification_data.get('id')`
+            # confronté à l'id mémorisé à la création) — la seule des deux qui
+            # soit établie par du code en production plutôt que déduite. Elle
+            # ne sert QUE si la référence qualifiée n'est pas revenue : quand
+            # elle est là, rien n'est écrasé.
+            "    if not str(reference).partition(':')[2].isdigit():",
+            "        _ref_prestataire = str(objet.get('id') or '')",
+            "        _repli = ''",
+            "        if _ref_prestataire:",
+            "            _c_lu = _connect(); _cur_lu = _c_lu.cursor()",
+            "            try:",
+            ]
+            for entite in sorted(self.payable_by_entity):
+                lignes += [
+            f"                _cur_lu.execute('SELECT id FROM \"{entite.lower()}\" "
+            "WHERE payment_ref = ?', (_ref_prestataire,))",
+            "                _ligne_lu = _cur_lu.fetchone()",
+            f"                if _ligne_lu and not _repli: _repli = '{entite}:' "
+            "+ str(_ligne_lu[0])",
+                ]
+            lignes += [
+            "            finally:",
+            "                _c_lu.close()",
+            "        if _repli:",
+            "            reference = _repli",
             ]
         else:
             lignes += [

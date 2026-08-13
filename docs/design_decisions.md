@@ -47,6 +47,10 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [128](#128-encaisser-par-mobile-money--le-prestataire-devient-enfichable) Encaisser par mobile money : le prestataire devient enfichable ·
 [129](#129-loracle-temporel-se-mesure-par-paires-jamais-par-series) L'oracle temporel se mesure par PAIRES, jamais par séries ·
 [130](#130-une-sonde-qui-prouve-quun-worker-repond-ne-prouve-rien-des-autres) Une sonde qui prouve qu'UN worker répond ne prouve rien des autres ·
+[131](#131-fedapay--la-devise-quil-encaisse-vraiment-et-lappariement-prouve-du-webhook) FedaPay : la devise qu'il encaisse vraiment, et l'appariement prouvé du webhook ·
+[132](#132-le-serveur-mourait-au-demarrage-a-plusieurs-workers) Le serveur mourait au démarrage à plusieurs workers ·
+[133](#133-limage-servait-lapi-et-repondait-404-sur-le-site) L'image servait l'API et répondait 404 sur le site ·
+[134](#134-la-frontiere-de-lagent-etait-une-enumeration-incomplete) La frontière de l'agent était une énumération incomplète ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -8470,3 +8474,318 @@ du point 57 pris à l'envers.
 démarrage doit attendre ce dont le test a réellement besoin. Ici, ce n'est pas
 « une réponse », c'est « N workers ». Vérifié sous huit cœurs saturés, trois
 exécutions vertes.
+
+
+## 131. FedaPay : la devise qu'il encaisse vraiment, et l'appariement prouvé du webhook
+
+Le point 128 laissait un trou ÉCRIT : le chemin JSON de `merchant_reference`
+dans la charge utile du webhook n'était pas prouvé, et la suite était renvoyée
+à « un vrai compte de bac à sable ». Le tableau de bord de bac à sable s'est
+révélé inaccessible. La leçon de ce point n'est pas FedaPay : **ce qu'on
+croyait exiger un accès privé était public.** Deux sources, toutes deux
+ouvertes, ont fermé le trou et en ont ouvert un autre, plus grave.
+
+### Ce que la référence API dit
+
+`Transaction` porte `merchant_reference` (« Merchant reference provided for the
+transaction ») et `Event` a la forme `{id, type, entity, object_id,
+account_id, …}`. Le corps du webhook EST un `Event` : la clé est donc `entity`,
+et c'était bien le premier emplacement essayé.
+
+### Ce que le code en production prouve
+
+Le module Odoo officiel de FedaPay (`fedapay/fedapay-odoo`,
+`payment_fedapay/controllers/main.py`) lit le corps brut et fait exactement :
+
+```python
+data = json.loads(raw_body)
+notification_data = data.get('entity', {})
+```
+
+**`entity` n'est plus une déduction, c'est du code en production.** Mais le même
+module ne se sert JAMAIS de `merchant_reference` : il retrouve sa commande par
+`notification_data.get('id')`, l'identifiant de transaction qu'il a mémorisé à
+la création. C'est la voie éprouvée — et monl ne mémorisait rien.
+
+D'où le **repli par l'identifiant du prestataire** : la route de règlement écrit
+`payment_ref` dès l'ouverture de la session, et le webhook, quand la référence
+qualifiée n'est pas revenue, retrouve la ligne par cette colonne. Les deux
+voies se couvrent l'une l'autre — `merchant_reference` rattrape une session
+plus ancienne (un second appel à la route écrase `payment_ref`), l'identifiant
+rattrape une charge utile qui ne réémet pas la référence. **Le fail-closed est
+intact** : si aucune des deux ne reconnaît la ligne, rien n'est écrit, et un
+identifiant jamais délivré n'apparie rien (c'est le témoin du repli — un repli
+qui marquerait payé le premier venu serait pire que pas de repli).
+
+### Le défaut trouvé en chemin, et il compilait
+
+> « For now, Fedapay allows you to **only use the XOF currency (CFA)** for your
+> various transactions. » — documentation FedaPay
+
+Or le point 126 avait rendu la devise et le prestataire déclarables
+SÉPARÉMENT. Rien n'empêchait `provider: fedapay` + `currency: EUR` : ça
+compilait, et l'auteur ne l'apprenait qu'au premier vrai encaissement, en 502,
+devant un client qui voulait payer. Pire, `provider: fedapay` **tout seul**
+tombait sur le défaut `EUR` et partait donc encaisser dans une devise refusée.
+
+`DEVISES_PAR_PRESTATAIRE` referme ça. Deux décisions :
+
+- La devise comparée est l'**EFFECTIVE**, pas la déclarée — sinon l'omission
+  passe et c'est justement le cas le plus probable.
+- `None` signifie « aucune restriction CONNUE », et ne rien savoir n'autorise
+  pas à interdire : Stripe reste libre, avec son témoin (`stripe` + `EUR`
+  compile), sans quoi une garde trop large casserait toutes les specs
+  existantes. C'est la leçon du point 84, mot pour mot : **une garantie trop
+  large n'est pas plus sûre, elle est fausse ailleurs.**
+
+Le message NOMME la devise à écrire. « Configuration incompatible » aurait
+laissé chercher.
+
+### La question du delta, posée AVANT d'écrire
+
+`payment_ref` est désormais renseigné avant tout encaissement, et le contrat
+disait « vide tant que rien n'est encaissé » — donc le contrat MENTAIT
+(point 76). Le texte est corrigé et dit maintenant que ce champ n'est pas un
+indicateur de règlement, que c'est `payment_status` qui l'est.
+`_contract_signature` compare les NOMS, les TYPES et `server_generated` — jamais
+les descriptions : ce changement ne produit donc aucun delta, et c'est **juste**,
+puisque aucune interface conforme ne pouvait s'appuyer sur `payment_ref` pour
+savoir si c'était payé. La question a été posée avant, pas après.
+
+### Ce qui reste non prouvé
+
+Que FedaPay réémette `merchant_reference` dans la charge utile du webhook. La
+brique n'en dépend plus : le repli couvre le cas, et les deux voies sont
+éprouvées contre un vrai serveur et un faux prestataire embarqué
+(`tests/test_fedapay.py`, 19 tests). Les quatre tests nouveaux échouent tous
+sans la correction — contre-épreuve faite, pas supposée.
+
+
+## 132. Le serveur mourait au démarrage à plusieurs workers
+
+Le point 130 avait remplacé une sonde de démarrage qui mentait par une sonde
+qui compte les workers réellement prêts, et lui avait fait imprimer le journal
+en cas d'échec. Deux exécutions de CI plus tard, cette impression a livré
+autre chose qu'un changement de formulation d'uvicorn :
+
+```
+sqlite3.OperationalError: database is locked
+ERROR:    Application startup failed. Exiting.
+INFO:     Application startup complete.
+ERROR:    Child process [4596] failed to start, stopping the parent process.
+```
+
+Un worker démarre, **l'autre meurt**, et uvicorn arrête le serveur entier. Le
+défaut a plusieurs mois. La sonde HTTP le masquait parfaitement : le worker
+survivant répondait à `/docs`, le test croyait le service prêt, et la rafale
+tombait de temps en temps sur une connexion réinitialisée — un symptôme rangé
+sous « CI capricieuse ». **Un test qu'on croyait instable décrivait un vrai
+défaut.**
+
+### Ce que la mesure a établi
+
+Impossible à reproduire ici, même à huit workers sous huit cœurs saturés. Au
+lieu de multiplier les essais, l'hypothèse a été isolée : `PRAGMA journal_mode
+= WAL` respecte-t-il `busy_timeout` ?
+
+| autre connexion | résultat |
+|---|---|
+| transaction de **lecture** | attend le délai ENTIER (10 s) puis échoue quand même |
+| transaction d'**écriture** | échoue **immédiatement**, en 0,00 s |
+
+`busy_timeout` ne protège pas ce pragma. C'est le seul endroit du socle dans
+ce cas — d'où un worker qui meurt sur-le-champ pendant que l'autre écrit le
+schéma.
+
+### La correction, et pourquoi elle ne s'arrête pas au pragma
+
+`_activer_wal` rend la bascule **tolérante** : le mode de journal est une
+propriété persistante du FICHIER, pas de la connexion — le premier processus
+qui y arrive le règle pour tous, et échouer ne coûte que de la concurrence,
+jamais une donnée.
+
+Mais corriger la seule instruction observée aurait laissé tomber la suivante :
+une fois le pragma tolérant, l'échec s'est **déplacé** sur le `COMMIT`
+implicite d'`executescript`, que `busy_timeout` ne couvre pas davantage. C'est
+pourquoi l'initialisation entière est désormais **réessayée** (20 s, pas de
+plafond d'essais) plutôt que rafistolée instruction par instruction : le DDL
+du socle est idempotent (`CREATE TABLE IF NOT EXISTS`), donc le rejouer ne
+coûte rien. `_verrou_passager` distingue « quelqu'un d'autre écrit » d'un
+schéma fautif — réessayer une vraie erreur de schéma ne ferait que retarder le
+diagnostic de vingt secondes.
+
+### Le test ne COURSE pas
+
+`test_le_demarrage_survit_a_une_base_deja_verrouillee` tient lui-même le
+verrou d'écriture pendant que le serveur démarre, puis le relâche : sans la
+correction il échoue à tous les coups, avec elle il passe. Une course
+reproduite au petit bonheur n'aurait rien prouvé — c'est justement ce qui a
+laissé ce défaut vivre des mois.
+
+Un piège rencontré en l'écrivant, et qui vaut d'être noté : le verrou était
+d'abord relâché par un `threading.Timer`. **Une connexion SQLite n'appartient
+qu'au fil qui l'a ouverte** — le relâchement échouait en silence dans le fil du
+minuteur, le verrou restait posé, et le test accusait la correction qu'il
+venait de vérifier. Il est relâché depuis le fil principal.
+
+### Portée vérifiée par les empreintes
+
+Seuls `app.py` et `monl.json` (qui scelle son empreinte) bougent :
+`schema.sql`, `manage.py` et le `Dockerfile` restent identiques à l'octet
+près. Le changement vit dans le runtime et nulle part ailleurs — les goldens
+du point 122 servent ici exactement à ça.
+
+
+## 133. L'image servait l'API et répondait 404 sur le site
+
+Trouvé en cherchant ce qui manquait pour mettre CodexShop en ligne comme
+vitrine publique — donc en construisant réellement l'image, pas en relisant le
+`Dockerfile`.
+
+```
+/product                       200   <- l'API répond
+/docs                          200
+/site/                         404   <- la vitrine
+/site/assets/carnet-lin.webp   404   <- les photos
+```
+
+**La cause est une frontière mal placée entre deux commandes.** Le `Dockerfile`
+est produit par `monl compile` et lance `uvicorn app:app`. Or `app.py` ne monte
+rien : c'est `serve.py` qui monte `frontend/` sur `/site` et `assets/` avant lui
+(brique 13, point 83) — et `serve.py` n'était écrit que par `monl run`. Le
+conteneur ne pouvait donc pas le lancer, puisqu'il n'existait pas au moment où
+l'image se construit. **Un produit dont l'argument est « un site livré »
+livrait une API sans site**, et le seul moyen de s'en apercevoir était de
+déployer.
+
+### La correction, et les quatre décisions qu'elle porte
+
+**`serve.py` est émis par `monl compile`.** Le dossier d'assets vient du
+CONTRAT, déjà dérivé de la spec et vérifié cohérent avec elle — relire la spec
+ici ferait un second parseur à faire dériver. C'est le pendant exact
+d'`_assets_dir_du_projet`, côté compilation.
+
+**Le wrapper tolère l'absence de `frontend/`, et le DIT.** L'interface est
+construite APRÈS la compilation : le wrapper est donc émis avant qu'elle
+n'existe et doit démarrer quand même, sinon l'image ne démarrerait pas du tout.
+Mais un montage absent en silence est précisément le défaut qu'on répare — d'où
+une ligne sur stderr au démarrage, et le même message dans `monl run`.
+
+**`monl run` lance TOUJOURS `serve:app`.** Il choisissait auparavant entre
+`app:app` et `serve:app` selon la présence d'un frontend. Le garder aurait
+laissé deux comportements pour un seul projet — celui qu'on éprouve en local et
+celui qui part en production — dont un seul serait vérifié.
+
+**Un `Dockerfile` hérité se rafraîchit, un `Dockerfile` personnalisé non.** Sans
+rattrapage, tout projet déjà compilé garderait un conteneur qui répond 404 sur
+`/site`, et rien ne le lui dirait ; en rafraîchissant sans condition, on
+écraserait l'adaptation locale de l'auteur. Le départage se fait à l'octet
+près : un fichier resté identique à l'un des gabarits connus n'a jamais été
+touché par personne. C'est l'arbitrage déjà retenu pour le gabarit Upload,
+repris tel quel et généralisé.
+
+### Deux effets de bord, tous deux voulus
+
+`serve.py` rejoint **`SCELLE_ARTEFACTS`** : il est généré, il porte « ne pas
+éditer » dans sa première ligne, et c'est lui qui décide quels dossiers sont
+servis. Un projet compilé par un monl antérieur n'a pas la clé dans son
+`monl.json` — la vérification ne compare que les empreintes ENREGISTRÉES, donc
+rien ne casse, et `monl run` réécrit le wrapper à chaque lancement.
+
+`serve.py` rejoint **`PROTECTED_ARTEFACTS`** (le garde-fou d'empreinte du
+point 73). Il n'y était pas parce qu'il n'existait qu'après `monl run`, donc
+rarement au moment où l'agent d'interface travaille. Émis dès la compilation,
+il est là quand l'IA passe — et le laisser dehors reviendrait à protéger le
+backend tout en laissant réécrire ce qui l'expose.
+
+### La preuve
+
+Image construite et lancée pour de vrai : avec `frontend/`, `/site/` rend
+70 904 octets et la photo 122 560 ; sans `frontend/`, le conteneur démarre,
+`/product` répond 200, `/site/` rend 404, et le journal dit pourquoi. Six tests
+dans `tests/test_deploiement.py`, tous en échec sans la correction. Les
+empreintes figées confirment la portée : seuls `Dockerfile`, `monl.json` et le
+nouveau `serve.py` bougent — `app.py`, `schema.sql`, `manage.py` et
+`sandbox_ai.py` restent identiques à l'octet.
+
+
+## 134. La frontière de l'agent était une énumération incomplète
+
+Le point 133 a été soumis à une revue indépendante (Codex, `gpt-5.6-sol`,
+lecture seule). Elle a confirmé le correctif et rapporté quatre défauts, dont
+deux introduits par lui et deux préexistants. **Tous ont été revérifiés ici,
+en exécutant** — une revue qui affirme n'est pas une revue qui prouve.
+
+### Deux défauts introduits par le point 133
+
+**Un artefact scellé mais ABSENT ne disait rien.** La boucle de vérification
+lisait `if os.path.exists(chemin) and _sha256_file(...) != attendu` : un
+fichier disparu sortait par la première condition. Vérifié — `serve.py`
+supprimé après compilation, `check_coherence` rend `ok=True`, sans une
+erreur. Le trou existait déjà pour `manage.py` et `sandbox_ai.py` ; il ne se
+voyait pas parce qu'aucun artefact n'était encore DÉSIGNÉ par le conteneur.
+Depuis le point 133, `monl run --check` pouvait certifier « cohérence
+vérifiée » sur un projet dont le `Dockerfile` lance `serve:app` alors que le
+module n'est plus là. Un artefact enregistré et manquant est désormais une
+erreur qui le nomme.
+
+**`monl run` invalidait l'état qu'il venait de vérifier.** Il réécrivait le
+wrapper à chaque lancement — inoffensif tant que le fichier n'était scellé
+nulle part. Scellé, la réécriture devient une bombe à retardement : qu'une
+version ultérieure de monl change le rendu du wrapper, et `monl run` écrit un
+texte que `monl.json` ne reconnaît pas ; **le lancement SUIVANT refuse de
+démarrer en accusant à tort une « modification à la main »**. Reproduit ici en
+simulant une V2 du rendu. Le wrapper n'est donc plus écrit que s'il MANQUE, ou
+si l'état ne le scelle pas — c'est-à-dire pour un projet compilé par un monl
+antérieur, qui n'a rien à contredire. Le rafraîchir reste le travail de
+`monl update`, qui recompile ET réenregistre l'empreinte. Le témoin est gardé :
+un projet ancien sans wrapper en reçoit toujours un au lancement.
+
+### La vraie leçon : deux listes, deux sens, et une confusion
+
+`SCELLE_ARTEFACTS` dit « ceci est généré, ne le retouchez pas ».
+`PROTECTED_ARTEFACTS` (point 73) dit tout autre chose : **l'empreinte est prise
+juste avant de lancer l'agent et comparée juste après**. C'est un invariant
+PENDANT un appel, pas une déclaration de propriété — l'auteur reste
+parfaitement libre d'adapter son `Dockerfile` entre deux exécutions.
+
+Cette confusion a laissé dehors des fichiers EXÉCUTABLES au prétexte qu'ils
+sont éditables :
+
+- **`manage.py`** — il CRÉE les comptes administrateurs, c'est la frontière que
+  `selfRegister` tient côté API. Scellé dans `monl.json`, absent d'ici. Et le
+  contrôle de cohérence qui l'aurait vu **n'est même pas atteint** quand
+  l'agent ne touche pas à `frontend/` : `generate_with_cli_agent` retourne un
+  SUCCÈS avant lui. Un agent réécrivant `manage.py` sans rien changer d'autre
+  n'était donc vu par personne, et le code injecté s'exécutait à la première
+  création de compte privilégié — par le chemin légitime et documenté.
+- **`Dockerfile`** — un agent qui fait un vrai travail de frontend et remet
+  `app:app` au passage annule le point 133 sans qu'aucun contrôle ne bronche :
+  la cohérence passe, le smoke test ne lit pas ce fichier, le succès est
+  annoncé, et l'image suivante répond de nouveau 404.
+- **`.dockerignore`** — le pire des trois. Il exclut `.jwt_secret` du
+  `COPY . .` du gabarit. L'en retirer fait entrer **le secret de signature des
+  jetons dans l'image**, donc dans tout registre où elle est poussée.
+
+Les quatre noms rejoignent `PROTECTED_ARTEFACTS`. Trois tests de sabotage les
+éprouvent, chacun avec un agent qui produit un frontend valide et triche à
+côté — le cas qui passait tous les contrôles.
+
+### Ce que cette liste reste, et qu'il faudra changer
+
+Une ÉNUMÉRATION. Chaque artefact nouveau doit y être ajouté à la main, et
+**quatre l'ont été après coup**. La bonne forme est l'inverse — « rien hors de
+`frontend/` ne bouge » — et demande de parcourir le projet entier. C'est une
+brique à faire, pas à improviser dans un correctif : elle doit décider du sort
+des fichiers que l'auteur dépose lui-même (`assets/`, un `README`), et se
+tromper dans ce sens-là rendrait `monl frontend` inutilisable.
+
+### Ce que la revue a cherché sans rien trouver
+
+Le rattrapage du `Dockerfile` hérité n'écrase aucun fichier personnalisé :
+l'égalité est exigée à l'octet près, un commentaire suffit à préserver. Les
+deux gabarits réellement émis dans l'histoire du dépôt sont reconnus — la
+variante Upload manquait au test, elle y est. Le wrapper tolérant ne masque
+aucun échec qui devait être bruyant : juste après `monl compile`, l'absence de
+`frontend/` est normale par ordre de travail, et faire lever `StaticFiles`
+rendrait inutilisable une image fraîchement compilée.
