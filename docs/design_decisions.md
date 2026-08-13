@@ -45,6 +45,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [126](#126-la-devise-dencaissement-et-son-exposant) La devise d'encaissement et son exposant ·
 [127](#127-la-demonstration-nallait-plus-chercher-ses-images-chez-un-tiers) La démonstration n'allait plus chercher ses images chez un tiers ·
 [128](#128-encaisser-par-mobile-money--le-prestataire-devient-enfichable) Encaisser par mobile money : le prestataire devient enfichable ·
+[129](#129-loracle-temporel-se-mesure-par-paires-jamais-par-series) L'oracle temporel se mesure par PAIRES, jamais par séries ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -8369,3 +8370,69 @@ qualifiée dans les deux champs, le webhook signé qui paie, trois signatures
 invalides qui ne paient rien, l'horodatage du futur refusé, la charge utile de
 forme inconnue qui n'écrit rien, et la clé absente qui rend 503 en la nommant
 sans empêcher le reste du serveur de répondre.
+
+
+## 129. L'oracle temporel se mesure par PAIRES, jamais par séries
+
+**Ce qui a cassé.** La CI est tombée sur l'assertion d'oracle temporel du
+point 124 — celle qui exige qu'un compte VERROUILLÉ et un compte INEXISTANT
+répondent en des temps indiscernables — **à 0,4 ms près sur un seuil de
+200 ms** (`assert 0.2044 < 0.2`), pendant que la même version de Python
+passait sur l'exécution voisine. Rien n'avait changé dans le code
+d'authentification. Le test mesurait UN tirage de chaque chemin sur un runner
+partagé.
+
+**Ce qu'un test de sécurité qui se trompe coûte.** C'est l'arbitrage déjà posé
+au point 57 : un signalement faux sur du code correct apprend à ne plus lire
+les signalements. Un test d'oracle temporel qui échoue une fois sur deux finit
+en `@pytest.mark.flaky`, puis en test supprimé — et la garantie disparaît avec
+lui. La réparation ne pouvait donc pas être « élargir le seuil » : ça rend le
+test vert en le rendant aveugle.
+
+**Première correction, insuffisante : la médiane.** Un oracle temporel est une
+TENDANCE, pas un instant — une vraie fuite déplace TOUTES les mesures, un
+sursaut d'ordonnanceur une seule. Cinq tirages, médiane, seuil RESSERRÉ de 200
+à 100 ms : plus strict qu'avant, pas plus lâche. Vert à vide. Rejoué sous huit
+cœurs saturés — pour reproduire le runner, pas pour se rassurer — **il tombait
+encore une fois sur trois**.
+
+**Ce que la mesure a montré, et que le raisonnement n'aurait pas trouvé.** En
+imprimant les tirages bruts :
+
+```
+verrouille [0.199, 0.368, 0.291, 0.347, 0.302]   <- mesuré en PREMIER
+inexistant [0.167, 0.161, 0.172, 0.200, 0.197]   <- mesuré ENSUITE
+```
+
+La première série DÉRIVE vers le haut pendant que la seconde reste plate.
+L'écart de 130 ms n'appartenait pas au verrouillage : il appartenait à
+l'ORDRE des mesures. Mesurer un chemin en entier PUIS l'autre laisse toute la
+dérive de la machine dans la différence — et sur un runner chargé, cette
+dérive est plus grande que le signal cherché. Le test n'était pas seulement
+instable : sur ces chiffres-là, **il accusait un oracle qui n'existait pas**.
+
+**La correction : appeler en ALTERNANCE et différencier PAIRE PAR PAIRE.**
+`_ecart_apparie` (tests/test_authentification_b4.py) appelle A, B, A, B… et
+retient la médiane des différences `duree_A - duree_B` de chaque tour. Un
+sursaut frappe les deux membres d'une même paire et s'annule dans leur
+différence ; une vraie fuite, elle, est présente dans CHAQUE paire et survit à
+la médiane. Le seuil reste à 100 ms. Mesuré sous huit cœurs saturés, l'écart
+médian apparié ne dépasse plus **14 ms** — sept fois la marge — et huit
+exécutions consécutives sont vertes.
+
+**Un effet de bord à connaître.** La spec du test déclarait `lockout: 3 in 2`.
+Les dix appels de mesure dépassaient cette fenêtre de deux secondes et
+expiraient le verrou AVANT l'assertion « toujours fermé », qui échouait alors
+en accusant le mauvais coupable. La fenêtre passe à 10 s et le `time.sleep`
+qui suit à 10,5 s. Ce `sleep` n'est pas remplacé par un vieillissement en base
+(comme `_expire_reset_token` le fait pour le jeton de réinitialisation) :
+écrire `locked_until` dans le passé prouverait qu'un verrou périmé laisse
+entrer, jamais que **le verrou se rouvre TOUT SEUL au bout du temps
+déclaré** — et c'est cette seconde phrase qui est la promesse du point 124.
+
+**La règle qui reste.** Une mesure de temps qui compare deux chemins les
+appelle en alternance. Le corollaire vaut au-delà de ce test : un écart mesuré
+entre deux séries successives contient la dérive de la machine, et sur une
+machine chargée cette dérive domine. C'est le même défaut de méthode qu'un bug
+d'ordre d'itération (point 92) — invisible sur la machine qui l'a fait naître,
+révélé seulement en reproduisant les conditions de celle qui échoue.

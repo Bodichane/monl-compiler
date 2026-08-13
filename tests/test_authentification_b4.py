@@ -16,6 +16,7 @@ import os
 import re
 import socketserver
 import sqlite3
+import statistics
 import struct
 import subprocess
 import sys
@@ -43,7 +44,7 @@ actor User selfRegister
 
 capability auth
     identifier: email
-    lockout: 3 in 2
+    lockout: 3 in 10
     password_reset: 60
     refresh_tokens: 3600
     totp
@@ -262,6 +263,50 @@ def _token(response):
     return value
 
 
+# Nombre de tours des mesures de temps. Le compteur de messages plus bas en
+# dépend : la voie « adresse connue » envoie un courriel à CHAQUE tour.
+TOURS_MESURE = 5
+
+
+def _ecart_apparie(appel_a, appel_b, tours=TOURS_MESURE):
+    """Écart médian entre deux chemins, mesuré en ALTERNANCE et par paires.
+
+    Un oracle temporel est une TENDANCE, pas un instant. Mesuré à un seul
+    tirage sur un runner partagé, il suffit d'un sursaut (ordonnanceur,
+    ramasse-miettes, voisin bruyant) pour faire échouer la comparaison : la CI
+    est tombée exactement comme ça, à 0,4 ms près sur un seuil de 200 ms,
+    pendant que le même test passait sur l'autre exécution de la même version
+    de Python. Un test de sécurité qui se trompe une fois sur deux apprend à
+    ne plus lire les échecs — c'est l'arbitrage du point 57.
+
+    Deux corrections, et la seconde est celle qui manquait. La MÉDIANE écarte
+    un sursaut isolé sans rien masquer : une vraie fuite de temps déplace
+    TOUTES les mesures, pas une seule. Mais mesurer un chemin en entier PUIS
+    l'autre laisse toute la dérive de la machine dans l'écart : sous huit
+    cœurs saturés, la première série montait de 0,20 à 0,37 s pendant que la
+    seconde restait plate — un écart de 130 ms attribué au verrouillage, alors
+    qu'il n'appartenait qu'à l'ORDRE des mesures. Les deux chemins sont donc
+    appelés en ALTERNANCE et l'écart est calculé PAIRE PAR PAIRE : un sursaut
+    frappe les deux membres d'une même paire et s'annule dans leur différence,
+    là où une vraie fuite, elle, est présente dans chaque paire.
+
+    L'IP change à chaque tour : sans quoi la limitation par IP (5 / 60 s,
+    points 13 et 33) répondrait 429 au sixième appel et mesurerait le refus du
+    limiteur au lieu du chemin d'authentification.
+    """
+    ecarts = []
+    reponse_a = reponse_b = None
+    for tour in range(tours):
+        depart = time.perf_counter()
+        reponse_a = appel_a(tour)
+        duree_a = time.perf_counter() - depart
+        depart = time.perf_counter()
+        reponse_b = appel_b(tour)
+        duree_b = time.perf_counter() - depart
+        ecarts.append(duree_a - duree_b)
+    return statistics.median(ecarts), reponse_a, reponse_b
+
+
 def _wait_for_message(smtp, count):
     deadline = time.monotonic() + 5
     while len(smtp.messages) < count and time.monotonic() < deadline:
@@ -328,38 +373,46 @@ def test_authentification_b4_complete_sur_les_deux_moteurs(b4_application):
     assert locked.json()["detail"] == "Identifiants invalides."
     bob_token = _token(_login(base, bob, "motdepasse8", ip="bob-before-totp"))
 
-    started = time.perf_counter()
-    locked_probe = _login(base, alice, "motdepasse8", ip="lock-timing")
-    locked_duration = time.perf_counter() - started
-    started = time.perf_counter()
-    missing_probe = _login(base, "absent-b4@example.invalid",
-                           "motdepasse8", ip="missing-timing")
-    missing_duration = time.perf_counter() - started
+    ecart_verrou, locked_probe, missing_probe = _ecart_apparie(
+        lambda tour: _login(base, alice, "motdepasse8",
+                            ip=f"lock-timing-{tour}"),
+        lambda tour: _login(base, "absent-b4@example.invalid", "motdepasse8",
+                            ip=f"missing-timing-{tour}"))
     assert locked_probe.status_code == missing_probe.status_code == 401
     assert locked_probe.json() == missing_probe.json()
-    assert abs(locked_duration - missing_duration) < 0.20
+    # Un compte VERROUILLÉ et un compte INEXISTANT doivent être
+    # indiscernables : les distinguer, fût-ce par le temps de réponse,
+    # apprendrait à un attaquant quelles adresses existent.
+    assert abs(ecart_verrou) < 0.10, f"ecart median {ecart_verrou:.4f} s"
     assert _login(base, alice, "motdepasse8", ip="lock-still-closed").status_code == 401
-    time.sleep(2.2)
+    # La fenêtre de verrouillage est passée de 2 à 10 secondes, et ce n'est
+    # pas du confort : la mesure d'oracle ci-dessus fait DIX appels, et avec
+    # une fenêtre de 2 s elle expirait le verrou avant l'assertion « toujours
+    # fermé » — le test échouait alors sous charge en accusant le mauvais
+    # coupable. Le `sleep` reste, parce qu'il prouve ce qu'aucune écriture en
+    # base ne prouverait : que le verrou se rouvre TOUT SEUL, au bout du temps
+    # déclaré.
+    time.sleep(10.5)
     alice_token = _token(_login(base, alice, "motdepasse8", ip="lock-expired"))
 
     # 2. Réinitialisation réellement livrée par la brique de messages, sans
     # différence de réponse entre une adresse connue et une adresse absente.
-    started = time.perf_counter()
-    known = _call("POST", base, "/password-reset/request",
-                  body={"username": alice}, ip="reset-known")
-    known_duration = time.perf_counter() - started
-    started = time.perf_counter()
-    unknown = _call("POST", base, "/password-reset/request",
-                    body={"username": "nobody-b4@example.invalid"}, ip="reset-unknown")
-    unknown_duration = time.perf_counter() - started
+    ecart_reset, known, unknown = _ecart_apparie(
+        lambda tour: _call("POST", base, "/password-reset/request",
+                           body={"username": alice}, ip=f"reset-known-{tour}"),
+        lambda tour: _call("POST", base, "/password-reset/request",
+                           body={"username": "nobody-b4@example.invalid"},
+                           ip=f"reset-unknown-{tour}"))
     assert known.status_code == unknown.status_code == 200
     assert known.json() == unknown.json()
-    assert abs(known_duration - unknown_duration) < 0.20
-    alice_reset = _wait_for_message(smtp, 1)
+    assert abs(ecart_reset) < 0.10, f"ecart median {ecart_reset:.4f} s"
+    # La voie « adresse connue » a envoyé un courriel par tour : le jeton
+    # utilisable est celui du DERNIER, les précédents ayant pu être invalidés.
+    alice_reset = _wait_for_message(smtp, TOURS_MESURE)
 
     _call("POST", base, "/password-reset/request",
           body={"username": bob}, ip="reset-bob")
-    bob_reset = _wait_for_message(smtp, 2)
+    bob_reset = _wait_for_message(smtp, TOURS_MESURE + 1)
     assert bob_reset != alice_reset
     wrong_account = _call(
         "POST", base, "/password-reset/confirm",
@@ -369,7 +422,7 @@ def test_authentification_b4_complete_sur_les_deux_moteurs(b4_application):
 
     _call("POST", base, "/password-reset/request",
           body={"username": alice}, ip="reset-expired-request")
-    expired = _wait_for_message(smtp, 3)
+    expired = _wait_for_message(smtp, TOURS_MESURE + 2)
     _expire_reset_token(directory, dsn, expired)
     assert _call(
         "POST", base, "/password-reset/confirm",
@@ -378,7 +431,7 @@ def test_authentification_b4_complete_sur_les_deux_moteurs(b4_application):
 
     _call("POST", base, "/password-reset/request",
           body={"username": alice}, ip="reset-success-request")
-    fresh = _wait_for_message(smtp, 4)
+    fresh = _wait_for_message(smtp, TOURS_MESURE + 3)
     confirmed = _call(
         "POST", base, "/password-reset/confirm",
         body={"username": alice, "token": fresh, "password": "nouveau-alice-8"},
