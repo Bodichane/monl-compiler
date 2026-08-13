@@ -46,6 +46,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [127](#127-la-demonstration-nallait-plus-chercher-ses-images-chez-un-tiers) La démonstration n'allait plus chercher ses images chez un tiers ·
 [128](#128-encaisser-par-mobile-money--le-prestataire-devient-enfichable) Encaisser par mobile money : le prestataire devient enfichable ·
 [129](#129-loracle-temporel-se-mesure-par-paires-jamais-par-series) L'oracle temporel se mesure par PAIRES, jamais par séries ·
+[130](#130-une-sonde-qui-prouve-quun-worker-repond-ne-prouve-rien-des-autres) Une sonde qui prouve qu'UN worker répond ne prouve rien des autres ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -8436,3 +8437,36 @@ entre deux séries successives contient la dérive de la machine, et sur une
 machine chargée cette dérive domine. C'est le même défaut de méthode qu'un bug
 d'ordre d'itération (point 92) — invisible sur la machine qui l'a fait naître,
 révélé seulement en reproduisant les conditions de celle qui échoue.
+
+
+## 130. Une sonde qui prouve qu'UN worker répond ne prouve rien des autres
+
+Même exécution de CI que le point 129, autre test, même famille de défaut :
+`tests/test_rate_limit_shared.py` tombait sur Python 3.10 avec
+`ConnectionResetError(104)` au milieu de sa rafale de sept `POST /login` —
+alors que le quota partagé qu'il vérifie fonctionne parfaitement.
+
+**Pourquoi la sonde mentait.** Le test démarre `uvicorn --workers 2`, puis
+attend en bouclant sur `GET /docs` jusqu'à une réponse. Or avec plusieurs
+workers, c'est le SUPERVISEUR qui ouvre la socket, puis il fork : un GET
+réussi prouve que la socket accepte, pas qu'il y a quelqu'un derrière chaque
+worker. Une connexion distribuée à un worker encore en train de démarrer est
+réinitialisée. La sonde répondait donc à « le service accepte-t-il ? » quand
+la question était « les DEUX workers servent-ils ? ».
+
+**La correction.** uvicorn écrit `Application startup complete` **une fois par
+worker** : on compte ces lignes au lieu de deviner. Le tuyau de sortie est
+vidé dans un fil séparé — laissé plein, il finirait par bloquer le serveur
+qu'on observe, ce qui remplacerait un test instable par un test qui pend.
+L'échec, s'il survient, imprime les vingt dernières lignes du journal : un
+futur changement de formulation d'uvicorn se diagnostique en le lisant, au
+lieu de se deviner.
+
+Ne PAS se rabattre en silence sur la sonde HTTP quand le marqueur manque :
+ça rendrait le test vert en lui rendant son instabilité, et c'est l'arbitrage
+du point 57 pris à l'envers.
+
+**La règle qui reste**, jumelle de celle du point 129 : une attente de
+démarrage doit attendre ce dont le test a réellement besoin. Ici, ce n'est pas
+« une réponse », c'est « N workers ». Vérifié sous huit cœurs saturés, trois
+exécutions vertes.
