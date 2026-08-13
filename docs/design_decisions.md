@@ -52,6 +52,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [133](#133-limage-servait-lapi-et-repondait-404-sur-le-site) L'image servait l'API et répondait 404 sur le site ·
 [134](#134-la-frontiere-de-lagent-etait-une-enumeration-incomplete) La frontière de l'agent était une énumération incomplète ·
 [135](#135-mesurer-le-coût-avant-de-vendre-la-génération--yandex-ai-studio) Mesurer le coût avant de vendre la génération : Yandex AI Studio ·
+[139](#139-le-compilateur-avait-repris-la-main-sur-la-palette-par-lautre-tuyau) Le compilateur avait repris la main sur la palette, par l'autre tuyau ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -8841,3 +8842,94 @@ Cette couche ne prétend pas prouver qu'un site est beau : seule une revue
 humaine peut trancher le goût. Elle rend en revanche la direction explicite,
 réutilisable et partiellement mesurable — le même principe qui fait du contrat
 frontend la source de vérité des routes.
+
+---
+
+## 139. Le compilateur avait repris la main sur la palette, par l'autre tuyau
+
+> **Numérotation.** Les points 137 et 138 vivent sur d'autres branches
+> (fichiers réclamés, identifiant de compte). Les trous se referment à la
+> fusion ; une collision, elle, ne se referme jamais.
+
+**Le point 72 était contourné, sans que rien ne s'allume.** Le système de
+design (point 136) faisait choisir au compilateur une **palette parmi cinq**,
+indexée sur le type d'activité, plus une ambiance, une typographie et des
+effets. Le contrat, lui, restait propre — donc `tests/test_design_contract.py`
+passait au vert.
+
+**Trois faits ont tranché, aucun n'est un argument.**
+
+1. **Horodatages.** `projets/AtelierNaya/DESIGN_SYSTEM.md` écrit à 09:17,
+   `frontend/styles.css` à 09:57. Les cinq couleurs `:root` du site livré sont
+   **identiques à l'octet** à la palette `service` du compilateur. Ce n'est pas
+   une influence : c'est une dictée, avec l'ordre chronologique pour le prouver.
+2. **Le garde-fou regardait le mauvais tuyau.** `_brief()` n'appelait que
+   `_render_prompt()`. Il prouvait donc que le CONTRAT se tait — pas que le
+   prompt final se tait. `build_generation_prompt()` annexe `DESIGN_SYSTEM.md`
+   via `_project_guidance()` et le présente à l'IA comme « source de vérité ».
+   **Même destination, autre tuyau** : la forme exacte de l'angle mort du
+   delta, rencontrée treize fois sur le contrat et rencontrée ici pour la
+   première fois sur le BRIEF.
+3. **La palette échouait à la promesse qu'elle écrivait elle-même.**
+   `DESIGN_SYSTEM.md` annonce « 4,5:1 minimum » et sa propre palette donne
+   **3,20:1** pour du blanc sur l'accent `#D07A4B` — c'est-à-dire sur le bouton
+   « Réserver », le seul qui compte sur ce site. 4,40:1 au survol, 4,12:1 pour
+   l'eyebrow. Calcul WCAG refait ici, chiffre pour chiffre.
+
+Le troisième fait est le plus dur : **une palette câblée qui certifie une
+accessibilité qu'elle n'atteint pas est pire qu'une absence de palette.** Elle
+ne se contente pas de choisir à la place de l'auteur, elle le rassure à tort.
+
+**La ligne retenue, et pourquoi elle est plus fine que « méthode contre
+goût ».** J'avais proposé : le compilateur peut enseigner la méthode (échelle
+typographique, rythme, durées, ruptures), jamais le goût (palette, fonte,
+rayon). Codex a objecté, avec raison : **une échelle, un rythme, une durée ou
+une rupture deviennent du goût dès que le compilateur en choisit les VALEURS.**
+« Utilise une échelle 1,25, une grille de 8 px, 180 ms et une rupture à 768 px »
+est déjà une direction visuelle. La règle exacte est donc :
+
+> Le compilateur peut exiger qu'une échelle EXISTE et qu'elle soit suivie.
+> Il ne peut pas dire laquelle.
+
+`DESIGN_SYSTEM.md` n'émet donc plus aucune couleur ni aucune fonte (vérifié en
+compilant : zéro `#rrggbb`, zéro mention de famille). Il exige en revanche des
+tokens nommés, des rôles typographiques, une longueur de ligne bornée, un
+rythme qui se comprime sur petit écran, la couverture complète des états, des
+durées bornées, le contraste — **et il dit de le vérifier sur le texte des
+BOUTONS**, puisque c'est là qu'il manquait.
+
+Ce qui reste au compilateur est FONCTIONNEL et se déduit honnêtement du
+contrat : quelles pages doivent exister, quels blocs sont obligatoires, quelles
+entités portent des médias, quels marqueurs structurels sont attendus. Codex en
+était d'accord : *« il peut déduire les besoins fonctionnels : prix visible,
+réservation accessible, états nécessaires. »*
+
+**Le garde-fou mesure désormais le prompt FINAL**, annexes comprises, et une
+contre-épreuve le prouve : une couleur réintroduite dans `DESIGN_SYSTEM.md`
+fait échouer `test_le_brief_ne_prescrit_ni_couleur_ni_police`. Sans cette
+contre-épreuve, on ne saurait pas si le test sait encore échouer.
+
+L'en-tête de ce fichier de test le disait depuis le point 72, et c'est
+exactement ce qui est arrivé :
+
+> *Prouver qu'un compilateur INTERDIT quelque chose est facile. Prouver qu'il
+> se TAIT l'est beaucoup moins […] : un silence que rien ne mesure finit par se
+> remplir à nouveau.*
+
+Le silence était mesuré au mauvais endroit. **La leçon générale dépasse le
+design : un invariant n'est gardé que sur le chemin qu'on observe. Quand une
+brique ajoute un nouveau chemin vers le même destinataire, c'est le garde-fou
+qu'il faut déplacer, pas la brique qu'il faut croire.**
+
+**Et React ?** Question posée en même temps, tranchée avec : les 12 000
+composants de 21st.dev exigent React + Tailwind + shadcn, et l'on ne prend pas
+la pile. `npm install` est un appel réseau ; un bundler sert un `dist/` que
+personne n'a signé, ce qui vide l'empreinte des points 69 et 73 ; jsdom et
+`monl import` supposent que l'artefact servi EST celui qui a été écrit. Le prix
+serait ~45 ko gzippés avant la première ligne du site, quand AtelierNaya pèse
+29,8 ko en tout. Et le gain serait nul : le modèle de shadcn est le
+copier-coller de source, et ce qui fait la qualité de ces composants est du
+**CSS**. React n'y sert qu'à l'état de widgets complexes dont une vitrine, un
+catalogue et un formulaire n'ont pas l'usage. Si un marché l'exige un jour, ce
+sera un **second émetteur** — pas une modification de celui-ci, conformément au
+refus de l'IR multi-cible déjà acté.

@@ -25,54 +25,21 @@ ASSET_MANIFEST_FILENAME = "ASSET_MANIFEST.json"
 GENERATED_MARKER = "<!-- généré par monl — design system -->"
 
 
-_PALETTES = {
-    "commerce": {
-        "name": "Matière et conversion",
-        "primary": "#1F2A24",
-        "secondary": "#C47A52",
-        "accent": "#DDB892",
-        "surface": "#F5F0E8",
-        "text": "#18201C",
-        "mood": "matière, confiance, désir d'achat sans surcharge décorative",
-    },
-    "operations": {
-        "name": "Signal opérationnel",
-        "primary": "#16324F",
-        "secondary": "#2F6690",
-        "accent": "#F0A202",
-        "surface": "#F4F7FA",
-        "text": "#17202A",
-        "mood": "calme, lisibilité, signaux d'état et décisions rapides",
-    },
-    "editorial": {
-        "name": "Éditorial chaleureux",
-        "primary": "#2B2522",
-        "secondary": "#9A6B51",
-        "accent": "#C9A66B",
-        "surface": "#FAF7F2",
-        "text": "#27211E",
-        "mood": "profondeur, respiration, matière et lecture longue",
-    },
-    "service": {
-        "name": "Confiance accessible",
-        "primary": "#24443B",
-        "secondary": "#5B8E7D",
-        "accent": "#D07A4B",
-        "surface": "#F7F8F4",
-        "text": "#1D2925",
-        "mood": "accueil, réassurance, progression simple vers l'action",
-    },
-    "generic": {
-        "name": "Clarté distinctive",
-        "primary": "#243447",
-        "secondary": "#52708A",
-        "accent": "#C96B4B",
-        "surface": "#F6F7F5",
-        "text": "#1B232B",
-        "mood": "identité nette, contraste mesuré, information hiérarchisée",
-    },
-}
-
+# POINT 139 : il n'y a PLUS de palette ici, et il ne doit pas y en avoir.
+# Cinq palettes indexées sur le type d'activité vivaient à cet endroit. Le
+# point 72 l'interdit — « le compilateur ne décide RIEN du visuel : ni palette,
+# ni typographie, ni rayon » — et trois faits l'ont tranché plutôt qu'un
+# argument : les cinq couleurs `:root` de projets/AtelierNaya sont identiques à
+# l'octet à la palette « service », écrite quarante minutes plus tôt ; le
+# garde-fou ne regardait que le contrat, pendant que la palette voyageait par
+# DESIGN_SYSTEM.md ; et cette palette échouait au contraste qu'elle promettait
+# elle-même dans le même document (blanc sur #D07A4B : 3,20:1 pour un seuil
+# annoncé de 4,5:1, mesuré sur le bouton « Réserver »).
+#
+# La ligne retenue est plus fine que « méthode contre goût » : une échelle, un
+# rythme, une durée ou une rupture deviennent du GOÛT dès que le compilateur en
+# choisit les VALEURS. Ce fichier peut donc exiger qu'une échelle existe et
+# qu'elle soit suivie ; il ne peut pas dire laquelle.
 
 def _slug(value: str) -> str:
     value = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
@@ -121,41 +88,22 @@ def infer_design_profile(contract: dict) -> dict:
     if scheduling_signal:
         kind = "service"
         pattern = "Promesse claire + offres + disponibilité + prise de contact"
-        style = "Trust & Authority / Social Proof-Focused"
-        typography = "Sans-serif accueillante, titres courts et labels d'action sans ambiguïté."
-        effects = "feedback immédiat sur les formulaires, états de disponibilité visibles"
     elif "monl-commerce" in skills or "shop" in archetypes or "Pay" in actions:
         kind = "commerce"
         pattern = "Hero produit + catalogue guidé + réassurance + conversion"
-        style = "Editorial Grid / Conversion-Optimized"
-        typography = "Une sans-serif lisible pour l'interface, avec une serif ou une graisse distinctive pour les titres si le brief l'autorise."
-        effects = "survols courts, changement d'état explicite, mouvement réduit respecté"
     elif "monl-operations" in skills:
         kind = "operations"
         pattern = "Vue d'ensemble + files de travail + détail contextuel"
-        style = "Data-Dense Dashboard / Accessible & Ethical"
-        typography = "Sans-serif fonctionnelle, chiffres tabulaires et échelle compacte mais respirable."
-        effects = "transitions discrètes, filtres instantanément compréhensibles, aucun mouvement décoratif"
     elif contract.get("sections") or contract.get("faq") or "gallery" in archetypes:
         kind = "editorial"
         pattern = "Hero narratif + preuves de confiance + récit structuré + appel final"
-        style = "Editorial Grid / Storytelling-Driven"
-        typography = "Contraste net entre titres et texte courant, priorité à la lecture et à la longueur de ligne."
-        effects = "apparitions légères, transitions de navigation sobres, pas de parallaxe obligatoire"
     elif any(word in text for word in ("rendez-vous", "appointment", "réserver", "service")):
         kind = "service"
         pattern = "Promesse claire + offres + disponibilité + prise de contact"
-        style = "Trust & Authority / Social Proof-Focused"
-        typography = "Sans-serif accueillante, titres courts et labels d'action sans ambiguïté."
-        effects = "feedback immédiat sur les formulaires, états de disponibilité visibles"
     else:
         kind = "generic"
         pattern = "Entrée claire + contenu principal + preuve + action suivante"
-        style = "Minimalism & Swiss Style / Feature-Rich Showcase"
-        typography = "Hiérarchie typographique forte, familles locales ou embarquées uniquement."
-        effects = "états de focus visibles, transitions de 150–300 ms quand elles servent la compréhension"
 
-    palette = _PALETTES[kind]
     media_entities = [
         {"entity": name, "fields": [field for field, _type in _entity_media(spec)]}
         for name, spec in entities.items()
@@ -175,10 +123,6 @@ def infer_design_profile(contract: dict) -> dict:
     profile = {
         "kind": kind,
         "pattern": pattern,
-        "style": style,
-        "palette": palette,
-        "typography": typography,
-        "effects": effects,
         "pages": pages,
         "media_entities": media_entities,
     }
@@ -248,7 +192,6 @@ def build_asset_manifest(contract: dict, profile: dict) -> dict:
 
 def render_design_system(contract: dict) -> str:
     profile = infer_design_profile(contract)
-    palette = profile["palette"]
     pages = "\n".join(f"- {page}" for page in profile["pages"])
     patterns = render_pattern_block(profile["ui_patterns"])
     media = "\n".join(
@@ -275,24 +218,36 @@ il est prioritaire.
 
 - **Type détecté :** {profile['kind']}
 - **Pattern :** {profile['pattern']}
-- **Style de référence :** {profile['style']}
-- **Matière visuelle :** {palette['mood']}
 
-## Tokens de départ
+## Méthode attendue — les valeurs sont à TOI
 
-Ces tokens sont une base de travail, pas une contrainte de marque :
+Ce document ne contient aucune couleur, aucune fonte et aucun rayon, et c'est
+délibéré : l'identité vient du brief et du dialogue, jamais du compilateur. Ce
+qui est exigé ici, c'est la RIGUEUR, pas le goût.
 
-| Token | Valeur |
-|---|---|
-| Primary | `{palette['primary']}` |
-| Secondary | `{palette['secondary']}` |
-| Accent / CTA | `{palette['accent']}` |
-| Surface | `{palette['surface']}` |
-| Text | `{palette['text']}` |
-
-- **Typographie :** {profile['typography']}
-- **Effets :** {profile['effects']}
-- **Contraste :** 4,5:1 minimum pour le texte courant, 3:1 pour les grands titres.
+- **Tokens** : définis tes couleurs, tes espacements et tes rayons comme
+  variables CSS nommées, en tête de feuille, et n'écris aucune valeur en dur
+  ailleurs. Une retouche doit pouvoir changer l'identité en un endroit.
+- **Échelle typographique** : choisis une progression et tiens-t'y. Chaque
+  taille doit avoir un RÔLE nommé ; une taille qui n'appartient à aucun rôle
+  est une taille de trop. La hiérarchie doit rester lisible sur petit écran —
+  un titre principal qui rejoint la taille des sous-titres l'efface.
+- **Longueur de ligne** : borne-la pour les blocs de texte suivi.
+- **Rythme d'espacement** : une échelle, pas des nombres au cas par cas. Le
+  rythme vertical d'une section doit refléter son importance, et se comprimer
+  sur petit écran plutôt que rester identique.
+- **États** : chaque contrôle interactif doit couvrir repos, survol quand il a
+  du sens, focus visible au clavier, actif, désactivé, attente et erreur. Une
+  erreur se place À CÔTÉ du champ concerné, pas seulement dans un message
+  global. Une action en cours empêche le double envoi.
+- **Mouvement** : borne les durées et donne-leur une raison. `prefers-reduced-motion`
+  est respecté.
+- **Contraste** : 4,5:1 minimum pour le texte courant, 3:1 pour les grands
+  titres — vérifie-le sur le texte des BOUTONS, c'est là qu'il manque le plus
+  souvent.
+- **Profondeur** : si tu emploies des ombres, qu'elles forment un modèle à
+  plusieurs niveaux ; une ombre unique répartie partout n'établit aucune
+  hiérarchie.
 
 ## Pages et blocs à rendre
 

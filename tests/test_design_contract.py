@@ -20,7 +20,9 @@ import re
 import tempfile
 
 from monl.ast_validator import MonlAST
-from monl.frontend_contract import _render_prompt, build_contract
+from monl.cli import compile_project
+from monl.frontend_ai import build_generation_prompt
+from monl.frontend_contract import build_contract
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_file
 
@@ -64,8 +66,30 @@ def _contrat(spec_source, workdir):
 
 
 def _brief(spec_source, workdir):
+    """Le brief RÉELLEMENT ENVOYÉ à l'IA, annexes comprises.
+
+    POINT 139 : ce harnais n'appelait que `_render_prompt()`. Il prouvait donc
+    que le CONTRAT et le prompt de base se taisent — pas que le prompt final se
+    tait. La palette du système de design a franchi le contrôle en empruntant
+    l'autre tuyau : `build_generation_prompt()` annexe `DESIGN_SYSTEM.md`,
+    `DESIGN_SPEC.md` et `ASSET_MANIFEST.json` via `_project_guidance()`, et les
+    présente à l'IA comme « source de vérité ». Même destination, autre tuyau —
+    la forme exacte de l'angle mort du delta, treize fois rencontrée.
+
+    Mesurer le prompt final est le seul contrôle qui vaille : c'est lui que
+    l'IA lit. Le fichier le disait déjà en tête — « un silence que rien ne
+    mesure finit par se remplir à nouveau ».
+    """
+    chemin = os.path.join(workdir, "spec.ml")
+    with open(chemin, "w", encoding="utf-8") as fh:
+        fh.write(spec_source)
+    # Compilation RÉELLE : `build_generation_prompt` lit des fichiers du
+    # projet (FRONTEND_PROMPT.md, et tout ce que `_project_guidance` annexe).
+    # Un contrat construit en mémoire ne les aurait pas, et le contrôle
+    # retomberait dans le trou qu'il vient de fermer.
+    compile_project(chemin, workdir)
     contrat = _contrat(spec_source, workdir)
-    return contrat, _render_prompt(contrat)
+    return contrat, build_generation_prompt(workdir, update_mode=False)
 
 
 # ------------------------------------------------- ce que le contrat ne dit plus --
