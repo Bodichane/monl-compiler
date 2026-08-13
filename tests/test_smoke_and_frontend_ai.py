@@ -12,6 +12,7 @@ from monl.frontend_ai import (
     FrontendAIError,
     generate_and_verify,
     parse_files_payload,
+    parse_single_file_payload,
 )
 from monl.smoke_test import run_smoke_test
 
@@ -122,6 +123,16 @@ def test_parse_files_payload_gardes_fous():
     # clôtures Markdown tolérées malgré la consigne
     fenced = "```json\n" + json.dumps({"files": {"index.html": "ok"}}) + "\n```"
     assert parse_files_payload(fenced) == {"index.html": "ok"}
+
+
+def test_parse_single_file_payload_accepte_un_css_sans_index():
+    payload = json.dumps({"files": {"styles.css": "body { color: #111; }"}})
+    assert parse_single_file_payload(payload, "styles.css") == {
+        "styles.css": "body { color: #111; }"
+    }
+    with pytest.raises(FrontendAIError):
+        parse_single_file_payload(
+            json.dumps({"files": {"app.js": "ok"}}), "styles.css")
 
 
 def test_boucle_ia_corrige_puis_reussit(project):
@@ -450,6 +461,137 @@ def test_fournisseur_openai_compatible_forme_la_requete(monkeypatch):
     assert vu["headers"]["Authorization"] == "Bearer cle-de-test"
     assert vu["body"]["model"] == "un-modele"
     assert vu["body"]["messages"][0]["content"] == "le brief"
+
+
+def test_yandex_emploie_son_authentification_et_mesure_les_jetons(monkeypatch):
+    """Yandex parle Chat Completions, mais exige Api-Key et le dossier Cloud."""
+    monkeypatch.setenv("YANDEX_API_KEY", "cle-yandex")
+    monkeypatch.setenv("YANDEX_FOLDER_ID", "dossier-yandex")
+    monkeypatch.delenv("MONL_AI_CHUNK_MAX_TOKENS", raising=False)
+    vu = {}
+
+    class Reponse:
+        status_code = 200
+        text = ""
+
+        def json(self):
+            return {
+                "choices": [{"message": {"content": "{\"files\": {}}"}}],
+                "usage": {"prompt_tokens": 101, "completion_tokens": 23,
+                          "total_tokens": 124},
+            }
+
+    def faux_post(url, headers=None, json=None, timeout=None):
+        vu.update(url=url, headers=headers, body=json)
+        return Reponse()
+
+    import requests
+    monkeypatch.setattr(requests, "post", faux_post)
+    model = "gpt://dossier-yandex/yandexgpt/latest"
+    call = PROVIDERS["yandex"](model=model)
+
+    assert call("brief") == '{"files": {}}'
+    assert vu["url"] == "https://ai.api.cloud.yandex.net/v1/chat/completions"
+    assert vu["headers"]["Authorization"] == "Api-Key cle-yandex"
+    assert vu["headers"]["OpenAI-Project"] == "dossier-yandex"
+    assert vu["body"]["model"] == model
+    assert vu["body"]["temperature"] == 0.3
+    assert vu["body"]["max_tokens"] == 16000
+    assert vu["body"]["reasoning_effort"] == "low"
+    assert vu["body"]["response_format"]["type"] == "json_schema"
+    assert vu["body"]["response_format"]["json_schema"]["strict"] is True
+    assert call.last_usage["input_tokens"] == 101
+    assert call.last_usage["output_tokens"] == 23
+    assert call.last_usage["total_tokens"] == 124
+
+
+def test_yandex_frontend_est_genere_fichier_par_fichier(project, monkeypatch):
+    """Le préréglage séquentiel conserve le contrat et vérifie les trois
+    fichiers ensemble après leur assemblage."""
+    calls = []
+
+    class Fournisseur:
+        provider_name = "yandex"
+        model = "deepseek-v4-flash/latest"
+        chunked_generation = True
+        last_usage = None
+
+        def __call__(self, prompt):
+            calls.append(prompt)
+            ligne = next(texte for texte in prompt.splitlines()
+                         if texte.startswith("Le fichier cible est exactement : "))
+            cible = ligne.rsplit(": ", 1)[1]
+            contenus = {
+                "index.html": GOOD_SPLIT_HTML,
+                "styles.css": "body { color: #111; }",
+                "app.js": GOOD_SPLIT_JS,
+            }
+            self.last_usage = {"duration_seconds": 0.1,
+                               "input_tokens": 100, "output_tokens": 200,
+                               "total_tokens": 300}
+            return json.dumps({"files": {cible: contenus[cible]}})
+
+    provider = Fournisseur()
+    ok, errors = generate_and_verify(str(project), provider, say=_quiet)
+    assert ok, errors
+    assert len(calls) == 3
+    assert all("une seule pièce" in prompt for prompt in calls)
+    assert (project / "frontend" / "index.html").exists()
+    assert (project / "frontend" / "styles.css").exists()
+    assert (project / "frontend" / "app.js").exists()
+
+
+def test_yandex_nomme_le_dossier_manquant(monkeypatch):
+    monkeypatch.setenv("YANDEX_API_KEY", "cle-yandex")
+    monkeypatch.delenv("YANDEX_FOLDER_ID", raising=False)
+    with pytest.raises(FrontendAIError) as erreur:
+        PROVIDERS["yandex"](model="gpt://dossier/yandexgpt/latest")
+    assert "YANDEX_FOLDER_ID" in str(erreur.value)
+
+
+def test_le_plafond_api_est_reglable_par_lenvironnement(monkeypatch):
+    monkeypatch.setenv("GROQ_API_KEY", "cle-de-test")
+    monkeypatch.setenv("MONL_AI_MAX_TOKENS", "8000")
+    vu = {}
+
+    class Reponse:
+        status_code = 200
+        text = ""
+
+        def json(self):
+            return {"choices": [{"message": {"content": "ok"}}]}
+
+    import requests
+    monkeypatch.setattr(requests, "post",
+                        lambda _url, **kw: (vu.update(kw), Reponse())[1])
+    assert PROVIDERS["groq"](model="un-modele")("brief") == "ok"
+    assert vu["json"]["max_tokens"] == 8000
+
+
+def test_la_telemetrie_ne_conserve_ni_prompt_ni_reponse(project, monkeypatch):
+    """Le journal sert au prix produit, pas à recopier le contenu du client."""
+    from monl.frontend_ai import USAGE_FILENAME
+
+    class Fournisseur:
+        provider_name = "yandex"
+        model = "modele-test"
+        last_usage = None
+
+        def __call__(self, prompt):
+            assert "SmokeApp" in prompt
+            self.last_usage = {"duration_seconds": 0.25, "input_tokens": 100,
+                               "output_tokens": 20, "total_tokens": 120}
+            return json.dumps({"files": {"index.html": GOOD_FRONT}})
+
+    ok, errors = generate_and_verify(str(project), Fournisseur(), say=_quiet)
+    assert ok, errors
+    contenu = (project / USAGE_FILENAME).read_text(encoding="utf-8")
+    evenement = json.loads(contenu)
+    assert evenement["provider"] == "yandex"
+    assert evenement["operation"] == "construction"
+    assert evenement["total_tokens"] == 120
+    assert "SmokeApp" not in contenu
+    assert GOOD_FRONT not in contenu
 
 
 def test_chaque_prereglage_nomme_sa_propre_variable_de_cle(monkeypatch):

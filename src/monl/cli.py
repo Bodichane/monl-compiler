@@ -34,6 +34,12 @@ import tempfile
 
 from .artifacts import copy_preserved_files, publish_files, staging_directory
 from .ast_validator import MonlAST
+from .design_system import (
+    ASSET_MANIFEST_FILENAME,
+    DESIGN_SPEC_FILENAME,
+    DESIGN_SYSTEM_FILENAME,
+    ensure_design_artifacts,
+)
 from .errors import MonlError
 from .frontend_ai import RETOUCHE_PROMPT_FILENAME, UPDATE_PROMPT_FILENAME
 from .frontend_contract import (
@@ -108,6 +114,9 @@ PROJECT_ARTEFACTS = (
     ".jwt_secret",
     CONTRACT_FILENAME,
     PROMPT_FILENAME,
+    DESIGN_SYSTEM_FILENAME,
+    DESIGN_SPEC_FILENAME,
+    ASSET_MANIFEST_FILENAME,
     "CLAUDE.md",
     STATE_FILENAME,
 )
@@ -268,12 +277,14 @@ def compile_project(spec_path, project_dir, base_dir=None, save_state=True):
         # compilation et restent protégés contre un remplacement accidentel.
         copy_preserved_files(
             proj_abs, temporary,
-            (".jwt_secret", "CLAUDE.md", *CONTAINER_ARTEFACTS),
+            (".jwt_secret", "CLAUDE.md", DESIGN_SYSTEM_FILENAME,
+             DESIGN_SPEC_FILENAME, ASSET_MANIFEST_FILENAME, *CONTAINER_ARTEFACTS),
         )
         compilation = compile_monl(
             spec_path, output_dir=temporary, base_dir=reference_dir)
         contract = generate_frontend_contract(
             compilation.ir, compilation.plans, temporary)
+        direction = ensure_design_artifacts(proj_abs, temporary, contract)
         _ensure_container_artifacts(
             temporary, uploads=bool(compilation.ir["security"].get("upload_fields")))
         _emettre_wrapper(temporary, contract)
@@ -284,6 +295,9 @@ def compile_project(spec_path, project_dir, base_dir=None, save_state=True):
         publish_files(temporary, proj_abs, artefacts)
 
     print(f" -> Contrat frontend      : {CONTRACT_FILENAME} + {PROMPT_FILENAME}")
+    generated_direction = [name for name, written in direction.items() if written]
+    if generated_direction:
+        print(" -> Direction visuelle    : " + ", ".join(generated_direction))
     if save_state:
         print(f" -> État du projet        : {STATE_FILENAME}")
     return contract
@@ -467,6 +481,15 @@ def check_coherence(project_dir):
         if not os.path.exists(os.path.join(frontend_dir, "index.html")):
             errors.append("frontend/ existe mais frontend/index.html est absent "
                           "(point d'entrée exigé par le contrat).")
+            return False, errors, warnings
+        # Un projet qui fournit un cahier visuel et un manifeste d'assets ne
+        # doit pas pouvoir être déclaré « cohérent » avec des images ou des
+        # sections obligatoires manquantes. Les projets historiques sans
+        # manifeste conservent le contrôle best-effort ci-dessous.
+        from .frontend_ai import _design_completeness_errors
+        design_errors = _design_completeness_errors(project_dir)
+        if design_errors:
+            errors.extend(design_errors)
             return False, errors, warnings
         with open(os.path.join(project_dir, CONTRACT_FILENAME), encoding="utf-8") as fh:
             contract = json.load(fh)

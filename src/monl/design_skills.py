@@ -6,6 +6,15 @@ module en garde le noyau déterministe destiné aux artefacts compilés.
 """
 
 SKILL_PROFILES = {
+    "monl-design-system": {
+        "purpose": "direction visuelle explicite avant l'écriture du frontend",
+        "requirements": [
+            "lire DESIGN_SYSTEM.md, DESIGN_SPEC.md et ASSET_MANIFEST.json avant de coder",
+            "choisir un pattern de page et une hiérarchie avant les détails décoratifs",
+            "traiter les anti-patterns, le contraste, le clavier, le mobile et le mouvement réduit comme des critères de livraison",
+            "rendre les assets locaux réellement présents et référencés, jamais des placeholders distants",
+        ],
+    },
     "monl-showcase": {
         "purpose": "socle de qualité démonstration, dense et professionnel",
         "requirements": [
@@ -62,6 +71,11 @@ def select_design_skills(entities, routes):
 
 def render_skill_block(names):
     """Rend le noyau des skills dans le prompt autonome du projet."""
+    # La profondeur métier dépend du contrat ; la lecture d'un design system
+    # préparé avant le code, elle, est commune à toute interface Monl.
+    names = list(names)
+    if "monl-design-system" not in names:
+        names.insert(0, "monl-design-system")
     chunks = []
     for name in names:
         profile = SKILL_PROFILES[name]

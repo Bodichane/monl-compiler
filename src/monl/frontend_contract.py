@@ -1488,6 +1488,15 @@ l'application **{contract['app']}** en respectant STRICTEMENT le contrat
 ci-dessous. Le backend existe déjà et ne doit pas être modifié.
 
 {design_block}{skills_block}{express_block}
+## Système de design préparé avant le code
+
+Avant d'écrire le frontend, lire `DESIGN_SYSTEM.md` lorsqu'il est présent :
+il contient le pattern de page, les tokens de départ, les anti-patterns et la
+checklist UX sélectionnés pour ce projet. Lire aussi `DESIGN_SPEC.md` et
+`ASSET_MANIFEST.json` lorsqu'ils existent. Ces documents orientent la
+composition ; le contrat ci-dessous reste l'autorité pour les routes, les
+données, les permissions et les états métier.
+
 ## Règles non négociables
 - Écrire tous les fichiers dans `frontend/`, avec `frontend/index.html`
   comme point d'entrée (HTML/CSS/JS statiques, aucun build requis).

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Monl Design System"
+  short_description: "Generate a concrete design system before frontend code"
+  default_prompt: "Use $monl-design-system to build from the project's design system and UX gates."

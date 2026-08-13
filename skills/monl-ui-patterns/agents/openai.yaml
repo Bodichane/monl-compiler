@@ -1,0 +1,4 @@
+interface:
+  display_name: "Monl UI Patterns"
+  short_description: "Compose autonomous Monl interfaces from reusable patterns"
+  default_prompt: "Use $monl-ui-patterns to compose the interface from the selected local patterns."

@@ -51,6 +51,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [132](#132-le-serveur-mourait-au-demarrage-a-plusieurs-workers) Le serveur mourait au démarrage à plusieurs workers ·
 [133](#133-limage-servait-lapi-et-repondait-404-sur-le-site) L'image servait l'API et répondait 404 sur le site ·
 [134](#134-la-frontiere-de-lagent-etait-une-enumeration-incomplete) La frontière de l'agent était une énumération incomplète ·
+[135](#135-mesurer-le-coût-avant-de-vendre-la-génération--yandex-ai-studio) Mesurer le coût avant de vendre la génération : Yandex AI Studio ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -8789,3 +8790,54 @@ variante Upload manquait au test, elle y est. Le wrapper tolérant ne masque
 aucun échec qui devait être bruyant : juste après `monl compile`, l'absence de
 `frontend/` est normale par ordre de travail, et faire lever `StaticFiles`
 rendrait inutilisable une image fraîchement compilée.
+
+
+## 135. Mesurer le coût avant de vendre la génération — Yandex AI Studio
+
+Le passage du logiciel local au service hébergé inverse celui qui paie l'IA :
+la plateforme avance désormais le coût de chaque construction et retouche. Le
+plafond de 120 tours d'un agent n'est pas une mesure et ne permet de fixer ni
+quota, ni prix, ni marge.
+
+Yandex Cloud AI Studio rejoint les fournisseurs API par son interface Chat
+Completions compatible OpenAI. Deux différences restent explicites : la clé est
+transmise sous `Authorization: Api-Key` et `YANDEX_FOLDER_ID` sous
+`OpenAI-Project`. Le modèle n'est pas deviné : l'utilisateur fournit l'URI
+affiché par AI Studio avec `--model`.
+
+Après chaque appel API réussi, monl ajoute un événement dans
+`.monl_ai_usage.jsonl` : fournisseur, modèle, nature du travail (construction,
+update ou retouche), tentative, durée et compteurs de jetons. Le journal ne
+contient jamais le prompt, la réponse ou une clé. Il est ignoré par Git : c'est
+une mesure d'exploitation locale, pas un nouvel artefact à publier.
+
+La télémétrie couvre aussi Anthropic et les fournisseurs OpenAI compatibles.
+Un endpoint qui ne renvoie pas `usage` reste utilisable, mais ses compteurs ne
+peuvent pas être inventés. Les tests vérifient les en-têtes Yandex, les trois
+compteurs et surtout l'absence du contenu client dans le journal.
+
+## 136. Un système de design avant le code — et un manifeste qui devient une preuve
+
+Un brief métier et un contrat d'API ne suffisent pas à produire une interface
+distinctive au premier tirage. Les skills UI/UX spécialisés ont une bonne
+intuition : séparer la recommandation de design de l'implémentation, avec un
+pattern, des tokens, des anti-patterns et une checklist de livraison.
+
+Monl reprend cette idée dans `design_system.py`, sans installer un outil
+externe ni appeler le réseau pendant la compilation. Depuis le contrat validé,
+`monl compile` produit `DESIGN_SYSTEM.md`, une synthèse `DESIGN_SPEC.md` et un
+`ASSET_MANIFEST.json`. Le prompt frontend demande de les lire avant d'écrire le
+premier fichier. Un `DESIGN_SPEC.md` ou manifeste rédigé par l'auteur reste
+prioritaire et n'est jamais écrasé.
+
+Le manifeste commence en mode `planned`, pour ne pas bloquer les projets qui
+n'ont pas encore de frontend. Après `monl frontend` ou `monl import`, Monl le
+passe en `active` et vérifie les assets ainsi que les marqueurs des blocs
+obligatoires. Une IA peut donc encore choisir le détail esthétique, mais elle
+ne peut plus oublier silencieusement le hero, le catalogue, la FAQ ou une
+image déclarée.
+
+Cette couche ne prétend pas prouver qu'un site est beau : seule une revue
+humaine peut trancher le goût. Elle rend en revanche la direction explicite,
+réutilisable et partiellement mesurable — le même principe qui fait du contrat
+frontend la source de vérité des routes.
