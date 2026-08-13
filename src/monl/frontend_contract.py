@@ -475,7 +475,10 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
                 (PAYMENT_REF_COLUMN,
                  "référence de la session chez le prestataire, écrite par le "
                  "serveur seul ; utile pour un rapprochement comptable, sans "
-                 "intérêt pour le visiteur — vide tant que rien n'est encaissé"),
+                 "intérêt pour le visiteur. Elle peut être renseignée DÈS "
+                 "l'ouverture de la session, avant tout encaissement : ce "
+                 "n'est donc pas un indicateur de règlement, c'est "
+                 "payment_status qui dit si c'est payé"),
             )
             for colonne, explication in suivi:
                 field_list.append({

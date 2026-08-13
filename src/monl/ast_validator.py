@@ -77,6 +77,22 @@ PRESTATAIRES_ECARTES = {
                  "indisponibles"),
 }
 
+# DEVISES RÉELLEMENT ENCAISSABLES PAR PRESTATAIRE. `None` = pas de restriction
+# connue, donc aucune garde : mieux vaut ne rien affirmer que d'affirmer faux.
+#
+# FedaPay ne règle QU'EN FRANC CFA (UEMOA) — sa propre documentation le dit
+# sans ambiguïté (« For now, Fedapay allows you to only use the XOF currency
+# (CFA) for your various transactions »), et son module Odoo officiel ne
+# déclare que `SUPPORTED_CURRENCIES = ['XOF']`. Sans cette table,
+# `provider: fedapay` + `currency: EUR` COMPILE et ne peut pas fonctionner :
+# l'auteur ne l'apprend qu'au premier vrai encaissement, en 502, devant un
+# client qui voulait payer. C'est le point 85 appliqué au monde extérieur —
+# refuser une configuration sans effet plutôt que la laisser passer.
+DEVISES_PAR_PRESTATAIRE = {
+    "fedapay": {"XOF"},
+    "stripe": None,
+}
+
 
 def candidats_asset(base_dir, dossier, chemin):
     """Les deux endroits où un asset déclaré peut vivre, dans l'ordre d'essai.
@@ -2236,6 +2252,31 @@ class MonlAST:
                     f"dit quoi encaisser — cette configuration ne "
                     f"s'appliquerait à rien. Ajouter "
                     f"'rule Entite.champ payable', ou retirer ces lignes.")
+
+        # BRIQUE 2b, SUITE : le prestataire et la devise sont déclarés
+        # séparément, donc rien n'empêchait de les déclarer INCOMPATIBLES.
+        # La devise EFFECTIVE est comparée, pas seulement la déclarée : sans
+        # ligne `currency`, le défaut est l'euro (DEVISE_PAR_DEFAUT), et
+        # `provider: fedapay` tout seul partait donc encaisser en euros chez
+        # un prestataire qui n'en accepte pas. Le refus NOMME la devise
+        # attendue — un message qui dirait seulement « incompatible »
+        # laisserait chercher.
+        prestataire = self.payment_provider or PRESTATAIRE_PAR_DEFAUT
+        acceptees = DEVISES_PAR_PRESTATAIRE.get(prestataire)
+        effective = (self.payment_currency or {}).get("code") or DEVISE_PAR_DEFAUT
+        if acceptees is not None and effective not in acceptees:
+            attendue = ", ".join(sorted(acceptees))
+            constat = (f"la devise déclarée est '{effective}'"
+                       if self.payment_currency else
+                       f"aucune ligne 'currency' n'est déclarée, donc le "
+                       f"défaut s'applique : '{effective}'")
+            raise ASTValidationError(
+                f"Structure : le prestataire '{prestataire}' n'encaisse qu'en "
+                f"{attendue}, or {constat}. Cette "
+                f"configuration compilerait sans jamais pouvoir encaisser : "
+                f"le refus arrive maintenant plutôt qu'au premier vrai "
+                f"paiement. Ajouter 'currency: {attendue.split(', ')[0]}' au "
+                f"bloc 'capability payment'.")
 
     def _valider_regles_message(self):
         """Valide les notifications e-mail déclenchées par une création.

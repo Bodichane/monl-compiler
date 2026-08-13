@@ -207,6 +207,15 @@ def _etat(dossier, identifiant):
         cnx.close()
 
 
+def _reference(dossier, identifiant):
+    cnx = sqlite3.connect(os.path.join(dossier, "app.db"))
+    try:
+        return cnx.execute("SELECT payment_ref FROM commande WHERE id = ?",
+                           (identifiant,)).fetchone()[0]
+    finally:
+        cnx.close()
+
+
 # --------------------------------------------------------------------------
 # Le parcours réel
 # --------------------------------------------------------------------------
@@ -340,3 +349,98 @@ def test_sans_cle_le_serveur_refuse_en_nommant_la_variable(faux_fedapay):
         # verts hors ligne. La commande du client se lit toujours.
         assert requests.get(f"{base}/commande", headers=entetes,
                             timeout=10).status_code == 200
+
+
+# --------------------------------------------------------------------------
+# La devise que le prestataire encaisse réellement
+# --------------------------------------------------------------------------
+
+def test_fedapay_refuse_une_devise_quil_nencaisse_pas():
+    """FedaPay ne règle QU'EN XOF — sa propre documentation le dit, et son
+    module Odoo officiel ne déclare que ça. Sans ce refus, la spec compile et
+    l'auteur ne l'apprend qu'au premier vrai encaissement, en 502, devant un
+    client qui voulait payer."""
+    with pytest.raises(ASTValidationError) as erreur:
+        _valide(SPEC_BOUTIQUE + "\ncapability payment\n"
+                "    provider: fedapay\n    currency: EUR\n")
+    message = str(erreur.value)
+    assert "XOF" in message and "EUR" in message
+    # Le message doit dire QUOI ÉCRIRE : « incompatible » laisserait chercher.
+    assert "currency: XOF" in message
+
+
+def test_fedapay_sans_devise_declaree_est_refuse():
+    """La devise EFFECTIVE est comparée, pas seulement la déclarée. Sans ligne
+    `currency`, le défaut est l'euro : `provider: fedapay` tout seul partait
+    donc encaisser en euros chez un prestataire qui n'en accepte pas."""
+    with pytest.raises(ASTValidationError) as erreur:
+        _valide(SPEC_BOUTIQUE + "\ncapability payment\n    provider: fedapay\n")
+    assert "XOF" in str(erreur.value)
+
+
+def test_stripe_nest_contraint_a_aucune_devise():
+    """La table ne dit `None` que là où monl ne SAIT pas — et ne rien savoir
+    n'autorise pas à interdire. Le témoin du refus précédent : sans lui, une
+    garde trop large casserait toutes les specs en euros."""
+    assert _valide(SPEC_BOUTIQUE + "\ncapability payment\n"
+                   "    provider: stripe\n    currency: EUR\n"
+                   )["security"]["payment_provider"] == "stripe"
+
+
+# --------------------------------------------------------------------------
+# L'appariement du webhook par l'identifiant du prestataire
+# --------------------------------------------------------------------------
+
+def test_la_reference_du_prestataire_est_memorisee_des_louverture(faux_fedapay):
+    """Sans cette mémorisation, le repli du webhook n'a rien à comparer."""
+    with _application(faux_fedapay) as (base, dossier):
+        identifiant, entetes = _commande(base, dossier, 5000, "memo@example.com")
+        assert _reference(dossier, identifiant) in (None, "")
+        requests.post(f"{base}/commande/{identifiant}/paiement",
+                      headers=entetes, timeout=10)
+        assert _reference(dossier, identifiant) == str(ID_TRANSACTION)
+        # Mémoriser n'est PAS encaisser : c'est `payment_status` qui dit si
+        # c'est payé, et le contrat le dit désormais en toutes lettres.
+        assert _etat(dossier, identifiant) == "en_attente"
+
+
+def test_un_webhook_sans_reference_marchande_est_apparie_par_lidentifiant(faux_fedapay):
+    """La voie que le plugin Odoo officiel de FedaPay emploie : retrouver la
+    ligne par l'id de transaction mémorisé à la création. C'est la seule des
+    deux qui soit établie par du code en production — `merchant_reference` est
+    documenté sur la transaction, jamais sur la charge utile du webhook."""
+    with _application(faux_fedapay) as (base, dossier):
+        identifiant, entetes = _commande(base, dossier, 5000, "repli@example.com")
+        requests.post(f"{base}/commande/{identifiant}/paiement",
+                      headers=entetes, timeout=10)
+        corps = json.dumps({
+            "name": "transaction.approved",
+            "entity": {"id": ID_TRANSACTION, "status": "approved"},
+        }).encode()
+        reponse = requests.post(
+            f"{base}/paiement/webhook", data=corps, timeout=10,
+            headers={"Content-Type": "application/json",
+                     "x-fedapay-signature": _signer(corps)})
+        assert reponse.status_code == 200, reponse.text
+        assert _etat(dossier, identifiant) == "payee"
+
+
+def test_un_identifiant_de_transaction_inconnu_napparie_rien(faux_fedapay):
+    """Le témoin du repli : il ne doit reconnaître QUE ce qu'il a mémorisé.
+    Un repli qui marquerait payé le premier venu serait pire que pas de repli
+    du tout — c'est le fail-closed qui tient toute la brique."""
+    with _application(faux_fedapay) as (base, dossier):
+        identifiant, entetes = _commande(base, dossier, 5000, "inconnu@example.com")
+        requests.post(f"{base}/commande/{identifiant}/paiement",
+                      headers=entetes, timeout=10)
+        corps = json.dumps({
+            "name": "transaction.approved",
+            "entity": {"id": ID_TRANSACTION + 1234, "status": "approved"},
+        }).encode()
+        reponse = requests.post(
+            f"{base}/paiement/webhook", data=corps, timeout=10,
+            headers={"Content-Type": "application/json",
+                     "x-fedapay-signature": _signer(corps)})
+        assert reponse.status_code == 200
+        assert reponse.json()["status"] == "ignored"
+        assert _etat(dossier, identifiant) == "en_attente"

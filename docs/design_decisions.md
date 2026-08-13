@@ -47,6 +47,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [128](#128-encaisser-par-mobile-money--le-prestataire-devient-enfichable) Encaisser par mobile money : le prestataire devient enfichable ·
 [129](#129-loracle-temporel-se-mesure-par-paires-jamais-par-series) L'oracle temporel se mesure par PAIRES, jamais par séries ·
 [130](#130-une-sonde-qui-prouve-quun-worker-repond-ne-prouve-rien-des-autres) Une sonde qui prouve qu'UN worker répond ne prouve rien des autres ·
+[131](#131-fedapay--la-devise-quil-encaisse-vraiment-et-lappariement-prouve-du-webhook) FedaPay : la devise qu'il encaisse vraiment, et l'appariement prouvé du webhook ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -8470,3 +8471,88 @@ du point 57 pris à l'envers.
 démarrage doit attendre ce dont le test a réellement besoin. Ici, ce n'est pas
 « une réponse », c'est « N workers ». Vérifié sous huit cœurs saturés, trois
 exécutions vertes.
+
+
+## 131. FedaPay : la devise qu'il encaisse vraiment, et l'appariement prouvé du webhook
+
+Le point 128 laissait un trou ÉCRIT : le chemin JSON de `merchant_reference`
+dans la charge utile du webhook n'était pas prouvé, et la suite était renvoyée
+à « un vrai compte de bac à sable ». Le tableau de bord de bac à sable s'est
+révélé inaccessible. La leçon de ce point n'est pas FedaPay : **ce qu'on
+croyait exiger un accès privé était public.** Deux sources, toutes deux
+ouvertes, ont fermé le trou et en ont ouvert un autre, plus grave.
+
+### Ce que la référence API dit
+
+`Transaction` porte `merchant_reference` (« Merchant reference provided for the
+transaction ») et `Event` a la forme `{id, type, entity, object_id,
+account_id, …}`. Le corps du webhook EST un `Event` : la clé est donc `entity`,
+et c'était bien le premier emplacement essayé.
+
+### Ce que le code en production prouve
+
+Le module Odoo officiel de FedaPay (`fedapay/fedapay-odoo`,
+`payment_fedapay/controllers/main.py`) lit le corps brut et fait exactement :
+
+```python
+data = json.loads(raw_body)
+notification_data = data.get('entity', {})
+```
+
+**`entity` n'est plus une déduction, c'est du code en production.** Mais le même
+module ne se sert JAMAIS de `merchant_reference` : il retrouve sa commande par
+`notification_data.get('id')`, l'identifiant de transaction qu'il a mémorisé à
+la création. C'est la voie éprouvée — et monl ne mémorisait rien.
+
+D'où le **repli par l'identifiant du prestataire** : la route de règlement écrit
+`payment_ref` dès l'ouverture de la session, et le webhook, quand la référence
+qualifiée n'est pas revenue, retrouve la ligne par cette colonne. Les deux
+voies se couvrent l'une l'autre — `merchant_reference` rattrape une session
+plus ancienne (un second appel à la route écrase `payment_ref`), l'identifiant
+rattrape une charge utile qui ne réémet pas la référence. **Le fail-closed est
+intact** : si aucune des deux ne reconnaît la ligne, rien n'est écrit, et un
+identifiant jamais délivré n'apparie rien (c'est le témoin du repli — un repli
+qui marquerait payé le premier venu serait pire que pas de repli).
+
+### Le défaut trouvé en chemin, et il compilait
+
+> « For now, Fedapay allows you to **only use the XOF currency (CFA)** for your
+> various transactions. » — documentation FedaPay
+
+Or le point 126 avait rendu la devise et le prestataire déclarables
+SÉPARÉMENT. Rien n'empêchait `provider: fedapay` + `currency: EUR` : ça
+compilait, et l'auteur ne l'apprenait qu'au premier vrai encaissement, en 502,
+devant un client qui voulait payer. Pire, `provider: fedapay` **tout seul**
+tombait sur le défaut `EUR` et partait donc encaisser dans une devise refusée.
+
+`DEVISES_PAR_PRESTATAIRE` referme ça. Deux décisions :
+
+- La devise comparée est l'**EFFECTIVE**, pas la déclarée — sinon l'omission
+  passe et c'est justement le cas le plus probable.
+- `None` signifie « aucune restriction CONNUE », et ne rien savoir n'autorise
+  pas à interdire : Stripe reste libre, avec son témoin (`stripe` + `EUR`
+  compile), sans quoi une garde trop large casserait toutes les specs
+  existantes. C'est la leçon du point 84, mot pour mot : **une garantie trop
+  large n'est pas plus sûre, elle est fausse ailleurs.**
+
+Le message NOMME la devise à écrire. « Configuration incompatible » aurait
+laissé chercher.
+
+### La question du delta, posée AVANT d'écrire
+
+`payment_ref` est désormais renseigné avant tout encaissement, et le contrat
+disait « vide tant que rien n'est encaissé » — donc le contrat MENTAIT
+(point 76). Le texte est corrigé et dit maintenant que ce champ n'est pas un
+indicateur de règlement, que c'est `payment_status` qui l'est.
+`_contract_signature` compare les NOMS, les TYPES et `server_generated` — jamais
+les descriptions : ce changement ne produit donc aucun delta, et c'est **juste**,
+puisque aucune interface conforme ne pouvait s'appuyer sur `payment_ref` pour
+savoir si c'était payé. La question a été posée avant, pas après.
+
+### Ce qui reste non prouvé
+
+Que FedaPay réémette `merchant_reference` dans la charge utile du webhook. La
+brique n'en dépend plus : le repli couvre le cas, et les deux voies sont
+éprouvées contre un vrai serveur et un faux prestataire embarqué
+(`tests/test_fedapay.py`, 19 tests). Les quatre tests nouveaux échouent tous
+sans la correction — contre-épreuve faite, pas supposée.
