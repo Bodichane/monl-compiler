@@ -51,6 +51,7 @@ from .frontend_contract import (
 from .generator import MonlSecureGenerator
 from .parser import parse_monl_file
 from .serving import rendre_wrapper
+from .usage import UsagePriceError, build_usage_report
 
 STATE_FILENAME = "monl.json"
 
@@ -1509,6 +1510,114 @@ def cmd_content_import(project_dir):
         print(f" ⚠️  {message}")
 
 
+def _usage_value(value):
+    if value is None:
+        return "inconnu"
+    if isinstance(value, float):
+        return f"{value:.3f}".rstrip("0").rstrip(".")
+    return str(value)
+
+
+def _usage_cost(item, currency):
+    cost = item.get("cost")
+    if cost is not None:
+        valeur = _usage_value(cost)
+        return f"{valeur} {currency}" if currency else valeur
+    if item.get("price_status") == "not_declared":
+        return "prix non déclaré"
+    if item.get("price_status") == "counters_unavailable":
+        return "compteurs de jetons indisponibles"
+    return "aucun coût"
+
+
+def _usage_line(item, currency, prefix="  "):
+    operations = item.get("operation") or "opération inconnue"
+    attempts = ",".join(str(value) for value in item.get("attempts", [])) or "inconnues"
+    stages = ", ".join(
+        f"{stage}×{item['stage_counts'][stage]}"
+        if item.get("stage_counts", {}).get(stage, 0) > 1 else stage
+        for stage in item.get("stages", [])
+    ) or "aucune"
+    return (f"{prefix}{operations} | tentatives {attempts} | étapes {stages} | "
+            f"entrée {_usage_value(item.get('input_tokens'))}, "
+            f"sortie {_usage_value(item.get('output_tokens'))} jetons | "
+            f"durée {_usage_value(item.get('duration_seconds'))} s | "
+            f"coût {_usage_cost(item, currency)}")
+
+
+def _usage_total_line(item, currency, prefix="  "):
+    return (f"{prefix}entrée {_usage_value(item.get('input_tokens'))}, "
+            f"sortie {_usage_value(item.get('output_tokens'))} jetons | "
+            f"durée {_usage_value(item.get('duration_seconds'))} s | "
+            f"coût {_usage_cost(item, currency)}")
+
+
+def _print_usage_report(report):
+    if not report["journal_exists"]:
+        print(f"ℹ️ Aucun journal de consommation IA dans {report['journal']} : "
+              "aucune consommation mesurée.")
+        return
+
+    price = report["price_table"]
+    source = price["path"] or "aucune table"
+    print(f"─── Usage IA — {report['project_dir']} ───")
+    print(f"Table de prix : {source}"
+          + (f" ({price['currency']})" if price["currency"] else ""))
+    print(f"─── Exécutions ({len(report['executions'])}) ───")
+    for execution in report["executions"]:
+        if execution["known"]:
+            prefix = f"  run_id={execution['run_id']} | "
+        else:
+            prefix = ("  exécution inconnue — événements sans run_id; aucun "
+                      "regroupement déduit | ")
+        print(_usage_line(execution, price["currency"], prefix=prefix))
+
+    print("─── Totaux fournisseur / modèle ───")
+    if not report["totals"]:
+        print("  (aucun événement exploitable)")
+    for total in report["totals"]:
+        print(f"  {total.get('provider') or 'fournisseur inconnu'} / "
+              f"{total.get('model') or 'modèle inconnu'}")
+        print(_usage_total_line(total, price["currency"], prefix="    "))
+
+    print("─── Total projet ───")
+    print(_usage_total_line(report["project_total"], price["currency"]))
+    for malformed in report["malformed_lines"]:
+        print(f" ⚠️ Ligne {malformed['line']} ignorée : {malformed['error']}.")
+
+
+def cmd_usage(project_dir, prices_path=None, json_output=False):
+    """Lire un journal de consommation sans estimer les lignes non tarifées."""
+    project_dir = os.path.abspath(project_dir)
+    souci = _erreur_de_chemin(project_dir)
+    if souci:
+        if json_output:
+            print(json.dumps({"error": souci}, ensure_ascii=False))
+        else:
+            print(souci)
+        raise SystemExit(1)
+    if not os.path.exists(os.path.join(project_dir, STATE_FILENAME)):
+        message = (f" ❌ {STATE_FILENAME} introuvable — ce dossier n'est pas un "
+                   "projet monl.")
+        if json_output:
+            print(json.dumps({"error": message}, ensure_ascii=False))
+        else:
+            print(message)
+        raise SystemExit(1)
+    try:
+        report = build_usage_report(project_dir, prices_path=prices_path)
+    except UsagePriceError as err:
+        if json_output:
+            print(json.dumps({"error": str(err)}, ensure_ascii=False))
+        else:
+            print(f" ❌ {err}")
+        raise SystemExit(1) from err
+    if json_output:
+        print(json.dumps(report, ensure_ascii=False, sort_keys=True))
+    else:
+        _print_usage_report(report)
+
+
 # ------------------------------------------------------------------- main --
 def _dispatch(argv=None):
     parser = argparse.ArgumentParser(
@@ -1539,6 +1648,20 @@ def _dispatch(argv=None):
         "diff",
         help="Voir le delta du contrat SANS rien recompiler ni écrire.")
     p_diff.add_argument("dir", nargs="?", default=".")
+
+    p_usage = sub.add_parser(
+        "usage", help="Mesurer la consommation IA et le coût déclaré du projet.")
+    p_usage.add_argument("dir", nargs="?", default=".",
+                         help="Dossier du projet (premier argument; défaut : .).")
+    p_usage.add_argument(
+        "--prices", default=None, metavar="FICHIER_JSON",
+        help="Table JSON fournisseur → modèle → tarifs par million de jetons; "
+             "prioritaire sur MONL_USAGE_PRICES. Format: "
+             "{currency, prices: {fournisseur: {modèle: "
+             "{input_per_million_tokens, output_per_million_tokens}}}}.")
+    p_usage.add_argument(
+        "--json", action="store_true", dest="json_output",
+        help="Émettre le rapport JSON, pour quota et facturation.")
 
     p_migrate = sub.add_parser(
         "migrate", help="Appliquer ou défaire une migration de schéma nommée.")
@@ -1666,6 +1789,8 @@ def _dispatch(argv=None):
         cmd_update(args.dir)
     elif args.command == "diff":
         cmd_diff(args.dir)
+    elif args.command == "usage":
+        cmd_usage(args.dir, prices_path=args.prices, json_output=args.json_output)
     elif args.command == "migrate":
         cmd_migrate(args.dir, name=args.name, down=args.down, list_only=args.list)
     elif args.command == "assets":

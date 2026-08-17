@@ -26,6 +26,7 @@ import os
 import posixpath
 import re
 import time
+import uuid
 from datetime import datetime, timezone
 from html import unescape
 from xml.etree import ElementTree
@@ -334,18 +335,30 @@ PROVIDERS.update({name: _openai_preset(name) for name in OPENAI_COMPATIBLE})
 USAGE_FILENAME = ".monl_ai_usage.jsonl"
 
 
-def _record_provider_usage(project_dir, provider, operation, attempt, stage=None):
-    """Conserve les compteurs de coût, jamais le prompt, la réponse ou la clé."""
-    usage = getattr(provider, "last_usage", None)
+def _record_provider_usage(project_dir, provider, operation, attempt, *,
+                           run_id, stage=None, usage=None):
+    """Conserve les compteurs de coût, jamais le prompt, la réponse ou la clé.
+
+    ``run_id`` est OBLIGATOIRE : sans lui, deux exécutions successives donnent
+    des événements indiscernables et « ce que ce site a coûté » cesse d'être
+    calculable — le défaut que cette colonne vient fermer. Un repli qui en
+    fabriquerait un par événement serait pire que l'absence : le rapport
+    montrerait autant d'exécutions que d'appels, et il aurait l'air juste.
+    """
+    usage = usage if usage is not None else getattr(provider, "last_usage", None)
     if usage is None:
         return
     event = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
+        "run_id": run_id,
         "provider": getattr(provider, "provider_name", "custom"),
         "model": getattr(provider, "model", None),
         "operation": operation,
         "attempt": attempt,
-        **usage,
+        "duration_seconds": usage.get("duration_seconds"),
+        "input_tokens": usage.get("input_tokens"),
+        "output_tokens": usage.get("output_tokens"),
+        "total_tokens": usage.get("total_tokens"),
     }
     if stage is not None:
         event["stage"] = stage
@@ -949,7 +962,7 @@ def _build_chunk_prompt(base_prompt, target, files):
 
 
 def _generate_chunked_files(project_dir, provider, base_prompt, operation,
-                            attempt, say):
+                            attempt, say, run_id=None):
     """Génère puis valide chaque fichier d'un frontend DeepSeek/Yandex."""
     files = _read_existing_frontend(project_dir)
     targets = list(CHUNKED_FRONTEND_FILES) + _planned_generated_asset_paths(project_dir)
@@ -957,7 +970,7 @@ def _generate_chunked_files(project_dir, provider, base_prompt, operation,
         say(f" -> Génération de frontend/{target}…")
         raw = provider(_build_chunk_prompt(base_prompt, target, files))
         _record_provider_usage(project_dir, provider, operation, attempt,
-                               stage=target)
+                               stage=target, run_id=run_id)
         files.update(parse_single_file_payload(raw, target))
     return files
 
@@ -971,6 +984,7 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
     from .smoke_test import run_smoke_test
 
     project_dir = os.path.abspath(project_dir)
+    run_id = uuid.uuid4().hex
     prompt = build_generation_prompt(project_dir, update_mode, retouche_mode)
 
     last_errors = []
@@ -986,10 +1000,11 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
                      ("update" if update_mode else "construction"))
         if getattr(provider, "chunked_generation", False):
             files = _generate_chunked_files(
-                project_dir, provider, prompt, operation, attempt, say)
+                project_dir, provider, prompt, operation, attempt, say, run_id=run_id)
         else:
             raw = provider(prompt)
-            _record_provider_usage(project_dir, provider, operation, attempt)
+            _record_provider_usage(project_dir, provider, operation, attempt,
+                                   run_id=run_id)
             files = parse_files_payload(raw)
         _write_files(project_dir, files)
         # Un manifeste généré par Monl est seulement un plan tant que le
@@ -1400,6 +1415,7 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
 
     nom = agent_command.split()[0] if agent_command else agent
     project_dir = os.path.abspath(project_dir)
+    run_id = uuid.uuid4().hex
     brief = brief_evolution(update_mode, retouche_mode) or PROMPT_FILENAME
     if not os.path.exists(os.path.join(project_dir, brief)):
         origine = ("'monl retouche' n'a pas écrit sa consigne" if retouche_mode
@@ -1420,6 +1436,7 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
         say(f" -> {nom} travaille dans {project_dir} (tentative {attempt}/2)…")
         before = _fingerprint_protected(project_dir)
         front_avant = _fingerprint_frontend(project_dir)
+        started = time.monotonic()
         # POINT 97 : la réponse de l'agent est CONSERVÉE. Elle était jetée, et
         # c'est précisément ce qu'il faut lire quand rien n'a bougé : un agent
         # qui décline explique pourquoi — la consigne de retouche lui demande
@@ -1428,6 +1445,16 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
         reponse_agent = run_cli_agent(
             project_dir, instruction, max_turns=max_turns,
             command=command, agent=agent, agent_command=agent_command)
+        agent_usage = type("AgentUsage", (), {
+            "provider_name": "agent",
+            "model": agent if agent in CLI_AGENTS else "custom",
+        })()
+        _record_provider_usage(
+            project_dir, agent_usage, operation=("retouche" if retouche_mode else
+                                                ("update" if update_mode else "construction")),
+            attempt=attempt, run_id=run_id,
+            usage={"duration_seconds": round(time.monotonic() - started, 3),
+                   "input_tokens": None, "output_tokens": None, "total_tokens": None})
 
         # Garde-fou : rien d'autre que frontend/ ne doit avoir bougé.
         after = _fingerprint_protected(project_dir)
