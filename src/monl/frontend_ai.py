@@ -989,6 +989,54 @@ def _planned_generated_asset_paths(project_dir):
     return list(dict.fromkeys(paths))
 
 
+def _parse_model_routing(declarations):
+    """Transforme les options ``CIBLE=MODELE`` en table de routage."""
+    routes = {}
+    for declaration in declarations or []:
+        if not isinstance(declaration, str):
+            raise FrontendAIError(
+                "routage de modèle invalide : la forme attendue est CIBLE=MODELE.")
+        target, separator, model = declaration.partition("=")
+        target = target.strip().replace("\\", "/")
+        model = model.strip()
+        if not separator or not target or not model:
+            raise FrontendAIError(
+                f"routage de modèle invalide : {declaration!r} — "
+                "la forme attendue est CIBLE=MODELE.")
+        if target in routes:
+            raise FrontendAIError(
+                f"cible répétée dans le routage des modèles : {target!r}.")
+        routes[target] = model
+    return routes
+
+
+def _validate_model_routing(project_dir, routes):
+    """Refuse toute cible qui ne sera jamais une étape de génération."""
+    if not routes:
+        return
+    known = set(CHUNKED_FRONTEND_FILES)
+    known.update(_planned_generated_asset_paths(project_dir))
+    unknown = sorted(set(routes) - known)
+    if unknown:
+        rendered = ", ".join(repr(target) for target in unknown)
+        known_targets = ", ".join(sorted(known))
+        raise FrontendAIError(
+            f"cible inconnue dans le routage des modèles : {rendered}. "
+            f"Cibles connues : {known_targets}.")
+
+
+def _provider_for_chunk(provider, target, routes, provider_factory):
+    """Retourne le provider global ou celui construit pour une cible."""
+    model = routes.get(target)
+    if model is None:
+        return provider
+    if provider_factory is None:
+        raise FrontendAIError(
+            f"routage déclaré pour frontend/{target}, mais aucun constructeur "
+            "de provider n'est disponible.")
+    return provider_factory(model)
+
+
 def _chunk_context(files, target=None):
     """Rend le contexte structurel utile à la cible, jamais les fichiers entiers."""
     if target == "styles.css":
@@ -1123,11 +1171,16 @@ def _raise_chunk_output_limit(provider):
 
 
 def _generate_chunked_files(project_dir, provider, base_prompt, operation,
-                            attempt, say, run_id=None):
+                            attempt, say, run_id=None, model_routes=None,
+                            provider_factory=None):
     """Génère puis valide chaque fichier d'un frontend DeepSeek/Yandex."""
+    model_routes = model_routes or {}
+    _validate_model_routing(project_dir, model_routes)
     files = _read_existing_frontend(project_dir)
     targets = list(CHUNKED_FRONTEND_FILES) + _planned_generated_asset_paths(project_dir)
     for target in targets:
+        stage_provider = _provider_for_chunk(
+            provider, target, model_routes, provider_factory)
         say(f" -> Génération de frontend/{target}…")
         for retry in range(CHUNK_MAX_RETRIES + 1):
             if retry:
@@ -1143,16 +1196,16 @@ def _generate_chunked_files(project_dir, provider, base_prompt, operation,
             # Un appel en erreur ne doit pas réutiliser le compteur d'un appel
             # précédent. Le fournisseur peut néanmoins renseigner last_usage
             # avant de lever, ce qui permet alors de mesurer l'échec.
-            if hasattr(provider, "last_usage"):
-                provider.last_usage = None
+            if hasattr(stage_provider, "last_usage"):
+                stage_provider.last_usage = None
             try:
-                raw = provider(chunk_prompt)
+                raw = stage_provider(chunk_prompt)
             except FrontendAIError as exc:
                 error = exc
-                _record_provider_usage(project_dir, provider, operation, attempt,
+                _record_provider_usage(project_dir, stage_provider, operation, attempt,
                                        stage=target, retry=retry, run_id=run_id)
             else:
-                _record_provider_usage(project_dir, provider, operation, attempt,
+                _record_provider_usage(project_dir, stage_provider, operation, attempt,
                                        stage=target, retry=retry, run_id=run_id)
                 try:
                     payload = parse_single_file_payload(raw, target)
@@ -1162,8 +1215,8 @@ def _generate_chunked_files(project_dir, provider, base_prompt, operation,
                     files.update(payload)
                     break
 
-            if _chunk_response_reached_limit(provider):
-                enlarged = _raise_chunk_output_limit(provider)
+            if _chunk_response_reached_limit(stage_provider):
+                enlarged = _raise_chunk_output_limit(stage_provider)
                 if not enlarged:
                     raise _ChunkOutputLimitError(
                         f"frontend/{target} : le modèle tronque encore au plafond "
@@ -1179,7 +1232,8 @@ def _generate_chunked_files(project_dir, provider, base_prompt, operation,
 
 
 def generate_and_verify(project_dir, provider, update_mode=False, say=print,
-                        retouche_mode=False):
+                        retouche_mode=False, model_routes=None,
+                        provider_factory=None):
     """La boucle complète du point 4 : générer → écrire → RE-VÉRIFIER
     (cohérence + smoke test) → si échec, renvoyer les erreurs au modèle une
     seule fois → re-vérifier. Retourne (ok, erreurs)."""
@@ -1187,6 +1241,13 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
     from .smoke_test import run_smoke_test
 
     project_dir = os.path.abspath(project_dir)
+    model_routes = model_routes or {}
+    _validate_model_routing(project_dir, model_routes)
+    if model_routes and not getattr(provider, "chunked_generation", False):
+        declared = ", ".join(
+            f"{target}={model}" for target, model in sorted(model_routes.items()))
+        say(" -> Routage par étage non appliqué : la voie monolithique ne comporte "
+            f"qu'un seul appel (correspondances déclarées : {declared}).")
     run_id = uuid.uuid4().hex
     prompt = build_generation_prompt(project_dir, update_mode, retouche_mode)
 
@@ -1205,7 +1266,8 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
             if getattr(provider, "chunked_generation", False):
                 files = _generate_chunked_files(
                     project_dir, provider, prompt, operation, attempt, say,
-                    run_id=run_id)
+                    run_id=run_id, model_routes=model_routes,
+                    provider_factory=provider_factory)
             else:
                 if hasattr(provider, "last_usage"):
                     provider.last_usage = None

@@ -1311,11 +1311,20 @@ def _lancer_ia(args, update_mode=False, retouche_mode=False):
         DEFAULT_MODEL,
         PROVIDERS,
         FrontendAIError,
+        _parse_model_routing,
+        _validate_model_routing,
         generate_and_verify,
         generate_with_cli_agent,
     )
     try:
+        model_routes = _parse_model_routing(getattr(args, "model_for", None))
+        _validate_model_routing(args.dir, model_routes)
         if args.agent_command or args.provider in CLI_AGENTS:
+            if model_routes:
+                declared = ", ".join(
+                    f"{target}={model}" for target, model in sorted(model_routes.items()))
+                print(" -> Routage par étage non appliqué : la voie agent ne comporte "
+                      f"pas d'appels découpés (correspondances déclarées : {declared}).")
             ok, _errors = generate_with_cli_agent(
                 args.dir, update_mode=update_mode, retouche_mode=retouche_mode,
                 max_turns=args.max_turns or DEFAULT_MAX_TURNS,
@@ -1324,10 +1333,15 @@ def _lancer_ia(args, update_mode=False, retouche_mode=False):
             # Le modèle par défaut n'existe QUE pour la voie Anthropic ;
             # ailleurs, openai_provider exige --model et le dit.
             defaut = DEFAULT_MODEL if args.provider == "claude" else None
-            provider = PROVIDERS[args.provider](model=args.model or defaut)
+            def provider_factory(model):
+                return PROVIDERS[args.provider](model=model)
+
+            provider = provider_factory(args.model or defaut)
             ok, _errors = generate_and_verify(args.dir, provider,
                                               update_mode=update_mode,
-                                              retouche_mode=retouche_mode)
+                                              retouche_mode=retouche_mode,
+                                              model_routes=model_routes,
+                                              provider_factory=provider_factory)
     except FrontendAIError as e:
         print(f" ❌ {e}")
         sys.exit(1)
@@ -1690,6 +1704,13 @@ def _dispatch(argv=None):
                               + ", ".join(f"'{n}'" for n in sorted(CLI_AGENTS))
                               + " — l'agent travaille dans le dossier du projet.")
     p_front.add_argument("--model", default=None, help="Modèle du fournisseur.")
+    p_front.add_argument(
+        "--model-for", dest="model_for", action="append", default=None,
+        metavar="CIBLE=MODELE",
+        help="Routage répétable de la génération découpée (ex. "
+             "styles.css=yandexgpt-lite). Cibles exactes : index.html, styles.css, "
+             "app.js et SVG planifiés. Une voie monolithique ou agent ne comporte "
+             "qu'un appel et signalera que ce routage n'est pas appliqué.")
     p_front.add_argument("--agent-command", default=None,
                          help="Gabarit de commande pour un agent absent de la "
                               "liste, {instruction} étant substitué — par exemple "
