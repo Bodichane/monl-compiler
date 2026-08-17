@@ -38,9 +38,11 @@ from .design_system import (
     DESIGN_SYSTEM_FILENAME,
     GENERATED_MARKER,
     activate_asset_manifest,
+    plan_generated_images,
 )
 from .errors import FrontendError
 from .frontend_contract import PROMPT_FILENAME
+from .image_ai import ImageProviderError, record_image_usage
 
 ALLOWED_EXTENSIONS = (".html", ".css", ".js", ".svg", ".json")
 MAX_TOTAL_BYTES = 2_000_000
@@ -72,6 +74,8 @@ Répondre UNIQUEMENT avec un objet JSON, sans préambule ni balises Markdown :
 Chemins relatifs à frontend/ (pas de sous-dossier remontant, pas de chemin
 absolu). Extensions autorisées : .html, .css, .js, .svg, .json.
 'index.html' est obligatoire.
+Les images matricielles du manifeste sont déjà écrites dans le dossier
+d'assets ; elles ne sont pas des fichiers texte à rendre dans cette réponse.
 """
 
 
@@ -622,6 +626,22 @@ def _design_completeness_errors(project_dir):
 
     errors = []
     frontend_dir = os.path.join(project_dir, "frontend")
+    assets_dir = "assets"
+    contract_path = os.path.join(project_dir, "frontend_contract.json")
+    if os.path.exists(contract_path):
+        try:
+            with open(contract_path, encoding="utf-8") as fh:
+                assets_dir = ((json.load(fh).get("assets") or {}).get("dir")
+                              or "assets").strip("/")
+        except (OSError, json.JSONDecodeError):
+            assets_dir = "assets"
+
+    def asset_disk_path(rel):
+        """Résout les nouveaux assets hors frontend, avec repli historique."""
+        if rel == assets_dir or rel.startswith(assets_dir + "/"):
+            return os.path.join(project_dir, rel)
+        return os.path.join(frontend_dir, rel)
+
     asset_paths = []
     for group in ("products", "editorial"):
         values = manifest.get(group, {})
@@ -633,14 +653,14 @@ def _design_completeness_errors(project_dir):
         if not isinstance(rel, str) or rel.startswith("/") or ".." in rel.split("/"):
             errors.append(f"asset refusé dans le manifeste : {rel}")
             continue
-        if not os.path.isfile(os.path.join(frontend_dir, rel)):
-            errors.append(f"asset manquant : frontend/{rel}")
+        if not os.path.isfile(asset_disk_path(rel)):
+            errors.append(f"asset manquant : {rel}")
 
     # Les visuels produits par l'IA ne sont pas des assets métier déclarés par
     # l'auteur : ils ont néanmoins un chemin déterministe dans le manifeste.
-    # Sans cette vérification, le modèle pouvait écrire `src="hero.svg"`,
-    # recevoir un succès du smoke test (qui n'interprète pas les images), puis
-    # livrer une page blanche à l'endroit le plus visible.
+    # Sans cette vérification, le modèle pouvait référencer un fichier image
+    # absent, recevoir un succès du smoke test (qui n'interprète pas les
+    # images), puis livrer une page blanche à l'endroit le plus visible.
     generated_assets = manifest.get("generated_assets") or []
     frontend_sources = []
     if os.path.isdir(frontend_dir):
@@ -659,10 +679,10 @@ def _design_completeness_errors(project_dir):
         if not isinstance(rel, str) or rel.startswith("/") or ".." in rel.split("/"):
             errors.append(f"asset généré refusé dans le manifeste : {rel}")
             continue
-        if not os.path.isfile(os.path.join(frontend_dir, rel)):
-            errors.append(f"asset généré manquant : frontend/{rel}")
+        if not os.path.isfile(asset_disk_path(rel)):
+            errors.append(f"asset généré manquant : {rel}")
         elif rel not in rendered_source:
-            errors.append(f"asset généré non utilisé : frontend/{rel}")
+            errors.append(f"asset généré non utilisé : {rel}")
 
     errors.extend(_generated_asset_reuse_errors(frontend_dir, generated_assets))
     errors.extend(_editorial_content_errors(project_dir, rendered_source))
@@ -969,7 +989,11 @@ CHUNKED_FRONTEND_FILES = ("index.html", "styles.css", "app.js")
 
 
 def _planned_generated_asset_paths(project_dir):
-    """Retourne les fichiers graphiques que DeepSeek doit livrer séparément."""
+    """Retourne les SVG texte d'un manifeste historique uniquement.
+
+    Les images matricielles sont produites avant cette étape par le fournisseur
+    d'images et ne doivent jamais devenir des cibles du modèle texte.
+    """
     path = os.path.join(project_dir, ASSET_MANIFEST_FILENAME)
     if not os.path.exists(path):
         return []
@@ -983,7 +1007,7 @@ def _planned_generated_asset_paths(project_dir):
     paths = []
     for item in manifest.get("generated_assets") or []:
         rel = item.get("path") if isinstance(item, dict) else item
-        if (isinstance(rel, str) and rel.endswith(".svg") and
+        if (isinstance(rel, str) and rel.lower().endswith(".svg") and
                 not rel.startswith("/") and ".." not in rel.split("/")):
             paths.append(rel.replace("\\", "/"))
     return list(dict.fromkeys(paths))
@@ -1077,16 +1101,17 @@ def _build_chunk_prompt(base_prompt, target, files):
     direction produit. Le contexte des fichiers précédents garantit toutefois
     que le CSS et le JS s'accordent sur les mêmes classes et identifiants.
     """
-    planned_assets = list(dict.fromkeys(
-        re.findall(r"frontend/([A-Za-z0-9._/-]+\.svg)", base_prompt)))
+    planned_assets = list(dict.fromkeys(re.findall(
+        r"((?:assets|frontend)/[A-Za-z0-9._/-]+\.(?:jpg|jpeg|png|webp|svg))",
+        base_prompt, re.IGNORECASE)))
     asset_rule = ""
     if planned_assets:
         asset_rule = (
             "\nAssets graphiques obligatoires de cette construction : "
-            + ", ".join(f"frontend/{path}" for path in planned_assets)
-            + ". Utilise exactement ces noms ; ne crée ni ne référence un autre "
-            "fichier graphique local. Chaque asset doit être rendu comme une "
-            "étape dédiée, jamais seulement décrit dans le HTML.\n"
+            + ", ".join(planned_assets)
+            + ". Ces images matricielles sont déjà écrites hors de frontend/. "
+            "Référence exactement ces noms ; ne crée ni ne référence un autre "
+            "fichier graphique local.\n"
         )
     instructions = {
         "index.html": (
@@ -1144,6 +1169,80 @@ def _build_chunk_prompt(base_prompt, target, files):
         "## Fichiers déjà générés — à respecter\n"
         f"{_chunk_context(files, target)}"
     )
+
+
+def _image_prompt(project_dir, item):
+    """Construit le prompt image depuis la matière déclarée par le projet."""
+    contract_path = os.path.join(project_dir, "frontend_contract.json")
+    try:
+        with open(contract_path, encoding="utf-8") as fh:
+            contract = json.load(fh)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise FrontendAIError(
+            f"contrat frontend illisible avant la génération d'image : {exc}"
+        ) from exc
+
+    sections = contract.get("sections") or []
+    section_text = "\n".join(
+        f"- {section.get('title', 'Section')} : {section.get('body', '')}"
+        for section in sections
+    ) or "- Aucune section éditoriale déclarée."
+    brief = contract.get("brief") or "Aucun brief éditorial déclaré."
+    return (
+        f"Projet : {contract.get('app') or 'application Monl'}\n"
+        f"Brief de l'auteur : {brief}\n"
+        f"Sections déclarées par l'auteur :\n{section_text}\n"
+        f"Rôle de cette image dans la page : {item.get('role', 'visuel du projet')}\n"
+        f"Nom exact à référencer côté frontend : {item.get('frontend_reference', item.get('path'))}\n"
+        "Créer une image matricielle cohérente avec cette matière éditoriale. "
+        "Ne pas ajouter de logo, de marque ou de texte lisible qui ne figure pas "
+        "dans le projet."
+    )
+
+
+def _generate_planned_images(project_dir, image_provider, operation, attempt, run_id,
+                             say=print):
+    """Écrit les images planifiées avant tout appel au modèle texte."""
+    generated = plan_generated_images(project_dir)
+    if not generated:
+        raise FrontendAIError(
+            "la génération d'images est activée mais le manifeste ne peut pas "
+            "être planifié")
+    for item in generated:
+        path = item.get("path")
+        if not isinstance(path, str) or path.startswith("/") or ".." in path.split("/"):
+            raise FrontendAIError(f"chemin d'image générée refusé : {path}")
+        destination = os.path.join(project_dir, path)
+        if os.path.isfile(destination):
+            continue
+        prompt = _image_prompt(project_dir, item)
+        if hasattr(image_provider, "last_usage"):
+            image_provider.last_usage = None
+        say(f" -> Génération de l'image {path}…")
+        try:
+            image = image_provider(prompt)
+        except ImageProviderError as exc:
+            record_image_usage(project_dir, image_provider, operation, attempt,
+                               run_id=run_id, stage="image", path=path,
+                               status="error")
+            raise FrontendAIError(str(exc)) from exc
+        except Exception as exc:
+            record_image_usage(project_dir, image_provider, operation, attempt,
+                               run_id=run_id, stage="image", path=path,
+                               status="error")
+            raise FrontendAIError(f"fournisseur d'image en erreur : {exc}") from exc
+        if not isinstance(image, (bytes, bytearray, memoryview)) or not image:
+            record_image_usage(project_dir, image_provider, operation, attempt,
+                               run_id=run_id, stage="image", path=path,
+                               status="error")
+            raise FrontendAIError(
+                f"le fournisseur d'image n'a pas rendu des octets pour {path}")
+        os.makedirs(os.path.dirname(destination), exist_ok=True)
+        with open(destination, "wb") as fh:
+            fh.write(bytes(image))
+        record_image_usage(project_dir, image_provider, operation, attempt,
+                           run_id=run_id, stage="image", path=path)
+    return generated
 
 
 def _chunk_response_reached_limit(provider):
@@ -1233,7 +1332,8 @@ def _generate_chunked_files(project_dir, provider, base_prompt, operation,
 
 def generate_and_verify(project_dir, provider, update_mode=False, say=print,
                         retouche_mode=False, model_routes=None,
-                        provider_factory=None):
+                        provider_factory=None, generate_images=False,
+                        image_provider=None):
     """La boucle complète du point 4 : générer → écrire → RE-VÉRIFIER
     (cohérence + smoke test) → si échec, renvoyer les erreurs au modèle une
     seule fois → re-vérifier. Retourne (ok, erreurs)."""
@@ -1243,12 +1343,19 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
     project_dir = os.path.abspath(project_dir)
     model_routes = model_routes or {}
     _validate_model_routing(project_dir, model_routes)
+    if generate_images and image_provider is None:
+        raise FrontendAIError(
+            "--generate-images exige un fournisseur d'images injectable.")
     if model_routes and not getattr(provider, "chunked_generation", False):
         declared = ", ".join(
             f"{target}={model}" for target, model in sorted(model_routes.items()))
         say(" -> Routage par étage non appliqué : la voie monolithique ne comporte "
             f"qu'un seul appel (correspondances déclarées : {declared}).")
     run_id = uuid.uuid4().hex
+    operation = ("retouche" if retouche_mode else
+                 ("update" if update_mode else "construction"))
+    if generate_images:
+        _generate_planned_images(project_dir, image_provider, operation, 1, run_id, say=say)
     prompt = build_generation_prompt(project_dir, update_mode, retouche_mode)
 
     last_errors = []
@@ -1260,8 +1367,6 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
                       + "\n".join(f"- {e}" for e in last_errors)
                       + "\nRendre une version corrigée, même format de réponse.")
         say(f" -> Génération du frontend par l'IA (tentative {attempt}/2)…")
-        operation = ("retouche" if retouche_mode else
-                     ("update" if update_mode else "construction"))
         try:
             if getattr(provider, "chunked_generation", False):
                 files = _generate_chunked_files(
@@ -1683,7 +1788,8 @@ def run_claude_code(project_dir, instruction, max_turns=DEFAULT_MAX_TURNS,
 def generate_with_cli_agent(project_dir, update_mode=False, say=print,
                             command=None, max_turns=DEFAULT_MAX_TURNS,
                             agent="claude-code", agent_command=None,
-                            retouche_mode=False):
+                            retouche_mode=False, generate_images=False,
+                            image_provider=None):
     """La boucle du point 4, version agent en ligne de commande : exécuter
     l'agent dans le dossier cible → vérifier les artefacts protégés →
     re-vérifier (cohérence + smoke test) → une correction au plus.
@@ -1698,6 +1804,13 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
     nom = agent_command.split()[0] if agent_command else agent
     project_dir = os.path.abspath(project_dir)
     run_id = uuid.uuid4().hex
+    operation = ("retouche" if retouche_mode else
+                 ("update" if update_mode else "construction"))
+    if generate_images:
+        if image_provider is None:
+            raise FrontendAIError(
+                "--generate-images exige un fournisseur d'images injectable.")
+        _generate_planned_images(project_dir, image_provider, operation, 1, run_id, say=say)
     brief = brief_evolution(update_mode, retouche_mode) or PROMPT_FILENAME
     if not os.path.exists(os.path.join(project_dir, brief)):
         origine = ("'monl retouche' n'a pas écrit sa consigne" if retouche_mode

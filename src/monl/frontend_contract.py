@@ -1426,16 +1426,14 @@ la catégorie décrite par le contrat :
   bénéfices, méthode, réassurance, appels à l'action, textes d'états vides) ;
 - construire une page dense en blocs réellement utiles, pas une simple liste
   suivie d'un formulaire ;
-- créer dans `frontend/` des illustrations `.svg` originales et cohérentes
-  lorsque le projet appelle des images. Elles sont locales, accessibles et
-  peuvent servir aux blocs éditoriaux ; ne pas embarquer de photo distante ;
-- si `ASSET_MANIFEST.json` liste des `generated_assets`, livrer chacun de ces
-  chemins comme une clé `.svg` séparée dans la réponse. Référencer exactement
-  ces noms depuis le HTML/CSS : ne jamais inventer un nom de fichier, ni
-  mentionner une image qui n'est pas effectivement rendue ;
-- ne rendre chaque section éditoriale et chaque illustration qu'une seule
-  fois : le bloc éditorial porte le texte fourni, et `hero.svg` ne doit pas
-  être recopié dans les autres sections ;
+- si `ASSET_MANIFEST.json` liste des `generated_assets`, Monl a déjà écrit ces
+  images matricielles dans le dossier d'assets déclaré par la spec avant votre
+  appel. Référencer exactement chaque chemin fourni par le manifeste depuis le
+  HTML/CSS : ne jamais inventer un nom, ne pas recopier
+  une image dans `frontend/` et ne pas tenter de produire ses octets dans la
+  réponse texte ;
+- ne rendre chaque image générée qu'une seule fois : le bloc qui porte son rôle
+  visuel doit référencer le chemin exact du manifeste, sans le recopier ailleurs ;
 - rendre les vraies images et les vraies fiches renvoyées par l'API quand elles
   existent. Ne jamais fabriquer côté navigateur de faux produits, projets,
   rendez-vous ou autres enregistrements qui contrediraient la base.

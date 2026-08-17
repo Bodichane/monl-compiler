@@ -58,7 +58,7 @@ def test_compile_prepare_design_system_et_manifest(tmp_path):
     assert "ASSET_MANIFEST.json" in prompt
 
 
-def test_manifest_planifie_les_illustrations_express_et_le_prompt_les_nommes(tmp_path):
+def test_manifest_ne_planifie_plus_d_images_depuis_le_brief(tmp_path):
     spec = tmp_path / "spec.ml"
     spec.write_text(SPEC.replace(
         "Une boutique artisanale chaleureuse et éditoriale.",
@@ -66,21 +66,18 @@ def test_manifest_planifie_les_illustrations_express_et_le_prompt_les_nommes(tmp
         encoding="utf-8")
     compile_project(str(spec), str(tmp_path))
     manifest = _manifest(tmp_path / ASSET_MANIFEST_FILENAME)
-    assert [item["path"] for item in manifest["generated_assets"]] == [
-        "hero.svg", "editorial.svg"
-    ]
-    assert 'data-monl-section="editorial"' in manifest["required_markers"]["index.html"]
-    # Le marqueur de section est restauré : l'anti-duplication est désormais
-    # garantie par le contrôle « exactement une fois », pas par sa suppression.
+    # Renversement explicite du point F : le brief libre ne décide plus d'une
+    # dépense image. L'option --generate-images est couverte séparément.
+    assert manifest["generated_assets"] == []
     assert 'data-monl-section="a-propos"' in manifest["required_markers"]["index.html"]
     assert manifest["unique_section_markers"]["index.html"] == [
         'data-monl-section="a-propos"'
     ]
     design = (tmp_path / DESIGN_SYSTEM_FILENAME).read_text(encoding="utf-8")
-    assert "frontend/hero.svg" in design
+    assert "- `hero.svg` —" not in design
     assert 'data-monl-section="<slug>"' in design
     prompt = build_generation_prompt(str(tmp_path), False)
-    assert "frontend/editorial.svg" in prompt
+    assert "- `editorial.svg` —" not in prompt
     assert 'data-monl-section="<slug>"' in prompt
 
 

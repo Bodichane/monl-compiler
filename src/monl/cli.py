@@ -1317,6 +1317,13 @@ def _lancer_ia(args, update_mode=False, retouche_mode=False):
         generate_with_cli_agent,
     )
     try:
+        image_provider = None
+        if getattr(args, "generate_images", False):
+            from .image_ai import IMAGE_PROVIDERS, ImageProviderError
+            try:
+                image_provider = IMAGE_PROVIDERS[args.image_provider]()
+            except ImageProviderError as exc:
+                raise FrontendAIError(str(exc)) from exc
         model_routes = _parse_model_routing(getattr(args, "model_for", None))
         _validate_model_routing(args.dir, model_routes)
         if args.agent_command or args.provider in CLI_AGENTS:
@@ -1328,7 +1335,9 @@ def _lancer_ia(args, update_mode=False, retouche_mode=False):
             ok, _errors = generate_with_cli_agent(
                 args.dir, update_mode=update_mode, retouche_mode=retouche_mode,
                 max_turns=args.max_turns or DEFAULT_MAX_TURNS,
-                agent=args.provider, agent_command=args.agent_command)
+                agent=args.provider, agent_command=args.agent_command,
+                generate_images=getattr(args, "generate_images", False),
+                image_provider=image_provider)
         else:
             # Le modèle par défaut n'existe QUE pour la voie Anthropic ;
             # ailleurs, openai_provider exige --model et le dit.
@@ -1341,7 +1350,10 @@ def _lancer_ia(args, update_mode=False, retouche_mode=False):
                                               update_mode=update_mode,
                                               retouche_mode=retouche_mode,
                                               model_routes=model_routes,
-                                              provider_factory=provider_factory)
+                                              provider_factory=provider_factory,
+                                              generate_images=getattr(
+                                                  args, "generate_images", False),
+                                              image_provider=image_provider)
     except FrontendAIError as e:
         print(f" ❌ {e}")
         sys.exit(1)
@@ -1544,6 +1556,18 @@ def _usage_cost(item, currency):
     return "aucun coût"
 
 
+def _usage_measure(item):
+    measures = []
+    if item.get("input_tokens") is not None or item.get("output_tokens") is not None:
+        measures.append(
+            f"entrée {_usage_value(item.get('input_tokens'))}, "
+            f"sortie {_usage_value(item.get('output_tokens'))} jetons"
+        )
+    if item.get("requests") is not None:
+        measures.append(f"{_usage_value(item['requests'])} requête(s) d'image")
+    return " | ".join(measures) or "jetons non applicables"
+
+
 def _usage_line(item, currency, prefix="  "):
     operations = item.get("operation") or "opération inconnue"
     attempts = ",".join(str(value) for value in item.get("attempts", [])) or "inconnues"
@@ -1553,15 +1577,13 @@ def _usage_line(item, currency, prefix="  "):
         for stage in item.get("stages", [])
     ) or "aucune"
     return (f"{prefix}{operations} | tentatives {attempts} | étapes {stages} | "
-            f"entrée {_usage_value(item.get('input_tokens'))}, "
-            f"sortie {_usage_value(item.get('output_tokens'))} jetons | "
+            f"{_usage_measure(item)} | "
             f"durée {_usage_value(item.get('duration_seconds'))} s | "
             f"coût {_usage_cost(item, currency)}")
 
 
 def _usage_total_line(item, currency, prefix="  "):
-    return (f"{prefix}entrée {_usage_value(item.get('input_tokens'))}, "
-            f"sortie {_usage_value(item.get('output_tokens'))} jetons | "
+    return (f"{prefix}{_usage_measure(item)} | "
             f"durée {_usage_value(item.get('duration_seconds'))} s | "
             f"coût {_usage_cost(item, currency)}")
 
@@ -1692,6 +1714,7 @@ def _dispatch(argv=None):
                          "re-vérification automatique (cohérence + smoke test).")
     p_front.add_argument("dir", nargs="?", default=".")
     from .frontend_ai import CLI_AGENTS, GENERIC_PROVIDER, OPENAI_COMPATIBLE
+    from .image_ai import IMAGE_PROVIDERS
     _voies = sorted({"claude", GENERIC_PROVIDER} | set(OPENAI_COMPATIBLE) | set(CLI_AGENTS))
     p_front.add_argument("--provider", default="claude", choices=_voies,
                          help="Clé API : 'claude' (ANTHROPIC_API_KEY) ; "
@@ -1722,6 +1745,13 @@ def _dispatch(argv=None):
     p_front.add_argument("--update", action="store_true",
                          help="Faire évoluer le frontend existant à partir de "
                               "FRONTEND_UPDATE_PROMPT.md au lieu de repartir de zéro.")
+    p_front.add_argument(
+        "--generate-images", action="store_true",
+        help="Générer explicitement les images matricielles planifiées dans le "
+             "dossier d'assets (défaut : aucune image).")
+    p_front.add_argument(
+        "--image-provider", choices=sorted(IMAGE_PROVIDERS), default="yandexart",
+        help="Fournisseur d'images utilisé avec --generate-images (défaut : yandexart).")
 
     # POINT 93 : corriger un défaut CONSTATÉ sur le site, sans le reconstruire.
     # Les options sont rigoureusement celles de 'frontend' — c'est la même voie

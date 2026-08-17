@@ -181,7 +181,34 @@ def _declared_section_markers(contract: dict) -> list[str]:
     return markers
 
 
-def build_asset_manifest(contract: dict, profile: dict) -> dict:
+def _generated_image_plan(contract: dict, profile: dict) -> list[dict]:
+    """Retourne le plan explicite d'images matricielles.
+
+    L'absence de plan est le défaut. Cette fonction ne lit donc jamais le
+    brief pour chercher un mot-clé : le booléen ``generate_images`` est la
+    décision humaine qui l'appelle.
+    """
+    assets_dir = ((contract.get("assets") or {}).get("dir") or "assets").strip("/")
+    prefix = f"{assets_dir}/generated"
+    planned = [{
+        "kind": "generated-image",
+        "path": f"{prefix}/hero.jpg",
+        "role": "visuel principal du premier écran",
+        "frontend_reference": f"{prefix}/hero.jpg",
+        "required": True,
+    }]
+    if contract.get("sections") or profile["kind"] in {"service", "editorial", "commerce"}:
+        planned.append({
+            "kind": "generated-image",
+            "path": f"{prefix}/editorial.jpg",
+            "role": "visuel secondaire pour le récit ou la preuve",
+            "frontend_reference": f"{prefix}/editorial.jpg",
+            "required": True,
+        })
+    return planned
+
+
+def build_asset_manifest(contract: dict, profile: dict, generate_images=False) -> dict:
     """Construit un plan d'assets sans prétendre que les fichiers existent déjà."""
     planned = []
     for media in profile["media_entities"]:
@@ -199,29 +226,8 @@ def build_asset_manifest(contract: dict, profile: dict) -> dict:
             "path_pattern": "assets/editorial/hero.svg",
             "required": True,
         })
-    # Le mode express peut demander des visuels alors qu'aucun champ Image
-    # n'existe dans le modèle métier. Ce sont des fichiers du frontend, mais
-    # ils doivent être planifiés avant le HTML avec des noms déterministes.
-    brief = (contract.get("brief") or "").lower()
-    visual_intent = any(word in brief for word in (
-        "illustration", "illustrations", "image", "les images", "photo", "œuvre",
-        "visuel", "images portent",
-    ))
-    generated_assets = []
-    if visual_intent:
-        generated_assets.append({
-            "kind": "frontend-illustration",
-            "path": "hero.svg",
-            "role": "visuel principal du premier écran",
-            "required": True,
-        })
-        if profile["kind"] in {"service", "editorial", "commerce"}:
-            generated_assets.append({
-                "kind": "frontend-illustration",
-                "path": "editorial.svg",
-                "role": "visuel secondaire pour le récit ou la preuve",
-                "required": True,
-            })
+    generated_assets = (_generated_image_plan(contract, profile)
+                        if generate_images else [])
     return {
         "schema_version": 1,
         "status": "planned",
@@ -243,7 +249,7 @@ def build_asset_manifest(contract: dict, profile: dict) -> dict:
     }
 
 
-def render_design_system(contract: dict) -> str:
+def render_design_system(contract: dict, generate_images=False) -> str:
     profile = infer_design_profile(contract)
     pages = "\n".join(f"- {page}" for page in profile["pages"])
     patterns = render_pattern_block(profile["ui_patterns"])
@@ -251,9 +257,10 @@ def render_design_system(contract: dict) -> str:
         f"- `{item['entity']}` : {', '.join(item['fields'])}"
         for item in profile["media_entities"]
     ) or "- Aucun média structuré détecté ; ne pas inventer de photos distantes."
-    generated = build_asset_manifest(contract, profile).get("generated_assets") or []
+    generated = build_asset_manifest(
+        contract, profile, generate_images=generate_images).get("generated_assets") or []
     generated_block = "\n".join(
-        f"- `frontend/{item['path']}` — {item['role']} (fichier SVG obligatoire)"
+        f"- `{item['path']}` — {item['role']} (image matricielle déjà produite avant le HTML)"
         for item in generated
     ) or "- Aucun fichier graphique supplémentaire planifié ; ne pas inventer de chemin d'image."
     anti_patterns = {
@@ -323,9 +330,9 @@ d'accueil, sur son propre élément HTML portant
 `data-monl-section="<slug>"`. Lorsqu'un pattern `editorial` est présent, le
 bloc éditorial porte ces éléments à l'intérieur de lui : fusionner « À propos »,
 « Horaires », etc. dans ce récit au lieu d'ajouter ensuite un second bloc. Un
-seul élément, un seul marqueur, un seul rendu. De même, chaque illustration
-générée a un rôle unique : ne pas réutiliser `hero.svg` dans un autre bloc si
-`editorial.svg` lui est destiné.
+seul élément, un seul marqueur, un seul rendu. De même, chaque image générée
+a un rôle unique : ne pas réutiliser un chemin du manifeste dans un autre bloc
+si une autre image lui est destinée.
 
 ## Assets
 
@@ -335,7 +342,8 @@ générée a un rôle unique : ne pas réutiliser `hero.svg` dans un autre bloc 
 
 {generated_block}
 
-Tous les assets doivent être locaux et servir dans `frontend/`. Aucun CDN,
+Tous les assets doivent être locaux et servir dans le dossier déclaré par la
+specification, monté sous `/site/<assets_dir>/`. Aucun CDN,
 aucune URL distante et aucun placeholder silencieux sur un chemin déclaré.
 Le manifeste associé est `ASSET_MANIFEST.json`. Pour chaque entité média,
 marquer la zone qui rend ses images avec `data-monl-media="nom-entite"` : ce
@@ -378,12 +386,14 @@ def _write_generated(path: Path, content: str, marker: str = GENERATED_MARKER) -
     return True
 
 
-def ensure_design_artifacts(project_dir: str, staging_dir: str, contract: dict) -> dict:
+def ensure_design_artifacts(project_dir: str, staging_dir: str, contract: dict,
+                            generate_images=False) -> dict:
     """Émet les artefacts visuels générés, sans écraser le travail humain."""
     project = Path(project_dir)
     staging = Path(staging_dir)
     design_system = _write_generated(
-        staging / DESIGN_SYSTEM_FILENAME, render_design_system(contract))
+        staging / DESIGN_SYSTEM_FILENAME,
+        render_design_system(contract, generate_images=generate_images))
 
     design_spec = f"""{GENERATED_MARKER}
 # {contract.get('app', 'Monl')} — cahier visuel initial
@@ -409,7 +419,8 @@ spécifique écrit par l'auteur.
 """
     design_spec_written = _write_generated(staging / DESIGN_SPEC_FILENAME, design_spec)
 
-    manifest = build_asset_manifest(contract, infer_design_profile(contract))
+    manifest = build_asset_manifest(
+        contract, infer_design_profile(contract), generate_images=generate_images)
     manifest_text = GENERATED_MARKER + "\n" + json.dumps(
         manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
     manifest_written = _write_generated(staging / ASSET_MANIFEST_FILENAME, manifest_text)
@@ -425,6 +436,48 @@ spécifique écrit par l'auteur.
         DESIGN_SPEC_FILENAME: design_spec_written,
         ASSET_MANIFEST_FILENAME: manifest_written,
     }
+
+
+def plan_generated_images(project_dir: str) -> list[dict]:
+    """Active le plan d'images après le choix explicite de l'IA image.
+
+    ``monl compile`` reste sans image par défaut. Cette étape est appelée par
+    ``monl frontend --generate-images`` juste avant la construction, afin que
+    le manifeste et le brief texte contiennent les noms avant l'écriture du
+    premier fichier HTML.
+    """
+    project = Path(project_dir)
+    contract_path = project / "frontend_contract.json"
+    manifest_path = project / ASSET_MANIFEST_FILENAME
+    if not contract_path.exists() or not manifest_path.exists():
+        return []
+    try:
+        contract = json.loads(contract_path.read_text(encoding="utf-8"))
+        content = manifest_path.read_text(encoding="utf-8")
+        if not content.startswith(GENERATED_MARKER):
+            return []
+        manifest = json.loads("\n".join(content.splitlines()[1:]))
+    except (OSError, json.JSONDecodeError):
+        return []
+    if manifest.get("generated_by") != "monl":
+        return []
+    generated = _generated_image_plan(contract, infer_design_profile(contract))
+    manifest["generated_assets"] = generated
+    manifest["status"] = "planned"
+    manifest_path.write_text(
+        GENERATED_MARKER + "\n" + json.dumps(
+            manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8")
+    design_path = project / DESIGN_SYSTEM_FILENAME
+    if design_path.exists():
+        try:
+            design = design_path.read_text(encoding="utf-8")
+        except OSError:
+            design = ""
+        if GENERATED_MARKER in design:
+            design_path.write_text(
+                render_design_system(contract, generate_images=True), encoding="utf-8")
+    return generated
 
 
 def activate_asset_manifest(project_dir: str) -> bool:

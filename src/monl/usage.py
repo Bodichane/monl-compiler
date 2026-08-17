@@ -2,8 +2,9 @@
 
 Les tarifs ne vivent pas dans monl : ils sont fournis par l'exploitant. Ce
 module ne fait donc que vérifier la forme de la table, agréger les événements
-et calculer les coûts quand le tarif et les deux compteurs nécessaires sont
-présents.
+et calculer les coûts quand le tarif et les compteurs nécessaires sont
+présents. Les images sont facturées à la requête et n'ont volontairement
+aucun compteur de jetons.
 """
 
 import json
@@ -63,13 +64,19 @@ def _load_prices(path):
                 raise UsagePriceError("chaque modèle doit contenir un objet de tarifs")
             input_rate = rates.get("input_per_million_tokens")
             output_rate = rates.get("output_per_million_tokens")
-            if input_rate is None or output_rate is None:
+            request_rate = rates.get("per_request")
+            if ((input_rate is None or output_rate is None)
+                    and request_rate is None):
                 raise UsagePriceError(
                     f"tarifs incomplets pour {provider}/{model} : "
-                    "input_per_million_tokens et output_per_million_tokens sont requis")
+                    "déclarer les deux tarifs de jetons ou per_request")
             prices[provider][model] = {
-                "input": _decimal(input_rate, f"{provider}/{model} input"),
-                "output": _decimal(output_rate, f"{provider}/{model} output"),
+                "input": (_decimal(input_rate, f"{provider}/{model} input")
+                          if input_rate is not None else None),
+                "output": (_decimal(output_rate, f"{provider}/{model} output")
+                           if output_rate is not None else None),
+                "request": (_decimal(request_rate, f"{provider}/{model} per_request")
+                            if request_rate is not None else None),
             }
     return {"currency": currency.strip() if isinstance(currency, str) else None,
             "prices": prices, "path": os.path.abspath(path)}
@@ -102,6 +109,14 @@ def _sum_counter(events, name):
     return sum(present), len(present) == len(events)
 
 
+def _token_events(events):
+    return [event for event in events if event.get("billing_unit") != "request"]
+
+
+def _request_events(events):
+    return [event for event in events if event.get("billing_unit") == "request"]
+
+
 def _unique(values):
     return list(dict.fromkeys(value for value in values if value is not None))
 
@@ -111,8 +126,18 @@ def _price_label(provider, model):
 
 
 def _aggregate(events, price_table):
-    input_tokens, input_complete = _sum_counter(events, "input_tokens")
-    output_tokens, output_complete = _sum_counter(events, "output_tokens")
+    token_events = _token_events(events)
+    request_events = _request_events(events)
+    if token_events:
+        input_tokens, input_complete = _sum_counter(token_events, "input_tokens")
+        output_tokens, output_complete = _sum_counter(token_events, "output_tokens")
+    else:
+        input_tokens, input_complete = None, True
+        output_tokens, output_complete = None, True
+    if request_events:
+        requests, requests_complete = _sum_counter(request_events, "requests")
+    else:
+        requests, requests_complete = None, True
     duration, duration_complete = _sum_counter(events, "duration_seconds")
     total_tokens = (input_tokens + output_tokens
                     if input_tokens is not None and output_tokens is not None else None)
@@ -127,9 +152,19 @@ def _aggregate(events, price_table):
         if rates is None:
             missing_prices.append(_price_label(provider, model))
             continue
+        if event.get("billing_unit") == "request":
+            request_value = _counter(event, "requests")
+            if rates.get("request") is None:
+                missing_prices.append(_price_label(provider, model))
+            elif request_value is None:
+                missing_counters = True
+            else:
+                priced_cost += Decimal(str(request_value)) * rates["request"]
+            continue
         input_value = _counter(event, "input_tokens")
         output_value = _counter(event, "output_tokens")
-        if input_value is None or output_value is None:
+        if (input_value is None or output_value is None
+                or rates.get("input") is None or rates.get("output") is None):
             missing_counters = True
             continue
         priced_cost += (
@@ -155,6 +190,8 @@ def _aggregate(events, price_table):
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
         "total_tokens": total_tokens,
+        "requests": requests,
+        "requests_complete": requests_complete,
         "duration_seconds": (round(duration, 3) if duration is not None else None),
         "duration_complete": duration_complete,
         "cost": _json_number(cost),

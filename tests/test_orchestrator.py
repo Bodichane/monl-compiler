@@ -74,7 +74,7 @@ def test_delta_signale_un_type_de_champ_modifie(tmp_path, capsys):
     assert "type de champ changé : Note.priority : String → Integer" in capsys.readouterr().out
 
 
-def test_brief_express_autorise_textes_blocs_et_illustrations_locales(tmp_path):
+def test_brief_express_autorise_textes_blocs_et_images_matricielles_locales(tmp_path):
     answers = iter(["1", "StudioExpress", "Portfolio de céramique contemporaine."])
     spec_text = GuidedDialogue(
         ask=lambda prompt: next(answers), express=True).run()
@@ -86,7 +86,12 @@ def test_brief_express_autorise_textes_blocs_et_illustrations_locales(tmp_path):
     prompt = (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     assert "Mode express" in prompt
     assert "page dense en blocs réellement utiles" in prompt
-    assert "illustrations `.svg` originales" in prompt
+    # Renversement explicite : le texte peut organiser la page, mais les
+    # octets d'une image sont désormais produits par le fournisseur image et
+    # écrits dans assets/ avant l'appel au modèle texte.
+    assert "images matricielles" in prompt
+    assert "ne pas tenter de produire ses octets" in prompt
+    assert "illustrations `.svg` originales" not in prompt
     assert "Ne jamais fabriquer côté navigateur de faux produits" in prompt
 
 
