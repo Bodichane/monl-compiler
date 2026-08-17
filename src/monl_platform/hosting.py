@@ -135,6 +135,17 @@ class SiteManager:
             self._stop_process(running.process)
             return True
 
+    def is_running(self, project_id):
+        """Indique si le relais d'un projet est encore vivant."""
+        with self._lock:
+            running = self._running.get(project_id)
+            if running is None:
+                return False
+            if running.process.poll() is not None:
+                self._running.pop(project_id, None)
+                return False
+            return True
+
     def _stop_process(self, process):
         if process.poll() is not None:
             return

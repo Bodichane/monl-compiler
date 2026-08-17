@@ -15,6 +15,7 @@ from starlette.concurrency import run_in_threadpool
 from monl.app_templates import TEMPLATES
 
 from .app_templates import materialize_template
+from .console import console_response
 from .hosting import SiteHostingError, SiteManager, SiteNotBuiltError
 from .paths import ProjectPathError, project_directory
 from .quota import TokenQuota
@@ -68,7 +69,7 @@ def _build_view(build):
     }
 
 
-def _project_view(store, project):
+def _project_view(store, project, sites=None):
     builds = [_build_view(build) for build in store.list_builds(project["id"])]
     latest = builds[-1] if builds else None
     return {
@@ -76,6 +77,8 @@ def _project_view(store, project):
         "slug": project["slug"],
         "created_at": project["created_at"],
         "state": latest["state"] if latest else "pas_de_construction",
+        "host": sites.host_for(project) if sites is not None else None,
+        "running": sites.is_running(project["id"]) if sites is not None else False,
         "builds": builds,
     }
 
@@ -199,6 +202,10 @@ def create_app(
     def health():
         return {"status": "ok"}
 
+    @application.get("/")
+    def console():
+        return console_response()
+
     @application.post("/register", status_code=status.HTTP_201_CREATED)
     @application.post("/auth/register", status_code=status.HTTP_201_CREATED, include_in_schema=False)
     def register(credentials: Credentials):
@@ -223,6 +230,25 @@ def create_app(
             _http_error("identifiants invalides", status.HTTP_401_UNAUTHORIZED)
         account = store.get_account(account_id)
         return {"account": _without_secret(account), "token": issue_token(account_id)}
+
+    @application.get("/account")
+    def account(account=current_account):
+        return {"account": _without_secret(account)}
+
+    @application.get("/usage")
+    def usage(account=current_account):
+        try:
+            current = quota.inspect(account["id"])
+        except Exception as exc:
+            _http_error(str(exc), status.HTTP_503_SERVICE_UNAVAILABLE)
+        return {
+            "usage": {
+                "consumed_tokens": current.consumed_tokens,
+                "limit_tokens": current.limit_tokens,
+                "remaining_tokens": current.remaining_tokens,
+                "project_totals": current.project_totals,
+            }
+        }
 
     @application.get("/catalogue")
     @application.get("/models", include_in_schema=False)
@@ -282,7 +308,7 @@ def create_app(
         except (sqlite3.IntegrityError, ProjectPathError, ValueError) as exc:
             _http_error(str(exc), status.HTTP_422_UNPROCESSABLE_ENTITY)
         project = store.get_project_for_account(account["id"], project_id)
-        return {"project": _project_view(store, project)}
+        return {"project": _project_view(store, project, sites)}
 
     def owned_project(account, project_id):
         try:
@@ -295,11 +321,16 @@ def create_app(
 
     @application.get("/projects")
     def list_projects(account= current_account):
-        return {"projects": [_project_view(store, item) for item in store.list_projects(account["id"])]}
+        return {
+            "projects": [
+                _project_view(store, item, sites)
+                for item in store.list_projects(account["id"])
+            ]
+        }
 
     @application.get("/projects/{project_id}")
     def get_project(project_id: int, account= current_account):
-        return {"project": _project_view(store, owned_project(account, project_id))}
+        return {"project": _project_view(store, owned_project(account, project_id), sites)}
 
     @application.post("/projects/{project_id}/builds", status_code=status.HTTP_202_ACCEPTED)
     @application.post("/projects/{project_id}/build", status_code=status.HTTP_202_ACCEPTED, include_in_schema=False)
