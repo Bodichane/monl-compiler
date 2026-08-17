@@ -77,6 +77,15 @@ PATTERN_LIBRARY = {
         "avoid": "un formulaire qui promet un envoi sans route ou qui perd les données saisies en cas d'erreur",
         "marker": 'data-monl-section="contact"',
     },
+    "booking": {
+        "purpose": "faire passer de la découverte à une réservation réelle sans inventer un calendrier",
+        "variants": {
+            "booking-flow": "service choisi, date et créneau lisibles, formulaire court, confirmation et erreurs proches de l'action",
+        },
+        "must_have": ["offres réelles", "champs du contrat uniquement", "état de disponibilité explicite", "confirmation ou erreur visible"],
+        "avoid": "un calendrier fictif, une disponibilité inventée ou un formulaire sans route de création",
+        "marker": 'data-monl-section="booking"',
+    },
     "closing-cta": {
         "purpose": "terminer la page avec une action cohérente avec la promesse",
         "variants": {
@@ -100,6 +109,7 @@ def _variant(name: str, kind: str) -> str:
             "trust": "process-steps",
             "faq": "accordion",
             "contact": "form-aside",
+            "booking": "booking-flow",
             "closing-cta": "image-overlap",
         }
     elif kind == "operations":
@@ -110,6 +120,7 @@ def _variant(name: str, kind: str) -> str:
             "trust": "evidence-strip",
             "faq": "definition-list",
             "contact": "contact-card",
+            "booking": "booking-flow",
             "closing-cta": "next-step",
         }
     elif kind == "service":
@@ -120,6 +131,7 @@ def _variant(name: str, kind: str) -> str:
             "trust": "value-grid",
             "faq": "accordion",
             "contact": "form-aside",
+            "booking": "booking-flow",
             "closing-cta": "quiet-band",
         }
     else:
@@ -130,6 +142,7 @@ def _variant(name: str, kind: str) -> str:
             "trust": "value-grid",
             "faq": "definition-list",
             "contact": "contact-card",
+            "booking": "booking-flow",
             "closing-cta": "quiet-band",
         }
     return choices.get(name, choices["hero"])
@@ -139,19 +152,42 @@ def select_ui_patterns(contract: dict, kind: str) -> list[dict]:
     """Sélectionne les patterns sans inventer de contenu métier."""
     entities = contract.get("entities") or {}
     archetypes = {entity.get("archetype") for entity in entities.values()}
+    routes = contract.get("routes") or []
+    booking_route = any(
+        route.get("action") in {"Create", "Update"}
+        and any(word in (f"{route.get('entity', '')} {route.get('path', '')}").lower()
+                for word in ("booking", "appointment", "reservation", "rendez-vous"))
+        for route in routes
+    )
     selected = ["hero"]
-    if "shop" in archetypes or kind == "commerce":
+    # Une prestation tarifée peut être classée `shop` par l'archétype des
+    # champs, mais son parcours est la disponibilité/réservation, pas un
+    # catalogue et un panier. C'est le PARCOURS RÉELLEMENT OFFERT qui tranche,
+    # jamais le `kind` : `kind != "service"` faisait perdre son catalogue à
+    # `projets/KoraMaison` — une boutique (Customer/Order/OrderLine/Product)
+    # que l'inférence classe `service`, et qui n'a aucune route de réservation
+    # pour recevoir `booking` à la place.
+    if kind == "commerce" or ("shop" in archetypes and not booking_route):
         selected.append("catalogue")
-    if contract.get("sections"):
+    brief = (contract.get("brief") or "").lower()
+    express_editorial = any(signal in brief for signal in (
+        "mode express", "images portent", "page dense",
+    ))
+    if contract.get("sections") or express_editorial:
         selected.append("editorial")
     if kind in {"commerce", "service"} or contract.get("sections"):
         selected.append("trust")
     if contract.get("faq"):
         selected.append("faq")
-    if kind == "service" or any(
-        route.get("action") in {"Contact", "CreateMessage"}
-        for route in contract.get("routes") or []
-    ):
+    if booking_route:
+        selected.append("booking")
+    contact_route = any(
+        route.get("action") in {"Create", "Update"}
+        and any(word in (f"{route.get('entity', '')} {route.get('path', '')}").lower()
+                for word in ("message", "contact"))
+        for route in routes
+    )
+    if contact_route:
         selected.append("contact")
     if contract.get("brief"):
         selected.append("closing-cta")

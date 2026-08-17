@@ -23,9 +23,12 @@
 # ─────────────────────────────────────────────────────────────────────
 import json
 import os
+import posixpath
 import re
 import time
 from datetime import datetime, timezone
+from html import unescape
+from xml.etree import ElementTree
 
 from .design_system import (
     ASSET_MANIFEST_FILENAME,
@@ -45,7 +48,7 @@ DEFAULT_MAX_OUTPUT_TOKENS = 16_000
 # un modèle de raisonnement consomme une partie du plafond avant son JSON.
 # Le découpage limite la taille totale de la réponse ; il ne faut pas limiter
 # chaque pièce au plafond qui a cassé la réponse monolithique.
-DEFAULT_CHUNK_MAX_OUTPUT_TOKENS = 16_000
+DEFAULT_CHUNK_MAX_OUTPUT_TOKENS = 8_000
 
 # Les deux briefs d'ÉVOLUTION (par opposition à FRONTEND_PROMPT.md, qui décrit
 # une construction neuve). Nommés ici plutôt que chez leur producteur : c'est
@@ -278,8 +281,13 @@ def _openai_preset(name):
                 raise FrontendAIError(
                     "YANDEX_FOLDER_ID absent de l'environnement — c'est "
                     "l'identifiant du dossier Yandex Cloud qui porte le modèle.")
+            # DeepSeek V4 Flash sait raisonner, mais le raisonnement interne
+            # consomme le même plafond que le JSON de fichiers. Pour une
+            # sortie structurée, la vérification Monl est le raisonnement :
+            # désactiver ce budget par défaut rend la construction fiable et
+            # laisse une surcharge explicite pour les cas qui en ont besoin.
             reasoning_effort = (os.environ.get(
-                "MONL_YANDEX_REASONING_EFFORT", "low").strip() or "low")
+                "MONL_YANDEX_REASONING_EFFORT", "none").strip() or "none")
             provider = openai_provider(
                 model=model, base_url=base_url, key_env=key_env,
                 auth_scheme="Api-Key", extra_headers={"OpenAI-Project": folder},
@@ -363,6 +371,22 @@ def _validate_files(files, require_index=True):
             raise FrontendAIError(f"extension refusée : {path}")
         if not isinstance(content, str):
             raise FrontendAIError(f"contenu non textuel pour : {path}")
+        if norm.lower().endswith(".svg"):
+            try:
+                root = ElementTree.fromstring(content)
+            except ElementTree.ParseError as exc:
+                raise FrontendAIError(f"SVG invalide ou incomplet : {path}") from exc
+            if root.tag.rsplit("}", 1)[-1].lower() != "svg":
+                raise FrontendAIError(f"SVG invalide ou incomplet : {path}")
+            # Le namespace XML standard `xmlns="http://www.w3.org/2000/svg"`
+            # est obligatoire et ne télécharge rien. Ne pas le confondre avec
+            # une vraie ressource distante dans href/src/url().
+            if re.search(
+                    r"(?:\b(?:href|src|xlink:href)\s*=\s*['\"]"
+                    r"(?:https?:|//)|\burl\(\s*['\"]?(?:https?:|//))",
+                    content, re.IGNORECASE):
+                raise FrontendAIError(
+                    f"SVG non autonome (ressource externe) : {path}")
         total += len(content.encode("utf-8"))
     if total > MAX_TOTAL_BYTES:
         raise FrontendAIError(f"réponse trop volumineuse ({total} octets)")
@@ -485,6 +509,40 @@ def _design_completeness_errors(project_dir):
         if not os.path.isfile(os.path.join(frontend_dir, rel)):
             errors.append(f"asset manquant : frontend/{rel}")
 
+    # Les visuels produits par l'IA ne sont pas des assets métier déclarés par
+    # l'auteur : ils ont néanmoins un chemin déterministe dans le manifeste.
+    # Sans cette vérification, le modèle pouvait écrire `src="hero.svg"`,
+    # recevoir un succès du smoke test (qui n'interprète pas les images), puis
+    # livrer une page blanche à l'endroit le plus visible.
+    generated_assets = manifest.get("generated_assets") or []
+    frontend_sources = []
+    if os.path.isdir(frontend_dir):
+        for root, _dirs, names in os.walk(frontend_dir):
+            for name in names:
+                if name.endswith((".html", ".css", ".js")):
+                    try:
+                        frontend_sources.append(
+                            open(os.path.join(root, name), encoding="utf-8",
+                                 errors="ignore").read())
+                    except OSError:
+                        pass
+    rendered_source = "\n".join(frontend_sources)
+    for item in generated_assets:
+        rel = item.get("path") if isinstance(item, dict) else item
+        if not isinstance(rel, str) or rel.startswith("/") or ".." in rel.split("/"):
+            errors.append(f"asset généré refusé dans le manifeste : {rel}")
+            continue
+        if not os.path.isfile(os.path.join(frontend_dir, rel)):
+            errors.append(f"asset généré manquant : frontend/{rel}")
+        elif rel not in rendered_source:
+            errors.append(f"asset généré non utilisé : frontend/{rel}")
+
+    errors.extend(_generated_asset_reuse_errors(frontend_dir, generated_assets))
+    errors.extend(_editorial_content_errors(project_dir, rendered_source))
+
+    errors.extend(_frontend_local_reference_errors(project_dir))
+    errors.extend(_frontend_behavioral_quality_errors(project_dir))
+
     for filename, markers in (manifest.get("required_markers") or {}).items():
         path = os.path.join(frontend_dir, filename)
         if not os.path.isfile(path):
@@ -492,10 +550,252 @@ def _design_completeness_errors(project_dir):
             continue
         with open(path, encoding="utf-8", errors="ignore") as fh:
             content = fh.read()
+        unique_markers = set(
+            (manifest.get("unique_section_markers") or {}).get(filename, [])
+        )
         for marker in markers:
-            if marker not in content:
+            count = content.count(marker)
+            if marker in unique_markers and count != 1:
+                if count == 0:
+                    errors.append(f"section visuelle obligatoire absente : {marker}")
+                else:
+                    errors.append(
+                        f"section visuelle obligatoire présente {count} fois : {marker}"
+                    )
+            elif marker not in unique_markers and count == 0:
                 errors.append(f"section visuelle obligatoire absente : {marker}")
     return errors
+
+
+def _generated_asset_reuse_errors(frontend_dir, generated_assets):
+    """Refuse qu'une illustration dédiée soit copiée dans plusieurs images."""
+    html_sources = []
+    for root, _dirs, names in os.walk(frontend_dir):
+        for name in names:
+            if not name.endswith(".html"):
+                continue
+            try:
+                html_sources.append(open(os.path.join(root, name), encoding="utf-8",
+                                         errors="ignore").read())
+            except OSError:
+                pass
+    refs = re.findall(
+        r"<img\b[^>]*\bsrc=['\"]([^'\"]+)['\"]",
+        "\n".join(html_sources), re.IGNORECASE | re.DOTALL)
+    refs = [os.path.normpath(ref.split("#", 1)[0].split("?", 1)[0])
+            for ref in refs]
+    errors = []
+    for item in generated_assets:
+        rel = item.get("path") if isinstance(item, dict) else item
+        if not isinstance(rel, str):
+            continue
+        count = refs.count(os.path.normpath(rel))
+        if count > 1:
+            errors.append(
+                f"asset généré réutilisé {count} fois : frontend/{rel} — "
+                "chaque illustration doit avoir un rôle visuel unique.")
+    return errors
+
+
+def _editorial_content_errors(project_dir, rendered_source):
+    """Détecte la répétition exacte d'un texte éditorial déclaré."""
+    contract_path = os.path.join(project_dir, "frontend_contract.json")
+    if not os.path.exists(contract_path):
+        return []
+    try:
+        with open(contract_path, encoding="utf-8") as fh:
+            sections = json.load(fh).get("sections") or []
+    except (OSError, json.JSONDecodeError):
+        return []
+    source = " ".join(unescape(rendered_source).split())
+    errors = []
+    for section in sections:
+        body = " ".join(unescape(section.get("body") or "").split())
+        if len(body) < 40:
+            continue
+        count = source.count(body)
+        if count > 1:
+            title = section.get("title") or "section sans titre"
+            errors.append(
+                f"contenu éditorial répété {count} fois : « {title} » — "
+                "chaque section déclarée doit être rendue une seule fois.")
+    return errors
+
+
+# Une référence construite à l'exécution (gabarit JS, moteur de template)
+# n'est pas un chemin de fichier : `src="${esc(p.imageUrl)}"` désigne une
+# image que l'API renverra, pas un fichier à trouver sur le disque.
+_REFERENCE_DYNAMIQUE = re.compile(r"\$\{|\{\{|<%")
+
+_BALISE_RESSOURCE = re.compile(
+    r"<(?:img|script|link|source|video|audio|object)\b[^>]*?"
+    r"\b(?:src|href|data)=['\"]([^'\"]+)['\"]",
+    re.IGNORECASE | re.DOTALL,
+)
+# Seulement les affectations de ressource explicites. Ne pas confondre un
+# fetch('/booking') ou un lien de navigation avec un fichier statique.
+_RESSOURCE_JS = re.compile(
+    r"\.(?:src|href)\s*=\s*['\"]([^'\"]+)['\"]|"
+    r"setAttribute\(\s*['\"](?:src|href)['\"]\s*,\s*['\"]([^'\"]+)['\"]",
+    re.IGNORECASE,
+)
+_URL_CSS = re.compile(r"url\(\s*['\"]?([^)'\"]+)['\"]?\s*\)", re.IGNORECASE)
+
+
+def _sans_corps_de_script(html):
+    """Retire le CORPS des <script>, en gardant les balises elles-mêmes.
+
+    Le contenu d'un <script> n'est pas du balisage : le lire comme tel fait
+    prendre le gabarit `<img src="${...}">` d'une fonction de rendu pour une
+    vraie balise. La balise ouvrante est conservée, sans quoi le
+    `<script src="app.js">` légitime disparaîtrait du contrôle.
+    """
+    return re.sub(r"(<script\b[^>]*>)(.*?)(</script\s*>)",
+                  lambda m: m.group(1) + m.group(3), html,
+                  flags=re.IGNORECASE | re.DOTALL)
+
+
+def _frontend_local_reference_errors(project_dir):
+    """Vérifie les ressources locales réellement référencées par le site.
+
+    Le smoke test exécute le JavaScript et les routes API, mais ne télécharge
+    pas les images et ne charge pas les feuilles CSS comme un navigateur. Ce
+    contrôle complète donc le smoke test : il refuse les CDN, les chemins qui
+    ne sont servis par aucun montage, et chaque fichier local absent. Les
+    liens externes de navigation restent légitimes.
+
+    La résolution suit la carte RÉELLE de ``serve.py`` (voir serving.py), pas
+    une intuition sur ``frontend/`` : ``frontend/`` est monté sur ``/site`` et
+    le dossier d'assets déclaré par la spec sur ``/site/<assets_dir>``. Chaque
+    référence est donc calculée en URL comme le ferait le navigateur, puis
+    ramenée au disque par ces deux montages. Un chemin absolu n'est pas fautif
+    en soi — ``/site/assets/photo.png`` est exactement ce que sert le wrapper ;
+    c'est ``/assets/photo.png``, servi par personne, qui l'est.
+    """
+    frontend_dir = os.path.join(project_dir, "frontend")
+    errors = []
+    assets_dir = None
+    contract_path = os.path.join(project_dir, "frontend_contract.json")
+    if os.path.exists(contract_path):
+        try:
+            with open(contract_path, encoding="utf-8") as fh:
+                assets_dir = (json.load(fh).get("assets") or {}).get("dir")
+        except (OSError, json.JSONDecodeError):
+            assets_dir = None
+    prefixe_assets = (assets_dir or "").strip("/")
+    # Le wrapper ne monte le dossier d'assets que `if os.path.isdir(...)` :
+    # déclaré dans la spec ne veut pas dire présent sur le disque. Quand il
+    # est absent, aucune route n'est enregistrée et Starlette laisse la
+    # requête retomber sur /site, donc `assets/x.webp` est servi depuis
+    # `frontend/assets/x.webp`. Vérifié contre un vrai serveur : croire le
+    # contrat sur parole faisait refuser trois images de KoraMaison qui
+    # répondent 200.
+    monte_assets = bool(prefixe_assets) and os.path.isdir(
+        os.path.join(project_dir, prefixe_assets))
+
+    def fichier_servi(url):
+        """Le fichier disque servi pour une URL, ou None si rien ne la sert."""
+        if url != "/site" and not url.startswith("/site/"):
+            return None
+        reste = url[len("/site"):].lstrip("/")
+        if monte_assets and (reste == prefixe_assets
+                             or reste.startswith(prefixe_assets + "/")):
+            # Monté AVANT /site par le wrapper : ce dossier vit hors de
+            # frontend/, à la racine du projet (brique 13, point 83).
+            chemin = os.path.join(project_dir, reste)
+        else:
+            chemin = os.path.join(frontend_dir, reste)
+        # StaticFiles(html=True) sert l'index d'un dossier.
+        if os.path.isdir(chemin):
+            chemin = os.path.join(chemin, "index.html")
+        return chemin
+
+    def check(origin, reference):
+        ref = reference.strip()
+        if not ref or ref.startswith(("#", "data:", "blob:", "mailto:", "tel:")):
+            return
+        if re.match(r"^(?:https?:)?//", ref, re.IGNORECASE):
+            errors.append(f"ressource externe interdite (CDN ou URL distante) : {origin} → {ref}")
+            return
+        # monl ne peut rien affirmer d'une référence construite à l'exécution :
+        # il se tait plutôt que de deviner un fichier (même arbitrage que le
+        # contrôle d'existence des assets, point 83).
+        if _REFERENCE_DYNAMIQUE.search(ref):
+            return
+        clean = ref.split("#", 1)[0].split("?", 1)[0].strip()
+        if not clean:
+            return
+        if clean.startswith("/"):
+            url = posixpath.normpath(clean)
+        else:
+            url = posixpath.normpath(
+                posixpath.join("/site", posixpath.dirname(origin), clean))
+        candidat = fichier_servi(url)
+        if candidat is None:
+            errors.append(
+                f"ressource jamais servie (hors de /site) : {origin} → {ref}")
+            return
+        if not os.path.isfile(candidat):
+            relatif = os.path.relpath(candidat, project_dir).replace(os.sep, "/")
+            errors.append(f"ressource locale absente : {relatif} (référencée par {origin})")
+
+    for root, _dirs, names in os.walk(frontend_dir):
+        for name in names:
+            if not name.endswith((".html", ".css", ".js")):
+                continue
+            path = os.path.join(root, name)
+            try:
+                content = open(path, encoding="utf-8", errors="ignore").read()
+            except OSError as exc:
+                errors.append(f"frontend illisible : {path} — {exc}")
+                continue
+            origin = os.path.relpath(path, frontend_dir).replace(os.sep, "/")
+            if name.endswith(".html"):
+                for ref in _BALISE_RESSOURCE.findall(_sans_corps_de_script(content)):
+                    check(origin, ref)
+            elif name.endswith(".js"):
+                for match in _RESSOURCE_JS.finditer(content):
+                    check(origin, match.group(1) or match.group(2))
+            elif name.endswith(".css"):
+                for ref in _URL_CSS.findall(content):
+                    check(origin, ref)
+    return list(dict.fromkeys(errors))
+
+
+def _frontend_behavioral_quality_errors(project_dir):
+    """Repère un piège fréquent des interfaces générées : les IDs DOM.
+
+    ``dataset`` fournit toujours des chaînes alors que les IDs JSON sont
+    généralement numériques. Une recherche stricte non normalisée rend les
+    actions Modifier/Supprimer visuellement présentes mais inopérantes.
+    Ce contrôle reste volontairement étroit pour ne pas prétendre parser le
+    JavaScript ; il bloque uniquement le motif prouvé et corrigeable.
+    """
+    frontend_dir = os.path.join(project_dir, "frontend")
+    errors = []
+    for root, _dirs, names in os.walk(frontend_dir):
+        for name in names:
+            if not name.endswith(".js"):
+                continue
+            path = os.path.join(root, name)
+            try:
+                content = open(path, encoding="utf-8", errors="ignore").read()
+            except OSError:
+                continue
+            for match in re.finditer(
+                    r"\b(?:const|let|var)\s+(\w+)\s*=\s*[^;\n]*\.dataset\.\w+",
+                    content):
+                variable = match.group(1)
+                suffix = content[match.start():match.end()]
+                if re.search(r"\b(?:Number|parseInt|parseFloat)\s*\(", suffix):
+                    continue
+                if re.search(rf"\.id\s*===\s*{re.escape(variable)}\b", content):
+                    origin = os.path.relpath(path, frontend_dir).replace(os.sep, "/")
+                    errors.append(
+                        f"identifiant DOM non normalisé dans frontend/{origin} : "
+                        f"{variable} vient de dataset et est comparé à un ID API ; "
+                        "convertir avec Number() ou parseInt() avant Modifier/Supprimer.")
+    return list(dict.fromkeys(errors))
 
 
 # ------------------------------------------------------------ orchestration --
@@ -541,10 +841,32 @@ def build_generation_prompt(project_dir, update_mode, retouche_mode=False):
 CHUNKED_FRONTEND_FILES = ("index.html", "styles.css", "app.js")
 
 
+def _planned_generated_asset_paths(project_dir):
+    """Retourne les fichiers graphiques que DeepSeek doit livrer séparément."""
+    path = os.path.join(project_dir, ASSET_MANIFEST_FILENAME)
+    if not os.path.exists(path):
+        return []
+    try:
+        content = open(path, encoding="utf-8").read()
+        if content.startswith(GENERATED_MARKER):
+            content = "\n".join(content.splitlines()[1:])
+        manifest = json.loads(content)
+    except (OSError, json.JSONDecodeError):
+        return []
+    paths = []
+    for item in manifest.get("generated_assets") or []:
+        rel = item.get("path") if isinstance(item, dict) else item
+        if (isinstance(rel, str) and rel.endswith(".svg") and
+                not rel.startswith("/") and ".." not in rel.split("/")):
+            paths.append(rel.replace("\\", "/"))
+    return list(dict.fromkeys(paths))
+
+
 def _chunk_context(files):
     """Rend uniquement les fichiers utiles aux étapes suivantes."""
     morceaux = []
-    for path in CHUNKED_FRONTEND_FILES:
+    for path in list(CHUNKED_FRONTEND_FILES) + sorted(
+            path for path in files if path.endswith(".svg")):
         if path in files:
             morceaux.append(f"### frontend/{path}\n```\n{files[path]}\n```")
     return "\n\n".join(morceaux) or "(aucun fichier généré pour le moment)"
@@ -557,34 +879,61 @@ def _build_chunk_prompt(base_prompt, target, files):
     direction produit. Le contexte des fichiers précédents garantit toutefois
     que le CSS et le JS s'accordent sur les mêmes classes et identifiants.
     """
+    planned_assets = list(dict.fromkeys(
+        re.findall(r"frontend/([A-Za-z0-9._/-]+\.svg)", base_prompt)))
+    asset_rule = ""
+    if planned_assets:
+        asset_rule = (
+            "\nAssets graphiques obligatoires de cette construction : "
+            + ", ".join(f"frontend/{path}" for path in planned_assets)
+            + ". Utilise exactement ces noms ; ne crée ni ne référence un autre "
+            "fichier graphique local. Chaque asset doit être rendu comme une "
+            "étape dédiée, jamais seulement décrit dans le HTML.\n"
+        )
     instructions = {
         "index.html": (
             "Produis maintenant uniquement frontend/index.html. Construis la "
             "structure complète de l'application et de son parcours principal, "
             "ses états vides/chargement/erreur, ses zones de formulaire, de "
             "contenu et de compte selon le contrat, puis charge styles.css et "
-            "app.js avec des chemins locaux. Reste très compact : vise environ "
-            "900 tokens, avec une structure complète mais peu de texte. "
-            "Aucune section décorative longue. Limite dure : termine le JSON "
-            "avant 7 000 caractères."
+            "app.js avec des chemins locaux. Donne à chaque section obligatoire "
+            "une vraie structure et un texte utile ; ne remplace pas le brief "
+            "par trois cartes génériques. Vise environ 1 600 tokens. Limite "
+            "dure : termine le JSON avant 12 000 caractères."
+            + asset_rule
         ),
         "styles.css": (
             "Produis maintenant uniquement frontend/styles.css. Donne un "
             "style complet, dense, responsive et accessible à la structure "
             "index.html ; ne remplace pas le CSS par une librairie externe. "
-            "Reste très compact : vise environ 1 200 tokens et réutilise les "
+            "Vise environ 2 000 tokens et réutilise les "
             "sélecteurs plutôt que de dupliquer les règles. Limite dure : "
-            "termine le JSON avant 9 000 caractères."
+            "termine le JSON avant 16 000 caractères."
+            + asset_rule
         ),
         "app.js": (
             "Produis maintenant uniquement frontend/app.js. Implémente les "
             "interactions et les appels aux routes autorisées du contrat, "
             "avec états de chargement, erreur, formulaires et authentification "
-            "adaptés au type d'application ; n'invente aucune route. Reste "
-            "très compact : vise environ 900 tokens et factorise le code. "
-            "Limite dure : termine le JSON avant 7 000 caractères."
+            "adaptés au type d'application ; n'invente aucune route. Implémente "
+            "les états locaux et les messages près des champs, sans sacrifier "
+            "les parcours principaux. Les valeurs de `dataset.*` sont des "
+            "chaînes : convertir avec Number() avant de les comparer aux IDs "
+            "numériques de l'API, puis vérifier mentalement les clics Créer, "
+            "Modifier et Supprimer. Vise environ 1 500 tokens et factorise le "
+            "code. Limite dure : termine le JSON avant 12 000 caractères."
+            + asset_rule
         ),
     }
+    if target.endswith(".svg"):
+        instructions[target] = (
+            f"Produis maintenant uniquement frontend/{target}. Crée une "
+            "illustration SVG originale, légère et autonome, cohérente avec "
+            "le brief. Utilise un viewBox, des formes vectorielles lisibles "
+            "et des couleurs définies dans le SVG ; aucun href externe, aucune "
+            "image raster distante, aucun texte qui remplace l'illustration. "
+            "Le fichier doit être un SVG valide et complet."
+        )
     return (
         f"{base_prompt}\n\n"
         "## Génération séquentielle — une seule pièce à la fois\n"
@@ -603,7 +952,8 @@ def _generate_chunked_files(project_dir, provider, base_prompt, operation,
                             attempt, say):
     """Génère puis valide chaque fichier d'un frontend DeepSeek/Yandex."""
     files = _read_existing_frontend(project_dir)
-    for target in CHUNKED_FRONTEND_FILES:
+    targets = list(CHUNKED_FRONTEND_FILES) + _planned_generated_asset_paths(project_dir)
+    for target in targets:
         say(f" -> Génération de frontend/{target}…")
         raw = provider(_build_chunk_prompt(base_prompt, target, files))
         _record_provider_usage(project_dir, provider, operation, attempt,

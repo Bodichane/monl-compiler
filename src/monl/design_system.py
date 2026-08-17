@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import unicodedata
 from pathlib import Path
 
 from .ui_patterns import render_pattern_block, select_ui_patterns
@@ -42,6 +43,7 @@ GENERATED_MARKER = "<!-- généré par monl — design system -->"
 # qu'elle soit suivie ; il ne peut pas dire laquelle.
 
 def _slug(value: str) -> str:
+    value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode()
     value = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
     return value or "section"
 
@@ -110,8 +112,10 @@ def infer_design_profile(contract: dict) -> dict:
         if _entity_media(spec)
     ]
     pages = ["Accueil / entrée principale"]
-    if any(item.get("archetype") == "shop" for item in entities.values()):
+    if kind == "commerce":
         pages.extend(["Catalogue", "Fiche détaillée", "Panier ou récapitulatif"])
+    elif kind == "service":
+        pages.append("Prestations, disponibilité et réservation")
     if "monl-operations" in skills:
         pages.append("Espace de travail par rôle")
     if contract.get("sections"):
@@ -148,11 +152,33 @@ def _required_markers(contract: dict, profile: dict) -> list[str]:
         markers.extend(['data-monl-section="catalogue"', 'data-monl-section="panier"'])
     if profile["kind"] == "operations":
         markers.append('data-monl-section="workspace"')
-    for section in contract.get("sections") or []:
-        markers.append(f'data-monl-section="{_slug(section.get("title", "section"))}"')
+    # Un marqueur identifie l'élément qui porte la section, il n'exige jamais
+    # un bloc séparé. Quand le pattern `editorial` est présent, cet élément vit
+    # à l'intérieur du bloc éditorial : un seul élément, un seul marqueur, un
+    # seul rendu. La garantie « chaque section déclarée est rendue » reste donc
+    # active sans pousser l'IA à dupliquer « À propos ».
+    markers.extend(_declared_section_markers(contract))
     if contract.get("faq"):
         markers.append('data-monl-section="faq"')
     return list(dict.fromkeys(markers))
+
+
+def _declared_section_markers(contract: dict) -> list[str]:
+    """Retourne un marqueur distinct pour chaque section, dans l'ordre déclaré."""
+    used_slugs = set()
+    next_rank_by_slug = {}
+    markers = []
+    for section in contract.get("sections") or []:
+        base_slug = _slug(section.get("title", "section"))
+        rank = next_rank_by_slug.get(base_slug, 1)
+        section_slug = base_slug if rank == 1 else f"{base_slug}-{rank}"
+        while section_slug in used_slugs:
+            rank += 1
+            section_slug = f"{base_slug}-{rank}"
+        next_rank_by_slug[base_slug] = rank + 1
+        used_slugs.add(section_slug)
+        markers.append(f'data-monl-section="{section_slug}"')
+    return markers
 
 
 def build_asset_manifest(contract: dict, profile: dict) -> dict:
@@ -173,6 +199,29 @@ def build_asset_manifest(contract: dict, profile: dict) -> dict:
             "path_pattern": "assets/editorial/hero.svg",
             "required": True,
         })
+    # Le mode express peut demander des visuels alors qu'aucun champ Image
+    # n'existe dans le modèle métier. Ce sont des fichiers du frontend, mais
+    # ils doivent être planifiés avant le HTML avec des noms déterministes.
+    brief = (contract.get("brief") or "").lower()
+    visual_intent = any(word in brief for word in (
+        "illustration", "illustrations", "image", "les images", "photo", "œuvre",
+        "visuel", "images portent",
+    ))
+    generated_assets = []
+    if visual_intent:
+        generated_assets.append({
+            "kind": "frontend-illustration",
+            "path": "hero.svg",
+            "role": "visuel principal du premier écran",
+            "required": True,
+        })
+        if profile["kind"] in {"service", "editorial", "commerce"}:
+            generated_assets.append({
+                "kind": "frontend-illustration",
+                "path": "editorial.svg",
+                "role": "visuel secondaire pour le récit ou la preuve",
+                "required": True,
+            })
     return {
         "schema_version": 1,
         "status": "planned",
@@ -181,7 +230,11 @@ def build_asset_manifest(contract: dict, profile: dict) -> dict:
         "products": {},
         "editorial": {},
         "planned_assets": planned,
+        "generated_assets": generated_assets,
         "required_markers": {"index.html": _required_markers(contract, profile)},
+        "unique_section_markers": {
+            "index.html": _declared_section_markers(contract),
+        },
         "notes": [
             "Les chemins de planned_assets sont des attentes de première construction.",
             "Après génération du frontend, Monl passe ce manifeste à active et vérifie les fichiers livrés.",
@@ -198,6 +251,11 @@ def render_design_system(contract: dict) -> str:
         f"- `{item['entity']}` : {', '.join(item['fields'])}"
         for item in profile["media_entities"]
     ) or "- Aucun média structuré détecté ; ne pas inventer de photos distantes."
+    generated = build_asset_manifest(contract, profile).get("generated_assets") or []
+    generated_block = "\n".join(
+        f"- `frontend/{item['path']}` — {item['role']} (fichier SVG obligatoire)"
+        for item in generated
+    ) or "- Aucun fichier graphique supplémentaire planifié ; ne pas inventer de chemin d'image."
     anti_patterns = {
         "commerce": "catalogue réduit à trois cartes, prix relégué, faux stock, faux paiement réussi, hero sans produit",
         "operations": "dashboard décoratif sans décision, cartes répétées, tableau illisible sur mobile, action privilégiée cachée",
@@ -258,9 +316,24 @@ visibles sur l'accueil, pas seulement cachées derrière la navigation.
 
 {patterns}
 
+## Propriété du contenu — éviter les répétitions
+
+Chaque section déclarée doit apparaître **une seule fois** sur la page
+d'accueil, sur son propre élément HTML portant
+`data-monl-section="<slug>"`. Lorsqu'un pattern `editorial` est présent, le
+bloc éditorial porte ces éléments à l'intérieur de lui : fusionner « À propos »,
+« Horaires », etc. dans ce récit au lieu d'ajouter ensuite un second bloc. Un
+seul élément, un seul marqueur, un seul rendu. De même, chaque illustration
+générée a un rôle unique : ne pas réutiliser `hero.svg` dans un autre bloc si
+`editorial.svg` lui est destiné.
+
 ## Assets
 
 {media}
+
+### Assets graphiques produits par la construction
+
+{generated_block}
 
 Tous les assets doivent être locaux et servir dans `frontend/`. Aucun CDN,
 aucune URL distante et aucun placeholder silencieux sur un chemin déclaré.

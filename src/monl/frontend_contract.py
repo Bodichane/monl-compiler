@@ -1349,8 +1349,13 @@ def _render_prompt(contract):
             "\n## Contenu éditorial à publier tel quel\n"
             "Ces textes sont fournis par l'auteur du projet : ils doivent "
             "apparaître dans l'interface, chacun dans sa propre section, avec "
-            "le titre donné. Ne pas les réécrire, ne pas les inventer ailleurs "
-            "— aucune route d'API ne les sert, ils n'existent qu'ici.\n\n"
+            "le titre donné et son propre élément portant "
+            "`data-monl-section=\"<slug>\"`. Ne pas les réécrire, ne pas les "
+            "inventer ailleurs — aucune route d'API ne les sert, ils "
+            "n'existent qu'ici. Si le pattern editorial est présent, le bloc "
+            "éditorial porte ces éléments à l'intérieur de lui : ne pas créer "
+            "ensuite un second bloc qui répète le même titre ou le même texte. "
+            "Chaque section doit apparaître une seule fois.\n\n"
             # Point 59 : sans cette phrase, ces textes finissaient derrière un
             # lien de menu, sur une page à part. Un visiteur qui n'ouvre que
             # l'accueil ne les voyait jamais — pour un « à propos », c'est
@@ -1424,6 +1429,13 @@ la catégorie décrite par le contrat :
 - créer dans `frontend/` des illustrations `.svg` originales et cohérentes
   lorsque le projet appelle des images. Elles sont locales, accessibles et
   peuvent servir aux blocs éditoriaux ; ne pas embarquer de photo distante ;
+- si `ASSET_MANIFEST.json` liste des `generated_assets`, livrer chacun de ces
+  chemins comme une clé `.svg` séparée dans la réponse. Référencer exactement
+  ces noms depuis le HTML/CSS : ne jamais inventer un nom de fichier, ni
+  mentionner une image qui n'est pas effectivement rendue ;
+- ne rendre chaque section éditoriale et chaque illustration qu'une seule
+  fois : le bloc éditorial porte le texte fourni, et `hero.svg` ne doit pas
+  être recopié dans les autres sections ;
 - rendre les vraies images et les vraies fiches renvoyées par l'API quand elles
   existent. Ne jamais fabriquer côté navigateur de faux produits, projets,
   rendez-vous ou autres enregistrements qui contrediraient la base.

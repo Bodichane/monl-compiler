@@ -32,3 +32,58 @@ def test_operations_prefere_une_liste_dense():
     patterns = select_ui_patterns(contract, "operations")
     assert next(pattern for pattern in patterns if pattern["name"] == "hero")["variant"] == "workspace-entry"
     assert "catalogue" not in [pattern["name"] for pattern in patterns]
+
+
+def test_service_de_reservation_recoit_un_parcours_reel_sans_contact_fictif():
+    contract = {
+        "brief": "Un studio qui permet de réserver un rendez-vous.",
+        "entities": {"Booking": {"archetype": "list", "fields": []}},
+        "routes": [{"action": "Create", "entity": "Booking", "path": "/booking"}],
+    }
+    names = [pattern["name"] for pattern in select_ui_patterns(contract, "service")]
+    assert "booking" in names
+    assert "contact" not in names
+
+
+def test_service_tarife_ne_devient_pas_un_catalogue_par_effet_de_larchetype():
+    contract = {
+        "brief": "Un atelier qui permet de réserver une prestation.",
+        "entities": {"Service": {"archetype": "shop", "fields": []}},
+        "routes": [{"action": "Create", "entity": "Booking", "path": "/booking"}],
+    }
+    names = [pattern["name"] for pattern in select_ui_patterns(contract, "service")]
+    assert "catalogue" not in names
+
+
+def test_boutique_kora_maison_recoit_un_catalogue_sans_parcours_de_reservation():
+    contract = {
+        "brief": "Une boutique de décoration et d'art de vivre.",
+        "entities": {
+            "Customer": {"archetype": "list", "fields": []},
+            "Order": {"archetype": "list", "fields": []},
+            "OrderLine": {"archetype": "list", "fields": []},
+            "Product": {"archetype": "shop", "fields": []},
+        },
+        "routes": [
+            {"action": "List", "entity": "Product", "path": "/product"},
+            {"action": "Create", "entity": "Product", "path": "/product"},
+        ],
+    }
+    names = [pattern["name"] for pattern in select_ui_patterns(contract, "service")]
+    assert "catalogue" in names
+    assert "booking" not in names
+
+
+def test_entite_message_recoit_un_formulaire_de_contact():
+    contract = {
+        "brief": "Un portfolio de photographe.",
+        "entities": {
+            "Message": {"archetype": "list", "fields": []},
+        },
+        "routes": [
+            {"action": "List", "entity": "Message", "path": "/message"},
+            {"action": "Create", "entity": "Message", "path": "/message"},
+        ],
+    }
+    names = [pattern["name"] for pattern in select_ui_patterns(contract, "operations")]
+    assert "contact" in names

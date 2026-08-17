@@ -7,6 +7,7 @@ import json
 import pytest
 
 from monl.cli import compile_project
+from monl.design_system import activate_asset_manifest
 from monl.frontend_ai import (
     RETOUCHE_PROMPT_FILENAME,
     FrontendAIError,
@@ -86,6 +87,84 @@ def test_smoke_valide_un_frontend_correct(project):
     assert not any("aucun appel API" in w for w in warnings)
 
 
+def test_coherence_refuse_une_image_locale_absente(project):
+    front = project / "frontend"
+    front.mkdir()
+    (front / "index.html").write_text(
+        '<!doctype html><html><body><img src="missing.svg"></body></html>',
+        encoding="utf-8")
+    activate_asset_manifest(str(project))
+    from monl.frontend_ai import _frontend_local_reference_errors
+    errors = _frontend_local_reference_errors(str(project))
+    assert any("ressource locale absente" in error for error in errors)
+
+
+def test_un_gabarit_de_rendu_nest_pas_un_chemin_de_fichier(project):
+    # Le corps d'un <script> n'est pas du balisage : `src="${...}"` y désigne
+    # une image que l'API renverra. Lu comme une balise, il faisait refuser la
+    # forme même que le contrat RÉCLAME (rendre les vraies images de l'API) —
+    # c'est la forme de demo/ et de projets/CodexShop.
+    front = project / "frontend"
+    front.mkdir()
+    (front / "index.html").write_text(
+        '<!doctype html><html><body><div id="l"></div>'
+        '<script>const carte = (p) => `<img src="${esc(p.imageUrl)}" alt="">`;'
+        '</script><script src="app.js"></script></body></html>',
+        encoding="utf-8")
+    (front / "app.js").write_text("const esc = (s) => String(s);", encoding="utf-8")
+    from monl.frontend_ai import _frontend_local_reference_errors
+    assert _frontend_local_reference_errors(str(project)) == []
+
+
+def test_le_chemin_absolu_du_montage_site_est_servi_mais_pas_celui_hors_site(project):
+    # serve.py monte frontend/ sur /site : `/site/hero.svg` est exactement ce
+    # que sert le wrapper (forme de projets/StudioNova, vérifiée en 200 contre
+    # un vrai serveur). C'est `/hero.svg`, servi par personne, qui est fautif.
+    front = project / "frontend"
+    front.mkdir()
+    (front / "hero.svg").write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"/>',
+        encoding="utf-8")
+    from monl.frontend_ai import _frontend_local_reference_errors
+    (front / "index.html").write_text(
+        '<!doctype html><html><body><img src="/site/hero.svg"></body></html>',
+        encoding="utf-8")
+    assert _frontend_local_reference_errors(str(project)) == []
+    (front / "index.html").write_text(
+        '<!doctype html><html><body><img src="/hero.svg"></body></html>',
+        encoding="utf-8")
+    assert any("jamais servie" in error
+               for error in _frontend_local_reference_errors(str(project)))
+
+
+def test_un_dossier_dassets_declare_mais_absent_retombe_sur_frontend(project):
+    # Le wrapper ne monte le dossier d'assets que s'il EXISTE sur le disque.
+    # Déclaré dans la spec ne veut pas dire présent : quand il manque, la
+    # requête retombe sur /site et `assets/x.svg` est servi depuis
+    # frontend/assets/. Croire le contrat sur parole faisait refuser trois
+    # images de projets/KoraMaison qui répondent 200.
+    contract_path = project / "frontend_contract.json"
+    contract = json.loads(contract_path.read_text(encoding="utf-8"))
+    contract["assets"] = {"dir": "assets"}
+    contract_path.write_text(json.dumps(contract), encoding="utf-8")
+    front = project / "frontend"
+    (front / "assets").mkdir(parents=True)
+    (front / "assets" / "photo.svg").write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"/>',
+        encoding="utf-8")
+    (front / "index.html").write_text(
+        '<!doctype html><html><body><img src="assets/photo.svg"></body></html>',
+        encoding="utf-8")
+    from monl.frontend_ai import _frontend_local_reference_errors
+    assert _frontend_local_reference_errors(str(project)) == []
+
+    # Le dossier racine existe : c'est LUI qui est monté, et le fichier
+    # cherché là — un frontend/assets/ homonyme ne le sauve plus.
+    (project / "assets").mkdir()
+    assert any("ressource locale absente" in error
+               for error in _frontend_local_reference_errors(str(project)))
+
+
 def test_smoke_bloque_un_frontend_casse(project):
     front = project / "frontend"
     front.mkdir()
@@ -133,6 +212,55 @@ def test_parse_single_file_payload_accepte_un_css_sans_index():
     with pytest.raises(FrontendAIError):
         parse_single_file_payload(
             json.dumps({"files": {"app.js": "ok"}}), "styles.css")
+
+
+def test_svg_standard_est_accepte_mais_une_ressource_distante_est_refusee():
+    svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3"/></svg>'
+    assert parse_single_file_payload(
+        json.dumps({"files": {"hero.svg": svg}}), "hero.svg")["hero.svg"] == svg
+    distant = '<svg xmlns="http://www.w3.org/2000/svg"><image href="https://exemple.test/photo.png"/></svg>'
+    with pytest.raises(FrontendAIError, match="ressource externe"):
+        parse_single_file_payload(
+            json.dumps({"files": {"hero.svg": distant}}), "hero.svg")
+
+
+def test_coherence_repere_un_id_dataset_compare_sans_conversion(project):
+    front = project / "frontend"
+    front.mkdir()
+    (front / "app.js").write_text(
+        "const id = button.dataset.id; state.items.find((item) => item.id === id);",
+        encoding="utf-8")
+    from monl.frontend_ai import _frontend_behavioral_quality_errors
+    errors = _frontend_behavioral_quality_errors(str(project))
+    assert any("identifiant DOM non normalisé" in error for error in errors)
+
+    (front / "app.js").write_text(
+        "const id = Number(button.dataset.id); state.items.find((item) => item.id === id);",
+        encoding="utf-8")
+    assert _frontend_behavioral_quality_errors(str(project)) == []
+
+
+def test_design_refuse_image_generee_reutilisee_et_texte_editorial_duplique(project):
+    front = project / "frontend"
+    front.mkdir()
+    (front / "index.html").write_text(
+        '<img src="hero.svg"><img src="hero.svg">', encoding="utf-8")
+    from monl.frontend_ai import (
+        _editorial_content_errors,
+        _generated_asset_reuse_errors,
+    )
+    image_errors = _generated_asset_reuse_errors(
+        str(front), [{"path": "hero.svg"}])
+    assert any("asset généré réutilisé" in error for error in image_errors)
+
+    section_body = ("Maison Serein propose une parenthèse calme, avec des gestes "
+                    "précis et une écoute attentive pour chaque personne reçue.")
+    (project / "frontend_contract.json").write_text(json.dumps({
+        "sections": [{"title": "À propos", "body": section_body}],
+    }), encoding="utf-8")
+    text_errors = _editorial_content_errors(
+        str(project), section_body + " " + section_body)
+    assert any("contenu éditorial répété" in error for error in text_errors)
 
 
 def test_boucle_ia_corrige_puis_reussit(project):
@@ -496,8 +624,8 @@ def test_yandex_emploie_son_authentification_et_mesure_les_jetons(monkeypatch):
     assert vu["headers"]["OpenAI-Project"] == "dossier-yandex"
     assert vu["body"]["model"] == model
     assert vu["body"]["temperature"] == 0.3
-    assert vu["body"]["max_tokens"] == 16000
-    assert vu["body"]["reasoning_effort"] == "low"
+    assert vu["body"]["max_tokens"] == 8000
+    assert vu["body"]["reasoning_effort"] == "none"
     assert vu["body"]["response_format"]["type"] == "json_schema"
     assert vu["body"]["response_format"]["json_schema"]["strict"] is True
     assert call.last_usage["input_tokens"] == 101
