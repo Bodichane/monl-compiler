@@ -6,8 +6,9 @@ import pytest
 
 from monl.cli import compile_project
 from monl.frontend_ai import (
-    CHUNK_MAX_RETRIES,
     USAGE_FILENAME,
+    _build_chunk_prompt,
+    _generate_chunked_files,
     generate_and_verify,
 )
 
@@ -55,6 +56,104 @@ def _target(prompt):
     line = next(line for line in prompt.splitlines()
                  if line.startswith("Le fichier cible est exactement : "))
     return line.rsplit(": ", 1)[1]
+
+
+def test_le_contexte_conserve_tous_les_selecteurs_sans_rejouer_les_contenus():
+    html = (
+        '<main id="app" class="shell dark" data-page="home">'
+        '<h1 class="hero-title">Prose éditoriale à ne pas recopier</h1>'
+        '<section id="cards" class="grid cards" data-kind="items">'
+        '<button class="action primary" data-action="save">Enregistrer</button>'
+        '</section></main>'
+    )
+    css = (
+        ".shell { color: #111; }\n"
+        ".dark .hero-title, #cards .grid.cards { font-weight: 700; }\n"
+        "@media (max-width: 700px) { .action.primary { display: block; } }"
+    )
+    files = {
+        "index.html": html,
+        "styles.css": css,
+        "app.js": "const prose = 'ce JavaScript ne doit pas être recopié';",
+        "illustration.svg": "<svg xmlns=\"http://www.w3.org/2000/svg\"><path /></svg>",
+    }
+
+    styles_prompt = _build_chunk_prompt("brief", "styles.css", files)
+    app_prompt = _build_chunk_prompt("brief", "app.js", files)
+
+    for prompt in (styles_prompt, app_prompt):
+        assert 'id="app"' in prompt
+        assert 'class="shell dark"' in prompt
+        assert 'data-page="home"' in prompt
+        assert 'id="cards"' in prompt
+        assert 'class="grid cards"' in prompt
+        assert 'data-kind="items"' in prompt
+        assert 'data-action="save"' in prompt
+        assert "Prose éditoriale" not in prompt
+        assert "illustration.svg" in prompt
+        assert "<svg" not in prompt
+
+    assert ".shell" in app_prompt
+    assert ".dark .hero-title, #cards .grid.cards" in app_prompt
+    assert ".action.primary" in app_prompt
+    assert "color: #111" not in app_prompt
+    assert "ce JavaScript ne doit pas être recopié" not in app_prompt
+
+
+def test_la_generation_decoupee_reduit_l_entree_cumulee(tmp_path):
+    generated = {
+        "index.html": (
+            '<main id="app" class="shell dark" data-page="home">'
+            '<p class="editorial">' + "prose " * 300 + "</p></main>"
+        ),
+        "styles.css": ".shell { color: #111; }\n" + "/* CSS */\n" * 100,
+        "app.js": "const prose = '" + "texte " * 300 + "';",
+    }
+
+    class CountingProvider:
+        chunked_generation = True
+        provider_name = "fake-measurement"
+        model = "fake"
+        max_output_tokens = 8_000
+        last_usage = None
+
+        def __init__(self):
+            self.prompts = []
+
+        def __call__(self, prompt):
+            self.prompts.append(prompt)
+            target = _target(prompt)
+            self.last_usage = {
+                "duration_seconds": 0.0,
+                "input_tokens": 1,
+                "output_tokens": 1,
+                "total_tokens": 2,
+            }
+            return json.dumps({"files": {target: generated[target]}})
+
+    provider = CountingProvider()
+    _generate_chunked_files(
+        str(tmp_path), provider, "brief", "construction", 1,
+        lambda _msg: None, run_id="measure",
+    )
+
+    legacy_states = (
+        {},
+        {"index.html": generated["index.html"]},
+        {"index.html": generated["index.html"], "styles.css": generated["styles.css"]},
+    )
+    legacy_total = 0
+    marker = "## Fichiers déjà générés — à respecter\n"
+    for prompt, state in zip(provider.prompts, legacy_states, strict=True):
+        prefix = prompt.split(marker, 1)[0] + marker
+        context = "\n\n".join(
+            f"### frontend/{path}\n```\n{state[path]}\n```"
+            for path in ("index.html", "styles.css", "app.js")
+            if path in state
+        ) or "(aucun fichier généré pour le moment)"
+        legacy_total += len(prefix + context)
+
+    assert sum(map(len, provider.prompts)) < legacy_total
 
 
 class TruncateStylesOnce:
@@ -131,19 +230,24 @@ class AlwaysTruncated:
         return json.dumps({"files": {target: "incomplet"}})[:-1]
 
 
-def test_un_morceau_toujours_tronque_laisse_la_deuxieme_tentative_au_calme(project):
+def test_un_morceau_toujours_tronque_n_effectue_pas_une_seconde_generation_complete(project):
     provider = AlwaysTruncated()
 
     ok, errors = generate_and_verify(str(project), provider, say=lambda _msg: None)
 
     assert not ok
     assert errors
-    assert len(provider.calls) == 2 * (CHUNK_MAX_RETRIES + 1)
-    assert [target for target, _limit in provider.calls] == [
-        "index.html"
-    ] * (CHUNK_MAX_RETRIES + 1) * 2
+    assert len(provider.calls) == 5
+    assert [target for target, _limit in provider.calls] == ["index.html"] * 5
+    assert [limit for _target_name, limit in provider.calls] == [
+        8_000, 12_000, 18_000, 27_000, 32_000,
+    ]
+    assert "plafond maximal de sortie" in errors[0]
+    assert "aucune seconde tentative complète" in errors[0]
     events = [json.loads(line) for line in
               (project / USAGE_FILENAME).read_text(encoding="utf-8").splitlines()]
     assert {event["attempt"] for event in events} == {1, 2}
-    assert {event["retry"] for event in events} == set(range(CHUNK_MAX_RETRIES + 1))
+    assert [(event["attempt"], event["retry"]) for event in events] == [
+        (1, 0), (1, 1), (1, 2), (2, 0), (2, 1),
+    ]
     assert len({event["run_id"] for event in events}) == 1

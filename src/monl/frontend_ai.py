@@ -28,7 +28,8 @@ import re
 import time
 import uuid
 from datetime import datetime, timezone
-from html import unescape
+from html import escape, unescape
+from html.parser import HTMLParser
 from xml.etree import ElementTree
 
 from .design_system import (
@@ -76,6 +77,112 @@ absolu). Extensions autorisées : .html, .css, .js, .svg, .json.
 
 class FrontendAIError(FrontendError):
     pass
+
+
+class _ChunkOutputLimitError(FrontendAIError):
+    """Une reprise est impossible : le modèle coupe encore au plafond."""
+
+
+class _HTMLSelectorSkeleton(HTMLParser):
+    """Conserve la structure HTML et les attributs utiles aux sélecteurs."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=False)
+        self.parts = []
+
+    def _tag(self, tag, attrs, closing):
+        useful = []
+        for name, value in attrs:
+            if name == "class" or name == "id" or name.startswith("data-"):
+                rendered = name
+                if value is not None:
+                    rendered += f'="{escape(value, quote=True)}"'
+                useful.append(rendered)
+        attributes = (" " + " ".join(useful)) if useful else ""
+        suffix = " />" if closing else ">"
+        self.parts.append(f"<{tag}{attributes}{suffix}")
+
+    def handle_decl(self, decl):
+        self.parts.append(f"<!{decl}>")
+
+    def handle_starttag(self, tag, attrs):
+        self._tag(tag, attrs, closing=False)
+
+    def handle_startendtag(self, tag, attrs):
+        self._tag(tag, attrs, closing=True)
+
+    def handle_endtag(self, tag):
+        self.parts.append(f"</{tag}>")
+
+
+def _html_selector_skeleton(content):
+    parser = _HTMLSelectorSkeleton()
+    parser.feed(content)
+    parser.close()
+    return "".join(parser.parts)
+
+
+def _css_without_comments(content):
+    """Supprime les commentaires CSS sans toucher aux chaînes de caractères."""
+    result = []
+    index = 0
+    quote = None
+    while index < len(content):
+        char = content[index]
+        if quote:
+            result.append(char)
+            if char == "\\" and index + 1 < len(content):
+                index += 1
+                result.append(content[index])
+            elif char == quote:
+                quote = None
+        elif char in "\"'":
+            quote = char
+            result.append(char)
+        elif char == "/" and index + 1 < len(content) and content[index + 1] == "*":
+            end = content.find("*/", index + 2)
+            index = len(content) if end == -1 else end + 1
+        else:
+            result.append(char)
+        index += 1
+    return "".join(result)
+
+
+def _css_selector_skeleton(content):
+    """Retourne les sélecteurs CSS, sans recopier les déclarations."""
+    source = _css_without_comments(content)
+    selectors = []
+    stack = []
+    segment_start = 0
+    quote = None
+    index = 0
+    while index < len(source):
+        char = source[index]
+        if quote:
+            if char == "\\":
+                index += 1
+            elif char == quote:
+                quote = None
+        elif char in "\"'":
+            quote = char
+        elif char == "{":
+            prelude = source[segment_start:index].strip()
+            in_keyframes = any(
+                rule.startswith(("@keyframes", "@-webkit-keyframes"))
+                for rule in stack
+            )
+            if prelude and not prelude.startswith("@") and not in_keyframes:
+                selectors.append(prelude)
+            stack.append(prelude.lower() if prelude.startswith("@") else "")
+            segment_start = index + 1
+        elif char == ";":
+            segment_start = index + 1
+        elif char == "}":
+            if stack:
+                stack.pop()
+            segment_start = index + 1
+        index += 1
+    return "\n".join(selectors) or "(aucun sélecteur CSS déclaré)"
 
 
 def _requests_module():
@@ -882,13 +989,36 @@ def _planned_generated_asset_paths(project_dir):
     return list(dict.fromkeys(paths))
 
 
-def _chunk_context(files):
-    """Rend uniquement les fichiers utiles aux étapes suivantes."""
+def _chunk_context(files, target=None):
+    """Rend le contexte structurel utile à la cible, jamais les fichiers entiers."""
+    if target == "styles.css":
+        useful_paths = ("index.html",)
+    elif target == "app.js" or target is None:
+        useful_paths = ("index.html", "styles.css")
+    else:
+        useful_paths = ()
+
     morceaux = []
-    for path in list(CHUNKED_FRONTEND_FILES) + sorted(
-            path for path in files if path.endswith(".svg")):
-        if path in files:
-            morceaux.append(f"### frontend/{path}\n```\n{files[path]}\n```")
+    for path in useful_paths:
+        if path not in files or path == target:
+            continue
+        if path == "index.html":
+            content = _html_selector_skeleton(files[path])
+            label = "squelette HTML (structure, class, id et data-*)"
+        else:
+            # Le JS ne dépend pas des propriétés CSS : les sélecteurs déclarés
+            # suffisent à conserver les mêmes points d'accroche sans repayer
+            # les règles et leurs valeurs, souvent beaucoup plus longues.
+            content = _css_selector_skeleton(files[path])
+            label = "sélecteurs CSS déclarés (sans les règles)"
+        morceaux.append(f"### frontend/{path} — {label}\n```\n{content}\n```")
+
+    # Le contenu d'un SVG ne sert ni aux sélecteurs CSS ni aux branchements JS.
+    # Son chemin suffit pour que les morceaux suivants le référencent.
+    for path in sorted(path for path in files if path.endswith(".svg")):
+        morceaux.append(
+            f"### frontend/{path}\n(fichier SVG déjà produit ; le nom suffit)"
+        )
     return "\n\n".join(morceaux) or "(aucun fichier généré pour le moment)"
 
 
@@ -964,7 +1094,7 @@ def _build_chunk_prompt(base_prompt, target, files):
         "Ne rends aucun autre fichier, ne tronque pas le contenu et ne mets "
         "jamais de commentaire hors JSON.\n\n"
         "## Fichiers déjà générés — à respecter\n"
-        f"{_chunk_context(files)}"
+        f"{_chunk_context(files, target)}"
     )
 
 
@@ -1033,7 +1163,14 @@ def _generate_chunked_files(project_dir, provider, base_prompt, operation,
                     break
 
             if _chunk_response_reached_limit(provider):
-                _raise_chunk_output_limit(provider)
+                enlarged = _raise_chunk_output_limit(provider)
+                if not enlarged:
+                    raise _ChunkOutputLimitError(
+                        f"frontend/{target} : le modèle tronque encore au plafond "
+                        f"maximal de sortie ({CHUNK_RETRY_MAX_OUTPUT_TOKENS} jetons) ; "
+                        "aucune seconde tentative complète ne sera lancée, car "
+                        "elle rejouerait la même configuration condamnée. "
+                        f"Dernière erreur : {error}") from error
             if retry == CHUNK_MAX_RETRIES:
                 raise FrontendAIError(
                     f"frontend/{target} : échec après {CHUNK_MAX_RETRIES} reprise(s) : "
@@ -1081,6 +1218,10 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
                 _record_provider_usage(project_dir, provider, operation, attempt,
                                        run_id=run_id)
                 files = parse_files_payload(raw)
+        except _ChunkOutputLimitError as exc:
+            last_errors = [f"échec de génération : {exc}"]
+            say(f" ❌ {last_errors[0]}")
+            return False, last_errors
         except FrontendAIError as exc:
             last_errors = [f"échec de génération : {exc}"]
             say(f" ❌ {last_errors[0]}")
