@@ -94,6 +94,7 @@ def build_project(
     quota,
     prices_path=None,
     say=None,
+    build_id=None,
 ):
     """Construit un projet dans le pipeline monl complet.
 
@@ -108,7 +109,16 @@ def build_project(
             f"projet {project_id} introuvable pour le compte {account_id}"
         )
     resolved_account = store.resolve_account_id(account_id)
-    build_id = store.create_build(project["id"])
+    if build_id is None:
+        build_id = store.create_build(project["id"])
+    else:
+        existing_build = store.get_build_for_project(project["id"], build_id)
+        if existing_build is None:
+            raise BuildIsolationError(
+                f"construction {build_id} introuvable pour le projet {project_id}"
+            )
+        if existing_build["state"] not in {"en_attente", "en_cours"}:
+            raise RuntimeError(f"construction déjà terminée : {build_id}")
     try:
         quota.ensure_available(resolved_account)
     except QuotaError as exc:

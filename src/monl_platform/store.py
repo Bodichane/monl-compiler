@@ -5,6 +5,9 @@ SQLite courte, ce qui convient à un worker et laisse SQLite jouer son rôle de
 verrou entre plusieurs processus.
 """
 
+import hashlib
+import hmac
+import secrets
 import sqlite3
 import threading
 from datetime import datetime, timezone
@@ -15,6 +18,35 @@ BUILD_STATES = ("en_attente", "en_cours", "reussie", "echouee")
 
 def _now():
     return datetime.now(timezone.utc).isoformat()
+
+
+def _password_hash(password):
+    if not isinstance(password, str) or not password:
+        raise ValueError("mot de passe vide ou invalide")
+    iterations = 310_000
+    salt = secrets.token_bytes(16)
+    digest = hashlib.pbkdf2_hmac(
+        "sha256", password.encode("utf-8"), salt, iterations
+    )
+    return f"pbkdf2_sha256${iterations}${salt.hex()}${digest.hex()}"
+
+
+def _password_matches(password, encoded):
+    if not isinstance(password, str) or not encoded:
+        return False
+    try:
+        algorithm, iterations, salt, expected = encoded.split("$", 3)
+        if algorithm != "pbkdf2_sha256":
+            return False
+        digest = hashlib.pbkdf2_hmac(
+            "sha256",
+            password.encode("utf-8"),
+            bytes.fromhex(salt),
+            int(iterations),
+        ).hex()
+    except (TypeError, ValueError):
+        return False
+    return hmac.compare_digest(digest, expected)
 
 
 class PlatformStore:
@@ -49,6 +81,7 @@ class PlatformStore:
                 CREATE TABLE IF NOT EXISTS accounts (
                     id INTEGER PRIMARY KEY,
                     identifier TEXT NOT NULL UNIQUE,
+                    password_hash TEXT,
                     created_at TEXT NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS projects (
@@ -83,6 +116,7 @@ class PlatformStore:
             columns = {
                 "accounts": {
                     "identifier": "TEXT",
+                    "password_hash": "TEXT",
                     "created_at": "TEXT",
                 },
                 "projects": {
@@ -140,16 +174,28 @@ class PlatformStore:
         with self._lock:
             return self._account_id(account)
 
-    def create_account(self, identifier):
+    def create_account(self, identifier, password=None):
         identifier = str(identifier).strip()
         if not identifier or "\x00" in identifier:
             raise ValueError("identifiant de compte vide ou invalide")
+        password_hash = _password_hash(password) if password is not None else None
         with self._lock, self._connection:
             cursor = self._connection.execute(
-                "INSERT INTO accounts(identifier, created_at) VALUES (?, ?)",
-                (identifier, _now()),
+                "INSERT INTO accounts(identifier, password_hash, created_at) VALUES (?, ?, ?)",
+                (identifier, password_hash, _now()),
             )
             return cursor.lastrowid
+
+    def authenticate_account(self, identifier, password):
+        identifier = str(identifier).strip()
+        with self._lock:
+            row = self._row(
+                "SELECT id, password_hash FROM accounts WHERE identifier = ?",
+                (identifier,),
+            )
+            if row is None or not _password_matches(password, row["password_hash"]):
+                return None
+            return row["id"]
 
     def get_account(self, account):
         with self._lock:
@@ -187,6 +233,16 @@ class PlatformStore:
                 "SELECT * FROM projects WHERE account_id = ? ORDER BY id", (account_id,)
             )
 
+    def list_all_projects(self):
+        with self._lock:
+            return self._rows("SELECT * FROM projects ORDER BY id")
+
+    def list_projects_by_slug(self, slug):
+        with self._lock:
+            return self._rows(
+                "SELECT * FROM projects WHERE slug = ? ORDER BY id", (str(slug),)
+            )
+
     def create_build(self, project_id):
         if isinstance(project_id, bool):
             raise ValueError("identifiant de projet invalide")
@@ -205,6 +261,37 @@ class PlatformStore:
                 "UPDATE builds SET state = ?, started_at = ? WHERE id = ?",
                 ("en_cours", _now(), build_id),
             )
+
+    def claim_next_build(self):
+        """Réserve atomiquement la prochaine construction en attente."""
+        with self._lock, self._connection:
+            build = self._row(
+                "SELECT * FROM builds WHERE state = 'en_attente' ORDER BY id LIMIT 1"
+            )
+            if build is None:
+                return None
+            updated = self._connection.execute(
+                "UPDATE builds SET state = ?, started_at = ? "
+                "WHERE id = ? AND state = 'en_attente'",
+                ("en_cours", _now(), build["id"]),
+            )
+            if updated.rowcount != 1:
+                return None
+            build["state"] = "en_cours"
+            build["started_at"] = self._row(
+                "SELECT started_at FROM builds WHERE id = ?", (build["id"],)
+            )["started_at"]
+            return build
+
+    def recover_in_progress_builds(self, message="construction interrompue au redémarrage"):
+        """Ne laisse jamais une construction abandonnée mentir en ``en_cours``."""
+        with self._lock, self._connection:
+            cursor = self._connection.execute(
+                "UPDATE builds SET state = ?, finished_at = ?, error_message = ? "
+                "WHERE state = 'en_cours'",
+                ("echouee", _now(), message),
+            )
+            return cursor.rowcount
 
     def finish_build(
         self,
@@ -245,6 +332,16 @@ class PlatformStore:
     def get_build(self, build_id):
         with self._lock:
             build = self._row("SELECT * FROM builds WHERE id = ?", (build_id,))
+            if build is not None:
+                build["total_tokens"] = build["tokens_consumed"]
+            return build
+
+    def get_build_for_project(self, project_id, build_id):
+        with self._lock:
+            build = self._row(
+                "SELECT * FROM builds WHERE id = ? AND project_id = ?",
+                (build_id, project_id),
+            )
             if build is not None:
                 build["total_tokens"] = build["tokens_consumed"]
             return build

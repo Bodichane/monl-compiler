@@ -17,6 +17,7 @@ demo/app.db
 # dépose l'application générée et sa base jetable. Les ignorer à la racine
 # évite de versionner par mégarde un secret ({/,}app.py + .jwt_secret).
 app.py
+!src/monl_platform/app.py
 schema.sql
 app.db
 .monl_uploads/
@@ -54,3 +55,7 @@ archives/
 # écrit à la main.
 /dist/
 /build/
+
+# Plateforme en ligne : base et espace de travail locaux, jamais versionnes.
+platform.db
+platform-projects/
