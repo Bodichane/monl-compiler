@@ -50,6 +50,12 @@ DEFAULT_MAX_OUTPUT_TOKENS = 16_000
 # Le découpage limite la taille totale de la réponse ; il ne faut pas limiter
 # chaque pièce au plafond qui a cassé la réponse monolithique.
 DEFAULT_CHUNK_MAX_OUTPUT_TOKENS = 8_000
+# Une réponse JSON tronquée ne doit pas faire perdre les morceaux précédents.
+# Deux reprises suffisent à corriger une coupe sans transformer un appel en
+# boucle ouverte ; la hausse du plafond est explicite et reste bornée.
+CHUNK_MAX_RETRIES = 2
+CHUNK_RETRY_OUTPUT_TOKEN_FACTOR = 1.5
+CHUNK_RETRY_MAX_OUTPUT_TOKENS = 32_000
 
 # Les deux briefs d'ÉVOLUTION (par opposition à FRONTEND_PROMPT.md, qui décrit
 # une construction neuve). Nommés ici plutôt que chez leur producteur : c'est
@@ -336,7 +342,7 @@ USAGE_FILENAME = ".monl_ai_usage.jsonl"
 
 
 def _record_provider_usage(project_dir, provider, operation, attempt, *,
-                           run_id, stage=None, usage=None):
+                           run_id, stage=None, retry=None, usage=None):
     """Conserve les compteurs de coût, jamais le prompt, la réponse ou la clé.
 
     ``run_id`` est OBLIGATOIRE : sans lui, deux exécutions successives donnent
@@ -346,8 +352,7 @@ def _record_provider_usage(project_dir, provider, operation, attempt, *,
     montrerait autant d'exécutions que d'appels, et il aurait l'air juste.
     """
     usage = usage if usage is not None else getattr(provider, "last_usage", None)
-    if usage is None:
-        return
+    usage = usage or {}
     event = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "run_id": run_id,
@@ -362,6 +367,8 @@ def _record_provider_usage(project_dir, provider, operation, attempt, *,
     }
     if stage is not None:
         event["stage"] = stage
+    if retry is not None:
+        event["retry"] = retry
     path = os.path.join(project_dir, USAGE_FILENAME)
     with open(path, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(event, ensure_ascii=False, sort_keys=True) + "\n")
@@ -961,6 +968,30 @@ def _build_chunk_prompt(base_prompt, target, files):
     )
 
 
+def _chunk_response_reached_limit(provider):
+    """Indique si le fournisseur a consommé tout son plafond de sortie."""
+    usage = getattr(provider, "last_usage", None) or {}
+    output_tokens = usage.get("output_tokens")
+    maximum = getattr(provider, "max_output_tokens", None)
+    return (isinstance(output_tokens, int) and not isinstance(output_tokens, bool)
+            and output_tokens >= maximum
+            if isinstance(maximum, int) and not isinstance(maximum, bool)
+            else False)
+
+
+def _raise_chunk_output_limit(provider):
+    """Augmente le plafond d'une reprise, sans dépasser la borne définie."""
+    maximum = getattr(provider, "max_output_tokens", None)
+    if not isinstance(maximum, int) or isinstance(maximum, bool) or maximum <= 0:
+        return False
+    enlarged = max(maximum + 1, int(maximum * CHUNK_RETRY_OUTPUT_TOKEN_FACTOR))
+    enlarged = min(enlarged, CHUNK_RETRY_MAX_OUTPUT_TOKENS)
+    if enlarged <= maximum:
+        return False
+    provider.max_output_tokens = enlarged
+    return True
+
+
 def _generate_chunked_files(project_dir, provider, base_prompt, operation,
                             attempt, say, run_id=None):
     """Génère puis valide chaque fichier d'un frontend DeepSeek/Yandex."""
@@ -968,10 +999,45 @@ def _generate_chunked_files(project_dir, provider, base_prompt, operation,
     targets = list(CHUNKED_FRONTEND_FILES) + _planned_generated_asset_paths(project_dir)
     for target in targets:
         say(f" -> Génération de frontend/{target}…")
-        raw = provider(_build_chunk_prompt(base_prompt, target, files))
-        _record_provider_usage(project_dir, provider, operation, attempt,
-                               stage=target, run_id=run_id)
-        files.update(parse_single_file_payload(raw, target))
+        for retry in range(CHUNK_MAX_RETRIES + 1):
+            if retry:
+                say(f" -> Reprise de frontend/{target} ({retry}/{CHUNK_MAX_RETRIES})…")
+            chunk_prompt = _build_chunk_prompt(base_prompt, target, files)
+            if retry:
+                chunk_prompt += (
+                    "\n\n## Reprise de génération\n"
+                    "La réponse précédente pour ce fichier était illisible. "
+                    "Rends à nouveau le fichier complet dans un JSON fermé, "
+                    "sans reprendre une réponse tronquée."
+                )
+            # Un appel en erreur ne doit pas réutiliser le compteur d'un appel
+            # précédent. Le fournisseur peut néanmoins renseigner last_usage
+            # avant de lever, ce qui permet alors de mesurer l'échec.
+            if hasattr(provider, "last_usage"):
+                provider.last_usage = None
+            try:
+                raw = provider(chunk_prompt)
+            except FrontendAIError as exc:
+                error = exc
+                _record_provider_usage(project_dir, provider, operation, attempt,
+                                       stage=target, retry=retry, run_id=run_id)
+            else:
+                _record_provider_usage(project_dir, provider, operation, attempt,
+                                       stage=target, retry=retry, run_id=run_id)
+                try:
+                    payload = parse_single_file_payload(raw, target)
+                except FrontendAIError as exc:
+                    error = exc
+                else:
+                    files.update(payload)
+                    break
+
+            if _chunk_response_reached_limit(provider):
+                _raise_chunk_output_limit(provider)
+            if retry == CHUNK_MAX_RETRIES:
+                raise FrontendAIError(
+                    f"frontend/{target} : échec après {CHUNK_MAX_RETRIES} reprise(s) : "
+                    f"{error}") from error
     return files
 
 
@@ -998,14 +1064,27 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
         say(f" -> Génération du frontend par l'IA (tentative {attempt}/2)…")
         operation = ("retouche" if retouche_mode else
                      ("update" if update_mode else "construction"))
-        if getattr(provider, "chunked_generation", False):
-            files = _generate_chunked_files(
-                project_dir, provider, prompt, operation, attempt, say, run_id=run_id)
-        else:
-            raw = provider(prompt)
-            _record_provider_usage(project_dir, provider, operation, attempt,
-                                   run_id=run_id)
-            files = parse_files_payload(raw)
+        try:
+            if getattr(provider, "chunked_generation", False):
+                files = _generate_chunked_files(
+                    project_dir, provider, prompt, operation, attempt, say,
+                    run_id=run_id)
+            else:
+                if hasattr(provider, "last_usage"):
+                    provider.last_usage = None
+                try:
+                    raw = provider(prompt)
+                except FrontendAIError:
+                    _record_provider_usage(project_dir, provider, operation, attempt,
+                                           run_id=run_id)
+                    raise
+                _record_provider_usage(project_dir, provider, operation, attempt,
+                                       run_id=run_id)
+                files = parse_files_payload(raw)
+        except FrontendAIError as exc:
+            last_errors = [f"échec de génération : {exc}"]
+            say(f" ❌ {last_errors[0]}")
+            continue
         _write_files(project_dir, files)
         # Un manifeste généré par Monl est seulement un plan tant que le
         # frontend n'existe pas. Après la réponse de l'IA, il devient une
