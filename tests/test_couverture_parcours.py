@@ -129,11 +129,16 @@ def test_le_brief_enonce_le_plancher_des_workflows(tmp_path):
 
 def test_le_brief_impose_de_livrer_les_ressources_locales_referencees(tmp_path):
     project, _contract = _project(tmp_path)
-    brief = (project / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    # La consigne est de la PROSE : elle se replie au fil des relectures, et un
+    # test qui exige une coupure de ligne précise casserait à chaque
+    # reformatage sans qu'aucune règle n'ait bougé. On compare donc sur les
+    # espaces normalisés, ce qui laisse le sens comme seul invariant.
+    brief = " ".join(
+        (project / "FRONTEND_PROMPT.md").read_text(encoding="utf-8").split())
 
     assert (
         "OBLIGATION DE LIVRAISON : toute ressource locale référencée doit être "
         "livrée dans cette construction, sous le chemin exact référencé"
     ) in brief
     assert "chaque `.svg` planifié par le manifeste" in brief
-    assert "écrit en ligne plutôt que référencé" in brief
+    assert "écrit EN LIGNE plutôt que référencé" in brief
