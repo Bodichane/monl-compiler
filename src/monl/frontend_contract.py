@@ -1525,6 +1525,15 @@ données, les permissions et les états métier.
   frontend est servi sur `/site` par le serveur qui porte l'API : l'origine
   est déjà la bonne. Une URL absolue avec un port codé en dur casse au
   premier `monl run --port` et fait échouer le smoke test.
+- PLANCHER DE PARCOURS : les workflows déclarés par la spec sont des promesses
+  de produit. Pour CHAQUE workflow, livrer au moins une entrée d'interface
+  atteignable (écran, bouton, formulaire ou gestionnaire) qui appelle une de
+  ses routes ; un simple catalogue ne couvre pas un parcours de commande, de
+  compte ou de gestion. Les autres routes appelables du workflow doivent être
+  raccordées aux actions qu'elles exposent. La vérification lit les fichiers
+  réellement livrés, compte les routes appelées et nomme celles qui ne le sont
+  par aucun écran. Les routes de service explicitement interdites par le
+  contrat restent hors écran et ne doivent jamais être appelées.
 - Authentification : `POST /register` (username, password 8+, actor parmi
   {contract['self_register_actors'] or "AUCUN — inscription fermée, ne pas "
    "construire de formulaire d'inscription"}) → `{{status, user_id}}`,

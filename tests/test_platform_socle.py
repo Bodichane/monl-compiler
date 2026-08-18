@@ -17,7 +17,9 @@ SPEC = """app PlatformSocle
 entity Item
     label: String
 
-actor Admin selfRegister
+# Admin est provisionné hors ligne ; le frontend minimal sert de témoin de la
+# boucle de construction, pas de promesse d'interface d'administration.
+actor Admin
 
 rule Item.label required
 rule Item.Read public

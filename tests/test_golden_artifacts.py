@@ -62,7 +62,10 @@ GOLDENS = {
     # identiques à l'octet — la preuve que la correction porte sur ce que le
     # backend DÉCLARE, pas sur ce qu'il fait.
     "frontend_contract.json": "8c2a7691b2a408c6c5624b65a7e70e77584812a4ac475f2e2d3ae38a8cd0e919",
-    "FRONTEND_PROMPT.md": "8d6c2c8af49299b0f523eec333f51bb93e2ee8985befe1300475f6796f01df2f",
+    # Le brief gagne le plancher de couverture des workflows : cette empreinte
+    # change volontairement avec la règle, tandis que les artefacts backend
+    # restent inchangés.
+    "FRONTEND_PROMPT.md": "86711761e3021f163689775f457f380435c24e1259374a5584b6934ac8967d18",
     "CLAUDE.md": "ebf07f5ca26ffa6bf8571ca6e0379afc31978b600b2cecd2ffe330719495183f",
     # Revue A2 : manage.py NOMME le remède au lieu de laisser filer une
     # trace quand la base attend une migration. app.py ne bouge PAS —

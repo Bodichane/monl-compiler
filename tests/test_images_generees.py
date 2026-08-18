@@ -26,7 +26,9 @@ entity Project
     title: String
     description: Text
 
-actor Visitor selfRegister
+# Le rôle de visiteur est provisionné hors ligne dans ce test de génération
+# d'images ; le frontend minimal ne promet pas un parcours de compte.
+actor Visitor
 
 rule Project.Read public
 
