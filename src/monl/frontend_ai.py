@@ -516,6 +516,36 @@ def _record_provider_usage(project_dir, provider, operation, attempt, *,
 
 
 # ------------------------------------------------------- parsing + gardes --
+# Tabulation, saut de ligne et retour chariot sont les seuls caractères de
+# contrôle légitimes dans un fichier texte livré.
+_CONTROLES_AUTORISES = {"\t", "\n", "\r"}
+
+
+def _refuser_caracteres_de_controle(path, content):
+    """Refuse un fichier porteur de caractères de contrôle, NUL en tête.
+
+    Un modèle qui écrit ses accents en échappement Unicode peut produire
+    `\\u0000` là où il visait `\\u00e8` : `json.loads` rend alors un octet NUL,
+    le fichier reste de l'UTF-8 PARFAITEMENT VALIDE, et plus rien en aval ne
+    s'en aperçoit. Mesuré sur un site réellement construit — « Animalière »
+    livré en « Animali\x00re », trente et un octets NUL dans un index.html
+    déclaré réussi. Refuser ici plutôt que plus loin donne au modèle sa reprise
+    ciblée, au lieu de publier un texte français mutilé.
+    """
+    fautifs = {
+        caractere for caractere in content
+        if ord(caractere) < 32 and caractere not in _CONTROLES_AUTORISES
+    }
+    if not fautifs:
+        return
+    nombre = sum(content.count(caractere) for caractere in fautifs)
+    noms = ", ".join(f"U+{ord(c):04X}" for c in sorted(fautifs))
+    raise FrontendAIError(
+        f"caractère de contrôle interdit dans {path} : {noms} "
+        f"({nombre} occurrence(s)) — un accent mal échappé produit ce défaut, "
+        "et le fichier reste de l'UTF-8 valide.")
+
+
 def _validate_files(files, require_index=True):
     """Valide une map de fichiers sans imposer son format de transport."""
     if not isinstance(files, dict) or not files:
@@ -532,6 +562,7 @@ def _validate_files(files, require_index=True):
             raise FrontendAIError(f"extension refusée : {path}")
         if not isinstance(content, str):
             raise FrontendAIError(f"contenu non textuel pour : {path}")
+        _refuser_caracteres_de_controle(path, content)
         if norm.lower().endswith(".svg"):
             try:
                 root = ElementTree.fromstring(content)
