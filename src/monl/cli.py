@@ -537,8 +537,10 @@ def check_coherence(project_dir):
         if unknown:
             warnings.append("Le frontend référence des chemins absents du contrat : "
                             + ", ".join(f"/{u}" for u in unknown))
+        appels = _frontend_fetch_calls(frontend_dir)
+        errors.extend(_frontend_fetch_contract_errors(contract, appels))
         couverture_errors, couverture_warnings = _frontend_route_coverage(
-            project_dir, spec_path, contract)
+            project_dir, spec_path, contract, appels=appels)
         errors.extend(couverture_errors)
         warnings.extend(couverture_warnings)
     else:
@@ -570,6 +572,10 @@ def _frontend_fetch_calls(frontend_dir):
         chemin = re.sub(r"^\$\{[^}]+\}", "", chemin)
         if not chemin.startswith("/"):
             return None
+        # Le `?` d'une expression JS (`${ok ? 'a' : 'b'}`) n'est pas le
+        # séparateur d'une query string. Réduire les gabarits avant de couper
+        # la query évite de rendre irréductible l'appel pourtant mesurable.
+        chemin = re.sub(r"\$\{[^}]+\}", "{id}", chemin)
         chemin = chemin.split("?", 1)[0].split("#", 1)[0]
         if suffixe_dynamique:
             chemin = chemin.rstrip("/") + "/${id}"
@@ -599,8 +605,10 @@ def _frontend_fetch_calls(frontend_dir):
             methode = methode_match.group(1).upper() if methode_match else "GET"
         else:
             # ``fetch(path, options)`` ne permet pas de savoir si la route est
-            # lue ou écrite : ne pas lui attribuer à tort une couverture.
-            return
+            # lue ou écrite : ne pas lui attribuer à tort une couverture. Le
+            # chemin, lui, est connu et doit quand même être confronté au
+            # contrat ; ``None`` sert de méthode inconnue à la couverture.
+            methode = None
         appels.add((methode, chemin))
 
     for root, _dirs, names in os.walk(frontend_dir):
@@ -676,6 +684,94 @@ def _frontend_fetch_calls(frontend_dir):
     return appels
 
 
+def _frontend_contract_paths(contract):
+    """Retourne les chemins exposés au frontend par le contrat.
+
+    Les routes métier vivent dans ``routes``. L'authentification est une
+    exception historique : ``/register``, ``/login`` et ``/logout`` sont
+    décrits dans ``api.auth`` mais ne font pas partie de cette liste. Ils sont
+    ajoutés ici depuis le contrat, jamais recopiés en dur dans le contrôle.
+    """
+    chemins = []
+    for route in contract.get("routes", []):
+        chemin = route.get("path")
+        if isinstance(chemin, str):
+            chemins.append(chemin)
+
+    auth = (contract.get("api") or {}).get("auth") or {}
+    chemins_auth = []
+    for nom in ("register", "login", "logout"):
+        endpoint = auth.get(nom) or {}
+        chemin = endpoint.get("path")
+        if isinstance(chemin, str):
+            chemins.append(chemin)
+            chemins_auth.append(chemin)
+    return list(dict.fromkeys(chemins)), list(dict.fromkeys(chemins_auth))
+
+
+def _frontend_contract_path_matches(appele, declare):
+    """Indique si un chemin normalisé correspond à un chemin du contrat."""
+    motif = re.escape(declare)
+    motif = re.sub(r"\\\{[^{}]+\\\}", r"[^/?#]+", motif)
+    return re.fullmatch(motif, appele) is not None
+
+
+def _frontend_fetch_path_label(chemin):
+    """Réduit un chemin d'appel à sa partie certaine pour le message.
+
+    ``/auth/{id}`` vient d'un gabarit que l'analyse sait assez réduire pour
+    constater l'erreur, mais ``{id}`` n'est pas un chemin que l'utilisateur a
+    réellement écrit. Le nom utile du défaut est donc ``/auth``.
+    """
+    certains = []
+    for segment in chemin.split("/"):
+        if not segment:
+            continue
+        if re.fullmatch(r"\{[^}]+\}", segment):
+            break
+        certains.append(segment)
+    return "/" + "/".join(certains) if certains else chemin
+
+
+def _frontend_fetch_path_suggestions(chemin, chemins, chemins_auth):
+    """Suggère des chemins contractuels sans prétendre comprendre le JS."""
+    label = _frontend_fetch_path_label(chemin)
+    if label == "/auth" and chemins_auth:
+        return sorted(chemins_auth)
+    dernier = label.rstrip("/").rsplit("/", 1)[-1]
+    if not dernier:
+        return []
+    return sorted({
+        candidat for candidat in chemins
+        if candidat.rstrip("/").rsplit("/", 1)[-1] == dernier
+    })
+
+
+def _frontend_fetch_contract_errors(contract, appels):
+    """Refuse les appels ``fetch`` dont le chemin n'est pas contractuel.
+
+    ``appels`` vient exclusivement de ``_frontend_fetch_calls``. Une forme
+    dynamique que cette analyse ne sait pas réduire n'entre donc pas ici et
+    ne déclenche rien, conformément à l'arbitrage conservateur du parcours.
+    """
+    chemins, chemins_auth = _frontend_contract_paths(contract)
+    errors = []
+    for _methode, appele in sorted(appels, key=lambda appel: (appel[1], appel[0] or "")):
+        if any(_frontend_contract_path_matches(appele, declare)
+               for declare in chemins):
+            continue
+        label = _frontend_fetch_path_label(appele)
+        message = f"REFUSÉ : fetch appelle le chemin {label}, absent du contrat"
+        if label != appele:
+            message += f" (forme réduite : {appele})"
+        suggestions = _frontend_fetch_path_suggestions(
+            appele, chemins, chemins_auth)
+        if suggestions:
+            message += "; chemins existants possibles : " + ", ".join(suggestions)
+        errors.append(message + ".")
+    return list(dict.fromkeys(errors))
+
+
 def _route_est_appelee(route, appels):
     """Teste une route contractuelle contre les appels normalisés du frontend."""
     chemin = route["path"]
@@ -698,7 +794,7 @@ def _route_label(route):
     return f"{route['method']} {route['path']}"
 
 
-def _frontend_route_coverage(project_dir, spec_path, contract):
+def _frontend_route_coverage(project_dir, spec_path, contract, appels=None):
     """Vérifie la couverture du frontend livré, sans exécuter une intention.
 
     Les routes sont lues dans le contrat sur disque et confrontées aux
@@ -708,7 +804,8 @@ def _frontend_route_coverage(project_dir, spec_path, contract):
     l'appeler.
     """
     frontend_dir = os.path.join(project_dir, "frontend")
-    appels = _frontend_fetch_calls(frontend_dir)
+    if appels is None:
+        appels = _frontend_fetch_calls(frontend_dir)
     routes = [r for r in contract.get("routes", [])
               if r["path"] != "/paiement/webhook"]
     couverts = {id(route) for route in routes if _route_est_appelee(route, appels)}

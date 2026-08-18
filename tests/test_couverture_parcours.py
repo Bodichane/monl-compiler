@@ -117,6 +117,75 @@ def test_un_fetch_par_gabarit_api_base_couvre_la_bonne_route(tmp_path):
                    for message in errors + warnings)
 
 
+def _write_frontend(project, app_js, index_html='<script src="app.js"></script>'):
+    frontend = project / "frontend"
+    frontend.mkdir()
+    (frontend / "index.html").write_text(index_html, encoding="utf-8")
+    (frontend / "app.js").write_text(app_js, encoding="utf-8")
+
+
+def test_un_fetch_auth_sous_un_prefixe_inexistant_refuse_la_construction(tmp_path):
+    project, contract = _project(tmp_path)
+    app_js = _all_route_fetches(contract) + """
+async function authenticate(action) {
+    return fetch(`/auth/${action === 'login' ? 'login' : 'register'}`, {
+        method: 'POST'
+    });
+}
+"""
+    _write_frontend(project, app_js)
+
+    ok, errors, _warnings = check_coherence(str(project))
+
+    assert not ok
+    message = "\n".join(errors)
+    assert "REFUSÉ" in message
+    assert "/auth" in message
+    assert "/login" in message and "/register" in message
+
+
+def test_un_fetch_vers_login_et_register_du_contrat_passe(tmp_path):
+    project, contract = _project(tmp_path)
+    app_js = _all_route_fetches(contract) + """
+fetch('/login', {method: 'POST'});
+fetch('/register', {method: 'POST'});
+"""
+    _write_frontend(project, app_js)
+
+    ok, errors, warnings = check_coherence(str(project))
+
+    assert ok, errors
+    assert not any("/login" in message or "/register" in message
+                   for message in errors + warnings)
+
+
+def test_un_lien_de_navigation_ne_declenche_pas_le_controle_fetch(tmp_path):
+    project, contract = _project(tmp_path)
+    _write_frontend(
+        project,
+        _all_route_fetches(contract) + "\nfunction aller(route) {}\naller('/panier');",
+        '<a href="#/panier">Panier</a><script src="app.js"></script>',
+    )
+
+    ok, errors, warnings = check_coherence(str(project))
+
+    assert ok, errors
+    assert not any("/panier" in message for message in errors + warnings)
+
+
+def test_un_chemin_fetch_irreductible_ne_declenche_rien(tmp_path):
+    project, contract = _project(tmp_path)
+    _write_frontend(
+        project,
+        _all_route_fetches(contract) + "\nfetch(url, {method: 'GET'});",
+    )
+
+    ok, errors, warnings = check_coherence(str(project))
+
+    assert ok, errors
+    assert not any("REFUSÉ" in message for message in errors + warnings)
+
+
 def test_le_brief_enonce_le_plancher_des_workflows(tmp_path):
     project, _contract = _project(tmp_path)
     brief = (project / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")

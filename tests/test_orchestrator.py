@@ -244,7 +244,10 @@ def test_frontend_hors_contrat_declenche_avertissement(tmp_path):
         "<script>fetch('/item?limit=3'); fetch('/fantome/1');</script>",
         encoding="utf-8")
     ok, errors, warnings = check_coherence(str(proj))
-    assert ok, errors
+    # Renversement rendu nécessaire par le contrôle demandé : un chemin passé
+    # à fetch n'est plus seulement un avertissement, car il peut viser le vide.
+    assert not ok
+    assert any("/fantome" in error for error in errors)
     assert any("/fantome" in w for w in warnings)
     # Le nouveau contrôle peut nommer /item dans son décompte de couverture ;
     # ce test porte uniquement sur l'ancien avertissement de chemin inconnu.
@@ -269,13 +272,13 @@ def test_les_routes_de_navigation_ne_declenchent_pas_lavertissement(tmp_path):
     (front / "index.html").write_text(
         "<a href=\"#/catalogue\">Catalogue</a>"
         "<script>function aller(r){}; aller('/catalogue');"
-        " fetch('/item'); fetch('/fantome');</script>",
+        " fetch('/item');</script>",
         encoding="utf-8")
     ok, errors, warnings = check_coherence(str(proj))
     assert ok, errors
     assert not any("/catalogue" in w for w in warnings), warnings
-    assert any("/fantome" in w for w in warnings), (
-        "le témoin doit rester signalé, sinon l'avertissement ne sert plus à rien")
+    # `/fantome` est désormais le cas de refus ci-dessus ; le témoin de ce
+    # test est volontairement uniquement une navigation `#/catalogue`.
 
 
 def test_update_rapporte_le_delta_du_contrat(tmp_path):
