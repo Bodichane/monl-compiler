@@ -222,5 +222,11 @@ def test_le_manifeste_porte_la_regle_de_chaque_section(projet):
     regles = manifest["section_substance"]["index.html"]
 
     assert set(regles) <= set(manifest["required_markers"]["index.html"])
-    assert all(r.get("heading") for r in regles.values())
+    # L'invariant n'est PAS « un titre partout » : le pied de page n'en a pas,
+    # et lui en imposer un ferait écrire « Pied de page » en gros, ce
+    # qu'aucun site réel ne fait. Ce qui compte, c'est qu'aucune règle ne soit
+    # vide — une règle qui n'exige rien est une règle qui ne produit rien,
+    # exactement ce que le point 85 interdit.
+    assert all(any(r.values()) for r in regles.values())
     assert 'data-monl-section="trust"' in regles
+    assert 'data-monl-section="footer"' in regles

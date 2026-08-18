@@ -57,6 +57,10 @@ SUBSTANCE_RULES = {
     "contact": {"heading": True, "form": True},
     "booking": {"heading": True, "form": True},
     "closing-cta": {"heading": True, "action": True},
+    # Le pied de page n'a PAS de titre : lui en imposer un ferait écrire
+    # « Pied de page » en gros, ce qu'aucun site réel ne fait. Ce qu'il doit
+    # porter, c'est de quoi partir ailleurs et de quoi savoir qui parle.
+    "footer": {"text": 60, "action": True},
 }
 
 #: Une section déclarée par l'auteur : titre, et le texte qu'il a écrit.

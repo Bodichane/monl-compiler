@@ -13,15 +13,10 @@ import time
 import pytest
 import requests
 import uvicorn
+from aide_sections import RESSOURCE_DISTANTE
 
 from monl_platform.app import create_app
 from monl_platform.landing import LANDING_HTML
-
-#: Le même contrôle que pour la console : une page servie en local doit
-#: fonctionner sans réseau. Un lien sortant compris — la page n'en a aucun.
-RESSOURCE_DISTANTE = re.compile(
-    r"https?://|<link\b|<script[^>]+\bsrc=|@import", re.IGNORECASE
-)
 
 
 class FakeProvider:
@@ -95,6 +90,26 @@ def test_la_page_ne_charge_aucune_ressource_distante(platform):
 
     faute = RESSOURCE_DISTANTE.search(reponse.text)
     assert faute is None, f"ressource distante dans la page : {faute.group(0)}"
+
+
+def test_toute_url_sortante_est_un_lien_et_rien_d_autre(platform):
+    """Le garde-fou d'au-dessus s'est élargi : celui-ci le referme.
+
+    Autoriser les liens sortants ne doit pas autoriser une URL n'importe où.
+    Chaque `https://` de la page doit être la cible d'un `<a href>` — pas
+    d'un `<img>`, pas d'un `fetch`, pas d'une police.
+    """
+    page = requests.get(platform, timeout=10).text
+    sans_commentaires = re.sub(r"/\*.*?\*/", "", page, flags=re.DOTALL)
+    sans_commentaires = re.sub(r"<!--.*?-->", "", sans_commentaires, flags=re.DOTALL)
+
+    for position in (m.start() for m in re.finditer(r"https?://", sans_commentaires)):
+        debut = sans_commentaires.rfind("<", 0, position)
+        balise = sans_commentaires[debut:position]
+        assert re.match(r"<a\b[^>]*\bhref\s*=\s*['\"]$", balise), (
+            "URL sortante hors d'un lien : "
+            + sans_commentaires[position:position + 60]
+        )
 
 
 def test_la_page_respecte_le_mouvement_reduit():

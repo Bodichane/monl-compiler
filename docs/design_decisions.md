@@ -54,6 +54,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [135](#135-mesurer-le-coût-avant-de-vendre-la-génération--yandex-ai-studio) Mesurer le coût avant de vendre la génération : Yandex AI Studio ·
 [139](#139-le-compilateur-avait-repris-la-main-sur-la-palette-par-lautre-tuyau) Le compilateur avait repris la main sur la palette, par l'autre tuyau ·
 [140](#140-un-marqueur-nommait-la-section-sans-jamais-prouver-quil-y-avait-quelque-chose-dedans) Un marqueur nommait la section sans prouver qu'il y avait quelque chose dedans ·
+[141](#141-le-pied-de-page-netait-exige-nulle-part-et-monl-ne-pouvait-pas-le-deviner) Le pied de page n'était exigé nulle part ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -9033,3 +9034,78 @@ sur `exemples/02_boutique.ml` : `monl run --check` refuse les six sections
 vides en nommant ce qui manque à chacune, et accepte le même site réellement
 rempli. Sans cette contre-épreuve, une barrière qui refuserait tout passerait
 pour bonne.
+
+## 141. Le pied de page n'était exigé nulle part, et monl ne pouvait pas le deviner
+
+**Le plancher du point 140 comptait quatre sections et s'arrêtait au-dessus du
+pied de page.** `hero`, la matière, `trust`, `closing-cta` — et rien en bas.
+Le résultat se voit sur tous les sites produits : deux mots gris, aucun
+réseau social, aucune mention, aucun contact. C'est le dernier endroit où un
+site se dénonce comme une maquette, et c'était le seul que la vérification ne
+regardait pas.
+
+**Le problème n'est pas de l'exiger, c'est de le remplir.** monl ne peut pas
+DEVINER une adresse Instagram : une adresse inventée mène chez quelqu'un
+d'autre, ce qui est pire que pas d'adresse du tout. Même impasse qu'au point
+83 pour les fichiers image et qu'au point 86 pour le stock, et donc même
+issue : **monl fait DÉCLARER ce qu'il ne peut pas savoir, puis il l'exige.**
+
+**`landing` accepte `link "Libellé": "adresse"`**, répétable, forme PLATE et
+ordre conservé — mot pour mot les choix de `section` (point 55) et de
+`question` (point 94), pour la même raison : un sous-bloc indenté ajouterait
+un niveau à la seule grammaire où l'indentation a déjà coûté deux bugs.
+
+**Ce que le validateur refuse, et pourquoi.** L'adresse doit porter un
+schéma : `https://`, `http://`, `mailto:` ou `tel:`. Sans lui, un
+« instagram.com/atelier » est lu par le navigateur comme un chemin RELATIF et
+mène à une page inexistante du site lui-même — **un lien qui ne marche pas
+est pire qu'un lien absent, parce qu'il se voit.** `tel:` et `mailto:` sont
+dans la liste sans hésitation : sur un site de commerce, ce sont souvent les
+deux liens qui comptent le plus. Sont refusés aussi le libellé vide,
+l'adresse vide, deux libellés identiques (on hésite sur lequel suivre) et
+deux fois la même adresse.
+
+**Ce que monl ne vérifie PAS, et le dit.** Qu'une adresse RÉPONDE. Il ne fait
+aucun appel réseau, et le prétendre serait mentir — même frontière qu'au
+point 83 pour les images distantes. Ce qu'il vérifie, c'est que l'adresse
+déclarée figure **réellement dans le site livré** : l'auteur déclare son
+Instagram, l'IA l'oublie, et personne ne s'en aperçoit avant de chercher le
+lien en ligne. La comparaison porte sur l'ADRESSE et non sur le libellé : un
+libellé peut légitimement être reformulé par l'interface, une adresse jamais.
+
+**Le pied de page n'exige PAS de titre.** Lui en imposer un ferait écrire
+« Pied de page » en gros, ce qu'aucun site réel ne fait. Sa règle de
+substance est donc la seule sans `heading` : du texte, et de quoi partir
+ailleurs. L'invariant du manifeste a dû être réécrit en conséquence — ce
+n'est plus « un titre partout » mais « aucune règle vide », ce qui est la
+formulation juste depuis le début.
+
+**DIXIÈME fois pour l'angle mort du delta**, et la question posée avant
+d'écrire la brique. Déclarer un lien ne crée aucune route, ne renomme aucun
+champ, ne touche à aucun acteur — et le pied de page doit être réécrit, sous
+peine d'un refus « lien déclaré absent du site ». L'ADRESSE entre dans le
+digest, pas seulement le libellé : corriger une faute de frappe dans une URL
+ne renomme rien non plus.
+
+**Un garde-fou de test s'est révélé faux en même temps.** Le contrôle
+« aucune ressource distante » de la plateforme interdisait TOUTE URL, y
+compris un simple `<a href>`. Il confondait *charger une ressource* et
+*pointer ailleurs* : un lien sortant ne télécharge rien, la page reste
+entière hors ligne, seul le clic échoue — ce qui est le comportement attendu.
+Le contrôle vise désormais ce que le NAVIGATEUR va chercher tout seul
+(`<link>`, `<script src>`, `@import`, `src="http`, `url(http`), et un second
+test referme l'ouverture : chaque `https://` de la page doit être la cible
+d'un `<a href>` et rien d'autre. La définition vivait en DEUX exemplaires,
+dans le test de l'accueil et dans celui de la console ; elles ont divergé au
+premier élargissement, et il n'y en a plus qu'une.
+
+La plateforme elle-même a gagné un vrai pied de page — quatre colonnes sur
+l'accueil, une barre sur la console — avec des liens **réels** : le dépôt,
+les défauts, le journal des décisions, la licence. Aucun compte social n'a
+été inventé, parce qu'il n'en existe aucun.
+
+Éprouvé par `tests/test_liens_de_pied.py` (13 tests), dont la contre-épreuve :
+le même site AVEC ses liens est accepté, sans quoi un contrôle qui refuserait
+tout passerait pour bon. Les seuls artefacts déplacés sont le contrat et
+`monl.json` qui le scelle — `app.py`, `schema.sql` et `manage.py` restent
+identiques à l'octet.

@@ -278,9 +278,29 @@ code {
 .close h2 { margin-inline: auto; text-align: center; }
 .close p { max-width: 48ch; margin: var(--s3) auto var(--s5); color: var(--ink-2); }
 
-footer { border-top: 1px solid var(--rule); padding: var(--s6) 0 var(--s7); }
-.foot { display: flex; flex-wrap: wrap; gap: var(--s4); justify-content: space-between;
-        color: var(--ink-3); font-size: .82rem; }
+footer { border-top: 1px solid var(--rule); background: var(--paper-2);
+         padding: var(--s6) 0 var(--s5); }
+.foot-grid {
+  display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr));
+  gap: var(--s6) var(--s5); padding-bottom: var(--s5);
+  border-bottom: 1px solid var(--rule);
+}
+.foot-brand p { margin-top: var(--s3); color: var(--ink-2); font-size: .88rem; max-width: 34ch; }
+.foot-col h3 { font-family: var(--mono); font-size: .68rem; letter-spacing: .07em;
+               text-transform: uppercase; color: var(--ink-3); margin-bottom: var(--s3); }
+.foot-col ul { list-style: none; display: grid; gap: var(--s2); }
+.foot-col a { color: var(--ink-2); font-size: .88rem; }
+.foot-col a:hover { color: var(--clay-ink); }
+.foot-col .ext::after { content: " ↗"; color: var(--ink-3); font-size: .8em; }
+.foot-legal { display: flex; flex-wrap: wrap; gap: var(--s3) var(--s5);
+              justify-content: space-between; padding-top: var(--s4);
+              color: var(--ink-3); font-size: .8rem; }
+@media (max-width: 900px) {
+  .foot-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 620px) {
+  .foot-grid { grid-template-columns: 1fr; gap: var(--s5); }
+}
 
 /* L'état caché d'une apparition vit dans une RÈGLE, jamais dans un style en
    ligne : `element.style.opacity = "0"` l'emporte sur n'importe quel
@@ -514,9 +534,45 @@ footer { border-top: 1px solid var(--rule); padding: var(--s6) 0 var(--s7); }
 </section>
 
 <footer>
-  <div class="wrap foot">
-    <span>monl — compilateur d'applications déclaratives · 0.9.0-beta.7</span>
-    <span>licence FSL-1.1-ALv2 · aucune télémétrie · aucun cookie</span>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="logo" href="#top"><span class="logo-mark">m</span><b>monl</b><span>/ compiler</span></a>
+        <p>Un compilateur qui transforme une spécification déclarative en un
+          backend complet et scellé. Il tourne chez vous, ne téléphone à
+          personne, et refuse ce qu'il ne peut pas prouver.</p>
+      </div>
+      <div class="foot-col">
+        <h3>Le produit</h3>
+        <ul>
+          <li><a href="#demonstration">Démonstration</a></li>
+          <li><a href="#commandes">Les commandes</a></li>
+          <li><a href="#refus">Ce qu'il refuse</a></li>
+          <li><a href="#telecharger">Télécharger</a></li>
+        </ul>
+      </div>
+      <div class="foot-col">
+        <h3>Le projet</h3>
+        <ul>
+          <li><a class="ext" href="https://github.com/Bodichane/monl-compiler">Dépôt et code source</a></li>
+          <li><a class="ext" href="https://github.com/Bodichane/monl-compiler/issues">Signaler un défaut</a></li>
+          <li><a class="ext" href="https://github.com/Bodichane/monl-compiler/blob/main/docs/design_decisions.md">Journal des décisions</a></li>
+          <li><a class="ext" href="https://github.com/Bodichane/monl-compiler/blob/main/CHANGELOG.md">Notes de version</a></li>
+        </ul>
+      </div>
+      <div class="foot-col">
+        <h3>Construire</h3>
+        <ul>
+          <li><a href="/console">Ouvrir la console</a></li>
+          <li><a href="/telechargements">Versions publiées</a></li>
+          <li><a class="ext" href="https://fsl.software/">Licence FSL-1.1</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot-legal">
+      <span>monl 0.9.0-beta.7 · bêta publique · Python 3.10+</span>
+      <span>Aucune télémétrie, aucun cookie, aucun compte tiers.</span>
+    </div>
   </div>
 </footer>
 

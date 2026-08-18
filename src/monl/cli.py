@@ -1178,6 +1178,15 @@ def _contract_signature(contract):
     contenus = {f"section « {s['title']} »": hashlib.sha256(
                     "\n".join(s["body"]).encode("utf-8")).hexdigest()
                 for s in contract.get("sections") or []}
+    # BRIQUE 29 : DIXIÈME fois, et la question posée avant d'écrire la brique.
+    # Déclarer un lien de pied de page ne crée aucune route, ne renomme aucun
+    # champ, ne touche à aucun acteur — et le pied de page doit être réécrit,
+    # sous peine d'un refus « lien déclaré absent du site ». L'ADRESSE entre
+    # dans le digest, pas seulement le libellé : corriger une faute de frappe
+    # dans une URL ne renomme rien non plus (leçon des points 89 et 96).
+    contenus.update({f"lien « {lien['label']} »": hashlib.sha256(
+                         lien["url"].encode("utf-8")).hexdigest()
+                     for lien in contract.get("links") or []})
     contenus.update({f"question « {q['question']} »": hashlib.sha256(
                          "\n".join(q["answer"]).encode("utf-8")).hexdigest()
                      for q in contract.get("faq") or []})

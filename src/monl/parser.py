@@ -360,7 +360,7 @@ grammar = r"""
 
     landing_block: "landing" _NL _INDENT landing_prop+ _DEDENT
     ?landing_prop: landing_mode | landing_template | landing_brief | landing_section
-                 | landing_question
+                 | landing_question | landing_link
     landing_mode: "mode" ":" NAME _NL
     landing_template: "template" ":" STRING_LITERAL _NL
     landing_brief: "brief" ":" STRING_LITERAL _NL
@@ -376,6 +376,18 @@ grammar = r"""
     #   landing
     #       question "Comment choisir ma taille ?": "Nos paires taillent…"
     landing_question: "question" STRING_LITERAL ":" STRING_LITERAL _NL
+
+    # BRIQUE 29 : "link" répétable — l'adresse SORTANTE d'un site.
+    # Un pied de page sans réseaux, sans mentions et sans contact est le
+    # dernier endroit où un site produit se dénonce comme une maquette. Or
+    # monl ne peut pas les DEVINER : une adresse Instagram inventée mène chez
+    # quelqu'un d'autre. Même arbitrage qu'aux points 83 et 86 — monl fait
+    # DÉCLARER ce qu'il ne peut pas savoir, puis l'exige.
+    # Forme PLATE et ORDRE conservé, comme `section` et `question`.
+    #   landing
+    #       link "Instagram": "https://instagram.com/atelier-horizon"
+    #       link "Nous écrire": "mailto:bonjour@atelier-horizon.fr"
+    landing_link: "link" STRING_LITERAL ":" STRING_LITERAL _NL
 
     workflow: "workflow" NAME "for" NAME _NL _INDENT action+ _DEDENT
     
@@ -667,8 +679,14 @@ class MonlTransformer(Transformer):
         return {"_question": {"question": str(question).strip('"'),
                               "answer": str(reponse).strip('"')}}
 
+    def landing_link(self, libelle, adresse):
+        # Même marqueur temporaire que les sections et les questions : les
+        # liens s'ACCUMULENT là où les autres clés s'écrasent.
+        return {"_link": {"label": str(libelle).strip('"'),
+                          "url": str(adresse).strip('"')}}
+
     def landing_block(self, *props):
-        merged, sections, faq = {}, [], []
+        merged, sections, faq, links = {}, [], [], []
         for p in props:
             if not p:
                 continue
@@ -676,6 +694,8 @@ class MonlTransformer(Transformer):
                 sections.append(p["_section"])
             elif "_question" in p:
                 faq.append(p["_question"])
+            elif "_link" in p:
+                links.append(p["_link"])
             else:
                 merged.update(p)
         if sections:
@@ -685,6 +705,10 @@ class MonlTransformer(Transformer):
         # le retrouver après coup.
         if faq:
             merged["faq"] = faq
+        # Même raison que la FAQ : dans un pied de page, l'ordre déclaré est
+        # celui qu'on veut voir, et rien ne permet de le retrouver après coup.
+        if links:
+            merged["links"] = links
         return {"landing": merged}
 
     def assets_dir(self, valeur):

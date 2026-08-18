@@ -748,6 +748,7 @@ def _design_completeness_errors(project_dir):
 
     errors.extend(_generated_asset_reuse_errors(frontend_dir, generated_assets))
     errors.extend(_editorial_content_errors(project_dir, rendered_source))
+    errors.extend(_declared_link_errors(project_dir, rendered_source))
 
     errors.extend(_frontend_local_reference_errors(project_dir))
     errors.extend(_frontend_behavioral_quality_errors(project_dir))
@@ -872,6 +873,33 @@ def _sans_corps_de_script(html):
     return re.sub(r"(<script\b[^>]*>)(.*?)(</script\s*>)",
                   lambda m: m.group(1) + m.group(3), html,
                   flags=re.IGNORECASE | re.DOTALL)
+
+
+def _declared_link_errors(project_dir, rendered_source):
+    """Un lien déclaré dans la spec doit se retrouver dans le site livré.
+
+    C'est le pendant exact du contrôle des assets (point 83) : monl ne
+    vérifie pas qu'une adresse RÉPOND — il ne fait aucun appel réseau — mais
+    il vérifie qu'elle est bien PRÉSENTE. Sans ça, l'auteur déclare son
+    Instagram, l'IA l'oublie, et personne ne s'en aperçoit avant de chercher
+    le lien sur le site en ligne.
+
+    La comparaison porte sur l'adresse et non sur le libellé : un libellé peut
+    légitimement être reformulé par l'interface, une adresse jamais.
+    """
+    contract_path = os.path.join(project_dir, "frontend_contract.json")
+    if not os.path.exists(contract_path):
+        return []
+    try:
+        with open(contract_path, encoding="utf-8") as fh:
+            liens = json.load(fh).get("links") or []
+    except (OSError, json.JSONDecodeError):
+        return []
+    source = unescape(rendered_source)
+    return [
+        f"lien déclaré absent du site : « {lien['label']} » → {lien['url']}"
+        for lien in liens if lien["url"] not in source
+    ]
 
 
 def _frontend_local_reference_errors(project_dir):

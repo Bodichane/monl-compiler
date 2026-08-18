@@ -874,6 +874,17 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   manque : mieux vaut un compilateur qui s'arrête qu'une route de paiement sans
   contrôle d'accès. Éprouvé par `tests/test_rattachement.py` (18 tests, dont 11
   échouent sans la correction). Voir point 99.
+- **POINT 141 : le pied de page est exigé, et ses liens sont DÉCLARÉS.**
+  `landing` accepte `link "Libellé": "adresse"` (répétable, ordre conservé) ;
+  l'adresse doit porter un schéma — `https://`, `http://`, `mailto:`, `tel:` —
+  sans quoi le navigateur la lit comme un chemin RELATIF du site lui-même.
+  monl ne vérifie PAS qu'une adresse répond (aucun appel réseau, même frontière
+  qu'au point 83) mais il vérifie qu'elle FIGURE dans le site livré
+  (`_declared_link_errors`, frontend_ai.py), en comparant l'ADRESSE et jamais le
+  libellé. Le pied de page est la seule section obligatoire SANS titre exigé :
+  lui en imposer un ferait écrire « Pied de page » en gros. Ne JAMAIS inventer
+  un réseau social absent de la spec — c'est écrit dans le brief, et c'est la
+  raison d'être de la brique.
 - **POINT 140 : un marqueur nomme une section, il ne prouve pas qu'elle
   contient quelque chose.** `src/monl/section_substance.py` mesure la MATIÈRE
   (titre, texte lisible, action, formulaire) ; les seuils sont PAR SECTION et

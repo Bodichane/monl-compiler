@@ -161,6 +161,11 @@ def _required_markers(contract: dict, profile: dict) -> list[str]:
     markers.extend(_declared_section_markers(contract))
     if contract.get("faq"):
         markers.append('data-monl-section="faq"')
+    # BRIQUE 29 : le pied de page est le dernier endroit où un site produit se
+    # dénonce comme une maquette — deux mots gris, aucun lien, aucune mention.
+    # Il était exigé NULLE PART : le plancher du point 140 comptait quatre
+    # sections et s'arrêtait au-dessus de lui.
+    markers.append('data-monl-section="footer"')
     return list(dict.fromkeys(markers))
 
 
@@ -393,6 +398,11 @@ def render_design_system(contract: dict, generate_images=False) -> str:
         "generic": "écran vide après le hero, grille uniforme, faux contenu, navigation sans issue claire",
     }[profile["kind"]]
     markers = "\n".join(f"- `{marker}`" for marker in _required_markers(contract, profile))
+    liens = "\n".join(
+        f"- **{lien['label']}** → `{lien['url']}`"
+        for lien in (contract.get("links") or [])
+    ) or ("- Aucun lien déclaré. Ne pas en inventer : une adresse de réseau "
+          "social devinée mène chez quelqu'un d'autre.")
     garanties = "\n".join(f"- {phrase}" for phrase in _guarantees(contract)) or (
         "- Aucune garantie dérivable du contrat : ne rien affirmer plutôt "
         "qu'inventer une preuve.")
@@ -530,6 +540,27 @@ contenu déclaré, jamais inventé.
 Une section de collection (`catalogue`, `workspace`) n'a PAS à contenir de
 données en dur : ses lignes viennent de l'API à l'exécution. Ce qu'elle doit
 porter, c'est son titre, sa zone de rendu et son état vide.
+
+## Pied de page — obligatoire, et vérifié
+
+Le pied de page porte `data-monl-section="footer"`. C'est le dernier endroit
+où un site se dénonce comme une maquette : deux mots gris, aucun lien, aucune
+mention. Il doit porter, au minimum :
+
+- **les liens déclarés ci-dessous, tous, avec leur adresse exacte** — leur
+  absence fait échouer la construction ;
+- une **navigation** vers les sections de la page (les mêmes ancres que le
+  menu principal) ;
+- l'**identité** de qui édite le site et l'année en cours ;
+- le **contact** s'il existe une adresse ou un téléphone déclarés.
+
+Ne JAMAIS inventer : pas de réseau social non déclaré, pas de mentions
+légales fictives, pas de « © 2026 Tous droits réservés » sur un nom
+d'entreprise qu'on aurait imaginé. Ce qui n'est pas déclaré n'existe pas.
+
+### Liens déclarés — à rendre tels quels
+
+{liens}
 
 ## Garanties réellement vérifiables — matière de la section de réassurance
 

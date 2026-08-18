@@ -1,4 +1,28 @@
-"""Fabrique des sections de test qui portent leur MATIÈRE (point 140)."""
+"""Aides partagées entre fichiers de tests.
+
+Deux choses y vivent : la fabrication de sections qui portent leur MATIÈRE
+(point 140), et la définition de ce qu'est une ressource distante — celle-ci
+était écrite deux fois, dans le test de l'accueil et dans celui de la
+console, et les deux ont divergé au premier élargissement.
+"""
+
+import re
+
+#: Une page servie en local doit fonctionner sans réseau. Mais « charger une
+#: ressource » et « pointer ailleurs » sont deux choses différentes, et la
+#: première version les confondait : elle interdisait TOUTE URL, donc aussi
+#: le lien vers le dépôt dans le pied de page. Un `<a href>` ne télécharge
+#: rien — la page reste entière hors ligne, seul le clic échoue, ce qui est
+#: le comportement attendu d'un lien sortant. Ce qui reste interdit, c'est ce
+#: que le NAVIGATEUR va chercher tout seul.
+RESSOURCE_DISTANTE = re.compile(
+    r"<link\b"                        # feuille de style, favicon, préchargement
+    r"|<script[^>]+\bsrc="            # script tiers
+    r"|@import"                       # CSS importée
+    r"|\bsrc\s*=\s*['\"]https?://"   # image, iframe, média distants
+    r"|\burl\(\s*['\"]?https?://",    # police ou fond distants
+    re.IGNORECASE,
+)
 
 
 def section_avec_matiere(marker, regle=None):

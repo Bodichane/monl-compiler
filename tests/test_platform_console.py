@@ -1,7 +1,6 @@
 """Preuves HTTP de la console de plateforme et de sa frontière d'hôte."""
 
 import json
-import re
 import socket
 import threading
 import time
@@ -9,6 +8,7 @@ import time
 import pytest
 import requests
 import uvicorn
+from aide_sections import RESSOURCE_DISTANTE
 
 from monl_platform.app import create_app
 
@@ -134,7 +134,7 @@ def test_la_console_est_servie_sans_ressource_distante(running_platform):
     assert '<html lang="fr">' in response.text
     assert "Créer et lancer la construction" in response.text
     assert "prefers-reduced-motion" in response.text
-    assert not re.search(r"https?://|<link\b|<script[^>]+\bsrc=|@import", response.text, re.I)
+    assert not RESSOURCE_DISTANTE.search(response.text)
 
 
 def test_la_console_expose_le_catalogue_le_quota_et_l_etat_d_un_projet(running_platform):

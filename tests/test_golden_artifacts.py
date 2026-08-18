@@ -61,7 +61,13 @@ GOLDENS = {
     # scelle leur empreinte : app.py, schema.sql et manage.py restent
     # identiques à l'octet — la preuve que la correction porte sur ce que le
     # backend DÉCLARE, pas sur ce qu'il fait.
-    "frontend_contract.json": "8c2a7691b2a408c6c5624b65a7e70e77584812a4ac475f2e2d3ae38a8cd0e919",
+    # BRIQUE 29 : le contrat porte `links`, la liste des adresses SORTANTES
+    # declarees dans `landing`. Elle est vide ici, et l'empreinte bouge quand
+    # meme : la CLE existe desormais toujours, comme `faq` en son temps. Seuls
+    # le contrat, le brief et monl.json changent — app.py, schema.sql et
+    # manage.py restent identiques a l'octet, la preuve que la brique porte
+    # sur ce que le frontend doit DESSINER et pas sur ce que le backend fait.
+    "frontend_contract.json": "7ae58f38c5ac1d6baa2769cd40a20d9baf0b6d208884db0e55df365515466079",
     # Le brief gagne le plancher de couverture des workflows, l'interdiction
     # explicite des fichiers image locaux hors manifeste et l'alternative SVG
     # inline, puis la carte exécutable des marqueurs obligatoires : cette
@@ -75,7 +81,9 @@ GOLDENS = {
     # 0.9.0-beta.7 : seul monl.json bouge, parce qu'il SCELLE la version du
     # compilateur. Tous les autres artefacts restent identiques a l'octet —
     # la preuve que la montee de version ne change rien a ce qui est genere.
-    "monl.json": "681541714a669108ef7f29b05628cb9fba715228837422bb570cf1f13d141c77",
+    # BRIQUE 29 : monl.json scelle l'empreinte du contrat, qui vient de gagner
+    # sa cle `links` — il bouge donc avec lui, et pour cette seule raison.
+    "monl.json": "c99e0eb93a7892eb3192538641aeef8fefb486238811c636e98dec0d6c25d048",
 }
 
 

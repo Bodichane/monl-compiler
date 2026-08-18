@@ -370,6 +370,22 @@ textarea.spec { min-height: 15rem; font-size: .82rem; line-height: 1.65; }
     transition-duration: .01ms !important;
   }
 }
+
+/* ────────────────────────────────────────────────────────── pied de page ── */
+/* La console n'en avait AUCUN. Un outil qui ne dit nulle part d'où il vient,
+   sous quelle licence il tourne, ni où signaler un défaut, laisse l'usager
+   sans issue au moment précis où il en cherche une. */
+.foot {
+  border-top: 1px solid var(--line); margin-top: var(--s7);
+  padding: var(--s5) clamp(var(--s4), 4vw, var(--s6));
+  display: flex; flex-wrap: wrap; gap: var(--s3) var(--s5);
+  justify-content: space-between; align-items: center;
+  color: var(--fg-3); font-size: .78rem; background: var(--bg-1);
+}
+.foot nav { display: flex; flex-wrap: wrap; gap: var(--s4); }
+.foot a { color: var(--fg-2); }
+.foot a:hover { color: var(--clay); }
+.foot .ext::after { content: " \2197"; color: var(--fg-3); }
 </style>
 </head>
 <body>
@@ -442,6 +458,17 @@ textarea.spec { min-height: 15rem; font-size: .82rem; line-height: 1.65; }
     </div>
   </section>
 </main>
+
+<footer class="foot">
+  <span>monl 0.9.0-beta.7 — le compilateur tourne aussi chez vous.</span>
+  <nav>
+    <a href="/">Présentation du produit</a>
+    <a href="/telechargements">Versions publiées</a>
+    <a class="ext" href="https://github.com/Bodichane/monl-compiler">Dépôt</a>
+    <a class="ext" href="https://github.com/Bodichane/monl-compiler/issues">Signaler un défaut</a>
+    <a class="ext" href="https://fsl.software/">Licence FSL-1.1</a>
+  </nav>
+</footer>
 
 <script>
 (function () {
