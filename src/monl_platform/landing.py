@@ -117,7 +117,7 @@ body::before {
   font-size: .8rem; font-weight: 700;
 }
 .logo b { font-weight: 700; letter-spacing: -.01em; }
-.logo span { color: var(--fg-3); font-weight: 400; }
+.logo span:not(.logo-mark) { color: var(--fg-3); font-weight: 400; }
 .nav-links { display: flex; align-items: center; gap: var(--s5); }
 .nav-links a { color: var(--fg-2); font-size: .84rem; }
 .nav-links a:hover { color: var(--fg); }
@@ -388,7 +388,7 @@ footer { padding: var(--s6) 0 var(--s7); border-top: 1px solid var(--line); }
 
 <header class="nav">
   <div class="wrap nav-in">
-    <a class="logo" href="#top"><span class="logo-mark">m</span><b>monl</b><span>/ compilateur</span></a>
+    <a class="logo" href="#top"><span class="logo-mark">m</span><b>monl</b><span>/ compiler</span></a>
     <nav class="nav-links">
       <a href="#quoi">Ce que c'est</a>
       <a href="#comment">Comment</a>

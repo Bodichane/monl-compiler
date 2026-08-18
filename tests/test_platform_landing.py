@@ -110,3 +110,23 @@ def test_la_console_n_est_plus_a_la_racine(platform):
     assert racine != console
     assert "monl / console" in console
     assert "monl / console" not in racine
+
+
+def test_la_pastille_de_marque_garde_sa_couleur_d_encre():
+    """Deux fois le même défaut : une règle LARGE écrase une règle précise.
+
+    `.logo span` (0,1,1) l'emporte sur `.logo-mark` (0,1,0) et repeignait le
+    « m » en gris sourd sur argile — 1,35:1, c'est-à-dire invisible. Le même
+    piège avait déjà mangé le bouton d'appel à l'action à l'autre bout de la
+    barre. Ce qu'on corrige n'est pas la règle précise qu'il faudrait
+    renforcer, c'est la règle large qu'il faut restreindre : on interdit donc
+    le sélecteur fourre-tout, pas une couleur particulière.
+    """
+    assert ".logo span {" not in LANDING_HTML
+    assert ".logo span:not(.logo-mark)" in LANDING_HTML
+
+
+def test_la_marque_se_lit_monl_compiler(platform):
+    reponse = requests.get(platform, timeout=10)
+
+    assert "<b>monl</b><span>/ compiler</span>" in reponse.text
