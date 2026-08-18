@@ -183,17 +183,17 @@ def _declared_section_markers(contract: dict) -> list[str]:
 
 def _generated_image_block_markers(contract: dict, profile: dict,
                                    generated: list[dict]) -> list[str | None]:
-    """Associe chaque image planifiée à un bloc déjà déclaré.
+    """Retourne une précision de section, quand le rôle peut en recevoir une.
 
-    Le manifeste porte séparément les rôles des images et les marqueurs de
-    sections qui doivent être uniques. Le brief doit faire le rapprochement
-    explicitement : le premier visuel est le hero ; le visuel secondaire va
-    dans la première section déclarée, sinon dans le pattern éditorial, la
-    preuve ou l'appel final déjà requis. Aucun nouveau marqueur n'est inventé.
+    Le rôle du manifeste est l'appariement obligatoire. Un marqueur ne sert
+    qu'à préciser où placer le visuel lorsque le contrat offre déjà un bloc
+    correspondant ; son absence ne doit donc jamais supprimer la consigne.
+    Les rôles, et non la position dans la liste, choisissent les candidats.
     """
     required = _required_markers(contract, profile)
+    required_set = set(required)
     hero_marker = 'data-monl-section="hero"'
-    unique_sections = [
+    declared_sections = [
         marker for marker in _declared_section_markers(contract)
         if marker != hero_marker
     ]
@@ -201,24 +201,24 @@ def _generated_image_block_markers(contract: dict, profile: dict,
         f'data-monl-section="{name}"'
         for name in ("editorial", "trust", "closing-cta")
     ]
-    candidates = unique_sections + [
-        marker for marker in fallback_sections
-        if marker in required and marker not in unique_sections
-    ] + [
-        marker for marker in required
-        if marker.startswith('data-monl-section="')
-        and marker not in {hero_marker, *unique_sections}
-        and marker not in fallback_sections
-    ]
-
     placements = []
     used = set()
-    for index, _item in enumerate(generated):
-        if index == 0 and hero_marker in required:
-            marker = hero_marker
+    for item in generated:
+        role = str(item.get("role") or "").casefold()
+        if "bandeau principal" in role:
+            candidates = [hero_marker]
+        elif "vignette secondaire" in role:
+            candidates = declared_sections + fallback_sections + [
+                marker for marker in required
+                if marker.startswith('data-monl-section="')
+                and marker != hero_marker
+                and marker not in fallback_sections
+                and marker not in declared_sections
+            ]
         else:
-            marker = next((candidate for candidate in candidates
-                           if candidate not in used), None)
+            candidates = []
+        marker = next((candidate for candidate in candidates
+                       if candidate in required_set and candidate not in used), None)
         placements.append(marker)
         if marker:
             used.add(marker)
@@ -306,12 +306,9 @@ def render_design_system(contract: dict, generate_images=False) -> str:
         contract, profile, generate_images=generate_images).get("generated_assets") or []
     block_markers = _generated_image_block_markers(contract, profile, generated)
     generated_block = "\n".join(
-        f"- `{item['path']}` — {item['role']} — bloc HTML exact : "
-        f"`{marker}` (à rendre une seule fois)"
-        if marker else
-        f"- `{item['path']}` — {item['role']} — bloc HTML distinct à choisir "
-        "parmi les marqueurs de section obligatoires du manifeste (à rendre "
-        "une seule fois)"
+        f"- `{item['path']}` — rôle : {item['role']} — emploi unique "
+        "obligatoire : rendre ce fichier une seule fois"
+        + (f" — précision : bloc HTML exact : `{marker}`" if marker else "")
         for item, marker in zip(generated, block_markers, strict=True)
     ) or "- Aucun fichier graphique supplémentaire planifié ; ne pas inventer de chemin d'image."
     anti_patterns = {

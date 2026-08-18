@@ -40,6 +40,14 @@ landing
     section "Notre matière": "Chaque pièce naît d'un geste lent et d'une terre locale."
 """
 
+SPEC_SANS_SECTIONS = SPEC.replace(
+    "    description: Text\n",
+    "    description: Text\n    price: Money\n    image: Image\n",
+).replace(
+    '    section "Notre matière": "Chaque pièce naît d\'un geste lent et d\'une terre locale."\n',
+    "",
+)
+
 JPEG_BYTES = b"\xff\xd8\xff\xe0monl-test-image\xff\xd9"
 VERBOSE_BRIEF = (
     "Boutique de céramique artisanale, ton éditorial sobre — utiliser "
@@ -165,6 +173,15 @@ def _project(tmp_path):
     return project
 
 
+def _project_sans_sections(tmp_path):
+    project = tmp_path / "projet-sans-sections"
+    project.mkdir()
+    spec = project / "spec.ml"
+    spec.write_text(SPEC_SANS_SECTIONS, encoding="utf-8")
+    compile_project(str(spec), str(project))
+    return project
+
+
 def _verbose_project(tmp_path):
     project = tmp_path / "projet-bavard"
     project.mkdir()
@@ -202,20 +219,67 @@ def test_option_explicite_produit_des_octets_dans_assets_et_les_reference(tmp_pa
     assert not any((project / "frontend" / path).exists() for path in paths)
     assert all(path in text.prompts[0] for path in paths)
     assert (
-        "`media/generated/hero.jpg` — bandeau principal du premier écran — "
-        "bloc HTML exact : `data-monl-section=\"hero\"` (à rendre une seule fois)"
+        "`media/generated/hero.jpg` — rôle : bandeau principal du premier écran — "
+        "emploi unique obligatoire : rendre ce fichier une seule fois — "
+        "précision : bloc HTML exact : `data-monl-section=\"hero\"`"
         in text.prompts[0]
     )
     assert (
-        "`media/generated/editorial.jpg` — vignette secondaire pour le récit ou la "
-        "preuve — bloc HTML exact : `data-monl-section=\"notre-matiere\"` "
-        "(à rendre une seule fois)"
+        "`media/generated/editorial.jpg` — rôle : vignette secondaire pour le récit ou la "
+        "preuve — emploi unique obligatoire : rendre ce fichier une seule fois — "
+        "précision : bloc HTML exact : `data-monl-section=\"notre-matiere\"`"
         in text.prompts[0]
     )
     # Le prompt image est désormais une composition dédiée ; il ne recopie
     # plus le bloc de consignes destiné au modèle de code.
     assert all("Sujet :" in prompt for prompt in images.prompts)
     assert all("Chaque pièce naît" in prompt for prompt in images.prompts)
+
+
+def test_appariement_par_role_et_emploi_unique_sans_section(tmp_path):
+    project = _project_sans_sections(tmp_path)
+    images = FakeImageProvider()
+    text = FakeTextProvider(project)
+
+    ok, errors = generate_and_verify(
+        str(project), text, image_provider=images, generate_images=True,
+        say=lambda _message: None,
+    )
+
+    assert ok, errors
+    manifest = _manifest(project)
+    assert manifest["unique_section_markers"]["index.html"] == []
+    generated = manifest["generated_assets"]
+    assert len(generated) == 2
+    prompt_lines = text.prompts[0].splitlines()
+    for item in generated:
+        line = next(line for line in prompt_lines if item["path"] in line)
+        assert line.startswith(
+            f"- `{item['path']}` — rôle : {item['role']} — emploi unique "
+            "obligatoire : rendre ce fichier une seule fois"
+        )
+        assert line.count(item["path"]) == 1
+    assert "bloc HTML distinct à choisir" not in text.prompts[0]
+
+
+def test_la_verification_refuse_la_reutilisation_meme_sans_section(tmp_path):
+    project = _project_sans_sections(tmp_path)
+    images = FakeImageProvider()
+    text = ReusingTextProvider(project)
+
+    ok, errors = generate_and_verify(
+        str(project), text, image_provider=images, generate_images=True,
+        say=lambda _message: None,
+    )
+
+    assert not ok
+    assert len([error for error in errors
+                if "asset généré réutilisé" in error]) == 2
+    assert all(
+        f"`{item['path']}` — rôle : {item['role']} — emploi unique obligatoire"
+        in text.prompts[0]
+        for item in _manifest(project)["generated_assets"]
+    )
 
 
 def test_la_reutilisation_est_denommee_une_fois_par_asset(tmp_path):
