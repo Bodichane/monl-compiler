@@ -40,12 +40,40 @@ workflow Backoffice for Admin
     Delete Product
 """
 
+SPEC_VISUELLE = """app BoutiqueVisuelle
+
+entity Product
+    title: String
+    price: Money
+    image: Image
+
+actor Visitor
+
+rule Product.Read public
+
+workflow Catalogue for Visitor
+    Read Product
+
+landing
+    brief: "Une boutique visuelle qui présente ses pièces avec soin."
+    section "Notre matière": "Chaque pièce naît d'un geste lent et précis."
+"""
+
 
 def _project(tmp_path):
     project = tmp_path / "boutique"
     project.mkdir()
     spec = project / "spec.ml"
     spec.write_text(SPEC, encoding="utf-8")
+    contract = compile_project(str(spec), str(project))
+    return project, contract
+
+
+def _visual_project(tmp_path):
+    project = tmp_path / "boutique-visuelle"
+    project.mkdir()
+    spec = project / "spec.ml"
+    spec.write_text(SPEC_VISUELLE, encoding="utf-8")
     contract = compile_project(str(spec), str(project))
     return project, contract
 
@@ -196,7 +224,8 @@ def test_le_brief_enonce_le_plancher_des_workflows(tmp_path):
     assert "compte les routes appelées" in brief
 
 
-def test_le_brief_impose_de_livrer_les_ressources_locales_referencees(tmp_path):
+def test_le_brief_interdit_les_images_locales_hors_manifeste_et_nomme_svg_en_ligne(
+        tmp_path):
     project, _contract = _project(tmp_path)
     # La consigne est de la PROSE : elle se replie au fil des relectures, et un
     # test qui exige une coupure de ligne précise casserait à chaque
@@ -205,9 +234,36 @@ def test_le_brief_impose_de_livrer_les_ressources_locales_referencees(tmp_path):
     brief = " ".join(
         (project / "FRONTEND_PROMPT.md").read_text(encoding="utf-8").split())
 
+    assert "INTERDICTION EXPLICITE" in brief
     assert (
-        "OBLIGATION DE LIVRAISON : toute ressource locale référencée doit être "
-        "livrée dans cette construction, sous le chemin exact référencé"
+        "aucun fichier image local qui n'est pas listé par `ASSET_MANIFEST.json`"
     ) in brief
-    assert "chaque `.svg` planifié par le manifeste" in brief
-    assert "écrit EN LIGNE plutôt que référencé" in brief
+    assert "SVG EN LIGNE dans le HTML" in brief
+    assert "OBLIGATION DE LIVRAISON" not in brief
+    assert "generated_assets: []" not in brief
+
+
+def test_le_brief_enumere_les_marqueurs_avec_fichier_et_bloc(tmp_path):
+    project, _contract = _visual_project(tmp_path)
+    brief = (project / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    manifest_lines = (project / "ASSET_MANIFEST.json").read_text(
+        encoding="utf-8").splitlines()
+    manifest = json.loads("\n".join(manifest_lines[1:]))
+    markers = manifest["required_markers"]["index.html"]
+
+    assert markers
+    assert 'data-monl-section="panier"' in markers
+    assert 'data-monl-media="product"' in markers
+    assert "Marqueurs visuels obligatoires — fichier et bloc exacts" in brief
+    for marker in markers:
+        assert (
+            f"Fichier exact : `frontend/index.html` — marqueur exact : `{marker}` — "
+            "bloc exact :"
+        ) in brief
+
+
+def test_un_projet_sans_marqueur_ne_declenche_pas_une_liste_visuelle_vide(tmp_path):
+    project, _contract = _project(tmp_path)
+    brief = (project / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+
+    assert "Marqueurs visuels obligatoires — fichier et bloc exacts" not in brief

@@ -62,12 +62,12 @@ GOLDENS = {
     # identiques à l'octet — la preuve que la correction porte sur ce que le
     # backend DÉCLARE, pas sur ce qu'il fait.
     "frontend_contract.json": "8c2a7691b2a408c6c5624b65a7e70e77584812a4ac475f2e2d3ae38a8cd0e919",
-    # Le brief gagne le plancher de couverture des workflows, l'obligation de
-    # livrer toute ressource locale référencée, puis l'obligation d'emploi
-    # unique des images matricielles quand le manifeste en déclare : cette
+    # Le brief gagne le plancher de couverture des workflows, l'interdiction
+    # explicite des fichiers image locaux hors manifeste et l'alternative SVG
+    # inline, puis la carte exécutable des marqueurs obligatoires : cette
     # empreinte change volontairement avec ces règles, tandis que les artefacts
     # backend restent inchangés à l'octet.
-    "FRONTEND_PROMPT.md": "9715036d20e007fc90a2b44b8268d3c4b71c66dda725b98aa05541456a075e35",
+    "FRONTEND_PROMPT.md": "062fa3c243c3a3da3d2133c2a5c45db9d5653d14626ae836ffe51131915685d3",
     "CLAUDE.md": "ebf07f5ca26ffa6bf8571ca6e0379afc31978b600b2cecd2ffe330719495183f",
     # Revue A2 : manage.py NOMME le remède au lieu de laisser filer une
     # trace quand la base attend une migration. app.py ne bouge PAS —

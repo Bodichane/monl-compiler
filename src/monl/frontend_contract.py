@@ -28,6 +28,7 @@ import os
 
 from .artifacts import copy_preserved_files, publish_files, staging_directory
 from .design_skills import render_skill_block, select_design_skills
+from .design_system import build_asset_manifest, infer_design_profile
 
 # Les noms des colonnes de suivi du paiement viennent de la couche qui les
 # crée — les réécrire ici en dur ferait une cinquième copie à faire dériver
@@ -1236,6 +1237,50 @@ def _assets_contract(assets):
     return contrat
 
 
+def _marker_block_description(marker):
+    """Décrit le bloc HTML qui porte un marqueur du manifeste."""
+    if marker.startswith('data-monl-media="'):
+        entity = marker.split('"', 2)[1]
+        return f"la zone qui rend les images de l'entité `{entity}`"
+    if not marker.startswith('data-monl-section="'):
+        return "l'élément HTML du bloc visuel correspondant"
+    section = marker.split('"', 2)[1]
+    descriptions = {
+        "hero": "le bloc hero / bandeau principal",
+        "catalogue": "le bloc catalogue qui rend la liste des produits",
+        "panier": "le bloc panier ou récapitulatif de commande",
+        "workspace": "le bloc espace de travail du rôle concerné",
+        "faq": "le bloc FAQ structuré",
+        "editorial": "le bloc du récit éditorial",
+        "trust": "le bloc de preuve ou de réassurance",
+        "closing-cta": "le bloc d'appel à l'action final",
+    }
+    return descriptions.get(section, f"le bloc HTML de la section `{section}`")
+
+
+def _required_markers_block(contract):
+    """Rend dans le brief la carte exécutable des marqueurs obligatoires."""
+    manifest = build_asset_manifest(contract, infer_design_profile(contract))
+    markers = (manifest.get("required_markers") or {}).get("index.html") or []
+    if not markers:
+        return ""
+    lines = "\n".join(
+        f"- Fichier exact : `frontend/index.html` — marqueur exact : `{marker}` — "
+        f"bloc exact : {_marker_block_description(marker)}."
+        for marker in markers
+    )
+    return f"""
+## Marqueurs visuels obligatoires — fichier et bloc exacts
+
+Le manifeste exige les marqueurs suivants. Écris chacun dans le fichier et
+sur le bloc indiqués ci-dessous ; le texte du marqueur doit être recopié
+exactement, guillemets compris. Ne le remplace pas par une classe CSS ou par
+un commentaire.
+
+{lines}
+"""
+
+
 def _render_prompt(contract):
     routes_lines = []
     skills_block = render_skill_block(contract.get("design_skills", ["monl-showcase"]))
@@ -1498,6 +1543,8 @@ contrat.
     auth_feature_block = ("\n" + "\n".join(auth_feature_lines)
                           if auth_feature_lines else "")
 
+    markers_block = _required_markers_block(contract)
+
     return f"""# Brief frontend — {contract['app']} (généré par monl)
 {brief_line}
 Vous êtes une IA spécialisée en interfaces. Générez le frontend de
@@ -1519,16 +1566,21 @@ données, les permissions et les états métier.
   comme point d'entrée (HTML/CSS/JS statiques, aucun build requis).
 - Frontend AUTONOME : aucune librairie CDN, aucun script externe — tout le
   JS/CSS vit dans `frontend/` (c'est ce qui rend le smoke test possible).
+- Visuels locaux — INTERDICTION EXPLICITE : ne crée, n'écris ni ne référence
+  aucun fichier image local qui n'est pas listé par `ASSET_MANIFEST.json`.
+  Cette interdiction vaut pour les chemins HTML (`<img src>`), CSS
+  (`url(...)`, `background-image`) et JavaScript, y compris dans
+  `frontend/` et dans tout dossier d'assets. Pour tout visuel qui n'est pas
+  listé par le manifeste, l'alternative autorisée et nommée est d'écrire le
+  **SVG EN LIGNE dans le HTML**, dans le bloc qui l'utilise. N'invente donc
+  jamais un chemin comme `product/default.svg`, `hero.svg` ou `hero.jpg` ;
+  vérifie d'abord la liste du manifeste.
 - Iconographie : aucune librairie d'icônes (Font Awesome, Material, Lucide,
   Bootstrap Icons…) n'est atteignable, puisque aucun CDN ne l'est — et une
   police d'icônes distante ne le serait pas davantage. Ce qui FONCTIONNE et est
-  servi : le SVG écrit EN LIGNE dans le HTML, et les fichiers `.svg` déposés
-  dans `frontend/` (extension en liste blanche). OBLIGATION DE LIVRAISON :
-  toute ressource locale référencée doit être livrée dans cette construction,
-  sous le chemin exact référencé ; en génération découpée, chaque `.svg`
-  planifié par le manifeste est une étape de génération dédiée, et tout autre
-  SVG doit être écrit EN LIGNE plutôt que référencé s'il ne peut pas être
-  livré. monl ne dit pas s'il faut des
+  servi : le SVG écrit EN LIGNE dans le HTML, et les fichiers `.svg` explicitement
+  listés par le manifeste. Les fichiers graphiques non listés restent interdits ;
+  monl ne dit pas s'il faut des
   icônes, ni lesquelles, ni dans quel style — il dit seulement par quel moyen
   elles sont possibles, parce que la règle ci-dessus, lue seule, laisse croire
   qu'elles ne le sont pas.
@@ -1563,7 +1615,7 @@ données, les permissions et les états métier.
 - Ne pas modifier `app.py`, `schema.sql`, la spec `.ml` ni les autres
   artefacts monl.{paiement_block}
 
-{sections_block}{faq_block}
+{sections_block}{faq_block}{markers_block}
 ## Entités
 {chr(10).join(entities_lines)}
 
