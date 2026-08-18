@@ -130,3 +130,47 @@ def test_la_marque_se_lit_monl_compiler(platform):
     reponse = requests.get(platform, timeout=10)
 
     assert "<b>monl</b><span>/ compiler</span>" in reponse.text
+
+
+def test_aucune_couleur_n_est_ecrite_hors_du_theme():
+    """Une couleur en dur échappe au thème, et le thème seul se déplace.
+
+    La barre de la console portait `rgba(16, 14, 12, .9)` : quand la palette
+    est passée du sombre au papier, tout a suivi les variables SAUF elle — la
+    barre est restée noire pendant que son texte, lui, devenait noir aussi.
+    Sombre sur sombre, illisible, et invisible à une recherche de couleurs
+    hexadécimales. Les ombres portées restent permises : une ombre n'est pas
+    une couleur de surface, elle assombrit ce qu'il y a dessous quel qu'il
+    soit.
+    """
+    from monl_platform.console import CONSOLE_HTML
+
+    for nom, page in (("accueil", LANDING_HTML), ("console", CONSOLE_HTML)):
+        # Découpage par DÉCLARATION et non par ligne : une ombre portée tient
+        # volontiers sur deux lignes, et la juger sur la seconde seule
+        # accuserait un code correct.
+        for declaration in page.split(";"):
+            if "rgba(" not in declaration and "rgb(" not in declaration:
+                continue
+            propre = " ".join(declaration.split())
+            assert "shadow" in propre.lower() or "--" in propre, (
+                f"couleur écrite hors du thème dans la page {nom} : {propre[-90:]}"
+            )
+
+
+def test_la_demonstration_montre_de_vraies_sorties_de_compilation(platform):
+    """Ce qui est montré doit venir du compilateur, pas d'une main.
+
+    Une page produit qui invente ses propres chiffres serait exactement ce que
+    monl interdit aux sites qu'il produit — et ce que la barrière de substance
+    refuse depuis le point 140.
+    """
+    page = requests.get(platform, timeout=10).text
+
+    assert "var DEMO = " in page
+    # Les trois modèles réellement compilés pour cette page.
+    for modele in ("Boutique en ligne", "Blog", "Réservation de rendez-vous"):
+        assert modele in page
+    # Une sortie de compilation, pas une capture d'écran : les routes
+    # apparaissent avec leur méthode HTTP.
+    assert '"POST   /order"' in page or "POST   /order" in page

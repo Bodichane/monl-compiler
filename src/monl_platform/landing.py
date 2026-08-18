@@ -19,725 +19,760 @@ LANDING_HTML = r'''<!doctype html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
+<title>monl — compilateur</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="dark">
-<title>monl — le compilateur d'intention logicielle</title>
-<meta name="description" content="Un dialogue guidé, sans IA, produit une spécification. Le compilateur en tire un backend FastAPI scellé, son schéma SQL et le contrat que l'interface doit respecter.">
+<meta name="description" content="monl compile une spécification déclarative en un backend FastAPI complet et scellé. Dialogue guidé, aucune IA, aucun appel réseau.">
 <style>
-/* ════════════════════════════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════════════════════════
    monl — page de présentation.
-   Registre assumé : un terminal. Le produit EST une ligne de commande,
-   la page ne prétend donc pas être autre chose. Un seul thème, sombre,
-   peint explicitement — pas de bascule claire à moitié tenue.
-   Aucune ressource distante : ni police web, ni image, ni script tiers.
-   Tout ce qui bouge s'arrête sous prefers-reduced-motion.
-   ════════════════════════════════════════════════════════════════════ */
+
+   Ce qui est emprunté aux bonnes pages produit techniques n'est pas une
+   apparence, c'est une MÉTHODE : on montre le produit qui tourne, avec de
+   vraies entrées à gauche et de vraies sorties à droite, avant de demander
+   quoi que ce soit. Le contenu de la démonstration est produit par le VRAI
+   compilateur (voir batir_landing.py) — une démonstration inventée serait
+   exactement ce que monl interdit aux sites qu'il produit.
+
+   Deux argiles, et la distinction n'est pas cosmétique :
+     --clay      #d97757  →  3,12:1 sur blanc. GROS TEXTE et DÉCOR seulement
+                             (AA grand texte demande 3:1, c'est tenu).
+     --clay-ink  #b8542f  →  4,83:1 sur blanc. Petit texte, liens, et fond
+                             de bouton sous du blanc.
+   Confondre les deux rend un bouton illisible : c'est le défaut déjà corrigé
+   deux fois sur la version sombre de cette page.
+   ══════════════════════════════════════════════════════════════════════════ */
+
 :root {
-  --bg:        #100e0c;
-  --bg-1:      #17140f;
-  --bg-2:      #1e1a15;
-  --bg-3:      #262119;
-  --fg:        #ece6dd;
-  --fg-2:      #a89f93;
-  --fg-3:      #847a6d;   /* 4,57:1 sur le fond — AA tenu, y compris pour les mentions */
-  --line:      #2c2620;
-  --line-2:    #3d352c;
+  --paper:   #ffffff;
+  --paper-2: #faf9f7;
+  --paper-3: #f2efec;
+  --ink:     #1c1917;  /* 17,49:1 */
+  --ink-2:   #57534e;  /*  7,63:1 */
+  --ink-3:   #78716c;  /*  4,80:1 — le plus clair encore lisible */
+  --rule:    #e7e3df;
+  --rule-2:  #d6d0ca;
+  --clay:     #d97757;
+  --clay-ink: #b8542f;
+  --wash:     #fdf5f1;
 
-  --clay:      #d97757;
-  --clay-hi:   #e89275;
-  --clay-dim:  #3a241a;
-  --green:     #74c187;
-  --green-dim: #16301d;
-  --blue:      #7fa8dd;
-  --amber:     #d9a441;
-  --red:       #e0736f;
-
-  --s1: .25rem; --s2: .5rem;  --s3: .75rem; --s4: 1rem;
-  --s5: 1.5rem; --s6: 2.5rem; --s7: 4rem;   --s8: 6rem;
-  --r1: .3rem;  --r2: .55rem; --r3: .9rem;
-
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+          Helvetica, Arial, "Liberation Sans", sans-serif;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
-          "DejaVu Sans Mono", "Liberation Mono", monospace;
+          "Liberation Mono", monospace;
 
-  --page: min(1080px, calc(100% - 2.5rem));
+  --page: 1120px;
+  --s1: .25rem; --s2: .5rem;  --s3: .75rem; --s4: 1rem;
+  --s5: 1.5rem; --s6: 2.5rem; --s7: 4rem;  --s8: 6rem;
+  --r1: 6px; --r2: 10px; --r3: 14px;
 }
 
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
+html { -webkit-text-size-adjust: 100%; }
 body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--fg);
-  font: 400 15px/1.65 var(--mono);
+  margin: 0; background: var(--paper); color: var(--ink);
+  font-family: var(--sans); font-size: 16px; line-height: 1.6;
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
 }
-a { color: var(--clay); text-decoration: none; }
-a:hover { color: var(--clay-hi); }
-:where(a, button):focus-visible {
-  outline: 2px solid var(--clay);
-  outline-offset: 3px;
-  border-radius: var(--r1);
-}
-h1, h2, h3, p, ul, ol { margin: 0; }
-ul { padding: 0; list-style: none; }
-code, pre { font-family: var(--mono); }
+a { color: inherit; text-decoration: none; }
+h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -.022em; }
+p, ul { margin: 0; }
+:focus-visible { outline: 2px solid var(--clay-ink); outline-offset: 3px; border-radius: 3px; }
 
-/* Halo d'ambiance : une seule source, très diffuse, jamais animée en
-   continu — un fond qui bouge tout le temps fatigue et coûte du GPU. */
-body::before {
-  content: "";
-  position: fixed;
-  inset: -30vh -10vw auto;
-  height: 70vh;
-  background: radial-gradient(60% 60% at 50% 0%,
-    rgba(217, 119, 87, .13), transparent 70%);
-  pointer-events: none;
-  z-index: 0;
+.wrap { width: min(var(--page), 100% - 3rem); margin-inline: auto; }
+.tag {
+  font-family: var(--mono); font-size: .68rem; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--ink-3);
 }
-.wrap { position: relative; z-index: 1; width: var(--page); margin-inline: auto; }
+.tag b { color: var(--clay-ink); font-weight: 600; }
+.tag.file { text-transform: none; letter-spacing: .02em; }
 
-/* ───────────────────────────────────────────────────────── navigation ── */
-.nav {
-  position: sticky; top: 0; z-index: 20;
-  background: rgba(16, 14, 12, .82);
-  border-bottom: 1px solid var(--line);
-  backdrop-filter: blur(10px);
+/* ────────────────────────────────────────────────────────── navigation ── */
+.topline {
+  background: var(--ink); color: #f5f5f4; text-align: center;
+  font-size: .82rem; padding: var(--s2) var(--s4);
 }
-.nav-in {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: var(--s4); min-height: 3.4rem; padding-block: var(--s2);
-}
-.logo { display: inline-flex; align-items: center; gap: var(--s2); color: var(--fg); font-weight: 700; }
+.topline a { color: var(--clay); text-decoration: underline; text-underline-offset: 2px; }
+nav { border-bottom: 1px solid var(--rule); background: var(--paper);
+      position: sticky; top: 0; z-index: 20; }
+.nav-in { display: flex; align-items: center; justify-content: space-between;
+          gap: var(--s4); min-height: 3.5rem; }
+.logo { display: inline-flex; align-items: center; gap: var(--s2); font-weight: 600; }
 .logo-mark {
-  display: grid; place-items: center;
-  width: 1.6rem; height: 1.6rem;
-  border-radius: var(--r1);
-  background: var(--clay); color: #1c0d05;
-  font-size: .8rem; font-weight: 700;
+  display: grid; place-items: center; width: 1.5rem; height: 1.5rem;
+  border-radius: var(--r1); background: var(--clay-ink); color: #fff;
+  font-family: var(--mono); font-size: .78rem; font-weight: 700;
 }
-.logo b { font-weight: 700; letter-spacing: -.01em; }
-.logo span:not(.logo-mark) { color: var(--fg-3); font-weight: 400; }
+/* `.logo span` sans exception repeindrait la pastille : c'est la règle LARGE
+   qu'on restreint, jamais la règle précise qu'on renforce. */
+.logo span:not(.logo-mark) { color: var(--ink-3); font-weight: 400; }
 .nav-links { display: flex; align-items: center; gap: var(--s5); }
-.nav-links a { color: var(--fg-2); font-size: .84rem; }
-.nav-links a:hover { color: var(--fg); }
-/* `.nav-links a` est plus spécifique que `.btn` : sans cette reprise, le
-   bouton d'appel à l'action sortait en gris sur argile — 2,1:1, illisible. */
-.nav-links a.btn { color: #1c0d05; }
-.nav-links a.btn:hover { color: #1c0d05; }
+.nav-links a { color: var(--ink-2); font-size: .88rem; }
+.nav-links a:hover { color: var(--ink); }
 
 .btn {
   display: inline-flex; align-items: center; gap: var(--s2);
-  padding: .5rem .9rem;
-  border: 1px solid var(--clay);
-  border-radius: var(--r1);
-  background: var(--clay); color: #1c0d05;
-  font: 600 .84rem/1 var(--mono);
-  white-space: nowrap;
-  cursor: pointer;
-  transition: background-color .16s ease, border-color .16s ease, transform .16s ease;
+  padding: .5rem .95rem; border-radius: var(--r1);
+  background: var(--clay-ink); color: #fff; border: 1px solid var(--clay-ink);
+  font: inherit; font-size: .87rem; font-weight: 500; cursor: pointer;
 }
-.btn:hover { background: var(--clay-hi); border-color: var(--clay-hi); color: #1c0d05; transform: translateY(-1px); }
-.btn.ghost { background: transparent; color: var(--fg); border-color: var(--line-2); }
-.btn.ghost:hover { background: var(--bg-2); border-color: var(--fg-3); color: var(--fg); transform: translateY(-1px); }
-.btn.lg { padding: .72rem 1.2rem; font-size: .92rem; }
+.btn:hover { background: #9c4526; border-color: #9c4526; }
+.nav-links a.btn, .nav-links a.btn:hover { color: #fff; }
+.btn.ghost { background: var(--paper); color: var(--ink); border-color: var(--rule-2); }
+.btn.ghost:hover { background: var(--paper-2); color: var(--ink); }
+.btn.lg { padding: .7rem 1.25rem; font-size: .95rem; }
 
-/* ────────────────────────────────────────────────────────────── héros ── */
-.hero { padding: var(--s8) 0 var(--s7); }
-.tag {
+/* ─────────────────────────────────────────────────────────────── héros ── */
+header { padding: var(--s7) 0 var(--s6); text-align: center; }
+.pill {
   display: inline-flex; align-items: center; gap: var(--s2);
-  margin-bottom: var(--s5);
-  padding: .3rem .7rem;
-  border: 1px solid var(--line-2);
-  border-radius: 99px;
-  background: var(--bg-2);
-  color: var(--fg-2);
-  font-size: .76rem;
+  padding: .3rem .85rem; border: 1px solid var(--rule-2); border-radius: 999px;
+  font-size: .8rem; color: var(--ink-2); background: var(--paper);
 }
-.tag i { color: var(--green); font-style: normal; }
+.pill em { font-style: normal; color: var(--clay-ink); font-weight: 600; }
 h1 {
-  max-width: 20ch;
-  font-size: clamp(2.1rem, 5.6vw, 3.6rem);
-  font-weight: 700; line-height: 1.08; letter-spacing: -.03em;
+  margin: var(--s5) auto var(--s4); max-width: 17ch;
+  font-size: clamp(2.3rem, 6vw, 3.9rem); line-height: 1.06;
+  letter-spacing: -.035em; font-weight: 600;
 }
-h1 em { color: var(--clay); font-style: normal; }
-.sub {
-  max-width: 62ch; margin-top: var(--s5);
-  color: var(--fg-2); font-size: 1.02rem; line-height: 1.7;
-}
-.sub b { color: var(--fg); font-weight: 600; }
-.hero-cta { display: flex; flex-wrap: wrap; gap: var(--s3); margin-top: var(--s6); }
-.hero-note { margin-top: var(--s4); color: var(--fg-3); font-size: .8rem; }
+/* L'argile vive est admissible ici : à cette taille et à ce gras, AA demande
+   3:1 et elle donne 3,12. Elle ne l'est nulle part ailleurs. */
+h1 em { font-style: normal; color: var(--clay); }
+.lede { max-width: 56ch; margin: 0 auto var(--s5); color: var(--ink-2); font-size: 1.05rem; }
+.lede b { color: var(--ink); font-weight: 600; }
+.cta { display: flex; gap: var(--s3); justify-content: center; flex-wrap: wrap; }
+.meta { margin-top: var(--s4); font-family: var(--mono); font-size: .74rem; color: var(--ink-3); }
 
-/* ─────────────────────────────────────────────────────────── terminal ── */
-.term {
-  margin-top: var(--s7);
-  border: 1px solid var(--line-2);
-  border-radius: var(--r3);
-  background: var(--bg-1);
-  box-shadow: 0 30px 80px -40px rgba(0, 0, 0, .9);
-  overflow: hidden;
+/* ═══════════════════════════════════════════════════ la démonstration ══ */
+/* Le cœur de la page : ce que vous écrivez à gauche, ce que le compilateur
+   en fait à droite. Les deux colonnes viennent d'une vraie compilation. */
+.demo { border: 1px solid var(--rule); border-radius: var(--r3); overflow: hidden;
+        background: var(--paper); box-shadow: 0 1px 2px rgba(28,25,23,.04),
+        0 16px 40px rgba(28,25,23,.06); text-align: left; }
+.demo-head {
+  display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap;
+  padding: var(--s3) var(--s4); border-bottom: 1px solid var(--rule);
+  background: var(--paper-2);
 }
-.term-bar {
+.tabs { display: flex; gap: var(--s1); flex-wrap: wrap; }
+.tab {
+  padding: .35rem .8rem; border-radius: var(--r1); border: 1px solid transparent;
+  background: transparent; color: var(--ink-2); font: inherit; font-size: .84rem;
+  cursor: pointer;
+}
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] {
+  background: var(--paper); border-color: var(--rule-2); color: var(--ink); font-weight: 500;
+}
+.demo-head .tag { margin-left: auto; }
+
+.demo-body { display: grid; grid-template-columns: 1fr 1fr; }
+.panel { min-width: 0; }
+.panel + .panel { border-left: 1px solid var(--rule); }
+.panel-head {
   display: flex; align-items: center; gap: var(--s3);
-  padding: .6rem var(--s4);
-  border-bottom: 1px solid var(--line);
-  background: var(--bg-2);
+  padding: .55rem var(--s4); border-bottom: 1px solid var(--rule);
+  background: var(--paper);
 }
-.dots { display: flex; gap: .35rem; }
-.dots i { width: .62rem; height: .62rem; border-radius: 50%; background: var(--line-2); }
-.dots i:nth-child(1) { background: #4a3430; }
-.dots i:nth-child(2) { background: #4a4130; }
-.dots i:nth-child(3) { background: #30462f; }
-.term-title { color: var(--fg-3); font-size: .78rem; }
-.term-body {
-  min-height: 22rem;
-  padding: var(--s5);
-  font-size: .86rem; line-height: 1.85;
-  white-space: pre-wrap; overflow-wrap: anywhere;
+.panel-head .tabs { margin-left: auto; }
+.panel-head .tab { padding: .2rem .55rem; font-size: .75rem; }
+pre, .out {
+  margin: 0; padding: var(--s4); font-family: var(--mono); font-size: .78rem;
+  line-height: 1.8; color: var(--ink-2); overflow: auto; height: 23rem;
 }
-.term-body .l { display: block; }
-.c-dim { color: var(--fg-3); }
-.c-fg  { color: var(--fg); }
-.c-q   { color: var(--blue); }
-.c-a   { color: var(--fg); }
-.c-ok  { color: var(--green); }
-.c-cl  { color: var(--clay); }
-.c-am  { color: var(--amber); }
-.caret {
-  display: inline-block; width: .55em; height: 1.05em;
-  vertical-align: text-bottom; background: var(--clay);
-  animation: blink 1.05s steps(1) infinite;
+.k { color: var(--clay-ink); font-weight: 500; }
+.t { color: #1d4ed8; }
+.c { color: var(--ink-3); }
+.out ul { list-style: none; padding: 0; }
+.out li { white-space: pre; }
+.out .m { color: var(--clay-ink); font-weight: 600; }
+.out .sys { color: var(--ink-3); }
+.demo-foot {
+  display: flex; align-items: center; gap: var(--s4); flex-wrap: wrap;
+  padding: var(--s3) var(--s4); border-top: 1px solid var(--rule);
+  background: var(--paper-2); font-size: .84rem; color: var(--ink-2);
 }
-@keyframes blink { 50% { opacity: 0; } }
+.demo-foot b { color: var(--ink); font-family: var(--mono); }
+.demo-foot .btn { margin-left: auto; }
 
-/* ──────────────────────────────────────────────────────────── sections ── */
-section { padding: var(--s8) 0; }
-.eyebrow {
-  display: block; margin-bottom: var(--s3);
-  color: var(--clay); font-size: .74rem; font-weight: 700; letter-spacing: .16em;
-  text-transform: uppercase;
-}
-h2 {
-  max-width: 24ch;
-  font-size: clamp(1.5rem, 3.4vw, 2.15rem);
-  font-weight: 700; line-height: 1.18; letter-spacing: -.02em;
-}
-.lede { max-width: 66ch; margin-top: var(--s4); color: var(--fg-2); line-height: 1.75; }
-.sep { height: 1px; background: linear-gradient(90deg, var(--line-2), transparent); }
+/* ────────────────────────────────────────────── rythme des sections ── */
+section { padding: var(--s8) 0; border-top: 1px solid var(--rule); }
+section.alt { background: var(--paper-2); }
+.chapter { display: flex; align-items: center; gap: var(--s3); margin-bottom: var(--s5); }
+.chapter i { width: 3px; height: 1rem; background: var(--clay); border-radius: 2px; }
+h2 { font-size: clamp(1.7rem, 3.3vw, 2.4rem); line-height: 1.14; max-width: 25ch;
+     margin-bottom: var(--s4); }
+h2 em { font-style: normal; color: var(--clay); }
+.intro { max-width: 60ch; color: var(--ink-2); margin-bottom: var(--s6); }
 
-.grid { display: grid; gap: var(--s4); margin-top: var(--s6); }
-.g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* verbes de la ligne de commande */
+.verbs { border: 1px solid var(--rule); border-radius: var(--r2); overflow: hidden;
+         background: var(--paper); }
+.verb { display: grid; grid-template-columns: 12rem 1fr; gap: var(--s4);
+        padding: var(--s4) var(--s5); border-bottom: 1px solid var(--rule); }
+.verb:last-child { border-bottom: 0; }
+.verb code { font-family: var(--mono); font-size: .85rem; color: var(--clay-ink);
+             background: none; border: 0; padding: 0; font-weight: 500; }
+.verb p { color: var(--ink-2); font-size: .93rem; }
+.verb p b { color: var(--ink); font-weight: 600; }
 
-.card {
-  padding: var(--s5);
-  border: 1px solid var(--line);
-  border-radius: var(--r2);
-  background: var(--bg-1);
-  transition: border-color .18s ease, transform .18s ease, background-color .18s ease;
-}
-.card:hover { border-color: var(--line-2); background: var(--bg-2); transform: translateY(-2px); }
-.card h3 { margin-bottom: var(--s2); font-size: .98rem; font-weight: 700; }
-.card p { color: var(--fg-2); font-size: .875rem; line-height: 1.7; }
-.card .k {
-  display: inline-block; margin-bottom: var(--s3);
-  padding: .18rem .5rem;
-  border-radius: var(--r1);
-  background: var(--clay-dim); color: var(--clay);
-  font-size: .72rem; font-weight: 700;
+code {
+  font-family: var(--mono); font-size: .86em; background: var(--paper-3);
+  border: 1px solid var(--rule); padding: .08em .34em; border-radius: 4px; color: var(--ink);
 }
 
-/* ───────────────────────────────────────────────────────────── pipeline ── */
-.pipe { display: grid; gap: var(--s2); margin-top: var(--s6); }
-.step {
-  display: grid;
-  grid-template-columns: 2.2rem 1fr;
-  gap: var(--s4);
-  padding: var(--s4) var(--s4) var(--s4) var(--s3);
-  border: 1px solid var(--line);
-  border-left: 2px solid var(--clay);
-  border-radius: var(--r2);
-  background: var(--bg-1);
-}
-.step .n {
-  display: grid; place-items: start center;
-  color: var(--clay); font-size: .8rem; font-weight: 700;
-  padding-top: .15rem;
-}
-.step h3 { font-size: .95rem; font-weight: 700; margin-bottom: var(--s1); }
-.step p { color: var(--fg-2); font-size: .875rem; line-height: 1.7; }
-.step p code { color: var(--fg); background: var(--bg-3); padding: .08em .38em; border-radius: var(--r1); }
+/* refus */
+.refus { list-style: none; display: grid; gap: var(--s3); }
+.refus li { border: 1px solid var(--rule); border-left: 3px solid var(--clay);
+            border-radius: var(--r2); background: var(--paper); overflow: hidden; }
+.refus .quoi { padding: var(--s4) var(--s5); color: var(--ink-2); font-size: .93rem; }
+.refus b { color: var(--ink); display: block; margin-bottom: 2px; }
+.refus .dit { padding: var(--s3) var(--s5); background: var(--ink); color: #d6d3d1;
+              font-family: var(--mono); font-size: .76rem; overflow-x: auto;
+              white-space: pre-wrap; }
+.refus .dit span { color: #fca5a5; }
 
-pre.code {
-  margin-top: var(--s5);
-  padding: var(--s5);
-  border: 1px solid var(--line);
-  border-radius: var(--r2);
-  background: var(--bg-1);
-  overflow-x: auto;
-  font-size: .82rem; line-height: 1.75;
-}
-pre.code .kw { color: var(--clay); }
-pre.code .ty { color: var(--blue); }
-pre.code .st { color: var(--green); }
-pre.code .cm { color: var(--fg-3); }
+/* chiffres */
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+         border: 1px solid var(--rule); border-radius: var(--r2); overflow: hidden;
+         background: var(--paper); }
+.stat { padding: var(--s5); border-right: 1px solid var(--rule); }
+.stat:last-child { border-right: 0; }
+.stat b { display: block; font-size: 2rem; letter-spacing: -.03em; font-weight: 600; }
+.stat span { display: block; margin-top: var(--s1); color: var(--ink-3); font-size: .85rem; }
 
-/* ───────────────────────────────────────────────────────────── refus ── */
-.refus { display: grid; gap: var(--s2); margin-top: var(--s6); }
-.refus li {
-  display: grid; grid-template-columns: 1.4rem 1fr; gap: var(--s3);
-  padding: var(--s3) var(--s4);
-  border: 1px solid var(--line);
-  border-radius: var(--r2);
-  background: var(--bg-1);
-  font-size: .875rem; line-height: 1.7;
-}
-.refus li b { color: var(--fg); font-weight: 600; }
-.refus li span:first-child { color: var(--red); font-weight: 700; }
-.refus li em { color: var(--fg-2); font-style: normal; }
+/* téléchargement */
+.install { display: flex; align-items: center; gap: var(--s3);
+           padding: var(--s3) var(--s4); background: var(--ink); border-radius: var(--r2); }
+.install code { background: none; border: 0; color: #f5f5f4; padding: 0;
+                font-size: .84rem; overflow-x: auto; white-space: nowrap; }
+.copy { margin-left: auto; padding: .3rem .6rem; border-radius: var(--r1);
+        border: 1px solid #44403c; background: transparent; color: #e7e5e4;
+        font-family: var(--mono); font-size: .72rem; cursor: pointer; }
+.copy:hover { background: #292524; }
+.dl { display: grid; gap: var(--s3); margin-top: var(--s4); }
+.dl-item { display: flex; align-items: center; gap: var(--s4); flex-wrap: wrap;
+           padding: var(--s4) var(--s5); background: var(--paper);
+           border: 1px solid var(--rule); border-radius: var(--r2); }
+.dl-item .who { min-width: 0; flex: 1 1 20rem; }
+.dl-item .who b { font-family: var(--mono); font-size: .86rem; word-break: break-all; }
+.dl-item .who span { display: block; margin-top: 2px; color: var(--ink-3); font-size: .78rem; }
+.sha { font-family: var(--mono); font-size: .68rem; color: var(--ink-3); word-break: break-all; }
+.hint { margin-top: var(--s4); color: var(--ink-3); font-size: .85rem; }
 
-/* ───────────────────────────────────────────────────────────── chiffres ── */
-.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s4); margin-top: var(--s6); }
-.stat { padding: var(--s5) var(--s4); border: 1px solid var(--line); border-radius: var(--r2); background: var(--bg-1); }
-.stat b { display: block; font-size: clamp(1.4rem, 3vw, 1.9rem); font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-.stat span { display: block; margin-top: var(--s1); color: var(--fg-3); font-size: .78rem; }
+.close { text-align: center; padding: var(--s8) var(--s5); border: 1px solid var(--rule);
+         border-radius: var(--r3); background: var(--paper); }
+.close h2 { margin-inline: auto; text-align: center; }
+.close p { max-width: 48ch; margin: 0 auto var(--s6); color: var(--ink-2); }
 
-/* ─────────────────────────────────────────────────────── téléchargement ── */
-.dl { display: grid; gap: var(--s4); margin-top: var(--s6); }
-.dl-item {
-  display: grid; grid-template-columns: 1fr auto; align-items: center; gap: var(--s4);
-  padding: var(--s5);
-  border: 1px solid var(--line-2);
-  border-radius: var(--r2);
-  background: var(--bg-1);
-}
-.dl-item h3 { font-size: .95rem; font-weight: 700; }
-.dl-meta { margin-top: var(--s2); color: var(--fg-3); font-size: .78rem; }
-.dl-sha { display: block; margin-top: var(--s1); color: var(--fg-3); font-size: .72rem; overflow-wrap: anywhere; }
-.dl-empty { padding: var(--s5); border: 1px dashed var(--line-2); border-radius: var(--r2); color: var(--fg-2); font-size: .875rem; }
-.install { margin-top: var(--s4); }
-.install-line {
-  display: flex; align-items: center; justify-content: space-between; gap: var(--s3);
-  padding: var(--s3) var(--s4);
-  border: 1px solid var(--line);
-  border-radius: var(--r2);
-  background: var(--bg-2);
-  font-size: .84rem;
-}
-.install-line code { color: var(--fg); overflow-wrap: anywhere; }
-.install-line .p { color: var(--green); user-select: none; }
-.copy {
-  padding: .3rem .6rem; border: 1px solid var(--line-2); border-radius: var(--r1);
-  background: transparent; color: var(--fg-2); font: 600 .74rem/1 var(--mono); cursor: pointer;
-  transition: color .15s ease, border-color .15s ease;
-}
-.copy:hover { color: var(--fg); border-color: var(--fg-3); }
-.copy[data-done="1"] { color: var(--green); border-color: var(--green); }
+footer { border-top: 1px solid var(--rule); padding: var(--s6) 0 var(--s7); }
+.foot { display: flex; flex-wrap: wrap; gap: var(--s4); justify-content: space-between;
+        color: var(--ink-3); font-size: .82rem; }
 
-/* ───────────────────────────────────────────────────────────── clôture ── */
-.close {
-  margin: var(--s7) 0 var(--s8);
-  padding: var(--s7) var(--s6);
-  border: 1px solid var(--line-2);
-  border-radius: var(--r3);
-  background:
-    radial-gradient(80% 140% at 50% 0%, rgba(217, 119, 87, .10), transparent 70%),
-    var(--bg-1);
-  text-align: center;
-}
-.close h2 { max-width: none; margin-inline: auto; }
-.close .lede { margin-inline: auto; }
-.close .hero-cta { justify-content: center; }
+.rise.seen { opacity: 1; transform: none;
+             transition: opacity .5s ease, transform .5s cubic-bezier(.16,1,.3,1); }
 
-footer { padding: var(--s6) 0 var(--s7); border-top: 1px solid var(--line); }
-.foot { display: flex; flex-wrap: wrap; gap: var(--s4); justify-content: space-between; color: var(--fg-3); font-size: .78rem; }
-
-/* ─────────────────────────────────────────────────────────── apparition ── */
-.rise { opacity: 0; transform: translateY(14px); }
-.rise.seen { opacity: 1; transform: none; transition: opacity .5s ease, transform .5s cubic-bezier(.16, 1, .3, 1); }
-
-/* ───────────────────────────────────────────────────────────── largeurs ── */
-@media (max-width: 900px) {
-  .g3, .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 980px) {
+  .demo-body { grid-template-columns: 1fr; }
+  .panel + .panel { border-left: 0; border-top: 1px solid var(--rule); }
+  pre, .out { height: 17rem; }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stat:nth-child(2) { border-right: 0; }
   .nav-links a:not(.btn) { display: none; }
+  .verb { grid-template-columns: 1fr; gap: var(--s1); }
 }
 @media (max-width: 620px) {
-  :root { --page: calc(100% - 1.6rem); }
-  /* En étroit, « / compilateur » cassait la marque sur deux lignes et
-     poussait le bouton hors de la barre. */
+  :root { --s8: 3.5rem; }
+  .wrap { width: calc(100% - 1.6rem); }
+  /* « / compiler » cassait la marque sur deux lignes et poussait le bouton
+     hors de la barre. */
   .logo span:not(.logo-mark) { display: none; }
-  .nav-links { gap: var(--s3); }
-  .g3, .g2, .stats { grid-template-columns: 1fr; }
-  .dl-item { grid-template-columns: 1fr; }
-  .term-body { min-height: 26rem; padding: var(--s4); font-size: .78rem; }
-  section, .hero { padding: var(--s7) 0; }
+  .stats { grid-template-columns: 1fr; }
+  .stat { border-right: 0; border-bottom: 1px solid var(--rule); }
+  .stat:last-child { border-bottom: 0; }
+  .demo-foot .btn { margin-left: 0; width: 100%; justify-content: center; }
 }
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    scroll-behavior: auto !important;
-    animation-duration: .01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: .01ms !important;
-  }
-  .rise { opacity: 1; transform: none; }
+  * { animation: none !important; transition: none !important; }
+  .rise { opacity: 1 !important; transform: none !important; }
 }
 </style>
 </head>
 <body>
 
-<header class="nav">
+<div class="topline">
+  Bêta publique 0.9.0-beta.7 — <a href="#telecharger">installer le compilateur</a>
+</div>
+
+<nav>
   <div class="wrap nav-in">
     <a class="logo" href="#top"><span class="logo-mark">m</span><b>monl</b><span>/ compiler</span></a>
-    <nav class="nav-links">
-      <a href="#quoi">Ce que c'est</a>
-      <a href="#comment">Comment</a>
+    <div class="nav-links">
+      <a href="#demonstration">Démonstration</a>
+      <a href="#commandes">Commandes</a>
       <a href="#refus">Ce qu'il refuse</a>
       <a href="#telecharger">Télécharger</a>
       <a class="btn" href="/console">Ouvrir la console</a>
-    </nav>
+    </div>
+  </div>
+</nav>
+
+<header id="top">
+  <div class="wrap">
+    <span class="pill">Déterministe de bout en bout <em>→</em></span>
+    <h1>Décrivez votre site. <em>Le compilateur écrit le serveur.</em></h1>
+    <p class="lede">Un dialogue guidé, <b>sans aucune IA et sans le moindre
+      appel réseau</b>, produit une spécification. monl la compile en un
+      backend FastAPI complet — base SQLite, authentification, contrôle
+      d'accès, paiement — puis le <b>scelle</b>.</p>
+    <div class="cta">
+      <a class="btn lg" href="#telecharger">Télécharger monl</a>
+      <a class="btn lg ghost" href="/console">Essayer dans le navigateur →</a>
+    </div>
+    <p class="meta">Python 3.10+ · licence FSL-1.1-ALv2 · aucune télémétrie</p>
   </div>
 </header>
 
-<main id="top">
-
-  <div class="wrap hero">
-    <span class="tag"><i>●</i> version <span id="version">0.9.0-beta.7</span> — bêta publique</span>
-    <h1>Décrivez votre site. <em>Le compilateur écrit le serveur.</em></h1>
-    <p class="sub">
-      monl mène un <b>dialogue guidé, sans aucune IA et sans le moindre appel réseau</b>.
-      De vos réponses il tire une spécification, puis compile un backend FastAPI complet —
-      base SQLite, authentification, contrôle d'accès — et le <b>scelle</b>. L'interface est
-      écrite ensuite, contre un contrat que le serveur a lui-même publié.
-    </p>
-    <div class="hero-cta">
-      <a class="btn lg" href="#telecharger">Télécharger monl</a>
-      <a class="btn ghost lg" href="/console">Essayer dans le navigateur</a>
-    </div>
-    <p class="hero-note">Python 3.10+ · licence FSL-1.1-ALv2 · aucune télémétrie</p>
-
-    <div class="term" aria-label="Démonstration du dialogue guidé monl">
-      <div class="term-bar">
-        <span class="dots"><i></i><i></i><i></i></span>
-        <span class="term-title">~/projets/atelier-horizon — monl</span>
+<section id="demonstration" style="border-top:0; padding-top:0">
+  <div class="wrap">
+    <div class="demo">
+      <div class="demo-head">
+        <div class="tabs" role="tablist" aria-label="Modèle d'application" id="modeles"></div>
+        <span class="tag">sorties réelles du compilateur</span>
       </div>
-      <div class="term-body" id="term"></div>
+      <div class="demo-body">
+        <div class="panel">
+          <div class="panel-head">
+            <span class="tag">ce que vous écrivez</span>
+            <span class="tag file">[ <b>.ml</b> ]</span>
+          </div>
+          <pre id="spec"></pre>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <span class="tag">ce que monl produit</span>
+            <div class="tabs" role="tablist" aria-label="Sortie" id="sorties">
+              <button class="tab" type="button" role="tab" data-vue="routes">routes</button>
+              <button class="tab" type="button" role="tab" data-vue="tables">tables</button>
+              <button class="tab" type="button" role="tab" data-vue="scelle">scellé</button>
+            </div>
+          </div>
+          <div class="out" id="sortie"></div>
+        </div>
+      </div>
+      <div class="demo-foot" id="resume"></div>
+    </div>
+    <p class="hint">Aucune de ces lignes n'est écrite à la main : elles sortent
+      d'une compilation réelle des modèles livrés avec monl.</p>
+  </div>
+</section>
+
+<section id="commandes" class="alt">
+  <div class="wrap">
+    <p class="chapter"><i></i><span class="tag">[ <b>01</b> / 04 ] · les commandes</span></p>
+    <h2>Cinq verbes, et <em>un seul</em> appelle une IA.</h2>
+    <p class="intro">monl est une ligne de commande. Chaque verbe fait une
+      chose, et la prouve avant de rendre la main.</p>
+    <div class="verbs">
+      <div class="verb"><code>monl init</code><p>Le dialogue guidé. Dix modèles
+        d'applications comme point de départ, questions fermées, saisie
+        stricte. <b>Aucune IA, aucun appel réseau</b> — et la spécification
+        produite est relue par le vrai analyseur avant d'être écrite.</p></div>
+      <div class="verb"><code>monl compile</code><p>Grammaire, validation,
+        audit de sécurité, génération. Sortent <code>app.py</code>,
+        <code>schema.sql</code>, un <code>manage.py</code> d'administration, un
+        <code>Dockerfile</code> — et un <b>contrat d'interface</b> qui décrit ce
+        que le serveur fait vraiment.</p></div>
+      <div class="verb"><code>monl frontend</code><p>La seule étape non
+        déterministe. Une IA écrit le HTML, la CSS et le JavaScript en
+        obéissant au contrat, par clé d'API ou par un agent en ligne de
+        commande. <b>Les artefacts scellés sont vérifiés intacts</b> après
+        coup.</p></div>
+      <div class="verb"><code>monl run</code><p>Vérifie la cohérence, démarre un
+        serveur éphémère, appelle de vraies routes, charge la page dans un vrai
+        moteur JavaScript — puis sert le site. <b>Un échec est un échec</b>, pas
+        un avertissement.</p></div>
+      <div class="verb"><code>monl update</code><p>Recompile après un changement
+        de spec et rapporte le delta : route ajoutée, champ devenu en lecture
+        seule, accès ouvert, verrou posé, section à dessiner. <b>Ce qu'il reste
+        à réécrire</b>, écran par écran.</p></div>
     </div>
   </div>
+</section>
 
-  <section id="quoi">
-    <div class="wrap">
-      <span class="eyebrow">Ce que c'est</span>
-      <h2>Un compilateur, pas un assistant.</h2>
-      <p class="lede">
-        Une IA qui écrit du code produit un résultat différent à chaque tirage. Un compilateur,
-        non : la même spécification rend le même serveur, à l'octet près. monl place donc l'IA
-        là où l'imprévisible est acceptable — l'apparence — et nulle part ailleurs.
-      </p>
-      <div class="grid g3">
-        <article class="card">
-          <span class="k">déterministe</span>
-          <h3>Le dialogue n'invente rien</h3>
-          <p>Questions fermées, saisie stricte, aucun appel réseau. La spécification produite est
-             relue par le vrai analyseur avant d'être écrite sur le disque.</p>
-        </article>
-        <article class="card">
-          <span class="k">scellé</span>
-          <h3>Le backend n'est pas modifiable</h3>
-          <p><code>app.py</code>, <code>schema.sql</code> et leurs voisins portent une empreinte.
-             Aucun agent, aucune IA, aucune commande ne les réécrit — la vérification refuse.</p>
-        </article>
-        <article class="card">
-          <span class="k">vérifié</span>
-          <h3>Rien n'est « fait » sans preuve</h3>
-          <p>Chaque construction démarre un vrai serveur éphémère, appelle de vraies routes et
-             charge la page dans un vrai moteur. Un échec est un échec, pas un avertissement.</p>
-        </article>
-      </div>
+<section id="refus">
+  <div class="wrap">
+    <p class="chapter"><i></i><span class="tag">[ <b>02</b> / 04 ] · ce qu'il refuse</span></p>
+    <h2>Un compilateur utile est <em>un compilateur qui dit non</em>.</h2>
+    <p class="intro">Chacun de ces refus vient d'une faille réellement
+      exploitée sur un projet, puis fermée à la racine. Ils font échouer la
+      compilation, en nommant la ligne fautive — voici ce que monl affiche.</p>
+    <ul class="refus">
+      <li><div class="quoi"><b>Un montant que le client peut écrire.</b>
+        Une commande était postée à 0,01 € et le serveur l'encaissait.</div>
+        <div class="dit"><span>✕ ERREUR</span>  rule Order.total payable — le champ 'total' est
+   saisissable par le client. Un montant encaissable doit être
+   calculé par le serveur : ajoutez 'derivedFrom' ou 'sumOf'.</div></li>
+      <li><div class="quoi"><b>Une propriété qui ne remonte à aucun compte.</b>
+        La règle compilait en silence et rattachait les enregistrements au
+        mauvais propriétaire.</div>
+        <div class="dit"><span>✕ ERREUR</span>  rule Line.Read ownedBy Cart — la chaîne de propriété
+   n'aboutit à aucun acteur. 'Cart' n'appartient lui-même à personne.</div></li>
+      <li><div class="quoi"><b>Une règle qui ne produit rien.</b>
+        Quatre règles de contrainte n'avaient aucun effet sur la sortie ; un
+        prix négatif partait en base.</div>
+        <div class="dit"><span>✕ ERREUR</span>  rule Colis.champFantome required — le champ
+   'champFantome' n'existe pas sur l'entité 'Colis'.</div></li>
+      <li><div class="quoi"><b>Un fichier déclaré mais absent.</b>
+        Trois chemins d'image fautifs compilaient sans un mot. Une image
+        cassée ne se voit qu'à l'œil, une fois en ligne.</div>
+        <div class="dit"><span>✕ ERREUR</span>  assets: photo "produits/halo-rs.jpg" — fichier
+   introuvable. Cherché dans : ./produits/halo-rs.jpg</div></li>
+      <li><div class="quoi"><b>Une section vide sur le site livré.</b>
+        Une balise portant le bon nom mais rien dedans passait pour une page
+        complète.</div>
+        <div class="dit"><span>✕ ERREUR</span>  section vide ou incomplète — « trust » : il manque
+   un titre (&lt;h1&gt; à &lt;h4&gt;), du texte lisible (0 caractères sur 120
+   attendus).</div></li>
+    </ul>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap">
+    <p class="chapter"><i></i><span class="tag">[ <b>03</b> / 04 ] · l'état du projet</span></p>
+    <h2>Des chiffres, <em>pas des logos</em>.</h2>
+    <p class="intro">monl n'affiche ni clients, ni avis, ni récompenses : il ne
+      pourrait pas les vérifier, et c'est exactement ce qu'il interdit aux
+      sites qu'il produit. Voici ce qui est mesurable.</p>
+    <div class="stats">
+      <div class="stat"><b>1 112</b><span>tests, rejoués à chaque changement</span></div>
+      <div class="stat"><b>28</b><span>briques du langage, chacune éprouvée contre un vrai serveur</span></div>
+      <div class="stat"><b>10</b><span>modèles d'applications prêts au dialogue</span></div>
+      <div class="stat"><b>140</b><span>décisions de conception écrites, avec leur pourquoi</span></div>
     </div>
-  </section>
+  </div>
+</section>
 
-  <div class="wrap"><div class="sep"></div></div>
-
-  <section id="comment">
-    <div class="wrap">
-      <span class="eyebrow">Comment ça marche</span>
-      <h2>Six étapes, dont une seule fait appel à une IA.</h2>
-      <div class="pipe">
-        <div class="step"><span class="n">01</span><div>
-          <h3>Le dialogue</h3>
-          <p><code>monl init</code> pose ses questions. Dix modèles d'applications servent de point
-             de départ — boutique, blog, réservation, petites annonces… — et chacun est testé
-             compilable, en répondant tout&nbsp;oui comme tout&nbsp;non.</p></div></div>
-        <div class="step"><span class="n">02</span><div>
-          <h3>La spécification</h3>
-          <p>Un fichier <code>.ml</code> lisible : entités, champs, acteurs, règles, parcours.
-             C'est le seul document que vous modifiez à la main, et il est fait pour ça.</p></div></div>
-        <div class="step"><span class="n">03</span><div>
-          <h3>La compilation</h3>
-          <p>Grammaire, validation, audit de sécurité, puis génération. Sortent
-             <code>app.py</code>, <code>schema.sql</code>, un <code>manage.py</code> d'administration
-             et un <code>Dockerfile</code>.</p></div></div>
-        <div class="step"><span class="n">04</span><div>
-          <h3>Le contrat d'interface</h3>
-          <p>Le serveur publie ce qu'il fait <em>vraiment</em> : routes, champs, ce qui est en
-             lecture seule, qui a le droit d'écrire, les verrous. Pas ce que la spec déclarait —
-             ce que le code fait.</p></div></div>
-        <div class="step"><span class="n">05</span><div>
-          <h3>L'interface</h3>
-          <p>Une IA écrit le HTML, la CSS et le JavaScript en obéissant au contrat. Par clé d'API
-             ou par un agent en ligne de commande, au choix. C'est la seule étape non
-             déterministe — et la seule où l'apparence se joue.</p></div></div>
-        <div class="step"><span class="n">06</span><div>
-          <h3>La mise en service</h3>
-          <p><code>monl run</code> vérifie la cohérence, joue le test de fumée, puis sert le site.
-             <code>monl update</code> recompile et rapporte, écran par écran, ce que votre
-             changement de spec vient de casser.</p></div></div>
-      </div>
-
-      <pre class="code" aria-label="Extrait d'une spécification monl"><span class="cm"># atelier-horizon.ml — extrait</span>
-<span class="kw">entity</span> Product
-    name: <span class="ty">String</span>
-    price: <span class="ty">Money</span>
-    stock: <span class="ty">Integer</span>
-
-<span class="kw">actor</span> Customer selfRegister
-
-<span class="kw">rule</span> Product.Read public
-<span class="kw">rule</span> Product.stock min <span class="ty">0</span>
-<span class="kw">rule</span> Order.total sumOf OrderLine.amount
-<span class="kw">rule</span> OrderLine.amount derivedFrom Product.price by quantity
-<span class="kw">rule</span> Order.total payable
-<span class="kw">rule</span> OrderLine.Create decrements Product.stock by quantity</pre>
-      <p class="lede">
-        Six lignes de règles, et le serveur généré calcule le total côté serveur, refuse un panier
-        qui dépasse le stock, décompte à la commande, restitue à l'annulation, encaisse le montant
-        qu'il a lui-même calculé, et fige la commande une fois réglée.
-      </p>
+<section id="telecharger">
+  <div class="wrap">
+    <p class="chapter"><i></i><span class="tag">[ <b>04</b> / 04 ] · télécharger</span></p>
+    <h2>Installez le compilateur, <em>gardez vos projets</em>.</h2>
+    <p class="intro">monl s'exécute chez vous. Les projets qu'il compile sont
+      des dossiers ordinaires : du Python, du SQL, un Dockerfile. Rien ne
+      dépend d'un service en ligne pour continuer à tourner.</p>
+    <div class="install">
+      <code id="cmd">pip install monl_compiler-0.9.0b7-py3-none-any.whl</code>
+      <button class="copy" type="button" data-copy="cmd">copier</button>
     </div>
-  </section>
-
-  <div class="wrap"><div class="sep"></div></div>
-
-  <section id="refus">
-    <div class="wrap">
-      <span class="eyebrow">Ce qu'il refuse</span>
-      <h2>Un compilateur utile est un compilateur qui dit non.</h2>
-      <p class="lede">
-        Chacun de ces refus vient d'une faille qui a réellement été exploitée sur un projet, puis
-        fermée à la racine. Ils font échouer la compilation, en nommant la ligne fautive.
-      </p>
-      <ul class="refus">
-        <li><span>✗</span><span><b>Un montant que le client peut écrire.</b>
-          <em>Une commande était postée à 0,01 € et le serveur l'encaissait. Un champ encaissable
-          doit être calculé par le serveur, sans exception — pas même pour un administrateur.</em></span></li>
-        <li><span>✗</span><span><b>Une propriété qui ne remonte à aucun compte.</b>
-          <em>La règle compilait en silence et rattachait les enregistrements au mauvais
-          propriétaire.</em></span></li>
-        <li><span>✗</span><span><b>Une règle qui ne produit rien.</b>
-          <em>Quatre règles de contrainte n'avaient aucun effet sur la sortie ; un prix négatif
-          partait chez le prestataire de paiement. Un test compare désormais la sortie avec et
-          sans.</em></span></li>
-        <li><span>✗</span><span><b>Un fichier déclaré mais absent.</b>
-          <em>Trois chemins d'image fautifs compilaient sans un mot. Une image cassée ne se voit
-          qu'à l'œil, une fois en ligne.</em></span></li>
-        <li><span>✗</span><span><b>Une valeur client collée dans une requête SQL.</b>
-          <em>Il n'existe aucune interface pour le faire : tout le contrôle d'accès passe par une
-          couche d'émission typée, et un garde-fou relit le code produit pour l'interdire.</em></span></li>
-        <li><span>✗</span><span><b>Une interface qui ment sur le serveur.</b>
-          <em>Un appel vers une route absente du contrat fait échouer la construction. Un site
-          « réussi » dont la connexion visait une route inexistante avait été livré une fois.</em></span></li>
-      </ul>
+    <div class="dl" id="artifacts">
+      <div class="dl-item"><div class="who"><b>Chargement des versions…</b></div></div>
     </div>
-  </section>
+    <p class="hint">Chaque fichier est publié avec son empreinte SHA-256 :
+      comparez-la après téléchargement.</p>
+  </div>
+</section>
 
-  <div class="wrap"><div class="sep"></div></div>
-
-  <section>
-    <div class="wrap">
-      <span class="eyebrow">L'état du projet</span>
-      <h2>Bêta publique, mesurée.</h2>
-      <div class="stats">
-        <div class="stat"><b>1&nbsp;068</b><span>tests, joués à chaque changement</span></div>
-        <div class="stat"><b>28</b><span>briques de langage éprouvées</span></div>
-        <div class="stat"><b>10</b><span>modèles d'applications</span></div>
-        <div class="stat"><b>139</b><span>décisions documentées</span></div>
-      </div>
-      <p class="lede">
-        Chaque brique arrive avec son épreuve contre un vrai serveur : la couverture de
-        compilation seule a laissé passer cinq briques pendant toute la vie du projet. Ce qui
-        n'est pas prouvé par exécution n'est pas considéré comme fait.
-      </p>
-    </div>
-  </section>
-
-  <div class="wrap"><div class="sep"></div></div>
-
-  <section id="telecharger">
-    <div class="wrap">
-      <span class="eyebrow">Télécharger</span>
-      <h2>Une version, sur votre machine.</h2>
-      <p class="lede">
-        monl s'installe et tourne entièrement en local. La compilation ne fait aucun appel réseau ;
-        seule l'écriture de l'interface en fait, et uniquement si vous le demandez.
-      </p>
-
-      <div class="dl" id="dl"><div class="dl-empty">Lecture des artefacts…</div></div>
-
-      <div class="install">
-        <div class="install-line">
-          <span><span class="p">$</span> <code id="cmd-pip">pip install ./monl_compiler-0.9.0b7-py3-none-any.whl</code></span>
-          <button class="copy" type="button" data-copy="cmd-pip">copier</button>
-        </div>
-      </div>
-      <div class="install">
-        <div class="install-line">
-          <span><span class="p">$</span> <code id="cmd-run">monl init</code></span>
-          <button class="copy" type="button" data-copy="cmd-run">copier</button>
-        </div>
-      </div>
-      <p class="hero-note">Python 3.10 ou plus récent. Les dépendances (FastAPI, Lark, PyJWT) sont
-        installées automatiquement.</p>
-    </div>
-  </section>
-
+<section class="alt">
   <div class="wrap">
     <div class="close">
-      <span class="eyebrow">Sans rien installer</span>
-      <h2>La console fait le même travail, dans le navigateur.</h2>
-      <p class="lede">Le même dialogue, une question à la fois. La construction se suit en direct :
-        étapes, jetons consommés, coût réel. Le site produit est ensuite servi sous sa propre
+      <h2>Prêt à décrire <em>votre site</em> ?</h2>
+      <p>La console mène le même dialogue que la ligne de commande, une
+        question à la fois, puis construit et sert le site sous sa propre
         adresse.</p>
-      <div class="hero-cta"><a class="btn lg" href="/console">Ouvrir la console</a></div>
+      <a class="btn lg" href="/console">Ouvrir la console →</a>
     </div>
   </div>
-
-</main>
+</section>
 
 <footer>
   <div class="wrap foot">
-    <span>monl — compilateur d'intention logicielle · <span id="foot-version">0.9.0-beta.7</span></span>
-    <span>Licence FSL-1.1-ALv2 · aucune ressource distante sur cette page</span>
+    <span>monl — compilateur d'applications déclaratives · 0.9.0-beta.7</span>
+    <span>licence FSL-1.1-ALv2 · aucune télémétrie · aucun cookie</span>
   </div>
 </footer>
 
 <script>
+/* Sorties RÉELLES du compilateur, injectées à la construction de cette page.
+   Voir batir_landing.py : chaque modèle a été réellement compilé. */
+var DEMO = {
+ "Boutique en ligne": {
+  "spec": "entity Product\n    name: String\n    price: Money\n    description: Text\n    imageUrl: String\n    stock: Integer\n    category: String\nactor Admin\nactor Customer selfRegister\nrule Product.name required\nrule Customer.displayName required\nrule LigneOrder.quantite required\nrule Product.Read public\nrule Order.Read ownedBy Customer\nrule Order.Update ownedBy Customer\nrule Order.Delete ownedBy Customer\nrule LigneOrder.Read ownedBy Order\nrule LigneOrder.Update ownedBy Order",
+  "routes": [
+   "GET    /customer",
+   "POST   /customer",
+   "DELETE /customer/{id}",
+   "GET    /customer/{id}",
+   "PUT    /customer/{id}",
+   "GET    /ligneorder",
+   "POST   /ligneorder",
+   "DELETE /ligneorder/{id}",
+   "GET    /ligneorder/{id}",
+   "PUT    /ligneorder/{id}",
+   "GET    /order",
+   "POST   /order",
+   "DELETE /order/{id}",
+   "GET    /order/{id}",
+   "PUT    /order/{id}",
+   "POST   /order/{id}/paiement",
+   "POST   /paiement/webhook",
+   "GET    /product",
+   "POST   /product",
+   "DELETE /product/{id}",
+   "GET    /product/{id}",
+   "PUT    /product/{id}"
+  ],
+  "tables": [
+   "product",
+   "order",
+   "customer",
+   "ligneorder"
+  ],
+  "systeme": [
+   "_monl_users",
+   "_monl_revoked_tokens",
+   "_monl_rate_limit",
+   "_monl_sequences",
+   "_monl_migrations"
+  ],
+  "entites": [
+   "Customer",
+   "LigneOrder",
+   "Order",
+   "Product"
+  ],
+  "octets": 81621,
+  "lignes": 125,
+  "regles": 16
+ },
+ "Blog": {
+  "spec": "entity Article\n    title: String\n    content: Text\n    imageUrl: String\n    author: String\n    publishedOn: String\n    status: String\nactor Author\nactor Reader selfRegister\nactor Moderator\nrule Article.title required\nrule Report.reason required\nrule Comment.content required\nrule Reader.displayName required\nrule Comment.Read public\nrule Comment.Update ownedBy Reader\nrule Comment.Delete ownedBy Reader\nrule Article.status oneOf \"published\", \"hidden\"",
+  "routes": [
+   "GET    /article",
+   "POST   /article",
+   "DELETE /article/{id}",
+   "GET    /article/{id}",
+   "PUT    /article/{id}",
+   "GET    /comment",
+   "POST   /comment",
+   "DELETE /comment/{id}",
+   "GET    /comment/{id}",
+   "PUT    /comment/{id}",
+   "GET    /reader",
+   "POST   /reader",
+   "DELETE /reader/{id}",
+   "GET    /reader/{id}",
+   "PUT    /reader/{id}",
+   "GET    /report",
+   "POST   /report",
+   "DELETE /report/{id}",
+   "GET    /report/{id}",
+   "PUT    /report/{id}"
+  ],
+  "tables": [
+   "article",
+   "report",
+   "comment",
+   "reader"
+  ],
+  "systeme": [
+   "_monl_users",
+   "_monl_revoked_tokens",
+   "_monl_rate_limit",
+   "_monl_sequences",
+   "_monl_migrations"
+  ],
+  "entites": [
+   "Article",
+   "Comment",
+   "Reader",
+   "Report"
+  ],
+  "octets": 66961,
+  "lignes": 96,
+  "regles": 13
+ },
+ "Réservation de rendez-vous": {
+  "spec": "entity Service\n    name: String\n    duration: Integer\n    price: Money\n    description: Text\nactor Admin\nactor Client selfRegister\nrule Service.name required\nrule Booking.date required\nrule Client.displayName required\nrule Service.Read public\nrule Booking.Read ownedBy Client\nrule Booking.Update ownedBy Client\nrule Booking.Delete ownedBy Client",
+  "routes": [
+   "GET    /booking",
+   "POST   /booking",
+   "DELETE /booking/{id}",
+   "GET    /booking/{id}",
+   "PUT    /booking/{id}",
+   "GET    /client",
+   "POST   /client",
+   "DELETE /client/{id}",
+   "GET    /client/{id}",
+   "PUT    /client/{id}",
+   "GET    /service",
+   "POST   /service",
+   "DELETE /service/{id}",
+   "GET    /service/{id}",
+   "PUT    /service/{id}"
+  ],
+  "tables": [
+   "service",
+   "booking",
+   "client"
+  ],
+  "systeme": [
+   "_monl_users",
+   "_monl_revoked_tokens",
+   "_monl_rate_limit",
+   "_monl_sequences",
+   "_monl_migrations"
+  ],
+  "entites": [
+   "Booking",
+   "Client",
+   "Service"
+  ],
+  "octets": 61427,
+  "lignes": 66,
+  "regles": 7
+ }
+};
+
 (function () {
   "use strict";
   var reduit = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var noms = Object.keys(DEMO);
+  var etat = { modele: noms[0], vue: "routes" };
 
-  /* ── Terminal du héros ──────────────────────────────────────────────
-     Rejoue un vrai échange du dialogue guidé. Les durées sont courtes :
-     une démonstration qui se regarde plus de vingt secondes n'est plus
-     une démonstration. Sous prefers-reduced-motion, tout est posé d'un
-     coup — le contenu reste lisible, seul le déroulé disparaît. */
-  var SCENE = [
-    { t: "$ monl init", c: "c-fg", d: 60 },
-    { t: "", d: 10 },
-    { t: "✻ monl 0.9.0-beta.7 — dialogue guidé", c: "c-cl", d: 30 },
-    { t: "  aucune IA, aucun appel réseau", c: "c-dim", d: 20 },
-    { t: "", d: 10 },
-    { t: "? Que voulez-vous construire ?", c: "c-q", d: 30 },
-    { t: "  › 3. Boutique en ligne", c: "c-a", d: 40, pause: 380 },
-    { t: "", d: 10 },
-    { t: "? Comment s'appelle le site ?", c: "c-q", d: 30 },
-    { t: "  › Atelier Horizon", c: "c-a", d: 40, pause: 380 },
-    { t: "", d: 10 },
-    { t: "? Les clients peuvent-ils payer en ligne ?", c: "c-q", d: 26 },
-    { t: "  › oui", c: "c-a", d: 40, pause: 420 },
-    { t: "", d: 10 },
-    { t: "spin", spin: "Compilation de la spécification", ms: 1100 },
-    { t: "✓ spec.ml                  6 entités, 14 règles", c: "c-ok", d: 16 },
-    { t: "✓ app.py                   scellé · 61 536 o", c: "c-ok", d: 16 },
-    { t: "✓ schema.sql               8 tables, 3 index", c: "c-ok", d: 16 },
-    { t: "✓ frontend_contract.json   15 routes", c: "c-ok", d: 16 },
-    { t: "", d: 10 },
-    { t: "spin", spin: "Test de fumée sur un serveur réel", ms: 1000 },
-    { t: "✓ POST /register           201", c: "c-ok", d: 16 },
-    { t: "✓ GET  /product            200 · 3 articles", c: "c-ok", d: 16 },
-    { t: "✓ POST /order/1/paiement   402 · montant relu en base", c: "c-ok", d: 16 },
-    { t: "", d: 10 },
-    { t: "Prêt. → monl run", c: "c-cl", d: 40 }
-  ];
-  var SPIN = ["✻", "✽", "✳", "✢", "·", "✢", "✳", "✽"];
+  function milliers(n) {
+    return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  }
+  function ech(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  /* Coloration minimale de la spec : mots-clés du langage et types. Pas un
+     analyseur — juste de quoi rendre la structure lisible. */
+  function colorer(spec) {
+    return ech(spec)
+      .replace(/^(\s*)(entity|actor|rule|relation|workflow|landing|seed|assets)\b/gm,
+               '$1<span class="k">$2</span>')
+      .replace(/: (String|Text|Integer|Float|Money|Boolean|DateTime|Date|Image|UUID)\b/g,
+               ': <span class="t">$1</span>')
+      .replace(/^(\s*)(#.*)$/gm, '$1<span class="c">$2</span>');
+  }
 
-  var term = document.getElementById("term");
-  if (term) {
-    if (reduit) {
-      SCENE.forEach(function (etape) {
-        var l = document.createElement("span");
-        l.className = "l " + (etape.c || "");
-        l.textContent = etape.spin ? "✓ " + etape.spin : etape.t;
-        term.appendChild(l);
+  function onglets(cible, items, actif, clic) {
+    cible.innerHTML = "";
+    items.forEach(function (item) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "tab";
+      b.setAttribute("role", "tab");
+      b.setAttribute("aria-selected", String(item === actif));
+      b.textContent = item;
+      b.addEventListener("click", function () { clic(item); });
+      cible.appendChild(b);
+    });
+  }
+
+  function rendre() {
+    var d = DEMO[etat.modele];
+    document.getElementById("spec").innerHTML = colorer(d.spec);
+
+    var out = document.getElementById("sortie");
+    var lignes;
+    if (etat.vue === "routes") {
+      lignes = d.routes.map(function (r) {
+        var m = r.slice(0, 6).trim();
+        return '<li><span class="m">' + m + '</span>' + ech(r.slice(m.length)) + "</li>";
       });
+    } else if (etat.vue === "tables") {
+      lignes = d.tables.map(function (t) { return '<li><span class="m">•</span> ' + ech(t) + "</li>"; })
+        .concat(d.systeme.map(function (t) {
+          return '<li class="sys">  ' + ech(t) + "  (interne)</li>";
+        }));
     } else {
-      jouer();
+      lignes = [
+        '<li><span class="m">app.py</span>          ' + milliers(d.octets) + " octets</li>",
+        '<li><span class="m">schema.sql</span>      ' + (d.tables.length + d.systeme.length) + " tables</li>",
+        "<li>&nbsp;</li>",
+        '<li class="sys">Ces fichiers portent une empreinte. Aucune IA,</li>',
+        '<li class="sys">aucun agent, aucune commande ne les réécrit :</li>',
+        '<li class="sys">la vérification refuse et nomme le fichier.</li>'
+      ];
     }
+    out.innerHTML = "<ul>" + lignes.join("") + "</ul>";
+
+    document.getElementById("resume").innerHTML =
+      "<span><b>" + d.lignes + "</b> lignes de spécification · <b>" + d.regles +
+      "</b> règles</span><span>→</span><span><b>" + d.routes.length +
+      "</b> routes · <b>" + (d.tables.length + d.systeme.length) +
+      "</b> tables · <b>" + milliers(d.octets) +
+      "</b> octets de serveur scellé</span>" +
+      '<a class="btn" href="/console">Construire celui-ci →</a>';
+
+    onglets(document.getElementById("modeles"), noms, etat.modele, function (n) {
+      etat.modele = n; rendre();
+    });
+    Array.prototype.forEach.call(
+      document.getElementById("sorties").querySelectorAll(".tab"), function (b) {
+        b.setAttribute("aria-selected", String(b.getAttribute("data-vue") === etat.vue));
+      });
   }
 
-  function jouer() {
-    term.textContent = "";
-    var i = 0;
-    suite();
+  Array.prototype.forEach.call(
+    document.getElementById("sorties").querySelectorAll(".tab"), function (b) {
+      b.addEventListener("click", function () {
+        etat.vue = b.getAttribute("data-vue"); rendre();
+      });
+    });
+  rendre();
 
-    function suite() {
-      if (i >= SCENE.length) {
-        setTimeout(function () { jouer(); }, 4200);
-        return;
+  /* ── Les téléchargements réellement disponibles ─────────────────────── */
+  var zone = document.getElementById("artifacts");
+  function octets(n) {
+    if (n < 1024) { return n + " o"; }
+    if (n < 1048576) { return (n / 1024).toFixed(0) + " Ko"; }
+    return (n / 1048576).toFixed(1) + " Mo";
+  }
+  fetch("/telechargements").then(function (r) { return r.json(); }).then(function (data) {
+    var liste = (data && data.artifacts) || [];
+    zone.innerHTML = "";
+    if (!liste.length) {
+      var vide = document.createElement("div");
+      vide.className = "dl-item";
+      vide.innerHTML = '<div class="who"><b>Aucune version publiée sur cette ' +
+        'instance.</b><span>Construisez la distribution, ou récupérez le dépôt.</span></div>';
+      zone.appendChild(vide);
+      return;
+    }
+    liste.forEach(function (a) {
+      var el = document.createElement("div");
+      el.className = "dl-item";
+      el.innerHTML = '<div class="who"><b></b><span></span><span class="sha"></span></div>';
+      el.querySelector("b").textContent = a.name;
+      el.querySelectorAll("span")[0].textContent =
+        (a.kind === "wheel" ? "roue Python — à installer" : "archive des sources")
+        + " · " + octets(a.bytes);
+      el.querySelector(".sha").textContent = "sha256 " + a.sha256;
+      var lien = document.createElement("a");
+      lien.className = "btn" + (a.kind === "wheel" ? "" : " ghost");
+      lien.href = "/telechargements/" + encodeURIComponent(a.name);
+      lien.textContent = "Télécharger";
+      el.appendChild(lien);
+      zone.appendChild(el);
+      if (a.kind === "wheel") {
+        document.getElementById("cmd").textContent = "pip install " + a.name;
       }
-      var etape = SCENE[i++];
-      if (etape.spin) { tourner(etape, suite); return; }
-      ecrire(etape, suite);
-    }
-
-    function ecrire(etape, fini) {
-      var ligne = document.createElement("span");
-      ligne.className = "l " + (etape.c || "");
-      term.appendChild(ligne);
-      var texte = etape.t || "";
-      if (!texte) { setTimeout(fini, etape.d || 20); return; }
-      var k = 0;
-      var curseur = document.createElement("span");
-      curseur.className = "caret";
-      ligne.appendChild(curseur);
-      (function frappe() {
-        if (k >= texte.length) {
-          curseur.remove();
-          setTimeout(fini, etape.pause || 90);
-          return;
-        }
-        curseur.before(document.createTextNode(texte.charAt(k++)));
-        setTimeout(frappe, etape.d || 26);
-      })();
-    }
-
-    function tourner(etape, fini) {
-      var ligne = document.createElement("span");
-      ligne.className = "l c-am";
-      term.appendChild(ligne);
-      var debut = Date.now();
-      var n = 0;
-      (function tick() {
-        var passe = Date.now() - debut;
-        if (passe >= etape.ms) {
-          ligne.className = "l c-dim";
-          ligne.textContent = "✓ " + etape.spin + " — " + (etape.ms / 1000).toFixed(1) + " s";
-          setTimeout(fini, 140);
-          return;
-        }
-        ligne.textContent = SPIN[n++ % SPIN.length] + " " + etape.spin + "… "
-          + (passe / 1000).toFixed(1) + " s";
-        setTimeout(tick, 110);
-      })();
-    }
-  }
+    });
+  }).catch(function () {
+    zone.innerHTML = '<div class="dl-item"><div class="who"><b>Liste ' +
+      'indisponible.</b><span>Le service de téléchargement n\'a pas répondu.</span></div></div>';
+  });
 
   /* ── Apparition à l'entrée dans le cadre ────────────────────────────── */
-  var cibles = document.querySelectorAll(".card, .step, .stat, .refus li, .dl-item, .close");
+  var cibles = document.querySelectorAll(".verb, .stat, .refus li, .dl-item, .close");
   if (!reduit && "IntersectionObserver" in window) {
     Array.prototype.forEach.call(cibles, function (el, n) {
+      el.style.opacity = "0";
+      el.style.transform = "translateY(12px)";
       el.classList.add("rise");
-      el.style.transitionDelay = (n % 6) * 45 + "ms";
+      el.style.transitionDelay = (n % 5) * 40 + "ms";
     });
     var oeil = new IntersectionObserver(function (entrees) {
       entrees.forEach(function (e) {
@@ -747,77 +782,18 @@ footer { padding: var(--s6) 0 var(--s7); border-top: 1px solid var(--line); }
     Array.prototype.forEach.call(cibles, function (el) { oeil.observe(el); });
   }
 
-  /* ── Copier une commande ───────────────────────────────────────────── */
+  /* ── Copier la commande d'installation ──────────────────────────────── */
   document.addEventListener("click", function (e) {
     var bouton = e.target.closest ? e.target.closest(".copy") : null;
-    if (!bouton) return;
+    if (!bouton) { return; }
     var source = document.getElementById(bouton.getAttribute("data-copy"));
-    if (!source) return;
-    var texte = source.textContent;
-    var fini = function () {
-      bouton.textContent = "copié";
-      bouton.setAttribute("data-done", "1");
-      setTimeout(function () {
-        bouton.textContent = "copier";
-        bouton.removeAttribute("data-done");
-      }, 1600);
-    };
+    if (!source) { return; }
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(texte).then(fini, function () {});
+      navigator.clipboard.writeText(source.textContent).then(function () {
+        bouton.textContent = "copié";
+        window.setTimeout(function () { bouton.textContent = "copier"; }, 1600);
+      }, function () {});
     }
-  });
-
-  /* ── Artefacts réellement présents sur le serveur ───────────────────── */
-  var poids = function (n) {
-    if (n >= 1048576) return (n / 1048576).toFixed(1).replace(".", ",") + " Mo";
-    if (n >= 1024) return Math.round(n / 1024) + " Ko";
-    return n + " o";
-  };
-  var zone = document.getElementById("dl");
-  fetch("/telechargements").then(function (r) {
-    return r.ok ? r.json() : { artifacts: [] };
-  }).then(function (data) {
-    var liste = (data && data.artifacts) || [];
-    zone.textContent = "";
-    if (!liste.length) {
-      var vide = document.createElement("div");
-      vide.className = "dl-empty";
-      vide.textContent = "Aucune distribution construite sur ce serveur. "
-        + "Depuis les sources : pip install -e .";
-      zone.appendChild(vide);
-      return;
-    }
-    liste.forEach(function (a) {
-      var item = document.createElement("div");
-      item.className = "dl-item";
-      var gauche = document.createElement("div");
-      var titre = document.createElement("h3");
-      titre.textContent = a.kind === "wheel"
-        ? "Paquet installable (.whl)" : "Archive des sources (.tar.gz)";
-      var meta = document.createElement("p");
-      meta.className = "dl-meta";
-      meta.textContent = a.name + " · " + poids(a.bytes);
-      var sha = document.createElement("code");
-      sha.className = "dl-sha";
-      sha.textContent = "sha256 " + a.sha256;
-      gauche.appendChild(titre); gauche.appendChild(meta); gauche.appendChild(sha);
-      var lien = document.createElement("a");
-      lien.className = "btn";
-      lien.setAttribute("href", "/telechargements/" + encodeURIComponent(a.name));
-      lien.textContent = "Télécharger";
-      item.appendChild(gauche); item.appendChild(lien);
-      zone.appendChild(item);
-      if (a.kind === "wheel") {
-        var cmd = document.getElementById("cmd-pip");
-        if (cmd) cmd.textContent = "pip install ./" + a.name;
-      }
-    });
-  }).catch(function () {
-    zone.textContent = "";
-    var vide = document.createElement("div");
-    vide.className = "dl-empty";
-    vide.textContent = "Les artefacts n'ont pas pu être lus sur ce serveur.";
-    zone.appendChild(vide);
   });
 })();
 </script>

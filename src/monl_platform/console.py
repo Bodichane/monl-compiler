@@ -38,27 +38,36 @@ CONSOLE_HTML = r'''<!doctype html>
    prefers-reduced-motion.
    ════════════════════════════════════════════════════════════════════ */
 :root {
-  --bg:      #100e0c;
-  --bg-1:    #17140f;
-  --bg-2:    #1e1a15;
-  --bg-3:    #262119;
-  --fg:      #ece6dd;
-  --fg-2:    #a89f93;
-  --fg-3:    #847a6d;
-  --line:    #2c2620;
-  --line-2:  #3d352c;
+  /* La console suit l'identité de la page produit : fond papier, encre
+     chaude, une seule couleur d'accent. Elle garde en revanche la CHASSE
+     FIXE partout — c'est un outil de ligne de commande porté au navigateur,
+     et le prétendre autrement serait un mensonge de plus.
 
-  --clay:    #d97757;
-  --clay-hi: #e89275;
-  --clay-ink:#1c0d05;
-  --clay-dim:#3a241a;
-  --green:   #74c187;
-  --green-dim:#16301d;
-  --blue:    #7fa8dd;
-  --amber:   #d9a441;
-  --amber-dim:#332608;
-  --red:     #e0736f;
-  --red-dim: #331715;
+     Chaque paire a été mesurée : la plus basse est --fg-3 sur --bg-1, à
+     4,56:1. Aucune n'est sous 4,5. L'argile #b8542f sert AUTANT de texte sur
+     blanc (4,83) que de fond sous du blanc (4,83) — c'est ce qui permet de
+     n'en avoir qu'une, là où la page produit en a deux. */
+  --bg:      #ffffff;
+  --bg-1:    #faf9f7;
+  --bg-2:    #f2efec;
+  --bg-3:    #e7e3df;
+  --fg:      #1c1917;  /* 17,49:1 */
+  --fg-2:    #57534e;  /*  7,63:1 */
+  --fg-3:    #78716c;  /*  4,80:1 */
+  --line:    #e7e3df;
+  --line-2:  #d6d0ca;
+
+  --clay:    #b8542f;  /* 4,83:1 dans les deux sens */
+  --clay-hi: #9c4526;
+  --clay-ink:#ffffff;
+  --clay-dim:#fdf5f1;
+  --green:   #15803d;
+  --green-dim:#f0fdf4;
+  --blue:    #1d4ed8;
+  --amber:   #a16207;
+  --amber-dim:#fffbeb;
+  --red:     #b91c1c;
+  --red-dim: #fef2f2;
 
   --s1: .25rem; --s2: .5rem; --s3: .75rem; --s4: 1rem;
   --s5: 1.5rem; --s6: 2.25rem; --s7: 3.5rem;
@@ -99,7 +108,11 @@ a:hover { color: var(--clay-hi); }
   display: flex; align-items: center; justify-content: space-between;
   gap: var(--s4);
   padding: var(--s3) clamp(var(--s4), 4vw, var(--s6));
-  background: rgba(16, 14, 12, .9);
+  /* Une couleur écrite EN DUR échappe au thème : la barre est restée
+     sombre pendant que tout le reste passait au papier, et son texte,
+     lui, avait suivi la variable — donc sombre sur sombre. Depuis, la
+     barre voile le fond au lieu de le remplacer. */
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
   border-bottom: 1px solid var(--line);
   backdrop-filter: blur(10px);
 }
