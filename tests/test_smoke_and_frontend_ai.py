@@ -101,6 +101,27 @@ def test_coherence_refuse_une_image_locale_absente(project):
     assert any("ressource locale absente" in error for error in errors)
 
 
+def test_coherence_refuse_chacun_des_trois_svg_locaux_absents(project):
+    front = project / "frontend"
+    front.mkdir()
+    chemins = (
+        "assets/product/vase-rondeur.svg",
+        "assets/product/bol-terre.svg",
+        "assets/product/plateau-ligne.svg",
+    )
+    sources = "".join(f'<img src="{chemin}">' for chemin in chemins)
+    (front / "index.html").write_text(
+        f"<!doctype html><html><body>{sources}</body></html>",
+        encoding="utf-8")
+    from monl.frontend_ai import _frontend_local_reference_errors
+
+    errors = _frontend_local_reference_errors(str(project))
+    missing = [error for error in errors if "ressource locale absente" in error]
+    assert len(missing) == len(chemins)
+    for chemin in chemins:
+        assert sum(chemin in error for error in missing) == 1
+
+
 def test_un_gabarit_de_rendu_nest_pas_un_chemin_de_fichier(project):
     # Le corps d'un <script> n'est pas du balisage : `src="${...}"` y désigne
     # une image que l'API renverra. Lu comme une balise, il faisait refuser la

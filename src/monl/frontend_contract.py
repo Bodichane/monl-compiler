@@ -1516,7 +1516,7 @@ données, les permissions et les états métier.
   Bootstrap Icons…) n'est atteignable, puisque aucun CDN ne l'est — et une
   police d'icônes distante ne le serait pas davantage. Ce qui FONCTIONNE et est
   servi : le SVG écrit EN LIGNE dans le HTML, et les fichiers `.svg` déposés
-  dans `frontend/` (extension en liste blanche). monl ne dit pas s'il faut des
+  dans `frontend/` (extension en liste blanche). OBLIGATION DE LIVRAISON : toute ressource locale référencée doit être livrée dans cette construction, sous le chemin exact référencé ; en génération découpée, chaque `.svg` planifié par le manifeste est une étape de génération dédiée, et tout autre SVG doit être écrit en ligne plutôt que référencé s'il ne peut pas être livré. monl ne dit pas s'il faut des
   icônes, ni lesquelles, ni dans quel style — il dit seulement par quel moyen
   elles sont possibles, parce que la règle ci-dessus, lue seule, laisse croire
   qu'elles ne le sont pas.

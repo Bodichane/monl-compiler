@@ -125,3 +125,15 @@ def test_le_brief_enonce_le_plancher_des_workflows(tmp_path):
     assert "workflows déclarés par la spec" in brief
     assert "Pour CHAQUE workflow" in brief
     assert "compte les routes appelées" in brief
+
+
+def test_le_brief_impose_de_livrer_les_ressources_locales_referencees(tmp_path):
+    project, _contract = _project(tmp_path)
+    brief = (project / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+
+    assert (
+        "OBLIGATION DE LIVRAISON : toute ressource locale référencée doit être "
+        "livrée dans cette construction, sous le chemin exact référencé"
+    ) in brief
+    assert "chaque `.svg` planifié par le manifeste" in brief
+    assert "écrit en ligne plutôt que référencé" in brief
