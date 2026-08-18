@@ -1592,10 +1592,9 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
             smoke_ok, smoke_errors, smoke_warnings = run_smoke_test(project_dir, say=say)
             errors, warnings = smoke_errors, warnings + smoke_warnings
             ok = smoke_ok
-        design_errors = _design_completeness_errors(project_dir)
-        if design_errors:
-            errors = errors + design_errors
-            ok = False
+        # check_coherence() collecte déjà ces erreurs de complétude quand le
+        # frontend existe ; les récolter ici une seconde fois dupliquerait
+        # chaque refus d'asset dans la correction et dans le rapport.
         for w in warnings:
             say(f" ⚠️  {w}")
         if ok:
@@ -2108,14 +2107,12 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
             smoke_ok, smoke_errors, smoke_warnings = run_smoke_test(project_dir, say=say)
             errors, warnings = smoke_errors, warnings + smoke_warnings
             ok = smoke_ok
-        design_errors = _design_completeness_errors(project_dir)
-        if design_errors:
-            errors = errors + design_errors
-            ok = False
+        # Même règle que dans la voie API : check_coherence() est l'unique
+        # collecte des erreurs de complétude pour cette vérification.
         for w in warnings:
             say(f" ⚠️  {w}")
         if image_failures:
-            for error in design_errors:
+            for error in errors:
                 say(f" ❌ {error}")
             say(" ❌ Livraison refusée : le manifeste reste l'autorité pour les "
                 "images planifiées ; relancez après disponibilité du fournisseur.")

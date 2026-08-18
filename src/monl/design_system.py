@@ -181,6 +181,50 @@ def _declared_section_markers(contract: dict) -> list[str]:
     return markers
 
 
+def _generated_image_block_markers(contract: dict, profile: dict,
+                                   generated: list[dict]) -> list[str | None]:
+    """Associe chaque image planifiée à un bloc déjà déclaré.
+
+    Le manifeste porte séparément les rôles des images et les marqueurs de
+    sections qui doivent être uniques. Le brief doit faire le rapprochement
+    explicitement : le premier visuel est le hero ; le visuel secondaire va
+    dans la première section déclarée, sinon dans le pattern éditorial, la
+    preuve ou l'appel final déjà requis. Aucun nouveau marqueur n'est inventé.
+    """
+    required = _required_markers(contract, profile)
+    hero_marker = 'data-monl-section="hero"'
+    unique_sections = [
+        marker for marker in _declared_section_markers(contract)
+        if marker != hero_marker
+    ]
+    fallback_sections = [
+        f'data-monl-section="{name}"'
+        for name in ("editorial", "trust", "closing-cta")
+    ]
+    candidates = unique_sections + [
+        marker for marker in fallback_sections
+        if marker in required and marker not in unique_sections
+    ] + [
+        marker for marker in required
+        if marker.startswith('data-monl-section="')
+        and marker not in {hero_marker, *unique_sections}
+        and marker not in fallback_sections
+    ]
+
+    placements = []
+    used = set()
+    for index, _item in enumerate(generated):
+        if index == 0 and hero_marker in required:
+            marker = hero_marker
+        else:
+            marker = next((candidate for candidate in candidates
+                           if candidate not in used), None)
+        placements.append(marker)
+        if marker:
+            used.add(marker)
+    return placements
+
+
 def _generated_image_plan(contract: dict, profile: dict) -> list[dict]:
     """Retourne le plan explicite d'images matricielles.
 
@@ -260,9 +304,15 @@ def render_design_system(contract: dict, generate_images=False) -> str:
     ) or "- Aucun média structuré détecté ; ne pas inventer de photos distantes."
     generated = build_asset_manifest(
         contract, profile, generate_images=generate_images).get("generated_assets") or []
+    block_markers = _generated_image_block_markers(contract, profile, generated)
     generated_block = "\n".join(
-        f"- `{item['path']}` — {item['role']} (image matricielle déjà produite avant le HTML)"
-        for item in generated
+        f"- `{item['path']}` — {item['role']} — bloc HTML exact : "
+        f"`{marker}` (à rendre une seule fois)"
+        if marker else
+        f"- `{item['path']}` — {item['role']} — bloc HTML distinct à choisir "
+        "parmi les marqueurs de section obligatoires du manifeste (à rendre "
+        "une seule fois)"
+        for item, marker in zip(generated, block_markers, strict=True)
     ) or "- Aucun fichier graphique supplémentaire planifié ; ne pas inventer de chemin d'image."
     anti_patterns = {
         "commerce": "catalogue réduit à trois cartes, prix relégué, faux stock, faux paiement réussi, hero sans produit",
@@ -332,8 +382,10 @@ d'accueil, sur son propre élément HTML portant
 bloc éditorial porte ces éléments à l'intérieur de lui : fusionner « À propos »,
 « Horaires », etc. dans ce récit au lieu d'ajouter ensuite un second bloc. Un
 seul élément, un seul marqueur, un seul rendu. De même, chaque image générée
-a un rôle unique : ne pas réutiliser un chemin du manifeste dans un autre bloc
-si une autre image lui est destinée.
+a un rôle unique : le bloc exact auquel elle est appariée est indiqué dans
+« Assets graphiques produits par la construction » ci-dessous. Rends chaque
+fichier une seule fois dans ce bloc et ne réutilise jamais son chemin dans un
+autre bloc ; n'échange pas les deux appariements.
 
 ## Assets
 
