@@ -158,7 +158,12 @@ def yandexart_provider(model=None, *, key_env="YANDEX_API_KEY",
         raise ImageProviderError(
             f"503 — YandexART indisponible : {folder_env} absent de l'environnement."
         )
+    model_name = model or DEFAULT_YANDEXART_MODEL
     model_uri = model or f"art://{folder_id}/{DEFAULT_YANDEXART_MODEL}"
+    if "://" in model_name:
+        resource = model_name.split("://", 1)[1]
+        if "/" in resource:
+            model_name = resource.split("/", 1)[1]
 
     def call(prompt, *, aspect_ratio=None):
         if not isinstance(prompt, str) or not prompt.strip():
@@ -250,7 +255,7 @@ def yandexart_provider(model=None, *, key_env="YANDEX_API_KEY",
         return image
 
     call.provider_name = "yandexart"
-    call.model = model_uri
+    call.model = model_name
     call.max_prompt_chars = YANDEXART_MAX_PROMPT_CHARS
     call.last_usage = None
     return call
