@@ -625,7 +625,13 @@ def test_yandex_emploie_son_authentification_et_mesure_les_jetons(monkeypatch):
     assert vu["body"]["model"] == model
     assert vu["body"]["temperature"] == 0.3
     assert vu["body"]["max_tokens"] == 8000
-    assert vu["body"]["reasoning_effort"] == "none"
+    # RENVERSEMENT, mesuré contre le vrai service : Yandex REFUSE
+    # reasoning_effort='none' en HTTP 400 (« Input should be 'low', 'medium'
+    # or 'high' »), donc cette assertion décrivait un corps de requête que le
+    # service n'a jamais accepté — toute construction --provider yandex
+    # mourait au premier appel. Omettre le champ est ce que le commentaire du
+    # préréglage voulait dire, et ce que le service accepte.
+    assert "reasoning_effort" not in vu["body"]
     assert vu["body"]["response_format"]["type"] == "json_schema"
     assert vu["body"]["response_format"]["json_schema"]["strict"] is True
     assert call.last_usage["input_tokens"] == 101

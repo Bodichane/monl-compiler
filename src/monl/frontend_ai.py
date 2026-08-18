@@ -299,6 +299,7 @@ OPENAI_COMPATIBLE = {
     # Serveur local : pas de clé, mais l'en-tête Bearer reste accepté.
     "ollama":     ("http://localhost:11434/v1",       "OLLAMA_API_KEY"),
 }
+_YANDEX_REASONING_EFFORTS = ("low", "medium", "high")
 
 # Échappatoire totale, pour un point de terminaison que la table ignore :
 # --provider openai-compatible + MONL_AI_BASE_URL (+ MONL_AI_API_KEY).
@@ -399,33 +400,52 @@ def _openai_preset(name):
                 raise FrontendAIError(
                     "YANDEX_FOLDER_ID absent de l'environnement — c'est "
                     "l'identifiant du dossier Yandex Cloud qui porte le modèle.")
+            model_uri = model
+            if model and not re.match(r"^[A-Za-z][A-Za-z0-9+.-]*://", model):
+                model_uri = f"gpt://{folder}/{model}"
             # DeepSeek V4 Flash sait raisonner, mais le raisonnement interne
             # consomme le même plafond que le JSON de fichiers. Pour une
             # sortie structurée, la vérification Monl est le raisonnement :
-            # désactiver ce budget par défaut rend la construction fiable et
+            # ne rien envoyer par défaut rend la construction fiable et
             # laisse une surcharge explicite pour les cas qui en ont besoin.
-            reasoning_effort = (os.environ.get(
-                "MONL_YANDEX_REASONING_EFFORT", "none").strip() or "none")
-            provider = openai_provider(
-                model=model, base_url=base_url, key_env=key_env,
-                auth_scheme="Api-Key", extra_headers={"OpenAI-Project": folder},
-                provider_name=name, extra_body={
-                    "temperature": 0.3,
-                    # Certains modèles AI Studio comptent leur raisonnement
-                    # interne dans le plafond de complétion. Ici le résultat
-                    # est un fichier, pas une question à résoudre : réserver
-                    # ce budget au HTML/CSS/JS évite un JSON tronqué.
-                    "reasoning_effort": reasoning_effort,
-                    "response_format": {
-                        "type": "json_schema",
-                        "json_schema": {
-                            "name": "frontend_files",
-                            "description": "Fichiers statiques du frontend.",
-                            "schema": _FRONTEND_FILES_SCHEMA,
-                            "strict": True,
-                        },
+            raw_reasoning_effort = os.environ.get("MONL_YANDEX_REASONING_EFFORT")
+            reasoning_effort = ((raw_reasoning_effort or "").strip()
+                                if raw_reasoning_effort is not None else None)
+            if reasoning_effort == "":
+                # Compatibilité : « none » reste un alias explicite pour
+                # omettre le champ, même si Yandex ne l'accepte pas lui-même.
+                reasoning_effort = "none"
+            if reasoning_effort not in (*_YANDEX_REASONING_EFFORTS, "none", None):
+                allowed = ", ".join(_YANDEX_REASONING_EFFORTS)
+                raise FrontendAIError(
+                    "MONL_YANDEX_REASONING_EFFORT invalide : "
+                    f"{reasoning_effort!r}. Valeurs permises : {allowed} "
+                    "(ou 'none' pour omettre le champ).")
+            extra_body = {
+                "temperature": 0.3,
+                # Certains modèles AI Studio comptent leur raisonnement
+                # interne dans le plafond de complétion. Ici le résultat
+                # est un fichier, pas une question à résoudre : réserver
+                # ce budget au HTML/CSS/JS évite un JSON tronqué.
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "frontend_files",
+                        "description": "Fichiers statiques du frontend.",
+                        "schema": _FRONTEND_FILES_SCHEMA,
+                        "strict": True,
                     },
-                })
+                },
+            }
+            if reasoning_effort in _YANDEX_REASONING_EFFORTS:
+                extra_body["reasoning_effort"] = reasoning_effort
+            provider = openai_provider(
+                model=model_uri, base_url=base_url, key_env=key_env,
+                auth_scheme="Api-Key", extra_headers={"OpenAI-Project": folder},
+                provider_name=name, extra_body=extra_body)
+            # Yandex attend l'URI complète sur le fil, mais l'identifiant de
+            # modèle lisible est la clé de la télémétrie et de ses regroupements.
+            provider.model = model
             # DeepSeek peut produire un frontend riche, mais pas trois gros
             # fichiers dans une seule réponse JSON. Le mode séquentiel est
             # activé au niveau du fournisseur, sans changer le contrat des
