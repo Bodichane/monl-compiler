@@ -985,6 +985,11 @@ def brief_evolution(update_mode, retouche_mode):
 
 
 def build_generation_prompt(project_dir, update_mode, retouche_mode=False):
+    from .cli import _erreur_de_chemin
+
+    souci = _erreur_de_chemin(project_dir, fichier_requis=PROMPT_FILENAME)
+    if souci:
+        raise FrontendAIError(souci.replace(" ❌ ", "", 1).strip())
     with open(os.path.join(project_dir, PROMPT_FILENAME), encoding="utf-8") as fh:
         base_prompt = fh.read() + _project_guidance(project_dir)
     brief = brief_evolution(update_mode, retouche_mode)

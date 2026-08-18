@@ -70,8 +70,8 @@ def _load_state(project_dir):
         return json.load(fh)
 
 
-def _erreur_de_chemin(project_dir):
-    """Message d'erreur quand le DOSSIER lui-même n'existe pas, ou None.
+def _erreur_de_chemin(project_dir, *, fichier_requis=None):
+    """Message d'erreur pour un dossier ou un artefact frontend absent.
 
     POINT 105 : « monl.json introuvable — ce dossier n'est pas un projet monl »
     s'affichait aussi quand le dossier n'existait pas du tout, et `monl frontend`
@@ -81,9 +81,14 @@ def _erreur_de_chemin(project_dir):
     reproche au conseil de reformulation.
 
     Deux niveaux, dans l'ordre où les questions se posent : le dossier
-    existe-t-il, PUIS porte-t-il un projet. Répondre à la seconde quand la
-    première a échoué, c'est répondre à côté."""
+    existe-t-il, PUIS porte-t-il un projet. Le brief frontend est le niveau
+    suivant pour la commande qui doit le donner à une IA : le nommer ici évite
+    de laisser une ouverture de fichier répondre à la place du CLI."""
     if os.path.isdir(project_dir):
+        if fichier_requis and not os.path.isfile(
+                os.path.join(project_dir, fichier_requis)):
+            return (f" ❌ Contrat frontend incomplet : {fichier_requis} absent — "
+                    "lancer d'abord 'monl compile'.")
         return None
     lignes = [f" ❌ Dossier introuvable : {project_dir}"]
     # La faute la plus courante, et celle qui a motivé ce point : un chemin
