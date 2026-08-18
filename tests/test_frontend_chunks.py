@@ -197,6 +197,8 @@ def test_un_morceau_tronque_est_repris_sans_regenerer_les_precedents(project):
     ]
     styles_limits = [limit for target, limit in provider.calls if target == "styles.css"]
     assert styles_limits[1] > styles_limits[0]
+    assert provider.calls[-1] == ("app.js", 8_000)
+    assert provider.max_output_tokens == 8_000
 
     events = [json.loads(line) for line in
               (project / USAGE_FILENAME).read_text(encoding="utf-8").splitlines()]
@@ -239,17 +241,54 @@ def test_un_morceau_toujours_tronque_n_effectue_pas_une_seconde_generation_compl
 
     assert not ok
     assert errors
-    assert len(provider.calls) == 5
-    assert [target for target, _limit in provider.calls] == ["index.html"] * 5
+    assert len(provider.calls) == 3
+    assert [target for target, _limit in provider.calls] == ["index.html"] * 3
     assert [limit for _target_name, limit in provider.calls] == [
-        8_000, 12_000, 18_000, 27_000, 32_000,
+        8_000, 12_000, 18_000,
     ]
-    assert "plafond maximal de sortie" in errors[0]
     assert "aucune seconde tentative complète" in errors[0]
     events = [json.loads(line) for line in
               (project / USAGE_FILENAME).read_text(encoding="utf-8").splitlines()]
-    assert {event["attempt"] for event in events} == {1, 2}
+    assert {event["attempt"] for event in events} == {1}
     assert [(event["attempt"], event["retry"]) for event in events] == [
-        (1, 0), (1, 1), (1, 2), (2, 0), (2, 1),
+        (1, 0), (1, 1), (1, 2),
     ]
     assert len({event["run_id"] for event in events}) == 1
+
+
+class AppTimeoutAfterValidChunks:
+    chunked_generation = True
+    provider_name = "fake"
+    model = "fake-timeout"
+    max_output_tokens = 8_000
+    last_usage = None
+
+    def __init__(self):
+        self.calls = []
+
+    def __call__(self, prompt):
+        target = _target(prompt)
+        self.calls.append(target)
+        self.last_usage = {
+            "duration_seconds": 0.1,
+            "input_tokens": 100,
+            "output_tokens": 10,
+            "total_tokens": 110,
+        }
+        if target == "app.js":
+            from monl.frontend_ai import FrontendAIError
+            raise FrontendAIError("délai fournisseur dépassé")
+        return json.dumps({"files": {target: GOOD_FILES[target]}})
+
+
+def test_timeout_d_un_morceau_ne_rejoue_pas_les_fichiers_deja_payes(project):
+    provider = AppTimeoutAfterValidChunks()
+
+    ok, errors = generate_and_verify(str(project), provider, say=lambda _msg: None)
+
+    assert not ok
+    assert "aucune seconde tentative complète" in errors[0]
+    assert provider.calls == [
+        "index.html", "styles.css",
+        "app.js", "app.js", "app.js",
+    ]

@@ -172,7 +172,13 @@ def test_parcours_complet_modele_construction_et_site_serve(running_platform):
     build = _wait_for_build(base, token, project["id"])
     assert build["state"] == "reussie", build
     assert build["tokens_consumed"] == 40
+    assert build["snapshot_path"] == f"revisions/build-{build['id']}"
+    assert build["snapshot_sha256"]
+    assert build["snapshot_bytes"] > 0
     assert provider.calls == 1
+    # Une construction ne doit pas garder un uvicorn par projet inactif : le
+    # relais est lancé à la demande par le sous-domaine ou POST /start.
+    assert not _app.state.sites.is_running(project["id"])
 
     site = requests.get(
         f"{base}/site/",
@@ -187,6 +193,55 @@ def test_parcours_complet_modele_construction_et_site_serve(running_platform):
         timeout=10,
     )
     assert api.status_code == 200, api.text
+
+
+def test_un_nom_d_application_non_identifiant_est_un_refus_client(running_platform):
+    base, _app, _provider = running_platform
+    token = _register(base, "nom-invalide@example.test")
+
+    response = requests.post(
+        f"{base}/projects",
+        headers=_auth(token),
+        json={
+            "slug": "nom-invalide",
+            "model": "Portfolio / site vitrine",
+            "app_name": "Atelier Horizon",
+            "description": "Un portfolio de démonstration.",
+        },
+        timeout=10,
+    )
+
+    assert response.status_code == 422
+    assert "Nom de l'application" in response.json()["detail"]
+
+
+def test_echec_ecriture_spec_ne_laissent_pas_un_projet_orphelin(
+        running_platform, monkeypatch):
+    base, app, _provider = running_platform
+    token = _register(base, "spec-echouee@example.test")
+
+    class BrokenDirectory:
+        def joinpath(self, _name):
+            return self
+
+        def write_text(self, _text, encoding=None):
+            raise OSError("disque de test indisponible")
+
+    import monl_platform.app as platform_app
+    original_directory = platform_app.project_directory
+    monkeypatch.setattr(platform_app, "project_directory", lambda *_args, **_kwargs: BrokenDirectory())
+    body = {"slug": "spec-echouee", "spec": SPEC}
+    failed = requests.post(
+        f"{base}/projects", headers=_auth(token), json=body, timeout=10
+    )
+    assert failed.status_code == 422
+    assert app.state.store.list_projects("spec-echouee@example.test") == []
+
+    monkeypatch.setattr(platform_app, "project_directory", original_directory)
+    recovered = requests.post(
+        f"{base}/projects", headers=_auth(token), json=body, timeout=10
+    )
+    assert recovered.status_code == 201, recovered.text
 
 
 def test_un_compte_nevoit_pas_le_projet_dun_autre(running_platform):
@@ -270,6 +325,43 @@ def test_un_site_non_construit_refuse_de_demarrer_proprement(running_platform):
         f"{base}/projects/{project_id}/start", headers=_auth(token), timeout=10
     )
     assert started.status_code == 409
+
+
+def test_un_snapshot_manquant_ne_fait_pas_servir_un_dossier_actif(running_platform):
+    base, app, _provider = running_platform
+    token = _register(base, "missing-snapshot@example.test")
+    created = requests.post(
+        f"{base}/projects",
+        headers=_auth(token),
+        json={"slug": "missing-snapshot", "spec": SPEC},
+        timeout=10,
+    )
+    project_id = created.json()["project"]["id"]
+    queued = requests.post(
+        f"{base}/projects/{project_id}/builds",
+        headers=_auth(token),
+        timeout=10,
+    )
+    assert queued.status_code == 202
+    build = _wait_for_build(base, token, project_id)
+    assert build["state"] == "reussie"
+    project = app.state.store.get_project(project_id)
+    project_dir = app.state.sites._project_directory(project)
+    snapshot = project_dir / build["snapshot_path"]
+    stopped = requests.post(
+        f"{base}/projects/{project_id}/stop",
+        headers=_auth(token),
+        timeout=10,
+    )
+    assert stopped.status_code == 200
+    snapshot.rename(snapshot.with_name("deleted"))
+    response = requests.post(
+        f"{base}/projects/{project_id}/start",
+        headers=_auth(token),
+        timeout=10,
+    )
+    assert response.status_code == 409
+    assert "snapshot" in response.json()["detail"]
 
 
 def test_arreter_un_projet_arrete_son_processus(running_platform):

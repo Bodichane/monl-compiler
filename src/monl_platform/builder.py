@@ -10,6 +10,7 @@ from monl.usage import UsagePriceError, build_usage_report
 
 from .paths import ProjectPathError, project_directory
 from .quota import QuotaError
+from .revisions import create_snapshot
 
 
 class BuildIsolationError(RuntimeError):
@@ -251,8 +252,15 @@ def build_project(
         report = _usage_report(project_dir, prices_path=prices_path)
         usage = _usage_fields(report, previous_run_ids)
         if ok:
+            snapshot = create_snapshot(project_dir, build_id)
             store.finish_build(
-                build_id, "reussie", warning_message=warning_message, **usage
+                build_id,
+                "reussie",
+                warning_message=warning_message,
+                snapshot_path=snapshot["path"],
+                snapshot_sha256=snapshot["sha256"],
+                snapshot_bytes=snapshot["bytes"],
+                **usage,
             )
         else:
             store.finish_build(

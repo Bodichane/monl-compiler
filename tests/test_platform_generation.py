@@ -184,6 +184,39 @@ def test_par_defaut_un_seul_modele_et_aucune_image(platform, monkeypatch):
     assert report["project_total"]["requests"] is None
 
 
+def test_deux_constructions_conservent_leurs_snapshots(platform, monkeypatch):
+    _allow_frontend_verification(monkeypatch)
+    store, account, root = platform
+    project = store.create_project(account, "versions")
+    project_dir = project_directory(root, account, project, create=True)
+    project_dir.joinpath("spec.ml").write_text(SPEC, encoding="utf-8")
+    providers = iter((FakeTextProvider("premiere"), FakeTextProvider("seconde")))
+
+    def project_provider(_project, _build):
+        return next(providers)
+
+    worker = BuildWorker(
+        store,
+        root,
+        quota=TokenQuota(store, root, 100_000),
+        provider_factory=project_provider,
+        poll_interval=0,
+    )
+    first_id = store.create_build(project)
+    first = worker.run_once()
+    second_id = store.create_build(project)
+    second = worker.run_once()
+
+    assert first["id"] == first_id and first["state"] == "reussie"
+    assert second["id"] == second_id and second["state"] == "reussie"
+    assert first["snapshot_path"] == f"revisions/build-{first_id}"
+    assert second["snapshot_path"] == f"revisions/build-{second_id}"
+    first_styles = root / "accounts" / str(account) / "projects" / str(project) / first["snapshot_path"] / "frontend" / "styles.css"
+    second_styles = root / "accounts" / str(account) / "projects" / str(project) / second["snapshot_path"] / "frontend" / "styles.css"
+    assert "premiere" in first_styles.read_text(encoding="utf-8")
+    assert "seconde" in second_styles.read_text(encoding="utf-8")
+
+
 def test_routage_declare_produit_deux_modeles_dans_la_telemetrie(platform, monkeypatch):
     _allow_frontend_verification(monkeypatch)
     routed = {}

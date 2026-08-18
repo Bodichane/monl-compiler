@@ -659,6 +659,13 @@ CONSOLE_HTML = r'''<!doctype html>
             details.appendChild(detail);
           });
           panel.appendChild(details);
+          if (build.snapshot_path) {
+            const snapshot = document.createElement("p");
+            snapshot.className = "since";
+            addText(snapshot, "strong", "Snapshot conservé : ");
+            addText(snapshot, "code", build.snapshot_path);
+            panel.appendChild(snapshot);
+          }
           if (build.state === "echouee") {
             const report = document.createElement("div");
             report.className = "error-report";

@@ -88,6 +88,15 @@ class _ChunkOutputLimitError(FrontendAIError):
     """Une reprise est impossible : le modèle coupe encore au plafond."""
 
 
+class _ChunkGenerationError(FrontendAIError):
+    """Les reprises locales d'un fichier sont épuisées.
+
+    Cette erreur ne doit jamais déclencher la seconde génération complète :
+    les fichiers précédents ont déjà été payés et le fichier fautif a déjà
+    bénéficié de ses reprises ciblées.
+    """
+
+
 class _HTMLSelectorSkeleton(HTMLParser):
     """Conserve la structure HTML et les attributs utiles aux sélecteurs."""
 
@@ -1467,53 +1476,66 @@ def _generate_chunked_files(project_dir, provider, base_prompt, operation,
     for target in targets:
         stage_provider = _provider_for_chunk(
             provider, target, model_routes, provider_factory)
+        initial_output_limit = getattr(stage_provider, "max_output_tokens", None)
         say(f" -> Génération de frontend/{target}…")
-        for retry in range(CHUNK_MAX_RETRIES + 1):
-            if retry:
-                say(f" -> Reprise de frontend/{target} ({retry}/{CHUNK_MAX_RETRIES})…")
-            chunk_prompt = _build_chunk_prompt(base_prompt, target, files)
-            if retry:
-                chunk_prompt += (
-                    "\n\n## Reprise de génération\n"
-                    "La réponse précédente pour ce fichier était illisible. "
-                    "Rends à nouveau le fichier complet dans un JSON fermé, "
-                    "sans reprendre une réponse tronquée."
-                )
-            # Un appel en erreur ne doit pas réutiliser le compteur d'un appel
-            # précédent. Le fournisseur peut néanmoins renseigner last_usage
-            # avant de lever, ce qui permet alors de mesurer l'échec.
-            if hasattr(stage_provider, "last_usage"):
-                stage_provider.last_usage = None
-            try:
-                raw = stage_provider(chunk_prompt)
-            except FrontendAIError as exc:
-                error = exc
-                _record_provider_usage(project_dir, stage_provider, operation, attempt,
-                                       stage=target, retry=retry, run_id=run_id)
-            else:
-                _record_provider_usage(project_dir, stage_provider, operation, attempt,
-                                       stage=target, retry=retry, run_id=run_id)
+        try:
+            for retry in range(CHUNK_MAX_RETRIES + 1):
+                if retry:
+                    say(f" -> Reprise de frontend/{target} "
+                        f"({retry}/{CHUNK_MAX_RETRIES})…")
+                chunk_prompt = _build_chunk_prompt(base_prompt, target, files)
+                if retry:
+                    chunk_prompt += (
+                        "\n\n## Reprise de génération\n"
+                        "La réponse précédente pour ce fichier était illisible. "
+                        "Rends à nouveau le fichier complet dans un JSON fermé, "
+                        "sans reprendre une réponse tronquée."
+                    )
+                # Un appel en erreur ne doit pas réutiliser le compteur d'un appel
+                # précédent. Le fournisseur peut néanmoins renseigner last_usage
+                # avant de lever, ce qui permet alors de mesurer l'échec.
+                if hasattr(stage_provider, "last_usage"):
+                    stage_provider.last_usage = None
                 try:
-                    payload = parse_single_file_payload(raw, target)
+                    raw = stage_provider(chunk_prompt)
                 except FrontendAIError as exc:
                     error = exc
+                    _record_provider_usage(
+                        project_dir, stage_provider, operation, attempt,
+                        stage=target, retry=retry, run_id=run_id)
                 else:
-                    files.update(payload)
-                    break
+                    _record_provider_usage(
+                        project_dir, stage_provider, operation, attempt,
+                        stage=target, retry=retry, run_id=run_id)
+                    try:
+                        payload = parse_single_file_payload(raw, target)
+                    except FrontendAIError as exc:
+                        error = exc
+                    else:
+                        files.update(payload)
+                        break
 
-            if _chunk_response_reached_limit(stage_provider):
-                enlarged = _raise_chunk_output_limit(stage_provider)
-                if not enlarged:
-                    raise _ChunkOutputLimitError(
-                        f"frontend/{target} : le modèle tronque encore au plafond "
-                        f"maximal de sortie ({CHUNK_RETRY_MAX_OUTPUT_TOKENS} jetons) ; "
-                        "aucune seconde tentative complète ne sera lancée, car "
-                        "elle rejouerait la même configuration condamnée. "
+                if _chunk_response_reached_limit(stage_provider):
+                    enlarged = _raise_chunk_output_limit(stage_provider)
+                    if not enlarged:
+                        raise _ChunkOutputLimitError(
+                            f"frontend/{target} : le modèle tronque encore au plafond "
+                            f"maximal de sortie "
+                            f"({CHUNK_RETRY_MAX_OUTPUT_TOKENS} jetons) ; "
+                            "aucune seconde tentative complète ne sera lancée, car "
+                            "elle rejouerait la même configuration condamnée. "
+                            f"Dernière erreur : {error}") from error
+                if retry == CHUNK_MAX_RETRIES:
+                    raise _ChunkGenerationError(
+                        f"frontend/{target} : échec après "
+                        f"{CHUNK_MAX_RETRIES} reprise(s) ; aucune seconde tentative "
+                        "complète ne sera lancée. "
                         f"Dernière erreur : {error}") from error
-            if retry == CHUNK_MAX_RETRIES:
-                raise FrontendAIError(
-                    f"frontend/{target} : échec après {CHUNK_MAX_RETRIES} reprise(s) : "
-                    f"{error}") from error
+        finally:
+            # Une hausse accordée à un fichier tronqué ne doit pas augmenter le
+            # coût de tous les fichiers suivants partageant le même fournisseur.
+            if hasattr(stage_provider, "max_output_tokens"):
+                stage_provider.max_output_tokens = initial_output_limit
     return files
 
 
@@ -1575,6 +1597,10 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
                                        run_id=run_id)
                 files = parse_files_payload(raw)
         except _ChunkOutputLimitError as exc:
+            last_errors = [f"échec de génération : {exc}"]
+            say(f" ❌ {last_errors[0]}")
+            return False, last_errors
+        except _ChunkGenerationError as exc:
             last_errors = [f"échec de génération : {exc}"]
             say(f" ❌ {last_errors[0]}")
             return False, last_errors

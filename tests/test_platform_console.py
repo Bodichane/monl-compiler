@@ -172,7 +172,20 @@ def test_la_console_expose_le_catalogue_le_quota_et_l_etat_d_un_projet(running_p
         f"{base}/projects/{project['id']}", headers=_auth(token), timeout=10
     )
     assert refreshed.json()["project"]["host"] == "console-site.localhost"
-    assert refreshed.json()["project"]["running"] is True
+    assert refreshed.json()["project"]["running"] is False
+
+    # Le build publie un snapshot mais ne monopolise pas un processus : le
+    # relais naît au premier accès au sous-domaine.
+    site = requests.get(
+        f"{base}/site/",
+        headers={"Host": f"console-site.localhost:{base.rsplit(':', 1)[1]}"},
+        timeout=10,
+    )
+    assert site.status_code == 200, site.text
+    started = requests.get(
+        f"{base}/projects/{project['id']}", headers=_auth(token), timeout=10
+    )
+    assert started.json()["project"]["running"] is True
 
 
 def test_le_routage_par_hote_des_sites_reste_distinct_de_la_console(running_platform):

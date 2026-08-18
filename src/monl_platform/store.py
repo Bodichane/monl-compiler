@@ -109,6 +109,9 @@ class PlatformStore:
                     finished_at TEXT,
                     error_message TEXT,
                     warning_message TEXT,
+                    snapshot_path TEXT,
+                    snapshot_sha256 TEXT,
+                    snapshot_bytes INTEGER,
                     created_at TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS idx_projects_account
@@ -144,6 +147,9 @@ class PlatformStore:
                     "finished_at": "TEXT",
                     "error_message": "TEXT",
                     "warning_message": "TEXT",
+                    "snapshot_path": "TEXT",
+                    "snapshot_sha256": "TEXT",
+                    "snapshot_bytes": "INTEGER",
                     "created_at": "TEXT",
                 },
             }
@@ -281,6 +287,34 @@ class PlatformStore:
             )
             return cursor.lastrowid
 
+    def discard_project(self, account, project_id):
+        """Supprime un projet tout juste créé si son initialisation échoue.
+
+        Cette primitive n'est pas une API utilisateur : elle sert de
+        compensation à l'écriture de ``spec.ml`` dans la même requête HTTP.
+        Un projet possédant déjà une construction ne peut pas être écarté.
+        """
+        if isinstance(project_id, bool) or not isinstance(project_id, int):
+            raise ValueError("identifiant de projet invalide")
+        with self._lock, self._connection:
+            account_id = self._account_id(account)
+            row = self._row(
+                "SELECT id FROM projects WHERE id = ? AND account_id = ?",
+                (project_id, account_id),
+            )
+            if row is None:
+                return False
+            build = self._row(
+                "SELECT id FROM builds WHERE project_id = ? LIMIT 1", (project_id,)
+            )
+            if build is not None:
+                raise ValueError("projet déjà construit : suppression de compensation refusée")
+            deleted = self._connection.execute(
+                "DELETE FROM projects WHERE id = ? AND account_id = ?",
+                (project_id, account_id),
+            )
+            return deleted.rowcount == 1
+
     def get_project(self, project_id):
         with self._lock:
             return self._project_row("SELECT * FROM projects WHERE id = ?", (project_id,))
@@ -375,6 +409,9 @@ class PlatformStore:
         price_status=None,
         error_message=None,
         warning_message=None,
+        snapshot_path=None,
+        snapshot_sha256=None,
+        snapshot_bytes=None,
     ):
         if state not in {"reussie", "echouee"}:
             raise ValueError(f"état terminal invalide : {state}")
@@ -383,7 +420,8 @@ class PlatformStore:
                 """UPDATE builds SET state = ?, run_id = ?, tokens_consumed = ?,
                    input_tokens = ?, output_tokens = ?, cost = ?, currency = ?,
                    price_status = ?, finished_at = ?, error_message = ?,
-                   warning_message = ? WHERE id = ?""",
+                   warning_message = ?, snapshot_path = ?, snapshot_sha256 = ?,
+                   snapshot_bytes = ? WHERE id = ?""",
                 (
                     state,
                     run_id,
@@ -396,6 +434,9 @@ class PlatformStore:
                     _now(),
                     error_message,
                     warning_message,
+                    snapshot_path,
+                    snapshot_sha256,
+                    snapshot_bytes,
                     build_id,
                 ),
             )

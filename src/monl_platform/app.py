@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from monl.app_templates import TEMPLATES
+from monl.dialogue_engine import DialogueError
 
 from .app_templates import materialize_template
 from .console import console_response
@@ -66,6 +67,9 @@ def _build_view(build):
         "created_at": build["created_at"],
         "started_at": build["started_at"],
         "finished_at": build["finished_at"],
+        "snapshot_path": build["snapshot_path"],
+        "snapshot_sha256": build["snapshot_sha256"],
+        "snapshot_bytes": build["snapshot_bytes"],
     }
 
 
@@ -125,6 +129,13 @@ def create_app(
     sites = SiteManager(store, workspace_root, domain)
 
     def on_build_success(project, _build):
+        # Ne consommer un processus que pour un site explicitement servi. Si
+        # le projet était déjà ouvert, le relancer lui fait adopter le snapshot
+        # qui vient d'être publié ; sinon, le premier accès au sous-domaine ou
+        # POST /start le lancera à la demande.
+        if not sites.is_running(project["id"]):
+            return
+        sites.stop_project(project["id"])
         sites.start_project(project)
 
     worker = BuildWorker(
@@ -304,7 +315,7 @@ def create_app(
                     app_name=data.get("app_name", "MonProjet"),
                     description=data.get("description"),
                 )
-            except (ValueError, StopIteration) as exc:
+            except (ValueError, StopIteration, DialogueError) as exc:
                 _http_error(str(exc), status.HTTP_422_UNPROCESSABLE_ENTITY)
         if not isinstance(spec, str) or not spec.strip():
             _http_error("la spec doit être un texte non vide", status.HTTP_422_UNPROCESSABLE_ENTITY)
@@ -317,6 +328,7 @@ def create_app(
         model_routes = data.get("model_routes", {})
         if store.list_projects_by_slug(slug):
             _http_error("ce slug est déjà utilisé", status.HTTP_409_CONFLICT)
+        project_id = None
         try:
             project_id = store.create_project(
                 account["id"],
@@ -328,7 +340,12 @@ def create_app(
                 workspace_root, account["id"], project_id, create=True
             )
             directory.joinpath("spec.ml").write_text(spec, encoding="utf-8")
-        except (sqlite3.IntegrityError, ProjectPathError, ValueError) as exc:
+        except (sqlite3.IntegrityError, OSError, ProjectPathError, ValueError) as exc:
+            # La ligne SQLite n'est utile qu'avec sa spec. Une erreur disque ou
+            # de confinement juste après l'insertion ne doit ni bloquer le
+            # slug, ni laisser un projet impossible à construire.
+            if project_id is not None:
+                store.discard_project(account["id"], project_id)
             _http_error(str(exc), status.HTTP_422_UNPROCESSABLE_ENTITY)
         project = store.get_project_for_account(account["id"], project_id)
         return {"project": _project_view(store, project, sites)}
