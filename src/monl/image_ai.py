@@ -13,6 +13,7 @@ import json
 import os
 import time
 from datetime import datetime, timezone
+from io import BytesIO
 
 from .errors import FrontendError
 
@@ -22,6 +23,7 @@ YANDEXART_GENERATE_URL = (
 )
 YANDEXART_OPERATION_URL = "https://operation.api.cloud.yandex.net/operations/{operation_id}"
 DEFAULT_YANDEXART_MODEL = "yandex-art/latest"
+YANDEXART_MAX_PROMPT_CHARS = 500
 DEFAULT_IMAGE_POLL_INTERVAL = 2.0
 DEFAULT_IMAGE_POLL_TIMEOUT = 600.0
 
@@ -70,6 +72,74 @@ def _image_from_operation(payload):
     return image
 
 
+def _pillow_image_class():
+    """Charge Pillow seulement quand une image doit être optimisée."""
+    try:
+        from PIL import Image
+    except ImportError:
+        return None
+    return Image
+
+
+def optimize_image_bytes(image):
+    """Réduit un JPEG sans changer ses dimensions, avec un repli sûr.
+
+    Pillow reste une aide de livraison, pas une condition de construction :
+    son absence, ou une image que Pillow ne sait pas décoder, conserve les
+    octets reçus et retourne un message destiné à l'utilisateur.
+    """
+    original = bytes(image)
+    image_class = _pillow_image_class()
+    if image_class is None:
+        return original, "Pillow absent : l'image est écrite telle quelle, sans ré-encodage."
+    try:
+        with image_class.open(BytesIO(original)) as source:
+            if source.format != "JPEG":
+                return original, None
+            output = BytesIO()
+            converted = source if source.mode in {"RGB", "L"} else source.convert("RGB")
+            converted.save(
+                output,
+                format="JPEG",
+                quality=82,
+                optimize=True,
+                progressive=True,
+            )
+    except (OSError, ValueError):
+        return original, "Pillow n'a pas pu ré-encoder l'image : l'originale est conservée."
+    optimized = output.getvalue()
+    if len(optimized) >= len(original):
+        return original, None
+    return optimized, None
+
+
+def _yandex_aspect_ratio(aspect_ratio):
+    if not isinstance(aspect_ratio, dict):
+        raise ImageProviderError("Le rapport d'aspect doit être un objet.")
+    if {"width", "height"}.issubset(aspect_ratio):
+        width = aspect_ratio["width"]
+        height = aspect_ratio["height"]
+    elif {"widthRatio", "heightRatio"}.issubset(aspect_ratio):
+        width = aspect_ratio["widthRatio"]
+        height = aspect_ratio["heightRatio"]
+    else:
+        raise ImageProviderError(
+            "Le rapport d'aspect doit déclarer width/height."
+        )
+    if (
+        isinstance(width, bool)
+        or isinstance(height, bool)
+        or not isinstance(width, int)
+        or not isinstance(height, int)
+        or width <= 0
+        or height <= 0
+    ):
+        raise ImageProviderError(
+            "Les dimensions du rapport d'aspect doivent être des entiers positifs."
+        )
+    return {"widthRatio": width, "heightRatio": height}
+
+
 def yandexart_provider(model=None, *, key_env="YANDEX_API_KEY",
                        folder_env="YANDEX_FOLDER_ID"):
     """Construit un fournisseur d'octets JPEG basé sur YandexART.
@@ -90,15 +160,23 @@ def yandexart_provider(model=None, *, key_env="YANDEX_API_KEY",
         )
     model_uri = model or f"art://{folder_id}/{DEFAULT_YANDEXART_MODEL}"
 
-    def call(prompt):
+    def call(prompt, *, aspect_ratio=None):
         if not isinstance(prompt, str) or not prompt.strip():
             raise ImageProviderError("Le prompt YandexART ne peut pas être vide.")
+        if len(prompt) > YANDEXART_MAX_PROMPT_CHARS:
+            raise ImageProviderError(
+                "monl : prompt YandexART trop long — "
+                f"{len(prompt)} caractères, maximum {YANDEXART_MAX_PROMPT_CHARS}."
+            )
         requests = _requests_module()
         started = time.monotonic()
         call.last_usage = None
+        generation_options = {"mimeType": "image/jpeg"}
+        if aspect_ratio is not None:
+            generation_options["aspectRatio"] = _yandex_aspect_ratio(aspect_ratio)
         body = {
             "modelUri": model_uri,
-            "generationOptions": {"mimeType": "image/jpeg"},
+            "generationOptions": generation_options,
             "messages": [{"weight": 1, "text": prompt}],
         }
         try:
@@ -173,6 +251,7 @@ def yandexart_provider(model=None, *, key_env="YANDEX_API_KEY",
 
     call.provider_name = "yandexart"
     call.model = model_uri
+    call.max_prompt_chars = YANDEXART_MAX_PROMPT_CHARS
     call.last_usage = None
     return call
 
