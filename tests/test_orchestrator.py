@@ -29,7 +29,9 @@ entity Item
 entity Note
     body: Text
 
-actor Admin selfRegister
+# Le rôle d'administration est provisionné hors ligne : ces tests portent sur
+# la cohérence du contrat, pas sur une vitrine qui promet un back-office.
+actor Admin
 
 rule Item.label required
 rule Item.Read public
@@ -244,7 +246,10 @@ def test_frontend_hors_contrat_declenche_avertissement(tmp_path):
     ok, errors, warnings = check_coherence(str(proj))
     assert ok, errors
     assert any("/fantome" in w for w in warnings)
-    assert not any("/item" in w for w in warnings)
+    # Le nouveau contrôle peut nommer /item dans son décompte de couverture ;
+    # ce test porte uniquement sur l'ancien avertissement de chemin inconnu.
+    assert not any("chemins absents du contrat" in w and "/item" in w
+                   for w in warnings)
 
 
 def test_les_routes_de_navigation_ne_declenchent_pas_lavertissement(tmp_path):

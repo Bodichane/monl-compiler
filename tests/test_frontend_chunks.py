@@ -17,7 +17,9 @@ SPEC = """app ChunkRetryApp
 entity Item
     label: String
 
-actor Admin selfRegister
+# Le back-office est provisionné hors ligne ; ces tests vérifient le découpage
+# de génération, pas une vitrine publique complète.
+actor Admin
 
 rule Item.label required
 rule Item.Read public

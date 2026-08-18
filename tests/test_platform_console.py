@@ -17,7 +17,9 @@ SPEC = """app ConsoleWeb
 entity Item
     label: String
 
-actor Admin selfRegister
+# Admin est provisionné hors ligne : la console ne teste pas une inscription
+# publique ni un back-office livré dans la vitrine.
+actor Admin
 
 rule Item.Read public
 

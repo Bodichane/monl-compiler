@@ -18,7 +18,9 @@ SPEC = """app PlatformWeb
 entity Item
     label: String
 
-actor Admin selfRegister
+# Admin est provisionné hors ligne ; ces tests portent sur l'hébergement et
+# le routage, pas sur un parcours de vitrine pour ce rôle.
+actor Admin
 
 rule Item.Read public
 

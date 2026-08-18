@@ -23,7 +23,9 @@ entity Item
     label: String
     price: Money
 
-actor Admin selfRegister
+# Admin est provisionné hors ligne ; le frontend minimal de ces tests ne
+# constitue pas une promesse de back-office public.
+actor Admin
 
 rule Item.label required
 rule Item.Read public
