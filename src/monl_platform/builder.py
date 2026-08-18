@@ -2,11 +2,10 @@
 
 import contextlib
 import io
-import json
-import os
 
 from monl.cli import compile_project
 from monl.frontend_ai import generate_and_verify
+from monl.image_ai import ImageProviderError
 from monl.usage import UsagePriceError, build_usage_report
 
 from .paths import ProjectPathError, project_directory
@@ -17,14 +16,12 @@ class BuildIsolationError(RuntimeError):
     """Le projet demandé n'appartient pas au compte ou son chemin est sûr."""
 
 
-_IMAGE_FAILURE_MARKER = "MONL_PLATFORM_IMAGE_FAILURE"
-
-
 class _ImageProviderAdapter:
-    """Marque une panne image pour permettre le repli texte de la plateforme."""
+    """Conserve le signal typé d'une panne image pour le repli plateforme."""
 
     def __init__(self, provider):
         self._provider = provider
+        self.failure = None
 
     @property
     def provider_name(self):
@@ -46,51 +43,27 @@ class _ImageProviderAdapter:
     def __call__(self, prompt):
         try:
             image = self._provider(prompt)
+        except ImageProviderError as exc:
+            self.failure = exc
+            raise
         except Exception as exc:
-            raise RuntimeError(
-                f"{_IMAGE_FAILURE_MARKER}: fournisseur d'image en erreur : {exc}"
-            ) from exc
-        if not isinstance(image, (bytes, bytearray, memoryview)) or not image:
-            raise RuntimeError(
-                f"{_IMAGE_FAILURE_MARKER}: le fournisseur d'image n'a pas rendu "
-                "des octets"
+            failure = ImageProviderError(
+                f"fournisseur d'image en erreur : {exc}"
             )
+            self.failure = failure
+            raise failure from exc
+        if not isinstance(image, (bytes, bytearray, memoryview)) or not image:
+            failure = ImageProviderError(
+                "le fournisseur d'image n'a pas rendu des octets"
+            )
+            self.failure = failure
+            raise failure
         return image
 
 
-def _disable_generated_images(project_dir):
-    """Rend le manifeste neutre si la dépense image n'a pas abouti."""
-    path = os.path.join(project_dir, "ASSET_MANIFEST.json")
-    try:
-        with open(path, encoding="utf-8") as fh:
-            content = fh.read()
-        marker = "<!-- généré par monl — design system -->\n"
-        if not content.startswith(marker):
-            return
-        manifest = json.loads("\n".join(content.splitlines()[1:]))
-        if manifest.get("generated_by") != "monl":
-            return
-        manifest["generated_assets"] = []
-        manifest["status"] = "planned"
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(marker)
-            fh.write(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True))
-            fh.write("\n")
-    except (OSError, json.JSONDecodeError, TypeError):
-        # Le second passage de génération conservera l'erreur de vérification
-        # si le manifeste est réellement illisible.
-        return
-
-
 def _is_optional_image_failure(error):
-    message = str(error)
-    return (
-        _IMAGE_FAILURE_MARKER in message
-        or message.startswith("--generate-images exige")
-        or message.startswith("la génération d'images est activée")
-        or "avant la génération d'image" in message
-        or message.startswith("chemin d'image générée refusé")
-    )
+    """Reconnaît une panne image par son contrat d'erreur, jamais son texte."""
+    return isinstance(error, ImageProviderError)
 
 
 def _emit(say, message):
@@ -224,6 +197,7 @@ def build_project(
     spec_path = project_dir / "spec.ml"
     previous_report = _usage_report(project_dir, prices_path=None)
     previous_run_ids = _run_ids(previous_report)
+    warning_message = None
     try:
         if not isinstance(spec, str) or not spec.strip():
             raise ValueError("la spec doit être un texte non vide")
@@ -231,9 +205,10 @@ def build_project(
         _capture_compile(spec_path, project_dir, say_fn)
         routed_image_provider = (
             _ImageProviderAdapter(image_provider)
-            if generate_images and image_provider is not None
+            if generate_images
             else image_provider
         )
+        image_failure = None
         try:
             result = generate_and_verify(
                 str(project_dir),
@@ -247,14 +222,20 @@ def build_project(
         except Exception as exc:
             if not generate_images or not _is_optional_image_failure(exc):
                 raise
-            # Une photographie ne doit pas rendre inutilisable un frontend
-            # sain. On retire le plan incomplet puis on rejoue la génération
-            # texte dans un nouveau run_id, ce qui garde la télémétrie honnête.
-            _disable_generated_images(str(project_dir))
-            say_fn(
-                " ⚠️  Images indisponibles : construction poursuivie sans "
+            image_failure = exc
+        else:
+            image_failure = getattr(routed_image_provider, "failure", None)
+        if _is_optional_image_failure(image_failure):
+            # ``generate_and_verify`` a déjà pu planifier les images avant de
+            # rendre l'échec au compilateur. Repasser la spec par l'API du
+            # compilateur régénère ses artefacts avec sa décision sans images;
+            # la plateforme ne touche jamais au manifeste elle-même.
+            _capture_compile(spec_path, project_dir, say_fn)
+            warning_message = (
+                "⚠️  Images demandées indisponibles : le site est livré sans "
                 "images générées."
             )
+            _emit(say_fn, warning_message)
             result = generate_and_verify(
                 str(project_dir),
                 provider,
@@ -270,7 +251,9 @@ def build_project(
         report = _usage_report(project_dir, prices_path=prices_path)
         usage = _usage_fields(report, previous_run_ids)
         if ok:
-            store.finish_build(build_id, "reussie", **usage)
+            store.finish_build(
+                build_id, "reussie", warning_message=warning_message, **usage
+            )
         else:
             store.finish_build(
                 build_id,

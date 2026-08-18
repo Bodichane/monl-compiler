@@ -262,6 +262,9 @@ CONSOLE_HTML = r'''<!doctype html>
     .error-report { margin-top: 1rem; padding: 1rem; border: 1px solid #e7b8bd; border-radius: .6rem; background: var(--danger-soft); }
     .error-report h3 { color: var(--danger); }
     .error-report pre { max-height: 28rem; margin: 0; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: #4e171d; font: .87rem/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .warning-report { border-color: #e9c98e; background: var(--warning-soft); }
+    .warning-report h3 { color: var(--warning); }
+    .warning-report pre { color: #5f3a0c; }
     .site-panel { margin-top: 1rem; border-left: 4px solid var(--accent); }
     .site-host { display: block; margin: .5rem 0 1rem; padding: .8rem; overflow-wrap: anywhere; border: 1px solid var(--line); border-radius: .5rem; background: #f8fbfc; font: 1rem ui-monospace, SFMono-Regular, Menlo, monospace; }
     .site-instructions { margin: 0; color: var(--muted); }
@@ -662,6 +665,13 @@ CONSOLE_HTML = r'''<!doctype html>
             addText(report, "h3", "Erreurs de vérification");
             addText(report, "p", "Rapport brut de la construction — aucun détail n'est remplacé par un message générique.");
             addText(report, "pre", build.error_message || build.error || "Aucun détail d'erreur fourni.");
+            panel.appendChild(report);
+          } else if (build.warning_message) {
+            const report = document.createElement("div");
+            report.className = "error-report warning-report";
+            addText(report, "h3", "Avertissement de construction");
+            addText(report, "p", "Le site est disponible, mais un élément demandé n'a pas pu être produit.");
+            addText(report, "pre", build.warning_message);
             panel.appendChild(report);
           }
         }

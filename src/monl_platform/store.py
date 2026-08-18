@@ -108,6 +108,7 @@ class PlatformStore:
                     started_at TEXT,
                     finished_at TEXT,
                     error_message TEXT,
+                    warning_message TEXT,
                     created_at TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS idx_projects_account
@@ -142,6 +143,7 @@ class PlatformStore:
                     "started_at": "TEXT",
                     "finished_at": "TEXT",
                     "error_message": "TEXT",
+                    "warning_message": "TEXT",
                     "created_at": "TEXT",
                 },
             }
@@ -352,7 +354,8 @@ class PlatformStore:
         """Ne laisse jamais une construction abandonnée mentir en ``en_cours``."""
         with self._lock, self._connection:
             cursor = self._connection.execute(
-                "UPDATE builds SET state = ?, finished_at = ?, error_message = ? "
+                "UPDATE builds SET state = ?, finished_at = ?, error_message = ?, "
+                "warning_message = NULL "
                 "WHERE state = 'en_cours'",
                 ("echouee", _now(), message),
             )
@@ -371,6 +374,7 @@ class PlatformStore:
         currency=None,
         price_status=None,
         error_message=None,
+        warning_message=None,
     ):
         if state not in {"reussie", "echouee"}:
             raise ValueError(f"état terminal invalide : {state}")
@@ -378,7 +382,8 @@ class PlatformStore:
             self._connection.execute(
                 """UPDATE builds SET state = ?, run_id = ?, tokens_consumed = ?,
                    input_tokens = ?, output_tokens = ?, cost = ?, currency = ?,
-                   price_status = ?, finished_at = ?, error_message = ? WHERE id = ?""",
+                   price_status = ?, finished_at = ?, error_message = ?,
+                   warning_message = ? WHERE id = ?""",
                 (
                     state,
                     run_id,
@@ -390,6 +395,7 @@ class PlatformStore:
                     price_status,
                     _now(),
                     error_message,
+                    warning_message,
                     build_id,
                 ),
             )
