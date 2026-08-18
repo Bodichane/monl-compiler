@@ -135,6 +135,27 @@ class FakeTextProvider:
         return json.dumps({"files": {"index.html": _frontend_from_manifest(self.project)}})
 
 
+class ReusingTextProvider(FakeTextProvider):
+    def __call__(self, prompt):
+        self.prompts.append(prompt)
+        manifest = _manifest(self.project)
+        markers = manifest["required_markers"]["index.html"]
+        paths = [item["path"] for item in manifest["generated_assets"]]
+        sections = "".join(f"<section {marker}></section>" for marker in markers)
+        images = "".join(
+            f'<img src="{path}" alt="visuel du projet">'
+            f'<img src="{path}" alt="visuel dupliqué">'
+            for path in paths
+        )
+        self.last_usage = {
+            "duration_seconds": 0.02,
+            "input_tokens": 30,
+            "output_tokens": 20,
+            "total_tokens": 50,
+        }
+        return json.dumps({"files": {"index.html": sections + images}})
+
+
 def _project(tmp_path):
     project = tmp_path / "projet"
     project.mkdir()
@@ -180,10 +201,39 @@ def test_option_explicite_produit_des_octets_dans_assets_et_les_reference(tmp_pa
     assert all((project / path).read_bytes() == JPEG_BYTES for path in paths)
     assert not any((project / "frontend" / path).exists() for path in paths)
     assert all(path in text.prompts[0] for path in paths)
+    assert (
+        "`media/generated/hero.jpg` — bandeau principal du premier écran — "
+        "bloc HTML exact : `data-monl-section=\"hero\"` (à rendre une seule fois)"
+        in text.prompts[0]
+    )
+    assert (
+        "`media/generated/editorial.jpg` — vignette secondaire pour le récit ou la "
+        "preuve — bloc HTML exact : `data-monl-section=\"notre-matiere\"` "
+        "(à rendre une seule fois)"
+        in text.prompts[0]
+    )
     # Le prompt image est désormais une composition dédiée ; il ne recopie
     # plus le bloc de consignes destiné au modèle de code.
     assert all("Sujet :" in prompt for prompt in images.prompts)
     assert all("Chaque pièce naît" in prompt for prompt in images.prompts)
+
+
+def test_la_reutilisation_est_denommee_une_fois_par_asset(tmp_path):
+    project = _project(tmp_path)
+    images = FakeImageProvider()
+    text = ReusingTextProvider(project)
+
+    ok, errors = generate_and_verify(
+        str(project), text, image_provider=images, generate_images=True,
+        say=lambda _message: None,
+    )
+
+    assert not ok
+    reuse_errors = [error for error in errors
+                    if "asset généré réutilisé" in error]
+    assert len(reuse_errors) == 2
+    assert sum("media/generated/hero.jpg" in error for error in reuse_errors) == 1
+    assert sum("media/generated/editorial.jpg" in error for error in reuse_errors) == 1
 
 
 def test_prompt_image_compose_un_projet_bavard_dans_le_plafond_et_garde_la_matiere(
