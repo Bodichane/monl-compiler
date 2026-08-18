@@ -81,6 +81,29 @@ def test_manifest_ne_planifie_plus_d_images_depuis_le_brief(tmp_path):
     assert 'data-monl-section="<slug>"' in prompt
 
 
+def _section(marker, manifest=None):
+    """Une section qui porte sa MATIÈRE, pas seulement son nom.
+
+    Depuis le point 119, une section marquée mais vide fait échouer la
+    vérification : ces tests portent sur l'unicité des marqueurs et sur les
+    médias, pas sur la vacuité, et doivent donc fournir de quoi passer la
+    barrière de substance sans rien lui concéder.
+    """
+    regle = ((manifest or {}).get("section_substance", {}).get("index.html", {})
+             .get(marker, {}))
+    corps = [
+        "<h2>Titre de la section</h2>",
+        "<p>" + ("Un texte de section suffisamment long pour ressembler à "
+                 "quelque chose qu'un humain lirait vraiment sur la page. " * 4)
+        + "</p>",
+        '<a href="#suite">Continuer</a>',
+    ]
+    if regle.get("form"):
+        corps.append("<form><label>Message<input></label>"
+                     "<button>Envoyer</button></form>")
+    return f"<section {marker}>" + "".join(corps) + "</section>"
+
+
 def test_sections_au_meme_slug_sont_distinctes_et_acceptees(tmp_path):
     spec = tmp_path / "spec.ml"
     spec.write_text(SPEC.replace(
@@ -95,9 +118,9 @@ def test_sections_au_meme_slug_sont_distinctes_et_acceptees(tmp_path):
 
     frontend = tmp_path / "frontend"
     frontend.mkdir()
-    rendered = [f"<section {marker}></section>" for marker in unique_markers]
+    rendered = [_section(marker, manifest) for marker in unique_markers]
     rendered.extend(
-        f"<section {marker}></section>"
+        _section(marker, manifest)
         for marker in required_markers
         if marker not in set(unique_markers)
     )
@@ -129,7 +152,7 @@ def _active_manifest_errors(tmp_path, section_count=1, media_count=1):
             count = media_count
         else:
             count = 1
-        rendered.extend(f"<section {marker}></section>" for _ in range(count))
+        rendered.extend(_section(marker, manifest) for _ in range(count))
     (frontend / "index.html").write_text("\n".join(rendered), encoding="utf-8")
     assert activate_asset_manifest(str(tmp_path))
     return _design_completeness_errors(str(tmp_path)), manifest

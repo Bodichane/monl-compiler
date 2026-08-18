@@ -18,6 +18,7 @@ import shutil
 import unicodedata
 from pathlib import Path
 
+from .section_substance import rule_for
 from .ui_patterns import render_pattern_block, select_ui_patterns
 
 DESIGN_SYSTEM_FILENAME = "DESIGN_SYSTEM.md"
@@ -181,6 +182,29 @@ def _declared_section_markers(contract: dict) -> list[str]:
     return markers
 
 
+def _section_substance(contract: dict, profile: dict) -> dict[str, dict]:
+    """Apparie chaque section obligatoire à ce qu'elle doit CONTENIR.
+
+    Une section écrite par l'auteur est jugée sur ce qu'il a lui-même
+    déclaré : réclamer cent caractères à une rubrique qui en compte
+    cinquante ferait échouer une spec honnête. Le seuil est donc plafonné par
+    la longueur du corps, jamais deviné.
+    """
+    longueurs = {}
+    for section, marker in zip(contract.get("sections") or [],
+                               _declared_section_markers(contract), strict=False):
+        corps = " ".join((section.get("body") or "").split())
+        titre = " ".join((section.get("title") or "").split())
+        longueurs[marker] = len(titre) + len(corps)
+    regles = {}
+    for marker in _required_markers(contract, profile):
+        if not marker.startswith('data-monl-section="'):
+            continue
+        slug = marker.partition("=")[2].strip('"')
+        regles[marker] = rule_for(slug, longueurs.get(marker))
+    return regles
+
+
 def _generated_image_block_markers(contract: dict, profile: dict,
                                    generated: list[dict]) -> list[str | None]:
     """Retourne une précision de section, quand le rôle peut en recevoir une.
@@ -286,12 +310,62 @@ def build_asset_manifest(contract: dict, profile: dict, generate_images=False) -
         "unique_section_markers": {
             "index.html": _declared_section_markers(contract),
         },
+        # Un marqueur nomme une section, il ne prouve pas qu'il y a quelque
+        # chose dedans. La règle de substance voyage donc AVEC le marqueur :
+        # un projet compilé par une version antérieure n'en a pas et reste
+        # accepté tel quel, comme pour `required_markers` en son temps.
+        "section_substance": {
+            "index.html": _section_substance(contract, profile),
+        },
         "notes": [
             "Les chemins de planned_assets sont des attentes de première construction.",
             "Après génération du frontend, Monl passe ce manifeste à active et vérifie les fichiers livrés.",
             "Un manifeste rédigé par l'auteur remplace ce plan et n'est jamais écrasé.",
         ],
     }
+
+
+def _guarantees(contract: dict) -> list[str]:
+    """Ce que le backend garantit VRAIMENT, en phrases utilisables telles quelles.
+
+    La section de réassurance est le premier endroit où une IA invente : un
+    avis, un logo, « 10 000 clients satisfaits ». Lui interdire d'inventer
+    sans rien lui donner ne produit pas une section honnête, il produit une
+    section vide — c'est-à-dire le défaut qu'on répare. Ces phrases sont
+    dérivées du contrat, donc vérifiables une par une sur le serveur généré.
+    """
+    faits = []
+    routes = contract.get("routes") or []
+    entities = contract.get("entities") or {}
+    champs = [champ for spec in entities.values()
+              for champ in (spec.get("fields") or [])]
+
+    if any("/paiement" in (r.get("path") or "") for r in routes):
+        faits.append(
+            "Le paiement passe par un prestataire ; le site ne voit jamais un "
+            "numéro de carte, et le montant est relu en base au moment de "
+            "l'encaissement.")
+    if any(c.get("server_generated") for c in champs):
+        faits.append(
+            "Les montants et les références sont calculés par le serveur : ils "
+            "ne peuvent pas être modifiés depuis le navigateur.")
+    if any(c.get("postpayment_only") for c in champs):
+        faits.append(
+            "Une commande réglée est figée : plus personne ne peut en changer "
+            "le contenu ni le total.")
+    if any(c.get("numbered_as") for c in champs):
+        faits.append(
+            "Chaque enregistrement reçoit un numéro lisible, attribué une "
+            "seule fois et jamais réattribué.")
+    if any(r.get("auth_required") for r in routes):
+        faits.append(
+            "Les données de chaque compte restent séparées : la lecture et la "
+            "modification sont contrôlées côté serveur, pas cachées côté page.")
+    if contract.get("self_register_actors"):
+        faits.append(
+            "L'inscription est ouverte aux seuls rôles prévus par la "
+            "spécification ; on ne s'attribue pas un rôle privilégié.")
+    return faits
 
 
 def render_design_system(contract: dict, generate_images=False) -> str:
@@ -319,6 +393,24 @@ def render_design_system(contract: dict, generate_images=False) -> str:
         "generic": "écran vide après le hero, grille uniforme, faux contenu, navigation sans issue claire",
     }[profile["kind"]]
     markers = "\n".join(f"- `{marker}`" for marker in _required_markers(contract, profile))
+    garanties = "\n".join(f"- {phrase}" for phrase in _guarantees(contract)) or (
+        "- Aucune garantie dérivable du contrat : ne rien affirmer plutôt "
+        "qu'inventer une preuve.")
+    substance = "\n".join(
+        "- `{}` : {}".format(
+            marker.partition("=")[2].strip('"'),
+            ", ".join(
+                part for part in (
+                    "un titre" if regle.get("heading") else "",
+                    "un formulaire" if regle.get("form") else "",
+                    "un bouton ou un lien d'action" if regle.get("action") else "",
+                    (f"au moins {regle['text']} caractères de texte lisible"
+                     if regle.get("text") else ""),
+                ) if part
+            ),
+        )
+        for marker, regle in _section_substance(contract, profile).items()
+    ) or "- Aucune section obligatoire pour ce projet."
     return f"""{GENERATED_MARKER}
 # {contract.get('app', 'Monl')} — système de design initial
 
@@ -420,6 +512,34 @@ carte vide ou un faux placeholder.
 ## Marqueurs structurels attendus
 
 {markers}
+
+## Substance minimale de chaque section — refus à la vérification
+
+Un marqueur nomme une section, il ne la remplit pas. Une section marquée mais
+vide fait **échouer la construction** : ce n'est pas un avertissement. Ce qui
+est exigé, section par section :
+
+{substance}
+
+Le texte compté est celui qu'un humain lit : le contenu d'un `<script>` ne
+compte pas, et une section ne peut pas emprunter le texte de sa voisine. Ces
+seuils sont des PLANCHERS, pas des cibles — les atteindre avec du remplissage
+serait manquer le but. Ce qui manque doit être pris dans le contrat et dans le
+contenu déclaré, jamais inventé.
+
+Une section de collection (`catalogue`, `workspace`) n'a PAS à contenir de
+données en dur : ses lignes viennent de l'API à l'exécution. Ce qu'elle doit
+porter, c'est son titre, sa zone de rendu et son état vide.
+
+## Garanties réellement vérifiables — matière de la section de réassurance
+
+Ces phrases décrivent ce que le backend fait vraiment. La section `trust` doit
+se construire à partir d'elles, reformulées dans le registre du site. Toute
+autre affirmation — avis client, logo partenaire, nombre d'utilisateurs,
+récompense, délai non déclaré — est **interdite** : monl ne peut pas la
+vérifier, donc le site ne peut pas la promettre.
+
+{garanties}
 """
 
 

@@ -5,6 +5,7 @@ import json
 from io import BytesIO
 
 import pytest
+from aide_sections import sections_du_manifeste
 
 from monl import cli, image_ai
 from monl.cli import compile_project
@@ -69,9 +70,8 @@ def _manifest(project):
 
 def _frontend_from_manifest(project):
     manifest = _manifest(project)
-    markers = manifest["required_markers"]["index.html"]
     images = [item["path"] for item in manifest["generated_assets"]]
-    sections = "\n".join(f"<section {marker}></section>" for marker in markers)
+    sections = sections_du_manifeste(manifest)
     pictures = "\n".join(
         f'<img src="{path}" alt="visuel du projet">' for path in images
     )
@@ -147,9 +147,8 @@ class ReusingTextProvider(FakeTextProvider):
     def __call__(self, prompt):
         self.prompts.append(prompt)
         manifest = _manifest(self.project)
-        markers = manifest["required_markers"]["index.html"]
         paths = [item["path"] for item in manifest["generated_assets"]]
-        sections = "".join(f"<section {marker}></section>" for marker in markers)
+        sections = sections_du_manifeste(manifest)
         images = "".join(
             f'<img src="{path}" alt="visuel du projet">'
             f'<img src="{path}" alt="visuel dupliqué">'
@@ -404,10 +403,8 @@ def test_cle_yandexart_absente_nomme_la_variable_sans_casser_le_texte(tmp_path, 
     text.last_usage = None
     # L'option n'étant pas demandée, le fournisseur image absent n'est jamais
     # construit et la voie texte reste exploitable.
-    content = "<html><body>" + "".join(
-        f"<section {marker}></section>"
-        for marker in _manifest(project)["required_markers"]["index.html"]
-    ) + "</body></html>"
+    content = ("<html><body>" + sections_du_manifeste(_manifest(project))
+               + "</body></html>")
     def text_provider(_prompt):
         return json.dumps({"files": {"index.html": content}})
     text_provider.provider_name = "fake-text"

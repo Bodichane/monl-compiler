@@ -874,6 +874,21 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   manque : mieux vaut un compilateur qui s'arrête qu'une route de paiement sans
   contrôle d'accès. Éprouvé par `tests/test_rattachement.py` (18 tests, dont 11
   échouent sans la correction). Voir point 99.
+- **POINT 140 : un marqueur nomme une section, il ne prouve pas qu'elle
+  contient quelque chose.** `src/monl/section_substance.py` mesure la MATIÈRE
+  (titre, texte lisible, action, formulaire) ; les seuils sont PAR SECTION et
+  voyagent dans `ASSET_MANIFEST.json` sous `section_substance`, donc un projet
+  compilé par une version antérieure reste accepté. Deux pièges de mesure, tous
+  deux éprouvés : le corps d'un `<script>` ne compte pas, et la pile du parseur
+  porte le NOM de la balise — un `<p>` jamais refermé est du HTML5 légal, et
+  sans ça une section avale le texte de sa voisine et la barrière ne refuse
+  plus rien. Ne JAMAIS exiger de données en dur dans un `catalogue` : ses
+  lignes viennent de l'API, et les réclamer ferait inventer des produits.
+  Le plancher de sections vit dans `select_ui_patterns` (`ui_patterns.py`) —
+  `hero`, la matière (catalogue/workspace/booking), `trust`, `closing-cta` —
+  et la matière de `trust` vient de `_guarantees()` (design_system.py), donc du
+  CONTRAT et jamais de l'imagination. Mesuré sur les 10 modèles du catalogue
+  par le vrai chemin de dialogue : minimum 4, médiane 7, maximum 10.
 - POINT 88 : une clé étrangère référence l'une de DEUX choses — le registre des
   COMPTES (`_monl_users`) quand la route Create la peuple depuis le jeton, l'`id`
   d'une table métier sinon. `_identity_fk_columns` (core.py) tranche ; le contrat

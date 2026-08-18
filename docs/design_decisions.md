@@ -53,6 +53,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [134](#134-la-frontiere-de-lagent-etait-une-enumeration-incomplete) La frontière de l'agent était une énumération incomplète ·
 [135](#135-mesurer-le-coût-avant-de-vendre-la-génération--yandex-ai-studio) Mesurer le coût avant de vendre la génération : Yandex AI Studio ·
 [139](#139-le-compilateur-avait-repris-la-main-sur-la-palette-par-lautre-tuyau) Le compilateur avait repris la main sur la palette, par l'autre tuyau ·
+[140](#140-un-marqueur-nommait-la-section-sans-jamais-prouver-quil-y-avait-quelque-chose-dedans) Un marqueur nommait la section sans prouver qu'il y avait quelque chose dedans ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -8933,3 +8934,102 @@ copier-coller de source, et ce qui fait la qualité de ces composants est du
 catalogue et un formulaire n'ont pas l'usage. Si un marché l'exige un jour, ce
 sera un **second émetteur** — pas une modification de celui-ci, conformément au
 refus de l'IR multi-cible déjà acté.
+
+## 140. Un marqueur nommait la section sans jamais prouver qu'il y avait quelque chose dedans
+
+**Le contrôle de complétude vérifiait un NOM, pas un contenu.** Depuis le
+point 136, `ASSET_MANIFEST.json` porte des `required_markers` et
+`_design_completeness_errors` refuse un frontend auquel il manque une section
+déclarée. Le contrôle est une recherche de chaîne : `content.count(marker)`.
+Donc `<section data-monl-section="hero"></section>` le franchit, et une page
+faite de huit balises vides était déclarée complète. Ce n'est pas une
+hypothèse : `tests/test_design_system.py` construisait exactement cette page
+et affirmait `_design_completeness_errors(...) == []`. **Le test qui prouvait
+la barrière prouvait aussi son trou**, et personne ne l'avait lu comme ça.
+
+**Le second défaut est plus grave que le premier.** Mesuré sur les cinq
+exemples du dépôt, le nombre de sections EXIGÉES valait 4, 5, 4, 3 et **2**.
+Deux, pour `exemples/05_classement.ml` : `hero` et `closing-cta`. Autrement
+dit, le classement — le sujet entier du site — n'était requis sur aucun écran.
+Une application pouvait donc être « complète » sans que sa propre matière
+apparaisse nulle part. La règle qui produisait ça n'était pas absurde :
+`catalogue` était réservé au commerce, `trust` au commerce et au service. Elle
+raisonnait sur le SECTEUR, quand la question est « ce site montre-t-il ce
+qu'il fait ».
+
+**Ce que la pratique de référence dit, et ce qu'elle ne dit pas.** Les
+recommandations publiées convergent sur deux choses : une page produit tient
+en cinq à huit blocs, et chaque catégorie a un noyau non négociable — menu,
+adresse et réservation pour un restaurant ; travaux, à-propos, preuve et
+contact pour un portfolio ; proposition de valeur, navigation, catalogue et
+réassurance pour une boutique. Ce qu'elles ne disent jamais, c'est de
+remplir un huitième bloc quand on n'a de la matière que pour quatre. **Le
+plancher retenu est donc de QUATRE sections réelles** — identité, matière,
+réassurance, action — plus tout ce que la spec fournit vraiment (éditorial,
+FAQ, contact, réservation, panier). Monter le plancher à huit aurait produit
+du remplissage, c'est-à-dire l'inverse exact de ce qu'on répare.
+
+**Trois principes tiennent la barrière de substance** (`section_substance.py`),
+chacun né d'une façon différente de se tromper :
+
+1. **On ne demande jamais ce qui vient de l'API.** Un catalogue se remplit à
+   l'exécution ; exiger des lignes de produits dans le HTML statique
+   pousserait l'IA à en inventer — précisément ce que monl refuse partout
+   ailleurs. On exige le contenant, le titre et l'état vide, jamais les
+   données.
+2. **Le seuil est PAR SECTION.** Un bandeau de conclusion tient en une phrase
+   et un bouton ; lui réclamer deux cents caractères ferait produire du
+   remplissage. `hero` veut 80 caractères, une action et un titre ;
+   `closing-cta` veut un titre et une action, pas de prose ; `contact` veut un
+   `<form>`, pas un paragraphe.
+3. **Une section déclarée est jugée sur CE QU'ELLE DÉCLARE.** Réclamer cent
+   caractères à une rubrique dont l'auteur en a écrit trente ferait échouer
+   une spec honnête. Le seuil est plafonné par la longueur du corps déclaré,
+   jamais deviné.
+
+**Deux pièges de mesure, tous deux éprouvés.** Le corps d'un `<script>` n'est
+pas du texte lu par un humain : le compter laisserait passer la barrière avec
+une variable JavaScript bien remplie. Et la pile du parseur porte le NOM de la
+balise : un `<p>` jamais refermé est du HTML5 parfaitement légal, et sans ça
+la profondeur fuit — la section avale tout ce qui la suit et la barrière ne
+refuse plus rien. Une section qui compte le texte de sa voisine ne refuse
+rien du tout.
+
+**La matière de `trust` vient du CONTRAT, pas de l'imagination.** La section
+de réassurance est le premier endroit où une IA invente un avis, un logo, un
+« 10 000 clients satisfaits ». Lui interdire d'inventer sans rien lui donner
+ne produit pas une section honnête : ça produit une section vide, c'est-à-dire
+le défaut qu'on répare. Le brief énumère donc des phrases DÉRIVÉES du contrat
+et vérifiables une par une sur le serveur généré — le paiement passe par un
+prestataire, les montants sont calculés côté serveur, une commande réglée est
+figée, chaque compte ne voit que ses données. Toute autre affirmation reste
+interdite.
+
+**Le brief doit énoncer la règle.** Une barrière que l'IA ne connaît pas ne
+produit pas de la qualité, elle produit des reprises facturées.
+`DESIGN_SYSTEM.md` publie donc, section par section, ce qui est exigé, en
+disant que c'est un refus et non un avertissement, et que les seuils sont des
+PLANCHERS et non des cibles.
+
+**NEUVIÈME fois pour l'angle mort du delta**, et la question posée avant
+d'écrire la brique cette fois-ci. Le plancher et la substance ne créent aucune
+route, ne renomment aucun champ, ne touchent à aucun acteur — mais un site
+conforme hier devient non conforme. `_contract_signature` porte donc les
+sections obligatoires ET leur règle : le digest change quand le seuil de
+`trust` change, exactement comme au point 89 sur la lecture seule. Trois cas
+au rapport, comme pour le contenu au point 94 — section ajoutée, retirée, ou
+**durcie sans changer de nom**, le troisième étant le silencieux.
+
+**Ce que ça ne couvre PAS, et c'est assumé.** La couverture de routes reste
+ce qu'elle était : un workflow d'acteur inscriptible sans AUCUNE route
+appelée est une erreur, la liste exhaustive des routes jamais appelées reste
+un avertissement. Un workflow de huit actions dont une seule est atteignable
+passe donc toujours. C'est un arbitrage écrit et délibéré — « une route isolée
+n'est pas nécessairement un écran » — et le rouvrir est une décision de
+produit, pas une correction de défaut.
+
+Éprouvé par `tests/test_section_substance.py` (14 tests), et de bout en bout
+sur `exemples/02_boutique.ml` : `monl run --check` refuse les six sections
+vides en nommant ce qui manque à chacune, et accepte le même site réellement
+rempli. Sans cette contre-épreuve, une barrière qui refuserait tout passerait
+pour bonne.

@@ -44,6 +44,7 @@ from .design_system import (
 from .errors import FrontendError
 from .frontend_contract import PROMPT_FILENAME
 from .image_ai import ImageProviderError, optimize_image_bytes, record_image_usage
+from .section_substance import substance_errors
 
 ALLOWED_EXTENSIONS = (".html", ".css", ".js", ".svg", ".json")
 MAX_TOTAL_BYTES = 2_000_000
@@ -772,6 +773,16 @@ def _design_completeness_errors(project_dir):
                     )
             elif marker not in unique_markers and count == 0:
                 errors.append(f"section visuelle obligatoire absente : {marker}")
+        # Le contrôle ci-dessus prouve qu'une section est NOMMÉE. Il ne dit
+        # rien de ce qu'elle contient : `<section data-monl-section="hero">
+        # </section>` le franchissait, et un site de huit balises vides
+        # passait pour complet. La substance se mesure sur ce qui a été
+        # réellement écrit, section par section.
+        regles = (manifest.get("section_substance") or {}).get(filename) or {}
+        errors.extend(substance_errors(content, {
+            marker: regle for marker, regle in regles.items()
+            if content.count(marker)
+        }))
     return errors
 
 

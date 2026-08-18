@@ -32,14 +32,15 @@ workflow ManageItem for Admin
 
 FRONTEND = """<!doctype html>
 <html><body>
-<section data-monl-section="hero"><h1>site servi par son hôte</h1></section>
-<section data-monl-section="editorial">Récit</section>
-<section data-monl-section="a-propos">À propos</section>
-<section data-monl-section="services">Services</section>
-<section data-monl-section="trust">Confiance</section>
-<section data-monl-section="contact">Contact</section>
-<section data-monl-section="workspace">Espace de travail</section>
-<section data-monl-section="closing-cta">Fin</section>
+<section data-monl-section="hero"><h1>site servi par son hôte</h1><p>Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. </p><a href="#suite">Commencer</a></section>
+<section data-monl-section="editorial"><h2>Notre récit</h2><p>Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. </p><a href="#suite">Continuer</a></section>
+<section data-monl-section="a-propos"><h2>À propos</h2><p>Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. </p><a href="#suite">Continuer</a></section>
+<section data-monl-section="services"><h2>Services</h2><p>Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. </p><a href="#suite">Continuer</a></section>
+<section data-monl-section="trust"><h2>Ce que nous garantissons</h2><p>Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. </p><a href="#suite">Continuer</a></section>
+<section data-monl-section="contact"><h2>Nous écrire</h2><p>Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. </p><a href="#suite">Continuer</a><form><label>Message<input></label><button>Envoyer</button></form></section>
+<section data-monl-section="workspace"><h2>Espace de travail</h2><p>Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. </p><a href="#suite">Continuer</a></section>
+<section data-monl-section="closing-cta"><h2>Passer à l'action</h2><p>Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. </p><a href="#suite">Continuer</a></section>
+
 </body></html>
 """
 

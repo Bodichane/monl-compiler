@@ -1304,8 +1304,24 @@ def _contract_signature(contract):
             par = "à envoyer par le client" if lien["column"] in designees \
                 else "renseigné par le serveur"
             liens.add(f"{entite}.{lien['column']} → {porte}, {par}")
+    # POINT 119 : NEUVIÈME fois, et la question posée avant d'écrire la brique
+    # cette fois-ci. Le plancher de sections et la substance exigée de chacune
+    # ne créent aucune route, ne renomment aucun champ et ne touchent à aucun
+    # acteur — mais un site conforme hier devient non conforme, et
+    # `monl run --check` le refuse. Sans cette entrée, `monl update` répondrait
+    # « aucun changement d'interface » juste avant que le site cesse de
+    # démarrer : le pire des deux mondes. Le digest porte la RÈGLE et pas
+    # seulement le nom de la section — relever le seuil de texte de `trust`
+    # oblige aussi à réécrire, exactement comme au point 89.
+    from .design_system import _section_substance, infer_design_profile
+    profil = infer_design_profile(contract)
+    sections_obligatoires = {
+        marker.partition("=")[2].strip('"'): hashlib.sha256(
+            json.dumps(regle, sort_keys=True).encode("utf-8")).hexdigest()
+        for marker, regle in _section_substance(contract, profil).items()
+    }
     return (routes, fields, acces, lecture_seule, prealables, verrous,
-            contenus, liens, field_types)
+            contenus, liens, field_types, sections_obligatoires)
 
 
 def _situer_projet(project_dir, geste):
@@ -1332,7 +1348,7 @@ def _signature_precedente(project_dir):
     pas encore — auquel cas tout est « ajouté », ce qui est exact."""
     contract_path = os.path.join(project_dir, CONTRACT_FILENAME)
     if not os.path.exists(contract_path):
-        return (set(), set(), set(), set(), set(), set(), {}, set(), {})
+        return (set(), set(), set(), set(), set(), set(), {}, set(), {}, {})
     with open(contract_path, encoding="utf-8") as fh:
         return _contract_signature(json.load(fh))
 
@@ -1346,9 +1362,9 @@ def _rapporter_delta(ancienne, nouvelle, project_dir, ecrire_brief=True):
     finiraient par diverger — et c'est précisément le calcul dont cinq points
     (88 à 91, 94, 99) ont montré qu'il est difficile à tenir juste."""
     (old_routes, old_fields, old_acces, old_ro, old_prea, old_verrous,
-     old_contenus, old_liens, old_types) = ancienne
+     old_contenus, old_liens, old_types, old_sections) = ancienne
     (new_routes, new_fields, new_acces, new_ro, new_prea, new_verrous,
-     new_contenus, new_liens, new_types) = nouvelle
+     new_contenus, new_liens, new_types, new_sections) = nouvelle
 
     added_routes, removed_routes = new_routes - old_routes, old_routes - new_routes
     added_fields, removed_fields = new_fields - old_fields, old_fields - new_fields
@@ -1391,11 +1407,20 @@ def _rapporter_delta(ancienne, nouvelle, project_dir, ecrire_brief=True):
     changed_types = {f"{field} : {old_types[field]} → {new_types[field]}"
                      for field in (new_fields & old_fields)
                      if old_types.get(field) != new_types.get(field)}
+    # POINT 119 : trois cas comme pour le contenu (point 94) — une section
+    # peut apparaître, disparaître, ou voir sa règle DURCIE sans changer de
+    # nom. Le troisième est le silencieux : relever le texte exigé de `trust`
+    # ne renomme rien et rend pourtant le site non conforme.
+    added_sections = set(new_sections) - set(old_sections)
+    removed_sections = set(old_sections) - set(new_sections)
+    modifies_sections = {c for c in set(new_sections) & set(old_sections)
+                         if new_sections[c] != old_sections[c]}
     changes = any((added_routes, removed_routes, added_fields, removed_fields,
                    added_acces, removed_acces, scelles, liberes,
                    added_prea, removed_prea, added_verrous, removed_verrous,
                    added_contenus, removed_contenus, modifies_contenus,
-                   changed_liens, changed_types))
+                   changed_liens, changed_types,
+                   added_sections, removed_sections, modifies_sections))
     # Le nom seul ne dit pas qu'un champ neuf est en lecture seule ; la rubrique
     # du brief s'intitule « à afficher/saisir », ce qui serait un contresens sur
     # un horodatage ou un total calculé.
@@ -1437,6 +1462,12 @@ def _rapporter_delta(ancienne, nouvelle, project_dir, ecrire_brief=True):
         print(f"  - contenu retiré : {item}")
     for item in sorted(modifies_contenus):
         print(f"  ! contenu réécrit : {item}")
+    for item in sorted(added_sections):
+        print(f"  + section obligatoire : {item} — à dessiner sur l'accueil")
+    for item in sorted(removed_sections):
+        print(f"  - section obligatoire retirée : {item}")
+    for item in sorted(modifies_sections):
+        print(f"  ! section obligatoire durcie : {item} — son contenu minimal a changé")
     if not changes:
         print("  (aucun changement d'interface — le frontend existant reste valide)")
     elif ecrire_brief:
