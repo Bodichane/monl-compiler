@@ -193,7 +193,8 @@ def _generated_image_plan(contract: dict, profile: dict) -> list[dict]:
     planned = [{
         "kind": "generated-image",
         "path": f"{prefix}/hero.jpg",
-        "role": "visuel principal du premier écran",
+        "role": "bandeau principal du premier écran",
+        "aspect_ratio": {"width": 16, "height": 9},
         "frontend_reference": f"{prefix}/hero.jpg",
         "required": True,
     }]
@@ -201,7 +202,7 @@ def _generated_image_plan(contract: dict, profile: dict) -> list[dict]:
         planned.append({
             "kind": "generated-image",
             "path": f"{prefix}/editorial.jpg",
-            "role": "visuel secondaire pour le récit ou la preuve",
+            "role": "vignette secondaire pour le récit ou la preuve",
             "frontend_reference": f"{prefix}/editorial.jpg",
             "required": True,
         })

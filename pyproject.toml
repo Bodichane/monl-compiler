@@ -25,6 +25,7 @@ dependencies = [
 [project.optional-dependencies]
 ai = [
     "requests>=2.31,<3.0",
+    "Pillow>=10.0,<13.0",
 ]
 dev = [
     "pytest>=8.0,<9.0",

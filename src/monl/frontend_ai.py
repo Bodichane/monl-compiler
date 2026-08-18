@@ -21,6 +21,7 @@
 #   - extensions autorisées : .html .css .js .svg .json uniquement
 #   - 'index.html' obligatoire, taille totale plafonnée
 # ─────────────────────────────────────────────────────────────────────
+import inspect
 import json
 import os
 import posixpath
@@ -42,7 +43,7 @@ from .design_system import (
 )
 from .errors import FrontendError
 from .frontend_contract import PROMPT_FILENAME
-from .image_ai import ImageProviderError, record_image_usage
+from .image_ai import ImageProviderError, optimize_image_bytes, record_image_usage
 
 ALLOWED_EXTENSIONS = (".html", ".css", ".js", ".svg", ".json")
 MAX_TOTAL_BYTES = 2_000_000
@@ -1191,7 +1192,117 @@ def _build_chunk_prompt(base_prompt, target, files):
     )
 
 
-def _image_prompt(project_dir, item):
+def _clean_image_text(value):
+    return re.sub(r"\s+", " ", str(value or "")).strip()
+
+
+def _image_brief_material(brief):
+    """Sépare la matière visuelle des consignes destinées au modèle texte."""
+    text = _clean_image_text(brief)
+    topic_match = re.search(
+        r"Les illustrations doivent évoquer\s*:\s*(.+?)(?:[.!?](?:\s|$)|$)",
+        text, re.IGNORECASE)
+    topic = _clean_image_text(topic_match.group(1)) if topic_match else ""
+    if topic_match:
+        text = text[:topic_match.start()].rstrip(" .")
+
+    text = re.split(r"\bmode express\s*:", text, maxsplit=1,
+                    flags=re.IGNORECASE)[0].rstrip(" ;,.")
+    text = re.sub(r"\bsans inventer\b.*$", "", text,
+                  flags=re.IGNORECASE).rstrip(" ;,.")
+
+    subject = text.split(" — ", 1)[0].strip(" ;,.")
+    subject = re.split(
+        r"\s*,\s*(?=(?:ton|registre|les images|le visiteur)\b)",
+        subject, maxsplit=1, flags=re.IGNORECASE)[0].strip(" ;,.")
+    if not subject:
+        subject = text or "matière déclarée par le projet"
+
+    register = []
+    for match in re.finditer(
+            r"\b(?:ton|registre|les images portent)\b.+?(?=;| — |$)",
+            text, re.IGNORECASE):
+        clause = _clean_image_text(match.group(0))
+        if clause and clause.lower() not in {item.lower() for item in register}:
+            register.append(clause)
+    return subject, " ; ".join(register), topic
+
+
+def _image_text_chunks(value):
+    """Retourne des morceaux supprimables sans casser une phrase déclarée."""
+    chunks = re.split(r"(?<=[.!?])\s+|;\s+|,\s+", _clean_image_text(value))
+    return [chunk.strip(" ;") for chunk in chunks if chunk.strip(" ;")]
+
+
+def _compact_image_value(value, limit):
+    """Réduit un champ en retirant des phrases ou clauses entières."""
+    value = _clean_image_text(value)
+    if limit <= 0:
+        return ""
+    if len(value) <= limit:
+        return value
+
+    chunks = _image_text_chunks(value)
+    selected = []
+    for chunk in chunks:
+        candidate = "; ".join(selected + [chunk])
+        if len(candidate) > limit:
+            break
+        selected.append(chunk)
+    if selected:
+        return "; ".join(selected)
+    return ""
+
+
+def _fit_image_prompt(parts, max_chars):
+    """Assemble un prompt borné sans tronquer un token ni une phrase."""
+    parts = [list(part) for part in parts if part[1]]
+
+    def render():
+        return "\n".join(f"{label} : {value}" for label, value, _required in parts)
+
+    # Les sections sont utiles, mais le sujet, le rôle, le registre et les
+    # interdits sont prioritaires pour une image. On retire donc les sections
+    # entières avant de réduire la matière visuelle elle-même.
+    while len(render()) > max_chars:
+        optional = [index for index, (_label, _value, required) in enumerate(parts)
+                    if not required]
+        if optional:
+            parts.pop(optional[-1])
+            continue
+
+        candidates = sorted(
+            (index for index, (_label, value, _required) in enumerate(parts)
+             if value),
+            key=lambda index: len(parts[index][1]), reverse=True)
+        if not candidates:
+            break
+        index = candidates[0]
+        label, value, required = parts[index]
+        excess = len(render()) - max_chars
+        target = max(1, len(value) - excess - 1)
+        shortened = _compact_image_value(value, target)
+        if shortened == value:
+            shortened = value.rsplit(" ", 1)[0] if " " in value else ""
+        if not shortened:
+            if required:
+                # Ce cas ne devrait concerner qu'une limite fournisseur
+                # irréaliste ; le message reste une erreur monl exploitable.
+                raise FrontendAIError(
+                    f"prompt image impossible à composer sous {max_chars} caractères")
+            parts.pop(index)
+            continue
+        parts[index] = [label, shortened, required]
+
+    prompt = render()
+    if len(prompt) > max_chars:
+        raise FrontendAIError(
+            f"prompt image trop long après composition ({len(prompt)} caractères, "
+            f"maximum {max_chars})")
+    return prompt
+
+
+def _image_prompt(project_dir, item, max_chars=None):
     """Construit le prompt image depuis la matière déclarée par le projet."""
     contract_path = os.path.join(project_dir, "frontend_contract.json")
     try:
@@ -1202,32 +1313,67 @@ def _image_prompt(project_dir, item):
             f"contrat frontend illisible avant la génération d'image : {exc}"
         ) from exc
 
-    sections = contract.get("sections") or []
-    section_text = "\n".join(
-        f"- {section.get('title', 'Section')} : {section.get('body', '')}"
-        for section in sections
-    ) or "- Aucune section éditoriale déclarée."
-    brief = contract.get("brief") or "Aucun brief éditorial déclaré."
-    return (
-        f"Projet : {contract.get('app') or 'application Monl'}\n"
-        f"Brief de l'auteur : {brief}\n"
-        f"Sections déclarées par l'auteur :\n{section_text}\n"
-        f"Rôle de cette image dans la page : {item.get('role', 'visuel du projet')}\n"
-        f"Nom exact à référencer côté frontend : {item.get('frontend_reference', item.get('path'))}\n"
-        "Créer une image matricielle cohérente avec cette matière éditoriale. "
-        "Ne pas ajouter de logo, de marque ou de texte lisible qui ne figure pas "
-        "dans le projet."
+    subject, register, topic = _image_brief_material(contract.get("brief"))
+    subject = _clean_image_text(subject)
+    if topic:
+        subject = f"{subject} ; {topic}"
+    parts = [
+        ["Sujet", subject, True],
+        ["Rôle", _clean_image_text(item.get("role") or "visuel du projet"), True],
+        ["Registre visuel", register, True],
+        ["Médium", "image matricielle", True],
+    ]
+    for section in contract.get("sections") or []:
+        title = _clean_image_text(section.get("title") or "Section")
+        body = _clean_image_text(section.get("body"))
+        parts.append(["Matière", f"{title} — {body}" if body else title, False])
+    parts.append(["Interdits", "pas de texte lisible, de logo ni de marque", True])
+    if max_chars is None:
+        return "\n".join(f"{label} : {value}" for label, value, _required in parts if value)
+    return _fit_image_prompt(parts, max_chars)
+
+
+def _image_provider_accepts_aspect_ratio(provider):
+    try:
+        parameters = inspect.signature(provider).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    return any(
+        parameter.name == "aspect_ratio"
+        or parameter.kind == inspect.Parameter.VAR_KEYWORD
+        for parameter in parameters
     )
+
+
+def _image_provider_prompt_limit(provider):
+    limit = getattr(provider, "max_prompt_chars", None)
+    if (isinstance(limit, int) and not isinstance(limit, bool) and limit > 0):
+        return limit
+    return None
+
+
+def _call_image_provider(provider, prompt, aspect_ratio):
+    # Les fournisseurs injectables historiques restent prompt -> octets. Le
+    # fournisseur YandexART, lui, accepte le rapport optionnel explicitement.
+    limit = _image_provider_prompt_limit(provider)
+    if limit is not None and len(prompt) > limit:
+        raise FrontendAIError(
+            f"monl : prompt image trop long pour le fournisseur "
+            f"({len(prompt)} caractères, maximum {limit})")
+    if aspect_ratio is None or not _image_provider_accepts_aspect_ratio(provider):
+        return provider(prompt)
+    return provider(prompt, aspect_ratio=aspect_ratio)
 
 
 def _generate_planned_images(project_dir, image_provider, operation, attempt, run_id,
                              say=print):
-    """Écrit les images planifiées avant tout appel au modèle texte."""
+    """Écrit les images planifiées et rapporte les échecs sans interrompre l'IA."""
     generated = plan_generated_images(project_dir)
     if not generated:
         raise FrontendAIError(
             "la génération d'images est activée mais le manifeste ne peut pas "
             "être planifié")
+    failures = []
     for item in generated:
         path = item.get("path")
         if not isinstance(path, str) or path.startswith("/") or ".." in path.split("/"):
@@ -1235,34 +1381,50 @@ def _generate_planned_images(project_dir, image_provider, operation, attempt, ru
         destination = os.path.join(project_dir, path)
         if os.path.isfile(destination):
             continue
-        prompt = _image_prompt(project_dir, item)
+        prompt = _image_prompt(
+            project_dir, item,
+            max_chars=_image_provider_prompt_limit(image_provider))
         if hasattr(image_provider, "last_usage"):
             image_provider.last_usage = None
         say(f" -> Génération de l'image {path}…")
         try:
-            image = image_provider(prompt)
+            image = _call_image_provider(image_provider, prompt, item.get("aspect_ratio"))
         except ImageProviderError as exc:
             record_image_usage(project_dir, image_provider, operation, attempt,
                                run_id=run_id, stage="image", path=path,
                                status="error")
-            raise FrontendAIError(str(exc)) from exc
+            failure = f"{path} : {exc}"
+            failures.append(failure)
+            say(f" ⚠️ Image non générée — {failure}. La vérification du manifeste "
+                "tranchera après la construction du frontend.")
+            continue
         except Exception as exc:
             record_image_usage(project_dir, image_provider, operation, attempt,
                                run_id=run_id, stage="image", path=path,
                                status="error")
-            raise FrontendAIError(f"fournisseur d'image en erreur : {exc}") from exc
+            failure = f"{path} : fournisseur d'image en erreur : {exc}"
+            failures.append(failure)
+            say(f" ⚠️ Image non générée — {failure}. La vérification du manifeste "
+                "tranchera après la construction du frontend.")
+            continue
         if not isinstance(image, (bytes, bytearray, memoryview)) or not image:
             record_image_usage(project_dir, image_provider, operation, attempt,
                                run_id=run_id, stage="image", path=path,
                                status="error")
-            raise FrontendAIError(
-                f"le fournisseur d'image n'a pas rendu des octets pour {path}")
+            failure = f"{path} : le fournisseur d'image n'a pas rendu des octets"
+            failures.append(failure)
+            say(f" ⚠️ Image non générée — {failure}. La vérification du manifeste "
+                "tranchera après la construction du frontend.")
+            continue
+        image, notice = optimize_image_bytes(bytes(image))
+        if notice:
+            say(f" ⚠️ {notice} ({path})")
         os.makedirs(os.path.dirname(destination), exist_ok=True)
         with open(destination, "wb") as fh:
-            fh.write(bytes(image))
+            fh.write(image)
         record_image_usage(project_dir, image_provider, operation, attempt,
                            run_id=run_id, stage="image", path=path)
-    return generated
+    return generated, failures
 
 
 def _chunk_response_reached_limit(provider):
@@ -1374,8 +1536,10 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
     run_id = uuid.uuid4().hex
     operation = ("retouche" if retouche_mode else
                  ("update" if update_mode else "construction"))
+    image_failures = []
     if generate_images:
-        _generate_planned_images(project_dir, image_provider, operation, 1, run_id, say=say)
+        _generated, image_failures = _generate_planned_images(
+            project_dir, image_provider, operation, 1, run_id, say=say)
     prompt = build_generation_prompt(project_dir, update_mode, retouche_mode)
 
     last_errors = []
@@ -1440,6 +1604,10 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
         last_errors = errors
         for e in errors:
             say(f" ❌ {e}")
+        if image_failures:
+            say(" ❌ Livraison refusée : le manifeste reste l'autorité pour les "
+                "images planifiées ; relancez après disponibilité du fournisseur.")
+            return False, last_errors
 
     say(" ❌ Le frontend généré échoue encore après correction — les fichiers "
         "sont conservés dans frontend/ pour inspection, mais 'monl run' "
@@ -1826,11 +1994,13 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
     run_id = uuid.uuid4().hex
     operation = ("retouche" if retouche_mode else
                  ("update" if update_mode else "construction"))
+    image_failures = []
     if generate_images:
         if image_provider is None:
             raise FrontendAIError(
                 "--generate-images exige un fournisseur d'images injectable.")
-        _generate_planned_images(project_dir, image_provider, operation, 1, run_id, say=say)
+        _generated, image_failures = _generate_planned_images(
+            project_dir, image_provider, operation, 1, run_id, say=say)
     brief = brief_evolution(update_mode, retouche_mode) or PROMPT_FILENAME
     if not os.path.exists(os.path.join(project_dir, brief)):
         origine = ("'monl retouche' n'a pas écrit sa consigne" if retouche_mode
@@ -1938,8 +2108,18 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
             smoke_ok, smoke_errors, smoke_warnings = run_smoke_test(project_dir, say=say)
             errors, warnings = smoke_errors, warnings + smoke_warnings
             ok = smoke_ok
+        design_errors = _design_completeness_errors(project_dir)
+        if design_errors:
+            errors = errors + design_errors
+            ok = False
         for w in warnings:
             say(f" ⚠️  {w}")
+        if image_failures:
+            for error in design_errors:
+                say(f" ❌ {error}")
+            say(" ❌ Livraison refusée : le manifeste reste l'autorité pour les "
+                "images planifiées ; relancez après disponibilité du fournisseur.")
+            return False, errors
         if ok:
             say(f" ✅ Frontend construit par {nom} et vérifié : 'monl run' est prêt.")
             return True, []
