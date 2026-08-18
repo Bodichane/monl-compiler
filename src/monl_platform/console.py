@@ -1,9 +1,18 @@
-"""Console web autonome de la plateforme monl.
+"""Console de la plateforme monl : un DIALOGUE, pas un formulaire.
 
-La console est un artefact de la plateforme, pas un site produit et pas une
-sortie de l'IA. Elle reste volontairement dans un seul document : aucun CDN,
-aucun fichier distant et aucune étape de build ne sont nécessaires pour la
-servir.
+Le grand formulaire d'origine posait toutes ses questions d'un coup et
+lançait une construction facturée au bas de la page. Il est remplacé par le
+dialogue guidé de la ligne de commande, porté au navigateur : une question à
+la fois, les précédentes restant lisibles et modifiables, et le lancement
+comme une étape à part entière.
+
+Le suivi de construction s'appuie sur les étapes RÉELLEMENT journalisées
+(``progress.read_stages``) : une progression inventée ferait croire que le
+serveur sait où il en est.
+
+Registre identique à la page de présentation — un terminal — et même
+garantie : aucune ressource distante, tout mouvement coupé sous
+``prefers-reduced-motion``.
 """
 
 from fastapi.responses import HTMLResponse
@@ -11,1161 +20,1162 @@ from fastapi.responses import HTMLResponse
 CONSOLE_HTML = r'''<!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light dark">
-  <title>monl — console</title>
-  <style>
-    /* ------------------------------------------------------------------
-       Jetons. Une seule échelle par dimension, définie ici et nulle part
-       ailleurs : une valeur écrite en dur dans une règle est une valeur que
-       le thème sombre ne pourra pas reprendre.
-       ------------------------------------------------------------------ */
-    :root {
-      color-scheme: light;
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>monl — console</title>
+<style>
+/* ════════════════════════════════════════════════════════════════════
+   Console monl. Même registre que la page de présentation : un terminal.
+   Une console qui ne ressemble pas à son produit est un raccord raté, et
+   c'était le défaut d'origine.
 
-      --paper: #f5f8fa;
-      --surface: #ffffff;
-      --surface-2: #eef3f7;
-      --surface-3: #e4ebf1;
+   Le formulaire unique a été remplacé par un DIALOGUE : une question à la
+   fois, la précédente restant visible comme une transcription. C'est la
+   forme du dialogue guidé de la ligne de commande, portée au navigateur.
 
-      --ink: #0f1a24;
-      --ink-2: #4c5d6b;
-      --ink-3: #6d7e8c;
+   Aucune ressource distante. Tout ce qui bouge s'arrête sous
+   prefers-reduced-motion.
+   ════════════════════════════════════════════════════════════════════ */
+:root {
+  --bg:      #100e0c;
+  --bg-1:    #17140f;
+  --bg-2:    #1e1a15;
+  --bg-3:    #262119;
+  --fg:      #ece6dd;
+  --fg-2:    #a89f93;
+  --fg-3:    #847a6d;
+  --line:    #2c2620;
+  --line-2:  #3d352c;
 
-      --line: #dae2ea;
-      --line-strong: #bfcdd8;
+  --clay:    #d97757;
+  --clay-hi: #e89275;
+  --clay-ink:#1c0d05;
+  --clay-dim:#3a241a;
+  --green:   #74c187;
+  --green-dim:#16301d;
+  --blue:    #7fa8dd;
+  --amber:   #d9a441;
+  --amber-dim:#332608;
+  --red:     #e0736f;
+  --red-dim: #331715;
 
-      --accent: #0f6d84;
-      --accent-hover: #0a4f61;
-      --accent-ink: #ffffff;
-      --accent-soft: #e2f2f6;
-      --accent-line: #8fc3d1;
+  --s1: .25rem; --s2: .5rem; --s3: .75rem; --s4: 1rem;
+  --s5: 1.5rem; --s6: 2.25rem; --s7: 3.5rem;
+  --r1: .3rem; --r2: .55rem; --r3: .9rem;
 
-      --success: #12653f;
-      --success-soft: #e2f4ea;
-      --success-line: #a8d8bf;
-      --warning: #85490f;
-      --warning-soft: #fdf1de;
-      --warning-line: #e5c48c;
-      --danger: #a12430;
-      --danger-soft: #fdecee;
-      --danger-line: #e7b2b8;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+          "DejaVu Sans Mono", "Liberation Mono", monospace;
+}
 
-      --focus: #b45309;
-      --shadow-1: 0 1px 2px rgba(15, 26, 36, .06);
-      --shadow-2: 0 10px 28px -12px rgba(15, 26, 36, .22);
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; min-width: 320px;
+  background: var(--bg); color: var(--fg);
+  font: 400 14.5px/1.6 var(--mono);
+  -webkit-font-smoothing: antialiased;
+}
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:where(button, input, textarea, a):focus-visible {
+  outline: 2px solid var(--clay); outline-offset: 2px; border-radius: var(--r1);
+}
+h1, h2, h3, p { margin: 0; }
+[hidden] { display: none !important; }
+a { color: var(--clay); text-decoration: none; }
+a:hover { color: var(--clay-hi); }
 
-      /* Espacement : pas de valeur intermédiaire improvisée. */
-      --s1: .25rem; --s2: .5rem; --s3: .75rem; --s4: 1rem;
-      --s5: 1.5rem; --s6: 2rem; --s7: 3rem;
+.skip-link {
+  position: absolute; left: var(--s4); top: -4rem; z-index: 30;
+  padding: var(--s3) var(--s4); border-radius: var(--r1);
+  background: var(--clay); color: var(--clay-ink); font-weight: 700;
+}
+.skip-link:focus { top: var(--s4); }
 
-      --r1: .375rem; --r2: .625rem; --r3: 1rem; --r-pill: 99px;
+/* ────────────────────────────────────────────────────────────── barre ── */
+.bar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--s4);
+  padding: var(--s3) clamp(var(--s4), 4vw, var(--s6));
+  background: rgba(16, 14, 12, .9);
+  border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(10px);
+}
+.brand { display: inline-flex; align-items: center; gap: var(--s2); color: var(--fg); font-weight: 700; }
+.brand-mark {
+  display: grid; place-items: center; width: 1.55rem; height: 1.55rem;
+  border-radius: var(--r1); background: var(--clay); color: var(--clay-ink);
+  font-size: .78rem; font-weight: 700;
+}
+.bar-right { display: flex; align-items: center; gap: var(--s3); }
+.account-label { color: var(--fg-3); font-size: .82rem; }
 
-      --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-        "Helvetica Neue", Arial, sans-serif;
-      --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
-        "Liberation Mono", monospace;
-    }
+.chip {
+  display: inline-flex; align-items: center; gap: var(--s2);
+  padding: .22rem .6rem;
+  border: 1px solid var(--line-2); border-radius: 99px;
+  background: var(--bg-2); color: var(--fg-2);
+  font-size: .74rem; white-space: nowrap;
+}
+.chip b { color: var(--fg); font-variant-numeric: tabular-nums; }
 
-    /* Le thème sombre ne redéfinit QUE des couleurs : toute autre divergence
-       ferait deux mises en page à maintenir. Les ombres y sont réduites — sur
-       un fond sombre elles ne se voient pas, c'est la bordure qui porte le
-       relief. */
-    @media (prefers-color-scheme: dark) {
-      :root {
-        color-scheme: dark;
+/* ──────────────────────────────────────────────────────────── boutons ── */
+.button {
+  display: inline-flex; align-items: center; gap: var(--s2);
+  padding: .5rem .9rem;
+  border: 1px solid var(--clay); border-radius: var(--r1);
+  background: var(--clay); color: var(--clay-ink);
+  font-weight: 600; font-size: .86rem;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+.button:hover { background: var(--clay-hi); border-color: var(--clay-hi); }
+.button.secondary { background: transparent; color: var(--fg); border-color: var(--line-2); }
+.button.secondary:hover { background: var(--bg-2); border-color: var(--fg-3); }
+.button.danger { background: var(--red-dim); color: var(--red); border-color: #5a2b28; }
+.button.danger:hover { background: var(--red); color: var(--clay-ink); border-color: var(--red); }
+.button.small { padding: .34rem .65rem; font-size: .78rem; }
+.button[disabled] { cursor: wait; opacity: .45; }
 
-        --paper: #0c1318;
-        --surface: #141f27;
-        --surface-2: #1b2932;
-        --surface-3: #24343f;
+/* ──────────────────────────────────────────────────────── connexion ── */
+.page { width: min(1200px, calc(100% - 2rem)); margin: 0 auto; padding: var(--s6) 0 var(--s7); }
+.narrow { width: min(440px, 100%); margin: clamp(var(--s6), 9vh, var(--s7)) auto; }
+.eyebrow {
+  display: block; margin-bottom: var(--s2);
+  color: var(--clay); font-size: .7rem; font-weight: 700; letter-spacing: .15em;
+  text-transform: uppercase;
+}
+h1 { font-size: clamp(1.35rem, 2.6vw, 1.8rem); font-weight: 700; letter-spacing: -.02em; line-height: 1.2; }
+h2 { font-size: 1.02rem; font-weight: 700; letter-spacing: -.01em; }
+h3 { font-size: .92rem; font-weight: 700; }
+.lede { max-width: 60ch; margin-top: var(--s3); color: var(--fg-2); font-size: .92rem; }
+.help { margin: 0; color: var(--fg-3); font-size: .8rem; font-weight: 400; }
 
-        --ink: #e7eff5;
-        --ink-2: #a2b3c0;
-        --ink-3: #8496a4;
+.panel {
+  padding: clamp(var(--s4), 2.4vw, var(--s5));
+  border: 1px solid var(--line); border-radius: var(--r3);
+  background: var(--bg-1);
+}
+.auth-card { margin-top: var(--s5); }
+.auth-switch {
+  display: grid; grid-template-columns: 1fr 1fr; gap: var(--s1);
+  margin-bottom: var(--s5); padding: var(--s1);
+  background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--r2);
+}
+.tab-button {
+  padding: .5rem .8rem; border: 1px solid transparent; border-radius: var(--r1);
+  background: transparent; color: var(--fg-2); font-weight: 600; font-size: .86rem;
+}
+.tab-button[aria-selected="true"] { background: var(--bg-3); border-color: var(--line-2); color: var(--fg); }
 
-        --line: #26353f;
-        --line-strong: #3a4c5a;
+.form-grid { display: grid; gap: var(--s4); }
+label { display: grid; gap: var(--s1); font-weight: 600; }
+label span { font-size: .84rem; }
+input, textarea {
+  width: 100%; padding: .58rem .7rem;
+  border: 1px solid var(--line-2); border-radius: var(--r1);
+  background: var(--bg-2); color: var(--fg);
+  transition: border-color .14s ease;
+}
+input:hover, textarea:hover { border-color: var(--fg-3); }
+input:focus, textarea:focus { border-color: var(--clay); }
+input::placeholder, textarea::placeholder { color: var(--fg-3); }
+textarea { min-height: 7rem; resize: vertical; }
+textarea.spec { min-height: 15rem; font-size: .82rem; line-height: 1.65; }
+.form-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3); }
 
-        --accent: #58c6de;
-        --accent-hover: #86dcef;
-        --accent-ink: #05222c;
-        --accent-soft: #0f3340;
-        --accent-line: #2b5f70;
+.notice {
+  margin-top: var(--s4); padding: var(--s3) var(--s4);
+  border: 1px solid var(--line-2); border-left-width: 3px; border-radius: var(--r1);
+  background: var(--bg-2); font-size: .86rem;
+}
+.notice.error { border-color: #5a2b28; background: var(--red-dim); color: var(--red); }
+#alert { margin-bottom: var(--s4); }
 
-        --success: #6fd7a6;
-        --success-soft: #0f2f22;
-        --success-line: #2c5c45;
-        --warning: #f0bc70;
-        --warning-soft: #33250f;
-        --warning-line: #66502a;
-        --danger: #f4939c;
-        --danger-soft: #341419;
-        --danger-line: #6d333b;
+/* ─────────────────────────────────────────────────────────── agencement ── */
+.layout {
+  display: grid; grid-template-columns: minmax(210px, 260px) minmax(0, 1fr);
+  gap: var(--s5); align-items: start; margin-top: var(--s5);
+}
+.side { position: sticky; top: 4.2rem; display: grid; gap: var(--s3); }
+.side-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); }
+.project-list { display: grid; gap: var(--s2); }
+.project-item {
+  display: block; width: 100%; padding: .6rem .75rem; text-align: left;
+  border: 1px solid var(--line); border-left: 2px solid transparent;
+  border-radius: var(--r2); background: var(--bg-1); color: var(--fg);
+  transition: border-color .14s ease, background-color .14s ease;
+}
+.project-item:hover { border-color: var(--line-2); background: var(--bg-2); }
+.project-item[aria-current="true"] { border-color: var(--line-2); border-left-color: var(--clay); background: var(--bg-2); }
+.project-item strong { display: block; font-size: .88rem; font-weight: 600; }
+.project-item span { display: block; color: var(--fg-3); font-size: .76rem; }
+.empty, .loading { color: var(--fg-3); font-size: .84rem; }
 
-        --focus: #fbbf24;
-        --shadow-1: none;
-        --shadow-2: 0 10px 28px -14px rgba(0, 0, 0, .7);
-      }
-    }
+/* ───────────────────────────────────────────────────────────── dialogue ── */
+.dialog { padding: 0; overflow: hidden; }
+.dialog-head {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s3);
+  padding: var(--s3) var(--s5);
+  border-bottom: 1px solid var(--line); background: var(--bg-2);
+}
+.dialog-head .t { color: var(--fg-2); font-size: .82rem; }
+.pips { display: flex; gap: .3rem; }
+.pips i { width: .45rem; height: .45rem; border-radius: 50%; background: var(--line-2); transition: background-color .2s ease; }
+.pips i.done { background: var(--clay-dim); }
+.pips i.now { background: var(--clay); }
+.dialog-body { padding: var(--s5); }
 
-    * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    body {
-      margin: 0;
-      min-width: 320px;
-      background: var(--paper);
-      color: var(--ink);
-      font: 400 0.975rem/1.55 var(--sans);
-      -webkit-font-smoothing: antialiased;
-    }
-    button, input, textarea, select { font: inherit; color: inherit; }
-    button { cursor: pointer; }
-    :where(button, input, textarea, a):focus-visible {
-      outline: 2px solid var(--focus);
-      outline-offset: 2px;
-      border-radius: var(--r1);
-    }
-    input, textarea { accent-color: var(--accent); }
+.transcript { display: grid; gap: var(--s2); margin-bottom: var(--s5); }
+.transcript:empty { display: none; }
+.said { display: grid; grid-template-columns: 1.2rem 1fr; gap: var(--s2); font-size: .85rem; }
+.said .m { color: var(--green); }
+.said b { color: var(--fg-2); font-weight: 400; }
+.said i { color: var(--fg); font-style: normal; }
+.said button {
+  justify-self: start; padding: 0; border: 0; background: none;
+  color: var(--fg-3); font-size: .76rem; text-decoration: underline;
+}
+.said button:hover { color: var(--clay); }
 
-    .skip-link {
-      position: absolute;
-      left: var(--s4);
-      top: -4rem;
-      z-index: 10;
-      padding: var(--s3) var(--s4);
-      background: var(--accent);
-      color: var(--accent-ink);
-      border-radius: var(--r1);
-      font-weight: 650;
-      text-decoration: none;
-    }
-    .skip-link:focus { top: var(--s4); }
+.ask { display: grid; gap: var(--s3); }
+.ask-q { display: grid; grid-template-columns: 1.2rem 1fr; gap: var(--s2); }
+.ask-q .m { color: var(--blue); font-weight: 700; }
+.ask-q h2 { font-size: 1.05rem; }
+.ask-help { margin-left: 1.7rem; color: var(--fg-2); font-size: .85rem; }
+.ask-field { margin-left: 1.7rem; }
+.ask-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3); margin: var(--s4) 0 0 1.7rem; }
+.ask-hint { color: var(--fg-3); font-size: .76rem; }
 
-    /* ------------------------------------------------------------- shell -- */
-    .app-shell { min-height: 100vh; }
-    .topbar {
-      position: sticky;
-      top: 0;
-      z-index: 5;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--s4);
-      padding: var(--s3) clamp(var(--s4), 4vw, var(--s7));
-      background: var(--surface);
-      border-bottom: 1px solid var(--line);
-    }
-    .brand {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--s3);
-      color: var(--ink);
-      text-decoration: none;
-      font-weight: 700;
-      font-size: .95rem;
-      letter-spacing: .01em;
-    }
-    .brand-mark {
-      display: grid;
-      place-items: center;
-      width: 1.75rem;
-      height: 1.75rem;
-      border-radius: var(--r1);
-      background: var(--accent);
-      color: var(--accent-ink);
-      font-size: .8rem;
-      font-weight: 800;
-    }
-    .topbar-meta { display: flex; align-items: center; gap: var(--s4); }
-    .account-label { color: var(--ink-2); font-size: .875rem; }
+.choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--s2); }
+.choice {
+  padding: var(--s3); text-align: left;
+  border: 1px solid var(--line); border-radius: var(--r2);
+  background: var(--bg-2); color: var(--fg);
+  transition: border-color .14s ease, background-color .14s ease;
+}
+.choice:hover { border-color: var(--line-2); background: var(--bg-3); }
+.choice[aria-pressed="true"] { border-color: var(--clay); background: var(--clay-dim); }
+.choice b { display: block; font-size: .88rem; font-weight: 600; }
+.choice span { display: block; margin-top: var(--s1); color: var(--fg-2); font-size: .78rem; line-height: 1.55; }
+.choice .num { color: var(--fg-3); font-size: .72rem; }
 
-    .page {
-      width: min(1240px, calc(100% - 2rem));
-      margin: 0 auto;
-      padding: clamp(var(--s5), 3vw, var(--s6)) 0 var(--s7);
-    }
-    .narrow { width: min(460px, 100%); margin: clamp(var(--s6), 8vh, var(--s7)) auto; }
+.pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s2); }
+.recap { display: grid; gap: var(--s2); }
+.recap-row {
+  display: grid; grid-template-columns: minmax(120px, 180px) 1fr; gap: var(--s3);
+  padding: var(--s3); border: 1px solid var(--line); border-radius: var(--r1);
+  background: var(--bg-2); font-size: .85rem;
+}
+.recap-row b { color: var(--fg-3); font-weight: 400; }
+.recap-row span { overflow-wrap: anywhere; }
 
-    /* --------------------------------------------------------- typographie -- */
-    /* Une console est un OUTIL : l'échelle d'un titre de page marketing y
-       rendait « myOwn » plus gros que tout le reste de l'écran réuni. */
-    h1, h2, h3, h4, p { margin-top: 0; }
-    h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -.011em; }
-    h1 { margin-bottom: var(--s2); font-size: clamp(1.5rem, 2.4vw, 1.95rem); font-weight: 700; }
-    h2 { margin-bottom: var(--s2); font-size: clamp(1.1rem, 1.8vw, 1.3rem); font-weight: 650; }
-    h3 { margin-bottom: var(--s2); font-size: .975rem; font-weight: 650; }
-    .eyebrow {
-      margin: 0 0 var(--s2);
-      color: var(--ink-3);
-      font-size: .7rem;
-      font-weight: 700;
-      letter-spacing: .1em;
-      text-transform: uppercase;
-    }
-    .lede { max-width: 62ch; color: var(--ink-2); font-size: 1rem; }
-    .help { margin: 0; color: var(--ink-2); font-size: .85rem; font-weight: 400; }
-    .empty, .loading { padding: var(--s3) 0; color: var(--ink-3); }
+/* ──────────────────────────────────────────────────────────── production ── */
+.project-header { display: flex; align-items: start; justify-content: space-between; gap: var(--s4); margin-bottom: var(--s4); }
+.project-header h2 { word-break: break-word; }
+.project-meta { color: var(--fg-3); font-size: .82rem; }
 
-    /* -------------------------------------------------------------- panels -- */
-    .panel {
-      padding: clamp(var(--s4), 2.5vw, var(--s5));
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: var(--r3);
-      box-shadow: var(--shadow-1);
-    }
-    .auth-intro { padding: 0; }
-    .auth-card { margin-top: var(--s5); }
-    .auth-switch {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: var(--s1);
-      margin-bottom: var(--s5);
-      padding: var(--s1);
-      background: var(--surface-2);
-      border-radius: var(--r2);
-    }
+.build-status {
+  display: inline-flex; align-items: center; gap: var(--s2);
+  padding: .24rem .6rem; border: 1px solid transparent; border-radius: 99px;
+  font-size: .76rem; font-weight: 700; white-space: nowrap;
+}
+.build-status.waiting, .build-status.running { background: var(--amber-dim); color: var(--amber); border-color: #5c4718; }
+.build-status.success { background: var(--green-dim); color: var(--green); border-color: #2b5a3a; }
+.build-status.failure { background: var(--red-dim); color: var(--red); border-color: #5a2b28; }
+.build-status.none { background: var(--bg-2); color: var(--fg-3); border-color: var(--line); }
 
-    /* ------------------------------------------------------------ contrôles -- */
-    .tab-button, .button {
-      border: 1px solid transparent;
-      border-radius: var(--r1);
-      padding: .6rem .95rem;
-      background: transparent;
-      color: var(--ink);
-      font-weight: 650;
-      font-size: .9rem;
-      transition: background-color .12s ease, border-color .12s ease, color .12s ease;
-    }
-    .tab-button[aria-selected="true"] {
-      background: var(--surface);
-      border-color: var(--line);
-      box-shadow: var(--shadow-1);
-    }
-    .button { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-    .button:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
-    .button.secondary { background: var(--surface); color: var(--ink); border-color: var(--line-strong); }
-    .button.secondary:hover { background: var(--surface-2); border-color: var(--accent-line); }
-    .button.danger { background: var(--danger-soft); color: var(--danger); border-color: var(--danger-line); }
-    .button.danger:hover { background: var(--danger); color: var(--surface); border-color: var(--danger); }
-    .button.small { padding: .42rem .7rem; font-size: .84rem; }
-    .button[disabled] { cursor: wait; opacity: .5; }
+.run {
+  margin-top: var(--s4); padding: var(--s4) var(--s5);
+  border: 1px solid var(--line); border-radius: var(--r2); background: var(--bg-1);
+}
+.run-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s3); margin-bottom: var(--s3); }
+.run-title { display: inline-flex; align-items: center; gap: var(--s2); font-size: .92rem; font-weight: 600; }
+.run-title .spin { color: var(--amber); }
+.run-clock { color: var(--fg-3); font-size: .82rem; font-variant-numeric: tabular-nums; }
 
-    .form-grid { display: grid; gap: var(--s4); }
-    .form-grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    label { display: grid; gap: var(--s1); color: var(--ink); font-weight: 650; }
-    label span { font-size: .875rem; }
-    input, textarea {
-      width: 100%;
-      padding: .6rem .7rem;
-      border: 1px solid var(--line-strong);
-      border-radius: var(--r1);
-      background: var(--surface);
-      color: var(--ink);
-      transition: border-color .12s ease, box-shadow .12s ease;
-    }
-    input:hover, textarea:hover { border-color: var(--accent-line); }
-    input:focus, textarea:focus { border-color: var(--accent); }
-    input::placeholder, textarea::placeholder { color: var(--ink-3); }
-    /* `width: 100%` étirait aussi les cases à cocher : la case flottait,
-       seule et centrée, au-dessus de son propre libellé. */
-    input[type="checkbox"], input[type="radio"] {
-      width: 1.05rem; height: 1.05rem;
-      margin: 0; padding: 0;
-      justify-self: start;
-    }
-    /* La case vit dans un <span> avec son texte : c'est CE span qui aligne. */
-    label span:has(> input[type="checkbox"]) {
-      display: flex;
-      align-items: center;
-      gap: var(--s2);
-      padding: .55rem .7rem;
-      border: 1px solid var(--line-strong);
-      border-radius: var(--r1);
-      background: var(--surface);
-      font-weight: 400;
-      cursor: pointer;
-    }
-    label span:has(> input[type="checkbox"]):hover { border-color: var(--accent-line); }
-    textarea { min-height: 8rem; resize: vertical; }
-    textarea.spec { min-height: 17rem; font: .84rem/1.6 var(--mono); }
-    .form-actions {
-      display: flex; flex-wrap: wrap; align-items: center;
-      gap: var(--s3); margin-top: var(--s1);
-    }
+.steps { display: grid; gap: .1rem; }
+.step-line {
+  display: grid; grid-template-columns: 1.2rem minmax(0, 11rem) 1fr auto;
+  gap: var(--s3); align-items: baseline;
+  padding: .28rem 0; font-size: .84rem;
+}
+.step-line .g { text-align: center; }
+.step-line.ok  .g { color: var(--green); }
+.step-line.now .g { color: var(--amber); }
+.step-line.todo .g { color: var(--fg-3); }
+.step-line.todo { color: var(--fg-3); }
+.step-line .nm { color: var(--fg); overflow-wrap: anywhere; }
+.step-line.todo .nm { color: var(--fg-3); }
+.step-line .md { color: var(--fg-3); font-size: .78rem; overflow-wrap: anywhere; }
+.step-line .tk { color: var(--fg-2); font-size: .78rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-    .notice {
-      margin: var(--s4) 0 0;
-      padding: var(--s3) var(--s4);
-      border: 1px solid var(--accent-line);
-      border-left-width: 3px;
-      border-radius: var(--r1);
-      background: var(--accent-soft);
-      color: var(--ink);
-      font-size: .9rem;
-    }
-    .notice.error {
-      border-color: var(--danger-line);
-      background: var(--danger-soft);
-      color: var(--danger);
-    }
-    [hidden] { display: none !important; }
-    #alert { margin-bottom: var(--s5); }
+.run-foot {
+  display: flex; flex-wrap: wrap; gap: var(--s4);
+  margin-top: var(--s4); padding-top: var(--s3); border-top: 1px solid var(--line);
+  color: var(--fg-2); font-size: .82rem;
+}
+.run-foot b { color: var(--fg); font-variant-numeric: tabular-nums; }
 
-    /* ------------------------------------------------------------- console -- */
-    .console-intro {
-      display: flex; align-items: end; justify-content: space-between;
-      gap: var(--s4); margin-bottom: var(--s5);
-    }
-    .console-intro h1 { margin-bottom: var(--s1); }
+.report { margin-top: var(--s4); padding: var(--s4); border: 1px solid #5a2b28; border-radius: var(--r2); background: var(--red-dim); }
+.report h3 { color: var(--red); margin-bottom: var(--s2); }
+.report pre { max-height: 24rem; margin: 0; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--fg); font: .82rem/1.65 var(--mono); }
+.report.warn { border-color: #5c4718; background: var(--amber-dim); }
+.report.warn h3 { color: var(--amber); }
 
-    .usage-strip {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: var(--s3);
-      margin-bottom: var(--s5);
-    }
-    .metric {
-      padding: var(--s3) var(--s4);
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: var(--r2);
-    }
-    .metric-label {
-      display: block; color: var(--ink-3);
-      font-size: .72rem; font-weight: 700;
-      letter-spacing: .07em; text-transform: uppercase;
-    }
-    .metric-value {
-      display: block; margin-top: var(--s1);
-      font-size: clamp(1.05rem, 2vw, 1.35rem); font-weight: 700;
-      font-variant-numeric: tabular-nums;
-    }
-    .metric-note { margin: var(--s1) 0 0; color: var(--ink-3); font-size: .76rem; }
+.site-panel { margin-top: var(--s4); padding: var(--s4) var(--s5); border: 1px solid var(--line); border-left: 3px solid var(--clay); border-radius: var(--r2); background: var(--bg-1); }
+.site-host { display: block; margin: var(--s2) 0 var(--s3); padding: var(--s3); overflow-wrap: anywhere; border: 1px solid var(--line); border-radius: var(--r1); background: var(--bg-2); font-size: .92rem; }
+.site-instructions { color: var(--fg-2); font-size: .84rem; }
+.site-command { display: block; margin-top: var(--s2); padding: var(--s3); overflow-wrap: anywhere; border: 1px solid var(--line); border-radius: var(--r1); background: var(--bg-3); font-size: .8rem; line-height: 1.6; }
+.site-actions { display: flex; flex-wrap: wrap; gap: var(--s2); margin-top: var(--s3); }
+.since { color: var(--fg-2); font-size: .84rem; }
+.snap { margin-top: var(--s3); color: var(--fg-3); font-size: .78rem; overflow-wrap: anywhere; }
 
-    .workspace {
-      display: grid;
-      grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
-      gap: var(--s5);
-      align-items: start;
-    }
-    .workspace > :first-child { position: sticky; top: 4.5rem; }
-    .section-heading {
-      display: flex; align-items: start; justify-content: space-between;
-      gap: var(--s3); margin-bottom: var(--s4);
-    }
-    .section-heading h2 { margin-bottom: 0; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+.pulse { animation: pulse 1.4s ease-in-out infinite; }
 
-    .project-list { display: grid; gap: var(--s2); }
-    .project-item {
-      display: block; width: 100%;
-      padding: .7rem .85rem;
-      border: 1px solid var(--line);
-      border-left: 3px solid transparent;
-      border-radius: var(--r2);
-      background: var(--surface);
-      text-align: left;
-      transition: border-color .12s ease, background-color .12s ease;
-    }
-    .project-item:hover { border-color: var(--accent-line); background: var(--surface-2); }
-    .project-item[aria-current="true"] {
-      border-color: var(--accent-line);
-      border-left-color: var(--accent);
-      background: var(--accent-soft);
-    }
-    .project-item strong, .project-item span { display: block; }
-    .project-item strong { font-size: .95rem; }
-    .project-item span { color: var(--ink-2); font-size: .82rem; }
-
-    .catalogue-panel { margin-bottom: var(--s5); }
-    .model-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-      gap: var(--s2);
-    }
-    .model-card {
-      min-height: 112px;
-      padding: var(--s3);
-      border: 1px solid var(--line);
-      border-radius: var(--r2);
-      background: var(--surface);
-      color: var(--ink);
-      text-align: left;
-      transition: border-color .12s ease, background-color .12s ease;
-    }
-    .model-card:hover { border-color: var(--accent-line); background: var(--surface-2); }
-    .model-card[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
-    .model-card p { margin-bottom: 0; color: var(--ink-2); font-size: .82rem; }
-    .model-card .model-number {
-      color: var(--ink-3); font-size: .72rem; font-weight: 700;
-      letter-spacing: .06em;
-    }
-
-    .composer-tabs { display: flex; flex-wrap: wrap; gap: var(--s2); margin-bottom: var(--s4); }
-    .composer-tab {
-      padding: .42rem .8rem;
-      border: 1px solid var(--line-strong);
-      border-radius: var(--r-pill);
-      background: var(--surface);
-      color: var(--ink-2);
-      font-weight: 650; font-size: .85rem;
-    }
-    .composer-tab:hover { border-color: var(--accent-line); color: var(--ink); }
-    .composer-tab[aria-selected="true"] {
-      background: var(--accent); border-color: var(--accent); color: var(--accent-ink);
-    }
-
-    .project-header {
-      display: flex; align-items: start; justify-content: space-between;
-      gap: var(--s4); margin-bottom: var(--s4);
-    }
-    .project-header h2 { margin-bottom: var(--s1); word-break: break-word; }
-    .project-meta { margin: 0; color: var(--ink-2); font-size: .875rem; }
-
-    /* ---------------------------------------------------------- production -- */
-    .build-panel { margin-bottom: var(--s4); }
-    .build-header { display: flex; justify-content: space-between; align-items: start; gap: var(--s4); }
-    .build-status {
-      display: inline-flex; align-items: center; gap: var(--s1);
-      padding: .28rem .6rem;
-      border: 1px solid transparent;
-      border-radius: var(--r-pill);
-      font-size: .78rem; font-weight: 700;
-      white-space: nowrap;
-    }
-    .build-status.waiting, .build-status.running {
-      background: var(--warning-soft); color: var(--warning); border-color: var(--warning-line);
-    }
-    .build-status.success {
-      background: var(--success-soft); color: var(--success); border-color: var(--success-line);
-    }
-    .build-status.failure {
-      background: var(--danger-soft); color: var(--danger); border-color: var(--danger-line);
-    }
-    .build-status.none { background: var(--surface-2); color: var(--ink-3); border-color: var(--line); }
-
-    .progress-rail {
-      height: .3rem;
-      margin: var(--s4) 0;
-      overflow: hidden;
-      border-radius: var(--r-pill);
-      background: var(--surface-3);
-    }
-    .progress-rail span {
-      display: block; width: 62%; height: 100%;
-      border-radius: inherit;
-      background: var(--accent);
-    }
-    /* Une construction en cours dure des MINUTES : une barre figée à 62 %
-       laisse croire à un blocage. La rayure défile, la largeur ne ment pas. */
-    .progress-rail:not(.waiting):not(.success):not(.failure) span {
-      background-image: linear-gradient(
-        115deg,
-        rgba(255, 255, 255, .32) 25%, transparent 25%,
-        transparent 50%, rgba(255, 255, 255, .32) 50%,
-        rgba(255, 255, 255, .32) 75%, transparent 75%);
-      background-size: .7rem .7rem;
-      animation: rail-flow .7s linear infinite;
-    }
-    .progress-rail.waiting span { width: 28%; background: var(--warning); }
-    .progress-rail.failure span { width: 100%; background: var(--danger); }
-    .progress-rail.success span { width: 100%; background: var(--success); }
-    @keyframes rail-flow { to { background-position: .7rem 0; } }
-
-    .since { margin: 0; color: var(--ink-2); font-size: .875rem; }
-    .build-details {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: var(--s2);
-      margin-top: var(--s4);
-    }
-    .detail {
-      padding: var(--s3);
-      border: 1px solid var(--line);
-      border-radius: var(--r1);
-      background: var(--surface-2);
-    }
-    .detail small { display: block; color: var(--ink-3); font-size: .74rem; }
-    .detail strong {
-      display: block; margin-top: .1rem;
-      overflow-wrap: anywhere;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .error-report, .warning-report {
-      margin-top: var(--s4);
-      padding: var(--s4);
-      border: 1px solid var(--danger-line);
-      border-radius: var(--r2);
-      background: var(--danger-soft);
-    }
-    .error-report h3 { color: var(--danger); }
-    .error-report pre, .warning-report pre {
-      max-height: 26rem; margin: 0;
-      overflow: auto;
-      white-space: pre-wrap; overflow-wrap: anywhere;
-      color: var(--ink);
-      font: .84rem/1.6 var(--mono);
-    }
-    .warning-report { border-color: var(--warning-line); background: var(--warning-soft); }
-    .warning-report h3 { color: var(--warning); }
-
-    .site-panel {
-      margin-top: var(--s4);
-      border-left: 3px solid var(--accent);
-    }
-    .site-host {
-      display: block;
-      margin: var(--s2) 0 var(--s4);
-      padding: var(--s3);
-      overflow-wrap: anywhere;
-      border: 1px solid var(--line);
-      border-radius: var(--r1);
-      background: var(--surface-2);
-      font: .95rem var(--mono);
-    }
-    .site-instructions { margin: 0; color: var(--ink-2); font-size: .875rem; }
-    .site-command {
-      display: block;
-      margin-top: var(--s2);
-      padding: var(--s3);
-      overflow-wrap: anywhere;
-      border: 1px solid var(--line);
-      border-radius: var(--r1);
-      background: var(--surface-3);
-      color: var(--ink);
-      font: .82rem/1.6 var(--mono);
-    }
-    .site-actions { display: flex; flex-wrap: wrap; gap: var(--s2); margin-top: var(--s4); }
-
-    /* ------------------------------------------------------------ largeurs -- */
-    @media (max-width: 900px) {
-      .workspace { grid-template-columns: 1fr; }
-      .workspace > :first-child { position: static; }
-      .console-intro { align-items: start; flex-direction: column; }
-    }
-    @media (max-width: 560px) {
-      .page { width: min(100% - 1rem, 1240px); padding-top: var(--s4); }
-      .topbar { align-items: start; flex-direction: column; position: static; }
-      .topbar-meta { width: 100%; justify-content: space-between; }
-      .form-grid.two, .usage-strip, .build-details { grid-template-columns: 1fr; }
-      .build-header, .project-header { flex-direction: column; }
-      .build-status { white-space: normal; }
-      .model-grid { grid-template-columns: 1fr; }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after {
-        scroll-behavior: auto !important;
-        animation-duration: .01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: .01ms !important;
-      }
-    }
-  </style>
+/* ───────────────────────────────────────────────────────────── largeurs ── */
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
+  .side { position: static; }
+}
+@media (max-width: 620px) {
+  .page { width: calc(100% - 1.4rem); }
+  .bar { flex-direction: column; align-items: stretch; position: static; }
+  .bar-right { justify-content: space-between; }
+  .pair, .choices { grid-template-columns: 1fr; }
+  .step-line { grid-template-columns: 1.2rem 1fr; }
+  .step-line .md, .step-line .tk { grid-column: 2; }
+  .recap-row { grid-template-columns: 1fr; gap: var(--s1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
+</style>
 </head>
 <body>
-  <a class="skip-link" href="#main-content">Aller au contenu</a>
-  <div class="app-shell">
-    <header class="topbar">
-      <a class="brand" href="/" aria-label="monl, console d'administration">
-        <span class="brand-mark" aria-hidden="true">m</span>
-        <span>monl / console</span>
-      </a>
-      <div class="topbar-meta">
-        <span id="account-label" class="account-label" hidden></span>
-        <button id="logout-button" class="button secondary small" type="button" hidden>Se déconnecter</button>
-      </div>
-    </header>
+<a class="skip-link" href="#main-content">Aller au contenu</a>
 
-    <main id="main-content" class="page">
-      <div id="alert" class="notice" role="alert" hidden></div>
-
-      <section id="auth-view" class="narrow" aria-labelledby="auth-title">
-        <div class="auth-intro">
-          <p class="eyebrow">Créer directement</p>
-          <h1 id="auth-title">Votre console de sites.</h1>
-          <p class="lede">Choisissez un modèle ou apportez votre spec <code>.ml</code>. Chaque construction reste visible, du premier jeton jusqu'au site servi.</p>
-        </div>
-        <div class="panel auth-card">
-          <div class="auth-switch" role="tablist" aria-label="Accès à la console">
-            <button id="login-tab" class="tab-button" type="button" role="tab" aria-selected="true">Se connecter</button>
-            <button id="register-tab" class="tab-button" type="button" role="tab" aria-selected="false">Créer un compte</button>
-          </div>
-          <form id="auth-form" class="form-grid">
-            <label><span>Identifiant</span><input id="auth-identifier" name="identifier" type="text" autocomplete="username" required></label>
-            <label><span>Mot de passe</span><input id="auth-password" name="password" type="password" autocomplete="current-password" minlength="8" required></label>
-            <button id="auth-submit" class="button" type="submit">Se connecter</button>
-          </form>
-          <p id="auth-help" class="help">Votre identifiant et votre mot de passe restent liés à ce compte de plateforme.</p>
-        </div>
-      </section>
-
-      <section id="console-view" hidden aria-labelledby="console-title">
-        <div class="console-intro">
-          <div>
-            <p class="eyebrow">Espace de travail</p>
-            <h1 id="console-title">Construire, suivre, servir.</h1>
-            <p class="lede">Une construction peut durer plusieurs minutes. Son état et son horodatage restent affichés pendant toute l'attente.</p>
-          </div>
-          <button id="refresh-button" class="button secondary" type="button">Actualiser</button>
-        </div>
-
-        <section class="usage-strip" aria-label="Consommation du compte">
-          <div class="metric"><span class="metric-label">Jetons consommés</span><strong id="usage-consumed" class="metric-value">—</strong><p class="metric-note">cumul réel des constructions</p></div>
-          <div class="metric"><span class="metric-label">Jetons restants</span><strong id="usage-remaining" class="metric-value">—</strong><p id="usage-limit" class="metric-note">quota —</p></div>
-          <div class="metric"><span class="metric-label">Coût</span><strong id="usage-cost" class="metric-value">—</strong><p id="usage-cost-note" class="metric-note">aucun coût affiché avant déclaration du tarif</p></div>
-        </section>
-
-        <section class="panel catalogue-panel" aria-labelledby="new-project-title">
-          <div class="section-heading">
-            <div><p class="eyebrow">Nouveau projet</p><h2 id="new-project-title">Choisir le point de départ</h2></div>
-          </div>
-          <div class="composer-tabs" role="tablist" aria-label="Source de la spec">
-            <button id="model-mode" class="composer-tab" type="button" role="tab" aria-selected="true">Un modèle du catalogue</button>
-            <button id="spec-mode" class="composer-tab" type="button" role="tab" aria-selected="false">Coller une spec .ml</button>
-          </div>
-          <div id="model-source">
-            <p class="help">Les dix modèles sont ceux du catalogue monl. La carte choisie est envoyée au service, puis construite par le pipeline habituel.</p>
-            <div id="model-grid" class="model-grid" aria-live="polite"><p class="loading">Chargement du catalogue…</p></div>
-          </div>
-          <div id="spec-source" hidden>
-            <label><span>Spec monl (.ml)</span><textarea id="spec-input" class="spec" spellcheck="false" placeholder="app MonProjet\n\nentity ..."></textarea></label>
-            <label><span>Ou déposer un fichier .ml</span><input id="spec-file" type="file" accept=".ml,text/plain"></label>
-            <p class="help">La spec est envoyée telle quelle. Les erreurs de vérification seront conservées dans le rapport de construction.</p>
-          </div>
-          <form id="project-form" class="form-grid" style="margin-top: 1.25rem">
-            <div class="form-grid two">
-              <label><span>Slug du site</span><input id="project-slug" type="text" required placeholder="mon-site" pattern="[^/\\\\]+" autocomplete="off"><span class="help">Il deviendra le début de l'adresse du site.</span></label>
-              <label><span>Nom de l'application</span><input id="app-name" type="text" value="MonProjet" autocomplete="off"><span class="help">Utilisé si vous partez d'un modèle.</span></label>
-            </div>
-            <label><span>Description</span><textarea id="project-description" style="min-height: 6rem" placeholder="Ce que le site doit permettre…"></textarea></label>
-            <div class="form-grid two">
-              <label><span>Images générées</span><span><input id="generate-images" type="checkbox"> Générer les visuels matriciels planifiés</span><span class="help">Ce choix est explicite et peut entraîner une requête facturée par image.</span></label>
-              <label><span>Routage des modèles</span><textarea id="model-routes" style="min-height: 6rem" spellcheck="false" placeholder="styles.css=aliceai-llm-flash/latest"></textarea><span class="help">Une cible par ligne, au format CIBLE=MODELE. Laissez vide pour un seul modèle.</span></label>
-            </div>
-            <div class="form-actions"><button id="create-project-button" class="button" type="submit">Créer et lancer la construction</button><span id="create-help" class="help">Le suivi apparaîtra dès la mise en file.</span></div>
-          </form>
-        </section>
-
-        <div class="workspace">
-          <aside class="panel" aria-labelledby="projects-title">
-            <div class="section-heading"><div><p class="eyebrow">Vos sites</p><h2 id="projects-title">Projets</h2></div></div>
-            <div id="project-list" class="project-list" aria-live="polite"><p class="loading">Chargement des projets…</p></div>
-          </aside>
-          <section id="project-detail" class="panel" hidden aria-labelledby="detail-title"></section>
-        </div>
-      </section>
-    </main>
+<header class="bar">
+  <a class="brand" href="/"><span class="brand-mark">m</span>monl / console</a>
+  <div class="bar-right">
+    <span class="chip" id="quota-chip" hidden>quota <b id="quota-value">—</b></span>
+    <span class="account-label" id="account-label"></span>
+    <button id="logout-button" class="button secondary small" type="button" hidden>Se déconnecter</button>
   </div>
+</header>
 
-  <script>
-    (() => {
-      "use strict";
+<main id="main-content" class="page">
 
-      const state = {
-        token: window.localStorage.getItem("monl_console_token"),
-        account: null,
-        catalogue: [],
-        projects: [],
-        selectedModel: null,
-        selectedProjectId: null,
-        sourceMode: "model",
-        authMode: "login",
-        refreshTimer: null,
-        refreshing: false
-      };
+  <!-- ─────────────────────────────────────────────────── connexion ── -->
+  <section id="auth-view" class="narrow">
+    <span class="eyebrow">Console monl</span>
+    <h1 id="auth-title">Construire un site, une question à la fois.</h1>
+    <p class="lede">Le même dialogue guidé que la ligne de commande. Vous répondez,
+      monl compile, puis sert le site sous sa propre adresse.</p>
+    <div class="panel auth-card">
+      <div class="auth-switch" role="tablist">
+        <button id="login-tab" class="tab-button" type="button" role="tab" aria-selected="true">Se connecter</button>
+        <button id="register-tab" class="tab-button" type="button" role="tab" aria-selected="false">Créer un compte</button>
+      </div>
+      <form id="auth-form" class="form-grid">
+        <label><span>Identifiant</span><input id="auth-identifier" name="identifier" autocomplete="username" required></label>
+        <label><span>Mot de passe</span><input id="auth-password" name="password" type="password" autocomplete="current-password" required></label>
+        <div class="form-actions">
+          <button id="auth-submit" class="button" type="submit">Se connecter</button>
+        </div>
+        <p id="auth-help" class="help">Votre identifiant et votre mot de passe restent liés à ce compte de plateforme.</p>
+      </form>
+    </div>
+  </section>
 
-      const byId = (id) => document.getElementById(id);
-      const authView = byId("auth-view");
-      const consoleView = byId("console-view");
-      const alertBox = byId("alert");
+  <!-- ───────────────────────────────────────────────────── console ── -->
+  <section id="console-view" hidden>
+    <div id="alert"></div>
 
-      function showAlert(message, isError = false) {
-        alertBox.textContent = message || "";
-        alertBox.classList.toggle("error", isError);
-        alertBox.hidden = !message;
-      }
+    <div class="layout">
+      <aside class="side">
+        <div class="side-head">
+          <h2 id="projects-title">Vos sites</h2>
+          <button id="refresh-button" class="button secondary small" type="button">Actualiser</button>
+        </div>
+        <div id="project-list" class="project-list"><p class="loading">Chargement…</p></div>
+        <button id="new-project-button" class="button secondary small" type="button">+ Nouveau site</button>
+        <p class="help" id="quota-note"></p>
+      </aside>
 
-      function setAuthenticated(account) {
-        state.account = account;
-        authView.hidden = true;
-        consoleView.hidden = false;
-        byId("account-label").textContent = account.identifier;
-        byId("account-label").hidden = false;
-        byId("logout-button").hidden = false;
-      }
+      <div>
+        <!-- Dialogue guidé -->
+        <section id="dialog-view" class="panel dialog" aria-labelledby="new-project-title">
+          <div class="dialog-head">
+            <span class="t" id="new-project-title">Nouveau site</span>
+            <span class="t"><span class="pips" id="pips"></span> <span id="step-count"></span></span>
+          </div>
+          <div class="dialog-body">
+            <div class="transcript" id="transcript"></div>
+            <div class="ask" id="ask"></div>
+          </div>
+        </section>
 
-      function setLoggedOut() {
-        state.token = null;
-        state.account = null;
-        window.localStorage.removeItem("monl_console_token");
-        if (state.refreshTimer) window.clearInterval(state.refreshTimer);
-        state.refreshTimer = null;
-        authView.hidden = false;
-        consoleView.hidden = true;
-        byId("account-label").hidden = true;
-        byId("logout-button").hidden = true;
-      }
+        <!-- Projet sélectionné -->
+        <section id="project-view" class="panel" hidden></section>
+      </div>
+    </div>
+  </section>
+</main>
 
-      async function api(path, options = {}) {
-        const headers = new Headers(options.headers || {});
-        if (state.token) headers.set("Authorization", `Bearer ${state.token}`);
-        if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) {
-          headers.set("Content-Type", "application/json");
+<script>
+(function () {
+  "use strict";
+
+  var API = "";
+  var CLE = "monl_console_token";
+  var reduit = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var GLYPHES = ["⠻", "⠽", "⠾", "⠷", "⠯", "⠟", "⠏", "⠇"];
+
+  var etat = {
+    token: window.localStorage.getItem(CLE),
+    mode: "login",
+    compte: null,
+    projets: [],
+    catalogue: [],
+    choisi: null,
+    vue: "dialogue",
+    pas: 0,
+    reponses: {},
+    horloge: null,
+    sondage: null,
+    tick: 0
+  };
+
+  var byId = function (id) { return document.getElementById(id); };
+  var vide = function (el) { while (el.firstChild) { el.removeChild(el.firstChild); } return el; };
+  var mk = function (tag, cls, texte) {
+    var el = document.createElement(tag);
+    if (cls) el.className = cls;
+    if (texte !== undefined && texte !== null) el.textContent = String(texte);
+    return el;
+  };
+
+  /* ─────────────────────────────────────────────────── les questions ──
+     Une étape = une question. L'ordre est celui du dialogue de la ligne de
+     commande : ce qu'on construit, comment ça s'appelle, à quoi ça sert,
+     puis les choix qui coûtent. Le récapitulatif est une étape à part
+     entière — lancer une construction se facture, on ne le déclenche pas
+     par surprise au bas d'un formulaire. */
+  var ETAPES = [
+    {
+      id: "source",
+      question: "Que voulez-vous construire ?",
+      aide: "Dix modèles servent de point de départ. Chacun est testé compilable.",
+      rendu: rendreSource,
+      valide: function () {
+        if (etat.reponses.source === "spec") {
+          return (etat.reponses.spec || "").trim() ? null : "Collez une spec .ml, ou revenez au catalogue.";
         }
-        const response = await fetch(path, { ...options, headers });
-        const raw = await response.text();
-        let data = {};
-        try { data = raw ? JSON.parse(raw) : {}; } catch (_error) { data = { detail: raw }; }
-        if (!response.ok) {
-          if (response.status === 401 && state.token) {
-            setLoggedOut();
-            throw new Error("Votre session a expiré. Connectez-vous à nouveau.");
-          }
-          throw new Error(data.detail || `La requête a échoué (${response.status}).`);
+        return etat.choisi ? null : "Choisissez un modèle.";
+      },
+      resume: function () {
+        return etat.reponses.source === "spec" ? "une spec .ml collée" : (etat.choisi || "—");
+      }
+    },
+    {
+      id: "slug",
+      question: "Quelle adresse pour le site ?",
+      aide: "Elle formera le début du domaine. Minuscules, chiffres et tirets.",
+      rendu: function (zone) { champTexte(zone, "slug", "mon-site", 1); },
+      valide: function () {
+        var v = (etat.reponses.slug || "").trim();
+        if (!v) return "Une adresse est nécessaire.";
+        if (!/^[a-z0-9][a-z0-9-]*$/.test(v)) return "Minuscules, chiffres et tirets seulement.";
+        return null;
+      },
+      resume: function () { return (etat.reponses.slug || "").trim(); }
+    },
+    {
+      id: "app_name",
+      question: "Comment s'appelle l'application ?",
+      aide: "Le nom affiché. Un identifiant sans espace ni accent.",
+      rendu: function (zone) { champTexte(zone, "app_name", "MonProjet", 1); },
+      valide: function () {
+        var v = (etat.reponses.app_name || "").trim();
+        if (!v) return "Un nom est nécessaire.";
+        if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(v)) return "Lettres, chiffres et tirets bas, en commençant par une lettre.";
+        return null;
+      },
+      resume: function () { return (etat.reponses.app_name || "").trim(); },
+      saute: function () { return etat.reponses.source === "spec"; }
+    },
+    {
+      id: "description",
+      question: "En une phrase, à quoi sert ce site ?",
+      aide: "Cette phrase oriente les textes et le registre visuel. Facultative.",
+      rendu: function (zone) { champTexte(zone, "description", "Une boutique de céramique artisanale, ton éditorial sobre.", 3); },
+      valide: function () { return null; },
+      resume: function () { return (etat.reponses.description || "").trim() || "aucune"; },
+      saute: function () { return etat.reponses.source === "spec"; }
+    },
+    {
+      id: "images",
+      question: "Générer des illustrations ?",
+      aide: "Chaque image est une requête facturée. Sans elles, l'interface se contente de typographie et de blocs de couleur.",
+      rendu: function (zone) { ouiNon(zone, "images"); },
+      valide: function () { return etat.reponses.images === undefined ? "Répondez oui ou non." : null; },
+      resume: function () { return etat.reponses.images ? "oui" : "non"; }
+    },
+    {
+      id: "routes",
+      question: "Router certains fichiers vers un autre modèle ?",
+      aide: "Une cible par ligne, au format CIBLE=MODELE. Laissez vide pour n'utiliser qu'un seul modèle.",
+      rendu: function (zone) { champTexte(zone, "routes", "styles.css=aliceai-llm-flash/latest", 3); },
+      valide: function () {
+        var lignes = (etat.reponses.routes || "").split("\n").map(function (l) { return l.trim(); }).filter(Boolean);
+        var vues = {};
+        for (var i = 0; i < lignes.length; i++) {
+          var sep = lignes[i].indexOf("=");
+          if (sep <= 0) return "Format attendu : CIBLE=MODELE (ligne " + (i + 1) + ").";
+          var cible = lignes[i].slice(0, sep).trim();
+          if (!cible || !lignes[i].slice(sep + 1).trim()) return "Cible ou modèle vide (ligne " + (i + 1) + ").";
+          if (vues[cible]) return "La cible « " + cible + " » est répétée.";
+          vues[cible] = 1;
         }
-        return data;
+        return null;
+      },
+      resume: function () {
+        var n = (etat.reponses.routes || "").split("\n").filter(function (l) { return l.trim(); }).length;
+        return n ? n + " règle" + (n > 1 ? "s" : "") : "un seul modèle";
       }
+    },
+    {
+      id: "recap",
+      question: "Tout est prêt.",
+      aide: "Relisez, puis lancez. Une construction consomme des jetons et peut durer plusieurs minutes.",
+      rendu: rendreRecap,
+      valide: function () { return null; },
+      final: true
+    }
+  ];
 
-      function formatNumber(value) {
-        if (value === null || value === undefined || Number.isNaN(Number(value))) return "—";
-        return new Intl.NumberFormat("fr-FR").format(Number(value));
-      }
-
-      function formatDate(value) {
-        if (!value) return "date inconnue";
-        const date = new Date(value);
-        if (Number.isNaN(date.getTime())) return "date inconnue";
-        return new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(date);
-      }
-
-      function elapsed(value) {
-        if (!value) return "durée inconnue";
-        const date = new Date(value);
-        if (Number.isNaN(date.getTime())) return "durée inconnue";
-        let seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
-        const minutes = Math.floor(seconds / 60);
-        seconds %= 60;
-        if (minutes < 1) return `${seconds} seconde${seconds > 1 ? "s" : ""}`;
-        const hours = Math.floor(minutes / 60);
-        if (hours < 1) return `${minutes} minute${minutes > 1 ? "s" : ""}`;
-        const rest = minutes % 60;
-        return `${hours} h${rest ? ` ${rest} min` : ""}`;
-      }
-
-      function addText(parent, tag, text, className) {
-        const element = document.createElement(tag);
-        if (className) element.className = className;
-        element.textContent = text;
-        parent.appendChild(element);
-        return element;
-      }
-
-      function setAuthMode(mode) {
-        state.authMode = mode;
-        const login = mode === "login";
-        byId("login-tab").setAttribute("aria-selected", String(login));
-        byId("register-tab").setAttribute("aria-selected", String(!login));
-        byId("auth-submit").textContent = login ? "Se connecter" : "Créer mon compte";
-        byId("auth-password").setAttribute("autocomplete", login ? "current-password" : "new-password");
-        byId("auth-help").textContent = login
-          ? "Votre identifiant et votre mot de passe restent liés à ce compte de plateforme."
-          : "Un mot de passe de huit caractères minimum protège ce compte de plateforme.";
-      }
-
-      async function submitAuth(event) {
-        event.preventDefault();
-        const button = byId("auth-submit");
-        button.disabled = true;
-        showAlert("");
-        try {
-          const data = await api(state.authMode === "login" ? "/login" : "/register", {
-            method: "POST",
-            body: JSON.stringify({
-              identifier: byId("auth-identifier").value.trim(),
-              password: byId("auth-password").value
-            })
-          });
-          state.token = data.token;
-          window.localStorage.setItem("monl_console_token", state.token);
-          setAuthenticated(data.account);
-          await loadConsole();
-          startPolling();
-        } catch (error) {
-          showAlert(error.message, true);
-        } finally {
-          button.disabled = false;
-        }
-      }
-
-      function setSourceMode(mode) {
-        state.sourceMode = mode;
-        const model = mode === "model";
-        byId("model-mode").setAttribute("aria-selected", String(model));
-        byId("spec-mode").setAttribute("aria-selected", String(!model));
-        byId("model-source").hidden = !model;
-        byId("spec-source").hidden = model;
-        byId("app-name").disabled = !model;
-      }
-
-      function renderCatalogue() {
-        const grid = byId("model-grid");
-        grid.replaceChildren();
-        state.catalogue.forEach((model, index) => {
-          const button = document.createElement("button");
-          button.type = "button";
-          button.className = "model-card";
-          button.setAttribute("aria-pressed", String(state.selectedModel === model.name));
-          addText(button, "span", `Modèle ${index + 1}`, "model-number");
-          addText(button, "h3", model.name);
-          addText(button, "p", model.hint || "Point de départ monl.");
-          button.addEventListener("click", () => {
-            state.selectedModel = model.name;
-            renderCatalogue();
-          });
-          grid.appendChild(button);
-        });
-        if (!state.catalogue.length) addText(grid, "p", "Le catalogue est momentanément indisponible.", "empty");
-      }
-
-      async function loadCatalogue() {
-        try {
-          const data = await api("/catalogue");
-          state.catalogue = data.models || [];
-          if (!state.selectedModel && state.catalogue[0]) state.selectedModel = state.catalogue[0].name;
-          renderCatalogue();
-        } catch (error) {
-          byId("model-grid").replaceChildren();
-          addText(byId("model-grid"), "p", `Catalogue indisponible : ${error.message}`, "empty");
-        }
-      }
-
-      function currentProject() {
-        return state.projects.find((project) => project.id === state.selectedProjectId) || null;
-      }
-
-      function renderProjectList() {
-        const list = byId("project-list");
-        list.replaceChildren();
-        if (!state.projects.length) {
-          addText(list, "p", "Aucun projet pour le moment. Choisissez un modèle ci-dessus pour commencer.", "empty");
-          return;
-        }
-        state.projects.forEach((project) => {
-          const button = document.createElement("button");
-          button.type = "button";
-          button.className = "project-item";
-          button.setAttribute("aria-current", String(project.id === state.selectedProjectId));
-          addText(button, "strong", project.slug);
-          addText(button, "span", `${projectStateLabel(project)} · ${project.builds.length} construction${project.builds.length > 1 ? "s" : ""}`);
-          button.addEventListener("click", () => {
-            state.selectedProjectId = project.id;
-            renderProjectList();
-            renderProjectDetail();
-          });
-          list.appendChild(button);
-        });
-      }
-
-      function projectStateLabel(project) {
-        const build = project.builds[project.builds.length - 1];
-        if (!build) return "pas de construction";
-        return buildLabel(build.state);
-      }
-
-      function buildLabel(stateName) {
-        return {
-          en_attente: "en attente",
-          en_cours: "en cours",
-          reussie: "réussie",
-          echouee: "échouée"
-        }[stateName] || stateName || "inconnue";
-      }
-
-      function buildTone(stateName) {
-        return { en_attente: "waiting", en_cours: "running", reussie: "success", echouee: "failure" }[stateName] || "none";
-      }
-
-      function renderBuild(build, project) {
-        const panel = document.createElement("section");
-        panel.className = "build-panel";
-        panel.setAttribute("aria-labelledby", "build-title");
-        const latest = build || { state: "pas_de_construction" };
-        const tone = buildTone(latest.state);
-        const header = document.createElement("div");
-        header.className = "build-header";
-        const heading = document.createElement("div");
-        addText(heading, "p", "Construction", "eyebrow");
-        addText(heading, "h3", build ? `Construction #${build.id}` : "Aucune construction", "build-title");
-        header.appendChild(heading);
-        addText(header, "span", build ? buildLabel(build.state) : "pas encore lancée", `build-status ${tone}`);
-        panel.appendChild(header);
-
-        if (!build) {
-          addText(panel, "p", "Votre projet est prêt. Lancez une construction pour générer le site et suivre son avancement ici.", "since");
-        } else {
-          const started = build.started_at || build.created_at;
-          const progress = document.createElement("div");
-          progress.className = `progress-rail ${tone}`;
-          addText(progress, "span", "", "");
-          progress.firstElementChild.setAttribute("aria-hidden", "true");
-          progress.setAttribute("role", "progressbar");
-          progress.setAttribute("aria-label", `Construction ${buildLabel(build.state)}`);
-          panel.appendChild(progress);
-          if (build.state === "en_cours") {
-            addText(panel, "p", `Construction en cours depuis ${elapsed(started)}. Le service travaille toujours, même si le résultat n'est pas encore disponible.`, "since");
-          } else if (build.state === "en_attente") {
-            addText(panel, "p", `Construction en attente depuis ${elapsed(build.created_at)}. Elle est bien enregistrée et sera prise en charge par le worker.`, "since");
-          } else {
-            addText(panel, "p", `${build.state === "reussie" ? "Terminée" : "Terminée avec une erreur"} le ${formatDate(build.finished_at || build.created_at)}.`, "since");
-          }
-          const details = document.createElement("div");
-          details.className = "build-details";
-          const tokenText = build.tokens_consumed === null || build.tokens_consumed === undefined ? "non connu" : formatNumber(build.tokens_consumed);
-          const costText = build.price_status === "declared" && build.cost !== null && build.cost !== undefined
-            ? `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 4 }).format(Number(build.cost))} ${build.currency || ""}`.trim()
-            : "non déclaré";
-          [["Jetons", tokenText], ["Coût", costText], ["Demandée", formatDate(build.created_at)]].forEach(([label, value]) => {
-            const detail = document.createElement("div");
-            detail.className = "detail";
-            addText(detail, "small", label);
-            addText(detail, "strong", value);
-            details.appendChild(detail);
-          });
-          panel.appendChild(details);
-          if (build.snapshot_path) {
-            const snapshot = document.createElement("p");
-            snapshot.className = "since";
-            addText(snapshot, "strong", "Snapshot conservé : ");
-            addText(snapshot, "code", build.snapshot_path);
-            panel.appendChild(snapshot);
-          }
-          if (build.state === "echouee") {
-            const report = document.createElement("div");
-            report.className = "error-report";
-            addText(report, "h3", "Erreurs de vérification");
-            addText(report, "p", "Rapport brut de la construction — aucun détail n'est remplacé par un message générique.");
-            addText(report, "pre", build.error_message || build.error || "Aucun détail d'erreur fourni.");
-            panel.appendChild(report);
-          } else if (build.warning_message) {
-            const report = document.createElement("div");
-            report.className = "error-report warning-report";
-            addText(report, "h3", "Avertissement de construction");
-            addText(report, "p", "Le site est disponible, mais un élément demandé n'a pas pu être produit.");
-            addText(report, "pre", build.warning_message);
-            panel.appendChild(report);
-          }
-        }
-        const actions = document.createElement("div");
-        actions.className = "form-actions";
-        const buildButton = document.createElement("button");
-        buildButton.type = "button";
-        buildButton.className = "button small";
-        buildButton.textContent = build && ["en_attente", "en_cours"].includes(build.state) ? "Construction en cours…" : "Lancer une construction";
-        buildButton.disabled = Boolean(build && ["en_attente", "en_cours"].includes(build.state));
-        buildButton.addEventListener("click", () => enqueueBuild(project.id));
-        actions.appendChild(buildButton);
-        panel.appendChild(actions);
-        return panel;
-      }
-
-      function renderSite(project, build) {
-        const panel = document.createElement("section");
-        panel.className = "site-panel";
-        panel.setAttribute("aria-labelledby", "site-title");
-        addText(panel, "p", "Site servi", "eyebrow");
-        addText(panel, "h3", "Adresse réelle", "site-title");
-        addText(panel, "code", project.host || `${project.slug}.domaine`, "site-host");
-        const built = build && build.state === "reussie";
-        if (!built) {
-          addText(panel, "p", "L'adresse apparaîtra ici après une construction réussie.", "site-instructions");
-          return panel;
-        }
-        const platformOrigin = window.location.origin;
-        const command = `curl -H "Host: ${project.host}" ${platformOrigin}/site/`;
-        addText(panel, "p", project.running
-          ? "Le site est démarré. En local, le nom d'hôte ne résout pas tout seul : utilisez l'en-tête Host ou une entrée /etc/hosts."
-          : "Le site est arrêté. Démarrez-le, puis utilisez l'en-tête Host ou une entrée /etc/hosts ; un lien direct silencieusement cassé n'est pas proposé.", "site-instructions");
-        addText(panel, "code", command, "site-command");
-        const actions = document.createElement("div");
-        actions.className = "site-actions";
-        const toggle = document.createElement("button");
-        toggle.type = "button";
-        toggle.className = project.running ? "button danger small" : "button small";
-        toggle.textContent = project.running ? "Arrêter le site" : "Démarrer le site";
-        toggle.addEventListener("click", () => toggleSite(project));
-        actions.appendChild(toggle);
-        panel.appendChild(actions);
-        return panel;
-      }
-
-      function renderProjectDetail() {
-        const detail = byId("project-detail");
-        const project = currentProject();
-        if (!project) {
-          detail.hidden = true;
-          detail.replaceChildren();
-          return;
-        }
-        detail.hidden = false;
-        detail.replaceChildren();
-        const header = document.createElement("div");
-        header.className = "project-header";
-        const heading = document.createElement("div");
-        addText(heading, "p", "Projet sélectionné", "eyebrow");
-        addText(heading, "h2", project.slug, "detail-title");
-        addText(heading, "p", `Créé le ${formatDate(project.created_at)}`, "project-meta");
-        header.appendChild(heading);
-        detail.appendChild(header);
-        const latest = project.builds[project.builds.length - 1] || null;
-        detail.appendChild(renderBuild(latest, project));
-        detail.appendChild(renderSite(project, latest));
-      }
-
-      function renderUsage(data) {
-        const usage = data.usage || {};
-        byId("usage-consumed").textContent = formatNumber(usage.consumed_tokens);
-        byId("usage-remaining").textContent = formatNumber(usage.remaining_tokens);
-        byId("usage-limit").textContent = `sur ${formatNumber(usage.limit_tokens)} jetons`;
-        const builds = state.projects.flatMap((project) => project.builds || []);
-        const declared = builds.filter((build) => build.price_status === "declared" && build.cost !== null && build.cost !== undefined);
-        const undeclared = builds.some((build) => build.price_status === "not_declared");
-        if (!declared.length) {
-          byId("usage-cost").textContent = "non déclaré";
-          byId("usage-cost-note").textContent = undeclared ? "le tarif n'est pas déclaré pour ces constructions" : "aucun coût déclaré";
-        } else {
-          const total = declared.reduce((sum, build) => sum + Number(build.cost), 0);
-          const currency = declared.find((build) => build.currency)?.currency || "";
-          byId("usage-cost").textContent = `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 4 }).format(total)} ${currency}`.trim();
-          byId("usage-cost-note").textContent = undeclared ? "coûts déclarés uniquement ; le reste est non déclaré" : "coûts déclarés par le fournisseur";
-        }
-      }
-
-      async function loadConsole(silent = false) {
-        if (!state.token || state.refreshing) return;
-        state.refreshing = true;
-        try {
-          const [projects, usage] = await Promise.all([api("/projects"), api("/usage")]);
-          state.projects = projects.projects || [];
-          if (!state.projects.some((project) => project.id === state.selectedProjectId)) {
-            state.selectedProjectId = state.projects[0]?.id || null;
-          }
-          renderProjectList();
-          renderProjectDetail();
-          renderUsage(usage);
-          if (!silent) showAlert("");
-        } catch (error) {
-          if (!silent) showAlert(error.message, true);
-        } finally {
-          state.refreshing = false;
-        }
-      }
-
-      function startPolling() {
-        if (state.refreshTimer) window.clearInterval(state.refreshTimer);
-        state.refreshTimer = window.setInterval(() => loadConsole(true), 2500);
-      }
-
-      async function enqueueBuild(projectId) {
-        try {
-          await api(`/projects/${projectId}/builds`, { method: "POST" });
-          showAlert("Construction mise en file. Son état et son horodatage sont suivis ci-dessous.");
-          await loadConsole();
-        } catch (error) { showAlert(error.message, true); }
-      }
-
-      async function toggleSite(project) {
-        const action = project.running ? "stop" : "start";
-        try {
-          await api(`/projects/${project.id}/${action}`, { method: "POST" });
-          showAlert(project.running ? "Site arrêté." : "Site démarré. L'adresse reste accessible par son hôte réel.");
-          await loadConsole();
-        } catch (error) { showAlert(error.message, true); }
-      }
-
-      async function submitProject(event) {
-        event.preventDefault();
-        const button = byId("create-project-button");
-        const payload = { slug: byId("project-slug").value.trim() };
-        const routeLines = byId("model-routes").value.split("\n").map((line) => line.trim()).filter(Boolean);
-        const modelRoutes = {};
-        for (const declaration of routeLines) {
-          const separator = declaration.indexOf("=");
-          if (separator <= 0 || separator === declaration.length - 1) {
-            showAlert(`Routage invalide : ${declaration}. Utilisez CIBLE=MODELE.`, true);
-            return;
-          }
-          const target = declaration.slice(0, separator).trim();
-          const model = declaration.slice(separator + 1).trim();
-          if (!target || !model || Object.prototype.hasOwnProperty.call(modelRoutes, target)) {
-            showAlert(`Routage invalide ou cible répétée : ${target || declaration}.`, true);
-            return;
-          }
-          modelRoutes[target] = model;
-        }
-        payload.model_routes = modelRoutes;
-        payload.generate_images = byId("generate-images").checked;
-        if (state.sourceMode === "model") {
-          if (!state.selectedModel) { showAlert("Choisissez un modèle du catalogue.", true); return; }
-          payload.model = state.selectedModel;
-          payload.app_name = byId("app-name").value.trim() || "MonProjet";
-          payload.description = byId("project-description").value.trim();
-        } else {
-          payload.spec = byId("spec-input").value;
-          if (!payload.spec.trim()) { showAlert("Collez une spec .ml avant de créer le projet.", true); return; }
-        }
-        button.disabled = true;
-        try {
-          const created = await api("/projects", { method: "POST", body: JSON.stringify(payload) });
-          const project = created.project;
-          await api(`/projects/${project.id}/builds`, { method: "POST" });
-          byId("project-form").reset();
-          byId("app-name").value = "MonProjet";
-          byId("generate-images").checked = false;
-          state.selectedProjectId = project.id;
-          showAlert("Projet créé et construction mise en file. Le suivi reste visible pendant l'attente.");
-          await loadConsole();
-        } catch (error) { showAlert(error.message, true); }
-        finally { button.disabled = false; }
-      }
-
-      byId("login-tab").addEventListener("click", () => setAuthMode("login"));
-      byId("register-tab").addEventListener("click", () => setAuthMode("register"));
-      byId("auth-form").addEventListener("submit", submitAuth);
-      byId("logout-button").addEventListener("click", () => { setLoggedOut(); showAlert("Vous êtes déconnecté."); });
-      byId("model-mode").addEventListener("click", () => setSourceMode("model"));
-      byId("spec-mode").addEventListener("click", () => setSourceMode("spec"));
-      byId("project-form").addEventListener("submit", submitProject);
-      byId("refresh-button").addEventListener("click", () => loadConsole());
-      byId("spec-file").addEventListener("change", async (event) => {
-        const file = event.target.files[0];
-        if (!file) return;
-        if (!file.name.toLowerCase().endsWith(".ml")) { showAlert("La spec fournie doit être un fichier .ml.", true); return; }
-        byId("spec-input").value = await file.text();
-        setSourceMode("spec");
+  /* ──────────────────────────────────────────────────────── transport ── */
+  function api(chemin, options) {
+    options = options || {};
+    var entetes = options.headers || {};
+    if (etat.token) entetes.Authorization = "Bearer " + etat.token;
+    if (options.body && !entetes["Content-Type"]) entetes["Content-Type"] = "application/json";
+    return fetch(API + chemin, {
+      method: options.method || "GET",
+      headers: entetes,
+      body: options.body
+    }).then(function (r) {
+      if (r.status === 401) { deconnecter(); throw new Error("session expirée"); }
+      return r.json().catch(function () { return {}; }).then(function (corps) {
+        if (!r.ok) throw new Error((corps && corps.detail) || ("erreur " + r.status));
+        return corps;
       });
+    });
+  }
 
-      setAuthMode("login");
-      setSourceMode("model");
-      loadCatalogue();
-      if (state.token) {
-        api("/projects").then(async () => {
-          try {
-            const accountResponse = await api("/account");
-            setAuthenticated(accountResponse.account);
-            await loadConsole();
-            startPolling();
-          } catch (_error) { setLoggedOut(); }
-        }).catch(() => setLoggedOut());
+  function alerte(message, erreur) {
+    var zone = vide(byId("alert"));
+    if (!message) return;
+    var bloc = mk("div", "notice" + (erreur ? " error" : ""), message);
+    zone.appendChild(bloc);
+    if (!erreur) window.setTimeout(function () { if (bloc.parentNode) bloc.remove(); }, 6000);
+  }
+
+  /* ─────────────────────────────────────────────────────── connexion ── */
+  function basculer(mode) {
+    etat.mode = mode;
+    byId("login-tab").setAttribute("aria-selected", String(mode === "login"));
+    byId("register-tab").setAttribute("aria-selected", String(mode === "register"));
+    byId("auth-submit").textContent = mode === "login" ? "Se connecter" : "Créer le compte";
+    byId("auth-password").setAttribute("autocomplete", mode === "login" ? "current-password" : "new-password");
+  }
+  byId("login-tab").addEventListener("click", function () { basculer("login"); });
+  byId("register-tab").addEventListener("click", function () { basculer("register"); });
+
+  byId("auth-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var bouton = byId("auth-submit");
+    bouton.disabled = true;
+    var corps = JSON.stringify({
+      identifier: byId("auth-identifier").value.trim(),
+      password: byId("auth-password").value
+    });
+    var chemin = etat.mode === "login" ? "/login" : "/register";
+    api(chemin, { method: "POST", body: corps }).then(function (reponse) {
+      if (etat.mode === "register" && !reponse.token) {
+        basculer("login");
+        alerte("Compte créé. Connectez-vous.");
+        return null;
       }
-    })();
-  </script>
+      etat.token = reponse.token;
+      window.localStorage.setItem(CLE, etat.token);
+      return charger();
+    }).catch(function (err) {
+      alerte(err.message, true);
+    }).then(function () { bouton.disabled = false; });
+  });
+
+  function deconnecter() {
+    etat.token = null;
+    window.localStorage.removeItem(CLE);
+    arreterHorloge();
+    byId("console-view").hidden = true;
+    byId("auth-view").hidden = false;
+    byId("logout-button").hidden = true;
+    byId("quota-chip").hidden = true;
+    byId("account-label").textContent = "";
+  }
+  byId("logout-button").addEventListener("click", deconnecter);
+
+  /* ────────────────────────────────────────────────────── chargement ── */
+  function charger() {
+    return Promise.all([
+      api("/account"),
+      api("/usage"),
+      api("/catalogue"),
+      api("/projects")
+    ]).then(function (r) {
+      etat.compte = r[0].account;
+      etat.catalogue = (r[2] && r[2].models) || [];
+      etat.projets = (r[3] && r[3].projects) || [];
+      byId("auth-view").hidden = true;
+      byId("console-view").hidden = false;
+      byId("logout-button").hidden = false;
+      byId("account-label").textContent = (etat.compte && etat.compte.identifier) || "";
+      quota(r[1] && r[1].usage);
+      listeProjets();
+      if (etat.vue === "projet" && etat.projetId) return ouvrirProjet(etat.projetId);
+      rendreEtape();
+      return null;
+    }).catch(function (err) { alerte(err.message, true); });
+  }
+
+  function nombre(n) {
+    return typeof n === "number" ? new Intl.NumberFormat("fr-FR").format(n) : "—";
+  }
+
+  function quota(u) {
+    if (!u) return;
+    byId("quota-chip").hidden = false;
+    byId("quota-value").textContent = nombre(u.consumed_tokens) + " / " + nombre(u.limit_tokens);
+    var reste = u.remaining_tokens;
+    byId("quota-note").textContent = typeof reste === "number"
+      ? nombre(reste) + " jetons restants sur ce compte." : "";
+  }
+
+  var ETIQUETTES = {
+    reussie: "réussie", echouee: "échouée",
+    en_cours: "en cours", en_attente: "en attente"
+  };
+
+  function listeProjets() {
+    var zone = vide(byId("project-list"));
+    if (!etat.projets.length) {
+      zone.appendChild(mk("p", "empty", "Aucun site pour l'instant."));
+      return;
+    }
+    etat.projets.forEach(function (p) {
+      var b = mk("button", "project-item");
+      b.type = "button";
+      b.setAttribute("aria-current", String(etat.vue === "projet" && etat.projetId === p.id));
+      b.appendChild(mk("strong", null, p.slug));
+      var dernier = (p.builds || [])[(p.builds || []).length - 1];
+      var etiquette = dernier ? (ETIQUETTES[dernier.state] || dernier.state) : "pas de construction";
+      b.appendChild(mk("span", null, etiquette + " · " + (p.builds || []).length + " construction"
+        + ((p.builds || []).length > 1 ? "s" : "")));
+      b.addEventListener("click", function () { ouvrirProjet(p.id); });
+      zone.appendChild(b);
+    });
+  }
+
+  /* ──────────────────────────────────────────────── le dialogue guidé ── */
+  function etapesActives() {
+    return ETAPES.filter(function (e) { return !(e.saute && e.saute()); });
+  }
+
+  function rendreEtape() {
+    etat.vue = "dialogue";
+    arreterHorloge();
+    byId("project-view").hidden = true;
+    byId("dialog-view").hidden = false;
+    listeProjets();
+
+    var actives = etapesActives();
+    if (etat.pas >= actives.length) etat.pas = actives.length - 1;
+    var etape = actives[etat.pas];
+
+    var pips = vide(byId("pips"));
+    actives.forEach(function (_e, i) {
+      var p = mk("i");
+      if (i < etat.pas) p.className = "done";
+      if (i === etat.pas) p.className = "now";
+      pips.appendChild(p);
+    });
+    byId("step-count").textContent = "étape " + (etat.pas + 1) + " / " + actives.length;
+
+    // Transcription : ce qui a déjà été répondu reste lisible, et cliquable.
+    var trans = vide(byId("transcript"));
+    actives.slice(0, etat.pas).forEach(function (e, i) {
+      var ligne = mk("div", "said");
+      ligne.appendChild(mk("span", "m", "✓"));
+      var corps = mk("div");
+      corps.appendChild(mk("b", null, e.question + "  "));
+      corps.appendChild(mk("i", null, e.resume ? e.resume() : ""));
+      var modifier = mk("button", null, "modifier");
+      modifier.type = "button";
+      modifier.addEventListener("click", function () { etat.pas = i; rendreEtape(); });
+      corps.appendChild(document.createElement("br"));
+      corps.appendChild(modifier);
+      ligne.appendChild(corps);
+      trans.appendChild(ligne);
+    });
+
+    var ask = vide(byId("ask"));
+    var entete = mk("div", "ask-q");
+    entete.appendChild(mk("span", "m", etape.final ? "✦" : "?"));
+    var titre = mk("h2", null, etape.question);
+    entete.appendChild(titre);
+    ask.appendChild(entete);
+    if (etape.aide) ask.appendChild(mk("p", "ask-help", etape.aide));
+
+    var champ = mk("div", "ask-field");
+    ask.appendChild(champ);
+    etape.rendu(champ);
+
+    var actions = mk("div", "ask-actions");
+    if (etat.pas > 0) {
+      var retour = mk("button", "button secondary", "← Retour");
+      retour.type = "button";
+      retour.addEventListener("click", function () { etat.pas -= 1; rendreEtape(); });
+      actions.appendChild(retour);
+    }
+    var suite = mk("button", "button", etape.final ? "Créer et lancer la construction" : "Continuer →");
+    suite.type = "button";
+    suite.id = etape.final ? "create-project-button" : "next-button";
+    suite.addEventListener("click", function () { avancer(suite); });
+    actions.appendChild(suite);
+    if (!etape.final) actions.appendChild(mk("span", "ask-hint", "Entrée pour continuer"));
+    else actions.appendChild(mk("span", "ask-hint", "cette action consomme des jetons"));
+    ask.appendChild(actions);
+  }
+
+  function avancer(bouton) {
+    var actives = etapesActives();
+    var etape = actives[etat.pas];
+    var faute = etape.valide();
+    if (faute) { alerte(faute, true); return; }
+    alerte("");
+    if (!etape.final) { etat.pas += 1; rendreEtape(); return; }
+    creer(bouton);
+  }
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "Enter" || byId("console-view").hidden) return;
+    if (etat.vue !== "dialogue") return;
+    var cible = e.target;
+    if (cible && cible.tagName === "TEXTAREA" && !(e.ctrlKey || e.metaKey)) return;
+    var bouton = byId("next-button") || byId("create-project-button");
+    if (bouton) { e.preventDefault(); avancer(bouton); }
+  });
+
+  function champTexte(zone, cle, exemple, lignes) {
+    var el;
+    if (lignes > 1) {
+      el = document.createElement("textarea");
+      el.style.minHeight = (lignes * 1.9) + "rem";
+    } else {
+      el = document.createElement("input");
+      el.type = "text";
+    }
+    el.value = etat.reponses[cle] || "";
+    el.placeholder = exemple;
+    el.spellcheck = false;
+    el.addEventListener("input", function () { etat.reponses[cle] = el.value; });
+    zone.appendChild(el);
+    window.setTimeout(function () { el.focus(); }, 0);
+  }
+
+  function ouiNon(zone, cle) {
+    var paire = mk("div", "pair");
+    [["oui", true], ["non", false]].forEach(function (couple) {
+      var b = mk("button", "choice");
+      b.type = "button";
+      b.setAttribute("aria-pressed", String(etat.reponses[cle] === couple[1]));
+      b.appendChild(mk("b", null, couple[0]));
+      b.appendChild(mk("span", null, couple[1]
+        ? "Des illustrations sont produites, et facturées à la requête."
+        : "Aucune image produite. Rien n'est facturé au-delà du texte."));
+      b.addEventListener("click", function () {
+        etat.reponses[cle] = couple[1];
+        rendreEtape();
+      });
+      paire.appendChild(b);
+    });
+    zone.appendChild(paire);
+  }
+
+  function rendreSource(zone) {
+    var onglets = mk("div", "pair");
+    [["Un modèle du catalogue", "modele"], ["J'ai déjà une spec .ml", "spec"]].forEach(function (c) {
+      var b = mk("button", "choice");
+      b.type = "button";
+      b.setAttribute("aria-pressed", String((etat.reponses.source || "modele") === c[1]));
+      b.appendChild(mk("b", null, c[0]));
+      b.addEventListener("click", function () { etat.reponses.source = c[1]; rendreEtape(); });
+      onglets.appendChild(b);
+    });
+    zone.appendChild(onglets);
+
+    if (etat.reponses.source === "spec") {
+      var aire = document.createElement("textarea");
+      aire.className = "spec";
+      aire.id = "spec-input";
+      aire.spellcheck = false;
+      aire.placeholder = "app MonProjet\n\nentity Item\n    label: String\n…";
+      aire.value = etat.reponses.spec || "";
+      aire.style.marginTop = "1rem";
+      aire.addEventListener("input", function () { etat.reponses.spec = aire.value; });
+      zone.appendChild(aire);
+      return;
+    }
+
+    var grille = mk("div", "choices");
+    grille.style.marginTop = "1rem";
+    etat.catalogue.forEach(function (m, i) {
+      var b = mk("button", "choice");
+      b.type = "button";
+      b.setAttribute("aria-pressed", String(etat.choisi === m.name));
+      b.appendChild(mk("span", "num", "modèle " + (i + 1)));
+      b.appendChild(mk("b", null, m.name));
+      if (m.hint) b.appendChild(mk("span", null, m.hint));
+      b.addEventListener("click", function () { etat.choisi = m.name; rendreEtape(); });
+      grille.appendChild(b);
+    });
+    zone.appendChild(grille);
+  }
+
+  function rendreRecap(zone) {
+    var actives = etapesActives();
+    var liste = mk("div", "recap");
+    actives.slice(0, -1).forEach(function (e) {
+      var ligne = mk("div", "recap-row");
+      ligne.appendChild(mk("b", null, e.question));
+      ligne.appendChild(mk("span", null, e.resume ? e.resume() : ""));
+      liste.appendChild(ligne);
+    });
+    zone.appendChild(liste);
+  }
+
+  function creer(bouton) {
+    bouton.disabled = true;
+    var routes = {};
+    (etat.reponses.routes || "").split("\n").forEach(function (ligne) {
+      ligne = ligne.trim();
+      if (!ligne) return;
+      var sep = ligne.indexOf("=");
+      routes[ligne.slice(0, sep).trim()] = ligne.slice(sep + 1).trim();
+    });
+    var charge = {
+      slug: (etat.reponses.slug || "").trim(),
+      generate_images: !!etat.reponses.images,
+      model_routes: routes
+    };
+    if (etat.reponses.source === "spec") {
+      charge.spec = etat.reponses.spec;
+    } else {
+      charge.model = etat.choisi;
+      charge.app_name = (etat.reponses.app_name || "").trim();
+      var d = (etat.reponses.description || "").trim();
+      if (d) charge.description = d;
+    }
+    api("/projects", { method: "POST", body: JSON.stringify(charge) }).then(function (r) {
+      var projet = r.project;
+      return api("/projects/" + projet.id + "/builds", { method: "POST" }).then(function () {
+        etat.reponses = {};
+        etat.choisi = null;
+        etat.pas = 0;
+        alerte("Projet créé, construction mise en file.");
+        return ouvrirProjet(projet.id);
+      });
+    }).catch(function (err) {
+      alerte(err.message, true);
+    }).then(function () { bouton.disabled = false; });
+  }
+
+  byId("new-project-button").addEventListener("click", function () {
+    if (window.history && window.history.replaceState) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+    etat.projetId = null;
+    etat.pas = 0;
+    rendreEtape();
+  });
+  byId("refresh-button").addEventListener("click", function () { charger(); });
+
+  /* ─────────────────────────────────────────── suivi de construction ── */
+  function ouvrirProjet(id) {
+    etat.projetId = id;
+    etat.vue = "projet";
+    // Adresse profonde : un projet doit pouvoir se rouvrir, se partager et
+    // se retrouver par le bouton « précédent ». Sans ça, un rechargement
+    // pendant une construction de plusieurs minutes ramène au dialogue.
+    if (window.history && window.history.replaceState) {
+      window.history.replaceState(null, "", "#projet-" + id);
+    }
+    byId("dialog-view").hidden = true;
+    byId("project-view").hidden = false;
+    listeProjets();
+    return rafraichirProjet();
+  }
+
+  function projetCourant() {
+    for (var i = 0; i < etat.projets.length; i++) {
+      if (etat.projets[i].id === etat.projetId) return etat.projets[i];
+    }
+    return null;
+  }
+
+  function rafraichirProjet() {
+    if (!etat.projetId) return Promise.resolve();
+    return api("/projects/" + etat.projetId).then(function (r) {
+      var projet = r.project;
+      var trouve = false;
+      etat.projets = etat.projets.map(function (p) {
+        if (p.id === projet.id) { trouve = true; return projet; }
+        return p;
+      });
+      if (!trouve) etat.projets.unshift(projet);
+      var dernier = (projet.builds || [])[(projet.builds || []).length - 1];
+      if (!dernier) { rendreProjet([]); return null; }
+      return api("/projects/" + projet.id + "/builds/" + dernier.id + "/etapes")
+        .then(function (s) { rendreProjet(s); return null; })
+        .catch(function () { rendreProjet(null); return null; });
+    }).catch(function (err) { alerte(err.message, true); });
+  }
+
+  function duree(depuis, jusqua) {
+    var a = depuis ? new Date(depuis).getTime() : 0;
+    if (!a) return "";
+    var b = jusqua ? new Date(jusqua).getTime() : Date.now();
+    var s = Math.max(0, Math.floor((b - a) / 1000));
+    var m = Math.floor(s / 60);
+    return (m < 10 ? "0" : "") + m + ":" + ((s % 60) < 10 ? "0" : "") + (s % 60);
+  }
+
+  function arreterHorloge() {
+    if (etat.horloge) { window.clearInterval(etat.horloge); etat.horloge = null; }
+    if (etat.sondage) { window.clearInterval(etat.sondage); etat.sondage = null; }
+  }
+
+  var CLASSES = { reussie: "success", echouee: "failure", en_cours: "running", en_attente: "waiting" };
+
+  function rendreProjet(suivi) {
+    var projet = projetCourant();
+    var vue = vide(byId("project-view"));
+    if (!projet) { vue.appendChild(mk("p", "empty", "Projet introuvable.")); return; }
+
+    var tete = mk("div", "project-header");
+    var gauche = mk("div");
+    gauche.appendChild(mk("span", "eyebrow", "Projet"));
+    gauche.appendChild(mk("h2", null, projet.slug));
+    gauche.appendChild(mk("p", "project-meta",
+      "créé le " + new Date(projet.created_at).toLocaleString("fr-FR")));
+    tete.appendChild(gauche);
+
+    var builds = projet.builds || [];
+    var build = builds[builds.length - 1];
+    var badge = mk("span", "build-status " + (build ? (CLASSES[build.state] || "none") : "none"),
+      build ? (ETIQUETTES[build.state] || build.state) : "pas encore lancée");
+    tete.appendChild(badge);
+    vue.appendChild(tete);
+
+    if (!build) {
+      vue.appendChild(mk("p", "since", "Ce projet n'a pas encore de construction."));
+      vue.appendChild(boutonConstruire(projet));
+      return;
+    }
+
+    var enCours = build.state === "en_cours" || build.state === "en_attente";
+
+    var bloc = mk("div", "run");
+    var head = mk("div", "run-head");
+    var titre = mk("div", "run-title");
+    var glyphe = mk("span", "spin", enCours ? GLYPHES[0] : (build.state === "reussie" ? "✓" : "✗"));
+    glyphe.id = "run-glyph";
+    if (!enCours) glyphe.className = build.state === "reussie" ? "spin ok" : "spin ko";
+    if (!enCours) glyphe.style.color = build.state === "reussie" ? "var(--green)" : "var(--red)";
+    titre.appendChild(glyphe);
+    titre.appendChild(mk("span", null, "Construction #" + build.id
+      + (enCours ? " — en cours" : (build.state === "reussie" ? " — terminée" : " — échouée"))));
+    head.appendChild(titre);
+    var horloge = mk("span", "run-clock", duree(build.started_at, build.finished_at));
+    horloge.id = "run-clock";
+    head.appendChild(horloge);
+    bloc.appendChild(head);
+
+    // Étapes RÉELLES : ce que le journal de la construction a enregistré.
+    var etapes = (suivi && suivi.stages) || [];
+    var restant = (suivi && suivi.remaining) || [];
+    var liste = mk("div", "steps");
+    etapes.forEach(function (e) {
+      var l = mk("div", "step-line ok");
+      l.appendChild(mk("span", "g", "✓"));
+      l.appendChild(mk("span", "nm", e.name + (e.retry ? " (reprise " + e.retry + ")" : "")));
+      l.appendChild(mk("span", "md", e.model || ""));
+      var t = [];
+      if (typeof e.seconds === "number") t.push(e.seconds.toFixed(1).replace(".", ",") + " s");
+      if (typeof e.output_tokens === "number") t.push(nombre(e.output_tokens) + " jetons");
+      l.appendChild(mk("span", "tk", t.join(" · ")));
+      liste.appendChild(l);
+    });
+    if (enCours) {
+      var courante = mk("div", "step-line now");
+      var g2 = mk("span", "g " + (reduit ? "" : "pulse"), GLYPHES[0]);
+      g2.id = "run-step-glyph";
+      courante.appendChild(g2);
+      courante.appendChild(mk("span", "nm", restant.length ? restant[0] : "vérification"));
+      courante.appendChild(mk("span", "md", "en cours"));
+      courante.appendChild(mk("span", "tk", ""));
+      liste.appendChild(courante);
+      restant.slice(1).forEach(function (nom) {
+        var l = mk("div", "step-line todo");
+        l.appendChild(mk("span", "g", "○"));
+        l.appendChild(mk("span", "nm", nom));
+        l.appendChild(mk("span", "md", "à venir"));
+        l.appendChild(mk("span", "tk", ""));
+        liste.appendChild(l);
+      });
+    }
+    if (!etapes.length && !enCours) {
+      liste.appendChild(mk("p", "empty", "Aucune étape IA journalisée pour cette construction."));
+    }
+    bloc.appendChild(liste);
+
+    var pied = mk("div", "run-foot");
+    var ajoute = function (etiquette, valeur) {
+      var s = mk("span", null, etiquette + " ");
+      s.appendChild(mk("b", null, valeur));
+      pied.appendChild(s);
+    };
+    ajoute("jetons", nombre(build.tokens_consumed));
+    ajoute("coût", build.price_status === "declared" && build.cost !== null && build.cost !== undefined
+      ? new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 4 }).format(build.cost)
+        + " " + (build.currency || "")
+      : "non déclaré");
+    if (build.snapshot_path) ajoute("snapshot", build.snapshot_path);
+    bloc.appendChild(pied);
+    vue.appendChild(bloc);
+
+    if (build.error_message) {
+      var err = mk("div", "report");
+      err.appendChild(mk("h3", null, "Erreurs de vérification"));
+      err.appendChild(mk("pre", null, build.error_message));
+      vue.appendChild(err);
+    }
+    if (build.warning_message) {
+      var avert = mk("div", "report warn");
+      avert.appendChild(mk("h3", null, "Avertissement de construction"));
+      avert.appendChild(mk("pre", null, build.warning_message));
+      vue.appendChild(avert);
+    }
+
+    if (!enCours) vue.appendChild(boutonConstruire(projet));
+
+    if (build.state === "reussie") vue.appendChild(panneauSite(projet));
+
+    arreterHorloge();
+    if (enCours) {
+      etat.horloge = window.setInterval(function () {
+        var h = byId("run-clock");
+        if (h) h.textContent = duree(build.started_at, null);
+        etat.tick += 1;
+        var g = byId("run-glyph");
+        var gg = byId("run-step-glyph");
+        if (!reduit) {
+          if (g) g.textContent = GLYPHES[etat.tick % GLYPHES.length];
+          if (gg) gg.textContent = GLYPHES[etat.tick % GLYPHES.length];
+        }
+      }, 120);
+      etat.sondage = window.setInterval(rafraichirProjet, 2500);
+    }
+  }
+
+  function boutonConstruire(projet) {
+    var zone = mk("div", "site-actions");
+    var b = mk("button", "button", "Lancer une construction");
+    b.type = "button";
+    b.addEventListener("click", function () {
+      b.disabled = true;
+      api("/projects/" + projet.id + "/builds", { method: "POST" })
+        .then(function () { return rafraichirProjet(); })
+        .catch(function (err) { alerte(err.message, true); })
+        .then(function () { b.disabled = false; });
+    });
+    zone.appendChild(b);
+    return zone;
+  }
+
+  function panneauSite(projet) {
+    var bloc = mk("div", "site-panel");
+    bloc.appendChild(mk("span", "eyebrow", "Site servi"));
+    bloc.appendChild(mk("h3", null, "Adresse réelle"));
+    bloc.appendChild(mk("code", "site-host", projet.host || ""));
+    if (projet.running) {
+      bloc.appendChild(mk("p", "site-instructions",
+        "Le site est démarré. En local, le nom d'hôte peut ne pas résoudre : "
+        + "utilisez l'en-tête Host ou une entrée /etc/hosts."));
+      bloc.appendChild(mk("code", "site-command",
+        'curl -H "Host: ' + (projet.host || "") + '" ' + window.location.origin + "/site/"));
+    } else {
+      bloc.appendChild(mk("p", "site-instructions", "Le site n'est pas démarré."));
+    }
+    var actions = mk("div", "site-actions");
+    var bascule = mk("button", "button " + (projet.running ? "danger" : "secondary"),
+      projet.running ? "Arrêter le site" : "Démarrer le site");
+    bascule.type = "button";
+    bascule.addEventListener("click", function () {
+      bascule.disabled = true;
+      api("/projects/" + projet.id + "/" + (projet.running ? "stop" : "start"), { method: "POST" })
+        .then(function () { return rafraichirProjet(); })
+        .catch(function (err) { alerte(err.message, true); })
+        .then(function () { bascule.disabled = false; });
+    });
+    actions.appendChild(bascule);
+    bloc.appendChild(actions);
+    return bloc;
+  }
+
+  /* ───────────────────────────────────────────────────────── démarrage ── */
+  function projetDeLAdresse() {
+    var m = /^#projet-(\d+)$/.exec(window.location.hash || "");
+    return m ? parseInt(m[1], 10) : null;
+  }
+
+  window.addEventListener("hashchange", function () {
+    var id = projetDeLAdresse();
+    if (id && id !== etat.projetId) ouvrirProjet(id);
+    if (!id && etat.vue === "projet") { etat.projetId = null; etat.pas = 0; rendreEtape(); }
+  });
+
+  basculer("login");
+  var demande = projetDeLAdresse();
+  if (demande) { etat.projetId = demande; etat.vue = "projet"; }
+  if (etat.token) charger(); else byId("auth-view").hidden = false;
+})();
+</script>
 </body>
-</html>'''
+</html>
+'''
 
 
 def console_response():
-    """Retourne la console avec un type de contenu HTML explicite."""
+    """Rend la console."""
     return HTMLResponse(content=CONSOLE_HTML)

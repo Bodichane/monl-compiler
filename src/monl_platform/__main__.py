@@ -29,6 +29,7 @@ class PlatformSettings:
     port: int
     worker_interval: float
     prices_path: str | None
+    downloads_dir: str | None
     ai_provider: str
     ai_model: str
     image_provider: str
@@ -83,6 +84,7 @@ def load_settings(environ: Mapping[str, str] | None = None):
     déploiement.
     """
     environ = _environment(environ)
+    downloads_dir = _text(environ, "MONL_PLATFORM_DOWNLOADS")
     prices_path = _text(environ, "MONL_PLATFORM_PRICES")
     if prices_path is None:
         prices_path = _text(environ, "MONL_USAGE_PRICES")
@@ -100,6 +102,7 @@ def load_settings(environ: Mapping[str, str] | None = None):
         port=_integer(environ, "MONL_PLATFORM_PORT", 8000, minimum=0),
         worker_interval=_number(environ, "MONL_PLATFORM_WORKER_INTERVAL", 0.05),
         prices_path=prices_path,
+        downloads_dir=downloads_dir,
         ai_provider=provider,
         ai_model=model,
         image_provider=image_provider,
@@ -154,6 +157,7 @@ def create_configured_app(environ: Mapping[str, str] | None = None):
         model_provider_factory=model_provider_factory,
         image_provider_factory=image_provider_factory,
         prices_path=settings.prices_path,
+        downloads_dir=settings.downloads_dir,
         poll_interval=settings.worker_interval,
     ), settings
 
@@ -176,6 +180,7 @@ def _parser():
         "  MONL_PLATFORM_PORT              port d'écoute (défaut : 8000)\n"
         "  MONL_PLATFORM_WORKER_INTERVAL   intervalle du worker en secondes\n"
         "  MONL_PLATFORM_PRICES            chemin de la table de prix JSON\n"
+        "  MONL_PLATFORM_DOWNLOADS         dossier des artefacts telechargeables\n"
         "  MONL_USAGE_PRICES               repli existant pour la table de prix\n"
         "  MONL_PLATFORM_AI_PROVIDER       préréglage frontend_ai (défaut : yandex)\n"
         "  MONL_PLATFORM_AI_MODEL          modèle obligatoire, sans valeur par défaut\n"

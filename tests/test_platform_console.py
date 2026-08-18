@@ -124,8 +124,9 @@ def _wait_for_build(base, token, project_id):
     pytest.fail("la construction n'a pas atteint un état terminal")
 
 
-def test_la_console_est_servie_a_la_racine_sans_ressource_distante(running_platform):
-    response = requests.get(running_platform, timeout=10)
+def test_la_console_est_servie_sans_ressource_distante(running_platform):
+    """La console vit sur /console : la racine porte la page de présentation."""
+    response = requests.get(f"{running_platform}/console", timeout=10)
 
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
@@ -212,8 +213,67 @@ def test_le_routage_par_hote_des_sites_reste_distinct_de_la_console(running_plat
         headers={"Host": f"host-site.localhost:{base.rsplit(':', 1)[1]}"},
         timeout=10,
     )
-    console = requests.get(base, timeout=10)
+    console = requests.get(f"{base}/console", timeout=10)
     assert site.status_code == 200, site.text
     assert "site servi par son hôte" in site.text
     assert console.status_code == 200
     assert "monl / console" in console.text
+
+
+def test_la_console_peut_suivre_les_etapes_reelles_d_une_construction(running_platform):
+    """Le suivi s'appuie sur ce que la construction a JOURNALISÉ, pas sur une
+    progression inventée : la route existe et répond pour une construction
+    réelle, même quand le fournisseur ne travaille pas par morceaux."""
+    base = running_platform
+    token = _register(base, "etapes@example.test")
+
+    cree = requests.post(
+        f"{base}/projects",
+        headers=_auth(token),
+        json={"slug": "console-etapes", "spec": SPEC},
+        timeout=10,
+    )
+    assert cree.status_code == 201, cree.text
+    project_id = cree.json()["project"]["id"]
+
+    lance = requests.post(
+        f"{base}/projects/{project_id}/builds", headers=_auth(token), timeout=10
+    )
+    assert lance.status_code == 202, lance.text
+    build = _wait_for_build(base, token, project_id)
+
+    etapes = requests.get(
+        f"{base}/projects/{project_id}/builds/{build['id']}/etapes",
+        headers=_auth(token),
+        timeout=10,
+    )
+    assert etapes.status_code == 200, etapes.text
+    corps = etapes.json()
+    assert isinstance(corps["stages"], list)
+    # Une construction terminée n'annonce plus de reste à faire.
+    assert corps["remaining"] == []
+    for etape in corps["stages"]:
+        assert etape["name"]
+        assert etape["at"]
+
+
+def test_les_etapes_d_une_construction_d_autrui_sont_refusees(running_platform):
+    base = running_platform
+    mien = _register(base, "mien@example.test")
+    autre = _register(base, "autre@example.test")
+
+    cree = requests.post(
+        f"{base}/projects",
+        headers=_auth(mien),
+        json={"slug": "console-prive", "spec": SPEC},
+        timeout=10,
+    )
+    assert cree.status_code == 201, cree.text
+    project_id = cree.json()["project"]["id"]
+
+    refus = requests.get(
+        f"{base}/projects/{project_id}/builds/1/etapes",
+        headers=_auth(autre),
+        timeout=10,
+    )
+    assert refus.status_code == 404, refus.text

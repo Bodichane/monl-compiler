@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 
 import jwt
 from fastapi import Depends, FastAPI, HTTPException, Request, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
@@ -16,8 +16,11 @@ from monl.dialogue_engine import DialogueError
 
 from .app_templates import materialize_template
 from .console import console_response
+from .downloads import default_directory, list_artifacts, resolve_artifact
 from .hosting import SiteHostingError, SiteManager, SiteNotBuiltError
+from .landing import landing_response
 from .paths import ProjectPathError, project_directory
+from .progress import PLANNED_STAGES, planned_remaining, read_stages
 from .quota import TokenQuota
 from .store import PlatformStore
 from .worker import BuildWorker
@@ -106,6 +109,7 @@ def create_app(
     image_provider_factory=None,
     image_provider=None,
     prices_path=None,
+    downloads_dir=None,
     poll_interval=0.05,
     start_worker=True,
 ):
@@ -115,6 +119,7 @@ def create_app(
         "MONL_PLATFORM_WORKSPACE", "platform-projects"
     )
     domain = domain or os.environ.get("MONL_PLATFORM_DOMAIN", "localhost")
+    downloads_dir = downloads_dir or default_directory()
     jwt_secret = jwt_secret or os.environ.get("MONL_PLATFORM_JWT_SECRET")
     if not jwt_secret:
         raise ValueError(
@@ -225,8 +230,27 @@ def create_app(
         return {"status": "ok"}
 
     @application.get("/")
+    def landing():
+        return landing_response()
+
+    @application.get("/console")
     def console():
         return console_response()
+
+    @application.get("/telechargements")
+    @application.get("/downloads", include_in_schema=False)
+    def downloads():
+        """Ce que le serveur peut RÉELLEMENT livrer, mesuré sur le disque."""
+        return {"artifacts": list_artifacts(downloads_dir)}
+
+    @application.get("/telechargements/{name}")
+    @application.get("/downloads/{name}", include_in_schema=False)
+    def download(name: str):
+        path = resolve_artifact(downloads_dir, name)
+        if path is None:
+            _http_error("artefact introuvable", status.HTTP_404_NOT_FOUND)
+        return FileResponse(
+            path, media_type="application/octet-stream", filename=path.name)
 
     @application.post("/register", status_code=status.HTTP_201_CREATED)
     @application.post("/auth/register", status_code=status.HTTP_201_CREATED, include_in_schema=False)
@@ -394,6 +418,31 @@ def create_app(
         if build is None:
             _http_error("construction introuvable", status.HTTP_404_NOT_FOUND)
         return {"build": _build_view(build)}
+
+    @application.get("/projects/{project_id}/builds/{build_id}/etapes")
+    def build_stages(project_id: int, build_id: int, account= current_account):
+        """Étapes RÉELLEMENT journalisées, y compris pendant la construction.
+
+        Le suivi de la console s'appuie là-dessus plutôt que sur une
+        progression inventée : chaque ligne correspond à un appel qui a
+        vraiment rendu, avec sa durée et ses jetons.
+        """
+        project = owned_project(account, project_id)
+        build = store.get_build_for_project(project["id"], build_id)
+        if build is None:
+            _http_error("construction introuvable", status.HTTP_404_NOT_FOUND)
+        try:
+            directory = project_directory(
+                workspace_root, project["account_id"], project["id"]
+            )
+        except ProjectPathError:
+            return {"stages": [], "remaining": list(PLANNED_STAGES)}
+        stages = read_stages(directory, build["started_at"], build["finished_at"])
+        return {
+            "stages": stages,
+            "remaining": planned_remaining(stages) if build["state"] in {
+                "en_attente", "en_cours"} else [],
+        }
 
     def start_site(project_id, account):
         project = owned_project(account, project_id)
