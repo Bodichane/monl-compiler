@@ -75,6 +75,8 @@ def _project_view(store, project, sites=None):
         "id": project["id"],
         "slug": project["slug"],
         "created_at": project["created_at"],
+        "model_routes": project.get("model_routes", {}),
+        "generate_images": bool(project.get("generate_images", False)),
         "state": latest["state"] if latest else "pas_de_construction",
         "host": sites.host_for(project) if sites is not None else None,
         "running": sites.is_running(project["id"]) if sites is not None else False,
@@ -95,6 +97,9 @@ def create_app(
     quota_limit=1_000_000,
     provider_factory=None,
     provider=None,
+    model_provider_factory=None,
+    image_provider_factory=None,
+    image_provider=None,
     prices_path=None,
     poll_interval=0.05,
     start_worker=True,
@@ -127,6 +132,9 @@ def create_app(
         quota,
         provider_factory=provider_factory,
         provider=provider,
+        model_provider_factory=model_provider_factory,
+        image_provider_factory=image_provider_factory,
+        image_provider=image_provider,
         prices_path=prices_path,
         on_success=on_build_success,
         poll_interval=poll_interval,
@@ -299,10 +307,22 @@ def create_app(
                 _http_error(str(exc), status.HTTP_422_UNPROCESSABLE_ENTITY)
         if not isinstance(spec, str) or not spec.strip():
             _http_error("la spec doit être un texte non vide", status.HTTP_422_UNPROCESSABLE_ENTITY)
+        generate_images = data.get("generate_images", False)
+        if not isinstance(generate_images, bool):
+            _http_error(
+                "generate_images doit être un booléen explicite",
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
+        model_routes = data.get("model_routes", {})
         if store.list_projects_by_slug(slug):
             _http_error("ce slug est déjà utilisé", status.HTTP_409_CONFLICT)
         try:
-            project_id = store.create_project(account["id"], slug)
+            project_id = store.create_project(
+                account["id"],
+                slug,
+                model_routes=model_routes,
+                generate_images=generate_images,
+            )
             directory = project_directory(
                 workspace_root, account["id"], project_id, create=True
             )

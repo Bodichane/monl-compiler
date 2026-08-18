@@ -362,6 +362,10 @@ CONSOLE_HTML = r'''<!doctype html>
               <label><span>Nom de l'application</span><input id="app-name" type="text" value="MonProjet" autocomplete="off"><span class="help">Utilisé si vous partez d'un modèle.</span></label>
             </div>
             <label><span>Description</span><textarea id="project-description" style="min-height: 6rem" placeholder="Ce que le site doit permettre…"></textarea></label>
+            <div class="form-grid two">
+              <label><span>Images générées</span><span><input id="generate-images" type="checkbox"> Générer les visuels matriciels planifiés</span><span class="help">Ce choix est explicite et peut entraîner une requête facturée par image.</span></label>
+              <label><span>Routage des modèles</span><textarea id="model-routes" style="min-height: 6rem" spellcheck="false" placeholder="styles.css=aliceai-llm-flash/latest"></textarea><span class="help">Une cible par ligne, au format CIBLE=MODELE. Laissez vide pour un seul modèle.</span></label>
+            </div>
             <div class="form-actions"><button id="create-project-button" class="button" type="submit">Créer et lancer la construction</button><span id="create-help" class="help">Le suivi apparaîtra dès la mise en file.</span></div>
           </form>
         </section>
@@ -792,6 +796,24 @@ CONSOLE_HTML = r'''<!doctype html>
         event.preventDefault();
         const button = byId("create-project-button");
         const payload = { slug: byId("project-slug").value.trim() };
+        const routeLines = byId("model-routes").value.split("\n").map((line) => line.trim()).filter(Boolean);
+        const modelRoutes = {};
+        for (const declaration of routeLines) {
+          const separator = declaration.indexOf("=");
+          if (separator <= 0 || separator === declaration.length - 1) {
+            showAlert(`Routage invalide : ${declaration}. Utilisez CIBLE=MODELE.`, true);
+            return;
+          }
+          const target = declaration.slice(0, separator).trim();
+          const model = declaration.slice(separator + 1).trim();
+          if (!target || !model || Object.prototype.hasOwnProperty.call(modelRoutes, target)) {
+            showAlert(`Routage invalide ou cible répétée : ${target || declaration}.`, true);
+            return;
+          }
+          modelRoutes[target] = model;
+        }
+        payload.model_routes = modelRoutes;
+        payload.generate_images = byId("generate-images").checked;
         if (state.sourceMode === "model") {
           if (!state.selectedModel) { showAlert("Choisissez un modèle du catalogue.", true); return; }
           payload.model = state.selectedModel;
@@ -808,6 +830,7 @@ CONSOLE_HTML = r'''<!doctype html>
           await api(`/projects/${project.id}/builds`, { method: "POST" });
           byId("project-form").reset();
           byId("app-name").value = "MonProjet";
+          byId("generate-images").checked = false;
           state.selectedProjectId = project.id;
           showAlert("Projet créé et construction mise en file. Le suivi reste visible pendant l'attente.");
           await loadConsole();

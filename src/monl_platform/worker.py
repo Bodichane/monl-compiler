@@ -15,6 +15,18 @@ class _UnavailableProvider:
         raise RuntimeError("aucun fournisseur IA n'est configuré pour la plateforme")
 
 
+class _UnavailableImageProvider:
+    provider_name = "image-indisponible"
+    model = "image-indisponible"
+    last_usage = None
+
+    def __init__(self, error):
+        self.error = str(error)
+
+    def __call__(self, _prompt):
+        raise RuntimeError(self.error)
+
+
 class BuildWorker:
     """Traite les constructions SQLite avec une boucle contrôlable.
 
@@ -33,6 +45,9 @@ class BuildWorker:
         *,
         provider_factory=None,
         provider=None,
+        model_provider_factory=None,
+        image_provider_factory=None,
+        image_provider=None,
         prices_path=None,
         on_success=None,
         poll_interval=0.25,
@@ -46,12 +61,20 @@ class BuildWorker:
 
             def provider_factory(_project, _build):
                 return provider
+        if image_provider_factory is not None and image_provider is not None:
+            raise ValueError("fournir image_provider_factory ou image_provider, pas les deux")
+        if image_provider_factory is None:
+
+            def image_provider_factory(_project, _build):
+                return image_provider
         if poll_interval < 0:
             raise ValueError("poll_interval doit être positif ou nul")
         self.store = store
         self.workspace_root = workspace_root
         self.quota = quota
         self.provider_factory = provider_factory
+        self.model_provider_factory = model_provider_factory
+        self.image_provider_factory = image_provider_factory
         self.prices_path = prices_path
         self.on_success = on_success
         self.poll_interval = poll_interval
@@ -79,6 +102,15 @@ class BuildWorker:
             return self.store.get_build(build["id"])
         try:
             provider = self.provider_factory(project, build)
+            image_provider = None
+            if project.get("generate_images"):
+                try:
+                    image_provider = self.image_provider_factory(project, build)
+                except Exception as exc:
+                    # Une image est une amélioration optionnelle : conserver
+                    # l'erreur pour que le builder puisse continuer en texte
+                    # seul, sans transformer une panne d'images en panne du site.
+                    image_provider = _UnavailableImageProvider(exc)
             result = build_project(
                 project["id"],
                 self._spec_for(project),
@@ -89,6 +121,10 @@ class BuildWorker:
                 quota=self.quota,
                 prices_path=self.prices_path,
                 build_id=build["id"],
+                model_routes=project.get("model_routes"),
+                provider_factory=self.model_provider_factory,
+                generate_images=bool(project.get("generate_images")),
+                image_provider=image_provider,
             )
         except Exception as exc:
             current = self.store.get_build(build["id"])

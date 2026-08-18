@@ -31,6 +31,8 @@ class PlatformSettings:
     prices_path: str | None
     ai_provider: str
     ai_model: str
+    image_provider: str
+    image_model: str | None
 
 
 def _environment(environ):
@@ -86,6 +88,8 @@ def load_settings(environ: Mapping[str, str] | None = None):
         prices_path = _text(environ, "MONL_USAGE_PRICES")
     provider = _text(environ, "MONL_PLATFORM_AI_PROVIDER", "yandex")
     model = _text(environ, "MONL_PLATFORM_AI_MODEL", required=True)
+    image_provider = _text(environ, "MONL_PLATFORM_IMAGE_PROVIDER", "yandexart")
+    image_model = _text(environ, "MONL_PLATFORM_IMAGE_MODEL")
     return PlatformSettings(
         database=_text(environ, "MONL_PLATFORM_DATABASE", "platform.db"),
         workspace_root=_text(environ, "MONL_PLATFORM_WORKSPACE", "platform-projects"),
@@ -98,12 +102,15 @@ def load_settings(environ: Mapping[str, str] | None = None):
         prices_path=prices_path,
         ai_provider=provider,
         ai_model=model,
+        image_provider=image_provider,
+        image_model=image_model,
     )
 
 
 def create_configured_app(environ: Mapping[str, str] | None = None):
     """Construit l'application et son fournisseur avant de lancer Uvicorn."""
     from monl.frontend_ai import PROVIDERS, FrontendAIError
+    from monl.image_ai import IMAGE_PROVIDERS
 
     settings = load_settings(environ)
     try:
@@ -113,10 +120,27 @@ def create_configured_app(environ: Mapping[str, str] | None = None):
             f"MONL_PLATFORM_AI_PROVIDER inconnu : {settings.ai_provider} — "
             f"valeurs connues : {', '.join(sorted(PROVIDERS))}"
         ) from exc
+    def model_provider_factory(model):
+        try:
+            return provider_builder(model=model)
+        except FrontendAIError as exc:
+            raise PlatformConfigurationError(str(exc)) from exc
+
     try:
-        provider = provider_builder(model=settings.ai_model)
+        provider = model_provider_factory(settings.ai_model)
     except FrontendAIError as exc:
         raise PlatformConfigurationError(str(exc)) from exc
+
+    try:
+        image_provider_builder = IMAGE_PROVIDERS[settings.image_provider]
+    except KeyError as exc:
+        raise PlatformConfigurationError(
+            f"MONL_PLATFORM_IMAGE_PROVIDER inconnu : {settings.image_provider} — "
+            f"valeurs connues : {', '.join(sorted(IMAGE_PROVIDERS))}"
+        ) from exc
+
+    def image_provider_factory(_project, _build):
+        return image_provider_builder(model=settings.image_model)
 
     from .app import create_app
 
@@ -127,6 +151,8 @@ def create_configured_app(environ: Mapping[str, str] | None = None):
         jwt_secret=settings.jwt_secret,
         quota_limit=settings.quota_limit,
         provider=provider,
+        model_provider_factory=model_provider_factory,
+        image_provider_factory=image_provider_factory,
         prices_path=settings.prices_path,
         poll_interval=settings.worker_interval,
     ), settings
@@ -134,6 +160,7 @@ def create_configured_app(environ: Mapping[str, str] | None = None):
 
 def _parser():
     from monl.frontend_ai import OPENAI_COMPATIBLE, PROVIDERS
+    from monl.image_ai import IMAGE_PROVIDERS
 
     provider_keys = sorted({key_env for _url, key_env in OPENAI_COMPATIBLE.values()})
     provider_keys.extend(("ANTHROPIC_API_KEY", "MONL_AI_API_KEY"))
@@ -152,10 +179,14 @@ def _parser():
         "  MONL_USAGE_PRICES               repli existant pour la table de prix\n"
         "  MONL_PLATFORM_AI_PROVIDER       préréglage frontend_ai (défaut : yandex)\n"
         "  MONL_PLATFORM_AI_MODEL          modèle obligatoire, sans valeur par défaut\n"
+        "  MONL_PLATFORM_IMAGE_PROVIDER    préréglage image_ai (défaut : yandexart) ; "
+        "activation explicite par projet\n"
+        "  MONL_PLATFORM_IMAGE_MODEL       modèle image facultatif du préréglage\n"
         f"  Clés lues par les préréglages : {provider_keys}\n"
         "  MONL_AI_BASE_URL                base du fournisseur openai-compatible\n"
         "  YANDEX_FOLDER_ID                dossier Yandex pour le préréglage yandex\n"
-        f"  Préréglages disponibles : {', '.join(sorted(PROVIDERS))}"
+        f"  Préréglages texte disponibles : {', '.join(sorted(PROVIDERS))}\n"
+        f"  Préréglages image disponibles : {', '.join(sorted(IMAGE_PROVIDERS))}"
     )
     return argparse.ArgumentParser(
         prog="python3 -m monl_platform",

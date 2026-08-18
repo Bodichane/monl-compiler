@@ -7,6 +7,7 @@ verrou entre plusieurs processus.
 
 import hashlib
 import hmac
+import json
 import secrets
 import sqlite3
 import threading
@@ -89,6 +90,8 @@ class PlatformStore:
                     account_id INTEGER NOT NULL REFERENCES accounts(id),
                     slug TEXT NOT NULL,
                     created_at TEXT NOT NULL,
+                    model_routes TEXT NOT NULL DEFAULT '{}',
+                    generate_images INTEGER NOT NULL DEFAULT 0,
                     UNIQUE(account_id, slug)
                 );
                 CREATE TABLE IF NOT EXISTS builds (
@@ -123,6 +126,8 @@ class PlatformStore:
                     "account_id": "INTEGER",
                     "slug": "TEXT",
                     "created_at": "TEXT",
+                    "model_routes": "TEXT NOT NULL DEFAULT '{}'",
+                    "generate_images": "INTEGER NOT NULL DEFAULT 0",
                 },
                 "builds": {
                     "project_id": "INTEGER",
@@ -150,7 +155,7 @@ class PlatformStore:
                         self._connection.execute(
                             f"ALTER TABLE {table} ADD COLUMN {name} {definition}"
                         )
-            self._connection.execute("PRAGMA user_version = 1")
+            self._connection.execute("PRAGMA user_version = 2")
 
     def _row(self, query, parameters=()):
         row = self._connection.execute(query, parameters).fetchone()
@@ -158,6 +163,61 @@ class PlatformStore:
 
     def _rows(self, query, parameters=()):
         return [dict(row) for row in self._connection.execute(query, parameters)]
+
+    @staticmethod
+    def _normalize_model_routes(routes):
+        """Valide la forme, en laissant les cibles au compilateur."""
+        if routes is None:
+            return {}
+        if isinstance(routes, dict):
+            declarations = routes.items()
+        elif isinstance(routes, list):
+            parsed = []
+            for declaration in routes:
+                if not isinstance(declaration, str):
+                    raise ValueError("model_routes doit contenir des chaînes CIBLE=MODELE")
+                target, separator, model = declaration.partition("=")
+                if not separator:
+                    raise ValueError(
+                        f"routage de modèle invalide : {declaration!r} — "
+                        "la forme attendue est CIBLE=MODELE."
+                    )
+                parsed.append((target, model))
+            declarations = parsed
+        else:
+            raise ValueError("model_routes doit être un objet CIBLE: MODELE")
+
+        normalized = {}
+        for target, model in declarations:
+            if not isinstance(target, str) or not isinstance(model, str):
+                raise ValueError("model_routes doit contenir des chaînes CIBLE: MODELE")
+            target = target.strip().replace("\\", "/")
+            model = model.strip()
+            if not target or not model:
+                raise ValueError("routage de modèle invalide : cible et modèle requis")
+            if target in normalized:
+                raise ValueError(f"cible répétée dans le routage des modèles : {target!r}")
+            normalized[target] = model
+        return normalized
+
+    @staticmethod
+    def _project_values(project):
+        if project is None:
+            return None
+        project = dict(project)
+        try:
+            routes = json.loads(project.get("model_routes") or "{}")
+        except (TypeError, json.JSONDecodeError):
+            routes = {}
+        project["model_routes"] = routes if isinstance(routes, dict) else {}
+        project["generate_images"] = bool(project.get("generate_images", 0))
+        return project
+
+    def _project_row(self, query, parameters=()):
+        return self._project_values(self._row(query, parameters))
+
+    def _project_rows(self, query, parameters=()):
+        return [self._project_values(row) for row in self._rows(query, parameters)]
 
     def _account_id(self, account):
         if isinstance(account, bool):
@@ -202,26 +262,31 @@ class PlatformStore:
             account_id = self._account_id(account)
             return self._row("SELECT * FROM accounts WHERE id = ?", (account_id,))
 
-    def create_project(self, account, slug):
+    def create_project(self, account, slug, *, model_routes=None, generate_images=False):
         slug = str(slug).strip()
         if not slug or slug in {".", ".."} or "/" in slug or "\\" in slug:
             raise ValueError("slug de projet invalide : remontée de chemin refusée")
+        if not isinstance(generate_images, bool):
+            raise ValueError("generate_images doit être un booléen")
+        routes = self._normalize_model_routes(model_routes)
         with self._lock, self._connection:
             account_id = self._account_id(account)
             cursor = self._connection.execute(
-                "INSERT INTO projects(account_id, slug, created_at) VALUES (?, ?, ?)",
-                (account_id, slug, _now()),
+                "INSERT INTO projects(account_id, slug, created_at, model_routes, "
+                "generate_images) VALUES (?, ?, ?, ?, ?)",
+                (account_id, slug, _now(), json.dumps(routes, sort_keys=True),
+                 int(generate_images)),
             )
             return cursor.lastrowid
 
     def get_project(self, project_id):
         with self._lock:
-            return self._row("SELECT * FROM projects WHERE id = ?", (project_id,))
+            return self._project_row("SELECT * FROM projects WHERE id = ?", (project_id,))
 
     def get_project_for_account(self, account, project_id):
         with self._lock:
             account_id = self._account_id(account)
-            return self._row(
+            return self._project_row(
                 "SELECT * FROM projects WHERE id = ? AND account_id = ?",
                 (project_id, account_id),
             )
@@ -229,17 +294,17 @@ class PlatformStore:
     def list_projects(self, account):
         with self._lock:
             account_id = self._account_id(account)
-            return self._rows(
+            return self._project_rows(
                 "SELECT * FROM projects WHERE account_id = ? ORDER BY id", (account_id,)
             )
 
     def list_all_projects(self):
         with self._lock:
-            return self._rows("SELECT * FROM projects ORDER BY id")
+            return self._project_rows("SELECT * FROM projects ORDER BY id")
 
     def list_projects_by_slug(self, slug):
         with self._lock:
-            return self._rows(
+            return self._project_rows(
                 "SELECT * FROM projects WHERE slug = ? ORDER BY id", (str(slug),)
             )
 
