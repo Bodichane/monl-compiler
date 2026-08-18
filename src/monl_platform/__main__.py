@@ -1,0 +1,183 @@
+"""Point d'entrée du service HTTP de la plateforme monl.
+
+Le service est un processus long : sa configuration vient donc uniquement de
+l'environnement, jamais de secrets passés en ligne de commande. La
+construction du fournisseur IA réutilise la table de préréglages de
+``monl.frontend_ai`` afin que la plateforme et ``monl frontend`` parlent
+exactement les mêmes dialectes.
+"""
+
+import argparse
+import os
+import sys
+from collections.abc import Mapping
+from dataclasses import dataclass
+
+
+class PlatformConfigurationError(ValueError):
+    """Une variable d'environnement de la plateforme est inexploitable."""
+
+
+@dataclass(frozen=True, slots=True)
+class PlatformSettings:
+    database: str
+    workspace_root: str
+    domain: str
+    jwt_secret: str
+    quota_limit: int
+    host: str
+    port: int
+    worker_interval: float
+    prices_path: str | None
+    ai_provider: str
+    ai_model: str
+
+
+def _environment(environ):
+    return os.environ if environ is None else environ
+
+
+def _text(environ, name, default=None, *, required=False):
+    value = environ.get(name)
+    if value is None:
+        if required:
+            raise PlatformConfigurationError(
+                f"{name} absent de l'environnement — cette valeur est obligatoire."
+            )
+        return default
+    value = str(value).strip()
+    if not value:
+        raise PlatformConfigurationError(f"{name} ne peut pas être vide.")
+    return value
+
+
+def _integer(environ, name, default, *, minimum=0):
+    raw = _text(environ, name, str(default))
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise PlatformConfigurationError(f"{name} doit être un entier.") from exc
+    if value < minimum:
+        raise PlatformConfigurationError(f"{name} doit être supérieur ou égal à {minimum}.")
+    return value
+
+
+def _number(environ, name, default, *, minimum=0.0):
+    raw = _text(environ, name, str(default))
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise PlatformConfigurationError(f"{name} doit être un nombre.") from exc
+    if value < minimum:
+        raise PlatformConfigurationError(f"{name} doit être supérieur ou égal à {minimum}.")
+    return value
+
+
+def load_settings(environ: Mapping[str, str] | None = None):
+    """Lit toute la configuration de ``python -m monl_platform``.
+
+    Le secret JWT est volontairement obligatoire : générer un secret à chaque
+    démarrage invaliderait les sessions existantes et masquerait une erreur de
+    déploiement.
+    """
+    environ = _environment(environ)
+    prices_path = _text(environ, "MONL_PLATFORM_PRICES")
+    if prices_path is None:
+        prices_path = _text(environ, "MONL_USAGE_PRICES")
+    provider = _text(environ, "MONL_PLATFORM_AI_PROVIDER", "yandex")
+    model = _text(environ, "MONL_PLATFORM_AI_MODEL", required=True)
+    return PlatformSettings(
+        database=_text(environ, "MONL_PLATFORM_DATABASE", "platform.db"),
+        workspace_root=_text(environ, "MONL_PLATFORM_WORKSPACE", "platform-projects"),
+        domain=_text(environ, "MONL_PLATFORM_DOMAIN", "localhost"),
+        jwt_secret=_text(environ, "MONL_PLATFORM_JWT_SECRET", required=True),
+        quota_limit=_integer(environ, "MONL_PLATFORM_QUOTA", 1_000_000),
+        host=_text(environ, "MONL_PLATFORM_HOST", "127.0.0.1"),
+        port=_integer(environ, "MONL_PLATFORM_PORT", 8000, minimum=0),
+        worker_interval=_number(environ, "MONL_PLATFORM_WORKER_INTERVAL", 0.05),
+        prices_path=prices_path,
+        ai_provider=provider,
+        ai_model=model,
+    )
+
+
+def create_configured_app(environ: Mapping[str, str] | None = None):
+    """Construit l'application et son fournisseur avant de lancer Uvicorn."""
+    from monl.frontend_ai import PROVIDERS, FrontendAIError
+
+    settings = load_settings(environ)
+    try:
+        provider_builder = PROVIDERS[settings.ai_provider]
+    except KeyError as exc:
+        raise PlatformConfigurationError(
+            f"MONL_PLATFORM_AI_PROVIDER inconnu : {settings.ai_provider} — "
+            f"valeurs connues : {', '.join(sorted(PROVIDERS))}"
+        ) from exc
+    try:
+        provider = provider_builder(model=settings.ai_model)
+    except FrontendAIError as exc:
+        raise PlatformConfigurationError(str(exc)) from exc
+
+    from .app import create_app
+
+    return create_app(
+        database=settings.database,
+        workspace_root=settings.workspace_root,
+        domain=settings.domain,
+        jwt_secret=settings.jwt_secret,
+        quota_limit=settings.quota_limit,
+        provider=provider,
+        prices_path=settings.prices_path,
+        poll_interval=settings.worker_interval,
+    ), settings
+
+
+def _parser():
+    from monl.frontend_ai import OPENAI_COMPATIBLE, PROVIDERS
+
+    provider_keys = sorted({key_env for _url, key_env in OPENAI_COMPATIBLE.values()})
+    provider_keys.extend(("ANTHROPIC_API_KEY", "MONL_AI_API_KEY"))
+    provider_keys = ", ".join(sorted(set(provider_keys)))
+    environment_help = (
+        "Configuration exclusivement par l'environnement (aucun secret en argument) :\n"
+        "  MONL_PLATFORM_DATABASE          base SQLite (défaut : platform.db)\n"
+        "  MONL_PLATFORM_WORKSPACE         racine des espaces de travail\n"
+        "  MONL_PLATFORM_DOMAIN            domaine des sites (défaut : localhost)\n"
+        "  MONL_PLATFORM_JWT_SECRET        secret JWT obligatoire, jamais généré\n"
+        "  MONL_PLATFORM_QUOTA             quota de jetons (défaut : 1000000)\n"
+        "  MONL_PLATFORM_HOST              hôte d'écoute (défaut : 127.0.0.1)\n"
+        "  MONL_PLATFORM_PORT              port d'écoute (défaut : 8000)\n"
+        "  MONL_PLATFORM_WORKER_INTERVAL   intervalle du worker en secondes\n"
+        "  MONL_PLATFORM_PRICES            chemin de la table de prix JSON\n"
+        "  MONL_USAGE_PRICES               repli existant pour la table de prix\n"
+        "  MONL_PLATFORM_AI_PROVIDER       préréglage frontend_ai (défaut : yandex)\n"
+        "  MONL_PLATFORM_AI_MODEL          modèle obligatoire, sans valeur par défaut\n"
+        f"  Clés lues par les préréglages : {provider_keys}\n"
+        "  MONL_AI_BASE_URL                base du fournisseur openai-compatible\n"
+        "  YANDEX_FOLDER_ID                dossier Yandex pour le préréglage yandex\n"
+        f"  Préréglages disponibles : {', '.join(sorted(PROVIDERS))}"
+    )
+    return argparse.ArgumentParser(
+        prog="python3 -m monl_platform",
+        description="Démarre le service HTTP de la plateforme monl.",
+        epilog=environment_help,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
+
+def main(argv=None):
+    """Valide la configuration, construit l'IA, puis remet l'ASGI à Uvicorn."""
+    _parser().parse_args(argv)
+    try:
+        application, settings = create_configured_app()
+    except (PlatformConfigurationError, ValueError) as exc:
+        print(f"monl platform : configuration invalide — {exc}", file=sys.stderr)
+        return 2
+    import uvicorn
+
+    uvicorn.run(application, host=settings.host, port=settings.port)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

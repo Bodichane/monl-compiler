@@ -1,7 +1,6 @@
 """Service HTTP de la plateforme monl."""
 
 import os
-import secrets
 import sqlite3
 import time
 from contextlib import asynccontextmanager
@@ -106,9 +105,12 @@ def create_app(
         "MONL_PLATFORM_WORKSPACE", "platform-projects"
     )
     domain = domain or os.environ.get("MONL_PLATFORM_DOMAIN", "localhost")
-    jwt_secret = jwt_secret or os.environ.get(
-        "MONL_PLATFORM_JWT_SECRET", secrets.token_urlsafe(32)
-    )
+    jwt_secret = jwt_secret or os.environ.get("MONL_PLATFORM_JWT_SECRET")
+    if not jwt_secret:
+        raise ValueError(
+            "MONL_PLATFORM_JWT_SECRET absent de l'environnement — "
+            "le secret est obligatoire et n'est jamais généré automatiquement"
+        )
     if not isinstance(jwt_secret, str) or len(jwt_secret) < 16:
         raise ValueError("jwt_secret doit contenir au moins 16 caractères")
 
@@ -378,4 +380,7 @@ def create_app(
     return application
 
 
-app = create_app()
+# La plateforme est lancée par ``python -m monl_platform``. Ne pas construire
+# une application ici : cela ouvrirait une base et créerait une configuration
+# implicite lors de l'import du module.
+app = None
