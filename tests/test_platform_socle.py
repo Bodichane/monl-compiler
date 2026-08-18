@@ -214,7 +214,10 @@ def test_construction_echouee_conserve_les_erreurs_de_verification(platform):
     assert build["state"] == "echouee"
     assert build["error_message"]
     assert "fantome" in build["error_message"]
-    assert "casse" in build["error_message"]
+    assert "REFUSÉ" in build["error_message"]
+    # Renversement rendu nécessaire par le contrôle fetch : la construction
+    # refuse désormais `/fantome/1` avant le smoke test, donc le JavaScript
+    # `casse()` n'est volontairement jamais exécuté ni rapporté.
     assert build["run_id"]
     assert build["tokens_consumed"] == 30
 
