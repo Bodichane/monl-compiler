@@ -1415,6 +1415,21 @@ Deux exigences seulement, et ce ne sont pas des questions de goût :
   suffisent à porter une identité — c'est leur traitement qui la fait.
 """
 
+    generated_assets_block = """
+## Images matricielles produites par la construction
+
+Si `ASSET_MANIFEST.json` liste des `generated_assets`, Monl a déjà écrit ces
+images matricielles dans le dossier d'assets déclaré par la spec avant votre
+appel. Référencer exactement chaque chemin fourni par le manifeste depuis le
+HTML/CSS : ne jamais inventer un nom, ne pas recopier une image dans
+`frontend/` et ne pas tenter de produire ses octets dans la réponse texte.
+Chaque fichier généré doit être rendu une seule fois, dans le bloc qui porte
+son rôle visuel ; ne jamais réutiliser son chemin dans un autre bloc. La
+rubrique « Assets graphiques produits par la construction » de
+`DESIGN_SYSTEM.md` donne, lorsqu'il y en a, le fichier, son rôle et la
+précision de section correspondante.
+"""
+
     express_block = ""
     if "mode express" in (contract.get("brief") or "").lower():
         express_block = """
@@ -1426,14 +1441,6 @@ la catégorie décrite par le contrat :
   bénéfices, méthode, réassurance, appels à l'action, textes d'états vides) ;
 - construire une page dense en blocs réellement utiles, pas une simple liste
   suivie d'un formulaire ;
-- si `ASSET_MANIFEST.json` liste des `generated_assets`, Monl a déjà écrit ces
-  images matricielles dans le dossier d'assets déclaré par la spec avant votre
-  appel. Référencer exactement chaque chemin fourni par le manifeste depuis le
-  HTML/CSS : ne jamais inventer un nom, ne pas recopier
-  une image dans `frontend/` et ne pas tenter de produire ses octets dans la
-  réponse texte ;
-- ne rendre chaque image générée qu'une seule fois : le bloc qui porte son rôle
-  visuel doit référencer le chemin exact du manifeste, sans le recopier ailleurs ;
 - rendre les vraies images et les vraies fiches renvoyées par l'API quand elles
   existent. Ne jamais fabriquer côté navigateur de faux produits, projets,
   rendez-vous ou autres enregistrements qui contrediraient la base.
@@ -1497,7 +1504,7 @@ Vous êtes une IA spécialisée en interfaces. Générez le frontend de
 l'application **{contract['app']}** en respectant STRICTEMENT le contrat
 ci-dessous. Le backend existe déjà et ne doit pas être modifié.
 
-{design_block}{skills_block}{express_block}
+{design_block}{skills_block}{generated_assets_block}{express_block}
 ## Système de design préparé avant le code
 
 Avant d'écrire le frontend, lire `DESIGN_SYSTEM.md` lorsqu'il est présent :
