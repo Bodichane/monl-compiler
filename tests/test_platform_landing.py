@@ -174,3 +174,39 @@ def test_la_demonstration_montre_de_vraies_sorties_de_compilation(platform):
     # Une sortie de compilation, pas une capture d'écran : les routes
     # apparaissent avec leur méthode HTTP.
     assert '"POST   /order"' in page or "POST   /order" in page
+
+
+def test_une_apparition_ne_se_cache_jamais_par_un_style_en_ligne():
+    """Un style EN LIGNE ne se défait pas avec une classe.
+
+    La page posait `element.style.opacity = "0"` sur chaque bloc à révéler,
+    puis comptait sur `.rise.seen { opacity: 1 }` pour le rendre. Or un style
+    en ligne l'emporte sur n'importe quel sélecteur de classe : les sections
+    ne réapparaissaient JAMAIS. Mesuré sur la page servie, hors mouvement
+    réduit : 43,3 % de blanc, dont une bande de 993 px — les refus, les
+    chiffres et l'appel final entièrement invisibles.
+
+    L'état caché doit donc vivre dans une RÈGLE. Les commentaires sont
+    retirés avant la recherche : ils parlent du défaut, ils ne le commettent
+    pas.
+    """
+    from monl_platform.console import CONSOLE_HTML
+
+    sans_commentaires = re.compile(r"/\*.*?\*/", re.DOTALL)
+    for nom, page in (("accueil", LANDING_HTML), ("console", CONSOLE_HTML)):
+        propre = sans_commentaires.sub("", page)
+        assert not re.search(r"\.style\.opacity\s*=", propre), (
+            f"la page {nom} cache un bloc par un style en ligne : une classe "
+            "ne pourra pas le défaire"
+        )
+
+
+def test_un_contenu_anime_reste_montrable_si_l_observateur_se_tait():
+    """Un contenu invisible est pire qu'un contenu non animé.
+
+    Écran très haut, navigateur exotique, erreur en amont : si
+    l'IntersectionObserver ne se déclenche jamais, la page ne doit pas rester
+    blanche pour autant.
+    """
+    assert "tout_montrer" in LANDING_HTML
+    assert "setTimeout(tout_montrer" in LANDING_HTML

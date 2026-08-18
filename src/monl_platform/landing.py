@@ -195,14 +195,28 @@ pre, .out {
 .demo-foot .btn { margin-left: auto; }
 
 /* ────────────────────────────────────────────── rythme des sections ── */
-section { padding: var(--s8) 0; border-top: 1px solid var(--rule); }
+/* Deux sections empilées ADDITIONNENT leurs marges : à 6rem de chaque côté,
+   la jointure faisait 192 px de blanc — mesuré, contre 138 px au plus sur la
+   page qui a servi de référence. 4rem donne 128. */
+section { padding: var(--s7) 0; border-top: 1px solid var(--rule); }
 section.alt { background: var(--paper-2); }
-.chapter { display: flex; align-items: center; gap: var(--s3); margin-bottom: var(--s5); }
+.chapter { display: flex; align-items: center; gap: var(--s3); margin-bottom: var(--s4); }
 .chapter i { width: 3px; height: 1rem; background: var(--clay); border-radius: 2px; }
-h2 { font-size: clamp(1.7rem, 3.3vw, 2.4rem); line-height: 1.14; max-width: 25ch;
-     margin-bottom: var(--s4); }
+h2 { font-size: clamp(1.7rem, 3.3vw, 2.4rem); line-height: 1.14; }
 h2 em { font-style: normal; color: var(--clay); }
-.intro { max-width: 60ch; color: var(--ink-2); margin-bottom: var(--s6); }
+.intro { color: var(--ink-2); }
+/* Le titre à gauche, le chapeau à droite. Alignés en pied, ils remplissent la
+   largeur : l'en-tête ne laissait sinon que du blanc sur toute la moitié
+   droite, sur un cinquième de la page. */
+.sec-head {
+  display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: var(--s4) var(--s7); align-items: end; margin-bottom: var(--s6);
+}
+.sec-head > div:first-child { grid-row: span 2; }
+@media (max-width: 900px) {
+  .sec-head { grid-template-columns: 1fr; gap: var(--s3); }
+  .sec-head > div:first-child { grid-row: auto; }
+}
 
 /* verbes de la ligne de commande */
 .verbs { border: 1px solid var(--rule); border-radius: var(--r2); overflow: hidden;
@@ -235,7 +249,7 @@ code {
 .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
          border: 1px solid var(--rule); border-radius: var(--r2); overflow: hidden;
          background: var(--paper); }
-.stat { padding: var(--s5); border-right: 1px solid var(--rule); }
+.stat { padding: var(--s4) var(--s5); border-right: 1px solid var(--rule); }
 .stat:last-child { border-right: 0; }
 .stat b { display: block; font-size: 2rem; letter-spacing: -.03em; font-weight: 600; }
 .stat span { display: block; margin-top: var(--s1); color: var(--ink-3); font-size: .85rem; }
@@ -259,15 +273,22 @@ code {
 .sha { font-family: var(--mono); font-size: .68rem; color: var(--ink-3); word-break: break-all; }
 .hint { margin-top: var(--s4); color: var(--ink-3); font-size: .85rem; }
 
-.close { text-align: center; padding: var(--s8) var(--s5); border: 1px solid var(--rule);
+.close { text-align: center; padding: var(--s6) var(--s5); border: 1px solid var(--rule);
          border-radius: var(--r3); background: var(--paper); }
 .close h2 { margin-inline: auto; text-align: center; }
-.close p { max-width: 48ch; margin: 0 auto var(--s6); color: var(--ink-2); }
+.close p { max-width: 48ch; margin: var(--s3) auto var(--s5); color: var(--ink-2); }
 
 footer { border-top: 1px solid var(--rule); padding: var(--s6) 0 var(--s7); }
 .foot { display: flex; flex-wrap: wrap; gap: var(--s4); justify-content: space-between;
         color: var(--ink-3); font-size: .82rem; }
 
+/* L'état caché d'une apparition vit dans une RÈGLE, jamais dans un style en
+   ligne : `element.style.opacity = "0"` l'emporte sur n'importe quel
+   sélecteur de classe, donc `.rise.seen` ne pouvait pas le défaire et les
+   sections restaient blanches POUR TOUJOURS. Mesuré : 43,3 % de la page vide,
+   dont une bande de 993 px. La classe `.rise` est posée par le JAVASCRIPT, de
+   sorte qu'une page sans JS montre tout. */
+.rise { opacity: 0; transform: translateY(12px); }
 .rise.seen { opacity: 1; transform: none;
              transition: opacity .5s ease, transform .5s cubic-bezier(.16,1,.3,1); }
 
@@ -368,10 +389,12 @@ footer { border-top: 1px solid var(--rule); padding: var(--s6) 0 var(--s7); }
 
 <section id="commandes" class="alt">
   <div class="wrap">
-    <p class="chapter"><i></i><span class="tag">[ <b>01</b> / 04 ] · les commandes</span></p>
-    <h2>Cinq verbes, et <em>un seul</em> appelle une IA.</h2>
-    <p class="intro">monl est une ligne de commande. Chaque verbe fait une
+    <div class="sec-head">
+      <div><p class="chapter"><i></i><span class="tag">[ <b>01</b> / 04 ] · les commandes</span></p>
+    <h2>Cinq verbes, et <em>un seul</em> appelle une IA.</h2></div>
+      <p class="intro">monl est une ligne de commande. Chaque verbe fait une
       chose, et la prouve avant de rendre la main.</p>
+    </div>
     <div class="verbs">
       <div class="verb"><code>monl init</code><p>Le dialogue guidé. Dix modèles
         d'applications comme point de départ, questions fermées, saisie
@@ -401,11 +424,13 @@ footer { border-top: 1px solid var(--rule); padding: var(--s6) 0 var(--s7); }
 
 <section id="refus">
   <div class="wrap">
-    <p class="chapter"><i></i><span class="tag">[ <b>02</b> / 04 ] · ce qu'il refuse</span></p>
-    <h2>Un compilateur utile est <em>un compilateur qui dit non</em>.</h2>
-    <p class="intro">Chacun de ces refus vient d'une faille réellement
+    <div class="sec-head">
+      <div><p class="chapter"><i></i><span class="tag">[ <b>02</b> / 04 ] · ce qu'il refuse</span></p>
+    <h2>Un compilateur utile est <em>un compilateur qui dit non</em>.</h2></div>
+      <p class="intro">Chacun de ces refus vient d'une faille réellement
       exploitée sur un projet, puis fermée à la racine. Ils font échouer la
       compilation, en nommant la ligne fautive — voici ce que monl affiche.</p>
+    </div>
     <ul class="refus">
       <li><div class="quoi"><b>Un montant que le client peut écrire.</b>
         Une commande était postée à 0,01 € et le serveur l'encaissait.</div>
@@ -439,11 +464,13 @@ footer { border-top: 1px solid var(--rule); padding: var(--s6) 0 var(--s7); }
 
 <section class="alt">
   <div class="wrap">
-    <p class="chapter"><i></i><span class="tag">[ <b>03</b> / 04 ] · l'état du projet</span></p>
-    <h2>Des chiffres, <em>pas des logos</em>.</h2>
-    <p class="intro">monl n'affiche ni clients, ni avis, ni récompenses : il ne
+    <div class="sec-head">
+      <div><p class="chapter"><i></i><span class="tag">[ <b>03</b> / 04 ] · l'état du projet</span></p>
+    <h2>Des chiffres, <em>pas des logos</em>.</h2></div>
+      <p class="intro">monl n'affiche ni clients, ni avis, ni récompenses : il ne
       pourrait pas les vérifier, et c'est exactement ce qu'il interdit aux
       sites qu'il produit. Voici ce qui est mesurable.</p>
+    </div>
     <div class="stats">
       <div class="stat"><b>1 112</b><span>tests, rejoués à chaque changement</span></div>
       <div class="stat"><b>28</b><span>briques du langage, chacune éprouvée contre un vrai serveur</span></div>
@@ -455,11 +482,13 @@ footer { border-top: 1px solid var(--rule); padding: var(--s6) 0 var(--s7); }
 
 <section id="telecharger">
   <div class="wrap">
-    <p class="chapter"><i></i><span class="tag">[ <b>04</b> / 04 ] · télécharger</span></p>
-    <h2>Installez le compilateur, <em>gardez vos projets</em>.</h2>
-    <p class="intro">monl s'exécute chez vous. Les projets qu'il compile sont
+    <div class="sec-head">
+      <div><p class="chapter"><i></i><span class="tag">[ <b>04</b> / 04 ] · télécharger</span></p>
+    <h2>Installez le compilateur, <em>gardez vos projets</em>.</h2></div>
+      <p class="intro">monl s'exécute chez vous. Les projets qu'il compile sont
       des dossiers ordinaires : du Python, du SQL, un Dockerfile. Rien ne
       dépend d'un service en ligne pour continuer à tourner.</p>
+    </div>
     <div class="install">
       <code id="cmd">pip install monl_compiler-0.9.0b7-py3-none-any.whl</code>
       <button class="copy" type="button" data-copy="cmd">copier</button>
@@ -767,19 +796,28 @@ var DEMO = {
 
   /* ── Apparition à l'entrée dans le cadre ────────────────────────────── */
   var cibles = document.querySelectorAll(".verb, .stat, .refus li, .dl-item, .close");
+  function tout_montrer() {
+    Array.prototype.forEach.call(cibles, function (el) { el.classList.add("seen"); });
+  }
   if (!reduit && "IntersectionObserver" in window) {
-    Array.prototype.forEach.call(cibles, function (el, n) {
-      el.style.opacity = "0";
-      el.style.transform = "translateY(12px)";
-      el.classList.add("rise");
-      el.style.transitionDelay = (n % 5) * 40 + "ms";
-    });
-    var oeil = new IntersectionObserver(function (entrees) {
-      entrees.forEach(function (e) {
-        if (e.isIntersecting) { e.target.classList.add("seen"); oeil.unobserve(e.target); }
+    try {
+      Array.prototype.forEach.call(cibles, function (el, n) {
+        el.classList.add("rise");
+        el.style.transitionDelay = (n % 5) * 40 + "ms";
       });
-    }, { rootMargin: "0px 0px -8% 0px", threshold: 0.05 });
-    Array.prototype.forEach.call(cibles, function (el) { oeil.observe(el); });
+      var oeil = new IntersectionObserver(function (entrees) {
+        entrees.forEach(function (e) {
+          if (e.isIntersecting) { e.target.classList.add("seen"); oeil.unobserve(e.target); }
+        });
+      }, { rootMargin: "0px 0px -8% 0px", threshold: 0.05 });
+      Array.prototype.forEach.call(cibles, function (el) { oeil.observe(el); });
+      /* Filet : si l'observateur ne se déclenche jamais — écran très haut,
+         navigateur exotique, erreur en amont — la page ne doit pas rester
+         blanche. Un contenu invisible est pire qu'un contenu non animé. */
+      window.setTimeout(tout_montrer, 2500);
+    } catch (e) {
+      tout_montrer();
+    }
   }
 
   /* ── Copier la commande d'installation ──────────────────────────────── */
