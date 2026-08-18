@@ -5,7 +5,10 @@ import json
 import pytest
 
 from monl import cli, frontend_ai
+from monl.image_ai import ImageProviderError
 from monl.usage import build_usage_report
+from monl_platform import builder
+from monl_platform.console import CONSOLE_HTML
 from monl_platform.paths import project_directory
 from monl_platform.quota import TokenQuota
 from monl_platform.store import PlatformStore
@@ -96,10 +99,12 @@ class FakeImageProvider:
 
 
 class FailingImageProvider(FakeImageProvider):
+    message = "service image indisponible"
+
     def __call__(self, prompt):
         self.calls.append(prompt)
         self.last_usage = {"duration_seconds": 0.01, "requests": 1}
-        raise RuntimeError("service image indisponible")
+        raise ImageProviderError(self.message)
 
 
 @pytest.fixture()
@@ -250,8 +255,17 @@ def test_panne_image_ne_fait_pas_echouer_le_frontend_texte(platform, monkeypatch
     )
 
     assert build["state"] == "reussie", build
-    assert provider.calls
+    assert len(provider.calls) == 6
+    assert build["warning_message"]
+    assert "sans images générées" in build["warning_message"]
+    assert "Avertissement de construction" in CONSOLE_HTML
+    assert not hasattr(builder, "_disable_generated_images")
     project_dir = platform[2] / "accounts" / str(platform[1]) / "projects" / str(project)
+    manifest = json.loads(
+        (project_dir / "ASSET_MANIFEST.json").read_text(encoding="utf-8").split("\n", 1)[1]
+    )
+    assert manifest["status"] == "active"
+    assert manifest["generated_assets"] == []
     events = [
         json.loads(line)
         for line in (project_dir / ".monl_ai_usage.jsonl").read_text().splitlines()
@@ -260,6 +274,27 @@ def test_panne_image_ne_fait_pas_echouer_le_frontend_texte(platform, monkeypatch
         event.get("billing_unit") == "request" and event.get("status") == "error"
         for event in events
     )
+
+
+def test_reformuler_le_message_image_ne_desarme_pas_le_repli(platform, monkeypatch):
+    _allow_frontend_verification(monkeypatch)
+    image = FailingImageProvider()
+    image.message = "le service a changé de formulation et reste indisponible"
+
+    project, build, _provider = _build(
+        platform,
+        SPEC_WITH_IMAGES,
+        generate_images=True,
+        image_factory=lambda _project, _build: image,
+    )
+
+    assert build["state"] == "reussie", build
+    assert build["warning_message"]
+    project_dir = platform[2] / "accounts" / str(platform[1]) / "projects" / str(project)
+    manifest = json.loads(
+        (project_dir / "ASSET_MANIFEST.json").read_text(encoding="utf-8").split("\n", 1)[1]
+    )
+    assert manifest["generated_assets"] == []
 
 
 def test_cible_de_routage_inconnue_est_refusee_en_la_nommant(platform, monkeypatch):

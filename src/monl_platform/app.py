@@ -54,6 +54,7 @@ def _build_view(build):
         "state": build["state"],
         "error": build["error_message"],
         "error_message": build["error_message"],
+        "warning_message": build["warning_message"],
         "run_id": build["run_id"],
         "tokens_consumed": build["tokens_consumed"],
         "total_tokens": build["total_tokens"],
