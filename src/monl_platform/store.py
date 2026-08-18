@@ -17,6 +17,20 @@ from pathlib import Path
 BUILD_STATES = ("en_attente", "en_cours", "reussie", "echouee")
 
 
+def normalize_slug(slug):
+    """Forme canonique du slug, qui est l'ADRESSE du site.
+
+    Le sous-domaine sert d'identifiant d'hébergement, et un navigateur met
+    toujours le nom d'hôte en minuscules avant de l'envoyer. Sans forme
+    canonique, « myOwn » et « myown » sont donc deux projets distincts pour la
+    base et un seul pour le réseau : le site construit devient injoignable, et
+    deux comptes peuvent se disputer la même adresse. Même raisonnement qu'au
+    point 95 sur l'identifiant de compte — la substance n'est pas la
+    validation, c'est la normalisation.
+    """
+    return str(slug).strip().lower()
+
+
 def _now():
     return datetime.now(timezone.utc).isoformat()
 
@@ -271,7 +285,7 @@ class PlatformStore:
             return self._row("SELECT * FROM accounts WHERE id = ?", (account_id,))
 
     def create_project(self, account, slug, *, model_routes=None, generate_images=False):
-        slug = str(slug).strip()
+        slug = normalize_slug(slug)
         if not slug or slug in {".", ".."} or "/" in slug or "\\" in slug:
             raise ValueError("slug de projet invalide : remontée de chemin refusée")
         if not isinstance(generate_images, bool):
@@ -339,9 +353,14 @@ class PlatformStore:
             return self._project_rows("SELECT * FROM projects ORDER BY id")
 
     def list_projects_by_slug(self, slug):
+        # COLLATE NOCASE, et pas seulement une comparaison sur la forme
+        # canonique : les projets créés avant la normalisation portent encore
+        # leur majuscule en base, et ce sont des sites déjà construits et déjà
+        # payés. Une comparaison stricte les laisserait injoignables.
         with self._lock:
             return self._project_rows(
-                "SELECT * FROM projects WHERE slug = ? ORDER BY id", (str(slug),)
+                "SELECT * FROM projects WHERE slug = ? COLLATE NOCASE ORDER BY id",
+                (normalize_slug(slug),),
             )
 
     def create_build(self, project_id):
