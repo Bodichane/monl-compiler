@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1173 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1184 tests
   actuellement ; `tests/test_demo.py` s'appuie sur le dossier `demo/`
   versionné — ne pas le supprimer. La démo est **CodexShop**, une papeterie
   qui exerce la chaîne marchande entière ; ses ENTRÉES seules sont suivies
@@ -1120,6 +1120,18 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   réintroduire `base_dir` dans `_valider` : le contrôle d'existence est ciblé
   sur ce que l'outil ÉCRIT, sinon `list` redevient incapable de rapporter un
   manquant et `add` redevient inutilisable sur une spec incomplète.
+- **POINT 148 : le jeu de démonstration d'un MODÈLE est adapté par l'IA, dans
+  `src/monl_platform/seed_ai.py` et nulle part ailleurs.** Toute boutique
+  vendait « Théière Kyoto » : la description n'atteignait que le `brief`, donc
+  les TEXTES, jamais les données. Le dialogue guidé reste déterministe — c'est
+  la plateforme qui personnalise, puisqu'elle appelle déjà une IA. **L'IA écrit
+  des LIGNES de CSV, jamais la structure** : l'en-tête vient de `monl content
+  export`, un en-tête différent fait refuser la réponse. L'écriture passe par
+  `importer_contenu` (point 115), donc par le vrai parseur — aucune machinerie
+  nouvelle. Un échec restaure le CSV d'origine : un catalogue générique est un
+  défaut, une construction perdue est une facture. Une spec FOURNIE par
+  l'usager n'est jamais touchée. L'appel porte le garde-fou de quota du
+  produit.
 - **POINT 147 : une mesure INDÉTERMINÉE n'est pas une mesure NULLE.**
   `_frontend_fetch_calls` (cli.py) ne comptait une fonction d'accès que
   écrite `fetch(endpoint, …)` ; le modèle écrivait `const url =

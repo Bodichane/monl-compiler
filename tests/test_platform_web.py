@@ -178,7 +178,12 @@ def test_parcours_complet_modele_construction_et_site_serve(running_platform):
     assert build["snapshot_path"] == f"revisions/build-{build['id']}"
     assert build["snapshot_sha256"]
     assert build["snapshot_bytes"] > 0
-    assert provider.calls == 1
+    # DEUX appels depuis le point 148, et il faut savoir lequel est lequel :
+    # un pour adapter le jeu de démonstration à la description (à la création
+    # du projet), un pour construire le frontend. Le second reste UNIQUE —
+    # c'est lui que ce nombre surveillait, et une correction automatique en
+    # ajouterait un troisième.
+    assert provider.calls == 2
     # Une construction ne doit pas garder un uvicorn par projet inactif : le
     # relais est lancé à la demande par le sous-domaine ou POST /start.
     assert not _app.state.sites.is_running(project["id"])

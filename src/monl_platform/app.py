@@ -32,6 +32,7 @@ from .oauth import (
 from .paths import ProjectPathError, project_directory
 from .progress import PLANNED_STAGES, planned_remaining, read_stages
 from .quota import TokenQuota
+from .seed_ai import personnaliser_le_jeu
 from .store import PlatformStore
 from .worker import BuildWorker
 
@@ -79,6 +80,21 @@ def _without_secret(account):
         "display_name": _champ(account, "display_name"),
         "oauth_provider": _champ(account, "oauth_provider"),
     }
+
+
+def _sous_quota(quota, account):
+    """Cet appel DÉPENSE : il porte le même garde-fou que la construction.
+
+    Le quota le compte de toute façon — il lit le journal du projet — mais il
+    n'était vérifié qu'avant une construction. Quelqu'un au plafond aurait
+    donc encore pu déclencher celui-ci. Un banc qui dépense doit porter le
+    garde-fou du produit.
+    """
+    try:
+        quota.ensure_available(account["id"])
+    except Exception:   # quota dépassé ou indéterminable : on s'abstient
+        return False
+    return True
 
 
 def _liens_de_pied(brut):
@@ -467,7 +483,15 @@ def create_app(
             directory = project_directory(
                 workspace_root, account["id"], project_id, create=True
             )
-            directory.joinpath("spec.ml").write_text(spec, encoding="utf-8")
+            chemin_spec = directory.joinpath("spec.ml")
+            chemin_spec.write_text(spec, encoding="utf-8")
+            # Le jeu de démonstration d'un MODÈLE est générique : toute
+            # boutique sortait avec les mêmes théières. Une spec fournie par
+            # l'usager n'est JAMAIS touchée — elle porte ses vraies données.
+            if model and provider is not None and _sous_quota(quota, account):
+                personnaliser_le_jeu(
+                    str(chemin_spec), str(directory),
+                    data.get("description") or "", provider)
         except (sqlite3.IntegrityError, OSError, ProjectPathError, ValueError) as exc:
             # La ligne SQLite n'est utile qu'avec sa spec. Une erreur disque ou
             # de confinement juste après l'insertion ne doit ni bloquer le

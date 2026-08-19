@@ -9504,3 +9504,67 @@ construction entière repayée.
 Éprouvé par deux tests (`tests/test_couverture_parcours.py`), dont la
 contre-épreuve conservatrice ; le premier tombe dès qu'on retire le suivi du
 flux.
+
+---
+
+## 148. Toute boutique vendait des théières
+
+**Le constat du mainteneur, en une phrase** : « pourquoi quand je demande un
+site il y a toujours tasse, thé vert et théière qui reviennent ». Réponse :
+parce que ces trois produits sont écrits en dur dans `app_templates.py`, et
+que la description ne les atteint jamais.
+
+Chacun des dix modèles porte son jeu figé — le Portfolio sort toujours
+« Refonte Aurora », les Petites annonces toujours un « Vélo de ville », la
+Réservation toujours « Coupe & coiffage ». La phrase saisie (« un atelier de
+céramique à Lyon ») n'apparaît qu'à UN endroit de la spec produite : le
+`brief`. Elle oriente donc les TEXTES que l'IA rédige, et rien d'autre. Une
+boulangerie recevait de très beaux paragraphes sur le pain, et vendait des
+théières.
+
+**La frontière qui ne bouge pas.** Le dialogue guidé reste entièrement
+déterministe : aucune IA, aucun appel réseau (point 40). Il ne peut rien
+inventer, et ce n'est pas un défaut — c'est ce qui rend une spec rejouable. La
+plateforme, elle, appelle DÉJÀ une IA et tient la description : la
+personnalisation vit là, et nulle part ailleurs. En ligne de commande, la
+sortie reste `monl content export` / `import` (point 115).
+
+**L'IA écrit des LIGNES, jamais la structure.** Elle reçoit le CSV produit par
+`monl content export` — dont l'en-tête est celui du compilateur — et doit le
+rendre à l'identique. Un en-tête différent fait refuser sa réponse. Elle ne
+peut donc ni ajouter un champ, ni en inventer un, ni toucher au schéma : la
+seule chose qu'elle contrôle est le contenu des cases.
+
+**Le chemin d'écriture est celui du point 115, sans une ligne de plus.**
+`importer_contenu` remplace les blocs `seed` et fait REVALIDER la spec par le
+vrai parseur et le vrai validateur. Tous les refus du compilateur s'appliquent
+donc à ce qu'une IA vient d'écrire — types, bornes de champ, rattachements.
+Un prix rendu « 1,30 € » ne compile pas, donc rien n'est écrit. C'est la
+raison pour laquelle cette brique ne fabrique aucune machinerie nouvelle : la
+garantie existait, il fallait la RÉUTILISER, pas la refaire.
+
+**Un échec ne casse jamais la construction.** Réponse illisible, en-tête faux,
+type invalide, fournisseur en panne : le CSV d'origine est restauré et le jeu
+du modèle reste en place. *Un catalogue générique est un défaut ; une
+construction perdue est une facture.*
+
+**Deux limites, posées et gardées.** Une spec fournie par l'usager n'est
+JAMAIS touchée — elle porte ses vraies données, les réécrire serait les
+détruire ; un test le tient, avec sa contre-épreuve (sans elle, un garde-fou
+qui n'appellerait jamais l'IA paraîtrait correct). Et le nombre de fiches est
+borné : au-delà, ce n'est plus une démonstration, c'est du remplissage payé au
+jeton.
+
+**Cet appel DÉPENSE, donc il porte le garde-fou du produit.** Le quota le
+comptait déjà — il lit le journal du projet — mais `ensure_available` n'était
+appelé qu'avant une construction : quelqu'un au plafond aurait encore pu
+déclencher celui-ci. La leçon est ancienne et vaut d'être répétée : *un
+mécanisme qui dépense doit porter la même barrière que celui qu'on protège.*
+
+**Conséquence sur le dialogue de la console** : la description y était annoncée
+« facultative ». Elle décide désormais du catalogue, et l'aide le dit — sans
+quoi on la saute et on retombe sur les théières, ce que ce point corrige.
+
+Éprouvé par onze tests (`tests/test_seed_ai.py`), dont le point de départ
+mesuré (« le jeu du modèle est bien générique »), les quatre refus, et les deux
+tests de plateforme contre un vrai serveur.
