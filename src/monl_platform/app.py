@@ -3,11 +3,12 @@
 import os
 import sqlite3
 import time
+import urllib.parse
 from contextlib import asynccontextmanager
 
 import jwt
 from fastapi import Depends, FastAPI, HTTPException, Request, status
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
@@ -19,6 +20,15 @@ from .console import console_response
 from .downloads import default_directory, list_artifacts, resolve_artifact
 from .hosting import SiteHostingError, SiteManager, SiteNotBuiltError
 from .landing import landing_response
+from .oauth import (
+    OAuthError,
+    authorize_url,
+    check_state,
+    configured_providers,
+    exchange_code,
+    fetch_identity,
+    make_state,
+)
 from .paths import ProjectPathError, project_directory
 from .progress import PLANNED_STAGES, planned_remaining, read_stages
 from .quota import TokenQuota
@@ -44,11 +54,30 @@ def _catalogue():
     ]
 
 
+def _champ(account, nom):
+    """Lit une colonne qui peut manquer d'une ligne ancienne.
+
+    Les colonnes du point 142 sont ajoutées de façon ADDITIVE : une base
+    créée avant elles les gagne au démarrage, mais un appelant peut fort
+    bien passer un dictionnaire construit ailleurs.
+    """
+    try:
+        return account[nom]
+    except (KeyError, IndexError):
+        return None
+
+
 def _without_secret(account):
+    # La liste est BLANCHE et le reste : c'est elle qui empêche
+    # `password_hash` de sortir, pas une exclusion qu'on penserait à mettre à
+    # jour. Le nom d'affichage est l'adresse VÉRIFIÉE que le fournisseur a
+    # confirmée — sans lui, la console n'a que « github:4242 » à montrer.
     return {
         "id": account["id"],
         "identifier": account["identifier"],
         "created_at": account["created_at"],
+        "display_name": _champ(account, "display_name"),
+        "oauth_provider": _champ(account, "oauth_provider"),
     }
 
 
@@ -276,6 +305,54 @@ def create_app(
             _http_error("identifiants invalides", status.HTTP_401_UNAUTHORIZED)
         account = store.get_account(account_id)
         return {"account": _without_secret(account), "token": issue_token(account_id)}
+
+    # ─────────────────────────────────────────── connexion par fournisseur ──
+    # La plateforme dépense de l'argent réel à chaque construction : un compte
+    # ouvert avec une chaîne quelconque est une porte d'abus. Elle n'envoie
+    # pour autant AUCUN message — la frontière du point 95 tient — elle
+    # délègue à un fournisseur qui, lui, a déjà vérifié l'adresse.
+    @application.get("/auth/fournisseurs")
+    @application.get("/auth/providers", include_in_schema=False)
+    def auth_providers():
+        """Ceux qui sont RÉELLEMENT configurés.
+
+        Un bouton qui mène à un 503 est pire que pas de bouton.
+        """
+        return {"providers": configured_providers()}
+
+    @application.get("/auth/{provider}")
+    def auth_start(provider: str):
+        try:
+            state = make_state(provider, jwt_secret)
+            cible = authorize_url(provider, state)
+        except OAuthError as exc:
+            _http_error(str(exc), exc.status_code)
+        return RedirectResponse(cible, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+
+    @application.get("/auth/{provider}/retour")
+    @application.get("/auth/{provider}/callback", include_in_schema=False)
+    def auth_return(provider: str, code: str = "", state: str = "",
+                    error: str = ""):
+        if error:
+            # L'usager a refusé l'autorisation : ce n'est pas une panne.
+            return RedirectResponse("/console#erreur=refus",
+                                    status_code=status.HTTP_303_SEE_OTHER)
+        try:
+            check_state(state, provider, jwt_secret)
+            if not code:
+                raise OAuthError("le fournisseur n'a renvoyé aucun code",
+                                 status_code=400)
+            jeton_fournisseur = exchange_code(provider, code)
+            identifiant, libelle = fetch_identity(provider, jeton_fournisseur)
+        except OAuthError as exc:
+            _http_error(str(exc), exc.status_code)
+        account_id, _neuf = store.upsert_oauth_account(identifiant, provider, libelle)
+        # Le jeton part dans le FRAGMENT et non dans la requête : un fragment
+        # n'est jamais envoyé au serveur, donc jamais journalisé par un relais.
+        return RedirectResponse(
+            "/console#jeton=" + urllib.parse.quote(issue_token(account_id)),
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
 
     @application.get("/account")
     def account(account=current_account):

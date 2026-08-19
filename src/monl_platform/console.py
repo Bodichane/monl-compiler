@@ -386,6 +386,24 @@ textarea.spec { min-height: 15rem; font-size: .82rem; line-height: 1.65; }
 .foot a { color: var(--fg-2); }
 .foot a:hover { color: var(--clay); }
 .foot .ext::after { content: " \2197"; color: var(--fg-3); }
+
+/* ──────────────────────────────────────── connexion par un fournisseur ── */
+.fournisseurs { display: grid; gap: var(--s2); margin-bottom: var(--s4); }
+.fournisseur {
+  display: flex; align-items: center; justify-content: center; gap: var(--s2);
+  padding: var(--s3) var(--s4); border: 1px solid var(--line-2);
+  border-radius: var(--r1); background: var(--bg); color: var(--fg);
+  font-weight: 700; text-decoration: none;
+}
+.fournisseur:hover { background: var(--bg-2); color: var(--fg); border-color: var(--fg-3); }
+.separateur {
+  display: flex; align-items: center; gap: var(--s3); margin-bottom: var(--s4);
+  color: var(--fg-3); font-size: .74rem; text-transform: uppercase;
+  letter-spacing: .1em;
+}
+.separateur::before, .separateur::after {
+  content: ""; flex: 1; height: 1px; background: var(--line);
+}
 </style>
 </head>
 <body>
@@ -409,6 +427,8 @@ textarea.spec { min-height: 15rem; font-size: .82rem; line-height: 1.65; }
     <p class="lede">Le même dialogue guidé que la ligne de commande. Vous répondez,
       monl compile, puis sert le site sous sa propre adresse.</p>
     <div class="panel auth-card">
+      <div id="fournisseurs" class="fournisseurs" hidden></div>
+      <div id="separateur-auth" class="separateur" hidden>ou par mot de passe</div>
       <div class="auth-switch" role="tablist">
         <button id="login-tab" class="tab-button" type="button" role="tab" aria-selected="true">Se connecter</button>
         <button id="register-tab" class="tab-button" type="button" role="tab" aria-selected="false">Créer un compte</button>
@@ -663,6 +683,50 @@ textarea.spec { min-height: 15rem; font-size: .82rem; line-height: 1.65; }
     }).then(function () { bouton.disabled = false; });
   });
 
+  /* ── Connexion par un fournisseur ───────────────────────────────────── */
+  /* Le jeton revient dans le FRAGMENT et non dans la requête : un fragment
+     n'est jamais envoyé au serveur, donc jamais journalisé par un relais.
+     Il est retiré de la barre d'adresse aussitôt lu — sinon il reste dans
+     l'historique du navigateur et dans tout partage de lien. */
+  (function recolterLeJeton() {
+    var frag = window.location.hash || "";
+    var jeton = /[#&]jeton=([^&]+)/.exec(frag);
+    var refus = /[#&]erreur=refus/.test(frag);
+    if (jeton) {
+      etat.token = decodeURIComponent(jeton[1]);
+      window.localStorage.setItem(CLE, etat.token);
+    }
+    if (jeton || refus) {
+      var propre = window.location.pathname + window.location.search;
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState(null, "", propre);
+      } else {
+        window.location.hash = "";
+      }
+    }
+    if (refus) {
+      alerte("Connexion annulée : l'autorisation a été refusée.", true);
+    }
+  })();
+
+  (function proposerLesFournisseurs() {
+    fetch("/auth/fournisseurs").then(function (r) { return r.json(); })
+      .then(function (data) {
+        var liste = (data && data.providers) || [];
+        if (!liste.length) { return; }   /* aucun configuré : on ne propose rien */
+        var zone = byId("fournisseurs");
+        liste.forEach(function (f) {
+          var a = document.createElement("a");
+          a.className = "fournisseur";
+          a.href = "/auth/" + encodeURIComponent(f.name);
+          a.textContent = "Continuer avec " + f.label;
+          zone.appendChild(a);
+        });
+        zone.hidden = false;
+        byId("separateur-auth").hidden = false;
+      }).catch(function () { /* la voie mot de passe reste entière */ });
+  })();
+
   function deconnecter() {
     etat.token = null;
     window.localStorage.removeItem(CLE);
@@ -689,7 +753,11 @@ textarea.spec { min-height: 15rem; font-size: .82rem; line-height: 1.65; }
       byId("auth-view").hidden = true;
       byId("console-view").hidden = false;
       byId("logout-button").hidden = false;
-      byId("account-label").textContent = (etat.compte && etat.compte.identifier) || "";
+      // Un compte ouvert par un fournisseur porte « github:4242 » comme
+      // identifiant : c'est une clé, pas un nom. L'adresse vérifiée est ce
+      // que la personne reconnaît.
+      byId("account-label").textContent = (etat.compte
+        && (etat.compte.display_name || etat.compte.identifier)) || "";
       quota(r[1] && r[1].usage);
       listeProjets();
       if (etat.vue === "projet" && etat.projetId) return ouvrirProjet(etat.projetId);

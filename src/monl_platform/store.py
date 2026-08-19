@@ -139,6 +139,15 @@ class PlatformStore:
                     "identifier": "TEXT",
                     "password_hash": "TEXT",
                     "created_at": "TEXT",
+                    # Connexion par un fournisseur : `oauth_provider` dit
+                    # LEQUEL, `display_name` porte l'adresse vérifiée qu'on
+                    # affiche. L'identifiant, lui, reste `github:<id>` — voir
+                    # oauth.py, décision 1 : rattacher un compte OAuth à un
+                    # compte mot de passe de même adresse serait une prise de
+                    # contrôle, les comptes mot de passe n'étant vérifiés par
+                    # personne.
+                    "oauth_provider": "TEXT",
+                    "display_name": "TEXT",
                 },
                 "projects": {
                     "account_id": "INTEGER",
@@ -268,6 +277,33 @@ class PlatformStore:
             )
             return cursor.lastrowid
 
+    def upsert_oauth_account(self, identifier, provider, display_name):
+        """Retrouve le compte du fournisseur, ou le crée. Rend son id.
+
+        Aucun mot de passe n'est posé : un compte de fournisseur ne se
+        connecte que par lui. Le libellé affiché est rafraîchi à chaque
+        connexion — une adresse de courriel change, l'identifiant non.
+        """
+        identifier = str(identifier).strip()
+        if not identifier or "\x00" in identifier:
+            raise ValueError("identifiant de compte vide ou invalide")
+        with self._lock, self._connection:
+            row = self._row(
+                "SELECT id FROM accounts WHERE identifier = ?", (identifier,))
+            if row is not None:
+                self._connection.execute(
+                    "UPDATE accounts SET display_name = ?, oauth_provider = ? "
+                    "WHERE id = ?",
+                    (display_name, provider, row["id"]),
+                )
+                return row["id"], False
+            cursor = self._connection.execute(
+                "INSERT INTO accounts(identifier, password_hash, created_at, "
+                "oauth_provider, display_name) VALUES (?, NULL, ?, ?, ?)",
+                (identifier, _now(), provider, display_name),
+            )
+            return cursor.lastrowid, True
+
     def authenticate_account(self, identifier, password):
         identifier = str(identifier).strip()
         with self._lock:
@@ -275,7 +311,13 @@ class PlatformStore:
                 "SELECT id, password_hash FROM accounts WHERE identifier = ?",
                 (identifier,),
             )
-            if row is None or not _password_matches(password, row["password_hash"]):
+            # Un compte de fournisseur n'a pas de mot de passe : `None` ne
+            # doit jamais devenir une porte ouverte. `_password_matches` le
+            # refuse déjà, mais l'écrire ici évite qu'une évolution du
+            # hachage rouvre la porte sans qu'on s'en aperçoive.
+            if row is None or not row["password_hash"]:
+                return None
+            if not _password_matches(password, row["password_hash"]):
                 return None
             return row["id"]
 

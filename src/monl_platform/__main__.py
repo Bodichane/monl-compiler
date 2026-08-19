@@ -76,6 +76,27 @@ def _number(environ, name, default, *, minimum=0.0):
     return value
 
 
+def _verifier_la_connexion_par_fournisseur(environ):
+    """Un bouton « Continuer avec GitHub » doit mener quelque part.
+
+    L'adresse de retour vient de la configuration et jamais de l'en-tête
+    ``Host`` (point 142) : sans ``MONL_PLATFORM_PUBLIC_URL``, un fournisseur
+    par ailleurs complet propose un bouton qui répond 503 au clic. Le défaut
+    ne se verrait donc qu'à l'usage, sur le compte de quelqu'un d'autre — on
+    refuse de démarrer plutôt que de le laisser vivre.
+    """
+    from .oauth import PUBLIC_URL_ENV, configured_providers
+
+    prets = configured_providers(environ)
+    if prets and not (environ.get(PUBLIC_URL_ENV) or "").strip():
+        noms = ", ".join(p["name"] for p in prets)
+        raise PlatformConfigurationError(
+            f"{PUBLIC_URL_ENV} absent alors que la connexion par {noms} est "
+            "configurée — l'adresse de retour ne peut pas être devinée depuis "
+            "l'en-tête Host, et le bouton mènerait à un 503."
+        )
+
+
 def load_settings(environ: Mapping[str, str] | None = None):
     """Lit toute la configuration de ``python -m monl_platform``.
 
@@ -88,6 +109,7 @@ def load_settings(environ: Mapping[str, str] | None = None):
     prices_path = _text(environ, "MONL_PLATFORM_PRICES")
     if prices_path is None:
         prices_path = _text(environ, "MONL_USAGE_PRICES")
+    _verifier_la_connexion_par_fournisseur(environ)
     provider = _text(environ, "MONL_PLATFORM_AI_PROVIDER", "yandex")
     model = _text(environ, "MONL_PLATFORM_AI_MODEL", required=True)
     image_provider = _text(environ, "MONL_PLATFORM_IMAGE_PROVIDER", "yandexart")
@@ -181,6 +203,12 @@ def _parser():
         "  MONL_PLATFORM_WORKER_INTERVAL   intervalle du worker en secondes\n"
         "  MONL_PLATFORM_PRICES            chemin de la table de prix JSON\n"
         "  MONL_PLATFORM_DOWNLOADS         dossier des artefacts telechargeables\n"
+        "  MONL_PLATFORM_PUBLIC_URL        adresse publique, obligatoire dès qu'un\n"
+        "                                  fournisseur de connexion est configuré\n"
+        "  MONL_OAUTH_GITHUB_CLIENT_ID     connexion GitHub : identifiant public\n"
+        "  MONL_OAUTH_GITHUB_SECRET        connexion GitHub : secret\n"
+        "  MONL_OAUTH_GOOGLE_CLIENT_ID     connexion Google : identifiant public\n"
+        "  MONL_OAUTH_GOOGLE_SECRET        connexion Google : secret\n"
         "  MONL_USAGE_PRICES               repli existant pour la table de prix\n"
         "  MONL_PLATFORM_AI_PROVIDER       préréglage frontend_ai (défaut : yandex)\n"
         "  MONL_PLATFORM_AI_MODEL          modèle obligatoire, sans valeur par défaut\n"

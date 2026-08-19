@@ -9109,3 +9109,90 @@ le même site AVEC ses liens est accepté, sans quoi un contrôle qui refuserait
 tout passerait pour bon. Les seuls artefacts déplacés sont le contrat et
 `monl.json` qui le scelle — `app.py`, `schema.sql` et `manage.py` restent
 identiques à l'octet.
+
+---
+
+## 142. Ouvrir un compte ne coûtait rien, sur une plateforme qui dépense
+
+**Le constat, posé par le mainteneur.** Ni la plateforme ni les sites produits
+ne demandaient la moindre vérification : ni adresse, ni téléphone, ni compte
+Google ou GitHub. N'importe quelle chaîne de caractères ouvrait un compte, et
+chaque compte ouvre un quota de jetons — c'est-à-dire de l'argent réel dépensé
+chez le fournisseur d'IA. Le formulaire n'était pas seulement laxiste : il
+était la porte d'entrée d'une facture.
+
+**Ce qui a été fait, et ce qui ne l'a PAS été.** La plateforme délègue la
+vérification à un fournisseur qui l'a déjà faite — GitHub ou Google — et
+n'envoie toujours **aucun message**. La frontière du point 95 tient mot pour
+mot : *monl vérifie la forme, jamais qu'une boîte reçoit*. Il n'y a donc ni
+code de confirmation par courriel, ni SMS, ni mot de passe oublié : ce sont
+des briques qui commencent par « monl sait envoyer un message », et cette
+brique-là n'est toujours pas écrite. Ce point ne couvre que la PLATEFORME ;
+les sites produits gardent leur `capability auth`, qui est une autre question.
+
+**Quatre décisions, à ne pas rouvrir.**
+
+**L'identité du fournisseur vit dans son PROPRE espace de noms** —
+`github:4242`, `google:<sub>`, jamais l'adresse électronique seule. C'est ce
+qui empêche la prise de contrôle : sans cette séparation, quelqu'un ouvrant un
+compte par mot de passe sous `alice@exemple.test` (adresse que personne n'a
+vérifiée) verrait sa session récupérée par la vraie Alice se connectant par
+GitHub — ou l'inverse, ce qui est pire. Aucun rattachement automatique n'a
+donc lieu entre un compte de fournisseur et un compte par mot de passe portant
+la même adresse. L'identifiant est une CLÉ, pas un nom : le nom lisible vit à
+part, dans `display_name`, et c'est lui que la console affiche — autrement
+elle montrerait « github:4242 » à une personne qui ne le reconnaît pas.
+
+**Seule une adresse VÉRIFIÉE par le fournisseur est acceptée.** GitHub marque
+ses adresses `verified`, Google renseigne `email_verified`. Sans ce contrôle,
+la brique ne vérifierait rien du tout : elle déplacerait la chaîne quelconque
+d'un formulaire vers un autre, en donnant l'illusion contraire. Un compte non
+vérifié reçoit 403 et rien n'est écrit en base.
+
+**L'état d'aller (`state`) est SIGNÉ et DATÉ**, cinq minutes hors du compte à
+rebours de dix. Signé, il ferme le CSRF : un tiers qui déclenche le retour
+depuis son propre site n'a pas d'état signé par nous. Daté, il ferme le rejeu
+— exactement le raisonnement de la signature datée du webhook de paiement au
+point 91, et pour la même raison : sans date, un aller capté une fois reste
+rejouable indéfiniment. Un état émis pour Google ne vaut pas pour GitHub.
+
+**L'adresse de retour vient de la CONFIGURATION, jamais de l'en-tête `Host`.**
+Le `Host` est fourni par le client ; le lire laisserait détourner l'aller-retour
+vers un domaine choisi ailleurs. Elle vient donc de
+`MONL_PLATFORM_PUBLIC_URL` — et son absence **empêche le démarrage** dès qu'un
+fournisseur est configuré, au lieu d'attendre qu'un usager clique sur un bouton
+qui répondrait 503. Mieux vaut un service qui s'arrête qu'un bouton qui ment,
+même arbitrage qu'au point 99.
+
+**Le jeton part dans le FRAGMENT de l'URL**, pas dans la requête : un fragment
+n'est jamais envoyé au serveur, donc jamais journalisé par un relais. La
+console le récolte, le range, puis **efface la barre d'adresse** par
+`history.replaceState` — sans quoi il traînerait dans l'historique du
+navigateur.
+
+**Un garde-fou qui ne mordait pas.** `authenticate_account` refuse
+explicitement un `password_hash` nul — un compte de fournisseur n'a pas de mot
+de passe, et `None` ne doit jamais devenir une porte. Vérification faite par
+mutation : le retirer laissait la suite **entièrement verte**, parce que
+`_password_matches` écarte déjà un hash vide une couche plus bas. Le test a
+donc été déplacé là où la garantie vit réellement. Leçon générale, et c'est
+elle qui compte : *un test qui passe ne prouve pas qu'il mord* — les cinq
+garde-fous de ce point ont chacun été retirés une fois pour vérifier qu'un test
+tombe.
+
+**Éprouvé par un FAUX fournisseur embarqué** (`tests/test_oauth.py`, 18 tests),
+précédent du faux Stripe du point 74 : `MONL_OAUTH_GITHUB_BASE_URL` et son
+équivalent Google existent pour que la brique soit éprouvable sans appeler le
+vrai GitHub, c'est-à-dire pour qu'elle le soit tout court. Le dernier test
+pilote la **console dans jsdom** contre le serveur réel, parce que le HTTP seul
+ne dit pas si le bouton existe, s'il vise une route qui répond, si le fragment
+est récolté et effacé, ni si la session survit au rechargement — un bouton
+menant à une route inexistante est précisément le faux négatif déjà rencontré
+sur un site déclaré réussi. Les deux mutations correspondantes font tomber ce
+test.
+
+**Le piège du banc, à retenir.** jsdom ne fournit pas `matchMedia`, et le
+script de la console meurt à sa première ligne sans lui : la première mesure
+annonçait « aucun bouton » alors que la page en portait un. On mesurait le
+banc, pas le produit — même famille que le `scrollIntoView` absent qui avait
+masqué un vrai succès.

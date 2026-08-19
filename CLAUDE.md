@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (832 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1148 tests
   actuellement ; `tests/test_demo.py` s'appuie sur le dossier `demo/`
   versionné — ne pas le supprimer. La démo est **CodexShop**, une papeterie
   qui exerce la chaîne marchande entière ; ses ENTRÉES seules sont suivies
@@ -1120,6 +1120,28 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   réintroduire `base_dir` dans `_valider` : le contrôle d'existence est ciblé
   sur ce que l'outil ÉCRIT, sinon `list` redevient incapable de rapporter un
   manquant et `add` redevient inutilisable sur une spec incomplète.
+- **POINT 142 : la connexion par Google/GitHub vit dans
+  `src/monl_platform/oauth.py`, et nulle part ailleurs.** Quatre décisions y
+  sont écrites et ne se rouvrent pas : l'identité du fournisseur a son PROPRE
+  espace de noms (`github:<id>`) — aucun rattachement automatique à un compte
+  par mot de passe de même adresse, sans quoi l'un prendrait le contrôle de
+  l'autre ; seule une adresse VÉRIFIÉE par le fournisseur est acceptée (sinon
+  la brique déplace la chaîne quelconque au lieu de la fermer) ; le `state` est
+  signé ET daté (le rejeu, comme la signature du webhook au point 91) ; et
+  l'adresse de retour vient de `MONL_PLATFORM_PUBLIC_URL`, **jamais** de
+  l'en-tête `Host` — son absence empêche le DÉMARRAGE dès qu'un fournisseur est
+  configuré, plutôt que de laisser un bouton répondre 503 au clic. Le jeton
+  voyage dans le FRAGMENT (jamais envoyé au serveur, jamais journalisé) et la
+  console efface la barre d'adresse après l'avoir récolté. Éprouvé par un FAUX
+  fournisseur embarqué (`MONL_OAUTH_*_BASE_URL`, précédent du faux Stripe du
+  point 74) et par un pilote jsdom contre le serveur réel. **Le piège du banc**
+  : jsdom n'a pas `matchMedia`, sans quoi le script de la console meurt à sa
+  première ligne et on mesure le banc au lieu du produit.
+- **Un test qui passe ne prouve pas qu'il mord** (point 142). Le refus du
+  `password_hash` nul dans `authenticate_account` pouvait être retiré en
+  laissant la suite entièrement verte : `_password_matches` l'écartait déjà une
+  couche plus bas. Retirer un garde-fou pour voir tomber un test est le seul
+  moyen de savoir où la garantie vit vraiment.
 - Le smoke test (src/smoke_test.py) démarre un serveur ÉPHÉMÈRE dans un
   dossier temporaire : il ne touche jamais app.db du projet. Le fetch de
   jsdom DOIT être injecté via beforeParse (bug réel : assigné après
