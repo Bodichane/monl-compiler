@@ -81,6 +81,32 @@ def _without_secret(account):
     }
 
 
+def _liens_de_pied(brut):
+    """Normalise les liens du pied de page reçus de la console.
+
+    La complétion d'adresse vient de `monl.dialogue_engine` et n'est PAS
+    réécrite ici : deux règles finiraient par diverger, et c'est celle qui
+    décide si un lien mène quelque part. Une entrée incomprise est ÉCARTÉE
+    plutôt que devinée — un lien qui mène ailleurs est pire qu'un lien
+    absent, il se voit.
+    """
+    from monl.dialogue_engine import adresse_de_lien
+
+    liens, vus = [], set()
+    for entree in brut or []:
+        if not isinstance(entree, dict):
+            continue
+        label = str(entree.get("label") or "").strip()
+        adresse = adresse_de_lien(str(entree.get("url") or ""))
+        if not label or '"' in label or adresse is None:
+            continue
+        if label.casefold() in vus:
+            continue
+        vus.add(label.casefold())
+        liens.append({"label": label, "url": adresse})
+    return liens
+
+
 def _build_view(build):
     return {
         "id": build["id"],
@@ -415,6 +441,7 @@ def create_app(
                     model,
                     app_name=data.get("app_name", "MonProjet"),
                     description=data.get("description"),
+                    links=_liens_de_pied(data.get("links")),
                 )
             except (ValueError, StopIteration, DialogueError) as exc:
                 _http_error(str(exc), status.HTTP_422_UNPROCESSABLE_ENTITY)

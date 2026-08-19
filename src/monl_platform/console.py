@@ -529,6 +529,43 @@ textarea.spec { min-height: 15rem; font-size: .82rem; line-height: 1.65; }
      puis les choix qui coûtent. Le récapitulatif est une étape à part
      entière — lancer une construction se facture, on ne le déclenche pas
      par surprise au bas d'un formulaire. */
+  // Complétion d'adresse. La règle est la même que celle du serveur
+  // (`adresse_de_lien`, monl/dialogue_engine.py) : personne ne tape
+  // « mailto: » ni « https:// », et une adresse sans schéma est lue comme un
+  // chemin du site lui-même. Ce qui est incompris n'est jamais deviné — la
+  // saisie est refusée en le disant. Un test confronte les deux mises en
+  // œuvre sur les mêmes entrées, sinon elles divergeraient.
+  function adresseDeLien(saisie) {
+    saisie = (saisie || "").trim();
+    if (!saisie) return null;
+    if (/^(https?:\/\/|mailto:|tel:)/i.test(saisie)) return saisie;
+    var compact = saisie.replace(/ /g, "");
+    if (/^\+?[0-9.\-]{6,20}$/.test(compact)) return "tel:" + compact;
+    if (saisie.indexOf(" ") !== -1) return null;
+    if (saisie.indexOf("@") !== -1 && saisie.split("@").pop().indexOf(".") !== -1) {
+      return "mailto:" + saisie;
+    }
+    var domaine = saisie.split("/")[0];
+    if (domaine.indexOf(".") > 0) return "https://" + saisie;
+    return null;
+  }
+
+  function lireLiens(texte) {
+    var liens = [], mauvaises = [], vus = {};
+    (texte || "").split("\n").forEach(function (ligne) {
+      ligne = ligne.trim();
+      if (!ligne) return;
+      var sep = ligne.indexOf("=");
+      var label = sep === -1 ? "" : ligne.slice(0, sep).trim();
+      var adresse = adresseDeLien(sep === -1 ? ligne : ligne.slice(sep + 1));
+      if (!label || !adresse) { mauvaises.push(ligne); return; }
+      if (vus[label.toLowerCase()]) { mauvaises.push(ligne); return; }
+      vus[label.toLowerCase()] = true;
+      liens.push({ label: label, url: adresse });
+    });
+    return { liens: liens, mauvaises: mauvaises };
+  }
+
   var ETAPES = [
     {
       id: "source",
@@ -579,6 +616,23 @@ textarea.spec { min-height: 15rem; font-size: .82rem; line-height: 1.65; }
       rendu: function (zone) { champTexte(zone, "description", "Une boutique de céramique artisanale, ton éditorial sobre.", 3); },
       valide: function () { return null; },
       resume: function () { return (etat.reponses.description || "").trim() || "aucune"; },
+      saute: function () { return etat.reponses.source === "spec"; }
+    },
+    {
+      id: "liens",
+      question: "Où vous joindre, et où vous suivre ?",
+      aide: "Un lien par ligne, au format Libellé = adresse. Un pied de page sans destination donne un site à l'abandon, et rien dans un modèle ne peut deviner votre compte. monl ne vérifie pas qu'une adresse répond : il vérifie qu'un navigateur saura l'ouvrir.",
+      rendu: function (zone) { champTexte(zone, "liens", "Courriel = contact@atelier.fr\nInstagram = instagram.com/atelier\nTéléphone = 06 12 34 56 78", 4); },
+      valide: function () {
+        var mauvaises = lireLiens(etat.reponses.liens).mauvaises;
+        return mauvaises.length
+          ? "Adresse incomprise : " + mauvaises.join(", ") + ". Attendu une adresse web, un courriel ou un numéro."
+          : null;
+      },
+      resume: function () {
+        var n = lireLiens(etat.reponses.liens).liens.length;
+        return n ? n + (n > 1 ? " liens" : " lien") : "aucun";
+      },
       saute: function () { return etat.reponses.source === "spec"; }
     },
     {
@@ -1003,6 +1057,8 @@ textarea.spec { min-height: 15rem; font-size: .82rem; line-height: 1.65; }
       charge.app_name = (etat.reponses.app_name || "").trim();
       var d = (etat.reponses.description || "").trim();
       if (d) charge.description = d;
+      var liens = lireLiens(etat.reponses.liens).liens;
+      if (liens.length) charge.links = liens;
     }
     api("/projects", { method: "POST", body: JSON.stringify(charge) }).then(function (r) {
       var projet = r.project;

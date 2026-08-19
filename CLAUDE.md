@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1148 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1156 tests
   actuellement ; `tests/test_demo.py` s'appuie sur le dossier `demo/`
   versionné — ne pas le supprimer. La démo est **CodexShop**, une papeterie
   qui exerce la chaîne marchande entière ; ses ENTRÉES seules sont suivies
@@ -1120,6 +1120,23 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   réintroduire `base_dir` dans `_valider` : le contrôle d'existence est ciblé
   sur ce que l'outil ÉCRIT, sinon `list` redevient incapable de rapporter un
   manquant et `add` redevient inutilisable sur une spec incomplète.
+- **POINT 143 : une brique sans PRODUCTEUR n'existe pas.** La brique 29
+  (liens du pied de page) était déclarable depuis le point 141 et rien ne
+  l'écrivait — ni le dialogue guidé, ni les dix modèles, ni la console web :
+  tout site sortait avec un pied de page sans une destination. C'est le
+  point 85 sous un autre jour, et le test de compilation ne peut pas le voir.
+  **Question à poser pour toute nouvelle brique, à côté de celle de
+  `_contract_signature` : qui l'écrira ?** La complétion d'adresse a UNE source
+  (`adresse_de_lien`, dialogue_engine.py) ; la console en a nécessairement une
+  copie JavaScript, et `tests/test_liens_pied_de_page.py` exécute les DEUX sur
+  les mêmes entrées — deux mises en œuvre de la même règle divergent toujours.
+  Le mode express ne pose aucune question : ses liens arrivent par
+  `express_links`.
+- **Ne jamais découper un scénario de test par une tranche négative.**
+  `SCENARIO_PORTFOLIO[:-4]` a cassé huit tests d'un coup à la première question
+  ajoutée, sans jamais dire ce qu'il retirait ; les scénarios sont désormais
+  composés de morceaux nommés, et le nombre d'entrées proposées est LU sur
+  `GuidedDialogue.LIENS_PROPOSES`.
 - **POINT 142 : la connexion par Google/GitHub vit dans
   `src/monl_platform/oauth.py`, et nulle part ailleurs.** Quatre décisions y
   sont écrites et ne se rouvrent pas : l'identité du fournisseur a son PROPRE

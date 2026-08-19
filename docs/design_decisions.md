@@ -9196,3 +9196,74 @@ script de la console meurt à sa première ligne sans lui : la première mesure
 annonçait « aucun bouton » alors que la page en portait un. On mesurait le
 banc, pas le produit — même famille que le `scrollIntoView` absent qui avait
 masqué un vrai succès.
+
+---
+
+## 143. La brique du pied de page existait, et rien ne la produisait
+
+**Le constat.** Le point 141 avait rendu le pied de page obligatoire et donné
+au DSL de quoi déclarer ses liens (`link "Instagram": "https://…"`). Deux
+choses manquaient, et elles se voyaient à l'œil avant toute mesure : **ni le
+dialogue guidé, ni aucun des dix modèles, ni la console web de la plateforme
+n'écrivait un seul `link`**. Chaque site sortait donc avec un pied de page sans
+une seule destination — ce qui, sur une plateforme où chaque construction est
+facturée, se paie deux fois.
+
+**C'est le point 85, sous un autre jour.** Le compilateur n'a pas le droit de
+porter une règle qui ne produit rien ; l'interdit vaut pour ce qui ÉCRIT la
+spec. Une brique sans producteur est une brique qui n'existe pas, et le test
+de compilation ne peut pas le voir : la grammaire l'accepte, le validateur la
+valide, personne ne l'emploie.
+
+**Trois producteurs, pas un.** Le dialogue guidé pose la question
+(`_ask_footer_links`), avec cinq entrées PROPOSÉES — courriel, téléphone,
+Instagram, Facebook, LinkedIn — chacune passable en laissant vide, puis une
+relance libre. Le mode **express** ne pose rien, c'est sa raison d'être : ses
+liens arrivent par l'appelant (`express_links`). Et la console web de la
+plateforme gagne une étape, parce que c'est elle qui construit les sites qu'on
+paie.
+
+**Compléter n'est pas deviner.** Personne ne tape « mailto: », personne ne tape
+« https:// », et une adresse sans schéma est lue par le navigateur comme un
+chemin RELATIF : « instagram.com/atelier » mène à une page inexistante du site
+lui-même. La complétion n'a donc lieu que là où il n'existe qu'UNE lecture — et
+ce qui reste incompris est **écarté en le disant**, jamais interprété. C'est la
+frontière du point 105 : une hypothèse affichée comme un résultat envoie
+corriger ce qui n'est pas cassé. Le téléphone est traité AVANT le refus des
+espaces, parce que « +33 6 12 34 56 78 » est la façon dont un numéro s'écrit et
+la seule valeur de la liste qui en contienne légitimement.
+
+**Une seule règle, deux couches, et l'accord VÉRIFIÉ.** `adresse_de_lien`
+(`monl/dialogue_engine.py`) est la source unique côté Python ; la console en a
+nécessairement une copie en JavaScript, puisqu'elle valide la saisie dans le
+navigateur. Deux mises en œuvre de la même règle divergent toujours — celle du
+navigateur décide ce que l'usager voit accepté, celle du serveur ce qui atteint
+la spec, et un écart donnerait un lien annoncé enregistré puis écarté en
+silence. `tests/test_liens_pied_de_page.py` **exécute les deux sur les mêmes
+treize entrées** (la version JS est extraite du HTML réellement servi) et exige
+le même résultat. La contre-épreuve : désarmer la branche téléphone du
+JavaScript fait tomber le test à l'entrée exacte concernée.
+
+**Le nombre magique qui a cassé huit tests d'un coup.** Les scénarios de
+`tests/test_dialogue_engine.py` étaient découpés par des tranches négatives —
+`SCENARIO_PORTFOLIO[:-4]`, `[:-5]`, `[:-1]` — chacune signifiant « retirer les
+réponses de fin ». Une question ajoutée en fin de dialogue déplace la coupe, et
+le nombre ne dit jamais ce qu'il retire. Le scénario est désormais composé de
+morceaux NOMMÉS (`SCENARIO_PORTFOLIO_TRONC`, `INTENTION_PAR_DEFAUT`,
+`AUCUNE_SECTION`, `AUCUN_LIEN`), et le nombre d'entrées proposées est LU sur
+`GuidedDialogue.LIENS_PROPOSES` plutôt que recopié — un chiffre figé dans un
+test diverge en silence à la première entrée ajoutée. Même famille que
+l'avertissement déjà écrit dans CLAUDE.md sur `_ask_self_register` : toute
+question ajoutée décale les réponses scriptées.
+
+**Ce que monl ne promet toujours pas.** Il ne vérifie pas qu'une adresse
+RÉPOND : il ne fait aucun appel réseau, et le prétendre serait mentir — même
+frontière qu'au point 83 pour les images distantes. Il vérifie qu'un navigateur
+saura l'ouvrir, et c'est tout.
+
+Éprouvé par `tests/test_liens_pied_de_page.py` (6 tests) et trois tests de plus
+dans `tests/test_dialogue_engine.py`, dont la contre-épreuve qui compte : **sans
+réponse, la spec produite est exactement celle d'avant** — sans quoi la
+question ferait bouger tout projet existant. Vérifié aussi par une compilation
+réelle : les trois liens traversent le dialogue, la spec, le contrat et le
+brief que l'IA reçoit.

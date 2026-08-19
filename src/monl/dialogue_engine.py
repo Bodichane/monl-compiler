@@ -80,9 +80,43 @@ class DialogueError(Exception):
     """Réponse invalide répétée ou incohérence — le moteur ne devine jamais."""
 
 
+def adresse_de_lien(saisie):
+    """Rend l'adresse telle qu'un navigateur saura l'ouvrir, ou None.
+
+    SOURCE UNIQUE, partagée par le dialogue guidé et par la console web de
+    la plateforme : deux règles de complétion finiraient par diverger, et
+    c'est celle qui décide si un lien de pied de page mène quelque part.
+
+    Personne ne tape « mailto: » ni « https:// » spontanément, et une adresse
+    sans schéma est lue comme un chemin RELATIF : le lien mène alors à une
+    page inexistante du site lui-même. Compléter n'est pas deviner tant qu'il
+    n'existe qu'UNE lecture — et l'appelant DIT ce qu'il a complété, ce qui
+    est toute la différence avec le fait de corriger d'office (point 105).
+    """
+    saisie = saisie.strip()
+    if not saisie:
+        return None
+    if saisie.lower().startswith(("https://", "http://", "mailto:", "tel:")):
+        return saisie
+    # Le téléphone AVANT le refus des espaces : « +33 6 12 34 56 78 » est
+    # la façon dont tout le monde écrit un numéro, et c'est la seule
+    # valeur de cette liste qui en contienne légitimement.
+    compact = saisie.replace(" ", "")
+    if re.fullmatch(r"\+?[0-9.\-]{6,20}", compact):
+        return "tel:" + compact
+    if " " in saisie:
+        return None
+    if "@" in saisie and "." in saisie.split("@")[-1]:
+        return "mailto:" + saisie
+    domaine = saisie.split("/")[0]
+    if "." in domaine and not domaine.startswith("."):
+        return "https://" + saisie
+    return None
+
+
 class GuidedDialogue:
     def __init__(self, ask, say=None, max_retries=3, ui=None, express=False,
-                 choose_experience=False):
+                 choose_experience=False, express_links=()):
         """Dialogue guidé à règles, entièrement déterministe : aucune IA,
         aucun appel réseau. Chaque réponse est validée en saisie stricte
         (numéros, o/n, identifiants) et redemandée tant qu'elle est invalide.
@@ -93,6 +127,10 @@ class GuidedDialogue:
         self.max_retries = max_retries
         self.express = express
         self.choose_experience = choose_experience
+        # Le mode express ne pose AUCUNE question de finition — c'est sa
+        # raison d'être. Ses liens de pied de page arrivent donc par
+        # l'appelant (la console web), jamais par une question de plus.
+        self.express_links = tuple(express_links or ())
         # AJOUT (bêta 3) : couche de présentation. Par défaut, rendu nu —
         # chaînes strictement identiques à l'historique, donc les tests
         # scriptés et toute sortie redirigée sont insensibles à l'habillage.
@@ -257,6 +295,74 @@ class GuidedDialogue:
     def _est_champ_image(nom):
         return any(k in nom.lower() for k in ("image", "photo", "cover", "avatar",
                                               "picture", "visuel", "illustration"))
+
+    #: Ce qu'un pied de page porte SOUVENT, dans l'ordre où on y pense. La
+    #: liste est PROPOSÉE, jamais imposée : chaque entrée se passe en laissant
+    #: vide, exactement comme les rubriques du point 61.
+    LIENS_PROPOSES = (
+        {"label": "Courriel", "ask": "adresse de contact"},
+        {"label": "Téléphone", "ask": "numéro à appeler"},
+        {"label": "Instagram", "ask": "adresse du compte"},
+        {"label": "Facebook", "ask": "adresse de la page"},
+        {"label": "LinkedIn", "ask": "adresse de la page"},
+    )
+
+    #: La complétion vit au niveau du module : la console web de la
+    #: plateforme la partage sans instancier un dialogue.
+    _adresse_complete = staticmethod(adresse_de_lien)
+
+    def _ask_footer_links(self):
+        """Les liens du pied de page (brique 29).
+
+        La brique existait depuis le point 141 et RIEN ne la produisait : ni
+        ce dialogue ni aucun des dix modèles ne déclarait un seul lien, donc
+        tout site sortait avec un pied de page sans destination. Une règle qui
+        ne produit rien est exactement ce que le point 85 interdit au
+        compilateur ; l'interdit vaut autant pour le dialogue qui écrit la
+        spec.
+
+        monl ne vérifie PAS qu'une adresse répond — il ne fait aucun appel
+        réseau (même frontière qu'au point 83 pour les images distantes). Il
+        vérifie qu'un navigateur saura l'ouvrir, et c'est tout ce qu'il
+        promet.
+        """
+        liens, vus = [], set()
+
+        def retenir(label, saisie):
+            adresse = self._adresse_complete(saisie)
+            if adresse is None:
+                self._say(self.ui.error(
+                    f"Adresse incomprise : {saisie!r}. Attendu une adresse web "
+                    "(exemple.fr/atelier), un courriel ou un numéro — le lien "
+                    "est passé."))
+                return
+            if adresse != saisie.strip():
+                self._say(self.ui.note(f"enregistré : {adresse}"))
+            if label.casefold() in vus:
+                self._say(self.ui.error(
+                    f"« {label} » est déjà pris : un pied de page qui répète "
+                    "un libellé fait hésiter sur lequel suivre — lien ignoré."))
+                return
+            vus.add(label.casefold())
+            liens.append({"label": label, "url": adresse})
+
+        self._show(self.ui.section(
+            "Pied de page — où vous joindre, et où vous suivre. Un pied sans "
+            "aucune destination donne un site à l'abandon. monl ne vérifie pas "
+            "qu'une adresse répond : il vérifie qu'un navigateur saura "
+            "l'ouvrir. Laisser vide pour passer."))
+        for propose in self.LIENS_PROPOSES:
+            saisie = self._ask_optional_free_text(
+                f"  {propose['label']} — {propose['ask']} > ")
+            if saisie:
+                retenir(propose["label"], saisie)
+        while self._ask_yes_no("  Ajouter un autre lien (X, YouTube, TikTok, "
+                               "presse…) ?"):
+            libelle = self._ask_free_text("  Son libellé (ex. YouTube) > ")
+            saisie = self._ask_optional_free_text("  Son adresse > ")
+            if saisie:
+                retenir(libelle, saisie)
+        return liens
 
     def _ask_editorial_sections(self, defaults=()):
         """Contenu éditorial statique (point 55). Une entité, un champ, une
@@ -436,6 +542,7 @@ class GuidedDialogue:
                 readers, public_read, public_create, owned,
                 want_seed=bool(template["seeds"]), want_landing=True,
                 design_intent=self._express_intent(template), sections=(),
+                links=self.express_links,
                 image_topic=self._express_image_topic(template),
                 self_register=self_register,
                 extra_rules=template["extra_rules"], custom_seeds=template["seeds"])
@@ -494,6 +601,7 @@ class GuidedDialogue:
         design_intent = self._ask_design_intent() if want_landing else None
         sections = (self._ask_editorial_sections(template.get("sections", []))
                     if want_landing else [])
+        links = self._ask_footer_links() if want_landing else []
         self._recap(app_name, entities, actors, self_register, public_read, owned,
                     payable=payable)
 
@@ -502,6 +610,7 @@ class GuidedDialogue:
                                owned, want_seed, want_landing,
                                design_intent=design_intent,
                                sections=sections,
+                               links=links,
                                image_topic=image_topic,
                                self_register=self_register,
                                extra_rules=template["extra_rules"],
@@ -667,6 +776,7 @@ class GuidedDialogue:
             "Transmettre votre description à l'IA frontend comme brief de page d'accueil ?")
         design_intent = self._ask_design_intent() if want_landing else None
         sections = self._ask_editorial_sections() if want_landing else []
+        links = self._ask_footer_links() if want_landing else []
 
         # Entités propriétaires + relations de propriété (helper partagé
         # avec le chemin « modèle » ; dédupliqué si déjà déclaré à la main).
@@ -682,6 +792,7 @@ class GuidedDialogue:
                                owned, want_seed, want_landing,
                                design_intent=design_intent,
                                sections=sections,
+                               links=links,
                                image_topic=image_topic,
                                self_register=self_register,
                                payable=payable)
@@ -909,7 +1020,7 @@ class GuidedDialogue:
     def _emit_spec(self, app_name, description, entities, relations, actors,
                    managers, readers, public_read, public_create,
                    owned, want_seed, want_landing, design_intent=None,
-                   sections=(),
+                   sections=(), links=(),
                    image_topic=None,
                    self_register=None, extra_rules=(), extra_workflows=(),
                    custom_seeds=None,
@@ -1138,6 +1249,11 @@ class GuidedDialogue:
             lines.append(f'    brief: "{brief}"')
             for s in sections:
                 lines.append(f'    section "{s["title"]}": "{s["body"]}"')
+            # Brique 29 : les destinations du pied de page. Sans elles, le
+            # pied sort sans un seul lien — et rien dans la spec ne peut les
+            # inventer, pas plus qu'une entité ne peut porter un « à propos ».
+            for lien in links:
+                lines.append(f'    link "{lien["label"]}": "{lien["url"]}"')
             lines.append("")
 
         return "\n".join(lines)

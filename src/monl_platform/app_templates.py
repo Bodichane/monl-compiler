@@ -28,6 +28,7 @@ def materialize_template(
     description=None,
     actor_choice=1,
     say=None,
+    links=(),
 ):
     """Matérialise un modèle en spec en passant par le vrai dialogue.
 
@@ -44,6 +45,7 @@ def materialize_template(
         ask=lambda _prompt: next(answers),
         say=say,
         express=True,
+        express_links=links,
     )
     output = io.StringIO()
     with contextlib.redirect_stdout(output):
