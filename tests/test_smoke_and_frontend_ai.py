@@ -1192,3 +1192,49 @@ def test_le_plus_gros_bloc_l_emporte_sur_un_extrait_de_commentaire():
             "Voici le fichier complet :\n```js\n" + fichier + "```")
 
     assert parse_single_file_payload(brut, "app.js") == {"app.js": fichier}
+
+
+def test_une_reponse_tronquee_ne_passe_jamais_par_le_filet():
+    """Le risque que le filet lui-même introduisait.
+
+    Un modèle qui illustre par un petit extrait FERMÉ puis se fait couper au
+    milieu du vrai fichier laisse un bloc ouvert. Sans garde, le plus gros
+    bloc clos serait l'extrait — et monl écrirait trois lignes dans app.js en
+    croyant tenir le fichier. Pire : l'échelle qui agrandit le plafond de
+    sortie, faite exactement pour ce cas, ne serait plus jamais atteinte.
+    """
+    tronquee = ("Je commence par :\n```js\nfetch('/item');\n```\n"
+                "Voici le fichier complet :\n```js\n" + "const x = 1;\n" * 40)
+
+    with pytest.raises(FrontendAIError, match="illisible"):
+        parse_single_file_payload(tronquee, "app.js")
+
+
+def test_l_echelle_de_reprise_atteint_vraiment_sa_borne():
+    """Une borne qu'aucun chemin n'atteint ne contraint rien.
+
+    L'échelle montait 8 000 → 12 000 → 18 000 pendant que le code annonçait
+    un plafond maximal de 32 000 — y compris dans le message d'erreur, qui
+    aurait donc menti s'il s'était déclenché. Ce test lie les TROIS nombres :
+    changer l'un sans les autres le fait tomber.
+    """
+    from monl.frontend_ai import (
+        CHUNK_MAX_RETRIES,
+        CHUNK_RETRY_MAX_OUTPUT_TOKENS,
+        DEFAULT_CHUNK_MAX_OUTPUT_TOKENS,
+        _raise_chunk_output_limit,
+    )
+
+    class Etage:
+        max_output_tokens = DEFAULT_CHUNK_MAX_OUTPUT_TOKENS
+
+    etage = Etage()
+    paliers = [etage.max_output_tokens]
+    for _ in range(CHUNK_MAX_RETRIES):
+        assert _raise_chunk_output_limit(etage), "l'échelle s'arrête trop tôt"
+        paliers.append(etage.max_output_tokens)
+
+    assert paliers[-1] == CHUNK_RETRY_MAX_OUTPUT_TOKENS, (
+        f"la dernière reprise plafonne à {paliers[-1]} alors que la borne "
+        f"déclarée est {CHUNK_RETRY_MAX_OUTPUT_TOKENS} : elle ne contraint rien")
+    assert paliers == sorted(set(paliers)), paliers

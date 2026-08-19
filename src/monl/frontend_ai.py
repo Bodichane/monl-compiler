@@ -59,7 +59,12 @@ DEFAULT_CHUNK_MAX_OUTPUT_TOKENS = 8_000
 # Deux reprises suffisent à corriger une coupe sans transformer un appel en
 # boucle ouverte ; la hausse du plafond est explicite et reste bornée.
 CHUNK_MAX_RETRIES = 2
-CHUNK_RETRY_OUTPUT_TOKEN_FACTOR = 1.5
+# Le facteur DOIT amener la dernière reprise sur la borne ci-dessous, sinon
+# celle-ci ne contraint jamais rien — une constante qui ne produit rien est
+# ce que le point 85 interdit. À 1,5, l'échelle montait 8 000 → 12 000 →
+# 18 000 et les 32 000 déclarés n'étaient jamais atteints ; à 2,0 elle monte
+# 8 000 → 16 000 → 32 000. Un test tient cet accord entre les trois nombres.
+CHUNK_RETRY_OUTPUT_TOKEN_FACTOR = 2.0
 CHUNK_RETRY_MAX_OUTPUT_TOKENS = 32_000
 
 # Les deux briefs d'ÉVOLUTION (par opposition à FRONTEND_PROMPT.md, qui décrit
@@ -625,6 +630,14 @@ def _fichier_depuis_un_bloc(raw_text, expected_path):
     filet, et il passe par les MÊMES garde-fous (`_validate_files`) : extension,
     confinement, taille, caractères de contrôle. Aucune voie ne les contourne.
     """
+    # Une réponse TRONQUÉE ne doit jamais passer par ici. Un nombre IMPAIR de
+    # clôtures dit qu'un bloc est resté ouvert : la réponse a été coupée. Sans
+    # ce contrôle, un modèle qui illustre par un petit extrait fermé puis se
+    # fait couper au milieu du vrai fichier verrait son EXTRAIT écrit dans
+    # app.js — et l'échelle d'agrandissement du plafond, qui existe justement
+    # pour ce cas, ne serait jamais atteinte.
+    if raw_text.count("```") % 2:
+        return None
     blocs = [bloc for bloc in _BLOC_CLOTURE.findall(raw_text) if bloc.strip()]
     if not blocs:
         return None
@@ -1257,7 +1270,46 @@ def _chunk_context(files, target=None):
     return "\n\n".join(morceaux) or "(aucun fichier généré pour le moment)"
 
 
-def _build_chunk_prompt(base_prompt, target, files):
+def ampleur_du_contrat(project_dir):
+    """Ce que le frontend doit couvrir : nombre de routes et d'entités.
+
+    Sert à DIMENSIONNER la demande faite au modèle. Sans elle, monl réclamait
+    « environ 1 500 tokens » pour `app.js` quel que soit le contrat — et le
+    modèle obéissait au jeton près (1 698 mesurés sur une boutique à quinze
+    routes) avant d'être refusé pour incomplétude. On demandait l'impossible,
+    puis on le rejetait.
+    """
+    chemin = os.path.join(project_dir, "frontend_contract.json")
+    try:
+        with open(chemin, encoding="utf-8") as fh:
+            contrat = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    routes = contrat.get("routes")
+    if not isinstance(routes, list) or not routes:
+        return None
+    return {"routes": len(routes),
+            "entites": len(contrat.get("entities") or {})}
+
+
+#: Budget de sortie d'`app.js`, en jetons : un socle, puis ce que coûte
+#: RÉELLEMENT une route (appel, état de chargement, erreur, formulaire).
+#: Mesuré à l'envers sur les frontends complets du dépôt — 26 à 43 Ko pour une
+#: quinzaine de routes, soit 7 000 à 11 000 jetons.
+APPJS_SOCLE_TOKENS = 1_200
+APPJS_TOKENS_PAR_ROUTE = 400
+INDEX_SOCLE_TOKENS = 1_200
+INDEX_TOKENS_PAR_ROUTE = 200
+
+
+def _budget(socle, par_route, ampleur, defaut):
+    if not ampleur:
+        return defaut
+    return min(socle + par_route * ampleur["routes"],
+               DEFAULT_CHUNK_MAX_OUTPUT_TOKENS)
+
+
+def _build_chunk_prompt(base_prompt, target, files, ampleur=None):
     """Demande une seule pièce complète du frontend.
 
     Le brief complet reste présent : le modèle conserve le contrat API et la
@@ -1276,6 +1328,21 @@ def _build_chunk_prompt(base_prompt, target, files):
             "Référence exactement ces noms ; ne crée ni ne référence un autre "
             "fichier graphique local.\n"
         )
+    index_tokens = _budget(INDEX_SOCLE_TOKENS, INDEX_TOKENS_PAR_ROUTE,
+                           ampleur, 1_600)
+    app_tokens = _budget(APPJS_SOCLE_TOKENS, APPJS_TOKENS_PAR_ROUTE,
+                         ampleur, 1_500)
+    # La limite dure suit le budget au lieu de le contredire : ~4 caractères
+    # par jeton. Elle valait 12 000 caractères pour un fichier dont les
+    # exemples réussis du dépôt pèsent 26 à 43 Ko — trois fois trop peu.
+    plancher = ""
+    if ampleur:
+        plancher = (
+            f" Ce contrat porte {ampleur['routes']} routes sur "
+            f"{ampleur['entites']} entités : un fichier qui n'en appelle que "
+            "deux ou trois sera REFUSÉ. Chaque parcours déclaré doit avoir son "
+            "point d'entrée."
+        )
     instructions = {
         "index.html": (
             "Produis maintenant uniquement frontend/index.html. Construis la "
@@ -1284,8 +1351,8 @@ def _build_chunk_prompt(base_prompt, target, files):
             "contenu et de compte selon le contrat, puis charge styles.css et "
             "app.js avec des chemins locaux. Donne à chaque section obligatoire "
             "une vraie structure et un texte utile ; ne remplace pas le brief "
-            "par trois cartes génériques. Vise environ 1 600 tokens. Limite "
-            "dure : termine le JSON avant 12 000 caractères."
+            f"par trois cartes génériques. Vise environ {index_tokens} tokens. "
+            f"Limite dure : termine avant {index_tokens * 4} caractères."
             + asset_rule
         ),
         "styles.css": (
@@ -1306,8 +1373,9 @@ def _build_chunk_prompt(base_prompt, target, files):
             "les parcours principaux. Les valeurs de `dataset.*` sont des "
             "chaînes : convertir avec Number() avant de les comparer aux IDs "
             "numériques de l'API, puis vérifier mentalement les clics Créer, "
-            "Modifier et Supprimer. Vise environ 1 500 tokens et factorise le "
-            "code. Limite dure : termine le JSON avant 12 000 caractères."
+            f"Modifier et Supprimer.{plancher} Vise environ {app_tokens} tokens "
+            f"et factorise le code. Limite dure : termine avant "
+            f"{app_tokens * 4} caractères."
             + asset_rule
         ),
     }
@@ -1600,6 +1668,7 @@ def _generate_chunked_files(project_dir, provider, base_prompt, operation,
     model_routes = model_routes or {}
     _validate_model_routing(project_dir, model_routes)
     files = _read_existing_frontend(project_dir)
+    ampleur = ampleur_du_contrat(project_dir)
     targets = list(CHUNKED_FRONTEND_FILES) + _planned_generated_asset_paths(project_dir)
     for target in targets:
         stage_provider = _provider_for_chunk(
@@ -1611,7 +1680,8 @@ def _generate_chunked_files(project_dir, provider, base_prompt, operation,
                 if retry:
                     say(f" -> Reprise de frontend/{target} "
                         f"({retry}/{CHUNK_MAX_RETRIES})…")
-                chunk_prompt = _build_chunk_prompt(base_prompt, target, files)
+                chunk_prompt = _build_chunk_prompt(base_prompt, target, files,
+                                                   ampleur)
                 if retry:
                     chunk_prompt += (
                         "\n\n## Reprise de génération\n"

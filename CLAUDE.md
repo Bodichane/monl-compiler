@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1164 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1171 tests
   actuellement ; `tests/test_demo.py` s'appuie sur le dossier `demo/`
   versionné — ne pas le supprimer. La démo est **CodexShop**, une papeterie
   qui exerce la chaîne marchande entière ; ses ENTRÉES seules sont suivies
@@ -1120,6 +1120,16 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   réintroduire `base_dir` dans `_valider` : le contrôle d'existence est ciblé
   sur ce que l'outil ÉCRIT, sinon `list` redevient incapable de rapporter un
   manquant et `add` redevient inutilisable sur une spec incomplète.
+- **POINT 146 : le budget demandé à un étage vient du CONTRAT, jamais d'une
+  constante.** monl réclamait « environ 1 500 tokens » pour `app.js` quel que
+  soit le contrat, avec une limite dure de 12 000 caractères — pour un fichier
+  dont les exemples complets du dépôt pèsent 26 à 43 Ko. Le modèle obéissait au
+  jeton près (1 698 mesurés, ZÉRO reprise : rien n'était tronqué), puis monl le
+  refusait pour incomplétude. **Changer de modèle n'y peut rien** : le modèle
+  solide obéit mieux, donc produit moins. Plafond-sans-plancher pour la
+  troisième fois — et c'est l'instruction CHIFFRÉE, la dernière lue, que le
+  modèle écoute. Le plancher est désormais énoncé à l'étage, et la limite dure
+  suit le budget au lieu de le contredire.
 - **POINT 145 : où part l'argent d'une construction, mesuré.** `styles.css`
   consomme 50 % des jetons de SORTIE (la partie sans fonction), `app.js` 34 %
   alors qu'il porte toute la complétude. Les « reprises » d'une étape viennent

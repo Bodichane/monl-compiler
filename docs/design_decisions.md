@@ -9388,3 +9388,66 @@ solide là où vit la complétude (`app.js`) et le modèle bon marché là où
 brûlent les jetons (`styles.css`). La mesure ci-dessus dit que ce routage n'est
 pas une option de confort — c'est là que se joue « un site complet pour le
 prix d'un site vide ».
+
+---
+
+## 146. On demandait un app.js de 1 500 jetons, puis on le refusait parce qu'il était incomplet
+
+**Le fait, mesuré deux fois.** L'instruction d'étage pour `app.js` disait,
+textuellement : *« Vise environ 1 500 tokens […] Limite dure : termine le JSON
+avant 12 000 caractères. »* Constante, quel que soit le contrat. Et le modèle
+obéit au jeton près :
+
+| construction | modèle | sortie `app.js` | reprises | verdict |
+|---|---|---|---|---|
+| 19/08, passe 1 | `aliceai-llm-flash` | 1 173 | 2 | refusée |
+| 19/08, passe 1 | `qwen3-235b` | **1 698** | **0** | refusée |
+
+Zéro reprise sur la seconde : **rien n'était tronqué**. Le modèle n'a pas
+échoué, il a *obéi*. Puis la vérification a refusé le fichier parce qu'il
+n'appelait que 2 routes sur 15 et laissait des parcours entiers sans point
+d'entrée.
+
+**Les deux nombres étaient arithmétiquement impossibles.** Les frontends
+complets versionnés dans le dépôt pèsent 26 Ko (`StudioNova`) et 43 Ko
+(`KoraMaison`) — soit 7 000 à 11 000 jetons. On en autorisait 1 500, et une
+limite dure de 12 000 caractères, trois fois trop basse. Changer de modèle n'y
+pouvait rien : le modèle solide a produit un fichier plus petit encore, parce
+qu'il suit mieux la consigne.
+
+**C'est la faute du plafond-sans-plancher, une troisième fois.** Le brief dit
+« n'appeler QUE les routes listées » (plafond) ; la vérification exige que
+chaque parcours ait un point d'entrée (plancher) ; et l'instruction d'étage,
+la plus précise et la dernière lue, imposait un budget qui rendait le plancher
+inatteignable. Trois voix, dont une seule chiffrée — c'est elle que le modèle
+écoute.
+
+**Le budget vient désormais du CONTRAT** : socle plus un coût par route (appel,
+état de chargement, erreur, formulaire), borné par le plafond de sortie de
+l'étage — demander plus que ce qu'un étage peut rendre garantirait une
+troncature à chaque construction. Sur la boutique à quinze routes : 7 200
+jetons au lieu de 1 500. La limite dure suit le budget (~4 caractères par
+jeton) au lieu de le contredire : le modèle obéit à la plus petite des deux
+bornes, donc les laisser diverger revient à laisser la plus basse décider de
+la complétude.
+
+**Et le plancher est ÉNONCÉ à l'étage** : « ce contrat porte 15 routes sur
+3 entités ; un fichier qui n'en appelle que deux ou trois sera REFUSÉ ». Le
+dire dans le brief général ne suffisait pas — il est loin, et l'instruction
+d'étage arrive en dernier.
+
+Éprouvé par cinq tests (`tests/test_frontend_chunks.py`), dont celui qui lie la
+limite dure au budget et celui qui interdit de dépasser le plafond de l'étage.
+
+**Corollaire d'échelle** (même point) : l'échelle d'agrandissement du plafond
+montait 8 000 → 12 000 → 18 000 alors que la borne déclarée était 32 000 —
+jamais atteinte, y compris par le message d'erreur qui la cite. Le facteur
+passe à 2,0 : 8 000 → 16 000 → 32 000. Une constante qui ne contraint rien est
+ce que le point 85 interdit, et un test lie désormais les trois nombres entre
+eux — en changer un sans les autres le fait tomber.
+
+**Ce que la construction a prouvé au passage** : le garde-fou du point 144 a
+fonctionné en production, sans qu'on ait à le provoquer. *« Tentative 1
+restaurée : la correction a rendu un frontend plus dégradé (3 erreurs et
+3 avertissements, contre 1 et 2). »* La passe de correction était retombée à
+**0 route sur 15**.
