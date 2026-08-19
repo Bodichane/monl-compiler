@@ -316,6 +316,79 @@ def test_boucle_ia_echoue_apres_une_seule_correction(project):
     assert (project / "frontend" / "index.html").exists()
 
 
+#: Deux chemins fantômes au lieu d'un : strictement pire que BAD_FRONT, sur
+#: la même échelle et sans rien changer d'autre.
+PIRE_FRONT = ("<!doctype html><html><body><script>"
+              "fetch('/fantome/1'); fetch('/autre-fantome');"
+              "</script></body></html>")
+
+
+def test_une_correction_qui_degrade_ne_remplace_pas_la_tentative_precedente(project):
+    """monl gardait la DERNIÈRE tentative ; il garde la MEILLEURE.
+
+    Mesuré sur une construction réelle payante : à qui on demandait de
+    réparer deux lignes, le modèle a réécrit le site entier et perdu
+    quatorze routes sur quinze — deux parcours utilisateur complets avec.
+    La première tentative, elle, était presque bonne. L'utilisateur payait
+    deux passes et repartait avec la pire des deux.
+    """
+    rendus = [BAD_FRONT, PIRE_FRONT]
+    dits = []
+
+    def provider(_prompt):
+        return json.dumps({"files": {"index.html": rendus.pop(0)}})
+
+    ok, errors = generate_and_verify(str(project), provider, say=dits.append)
+
+    assert not ok, "les deux tentatives échouent : le verdict reste un échec"
+    conserve = (project / "frontend" / "index.html").read_text(encoding="utf-8")
+    assert conserve == BAD_FRONT, (
+        "la tentative dégradée a été conservée alors qu'elle est pire")
+    assert any("Tentative 1 restaurée" in ligne for ligne in dits), dits
+    # Les erreurs RAPPORTÉES doivent décrire les fichiers conservés : rendre
+    # celles de la tentative écartée décrirait un frontend absent du disque.
+    assert not any("/autre-fantome" in e for e in errors), errors
+    assert any("/fantome/1" in e for e in errors), errors
+
+
+def test_une_correction_qui_ameliore_est_bien_conservee(project):
+    """Contre-épreuve indispensable : un garde-fou qui figerait toujours la
+    première tentative annulerait la correction automatique entière, et
+    passerait pour bon."""
+    rendus = [PIRE_FRONT, BAD_FRONT]
+    dits = []
+
+    def provider(_prompt):
+        return json.dumps({"files": {"index.html": rendus.pop(0)}})
+
+    ok, errors = generate_and_verify(str(project), provider, say=dits.append)
+
+    assert not ok
+    conserve = (project / "frontend" / "index.html").read_text(encoding="utf-8")
+    assert conserve == BAD_FRONT, "la meilleure des deux est la seconde ici"
+    assert not any("restaurée" in ligne for ligne in dits), dits
+
+
+def test_la_restauration_ne_laisse_aucun_fichier_de_la_tentative_ecartee(project):
+    """Un mélange des deux tentatives serait pire que l'une ou l'autre : le
+    fichier restauré appellerait un script que sa version n'a pas écrit."""
+    rendus = [
+        {"index.html": BAD_FRONT},
+        {"index.html": PIRE_FRONT, "extra.js": "console.log('tentative 2');"},
+    ]
+    dits = []
+
+    def provider(_prompt):
+        return json.dumps({"files": rendus.pop(0)})
+
+    generate_and_verify(str(project), provider, say=dits.append)
+
+    assert (project / "frontend" / "index.html").read_text(
+        encoding="utf-8") == BAD_FRONT
+    assert not (project / "frontend" / "extra.js").exists(), (
+        "un fichier de la tentative écartée survit dans le frontend conservé")
+
+
 # ---- 'monl import' : la voie SANS clé API (abonnement claude.ai) ----
 import zipfile
 

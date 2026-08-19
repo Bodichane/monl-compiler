@@ -9267,3 +9267,63 @@ réponse, la spec produite est exactement celle d'avant** — sans quoi la
 question ferait bouger tout projet existant. Vérifié aussi par une compilation
 réelle : les trois liens traversent le dialogue, la spec, le contrat et le
 brief que l'IA reçoit.
+
+---
+
+## 144. La correction automatique pouvait tout casser, et monl gardait le pire
+
+**Mesuré sur une construction réelle payante** (19/08/2026, modèle Boutique du
+catalogue, `aliceai-llm-flash`, 0,119 USD, 9 appels) :
+
+- **Tentative 1** — deux défauts, tous deux étroits et mécaniques : un
+  `Number()` manquant sur un identifiant venu du `dataset`, et une section
+  média absente. Aucun avertissement de couverture : le site appelait ses
+  routes, portait ses sept sections avec matière et ses trois liens déclarés.
+  Il était *presque bon*.
+- **Tentative 2** — à qui on demandait de réparer ces deux lignes, le modèle a
+  **réécrit le site entier**. Résultat : 1 route sur 15 appelée, deux parcours
+  utilisateur complets disparus (`ManageOrder`, `ManageCustomer`).
+
+**Et monl conservait la tentative 2**, parce que la boucle écrivait chaque
+tentative par-dessus la précédente et rendait l'état final. L'utilisateur payait
+deux passes et repartait avec la pire des deux, sans que rien ne le lui dise.
+
+**Le correctif : garder la MEILLEURE, pas la DERNIÈRE.** Après chaque tentative
+échouée, monl retient un instantané du frontend et son score ; si la dernière
+n'est pas la meilleure, elle est remplacée. Le verdict, lui, ne change pas —
+deux échecs restent un échec.
+
+**Le classement est `(erreurs, avertissements)`, dans cet ordre et sans
+pondération.** Une gravité inventée serait une opinion déguisée en mesure : on
+ne sait pas dire qu'un parcours manquant « vaut » trois `Number()`. Ce couple
+suffisait à départager le cas qui l'a fait naître — les deux tentatives avaient
+DEUX erreurs chacune, mais la seconde ajoutait deux avertissements de parcours.
+Limite énoncée : deux tentatives à score égal laissent la seconde en place, et
+c'est le bon défaut (sans preuve de régression, on ne défait pas une
+correction).
+
+**Les erreurs rapportées sont celles des fichiers CONSERVÉS.** Rendre celles de
+la tentative écartée décrirait un frontend qui n'est plus sur le disque —
+l'utilisateur corrigerait ce qui n'existe pas, exactement le reproche du
+point 97.
+
+**La restauration est CIBLÉE, jamais un effacement de dossier.** Seuls les
+fichiers de la liste blanche (`.html`, `.css`, `.js`, `.svg`, `.json`) sont
+touchés ; les images générées vivent hors de cette liste et personne ne les
+rejouerait sans repayer. Les fichiers que la tentative écartée avait ajoutés
+sont retirés : un mélange des deux tentatives serait pire que l'une ou l'autre
+— un `index.html` restauré appelant un script que sa version n'a jamais écrit.
+
+**La contre-épreuve qui porte la brique** : un garde-fou qui figerait toujours
+la première tentative annulerait la correction automatique entière et passerait
+pour bon. Le test symétrique exige donc qu'une seconde tentative MEILLEURE soit
+bien conservée. Éprouvé par trois tests
+(`tests/test_smoke_and_frontend_ai.py`) ; deux tombent quand on désarme le
+garde-fou, le troisième doit passer dans les deux cas — c'est son rôle.
+
+**Ce que la même construction a prouvé au passage**, et qui répond au point 140
+et à la brique 29 : **les deux barrières neuves passent sur une vraie sortie
+d'IA**. Sept sections exigées, sept marqueurs présents, zéro refus de
+substance ; trois liens déclarés, trois retrouvés dans le pied de page — avec
+un modèle « flash » cinq fois moins cher que celui des constructions
+précédentes. Elles ne sont donc ni inertes ni trop strictes.

@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1156 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1159 tests
   actuellement ; `tests/test_demo.py` s'appuie sur le dossier `demo/`
   versionné — ne pas le supprimer. La démo est **CodexShop**, une papeterie
   qui exerce la chaîne marchande entière ; ses ENTRÉES seules sont suivies
@@ -1120,6 +1120,17 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   réintroduire `base_dir` dans `_valider` : le contrôle d'existence est ciblé
   sur ce que l'outil ÉCRIT, sinon `list` redevient incapable de rapporter un
   manquant et `add` redevient inutilisable sur une spec incomplète.
+- **POINT 144 : la correction automatique garde la MEILLEURE tentative, pas
+  la dernière.** Mesuré en payant : à qui on demandait de réparer deux lignes,
+  le modèle a réécrit le site et perdu 14 routes sur 15 — et monl conservait
+  cette version-là, parce que la boucle rendait l'état final. Le classement est
+  `(erreurs, avertissements)` sans pondération (une gravité inventée serait une
+  opinion déguisée en mesure) ; les erreurs rapportées sont celles des fichiers
+  CONSERVÉS ; la restauration ne touche que la liste blanche, jamais les images
+  générées, et retire les fichiers de la tentative écartée — un mélange des
+  deux serait pire que l'une ou l'autre. Contre-épreuve obligatoire : une
+  seconde tentative MEILLEURE doit rester en place, sinon le garde-fou annule
+  la correction automatique et passe pour bon.
 - **POINT 143 : une brique sans PRODUCTEUR n'existe pas.** La brique 29
   (liens du pied de page) était déclarable depuis le point 141 et rien ne
   l'écrivait — ni le dialogue guidé, ni les dix modèles, ni la console web :

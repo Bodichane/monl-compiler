@@ -631,6 +631,19 @@ def _write_files(project_dir, files):
     return frontend_dir
 
 
+def _restaurer_frontend(project_dir, instantane):
+    """Remet le frontend dans l'état exact d'un instantané.
+
+    Ciblée à dessein : seuls les fichiers de la LISTE BLANCHE sont touchés.
+    Effacer le dossier emporterait les images générées, qui n'y sont pas
+    soumises et que personne ne rejouerait sans repayer.
+    """
+    frontend_dir = os.path.join(project_dir, "frontend")
+    for rel in set(_read_existing_frontend(project_dir)) - set(instantane):
+        os.remove(os.path.join(frontend_dir, rel))
+    return _write_files(project_dir, instantane)
+
+
 def _read_existing_frontend(project_dir):
     frontend_dir = os.path.join(project_dir, "frontend")
     snapshot = {}
@@ -1640,6 +1653,11 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
     prompt = build_generation_prompt(project_dir, update_mode, retouche_mode)
 
     last_errors = []
+    # La correction automatique peut RÉGRESSER : mesuré sur une construction
+    # réelle, une passe chargée de réparer deux lignes a réécrit le site
+    # entier et perdu quatorze routes sur quinze. monl gardait la DERNIÈRE
+    # tentative ; il garde désormais la MEILLEURE.
+    meilleure = None
     for attempt in (1, 2):
         if attempt == 2:
             say(" -> Correction automatique : erreurs renvoyées au modèle (1 seule fois)…")
@@ -1704,11 +1722,31 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
         last_errors = errors
         for e in errors:
             say(f" ❌ {e}")
+        # Le classement est (erreurs, avertissements), dans cet ordre et sans
+        # pondération : une gravité inventée serait une opinion déguisée en
+        # mesure. Il départage le cas qui l'a fait naître — même nombre
+        # d'erreurs, mais deux parcours entiers signalés en plus.
+        score = (len(errors), len(warnings))
+        if meilleure is None or score < meilleure[0]:
+            meilleure = (score, _read_existing_frontend(project_dir), attempt,
+                         list(errors))
         if image_failures:
             say(" ❌ Livraison refusée : le manifeste reste l'autorité pour les "
                 "images planifiées ; relancez après disponibilité du fournisseur.")
             return False, last_errors
 
+    if meilleure is not None and meilleure[2] != attempt:
+        _restaurer_frontend(project_dir, meilleure[1])
+        # Les erreurs rapportées doivent être celles des fichiers CONSERVÉS :
+        # rapporter celles de la tentative écartée décrirait un frontend qui
+        # n'est plus sur le disque.
+        last_errors = meilleure[3]
+        say(f" ↩  Tentative {meilleure[2]} restaurée : la correction a rendu un "
+            f"frontend plus dégradé ({score[0]} erreur(s) et {score[1]} "
+            f"avertissement(s), contre {meilleure[0][0]} et {meilleure[0][1]}). "
+            "Ce qui est conservé est le moins mauvais des deux, pas le dernier.")
+        for e in last_errors:
+            say(f" ❌ {e}")
     say(" ❌ Le frontend généré échoue encore après correction — les fichiers "
         "sont conservés dans frontend/ pour inspection, mais 'monl run' "
         "refusera de lancer tant que le smoke test échoue.")
