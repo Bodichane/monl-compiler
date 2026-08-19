@@ -605,14 +605,59 @@ def parse_files_payload(raw_text):
     return _validate_files(payload.get("files"), require_index=True)
 
 
+#: Un bloc clôturé Markdown, avec ou sans nom de langage. Le contenu est
+#: capturé tel quel : c'est un FICHIER, pas du JSON.
+_BLOC_CLOTURE = re.compile(r"```[a-zA-Z0-9_+-]*\s*\n(.*?)\n?```", re.DOTALL)
+
+
+def _fichier_depuis_un_bloc(raw_text, expected_path):
+    """Repli : le modèle a rendu le FICHIER, pas un JSON qui le contient.
+
+    Une étape séquentielle doit emballer tout un fichier JavaScript dans une
+    chaîne JSON — chaque saut de ligne échappé, chaque guillemet doublé. C'est
+    là que les modèles bon marché cassent, et le prix est lourd : mesuré sur
+    une construction réelle, `app.js` a échoué deux fois puis rendu 834 jetons
+    — un fichier minuscule mais ANALYSABLE. La boucle de reprise optimise la
+    lisibilité, jamais la complétude, et un quart du budget est parti là.
+
+    L'enveloppe JSON n'apporte d'ailleurs rien ici : l'étape SAIT quel fichier
+    elle attend. Le contrat JSON reste la voie normale — ceci n'est qu'un
+    filet, et il passe par les MÊMES garde-fous (`_validate_files`) : extension,
+    confinement, taille, caractères de contrôle. Aucune voie ne les contourne.
+    """
+    blocs = [bloc for bloc in _BLOC_CLOTURE.findall(raw_text) if bloc.strip()]
+    if not blocs:
+        return None
+    # Le PLUS GROS bloc : un modèle bavard commente sa réponse par de petits
+    # extraits avant de rendre le fichier.
+    contenu = max(blocs, key=len)
+    # Un bloc qui EST le JSON attendu n'est pas un fichier : l'écrire tel quel
+    # déposerait `{"files": …}` dans app.js, ce qui parse et ne marche pas.
+    if contenu.lstrip().startswith("{"):
+        return None
+    # La clôture avale le dernier saut de ligne : un fichier source se termine
+    # par un saut de ligne, on le rétablit plutôt que de livrer une dernière
+    # ligne collée à rien.
+    contenu = contenu.rstrip("\n") + "\n"
+    return _validate_files({expected_path: contenu}, require_index=False)
+
+
 def parse_single_file_payload(raw_text, expected_path):
     """Décode la réponse d'une étape de génération séquentielle.
 
-    Le transport reste ``{"files": {…}}`` pour conserver le même contrat
-    JSON côté fournisseur, mais une étape ne peut rendre qu'un seul fichier.
+    Le transport normal reste ``{"files": {…}}`` — même contrat JSON que la
+    voie monolithique. Quand il est illisible, on retombe sur le fichier rendu
+    en bloc clôturé plutôt que de brûler une reprise (voir
+    ``_fichier_depuis_un_bloc``).
     """
-    payload = _json_payload(raw_text)
-    files = _validate_files(payload.get("files"), require_index=False)
+    try:
+        payload = _json_payload(raw_text)
+        files = _validate_files(payload.get("files"), require_index=False)
+    except FrontendAIError:
+        secours = _fichier_depuis_un_bloc(raw_text, expected_path)
+        if secours is None:
+            raise
+        return secours
     if set(files) != {expected_path}:
         rendus = ", ".join(sorted(files))
         raise FrontendAIError(

@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1159 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1164 tests
   actuellement ; `tests/test_demo.py` s'appuie sur le dossier `demo/`
   versionné — ne pas le supprimer. La démo est **CodexShop**, une papeterie
   qui exerce la chaîne marchande entière ; ses ENTRÉES seules sont suivies
@@ -1120,6 +1120,15 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   réintroduire `base_dir` dans `_valider` : le contrôle d'existence est ciblé
   sur ce que l'outil ÉCRIT, sinon `list` redevient incapable de rapporter un
   manquant et `add` redevient inutilisable sur une spec incomplète.
+- **POINT 145 : où part l'argent d'une construction, mesuré.** `styles.css`
+  consomme 50 % des jetons de SORTIE (la partie sans fonction), `app.js` 34 %
+  alors qu'il porte toute la complétude. Les « reprises » d'une étape viennent
+  d'une réponse ILLISIBLE : emballer un fichier JS dans une chaîne JSON casse
+  chez les modèles bon marché, et la relance les pousse vers ce qui PARSE,
+  donc vers le fichier minimal. D'où le filet du bloc clôturé
+  (`_fichier_depuis_un_bloc`) — repli seulement, passant par `_validate_files`
+  comme tout le reste. **Le vrai levier de coût est `--model-for` :** modèle
+  solide sur `app.js`, modèle bon marché sur `styles.css`.
 - **POINT 144 : la correction automatique garde la MEILLEURE tentative, pas
   la dernière.** Mesuré en payant : à qui on demandait de réparer deux lignes,
   le modèle a réécrit le site et perdu 14 routes sur 15 — et monl conservait

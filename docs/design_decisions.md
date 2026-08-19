@@ -9327,3 +9327,64 @@ d'IA**. Sept sections exigées, sept marqueurs présents, zéro refus de
 substance ; trois liens déclarés, trois retrouvés dans le pied de page — avec
 un modèle « flash » cinq fois moins cher que celui des constructions
 précédentes. Elles ne sont donc ni inertes ni trop strictes.
+
+---
+
+## 145. Le fichier était emballé dans du JSON, et c'est l'emballage qui cassait
+
+**Où part l'argent, mesuré** sur la construction du point 144 (9 appels,
+93 234 jetons d'entrée, 26 119 de sortie) :
+
+| cible | appels | entrée | sortie |
+|---|---|---|---|
+| `styles.css` | 3 | 33 % | **50 %** |
+| `app.js` | 4 | 46 % | 34 % |
+| `index.html` | 2 | 21 % | 16 % |
+
+Deux choses sautent aux yeux. La feuille de style — la partie qui ne porte
+aucune fonction — mange **la moitié des jetons de sortie**. Et `app.js`, qui
+porte à lui seul toute la complétude (routes, parcours, formulaires), a été
+appelé QUATRE fois pour ne rendre que 8 986 jetons, dont un dernier bout de
+834.
+
+**Pourquoi quatre appels.** Une « reprise » se déclenche quand la réponse est
+*illisible*. Une étape séquentielle doit emballer un fichier JavaScript entier
+dans une **chaîne JSON** : chaque saut de ligne échappé, chaque guillemet
+doublé. Un modèle bon marché y casse — et la relance dit alors « ta réponse
+précédente était illisible, rends un JSON fermé ». Le modèle obéit : il rend
+quelque chose de plus court, donc de plus sûr à échapper. **La boucle optimise
+la LISIBILITÉ, jamais la complétude**, et elle pousse mécaniquement vers le
+fichier minimal. C'est ainsi qu'on obtient un `app.js` de 2 806 octets pour
+quinze routes.
+
+**L'emballage n'apportait rien.** Une étape séquentielle SAIT quel fichier elle
+attend — `{"files": {"app.js": …}}` ne transporte pas un bit d'information
+utile, seulement un risque. Le contrat JSON reste donc la voie normale (rien
+ne change pour un modèle qui s'en tire), mais quand il est illisible, monl
+retombe sur le **fichier rendu en bloc clôturé Markdown**.
+
+**Quatre décisions.**
+Le repli est un FILET, jamais la voie principale : le tenter d'abord
+apprendrait aux modèles à ignorer le contrat.
+Il passe par les **mêmes garde-fous** (`_validate_files`) — extension,
+confinement, taille, caractères de contrôle. Aucune voie ne les contourne,
+c'est la règle du dépôt et elle ne se négocie pas pour de la robustesse.
+Un bloc qui **commence par `{`** n'est pas un fichier : l'écrire tel quel
+déposerait `{"files": …}` dans `app.js`, ce qui *parse* et ne marche pas — le
+pire des deux mondes.
+Le **plus gros** bloc l'emporte : un modèle bavard illustre sa réponse par de
+petits extraits avant de rendre le fichier.
+
+Le saut de ligne final, avalé par la clôture, est rétabli : un fichier source
+se termine par un saut de ligne.
+
+Éprouvé par cinq tests, dont la contre-épreuve (le JSON reste accepté et
+prioritaire) et le refus d'extension par la voie du filet. Deux tombent quand
+on désarme le repli.
+
+**Ce que cela ouvre, et qui est le vrai levier de coût.** `--model-for
+CIBLE=MODELE` existe depuis la génération découpée : on peut mettre le modèle
+solide là où vit la complétude (`app.js`) et le modèle bon marché là où
+brûlent les jetons (`styles.css`). La mesure ci-dessus dit que ce routage n'est
+pas une option de confort — c'est là que se joue « un site complet pour le
+prix d'un site vide ».

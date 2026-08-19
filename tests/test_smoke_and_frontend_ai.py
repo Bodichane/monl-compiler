@@ -1141,3 +1141,54 @@ def test_sans_explication_le_conseil_de_reformulation_reste(project, tmp_path):
                             retouche_mode=True)
 
     assert "Reformuler la demande" in "\n".join(msgs)
+
+
+# ---- Le filet du bloc clôturé (point 145) ----
+
+def test_un_fichier_rendu_en_bloc_cloture_est_accepte():
+    """Le repli qui a coûté un quart d'une construction réelle.
+
+    Une étape séquentielle doit emballer tout un fichier JavaScript dans une
+    chaîne JSON : chaque saut de ligne échappé, chaque guillemet doublé. Un
+    modèle bon marché y casse, et la boucle de reprise le pousse alors vers
+    ce qui PARSE — mesuré, `app.js` a fini à 834 jetons de sortie.
+    """
+    contenu = 'const a = "guillemet";\nfetch("/item");\n'
+    brut = "Voici le fichier :\n```javascript\n" + contenu + "```\n"
+
+    rendu = parse_single_file_payload(brut, "app.js")
+
+    assert rendu == {"app.js": contenu}
+
+
+def test_le_json_reste_la_voie_normale():
+    """Contre-épreuve : le filet ne doit pas remplacer le contrat."""
+    brut = json.dumps({"files": {"app.js": "const a = 1;"}})
+
+    assert parse_single_file_payload(brut, "app.js") == {"app.js": "const a = 1;"}
+
+
+def test_un_bloc_qui_contient_le_json_n_est_pas_pris_pour_un_fichier():
+    """Sinon on déposerait `{"files": …}` dans app.js : ça parse, et ça ne
+    marche pas — le pire des deux mondes."""
+    brut = "```json\n{\"files\": {\"app.js\": \"const a = 1;\"}}\n```"
+
+    assert parse_single_file_payload(brut, "app.js") == {"app.js": "const a = 1;"}
+
+
+def test_le_filet_passe_par_les_memes_garde_fous():
+    """Aucune voie ne contourne la validation : c'est la règle du dépôt."""
+    with pytest.raises(FrontendAIError, match="extension refusée"):
+        parse_single_file_payload("```\nrm -rf /\n```", "script.sh")
+    # Un bloc vide n'est pas un fichier : on garde l'erreur JSON d'origine.
+    with pytest.raises(FrontendAIError, match="illisible"):
+        parse_single_file_payload("pas de json, pas de bloc", "app.js")
+
+
+def test_le_plus_gros_bloc_l_emporte_sur_un_extrait_de_commentaire():
+    """Un modèle bavard illustre sa réponse avant de rendre le fichier."""
+    fichier = "fetch('/item');\n" * 20
+    brut = ("Je vais utiliser :\n```js\nfetch()\n```\n"
+            "Voici le fichier complet :\n```js\n" + fichier + "```")
+
+    assert parse_single_file_payload(brut, "app.js") == {"app.js": fichier}
