@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1171 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1173 tests
   actuellement ; `tests/test_demo.py` s'appuie sur le dossier `demo/`
   versionné — ne pas le supprimer. La démo est **CodexShop**, une papeterie
   qui exerce la chaîne marchande entière ; ses ENTRÉES seules sont suivies
@@ -1120,6 +1120,19 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   réintroduire `base_dir` dans `_valider` : le contrôle d'existence est ciblé
   sur ce que l'outil ÉCRIT, sinon `list` redevient incapable de rapporter un
   manquant et `add` redevient inutilisable sur une spec incomplète.
+- **POINT 147 : une mesure INDÉTERMINÉE n'est pas une mesure NULLE.**
+  `_frontend_fetch_calls` (cli.py) ne comptait une fonction d'accès que
+  écrite `fetch(endpoint, …)` ; le modèle écrivait `const url =
+  \`${API_BASE}${endpoint}\`; fetch(url, config)`. Résultat : « 0 route sur
+  15 » sur un frontend qui en appelait cinq et dont le smoke test passait —
+  refusé pour de bon. Et l'instruction d'étage dit « factorise le code » :
+  monl demandait la factorisation puis refusait le site factorisé. Le
+  contrôle suit désormais le FLUX du paramètre (direct, gabarit, variable
+  locale) en restant conservateur — il exige un flux démontrable, sinon
+  n'importe quelle fonction contenant un `fetch` ferait compter ses arguments
+  comme des routes. **Le sens de l'erreur compte** : pour une route fantôme,
+  ne pas compter l'irréductible est juste ; pour une couverture, c'est
+  accuser un site correct.
 - **POINT 146 : le budget demandé à un étage vient du CONTRAT, jamais d'une
   constante.** monl réclamait « environ 1 500 tokens » pour `app.js` quel que
   soit le contrat, avec une limite dure de 12 000 caractères — pour un fichier

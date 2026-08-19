@@ -557,6 +557,39 @@ _FETCH_CHEMIN = re.compile(
 )
 
 
+def _le_parametre_atteint_le_fetch(corps, parametre):
+    """Le premier paramètre d'une fonction alimente-t-il son ``fetch`` ?
+
+    Trois écritures, toutes rencontrées dans du vrai code produit par une IA,
+    et toutes également légitimes :
+
+        fetch(endpoint, options)                        # direct
+        fetch(`${API_BASE}${endpoint}`, options)        # gabarit
+        const url = `${API_BASE}${endpoint}`;           # par une variable
+        const response = await fetch(url, config);
+
+    Seule la première était reconnue. Les deux autres faisaient conclure « 0
+    route appelée » sur un frontend qui en appelait cinq — et le refus tombait
+    sur un site correct. Le prix d'un tel faux positif est une construction
+    entière repayée. Pire : le brief demande de FACTORISER le code, et c'est
+    exactement la factorisation qui rendait l'appel invisible.
+
+    Le contrôle reste conservateur — il exige un flux DÉMONTRABLE du paramètre
+    vers l'appel, jamais la simple présence d'un ``fetch`` quelque part.
+    """
+    motif = re.escape(parametre)
+    # 1 et 2 : le paramètre est dans l'argument même de fetch.
+    if re.search(rf"\bfetch\s*\(\s*[^,)]*\b{motif}\b", corps):
+        return True
+    # 3 : fetch reçoit une variable, elle-même construite depuis le paramètre.
+    for appel in re.finditer(r"\bfetch\s*\(\s*(\w+)\s*[,)]", corps):
+        variable = re.escape(appel.group(1))
+        if re.search(rf"\b(?:const|let|var)\s+{variable}\s*=[^;]*\b{motif}\b",
+                     corps):
+            return True
+    return False
+
+
 def _frontend_fetch_calls(frontend_dir):
     """Retourne les appels ``fetch`` statiquement identifiables.
 
@@ -638,7 +671,7 @@ def _frontend_fetch_calls(frontend_dir):
                 if not noms:
                     continue
                 corps = contenu[definition.end():definition.end() + 5000]
-                if re.search(rf"\bfetch\s*\(\s*{re.escape(noms[0])}\b", corps):
+                if _le_parametre_atteint_le_fetch(corps, noms[0]):
                     wrappers[nom] = True
             for wrapper in wrappers:
                 appels_wrapper = re.finditer(

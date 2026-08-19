@@ -9451,3 +9451,56 @@ fonctionné en production, sans qu'on ait à le provoquer. *« Tentative 1
 restaurée : la correction a rendu un frontend plus dégradé (3 erreurs et
 3 avertissements, contre 1 et 2). »* La passe de correction était retombée à
 **0 route sur 15**.
+
+---
+
+## 147. Le brief demandait de factoriser, et c'est la factorisation qui faisait refuser le site
+
+**Le fait, mesuré en payant.** Avec le budget corrigé du point 146, la
+construction rend un `app.js` de **12 845 octets** (contre 5 731) qui appelle
+réellement `/register`, `/login`, `/customer`, `/order` et `/product`. Le
+contrôle de couverture annonce : **0 route sur 15**. Les trois parcours du
+client sont déclarés « sans point d'entrée », et le site est refusé.
+
+Il était complet. Vérifié après coup, sans un appel d'IA de plus : cohérence
+OK, **smoke test OK**, 7 sections sur 7 avec matière, 3 liens déclarés sur 3
+présents.
+
+**La cause.** `_frontend_fetch_calls` sait reconnaître une fonction d'accès —
+mais seulement écrite `fetch(endpoint, options)`. Le modèle avait écrit :
+
+```js
+const url = `${API_BASE}${endpoint}`;
+const response = await fetch(url, config);
+```
+
+Le paramètre atteint bien le `fetch`, par un gabarit puis par une variable
+locale. Le contrôle, lui, cherchait le nom du paramètre *collé* à `fetch(`.
+Ne sachant pas réduire l'appel, il ne le comptait pas — et « je ne sais pas »
+devenait « zéro route appelée ».
+
+**Ce qui rend le défaut cinglant** : l'instruction d'étage dit, mot pour mot,
+« **factorise le code** ». monl demande de factoriser, puis refuse le résultat
+parce qu'il est factorisé. Deux voix de monl se contredisent, et c'est
+l'utilisateur qui paie la construction refusée.
+
+**Le correctif suit le FLUX du paramètre**, dans les trois écritures
+rencontrées en vrai — argument direct, gabarit, variable locale intermédiaire.
+Il reste **conservateur** : il exige un flux démontrable du paramètre vers
+l'appel, jamais la simple présence d'un `fetch` quelque part dans la fonction.
+Sans cette retenue, n'importe quelle fonction contenant un `fetch` ferait
+compter ses arguments comme des routes, et la couverture cesserait de refuser
+quoi que ce soit — un contrôle qui accepte tout ressemble beaucoup à un
+contrôle qui marche. Une contre-épreuve tient cette limite.
+
+**Le principe, à retenir au-delà du cas.** Un contrôle conservateur n'a pas la
+même valeur selon le sens dans lequel il se trompe. Pour dénoncer une route
+FANTÔME, ne pas compter ce qu'on ne sait pas réduire est juste : on n'accuse
+pas à tort. Pour mesurer une COUVERTURE, la même prudence produit l'accusation
+inverse — le site est correct et il est refusé. **Une mesure indéterminée ne
+doit jamais être lue comme une mesure nulle**, surtout quand le refus coûte une
+construction entière repayée.
+
+Éprouvé par deux tests (`tests/test_couverture_parcours.py`), dont la
+contre-épreuve conservatrice ; le premier tombe dès qu'on retire le suivi du
+flux.

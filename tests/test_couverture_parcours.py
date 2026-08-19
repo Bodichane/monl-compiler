@@ -267,3 +267,83 @@ def test_un_projet_sans_marqueur_ne_declenche_pas_une_liste_visuelle_vide(tmp_pa
     brief = (project / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
 
     assert "Marqueurs visuels obligatoires — fichier et bloc exacts" not in brief
+
+
+# ---- Le paramètre doit ATTEINDRE le fetch, quelle que soit l'écriture (point 147) ----
+
+FONCTION_DIRECTE = """
+async function api(endpoint, options) {
+  const response = await fetch(endpoint, options);
+  return response.json();
+}
+api('/product?limit=100');
+api('/order', {method: 'POST'});
+"""
+
+FONCTION_GABARIT = """
+const API_BASE = '';
+async function api(endpoint, options) {
+  const response = await fetch(`${API_BASE}${endpoint}`, options);
+  return response.json();
+}
+api('/product?limit=100');
+api('/order', {method: 'POST'});
+"""
+
+# L'écriture RÉELLEMENT produite par le modèle, et celle qui a fait conclure
+# « 0 route appelée » sur un frontend qui en appelait cinq.
+FONCTION_PAR_VARIABLE = """
+const API_BASE = '';
+async function api(endpoint, options = {}) {
+  const config = { headers: {} , ...options };
+  const url = `${API_BASE}${endpoint}`;
+  const response = await fetch(url, config);
+  return await response.json();
+}
+api('/product?limit=100');
+api('/order', {method: 'POST'});
+"""
+
+
+def _appels(tmp_path, source, nom="ecriture"):
+    from monl.cli import _frontend_fetch_calls
+
+    dossier = tmp_path / nom / "frontend"
+    dossier.mkdir(parents=True)
+    (dossier / "app.js").write_text(source, encoding="utf-8")
+    return _frontend_fetch_calls(str(dossier))
+
+
+def test_les_trois_ecritures_d_une_fonction_d_acces_sont_vues(tmp_path):
+    """Le refus tombait sur un site CORRECT, et le brief en était la cause.
+
+    Il demande de factoriser le code — et c'est exactement la factorisation
+    qui rendait l'appel invisible au contrôle. Mesuré en payant : 12,8 Ko de
+    JavaScript appelant cinq routes, comptés comme zéro.
+    """
+    for nom, source in (("directe", FONCTION_DIRECTE),
+                        ("gabarit", FONCTION_GABARIT),
+                        ("variable", FONCTION_PAR_VARIABLE)):
+        appels = _appels(tmp_path, source, nom)
+        assert ("GET", "/product") in appels, (nom, appels)
+        assert ("POST", "/order") in appels, (nom, appels)
+
+
+def test_une_fonction_qui_ne_transmet_pas_son_parametre_n_est_pas_une_api(tmp_path):
+    """Le contrôle reste conservateur : il exige un flux DÉMONTRABLE.
+
+    Sans cette contre-épreuve, n'importe quelle fonction contenant un `fetch`
+    quelque part ferait compter ses arguments comme des routes — et la
+    couverture deviendrait un contrôle qui ne refuse plus rien.
+    """
+    source = """
+    function journaliser(message, options) {
+      fetch('/telemetrie', {method: 'POST', body: message});
+    }
+    journaliser('/product', {method: 'GET'});
+    """
+
+    appels = _appels(tmp_path, source, "sans-flux")
+
+    assert ("GET", "/product") not in appels, (
+        "un argument de fonction ordinaire a été pris pour une route appelée")
