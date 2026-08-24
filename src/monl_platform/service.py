@@ -18,6 +18,7 @@ from monl.app_templates import TEMPLATES
 from monl.ast_validator import MonlAST
 from monl.cli import compile_project
 from monl.errors import MonlError
+from monl.frontend_contract import CONTRACT_VERSION
 from monl.parser import parse_monl_file
 
 MAX_SPEC_BYTES = 256_000
@@ -113,6 +114,16 @@ class CompilationService:
         default = os.environ.get("MONL_PLATFORM_WORKSPACE")
         self.workspace = Path(workspace or default or "platform-projects").resolve()
         self.workspace.mkdir(parents=True, exist_ok=True)
+
+    def contract_version(self) -> int:
+        """La version de BASE du contrat frontend.
+
+        Le contrat réellement émis peut valoir un cran de plus selon ce que la
+        spec déclare : c'est le manifeste d'une compilation qui porte le
+        chiffre exact, jamais celui-ci. Il sert à savoir contre quelle
+        génération de contrat la plateforme compile, pas à dater un projet.
+        """
+        return CONTRACT_VERSION
 
     def list_templates(self) -> list[dict[str, Any]]:
         return [
