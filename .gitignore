@@ -13,16 +13,32 @@ demo/.jwt_secret
 demo/app.db
 
 # Artefacts de l'audit offensif généralisé (tests/test_exploit_all.py) :
-# chaque exemple est complilé puis servi DEPUIS LA RACINE du dépôt, ce qui y
+# chaque exemple est compilé puis servi DEPUIS LA RACINE du dépôt, ce qui y
 # dépose l'application générée et sa base jetable. Les ignorer à la racine
-# évite de versionner par mégarde un secret ({/,}app.py + .jwt_secret).
-app.py
-schema.sql
-app.db
-.monl_uploads/
-manage.py
-sandbox_ai.py
+# évite de versionner par mégarde un secret (app.py + .jwt_secret).
+#
+# Les motifs sont ANCRÉS, et ce n'est pas du zèle. Sans barre oblique de tête,
+# `app.py` signifie « à n'importe quelle profondeur » : la règle a capturé
+# src/monl_platform/app.py, et le module qui porte TOUTE la plateforme web —
+# routes, téléchargement, point MCP HTTP — a disparu du dépôt sans un mot. Un
+# clone neuf ne pouvait plus démarrer `monl-platform`, et tests/test_platform_web.py
+# échouait à la collecte en CI. Le même défaut avait déjà coûté six tests avec
+# `projets/` (point 116). Un artefact de compilation ne naît qu'à DEUX endroits
+# du dépôt : la racine (audit offensif) et demo/ (`monl compile demo/spec.ml`,
+# docs/DEMO.md) ; partout ailleurs — build/, dist/, projets/, platform-projects/
+# — c'est le dossier entier qui est ignoré, plus bas.
+/app.py
+/schema.sql
+/app.db
+/.monl_uploads/
+/manage.py
+/sandbox_ai.py
 /.jwt_secret
+demo/app.py
+demo/schema.sql
+demo/manage.py
+demo/sandbox_ai.py
+demo/.monl_uploads/
 
 # Projets compilés localement. Tout ce qui est produit par 'monl' vit dans
 # projets/ — un seul dossier à ignorer plutôt qu'une ligne par application,
