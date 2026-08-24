@@ -95,6 +95,22 @@ backend et le contrat frontend ; l'IA écrit l'interface contre ce contrat ;
 
 ## Commandes
 
+### Plateforme web et MCP
+
+Le compilateur peut aussi être utilisé sans cloner le dépôt sur la machine de
+l'utilisateur. La plateforme web explique Monl, valide une spec, compile le
+backend, expose son contrat et livre une archive sans secret :
+
+```bash
+monl-platform --port 8022
+```
+
+Les agents compatibles MCP peuvent appeler le même pipeline avec `monl-mcp`
+en stdio ou le point HTTP `/mcp`. Aucun second générateur n'est maintenu : CLI,
+web et MCP délèguent tous à `compile_project`.
+
+Voir [Plateforme web et serveur MCP](docs/PLATFORME_ET_MCP.md).
+
 | Commande | Ce qu'elle fait |
 |---|---|
 | `monl` | Dialogue guidé → `spec.ml` + backend + contrat frontend |
