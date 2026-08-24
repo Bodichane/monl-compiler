@@ -57,6 +57,13 @@ jobs:
         run: |
           monl --help
           cd "$(mktemp -d)" && python -c "import monl; print(monl.__version__)"
+          # La plateforme et le serveur MCP sont livrés par le PAQUET, pas
+          # seulement présents dans l'arbre de travail. Un motif `.gitignore`
+          # non ancré avait fait disparaître src/monl_platform/app.py du dépôt
+          # sans un mot : `monl-platform` ne démarrait plus, et aucune étape
+          # d'ici ne le voyait — seule la suite l'a dit, en s'arrêtant à la
+          # collecte. Deux lignes ferment la porte au bon niveau.
+          cd "$(mktemp -d)" && python -c "import monl_platform.app, monl_platform.mcp_server"
 
       - name: Linter (jeu de règles de pyproject.toml)
         run: ruff check src tests
