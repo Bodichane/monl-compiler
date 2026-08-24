@@ -51,3 +51,8 @@ archives/
 # écrit à la main.
 /dist/
 /build/
+
+# État local de la plateforme web : comptes, projets et artefacts compilés.
+# Ces données ne doivent jamais entrer dans l'historique du compilateur.
+/platform.db
+/platform-projects/
