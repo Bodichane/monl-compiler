@@ -375,6 +375,7 @@ def page(*, title: str, description: str, body: str, active: str = "",
 {_lien("/guide", icon("book") + "Guide", active, "guide")}
 {_lien("/guide#mcp", icon("plug") + "MCP", active, "mcp")}
 {_lien("/docs", icon("docs") + "Docs API", active, "docs")}
+{_lien("/account", icon("shield") + "Compte", active, "account")}
 <button class="icon-btn" id="theme-toggle" type="button" aria-label="Basculer le thème">{ICON_THEME}</button>
 <a class="nav-cta" href="/console">{icon("terminal")} Ouvrir la console</a>
 </div>

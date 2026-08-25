@@ -218,3 +218,7 @@ class CompilationService:
                     bundle.write(path, path.relative_to(directory))
         temporary.replace(archive)
         return archive
+
+    def delete(self, project_id: str) -> None:
+        directory = self._project_dir(project_id)
+        shutil.rmtree(directory)

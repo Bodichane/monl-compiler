@@ -162,12 +162,21 @@ ROUTES_API: list[tuple[str, str, str]] = [
     ("GET", "/api/templates", "Les dix modèles métier du dialogue guidé."),
     ("GET", "/api/examples", "Le catalogue des spécifications d'exemple."),
     ("GET", "/api/examples/{example_id}", "La spécification d'un exemple, en texte."),
+    ("POST", "/api/auth/register", "Crée un compte et ouvre une session."),
+    ("POST", "/api/auth/login", "Ouvre une session avec email et mot de passe."),
+    ("POST", "/api/auth/logout", "Révoque la session du navigateur."),
+    ("GET", "/api/auth/me", "Compte de la session active."),
+    ("GET", "/api/projects", "Projets du compte connecté."),
+    ("DELETE", "/api/projects/{project_id}", "Supprime un projet et son archive."),
+    ("GET", "/api/keys", "Clés MCP du compte, sans leur secret."),
+    ("POST", "/api/keys", "Crée une clé MCP affichée une seule fois."),
+    ("DELETE", "/api/keys/{key_id}", "Révoque définitivement une clé MCP."),
     ("POST", "/api/validate", "Parseur et audit réels, sans rien écrire."),
     ("POST", "/api/compile", "Compile et rend un manifeste (201)."),
     ("GET", "/api/projects/{project_id}", "Manifeste et résumé d'une compilation."),
     ("GET", "/api/projects/{project_id}/contract", "Le contrat frontend complet."),
     ("GET", "/api/projects/{project_id}/download", "Archive ZIP, sans le secret JWT."),
-    ("POST", "/mcp", "Transport MCP en HTTP, sans session."),
+    ("POST", "/mcp", "Transport MCP HTTP, authentifié par clé Bearer."),
 ]
 
 OUTILS_MCP: list[tuple[str, str]] = [
@@ -190,10 +199,10 @@ LIMITES: list[tuple[str, str]] = [
     ("Artefacts non durables",
      "Un projet compilé vit dans l'espace de travail du serveur. Téléchargez "
      "l'archive : rien ne garantit qu'elle sera là demain."),
-    ("Pas de comptes",
-     "Cette version n'a ni authentification ni quotas. Avant une exposition "
-     "publique, le déploiement doit ajouter comptes, limitation de débit, "
-     "expiration des artefacts et isolation des workers."),
+    ("Isolation des workers à ajouter",
+     "Les comptes, la propriété et l'expiration des projets sont actifs. Avant "
+     "une exposition publique, le déploiement doit encore ajouter limitation "
+     "de débit et isolation des workers."),
     ("Le secret ne voyage pas",
      "L'archive ne contient jamais <code>.jwt_secret</code> : le backend en "
      "génère un au premier démarrage, sur la machine qui l'héberge."),
@@ -401,7 +410,12 @@ Un champ que le client peut écrire est un champ qu'il peut négocier.</p>
 réservé à l'interface.</p>
 <div class="tablewrap"><table class="grid"><thead><tr><th>Route</th><th>Effet</th></tr></thead><tbody>{routes}</tbody></table></div>
 <h3>Compiler en une commande</h3>
-<pre class="codeblock"><code>curl -s -X POST http://127.0.0.1:8022/api/compile \\
+<pre class="codeblock"><code><span class="cm"># une fois : créer le compte et conserver la session</span>
+curl -c monl.cookies -X POST http://127.0.0.1:8022/api/auth/register \\
+  -H 'Content-Type: application/json' \\
+  -d '{{"email":"vous@example.com","password":"une-phrase-secrete"}}'
+
+curl -b monl.cookies -X POST http://127.0.0.1:8022/api/compile \\
   -H 'Content-Type: application/json' \\
   -d "$(jq -Rs '{{spec: .}}' ma-spec.ml)"</code></pre>
 <div class="note"><p>Une spécification est bornée à <b>256 ko</b>. Aucun chemin de
@@ -427,13 +441,12 @@ installer le dépôt — et sans qu'un second générateur existe quelque part.<
 <h3>Ou en HTTP</h3>
 <pre class="codeblock"><code>curl -s -X POST http://127.0.0.1:8022/mcp \\
   -H 'Content-Type: application/json' \\
+  -H 'Authorization: Bearer monl_VOTRE_CLE' \\
   -d '{{"jsonrpc":"2.0","id":1,"method":"tools/list"}}'</code></pre>
-<div class="note"><p><b>Clés par utilisateur :</b> le serveur MCP ne doit jamais
-fabriquer la clé qui l'autorise lui-même. Dans un déploiement multi-utilisateur,
-la plateforme d'administration crée, affiche une fois, hache et révoque chaque
-clé ; le client MCP la transmet ensuite avec <code>Authorization: Bearer …</code>.
-Cette version sans comptes n'active donc volontairement aucune fausse gestion
-de clés.</p></div>"""),
+<div class="note"><p><b>Clés par utilisateur :</b> créez la clé dans votre compte.
+Elle n'est affichée qu'une fois ; Monl n'en conserve que l'empreinte et permet
+sa révocation. Le client MCP la transmet avec
+<code>Authorization: Bearer monl_…</code>.</p></div>"""),
 
         ("limites", "Limites", "", f"""
 <h2>Ce que cette plateforme ne fait pas</h2>

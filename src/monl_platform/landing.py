@@ -119,7 +119,7 @@ et le contrat destiné à votre interface.</p>
 <a class="primary" href="/console">{icon('terminal')} Créer un backend</a>
 <a class="secondary" href="/docs">{icon('book')} Voir comment écrire la spec</a></div>
 <div class="trust" data-reveal style="--reveal-delay:220ms">
-<span>{icon('check')} Sans compte</span><span>{icon('check')} Exemples inclus</span>
+<span>{icon('check')} Compte gratuit</span><span>{icon('check')} Exemples inclus</span>
 <span>{icon('check')} Backend autonome</span></div></div>
 <aside class="start-card" data-reveal style="--reveal-delay:120ms" aria-label="Comment commencer">
 <div class="start-head"><b>Ce que vous allez faire</b><span>≈ 3 minutes</span></div>
@@ -188,7 +188,7 @@ et le contrat destiné à votre interface.</p>
 
 <section class="shell final" data-reveal>
 <h2>Compilez une règle métier réelle.</h2>
-<p>La console fonctionne sans compte et ne conserve pas vos spécifications sur le serveur.</p>
+<p>Vos projets restent disponibles dans votre compte et chaque archive demeure autonome.</p>
 <a class="secondary" href="/console">Ouvrir la console {icon('arrow')}</a>
 </section>
 """

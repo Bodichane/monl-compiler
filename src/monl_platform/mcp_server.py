@@ -4,6 +4,7 @@ import json
 import sys
 from typing import Any
 
+from .identity import IdentityStore
 from .service import CompilationService, PlatformInputError, PlatformNotFoundError
 
 PROTOCOL_VERSION = "2025-06-18"
@@ -56,10 +57,11 @@ def _text_result(value: Any, *, is_error: bool = False) -> dict[str, Any]:
 
 
 class MCPDispatcher:
-    def __init__(self, service: CompilationService):
+    def __init__(self, service: CompilationService, identities: IdentityStore | None = None):
         self.service = service
+        self.identities = identities
 
-    def dispatch(self, message: dict[str, Any]) -> dict[str, Any] | None:
+    def dispatch(self, message: dict[str, Any], user_id: str | None = None) -> dict[str, Any] | None:
         method = message.get("method")
         request_id = message.get("id")
         if request_id is None:
@@ -80,7 +82,7 @@ class MCPDispatcher:
             elif method == "tools/list":
                 result = {"tools": TOOLS}
             elif method == "tools/call":
-                result = self._call_tool(message.get("params") or {})
+                result = self._call_tool(message.get("params") or {}, user_id)
             else:
                 return self._error(request_id, -32601, f"Méthode inconnue : {method}")
             return {"jsonrpc": "2.0", "id": request_id, "result": result}
@@ -90,7 +92,7 @@ class MCPDispatcher:
         except Exception as exc:
             return self._error(request_id, -32603, f"Erreur interne Monl : {exc}")
 
-    def _call_tool(self, params: dict[str, Any]) -> dict[str, Any]:
+    def _call_tool(self, params: dict[str, Any], user_id: str | None = None) -> dict[str, Any]:
         name = params.get("name")
         arguments = params.get("arguments") or {}
         if name == "monl_list_templates":
@@ -99,6 +101,9 @@ class MCPDispatcher:
             return _text_result(self.service.validate(arguments["spec"]).as_dict())
         if name == "monl_compile_backend":
             manifest = self.service.compile(arguments["spec"])
+            if self.identities and user_id:
+                self.identities.add_project(
+                    user_id, manifest["id"], manifest["summary"]["app"])
             return _text_result({
                 "project_id": manifest["id"],
                 "summary": manifest["summary"],
@@ -107,6 +112,9 @@ class MCPDispatcher:
             })
         if name == "monl_inspect_contract":
             project_id = arguments["project_id"]
+            if self.identities and (not user_id or not self.identities.owns_project(
+                    user_id, project_id)):
+                raise PlatformNotFoundError("Projet introuvable.")
             return _text_result({
                 "project": self.service.inspect(project_id),
                 "contract": self.service.contract(project_id),

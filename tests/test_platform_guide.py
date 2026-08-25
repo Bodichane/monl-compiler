@@ -50,7 +50,7 @@ def test_le_guide_documente_les_routes_reellement_montees(tmp_path):
         (methode, route.path)
         for route in app.routes
         for methode in getattr(route, "methods", set())
-        if methode in {"GET", "POST"}
+        if methode in {"GET", "POST", "DELETE"}
     }
     for verbe, chemin, _ in guide.ROUTES_API:
         assert (verbe, chemin) in montees, f"le guide annonce {verbe} {chemin}, absent de l'app"
@@ -59,7 +59,7 @@ def test_le_guide_documente_les_routes_reellement_montees(tmp_path):
         (methode, route.path)
         for route in app.routes
         for methode in getattr(route, "methods", set())
-        if methode in {"GET", "POST"}
+        if methode in {"GET", "POST", "DELETE"}
         and (route.path.startswith("/api/") or route.path in {"/mcp", "/health"})
     }
     documentees = {(verbe, chemin) for verbe, chemin, _ in guide.ROUTES_API}
@@ -78,7 +78,8 @@ def test_le_guide_ne_promet_pas_de_fausses_cles_mcp():
     html = guide.guide_html()
     assert "Clés par utilisateur" in html
     assert "Authorization: Bearer" in html
-    assert "hache et révoque" in html
+    assert "l'empreinte" in html
+    assert "révocation" in html
 
 
 def test_chaque_exemple_compile_vraiment(tmp_path):

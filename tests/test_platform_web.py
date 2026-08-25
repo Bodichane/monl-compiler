@@ -37,8 +37,18 @@ def _plateforme(tmp_path):
                           module="monl_platform.app:app", ready_path="/health")
 
 
+def _compte(base, email="test@example.com"):
+    session = requests.Session()
+    response = session.post(base + "/api/auth/register", json={
+        "email": email, "password": "mot-de-passe-test-123",
+    }, timeout=30)
+    assert response.status_code == 201, response.text
+    return session
+
+
 def test_page_explique_compile_et_mcp(tmp_path):
     with _plateforme(tmp_path) as base:
+        session = _compte(base)
         page = requests.get(base + "/", timeout=30)
         assert page.status_code == 200
         assert "Décrivez vos règles" in page.text
@@ -53,12 +63,17 @@ def test_page_explique_compile_et_mcp(tmp_path):
         assert "Service opérationnel" in page.text
         assert 'id="spec-input"' not in page.text
 
-        console = requests.get(base + "/console", timeout=30)
+        assert requests.get(base + "/console", allow_redirects=False, timeout=30).status_code == 303
+        console = session.get(base + "/console", timeout=30)
         assert console.status_code == 200
         assert "Console de compilation" in console.text
         assert 'id="spec-input"' in console.text
         assert "Votre interface est libre" not in console.text
         assert 'href="/docs"' in console.text
+        account = session.get(base + "/account", timeout=30)
+        assert account.status_code == 200
+        assert "Vos projets et accès" in account.text
+        assert "Clés MCP" in account.text
 
         docs = requests.get(base + "/docs", timeout=30)
         assert docs.status_code == 200
@@ -82,28 +97,76 @@ def test_page_explique_compile_et_mcp(tmp_path):
         assert validation.status_code == 200
         assert validation.json()["valid"] is True
 
-        compiled = requests.post(base + "/api/compile", json={"spec": SPEC}, timeout=120)
+        compiled = session.post(base + "/api/compile", json={"spec": SPEC}, timeout=120)
         assert compiled.status_code == 201, compiled.text
         project_id = compiled.json()["id"]
-        assert requests.get(f"{base}/api/projects/{project_id}", timeout=30).status_code == 200
-        contract = requests.get(f"{base}/api/projects/{project_id}/contract", timeout=30)
+        assert session.get(f"{base}/api/projects/{project_id}", timeout=30).status_code == 200
+        contract = session.get(f"{base}/api/projects/{project_id}/contract", timeout=30)
         assert contract.json()["app"] == "NotesEquipe"
-        download = requests.get(f"{base}/api/projects/{project_id}/download", timeout=60)
+        download = session.get(f"{base}/api/projects/{project_id}/download", timeout=60)
         assert download.status_code == 200
         assert download.headers["content-type"] == "application/zip"
 
-        mcp = requests.post(base + "/mcp", json={"jsonrpc": "2.0", "id": 8,
-                                                 "method": "tools/list"}, timeout=30)
+        key = session.post(base + "/api/keys", json={"name": "Test MCP"}, timeout=30)
+        assert key.status_code == 201
+        mcp = requests.post(base + "/mcp", headers={
+            "Authorization": "Bearer " + key.json()["key"]},
+            json={"jsonrpc": "2.0", "id": 8, "method": "tools/list"}, timeout=30)
         assert mcp.status_code == 200
         assert len(mcp.json()["result"]["tools"]) == 4
 
 
 def test_erreurs_web_restent_actionnables(tmp_path):
     with _plateforme(tmp_path) as base:
+        session = _compte(base)
         empty = requests.post(base + "/api/validate", json={"spec": ""}, timeout=30)
         assert empty.status_code == 422
         assert "vide" in empty.json()["detail"]
-        assert requests.get(base + "/api/projects/invalide", timeout=30).status_code == 404
+        assert session.get(base + "/api/projects/invalide", timeout=30).status_code == 404
+
+
+def test_comptes_isolent_projets_et_cles_mcp(tmp_path):
+    with _plateforme(tmp_path) as base:
+        alice = _compte(base, "alice@example.com")
+        bob = _compte(base, "bob@example.com")
+
+        anonymous = requests.post(base + "/api/compile", json={"spec": SPEC}, timeout=30)
+        assert anonymous.status_code == 401
+        compiled = alice.post(base + "/api/compile", json={"spec": SPEC}, timeout=120)
+        assert compiled.status_code == 201, compiled.text
+        project_id = compiled.json()["id"]
+        assert alice.get(f"{base}/api/projects/{project_id}", timeout=30).status_code == 200
+        assert bob.get(f"{base}/api/projects/{project_id}", timeout=30).status_code == 404
+        assert bob.delete(f"{base}/api/projects/{project_id}", timeout=30).status_code == 404
+        assert alice.get(base + "/api/projects", timeout=30).json()["projects"][0][
+            "project_id"] == project_id
+        assert bob.get(base + "/api/projects", timeout=30).json()["projects"] == []
+
+        created = alice.post(base + "/api/keys", json={"name": "Claude Code"}, timeout=30)
+        raw_key, key_id = created.json()["key"], created.json()["id"]
+        listed = alice.get(base + "/api/keys", timeout=30).json()["keys"]
+        assert "key" not in listed[0]
+        call = {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
+        assert requests.post(base + "/mcp", json=call, timeout=30).status_code == 401
+        assert requests.post(base + "/mcp", json=call,
+                             headers={"Authorization": f"Bearer {raw_key}"},
+                             timeout=30).status_code == 200
+        inspect_call = {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {
+            "name": "monl_inspect_contract", "arguments": {"project_id": project_id}}}
+        own_inspect = requests.post(base + "/mcp", json=inspect_call,
+                                    headers={"Authorization": f"Bearer {raw_key}"}, timeout=30)
+        assert "NotesEquipe" in own_inspect.text
+        bob_key = bob.post(base + "/api/keys", json={"name": "Bob"}, timeout=30).json()["key"]
+        foreign = requests.post(base + "/mcp", json=inspect_call,
+                                headers={"Authorization": f"Bearer {bob_key}"}, timeout=30)
+        assert foreign.json()["result"]["isError"] is True
+        assert "introuvable" in foreign.text
+        assert alice.delete(f"{base}/api/keys/{key_id}", timeout=30).status_code == 204
+        assert requests.post(base + "/mcp", json=call,
+                             headers={"Authorization": f"Bearer {raw_key}"},
+                             timeout=30).status_code == 401
+        assert alice.delete(f"{base}/api/projects/{project_id}", timeout=30).status_code == 204
+        assert alice.get(f"{base}/api/projects/{project_id}", timeout=30).status_code == 404
 
 
 def test_le_module_de_la_plateforme_est_livre_par_le_depot(tmp_path):
@@ -119,7 +182,7 @@ def test_le_module_de_la_plateforme_est_livre_par_le_depot(tmp_path):
     from monl_platform.app import create_app
 
     chemins = {getattr(route, "path", None) for route in create_app(workspace=tmp_path).routes}
-    assert {"/", "/console", "/docs", "/api-docs", "/security", "/health", "/api/templates", "/api/validate", "/api/compile",
+    assert {"/", "/console", "/login", "/account", "/docs", "/api-docs", "/security", "/health", "/api/templates", "/api/validate", "/api/compile",
             "/mcp"} <= chemins
 
 
@@ -143,6 +206,7 @@ def test_les_exemples_sont_servis_et_compilent_par_lapi(tmp_path):
     """Le catalogue n'est pas décoratif : ce qu'il sert doit traverser tout le
     parcours, de la galerie à l'archive."""
     with _plateforme(tmp_path) as base:
+        session = _compte(base, "examples@example.com")
         catalogue = requests.get(base + "/api/examples", timeout=30).json()["examples"]
         assert len(catalogue) >= 4
         assert all("spec" not in entree for entree in catalogue)
@@ -151,9 +215,9 @@ def test_les_exemples_sont_servis_et_compilent_par_lapi(tmp_path):
         spec = requests.get(f"{base}/api/examples/{premier}", timeout=30).json()["spec"]
         assert "app " in spec
 
-        compile = requests.post(base + "/api/compile", json={"spec": spec}, timeout=180)
+        compile = session.post(base + "/api/compile", json={"spec": spec}, timeout=180)
         assert compile.status_code == 201, compile.text
-        archive = requests.get(
+        archive = session.get(
             f"{base}/api/projects/{compile.json()['id']}/download", timeout=60)
         assert archive.status_code == 200
         assert archive.headers["content-type"] == "application/zip"
@@ -163,6 +227,7 @@ def test_les_exemples_sont_servis_et_compilent_par_lapi(tmp_path):
 
 def test_version_favicon_et_page_introuvable(tmp_path):
     with _plateforme(tmp_path) as base:
+        session = _compte(base, "errors@example.com")
         version = requests.get(base + "/api/version", timeout=30).json()
         assert version["compiler"] and version["contract"]
 
@@ -177,6 +242,6 @@ def test_version_favicon_et_page_introuvable(tmp_path):
         assert navigateur.status_code == 404
         assert "Cette page n'existe pas" in navigateur.text
 
-        client = requests.get(base + "/api/projects/inexistant", timeout=30)
+        client = session.get(base + "/api/projects/inexistant", timeout=30)
         assert client.status_code == 404
         assert client.json()["detail"]

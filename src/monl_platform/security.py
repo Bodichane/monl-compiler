@@ -49,9 +49,9 @@ ce que le compilateur garantit de ce qui reste sous la responsabilité du déplo
 
 <section class="shell section"><div class="section-head"><span class="eyebrow">Frontière honnête</span><h2>Garanti par Monl ou à configurer par vous.</h2></div>
 <div class="boundary"><div class="guaranteed"><h2>Le compilateur garantit</h2><ul><li>Cohérence entre spec, API, SQL et contrat</li><li>Application des permissions déclarées</li>
-<li>Secret JWT absent de l’archive</li><li>Sortie reproductible pour une même version</li></ul></div>
+<li>Secret JWT absent de l’archive</li><li>Clés MCP hachées, attribuées et révocables</li><li>Sortie reproductible pour une même version</li></ul></div>
 <div class="responsibility"><h2>Le déploiement doit garantir</h2><ul><li>HTTPS, sauvegardes et mises à jour</li><li>Protection des variables d’environnement</li>
-<li>Clés API MCP, quotas et révocation</li><li>Isolation des workers en multi-utilisateur</li></ul></div></div>
+<li>Quotas et limitation de débit</li><li>Isolation des workers de compilation</li></ul></div></div>
 <div style="margin-top:var(--space-5)"><a class="primary" href="/docs#acces">Lire les règles de sécurité {icon('arrow')}</a></div></section>
 """
 

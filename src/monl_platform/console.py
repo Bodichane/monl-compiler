@@ -12,11 +12,9 @@ JavaScript de la page. Quatre spécifications réelles vivent désormais dans
 `examples.py`, chargées par l'API — donc les mêmes pour la console, pour un
 agent MCP et pour `curl`, et compilées par les tests.
 
-**L'historique.** Un identifiant de projet est un UUID opaque : après un
-rechargement, une compilation réussie devenait introuvable et son archive
-perdue. Il est conservé dans `localStorage`, jamais côté serveur — la
-plateforme n'a pas de comptes, et prétendre en avoir en profilant les
-visiteurs serait pire que de n'en pas avoir.
+**L'historique.** Les compilations sont rattachées au compte côté serveur :
+un rechargement ou un autre navigateur retrouve les projets autorisés, sans
+jamais exposer ceux d'un autre compte.
 
 **Le clavier et le presse-papier.** `Ctrl+Entrée` valide, et tout bloc de
 code se copie. Une console qu'on ne peut piloter qu'à la souris fait
@@ -263,8 +261,7 @@ compile — ce sont des spécifications entières, pas des extraits.</p>
 réunis dans une archive. Le secret JWT n'y est pas : il naît au premier démarrage.</p>
 <div id="delivery-content" class="empty">Compilez un backend pour obtenir son archive.</div>
 <h3 style="margin-top:var(--space-6)">Vos compilations</h3>
-<p class="hint">Conservées par votre navigateur seulement — la plateforme ne
-tient aucun compte.</p>
+<p class="hint">Conservées dans votre compte et accessibles uniquement par vous.</p>
 <ul class="history" id="history"></ul>
 </section>
 
@@ -276,7 +273,6 @@ SCRIPT = """
 <script>
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
-const CLE_HISTORIQUE = 'monl-compilations';
 let validee = false, projet = null, exemples = [];
 
 function echapper(v) {
@@ -339,26 +335,20 @@ async function charger(id) {
   $('#validation-feedback').className = 'feedback';
 }
 
-/* ----- historique, côté navigateur uniquement ----- */
-function historique() {
-  try { return JSON.parse(localStorage.getItem(CLE_HISTORIQUE) || '[]'); } catch (e) { return []; }
-}
-function retenir(manifeste) {
-  const liste = historique().filter(x => x.id !== manifeste.id);
-  liste.unshift({ id: manifeste.id, app: manifeste.summary.app, date: manifeste.created_at });
-  try { localStorage.setItem(CLE_HISTORIQUE, JSON.stringify(liste.slice(0, 8))); } catch (e) { /* refusé */ }
-  rendreHistorique();
-}
-function rendreHistorique() {
-  const liste = historique(), el = $('#history');
+/* ----- historique persistant du compte ----- */
+function retenir() { rendreHistorique(); }
+async function rendreHistorique() {
+  const el = $('#history');
+  let liste = [];
+  try { liste = (await (await fetch('/api/projects')).json()).projects || []; } catch (e) { /* réseau */ }
   if (!liste.length) {
     el.innerHTML = '<li class="muted">Aucune compilation pour le moment.</li>';
     return;
   }
   el.innerHTML = liste.map(x =>
-    '<li><span><b>' + echapper(x.app) + '</b> <span class="when">' +
-    echapper((x.date || '').slice(0, 16).replace('T', ' ')) + '</span></span>' +
-    '<a class="secondary" href="/api/projects/' + encodeURIComponent(x.id) +
+    '<li><span><b>' + echapper(x.name) + '</b> <span class="when">' +
+    echapper(new Date(x.created_at * 1000).toLocaleString('fr-FR')) + '</span></span>' +
+    '<a class="secondary" href="/api/projects/' + encodeURIComponent(x.project_id) +
     '/download">Télécharger</a></li>').join('');
 }
 
