@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import os
+import threading
 from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 
 from monl import __version__ as MONL_VERSION
@@ -17,7 +19,12 @@ from .identity import IdentityError, IdentityStore
 from .landing import LANDING_HTML
 from .mcp_server import MCPDispatcher
 from .security import SECURITY_HTML
-from .service import CompilationService, PlatformInputError, PlatformNotFoundError
+from .service import (
+    CompilationService,
+    PlatformExecutionError,
+    PlatformInputError,
+    PlatformNotFoundError,
+)
 from .theme import FAVICON, page
 
 # Une page servie deux fois identique n'a pas besoin d'être reconstruite à
@@ -34,6 +41,9 @@ def create_app(*, workspace=None) -> FastAPI:
         except PlatformNotFoundError:
             pass
     dispatcher = MCPDispatcher(service, identities)
+    compile_slots = threading.BoundedSemaphore(
+        max(1, int(os.environ.get("MONL_MAX_CONCURRENT_COMPILES", "2")))
+    )
     application = FastAPI(
         title="Monl Compiler Platform",
         description="Validation et compilation distante de backends Monl.",
@@ -91,6 +101,12 @@ def create_app(*, workspace=None) -> FastAPI:
     def health():
         return {"status": "ok", "service": "monl-compiler"}
 
+    @application.get("/ready")
+    def ready():
+        if not identities.ready() or not os.access(service.workspace, os.W_OK):
+            raise HTTPException(status_code=503, detail="Le stockage n'est pas disponible.")
+        return {"status": "ready", "storage": "available"}
+
     @application.get("/api/version")
     def version():
         return {
@@ -116,6 +132,7 @@ def create_app(*, workspace=None) -> FastAPI:
 
     @application.post("/api/auth/register", status_code=201)
     async def register(request: Request):
+        _rate_limit(request, identities, "register", _client_ip(request), 5, 60)
         payload = await _json_body(request)
         try:
             user = identities.register(payload.get("email"), payload.get("password"))
@@ -125,6 +142,7 @@ def create_app(*, workspace=None) -> FastAPI:
 
     @application.post("/api/auth/login")
     async def login(request: Request):
+        _rate_limit(request, identities, "login", _client_ip(request), 5, 60)
         payload = await _json_body(request)
         user = identities.authenticate(payload.get("email"), payload.get("password"))
         if not user:
@@ -183,17 +201,30 @@ def create_app(*, workspace=None) -> FastAPI:
             return service.validate(payload.get("spec")).as_dict()
         except PlatformInputError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except PlatformExecutionError as exc:
+            raise HTTPException(
+                status_code=503, detail=str(exc), headers={"Retry-After": "10"}
+            ) from exc
 
     @application.post("/api/compile", status_code=201)
     async def compile_backend(request: Request):
         user = _require_user(request, identities)
+        _rate_limit(request, identities, "compile", user["id"], 10, 3600)
         payload = await _json_body(request)
+        if not compile_slots.acquire(blocking=False):
+            raise HTTPException(
+                status_code=503,
+                detail="Les compilateurs sont occupés. Réessayez dans quelques instants.",
+                headers={"Retry-After": "5"},
+            )
         try:
-            manifest = service.compile(payload.get("spec"))
+            manifest = await run_in_threadpool(service.compile, payload.get("spec"))
             identities.add_project(user["id"], manifest["id"], manifest["summary"]["app"])
             return manifest
         except PlatformInputError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+        finally:
+            compile_slots.release()
 
     @application.get("/api/projects/{project_id}")
     def inspect(project_id: str, request: Request):
@@ -234,8 +265,20 @@ def create_app(*, workspace=None) -> FastAPI:
         user = identities.api_key_user(raw_key)
         if not user:
             raise HTTPException(status_code=401, detail="Clé MCP absente, invalide ou révoquée.")
+        _rate_limit(request, identities, "mcp", user["id"], 120, 60)
         message = await _json_body(request)
-        response = dispatcher.dispatch(message, user["id"])
+        needs_compiler = _is_compile_message(message)
+        if needs_compiler and not compile_slots.acquire(blocking=False):
+            raise HTTPException(
+                status_code=503,
+                detail="Les compilateurs sont occupés. Réessayez dans quelques instants.",
+                headers={"Retry-After": "5"},
+            )
+        try:
+            response = await run_in_threadpool(dispatcher.dispatch, message, user["id"])
+        finally:
+            if needs_compiler:
+                compile_slots.release()
         return JSONResponse(response or {}, status_code=200)
 
     @application.exception_handler(404)
@@ -274,6 +317,34 @@ def _require_project(identities: IdentityStore, user_id: str, project_id: str) -
         # Même réponse pour un projet absent et celui d'un autre compte :
         # l'identifiant opaque ne devient pas un oracle d'existence.
         raise HTTPException(status_code=404, detail="Projet introuvable.")
+
+
+def _client_ip(request: Request) -> str:
+    if os.environ.get("MONL_TRUST_PROXY", "").lower() in {"1", "true", "yes"}:
+        forwarded = request.headers.get("x-forwarded-for", "").split(",", 1)[0].strip()
+        if forwarded:
+            return forwarded
+    return request.client.host if request.client else "unknown"
+
+
+def _rate_limit(request: Request, identities: IdentityStore, scope: str,
+                subject: str, limit: int, window: int) -> None:
+    retry = identities.consume_limit(scope, subject, limit=limit, window=window)
+    if retry is not None:
+        raise HTTPException(
+            status_code=429,
+            detail="Trop de requêtes. Réessayez plus tard.",
+            headers={"Retry-After": str(retry)},
+        )
+
+
+def _is_compile_message(message: dict) -> bool:
+    params = message.get("params")
+    return (
+        message.get("method") == "tools/call"
+        and isinstance(params, dict)
+        and params.get("name") == "monl_compile_backend"
+    )
 
 
 def _veut_du_json(request: Request) -> bool:

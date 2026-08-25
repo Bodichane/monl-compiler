@@ -5,7 +5,12 @@ import sys
 from typing import Any
 
 from .identity import IdentityStore
-from .service import CompilationService, PlatformInputError, PlatformNotFoundError
+from .service import (
+    CompilationService,
+    PlatformExecutionError,
+    PlatformInputError,
+    PlatformNotFoundError,
+)
 
 PROTOCOL_VERSION = "2025-06-18"
 
@@ -86,7 +91,8 @@ class MCPDispatcher:
             else:
                 return self._error(request_id, -32601, f"Méthode inconnue : {method}")
             return {"jsonrpc": "2.0", "id": request_id, "result": result}
-        except (PlatformInputError, PlatformNotFoundError, KeyError) as exc:
+        except (PlatformExecutionError, PlatformInputError, PlatformNotFoundError,
+                KeyError) as exc:
             return {"jsonrpc": "2.0", "id": request_id,
                     "result": _text_result(str(exc), is_error=True)}
         except Exception as exc:

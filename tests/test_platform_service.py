@@ -1,4 +1,5 @@
 import json
+import subprocess
 import zipfile
 
 import pytest
@@ -6,6 +7,7 @@ import pytest
 from monl_platform.mcp_server import MCPDispatcher
 from monl_platform.service import (
     CompilationService,
+    PlatformExecutionError,
     PlatformInputError,
     PlatformNotFoundError,
 )
@@ -52,6 +54,18 @@ def test_entrees_bornees_et_identifiants_opaques(tmp_path):
         service.validate("x" * 256_001)
     with pytest.raises(PlatformNotFoundError):
         service.inspect("../../etc/passwd")
+
+
+def test_worker_interrompu_ne_publie_aucun_projet(tmp_path, monkeypatch):
+    service = CompilationService(tmp_path)
+
+    def timeout(*args, **kwargs):
+        raise subprocess.TimeoutExpired(args[0], 5)
+
+    monkeypatch.setattr(subprocess, "run", timeout)
+    with pytest.raises(PlatformExecutionError, match="délai maximal"):
+        service.compile(SPEC)
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_mcp_expose_validation_compilation_et_inspection(tmp_path):

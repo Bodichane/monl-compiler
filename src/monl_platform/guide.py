@@ -158,6 +158,7 @@ CONTENU: list[tuple[str, str]] = [
 
 ROUTES_API: list[tuple[str, str, str]] = [
     ("GET", "/health", "État du service."),
+    ("GET", "/ready", "Disponibilité du stockage persistant."),
     ("GET", "/api/version", "Version du compilateur et du contrat frontend."),
     ("GET", "/api/templates", "Les dix modèles métier du dialogue guidé."),
     ("GET", "/api/examples", "Le catalogue des spécifications d'exemple."),
@@ -196,13 +197,12 @@ LIMITES: list[tuple[str, str]] = [
     ("Pas de dialogue guidé",
      "Le dialogue qui produit une spec par questions est une commande locale "
      "(<code>monl</code>). La plateforme part d'une spécification déjà écrite."),
-    ("Artefacts non durables",
-     "Un projet compilé vit dans l'espace de travail du serveur. Téléchargez "
-     "l'archive : rien ne garantit qu'elle sera là demain."),
-    ("Isolation des workers à ajouter",
-     "Les comptes, la propriété et l'expiration des projets sont actifs. Avant "
-     "une exposition publique, le déploiement doit encore ajouter limitation "
-     "de débit et isolation des workers."),
+    ("Rétention bornée",
+     "Les projets vivent dans le stockage persistant puis expirent après "
+     "30 jours par défaut. Téléchargez l'archive avant cette échéance."),
+    ("Compilations isolées et bornées",
+     "Chaque compilation tourne dans un sous-processus limité en durée, CPU, "
+     "mémoire et fichiers. Les quotas sont persistés et partagés entre workers."),
     ("Le secret ne voyage pas",
      "L'archive ne contient jamais <code>.jwt_secret</code> : le backend en "
      "génère un au premier démarrage, sur la machine qui l'héberge."),

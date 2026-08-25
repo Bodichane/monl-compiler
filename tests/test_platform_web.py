@@ -125,6 +125,20 @@ def test_erreurs_web_restent_actionnables(tmp_path):
         assert session.get(base + "/api/projects/invalide", timeout=30).status_code == 404
 
 
+def test_connexion_est_limitee_et_annonce_le_delai(tmp_path):
+    with _plateforme(tmp_path) as base:
+        for _ in range(5):
+            response = requests.post(base + "/api/auth/login", json={
+                "email": "absent@example.com", "password": "mauvais-secret",
+            }, timeout=30)
+            assert response.status_code == 401
+        blocked = requests.post(base + "/api/auth/login", json={
+            "email": "absent@example.com", "password": "mauvais-secret",
+        }, timeout=30)
+        assert blocked.status_code == 429
+        assert int(blocked.headers["Retry-After"]) > 0
+
+
 def test_comptes_isolent_projets_et_cles_mcp(tmp_path):
     with _plateforme(tmp_path) as base:
         alice = _compte(base, "alice@example.com")

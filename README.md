@@ -111,6 +111,11 @@ web et MCP délèguent tous à `compile_project`.
 
 Voir [Plateforme web et serveur MCP](docs/PLATFORME_ET_MCP.md).
 
+En production, `compose.platform.yaml` lance l'application comme utilisateur
+non-root avec stockage persistant, readiness, quotas partagés et compilations
+isolées. Le port reste lié à localhost pour être publié derrière un reverse
+proxy HTTPS.
+
 | Commande | Ce qu'elle fait |
 |---|---|
 | `monl` | Dialogue guidé → `spec.ml` + backend + contrat frontend |

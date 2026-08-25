@@ -39,6 +39,13 @@ class IdentityStore:
         connection.execute("PRAGMA journal_mode = WAL")
         return connection
 
+    def ready(self) -> bool:
+        try:
+            with self._connect() as db:
+                return db.execute("SELECT 1").fetchone()[0] == 1
+        except sqlite3.Error:
+            return False
+
     def _migrate(self) -> None:
         with self._connect() as db:
             db.executescript("""
@@ -76,6 +83,13 @@ class IdentityStore:
             );
             CREATE INDEX IF NOT EXISTS api_keys_user_created
                 ON api_keys(user_id, created_at DESC);
+            CREATE TABLE IF NOT EXISTS rate_limits (
+                scope TEXT NOT NULL,
+                subject TEXT NOT NULL,
+                window_start INTEGER NOT NULL,
+                hits INTEGER NOT NULL,
+                PRIMARY KEY (scope, subject)
+            );
             """)
             columns = {row[1] for row in db.execute("PRAGMA table_info(projects)")}
             if "expires_at" not in columns:
@@ -240,3 +254,36 @@ class IdentityStore:
                 db.execute("UPDATE api_keys SET last_used_at = ? WHERE id = ?",
                            (now, row["key_id"]))
         return {"id": row["id"], "email": row["email"]} if row else None
+
+    def consume_limit(self, scope: str, subject: str, *, limit: int,
+                      window: int, now: int | None = None) -> int | None:
+        """Consume one quota unit, returning retry seconds when exhausted.
+
+        The counter lives in SQLite so multiple application workers share the
+        same limit. ``BEGIN IMMEDIATE`` serialises the small read/update pair
+        and prevents two simultaneous requests from both accepting the final
+        unit.
+        """
+        timestamp = int(time.time()) if now is None else now
+        safe_subject = self._token_hash(subject) if subject else "anonymous"
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                "SELECT window_start, hits FROM rate_limits "
+                "WHERE scope = ? AND subject = ?", (scope, safe_subject),
+            ).fetchone()
+            if not row or timestamp >= row["window_start"] + window:
+                db.execute(
+                    "INSERT INTO rate_limits VALUES (?, ?, ?, 1) "
+                    "ON CONFLICT(scope, subject) DO UPDATE SET "
+                    "window_start = excluded.window_start, hits = 1",
+                    (scope, safe_subject, timestamp),
+                )
+                return None
+            if row["hits"] >= limit:
+                return max(1, row["window_start"] + window - timestamp)
+            db.execute(
+                "UPDATE rate_limits SET hits = hits + 1 "
+                "WHERE scope = ? AND subject = ?", (scope, safe_subject),
+            )
+        return None

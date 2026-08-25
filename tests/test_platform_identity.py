@@ -67,3 +67,21 @@ def test_cle_api_affichee_une_fois_hachee_et_revocable(tmp_path):
     assert store.api_keys(user["id"])[0]["last_used_at"] is not None
     assert store.revoke_api_key(user["id"], created["id"])
     assert store.api_key_user(created["key"]) is None
+
+
+def test_limite_de_debit_persistante_et_atomique(tmp_path):
+    store = IdentityStore(tmp_path)
+    assert store.consume_limit("login", "127.0.0.1", limit=2, window=60, now=100) is None
+    assert store.consume_limit("login", "127.0.0.1", limit=2, window=60, now=101) is None
+    assert store.consume_limit("login", "127.0.0.1", limit=2, window=60, now=102) == 58
+
+    reopened = IdentityStore(tmp_path)
+    assert reopened.consume_limit(
+        "login", "127.0.0.1", limit=2, window=60, now=120
+    ) == 40
+    assert reopened.consume_limit(
+        "login", "127.0.0.1", limit=2, window=60, now=160
+    ) is None
+    # Une autre portée et un autre sujet disposent de compteurs indépendants.
+    assert reopened.consume_limit("register", "127.0.0.1", limit=1, window=60, now=102) is None
+    assert reopened.consume_limit("login", "127.0.0.2", limit=1, window=60, now=102) is None
