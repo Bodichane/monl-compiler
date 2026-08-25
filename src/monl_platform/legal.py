@@ -23,11 +23,15 @@ MARQUEUR = "À COMPLÉTER"
 
 EDITEUR = "[ÉDITEUR À COMPLÉTER]"
 CONTACT = "[ADRESSE DE CONTACT À COMPLÉTER]"
+# Le service est destiné à un hébergement européen, donc au RGPD : l'identité
+# de l'hébergeur fait partie de ce que la page doit dire. Même discipline que
+# les deux autres — un marqueur visible plutôt qu'un nom plausible.
+HEBERGEUR = "[HÉBERGEUR À COMPLÉTER : dénomination, adresse, téléphone]"
 
 
 def est_complete() -> bool:
-    """Vrai quand l'éditeur ET le contact portent une vraie identité."""
-    return MARQUEUR not in EDITEUR and MARQUEUR not in CONTACT
+    """Vrai quand les trois emplacements portent une vraie identité."""
+    return all(MARQUEUR not in valeur for valeur in (EDITEUR, CONTACT, HEBERGEUR))
 
 
 def _identite(role_editeur: str, role_contact: str) -> str:
@@ -44,11 +48,13 @@ def _identite(role_editeur: str, role_contact: str) -> str:
     """
     if est_complete():
         return (f'<p class="identite"><b>{EDITEUR}</b> — {role_editeur}.<br>'
-                f'<b>{CONTACT}</b> — {role_contact}.</p>')
+                f'<b>{CONTACT}</b> — {role_contact}.<br>'
+                f'<b>{HEBERGEUR}</b> — hébergeur.</p>')
     return (f'<span class="trou"><b>{EDITEUR}</b> — {role_editeur}. '
-            f'<b>{CONTACT}</b> — {role_contact}. Ces deux emplacements doivent '
-            'être remplis avant toute ouverture au public : ils ne se déduisent '
-            'pas du code, et les inventer produirait un faux.</span>')
+            f'<b>{CONTACT}</b> — {role_contact}. <b>{HEBERGEUR}</b>. Ces trois '
+            'emplacements doivent être remplis avant toute ouverture au public : '
+            'ils ne se déduisent pas du code, et les inventer produirait un '
+            'faux.</span>')
 
 CSS = """
 .legal { max-width: 74ch; padding-block: var(--space-7) var(--space-8); }
@@ -141,6 +147,9 @@ base <em>et</em> les dossiers correspondants sur le disque. Rien n'est conservé
 l'opération est irréversible.</p>
 <p>Pour l'accès, la rectification, l'opposition ou la portabilité, écrivez à l'adresse
 de contact ci-dessus.</p>
+<p>Vous pouvez également <strong>introduire une réclamation auprès de l'autorité de
+contrôle</strong> de votre pays de résidence si vous estimez que le traitement de vos
+données n'est pas conforme.</p>
 
 <h2>Conservation des journaux</h2>
 <p>Le service journalise les événements d'exploitation — connexions, compilations,
