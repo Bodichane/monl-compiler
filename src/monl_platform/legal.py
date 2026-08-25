@@ -23,10 +23,20 @@ MARQUEUR = "À COMPLÉTER"
 
 EDITEUR = "[ÉDITEUR À COMPLÉTER]"
 CONTACT = "[ADRESSE DE CONTACT À COMPLÉTER]"
-# Le service est destiné à un hébergement européen, donc au RGPD : l'identité
-# de l'hébergeur fait partie de ce que la page doit dire. Même discipline que
-# les deux autres — un marqueur visible plutôt qu'un nom plausible.
-HEBERGEUR = "[HÉBERGEUR À COMPLÉTER : dénomination, adresse, téléphone]"
+# Contrairement aux deux constantes ci-dessus, celle-ci est un fait PUBLIC :
+# OVH publie sa propre identité légale pour que ses clients la citent. Elle est
+# donc renseignée — relevée sur https://www.ovhcloud.com/fr/terms-and-conditions/
+# le 26/08/2026, pas écrite de mémoire. Le téléphone ne figure sur aucune des
+# pages publiques d'OVH ; la LCEN le demande pour l'hébergeur, il reste donc à
+# ajouter si le service relève du droit français.
+#
+# Précision utile : nommer l'hébergeur n'est PAS une exigence du RGPD, qui
+# porte sur l'identité du responsable de traitement et les droits des
+# personnes. C'est la LCEN française qui l'impose, et elle s'applique selon
+# l'établissement de l'éditeur et le public visé — pas selon le pays du
+# serveur. La mention est gardée parce qu'elle ne coûte rien et couvre ce cas.
+HEBERGEUR = ("OVH SAS, SAS au capital de 50 000 000 € — "
+             "2 rue Kellermann, 59100 Roubaix, France — RCS 424 761 419")
 
 
 def est_complete() -> bool:
@@ -37,24 +47,35 @@ def est_complete() -> bool:
 def _identite(role_editeur: str, role_contact: str) -> str:
     """Le bloc d'identité, dans l'un de ses DEUX états.
 
-    Substituer les deux constantes ne suffisait pas : le texte qui les entoure
-    dit « à remplir avant toute ouverture au public ». Une fois rempli, la page
+    Substituer les constantes ne suffisait pas : le texte qui les entoure dit
+    « à remplir avant toute ouverture au public ». Une fois rempli, la page
     aurait donc affiché une vraie mention légale accompagnée d'un encadré
     déclarant qu'elle est incomplète — un document qui se contredit lui-même,
     et qui décrédibilise ce qu'il affirme par ailleurs.
 
-    L'avertissement disparaît donc AVEC le marqueur, et rien d'autre ne bouge :
-    les deux mêmes valeurs, aux deux mêmes places.
+    L'avertissement **nomme ce qui manque vraiment**, pas un décompte figé :
+    l'hébergeur est renseigné et les deux autres ne le sont pas, donc dire
+    « ces trois emplacements » enverrait corriger ce qui est déjà juste. Même
+    reproche qu'au point 97 du compilateur — une hypothèse affichée comme un
+    diagnostic est pire qu'un message vague.
     """
+    lignes = (f'<b>{EDITEUR}</b> — {role_editeur}.<br>'
+              f'<b>{CONTACT}</b> — {role_contact}.<br>'
+              f'<b>{HEBERGEUR}</b> — hébergeur.')
     if est_complete():
-        return (f'<p class="identite"><b>{EDITEUR}</b> — {role_editeur}.<br>'
-                f'<b>{CONTACT}</b> — {role_contact}.<br>'
-                f'<b>{HEBERGEUR}</b> — hébergeur.</p>')
-    return (f'<span class="trou"><b>{EDITEUR}</b> — {role_editeur}. '
-            f'<b>{CONTACT}</b> — {role_contact}. <b>{HEBERGEUR}</b>. Ces trois '
-            'emplacements doivent être remplis avant toute ouverture au public : '
-            'ils ne se déduisent pas du code, et les inventer produirait un '
-            'faux.</span>')
+        return f'<p class="identite">{lignes}</p>'
+
+    manquants = [nom for nom, valeur in (("l'éditeur", EDITEUR),
+                                         ("l'adresse de contact", CONTACT),
+                                         ("l'hébergeur", HEBERGEUR))
+                 if MARQUEUR in valeur]
+    quoi = manquants[0] if len(manquants) == 1 else (
+        ", ".join(manquants[:-1]) + " et " + manquants[-1])
+    return (f'<span class="trou">{lignes}<br><br>'
+            f'Il reste à renseigner {quoi} avant toute ouverture au public : '
+            'ces valeurs ne se déduisent pas du code, et les inventer '
+            'produirait un faux.</span>')
+
 
 CSS = """
 .legal { max-width: 74ch; padding-block: var(--space-7) var(--space-8); }
