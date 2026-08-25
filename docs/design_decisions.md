@@ -25,8 +25,8 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [106](#106-rôle-superviseur-au-dessus-daccessibleby-brique-23) Rôle superviseur (`accessibleBy`) ·
 [107](#107-la-chaîne-de-propriété-qui-remonte-toute-la-profondeur-brique-24) Propriété transitive en profondeur (brique 24) ·
 [108](#108-lémission-sql-typée-la-frontière-de-sécurité) Émission SQL typée (frontière de sécurité) ·
-[109](#109-le-contrôle-daccès-sort-de-lombre-du-validateur) Le contrôle d'accès, sorti du fourre-tout du validateur ·
-[110](#110-rust-évalué-par-un-spike-mesuré--et-écarté) Rust évalué par un spike mesuré, et écarté ·
+[109](#109-le-contrôle-daccès-sorti-de-lombre-du-validateur) Le contrôle d'accès, sorti du fourre-tout du validateur ·
+[110](#110-rust-évalué-par-un-spike-mesuré-et-écarté) Rust évalué par un spike mesuré, et écarté ·
 [111](#111-public-requiresown-et-payable-sortent-du-fourre-tout) `public`, `requiresOwn` et `payable` sortent du fourre-tout ·
 [112](#112-restrictedto-jamais-validé-structurellement) `restrictedTo` jamais validé structurellement ·
 [113](#113-le-verrou-de-paiement-bloquait-aussi-le-superviseur-et-personne-ne-le-savait) Le verrou de paiement bloquait aussi le superviseur ·
@@ -43,15 +43,15 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [124](#124-authentification-complète--verrouillage-réinitialisation-rafraîchissement-et-totp) Authentification complète : verrouillage, réinitialisation, rafraîchissement et TOTP ·
 [125](#125-le-contrat-nommait-le-jeton-sans-dire-sous-quel-nom-le-lire) Le contrat nommait le jeton sans dire sous quel nom le lire ·
 [126](#126-la-devise-dencaissement-et-son-exposant) La devise d'encaissement et son exposant ·
-[127](#127-la-demonstration-nallait-plus-chercher-ses-images-chez-un-tiers) La démonstration n'allait plus chercher ses images chez un tiers ·
+[127](#127-la-démonstration-nallait-plus-chercher-ses-images-chez-un-tiers) La démonstration n'allait plus chercher ses images chez un tiers ·
 [128](#128-encaisser-par-mobile-money--le-prestataire-devient-enfichable) Encaisser par mobile money : le prestataire devient enfichable ·
-[129](#129-loracle-temporel-se-mesure-par-paires-jamais-par-series) L'oracle temporel se mesure par PAIRES, jamais par séries ·
-[130](#130-une-sonde-qui-prouve-quun-worker-repond-ne-prouve-rien-des-autres) Une sonde qui prouve qu'UN worker répond ne prouve rien des autres ·
-[131](#131-fedapay--la-devise-quil-encaisse-vraiment-et-lappariement-prouve-du-webhook) FedaPay : la devise qu'il encaisse vraiment, et l'appariement prouvé du webhook ·
-[132](#132-le-serveur-mourait-au-demarrage-a-plusieurs-workers) Le serveur mourait au démarrage à plusieurs workers ·
-[133](#133-limage-servait-lapi-et-repondait-404-sur-le-site) L'image servait l'API et répondait 404 sur le site ·
-[134](#134-la-frontiere-de-lagent-etait-une-enumeration-incomplete) La frontière de l'agent était une énumération incomplète ·
-[137](#137-brique-29--le-site-reclamait-six-fichiers-que-personne-navait-livres) Brique 29 : le site réclamait six fichiers que personne n'avait livrés ·
+[129](#129-loracle-temporel-se-mesure-par-paires-jamais-par-séries) L'oracle temporel se mesure par PAIRES, jamais par séries ·
+[130](#130-une-sonde-qui-prouve-quun-worker-répond-ne-prouve-rien-des-autres) Une sonde qui prouve qu'UN worker répond ne prouve rien des autres ·
+[131](#131-fedapay--la-devise-quil-encaisse-vraiment-et-lappariement-prouvé-du-webhook) FedaPay : la devise qu'il encaisse vraiment, et l'appariement prouvé du webhook ·
+[132](#132-le-serveur-mourait-au-démarrage-à-plusieurs-workers) Le serveur mourait au démarrage à plusieurs workers ·
+[133](#133-limage-servait-lapi-et-répondait-404-sur-le-site) L'image servait l'API et répondait 404 sur le site ·
+[134](#134-la-frontière-de-lagent-était-une-énumération-incomplète) La frontière de l'agent était une énumération incomplète ·
+[137](#137-brique-29--le-site-réclamait-six-fichiers-que-personne-navait-livrés) Brique 29 : le site réclamait six fichiers que personne n'avait livrés ·
 [138](#138-le-dialogue-ne-demandait-jamais-comment-on-se-connecte-et-lindicatif-ne-servait-quen-europe) Le dialogue ne demandait jamais comment on se connecte, et l'indicatif ne servait qu'en Europe ·
 [140](#140-le-harnais-de-test-sautait-au-lieu-déchouer-et-vingt-et-un-fichiers-avec-lui) Le harnais de test sautait au lieu d'échouer, et vingt et un fichiers avec lui ·
 [141](#141-ouvrir-la-plateforme-au-public--cinq-manques-et-une-base-qui-ne-se-fermait-jamais) Ouvrir la plateforme au public : cinq manques, et une base qui ne se fermait jamais ·
