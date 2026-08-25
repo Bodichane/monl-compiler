@@ -19,8 +19,36 @@ from __future__ import annotations
 
 from .theme import page
 
+MARQUEUR = "À COMPLÉTER"
+
 EDITEUR = "[ÉDITEUR À COMPLÉTER]"
 CONTACT = "[ADRESSE DE CONTACT À COMPLÉTER]"
+
+
+def est_complete() -> bool:
+    """Vrai quand l'éditeur ET le contact portent une vraie identité."""
+    return MARQUEUR not in EDITEUR and MARQUEUR not in CONTACT
+
+
+def _identite(role_editeur: str, role_contact: str) -> str:
+    """Le bloc d'identité, dans l'un de ses DEUX états.
+
+    Substituer les deux constantes ne suffisait pas : le texte qui les entoure
+    dit « à remplir avant toute ouverture au public ». Une fois rempli, la page
+    aurait donc affiché une vraie mention légale accompagnée d'un encadré
+    déclarant qu'elle est incomplète — un document qui se contredit lui-même,
+    et qui décrédibilise ce qu'il affirme par ailleurs.
+
+    L'avertissement disparaît donc AVEC le marqueur, et rien d'autre ne bouge :
+    les deux mêmes valeurs, aux deux mêmes places.
+    """
+    if est_complete():
+        return (f'<p class="identite"><b>{EDITEUR}</b> — {role_editeur}.<br>'
+                f'<b>{CONTACT}</b> — {role_contact}.</p>')
+    return (f'<span class="trou"><b>{EDITEUR}</b> — {role_editeur}. '
+            f'<b>{CONTACT}</b> — {role_contact}. Ces deux emplacements doivent '
+            'être remplis avant toute ouverture au public : ils ne se déduisent '
+            'pas du code, et les inventer produirait un faux.</span>')
 
 CSS = """
 .legal { max-width: 74ch; padding-block: var(--space-7) var(--space-8); }
@@ -41,6 +69,9 @@ CSS = """
                padding: var(--space-4); margin: var(--space-4) 0; background: var(--surface-2);
                color: var(--ink); font-size: 14px; }
 .legal .trou b { font-family: var(--mono); font-size: 13px; }
+.legal .identite { border-left: 3px solid var(--line-strong); padding-left: var(--space-4);
+                   margin: var(--space-4) 0; color: var(--ink); }
+.legal .identite b { font-weight: 600; }
 @media (max-width: 620px) { .legal td:first-child { white-space: normal; } }
 """
 
@@ -73,10 +104,8 @@ CONFIDENTIALITE = f"""
 confrontée au schéma de la base par la suite de tests : une donnée conservée et non
 décrite ici fait échouer la construction.</p>
 
-<span class="trou"><b>{EDITEUR}</b> — responsable du traitement, forme juridique et
-adresse. <b>{CONTACT}</b> — adresse à laquelle exercer vos droits. Ces deux
-emplacements doivent être remplis avant toute ouverture au public : ils ne se
-déduisent pas du code, et les inventer produirait un faux.</span>
+{_identite("responsable du traitement, forme juridique et adresse",
+             "adresse à laquelle exercer vos droits")}
 
 <h2>Les données conservées</h2>
 <table>
@@ -127,8 +156,7 @@ CONDITIONS = f"""
 <span class="maj">Conditions d'utilisation</span>
 <h1>Ce que le service promet, et ce qu'il ne promet pas.</h1>
 
-<span class="trou"><b>{EDITEUR}</b> — éditeur du service. <b>{CONTACT}</b> — contact.
-À remplir avant toute ouverture au public.</span>
+{_identite("éditeur du service", "contact")}
 
 <h2>Le service</h2>
 <p>La plateforme compile une spécification Monl en une application complète
