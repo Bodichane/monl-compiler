@@ -197,7 +197,7 @@ def test_le_module_de_la_plateforme_est_livre_par_le_depot(tmp_path):
 
     Il faut une assertion à part parce qu'elle nomme la cause. Les deux tests
     ci-dessus font désormais ÉCHOUER un module absent — `uvicorn_server` ne
-    traduit plus la mort d'un serveur par un `pytest.skip` (point 139) — mais
+    traduit plus la mort d'un serveur par un `pytest.skip` (point 140) — mais
     ils le rapportent comme une panne de serveur, avec la trace d'uvicorn.
     Celui-ci dit en une ligne que le dépôt est amputé, ce qui est le vrai
     diagnostic. Le garder coûte un import ; le perdre coûterait une enquête.

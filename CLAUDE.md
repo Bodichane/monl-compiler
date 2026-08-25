@@ -857,7 +857,7 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   `_validate_structures`). Avec le point 108 (émission SQL typée), les deux
   versants de la sécurité — décision et émission — sont désormais des frontières
   nommées.
-- **POINT 139 : `uvicorn_server` (tests/support/server.py) ÉCHOUE, il ne saute
+- **POINT 140 : `uvicorn_server` (tests/support/server.py) ÉCHOUE, il ne saute
   plus.** Il convertissait la mort d'un serveur en `pytest.skip`, donc les
   vingt et un fichiers d'intégration qui passent par lui pouvaient ne rien
   vérifier en rendant du vert — mesuré : `992 passed, 17 skipped`, code de
@@ -876,7 +876,7 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   du mainteneur (`python-multipart` absent — pourtant DÉCLARÉ dans
   `pyproject.toml`), et rendait du vert. Un saut ne dit pas « rien à vérifier
   ici », il dit « je n'ai pas vérifié ».
-- **POINT 140 : la plateforme est exploitable — pages légales, suppression de
+- **POINT 141 : la plateforme est exploitable — pages légales, suppression de
   compte, journal, sauvegarde, purge périodique.** Cinq manques qui n'étaient
   pas des défauts de code, mais des choses inexistantes. Trois règles à ne pas
   défaire. **`legal.py` n'invente RIEN** : `EDITEUR` et `CONTACT` portent un
@@ -901,14 +901,14 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   **Un document se garde comme du code** : deux tests confrontent
   `docs/EXPLOITATION.md` au code (variables d'environnement, événements
   journalisés) dans les DEUX sens — une variable tue ne se réglera pas, une
-  variable documentée mais ignorée se réglera pour rien. Voir point 140.
+  variable documentée mais ignorée se réglera pour rien. Voir point 141.
   **LE JOURNAL MASQUAIT LE COMPTE**, trouvé en lançant le serveur une fois les
   vingt-cinq tests au vert : un `uuid4().hex` fait 32 caractères, donc
   `FORMES_SENSIBLES` l'avalait et toutes les lignes disaient
   `compte=[masqué]` — étanche et inutile. Le remède ne touche PAS au masquage
   (exempter des noms de champs rouvrirait le trou) : `journal.court()` tronque
   à huit caractères ce qu'on lui PASSE, et un test relit `app.py` pour
-  qu'aucun identifiant n'y soit journalisé nu. Voir point 140.
+  qu'aucun identifiant n'y soit journalisé nu. Voir point 141.
 - **POINT 110 : le parseur Lark est mis en cache** (`_get_parser`, parser.py) —
   construit une fois, pas à chaque `parse_monl_string`. La construction (~50 ms)
   dominait le parsing ; en cache, 0,4 ms/parse, et la suite est passée de ~344 s

@@ -53,8 +53,8 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [134](#134-la-frontiere-de-lagent-etait-une-enumeration-incomplete) La frontière de l'agent était une énumération incomplète ·
 [137](#137-brique-29--le-site-reclamait-six-fichiers-que-personne-navait-livres) Brique 29 : le site réclamait six fichiers que personne n'avait livrés ·
 [138](#138-le-dialogue-ne-demandait-jamais-comment-on-se-connecte-et-lindicatif-ne-servait-quen-europe) Le dialogue ne demandait jamais comment on se connecte, et l'indicatif ne servait qu'en Europe ·
-[139](#139-le-harnais-de-test-sautait-au-lieu-déchouer-et-vingt-et-un-fichiers-avec-lui) Le harnais de test sautait au lieu d'échouer, et vingt et un fichiers avec lui ·
-[140](#140-ouvrir-la-plateforme-au-public--cinq-manques-et-une-base-qui-ne-se-fermait-jamais) Ouvrir la plateforme au public : cinq manques, et une base qui ne se fermait jamais ·
+[140](#140-le-harnais-de-test-sautait-au-lieu-déchouer-et-vingt-et-un-fichiers-avec-lui) Le harnais de test sautait au lieu d'échouer, et vingt et un fichiers avec lui ·
+[141](#141-ouvrir-la-plateforme-au-public--cinq-manques-et-une-base-qui-ne-se-fermait-jamais) Ouvrir la plateforme au public : cinq manques, et une base qui ne se fermait jamais ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -8955,7 +8955,7 @@ Le harnais des dix modèles exerce désormais les deux chemins : « tout refuser
 n'émet aucun bloc, « tout accepter » émet `identifier: phone` + `phone_prefix`,
 et les dix modèles prouvent que le bloc émis compile.
 
-## 139. Le harnais de test sautait au lieu d'échouer, et vingt et un fichiers avec lui
+## 140. Le harnais de test sautait au lieu d'échouer, et vingt et un fichiers avec lui
 
 **Le constat.** La suite complète (`python3 -m pytest tests/ -q -rs`) rendait
 `992 passed, 17 skipped` et le code de sortie 0. Seize de ces sauts étaient
@@ -9042,7 +9042,7 @@ sain (sans lui, un harnais qui échouerait TOUJOURS passerait les autres) et le
 test qui ÉNONCE la faille de `free_port`.
 
 
-## 140. Ouvrir la plateforme au public : cinq manques, et une base qui ne se fermait jamais
+## 141. Ouvrir la plateforme au public : cinq manques, et une base qui ne se fermait jamais
 
 **La question posée.** « Que faut-il pour que la plateforme soit
 opérationnelle ? » Le relevé a rendu cinq manques bloquants, et aucun n'était
