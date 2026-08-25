@@ -166,6 +166,7 @@ ROUTES_API: list[tuple[str, str, str]] = [
     ("POST", "/api/auth/register", "Crée un compte et ouvre une session."),
     ("POST", "/api/auth/login", "Ouvre une session avec email et mot de passe."),
     ("POST", "/api/auth/logout", "Révoque la session du navigateur."),
+    ("DELETE", "/api/auth/account", "Supprime le compte, ses clés et ses projets. Exige le mot de passe dans le corps, et l'effacement est irréversible."),
     ("GET", "/api/auth/me", "Compte de la session active."),
     ("GET", "/api/projects", "Projets du compte connecté."),
     ("DELETE", "/api/projects/{project_id}", "Supprime un projet et son archive."),

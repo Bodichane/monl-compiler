@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import os
 import threading
 from pathlib import Path
@@ -17,7 +18,9 @@ from .console import CONSOLE_HTML
 from .docs_page import DOCS_HTML
 from .guide import guide_html
 from .identity import IdentityError, IdentityStore
+from .journal import anomalie, configurer, evenement, panne
 from .landing import LANDING_HTML
+from .legal import CONDITIONS_HTML, CONFIDENTIALITE_HTML
 from .mcp_page import MCP_HTML
 from .mcp_server import MCPDispatcher
 from .security import SECURITY_HTML
@@ -36,19 +39,68 @@ WORDMARK = Path(__file__).with_name("static") / "monl-wordmark.png"
 GUIDE_HTML = guide_html()
 
 
-def create_app(*, workspace=None) -> FastAPI:
-    service = CompilationService(workspace)
-    identities = IdentityStore(service.workspace)
+def _purger(service: CompilationService, identities: IdentityStore) -> int:
+    """Efface les projets échus, en base ET sur le disque.
+
+    Source unique : le démarrage et la boucle périodique appellent la même
+    fonction. Deux copies auraient fini par diverger, et c'est le nettoyage
+    qui aurait perdu.
+    """
+    efface = 0
     for expired_id in identities.expired_projects():
         try:
             service.delete(expired_id)
         except PlatformNotFoundError:
             pass
+        efface += 1
+    return efface
+
+
+def create_app(*, workspace=None) -> FastAPI:
+    configurer()
+    service = CompilationService(workspace)
+    identities = IdentityStore(service.workspace)
+    evenement("demarrage", workspace=str(service.workspace),
+              purges=_purger(service, identities))
+
+    @contextlib.asynccontextmanager
+    async def _cycle_de_vie(_app):
+        """La purge tourne TANT QUE le serveur tourne.
+
+        Elle ne s'exécutait qu'au montage de l'application : sur un conteneur
+        qui vit trois mois, `MONL_PROJECT_RETENTION_DAYS` n'était honoré
+        qu'au redémarrage, donc jamais. Le fil vit dans le cycle de vie et non
+        dans `create_app`, pour que construire l'application dans un test n'en
+        démarre aucun.
+        """
+        arret = threading.Event()
+        intervalle = max(1, int(os.environ.get("MONL_PURGE_INTERVAL_SECONDS", "3600")))
+
+        def boucle():
+            while not arret.wait(intervalle):
+                try:
+                    efface = _purger(service, identities)
+                    if efface:
+                        evenement("purge", projets=efface)
+                except Exception as exc:
+                    # Un ménage raté ne doit jamais tuer le serveur :
+                    # on le NOMME et la boucle continue.
+                    panne("purge_impossible", cause=type(exc).__name__)
+
+        fil = threading.Thread(target=boucle, name="monl-purge", daemon=True)
+        fil.start()
+        try:
+            yield
+        finally:
+            arret.set()
+            fil.join(timeout=5)
+
     dispatcher = MCPDispatcher(service, identities)
     compile_slots = threading.BoundedSemaphore(
         max(1, int(os.environ.get("MONL_MAX_CONCURRENT_COMPILES", "2")))
     )
     application = FastAPI(
+        lifespan=_cycle_de_vie,
         title="Monl Compiler Platform",
         description="Validation et compilation distante de backends Monl.",
         version="0.2.0",
@@ -93,6 +145,14 @@ def create_app(*, workspace=None) -> FastAPI:
     @application.get("/docs", response_class=HTMLResponse, include_in_schema=False)
     def documentation():
         return DOCS_HTML
+
+    @application.get("/conditions", response_class=HTMLResponse, include_in_schema=False)
+    def conditions():
+        return CONDITIONS_HTML
+
+    @application.get("/confidentialite", response_class=HTMLResponse, include_in_schema=False)
+    def confidentialite():
+        return CONFIDENTIALITE_HTML
 
     @application.get("/security", response_class=HTMLResponse, include_in_schema=False)
     def security():
@@ -161,7 +221,9 @@ def create_app(*, workspace=None) -> FastAPI:
         try:
             user = identities.register(payload.get("email"), payload.get("password"))
         except IdentityError as exc:
+            anomalie("inscription_refusee", cause=str(exc))
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+        evenement("compte_cree", compte=user["id"])
         return _session_response(identities, user, status_code=201)
 
     @application.post("/api/auth/login")
@@ -170,12 +232,44 @@ def create_app(*, workspace=None) -> FastAPI:
         payload = await _json_body(request)
         user = identities.authenticate(payload.get("email"), payload.get("password"))
         if not user:
+            # L'adresse essayée n'est pas journalisée : elle serait une donnée
+            # personnelle dans un fichier que tout l'hébergement peut lire.
+            anomalie("connexion_refusee", ip=_client_ip(request))
             raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect.")
+        evenement("connexion", compte=user["id"])
         return _session_response(identities, user)
 
     @application.post("/api/auth/logout", status_code=204)
     def logout(request: Request):
         identities.revoke_session(request.cookies.get("monl_session"))
+        response = Response(status_code=204)
+        response.delete_cookie("monl_session", path="/", httponly=True, samesite="strict")
+        return response
+
+    @application.delete("/api/auth/account", status_code=204)
+    async def delete_account(request: Request):
+        """Efface le compte, ses clés, ses projets et leurs dossiers.
+
+        **Le mot de passe est exigé à nouveau**, session valide ou non : une
+        suppression irréversible ne doit pas tenir au seul fait qu'un onglet
+        soit resté ouvert, ni pouvoir être déclenchée par une requête que
+        l'utilisateur n'a pas voulue.
+
+        Les dossiers sont retirés APRÈS l'effacement en base : si le disque
+        résiste, le compte est déjà parti et le ménage se rattrape à la purge
+        périodique — l'inverse laisserait un compte sans ses projets.
+        """
+        user = _require_user(request, identities)
+        payload = await _json_body(request)
+        if not identities.authenticate(user["email"], payload.get("password")):
+            anomalie("suppression_compte_refusee", compte=user["id"])
+            raise HTTPException(status_code=403,
+                                detail="Mot de passe incorrect : le compte n'a pas été supprimé.")
+        projets = identities.delete_user(user["id"])
+        for project_id in projets:
+            with contextlib.suppress(PlatformNotFoundError):
+                service.delete(project_id)
+        evenement("compte_supprime", compte=user["id"], projets=len(projets))
         response = Response(status_code=204)
         response.delete_cookie("monl_session", path="/", httponly=True, samesite="strict")
         return response
@@ -207,7 +301,9 @@ def create_app(*, workspace=None) -> FastAPI:
         user = _require_user(request, identities)
         payload = await _json_body(request)
         try:
-            return identities.create_api_key(user["id"], payload.get("name"))
+            cle = identities.create_api_key(user["id"], payload.get("name"))
+            evenement("cle_creee", compte=user["id"], cle=cle["id"])
+            return cle
         except IdentityError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -216,6 +312,7 @@ def create_app(*, workspace=None) -> FastAPI:
         user = _require_user(request, identities)
         if not identities.revoke_api_key(user["id"], key_id):
             raise HTTPException(status_code=404, detail="Clé introuvable.")
+        evenement("cle_revoquee", compte=user["id"], cle=key_id)
         return Response(status_code=204)
 
     @application.post("/api/validate")
@@ -244,8 +341,11 @@ def create_app(*, workspace=None) -> FastAPI:
         try:
             manifest = await run_in_threadpool(service.compile, payload.get("spec"))
             identities.add_project(user["id"], manifest["id"], manifest["summary"]["app"])
+            evenement("compilation", compte=user["id"], projet=manifest["id"],
+                      routes=len(manifest["summary"].get("routes", [])))
             return manifest
         except PlatformInputError as exc:
+            anomalie("compilation_refusee", compte=user["id"], cause=str(exc)[:120])
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         finally:
             compile_slots.release()
@@ -355,6 +455,9 @@ def _rate_limit(request: Request, identities: IdentityStore, scope: str,
                 subject: str, limit: int, window: int) -> None:
     retry = identities.consume_limit(scope, subject, limit=limit, window=window)
     if retry is not None:
+        # `sujet` n'est PAS journalisé : c'est une adresse IP ou un identifiant
+        # de compte. La portée et l'attente suffisent à constater un abus.
+        anomalie("debit_depasse", portee=scope, attente_s=retry)
         raise HTTPException(
             status_code=429,
             detail="Trop de requêtes. Réessayez plus tard.",

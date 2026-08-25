@@ -17,6 +17,11 @@ CSS = """
 .account-item{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);padding:var(--space-4);background:var(--surface-2);border:1px solid var(--line);border-radius:12px}.account-item p{margin:2px 0 0;color:var(--muted);font-size:13px}.account-item code{font-size:12px}
 .empty-account{padding:var(--space-7) var(--space-4);text-align:center;border:1px dashed var(--line);border-radius:12px;color:var(--muted)}
 .delete-project.danger{color:var(--danger);background:var(--danger-bg)}
+.zone-rouge{margin-top:var(--space-5);border:1px solid var(--danger-line);background:var(--danger-bg);border-radius:var(--radius);padding:var(--space-5)}
+.zone-rouge h2{font-size:19px;margin-bottom:var(--space-2)}.zone-rouge p{color:var(--muted);margin-bottom:var(--space-4);max-width:62ch}
+.zone-rouge form{display:none;gap:var(--space-2);align-items:end;flex-wrap:wrap}.zone-rouge form.show{display:flex}
+.zone-rouge input{min-height:44px;border:1px solid var(--danger-line);border-radius:10px;background:var(--surface);padding:0 12px;color:var(--ink)}
+.zone-rouge .danger{min-height:44px;color:var(--danger);background:transparent;border:1px solid var(--danger-line);border-radius:10px;padding:0 16px;cursor:pointer;font-weight:600}
 @media(max-width:780px){.account-head{align-items:start;flex-direction:column}}
 """
 
@@ -49,7 +54,18 @@ form.onsubmit=async event=>{event.preventDefault();error.className='form-error';
 ACCOUNT_BODY = f"""
 <section class="shell account-head"><div><span class="eyebrow">Compte</span><h1>Vos projets.</h1><p class="muted" id="account-email"></p></div>
 <button class="secondary" id="logout" type="button">Se déconnecter</button></section>
-<section class="shell account-grid"><article class="card account-panel"><div class="panel-head"><div><h2>Projets compilés</h2><p class="muted">Conservés dans votre espace.</p></div><a class="primary" href="/console">{icon('compiler')} Nouveau projet</a></div><div class="item-list" id="projects"></div></article></section>
+<section class="shell account-grid"><article class="card account-panel"><div class="panel-head"><div><h2>Projets compilés</h2><p class="muted">Conservés dans votre espace.</p></div><a class="primary" href="/console">{icon('compiler')} Nouveau projet</a></div><div class="item-list" id="projects"></div></article>
+<article class="zone-rouge">
+<h2>Supprimer votre compte</h2>
+<p>Efface définitivement votre compte, vos clés d’accès, vos projets et les fichiers
+compilés qui leur appartiennent. <b>Cette action est irréversible</b> — téléchargez
+ce que vous voulez garder avant de continuer.</p>
+<button class="danger" id="ouvrir-suppression" type="button">Supprimer mon compte</button>
+<form id="suppression"><div class="form-field"><label for="mdp-suppression">Confirmez avec votre mot de passe</label>
+<input id="mdp-suppression" type="password" autocomplete="current-password" required></div>
+<button class="danger" type="submit">Supprimer définitivement</button>
+<button class="ghost" id="annuler-suppression" type="button">Annuler</button></form>
+<div class="form-error" id="erreur-suppression" role="alert"></div></article></section>
 """
 
 ACCOUNT_SCRIPT = """
@@ -59,7 +75,14 @@ async function json(url,options){const r=await fetch(url,options);if(r.status===
 async function load(){const [me,projects]=await Promise.all([json('/api/auth/me'),json('/api/projects')]);
  document.querySelector('#account-email').textContent=me.email;document.querySelector('#projects').innerHTML=projects.projects.length?projects.projects.map(p=>`<div class="account-item"><div><b>${esc(p.name)}</b><p>Créé le ${new Date(p.created_at*1000).toLocaleDateString('fr-FR')} · expire le ${new Date(p.expires_at*1000).toLocaleDateString('fr-FR')}</p></div><span><a class="secondary" href="/api/projects/${encodeURIComponent(p.project_id)}/download">Télécharger</a><button class="ghost delete-project" data-id="${esc(p.project_id)}" type="button">Supprimer</button></span></div>`).join(''):'<div class="empty-account">Aucun projet. Compilez votre première spec.</div>';
  document.querySelectorAll('.delete-project').forEach(b=>b.onclick=async()=>{if(!b.dataset.confirmed){b.dataset.confirmed='1';b.textContent='Confirmer';b.classList.add('danger');return;}await json('/api/projects/'+b.dataset.id,{method:'DELETE'});load();});}
-document.querySelector('#logout').onclick=async()=>{await fetch('/api/auth/logout',{method:'POST'});location.href='/';};load();
+document.querySelector('#logout').onclick=async()=>{await fetch('/api/auth/logout',{method:'POST'});location.href='/';};
+const zone=document.querySelector('#suppression'),erreur=document.querySelector('#erreur-suppression');
+document.querySelector('#ouvrir-suppression').onclick=()=>{zone.classList.add('show');document.querySelector('#mdp-suppression').focus();};
+document.querySelector('#annuler-suppression').onclick=()=>{zone.classList.remove('show');erreur.className='form-error';};
+zone.onsubmit=async event=>{event.preventDefault();erreur.className='form-error';
+ try{await json('/api/auth/account',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:document.querySelector('#mdp-suppression').value})});location.href='/';}
+ catch(e){erreur.textContent=e.message;erreur.className='form-error show';}};
+load();
 </script>
 """
 

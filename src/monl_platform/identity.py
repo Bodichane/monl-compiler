@@ -6,6 +6,7 @@ session and API tokens use SHA-256 fingerprints suitable for exact lookup.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import hmac
 import os
@@ -14,6 +15,7 @@ import secrets
 import sqlite3
 import time
 import uuid
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -32,12 +34,41 @@ class IdentityStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._migrate()
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextlib.contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        """Ouvre, valide (ou annule), puis FERME.
+
+        `with sqlite3.connect(...)` valide la transaction mais ne ferme pas la
+        connexion — et un objet `Connection` de CPython prend part à des cycles
+        de références, donc il n'est rendu que par le ramasse-miettes
+        cyclique, pas au retour de la méthode. Mesuré : 500 lectures laissaient
+        **197 descripteurs** ouverts sur la base, tous rendus d'un coup par un
+        `gc.collect()` manuel. Ce n'est pas une fuite éternelle, c'est pire à
+        exploiter — un serveur sous charge peut atteindre sa limite de
+        descripteurs avant qu'une collecte de génération 2 ne survienne, et
+        l'incident ne ressemble alors à rien de connu.
+
+        Deuxième conséquence, celle qui a révélé la première : tant qu'une
+        connexion vit, SQLite ne rabat pas le journal WAL dans le fichier
+        principal. La base restait à 4 096 octets avec 111 Ko de WAL à côté —
+        et la restauration documentée dans `docs/EXPLOITATION.md` échouait sur
+        un « disk I/O error » en remettant le fichier en place.
+
+        Le `with connection:` interne conserve exactement l'ancienne sémantique
+        (validation en sortie propre, annulation sur exception) ; seule la
+        fermeture est ajoutée. Les deux appelants qui lisent `cursor.rowcount`
+        APRÈS le bloc continuent de fonctionner : la valeur est figée à
+        l'exécution, pas relue dans la connexion.
+        """
         connection = sqlite3.connect(self.path, timeout=10)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys = ON")
         connection.execute("PRAGMA journal_mode = WAL")
-        return connection
+        try:
+            with connection:
+                yield connection
+        finally:
+            connection.close()
 
     def ready(self) -> bool:
         try:
@@ -202,6 +233,44 @@ class IdentityStore:
             cursor = db.execute("DELETE FROM projects WHERE user_id = ? AND project_id = ?",
                                 (user_id, project_id))
         return cursor.rowcount == 1
+
+    def delete_user(self, user_id: str) -> list[str]:
+        """Efface un compte et rend les projets à retirer du disque.
+
+        Les sessions, projets et clés tombent par `ON DELETE CASCADE` — d'où
+        l'importance du `PRAGMA foreign_keys = ON` posé à chaque connexion :
+        SQLite ignore les clés étrangères par défaut, et sans lui la ligne
+        `users` partirait en laissant tout le reste orphelin.
+
+        Les identifiants de projet sont relus AVANT la suppression : après,
+        plus rien ne dit quels dossiers effacer. Même raisonnement qu'au
+        point 92 du compilateur, sur la restitution de stock.
+        """
+        with self._connect() as db:
+            rows = db.execute("SELECT project_id FROM projects WHERE user_id = ?",
+                              (user_id,)).fetchall()
+            db.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        return [row["project_id"] for row in rows]
+
+    def sauvegarder(self, destination: str | os.PathLike[str]) -> Path:
+        """Copie la base par l'API de sauvegarde en ligne de SQLite.
+
+        Un `cp` sur une base ouverte peut rendre un fichier DÉCHIRÉ : la
+        plateforme écrit en WAL, donc le `.sqlite3` seul ne contient pas les
+        transactions encore dans le journal. `Connection.backup()` prend une
+        copie cohérente pendant que le serveur continue de servir — c'est la
+        seule raison d'être de cette méthode plutôt que d'une ligne de shell.
+        """
+        cible = Path(destination).resolve()
+        cible.parent.mkdir(parents=True, exist_ok=True)
+        source = sqlite3.connect(self.path, timeout=30)
+        copie = sqlite3.connect(cible)
+        try:
+            source.backup(copie)
+        finally:
+            copie.close()
+            source.close()
+        return cible
 
     def expired_projects(self) -> list[str]:
         now = int(time.time())

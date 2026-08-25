@@ -876,6 +876,32 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   du mainteneur (`python-multipart` absent — pourtant DÉCLARÉ dans
   `pyproject.toml`), et rendait du vert. Un saut ne dit pas « rien à vérifier
   ici », il dit « je n'ai pas vérifié ».
+- **POINT 140 : la plateforme est exploitable — pages légales, suppression de
+  compte, journal, sauvegarde, purge périodique.** Cinq manques qui n'étaient
+  pas des défauts de code, mais des choses inexistantes. Trois règles à ne pas
+  défaire. **`legal.py` n'invente RIEN** : `EDITEUR` et `CONTACT` portent un
+  marqueur `[À COMPLÉTER]` visible dans la page servie, gardé par un test —
+  fabriquer une mention légale plausible produirait un faux document. **La
+  liste des données conservées est confrontée au schéma SQLite réel** : une
+  table qui garde de la donnée et que la page ne nomme pas fait échouer la
+  suite (une politique désynchronisée est pire qu'absente, elle AFFIRME).
+  **`journal.py` ne PEUT PAS écrire un secret** — masquage par le NOM du champ
+  ET par la FORME de la valeur, même logique que la frontière SQL du point 108 ;
+  le nom d'événement y est positionnel uniquement (`/`), sans quoi un champ
+  `nom=` levait un `TypeError` pile quand on veut journaliser. `_purger` est la
+  source UNIQUE appelée au démarrage et dans la boucle, et le fil vit dans le
+  `lifespan`, jamais dans `create_app`.
+  **CE QUE LA DOCUMENTATION A TROUVÉ.** Écrire la procédure de restauration a
+  révélé que **`with sqlite3.connect(...)` ne FERME pas** : l'objet `Connection`
+  prend part à des cycles de références, donc il n'est rendu qu'au ramasse-miettes
+  cyclique. Mesuré : 500 lectures → **197 descripteurs ouverts**, base à 4 096
+  octets avec 111 Ko de WAL à côté, et la restauration qui échouait sur un
+  `disk I/O error`. `IdentityStore._connect` est désormais un gestionnaire de
+  contexte qui ferme (197 → 0). Ne pas le refaire rendre une connexion nue.
+  **Un document se garde comme du code** : deux tests confrontent
+  `docs/EXPLOITATION.md` au code (variables d'environnement, événements
+  journalisés) dans les DEUX sens — une variable tue ne se réglera pas, une
+  variable documentée mais ignorée se réglera pour rien. Voir point 140.
 - **POINT 110 : le parseur Lark est mis en cache** (`_get_parser`, parser.py) —
   construit une fois, pas à chaque `parse_monl_string`. La construction (~50 ms)
   dominait le parsing ; en cache, 0,4 ms/parse, et la suite est passée de ~344 s

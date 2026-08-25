@@ -54,6 +54,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [137](#137-brique-29--le-site-reclamait-six-fichiers-que-personne-navait-livres) Brique 29 : le site réclamait six fichiers que personne n'avait livrés ·
 [138](#138-le-dialogue-ne-demandait-jamais-comment-on-se-connecte-et-lindicatif-ne-servait-quen-europe) Le dialogue ne demandait jamais comment on se connecte, et l'indicatif ne servait qu'en Europe ·
 [139](#139-le-harnais-de-test-sautait-au-lieu-déchouer-et-vingt-et-un-fichiers-avec-lui) Le harnais de test sautait au lieu d'échouer, et vingt et un fichiers avec lui ·
+[140](#140-ouvrir-la-plateforme-au-public--cinq-manques-et-une-base-qui-ne-se-fermait-jamais) Ouvrir la plateforme au public : cinq manques, et une base qui ne se fermait jamais ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -9039,3 +9040,145 @@ mesurée : sur l'ancien harnais, **4 échouent et 0 saute** ; sur le nouveau, le
 6 passent. Les deux qui passent dans les deux cas sont le témoin du serveur
 sain (sans lui, un harnais qui échouerait TOUJOURS passerait les autres) et le
 test qui ÉNONCE la faille de `free_port`.
+
+
+## 140. Ouvrir la plateforme au public : cinq manques, et une base qui ne se fermait jamais
+
+**La question posée.** « Que faut-il pour que la plateforme soit
+opérationnelle ? » Le relevé a rendu cinq manques bloquants, et aucun n'était
+un défaut de code : c'étaient cinq choses qui n'existaient pas. Aucune page
+légale. Aucun moyen de supprimer son compte. Aucune journalisation. Aucune
+sauvegarde. Et une purge des projets échus qui ne tournait **qu'au
+démarrage** — un serveur qui tient trois mois garde trois mois de projets
+expirés.
+
+### Les cinq, et ce que chacun a coûté à écrire
+
+**1. Les pages légales** (`src/monl_platform/legal.py`, `/conditions` et
+`/confidentialite`). La décision qui porte le module : **rien n'est inventé.**
+L'éditeur du service — nom, forme juridique, adresse, contact — n'est pas
+déductible du code. Ces deux emplacements portent donc un marqueur
+`[À COMPLÉTER]` **visible dans la page servie**, et un test exige qu'il y
+reste. Fabriquer une mention légale plausible aurait produit un faux
+document ; la mettre en commentaire aurait laissé ouvrir au public en croyant
+la page finie.
+
+La seconde décision est la garantie qui empêche la page de mentir en
+vieillissant : **la liste des données conservées est confrontée au schéma
+SQLite réel.** Une table qui garde de la donnée et que la page ne nomme pas
+fait échouer la suite. Une politique de confidentialité désynchronisée est
+pire qu'absente — elle AFFIRME. Contre-épreuve : retirer `rate_limits` de
+`DONNEES` fait tomber le test.
+
+**2. La suppression de compte** (`DELETE /api/auth/account`,
+`IdentityStore.delete_user`). Elle exige de **retaper son mot de passe** (403
+sinon), efface le compte, ses sessions, ses clés et ses projets par
+`ON DELETE CASCADE` — d'où l'importance du `PRAGMA foreign_keys = ON` posé à
+chaque connexion, SQLite les ignorant par défaut — **puis les dossiers sur le
+disque**. Les identifiants de projet sont relus AVANT la suppression : après,
+plus rien ne dit quels dossiers effacer (même raisonnement qu'au point 92, sur
+la restitution de stock). Contre-épreuve : neutraliser la boucle d'effacement
+disque fait tomber le test, et la version « mauvais mot de passe » interdit
+qu'une route qui supprimerait TOUJOURS passe pour bonne.
+
+**3. La journalisation** (`src/monl_platform/journal.py`). La décision qui
+porte le module : **le journal ne peut PAS écrire un secret.** Le masquage
+tient par le NOM du champ *et* par la FORME de la valeur — se fier au seul nom
+laisse passer `identifiant=monl_AbC…`, qui n'annonce rien. C'est la même
+logique qu'à la frontière d'émission SQL du point 108 : rendre la faute
+impossible plutôt que la recommander. Un témoin vérifie qu'un champ anodin
+passe bien tel quel, sans quoi un masquage qui masquerait tout serait
+inutilisable.
+
+Deux détails trouvés par le test, pas par relecture. Le nom de l'événement est
+**positionnel uniquement** (`/`) : sans ça, un champ appelé `nom=` — le plus
+naturel de tous en français — entrait en collision avec le paramètre et levait
+un `TypeError` au moment précis où l'on veut journaliser. Et une valeur
+multiligne est mise entre guillemets, sinon un nom de projet contenant un saut
+de ligne écrit ce qu'il veut dans le journal : une entrée forgée se lit comme
+une vraie.
+
+**4. La sauvegarde** (`monl-platform sauvegarde`, `IdentityStore.sauvegarder`,
+`docs/EXPLOITATION.md`). L'**API de sauvegarde en ligne de SQLite**, pas un
+`cp` : la base tourne en WAL, donc copier le `.sqlite3` d'un serveur en marche
+peut rendre un fichier amputé des dernières transactions. Le test garde une
+connexion ouverte AVEC une écriture non commitée pendant la sauvegarde.
+
+**5. La purge périodique** (`_purger`, `_cycle_de_vie` dans `app.py`). Un fil
+de service armé par le **`lifespan` de FastAPI**, jamais par `create_app` :
+sinon chaque test qui construit une application laisserait un fil derrière
+lui, et un test l'interdit. `_purger` est la **source unique** appelée au
+démarrage et dans la boucle — deux copies du ménage auraient fini par
+diverger, et c'est le nettoyage qui aurait perdu. La garantie et sa
+contre-épreuve vivent dans le même test paramétré : à une seconde d'intervalle
+le projet échu doit disparaître, à l'intervalle par défaut il doit RESTER —
+sans quoi on ne saurait pas si c'est la boucle qui l'a effacé, ou le simple
+fait d'avoir monté l'application.
+
+### Ce que la documentation a révélé, et qui n'était pas prévu
+
+Le point 4 demandait une procédure de restauration écrite. **Une procédure
+écrite et jamais jouée est une procédure fausse** : on ne l'exécute qu'un jour
+de panne, quand se tromper coûte le plus cher. Le test écrit pour la jouer a
+échoué à sa première exécution sur un `disk I/O error` que rien n'expliquait.
+
+La cause : **`with sqlite3.connect(...)` valide la transaction, mais ne ferme
+pas la connexion.** Un objet `Connection` de CPython prend part à des cycles de
+références, il n'est donc rendu qu'au ramasse-miettes cyclique, pas au retour
+de la méthode. Mesuré : **500 lectures laissaient 197 descripteurs ouverts**
+sur la base, tous rendus d'un coup par un `gc.collect()` manuel. Ce n'est pas
+une fuite éternelle — c'est pire à exploiter, parce qu'un serveur sous charge
+peut épuiser sa limite de descripteurs avant qu'une collecte de génération 2
+ne survienne, et l'incident ne ressemble alors à rien de connu.
+
+Le témoin visible était le WAL : tant qu'une connexion vit, SQLite ne le rabat
+pas dans le fichier principal. La base restait à **4 096 octets avec 111 Ko de
+journal à côté** — et remettre la sauvegarde en place échouait. `_connect`
+est donc devenu un gestionnaire de contexte qui ferme (`contextlib.contextmanager`
+autour d'un `with connection:` qui conserve exactement l'ancienne sémantique de
+validation/annulation). Les dix-huit appelants sont inchangés ; les deux qui
+lisent `cursor.rowcount` APRÈS le bloc continuent de fonctionner, la valeur
+étant figée à l'exécution. Après correction : **197 descripteurs → 0**, et le
+WAL rabattu.
+
+**Le geste de restauration qu'on oublie est le deuxième** — retirer `-wal` et
+`-shm`. Remettre le fichier principal en laissant le journal de la base
+d'AVANT à côté, c'est restaurer deux états à la fois. Le cas ne se produit
+qu'après un arrêt BRUTAL, donc le test **tue un vrai processus en pleine
+écriture** (`os._exit`) plutôt que de supposer le WAL présent — la première
+version le supposait, et la correction ci-dessus l'a fait disparaître, ce qui
+a fait échouer le test pour la bonne raison.
+
+### La règle qui se dégage : un document se garde comme du code
+
+`docs/EXPLOITATION.md` affirme deux listes exhaustives — les variables
+d'environnement et les événements journalisés. Une doc d'exploitation se
+désynchronise sans que rien ne le signale, et **elle ne se relit qu'en
+incident**. Deux tests la confrontent donc au code, et interdisent les deux
+fautes symétriques : une variable que le code lit et que le document tait (on
+ne saura pas la régler), une variable documentée que le code ignore (on la
+réglera pour rien, en croyant avoir agi). C'est la garantie du point 1 — la
+page de confidentialité confrontée au schéma — appliquée à l'autre document.
+
+Deux réglages sont nommés parce que leur absence ne se VOIT pas :
+`MONL_COOKIE_SECURE=1` (sans lui le cookie de session part en clair) et
+`MONL_TRUST_PROXY=1` (sans lui, derrière un proxy, la limitation de débit
+compte toute la planète sur une seule adresse — cinq inscriptions par minute
+pour tout le monde ; avec lui mais sans proxy, n'importe qui forge son adresse
+et contourne la limite).
+
+### Un rappel gratuit d'une garantie existante
+
+Ajouter `DELETE /api/auth/account` a fait échouer
+`test_le_guide_documente_les_routes_reellement_montees` : le guide de l'API
+doit décrire toute route montée. La garde a fonctionné sans qu'on y pense —
+c'est précisément ce qu'on attend d'elle.
+
+**Éprouvé par** `tests/test_platform_exploitation.py` (17 tests) et
+`tests/test_platform_journal.py` (8 tests), tous contre un vrai serveur, une
+vraie base ou un vrai processus tué. Suite complète : **1024 passés, 16 sautés**
+(PostgreSQL, conditionnés par `MONL_TEST_DATABASE_URL`), zéro échec.
+
+**Ce qui reste à faire avant une vraie ouverture**, et qui n'est pas du code :
+remplir `EDITEUR` et `CONTACT`, poser un TLS devant le service, et planifier
+la sauvegarde. Les trois sont écrits en tête de `docs/EXPLOITATION.md`.

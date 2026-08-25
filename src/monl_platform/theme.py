@@ -255,6 +255,8 @@ table.grid td code { background: var(--surface-2); padding: 2px 6px; border-radi
 .footer-bottom { display:flex; justify-content:space-between; gap:var(--space-4); flex-wrap:wrap;
   margin-top:var(--space-7); padding-top:var(--space-4); border-top:1px solid var(--line); }
 .service-status { min-height:44px; display:inline-flex; align-items:center; gap:7px; }
+.footer-legal { display:flex; gap:var(--space-4); flex-wrap:wrap; }
+.footer-legal a { min-height:44px; display:inline-flex; align-items:center; }
 .service-status::before { content:""; width:8px; height:8px; border-radius:50%; background:var(--brand);
   box-shadow:0 0 0 4px color-mix(in srgb,var(--brand) 16%,transparent); }
 
@@ -456,7 +458,7 @@ def page(*, title: str, description: str, body: str, active: str = "",
 <div><h2>Développeurs</h2><nav aria-label="Développeurs"><a href="/guide#dsl">Référence DSL</a><a href="/guide#api">API HTTP</a><a href="/docs">Documentation développeur</a><a href="/api-docs">Explorateur OpenAPI</a><a href="/mcp">Serveur MCP</a></nav></div>
 <div><h2>Ressources</h2><nav aria-label="Ressources"><a href="/guide">Guide de démarrage</a><a href="/security">Sécurité et garanties</a><a href="/api/version">Versions</a><a href="/health">État du service</a></nav></div>
 </div>
-<div class="footer-bottom"><span>© monl compiler</span><a class="service-status" href="/health">Service opérationnel</a></div>
+<div class="footer-bottom"><span>© monl compiler</span><nav class="footer-legal" aria-label="Informations légales"><a href="/conditions">Conditions d’utilisation</a><a href="/confidentialite">Confidentialité</a></nav><a class="service-status" href="/health">Service opérationnel</a></div>
 </footer></div>
 <script>{THEME_TOGGLE}</script>
 {scripts}
