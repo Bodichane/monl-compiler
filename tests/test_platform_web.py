@@ -195,11 +195,12 @@ def test_le_module_de_la_plateforme_est_livre_par_le_depot(tmp_path):
     """Témoin du défaut de `.gitignore` : `src/monl_platform/app.py` avait
     disparu du dépôt sans un mot, avalé par un motif non ancré.
 
-    Il faut une assertion à part, car les deux tests ci-dessus ne le
-    rattraperaient PAS : un module absent tue le sous-processus uvicorn, et
-    `uvicorn_server` traduit ce cas par un `pytest.skip`. Un dépôt amputé
-    reviendrait donc au vert — un faux vert exactement là où le projet vient
-    d'en payer un.
+    Il faut une assertion à part parce qu'elle nomme la cause. Les deux tests
+    ci-dessus font désormais ÉCHOUER un module absent — `uvicorn_server` ne
+    traduit plus la mort d'un serveur par un `pytest.skip` (point 139) — mais
+    ils le rapportent comme une panne de serveur, avec la trace d'uvicorn.
+    Celui-ci dit en une ligne que le dépôt est amputé, ce qui est le vrai
+    diagnostic. Le garder coûte un import ; le perdre coûterait une enquête.
     """
     from monl_platform.app import create_app
 

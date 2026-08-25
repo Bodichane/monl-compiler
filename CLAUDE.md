@@ -857,6 +857,25 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   `_validate_structures`). Avec le point 108 (émission SQL typée), les deux
   versants de la sécurité — décision et émission — sont désormais des frontières
   nommées.
+- **POINT 139 : `uvicorn_server` (tests/support/server.py) ÉCHOUE, il ne saute
+  plus.** Il convertissait la mort d'un serveur en `pytest.skip`, donc les
+  vingt et un fichiers d'intégration qui passent par lui pouvaient ne rien
+  vérifier en rendant du vert — mesuré : `992 passed, 17 skipped`, code de
+  sortie 0, dont un `serveur uvicorn arrêté (code 1)` que personne ne lisait.
+  La socket est désormais liée par le parent et PASSÉE à l'enfant
+  (`uvicorn --fd` + `pass_fds`) : le port ne redevient jamais libre entre le
+  choix et l'écoute, donc la collision est impossible plutôt que retentée
+  (retenter aurait masqué une panne déterministe). La sortie d'uvicorn ne part
+  plus dans `DEVNULL`, elle est dans le message d'échec. **`free_port` reste
+  racé et sa docstring le dit** — une vingtaine de fichiers l'appellent encore,
+  mais eux échouent franchement. Le piège à connaître, mesuré en écrivant le
+  témoin : un `Skipped` levé dans un `pytest.raises` fait SAUTER le test qui
+  l'entoure — d'où `echec_attendu()` dans `tests/test_support_serveur.py`, qui
+  attrape les deux issues séparément. **Ce que le correctif a trouvé dès sa
+  première exécution** : `test_uploads.py` ne s'exécutait plus sur la machine
+  du mainteneur (`python-multipart` absent — pourtant DÉCLARÉ dans
+  `pyproject.toml`), et rendait du vert. Un saut ne dit pas « rien à vérifier
+  ici », il dit « je n'ai pas vérifié ».
 - **POINT 110 : le parseur Lark est mis en cache** (`_get_parser`, parser.py) —
   construit une fois, pas à chaque `parse_monl_string`. La construction (~50 ms)
   dominait le parsing ; en cache, 0,4 ms/parse, et la suite est passée de ~344 s
