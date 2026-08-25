@@ -18,7 +18,7 @@ from .console import CONSOLE_HTML
 from .docs_page import DOCS_HTML
 from .guide import guide_html
 from .identity import IdentityError, IdentityStore
-from .journal import anomalie, configurer, evenement, panne
+from .journal import anomalie, configurer, court, evenement, panne
 from .landing import LANDING_HTML
 from .legal import CONDITIONS_HTML, CONFIDENTIALITE_HTML
 from .mcp_page import MCP_HTML
@@ -223,7 +223,7 @@ def create_app(*, workspace=None) -> FastAPI:
         except IdentityError as exc:
             anomalie("inscription_refusee", cause=str(exc))
             raise HTTPException(status_code=422, detail=str(exc)) from exc
-        evenement("compte_cree", compte=user["id"])
+        evenement("compte_cree", compte=court(user["id"]))
         return _session_response(identities, user, status_code=201)
 
     @application.post("/api/auth/login")
@@ -236,7 +236,7 @@ def create_app(*, workspace=None) -> FastAPI:
             # personnelle dans un fichier que tout l'hébergement peut lire.
             anomalie("connexion_refusee", ip=_client_ip(request))
             raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect.")
-        evenement("connexion", compte=user["id"])
+        evenement("connexion", compte=court(user["id"]))
         return _session_response(identities, user)
 
     @application.post("/api/auth/logout", status_code=204)
@@ -262,14 +262,14 @@ def create_app(*, workspace=None) -> FastAPI:
         user = _require_user(request, identities)
         payload = await _json_body(request)
         if not identities.authenticate(user["email"], payload.get("password")):
-            anomalie("suppression_compte_refusee", compte=user["id"])
+            anomalie("suppression_compte_refusee", compte=court(user["id"]))
             raise HTTPException(status_code=403,
                                 detail="Mot de passe incorrect : le compte n'a pas été supprimé.")
         projets = identities.delete_user(user["id"])
         for project_id in projets:
             with contextlib.suppress(PlatformNotFoundError):
                 service.delete(project_id)
-        evenement("compte_supprime", compte=user["id"], projets=len(projets))
+        evenement("compte_supprime", compte=court(user["id"]), projets=len(projets))
         response = Response(status_code=204)
         response.delete_cookie("monl_session", path="/", httponly=True, samesite="strict")
         return response
@@ -302,7 +302,7 @@ def create_app(*, workspace=None) -> FastAPI:
         payload = await _json_body(request)
         try:
             cle = identities.create_api_key(user["id"], payload.get("name"))
-            evenement("cle_creee", compte=user["id"], cle=cle["id"])
+            evenement("cle_creee", compte=court(user["id"]), cle=court(cle["id"]))
             return cle
         except IdentityError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -312,7 +312,7 @@ def create_app(*, workspace=None) -> FastAPI:
         user = _require_user(request, identities)
         if not identities.revoke_api_key(user["id"], key_id):
             raise HTTPException(status_code=404, detail="Clé introuvable.")
-        evenement("cle_revoquee", compte=user["id"], cle=key_id)
+        evenement("cle_revoquee", compte=court(user["id"]), cle=court(key_id))
         return Response(status_code=204)
 
     @application.post("/api/validate")
@@ -341,11 +341,11 @@ def create_app(*, workspace=None) -> FastAPI:
         try:
             manifest = await run_in_threadpool(service.compile, payload.get("spec"))
             identities.add_project(user["id"], manifest["id"], manifest["summary"]["app"])
-            evenement("compilation", compte=user["id"], projet=manifest["id"],
+            evenement("compilation", compte=court(user["id"]), projet=court(manifest["id"]),
                       routes=len(manifest["summary"].get("routes", [])))
             return manifest
         except PlatformInputError as exc:
-            anomalie("compilation_refusee", compte=user["id"], cause=str(exc)[:120])
+            anomalie("compilation_refusee", compte=court(user["id"]), cause=str(exc)[:120])
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         finally:
             compile_slots.release()

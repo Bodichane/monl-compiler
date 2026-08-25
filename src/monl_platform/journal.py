@@ -37,6 +37,25 @@ FORMES_SENSIBLES = re.compile(r"^(monl_[A-Za-z0-9_-]{8,}|[A-Za-z0-9_-]{32,})$")
 MASQUE = "[masqué]"
 
 
+def court(identifiant: Any) -> str:
+    """Le préfixe d'un identifiant, assez long pour rattacher, trop court pour
+    ressembler à un secret.
+
+    Trouvé en exécutant, pas en relisant : un identifiant de compte est un
+    `uuid4().hex` de 32 caractères, donc `FORMES_SENSIBLES` l'avalait et le
+    journal écrivait `compte=[masqué]` sur TOUTES les lignes. Un journal qui
+    masque le compte ne dit plus si deux cents connexions refusées viennent
+    d'un compte ou de deux cents — c'est-à-dire qu'il ne sert plus à rien.
+
+    Le remède ne touche PAS au masquage — l'affaiblir par une liste de noms
+    exemptés rouvrirait exactement le trou que ce module ferme. C'est ce qu'on
+    LUI PASSE qui change : huit caractères suffisent à recouper des lignes
+    entre elles, et ne reconstituent aucun jeton.
+    """
+    texte = str(identifiant or "")
+    return texte[:8] or "-"
+
+
 def configurer(flux: Any = None) -> logging.Logger:
     """Arme le journal une fois. Rappelable sans effet de bord.
 

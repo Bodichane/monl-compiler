@@ -9149,6 +9149,30 @@ qu'après un arrêt BRUTAL, donc le test **tue un vrai processus en pleine
 version le supposait, et la correction ci-dessus l'a fait disparaître, ce qui
 a fait échouer le test pour la bonne raison.
 
+### Le journal masquait ce qu'il était censé rendre lisible
+
+Trouvé en LANÇANT le serveur, une fois les vingt-cinq tests au vert. Un
+identifiant de compte est un `uuid4().hex` de 32 caractères : `FORMES_SENSIBLES`
+l'avale, et toutes les lignes disaient `compte=[masqué]`. Le journal était
+parfaitement étanche et parfaitement inutile — il ne disait plus si deux cents
+connexions refusées venaient d'un compte ou de deux cents, c'est-à-dire
+exactement ce pour quoi on l'avait écrit.
+
+**Le remède ne touche PAS au masquage.** Exempter une liste de noms de champs
+aurait rouvert le trou que ce module ferme : `compte=` est un nom anodin
+aujourd'hui, il porterait un jeton demain. C'est ce qu'on LUI PASSE qui change
+— `journal.court()` tronque à huit caractères, assez pour recouper deux lignes,
+trop court pour reconstituer quoi que ce soit. La garde vit à DEUX endroits :
+le comportement de `court()`, et un test qui relit `app.py` pour qu'aucun
+identifiant n'y soit journalisé nu.
+
+La leçon est celle des points 95, 96 et 100 sous un autre jour : **une règle
+qui protège une entrée contraint aussi ceux qui l'utilisent de bonne foi.** Là
+c'était le smoke test, ici c'est le journal lui-même. Et elle ne s'est vue ni
+en relisant ni en testant : le format documenté (`compte=a3f9…`) était faux,
+et vingt-cinq tests verts ne l'ont pas dit — parce qu'aucun ne regardait ce
+que le SERVEUR écrit vraiment.
+
 ### La règle qui se dégage : un document se garde comme du code
 
 `docs/EXPLOITATION.md` affirme deux listes exhaustives — les variables

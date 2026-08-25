@@ -902,6 +902,13 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   `docs/EXPLOITATION.md` au code (variables d'environnement, événements
   journalisés) dans les DEUX sens — une variable tue ne se réglera pas, une
   variable documentée mais ignorée se réglera pour rien. Voir point 140.
+  **LE JOURNAL MASQUAIT LE COMPTE**, trouvé en lançant le serveur une fois les
+  vingt-cinq tests au vert : un `uuid4().hex` fait 32 caractères, donc
+  `FORMES_SENSIBLES` l'avalait et toutes les lignes disaient
+  `compte=[masqué]` — étanche et inutile. Le remède ne touche PAS au masquage
+  (exempter des noms de champs rouvrirait le trou) : `journal.court()` tronque
+  à huit caractères ce qu'on lui PASSE, et un test relit `app.py` pour
+  qu'aucun identifiant n'y soit journalisé nu. Voir point 140.
 - **POINT 110 : le parseur Lark est mis en cache** (`_get_parser`, parser.py) —
   construit une fois, pas à chaque `parse_monl_string`. La construction (~50 ms)
   dominait le parsing ; en cache, 0,4 ms/parse, et la suite est passée de ~344 s
