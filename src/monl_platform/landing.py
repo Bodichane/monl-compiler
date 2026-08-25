@@ -6,8 +6,11 @@ from . import examples
 from .theme import icon, page
 
 EXTRA_CSS = """
-.landing-hero { padding: 80px 0 72px; display:grid; grid-template-columns:1.05fr .95fr;
-  gap:var(--space-7); align-items:center; }
+.landing-hero { position:relative; padding: 88px 0 80px; display:grid; grid-template-columns:1.08fr .92fr;
+  gap:clamp(32px,6vw,76px); align-items:center; }
+.landing-hero::before { content:""; position:absolute; width:520px; height:520px; right:-180px; top:-170px;
+  border-radius:50%; pointer-events:none; filter:blur(4px);
+  background:radial-gradient(circle,color-mix(in srgb,var(--brand) 12%,transparent),transparent 68%); }
 .landing-hero h1 { max-width: 760px; margin: 0 0 var(--space-5);
   font-size: clamp(42px, 6vw, 70px); line-height: .98; letter-spacing: -.055em; }
 .landing-hero .lede { max-width: 650px; margin: 0 0 var(--space-6);
@@ -17,8 +20,23 @@ EXTRA_CSS = """
   margin-top:var(--space-6); color:var(--muted); font-size:14px; }
 .trust span { display:inline-flex; gap:7px; align-items:center; }
 .trust .icon { color:var(--brand); }
-.start-card { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-lg);
-  padding:var(--space-5); box-shadow:var(--shadow); }
+.start-card { position:relative; background:var(--code-bg); color:var(--code-ink); border:1px solid var(--line);
+  border-radius:calc(var(--radius-lg) + 4px); padding:var(--space-3); box-shadow:0 28px 70px rgba(0,0,0,.22);
+  transform:rotate(1deg); }
+.start-card::before { content:""; position:absolute; inset:18px -16px -16px 18px; border:1px solid var(--line);
+  border-radius:inherit; z-index:-1; background:var(--surface-2); transform:rotate(-2deg); }
+.demo-window { border:1px solid color-mix(in srgb,var(--code-ink) 15%,transparent);border-radius:14px;overflow:hidden;background:#07100d; }
+.demo-bar { display:flex;align-items:center;gap:7px;padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.1);font:11px var(--mono);color:#91a49c; }
+.demo-bar i { width:7px;height:7px;border-radius:50%;background:#385048; }.demo-bar i:first-child{background:var(--code-accent)}
+.demo-bar span { margin-left:auto;display:inline-flex;align-items:center;gap:6px;color:#bfe6d6; }
+.demo-bar span::before { content:"";width:6px;height:6px;border-radius:50%;background:#58d6a5;box-shadow:0 0 0 4px rgba(88,214,165,.12); }
+.demo-code { padding:22px 20px 18px;font:12px/1.85 var(--mono);color:#8fa59b; }
+.demo-code b { color:var(--code-accent);font-weight:500 }.demo-code strong{color:#e8f3ee;font-weight:500}
+.scan-line { height:1px;background:linear-gradient(90deg,transparent,var(--code-accent),transparent);animation:scan 3.2s ease-in-out infinite; }
+.demo-result { display:grid;grid-template-columns:1.25fr repeat(3,.6fr);gap:1px;background:rgba(255,255,255,.1);border-top:1px solid rgba(255,255,255,.1); }
+.demo-result div { padding:14px;background:#0b1512; }.demo-result b{display:block;color:#f3faf7;font:600 16px var(--mono)}
+.demo-result span{font:10px var(--mono);color:#81948c}.demo-result .verified b{color:var(--code-accent);font-size:12px;text-transform:uppercase;letter-spacing:.08em}
+@keyframes scan { 0%,100%{transform:translateY(-8px);opacity:.25} 50%{transform:translateY(8px);opacity:1} }
 .start-head { display:flex; justify-content:space-between; align-items:center; gap:var(--space-3);
   padding-bottom:var(--space-4); border-bottom:1px solid var(--line); }
 .start-head b { font-size:17px; }.start-head span { color:var(--muted); font:12px var(--mono); }
@@ -30,8 +48,11 @@ EXTRA_CSS = """
 .start-steps b { display:block; margin-bottom:2px; }.start-steps span { color:var(--muted); font-size:14px; }
 .start-card .primary { width:100%; }
 .start-note { text-align:center; color:var(--muted); font-size:12px; margin:var(--space-3) 0 0; }
-.cases { display:grid; grid-template-columns:repeat(4,1fr); gap:var(--space-3); }
+.cases { display:grid; grid-template-columns:repeat(12,1fr); gap:var(--space-3); }
 .case { display:flex; flex-direction:column; min-height:260px; text-decoration:none; }
+.case:nth-child(6n+1),.case:nth-child(6n+4){grid-column:span 5;min-height:300px}
+.case:nth-child(6n+2),.case:nth-child(6n+5){grid-column:span 3}
+.case:nth-child(6n+3),.case:nth-child(6n+6){grid-column:span 4}
 .case-top { display:flex; align-items:start; justify-content:space-between; gap:var(--space-3); }
 .case h3 { margin:var(--space-4) 0 var(--space-2); font-size:18px; }
 .case p { color:var(--muted); font-size:14px; flex:1; }
@@ -83,11 +104,13 @@ EXTRA_CSS = """
   .landing-hero { padding-top:56px; grid-template-columns:1fr; }
   .pipeline,.bento,.step-list { grid-template-columns:1fr; }
   .cases { grid-template-columns:1fr 1fr; }
+  .case:nth-child(n){grid-column:auto;min-height:260px}
   .output-flow { grid-template-columns:1fr; }.flow-arrow{transform:rotate(90deg);margin:auto}
   .pipeline article:not(:last-child)::after { display:none; }
   .bento article:first-child { grid-column:auto; }
 }
-@media(max-width:520px){.cases{grid-template-columns:1fr}}
+@media(max-width:520px){.cases{grid-template-columns:1fr}.start-card{transform:none}.start-card::before{display:none}.demo-result{grid-template-columns:1fr 1fr}}
+@media(prefers-reduced-motion:reduce){.scan-line{animation:none}}
 """
 
 
@@ -121,15 +144,11 @@ et le contrat destiné à votre interface.</p>
 <div class="trust" data-reveal style="--reveal-delay:220ms">
 <span>{icon('check')} Compte gratuit</span><span>{icon('check')} Exemples inclus</span>
 <span>{icon('check')} Backend autonome</span></div></div>
-<aside class="start-card" data-reveal style="--reveal-delay:120ms" aria-label="Comment commencer">
-<div class="start-head"><b>Ce que vous allez faire</b><span>≈ 3 minutes</span></div>
-<ol class="start-steps">
-<li><div><b>Choisir une application proche de la vôtre</b><span>Vitrine, rendez-vous, boutique ou communauté.</span></div></li>
-<li><div><b>Adapter les données et les droits</b><span>Modifiez la spec proposée, ou importez votre fichier .ml.</span></div></li>
-<li><div><b>Vérifier puis compiler</b><span>Téléchargez le backend, le schéma SQL et le contrat frontend.</span></div></li>
-</ol>
-<a class="primary" href="/console">Commencer avec un exemple {icon('arrow')}</a>
-<p class="start-note">Rien n’est installé sur votre machine.</p></aside>
+<aside class="start-card" data-reveal style="--reveal-delay:120ms" aria-label="Ce que vous allez faire">
+<div class="demo-window"><div class="demo-bar"><i></i><i></i><i></i><span>compilation vérifiée</span></div>
+<div class="demo-code"><b>app</b> <strong>PetiteBoutique</strong><br><br><b>entity</b> Produit<br>&nbsp;&nbsp;prix: Money<br>&nbsp;&nbsp;stock: Integer<br><br><b>rule</b> Produit.stock min 0<br><b>rule</b> Produit.Read public</div>
+<div class="scan-line"></div><div class="demo-result"><div class="verified"><b>{icon('check')} valide</b><span>audit métier</span></div>
+<div><b>3</b><span>entités</span></div><div><b>17</b><span>routes</span></div><div><b>12</b><span>fichiers</span></div></div></div></aside>
 </section>
 
 <section class="band"><div class="shell section">

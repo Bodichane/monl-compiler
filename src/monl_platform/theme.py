@@ -98,12 +98,13 @@ CSS = """
 }
 
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; scroll-padding-top: 88px; }
+html { scroll-behavior: smooth; scroll-padding-top: 88px; overflow-x: clip; }
 body {
   margin: 0; background: var(--bg); color: var(--ink);
   font-family: var(--sans); font-size: 16px; line-height: 1.6;
-  -webkit-text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%; overflow-x: clip;
 }
+body::selection { background: var(--brand); color: var(--on-brand); }
 button, input, textarea, select { font: inherit; color: inherit; }
 a { color: inherit; }
 img, svg { max-width: 100%; }
@@ -125,6 +126,10 @@ code { font-family: var(--mono); font-size: .92em; }
   background: color-mix(in srgb, var(--bg) 92%, transparent);
   backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--line);
+}
+.scroll-progress {
+  position:fixed; inset:0 0 auto; height:2px; z-index:50; pointer-events:none;
+  background:var(--brand); transform:scaleX(0); transform-origin:left;
 }
 .nav { height: 68px; display: flex; align-items: center; gap: var(--space-5); }
 .brand {
@@ -189,7 +194,12 @@ code { font-family: var(--mono); font-size: .92em; }
   border-radius: var(--radius); padding: var(--space-5);
 }
 .lift { transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease; }
+.lift { position:relative; overflow:hidden; }
+.lift::after { content:""; position:absolute; inset:0; pointer-events:none; opacity:0;
+  background:linear-gradient(120deg,transparent 30%,color-mix(in srgb,var(--brand) 8%,transparent),transparent 70%);
+  transform:translateX(-55%); transition:opacity .25s ease,transform .5s ease; }
 .lift:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--brand) 45%, var(--line)); box-shadow: var(--shadow); }
+.lift:hover::after { opacity:1; transform:translateX(55%); }
 .motion-ready [data-reveal] { opacity: 0; transform: translateY(14px); }
 .motion-ready [data-reveal].is-visible {
   opacity: 1; transform: none;
@@ -291,6 +301,24 @@ THEME_TOGGLE = """
 })();
 
 (function () {
+  var bar = document.querySelector('.scroll-progress');
+  if (!bar) return;
+  var scheduled = false;
+  function update() {
+    var max = document.documentElement.scrollHeight - window.innerHeight;
+    var progress = max > 0 ? Math.min(1, window.scrollY / max) : 0;
+    bar.style.transform = 'scaleX(' + progress + ')';
+    scheduled = false;
+  }
+  window.addEventListener('scroll', function () {
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(update);
+  }, { passive: true });
+  update();
+})();
+
+(function () {
   var items = document.querySelectorAll('[data-reveal]');
   if (!items.length) return;
   if (!('IntersectionObserver' in window)) {
@@ -367,6 +395,7 @@ def page(*, title: str, description: str, body: str, active: str = "",
 <style>{CSS}{extra_css}</style>
 </head>
 <body>
+<div class="scroll-progress" aria-hidden="true"></div>
 <a class="skip" href="#contenu">Aller au contenu</a>
 <header class="topbar"><nav class="shell nav" aria-label="Navigation principale">
 <a class="brand" href="/"><span class="mark">m/</span><span>monl compiler</span></a>
