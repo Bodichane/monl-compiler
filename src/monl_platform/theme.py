@@ -24,76 +24,74 @@ mesure plutôt que de le croire.
 
 from __future__ import annotations
 
-# Le vert vient de la console d'origine : c'est déjà l'identité de la
-# plateforme, et la refonte n'avait aucune raison de la renommer.
+# Identité Monl : encre, ivoire et vermillon. Aucun vert n'est employé,
+# pas même comme couleur de statut.
 CSS = """
 :root {
   color-scheme: light dark;
   --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", "IBM Plex Mono", Consolas, monospace;
 
-  --bg: #f5f7f4;
-  --surface: #ffffff;
-  --surface-2: #edf1ee;
-  --ink: #13211d;
-  --muted: #55645e;
-  --line: #d8e1dc;
-  --brand: #14614a;
-  --brand-strong: #0d4633;
+  --bg: #f7f3ed;
+  --surface: #fffcf8;
+  --surface-2: #eee8e1;
+  --ink: #17141a;
+  --muted: #625d66;
+  --line: #ddd4cb;
+  --brand: #b93227;
+  --brand-strong: #92261f;
   --on-brand: #ffffff;
-  --soft: #e4f0ea;
-  --danger: #97302a;
-  --danger-bg: #fdf0ee;
-  --danger-line: #e6bbb4;
-  --code-bg: #101b18;
-  --code-ink: #dcefe7;
-  --code-accent: #b9f36a;
-  --mark-bg: #13211d;
-  --mark-ink: #b9f36a;
+  --soft: #f8ddd7;
+  --danger: #9b244a;
+  --danger-bg: #fbe8ef;
+  --danger-line: #e7b5c7;
+  --code-bg: #151117;
+  --code-ink: #f3ede7;
+  --code-accent: #ff8064;
 
-  --radius: 14px;
-  --radius-lg: 20px;
+  --radius: 12px;
+  --radius-lg: 18px;
   --shell: 1180px;
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
   --space-5: 24px; --space-6: 32px; --space-7: 48px; --space-8: 64px;
-  --shadow: 0 1px 2px rgba(16, 40, 33, .06), 0 12px 32px rgba(16, 40, 33, .06);
+  --shadow: 0 1px 2px rgba(23, 20, 26, .07), 0 18px 44px rgba(23, 20, 26, .08);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #050606;
-    --surface: #0d0f0e;
-    --surface-2: #151817;
-    --ink: #f1f5f3;
-    --muted: #a4afa9;
-    --line: #29302d;
-    --brand: #58d6a5;
-    --brand-strong: #7ce5bc;
-    --on-brand: #071510;
-    --soft: #15382e;
-    --danger: #f2a49a;
-    --danger-bg: #2a1614;
-    --danger-line: #57302b;
-    --code-bg: #020303;
+    --bg: #09090b;
+    --surface: #121114;
+    --surface-2: #1b181e;
+    --ink: #f7f3ed;
+    --muted: #aaa2ad;
+    --line: #332d36;
+    --brand: #ff6b4a;
+    --brand-strong: #ff8a70;
+    --on-brand: #190805;
+    --soft: #3a1915;
+    --danger: #ff7aa2;
+    --danger-bg: #2d121c;
+    --danger-line: #673047;
+    --code-bg: #070608;
     --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 12px 32px rgba(0, 0, 0, .3);
   }
 }
 
 :root[data-theme="dark"] {
-  --bg: #050606;
-  --surface: #0d0f0e;
-  --surface-2: #151817;
-  --ink: #f1f5f3;
-  --muted: #a4afa9;
-  --line: #29302d;
-  --brand: #58d6a5;
-  --brand-strong: #7ce5bc;
-  --on-brand: #071510;
-  --soft: #15382e;
-  --danger: #f2a49a;
-  --danger-bg: #2a1614;
-  --danger-line: #57302b;
-  --code-bg: #020303;
+  --bg: #09090b;
+  --surface: #121114;
+  --surface-2: #1b181e;
+  --ink: #f7f3ed;
+  --muted: #aaa2ad;
+  --line: #332d36;
+  --brand: #ff6b4a;
+  --brand-strong: #ff8a70;
+  --on-brand: #190805;
+  --soft: #3a1915;
+  --danger: #ff7aa2;
+  --danger-bg: #2d121c;
+  --danger-line: #673047;
+  --code-bg: #070608;
   --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 12px 32px rgba(0, 0, 0, .3);
 }
 
@@ -108,7 +106,7 @@ body::selection { background: var(--brand); color: var(--on-brand); }
 button, input, textarea, select { font: inherit; color: inherit; }
 a { color: inherit; }
 img, svg { max-width: 100%; }
-h1, h2, h3, h4 { line-height: 1.15; letter-spacing: -.02em; margin: 0; }
+h1, h2, h3, h4 { line-height: 1.12; letter-spacing: -.035em; margin: 0; font-weight: 750; }
 p { margin: 0 0 var(--space-4); }
 code { font-family: var(--mono); font-size: .92em; }
 
@@ -134,13 +132,16 @@ code { font-family: var(--mono); font-size: .92em; }
 .nav { height: 68px; display: flex; align-items: center; gap: var(--space-5); }
 .brand {
   display: inline-flex; align-items: center; gap: 10px;
-  font-weight: 700; letter-spacing: -.02em; text-decoration: none;
+  color:var(--ink); font-weight: 700; letter-spacing: -.02em; text-decoration: none;
 }
 .mark {
-  width: 32px; height: 32px; border-radius: 9px; flex: none;
-  background: var(--mark-bg); color: var(--mark-ink);
-  display: grid; place-items: center; font: 600 13px var(--mono);
+  width: 34px; height: 34px; border-radius: 10px; flex: none;
+  display: grid; place-items: center; overflow:hidden;
 }
+.mark svg { width:100%; height:100%; display:block; }
+.brand-copy { display:flex; align-items:baseline; gap:7px; white-space:nowrap; }
+.brand-copy strong { font-size:16px; letter-spacing:-.035em; }
+.brand-copy small { color:var(--muted); font:600 9px var(--mono); letter-spacing:.13em; text-transform:uppercase; }
 .navlinks {
   display: flex; align-items: center; gap: var(--space-2);
   margin-left: auto; color: var(--muted); font-size: 15px;
@@ -213,7 +214,7 @@ code { font-family: var(--mono); font-size: .92em; }
   overflow-x: auto; font: 13px/1.7 var(--mono); white-space: pre;
 }
 .codeblock .kw { color: var(--code-accent); }
-.codeblock .cm { color: #7f978d; }
+.codeblock .cm { color: #a398a1; }
 .copy {
   position: absolute; top: 10px; right: 10px; min-height: 32px;
   padding: 0 12px; border-radius: 8px; cursor: pointer; font-size: 13px;
@@ -243,8 +244,8 @@ table.grid td code { background: var(--surface-2); padding: 2px 6px; border-radi
 .footer-bottom { display:flex; justify-content:space-between; gap:var(--space-4); flex-wrap:wrap;
   margin-top:var(--space-7); padding-top:var(--space-4); border-top:1px solid var(--line); }
 .service-status { display:inline-flex; align-items:center; gap:7px; }
-.service-status::before { content:""; width:8px; height:8px; border-radius:50%; background:#35c48d;
-  box-shadow:0 0 0 4px color-mix(in srgb,#35c48d 16%,transparent); }
+.service-status::before { content:""; width:8px; height:8px; border-radius:50%; background:var(--brand);
+  box-shadow:0 0 0 4px color-mix(in srgb,var(--brand) 16%,transparent); }
 
 @media (max-width: 780px) {
   .navlinks a:not(.nav-cta):not(.icon-btn) { display: none; }
@@ -252,7 +253,7 @@ table.grid td code { background: var(--surface-2); padding: 2px 6px; border-radi
   .footer-grid { grid-template-columns:1fr 1fr; gap:var(--space-6); }
   .footer-brand { grid-column:1/-1; }
 }
-@media (max-width: 480px) { .footer-grid { grid-template-columns:1fr; } .footer-brand { grid-column:auto; } }
+@media (max-width: 480px) { .footer-grid { grid-template-columns:1fr; } .footer-brand { grid-column:auto; } .brand-copy small { display:none; } }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: .01ms !important; transition-duration: .01ms !important;
@@ -365,14 +366,24 @@ def icon(name: str) -> str:
             f'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" '
             f'stroke-linejoin="round" aria-hidden="true">{path}</svg>')
 
-# Deux emoji auraient suffi à l'écran ; ils se lisent « visage souriant » au
-# lecteur d'écran et changent de dessin d'un système à l'autre.
-FAVICON = (
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
-    '<rect width="64" height="64" rx="14" fill="#13211d"/>'
-    '<text x="32" y="43" font-family="ui-monospace, monospace" font-size="30" '
-    'font-weight="600" fill="#b9f36a" text-anchor="middle">m/</text></svg>'
+# Le signe assemble un « m » structurel et une barre de compilation. Les
+# formes sont des tracés, pas du texte : le dessin ne dépend d'aucune police.
+LOGO_MARK = (
+    '<svg viewBox="0 0 64 64" role="img" aria-label="Monl">'
+    '<rect width="64" height="64" rx="17" fill="#17141a"/>'
+    '<path d="M14 44V21l10 12 9-12v23" fill="none" stroke="#ff6243" '
+    'stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>'
+    '<path d="M43 44 51 20" fill="none" stroke="#ffb09f" stroke-width="5.5" '
+    'stroke-linecap="round"/>'
+    '</svg>'
 )
+LOGO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">' + LOGO_MARK.split('>', 1)[1]
+FAVICON = LOGO_SVG
+
+
+def _brand() -> str:
+    return (f'<span class="mark" aria-hidden="true">{LOGO_MARK}</span>'
+            '<span class="brand-copy"><strong>monl</strong><small>compiler</small></span>')
 
 
 def _lien(href: str, libelle: str, actif: str, cle: str) -> str:
@@ -389,6 +400,7 @@ def page(*, title: str, description: str, body: str, active: str = "",
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="{description}">
+<meta name="theme-color" content="#17141a">
 <title>{title}</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <script>{THEME_BOOT}</script>
@@ -398,7 +410,7 @@ def page(*, title: str, description: str, body: str, active: str = "",
 <div class="scroll-progress" aria-hidden="true"></div>
 <a class="skip" href="#contenu">Aller au contenu</a>
 <header class="topbar"><nav class="shell nav" aria-label="Navigation principale">
-<a class="brand" href="/"><span class="mark">m/</span><span>monl compiler</span></a>
+<a class="brand" href="/" aria-label="Monl compiler">{_brand()}</a>
 <div class="navlinks">
 {_lien("/", icon("home") + "Accueil", active, "home")}
 {_lien("/guide", icon("book") + "Guide", active, "guide")}
@@ -414,7 +426,7 @@ def page(*, title: str, description: str, body: str, active: str = "",
 </main>
 <div class="footer-wrap"><footer class="shell footer">
 <div class="footer-grid">
-<div class="footer-brand"><a class="brand" href="/"><span class="mark">m/</span><span>monl compiler</span></a>
+<div class="footer-brand"><a class="brand" href="/" aria-label="Monl compiler">{_brand()}</a>
 <p>Le métier est compilé, l’interface reste libre. Un backend déterministe et son contrat à partir d’une seule spécification.</p></div>
 <div><h2>Produit</h2><nav aria-label="Produit"><a href="/console">Console</a><a href="/guide#frontiere">Pourquoi Monl</a><a href="/guide#limites">Limites actuelles</a></nav></div>
 <div><h2>Développeurs</h2><nav aria-label="Développeurs"><a href="/guide#dsl">Référence DSL</a><a href="/guide#api">API HTTP</a><a href="/docs">Documentation développeur</a><a href="/api-docs">Explorateur OpenAPI</a><a href="/guide#mcp">Serveur MCP</a></nav></div>

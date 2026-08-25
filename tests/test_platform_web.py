@@ -252,6 +252,12 @@ def test_version_favicon_et_page_introuvable(tmp_path):
         favicon = requests.get(base + "/favicon.svg", timeout=30)
         assert favicon.status_code == 200
         assert favicon.headers["content-type"].startswith("image/svg+xml")
+        assert "<text" not in favicon.text
+
+        logo = requests.get(base + "/logo.svg", timeout=30)
+        assert logo.status_code == 200
+        assert logo.headers["content-type"].startswith("image/svg+xml")
+        assert "#ff6243" in logo.text
 
         # Un visiteur reçoit une page, un client d'API reçoit du JSON : servir
         # du HTML à curl rendrait l'erreur illisible là où on la lit.

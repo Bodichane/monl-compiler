@@ -25,7 +25,7 @@ from .service import (
     PlatformInputError,
     PlatformNotFoundError,
 )
-from .theme import FAVICON, page
+from .theme import FAVICON, LOGO_SVG, page
 
 # Une page servie deux fois identique n'a pas besoin d'être reconstruite à
 # chaque visite : le guide est du HTML pur, dérivé de constantes.
@@ -94,6 +94,13 @@ def create_app(*, workspace=None) -> FastAPI:
         # et un journal qui contient du bruit normal cesse d'être lu.
         return Response(
             FAVICON, media_type="image/svg+xml",
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
+
+    @application.get("/logo.svg", include_in_schema=False)
+    def logo():
+        return Response(
+            LOGO_SVG, media_type="image/svg+xml",
             headers={"Cache-Control": "public, max-age=86400"},
         )
 
