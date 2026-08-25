@@ -458,7 +458,7 @@ def page(*, title: str, description: str, body: str, active: str = "",
 <div><h2>Développeurs</h2><nav aria-label="Développeurs"><a href="/guide#dsl">Référence DSL</a><a href="/guide#api">API HTTP</a><a href="/docs">Documentation développeur</a><a href="/api-docs">Explorateur OpenAPI</a><a href="/mcp">Serveur MCP</a></nav></div>
 <div><h2>Ressources</h2><nav aria-label="Ressources"><a href="/guide">Guide de démarrage</a><a href="/security">Sécurité et garanties</a><a href="/api/version">Versions</a><a href="/health">État du service</a></nav></div>
 </div>
-<div class="footer-bottom"><span>© monl compiler</span><nav class="footer-legal" aria-label="Informations légales"><a href="/conditions">Conditions d’utilisation</a><a href="/confidentialite">Confidentialité</a></nav><a class="service-status" href="/health">Service opérationnel</a></div>
+<div class="footer-bottom"><span>© monl compiler</span><nav class="footer-legal" aria-label="Informations légales"><a href="/mentions-legales">Mentions légales</a><a href="/conditions">Conditions d’utilisation</a><a href="/confidentialite">Confidentialité</a></nav><a class="service-status" href="/health">Service opérationnel</a></div>
 </footer></div>
 <script>{THEME_TOGGLE}</script>
 {scripts}

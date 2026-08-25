@@ -20,7 +20,7 @@ from .guide import guide_html
 from .identity import IdentityError, IdentityStore
 from .journal import anomalie, configurer, court, evenement, panne
 from .landing import LANDING_HTML
-from .legal import CONDITIONS_HTML, CONFIDENTIALITE_HTML
+from .legal import CONDITIONS_HTML, CONFIDENTIALITE_HTML, MENTIONS_HTML
 from .mcp_page import MCP_HTML
 from .mcp_server import MCPDispatcher
 from .security import SECURITY_HTML
@@ -145,6 +145,11 @@ def create_app(*, workspace=None) -> FastAPI:
     @application.get("/docs", response_class=HTMLResponse, include_in_schema=False)
     def documentation():
         return DOCS_HTML
+
+    @application.get("/mentions-legales", response_class=HTMLResponse,
+                     include_in_schema=False)
+    def mentions_legales():
+        return MENTIONS_HTML
 
     @application.get("/conditions", response_class=HTMLResponse, include_in_schema=False)
     def conditions():

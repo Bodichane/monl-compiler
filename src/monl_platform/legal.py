@@ -44,37 +44,61 @@ def est_complete() -> bool:
     return all(MARQUEUR not in valeur for valeur in (EDITEUR, CONTACT, HEBERGEUR))
 
 
-def _identite(role_editeur: str, role_contact: str) -> str:
-    """Le bloc d'identité, dans l'un de ses DEUX états.
+def _lignes_manquantes() -> str:
+    """Nomme ce qui reste à renseigner, et rien d'autre.
 
-    Substituer les constantes ne suffisait pas : le texte qui les entoure dit
-    « à remplir avant toute ouverture au public ». Une fois rempli, la page
-    aurait donc affiché une vraie mention légale accompagnée d'un encadré
-    déclarant qu'elle est incomplète — un document qui se contredit lui-même,
-    et qui décrédibilise ce qu'il affirme par ailleurs.
-
-    L'avertissement **nomme ce qui manque vraiment**, pas un décompte figé :
-    l'hébergeur est renseigné et les deux autres ne le sont pas, donc dire
-    « ces trois emplacements » enverrait corriger ce qui est déjà juste. Même
-    reproche qu'au point 97 du compilateur — une hypothèse affichée comme un
-    diagnostic est pire qu'un message vague.
+    Un décompte figé (« ces trois emplacements ») enverrait corriger ce qui
+    est déjà juste dès qu'une seule valeur manque — même reproche qu'au
+    point 97 du compilateur : une hypothèse affichée comme un diagnostic est
+    pire qu'un message vague.
     """
-    lignes = (f'<b>{EDITEUR}</b> — {role_editeur}.<br>'
-              f'<b>{CONTACT}</b> — {role_contact}.<br>'
-              f'<b>{HEBERGEUR}</b> — hébergeur.')
-    if est_complete():
-        return f'<p class="identite">{lignes}</p>'
-
     manquants = [nom for nom, valeur in (("l'éditeur", EDITEUR),
                                          ("l'adresse de contact", CONTACT),
                                          ("l'hébergeur", HEBERGEUR))
                  if MARQUEUR in valeur]
+    if not manquants:
+        return ""
     quoi = manquants[0] if len(manquants) == 1 else (
         ", ".join(manquants[:-1]) + " et " + manquants[-1])
-    return (f'<span class="trou">{lignes}<br><br>'
-            f'Il reste à renseigner {quoi} avant toute ouverture au public : '
-            'ces valeurs ne se déduisent pas du code, et les inventer '
-            'produirait un faux.</span>')
+    return (f'<span class="trou">Il reste à renseigner {quoi} avant toute '
+            'ouverture au public : ces valeurs ne se déduisent pas du code, '
+            'et les inventer produirait un faux.</span>')
+
+
+MENTIONS = f"""
+<section class="shell legal">
+<span class="maj">Mentions légales</span>
+<h1>Qui édite ce service, qui l'héberge, et comment nous joindre.</h1>
+
+{_lignes_manquantes()}
+
+<h2>Éditeur</h2>
+<p>Ce service est édité par <strong>{EDITEUR}</strong>, personne physique,
+également directeur de la publication.</p>
+
+<h2>Hébergeur</h2>
+<p>Ce service est hébergé par <strong>{HEBERGEUR}</strong>.</p>
+
+<h2>Contact</h2>
+<p>Pour toute question sur le service, et pour exercer vos droits sur vos
+données, écrivez à <strong>{CONTACT}</strong>.</p>
+<p>Aucune autre voie de contact n'existe : le service n'envoie aucun courriel
+et ne dispose d'aucun support téléphonique.</p>
+
+<h2>Propriété</h2>
+<p>Vous restez propriétaire des spécifications que vous soumettez et des
+backends produits à partir d'elles. Le compilateur monl et le code de cette
+plateforme relèvent de leur propre licence, publiée avec leur code source.</p>
+
+<h2>Les autres documents</h2>
+<ul>
+<li><a href="/conditions">Conditions d'utilisation</a> — ce que le service
+promet, et ce qu'il ne garantit pas.</li>
+<li><a href="/confidentialite">Politique de confidentialité</a> — les données
+conservées, leur durée de vie, et comment tout effacer.</li>
+</ul>
+</section>
+"""
 
 
 CSS = """
@@ -131,9 +155,6 @@ CONFIDENTIALITE = f"""
 confrontée au schéma de la base par la suite de tests : une donnée conservée et non
 décrite ici fait échouer la construction.</p>
 
-{_identite("responsable du traitement",
-             "adresse à laquelle exercer vos droits")}
-
 <h2>Les données conservées</h2>
 <table>
 <thead><tr><th>Où</th><th>Quoi</th><th>Combien de temps</th></tr></thead>
@@ -166,8 +187,9 @@ tout moment depuis la console.</p>
 compte, la suppression efface le compte, ses sessions, ses clés d'API, ses projets en
 base <em>et</em> les dossiers correspondants sur le disque. Rien n'est conservé, et
 l'opération est irréversible.</p>
-<p>Pour l'accès, la rectification, l'opposition ou la portabilité, écrivez à l'adresse
-de contact ci-dessus.</p>
+<p>Pour l'accès, la rectification, l'opposition ou la portabilité, écrivez à
+<strong>{CONTACT}</strong>. Le responsable du traitement est nommé dans les
+<a href="/mentions-legales">mentions légales</a>.</p>
 <p>Vous pouvez également <strong>introduire une réclamation auprès de l'autorité de
 contrôle</strong> de votre pays de résidence si vous estimez que le traitement de vos
 données n'est pas conforme.</p>
@@ -181,12 +203,10 @@ les écrit masque ces valeurs par construction, qu'elles soient reconnues à leu
 </section>
 """
 
-CONDITIONS = f"""
+CONDITIONS = """
 <section class="shell legal">
 <span class="maj">Conditions d'utilisation</span>
 <h1>Ce que le service promet, et ce qu'il ne promet pas.</h1>
-
-{_identite("éditeur du service", "contact")}
 
 <h2>Le service</h2>
 <p>La plateforme compile une spécification Monl en une application complète
@@ -231,8 +251,18 @@ qui met le service en péril ou en fait un usage illicite.</p>
 <h2>Modification</h2>
 <p>Ces conditions peuvent évoluer. La version en vigueur est celle publiée sur cette
 page.</p>
+
+<h2>Qui édite ce service</h2>
+<p>L'éditeur, l'hébergeur et l'adresse de contact sont nommés dans les
+<a href="/mentions-legales">mentions légales</a>.</p>
 </section>
 """
+
+MENTIONS_HTML = page(
+    title="Mentions légales — monl compiler",
+    description="Qui édite ce service, qui l'héberge, et comment nous joindre.",
+    body=MENTIONS, extra_css=CSS,
+)
 
 CONDITIONS_HTML = page(
     title="Conditions d'utilisation — monl compiler",
