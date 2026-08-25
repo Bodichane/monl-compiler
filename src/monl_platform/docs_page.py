@@ -8,7 +8,7 @@ from .theme import icon, page
 EXTRA_CSS = """
 .docs-layout{display:grid;grid-template-columns:220px minmax(0,1fr);gap:var(--space-7);padding-block:var(--space-7);align-items:start}
 .docs-nav{position:sticky;top:88px}.docs-nav p{font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
-.docs-nav a{display:block;min-height:38px;padding:7px 10px;border-radius:9px;text-decoration:none;color:var(--muted)}
+.docs-nav a{display:flex;align-items:center;min-height:44px;padding:7px 10px;border-radius:9px;text-decoration:none;color:var(--muted)}
 .docs-nav a:hover{background:var(--surface-2);color:var(--ink)}
 .docs-main>section{padding-bottom:var(--space-8);scroll-margin-top:90px}.docs-main h1{font-size:clamp(38px,6vw,62px);margin-bottom:var(--space-4)}
 .docs-main h2{font-size:clamp(27px,4vw,38px);margin-bottom:var(--space-3)}.docs-main .lede{color:var(--muted);font-size:18px;max-width:760px}

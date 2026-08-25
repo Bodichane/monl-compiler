@@ -24,30 +24,34 @@ mesure plutôt que de le croire.
 
 from __future__ import annotations
 
-# Identité Monl : encre, ivoire et vermillon. Aucun vert n'est employé,
-# pas même comme couleur de statut.
+# Identité Monl : charbon, lin et ambre — le monde du terminal, sans le vert
+# que tout outil d'infrastructure emploie. L'ambre change de valeur selon le
+# fond (brûlé le jour, vif la nuit) : c'est la même couleur, pas deux accents.
 CSS = """
 :root {
   color-scheme: light dark;
   --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", "IBM Plex Mono", Consolas, monospace;
 
-  --bg: #f7f3ed;
-  --surface: #fffcf8;
-  --surface-2: #eee8e1;
-  --ink: #17141a;
-  --muted: #625d66;
-  --line: #ddd4cb;
-  --brand: #b93227;
-  --brand-strong: #92261f;
+  --bg: #f6f4f0;
+  --surface: #fffdfa;
+  --surface-2: #ede9e2;
+  --ink: #171512;
+  --muted: #615b51;
+  --line: #d3cabb;
+  --line-strong: #8f8060;
+  --brand: #96520a;
+  --brand-strong: #7a4108;
   --on-brand: #ffffff;
-  --soft: #f8ddd7;
-  --danger: #9b244a;
-  --danger-bg: #fbe8ef;
-  --danger-line: #e7b5c7;
-  --code-bg: #151117;
-  --code-ink: #f3ede7;
-  --code-accent: #ff8064;
+  --soft: #fbeed5;
+  --danger: #a32448;
+  --danger-bg: #fcecf1;
+  --danger-line: #e0b3c1;
+  --code-bg: #0f0e0c;
+  --code-ink: #f0e9dd;
+  --code-accent: #ffb020;
+  --code-muted: #a79e90;
+  --code-line: #2b2721;
 
   --radius: 12px;
   --radius-lg: 18px;
@@ -59,39 +63,41 @@ CSS = """
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #09090b;
-    --surface: #121114;
-    --surface-2: #1b181e;
-    --ink: #f7f3ed;
-    --muted: #aaa2ad;
-    --line: #332d36;
-    --brand: #ff6b4a;
-    --brand-strong: #ff8a70;
-    --on-brand: #190805;
-    --soft: #3a1915;
-    --danger: #ff7aa2;
-    --danger-bg: #2d121c;
-    --danger-line: #673047;
-    --code-bg: #070608;
-    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 12px 32px rgba(0, 0, 0, .3);
+  --bg: #0b0a09;
+  --surface: #141210;
+  --surface-2: #1d1a16;
+  --ink: #f3ece0;
+  --muted: #a79e90;
+  --line: #3d372e;
+  --line-strong: #6f6555;
+  --brand: #ffb020;
+  --brand-strong: #ffc559;
+  --on-brand: #241800;
+  --soft: #2e2213;
+  --danger: #ff8fa8;
+  --danger-bg: #2a1219;
+  --danger-line: #5c2a38;
+  --code-bg: #060505;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 12px 32px rgba(0, 0, 0, .3);
   }
 }
 
 :root[data-theme="dark"] {
-  --bg: #09090b;
-  --surface: #121114;
-  --surface-2: #1b181e;
-  --ink: #f7f3ed;
-  --muted: #aaa2ad;
-  --line: #332d36;
-  --brand: #ff6b4a;
-  --brand-strong: #ff8a70;
-  --on-brand: #190805;
-  --soft: #3a1915;
-  --danger: #ff7aa2;
-  --danger-bg: #2d121c;
-  --danger-line: #673047;
-  --code-bg: #070608;
+  --bg: #0b0a09;
+  --surface: #141210;
+  --surface-2: #1d1a16;
+  --ink: #f3ece0;
+  --muted: #a79e90;
+  --line: #3d372e;
+  --line-strong: #6f6555;
+  --brand: #ffb020;
+  --brand-strong: #ffc559;
+  --on-brand: #241800;
+  --soft: #2e2213;
+  --danger: #ff8fa8;
+  --danger-bg: #2a1219;
+  --danger-line: #5c2a38;
+  --code-bg: #060505;
   --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 12px 32px rgba(0, 0, 0, .3);
 }
 
@@ -131,7 +137,7 @@ code { font-family: var(--mono); font-size: .92em; }
 }
 .nav { height: 68px; display: flex; align-items: center; gap: var(--space-5); }
 .brand {
-  display: inline-flex; align-items: center; gap: 10px;
+  display: inline-flex; align-items: center; gap: 10px; min-height: 44px;
   color:var(--ink); font-weight: 700; letter-spacing: -.02em; text-decoration: none;
 }
 .mark {
@@ -148,7 +154,7 @@ code { font-family: var(--mono); font-size: .92em; }
 }
 .navlinks a {
   text-decoration: none; padding: 8px 12px; border-radius: 10px;
-  min-height: 40px; display: inline-flex; align-items: center; gap: 7px;
+  min-height: 44px; display: inline-flex; align-items: center; gap: 7px;
   transition: background .18s ease, color .18s ease;
 }
 .navlinks a:hover { background: var(--surface-2); color: var(--ink); }
@@ -165,14 +171,14 @@ code { font-family: var(--mono); font-size: .92em; }
 .primary, .nav-cta { background: var(--brand); color: var(--on-brand); }
 .primary:hover, .nav-cta:hover { background: var(--brand-strong); }
 .primary[disabled] { opacity: .6; cursor: not-allowed; }
-.secondary { background: var(--surface); border-color: var(--line); }
+.secondary { background: var(--surface); border-color: var(--line-strong); }
 .secondary:hover { border-color: var(--muted); }
 .ghost { background: transparent; color: var(--muted); }
 .ghost:hover { background: var(--surface-2); color: var(--ink); }
 .icon-btn {
   width: 44px; height: 44px; border-radius: 11px; flex: none;
   display: inline-grid; place-items: center; cursor: pointer;
-  background: transparent; border: 1px solid var(--line); color: var(--muted);
+  background: transparent; border: 1px solid var(--line-strong); color: var(--muted);
   transition: background .18s ease, color .18s ease;
 }
 .icon-btn:hover { background: var(--surface-2); color: var(--ink); }
@@ -214,9 +220,9 @@ code { font-family: var(--mono); font-size: .92em; }
   overflow-x: auto; font: 13px/1.7 var(--mono); white-space: pre;
 }
 .codeblock .kw { color: var(--code-accent); }
-.codeblock .cm { color: #a398a1; }
+.codeblock .cm { color: var(--code-muted); }
 .copy {
-  position: absolute; top: 10px; right: 10px; min-height: 32px;
+  position: absolute; top: 8px; right: 8px; min-height: 44px;
   padding: 0 12px; border-radius: 8px; cursor: pointer; font-size: 13px;
   background: rgba(255, 255, 255, .1); color: var(--code-ink);
   border: 1px solid rgba(255, 255, 255, .18);
@@ -238,12 +244,13 @@ table.grid td code { background: var(--surface-2); padding: 2px 6px; border-radi
 .footer-brand .brand { color:var(--ink); margin-bottom:var(--space-4); }
 .footer-brand p { margin:0; }
 .footer h2 { color:var(--ink); font:600 13px var(--sans); margin-bottom:var(--space-3); }
-.footer nav { display:flex; flex-direction:column; align-items:flex-start; gap:8px; }
+.footer nav { display:flex; flex-direction:column; align-items:flex-start; gap:0; }
 .footer a { text-decoration:none; }
+.footer nav a { min-height:44px; display:inline-flex; align-items:center; }
 .footer nav a:hover { color:var(--ink); text-decoration:underline; }
 .footer-bottom { display:flex; justify-content:space-between; gap:var(--space-4); flex-wrap:wrap;
   margin-top:var(--space-7); padding-top:var(--space-4); border-top:1px solid var(--line); }
-.service-status { display:inline-flex; align-items:center; gap:7px; }
+.service-status { min-height:44px; display:inline-flex; align-items:center; gap:7px; }
 .service-status::before { content:""; width:8px; height:8px; border-radius:50%; background:var(--brand);
   box-shadow:0 0 0 4px color-mix(in srgb,var(--brand) 16%,transparent); }
 
@@ -369,15 +376,30 @@ def icon(name: str) -> str:
 # Le signe assemble un « m » structurel et une barre de compilation. Les
 # formes sont des tracés, pas du texte : le dessin ne dépend d'aucune police.
 LOGO_MARK = (
-    '<svg viewBox="0 0 64 64" role="img" aria-label="Monl">'
-    '<rect width="64" height="64" rx="17" fill="#17141a"/>'
-    '<path d="M14 44V21l10 12 9-12v23" fill="none" stroke="#ff6243" '
-    'stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>'
-    '<path d="M43 44 51 20" fill="none" stroke="#ffb09f" stroke-width="5.5" '
-    'stroke-linecap="round"/>'
+    '<svg viewBox="0 0 48 48" role="img" aria-label="Monl">'
+    '<path d="M6 14l7 7-7 7" fill="none" stroke="currentColor" stroke-width="3.4" '
+    'stroke-linecap="round" stroke-linejoin="round"/>'
+    '<path d="M20 34V19l6.5 8 6.5-8v15" fill="none" stroke="currentColor" '
+    'stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>'
+    '<rect x="38" y="17" width="4.5" height="17" rx="1.2" fill="currentColor"/>'
     '</svg>'
 )
-LOGO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">' + LOGO_MARK.split('>', 1)[1]
+
+# Le favicon, lui, ne peut PAS être en currentColor : il vit dans un onglet,
+# hors de toute page, sans couleur héritée. Il porte donc sa pastille et son
+# ambre en dur — c'est la seule place où un fond est justifié, et l'onglet
+# d'un navigateur en attend un.
+LOGO_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" '
+    'aria-label="Monl">'
+    '<rect width="48" height="48" rx="11" fill="#0b0a09"/>'
+    '<path d="M6 14l7 7-7 7" fill="none" stroke="#ffb020" stroke-width="3.4" '
+    'stroke-linecap="round" stroke-linejoin="round" transform="translate(2)"/>'
+    '<path d="M20 34V19l6.5 8 6.5-8v15" fill="none" stroke="#ffb020" '
+    'stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>'
+    '<rect x="37" y="17" width="4.5" height="17" rx="1.2" fill="#ffb020" opacity=".55"/>'
+    '</svg>'
+)
 FAVICON = LOGO_SVG
 
 
@@ -400,7 +422,8 @@ def page(*, title: str, description: str, body: str, active: str = "",
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="{description}">
-<meta name="theme-color" content="#17141a">
+<meta name="theme-color" content="#0b0a09" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f6f4f0" media="(prefers-color-scheme: light)">
 <title>{title}</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <script>{THEME_BOOT}</script>

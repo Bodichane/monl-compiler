@@ -38,14 +38,14 @@ EXTRA_CSS = """
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--brand); flex: none; }
 .terminal { background: var(--code-bg); color: var(--code-ink); border-radius: var(--radius-lg);
             box-shadow: var(--shadow); overflow: hidden; }
-.terminal-head { height: 46px; border-bottom: 1px solid #223129; display: flex;
+.terminal-head { height: 46px; border-bottom: 1px solid var(--code-line); display: flex;
                  align-items: center; justify-content: space-between; padding: 0 16px;
-                 font: 12px var(--mono); color: #86a094; }
+                 font: 12px var(--mono); color: var(--code-muted); }
 .lights { display: flex; gap: 6px; }
-.lights i { width: 8px; height: 8px; border-radius: 50%; background: #3f5a4f; }
+.lights i { width: 8px; height: 8px; border-radius: 50%; background: var(--code-muted); }
 .terminal pre { margin: 0; padding: 24px; min-height: 340px; white-space: pre-wrap;
                 font: 13px/1.72 var(--mono); }
-.kw { color: var(--code-accent); } .cm { color: #7f978d; } .arrow { color: var(--code-accent); }
+.kw { color: var(--code-accent); } .cm { color: var(--code-muted); } .arrow { color: var(--code-accent); }
 
 .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
          gap: var(--space-3); }
@@ -90,7 +90,7 @@ EXTRA_CSS = """
 .field-head label { font-weight: 600; }
 .field-head small { color: var(--muted); }
 textarea { width: 100%; min-height: 400px; resize: vertical; background: var(--code-bg);
-           color: var(--code-ink); border: 1px solid #243429; border-radius: var(--radius);
+           color: var(--code-ink); border: 1px solid var(--code-line); border-radius: var(--radius);
            padding: 18px; font: 13px/1.7 var(--mono); tab-size: 4; }
 .toolbar { display: flex; justify-content: space-between; gap: var(--space-3);
            flex-wrap: wrap; margin-top: var(--space-4); }

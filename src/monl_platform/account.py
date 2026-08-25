@@ -8,7 +8,7 @@ CSS = """
 .auth-shell{min-height:calc(100vh - 190px);display:grid;place-items:center;padding:var(--space-7) 0}.auth-card{width:min(460px,100%);padding:var(--space-6)}
 .auth-card h1{font-size:34px;margin-bottom:var(--space-3)}.auth-card>.muted{margin-bottom:var(--space-5)}
 .auth-tabs{display:grid;grid-template-columns:1fr 1fr;background:var(--surface-2);padding:4px;border-radius:12px;margin-bottom:var(--space-5)}
-.auth-tabs button{border:0;background:transparent;min-height:40px;border-radius:9px;cursor:pointer}.auth-tabs button.active{background:var(--surface);font-weight:700;box-shadow:var(--shadow)}
+.auth-tabs button{border:0;background:transparent;min-height:44px;border-radius:9px;cursor:pointer}.auth-tabs button.active{background:var(--surface);font-weight:700;box-shadow:var(--shadow)}
 .form-field{display:grid;gap:6px;margin-bottom:var(--space-4)}.form-field label{font-weight:600;font-size:14px}.form-field input{min-height:46px;border:1px solid var(--line);border-radius:11px;background:var(--bg);padding:0 13px}
 .auth-card .primary{width:100%}.form-error{display:none;color:var(--danger);background:var(--danger-bg);border:1px solid var(--danger-line);padding:var(--space-3);border-radius:10px;margin-bottom:var(--space-4)}.form-error.show{display:block}
 .account-head{padding:var(--space-7) 0 var(--space-5);display:flex;justify-content:space-between;align-items:end;gap:var(--space-4)}.account-head h1{font-size:clamp(34px,5vw,50px);margin-bottom:var(--space-2)}

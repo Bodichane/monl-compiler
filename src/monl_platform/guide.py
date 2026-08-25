@@ -217,7 +217,7 @@ EXTRA_CSS = """
 .toc ol { list-style: none; margin: 0; padding: 0; }
 .toc a { display: flex; justify-content: space-between; gap: var(--space-3);
          text-decoration: none; color: var(--muted); padding: 7px 10px;
-         border-radius: 9px; min-height: 38px; align-items: center;
+         border-radius: 9px; min-height: 44px; align-items: center;
          transition: background .18s ease, color .18s ease; }
 .toc a:hover { background: var(--surface-2); color: var(--ink); }
 .toc a.active { background: var(--soft); color: var(--ink); font-weight: 600; }

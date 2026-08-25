@@ -1,6 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
-  <title id="title">Monl</title>
-  <rect width="64" height="64" rx="17" fill="#17141a"/>
-  <path d="M14 44V21l10 12 9-12v23" fill="none" stroke="#ff6243" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M43 44 51 20" fill="none" stroke="#ffb09f" stroke-width="5.5" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-labelledby="titre">
+  <title id="titre">Monl</title>
+  <!-- Le signe est tracé en currentColor : posé dans une page, il prend la
+       couleur du texte et tient sur n'importe quel fond. Le favicon, lui,
+       porte sa pastille — voir BRAND.md. -->
+  <path d="M6 14l7 7-7 7" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M20 34V19l6.5 8 6.5-8v15" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="38" y="17" width="4.5" height="17" rx="1.2" fill="currentColor"/>
 </svg>
