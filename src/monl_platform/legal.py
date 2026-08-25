@@ -21,8 +21,8 @@ from .theme import page
 
 MARQUEUR = "À COMPLÉTER"
 
-EDITEUR = "[ÉDITEUR À COMPLÉTER]"
-CONTACT = "[ADRESSE DE CONTACT À COMPLÉTER]"
+EDITEUR = "Itchane Bodi"
+CONTACT = "contact@monl.dev"
 # Contrairement aux deux constantes ci-dessus, celle-ci est un fait PUBLIC :
 # OVH publie sa propre identité légale pour que ses clients la citent. Elle est
 # donc renseignée — relevée sur https://www.ovhcloud.com/fr/terms-and-conditions/
@@ -131,7 +131,7 @@ CONFIDENTIALITE = f"""
 confrontée au schéma de la base par la suite de tests : une donnée conservée et non
 décrite ici fait échouer la construction.</p>
 
-{_identite("responsable du traitement, forme juridique et adresse",
+{_identite("responsable du traitement",
              "adresse à laquelle exercer vos droits")}
 
 <h2>Les données conservées</h2>
