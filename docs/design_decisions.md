@@ -53,6 +53,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [134](#134-la-frontiere-de-lagent-etait-une-enumeration-incomplete) La frontière de l'agent était une énumération incomplète ·
 [137](#137-brique-29--le-site-reclamait-six-fichiers-que-personne-navait-livres) Brique 29 : le site réclamait six fichiers que personne n'avait livrés ·
 [138](#138-le-dialogue-ne-demandait-jamais-comment-on-se-connecte-et-lindicatif-ne-servait-quen-europe) Le dialogue ne demandait jamais comment on se connecte, et l'indicatif ne servait qu'en Europe ·
+[139](#139-le-harnais-de-test-sautait-au-lieu-déchouer-et-vingt-et-un-fichiers-avec-lui) Le harnais de test sautait au lieu d'échouer, et vingt et un fichiers avec lui ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -8952,3 +8953,89 @@ inchangés — la correction ne touche que la branche où un indicatif est décl
 Le harnais des dix modèles exerce désormais les deux chemins : « tout refuser »
 n'émet aucun bloc, « tout accepter » émet `identifier: phone` + `phone_prefix`,
 et les dix modèles prouvent que le bloc émis compile.
+
+## 139. Le harnais de test sautait au lieu d'échouer, et vingt et un fichiers avec lui
+
+**Le constat.** La suite complète (`python3 -m pytest tests/ -q -rs`) rendait
+`992 passed, 17 skipped` et le code de sortie 0. Seize de ces sauts étaient
+légitimes (`MONL_TEST_DATABASE_URL absent` — PostgreSQL non demandé). Le
+dix-septième disait : `tests/support/server.py:42: serveur uvicorn arrêté
+avant de répondre (code 1)`. Les VINGT ET UN fichiers qui montent leur serveur
+par `uvicorn_server` passaient tous quand on les lançait séparément. Le saut
+n'apparaissait que sous charge.
+
+**Pourquoi c'est plus grave qu'un échec.** `uvicorn_server` porte les tests de
+comportement les plus coûteux du dépôt : `test_paiement`, `test_agregation`,
+`test_verrou_paiement`, `test_platform_web`. Un saut y est indiscernable d'un
+succès dans la sortie courte, et le code de sortie reste 0 — la CI est verte.
+C'est exactement ce que CLAUDE.md interdit : *une tâche n'est terminée que
+prouvée par exécution réelle*. Même famille que le point 67, avec une
+aggravation : là-bas le test instable ÉCHOUAIT et apprenait à relancer ; ici
+il ne dit rien du tout.
+
+**La cause, et pourquoi personne ne la connaissait.** `free_port()` lie une
+socket sur le port 0, lit le numéro attribué, **puis ferme la socket** et rend
+le numéro. Entre cette fermeture et le `bind` d'uvicorn, le port est libre pour
+tout le monde. Or `bind(0)` et les sockets CLIENTES puisent dans la même plage
+éphémère (`/proc/sys/net/ipv4/ip_local_port_range`, 32768-60999 ici), et la
+suite ouvre des milliers de connexions sortantes : d'où une collision qui ne se
+produit que sous charge. La cause était invisible parce que `stdout` et
+`stderr` d'uvicorn partaient dans `DEVNULL` — le message du noyau n'était lu
+par personne.
+
+**La correction, deux décisions.**
+
+*La socket est liée par le parent et PASSÉE à l'enfant* (`uvicorn --fd`, via
+`pass_fds`). Le port ne redevient jamais disponible entre le choix et l'écoute :
+la collision est rendue IMPOSSIBLE, pas retentée. Le parent referme sa copie
+juste après le `Popen` — l'enfant a la sienne, et garder la nôtre ouverte ferait
+accepter par le noyau des connexions que plus personne ne sert si le serveur
+meurt, transformant une panne franche en attente jusqu'au délai.
+
+*Un serveur qui ne démarre pas fait ÉCHOUER le test, jamais sauter*, et le
+message porte la sortie d'uvicorn, le module et le dossier. Un message qui ne
+dit pas la cause envoie corriger ce qui n'est pas cassé — le reproche du
+point 97, sur un autre outil.
+
+**La voie écartée : retenter sur un autre port.** Elle aurait marché pour la
+collision, et masqué tout le reste : une application qui ne s'importe pas est
+une panne DÉTERMINISTE, et la retenter trois fois n'aurait fait que retarder le
+même échec en brouillant sa cause. Supprimer la fenêtre vaut mieux que la
+repasser.
+
+**`free_port` reste, et sa docstring ÉNONCE sa limite.** Une vingtaine de
+fichiers montent leur serveur eux-mêmes et l'appellent encore ; eux échouent
+franchement si le port leur échappe, ce qui est bruyant mais honnête. Les
+convertir tous serait un autre chantier, et prétendre que `free_port` est sûr
+serait faux.
+
+**Le piège rencontré en écrivant le témoin, et qui vaut d'être connu.** Les
+premiers tests d'échec étaient écrits en `pytest.raises(pytest.fail.Exception)`.
+Contre-épreuve sur l'ancien harnais : **ils ont été SAUTÉS**, pas mis en échec —
+un `Skipped` levé à l'intérieur d'un `pytest.raises` traverse et fait sauter le
+test qui l'entoure. Le piège qu'on répare se reproduisait dans son propre
+témoin. Les trois tests d'échec passent donc par `echec_attendu()`, qui attrape
+les deux issues SÉPARÉMENT et traite un saut comme la panne qu'il est.
+
+**Ce que le correctif a trouvé à sa PREMIÈRE exécution, et qui justifie tout le
+reste.** La suite complète, rejouée trois fois, ne produit plus AUCUN saut de
+serveur — mais elle échoue désormais sur
+`test_upload_reel_acl_octets_limite_type_nom_et_suppression[sqlite]`, avec la
+cause en clair : `Form data requires "python-multipart" to be installed`.
+L'application générée déclare une route de téléversement, donc elle ne
+s'importe même pas, donc uvicorn meurt code 1. Ce test — celui qui vérifie
+l'ACL, la limite d'octets, le type, le nom et la suppression d'un fichier —
+**ne s'exécutait plus sur la machine du mainteneur**, et rendait du vert.
+
+Le paquet est pourtant DÉCLARÉ (`pyproject.toml`, `requirements.txt`) : ce
+n'était pas un trou produit, mais un environnement de développement
+incomplet — que l'ancien harnais rendait invisible. Après installation, le
+fichier passe. **C'est la démonstration du point** : un saut ne dit pas
+« rien à vérifier ici », il dit « je n'ai pas vérifié », et les deux se
+ressemblent jusqu'à ce qu'on les sépare.
+
+**Éprouvé par** `tests/test_support_serveur.py` (6 tests). Contre-épreuve
+mesurée : sur l'ancien harnais, **4 échouent et 0 saute** ; sur le nouveau, les
+6 passent. Les deux qui passent dans les deux cas sont le témoin du serveur
+sain (sans lui, un harnais qui échouerait TOUJOURS passerait les autres) et le
+test qui ÉNONCE la faille de `free_port`.
