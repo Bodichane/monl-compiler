@@ -34,6 +34,18 @@ autre emplacement :
 MONL_PLATFORM_WORKSPACE=/var/lib/monl monl-platform --host 0.0.0.0
 ```
 
+Pour une installation conteneurisée, le dépôt fournit une image non-root et
+un volume persistant :
+
+```bash
+docker compose -f compose.platform.yaml up --build -d
+```
+
+Le port n'est exposé que sur `127.0.0.1` : placez un reverse proxy HTTPS
+devant le service. `MONL_COOKIE_SECURE=1` exige ce HTTPS. Ne définissez
+`MONL_TRUST_PROXY=1` que si ce proxy remplace l'en-tête `X-Forwarded-For` reçu
+du public.
+
 Les téléchargements n'incluent jamais `.jwt_secret`. Le backend en génère un
 au premier démarrage, ce qui évite de transporter un secret de la plateforme.
 
@@ -42,13 +54,20 @@ au premier démarrage, ce qui évite de transporter un secret de la plateforme.
 | Méthode | Route | Effet |
 |---|---|---|
 | `GET` | `/health` | État du service |
+| `GET` | `/ready` | Disponibilité de SQLite et du stockage |
+| `POST` | `/api/auth/register` | Crée un compte et une session |
+| `POST` | `/api/auth/login` | Ouvre une session |
+| `POST` | `/api/auth/logout` | Révoque la session active |
 | `GET` | `/api/templates` | Catalogue des dix modèles métier |
 | `POST` | `/api/validate` | Validation sans écriture persistante |
 | `POST` | `/api/compile` | Backend et contrat dans un projet opaque |
+| `GET` | `/api/projects` | Projets du compte actif |
 | `GET` | `/api/projects/{id}` | Manifeste et résumé |
 | `GET` | `/api/projects/{id}/contract` | Contrat frontend complet |
 | `GET` | `/api/projects/{id}/download` | Archive ZIP sans secret |
-| `POST` | `/mcp` | Transport MCP HTTP sans session |
+| `POST` | `/api/keys` | Crée une clé MCP affichée une fois |
+| `DELETE` | `/api/keys/{id}` | Révoque une clé MCP |
+| `POST` | `/mcp` | Transport MCP HTTP avec clé Bearer |
 
 La plateforme n'accepte jamais de chemin de sortie fourni par le client. Une
 spec est limitée à 256 ko et chaque projet reçoit un identifiant UUID opaque.
@@ -79,6 +98,20 @@ python3 -m monl_platform.mcp_server
   que le chemin HTTP de téléchargement ;
 - `monl_inspect_contract` : lire le manifeste et le contrat complet.
 
-La version initiale est volontairement sans comptes. Avant une exposition sur
-Internet, le déploiement doit ajouter authentification, quotas, expiration des
-artefacts, limitation de débit, stockage durable et isolation des workers.
+## Garde-fous d'exploitation
+
+- mots de passe `scrypt`, sessions et clés stockées uniquement sous forme
+  d'empreintes ;
+- projets isolés par compte, expirant après 30 jours par défaut ;
+- cinq tentatives de connexion ou inscription par minute et par IP ;
+- dix compilations par heure et par compte, 120 appels MCP par minute ;
+- compteurs persistés dans SQLite et partagés entre workers web ;
+- au plus deux compilations simultanées par processus web ;
+- chaque compilation s'exécute dans un sous-processus borné en temps CPU,
+  mémoire, taille de fichiers et nombre de descripteurs ;
+- le conteneur est non-root, sans capabilities, en lecture seule hors `/data`.
+
+Les valeurs d'exploitation se règlent avec
+`MONL_PROJECT_RETENTION_DAYS`, `MONL_MAX_CONCURRENT_COMPILES`,
+`MONL_COMPILE_TIMEOUT_SECONDS`, `MONL_COMPILE_CPU_SECONDS`,
+`MONL_COMPILE_MEMORY_MB` et `MONL_COMPILE_OUTPUT_MB`.

@@ -6,6 +6,8 @@ import json
 import os
 import re
 import shutil
+import subprocess
+import sys
 import tempfile
 import uuid
 import zipfile
@@ -18,6 +20,7 @@ from monl.app_templates import TEMPLATES
 from monl.ast_validator import MonlAST
 from monl.cli import compile_project
 from monl.errors import MonlError
+from monl.frontend_contract import CONTRACT_VERSION
 from monl.parser import parse_monl_file
 
 MAX_SPEC_BYTES = 256_000
@@ -30,6 +33,10 @@ class PlatformInputError(ValueError):
 
 class PlatformNotFoundError(LookupError):
     """Projet compilé absent de l'espace de travail."""
+
+
+class PlatformExecutionError(RuntimeError):
+    """Le worker de compilation n'a pas pu terminer proprement."""
 
 
 @dataclass(frozen=True)
@@ -114,6 +121,16 @@ class CompilationService:
         self.workspace = Path(workspace or default or "platform-projects").resolve()
         self.workspace.mkdir(parents=True, exist_ok=True)
 
+    def contract_version(self) -> int:
+        """La version de BASE du contrat frontend.
+
+        Le contrat réellement émis peut valoir un cran de plus selon ce que la
+        spec déclare : c'est le manifeste d'une compilation qui porte le
+        chiffre exact, jamais celui-ci. Il sert à savoir contre quelle
+        génération de contrat la plateforme compile, pas à dater un projet.
+        """
+        return CONTRACT_VERSION
+
     def list_templates(self) -> list[dict[str, Any]]:
         return [
             {
@@ -152,8 +169,12 @@ class CompilationService:
         spec_path.write_text(spec, encoding="utf-8")
         output = io.StringIO()
         try:
-            with contextlib.redirect_stdout(output):
-                compile_project(str(spec_path), str(project_dir))
+            if os.environ.get("MONL_ISOLATE_COMPILES", "1").lower() in {
+                    "1", "true", "yes"}:
+                output.write(self._compile_in_worker(spec_path, project_dir))
+            else:
+                with contextlib.redirect_stdout(output):
+                    compile_project(str(spec_path), str(project_dir))
             contract = json.loads(
                 (project_dir / "frontend_contract.json").read_text(encoding="utf-8")
             )
@@ -177,6 +198,31 @@ class CompilationService:
         (project_dir / "platform-manifest.json").write_text(
             json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
         return manifest
+
+    @staticmethod
+    def _compile_in_worker(spec_path: Path, project_dir: Path) -> str:
+        timeout = max(5, int(os.environ.get("MONL_COMPILE_TIMEOUT_SECONDS", "45")))
+        command = [sys.executable, "-m", "monl.cli", "compile", str(spec_path),
+                   "--output", str(project_dir)]
+        kwargs: dict[str, Any] = {
+            "capture_output": True,
+            "text": True,
+            "encoding": "utf-8",
+            "timeout": timeout,
+            "check": False,
+        }
+        if os.name == "posix":
+            kwargs["preexec_fn"] = _worker_limits
+        try:
+            completed = subprocess.run(command, **kwargs)
+        except subprocess.TimeoutExpired as exc:
+            raise PlatformExecutionError(
+                f"La compilation a dépassé le délai maximal de {timeout} secondes."
+            ) from exc
+        if completed.returncode != 0:
+            detail = (completed.stderr or completed.stdout or "erreur inconnue").strip()
+            raise PlatformExecutionError(f"Le worker de compilation a échoué : {detail[-1000:]}")
+        return completed.stdout
 
     def _project_dir(self, project_id: str) -> Path:
         if not PROJECT_ID.fullmatch(project_id or ""):
@@ -207,3 +253,20 @@ class CompilationService:
                     bundle.write(path, path.relative_to(directory))
         temporary.replace(archive)
         return archive
+
+    def delete(self, project_id: str) -> None:
+        directory = self._project_dir(project_id)
+        shutil.rmtree(directory)
+
+
+def _worker_limits() -> None:
+    """Bornes du sous-processus ; le conteneur reste la seconde frontière."""
+    import resource
+
+    cpu = max(5, int(os.environ.get("MONL_COMPILE_CPU_SECONDS", "30")))
+    memory = max(256, int(os.environ.get("MONL_COMPILE_MEMORY_MB", "768"))) * 1024 * 1024
+    output = max(16, int(os.environ.get("MONL_COMPILE_OUTPUT_MB", "64"))) * 1024 * 1024
+    resource.setrlimit(resource.RLIMIT_CPU, (cpu, cpu))
+    resource.setrlimit(resource.RLIMIT_AS, (memory, memory))
+    resource.setrlimit(resource.RLIMIT_FSIZE, (output, output))
+    resource.setrlimit(resource.RLIMIT_NOFILE, (128, 128))

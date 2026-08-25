@@ -857,6 +857,58 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   `_validate_structures`). Avec le point 108 (émission SQL typée), les deux
   versants de la sécurité — décision et émission — sont désormais des frontières
   nommées.
+- **POINT 140 : `uvicorn_server` (tests/support/server.py) ÉCHOUE, il ne saute
+  plus.** Il convertissait la mort d'un serveur en `pytest.skip`, donc les
+  vingt et un fichiers d'intégration qui passent par lui pouvaient ne rien
+  vérifier en rendant du vert — mesuré : `992 passed, 17 skipped`, code de
+  sortie 0, dont un `serveur uvicorn arrêté (code 1)` que personne ne lisait.
+  La socket est désormais liée par le parent et PASSÉE à l'enfant
+  (`uvicorn --fd` + `pass_fds`) : le port ne redevient jamais libre entre le
+  choix et l'écoute, donc la collision est impossible plutôt que retentée
+  (retenter aurait masqué une panne déterministe). La sortie d'uvicorn ne part
+  plus dans `DEVNULL`, elle est dans le message d'échec. **`free_port` reste
+  racé et sa docstring le dit** — une vingtaine de fichiers l'appellent encore,
+  mais eux échouent franchement. Le piège à connaître, mesuré en écrivant le
+  témoin : un `Skipped` levé dans un `pytest.raises` fait SAUTER le test qui
+  l'entoure — d'où `echec_attendu()` dans `tests/test_support_serveur.py`, qui
+  attrape les deux issues séparément. **Ce que le correctif a trouvé dès sa
+  première exécution** : `test_uploads.py` ne s'exécutait plus sur la machine
+  du mainteneur (`python-multipart` absent — pourtant DÉCLARÉ dans
+  `pyproject.toml`), et rendait du vert. Un saut ne dit pas « rien à vérifier
+  ici », il dit « je n'ai pas vérifié ».
+- **POINT 141 : la plateforme est exploitable — pages légales, suppression de
+  compte, journal, sauvegarde, purge périodique.** Cinq manques qui n'étaient
+  pas des défauts de code, mais des choses inexistantes. Trois règles à ne pas
+  défaire. **`legal.py` n'invente RIEN** : `EDITEUR` et `CONTACT` portent un
+  marqueur `[À COMPLÉTER]` visible dans la page servie, gardé par un test —
+  fabriquer une mention légale plausible produirait un faux document. **La
+  liste des données conservées est confrontée au schéma SQLite réel** : une
+  table qui garde de la donnée et que la page ne nomme pas fait échouer la
+  suite (une politique désynchronisée est pire qu'absente, elle AFFIRME).
+  **`journal.py` ne PEUT PAS écrire un secret** — masquage par le NOM du champ
+  ET par la FORME de la valeur, même logique que la frontière SQL du point 108 ;
+  le nom d'événement y est positionnel uniquement (`/`), sans quoi un champ
+  `nom=` levait un `TypeError` pile quand on veut journaliser. `_purger` est la
+  source UNIQUE appelée au démarrage et dans la boucle, et le fil vit dans le
+  `lifespan`, jamais dans `create_app`.
+  **CE QUE LA DOCUMENTATION A TROUVÉ.** Écrire la procédure de restauration a
+  révélé que **`with sqlite3.connect(...)` ne FERME pas** : l'objet `Connection`
+  prend part à des cycles de références, donc il n'est rendu qu'au ramasse-miettes
+  cyclique. Mesuré : 500 lectures → **197 descripteurs ouverts**, base à 4 096
+  octets avec 111 Ko de WAL à côté, et la restauration qui échouait sur un
+  `disk I/O error`. `IdentityStore._connect` est désormais un gestionnaire de
+  contexte qui ferme (197 → 0). Ne pas le refaire rendre une connexion nue.
+  **Un document se garde comme du code** : deux tests confrontent
+  `docs/EXPLOITATION.md` au code (variables d'environnement, événements
+  journalisés) dans les DEUX sens — une variable tue ne se réglera pas, une
+  variable documentée mais ignorée se réglera pour rien. Voir point 141.
+  **LE JOURNAL MASQUAIT LE COMPTE**, trouvé en lançant le serveur une fois les
+  vingt-cinq tests au vert : un `uuid4().hex` fait 32 caractères, donc
+  `FORMES_SENSIBLES` l'avalait et toutes les lignes disaient
+  `compte=[masqué]` — étanche et inutile. Le remède ne touche PAS au masquage
+  (exempter des noms de champs rouvrirait le trou) : `journal.court()` tronque
+  à huit caractères ce qu'on lui PASSE, et un test relit `app.py` pour
+  qu'aucun identifiant n'y soit journalisé nu. Voir point 141.
 - **POINT 110 : le parseur Lark est mis en cache** (`_get_parser`, parser.py) —
   construit une fois, pas à chaque `parse_monl_string`. La construction (~50 ms)
   dominait le parsing ; en cache, 0,4 ms/parse, et la suite est passée de ~344 s

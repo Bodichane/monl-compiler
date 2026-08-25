@@ -1,0 +1,24 @@
+FROM python:3.12-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    MONL_PLATFORM_WORKSPACE=/data \
+    MONL_COOKIE_SECURE=1 \
+    MONL_MAX_CONCURRENT_COMPILES=2
+
+WORKDIR /app
+COPY pyproject.toml README.md LICENSE* ./
+COPY src ./src
+RUN pip install --no-cache-dir . \
+    && addgroup --system monl \
+    && adduser --system --ingroup monl --home /app monl \
+    && mkdir -p /data \
+    && chown monl:monl /data
+
+USER monl
+VOLUME ["/data"]
+EXPOSE 8022
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8022/ready', timeout=2)"
+
+CMD ["monl-platform", "--host", "0.0.0.0", "--port", "8022"]
