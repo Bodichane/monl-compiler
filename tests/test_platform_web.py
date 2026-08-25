@@ -55,6 +55,8 @@ def test_page_explique_compile_et_mcp(tmp_path):
         assert "Ce que vous allez faire" in page.text
         assert "compilation vérifiée" in page.text
         assert "scroll-progress" in page.text
+        assert "L’infrastructure héberge. Monl compile le métier." in page.text
+        assert "0</b><span>appel réseau pour compiler" in page.text
         assert "Créer un backend" in page.text
         assert "Une spec entre. Un backend complet sort" in page.text
         assert "Cas métier compilables" in page.text
