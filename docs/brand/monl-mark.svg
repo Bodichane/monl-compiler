@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-labelledby="titre">
   <title id="titre">Monl</title>
-  <!-- Le signe est tracé en currentColor : posé dans une page, il prend la
-       couleur du texte et tient sur n'importe quel fond. Le favicon, lui,
-       porte sa pastille — voir BRAND.md. -->
-  <path d="M6 14l7 7-7 7" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M20 34V19l6.5 8 6.5-8v15" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
-  <rect x="38" y="17" width="4.5" height="17" rx="1.2" fill="currentColor"/>
+  <!-- Le m ramené à ses trois montants et ses deux épaules, en trait carré.
+       Le DERNIER fût descend sous la ligne : c'est le l de monl, et la seule
+       asymétrie du signe. Elle ne fabrique pas un second objet détaché — le
+       défaut de la version précédente, où une barre flottait à côté du m. -->
+  <path d="M8 34V11h16v23M24 11h16v31" fill="none" stroke="currentColor"
+        stroke-width="4.4" stroke-linecap="butt" stroke-linejoin="miter"/>
 </svg>

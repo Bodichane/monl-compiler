@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import threading
+from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Request
@@ -17,6 +18,7 @@ from .docs_page import DOCS_HTML
 from .guide import guide_html
 from .identity import IdentityError, IdentityStore
 from .landing import LANDING_HTML
+from .mcp_page import MCP_HTML
 from .mcp_server import MCPDispatcher
 from .security import SECURITY_HTML
 from .service import (
@@ -26,6 +28,8 @@ from .service import (
     PlatformNotFoundError,
 )
 from .theme import FAVICON, LOGO_SVG, page
+
+WORDMARK = Path(__file__).with_name("static") / "monl-wordmark.png"
 
 # Une page servie deux fois identique n'a pas besoin d'être reconstruite à
 # chaque visite : le guide est du HTML pur, dérivé de constantes.
@@ -76,6 +80,12 @@ def create_app(*, workspace=None) -> FastAPI:
             return RedirectResponse("/login?next=/account", status_code=303)
         return ACCOUNT_HTML
 
+    @application.get("/mcp", response_class=HTMLResponse, include_in_schema=False)
+    def mcp_access(request: Request):
+        if not identities.session_user(request.cookies.get("monl_session")):
+            return RedirectResponse("/login?next=/mcp", status_code=303)
+        return MCP_HTML
+
     @application.get("/guide", response_class=HTMLResponse, include_in_schema=False)
     def guide():
         return GUIDE_HTML
@@ -101,6 +111,13 @@ def create_app(*, workspace=None) -> FastAPI:
     def logo():
         return Response(
             LOGO_SVG, media_type="image/svg+xml",
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
+
+    @application.get("/brand/monl-wordmark.png", include_in_schema=False)
+    def wordmark():
+        return FileResponse(
+            WORDMARK, media_type="image/png",
             headers={"Cache-Control": "public, max-age=86400"},
         )
 

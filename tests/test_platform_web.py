@@ -55,13 +55,13 @@ def test_page_explique_compile_et_mcp(tmp_path):
         assert "Ce que vous allez faire" in page.text
         assert "compilation vérifiée" in page.text
         assert "scroll-progress" in page.text
-        assert "L’infrastructure héberge. Monl compile le métier." in page.text
+        assert "Votre infrastructure exécute. Monl décide ce qui est valide." in page.text
         assert "0</b><span>appel réseau pour compiler" in page.text
         assert "Créer un backend" in page.text
         assert "Une spec entre. Un backend complet sort" in page.text
         assert "Cas métier compilables" in page.text
         assert 'href="/security"' in page.text
-        assert "Le même moteur par MCP" in page.text
+        assert "Le même moteur pour les agents" in page.text
         assert 'href="/console"' in page.text
         assert "Documentation développeur" in page.text
         assert "Service opérationnel" in page.text
@@ -76,8 +76,12 @@ def test_page_explique_compile_et_mcp(tmp_path):
         assert 'href="/docs"' in console.text
         account = session.get(base + "/account", timeout=30)
         assert account.status_code == 200
-        assert "Vos projets et accès" in account.text
-        assert "Clés MCP" in account.text
+        assert "Vos projets" in account.text
+        assert "Clés MCP" not in account.text
+        mcp_page = session.get(base + "/mcp", timeout=30)
+        assert mcp_page.status_code == 200
+        assert "Clés d’accès" in mcp_page.text
+        assert "Créer une clé" in mcp_page.text
 
         docs = requests.get(base + "/docs", timeout=30)
         assert docs.status_code == 200
@@ -252,12 +256,21 @@ def test_version_favicon_et_page_introuvable(tmp_path):
         favicon = requests.get(base + "/favicon.svg", timeout=30)
         assert favicon.status_code == 200
         assert favicon.headers["content-type"].startswith("image/svg+xml")
+
+        wordmark = requests.get(base + "/brand/monl-wordmark.png", timeout=30)
+        assert wordmark.status_code == 200
+        assert wordmark.headers["content-type"].startswith("image/png")
+        assert wordmark.content.startswith(b"\x89PNG\r\n\x1a\n")
         assert "<text" not in favicon.text
 
         logo = requests.get(base + "/logo.svg", timeout=30)
         assert logo.status_code == 200
         assert logo.headers["content-type"].startswith("image/svg+xml")
-        assert "#ffb020" in logo.text.lower()
+        # Comparé à la SOURCE et non à un littéral : un logo servi dans une
+        # autre couleur que celle de la feuille est un défaut, quelle que
+        # soit la palette du moment.
+        from monl_platform.theme import LOGO_SVG
+        assert logo.text == LOGO_SVG
 
         # Un visiteur reçoit une page, un client d'API reçoit du JSON : servir
         # du HTML à curl rendrait l'erreur illisible là où on la lit.

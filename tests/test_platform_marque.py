@@ -130,9 +130,16 @@ def test_le_favicon_porte_ses_couleurs_car_il_na_rien_a_heriter():
     n'offre aucune couleur héritée, et en attend un fond."""
     assert "<text" not in theme.FAVICON
     assert "currentColor" not in theme.FAVICON
-    assert "#ffb020" in theme.FAVICON.lower()
-    fond, trace = "#0b0a09", "#ffb020"
-    assert contraste(trace, fond) >= 4.5
+    # Écrit SANS citer de couleur : la version précédente attendait `#ffb020`
+    # en dur et n'aurait rien vu d'un favicon repeint dans une teinte
+    # illisible, tant que ce littéral y figurait. Ce qui compte est le
+    # CONTRASTE entre la pastille et ses tracés — c'est vrai de toute palette.
+    couleurs = COULEUR.findall(theme.FAVICON)
+    assert len(couleurs) >= 2, f"il faut un fond et au moins un tracé : {couleurs}"
+    fond, traces = couleurs[0], couleurs[1:]
+    for trace in traces:
+        ratio = contraste(trace, fond)
+        assert ratio >= 4.5, f"tracé {trace} sur {fond} : {ratio:.2f}:1"
 
 
 def test_le_fichier_de_marque_et_la_feuille_dessinent_le_meme_signe():

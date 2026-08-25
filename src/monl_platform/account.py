@@ -12,24 +12,22 @@ CSS = """
 .form-field{display:grid;gap:6px;margin-bottom:var(--space-4)}.form-field label{font-weight:600;font-size:14px}.form-field input{min-height:46px;border:1px solid var(--line);border-radius:11px;background:var(--bg);padding:0 13px}
 .auth-card .primary{width:100%}.form-error{display:none;color:var(--danger);background:var(--danger-bg);border:1px solid var(--danger-line);padding:var(--space-3);border-radius:10px;margin-bottom:var(--space-4)}.form-error.show{display:block}
 .account-head{padding:var(--space-7) 0 var(--space-5);display:flex;justify-content:space-between;align-items:end;gap:var(--space-4)}.account-head h1{font-size:clamp(34px,5vw,50px);margin-bottom:var(--space-2)}
-.account-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:var(--space-4);padding-bottom:var(--space-8)}.account-panel h2{font-size:22px;margin-bottom:var(--space-2)}
+.account-grid{padding-bottom:var(--space-8)}.account-panel h2{font-size:22px;margin-bottom:var(--space-2)}
 .panel-head{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);margin-bottom:var(--space-5)}.item-list{display:grid;gap:var(--space-2)}
 .account-item{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);padding:var(--space-4);background:var(--surface-2);border:1px solid var(--line);border-radius:12px}.account-item p{margin:2px 0 0;color:var(--muted);font-size:13px}.account-item code{font-size:12px}
 .empty-account{padding:var(--space-7) var(--space-4);text-align:center;border:1px dashed var(--line);border-radius:12px;color:var(--muted)}
-.key-secret{display:none;margin-bottom:var(--space-4);padding:var(--space-4);background:var(--soft);border:1px solid var(--brand);border-radius:12px}.key-secret.show{display:block}.key-secret code{display:block;overflow-wrap:anywhere;margin:var(--space-2) 0}.key-secret p{font-size:13px;margin:0}
-.key-create{display:none;grid-template-columns:1fr auto;gap:var(--space-2);margin-bottom:var(--space-4)}.key-create.show{display:grid}.key-create input{min-height:44px;border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:0 12px}
 .delete-project.danger{color:var(--danger);background:var(--danger-bg)}
-@media(max-width:780px){.account-grid{grid-template-columns:1fr}.account-head{align-items:start;flex-direction:column}}
+@media(max-width:780px){.account-head{align-items:start;flex-direction:column}}
 """
 
 AUTH_BODY = f"""
 <section class="shell auth-shell"><div class="card auth-card"><span class="eyebrow">Votre espace Monl</span>
-<h1 id="auth-title">Se connecter</h1><p class="muted" id="auth-help">Retrouvez vos compilations et vos clés MCP.</p>
+<h1 id="auth-title">Se connecter</h1><p class="muted" id="auth-help">Retrouvez vos projets et poursuivez vos compilations.</p>
 <div class="auth-tabs"><button class="active" type="button" data-mode="login">Connexion</button><button type="button" data-mode="register">Créer un compte</button></div>
 <div class="form-error" id="auth-error" role="alert"></div><form id="auth-form">
 <div class="form-field"><label for="email">Adresse email</label><input id="email" type="email" autocomplete="email" required></div>
 <div class="form-field"><label for="password">Mot de passe</label><input id="password" type="password" autocomplete="current-password" minlength="10" required><small class="muted">10 caractères au minimum.</small></div>
-<button class="primary" type="submit">{icon('terminal')} <span id="submit-label">Se connecter</span></button></form></div></section>
+<button class="primary" type="submit">{icon('user')} <span id="submit-label">Se connecter</span></button></form></div></section>
 """
 
 AUTH_SCRIPT = """
@@ -49,31 +47,23 @@ form.onsubmit=async event=>{event.preventDefault();error.className='form-error';
 """
 
 ACCOUNT_BODY = f"""
-<section class="shell account-head"><div><span class="eyebrow">Compte</span><h1>Vos projets et accès.</h1><p class="muted" id="account-email"></p></div>
+<section class="shell account-head"><div><span class="eyebrow">Compte</span><h1>Vos projets.</h1><p class="muted" id="account-email"></p></div>
 <button class="secondary" id="logout" type="button">Se déconnecter</button></section>
-<section class="shell account-grid"><article class="card account-panel"><div class="panel-head"><div><h2>Projets compilés</h2><p class="muted">Conservés dans votre espace.</p></div><a class="primary" href="/console">{icon('terminal')} Nouveau</a></div><div class="item-list" id="projects"></div></article>
-<article class="card account-panel"><div class="panel-head"><div><h2>Clés MCP</h2><p class="muted">Une clé par appareil ou agent.</p></div><button class="primary" id="new-key" type="button">Créer</button></div>
-<form class="key-create" id="key-create"><label class="skip" for="key-name">Nom de la clé</label><input id="key-name" placeholder="Ex. Codex portable" maxlength="80" required><button class="primary" type="submit">Générer</button></form>
-<div class="key-secret" id="key-secret"><b>Copiez cette clé maintenant</b><code></code><button class="secondary" type="button">Copier</button><p>Elle ne sera plus affichée après avoir quitté cette page.</p></div>
-<div class="item-list" id="keys"></div></article></section>
+<section class="shell account-grid"><article class="card account-panel"><div class="panel-head"><div><h2>Projets compilés</h2><p class="muted">Conservés dans votre espace.</p></div><a class="primary" href="/console">{icon('compiler')} Nouveau projet</a></div><div class="item-list" id="projects"></div></article></section>
 """
 
 ACCOUNT_SCRIPT = """
 <script>
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function json(url,options){const r=await fetch(url,options);if(r.status===401){location.href='/login?next=/account';throw new Error('session');}const d=r.status===204?{}:await r.json();if(!r.ok)throw new Error(d.detail||'Erreur');return d;}
-async function load(){const [me,projects,keys]=await Promise.all([json('/api/auth/me'),json('/api/projects'),json('/api/keys')]);
+async function load(){const [me,projects]=await Promise.all([json('/api/auth/me'),json('/api/projects')]);
  document.querySelector('#account-email').textContent=me.email;document.querySelector('#projects').innerHTML=projects.projects.length?projects.projects.map(p=>`<div class="account-item"><div><b>${esc(p.name)}</b><p>Créé le ${new Date(p.created_at*1000).toLocaleDateString('fr-FR')} · expire le ${new Date(p.expires_at*1000).toLocaleDateString('fr-FR')}</p></div><span><a class="secondary" href="/api/projects/${encodeURIComponent(p.project_id)}/download">Télécharger</a><button class="ghost delete-project" data-id="${esc(p.project_id)}" type="button">Supprimer</button></span></div>`).join(''):'<div class="empty-account">Aucun projet. Compilez votre première spec.</div>';
- document.querySelector('#keys').innerHTML=keys.keys.length?keys.keys.map(k=>`<div class="account-item"><div><b>${esc(k.name)}</b><p><code>${esc(k.prefix)}…</code> · ${k.revoked_at?'révoquée':k.last_used_at?'utilisée':'jamais utilisée'}</p></div>${k.revoked_at?'':`<button class="ghost revoke" data-id="${esc(k.id)}" type="button">Révoquer</button>`}</div>`).join(''):'<div class="empty-account">Aucune clé MCP.</div>';
- document.querySelectorAll('.revoke').forEach(b=>b.onclick=async()=>{await json('/api/keys/'+b.dataset.id,{method:'DELETE'});load();});
  document.querySelectorAll('.delete-project').forEach(b=>b.onclick=async()=>{if(!b.dataset.confirmed){b.dataset.confirmed='1';b.textContent='Confirmer';b.classList.add('danger');return;}await json('/api/projects/'+b.dataset.id,{method:'DELETE'});load();});}
-document.querySelector('#new-key').onclick=()=>{const form=document.querySelector('#key-create');form.classList.toggle('show');if(form.classList.contains('show'))document.querySelector('#key-name').focus();};
-document.querySelector('#key-create').onsubmit=async e=>{e.preventDefault();const input=document.querySelector('#key-name');const key=await json('/api/keys',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:input.value})});const box=document.querySelector('#key-secret');box.querySelector('code').textContent=key.key;box.className='key-secret show';box.querySelector('button').onclick=()=>navigator.clipboard.writeText(key.key);input.value='';document.querySelector('#key-create').classList.remove('show');load();};
 document.querySelector('#logout').onclick=async()=>{await fetch('/api/auth/logout',{method:'POST'});location.href='/';};load();
 </script>
 """
 
 AUTH_HTML = page(title="Connexion — monl compiler", description="Accédez à votre espace Monl.",
                  body=AUTH_BODY, extra_css=CSS, scripts=AUTH_SCRIPT)
-ACCOUNT_HTML = page(title="Votre compte — monl compiler", description="Projets et clés MCP Monl.",
+ACCOUNT_HTML = page(title="Votre compte — monl compiler", description="Vos projets compilés avec Monl.",
                     body=ACCOUNT_BODY, active="account", extra_css=CSS, scripts=ACCOUNT_SCRIPT)

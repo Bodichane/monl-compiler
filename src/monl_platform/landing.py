@@ -19,12 +19,12 @@ EXTRA_CSS = """
 .trust { display:flex; flex-wrap:wrap; gap:var(--space-5);
   margin-top:var(--space-6); color:var(--muted); font-size:14px; }
 .trust span { display:inline-flex; gap:7px; align-items:center; }
-.trust .icon { color:var(--brand); }
+.trust .icon { color:var(--ink); }
 .proof-rail { display:grid;grid-template-columns:repeat(4,1fr);border-block:1px solid var(--line);background:var(--surface);
   padding-inline:max(20px,calc((100vw - var(--shell))/2)); }
 .proof-rail div { padding:20px clamp(16px,3vw,34px);border-right:1px solid var(--line); }
 .proof-rail div:last-child{border-right:0}.proof-rail b{display:block;font:700 clamp(18px,2vw,24px) var(--mono);letter-spacing:-.04em}
-.proof-rail span{color:var(--muted);font-size:12px}.proof-rail .proof-word{color:var(--brand)}
+.proof-rail span{color:var(--muted);font-size:12px}.proof-rail .proof-word{color:var(--ink)}
 .start-card { position:relative; background:var(--code-bg); color:var(--code-ink); border:1px solid var(--line);
   border-radius:calc(var(--radius-lg) + 4px); padding:var(--space-3); box-shadow:0 28px 70px rgba(0,0,0,.22);
   transform:rotate(1deg); }
@@ -34,7 +34,7 @@ EXTRA_CSS = """
 .demo-bar { display:flex;align-items:center;gap:7px;padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.1);font:11px var(--mono);color:var(--code-muted); }
 .demo-bar i { width:7px;height:7px;border-radius:50%;background:var(--code-line); }.demo-bar i:first-child{background:var(--code-accent)}
 .demo-bar span { margin-left:auto;display:inline-flex;align-items:center;gap:6px;color:var(--code-accent); }
-.demo-bar span::before { content:"";width:6px;height:6px;border-radius:50%;background:var(--code-accent);box-shadow:0 0 0 4px rgba(255,107,74,.16); }
+.demo-bar span::before { content:"";width:6px;height:6px;border-radius:50%;background:var(--code-accent);box-shadow:0 0 0 4px rgba(229,164,95,.16); }
 .demo-code { padding:22px 20px 18px;font:12px/1.85 var(--mono);color:var(--code-muted); }
 .demo-code b { color:var(--code-accent);font-weight:500 }.demo-code strong{color:var(--code-ink);font-weight:500}
 .scan-line { height:1px;background:linear-gradient(90deg,transparent,var(--code-accent),transparent);animation:scan 3.2s ease-in-out infinite; }
@@ -53,20 +53,48 @@ EXTRA_CSS = """
 .start-steps b { display:block; margin-bottom:2px; }.start-steps span { color:var(--muted); font-size:14px; }
 .start-card .primary { width:100%; }
 .start-note { text-align:center; color:var(--muted); font-size:12px; margin:var(--space-3) 0 0; }
-.cases { display:grid; grid-template-columns:repeat(12,1fr); gap:var(--space-3); }
-.case { display:flex; flex-direction:column; min-height:260px; text-decoration:none; }
-.case:nth-child(6n+1),.case:nth-child(6n+4){grid-column:span 5;min-height:300px}
-.case:nth-child(6n+2),.case:nth-child(6n+5){grid-column:span 3}
-.case:nth-child(6n+3),.case:nth-child(6n+6){grid-column:span 4}
-.case-top { display:flex; align-items:start; justify-content:space-between; gap:var(--space-3); }
-.case h3 { margin:var(--space-4) 0 var(--space-2); font-size:18px; }
-.case p { color:var(--muted); font-size:14px; flex:1; }
-.case-metrics { display:grid; grid-template-columns:repeat(3,1fr); gap:var(--space-2);
-  border-top:1px solid var(--line); padding-top:var(--space-4); }
-.case-metrics b { display:block; font:700 17px var(--mono); color:var(--ink); }
-.case-metrics span { color:var(--muted); font-size:11px; }
-.case-cta { display:inline-flex; align-items:center; gap:6px; color:var(--brand); font-weight:600; font-size:14px;
-  margin-top:var(--space-4); }
+.editorial { display:grid; grid-template-columns:minmax(240px,.78fr) minmax(0,1.35fr); gap:clamp(40px,8vw,110px); }
+.editorial .section-head { margin:0; }
+.platform-flow { display:grid; grid-template-columns:repeat(3,1fr); border:1px solid var(--line); border-radius:var(--radius-lg); overflow:hidden; }
+.flow-stage { min-height:280px; padding:clamp(24px,3vw,36px); border-right:1px solid var(--line); display:flex; flex-direction:column; }
+.flow-stage:last-child { border-right:0; }
+.flow-stage:nth-child(2) { background:var(--code-bg); color:var(--code-ink); }
+.flow-stage .stage-no { font:600 11px var(--mono); letter-spacing:.1em; color:var(--muted); }
+.flow-stage:nth-child(2) .stage-no,.flow-stage:nth-child(2) p { color:var(--code-muted); }
+.flow-stage h3 { margin:auto 0 10px; font-size:clamp(22px,2.4vw,29px); }
+.flow-stage p { color:var(--muted); margin:0; }
+.flow-stage .stage-tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:22px; }
+.flow-stage .stage-tags span { font:10px var(--mono); border:1px solid currentColor; border-radius:999px; padding:3px 8px; opacity:.7; }
+.capability-grid { display:grid; grid-template-columns:1fr 1fr; border:1px solid var(--line); border-radius:var(--radius-lg); overflow:hidden; }
+.capability { min-height:230px; padding:clamp(24px,3vw,34px); border-right:1px solid var(--line); border-bottom:1px solid var(--line); }
+.capability:nth-child(2n) { border-right:0; }.capability:nth-last-child(-n+2) { border-bottom:0; }
+.capability .feature-icon { margin-bottom:clamp(32px,5vw,58px); background:transparent; border:1px solid var(--line); color:var(--ink); }
+.capability h3 { font-size:19px; margin-bottom:8px; }.capability p { color:var(--muted); margin:0; }
+.principles { border-top:1px solid var(--line); }
+.principle { display:grid; grid-template-columns:44px 1fr; gap:var(--space-4); padding:26px 0; border-bottom:1px solid var(--line); }
+.principle .feature-icon { margin:0; background:transparent; border:1px solid var(--line); color:var(--ink); }
+.principle h3 { font-size:19px; margin-bottom:6px; }
+.principle p { color:var(--muted); margin:0; }
+.case-explorer { display:grid; grid-template-columns:minmax(230px,.7fr) minmax(0,1.55fr); border:1px solid var(--line);
+  border-radius:var(--radius-lg); overflow:hidden; min-height:560px; }
+.case-tabs { background:var(--surface-2); border-right:1px solid var(--line); padding:12px; }
+.case-tab { width:100%; border:0; border-radius:10px; padding:16px; background:transparent; color:var(--muted); text-align:left;
+  cursor:pointer; display:block; transition:background .18s,color .18s; }
+.case-tab:hover { color:var(--ink); }.case-tab[aria-selected="true"] { background:var(--surface); color:var(--ink); }
+.case-tab b { display:block; margin-bottom:4px; font-size:15px; }.case-tab span { font-size:12px; line-height:1.4; display:block; }
+.case-panels { min-width:0; background:var(--surface); }
+.case-panel { display:none; min-height:100%; padding:clamp(28px,5vw,58px); }
+.case-panel.active { display:grid; grid-template-columns:1fr 1fr; gap:clamp(24px,5vw,56px); animation:case-in .25s ease-out; }
+.case-panel h3 { font-size:clamp(27px,4vw,42px); margin:8px 0 16px; }.case-panel p { color:var(--muted); }
+.case-spec { min-width:0; display:flex; flex-direction:column; }
+.case-spec .codeblock { flex:1; min-height:0; white-space:pre-wrap; overflow:visible; overflow-wrap:anywhere; }
+.case-rules { display:flex; flex-wrap:wrap; gap:6px; }
+.case-rules span { border:1px solid var(--line); border-radius:999px; padding:3px 8px; color:var(--muted); font:10px var(--mono); }
+.case-result { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+.case-result b { display:block; color:var(--ink); font:700 18px var(--mono); }
+.case-result span { color:var(--muted); font-size:10px; }
+.case-open { display:inline-flex; align-items:center; gap:6px; margin-top:24px; color:var(--ink); font-size:13px; font-weight:650; }
+@keyframes case-in { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:none; } }
 .output-flow { display:grid; grid-template-columns:.8fr auto 1.2fr; gap:var(--space-4); align-items:center; }
 .mini-spec { margin:0; min-height:300px; }
 .flow-arrow { width:52px;height:52px;border-radius:50%;display:grid;place-items:center;background:var(--brand);color:var(--on-brand); }
@@ -115,16 +143,18 @@ EXTRA_CSS = """
 .final .secondary { background:var(--surface); color:var(--ink); border:0; }
 @media(max-width:760px){
   .landing-hero { padding-top:56px; grid-template-columns:1fr; }
-  .pipeline,.bento,.step-list { grid-template-columns:1fr; }
-  .cases { grid-template-columns:1fr 1fr; }
-  .case:nth-child(n){grid-column:auto;min-height:260px}
+  .pipeline,.bento,.step-list,.editorial,.platform-flow,.case-explorer { grid-template-columns:1fr; }
+  .flow-stage { min-height:220px; border-right:0; border-bottom:1px solid var(--line); }.flow-stage:last-child{border-bottom:0}
+  .case-tabs { border-right:0; border-bottom:1px solid var(--line); display:flex; overflow-x:auto; }
+  .case-tab { width:190px; flex:none; }.case-tab span { display:none; }
+  .case-panel.active { grid-template-columns:1fr; }.case-explorer { min-height:0; }
   .proof-rail{grid-template-columns:1fr 1fr}.proof-rail div:nth-child(2){border-right:0}.proof-rail div:nth-child(-n+2){border-bottom:1px solid var(--line)}
   .layers{grid-template-columns:1fr}.layer:nth-child(2){transform:none}.layer-arrow{display:none}
   .output-flow { grid-template-columns:1fr; }.flow-arrow{transform:rotate(90deg);margin:auto}
   .pipeline article:not(:last-child)::after { display:none; }
   .bento article:first-child { grid-column:auto; }
 }
-@media(max-width:520px){.cases{grid-template-columns:1fr}.start-card{transform:none}.start-card::before{display:none}.demo-result{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.start-card{transform:none}.start-card::before{display:none}.demo-result{grid-template-columns:1fr 1fr}.capability-grid{grid-template-columns:1fr}.capability{border-right:0;border-bottom:1px solid var(--line)!important}.capability:last-child{border-bottom:0!important}}
 @media(prefers-reduced-motion:reduce){.scan-line{animation:none}}
 """
 
@@ -134,16 +164,62 @@ def feature(symbol: str, title: str, text: str, delay: int = 0) -> str:
 <span class="feature-icon">{icon(symbol)}</span><h3>{title}</h3><p>{text}</p></article>"""
 
 
-def case_card(item: dict, delay: int) -> str:
+CASE_OUTCOMES = {
+    "vitrine": "Lecture publique, administration privée et catalogue initialisé dès le premier démarrage.",
+    "rendez-vous": "Chaque client reste isolé ; le praticien retrouve toutes les demandes et maîtrise leurs statuts.",
+    "boutique": "Prix calculés côté serveur, stock jamais négatif, commande numérotée et paiement verrouillé.",
+    "communaute": "Pseudonymes générés, une réaction par compte, signalement et modération sans contournement.",
+}
+
+CASE_SNIPPETS = {
+    "vitrine": """rule Realisation.Read public
+
+workflow Gerer for Admin
+    Create Realisation
+    Update Realisation
+    Delete Realisation""",
+    "rendez-vous": """rule Demande.Read ownedBy Visiteur
+rule Demande.Read sharedBy Praticien
+rule Demande.Create requiresOwn Client
+rule Demande.statut oneOf
+    \"deposee\", \"confirmee\", \"honoree\"""",
+    "boutique": """rule Ligne.sousTotal derivedFrom Produit.prix by quantite
+rule Commande.total sumOf Ligne.sousTotal
+rule Ligne.Create decrements Produit.stock by quantite
+rule Commande.total payable""",
+    "communaute": """rule Membre.pseudo generated \"MBR-{NNNN}\"
+rule Jaime.Create oncePer Membre, Message
+rule Jaime.Create increments Message.jaimes by 1
+rule Message.Read publicWhen statut \"publie\"""",
+}
+
+
+def case_tab(item: dict, index: int) -> str:
+    selected = ' aria-selected="true"' if index == 0 else ' aria-selected="false"'
+    return (f'<button class="case-tab" id="tab-{item["id"]}" role="tab" '
+            f'aria-controls="case-{item["id"]}"{selected} data-case="{item["id"]}">'
+            f'<b>{item["name"]}</b><span>{item["summary"]}</span></button>')
+
+
+def case_panel(item: dict, index: int) -> str:
     result = item["result"]
-    return f"""<a class="card case lift" href="/console?example={item['id']}" data-reveal
-style="--reveal-delay:{delay}ms"><div class="case-top"><span class="feature-icon">{icon('package')}</span>
-<span class="case-cta">Ouvrir {icon('arrow')}</span></div><h3>{item['name']}</h3><p>{item['summary']}</p>
-<div class="case-metrics"><span><b>{result['entities']}</b>entités</span><span><b>{result['routes']}</b>routes</span>
-<span><b>{result['files']}</b>fichiers</span></div></a>"""
+    rules = "".join(f"<span>{rule}</span>" for rule in item["teaches"])
+    active = " active" if index == 0 else ""
+    hidden = "" if index == 0 else " hidden"
+    snippet = CASE_SNIPPETS[item["id"]]
+    return f"""<section class="case-panel{active}" id="case-{item['id']}" role="tabpanel"
+aria-labelledby="tab-{item['id']}"{hidden}><div><span class="eyebrow">0{index + 1} · Spec incluse</span>
+<h3>{item['name']}</h3><p>{CASE_OUTCOMES[item['id']]}</p>
+<div class="case-rules" aria-label="Règles démontrées">{rules}</div>
+<div class="case-result" style="margin-top:28px"><span><b>{result['entities']}</b>entités</span>
+<span><b>{result['routes']}</b>routes</span><span><b>{result['files']}</b>fichiers</span></div>
+<a class="case-open" href="/console?example={item['id']}">Ouvrir dans la console {icon('arrow')}</a></div>
+<div class="case-spec"><pre class="codeblock"><code>{snippet}</code></pre></div></section>"""
 
 
-CASES = "".join(case_card(item, index * 50) for index, item in enumerate(examples.catalogue()))
+CATALOGUE = examples.catalogue()
+CASE_TABS = "".join(case_tab(item, index) for index, item in enumerate(CATALOGUE))
+CASE_PANELS = "".join(case_panel(item, index) for index, item in enumerate(CATALOGUE))
 
 
 BODY = f"""
@@ -167,7 +243,7 @@ et le contrat destiné à votre interface.</p>
 </section>
 
 <section class="proof-rail" aria-label="Preuves du compilateur">
-<div><b>10</b><span>spécifications complètes incluses</span></div><div><b>0</b><span>appel réseau pour compiler</span></div>
+<div><b>4</b><span>spécifications complètes incluses</span></div><div><b>0</b><span>appel réseau pour compiler</span></div>
 <div><b class="proof-word">Refus</b><span>si une règle est incohérente</span></div><div><b class="proof-word">Export</b><span>backend autonome, sans verrouillage</span></div>
 </section>
 
@@ -190,57 +266,32 @@ et le contrat destiné à votre interface.</p>
 </div></section>
 
 <section class="shell section" aria-labelledby="position-title">
-<div class="section-head" data-reveal><span class="eyebrow">Une couche différente</span>
-<h2 id="position-title">L’infrastructure héberge. Monl compile le métier.</h2>
-<p>Une base managée fournit le stockage et le calcul. Monl intervient avant : il transforme vos règles en API,
-schéma SQL et contrat vérifiés, puis vous laisse choisir où les exécuter.</p></div>
-<div class="layers">
-<article class="card layer" data-reveal><div><span class="layer-label">01 · Infrastructure</span><h3>Les fondations techniques</h3>
-<p>Postgres, stockage, calcul et réseau peuvent venir de votre cloud, d’un service managé ou de votre propre serveur.</p></div>
-<div class="layer-tags"><span>database</span><span>storage</span><span>compute</span></div><span class="layer-arrow">{icon('arrow')}</span></article>
-<article class="card layer" data-reveal style="--reveal-delay:60ms"><div><span class="layer-label">02 · Monl compiler</span><h3>Les règles qui ne doivent pas varier</h3>
-<p>Acteurs, permissions, propriété, stock, paiements et invariants passent par le parseur et l’audit avant de devenir du code.</p></div>
-<div class="layer-tags"><span>spec.ml</span><span>audit</span><span>contrat</span></div><span class="layer-arrow">{icon('arrow')}</span></article>
-<article class="card layer" data-reveal style="--reveal-delay:120ms"><div><span class="layer-label">03 · Interfaces</span><h3>Tout ce que vos utilisateurs voient</h3>
-<p>Web, mobile et agents consomment le même contrat sans avoir à deviner les routes ou les autorisations.</p></div>
-<div class="layer-tags"><span>web</span><span>mobile</span><span>MCP</span></div></article>
+<div class="section-head" data-reveal><span class="eyebrow">La place de Monl</span>
+<h2 id="position-title">Votre infrastructure exécute. Monl décide ce qui est valide.</h2>
+<p>Postgres, votre cloud ou un service managé hébergent les données. Monl intervient avant eux et reste indépendant de l’interface.</p></div>
+<div class="platform-flow" data-reveal>
+<article class="flow-stage"><span class="stage-no">01 · INFRASTRUCTURE</span><h3>Les fondations</h3><p>Base de données, calcul, stockage et réseau restent chez le fournisseur que vous choisissez.</p><div class="stage-tags"><span>Postgres</span><span>cloud</span><span>self-hosted</span></div></article>
+<article class="flow-stage"><span class="stage-no">02 · MONL COMPILER</span><h3>Le métier vérifié</h3><p>Acteurs, droits, propriété, paiements et invariants deviennent une API et un contrat cohérents. Le même moteur pour les agents MCP.</p><div class="stage-tags"><span>spec.ml</span><span>audit</span><span>contrat</span></div></article>
+<article class="flow-stage"><span class="stage-no">03 · INTERFACES</span><h3>Chaque expérience</h3><p>Web, mobile et agents utilisent les mêmes routes et autorisations sans les deviner.</p><div class="stage-tags"><span>web</span><span>mobile</span><span>MCP</span></div></article>
 </div></section>
 
-<section class="shell section" aria-labelledby="pipeline-title">
-<div class="section-head" data-reveal><span class="eyebrow">Une chaîne vérifiable</span>
-<h2 id="pipeline-title">De la règle métier au backend, sans zone grise.</h2>
-<p>L’IA peut aider à écrire une spécification. Seul le compilateur décide de ce qui est valide.</p></div>
-<div class="pipeline">
-{feature('code', '1. Décrivez', 'Entités, acteurs, permissions et invariants restent lisibles dans un fichier texte.', 0)}
-{feature('shield', '2. Vérifiez', 'Le parseur refuse les incohérences avant qu’elles ne deviennent du code.', 60)}
-{feature('package', '3. Livrez', 'Recevez l’API, le schéma SQL, le contrat frontend et les instructions.', 120)}
-</div></section>
-
-<section class="band"><div class="shell section">
-<div class="section-head" data-reveal><span class="eyebrow">Ce que Monl garantit</span>
-<h2>Des garanties observables, pas seulement du code plausible.</h2>
-<p>Chaque règle est vérifiée avant émission, puis traduite de la même façon dans l’API, la base et le contrat.</p></div>
-<div class="bento">
-{feature('shield', 'La sécurité vient de la spécification', 'Authentification, propriété des enregistrements et permissions par acteur sont compilées dans chaque route. Une action interdite n’est pas laissée à l’interprétation du frontend.', 0)}
-{feature('check', 'Les incohérences sont refusées', 'Types, relations, invariants et workflows traversent un parseur et un audit statique avant la génération.', 40)}
-{feature('code', 'Le contrat décrit les droits', 'Web, mobile ou agent connaissent les routes publiques, authentifiées et autorisées sans les deviner.', 80)}
-{feature('shield', 'Les secrets restent chez vous', 'Le secret JWT n’entre jamais dans l’archive : il est créé sur la machine qui exécute le backend.', 120)}
-{feature('package', 'Une livraison reproductible', 'API FastAPI, schéma SQL, contrat et instructions proviennent de la même source versionnable.', 160)}
-{feature('plug', 'Le même moteur par MCP', 'Les agents valident et compilent via le pipeline officiel, sans générateur parallèle moins strict.', 200)}
-</div><div style="margin-top:var(--space-5)" data-reveal><a class="secondary" href="/security">Voir les garanties et leurs limites {icon('arrow')}</a></div></div></section>
+<section class="band"><div class="shell section editorial">
+<div class="section-head" data-reveal><span class="eyebrow">Garanties vérifiables</span>
+<h2>La sécurité n’est pas une consigne donnée au frontend.</h2>
+<p>Elle est dérivée de la spécification et répétée dans chaque couche produite. Les limites restent explicites.</p>
+<a class="secondary" href="/security">Lire le modèle de sécurité {icon('arrow')}</a></div>
+<div class="capability-grid">
+<article class="capability" data-reveal><span class="feature-icon">{icon('shield')}</span><h3>Droits compilés par acteur</h3><p>Lecture publique, session, propriété et rôle privilégié sont distingués route par route.</p></article>
+<article class="capability" data-reveal><span class="feature-icon">{icon('check')}</span><h3>Invariants côté serveur</h3><p>Stock, montants, unicité, états autorisés et gel après paiement ne dépendent jamais du navigateur.</p></article>
+<article class="capability" data-reveal><span class="feature-icon">{icon('code')}</span><h3>Contrat frontend exact</h3><p>Chaque interface reçoit les routes, champs, actions et exigences d’authentification disponibles.</p></article>
+<article class="capability" data-reveal><span class="feature-icon">{icon('key')}</span><h3>Secrets créés chez vous</h3><p>Le secret JWT ne voyage pas dans l’archive et reste sous le contrôle de l’exploitant.</p></article>
+</div></div></section>
 
 <section class="shell section"><div class="section-head" data-reveal><span class="eyebrow">Cas métier compilables</span>
-<h2>Partez d’une application proche de la vôtre.</h2><p>Chaque carte ouvre sa spécification complète dans la console.</p></div>
-<div class="cases">{CASES}</div></section>
-
-<section class="shell section">
-<div class="section-head" data-reveal><span class="eyebrow">Un parcours pour tous</span>
-<h2>Commencez sans connaître le compilateur.</h2></div>
-<div class="step-list">
-<article data-reveal><h3>Choisissez un exemple</h3><p>La console propose plusieurs applications complètes et réellement compilables.</p></article>
-<article data-reveal style="--reveal-delay:60ms"><h3>Adaptez vos règles</h3><p>Le retour de validation explique précisément ce qui doit être corrigé.</p></article>
-<article data-reveal style="--reveal-delay:120ms"><h3>Téléchargez le résultat</h3><p>Votre backend et son contrat arrivent dans une archive reproductible.</p></article>
-</div></section>
+<h2>Quatre applications, quatre familles de règles réellement testées.</h2>
+<p>Chaque exemple est une spécification complète servie par la plateforme. Ouvrez-la dans la console, adaptez-la puis compilez son backend.</p></div>
+<div class="case-explorer" data-reveal><div class="case-tabs" role="tablist" aria-label="Cas métier">{CASE_TABS}</div>
+<div class="case-panels">{CASE_PANELS}</div></div></section>
 
 <section class="shell final" data-reveal>
 <h2>Compilez une règle métier réelle.</h2>
@@ -249,10 +300,42 @@ schéma SQL et contrat vérifiés, puis vous laisse choisir où les exécuter.</
 </section>
 """
 
+CASE_SCRIPT = """<script>
+(function () {
+  var tabs = Array.from(document.querySelectorAll('.case-tab'));
+  var panels = Array.from(document.querySelectorAll('.case-panel'));
+  function select(tab, focus) {
+    tabs.forEach(function (item) {
+      var active = item === tab;
+      item.setAttribute('aria-selected', active ? 'true' : 'false');
+      item.tabIndex = active ? 0 : -1;
+    });
+    panels.forEach(function (panel) {
+      var active = panel.id === 'case-' + tab.dataset.case;
+      panel.classList.toggle('active', active);
+      panel.hidden = !active;
+    });
+    if (focus) tab.focus();
+  }
+  tabs.forEach(function (tab, index) {
+    tab.tabIndex = index === 0 ? 0 : -1;
+    tab.addEventListener('click', function () { select(tab, false); });
+    tab.addEventListener('keydown', function (event) {
+      if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft' &&
+          event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+      event.preventDefault();
+      var direction = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : -1;
+      select(tabs[(index + direction + tabs.length) % tabs.length], true);
+    });
+  });
+})();
+</script>"""
+
 LANDING_HTML = page(
     title="monl compiler — le métier est compilé",
     description="Monl compile vos règles métier en backend autonome et contrat frontend vérifiable.",
     body=BODY,
     active="home",
     extra_css=EXTRA_CSS,
+    scripts=CASE_SCRIPT,
 )

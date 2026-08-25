@@ -177,6 +177,7 @@ ROUTES_API: list[tuple[str, str, str]] = [
     ("GET", "/api/projects/{project_id}", "Manifeste et résumé d'une compilation."),
     ("GET", "/api/projects/{project_id}/contract", "Le contrat frontend complet."),
     ("GET", "/api/projects/{project_id}/download", "Archive ZIP, sans le secret JWT."),
+    ("GET", "/mcp", "Configuration MCP et gestion des clés d’accès."),
     ("POST", "/mcp", "Transport MCP HTTP, authentifié par clé Bearer."),
 ]
 

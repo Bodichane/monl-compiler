@@ -24,80 +24,83 @@ mesure plutôt que de le croire.
 
 from __future__ import annotations
 
-# Identité Monl : charbon, lin et ambre — le monde du terminal, sans le vert
-# que tout outil d'infrastructure emploie. L'ambre change de valeur selon le
-# fond (brûlé le jour, vif la nuit) : c'est la même couleur, pas deux accents.
+# Identité Monl : le charbon et le crème viennent directement du mot-symbole.
+# Un cuivre brûlé complète le duo pour rendre les actions identifiables sans
+# reprendre le vert des outils d'infrastructure ni le bleu SaaS générique.
 CSS = """
 :root {
   color-scheme: light dark;
   --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", "IBM Plex Mono", Consolas, monospace;
 
-  --bg: #f6f4f0;
-  --surface: #fffdfa;
-  --surface-2: #ede9e2;
-  --ink: #171512;
-  --muted: #615b51;
-  --line: #d3cabb;
-  --line-strong: #8f8060;
-  --brand: #96520a;
-  --brand-strong: #7a4108;
-  --on-brand: #ffffff;
-  --soft: #fbeed5;
-  --danger: #a32448;
-  --danger-bg: #fcecf1;
-  --danger-line: #e0b3c1;
-  --code-bg: #0f0e0c;
-  --code-ink: #f0e9dd;
-  --code-accent: #ffb020;
-  --code-muted: #a79e90;
-  --code-line: #2b2721;
+  --bg: #f9f4ed;
+  --surface: #fffdf9;
+  --surface-2: #eee8df;
+  --ink: #2e2b25;
+  --muted: #665f55;
+  --line: #ddd4c8;
+  --line-strong: #8b8175;
+  --brand: #2e2b25;
+  --brand-strong: #171512;
+  --on-brand: #f9f4ed;
+  --accent: #924821;
+  --soft: #eee8df;
+  --danger: #b3123c;
+  --danger-bg: #fdecef;
+  --danger-line: #f0b9c6;
+  --code-bg: #2e2b25;
+  --code-ink: #f9f4ed;
+  --code-accent: #e7b875;
+  --code-muted: #b9b0a5;
+  --code-line: #514b42;
 
   --radius: 12px;
   --radius-lg: 18px;
   --shell: 1180px;
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
   --space-5: 24px; --space-6: 32px; --space-7: 48px; --space-8: 64px;
-  --shadow: 0 1px 2px rgba(23, 20, 26, .07), 0 18px 44px rgba(23, 20, 26, .08);
+  --shadow: 0 1px 2px rgba(46, 43, 37, .08), 0 18px 44px rgba(46, 43, 37, .09);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-  --bg: #0b0a09;
-  --surface: #141210;
-  --surface-2: #1d1a16;
-  --ink: #f3ece0;
-  --muted: #a79e90;
-  --line: #3d372e;
-  --line-strong: #6f6555;
-  --brand: #ffb020;
-  --brand-strong: #ffc559;
-  --on-brand: #241800;
-  --soft: #2e2213;
-  --danger: #ff8fa8;
-  --danger-bg: #2a1219;
-  --danger-line: #5c2a38;
-  --code-bg: #060505;
+  --bg: #171512;
+  --surface: #211e1a;
+  --surface-2: #2e2b25;
+  --ink: #f9f4ed;
+  --muted: #b9b0a5;
+  --line: #403b34;
+  --line-strong: #786f64;
+  --brand: #f9f4ed;
+  --brand-strong: #fffdf9;
+  --on-brand: #2e2b25;
+  --accent: #e5a45f;
+  --soft: #2e2b25;
+  --danger: #ff90a6;
+  --danger-bg: #2a1220;
+  --danger-line: #56283a;
+  --code-bg: #0f0e0c;
   --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 12px 32px rgba(0, 0, 0, .3);
   }
 }
 
 :root[data-theme="dark"] {
-  --bg: #0b0a09;
-  --surface: #141210;
-  --surface-2: #1d1a16;
-  --ink: #f3ece0;
-  --muted: #a79e90;
-  --line: #3d372e;
-  --line-strong: #6f6555;
-  --brand: #ffb020;
-  --brand-strong: #ffc559;
-  --on-brand: #241800;
-  --soft: #2e2213;
-  --danger: #ff8fa8;
-  --danger-bg: #2a1219;
-  --danger-line: #5c2a38;
-  --code-bg: #060505;
+  --bg: #171512;
+  --surface: #211e1a;
+  --surface-2: #2e2b25;
+  --ink: #f9f4ed;
+  --muted: #b9b0a5;
+  --line: #403b34;
+  --line-strong: #786f64;
+  --brand: #f9f4ed;
+  --brand-strong: #fffdf9;
+  --on-brand: #2e2b25;
+  --accent: #e5a45f;
+  --soft: #2e2b25;
+  --danger: #ff90a6;
+  --danger-bg: #2a1220;
+  --danger-line: #56283a;
+  --code-bg: #0f0e0c;
   --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 12px 32px rgba(0, 0, 0, .3);
 }
 
@@ -137,9 +140,10 @@ code { font-family: var(--mono); font-size: .92em; }
 }
 .nav { height: 68px; display: flex; align-items: center; gap: var(--space-5); }
 .brand {
-  display: inline-flex; align-items: center; gap: 10px; min-height: 44px;
+  display: inline-flex; align-items: center; min-height: 44px;
   color:var(--ink); font-weight: 700; letter-spacing: -.02em; text-decoration: none;
 }
+.brand-wordmark { width:112px; height:auto; display:block; flex:none; }
 .mark {
   width: 34px; height: 34px; border-radius: 10px; flex: none;
   display: grid; place-items: center; overflow:hidden;
@@ -153,12 +157,17 @@ code { font-family: var(--mono); font-size: .92em; }
   margin-left: auto; color: var(--muted); font-size: 15px;
 }
 .navlinks a {
-  text-decoration: none; padding: 8px 12px; border-radius: 10px;
+  position:relative; text-decoration: none; padding: 8px 10px; border-radius: 0;
   min-height: 44px; display: inline-flex; align-items: center; gap: 7px;
-  transition: background .18s ease, color .18s ease;
+  transition: color .18s ease;
 }
-.navlinks a:hover { background: var(--surface-2); color: var(--ink); }
-.navlinks a[aria-current="page"] { color: var(--ink); font-weight: 600; background: var(--soft); }
+.navlinks a::after { content:""; position:absolute; left:10px; right:10px; bottom:3px; height:1px;
+  background:currentColor; transform:scaleX(0); transform-origin:center; transition:transform .18s ease; }
+.navlinks a:hover { color: var(--ink); }.navlinks a:hover::after { transform:scaleX(.45); }
+.navlinks a[aria-current="page"] { color: var(--ink); font-weight: 600; }
+.navlinks a[aria-current="page"]::after { transform:scaleX(1); }
+.navlinks .nav-cta { border-radius:11px; padding-inline:18px; }
+.navlinks .nav-cta::after { display:none; }
 
 /* ---------- contrôles ---------- */
 .primary, .secondary, .ghost, .nav-cta {
@@ -193,20 +202,15 @@ code { font-family: var(--mono); font-size: .92em; }
 .eyebrow {
   display: inline-flex; align-items: center; gap: 8px;
   font: 600 12px var(--mono); letter-spacing: .12em; text-transform: uppercase;
-  color: var(--brand); margin-bottom: var(--space-3);
+  color: var(--accent); margin-bottom: var(--space-3);
 }
 .eyebrow::before { content: ""; width: 18px; height: 2px; background: currentColor; }
 .card {
   background: var(--surface); border: 1px solid var(--line);
   border-radius: var(--radius); padding: var(--space-5);
 }
-.lift { transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease; }
-.lift { position:relative; overflow:hidden; }
-.lift::after { content:""; position:absolute; inset:0; pointer-events:none; opacity:0;
-  background:linear-gradient(120deg,transparent 30%,color-mix(in srgb,var(--brand) 8%,transparent),transparent 70%);
-  transform:translateX(-55%); transition:opacity .25s ease,transform .5s ease; }
+.lift { position:relative; overflow:hidden; transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease; }
 .lift:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--brand) 45%, var(--line)); box-shadow: var(--shadow); }
-.lift:hover::after { opacity:1; transform:translateX(55%); }
 .motion-ready [data-reveal] { opacity: 0; transform: translateY(14px); }
 .motion-ready [data-reveal].is-visible {
   opacity: 1; transform: none;
@@ -356,7 +360,10 @@ _ICONS = {
     "terminal": '<path d="m5 7 4 4-4 4M11 17h8"/><rect x="3" y="3" width="18" height="18" rx="3"/>',
     "book": '<path d="M4 5.5A3.5 3.5 0 0 1 7.5 2H11v17H7.5A3.5 3.5 0 0 0 4 22z"/><path d="M20 5.5A3.5 3.5 0 0 0 16.5 2H13v17h3.5A3.5 3.5 0 0 1 20 22z"/>',
     "docs": '<path d="M6 2h9l4 4v16H6z"/><path d="M14 2v5h5M9 12h7M9 16h7"/>',
-    "plug": '<path d="m8 12 8-8M14 3l7 7M3 14l7 7M4 20l4-4M16 8l4-4"/>',
+    "mcp": '<circle cx="5" cy="12" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><path d="M7 12h5m0 0 5-6m-5 6 5 6"/>',
+    "user": '<circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/>',
+    "compiler": '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m7 10 3 2-3 2m6 0h4"/>',
+    "key": '<circle cx="8" cy="12" r="4"/><path d="M12 12h9m-3 0v3m-3-3v2"/>',
     "shield": '<path d="M12 22s8-3.5 8-10V5l-8-3-8 3v7c0 6.5 8 10 8 10Z"/><path d="m9 12 2 2 4-5"/>',
     "code": '<path d="m8 9-4 3 4 3M16 9l4 3-4 3M14 5l-4 14"/>',
     "package": '<path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 7 9 5 9-5M3 12l9 5 9-5M3 17l9 5 9-5"/>',
@@ -377,11 +384,8 @@ def icon(name: str) -> str:
 # formes sont des tracés, pas du texte : le dessin ne dépend d'aucune police.
 LOGO_MARK = (
     '<svg viewBox="0 0 48 48" role="img" aria-label="Monl">'
-    '<path d="M6 14l7 7-7 7" fill="none" stroke="currentColor" stroke-width="3.4" '
-    'stroke-linecap="round" stroke-linejoin="round"/>'
-    '<path d="M20 34V19l6.5 8 6.5-8v15" fill="none" stroke="currentColor" '
-    'stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>'
-    '<rect x="38" y="17" width="4.5" height="17" rx="1.2" fill="currentColor"/>'
+    '<path d="M8 34V11h16v23M24 11h16v31" fill="none" stroke="currentColor" '
+    'stroke-width="4.4" stroke-linecap="butt" stroke-linejoin="miter"/>'
     '</svg>'
 )
 
@@ -392,20 +396,17 @@ LOGO_MARK = (
 LOGO_SVG = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" '
     'aria-label="Monl">'
-    '<rect width="48" height="48" rx="11" fill="#0b0a09"/>'
-    '<path d="M6 14l7 7-7 7" fill="none" stroke="#ffb020" stroke-width="3.4" '
-    'stroke-linecap="round" stroke-linejoin="round" transform="translate(2)"/>'
-    '<path d="M20 34V19l6.5 8 6.5-8v15" fill="none" stroke="#ffb020" '
-    'stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>'
-    '<rect x="37" y="17" width="4.5" height="17" rx="1.2" fill="#ffb020" opacity=".55"/>'
+    '<rect width="48" height="48" rx="11" fill="#2e2b25"/>'
+    '<path d="M10 32V13h14v19M24 13h14v27" fill="none" stroke="#f9f4ed" '
+    'stroke-width="4" stroke-linecap="butt" stroke-linejoin="miter"/>'
     '</svg>'
 )
 FAVICON = LOGO_SVG
 
 
 def _brand() -> str:
-    return (f'<span class="mark" aria-hidden="true">{LOGO_MARK}</span>'
-            '<span class="brand-copy"><strong>monl</strong><small>compiler</small></span>')
+    return ('<img class="brand-wordmark" src="/brand/monl-wordmark.png" '
+            'width="256" height="100" alt="">')
 
 
 def _lien(href: str, libelle: str, actif: str, cle: str) -> str:
@@ -422,8 +423,8 @@ def page(*, title: str, description: str, body: str, active: str = "",
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="{description}">
-<meta name="theme-color" content="#0b0a09" media="(prefers-color-scheme: dark)">
-<meta name="theme-color" content="#f6f4f0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#171512" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f9f4ed" media="(prefers-color-scheme: light)">
 <title>{title}</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <script>{THEME_BOOT}</script>
@@ -437,11 +438,11 @@ def page(*, title: str, description: str, body: str, active: str = "",
 <div class="navlinks">
 {_lien("/", icon("home") + "Accueil", active, "home")}
 {_lien("/guide", icon("book") + "Guide", active, "guide")}
-{_lien("/guide#mcp", icon("plug") + "MCP", active, "mcp")}
+{_lien("/mcp", icon("mcp") + "MCP", active, "mcp")}
 {_lien("/docs", icon("docs") + "Docs API", active, "docs")}
-{_lien("/account", icon("shield") + "Compte", active, "account")}
+{_lien("/account", icon("user") + "Compte", active, "account")}
 <button class="icon-btn" id="theme-toggle" type="button" aria-label="Basculer le thème">{ICON_THEME}</button>
-<a class="nav-cta" href="/console">{icon("terminal")} Ouvrir la console</a>
+<a class="nav-cta" href="/console">{icon("compiler")} Ouvrir la console</a>
 </div>
 </nav></header>
 <main id="contenu">
@@ -452,7 +453,7 @@ def page(*, title: str, description: str, body: str, active: str = "",
 <div class="footer-brand"><a class="brand" href="/" aria-label="Monl compiler">{_brand()}</a>
 <p>Le métier est compilé, l’interface reste libre. Un backend déterministe et son contrat à partir d’une seule spécification.</p></div>
 <div><h2>Produit</h2><nav aria-label="Produit"><a href="/console">Console</a><a href="/guide#frontiere">Pourquoi Monl</a><a href="/guide#limites">Limites actuelles</a></nav></div>
-<div><h2>Développeurs</h2><nav aria-label="Développeurs"><a href="/guide#dsl">Référence DSL</a><a href="/guide#api">API HTTP</a><a href="/docs">Documentation développeur</a><a href="/api-docs">Explorateur OpenAPI</a><a href="/guide#mcp">Serveur MCP</a></nav></div>
+<div><h2>Développeurs</h2><nav aria-label="Développeurs"><a href="/guide#dsl">Référence DSL</a><a href="/guide#api">API HTTP</a><a href="/docs">Documentation développeur</a><a href="/api-docs">Explorateur OpenAPI</a><a href="/mcp">Serveur MCP</a></nav></div>
 <div><h2>Ressources</h2><nav aria-label="Ressources"><a href="/guide">Guide de démarrage</a><a href="/security">Sécurité et garanties</a><a href="/api/version">Versions</a><a href="/health">État du service</a></nav></div>
 </div>
 <div class="footer-bottom"><span>© monl compiler</span><a class="service-status" href="/health">Service opérationnel</a></div>
