@@ -12,11 +12,15 @@ COPY src ./src
 RUN pip install --no-cache-dir . \
     && addgroup --system monl \
     && adduser --system --ingroup monl --home /app monl \
-    && mkdir -p /data \
-    && chown monl:monl /data
+    && mkdir -p /data /backups \
+    && chown monl:monl /data /backups
 
 USER monl
-VOLUME ["/data"]
+# /backups est créé ICI, appartenant à monl, pour qu'un volume nommé monté
+# dessus hérite de ce propriétaire. Sans ça, le volume arrive appartenant à
+# root et le service de sauvegarde — qui tourne sans privilège — ne peut rien
+# y écrire : la sauvegarde échouerait en silence tous les jours.
+VOLUME ["/data", "/backups"]
 EXPOSE 8022
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8022/ready', timeout=2)"
