@@ -26,6 +26,7 @@ SCENARIO_PORTFOLIO_TRONC = [
     "n", "n",          # Visitor ne lit rien de plus
     "n",               # pas de relation
     "1",               # inscription libre : 1er rôle proposé
+    "0",               # identifiant de compte : aucun (point 138)
     "o",               # seed
     "n",               # images génériques (point 59)
     "o",               # landing
@@ -223,6 +224,7 @@ def test_relation_emise_et_validee():
         "1",           # cible Vote
         "n",           # pas d'autre relation
         "1",           # inscription libre : 1er rôle proposé
+        "0",           # identifiant de compte : aucun (point 138)
         "n", "n",      # ni seed ni landing
     ]
     spec = _run(answers)
@@ -248,6 +250,7 @@ def test_ownership_cree_entite_proprietaire_et_regles():
         "n",           # propriété sur Member lui-même ? non
         "n",           # relations supplémentaires ? non
         "1",           # inscription libre : 1er rôle proposé
+        "0",           # identifiant de compte : aucun (point 138)
         "n", "n",      # ni seed ni landing
     ]
     it = iter(answers)
@@ -283,6 +286,7 @@ def test_gestion_partagee_emet_sharedby_sans_collision():
         "n", "n",      # aucun lecteur supplémentaire (déjà gestionnaires)
         # (une seule entité : la question des relations est sautée)
         "1",           # inscription libre : 1er rôle proposé
+        "0",           # identifiant de compte : aucun (point 138)
         "n", "n",      # ni seed ni brief
     ]
     it = iter(answers)

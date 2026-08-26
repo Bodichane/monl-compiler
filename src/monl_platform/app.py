@@ -1,601 +1,570 @@
-"""Service HTTP de la plateforme monl."""
+from __future__ import annotations
 
+import contextlib
 import os
-import sqlite3
-import time
-import urllib.parse
-from contextlib import asynccontextmanager
+import threading
+from pathlib import Path
+from urllib.parse import quote
 
-import jwt
-from fastapi import Depends, FastAPI, HTTPException, Request, status
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
-from pydantic import BaseModel
-from starlette.concurrency import run_in_threadpool
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 
-from monl.app_templates import TEMPLATES
-from monl.dialogue_engine import DialogueError
+from monl import __version__ as MONL_VERSION
 
-from .app_templates import materialize_template
-from .console import console_response
-from .downloads import default_directory, list_artifacts, resolve_artifact
-from .hosting import SiteHostingError, SiteManager, SiteNotBuiltError
-from .landing import landing_response
-from .oauth import (
-    OAuthError,
-    authorize_url,
-    check_state,
-    configured_providers,
-    exchange_code,
-    fetch_identity,
-    make_state,
+from . import examples
+from .account import ACCOUNT_HTML, AUTH_HTML
+from .console import CONSOLE_HTML
+from .docs_page import DOCS_HTML
+from .guide import guide_html
+from .identity import IdentityError, IdentityStore
+from .journal import anomalie, configurer, court, evenement, panne
+from .landing import LANDING_HTML
+from .legal import CONDITIONS_HTML, CONFIDENTIALITE_HTML, MENTIONS_HTML
+from .mcp_page import MCP_HTML
+from .mcp_server import MCPDispatcher
+from .security import SECURITY_HTML
+from .service import (
+    CompilationService,
+    PlatformExecutionError,
+    PlatformInputError,
+    PlatformNotFoundError,
 )
-from .paths import ProjectPathError, project_directory
-from .progress import PLANNED_STAGES, planned_remaining, read_stages
-from .quota import TokenQuota
-from .seed_ai import personnaliser_le_jeu
-from .store import PlatformStore
-from .worker import BuildWorker
+from .theme import FAVICON, LOGO_SVG, page
+
+WORDMARK = Path(__file__).with_name("static") / "monl-wordmark.png"
+
+# Une page servie deux fois identique n'a pas besoin d'être reconstruite à
+# chaque visite : le guide est du HTML pur, dérivé de constantes.
+GUIDE_HTML = guide_html()
 
 
-class Credentials(BaseModel):
-    identifier: str | None = None
-    username: str | None = None
-    password: str
+def _purger(service: CompilationService, identities: IdentityStore) -> int:
+    """Efface les projets échus, en base ET sur le disque.
 
-
-def _catalogue():
-    return [
-        {
-            "name": template["name"],
-            "hint": template["hint"],
-            "actors": list(template.get("actors", [])),
-            "entities": sorted(template.get("entities", {})),
-        }
-        for template in TEMPLATES
-    ]
-
-
-def _champ(account, nom):
-    """Lit une colonne qui peut manquer d'une ligne ancienne.
-
-    Les colonnes du point 145 sont ajoutées de façon ADDITIVE : une base
-    créée avant elles les gagne au démarrage, mais un appelant peut fort
-    bien passer un dictionnaire construit ailleurs.
+    Source unique : le démarrage et la boucle périodique appellent la même
+    fonction. Deux copies auraient fini par diverger, et c'est le nettoyage
+    qui aurait perdu.
     """
-    try:
-        return account[nom]
-    except (KeyError, IndexError):
-        return None
-
-
-def _without_secret(account):
-    # La liste est BLANCHE et le reste : c'est elle qui empêche
-    # `password_hash` de sortir, pas une exclusion qu'on penserait à mettre à
-    # jour. Le nom d'affichage est l'adresse VÉRIFIÉE que le fournisseur a
-    # confirmée — sans lui, la console n'a que « github:4242 » à montrer.
-    return {
-        "id": account["id"],
-        "identifier": account["identifier"],
-        "created_at": account["created_at"],
-        "display_name": _champ(account, "display_name"),
-        "oauth_provider": _champ(account, "oauth_provider"),
-    }
-
-
-def _sous_quota(quota, account):
-    """Cet appel DÉPENSE : il porte le même garde-fou que la construction.
-
-    Le quota le compte de toute façon — il lit le journal du projet — mais il
-    n'était vérifié qu'avant une construction. Quelqu'un au plafond aurait
-    donc encore pu déclencher celui-ci. Un banc qui dépense doit porter le
-    garde-fou du produit.
-    """
-    try:
-        quota.ensure_available(account["id"])
-    except Exception:   # quota dépassé ou indéterminable : on s'abstient
-        return False
-    return True
-
-
-def _liens_de_pied(brut):
-    """Normalise les liens du pied de page reçus de la console.
-
-    La complétion d'adresse vient de `monl.dialogue_engine` et n'est PAS
-    réécrite ici : deux règles finiraient par diverger, et c'est celle qui
-    décide si un lien mène quelque part. Une entrée incomprise est ÉCARTÉE
-    plutôt que devinée — un lien qui mène ailleurs est pire qu'un lien
-    absent, il se voit.
-    """
-    from monl.dialogue_engine import adresse_de_lien
-
-    liens, vus = [], set()
-    for entree in brut or []:
-        if not isinstance(entree, dict):
-            continue
-        label = str(entree.get("label") or "").strip()
-        adresse = adresse_de_lien(str(entree.get("url") or ""))
-        if not label or '"' in label or adresse is None:
-            continue
-        if label.casefold() in vus:
-            continue
-        vus.add(label.casefold())
-        liens.append({"label": label, "url": adresse})
-    return liens
-
-
-def _build_view(build):
-    return {
-        "id": build["id"],
-        "state": build["state"],
-        "error": build["error_message"],
-        "error_message": build["error_message"],
-        "warning_message": build["warning_message"],
-        "run_id": build["run_id"],
-        "tokens_consumed": build["tokens_consumed"],
-        "total_tokens": build["total_tokens"],
-        "input_tokens": build["input_tokens"],
-        "output_tokens": build["output_tokens"],
-        "cost": build["cost"],
-        "currency": build["currency"],
-        "price_status": build["price_status"],
-        "created_at": build["created_at"],
-        "started_at": build["started_at"],
-        "finished_at": build["finished_at"],
-        "snapshot_path": build["snapshot_path"],
-        "snapshot_sha256": build["snapshot_sha256"],
-        "snapshot_bytes": build["snapshot_bytes"],
-    }
-
-
-def _project_view(store, project, sites=None):
-    builds = [_build_view(build) for build in store.list_builds(project["id"])]
-    latest = builds[-1] if builds else None
-    return {
-        "id": project["id"],
-        "slug": project["slug"],
-        "created_at": project["created_at"],
-        "model_routes": project.get("model_routes", {}),
-        "generate_images": bool(project.get("generate_images", False)),
-        "state": latest["state"] if latest else "pas_de_construction",
-        "host": sites.host_for(project) if sites is not None else None,
-        "running": sites.is_running(project["id"]) if sites is not None else False,
-        "builds": builds,
-    }
-
-
-def _http_error(message, code):
-    raise HTTPException(status_code=code, detail=message)
-
-
-def create_app(
-    *,
-    database=None,
-    workspace_root=None,
-    domain=None,
-    jwt_secret=None,
-    quota_limit=1_000_000,
-    provider_factory=None,
-    provider=None,
-    model_provider_factory=None,
-    image_provider_factory=None,
-    image_provider=None,
-    prices_path=None,
-    downloads_dir=None,
-    poll_interval=0.05,
-    start_worker=True,
-):
-    """Construit l'application, avec toutes ses dépendances injectables."""
-    database = database or os.environ.get("MONL_PLATFORM_DATABASE", "platform.db")
-    workspace_root = workspace_root or os.environ.get(
-        "MONL_PLATFORM_WORKSPACE", "platform-projects"
-    )
-    domain = domain or os.environ.get("MONL_PLATFORM_DOMAIN", "localhost")
-    downloads_dir = downloads_dir or default_directory()
-    jwt_secret = jwt_secret or os.environ.get("MONL_PLATFORM_JWT_SECRET")
-    if not jwt_secret:
-        raise ValueError(
-            "MONL_PLATFORM_JWT_SECRET absent de l'environnement — "
-            "le secret est obligatoire et n'est jamais généré automatiquement"
-        )
-    if not isinstance(jwt_secret, str) or len(jwt_secret) < 16:
-        raise ValueError("jwt_secret doit contenir au moins 16 caractères")
-
-    store = PlatformStore(database)
-    quota = TokenQuota(store, workspace_root, quota_limit)
-    sites = SiteManager(store, workspace_root, domain)
-
-    def on_build_success(project, _build):
-        # Ne consommer un processus que pour un site explicitement servi. Si
-        # le projet était déjà ouvert, le relancer lui fait adopter le snapshot
-        # qui vient d'être publié ; sinon, le premier accès au sous-domaine ou
-        # POST /start le lancera à la demande.
-        if not sites.is_running(project["id"]):
-            return
-        sites.stop_project(project["id"])
-        sites.start_project(project)
-
-    worker = BuildWorker(
-        store,
-        workspace_root,
-        quota,
-        provider_factory=provider_factory,
-        provider=provider,
-        model_provider_factory=model_provider_factory,
-        image_provider_factory=image_provider_factory,
-        image_provider=image_provider,
-        prices_path=prices_path,
-        on_success=on_build_success,
-        poll_interval=poll_interval,
-    )
-    application = FastAPI(title="monl platform", lifespan=None)
-    application.state.store = store
-    application.state.quota = quota
-    application.state.sites = sites
-    application.state.worker = worker
-
-    def account_from_request(request: Request):
-        authorization = request.headers.get("authorization", "")
-        scheme, _, token = authorization.partition(" ")
-        if scheme.lower() != "bearer" or not token:
-            _http_error("authentification requise", status.HTTP_401_UNAUTHORIZED)
+    efface = 0
+    for expired_id in identities.expired_projects():
         try:
-            payload = jwt.decode(token, jwt_secret, algorithms=["HS256"])
-            account_id = int(payload["sub"])
-            account = store.get_account(account_id)
-        except (jwt.PyJWTError, KeyError, TypeError, ValueError):
-            _http_error("jeton invalide", status.HTTP_401_UNAUTHORIZED)
-        return account
+            service.delete(expired_id)
+        except PlatformNotFoundError:
+            pass
+        efface += 1
+    return efface
 
-    current_account = Depends(account_from_request)
 
-    def issue_token(account_id):
-        now = int(time.time())
-        return jwt.encode(
-            {"sub": str(account_id), "iat": now, "exp": now + 24 * 3600},
-            jwt_secret,
-            algorithm="HS256",
-        )
+def create_app(*, workspace=None) -> FastAPI:
+    configurer()
+    service = CompilationService(workspace)
+    identities = IdentityStore(service.workspace)
+    sans_codes = identities.comptes_sans_codes()
+    if sans_codes:
+        # Les comptes antérieurs n'ont pas de codes : la migration additive
+        # rattrape une table, jamais son contenu. Leur en fabriquer au
+        # démarrage serait pire — il faudrait les leur montrer, et personne
+        # ne les lirait. On les NOMME, la page du compte fait le reste.
+        anomalie("comptes_sans_codes_de_secours", nombre=sans_codes)
+    evenement("demarrage", workspace=str(service.workspace),
+              purges=_purger(service, identities))
 
-    @application.middleware("http")
-    async def route_by_host(request, call_next):
-        try:
-            running = sites.target_for_host(request.headers.get("host"))
-        except SiteNotBuiltError as exc:
-            return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"detail": str(exc)})
-        except SiteHostingError as exc:
-            return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content={"detail": str(exc)})
-        if running is None:
-            return await call_next(request)
-        body = await request.body()
-        raw_path = request.scope.get("raw_path", b"/").decode("latin-1")
-        query = request.scope.get("query_string", b"").decode("latin-1")
-        target = raw_path + ("?" + query if query else "")
-        try:
-            return await run_in_threadpool(
-                sites.forward,
-                running,
-                request.method,
-                target,
-                dict(request.headers),
-                body,
-            )
-        except SiteHostingError as exc:
-            return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content={"detail": str(exc)})
+    @contextlib.asynccontextmanager
+    async def _cycle_de_vie(_app):
+        """La purge tourne TANT QUE le serveur tourne.
 
-    @asynccontextmanager
-    async def lifespan(_application):
-        if start_worker:
-            worker.start()
+        Elle ne s'exécutait qu'au montage de l'application : sur un conteneur
+        qui vit trois mois, `MONL_PROJECT_RETENTION_DAYS` n'était honoré
+        qu'au redémarrage, donc jamais. Le fil vit dans le cycle de vie et non
+        dans `create_app`, pour que construire l'application dans un test n'en
+        démarre aucun.
+        """
+        arret = threading.Event()
+        intervalle = max(1, int(os.environ.get("MONL_PURGE_INTERVAL_SECONDS", "3600")))
+
+        def boucle():
+            while not arret.wait(intervalle):
+                try:
+                    efface = _purger(service, identities)
+                    if efface:
+                        evenement("purge", projets=efface)
+                except Exception as exc:
+                    # Un ménage raté ne doit jamais tuer le serveur :
+                    # on le NOMME et la boucle continue.
+                    panne("purge_impossible", cause=type(exc).__name__)
+
+        fil = threading.Thread(target=boucle, name="monl-purge", daemon=True)
+        fil.start()
         try:
             yield
         finally:
-            stopped = worker.stop(timeout=30)
-            sites.stop_all()
-            if stopped:
-                store.close()
+            arret.set()
+            fil.join(timeout=5)
 
-    application.router.lifespan_context = lifespan
+    dispatcher = MCPDispatcher(service, identities)
+    compile_slots = threading.BoundedSemaphore(
+        max(1, int(os.environ.get("MONL_MAX_CONCURRENT_COMPILES", "2")))
+    )
+    application = FastAPI(
+        lifespan=_cycle_de_vie,
+        title="Monl Compiler Platform",
+        description="Validation et compilation distante de backends Monl.",
+        version="0.2.0",
+        docs_url="/api-docs",
+    )
+    application.state.compilation_service = service
+    application.state.identity_store = identities
+
+    @application.get("/", response_class=HTMLResponse, include_in_schema=False)
+    def accueil():
+        return LANDING_HTML
+
+    @application.get("/console", response_class=HTMLResponse, include_in_schema=False)
+    def console(request: Request):
+        if not identities.session_user(request.cookies.get("monl_session")):
+            target = request.url.path + (f"?{request.url.query}" if request.url.query else "")
+            return RedirectResponse(f"/login?next={quote(target, safe='')}", status_code=303)
+        return CONSOLE_HTML
+
+    @application.get("/login", response_class=HTMLResponse, include_in_schema=False)
+    def auth_page(request: Request):
+        if identities.session_user(request.cookies.get("monl_session")):
+            return RedirectResponse("/console", status_code=303)
+        return AUTH_HTML
+
+    @application.get("/account", response_class=HTMLResponse, include_in_schema=False)
+    def account(request: Request):
+        if not identities.session_user(request.cookies.get("monl_session")):
+            return RedirectResponse("/login?next=/account", status_code=303)
+        return ACCOUNT_HTML
+
+    @application.get("/mcp", response_class=HTMLResponse, include_in_schema=False)
+    def mcp_access(request: Request):
+        if not identities.session_user(request.cookies.get("monl_session")):
+            return RedirectResponse("/login?next=/mcp", status_code=303)
+        return MCP_HTML
+
+    @application.get("/guide", response_class=HTMLResponse, include_in_schema=False)
+    def guide():
+        return GUIDE_HTML
+
+    @application.get("/docs", response_class=HTMLResponse, include_in_schema=False)
+    def documentation():
+        return DOCS_HTML
+
+    @application.get("/mentions-legales", response_class=HTMLResponse,
+                     include_in_schema=False)
+    def mentions_legales():
+        return MENTIONS_HTML
+
+    @application.get("/conditions", response_class=HTMLResponse, include_in_schema=False)
+    def conditions():
+        return CONDITIONS_HTML
+
+    @application.get("/confidentialite", response_class=HTMLResponse, include_in_schema=False)
+    def confidentialite():
+        return CONFIDENTIALITE_HTML
+
+    @application.get("/security", response_class=HTMLResponse, include_in_schema=False)
+    def security():
+        return SECURITY_HTML
+
+    @application.get("/favicon.svg", include_in_schema=False)
+    def favicon():
+        # Sans elle, chaque visite laisse un 404 dans les journaux du serveur —
+        # et un journal qui contient du bruit normal cesse d'être lu.
+        return Response(
+            FAVICON, media_type="image/svg+xml",
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
+
+    @application.get("/logo.svg", include_in_schema=False)
+    def logo():
+        return Response(
+            LOGO_SVG, media_type="image/svg+xml",
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
+
+    @application.get("/brand/monl-wordmark.png", include_in_schema=False)
+    def wordmark():
+        return FileResponse(
+            WORDMARK, media_type="image/png",
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
 
     @application.get("/health")
     def health():
-        return {"status": "ok"}
+        return {"status": "ok", "service": "monl-compiler"}
 
-    @application.get("/")
-    def landing():
-        return landing_response()
+    @application.get("/ready")
+    def ready():
+        if not identities.ready() or not os.access(service.workspace, os.W_OK):
+            raise HTTPException(status_code=503, detail="Le stockage n'est pas disponible.")
+        return {"status": "ready", "storage": "available"}
 
-    @application.get("/console")
-    def console():
-        return console_response()
+    @application.get("/api/version")
+    def version():
+        return {
+            "compiler": MONL_VERSION,
+            "platform": application.version,
+            "contract": service.contract_version(),
+        }
 
-    @application.get("/telechargements")
-    @application.get("/downloads", include_in_schema=False)
-    def downloads():
-        """Ce que le serveur peut RÉELLEMENT livrer, mesuré sur le disque."""
-        return {"artifacts": list_artifacts(downloads_dir)}
+    @application.get("/api/templates")
+    def templates():
+        return {"templates": service.list_templates()}
 
-    @application.get("/telechargements/{name}")
-    @application.get("/downloads/{name}", include_in_schema=False)
-    def download(name: str):
-        path = resolve_artifact(downloads_dir, name)
-        if path is None:
-            _http_error("artefact introuvable", status.HTTP_404_NOT_FOUND)
-        return FileResponse(
-            path, media_type="application/octet-stream", filename=path.name)
+    @application.get("/api/examples")
+    def liste_exemples():
+        return {"examples": examples.catalogue()}
 
-    @application.post("/register", status_code=status.HTTP_201_CREATED)
-    @application.post("/auth/register", status_code=status.HTTP_201_CREATED, include_in_schema=False)
-    def register(credentials: Credentials):
-        identifier = (credentials.identifier or credentials.username or "").strip()
-        if not identifier:
-            _http_error("identifier requis", status.HTTP_422_UNPROCESSABLE_ENTITY)
-        if len(credentials.password) < 8:
-            _http_error("le mot de passe doit contenir au moins 8 caractères", status.HTTP_422_UNPROCESSABLE_ENTITY)
+    @application.get("/api/examples/{example_id}")
+    def exemple(example_id: str):
         try:
-            account_id = store.create_account(identifier, credentials.password)
-            account = store.get_account(account_id)
-        except sqlite3.IntegrityError:
-            _http_error("ce compte existe déjà", status.HTTP_409_CONFLICT)
-        return {"account": _without_secret(account), "token": issue_token(account_id)}
+            return {"id": example_id, "spec": examples.spec_of(example_id)}
+        except KeyError:
+            raise HTTPException(status_code=404, detail="Exemple introuvable.") from None
 
-    @application.post("/login")
-    @application.post("/auth/login", include_in_schema=False)
-    def login(credentials: Credentials):
-        identifier = credentials.identifier or credentials.username or ""
-        account_id = store.authenticate_account(identifier, credentials.password)
-        if account_id is None:
-            _http_error("identifiants invalides", status.HTTP_401_UNAUTHORIZED)
-        account = store.get_account(account_id)
-        return {"account": _without_secret(account), "token": issue_token(account_id)}
+    @application.post("/api/auth/register", status_code=201)
+    async def register(request: Request):
+        _rate_limit(request, identities, "register", _client_ip(request), 5, 60)
+        payload = await _json_body(request)
+        try:
+            user = identities.register(payload.get("email"), payload.get("password"))
+        except IdentityError as exc:
+            anomalie("inscription_refusee", cause=str(exc))
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        codes = identities.create_recovery_codes(user["id"])
+        evenement("compte_cree", compte=court(user["id"]))
+        # Les codes ne sortent QU'ICI et à la régénération. Comme une clé
+        # d'API, ils ne sont pas relisibles : seule leur empreinte est gardée.
+        return _session_response(identities, user, status_code=201,
+                                 extra={"recovery_codes": codes})
 
-    # ─────────────────────────────────────────── connexion par fournisseur ──
-    # La plateforme dépense de l'argent réel à chaque construction : un compte
-    # ouvert avec une chaîne quelconque est une porte d'abus. Elle n'envoie
-    # pour autant AUCUN message — la frontière du point 95 tient — elle
-    # délègue à un fournisseur qui, lui, a déjà vérifié l'adresse.
-    @application.get("/auth/fournisseurs")
-    @application.get("/auth/providers", include_in_schema=False)
-    def auth_providers():
-        """Ceux qui sont RÉELLEMENT configurés.
+    @application.post("/api/auth/login")
+    async def login(request: Request):
+        _rate_limit(request, identities, "login", _client_ip(request), 5, 60)
+        payload = await _json_body(request)
+        user = identities.authenticate(payload.get("email"), payload.get("password"))
+        if not user:
+            # L'adresse essayée n'est pas journalisée : elle serait une donnée
+            # personnelle dans un fichier que tout l'hébergement peut lire.
+            anomalie("connexion_refusee", ip=_client_ip(request))
+            raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect.")
+        evenement("connexion", compte=court(user["id"]))
+        return _session_response(identities, user)
 
-        Un bouton qui mène à un 503 est pire que pas de bouton.
+    @application.get("/api/auth/recovery-codes")
+    def lister_codes(request: Request):
+        user = _require_user(request, identities)
+        return {"remaining": identities.count_recovery_codes(user["id"])}
+
+    @application.post("/api/auth/recovery-codes", status_code=201)
+    def regenerer_codes(request: Request):
+        user = _require_user(request, identities)
+        codes = identities.create_recovery_codes(user["id"])
+        evenement("codes_regeneres", compte=court(user["id"]))
+        return {"recovery_codes": codes}
+
+    @application.post("/api/auth/recover", status_code=204)
+    async def recuperer(request: Request):
+        """Reprendre la main sur un compte dont le mot de passe est perdu.
+
+        BORNÉE PAR L'ADRESSE IP, comme la connexion. Un code fait 16
+        caractères tirés au sort, mais huit codes vivants par compte font huit
+        chances par essai : sans plafond, la seule chose qui protégerait
+        serait la patience de l'attaquant.
+
+        Le refus est le MÊME pour un code faux, une adresse inconnue et un
+        mot de passe trop court — 401 et rien d'autre. Distinguer apprendrait
+        à un attaquant laquelle des trois il tient déjà.
         """
-        return {"providers": configured_providers()}
+        _rate_limit(request, identities, "recover", _client_ip(request), 5, 3600)
+        payload = await _json_body(request)
+        user = identities.consume_recovery_code(
+            payload.get("email"), payload.get("code"), payload.get("password"))
+        if not user:
+            anomalie("recuperation_refusee", ip=_client_ip(request))
+            raise HTTPException(status_code=401,
+                                detail="Code de secours invalide ou déjà utilisé.")
+        evenement("compte_recupere", compte=court(user["id"]),
+                  restants=identities.count_recovery_codes(user["id"]))
+        return Response(status_code=204)
 
-    @application.get("/auth/{provider}")
-    def auth_start(provider: str):
-        try:
-            state = make_state(provider, jwt_secret)
-            cible = authorize_url(provider, state)
-        except OAuthError as exc:
-            _http_error(str(exc), exc.status_code)
-        return RedirectResponse(cible, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+    @application.post("/api/auth/logout", status_code=204)
+    def logout(request: Request):
+        identities.revoke_session(request.cookies.get("monl_session"))
+        response = Response(status_code=204)
+        response.delete_cookie("monl_session", path="/", httponly=True, samesite="strict")
+        return response
 
-    @application.get("/auth/{provider}/retour")
-    @application.get("/auth/{provider}/callback", include_in_schema=False)
-    def auth_return(provider: str, code: str = "", state: str = "",
-                    error: str = ""):
-        if error:
-            # L'usager a refusé l'autorisation : ce n'est pas une panne.
-            return RedirectResponse("/console#erreur=refus",
-                                    status_code=status.HTTP_303_SEE_OTHER)
+    @application.delete("/api/auth/account", status_code=204)
+    async def delete_account(request: Request):
+        """Efface le compte, ses clés, ses projets et leurs dossiers.
+
+        **Le mot de passe est exigé à nouveau**, session valide ou non : une
+        suppression irréversible ne doit pas tenir au seul fait qu'un onglet
+        soit resté ouvert, ni pouvoir être déclenchée par une requête que
+        l'utilisateur n'a pas voulue.
+
+        Les dossiers sont retirés APRÈS l'effacement en base : si le disque
+        résiste, le compte est déjà parti et le ménage se rattrape à la purge
+        périodique — l'inverse laisserait un compte sans ses projets.
+        """
+        user = _require_user(request, identities)
+        payload = await _json_body(request)
+        if not identities.authenticate(user["email"], payload.get("password")):
+            anomalie("suppression_compte_refusee", compte=court(user["id"]))
+            raise HTTPException(status_code=403,
+                                detail="Mot de passe incorrect : le compte n'a pas été supprimé.")
+        projets = identities.delete_user(user["id"])
+        for project_id in projets:
+            with contextlib.suppress(PlatformNotFoundError):
+                service.delete(project_id)
+        evenement("compte_supprime", compte=court(user["id"]), projets=len(projets))
+        response = Response(status_code=204)
+        response.delete_cookie("monl_session", path="/", httponly=True, samesite="strict")
+        return response
+
+    @application.get("/api/auth/me")
+    def me(request: Request):
+        return _require_user(request, identities)
+
+    @application.get("/api/projects")
+    def list_projects(request: Request):
+        user = _require_user(request, identities)
+        return {"projects": identities.projects(user["id"])}
+
+    @application.delete("/api/projects/{project_id}", status_code=204)
+    def delete_project(project_id: str, request: Request):
+        user = _require_user(request, identities)
+        _require_project(identities, user["id"], project_id)
+        service.delete(project_id)
+        identities.delete_project(user["id"], project_id)
+        return Response(status_code=204)
+
+    @application.get("/api/keys")
+    def list_keys(request: Request):
+        user = _require_user(request, identities)
+        return {"keys": identities.api_keys(user["id"])}
+
+    @application.post("/api/keys", status_code=201)
+    async def create_key(request: Request):
+        user = _require_user(request, identities)
+        payload = await _json_body(request)
         try:
-            check_state(state, provider, jwt_secret)
-            if not code:
-                raise OAuthError("le fournisseur n'a renvoyé aucun code",
-                                 status_code=400)
-            jeton_fournisseur = exchange_code(provider, code)
-            identifiant, libelle = fetch_identity(provider, jeton_fournisseur)
-        except OAuthError as exc:
-            _http_error(str(exc), exc.status_code)
-        account_id, _neuf = store.upsert_oauth_account(identifiant, provider, libelle)
-        # Le jeton part dans le FRAGMENT et non dans la requête : un fragment
-        # n'est jamais envoyé au serveur, donc jamais journalisé par un relais.
-        return RedirectResponse(
-            "/console#jeton=" + urllib.parse.quote(issue_token(account_id)),
-            status_code=status.HTTP_303_SEE_OTHER,
+            cle = identities.create_api_key(user["id"], payload.get("name"))
+            evenement("cle_creee", compte=court(user["id"]), cle=court(cle["id"]))
+            return cle
+        except IdentityError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @application.delete("/api/keys/{key_id}", status_code=204)
+    def revoke_key(key_id: str, request: Request):
+        user = _require_user(request, identities)
+        if not identities.revoke_api_key(user["id"], key_id):
+            raise HTTPException(status_code=404, detail="Clé introuvable.")
+        evenement("cle_revoquee", compte=court(user["id"]), cle=court(key_id))
+        return Response(status_code=204)
+
+    @application.post("/api/validate")
+    async def validate(request: Request):
+        payload = await _json_body(request)
+        try:
+            return service.validate(payload.get("spec")).as_dict()
+        except PlatformInputError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except PlatformExecutionError as exc:
+            raise HTTPException(
+                status_code=503, detail=str(exc), headers={"Retry-After": "10"}
+            ) from exc
+
+    @application.post("/api/compile", status_code=201)
+    async def compile_backend(request: Request):
+        user = _require_user(request, identities)
+        _rate_limit(request, identities, "compile", user["id"], 10, 3600)
+        payload = await _json_body(request)
+        if not compile_slots.acquire(blocking=False):
+            raise HTTPException(
+                status_code=503,
+                detail="Les compilateurs sont occupés. Réessayez dans quelques instants.",
+                headers={"Retry-After": "5"},
+            )
+        try:
+            manifest = await run_in_threadpool(service.compile, payload.get("spec"))
+            identities.add_project(user["id"], manifest["id"], manifest["summary"]["app"])
+            evenement("compilation", compte=court(user["id"]), projet=court(manifest["id"]),
+                      routes=len(manifest["summary"].get("routes", [])))
+            return manifest
+        except PlatformInputError as exc:
+            anomalie("compilation_refusee", compte=court(user["id"]), cause=str(exc)[:120])
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        finally:
+            compile_slots.release()
+
+    @application.get("/api/projects/{project_id}")
+    def inspect(project_id: str, request: Request):
+        user = _require_user(request, identities)
+        _require_project(identities, user["id"], project_id)
+        try:
+            return service.inspect(project_id)
+        except PlatformNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @application.get("/api/projects/{project_id}/contract")
+    def contract(project_id: str, request: Request):
+        user = _require_user(request, identities)
+        _require_project(identities, user["id"], project_id)
+        try:
+            return service.contract(project_id)
+        except PlatformNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @application.get("/api/projects/{project_id}/download")
+    def download(project_id: str, request: Request):
+        user = _require_user(request, identities)
+        _require_project(identities, user["id"], project_id)
+        try:
+            archive = service.archive(project_id)
+        except PlatformNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return FileResponse(
+            archive, media_type="application/zip",
+            filename=f"monl-backend-{project_id[:8]}.zip",
+            headers={"X-Content-Type-Options": "nosniff"},
         )
 
-    @application.get("/account")
-    def account(account=current_account):
-        return {"account": _without_secret(account)}
-
-    @application.get("/usage")
-    def usage(account=current_account):
-        try:
-            current = quota.inspect(account["id"])
-        except Exception as exc:
-            _http_error(str(exc), status.HTTP_503_SERVICE_UNAVAILABLE)
-        return {
-            "usage": {
-                "consumed_tokens": current.consumed_tokens,
-                "limit_tokens": current.limit_tokens,
-                "remaining_tokens": current.remaining_tokens,
-                "project_totals": current.project_totals,
-            }
-        }
-
-    @application.get("/catalogue")
-    @application.get("/models", include_in_schema=False)
-    def catalogue():
-        return {"models": _catalogue()}
-
-    async def project_payload(request):
-        content_type = request.headers.get("content-type", "")
-        if content_type.startswith("multipart/form-data"):
-            form = await request.form()
-            data = {key: value for key, value in form.items() if key not in {"spec", "file"}}
-            upload = form.get("spec") or form.get("file")
-            if upload is not None and hasattr(upload, "read"):
-                if getattr(upload, "filename", "").lower().endswith(".ml") is False:
-                    _http_error("la spec fournie doit être un fichier .ml", status.HTTP_422_UNPROCESSABLE_ENTITY)
-                data["spec"] = (await upload.read()).decode("utf-8")
-            elif upload is not None:
-                data["spec"] = str(upload)
-            return data
-        try:
-            data = await request.json()
-        except ValueError:
-            _http_error("corps JSON invalide", status.HTTP_422_UNPROCESSABLE_ENTITY)
-        if not isinstance(data, dict):
-            _http_error("le corps doit être un objet", status.HTTP_422_UNPROCESSABLE_ENTITY)
-        return data
-
-    @application.post("/projects", status_code=status.HTTP_201_CREATED)
-    async def create_project(request: Request, account= current_account):
-        data = await project_payload(request)
-        slug = str(data.get("slug", "")).strip()
-        if not slug:
-            _http_error("slug requis", status.HTTP_422_UNPROCESSABLE_ENTITY)
-        spec = data.get("spec") or data.get("spec_ml")
-        model = data.get("model") or data.get("template")
-        if bool(spec) == bool(model):
-            _http_error("fournir exactement un modèle ou une spec", status.HTTP_422_UNPROCESSABLE_ENTITY)
-        if model:
-            try:
-                spec = materialize_template(
-                    model,
-                    app_name=data.get("app_name", "MonProjet"),
-                    description=data.get("description"),
-                    links=_liens_de_pied(data.get("links")),
-                )
-            except (ValueError, StopIteration, DialogueError) as exc:
-                _http_error(str(exc), status.HTTP_422_UNPROCESSABLE_ENTITY)
-        if not isinstance(spec, str) or not spec.strip():
-            _http_error("la spec doit être un texte non vide", status.HTTP_422_UNPROCESSABLE_ENTITY)
-        generate_images = data.get("generate_images", False)
-        if not isinstance(generate_images, bool):
-            _http_error(
-                "generate_images doit être un booléen explicite",
-                status.HTTP_422_UNPROCESSABLE_ENTITY,
+    @application.post("/mcp")
+    async def mcp(request: Request):
+        authorization = request.headers.get("authorization", "")
+        raw_key = authorization[7:] if authorization.lower().startswith("bearer ") else None
+        user = identities.api_key_user(raw_key)
+        if not user:
+            raise HTTPException(status_code=401, detail="Clé MCP absente, invalide ou révoquée.")
+        _rate_limit(request, identities, "mcp", user["id"], 120, 60)
+        message = await _json_body(request)
+        needs_compiler = _is_compile_message(message)
+        if needs_compiler and not compile_slots.acquire(blocking=False):
+            raise HTTPException(
+                status_code=503,
+                detail="Les compilateurs sont occupés. Réessayez dans quelques instants.",
+                headers={"Retry-After": "5"},
             )
-        model_routes = data.get("model_routes", {})
-        if store.list_projects_by_slug(slug):
-            _http_error("ce slug est déjà utilisé", status.HTTP_409_CONFLICT)
-        project_id = None
         try:
-            project_id = store.create_project(
-                account["id"],
-                slug,
-                model_routes=model_routes,
-                generate_images=generate_images,
-            )
-            directory = project_directory(
-                workspace_root, account["id"], project_id, create=True
-            )
-            chemin_spec = directory.joinpath("spec.ml")
-            chemin_spec.write_text(spec, encoding="utf-8")
-            # Le jeu de démonstration d'un MODÈLE est générique : toute
-            # boutique sortait avec les mêmes théières. Une spec fournie par
-            # l'usager n'est JAMAIS touchée — elle porte ses vraies données.
-            if model and provider is not None and _sous_quota(quota, account):
-                personnaliser_le_jeu(
-                    str(chemin_spec), str(directory),
-                    data.get("description") or "", provider)
-        except (sqlite3.IntegrityError, OSError, ProjectPathError, ValueError) as exc:
-            # La ligne SQLite n'est utile qu'avec sa spec. Une erreur disque ou
-            # de confinement juste après l'insertion ne doit ni bloquer le
-            # slug, ni laisser un projet impossible à construire.
-            if project_id is not None:
-                store.discard_project(account["id"], project_id)
-            _http_error(str(exc), status.HTTP_422_UNPROCESSABLE_ENTITY)
-        project = store.get_project_for_account(account["id"], project_id)
-        return {"project": _project_view(store, project, sites)}
+            response = await run_in_threadpool(dispatcher.dispatch, message, user["id"])
+        finally:
+            if needs_compiler:
+                compile_slots.release()
+        return JSONResponse(response or {}, status_code=200)
 
-    def owned_project(account, project_id):
-        try:
-            project = store.get_project_for_account(account["id"], project_id)
-        except KeyError:
-            project = None
-        if project is None:
-            _http_error("projet introuvable", status.HTTP_404_NOT_FOUND)
-        return project
-
-    @application.get("/projects")
-    def list_projects(account= current_account):
-        return {
-            "projects": [
-                _project_view(store, item, sites)
-                for item in store.list_projects(account["id"])
-            ]
-        }
-
-    @application.get("/projects/{project_id}")
-    def get_project(project_id: int, account= current_account):
-        return {"project": _project_view(store, owned_project(account, project_id), sites)}
-
-    @application.post("/projects/{project_id}/builds", status_code=status.HTTP_202_ACCEPTED)
-    @application.post("/projects/{project_id}/build", status_code=status.HTTP_202_ACCEPTED, include_in_schema=False)
-    def enqueue_build(project_id: int, account= current_account):
-        project = owned_project(account, project_id)
-        try:
-            build_id = store.create_build(project["id"])
-        except (KeyError, ValueError):
-            _http_error("projet introuvable", status.HTTP_404_NOT_FOUND)
-        return {"build": _build_view(store.get_build(build_id))}
-
-    @application.get("/projects/{project_id}/builds")
-    def list_builds(project_id: int, account= current_account):
-        project = owned_project(account, project_id)
-        return {"builds": [_build_view(item) for item in store.list_builds(project["id"])]}
-
-    @application.get("/projects/{project_id}/builds/{build_id}")
-    def get_build(project_id: int, build_id: int, account= current_account):
-        project = owned_project(account, project_id)
-        build = store.get_build_for_project(project["id"], build_id)
-        if build is None:
-            _http_error("construction introuvable", status.HTTP_404_NOT_FOUND)
-        return {"build": _build_view(build)}
-
-    @application.get("/projects/{project_id}/builds/{build_id}/etapes")
-    def build_stages(project_id: int, build_id: int, account= current_account):
-        """Étapes RÉELLEMENT journalisées, y compris pendant la construction.
-
-        Le suivi de la console s'appuie là-dessus plutôt que sur une
-        progression inventée : chaque ligne correspond à un appel qui a
-        vraiment rendu, avec sa durée et ses jetons.
-        """
-        project = owned_project(account, project_id)
-        build = store.get_build_for_project(project["id"], build_id)
-        if build is None:
-            _http_error("construction introuvable", status.HTTP_404_NOT_FOUND)
-        try:
-            directory = project_directory(
-                workspace_root, project["account_id"], project["id"]
-            )
-        except ProjectPathError:
-            return {"stages": [], "remaining": list(PLANNED_STAGES)}
-        stages = read_stages(directory, build["started_at"], build["finished_at"])
-        return {
-            "stages": stages,
-            "remaining": planned_remaining(stages) if build["state"] in {
-                "en_attente", "en_cours"} else [],
-        }
-
-    def start_site(project_id, account):
-        project = owned_project(account, project_id)
-        try:
-            running = sites.start_project(project)
-        except SiteNotBuiltError as exc:
-            _http_error(str(exc), status.HTTP_409_CONFLICT)
-        except SiteHostingError as exc:
-            _http_error(str(exc), status.HTTP_503_SERVICE_UNAVAILABLE)
-        return {"host": running.host, "port": running.port, "pid": running.process.pid}
-
-    @application.post("/projects/{project_id}/start")
-    @application.post("/projects/{project_id}/serve", include_in_schema=False)
-    def start(project_id: int, account= current_account):
-        return start_site(project_id, account)
-
-    @application.post("/projects/{project_id}/stop")
-    def stop(project_id: int, account= current_account):
-        project = owned_project(account, project_id)
-        return {"stopped": sites.stop_project(project["id"])}
+    @application.exception_handler(404)
+    async def introuvable(request: Request, exc: HTTPException):
+        # Un visiteur reçoit une page, un client d'API reçoit du JSON. Servir
+        # du HTML à `curl` rendrait l'erreur illisible là où elle doit être lue.
+        detail = getattr(exc, "detail", "Introuvable.")
+        if _veut_du_json(request):
+            return JSONResponse({"detail": detail}, status_code=404)
+        return HTMLResponse(_page_404(detail), status_code=404)
 
     return application
 
 
-# La plateforme est lancée par ``python -m monl_platform``. Ne pas construire
-# une application ici : cela ouvrirait une base et créerait une configuration
-# implicite lors de l'import du module.
-app = None
+def _session_response(identities: IdentityStore, user: dict[str, str],
+                      status_code: int = 200, extra: dict | None = None) -> JSONResponse:
+    token = identities.create_session(user["id"])
+    response = JSONResponse({"user": user, **(extra or {})}, status_code=status_code)
+    response.set_cookie(
+        "monl_session", token, max_age=30 * 24 * 3600, path="/",
+        httponly=True, samesite="strict",
+        secure=os.environ.get("MONL_COOKIE_SECURE", "").lower() in {"1", "true", "yes"},
+    )
+    return response
+
+
+def _require_user(request: Request, identities: IdentityStore) -> dict[str, str]:
+    user = identities.session_user(request.cookies.get("monl_session"))
+    if not user:
+        raise HTTPException(status_code=401, detail="Connectez-vous pour continuer.")
+    return user
+
+
+def _require_project(identities: IdentityStore, user_id: str, project_id: str) -> None:
+    if not identities.owns_project(user_id, project_id):
+        # Même réponse pour un projet absent et celui d'un autre compte :
+        # l'identifiant opaque ne devient pas un oracle d'existence.
+        raise HTTPException(status_code=404, detail="Projet introuvable.")
+
+
+def _client_ip(request: Request) -> str:
+    if os.environ.get("MONL_TRUST_PROXY", "").lower() in {"1", "true", "yes"}:
+        forwarded = request.headers.get("x-forwarded-for", "").split(",", 1)[0].strip()
+        if forwarded:
+            return forwarded
+    return request.client.host if request.client else "unknown"
+
+
+def _rate_limit(request: Request, identities: IdentityStore, scope: str,
+                subject: str, limit: int, window: int) -> None:
+    retry = identities.consume_limit(scope, subject, limit=limit, window=window)
+    if retry is not None:
+        # `sujet` n'est PAS journalisé : c'est une adresse IP ou un identifiant
+        # de compte. La portée et l'attente suffisent à constater un abus.
+        anomalie("debit_depasse", portee=scope, attente_s=retry)
+        raise HTTPException(
+            status_code=429,
+            detail="Trop de requêtes. Réessayez plus tard.",
+            headers={"Retry-After": str(retry)},
+        )
+
+
+def _is_compile_message(message: dict) -> bool:
+    params = message.get("params")
+    return (
+        message.get("method") == "tools/call"
+        and isinstance(params, dict)
+        and params.get("name") == "monl_compile_backend"
+    )
+
+
+def _veut_du_json(request: Request) -> bool:
+    if request.url.path.startswith(("/api/", "/mcp")):
+        return True
+    return "text/html" not in request.headers.get("accept", "")
+
+
+def _page_404(detail: str) -> str:
+    return page(
+        title="Page introuvable — monl compiler",
+        description="Cette adresse n'existe pas sur la plateforme monl.",
+        body=f"""
+<section class="shell section" style="text-align:center;padding-block:var(--space-8)">
+<span class="eyebrow" style="justify-content:center">Erreur 404</span>
+<h2 style="font-size:clamp(28px,4vw,40px);margin-bottom:var(--space-3)">Cette page n'existe pas.</h2>
+<p class="muted" style="max-width:520px;margin:0 auto var(--space-6)">{detail}</p>
+<div style="display:flex;gap:var(--space-3);justify-content:center;flex-wrap:wrap">
+<a class="primary" href="/">Retour à l’accueil</a>
+<a class="secondary" href="/console">Ouvrir la console</a>
+<a class="secondary" href="/guide">Lire le guide</a>
+</div>
+</section>""",
+    )
+
+
+async def _json_body(request: Request) -> dict:
+    if request.headers.get("content-length"):
+        try:
+            if int(request.headers["content-length"]) > 300_000:
+                raise HTTPException(status_code=413, detail="Requête trop volumineuse.")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Content-Length invalide.") from None
+    try:
+        payload = await request.json()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Corps JSON invalide.") from exc
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Un objet JSON est attendu.")
+    return payload
+
+
+app = create_app(workspace=os.environ.get("MONL_PLATFORM_WORKSPACE"))

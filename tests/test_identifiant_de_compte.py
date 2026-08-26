@@ -474,3 +474,109 @@ def test_sans_indicatif_declare_les_deux_notations_restent_distinctes(serveur):
     base, dossier = serveur
     assert _inscrire(base, dossier, "06 12 34 56 78")[0] == 200
     assert _inscrire(base, dossier, "+33612345678")[0] == 200
+
+
+# --------------------------------------------------------------------------
+# POINT 138 — un pays SANS zéro interurbain
+#
+# Tout ce qui précède éprouve la France, où le numéro national porte un `0` de
+# tête que la forme internationale remplace. La règle avait été écrite depuis
+# cet exemple, puis généralisée sans être éprouvée ailleurs : elle ne
+# canonicalisait QUE les numéros commençant par zéro.
+#
+# Au Bénin — marché visé, et pays d'`projets/AtelierNaya` — le numéro local
+# s'écrit sans zéro de tête. `phone_prefix: "+229"` ne produisait donc RIEN :
+# la personne inscrite en « 97 12 34 56 » ne se reconnaissait pas en
+# « +229 97 12 34 56 », soit exactement les deux comptes que l'indicatif
+# existe pour empêcher. Une règle déclarée qui ne produit rien est ce que le
+# point 85 refuse.
+# --------------------------------------------------------------------------
+SPEC_BENIN = SPEC.replace('    identifier: email, phone\n',
+                          '    identifier: phone\n    phone_prefix: "+229"\n')
+
+
+@pytest.fixture
+def serveur_benin(tmp_path):
+    (tmp_path / "spec.ml").write_text(SPEC_BENIN, encoding="utf-8")
+    compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
+    port = _port_libre()
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "uvicorn", "app:app", "--host", "127.0.0.1",
+         "--port", str(port)],
+        cwd=str(tmp_path), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    base = f"http://127.0.0.1:{port}"
+    try:
+        for _ in range(120):
+            if proc.poll() is not None:
+                pytest.fail(proc.stdout.read().decode("utf-8", "replace")[-2000:])
+            try:
+                with urllib.request.urlopen(base + "/docs", timeout=5):
+                    pass
+                break
+            except OSError:
+                time.sleep(0.25)
+        else:
+            pytest.fail("le serveur n'a jamais répondu")
+        yield base, tmp_path
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=5)
+        if proc.stdout is not None:
+            proc.stdout.close()
+
+
+def test_un_numero_sans_zero_de_tete_est_bien_internationalise(serveur_benin):
+    """Le cœur du défaut. Avant, la forme STOCKÉE restait « 97123456 » — un
+    numéro qu'aucun prestataire ne sait joindre et qui ne se relit pas hors du
+    Bénin."""
+    base, dossier = serveur_benin
+    assert _inscrire(base, dossier, "97 12 34 56")[0] == 200
+    connexion = sqlite3.connect(str(dossier / "app.db"))
+    try:
+        stocke = connexion.execute("SELECT username FROM _monl_users").fetchone()[0]
+    finally:
+        connexion.close()
+    assert stocke == "+22997123456"
+
+
+@pytest.mark.parametrize("notation", ["97123456", "97 12 34 56", "97-12-34-56",
+                                      "+22997123456", "+229 97 12 34 56",
+                                      "22997123456"])
+def test_toutes_les_facons_decrire_un_numero_beninois_ouvrent_le_meme_compte(
+        serveur_benin, notation):
+    base, dossier = serveur_benin
+    _inscrire(base, dossier, "97123456")
+    code, reponse = _connecter(base, dossier, notation)
+    assert code == 200, reponse
+
+
+def test_un_numero_deja_international_nest_pas_prefixe_deux_fois(serveur_benin):
+    """Le piège que la correction pouvait introduire : « 22997123456 », tapé
+    sans le `+`, ne doit pas devenir « +22922997123456 » — ce serait un
+    TROISIÈME compte, créé par la correction elle-même."""
+    base, dossier = serveur_benin
+    assert _inscrire(base, dossier, "22997123456")[0] == 200
+    connexion = sqlite3.connect(str(dossier / "app.db"))
+    try:
+        stocke = connexion.execute("SELECT username FROM _monl_users").fetchone()[0]
+    finally:
+        connexion.close()
+    assert stocke == "+22997123456"
+    assert _inscrire(base, dossier, "97123456")[0] == 409
+
+
+def test_manage_py_normalise_comme_le_serveur_sans_zero_de_tete(serveur_benin):
+    """Point 95, le troisième endroit — celui qu'on oublie. Diverger ici crée
+    un compte que `manage.py` sait écrire et que personne ne sait ouvrir."""
+    base, dossier = serveur_benin
+    sortie = subprocess.run(
+        [sys.executable, "manage.py", "adduser", "97 99 88 77", "Patron"],
+        cwd=str(dossier), input="motdepasse1\nmotdepasse1\n",
+        capture_output=True, text=True, timeout=60)
+    assert sortie.returncode == 0, sortie.stdout + sortie.stderr
+    code, reponse = _connecter(base, dossier, "+22997998877")
+    assert code == 200, reponse

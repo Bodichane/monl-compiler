@@ -1,400 +1,285 @@
-"""Preuves HTTP de la plateforme, contre Uvicorn et ses processus enfants."""
+"""La plateforme web, éprouvée contre un VRAI serveur.
 
-import json
+Ce fichier montait la plateforme avec `TestClient` de Starlette. Deux raisons
+de ne plus le faire, la première mesurée en CI :
+
+1. `starlette.testclient` exige désormais `httpx2`, absent des dépendances du
+   dépôt. La suite s'arrêtait à la COLLECTE sur les trois versions de Python
+   — une plateforme parfaitement fonctionnelle déclarée cassée par son propre
+   vérificateur, ce que le point 95 nomme déjà : le vérificateur est un client
+   comme un autre.
+2. Le reste du dépôt éprouve tout scénario HTTP contre un uvicorn éphémère
+   (`tests/support/server.py`). Ce fichier était le seul à prendre un
+   raccourci en processus, et ce raccourci ne traverse ni la couche ASGI
+   réelle, ni le démarrage du serveur.
+
+Le sous-processus tourne dans `tmp_path` avec `src/` sur le PYTHONPATH : la
+racine du dépôt ne peut donc rien recevoir (point 64), et le test reste vrai
+que le paquet soit installé ou non.
+"""
+
 import os
-import socket
-import threading
-import time
 
-import pytest
 import requests
-import uvicorn
 
-from monl_platform.app import create_app
-from monl_platform.store import PlatformStore
+from tests.support.server import uvicorn_server
+from tests.test_platform_service import SPEC
 
-SPEC = """app PlatformWeb
-
-entity Item
-    label: String
-
-# Admin est provisionné hors ligne ; ces tests portent sur l'hébergement et
-# le routage, pas sur un parcours de vitrine pour ce rôle.
-actor Admin
-
-rule Item.Read public
-
-workflow ManageItem for Admin
-    Create Item
-    Read Item
-    Update Item
-    Delete Item
-"""
-
-FRONTEND = """<!doctype html>
-<html><body>
-<section data-monl-section="hero"><img src="hero.svg"><h1>site produit réel</h1><p>Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. </p><a href="#suite">Commencer</a></section>
-<section data-monl-section="editorial"><h2>Notre récit</h2><p>Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. </p><a href="#suite">Continuer</a></section>
-<section data-monl-section="a-propos"><h2>À propos</h2><p>Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. </p><a href="#suite">Continuer</a></section>
-<section data-monl-section="services"><h2>Services</h2><p>Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. </p><a href="#suite">Continuer</a></section>
-<section data-monl-section="trust"><h2>Ce que nous garantissons</h2><p>Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. </p><a href="#suite">Continuer</a></section>
-<section data-monl-section="contact"><h2>Nous écrire</h2><p>Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. </p><a href="#suite">Continuer</a><form><label>Message<input></label><button>Envoyer</button></form></section>
-<section data-monl-section="workspace"><h2>Espace de travail</h2><p>Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. </p><a href="#suite">Continuer</a></section>
-<section data-monl-section="footer"><p>Atelier de démonstration, exploité
-pour les besoins du test. Aucune donnée réelle.</p><a href="#haut">Revenir en
-haut</a></section>
-<section data-monl-section="closing-cta"><h2>Passer à l'action</h2><p>Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. Un paragraphe qui décrit réellement ce que ce site propose, assez long pour qu'un visiteur y trouve une information et non un gabarit vide. </p><a href="#suite">Continuer</a></section>
-<div data-monl-media="project"></div>
-</body></html>
-"""
+SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src")
 
 
-class FakeProvider:
-    provider_name = "test"
-    model = "test-model"
-
-    def __init__(self):
-        self.calls = 0
-        self.last_usage = None
-
-    def __call__(self, _prompt):
-        self.calls += 1
-        self.last_usage = {
-            "duration_seconds": 0.01,
-            "input_tokens": 17,
-            "output_tokens": 23,
-            "total_tokens": 40,
-        }
-        return json.dumps(
-            {
-                "files": {
-                    "index.html": FRONTEND,
-                    "hero.svg": "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>",
-                    "editorial.svg": "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>",
-                }
-            }
-        )
+def _plateforme(tmp_path):
+    """Monte la plateforme sur un port libre, l'espace de travail isolé."""
+    env = os.environ.copy()
+    env["MONL_PLATFORM_WORKSPACE"] = str(tmp_path / "espace")
+    env["PYTHONPATH"] = SRC + os.pathsep + env.get("PYTHONPATH", "")
+    return uvicorn_server(str(tmp_path), env=env,
+                          module="monl_platform.app:app", ready_path="/health")
 
 
-def _free_port():
-    with socket.socket() as sock:
-        sock.bind(("127.0.0.1", 0))
-        return sock.getsockname()[1]
-
-
-@pytest.fixture()
-def running_platform(tmp_path):
-    provider = FakeProvider()
-    app = create_app(
-        database=tmp_path / "platform.db",
-        workspace_root=tmp_path / "projects",
-        domain="localhost",
-        jwt_secret="secret-for-platform-web-tests-123456",
-        provider=provider,
-        poll_interval=0.01,
-    )
-    port = _free_port()
-    server = uvicorn.Server(
-        uvicorn.Config(app, host="127.0.0.1", port=port, log_level="error")
-    )
-    thread = threading.Thread(target=server.run, daemon=True)
-    thread.start()
-    base = f"http://127.0.0.1:{port}"
-    try:
-        for _ in range(100):
-            try:
-                if requests.get(f"{base}/health", timeout=0.2).status_code == 200:
-                    break
-            except requests.RequestException:
-                time.sleep(0.02)
-        else:
-            pytest.fail("le serveur de plateforme n'a pas démarré")
-        yield base, app, provider
-    finally:
-        server.should_exit = True
-        thread.join(timeout=10)
-        assert not thread.is_alive()
-
-
-def _register(base, identifier):
-    response = requests.post(
-        f"{base}/register",
-        json={"identifier": identifier, "password": "MotDePasse-123"},
-        timeout=10,
-    )
+def _compte(base, email="test@example.com"):
+    session = requests.Session()
+    response = session.post(base + "/api/auth/register", json={
+        "email": email, "password": "mot-de-passe-test-123",
+    }, timeout=30)
     assert response.status_code == 201, response.text
-    body = response.json()
-    return body["token"]
+    return session
 
 
-def _auth(token):
-    return {"Authorization": f"Bearer {token}"}
+def test_page_explique_compile_et_mcp(tmp_path):
+    with _plateforme(tmp_path) as base:
+        session = _compte(base)
+        page = requests.get(base + "/", timeout=30)
+        assert page.status_code == 200
+        assert "Décrivez vos règles" in page.text
+        assert "Ce que vous allez faire" in page.text
+        assert "compilation vérifiée" in page.text
+        assert "scroll-progress" in page.text
+        assert "Votre infrastructure exécute. Monl décide ce qui est valide." in page.text
+        assert "0</b><span>appel réseau pour compiler" in page.text
+        assert "Créer un backend" in page.text
+        assert "Une spec entre. Un backend complet sort" in page.text
+        assert "Cas métier compilables" in page.text
+        assert 'href="/security"' in page.text
+        assert "Le même moteur pour les agents" in page.text
+        assert 'href="/console"' in page.text
+        assert "Documentation développeur" in page.text
+        assert "Service opérationnel" in page.text
+        assert 'id="spec-input"' not in page.text
+
+        assert requests.get(base + "/console", allow_redirects=False, timeout=30).status_code == 303
+        console = session.get(base + "/console", timeout=30)
+        assert console.status_code == 200
+        assert "Console de compilation" in console.text
+        assert 'id="spec-input"' in console.text
+        assert "Votre interface est libre" not in console.text
+        assert 'href="/docs"' in console.text
+        account = session.get(base + "/account", timeout=30)
+        assert account.status_code == 200
+        assert "Vos projets" in account.text
+        assert "Clés MCP" not in account.text
+        mcp_page = session.get(base + "/mcp", timeout=30)
+        assert mcp_page.status_code == 200
+        assert "Clés d’accès" in mcp_page.text
+        assert "Créer une clé" in mcp_page.text
+
+        docs = requests.get(base + "/docs", timeout=30)
+        assert docs.status_code == 200
+        assert "Écrire une spécification Monl" in docs.text
+        assert "Les mots-clés essentiels" in docs.text
+        assert "Accès et sécurité" in docs.text
+        assert 'href="/api-docs"' in docs.text
+        assert requests.get(base + "/api-docs", timeout=30).status_code == 200
+
+        security = requests.get(base + "/security", timeout=30)
+        assert security.status_code == 200
+        assert "Les règles sont exécutées" in security.text
+        assert "Attaques couvertes" in security.text
+        assert "Le déploiement doit garantir" in security.text
+
+        assert requests.get(base + "/health", timeout=30).json()["status"] == "ok"
+        templates = requests.get(base + "/api/templates", timeout=30).json()
+        assert len(templates["templates"]) == 10
+
+        validation = requests.post(base + "/api/validate", json={"spec": SPEC}, timeout=60)
+        assert validation.status_code == 200
+        assert validation.json()["valid"] is True
+
+        compiled = session.post(base + "/api/compile", json={"spec": SPEC}, timeout=120)
+        assert compiled.status_code == 201, compiled.text
+        project_id = compiled.json()["id"]
+        assert session.get(f"{base}/api/projects/{project_id}", timeout=30).status_code == 200
+        contract = session.get(f"{base}/api/projects/{project_id}/contract", timeout=30)
+        assert contract.json()["app"] == "NotesEquipe"
+        download = session.get(f"{base}/api/projects/{project_id}/download", timeout=60)
+        assert download.status_code == 200
+        assert download.headers["content-type"] == "application/zip"
+
+        key = session.post(base + "/api/keys", json={"name": "Test MCP"}, timeout=30)
+        assert key.status_code == 201
+        mcp = requests.post(base + "/mcp", headers={
+            "Authorization": "Bearer " + key.json()["key"]},
+            json={"jsonrpc": "2.0", "id": 8, "method": "tools/list"}, timeout=30)
+        assert mcp.status_code == 200
+        assert len(mcp.json()["result"]["tools"]) == 4
 
 
-def _wait_for_build(base, token, project_id):
-    for _ in range(200):
-        response = requests.get(
-            f"{base}/projects/{project_id}", headers=_auth(token), timeout=10
-        )
-        assert response.status_code == 200, response.text
-        builds = response.json()["project"]["builds"]
-        if builds and builds[-1]["state"] in {"reussie", "echouee"}:
-            return builds[-1]
-        time.sleep(0.02)
-    pytest.fail("la construction n'a pas atteint un état terminal")
+def test_erreurs_web_restent_actionnables(tmp_path):
+    with _plateforme(tmp_path) as base:
+        session = _compte(base)
+        empty = requests.post(base + "/api/validate", json={"spec": ""}, timeout=30)
+        assert empty.status_code == 422
+        assert "vide" in empty.json()["detail"]
+        assert session.get(base + "/api/projects/invalide", timeout=30).status_code == 404
 
 
-def test_parcours_complet_modele_construction_et_site_serve(running_platform):
-    base, _app, provider = running_platform
-    token = _register(base, "alice@example.test")
-
-    catalogue = requests.get(f"{base}/catalogue", timeout=10)
-    assert catalogue.status_code == 200
-    assert catalogue.json()["models"]
-
-    created = requests.post(
-        f"{base}/projects",
-        headers=_auth(token),
-        json={
-            "slug": "alice-site",
-            "model": "Portfolio / site vitrine",
-            "app_name": "PlatformPortfolio",
-            "description": "Un portfolio construit depuis le catalogue.",
-        },
-        timeout=10,
-    )
-    assert created.status_code == 201, created.text
-    project = created.json()["project"]
-
-    queued = requests.post(
-        f"{base}/projects/{project['id']}/builds",
-        headers=_auth(token),
-        timeout=10,
-    )
-    assert queued.status_code == 202, queued.text
-    build = _wait_for_build(base, token, project["id"])
-    assert build["state"] == "reussie", build
-    assert build["tokens_consumed"] == 40
-    assert build["snapshot_path"] == f"revisions/build-{build['id']}"
-    assert build["snapshot_sha256"]
-    assert build["snapshot_bytes"] > 0
-    # DEUX appels depuis le point 151, et il faut savoir lequel est lequel :
-    # un pour adapter le jeu de démonstration à la description (à la création
-    # du projet), un pour construire le frontend. Le second reste UNIQUE —
-    # c'est lui que ce nombre surveillait, et une correction automatique en
-    # ajouterait un troisième.
-    assert provider.calls == 2
-    # Une construction ne doit pas garder un uvicorn par projet inactif : le
-    # relais est lancé à la demande par le sous-domaine ou POST /start.
-    assert not _app.state.sites.is_running(project["id"])
-
-    site = requests.get(
-        f"{base}/site/",
-        headers={"Host": f"alice-site.localhost:{base.rsplit(':', 1)[1]}"},
-        timeout=10,
-    )
-    assert site.status_code == 200, site.text
-    assert "site produit réel" in site.text
-    api = requests.get(
-        f"{base}/project?limit=5",
-        headers={"Host": f"alice-site.localhost:{base.rsplit(':', 1)[1]}"},
-        timeout=10,
-    )
-    assert api.status_code == 200, api.text
+def test_connexion_est_limitee_et_annonce_le_delai(tmp_path):
+    with _plateforme(tmp_path) as base:
+        for _ in range(5):
+            response = requests.post(base + "/api/auth/login", json={
+                "email": "absent@example.com", "password": "mauvais-secret",
+            }, timeout=30)
+            assert response.status_code == 401
+        blocked = requests.post(base + "/api/auth/login", json={
+            "email": "absent@example.com", "password": "mauvais-secret",
+        }, timeout=30)
+        assert blocked.status_code == 429
+        assert int(blocked.headers["Retry-After"]) > 0
 
 
-def test_un_nom_d_application_non_identifiant_est_un_refus_client(running_platform):
-    base, _app, _provider = running_platform
-    token = _register(base, "nom-invalide@example.test")
+def test_comptes_isolent_projets_et_cles_mcp(tmp_path):
+    with _plateforme(tmp_path) as base:
+        alice = _compte(base, "alice@example.com")
+        bob = _compte(base, "bob@example.com")
 
-    response = requests.post(
-        f"{base}/projects",
-        headers=_auth(token),
-        json={
-            "slug": "nom-invalide",
-            "model": "Portfolio / site vitrine",
-            "app_name": "Atelier Horizon",
-            "description": "Un portfolio de démonstration.",
-        },
-        timeout=10,
-    )
+        anonymous = requests.post(base + "/api/compile", json={"spec": SPEC}, timeout=30)
+        assert anonymous.status_code == 401
+        compiled = alice.post(base + "/api/compile", json={"spec": SPEC}, timeout=120)
+        assert compiled.status_code == 201, compiled.text
+        project_id = compiled.json()["id"]
+        assert alice.get(f"{base}/api/projects/{project_id}", timeout=30).status_code == 200
+        assert bob.get(f"{base}/api/projects/{project_id}", timeout=30).status_code == 404
+        assert bob.delete(f"{base}/api/projects/{project_id}", timeout=30).status_code == 404
+        assert alice.get(base + "/api/projects", timeout=30).json()["projects"][0][
+            "project_id"] == project_id
+        assert bob.get(base + "/api/projects", timeout=30).json()["projects"] == []
 
-    assert response.status_code == 422
-    assert "Nom de l'application" in response.json()["detail"]
-
-
-def test_echec_ecriture_spec_ne_laissent_pas_un_projet_orphelin(
-        running_platform, monkeypatch):
-    base, app, _provider = running_platform
-    token = _register(base, "spec-echouee@example.test")
-
-    class BrokenDirectory:
-        def joinpath(self, _name):
-            return self
-
-        def write_text(self, _text, encoding=None):
-            raise OSError("disque de test indisponible")
-
-    import monl_platform.app as platform_app
-    original_directory = platform_app.project_directory
-    monkeypatch.setattr(platform_app, "project_directory", lambda *_args, **_kwargs: BrokenDirectory())
-    body = {"slug": "spec-echouee", "spec": SPEC}
-    failed = requests.post(
-        f"{base}/projects", headers=_auth(token), json=body, timeout=10
-    )
-    assert failed.status_code == 422
-    assert app.state.store.list_projects("spec-echouee@example.test") == []
-
-    monkeypatch.setattr(platform_app, "project_directory", original_directory)
-    recovered = requests.post(
-        f"{base}/projects", headers=_auth(token), json=body, timeout=10
-    )
-    assert recovered.status_code == 201, recovered.text
+        created = alice.post(base + "/api/keys", json={"name": "Claude Code"}, timeout=30)
+        raw_key, key_id = created.json()["key"], created.json()["id"]
+        listed = alice.get(base + "/api/keys", timeout=30).json()["keys"]
+        assert "key" not in listed[0]
+        call = {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
+        assert requests.post(base + "/mcp", json=call, timeout=30).status_code == 401
+        assert requests.post(base + "/mcp", json=call,
+                             headers={"Authorization": f"Bearer {raw_key}"},
+                             timeout=30).status_code == 200
+        inspect_call = {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {
+            "name": "monl_inspect_contract", "arguments": {"project_id": project_id}}}
+        own_inspect = requests.post(base + "/mcp", json=inspect_call,
+                                    headers={"Authorization": f"Bearer {raw_key}"}, timeout=30)
+        assert "NotesEquipe" in own_inspect.text
+        bob_key = bob.post(base + "/api/keys", json={"name": "Bob"}, timeout=30).json()["key"]
+        foreign = requests.post(base + "/mcp", json=inspect_call,
+                                headers={"Authorization": f"Bearer {bob_key}"}, timeout=30)
+        assert foreign.json()["result"]["isError"] is True
+        assert "introuvable" in foreign.text
+        assert alice.delete(f"{base}/api/keys/{key_id}", timeout=30).status_code == 204
+        assert requests.post(base + "/mcp", json=call,
+                             headers={"Authorization": f"Bearer {raw_key}"},
+                             timeout=30).status_code == 401
+        assert alice.delete(f"{base}/api/projects/{project_id}", timeout=30).status_code == 204
+        assert alice.get(f"{base}/api/projects/{project_id}", timeout=30).status_code == 404
 
 
-def test_un_compte_nevoit_pas_le_projet_dun_autre(running_platform):
-    base, _app, _provider = running_platform
-    alice = _register(base, "alice@example.test")
-    bob = _register(base, "bob@example.test")
-    created = requests.post(
-        f"{base}/projects", headers=_auth(alice), json={"slug": "secret", "spec": SPEC}, timeout=10
-    )
-    assert created.status_code == 201
-    project_id = created.json()["project"]["id"]
+def test_le_module_de_la_plateforme_est_livre_par_le_depot(tmp_path):
+    """Témoin du défaut de `.gitignore` : `src/monl_platform/app.py` avait
+    disparu du dépôt sans un mot, avalé par un motif non ancré.
 
-    forbidden = requests.get(
-        f"{base}/projects/{project_id}", headers=_auth(bob), timeout=10
-    )
-    missing = requests.get(
-        f"{base}/projects/999999", headers=_auth(bob), timeout=10
-    )
-    assert forbidden.status_code == missing.status_code == 404
-    assert forbidden.json() == missing.json()
-    assert requests.get(f"{base}/projects", headers=_auth(bob), timeout=10).json() == {
-        "projects": []
-    }
+    Il faut une assertion à part parce qu'elle nomme la cause. Les deux tests
+    ci-dessus font désormais ÉCHOUER un module absent — `uvicorn_server` ne
+    traduit plus la mort d'un serveur par un `pytest.skip` (point 140) — mais
+    ils le rapportent comme une panne de serveur, avec la trace d'uvicorn.
+    Celui-ci dit en une ligne que le dépôt est amputé, ce qui est le vrai
+    diagnostic. Le garder coûte un import ; le perdre coûterait une enquête.
+    """
+    from monl_platform.app import create_app
+
+    chemins = {getattr(route, "path", None) for route in create_app(workspace=tmp_path).routes}
+    assert {"/", "/console", "/login", "/account", "/docs", "/api-docs", "/security", "/health", "/api/templates", "/api/validate", "/api/compile",
+            "/mcp"} <= chemins
 
 
-def test_une_construction_en_cours_est_marquee_echouee_au_demarrage(tmp_path):
-    database = tmp_path / "platform.db"
-    store = PlatformStore(database)
-    account = store.create_account("restart@example.test")
-    project = store.create_project(account, "restart")
-    build = store.create_build(project)
-    store.start_build(build)
-    store.close()
-
-    app = create_app(
-        database=database,
-        workspace_root=tmp_path / "projects",
-        jwt_secret="secret-for-platform-restart-tests-123456",
-        provider=FakeProvider(),
-        poll_interval=0.01,
-    )
-    port = _free_port()
-    server = uvicorn.Server(
-        uvicorn.Config(app, host="127.0.0.1", port=port, log_level="error")
-    )
-    thread = threading.Thread(target=server.run, daemon=True)
-    thread.start()
-    try:
-        base = f"http://127.0.0.1:{port}"
-        for _ in range(100):
-            try:
-                if requests.get(f"{base}/health", timeout=0.2).status_code == 200:
-                    break
-            except requests.RequestException:
-                time.sleep(0.02)
-        status = app.state.store.get_build(build)
-        assert status["state"] == "echouee"
-        assert "redémarrage" in status["error_message"]
-    finally:
-        server.should_exit = True
-        thread.join(timeout=10)
-        assert not thread.is_alive()
+def test_le_guide_est_servi_et_couvre_ses_sections(tmp_path):
+    """Une plateforme qui accepte une spécification doit dire comment on
+    l'écrit. Le guide est donc une route comme une autre, éprouvée comme
+    telle — pas un fichier qu'on espère présent."""
+    with _plateforme(tmp_path) as base:
+        page = requests.get(base + "/guide", timeout=30)
+        assert page.status_code == 200
+        assert "text/html" in page.headers["content-type"]
+        for ancre in ('id="frontiere"', 'id="demarrer"', 'id="dsl"',
+                      'id="api"', 'id="mcp"', 'id="limites"'):
+            assert ancre in page.text, ancre
+        # La limite la plus surprenante doit être ÉNONCÉE, pas découverte en
+        # collant une spec qui déclare un logo.
+        assert "Aucun téléversement" in page.text
 
 
-def test_un_site_non_construit_refuse_de_demarrer_proprement(running_platform):
-    base, _app, _provider = running_platform
-    token = _register(base, "new@example.test")
-    created = requests.post(
-        f"{base}/projects",
-        headers=_auth(token),
-        json={"slug": "non-construit", "spec": SPEC},
-        timeout=10,
-    )
-    project_id = created.json()["project"]["id"]
-    host = {"Host": f"non-construit.localhost:{base.rsplit(':', 1)[1]}"}
+def test_les_exemples_sont_servis_et_compilent_par_lapi(tmp_path):
+    """Le catalogue n'est pas décoratif : ce qu'il sert doit traverser tout le
+    parcours, de la galerie à l'archive."""
+    with _plateforme(tmp_path) as base:
+        session = _compte(base, "examples@example.com")
+        catalogue = requests.get(base + "/api/examples", timeout=30).json()["examples"]
+        assert len(catalogue) >= 4
+        assert all("spec" not in entree for entree in catalogue)
 
-    response = requests.get(f"{base}/site/", headers=host, timeout=10)
-    assert response.status_code == 409
-    assert "pas construit" in response.json()["detail"]
-    started = requests.post(
-        f"{base}/projects/{project_id}/start", headers=_auth(token), timeout=10
-    )
-    assert started.status_code == 409
+        premier = catalogue[0]["id"]
+        spec = requests.get(f"{base}/api/examples/{premier}", timeout=30).json()["spec"]
+        assert "app " in spec
 
+        compile = session.post(base + "/api/compile", json={"spec": spec}, timeout=180)
+        assert compile.status_code == 201, compile.text
+        archive = session.get(
+            f"{base}/api/projects/{compile.json()['id']}/download", timeout=60)
+        assert archive.status_code == 200
+        assert archive.headers["content-type"] == "application/zip"
 
-def test_un_snapshot_manquant_ne_fait_pas_servir_un_dossier_actif(running_platform):
-    base, app, _provider = running_platform
-    token = _register(base, "missing-snapshot@example.test")
-    created = requests.post(
-        f"{base}/projects",
-        headers=_auth(token),
-        json={"slug": "missing-snapshot", "spec": SPEC},
-        timeout=10,
-    )
-    project_id = created.json()["project"]["id"]
-    queued = requests.post(
-        f"{base}/projects/{project_id}/builds",
-        headers=_auth(token),
-        timeout=10,
-    )
-    assert queued.status_code == 202
-    build = _wait_for_build(base, token, project_id)
-    assert build["state"] == "reussie"
-    project = app.state.store.get_project(project_id)
-    project_dir = app.state.sites._project_directory(project)
-    snapshot = project_dir / build["snapshot_path"]
-    stopped = requests.post(
-        f"{base}/projects/{project_id}/stop",
-        headers=_auth(token),
-        timeout=10,
-    )
-    assert stopped.status_code == 200
-    snapshot.rename(snapshot.with_name("deleted"))
-    response = requests.post(
-        f"{base}/projects/{project_id}/start",
-        headers=_auth(token),
-        timeout=10,
-    )
-    assert response.status_code == 409
-    assert "snapshot" in response.json()["detail"]
+        assert requests.get(base + "/api/examples/inconnu", timeout=30).status_code == 404
 
 
-def test_arreter_un_projet_arrete_son_processus(running_platform):
-    base, _app, _provider = running_platform
-    token = _register(base, "stop@example.test")
-    created = requests.post(
-        f"{base}/projects",
-        headers=_auth(token),
-        json={"slug": "stop-site", "spec": SPEC},
-        timeout=10,
-    )
-    project_id = created.json()["project"]["id"]
-    requests.post(f"{base}/projects/{project_id}/builds", headers=_auth(token), timeout=10)
-    _wait_for_build(base, token, project_id)
-    started = requests.post(
-        f"{base}/projects/{project_id}/start", headers=_auth(token), timeout=10
-    )
-    assert started.status_code == 200, started.text
-    pid = started.json()["pid"]
-    stopped = requests.post(
-        f"{base}/projects/{project_id}/stop", headers=_auth(token), timeout=10
-    )
-    assert stopped.status_code == 200
-    for _ in range(100):
-        if not os.path.exists(f"/proc/{pid}"):
-            break
-        time.sleep(0.02)
-    assert not os.path.exists(f"/proc/{pid}")
+def test_version_favicon_et_page_introuvable(tmp_path):
+    with _plateforme(tmp_path) as base:
+        session = _compte(base, "errors@example.com")
+        version = requests.get(base + "/api/version", timeout=30).json()
+        assert version["compiler"] and version["contract"]
+
+        favicon = requests.get(base + "/favicon.svg", timeout=30)
+        assert favicon.status_code == 200
+        assert favicon.headers["content-type"].startswith("image/svg+xml")
+
+        wordmark = requests.get(base + "/brand/monl-wordmark.png", timeout=30)
+        assert wordmark.status_code == 200
+        assert wordmark.headers["content-type"].startswith("image/png")
+        assert wordmark.content.startswith(b"\x89PNG\r\n\x1a\n")
+        assert "<text" not in favicon.text
+
+        logo = requests.get(base + "/logo.svg", timeout=30)
+        assert logo.status_code == 200
+        assert logo.headers["content-type"].startswith("image/svg+xml")
+        # Comparé à la SOURCE et non à un littéral : un logo servi dans une
+        # autre couleur que celle de la feuille est un défaut, quelle que
+        # soit la palette du moment.
+        from monl_platform.theme import LOGO_SVG
+        assert logo.text == LOGO_SVG
+
+        # Un visiteur reçoit une page, un client d'API reçoit du JSON : servir
+        # du HTML à curl rendrait l'erreur illisible là où on la lit.
+        navigateur = requests.get(base + "/inexistant",
+                                  headers={"Accept": "text/html"}, timeout=30)
+        assert navigateur.status_code == 404
+        assert "Cette page n'existe pas" in navigateur.text
+
+        client = session.get(base + "/api/projects/inexistant", timeout=30)
+        assert client.status_code == 404
+        assert client.json()["detail"]

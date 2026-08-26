@@ -1,901 +1,341 @@
-"""Page de présentation de monl, servie à la racine de la plateforme.
+"""Public product page for the compiler platform."""
 
-La console est un OUTIL : elle suppose qu'on sait déjà ce que monl fait. Cette
-page-ci s'adresse à quelqu'un qui l'ignore, propose une version à installer,
-puis conduit à la console.
+from __future__ import annotations
 
-Registre assumé : un terminal, en thème sombre unique. Le produit est une
-ligne de commande, la page ne prétend donc pas être autre chose — et un thème
-à moitié tenu serait pire qu'un thème assumé.
+from . import examples
+from .theme import icon, page
 
-Comme la console, la page est ENTIÈREMENT autonome : aucune police web, aucune
-image distante, aucun script tiers, et pas même un lien sortant. C'est ce que
-vérifie ``tests/test_platform_landing.py``.
+EXTRA_CSS = """
+.landing-hero { position:relative; padding: 88px 0 80px; display:grid; grid-template-columns:1.08fr .92fr;
+  gap:clamp(32px,6vw,76px); align-items:center; }
+.landing-hero::before { content:""; position:absolute; width:520px; height:520px; right:-180px; top:-170px;
+  border-radius:50%; pointer-events:none; filter:blur(4px);
+  background:radial-gradient(circle,color-mix(in srgb,var(--brand) 12%,transparent),transparent 68%); }
+.landing-hero h1 { max-width: 760px; margin: 0 0 var(--space-5);
+  font-size: clamp(42px, 6vw, 70px); line-height: .98; letter-spacing: -.055em; }
+.landing-hero .lede { max-width: 650px; margin: 0 0 var(--space-6);
+  color: var(--muted); font-size: clamp(18px, 2.2vw, 21px); }
+.hero-actions { display:flex; flex-wrap:wrap; gap:var(--space-3); }
+.trust { display:flex; flex-wrap:wrap; gap:var(--space-5);
+  margin-top:var(--space-6); color:var(--muted); font-size:14px; }
+.trust span { display:inline-flex; gap:7px; align-items:center; }
+.trust .icon { color:var(--ink); }
+.proof-rail { display:grid;grid-template-columns:repeat(4,1fr);border-block:1px solid var(--line);background:var(--surface);
+  padding-inline:max(20px,calc((100vw - var(--shell))/2)); }
+.proof-rail div { padding:20px clamp(16px,3vw,34px);border-right:1px solid var(--line); }
+.proof-rail div:last-child{border-right:0}.proof-rail b{display:block;font:700 clamp(18px,2vw,24px) var(--mono);letter-spacing:-.04em}
+.proof-rail span{color:var(--muted);font-size:12px}.proof-rail .proof-word{color:var(--ink)}
+.start-card { position:relative; background:var(--code-bg); color:var(--code-ink); border:1px solid var(--line);
+  border-radius:calc(var(--radius-lg) + 4px); padding:var(--space-3); box-shadow:0 28px 70px rgba(0,0,0,.22);
+  transform:rotate(1deg); }
+.start-card::before { content:""; position:absolute; inset:18px -16px -16px 18px; border:1px solid var(--line);
+  border-radius:inherit; z-index:-1; background:var(--surface-2); transform:rotate(-2deg); }
+.demo-window { border:1px solid color-mix(in srgb,var(--code-ink) 15%,transparent);border-radius:14px;overflow:hidden;background:var(--code-bg); }
+.demo-bar { display:flex;align-items:center;gap:7px;padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.1);font:11px var(--mono);color:var(--code-muted); }
+.demo-bar i { width:7px;height:7px;border-radius:50%;background:var(--code-line); }.demo-bar i:first-child{background:var(--code-accent)}
+.demo-bar span { margin-left:auto;display:inline-flex;align-items:center;gap:6px;color:var(--code-accent); }
+.demo-bar span::before { content:"";width:6px;height:6px;border-radius:50%;background:var(--code-accent);box-shadow:0 0 0 4px rgba(229,164,95,.16); }
+.demo-code { padding:22px 20px 18px;font:12px/1.85 var(--mono);color:var(--code-muted); }
+.demo-code b { color:var(--code-accent);font-weight:500 }.demo-code strong{color:var(--code-ink);font-weight:500}
+.scan-line { height:1px;background:linear-gradient(90deg,transparent,var(--code-accent),transparent);animation:scan 3.2s ease-in-out infinite; }
+.demo-result { display:grid;grid-template-columns:1.25fr repeat(3,.6fr);gap:1px;background:rgba(255,255,255,.1);border-top:1px solid rgba(255,255,255,.1); }
+.demo-result div { padding:14px;background:var(--code-bg); }.demo-result b{display:block;color:var(--code-ink);font:600 16px var(--mono)}
+.demo-result span{font:10px var(--mono);color:var(--code-muted)}.demo-result .verified b{color:var(--code-accent);font-size:12px;text-transform:uppercase;letter-spacing:.08em}
+@keyframes scan { 0%,100%{transform:translateY(-8px);opacity:.25} 50%{transform:translateY(8px);opacity:1} }
+.start-head { display:flex; justify-content:space-between; align-items:center; gap:var(--space-3);
+  padding-bottom:var(--space-4); border-bottom:1px solid var(--line); }
+.start-head b { font-size:17px; }.start-head span { color:var(--muted); font:12px var(--mono); }
+.start-steps { list-style:none; padding:0; margin:var(--space-4) 0; counter-reset:start; }
+.start-steps li { counter-increment:start; display:grid; grid-template-columns:32px 1fr; gap:var(--space-3);
+  padding:var(--space-3) 0; border-bottom:1px solid var(--line); }
+.start-steps li::before { content:counter(start); width:28px; height:28px; display:grid; place-items:center;
+  border-radius:9px; background:var(--soft); color:var(--brand); font:700 12px var(--mono); }
+.start-steps b { display:block; margin-bottom:2px; }.start-steps span { color:var(--muted); font-size:14px; }
+.start-card .primary { width:100%; }
+.start-note { text-align:center; color:var(--muted); font-size:12px; margin:var(--space-3) 0 0; }
+.editorial { display:grid; grid-template-columns:minmax(240px,.78fr) minmax(0,1.35fr); gap:clamp(40px,8vw,110px); }
+.editorial .section-head { margin:0; }
+.platform-flow { display:grid; grid-template-columns:repeat(3,1fr); border:1px solid var(--line); border-radius:var(--radius-lg); overflow:hidden; }
+.flow-stage { min-height:280px; padding:clamp(24px,3vw,36px); border-right:1px solid var(--line); display:flex; flex-direction:column; }
+.flow-stage:last-child { border-right:0; }
+.flow-stage:nth-child(2) { background:var(--code-bg); color:var(--code-ink); }
+.flow-stage .stage-no { font:600 11px var(--mono); letter-spacing:.1em; color:var(--muted); }
+.flow-stage:nth-child(2) .stage-no,.flow-stage:nth-child(2) p { color:var(--code-muted); }
+.flow-stage h3 { margin:auto 0 10px; font-size:clamp(22px,2.4vw,29px); }
+.flow-stage p { color:var(--muted); margin:0; }
+.flow-stage .stage-tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:22px; }
+.flow-stage .stage-tags span { font:10px var(--mono); border:1px solid currentColor; border-radius:999px; padding:3px 8px; opacity:.7; }
+.capability-grid { display:grid; grid-template-columns:1fr 1fr; border:1px solid var(--line); border-radius:var(--radius-lg); overflow:hidden; }
+.capability { min-height:230px; padding:clamp(24px,3vw,34px); border-right:1px solid var(--line); border-bottom:1px solid var(--line); }
+.capability:nth-child(2n) { border-right:0; }.capability:nth-last-child(-n+2) { border-bottom:0; }
+.capability .feature-icon { margin-bottom:clamp(32px,5vw,58px); background:transparent; border:1px solid var(--line); color:var(--ink); }
+.capability h3 { font-size:19px; margin-bottom:8px; }.capability p { color:var(--muted); margin:0; }
+.principles { border-top:1px solid var(--line); }
+.principle { display:grid; grid-template-columns:44px 1fr; gap:var(--space-4); padding:26px 0; border-bottom:1px solid var(--line); }
+.principle .feature-icon { margin:0; background:transparent; border:1px solid var(--line); color:var(--ink); }
+.principle h3 { font-size:19px; margin-bottom:6px; }
+.principle p { color:var(--muted); margin:0; }
+.case-explorer { display:grid; grid-template-columns:minmax(230px,.7fr) minmax(0,1.55fr); border:1px solid var(--line);
+  border-radius:var(--radius-lg); overflow:hidden; min-height:560px; }
+.case-tabs { background:var(--surface-2); border-right:1px solid var(--line); padding:12px; }
+.case-tab { width:100%; border:0; border-radius:10px; padding:16px; background:transparent; color:var(--muted); text-align:left;
+  cursor:pointer; display:block; transition:background .18s,color .18s; }
+.case-tab:hover { color:var(--ink); }.case-tab[aria-selected="true"] { background:var(--surface); color:var(--ink); }
+.case-tab b { display:block; margin-bottom:4px; font-size:15px; }.case-tab span { font-size:12px; line-height:1.4; display:block; }
+.case-panels { min-width:0; background:var(--surface); }
+.case-panel { display:none; min-height:100%; padding:clamp(28px,5vw,58px); }
+.case-panel.active { display:grid; grid-template-columns:1fr 1fr; gap:clamp(24px,5vw,56px); animation:case-in .25s ease-out; }
+.case-panel h3 { font-size:clamp(27px,4vw,42px); margin:8px 0 16px; }.case-panel p { color:var(--muted); }
+.case-spec { min-width:0; display:flex; flex-direction:column; }
+.case-spec .codeblock { flex:1; min-height:0; white-space:pre-wrap; overflow:visible; overflow-wrap:anywhere; }
+.case-rules { display:flex; flex-wrap:wrap; gap:6px; }
+.case-rules span { border:1px solid var(--line); border-radius:999px; padding:3px 8px; color:var(--muted); font:10px var(--mono); }
+.case-result { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+.case-result b { display:block; color:var(--ink); font:700 18px var(--mono); }
+.case-result span { color:var(--muted); font-size:10px; }
+.case-open { display:inline-flex; align-items:center; gap:6px; margin-top:24px; color:var(--ink); font-size:13px; font-weight:650; }
+@keyframes case-in { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:none; } }
+.output-flow { display:grid; grid-template-columns:.8fr auto 1.2fr; gap:var(--space-4); align-items:center; }
+.mini-spec { margin:0; min-height:300px; }
+.flow-arrow { width:52px;height:52px;border-radius:50%;display:grid;place-items:center;background:var(--brand);color:var(--on-brand); }
+.artifact { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-lg); overflow:hidden; }
+.artifact-head { padding:var(--space-4); border-bottom:1px solid var(--line); display:flex;justify-content:space-between;gap:var(--space-3); }
+.artifact-body { padding:var(--space-5); }
+.artifact-stats { display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-2);margin-bottom:var(--space-5); }
+.artifact-stats div { background:var(--surface-2);border-radius:10px;padding:var(--space-3); }
+.artifact-stats b { display:block;font:700 20px var(--mono); }.artifact-stats span{color:var(--muted);font-size:12px}
+.tree { font:13px/1.8 var(--mono); color:var(--muted); }.tree b{color:var(--ink)}
+.layers { display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:var(--space-3);align-items:stretch; }
+.layer { position:relative;min-height:260px;display:flex;flex-direction:column;justify-content:space-between; }
+.layer:nth-child(2){background:var(--code-bg);color:var(--code-ink);border-color:color-mix(in srgb,var(--brand) 55%,var(--line));transform:translateY(-12px);box-shadow:var(--shadow)}
+.layer:nth-child(2) p{color:var(--code-muted)}.layer:nth-child(2) .layer-label{color:var(--code-accent)}
+.layer-label{font:600 11px var(--mono);color:var(--brand);letter-spacing:.1em;text-transform:uppercase}
+.layer h3{font-size:clamp(22px,3vw,29px);margin:var(--space-5) 0 var(--space-3)}.layer p{color:var(--muted);margin:0}
+.layer-tags{display:flex;flex-wrap:wrap;gap:7px;margin-top:var(--space-5)}.layer-tags span{border:1px solid currentColor;border-radius:999px;padding:4px 9px;font:10px var(--mono);opacity:.72}
+.layer-arrow{position:absolute;right:-23px;top:50%;z-index:3;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--brand);color:var(--on-brand)}
+.pipeline { display:grid; grid-template-columns:repeat(3,1fr); gap:var(--space-3);
+  max-width:960px; margin:0 auto; text-align:left; }
+.pipeline article { position:relative; min-height:190px; }
+.pipeline article:not(:last-child)::after { content:"→"; position:absolute; right:-20px; top:45%;
+  z-index:2; width:28px; height:28px; display:grid; place-items:center; border-radius:50%;
+  background:var(--brand); color:var(--on-brand); font-family:var(--mono); }
+.feature-icon { width:42px; height:42px; display:grid; place-items:center; border-radius:12px;
+  background:var(--soft); color:var(--brand); margin-bottom:var(--space-5); }
+.feature-icon .icon { width:21px; height:21px; }
+.pipeline h3,.bento h3 { margin-bottom:var(--space-2); font-size:19px; }
+.pipeline p,.bento p { color:var(--muted); margin:0; font-size:15px; }
+.band { border-block:1px solid var(--line); background:var(--surface-2); }
+.bento { display:grid; grid-template-columns:repeat(3,1fr); gap:var(--space-3); }
+.bento article { min-height:220px; }
+.bento article:first-child { grid-column:span 2; display:flex; flex-direction:column; justify-content:flex-end;
+  background:var(--code-bg); color:var(--code-ink); }
+.bento article:first-child p { color:var(--code-muted); }
+.bento article:first-child .feature-icon { background:var(--soft); color:var(--code-accent); }
+.step-list { display:grid; grid-template-columns:repeat(3,1fr); gap:var(--space-5); counter-reset:step; }
+.step-list article { counter-increment:step; border-top:1px solid var(--line); padding-top:var(--space-5); }
+.step-list article::before { content:"0" counter(step); color:var(--brand); font:600 12px var(--mono); }
+.step-list h3 { margin:var(--space-4) 0 var(--space-2); }
+.step-list p { color:var(--muted); }
+.final { margin:var(--space-8) auto; padding:clamp(32px,6vw,64px); text-align:center;
+  background:var(--brand); color:var(--on-brand); border-radius:var(--radius-lg); }
+.final h2 { max-width:700px; margin:0 auto var(--space-4); font-size:clamp(30px,5vw,48px); }
+.final p { max-width:620px; margin:0 auto var(--space-6); opacity:.86; }
+.final .secondary { background:var(--surface); color:var(--ink); border:0; }
+@media(max-width:760px){
+  .landing-hero { padding-top:56px; grid-template-columns:1fr; }
+  .pipeline,.bento,.step-list,.editorial,.platform-flow,.case-explorer { grid-template-columns:1fr; }
+  .flow-stage { min-height:220px; border-right:0; border-bottom:1px solid var(--line); }.flow-stage:last-child{border-bottom:0}
+  .case-tabs { border-right:0; border-bottom:1px solid var(--line); display:flex; overflow-x:auto; }
+  .case-tab { width:190px; flex:none; }.case-tab span { display:none; }
+  .case-panel.active { grid-template-columns:1fr; }.case-explorer { min-height:0; }
+  .proof-rail{grid-template-columns:1fr 1fr}.proof-rail div:nth-child(2){border-right:0}.proof-rail div:nth-child(-n+2){border-bottom:1px solid var(--line)}
+  .layers{grid-template-columns:1fr}.layer:nth-child(2){transform:none}.layer-arrow{display:none}
+  .output-flow { grid-template-columns:1fr; }.flow-arrow{transform:rotate(90deg);margin:auto}
+  .pipeline article:not(:last-child)::after { display:none; }
+  .bento article:first-child { grid-column:auto; }
+}
+@media(max-width:520px){.start-card{transform:none}.start-card::before{display:none}.demo-result{grid-template-columns:1fr 1fr}.capability-grid{grid-template-columns:1fr}.capability{border-right:0;border-bottom:1px solid var(--line)!important}.capability:last-child{border-bottom:0!important}}
+@media(prefers-reduced-motion:reduce){.scan-line{animation:none}}
 """
 
-from fastapi.responses import HTMLResponse
 
-LANDING_HTML = r'''<!doctype html>
-<html lang="fr">
-<head>
-<meta charset="utf-8">
-<title>monl — compilateur</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="monl compile une spécification déclarative en un backend FastAPI complet et scellé. Dialogue guidé, aucune IA, aucun appel réseau.">
-<style>
-/* ══════════════════════════════════════════════════════════════════════════
-   monl — page de présentation.
+def feature(symbol: str, title: str, text: str, delay: int = 0) -> str:
+    return f"""<article class="card lift" data-reveal style="--reveal-delay:{delay}ms">
+<span class="feature-icon">{icon(symbol)}</span><h3>{title}</h3><p>{text}</p></article>"""
 
-   Ce qui est emprunté aux bonnes pages produit techniques n'est pas une
-   apparence, c'est une MÉTHODE : on montre le produit qui tourne, avec de
-   vraies entrées à gauche et de vraies sorties à droite, avant de demander
-   quoi que ce soit. Le contenu de la démonstration est produit par le VRAI
-   compilateur (voir batir_landing.py) — une démonstration inventée serait
-   exactement ce que monl interdit aux sites qu'il produit.
 
-   Deux argiles, et la distinction n'est pas cosmétique :
-     --clay      #d97757  →  3,12:1 sur blanc. GROS TEXTE et DÉCOR seulement
-                             (AA grand texte demande 3:1, c'est tenu).
-     --clay-ink  #b8542f  →  4,83:1 sur blanc. Petit texte, liens, et fond
-                             de bouton sous du blanc.
-   Confondre les deux rend un bouton illisible : c'est le défaut déjà corrigé
-   deux fois sur la version sombre de cette page.
-   ══════════════════════════════════════════════════════════════════════════ */
-
-:root {
-  --paper:   #ffffff;
-  --paper-2: #faf9f7;
-  --paper-3: #f2efec;
-  --ink:     #1c1917;  /* 17,49:1 */
-  --ink-2:   #57534e;  /*  7,63:1 */
-  --ink-3:   #78716c;  /*  4,80:1 — le plus clair encore lisible */
-  --rule:    #e7e3df;
-  --rule-2:  #d6d0ca;
-  --clay:     #d97757;
-  --clay-ink: #b8542f;
-  --wash:     #fdf5f1;
-
-  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-          Helvetica, Arial, "Liberation Sans", sans-serif;
-  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
-          "Liberation Mono", monospace;
-
-  --page: 1120px;
-  --s1: .25rem; --s2: .5rem;  --s3: .75rem; --s4: 1rem;
-  --s5: 1.5rem; --s6: 2.5rem; --s7: 4rem;  --s8: 6rem;
-  --r1: 6px; --r2: 10px; --r3: 14px;
+CASE_OUTCOMES = {
+    "vitrine": "Lecture publique, administration privée et catalogue initialisé dès le premier démarrage.",
+    "rendez-vous": "Chaque client reste isolé ; le praticien retrouve toutes les demandes et maîtrise leurs statuts.",
+    "boutique": "Prix calculés côté serveur, stock jamais négatif, commande numérotée et paiement verrouillé.",
+    "communaute": "Pseudonymes générés, une réaction par compte, signalement et modération sans contournement.",
 }
 
-* { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
-body {
-  margin: 0; background: var(--paper); color: var(--ink);
-  font-family: var(--sans); font-size: 16px; line-height: 1.6;
-  -webkit-font-smoothing: antialiased;
-}
-a { color: inherit; text-decoration: none; }
-h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -.022em; }
-p, ul { margin: 0; }
-:focus-visible { outline: 2px solid var(--clay-ink); outline-offset: 3px; border-radius: 3px; }
+CASE_SNIPPETS = {
+    "vitrine": """rule Realisation.Read public
 
-.wrap { width: min(var(--page), 100% - 3rem); margin-inline: auto; }
-.tag {
-  font-family: var(--mono); font-size: .68rem; letter-spacing: .07em;
-  text-transform: uppercase; color: var(--ink-3);
-}
-.tag b { color: var(--clay-ink); font-weight: 600; }
-.tag.file { text-transform: none; letter-spacing: .02em; }
-
-/* ────────────────────────────────────────────────────────── navigation ── */
-.topline {
-  background: var(--ink); color: #f5f5f4; text-align: center;
-  font-size: .82rem; padding: var(--s2) var(--s4);
-}
-.topline a { color: var(--clay); text-decoration: underline; text-underline-offset: 2px; }
-nav { border-bottom: 1px solid var(--rule); background: var(--paper);
-      position: sticky; top: 0; z-index: 20; }
-.nav-in { display: flex; align-items: center; justify-content: space-between;
-          gap: var(--s4); min-height: 3.5rem; }
-.logo { display: inline-flex; align-items: center; gap: var(--s2); font-weight: 600; }
-.logo-mark {
-  display: grid; place-items: center; width: 1.5rem; height: 1.5rem;
-  border-radius: var(--r1); background: var(--clay-ink); color: #fff;
-  font-family: var(--mono); font-size: .78rem; font-weight: 700;
-}
-/* `.logo span` sans exception repeindrait la pastille : c'est la règle LARGE
-   qu'on restreint, jamais la règle précise qu'on renforce. */
-.logo span:not(.logo-mark) { color: var(--ink-3); font-weight: 400; }
-.nav-links { display: flex; align-items: center; gap: var(--s5); }
-.nav-links a { color: var(--ink-2); font-size: .88rem; }
-.nav-links a:hover { color: var(--ink); }
-
-.btn {
-  display: inline-flex; align-items: center; gap: var(--s2);
-  padding: .5rem .95rem; border-radius: var(--r1);
-  background: var(--clay-ink); color: #fff; border: 1px solid var(--clay-ink);
-  font: inherit; font-size: .87rem; font-weight: 500; cursor: pointer;
-}
-.btn:hover { background: #9c4526; border-color: #9c4526; }
-.nav-links a.btn, .nav-links a.btn:hover { color: #fff; }
-.btn.ghost { background: var(--paper); color: var(--ink); border-color: var(--rule-2); }
-.btn.ghost:hover { background: var(--paper-2); color: var(--ink); }
-.btn.lg { padding: .7rem 1.25rem; font-size: .95rem; }
-
-/* ─────────────────────────────────────────────────────────────── héros ── */
-header { padding: var(--s7) 0 var(--s6); text-align: center; }
-.pill {
-  display: inline-flex; align-items: center; gap: var(--s2);
-  padding: .3rem .85rem; border: 1px solid var(--rule-2); border-radius: 999px;
-  font-size: .8rem; color: var(--ink-2); background: var(--paper);
-}
-.pill em { font-style: normal; color: var(--clay-ink); font-weight: 600; }
-h1 {
-  margin: var(--s5) auto var(--s4); max-width: 17ch;
-  font-size: clamp(2.3rem, 6vw, 3.9rem); line-height: 1.06;
-  letter-spacing: -.035em; font-weight: 600;
-}
-/* L'argile vive est admissible ici : à cette taille et à ce gras, AA demande
-   3:1 et elle donne 3,12. Elle ne l'est nulle part ailleurs. */
-h1 em { font-style: normal; color: var(--clay); }
-.lede { max-width: 56ch; margin: 0 auto var(--s5); color: var(--ink-2); font-size: 1.05rem; }
-.lede b { color: var(--ink); font-weight: 600; }
-.cta { display: flex; gap: var(--s3); justify-content: center; flex-wrap: wrap; }
-.meta { margin-top: var(--s4); font-family: var(--mono); font-size: .74rem; color: var(--ink-3); }
-
-/* ═══════════════════════════════════════════════════ la démonstration ══ */
-/* Le cœur de la page : ce que vous écrivez à gauche, ce que le compilateur
-   en fait à droite. Les deux colonnes viennent d'une vraie compilation. */
-.demo { border: 1px solid var(--rule); border-radius: var(--r3); overflow: hidden;
-        background: var(--paper); box-shadow: 0 1px 2px rgba(28,25,23,.04),
-        0 16px 40px rgba(28,25,23,.06); text-align: left; }
-.demo-head {
-  display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap;
-  padding: var(--s3) var(--s4); border-bottom: 1px solid var(--rule);
-  background: var(--paper-2);
-}
-.tabs { display: flex; gap: var(--s1); flex-wrap: wrap; }
-.tab {
-  padding: .35rem .8rem; border-radius: var(--r1); border: 1px solid transparent;
-  background: transparent; color: var(--ink-2); font: inherit; font-size: .84rem;
-  cursor: pointer;
-}
-.tab:hover { color: var(--ink); }
-.tab[aria-selected="true"] {
-  background: var(--paper); border-color: var(--rule-2); color: var(--ink); font-weight: 500;
-}
-.demo-head .tag { margin-left: auto; }
-
-.demo-body { display: grid; grid-template-columns: 1fr 1fr; }
-.panel { min-width: 0; }
-.panel + .panel { border-left: 1px solid var(--rule); }
-.panel-head {
-  display: flex; align-items: center; gap: var(--s3);
-  padding: .55rem var(--s4); border-bottom: 1px solid var(--rule);
-  background: var(--paper);
-}
-.panel-head .tabs { margin-left: auto; }
-.panel-head .tab { padding: .2rem .55rem; font-size: .75rem; }
-pre, .out {
-  margin: 0; padding: var(--s4); font-family: var(--mono); font-size: .78rem;
-  line-height: 1.8; color: var(--ink-2); overflow: auto; height: 23rem;
-}
-.k { color: var(--clay-ink); font-weight: 500; }
-.t { color: #1d4ed8; }
-.c { color: var(--ink-3); }
-.out ul { list-style: none; padding: 0; }
-.out li { white-space: pre; }
-.out .m { color: var(--clay-ink); font-weight: 600; }
-.out .sys { color: var(--ink-3); }
-.demo-foot {
-  display: flex; align-items: center; gap: var(--s4); flex-wrap: wrap;
-  padding: var(--s3) var(--s4); border-top: 1px solid var(--rule);
-  background: var(--paper-2); font-size: .84rem; color: var(--ink-2);
-}
-.demo-foot b { color: var(--ink); font-family: var(--mono); }
-.demo-foot .btn { margin-left: auto; }
-
-/* ────────────────────────────────────────────── rythme des sections ── */
-/* Deux sections empilées ADDITIONNENT leurs marges : à 6rem de chaque côté,
-   la jointure faisait 192 px de blanc — mesuré, contre 138 px au plus sur la
-   page qui a servi de référence. 4rem donne 128. */
-section { padding: var(--s7) 0; border-top: 1px solid var(--rule); }
-section.alt { background: var(--paper-2); }
-.chapter { display: flex; align-items: center; gap: var(--s3); margin-bottom: var(--s4); }
-.chapter i { width: 3px; height: 1rem; background: var(--clay); border-radius: 2px; }
-h2 { font-size: clamp(1.7rem, 3.3vw, 2.4rem); line-height: 1.14; }
-h2 em { font-style: normal; color: var(--clay); }
-.intro { color: var(--ink-2); }
-/* Le titre à gauche, le chapeau à droite. Alignés en pied, ils remplissent la
-   largeur : l'en-tête ne laissait sinon que du blanc sur toute la moitié
-   droite, sur un cinquième de la page. */
-.sec-head {
-  display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
-  gap: var(--s4) var(--s7); align-items: end; margin-bottom: var(--s6);
-}
-.sec-head > div:first-child { grid-row: span 2; }
-@media (max-width: 900px) {
-  .sec-head { grid-template-columns: 1fr; gap: var(--s3); }
-  .sec-head > div:first-child { grid-row: auto; }
+workflow Gerer for Admin
+    Create Realisation
+    Update Realisation
+    Delete Realisation""",
+    "rendez-vous": """rule Demande.Read ownedBy Visiteur
+rule Demande.Read sharedBy Praticien
+rule Demande.Create requiresOwn Client
+rule Demande.statut oneOf
+    \"deposee\", \"confirmee\", \"honoree\"""",
+    "boutique": """rule Ligne.sousTotal derivedFrom Produit.prix by quantite
+rule Commande.total sumOf Ligne.sousTotal
+rule Ligne.Create decrements Produit.stock by quantite
+rule Commande.total payable""",
+    "communaute": """rule Membre.pseudo generated \"MBR-{NNNN}\"
+rule Jaime.Create oncePer Membre, Message
+rule Jaime.Create increments Message.jaimes by 1
+rule Message.Read publicWhen statut \"publie\"""",
 }
 
-/* verbes de la ligne de commande */
-.verbs { border: 1px solid var(--rule); border-radius: var(--r2); overflow: hidden;
-         background: var(--paper); }
-.verb { display: grid; grid-template-columns: 12rem 1fr; gap: var(--s4);
-        padding: var(--s4) var(--s5); border-bottom: 1px solid var(--rule); }
-.verb:last-child { border-bottom: 0; }
-.verb code { font-family: var(--mono); font-size: .85rem; color: var(--clay-ink);
-             background: none; border: 0; padding: 0; font-weight: 500; }
-.verb p { color: var(--ink-2); font-size: .93rem; }
-.verb p b { color: var(--ink); font-weight: 600; }
 
-code {
-  font-family: var(--mono); font-size: .86em; background: var(--paper-3);
-  border: 1px solid var(--rule); padding: .08em .34em; border-radius: 4px; color: var(--ink);
-}
+def case_tab(item: dict, index: int) -> str:
+    selected = ' aria-selected="true"' if index == 0 else ' aria-selected="false"'
+    return (f'<button class="case-tab" id="tab-{item["id"]}" role="tab" '
+            f'aria-controls="case-{item["id"]}"{selected} data-case="{item["id"]}">'
+            f'<b>{item["name"]}</b><span>{item["summary"]}</span></button>')
 
-/* refus */
-.refus { list-style: none; display: grid; gap: var(--s3); }
-.refus li { border: 1px solid var(--rule); border-left: 3px solid var(--clay);
-            border-radius: var(--r2); background: var(--paper); overflow: hidden; }
-.refus .quoi { padding: var(--s4) var(--s5); color: var(--ink-2); font-size: .93rem; }
-.refus b { color: var(--ink); display: block; margin-bottom: 2px; }
-.refus .dit { padding: var(--s3) var(--s5); background: var(--ink); color: #d6d3d1;
-              font-family: var(--mono); font-size: .76rem; overflow-x: auto;
-              white-space: pre-wrap; }
-.refus .dit span { color: #fca5a5; }
 
-/* chiffres */
-.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
-         border: 1px solid var(--rule); border-radius: var(--r2); overflow: hidden;
-         background: var(--paper); }
-.stat { padding: var(--s4) var(--s5); border-right: 1px solid var(--rule); }
-.stat:last-child { border-right: 0; }
-.stat b { display: block; font-size: 2rem; letter-spacing: -.03em; font-weight: 600; }
-.stat span { display: block; margin-top: var(--s1); color: var(--ink-3); font-size: .85rem; }
+def case_panel(item: dict, index: int) -> str:
+    result = item["result"]
+    rules = "".join(f"<span>{rule}</span>" for rule in item["teaches"])
+    active = " active" if index == 0 else ""
+    hidden = "" if index == 0 else " hidden"
+    snippet = CASE_SNIPPETS[item["id"]]
+    return f"""<section class="case-panel{active}" id="case-{item['id']}" role="tabpanel"
+aria-labelledby="tab-{item['id']}"{hidden}><div><span class="eyebrow">0{index + 1} · Spec incluse</span>
+<h3>{item['name']}</h3><p>{CASE_OUTCOMES[item['id']]}</p>
+<div class="case-rules" aria-label="Règles démontrées">{rules}</div>
+<div class="case-result" style="margin-top:28px"><span><b>{result['entities']}</b>entités</span>
+<span><b>{result['routes']}</b>routes</span><span><b>{result['files']}</b>fichiers</span></div>
+<a class="case-open" href="/console?example={item['id']}">Ouvrir dans la console {icon('arrow')}</a></div>
+<div class="case-spec"><pre class="codeblock"><code>{snippet}</code></pre></div></section>"""
 
-/* téléchargement */
-.install { display: flex; align-items: center; gap: var(--s3);
-           padding: var(--s3) var(--s4); background: var(--ink); border-radius: var(--r2); }
-.install code { background: none; border: 0; color: #f5f5f4; padding: 0;
-                font-size: .84rem; overflow-x: auto; white-space: nowrap; }
-.copy { margin-left: auto; padding: .3rem .6rem; border-radius: var(--r1);
-        border: 1px solid #44403c; background: transparent; color: #e7e5e4;
-        font-family: var(--mono); font-size: .72rem; cursor: pointer; }
-.copy:hover { background: #292524; }
-.dl { display: grid; gap: var(--s3); margin-top: var(--s4); }
-.dl-item { display: flex; align-items: center; gap: var(--s4); flex-wrap: wrap;
-           padding: var(--s4) var(--s5); background: var(--paper);
-           border: 1px solid var(--rule); border-radius: var(--r2); }
-.dl-item .who { min-width: 0; flex: 1 1 20rem; }
-.dl-item .who b { font-family: var(--mono); font-size: .86rem; word-break: break-all; }
-.dl-item .who span { display: block; margin-top: 2px; color: var(--ink-3); font-size: .78rem; }
-.sha { font-family: var(--mono); font-size: .68rem; color: var(--ink-3); word-break: break-all; }
-.hint { margin-top: var(--s4); color: var(--ink-3); font-size: .85rem; }
 
-.close { text-align: center; padding: var(--s6) var(--s5); border: 1px solid var(--rule);
-         border-radius: var(--r3); background: var(--paper); }
-.close h2 { margin-inline: auto; text-align: center; }
-.close p { max-width: 48ch; margin: var(--s3) auto var(--s5); color: var(--ink-2); }
+CATALOGUE = examples.catalogue()
+CASE_TABS = "".join(case_tab(item, index) for index, item in enumerate(CATALOGUE))
+CASE_PANELS = "".join(case_panel(item, index) for index, item in enumerate(CATALOGUE))
 
-footer { border-top: 1px solid var(--rule); background: var(--paper-2);
-         padding: var(--s6) 0 var(--s5); }
-.foot-grid {
-  display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr));
-  gap: var(--s6) var(--s5); padding-bottom: var(--s5);
-  border-bottom: 1px solid var(--rule);
-}
-.foot-brand p { margin-top: var(--s3); color: var(--ink-2); font-size: .88rem; max-width: 34ch; }
-.foot-col h3 { font-family: var(--mono); font-size: .68rem; letter-spacing: .07em;
-               text-transform: uppercase; color: var(--ink-3); margin-bottom: var(--s3); }
-.foot-col ul { list-style: none; display: grid; gap: var(--s2); }
-.foot-col a { color: var(--ink-2); font-size: .88rem; }
-.foot-col a:hover { color: var(--clay-ink); }
-.foot-col .ext::after { content: " ↗"; color: var(--ink-3); font-size: .8em; }
-.foot-legal { display: flex; flex-wrap: wrap; gap: var(--s3) var(--s5);
-              justify-content: space-between; padding-top: var(--s4);
-              color: var(--ink-3); font-size: .8rem; }
-@media (max-width: 900px) {
-  .foot-grid { grid-template-columns: 1fr 1fr; }
-}
-@media (max-width: 620px) {
-  .foot-grid { grid-template-columns: 1fr; gap: var(--s5); }
-}
 
-/* L'état caché d'une apparition vit dans une RÈGLE, jamais dans un style en
-   ligne : `element.style.opacity = "0"` l'emporte sur n'importe quel
-   sélecteur de classe, donc `.rise.seen` ne pouvait pas le défaire et les
-   sections restaient blanches POUR TOUJOURS. Mesuré : 43,3 % de la page vide,
-   dont une bande de 993 px. La classe `.rise` est posée par le JAVASCRIPT, de
-   sorte qu'une page sans JS montre tout. */
-.rise { opacity: 0; transform: translateY(12px); }
-.rise.seen { opacity: 1; transform: none;
-             transition: opacity .5s ease, transform .5s cubic-bezier(.16,1,.3,1); }
-
-@media (max-width: 980px) {
-  .demo-body { grid-template-columns: 1fr; }
-  .panel + .panel { border-left: 0; border-top: 1px solid var(--rule); }
-  pre, .out { height: 17rem; }
-  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .stat:nth-child(2) { border-right: 0; }
-  .nav-links a:not(.btn) { display: none; }
-  .verb { grid-template-columns: 1fr; gap: var(--s1); }
-}
-@media (max-width: 620px) {
-  :root { --s8: 3.5rem; }
-  .wrap { width: calc(100% - 1.6rem); }
-  /* « / compiler » cassait la marque sur deux lignes et poussait le bouton
-     hors de la barre. */
-  .logo span:not(.logo-mark) { display: none; }
-  .stats { grid-template-columns: 1fr; }
-  .stat { border-right: 0; border-bottom: 1px solid var(--rule); }
-  .stat:last-child { border-bottom: 0; }
-  .demo-foot .btn { margin-left: 0; width: 100%; justify-content: center; }
-}
-@media (prefers-reduced-motion: reduce) {
-  * { animation: none !important; transition: none !important; }
-  .rise { opacity: 1 !important; transform: none !important; }
-}
-</style>
-</head>
-<body>
-
-<div class="topline">
-  Bêta publique 0.9.0-beta.7 — <a href="#telecharger">installer le compilateur</a>
-</div>
-
-<nav>
-  <div class="wrap nav-in">
-    <a class="logo" href="#top"><span class="logo-mark">m</span><b>monl</b><span>/ compiler</span></a>
-    <div class="nav-links">
-      <a href="#demonstration">Démonstration</a>
-      <a href="#commandes">Commandes</a>
-      <a href="#refus">Ce qu'il refuse</a>
-      <a href="#telecharger">Télécharger</a>
-      <a class="btn" href="/console">Ouvrir la console</a>
-    </div>
-  </div>
-</nav>
-
-<header id="top">
-  <div class="wrap">
-    <span class="pill">Déterministe de bout en bout <em>→</em></span>
-    <h1>Décrivez votre site. <em>Le compilateur écrit le serveur.</em></h1>
-    <p class="lede">Un dialogue guidé, <b>sans aucune IA et sans le moindre
-      appel réseau</b>, produit une spécification. monl la compile en un
-      backend FastAPI complet — base SQLite, authentification, contrôle
-      d'accès, paiement — puis le <b>scelle</b>.</p>
-    <div class="cta">
-      <a class="btn lg" href="#telecharger">Télécharger monl</a>
-      <a class="btn lg ghost" href="/console">Essayer dans le navigateur →</a>
-    </div>
-    <p class="meta">Python 3.10+ · licence FSL-1.1-ALv2 · aucune télémétrie</p>
-  </div>
-</header>
-
-<section id="demonstration" style="border-top:0; padding-top:0">
-  <div class="wrap">
-    <div class="demo">
-      <div class="demo-head">
-        <div class="tabs" role="tablist" aria-label="Modèle d'application" id="modeles"></div>
-        <span class="tag">sorties réelles du compilateur</span>
-      </div>
-      <div class="demo-body">
-        <div class="panel">
-          <div class="panel-head">
-            <span class="tag">ce que vous écrivez</span>
-            <span class="tag file">[ <b>.ml</b> ]</span>
-          </div>
-          <pre id="spec"></pre>
-        </div>
-        <div class="panel">
-          <div class="panel-head">
-            <span class="tag">ce que monl produit</span>
-            <div class="tabs" role="tablist" aria-label="Sortie" id="sorties">
-              <button class="tab" type="button" role="tab" data-vue="routes">routes</button>
-              <button class="tab" type="button" role="tab" data-vue="tables">tables</button>
-              <button class="tab" type="button" role="tab" data-vue="scelle">scellé</button>
-            </div>
-          </div>
-          <div class="out" id="sortie"></div>
-        </div>
-      </div>
-      <div class="demo-foot" id="resume"></div>
-    </div>
-    <p class="hint">Aucune de ces lignes n'est écrite à la main : elles sortent
-      d'une compilation réelle des modèles livrés avec monl.</p>
-  </div>
+BODY = f"""
+<section class="shell landing-hero">
+<div><span class="eyebrow" data-reveal>Le backend est compilé, pas improvisé</span>
+<h1 data-reveal style="--reveal-delay:60ms">Décrivez vos règles.<br>Téléchargez votre backend.</h1>
+<p class="lede" data-reveal style="--reveal-delay:120ms">Partez d’un exemple, indiquez vos données,
+vos utilisateurs et leurs droits. Monl vérifie votre spécification puis génère une API FastAPI, sa base SQL
+et le contrat destiné à votre interface.</p>
+<div class="hero-actions" data-reveal style="--reveal-delay:180ms">
+<a class="primary" href="/console">{icon('terminal')} Créer un backend</a>
+<a class="secondary" href="/docs">{icon('book')} Voir comment écrire la spec</a></div>
+<div class="trust" data-reveal style="--reveal-delay:220ms">
+<span>{icon('check')} Compte gratuit</span><span>{icon('check')} Exemples inclus</span>
+<span>{icon('check')} Backend autonome</span></div></div>
+<aside class="start-card" data-reveal style="--reveal-delay:120ms" aria-label="Ce que vous allez faire">
+<div class="demo-window"><div class="demo-bar"><i></i><i></i><i></i><span>compilation vérifiée</span></div>
+<div class="demo-code"><b>app</b> <strong>PetiteBoutique</strong><br><br><b>entity</b> Produit<br>&nbsp;&nbsp;prix: Money<br>&nbsp;&nbsp;stock: Integer<br><br><b>rule</b> Produit.stock min 0<br><b>rule</b> Produit.Read public</div>
+<div class="scan-line"></div><div class="demo-result"><div class="verified"><b>{icon('check')} valide</b><span>audit métier</span></div>
+<div><b>3</b><span>entités</span></div><div><b>17</b><span>routes</span></div><div><b>12</b><span>fichiers</span></div></div></div></aside>
 </section>
 
-<section id="commandes" class="alt">
-  <div class="wrap">
-    <div class="sec-head">
-      <div><p class="chapter"><i></i><span class="tag">[ <b>01</b> / 04 ] · les commandes</span></p>
-    <h2>Cinq verbes, et <em>un seul</em> appelle une IA.</h2></div>
-      <p class="intro">monl est une ligne de commande. Chaque verbe fait une
-      chose, et la prouve avant de rendre la main.</p>
-    </div>
-    <div class="verbs">
-      <div class="verb"><code>monl init</code><p>Le dialogue guidé. Dix modèles
-        d'applications comme point de départ, questions fermées, saisie
-        stricte. <b>Aucune IA, aucun appel réseau</b> — et la spécification
-        produite est relue par le vrai analyseur avant d'être écrite.</p></div>
-      <div class="verb"><code>monl compile</code><p>Grammaire, validation,
-        audit de sécurité, génération. Sortent <code>app.py</code>,
-        <code>schema.sql</code>, un <code>manage.py</code> d'administration, un
-        <code>Dockerfile</code> — et un <b>contrat d'interface</b> qui décrit ce
-        que le serveur fait vraiment.</p></div>
-      <div class="verb"><code>monl frontend</code><p>La seule étape non
-        déterministe. Une IA écrit le HTML, la CSS et le JavaScript en
-        obéissant au contrat, par clé d'API ou par un agent en ligne de
-        commande. <b>Les artefacts scellés sont vérifiés intacts</b> après
-        coup.</p></div>
-      <div class="verb"><code>monl run</code><p>Vérifie la cohérence, démarre un
-        serveur éphémère, appelle de vraies routes, charge la page dans un vrai
-        moteur JavaScript — puis sert le site. <b>Un échec est un échec</b>, pas
-        un avertissement.</p></div>
-      <div class="verb"><code>monl update</code><p>Recompile après un changement
-        de spec et rapporte le delta : route ajoutée, champ devenu en lecture
-        seule, accès ouvert, verrou posé, section à dessiner. <b>Ce qu'il reste
-        à réécrire</b>, écran par écran.</p></div>
-    </div>
-  </div>
+<section class="proof-rail" aria-label="Preuves du compilateur">
+<div><b>4</b><span>spécifications complètes incluses</span></div><div><b>0</b><span>appel réseau pour compiler</span></div>
+<div><b class="proof-word">Refus</b><span>si une règle est incohérente</span></div><div><b class="proof-word">Export</b><span>backend autonome, sans verrouillage</span></div>
 </section>
 
-<section id="refus">
-  <div class="wrap">
-    <div class="sec-head">
-      <div><p class="chapter"><i></i><span class="tag">[ <b>02</b> / 04 ] · ce qu'il refuse</span></p>
-    <h2>Un compilateur utile est <em>un compilateur qui dit non</em>.</h2></div>
-      <p class="intro">Chacun de ces refus vient d'une faille réellement
-      exploitée sur un projet, puis fermée à la racine. Ils font échouer la
-      compilation, en nommant la ligne fautive — voici ce que monl affiche.</p>
-    </div>
-    <ul class="refus">
-      <li><div class="quoi"><b>Un montant que le client peut écrire.</b>
-        Une commande était postée à 0,01 € et le serveur l'encaissait.</div>
-        <div class="dit"><span>✕ ERREUR</span>  rule Order.total payable — le champ 'total' est
-   saisissable par le client. Un montant encaissable doit être
-   calculé par le serveur : ajoutez 'derivedFrom' ou 'sumOf'.</div></li>
-      <li><div class="quoi"><b>Une propriété qui ne remonte à aucun compte.</b>
-        La règle compilait en silence et rattachait les enregistrements au
-        mauvais propriétaire.</div>
-        <div class="dit"><span>✕ ERREUR</span>  rule Line.Read ownedBy Cart — la chaîne de propriété
-   n'aboutit à aucun acteur. 'Cart' n'appartient lui-même à personne.</div></li>
-      <li><div class="quoi"><b>Une règle qui ne produit rien.</b>
-        Quatre règles de contrainte n'avaient aucun effet sur la sortie ; un
-        prix négatif partait en base.</div>
-        <div class="dit"><span>✕ ERREUR</span>  rule Colis.champFantome required — le champ
-   'champFantome' n'existe pas sur l'entité 'Colis'.</div></li>
-      <li><div class="quoi"><b>Un fichier déclaré mais absent.</b>
-        Trois chemins d'image fautifs compilaient sans un mot. Une image
-        cassée ne se voit qu'à l'œil, une fois en ligne.</div>
-        <div class="dit"><span>✕ ERREUR</span>  assets: photo "produits/halo-rs.jpg" — fichier
-   introuvable. Cherché dans : ./produits/halo-rs.jpg</div></li>
-      <li><div class="quoi"><b>Une section vide sur le site livré.</b>
-        Une balise portant le bon nom mais rien dedans passait pour une page
-        complète.</div>
-        <div class="dit"><span>✕ ERREUR</span>  section vide ou incomplète — « trust » : il manque
-   un titre (&lt;h1&gt; à &lt;h4&gt;), du texte lisible (0 caractères sur 120
-   attendus).</div></li>
-    </ul>
-  </div>
+<section class="band"><div class="shell section">
+<div class="section-head" data-reveal><span class="eyebrow">Voyez le résultat</span>
+<h2>Une spec entre. Un backend complet sort.</h2>
+<p>Exemple réel de boutique : les métriques ci-dessous sont vérifiées en recompilant la spec dans les tests.</p></div>
+<div class="output-flow" data-reveal><pre class="codeblock mini-spec"><code><span class="kw">entity</span> Produit
+    nom: String
+    prix: Money
+    stock: Integer
+
+<span class="kw">rule</span> Produit.prix min 0
+<span class="kw">rule</span> Produit.stock min 0
+<span class="kw">rule</span> Produit.Read public</code></pre>
+<span class="flow-arrow">{icon('arrow')}</span><div class="artifact"><div class="artifact-head"><b>PetiteBoutique</b><span class="muted">archive autonome</span></div>
+<div class="artifact-body"><div class="artifact-stats"><div><b>3</b><span>entités</span></div><div><b>17</b><span>routes API</span></div><div><b>12</b><span>fichiers</span></div></div>
+<div class="tree"><b>backend/</b><br>├── app.py <span>API FastAPI</span><br>├── schema.sql <span>base de données</span><br>
+├── frontend_contract.json <span>droits et routes</span><br>├── manage.py <span>administration</span><br>└── README.md <span>démarrage</span></div></div></div></div>
+</div></section>
+
+<section class="shell section" aria-labelledby="position-title">
+<div class="section-head" data-reveal><span class="eyebrow">La place de Monl</span>
+<h2 id="position-title">Votre infrastructure exécute. Monl décide ce qui est valide.</h2>
+<p>Postgres, votre cloud ou un service managé hébergent les données. Monl intervient avant eux et reste indépendant de l’interface.</p></div>
+<div class="platform-flow" data-reveal>
+<article class="flow-stage"><span class="stage-no">01 · INFRASTRUCTURE</span><h3>Les fondations</h3><p>Base de données, calcul, stockage et réseau restent chez le fournisseur que vous choisissez.</p><div class="stage-tags"><span>Postgres</span><span>cloud</span><span>self-hosted</span></div></article>
+<article class="flow-stage"><span class="stage-no">02 · MONL COMPILER</span><h3>Le métier vérifié</h3><p>Acteurs, droits, propriété, paiements et invariants deviennent une API et un contrat cohérents. Le même moteur pour les agents MCP.</p><div class="stage-tags"><span>spec.ml</span><span>audit</span><span>contrat</span></div></article>
+<article class="flow-stage"><span class="stage-no">03 · INTERFACES</span><h3>Chaque expérience</h3><p>Web, mobile et agents utilisent les mêmes routes et autorisations sans les deviner.</p><div class="stage-tags"><span>web</span><span>mobile</span><span>MCP</span></div></article>
+</div></section>
+
+<section class="band"><div class="shell section editorial">
+<div class="section-head" data-reveal><span class="eyebrow">Garanties vérifiables</span>
+<h2>La sécurité n’est pas une consigne donnée au frontend.</h2>
+<p>Elle est dérivée de la spécification et répétée dans chaque couche produite. Les limites restent explicites.</p>
+<a class="secondary" href="/security">Lire le modèle de sécurité {icon('arrow')}</a></div>
+<div class="capability-grid">
+<article class="capability" data-reveal><span class="feature-icon">{icon('shield')}</span><h3>Droits compilés par acteur</h3><p>Lecture publique, session, propriété et rôle privilégié sont distingués route par route.</p></article>
+<article class="capability" data-reveal><span class="feature-icon">{icon('check')}</span><h3>Invariants côté serveur</h3><p>Stock, montants, unicité, états autorisés et gel après paiement ne dépendent jamais du navigateur.</p></article>
+<article class="capability" data-reveal><span class="feature-icon">{icon('code')}</span><h3>Contrat frontend exact</h3><p>Chaque interface reçoit les routes, champs, actions et exigences d’authentification disponibles.</p></article>
+<article class="capability" data-reveal><span class="feature-icon">{icon('key')}</span><h3>Secrets créés chez vous</h3><p>Le secret JWT ne voyage pas dans l’archive et reste sous le contrôle de l’exploitant.</p></article>
+</div></div></section>
+
+<section class="shell section"><div class="section-head" data-reveal><span class="eyebrow">Cas métier compilables</span>
+<h2>Quatre applications, quatre familles de règles réellement testées.</h2>
+<p>Chaque exemple est une spécification complète servie par la plateforme. Ouvrez-la dans la console, adaptez-la puis compilez son backend.</p></div>
+<div class="case-explorer" data-reveal><div class="case-tabs" role="tablist" aria-label="Cas métier">{CASE_TABS}</div>
+<div class="case-panels">{CASE_PANELS}</div></div></section>
+
+<section class="shell final" data-reveal>
+<h2>Compilez une règle métier réelle.</h2>
+<p>Vos projets restent disponibles dans votre compte et chaque archive demeure autonome.</p>
+<a class="secondary" href="/console">Ouvrir la console {icon('arrow')}</a>
 </section>
+"""
 
-<section class="alt">
-  <div class="wrap">
-    <div class="sec-head">
-      <div><p class="chapter"><i></i><span class="tag">[ <b>03</b> / 04 ] · l'état du projet</span></p>
-    <h2>Des chiffres, <em>pas des logos</em>.</h2></div>
-      <p class="intro">monl n'affiche ni clients, ni avis, ni récompenses : il ne
-      pourrait pas les vérifier, et c'est exactement ce qu'il interdit aux
-      sites qu'il produit. Voici ce qui est mesurable.</p>
-    </div>
-    <div class="stats">
-      <div class="stat"><b>1 112</b><span>tests, rejoués à chaque changement</span></div>
-      <div class="stat"><b>28</b><span>briques du langage, chacune éprouvée contre un vrai serveur</span></div>
-      <div class="stat"><b>10</b><span>modèles d'applications prêts au dialogue</span></div>
-      <div class="stat"><b>140</b><span>décisions de conception écrites, avec leur pourquoi</span></div>
-    </div>
-  </div>
-</section>
-
-<section id="telecharger">
-  <div class="wrap">
-    <div class="sec-head">
-      <div><p class="chapter"><i></i><span class="tag">[ <b>04</b> / 04 ] · télécharger</span></p>
-    <h2>Installez le compilateur, <em>gardez vos projets</em>.</h2></div>
-      <p class="intro">monl s'exécute chez vous. Les projets qu'il compile sont
-      des dossiers ordinaires : du Python, du SQL, un Dockerfile. Rien ne
-      dépend d'un service en ligne pour continuer à tourner.</p>
-    </div>
-    <div class="install">
-      <code id="cmd">pip install monl_compiler-0.9.0b7-py3-none-any.whl</code>
-      <button class="copy" type="button" data-copy="cmd">copier</button>
-    </div>
-    <div class="dl" id="artifacts">
-      <div class="dl-item"><div class="who"><b>Chargement des versions…</b></div></div>
-    </div>
-    <p class="hint">Chaque fichier est publié avec son empreinte SHA-256 :
-      comparez-la après téléchargement.</p>
-  </div>
-</section>
-
-<section class="alt">
-  <div class="wrap">
-    <div class="close">
-      <h2>Prêt à décrire <em>votre site</em> ?</h2>
-      <p>La console mène le même dialogue que la ligne de commande, une
-        question à la fois, puis construit et sert le site sous sa propre
-        adresse.</p>
-      <a class="btn lg" href="/console">Ouvrir la console →</a>
-    </div>
-  </div>
-</section>
-
-<footer>
-  <div class="wrap">
-    <div class="foot-grid">
-      <div class="foot-brand">
-        <a class="logo" href="#top"><span class="logo-mark">m</span><b>monl</b><span>/ compiler</span></a>
-        <p>Un compilateur qui transforme une spécification déclarative en un
-          backend complet et scellé. Il tourne chez vous, ne téléphone à
-          personne, et refuse ce qu'il ne peut pas prouver.</p>
-      </div>
-      <div class="foot-col">
-        <h3>Le produit</h3>
-        <ul>
-          <li><a href="#demonstration">Démonstration</a></li>
-          <li><a href="#commandes">Les commandes</a></li>
-          <li><a href="#refus">Ce qu'il refuse</a></li>
-          <li><a href="#telecharger">Télécharger</a></li>
-        </ul>
-      </div>
-      <div class="foot-col">
-        <h3>Le projet</h3>
-        <ul>
-          <li><a class="ext" href="https://github.com/Bodichane/monl-compiler">Dépôt et code source</a></li>
-          <li><a class="ext" href="https://github.com/Bodichane/monl-compiler/issues">Signaler un défaut</a></li>
-          <li><a class="ext" href="https://github.com/Bodichane/monl-compiler/blob/main/docs/design_decisions.md">Journal des décisions</a></li>
-          <li><a class="ext" href="https://github.com/Bodichane/monl-compiler/blob/main/CHANGELOG.md">Notes de version</a></li>
-        </ul>
-      </div>
-      <div class="foot-col">
-        <h3>Construire</h3>
-        <ul>
-          <li><a href="/console">Ouvrir la console</a></li>
-          <li><a href="/telechargements">Versions publiées</a></li>
-          <li><a class="ext" href="https://fsl.software/">Licence FSL-1.1</a></li>
-        </ul>
-      </div>
-    </div>
-    <div class="foot-legal">
-      <span>monl 0.9.0-beta.7 · bêta publique · Python 3.10+</span>
-      <span>Aucune télémétrie, aucun cookie, aucun compte tiers.</span>
-    </div>
-  </div>
-</footer>
-
-<script>
-/* Sorties RÉELLES du compilateur, injectées à la construction de cette page.
-   Voir batir_landing.py : chaque modèle a été réellement compilé. */
-var DEMO = {
- "Boutique en ligne": {
-  "spec": "entity Product\n    name: String\n    price: Money\n    description: Text\n    imageUrl: String\n    stock: Integer\n    category: String\nactor Admin\nactor Customer selfRegister\nrule Product.name required\nrule Customer.displayName required\nrule LigneOrder.quantite required\nrule Product.Read public\nrule Order.Read ownedBy Customer\nrule Order.Update ownedBy Customer\nrule Order.Delete ownedBy Customer\nrule LigneOrder.Read ownedBy Order\nrule LigneOrder.Update ownedBy Order",
-  "routes": [
-   "GET    /customer",
-   "POST   /customer",
-   "DELETE /customer/{id}",
-   "GET    /customer/{id}",
-   "PUT    /customer/{id}",
-   "GET    /ligneorder",
-   "POST   /ligneorder",
-   "DELETE /ligneorder/{id}",
-   "GET    /ligneorder/{id}",
-   "PUT    /ligneorder/{id}",
-   "GET    /order",
-   "POST   /order",
-   "DELETE /order/{id}",
-   "GET    /order/{id}",
-   "PUT    /order/{id}",
-   "POST   /order/{id}/paiement",
-   "POST   /paiement/webhook",
-   "GET    /product",
-   "POST   /product",
-   "DELETE /product/{id}",
-   "GET    /product/{id}",
-   "PUT    /product/{id}"
-  ],
-  "tables": [
-   "product",
-   "order",
-   "customer",
-   "ligneorder"
-  ],
-  "systeme": [
-   "_monl_users",
-   "_monl_revoked_tokens",
-   "_monl_rate_limit",
-   "_monl_sequences",
-   "_monl_migrations"
-  ],
-  "entites": [
-   "Customer",
-   "LigneOrder",
-   "Order",
-   "Product"
-  ],
-  "octets": 81621,
-  "lignes": 125,
-  "regles": 16
- },
- "Blog": {
-  "spec": "entity Article\n    title: String\n    content: Text\n    imageUrl: String\n    author: String\n    publishedOn: String\n    status: String\nactor Author\nactor Reader selfRegister\nactor Moderator\nrule Article.title required\nrule Report.reason required\nrule Comment.content required\nrule Reader.displayName required\nrule Comment.Read public\nrule Comment.Update ownedBy Reader\nrule Comment.Delete ownedBy Reader\nrule Article.status oneOf \"published\", \"hidden\"",
-  "routes": [
-   "GET    /article",
-   "POST   /article",
-   "DELETE /article/{id}",
-   "GET    /article/{id}",
-   "PUT    /article/{id}",
-   "GET    /comment",
-   "POST   /comment",
-   "DELETE /comment/{id}",
-   "GET    /comment/{id}",
-   "PUT    /comment/{id}",
-   "GET    /reader",
-   "POST   /reader",
-   "DELETE /reader/{id}",
-   "GET    /reader/{id}",
-   "PUT    /reader/{id}",
-   "GET    /report",
-   "POST   /report",
-   "DELETE /report/{id}",
-   "GET    /report/{id}",
-   "PUT    /report/{id}"
-  ],
-  "tables": [
-   "article",
-   "report",
-   "comment",
-   "reader"
-  ],
-  "systeme": [
-   "_monl_users",
-   "_monl_revoked_tokens",
-   "_monl_rate_limit",
-   "_monl_sequences",
-   "_monl_migrations"
-  ],
-  "entites": [
-   "Article",
-   "Comment",
-   "Reader",
-   "Report"
-  ],
-  "octets": 66961,
-  "lignes": 96,
-  "regles": 13
- },
- "Réservation de rendez-vous": {
-  "spec": "entity Service\n    name: String\n    duration: Integer\n    price: Money\n    description: Text\nactor Admin\nactor Client selfRegister\nrule Service.name required\nrule Booking.date required\nrule Client.displayName required\nrule Service.Read public\nrule Booking.Read ownedBy Client\nrule Booking.Update ownedBy Client\nrule Booking.Delete ownedBy Client",
-  "routes": [
-   "GET    /booking",
-   "POST   /booking",
-   "DELETE /booking/{id}",
-   "GET    /booking/{id}",
-   "PUT    /booking/{id}",
-   "GET    /client",
-   "POST   /client",
-   "DELETE /client/{id}",
-   "GET    /client/{id}",
-   "PUT    /client/{id}",
-   "GET    /service",
-   "POST   /service",
-   "DELETE /service/{id}",
-   "GET    /service/{id}",
-   "PUT    /service/{id}"
-  ],
-  "tables": [
-   "service",
-   "booking",
-   "client"
-  ],
-  "systeme": [
-   "_monl_users",
-   "_monl_revoked_tokens",
-   "_monl_rate_limit",
-   "_monl_sequences",
-   "_monl_migrations"
-  ],
-  "entites": [
-   "Booking",
-   "Client",
-   "Service"
-  ],
-  "octets": 61427,
-  "lignes": 66,
-  "regles": 7
- }
-};
-
+CASE_SCRIPT = """<script>
 (function () {
-  "use strict";
-  var reduit = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var noms = Object.keys(DEMO);
-  var etat = { modele: noms[0], vue: "routes" };
-
-  function milliers(n) {
-    return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-  }
-  function ech(s) {
-    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  }
-  /* Coloration minimale de la spec : mots-clés du langage et types. Pas un
-     analyseur — juste de quoi rendre la structure lisible. */
-  function colorer(spec) {
-    return ech(spec)
-      .replace(/^(\s*)(entity|actor|rule|relation|workflow|landing|seed|assets)\b/gm,
-               '$1<span class="k">$2</span>')
-      .replace(/: (String|Text|Integer|Float|Money|Boolean|DateTime|Date|Image|UUID)\b/g,
-               ': <span class="t">$1</span>')
-      .replace(/^(\s*)(#.*)$/gm, '$1<span class="c">$2</span>');
-  }
-
-  function onglets(cible, items, actif, clic) {
-    cible.innerHTML = "";
-    items.forEach(function (item) {
-      var b = document.createElement("button");
-      b.type = "button";
-      b.className = "tab";
-      b.setAttribute("role", "tab");
-      b.setAttribute("aria-selected", String(item === actif));
-      b.textContent = item;
-      b.addEventListener("click", function () { clic(item); });
-      cible.appendChild(b);
+  var tabs = Array.from(document.querySelectorAll('.case-tab'));
+  var panels = Array.from(document.querySelectorAll('.case-panel'));
+  function select(tab, focus) {
+    tabs.forEach(function (item) {
+      var active = item === tab;
+      item.setAttribute('aria-selected', active ? 'true' : 'false');
+      item.tabIndex = active ? 0 : -1;
     });
-  }
-
-  function rendre() {
-    var d = DEMO[etat.modele];
-    document.getElementById("spec").innerHTML = colorer(d.spec);
-
-    var out = document.getElementById("sortie");
-    var lignes;
-    if (etat.vue === "routes") {
-      lignes = d.routes.map(function (r) {
-        var m = r.slice(0, 6).trim();
-        return '<li><span class="m">' + m + '</span>' + ech(r.slice(m.length)) + "</li>";
-      });
-    } else if (etat.vue === "tables") {
-      lignes = d.tables.map(function (t) { return '<li><span class="m">•</span> ' + ech(t) + "</li>"; })
-        .concat(d.systeme.map(function (t) {
-          return '<li class="sys">  ' + ech(t) + "  (interne)</li>";
-        }));
-    } else {
-      lignes = [
-        '<li><span class="m">app.py</span>          ' + milliers(d.octets) + " octets</li>",
-        '<li><span class="m">schema.sql</span>      ' + (d.tables.length + d.systeme.length) + " tables</li>",
-        "<li>&nbsp;</li>",
-        '<li class="sys">Ces fichiers portent une empreinte. Aucune IA,</li>',
-        '<li class="sys">aucun agent, aucune commande ne les réécrit :</li>',
-        '<li class="sys">la vérification refuse et nomme le fichier.</li>'
-      ];
-    }
-    out.innerHTML = "<ul>" + lignes.join("") + "</ul>";
-
-    document.getElementById("resume").innerHTML =
-      "<span><b>" + d.lignes + "</b> lignes de spécification · <b>" + d.regles +
-      "</b> règles</span><span>→</span><span><b>" + d.routes.length +
-      "</b> routes · <b>" + (d.tables.length + d.systeme.length) +
-      "</b> tables · <b>" + milliers(d.octets) +
-      "</b> octets de serveur scellé</span>" +
-      '<a class="btn" href="/console">Construire celui-ci →</a>';
-
-    onglets(document.getElementById("modeles"), noms, etat.modele, function (n) {
-      etat.modele = n; rendre();
+    panels.forEach(function (panel) {
+      var active = panel.id === 'case-' + tab.dataset.case;
+      panel.classList.toggle('active', active);
+      panel.hidden = !active;
     });
-    Array.prototype.forEach.call(
-      document.getElementById("sorties").querySelectorAll(".tab"), function (b) {
-        b.setAttribute("aria-selected", String(b.getAttribute("data-vue") === etat.vue));
-      });
+    if (focus) tab.focus();
   }
-
-  Array.prototype.forEach.call(
-    document.getElementById("sorties").querySelectorAll(".tab"), function (b) {
-      b.addEventListener("click", function () {
-        etat.vue = b.getAttribute("data-vue"); rendre();
-      });
+  tabs.forEach(function (tab, index) {
+    tab.tabIndex = index === 0 ? 0 : -1;
+    tab.addEventListener('click', function () { select(tab, false); });
+    tab.addEventListener('keydown', function (event) {
+      if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft' &&
+          event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+      event.preventDefault();
+      var direction = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : -1;
+      select(tabs[(index + direction + tabs.length) % tabs.length], true);
     });
-  rendre();
-
-  /* ── Les téléchargements réellement disponibles ─────────────────────── */
-  var zone = document.getElementById("artifacts");
-  function octets(n) {
-    if (n < 1024) { return n + " o"; }
-    if (n < 1048576) { return (n / 1024).toFixed(0) + " Ko"; }
-    return (n / 1048576).toFixed(1) + " Mo";
-  }
-  fetch("/telechargements").then(function (r) { return r.json(); }).then(function (data) {
-    var liste = (data && data.artifacts) || [];
-    zone.innerHTML = "";
-    if (!liste.length) {
-      var vide = document.createElement("div");
-      vide.className = "dl-item";
-      vide.innerHTML = '<div class="who"><b>Aucune version publiée sur cette ' +
-        'instance.</b><span>Construisez la distribution, ou récupérez le dépôt.</span></div>';
-      zone.appendChild(vide);
-      return;
-    }
-    liste.forEach(function (a) {
-      var el = document.createElement("div");
-      el.className = "dl-item";
-      el.innerHTML = '<div class="who"><b></b><span></span><span class="sha"></span></div>';
-      el.querySelector("b").textContent = a.name;
-      el.querySelectorAll("span")[0].textContent =
-        (a.kind === "wheel" ? "roue Python — à installer" : "archive des sources")
-        + " · " + octets(a.bytes);
-      el.querySelector(".sha").textContent = "sha256 " + a.sha256;
-      var lien = document.createElement("a");
-      lien.className = "btn" + (a.kind === "wheel" ? "" : " ghost");
-      lien.href = "/telechargements/" + encodeURIComponent(a.name);
-      lien.textContent = "Télécharger";
-      el.appendChild(lien);
-      zone.appendChild(el);
-      if (a.kind === "wheel") {
-        document.getElementById("cmd").textContent = "pip install " + a.name;
-      }
-    });
-  }).catch(function () {
-    zone.innerHTML = '<div class="dl-item"><div class="who"><b>Liste ' +
-      'indisponible.</b><span>Le service de téléchargement n\'a pas répondu.</span></div></div>';
-  });
-
-  /* ── Apparition à l'entrée dans le cadre ────────────────────────────── */
-  var cibles = document.querySelectorAll(".verb, .stat, .refus li, .dl-item, .close");
-  function tout_montrer() {
-    Array.prototype.forEach.call(cibles, function (el) { el.classList.add("seen"); });
-  }
-  if (!reduit && "IntersectionObserver" in window) {
-    try {
-      Array.prototype.forEach.call(cibles, function (el, n) {
-        el.classList.add("rise");
-        el.style.transitionDelay = (n % 5) * 40 + "ms";
-      });
-      var oeil = new IntersectionObserver(function (entrees) {
-        entrees.forEach(function (e) {
-          if (e.isIntersecting) { e.target.classList.add("seen"); oeil.unobserve(e.target); }
-        });
-      }, { rootMargin: "0px 0px -8% 0px", threshold: 0.05 });
-      Array.prototype.forEach.call(cibles, function (el) { oeil.observe(el); });
-      /* Filet : si l'observateur ne se déclenche jamais — écran très haut,
-         navigateur exotique, erreur en amont — la page ne doit pas rester
-         blanche. Un contenu invisible est pire qu'un contenu non animé. */
-      window.setTimeout(tout_montrer, 2500);
-    } catch (e) {
-      tout_montrer();
-    }
-  }
-
-  /* ── Copier la commande d'installation ──────────────────────────────── */
-  document.addEventListener("click", function (e) {
-    var bouton = e.target.closest ? e.target.closest(".copy") : null;
-    if (!bouton) { return; }
-    var source = document.getElementById(bouton.getAttribute("data-copy"));
-    if (!source) { return; }
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(source.textContent).then(function () {
-        bouton.textContent = "copié";
-        window.setTimeout(function () { bouton.textContent = "copier"; }, 1600);
-      }, function () {});
-    }
   });
 })();
-</script>
-</body>
-</html>
-'''
+</script>"""
 
-
-def landing_response():
-    """Rend la page de présentation."""
-    return HTMLResponse(content=LANDING_HTML)
+LANDING_HTML = page(
+    title="monl compiler — le métier est compilé",
+    description="Monl compile vos règles métier en backend autonome et contrat frontend vérifiable.",
+    body=BODY,
+    active="home",
+    extra_css=EXTRA_CSS,
+    scripts=CASE_SCRIPT,
+)

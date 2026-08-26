@@ -1,20 +1,10 @@
-"""Socle Python de la plateforme monl.
+"""Plateforme légère autour du compilateur déterministe Monl.
 
-La plateforme dépend de ``monl`` pour compiler et vérifier, mais ``monl`` ne
-dépend jamais de ce paquet. Cette frontière permet d'ajouter une interface
-HTTP plus tard sans créer une seconde chaîne de génération.
+La plateforme n'est pas un second compilateur. Le web et MCP délèguent tous
+deux à :class:`CompilationService`, qui appelle le pipeline public de Monl.
 """
 
-from .builder import BuildIsolationError, build_project
-from .quota import QuotaError, QuotaExceededError, QuotaUnavailableError, TokenQuota
-from .store import PlatformStore
+from .service import CompilationService
 
-__all__ = [
-    "BuildIsolationError",
-    "PlatformStore",
-    "QuotaError",
-    "QuotaExceededError",
-    "QuotaUnavailableError",
-    "TokenQuota",
-    "build_project",
-]
+__all__ = ["CompilationService"]
+

@@ -181,8 +181,27 @@ réseau social anonyme comme banc d'essai final.
    contrat). **`phone_prefix: "+33"`** rend « 06… » et « +336… » canoniques : sans lui
    les deux notations sont deux comptes (limite ÉNONCÉE, avec son témoin —
    monl fait DÉCLARER ce qu'il ne peut pas savoir, comme `min` arme le stock au
-   point 86). Éprouvée par `tests/test_identifiant_de_compte.py` (37 tests).
+   point 86). Éprouvée par `tests/test_identifiant_de_compte.py` (47 tests).
    Voir point 95.
+   **POINT 138, deux corrections.** (a) Le **dialogue guidé ne posait jamais la
+   question** : aucun des dix modèles ne déclarait d'identifiant, et tout projet
+   né du dialogue acceptait `'!!!'` ou deux espaces comme identifiant de compte
+   (constaté sur `projets/AtelierNaya`, atelier à Cotonou — des réservations
+   qu'on ne peut honorer faute de pouvoir joindre personne, le point 90 par une
+   autre porte). `_ask_account_identifier` la pose juste après
+   `_ask_self_register`, et SEULEMENT si quelqu'un s'inscrit en ligne. C'est le
+   symétrique du point 85 : là-bas une règle écrite ne produisait rien, ici une
+   brique qui produit beaucoup n'était offerte à personne — **toute brique qui
+   contraint une ENTRÉE doit être branchée au dialogue**, sinon elle ne protège
+   que les specs écrites à la main. (b) **`phone_prefix` ne canonicalisait qu'un
+   numéro commençant par `0`** — un préfixe interurbain européen, déduit du seul
+   exemple `"+33"` qui avait servi à écrire la règle. Au Bénin le numéro s'écrit
+   sans zéro de tête, donc `"+229"` ne produisait RIEN : inscrit en `97123456`,
+   on récoltait 401 en se connectant en `+22997123456` (mesuré). L'indicatif
+   s'applique désormais dès qu'il est déclaré ; le zéro de tête est retiré s'il
+   existe, et un numéro déjà international tapé sans `+` n'est jamais préfixé
+   deux fois (sinon le correctif fabriquait lui-même un troisième compte). Les
+   DEUX fonctions — `runtime.py` et `admin_cli.py` — doivent rester identiques.
 2. **`rule Entite.champ hidden`** — masque un champ de toutes les réponses
    de lecture (liste + détail), pour tout le monde. Reste en base, reste
    modifiable en écriture. Implémenté dans `src/parser.py` (`masking_rule`)
@@ -668,6 +687,30 @@ réseau social anonyme comme banc d'essai final.
     Éprouvée par `tests/test_unicite_composite.py` (8 tests, DEUX comptes et
     DEUX cibles), compilée par `exemples/03_reseau_social.ml`. Voir point 116.
 
+29. **Tout fichier local RÉCLAMÉ par le frontend doit être servi** — aucune
+    syntaxe nouvelle : le smoke test demande en HTTP réel chaque référence
+    locale du HTML et du CSS, et un 404 fait échouer en nommant la page, la
+    référence et l'URL. Née de `projets/AtelierNaya`, construit par DeepSeek
+    pour 48 roubles : six SVG référencés, aucun livré, et `monl run --check`
+    au VERT des deux côtés. **Rien ne l'avait vu parce qu'un fichier absent ne
+    lève aucune exception** — jsdom reçoit le 404 et continue, comme un vrai
+    navigateur. C'est la forme de preuve du point 83 (*« existe » n'est pas
+    « servi »*) appliquée non plus aux assets DÉCLARÉS mais à ce que l'IA a
+    écrit ; le manifeste du point 136 ne la rend pas inutile (vérifié en
+    exécutant : ses sections sont vides sur AtelierNaya, il décrit ce que le
+    contrat prévoit, pas ce que l'IA invente). **La limite est ÉNONCÉE** : seules
+    les références portant une extension connue sont retenues, pour ne jamais
+    confondre un fichier avec une route (`/item`) ou une navigation (`#/panier`)
+    — le point 92 avait déjà vu cet avertissement dénoncer quatre routes
+    correctes. Une référence enracinée (`/photo.svg`) n'est PAS réécrite vers
+    `/site/` : c'est un vrai défaut, et le réécrire le masquerait. **Deux
+    hypothèses fausses corrigées par le test** : `StaticFiles` sert TOUT le
+    dossier `frontend/` (une image posée à la main marche), et la liste blanche
+    gouverne ce que l'IA a le droit de LIVRER, pas ce que le serveur rend ; la
+    vraie voie silencieuse est `monl import`, qui RETIRE de l'archive ce qui
+    n'est pas en liste blanche. Éprouvée par `tests/test_fichiers_reclames.py`
+    (12 tests) et sur AtelierNaya, copie intacte VERTE contre copie amputée
+    ROUGE. Voir point 137.
 30. **`landing … link "Libellé": "adresse"`** — le pied de page est EXIGÉ, et
     ses destinations sont DÉCLARÉES. Le plancher de substance (point 143)
     comptait quatre sections et s'arrêtait au-dessus du pied de page : tous les
@@ -851,6 +894,94 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   `_validate_structures`). Avec le point 108 (émission SQL typée), les deux
   versants de la sécurité — décision et émission — sont désormais des frontières
   nommées.
+- **POINT 140 : `uvicorn_server` (tests/support/server.py) ÉCHOUE, il ne saute
+  plus.** Il convertissait la mort d'un serveur en `pytest.skip`, donc les
+  vingt et un fichiers d'intégration qui passent par lui pouvaient ne rien
+  vérifier en rendant du vert — mesuré : `992 passed, 17 skipped`, code de
+  sortie 0, dont un `serveur uvicorn arrêté (code 1)` que personne ne lisait.
+  La socket est désormais liée par le parent et PASSÉE à l'enfant
+  (`uvicorn --fd` + `pass_fds`) : le port ne redevient jamais libre entre le
+  choix et l'écoute, donc la collision est impossible plutôt que retentée
+  (retenter aurait masqué une panne déterministe). La sortie d'uvicorn ne part
+  plus dans `DEVNULL`, elle est dans le message d'échec. **`free_port` reste
+  racé et sa docstring le dit** — une vingtaine de fichiers l'appellent encore,
+  mais eux échouent franchement. Le piège à connaître, mesuré en écrivant le
+  témoin : un `Skipped` levé dans un `pytest.raises` fait SAUTER le test qui
+  l'entoure — d'où `echec_attendu()` dans `tests/test_support_serveur.py`, qui
+  attrape les deux issues séparément. **Ce que le correctif a trouvé dès sa
+  première exécution** : `test_uploads.py` ne s'exécutait plus sur la machine
+  du mainteneur (`python-multipart` absent — pourtant DÉCLARÉ dans
+  `pyproject.toml`), et rendait du vert. Un saut ne dit pas « rien à vérifier
+  ici », il dit « je n'ai pas vérifié ».
+- **POINT 141 : la plateforme est exploitable — pages légales, suppression de
+  compte, journal, sauvegarde, purge périodique.** Cinq manques qui n'étaient
+  pas des défauts de code, mais des choses inexistantes. Trois règles à ne pas
+  défaire. **`legal.py` n'invente RIEN** : `EDITEUR` et `CONTACT` portent un
+  marqueur `[À COMPLÉTER]` visible dans la page servie, gardé par un test —
+  fabriquer une mention légale plausible produirait un faux document. **La
+  liste des données conservées est confrontée au schéma SQLite réel** : une
+  table qui garde de la donnée et que la page ne nomme pas fait échouer la
+  suite (une politique désynchronisée est pire qu'absente, elle AFFIRME).
+  **`journal.py` ne PEUT PAS écrire un secret** — masquage par le NOM du champ
+  ET par la FORME de la valeur, même logique que la frontière SQL du point 108 ;
+  le nom d'événement y est positionnel uniquement (`/`), sans quoi un champ
+  `nom=` levait un `TypeError` pile quand on veut journaliser. `_purger` est la
+  source UNIQUE appelée au démarrage et dans la boucle, et le fil vit dans le
+  `lifespan`, jamais dans `create_app`.
+  **CE QUE LA DOCUMENTATION A TROUVÉ.** Écrire la procédure de restauration a
+  révélé que **`with sqlite3.connect(...)` ne FERME pas** : l'objet `Connection`
+  prend part à des cycles de références, donc il n'est rendu qu'au ramasse-miettes
+  cyclique. Mesuré : 500 lectures → **197 descripteurs ouverts**, base à 4 096
+  octets avec 111 Ko de WAL à côté, et la restauration qui échouait sur un
+  `disk I/O error`. `IdentityStore._connect` est désormais un gestionnaire de
+  contexte qui ferme (197 → 0). Ne pas le refaire rendre une connexion nue.
+  **Un document se garde comme du code** : deux tests confrontent
+  `docs/EXPLOITATION.md` au code (variables d'environnement, événements
+  journalisés) dans les DEUX sens — une variable tue ne se réglera pas, une
+  variable documentée mais ignorée se réglera pour rien. Voir point 141.
+  **LE JOURNAL MASQUAIT LE COMPTE**, trouvé en lançant le serveur une fois les
+  vingt-cinq tests au vert : un `uuid4().hex` fait 32 caractères, donc
+  `FORMES_SENSIBLES` l'avalait et toutes les lignes disaient
+  `compte=[masqué]` — étanche et inutile. Le remède ne touche PAS au masquage
+  (exempter des noms de champs rouvrirait le trou) : `journal.court()` tronque
+  à huit caractères ce qu'on lui PASSE, et un test relit `app.py` pour
+  qu'aucun identifiant n'y soit journalisé nu. Voir point 141.
+- **POINT 142 : les deux falaises produit sont fermées — codes de secours, et
+  `monl-platform admin`.** Ni des défauts de code ni des manques
+  d'exploitation : des situations où le service, en marchant exactement comme
+  prévu, faisait perdre tout son travail à quelqu'un.
+  **Un mot de passe perdu emportait le compte et ses projets.** Huit codes de
+  secours remis UNE fois à l'inscription — le contrat déjà passé pour les clés
+  d'API, pas une promesse de plus. « On vous envoie un lien » est la voie
+  ÉCARTÉE : elle commencerait par « monl sait envoyer un message », et la
+  politique de confidentialité promet le contraire. Trois choses à ne pas
+  défaire : le code est consommé DANS la transaction du changement de mot de
+  passe (sinon une écriture ratée brûle une chance sur huit pour rien) ;
+  toutes les sessions tombent (sinon la reprise ne sert à rien dans le seul cas
+  qui compte) ; régénérer REMPLACE (on régénère parce qu'on craint une fuite).
+  Reprise bornée à 5 essais/heure/IP, refus unique — 401 — pour code faux,
+  adresse inconnue et mot de passe invalide. Comptes antérieurs COMPTÉS, pas
+  convertis (point 89). Quatre documents devenaient faux d'un coup ; deux
+  l'ont dit eux-mêmes par leurs tests.
+  **Aucun rôle administrateur** : tout passait par `sqlite3`, serveur arrêté.
+  `monl-platform admin` (src/monl_platform/administration.py) donne huit
+  verbes. **Le panneau web est la voie écartée et c'est le cœur de la
+  décision** : il demanderait sa propre authentification et une colonne de
+  privilège, et deviendrait la cible dont une faille donne tous les comptes —
+  or qui possède le shell possède déjà la base. Un test lit `/openapi.json` et
+  échoue si une route d'administration apparaît. `expirer` marque échu sans
+  effacer (la purge nettoie : deux chemins de suppression finiraient par
+  diverger) ; `prolonger` compte depuis MAINTENANT, jamais depuis l'ancienne
+  date. Tout geste qui écrit est journalisé.
+  **Les tests vérifient l'EFFET, jamais l'affichage** — clé révoquée rejouée
+  contre le serveur MCP, codes régénérés réellement présentés à
+  `/api/auth/recover`. Une commande qui imprime « clé révoquée » sans que la
+  clé cesse de fonctionner serait pire qu'absente : on la croirait faite.
+  **Au passage** : `--garder N` range les sauvegardes (le tri est sur la DATE,
+  jamais sur le nom), le compose embarque un service compagnon de sauvegarde
+  sur volume séparé, et la barrière de couverture a retrouvé sa portée
+  déclarée — `--cov=src/monl` et non `--cov=src`, la plateforme étant rapportée
+  sans être barrée. Voir point 142.
 - **POINT 110 : le parseur Lark est mis en cache** (`_get_parser`, parser.py) —
   construit une fois, pas à chaque `parse_monl_string`. La construction (~50 ms)
   dominait le parsing ; en cache, 0,4 ms/parse, et la suite est passée de ~344 s

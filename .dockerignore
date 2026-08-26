@@ -1,0 +1,16 @@
+.git
+.github
+.pytest_cache
+__pycache__
+*.pyc
+.coverage
+htmlcov
+build
+dist
+platform-projects
+projets
+models
+tests
+demo
+exemples
+docs

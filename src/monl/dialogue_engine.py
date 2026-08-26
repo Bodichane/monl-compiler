@@ -23,6 +23,10 @@
 import re
 
 IDENT_RE = re.compile(r"^[A-Za-z][A-Za-z0-9]*$")
+# Indicatif téléphonique international : '+' puis 1 à 4 chiffres (+229 Bénin,
+# +33 France, +7 Russie). Vérifié ici plutôt que laissé au compilateur, pour
+# que la faute se voie pendant le dialogue et non trois écrans plus loin.
+PHONE_PREFIX_RE = re.compile(r"^\+\d{1,4}$")
 
 # Types proposés dans le menu — sous-ensemble sûr des types de la grammaire
 # (Date/UUID exclus du menu v1 : peu utiles sans widget de saisie dédié).
@@ -591,6 +595,7 @@ class GuidedDialogue:
 
         self._show(self.ui.phase(3))
         self_register = self._ask_self_register(actors, managers, owned)
+        account_identifier = self._ask_account_identifier(self_register)
         payable = (self._ask_payable(entities, owned, relations, managers, readers)
                    if template.get("accept_payments", True) else None)
         want_seed = bool(template["seeds"]) and self._ask_yes_no(
@@ -613,6 +618,7 @@ class GuidedDialogue:
                                links=links,
                                image_topic=image_topic,
                                self_register=self_register,
+                               account_identifier=account_identifier,
                                extra_rules=template["extra_rules"],
                                extra_workflows=template.get("extra_workflows", ()),
                                custom_seeds=template["seeds"],
@@ -769,6 +775,7 @@ class GuidedDialogue:
 
         self._show(self.ui.phase(6))
         self_register = self._ask_self_register(actors, managers, owned)
+        account_identifier = self._ask_account_identifier(self_register)
         payable = self._ask_payable(entities, owned, relations, managers, readers)
         want_seed = self._ask_yes_no("Pré-remplir le site avec des données de démonstration ?")
         image_topic = self._ask_image_topic() if want_seed else None
@@ -795,6 +802,7 @@ class GuidedDialogue:
                                links=links,
                                image_topic=image_topic,
                                self_register=self_register,
+                               account_identifier=account_identifier,
                                payable=payable)
 
         # Garantie finale : la spec émise DOIT compiler. On la revalide par le
@@ -992,6 +1000,71 @@ class GuidedDialogue:
                 "serveur avec 'python3 manage.py adduser'."))
         return choisi
 
+    def _ask_account_identifier(self, self_register):
+        """Avec quoi les comptes se connectent-ils ? (brique 1, point 95)
+
+        La brique existe depuis le point 95 et le dialogue ne l'a jamais
+        proposée : aucune spec issue d'un modèle ne déclarait d'identifiant, et
+        `username` restait du texte libre. Constaté sur `projets/AtelierNaya`,
+        atelier de beauté à Cotonou : `'!!!'` et même deux espaces créaient un
+        compte, et l'atelier recevait des réservations qu'il ne pouvait
+        honorer faute de pouvoir joindre qui que ce soit. Même famille que le
+        point 90 — une commande sans destinataire est inexpédiable.
+
+        La question n'est posée QUE si quelqu'un s'inscrit en ligne : sans
+        inscription, les comptes naissent dans `manage.py`, d'où le contrôle
+        de forme est volontairement absent (rôles de service sans adresse).
+
+        L'ORDRE des options porte la recommandation, comme dans
+        `_ask_self_register`. Le téléphone vient en tête : sur le marché visé,
+        c'est le canal de rappel réel, bien avant le courriel.
+
+        Ne rien choisir laisse la spec SANS bloc `capability auth` — pas un
+        bloc vide. `None` n'est pas `[]` (point 95) : c'est ce qui garantit
+        qu'une spec écrite avant cette question compile à l'identique.
+        """
+        if not self_register:
+            return None
+        choix = self._ask_choice(
+            "Avec quoi les comptes se connectent-ils ?",
+            ["Numéro de téléphone", "Adresse e-mail", "Téléphone ou e-mail, au choix"],
+            allow_none=True,
+            hints={
+                "Numéro de téléphone": "recommandé si vous rappelez vos clients",
+                "Adresse e-mail": "si vos échanges se font par écrit",
+                "Téléphone ou e-mail, au choix": "chacun s'inscrit comme il préfère",
+            })
+        if choix is None:
+            self._show(self.ui.note(
+                "Identifiant libre : n'importe quel texte fera un compte, et "
+                "vous n'aurez aucun moyen de recontacter la personne."))
+            return None
+        formes = {"Numéro de téléphone": ["phone"],
+                  "Adresse e-mail": ["email"],
+                  "Téléphone ou e-mail, au choix": ["email", "phone"]}[choix]
+
+        prefixe = None
+        if "phone" in formes:
+            # POINT 95 : sans indicatif, « 97… » et « +22997… » sont DEUX
+            # comptes pour une seule personne. monl fait DÉCLARER ce qu'il ne
+            # peut pas deviner — il ne connaît pas le pays de l'application.
+            def valide(a):
+                if a == "":
+                    return True, None
+                if PHONE_PREFIX_RE.match(a):
+                    return True, a
+                return False, None
+            prefixe = self._ask(
+                self.ui.field("Indicatif du pays pour les numéros "
+                              "(ex. +229 pour le Bénin, vide pour aucun) > "),
+                valide, "Un indicatif commence par + suivi de 1 à 4 chiffres.",
+                kind="free_text")
+            if prefixe is None:
+                self._show(self.ui.note(
+                    "Sans indicatif, '97…' et '+22997…' seront deux comptes "
+                    "différents pour la même personne."))
+        return {"formes": formes, "prefixe": prefixe}
+
     def _recap(self, app_name, entities, actors, self_register, public_read, owned,
                payable=None):
         """Dernier regard sur ce qui va être écrit, avant compilation."""
@@ -1024,7 +1097,7 @@ class GuidedDialogue:
                    image_topic=None,
                    self_register=None, extra_rules=(), extra_workflows=(),
                    custom_seeds=None,
-                   payable=None):
+                   payable=None, account_identifier=None):
         lines = [f"app {app_name}", "",
                  "# Spécification générée par le dialogue guidé monl (déterministe, sans IA).",
                  f"# Brief du projet : {description}"]
@@ -1054,6 +1127,19 @@ class GuidedDialogue:
             lines.append(f"actor {act} selfRegister" if act == self_register
                          else f"actor {act}")
         lines.append("")
+
+        # POINT 95, posé par le dialogue depuis le point 138. Rien n'est émis
+        # quand l'humain n'a rien choisi : un bloc `capability auth` vide n'est
+        # PAS la même chose qu'aucun bloc, et deviner « email par défaut »
+        # verrouillerait tous les projets existants.
+        if account_identifier:
+            lines.append("# La FORME de l'identifiant de compte est vérifiée ET normalisée :")
+            lines.append("# sans forme canonique, une majuscule de plus fait un second compte.")
+            lines.append("capability auth")
+            lines.append(f"    identifier: {', '.join(account_identifier['formes'])}")
+            if account_identifier.get("prefixe"):
+                lines.append(f'    phone_prefix: "{account_identifier["prefixe"]}"')
+            lines.append("")
 
         # POINT 86 : les champs que le SERVEUR calcule ne peuvent pas être
         # « requis » — le client ne peut pas les envoyer. Le dialogue posait la

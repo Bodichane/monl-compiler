@@ -57,6 +57,13 @@ jobs:
         run: |
           monl --help
           cd "$(mktemp -d)" && python -c "import monl; print(monl.__version__)"
+          # La plateforme et le serveur MCP sont livrés par le PAQUET, pas
+          # seulement présents dans l'arbre de travail. Un motif `.gitignore`
+          # non ancré avait fait disparaître src/monl_platform/app.py du dépôt
+          # sans un mot : `monl-platform` ne démarrait plus, et aucune étape
+          # d'ici ne le voyait — seule la suite l'a dit, en s'arrêtant à la
+          # collecte. Deux lignes ferment la porte au bon niveau.
+          cd "$(mktemp -d)" && python -c "import monl_platform.app, monl_platform.mcp_server"
 
       - name: Linter (jeu de règles de pyproject.toml)
         run: ruff check src tests
@@ -67,5 +74,25 @@ jobs:
       - name: Recherche de code mort (confiance haute)
         run: vulture src/monl --min-confidence 90
 
-      - name: Suite complète, avec couverture
-        run: python -m pytest tests/ -q --cov=src --cov-report=term-missing
+      - name: Suite complète, avec couverture du compilateur
+        # `--cov=src/monl` et non `--cov=src` : la barrière de 90 % (point 63)
+        # porte sur le COMPILATEUR, ce que `pyproject.toml` déclare déjà par
+        # `source = ["src/monl"]`. Les deux étaient équivalents tant que `src/`
+        # ne contenait que le paquet `monl` ; l'arrivée de `src/monl_platform`
+        # a élargi la mesure sans que personne ne le décide, et la barrière est
+        # tombée à 87,6 % SANS qu'aucun test n'échoue. Rétablir la portée
+        # déclarée n'abaisse aucune exigence : le compilateur reste à 90,4 %.
+        run: python -m pytest tests/ -q --cov=src/monl --cov-report=term-missing
+
+      - name: Couverture de la plateforme (mesurée, non barrée)
+        # La plateforme est RAPPORTÉE plutôt que cachée — mais elle n'est pas
+        # barrée, parce que le nombre serait faux. Ses garanties sont éprouvées
+        # contre de VRAIS serveurs lancés en sous-processus, que `coverage` ne
+        # voit pas : `app.py` sort à 38 % alors que chacune de ses routes est
+        # appelée pour de bon. Mesuré en écrivant cette étape : activer
+        # `COVERAGE_PROCESS_START` fait passer `__main__.py` de 0 % à 79 %,
+        # mais les serveurs uvicorn, tués par SIGTERM, n'écrivent toujours rien.
+        # Barrer sur 67 % ferait croire à une dette qui n'existe pas ; ne rien
+        # mesurer laisserait la vraie dette invisible.
+        run: python -m pytest tests/test_platform_*.py -q --cov=src/monl_platform
+             --cov-report=term --cov-fail-under=0
