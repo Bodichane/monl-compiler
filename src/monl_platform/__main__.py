@@ -1,4 +1,4 @@
-"""Point d'entrée : servir la plateforme, ou sauvegarder sa base."""
+"""Point d'entrée : servir la plateforme, la sauvegarder, ou l'administrer."""
 
 from __future__ import annotations
 
@@ -73,6 +73,9 @@ def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv and argv[0] == "sauvegarde":
         return _sauvegarder(argv[1:])
+    if argv and argv[0] == "admin":
+        from .administration import main as administrer
+        return administrer(argv[1:])
 
     parser = argparse.ArgumentParser(description="Plateforme web Monl")
     parser.add_argument("--host", default="127.0.0.1")
