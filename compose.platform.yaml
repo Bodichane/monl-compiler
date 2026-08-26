@@ -9,8 +9,17 @@ services:
       - "127.0.0.1:8022:8022"
     environment:
       MONL_PLATFORM_WORKSPACE: /data
+      # Ces deux-là ne se voient pas quand ils manquent : le cookie de session
+      # part en clair, et la limitation de débit compte toute la planète sur
+      # l'adresse du proxy. Voir docs/EXPLOITATION.md §1.
       MONL_COOKIE_SECURE: "1"
       MONL_TRUST_PROXY: "1"
+      # Écrits même quand ils valent le défaut : un réglage d'exploitation
+      # qu'on ne voit pas dans le compose est un réglage qu'on ne pense pas
+      # à changer le jour où il faut.
+      MONL_LOG_LEVEL: INFO
+      MONL_PURGE_INTERVAL_SECONDS: "3600"
+      MONL_ISOLATE_COMPILES: "1"
       MONL_MAX_CONCURRENT_COMPILES: "2"
       MONL_COMPILE_TIMEOUT_SECONDS: "45"
       MONL_COMPILE_CPU_SECONDS: "30"
@@ -32,5 +41,48 @@ services:
           cpus: "2.0"
           memory: 1G
 
+  # La sauvegarde tourne DANS le compose, pas dans un cron de l'hôte : un
+  # service qui se déploie avec l'application ne peut pas être oublié au
+  # moment de la remonter ailleurs. Elle emploie la même image, donc la même
+  # commande que celle documentée — il n'y a pas deux façons de sauvegarder.
+  sauvegarde:
+    build:
+      context: .
+      dockerfile: Dockerfile.platform
+    restart: unless-stopped
+    init: true
+    depends_on:
+      - platform
+    # `--garder 14` : sans rotation, une sauvegarde quotidienne finit par
+    # remplir le disque, et un disque plein arrête le service qu'elle
+    # protégeait. La sauvegarde deviendrait alors la panne.
+    command:
+      - sh
+      - -c
+      - >
+        while true; do
+        monl-platform sauvegarde
+        "/backups/base-$$(date +%Y%m%d-%H%M%S).sqlite3"
+        --workspace /data --garder 14 || echo "sauvegarde en échec" >&2;
+        sleep "$${MONL_BACKUP_INTERVAL_SECONDS:-86400}";
+        done
+    environment:
+      MONL_PLATFORM_WORKSPACE: /data
+      MONL_BACKUP_INTERVAL_SECONDS: "86400"
+    volumes:
+      - monl-platform-data:/data
+      - monl-platform-backups:/backups
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+
 volumes:
   monl-platform-data:
+  # Volume SÉPARÉ, et c'est le point : une sauvegarde posée à côté de la base
+  # disparaît avec elle. Le sortir de la machine reste à la charge de
+  # l'exploitant — voir docs/EXPLOITATION.md §5.
+  monl-platform-backups:

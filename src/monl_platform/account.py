@@ -17,6 +17,10 @@ CSS = """
 .account-item{display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);padding:var(--space-4);background:var(--surface-2);border:1px solid var(--line);border-radius:12px}.account-item p{margin:2px 0 0;color:var(--muted);font-size:13px}.account-item code{font-size:12px}
 .empty-account{padding:var(--space-7) var(--space-4);text-align:center;border:1px dashed var(--line);border-radius:12px;color:var(--muted)}
 .delete-project.danger{color:var(--danger);background:var(--danger-bg)}
+.codes-liste{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:var(--space-2);margin:var(--space-4) 0}
+.codes-liste code{font-size:14px;padding:11px 13px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;text-align:center;user-select:all}
+.codes-avis{border-left:3px solid var(--brand);padding-left:var(--space-4);color:var(--ink);margin-bottom:var(--space-3)}
+.codes-manquants{color:var(--danger)}
 .zone-rouge{margin-top:var(--space-5);border:1px solid var(--danger-line);background:var(--danger-bg);border-radius:var(--radius);padding:var(--space-5)}
 .zone-rouge h2{font-size:19px;margin-bottom:var(--space-2)}.zone-rouge p{color:var(--muted);margin-bottom:var(--space-4);max-width:62ch}
 .zone-rouge form{display:none;gap:var(--space-2);align-items:end;flex-wrap:wrap}.zone-rouge form.show{display:flex}
@@ -55,6 +59,13 @@ ACCOUNT_BODY = f"""
 <section class="shell account-head"><div><span class="eyebrow">Compte</span><h1>Vos projets.</h1><p class="muted" id="account-email"></p></div>
 <button class="secondary" id="logout" type="button">Se déconnecter</button></section>
 <section class="shell account-grid"><article class="card account-panel"><div class="panel-head"><div><h2>Projets compilés</h2><p class="muted">Conservés dans votre espace.</p></div><a class="primary" href="/console">{icon('compiler')} Nouveau projet</a></div><div class="item-list" id="projects"></div></article>
+<article class="card account-panel" id="panneau-codes">
+<div class="panel-head"><div><h2>Codes de secours</h2>
+<p class="muted">Le seul moyen de reprendre la main si vous perdez votre mot de passe.</p></div>
+<button class="secondary" id="regenerer-codes" type="button">Générer une nouvelle série</button></div>
+<p class="muted" id="etat-codes">…</p>
+<div id="codes-affiches"></div>
+<div class="form-error" id="erreur-codes" role="alert"></div></article>
 <article class="zone-rouge">
 <h2>Supprimer votre compte</h2>
 <p>Efface définitivement votre compte, vos clés d’accès, vos projets et les fichiers
@@ -75,6 +86,14 @@ async function json(url,options){const r=await fetch(url,options);if(r.status===
 async function load(){const [me,projects]=await Promise.all([json('/api/auth/me'),json('/api/projects')]);
  document.querySelector('#account-email').textContent=me.email;document.querySelector('#projects').innerHTML=projects.projects.length?projects.projects.map(p=>`<div class="account-item"><div><b>${esc(p.name)}</b><p>Créé le ${new Date(p.created_at*1000).toLocaleDateString('fr-FR')} · expire le ${new Date(p.expires_at*1000).toLocaleDateString('fr-FR')}</p></div><span><a class="secondary" href="/api/projects/${encodeURIComponent(p.project_id)}/download">Télécharger</a><button class="ghost delete-project" data-id="${esc(p.project_id)}" type="button">Supprimer</button></span></div>`).join(''):'<div class="empty-account">Aucun projet. Compilez votre première spec.</div>';
  document.querySelectorAll('.delete-project').forEach(b=>b.onclick=async()=>{if(!b.dataset.confirmed){b.dataset.confirmed='1';b.textContent='Confirmer';b.classList.add('danger');return;}await json('/api/projects/'+b.dataset.id,{method:'DELETE'});load();});}
+const etatCodes=document.querySelector('#etat-codes'),affiches=document.querySelector('#codes-affiches'),erreurCodes=document.querySelector('#erreur-codes');
+async function chargerCodes(){try{const d=await json('/api/auth/recovery-codes');
+ etatCodes.textContent=d.remaining?`${d.remaining} code${d.remaining>1?'s':''} encore utilisable${d.remaining>1?'s':''}. Ils ne sont pas relisibles : générer une nouvelle série remplace l'ancienne.`:"Aucun code utilisable. Sans mot de passe et sans code, ce compte serait définitivement inaccessible — générez une série maintenant.";
+ etatCodes.className=d.remaining?'muted':'codes-manquants';}catch(e){etatCodes.textContent='';}}
+document.querySelector('#regenerer-codes').onclick=async()=>{erreurCodes.className='form-error';
+ try{const d=await json('/api/auth/recovery-codes',{method:'POST'});
+  affiches.innerHTML='<p class="codes-avis"><b>Notez-les maintenant.</b> Ils ne seront plus jamais affichés, et l\'ancienne série ne fonctionne plus. Chaque code ne sert qu\'une fois.</p><div class="codes-liste">'+d.recovery_codes.map(c=>`<code>${esc(c)}</code>`).join('')+'</div>';
+  chargerCodes();}catch(e){erreurCodes.textContent=e.message;erreurCodes.className='form-error show';}};
 document.querySelector('#logout').onclick=async()=>{await fetch('/api/auth/logout',{method:'POST'});location.href='/';};
 const zone=document.querySelector('#suppression'),erreur=document.querySelector('#erreur-suppression');
 document.querySelector('#ouvrir-suppression').onclick=()=>{zone.classList.add('show');document.querySelector('#mdp-suppression').focus();};

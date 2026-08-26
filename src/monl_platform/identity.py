@@ -114,6 +114,13 @@ class IdentityStore:
             );
             CREATE INDEX IF NOT EXISTS api_keys_user_created
                 ON api_keys(user_id, created_at DESC);
+            CREATE TABLE IF NOT EXISTS recovery_codes (
+                code_hash TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                created_at INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS recovery_codes_user
+                ON recovery_codes(user_id);
             CREATE TABLE IF NOT EXISTS rate_limits (
                 scope TEXT NOT NULL,
                 subject TEXT NOT NULL,
@@ -251,6 +258,187 @@ class IdentityStore:
                               (user_id,)).fetchall()
             db.execute("DELETE FROM users WHERE id = ?", (user_id,))
         return [row["project_id"] for row in rows]
+
+    # ------------------------------------------------------------------
+    # Codes de secours
+    # ------------------------------------------------------------------
+    #
+    # Sans courriel, un mot de passe perdu rendait le compte et ses projets
+    # définitivement inaccessibles. Le remède ne peut pas être « on vous
+    # envoie un lien » : monl n'envoie rien, et une brique « savoir envoyer un
+    # message » ouvrirait un serveur SMTP, un domaine à réputation et une
+    # dépendance réseau dans un service qui n'en a aucune.
+    #
+    # Un code de secours déplace la garde chez la personne : elle reçoit des
+    # codes UNE fois, elle les range où elle veut. C'est exactement le contrat
+    # déjà passé pour les clés d'API — montrées une fois, hachées ensuite —
+    # donc ni une nouvelle promesse, ni un nouveau mode de stockage.
+
+    NB_CODES = 8
+
+    def create_recovery_codes(self, user_id: str, /) -> list[str]:
+        """Remplace TOUS les codes du compte et rend les nouveaux, en clair.
+
+        Remplacer plutôt qu'ajouter : quelqu'un qui régénère ses codes le fait
+        souvent parce qu'il craint que les anciens aient fuité. Les cumuler
+        laisserait vivre exactement ce dont il veut se débarrasser.
+        """
+        codes = [secrets.token_urlsafe(12) for _ in range(self.NB_CODES)]
+        maintenant = int(time.time())
+        with self._connect() as db:
+            db.execute("DELETE FROM recovery_codes WHERE user_id = ?", (user_id,))
+            db.executemany(
+                "INSERT INTO recovery_codes VALUES (?, ?, ?)",
+                [(self._token_hash(code), user_id, maintenant) for code in codes])
+        return codes
+
+    def count_recovery_codes(self, user_id: str, /) -> int:
+        with self._connect() as db:
+            return db.execute(
+                "SELECT COUNT(*) FROM recovery_codes WHERE user_id = ?",
+                (user_id,)).fetchone()[0]
+
+    def consume_recovery_code(self, email: Any, code: Any, password: Any
+                              ) -> dict[str, str] | None:
+        """Vérifie un code, change le mot de passe, et rend le compte.
+
+        Le code est CONSOMMÉ dans la même transaction que le changement de mot
+        de passe : hors d'elle, un échec de l'écriture laisserait un code
+        brûlé pour rien, et la personne aurait perdu une chance sur huit sans
+        rien obtenir.
+
+        Toutes les sessions tombent. Une réinitialisation de mot de passe qui
+        laisserait vivre les sessions ouvertes ne servirait à rien dans le cas
+        qui compte — celui où quelqu'un d'autre est déjà entré.
+        """
+        try:
+            normalise = self._email(email)
+            secret = self._password(password)
+        except IdentityError:
+            return None
+        empreinte = self._token_hash(str(code or ""))
+        with self._connect() as db:
+            ligne = db.execute(
+                "SELECT users.id AS user_id, users.email FROM recovery_codes "
+                "JOIN users ON users.id = recovery_codes.user_id "
+                "WHERE recovery_codes.code_hash = ? AND users.email = ?",
+                (empreinte, normalise)).fetchone()
+            if not ligne:
+                return None
+            sel = secrets.token_bytes(16)
+            db.execute("UPDATE users SET password_hash = ?, password_salt = ? "
+                       "WHERE id = ?",
+                       (self._password_hash(secret, sel), sel, ligne["user_id"]))
+            db.execute("DELETE FROM recovery_codes WHERE code_hash = ?", (empreinte,))
+            db.execute("DELETE FROM sessions WHERE user_id = ?", (ligne["user_id"],))
+        return {"id": ligne["user_id"], "email": ligne["email"]}
+
+    def comptes_sans_codes(self) -> int:
+        """Combien de comptes n'ont aucun code de secours.
+
+        Les comptes ANTÉRIEURS n'en ont pas : la migration additive rattrape
+        une table, jamais son contenu (point 89, mot pour mot). Leur en
+        fabriquer au démarrage serait pire — il faudrait les afficher, et
+        personne ne les lirait. Ils sont donc COMPTÉS et nommés, et la page du
+        compte propose d'en générer.
+        """
+        with self._connect() as db:
+            return db.execute(
+                "SELECT COUNT(*) FROM users WHERE id NOT IN "
+                "(SELECT DISTINCT user_id FROM recovery_codes)").fetchone()[0]
+
+    # ------------------------------------------------------------------
+    # Lectures et gestes d'exploitation
+    # ------------------------------------------------------------------
+    #
+    # Ces méthodes n'ont AUCUNE route HTTP. Toute intervention sur un compte
+    # passait par `sqlite3` à la main, serveur arrêté : tenable à dix comptes,
+    # pas à cent, et chaque geste risquait une requête tapée de travers sans
+    # trace de qui l'avait faite.
+    #
+    # Le choix d'une ligne de commande plutôt que d'un panneau web n'est pas
+    # de la paresse. Un panneau demanderait sa propre authentification et une
+    # colonne de privilège, et deviendrait la cible la plus intéressante du
+    # service. Qui possède le shell possède déjà la base : la ligne de
+    # commande n'ajoute donc AUCUNE surface d'attaque, elle rend seulement
+    # sûrs et traçables des gestes qu'on faisait déjà.
+
+    def comptes(self) -> list[dict[str, Any]]:
+        """Tous les comptes, avec de quoi décider sans requête de plus."""
+        with self._connect() as db:
+            lignes = db.execute("""
+                SELECT users.id, users.email, users.created_at,
+                       (SELECT COUNT(*) FROM projects WHERE user_id = users.id) AS projets,
+                       (SELECT COUNT(*) FROM api_keys
+                        WHERE user_id = users.id AND revoked_at IS NULL) AS cles,
+                       (SELECT COUNT(*) FROM recovery_codes
+                        WHERE user_id = users.id) AS codes
+                FROM users ORDER BY users.created_at DESC
+            """).fetchall()
+        return [dict(ligne) for ligne in lignes]
+
+    def compte_par_adresse(self, email: Any) -> dict[str, str] | None:
+        """Retrouve un compte par son adresse, sans mot de passe.
+
+        L'adresse est NORMALISÉE comme à l'inscription : sans ça, l'exploitant
+        taperait l'adresse telle qu'on la lui a dictée et ne trouverait rien,
+        alors que le compte existe.
+        """
+        try:
+            normalise = self._email(email)
+        except IdentityError:
+            return None
+        with self._connect() as db:
+            ligne = db.execute("SELECT id, email FROM users WHERE email = ?",
+                               (normalise,)).fetchone()
+        return {"id": ligne["id"], "email": ligne["email"]} if ligne else None
+
+    def tous_les_projets(self, user_id: str | None = None) -> list[dict[str, Any]]:
+        requete = ("SELECT projects.*, users.email FROM projects "
+                   "JOIN users ON users.id = projects.user_id ")
+        parametres: tuple = ()
+        if user_id:
+            requete += "WHERE projects.user_id = ? "
+            parametres = (user_id,)
+        with self._connect() as db:
+            lignes = db.execute(requete + "ORDER BY projects.created_at DESC",
+                                parametres).fetchall()
+        return [dict(ligne) for ligne in lignes]
+
+    def deplacer_echeance(self, project_id: str, secondes: int | None) -> bool:
+        """Repousse (ou avance) l'expiration d'un projet. `None` = jamais.
+
+        Compté depuis MAINTENANT et non depuis l'échéance actuelle : « garde-le
+        trente jours de plus » se dit après coup, souvent sur un projet déjà
+        échu, et repartir de l'ancienne date ne prolongerait rien.
+        """
+        echeance = None if secondes is None else int(time.time()) + secondes
+        with self._connect() as db:
+            curseur = db.execute("UPDATE projects SET expires_at = ? WHERE project_id = ?",
+                                 (echeance, project_id))
+        return curseur.rowcount == 1
+
+    def revoquer_cle_par_id(self, key_id: str) -> dict[str, str] | None:
+        """Révoque une clé sans connaître son propriétaire.
+
+        `revoke_api_key` exige l'identifiant du compte, parce qu'une route HTTP
+        ne doit toucher que les clés de l'appelant. L'exploitant, lui, a devant
+        lui un préfixe de clé lu dans un journal et pas grand-chose d'autre.
+        """
+        with self._connect() as db:
+            ligne = db.execute(
+                "SELECT api_keys.id, api_keys.name, users.email FROM api_keys "
+                "JOIN users ON users.id = api_keys.user_id "
+                "WHERE api_keys.id = ? AND api_keys.revoked_at IS NULL",
+                (key_id,)).fetchone()
+            if not ligne:
+                return None
+            db.execute("UPDATE api_keys SET revoked_at = ? WHERE id = ?",
+                       (int(time.time()), key_id))
+        return dict(ligne)
+
+    def cles_du_compte(self, user_id: str) -> list[dict[str, Any]]:
+        return self.api_keys(user_id)
 
     def sauvegarder(self, destination: str | os.PathLike[str]) -> Path:
         """Copie la base par l'API de sauvegarde en ligne de SQLite.

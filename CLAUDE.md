@@ -909,6 +909,42 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   (exempter des noms de champs rouvrirait le trou) : `journal.court()` tronque
   à huit caractères ce qu'on lui PASSE, et un test relit `app.py` pour
   qu'aucun identifiant n'y soit journalisé nu. Voir point 141.
+- **POINT 142 : les deux falaises produit sont fermées — codes de secours, et
+  `monl-platform admin`.** Ni des défauts de code ni des manques
+  d'exploitation : des situations où le service, en marchant exactement comme
+  prévu, faisait perdre tout son travail à quelqu'un.
+  **Un mot de passe perdu emportait le compte et ses projets.** Huit codes de
+  secours remis UNE fois à l'inscription — le contrat déjà passé pour les clés
+  d'API, pas une promesse de plus. « On vous envoie un lien » est la voie
+  ÉCARTÉE : elle commencerait par « monl sait envoyer un message », et la
+  politique de confidentialité promet le contraire. Trois choses à ne pas
+  défaire : le code est consommé DANS la transaction du changement de mot de
+  passe (sinon une écriture ratée brûle une chance sur huit pour rien) ;
+  toutes les sessions tombent (sinon la reprise ne sert à rien dans le seul cas
+  qui compte) ; régénérer REMPLACE (on régénère parce qu'on craint une fuite).
+  Reprise bornée à 5 essais/heure/IP, refus unique — 401 — pour code faux,
+  adresse inconnue et mot de passe invalide. Comptes antérieurs COMPTÉS, pas
+  convertis (point 89). Quatre documents devenaient faux d'un coup ; deux
+  l'ont dit eux-mêmes par leurs tests.
+  **Aucun rôle administrateur** : tout passait par `sqlite3`, serveur arrêté.
+  `monl-platform admin` (src/monl_platform/administration.py) donne huit
+  verbes. **Le panneau web est la voie écartée et c'est le cœur de la
+  décision** : il demanderait sa propre authentification et une colonne de
+  privilège, et deviendrait la cible dont une faille donne tous les comptes —
+  or qui possède le shell possède déjà la base. Un test lit `/openapi.json` et
+  échoue si une route d'administration apparaît. `expirer` marque échu sans
+  effacer (la purge nettoie : deux chemins de suppression finiraient par
+  diverger) ; `prolonger` compte depuis MAINTENANT, jamais depuis l'ancienne
+  date. Tout geste qui écrit est journalisé.
+  **Les tests vérifient l'EFFET, jamais l'affichage** — clé révoquée rejouée
+  contre le serveur MCP, codes régénérés réellement présentés à
+  `/api/auth/recover`. Une commande qui imprime « clé révoquée » sans que la
+  clé cesse de fonctionner serait pire qu'absente : on la croirait faite.
+  **Au passage** : `--garder N` range les sauvegardes (le tri est sur la DATE,
+  jamais sur le nom), le compose embarque un service compagnon de sauvegarde
+  sur volume séparé, et la barrière de couverture a retrouvé sa portée
+  déclarée — `--cov=src/monl` et non `--cov=src`, la plateforme étant rapportée
+  sans être barrée. Voir point 142.
 - **POINT 110 : le parseur Lark est mis en cache** (`_get_parser`, parser.py) —
   construit une fois, pas à chaque `parse_monl_string`. La construction (~50 ms)
   dominait le parsing ; en cache, 0,4 ms/parse, et la suite est passée de ~344 s
