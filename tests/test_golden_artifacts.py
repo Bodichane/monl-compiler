@@ -84,16 +84,14 @@ GOLDENS = {
     # Revue A2 : manage.py NOMME le remède au lieu de laisser filer une
     # trace quand la base attend une migration. app.py ne bouge PAS —
     # la preuve que le correctif ne touche que la commande d'administration.
-    # 0.9.0-beta.7 : seul monl.json bouge, parce qu'il SCELLE la version du
-    # compilateur. Tous les autres artefacts restent identiques a l'octet —
-    # la preuve que la montee de version ne change rien a ce qui est genere.
-    # BRIQUE 30 : monl.json scelle l'empreinte du contrat, qui vient de gagner
-    # sa cle `links` — il bouge donc avec lui. Il scelle AUSSI le numero de
-    # version du compilateur (cote main). Les deux causes se cumulent : a la
-    # fusion, l'empreinte n'etait celle d'aucun des deux cotes, et il a fallu
-    # la recalculer. Reprendre l'une des deux aurait donne un test qui passe
-    # sans rien prouver.
-    "monl.json": "d8b8236b9dcc71b5592fb14cd168641335231c1e9bcf65f55b7b9344201424fd",
+    # 0.9.0-beta.7, puis beta.8, puis la BRIQUE 30 : monl.json bouge pour DEUX
+    # causes distinctes — il scelle le numero de version du compilateur, et
+    # l'empreinte du contrat, qui vient de gagner sa cle `links`. Les deux se
+    # cumulent, donc a chaque fusion l'empreinte n'est celle d'AUCUN des deux
+    # cotes et doit etre recalculee. Reprendre l'une des deux donnerait un test
+    # qui passe sans rien prouver. Tous les autres artefacts restent identiques
+    # a l'octet, trois fois de suite : c'est ce que ce test est la pour tenir.
+    "monl.json": "c69d53779b3eb0737c6e3cadbe62a42f8a2395a875925e581679f259569ef6fb",
 }
 
 
