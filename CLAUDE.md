@@ -1289,6 +1289,26 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   réintroduire `base_dir` dans `_valider` : le contrôle d'existence est ciblé
   sur ce que l'outil ÉCRIT, sinon `list` redevient incapable de rapporter un
   manquant et `add` redevient inutilisable sur une spec incomplète.
+- **POINT 153 : `frontend_ai` est un PAQUET, et un remplacement d'attribut vise
+  le module où le nom est CHERCHÉ.** Onze modules (`fondations`, `fournisseurs`,
+  `reponse`, `squelette`, `controles_design`, `controles_fichiers`, `redaction`,
+  `etages`, `images`, `agents`, `orchestration`). **Règle interne : un appel
+  entre modules du paquet passe par l'objet MODULE** (`reponse._write_files(…)`),
+  jamais par un nom lié — ça donne UN seul point de remplacement par fonction au
+  lieu d'un par appelant. Donc un test écrit
+  `monkeypatch.setattr(frontend_ai.agents, "_fingerprint_protected", …)` et non
+  `setattr(frontend_ai, …)` ; le second ne mord plus, EN SILENCE.
+  **Ce que ça a révélé** : le test de la voie agent passait sans exercer le
+  garde-fou d'empreinte du point 73 — la vraie fonction tournait et rendait un
+  dictionnaire vide. Contre-épreuve faite avec un stub levant : atteint quand il
+  vise `.agents`, jamais atteint quand il vise le paquet. Les imports de `cli.py`
+  vers `frontend_ai` sont DANS les fonctions, donc résolus après le
+  remplacement : ceux-là continuent de mordre.
+  Deux corollaires pour le prochain découpage : **un nom de module ne doit
+  ressembler à aucune variable locale du code qu'il accueille** (`brief` et
+  `socle` visaient la variable, pas le module — `ruff` F823), et **une surface
+  publique se mesure par AST**, jamais par `grep` (les imports multi-lignes et
+  les accès par attribut échappent au texte).
 - **POINT 152 : le validateur est un PAQUET (`src/monl/ast_validator/`).**
   Même forme que `generator/` : un module par préoccupation, la classe
   recomposée par mixins dans `core.py`. Une nouvelle règle s'ajoute dans le

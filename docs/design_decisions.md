@@ -69,6 +69,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [150](#150-le-brief-demandait-de-factoriser-et-cest-la-factorisation-qui-faisait-refuser-le-site) Le brief demandait de factoriser, et la factorisation faisait refuser ·
 [151](#151-toute-boutique-vendait-des-théières) Toute boutique vendait des théières ·
 [152](#152-le-validateur-est-devenu-un-paquet-et-un-contrat-darchitecture-sest-tu) Le validateur est devenu un paquet, et un contrat d'architecture s'est tu ·
+[153](#153-le-garde-fou-dempreinte-nétait-plus-exercé-par-le-test-qui-le-nomme) Le garde-fou d'empreinte n'était plus exercé par le test qui le nomme ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -10216,3 +10217,81 @@ dans tel fichier ».
 Mesuré après découpage : 1 346 tests passés, 16 sautés, zéro échec, `ruff` à
 zéro signalement, couverture du compilateur à 90,18 %, et les onze empreintes
 d'artefacts identiques.
+
+## 153. Le garde-fou d'empreinte n'était plus exercé par le test qui le nomme
+
+`src/monl/frontend_ai.py` pesait 2 392 lignes. Il devient
+`src/monl/frontend_ai/`, onze modules dont le plus gros — `agents.py`, qui
+porte les deux garde-fous d'empreinte du point 73 — fait 397 lignes. Comme au
+point 152, aucune règle n'a changé.
+
+Mais ce fichier-ci n'est pas le validateur : **vingt-quatre tests remplacent ses
+attributs** (`monkeypatch.setattr(frontend_ai, "PROVIDERS", …)`). La question à
+poser AVANT de couper n'était donc pas « où sont les frontières », c'était
+**« lesquels de ces remplacements survivent ? »**. Mesuré avant d'écrire une
+ligne : quatre ne servent qu'à `cli.py` — le ré-export du paquet les couvre —
+et **huit cassent**, parce que le nom serait désormais lié dans un module et
+remplacé dans un autre.
+
+**La règle adoptée : à l'intérieur du paquet, un appel entre modules passe par
+l'objet MODULE, jamais par un nom lié.** `orchestration.py` écrit
+`reponse._write_files(...)`, pas `_write_files(...)`. Le gain n'est pas
+esthétique : il donne **un seul point de remplacement par fonction** au lieu
+d'un par appelant — `_write_files` a deux appelants, une seule cible suffit.
+Les 115 références concernées ont été réécrites **par position AST**, jamais
+par expression régulière, qui aurait aussi touché les chaînes et les
+commentaires.
+
+### Ce que le découpage a révélé
+
+`tests/test_usage.py` remplaçait `frontend_ai._fingerprint_protected` pour
+éprouver la voie agent. Après découpage, ce test **passait toujours** — et
+c'est précisément ce qui a rendu la vérification obligatoire. Le même stub,
+rendu levant, sur deux cibles :
+
+```
+ciblé sur frontend_ai.agents  ->  RuntimeError: SONDE-EMPREINTE   (atteint)
+ciblé sur frontend_ai         ->  (rien : le test passe)          (jamais atteint)
+```
+
+Le remplacement ne mordait plus. La vraie fonction tournait, rendait un
+dictionnaire vide sur un dossier de test sans artefact, et le test concluait au
+succès — **un test vert qui n'exerçait plus le garde-fou qu'il nomme**. C'est
+le point 145 dans un autre décor : *un test qui passe ne prouve pas qu'il
+mord*, et la seule façon de savoir où une garantie vit vraiment reste de la
+retirer pour voir tomber quelque chose.
+
+Généralisation à retenir : **un `monkeypatch.setattr` doit viser le module où
+le nom est CHERCHÉ, pas celui où il est défini.** Quand les deux coïncident —
+un seul gros fichier — la distinction ne se voit pas. Elle apparaît au premier
+découpage, et elle apparaît en silence.
+
+Vérifié au passage plutôt que supposé : les imports de `cli.py` vers
+`frontend_ai` sont à l'INTÉRIEUR des fonctions (L496, 1717, 2125, 2289), donc
+résolus à l'appel, donc après le remplacement. Les quatre remplacements
+destinés à `cli` continuent de mordre sans qu'on y touche.
+
+### Deux autres défauts, trouvés par mesure
+
+**Trois blocs perdus**, dénoncés par le contrôle de couverture du point 152 —
+dont deux blocs de commentaire de SECTION qui documentent la voie « import
+manuel » (point 42) et la voie « Claude Code » (point 43). Perdre un
+commentaire ne fait échouer aucun test ; c'est la documentation la plus utile
+du fichier qui serait partie sans un mot.
+
+**Deux collisions de noms** : un module nommé `brief` contre une variable
+locale `brief`, attrapée par `ruff` en `F823` — la référence qualifiée
+`brief.build_generation_prompt` visait la variable locale, pas le module. Même
+chose pour `socle`. Renommés `redaction` et `fondations`, après avoir confronté
+les onze noms de groupe à TOUTES les variables locales du fichier. Le
+corollaire vaut pour le prochain découpage : **un nom de module ne doit
+ressembler à aucun nom de variable du code qu'il accueille.**
+
+Et deux erreurs de ma propre méthode, corrigées avant de nuire : la surface
+publique relevée par `grep` ratait les imports multi-lignes (32 noms au lieu de
+37), puis les accès par ATTRIBUT (`frontend_ai.PROMPT_FILENAME`, jamais
+importé). Reconstruite par AST sur tout le dépôt : 43 noms. **Une surface
+publique se mesure sur l'arbre syntaxique, pas sur du texte.**
+
+Mesuré après découpage : 1 346 tests passés, 16 sautés, zéro échec, `ruff` à
+zéro, couverture du compilateur à 90,23 %.
