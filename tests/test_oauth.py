@@ -11,6 +11,7 @@ appelant le vrai GitHub, c'est-à-dire jamais.
 """
 
 import json
+import os
 import socket
 import threading
 import time
@@ -31,8 +32,10 @@ from monl_platform.oauth import (
     make_state,
     redirect_uri,
 )
+from tests.support.server import uvicorn_server
 
 SECRET = "secret-de-plateforme-pour-les-tests-oauth-123456"
+SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src")
 
 
 def _free_port():
@@ -335,11 +338,14 @@ def test_un_fournisseur_sans_adresse_publique_est_refuse_par_sa_route(tmp_path, 
     monkeypatch.setenv("MONL_OAUTH_GITHUB_SECRET", "y")
     monkeypatch.setenv("MONL_PLATFORM_OAUTH_STATE_SECRET", SECRET)
     monkeypatch.delenv("MONL_PLATFORM_PUBLIC_URL", raising=False)
-    app = create_app(workspace=tmp_path / "projects", start_worker=False)
-    from fastapi.testclient import TestClient
 
-    with TestClient(app) as client:
-        response = client.get("/auth/github")
+    env = os.environ.copy()
+    env["MONL_PLATFORM_WORKSPACE"] = str(tmp_path / "projects")
+    env["PYTHONPATH"] = SRC + os.pathsep + env.get("PYTHONPATH", "")
+    with uvicorn_server(str(tmp_path), env=env,
+                        module="monl_platform.app:app", ready_path="/health") as base:
+        response = requests.get(base + "/auth/github", allow_redirects=False, timeout=10)
+
     assert response.status_code == 503
     assert "MONL_PLATFORM_PUBLIC_URL" in response.json()["detail"]
 

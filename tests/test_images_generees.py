@@ -496,6 +496,212 @@ def test_yandexart_envoie_le_rapport_d_aspect_dans_generation_options(monkeypatc
     assert "aspectRatio" not in calls[1][2]["generationOptions"]
 
 
+def test_yandexart_accepte_la_forme_width_ratio_du_rapport(monkeypatch):
+    monkeypatch.setenv("YANDEX_API_KEY", "cle-image")
+    monkeypatch.setenv("YANDEX_FOLDER_ID", "folder-image")
+    monkeypatch.setenv("MONL_IMAGE_POLL_INTERVAL", "0.0001")
+    image = base64.b64encode(JPEG_BYTES).decode("ascii")
+
+    class Response:
+        status_code = 202
+        text = ""
+
+        def json(self):
+            return {"id": "operation-image"}
+
+    class DoneResponse(Response):
+        status_code = 200
+
+        def json(self):
+            return {"done": True, "response": {"image": image}}
+
+    import requests
+    monkeypatch.setattr(requests, "post", lambda *_args, **_kwargs: Response())
+    monkeypatch.setattr(requests, "get", lambda *_args, **_kwargs: DoneResponse())
+
+    provider = yandexart_provider()
+    assert provider("matière de l'atelier", aspect_ratio={
+        "widthRatio": 4, "heightRatio": 3,
+    }) == JPEG_BYTES
+
+
+def test_yandexart_refuse_un_dossier_absent(monkeypatch):
+    monkeypatch.setenv("YANDEX_API_KEY", "cle-image")
+    monkeypatch.delenv("YANDEX_FOLDER_ID", raising=False)
+
+    with pytest.raises(ImageProviderError, match="YANDEX_FOLDER_ID"):
+        yandexart_provider()
+
+
+@pytest.mark.parametrize(
+    ("aspect_ratio", "message"),
+    [
+        ("16:9", "rapport d'aspect doit être un objet"),
+        ({"width": 16}, "rapport d'aspect doit déclarer width/height"),
+        ({"width": True, "height": 9}, "dimensions du rapport d'aspect"),
+    ],
+)
+def test_yandexart_refuse_un_rapport_d_aspect_invalide(
+        monkeypatch, aspect_ratio, message):
+    monkeypatch.setenv("YANDEX_API_KEY", "cle-image")
+    monkeypatch.setenv("YANDEX_FOLDER_ID", "folder-image")
+    import requests
+    monkeypatch.setattr(requests, "post", lambda *_args, **_kwargs:
+                        pytest.fail("le rapport invalide doit être refusé avant HTTP"))
+
+    provider = yandexart_provider(model="art://folder-image/modele-special")
+    assert provider.model == "modele-special"
+    with pytest.raises(ImageProviderError, match=message):
+        provider("matière de l'atelier", aspect_ratio=aspect_ratio)
+
+
+@pytest.mark.parametrize(
+    ("status", "payload", "json_error", "message"),
+    [
+        (500, {"error": "panne"}, False, "YandexART : 500"),
+        (200, None, True, "JSON invalide"),
+        (200, {}, False, "opération sans identifiant"),
+    ],
+)
+def test_yandexart_refuse_une_reponse_initiale_inexploitable(
+        monkeypatch, status, payload, json_error, message):
+    monkeypatch.setenv("YANDEX_API_KEY", "cle-image")
+    monkeypatch.setenv("YANDEX_FOLDER_ID", "folder-image")
+
+    class Response:
+        status_code = status
+        text = "réponse de test"
+
+        def json(self):
+            if json_error:
+                raise ValueError("json invalide")
+            return payload
+
+    import requests
+    monkeypatch.setattr(requests, "post", lambda *_args, **_kwargs: Response())
+
+    with pytest.raises(ImageProviderError, match=message):
+        yandexart_provider()("matière de l'atelier")
+
+
+def test_yandexart_signale_une_panne_http_initiale(monkeypatch):
+    monkeypatch.setenv("YANDEX_API_KEY", "cle-image")
+    monkeypatch.setenv("YANDEX_FOLDER_ID", "folder-image")
+    import requests
+
+    def post(*_args, **_kwargs):
+        raise requests.RequestException("service hors ligne")
+
+    monkeypatch.setattr(requests, "post", post)
+    with pytest.raises(ImageProviderError, match="inaccessible"):
+        yandexart_provider()("matière de l'atelier")
+
+
+@pytest.mark.parametrize(
+    ("status", "payload", "json_error", "message"),
+    [
+        (503, {"error": "panne"}, False, "lecture de l'opération 503"),
+        (200, None, True, "état d'opération invalide"),
+        (200, {"error": {"message": "quota dépassé"}}, False, "quota dépassé"),
+        (200, {"done": True}, False, "sans renvoyer de données image"),
+    ],
+)
+def test_yandexart_refuse_un_etat_d_operation_inexploitable(
+        monkeypatch, status, payload, json_error, message):
+    monkeypatch.setenv("YANDEX_API_KEY", "cle-image")
+    monkeypatch.setenv("YANDEX_FOLDER_ID", "folder-image")
+    monkeypatch.setenv("MONL_IMAGE_POLL_INTERVAL", "0.0001")
+
+    class Response:
+        status_code = status
+        text = "état de test"
+
+        def json(self):
+            if json_error:
+                raise ValueError("json invalide")
+            return payload
+
+    class ResponseForPost:
+        status_code = 202
+        text = ""
+
+        def json(self):
+            return {"id": "operation-image"}
+
+    import requests
+    monkeypatch.setattr(requests, "post", lambda *_args, **_kwargs:
+                        ResponseForPost())
+    monkeypatch.setattr(requests, "get", lambda *_args, **_kwargs: Response())
+
+    with pytest.raises(ImageProviderError, match=message):
+        yandexart_provider()("matière de l'atelier")
+
+
+def test_yandexart_signale_une_panne_http_pendant_le_polling(monkeypatch):
+    monkeypatch.setenv("YANDEX_API_KEY", "cle-image")
+    monkeypatch.setenv("YANDEX_FOLDER_ID", "folder-image")
+    monkeypatch.setenv("MONL_IMAGE_POLL_INTERVAL", "0.0001")
+    import requests
+
+    class Response:
+        status_code = 202
+        text = ""
+
+        def json(self):
+            return {"id": "operation-image"}
+
+    def get(*_args, **_kwargs):
+        raise requests.RequestException("connexion interrompue")
+
+    monkeypatch.setattr(requests, "post", lambda *_args, **_kwargs: Response())
+    monkeypatch.setattr(requests, "get", get)
+    with pytest.raises(ImageProviderError, match="lecture de l'opération impossible"):
+        yandexart_provider()("matière de l'atelier")
+
+
+@pytest.mark.parametrize("raw, message", [
+    ("pas-un-nombre", "doit être un nombre positif"),
+    ("0", "doit être un nombre positif"),
+])
+def test_yandexart_refuse_un_reglage_de_polling_invalide(monkeypatch, raw, message):
+    monkeypatch.setenv("YANDEX_API_KEY", "cle-image")
+    monkeypatch.setenv("YANDEX_FOLDER_ID", "folder-image")
+    monkeypatch.setenv("MONL_IMAGE_POLL_TIMEOUT", raw)
+
+    class Response:
+        status_code = 202
+        text = ""
+
+        def json(self):
+            return {"id": "operation-image"}
+
+    import requests
+    monkeypatch.setattr(requests, "post", lambda *_args, **_kwargs: Response())
+    with pytest.raises(ImageProviderError, match=message):
+        yandexart_provider()("matière de l'atelier")
+
+
+def test_yandexart_signale_le_depassement_du_delai(monkeypatch):
+    monkeypatch.setenv("YANDEX_API_KEY", "cle-image")
+    monkeypatch.setenv("YANDEX_FOLDER_ID", "folder-image")
+    monkeypatch.setenv("MONL_IMAGE_POLL_TIMEOUT", "1")
+    ticks = iter((0, 0, 2))
+    monkeypatch.setattr(image_ai.time, "monotonic", lambda: next(ticks))
+
+    class Response:
+        status_code = 202
+        text = ""
+
+        def json(self):
+            return {"id": "operation-image"}
+
+    import requests
+    monkeypatch.setattr(requests, "post", lambda *_args, **_kwargs: Response())
+
+    with pytest.raises(ImageProviderError, match="délai d'attente dépassé"):
+        yandexart_provider()("matière de l'atelier")
+
+
 def test_une_image_jpeg_reelle_est_reencodee_sans_perdre_ses_dimensions():
     image_module = pytest.importorskip("PIL.Image")
     source = image_module.effect_noise((1024, 1024), 100).convert("RGB")
