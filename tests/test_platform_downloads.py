@@ -52,13 +52,9 @@ def _free_port():
 @pytest.fixture()
 def platform(tmp_path, dist):
     app = create_app(
-        database=tmp_path / "platform.db",
-        workspace_root=tmp_path / "projects",
+        workspace=tmp_path / "projects",
         domain="localhost",
-        jwt_secret="secret-for-platform-download-tests-123456",
-        provider=FakeProvider(),
         downloads_dir=str(dist),
-        poll_interval=0.01,
         start_worker=False,
     )
     port = _free_port()
@@ -114,10 +110,10 @@ def test_un_dossier_absent_ne_fait_pas_echouer(tmp_path):
 
 
 def test_le_telechargement_rend_les_octets_du_fichier(platform, dist):
-    listing = requests.get(f"{platform}/telechargements", timeout=10).json()
+    listing = requests.get(f"{platform}/api/telechargements", timeout=10).json()
     nom = listing["artifacts"][0]["name"]
 
-    reponse = requests.get(f"{platform}/telechargements/{nom}", timeout=10)
+    reponse = requests.get(f"{platform}/api/telechargements/{nom}", timeout=10)
 
     assert reponse.status_code == 200
     assert reponse.content == (dist / nom).read_bytes()
@@ -132,7 +128,7 @@ def test_le_telechargement_rend_les_octets_du_fichier(platform, dist):
     "inconnu-9.9.9.whl",
 ])
 def test_un_nom_hostile_ou_inconnu_est_refuse(platform, nom):
-    reponse = requests.get(f"{platform}/telechargements/{nom}", timeout=10)
+    reponse = requests.get(f"{platform}/api/telechargements/{nom}", timeout=10)
 
     assert reponse.status_code == 404, reponse.text
 

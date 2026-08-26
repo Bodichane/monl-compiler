@@ -60,7 +60,9 @@ def test_le_guide_documente_les_routes_reellement_montees(tmp_path):
         for route in app.routes
         for methode in getattr(route, "methods", set())
         if methode in {"GET", "POST", "DELETE"}
-        and (route.path.startswith("/api/") or route.path in {"/mcp", "/health", "/ready"})
+        and (route.path.startswith("/api/") or route.path in {
+            "/auth/fournisseurs", "/mcp", "/health", "/ready"
+        })
     }
     documentees = {(verbe, chemin) for verbe, chemin, _ in guide.ROUTES_API}
     assert publiques == documentees, (

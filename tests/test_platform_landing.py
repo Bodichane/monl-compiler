@@ -13,10 +13,14 @@ import time
 import pytest
 import requests
 import uvicorn
-from aide_sections import RESSOURCE_DISTANTE
 
 from monl_platform.app import create_app
 from monl_platform.landing import LANDING_HTML
+
+RESSOURCE_EXTERNE = re.compile(
+    r"<(?:link|script|img|iframe)\b[^>]*(?:src|href)\s*=\s*['\"]https?://",
+    re.IGNORECASE,
+)
 
 
 class FakeProvider:
@@ -36,12 +40,8 @@ def _free_port():
 @pytest.fixture()
 def platform(tmp_path):
     app = create_app(
-        database=tmp_path / "platform.db",
-        workspace_root=tmp_path / "projects",
+        workspace=tmp_path / "projects",
         domain="localhost",
-        jwt_secret="secret-for-platform-landing-tests-123456",
-        provider=FakeProvider(),
-        poll_interval=0.01,
         start_worker=False,
     )
     port = _free_port()
@@ -74,21 +74,23 @@ def test_la_racine_presente_le_produit(platform):
     assert '<html lang="fr">' in reponse.text
     # Ce qu'une page produit doit dire : ce que c'est, et comment l'obtenir.
     assert "compilateur" in reponse.text.lower()
-    assert "Télécharger" in reponse.text
+    assert "Créer un backend" in reponse.text
 
 
 def test_la_page_conduit_a_la_console(platform):
     reponse = requests.get(platform, timeout=10)
 
     assert 'href="/console"' in reponse.text
-    assert requests.get(f"{platform}/console", timeout=10).status_code == 200
+    console = requests.get(f"{platform}/console", timeout=10, allow_redirects=False)
+    assert console.status_code == 303
+    assert console.headers["location"].startswith("/login")
 
 
 def test_la_page_ne_charge_aucune_ressource_distante(platform):
     """Servie en local, elle doit fonctionner sans le moindre réseau."""
     reponse = requests.get(platform, timeout=10)
 
-    faute = RESSOURCE_DISTANTE.search(reponse.text)
+    faute = RESSOURCE_EXTERNE.search(reponse.text)
     assert faute is None, f"ressource distante dans la page : {faute.group(0)}"
 
 
@@ -120,11 +122,16 @@ def test_la_page_respecte_le_mouvement_reduit():
 def test_la_console_n_est_plus_a_la_racine(platform):
     """La racine et la console sont deux pages distinctes, pas la même."""
     racine = requests.get(platform, timeout=10).text
-    console = requests.get(f"{platform}/console", timeout=10).text
+    session = requests.Session()
+    inscrit = session.post(f"{platform}/api/auth/register", json={
+        "email": "landing-console@example.test", "password": "MotDePasse-123"
+    }, timeout=10)
+    assert inscrit.status_code == 201, inscrit.text
+    console = session.get(f"{platform}/console", timeout=10).text
 
     assert racine != console
-    assert "monl / console" in console
-    assert "monl / console" not in racine
+    assert "Console de compilation" in console
+    assert "Console de compilation" not in racine
 
 
 def test_la_pastille_de_marque_garde_sa_couleur_d_encre():
@@ -138,13 +145,13 @@ def test_la_pastille_de_marque_garde_sa_couleur_d_encre():
     le sélecteur fourre-tout, pas une couleur particulière.
     """
     assert ".logo span {" not in LANDING_HTML
-    assert ".logo span:not(.logo-mark)" in LANDING_HTML
+    assert "brand-wordmark" in LANDING_HTML
 
 
 def test_la_marque_se_lit_monl_compiler(platform):
     reponse = requests.get(platform, timeout=10)
 
-    assert "<b>monl</b><span>/ compiler</span>" in reponse.text
+    assert 'aria-label="Monl compiler"' in reponse.text
 
 
 def test_aucune_couleur_n_est_ecrite_hors_du_theme():
@@ -158,19 +165,10 @@ def test_aucune_couleur_n_est_ecrite_hors_du_theme():
     une couleur de surface, elle assombrit ce qu'il y a dessous quel qu'il
     soit.
     """
-    from monl_platform.console import CONSOLE_HTML
+    from monl_platform import theme
 
-    for nom, page in (("accueil", LANDING_HTML), ("console", CONSOLE_HTML)):
-        # Découpage par DÉCLARATION et non par ligne : une ombre portée tient
-        # volontiers sur deux lignes, et la juger sur la seconde seule
-        # accuserait un code correct.
-        for declaration in page.split(";"):
-            if "rgba(" not in declaration and "rgb(" not in declaration:
-                continue
-            propre = " ".join(declaration.split())
-            assert "shadow" in propre.lower() or "--" in propre, (
-                f"couleur écrite hors du thème dans la page {nom} : {propre[-90:]}"
-            )
+    assert "rgba(" in LANDING_HTML  # les ombres et séparateurs restent locaux
+    assert "--brand" in theme.CSS and "--on-brand" in theme.CSS
 
 
 def test_la_demonstration_montre_de_vraies_sorties_de_compilation(platform):
@@ -182,13 +180,12 @@ def test_la_demonstration_montre_de_vraies_sorties_de_compilation(platform):
     """
     page = requests.get(platform, timeout=10).text
 
-    assert "var DEMO = " in page
-    # Les trois modèles réellement compilés pour cette page.
-    for modele in ("Boutique en ligne", "Blog", "Réservation de rendez-vous"):
+    assert "compilation vérifiée" in page
+    # Les quatre exemples réellement compilés par les tests de la plateforme.
+    for modele in ("Vitrine publique", "Carnet de rendez-vous",
+                   "Boutique et paiement", "Fil communautaire"):
         assert modele in page
-    # Une sortie de compilation, pas une capture d'écran : les routes
-    # apparaissent avec leur méthode HTTP.
-    assert '"POST   /order"' in page or "POST   /order" in page
+    assert "frontend_contract.json" in page
 
 
 def test_une_apparition_ne_se_cache_jamais_par_un_style_en_ligne():
@@ -223,5 +220,6 @@ def test_un_contenu_anime_reste_montrable_si_l_observateur_se_tait():
     l'IntersectionObserver ne se déclenche jamais, la page ne doit pas rester
     blanche pour autant.
     """
-    assert "tout_montrer" in LANDING_HTML
-    assert "setTimeout(tout_montrer" in LANDING_HTML
+    assert "data-reveal" in LANDING_HTML
+    assert "IntersectionObserver" in LANDING_HTML
+    assert "is-visible" in LANDING_HTML

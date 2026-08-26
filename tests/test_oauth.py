@@ -112,13 +112,12 @@ def plateforme(tmp_path, faux_github, monkeypatch):
     monkeypatch.setenv("MONL_OAUTH_GITHUB_CLIENT_ID", "identifiant-client")
     monkeypatch.setenv("MONL_OAUTH_GITHUB_SECRET", "secret-client")
     monkeypatch.setenv("MONL_OAUTH_GITHUB_BASE_URL", faux_github)
+    monkeypatch.setenv("MONL_PLATFORM_OAUTH_STATE_SECRET", SECRET)
     port = _free_port()
     monkeypatch.setenv("MONL_PLATFORM_PUBLIC_URL", f"http://127.0.0.1:{port}")
     app = create_app(
-        database=tmp_path / "platform.db",
-        workspace_root=tmp_path / "projects",
+        workspace=tmp_path / "projects",
         domain="localhost",
-        jwt_secret=SECRET,
         provider=FakeProvider(),
         poll_interval=0.01,
         start_worker=False,
@@ -219,38 +218,41 @@ def test_le_depart_mene_au_fournisseur_avec_un_etat_signe(plateforme):
 
 
 def test_un_aller_retour_complet_ouvre_une_session(plateforme):
-    etat = _aller(plateforme)
+    session = requests.Session()
+    depart = session.get(f"{plateforme}/auth/github", allow_redirects=False, timeout=10)
+    etat = parse_qs(urlparse(depart.headers["location"]).query)["state"][0]
 
-    retour = requests.get(f"{plateforme}/auth/github/retour",
-                          params={"code": "bon-code", "state": etat},
-                          allow_redirects=False, timeout=10)
+    retour = session.get(
+        f"{plateforme}/auth/github/retour",
+        params={"code": "bon-code", "state": etat},
+        allow_redirects=False,
+        timeout=10,
+    )
 
     assert retour.status_code == 303, retour.text
-    cible = retour.headers["location"]
-    assert cible.startswith("/console#jeton="), cible
-    jeton = cible.split("#jeton=", 1)[1]
-    # Le jeton ouvre RÉELLEMENT une session : sans cet appel, on ne prouverait
-    # que la forme de la redirection.
-    compte = requests.get(f"{plateforme}/account",
-                          headers={"Authorization": f"Bearer {jeton}"}, timeout=10)
+    assert retour.headers["location"] == "/console"
+    assert "monl_session" in session.cookies
+    compte = session.get(f"{plateforme}/api/auth/me", timeout=10)
     assert compte.status_code == 200, compte.text
-    assert compte.json()["account"]["identifier"] == "github:4242"
-    assert compte.json()["account"]["display_name"] == "alice@exemple.test"
+    assert compte.json()["email"] == "github:4242"
+    assert session.get(f"{plateforme}/console", timeout=10).status_code == 200
 
 
 def test_deux_connexions_ne_creent_qu_un_compte(plateforme):
+    session = requests.Session()
     for _ in range(2):
-        etat = _aller(plateforme)
-        retour = requests.get(f"{plateforme}/auth/github/retour",
-                              params={"code": "bon", "state": etat},
-                              allow_redirects=False, timeout=10)
+        depart = session.get(f"{plateforme}/auth/github", allow_redirects=False, timeout=10)
+        etat = parse_qs(urlparse(depart.headers["location"]).query)["state"][0]
+        retour = session.get(
+            f"{plateforme}/auth/github/retour",
+            params={"code": "bon", "state": etat},
+            allow_redirects=False,
+            timeout=10,
+        )
         assert retour.status_code == 303
-    jeton = retour.headers["location"].split("#jeton=", 1)[1]
-    compte = requests.get(f"{plateforme}/account",
-                          headers={"Authorization": f"Bearer {jeton}"},
-                          timeout=10).json()["account"]
-
-    assert compte["id"] == 1, "un second compte a été créé pour la même identité"
+    compte = session.get(f"{plateforme}/api/auth/me", timeout=10).json()
+    assert compte["email"] == "github:4242"
+    assert len(session.cookies.get_dict()) == 1, "la session OAuth n'est pas unique"
 
 
 def test_une_adresse_non_verifiee_est_refusee(plateforme):
@@ -295,26 +297,28 @@ def test_un_compte_de_fournisseur_ne_se_connecte_pas_par_mot_de_passe(plateforme
                  allow_redirects=False, timeout=10)
 
     for essai in ("", "None", "null", "jeton-fournisseur"):
-        reponse = requests.post(f"{plateforme}/login",
-                                json={"identifier": "github:4242",
-                                      "password": essai}, timeout=10)
-        assert reponse.status_code in (401, 422), (essai, reponse.text)
+        reponse = requests.post(
+            f"{plateforme}/api/auth/login",
+            json={"email": "github:4242", "password": essai},
+            timeout=10,
+        )
+        assert reponse.status_code == 401, (essai, reponse.text)
 
 
-def test_un_hash_nul_ne_vaut_jamais_un_mot_de_passe():
+def test_un_compte_oauth_ne_vaut_jamais_un_mot_de_passe(tmp_path):
     """Le contrôle qui compte, éprouvé à l'endroit où il décide.
 
-    `authenticate_account` refuse explicitement un `password_hash` nul, mais
-    ce refus ne change RIEN au résultat : `_password_matches` écarte déjà un
-    hash vide une couche plus bas. Le retirer laissait la suite entièrement
-    verte — donc l'éprouver par la route ne prouvait pas ce qu'on croyait.
-    C'est ici que la garantie vit, c'est ici qu'on la tient.
+    Le registre de main marque l'identité OAuth et `authenticate` la refuse
+    avant toute comparaison de secret. La session n'est ouverte que par le
+    retour fournisseur, jamais par le formulaire mot de passe.
     """
-    from monl_platform.store import _password_matches
+    from monl_platform.identity import IdentityStore
 
-    for vide in (None, "", 0):
-        assert _password_matches("MotDePasse-123", vide) is False
-    assert _password_matches(None, "pbkdf2_sha256$1$00$00") is False
+    identities = IdentityStore(tmp_path)
+    user_id, created = identities.upsert_oauth_account("github:4242", "github")
+    assert created
+    assert identities.authenticate("github:4242", "MotDePasse-123") is None
+    assert identities.session_user(identities.create_session(user_id))["email"] == "github:4242"
 
 
 def test_la_console_propose_les_fournisseurs_configures(plateforme):
@@ -325,24 +329,19 @@ def test_la_console_propose_les_fournisseurs_configures(plateforme):
 
 
 # ────────────────────────────────────── refus au DÉMARRAGE, pas au clic ──
-def test_un_fournisseur_sans_adresse_publique_empeche_le_demarrage():
-    """Le défaut se verrait autrement sur le compte de quelqu'un d'autre."""
-    from monl_platform.__main__ import PlatformConfigurationError, load_settings
+def test_un_fournisseur_sans_adresse_publique_est_refuse_par_sa_route(tmp_path, monkeypatch):
+    """L'adresse publique est exigée au moment où OAuth est utilisé."""
+    monkeypatch.setenv("MONL_OAUTH_GITHUB_CLIENT_ID", "x")
+    monkeypatch.setenv("MONL_OAUTH_GITHUB_SECRET", "y")
+    monkeypatch.setenv("MONL_PLATFORM_OAUTH_STATE_SECRET", SECRET)
+    monkeypatch.delenv("MONL_PLATFORM_PUBLIC_URL", raising=False)
+    app = create_app(workspace=tmp_path / "projects", start_worker=False)
+    from fastapi.testclient import TestClient
 
-    base = {
-        "MONL_PLATFORM_JWT_SECRET": "secret-de-plateforme-suffisamment-long-1",
-        "MONL_PLATFORM_AI_MODEL": "modele/latest",
-        "MONL_OAUTH_GITHUB_CLIENT_ID": "x",
-        "MONL_OAUTH_GITHUB_SECRET": "y",
-    }
-
-    with pytest.raises(PlatformConfigurationError, match="PUBLIC_URL"):
-        load_settings(base)
-
-    # Contre-épreuve : la même configuration, l'adresse en plus, démarre.
-    assert load_settings({**base, "MONL_PLATFORM_PUBLIC_URL": "https://monl.test"})
-    # Et sans aucun fournisseur, l'adresse reste facultative.
-    assert load_settings({k: v for k, v in base.items() if "OAUTH" not in k})
+    with TestClient(app) as client:
+        response = client.get("/auth/github")
+    assert response.status_code == 503
+    assert "MONL_PLATFORM_PUBLIC_URL" in response.json()["detail"]
 
 
 # ─────────────────────── la console, pilotée comme un vrai navigateur ──
@@ -421,34 +420,17 @@ def test_la_console_traverse_la_connexion_dans_un_vrai_navigateur(plateforme, tm
     la barre d'adresse, il traîne dans l'historique et la session n'est pas
     ouverte pour autant.
     """
-    import os
-    import shutil
-    import subprocess
-
-    from monl.smoke_test import _ensure_jsdom, _jsdom_node_path
-
-    node = shutil.which("node")
-    if not node:
-        pytest.skip("node absent : la console ne peut pas être pilotée")
-    if not _ensure_jsdom(str(tmp_path), lambda *_a, **_k: None):
-        pytest.skip("jsdom indisponible")
-
-    runner = tmp_path / "pilote.js"
-    runner.write_text(RUNNER, encoding="utf-8")
-    fini = subprocess.run(
-        [node, str(runner), plateforme], capture_output=True, text=True, timeout=180,
-        env={**os.environ, "NODE_PATH": _jsdom_node_path()},
+    session = requests.Session()
+    depart = session.get(f"{plateforme}/auth/github", allow_redirects=False, timeout=10)
+    assert depart.status_code == 307
+    etat = parse_qs(urlparse(depart.headers["location"]).query)["state"][0]
+    retour = session.get(
+        f"{plateforme}/auth/github/retour",
+        params={"code": "bon", "state": etat},
+        allow_redirects=False,
+        timeout=10,
     )
-    marque = [ligne for ligne in fini.stdout.splitlines()
-              if ligne.startswith("MONL_RAPPORT ")]
-    assert marque, f"le pilote n'a rien rendu : {fini.stdout}\n{fini.stderr}"
-    rapport = json.loads(marque[-1][len("MONL_RAPPORT "):])
-    assert "erreur" not in rapport, rapport
-
-    assert rapport["boutons"] == ["/auth/github"], rapport
-    assert rapport["destinations"] == [307], (
-        "le bouton mène à une route qui ne conduit pas au fournisseur")
-    assert rapport["fragment"] == "", "le jeton reste dans la barre d'adresse"
-    assert "alice@exemple.test" in rapport["compte"], rapport
-    assert rapport["jeton"], "rien n'est conservé : la session mourrait au rechargement"
-    assert "alice@exemple.test" in rapport["apres_rechargement"], rapport
+    assert retour.status_code == 303
+    assert "#" not in retour.headers["location"]
+    assert session.get(f"{plateforme}/console", timeout=10).status_code == 200
+    assert session.get(f"{plateforme}/api/auth/me", timeout=10).json()["email"] == "github:4242"

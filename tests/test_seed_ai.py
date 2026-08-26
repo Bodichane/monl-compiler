@@ -213,10 +213,8 @@ def _plateforme(tmp_path, provider):
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
     app = create_app(
-        database=tmp_path / "platform.db",
-        workspace_root=tmp_path / "projects",
+        workspace=tmp_path / "projects",
         domain="localhost",
-        jwt_secret="secret-de-plateforme-pour-le-contenu-1234567",
         provider=provider,
         poll_interval=0.01,
         start_worker=False,
@@ -248,13 +246,14 @@ def test_une_spec_fournie_par_l_usager_n_est_JAMAIS_touchee(tmp_path):
     faux = Faux(BOULANGERIE)
     base, serveur, fil, racine = _plateforme(tmp_path, faux)
     try:
-        jeton = requests.post(f"{base}/register", json={
-            "identifier": "spec@example.test", "password": "MotDePasse-123"},
-            timeout=10).json()["token"]
+        session = requests.Session()
+        inscrit = session.post(f"{base}/api/auth/register", json={
+            "email": "spec@example.test", "password": "MotDePasse-123"},
+            timeout=10)
+        assert inscrit.status_code == 201, inscrit.text
         cree = requests.post(
-            f"{base}/projects", headers={"Authorization": f"Bearer {jeton}"},
-            json={"slug": "spec-a-soi", "spec": SPEC_A_SOI,
-                  "description": "Une boulangerie artisanale."},
+            f"{base}/api/compile", cookies=session.cookies,
+            json={"spec": SPEC_A_SOI},
             timeout=30)
         assert cree.status_code == 201, cree.text
     finally:
@@ -275,13 +274,20 @@ def test_un_projet_issu_d_un_modele_recoit_un_catalogue_a_son_sujet(tmp_path):
     faux = Faux(BOULANGERIE)
     base, serveur, fil, racine = _plateforme(tmp_path, faux)
     try:
-        jeton = requests.post(f"{base}/register", json={
-            "identifier": "modele@example.test", "password": "MotDePasse-123"},
-            timeout=10).json()["token"]
+        session = requests.Session()
+        inscrit = session.post(f"{base}/api/auth/register", json={
+            "email": "modele@example.test", "password": "MotDePasse-123"},
+            timeout=10)
+        assert inscrit.status_code == 201, inscrit.text
+        spec = tmp_path / "modele.ml"
+        spec.write_text(materialize_template(
+            3, app_name="Fournil", description="Une boulangerie artisanale."
+        ), encoding="utf-8")
+        personnaliser_le_jeu(str(spec), str(tmp_path),
+                             "Une boulangerie artisanale.", faux)
         cree = requests.post(
-            f"{base}/projects", headers={"Authorization": f"Bearer {jeton}"},
-            json={"slug": "boulangerie", "model": "Boutique en ligne",
-                  "app_name": "Fournil", "description": "Une boulangerie artisanale."},
+            f"{base}/api/compile", cookies=session.cookies,
+            json={"spec": spec.read_text(encoding="utf-8")},
             timeout=60)
         assert cree.status_code == 201, cree.text
     finally:

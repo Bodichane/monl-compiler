@@ -134,6 +134,12 @@ kbd { font: 11px var(--mono); border: 1px solid var(--line); border-bottom-width
                  flex-wrap: wrap; margin-bottom: var(--space-5); }
 .download-card h3 { margin: 0 0 4px; }
 .download-card p { margin: 0; color: var(--muted); }
+.builder-card { background: var(--soft); border: 1px solid var(--line);
+                border-radius: var(--radius); padding: var(--space-5); margin-top: var(--space-5); }
+.builder-card h3 { margin: 0 0 var(--space-2); }
+.builder-card p { color: var(--muted); margin: 0 0 var(--space-4); }
+.builder-status { margin-top: var(--space-3); color: var(--muted); white-space: pre-wrap;
+                 font: 13px/1.6 var(--mono); }
 .history { list-style: none; padding: 0; margin: var(--space-3) 0 0; }
 .history li { display: flex; justify-content: space-between; align-items: center;
               gap: var(--space-3); padding: 11px 0; border-bottom: 1px solid var(--line);
@@ -260,6 +266,13 @@ compile — ce sont des spécifications entières, pas des extraits.</p>
 <p class="lede">Le backend, le schéma SQL, le contrat et les instructions sont
 réunis dans une archive. Le secret JWT n'y est pas : il naît au premier démarrage.</p>
 <div id="delivery-content" class="empty">Compilez un backend pour obtenir son archive.</div>
+<div class="builder-card" id="builder-card">
+<h3>Construction du site</h3>
+<p>La compilation vérifie le backend. La construction produit ensuite le site,
+son historique et son suivi de consommation. Une panne d'image reste un
+<strong>Avertissement de construction</strong> : le frontend texte est conservé.</p>
+<div id="builder-content" class="empty">Compilez d'abord un projet pour lancer sa construction.</div>
+</div>
 <h3 style="margin-top:var(--space-6)">Vos compilations</h3>
 <p class="hint">Conservées dans votre compte et accessibles uniquement par vous.</p>
 <ul class="history" id="history"></ul>
@@ -274,6 +287,23 @@ SCRIPT = """
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 let validee = false, projet = null, exemples = [];
+
+// Même complétion que monl.dialogue_engine.adresse_de_lien côté serveur.
+// Une adresse incomprise est refusée ; le navigateur ne devine jamais.
+function adresseDeLien(saisie) {
+  saisie = (saisie || '').trim();
+  if (!saisie) return null;
+  if (/^(https?:[/][/]|mailto:|tel:)/i.test(saisie)) return saisie;
+  var compact = saisie.replace(/ /g, '');
+  if (/^[+]?[0-9.-]{6,20}$/.test(compact)) return 'tel:' + compact;
+  if (saisie.indexOf(' ') !== -1) return null;
+  if (saisie.indexOf('@') !== -1 && saisie.split('@').pop().indexOf('.') !== -1) {
+    return 'mailto:' + saisie;
+  }
+  var domaine = saisie.split('/')[0];
+  if (domaine.indexOf('.') > 0) return 'https://' + saisie;
+  return null;
+}
 
 function echapper(v) {
   return String(v ?? '').replace(/[&<>'"]/g, c =>
@@ -393,6 +423,46 @@ function rendreLivraison(p) {
     '/download">Télécharger le backend</a></div>' +
     '<div class="chips">' + p.files.map(f =>
       '<i class="chip">' + echapper(f) + '</i>').join('') + '</div>';
+  $('#builder-content').className = '';
+  $('#builder-content').innerHTML =
+    '<button class="primary" id="build-btn" type="button">Créer et lancer la construction</button>' +
+    '<div class="builder-status" id="builder-status" role="status" aria-live="polite"></div>';
+  $('#build-btn').onclick = () => lancerConstruction(p.id);
+}
+
+async function lancerConstruction(id) {
+  const bouton = $('#build-btn');
+  if (!bouton) return;
+  bouton.disabled = true;
+  try {
+    const reponse = await fetch('/api/projects/' + encodeURIComponent(id) + '/builds', { method: 'POST' });
+    const data = await reponse.json();
+    if (!reponse.ok) throw new Error(data.detail || 'La construction a échoué.');
+    afficherConstruction(data.build);
+    await suivreConstruction(id, data.build.id);
+  } catch (erreur) {
+    $('#builder-status').textContent = erreur.message;
+  } finally { bouton.disabled = false; }
+}
+function afficherConstruction(build) {
+  const statut = $('#builder-status');
+  if (!statut) return;
+  const texte = build.warning_message || build.error_message;
+  statut.textContent = (build.state || 'en_attente') +
+    (texte ? '\n' + texte : '');
+}
+async function suivreConstruction(id, buildId) {
+  for (let essai = 0; essai < 120; essai += 1) {
+    const reponse = await fetch('/api/projects/' + encodeURIComponent(id) + '/builds/' + buildId);
+    if (!reponse.ok) return;
+    const data = await reponse.json();
+    afficherConstruction(data.build);
+    if (!['en_attente', 'en_cours'].includes(data.build.state)) {
+      retenir();
+      return;
+    }
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
 }
 
 /* ----- actions ----- */

@@ -51,7 +51,8 @@ def test_une_adresse_incomplete_est_completee_sans_jamais_etre_devinee():
 def _fonction_js(nom):
     """Extrait une fonction du script de la console, telle qu'elle est servie."""
     debut = CONSOLE_HTML.index(f"function {nom}(")
-    fin = CONSOLE_HTML.index("\n  }\n", debut) + len("\n  }\n")
+    marqueur = "\n}\n"
+    fin = CONSOLE_HTML.index(marqueur, debut) + len(marqueur)
     return CONSOLE_HTML[debut:fin]
 
 
