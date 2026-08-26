@@ -1,5 +1,87 @@
 # Journal des modifications
 
+## 0.9.0-beta.8 — La plateforme, et le droit d'ouvrir au public
+
+Une bêta qui ne change presque rien au compilateur et beaucoup à ce qui
+l'entoure. Le dépôt est passé sous **licence FSL-1.1-ALv2** (bascule
+automatique vers Apache-2.0 deux ans après chaque version), et monl a gagné
+une **plateforme web** : compiler par API, par clé, ou par serveur MCP, avec
+des comptes, des projets et un panneau d'administration en ligne de commande.
+Dix-huit points de conception, 125 à 142.
+
+La bascule sous licence est le changement le plus lourd de conséquences :
+l'usage libre, professionnel et commercial reste entier, y compris pour livrer
+des applications à des clients. Seul l'usage *concurrent* — refaire un
+monl-compiler — est réservé, et il cesse de l'être au bout de deux ans.
+
+1113 tests, `ruff` propre, couverture du compilateur à 90 %. Le compilateur
+lui-même est **inchangé à l'octet** sur toute spec qui ne demande pas les
+nouvelles briques : les golden tests le prouvent, seul `monl.json` bouge parce
+qu'il scelle le numéro de version.
+
+### Une plateforme web, du portail au panneau d'administration
+
+- **Compiler sans rien installer** : `POST /api/compile` et `/api/validate`,
+  console web, guide, catalogue d'exemples, téléchargement du projet compilé.
+- **Serveur MCP** (`/mcp`) et **clés d'API** révocables, pour brancher un agent
+  sur le compilateur plutôt que sur une console.
+- **Comptes** : inscription, sessions, suppression de compte et de ses données.
+- **Huit codes de secours** remis une seule fois à l'inscription. « On vous
+  envoie un lien » est la voie écartée : elle commencerait par « monl sait
+  envoyer un message », et la politique de confidentialité promet le contraire.
+- **`monl-platform admin`** — huit verbes sur les comptes et les projets. Le
+  panneau web est refusé volontairement : il demanderait sa propre
+  authentification et deviendrait la cible dont une faille donne tous les
+  comptes, alors que qui possède le shell possède déjà la base.
+- **Journal, sauvegarde tournante et purge périodique**, plus une image de
+  conteneur en lecture seule et un compagnon de sauvegarde sur volume séparé.
+- **Pages légales** — conditions, confidentialité, mentions. `legal.py`
+  n'invente aucune identité : ce qui manque porte un marqueur visible dans la
+  page servie, gardé par un test. La liste des données conservées est
+  confrontée au schéma SQLite réel — une politique désynchronisée est pire
+  qu'absente, elle affirme.
+
+### Encaisser par mobile money (points 126 à 128, 131)
+
+- **FedaPay** rejoint Stripe : le prestataire devient enfichable, la devise
+  d'encaissement et son exposant sont déclarés, et l'appariement du webhook est
+  prouvé plutôt que supposé.
+
+### Compilateur : quatre briques et un garde-fou (points 135 à 139)
+
+- **Système de design et bibliothèque de motifs**, et un manifeste qui devient
+  une preuve plutôt qu'une intention.
+- **Brique 29 — tout fichier local réclamé par le frontend doit être servi.**
+  Un site construit pour 48 roubles référençait six SVG dont aucun n'était
+  livré, et `monl run --check` était au vert des deux côtés : un fichier absent
+  ne lève aucune exception, jsdom reçoit le 404 et continue.
+- **`capability auth` est branchée au dialogue guidé**, et `phone_prefix`
+  fonctionne hors d'Europe : un numéro béninois s'écrit sans zéro de tête, donc
+  `"+229"` ne produisait rien et la connexion échouait après une inscription
+  réussie.
+- **Le compilateur ne choisit plus la palette**, par le tuyau qui lui restait.
+
+### Le harnais de test échoue au lieu de sauter (point 140)
+
+- `uvicorn_server` convertissait la mort d'un serveur en `pytest.skip` : vingt
+  et un fichiers d'intégration pouvaient ne rien vérifier en rendant du vert.
+  La socket est désormais liée par le parent et passée à l'enfant, donc la
+  collision de port est impossible plutôt que retentée. **Dès sa première
+  exécution, le correctif a trouvé un fichier de tests qui ne s'exécutait plus
+  du tout** — `python-multipart` absent, pourtant déclaré. Un saut ne dit pas
+  « rien à vérifier ici », il dit « je n'ai pas vérifié ».
+- La barrière de couverture avait changé de portée sans que personne ne le
+  décide : `--cov=src` au lieu de `--cov=src/monl`.
+
+### Documentation
+
+- README et diagramme d'architecture repassés en français.
+- `docs/EXPLOITATION.md` — procédure d'exploitation, confrontée au code par
+  deux tests dans les deux sens : une variable morte ne se réglera pas, une
+  variable documentée mais ignorée se réglera pour rien.
+- Dix liens du sommaire de `docs/design_decisions.md` pointaient dans le vide
+  sans que rien ne le regarde ; une garde les tient désormais.
+
 ## 0.9.0-beta.7 — Prêt production
 
 Deux familles de chantiers menées jusqu'au bout : ce qui bloquait la mise en

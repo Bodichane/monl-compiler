@@ -1,6 +1,19 @@
 # État bêta et route vers la GA
 
-## Ce qu'apporte la bêta 0.9.0-beta.7
+## Ce qu'apporte la bêta 0.9.0-beta.8
+
+Le dépôt passe sous **licence FSL-1.1-ALv2** (bascule automatique vers
+Apache-2.0 deux ans après chaque version), et monl gagne une **plateforme
+web** : compiler par API, par clé d'API ou par **serveur MCP**, avec comptes,
+projets, codes de secours, pages légales, journal, sauvegarde tournante et un
+panneau d'administration en ligne de commande — jamais en web, parce qu'un
+panneau deviendrait la cible dont une faille donne tous les comptes. Côté
+compilateur : **FedaPay** rejoint Stripe pour le mobile money, la **brique 29**
+exige que tout fichier réclamé par le frontend soit réellement servi, et le
+harnais de test **échoue au lieu de sauter**. Points 125 à 142 de
+`docs/design_decisions.md`.
+
+## Ce qu'apportait la bêta 0.9.0-beta.7
 
 Le backend généré est **déployable** (CORS, healthchecks, journaux structurés,
 conteneur), parle **PostgreSQL** autant que SQLite, sait **migrer** un schéma

@@ -3,7 +3,7 @@
 **Un compilateur qui transforme une spécification déclarative en backend complet, déterministe et sûr.**
 
 [![CI](https://github.com/Bodichane/monl-compiler/actions/workflows/ci.yml/badge.svg)](https://github.com/Bodichane/monl-compiler/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.9.0--beta.6-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.9.0--beta.8-blue)](CHANGELOG.md)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
 [![Tests](https://img.shields.io/badge/tests-CI-brightgreen)](tests/)
 [![Couverture](https://img.shields.io/badge/couverture-CI-brightgreen)](#qualité-et-vérification)
@@ -503,4 +503,4 @@ Les rapports de bug et remarques sont bienvenus dans les *issues*.
 
 ---
 
-**monl-compiler 0.9.0-beta.7**
+**monl-compiler 0.9.0-beta.8**
