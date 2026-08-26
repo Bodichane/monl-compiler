@@ -55,6 +55,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [138](#138-le-dialogue-ne-demandait-jamais-comment-on-se-connecte-et-lindicatif-ne-servait-quen-europe) Le dialogue ne demandait jamais comment on se connecte, et l'indicatif ne servait qu'en Europe ·
 [140](#140-le-harnais-de-test-sautait-au-lieu-déchouer-et-vingt-et-un-fichiers-avec-lui) Le harnais de test sautait au lieu d'échouer, et vingt et un fichiers avec lui ·
 [141](#141-ouvrir-la-plateforme-au-public--cinq-manques-et-une-base-qui-ne-se-fermait-jamais) Ouvrir la plateforme au public : cinq manques, et une base qui ne se fermait jamais ·
+[142](#142-les-deux-falaises-produit--un-mot-de-passe-perdu-et-aucun-administrateur) Les deux falaises produit : un mot de passe perdu, et aucun administrateur ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -9206,3 +9207,135 @@ vraie base ou un vrai processus tué. Suite complète : **1024 passés, 16 saut�
 **Ce qui reste à faire avant une vraie ouverture**, et qui n'est pas du code :
 remplir `EDITEUR` et `CONTACT`, poser un TLS devant le service, et planifier
 la sauvegarde. Les trois sont écrits en tête de `docs/EXPLOITATION.md`.
+
+
+## 142. Les deux falaises produit : un mot de passe perdu, et aucun administrateur
+
+Le point 141 avait rendu la plateforme *exploitable*. Il restait deux choses
+qui n'étaient ni des défauts de code ni des manques d'exploitation, mais des
+**falaises produit** — des situations où le service, en marchant exactement
+comme prévu, fait perdre à quelqu'un tout son travail.
+
+### La première : un mot de passe perdu emportait tout
+
+Aucun courriel n'est envoyé, donc aucune réinitialisation. Le compte et ses
+projets devenaient définitivement inaccessibles. C'était ÉCRIT dans les
+conditions d'utilisation, ce qui rend la chose honnête sans la rendre
+acceptable : la première personne à qui ça arrive perd tout.
+
+**La voie écartée.** « On vous envoie un lien » suppose un serveur de
+courriel, un domaine à réputation et une dépendance réseau dans un service
+qui n'en a aucune — et la politique de confidentialité promet précisément
+qu'aucun courriel n'est envoyé. La brique aurait commencé par *monl sait
+envoyer un message*, ce qui est un tout autre projet.
+
+**Le code de secours déplace la garde chez la personne** : huit codes remis
+UNE fois, rangés où elle veut. Ce n'est ni une nouvelle promesse ni un nouveau
+mode de stockage — c'est exactement le contrat déjà passé pour les clés d'API,
+montrées une fois puis hachées.
+
+Trois décisions à ne pas défaire. Le code est **consommé dans la même
+transaction** que le changement de mot de passe : hors d'elle, une écriture
+ratée brûlerait un code pour rien, soit une chance sur huit perdue sans rien
+obtenir. **Toutes les sessions tombent** : une réinitialisation qui laisserait
+vivre les sessions ouvertes ne servirait à rien dans le seul cas qui compte,
+celui où quelqu'un d'autre est déjà entré. **Régénérer remplace au lieu
+d'ajouter** : on régénère parce qu'on craint une fuite, et cumuler laisserait
+vivre exactement ce dont on veut se débarrasser.
+
+La route de reprise est **bornée à cinq essais par heure et par adresse IP** :
+huit codes vivants font huit chances par essai, et sans plafond la seule
+protection serait la patience de l'attaquant. Le refus est le même — 401, un
+seul message — pour un code faux, une adresse inconnue et un mot de passe
+invalide : distinguer apprendrait à un attaquant lequel des trois il tient.
+
+Les comptes **antérieurs sont comptés, pas convertis** : la migration additive
+rattrape une table, jamais son contenu (point 89, mot pour mot). Leur
+fabriquer des codes au démarrage serait pire, il faudrait les leur montrer et
+personne ne les lirait.
+
+**Quatre documents devenaient faux d'un coup** — les CGU affirmaient l'inverse,
+`docs/EXPLOITATION.md` aussi, la page de confidentialité devait nommer la
+table `recovery_codes`, et le guide devait annoncer trois routes de plus. Les
+deux derniers ont été signalés par leurs propres tests, écrits au point 141 ;
+les deux premiers ne l'auraient été par personne.
+
+### La seconde : aucun rôle administrateur
+
+Toute intervention sur un compte passait par `sqlite3` à la main, serveur
+arrêté. Tenable à dix comptes, pas à cent, et chaque geste risquait une
+requête tapée de travers, sans trace de qui l'avait faite.
+
+**Le panneau web est la voie écartée, et c'est le cœur de la décision.** Il
+aurait demandé sa propre authentification et une colonne de privilège dans
+`users` : il serait devenu la cible dont une seule faille donne tous les
+comptes. Or **qui possède le shell du serveur possède déjà la base**. La ligne
+de commande n'ajoute donc AUCUNE surface d'attaque — elle rend sûrs et
+traçables des gestes qu'on faisait déjà, en plus mal. Un test lit
+`/openapi.json` et échoue si une route d'administration apparaît un jour.
+
+`expirer` marque un projet échu **sans rien effacer** : c'est la purge qui
+nettoie. Effacer depuis la commande doublerait le chemin de suppression, et
+deux chemins finissent par diverger — celui qu'on emprunte le moins étant
+celui qui se casse. L'échéance de `prolonger` est comptée **depuis
+maintenant**, jamais depuis l'ancienne date : « garde-le trente jours de
+plus » se dit après coup, souvent sur un projet déjà échu.
+
+**Deux défauts trouvés en exécutant, aucun visible en relisant.**
+`--workspace` n'était accepté qu'avant le sous-verbe, alors qu'on le tape à la
+fin — refuser une commande pour la place d'un argument fait chercher une faute
+là où il n'y en a pas. Et la première correction a cassé l'autre position : le
+sous-parseur écrasait la valeur de premier niveau par son propre défaut, d'où
+`argparse.SUPPRESS`. **Corriger une position en cassant l'autre n'est pas une
+correction.**
+
+Les tests vérifient l'**effet, jamais l'affichage** : la clé révoquée est
+rejouée contre le serveur MCP et doit être refusée, les codes régénérés par
+l'exploitant sont réellement présentés à `/api/auth/recover`, le projet expiré
+disparaît par la vraie purge, et la suppression est relue en base ET sur le
+disque. Une commande qui imprimerait « clé révoquée » sans que la clé cesse de
+fonctionner serait pire qu'absente : on la croirait faite.
+
+### Au passage : la sauvegarde se range, et la CI avait changé de portée
+
+**La rotation vit dans la commande qui écrit** (`--garder N`), pas dans un
+script de l'exploitant : une seule chose écrit et range, donc les deux ne
+peuvent pas diverger. Sans elle, une sauvegarde quotidienne remplit le disque,
+et un disque plein arrête le service qu'elle protégeait — **la sauvegarde
+devient la panne**. Le tri se fait sur la date de modification, jamais sur le
+nom : `base-2026-8-9` passe après `base-2026-12-01` en alphabétique.
+
+**Ce que la contre-épreuve a trouvé** : la première version du test de tri ne
+prouvait RIEN. Mesuré en trafiquant le tri, les noms choisis donnaient le même
+verdict dans les deux ordres. Un test qui a l'air juste et ne discrimine pas
+est un faux vert de plus — la leçon du point 140, sur un autre objet.
+
+Le compose embarque désormais un **service compagnon** de sauvegarde : même
+image, même commande, volume séparé — une sauvegarde posée à côté de la base
+disparaît avec elle. `/backups` est créé dans l'image en appartenant à `monl`,
+sinon le volume nommé arrive à `root` et un service sans privilège échoue en
+silence tous les jours. Un service qui se déploie avec l'application ne peut
+pas être oublié au moment de la remonter ailleurs.
+
+**Et la barrière de couverture avait changé de portée sans décision.**
+`pyproject.toml` déclare `source = ["src/monl"]` — la barrière du point 63
+porte sur le COMPILATEUR. La CI lançait `--cov=src`, ce qui l'écrase ; les
+deux étaient équivalents tant que `src/` ne contenait que `monl`, et l'arrivée
+de `src/monl_platform` a élargi la mesure jusqu'à faire tomber une barrière
+que rien n'avait desserrée. La plateforme est désormais **rapportée sans être
+barrée** : barrer sur son chiffre serait barrer sur un chiffre faux, ses
+routes étant éprouvées par des serveurs en sous-processus que `coverage` ne
+voit pas. Mesuré en écrivant l'étape : activer `COVERAGE_PROCESS_START` fait
+passer `__main__.py` de 0 % à 79 %, mais les serveurs tués par SIGTERM
+n'écrivent toujours rien. **Barrer sur 67 % ferait croire à une dette qui
+n'existe pas ; ne rien mesurer laisserait la vraie dette invisible.**
+
+**Éprouvé par** `tests/test_codes_de_secours.py` (12 tests) et
+`tests/test_administration.py` (14 tests), tous contre un vrai serveur, plus
+les tests de rotation. Le service de sauvegarde a été observé en marche :
+rotation stable à trois copies sur six tours, copie finale `integrity_check ok`
+contenant le compte créé par l'AUTRE conteneur, en `uid=100(monl)`, système de
+fichiers en lecture seule, onze capacités retirées.
+
+**Ce qui reste, et qui n'est toujours pas du code** : sortir les sauvegardes
+de la machine, poser le TLS, et vérifier que `contact@monl.dev` reçoit.

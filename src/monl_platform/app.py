@@ -60,6 +60,13 @@ def create_app(*, workspace=None) -> FastAPI:
     configurer()
     service = CompilationService(workspace)
     identities = IdentityStore(service.workspace)
+    sans_codes = identities.comptes_sans_codes()
+    if sans_codes:
+        # Les comptes antérieurs n'ont pas de codes : la migration additive
+        # rattrape une table, jamais son contenu. Leur en fabriquer au
+        # démarrage serait pire — il faudrait les leur montrer, et personne
+        # ne les lirait. On les NOMME, la page du compte fait le reste.
+        anomalie("comptes_sans_codes_de_secours", nombre=sans_codes)
     evenement("demarrage", workspace=str(service.workspace),
               purges=_purger(service, identities))
 
@@ -228,8 +235,12 @@ def create_app(*, workspace=None) -> FastAPI:
         except IdentityError as exc:
             anomalie("inscription_refusee", cause=str(exc))
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+        codes = identities.create_recovery_codes(user["id"])
         evenement("compte_cree", compte=court(user["id"]))
-        return _session_response(identities, user, status_code=201)
+        # Les codes ne sortent QU'ICI et à la régénération. Comme une clé
+        # d'API, ils ne sont pas relisibles : seule leur empreinte est gardée.
+        return _session_response(identities, user, status_code=201,
+                                 extra={"recovery_codes": codes})
 
     @application.post("/api/auth/login")
     async def login(request: Request):
@@ -243,6 +254,43 @@ def create_app(*, workspace=None) -> FastAPI:
             raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect.")
         evenement("connexion", compte=court(user["id"]))
         return _session_response(identities, user)
+
+    @application.get("/api/auth/recovery-codes")
+    def lister_codes(request: Request):
+        user = _require_user(request, identities)
+        return {"remaining": identities.count_recovery_codes(user["id"])}
+
+    @application.post("/api/auth/recovery-codes", status_code=201)
+    def regenerer_codes(request: Request):
+        user = _require_user(request, identities)
+        codes = identities.create_recovery_codes(user["id"])
+        evenement("codes_regeneres", compte=court(user["id"]))
+        return {"recovery_codes": codes}
+
+    @application.post("/api/auth/recover", status_code=204)
+    async def recuperer(request: Request):
+        """Reprendre la main sur un compte dont le mot de passe est perdu.
+
+        BORNÉE PAR L'ADRESSE IP, comme la connexion. Un code fait 16
+        caractères tirés au sort, mais huit codes vivants par compte font huit
+        chances par essai : sans plafond, la seule chose qui protégerait
+        serait la patience de l'attaquant.
+
+        Le refus est le MÊME pour un code faux, une adresse inconnue et un
+        mot de passe trop court — 401 et rien d'autre. Distinguer apprendrait
+        à un attaquant laquelle des trois il tient déjà.
+        """
+        _rate_limit(request, identities, "recover", _client_ip(request), 5, 3600)
+        payload = await _json_body(request)
+        user = identities.consume_recovery_code(
+            payload.get("email"), payload.get("code"), payload.get("password"))
+        if not user:
+            anomalie("recuperation_refusee", ip=_client_ip(request))
+            raise HTTPException(status_code=401,
+                                detail="Code de secours invalide ou déjà utilisé.")
+        evenement("compte_recupere", compte=court(user["id"]),
+                  restants=identities.count_recovery_codes(user["id"]))
+        return Response(status_code=204)
 
     @application.post("/api/auth/logout", status_code=204)
     def logout(request: Request):
@@ -423,9 +471,9 @@ def create_app(*, workspace=None) -> FastAPI:
 
 
 def _session_response(identities: IdentityStore, user: dict[str, str],
-                      status_code: int = 200) -> JSONResponse:
+                      status_code: int = 200, extra: dict | None = None) -> JSONResponse:
     token = identities.create_session(user["id"])
-    response = JSONResponse({"user": user}, status_code=status_code)
+    response = JSONResponse({"user": user, **(extra or {})}, status_code=status_code)
     response.set_cookie(
         "monl_session", token, max_age=30 * 24 * 3600, path="/",
         httponly=True, samesite="strict",
