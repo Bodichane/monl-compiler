@@ -137,6 +137,8 @@ DONNEES = [
      "30 jours par défaut, puis effacement automatique du dossier et de la ligne."),
     ("api_keys", "Nom de la clé, ses treize premiers caractères, empreinte SHA-256, "
                  "date de dernier usage.", "Tant que la clé n'est pas révoquée."),
+    ("recovery_codes", "Empreinte SHA-256 de chaque code de secours non utilisé.",
+     "Jusqu'à leur usage ou leur remplacement."),
     ("rate_limits", "Empreinte du compte ou de l'adresse IP, compteur de la fenêtre en cours.",
      "Le temps d'une fenêtre de limitation, au plus une heure."),
 ]
@@ -165,8 +167,9 @@ décrite ici fait échouer la construction.</p>
 <ul>
 <li><strong>Aucun mot de passe n'est stocké en clair.</strong> Seule une empreinte
 scrypt, avec un sel propre à chaque compte.</li>
-<li><strong>Aucun jeton n'est stocké en clair</strong> — ni session, ni clé d'API. Une
-clé perdue ne peut pas être retrouvée, seulement révoquée et remplacée.</li>
+<li><strong>Aucun jeton n'est stocké en clair</strong> — ni session, ni clé d'API,
+ni code de secours. Une clé perdue ne peut pas être retrouvée, seulement révoquée
+et remplacée ; un code de secours perdu, seulement régénéré.</li>
 <li><strong>Aucun traceur, aucune mesure d'audience, aucun cookie publicitaire.</strong>
 Le seul cookie déposé est <code>monl_session</code>, strictement nécessaire à la
 connexion.</li>
@@ -218,9 +221,14 @@ spec produit le même backend, sans intelligence artificielle et sans appel rés
 <li>Un compte se crée avec une adresse électronique et un mot de passe d'au moins
 huit caractères. <strong>L'adresse n'est pas vérifiée</strong>, et aucun courriel
 n'est envoyé.</li>
-<li><strong>Un mot de passe perdu ne peut pas être réinitialisé</strong>, faute de
-courriel : le compte et ses projets seraient alors définitivement inaccessibles.
-Conservez-le dans un gestionnaire de mots de passe.</li>
+<li><strong>Huit codes de secours vous sont remis à l'inscription</strong>, une
+seule fois. Aucun courriel n'étant envoyé, ce sont eux — et rien d'autre — qui
+permettent de reprendre la main sur un mot de passe perdu. Chacun ne sert qu'une
+fois. <strong>Sans mot de passe et sans code, le compte et ses projets sont
+définitivement inaccessibles.</strong> Rangez les deux dans un gestionnaire de
+mots de passe.</li>
+<li>Vous pouvez générer une nouvelle série depuis la page de votre compte : elle
+remplace l'ancienne, qui cesse aussitôt de fonctionner.</li>
 <li>Vous êtes responsable des clés d'API que vous créez. Une clé compromise se révoque
 depuis la page dédiée ; elle ne peut pas être relue.</li>
 </ul>
