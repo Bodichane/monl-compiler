@@ -1289,6 +1289,29 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   réintroduire `base_dir` dans `_valider` : le contrôle d'existence est ciblé
   sur ce que l'outil ÉCRIT, sinon `list` redevient incapable de rapporter un
   manquant et `add` redevient inutilisable sur une spec incomplète.
+- **POINT 152 : le validateur est un PAQUET (`src/monl/ast_validator/`).**
+  Même forme que `generator/` : un module par préoccupation, la classe
+  recomposée par mixins dans `core.py`. Une nouvelle règle s'ajoute dans le
+  module de sa couche — `acces.py`, `champs.py`, `commerce.py`… — jamais dans
+  `core.py`. L'ordre d'exécution vient du pipeline
+  (`validation_pipeline.py`), PAS de l'ordre des bases. `socle.py` est la
+  FEUILLE (constantes + `ASTValidationError`) et ne lit rien de son paquet :
+  c'est ce qui rend un cycle impossible, et un test le vérifie plutôt que de
+  le laisser à la discipline. La surface publique n'a pas bougé —
+  `from monl.ast_validator import MonlAST, ASTValidationError,
+  DEFAULT_ASSETS_DIR, resoudre_asset`.
+  **Ce que le découpage a trouvé** : `tests/test_architecture.py` nommait
+  `generator` EN DUR dans `MODULES`, donc `ast_validator` en est sorti en
+  devenant un paquet — son contrat restait écrit dans `INTERDITS` en ne
+  regardant plus rien, sans qu'aucun test devienne rouge. La liste est lue sur
+  le disque, et un témoin exige que chaque contrat porte sur un module connu.
+  **Un test d'architecture cesse de regarder de deux façons : il ne voit plus
+  les imports, ou il ne voit plus les modules — la seconde ne laisse aucune
+  trace.** Toute restructuration pure se prouve par
+  `tests/test_golden_artifacts.py` : les onze empreintes doivent être
+  INCHANGÉES. Et **ne jamais faire une contre-épreuve pendant qu'une suite
+  tourne** : un sous-processus relit le disque, là où le pytest principal a
+  déjà son import en mémoire.
 - **POINT 151 : le jeu de démonstration d'un MODÈLE est adapté par l'IA, dans
   `src/monl_platform/seed_ai.py` et nulle part ailleurs.** Toute boutique
   vendait « Théière Kyoto » : la description n'atteignait que le `brief`, donc

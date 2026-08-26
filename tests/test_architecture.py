@@ -19,12 +19,20 @@ import os
 
 SRC = os.path.join(os.path.dirname(__file__), "..", "src", "monl")
 
-# Les modules du projet (le package generator compte pour un seul nœud :
-# son découpage interne est une affaire de couches, pas de frontières).
+# Les modules du projet. Un PAQUET compte pour un seul nœud : son découpage
+# interne est une affaire de couches, pas de frontières.
+#
+# La liste est LUE SUR LE DISQUE, jamais écrite à la main. Elle nommait
+# `generator` en dur, et le jour où `ast_validator` est devenu un paquet à son
+# tour il a disparu de MODULES sans un mot — son contrat serait resté dans
+# INTERDITS en ne regardant plus rien. C'est le défaut que l'en-tête de ce
+# fichier dénonce, arrivé par la porte de la liste plutôt que par celle des
+# imports relatifs.
 MODULES = sorted(
     [f[:-3] for f in os.listdir(SRC)
      if f.endswith(".py") and f not in ("main.py", "__init__.py")]
-    + ["generator"])
+    + [d for d in os.listdir(SRC)
+       if os.path.isfile(os.path.join(SRC, d, "__init__.py"))])
 
 
 def _imports_du_projet(chemin, profondeur=0):
@@ -61,14 +69,19 @@ def _imports_du_projet(chemin, profondeur=0):
 
 
 def _depend_de(module):
-    """Le graphe de dépendance d'un module du projet, generator compris."""
-    dossier = os.path.join(SRC, "generator")
-    if module == "generator":
+    """Le graphe de dépendance d'un module du projet, ses PAQUETS compris.
+
+    Le graphe d'un paquet est l'union de ceux de ses modules, moins lui-même :
+    un sous-module qui importe son voisin (`from .socle import …`) ne franchit
+    aucune frontière, et `profondeur=1` fait justement remonter les `..` au
+    premier étage."""
+    dossier = os.path.join(SRC, module)
+    if os.path.isdir(dossier):
         vus = set()
-        for nom in os.listdir(dossier):
+        for nom in sorted(os.listdir(dossier)):
             if nom.endswith(".py"):
                 vus |= _imports_du_projet(os.path.join(dossier, nom), profondeur=1)
-        return vus - {"generator"}
+        return vus - {module}
     return _imports_du_projet(os.path.join(SRC, module + ".py"))
 
 
@@ -166,3 +179,36 @@ def test_monl_ne_simporte_jamais_monl_platform():
                        for nom in noms):
                     violations.append(os.path.relpath(chemin, SRC))
     assert not violations, "monl importe monl_platform : " + ", ".join(violations)
+
+
+def test_chaque_contrat_porte_sur_un_module_que_le_graphe_connait():
+    """Un contrat dont la SOURCE a disparu de MODULES ne refuse plus rien.
+
+    Le cas s'est produit : `MODULES` nommait `generator` en dur, et le jour où
+    `ast_validator` est devenu un paquet il est sorti de la liste — son contrat
+    restait écrit dans INTERDITS, entièrement muet. Rien ne serait devenu rouge.
+    Ce témoin porte sur la LISTE, pas sur les imports : c'est l'autre façon dont
+    un test d'architecture cesse de regarder."""
+    inconnus = [source for source, _, _ in INTERDITS if source not in MODULES]
+    assert not inconnus, (
+        "contrat sans module : " + ", ".join(inconnus)
+        + " — MODULES est lu sur le disque, un renommage ou un passage en "
+          "paquet a dû casser la correspondance")
+
+
+def test_le_socle_du_validateur_ne_lit_rien_de_son_paquet():
+    """`ast_validator/socle.py` est la FEUILLE : c'est ce qui rend un cycle
+    d'import impossible dans le paquet.
+
+    Sa docstring l'affirme ; sans ce test l'affirmation ne tiendrait qu'à la
+    discipline, et le premier `from .core import …` glissé dedans casserait
+    l'import du compilateur entier — au chargement, donc partout à la fois."""
+    chemin = os.path.join(SRC, "ast_validator", "socle.py")
+    with open(chemin, encoding="utf-8") as fh:
+        arbre = ast.parse(fh.read(), filename=chemin)
+    voisins = [noeud.module or "."
+               for noeud in ast.walk(arbre)
+               if isinstance(noeud, ast.ImportFrom) and noeud.level == 1]
+    assert not voisins, (
+        "le socle lit son propre paquet : " + ", ".join(voisins)
+        + " — il doit ne dépendre que de la stdlib et de `..errors`")

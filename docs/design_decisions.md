@@ -68,6 +68,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [149](#149-on-demandait-un-appjs-de-1-500-jetons-puis-on-le-refusait-parce-quil-était-incomplet) On demandait un app.js de 1 500 jetons, puis on le refusait ·
 [150](#150-le-brief-demandait-de-factoriser-et-cest-la-factorisation-qui-faisait-refuser-le-site) Le brief demandait de factoriser, et la factorisation faisait refuser ·
 [151](#151-toute-boutique-vendait-des-théières) Toute boutique vendait des théières ·
+[152](#152-le-validateur-est-devenu-un-paquet-et-un-contrat-darchitecture-sest-tu) Le validateur est devenu un paquet, et un contrat d'architecture s'est tu ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -10122,3 +10123,96 @@ quoi on la saute et on retombe sur les théières, ce que ce point corrige.
 Éprouvé par onze tests (`tests/test_seed_ai.py`), dont le point de départ
 mesuré (« le jeu du modèle est bien générique »), les quatre refus, et les deux
 tests de plateforme contre un vrai serveur.
+
+## 152. Le validateur est devenu un paquet, et un contrat d'architecture s'est tu
+
+`src/monl/ast_validator.py` pesait 2 807 lignes — le plus gros fichier du
+compilateur, et le seul endroit où vivent tous les refus. Il est devenu
+`src/monl/ast_validator/`, dix-sept modules dont le plus gros fait 332 lignes.
+Aucune règle n'a changé, aucune n'a été ajoutée : c'est une restructuration
+pure, et c'est ce qui rend sa preuve simple à énoncer.
+
+**La preuve d'une restructuration pure, c'est l'octet.** Les onze artefacts
+scellés par SHA-256 (`tests/test_golden_artifacts.py`) sont inchangés : le
+compilateur produit exactement les mêmes fichiers qu'avant. Une relecture
+n'aurait rien prouvé — quarante-cinq méthodes déplacées, c'est quarante-cinq
+occasions de perdre une ligne sans que rien ne s'en aperçoive.
+
+**Les segments ont été RECOPIÉS, jamais retapés.** Un script découpe par plages
+de lignes issues de l'AST, et vérifie d'abord que la couverture est totale :
+zéro ligne non vide orpheline, zéro chevauchement. Ce contrôle a payé
+immédiatement — il a rendu trois lignes de commentaire que le premier découpage
+laissait tomber, celles qui expliquent pourquoi `UPLOAD_TYPES` refuse HTML et
+SVG. Un commentaire perdu ne fait échouer aucun test.
+
+**La forme retenue est celle de `generator/`** : un module par PRÉOCCUPATION,
+la classe recomposée par mixins dans `core.py`. L'ordre d'exécution ne vient
+PAS de l'ordre des bases — il vient du pipeline (`validation_pipeline.py`),
+qui nommait déjà chaque passe. C'est cette antériorité qui a rendu le
+découpage évident plutôt qu'arbitraire : les frontières existaient, elles
+n'étaient simplement pas écrites dans l'arborescence.
+
+`socle.py` est la FEUILLE du paquet : constantes et `ASTValidationError`, et
+rien qui lise en retour. C'est ce qui rend un cycle d'import impossible.
+
+### Le défaut trouvé en coupant
+
+`tests/test_architecture.py` construisait sa liste de modules ainsi :
+
+```python
+MODULES = sorted([... les fichiers .py ...] + ["generator"])
+```
+
+`generator` en dur, parce qu'il était le seul paquet. En devenant un paquet à
+son tour, **`ast_validator` est sorti de la liste** — son contrat restait écrit
+noir sur blanc dans `INTERDITS`, et ne regardait plus rien. Aucun test ne
+devenait rouge. C'est mot pour mot le défaut que l'en-tête de ce fichier
+dénonce depuis le point 65 (« il aurait continué à passer en ne regardant plus
+rien »), arrivé par la porte de la LISTE plutôt que par celle des imports
+relatifs.
+
+La liste est désormais lue sur le disque, et un témoin vérifie que chaque
+contrat porte sur un module que le graphe connaît. **Contre-épreuve faite** :
+avec la liste en dur, ce témoin échoue et *les cinq autres tests restent
+verts*. Sans lui, la frontière la plus surveillée du compilateur serait devenue
+décorative en silence.
+
+Leçon à retenir, à côté de celles du point 63 : **un test d'architecture cesse
+de regarder de deux façons — parce qu'il ne voit plus les imports, ou parce
+qu'il ne voit plus les modules.** La seconde ne laisse aucune trace.
+
+### Ce qu'une sonde a prouvé par accident
+
+Le témoin de feuille du socle a été éprouvé en y glissant `from .core import
+MonlAST`, puis en le retirant. Entre les deux, la suite complète tournait — et
+trois tests de `tests/test_administration.py` sont tombés : les trois seuls du
+fichier qui lancent un **`subprocess`**. Un sous-processus relit le code depuis
+le DISQUE ; le processus pytest principal, lui, avait déjà importé le module et
+n'a rien vu passer.
+
+Deux choses en sortent. D'abord une règle de méthode : **ne jamais faire une
+contre-épreuve pendant qu'une suite tourne** — l'arbre de travail est partagé
+avec tout ce qui se lance en sous-processus. Ensuite une démonstration
+involontaire mais réelle : un cycle d'import dans `socle.py` casse le CLI de la
+plateforme ENTIER, au chargement, avant la première ligne utile. Le test ne
+garde donc pas une préférence de style.
+
+Le premier diagnostic posé était « contention CPU » — trois processus pytest
+concurrents, un `timeout=120` sur le sous-processus. Il était faux, et il était
+plausible. Seule la lecture du texte de l'échec l'a départagé, ce qui est le
+point 97 dans un autre décor : **une hypothèse affichée comme un diagnostic
+envoie corriger ce qui n'est pas cassé.**
+
+### Ce qui n'a pas bougé
+
+La surface publique : `MonlAST`, `ASTValidationError`, `DEFAULT_ASSETS_DIR` et
+`resoudre_asset` s'importent depuis `monl.ast_validator` exactement comme
+avant, dans la cinquantaine de fichiers qui le font. `tests/test_platform_guide.py`
+lisait le validateur par son CHEMIN DE FICHIER pour vérifier qu'aucune règle du
+guide n'est inventée ; il lit maintenant le paquet, la forme fichier restant
+acceptée — ce test dit « le mot-clé existe chez le validateur », pas « il vit
+dans tel fichier ».
+
+Mesuré après découpage : 1 346 tests passés, 16 sautés, zéro échec, `ruff` à
+zéro signalement, couverture du compilateur à 90,18 %, et les onze empreintes
+d'artefacts identiques.

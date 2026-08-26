@@ -126,8 +126,15 @@ def test_les_regles_citees_par_le_guide_portent_toutes_un_mot_cle_connu():
     `ast_validator`, pas d'une copie faite à la main ici."""
     import pathlib
 
-    validateur = (pathlib.Path(__file__).parent.parent / "src/monl/ast_validator.py"
-                  ).read_text(encoding="utf-8")
+    # Le validateur est un PAQUET depuis son découpage : la source à fouiller
+    # est l'union de ses modules. La forme fichier reste acceptée — ce test dit
+    # « le mot-clé existe chez le validateur », pas « il vit dans tel fichier ».
+    racine = pathlib.Path(__file__).parent.parent / "src/monl"
+    paquet = racine / "ast_validator"
+    fichiers = (sorted(paquet.glob("*.py")) if paquet.is_dir()
+                else [racine / "ast_validator.py"])
+    assert fichiers, "source du validateur introuvable"
+    validateur = "\n".join(f.read_text(encoding="utf-8") for f in fichiers)
     tableaux = (guide.REGLES_ACCES + guide.REGLES_CHAMPS
                 + guide.REGLES_SERVEUR + guide.REGLES_COMMERCE)
     for regle, _ in tableaux:
