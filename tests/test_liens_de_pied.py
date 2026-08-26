@@ -2,7 +2,7 @@
 
 Deux mots gris, aucun réseau, aucune mention, aucun contact : c'est ce que
 produisaient tous les sites, parce que le pied de page n'était exigé NULLE
-PART — le plancher du point 140 comptait quatre sections et s'arrêtait
+PART — le plancher du point 143 comptait quatre sections et s'arrêtait
 au-dessus de lui.
 
 monl ne peut pas DEVINER une adresse : une page Instagram inventée mène chez

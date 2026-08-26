@@ -312,9 +312,9 @@ class GuidedDialogue:
     _adresse_complete = staticmethod(adresse_de_lien)
 
     def _ask_footer_links(self):
-        """Les liens du pied de page (brique 29).
+        """Les liens du pied de page (brique 30).
 
-        La brique existait depuis le point 141 et RIEN ne la produisait : ni
+        La brique existait depuis le point 144 et RIEN ne la produisait : ni
         ce dialogue ni aucun des dix modèles ne déclarait un seul lien, donc
         tout site sortait avec un pied de page sans destination. Une règle qui
         ne produit rien est exactement ce que le point 85 interdit au
@@ -1249,7 +1249,7 @@ class GuidedDialogue:
             lines.append(f'    brief: "{brief}"')
             for s in sections:
                 lines.append(f'    section "{s["title"]}": "{s["body"]}"')
-            # Brique 29 : les destinations du pied de page. Sans elles, le
+            # Brique 30 : les destinations du pied de page. Sans elles, le
             # pied sort sans un seul lien — et rien dans la spec ne peut les
             # inventer, pas plus qu'une entité ne peut porter un « à propos ».
             for lien in links:

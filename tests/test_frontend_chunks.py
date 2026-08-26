@@ -309,7 +309,7 @@ def test_timeout_d_un_morceau_ne_rejoue_pas_les_fichiers_deja_payes(project):
     ]
 
 
-# ---- Le budget demandé suit le contrat (point 146) ----
+# ---- Le budget demandé suit le contrat (point 149) ----
 
 def _contrat(tmp_path, nb_routes, nb_entites=3):
     tmp_path.mkdir(parents=True, exist_ok=True)

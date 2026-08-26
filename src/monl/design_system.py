@@ -161,9 +161,9 @@ def _required_markers(contract: dict, profile: dict) -> list[str]:
     markers.extend(_declared_section_markers(contract))
     if contract.get("faq"):
         markers.append('data-monl-section="faq"')
-    # BRIQUE 29 : le pied de page est le dernier endroit où un site produit se
+    # BRIQUE 30 : le pied de page est le dernier endroit où un site produit se
     # dénonce comme une maquette — deux mots gris, aucun lien, aucune mention.
-    # Il était exigé NULLE PART : le plancher du point 140 comptait quatre
+    # Il était exigé NULLE PART : le plancher du point 143 comptait quatre
     # sections et s'arrêtait au-dessus de lui.
     markers.append('data-monl-section="footer"')
     return list(dict.fromkeys(markers))

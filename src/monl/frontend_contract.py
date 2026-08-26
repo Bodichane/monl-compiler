@@ -960,7 +960,7 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
         # l'interface ne peut pas deviner une structure qu'on ne lui donne pas.
         "faq": [{"question": q["question"], "answer": paragraphes(q["answer"])}
                 for q in (landing.get("faq") or [])],
-        # BRIQUE 29 : les adresses SORTANTES, dans l'ordre déclaré. Le contrat
+        # BRIQUE 30 : les adresses SORTANTES, dans l'ordre déclaré. Le contrat
         # les porte parce que le pied de page est une promesse d'interface au
         # même titre qu'une route : une IA qui ne les voit pas dessine un pied
         # de page vide, et c'est très exactement ce qu'on répare.

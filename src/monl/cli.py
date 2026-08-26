@@ -1211,7 +1211,7 @@ def _contract_signature(contract):
     contenus = {f"section « {s['title']} »": hashlib.sha256(
                     "\n".join(s["body"]).encode("utf-8")).hexdigest()
                 for s in contract.get("sections") or []}
-    # BRIQUE 29 : DIXIÈME fois, et la question posée avant d'écrire la brique.
+    # BRIQUE 30 : DIXIÈME fois, et la question posée avant d'écrire la brique.
     # Déclarer un lien de pied de page ne crée aucune route, ne renomme aucun
     # champ, ne touche à aucun acteur — et le pied de page doit être réécrit,
     # sous peine d'un refus « lien déclaré absent du site ». L'ADRESSE entre

@@ -668,6 +668,44 @@ réseau social anonyme comme banc d'essai final.
     Éprouvée par `tests/test_unicite_composite.py` (8 tests, DEUX comptes et
     DEUX cibles), compilée par `exemples/03_reseau_social.ml`. Voir point 116.
 
+30. **`landing … link "Libellé": "adresse"`** — le pied de page est EXIGÉ, et
+    ses destinations sont DÉCLARÉES. Le plancher de substance (point 143)
+    comptait quatre sections et s'arrêtait au-dessus du pied de page : tous les
+    sites produits sortaient avec deux mots gris, aucun réseau, aucun contact —
+    le dernier endroit où un site se dénonce comme une maquette, et le seul que
+    la vérification ne regardait pas. **monl ne peut pas DEVINER une adresse**
+    (une adresse inventée mène chez quelqu'un d'autre, pire que rien) : même
+    impasse qu'au point 83 pour les images et qu'au point 86 pour le stock,
+    donc même issue — il fait DÉCLARER ce qu'il ne peut pas savoir, puis il
+    l'exige. Forme PLATE et ordre conservé, mot pour mot `section` (point 55)
+    et `question` (point 94). **L'adresse doit porter un schéma** — `https://`,
+    `http://`, `mailto:` ou `tel:` — sans quoi « instagram.com/atelier » est lu
+    comme un chemin RELATIF et mène à une page inexistante du site lui-même :
+    un lien qui ne marche pas est pire qu'un lien absent, parce qu'il se voit.
+    Sont refusés aussi le libellé vide, l'adresse vide, deux libellés
+    identiques et deux fois la même adresse. **Ce que monl ne vérifie PAS, et
+    le dit** : qu'une adresse RÉPONDE — aucun appel réseau, même frontière
+    qu'au point 83. Ce qu'il vérifie, c'est que l'adresse déclarée figure
+    réellement dans le site LIVRÉ, et la comparaison porte sur l'ADRESSE et
+    jamais sur le libellé (un libellé se reformule, une adresse non). Le pied
+    de page n'exige PAS de titre : lui en imposer un ferait écrire « Pied de
+    page » en gros, ce qu'aucun site réel ne fait — l'invariant du manifeste
+    est donc « aucune règle vide », pas « un titre partout ».
+    **TROIS producteurs, sans quoi la brique n'existe pas** (point 146, qui est
+    le point 85 sous un autre jour) : le dialogue guidé (`_ask_footer_links`,
+    cinq entrées proposées), les dix modèles, et la console web de la
+    plateforme. Le mode express ne pose rien — c'est sa raison d'être, ses
+    liens viennent de l'appelant (`express_links`). **Compléter n'est pas
+    deviner** : la complétion n'a lieu que là où il n'existe qu'UNE lecture, et
+    ce qui reste incompris est écarté EN LE DISANT (frontière du point 105). Le
+    téléphone est traité AVANT le refus des espaces, « +33 6 12 34 56 78 » étant
+    la façon dont un numéro s'écrit. `adresse_de_lien` (`dialogue_engine.py`)
+    est la source unique côté Python ; la console en a une copie JavaScript
+    puisqu'elle valide dans le navigateur, et **l'accord des deux est
+    VÉRIFIÉ** — deux mises en œuvre d'une même règle divergent toujours.
+    Éprouvée par `tests/test_liens_de_pied.py` (10 tests) et
+    `tests/test_liens_pied_de_page.py` (5 tests). Voir points 144 et 146.
+
 ### Briques suivantes déjà évoquées, non cadrées
 - Le **panier multi-articles est terminé** : ses trois briques cadrées au
   point 80 sont faites (11 = propriété transitive et clé étrangère cliente sur le
@@ -874,7 +912,7 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   manque : mieux vaut un compilateur qui s'arrête qu'une route de paiement sans
   contrôle d'accès. Éprouvé par `tests/test_rattachement.py` (18 tests, dont 11
   échouent sans la correction). Voir point 99.
-- **POINT 141 : le pied de page est exigé, et ses liens sont DÉCLARÉS.**
+- **POINT 144 : le pied de page est exigé, et ses liens sont DÉCLARÉS.**
   `landing` accepte `link "Libellé": "adresse"` (répétable, ordre conservé) ;
   l'adresse doit porter un schéma — `https://`, `http://`, `mailto:`, `tel:` —
   sans quoi le navigateur la lit comme un chemin RELATIF du site lui-même.
@@ -885,7 +923,7 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   lui en imposer un ferait écrire « Pied de page » en gros. Ne JAMAIS inventer
   un réseau social absent de la spec — c'est écrit dans le brief, et c'est la
   raison d'être de la brique.
-- **POINT 140 : un marqueur nomme une section, il ne prouve pas qu'elle
+- **POINT 143 : un marqueur nomme une section, il ne prouve pas qu'elle
   contient quelque chose.** `src/monl/section_substance.py` mesure la MATIÈRE
   (titre, texte lisible, action, formulaire) ; les seuils sont PAR SECTION et
   voyagent dans `ASSET_MANIFEST.json` sous `section_substance`, donc un projet
@@ -1120,7 +1158,7 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   réintroduire `base_dir` dans `_valider` : le contrôle d'existence est ciblé
   sur ce que l'outil ÉCRIT, sinon `list` redevient incapable de rapporter un
   manquant et `add` redevient inutilisable sur une spec incomplète.
-- **POINT 148 : le jeu de démonstration d'un MODÈLE est adapté par l'IA, dans
+- **POINT 151 : le jeu de démonstration d'un MODÈLE est adapté par l'IA, dans
   `src/monl_platform/seed_ai.py` et nulle part ailleurs.** Toute boutique
   vendait « Théière Kyoto » : la description n'atteignait que le `brief`, donc
   les TEXTES, jamais les données. Le dialogue guidé reste déterministe — c'est
@@ -1132,7 +1170,7 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   défaut, une construction perdue est une facture. Une spec FOURNIE par
   l'usager n'est jamais touchée. L'appel porte le garde-fou de quota du
   produit.
-- **POINT 147 : une mesure INDÉTERMINÉE n'est pas une mesure NULLE.**
+- **POINT 150 : une mesure INDÉTERMINÉE n'est pas une mesure NULLE.**
   `_frontend_fetch_calls` (cli.py) ne comptait une fonction d'accès que
   écrite `fetch(endpoint, …)` ; le modèle écrivait `const url =
   \`${API_BASE}${endpoint}\`; fetch(url, config)`. Résultat : « 0 route sur
@@ -1145,7 +1183,7 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   comme des routes. **Le sens de l'erreur compte** : pour une route fantôme,
   ne pas compter l'irréductible est juste ; pour une couverture, c'est
   accuser un site correct.
-- **POINT 146 : le budget demandé à un étage vient du CONTRAT, jamais d'une
+- **POINT 149 : le budget demandé à un étage vient du CONTRAT, jamais d'une
   constante.** monl réclamait « environ 1 500 tokens » pour `app.js` quel que
   soit le contrat, avec une limite dure de 12 000 caractères — pour un fichier
   dont les exemples complets du dépôt pèsent 26 à 43 Ko. Le modèle obéissait au
@@ -1155,7 +1193,7 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   troisième fois — et c'est l'instruction CHIFFRÉE, la dernière lue, que le
   modèle écoute. Le plancher est désormais énoncé à l'étage, et la limite dure
   suit le budget au lieu de le contredire.
-- **POINT 145 : où part l'argent d'une construction, mesuré.** `styles.css`
+- **POINT 148 : où part l'argent d'une construction, mesuré.** `styles.css`
   consomme 50 % des jetons de SORTIE (la partie sans fonction), `app.js` 34 %
   alors qu'il porte toute la complétude. Les « reprises » d'une étape viennent
   d'une réponse ILLISIBLE : emballer un fichier JS dans une chaîne JSON casse
@@ -1164,7 +1202,7 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   (`_fichier_depuis_un_bloc`) — repli seulement, passant par `_validate_files`
   comme tout le reste. **Le vrai levier de coût est `--model-for` :** modèle
   solide sur `app.js`, modèle bon marché sur `styles.css`.
-- **POINT 144 : la correction automatique garde la MEILLEURE tentative, pas
+- **POINT 147 : la correction automatique garde la MEILLEURE tentative, pas
   la dernière.** Mesuré en payant : à qui on demandait de réparer deux lignes,
   le modèle a réécrit le site et perdu 14 routes sur 15 — et monl conservait
   cette version-là, parce que la boucle rendait l'état final. Le classement est
@@ -1175,8 +1213,8 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   deux serait pire que l'une ou l'autre. Contre-épreuve obligatoire : une
   seconde tentative MEILLEURE doit rester en place, sinon le garde-fou annule
   la correction automatique et passe pour bon.
-- **POINT 143 : une brique sans PRODUCTEUR n'existe pas.** La brique 29
-  (liens du pied de page) était déclarable depuis le point 141 et rien ne
+- **POINT 146 : une brique sans PRODUCTEUR n'existe pas.** La brique 30
+  (liens du pied de page) était déclarable depuis le point 144 et rien ne
   l'écrivait — ni le dialogue guidé, ni les dix modèles, ni la console web :
   tout site sortait avec un pied de page sans une destination. C'est le
   point 85 sous un autre jour, et le test de compilation ne peut pas le voir.
@@ -1192,7 +1230,7 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   ajoutée, sans jamais dire ce qu'il retirait ; les scénarios sont désormais
   composés de morceaux nommés, et le nombre d'entrées proposées est LU sur
   `GuidedDialogue.LIENS_PROPOSES`.
-- **POINT 142 : la connexion par Google/GitHub vit dans
+- **POINT 145 : la connexion par Google/GitHub vit dans
   `src/monl_platform/oauth.py`, et nulle part ailleurs.** Quatre décisions y
   sont écrites et ne se rouvrent pas : l'identité du fournisseur a son PROPRE
   espace de noms (`github:<id>`) — aucun rattachement automatique à un compte
@@ -1209,7 +1247,7 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   point 74) et par un pilote jsdom contre le serveur réel. **Le piège du banc**
   : jsdom n'a pas `matchMedia`, sans quoi le script de la console meurt à sa
   première ligne et on mesure le banc au lieu du produit.
-- **Un test qui passe ne prouve pas qu'il mord** (point 142). Le refus du
+- **Un test qui passe ne prouve pas qu'il mord** (point 145). Le refus du
   `password_hash` nul dans `authenticate_account` pouvait être retiré en
   laissant la suite entièrement verte : `_password_matches` l'écartait déjà une
   couche plus bas. Retirer un garde-fou pour voir tomber un test est le seul

@@ -1,7 +1,7 @@
 """Aides partagées entre fichiers de tests.
 
 Deux choses y vivent : la fabrication de sections qui portent leur MATIÈRE
-(point 140), et la définition de ce qu'est une ressource distante — celle-ci
+(point 143), et la définition de ce qu'est une ressource distante — celle-ci
 était écrite deux fois, dans le test de l'accueil et dans celui de la
 console, et les deux ont divergé au premier élargissement.
 """
@@ -28,7 +28,7 @@ RESSOURCE_DISTANTE = re.compile(
 def section_avec_matiere(marker, regle=None):
     """Une section de test qui porte sa MATIÈRE, pas seulement son nom.
 
-    Depuis le point 140, une section marquée mais vide fait échouer la
+    Depuis le point 143, une section marquée mais vide fait échouer la
     vérification — c'est tout l'objet de la brique. Les fixtures qui
     fabriquent un faux frontend doivent donc livrer ce qu'un vrai frontend
     doit livrer : titre, texte lisible, action, et formulaire là où le

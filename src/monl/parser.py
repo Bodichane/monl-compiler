@@ -377,7 +377,7 @@ grammar = r"""
     #       question "Comment choisir ma taille ?": "Nos paires taillent…"
     landing_question: "question" STRING_LITERAL ":" STRING_LITERAL _NL
 
-    # BRIQUE 29 : "link" répétable — l'adresse SORTANTE d'un site.
+    # BRIQUE 30 : "link" répétable — l'adresse SORTANTE d'un site.
     # Un pied de page sans réseaux, sans mentions et sans contact est le
     # dernier endroit où un site produit se dénonce comme une maquette. Or
     # monl ne peut pas les DEVINER : une adresse Instagram inventée mène chez

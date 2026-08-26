@@ -35,7 +35,7 @@ SCENARIO_PORTFOLIO_TRONC = [
 # action attendue du visiteur, registre, place des images.
 INTENTION_PAR_DEFAUT = ["voir les projets et écrire", "2", "1"]
 AUCUNE_SECTION = ["n"]                     # point 55
-#: Les destinations du pied de page (brique 29). Le nombre d'entrées
+#: Les destinations du pied de page (brique 30). Le nombre d'entrées
 #: proposées est LU sur la source : le figer ici le ferait diverger en
 #: silence à la première entrée ajoutée.
 AUCUN_LIEN = [""] * len(GuidedDialogue.LIENS_PROPOSES) + ["n"]
@@ -125,7 +125,7 @@ def test_aucune_spec_ne_nomme_un_hote_distant():
         assert hote not in spec, f"la spec nomme un hôte distant : {hote}"
 
 
-# ---- Les destinations du pied de page (brique 29) ----
+# ---- Les destinations du pied de page (brique 30) ----
 
 def _scenario_avec_liens(saisies):
     """SCENARIO_PORTFOLIO dont on ne change que les réponses du pied de page."""
@@ -135,7 +135,7 @@ def _scenario_avec_liens(saisies):
 
 
 def test_le_dialogue_produit_reellement_des_liens_de_pied_de_page():
-    """La brique 29 existait depuis le point 141 et RIEN ne la produisait.
+    """La brique 30 existait depuis le point 144 et RIEN ne la produisait.
 
     Ni ce dialogue ni aucun des dix modèles ne déclarait un seul lien : tout
     site sortait donc avec un pied de page sans une destination. Une règle

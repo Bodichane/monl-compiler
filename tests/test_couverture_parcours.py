@@ -269,7 +269,7 @@ def test_un_projet_sans_marqueur_ne_declenche_pas_une_liste_visuelle_vide(tmp_pa
     assert "Marqueurs visuels obligatoires — fichier et bloc exacts" not in brief
 
 
-# ---- Le paramètre doit ATTEINDRE le fetch, quelle que soit l'écriture (point 147) ----
+# ---- Le paramètre doit ATTEINDRE le fetch, quelle que soit l'écriture (point 150) ----
 
 FONCTION_DIRECTE = """
 async function api(endpoint, options) {

@@ -1143,7 +1143,7 @@ def test_sans_explication_le_conseil_de_reformulation_reste(project, tmp_path):
     assert "Reformuler la demande" in "\n".join(msgs)
 
 
-# ---- Le filet du bloc clôturé (point 145) ----
+# ---- Le filet du bloc clôturé (point 148) ----
 
 def test_un_fichier_rendu_en_bloc_cloture_est_accepte():
     """Le repli qui a coûté un quart d'une construction réelle.

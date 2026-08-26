@@ -80,7 +80,7 @@ def _verifier_la_connexion_par_fournisseur(environ):
     """Un bouton « Continuer avec GitHub » doit mener quelque part.
 
     L'adresse de retour vient de la configuration et jamais de l'en-tête
-    ``Host`` (point 142) : sans ``MONL_PLATFORM_PUBLIC_URL``, un fournisseur
+    ``Host`` (point 145) : sans ``MONL_PLATFORM_PUBLIC_URL``, un fournisseur
     par ailleurs complet propose un bouton qui répond 503 au clic. Le défaut
     ne se verrait donc qu'à l'usage, sur le compte de quelqu'un d'autre — on
     refuse de démarrer plutôt que de le laisser vivre.

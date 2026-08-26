@@ -612,7 +612,7 @@ textarea.spec { min-height: 15rem; font-size: .82rem; line-height: 1.65; }
     {
       id: "description",
       question: "En une phrase, à quoi sert ce site ?",
-      aide: "Cette phrase oriente les textes, le registre visuel — et depuis le point 148, le CATALOGUE DE DÉMONSTRATION lui-même. Sans elle, le site s'ouvre sur les produits génériques du modèle : dites votre métier, pas « un site ».",
+      aide: "Cette phrase oriente les textes, le registre visuel — et depuis le point 151, le CATALOGUE DE DÉMONSTRATION lui-même. Sans elle, le site s'ouvre sur les produits génériques du modèle : dites votre métier, pas « un site ».",
       rendu: function (zone) { champTexte(zone, "description", "Une boutique de céramique artisanale, ton éditorial sobre.", 3); },
       valide: function () { return null; },
       resume: function () { return (etat.reponses.description || "").trim() || "aucune"; },

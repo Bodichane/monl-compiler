@@ -160,7 +160,7 @@ def test_le_nombre_de_fiches_est_borne(projet):
 
 def test_les_blocs_se_lisent_avec_ou_sans_cloture():
     """Un modèle clôture ou non son CSV : les deux doivent passer, comme au
-    point 145 — l'emballage ne doit jamais décider du sort du contenu."""
+    point 148 — l'emballage ne doit jamais décider du sort du contenu."""
     nu = "### Product\nname,price\nPain,1.30\n"
     clos = "### Product\n```csv\nname,price\nPain,1.30\n```\n"
 

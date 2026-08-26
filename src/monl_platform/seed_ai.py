@@ -39,7 +39,7 @@ from monl.content_tool import exporter_contenu, importer_contenu
 
 #: Un bloc par entité, introduit par son nom. Le format demandé est du CSV et
 #: non du JSON : c'est déjà celui de `monl content`, et l'emballage JSON d'un
-#: texte libre est exactement ce qui cassait au point 145.
+#: texte libre est exactement ce qui cassait au point 148.
 _BLOC = re.compile(r"^###\s*(\w+)\s*$(.*?)(?=^###\s*\w+\s*$|\Z)",
                    re.MULTILINE | re.DOTALL)
 

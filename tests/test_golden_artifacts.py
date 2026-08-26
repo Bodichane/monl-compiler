@@ -61,7 +61,7 @@ GOLDENS = {
     # scelle leur empreinte : app.py, schema.sql et manage.py restent
     # identiques à l'octet — la preuve que la correction porte sur ce que le
     # backend DÉCLARE, pas sur ce qu'il fait.
-    # BRIQUE 29 : le contrat porte `links`, la liste des adresses SORTANTES
+    # BRIQUE 30 : le contrat porte `links`, la liste des adresses SORTANTES
     # declarees dans `landing`. Elle est vide ici, et l'empreinte bouge quand
     # meme : la CLE existe desormais toujours, comme `faq` en son temps. Seuls
     # le contrat, le brief et monl.json changent — app.py, schema.sql et
@@ -81,7 +81,7 @@ GOLDENS = {
     # 0.9.0-beta.7 : seul monl.json bouge, parce qu'il SCELLE la version du
     # compilateur. Tous les autres artefacts restent identiques a l'octet —
     # la preuve que la montee de version ne change rien a ce qui est genere.
-    # BRIQUE 29 : monl.json scelle l'empreinte du contrat, qui vient de gagner
+    # BRIQUE 30 : monl.json scelle l'empreinte du contrat, qui vient de gagner
     # sa cle `links` — il bouge donc avec lui, et pour cette seule raison.
     "monl.json": "c99e0eb93a7892eb3192538641aeef8fefb486238811c636e98dec0d6c25d048",
 }

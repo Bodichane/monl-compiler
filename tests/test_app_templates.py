@@ -89,7 +89,7 @@ def _run_template(index, followup_answer, want_seed):
         answers += ([f"Texte de la rubrique {section['title']}.", ""]
                     if followup_answer == "o" else [""])
     answers += ["n"]                                   # pas de section en plus
-    # Destinations du pied de page (brique 29). Le NOMBRE d'entrées proposées
+    # Destinations du pied de page (brique 30). Le NOMBRE d'entrées proposées
     # est lu sur la source : le figer ici le ferait diverger en silence, et
     # c'est exactement ce qui vient de casser ces dix tests.
     proposees = len(GuidedDialogue.LIENS_PROPOSES)
@@ -199,7 +199,7 @@ def test_entite_personnalisee_en_plus_du_modele():
         "", "",                             # rubriques du portfolio passées (point 61)
         "n",                                # pas de section en plus (point 55)
         "", "", "", "", "",                 # pied de page : aucun lien
-        "n",                                # pas d'autre lien (brique 29)
+        "n",                                # pas d'autre lien (brique 30)
     ])
     spec = GuidedDialogue(ask=lambda p: next(answers)).run()
     assert "entity Testimonial" in spec

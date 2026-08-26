@@ -178,7 +178,7 @@ def test_parcours_complet_modele_construction_et_site_serve(running_platform):
     assert build["snapshot_path"] == f"revisions/build-{build['id']}"
     assert build["snapshot_sha256"]
     assert build["snapshot_bytes"] > 0
-    # DEUX appels depuis le point 148, et il faut savoir lequel est lequel :
+    # DEUX appels depuis le point 151, et il faut savoir lequel est lequel :
     # un pour adapter le jeu de démonstration à la description (à la création
     # du projet), un pour construire le frontend. Le second reste UNIQUE —
     # c'est lui que ce nombre surveillait, et une correction automatique en

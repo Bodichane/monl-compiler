@@ -53,8 +53,15 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [134](#134-la-frontiere-de-lagent-etait-une-enumeration-incomplete) La frontière de l'agent était une énumération incomplète ·
 [135](#135-mesurer-le-coût-avant-de-vendre-la-génération--yandex-ai-studio) Mesurer le coût avant de vendre la génération : Yandex AI Studio ·
 [139](#139-le-compilateur-avait-repris-la-main-sur-la-palette-par-lautre-tuyau) Le compilateur avait repris la main sur la palette, par l'autre tuyau ·
-[140](#140-un-marqueur-nommait-la-section-sans-jamais-prouver-quil-y-avait-quelque-chose-dedans) Un marqueur nommait la section sans prouver qu'il y avait quelque chose dedans ·
-[141](#141-le-pied-de-page-netait-exige-nulle-part-et-monl-ne-pouvait-pas-le-deviner) Le pied de page n'était exigé nulle part ·
+[143](#143-un-marqueur-nommait-la-section-sans-jamais-prouver-quil-y-avait-quelque-chose-dedans) Un marqueur nommait la section sans prouver qu'il y avait quelque chose dedans ·
+[144](#144-le-pied-de-page-nétait-exigé-nulle-part-et-monl-ne-pouvait-pas-le-deviner) Le pied de page n'était exigé nulle part ·
+[145](#145-ouvrir-un-compte-ne-coûtait-rien-sur-une-plateforme-qui-dépense) Ouvrir un compte ne coûtait rien, sur une plateforme qui dépense ·
+[146](#146-la-brique-du-pied-de-page-existait-et-rien-ne-la-produisait) La brique du pied de page existait, et rien ne la produisait ·
+[147](#147-la-correction-automatique-pouvait-tout-casser-et-monl-gardait-le-pire) La correction automatique pouvait tout casser, et monl gardait le pire ·
+[148](#148-le-fichier-était-emballé-dans-du-json-et-cest-lemballage-qui-cassait) Le fichier était emballé dans du JSON, et c'est l'emballage qui cassait ·
+[149](#149-on-demandait-un-appjs-de-1-500-jetons-puis-on-le-refusait-parce-quil-était-incomplet) On demandait un app.js de 1 500 jetons, puis on le refusait ·
+[150](#150-le-brief-demandait-de-factoriser-et-cest-la-factorisation-qui-faisait-refuser-le-site) Le brief demandait de factoriser, et la factorisation faisait refuser ·
+[151](#151-toute-boutique-vendait-des-théières) Toute boutique vendait des théières ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -8936,7 +8943,7 @@ catalogue et un formulaire n'ont pas l'usage. Si un marché l'exige un jour, ce
 sera un **second émetteur** — pas une modification de celui-ci, conformément au
 refus de l'IR multi-cible déjà acté.
 
-## 140. Un marqueur nommait la section sans jamais prouver qu'il y avait quelque chose dedans
+## 143. Un marqueur nommait la section sans jamais prouver qu'il y avait quelque chose dedans
 
 **Le contrôle de complétude vérifiait un NOM, pas un contenu.** Depuis le
 point 136, `ASSET_MANIFEST.json` porte des `required_markers` et
@@ -9035,9 +9042,9 @@ vides en nommant ce qui manque à chacune, et accepte le même site réellement
 rempli. Sans cette contre-épreuve, une barrière qui refuserait tout passerait
 pour bonne.
 
-## 141. Le pied de page n'était exigé nulle part, et monl ne pouvait pas le deviner
+## 144. Le pied de page n'était exigé nulle part, et monl ne pouvait pas le deviner
 
-**Le plancher du point 140 comptait quatre sections et s'arrêtait au-dessus du
+**Le plancher du point 143 comptait quatre sections et s'arrêtait au-dessus du
 pied de page.** `hero`, la matière, `trust`, `closing-cta` — et rien en bas.
 Le résultat se voit sur tous les sites produits : deux mots gris, aucun
 réseau social, aucune mention, aucun contact. C'est le dernier endroit où un
@@ -9112,7 +9119,7 @@ identiques à l'octet.
 
 ---
 
-## 142. Ouvrir un compte ne coûtait rien, sur une plateforme qui dépense
+## 145. Ouvrir un compte ne coûtait rien, sur une plateforme qui dépense
 
 **Le constat, posé par le mainteneur.** Ni la plateforme ni les sites produits
 ne demandaient la moindre vérification : ni adresse, ni téléphone, ni compte
@@ -9199,9 +9206,9 @@ masqué un vrai succès.
 
 ---
 
-## 143. La brique du pied de page existait, et rien ne la produisait
+## 146. La brique du pied de page existait, et rien ne la produisait
 
-**Le constat.** Le point 141 avait rendu le pied de page obligatoire et donné
+**Le constat.** Le point 144 avait rendu le pied de page obligatoire et donné
 au DSL de quoi déclarer ses liens (`link "Instagram": "https://…"`). Deux
 choses manquaient, et elles se voyaient à l'œil avant toute mesure : **ni le
 dialogue guidé, ni aucun des dix modèles, ni la console web de la plateforme
@@ -9270,7 +9277,7 @@ brief que l'IA reçoit.
 
 ---
 
-## 144. La correction automatique pouvait tout casser, et monl gardait le pire
+## 147. La correction automatique pouvait tout casser, et monl gardait le pire
 
 **Mesuré sur une construction réelle payante** (19/08/2026, modèle Boutique du
 catalogue, `aliceai-llm-flash`, 0,119 USD, 9 appels) :
@@ -9321,8 +9328,8 @@ bien conservée. Éprouvé par trois tests
 (`tests/test_smoke_and_frontend_ai.py`) ; deux tombent quand on désarme le
 garde-fou, le troisième doit passer dans les deux cas — c'est son rôle.
 
-**Ce que la même construction a prouvé au passage**, et qui répond au point 140
-et à la brique 29 : **les deux barrières neuves passent sur une vraie sortie
+**Ce que la même construction a prouvé au passage**, et qui répond au point 143
+et à la brique 30 : **les deux barrières neuves passent sur une vraie sortie
 d'IA**. Sept sections exigées, sept marqueurs présents, zéro refus de
 substance ; trois liens déclarés, trois retrouvés dans le pied de page — avec
 un modèle « flash » cinq fois moins cher que celui des constructions
@@ -9330,9 +9337,9 @@ précédentes. Elles ne sont donc ni inertes ni trop strictes.
 
 ---
 
-## 145. Le fichier était emballé dans du JSON, et c'est l'emballage qui cassait
+## 148. Le fichier était emballé dans du JSON, et c'est l'emballage qui cassait
 
-**Où part l'argent, mesuré** sur la construction du point 144 (9 appels,
+**Où part l'argent, mesuré** sur la construction du point 147 (9 appels,
 93 234 jetons d'entrée, 26 119 de sortie) :
 
 | cible | appels | entrée | sortie |
@@ -9391,7 +9398,7 @@ prix d'un site vide ».
 
 ---
 
-## 146. On demandait un app.js de 1 500 jetons, puis on le refusait parce qu'il était incomplet
+## 149. On demandait un app.js de 1 500 jetons, puis on le refusait parce qu'il était incomplet
 
 **Le fait, mesuré deux fois.** L'instruction d'étage pour `app.js` disait,
 textuellement : *« Vise environ 1 500 tokens […] Limite dure : termine le JSON
@@ -9446,7 +9453,7 @@ passe à 2,0 : 8 000 → 16 000 → 32 000. Une constante qui ne contraint rien 
 ce que le point 85 interdit, et un test lie désormais les trois nombres entre
 eux — en changer un sans les autres le fait tomber.
 
-**Ce que la construction a prouvé au passage** : le garde-fou du point 144 a
+**Ce que la construction a prouvé au passage** : le garde-fou du point 147 a
 fonctionné en production, sans qu'on ait à le provoquer. *« Tentative 1
 restaurée : la correction a rendu un frontend plus dégradé (3 erreurs et
 3 avertissements, contre 1 et 2). »* La passe de correction était retombée à
@@ -9454,9 +9461,9 @@ restaurée : la correction a rendu un frontend plus dégradé (3 erreurs et
 
 ---
 
-## 147. Le brief demandait de factoriser, et c'est la factorisation qui faisait refuser le site
+## 150. Le brief demandait de factoriser, et c'est la factorisation qui faisait refuser le site
 
-**Le fait, mesuré en payant.** Avec le budget corrigé du point 146, la
+**Le fait, mesuré en payant.** Avec le budget corrigé du point 149, la
 construction rend un `app.js` de **12 845 octets** (contre 5 731) qui appelle
 réellement `/register`, `/login`, `/customer`, `/order` et `/product`. Le
 contrôle de couverture annonce : **0 route sur 15**. Les trois parcours du
@@ -9507,7 +9514,7 @@ flux.
 
 ---
 
-## 148. Toute boutique vendait des théières
+## 151. Toute boutique vendait des théières
 
 **Le constat du mainteneur, en une phrase** : « pourquoi quand je demande un
 site il y a toujours tasse, thé vert et théière qui reviennent ». Réponse :

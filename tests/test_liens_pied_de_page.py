@@ -1,6 +1,6 @@
 """Le pied de page a des destinations, et deux couches disent la même chose.
 
-La brique 29 (point 141) permettait de DÉCLARER des liens ; rien ne les
+La brique 30 (point 144) permettait de DÉCLARER des liens ; rien ne les
 produisait. Ni le dialogue guidé, ni aucun des dix modèles, ni la console de
 la plateforme n'en écrivait un seul — donc tout site sortait avec un pied de
 page sans une seule destination, ce que le mainteneur a vu à l'œil avant que

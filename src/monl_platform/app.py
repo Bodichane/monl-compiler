@@ -58,7 +58,7 @@ def _catalogue():
 def _champ(account, nom):
     """Lit une colonne qui peut manquer d'une ligne ancienne.
 
-    Les colonnes du point 142 sont ajoutées de façon ADDITIVE : une base
+    Les colonnes du point 145 sont ajoutées de façon ADDITIVE : une base
     créée avant elles les gagne au démarrage, mais un appelant peut fort
     bien passer un dictionnaire construit ailleurs.
     """
