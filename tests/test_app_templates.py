@@ -94,6 +94,17 @@ def _run_template(index, followup_answer, want_seed):
         answers += ([f"Texte de la rubrique {section['title']}.", ""]
                     if followup_answer == "o" else [""])
     answers += ["n"]                                   # pas de section en plus
+    # Destinations du pied de page (brique 30). Le NOMBRE d'entrées proposées
+    # est lu sur la source : le figer ici le ferait diverger en silence, et
+    # c'est exactement ce qui vient de casser ces dix tests.
+    proposees = len(GuidedDialogue.LIENS_PROPOSES)
+    if followup_answer == "o":
+        saisies = ["contact@exemple.fr", "+33 6 12 34 56 78",
+                   "instagram.com/exemple"]
+        answers += (saisies + [""] * proposees)[:proposees]
+    else:
+        answers += [""] * proposees
+    answers += ["n"]                                   # pas d'autre lien
     it = iter(answers)
     return GuidedDialogue(ask=lambda p: next(it)).run()
 
@@ -193,6 +204,8 @@ def test_entite_personnalisee_en_plus_du_modele():
         "lire les témoignages", "1", "2",   # intention visuelle (point 53)
         "", "",                             # rubriques du portfolio passées (point 61)
         "n",                                # pas de section en plus (point 55)
+        "", "", "", "", "",                 # pied de page : aucun lien
+        "n",                                # pas d'autre lien (brique 30)
     ])
     spec = GuidedDialogue(ask=lambda p: next(answers)).run()
     assert "entity Testimonial" in spec
@@ -249,6 +262,8 @@ def test_les_rubriques_editoriales_sont_demandees_pas_proposees():
                "consulter", "1", "2",
                "Photographe à Lyon depuis 2015.", "",
                "Reportage et portrait.", "",
+               "n",
+               "contact@studio.fr", "", "", "", "",   # pied de page
                "n"]
     it = iter(answers)
     spec = GuidedDialogue(ask=ask).run()
@@ -265,7 +280,8 @@ def test_les_rubriques_editoriales_sont_demandees_pas_proposees():
 def test_une_rubrique_laissee_vide_est_simplement_absente():
     answers = iter(["1", "AppTest", "Un portfolio.", "n", "n", "1", "0", "o", "n", "o",
                     "consulter", "1", "2",
-                    "", "Reportage et portrait.", "", "n"])
+                    "", "Reportage et portrait.", "", "n",
+                    "", "", "", "", "", "n"])
     spec = GuidedDialogue(ask=lambda p: next(answers)).run()
     assert "À propos" not in spec
     assert 'section "Services": "Reportage et portrait."' in spec

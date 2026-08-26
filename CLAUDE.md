@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (832 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1184 tests
   actuellement ; `tests/test_demo.py` s'appuie sur le dossier `demo/`
   versionné — ne pas le supprimer. La démo est **CodexShop**, une papeterie
   qui exerce la chaîne marchande entière ; ses ENTRÉES seules sont suivies
@@ -711,6 +711,43 @@ réseau social anonyme comme banc d'essai final.
     n'est pas en liste blanche. Éprouvée par `tests/test_fichiers_reclames.py`
     (12 tests) et sur AtelierNaya, copie intacte VERTE contre copie amputée
     ROUGE. Voir point 137.
+30. **`landing … link "Libellé": "adresse"`** — le pied de page est EXIGÉ, et
+    ses destinations sont DÉCLARÉES. Le plancher de substance (point 143)
+    comptait quatre sections et s'arrêtait au-dessus du pied de page : tous les
+    sites produits sortaient avec deux mots gris, aucun réseau, aucun contact —
+    le dernier endroit où un site se dénonce comme une maquette, et le seul que
+    la vérification ne regardait pas. **monl ne peut pas DEVINER une adresse**
+    (une adresse inventée mène chez quelqu'un d'autre, pire que rien) : même
+    impasse qu'au point 83 pour les images et qu'au point 86 pour le stock,
+    donc même issue — il fait DÉCLARER ce qu'il ne peut pas savoir, puis il
+    l'exige. Forme PLATE et ordre conservé, mot pour mot `section` (point 55)
+    et `question` (point 94). **L'adresse doit porter un schéma** — `https://`,
+    `http://`, `mailto:` ou `tel:` — sans quoi « instagram.com/atelier » est lu
+    comme un chemin RELATIF et mène à une page inexistante du site lui-même :
+    un lien qui ne marche pas est pire qu'un lien absent, parce qu'il se voit.
+    Sont refusés aussi le libellé vide, l'adresse vide, deux libellés
+    identiques et deux fois la même adresse. **Ce que monl ne vérifie PAS, et
+    le dit** : qu'une adresse RÉPONDE — aucun appel réseau, même frontière
+    qu'au point 83. Ce qu'il vérifie, c'est que l'adresse déclarée figure
+    réellement dans le site LIVRÉ, et la comparaison porte sur l'ADRESSE et
+    jamais sur le libellé (un libellé se reformule, une adresse non). Le pied
+    de page n'exige PAS de titre : lui en imposer un ferait écrire « Pied de
+    page » en gros, ce qu'aucun site réel ne fait — l'invariant du manifeste
+    est donc « aucune règle vide », pas « un titre partout ».
+    **TROIS producteurs, sans quoi la brique n'existe pas** (point 146, qui est
+    le point 85 sous un autre jour) : le dialogue guidé (`_ask_footer_links`,
+    cinq entrées proposées), les dix modèles, et la console web de la
+    plateforme. Le mode express ne pose rien — c'est sa raison d'être, ses
+    liens viennent de l'appelant (`express_links`). **Compléter n'est pas
+    deviner** : la complétion n'a lieu que là où il n'existe qu'UNE lecture, et
+    ce qui reste incompris est écarté EN LE DISANT (frontière du point 105). Le
+    téléphone est traité AVANT le refus des espaces, « +33 6 12 34 56 78 » étant
+    la façon dont un numéro s'écrit. `adresse_de_lien` (`dialogue_engine.py`)
+    est la source unique côté Python ; la console en a une copie JavaScript
+    puisqu'elle valide dans le navigateur, et **l'accord des deux est
+    VÉRIFIÉ** — deux mises en œuvre d'une même règle divergent toujours.
+    Éprouvée par `tests/test_liens_de_pied.py` (10 tests) et
+    `tests/test_liens_pied_de_page.py` (5 tests). Voir points 144 et 146.
 
 ### Briques suivantes déjà évoquées, non cadrées
 - Le **panier multi-articles est terminé** : ses trois briques cadrées au
@@ -1006,6 +1043,32 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   manque : mieux vaut un compilateur qui s'arrête qu'une route de paiement sans
   contrôle d'accès. Éprouvé par `tests/test_rattachement.py` (18 tests, dont 11
   échouent sans la correction). Voir point 99.
+- **POINT 144 : le pied de page est exigé, et ses liens sont DÉCLARÉS.**
+  `landing` accepte `link "Libellé": "adresse"` (répétable, ordre conservé) ;
+  l'adresse doit porter un schéma — `https://`, `http://`, `mailto:`, `tel:` —
+  sans quoi le navigateur la lit comme un chemin RELATIF du site lui-même.
+  monl ne vérifie PAS qu'une adresse répond (aucun appel réseau, même frontière
+  qu'au point 83) mais il vérifie qu'elle FIGURE dans le site livré
+  (`_declared_link_errors`, frontend_ai.py), en comparant l'ADRESSE et jamais le
+  libellé. Le pied de page est la seule section obligatoire SANS titre exigé :
+  lui en imposer un ferait écrire « Pied de page » en gros. Ne JAMAIS inventer
+  un réseau social absent de la spec — c'est écrit dans le brief, et c'est la
+  raison d'être de la brique.
+- **POINT 143 : un marqueur nomme une section, il ne prouve pas qu'elle
+  contient quelque chose.** `src/monl/section_substance.py` mesure la MATIÈRE
+  (titre, texte lisible, action, formulaire) ; les seuils sont PAR SECTION et
+  voyagent dans `ASSET_MANIFEST.json` sous `section_substance`, donc un projet
+  compilé par une version antérieure reste accepté. Deux pièges de mesure, tous
+  deux éprouvés : le corps d'un `<script>` ne compte pas, et la pile du parseur
+  porte le NOM de la balise — un `<p>` jamais refermé est du HTML5 légal, et
+  sans ça une section avale le texte de sa voisine et la barrière ne refuse
+  plus rien. Ne JAMAIS exiger de données en dur dans un `catalogue` : ses
+  lignes viennent de l'API, et les réclamer ferait inventer des produits.
+  Le plancher de sections vit dans `select_ui_patterns` (`ui_patterns.py`) —
+  `hero`, la matière (catalogue/workspace/booking), `trust`, `closing-cta` —
+  et la matière de `trust` vient de `_guarantees()` (design_system.py), donc du
+  CONTRAT et jamais de l'imagination. Mesuré sur les 10 modèles du catalogue
+  par le vrai chemin de dialogue : minimum 4, médiane 7, maximum 10.
 - POINT 88 : une clé étrangère référence l'une de DEUX choses — le registre des
   COMPTES (`_monl_users`) quand la route Create la peuple depuis le jeton, l'`id`
   d'une table métier sinon. `_identity_fk_columns` (core.py) tranche ; le contrat
@@ -1226,6 +1289,100 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   réintroduire `base_dir` dans `_valider` : le contrôle d'existence est ciblé
   sur ce que l'outil ÉCRIT, sinon `list` redevient incapable de rapporter un
   manquant et `add` redevient inutilisable sur une spec incomplète.
+- **POINT 151 : le jeu de démonstration d'un MODÈLE est adapté par l'IA, dans
+  `src/monl_platform/seed_ai.py` et nulle part ailleurs.** Toute boutique
+  vendait « Théière Kyoto » : la description n'atteignait que le `brief`, donc
+  les TEXTES, jamais les données. Le dialogue guidé reste déterministe — c'est
+  la plateforme qui personnalise, puisqu'elle appelle déjà une IA. **L'IA écrit
+  des LIGNES de CSV, jamais la structure** : l'en-tête vient de `monl content
+  export`, un en-tête différent fait refuser la réponse. L'écriture passe par
+  `importer_contenu` (point 115), donc par le vrai parseur — aucune machinerie
+  nouvelle. Un échec restaure le CSV d'origine : un catalogue générique est un
+  défaut, une construction perdue est une facture. Une spec FOURNIE par
+  l'usager n'est jamais touchée. L'appel porte le garde-fou de quota du
+  produit.
+- **POINT 150 : une mesure INDÉTERMINÉE n'est pas une mesure NULLE.**
+  `_frontend_fetch_calls` (cli.py) ne comptait une fonction d'accès que
+  écrite `fetch(endpoint, …)` ; le modèle écrivait `const url =
+  \`${API_BASE}${endpoint}\`; fetch(url, config)`. Résultat : « 0 route sur
+  15 » sur un frontend qui en appelait cinq et dont le smoke test passait —
+  refusé pour de bon. Et l'instruction d'étage dit « factorise le code » :
+  monl demandait la factorisation puis refusait le site factorisé. Le
+  contrôle suit désormais le FLUX du paramètre (direct, gabarit, variable
+  locale) en restant conservateur — il exige un flux démontrable, sinon
+  n'importe quelle fonction contenant un `fetch` ferait compter ses arguments
+  comme des routes. **Le sens de l'erreur compte** : pour une route fantôme,
+  ne pas compter l'irréductible est juste ; pour une couverture, c'est
+  accuser un site correct.
+- **POINT 149 : le budget demandé à un étage vient du CONTRAT, jamais d'une
+  constante.** monl réclamait « environ 1 500 tokens » pour `app.js` quel que
+  soit le contrat, avec une limite dure de 12 000 caractères — pour un fichier
+  dont les exemples complets du dépôt pèsent 26 à 43 Ko. Le modèle obéissait au
+  jeton près (1 698 mesurés, ZÉRO reprise : rien n'était tronqué), puis monl le
+  refusait pour incomplétude. **Changer de modèle n'y peut rien** : le modèle
+  solide obéit mieux, donc produit moins. Plafond-sans-plancher pour la
+  troisième fois — et c'est l'instruction CHIFFRÉE, la dernière lue, que le
+  modèle écoute. Le plancher est désormais énoncé à l'étage, et la limite dure
+  suit le budget au lieu de le contredire.
+- **POINT 148 : où part l'argent d'une construction, mesuré.** `styles.css`
+  consomme 50 % des jetons de SORTIE (la partie sans fonction), `app.js` 34 %
+  alors qu'il porte toute la complétude. Les « reprises » d'une étape viennent
+  d'une réponse ILLISIBLE : emballer un fichier JS dans une chaîne JSON casse
+  chez les modèles bon marché, et la relance les pousse vers ce qui PARSE,
+  donc vers le fichier minimal. D'où le filet du bloc clôturé
+  (`_fichier_depuis_un_bloc`) — repli seulement, passant par `_validate_files`
+  comme tout le reste. **Le vrai levier de coût est `--model-for` :** modèle
+  solide sur `app.js`, modèle bon marché sur `styles.css`.
+- **POINT 147 : la correction automatique garde la MEILLEURE tentative, pas
+  la dernière.** Mesuré en payant : à qui on demandait de réparer deux lignes,
+  le modèle a réécrit le site et perdu 14 routes sur 15 — et monl conservait
+  cette version-là, parce que la boucle rendait l'état final. Le classement est
+  `(erreurs, avertissements)` sans pondération (une gravité inventée serait une
+  opinion déguisée en mesure) ; les erreurs rapportées sont celles des fichiers
+  CONSERVÉS ; la restauration ne touche que la liste blanche, jamais les images
+  générées, et retire les fichiers de la tentative écartée — un mélange des
+  deux serait pire que l'une ou l'autre. Contre-épreuve obligatoire : une
+  seconde tentative MEILLEURE doit rester en place, sinon le garde-fou annule
+  la correction automatique et passe pour bon.
+- **POINT 146 : une brique sans PRODUCTEUR n'existe pas.** La brique 30
+  (liens du pied de page) était déclarable depuis le point 144 et rien ne
+  l'écrivait — ni le dialogue guidé, ni les dix modèles, ni la console web :
+  tout site sortait avec un pied de page sans une destination. C'est le
+  point 85 sous un autre jour, et le test de compilation ne peut pas le voir.
+  **Question à poser pour toute nouvelle brique, à côté de celle de
+  `_contract_signature` : qui l'écrira ?** La complétion d'adresse a UNE source
+  (`adresse_de_lien`, dialogue_engine.py) ; la console en a nécessairement une
+  copie JavaScript, et `tests/test_liens_pied_de_page.py` exécute les DEUX sur
+  les mêmes entrées — deux mises en œuvre de la même règle divergent toujours.
+  Le mode express ne pose aucune question : ses liens arrivent par
+  `express_links`.
+- **Ne jamais découper un scénario de test par une tranche négative.**
+  `SCENARIO_PORTFOLIO[:-4]` a cassé huit tests d'un coup à la première question
+  ajoutée, sans jamais dire ce qu'il retirait ; les scénarios sont désormais
+  composés de morceaux nommés, et le nombre d'entrées proposées est LU sur
+  `GuidedDialogue.LIENS_PROPOSES`.
+- **POINT 145 : la connexion par Google/GitHub vit dans
+  `src/monl_platform/oauth.py`, et nulle part ailleurs.** Quatre décisions y
+  sont écrites et ne se rouvrent pas : l'identité du fournisseur a son PROPRE
+  espace de noms (`github:<id>`) — aucun rattachement automatique à un compte
+  par mot de passe de même adresse, sans quoi l'un prendrait le contrôle de
+  l'autre ; seule une adresse VÉRIFIÉE par le fournisseur est acceptée (sinon
+  la brique déplace la chaîne quelconque au lieu de la fermer) ; le `state` est
+  signé ET daté (le rejeu, comme la signature du webhook au point 91) ; et
+  l'adresse de retour vient de `MONL_PLATFORM_PUBLIC_URL`, **jamais** de
+  l'en-tête `Host` — son absence empêche le DÉMARRAGE dès qu'un fournisseur est
+  configuré, plutôt que de laisser un bouton répondre 503 au clic. Le jeton
+  voyage dans le FRAGMENT (jamais envoyé au serveur, jamais journalisé) et la
+  console efface la barre d'adresse après l'avoir récolté. Éprouvé par un FAUX
+  fournisseur embarqué (`MONL_OAUTH_*_BASE_URL`, précédent du faux Stripe du
+  point 74) et par un pilote jsdom contre le serveur réel. **Le piège du banc**
+  : jsdom n'a pas `matchMedia`, sans quoi le script de la console meurt à sa
+  première ligne et on mesure le banc au lieu du produit.
+- **Un test qui passe ne prouve pas qu'il mord** (point 145). Le refus du
+  `password_hash` nul dans `authenticate_account` pouvait être retiré en
+  laissant la suite entièrement verte : `_password_matches` l'écartait déjà une
+  couche plus bas. Retirer un garde-fou pour voir tomber un test est le seul
+  moyen de savoir où la garantie vit vraiment.
 - Le smoke test (src/smoke_test.py) démarre un serveur ÉPHÉMÈRE dans un
   dossier temporaire : il ne touche jamais app.db du projet. Le fetch de
   jsdom DOIT être injecté via beforeParse (bug réel : assigné après

@@ -169,14 +169,31 @@ def select_ui_patterns(contract: dict, kind: str) -> list[dict]:
     # pour recevoir `booking` à la place.
     if kind == "commerce" or ("shop" in archetypes and not booking_route):
         selected.append("catalogue")
+    # LE PLANCHER (point 119). Un site dont la MATIÈRE n'apparaît sur aucun
+    # écran obligatoire est une coquille, quel que soit son nombre de
+    # sections : `exemples/05_classement.ml` exigeait `hero` et
+    # `closing-cta`, et rien du tout pour le classement lui-même — le sujet
+    # du site n'était requis nulle part. Toute application qui expose des
+    # entités doit donc porter une section de collection, sauf quand une
+    # autre section joue déjà ce rôle : `booking` pour une réservation,
+    # `workspace` pour un poste de travail (ajouté par design_system).
+    if "catalogue" not in selected and entities and not booking_route \
+            and kind != "operations":
+        selected.append("catalogue")
     brief = (contract.get("brief") or "").lower()
     express_editorial = any(signal in brief for signal in (
         "mode express", "images portent", "page dense",
     ))
     if contract.get("sections") or express_editorial:
         selected.append("editorial")
-    if kind in {"commerce", "service"} or contract.get("sections"):
-        selected.append("trust")
+    # `trust` était réservé au commerce et au service. Or la matière d'une
+    # section de réassurance ne vient pas du secteur : elle vient du CONTRAT,
+    # qui sait ce que le backend garantit vraiment — compte obligatoire,
+    # montant calculé côté serveur, stock décompté, commande figée après
+    # paiement. Ces phrases-là sont vraies pour toute application monl, et ce
+    # sont les seules autorisées : la section reste interdite d'inventer un
+    # avis, un logo ou un chiffre.
+    selected.append("trust")
     if contract.get("faq"):
         selected.append("faq")
     if booking_route:
@@ -189,8 +206,7 @@ def select_ui_patterns(contract: dict, kind: str) -> list[dict]:
     )
     if contact_route:
         selected.append("contact")
-    if contract.get("brief"):
-        selected.append("closing-cta")
+    selected.append("closing-cta")
     return [
         {
             "name": name,

@@ -27,6 +27,7 @@ import importlib.util
 import io
 import json
 import os
+import posixpath
 import re
 import subprocess
 import sys
@@ -51,6 +52,7 @@ from .frontend_contract import (
 from .generator import MonlSecureGenerator
 from .parser import parse_monl_file
 from .serving import rendre_wrapper
+from .usage import UsagePriceError, build_usage_report
 
 STATE_FILENAME = "monl.json"
 
@@ -68,8 +70,8 @@ def _load_state(project_dir):
         return json.load(fh)
 
 
-def _erreur_de_chemin(project_dir):
-    """Message d'erreur quand le DOSSIER lui-même n'existe pas, ou None.
+def _erreur_de_chemin(project_dir, *, fichier_requis=None):
+    """Message d'erreur pour un dossier ou un artefact frontend absent.
 
     POINT 105 : « monl.json introuvable — ce dossier n'est pas un projet monl »
     s'affichait aussi quand le dossier n'existait pas du tout, et `monl frontend`
@@ -79,9 +81,14 @@ def _erreur_de_chemin(project_dir):
     reproche au conseil de reformulation.
 
     Deux niveaux, dans l'ordre où les questions se posent : le dossier
-    existe-t-il, PUIS porte-t-il un projet. Répondre à la seconde quand la
-    première a échoué, c'est répondre à côté."""
+    existe-t-il, PUIS porte-t-il un projet. Le brief frontend est le niveau
+    suivant pour la commande qui doit le donner à une IA : le nommer ici évite
+    de laisser une ouverture de fichier répondre à la place du CLI."""
     if os.path.isdir(project_dir):
+        if fichier_requis and not os.path.isfile(
+                os.path.join(project_dir, fichier_requis)):
+            return (f" ❌ Contrat frontend incomplet : {fichier_requis} absent — "
+                    "lancer d'abord 'monl compile'.")
         return None
     lignes = [f" ❌ Dossier introuvable : {project_dir}"]
     # La faute la plus courante, et celle qui a motivé ce point : un chemin
@@ -530,11 +537,374 @@ def check_coherence(project_dir):
         if unknown:
             warnings.append("Le frontend référence des chemins absents du contrat : "
                             + ", ".join(f"/{u}" for u in unknown))
+        appels = _frontend_fetch_calls(frontend_dir)
+        errors.extend(_frontend_fetch_contract_errors(contract, appels))
+        couverture_errors, couverture_warnings = _frontend_route_coverage(
+            project_dir, spec_path, contract, appels=appels)
+        errors.extend(couverture_errors)
+        warnings.extend(couverture_warnings)
     else:
         warnings.append("Aucun dossier frontend/ — l'app sera servie avec ses seules "
                         "pages générées (landing, /app, /docs).")
 
-    return True, errors, warnings
+    return not errors, errors, warnings
+
+
+_FETCH_CHEMIN = re.compile(
+    r"\bfetch\s*\(\s*(?P<quote>['\"`])(?P<path>.*?)(?P=quote)"
+    r"(?=\s*(?:,|\)))",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _le_parametre_atteint_le_fetch(corps, parametre):
+    """Le premier paramètre d'une fonction alimente-t-il son ``fetch`` ?
+
+    Trois écritures, toutes rencontrées dans du vrai code produit par une IA,
+    et toutes également légitimes :
+
+        fetch(endpoint, options)                        # direct
+        fetch(`${API_BASE}${endpoint}`, options)        # gabarit
+        const url = `${API_BASE}${endpoint}`;           # par une variable
+        const response = await fetch(url, config);
+
+    Seule la première était reconnue. Les deux autres faisaient conclure « 0
+    route appelée » sur un frontend qui en appelait cinq — et le refus tombait
+    sur un site correct. Le prix d'un tel faux positif est une construction
+    entière repayée. Pire : le brief demande de FACTORISER le code, et c'est
+    exactement la factorisation qui rendait l'appel invisible.
+
+    Le contrôle reste conservateur — il exige un flux DÉMONTRABLE du paramètre
+    vers l'appel, jamais la simple présence d'un ``fetch`` quelque part.
+    """
+    motif = re.escape(parametre)
+    # 1 et 2 : le paramètre est dans l'argument même de fetch.
+    if re.search(rf"\bfetch\s*\(\s*[^,)]*\b{motif}\b", corps):
+        return True
+    # 3 : fetch reçoit une variable, elle-même construite depuis le paramètre.
+    for appel in re.finditer(r"\bfetch\s*\(\s*(\w+)\s*[,)]", corps):
+        variable = re.escape(appel.group(1))
+        if re.search(rf"\b(?:const|let|var)\s+{variable}\s*=[^;]*\b{motif}\b",
+                     corps):
+            return True
+    return False
+
+
+def _frontend_fetch_calls(frontend_dir):
+    """Retourne les appels ``fetch`` statiquement identifiables.
+
+    Le contrôle est volontairement conservateur : une expression de chemin
+    ou de méthode qu'il ne sait pas réduire n'est pas comptée. En revanche,
+    le gabarit utilisé par le brief est traité explicitement :
+    ``fetch(`${API_BASE}/order`, {method: 'POST'})``.
+    """
+    appels = set()
+
+    def normaliser(chemin, suffixe_dynamique=False):
+        chemin = chemin.strip()
+        chemin = re.sub(r"^\$\{[^}]+\}", "", chemin)
+        if not chemin.startswith("/"):
+            return None
+        # Le `?` d'une expression JS (`${ok ? 'a' : 'b'}`) n'est pas le
+        # séparateur d'une query string. Réduire les gabarits avant de couper
+        # la query évite de rendre irréductible l'appel pourtant mesurable.
+        chemin = re.sub(r"\$\{[^}]+\}", "{id}", chemin)
+        chemin = chemin.split("?", 1)[0].split("#", 1)[0]
+        if suffixe_dynamique:
+            chemin = chemin.rstrip("/") + "/${id}"
+        chemin = re.sub(r"\$\{[^}]+\}", "{id}", chemin)
+        if "$" in chemin:
+            return None
+        return posixpath.normpath(chemin)
+
+    def ajouter(chemin, suite, suffixe_dynamique=False, suffixe=""):
+        chemin = normaliser(chemin, suffixe_dynamique)
+        if chemin is None:
+            return
+        if suffixe_dynamique:
+            terminaison = re.search(r"['\"](/[^'\"]*)['\"]\s*$", suffixe)
+            if terminaison:
+                chemin = chemin + terminaison.group(1)
+        fermeture = re.match(r"\s*\)", suite)
+        options = re.match(r"\s*,\s*\{(?P<body>.*?)\}\s*\)",
+                           suite, re.DOTALL)
+        if fermeture:
+            methode = "GET"
+        elif options:
+            methode_match = re.search(
+                r"\bmethod\s*:\s*(?:\w+\s*\?\s*)?"
+                r"['\"](GET|POST|PUT|DELETE)['\"]",
+                options.group("body"), re.IGNORECASE)
+            methode = methode_match.group(1).upper() if methode_match else "GET"
+        else:
+            # ``fetch(path, options)`` ne permet pas de savoir si la route est
+            # lue ou écrite : ne pas lui attribuer à tort une couverture. Le
+            # chemin, lui, est connu et doit quand même être confronté au
+            # contrat ; ``None`` sert de méthode inconnue à la couverture.
+            methode = None
+        appels.add((methode, chemin))
+
+    for root, _dirs, names in os.walk(frontend_dir):
+        for name in names:
+            if not name.endswith((".html", ".js")):
+                continue
+            try:
+                contenu = open(os.path.join(root, name), encoding="utf-8",
+                               errors="ignore").read()
+            except OSError:
+                continue
+            for match in _FETCH_CHEMIN.finditer(contenu):
+                ajouter(match.group("path"), contenu[match.end():])
+
+            # Une petite fonction d'accès est une écriture courante et
+            # vérifiable : ``api(path, options)`` appelle ``fetch(path, ...)``.
+            # On ne traite pas toute fonction arbitraire comme une API ; son
+            # corps doit contenir ce motif précis, ce qui évite de compter un
+            # simple helper de navigation.
+            wrappers = {}
+            for definition in re.finditer(
+                    r"(?:async\s+)?function\s+(\w+)\s*\(([^)]*)\)\s*\{",
+                    contenu):
+                nom, parametres = definition.groups()
+                noms = [p.strip().split("=", 1)[0].strip()
+                        for p in parametres.split(",") if p.strip()]
+                if not noms:
+                    continue
+                corps = contenu[definition.end():definition.end() + 5000]
+                if _le_parametre_atteint_le_fetch(corps, noms[0]):
+                    wrappers[nom] = True
+            for wrapper in wrappers:
+                appels_wrapper = re.finditer(
+                    rf"\b{re.escape(wrapper)}\s*\(\s*"
+                    r"(?P<quote>['\"`])(?P<path>.*?)(?P=quote)"
+                    r"(?P<suffix>\s*\+\s*[^,)]*)?"
+                    r"(?=\s*(?:,|\)))",
+                    contenu, re.DOTALL)
+                for appel in appels_wrapper:
+                    ajouter(
+                        appel.group("path"),
+                        contenu[appel.end():],
+                        suffixe_dynamique=bool(appel.group("suffix")),
+                        suffixe=appel.group("suffix") or "",
+                    )
+                # Branche conditionnelle fréquente pour un formulaire qui
+                # choisit Create ou Update :
+                # ``api(profile ? '/customer/' + id : '/customer',
+                #       {method: profile ? 'PUT' : 'POST'})``. Les deux
+                # branches sont littérales dans le JS livré ; les compter
+                # séparément reste plus précis que de deviner laquelle sera
+                # prise au chargement.
+                for appel in re.finditer(
+                        rf"\b{re.escape(wrapper)}\s*\((?P<args>[^;\n]*)",
+                        contenu):
+                    arguments = appel.group("args")
+                    chemins = [match.group(1) for match in re.finditer(
+                        r"['\"`](/[^'\"`]*)['\"`]", arguments)
+                        if not re.search(r"\+\s*$", arguments[:match.start()])]
+                    methodes = [m.upper() for m in re.findall(
+                        r"\bmethod\s*:\s*(?:\w+\s*\?\s*)?"
+                        r"['\"](GET|POST|PUT|DELETE)['\"]",
+                        arguments, re.IGNORECASE)]
+                    if not chemins or not methodes:
+                        continue
+                    for index, chemin in enumerate(chemins):
+                        dynamique = chemin.endswith("/") and (
+                            "+" in arguments or "?" in arguments)
+                        methode = methodes[index] if index < len(methodes) else methodes[0]
+                        normalise = normaliser(chemin, dynamique)
+                        if normalise:
+                            appels.add((methode, normalise))
+    return appels
+
+
+def _frontend_contract_paths(contract):
+    """Retourne les chemins exposés au frontend par le contrat.
+
+    Les routes métier vivent dans ``routes``. L'authentification est une
+    exception historique : ``/register``, ``/login`` et ``/logout`` sont
+    décrits dans ``api.auth`` mais ne font pas partie de cette liste. Ils sont
+    ajoutés ici depuis le contrat, jamais recopiés en dur dans le contrôle.
+    """
+    chemins = []
+    for route in contract.get("routes", []):
+        chemin = route.get("path")
+        if isinstance(chemin, str):
+            chemins.append(chemin)
+
+    auth = (contract.get("api") or {}).get("auth") or {}
+    chemins_auth = []
+    for nom in ("register", "login", "logout"):
+        endpoint = auth.get(nom) or {}
+        chemin = endpoint.get("path")
+        if isinstance(chemin, str):
+            chemins.append(chemin)
+            chemins_auth.append(chemin)
+    return list(dict.fromkeys(chemins)), list(dict.fromkeys(chemins_auth))
+
+
+def _frontend_contract_path_matches(appele, declare):
+    """Indique si un chemin normalisé correspond à un chemin du contrat."""
+    motif = re.escape(declare)
+    motif = re.sub(r"\\\{[^{}]+\\\}", r"[^/?#]+", motif)
+    return re.fullmatch(motif, appele) is not None
+
+
+def _frontend_fetch_path_label(chemin):
+    """Réduit un chemin d'appel à sa partie certaine pour le message.
+
+    ``/auth/{id}`` vient d'un gabarit que l'analyse sait assez réduire pour
+    constater l'erreur, mais ``{id}`` n'est pas un chemin que l'utilisateur a
+    réellement écrit. Le nom utile du défaut est donc ``/auth``.
+    """
+    certains = []
+    for segment in chemin.split("/"):
+        if not segment:
+            continue
+        if re.fullmatch(r"\{[^}]+\}", segment):
+            break
+        certains.append(segment)
+    return "/" + "/".join(certains) if certains else chemin
+
+
+def _frontend_fetch_path_suggestions(chemin, chemins, chemins_auth):
+    """Suggère des chemins contractuels sans prétendre comprendre le JS."""
+    label = _frontend_fetch_path_label(chemin)
+    if label == "/auth" and chemins_auth:
+        return sorted(chemins_auth)
+    dernier = label.rstrip("/").rsplit("/", 1)[-1]
+    if not dernier:
+        return []
+    return sorted({
+        candidat for candidat in chemins
+        if candidat.rstrip("/").rsplit("/", 1)[-1] == dernier
+    })
+
+
+def _frontend_fetch_contract_errors(contract, appels):
+    """Refuse les appels ``fetch`` dont le chemin n'est pas contractuel.
+
+    ``appels`` vient exclusivement de ``_frontend_fetch_calls``. Une forme
+    dynamique que cette analyse ne sait pas réduire n'entre donc pas ici et
+    ne déclenche rien, conformément à l'arbitrage conservateur du parcours.
+    """
+    chemins, chemins_auth = _frontend_contract_paths(contract)
+    errors = []
+    for _methode, appele in sorted(appels, key=lambda appel: (appel[1], appel[0] or "")):
+        if any(_frontend_contract_path_matches(appele, declare)
+               for declare in chemins):
+            continue
+        label = _frontend_fetch_path_label(appele)
+        message = f"REFUSÉ : fetch appelle le chemin {label}, absent du contrat"
+        if label != appele:
+            message += f" (forme réduite : {appele})"
+        suggestions = _frontend_fetch_path_suggestions(
+            appele, chemins, chemins_auth)
+        if suggestions:
+            message += "; chemins existants possibles : " + ", ".join(suggestions)
+        errors.append(message + ".")
+    return list(dict.fromkeys(errors))
+
+
+def _route_est_appelee(route, appels):
+    """Teste une route contractuelle contre les appels normalisés du frontend."""
+    chemin = route["path"]
+    motif = re.escape(chemin).replace(r"\{id\}", r"[^/?#]+")
+    return any(methode == route["method"] and re.fullmatch(motif, appele)
+               for methode, appele in appels)
+
+
+def _route_correspond_aux_action(route, action):
+    """Associe une action de workflow aux routes qu'elle produit réellement."""
+    type_action = action["type"]
+    cible = action["target"]
+    entite = cible.split(".", 1)[0]
+    if type_action == "Read":
+        return route["entity"] == entite and route["action"] in ("List", "Read")
+    return route["entity"] == entite and route["action"] == type_action
+
+
+def _route_label(route):
+    return f"{route['method']} {route['path']}"
+
+
+def _frontend_route_coverage(project_dir, spec_path, contract, appels=None):
+    """Vérifie la couverture du frontend livré, sans exécuter une intention.
+
+    Les routes sont lues dans le contrat sur disque et confrontées aux
+    ``fetch`` présents dans les fichiers livrés. Les workflows viennent de la
+    spec, source de leur nom et de leur acteur. Le webhook est le seul cas
+    explicitement hors écran : le contrat interdit déjà au navigateur de
+    l'appeler.
+    """
+    frontend_dir = os.path.join(project_dir, "frontend")
+    if appels is None:
+        appels = _frontend_fetch_calls(frontend_dir)
+    routes = [r for r in contract.get("routes", [])
+              if r["path"] != "/paiement/webhook"]
+    couverts = {id(route) for route in routes if _route_est_appelee(route, appels)}
+
+    try:
+        workflows = parse_monl_file(spec_path).get("workflows", [])
+    except Exception as exc:  # pragma: no cover - artefact déjà validé en amont
+        return [], ["Couverture des parcours indéterminable : "
+                    f"lecture des workflows impossible ({exc})."]
+
+    self_register = set(contract.get("self_register_actors") or [])
+    route_workflows = {id(route): [] for route in routes}
+    parcours_manquants = []
+    for workflow in workflows:
+        actions_manquantes = []
+        workflow_couvert = False
+        for action in workflow.get("actions", []):
+            candidates = [route for route in routes
+                          if _route_correspond_aux_action(route, action)]
+            if any(id(route) in couverts for route in candidates):
+                workflow_couvert = True
+                for route in candidates:
+                    route_workflows[id(route)].append(workflow["name"])
+                continue
+            for route in candidates:
+                route_workflows[id(route)].append(workflow["name"])
+            actions_manquantes.append(f"{action['type']} {action['target']}")
+        if not workflow_couvert and actions_manquantes:
+            parcours_manquants.append((workflow, actions_manquantes))
+
+    missing_routes = [route for route in routes if id(route) not in couverts]
+    missing_labels = []
+    for route in missing_routes:
+        workflows_noms = sorted(set(route_workflows[id(route)]))
+        suffix = (f" (workflows : {', '.join(workflows_noms)})"
+                  if workflows_noms else " (route auxiliaire du contrat)")
+        missing_labels.append(_route_label(route) + suffix)
+
+    errors, warnings = [], []
+    if missing_routes:
+        message = (
+            f"Couverture frontend : {len(couverts)}/{len(routes)} routes du contrat "
+            "sont référencées par frontend/. Routes jamais appelées : "
+            + "; ".join(missing_labels)
+        )
+        # Une route isolée n'est pas nécessairement un écran : un détail peut
+        # être rendu depuis la liste, et une écriture de service peut être
+        # absente d'une vitrine. Le refus porte donc sur le plancher mesurable
+        # (un workflow utilisateur sans aucune entrée), tandis que cette
+        # liste exhaustive reste un avertissement actionnable.
+        warnings.append(message)
+
+    for workflow, actions in parcours_manquants:
+        message = (
+            f"Parcours frontend manquant : workflow '{workflow['name']}' "
+            f"pour l'acteur '{workflow['actor']}' — aucune entrée n'appelle "
+            "une route de ce workflow (actions déclarées : "
+            + ", ".join(actions)
+            + ")"
+        )
+        if workflow["actor"] in self_register:
+            errors.append(message)
+        else:
+            warnings.append(message)
+
+    return errors, warnings
 
 
 def _assets_dir_du_projet(project_dir):
@@ -841,6 +1211,15 @@ def _contract_signature(contract):
     contenus = {f"section « {s['title']} »": hashlib.sha256(
                     "\n".join(s["body"]).encode("utf-8")).hexdigest()
                 for s in contract.get("sections") or []}
+    # BRIQUE 30 : DIXIÈME fois, et la question posée avant d'écrire la brique.
+    # Déclarer un lien de pied de page ne crée aucune route, ne renomme aucun
+    # champ, ne touche à aucun acteur — et le pied de page doit être réécrit,
+    # sous peine d'un refus « lien déclaré absent du site ». L'ADRESSE entre
+    # dans le digest, pas seulement le libellé : corriger une faute de frappe
+    # dans une URL ne renomme rien non plus (leçon des points 89 et 96).
+    contenus.update({f"lien « {lien['label']} »": hashlib.sha256(
+                         lien["url"].encode("utf-8")).hexdigest()
+                     for lien in contract.get("links") or []})
     contenus.update({f"question « {q['question']} »": hashlib.sha256(
                          "\n".join(q["answer"]).encode("utf-8")).hexdigest()
                      for q in contract.get("faq") or []})
@@ -967,8 +1346,24 @@ def _contract_signature(contract):
             par = "à envoyer par le client" if lien["column"] in designees \
                 else "renseigné par le serveur"
             liens.add(f"{entite}.{lien['column']} → {porte}, {par}")
+    # POINT 119 : NEUVIÈME fois, et la question posée avant d'écrire la brique
+    # cette fois-ci. Le plancher de sections et la substance exigée de chacune
+    # ne créent aucune route, ne renomment aucun champ et ne touchent à aucun
+    # acteur — mais un site conforme hier devient non conforme, et
+    # `monl run --check` le refuse. Sans cette entrée, `monl update` répondrait
+    # « aucun changement d'interface » juste avant que le site cesse de
+    # démarrer : le pire des deux mondes. Le digest porte la RÈGLE et pas
+    # seulement le nom de la section — relever le seuil de texte de `trust`
+    # oblige aussi à réécrire, exactement comme au point 89.
+    from .design_system import _section_substance, infer_design_profile
+    profil = infer_design_profile(contract)
+    sections_obligatoires = {
+        marker.partition("=")[2].strip('"'): hashlib.sha256(
+            json.dumps(regle, sort_keys=True).encode("utf-8")).hexdigest()
+        for marker, regle in _section_substance(contract, profil).items()
+    }
     return (routes, fields, acces, lecture_seule, prealables, verrous,
-            contenus, liens, field_types)
+            contenus, liens, field_types, sections_obligatoires)
 
 
 def _situer_projet(project_dir, geste):
@@ -995,7 +1390,7 @@ def _signature_precedente(project_dir):
     pas encore — auquel cas tout est « ajouté », ce qui est exact."""
     contract_path = os.path.join(project_dir, CONTRACT_FILENAME)
     if not os.path.exists(contract_path):
-        return (set(), set(), set(), set(), set(), set(), {}, set(), {})
+        return (set(), set(), set(), set(), set(), set(), {}, set(), {}, {})
     with open(contract_path, encoding="utf-8") as fh:
         return _contract_signature(json.load(fh))
 
@@ -1009,9 +1404,9 @@ def _rapporter_delta(ancienne, nouvelle, project_dir, ecrire_brief=True):
     finiraient par diverger — et c'est précisément le calcul dont cinq points
     (88 à 91, 94, 99) ont montré qu'il est difficile à tenir juste."""
     (old_routes, old_fields, old_acces, old_ro, old_prea, old_verrous,
-     old_contenus, old_liens, old_types) = ancienne
+     old_contenus, old_liens, old_types, old_sections) = ancienne
     (new_routes, new_fields, new_acces, new_ro, new_prea, new_verrous,
-     new_contenus, new_liens, new_types) = nouvelle
+     new_contenus, new_liens, new_types, new_sections) = nouvelle
 
     added_routes, removed_routes = new_routes - old_routes, old_routes - new_routes
     added_fields, removed_fields = new_fields - old_fields, old_fields - new_fields
@@ -1054,11 +1449,20 @@ def _rapporter_delta(ancienne, nouvelle, project_dir, ecrire_brief=True):
     changed_types = {f"{field} : {old_types[field]} → {new_types[field]}"
                      for field in (new_fields & old_fields)
                      if old_types.get(field) != new_types.get(field)}
+    # POINT 119 : trois cas comme pour le contenu (point 94) — une section
+    # peut apparaître, disparaître, ou voir sa règle DURCIE sans changer de
+    # nom. Le troisième est le silencieux : relever le texte exigé de `trust`
+    # ne renomme rien et rend pourtant le site non conforme.
+    added_sections = set(new_sections) - set(old_sections)
+    removed_sections = set(old_sections) - set(new_sections)
+    modifies_sections = {c for c in set(new_sections) & set(old_sections)
+                         if new_sections[c] != old_sections[c]}
     changes = any((added_routes, removed_routes, added_fields, removed_fields,
                    added_acces, removed_acces, scelles, liberes,
                    added_prea, removed_prea, added_verrous, removed_verrous,
                    added_contenus, removed_contenus, modifies_contenus,
-                   changed_liens, changed_types))
+                   changed_liens, changed_types,
+                   added_sections, removed_sections, modifies_sections))
     # Le nom seul ne dit pas qu'un champ neuf est en lecture seule ; la rubrique
     # du brief s'intitule « à afficher/saisir », ce qui serait un contresens sur
     # un horodatage ou un total calculé.
@@ -1100,6 +1504,12 @@ def _rapporter_delta(ancienne, nouvelle, project_dir, ecrire_brief=True):
         print(f"  - contenu retiré : {item}")
     for item in sorted(modifies_contenus):
         print(f"  ! contenu réécrit : {item}")
+    for item in sorted(added_sections):
+        print(f"  + section obligatoire : {item} — à dessiner sur l'accueil")
+    for item in sorted(removed_sections):
+        print(f"  - section obligatoire retirée : {item}")
+    for item in sorted(modifies_sections):
+        print(f"  ! section obligatoire durcie : {item} — son contenu minimal a changé")
     if not changes:
         print("  (aucun changement d'interface — le frontend existant reste valide)")
     elif ecrire_brief:
@@ -1310,23 +1720,49 @@ def _lancer_ia(args, update_mode=False, retouche_mode=False):
         DEFAULT_MODEL,
         PROVIDERS,
         FrontendAIError,
+        _parse_model_routing,
+        _validate_model_routing,
         generate_and_verify,
         generate_with_cli_agent,
     )
     try:
+        image_provider = None
+        if getattr(args, "generate_images", False):
+            from .image_ai import IMAGE_PROVIDERS, ImageProviderError
+            try:
+                image_provider = IMAGE_PROVIDERS[args.image_provider]()
+            except ImageProviderError as exc:
+                raise FrontendAIError(str(exc)) from exc
+        model_routes = _parse_model_routing(getattr(args, "model_for", None))
+        _validate_model_routing(args.dir, model_routes)
         if args.agent_command or args.provider in CLI_AGENTS:
+            if model_routes:
+                declared = ", ".join(
+                    f"{target}={model}" for target, model in sorted(model_routes.items()))
+                print(" -> Routage par étage non appliqué : la voie agent ne comporte "
+                      f"pas d'appels découpés (correspondances déclarées : {declared}).")
             ok, _errors = generate_with_cli_agent(
                 args.dir, update_mode=update_mode, retouche_mode=retouche_mode,
                 max_turns=args.max_turns or DEFAULT_MAX_TURNS,
-                agent=args.provider, agent_command=args.agent_command)
+                agent=args.provider, agent_command=args.agent_command,
+                generate_images=getattr(args, "generate_images", False),
+                image_provider=image_provider)
         else:
             # Le modèle par défaut n'existe QUE pour la voie Anthropic ;
             # ailleurs, openai_provider exige --model et le dit.
             defaut = DEFAULT_MODEL if args.provider == "claude" else None
-            provider = PROVIDERS[args.provider](model=args.model or defaut)
+            def provider_factory(model):
+                return PROVIDERS[args.provider](model=model)
+
+            provider = provider_factory(args.model or defaut)
             ok, _errors = generate_and_verify(args.dir, provider,
                                               update_mode=update_mode,
-                                              retouche_mode=retouche_mode)
+                                              retouche_mode=retouche_mode,
+                                              model_routes=model_routes,
+                                              provider_factory=provider_factory,
+                                              generate_images=getattr(
+                                                  args, "generate_images", False),
+                                              image_provider=image_provider)
     except FrontendAIError as e:
         print(f" ❌ {e}")
         sys.exit(1)
@@ -1509,6 +1945,124 @@ def cmd_content_import(project_dir):
         print(f" ⚠️  {message}")
 
 
+def _usage_value(value):
+    if value is None:
+        return "inconnu"
+    if isinstance(value, float):
+        return f"{value:.3f}".rstrip("0").rstrip(".")
+    return str(value)
+
+
+def _usage_cost(item, currency):
+    cost = item.get("cost")
+    if cost is not None:
+        valeur = _usage_value(cost)
+        return f"{valeur} {currency}" if currency else valeur
+    if item.get("price_status") == "not_declared":
+        return "prix non déclaré"
+    if item.get("price_status") == "counters_unavailable":
+        return "compteurs de jetons indisponibles"
+    return "aucun coût"
+
+
+def _usage_measure(item):
+    measures = []
+    if item.get("input_tokens") is not None or item.get("output_tokens") is not None:
+        measures.append(
+            f"entrée {_usage_value(item.get('input_tokens'))}, "
+            f"sortie {_usage_value(item.get('output_tokens'))} jetons"
+        )
+    if item.get("requests") is not None:
+        measures.append(f"{_usage_value(item['requests'])} requête(s) d'image")
+    return " | ".join(measures) or "jetons non applicables"
+
+
+def _usage_line(item, currency, prefix="  "):
+    operations = item.get("operation") or "opération inconnue"
+    attempts = ",".join(str(value) for value in item.get("attempts", [])) or "inconnues"
+    stages = ", ".join(
+        f"{stage}×{item['stage_counts'][stage]}"
+        if item.get("stage_counts", {}).get(stage, 0) > 1 else stage
+        for stage in item.get("stages", [])
+    ) or "aucune"
+    return (f"{prefix}{operations} | tentatives {attempts} | étapes {stages} | "
+            f"{_usage_measure(item)} | "
+            f"durée {_usage_value(item.get('duration_seconds'))} s | "
+            f"coût {_usage_cost(item, currency)}")
+
+
+def _usage_total_line(item, currency, prefix="  "):
+    return (f"{prefix}{_usage_measure(item)} | "
+            f"durée {_usage_value(item.get('duration_seconds'))} s | "
+            f"coût {_usage_cost(item, currency)}")
+
+
+def _print_usage_report(report):
+    if not report["journal_exists"]:
+        print(f"ℹ️ Aucun journal de consommation IA dans {report['journal']} : "
+              "aucune consommation mesurée.")
+        return
+
+    price = report["price_table"]
+    source = price["path"] or "aucune table"
+    print(f"─── Usage IA — {report['project_dir']} ───")
+    print(f"Table de prix : {source}"
+          + (f" ({price['currency']})" if price["currency"] else ""))
+    print(f"─── Exécutions ({len(report['executions'])}) ───")
+    for execution in report["executions"]:
+        if execution["known"]:
+            prefix = f"  run_id={execution['run_id']} | "
+        else:
+            prefix = ("  exécution inconnue — événements sans run_id; aucun "
+                      "regroupement déduit | ")
+        print(_usage_line(execution, price["currency"], prefix=prefix))
+
+    print("─── Totaux fournisseur / modèle ───")
+    if not report["totals"]:
+        print("  (aucun événement exploitable)")
+    for total in report["totals"]:
+        print(f"  {total.get('provider') or 'fournisseur inconnu'} / "
+              f"{total.get('model') or 'modèle inconnu'}")
+        print(_usage_total_line(total, price["currency"], prefix="    "))
+
+    print("─── Total projet ───")
+    print(_usage_total_line(report["project_total"], price["currency"]))
+    for malformed in report["malformed_lines"]:
+        print(f" ⚠️ Ligne {malformed['line']} ignorée : {malformed['error']}.")
+
+
+def cmd_usage(project_dir, prices_path=None, json_output=False):
+    """Lire un journal de consommation sans estimer les lignes non tarifées."""
+    project_dir = os.path.abspath(project_dir)
+    souci = _erreur_de_chemin(project_dir)
+    if souci:
+        if json_output:
+            print(json.dumps({"error": souci}, ensure_ascii=False))
+        else:
+            print(souci)
+        raise SystemExit(1)
+    if not os.path.exists(os.path.join(project_dir, STATE_FILENAME)):
+        message = (f" ❌ {STATE_FILENAME} introuvable — ce dossier n'est pas un "
+                   "projet monl.")
+        if json_output:
+            print(json.dumps({"error": message}, ensure_ascii=False))
+        else:
+            print(message)
+        raise SystemExit(1)
+    try:
+        report = build_usage_report(project_dir, prices_path=prices_path)
+    except UsagePriceError as err:
+        if json_output:
+            print(json.dumps({"error": str(err)}, ensure_ascii=False))
+        else:
+            print(f" ❌ {err}")
+        raise SystemExit(1) from err
+    if json_output:
+        print(json.dumps(report, ensure_ascii=False, sort_keys=True))
+    else:
+        _print_usage_report(report)
+
+
 # ------------------------------------------------------------------- main --
 def _dispatch(argv=None):
     parser = argparse.ArgumentParser(
@@ -1540,6 +2094,20 @@ def _dispatch(argv=None):
         help="Voir le delta du contrat SANS rien recompiler ni écrire.")
     p_diff.add_argument("dir", nargs="?", default=".")
 
+    p_usage = sub.add_parser(
+        "usage", help="Mesurer la consommation IA et le coût déclaré du projet.")
+    p_usage.add_argument("dir", nargs="?", default=".",
+                         help="Dossier du projet (premier argument; défaut : .).")
+    p_usage.add_argument(
+        "--prices", default=None, metavar="FICHIER_JSON",
+        help="Table JSON fournisseur → modèle → tarifs par million de jetons; "
+             "prioritaire sur MONL_USAGE_PRICES. Format: "
+             "{currency, prices: {fournisseur: {modèle: "
+             "{input_per_million_tokens, output_per_million_tokens}}}}.")
+    p_usage.add_argument(
+        "--json", action="store_true", dest="json_output",
+        help="Émettre le rapport JSON, pour quota et facturation.")
+
     p_migrate = sub.add_parser(
         "migrate", help="Appliquer ou défaire une migration de schéma nommée.")
     p_migrate.add_argument("dir", nargs="?", default=".")
@@ -1555,6 +2123,7 @@ def _dispatch(argv=None):
                          "re-vérification automatique (cohérence + smoke test).")
     p_front.add_argument("dir", nargs="?", default=".")
     from .frontend_ai import CLI_AGENTS, GENERIC_PROVIDER, OPENAI_COMPATIBLE
+    from .image_ai import IMAGE_PROVIDERS
     _voies = sorted({"claude", GENERIC_PROVIDER} | set(OPENAI_COMPATIBLE) | set(CLI_AGENTS))
     p_front.add_argument("--provider", default="claude", choices=_voies,
                          help="Clé API : 'claude' (ANTHROPIC_API_KEY) ; "
@@ -1567,6 +2136,13 @@ def _dispatch(argv=None):
                               + ", ".join(f"'{n}'" for n in sorted(CLI_AGENTS))
                               + " — l'agent travaille dans le dossier du projet.")
     p_front.add_argument("--model", default=None, help="Modèle du fournisseur.")
+    p_front.add_argument(
+        "--model-for", dest="model_for", action="append", default=None,
+        metavar="CIBLE=MODELE",
+        help="Routage répétable de la génération découpée (ex. "
+             "styles.css=yandexgpt-lite). Cibles exactes : index.html, styles.css, "
+             "app.js et SVG planifiés. Une voie monolithique ou agent ne comporte "
+             "qu'un appel et signalera que ce routage n'est pas appliqué.")
     p_front.add_argument("--agent-command", default=None,
                          help="Gabarit de commande pour un agent absent de la "
                               "liste, {instruction} étant substitué — par exemple "
@@ -1578,6 +2154,13 @@ def _dispatch(argv=None):
     p_front.add_argument("--update", action="store_true",
                          help="Faire évoluer le frontend existant à partir de "
                               "FRONTEND_UPDATE_PROMPT.md au lieu de repartir de zéro.")
+    p_front.add_argument(
+        "--generate-images", action="store_true",
+        help="Générer explicitement les images matricielles planifiées dans le "
+             "dossier d'assets (défaut : aucune image).")
+    p_front.add_argument(
+        "--image-provider", choices=sorted(IMAGE_PROVIDERS), default="yandexart",
+        help="Fournisseur d'images utilisé avec --generate-images (défaut : yandexart).")
 
     # POINT 93 : corriger un défaut CONSTATÉ sur le site, sans le reconstruire.
     # Les options sont rigoureusement celles de 'frontend' — c'est la même voie
@@ -1666,6 +2249,8 @@ def _dispatch(argv=None):
         cmd_update(args.dir)
     elif args.command == "diff":
         cmd_diff(args.dir)
+    elif args.command == "usage":
+        cmd_usage(args.dir, prices_path=args.prices, json_output=args.json_output)
     elif args.command == "migrate":
         cmd_migrate(args.dir, name=args.name, down=args.down, list_only=args.list)
     elif args.command == "assets":

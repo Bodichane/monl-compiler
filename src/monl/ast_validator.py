@@ -2085,7 +2085,56 @@ class MonlAST:
                     f"(trouvé : question={question!r}, réponse={answer!r})."
                 )
             faq.append({"question": question, "answer": answer})
-        self.landing = {"brief": self.landing_raw.get("brief"), "sections": sections, "faq": faq}
+        self.landing = {"brief": self.landing_raw.get("brief"), "sections": sections,
+                        "faq": faq, "links": self._valider_liens_sortants()}
+
+    #: Ce qu'un navigateur sait ouvrir depuis un pied de page. `tel:` et
+    #: `mailto:` en font partie : sur un site de commerce, ce sont souvent les
+    #: DEUX liens qui comptent le plus.
+    SCHEMES_DE_LIEN = ("https://", "http://", "mailto:", "tel:")
+
+    def _valider_liens_sortants(self):
+        """Normalise les liens du pied de page — ou refuse en l'expliquant.
+
+        monl ne VÉRIFIE pas qu'une adresse répond : il ne fait aucun appel
+        réseau, et le prétendre serait mentir (même frontière qu'au point 83
+        pour les images distantes). Ce qu'il vérifie, c'est qu'un navigateur
+        saura l'ouvrir — un « instagram.com/atelier » sans schéma est lu comme
+        un chemin RELATIF et mène à une page inexistante du site lui-même.
+        Un lien qui ne marche pas est pire qu'un lien absent : il se voit.
+        """
+        liens, libelles, adresses = [], set(), set()
+        for entree in self.landing_raw.get("links") or []:
+            label = (entree.get("label") or "").strip()
+            url = (entree.get("url") or "").strip()
+            if not label or not url:
+                raise ValueError(
+                    "SEMANTIC_ERROR: un 'link' de 'landing' exige un libellé ET une "
+                    f"adresse non vides (trouvé : libellé={label!r}, adresse={url!r})."
+                )
+            if not url.lower().startswith(self.SCHEMES_DE_LIEN):
+                raise ValueError(
+                    f"SEMANTIC_ERROR: le lien « {label} » porte l'adresse {url!r}, "
+                    "que le navigateur lira comme un chemin du site lui-même. "
+                    "Écrire l'adresse complète : "
+                    + ", ".join(f"'{s}…'" for s in self.SCHEMES_DE_LIEN) + "."
+                )
+            repere = label.casefold()
+            if repere in libelles:
+                raise ValueError(
+                    f"SEMANTIC_ERROR: deux liens de 'landing' portent le libellé "
+                    f"« {label} ». Un pied de page qui répète un libellé fait "
+                    "hésiter sur lequel suivre."
+                )
+            if url in adresses:
+                raise ValueError(
+                    f"SEMANTIC_ERROR: l'adresse {url!r} est déclarée deux fois "
+                    "dans 'landing'."
+                )
+            libelles.add(repere)
+            adresses.add(url)
+            liens.append({"label": label, "url": url})
+        return liens
 
     def _valider_prestataire(self, nom):
         """Résout le prestataire d'encaissement — ou refuse en l'expliquant."""

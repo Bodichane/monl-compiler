@@ -56,19 +56,83 @@ def _purger(service: CompilationService, identities: IdentityStore) -> int:
     return efface
 
 
-def create_app(*, workspace=None) -> FastAPI:
+def _liens_de_pied(brut):
+    """Normalise les liens déclarés par la console, sans deviner les autres."""
+    from monl.dialogue_engine import adresse_de_lien
+
+    liens, vus = [], set()
+    for entree in brut or []:
+        if not isinstance(entree, dict):
+            continue
+        label = str(entree.get("label") or "").strip()
+        adresse = adresse_de_lien(str(entree.get("url") or ""))
+        cle = label.casefold()
+        if not label or '"' in label or not adresse or cle in vus:
+            continue
+        vus.add(cle)
+        liens.append({"label": label, "url": adresse})
+    return liens
+
+
+def create_app(
+    *,
+    workspace=None,
+    domain=None,
+    quota_limit=1_000_000,
+    provider=None,
+    provider_factory=None,
+    model_provider_factory=None,
+    image_provider_factory=None,
+    image_provider=None,
+    prices_path=None,
+    poll_interval=0.05,
+    downloads_dir=None,
+    start_worker=True,
+) -> FastAPI:
     configurer()
     service = CompilationService(workspace)
     identities = IdentityStore(service.workspace)
     sans_codes = identities.comptes_sans_codes()
+    comptes_herites = identities.comptes_herites()
     if sans_codes:
         # Les comptes antérieurs n'ont pas de codes : la migration additive
         # rattrape une table, jamais son contenu. Leur en fabriquer au
         # démarrage serait pire — il faudrait les leur montrer, et personne
         # ne les lirait. On les NOMME, la page du compte fait le reste.
         anomalie("comptes_sans_codes_de_secours", nombre=sans_codes)
+    if comptes_herites:
+        # Le registre constructeur historique reste lisible mais ne peut pas
+        # être converti : son hachage et ses identifiants ne sont pas ceux de
+        # l'identité de main. Compter et nommer vaut mieux qu'une reprise
+        # silencieuse qui inventerait un mot de passe.
+        anomalie(
+            "comptes_heritages_non_convertibles",
+            nombre=comptes_herites,
+            raison="hachage et identifiants du registre historique incompatibles",
+        )
     evenement("demarrage", workspace=str(service.workspace),
               purges=_purger(service, identities))
+
+    # Le constructeur est une extension du projet du socle. Son module monte
+    # ses routes ; app.py ne conserve ici que le câblage des dépendances et du
+    # cycle de vie commun.
+    from .builder_routes import create_runtime, mount_builder_routes
+
+    builder_runtime = create_runtime(
+        service,
+        identities,
+        domain=domain,
+        quota_limit=quota_limit,
+        provider=provider,
+        provider_factory=provider_factory,
+        model_provider_factory=model_provider_factory,
+        image_provider_factory=image_provider_factory,
+        image_provider=image_provider,
+        prices_path=prices_path,
+        poll_interval=poll_interval,
+        downloads_dir=downloads_dir,
+        start_worker=start_worker,
+    )
 
     @contextlib.asynccontextmanager
     async def _cycle_de_vie(_app):
@@ -96,11 +160,13 @@ def create_app(*, workspace=None) -> FastAPI:
 
         fil = threading.Thread(target=boucle, name="monl-purge", daemon=True)
         fil.start()
+        builder_runtime.start()
         try:
             yield
         finally:
             arret.set()
             fil.join(timeout=5)
+            builder_runtime.stop()
 
     dispatcher = MCPDispatcher(service, identities)
     compile_slots = threading.BoundedSemaphore(
@@ -115,6 +181,13 @@ def create_app(*, workspace=None) -> FastAPI:
     )
     application.state.compilation_service = service
     application.state.identity_store = identities
+    application.state.builder_runtime = builder_runtime
+    application.state.store = builder_runtime.store
+    application.state.quota = builder_runtime.quota
+    application.state.sites = builder_runtime.sites
+    application.state.worker = builder_runtime.worker
+
+    mount_builder_routes(application, builder_runtime)
 
     @application.get("/", response_class=HTMLResponse, include_in_schema=False)
     def accueil():
@@ -322,6 +395,7 @@ def create_app(*, workspace=None) -> FastAPI:
         for project_id in projets:
             with contextlib.suppress(PlatformNotFoundError):
                 service.delete(project_id)
+            builder_runtime.remove_project(user["id"], project_id)
         evenement("compte_supprime", compte=court(user["id"]), projets=len(projets))
         response = Response(status_code=204)
         response.delete_cookie("monl_session", path="/", httponly=True, samesite="strict")
@@ -341,6 +415,7 @@ def create_app(*, workspace=None) -> FastAPI:
         user = _require_user(request, identities)
         _require_project(identities, user["id"], project_id)
         service.delete(project_id)
+        builder_runtime.remove_project(user["id"], project_id)
         identities.delete_project(user["id"], project_id)
         return Response(status_code=204)
 

@@ -67,18 +67,31 @@ GOLDENS = {
     # scelle leur empreinte : app.py, schema.sql et manage.py restent
     # identiques à l'octet — la preuve que la correction porte sur ce que le
     # backend DÉCLARE, pas sur ce qu'il fait.
-    "frontend_contract.json": "8c2a7691b2a408c6c5624b65a7e70e77584812a4ac475f2e2d3ae38a8cd0e919",
-    "FRONTEND_PROMPT.md": "8d6c2c8af49299b0f523eec333f51bb93e2ee8985befe1300475f6796f01df2f",
+    # BRIQUE 30 : le contrat porte `links`, la liste des adresses SORTANTES
+    # declarees dans `landing`. Elle est vide ici, et l'empreinte bouge quand
+    # meme : la CLE existe desormais toujours, comme `faq` en son temps. Seuls
+    # le contrat, le brief et monl.json changent — app.py, schema.sql et
+    # manage.py restent identiques a l'octet, la preuve que la brique porte
+    # sur ce que le frontend doit DESSINER et pas sur ce que le backend fait.
+    "frontend_contract.json": "7ae58f38c5ac1d6baa2769cd40a20d9baf0b6d208884db0e55df365515466079",
+    # Le brief gagne le plancher de couverture des workflows, l'interdiction
+    # explicite des fichiers image locaux hors manifeste et l'alternative SVG
+    # inline, puis la carte exécutable des marqueurs obligatoires : cette
+    # empreinte change volontairement avec ces règles, tandis que les artefacts
+    # backend restent inchangés à l'octet.
+    "FRONTEND_PROMPT.md": "062fa3c243c3a3da3d2133c2a5c45db9d5653d14626ae836ffe51131915685d3",
     "CLAUDE.md": "ebf07f5ca26ffa6bf8571ca6e0379afc31978b600b2cecd2ffe330719495183f",
     # Revue A2 : manage.py NOMME le remède au lieu de laisser filer une
     # trace quand la base attend une migration. app.py ne bouge PAS —
     # la preuve que le correctif ne touche que la commande d'administration.
-    # 0.9.0-beta.7, puis 0.9.0-beta.8 : seul monl.json bouge, parce qu'il
-    # SCELLE la version du compilateur. Tous les autres artefacts restent
-    # identiques a l'octet — la preuve que la montee de version ne change rien
-    # a ce qui est genere. Deux versions de suite, donc ce n'est pas une
-    # coincidence : c'est ce que ce test est la pour tenir.
-    "monl.json": "4ba690fdf13ae3647040480956406c39579660c7e5b68a88b1360285e0e1fdab",
+    # 0.9.0-beta.7, puis beta.8, puis la BRIQUE 30 : monl.json bouge pour DEUX
+    # causes distinctes — il scelle le numero de version du compilateur, et
+    # l'empreinte du contrat, qui vient de gagner sa cle `links`. Les deux se
+    # cumulent, donc a chaque fusion l'empreinte n'est celle d'AUCUN des deux
+    # cotes et doit etre recalculee. Reprendre l'une des deux donnerait un test
+    # qui passe sans rien prouver. Tous les autres artefacts restent identiques
+    # a l'octet, trois fois de suite : c'est ce que ce test est la pour tenir.
+    "monl.json": "c69d53779b3eb0737c6e3cadbe62a42f8a2395a875925e581679f259569ef6fb",
 }
 
 

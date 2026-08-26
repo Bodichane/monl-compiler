@@ -1,0 +1,55 @@
+{
+  "_source": "aistudio.yandex.ru/docs/en/ai-studio/pricing.html — « Model Gallery / Synchronous mode », relevé le 18/08/2026.",
+  "_unite_source": "La page annonce un prix pour 1 000 jetons HORS TVA. monl raisonne par MILLION de jetons : chaque valeur ci-dessous est celle de la page multipliée par 1 000.",
+  "_hors_champ": "Le tarif de YandexART (facturé à la REQUÊTE, pas au jeton) vit dans la section « Image generation » et n'est PAS relevé ici. Tant qu'il manque, `monl usage` répond `not_declared` pour les images plutôt que de les compter gratuites — ne pas y mettre 0.",
+  "_mode": "Tarifs du mode SYNCHRONE, le seul que monl emploie. Les modes asynchrone et batch sont moins chers et restent à explorer.",
+  "currency": "USD",
+  "prices": {
+    "yandex": {
+      "qwen3-235b-a22b-fp8/latest": {
+        "input_per_million_tokens": 4.09836,
+        "output_per_million_tokens": 4.09836
+      },
+      "qwen3.6-35b-a3b/latest": {
+        "input_per_million_tokens": 1.639344,
+        "output_per_million_tokens": 2.459016
+      },
+      "aliceai-llm/latest": {
+        "input_per_million_tokens": 4.09836,
+        "output_per_million_tokens": 9.836064
+      },
+      "aliceai-llm-flash/latest": {
+        "input_per_million_tokens": 0.819672,
+        "output_per_million_tokens": 1.639344
+      },
+      "deepseek-v4-flash/latest": {
+        "input_per_million_tokens": 2.459016,
+        "output_per_million_tokens": 4.09836
+      },
+      "gpt-oss-120b/latest": {
+        "input_per_million_tokens": 2.459016,
+        "output_per_million_tokens": 2.459016
+      },
+      "gpt-oss-20b/latest": {
+        "input_per_million_tokens": 0.819672,
+        "output_per_million_tokens": 0.819672
+      },
+      "yandexgpt-5-pro/latest": {
+        "input_per_million_tokens": 9.836064,
+        "output_per_million_tokens": 9.836064
+      },
+      "yandexgpt-5.1/latest": {
+        "input_per_million_tokens": 6.557376,
+        "output_per_million_tokens": 6.557376
+      },
+      "yandexgpt-5-lite/latest": {
+        "input_per_million_tokens": 1.639344,
+        "output_per_million_tokens": 1.639344
+      },
+      "yandexgpt-lite/latest": {
+        "input_per_million_tokens": 1.639344,
+        "output_per_million_tokens": 1.639344
+      }
+    }
+  }
+}

@@ -8,7 +8,11 @@ from monl.ast_validator import MonlAST
 from monl.dialogue_engine import DialogueError, GuidedDialogue
 from monl.parser import parse_monl_string
 
-SCENARIO_PORTFOLIO = [
+# Le scénario est composé de morceaux NOMMÉS. Il était découpé par des
+# nombres négatifs (`[:-4]`, `[:-5]`) : chaque question ajoutée en fin de
+# dialogue déplaçait la coupe et cassait huit tests d'un coup, sans que le
+# nombre magique dise jamais ce qu'il retirait.
+SCENARIO_PORTFOLIO_TRONC = [
     "11",              # partir de zéro (dialogue libre)
     "StudioTest", "Un portfolio de studio créatif avec contact.",
     "Project", "title", "1", "imageUrl", "1", "year", "3", "",
@@ -26,11 +30,22 @@ SCENARIO_PORTFOLIO = [
     "o",               # seed
     "n",               # images génériques (point 59)
     "o",               # landing
-    # Brief transmis -> l'intention visuelle est demandée (point 53) :
-    # action attendue du visiteur, registre, place des images.
-    "voir les projets et écrire", "2", "1",
-    "n",               # aucune section éditoriale (point 55)
 ]
+
+# Brief transmis -> l'intention visuelle est demandée (point 53) :
+# action attendue du visiteur, registre, place des images.
+INTENTION_PAR_DEFAUT = ["voir les projets et écrire", "2", "1"]
+AUCUNE_SECTION = ["n"]                     # point 55
+#: Les destinations du pied de page (brique 30). Le nombre d'entrées
+#: proposées est LU sur la source : le figer ici le ferait diverger en
+#: silence à la première entrée ajoutée.
+AUCUN_LIEN = [""] * len(GuidedDialogue.LIENS_PROPOSES) + ["n"]
+
+SCENARIO_PORTFOLIO = (SCENARIO_PORTFOLIO_TRONC + INTENTION_PAR_DEFAUT
+                      + AUCUNE_SECTION + AUCUN_LIEN)
+#: Le même parcours en refusant la page d'accueil : ni intention, ni
+#: rubrique, ni lien ne sont alors demandés.
+SCENARIO_SANS_LANDING = SCENARIO_PORTFOLIO_TRONC[:-1] + ["n"]
 
 
 def _run(answers):
@@ -109,6 +124,57 @@ def test_aucune_spec_ne_nomme_un_hote_distant():
     spec = _run(SCENARIO_PORTFOLIO)
     for hote in ("picsum", "loremflickr", "http://", "https://"):
         assert hote not in spec, f"la spec nomme un hôte distant : {hote}"
+
+
+# ---- Les destinations du pied de page (brique 30) ----
+
+def _scenario_avec_liens(saisies):
+    """SCENARIO_PORTFOLIO dont on ne change que les réponses du pied de page."""
+    entrees = list(saisies) + [""] * len(GuidedDialogue.LIENS_PROPOSES)
+    return (SCENARIO_PORTFOLIO_TRONC + INTENTION_PAR_DEFAUT + AUCUNE_SECTION
+            + entrees[:len(GuidedDialogue.LIENS_PROPOSES)] + ["n"])
+
+
+def test_le_dialogue_produit_reellement_des_liens_de_pied_de_page():
+    """La brique 30 existait depuis le point 144 et RIEN ne la produisait.
+
+    Ni ce dialogue ni aucun des dix modèles ne déclarait un seul lien : tout
+    site sortait donc avec un pied de page sans une destination. Une règle
+    qui ne produit rien est ce que le point 85 interdit au compilateur, et
+    l'interdit vaut pour le dialogue qui écrit la spec.
+    """
+    spec = _run(_scenario_avec_liens(
+        ["contact@studio.fr", "+33 6 12 34 56 78", "instagram.com/studio"]))
+
+    # Personne ne tape « mailto: » ni « https:// » : le dialogue complète, et
+    # ne complète que là où il n'existe qu'une lecture.
+    assert 'link "Courriel": "mailto:contact@studio.fr"' in spec
+    assert 'link "Téléphone": "tel:+33612345678"' in spec
+    assert 'link "Instagram": "https://instagram.com/studio"' in spec
+    normalise = MonlAST(parse_monl_string(spec)).validate_and_audit()
+    assert [lien["label"] for lien in normalise["landing"]["links"]] == [
+        "Courriel", "Téléphone", "Instagram"]
+
+
+def test_une_adresse_incomprehensible_est_passee_et_dite():
+    """Deviner une adresse serait pire que la passer : le lien mènerait
+    quelque part, et personne ne saurait où."""
+    dits = []
+    scenario = _scenario_avec_liens(["pas une adresse du tout"])
+    it = iter(scenario)
+    spec = GuidedDialogue(ask=lambda p: next(it), say=dits.append).run()
+
+    assert "link " not in spec
+    assert any("incomprise" in ligne for ligne in dits), dits
+    MonlAST(parse_monl_string(spec)).validate_and_audit()
+
+
+def test_le_pied_de_page_n_est_pas_demande_sans_page_d_accueil():
+    """Sans accueil à écrire, ces liens n'auraient nulle part où aller —
+    même règle que l'intention visuelle et que les rubriques."""
+    spec = _run(SCENARIO_SANS_LANDING)   # ne doit PAS lever StopIteration
+
+    assert "link " not in spec
 
 
 def test_le_sujet_dillustration_part_dans_le_brief_et_non_dans_une_url():
@@ -235,7 +301,8 @@ def test_gestion_partagee_emet_sharedby_sans_collision():
 
 def _scenario_portfolio(intention):
     """SCENARIO_PORTFOLIO, dont on ne change que les réponses d'intention."""
-    return SCENARIO_PORTFOLIO[:-4] + list(intention) + ["n"]
+    return (SCENARIO_PORTFOLIO_TRONC + list(intention)
+            + AUCUNE_SECTION + AUCUN_LIEN)
 
 
 def test_intention_visuelle_arrive_dans_le_brief():
@@ -264,10 +331,7 @@ def test_sans_brief_aucune_question_d_intention():
     """L'intention n'est demandée que si un brief part vers l'IA : sinon ces
     réponses n'auraient personne à qui servir, et le dialogue ferait perdre
     trois questions à l'utilisateur."""
-    # [:-4] retire les 3 réponses d'intention ET le « oui » au brief ; la
-    # réponse « seed » reste en place, on ne rajoute donc que le refus.
-    sans_landing = SCENARIO_PORTFOLIO[:-5] + ["n"]
-    spec = _run(sans_landing)          # ne doit PAS lever StopIteration
+    spec = _run(SCENARIO_SANS_LANDING)   # ne doit PAS lever StopIteration
     assert "landing" not in spec
     MonlAST(parse_monl_string(spec)).validate_and_audit()
 
@@ -278,13 +342,13 @@ def test_sections_editoriales_emises_et_validees():
     """Le seul contenu du contrat qui ne soit pas une donnée. Sans lui,
     une page « à propos » n'a aucune entité, aucun champ, aucune route d'où
     naître — l'IA n'a littéralement rien pour la construire."""
-    scenario = SCENARIO_PORTFOLIO[:-1] + [
+    scenario = SCENARIO_PORTFOLIO_TRONC + INTENTION_PAR_DEFAUT + [
         # Point 64 : chaque corps se termine par une ligne vide — ici un
         # seul paragraphe par rubrique.
         "o", "À propos", "Studio fondé en 2015 à Lyon.", "",
         "o", "Méthode", "Repérage, prise de vue, retouche.", "",
         "n",
-    ]
+    ] + AUCUN_LIEN
     spec = _run(scenario)
     assert 'section "À propos": "Studio fondé en 2015 à Lyon."' in spec
     assert 'section "Méthode": "Repérage, prise de vue, retouche."' in spec
@@ -296,7 +360,7 @@ def test_sections_editoriales_emises_et_validees():
 def test_sections_refusees_si_aucun_brief():
     """Même règle que l'intention visuelle : sans page d'accueil à écrire,
     ces textes n'auraient nulle part où aller."""
-    spec = _run(SCENARIO_PORTFOLIO[:-5] + ["n"])
+    spec = _run(SCENARIO_SANS_LANDING)
     assert "section " not in spec and "landing" not in spec
 
 
@@ -311,14 +375,14 @@ def test_un_texte_en_plusieurs_paragraphes_survit_jusqu_au_contrat():
     from monl.frontend_contract import build_contract
     from monl.generator import MonlSecureGenerator
 
-    scenario = SCENARIO_PORTFOLIO[:-1] + [
+    scenario = SCENARIO_PORTFOLIO_TRONC + INTENTION_PAR_DEFAUT + [
         "o", "À propos",
         "Photographe basée à Lyon depuis 2015.",
         "Mon travail mêle rigueur technique et composition.",
         "Chaque projet traduit une idée en image forte.",
         "",                       # fin des paragraphes
         "n",                      # pas d'autre section
-    ]
+    ] + AUCUN_LIEN
     spec = _run(scenario)
     # Dans la spec : une seule ligne, marquée — c'est ce que la grammaire
     # sait porter.

@@ -21,13 +21,16 @@
 #   - extensions autorisées : .html .css .js .svg .json uniquement
 #   - 'index.html' obligatoire, taille totale plafonnée
 # ─────────────────────────────────────────────────────────────────────
+import inspect
 import json
 import os
 import posixpath
 import re
 import time
+import uuid
 from datetime import datetime, timezone
-from html import unescape
+from html import escape, unescape
+from html.parser import HTMLParser
 from xml.etree import ElementTree
 
 from .design_system import (
@@ -36,9 +39,12 @@ from .design_system import (
     DESIGN_SYSTEM_FILENAME,
     GENERATED_MARKER,
     activate_asset_manifest,
+    plan_generated_images,
 )
 from .errors import FrontendError
 from .frontend_contract import PROMPT_FILENAME
+from .image_ai import ImageProviderError, optimize_image_bytes, record_image_usage
+from .section_substance import substance_errors
 
 ALLOWED_EXTENSIONS = (".html", ".css", ".js", ".svg", ".json")
 MAX_TOTAL_BYTES = 2_000_000
@@ -49,6 +55,17 @@ DEFAULT_MAX_OUTPUT_TOKENS = 16_000
 # Le découpage limite la taille totale de la réponse ; il ne faut pas limiter
 # chaque pièce au plafond qui a cassé la réponse monolithique.
 DEFAULT_CHUNK_MAX_OUTPUT_TOKENS = 8_000
+# Une réponse JSON tronquée ne doit pas faire perdre les morceaux précédents.
+# Deux reprises suffisent à corriger une coupe sans transformer un appel en
+# boucle ouverte ; la hausse du plafond est explicite et reste bornée.
+CHUNK_MAX_RETRIES = 2
+# Le facteur DOIT amener la dernière reprise sur la borne ci-dessous, sinon
+# celle-ci ne contraint jamais rien — une constante qui ne produit rien est
+# ce que le point 85 interdit. À 1,5, l'échelle montait 8 000 → 12 000 →
+# 18 000 et les 32 000 déclarés n'étaient jamais atteints ; à 2,0 elle monte
+# 8 000 → 16 000 → 32 000. Un test tient cet accord entre les trois nombres.
+CHUNK_RETRY_OUTPUT_TOKEN_FACTOR = 2.0
+CHUNK_RETRY_MAX_OUTPUT_TOKENS = 32_000
 
 # Les deux briefs d'ÉVOLUTION (par opposition à FRONTEND_PROMPT.md, qui décrit
 # une construction neuve). Nommés ici plutôt que chez leur producteur : c'est
@@ -64,11 +81,128 @@ Répondre UNIQUEMENT avec un objet JSON, sans préambule ni balises Markdown :
 Chemins relatifs à frontend/ (pas de sous-dossier remontant, pas de chemin
 absolu). Extensions autorisées : .html, .css, .js, .svg, .json.
 'index.html' est obligatoire.
+Les images matricielles du manifeste sont déjà écrites dans le dossier
+d'assets ; elles ne sont pas des fichiers texte à rendre dans cette réponse.
 """
 
 
 class FrontendAIError(FrontendError):
     pass
+
+
+class _ChunkOutputLimitError(FrontendAIError):
+    """Une reprise est impossible : le modèle coupe encore au plafond."""
+
+
+class _ChunkGenerationError(FrontendAIError):
+    """Les reprises locales d'un fichier sont épuisées.
+
+    Cette erreur ne doit jamais déclencher la seconde génération complète :
+    les fichiers précédents ont déjà été payés et le fichier fautif a déjà
+    bénéficié de ses reprises ciblées.
+    """
+
+
+class _HTMLSelectorSkeleton(HTMLParser):
+    """Conserve la structure HTML et les attributs utiles aux sélecteurs."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=False)
+        self.parts = []
+
+    def _tag(self, tag, attrs, closing):
+        useful = []
+        for name, value in attrs:
+            if name == "class" or name == "id" or name.startswith("data-"):
+                rendered = name
+                if value is not None:
+                    rendered += f'="{escape(value, quote=True)}"'
+                useful.append(rendered)
+        attributes = (" " + " ".join(useful)) if useful else ""
+        suffix = " />" if closing else ">"
+        self.parts.append(f"<{tag}{attributes}{suffix}")
+
+    def handle_decl(self, decl):
+        self.parts.append(f"<!{decl}>")
+
+    def handle_starttag(self, tag, attrs):
+        self._tag(tag, attrs, closing=False)
+
+    def handle_startendtag(self, tag, attrs):
+        self._tag(tag, attrs, closing=True)
+
+    def handle_endtag(self, tag):
+        self.parts.append(f"</{tag}>")
+
+
+def _html_selector_skeleton(content):
+    parser = _HTMLSelectorSkeleton()
+    parser.feed(content)
+    parser.close()
+    return "".join(parser.parts)
+
+
+def _css_without_comments(content):
+    """Supprime les commentaires CSS sans toucher aux chaînes de caractères."""
+    result = []
+    index = 0
+    quote = None
+    while index < len(content):
+        char = content[index]
+        if quote:
+            result.append(char)
+            if char == "\\" and index + 1 < len(content):
+                index += 1
+                result.append(content[index])
+            elif char == quote:
+                quote = None
+        elif char in "\"'":
+            quote = char
+            result.append(char)
+        elif char == "/" and index + 1 < len(content) and content[index + 1] == "*":
+            end = content.find("*/", index + 2)
+            index = len(content) if end == -1 else end + 1
+        else:
+            result.append(char)
+        index += 1
+    return "".join(result)
+
+
+def _css_selector_skeleton(content):
+    """Retourne les sélecteurs CSS, sans recopier les déclarations."""
+    source = _css_without_comments(content)
+    selectors = []
+    stack = []
+    segment_start = 0
+    quote = None
+    index = 0
+    while index < len(source):
+        char = source[index]
+        if quote:
+            if char == "\\":
+                index += 1
+            elif char == quote:
+                quote = None
+        elif char in "\"'":
+            quote = char
+        elif char == "{":
+            prelude = source[segment_start:index].strip()
+            in_keyframes = any(
+                rule.startswith(("@keyframes", "@-webkit-keyframes"))
+                for rule in stack
+            )
+            if prelude and not prelude.startswith("@") and not in_keyframes:
+                selectors.append(prelude)
+            stack.append(prelude.lower() if prelude.startswith("@") else "")
+            segment_start = index + 1
+        elif char == ";":
+            segment_start = index + 1
+        elif char == "}":
+            if stack:
+                stack.pop()
+            segment_start = index + 1
+        index += 1
+    return "\n".join(selectors) or "(aucun sélecteur CSS déclaré)"
 
 
 def _requests_module():
@@ -181,6 +315,7 @@ OPENAI_COMPATIBLE = {
     # Serveur local : pas de clé, mais l'en-tête Bearer reste accepté.
     "ollama":     ("http://localhost:11434/v1",       "OLLAMA_API_KEY"),
 }
+_YANDEX_REASONING_EFFORTS = ("low", "medium", "high")
 
 # Échappatoire totale, pour un point de terminaison que la table ignore :
 # --provider openai-compatible + MONL_AI_BASE_URL (+ MONL_AI_API_KEY).
@@ -281,33 +416,52 @@ def _openai_preset(name):
                 raise FrontendAIError(
                     "YANDEX_FOLDER_ID absent de l'environnement — c'est "
                     "l'identifiant du dossier Yandex Cloud qui porte le modèle.")
+            model_uri = model
+            if model and not re.match(r"^[A-Za-z][A-Za-z0-9+.-]*://", model):
+                model_uri = f"gpt://{folder}/{model}"
             # DeepSeek V4 Flash sait raisonner, mais le raisonnement interne
             # consomme le même plafond que le JSON de fichiers. Pour une
             # sortie structurée, la vérification Monl est le raisonnement :
-            # désactiver ce budget par défaut rend la construction fiable et
+            # ne rien envoyer par défaut rend la construction fiable et
             # laisse une surcharge explicite pour les cas qui en ont besoin.
-            reasoning_effort = (os.environ.get(
-                "MONL_YANDEX_REASONING_EFFORT", "none").strip() or "none")
-            provider = openai_provider(
-                model=model, base_url=base_url, key_env=key_env,
-                auth_scheme="Api-Key", extra_headers={"OpenAI-Project": folder},
-                provider_name=name, extra_body={
-                    "temperature": 0.3,
-                    # Certains modèles AI Studio comptent leur raisonnement
-                    # interne dans le plafond de complétion. Ici le résultat
-                    # est un fichier, pas une question à résoudre : réserver
-                    # ce budget au HTML/CSS/JS évite un JSON tronqué.
-                    "reasoning_effort": reasoning_effort,
-                    "response_format": {
-                        "type": "json_schema",
-                        "json_schema": {
-                            "name": "frontend_files",
-                            "description": "Fichiers statiques du frontend.",
-                            "schema": _FRONTEND_FILES_SCHEMA,
-                            "strict": True,
-                        },
+            raw_reasoning_effort = os.environ.get("MONL_YANDEX_REASONING_EFFORT")
+            reasoning_effort = ((raw_reasoning_effort or "").strip()
+                                if raw_reasoning_effort is not None else None)
+            if reasoning_effort == "":
+                # Compatibilité : « none » reste un alias explicite pour
+                # omettre le champ, même si Yandex ne l'accepte pas lui-même.
+                reasoning_effort = "none"
+            if reasoning_effort not in (*_YANDEX_REASONING_EFFORTS, "none", None):
+                allowed = ", ".join(_YANDEX_REASONING_EFFORTS)
+                raise FrontendAIError(
+                    "MONL_YANDEX_REASONING_EFFORT invalide : "
+                    f"{reasoning_effort!r}. Valeurs permises : {allowed} "
+                    "(ou 'none' pour omettre le champ).")
+            extra_body = {
+                "temperature": 0.3,
+                # Certains modèles AI Studio comptent leur raisonnement
+                # interne dans le plafond de complétion. Ici le résultat
+                # est un fichier, pas une question à résoudre : réserver
+                # ce budget au HTML/CSS/JS évite un JSON tronqué.
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "frontend_files",
+                        "description": "Fichiers statiques du frontend.",
+                        "schema": _FRONTEND_FILES_SCHEMA,
+                        "strict": True,
                     },
-                })
+                },
+            }
+            if reasoning_effort in _YANDEX_REASONING_EFFORTS:
+                extra_body["reasoning_effort"] = reasoning_effort
+            provider = openai_provider(
+                model=model_uri, base_url=base_url, key_env=key_env,
+                auth_scheme="Api-Key", extra_headers={"OpenAI-Project": folder},
+                provider_name=name, extra_body=extra_body)
+            # Yandex attend l'URI complète sur le fil, mais l'identifiant de
+            # modèle lisible est la clé de la télémétrie et de ses regroupements.
+            provider.model = model
             # DeepSeek peut produire un frontend riche, mais pas trois gros
             # fichiers dans une seule réponse JSON. Le mode séquentiel est
             # activé au niveau du fournisseur, sans changer le contrat des
@@ -334,27 +488,70 @@ PROVIDERS.update({name: _openai_preset(name) for name in OPENAI_COMPATIBLE})
 USAGE_FILENAME = ".monl_ai_usage.jsonl"
 
 
-def _record_provider_usage(project_dir, provider, operation, attempt, stage=None):
-    """Conserve les compteurs de coût, jamais le prompt, la réponse ou la clé."""
-    usage = getattr(provider, "last_usage", None)
-    if usage is None:
-        return
+def _record_provider_usage(project_dir, provider, operation, attempt, *,
+                           run_id, stage=None, retry=None, usage=None):
+    """Conserve les compteurs de coût, jamais le prompt, la réponse ou la clé.
+
+    ``run_id`` est OBLIGATOIRE : sans lui, deux exécutions successives donnent
+    des événements indiscernables et « ce que ce site a coûté » cesse d'être
+    calculable — le défaut que cette colonne vient fermer. Un repli qui en
+    fabriquerait un par événement serait pire que l'absence : le rapport
+    montrerait autant d'exécutions que d'appels, et il aurait l'air juste.
+    """
+    usage = usage if usage is not None else getattr(provider, "last_usage", None)
+    usage = usage or {}
     event = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
+        "run_id": run_id,
         "provider": getattr(provider, "provider_name", "custom"),
         "model": getattr(provider, "model", None),
         "operation": operation,
         "attempt": attempt,
-        **usage,
+        "duration_seconds": usage.get("duration_seconds"),
+        "input_tokens": usage.get("input_tokens"),
+        "output_tokens": usage.get("output_tokens"),
+        "total_tokens": usage.get("total_tokens"),
     }
     if stage is not None:
         event["stage"] = stage
+    if retry is not None:
+        event["retry"] = retry
     path = os.path.join(project_dir, USAGE_FILENAME)
     with open(path, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(event, ensure_ascii=False, sort_keys=True) + "\n")
 
 
 # ------------------------------------------------------- parsing + gardes --
+# Tabulation, saut de ligne et retour chariot sont les seuls caractères de
+# contrôle légitimes dans un fichier texte livré.
+_CONTROLES_AUTORISES = {"\t", "\n", "\r"}
+
+
+def _refuser_caracteres_de_controle(path, content):
+    """Refuse un fichier porteur de caractères de contrôle, NUL en tête.
+
+    Un modèle qui écrit ses accents en échappement Unicode peut produire
+    `\\u0000` là où il visait `\\u00e8` : `json.loads` rend alors un octet NUL,
+    le fichier reste de l'UTF-8 PARFAITEMENT VALIDE, et plus rien en aval ne
+    s'en aperçoit. Mesuré sur un site réellement construit — « Animalière »
+    livré en « Animali\x00re », trente et un octets NUL dans un index.html
+    déclaré réussi. Refuser ici plutôt que plus loin donne au modèle sa reprise
+    ciblée, au lieu de publier un texte français mutilé.
+    """
+    fautifs = {
+        caractere for caractere in content
+        if ord(caractere) < 32 and caractere not in _CONTROLES_AUTORISES
+    }
+    if not fautifs:
+        return
+    nombre = sum(content.count(caractere) for caractere in fautifs)
+    noms = ", ".join(f"U+{ord(c):04X}" for c in sorted(fautifs))
+    raise FrontendAIError(
+        f"caractère de contrôle interdit dans {path} : {noms} "
+        f"({nombre} occurrence(s)) — un accent mal échappé produit ce défaut, "
+        "et le fichier reste de l'UTF-8 valide.")
+
+
 def _validate_files(files, require_index=True):
     """Valide une map de fichiers sans imposer son format de transport."""
     if not isinstance(files, dict) or not files:
@@ -371,6 +568,7 @@ def _validate_files(files, require_index=True):
             raise FrontendAIError(f"extension refusée : {path}")
         if not isinstance(content, str):
             raise FrontendAIError(f"contenu non textuel pour : {path}")
+        _refuser_caracteres_de_controle(path, content)
         if norm.lower().endswith(".svg"):
             try:
                 root = ElementTree.fromstring(content)
@@ -412,14 +610,67 @@ def parse_files_payload(raw_text):
     return _validate_files(payload.get("files"), require_index=True)
 
 
+#: Un bloc clôturé Markdown, avec ou sans nom de langage. Le contenu est
+#: capturé tel quel : c'est un FICHIER, pas du JSON.
+_BLOC_CLOTURE = re.compile(r"```[a-zA-Z0-9_+-]*\s*\n(.*?)\n?```", re.DOTALL)
+
+
+def _fichier_depuis_un_bloc(raw_text, expected_path):
+    """Repli : le modèle a rendu le FICHIER, pas un JSON qui le contient.
+
+    Une étape séquentielle doit emballer tout un fichier JavaScript dans une
+    chaîne JSON — chaque saut de ligne échappé, chaque guillemet doublé. C'est
+    là que les modèles bon marché cassent, et le prix est lourd : mesuré sur
+    une construction réelle, `app.js` a échoué deux fois puis rendu 834 jetons
+    — un fichier minuscule mais ANALYSABLE. La boucle de reprise optimise la
+    lisibilité, jamais la complétude, et un quart du budget est parti là.
+
+    L'enveloppe JSON n'apporte d'ailleurs rien ici : l'étape SAIT quel fichier
+    elle attend. Le contrat JSON reste la voie normale — ceci n'est qu'un
+    filet, et il passe par les MÊMES garde-fous (`_validate_files`) : extension,
+    confinement, taille, caractères de contrôle. Aucune voie ne les contourne.
+    """
+    # Une réponse TRONQUÉE ne doit jamais passer par ici. Un nombre IMPAIR de
+    # clôtures dit qu'un bloc est resté ouvert : la réponse a été coupée. Sans
+    # ce contrôle, un modèle qui illustre par un petit extrait fermé puis se
+    # fait couper au milieu du vrai fichier verrait son EXTRAIT écrit dans
+    # app.js — et l'échelle d'agrandissement du plafond, qui existe justement
+    # pour ce cas, ne serait jamais atteinte.
+    if raw_text.count("```") % 2:
+        return None
+    blocs = [bloc for bloc in _BLOC_CLOTURE.findall(raw_text) if bloc.strip()]
+    if not blocs:
+        return None
+    # Le PLUS GROS bloc : un modèle bavard commente sa réponse par de petits
+    # extraits avant de rendre le fichier.
+    contenu = max(blocs, key=len)
+    # Un bloc qui EST le JSON attendu n'est pas un fichier : l'écrire tel quel
+    # déposerait `{"files": …}` dans app.js, ce qui parse et ne marche pas.
+    if contenu.lstrip().startswith("{"):
+        return None
+    # La clôture avale le dernier saut de ligne : un fichier source se termine
+    # par un saut de ligne, on le rétablit plutôt que de livrer une dernière
+    # ligne collée à rien.
+    contenu = contenu.rstrip("\n") + "\n"
+    return _validate_files({expected_path: contenu}, require_index=False)
+
+
 def parse_single_file_payload(raw_text, expected_path):
     """Décode la réponse d'une étape de génération séquentielle.
 
-    Le transport reste ``{"files": {…}}`` pour conserver le même contrat
-    JSON côté fournisseur, mais une étape ne peut rendre qu'un seul fichier.
+    Le transport normal reste ``{"files": {…}}`` — même contrat JSON que la
+    voie monolithique. Quand il est illisible, on retombe sur le fichier rendu
+    en bloc clôturé plutôt que de brûler une reprise (voir
+    ``_fichier_depuis_un_bloc``).
     """
-    payload = _json_payload(raw_text)
-    files = _validate_files(payload.get("files"), require_index=False)
+    try:
+        payload = _json_payload(raw_text)
+        files = _validate_files(payload.get("files"), require_index=False)
+    except FrontendAIError:
+        secours = _fichier_depuis_un_bloc(raw_text, expected_path)
+        if secours is None:
+            raise
+        return secours
     if set(files) != {expected_path}:
         rendus = ", ".join(sorted(files))
         raise FrontendAIError(
@@ -436,6 +687,19 @@ def _write_files(project_dir, files):
         with open(dest, "w", encoding="utf-8") as fh:
             fh.write(content)
     return frontend_dir
+
+
+def _restaurer_frontend(project_dir, instantane):
+    """Remet le frontend dans l'état exact d'un instantané.
+
+    Ciblée à dessein : seuls les fichiers de la LISTE BLANCHE sont touchés.
+    Effacer le dossier emporterait les images générées, qui n'y sont pas
+    soumises et que personne ne rejouerait sans repayer.
+    """
+    frontend_dir = os.path.join(project_dir, "frontend")
+    for rel in set(_read_existing_frontend(project_dir)) - set(instantane):
+        os.remove(os.path.join(frontend_dir, rel))
+    return _write_files(project_dir, instantane)
 
 
 def _read_existing_frontend(project_dir):
@@ -495,6 +759,22 @@ def _design_completeness_errors(project_dir):
 
     errors = []
     frontend_dir = os.path.join(project_dir, "frontend")
+    assets_dir = "assets"
+    contract_path = os.path.join(project_dir, "frontend_contract.json")
+    if os.path.exists(contract_path):
+        try:
+            with open(contract_path, encoding="utf-8") as fh:
+                assets_dir = ((json.load(fh).get("assets") or {}).get("dir")
+                              or "assets").strip("/")
+        except (OSError, json.JSONDecodeError):
+            assets_dir = "assets"
+
+    def asset_disk_path(rel):
+        """Résout les nouveaux assets hors frontend, avec repli historique."""
+        if rel == assets_dir or rel.startswith(assets_dir + "/"):
+            return os.path.join(project_dir, rel)
+        return os.path.join(frontend_dir, rel)
+
     asset_paths = []
     for group in ("products", "editorial"):
         values = manifest.get(group, {})
@@ -506,14 +786,14 @@ def _design_completeness_errors(project_dir):
         if not isinstance(rel, str) or rel.startswith("/") or ".." in rel.split("/"):
             errors.append(f"asset refusé dans le manifeste : {rel}")
             continue
-        if not os.path.isfile(os.path.join(frontend_dir, rel)):
-            errors.append(f"asset manquant : frontend/{rel}")
+        if not os.path.isfile(asset_disk_path(rel)):
+            errors.append(f"asset manquant : {rel}")
 
     # Les visuels produits par l'IA ne sont pas des assets métier déclarés par
     # l'auteur : ils ont néanmoins un chemin déterministe dans le manifeste.
-    # Sans cette vérification, le modèle pouvait écrire `src="hero.svg"`,
-    # recevoir un succès du smoke test (qui n'interprète pas les images), puis
-    # livrer une page blanche à l'endroit le plus visible.
+    # Sans cette vérification, le modèle pouvait référencer un fichier image
+    # absent, recevoir un succès du smoke test (qui n'interprète pas les
+    # images), puis livrer une page blanche à l'endroit le plus visible.
     generated_assets = manifest.get("generated_assets") or []
     frontend_sources = []
     if os.path.isdir(frontend_dir):
@@ -532,13 +812,14 @@ def _design_completeness_errors(project_dir):
         if not isinstance(rel, str) or rel.startswith("/") or ".." in rel.split("/"):
             errors.append(f"asset généré refusé dans le manifeste : {rel}")
             continue
-        if not os.path.isfile(os.path.join(frontend_dir, rel)):
-            errors.append(f"asset généré manquant : frontend/{rel}")
+        if not os.path.isfile(asset_disk_path(rel)):
+            errors.append(f"asset généré manquant : {rel}")
         elif rel not in rendered_source:
-            errors.append(f"asset généré non utilisé : frontend/{rel}")
+            errors.append(f"asset généré non utilisé : {rel}")
 
     errors.extend(_generated_asset_reuse_errors(frontend_dir, generated_assets))
     errors.extend(_editorial_content_errors(project_dir, rendered_source))
+    errors.extend(_declared_link_errors(project_dir, rendered_source))
 
     errors.extend(_frontend_local_reference_errors(project_dir))
     errors.extend(_frontend_behavioral_quality_errors(project_dir))
@@ -564,6 +845,16 @@ def _design_completeness_errors(project_dir):
                     )
             elif marker not in unique_markers and count == 0:
                 errors.append(f"section visuelle obligatoire absente : {marker}")
+        # Le contrôle ci-dessus prouve qu'une section est NOMMÉE. Il ne dit
+        # rien de ce qu'elle contient : `<section data-monl-section="hero">
+        # </section>` le franchissait, et un site de huit balises vides
+        # passait pour complet. La substance se mesure sur ce qui a été
+        # réellement écrit, section par section.
+        regles = (manifest.get("section_substance") or {}).get(filename) or {}
+        errors.extend(substance_errors(content, {
+            marker: regle for marker, regle in regles.items()
+            if content.count(marker)
+        }))
     return errors
 
 
@@ -653,6 +944,33 @@ def _sans_corps_de_script(html):
     return re.sub(r"(<script\b[^>]*>)(.*?)(</script\s*>)",
                   lambda m: m.group(1) + m.group(3), html,
                   flags=re.IGNORECASE | re.DOTALL)
+
+
+def _declared_link_errors(project_dir, rendered_source):
+    """Un lien déclaré dans la spec doit se retrouver dans le site livré.
+
+    C'est le pendant exact du contrôle des assets (point 83) : monl ne
+    vérifie pas qu'une adresse RÉPOND — il ne fait aucun appel réseau — mais
+    il vérifie qu'elle est bien PRÉSENTE. Sans ça, l'auteur déclare son
+    Instagram, l'IA l'oublie, et personne ne s'en aperçoit avant de chercher
+    le lien sur le site en ligne.
+
+    La comparaison porte sur l'adresse et non sur le libellé : un libellé peut
+    légitimement être reformulé par l'interface, une adresse jamais.
+    """
+    contract_path = os.path.join(project_dir, "frontend_contract.json")
+    if not os.path.exists(contract_path):
+        return []
+    try:
+        with open(contract_path, encoding="utf-8") as fh:
+            liens = json.load(fh).get("links") or []
+    except (OSError, json.JSONDecodeError):
+        return []
+    source = unescape(rendered_source)
+    return [
+        f"lien déclaré absent du site : « {lien['label']} » → {lien['url']}"
+        for lien in liens if lien["url"] not in source
+    ]
 
 
 def _frontend_local_reference_errors(project_dir):
@@ -817,6 +1135,11 @@ def brief_evolution(update_mode, retouche_mode):
 
 
 def build_generation_prompt(project_dir, update_mode, retouche_mode=False):
+    from .cli import _erreur_de_chemin
+
+    souci = _erreur_de_chemin(project_dir, fichier_requis=PROMPT_FILENAME)
+    if souci:
+        raise FrontendAIError(souci.replace(" ❌ ", "", 1).strip())
     with open(os.path.join(project_dir, PROMPT_FILENAME), encoding="utf-8") as fh:
         base_prompt = fh.read() + _project_guidance(project_dir)
     brief = brief_evolution(update_mode, retouche_mode)
@@ -842,7 +1165,11 @@ CHUNKED_FRONTEND_FILES = ("index.html", "styles.css", "app.js")
 
 
 def _planned_generated_asset_paths(project_dir):
-    """Retourne les fichiers graphiques que DeepSeek doit livrer séparément."""
+    """Retourne les SVG texte d'un manifeste historique uniquement.
+
+    Les images matricielles sont produites avant cette étape par le fournisseur
+    d'images et ne doivent jamais devenir des cibles du modèle texte.
+    """
     path = os.path.join(project_dir, ASSET_MANIFEST_FILENAME)
     if not os.path.exists(path):
         return []
@@ -856,39 +1183,165 @@ def _planned_generated_asset_paths(project_dir):
     paths = []
     for item in manifest.get("generated_assets") or []:
         rel = item.get("path") if isinstance(item, dict) else item
-        if (isinstance(rel, str) and rel.endswith(".svg") and
+        if (isinstance(rel, str) and rel.lower().endswith(".svg") and
                 not rel.startswith("/") and ".." not in rel.split("/")):
             paths.append(rel.replace("\\", "/"))
     return list(dict.fromkeys(paths))
 
 
-def _chunk_context(files):
-    """Rend uniquement les fichiers utiles aux étapes suivantes."""
+def _parse_model_routing(declarations):
+    """Transforme les options ``CIBLE=MODELE`` en table de routage."""
+    routes = {}
+    for declaration in declarations or []:
+        if not isinstance(declaration, str):
+            raise FrontendAIError(
+                "routage de modèle invalide : la forme attendue est CIBLE=MODELE.")
+        target, separator, model = declaration.partition("=")
+        target = target.strip().replace("\\", "/")
+        model = model.strip()
+        if not separator or not target or not model:
+            raise FrontendAIError(
+                f"routage de modèle invalide : {declaration!r} — "
+                "la forme attendue est CIBLE=MODELE.")
+        if target in routes:
+            raise FrontendAIError(
+                f"cible répétée dans le routage des modèles : {target!r}.")
+        routes[target] = model
+    return routes
+
+
+def _validate_model_routing(project_dir, routes):
+    """Refuse toute cible qui ne sera jamais une étape de génération."""
+    if not routes:
+        return
+    known = set(CHUNKED_FRONTEND_FILES)
+    known.update(_planned_generated_asset_paths(project_dir))
+    unknown = sorted(set(routes) - known)
+    if unknown:
+        rendered = ", ".join(repr(target) for target in unknown)
+        known_targets = ", ".join(sorted(known))
+        raise FrontendAIError(
+            f"cible inconnue dans le routage des modèles : {rendered}. "
+            f"Cibles connues : {known_targets}.")
+
+
+def _provider_for_chunk(provider, target, routes, provider_factory):
+    """Retourne le provider global ou celui construit pour une cible."""
+    model = routes.get(target)
+    if model is None:
+        return provider
+    if provider_factory is None:
+        raise FrontendAIError(
+            f"routage déclaré pour frontend/{target}, mais aucun constructeur "
+            "de provider n'est disponible.")
+    return provider_factory(model)
+
+
+def _chunk_context(files, target=None):
+    """Rend le contexte structurel utile à la cible, jamais les fichiers entiers."""
+    if target == "styles.css":
+        useful_paths = ("index.html",)
+    elif target == "app.js" or target is None:
+        useful_paths = ("index.html", "styles.css")
+    else:
+        useful_paths = ()
+
     morceaux = []
-    for path in list(CHUNKED_FRONTEND_FILES) + sorted(
-            path for path in files if path.endswith(".svg")):
-        if path in files:
-            morceaux.append(f"### frontend/{path}\n```\n{files[path]}\n```")
+    for path in useful_paths:
+        if path not in files or path == target:
+            continue
+        if path == "index.html":
+            content = _html_selector_skeleton(files[path])
+            label = "squelette HTML (structure, class, id et data-*)"
+        else:
+            # Le JS ne dépend pas des propriétés CSS : les sélecteurs déclarés
+            # suffisent à conserver les mêmes points d'accroche sans repayer
+            # les règles et leurs valeurs, souvent beaucoup plus longues.
+            content = _css_selector_skeleton(files[path])
+            label = "sélecteurs CSS déclarés (sans les règles)"
+        morceaux.append(f"### frontend/{path} — {label}\n```\n{content}\n```")
+
+    # Le contenu d'un SVG ne sert ni aux sélecteurs CSS ni aux branchements JS.
+    # Son chemin suffit pour que les morceaux suivants le référencent.
+    for path in sorted(path for path in files if path.endswith(".svg")):
+        morceaux.append(
+            f"### frontend/{path}\n(fichier SVG déjà produit ; le nom suffit)"
+        )
     return "\n\n".join(morceaux) or "(aucun fichier généré pour le moment)"
 
 
-def _build_chunk_prompt(base_prompt, target, files):
+def ampleur_du_contrat(project_dir):
+    """Ce que le frontend doit couvrir : nombre de routes et d'entités.
+
+    Sert à DIMENSIONNER la demande faite au modèle. Sans elle, monl réclamait
+    « environ 1 500 tokens » pour `app.js` quel que soit le contrat — et le
+    modèle obéissait au jeton près (1 698 mesurés sur une boutique à quinze
+    routes) avant d'être refusé pour incomplétude. On demandait l'impossible,
+    puis on le rejetait.
+    """
+    chemin = os.path.join(project_dir, "frontend_contract.json")
+    try:
+        with open(chemin, encoding="utf-8") as fh:
+            contrat = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    routes = contrat.get("routes")
+    if not isinstance(routes, list) or not routes:
+        return None
+    return {"routes": len(routes),
+            "entites": len(contrat.get("entities") or {})}
+
+
+#: Budget de sortie d'`app.js`, en jetons : un socle, puis ce que coûte
+#: RÉELLEMENT une route (appel, état de chargement, erreur, formulaire).
+#: Mesuré à l'envers sur les frontends complets du dépôt — 26 à 43 Ko pour une
+#: quinzaine de routes, soit 7 000 à 11 000 jetons.
+APPJS_SOCLE_TOKENS = 1_200
+APPJS_TOKENS_PAR_ROUTE = 400
+INDEX_SOCLE_TOKENS = 1_200
+INDEX_TOKENS_PAR_ROUTE = 200
+
+
+def _budget(socle, par_route, ampleur, defaut):
+    if not ampleur:
+        return defaut
+    return min(socle + par_route * ampleur["routes"],
+               DEFAULT_CHUNK_MAX_OUTPUT_TOKENS)
+
+
+def _build_chunk_prompt(base_prompt, target, files, ampleur=None):
     """Demande une seule pièce complète du frontend.
 
     Le brief complet reste présent : le modèle conserve le contrat API et la
     direction produit. Le contexte des fichiers précédents garantit toutefois
     que le CSS et le JS s'accordent sur les mêmes classes et identifiants.
     """
-    planned_assets = list(dict.fromkeys(
-        re.findall(r"frontend/([A-Za-z0-9._/-]+\.svg)", base_prompt)))
+    planned_assets = list(dict.fromkeys(re.findall(
+        r"((?:assets|frontend)/[A-Za-z0-9._/-]+\.(?:jpg|jpeg|png|webp|svg))",
+        base_prompt, re.IGNORECASE)))
     asset_rule = ""
     if planned_assets:
         asset_rule = (
             "\nAssets graphiques obligatoires de cette construction : "
-            + ", ".join(f"frontend/{path}" for path in planned_assets)
-            + ". Utilise exactement ces noms ; ne crée ni ne référence un autre "
-            "fichier graphique local. Chaque asset doit être rendu comme une "
-            "étape dédiée, jamais seulement décrit dans le HTML.\n"
+            + ", ".join(planned_assets)
+            + ". Ces images matricielles sont déjà écrites hors de frontend/. "
+            "Référence exactement ces noms ; ne crée ni ne référence un autre "
+            "fichier graphique local.\n"
+        )
+    index_tokens = _budget(INDEX_SOCLE_TOKENS, INDEX_TOKENS_PAR_ROUTE,
+                           ampleur, 1_600)
+    app_tokens = _budget(APPJS_SOCLE_TOKENS, APPJS_TOKENS_PAR_ROUTE,
+                         ampleur, 1_500)
+    # La limite dure suit le budget au lieu de le contredire : ~4 caractères
+    # par jeton. Elle valait 12 000 caractères pour un fichier dont les
+    # exemples réussis du dépôt pèsent 26 à 43 Ko — trois fois trop peu.
+    plancher = ""
+    if ampleur:
+        plancher = (
+            f" Ce contrat porte {ampleur['routes']} routes sur "
+            f"{ampleur['entites']} entités : un fichier qui n'en appelle que "
+            "deux ou trois sera REFUSÉ. Chaque parcours déclaré doit avoir son "
+            "point d'entrée."
         )
     instructions = {
         "index.html": (
@@ -898,8 +1351,8 @@ def _build_chunk_prompt(base_prompt, target, files):
             "contenu et de compte selon le contrat, puis charge styles.css et "
             "app.js avec des chemins locaux. Donne à chaque section obligatoire "
             "une vraie structure et un texte utile ; ne remplace pas le brief "
-            "par trois cartes génériques. Vise environ 1 600 tokens. Limite "
-            "dure : termine le JSON avant 12 000 caractères."
+            f"par trois cartes génériques. Vise environ {index_tokens} tokens. "
+            f"Limite dure : termine avant {index_tokens * 4} caractères."
             + asset_rule
         ),
         "styles.css": (
@@ -920,8 +1373,9 @@ def _build_chunk_prompt(base_prompt, target, files):
             "les parcours principaux. Les valeurs de `dataset.*` sont des "
             "chaînes : convertir avec Number() avant de les comparer aux IDs "
             "numériques de l'API, puis vérifier mentalement les clics Créer, "
-            "Modifier et Supprimer. Vise environ 1 500 tokens et factorise le "
-            "code. Limite dure : termine le JSON avant 12 000 caractères."
+            f"Modifier et Supprimer.{plancher} Vise environ {app_tokens} tokens "
+            f"et factorise le code. Limite dure : termine avant "
+            f"{app_tokens * 4} caractères."
             + asset_rule
         ),
     }
@@ -944,26 +1398,349 @@ def _build_chunk_prompt(base_prompt, target, files):
         "Ne rends aucun autre fichier, ne tronque pas le contenu et ne mets "
         "jamais de commentaire hors JSON.\n\n"
         "## Fichiers déjà générés — à respecter\n"
-        f"{_chunk_context(files)}"
+        f"{_chunk_context(files, target)}"
     )
 
 
+def _clean_image_text(value):
+    return re.sub(r"\s+", " ", str(value or "")).strip()
+
+
+def _image_brief_material(brief):
+    """Sépare la matière visuelle des consignes destinées au modèle texte."""
+    text = _clean_image_text(brief)
+    topic_match = re.search(
+        r"Les illustrations doivent évoquer\s*:\s*(.+?)(?:[.!?](?:\s|$)|$)",
+        text, re.IGNORECASE)
+    topic = _clean_image_text(topic_match.group(1)) if topic_match else ""
+    if topic_match:
+        text = text[:topic_match.start()].rstrip(" .")
+
+    text = re.split(r"\bmode express\s*:", text, maxsplit=1,
+                    flags=re.IGNORECASE)[0].rstrip(" ;,.")
+    text = re.sub(r"\bsans inventer\b.*$", "", text,
+                  flags=re.IGNORECASE).rstrip(" ;,.")
+
+    subject = text.split(" — ", 1)[0].strip(" ;,.")
+    subject = re.split(
+        r"\s*,\s*(?=(?:ton|registre|les images|le visiteur)\b)",
+        subject, maxsplit=1, flags=re.IGNORECASE)[0].strip(" ;,.")
+    if not subject:
+        subject = text or "matière déclarée par le projet"
+
+    register = []
+    for match in re.finditer(
+            r"\b(?:ton|registre|les images portent)\b.+?(?=;| — |$)",
+            text, re.IGNORECASE):
+        clause = _clean_image_text(match.group(0))
+        if clause and clause.lower() not in {item.lower() for item in register}:
+            register.append(clause)
+    return subject, " ; ".join(register), topic
+
+
+def _image_text_chunks(value):
+    """Retourne des morceaux supprimables sans casser une phrase déclarée."""
+    chunks = re.split(r"(?<=[.!?])\s+|;\s+|,\s+", _clean_image_text(value))
+    return [chunk.strip(" ;") for chunk in chunks if chunk.strip(" ;")]
+
+
+def _compact_image_value(value, limit):
+    """Réduit un champ en retirant des phrases ou clauses entières."""
+    value = _clean_image_text(value)
+    if limit <= 0:
+        return ""
+    if len(value) <= limit:
+        return value
+
+    chunks = _image_text_chunks(value)
+    selected = []
+    for chunk in chunks:
+        candidate = "; ".join(selected + [chunk])
+        if len(candidate) > limit:
+            break
+        selected.append(chunk)
+    if selected:
+        return "; ".join(selected)
+    return ""
+
+
+def _fit_image_prompt(parts, max_chars):
+    """Assemble un prompt borné sans tronquer un token ni une phrase."""
+    parts = [list(part) for part in parts if part[1]]
+
+    def render():
+        return "\n".join(f"{label} : {value}" for label, value, _required in parts)
+
+    # Les sections sont utiles, mais le sujet, le rôle, le registre et les
+    # interdits sont prioritaires pour une image. On retire donc les sections
+    # entières avant de réduire la matière visuelle elle-même.
+    while len(render()) > max_chars:
+        optional = [index for index, (_label, _value, required) in enumerate(parts)
+                    if not required]
+        if optional:
+            parts.pop(optional[-1])
+            continue
+
+        candidates = sorted(
+            (index for index, (_label, value, _required) in enumerate(parts)
+             if value),
+            key=lambda index: len(parts[index][1]), reverse=True)
+        if not candidates:
+            break
+        index = candidates[0]
+        label, value, required = parts[index]
+        excess = len(render()) - max_chars
+        target = max(1, len(value) - excess - 1)
+        shortened = _compact_image_value(value, target)
+        if shortened == value:
+            shortened = value.rsplit(" ", 1)[0] if " " in value else ""
+        if not shortened:
+            if required:
+                # Ce cas ne devrait concerner qu'une limite fournisseur
+                # irréaliste ; le message reste une erreur monl exploitable.
+                raise FrontendAIError(
+                    f"prompt image impossible à composer sous {max_chars} caractères")
+            parts.pop(index)
+            continue
+        parts[index] = [label, shortened, required]
+
+    prompt = render()
+    if len(prompt) > max_chars:
+        raise FrontendAIError(
+            f"prompt image trop long après composition ({len(prompt)} caractères, "
+            f"maximum {max_chars})")
+    return prompt
+
+
+def _image_prompt(project_dir, item, max_chars=None):
+    """Construit le prompt image depuis la matière déclarée par le projet."""
+    contract_path = os.path.join(project_dir, "frontend_contract.json")
+    try:
+        with open(contract_path, encoding="utf-8") as fh:
+            contract = json.load(fh)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise FrontendAIError(
+            f"contrat frontend illisible avant la génération d'image : {exc}"
+        ) from exc
+
+    subject, register, topic = _image_brief_material(contract.get("brief"))
+    subject = _clean_image_text(subject)
+    if topic:
+        subject = f"{subject} ; {topic}"
+    parts = [
+        ["Sujet", subject, True],
+        ["Rôle", _clean_image_text(item.get("role") or "visuel du projet"), True],
+        ["Registre visuel", register, True],
+        ["Médium", "image matricielle", True],
+    ]
+    for section in contract.get("sections") or []:
+        title = _clean_image_text(section.get("title") or "Section")
+        body = _clean_image_text(section.get("body"))
+        parts.append(["Matière", f"{title} — {body}" if body else title, False])
+    parts.append(["Interdits", "pas de texte lisible, de logo ni de marque", True])
+    if max_chars is None:
+        return "\n".join(f"{label} : {value}" for label, value, _required in parts if value)
+    return _fit_image_prompt(parts, max_chars)
+
+
+def _image_provider_accepts_aspect_ratio(provider):
+    try:
+        parameters = inspect.signature(provider).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    return any(
+        parameter.name == "aspect_ratio"
+        or parameter.kind == inspect.Parameter.VAR_KEYWORD
+        for parameter in parameters
+    )
+
+
+def _image_provider_prompt_limit(provider):
+    limit = getattr(provider, "max_prompt_chars", None)
+    if (isinstance(limit, int) and not isinstance(limit, bool) and limit > 0):
+        return limit
+    return None
+
+
+def _call_image_provider(provider, prompt, aspect_ratio):
+    # Les fournisseurs injectables historiques restent prompt -> octets. Le
+    # fournisseur YandexART, lui, accepte le rapport optionnel explicitement.
+    limit = _image_provider_prompt_limit(provider)
+    if limit is not None and len(prompt) > limit:
+        raise FrontendAIError(
+            f"monl : prompt image trop long pour le fournisseur "
+            f"({len(prompt)} caractères, maximum {limit})")
+    if aspect_ratio is None or not _image_provider_accepts_aspect_ratio(provider):
+        return provider(prompt)
+    return provider(prompt, aspect_ratio=aspect_ratio)
+
+
+def _generate_planned_images(project_dir, image_provider, operation, attempt, run_id,
+                             say=print):
+    """Écrit les images planifiées et rapporte les échecs sans interrompre l'IA."""
+    generated = plan_generated_images(project_dir)
+    if not generated:
+        raise FrontendAIError(
+            "la génération d'images est activée mais le manifeste ne peut pas "
+            "être planifié")
+    failures = []
+    for item in generated:
+        path = item.get("path")
+        if not isinstance(path, str) or path.startswith("/") or ".." in path.split("/"):
+            raise FrontendAIError(f"chemin d'image générée refusé : {path}")
+        destination = os.path.join(project_dir, path)
+        if os.path.isfile(destination):
+            continue
+        prompt = _image_prompt(
+            project_dir, item,
+            max_chars=_image_provider_prompt_limit(image_provider))
+        if hasattr(image_provider, "last_usage"):
+            image_provider.last_usage = None
+        say(f" -> Génération de l'image {path}…")
+        try:
+            image = _call_image_provider(image_provider, prompt, item.get("aspect_ratio"))
+        except ImageProviderError as exc:
+            record_image_usage(project_dir, image_provider, operation, attempt,
+                               run_id=run_id, stage="image", path=path,
+                               status="error")
+            failure = f"{path} : {exc}"
+            failures.append(failure)
+            say(f" ⚠️ Image non générée — {failure}. La vérification du manifeste "
+                "tranchera après la construction du frontend.")
+            continue
+        except Exception as exc:
+            record_image_usage(project_dir, image_provider, operation, attempt,
+                               run_id=run_id, stage="image", path=path,
+                               status="error")
+            failure = f"{path} : fournisseur d'image en erreur : {exc}"
+            failures.append(failure)
+            say(f" ⚠️ Image non générée — {failure}. La vérification du manifeste "
+                "tranchera après la construction du frontend.")
+            continue
+        if not isinstance(image, (bytes, bytearray, memoryview)) or not image:
+            record_image_usage(project_dir, image_provider, operation, attempt,
+                               run_id=run_id, stage="image", path=path,
+                               status="error")
+            failure = f"{path} : le fournisseur d'image n'a pas rendu des octets"
+            failures.append(failure)
+            say(f" ⚠️ Image non générée — {failure}. La vérification du manifeste "
+                "tranchera après la construction du frontend.")
+            continue
+        image, notice = optimize_image_bytes(bytes(image))
+        if notice:
+            say(f" ⚠️ {notice} ({path})")
+        os.makedirs(os.path.dirname(destination), exist_ok=True)
+        with open(destination, "wb") as fh:
+            fh.write(image)
+        record_image_usage(project_dir, image_provider, operation, attempt,
+                           run_id=run_id, stage="image", path=path)
+    return generated, failures
+
+
+def _chunk_response_reached_limit(provider):
+    """Indique si le fournisseur a consommé tout son plafond de sortie."""
+    usage = getattr(provider, "last_usage", None) or {}
+    output_tokens = usage.get("output_tokens")
+    maximum = getattr(provider, "max_output_tokens", None)
+    return (isinstance(output_tokens, int) and not isinstance(output_tokens, bool)
+            and output_tokens >= maximum
+            if isinstance(maximum, int) and not isinstance(maximum, bool)
+            else False)
+
+
+def _raise_chunk_output_limit(provider):
+    """Augmente le plafond d'une reprise, sans dépasser la borne définie."""
+    maximum = getattr(provider, "max_output_tokens", None)
+    if not isinstance(maximum, int) or isinstance(maximum, bool) or maximum <= 0:
+        return False
+    enlarged = max(maximum + 1, int(maximum * CHUNK_RETRY_OUTPUT_TOKEN_FACTOR))
+    enlarged = min(enlarged, CHUNK_RETRY_MAX_OUTPUT_TOKENS)
+    if enlarged <= maximum:
+        return False
+    provider.max_output_tokens = enlarged
+    return True
+
+
 def _generate_chunked_files(project_dir, provider, base_prompt, operation,
-                            attempt, say):
+                            attempt, say, run_id=None, model_routes=None,
+                            provider_factory=None):
     """Génère puis valide chaque fichier d'un frontend DeepSeek/Yandex."""
+    model_routes = model_routes or {}
+    _validate_model_routing(project_dir, model_routes)
     files = _read_existing_frontend(project_dir)
+    ampleur = ampleur_du_contrat(project_dir)
     targets = list(CHUNKED_FRONTEND_FILES) + _planned_generated_asset_paths(project_dir)
     for target in targets:
+        stage_provider = _provider_for_chunk(
+            provider, target, model_routes, provider_factory)
+        initial_output_limit = getattr(stage_provider, "max_output_tokens", None)
         say(f" -> Génération de frontend/{target}…")
-        raw = provider(_build_chunk_prompt(base_prompt, target, files))
-        _record_provider_usage(project_dir, provider, operation, attempt,
-                               stage=target)
-        files.update(parse_single_file_payload(raw, target))
+        try:
+            for retry in range(CHUNK_MAX_RETRIES + 1):
+                if retry:
+                    say(f" -> Reprise de frontend/{target} "
+                        f"({retry}/{CHUNK_MAX_RETRIES})…")
+                chunk_prompt = _build_chunk_prompt(base_prompt, target, files,
+                                                   ampleur)
+                if retry:
+                    chunk_prompt += (
+                        "\n\n## Reprise de génération\n"
+                        "La réponse précédente pour ce fichier était illisible. "
+                        "Rends à nouveau le fichier complet dans un JSON fermé, "
+                        "sans reprendre une réponse tronquée."
+                    )
+                # Un appel en erreur ne doit pas réutiliser le compteur d'un appel
+                # précédent. Le fournisseur peut néanmoins renseigner last_usage
+                # avant de lever, ce qui permet alors de mesurer l'échec.
+                if hasattr(stage_provider, "last_usage"):
+                    stage_provider.last_usage = None
+                try:
+                    raw = stage_provider(chunk_prompt)
+                except FrontendAIError as exc:
+                    error = exc
+                    _record_provider_usage(
+                        project_dir, stage_provider, operation, attempt,
+                        stage=target, retry=retry, run_id=run_id)
+                else:
+                    _record_provider_usage(
+                        project_dir, stage_provider, operation, attempt,
+                        stage=target, retry=retry, run_id=run_id)
+                    try:
+                        payload = parse_single_file_payload(raw, target)
+                    except FrontendAIError as exc:
+                        error = exc
+                    else:
+                        files.update(payload)
+                        break
+
+                if _chunk_response_reached_limit(stage_provider):
+                    enlarged = _raise_chunk_output_limit(stage_provider)
+                    if not enlarged:
+                        raise _ChunkOutputLimitError(
+                            f"frontend/{target} : le modèle tronque encore au plafond "
+                            f"maximal de sortie "
+                            f"({CHUNK_RETRY_MAX_OUTPUT_TOKENS} jetons) ; "
+                            "aucune seconde tentative complète ne sera lancée, car "
+                            "elle rejouerait la même configuration condamnée. "
+                            f"Dernière erreur : {error}") from error
+                if retry == CHUNK_MAX_RETRIES:
+                    raise _ChunkGenerationError(
+                        f"frontend/{target} : échec après "
+                        f"{CHUNK_MAX_RETRIES} reprise(s) ; aucune seconde tentative "
+                        "complète ne sera lancée. "
+                        f"Dernière erreur : {error}") from error
+        finally:
+            # Une hausse accordée à un fichier tronqué ne doit pas augmenter le
+            # coût de tous les fichiers suivants partageant le même fournisseur.
+            if hasattr(stage_provider, "max_output_tokens"):
+                stage_provider.max_output_tokens = initial_output_limit
     return files
 
 
 def generate_and_verify(project_dir, provider, update_mode=False, say=print,
-                        retouche_mode=False):
+                        retouche_mode=False, model_routes=None,
+                        provider_factory=None, generate_images=False,
+                        image_provider=None):
     """La boucle complète du point 4 : générer → écrire → RE-VÉRIFIER
     (cohérence + smoke test) → si échec, renvoyer les erreurs au modèle une
     seule fois → re-vérifier. Retourne (ok, erreurs)."""
@@ -971,9 +1748,31 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
     from .smoke_test import run_smoke_test
 
     project_dir = os.path.abspath(project_dir)
+    model_routes = model_routes or {}
+    _validate_model_routing(project_dir, model_routes)
+    if generate_images and image_provider is None:
+        raise FrontendAIError(
+            "--generate-images exige un fournisseur d'images injectable.")
+    if model_routes and not getattr(provider, "chunked_generation", False):
+        declared = ", ".join(
+            f"{target}={model}" for target, model in sorted(model_routes.items()))
+        say(" -> Routage par étage non appliqué : la voie monolithique ne comporte "
+            f"qu'un seul appel (correspondances déclarées : {declared}).")
+    run_id = uuid.uuid4().hex
+    operation = ("retouche" if retouche_mode else
+                 ("update" if update_mode else "construction"))
+    image_failures = []
+    if generate_images:
+        _generated, image_failures = _generate_planned_images(
+            project_dir, image_provider, operation, 1, run_id, say=say)
     prompt = build_generation_prompt(project_dir, update_mode, retouche_mode)
 
     last_errors = []
+    # La correction automatique peut RÉGRESSER : mesuré sur une construction
+    # réelle, une passe chargée de réparer deux lignes a réécrit le site
+    # entier et perdu quatorze routes sur quinze. monl gardait la DERNIÈRE
+    # tentative ; il garde désormais la MEILLEURE.
+    meilleure = None
     for attempt in (1, 2):
         if attempt == 2:
             say(" -> Correction automatique : erreurs renvoyées au modèle (1 seule fois)…")
@@ -982,15 +1781,36 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
                       + "\n".join(f"- {e}" for e in last_errors)
                       + "\nRendre une version corrigée, même format de réponse.")
         say(f" -> Génération du frontend par l'IA (tentative {attempt}/2)…")
-        operation = ("retouche" if retouche_mode else
-                     ("update" if update_mode else "construction"))
-        if getattr(provider, "chunked_generation", False):
-            files = _generate_chunked_files(
-                project_dir, provider, prompt, operation, attempt, say)
-        else:
-            raw = provider(prompt)
-            _record_provider_usage(project_dir, provider, operation, attempt)
-            files = parse_files_payload(raw)
+        try:
+            if getattr(provider, "chunked_generation", False):
+                files = _generate_chunked_files(
+                    project_dir, provider, prompt, operation, attempt, say,
+                    run_id=run_id, model_routes=model_routes,
+                    provider_factory=provider_factory)
+            else:
+                if hasattr(provider, "last_usage"):
+                    provider.last_usage = None
+                try:
+                    raw = provider(prompt)
+                except FrontendAIError:
+                    _record_provider_usage(project_dir, provider, operation, attempt,
+                                           run_id=run_id)
+                    raise
+                _record_provider_usage(project_dir, provider, operation, attempt,
+                                       run_id=run_id)
+                files = parse_files_payload(raw)
+        except _ChunkOutputLimitError as exc:
+            last_errors = [f"échec de génération : {exc}"]
+            say(f" ❌ {last_errors[0]}")
+            return False, last_errors
+        except _ChunkGenerationError as exc:
+            last_errors = [f"échec de génération : {exc}"]
+            say(f" ❌ {last_errors[0]}")
+            return False, last_errors
+        except FrontendAIError as exc:
+            last_errors = [f"échec de génération : {exc}"]
+            say(f" ❌ {last_errors[0]}")
+            continue
         _write_files(project_dir, files)
         # Un manifeste généré par Monl est seulement un plan tant que le
         # frontend n'existe pas. Après la réponse de l'IA, il devient une
@@ -1006,10 +1826,9 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
             smoke_ok, smoke_errors, smoke_warnings = run_smoke_test(project_dir, say=say)
             errors, warnings = smoke_errors, warnings + smoke_warnings
             ok = smoke_ok
-        design_errors = _design_completeness_errors(project_dir)
-        if design_errors:
-            errors = errors + design_errors
-            ok = False
+        # check_coherence() collecte déjà ces erreurs de complétude quand le
+        # frontend existe ; les récolter ici une seconde fois dupliquerait
+        # chaque refus d'asset dans la correction et dans le rapport.
         for w in warnings:
             say(f" ⚠️  {w}")
         if ok:
@@ -1018,7 +1837,31 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
         last_errors = errors
         for e in errors:
             say(f" ❌ {e}")
+        # Le classement est (erreurs, avertissements), dans cet ordre et sans
+        # pondération : une gravité inventée serait une opinion déguisée en
+        # mesure. Il départage le cas qui l'a fait naître — même nombre
+        # d'erreurs, mais deux parcours entiers signalés en plus.
+        score = (len(errors), len(warnings))
+        if meilleure is None or score < meilleure[0]:
+            meilleure = (score, _read_existing_frontend(project_dir), attempt,
+                         list(errors))
+        if image_failures:
+            say(" ❌ Livraison refusée : le manifeste reste l'autorité pour les "
+                "images planifiées ; relancez après disponibilité du fournisseur.")
+            return False, last_errors
 
+    if meilleure is not None and meilleure[2] != attempt:
+        _restaurer_frontend(project_dir, meilleure[1])
+        # Les erreurs rapportées doivent être celles des fichiers CONSERVÉS :
+        # rapporter celles de la tentative écartée décrirait un frontend qui
+        # n'est plus sur le disque.
+        last_errors = meilleure[3]
+        say(f" ↩  Tentative {meilleure[2]} restaurée : la correction a rendu un "
+            f"frontend plus dégradé ({score[0]} erreur(s) et {score[1]} "
+            f"avertissement(s), contre {meilleure[0][0]} et {meilleure[0][1]}). "
+            "Ce qui est conservé est le moins mauvais des deux, pas le dernier.")
+        for e in last_errors:
+            say(f" ❌ {e}")
     say(" ❌ Le frontend généré échoue encore après correction — les fichiers "
         "sont conservés dans frontend/ pour inspection, mais 'monl run' "
         "refusera de lancer tant que le smoke test échoue.")
@@ -1386,7 +2229,8 @@ def run_claude_code(project_dir, instruction, max_turns=DEFAULT_MAX_TURNS,
 def generate_with_cli_agent(project_dir, update_mode=False, say=print,
                             command=None, max_turns=DEFAULT_MAX_TURNS,
                             agent="claude-code", agent_command=None,
-                            retouche_mode=False):
+                            retouche_mode=False, generate_images=False,
+                            image_provider=None):
     """La boucle du point 4, version agent en ligne de commande : exécuter
     l'agent dans le dossier cible → vérifier les artefacts protégés →
     re-vérifier (cohérence + smoke test) → une correction au plus.
@@ -1400,6 +2244,16 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
 
     nom = agent_command.split()[0] if agent_command else agent
     project_dir = os.path.abspath(project_dir)
+    run_id = uuid.uuid4().hex
+    operation = ("retouche" if retouche_mode else
+                 ("update" if update_mode else "construction"))
+    image_failures = []
+    if generate_images:
+        if image_provider is None:
+            raise FrontendAIError(
+                "--generate-images exige un fournisseur d'images injectable.")
+        _generated, image_failures = _generate_planned_images(
+            project_dir, image_provider, operation, 1, run_id, say=say)
     brief = brief_evolution(update_mode, retouche_mode) or PROMPT_FILENAME
     if not os.path.exists(os.path.join(project_dir, brief)):
         origine = ("'monl retouche' n'a pas écrit sa consigne" if retouche_mode
@@ -1420,6 +2274,7 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
         say(f" -> {nom} travaille dans {project_dir} (tentative {attempt}/2)…")
         before = _fingerprint_protected(project_dir)
         front_avant = _fingerprint_frontend(project_dir)
+        started = time.monotonic()
         # POINT 97 : la réponse de l'agent est CONSERVÉE. Elle était jetée, et
         # c'est précisément ce qu'il faut lire quand rien n'a bougé : un agent
         # qui décline explique pourquoi — la consigne de retouche lui demande
@@ -1428,6 +2283,16 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
         reponse_agent = run_cli_agent(
             project_dir, instruction, max_turns=max_turns,
             command=command, agent=agent, agent_command=agent_command)
+        agent_usage = type("AgentUsage", (), {
+            "provider_name": "agent",
+            "model": agent if agent in CLI_AGENTS else "custom",
+        })()
+        _record_provider_usage(
+            project_dir, agent_usage, operation=("retouche" if retouche_mode else
+                                                ("update" if update_mode else "construction")),
+            attempt=attempt, run_id=run_id,
+            usage={"duration_seconds": round(time.monotonic() - started, 3),
+                   "input_tokens": None, "output_tokens": None, "total_tokens": None})
 
         # Garde-fou : rien d'autre que frontend/ ne doit avoir bougé.
         after = _fingerprint_protected(project_dir)
@@ -1496,8 +2361,16 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
             smoke_ok, smoke_errors, smoke_warnings = run_smoke_test(project_dir, say=say)
             errors, warnings = smoke_errors, warnings + smoke_warnings
             ok = smoke_ok
+        # Même règle que dans la voie API : check_coherence() est l'unique
+        # collecte des erreurs de complétude pour cette vérification.
         for w in warnings:
             say(f" ⚠️  {w}")
+        if image_failures:
+            for error in errors:
+                say(f" ❌ {error}")
+            say(" ❌ Livraison refusée : le manifeste reste l'autorité pour les "
+                "images planifiées ; relancez après disponibilité du fournisseur.")
+            return False, errors
         if ok:
             say(f" ✅ Frontend construit par {nom} et vérifié : 'monl run' est prêt.")
             return True, []

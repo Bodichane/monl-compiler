@@ -143,3 +143,26 @@ def test_le_graphe_voit_vraiment_quelque_chose():
     assert {"parser", "generator", "frontend_contract"} <= _depend_de("cli")
     assert {"tui", "app_templates", "parser"} <= _depend_de("dialogue_engine")
     assert "frontend_contract" in _depend_de("smoke_test")
+
+
+def test_monl_ne_simporte_jamais_monl_platform():
+    """La plateforme dépend du compilateur, jamais l'inverse."""
+    violations = []
+    for root, _dirs, files in os.walk(SRC):
+        for filename in files:
+            if not filename.endswith(".py"):
+                continue
+            chemin = os.path.join(root, filename)
+            with open(chemin, encoding="utf-8") as fh:
+                arbre = ast.parse(fh.read(), filename=chemin)
+            for noeud in ast.walk(arbre):
+                if isinstance(noeud, ast.Import):
+                    noms = [alias.name for alias in noeud.names]
+                elif isinstance(noeud, ast.ImportFrom):
+                    noms = [noeud.module or ""]
+                else:
+                    continue
+                if any(nom == "monl_platform" or nom.startswith("monl_platform.")
+                       for nom in noms):
+                    violations.append(os.path.relpath(chemin, SRC))
+    assert not violations, "monl importe monl_platform : " + ", ".join(violations)

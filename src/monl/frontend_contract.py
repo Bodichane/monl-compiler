@@ -28,6 +28,7 @@ import os
 
 from .artifacts import copy_preserved_files, publish_files, staging_directory
 from .design_skills import render_skill_block, select_design_skills
+from .design_system import build_asset_manifest, infer_design_profile
 
 # Les noms des colonnes de suivi du paiement viennent de la couche qui les
 # crée — les réécrire ici en dur ferait une cinquième copie à faire dériver
@@ -959,6 +960,12 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
         # l'interface ne peut pas deviner une structure qu'on ne lui donne pas.
         "faq": [{"question": q["question"], "answer": paragraphes(q["answer"])}
                 for q in (landing.get("faq") or [])],
+        # BRIQUE 30 : les adresses SORTANTES, dans l'ordre déclaré. Le contrat
+        # les porte parce que le pied de page est une promesse d'interface au
+        # même titre qu'une route : une IA qui ne les voit pas dessine un pied
+        # de page vide, et c'est très exactement ce qu'on répare.
+        "links": [{"label": lien["label"], "url": lien["url"]}
+                  for lien in (landing.get("links") or [])],
         "source_of_truth": "spec monl (.ml) — ne jamais modifier le backend à la main",
         # AJOUT (brique 13, point 83) : les assets FOURNIS PAR L'HUMAIN. Le
         # contrat n'en disait rien, donc une IA d'interface ne pouvait pas savoir
@@ -1236,6 +1243,50 @@ def _assets_contract(assets):
     return contrat
 
 
+def _marker_block_description(marker):
+    """Décrit le bloc HTML qui porte un marqueur du manifeste."""
+    if marker.startswith('data-monl-media="'):
+        entity = marker.split('"', 2)[1]
+        return f"la zone qui rend les images de l'entité `{entity}`"
+    if not marker.startswith('data-monl-section="'):
+        return "l'élément HTML du bloc visuel correspondant"
+    section = marker.split('"', 2)[1]
+    descriptions = {
+        "hero": "le bloc hero / bandeau principal",
+        "catalogue": "le bloc catalogue qui rend la liste des produits",
+        "panier": "le bloc panier ou récapitulatif de commande",
+        "workspace": "le bloc espace de travail du rôle concerné",
+        "faq": "le bloc FAQ structuré",
+        "editorial": "le bloc du récit éditorial",
+        "trust": "le bloc de preuve ou de réassurance",
+        "closing-cta": "le bloc d'appel à l'action final",
+    }
+    return descriptions.get(section, f"le bloc HTML de la section `{section}`")
+
+
+def _required_markers_block(contract):
+    """Rend dans le brief la carte exécutable des marqueurs obligatoires."""
+    manifest = build_asset_manifest(contract, infer_design_profile(contract))
+    markers = (manifest.get("required_markers") or {}).get("index.html") or []
+    if not markers:
+        return ""
+    lines = "\n".join(
+        f"- Fichier exact : `frontend/index.html` — marqueur exact : `{marker}` — "
+        f"bloc exact : {_marker_block_description(marker)}."
+        for marker in markers
+    )
+    return f"""
+## Marqueurs visuels obligatoires — fichier et bloc exacts
+
+Le manifeste exige les marqueurs suivants. Écris chacun dans le fichier et
+sur le bloc indiqués ci-dessous ; le texte du marqueur doit être recopié
+exactement, guillemets compris. Ne le remplace pas par une classe CSS ou par
+un commentaire.
+
+{lines}
+"""
+
+
 def _render_prompt(contract):
     routes_lines = []
     skills_block = render_skill_block(contract.get("design_skills", ["monl-showcase"]))
@@ -1415,6 +1466,21 @@ Deux exigences seulement, et ce ne sont pas des questions de goût :
   suffisent à porter une identité — c'est leur traitement qui la fait.
 """
 
+    generated_assets_block = """
+## Images matricielles produites par la construction
+
+Si `ASSET_MANIFEST.json` liste des `generated_assets`, Monl a déjà écrit ces
+images matricielles dans le dossier d'assets déclaré par la spec avant votre
+appel. Référencer exactement chaque chemin fourni par le manifeste depuis le
+HTML/CSS : ne jamais inventer un nom, ne pas recopier une image dans
+`frontend/` et ne pas tenter de produire ses octets dans la réponse texte.
+Chaque fichier généré doit être rendu une seule fois, dans le bloc qui porte
+son rôle visuel ; ne jamais réutiliser son chemin dans un autre bloc. La
+rubrique « Assets graphiques produits par la construction » de
+`DESIGN_SYSTEM.md` donne, lorsqu'il y en a, le fichier, son rôle et la
+précision de section correspondante.
+"""
+
     express_block = ""
     if "mode express" in (contract.get("brief") or "").lower():
         express_block = """
@@ -1426,16 +1492,6 @@ la catégorie décrite par le contrat :
   bénéfices, méthode, réassurance, appels à l'action, textes d'états vides) ;
 - construire une page dense en blocs réellement utiles, pas une simple liste
   suivie d'un formulaire ;
-- créer dans `frontend/` des illustrations `.svg` originales et cohérentes
-  lorsque le projet appelle des images. Elles sont locales, accessibles et
-  peuvent servir aux blocs éditoriaux ; ne pas embarquer de photo distante ;
-- si `ASSET_MANIFEST.json` liste des `generated_assets`, livrer chacun de ces
-  chemins comme une clé `.svg` séparée dans la réponse. Référencer exactement
-  ces noms depuis le HTML/CSS : ne jamais inventer un nom de fichier, ni
-  mentionner une image qui n'est pas effectivement rendue ;
-- ne rendre chaque section éditoriale et chaque illustration qu'une seule
-  fois : le bloc éditorial porte le texte fourni, et `hero.svg` ne doit pas
-  être recopié dans les autres sections ;
 - rendre les vraies images et les vraies fiches renvoyées par l'API quand elles
   existent. Ne jamais fabriquer côté navigateur de faux produits, projets,
   rendez-vous ou autres enregistrements qui contrediraient la base.
@@ -1493,13 +1549,15 @@ contrat.
     auth_feature_block = ("\n" + "\n".join(auth_feature_lines)
                           if auth_feature_lines else "")
 
+    markers_block = _required_markers_block(contract)
+
     return f"""# Brief frontend — {contract['app']} (généré par monl)
 {brief_line}
 Vous êtes une IA spécialisée en interfaces. Générez le frontend de
 l'application **{contract['app']}** en respectant STRICTEMENT le contrat
 ci-dessous. Le backend existe déjà et ne doit pas être modifié.
 
-{design_block}{skills_block}{express_block}
+{design_block}{skills_block}{generated_assets_block}{express_block}
 ## Système de design préparé avant le code
 
 Avant d'écrire le frontend, lire `DESIGN_SYSTEM.md` lorsqu'il est présent :
@@ -1514,11 +1572,21 @@ données, les permissions et les états métier.
   comme point d'entrée (HTML/CSS/JS statiques, aucun build requis).
 - Frontend AUTONOME : aucune librairie CDN, aucun script externe — tout le
   JS/CSS vit dans `frontend/` (c'est ce qui rend le smoke test possible).
+- Visuels locaux — INTERDICTION EXPLICITE : ne crée, n'écris ni ne référence
+  aucun fichier image local qui n'est pas listé par `ASSET_MANIFEST.json`.
+  Cette interdiction vaut pour les chemins HTML (`<img src>`), CSS
+  (`url(...)`, `background-image`) et JavaScript, y compris dans
+  `frontend/` et dans tout dossier d'assets. Pour tout visuel qui n'est pas
+  listé par le manifeste, l'alternative autorisée et nommée est d'écrire le
+  **SVG EN LIGNE dans le HTML**, dans le bloc qui l'utilise. N'invente donc
+  jamais un chemin comme `product/default.svg`, `hero.svg` ou `hero.jpg` ;
+  vérifie d'abord la liste du manifeste.
 - Iconographie : aucune librairie d'icônes (Font Awesome, Material, Lucide,
   Bootstrap Icons…) n'est atteignable, puisque aucun CDN ne l'est — et une
   police d'icônes distante ne le serait pas davantage. Ce qui FONCTIONNE et est
-  servi : le SVG écrit EN LIGNE dans le HTML, et les fichiers `.svg` déposés
-  dans `frontend/` (extension en liste blanche). monl ne dit pas s'il faut des
+  servi : le SVG écrit EN LIGNE dans le HTML, et les fichiers `.svg` explicitement
+  listés par le manifeste. Les fichiers graphiques non listés restent interdits ;
+  monl ne dit pas s'il faut des
   icônes, ni lesquelles, ni dans quel style — il dit seulement par quel moyen
   elles sont possibles, parce que la règle ci-dessus, lue seule, laisse croire
   qu'elles ne le sont pas.
@@ -1527,6 +1595,15 @@ données, les permissions et les états métier.
   frontend est servi sur `/site` par le serveur qui porte l'API : l'origine
   est déjà la bonne. Une URL absolue avec un port codé en dur casse au
   premier `monl run --port` et fait échouer le smoke test.
+- PLANCHER DE PARCOURS : les workflows déclarés par la spec sont des promesses
+  de produit. Pour CHAQUE workflow, livrer au moins une entrée d'interface
+  atteignable (écran, bouton, formulaire ou gestionnaire) qui appelle une de
+  ses routes ; un simple catalogue ne couvre pas un parcours de commande, de
+  compte ou de gestion. Les autres routes appelables du workflow doivent être
+  raccordées aux actions qu'elles exposent. La vérification lit les fichiers
+  réellement livrés, compte les routes appelées et nomme celles qui ne le sont
+  par aucun écran. Les routes de service explicitement interdites par le
+  contrat restent hors écran et ne doivent jamais être appelées.
 - Authentification : `POST /register` (username, password 8+, actor parmi
   {contract['self_register_actors'] or "AUCUN — inscription fermée, ne pas "
    "construire de formulaire d'inscription"}) → `{{status, user_id}}`,
@@ -1544,7 +1621,7 @@ données, les permissions et les états métier.
 - Ne pas modifier `app.py`, `schema.sql`, la spec `.ml` ni les autres
   artefacts monl.{paiement_block}
 
-{sections_block}{faq_block}
+{sections_block}{faq_block}{markers_block}
 ## Entités
 {chr(10).join(entities_lines)}
 

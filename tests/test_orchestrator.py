@@ -29,7 +29,9 @@ entity Item
 entity Note
     body: Text
 
-actor Admin selfRegister
+# Le rôle d'administration est provisionné hors ligne : ces tests portent sur
+# la cohérence du contrat, pas sur une vitrine qui promet un back-office.
+actor Admin
 
 rule Item.label required
 rule Item.Read public
@@ -74,7 +76,7 @@ def test_delta_signale_un_type_de_champ_modifie(tmp_path, capsys):
     assert "type de champ changé : Note.priority : String → Integer" in capsys.readouterr().out
 
 
-def test_brief_express_autorise_textes_blocs_et_illustrations_locales(tmp_path):
+def test_brief_express_autorise_textes_blocs_et_images_matricielles_locales(tmp_path):
     answers = iter(["1", "StudioExpress", "Portfolio de céramique contemporaine."])
     spec_text = GuidedDialogue(
         ask=lambda prompt: next(answers), express=True).run()
@@ -86,7 +88,12 @@ def test_brief_express_autorise_textes_blocs_et_illustrations_locales(tmp_path):
     prompt = (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     assert "Mode express" in prompt
     assert "page dense en blocs réellement utiles" in prompt
-    assert "illustrations `.svg` originales" in prompt
+    # Renversement explicite : le texte peut organiser la page, mais les
+    # octets d'une image sont désormais produits par le fournisseur image et
+    # écrits dans assets/ avant l'appel au modèle texte.
+    assert "images matricielles" in prompt
+    assert "ne pas tenter de produire ses octets" in prompt
+    assert "illustrations `.svg` originales" not in prompt
     assert "Ne jamais fabriquer côté navigateur de faux produits" in prompt
 
 
@@ -237,9 +244,15 @@ def test_frontend_hors_contrat_declenche_avertissement(tmp_path):
         "<script>fetch('/item?limit=3'); fetch('/fantome/1');</script>",
         encoding="utf-8")
     ok, errors, warnings = check_coherence(str(proj))
-    assert ok, errors
+    # Renversement rendu nécessaire par le contrôle demandé : un chemin passé
+    # à fetch n'est plus seulement un avertissement, car il peut viser le vide.
+    assert not ok
+    assert any("/fantome" in error for error in errors)
     assert any("/fantome" in w for w in warnings)
-    assert not any("/item" in w for w in warnings)
+    # Le nouveau contrôle peut nommer /item dans son décompte de couverture ;
+    # ce test porte uniquement sur l'ancien avertissement de chemin inconnu.
+    assert not any("chemins absents du contrat" in w and "/item" in w
+                   for w in warnings)
 
 
 def test_les_routes_de_navigation_ne_declenchent_pas_lavertissement(tmp_path):
@@ -259,13 +272,13 @@ def test_les_routes_de_navigation_ne_declenchent_pas_lavertissement(tmp_path):
     (front / "index.html").write_text(
         "<a href=\"#/catalogue\">Catalogue</a>"
         "<script>function aller(r){}; aller('/catalogue');"
-        " fetch('/item'); fetch('/fantome');</script>",
+        " fetch('/item');</script>",
         encoding="utf-8")
     ok, errors, warnings = check_coherence(str(proj))
     assert ok, errors
     assert not any("/catalogue" in w for w in warnings), warnings
-    assert any("/fantome" in w for w in warnings), (
-        "le témoin doit rester signalé, sinon l'avertissement ne sert plus à rien")
+    # `/fantome` est désormais le cas de refus ci-dessus ; le témoin de ce
+    # test est volontairement uniquement une navigation `#/catalogue`.
 
 
 def test_update_rapporte_le_delta_du_contrat(tmp_path):

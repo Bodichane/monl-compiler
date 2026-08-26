@@ -59,6 +59,15 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [140](#140-le-harnais-de-test-sautait-au-lieu-déchouer-et-vingt-et-un-fichiers-avec-lui) Le harnais de test sautait au lieu d'échouer, et vingt et un fichiers avec lui ·
 [141](#141-ouvrir-la-plateforme-au-public--cinq-manques-et-une-base-qui-ne-se-fermait-jamais) Ouvrir la plateforme au public : cinq manques, et une base qui ne se fermait jamais ·
 [142](#142-les-deux-falaises-produit--un-mot-de-passe-perdu-et-aucun-administrateur) Les deux falaises produit : un mot de passe perdu, et aucun administrateur ·
+[143](#143-un-marqueur-nommait-la-section-sans-jamais-prouver-quil-y-avait-quelque-chose-dedans) Un marqueur nommait la section sans prouver qu'il y avait quelque chose dedans ·
+[144](#144-le-pied-de-page-nétait-exigé-nulle-part-et-monl-ne-pouvait-pas-le-deviner) Le pied de page n'était exigé nulle part ·
+[145](#145-ouvrir-un-compte-ne-coûtait-rien-sur-une-plateforme-qui-dépense) Ouvrir un compte ne coûtait rien, sur une plateforme qui dépense ·
+[146](#146-la-brique-du-pied-de-page-existait-et-rien-ne-la-produisait) La brique du pied de page existait, et rien ne la produisait ·
+[147](#147-la-correction-automatique-pouvait-tout-casser-et-monl-gardait-le-pire) La correction automatique pouvait tout casser, et monl gardait le pire ·
+[148](#148-le-fichier-était-emballé-dans-du-json-et-cest-lemballage-qui-cassait) Le fichier était emballé dans du JSON, et c'est l'emballage qui cassait ·
+[149](#149-on-demandait-un-appjs-de-1-500-jetons-puis-on-le-refusait-parce-quil-était-incomplet) On demandait un app.js de 1 500 jetons, puis on le refusait ·
+[150](#150-le-brief-demandait-de-factoriser-et-cest-la-factorisation-qui-faisait-refuser-le-site) Le brief demandait de factoriser, et la factorisation faisait refuser ·
+[151](#151-toute-boutique-vendait-des-théières) Toute boutique vendait des théières ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -9481,3 +9490,635 @@ fichiers en lecture seule, onze capacités retirées.
 
 **Ce qui reste, et qui n'est toujours pas du code** : sortir les sauvegardes
 de la machine, poser le TLS, et vérifier que `contact@monl.dev` reçoit.
+## 143. Un marqueur nommait la section sans jamais prouver qu'il y avait quelque chose dedans
+
+**Le contrôle de complétude vérifiait un NOM, pas un contenu.** Depuis le
+point 136, `ASSET_MANIFEST.json` porte des `required_markers` et
+`_design_completeness_errors` refuse un frontend auquel il manque une section
+déclarée. Le contrôle est une recherche de chaîne : `content.count(marker)`.
+Donc `<section data-monl-section="hero"></section>` le franchit, et une page
+faite de huit balises vides était déclarée complète. Ce n'est pas une
+hypothèse : `tests/test_design_system.py` construisait exactement cette page
+et affirmait `_design_completeness_errors(...) == []`. **Le test qui prouvait
+la barrière prouvait aussi son trou**, et personne ne l'avait lu comme ça.
+
+**Le second défaut est plus grave que le premier.** Mesuré sur les cinq
+exemples du dépôt, le nombre de sections EXIGÉES valait 4, 5, 4, 3 et **2**.
+Deux, pour `exemples/05_classement.ml` : `hero` et `closing-cta`. Autrement
+dit, le classement — le sujet entier du site — n'était requis sur aucun écran.
+Une application pouvait donc être « complète » sans que sa propre matière
+apparaisse nulle part. La règle qui produisait ça n'était pas absurde :
+`catalogue` était réservé au commerce, `trust` au commerce et au service. Elle
+raisonnait sur le SECTEUR, quand la question est « ce site montre-t-il ce
+qu'il fait ».
+
+**Ce que la pratique de référence dit, et ce qu'elle ne dit pas.** Les
+recommandations publiées convergent sur deux choses : une page produit tient
+en cinq à huit blocs, et chaque catégorie a un noyau non négociable — menu,
+adresse et réservation pour un restaurant ; travaux, à-propos, preuve et
+contact pour un portfolio ; proposition de valeur, navigation, catalogue et
+réassurance pour une boutique. Ce qu'elles ne disent jamais, c'est de
+remplir un huitième bloc quand on n'a de la matière que pour quatre. **Le
+plancher retenu est donc de QUATRE sections réelles** — identité, matière,
+réassurance, action — plus tout ce que la spec fournit vraiment (éditorial,
+FAQ, contact, réservation, panier). Monter le plancher à huit aurait produit
+du remplissage, c'est-à-dire l'inverse exact de ce qu'on répare.
+
+**Trois principes tiennent la barrière de substance** (`section_substance.py`),
+chacun né d'une façon différente de se tromper :
+
+1. **On ne demande jamais ce qui vient de l'API.** Un catalogue se remplit à
+   l'exécution ; exiger des lignes de produits dans le HTML statique
+   pousserait l'IA à en inventer — précisément ce que monl refuse partout
+   ailleurs. On exige le contenant, le titre et l'état vide, jamais les
+   données.
+2. **Le seuil est PAR SECTION.** Un bandeau de conclusion tient en une phrase
+   et un bouton ; lui réclamer deux cents caractères ferait produire du
+   remplissage. `hero` veut 80 caractères, une action et un titre ;
+   `closing-cta` veut un titre et une action, pas de prose ; `contact` veut un
+   `<form>`, pas un paragraphe.
+3. **Une section déclarée est jugée sur CE QU'ELLE DÉCLARE.** Réclamer cent
+   caractères à une rubrique dont l'auteur en a écrit trente ferait échouer
+   une spec honnête. Le seuil est plafonné par la longueur du corps déclaré,
+   jamais deviné.
+
+**Deux pièges de mesure, tous deux éprouvés.** Le corps d'un `<script>` n'est
+pas du texte lu par un humain : le compter laisserait passer la barrière avec
+une variable JavaScript bien remplie. Et la pile du parseur porte le NOM de la
+balise : un `<p>` jamais refermé est du HTML5 parfaitement légal, et sans ça
+la profondeur fuit — la section avale tout ce qui la suit et la barrière ne
+refuse plus rien. Une section qui compte le texte de sa voisine ne refuse
+rien du tout.
+
+**La matière de `trust` vient du CONTRAT, pas de l'imagination.** La section
+de réassurance est le premier endroit où une IA invente un avis, un logo, un
+« 10 000 clients satisfaits ». Lui interdire d'inventer sans rien lui donner
+ne produit pas une section honnête : ça produit une section vide, c'est-à-dire
+le défaut qu'on répare. Le brief énumère donc des phrases DÉRIVÉES du contrat
+et vérifiables une par une sur le serveur généré — le paiement passe par un
+prestataire, les montants sont calculés côté serveur, une commande réglée est
+figée, chaque compte ne voit que ses données. Toute autre affirmation reste
+interdite.
+
+**Le brief doit énoncer la règle.** Une barrière que l'IA ne connaît pas ne
+produit pas de la qualité, elle produit des reprises facturées.
+`DESIGN_SYSTEM.md` publie donc, section par section, ce qui est exigé, en
+disant que c'est un refus et non un avertissement, et que les seuils sont des
+PLANCHERS et non des cibles.
+
+**NEUVIÈME fois pour l'angle mort du delta**, et la question posée avant
+d'écrire la brique cette fois-ci. Le plancher et la substance ne créent aucune
+route, ne renomment aucun champ, ne touchent à aucun acteur — mais un site
+conforme hier devient non conforme. `_contract_signature` porte donc les
+sections obligatoires ET leur règle : le digest change quand le seuil de
+`trust` change, exactement comme au point 89 sur la lecture seule. Trois cas
+au rapport, comme pour le contenu au point 94 — section ajoutée, retirée, ou
+**durcie sans changer de nom**, le troisième étant le silencieux.
+
+**Ce que ça ne couvre PAS, et c'est assumé.** La couverture de routes reste
+ce qu'elle était : un workflow d'acteur inscriptible sans AUCUNE route
+appelée est une erreur, la liste exhaustive des routes jamais appelées reste
+un avertissement. Un workflow de huit actions dont une seule est atteignable
+passe donc toujours. C'est un arbitrage écrit et délibéré — « une route isolée
+n'est pas nécessairement un écran » — et le rouvrir est une décision de
+produit, pas une correction de défaut.
+
+Éprouvé par `tests/test_section_substance.py` (14 tests), et de bout en bout
+sur `exemples/02_boutique.ml` : `monl run --check` refuse les six sections
+vides en nommant ce qui manque à chacune, et accepte le même site réellement
+rempli. Sans cette contre-épreuve, une barrière qui refuserait tout passerait
+pour bonne.
+
+## 144. Le pied de page n'était exigé nulle part, et monl ne pouvait pas le deviner
+
+**Le plancher du point 143 comptait quatre sections et s'arrêtait au-dessus du
+pied de page.** `hero`, la matière, `trust`, `closing-cta` — et rien en bas.
+Le résultat se voit sur tous les sites produits : deux mots gris, aucun
+réseau social, aucune mention, aucun contact. C'est le dernier endroit où un
+site se dénonce comme une maquette, et c'était le seul que la vérification ne
+regardait pas.
+
+**Le problème n'est pas de l'exiger, c'est de le remplir.** monl ne peut pas
+DEVINER une adresse Instagram : une adresse inventée mène chez quelqu'un
+d'autre, ce qui est pire que pas d'adresse du tout. Même impasse qu'au point
+83 pour les fichiers image et qu'au point 86 pour le stock, et donc même
+issue : **monl fait DÉCLARER ce qu'il ne peut pas savoir, puis il l'exige.**
+
+**`landing` accepte `link "Libellé": "adresse"`**, répétable, forme PLATE et
+ordre conservé — mot pour mot les choix de `section` (point 55) et de
+`question` (point 94), pour la même raison : un sous-bloc indenté ajouterait
+un niveau à la seule grammaire où l'indentation a déjà coûté deux bugs.
+
+**Ce que le validateur refuse, et pourquoi.** L'adresse doit porter un
+schéma : `https://`, `http://`, `mailto:` ou `tel:`. Sans lui, un
+« instagram.com/atelier » est lu par le navigateur comme un chemin RELATIF et
+mène à une page inexistante du site lui-même — **un lien qui ne marche pas
+est pire qu'un lien absent, parce qu'il se voit.** `tel:` et `mailto:` sont
+dans la liste sans hésitation : sur un site de commerce, ce sont souvent les
+deux liens qui comptent le plus. Sont refusés aussi le libellé vide,
+l'adresse vide, deux libellés identiques (on hésite sur lequel suivre) et
+deux fois la même adresse.
+
+**Ce que monl ne vérifie PAS, et le dit.** Qu'une adresse RÉPONDE. Il ne fait
+aucun appel réseau, et le prétendre serait mentir — même frontière qu'au
+point 83 pour les images distantes. Ce qu'il vérifie, c'est que l'adresse
+déclarée figure **réellement dans le site livré** : l'auteur déclare son
+Instagram, l'IA l'oublie, et personne ne s'en aperçoit avant de chercher le
+lien en ligne. La comparaison porte sur l'ADRESSE et non sur le libellé : un
+libellé peut légitimement être reformulé par l'interface, une adresse jamais.
+
+**Le pied de page n'exige PAS de titre.** Lui en imposer un ferait écrire
+« Pied de page » en gros, ce qu'aucun site réel ne fait. Sa règle de
+substance est donc la seule sans `heading` : du texte, et de quoi partir
+ailleurs. L'invariant du manifeste a dû être réécrit en conséquence — ce
+n'est plus « un titre partout » mais « aucune règle vide », ce qui est la
+formulation juste depuis le début.
+
+**DIXIÈME fois pour l'angle mort du delta**, et la question posée avant
+d'écrire la brique. Déclarer un lien ne crée aucune route, ne renomme aucun
+champ, ne touche à aucun acteur — et le pied de page doit être réécrit, sous
+peine d'un refus « lien déclaré absent du site ». L'ADRESSE entre dans le
+digest, pas seulement le libellé : corriger une faute de frappe dans une URL
+ne renomme rien non plus.
+
+**Un garde-fou de test s'est révélé faux en même temps.** Le contrôle
+« aucune ressource distante » de la plateforme interdisait TOUTE URL, y
+compris un simple `<a href>`. Il confondait *charger une ressource* et
+*pointer ailleurs* : un lien sortant ne télécharge rien, la page reste
+entière hors ligne, seul le clic échoue — ce qui est le comportement attendu.
+Le contrôle vise désormais ce que le NAVIGATEUR va chercher tout seul
+(`<link>`, `<script src>`, `@import`, `src="http`, `url(http`), et un second
+test referme l'ouverture : chaque `https://` de la page doit être la cible
+d'un `<a href>` et rien d'autre. La définition vivait en DEUX exemplaires,
+dans le test de l'accueil et dans celui de la console ; elles ont divergé au
+premier élargissement, et il n'y en a plus qu'une.
+
+La plateforme elle-même a gagné un vrai pied de page — quatre colonnes sur
+l'accueil, une barre sur la console — avec des liens **réels** : le dépôt,
+les défauts, le journal des décisions, la licence. Aucun compte social n'a
+été inventé, parce qu'il n'en existe aucun.
+
+Éprouvé par `tests/test_liens_de_pied.py` (13 tests), dont la contre-épreuve :
+le même site AVEC ses liens est accepté, sans quoi un contrôle qui refuserait
+tout passerait pour bon. Les seuls artefacts déplacés sont le contrat et
+`monl.json` qui le scelle — `app.py`, `schema.sql` et `manage.py` restent
+identiques à l'octet.
+
+---
+
+## 145. Ouvrir un compte ne coûtait rien, sur une plateforme qui dépense
+
+**Le constat, posé par le mainteneur.** Ni la plateforme ni les sites produits
+ne demandaient la moindre vérification : ni adresse, ni téléphone, ni compte
+Google ou GitHub. N'importe quelle chaîne de caractères ouvrait un compte, et
+chaque compte ouvre un quota de jetons — c'est-à-dire de l'argent réel dépensé
+chez le fournisseur d'IA. Le formulaire n'était pas seulement laxiste : il
+était la porte d'entrée d'une facture.
+
+**Ce qui a été fait, et ce qui ne l'a PAS été.** La plateforme délègue la
+vérification à un fournisseur qui l'a déjà faite — GitHub ou Google — et
+n'envoie toujours **aucun message**. La frontière du point 95 tient mot pour
+mot : *monl vérifie la forme, jamais qu'une boîte reçoit*. Il n'y a donc ni
+code de confirmation par courriel, ni SMS, ni mot de passe oublié : ce sont
+des briques qui commencent par « monl sait envoyer un message », et cette
+brique-là n'est toujours pas écrite. Ce point ne couvre que la PLATEFORME ;
+les sites produits gardent leur `capability auth`, qui est une autre question.
+
+**Quatre décisions, à ne pas rouvrir.**
+
+**L'identité du fournisseur vit dans son PROPRE espace de noms** —
+`github:4242`, `google:<sub>`, jamais l'adresse électronique seule. C'est ce
+qui empêche la prise de contrôle : sans cette séparation, quelqu'un ouvrant un
+compte par mot de passe sous `alice@exemple.test` (adresse que personne n'a
+vérifiée) verrait sa session récupérée par la vraie Alice se connectant par
+GitHub — ou l'inverse, ce qui est pire. Aucun rattachement automatique n'a
+donc lieu entre un compte de fournisseur et un compte par mot de passe portant
+la même adresse. L'identifiant est une CLÉ, pas un nom : le nom lisible vit à
+part, dans `display_name`, et c'est lui que la console affiche — autrement
+elle montrerait « github:4242 » à une personne qui ne le reconnaît pas.
+
+**Seule une adresse VÉRIFIÉE par le fournisseur est acceptée.** GitHub marque
+ses adresses `verified`, Google renseigne `email_verified`. Sans ce contrôle,
+la brique ne vérifierait rien du tout : elle déplacerait la chaîne quelconque
+d'un formulaire vers un autre, en donnant l'illusion contraire. Un compte non
+vérifié reçoit 403 et rien n'est écrit en base.
+
+**L'état d'aller (`state`) est SIGNÉ et DATÉ**, cinq minutes hors du compte à
+rebours de dix. Signé, il ferme le CSRF : un tiers qui déclenche le retour
+depuis son propre site n'a pas d'état signé par nous. Daté, il ferme le rejeu
+— exactement le raisonnement de la signature datée du webhook de paiement au
+point 91, et pour la même raison : sans date, un aller capté une fois reste
+rejouable indéfiniment. Un état émis pour Google ne vaut pas pour GitHub.
+
+**L'adresse de retour vient de la CONFIGURATION, jamais de l'en-tête `Host`.**
+Le `Host` est fourni par le client ; le lire laisserait détourner l'aller-retour
+vers un domaine choisi ailleurs. Elle vient donc de
+`MONL_PLATFORM_PUBLIC_URL` — et son absence **empêche le démarrage** dès qu'un
+fournisseur est configuré, au lieu d'attendre qu'un usager clique sur un bouton
+qui répondrait 503. Mieux vaut un service qui s'arrête qu'un bouton qui ment,
+même arbitrage qu'au point 99.
+
+**Le jeton part dans le FRAGMENT de l'URL**, pas dans la requête : un fragment
+n'est jamais envoyé au serveur, donc jamais journalisé par un relais. La
+console le récolte, le range, puis **efface la barre d'adresse** par
+`history.replaceState` — sans quoi il traînerait dans l'historique du
+navigateur.
+
+**Un garde-fou qui ne mordait pas.** `authenticate_account` refuse
+explicitement un `password_hash` nul — un compte de fournisseur n'a pas de mot
+de passe, et `None` ne doit jamais devenir une porte. Vérification faite par
+mutation : le retirer laissait la suite **entièrement verte**, parce que
+`_password_matches` écarte déjà un hash vide une couche plus bas. Le test a
+donc été déplacé là où la garantie vit réellement. Leçon générale, et c'est
+elle qui compte : *un test qui passe ne prouve pas qu'il mord* — les cinq
+garde-fous de ce point ont chacun été retirés une fois pour vérifier qu'un test
+tombe.
+
+**Éprouvé par un FAUX fournisseur embarqué** (`tests/test_oauth.py`, 18 tests),
+précédent du faux Stripe du point 74 : `MONL_OAUTH_GITHUB_BASE_URL` et son
+équivalent Google existent pour que la brique soit éprouvable sans appeler le
+vrai GitHub, c'est-à-dire pour qu'elle le soit tout court. Le dernier test
+pilote la **console dans jsdom** contre le serveur réel, parce que le HTTP seul
+ne dit pas si le bouton existe, s'il vise une route qui répond, si le fragment
+est récolté et effacé, ni si la session survit au rechargement — un bouton
+menant à une route inexistante est précisément le faux négatif déjà rencontré
+sur un site déclaré réussi. Les deux mutations correspondantes font tomber ce
+test.
+
+**Le piège du banc, à retenir.** jsdom ne fournit pas `matchMedia`, et le
+script de la console meurt à sa première ligne sans lui : la première mesure
+annonçait « aucun bouton » alors que la page en portait un. On mesurait le
+banc, pas le produit — même famille que le `scrollIntoView` absent qui avait
+masqué un vrai succès.
+
+---
+
+## 146. La brique du pied de page existait, et rien ne la produisait
+
+**Le constat.** Le point 144 avait rendu le pied de page obligatoire et donné
+au DSL de quoi déclarer ses liens (`link "Instagram": "https://…"`). Deux
+choses manquaient, et elles se voyaient à l'œil avant toute mesure : **ni le
+dialogue guidé, ni aucun des dix modèles, ni la console web de la plateforme
+n'écrivait un seul `link`**. Chaque site sortait donc avec un pied de page sans
+une seule destination — ce qui, sur une plateforme où chaque construction est
+facturée, se paie deux fois.
+
+**C'est le point 85, sous un autre jour.** Le compilateur n'a pas le droit de
+porter une règle qui ne produit rien ; l'interdit vaut pour ce qui ÉCRIT la
+spec. Une brique sans producteur est une brique qui n'existe pas, et le test
+de compilation ne peut pas le voir : la grammaire l'accepte, le validateur la
+valide, personne ne l'emploie.
+
+**Trois producteurs, pas un.** Le dialogue guidé pose la question
+(`_ask_footer_links`), avec cinq entrées PROPOSÉES — courriel, téléphone,
+Instagram, Facebook, LinkedIn — chacune passable en laissant vide, puis une
+relance libre. Le mode **express** ne pose rien, c'est sa raison d'être : ses
+liens arrivent par l'appelant (`express_links`). Et la console web de la
+plateforme gagne une étape, parce que c'est elle qui construit les sites qu'on
+paie.
+
+**Compléter n'est pas deviner.** Personne ne tape « mailto: », personne ne tape
+« https:// », et une adresse sans schéma est lue par le navigateur comme un
+chemin RELATIF : « instagram.com/atelier » mène à une page inexistante du site
+lui-même. La complétion n'a donc lieu que là où il n'existe qu'UNE lecture — et
+ce qui reste incompris est **écarté en le disant**, jamais interprété. C'est la
+frontière du point 105 : une hypothèse affichée comme un résultat envoie
+corriger ce qui n'est pas cassé. Le téléphone est traité AVANT le refus des
+espaces, parce que « +33 6 12 34 56 78 » est la façon dont un numéro s'écrit et
+la seule valeur de la liste qui en contienne légitimement.
+
+**Une seule règle, deux couches, et l'accord VÉRIFIÉ.** `adresse_de_lien`
+(`monl/dialogue_engine.py`) est la source unique côté Python ; la console en a
+nécessairement une copie en JavaScript, puisqu'elle valide la saisie dans le
+navigateur. Deux mises en œuvre de la même règle divergent toujours — celle du
+navigateur décide ce que l'usager voit accepté, celle du serveur ce qui atteint
+la spec, et un écart donnerait un lien annoncé enregistré puis écarté en
+silence. `tests/test_liens_pied_de_page.py` **exécute les deux sur les mêmes
+treize entrées** (la version JS est extraite du HTML réellement servi) et exige
+le même résultat. La contre-épreuve : désarmer la branche téléphone du
+JavaScript fait tomber le test à l'entrée exacte concernée.
+
+**Le nombre magique qui a cassé huit tests d'un coup.** Les scénarios de
+`tests/test_dialogue_engine.py` étaient découpés par des tranches négatives —
+`SCENARIO_PORTFOLIO[:-4]`, `[:-5]`, `[:-1]` — chacune signifiant « retirer les
+réponses de fin ». Une question ajoutée en fin de dialogue déplace la coupe, et
+le nombre ne dit jamais ce qu'il retire. Le scénario est désormais composé de
+morceaux NOMMÉS (`SCENARIO_PORTFOLIO_TRONC`, `INTENTION_PAR_DEFAUT`,
+`AUCUNE_SECTION`, `AUCUN_LIEN`), et le nombre d'entrées proposées est LU sur
+`GuidedDialogue.LIENS_PROPOSES` plutôt que recopié — un chiffre figé dans un
+test diverge en silence à la première entrée ajoutée. Même famille que
+l'avertissement déjà écrit dans CLAUDE.md sur `_ask_self_register` : toute
+question ajoutée décale les réponses scriptées.
+
+**Ce que monl ne promet toujours pas.** Il ne vérifie pas qu'une adresse
+RÉPOND : il ne fait aucun appel réseau, et le prétendre serait mentir — même
+frontière qu'au point 83 pour les images distantes. Il vérifie qu'un navigateur
+saura l'ouvrir, et c'est tout.
+
+Éprouvé par `tests/test_liens_pied_de_page.py` (6 tests) et trois tests de plus
+dans `tests/test_dialogue_engine.py`, dont la contre-épreuve qui compte : **sans
+réponse, la spec produite est exactement celle d'avant** — sans quoi la
+question ferait bouger tout projet existant. Vérifié aussi par une compilation
+réelle : les trois liens traversent le dialogue, la spec, le contrat et le
+brief que l'IA reçoit.
+
+---
+
+## 147. La correction automatique pouvait tout casser, et monl gardait le pire
+
+**Mesuré sur une construction réelle payante** (19/08/2026, modèle Boutique du
+catalogue, `aliceai-llm-flash`, 0,119 USD, 9 appels) :
+
+- **Tentative 1** — deux défauts, tous deux étroits et mécaniques : un
+  `Number()` manquant sur un identifiant venu du `dataset`, et une section
+  média absente. Aucun avertissement de couverture : le site appelait ses
+  routes, portait ses sept sections avec matière et ses trois liens déclarés.
+  Il était *presque bon*.
+- **Tentative 2** — à qui on demandait de réparer ces deux lignes, le modèle a
+  **réécrit le site entier**. Résultat : 1 route sur 15 appelée, deux parcours
+  utilisateur complets disparus (`ManageOrder`, `ManageCustomer`).
+
+**Et monl conservait la tentative 2**, parce que la boucle écrivait chaque
+tentative par-dessus la précédente et rendait l'état final. L'utilisateur payait
+deux passes et repartait avec la pire des deux, sans que rien ne le lui dise.
+
+**Le correctif : garder la MEILLEURE, pas la DERNIÈRE.** Après chaque tentative
+échouée, monl retient un instantané du frontend et son score ; si la dernière
+n'est pas la meilleure, elle est remplacée. Le verdict, lui, ne change pas —
+deux échecs restent un échec.
+
+**Le classement est `(erreurs, avertissements)`, dans cet ordre et sans
+pondération.** Une gravité inventée serait une opinion déguisée en mesure : on
+ne sait pas dire qu'un parcours manquant « vaut » trois `Number()`. Ce couple
+suffisait à départager le cas qui l'a fait naître — les deux tentatives avaient
+DEUX erreurs chacune, mais la seconde ajoutait deux avertissements de parcours.
+Limite énoncée : deux tentatives à score égal laissent la seconde en place, et
+c'est le bon défaut (sans preuve de régression, on ne défait pas une
+correction).
+
+**Les erreurs rapportées sont celles des fichiers CONSERVÉS.** Rendre celles de
+la tentative écartée décrirait un frontend qui n'est plus sur le disque —
+l'utilisateur corrigerait ce qui n'existe pas, exactement le reproche du
+point 97.
+
+**La restauration est CIBLÉE, jamais un effacement de dossier.** Seuls les
+fichiers de la liste blanche (`.html`, `.css`, `.js`, `.svg`, `.json`) sont
+touchés ; les images générées vivent hors de cette liste et personne ne les
+rejouerait sans repayer. Les fichiers que la tentative écartée avait ajoutés
+sont retirés : un mélange des deux tentatives serait pire que l'une ou l'autre
+— un `index.html` restauré appelant un script que sa version n'a jamais écrit.
+
+**La contre-épreuve qui porte la brique** : un garde-fou qui figerait toujours
+la première tentative annulerait la correction automatique entière et passerait
+pour bon. Le test symétrique exige donc qu'une seconde tentative MEILLEURE soit
+bien conservée. Éprouvé par trois tests
+(`tests/test_smoke_and_frontend_ai.py`) ; deux tombent quand on désarme le
+garde-fou, le troisième doit passer dans les deux cas — c'est son rôle.
+
+**Ce que la même construction a prouvé au passage**, et qui répond au point 143
+et à la brique 30 : **les deux barrières neuves passent sur une vraie sortie
+d'IA**. Sept sections exigées, sept marqueurs présents, zéro refus de
+substance ; trois liens déclarés, trois retrouvés dans le pied de page — avec
+un modèle « flash » cinq fois moins cher que celui des constructions
+précédentes. Elles ne sont donc ni inertes ni trop strictes.
+
+---
+
+## 148. Le fichier était emballé dans du JSON, et c'est l'emballage qui cassait
+
+**Où part l'argent, mesuré** sur la construction du point 147 (9 appels,
+93 234 jetons d'entrée, 26 119 de sortie) :
+
+| cible | appels | entrée | sortie |
+|---|---|---|---|
+| `styles.css` | 3 | 33 % | **50 %** |
+| `app.js` | 4 | 46 % | 34 % |
+| `index.html` | 2 | 21 % | 16 % |
+
+Deux choses sautent aux yeux. La feuille de style — la partie qui ne porte
+aucune fonction — mange **la moitié des jetons de sortie**. Et `app.js`, qui
+porte à lui seul toute la complétude (routes, parcours, formulaires), a été
+appelé QUATRE fois pour ne rendre que 8 986 jetons, dont un dernier bout de
+834.
+
+**Pourquoi quatre appels.** Une « reprise » se déclenche quand la réponse est
+*illisible*. Une étape séquentielle doit emballer un fichier JavaScript entier
+dans une **chaîne JSON** : chaque saut de ligne échappé, chaque guillemet
+doublé. Un modèle bon marché y casse — et la relance dit alors « ta réponse
+précédente était illisible, rends un JSON fermé ». Le modèle obéit : il rend
+quelque chose de plus court, donc de plus sûr à échapper. **La boucle optimise
+la LISIBILITÉ, jamais la complétude**, et elle pousse mécaniquement vers le
+fichier minimal. C'est ainsi qu'on obtient un `app.js` de 2 806 octets pour
+quinze routes.
+
+**L'emballage n'apportait rien.** Une étape séquentielle SAIT quel fichier elle
+attend — `{"files": {"app.js": …}}` ne transporte pas un bit d'information
+utile, seulement un risque. Le contrat JSON reste donc la voie normale (rien
+ne change pour un modèle qui s'en tire), mais quand il est illisible, monl
+retombe sur le **fichier rendu en bloc clôturé Markdown**.
+
+**Quatre décisions.**
+Le repli est un FILET, jamais la voie principale : le tenter d'abord
+apprendrait aux modèles à ignorer le contrat.
+Il passe par les **mêmes garde-fous** (`_validate_files`) — extension,
+confinement, taille, caractères de contrôle. Aucune voie ne les contourne,
+c'est la règle du dépôt et elle ne se négocie pas pour de la robustesse.
+Un bloc qui **commence par `{`** n'est pas un fichier : l'écrire tel quel
+déposerait `{"files": …}` dans `app.js`, ce qui *parse* et ne marche pas — le
+pire des deux mondes.
+Le **plus gros** bloc l'emporte : un modèle bavard illustre sa réponse par de
+petits extraits avant de rendre le fichier.
+
+Le saut de ligne final, avalé par la clôture, est rétabli : un fichier source
+se termine par un saut de ligne.
+
+Éprouvé par cinq tests, dont la contre-épreuve (le JSON reste accepté et
+prioritaire) et le refus d'extension par la voie du filet. Deux tombent quand
+on désarme le repli.
+
+**Ce que cela ouvre, et qui est le vrai levier de coût.** `--model-for
+CIBLE=MODELE` existe depuis la génération découpée : on peut mettre le modèle
+solide là où vit la complétude (`app.js`) et le modèle bon marché là où
+brûlent les jetons (`styles.css`). La mesure ci-dessus dit que ce routage n'est
+pas une option de confort — c'est là que se joue « un site complet pour le
+prix d'un site vide ».
+
+---
+
+## 149. On demandait un app.js de 1 500 jetons, puis on le refusait parce qu'il était incomplet
+
+**Le fait, mesuré deux fois.** L'instruction d'étage pour `app.js` disait,
+textuellement : *« Vise environ 1 500 tokens […] Limite dure : termine le JSON
+avant 12 000 caractères. »* Constante, quel que soit le contrat. Et le modèle
+obéit au jeton près :
+
+| construction | modèle | sortie `app.js` | reprises | verdict |
+|---|---|---|---|---|
+| 19/08, passe 1 | `aliceai-llm-flash` | 1 173 | 2 | refusée |
+| 19/08, passe 1 | `qwen3-235b` | **1 698** | **0** | refusée |
+
+Zéro reprise sur la seconde : **rien n'était tronqué**. Le modèle n'a pas
+échoué, il a *obéi*. Puis la vérification a refusé le fichier parce qu'il
+n'appelait que 2 routes sur 15 et laissait des parcours entiers sans point
+d'entrée.
+
+**Les deux nombres étaient arithmétiquement impossibles.** Les frontends
+complets versionnés dans le dépôt pèsent 26 Ko (`StudioNova`) et 43 Ko
+(`KoraMaison`) — soit 7 000 à 11 000 jetons. On en autorisait 1 500, et une
+limite dure de 12 000 caractères, trois fois trop basse. Changer de modèle n'y
+pouvait rien : le modèle solide a produit un fichier plus petit encore, parce
+qu'il suit mieux la consigne.
+
+**C'est la faute du plafond-sans-plancher, une troisième fois.** Le brief dit
+« n'appeler QUE les routes listées » (plafond) ; la vérification exige que
+chaque parcours ait un point d'entrée (plancher) ; et l'instruction d'étage,
+la plus précise et la dernière lue, imposait un budget qui rendait le plancher
+inatteignable. Trois voix, dont une seule chiffrée — c'est elle que le modèle
+écoute.
+
+**Le budget vient désormais du CONTRAT** : socle plus un coût par route (appel,
+état de chargement, erreur, formulaire), borné par le plafond de sortie de
+l'étage — demander plus que ce qu'un étage peut rendre garantirait une
+troncature à chaque construction. Sur la boutique à quinze routes : 7 200
+jetons au lieu de 1 500. La limite dure suit le budget (~4 caractères par
+jeton) au lieu de le contredire : le modèle obéit à la plus petite des deux
+bornes, donc les laisser diverger revient à laisser la plus basse décider de
+la complétude.
+
+**Et le plancher est ÉNONCÉ à l'étage** : « ce contrat porte 15 routes sur
+3 entités ; un fichier qui n'en appelle que deux ou trois sera REFUSÉ ». Le
+dire dans le brief général ne suffisait pas — il est loin, et l'instruction
+d'étage arrive en dernier.
+
+Éprouvé par cinq tests (`tests/test_frontend_chunks.py`), dont celui qui lie la
+limite dure au budget et celui qui interdit de dépasser le plafond de l'étage.
+
+**Corollaire d'échelle** (même point) : l'échelle d'agrandissement du plafond
+montait 8 000 → 12 000 → 18 000 alors que la borne déclarée était 32 000 —
+jamais atteinte, y compris par le message d'erreur qui la cite. Le facteur
+passe à 2,0 : 8 000 → 16 000 → 32 000. Une constante qui ne contraint rien est
+ce que le point 85 interdit, et un test lie désormais les trois nombres entre
+eux — en changer un sans les autres le fait tomber.
+
+**Ce que la construction a prouvé au passage** : le garde-fou du point 147 a
+fonctionné en production, sans qu'on ait à le provoquer. *« Tentative 1
+restaurée : la correction a rendu un frontend plus dégradé (3 erreurs et
+3 avertissements, contre 1 et 2). »* La passe de correction était retombée à
+**0 route sur 15**.
+
+---
+
+## 150. Le brief demandait de factoriser, et c'est la factorisation qui faisait refuser le site
+
+**Le fait, mesuré en payant.** Avec le budget corrigé du point 149, la
+construction rend un `app.js` de **12 845 octets** (contre 5 731) qui appelle
+réellement `/register`, `/login`, `/customer`, `/order` et `/product`. Le
+contrôle de couverture annonce : **0 route sur 15**. Les trois parcours du
+client sont déclarés « sans point d'entrée », et le site est refusé.
+
+Il était complet. Vérifié après coup, sans un appel d'IA de plus : cohérence
+OK, **smoke test OK**, 7 sections sur 7 avec matière, 3 liens déclarés sur 3
+présents.
+
+**La cause.** `_frontend_fetch_calls` sait reconnaître une fonction d'accès —
+mais seulement écrite `fetch(endpoint, options)`. Le modèle avait écrit :
+
+```js
+const url = `${API_BASE}${endpoint}`;
+const response = await fetch(url, config);
+```
+
+Le paramètre atteint bien le `fetch`, par un gabarit puis par une variable
+locale. Le contrôle, lui, cherchait le nom du paramètre *collé* à `fetch(`.
+Ne sachant pas réduire l'appel, il ne le comptait pas — et « je ne sais pas »
+devenait « zéro route appelée ».
+
+**Ce qui rend le défaut cinglant** : l'instruction d'étage dit, mot pour mot,
+« **factorise le code** ». monl demande de factoriser, puis refuse le résultat
+parce qu'il est factorisé. Deux voix de monl se contredisent, et c'est
+l'utilisateur qui paie la construction refusée.
+
+**Le correctif suit le FLUX du paramètre**, dans les trois écritures
+rencontrées en vrai — argument direct, gabarit, variable locale intermédiaire.
+Il reste **conservateur** : il exige un flux démontrable du paramètre vers
+l'appel, jamais la simple présence d'un `fetch` quelque part dans la fonction.
+Sans cette retenue, n'importe quelle fonction contenant un `fetch` ferait
+compter ses arguments comme des routes, et la couverture cesserait de refuser
+quoi que ce soit — un contrôle qui accepte tout ressemble beaucoup à un
+contrôle qui marche. Une contre-épreuve tient cette limite.
+
+**Le principe, à retenir au-delà du cas.** Un contrôle conservateur n'a pas la
+même valeur selon le sens dans lequel il se trompe. Pour dénoncer une route
+FANTÔME, ne pas compter ce qu'on ne sait pas réduire est juste : on n'accuse
+pas à tort. Pour mesurer une COUVERTURE, la même prudence produit l'accusation
+inverse — le site est correct et il est refusé. **Une mesure indéterminée ne
+doit jamais être lue comme une mesure nulle**, surtout quand le refus coûte une
+construction entière repayée.
+
+Éprouvé par deux tests (`tests/test_couverture_parcours.py`), dont la
+contre-épreuve conservatrice ; le premier tombe dès qu'on retire le suivi du
+flux.
+
+---
+
+## 151. Toute boutique vendait des théières
+
+**Le constat du mainteneur, en une phrase** : « pourquoi quand je demande un
+site il y a toujours tasse, thé vert et théière qui reviennent ». Réponse :
+parce que ces trois produits sont écrits en dur dans `app_templates.py`, et
+que la description ne les atteint jamais.
+
+Chacun des dix modèles porte son jeu figé — le Portfolio sort toujours
+« Refonte Aurora », les Petites annonces toujours un « Vélo de ville », la
+Réservation toujours « Coupe & coiffage ». La phrase saisie (« un atelier de
+céramique à Lyon ») n'apparaît qu'à UN endroit de la spec produite : le
+`brief`. Elle oriente donc les TEXTES que l'IA rédige, et rien d'autre. Une
+boulangerie recevait de très beaux paragraphes sur le pain, et vendait des
+théières.
+
+**La frontière qui ne bouge pas.** Le dialogue guidé reste entièrement
+déterministe : aucune IA, aucun appel réseau (point 40). Il ne peut rien
+inventer, et ce n'est pas un défaut — c'est ce qui rend une spec rejouable. La
+plateforme, elle, appelle DÉJÀ une IA et tient la description : la
+personnalisation vit là, et nulle part ailleurs. En ligne de commande, la
+sortie reste `monl content export` / `import` (point 115).
+
+**L'IA écrit des LIGNES, jamais la structure.** Elle reçoit le CSV produit par
+`monl content export` — dont l'en-tête est celui du compilateur — et doit le
+rendre à l'identique. Un en-tête différent fait refuser sa réponse. Elle ne
+peut donc ni ajouter un champ, ni en inventer un, ni toucher au schéma : la
+seule chose qu'elle contrôle est le contenu des cases.
+
+**Le chemin d'écriture est celui du point 115, sans une ligne de plus.**
+`importer_contenu` remplace les blocs `seed` et fait REVALIDER la spec par le
+vrai parseur et le vrai validateur. Tous les refus du compilateur s'appliquent
+donc à ce qu'une IA vient d'écrire — types, bornes de champ, rattachements.
+Un prix rendu « 1,30 € » ne compile pas, donc rien n'est écrit. C'est la
+raison pour laquelle cette brique ne fabrique aucune machinerie nouvelle : la
+garantie existait, il fallait la RÉUTILISER, pas la refaire.
+
+**Un échec ne casse jamais la construction.** Réponse illisible, en-tête faux,
+type invalide, fournisseur en panne : le CSV d'origine est restauré et le jeu
+du modèle reste en place. *Un catalogue générique est un défaut ; une
+construction perdue est une facture.*
+
+**Deux limites, posées et gardées.** Une spec fournie par l'usager n'est
+JAMAIS touchée — elle porte ses vraies données, les réécrire serait les
+détruire ; un test le tient, avec sa contre-épreuve (sans elle, un garde-fou
+qui n'appellerait jamais l'IA paraîtrait correct). Et le nombre de fiches est
+borné : au-delà, ce n'est plus une démonstration, c'est du remplissage payé au
+jeton.
+
+**Cet appel DÉPENSE, donc il porte le garde-fou du produit.** Le quota le
+comptait déjà — il lit le journal du projet — mais `ensure_available` n'était
+appelé qu'avant une construction : quelqu'un au plafond aurait encore pu
+déclencher celui-ci. La leçon est ancienne et vaut d'être répétée : *un
+mécanisme qui dépense doit porter la même barrière que celui qu'on protège.*
+
+**Conséquence sur le dialogue de la console** : la description y était annoncée
+« facultative ». Elle décide désormais du catalogue, et l'aide le dit — sans
+quoi on la saute et on retombe sur les théières, ce que ce point corrige.
+
+Éprouvé par onze tests (`tests/test_seed_ai.py`), dont le point de départ
+mesuré (« le jeu du modèle est bien générique »), les quatre refus, et les deux
+tests de plateforme contre un vrai serveur.

@@ -23,7 +23,9 @@ entity Item
     label: String
     price: Money
 
-actor Admin selfRegister
+# Admin est provisionné hors ligne ; le frontend minimal de ces tests ne
+# constitue pas une promesse de back-office public.
+actor Admin
 
 rule Item.label required
 rule Item.Read public
@@ -97,6 +99,27 @@ def test_coherence_refuse_une_image_locale_absente(project):
     from monl.frontend_ai import _frontend_local_reference_errors
     errors = _frontend_local_reference_errors(str(project))
     assert any("ressource locale absente" in error for error in errors)
+
+
+def test_coherence_refuse_chacun_des_trois_svg_locaux_absents(project):
+    front = project / "frontend"
+    front.mkdir()
+    chemins = (
+        "assets/product/vase-rondeur.svg",
+        "assets/product/bol-terre.svg",
+        "assets/product/plateau-ligne.svg",
+    )
+    sources = "".join(f'<img src="{chemin}">' for chemin in chemins)
+    (front / "index.html").write_text(
+        f"<!doctype html><html><body>{sources}</body></html>",
+        encoding="utf-8")
+    from monl.frontend_ai import _frontend_local_reference_errors
+
+    errors = _frontend_local_reference_errors(str(project))
+    missing = [error for error in errors if "ressource locale absente" in error]
+    assert len(missing) == len(chemins)
+    for chemin in chemins:
+        assert sum(chemin in error for error in missing) == 1
 
 
 def test_un_gabarit_de_rendu_nest_pas_un_chemin_de_fichier(project):
@@ -291,6 +314,79 @@ def test_boucle_ia_echoue_apres_une_seule_correction(project):
     assert len(calls) == 2, "jamais plus d'UNE correction automatique"
     # les fichiers restent inspectables, mais run refusera (smoke bloquant)
     assert (project / "frontend" / "index.html").exists()
+
+
+#: Deux chemins fantômes au lieu d'un : strictement pire que BAD_FRONT, sur
+#: la même échelle et sans rien changer d'autre.
+PIRE_FRONT = ("<!doctype html><html><body><script>"
+              "fetch('/fantome/1'); fetch('/autre-fantome');"
+              "</script></body></html>")
+
+
+def test_une_correction_qui_degrade_ne_remplace_pas_la_tentative_precedente(project):
+    """monl gardait la DERNIÈRE tentative ; il garde la MEILLEURE.
+
+    Mesuré sur une construction réelle payante : à qui on demandait de
+    réparer deux lignes, le modèle a réécrit le site entier et perdu
+    quatorze routes sur quinze — deux parcours utilisateur complets avec.
+    La première tentative, elle, était presque bonne. L'utilisateur payait
+    deux passes et repartait avec la pire des deux.
+    """
+    rendus = [BAD_FRONT, PIRE_FRONT]
+    dits = []
+
+    def provider(_prompt):
+        return json.dumps({"files": {"index.html": rendus.pop(0)}})
+
+    ok, errors = generate_and_verify(str(project), provider, say=dits.append)
+
+    assert not ok, "les deux tentatives échouent : le verdict reste un échec"
+    conserve = (project / "frontend" / "index.html").read_text(encoding="utf-8")
+    assert conserve == BAD_FRONT, (
+        "la tentative dégradée a été conservée alors qu'elle est pire")
+    assert any("Tentative 1 restaurée" in ligne for ligne in dits), dits
+    # Les erreurs RAPPORTÉES doivent décrire les fichiers conservés : rendre
+    # celles de la tentative écartée décrirait un frontend absent du disque.
+    assert not any("/autre-fantome" in e for e in errors), errors
+    assert any("/fantome/1" in e for e in errors), errors
+
+
+def test_une_correction_qui_ameliore_est_bien_conservee(project):
+    """Contre-épreuve indispensable : un garde-fou qui figerait toujours la
+    première tentative annulerait la correction automatique entière, et
+    passerait pour bon."""
+    rendus = [PIRE_FRONT, BAD_FRONT]
+    dits = []
+
+    def provider(_prompt):
+        return json.dumps({"files": {"index.html": rendus.pop(0)}})
+
+    ok, errors = generate_and_verify(str(project), provider, say=dits.append)
+
+    assert not ok
+    conserve = (project / "frontend" / "index.html").read_text(encoding="utf-8")
+    assert conserve == BAD_FRONT, "la meilleure des deux est la seconde ici"
+    assert not any("restaurée" in ligne for ligne in dits), dits
+
+
+def test_la_restauration_ne_laisse_aucun_fichier_de_la_tentative_ecartee(project):
+    """Un mélange des deux tentatives serait pire que l'une ou l'autre : le
+    fichier restauré appellerait un script que sa version n'a pas écrit."""
+    rendus = [
+        {"index.html": BAD_FRONT},
+        {"index.html": PIRE_FRONT, "extra.js": "console.log('tentative 2');"},
+    ]
+    dits = []
+
+    def provider(_prompt):
+        return json.dumps({"files": rendus.pop(0)})
+
+    generate_and_verify(str(project), provider, say=dits.append)
+
+    assert (project / "frontend" / "index.html").read_text(
+        encoding="utf-8") == BAD_FRONT
+    assert not (project / "frontend" / "extra.js").exists(), (
+        "un fichier de la tentative écartée survit dans le frontend conservé")
 
 
 # ---- 'monl import' : la voie SANS clé API (abonnement claude.ai) ----
@@ -625,7 +721,13 @@ def test_yandex_emploie_son_authentification_et_mesure_les_jetons(monkeypatch):
     assert vu["body"]["model"] == model
     assert vu["body"]["temperature"] == 0.3
     assert vu["body"]["max_tokens"] == 8000
-    assert vu["body"]["reasoning_effort"] == "none"
+    # RENVERSEMENT, mesuré contre le vrai service : Yandex REFUSE
+    # reasoning_effort='none' en HTTP 400 (« Input should be 'low', 'medium'
+    # or 'high' »), donc cette assertion décrivait un corps de requête que le
+    # service n'a jamais accepté — toute construction --provider yandex
+    # mourait au premier appel. Omettre le champ est ce que le commentaire du
+    # préréglage voulait dire, et ce que le service accepte.
+    assert "reasoning_effort" not in vu["body"]
     assert vu["body"]["response_format"]["type"] == "json_schema"
     assert vu["body"]["response_format"]["json_schema"]["strict"] is True
     assert call.last_usage["input_tokens"] == 101
@@ -1039,3 +1141,100 @@ def test_sans_explication_le_conseil_de_reformulation_reste(project, tmp_path):
                             retouche_mode=True)
 
     assert "Reformuler la demande" in "\n".join(msgs)
+
+
+# ---- Le filet du bloc clôturé (point 148) ----
+
+def test_un_fichier_rendu_en_bloc_cloture_est_accepte():
+    """Le repli qui a coûté un quart d'une construction réelle.
+
+    Une étape séquentielle doit emballer tout un fichier JavaScript dans une
+    chaîne JSON : chaque saut de ligne échappé, chaque guillemet doublé. Un
+    modèle bon marché y casse, et la boucle de reprise le pousse alors vers
+    ce qui PARSE — mesuré, `app.js` a fini à 834 jetons de sortie.
+    """
+    contenu = 'const a = "guillemet";\nfetch("/item");\n'
+    brut = "Voici le fichier :\n```javascript\n" + contenu + "```\n"
+
+    rendu = parse_single_file_payload(brut, "app.js")
+
+    assert rendu == {"app.js": contenu}
+
+
+def test_le_json_reste_la_voie_normale():
+    """Contre-épreuve : le filet ne doit pas remplacer le contrat."""
+    brut = json.dumps({"files": {"app.js": "const a = 1;"}})
+
+    assert parse_single_file_payload(brut, "app.js") == {"app.js": "const a = 1;"}
+
+
+def test_un_bloc_qui_contient_le_json_n_est_pas_pris_pour_un_fichier():
+    """Sinon on déposerait `{"files": …}` dans app.js : ça parse, et ça ne
+    marche pas — le pire des deux mondes."""
+    brut = "```json\n{\"files\": {\"app.js\": \"const a = 1;\"}}\n```"
+
+    assert parse_single_file_payload(brut, "app.js") == {"app.js": "const a = 1;"}
+
+
+def test_le_filet_passe_par_les_memes_garde_fous():
+    """Aucune voie ne contourne la validation : c'est la règle du dépôt."""
+    with pytest.raises(FrontendAIError, match="extension refusée"):
+        parse_single_file_payload("```\nrm -rf /\n```", "script.sh")
+    # Un bloc vide n'est pas un fichier : on garde l'erreur JSON d'origine.
+    with pytest.raises(FrontendAIError, match="illisible"):
+        parse_single_file_payload("pas de json, pas de bloc", "app.js")
+
+
+def test_le_plus_gros_bloc_l_emporte_sur_un_extrait_de_commentaire():
+    """Un modèle bavard illustre sa réponse avant de rendre le fichier."""
+    fichier = "fetch('/item');\n" * 20
+    brut = ("Je vais utiliser :\n```js\nfetch()\n```\n"
+            "Voici le fichier complet :\n```js\n" + fichier + "```")
+
+    assert parse_single_file_payload(brut, "app.js") == {"app.js": fichier}
+
+
+def test_une_reponse_tronquee_ne_passe_jamais_par_le_filet():
+    """Le risque que le filet lui-même introduisait.
+
+    Un modèle qui illustre par un petit extrait FERMÉ puis se fait couper au
+    milieu du vrai fichier laisse un bloc ouvert. Sans garde, le plus gros
+    bloc clos serait l'extrait — et monl écrirait trois lignes dans app.js en
+    croyant tenir le fichier. Pire : l'échelle qui agrandit le plafond de
+    sortie, faite exactement pour ce cas, ne serait plus jamais atteinte.
+    """
+    tronquee = ("Je commence par :\n```js\nfetch('/item');\n```\n"
+                "Voici le fichier complet :\n```js\n" + "const x = 1;\n" * 40)
+
+    with pytest.raises(FrontendAIError, match="illisible"):
+        parse_single_file_payload(tronquee, "app.js")
+
+
+def test_l_echelle_de_reprise_atteint_vraiment_sa_borne():
+    """Une borne qu'aucun chemin n'atteint ne contraint rien.
+
+    L'échelle montait 8 000 → 12 000 → 18 000 pendant que le code annonçait
+    un plafond maximal de 32 000 — y compris dans le message d'erreur, qui
+    aurait donc menti s'il s'était déclenché. Ce test lie les TROIS nombres :
+    changer l'un sans les autres le fait tomber.
+    """
+    from monl.frontend_ai import (
+        CHUNK_MAX_RETRIES,
+        CHUNK_RETRY_MAX_OUTPUT_TOKENS,
+        DEFAULT_CHUNK_MAX_OUTPUT_TOKENS,
+        _raise_chunk_output_limit,
+    )
+
+    class Etage:
+        max_output_tokens = DEFAULT_CHUNK_MAX_OUTPUT_TOKENS
+
+    etage = Etage()
+    paliers = [etage.max_output_tokens]
+    for _ in range(CHUNK_MAX_RETRIES):
+        assert _raise_chunk_output_limit(etage), "l'échelle s'arrête trop tôt"
+        paliers.append(etage.max_output_tokens)
+
+    assert paliers[-1] == CHUNK_RETRY_MAX_OUTPUT_TOKENS, (
+        f"la dernière reprise plafonne à {paliers[-1]} alors que la borne "
+        f"déclarée est {CHUNK_RETRY_MAX_OUTPUT_TOKENS} : elle ne contraint rien")
+    assert paliers == sorted(set(paliers)), paliers
