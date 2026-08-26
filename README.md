@@ -58,6 +58,25 @@ Les fournisseurs frontend par API nécessitent l'extra optionnel :
 `pip install 'monl-compiler[ai]'`. Les agents locaux et `monl import` n'en ont
 pas besoin.
 
+Yandex Cloud AI Studio est disponible par son API compatible OpenAI. La clé et
+le dossier restent dans l'environnement ; l'identifiant de modèle est celui
+affiché par AI Studio :
+
+```bash
+export YANDEX_API_KEY='…'
+export YANDEX_FOLDER_ID='…'
+monl frontend MonProjet --provider yandex \
+  --model "gpt://$YANDEX_FOLDER_ID/yandexgpt/latest"
+```
+
+Si un modèle lent dépasse le délai HTTP, réduire le plafond de réponse pour cet
+appel : `MONL_AI_MAX_TOKENS=8000 monl frontend …`.
+
+Chaque appel API mesurable ajoute dans le projet une ligne à
+`.monl_ai_usage.jsonl` (ignoré par Git) : fournisseur, modèle, durée et jetons,
+sans prompt, réponse ni clé. Ce journal permet de chiffrer une construction et
+une retouche avant de fixer le prix du service.
+
 Le parcours **Personnalisation détaillée** reste disponible pour choisir chaque
 option, rôle, contenu éditorial et intention visuelle. Sans agent local ni clé
 API, ouvrez `FRONTEND_PROMPT.md` dans l'IA de votre choix, puis installez le ZIP
@@ -324,14 +343,25 @@ vérité.
 
 ## Le frontend : contrat et IA spécialisée
 
-L'interface est écrite par une IA, à partir de deux documents que chaque
-compilation produit :
+L'interface est écrite par une IA, à partir d'un contrat métier et d'une
+direction visuelle préparée avant le code. Chaque compilation produit :
 
 - `frontend_contract.json` — description machine-lisible des routes destinées à
   l'interface, de l'authentification et des règles de champ, dérivée de la même
   spec que le backend ;
 - `FRONTEND_PROMPT.md` — un brief prêt à confier à une IA d'interface : structure,
   rôles, contenu et intention déclarée, sans aucune prescription visuelle.
+- `DESIGN_SYSTEM.md` — pattern de page, tokens de départ, anti-patterns et
+  checklist UX déterminés depuis le contrat ; il est lu avant le HTML/CSS/JS.
+- `DESIGN_SPEC.md` — synthèse visuelle éditable ; si l'auteur la remplace, elle
+  devient prioritaire et Monl ne l'écrase pas.
+- `ASSET_MANIFEST.json` — plan d'assets et marqueurs de sections. Il est
+  d'abord `planned`, puis devient vérifiable après `monl frontend` ou `monl import`.
+
+Le système de design sélectionne aussi un catalogue local de patterns Monl —
+hero, catalogue, éditorial, réassurance, FAQ, contact et CTA final — avec des
+variantes adaptées au type d'application. Ces patterns sont des structures
+HTML/CSS/JS autonomes, pas des composants React à installer.
 
 L'IA écrit dans `frontend/` (point d'entrée `index.html`), que `monl run` sert sur
 `/site` sans jamais toucher au backend. Plusieurs voies, mêmes garde-fous :
@@ -355,7 +385,8 @@ trop vite pour qu'une valeur figée reste vraie. La clé se lit toujours dans
 l'environnement, jamais en argument — le shell l'archiverait.
 
 Garde-fous communs : extensions en liste blanche, protection contre le zip-slip,
-frontend autonome sans CDN, et re-vérification systématique.
+frontend autonome sans CDN, direction de design injectée avant la génération,
+et re-vérification systématique des routes, assets et sections obligatoires.
 
 ### Sans clé API, sans carte bancaire, sans réseau
 
@@ -433,7 +464,7 @@ automatisée.
 
 | Dossier | Contenu |
 |---|---|
-| `src/monl/` | Le paquet : parseur, validateur, dialogue, contrat frontend, CLI |
+| `src/monl/` | Le paquet : parseur, validateur, dialogue, design system, contrat frontend, CLI |
 | `src/monl/generator/` | Le générateur de backend, une couche par module |
 | `exemples/` | Cinq spécifications `.ml` d'une page, compilées à chaque test |
 | `demo/` | La démo StudioNova : sa spécification et son frontend |

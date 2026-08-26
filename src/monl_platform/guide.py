@@ -361,6 +361,9 @@ correspond laisse croire à une protection qui n'existe pas.</p></div>
 <li><code>frontend_contract.json</code> et <code>FRONTEND_PROMPT.md</code> — le contrat, et le brief qui va avec.</li>
 <li><code>manage.py</code> — la création des comptes privilégiés, hors ligne.</li>
 <li><code>Dockerfile</code>, <code>serve.py</code> — de quoi le mettre en ligne.</li>
+<li><code>DESIGN_SYSTEM.md</code>, <code>DESIGN_SPEC.md</code> — le système de design
+et la direction retenue, pour que l'IA d'interface ne réinvente pas la palette.</li>
+<li><code>ASSET_MANIFEST.json</code> — ce que le site doit fournir, et qui sert de preuve.</li>
 </ul>"""),
 
         ("demarrer", "Démarrer", "3 étapes", f"""

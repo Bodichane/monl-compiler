@@ -287,7 +287,7 @@ EXAMPLES: list[dict[str, Any]] = [
         "name": "Vitrine publique",
         "summary": "Un catalogue que tout le monde lit, que seul l'atelier modifie.",
         "teaches": ["public", "seed", "landing"],
-        "result": {"entities": 1, "routes": 5, "files": 12},
+        "result": {"entities": 1, "routes": 5, "files": 15},
         "spec": VITRINE,
     },
     {
@@ -296,7 +296,7 @@ EXAMPLES: list[dict[str, Any]] = [
         "summary": "Chacun ne voit que ses propres demandes ; le praticien les voit toutes.",
         "teaches": ["ownedBy", "sharedBy", "requiresOwn", "oneOf", "timestamp",
                     "capability auth"],
-        "result": {"entities": 2, "routes": 9, "files": 12},
+        "result": {"entities": 2, "routes": 9, "files": 15},
         "spec": RENDEZ_VOUS,
     },
     {
@@ -305,7 +305,7 @@ EXAMPLES: list[dict[str, Any]] = [
         "summary": "Panier, stock décompté et encaissement — aucun montant écrit par le client.",
         "teaches": ["derivedFrom", "sumOf", "decrements", "min", "payable",
                     "numbered", "releases", "writableAfterPayment"],
-        "result": {"entities": 3, "routes": 17, "files": 12},
+        "result": {"entities": 3, "routes": 17, "files": 15},
         "spec": BOUTIQUE,
     },
     {
@@ -314,7 +314,7 @@ EXAMPLES: list[dict[str, Any]] = [
         "summary": "Publication sous pseudonyme, un j'aime par compte, modération réelle.",
         "teaches": ["generated", "publicWhen", "oncePer", "increments",
                     "categorized", "decrements"],
-        "result": {"entities": 4, "routes": 8, "files": 12},
+        "result": {"entities": 4, "routes": 8, "files": 15},
         "spec": COMMUNAUTE,
     },
 ]

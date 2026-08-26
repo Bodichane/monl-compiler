@@ -23,14 +23,32 @@
 # ─────────────────────────────────────────────────────────────────────
 import json
 import os
+import posixpath
 import re
+import time
+from datetime import datetime, timezone
+from html import unescape
+from xml.etree import ElementTree
 
+from .design_system import (
+    ASSET_MANIFEST_FILENAME,
+    DESIGN_SPEC_FILENAME,
+    DESIGN_SYSTEM_FILENAME,
+    GENERATED_MARKER,
+    activate_asset_manifest,
+)
 from .errors import FrontendError
 from .frontend_contract import PROMPT_FILENAME
 
 ALLOWED_EXTENSIONS = (".html", ".css", ".js", ".svg", ".json")
 MAX_TOTAL_BYTES = 2_000_000
 DEFAULT_MODEL = "claude-sonnet-4-6"
+DEFAULT_MAX_OUTPUT_TOKENS = 16_000
+# Un fichier peut encore contenir plusieurs milliers de lignes de CSS/JS et
+# un modèle de raisonnement consomme une partie du plafond avant son JSON.
+# Le découpage limite la taille totale de la réponse ; il ne faut pas limiter
+# chaque pièce au plafond qui a cassé la réponse monolithique.
+DEFAULT_CHUNK_MAX_OUTPUT_TOKENS = 8_000
 
 # Les deux briefs d'ÉVOLUTION (par opposition à FRONTEND_PROMPT.md, qui décrit
 # une construction neuve). Nommés ici plutôt que chez leur producteur : c'est
@@ -65,6 +83,36 @@ def _requests_module():
     return requests
 
 
+def _max_output_tokens():
+    """Plafond API réglable, distinct du budget de tours des agents CLI."""
+    raw = (os.environ.get("MONL_AI_MAX_TOKENS") or "").strip()
+    if not raw:
+        return DEFAULT_MAX_OUTPUT_TOKENS
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise FrontendAIError("MONL_AI_MAX_TOKENS doit être un entier positif.") from exc
+    if value <= 0:
+        raise FrontendAIError("MONL_AI_MAX_TOKENS doit être un entier positif.")
+    return value
+
+
+def _chunk_max_output_tokens():
+    """Plafond par fichier pour les modèles dont la réponse complète est
+    trop longue pour tenir dans un seul JSON (notamment DeepSeek via Yandex)."""
+    raw = (os.environ.get("MONL_AI_CHUNK_MAX_TOKENS") or "").strip()
+    if not raw:
+        return DEFAULT_CHUNK_MAX_OUTPUT_TOKENS
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise FrontendAIError(
+            "MONL_AI_CHUNK_MAX_TOKENS doit être un entier positif.") from exc
+    if value <= 0:
+        raise FrontendAIError("MONL_AI_CHUNK_MAX_TOKENS doit être un entier positif.")
+    return value
+
+
 # ------------------------------------------------------------- providers --
 def claude_provider(model=DEFAULT_MODEL):
     """Fournisseur API Anthropic. La clé vient de ANTHROPIC_API_KEY —
@@ -78,18 +126,31 @@ def claude_provider(model=DEFAULT_MODEL):
 
     def call(prompt):
         requests = _requests_module()
+        started = time.monotonic()
         resp = requests.post(
             "https://api.anthropic.com/v1/messages",
             headers={"x-api-key": api_key,
                      "anthropic-version": "2023-06-01",
                      "content-type": "application/json"},
-            json={"model": model, "max_tokens": 16000,
+            json={"model": model, "max_tokens": _max_output_tokens(),
                   "messages": [{"role": "user", "content": prompt}]},
             timeout=300)
         if resp.status_code != 200:
             raise FrontendAIError(f"API Anthropic : {resp.status_code} — {resp.text[:300]}")
-        blocks = resp.json().get("content", [])
+        payload = resp.json()
+        blocks = payload.get("content", [])
+        usage = payload.get("usage") or {}
+        call.last_usage = {
+            "duration_seconds": round(time.monotonic() - started, 3),
+            "input_tokens": usage.get("input_tokens"),
+            "output_tokens": usage.get("output_tokens"),
+            "total_tokens": ((usage.get("input_tokens") or 0)
+                             + (usage.get("output_tokens") or 0)),
+        }
         return "".join(b.get("text", "") for b in blocks if b.get("type") == "text")
+    call.provider_name = "claude"
+    call.model = model
+    call.last_usage = None
     return call
 
 
@@ -116,6 +177,7 @@ OPENAI_COMPATIBLE = {
     "mistral":    ("https://api.mistral.ai/v1",       "MISTRAL_API_KEY"),
     "together":   ("https://api.together.xyz/v1",     "TOGETHER_API_KEY"),
     "xai":        ("https://api.x.ai/v1",             "XAI_API_KEY"),
+    "yandex":     ("https://ai.api.cloud.yandex.net/v1", "YANDEX_API_KEY"),
     # Serveur local : pas de clé, mais l'en-tête Bearer reste accepté.
     "ollama":     ("http://localhost:11434/v1",       "OLLAMA_API_KEY"),
 }
@@ -124,9 +186,22 @@ OPENAI_COMPATIBLE = {
 # --provider openai-compatible + MONL_AI_BASE_URL (+ MONL_AI_API_KEY).
 GENERIC_PROVIDER = "openai-compatible"
 
+_FRONTEND_FILES_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "files": {
+            "type": "object",
+            "additionalProperties": {"type": "string"},
+        },
+    },
+    "required": ["files"],
+    "additionalProperties": False,
+}
+
 
 def openai_provider(model=None, base_url=None, key_env="MONL_AI_API_KEY",
-                    key_required=True):
+                    key_required=True, auth_scheme="Bearer", extra_headers=None,
+                    provider_name=None, extra_body=None):
     """Fournisseur au dialecte OpenAI (POST {base_url}/chat/completions).
 
     Même contrat que claude_provider : rend une fonction prompt -> texte.
@@ -152,19 +227,41 @@ def openai_provider(model=None, base_url=None, key_env="MONL_AI_API_KEY",
 
     def call(prompt):
         requests = _requests_module()
-        resp = requests.post(
-            base_url.rstrip("/") + "/chat/completions",
-            headers={"Authorization": f"Bearer {api_key or 'sans-cle'}",
-                     "content-type": "application/json"},
-            json={"model": model, "max_tokens": 16000,
-                  "messages": [{"role": "user", "content": prompt}]},
-            timeout=300)
+        started = time.monotonic()
+        try:
+            resp = requests.post(
+                base_url.rstrip("/") + "/chat/completions",
+                headers={"Authorization": f"{auth_scheme} {api_key or 'sans-cle'}",
+                         "content-type": "application/json",
+                         **(extra_headers or {})},
+                json={"model": model,
+                      "max_tokens": (getattr(call, "max_output_tokens", None)
+                                     or _max_output_tokens()),
+                      "messages": [{"role": "user", "content": prompt}],
+                      **(extra_body or {})},
+                timeout=300)
+        except requests.RequestException as exc:
+            raise FrontendAIError(
+                f"API {base_url} inaccessible ou trop lente : {exc}. "
+                "Réessayer, ou réduire MONL_AI_MAX_TOKENS.") from exc
         if resp.status_code != 200:
             raise FrontendAIError(f"API {base_url} : {resp.status_code} — {resp.text[:300]}")
-        choices = resp.json().get("choices", [])
+        payload = resp.json()
+        choices = payload.get("choices", [])
         if not choices:
             raise FrontendAIError(f"API {base_url} : réponse sans 'choices' — {resp.text[:300]}")
+        usage = payload.get("usage") or {}
+        call.last_usage = {
+            "duration_seconds": round(time.monotonic() - started, 3),
+            "input_tokens": usage.get("prompt_tokens"),
+            "output_tokens": usage.get("completion_tokens"),
+            "total_tokens": usage.get("total_tokens"),
+        }
         return choices[0].get("message", {}).get("content") or ""
+    call.provider_name = provider_name or "openai-compatible"
+    call.model = model
+    call.last_usage = None
+    call.max_output_tokens = None
     return call
 
 
@@ -173,8 +270,53 @@ def _openai_preset(name):
     base_url, key_env = OPENAI_COMPATIBLE[name]
 
     def build(model=None):
+        if name == "yandex":
+            if not os.environ.get(key_env):
+                raise FrontendAIError(
+                    f"{key_env} absent de l'environnement — exporter la clé "
+                    "avant 'monl frontend' (jamais en argument : le shell "
+                    "l'archiverait).")
+            folder = os.environ.get("YANDEX_FOLDER_ID")
+            if not folder:
+                raise FrontendAIError(
+                    "YANDEX_FOLDER_ID absent de l'environnement — c'est "
+                    "l'identifiant du dossier Yandex Cloud qui porte le modèle.")
+            # DeepSeek V4 Flash sait raisonner, mais le raisonnement interne
+            # consomme le même plafond que le JSON de fichiers. Pour une
+            # sortie structurée, la vérification Monl est le raisonnement :
+            # désactiver ce budget par défaut rend la construction fiable et
+            # laisse une surcharge explicite pour les cas qui en ont besoin.
+            reasoning_effort = (os.environ.get(
+                "MONL_YANDEX_REASONING_EFFORT", "none").strip() or "none")
+            provider = openai_provider(
+                model=model, base_url=base_url, key_env=key_env,
+                auth_scheme="Api-Key", extra_headers={"OpenAI-Project": folder},
+                provider_name=name, extra_body={
+                    "temperature": 0.3,
+                    # Certains modèles AI Studio comptent leur raisonnement
+                    # interne dans le plafond de complétion. Ici le résultat
+                    # est un fichier, pas une question à résoudre : réserver
+                    # ce budget au HTML/CSS/JS évite un JSON tronqué.
+                    "reasoning_effort": reasoning_effort,
+                    "response_format": {
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": "frontend_files",
+                            "description": "Fichiers statiques du frontend.",
+                            "schema": _FRONTEND_FILES_SCHEMA,
+                            "strict": True,
+                        },
+                    },
+                })
+            # DeepSeek peut produire un frontend riche, mais pas trois gros
+            # fichiers dans une seule réponse JSON. Le mode séquentiel est
+            # activé au niveau du fournisseur, sans changer le contrat des
+            # autres APIs compatibles OpenAI.
+            provider.chunked_generation = True
+            provider.max_output_tokens = _chunk_max_output_tokens()
+            return provider
         return openai_provider(model=model, base_url=base_url, key_env=key_env,
-                               key_required=(name != "ollama"))
+                               key_required=(name != "ollama"), provider_name=name)
     return build
 
 
@@ -189,25 +331,35 @@ def _generic_openai(model=None):
 PROVIDERS = {"claude": claude_provider, GENERIC_PROVIDER: _generic_openai}
 PROVIDERS.update({name: _openai_preset(name) for name in OPENAI_COMPATIBLE})
 
+USAGE_FILENAME = ".monl_ai_usage.jsonl"
+
+
+def _record_provider_usage(project_dir, provider, operation, attempt, stage=None):
+    """Conserve les compteurs de coût, jamais le prompt, la réponse ou la clé."""
+    usage = getattr(provider, "last_usage", None)
+    if usage is None:
+        return
+    event = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "provider": getattr(provider, "provider_name", "custom"),
+        "model": getattr(provider, "model", None),
+        "operation": operation,
+        "attempt": attempt,
+        **usage,
+    }
+    if stage is not None:
+        event["stage"] = stage
+    path = os.path.join(project_dir, USAGE_FILENAME)
+    with open(path, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(event, ensure_ascii=False, sort_keys=True) + "\n")
+
 
 # ------------------------------------------------------- parsing + gardes --
-def parse_files_payload(raw_text):
-    """Extrait {chemin: contenu} de la réponse du modèle, avec les mêmes
-    garde-fous que pour toute entrée non fiable."""
-    text = raw_text.strip()
-    # Tolérance aux clôtures Markdown malgré la consigne (les modèles en
-    # remettent parfois) — on retire une éventuelle paire de balises.
-    fence = re.match(r"^```(?:json)?\s*(.*?)\s*```$", text, re.DOTALL)
-    if fence:
-        text = fence.group(1)
-    try:
-        payload = json.loads(text)
-    except json.JSONDecodeError as e:
-        raise FrontendAIError(f"réponse du modèle illisible (JSON attendu) : {e}") from e
-    files = payload.get("files")
+def _validate_files(files, require_index=True):
+    """Valide une map de fichiers sans imposer son format de transport."""
     if not isinstance(files, dict) or not files:
         raise FrontendAIError("réponse du modèle sans clé 'files' exploitable")
-    if "index.html" not in files:
+    if require_index and "index.html" not in files:
         raise FrontendAIError("'index.html' absent de la réponse (obligatoire)")
 
     total = 0
@@ -219,9 +371,59 @@ def parse_files_payload(raw_text):
             raise FrontendAIError(f"extension refusée : {path}")
         if not isinstance(content, str):
             raise FrontendAIError(f"contenu non textuel pour : {path}")
+        if norm.lower().endswith(".svg"):
+            try:
+                root = ElementTree.fromstring(content)
+            except ElementTree.ParseError as exc:
+                raise FrontendAIError(f"SVG invalide ou incomplet : {path}") from exc
+            if root.tag.rsplit("}", 1)[-1].lower() != "svg":
+                raise FrontendAIError(f"SVG invalide ou incomplet : {path}")
+            # Le namespace XML standard `xmlns="http://www.w3.org/2000/svg"`
+            # est obligatoire et ne télécharge rien. Ne pas le confondre avec
+            # une vraie ressource distante dans href/src/url().
+            if re.search(
+                    r"(?:\b(?:href|src|xlink:href)\s*=\s*['\"]"
+                    r"(?:https?:|//)|\burl\(\s*['\"]?(?:https?:|//))",
+                    content, re.IGNORECASE):
+                raise FrontendAIError(
+                    f"SVG non autonome (ressource externe) : {path}")
         total += len(content.encode("utf-8"))
     if total > MAX_TOTAL_BYTES:
         raise FrontendAIError(f"réponse trop volumineuse ({total} octets)")
+    return files
+
+
+def _json_payload(raw_text):
+    """Décode une réponse JSON, avec tolérance aux clôtures Markdown."""
+    text = raw_text.strip()
+    fence = re.match(r"^```(?:json)?\s*(.*?)\s*```$", text, re.DOTALL)
+    if fence:
+        text = fence.group(1)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        raise FrontendAIError(f"réponse du modèle illisible (JSON attendu) : {e}") from e
+
+
+def parse_files_payload(raw_text):
+    """Extrait {chemin: contenu} de la réponse du modèle, avec les mêmes
+    garde-fous que pour toute entrée non fiable."""
+    payload = _json_payload(raw_text)
+    return _validate_files(payload.get("files"), require_index=True)
+
+
+def parse_single_file_payload(raw_text, expected_path):
+    """Décode la réponse d'une étape de génération séquentielle.
+
+    Le transport reste ``{"files": {…}}`` pour conserver le même contrat
+    JSON côté fournisseur, mais une étape ne peut rendre qu'un seul fichier.
+    """
+    payload = _json_payload(raw_text)
+    files = _validate_files(payload.get("files"), require_index=False)
+    if set(files) != {expected_path}:
+        rendus = ", ".join(sorted(files))
+        raise FrontendAIError(
+            f"l'étape devait rendre uniquement {expected_path}, reçu : {rendus}")
     return files
 
 
@@ -251,6 +453,351 @@ def _read_existing_frontend(project_dir):
     return snapshot
 
 
+def _project_guidance(project_dir):
+    """Ajoute les artefacts de direction préparés par l'auteur au brief IA."""
+    blocks = []
+    for name in (DESIGN_SYSTEM_FILENAME, DESIGN_SPEC_FILENAME,
+                 ASSET_MANIFEST_FILENAME):
+        path = os.path.join(project_dir, name)
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as fh:
+                blocks.append(f"\n\n## {name} — source de vérité\n{fh.read()}")
+    return "".join(blocks)
+
+
+def _design_completeness_errors(project_dir):
+    """Contrôles de complétude visuelle propres aux projets qui les déclarent.
+
+    Le contrat Monl vérifie l'API et le fonctionnement. Ce contrôle séparé
+    vérifie qu'un projet doté d'un design spec a aussi livré ses assets et ses
+    sections obligatoires ; les projets historiques sans manifeste restent
+    compatibles.
+    """
+    manifest_path = os.path.join(project_dir, "ASSET_MANIFEST.json")
+    if not os.path.exists(manifest_path):
+        return []
+    try:
+        with open(manifest_path, encoding="utf-8") as fh:
+            raw = fh.read()
+            if raw.startswith(GENERATED_MARKER):
+                raw = "\n".join(raw.splitlines()[1:])
+            manifest = json.loads(raw)
+    except (OSError, json.JSONDecodeError) as exc:
+        return [f"ASSET_MANIFEST.json illisible : {exc}"]
+
+    # Le compilateur peut préparer le plan avant que le frontend n'existe.
+    # Tant que l'orchestrateur n'a pas reçu une construction/importation, ce
+    # plan informe l'IA mais ne bloque pas un projet qui possède déjà une
+    # interface historique. La transition vers ``active`` est faite après
+    # l'écriture du frontend, hors du périmètre de l'agent.
+    if manifest.get("generated_by") == "monl" and manifest.get("status") == "planned":
+        return []
+
+    errors = []
+    frontend_dir = os.path.join(project_dir, "frontend")
+    asset_paths = []
+    for group in ("products", "editorial"):
+        values = manifest.get(group, {})
+        if not isinstance(values, dict):
+            errors.append(f"ASSET_MANIFEST.json : section '{group}' invalide")
+            continue
+        asset_paths.extend(values.values())
+    for rel in asset_paths:
+        if not isinstance(rel, str) or rel.startswith("/") or ".." in rel.split("/"):
+            errors.append(f"asset refusé dans le manifeste : {rel}")
+            continue
+        if not os.path.isfile(os.path.join(frontend_dir, rel)):
+            errors.append(f"asset manquant : frontend/{rel}")
+
+    # Les visuels produits par l'IA ne sont pas des assets métier déclarés par
+    # l'auteur : ils ont néanmoins un chemin déterministe dans le manifeste.
+    # Sans cette vérification, le modèle pouvait écrire `src="hero.svg"`,
+    # recevoir un succès du smoke test (qui n'interprète pas les images), puis
+    # livrer une page blanche à l'endroit le plus visible.
+    generated_assets = manifest.get("generated_assets") or []
+    frontend_sources = []
+    if os.path.isdir(frontend_dir):
+        for root, _dirs, names in os.walk(frontend_dir):
+            for name in names:
+                if name.endswith((".html", ".css", ".js")):
+                    try:
+                        frontend_sources.append(
+                            open(os.path.join(root, name), encoding="utf-8",
+                                 errors="ignore").read())
+                    except OSError:
+                        pass
+    rendered_source = "\n".join(frontend_sources)
+    for item in generated_assets:
+        rel = item.get("path") if isinstance(item, dict) else item
+        if not isinstance(rel, str) or rel.startswith("/") or ".." in rel.split("/"):
+            errors.append(f"asset généré refusé dans le manifeste : {rel}")
+            continue
+        if not os.path.isfile(os.path.join(frontend_dir, rel)):
+            errors.append(f"asset généré manquant : frontend/{rel}")
+        elif rel not in rendered_source:
+            errors.append(f"asset généré non utilisé : frontend/{rel}")
+
+    errors.extend(_generated_asset_reuse_errors(frontend_dir, generated_assets))
+    errors.extend(_editorial_content_errors(project_dir, rendered_source))
+
+    errors.extend(_frontend_local_reference_errors(project_dir))
+    errors.extend(_frontend_behavioral_quality_errors(project_dir))
+
+    for filename, markers in (manifest.get("required_markers") or {}).items():
+        path = os.path.join(frontend_dir, filename)
+        if not os.path.isfile(path):
+            errors.append(f"fichier visuel obligatoire absent : frontend/{filename}")
+            continue
+        with open(path, encoding="utf-8", errors="ignore") as fh:
+            content = fh.read()
+        unique_markers = set(
+            (manifest.get("unique_section_markers") or {}).get(filename, [])
+        )
+        for marker in markers:
+            count = content.count(marker)
+            if marker in unique_markers and count != 1:
+                if count == 0:
+                    errors.append(f"section visuelle obligatoire absente : {marker}")
+                else:
+                    errors.append(
+                        f"section visuelle obligatoire présente {count} fois : {marker}"
+                    )
+            elif marker not in unique_markers and count == 0:
+                errors.append(f"section visuelle obligatoire absente : {marker}")
+    return errors
+
+
+def _generated_asset_reuse_errors(frontend_dir, generated_assets):
+    """Refuse qu'une illustration dédiée soit copiée dans plusieurs images."""
+    html_sources = []
+    for root, _dirs, names in os.walk(frontend_dir):
+        for name in names:
+            if not name.endswith(".html"):
+                continue
+            try:
+                html_sources.append(open(os.path.join(root, name), encoding="utf-8",
+                                         errors="ignore").read())
+            except OSError:
+                pass
+    refs = re.findall(
+        r"<img\b[^>]*\bsrc=['\"]([^'\"]+)['\"]",
+        "\n".join(html_sources), re.IGNORECASE | re.DOTALL)
+    refs = [os.path.normpath(ref.split("#", 1)[0].split("?", 1)[0])
+            for ref in refs]
+    errors = []
+    for item in generated_assets:
+        rel = item.get("path") if isinstance(item, dict) else item
+        if not isinstance(rel, str):
+            continue
+        count = refs.count(os.path.normpath(rel))
+        if count > 1:
+            errors.append(
+                f"asset généré réutilisé {count} fois : frontend/{rel} — "
+                "chaque illustration doit avoir un rôle visuel unique.")
+    return errors
+
+
+def _editorial_content_errors(project_dir, rendered_source):
+    """Détecte la répétition exacte d'un texte éditorial déclaré."""
+    contract_path = os.path.join(project_dir, "frontend_contract.json")
+    if not os.path.exists(contract_path):
+        return []
+    try:
+        with open(contract_path, encoding="utf-8") as fh:
+            sections = json.load(fh).get("sections") or []
+    except (OSError, json.JSONDecodeError):
+        return []
+    source = " ".join(unescape(rendered_source).split())
+    errors = []
+    for section in sections:
+        body = " ".join(unescape(section.get("body") or "").split())
+        if len(body) < 40:
+            continue
+        count = source.count(body)
+        if count > 1:
+            title = section.get("title") or "section sans titre"
+            errors.append(
+                f"contenu éditorial répété {count} fois : « {title} » — "
+                "chaque section déclarée doit être rendue une seule fois.")
+    return errors
+
+
+# Une référence construite à l'exécution (gabarit JS, moteur de template)
+# n'est pas un chemin de fichier : `src="${esc(p.imageUrl)}"` désigne une
+# image que l'API renverra, pas un fichier à trouver sur le disque.
+_REFERENCE_DYNAMIQUE = re.compile(r"\$\{|\{\{|<%")
+
+_BALISE_RESSOURCE = re.compile(
+    r"<(?:img|script|link|source|video|audio|object)\b[^>]*?"
+    r"\b(?:src|href|data)=['\"]([^'\"]+)['\"]",
+    re.IGNORECASE | re.DOTALL,
+)
+# Seulement les affectations de ressource explicites. Ne pas confondre un
+# fetch('/booking') ou un lien de navigation avec un fichier statique.
+_RESSOURCE_JS = re.compile(
+    r"\.(?:src|href)\s*=\s*['\"]([^'\"]+)['\"]|"
+    r"setAttribute\(\s*['\"](?:src|href)['\"]\s*,\s*['\"]([^'\"]+)['\"]",
+    re.IGNORECASE,
+)
+_URL_CSS = re.compile(r"url\(\s*['\"]?([^)'\"]+)['\"]?\s*\)", re.IGNORECASE)
+
+
+def _sans_corps_de_script(html):
+    """Retire le CORPS des <script>, en gardant les balises elles-mêmes.
+
+    Le contenu d'un <script> n'est pas du balisage : le lire comme tel fait
+    prendre le gabarit `<img src="${...}">` d'une fonction de rendu pour une
+    vraie balise. La balise ouvrante est conservée, sans quoi le
+    `<script src="app.js">` légitime disparaîtrait du contrôle.
+    """
+    return re.sub(r"(<script\b[^>]*>)(.*?)(</script\s*>)",
+                  lambda m: m.group(1) + m.group(3), html,
+                  flags=re.IGNORECASE | re.DOTALL)
+
+
+def _frontend_local_reference_errors(project_dir):
+    """Vérifie les ressources locales réellement référencées par le site.
+
+    Le smoke test exécute le JavaScript et les routes API, mais ne télécharge
+    pas les images et ne charge pas les feuilles CSS comme un navigateur. Ce
+    contrôle complète donc le smoke test : il refuse les CDN, les chemins qui
+    ne sont servis par aucun montage, et chaque fichier local absent. Les
+    liens externes de navigation restent légitimes.
+
+    La résolution suit la carte RÉELLE de ``serve.py`` (voir serving.py), pas
+    une intuition sur ``frontend/`` : ``frontend/`` est monté sur ``/site`` et
+    le dossier d'assets déclaré par la spec sur ``/site/<assets_dir>``. Chaque
+    référence est donc calculée en URL comme le ferait le navigateur, puis
+    ramenée au disque par ces deux montages. Un chemin absolu n'est pas fautif
+    en soi — ``/site/assets/photo.png`` est exactement ce que sert le wrapper ;
+    c'est ``/assets/photo.png``, servi par personne, qui l'est.
+    """
+    frontend_dir = os.path.join(project_dir, "frontend")
+    errors = []
+    assets_dir = None
+    contract_path = os.path.join(project_dir, "frontend_contract.json")
+    if os.path.exists(contract_path):
+        try:
+            with open(contract_path, encoding="utf-8") as fh:
+                assets_dir = (json.load(fh).get("assets") or {}).get("dir")
+        except (OSError, json.JSONDecodeError):
+            assets_dir = None
+    prefixe_assets = (assets_dir or "").strip("/")
+    # Le wrapper ne monte le dossier d'assets que `if os.path.isdir(...)` :
+    # déclaré dans la spec ne veut pas dire présent sur le disque. Quand il
+    # est absent, aucune route n'est enregistrée et Starlette laisse la
+    # requête retomber sur /site, donc `assets/x.webp` est servi depuis
+    # `frontend/assets/x.webp`. Vérifié contre un vrai serveur : croire le
+    # contrat sur parole faisait refuser trois images de KoraMaison qui
+    # répondent 200.
+    monte_assets = bool(prefixe_assets) and os.path.isdir(
+        os.path.join(project_dir, prefixe_assets))
+
+    def fichier_servi(url):
+        """Le fichier disque servi pour une URL, ou None si rien ne la sert."""
+        if url != "/site" and not url.startswith("/site/"):
+            return None
+        reste = url[len("/site"):].lstrip("/")
+        if monte_assets and (reste == prefixe_assets
+                             or reste.startswith(prefixe_assets + "/")):
+            # Monté AVANT /site par le wrapper : ce dossier vit hors de
+            # frontend/, à la racine du projet (brique 13, point 83).
+            chemin = os.path.join(project_dir, reste)
+        else:
+            chemin = os.path.join(frontend_dir, reste)
+        # StaticFiles(html=True) sert l'index d'un dossier.
+        if os.path.isdir(chemin):
+            chemin = os.path.join(chemin, "index.html")
+        return chemin
+
+    def check(origin, reference):
+        ref = reference.strip()
+        if not ref or ref.startswith(("#", "data:", "blob:", "mailto:", "tel:")):
+            return
+        if re.match(r"^(?:https?:)?//", ref, re.IGNORECASE):
+            errors.append(f"ressource externe interdite (CDN ou URL distante) : {origin} → {ref}")
+            return
+        # monl ne peut rien affirmer d'une référence construite à l'exécution :
+        # il se tait plutôt que de deviner un fichier (même arbitrage que le
+        # contrôle d'existence des assets, point 83).
+        if _REFERENCE_DYNAMIQUE.search(ref):
+            return
+        clean = ref.split("#", 1)[0].split("?", 1)[0].strip()
+        if not clean:
+            return
+        if clean.startswith("/"):
+            url = posixpath.normpath(clean)
+        else:
+            url = posixpath.normpath(
+                posixpath.join("/site", posixpath.dirname(origin), clean))
+        candidat = fichier_servi(url)
+        if candidat is None:
+            errors.append(
+                f"ressource jamais servie (hors de /site) : {origin} → {ref}")
+            return
+        if not os.path.isfile(candidat):
+            relatif = os.path.relpath(candidat, project_dir).replace(os.sep, "/")
+            errors.append(f"ressource locale absente : {relatif} (référencée par {origin})")
+
+    for root, _dirs, names in os.walk(frontend_dir):
+        for name in names:
+            if not name.endswith((".html", ".css", ".js")):
+                continue
+            path = os.path.join(root, name)
+            try:
+                content = open(path, encoding="utf-8", errors="ignore").read()
+            except OSError as exc:
+                errors.append(f"frontend illisible : {path} — {exc}")
+                continue
+            origin = os.path.relpath(path, frontend_dir).replace(os.sep, "/")
+            if name.endswith(".html"):
+                for ref in _BALISE_RESSOURCE.findall(_sans_corps_de_script(content)):
+                    check(origin, ref)
+            elif name.endswith(".js"):
+                for match in _RESSOURCE_JS.finditer(content):
+                    check(origin, match.group(1) or match.group(2))
+            elif name.endswith(".css"):
+                for ref in _URL_CSS.findall(content):
+                    check(origin, ref)
+    return list(dict.fromkeys(errors))
+
+
+def _frontend_behavioral_quality_errors(project_dir):
+    """Repère un piège fréquent des interfaces générées : les IDs DOM.
+
+    ``dataset`` fournit toujours des chaînes alors que les IDs JSON sont
+    généralement numériques. Une recherche stricte non normalisée rend les
+    actions Modifier/Supprimer visuellement présentes mais inopérantes.
+    Ce contrôle reste volontairement étroit pour ne pas prétendre parser le
+    JavaScript ; il bloque uniquement le motif prouvé et corrigeable.
+    """
+    frontend_dir = os.path.join(project_dir, "frontend")
+    errors = []
+    for root, _dirs, names in os.walk(frontend_dir):
+        for name in names:
+            if not name.endswith(".js"):
+                continue
+            path = os.path.join(root, name)
+            try:
+                content = open(path, encoding="utf-8", errors="ignore").read()
+            except OSError:
+                continue
+            for match in re.finditer(
+                    r"\b(?:const|let|var)\s+(\w+)\s*=\s*[^;\n]*\.dataset\.\w+",
+                    content):
+                variable = match.group(1)
+                suffix = content[match.start():match.end()]
+                if re.search(r"\b(?:Number|parseInt|parseFloat)\s*\(", suffix):
+                    continue
+                if re.search(rf"\.id\s*===\s*{re.escape(variable)}\b", content):
+                    origin = os.path.relpath(path, frontend_dir).replace(os.sep, "/")
+                    errors.append(
+                        f"identifiant DOM non normalisé dans frontend/{origin} : "
+                        f"{variable} vient de dataset et est comparé à un ID API ; "
+                        "convertir avec Number() ou parseInt() avant Modifier/Supprimer.")
+    return list(dict.fromkeys(errors))
+
+
 # ------------------------------------------------------------ orchestration --
 def brief_evolution(update_mode, retouche_mode):
     """Nom du brief d'ÉVOLUTION à donner à l'IA, ou None pour une construction
@@ -271,7 +818,7 @@ def brief_evolution(update_mode, retouche_mode):
 
 def build_generation_prompt(project_dir, update_mode, retouche_mode=False):
     with open(os.path.join(project_dir, PROMPT_FILENAME), encoding="utf-8") as fh:
-        base_prompt = fh.read()
+        base_prompt = fh.read() + _project_guidance(project_dir)
     brief = brief_evolution(update_mode, retouche_mode)
     if brief is None:
         return base_prompt + RESPONSE_FORMAT_INSTRUCTIONS
@@ -289,6 +836,130 @@ def build_generation_prompt(project_dir, update_mode, retouche_mode=False):
     return (f"{delta}\n\n## Fichiers actuels du frontend (à faire évoluer, "
             f"pas à réécrire de zéro)\n{files_block}\n\n## Rappel du contrat "
             f"d'origine\n{base_prompt}{RESPONSE_FORMAT_INSTRUCTIONS}")
+
+
+CHUNKED_FRONTEND_FILES = ("index.html", "styles.css", "app.js")
+
+
+def _planned_generated_asset_paths(project_dir):
+    """Retourne les fichiers graphiques que DeepSeek doit livrer séparément."""
+    path = os.path.join(project_dir, ASSET_MANIFEST_FILENAME)
+    if not os.path.exists(path):
+        return []
+    try:
+        content = open(path, encoding="utf-8").read()
+        if content.startswith(GENERATED_MARKER):
+            content = "\n".join(content.splitlines()[1:])
+        manifest = json.loads(content)
+    except (OSError, json.JSONDecodeError):
+        return []
+    paths = []
+    for item in manifest.get("generated_assets") or []:
+        rel = item.get("path") if isinstance(item, dict) else item
+        if (isinstance(rel, str) and rel.endswith(".svg") and
+                not rel.startswith("/") and ".." not in rel.split("/")):
+            paths.append(rel.replace("\\", "/"))
+    return list(dict.fromkeys(paths))
+
+
+def _chunk_context(files):
+    """Rend uniquement les fichiers utiles aux étapes suivantes."""
+    morceaux = []
+    for path in list(CHUNKED_FRONTEND_FILES) + sorted(
+            path for path in files if path.endswith(".svg")):
+        if path in files:
+            morceaux.append(f"### frontend/{path}\n```\n{files[path]}\n```")
+    return "\n\n".join(morceaux) or "(aucun fichier généré pour le moment)"
+
+
+def _build_chunk_prompt(base_prompt, target, files):
+    """Demande une seule pièce complète du frontend.
+
+    Le brief complet reste présent : le modèle conserve le contrat API et la
+    direction produit. Le contexte des fichiers précédents garantit toutefois
+    que le CSS et le JS s'accordent sur les mêmes classes et identifiants.
+    """
+    planned_assets = list(dict.fromkeys(
+        re.findall(r"frontend/([A-Za-z0-9._/-]+\.svg)", base_prompt)))
+    asset_rule = ""
+    if planned_assets:
+        asset_rule = (
+            "\nAssets graphiques obligatoires de cette construction : "
+            + ", ".join(f"frontend/{path}" for path in planned_assets)
+            + ". Utilise exactement ces noms ; ne crée ni ne référence un autre "
+            "fichier graphique local. Chaque asset doit être rendu comme une "
+            "étape dédiée, jamais seulement décrit dans le HTML.\n"
+        )
+    instructions = {
+        "index.html": (
+            "Produis maintenant uniquement frontend/index.html. Construis la "
+            "structure complète de l'application et de son parcours principal, "
+            "ses états vides/chargement/erreur, ses zones de formulaire, de "
+            "contenu et de compte selon le contrat, puis charge styles.css et "
+            "app.js avec des chemins locaux. Donne à chaque section obligatoire "
+            "une vraie structure et un texte utile ; ne remplace pas le brief "
+            "par trois cartes génériques. Vise environ 1 600 tokens. Limite "
+            "dure : termine le JSON avant 12 000 caractères."
+            + asset_rule
+        ),
+        "styles.css": (
+            "Produis maintenant uniquement frontend/styles.css. Donne un "
+            "style complet, dense, responsive et accessible à la structure "
+            "index.html ; ne remplace pas le CSS par une librairie externe. "
+            "Vise environ 2 000 tokens et réutilise les "
+            "sélecteurs plutôt que de dupliquer les règles. Limite dure : "
+            "termine le JSON avant 16 000 caractères."
+            + asset_rule
+        ),
+        "app.js": (
+            "Produis maintenant uniquement frontend/app.js. Implémente les "
+            "interactions et les appels aux routes autorisées du contrat, "
+            "avec états de chargement, erreur, formulaires et authentification "
+            "adaptés au type d'application ; n'invente aucune route. Implémente "
+            "les états locaux et les messages près des champs, sans sacrifier "
+            "les parcours principaux. Les valeurs de `dataset.*` sont des "
+            "chaînes : convertir avec Number() avant de les comparer aux IDs "
+            "numériques de l'API, puis vérifier mentalement les clics Créer, "
+            "Modifier et Supprimer. Vise environ 1 500 tokens et factorise le "
+            "code. Limite dure : termine le JSON avant 12 000 caractères."
+            + asset_rule
+        ),
+    }
+    if target.endswith(".svg"):
+        instructions[target] = (
+            f"Produis maintenant uniquement frontend/{target}. Crée une "
+            "illustration SVG originale, légère et autonome, cohérente avec "
+            "le brief. Utilise un viewBox, des formes vectorielles lisibles "
+            "et des couleurs définies dans le SVG ; aucun href externe, aucune "
+            "image raster distante, aucun texte qui remplace l'illustration. "
+            "Le fichier doit être un SVG valide et complet."
+        )
+    return (
+        f"{base_prompt}\n\n"
+        "## Génération séquentielle — une seule pièce à la fois\n"
+        f"{instructions[target]}\n"
+        f"Le fichier cible est exactement : {target}\n"
+        "Réponds UNIQUEMENT avec un objet JSON de cette forme, sans Markdown :\n"
+        f'{{"files": {{"{target}": "contenu complet du fichier"}}}}\n'
+        "Ne rends aucun autre fichier, ne tronque pas le contenu et ne mets "
+        "jamais de commentaire hors JSON.\n\n"
+        "## Fichiers déjà générés — à respecter\n"
+        f"{_chunk_context(files)}"
+    )
+
+
+def _generate_chunked_files(project_dir, provider, base_prompt, operation,
+                            attempt, say):
+    """Génère puis valide chaque fichier d'un frontend DeepSeek/Yandex."""
+    files = _read_existing_frontend(project_dir)
+    targets = list(CHUNKED_FRONTEND_FILES) + _planned_generated_asset_paths(project_dir)
+    for target in targets:
+        say(f" -> Génération de frontend/{target}…")
+        raw = provider(_build_chunk_prompt(base_prompt, target, files))
+        _record_provider_usage(project_dir, provider, operation, attempt,
+                               stage=target)
+        files.update(parse_single_file_payload(raw, target))
+    return files
 
 
 def generate_and_verify(project_dir, provider, update_mode=False, say=print,
@@ -311,8 +982,21 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
                       + "\n".join(f"- {e}" for e in last_errors)
                       + "\nRendre une version corrigée, même format de réponse.")
         say(f" -> Génération du frontend par l'IA (tentative {attempt}/2)…")
-        files = parse_files_payload(provider(prompt))
+        operation = ("retouche" if retouche_mode else
+                     ("update" if update_mode else "construction"))
+        if getattr(provider, "chunked_generation", False):
+            files = _generate_chunked_files(
+                project_dir, provider, prompt, operation, attempt, say)
+        else:
+            raw = provider(prompt)
+            _record_provider_usage(project_dir, provider, operation, attempt)
+            files = parse_files_payload(raw)
         _write_files(project_dir, files)
+        # Un manifeste généré par Monl est seulement un plan tant que le
+        # frontend n'existe pas. Après la réponse de l'IA, il devient une
+        # obligation vérifiable : les assets et marqueurs attendus entrent
+        # ainsi dans la correction automatique avec les erreurs d'API.
+        activate_asset_manifest(project_dir)
         say(f" -> {len(files)} fichier(s) écrits dans frontend/ "
             f"({', '.join(sorted(files))})")
 
@@ -322,6 +1006,10 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
             smoke_ok, smoke_errors, smoke_warnings = run_smoke_test(project_dir, say=say)
             errors, warnings = smoke_errors, warnings + smoke_warnings
             ok = smoke_ok
+        design_errors = _design_completeness_errors(project_dir)
+        if design_errors:
+            errors = errors + design_errors
+            ok = False
         for w in warnings:
             say(f" ⚠️  {w}")
         if ok:
@@ -446,6 +1134,7 @@ def import_and_verify(project_dir, source, say=print):
         os.rename(frontend_dir, backup)
         say(" -> Frontend existant conservé dans frontend.precedent/ (rien n'est perdu).")
     _write_files(project_dir, files)
+    activate_asset_manifest(project_dir)
     say(f" -> {len(files)} fichier(s) installés dans frontend/ ({', '.join(sorted(files))})")
     for rel in skipped:
         say(f" ⚠️  ignoré (extension hors liste blanche .html/.css/.js/.svg/.json) : {rel}")
@@ -524,7 +1213,8 @@ import subprocess
 PROTECTED_ARTEFACTS = ("spec.ml", "app.py", "schema.sql", "sandbox_ai.py",
                        "manage.py", "serve.py", "Dockerfile", ".dockerignore",
                        "frontend_contract.json", "FRONTEND_PROMPT.md",
-                       "monl.json", ".jwt_secret")
+                       "DESIGN_SYSTEM.md", "DESIGN_SPEC.md",
+                       "ASSET_MANIFEST.json", "monl.json", ".jwt_secret")
 
 # POINT 62 : budget de tours de l'agent. 40 était un chiffre posé avant que le
 # brief ne porte l'intention visuelle (point 53), les rubriques éditoriales
@@ -796,6 +1486,10 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
             say("    demander une ÉVOLUTION de l'existant.")
             return True, []
 
+        # La transition est opérée par l'orchestrateur, après le contrôle de
+        # périmètre de l'agent : modifier le manifeste ne peut donc pas servir
+        # à masquer une écriture hors de frontend/.
+        activate_asset_manifest(project_dir)
         say(" -> Re-vérification automatique (cohérence + smoke test)…")
         ok, errors, warnings = check_coherence(project_dir)
         if ok:
