@@ -1,6 +1,7 @@
 """Preuves d'exécution du socle de plateforme, sans serveur HTTP public."""
 
 import json
+import uuid
 from math import isclose
 
 import pytest
@@ -8,6 +9,7 @@ import pytest
 from monl.cli import compile_project
 from monl_platform.app_templates import materialize_template
 from monl_platform.builder import BuildIsolationError, build_project
+from monl_platform.identity import IdentityStore
 from monl_platform.paths import project_directory
 from monl_platform.quota import QuotaExceededError, TokenQuota
 from monl_platform.store import PlatformStore
@@ -75,9 +77,13 @@ def platform(tmp_path):
 
 def _new_project(platform, identifier="alice", slug="site"):
     store, _root = platform
-    account = store.create_account(identifier)
-    project = store.create_project(account, slug)
-    return account, project
+    identity = IdentityStore(store.workspace)
+    email = identifier if "@" in identifier else f"{identifier}@example.test"
+    user = identity.register(email, "MotDePasse-123")
+    project = uuid.uuid4().hex
+    identity.add_project(user["id"], project, slug)
+    store.create_project(user["id"], project, slug)
+    return user["id"], project
 
 
 def _quota(platform, maximum=10_000):
@@ -165,7 +171,7 @@ def test_deux_utilisateurs_sont_isoles(platform):
             quota=_quota(platform),
         )
     with pytest.raises(ValueError, match="remontée"):
-        store.create_project(alice, "../autre")
+        store.create_project(alice, uuid.uuid4().hex, "../autre")
 
 
 def test_construction_reussie_enregistre_la_consommation_reelle(platform, tmp_path):

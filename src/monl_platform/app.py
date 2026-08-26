@@ -61,12 +61,23 @@ def create_app(*, workspace=None) -> FastAPI:
     service = CompilationService(workspace)
     identities = IdentityStore(service.workspace)
     sans_codes = identities.comptes_sans_codes()
+    comptes_herites = identities.comptes_herites()
     if sans_codes:
         # Les comptes antérieurs n'ont pas de codes : la migration additive
         # rattrape une table, jamais son contenu. Leur en fabriquer au
         # démarrage serait pire — il faudrait les leur montrer, et personne
         # ne les lirait. On les NOMME, la page du compte fait le reste.
         anomalie("comptes_sans_codes_de_secours", nombre=sans_codes)
+    if comptes_herites:
+        # Le registre constructeur historique reste lisible mais ne peut pas
+        # être converti : son hachage et ses identifiants ne sont pas ceux de
+        # l'identité de main. Compter et nommer vaut mieux qu'une reprise
+        # silencieuse qui inventerait un mot de passe.
+        anomalie(
+            "comptes_heritages_non_convertibles",
+            nombre=comptes_herites,
+            raison="hachage et identifiants du registre historique incompatibles",
+        )
     evenement("demarrage", workspace=str(service.workspace),
               purges=_purger(service, identities))
 

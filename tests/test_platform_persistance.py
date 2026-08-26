@@ -2,6 +2,7 @@
 
 import os
 import sqlite3
+import uuid
 
 import pytest
 
@@ -31,11 +32,12 @@ def _fermer(connexion):
 
 def test_la_sauvegarde_couvre_identite_et_constructeur(tmp_path):
     identities = IdentityStore(tmp_path)
-    identities.register("alice@example.test", "MotDePasse-123")
+    user = identities.register("alice@example.test", "MotDePasse-123")
     platform = PlatformStore(tmp_path)
     assert platform.database == str(identities.path)
-    account = platform.create_account("alice@example.test")
-    project = platform.create_project(account, "atelier")
+    project = uuid.uuid4().hex
+    identities.add_project(user["id"], project, "Atelier")
+    platform.create_project(user["id"], project, "atelier")
     build = platform.create_build(project)
 
     copie = identities.sauvegarder(tmp_path / "sauvegardes" / "base.sqlite3")
@@ -43,7 +45,7 @@ def test_la_sauvegarde_couvre_identite_et_constructeur(tmp_path):
     try:
         assert connexion.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 1
         assert connexion.execute(
-            "SELECT COUNT(*) FROM builder_projects WHERE id = ?", (project,)
+            "SELECT COUNT(*) FROM builder_projects WHERE project_id = ?", (project,)
         ).fetchone()[0] == 1
         assert connexion.execute(
             "SELECT COUNT(*) FROM builds WHERE id = ?", (build,)
@@ -54,13 +56,16 @@ def test_la_sauvegarde_couvre_identite_et_constructeur(tmp_path):
 
 @pytest.mark.skipif(not os.path.isdir("/proc/self/fd"), reason="/proc requis")
 def test_les_lectures_du_constructeur_ferment_leurs_connexions(tmp_path):
+    identities = IdentityStore(tmp_path)
+    user = identities.register("lecteur@example.test", "MotDePasse-123")
     platform = PlatformStore(tmp_path)
-    account = platform.create_account("lecteur@example.test")
-    project = platform.create_project(account, "atelier")
+    project = uuid.uuid4().hex
+    identities.add_project(user["id"], project, "Atelier")
+    platform.create_project(user["id"], project, "atelier")
     avant = _descripteurs_sur(platform.database)
 
     for _ in range(500):
-        assert platform.get_project(project)["id"] == project
+        assert platform.get_project(project)["project_id"] == project
 
     apres = _descripteurs_sur(platform.database)
     assert apres - avant == 0, (
@@ -75,9 +80,9 @@ def test_identity_et_constructeur_cohabitent_sur_la_meme_base(tmp_path):
     for numero in range(3):
         email = f"compte-{numero}@example.test"
         user = identities.register(email, "MotDePasse-123")
-        account = platform.create_account(email)
-        project = platform.create_project(account, f"site-{numero}")
-        identities.add_project(user["id"], f"{numero:032x}", f"Site {numero}")
+        project = f"{numero:032x}"
+        identities.add_project(user["id"], project, f"Site {numero}")
+        platform.create_project(user["id"], project, f"site-{numero}")
         build = platform.create_build(project)
 
         assert identities.projects(user["id"])[0]["name"] == f"Site {numero}"

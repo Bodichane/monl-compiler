@@ -1,6 +1,7 @@
 """Preuves du câblage plateforme des modèles et des images, sans réseau."""
 
 import json
+import uuid
 
 import pytest
 
@@ -9,6 +10,7 @@ from monl.image_ai import ImageProviderError
 from monl.usage import build_usage_report
 from monl_platform import builder
 from monl_platform.console import CONSOLE_HTML
+from monl_platform.identity import IdentityStore
 from monl_platform.paths import project_directory
 from monl_platform.quota import TokenQuota
 from monl_platform.store import PlatformStore
@@ -109,8 +111,9 @@ class FailingImageProvider(FakeImageProvider):
 
 @pytest.fixture()
 def platform(tmp_path):
+    identity = IdentityStore(tmp_path)
     store = PlatformStore(tmp_path)
-    account = store.create_account("generation@example.test")
+    account = identity.register("generation@example.test", "MotDePasse-123")["id"]
     root = tmp_path / "projects"
     yield store, account, root
     store.close()
@@ -129,8 +132,12 @@ def _build(platform, spec, *, model_routes=None, generate_images=False,
            text_model="model-global", image_provider=None, model_factory=None,
            image_factory=None):
     store, account, root = platform
+    identity = IdentityStore(store.workspace)
+    project = uuid.uuid4().hex
+    identity.add_project(account, project, "site")
     project = store.create_project(
         account,
+        project,
         "site",
         model_routes=model_routes,
         generate_images=generate_images,
@@ -187,7 +194,10 @@ def test_par_defaut_un_seul_modele_et_aucune_image(platform, monkeypatch):
 def test_deux_constructions_conservent_leurs_snapshots(platform, monkeypatch):
     _allow_frontend_verification(monkeypatch)
     store, account, root = platform
-    project = store.create_project(account, "versions")
+    identity = IdentityStore(store.workspace)
+    project = uuid.uuid4().hex
+    identity.add_project(account, project, "versions")
+    project = store.create_project(account, project, "versions")
     project_dir = project_directory(root, account, project, create=True)
     project_dir.joinpath("spec.ml").write_text(SPEC, encoding="utf-8")
     providers = iter((FakeTextProvider("premiere"), FakeTextProvider("seconde")))

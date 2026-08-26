@@ -112,10 +112,10 @@ class BuildWorker:
                     # seul, sans transformer une panne d'images en panne du site.
                     image_provider = _UnavailableImageProvider(exc)
             result = build_project(
-                project["id"],
+                project["project_id"],
                 self._spec_for(project),
                 provider,
-                account_id=project["account_id"],
+                account_id=project["user_id"],
                 store=self.store,
                 workspace_root=self.workspace_root,
                 quota=self.quota,
@@ -144,7 +144,7 @@ class BuildWorker:
         from .paths import project_directory
 
         directory = project_directory(
-            self.workspace_root, project["account_id"], project["id"], create=False
+            self.workspace_root, project["user_id"], project["project_id"], create=False
         )
         spec_path = directory / "spec.ml"
         if not spec_path.is_file():

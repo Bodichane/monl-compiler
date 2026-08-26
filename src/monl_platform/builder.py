@@ -159,16 +159,18 @@ def build_project(
     l'appelant fournit un sink. Les fournisseurs texte et image restent
     injectés séparément; compilation et re-vérification restent celles de monl.
     """
-    project = store.get_project_for_account(account_id, project_id)
+    project = store.get_project_for_user(account_id, project_id)
     if project is None:
         raise BuildIsolationError(
             f"projet {project_id} introuvable pour le compte {account_id}"
         )
-    resolved_account = store.resolve_account_id(account_id)
+    # L'identité de main est déjà l'identifiant texte canonique du compte.
+    # Le constructeur ne résout plus de registre parallèle.
+    resolved_account = account_id
     if build_id is None:
-        build_id = store.create_build(project["id"])
+        build_id = store.create_build(project["project_id"])
     else:
-        existing_build = store.get_build_for_project(project["id"], build_id)
+        existing_build = store.get_build_for_project(project["project_id"], build_id)
         if existing_build is None:
             raise BuildIsolationError(
                 f"construction {build_id} introuvable pour le projet {project_id}"
@@ -186,7 +188,7 @@ def build_project(
 
     try:
         project_dir = project_directory(
-            workspace_root, resolved_account, project["id"], create=True
+            workspace_root, resolved_account, project["project_id"], create=True
         )
     except ProjectPathError as exc:
         message = _failure_message(exc)

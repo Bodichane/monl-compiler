@@ -6,10 +6,7 @@ verrou entre plusieurs processus.
 """
 
 import contextlib
-import hashlib
-import hmac
 import json
-import secrets
 import sqlite3
 import threading
 from collections.abc import Iterator
@@ -35,35 +32,6 @@ def normalize_slug(slug):
 
 def _now():
     return datetime.now(timezone.utc).isoformat()
-
-
-def _password_hash(password):
-    if not isinstance(password, str) or not password:
-        raise ValueError("mot de passe vide ou invalide")
-    iterations = 310_000
-    salt = secrets.token_bytes(16)
-    digest = hashlib.pbkdf2_hmac(
-        "sha256", password.encode("utf-8"), salt, iterations
-    )
-    return f"pbkdf2_sha256${iterations}${salt.hex()}${digest.hex()}"
-
-
-def _password_matches(password, encoded):
-    if not isinstance(password, str) or not encoded:
-        return False
-    try:
-        algorithm, iterations, salt, expected = encoded.split("$", 3)
-        if algorithm != "pbkdf2_sha256":
-            return False
-        digest = hashlib.pbkdf2_hmac(
-            "sha256",
-            password.encode("utf-8"),
-            bytes.fromhex(salt),
-            int(iterations),
-        ).hex()
-    except (TypeError, ValueError):
-        return False
-    return hmac.compare_digest(digest, expected)
 
 
 class PlatformStore:
@@ -109,6 +77,7 @@ class PlatformStore:
         colonne : c'est la discipline des migrations additives de monl.
         """
         with self._lock, self._connect() as db:
+            self._reject_non_additive_project_schema(db, complete=False)
             db.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS accounts (
@@ -118,17 +87,19 @@ class PlatformStore:
                     created_at TEXT NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS builder_projects (
-                    id INTEGER PRIMARY KEY,
-                    account_id INTEGER NOT NULL REFERENCES accounts(id),
+                    project_id TEXT PRIMARY KEY REFERENCES projects(project_id)
+                        ON DELETE CASCADE,
+                    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                     slug TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
                     model_routes TEXT NOT NULL DEFAULT '{}',
                     generate_images INTEGER NOT NULL DEFAULT 0,
-                    UNIQUE(account_id, slug)
+                    created_at TEXT NOT NULL,
+                    UNIQUE(user_id, slug)
                 );
                 CREATE TABLE IF NOT EXISTS builds (
                     id INTEGER PRIMARY KEY,
-                    project_id INTEGER NOT NULL REFERENCES builder_projects(id),
+                    project_id TEXT NOT NULL REFERENCES builder_projects(project_id)
+                        ON DELETE CASCADE,
                     state TEXT NOT NULL DEFAULT 'en_attente',
                     run_id TEXT,
                     tokens_consumed INTEGER,
@@ -146,36 +117,29 @@ class PlatformStore:
                     snapshot_bytes INTEGER,
                     created_at TEXT NOT NULL
                 );
-                CREATE INDEX IF NOT EXISTS idx_builder_projects_account
-                    ON builder_projects(account_id);
+                CREATE INDEX IF NOT EXISTS idx_builder_projects_user
+                    ON builder_projects(user_id);
                 CREATE INDEX IF NOT EXISTS idx_builds_project
                     ON builds(project_id);
                 """
             )
+            self._reject_non_additive_project_schema(db)
             columns = {
                 "accounts": {
                     "identifier": "TEXT",
                     "password_hash": "TEXT",
                     "created_at": "TEXT",
-                    # Connexion par un fournisseur : `oauth_provider` dit
-                    # LEQUEL, `display_name` porte l'adresse vérifiée qu'on
-                    # affiche. L'identifiant, lui, reste `github:<id>` — voir
-                    # oauth.py, décision 1 : rattacher un compte OAuth à un
-                    # compte mot de passe de même adresse serait une prise de
-                    # contrôle, les comptes mot de passe n'étant vérifiés par
-                    # personne.
-                    "oauth_provider": "TEXT",
-                    "display_name": "TEXT",
                 },
                 "builder_projects": {
-                    "account_id": "INTEGER",
+                    "project_id": "TEXT",
+                    "user_id": "TEXT",
                     "slug": "TEXT",
                     "created_at": "TEXT",
                     "model_routes": "TEXT NOT NULL DEFAULT '{}'",
                     "generate_images": "INTEGER NOT NULL DEFAULT 0",
                 },
                 "builds": {
-                    "project_id": "INTEGER",
+                    "project_id": "TEXT",
                     "state": "TEXT NOT NULL DEFAULT 'en_attente'",
                     "run_id": "TEXT",
                     "tokens_consumed": "INTEGER",
@@ -205,6 +169,58 @@ class PlatformStore:
                             f"ALTER TABLE {table} ADD COLUMN {name} {definition}"
                         )
             db.execute("PRAGMA user_version = 2")
+
+    @staticmethod
+    def _reject_non_additive_project_schema(db, *, complete=True):
+        """Refuse une ancienne forme qui demanderait reconstruction ou DROP.
+
+        La tranche précédente a créé ``builder_projects.id`` et
+        ``builder_projects.account_id``. SQLite ne permet pas de transformer
+        honnêtement cette table en place : il faudrait déplacer des lignes et
+        réécrire les clés étrangères. La migration additive du dépôt refuse
+        donc le démarrage en nommant la procédure manuelle, tout en laissant
+        intactes les données héritées.
+        """
+        builder = {
+            row["name"]: (row["type"] or "").upper()
+            for row in db.execute("PRAGMA table_info(builder_projects)")
+        }
+        builds = {
+            row["name"]: (row["type"] or "").upper()
+            for row in db.execute("PRAGMA table_info(builds)")
+        }
+        if not builder and not builds:
+            return
+        if "id" in builder or "account_id" in builder:
+            raise RuntimeError(
+                "migration non additive requise : builder_projects utilise encore "
+                "id/account_id ; aucune conversion automatique n'est effectuée"
+            )
+        if builds and builds.get("project_id") != "TEXT":
+            raise RuntimeError(
+                "migration non additive requise : builds.project_id doit être TEXT ; "
+                "aucune reconstruction automatique n'est effectuée"
+            )
+        if not complete:
+            return
+        builder_fks = {
+            (row["from"], row["table"], row["on_delete"])
+            for row in db.execute("PRAGMA foreign_key_list(builder_projects)")
+        }
+        if ("project_id", "projects", "CASCADE") not in builder_fks:
+            raise RuntimeError(
+                "schéma constructeur invalide : builder_projects.project_id doit "
+                "référencer projects avec ON DELETE CASCADE"
+            )
+        build_fks = {
+            (row["from"], row["table"], row["on_delete"])
+            for row in db.execute("PRAGMA foreign_key_list(builds)")
+        }
+        if ("project_id", "builder_projects", "CASCADE") not in build_fks:
+            raise RuntimeError(
+                "schéma constructeur invalide : builds.project_id doit référencer "
+                "builder_projects avec ON DELETE CASCADE"
+            )
 
     @staticmethod
     def _row(db, query, parameters=()):
@@ -270,87 +286,25 @@ class PlatformStore:
     def _project_rows(self, db, query, parameters=()):
         return [self._project_values(row) for row in self._rows(db, query, parameters)]
 
-    def _account_id(self, db, account):
-        if isinstance(account, bool):
-            raise ValueError("identifiant de compte invalide")
-        if isinstance(account, int):
-            row = self._row(db, "SELECT id FROM accounts WHERE id = ?", (account,))
-        else:
-            row = self._row(
-                db, "SELECT id FROM accounts WHERE identifier = ?", (str(account),)
-            )
-        if row is None:
-            raise KeyError(f"compte introuvable : {account}")
-        return row["id"]
-
-    def resolve_account_id(self, account):
+    def legacy_account_count(self):
+        """Compte les lignes de l'ancien registre sans jamais les employer."""
         with self._lock, self._connect() as db:
-            return self._account_id(db, account)
+            return db.execute("SELECT COUNT(*) FROM accounts").fetchone()[0]
 
-    def create_account(self, identifier, password=None):
-        identifier = str(identifier).strip()
-        if not identifier or "\x00" in identifier:
-            raise ValueError("identifiant de compte vide ou invalide")
-        password_hash = _password_hash(password) if password is not None else None
-        with self._lock, self._connect() as db:
-            cursor = db.execute(
-                "INSERT INTO accounts(identifier, password_hash, created_at) VALUES (?, ?, ?)",
-                (identifier, password_hash, _now()),
-            )
-            return cursor.lastrowid
+    def create_project(
+        self, user_id, project_id, slug, *, model_routes=None, generate_images=False
+    ):
+        """Ajoute les métadonnées constructeur d'un projet déjà identitaire.
 
-    def upsert_oauth_account(self, identifier, provider, display_name):
-        """Retrouve le compte du fournisseur, ou le crée. Rend son id.
-
-        Aucun mot de passe n'est posé : un compte de fournisseur ne se
-        connecte que par lui. Le libellé affiché est rafraîchi à chaque
-        connexion — une adresse de courriel change, l'identifiant non.
+        Le projet lui-même doit d'abord être créé par
+        ``IdentityStore.add_project(user_id, project_id, name)``. Les clés
+        étrangères rendent cet ordre vérifiable et laissent l'identité
+        posséder la suppression en cascade.
         """
-        identifier = str(identifier).strip()
-        if not identifier or "\x00" in identifier:
-            raise ValueError("identifiant de compte vide ou invalide")
-        with self._lock, self._connect() as db:
-            row = self._row(
-                db,
-                "SELECT id FROM accounts WHERE identifier = ?", (identifier,))
-            if row is not None:
-                db.execute(
-                    "UPDATE accounts SET display_name = ?, oauth_provider = ? "
-                    "WHERE id = ?",
-                    (display_name, provider, row["id"]),
-                )
-                return row["id"], False
-            cursor = db.execute(
-                "INSERT INTO accounts(identifier, password_hash, created_at, "
-                "oauth_provider, display_name) VALUES (?, NULL, ?, ?, ?)",
-                (identifier, _now(), provider, display_name),
-            )
-            return cursor.lastrowid, True
-
-    def authenticate_account(self, identifier, password):
-        identifier = str(identifier).strip()
-        with self._lock, self._connect() as db:
-            row = self._row(
-                db,
-                "SELECT id, password_hash FROM accounts WHERE identifier = ?",
-                (identifier,),
-            )
-            # Un compte de fournisseur n'a pas de mot de passe : `None` ne
-            # doit jamais devenir une porte ouverte. `_password_matches` le
-            # refuse déjà, mais l'écrire ici évite qu'une évolution du
-            # hachage rouvre la porte sans qu'on s'en aperçoive.
-            if row is None or not row["password_hash"]:
-                return None
-            if not _password_matches(password, row["password_hash"]):
-                return None
-            return row["id"]
-
-    def get_account(self, account):
-        with self._lock, self._connect() as db:
-            account_id = self._account_id(db, account)
-            return self._row(db, "SELECT * FROM accounts WHERE id = ?", (account_id,))
-
-    def create_project(self, account, slug, *, model_routes=None, generate_images=False):
+        if not isinstance(user_id, str) or not user_id or "\x00" in user_id:
+            raise ValueError("identifiant d'utilisateur invalide")
+        if not isinstance(project_id, str) or not project_id or "\x00" in project_id:
+            raise ValueError("identifiant de projet invalide")
         slug = normalize_slug(slug)
         if not slug or slug in {".", ".."} or "/" in slug or "\\" in slug:
             raise ValueError("slug de projet invalide : remontée de chemin refusée")
@@ -358,30 +312,28 @@ class PlatformStore:
             raise ValueError("generate_images doit être un booléen")
         routes = self._normalize_model_routes(model_routes)
         with self._lock, self._connect() as db:
-            account_id = self._account_id(db, account)
-            cursor = db.execute(
-                "INSERT INTO builder_projects(account_id, slug, created_at, model_routes, "
-                "generate_images) VALUES (?, ?, ?, ?, ?)",
-                (account_id, slug, _now(), json.dumps(routes, sort_keys=True),
+            db.execute(
+                "INSERT INTO builder_projects(project_id, user_id, slug, created_at, "
+                "model_routes, generate_images) VALUES (?, ?, ?, ?, ?, ?)",
+                (project_id, user_id, slug, _now(), json.dumps(routes, sort_keys=True),
                  int(generate_images)),
             )
-            return cursor.lastrowid
+            return project_id
 
-    def discard_project(self, account, project_id):
+    def discard_project(self, user_id, project_id):
         """Supprime un projet tout juste créé si son initialisation échoue.
 
         Cette primitive n'est pas une API utilisateur : elle sert de
         compensation à l'écriture de ``spec.ml`` dans la même requête HTTP.
         Un projet possédant déjà une construction ne peut pas être écarté.
         """
-        if isinstance(project_id, bool) or not isinstance(project_id, int):
+        if not isinstance(user_id, str) or not isinstance(project_id, str):
             raise ValueError("identifiant de projet invalide")
         with self._lock, self._connect() as db:
-            account_id = self._account_id(db, account)
             row = self._row(
                 db,
-                "SELECT id FROM builder_projects WHERE id = ? AND account_id = ?",
-                (project_id, account_id),
+                "SELECT project_id FROM builder_projects WHERE project_id = ? AND user_id = ?",
+                (project_id, user_id),
             )
             if row is None:
                 return False
@@ -392,38 +344,38 @@ class PlatformStore:
             if build is not None:
                 raise ValueError("projet déjà construit : suppression de compensation refusée")
             deleted = db.execute(
-                "DELETE FROM builder_projects WHERE id = ? AND account_id = ?",
-                (project_id, account_id),
+                "DELETE FROM builder_projects WHERE project_id = ? AND user_id = ?",
+                (project_id, user_id),
             )
             return deleted.rowcount == 1
 
     def get_project(self, project_id):
         with self._lock, self._connect() as db:
             return self._project_row(
-                db, "SELECT * FROM builder_projects WHERE id = ?", (project_id,)
+                db, "SELECT * FROM builder_projects WHERE project_id = ?", (project_id,)
             )
 
-    def get_project_for_account(self, account, project_id):
+    def get_project_for_user(self, user_id, project_id):
         with self._lock, self._connect() as db:
-            account_id = self._account_id(db, account)
             return self._project_row(
                 db,
-                "SELECT * FROM builder_projects WHERE id = ? AND account_id = ?",
-                (project_id, account_id),
+                "SELECT * FROM builder_projects WHERE project_id = ? AND user_id = ?",
+                (project_id, user_id),
             )
 
-    def list_projects(self, account):
+    def list_projects(self, user_id):
         with self._lock, self._connect() as db:
-            account_id = self._account_id(db, account)
             return self._project_rows(
                 db,
-                "SELECT * FROM builder_projects WHERE account_id = ? ORDER BY id",
-                (account_id,),
+                "SELECT * FROM builder_projects WHERE user_id = ? ORDER BY project_id",
+                (user_id,),
             )
 
     def list_all_projects(self):
         with self._lock, self._connect() as db:
-            return self._project_rows(db, "SELECT * FROM builder_projects ORDER BY id")
+            return self._project_rows(
+                db, "SELECT * FROM builder_projects ORDER BY project_id"
+            )
 
     def list_projects_by_slug(self, slug):
         # COLLATE NOCASE, et pas seulement une comparaison sur la forme
@@ -433,7 +385,8 @@ class PlatformStore:
         with self._lock, self._connect() as db:
             return self._project_rows(
                 db,
-                "SELECT * FROM builder_projects WHERE slug = ? COLLATE NOCASE ORDER BY id",
+                "SELECT * FROM builder_projects WHERE slug = ? COLLATE NOCASE "
+                "ORDER BY project_id",
                 (normalize_slug(slug),),
             )
 
@@ -442,7 +395,8 @@ class PlatformStore:
             raise ValueError("identifiant de projet invalide")
         with self._lock, self._connect() as db:
             if self._row(
-                db, "SELECT id FROM builder_projects WHERE id = ?", (project_id,)
+                db, "SELECT project_id FROM builder_projects WHERE project_id = ?",
+                (project_id,),
             ) is None:
                 raise KeyError(f"projet introuvable : {project_id}")
             cursor = db.execute(

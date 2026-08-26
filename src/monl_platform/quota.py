@@ -49,16 +49,19 @@ class TokenQuota:
         self.max_tokens = max_tokens
 
     def inspect(self, account):
-        account_id = self.store.resolve_account_id(account)
+        # Le quota reçoit directement l'identifiant texte de l'identité de
+        # main ; aucun registre numérique du constructeur ne doit être
+        # consulté ici.
+        account_id = account
         consumed = 0
         project_totals = {}
         for project in self.store.list_projects(account_id):
             directory = project_directory(
-                self.workspace_root, account_id, project["id"], create=False
+                self.workspace_root, account_id, project["project_id"], create=False
             )
             journal = directory / ".monl_ai_usage.jsonl"
             if not journal.is_file():
-                project_totals[project["id"]] = 0
+                project_totals[project["project_id"]] = 0
                 continue
             try:
                 report = build_usage_report(str(directory))
@@ -70,8 +73,9 @@ class TokenQuota:
             total = report["project_total"]["total_tokens"]
             if total is None:
                 raise QuotaUnavailableError(
-                    f"consommation en jetons indéterminée pour le projet {project['id']}")
-            project_totals[project["id"]] = total
+                    f"consommation en jetons indéterminée pour le projet "
+                    f"{project['project_id']}")
+            project_totals[project["project_id"]] = total
             consumed += total
         return QuotaStatus(
             consumed_tokens=consumed,

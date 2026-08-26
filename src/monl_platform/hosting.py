@@ -22,7 +22,7 @@ class SiteNotBuiltError(SiteHostingError):
 
 @dataclass
 class _RunningSite:
-    project_id: int
+    project_id: str
     host: str
     port: int
     process: subprocess.Popen
@@ -49,19 +49,19 @@ class SiteManager:
         try:
             return project_directory(
                 self.workspace_root,
-                project["account_id"],
-                project["id"],
+                project["user_id"],
+                project["project_id"],
                 create=False,
             )
         except ProjectPathError as exc:
             raise SiteHostingError(str(exc)) from exc
 
     def _successful_build_directory(self, project, project_dir):
-        builds = self.store.list_builds(project["id"])
+        builds = self.store.list_builds(project["project_id"])
         successful = [build for build in builds if build["state"] == "reussie"]
         if not successful:
             raise SiteNotBuiltError(
-                f"le site du projet {project['id']} n'est pas construit"
+                f"le site du projet {project['project_id']} n'est pas construit"
             )
         build = successful[-1]
         relative = build.get("snapshot_path")
@@ -93,7 +93,8 @@ class SiteManager:
             directory / "frontend" / "index.html"
         ).is_file():
             raise SiteNotBuiltError(
-                f"le site du projet {project['id']} n'est pas construit : frontend/index.html absent"
+                f"le site du projet {project['project_id']} n'est pas construit : "
+                "frontend/index.html absent"
             )
         return directory
 
@@ -116,11 +117,11 @@ class SiteManager:
 
     def start_project(self, project):
         with self._lock:
-            current = self._running.get(project["id"])
+            current = self._running.get(project["project_id"])
             if current is not None and current.process.poll() is None:
                 return current
             if current is not None:
-                self._running.pop(project["id"], None)
+                self._running.pop(project["project_id"], None)
             directory = self._require_site(project)
             port = self._allocate_port()
             process = subprocess.Popen(
@@ -142,11 +143,11 @@ class SiteManager:
                 stderr=subprocess.DEVNULL,
             )
             host = self.host_for(project)
-            running = _RunningSite(project["id"], host, port, process)
+            running = _RunningSite(project["project_id"], host, port, process)
             if not self._wait_ready(process, port):
                 self._stop_process(process)
                 raise SiteHostingError(f"le serveur du site {host} n'a pas démarré")
-            self._running[project["id"]] = running
+            self._running[project["project_id"]] = running
             return running
 
     def stop_project(self, project_id):

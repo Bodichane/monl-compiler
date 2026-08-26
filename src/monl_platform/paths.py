@@ -20,10 +20,10 @@ def _safe_component(value, label):
 def project_directory(workspace_root, account_id, project_id, *, create=True):
     """Retourne le dossier privé d'un projet et vérifie ses symlinks.
 
-    Les identifiants numériques issus de SQLite sont les seuls composants du
-    chemin. Le slug reste une donnée de catalogue, jamais un chemin fourni par
-    l'utilisateur. Un lien symbolique existant est refusé : sinon un dossier
-    du compte A pourrait pointer vers les fichiers du compte B.
+    Les identifiants opaques texte issus de l'identité sont les seuls
+    composants du chemin. Le slug reste une donnée de catalogue, jamais un
+    chemin fourni par l'utilisateur. Un lien symbolique existant est refusé :
+    sinon un dossier du compte A pourrait pointer vers les fichiers du compte B.
     """
     account = _safe_component(account_id, "identifiant de compte")
     project = _safe_component(project_id, "identifiant de projet")
