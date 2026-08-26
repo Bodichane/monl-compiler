@@ -36,10 +36,16 @@ GOLDENS = {
     # réessayée. Le changement vit dans le RUNTIME, donc seuls app.py et
     # monl.json (qui scelle son empreinte) bougent : schema.sql, manage.py et
     # le Dockerfile restent à l'octet près, ce qui est le contrôle de portée.
-    "app.py": "bf70d7faa168f08415a443d8e010c4f7010ae1b3e857e34009ff6be4480b837c",
+    # POINT 138 : l'indicatif téléphonique s'applique désormais même sans zéro
+    # de tête (il ne canonicalisait qu'un numéro européen). La normalisation
+    # vit aux DEUX endroits qui doivent rester identiques, donc app.py ET
+    # manage.py bougent, plus monl.json qui scelle l'empreinte du backend.
+    # schema.sql, le contrat, le brief, le wrapper et le conteneur restent à
+    # l'octet près : la correction ne touche que l'identifiant de compte.
+    "app.py": "43a587eb63fa612dc6083c4e567a624ac5dad2943c0d7fc762dd3415f29abbf5",
     "schema.sql": "244eb93ba9a727aa855bca0a96d76b2a329f8ee69c6b5bf2ba693d4c6eacba1f",
     "sandbox_ai.py": "53bcf473618c141b6df5b9326c540984d16b3fa2c64b7ed7787003b5da019c07",
-    "manage.py": "5da45949451f1da15d17b84fcbe89ea4670116469897941ccd53daaa9c75ca46",
+    "manage.py": "bc1529315536d6f9599efe8635d10b87827abc180b7d1dd77d793fc1f3d1f37f",
     # POINT 133 : le Dockerfile lançait `app:app`, donc l'image servait l'API
     # et répondait 404 sur /site et sur les photos — le wrapper qui les monte
     # n'était écrit que par 'monl run'. Il est désormais produit par
@@ -70,7 +76,7 @@ GOLDENS = {
     # 0.9.0-beta.7 : seul monl.json bouge, parce qu'il SCELLE la version du
     # compilateur. Tous les autres artefacts restent identiques a l'octet —
     # la preuve que la montee de version ne change rien a ce qui est genere.
-    "monl.json": "681541714a669108ef7f29b05628cb9fba715228837422bb570cf1f13d141c77",
+    "monl.json": "59367a14332465d66c520108403e6df00ee48f65f3a533af259dcf8f803a8105",
 }
 
 

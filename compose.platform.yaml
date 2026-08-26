@@ -1,0 +1,36 @@
+services:
+  platform:
+    build:
+      context: .
+      dockerfile: Dockerfile.platform
+    restart: unless-stopped
+    init: true
+    ports:
+      - "127.0.0.1:8022:8022"
+    environment:
+      MONL_PLATFORM_WORKSPACE: /data
+      MONL_COOKIE_SECURE: "1"
+      MONL_TRUST_PROXY: "1"
+      MONL_MAX_CONCURRENT_COMPILES: "2"
+      MONL_COMPILE_TIMEOUT_SECONDS: "45"
+      MONL_COMPILE_CPU_SECONDS: "30"
+      MONL_COMPILE_MEMORY_MB: "768"
+      MONL_COMPILE_OUTPUT_MB: "64"
+      MONL_PROJECT_RETENTION_DAYS: "30"
+    volumes:
+      - monl-platform-data:/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+
+volumes:
+  monl-platform-data:

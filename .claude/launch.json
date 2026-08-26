@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "plateforme",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "uvicorn", "monl_platform.app:app", "--host", "127.0.0.1", "--port", "8040"],
+      "port": 8040
+    }
+  ]
+}

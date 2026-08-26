@@ -148,8 +148,23 @@ class RuntimeMixin:
             # forme internationale — mais seulement si l'on sait de quel pays.
             # Déclaré, on canonicalise ; sinon on laisse tel quel, et les deux
             # notations restent deux comptes (limite énoncée, pas devinée).
-            "        if AUTH_PHONE_PREFIX and chiffres.startswith('0'):",
-            "            return AUTH_PHONE_PREFIX + chiffres[1:]",
+            #
+            # POINT 138 : le `0` initial n'est PAS universel. La règle d'origine
+            # ne canonicalisait qu'un numéro commençant par zéro — un préfixe
+            # interurbain européen ('06…' → '+336…'). Au Bénin, où le numéro
+            # local s'écrit sans zéro de tête, `phone_prefix: "+229"` ne
+            # produisait RIEN : la personne inscrite en '97…' ne se
+            # reconnaissait pas en '+22997…', soit exactement les deux comptes
+            # que l'indicatif existe pour empêcher. Une règle déclarée qui ne
+            # produit rien est ce que le point 85 refuse.
+            "        if AUTH_PHONE_PREFIX:",
+            "            if chiffres.startswith('0'):",
+            "                return AUTH_PHONE_PREFIX + chiffres[1:]",
+            # Numéro déjà international mais tapé sans le '+' : le préfixer une
+            # seconde fois ('+229' + '229…') fabriquerait un troisième compte.
+            "            if chiffres.startswith(AUTH_PHONE_PREFIX.lstrip('+')):",
+            "                return '+' + chiffres",
+            "            return AUTH_PHONE_PREFIX + chiffres",
             "        return chiffres",
             "    return valeur",
             "",

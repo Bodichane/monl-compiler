@@ -40,6 +40,8 @@ postgres = [
 
 [project.scripts]
 monl = "monl.cli:main"
+monl-platform = "monl_platform.__main__:main"
+monl-mcp = "monl_platform.mcp_server:main"
 
 # POINT 65 : vrai paquet Python. La « structure src plat » de la bêta
 # n'était installable qu'à travers un shim qui manipulait sys.path ; le code
@@ -51,6 +53,9 @@ where = ["src"]
 
 [tool.setuptools.package-dir]
 "" = "src"
+
+[tool.setuptools.package-data]
+monl_platform = ["static/*.png"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

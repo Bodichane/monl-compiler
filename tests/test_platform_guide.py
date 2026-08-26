@@ -1,0 +1,139 @@
+"""Le guide et les exemples, confrontés à ce que le compilateur fait vraiment.
+
+Une documentation n'est pas un texte : c'est une PROMESSE. Elle se vérifie
+comme le contrat frontend se vérifie contre les décorateurs réellement écrits
+dans `app.py` (`tests/test_orchestrator.py`), et pour la même raison — une
+doc qui ment envoie écrire une spec que le compilateur refusera, et coûte
+plus cher qu'une doc absente.
+
+Quatre confrontations, chacune contre une source différente :
+la grammaire Lark, les routes montées par FastAPI, les outils déclarés par le
+serveur MCP, et le compilateur lui-même pour les spécifications d'exemple.
+"""
+
+import re
+
+from monl_platform import examples, guide
+from monl_platform.app import create_app
+from monl_platform.mcp_server import TOOLS
+from monl_platform.service import CompilationService
+
+GRAMMAIRE = "src/monl/parser.py"
+
+
+def _types_de_la_grammaire():
+    """Les types que le parseur accepte réellement, lus dans sa grammaire."""
+    import pathlib
+
+    source = (pathlib.Path(__file__).parent.parent / GRAMMAIRE).read_text(encoding="utf-8")
+    ligne = re.search(r'^\s*TYPE:\s*(.+)$', source, re.MULTILINE)
+    assert ligne, "la règle TYPE a disparu de la grammaire"
+    return set(re.findall(r'"([A-Za-z]+)"', ligne.group(1)))
+
+
+def test_le_guide_documente_exactement_les_types_de_la_grammaire():
+    """Dans les DEUX sens. Un type documenté qui n'existe pas fait écrire une
+    spec refusée ; un type existant non documenté reste introuvable pour qui
+    n'a pas le dépôt sous les yeux."""
+    documentes = {nom for nom, _ in guide.TYPES}
+    reels = _types_de_la_grammaire()
+    assert documentes == reels, (
+        f"documentés en trop : {sorted(documentes - reels)} · "
+        f"absents du guide : {sorted(reels - documentes)}"
+    )
+
+
+def test_le_guide_documente_les_routes_reellement_montees(tmp_path):
+    """Le guide décrit l'API de la plateforme ; FastAPI sait ce qu'elle est."""
+    app = create_app(workspace=tmp_path)
+    montees = {
+        (methode, route.path)
+        for route in app.routes
+        for methode in getattr(route, "methods", set())
+        if methode in {"GET", "POST", "DELETE"}
+    }
+    for verbe, chemin, _ in guide.ROUTES_API:
+        assert (verbe, chemin) in montees, f"le guide annonce {verbe} {chemin}, absent de l'app"
+
+    publiques = {
+        (methode, route.path)
+        for route in app.routes
+        for methode in getattr(route, "methods", set())
+        if methode in {"GET", "POST", "DELETE"}
+        and (route.path.startswith("/api/") or route.path in {"/mcp", "/health", "/ready"})
+    }
+    documentees = {(verbe, chemin) for verbe, chemin, _ in guide.ROUTES_API}
+    assert publiques == documentees, (
+        f"routes non documentées : {sorted(publiques - documentees)}"
+    )
+
+
+def test_le_guide_documente_les_outils_que_le_serveur_mcp_declare():
+    documentes = {nom for nom, _ in guide.OUTILS_MCP}
+    reels = {outil["name"] for outil in TOOLS}
+    assert documentes == reels
+
+
+def test_le_guide_ne_promet_pas_de_fausses_cles_mcp():
+    html = guide.guide_html()
+    assert "Clés par utilisateur" in html
+    assert "Authorization: Bearer" in html
+    assert "l'empreinte" in html
+    assert "révocation" in html
+
+
+def test_chaque_exemple_compile_vraiment(tmp_path):
+    """Le verrou de ce fichier. Un exemple qui ne compile plus est un
+    exemple qui apprend une syntaxe morte : le catalogue serait pire que vide.
+    On compile pour de bon — valider ne prouve que la moitié du chemin."""
+    service = CompilationService(tmp_path)
+    for exemple in examples.EXAMPLES:
+        manifeste = service.compile(exemple["spec"])
+        assert manifeste["summary"]["counts"]["routes"] > 0, exemple["id"]
+        attendu = exemple["result"]
+        assert manifeste["summary"]["counts"]["entities"] == attendu["entities"]
+        assert manifeste["summary"]["counts"]["routes"] == attendu["routes"]
+        assert len(manifeste["files"]) == attendu["files"]
+        fichiers = set(manifeste["files"])
+        assert {"app.py", "schema.sql", "frontend_contract.json"} <= fichiers, exemple["id"]
+        assert ".jwt_secret" not in fichiers, exemple["id"]
+
+
+def test_aucun_exemple_ne_declare_dasset(tmp_path):
+    """La plateforme n'offre aucun téléversement : un exemple qui déclarerait
+    une image serait refusé sous les yeux du visiteur, à la première touche.
+    C'est la limite que le guide ÉNONCE — ce test la rend vraie."""
+    for exemple in examples.EXAMPLES:
+        assert "\nassets" not in exemple["spec"], exemple["id"]
+        assert ": Image" not in exemple["spec"], exemple["id"]
+
+
+def test_le_catalogue_ne_livre_pas_les_specs_et_les_ids_sont_uniques():
+    catalogue = examples.catalogue()
+    assert len(catalogue) == len(examples.EXAMPLES)
+    assert all("spec" not in entree for entree in catalogue), "galerie inutilement lourde"
+    identifiants = [entree["id"] for entree in catalogue]
+    assert len(set(identifiants)) == len(identifiants)
+    for entree in catalogue:
+        assert entree["name"] and entree["summary"] and entree["teaches"]
+
+
+def test_les_regles_citees_par_le_guide_portent_toutes_un_mot_cle_connu():
+    """Garde-fou contre la règle inventée. Chaque ligne d'exemple du guide
+    doit employer un mot-clé que le validateur connaît — la liste vient de
+    `ast_validator`, pas d'une copie faite à la main ici."""
+    import pathlib
+
+    validateur = (pathlib.Path(__file__).parent.parent / "src/monl/ast_validator.py"
+                  ).read_text(encoding="utf-8")
+    tableaux = (guide.REGLES_ACCES + guide.REGLES_CHAMPS
+                + guide.REGLES_SERVEUR + guide.REGLES_COMMERCE)
+    for regle, _ in tableaux:
+        mots = re.findall(r"\b(ownedBy|accessibleBy|public|publicWhen|sharedBy|oncePer|"
+                          r"requiresOwn|min|max|unique|required|oneOf|generated|timestamp|"
+                          r"numbered|derivedFrom|sumOf|hidden|categorized|decrements|"
+                          r"increments|payable|releases|writableAfterPayment)\b", regle)
+        assert mots, f"règle sans mot-clé identifiable : {regle}"
+        for mot in mots:
+            assert f'"{mot}"' in validateur or f"'{mot}'" in validateur, (
+                f"le guide cite `{mot}`, que le validateur ne connaît pas")
