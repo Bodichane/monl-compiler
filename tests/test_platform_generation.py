@@ -109,7 +109,7 @@ class FailingImageProvider(FakeImageProvider):
 
 @pytest.fixture()
 def platform(tmp_path):
-    store = PlatformStore(tmp_path / "platform.db")
+    store = PlatformStore(tmp_path)
     account = store.create_account("generation@example.test")
     root = tmp_path / "projects"
     yield store, account, root

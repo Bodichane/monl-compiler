@@ -1,16 +1,18 @@
 """Persistance SQLite du socle de plateforme.
 
-Le store ne connaît ni HTTP ni IA. Les opérations ouvrent une transaction
+Le store ne connaît ni HTTP ni IA. Chaque opération ouvre une transaction
 SQLite courte, ce qui convient à un worker et laisse SQLite jouer son rôle de
 verrou entre plusieurs processus.
 """
 
+import contextlib
 import hashlib
 import hmac
 import json
 import secrets
 import sqlite3
 import threading
+from collections.abc import Iterator
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -65,23 +67,39 @@ def _password_matches(password, encoded):
 
 
 class PlatformStore:
-    """Store SQLite avec création et migration additive au démarrage."""
+    """Store SQLite avec création et migration additive au démarrage.
 
-    def __init__(self, database):
-        self.database = str(database)
-        if self.database != ":memory:":
-            Path(self.database).parent.mkdir(parents=True, exist_ok=True)
+    ``workspace`` est le dossier partagé avec :class:`IdentityStore`. Les
+    connexions sont volontairement éphémères : garder une connexion du
+    constructeur ouverte empêcherait le rabattement du WAL de la base
+    commune.
+    """
+
+    def __init__(self, workspace):
+        self.workspace = Path(workspace).resolve()
+        self.workspace.mkdir(parents=True, exist_ok=True)
+        self.database = str(self.workspace / "platform.sqlite3")
         self._lock = threading.RLock()
-        self._connection = sqlite3.connect(
-            self.database, check_same_thread=False, timeout=30
-        )
-        self._connection.row_factory = sqlite3.Row
-        self._connection.execute("PRAGMA foreign_keys = ON")
         self._migrate()
 
+    @contextlib.contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        """Ouvre, valide (ou annule), puis ferme une connexion SQLite."""
+        connection = sqlite3.connect(
+            self.database, check_same_thread=False, timeout=30
+        )
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA foreign_keys = ON")
+        connection.execute("PRAGMA journal_mode = WAL")
+        try:
+            with connection:
+                yield connection
+        finally:
+            connection.close()
+
     def close(self):
-        with self._lock:
-            self._connection.close()
+        """Compatibilité avec les appelants : aucune connexion ne persiste."""
+        return None
 
     def _migrate(self):
         """Crée le schéma puis ajoute seulement les colonnes manquantes.
@@ -90,8 +108,8 @@ class PlatformStore:
         ajouter une entrée à ``columns`` plutôt que supprimer ou renommer une
         colonne : c'est la discipline des migrations additives de monl.
         """
-        with self._lock, self._connection:
-            self._connection.executescript(
+        with self._lock, self._connect() as db:
+            db.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS accounts (
                     id INTEGER PRIMARY KEY,
@@ -99,7 +117,7 @@ class PlatformStore:
                     password_hash TEXT,
                     created_at TEXT NOT NULL
                 );
-                CREATE TABLE IF NOT EXISTS projects (
+                CREATE TABLE IF NOT EXISTS builder_projects (
                     id INTEGER PRIMARY KEY,
                     account_id INTEGER NOT NULL REFERENCES accounts(id),
                     slug TEXT NOT NULL,
@@ -110,7 +128,7 @@ class PlatformStore:
                 );
                 CREATE TABLE IF NOT EXISTS builds (
                     id INTEGER PRIMARY KEY,
-                    project_id INTEGER NOT NULL REFERENCES projects(id),
+                    project_id INTEGER NOT NULL REFERENCES builder_projects(id),
                     state TEXT NOT NULL DEFAULT 'en_attente',
                     run_id TEXT,
                     tokens_consumed INTEGER,
@@ -128,8 +146,8 @@ class PlatformStore:
                     snapshot_bytes INTEGER,
                     created_at TEXT NOT NULL
                 );
-                CREATE INDEX IF NOT EXISTS idx_projects_account
-                    ON projects(account_id);
+                CREATE INDEX IF NOT EXISTS idx_builder_projects_account
+                    ON builder_projects(account_id);
                 CREATE INDEX IF NOT EXISTS idx_builds_project
                     ON builds(project_id);
                 """
@@ -149,7 +167,7 @@ class PlatformStore:
                     "oauth_provider": "TEXT",
                     "display_name": "TEXT",
                 },
-                "projects": {
+                "builder_projects": {
                     "account_id": "INTEGER",
                     "slug": "TEXT",
                     "created_at": "TEXT",
@@ -179,21 +197,23 @@ class PlatformStore:
             for table, expected in columns.items():
                 present = {
                     row["name"]
-                    for row in self._connection.execute(f"PRAGMA table_info({table})")
+                    for row in db.execute(f"PRAGMA table_info({table})")
                 }
                 for name, definition in expected.items():
                     if name not in present:
-                        self._connection.execute(
+                        db.execute(
                             f"ALTER TABLE {table} ADD COLUMN {name} {definition}"
                         )
-            self._connection.execute("PRAGMA user_version = 2")
+            db.execute("PRAGMA user_version = 2")
 
-    def _row(self, query, parameters=()):
-        row = self._connection.execute(query, parameters).fetchone()
+    @staticmethod
+    def _row(db, query, parameters=()):
+        row = db.execute(query, parameters).fetchone()
         return dict(row) if row is not None else None
 
-    def _rows(self, query, parameters=()):
-        return [dict(row) for row in self._connection.execute(query, parameters)]
+    @staticmethod
+    def _rows(db, query, parameters=()):
+        return [dict(row) for row in db.execute(query, parameters)]
 
     @staticmethod
     def _normalize_model_routes(routes):
@@ -244,34 +264,36 @@ class PlatformStore:
         project["generate_images"] = bool(project.get("generate_images", 0))
         return project
 
-    def _project_row(self, query, parameters=()):
-        return self._project_values(self._row(query, parameters))
+    def _project_row(self, db, query, parameters=()):
+        return self._project_values(self._row(db, query, parameters))
 
-    def _project_rows(self, query, parameters=()):
-        return [self._project_values(row) for row in self._rows(query, parameters)]
+    def _project_rows(self, db, query, parameters=()):
+        return [self._project_values(row) for row in self._rows(db, query, parameters)]
 
-    def _account_id(self, account):
+    def _account_id(self, db, account):
         if isinstance(account, bool):
             raise ValueError("identifiant de compte invalide")
         if isinstance(account, int):
-            row = self._row("SELECT id FROM accounts WHERE id = ?", (account,))
+            row = self._row(db, "SELECT id FROM accounts WHERE id = ?", (account,))
         else:
-            row = self._row("SELECT id FROM accounts WHERE identifier = ?", (str(account),))
+            row = self._row(
+                db, "SELECT id FROM accounts WHERE identifier = ?", (str(account),)
+            )
         if row is None:
             raise KeyError(f"compte introuvable : {account}")
         return row["id"]
 
     def resolve_account_id(self, account):
-        with self._lock:
-            return self._account_id(account)
+        with self._lock, self._connect() as db:
+            return self._account_id(db, account)
 
     def create_account(self, identifier, password=None):
         identifier = str(identifier).strip()
         if not identifier or "\x00" in identifier:
             raise ValueError("identifiant de compte vide ou invalide")
         password_hash = _password_hash(password) if password is not None else None
-        with self._lock, self._connection:
-            cursor = self._connection.execute(
+        with self._lock, self._connect() as db:
+            cursor = db.execute(
                 "INSERT INTO accounts(identifier, password_hash, created_at) VALUES (?, ?, ?)",
                 (identifier, password_hash, _now()),
             )
@@ -287,17 +309,18 @@ class PlatformStore:
         identifier = str(identifier).strip()
         if not identifier or "\x00" in identifier:
             raise ValueError("identifiant de compte vide ou invalide")
-        with self._lock, self._connection:
+        with self._lock, self._connect() as db:
             row = self._row(
+                db,
                 "SELECT id FROM accounts WHERE identifier = ?", (identifier,))
             if row is not None:
-                self._connection.execute(
+                db.execute(
                     "UPDATE accounts SET display_name = ?, oauth_provider = ? "
                     "WHERE id = ?",
                     (display_name, provider, row["id"]),
                 )
                 return row["id"], False
-            cursor = self._connection.execute(
+            cursor = db.execute(
                 "INSERT INTO accounts(identifier, password_hash, created_at, "
                 "oauth_provider, display_name) VALUES (?, NULL, ?, ?, ?)",
                 (identifier, _now(), provider, display_name),
@@ -306,8 +329,9 @@ class PlatformStore:
 
     def authenticate_account(self, identifier, password):
         identifier = str(identifier).strip()
-        with self._lock:
+        with self._lock, self._connect() as db:
             row = self._row(
+                db,
                 "SELECT id, password_hash FROM accounts WHERE identifier = ?",
                 (identifier,),
             )
@@ -322,9 +346,9 @@ class PlatformStore:
             return row["id"]
 
     def get_account(self, account):
-        with self._lock:
-            account_id = self._account_id(account)
-            return self._row("SELECT * FROM accounts WHERE id = ?", (account_id,))
+        with self._lock, self._connect() as db:
+            account_id = self._account_id(db, account)
+            return self._row(db, "SELECT * FROM accounts WHERE id = ?", (account_id,))
 
     def create_project(self, account, slug, *, model_routes=None, generate_images=False):
         slug = normalize_slug(slug)
@@ -333,10 +357,10 @@ class PlatformStore:
         if not isinstance(generate_images, bool):
             raise ValueError("generate_images doit être un booléen")
         routes = self._normalize_model_routes(model_routes)
-        with self._lock, self._connection:
-            account_id = self._account_id(account)
-            cursor = self._connection.execute(
-                "INSERT INTO projects(account_id, slug, created_at, model_routes, "
+        with self._lock, self._connect() as db:
+            account_id = self._account_id(db, account)
+            cursor = db.execute(
+                "INSERT INTO builder_projects(account_id, slug, created_at, model_routes, "
                 "generate_images) VALUES (?, ?, ?, ?, ?)",
                 (account_id, slug, _now(), json.dumps(routes, sort_keys=True),
                  int(generate_images)),
@@ -352,87 +376,98 @@ class PlatformStore:
         """
         if isinstance(project_id, bool) or not isinstance(project_id, int):
             raise ValueError("identifiant de projet invalide")
-        with self._lock, self._connection:
-            account_id = self._account_id(account)
+        with self._lock, self._connect() as db:
+            account_id = self._account_id(db, account)
             row = self._row(
-                "SELECT id FROM projects WHERE id = ? AND account_id = ?",
+                db,
+                "SELECT id FROM builder_projects WHERE id = ? AND account_id = ?",
                 (project_id, account_id),
             )
             if row is None:
                 return False
             build = self._row(
+                db,
                 "SELECT id FROM builds WHERE project_id = ? LIMIT 1", (project_id,)
             )
             if build is not None:
                 raise ValueError("projet déjà construit : suppression de compensation refusée")
-            deleted = self._connection.execute(
-                "DELETE FROM projects WHERE id = ? AND account_id = ?",
+            deleted = db.execute(
+                "DELETE FROM builder_projects WHERE id = ? AND account_id = ?",
                 (project_id, account_id),
             )
             return deleted.rowcount == 1
 
     def get_project(self, project_id):
-        with self._lock:
-            return self._project_row("SELECT * FROM projects WHERE id = ?", (project_id,))
+        with self._lock, self._connect() as db:
+            return self._project_row(
+                db, "SELECT * FROM builder_projects WHERE id = ?", (project_id,)
+            )
 
     def get_project_for_account(self, account, project_id):
-        with self._lock:
-            account_id = self._account_id(account)
+        with self._lock, self._connect() as db:
+            account_id = self._account_id(db, account)
             return self._project_row(
-                "SELECT * FROM projects WHERE id = ? AND account_id = ?",
+                db,
+                "SELECT * FROM builder_projects WHERE id = ? AND account_id = ?",
                 (project_id, account_id),
             )
 
     def list_projects(self, account):
-        with self._lock:
-            account_id = self._account_id(account)
+        with self._lock, self._connect() as db:
+            account_id = self._account_id(db, account)
             return self._project_rows(
-                "SELECT * FROM projects WHERE account_id = ? ORDER BY id", (account_id,)
+                db,
+                "SELECT * FROM builder_projects WHERE account_id = ? ORDER BY id",
+                (account_id,),
             )
 
     def list_all_projects(self):
-        with self._lock:
-            return self._project_rows("SELECT * FROM projects ORDER BY id")
+        with self._lock, self._connect() as db:
+            return self._project_rows(db, "SELECT * FROM builder_projects ORDER BY id")
 
     def list_projects_by_slug(self, slug):
         # COLLATE NOCASE, et pas seulement une comparaison sur la forme
         # canonique : les projets créés avant la normalisation portent encore
         # leur majuscule en base, et ce sont des sites déjà construits et déjà
         # payés. Une comparaison stricte les laisserait injoignables.
-        with self._lock:
+        with self._lock, self._connect() as db:
             return self._project_rows(
-                "SELECT * FROM projects WHERE slug = ? COLLATE NOCASE ORDER BY id",
+                db,
+                "SELECT * FROM builder_projects WHERE slug = ? COLLATE NOCASE ORDER BY id",
                 (normalize_slug(slug),),
             )
 
     def create_build(self, project_id):
         if isinstance(project_id, bool):
             raise ValueError("identifiant de projet invalide")
-        with self._lock, self._connection:
-            if self._row("SELECT id FROM projects WHERE id = ?", (project_id,)) is None:
+        with self._lock, self._connect() as db:
+            if self._row(
+                db, "SELECT id FROM builder_projects WHERE id = ?", (project_id,)
+            ) is None:
                 raise KeyError(f"projet introuvable : {project_id}")
-            cursor = self._connection.execute(
+            cursor = db.execute(
                 "INSERT INTO builds(project_id, state, created_at) VALUES (?, ?, ?)",
                 (project_id, "en_attente", _now()),
             )
             return cursor.lastrowid
 
     def start_build(self, build_id):
-        with self._lock, self._connection:
-            self._connection.execute(
+        with self._lock, self._connect() as db:
+            db.execute(
                 "UPDATE builds SET state = ?, started_at = ? WHERE id = ?",
                 ("en_cours", _now(), build_id),
             )
 
     def claim_next_build(self):
         """Réserve atomiquement la prochaine construction en attente."""
-        with self._lock, self._connection:
+        with self._lock, self._connect() as db:
             build = self._row(
+                db,
                 "SELECT * FROM builds WHERE state = 'en_attente' ORDER BY id LIMIT 1"
             )
             if build is None:
                 return None
-            updated = self._connection.execute(
+            updated = db.execute(
                 "UPDATE builds SET state = ?, started_at = ? "
                 "WHERE id = ? AND state = 'en_attente'",
                 ("en_cours", _now(), build["id"]),
@@ -441,14 +476,15 @@ class PlatformStore:
                 return None
             build["state"] = "en_cours"
             build["started_at"] = self._row(
+                db,
                 "SELECT started_at FROM builds WHERE id = ?", (build["id"],)
             )["started_at"]
             return build
 
     def recover_in_progress_builds(self, message="construction interrompue au redémarrage"):
         """Ne laisse jamais une construction abandonnée mentir en ``en_cours``."""
-        with self._lock, self._connection:
-            cursor = self._connection.execute(
+        with self._lock, self._connect() as db:
+            cursor = db.execute(
                 "UPDATE builds SET state = ?, finished_at = ?, error_message = ?, "
                 "warning_message = NULL "
                 "WHERE state = 'en_cours'",
@@ -476,8 +512,8 @@ class PlatformStore:
     ):
         if state not in {"reussie", "echouee"}:
             raise ValueError(f"état terminal invalide : {state}")
-        with self._lock, self._connection:
-            self._connection.execute(
+        with self._lock, self._connect() as db:
+            db.execute(
                 """UPDATE builds SET state = ?, run_id = ?, tokens_consumed = ?,
                    input_tokens = ?, output_tokens = ?, cost = ?, currency = ?,
                    price_status = ?, finished_at = ?, error_message = ?,
@@ -503,15 +539,16 @@ class PlatformStore:
             )
 
     def get_build(self, build_id):
-        with self._lock:
-            build = self._row("SELECT * FROM builds WHERE id = ?", (build_id,))
+        with self._lock, self._connect() as db:
+            build = self._row(db, "SELECT * FROM builds WHERE id = ?", (build_id,))
             if build is not None:
                 build["total_tokens"] = build["tokens_consumed"]
             return build
 
     def get_build_for_project(self, project_id, build_id):
-        with self._lock:
+        with self._lock, self._connect() as db:
             build = self._row(
+                db,
                 "SELECT * FROM builds WHERE id = ? AND project_id = ?",
                 (build_id, project_id),
             )
@@ -520,8 +557,9 @@ class PlatformStore:
             return build
 
     def list_builds(self, project_id):
-        with self._lock:
+        with self._lock, self._connect() as db:
             builds = self._rows(
+                db,
                 "SELECT * FROM builds WHERE project_id = ? ORDER BY id", (project_id,)
             )
             for build in builds:

@@ -67,7 +67,7 @@ def _price_table(path):
 
 @pytest.fixture()
 def platform(tmp_path):
-    store = PlatformStore(tmp_path / "platform.db")
+    store = PlatformStore(tmp_path)
     root = tmp_path / "projects"
     yield store, root
     store.close()

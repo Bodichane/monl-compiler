@@ -15,7 +15,7 @@ from monl_platform.store import PlatformStore, normalize_slug
 
 @pytest.fixture()
 def store(tmp_path):
-    return PlatformStore(tmp_path / "plateforme.db")
+    return PlatformStore(tmp_path)
 
 
 def test_un_slug_neuf_est_range_en_forme_canonique(store):
@@ -31,7 +31,7 @@ def test_un_projet_deja_en_base_avec_une_majuscule_reste_joignable(store, tmp_pa
     project_id = store.create_project("a@monl.test", "provisoire")
     # On remet la majuscule comme la faisait la version d'avant.
     raw = sqlite3.connect(store.database)
-    raw.execute("UPDATE projects SET slug = 'myOwn' WHERE id = ?", (project_id,))
+    raw.execute("UPDATE builder_projects SET slug = 'myOwn' WHERE id = ?", (project_id,))
     raw.commit()
     raw.close()
 
