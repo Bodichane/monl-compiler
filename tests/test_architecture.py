@@ -224,7 +224,10 @@ def test_aucune_exception_de_ruff_ne_vise_un_fichier_disparu():
     exceptions ont continué de vivre dans `pyproject.toml` en ne portant plus
     sur rien. Même famille que le contrat d'architecture devenu muet : ce qui
     cesse de regarder ne fait pas de bruit."""
-    import tomllib
+    try:
+        import tomllib
+    except ModuleNotFoundError:      # 3.10 : `tomllib` n'arrive qu'en 3.11
+        import tomli as tomllib      # noqa: I001  (déclaré dans l'extra `dev`)
 
     racine = os.path.join(os.path.dirname(__file__), "..")
     with open(os.path.join(racine, "pyproject.toml"), "rb") as fh:

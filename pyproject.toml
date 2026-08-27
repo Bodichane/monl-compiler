@@ -34,6 +34,11 @@ dev = [
     "mypy>=1.10,<2.0",       # contrats typés aux frontières de l'IR
     "vulture>=2.11,<3.0",    # recherche de code mort, revue manuelle conservée
     "requests>=2.31,<3.0",   # tests HTTP et fournisseurs frontend
+    # `tomllib` n'entre dans la bibliothèque standard qu'en 3.11, et le dépôt
+    # supporte 3.10 : test_architecture.py lit `per-file-ignores` pour vérifier
+    # qu'aucune exception de ruff ne vise un fichier disparu. SAUTER ce test
+    # sur 3.10 le rendrait muet là où il sert le plus (point 140).
+    "tomli>=2.0; python_version < '3.11'",
 ]
 postgres = [
     "psycopg>=3.1,<4.0",
