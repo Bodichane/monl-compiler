@@ -842,7 +842,10 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   les imports internes sont RELATIFS (`from .parser import …`) et les tests
   importent `monl.xxx` sans manipuler `sys.path` (voir `tests/conftest.py`).
   `src/monl/generator/` est un sous-package depuis la bêta 3 (l'ancien module de 1 307
-  lignes a été découpé) : `core.py` (état issu de l'AST, orchestration,
+  lignes a été découpé ; depuis le point 155, `routes.py` et `runtime.py` sont
+  eux aussi des familles de mixins — `routes_*.py` et `runtime_*.py` — et
+  `frontend_contract`, `smoke_test`, `cli`, `dialogue_engine`, `assets_tool`,
+  `design_system`, `validation_pipeline` sont des paquets) : `core.py` (état issu de l'AST, orchestration,
   `_compute_route_map`), `runtime.py` (socle du app.py généré : secret,
   `_connect`, init/migrations/seed, register/login/logout, quota),
   `routes.py` (une route par couple action/entité + contrôle d'accès),
@@ -982,6 +985,26 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   sur volume séparé, et la barrière de couverture a retrouvé sa portée
   déclarée — `--cov=src/monl` et non `--cov=src`, la plateforme étant rapportée
   sans être barrée. Voir point 142.
+- **POINT 155 : aucun fichier de `src/` ne dépasse 400 lignes, aucune fonction
+  non plus — et c'est VÉRIFIÉ.** `tests/test_architecture.py` porte trois
+  contrats : `PLAFOND_FICHIER`, `PLAFOND_FONCTION`, et **une exception doit
+  encore servir** (un fichier redevenu court, ou disparu, fait échouer). Les
+  deux seules exceptions sont des LITTÉRAUX de données et portent chacune leur
+  raison : `app_templates.py` (les dix modèles) et `parser/grammaire.py` (la
+  grammaire Lark, qui est UNE chaîne). Ne pas en ajouter sans raison écrite —
+  c'est la même discipline que les exceptions de `ruff` dans `pyproject.toml`.
+  Le plafond ne porte pas sur `tests/`, et c'est délibéré (un fichier de test
+  est une suite de cas, pas une pièce dont la complexité croît).
+  **Deux disciplines à ne pas réapprendre en cassant** : une découpe se donne
+  en INDEX D'INSTRUCTION et jamais en numéros de ligne (un numéro tombe au
+  milieu d'un `if`), et les coupes s'appliquent du BAS vers le HAUT (couper en
+  haut décale tout ce qui suit, en silence).
+  **Et deux pièges de Python** : `import a.b as a` lie le SOUS-MODULE — trois
+  tests de migration sont tombés sur « module 'importlib.util' has no attribute
+  'util' » ; et un `monkeypatch` vise le module où la fonction lit son global
+  (`monl.cli.construction.publish_files`), jamais le paquet — ré-exporter le
+  nom ferait passer le `setattr` sans atteindre l'appel, soit un test vert qui
+  ne vérifie plus rien (point 153). Voir point 155.
 - **POINT 110 : le parseur Lark est mis en cache** (`_get_parser`, parser.py) —
   construit une fois, pas à chaque `parse_monl_string`. La construction (~50 ms)
   dominait le parsing ; en cache, 0,4 ms/parse, et la suite est passée de ~344 s

@@ -98,7 +98,7 @@ workflow Gerer for Admin
     def fail_publish(*args, **kwargs):
         raise artifacts.ArtifactPublicationError("publication simulée")
 
-    monkeypatch.setattr("monl.cli.publish_files", fail_publish)
+    monkeypatch.setattr("monl.cli.construction.publish_files", fail_publish)
 
     with pytest.raises(artifacts.ArtifactPublicationError):
         compile_project(str(spec), str(tmp_path))

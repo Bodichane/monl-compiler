@@ -1,83 +1,8 @@
-"""Orchestration explicite des passes de validation de l'AST MONL.
+"""Une passe par famille de refus, dans l'ordre où le pilote les joue."""
 
-Les premières passes délèguent encore à des méthodes historiques de
-``MonlAST``. Cette frontière permet de les extraire une par une sans modifier
-l'ordre des contrôles ni les diagnostics visibles par l'utilisateur.
-"""
-
-from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Protocol
 
-
-class ValidationContext(Protocol):
-    """Surface dont les passes actuelles ont besoin."""
-
-    def _valider_contraintes_de_champ(self) -> None: ...
-
-    def _valider_controle_dacces(self) -> None: ...
-
-    def _valider_regle_public(self) -> None: ...
-
-    def _valider_regles_once_per(self) -> None: ...
-
-    def _valider_regle_restrictedTo(self) -> None: ...
-
-    def _valider_champs_masques(self) -> None: ...
-
-    def _valider_champs_categorises(self) -> None: ...
-
-    def _valider_champs_generes(self) -> None: ...
-
-    def _valider_champs_horodates(self) -> None: ...
-
-    def _valider_champs_numerotes(self) -> None: ...
-
-    def _valider_champs_enumeres(self) -> None: ...
-
-    def _valider_capacites_de_liste(self) -> None: ...
-
-    def _valider_requires_own_et_payable(self) -> None: ...
-
-    def _valider_champs_derives(self) -> None: ...
-
-    def _valider_champs_agreges(self) -> None: ...
-
-    def _valider_securite_calculs_paiement(self) -> None: ...
-
-    def _valider_effets_compteurs(self) -> None: ...
-
-    def _valider_proprietaire_paiement(self) -> None: ...
-
-    def _valider_regles_liberation(self) -> None: ...
-
-    def _valider_workflows_et_collisions(self) -> None: ...
-
-    def _valider_champs_uploades(self) -> None: ...
-
-    def _valider_ui_overrides(self) -> None: ...
-
-    def _valider_landing(self) -> None: ...
-
-    def _valider_capacites(self) -> None: ...
-
-    def _valider_regles_message(self) -> None: ...
-
-    def _valider_assets_et_seeds(self) -> None: ...
-
-    def _valider_migrations(self) -> None: ...
-
-    def _valider_regle_apres_paiement(self) -> None: ...
-
-    def _audit_security_rules(self) -> list[str]: ...
-
-    def _audit_self_registration(self) -> list[str]: ...
-
-
-class ValidationPass(Protocol):
-    name: str
-
-    def run(self, context: ValidationContext) -> list[str]: ...
+from .contrats import ValidationContext
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,7 +15,6 @@ class FieldConstraintValidationPass:
         context._valider_contraintes_de_champ()
         return []
 
-
 @dataclass(frozen=True, slots=True)
 class AccessControlValidationPass:
     """Construit et valide les politiques d'accès avant les règles de présentation."""
@@ -100,7 +24,6 @@ class AccessControlValidationPass:
     def run(self, context: ValidationContext) -> list[str]:
         context._valider_controle_dacces()
         return []
-
 
 @dataclass(frozen=True, slots=True)
 class PublicVisibilityValidationPass:
@@ -112,7 +35,6 @@ class PublicVisibilityValidationPass:
         context._valider_regle_public()
         return []
 
-
 @dataclass(frozen=True, slots=True)
 class OncePerValidationPass:
     """Valide les contraintes d'unicité métier liées au compte courant."""
@@ -122,7 +44,6 @@ class OncePerValidationPass:
     def run(self, context: ValidationContext) -> list[str]:
         context._valider_regles_once_per()
         return []
-
 
 @dataclass(frozen=True, slots=True)
 class RestrictedFieldValidationPass:
@@ -134,7 +55,6 @@ class RestrictedFieldValidationPass:
         context._valider_regle_restrictedTo()
         return []
 
-
 @dataclass(frozen=True, slots=True)
 class HiddenFieldValidationPass:
     """Prépare les champs masqués pour les validations et générateurs suivants."""
@@ -144,7 +64,6 @@ class HiddenFieldValidationPass:
     def run(self, context: ValidationContext) -> list[str]:
         context._valider_champs_masques()
         return []
-
 
 @dataclass(frozen=True, slots=True)
 class CategorizedFieldValidationPass:
@@ -156,7 +75,6 @@ class CategorizedFieldValidationPass:
         context._valider_champs_categorises()
         return []
 
-
 @dataclass(frozen=True, slots=True)
 class GeneratedFieldValidationPass:
     """Valide les champs remplis depuis l'identité de l'appelant."""
@@ -166,7 +84,6 @@ class GeneratedFieldValidationPass:
     def run(self, context: ValidationContext) -> list[str]:
         context._valider_champs_generes()
         return []
-
 
 @dataclass(frozen=True, slots=True)
 class TimestampFieldValidationPass:
@@ -178,7 +95,6 @@ class TimestampFieldValidationPass:
         context._valider_champs_horodates()
         return []
 
-
 @dataclass(frozen=True, slots=True)
 class NumberedFieldValidationPass:
     """Valide les identifiants lisibles gérés par le serveur."""
@@ -189,7 +105,6 @@ class NumberedFieldValidationPass:
         context._valider_champs_numerotes()
         return []
 
-
 @dataclass(frozen=True, slots=True)
 class EnumeratedFieldValidationPass:
     """Valide les champs texte limités à des valeurs explicites."""
@@ -199,7 +114,6 @@ class EnumeratedFieldValidationPass:
     def run(self, context: ValidationContext) -> list[str]:
         context._valider_champs_enumeres()
         return []
-
 
 @dataclass(frozen=True, slots=True)
 class ListQueryCapabilityValidationPass:
@@ -217,7 +131,6 @@ class ListQueryCapabilityValidationPass:
             validation()
         return []
 
-
 @dataclass(frozen=True, slots=True)
 class CreationPaymentPrerequisitePass:
     """Valide les prérequis de propriété et d'encaissement."""
@@ -227,7 +140,6 @@ class CreationPaymentPrerequisitePass:
     def run(self, context: ValidationContext) -> list[str]:
         context._valider_requires_own_et_payable()
         return []
-
 
 @dataclass(frozen=True, slots=True)
 class DerivedFieldValidationPass:
@@ -239,7 +151,6 @@ class DerivedFieldValidationPass:
         context._valider_champs_derives()
         return []
 
-
 @dataclass(frozen=True, slots=True)
 class AggregatedFieldValidationPass:
     """Valide les totaux calculés par agrégation de lignes enfants."""
@@ -249,7 +160,6 @@ class AggregatedFieldValidationPass:
     def run(self, context: ValidationContext) -> list[str]:
         context._valider_champs_agreges()
         return []
-
 
 @dataclass(frozen=True, slots=True)
 class CalculationPaymentSafetyPass:
@@ -261,7 +171,6 @@ class CalculationPaymentSafetyPass:
         context._valider_securite_calculs_paiement()
         return []
 
-
 @dataclass(frozen=True, slots=True)
 class CounterEffectValidationPass:
     """Valide les incréments et décréments déclenchés par les créations."""
@@ -271,7 +180,6 @@ class CounterEffectValidationPass:
     def run(self, context: ValidationContext) -> list[str]:
         context._valider_effets_compteurs()
         return []
-
 
 @dataclass(frozen=True, slots=True)
 class PayableOwnerValidationPass:
@@ -283,7 +191,6 @@ class PayableOwnerValidationPass:
         context._valider_proprietaire_paiement()
         return []
 
-
 @dataclass(frozen=True, slots=True)
 class ReleaseRuleValidationPass:
     """Valide les transitions qui rendent les compteurs consommés."""
@@ -293,7 +200,6 @@ class ReleaseRuleValidationPass:
     def run(self, context: ValidationContext) -> list[str]:
         context._valider_regles_liberation()
         return []
-
 
 @dataclass(frozen=True, slots=True)
 class WorkflowCollisionValidationPass:
@@ -311,7 +217,6 @@ class WorkflowCollisionValidationPass:
             upload_validation()
         return []
 
-
 @dataclass(frozen=True, slots=True)
 class UIOverrideValidationPass:
     """Valide les champs référencés par les préférences d'interface."""
@@ -321,7 +226,6 @@ class UIOverrideValidationPass:
     def run(self, context: ValidationContext) -> list[str]:
         context._valider_ui_overrides()
         return []
-
 
 @dataclass(frozen=True, slots=True)
 class LandingValidationPass:
@@ -333,7 +237,6 @@ class LandingValidationPass:
         context._valider_landing()
         return []
 
-
 @dataclass(frozen=True, slots=True)
 class CapabilityValidationPass:
     """Valide les capacités et leurs options d'authentification."""
@@ -343,7 +246,6 @@ class CapabilityValidationPass:
     def run(self, context: ValidationContext) -> list[str]:
         context._valider_capacites()
         return []
-
 
 @dataclass(frozen=True, slots=True)
 class MessageRuleValidationPass:
@@ -355,7 +257,6 @@ class MessageRuleValidationPass:
         context._valider_regles_message()
         return []
 
-
 @dataclass(frozen=True, slots=True)
 class AssetsSeedValidationPass:
     """Valide les assets locaux et les données de démonstration."""
@@ -365,7 +266,6 @@ class AssetsSeedValidationPass:
     def run(self, context: ValidationContext) -> list[str]:
         context._valider_assets_et_seeds()
         return []
-
 
 @dataclass(frozen=True, slots=True)
 class MigrationValidationPass:
@@ -377,7 +277,6 @@ class MigrationValidationPass:
         context._valider_migrations()
         return []
 
-
 @dataclass(frozen=True, slots=True)
 class PostPaymentValidationPass:
     """Valide les champs réservés à l'écriture après règlement."""
@@ -388,7 +287,6 @@ class PostPaymentValidationPass:
         context._valider_regle_apres_paiement()
         return []
 
-
 @dataclass(frozen=True, slots=True)
 class SecurityAuditPass:
     name: str = "security_audit"
@@ -396,54 +294,9 @@ class SecurityAuditPass:
     def run(self, context: ValidationContext) -> list[str]:
         return context._audit_security_rules()
 
-
 @dataclass(frozen=True, slots=True)
 class SelfRegistrationAuditPass:
     name: str = "self_registration_audit"
 
     def run(self, context: ValidationContext) -> list[str]:
         return context._audit_self_registration()
-
-
-@dataclass(frozen=True, slots=True)
-class ValidationPipeline:
-    passes: Sequence[ValidationPass]
-
-    def run(self, context: ValidationContext) -> list[str]:
-        reports = []
-        for validation_pass in self.passes:
-            reports.extend(validation_pass.run(context))
-        return reports
-
-
-DEFAULT_VALIDATION_PIPELINE = ValidationPipeline((
-    FieldConstraintValidationPass(),
-    AccessControlValidationPass(),
-    PublicVisibilityValidationPass(),
-    OncePerValidationPass(),
-    RestrictedFieldValidationPass(),
-    HiddenFieldValidationPass(),
-    CategorizedFieldValidationPass(),
-    GeneratedFieldValidationPass(),
-    TimestampFieldValidationPass(),
-    NumberedFieldValidationPass(),
-    EnumeratedFieldValidationPass(),
-    ListQueryCapabilityValidationPass(),
-    CreationPaymentPrerequisitePass(),
-    DerivedFieldValidationPass(),
-    AggregatedFieldValidationPass(),
-    CalculationPaymentSafetyPass(),
-    CounterEffectValidationPass(),
-    PayableOwnerValidationPass(),
-    ReleaseRuleValidationPass(),
-    WorkflowCollisionValidationPass(),
-    UIOverrideValidationPass(),
-    LandingValidationPass(),
-    CapabilityValidationPass(),
-    MessageRuleValidationPass(),
-    AssetsSeedValidationPass(),
-    MigrationValidationPass(),
-    PostPaymentValidationPass(),
-    SecurityAuditPass(),
-    SelfRegistrationAuditPass(),
-))
