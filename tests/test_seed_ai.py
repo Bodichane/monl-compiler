@@ -18,6 +18,8 @@ from monl.parser import parse_monl_string
 from monl_platform.app_templates import materialize_template
 from monl_platform.seed_ai import (
     MAX_FICHES,
+    SeedAIError,
+    _lignes_valides,
     blocs_de_la_reponse,
     personnaliser_le_jeu,
     prompt_de_contenu,
@@ -177,6 +179,23 @@ def test_le_brief_interdit_d_inventer_une_colonne_ou_une_image():
     assert "à l'identique" in prompt
     assert "VIDE" in prompt          # les colonnes d'image
     assert str(MAX_FICHES) in prompt
+
+
+def test_le_parseur_de_csv_refuse_les_blocs_vides_et_les_lignes_deformees():
+    colonnes = ("name", "price")
+
+    with pytest.raises(SeedAIError, match="bloc vide"):
+        _lignes_valides("", colonnes)
+    with pytest.raises(SeedAIError, match="aucune ligne"):
+        _lignes_valides("name,price\n", colonnes)
+    with pytest.raises(SeedAIError, match="colonnes"):
+        _lignes_valides("name,price\nPain,1.30,extra\n", colonnes)
+
+    entete, lignes = _lignes_valides(
+        " name , price \nPain,1.30\n", colonnes
+    )
+    assert entete == [" name ", " price "]
+    assert lignes == [["Pain", "1.30"]]
 
 
 # ---- Au niveau de la plateforme : ce qui est personnalisé, et ce qui ne l'est pas ----
