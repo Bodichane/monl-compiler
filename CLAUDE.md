@@ -1289,6 +1289,30 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   réintroduire `base_dir` dans `_valider` : le contrôle d'existence est ciblé
   sur ce que l'outil ÉCRIT, sinon `list` redevient incapable de rapporter un
   manquant et `add` redevient inutilisable sur une spec incomplète.
+- **POINT 154 : `generator/core.py` est réduit à `__init__` + sept mixins, et
+  `parser` est un PAQUET.** Les mixins de `generator/` :
+  `pipeline` (dont `_compute_route_map`), `modele`, `proprietaire` (dont
+  `_transitive_chain`, `_owner_lookup_sql`, `_identity_fk_columns`), `calculs`
+  (dont `_decrement_fk_column`), `paiement` (dont `_payment_locked_parents`),
+  `sql_colonnes`, `prealables`. Les sources UNIQUES citées plus bas dans ce
+  fichier ont donc changé de module, pas de rôle.
+  **LE PIÈGE À CONNAÎTRE POUR TOUT DÉCOUPAGE DE TRANSFORMATEUR LARK** :
+  `@v_args(inline=True)` porté par une CLASSE saute toute méthode héritée
+  (`name in libmembers and name not in cls.__dict__` → `continue`). Déplacer
+  les productions dans des mixins nus les aurait laissées non enveloppées :
+  elles auraient reçu une LISTE d'enfants au lieu d'arguments inlinés, sans
+  qu'une ligne ne lève. Chaque mixin hérite donc de `Transformer` et porte son
+  PROPRE `@v_args` — vérifié par exécution (73 productions, 73 enveloppées).
+  **Un décorateur de classe ne suit pas le code qu'on déplace.**
+  `parser/grammaire.py` dépasse 400 lignes À DESSEIN : la grammaire est UN
+  artefact déclaratif, Lark ignore l'ordre des règles, donc toute coupure
+  serait arbitraire. L'exception est écrite dans la docstring du fichier.
+  **Et la troisième forme du même défaut** (après 152 et 153) : deux
+  `per-file-ignores` de `pyproject.toml` visaient des fichiers devenus des
+  paquets — elles n'excusaient plus rien, et `ruff` ne se plaint pas d'un
+  chemin orphelin. Un témoin de `tests/test_architecture.py` le refuse
+  désormais. **Une garantie qui cesse de porter sur quoi que ce soit ne fait
+  aucun bruit : la suite reste verte les trois fois.**
 - **POINT 153 : `frontend_ai` est un PAQUET, et un remplacement d'attribut vise
   le module où le nom est CHERCHÉ.** Onze modules (`fondations`, `fournisseurs`,
   `reponse`, `squelette`, `controles_design`, `controles_fichiers`, `redaction`,

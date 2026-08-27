@@ -212,3 +212,28 @@ def test_le_socle_du_validateur_ne_lit_rien_de_son_paquet():
     assert not voisins, (
         "le socle lit son propre paquet : " + ", ".join(voisins)
         + " — il doit ne dépendre que de la stdlib et de `..errors`")
+
+
+def test_aucune_exception_de_ruff_ne_vise_un_fichier_disparu():
+    """Une exception `per-file-ignores` dont le chemin n'existe plus n'excuse
+    rien — elle fait croire qu'une règle est encore assouplie là où elle ne
+    l'est plus, et personne ne s'en aperçoit.
+
+    Le cas s'est produit deux fois d'un coup : `src/monl/parser.py` et
+    `src/monl/frontend_ai.py` sont devenus des PAQUETS, et leurs deux
+    exceptions ont continué de vivre dans `pyproject.toml` en ne portant plus
+    sur rien. Même famille que le contrat d'architecture devenu muet : ce qui
+    cesse de regarder ne fait pas de bruit."""
+    import tomllib
+
+    racine = os.path.join(os.path.dirname(__file__), "..")
+    with open(os.path.join(racine, "pyproject.toml"), "rb") as fh:
+        config = tomllib.load(fh)
+    ignores = (config.get("tool", {}).get("ruff", {}).get("lint", {})
+               .get("per-file-ignores", {}))
+    absents = [chemin for chemin in ignores
+               if not os.path.exists(os.path.join(racine, chemin))]
+    assert not absents, (
+        "exception ruff sur un fichier disparu : " + ", ".join(absents)
+        + " — la déplacer sur le nouveau chemin, ou la retirer si elle n'a "
+          "plus lieu d'être")

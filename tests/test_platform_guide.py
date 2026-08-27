@@ -18,15 +18,19 @@ from monl_platform.app import create_app
 from monl_platform.mcp_server import TOOLS
 from monl_platform.service import CompilationService
 
-GRAMMAIRE = "src/monl/parser.py"
-
 
 def _types_de_la_grammaire():
-    """Les types que le parseur accepte réellement, lus dans sa grammaire."""
-    import pathlib
+    """Les types que le parseur accepte réellement, lus dans sa grammaire.
 
-    source = (pathlib.Path(__file__).parent.parent / GRAMMAIRE).read_text(encoding="utf-8")
-    ligne = re.search(r'^\s*TYPE:\s*(.+)$', source, re.MULTILINE)
+    La grammaire est IMPORTÉE, plus lue par un chemin de fichier. Ce test
+    visait `src/monl/parser.py` et s'est cassé le jour où le parseur est
+    devenu un paquet — alors que la grammaire, elle, n'avait pas changé d'un
+    caractère. Importer la constante vise ce que Lark analyse VRAIMENT, et ne
+    dépend d'aucune arborescence : c'est aussi plus étroit, puisque la lecture
+    du fichier ramassait le reste du module au passage."""
+    from monl.parser import grammar
+
+    ligne = re.search(r'^\s*TYPE:\s*(.+)$', grammar, re.MULTILINE)
     assert ligne, "la règle TYPE a disparu de la grammaire"
     return set(re.findall(r'"([A-Za-z]+)"', ligne.group(1)))
 

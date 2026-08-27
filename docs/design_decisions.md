@@ -70,6 +70,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [151](#151-toute-boutique-vendait-des-théières) Toute boutique vendait des théières ·
 [152](#152-le-validateur-est-devenu-un-paquet-et-un-contrat-darchitecture-sest-tu) Le validateur est devenu un paquet, et un contrat d'architecture s'est tu ·
 [153](#153-le-garde-fou-dempreinte-nétait-plus-exercé-par-le-test-qui-le-nomme) Le garde-fou d'empreinte n'était plus exercé par le test qui le nomme ·
+[154](#154-un-décorateur-qui-saute-les-mixins-et-deux-exceptions-qui-nexcusaient-plus-rien) Un décorateur qui saute les mixins, et deux exceptions qui n'excusaient plus rien ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -10295,3 +10296,88 @@ publique se mesure sur l'arbre syntaxique, pas sur du texte.**
 
 Mesuré après découpage : 1 346 tests passés, 16 sautés, zéro échec, `ruff` à
 zéro, couverture du compilateur à 90,23 %.
+
+## 154. Un décorateur qui saute les mixins, et deux exceptions qui n'excusaient plus rien
+
+Suite des points 152 et 153. `generator/core.py` (1 360 lignes) tombe à 298 en
+sept mixins de plus dans le paquet `generator/` ; `parser.py` (1 016) devient
+`src/monl/parser/`, huit fichiers. Le compilateur passe de quatorze fichiers
+au-dessus de 400 lignes à dix.
+
+### Le défaut qui n'aurait pas planté
+
+`MonlTransformer` porte `@v_args(inline=True)` **sur la classe**. Déplacer ses
+74 productions dans des mixins aurait suffi à changer le SENS du parsing, sans
+qu'une seule ligne ne lève. La mise en œuvre de Lark, lue plutôt que
+supposée :
+
+```python
+libmembers = {name for _cls in mro[1:] for name, _ in getmembers(_cls)}
+if name.startswith('_') or (name in libmembers and name not in cls.__dict__):
+    continue          # une méthode héritée d'un mixin est SAUTÉE
+```
+
+Une méthode définie sur un mixin est dans `libmembers` et absente de
+`cls.__dict__` : elle n'est jamais enveloppée. Elle aurait donc reçu une LISTE
+d'enfants au lieu d'arguments inlinés — un transformateur qui tourne, ne lève
+rien, et rend n'importe quoi.
+
+Le remède : **chaque mixin hérite de `Transformer` et porte son propre
+`@v_args`.** Vérifié par exécution, parce que c'est le genre d'affirmation
+qu'on ne relit pas — 73 productions trouvées, 73 enveloppées, aucune nue
+(`_quantite` reste hors du compte : il commence par un souligné, donc Lark
+l'ignore, avant comme après). Puis un parse réel, puis les onze artefacts
+scellés.
+
+À retenir pour tout découpage à venir : **un décorateur de CLASSE ne suit pas
+le code qu'on déplace.** La question n'est pas « la classe a-t-elle encore ses
+méthodes » mais « le décorateur les voit-il encore ».
+
+### La grammaire reste entière, et c'est écrit
+
+`grammaire.py` fait 455 lignes et dépasse le seuil à dessein. Ce n'est pas du
+code : c'est UN artefact déclaratif, plus les commentaires qui justifient
+chaque production. Lark ignore l'ordre des règles, donc toute coupure serait
+arbitraire — et nuirait exactement à ce que la règle des 400 lignes protège,
+pouvoir lire d'un trait ce qui se lit d'un trait. L'exception vit dans la
+docstring du fichier : une règle qu'on enfreint sans le dire redevient une
+règle qu'on enfreint sans raison.
+
+### Deux exceptions de `ruff` devenues muettes
+
+`pyproject.toml` excusait `W293` sur `src/monl/parser.py` (les lignes vides de
+la grammaire PORTENT des espaces, y toucher changerait le texte que Lark
+analyse) et `E402` sur `src/monl/frontend_ai.py`. Les deux fichiers étaient
+devenus des PAQUETS aux points 153 et ici : les deux exceptions visaient un
+chemin qui n'existe plus. Elles n'excusaient plus rien, et **rien ne le
+signalait** — `ruff` ne se plaint pas d'un `per-file-ignores` orphelin.
+
+La première a été déplacée sur `parser/grammaire.py`. La seconde a été
+RETIRÉE : le paquet range les imports de chaque section dans l'en-tête de son
+propre module, donc il n'y a plus rien à excuser. Un témoin
+(`tests/test_architecture.py`) échoue désormais dès qu'une exception vise un
+fichier disparu ; contre-épreuve faite en remettant l'ancien chemin.
+
+C'est la troisième forme du même défaut en trois points : une garantie qui
+cesse de porter sur quoi que ce soit ne fait aucun bruit. Point 152, la liste
+des modules surveillés ; point 153, la cible d'un remplacement d'attribut ;
+ici, le chemin d'une exception de linter. **Chaque fois, la suite restait
+verte.**
+
+### Et un test qui lisait un chemin plutôt qu'une valeur
+
+`tests/test_platform_guide.py` vérifie que le guide de la plateforme documente
+EXACTEMENT les types de la grammaire, dans les deux sens. Il lisait
+`src/monl/parser.py` comme un fichier ; il importe désormais la constante
+`grammar`. Plus juste sur le fond : il vise ce que Lark analyse vraiment, au
+lieu de ramasser le reste du module au passage. Contre-épreuve faite dans les
+deux sens — un type inventé dans le guide, un type de la grammaire retiré du
+guide, chacun fait tomber le test avec le bon message.
+
+Un cycle évité au passage dans `generator/` : `BACKEND_ARTIFACTS` vivait dans
+`core.py` et n'est lu qu'à un seul endroit — il a suivi son lecteur dans
+`pipeline.py` plutôt que de faire réimporter `core` par un module que `core`
+importe.
+
+Mesuré : 1 346 tests passés, 16 sautés, zéro échec, `ruff` à zéro, couverture
+du compilateur à 90,28 %, onze empreintes d'artefacts identiques.
