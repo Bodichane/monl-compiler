@@ -22,6 +22,7 @@ import subprocess
 import sys
 import time
 
+import pytest
 import requests
 
 from monl_platform.identity import IdentityStore
@@ -315,3 +316,90 @@ def test_ladministration_nouvre_aucune_route(tmp_path):
         chemins = list(schema["paths"])
     assert not [chemin for chemin in chemins if "admin" in chemin.lower()], chemins
     assert "administration" not in json.dumps(schema).lower()
+
+
+def test_les_actions_de_la_cli_sont_aussi_verifiees_dans_le_processus(tmp_path, capsys):
+    """Les subprocess prouvent le geste complet ; ceci couvre ses décisions.
+
+    Une commande qui imprime le bon texte mais branche le mauvais argument
+    resterait autrement invisible à la couverture : ici chaque action lit ou
+    modifie le même magasin, et les assertions portent sur l'effet obtenu.
+    """
+    from argparse import Namespace
+
+    from monl_platform import administration
+    from monl_platform.service import CompilationService
+
+    magasin = IdentityStore(tmp_path)
+    service = CompilationService(tmp_path)
+    user = magasin.register("direct@exemple.test", MOT_DE_PASSE)
+    project_id = "projet-direct"
+    magasin.add_project(user["id"], project_id, "Projet direct")
+    key = magasin.create_api_key(user["id"], "poste")
+
+    assert administration._date(None) == "—"
+    assert administration._echeance(None) == "jamais"
+    assert administration._comptes(magasin, service, Namespace()) == 0
+    assert "direct@exemple.test" in capsys.readouterr().out
+
+    administration._compte(magasin, service, Namespace(email="direct@exemple.test"))
+    detail = capsys.readouterr().out
+    assert project_id in detail and key["id"] in detail
+    administration._projets(magasin, service, Namespace(compte=None))
+    assert project_id in capsys.readouterr().out
+
+    administration._codes(magasin, service,
+                          Namespace(email="direct@exemple.test"))
+    codes = [line.strip() for line in capsys.readouterr().out.splitlines()
+             if line.startswith("  ")]
+    assert len(codes) == 8
+    assert magasin.consume_recovery_code(
+        user["email"], codes[0], "Nouveau-MotDePasse-2026")
+
+    assert administration._prolonger(
+        magasin, service, Namespace(projet=project_id, jours=2, jamais=False)
+    ) == 0
+    assert administration._expirer(
+        magasin, service, Namespace(projet=project_id)
+    ) == 0
+    assert administration._revoquer(
+        magasin, service, Namespace(cle=key["id"])
+    ) == 0
+    assert administration._supprimer(
+        magasin, service,
+        Namespace(email="direct@exemple.test", confirmer=False)
+    ) == 1
+    capsys.readouterr()
+    assert administration._supprimer(
+        magasin, service,
+        Namespace(email="direct@exemple.test", confirmer=True)
+    ) == 0
+    assert magasin.compte_par_adresse("direct@exemple.test") is None
+
+
+def test_la_cli_nomme_les_entrees_invalides_et_les_positions_d_options(tmp_path, capsys):
+    from argparse import Namespace
+
+    from monl_platform import administration
+
+    magasin = IdentityStore(tmp_path)
+    with pytest.raises(SystemExit) as erreur:
+        administration._compte_ou_sortir(magasin, "absent@exemple.test")
+    assert erreur.value.code == 1
+    assert "Aucun compte" in capsys.readouterr().err
+
+    assert administration._prolonger(
+        magasin, None, Namespace(projet="absent", jours=30, jamais=False)
+    ) == 1
+    assert administration._expirer(
+        magasin, None, Namespace(projet="absent")
+    ) == 1
+    assert administration._revoquer(
+        magasin, None, Namespace(cle="absent")
+    ) == 1
+    capsys.readouterr()
+
+    # Le parseur accepte --workspace avant ET après le sous-verbe.
+    assert administration.main(["--workspace", str(tmp_path), "comptes"]) == 0
+    assert administration.main(["comptes", "--workspace", str(tmp_path)]) == 0
+    assert "Aucun compte" in capsys.readouterr().out

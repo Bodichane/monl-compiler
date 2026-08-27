@@ -84,15 +84,13 @@ jobs:
         # déclarée n'abaisse aucune exigence : le compilateur reste à 90,4 %.
         run: python -m pytest tests/ -q --cov=src/monl --cov-report=term-missing
 
-      - name: Couverture de la plateforme (mesurée, non barrée)
-        # La plateforme est RAPPORTÉE plutôt que cachée — mais elle n'est pas
-        # barrée, parce que le nombre serait faux. Ses garanties sont éprouvées
-        # contre de VRAIS serveurs lancés en sous-processus, que `coverage` ne
-        # voit pas : `app.py` sort à 38 % alors que chacune de ses routes est
-        # appelée pour de bon. Mesuré en écrivant cette étape : activer
-        # `COVERAGE_PROCESS_START` fait passer `__main__.py` de 0 % à 79 %,
-        # mais les serveurs uvicorn, tués par SIGTERM, n'écrivent toujours rien.
-        # Barrer sur 67 % ferait croire à une dette qui n'existe pas ; ne rien
-        # mesurer laisserait la vraie dette invisible.
-        run: python -m pytest tests/test_platform_*.py -q --cov=src/monl_platform
-             --cov-report=term --cov-fail-under=0
+      - name: Couverture de la plateforme (barrière à 90 %)
+        # Les garanties HTTP restent éprouvées contre de VRAIS serveurs
+        # éphémères. `tests/test_platform_couverture.py` rejoue en plus les
+        # mêmes effets dans l'ASGI du processus mesuré : les sous-processus
+        # uvicorn ne peuvent pas transmettre leurs lignes à cette mesure.
+        # Le seuil est le plancher entier de la mesure locale (90,24 %).
+        run: >-
+          python -m pytest tests/test_platform_*.py tests/test_oauth.py
+          tests/test_administration.py tests/test_codes_de_secours.py -q
+          --cov=src/monl_platform --cov-report=term --cov-fail-under=90

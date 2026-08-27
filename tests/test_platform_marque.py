@@ -106,7 +106,7 @@ def test_aucune_couleur_en_dur_hors_de_la_feuille():
     palette sans jamais échouer."""
     fautifs = {}
     for module in sorted(PAQUET.glob("*.py")):
-        if module.name == "theme.py":
+        if module.name in {"theme.py", "theme_fragments.py"}:
             continue
         trouvees = COULEUR.findall(module.read_text(encoding="utf-8"))
         if trouvees:
@@ -162,19 +162,19 @@ def test_le_fichier_de_marque_et_la_feuille_dessinent_le_meme_signe():
 # par mesurer des conteneurs, et un test qui se trompe sur une page correcte
 # apprend à ne plus lire les tests (point 57).
 CIBLES = [
-    (".navlinks a", "theme.py"),
-    (".primary, .secondary, .ghost, .nav-cta", "theme.py"),
-    (".icon-btn", "theme.py"),
-    (".copy", "theme.py"),
-    (".brand", "theme.py"),
-    (".toc a", "guide.py"),
-    (".rail button", "console.py"),
+    (".navlinks a", "theme_fragments.py"),
+    (".primary, .secondary, .ghost, .nav-cta", "theme_fragments.py"),
+    (".icon-btn", "theme_fragments.py"),
+    (".copy", "theme_fragments.py"),
+    (".brand", "theme_fragments.py"),
+    (".toc a", "guide_template.py"),
+    (".rail button", "console_template.py"),
     (".auth-tabs button", "account.py"),
     # Ajoutés APRÈS mesure au navigateur : la liste ne les contenait pas, donc
     # le test était vert pendant que treize liens de pied de page rendaient
     # 22,4 px sur CHAQUE page. Une garantie ne couvre que ce qu'on y inscrit.
-    (".footer nav a", "theme.py"),
-    (".service-status", "theme.py"),
+    (".footer nav a", "theme_fragments.py"),
+    (".service-status", "theme_fragments.py"),
     (".docs-nav a", "docs_page.py"),
 ]
 MINIMUM = 44
