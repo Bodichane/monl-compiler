@@ -6,6 +6,9 @@ large CSS and browser fragments are kept in a dedicated static module.
 
 from __future__ import annotations
 
+import os
+
+from .brand import BANNIERE, LETTRES, MARQUE_M
 from .theme_fragments import CSS, THEME_BOOT, THEME_TOGGLE
 
 ICON_THEME = (
@@ -40,38 +43,78 @@ def icon(name: str) -> str:
             f'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" '
             f'stroke-linejoin="round" aria-hidden="true">{path}</svg>')
 
-# Le signe assemble un « m » structurel et une barre de compilation. Les
-# formes sont des tracés, pas du texte : le dessin ne dépend d'aucune police.
+# Le « m » du logo, VECTORISÉ depuis l'artwork (voir brand.py). Un tracé, pas
+# du texte : le dessin ne dépend d'aucune police installée.
 LOGO_MARK = (
-    '<svg viewBox="0 0 48 48" role="img" aria-label="Monl">'
-    '<path d="M8 34V11h16v23M24 11h16v31" fill="none" stroke="currentColor" '
-    'stroke-width="4.4" stroke-linecap="butt" stroke-linejoin="miter"/>'
+    f'<svg viewBox="0 0 48 48" role="img" aria-label="Monl">'
+    f'<path d="{MARQUE_M}" fill="currentColor"/>'
     '</svg>'
 )
 
 # Le favicon, lui, ne peut PAS être en currentColor : il vit dans un onglet,
-# hors de toute page, sans couleur héritée. Il porte donc sa pastille et son
-# ambre en dur — c'est la seule place où un fond est justifié, et l'onglet
-# d'un navigateur en attend un.
+# hors de toute page, sans couleur héritée. Il porte donc sa pastille en dur —
+# c'est la seule place où un fond est justifié, et l'onglet d'un navigateur en
+# attend un.
 LOGO_SVG = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" '
     'aria-label="Monl">'
     '<rect width="48" height="48" rx="11" fill="#2e2b25"/>'
-    '<path d="M10 32V13h14v19M24 13h14v27" fill="none" stroke="#f9f4ed" '
-    'stroke-width="4" stroke-linecap="butt" stroke-linejoin="miter"/>'
+    f'<path d="{MARQUE_M}" fill="#f9f4ed"/>'
     '</svg>'
 )
 FAVICON = LOGO_SVG
 
+# Le wordmark est INLINE, et c'est un correctif, pas une préférence : en
+# `<img>`, la bannière garde son fond #2e2b25 quel que soit le thème — soit
+# 1,29:1 contre le fond sombre, un logo qui disparaît de l'en-tête (mesuré).
+# En SVG dans la page, les deux tons suivent les variables et s'inversent.
+WORDMARK = (
+    '<svg class="brand-wordmark" xmlns="http://www.w3.org/2000/svg" '
+    'viewBox="0 0 256 100" role="img" aria-label="monl">'
+    f'<path d="{BANNIERE}" fill="currentColor"/>'
+    f'<path d="{LETTRES}" fill="var(--bg)" fill-rule="evenodd"/>'
+    '</svg>'
+)
+
 
 def _brand() -> str:
-    return ('<img class="brand-wordmark" src="/brand/monl-wordmark.png" '
-            'width="256" height="100" alt="">')
+    return WORDMARK
 
 
 def _lien(href: str, libelle: str, actif: str, cle: str) -> str:
     courant = ' aria-current="page"' if actif == cle else ""
     return f'<a href="{href}"{courant}>{libelle}</a>'
+
+
+def _social(title: str, description: str) -> str:
+    """Les balises de partage.
+
+    Sans elles, une adresse collée dans Slack, X ou WhatsApp n'affiche qu'un
+    lien nu. L'image doit être ABSOLUE pour qu'un robot la récupère : elle
+    n'est donc émise que si `MONL_PLATFORM_PUBLIC_URL` est déclarée — jamais
+    devinée depuis l'en-tête `Host`, qu'un tiers contrôle (même frontière
+    qu'au point 145 pour l'adresse de retour OAuth)."""
+    base = (os.environ.get("MONL_PLATFORM_PUBLIC_URL") or "").rstrip("/")
+    commun = (
+        f'<meta property="og:type" content="website">'
+        f'<meta property="og:site_name" content="monl compiler">'
+        f'<meta property="og:title" content="{title}">'
+        f'<meta property="og:description" content="{description}">'
+        f'<meta property="og:locale" content="fr_FR">'
+        f'<meta name="twitter:title" content="{title}">'
+        f'<meta name="twitter:description" content="{description}">'
+    )
+    if not base:
+        return commun + '<meta name="twitter:card" content="summary">'
+    return (commun
+            + f'<meta property="og:url" content="{base}/">'
+            + f'<meta property="og:image" content="{base}/brand/monl-social.png">'
+            + '<meta property="og:image:width" content="1200">'
+            + '<meta property="og:image:height" content="630">'
+            + '<meta property="og:image:alt" content="monl — le backend est '
+              'compilé, pas improvisé">'
+            + '<meta name="twitter:card" content="summary_large_image">'
+            + f'<meta name="twitter:image" content="{base}/brand/monl-social.png">')
 
 
 def page(*, title: str, description: str, body: str, active: str = "",
@@ -85,6 +128,7 @@ def page(*, title: str, description: str, body: str, active: str = "",
 <meta name="description" content="{description}">
 <meta name="theme-color" content="#171512" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#f9f4ed" media="(prefers-color-scheme: light)">
+{_social(title, description)}
 <title>{title}</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <script>{THEME_BOOT}</script>

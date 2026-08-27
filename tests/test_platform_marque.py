@@ -205,3 +205,61 @@ def test_les_cibles_tactiles_font_au_moins_44px(selecteur, module):
         "supprimer la garantie")
     assert hauteur >= MINIMUM, (
         f"`{selecteur}` ({module}) : {hauteur}px, il en faut {MINIMUM}")
+
+
+def test_le_wordmark_suit_le_theme_au_lieu_de_porter_son_fond():
+    """Le défaut mesuré : en `<img>`, la bannière du logo garde son fond
+    #2e2b25 quel que soit le thème — soit 1,29:1 contre la page sombre, un
+    logo littéralement invisible dans l'en-tête. Un raster ne peut pas suivre
+    un thème ; c'est la raison du SVG en ligne, pas une préférence.
+
+    Le test porte donc sur le MOYEN autant que sur le résultat : revenir à une
+    balise `<img>` reperdrait la garantie sans qu'aucune couleur ne change."""
+    assert "<img" not in theme.WORDMARK, (
+        "un raster ne suit aucun thème — le wordmark doit rester en SVG inline")
+    assert "currentColor" in theme.WORDMARK, "la bannière doit hériter du texte"
+    assert "var(--bg)" in theme.WORDMARK, "les lettres doivent creuser dans le fond"
+    assert not COULEUR.findall(theme.WORDMARK), (
+        f"couleur figée dans le wordmark : {COULEUR.findall(theme.WORDMARK)}")
+    assert theme.WORDMARK in theme.page(title="t", description="d", body=""), (
+        "le wordmark n'est pas servi dans la page")
+
+
+@pytest.mark.parametrize("theme_nom", ["clair", "sombre"])
+def test_le_wordmark_reste_lisible_dans_les_deux_themes(theme_nom):
+    """La bannière prend `--ink`, les lettres `--bg` : l'inversion est
+    automatique, mais elle n'est vraie que si les deux couples tiennent."""
+    palette = _blocs()[theme_nom]
+    banniere = contraste(palette["ink"], palette["bg"])
+    assert banniere >= 4.5, (
+        f"[{theme_nom}] bannière {palette['ink']} sur page {palette['bg']} : "
+        f"{banniere:.2f}:1")
+
+
+def test_les_traces_de_marque_ne_portent_aucune_couleur():
+    """`brand.py` est de la DONNÉE : les couleurs se composent dans theme.py.
+
+    Exempter un fichier de plus de la règle « aucune couleur en dur » élargirait
+    la porte que `test_aucune_couleur_en_dur_hors_de_la_feuille` ferme — c'est
+    pourquoi les tracés en sortent au lieu d'y entrer."""
+    from monl_platform import brand
+    source = pathlib.Path(brand.__file__).read_text(encoding="utf-8")
+    assert not COULEUR.findall(source), COULEUR.findall(source)
+    for nom in ("BANNIERE", "LETTRES", "MARQUE_M"):
+        assert getattr(brand, nom).startswith("M"), f"{nom} n'est pas un tracé"
+
+
+def test_les_balises_de_partage_ninventent_aucune_adresse(monkeypatch):
+    """Une image de partage doit être ABSOLUE pour qu'un robot la récupère.
+    La déduire de l'en-tête `Host` la ferait pointer où un tiers veut — même
+    frontière qu'au point 145 pour l'adresse de retour OAuth. Sans URL publique
+    déclarée, monl se tait plutôt que de deviner."""
+    monkeypatch.delenv("MONL_PLATFORM_PUBLIC_URL", raising=False)
+    muet = theme.page(title="t", description="d", body="")
+    assert "og:image" not in muet, "une image de partage a été inventée"
+    assert 'name="twitter:card" content="summary"' in muet
+
+    monkeypatch.setenv("MONL_PLATFORM_PUBLIC_URL", "https://exemple.test/")
+    parlant = theme.page(title="t", description="d", body="")
+    assert 'content="https://exemple.test/brand/monl-social.png"' in parlant
+    assert 'content="summary_large_image"' in parlant

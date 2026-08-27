@@ -5,6 +5,7 @@ personne qui l'ignore avait la console en pleine figure, sans un mot sur le
 produit ni le moindre moyen de l'installer.
 """
 
+import pathlib
 import re
 import socket
 import threading
@@ -108,6 +109,12 @@ def test_toute_url_sortante_est_un_lien_et_rien_d_autre(platform):
     for position in (m.start() for m in re.finditer(r"https?://", sans_commentaires)):
         debut = sans_commentaires.rfind("<", 0, position)
         balise = sans_commentaires[debut:position]
+        # UNE exemption, et elle est étroite : `xmlns` d'un SVG en ligne est un
+        # espace de NOMS, pas une adresse — aucun navigateur ne va la chercher.
+        # L'exemption porte sur l'attribut, jamais sur le domaine : écrire
+        # « sauf w3.org » laisserait passer une vraie requête vers w3.org.
+        if re.search(r"\bxmlns(:\w+)?\s*=\s*['\"]$", balise):
+            continue
         assert re.match(r"<a\b[^>]*\bhref\s*=\s*['\"]$", balise), (
             "URL sortante hors d'un lien : "
             + sans_commentaires[position:position + 60]
@@ -223,3 +230,75 @@ def test_un_contenu_anime_reste_montrable_si_l_observateur_se_tait():
     assert "data-reveal" in LANDING_HTML
     assert "IntersectionObserver" in LANDING_HTML
     assert "is-visible" in LANDING_HTML
+
+
+# ---------------------------------------------------------------------------
+# Les trois sections de positionnement (« pourquoi », « vs », « ensemble »)
+# ---------------------------------------------------------------------------
+
+def test_les_trois_questions_du_visiteur_ont_leur_section():
+    """Le site disait CE QUE monl fait sans jamais dire pourquoi celui-ci,
+    en quoi il diffère de ce qu'on connaît, ni s'il faut choisir."""
+    for ancre in ("pourquoi-title", "compare-title", "ensemble-title"):
+        assert f'id="{ancre}"' in LANDING_HTML, f"section absente : {ancre}"
+
+
+def test_la_comparaison_dit_aussi_ce_que_monl_napporte_pas():
+    """Une comparaison qui n'énumère que ses victoires est une comparaison
+    qu'on cesse de croire à la première vérification. La ligne des limites
+    n'est pas une politesse : c'est ce qui rend le reste lisible."""
+    from monl_platform.landing_pourquoi import COMPARAISON
+    axes = [axe for axe, _eux, _nous in COMPARAISON]
+    assert "Ce qu'il n'apporte pas" in axes, axes
+    limites = next(nous for axe, _e, nous in COMPARAISON
+                   if axe == "Ce qu'il n'apporte pas")
+    for absent in ("hébergement", "temps réel", "stockage"):
+        assert absent in limites, f"limite non énoncée : {absent}"
+    assert limites in LANDING_HTML, "la ligne des limites n'est pas servie"
+
+
+def test_aucun_jugement_de_valeur_dans_la_comparaison():
+    """Chaque ligne doit être un FAIT vérifiable des deux côtés. « Plus
+    simple », « plus moderne », « plus sûr » ne se vérifient pas et ne
+    survivent pas à un lecteur qui connaît l'autre produit."""
+    from monl_platform.landing_pourquoi import COMPARAISON
+    interdits = ("plus simple", "plus moderne", "plus sûr", "plus rapide",
+                 "meilleur", "supérieur", "obsolète")
+    texte = " ".join(f"{a} {b} {c}".lower() for a, b, c in COMPARAISON)
+    fautifs = [mot for mot in interdits if mot in texte]
+    assert not fautifs, f"jugement de valeur dans la comparaison : {fautifs}"
+
+
+def test_la_promesse_postgresql_du_site_est_couverte_par_un_test():
+    """Le site affirme qu'un backend généré tourne sur le Postgres d'un
+    fournisseur managé. Un document se garde comme du code (point 141) : la
+    promesse doit pointer sur une épreuve qui existe, sinon elle vieillit en
+    silence jusqu'à devenir fausse."""
+    from monl_platform.landing_pourquoi import MONTAGES
+    montage = next(m for m in MONTAGES if m["etat"] == "verifie"
+                   and "MONL_DATABASE_URL" in m["texte"])
+    assert "postgresql://" in (montage["code"] or "")
+
+    epreuve = pathlib.Path(__file__).with_name("test_postgresql.py")
+    assert epreuve.exists(), "la promesse ne pointe sur aucune épreuve"
+    source = epreuve.read_text(encoding="utf-8")
+    assert "MONL_DATABASE_URL" in source, (
+        "l'épreuve ne démarre pas les artefacts avec la variable annoncée")
+
+
+def test_chaque_exploit_cite_le_point_qui_le_documente():
+    """Les trois refus affichés sont des défauts RÉELS. Chacun renvoie à son
+    point du journal : une page qui raconte des attaques sans source est une
+    page de marketing, pas une preuve."""
+    import re as _re
+
+    from monl_platform.landing_pourquoi import REFUS
+    journal = (pathlib.Path(__file__).parents[1]
+               / "docs" / "design_decisions.md").read_text(encoding="utf-8")
+    for refus in REFUS:
+        numeros = _re.findall(r"\d+", refus["point"])
+        assert numeros, refus["point"]
+        for numero in numeros:
+            assert f"\n## {numero}." in journal, (
+                f"point {numero} cité par « {refus['titre']} » absent du journal")
+        assert refus["titre"] in LANDING_HTML

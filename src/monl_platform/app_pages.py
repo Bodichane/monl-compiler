@@ -24,6 +24,7 @@ from .security import SECURITY_HTML
 from .theme import FAVICON, LOGO_SVG
 
 WORDMARK = Path(__file__).with_name("static") / "monl-wordmark.png"
+SOCIAL = Path(__file__).with_name("static") / "monl-social.png"
 GUIDE_HTML = guide_html()
 
 
@@ -102,6 +103,15 @@ def mount_page_routes(application: FastAPI, identities: IdentityStore, service):
     def wordmark():
         return FileResponse(
             WORDMARK, media_type="image/png",
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
+
+    @application.get("/brand/monl-social.png", include_in_schema=False)
+    def social():
+        """L'image des cartes de partage. Raster obligatoire : aucun robot
+        social ne rend un SVG."""
+        return FileResponse(
+            SOCIAL, media_type="image/png",
             headers={"Cache-Control": "public, max-age=86400"},
         )
 

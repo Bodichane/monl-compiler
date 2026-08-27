@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from . import examples
+from . import examples, landing_pourquoi
 from .theme import icon, page
 
 EXTRA_CSS = """
@@ -275,6 +275,7 @@ et le contrat destiné à votre interface.</p>
 <article class="flow-stage"><span class="stage-no">03 · INTERFACES</span><h3>Chaque expérience</h3><p>Web, mobile et agents utilisent les mêmes routes et autorisations sans les deviner.</p><div class="stage-tags"><span>web</span><span>mobile</span><span>MCP</span></div></article>
 </div></section>
 
+{landing_pourquoi.SECTIONS}
 <section class="band"><div class="shell section editorial">
 <div class="section-head" data-reveal><span class="eyebrow">Garanties vérifiables</span>
 <h2>La sécurité n’est pas une consigne donnée au frontend.</h2>
@@ -336,6 +337,6 @@ LANDING_HTML = page(
     description="Monl compile vos règles métier en backend autonome et contrat frontend vérifiable.",
     body=BODY,
     active="home",
-    extra_css=EXTRA_CSS,
+    extra_css=EXTRA_CSS + landing_pourquoi.EXTRA_CSS,
     scripts=CASE_SCRIPT,
 )
