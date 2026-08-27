@@ -302,3 +302,81 @@ def test_chaque_exploit_cite_le_point_qui_le_documente():
             assert f"\n## {numero}." in journal, (
                 f"point {numero} cité par « {refus['titre']} » absent du journal")
         assert refus["titre"] in LANDING_HTML
+
+
+def _specificite(selecteur: str) -> tuple:
+    """Rend (id, classe/attribut/pseudo-classe, type) d'un sélecteur.
+
+    Volontairement modeste : elle ne sait compter que des suites de classes,
+    d'attributs et de types. `:is()`, `:not()` et `:where()` délèguent leur
+    poids à leur contenu, donc leur présence ferait mal compter — l'assertion
+    de forme les refuse plutôt que de rendre un chiffre faux.
+    """
+    for delegue in (":is(", ":not(", ":where(", ":has("):
+        assert delegue not in selecteur, f"poids délégué non calculé : {delegue}"
+    reste, attributs = re.subn(r"\[[^\]]*\]", " ", selecteur)
+    identifiants = len(re.findall(r"#[-\w]+", reste))
+    classes = len(re.findall(r"\.[-\w]+", reste))
+    pseudo_classes = len(re.findall(r"(?<!:):[-\w]+", reste))
+    types = len(re.findall(r"(?:^|[\s>+~])([a-zA-Z][-\w]*)", reste))
+    return (identifiants, classes + attributs + pseudo_classes, types)
+
+
+def test_le_repere_qui_glisse_emporte_le_fond_de_l_onglet():
+    """Le fond de l'onglet actif est CÉDÉ au repère mobile.
+
+    Cette cascade n'a pas pu être mesurée au navigateur — le volet masqué ne
+    recalcule pas le style, et lit la même valeur avec et sans la classe. Elle
+    est donc calculée : le sélecteur qui cède le fond doit être plus FORT et
+    écrit APRÈS celui qui le pose. Sans les deux, l'onglet quitté s'éteint en
+    .18s pendant que le repère met .34s à arriver, et les deux mouvements se
+    contredisent à l'œil.
+    """
+    pose = '.case-tab[aria-selected="true"]'
+    cede = '.case-tabs.glisse .case-tab[aria-selected="true"]'
+
+    assert LANDING_HTML.count(cede) == 1, "la règle qui cède le fond a disparu"
+    assert _specificite(cede) > _specificite(pose), (
+        f"{cede} ne l'emporte plus sur {pose}")
+    assert LANDING_HTML.index(cede) > LANDING_HTML.index(pose), (
+        "la règle qui cède le fond est passée AVANT celle qui le pose")
+
+
+def test_le_repere_n_est_jamais_servi_dans_le_html(platform):
+    """Le repère est POSÉ par le script, jamais livré dans le balisage.
+
+    Livré d'avance, il s'afficherait dans l'angle de la liste chez qui
+    n'exécute pas le script — un rectangle posé sur rien — et l'onglet actif
+    aurait cédé son fond sans que rien ne le remplace.
+    """
+    page = requests.get(platform, timeout=10).text
+    # Retirer TOUS les scripts et TOUTES les feuilles, pas s'arrêter au premier
+    # script : celui du thème vit dans le <head>, donc découper là laissait le
+    # balisage des onglets entièrement hors de portée — le test restait vert en
+    # servant le repère.
+    balisage = re.sub(r"<(script|style)\b.*?</\1>", " ", page, flags=re.S | re.I)
+
+    assert "case-explorer" in balisage, "le découpage a emporté les onglets"
+    assert "case-repere" not in balisage, "le repère est servi dans le balisage"
+    assert "glisse" not in balisage, "la classe qui cède le fond est servie"
+    assert "case-repere" in page, "plus personne ne pose le repère"
+
+
+def test_la_bascule_de_theme_n_anime_pas_qui_refuse_le_mouvement():
+    """Le refus du mouvement est tenu en JavaScript, faute de pouvoir l'être
+    en CSS : le bloc @media porte sur `*`, qui n'atteint aucun
+    `::view-transition-*`. La bascule doit aussi rester fonctionnelle là où
+    l'API n'existe pas — sinon le thème cesse de basculer.
+    """
+    garde = re.search(
+        r"if\s*\(\s*!document\.startViewTransition\s*\|\|\s*(\w+)\.matches\s*\)"
+        r"\s*\{\s*basculer\(\)\s*;\s*return\s*;\s*\}",
+        LANDING_HTML,
+    )
+    assert garde, "la bascule s'anime sans vérifier l'API ni le mouvement réduit"
+
+    nom = garde.group(1)
+    assert re.search(
+        rf"var\s+{nom}\s*=\s*window\.matchMedia\(\s*'\(prefers-reduced-motion: reduce\)'\s*\)",
+        LANDING_HTML,
+    ), f"« {nom} » n'interroge pas le mouvement réduit"

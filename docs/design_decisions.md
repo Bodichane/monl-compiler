@@ -72,6 +72,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [153](#153-le-garde-fou-dempreinte-nétait-plus-exercé-par-le-test-qui-le-nomme) Le garde-fou d'empreinte n'était plus exercé par le test qui le nomme ·
 [154](#154-un-décorateur-qui-saute-les-mixins-et-deux-exceptions-qui-nexcusaient-plus-rien) Un décorateur qui saute les mixins, et deux exceptions qui n'excusaient plus rien ·
 [155](#155-cinq-angles-morts-dans-lanalyse-qui-découpe-et-un-plafond-qui-nexistait-pas) Cinq angles morts dans l'analyse qui découpe, et un plafond qui n'existait pas ·
+[156](#156-un-repère-qui-glisse-une-bascule-qui-révèle-et-un-volet-qui-ment) Un repère qui glisse, une bascule qui révèle, et un volet qui ment ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -10488,3 +10489,71 @@ Les cinq contre-épreuves ont été jouées : plafond abaissé, exception sur un
 fichier disparu, exception sur un fichier redevenu court, exception sans
 raison. Toutes échouent comme elles le doivent — un garde-fou qu'on n'a pas vu
 refuser n'est pas un garde-fou (point 145).
+
+## 156. Un repère qui glisse, une bascule qui révèle, et un volet qui ment
+
+Deux motifs d'interface ajoutés à la plateforme, et une leçon d'outillage qui
+vaut plus que les deux.
+
+**Le repère qui glisse** (motif de transitions.dev). Les onglets des cas métier
+changeaient de fond d'un coup : l'onglet quitté s'éteignait, l'onglet pris
+s'allumait, rien ne reliait les deux. Un repère unique — un seul `<span>` posé
+dans la liste — porte désormais le fond de l'onglet actif et se déplace de l'un
+à l'autre. Il est **posé par le script, jamais servi dans le balisage** : livré
+d'avance, il s'afficherait dans l'angle de la liste chez qui n'exécute pas le
+script, et l'onglet actif aurait cédé son fond sans que rien ne le remplace.
+C'est la classe `glisse`, ajoutée par le même script, qui autorise la cession.
+
+Une seule mesure suffit aux deux mises en page : `offsetLeft`/`offsetTop` se
+comptent depuis le bord de PADDING du parent positionné, exactement là où
+`top:0; left:0` pose un absolu, et l'onglet vit dans la boîte de CONTENU — donc
+`offsetLeft` vaut le padding (12 px mesurés) et le `translate` reconduit le
+repère pile sur l'onglet. Écart mesuré au navigateur : 0,0. La colonne
+verticale du bureau et la rangée horizontale du mobile sont couvertes sans une
+ligne de plus, et le repère est replacé au redimensionnement — sans animation,
+comme au premier placement, sinon il traverse la liste au chargement.
+
+**La bascule qui révèle** (motif de beUI). Le thème basculait sèchement ; il
+s'ouvre maintenant en cercle depuis le bouton, par l'API View Transition. Le
+fondu par défaut de l'API est retiré : les deux calques restent opaques et
+c'est le `clip-path` du nouveau qui découvre la page. **Le refus du mouvement
+ne peut PAS être tenu en CSS ici** — le bloc `@media (prefers-reduced-motion)`
+de la plateforme porte sur `*`, qui n'atteint aucun `::view-transition-*`. Il
+est donc tenu en JavaScript, avant même d'ouvrir la transition, et la même
+garde couvre l'absence de l'API : là où elle manque, le thème bascule quand
+même. Sans cette seconde moitié, la bascule cesserait simplement de marcher.
+
+**Et le volet qui ment.** Le volet Navigateur masqué **ne recalcule pas le
+style**. Un style posé EN LIGNE ne changeait pas la valeur rendue par
+`getComputedStyle` ; un clone inséré dans le corps lisait la même couleur avec
+et sans la classe qu'on lui ajoutait. Trois sondages successifs ont donc
+« prouvé » des choses fausses — d'abord que les onze types d'éléments
+interactifs n'avaient aucun anneau de focus (un `.focus()` scripté ne déclenche
+pas `:focus-visible`, et ma boucle de correspondance sautait le sélecteur nu),
+puis que la règle qui cède le fond ne mordait pas. Après correction, les
+anneaux sont à 6,52:1 au pire en clair et 7,5:1 en sombre, très au-dessus des
+3:1 de WCAG 2.2 SC 1.4.11 : il n'y avait aucun défaut.
+
+Ce qui se mesure dans ce volet, c'est la GÉOMÉTRIE (les rectangles étaient
+justes et concordants) ; ce qui ne s'y mesure pas, c'est la CASCADE. La cascade
+est donc **calculée dans un test** : `_specificite()` compte le sélecteur qui
+cède le fond et celui qui le pose, et exige que le premier soit plus fort ET
+écrit après. Elle refuse de compter `:is()`, `:not()`, `:where()` et `:has()`,
+dont le poids se délègue à leur contenu — mieux vaut une assertion qui s'arrête
+qu'un chiffre faux.
+
+**La contre-épreuve qui n'a pas mordu.** Le test qui interdit de servir le
+repère dans le balisage découpait la page sur `page.split("<script")[0]`. Or le
+script du thème vit dans le `<head>` : le découpage s'arrêtait avant tout le
+corps, et le test restait VERT en servant le repère en dur. Il retire désormais
+tous les `<script>` ET tous les `<style>` — la feuille contient les sélecteurs
+qu'on cherche, l'oublier aurait rendu le test rouge en permanence. Quatrième
+forme du même défaut après les points 152, 153 et 154 : **une garantie qui ne
+porte sur rien ne fait aucun bruit.**
+
+**Au passage.** Un commentaire CSS écrit « la règle @media ci-dessus » a fait
+tomber `test_la_confidentialite_garde_ladresse_ou_lon_exerce_ses_droits` : la
+feuille est inlinée dans TOUTES les pages, et ce test interdit « ci-dessus »
+dans la page de confidentialité pour empêcher un renvoi pendant. Le test avait
+raison, la formulation était en tort. Un commentaire de code livré au
+navigateur est du CONTENU de page.

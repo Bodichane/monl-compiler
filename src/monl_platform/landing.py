@@ -77,10 +77,28 @@ EXTRA_CSS = """
 .principle p { color:var(--muted); margin:0; }
 .case-explorer { display:grid; grid-template-columns:minmax(230px,.7fr) minmax(0,1.55fr); border:1px solid var(--line);
   border-radius:var(--radius-lg); overflow:hidden; min-height:560px; }
-.case-tabs { background:var(--surface-2); border-right:1px solid var(--line); padding:12px; }
-.case-tab { width:100%; border:0; border-radius:10px; padding:16px; background:transparent; color:var(--muted); text-align:left;
+.case-tabs { position:relative; background:var(--surface-2); border-right:1px solid var(--line); padding:12px; }
+.case-tab { position:relative; z-index:1; width:100%; border:0; border-radius:10px; padding:16px; background:transparent; color:var(--muted); text-align:left;
   cursor:pointer; display:block; transition:background .18s,color .18s; }
 .case-tab:hover { color:var(--ink); }.case-tab[aria-selected="true"] { background:var(--surface); color:var(--ink); }
+/* Le fond de l'onglet actif devient un repère unique qui GLISSE d'un onglet à
+   l'autre. Il n'est cédé que si le script a réellement posé le repère
+   (classe `glisse`) : sans JavaScript, la règle `[aria-selected]` reste seule
+   et l'onglet garde son fond. Sa spécificité est plus forte (0,3,1 contre 0,2,1),
+   donc l'ordre des règles n'a pas à être défendu. */
+.case-tabs.glisse .case-tab[aria-selected="true"] { background:transparent; }
+/* Et le fond de l'onglet cesse d'être animé dès que le repère prend le relais :
+   sans ça, l'onglet quitté s'éteint en .18s pendant que le repère met .34s à
+   arriver, et les deux mouvements se contredisent. */
+.case-tabs.glisse .case-tab { transition:color .18s; }
+.case-repere {
+  position:absolute; top:0; left:0; z-index:0; pointer-events:none;
+  width:var(--repere-w,0); height:var(--repere-h,0);
+  transform:translate(var(--repere-x,0), var(--repere-y,0));
+  background:var(--surface); border-radius:10px;
+  transition:transform .34s cubic-bezier(.4,0,.2,1), width .34s cubic-bezier(.4,0,.2,1),
+             height .34s cubic-bezier(.4,0,.2,1);
+}
 .case-tab b { display:block; margin-bottom:4px; font-size:15px; }.case-tab span { font-size:12px; line-height:1.4; display:block; }
 .case-panels { min-width:0; background:var(--surface); }
 .case-panel { display:none; min-height:100%; padding:clamp(28px,5vw,58px); }
@@ -305,6 +323,30 @@ CASE_SCRIPT = """<script>
 (function () {
   var tabs = Array.from(document.querySelectorAll('.case-tab'));
   var panels = Array.from(document.querySelectorAll('.case-panel'));
+  var liste = document.querySelector('.case-tabs');
+  var repere = null;
+  if (liste && tabs.length) {
+    repere = document.createElement('span');
+    repere.className = 'case-repere';
+    repere.setAttribute('aria-hidden', 'true');
+    liste.insertBefore(repere, liste.firstChild);
+    liste.classList.add('glisse');
+  }
+  /* offsetTop/offsetLeft se mesurent depuis le bord de PADDING du parent
+     positionné, exactement là où `top:0; left:0` pose un absolu. L'onglet est
+     posé dans la boite de CONTENU, donc offsetLeft vaut le padding (12px
+     mesurés) et le translate reconduit le repère pile sur l'onglet : écart
+     mesuré 0,0 au navigateur. Une seule mesure couvre la colonne verticale du
+     bureau et la rangée horizontale du mobile. */
+  function placer(tab, anime) {
+    if (!repere) return;
+    if (!anime) repere.style.transition = 'none';
+    repere.style.setProperty('--repere-x', tab.offsetLeft + 'px');
+    repere.style.setProperty('--repere-y', tab.offsetTop + 'px');
+    repere.style.setProperty('--repere-w', tab.offsetWidth + 'px');
+    repere.style.setProperty('--repere-h', tab.offsetHeight + 'px');
+    if (!anime) { void repere.offsetWidth; repere.style.transition = ''; }
+  }
   function select(tab, focus) {
     tabs.forEach(function (item) {
       var active = item === tab;
@@ -316,6 +358,7 @@ CASE_SCRIPT = """<script>
       panel.classList.toggle('active', active);
       panel.hidden = !active;
     });
+    placer(tab, true);
     if (focus) tab.focus();
   }
   tabs.forEach(function (tab, index) {
@@ -328,6 +371,15 @@ CASE_SCRIPT = """<script>
       var direction = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : -1;
       select(tabs[(index + direction + tabs.length) % tabs.length], true);
     });
+  });
+  /* Premier placement SANS animation : sinon le repère traverse la liste
+     depuis l'angle au chargement. Et replacement au redimensionnement, la
+     grille passant de la colonne à la rangée sous 900px. */
+  var actif = tabs.filter(function (t) { return t.getAttribute('aria-selected') === 'true'; })[0] || tabs[0];
+  if (actif) placer(actif, false);
+  window.addEventListener('resize', function () {
+    var courant = tabs.filter(function (t) { return t.getAttribute('aria-selected') === 'true'; })[0];
+    if (courant) placer(courant, false);
   });
 })();
 </script>"""

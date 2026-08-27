@@ -985,6 +985,24 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   sur volume séparé, et la barrière de couverture a retrouvé sa portée
   déclarée — `--cov=src/monl` et non `--cov=src`, la plateforme étant rapportée
   sans être barrée. Voir point 142.
+- **POINT 156 : le volet Navigateur masqué ne recalcule PAS le style — il
+  mesure la géométrie, jamais la cascade.** Un style posé EN LIGNE n'y change
+  pas `getComputedStyle` ; un clone lit la même couleur avec et sans la classe
+  qu'on lui ajoute. Trois sondages y ont « prouvé » des choses fausses, dont
+  l'absence d'anneau de focus sur les onze types interactifs (un `.focus()`
+  scripté ne déclenche pas `:focus-visible` — mesurés ensuite à 6,52:1 au pire
+  en clair, 7,5:1 en sombre, soit très au-dessus des 3:1 de WCAG 2.2). **Toute
+  question de cascade se tranche donc hors du navigateur** : `_specificite()`
+  (tests/test_platform_landing.py) calcule le poids des deux sélecteurs et
+  exige que celui qui cède le fond soit plus fort ET écrit après. Le repère des
+  onglets (`case-repere`) est POSÉ par le script, jamais servi dans le balisage
+  — sinon il s'affiche dans l'angle chez qui n'exécute pas le script. Et la
+  bascule de thème tient le refus du mouvement en JAVASCRIPT : le bloc
+  `@media (prefers-reduced-motion)` porte sur `*`, qui n'atteint aucun
+  `::view-transition-*` ; la même garde couvre l'absence de l'API.
+  **Un commentaire CSS est du CONTENU de page** — écrire « ci-dessus » dans la
+  feuille inlinée a fait tomber un test de la page de confidentialité.
+  Voir point 156.
 - **POINT 155 : aucun fichier de `src/` ne dépasse 400 lignes, aucune fonction
   non plus — et c'est VÉRIFIÉ.** `tests/test_architecture.py` porte trois
   contrats : `PLAFOND_FICHIER`, `PLAFOND_FONCTION`, et **une exception doit

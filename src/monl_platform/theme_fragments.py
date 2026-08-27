@@ -248,6 +248,17 @@ table.grid td code { background: var(--surface-2); padding: 2px 6px; border-radi
     scroll-behavior: auto !important;
   }
 }
+
+/* Bascule de thème en révélation circulaire. Le fondu par défaut de l'API est
+   retiré : les deux calques restent opaques et c'est le clip-path du nouveau
+   qui découvre la page. Le bloc @media (prefers-reduced-motion) ne porte PAS
+   sur ces pseudo-éléments (aucun n'est atteint par `*`) — le refus du
+   mouvement est donc tenu en JavaScript, avant même d'ouvrir la transition. */
+::view-transition-old(root), ::view-transition-new(root) {
+  animation: none; mix-blend-mode: normal;
+}
+::view-transition-old(root) { z-index: 0; }
+::view-transition-new(root) { z-index: 1; }
 """
 
 # Appliqué avant le rendu : après, la page clignote en clair chez qui a
@@ -281,11 +292,27 @@ THEME_TOGGLE = """
     button.setAttribute('title', 'Thème ' + vers);
   }
   annoncer();
-  button.addEventListener('click', function () {
+  function basculer() {
     var suivant = courant() === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', suivant);
     try { localStorage.setItem('monl-theme', suivant); } catch (e) { /* ignoré */ }
     annoncer();
+  }
+  var doux = window.matchMedia('(prefers-reduced-motion: reduce)');
+  button.addEventListener('click', function () {
+    if (!document.startViewTransition || doux.matches) { basculer(); return; }
+    var boite = button.getBoundingClientRect();
+    var x = boite.left + boite.width / 2;
+    var y = boite.top + boite.height / 2;
+    var rayon = Math.hypot(Math.max(x, window.innerWidth - x),
+                           Math.max(y, window.innerHeight - y));
+    document.startViewTransition(basculer).ready.then(function () {
+      document.documentElement.animate(
+        { clipPath: ['circle(0px at ' + x + 'px ' + y + 'px)',
+                     'circle(' + rayon + 'px at ' + x + 'px ' + y + 'px)'] },
+        { duration: 420, easing: 'cubic-bezier(.4, 0, .2, 1)',
+          pseudoElement: '::view-transition-new(root)' });
+    }, function () { /* transition refusée : le thème a déjà basculé */ });
   });
 })();
 
