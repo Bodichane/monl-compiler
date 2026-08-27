@@ -68,6 +68,10 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [149](#149-on-demandait-un-appjs-de-1-500-jetons-puis-on-le-refusait-parce-quil-était-incomplet) On demandait un app.js de 1 500 jetons, puis on le refusait ·
 [150](#150-le-brief-demandait-de-factoriser-et-cest-la-factorisation-qui-faisait-refuser-le-site) Le brief demandait de factoriser, et la factorisation faisait refuser ·
 [151](#151-toute-boutique-vendait-des-théières) Toute boutique vendait des théières ·
+[152](#152-le-validateur-est-devenu-un-paquet-et-un-contrat-darchitecture-sest-tu) Le validateur est devenu un paquet, et un contrat d'architecture s'est tu ·
+[153](#153-le-garde-fou-dempreinte-nétait-plus-exercé-par-le-test-qui-le-nomme) Le garde-fou d'empreinte n'était plus exercé par le test qui le nomme ·
+[154](#154-un-décorateur-qui-saute-les-mixins-et-deux-exceptions-qui-nexcusaient-plus-rien) Un décorateur qui saute les mixins, et deux exceptions qui n'excusaient plus rien ·
+[155](#155-cinq-angles-morts-dans-lanalyse-qui-découpe-et-un-plafond-qui-nexistait-pas) Cinq angles morts dans l'analyse qui découpe, et un plafond qui n'existait pas ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -10122,3 +10126,365 @@ quoi on la saute et on retombe sur les théières, ce que ce point corrige.
 Éprouvé par onze tests (`tests/test_seed_ai.py`), dont le point de départ
 mesuré (« le jeu du modèle est bien générique »), les quatre refus, et les deux
 tests de plateforme contre un vrai serveur.
+
+## 152. Le validateur est devenu un paquet, et un contrat d'architecture s'est tu
+
+`src/monl/ast_validator.py` pesait 2 807 lignes — le plus gros fichier du
+compilateur, et le seul endroit où vivent tous les refus. Il est devenu
+`src/monl/ast_validator/`, dix-sept modules dont le plus gros fait 332 lignes.
+Aucune règle n'a changé, aucune n'a été ajoutée : c'est une restructuration
+pure, et c'est ce qui rend sa preuve simple à énoncer.
+
+**La preuve d'une restructuration pure, c'est l'octet.** Les onze artefacts
+scellés par SHA-256 (`tests/test_golden_artifacts.py`) sont inchangés : le
+compilateur produit exactement les mêmes fichiers qu'avant. Une relecture
+n'aurait rien prouvé — quarante-cinq méthodes déplacées, c'est quarante-cinq
+occasions de perdre une ligne sans que rien ne s'en aperçoive.
+
+**Les segments ont été RECOPIÉS, jamais retapés.** Un script découpe par plages
+de lignes issues de l'AST, et vérifie d'abord que la couverture est totale :
+zéro ligne non vide orpheline, zéro chevauchement. Ce contrôle a payé
+immédiatement — il a rendu trois lignes de commentaire que le premier découpage
+laissait tomber, celles qui expliquent pourquoi `UPLOAD_TYPES` refuse HTML et
+SVG. Un commentaire perdu ne fait échouer aucun test.
+
+**La forme retenue est celle de `generator/`** : un module par PRÉOCCUPATION,
+la classe recomposée par mixins dans `core.py`. L'ordre d'exécution ne vient
+PAS de l'ordre des bases — il vient du pipeline (`validation_pipeline.py`),
+qui nommait déjà chaque passe. C'est cette antériorité qui a rendu le
+découpage évident plutôt qu'arbitraire : les frontières existaient, elles
+n'étaient simplement pas écrites dans l'arborescence.
+
+`socle.py` est la FEUILLE du paquet : constantes et `ASTValidationError`, et
+rien qui lise en retour. C'est ce qui rend un cycle d'import impossible.
+
+### Le défaut trouvé en coupant
+
+`tests/test_architecture.py` construisait sa liste de modules ainsi :
+
+```python
+MODULES = sorted([... les fichiers .py ...] + ["generator"])
+```
+
+`generator` en dur, parce qu'il était le seul paquet. En devenant un paquet à
+son tour, **`ast_validator` est sorti de la liste** — son contrat restait écrit
+noir sur blanc dans `INTERDITS`, et ne regardait plus rien. Aucun test ne
+devenait rouge. C'est mot pour mot le défaut que l'en-tête de ce fichier
+dénonce depuis le point 65 (« il aurait continué à passer en ne regardant plus
+rien »), arrivé par la porte de la LISTE plutôt que par celle des imports
+relatifs.
+
+La liste est désormais lue sur le disque, et un témoin vérifie que chaque
+contrat porte sur un module que le graphe connaît. **Contre-épreuve faite** :
+avec la liste en dur, ce témoin échoue et *les cinq autres tests restent
+verts*. Sans lui, la frontière la plus surveillée du compilateur serait devenue
+décorative en silence.
+
+Leçon à retenir, à côté de celles du point 63 : **un test d'architecture cesse
+de regarder de deux façons — parce qu'il ne voit plus les imports, ou parce
+qu'il ne voit plus les modules.** La seconde ne laisse aucune trace.
+
+### Ce qu'une sonde a prouvé par accident
+
+Le témoin de feuille du socle a été éprouvé en y glissant `from .core import
+MonlAST`, puis en le retirant. Entre les deux, la suite complète tournait — et
+trois tests de `tests/test_administration.py` sont tombés : les trois seuls du
+fichier qui lancent un **`subprocess`**. Un sous-processus relit le code depuis
+le DISQUE ; le processus pytest principal, lui, avait déjà importé le module et
+n'a rien vu passer.
+
+Deux choses en sortent. D'abord une règle de méthode : **ne jamais faire une
+contre-épreuve pendant qu'une suite tourne** — l'arbre de travail est partagé
+avec tout ce qui se lance en sous-processus. Ensuite une démonstration
+involontaire mais réelle : un cycle d'import dans `socle.py` casse le CLI de la
+plateforme ENTIER, au chargement, avant la première ligne utile. Le test ne
+garde donc pas une préférence de style.
+
+Le premier diagnostic posé était « contention CPU » — trois processus pytest
+concurrents, un `timeout=120` sur le sous-processus. Il était faux, et il était
+plausible. Seule la lecture du texte de l'échec l'a départagé, ce qui est le
+point 97 dans un autre décor : **une hypothèse affichée comme un diagnostic
+envoie corriger ce qui n'est pas cassé.**
+
+### Ce qui n'a pas bougé
+
+La surface publique : `MonlAST`, `ASTValidationError`, `DEFAULT_ASSETS_DIR` et
+`resoudre_asset` s'importent depuis `monl.ast_validator` exactement comme
+avant, dans la cinquantaine de fichiers qui le font. `tests/test_platform_guide.py`
+lisait le validateur par son CHEMIN DE FICHIER pour vérifier qu'aucune règle du
+guide n'est inventée ; il lit maintenant le paquet, la forme fichier restant
+acceptée — ce test dit « le mot-clé existe chez le validateur », pas « il vit
+dans tel fichier ».
+
+Mesuré après découpage : 1 346 tests passés, 16 sautés, zéro échec, `ruff` à
+zéro signalement, couverture du compilateur à 90,18 %, et les onze empreintes
+d'artefacts identiques.
+
+## 153. Le garde-fou d'empreinte n'était plus exercé par le test qui le nomme
+
+`src/monl/frontend_ai.py` pesait 2 392 lignes. Il devient
+`src/monl/frontend_ai/`, onze modules dont le plus gros — `agents.py`, qui
+porte les deux garde-fous d'empreinte du point 73 — fait 397 lignes. Comme au
+point 152, aucune règle n'a changé.
+
+Mais ce fichier-ci n'est pas le validateur : **vingt-quatre tests remplacent ses
+attributs** (`monkeypatch.setattr(frontend_ai, "PROVIDERS", …)`). La question à
+poser AVANT de couper n'était donc pas « où sont les frontières », c'était
+**« lesquels de ces remplacements survivent ? »**. Mesuré avant d'écrire une
+ligne : quatre ne servent qu'à `cli.py` — le ré-export du paquet les couvre —
+et **huit cassent**, parce que le nom serait désormais lié dans un module et
+remplacé dans un autre.
+
+**La règle adoptée : à l'intérieur du paquet, un appel entre modules passe par
+l'objet MODULE, jamais par un nom lié.** `orchestration.py` écrit
+`reponse._write_files(...)`, pas `_write_files(...)`. Le gain n'est pas
+esthétique : il donne **un seul point de remplacement par fonction** au lieu
+d'un par appelant — `_write_files` a deux appelants, une seule cible suffit.
+Les 115 références concernées ont été réécrites **par position AST**, jamais
+par expression régulière, qui aurait aussi touché les chaînes et les
+commentaires.
+
+### Ce que le découpage a révélé
+
+`tests/test_usage.py` remplaçait `frontend_ai._fingerprint_protected` pour
+éprouver la voie agent. Après découpage, ce test **passait toujours** — et
+c'est précisément ce qui a rendu la vérification obligatoire. Le même stub,
+rendu levant, sur deux cibles :
+
+```
+ciblé sur frontend_ai.agents  ->  RuntimeError: SONDE-EMPREINTE   (atteint)
+ciblé sur frontend_ai         ->  (rien : le test passe)          (jamais atteint)
+```
+
+Le remplacement ne mordait plus. La vraie fonction tournait, rendait un
+dictionnaire vide sur un dossier de test sans artefact, et le test concluait au
+succès — **un test vert qui n'exerçait plus le garde-fou qu'il nomme**. C'est
+le point 145 dans un autre décor : *un test qui passe ne prouve pas qu'il
+mord*, et la seule façon de savoir où une garantie vit vraiment reste de la
+retirer pour voir tomber quelque chose.
+
+Généralisation à retenir : **un `monkeypatch.setattr` doit viser le module où
+le nom est CHERCHÉ, pas celui où il est défini.** Quand les deux coïncident —
+un seul gros fichier — la distinction ne se voit pas. Elle apparaît au premier
+découpage, et elle apparaît en silence.
+
+Vérifié au passage plutôt que supposé : les imports de `cli.py` vers
+`frontend_ai` sont à l'INTÉRIEUR des fonctions (L496, 1717, 2125, 2289), donc
+résolus à l'appel, donc après le remplacement. Les quatre remplacements
+destinés à `cli` continuent de mordre sans qu'on y touche.
+
+### Deux autres défauts, trouvés par mesure
+
+**Trois blocs perdus**, dénoncés par le contrôle de couverture du point 152 —
+dont deux blocs de commentaire de SECTION qui documentent la voie « import
+manuel » (point 42) et la voie « Claude Code » (point 43). Perdre un
+commentaire ne fait échouer aucun test ; c'est la documentation la plus utile
+du fichier qui serait partie sans un mot.
+
+**Deux collisions de noms** : un module nommé `brief` contre une variable
+locale `brief`, attrapée par `ruff` en `F823` — la référence qualifiée
+`brief.build_generation_prompt` visait la variable locale, pas le module. Même
+chose pour `socle`. Renommés `redaction` et `fondations`, après avoir confronté
+les onze noms de groupe à TOUTES les variables locales du fichier. Le
+corollaire vaut pour le prochain découpage : **un nom de module ne doit
+ressembler à aucun nom de variable du code qu'il accueille.**
+
+Et deux erreurs de ma propre méthode, corrigées avant de nuire : la surface
+publique relevée par `grep` ratait les imports multi-lignes (32 noms au lieu de
+37), puis les accès par ATTRIBUT (`frontend_ai.PROMPT_FILENAME`, jamais
+importé). Reconstruite par AST sur tout le dépôt : 43 noms. **Une surface
+publique se mesure sur l'arbre syntaxique, pas sur du texte.**
+
+Mesuré après découpage : 1 346 tests passés, 16 sautés, zéro échec, `ruff` à
+zéro, couverture du compilateur à 90,23 %.
+
+## 154. Un décorateur qui saute les mixins, et deux exceptions qui n'excusaient plus rien
+
+Suite des points 152 et 153. `generator/core.py` (1 360 lignes) tombe à 298 en
+sept mixins de plus dans le paquet `generator/` ; `parser.py` (1 016) devient
+`src/monl/parser/`, huit fichiers. Le compilateur passe de quatorze fichiers
+au-dessus de 400 lignes à dix.
+
+### Le défaut qui n'aurait pas planté
+
+`MonlTransformer` porte `@v_args(inline=True)` **sur la classe**. Déplacer ses
+74 productions dans des mixins aurait suffi à changer le SENS du parsing, sans
+qu'une seule ligne ne lève. La mise en œuvre de Lark, lue plutôt que
+supposée :
+
+```python
+libmembers = {name for _cls in mro[1:] for name, _ in getmembers(_cls)}
+if name.startswith('_') or (name in libmembers and name not in cls.__dict__):
+    continue          # une méthode héritée d'un mixin est SAUTÉE
+```
+
+Une méthode définie sur un mixin est dans `libmembers` et absente de
+`cls.__dict__` : elle n'est jamais enveloppée. Elle aurait donc reçu une LISTE
+d'enfants au lieu d'arguments inlinés — un transformateur qui tourne, ne lève
+rien, et rend n'importe quoi.
+
+Le remède : **chaque mixin hérite de `Transformer` et porte son propre
+`@v_args`.** Vérifié par exécution, parce que c'est le genre d'affirmation
+qu'on ne relit pas — 73 productions trouvées, 73 enveloppées, aucune nue
+(`_quantite` reste hors du compte : il commence par un souligné, donc Lark
+l'ignore, avant comme après). Puis un parse réel, puis les onze artefacts
+scellés.
+
+À retenir pour tout découpage à venir : **un décorateur de CLASSE ne suit pas
+le code qu'on déplace.** La question n'est pas « la classe a-t-elle encore ses
+méthodes » mais « le décorateur les voit-il encore ».
+
+### La grammaire reste entière, et c'est écrit
+
+`grammaire.py` fait 455 lignes et dépasse le seuil à dessein. Ce n'est pas du
+code : c'est UN artefact déclaratif, plus les commentaires qui justifient
+chaque production. Lark ignore l'ordre des règles, donc toute coupure serait
+arbitraire — et nuirait exactement à ce que la règle des 400 lignes protège,
+pouvoir lire d'un trait ce qui se lit d'un trait. L'exception vit dans la
+docstring du fichier : une règle qu'on enfreint sans le dire redevient une
+règle qu'on enfreint sans raison.
+
+### Deux exceptions de `ruff` devenues muettes
+
+`pyproject.toml` excusait `W293` sur `src/monl/parser.py` (les lignes vides de
+la grammaire PORTENT des espaces, y toucher changerait le texte que Lark
+analyse) et `E402` sur `src/monl/frontend_ai.py`. Les deux fichiers étaient
+devenus des PAQUETS aux points 153 et ici : les deux exceptions visaient un
+chemin qui n'existe plus. Elles n'excusaient plus rien, et **rien ne le
+signalait** — `ruff` ne se plaint pas d'un `per-file-ignores` orphelin.
+
+La première a été déplacée sur `parser/grammaire.py`. La seconde a été
+RETIRÉE : le paquet range les imports de chaque section dans l'en-tête de son
+propre module, donc il n'y a plus rien à excuser. Un témoin
+(`tests/test_architecture.py`) échoue désormais dès qu'une exception vise un
+fichier disparu ; contre-épreuve faite en remettant l'ancien chemin.
+
+C'est la troisième forme du même défaut en trois points : une garantie qui
+cesse de porter sur quoi que ce soit ne fait aucun bruit. Point 152, la liste
+des modules surveillés ; point 153, la cible d'un remplacement d'attribut ;
+ici, le chemin d'une exception de linter. **Chaque fois, la suite restait
+verte.**
+
+### Et un test qui lisait un chemin plutôt qu'une valeur
+
+`tests/test_platform_guide.py` vérifie que le guide de la plateforme documente
+EXACTEMENT les types de la grammaire, dans les deux sens. Il lisait
+`src/monl/parser.py` comme un fichier ; il importe désormais la constante
+`grammar`. Plus juste sur le fond : il vise ce que Lark analyse vraiment, au
+lieu de ramasser le reste du module au passage. Contre-épreuve faite dans les
+deux sens — un type inventé dans le guide, un type de la grammaire retiré du
+guide, chacun fait tomber le test avec le bon message.
+
+Un cycle évité au passage dans `generator/` : `BACKEND_ARTIFACTS` vivait dans
+`core.py` et n'est lu qu'à un seul endroit — il a suivi son lecteur dans
+`pipeline.py` plutôt que de faire réimporter `core` par un module que `core`
+importe.
+
+Mesuré : 1 346 tests passés, 16 sautés, zéro échec, `ruff` à zéro, couverture
+du compilateur à 90,28 %, onze empreintes d'artefacts identiques.
+
+
+## 155. Cinq angles morts dans l'analyse qui découpe, et un plafond qui n'existait pas
+
+Fin de la série ouverte au point 152. Neuf fichiers de plus deviennent des
+paquets ou des familles de mixins — `validation_pipeline`, `design_system`,
+`assets_tool`, `dialogue_engine`, `cli`, puis `generator/routes.py` (2 287),
+`frontend_contract.py` (1 719), `generator/runtime.py` (2 013) et
+`smoke_test.py` (695). **Aucun fichier de `src/` ne dépasse plus 400 lignes**
+hors deux littéraux de données, et **aucune fonction non plus** : la plus
+grosse du dépôt tombe de 968 à 385.
+
+Ce point ne raconte pas le découpage — il raconte ce que l'outil de découpage
+a dû apprendre, parce que chaque leçon est la même : **une analyse qui se
+trompe ne plante pas, elle produit une signature qui MENT.**
+
+### Les cinq angles morts, tous trouvés en mesurant
+
+L'outil calcule ce qu'un bloc EMPRUNTE (ses paramètres) et ce qu'il REND (ses
+retours). Cinq fois il s'est trompé, et cinq fois la suite serait restée verte
+— parce qu'un paramètre inutile est simplement ignoré.
+
+1. **La portée des compréhensions.** `ast.walk` ne sait pas que
+   `{f"{e}.{a}": … for (e, a) in …}` lie `e` et `a`. Ces noms ressortaient
+   comme des emprunts et se propageaient de signature en signature sans rien
+   porter.
+2. **Écrire avant de lire.** Un bloc qui commence par `for entite, champ in
+   sorted(payables.items())` n'emprunte ni `entite` ni `champ` : il les écrit.
+   Le test doit DESCENDRE dans les corps composés — sinon `for u in ups: champ
+   = u["f"]` passe pour une lecture de `champ`.
+3. **Relire après réécriture.** Symétrique du précédent, en arrière : un nom
+   que la suite réaffecte avant de le lire n'est pas un retour.
+4. **`with … as fh`** lie `fh`, et **`status, corps = _http(…)`** lie `status`.
+   Ne regarder que `ast.Assign` à cible `ast.Name` faisait voyager les deux en
+   paramètres à travers les six étapes du smoke test.
+5. **`def say(...)`** lie `say`.
+
+La règle qui s'en dégage tient en une phrase : **sur-approximer est sûr mais
+illisible, sous-approximer est faux.** Une signature à sept paramètres dont
+trois ne servent à rien est pire qu'une fonction longue — elle affirme une
+dépendance qui n'existe pas, et le prochain lecteur la croira.
+
+### Le garde-fou qui ne se déduit pas de la lecture
+
+Un RETOUR dont l'écriture ne DOMINE pas doit AUSSI entrer en paramètre. Si le
+corps de boucle qui l'affecte ne tourne jamais, le `return` lève
+`UnboundLocalError` là où l'original rendait la valeur d'avant. Les artefacts
+scellés n'attraperaient ce cas que si un exemple du dépôt l'exerçait — donc
+pas toujours. C'est le seul des six où la mesure ne suffisait pas.
+
+### Deux disciplines de découpe, apprises en cassant
+
+**Les bornes se donnent en INDEX D'INSTRUCTION, jamais en numéros de ligne.**
+Un numéro tapé à la main tombe au milieu d'un `if` : la première tentative sur
+`build_contract` a coupé le corps de `if message_contracts:` et le fichier ne
+parsait plus.
+
+**Les coupes s'appliquent du BAS vers le HAUT.** Couper d'abord en haut décale
+les numéros de ligne de tout ce qui suit — et les index suivants visent à côté
+sans rien dire. Mesuré sur `runtime.py`.
+
+Et une troisième, pour les deux fonctions qui ne sont pas des suites
+d'instructions mais des LITTÉRAUX de 260 à 390 lignes de code généré : on
+coupe entre deux ÉLÉMENTS, jamais au milieu d'un f-string, et chaque moitié ne
+reçoit que les noms du prologue qu'elle emprunte réellement.
+
+### Ce que la suite a trouvé, elle
+
+Deux vrais défauts, dans le découpage du `cli` du point précédent.
+
+**`import importlib.util as importlib` lie le SOUS-MODULE.** L'outil dérivait
+l'alias du nom lié (`importlib`) et réécrivait la ligne avec un `as` que la
+source ne portait pas. Résultat : `importlib.util.spec_from_file_location`
+cherchait `util` sur le module `importlib.util`, et trois tests de migration
+échouaient sur *« module 'importlib.util' has no attribute 'util' »*. Un
+`import a.b` se recopie tel quel ; seul un alias ÉCRIT se réémet.
+
+**Un `monkeypatch` suit la fonction, pas le paquet.**
+`monkeypatch.setattr("monl.cli.publish_files", …)` ne mordait plus une fois
+`cmd_init` parti dans `cli/construction.py` : une fonction lit le global de SON
+module. Ré-exporter le nom depuis `__init__.py` aurait fait passer le
+`setattr` sans jamais atteindre l'appel — un test vert qui ne vérifie plus
+rien, exactement le défaut du point 153. La cible est donc
+`monl.cli.construction.publish_files`, et ce test-là se prouve tout seul : son
+`pytest.raises(ArtifactPublicationError)` ne peut passer que si le faux a
+bien été appelé.
+
+### Le plafond, rendu exécutable
+
+Découper n'a de valeur que si rien ne laisse regrossir. `tests/test_architecture.py`
+gagne trois contrats : aucun fichier de `src/` au-dessus de 400 lignes, aucune
+fonction non plus, et **toute exception doit encore servir**. Les deux
+exceptions portent chacune sa raison, comme celles de `ruff` dans
+`pyproject.toml` : `app_templates.py` (le catalogue des dix modèles) et
+`parser/grammaire.py` (la grammaire Lark, qui est UNE chaîne). Le plafond vise
+la complexité ; un littéral n'en a pas, et le couper en deux moitiés
+arbitraires rendrait le fichier plus dur à lire.
+
+Le plafond ne porte PAS sur `tests/` : un fichier de test est une suite de cas
+indépendants qu'on lit un par un, pas une pièce dont la complexité croît avec
+la longueur.
+
+Les cinq contre-épreuves ont été jouées : plafond abaissé, exception sur un
+fichier disparu, exception sur un fichier redevenu court, exception sans
+raison. Toutes échouent comme elles le doivent — un garde-fou qu'on n'a pas vu
+refuser n'est pas un garde-fou (point 145).

@@ -18,15 +18,19 @@ from monl_platform.app import create_app
 from monl_platform.mcp_server import TOOLS
 from monl_platform.service import CompilationService
 
-GRAMMAIRE = "src/monl/parser.py"
-
 
 def _types_de_la_grammaire():
-    """Les types que le parseur accepte réellement, lus dans sa grammaire."""
-    import pathlib
+    """Les types que le parseur accepte réellement, lus dans sa grammaire.
 
-    source = (pathlib.Path(__file__).parent.parent / GRAMMAIRE).read_text(encoding="utf-8")
-    ligne = re.search(r'^\s*TYPE:\s*(.+)$', source, re.MULTILINE)
+    La grammaire est IMPORTÉE, plus lue par un chemin de fichier. Ce test
+    visait `src/monl/parser.py` et s'est cassé le jour où le parseur est
+    devenu un paquet — alors que la grammaire, elle, n'avait pas changé d'un
+    caractère. Importer la constante vise ce que Lark analyse VRAIMENT, et ne
+    dépend d'aucune arborescence : c'est aussi plus étroit, puisque la lecture
+    du fichier ramassait le reste du module au passage."""
+    from monl.parser import grammar
+
+    ligne = re.search(r'^\s*TYPE:\s*(.+)$', grammar, re.MULTILINE)
     assert ligne, "la règle TYPE a disparu de la grammaire"
     return set(re.findall(r'"([A-Za-z]+)"', ligne.group(1)))
 
@@ -126,8 +130,15 @@ def test_les_regles_citees_par_le_guide_portent_toutes_un_mot_cle_connu():
     `ast_validator`, pas d'une copie faite à la main ici."""
     import pathlib
 
-    validateur = (pathlib.Path(__file__).parent.parent / "src/monl/ast_validator.py"
-                  ).read_text(encoding="utf-8")
+    # Le validateur est un PAQUET depuis son découpage : la source à fouiller
+    # est l'union de ses modules. La forme fichier reste acceptée — ce test dit
+    # « le mot-clé existe chez le validateur », pas « il vit dans tel fichier ».
+    racine = pathlib.Path(__file__).parent.parent / "src/monl"
+    paquet = racine / "ast_validator"
+    fichiers = (sorted(paquet.glob("*.py")) if paquet.is_dir()
+                else [racine / "ast_validator.py"])
+    assert fichiers, "source du validateur introuvable"
+    validateur = "\n".join(f.read_text(encoding="utf-8") for f in fichiers)
     tableaux = (guide.REGLES_ACCES + guide.REGLES_CHAMPS
                 + guide.REGLES_SERVEUR + guide.REGLES_COMMERCE)
     for regle, _ in tableaux:

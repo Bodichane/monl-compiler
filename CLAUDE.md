@@ -842,7 +842,10 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   les imports internes sont RELATIFS (`from .parser import …`) et les tests
   importent `monl.xxx` sans manipuler `sys.path` (voir `tests/conftest.py`).
   `src/monl/generator/` est un sous-package depuis la bêta 3 (l'ancien module de 1 307
-  lignes a été découpé) : `core.py` (état issu de l'AST, orchestration,
+  lignes a été découpé ; depuis le point 155, `routes.py` et `runtime.py` sont
+  eux aussi des familles de mixins — `routes_*.py` et `runtime_*.py` — et
+  `frontend_contract`, `smoke_test`, `cli`, `dialogue_engine`, `assets_tool`,
+  `design_system`, `validation_pipeline` sont des paquets) : `core.py` (état issu de l'AST, orchestration,
   `_compute_route_map`), `runtime.py` (socle du app.py généré : secret,
   `_connect`, init/migrations/seed, register/login/logout, quota),
   `routes.py` (une route par couple action/entité + contrôle d'accès),
@@ -982,6 +985,26 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   sur volume séparé, et la barrière de couverture a retrouvé sa portée
   déclarée — `--cov=src/monl` et non `--cov=src`, la plateforme étant rapportée
   sans être barrée. Voir point 142.
+- **POINT 155 : aucun fichier de `src/` ne dépasse 400 lignes, aucune fonction
+  non plus — et c'est VÉRIFIÉ.** `tests/test_architecture.py` porte trois
+  contrats : `PLAFOND_FICHIER`, `PLAFOND_FONCTION`, et **une exception doit
+  encore servir** (un fichier redevenu court, ou disparu, fait échouer). Les
+  deux seules exceptions sont des LITTÉRAUX de données et portent chacune leur
+  raison : `app_templates.py` (les dix modèles) et `parser/grammaire.py` (la
+  grammaire Lark, qui est UNE chaîne). Ne pas en ajouter sans raison écrite —
+  c'est la même discipline que les exceptions de `ruff` dans `pyproject.toml`.
+  Le plafond ne porte pas sur `tests/`, et c'est délibéré (un fichier de test
+  est une suite de cas, pas une pièce dont la complexité croît).
+  **Deux disciplines à ne pas réapprendre en cassant** : une découpe se donne
+  en INDEX D'INSTRUCTION et jamais en numéros de ligne (un numéro tombe au
+  milieu d'un `if`), et les coupes s'appliquent du BAS vers le HAUT (couper en
+  haut décale tout ce qui suit, en silence).
+  **Et deux pièges de Python** : `import a.b as a` lie le SOUS-MODULE — trois
+  tests de migration sont tombés sur « module 'importlib.util' has no attribute
+  'util' » ; et un `monkeypatch` vise le module où la fonction lit son global
+  (`monl.cli.construction.publish_files`), jamais le paquet — ré-exporter le
+  nom ferait passer le `setattr` sans atteindre l'appel, soit un test vert qui
+  ne vérifie plus rien (point 153). Voir point 155.
 - **POINT 110 : le parseur Lark est mis en cache** (`_get_parser`, parser.py) —
   construit une fois, pas à chaque `parse_monl_string`. La construction (~50 ms)
   dominait le parsing ; en cache, 0,4 ms/parse, et la suite est passée de ~344 s
@@ -1289,6 +1312,73 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   réintroduire `base_dir` dans `_valider` : le contrôle d'existence est ciblé
   sur ce que l'outil ÉCRIT, sinon `list` redevient incapable de rapporter un
   manquant et `add` redevient inutilisable sur une spec incomplète.
+- **POINT 154 : `generator/core.py` est réduit à `__init__` + sept mixins, et
+  `parser` est un PAQUET.** Les mixins de `generator/` :
+  `pipeline` (dont `_compute_route_map`), `modele`, `proprietaire` (dont
+  `_transitive_chain`, `_owner_lookup_sql`, `_identity_fk_columns`), `calculs`
+  (dont `_decrement_fk_column`), `paiement` (dont `_payment_locked_parents`),
+  `sql_colonnes`, `prealables`. Les sources UNIQUES citées plus bas dans ce
+  fichier ont donc changé de module, pas de rôle.
+  **LE PIÈGE À CONNAÎTRE POUR TOUT DÉCOUPAGE DE TRANSFORMATEUR LARK** :
+  `@v_args(inline=True)` porté par une CLASSE saute toute méthode héritée
+  (`name in libmembers and name not in cls.__dict__` → `continue`). Déplacer
+  les productions dans des mixins nus les aurait laissées non enveloppées :
+  elles auraient reçu une LISTE d'enfants au lieu d'arguments inlinés, sans
+  qu'une ligne ne lève. Chaque mixin hérite donc de `Transformer` et porte son
+  PROPRE `@v_args` — vérifié par exécution (73 productions, 73 enveloppées).
+  **Un décorateur de classe ne suit pas le code qu'on déplace.**
+  `parser/grammaire.py` dépasse 400 lignes À DESSEIN : la grammaire est UN
+  artefact déclaratif, Lark ignore l'ordre des règles, donc toute coupure
+  serait arbitraire. L'exception est écrite dans la docstring du fichier.
+  **Et la troisième forme du même défaut** (après 152 et 153) : deux
+  `per-file-ignores` de `pyproject.toml` visaient des fichiers devenus des
+  paquets — elles n'excusaient plus rien, et `ruff` ne se plaint pas d'un
+  chemin orphelin. Un témoin de `tests/test_architecture.py` le refuse
+  désormais. **Une garantie qui cesse de porter sur quoi que ce soit ne fait
+  aucun bruit : la suite reste verte les trois fois.**
+- **POINT 153 : `frontend_ai` est un PAQUET, et un remplacement d'attribut vise
+  le module où le nom est CHERCHÉ.** Onze modules (`fondations`, `fournisseurs`,
+  `reponse`, `squelette`, `controles_design`, `controles_fichiers`, `redaction`,
+  `etages`, `images`, `agents`, `orchestration`). **Règle interne : un appel
+  entre modules du paquet passe par l'objet MODULE** (`reponse._write_files(…)`),
+  jamais par un nom lié — ça donne UN seul point de remplacement par fonction au
+  lieu d'un par appelant. Donc un test écrit
+  `monkeypatch.setattr(frontend_ai.agents, "_fingerprint_protected", …)` et non
+  `setattr(frontend_ai, …)` ; le second ne mord plus, EN SILENCE.
+  **Ce que ça a révélé** : le test de la voie agent passait sans exercer le
+  garde-fou d'empreinte du point 73 — la vraie fonction tournait et rendait un
+  dictionnaire vide. Contre-épreuve faite avec un stub levant : atteint quand il
+  vise `.agents`, jamais atteint quand il vise le paquet. Les imports de `cli.py`
+  vers `frontend_ai` sont DANS les fonctions, donc résolus après le
+  remplacement : ceux-là continuent de mordre.
+  Deux corollaires pour le prochain découpage : **un nom de module ne doit
+  ressembler à aucune variable locale du code qu'il accueille** (`brief` et
+  `socle` visaient la variable, pas le module — `ruff` F823), et **une surface
+  publique se mesure par AST**, jamais par `grep` (les imports multi-lignes et
+  les accès par attribut échappent au texte).
+- **POINT 152 : le validateur est un PAQUET (`src/monl/ast_validator/`).**
+  Même forme que `generator/` : un module par préoccupation, la classe
+  recomposée par mixins dans `core.py`. Une nouvelle règle s'ajoute dans le
+  module de sa couche — `acces.py`, `champs.py`, `commerce.py`… — jamais dans
+  `core.py`. L'ordre d'exécution vient du pipeline
+  (`validation_pipeline.py`), PAS de l'ordre des bases. `socle.py` est la
+  FEUILLE (constantes + `ASTValidationError`) et ne lit rien de son paquet :
+  c'est ce qui rend un cycle impossible, et un test le vérifie plutôt que de
+  le laisser à la discipline. La surface publique n'a pas bougé —
+  `from monl.ast_validator import MonlAST, ASTValidationError,
+  DEFAULT_ASSETS_DIR, resoudre_asset`.
+  **Ce que le découpage a trouvé** : `tests/test_architecture.py` nommait
+  `generator` EN DUR dans `MODULES`, donc `ast_validator` en est sorti en
+  devenant un paquet — son contrat restait écrit dans `INTERDITS` en ne
+  regardant plus rien, sans qu'aucun test devienne rouge. La liste est lue sur
+  le disque, et un témoin exige que chaque contrat porte sur un module connu.
+  **Un test d'architecture cesse de regarder de deux façons : il ne voit plus
+  les imports, ou il ne voit plus les modules — la seconde ne laisse aucune
+  trace.** Toute restructuration pure se prouve par
+  `tests/test_golden_artifacts.py` : les onze empreintes doivent être
+  INCHANGÉES. Et **ne jamais faire une contre-épreuve pendant qu'une suite
+  tourne** : un sous-processus relit le disque, là où le pytest principal a
+  déjà son import en mémoire.
 - **POINT 151 : le jeu de démonstration d'un MODÈLE est adapté par l'IA, dans
   `src/monl_platform/seed_ai.py` et nulle part ailleurs.** Toute boutique
   vendait « Théière Kyoto » : la description n'atteignait que le `brief`, donc

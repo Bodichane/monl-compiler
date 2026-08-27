@@ -69,7 +69,7 @@ def test_compile_avec_output_ecrit_dans_le_dossier_demande(spec, tmp_path, capsy
 # -------------------------------------------------- run : options transmises --
 def test_run_transmet_ses_options_telles_quelles(monkeypatch):
     recu = {}
-    monkeypatch.setattr(cli, "cmd_run", lambda d, **kw: recu.update(dir=d, **kw))
+    monkeypatch.setattr(cli.lancement, "cmd_run", lambda d, **kw: recu.update(dir=d, **kw))
 
     cli.main(["run", "/quelque/part", "--check", "--skip-smoke", "--port", "9143"])
 
@@ -81,7 +81,7 @@ def test_run_sans_option_vise_le_dossier_courant_sur_le_port_8000(monkeypatch):
     """Les défauts font partie du contrat : `monl run` tout court doit rester
     la commande du QUICKSTART."""
     recu = {}
-    monkeypatch.setattr(cli, "cmd_run", lambda d, **kw: recu.update(dir=d, **kw))
+    monkeypatch.setattr(cli.lancement, "cmd_run", lambda d, **kw: recu.update(dir=d, **kw))
 
     cli.main(["run"])
 
@@ -91,7 +91,7 @@ def test_run_sans_option_vise_le_dossier_courant_sur_le_port_8000(monkeypatch):
 
 def test_update_recoit_le_dossier_demande(monkeypatch):
     recu = []
-    monkeypatch.setattr(cli, "cmd_update", recu.append)
+    monkeypatch.setattr(cli.delta, "cmd_update", recu.append)
     cli.main(["update", "/un/projet"])
     assert recu == ["/un/projet"]
 
@@ -100,7 +100,7 @@ def test_sans_sous_commande_le_dialogue_guide_s_ouvre(monkeypatch):
     """`monl` seul est l'entrée annoncée par le README : aucune sous-commande
     ne doit s'interposer, et `monl init` doit mener au même endroit."""
     recu = []
-    monkeypatch.setattr(cli, "cmd_init", recu.append)
+    monkeypatch.setattr(cli.construction, "cmd_init", recu.append)
 
     cli.main([])
     cli.main(["init", "--dir", "/ici"])
@@ -248,7 +248,7 @@ def test_le_dossier_courant_est_le_defaut_des_commandes_de_projet(monkeypatch):
     convention que le point 65 a rétablie pour la sortie du compilateur."""
     from monl import frontend_ai
     vus = {}
-    monkeypatch.setattr(cli, "cmd_update", lambda d: vus.update(update=d))
+    monkeypatch.setattr(cli.delta, "cmd_update", lambda d: vus.update(update=d))
     monkeypatch.setattr(frontend_ai, "PROVIDERS", {"claude": lambda model=None: None})
     monkeypatch.setattr(frontend_ai, "generate_and_verify",
                         lambda d, *a, **kw: (vus.update(frontend=d), (True, []))[1])

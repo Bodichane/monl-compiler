@@ -34,6 +34,11 @@ dev = [
     "mypy>=1.10,<2.0",       # contrats typés aux frontières de l'IR
     "vulture>=2.11,<3.0",    # recherche de code mort, revue manuelle conservée
     "requests>=2.31,<3.0",   # tests HTTP et fournisseurs frontend
+    # `tomllib` n'entre dans la bibliothèque standard qu'en 3.11, et le dépôt
+    # supporte 3.10 : test_architecture.py lit `per-file-ignores` pour vérifier
+    # qu'aucune exception de ruff ne vise un fichier disparu. SAUTER ce test
+    # sur 3.10 le rendrait muet là où il sert le plus (point 140).
+    "tomli>=2.0; python_version < '3.11'",
 ]
 postgres = [
     "psycopg>=3.1,<4.0",
@@ -95,10 +100,11 @@ ignore = [
 # La grammaire Lark vit dans une chaîne littérale : ses lignes vides
 # PORTENT des espaces, et y toucher modifierait le texte que Lark analyse.
 # Le linter voit des lignes physiques, pas la frontière du littéral.
-"src/monl/parser.py" = ["W293"]
-# Imports groupés par section (voie API, voie Claude Code, voie import) :
-# l'ordre raconte les trois chemins, un bloc unique en tête ne dirait rien.
-"src/monl/frontend_ai.py" = ["E402"]
+"src/monl/parser/grammaire.py" = ["W293"]
+# (L'exception E402 de frontend_ai.py est TOMBÉE avec son fichier : le paquet
+# range les imports de chaque section dans l'en-tête de son propre module,
+# donc il n'y a plus rien à excuser. Un chemin qui n'existe plus n'excuse
+# rien non plus — il fait juste croire qu'une règle est encore assouplie.)
 # Trois sections successives dans un même fichier (voie API, voie import,
 # voie Claude Code), chacune avec ses imports : c'est la lecture du fichier
 # qui commande, pas la convention.

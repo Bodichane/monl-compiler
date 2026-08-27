@@ -64,11 +64,12 @@ def test_deux_executions_successives_restent_separees(monkeypatch, tmp_path):
             }
             return '{"files": {"index.html": "<html></html>"}}'
 
-    monkeypatch.setattr(frontend_ai, "build_generation_prompt", lambda *args: "brief")
-    monkeypatch.setattr(frontend_ai, "parse_files_payload",
+    monkeypatch.setattr(frontend_ai.redaction, "build_generation_prompt",
+                        lambda *args: "brief")
+    monkeypatch.setattr(frontend_ai.reponse, "parse_files_payload",
                         lambda _raw: {"index.html": "<html></html>"})
-    monkeypatch.setattr(frontend_ai, "_write_files", lambda *_args: None)
-    monkeypatch.setattr(frontend_ai, "activate_asset_manifest", lambda *_args: None)
+    monkeypatch.setattr(frontend_ai.reponse, "_write_files", lambda *_args: None)
+    monkeypatch.setattr(frontend_ai.orchestration, "activate_asset_manifest", lambda *_args: None)
     monkeypatch.setattr(frontend_ai, "_design_completeness_errors", lambda *_args: [])
     monkeypatch.setattr(cli, "check_coherence", lambda _project: (True, [], []))
     monkeypatch.setattr("monl.smoke_test.run_smoke_test",
@@ -276,11 +277,11 @@ def test_la_voie_agent_aussi_est_identifiee(monkeypatch, tmp_path):
     (project / "frontend").mkdir()
     (project / "frontend" / "index.html").write_text("<html></html>", encoding="utf-8")
     fingerprints = iter([{"avant": "1"}, {"apres": "2"}])
-    monkeypatch.setattr(frontend_ai, "_fingerprint_protected", lambda _project: {})
-    monkeypatch.setattr(frontend_ai, "_fingerprint_frontend",
+    monkeypatch.setattr(frontend_ai.agents, "_fingerprint_protected", lambda _project: {})
+    monkeypatch.setattr(frontend_ai.agents, "_fingerprint_frontend",
                         lambda _project: next(fingerprints))
-    monkeypatch.setattr(frontend_ai, "run_cli_agent", lambda *args, **kwargs: "ok")
-    monkeypatch.setattr(frontend_ai, "activate_asset_manifest", lambda *_args: None)
+    monkeypatch.setattr(frontend_ai.agents, "run_cli_agent", lambda *args, **kwargs: "ok")
+    monkeypatch.setattr(frontend_ai.agents, "activate_asset_manifest", lambda *_args: None)
     monkeypatch.setattr(cli, "check_coherence", lambda _project: (True, [], []))
     monkeypatch.setattr("monl.smoke_test.run_smoke_test",
                         lambda _project, say=None: (True, [], []))

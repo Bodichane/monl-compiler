@@ -346,7 +346,7 @@ def test_un_refus_du_compilateur_ne_laisse_rien_derriere(tmp_path, monkeypatch, 
 
     def refus(*_a, **_k):
         raise AssetsToolError("refus simulé du compilateur")
-    monkeypatch.setattr(outil, "_revalider", refus)
+    monkeypatch.setattr(outil.commandes, "_revalider", refus)
 
     with pytest.raises(AssetsToolError):
         outil.ajouter_asset(str(spec), str(tmp_path),
@@ -367,7 +367,7 @@ def test_un_refus_apres_force_restaure_le_fichier_precedent(tmp_path, monkeypatc
     avant = spec.read_text(encoding="utf-8")
 
     import monl.assets_tool as outil
-    monkeypatch.setattr(outil, "_revalider",
+    monkeypatch.setattr(outil.commandes, "_revalider",
                         lambda *_a, **_k: (_ for _ in ()).throw(
                             AssetsToolError("refus simulé")))
     with pytest.raises(AssetsToolError):
@@ -547,7 +547,7 @@ def test_un_chemin_qui_ne_resout_pas_est_refuse_et_annule(tmp_path, monkeypatch,
     avant = spec.read_text(encoding="utf-8")
 
     import monl.assets_tool as outil
-    monkeypatch.setattr(outil.shutil, "copy2", lambda *_a, **_k: None)
+    monkeypatch.setattr(outil.commandes.shutil, "copy2", lambda *_a, **_k: None)
 
     with pytest.raises(AssetsToolError) as refus:
         outil.ajouter_asset(str(spec), str(tmp_path),
