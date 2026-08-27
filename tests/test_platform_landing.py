@@ -380,3 +380,55 @@ def test_la_bascule_de_theme_n_anime_pas_qui_refuse_le_mouvement():
         rf"var\s+{nom}\s*=\s*window\.matchMedia\(\s*'\(prefers-reduced-motion: reduce\)'\s*\)",
         LANDING_HTML,
     ), f"« {nom} » n'interroge pas le mouvement réduit"
+
+
+def _feuille(html: str) -> str:
+    """Rend le CSS inliné de la page, feuilles concaténées."""
+    return "\n".join(re.findall(r"<style[^>]*>(.*?)</style>", html, re.S | re.I))
+
+
+def _declarations(css: str, selecteur: str) -> list:
+    """Rend les blocs écrits pour ce sélecteur seul, en tête de règle.
+
+    Ne sait pas lire un sélecteur groupé (« .a, .band { … } ») : l'assertion
+    d'existence ci-après refuse le silence plutôt que de laisser le test vert
+    sur une règle qu'il n'a pas su trouver.
+    """
+    motif = re.compile(r"(?:^|[};])\s*" + re.escape(selecteur) + r"\s*\{([^}]*)\}", re.M)
+    return [m.group(1) for m in motif.finditer(css)]
+
+
+def test_le_site_tient_sur_un_seul_fond():
+    """Une seule couleur de fond du haut de la page jusqu'au pied.
+
+    Les bandes portaient --surface-2, le rail --surface et le pied --surface :
+    trois fonds en plus du --bg de la page, donc un changement de couleur
+    presque à chaque section. Le filet marque désormais la même césure sans
+    repeindre. Les CARTES gardent leur fond propre — une carte qui ne se
+    détache pas du fond cesse d'être une carte — et le bloc final en est une,
+    arrondie et détachée, pas une bande.
+    """
+    css = _feuille(LANDING_HTML)
+    assert css, "la feuille n'est plus inlinée dans la page"
+
+    for bande in (".band", ".proof-rail", ".footer-wrap"):
+        blocs = _declarations(css, bande)
+        assert blocs, f"la règle {bande} est introuvable : le test ne garde plus rien"
+        for bloc in blocs:
+            assert "background" not in bloc, (
+                f"{bande} repeint le fond — l'alternance de couleurs est revenue")
+
+
+def test_le_favicon_ico_repond_vraiment(platform):
+    """Le fichier peut exister sans que la route le serve.
+
+    Les tests de `test_platform_marque.py` gardent le CONTENU de l'icône ;
+    celui-ci garde le fait qu'on puisse l'obtenir. Sans lui, retirer la route
+    laisserait la suite entièrement verte pendant que les navigateurs
+    reçoivent de nouveau un 404 — et gardent l'ancienne icône.
+    """
+    reponse = requests.get(platform + "/favicon.ico", timeout=10)
+
+    assert reponse.status_code == 200, "/favicon.ico ne répond plus"
+    assert reponse.content[:4] == b"\x00\x00\x01\x00", "ce n'est pas un vrai ICO"
+    assert reponse.headers["content-type"] == "image/x-icon"

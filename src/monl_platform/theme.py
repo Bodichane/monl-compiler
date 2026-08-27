@@ -130,7 +130,7 @@ def page(*, title: str, description: str, body: str, active: str = "",
 <meta name="theme-color" content="#f9f4ed" media="(prefers-color-scheme: light)">
 {_social(title, description)}
 <title>{title}</title>
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.ico" sizes="32x32"><link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <script>{THEME_BOOT}</script>
 <style>{CSS}{extra_css}</style>
 </head>

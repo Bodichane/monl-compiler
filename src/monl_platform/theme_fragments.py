@@ -216,7 +216,7 @@ table.grid th { font-size: 13px; text-transform: uppercase; letter-spacing: .06e
 table.grid td code { background: var(--surface-2); padding: 2px 6px; border-radius: 6px; }
 .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 
-.footer-wrap { border-top:1px solid var(--line); background:var(--surface); }
+.footer-wrap { border-top:1px solid var(--line); }
 .footer { padding:var(--space-7) 0 var(--space-5); color:var(--muted); font-size:14px; }
 .footer-grid { display:grid; grid-template-columns:1.35fr repeat(3,1fr); gap:var(--space-7); }
 .footer-brand { max-width:330px; }

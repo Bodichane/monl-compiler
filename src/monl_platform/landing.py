@@ -20,7 +20,7 @@ EXTRA_CSS = """
   margin-top:var(--space-6); color:var(--muted); font-size:14px; }
 .trust span { display:inline-flex; gap:7px; align-items:center; }
 .trust .icon { color:var(--ink); }
-.proof-rail { display:grid;grid-template-columns:repeat(4,1fr);border-block:1px solid var(--line);background:var(--surface);
+.proof-rail { display:grid;grid-template-columns:repeat(4,1fr);border-block:1px solid var(--line);
   padding-inline:max(20px,calc((100vw - var(--shell))/2)); }
 .proof-rail div { padding:20px clamp(16px,3vw,34px);border-right:1px solid var(--line); }
 .proof-rail div:last-child{border-right:0}.proof-rail b{display:block;font:700 clamp(18px,2vw,24px) var(--mono);letter-spacing:-.04em}
@@ -142,7 +142,14 @@ EXTRA_CSS = """
 .feature-icon .icon { width:21px; height:21px; }
 .pipeline h3,.bento h3 { margin-bottom:var(--space-2); font-size:19px; }
 .pipeline p,.bento p { color:var(--muted); margin:0; font-size:15px; }
-.band { border-block:1px solid var(--line); background:var(--surface-2); }
+/* UNE SEULE couleur de fond pour toute la page. Les bandes alternaient
+   --surface-2, le rail --surface et le pied --surface : trois fonds en plus
+   du --bg de la page, donc un changement de couleur presque à chaque section.
+   Le filet reste : il marque la même césure que le fond marquait, sans
+   repeindre. Les CARTES gardent --surface — une carte doit se détacher du
+   fond, c'est ce qui la fait lire comme une carte, et le bloc final est une
+   carte arrondie et non une bande. */
+.band { border-block:1px solid var(--line); }
 .bento { display:grid; grid-template-columns:repeat(3,1fr); gap:var(--space-3); }
 .bento article { min-height:220px; }
 .bento article:first-child { grid-column:span 2; display:flex; flex-direction:column; justify-content:flex-end;

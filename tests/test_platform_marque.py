@@ -263,3 +263,71 @@ def test_les_balises_de_partage_ninventent_aucune_adresse(monkeypatch):
     parlant = theme.page(title="t", description="d", body="")
     assert 'content="https://exemple.test/brand/monl-social.png"' in parlant
     assert 'content="summary_large_image"' in parlant
+
+
+def test_le_favicon_ico_est_servi_et_ne_derive_pas_de_la_marque():
+    """`/favicon.ico` doit exister, et dire la MÊME chose que `/favicon.svg`.
+
+    Les navigateurs demandent ce chemin d'office, même quand la page déclare
+    un SVG. Il répondait 404 — et un 404 ne remplace rien : le navigateur
+    gardait l'ancienne icône de son cache, qui « réapparaissait » sans que le
+    serveur y soit pour rien.
+
+    Le fichier est fabriqué DEPUIS `brand.MARQUE_M`, jamais recopié d'un PNG :
+    un `.ico` recopié dériverait le jour où la marque change, en silence. Le
+    test régénère et compare, comme le fichier de marque du point 156 — qui
+    avait dérivé, et qu'un test a rattrapé.
+    """
+    import importlib.util
+    import tempfile
+
+    ico = PAQUET / "static" / "favicon.ico"
+    assert ico.exists(), "le fichier servi par /favicon.ico n'existe pas"
+
+    outil = pathlib.Path(theme.__file__).parents[2] / "outils" / "fabriquer_favicon.py"
+    assert outil.exists(), "l'outil qui fabrique l'icône a disparu"
+    spec = importlib.util.spec_from_file_location("fabriquer_favicon", outil)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    with tempfile.TemporaryDirectory() as dossier:
+        refait = module.fabriquer(pathlib.Path(dossier) / "favicon.ico")
+        assert refait.read_bytes() == ico.read_bytes(), (
+            "favicon.ico ne correspond plus à MARQUE_M — relancer "
+            "outils/fabriquer_favicon.py")
+
+
+def test_les_pages_declarent_les_deux_icones():
+    """Le SVG reste préféré, le `.ico` est le repli qui empêche le 404.
+
+    Déclarer le seul SVG laissait les navigateurs demander `/favicon.ico` et
+    n'en rien recevoir.
+    """
+    from monl_platform.theme import page
+
+    html = page(title="t", description="d", body="<main></main>", active="home")
+    assert '<link rel="icon" href="/favicon.ico" sizes="32x32">' in html
+    assert '<link rel="icon" href="/favicon.svg" type="image/svg+xml">' in html
+    assert html.index("/favicon.ico") < html.index("/favicon.svg"), (
+        "le SVG doit être déclaré APRÈS le .ico pour rester préféré")
+
+
+def test_le_formulaire_de_compte_ne_refuse_jamais_en_silence():
+    """Un refus doit s'écrire DANS la page, jamais dans une bulle du navigateur.
+
+    Mesuré : avec « joe » comme adresse, aucune requête ne partait, la
+    bannière `#auth-error` restait VIDE, et le seul message était la bulle
+    native — celle qu'une fenêtre de gestionnaire de mots de passe recouvre.
+    Le bouton semblait ne rien faire.
+
+    `novalidate` est ce qui donne la main au script : sans lui, le navigateur
+    bloque l'envoi et `onsubmit` n'est jamais appelé. Le message n'est pas
+    réécrit — on reprend `validationMessage`, déjà traduit par le navigateur.
+    """
+    from monl_platform import account
+
+    assert '<form id="auth-form" novalidate>' in account.AUTH_HTML, (
+        "sans novalidate, le navigateur bloque l'envoi et la bannière reste vide")
+    assert "validationMessage" in account.AUTH_HTML, (
+        "le refus client n'atteint pas la bannière de la page")
+    assert "error.className='form-error show'" in account.AUTH_HTML
