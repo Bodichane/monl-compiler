@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from . import landing_cas, landing_pourquoi
+from .coloration import coloriser, en_lignes
 from .theme import icon, page
 
 EXTRA_CSS = """
@@ -36,8 +37,11 @@ EXTRA_CSS = """
 .demo-bar span { margin-left:auto;display:inline-flex;align-items:center;gap:6px;color:var(--code-accent); }
 .demo-bar span::before { content:"";width:6px;height:6px;border-radius:50%;background:var(--code-accent);box-shadow:0 0 0 4px rgba(229,164,95,.16); }
 .demo-code { padding:22px 20px 18px;font:12px/1.85 var(--mono);color:var(--code-muted); }
-.demo-code b { color:var(--code-accent);font-weight:500 }.demo-code strong{color:var(--code-ink);font-weight:500}
-.scan-line { height:1px;background:linear-gradient(90deg,transparent,var(--code-accent),transparent);animation:scan 3.2s ease-in-out infinite; }
+.demo-code b, .demo-code strong { font-weight:500 }
+/* Le balayage dit qu'il se passe quelque chose ; il ne dit rien de plus,
+   donc il n'a pas besoin de l'accent. En encre de code, le mouvement reste
+   et une couleur de moins traverse la page. */
+.scan-line { height:1px;background:linear-gradient(90deg,transparent,var(--code-ink),transparent);opacity:.5;animation:scan 3.2s ease-in-out infinite; }
 .demo-result { display:grid;grid-template-columns:1.25fr repeat(3,.6fr);gap:1px;background:rgba(255,255,255,.1);border-top:1px solid rgba(255,255,255,.1); }
 .demo-result div { padding:14px;background:var(--code-bg); }.demo-result b{display:block;color:var(--code-ink);font:600 16px var(--mono)}
 .demo-result span{font:10px var(--mono);color:var(--code-muted)}.demo-result .verified b{color:var(--code-accent);font-size:12px;text-transform:uppercase;letter-spacing:.08em}
@@ -88,7 +92,7 @@ EXTRA_CSS = """
 .layers { display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:var(--space-3);align-items:stretch; }
 .layer { position:relative;min-height:260px;display:flex;flex-direction:column;justify-content:space-between; }
 .layer:nth-child(2){background:var(--code-bg);color:var(--code-ink);border-color:color-mix(in srgb,var(--brand) 55%,var(--line));transform:translateY(-12px);box-shadow:var(--shadow)}
-.layer:nth-child(2) p{color:var(--code-muted)}.layer:nth-child(2) .layer-label{color:var(--code-accent)}
+.layer:nth-child(2) p{color:var(--code-muted)}.layer:nth-child(2) .layer-label{color:var(--code-ink)}
 .layer-label{font:600 11px var(--mono);color:var(--brand);letter-spacing:.1em;text-transform:uppercase}
 .layer h3{font-size:clamp(22px,3vw,29px);margin:var(--space-5) 0 var(--space-3)}.layer p{color:var(--muted);margin:0}
 .layer-tags{display:flex;flex-wrap:wrap;gap:7px;margin-top:var(--space-5)}.layer-tags span{border:1px solid currentColor;border-radius:999px;padding:4px 9px;font:10px var(--mono);opacity:.72}
@@ -117,7 +121,6 @@ EXTRA_CSS = """
 .bento article:first-child { grid-column:span 2; display:flex; flex-direction:column; justify-content:flex-end;
   background:var(--code-bg); color:var(--code-ink); }
 .bento article:first-child p { color:var(--code-muted); }
-.bento article:first-child .feature-icon { background:var(--soft); color:var(--code-accent); }
 .step-list { display:grid; grid-template-columns:repeat(3,1fr); gap:var(--space-5); counter-reset:step; }
 .step-list article { counter-increment:step; border-top:1px solid var(--line); padding-top:var(--space-5); }
 .step-list article::before { content:"0" counter(step); color:var(--brand); font:600 12px var(--mono); }
@@ -152,10 +155,28 @@ def feature(symbol: str, title: str, text: str, delay: int = 0) -> str:
 
 
 
+DEMO_HERO = en_lignes("""app PetiteBoutique
+
+entity Produit
+  prix: Money
+  stock: Integer
+
+rule Produit.stock min 0
+rule Produit.Read public""")
+
+MINI_SPEC = coloriser("""entity Produit
+    nom: String
+    prix: Money
+    stock: Integer
+
+rule Produit.prix min 0
+rule Produit.stock min 0
+rule Produit.Read public""")
+
+
 BODY = f"""
 <section class="shell landing-hero">
-<div><span class="eyebrow" data-reveal>Le backend est compilé, pas improvisé</span>
-<h1 data-reveal style="--reveal-delay:60ms">Décrivez vos règles.<br>Téléchargez votre backend.</h1>
+<div><h1 data-reveal style="--reveal-delay:60ms">Décrivez vos règles.<br>Téléchargez votre backend.</h1>
 <p class="lede" data-reveal style="--reveal-delay:120ms">Partez d’un exemple, indiquez vos données,
 vos utilisateurs et leurs droits. Monl vérifie votre spécification puis génère une API FastAPI, sa base SQL
 et le contrat destiné à votre interface.</p>
@@ -167,7 +188,7 @@ et le contrat destiné à votre interface.</p>
 <span>{icon('check')} Backend autonome</span></div></div>
 <aside class="start-card" data-reveal style="--reveal-delay:120ms" aria-label="Ce que vous allez faire">
 <div class="demo-window"><div class="demo-bar"><i></i><i></i><i></i><span>compilation vérifiée</span></div>
-<div class="demo-code"><b>app</b> <strong>PetiteBoutique</strong><br><br><b>entity</b> Produit<br>&nbsp;&nbsp;prix: Money<br>&nbsp;&nbsp;stock: Integer<br><br><b>rule</b> Produit.stock min 0<br><b>rule</b> Produit.Read public</div>
+<div class="demo-code">{DEMO_HERO}</div>
 <div class="scan-line"></div><div class="demo-result"><div class="verified"><b>{icon('check')} valide</b><span>audit métier</span></div>
 <div><b>3</b><span>entités</span></div><div><b>17</b><span>routes</span></div><div><b>12</b><span>fichiers</span></div></div></div></aside>
 </section>
@@ -178,17 +199,9 @@ et le contrat destiné à votre interface.</p>
 </section>
 
 <section class="band"><div class="shell section">
-<div class="section-head" data-reveal><span class="eyebrow">Voyez le résultat</span>
-<h2>Une spec entre. Un backend complet sort.</h2>
+<div class="section-head" data-reveal><h2>Une spec entre. Un backend complet sort.</h2>
 <p>Exemple réel de boutique : les métriques ci-dessous sont vérifiées en recompilant la spec dans les tests.</p></div>
-<div class="output-flow" data-reveal><pre class="codeblock mini-spec"><code><span class="kw">entity</span> Produit
-    nom: String
-    prix: Money
-    stock: Integer
-
-<span class="kw">rule</span> Produit.prix min 0
-<span class="kw">rule</span> Produit.stock min 0
-<span class="kw">rule</span> Produit.Read public</code></pre>
+<div class="output-flow" data-reveal><pre class="codeblock mini-spec"><code>{MINI_SPEC}</code></pre>
 <span class="flow-arrow">{icon('arrow')}</span><div class="artifact"><div class="artifact-head"><b>PetiteBoutique</b><span class="muted">archive autonome</span></div>
 <div class="artifact-body"><div class="artifact-stats"><div><b>3</b><span>entités</span></div><div><b>17</b><span>routes API</span></div><div><b>12</b><span>fichiers</span></div></div>
 <div class="tree"><b>backend/</b><br>├── app.py <span>API FastAPI</span><br>├── schema.sql <span>base de données</span><br>
@@ -196,8 +209,7 @@ et le contrat destiné à votre interface.</p>
 </div></section>
 
 <section class="shell section" aria-labelledby="position-title">
-<div class="section-head" data-reveal><span class="eyebrow">La place de Monl</span>
-<h2 id="position-title">Votre infrastructure exécute. Monl décide ce qui est valide.</h2>
+<div class="section-head" data-reveal><h2 id="position-title">Votre infrastructure exécute. Monl décide ce qui est valide.</h2>
 <p>Postgres, votre cloud ou un service managé hébergent les données. Monl intervient avant eux et reste indépendant de l’interface.</p></div>
 <div class="platform-flow" data-reveal>
 <article class="flow-stage"><span class="stage-no">01 · INFRASTRUCTURE</span><h3>Les fondations</h3><p>Base de données, calcul, stockage et réseau restent chez le fournisseur que vous choisissez.</p><div class="stage-tags"><span>Postgres</span><span>cloud</span><span>self-hosted</span></div></article>
@@ -207,8 +219,7 @@ et le contrat destiné à votre interface.</p>
 
 {landing_pourquoi.SECTIONS}
 <section class="band"><div class="shell section editorial">
-<div class="section-head" data-reveal><span class="eyebrow">Garanties vérifiables</span>
-<h2>La sécurité n’est pas une consigne donnée au frontend.</h2>
+<div class="section-head" data-reveal><h2>La sécurité n’est pas une consigne donnée au frontend.</h2>
 <p>Elle est dérivée de la spécification et répétée dans chaque couche produite. Les limites restent explicites.</p>
 <a class="secondary" href="/security">Lire le modèle de sécurité {icon('arrow')}</a></div>
 <div class="capability-grid">
@@ -218,8 +229,7 @@ et le contrat destiné à votre interface.</p>
 <article class="capability" data-reveal><span class="feature-icon">{icon('key')}</span><h3>Secrets créés chez vous</h3><p>Le secret JWT ne voyage pas dans l’archive et reste sous le contrôle de l’exploitant.</p></article>
 </div></div></section>
 
-<section class="shell section"><div class="section-head" data-reveal><span class="eyebrow">Cas métier compilables</span>
-<h2>Quatre applications, quatre familles de règles réellement testées.</h2>
+<section class="shell section"><div class="section-head" data-reveal><h2>Quatre applications, quatre familles de règles réellement testées.</h2>
 <p>Chaque exemple est une spécification complète servie par la plateforme. Ouvrez-la dans la console, adaptez-la puis compilez son backend.</p></div>
 {landing_cas.EXPLORATEUR}</section>
 

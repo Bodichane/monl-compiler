@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from .coloration import coloriser
+
 EXTRA_CSS = """
 .doc { display: grid; grid-template-columns: 248px minmax(0, 1fr); gap: var(--space-7);
        align-items: start; padding-block: var(--space-7); }
@@ -72,31 +74,31 @@ SCRIPT = """
 </script>
 """
 
-SPEC_EXEMPLE = """<span class="cm"># Une spécification complète tient en une page.</span>
-<span class="kw">app</span> CarnetAtelier
+SPEC_EXEMPLE = coloriser("""# Une spécification complète tient en une page.
+app CarnetAtelier
 
-<span class="kw">entity</span> Fiche
+entity Fiche
     titre: String
     contenu: Text
     statut: String
 
-<span class="kw">actor</span> Auteur selfRegister
-<span class="kw">actor</span> Relecteur
+actor Auteur selfRegister
+actor Relecteur
 
-<span class="kw">relation</span> Auteur hasMany Fiche
+relation Auteur hasMany Fiche
 
-<span class="kw">rule</span> Fiche.titre required
-<span class="kw">rule</span> Fiche.statut oneOf "brouillon", "publiee"
-<span class="kw">rule</span> Fiche.Read publicWhen statut "publiee"
-<span class="kw">rule</span> Fiche.Update ownedBy Auteur
-<span class="kw">rule</span> Fiche.Update sharedBy Relecteur
+rule Fiche.titre required
+rule Fiche.statut oneOf "brouillon", "publiee"
+rule Fiche.Read publicWhen statut "publiee"
+rule Fiche.Update ownedBy Auteur
+rule Fiche.Update sharedBy Relecteur
 
-<span class="kw">workflow</span> Ecrire <span class="kw">for</span> Auteur
+workflow Ecrire for Auteur
     Create Fiche
     Read Fiche
     Update Fiche
 
-<span class="kw">workflow</span> Relire <span class="kw">for</span> Relecteur
+workflow Relire for Relecteur
     Read Fiche
-    Update Fiche"""
+    Update Fiche""")
 

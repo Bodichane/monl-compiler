@@ -30,8 +30,7 @@ CSS = """
 """
 
 AUTH_BODY = f"""
-<section class="shell auth-shell"><div class="card auth-card"><span class="eyebrow">Votre espace Monl</span>
-<h1 id="auth-title">Se connecter</h1><p class="muted" id="auth-help">Retrouvez vos projets et poursuivez vos compilations.</p>
+<section class="shell auth-shell"><div class="card auth-card"><h1 id="auth-title">Se connecter</h1><p class="muted" id="auth-help">Retrouvez vos projets et poursuivez vos compilations.</p>
 <div class="auth-tabs"><button class="active" type="button" data-mode="login">Connexion</button><button type="button" data-mode="register">Créer un compte</button></div>
 <div class="form-error" id="auth-error" role="alert"></div><form id="auth-form" novalidate>
 <div class="form-field"><label for="email">Adresse email</label><input id="email" type="email" autocomplete="email" required></div>
@@ -65,7 +64,7 @@ form.onsubmit=async event=>{event.preventDefault();error.className='form-error';
 """
 
 ACCOUNT_BODY = f"""
-<section class="shell account-head"><div><span class="eyebrow">Compte</span><h1>Vos projets.</h1><p class="muted" id="account-email"></p></div>
+<section class="shell account-head"><div><h1>Vos projets.</h1><p class="muted" id="account-email"></p></div>
 <button class="secondary" id="logout" type="button">Se déconnecter</button></section>
 <section class="shell account-grid"><article class="card account-panel"><div class="panel-head"><div><h2>Projets compilés</h2><p class="muted">Conservés dans votre espace.</p></div><a class="primary" href="/console">{icon('compiler')} Nouveau projet</a></div><div class="item-list" id="projects"></div></article>
 <article class="card account-panel" id="panneau-codes">

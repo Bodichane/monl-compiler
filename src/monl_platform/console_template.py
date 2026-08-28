@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .coloration import coloriser
 from .theme import icon
 
 EXTRA_CSS = """
@@ -24,7 +25,10 @@ EXTRA_CSS = """
 .lights i { width: 8px; height: 8px; border-radius: 50%; background: var(--code-muted); }
 .terminal pre { margin: 0; padding: 24px; min-height: 340px; white-space: pre-wrap;
                 font: 13px/1.72 var(--mono); }
-.kw { color: var(--code-accent); } .cm { color: var(--code-muted); } .arrow { color: var(--code-accent); }
+/* `.kw` a disparu avec la coloration écrite à la main. `.arrow` marque les
+   lignes de RÉSULTAT du terminal : un état, pas un mot du langage — c'est
+   le genre d'emploi que l'accent garde. */
+.cm { color: var(--s-cm); } .arrow { color: var(--code-accent); }
 
 .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
          gap: var(--space-3); }
@@ -153,26 +157,28 @@ kbd { font: 11px var(--mono); border: 1px solid var(--line); border-bottom-width
 }
 """
 
-TERMINAL = """<span class="kw">app</span> CarnetAtelier
+# La SPEC passe par le coloriseur ; les lignes de résultat gardent leurs
+# flèches, qui ne sont pas du langage.
+TERMINAL = coloriser("""app CarnetAtelier
 
-<span class="kw">entity</span> Fiche
+entity Fiche
     titre: String
     statut: String
 
-<span class="kw">actor</span> Auteur selfRegister
+actor Auteur selfRegister
 
-<span class="kw">relation</span> Auteur hasMany Fiche
+relation Auteur hasMany Fiche
 
-<span class="kw">rule</span> Fiche.statut oneOf "brouillon", "publiee"
-<span class="kw">rule</span> Fiche.Read publicWhen statut "publiee"
-<span class="kw">rule</span> Fiche.Update ownedBy Auteur
+rule Fiche.statut oneOf "brouillon", "publiee"
+rule Fiche.Read publicWhen statut "publiee"
+rule Fiche.Update ownedBy Auteur
 
-<span class="kw">workflow</span> Ecrire <span class="kw">for</span> Auteur
+workflow Ecrire for Auteur
     Create Fiche
     Read Fiche
-    Update Fiche
+    Update Fiche""") + """
 
-<span class="cm"># résultat déterministe</span>
+<span class="s-cm"># résultat déterministe</span>
 <span class="arrow">✓</span> API FastAPI + comptes
 <span class="arrow">✓</span> Schéma SQL et index
 <span class="arrow">✓</span> Contrôle d'accès par enregistrement
@@ -180,8 +186,7 @@ TERMINAL = """<span class="kw">app</span> CarnetAtelier
 
 BODY = f"""
 <section class="shell console-head" data-reveal>
-<div><span class="eyebrow">Espace de travail</span>
-<h1>Console de compilation</h1>
+<div><h1>Console de compilation</h1>
 <p>Écrivez ou importez une spécification, vérifiez ses règles puis téléchargez
 un backend autonome et son contrat frontend.</p></div>
 <span class="console-badge">{icon('shield')} Compilation locale et vérifiable</span>

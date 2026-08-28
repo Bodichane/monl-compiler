@@ -1022,6 +1022,33 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   **Un commentaire CSS est du CONTENU de page** — écrire « ci-dessus » dans la
   feuille inlinée a fait tomber un test de la page de confidentialité.
   Voir point 156.
+- **POINT 158 : la coloration des specs DÉRIVE de la grammaire, et l'or n'a
+  plus qu'un emploi.** `src/monl_platform/coloration.py` rend la coloration au
+  SERVEUR (aucun JavaScript, aucune dépendance) et **n'écrit aucun mot-clé** :
+  les tables viennent des terminaux de `monl.parser.grammaire.grammar`, donc
+  une brique neuve est colorée le jour où elle entre dans la grammaire.
+  `_terminal()` ÉCHOUE plutôt que de rendre un ensemble vide — une coloration
+  qui manque ne ressemble pas à une panne. L'échappement se fait par FRAGMENT :
+  échapper d'abord ferait voir `&quot;` au motif de chaîne, qui ne
+  reconnaîtrait plus rien. Avant ce point il n'existait que `.kw` et `.cm`,
+  écrites à la main dans les gabarits : c'est pour ça que l'or marquait tout
+  mot-clé de toute spec, sur onze blocs.
+  **La règle de palette a TROIS axes, et le contraste entre deux jetons n'en
+  est pas un** : WCAG parle du FOND (4,5:1, seuil du TEXTE — du code se lit).
+  Deux jetons sont distincts s'ils diffèrent en teinte (≥ 35°, les deux ayant
+  une chroma utilisable), OU en clarté (≥ 1,35:1), OU en franchise (≥ 40 de
+  chroma). Ne pas employer la saturation HSV : un pastel est peu saturé par
+  construction, et le vert des types comme le violet des noms se voyaient
+  traités comme des gris. Gardé par `tests/test_platform_coloration.py`, dont
+  les contre-épreuves rejouent les deux défauts mesurés (noms en crème à
+  1,06:1 de l'encre ; rose et olive à 32° de l'or).
+  **Les surtitres de section sont retirés** — le seul `.eyebrow` qui survit est
+  « Erreur 404 », où le surtitre EST le titre.
+  **Le volet Navigateur masqué ment aussi sur le DÉFILEMENT** (point 156
+  élargi) : `scrollTop` reste à 0 quoi qu'on fasse, parce qu'une page qui ne
+  composite pas ne défile pas. `html { overflow-x: clip }` ne bloque RIEN — un
+  A/B en iframes le prouve (500 avec, sans, et avec `hidden`). Isoler la
+  variable, jamais lire la valeur. Voir point 158.
 - **POINT 155 : aucun fichier de `src/` ne dépasse 400 lignes, aucune fonction
   non plus — et c'est VÉRIFIÉ.** `tests/test_architecture.py` porte trois
   contrats : `PLAFOND_FICHIER`, `PLAFOND_FONCTION`, et **une exception doit

@@ -255,8 +255,7 @@ def _montage(item: dict, index: int) -> str:
 
 SECTIONS = f"""
 <section class="shell section" aria-labelledby="pourquoi-title">
-<div class="section-head" data-reveal><span class="eyebrow">Pourquoi monl</span>
-<h2 id="pourquoi-title">Trois écritures que le client tentait. Trois refus compilés.</h2>
+<div class="section-head" data-reveal><h2 id="pourquoi-title">Trois écritures que le client tentait. Trois refus compilés.</h2>
 <p>Aucune n'a été trouvée en relisant du code : chacune vient d'un serveur en
 marche, et chacune a coûté quelque chose de réel — un article vendu à un
 centime, un stock qui ne bougeait pas, une commande qui grossissait après
@@ -265,8 +264,7 @@ paiement.</p></div>
 </section>
 
 <section class="band"><div class="shell section" aria-labelledby="compare-title">
-<div class="section-head" data-reveal><span class="eyebrow">monl et les plateformes</span>
-<h2 id="compare-title">Supabase héberge et exécute. Monl compile et refuse.</h2>
+<div class="section-head" data-reveal><h2 id="compare-title">Supabase héberge et exécute. Monl compile et refuse.</h2>
 <p>Les deux ne répondent pas à la même question, et le tableau est écrit pour
 être juste plutôt que pour gagner : la dernière ligne dit ce que monl
 n'apporte pas.</p></div>
@@ -278,8 +276,7 @@ n'apporte pas.</p></div>
 </div></div></section>
 
 <section class="shell section" aria-labelledby="ensemble-title">
-<div class="section-head" data-reveal><span class="eyebrow">Les deux ensemble</span>
-<h2 id="ensemble-title">Le choix n'est pas « l'un ou l'autre ».</h2>
+<div class="section-head" data-reveal><h2 id="ensemble-title">Le choix n'est pas « l'un ou l'autre ».</h2>
 <p>Monl produit un backend qui parle PostgreSQL. Le vôtre peut être celui d'un
 service managé — vous gardez sa console, ses sauvegardes et ses répliques.</p></div>
 <div class="montages">{"".join(_montage(m, i) for i, m in enumerate(MONTAGES))}</div>

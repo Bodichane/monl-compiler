@@ -19,7 +19,7 @@ CSS = """
 """
 
 BODY = f"""
-<section class="shell mcp-hero"><span class="eyebrow">{icon('mcp')} Serveur MCP</span><h1>Reliez votre agent au compilateur.</h1>
+<section class="shell mcp-hero"><h1>Reliez votre agent au compilateur.</h1>
 <p class="muted">Créez une clé ici, configurez-la une fois dans votre agent, puis validez et compilez des backends Monl sans installer le projet.</p></section>
 <section class="shell mcp-grid">
 <article class="card mcp-panel"><h2>Configurer la connexion</h2><p class="muted">Votre agent appelle le compilateur distant avec une clé personnelle. La spec reste le contrat d’entrée.</p>

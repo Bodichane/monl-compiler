@@ -59,7 +59,10 @@ def test_page_explique_compile_et_mcp(tmp_path):
         assert "0</b><span>appel réseau pour compiler" in page.text
         assert "Créer un backend" in page.text
         assert "Une spec entre. Un backend complet sort" in page.text
-        assert "Cas métier compilables" in page.text
+        # Le TITRE de la section, pas son accroche : les accroches ont été
+        # retirées du site, et un test accroché à un ornement retient une
+        # décoration au lieu du contenu.
+        assert "Quatre applications, quatre familles de règles" in page.text
         assert 'href="/security"' in page.text
         assert "Le même moteur pour les agents" in page.text
         assert 'href="/console"' in page.text
@@ -94,7 +97,7 @@ def test_page_explique_compile_et_mcp(tmp_path):
         security = requests.get(base + "/security", timeout=30)
         assert security.status_code == 200
         assert "Les règles sont exécutées" in security.text
-        assert "Attaques couvertes" in security.text
+        assert "Ce que la suite essaie réellement de casser" in security.text
         assert "Le déploiement doit garantir" in security.text
 
         assert requests.get(base + "/health", timeout=30).json()["status"] == "ok"

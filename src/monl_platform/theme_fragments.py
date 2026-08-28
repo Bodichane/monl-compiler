@@ -198,8 +198,43 @@ code { font-family: var(--mono); font-size: .92em; }
   border-radius: var(--radius); padding: var(--space-5);
   overflow-x: auto; font: 13px/1.7 var(--mono); white-space: pre;
 }
-.codeblock .kw { color: var(--code-accent); }
-.codeblock .cm { color: var(--code-muted); }
+/* Coloration syntaxique. UNE seule palette pour les deux thèmes : le fond de
+   code est sombre des deux côtés (#2E2B25 en clair, #0F0E0C en sombre), donc
+   une variante par thème serait une deuxième vérité à entretenir pour rien.
+   Les sept valeurs sont mesurées sur le PLUS CLAIR des deux fonds — celui où
+   c'est le plus dur — et tiennent toutes 4,5:1, le seuil du TEXTE et non celui
+   des graphiques : du code se lit.
+   L'or (--s-act) n'a plus qu'UN emploi, les actions CRUD. Avant, `.kw` le
+   donnait à tout mot-clé de toute spec : c'est ce qui le faisait revenir
+   partout sur le site.
+   Le contraste ENTRE deux jetons n'est pas la bonne mesure : WCAG parle du
+   fond, et deux couleurs de même clarté séparées par la teinte se distinguent
+   très bien. La règle tenue ici — et VÉRIFIÉE par un test — est qu'aucune
+   paire de jetons SATURÉS ne soit proche à la fois en teinte (< 35°) et en
+   clarté (< 1,35:1). Elle a coûté trois valeurs : les noms déclarés étaient
+   crème, donc à 1,06:1 de l'encre du bloc — une classe qui ne distinguait
+   rien ; le rose des mots-clés et l'olive des chaînes tombaient chacun à 32°
+   de l'or. */
+:root {
+  --s-kw: #e88ba6;    /* entity, rule, relation, workflow…  5,83:1 */
+  --s-act: #e7b875;   /* Create, Read, Update, Delete       7,73:1 */
+  --s-type: #9ec8a8;  /* String, Money, DateTime…           7,58:1 */
+  --s-nom: #c4b0dd;   /* les noms declares                  7,12:1 */
+  --s-str: #b9d489;   /* "chaines"                          8,63:1 */
+  --s-num: #9fbeda;   /* nombres                            7,29:1 */
+  --s-cm: #9d9488;    /* # commentaires                     4,72:1 */
+}
+.s-kw { color: var(--s-kw); }
+.s-act { color: var(--s-act); }
+.s-type { color: var(--s-type); }
+.s-nom { color: var(--s-nom); }
+.s-str { color: var(--s-str); }
+.s-num { color: var(--s-num); }
+.s-cm { color: var(--s-cm); }
+/* `.kw` et `.cm` restent pour ce qui n'est PAS une spec monl — les blocs shell
+   du guide portent des commentaires marqués à la main. */
+.codeblock .kw { color: var(--s-kw); }
+.codeblock .cm { color: var(--s-cm); }
 .copy {
   position: absolute; top: 8px; right: 8px; min-height: 44px;
   padding: 0 12px; border-radius: 8px; cursor: pointer; font-size: 13px;

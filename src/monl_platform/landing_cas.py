@@ -12,6 +12,7 @@ un fichier et la règle qui la lit dans un autre.
 from __future__ import annotations
 
 from . import examples
+from .coloration import coloriser
 from .theme import icon, page  # noqa: F401  (page reste importable d'ici)
 
 EXTRA_CSS = """
@@ -103,10 +104,11 @@ def case_panel(item: dict, index: int) -> str:
     rules = "".join(f"<span>{rule}</span>" for rule in item["teaches"])
     active = " active" if index == 0 else ""
     hidden = "" if index == 0 else " hidden"
-    snippet = CASE_SNIPPETS[item["id"]]
+    # Colorié ICI et non dans la table : la table reste du texte nu,
+    # relisible et comparable à une vraie spec.
+    snippet = coloriser(CASE_SNIPPETS[item["id"]])
     return f"""<section class="case-panel{active}" id="case-{item['id']}" role="tabpanel"
-aria-labelledby="tab-{item['id']}"{hidden}><div><span class="eyebrow">0{index + 1} · Spec incluse</span>
-<h3>{item['name']}</h3><p>{CASE_OUTCOMES[item['id']]}</p>
+aria-labelledby="tab-{item['id']}"{hidden}><div><h3>{item['name']}</h3><p>{CASE_OUTCOMES[item['id']]}</p>
 <div class="case-rules" aria-label="Règles démontrées">{rules}</div>
 <div class="case-result" style="margin-top:28px"><span><b>{result['entities']}</b>entités</span>
 <span><b>{result['routes']}</b>routes</span><span><b>{result['files']}</b>fichiers</span></div>

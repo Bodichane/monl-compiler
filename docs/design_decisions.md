@@ -74,6 +74,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [155](#155-cinq-angles-morts-dans-lanalyse-qui-découpe-et-un-plafond-qui-nexistait-pas) Cinq angles morts dans l'analyse qui découpe, et un plafond qui n'existait pas ·
 [156](#156-un-repère-qui-glisse-une-bascule-qui-révèle-et-un-volet-qui-ment) Un repère qui glisse, une bascule qui révèle, et un volet qui ment ·
 [157](#157-le-logo-au--o--orange-et-trois-mesures-qui-mentaient) Le logo au « o » orange, et trois mesures qui mentaient ·
+[158](#158-sept-couleurs-dérivées-de-la-grammaire-et-un-surtitre-de-moins-par-section) Sept couleurs dérivées de la grammaire, et un surtitre de moins par section ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -10637,3 +10638,114 @@ plafond de 400 lignes à 401. L'explorateur de cas est parti dans
 séparer la classe `glisse` de la règle qui la lit n'aurait rien réglé. Les deux
 seules exceptions écrites restent des LITTÉRAUX de données ; du code qui grossit
 se découpe.
+
+
+---
+
+## 158. Sept couleurs dérivées de la grammaire, et un surtitre de moins par section
+
+Trois demandes en une phrase : *« pour la spec mettre plus de couleur comme le
+ferait vscode (on crée directement nos propre code couleur), pas besoin
+reprendre la couleur or partout sur le site, aussi à chaque section retirer les
+éléments comme "Le backend est compilé, pas improvisé", "Voyez le résultat", le
+site doit être facile à lire »*. Les trois se tiennent : c'est le MÊME or qui
+marquait tout mot-clé de toute spec, et c'est la même envie de tout annoncer
+qui posait une phrase avant chaque titre.
+
+### L'or n'avait pas deux emplois, il en avait un seul répété
+
+Il n'existait aucune coloration. Les `<span>` étaient écrits **à la main** dans
+les chaînes de gabarit, avec deux classes en tout — `.kw` et `.cm`. Donc
+`entity`, `rule`, `Create`, `String`, `min`, `public`, `"deposee"` : tout ce
+qui n'était pas un commentaire recevait la couleur d'accent. Onze blocs de code
+sur la page d'accueil, chacun repeignant l'or sur une ligne sur deux. Ce n'est
+pas que l'or « revenait partout » par excès de zèle décoratif : c'était la
+seule couleur que la page savait produire.
+
+`src/monl_platform/coloration.py` rend la coloration au SERVEUR, sans une ligne
+de JavaScript — une page qui n'exécute rien montre déjà le code coloré, et la
+plateforme n'ajoute aucune dépendance.
+
+**Aucun mot-clé n'y est écrit.** Les tables sont DÉRIVÉES des terminaux de la
+vraie grammaire (`monl.parser.grammaire.grammar`) : `TYPE`, `ACTION_TYPE`,
+`VALIDATION_TYPE`, `RELATION_TYPE`, et le reste des littéraux par complément.
+Une brique qui ajoute un mot-clé le voit coloré sans qu'on y pense ; un mot qui
+sort de la grammaire cesse d'être coloré. Une liste recopiée aurait divergé au
+premier point de journal — c'est le reproche du point 146 (« qui l'écrira ? »)
+appliqué à la coloration, et `_terminal()` ÉCHOUE plutôt que de rendre un
+ensemble vide, parce qu'une coloration qui manque ne ressemble pas à une panne.
+
+Détail qui a compté : **l'échappement se fait par fragment, pas d'abord.**
+Échapper le source avant de le parcourir ferait voir `&quot;` au motif de
+chaîne, qui ne reconnaîtrait plus rien — et le bloc sortirait sans une seule
+chaîne colorée, sans erreur.
+
+### Le contraste ENTRE deux jetons n'est pas la bonne mesure
+
+La première palette avait sept valeurs, toutes mesurées au-dessus de 4,5:1 sur
+le fond de code — le seuil du TEXTE et non celui des graphiques, parce que du
+code se lit. Elle avait quand même un défaut grossier : les noms déclarés
+étaient crème (`#f0e6d8`), donc à **1,06:1 de l'encre du bloc**. Une classe qui
+ne distinguait rien, et qui passait tous les contrôles WCAG puisque WCAG parle
+du FOND.
+
+En cherchant à corriger, je me suis trompé de mesure dans l'autre sens : j'ai
+voulu écarter les jetons deux à deux par le contraste, et le violet retenu pour
+les noms se mesurait à 1,02:1 du bleu des nombres. Or ces deux-là se lisent
+très bien — ils sont séparés par 58° de teinte. **Deux couleurs de même clarté
+ne sont confusables que si elles sont aussi de même teinte.**
+
+La règle finalement tenue, et vérifiée par un test, est à TROIS axes : une
+paire est acceptable si elle diffère assez en teinte (≥ 35°, à condition que
+les deux portent une chroma utilisable), OU en clarté (≥ 1,35:1), OU en
+franchise (≥ 40 de chroma sur 255). Le troisième axe n'est pas du confort :
+sans lui, le rose des mots-clés et le gris des commentaires — 52° et 1,23:1 —
+sortaient fautifs alors qu'ils ne se ressemblent en rien, l'un ayant 93 de
+chroma et l'autre 21.
+
+**Le premier essai de cette règle employait la saturation HSV, et c'était
+faux** : un pastel est peu saturé PAR CONSTRUCTION (clair et coloré), donc le
+vert des types (0,21) et le violet des noms (0,20) passaient sous le seuil et
+se voyaient traités comme des gris. La chroma — `max(RVB) − min(RVB)` — les
+sépare correctement des vrais gris (42 et 45, contre 21 pour le commentaire et
+12 pour l'encre).
+
+Deux valeurs ont bougé pour satisfaire la règle : les mots-clés passent de
+`#e8918c` à `#e88ba6` et les chaînes de `#cbd48a` à `#b9d489`, tous deux
+tombant à 32° de l'or. **L'or (`--s-act`) n'a plus qu'un seul emploi : les
+quatre actions CRUD.**
+
+Une seule palette pour les deux thèmes : le fond de code est sombre des deux
+côtés (`#2e2b25` en clair, `#0f0e0c` en sombre), donc une variante par thème
+serait une deuxième vérité à entretenir pour rien. Les sept valeurs sont
+mesurées sur le plus CLAIR des deux — celui où c'est le plus dur.
+
+### Les surtitres se lisaient avant les titres
+
+« Le backend est compilé, pas improvisé », « Voyez le résultat » : des phrases
+posées AVANT le titre de chaque section, qu'il fallait traverser pour arriver à
+ce que la section dit vraiment. Elles sont toutes retirées. Le seul `.eyebrow`
+qui survit est celui de la page d'erreur, où le surtitre EST le titre :
+« Erreur 404 » n'annonce pas une section, il la nomme.
+
+### Ce que les contre-épreuves ont trouvé
+
+Six garanties, six sabotages, et **l'un d'eux a rendu du vert** : remettre les
+noms déclarés en crème n'a pas fait tomber le test qui garde précisément ce
+défaut. Cause : `#c4b0dd` et `#f0e6d8` font sept caractères chacun, donc le
+fichier gardait la même TAILLE, et l'écriture retombait dans la même seconde —
+Python a rechargé son `.pyc` sans recompiler. Le bytecode périmé pour la
+troisième fois de la série (points 152 et 157), et pour la première fois sous
+une forme qui rendait une contre-épreuve *rassurante* au lieu de la casser.
+Purge du cache et `-B` : les six mordent.
+
+**Et une mesure du navigateur, encore fausse.** Le `scrollTop` de la page
+restait à 0 quelle que soit la commande — de quoi conclure que
+`html { overflow-x: clip }` bloquait le défilement vertical, ce que la lettre
+de la spécification CSS rend plausible. Un A/B dans deux iframes de la même
+page a tranché : avec la règle, sans la règle, et avec `hidden`, les trois
+défilent à 500. Le scroller gelé est un effet du volet Navigateur **non
+affiché** — il ne composite pas, donc il ne défile pas non plus. C'est le
+point 156 élargi : le volet masqué ne ment pas seulement sur la cascade, il
+ment aussi sur le défilement. La question se tranche en isolant la variable,
+jamais en lisant la valeur.
