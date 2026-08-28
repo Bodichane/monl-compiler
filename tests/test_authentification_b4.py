@@ -341,8 +341,32 @@ def _expire_reset_token(directory, dsn, raw_token):
             conn.close()
 
 
-def _totp_code(secret, step=None):
-    step = int(time.time()) // 30 if step is None else step
+# Marge exigée avant d'employer un pas TOTP : de quoi tenir les quelques
+# allers-retours HTTP qui suivent, même sous la charge de la suite complète.
+MARGE_FENETRE_TOTP = 10.0
+
+
+def _pas_totp_stable(marge=MARGE_FENETRE_TOTP):
+    """Le pas TOTP courant, avec la garantie qu'il le reste `marge` secondes.
+
+    Sans cette attente, la fenêtre de 30 s peut basculer entre le calcul d'un
+    code et sa vérification par le serveur : le test mesure alors autre chose
+    que ce qu'il annonce. C'est ce qui faisait échouer l'assertion de rejeu en
+    CI (run 33136766014, `assert 200 == 401`) — le code recalculé après la
+    bascule était un code NEUF, jamais consommé, que le serveur acceptait à
+    juste titre. Attendre le début de la fenêtre suivante est le seul moyen
+    d'écrire une assertion de rejeu qui porte réellement sur un rejeu.
+    """
+    reste = 30 - time.time() % 30
+    if reste < marge:
+        time.sleep(reste)
+    return int(time.time()) // 30
+
+
+def _totp_code(secret, step):
+    """Le code du pas DEMANDÉ. Le pas est obligatoire : le déduire ici de
+    l'horloge est précisément ce qui laissait une assertion de rejeu porter
+    sur un code neuf (voir `_pas_totp_stable`)."""
     padded = secret + "=" * ((8 - len(secret) % 8) % 8)
     key = base64.b32decode(padded, casefold=True)
     digest = hmac.new(key, struct.pack(">Q", step), hashlib.sha1).digest()
@@ -477,21 +501,38 @@ def test_authentification_b4_complete_sur_les_deux_moteurs(b4_application):
     assert setup.status_code == 200, setup.text
     secret = setup.json()["secret"]
     assert setup.json()["otpauth_uri"].startswith("otpauth://totp/")
+    # Le pas est arrêté AVANT la connexion : `_pas_totp_stable` peut attendre
+    # le début de la fenêtre suivante, et cette attente périmerait le jeton
+    # d'accès si elle avait lieu après son émission.
+    pas_activation = _pas_totp_stable()
     # Jeton NEUF : 'setup' et 'enable' sont deux appels, et le jeton d'accès
     # est volontairement court. Le réutiliser rendrait le test sensible à la
     # durée du premier appel plutôt qu'au comportement mesuré.
     enabled = _call("POST", base, "/totp/enable",
                     token=_token(_login(base, bob, "motdepasse8",
                                         ip="totp-enable-session")),
-                    body={"code": _totp_code(secret)}, ip="totp-enable")
+                    body={"code": _totp_code(secret, pas_activation)},
+                    ip="totp-enable")
     assert enabled.status_code == 200, enabled.text
-    valid = _login(base, bob, "motdepasse8", ip="totp-valid",
-                   code=_totp_code(secret))
-    assert valid.status_code == 200, valid.text
+    # Le pas est arrêté UNE fois : les trois connexions qui suivent portent
+    # donc toutes sur la même fenêtre, et la fenêtre « précédente » est bien
+    # celle qui précède immédiatement le code accepté.
+    pas = _pas_totp_stable()
+    code_courant = _totp_code(secret, pas)
+    # La fenêtre PRÉCÉDENTE s'éprouve AVANT la connexion valide. Après elle,
+    # le pas courant est consommé et l'anti-rejeu refuse ce code quoi qu'il
+    # arrive : l'assertion resterait verte sans plus rien mesurer. Vérifié en
+    # donnant au serveur une tolérance de ±1 fenêtre — placée après, elle
+    # passait ; placée ici, elle devient rouge.
     assert _login(base, bob, "motdepasse8", ip="totp-other-window",
-                  code=_totp_code(secret, int(time.time()) // 30 - 1)).status_code == 401
+                  code=_totp_code(secret, pas - 1)).status_code == 401
+    valid = _login(base, bob, "motdepasse8", ip="totp-valid", code=code_courant)
+    assert valid.status_code == 200, valid.text
+    # Le MÊME code, rejoué : recalculer ici ne prouverait rien dès que la
+    # fenêtre a basculé entre les deux appels — c'est la variable, et elle
+    # seule, qui fait de cette ligne une assertion de rejeu.
     assert _login(base, bob, "motdepasse8", ip="totp-replay",
-                  code=_totp_code(secret)).status_code == 401
+                  code=code_courant).status_code == 401
     assert _login(base, bob, "motdepasse8", ip="totp-missing").status_code == 401
 
     contract = (directory / "frontend_contract.json").read_text(encoding="utf-8")
