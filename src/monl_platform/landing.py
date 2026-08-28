@@ -63,11 +63,16 @@ EXTRA_CSS = """
 .flow-stage { min-height:280px; padding:clamp(24px,3vw,36px); border-right:1px solid var(--line); display:flex; flex-direction:column; }
 .flow-stage:last-child { border-right:0; }
 .flow-stage:nth-child(2) { background:var(--code-bg); color:var(--code-ink); }
-.flow-stage .stage-no { font:600 11px var(--mono); letter-spacing:.1em; color:var(--muted); }
-.flow-stage:nth-child(2) .stage-no,.flow-stage:nth-child(2) p { color:var(--code-muted); }
-.flow-stage h3 { margin:auto 0 10px; font-size:clamp(22px,2.4vw,29px); }
+.flow-stage:nth-child(2) p { color:var(--code-muted); }
+/* Le titre en HAUT, les étiquettes en BAS. Avant, c'était l'inverse :
+   `margin-top:auto` sur le titre le poussait d'un espace libre qui
+   dépend de la longueur du paragraphe, donc les trois titres se posaient
+   à trois hauteurs différentes. Le surtitre le masquait — lui était
+   aligné — et le défaut est apparu en le retirant. */
+.flow-stage h3 { margin:0 0 10px; font-size:clamp(22px,2.4vw,29px); }
 .flow-stage p { color:var(--muted); margin:0; }
-.flow-stage .stage-tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:22px; }
+.flow-stage .stage-tags { display:flex; flex-wrap:wrap; gap:6px;
+  margin-top:auto; padding-top:22px; }
 .flow-stage .stage-tags span { font:10px var(--mono); border:1px solid currentColor; border-radius:999px; padding:3px 8px; opacity:.7; }
 .capability-grid { display:grid; grid-template-columns:1fr 1fr; border:1px solid var(--line); border-radius:var(--radius-lg); overflow:hidden; }
 .capability { min-height:230px; padding:clamp(24px,3vw,34px); border-right:1px solid var(--line); border-bottom:1px solid var(--line); }
@@ -212,9 +217,9 @@ et le contrat destiné à votre interface.</p>
 <div class="section-head" data-reveal><h2 id="position-title">Votre infrastructure exécute. Monl décide ce qui est valide.</h2>
 <p>Postgres, votre cloud ou un service managé hébergent les données. Monl intervient avant eux et reste indépendant de l’interface.</p></div>
 <div class="platform-flow" data-reveal>
-<article class="flow-stage"><span class="stage-no">01 · INFRASTRUCTURE</span><h3>Les fondations</h3><p>Base de données, calcul, stockage et réseau restent chez le fournisseur que vous choisissez.</p><div class="stage-tags"><span>Postgres</span><span>cloud</span><span>self-hosted</span></div></article>
-<article class="flow-stage"><span class="stage-no">02 · MONL COMPILER</span><h3>Le métier vérifié</h3><p>Acteurs, droits, propriété, paiements et invariants deviennent une API et un contrat cohérents. Le même moteur pour les agents MCP.</p><div class="stage-tags"><span>spec.ml</span><span>audit</span><span>contrat</span></div></article>
-<article class="flow-stage"><span class="stage-no">03 · INTERFACES</span><h3>Chaque expérience</h3><p>Web, mobile et agents utilisent les mêmes routes et autorisations sans les deviner.</p><div class="stage-tags"><span>web</span><span>mobile</span><span>MCP</span></div></article>
+<article class="flow-stage"><h3>Les fondations</h3><p>Base de données, calcul, stockage et réseau restent chez le fournisseur que vous choisissez.</p><div class="stage-tags"><span>Postgres</span><span>cloud</span><span>self-hosted</span></div></article>
+<article class="flow-stage"><h3>Le métier vérifié</h3><p>Acteurs, droits, propriété, paiements et invariants deviennent une API et un contrat cohérents. Le même moteur pour les agents MCP.</p><div class="stage-tags"><span>spec.ml</span><span>audit</span><span>contrat</span></div></article>
+<article class="flow-stage"><h3>Chaque expérience</h3><p>Web, mobile et agents utilisent les mêmes routes et autorisations sans les deviner.</p><div class="stage-tags"><span>web</span><span>mobile</span><span>MCP</span></div></article>
 </div></section>
 
 {landing_pourquoi.SECTIONS}

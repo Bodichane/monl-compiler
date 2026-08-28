@@ -10810,3 +10810,29 @@ statique puisse faire. Le repli CSS est gardé à part : `overflow-x: auto` seul
 laisse la ligne défiler hors du cadre, et sur une carte personne ne va la
 chercher.
 
+### Les trois derniers surtitres, et le désalignement qu'ils cachaient
+
+Le premier passage n'avait retiré que la classe `.eyebrow`. Les trois cartes de
+positionnement portaient le leur sous un autre nom — `01 · INFRASTRUCTURE`,
+`02 · MONL COMPILER`, `03 · INTERFACES`, classe `.stage-no`. **Chercher un seul
+nom, c'était garder la moitié de la règle** ; le test compte désormais les deux,
+et un second témoin refuse qu'une règle CSS habille encore un surtitre disparu
+(forme du point 154 : une garantie qui ne porte plus sur rien ne fait aucun
+bruit).
+
+La numérotation n'était pas fautive en soi — elle décrivait bien une séquence,
+infrastructure → compilateur → interfaces. C'est la même demande que pour les
+autres : le site doit être facile à lire, et une carte se lit par son titre.
+
+**Le retrait a révélé un défaut que le surtitre masquait.** `.flow-stage h3`
+portait `margin-top: auto` : dans une colonne flex, le titre est donc poussé
+d'un espace libre qui dépend de la LONGUEUR du paragraphe — mesuré 282, 301 et
+321 px sur les trois cartes. Tant que le surtitre occupait le haut, lui aligné,
+l'œil s'accrochait à lui. Sans lui, trois titres à trois hauteurs sautent aux
+yeux. Le titre est remonté en haut et ce sont les ÉTIQUETTES qui portent
+désormais l'`auto`, ce qui les pose sur une base commune : écart mesuré 0 px sur
+les titres comme sur le bas des étiquettes, contre un vrai navigateur.
+
+**Retirer un élément décoratif est une mesure en soi** : il ne cachait pas
+seulement de la place, il cachait un alignement qui n'existait pas.
+

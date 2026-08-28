@@ -163,6 +163,13 @@ def test_la_spec_de_l_accueil_emploie_vraiment_plusieurs_familles():
     assert jetons >= 40, f"{jetons} jetons colorés : la spec n'est plus colorée"
 
 
+# Les classes qui posent une phrase AVANT un titre. Deux et non une : le
+# premier passage n'avait retiré que `.eyebrow`, et les trois cartes de
+# positionnement portaient leur surtitre sous un autre nom (`01 ·
+# INFRASTRUCTURE`). Chercher un seul nom, c'était garder la moitié de la règle.
+SURTITRES = ("eyebrow", "stage-no")
+
+
 def test_aucune_section_ne_porte_plus_de_surtitre():
     """« Le backend est compilé, pas improvisé » se lisait AVANT le titre.
 
@@ -176,5 +183,21 @@ def test_aucune_section_ne_porte_plus_de_surtitre():
     for nom, page in pages.items():
         assert "<section" in page or "<main" in page, (
             f"la page {nom} n'a plus de section : le test ne garde plus rien")
-        assert 'class="eyebrow"' not in page, (
-            f"un surtitre est revenu sur la page {nom}")
+        for classe in SURTITRES:
+            assert f'class="{classe}"' not in page, (
+                f"un surtitre .{classe} est revenu sur la page {nom}")
+
+
+def test_aucune_regle_n_habille_un_surtitre_disparu():
+    """Une règle CSS orpheline fait croire que le surtitre peut revenir.
+
+    C'est la forme du point 154 : une garantie qui ne porte plus sur rien ne
+    fait aucun bruit. `.flow-stage .stage-no` est partie avec le balisage
+    qu'elle habillait ; l'exception assumée est `.eyebrow`, qui sert encore à
+    la page d'erreur.
+    """
+    feuille = "\n".join(re.findall(r"<style[^>]*>(.*?)</style>",
+                                   LANDING_HTML, re.S | re.I))
+    assert feuille, "la feuille n'est plus inlinée"
+    assert "stage-no" not in feuille, (
+        "une règle habille encore un surtitre qui n'existe plus")

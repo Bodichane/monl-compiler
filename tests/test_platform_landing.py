@@ -487,3 +487,28 @@ def test_un_bloc_de_commande_se_replie_au_lieu_d_etre_coupe():
     assert regle, "la règle .montage pre est introuvable"
     assert "pre-wrap" in regle[0], (
         "une commande trop longue serait coupée au lieu d'être repliée")
+
+
+def test_les_trois_cartes_de_position_alignent_leurs_titres():
+    """Le surtitre masquait un désalignement, et son retrait l'a révélé.
+
+    `margin-top: auto` sur le titre le poussait d'un espace libre qui dépend de
+    la LONGUEUR du paragraphe : les trois titres se posaient donc à trois
+    hauteurs différentes (mesuré 282, 301 et 321 px). Tant que le surtitre, lui
+    aligné, occupait le haut de chaque carte, l'œil s'accrochait à lui.
+
+    Le contrôle est CSS et pas géométrique — un test statique ne peut pas
+    mesurer une mise en page. C'est un proxy, et il le dit : la vérification
+    par la géométrie a été faite contre un vrai navigateur (écart 0 px sur les
+    titres comme sur le bas des étiquettes).
+    """
+    from monl_platform.landing import EXTRA_CSS
+
+    titre = _declarations(EXTRA_CSS, ".flow-stage h3")
+    tags = _declarations(EXTRA_CSS, ".flow-stage .stage-tags")
+    assert titre and tags, "les règles des cartes sont introuvables"
+
+    assert "auto" not in titre[0], (
+        "le titre repousse encore : les trois cartes se désalignent")
+    assert "margin-top:auto" in tags[0].replace(" ", ""), (
+        "rien ne pousse les étiquettes en bas : elles suivent le paragraphe")
