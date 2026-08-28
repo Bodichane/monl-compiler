@@ -19,13 +19,11 @@ EXTRA_CSS = """
 """
 
 BODY = f"""
-<section class="shell security-hero"><span class="eyebrow" data-reveal>Sécurité vérifiable</span>
-<h1 data-reveal>Les règles sont exécutées, pas suggérées.</h1>
+<section class="shell security-hero"><h1 data-reveal>Les règles sont exécutées, pas suggérées.</h1>
 <p class="lede" data-reveal>Monl compile les autorisations et invariants dans le backend. Cette page distingue
 ce que le compilateur garantit de ce qui reste sous la responsabilité du déploiement.</p></section>
 
-<section class="shell section"><div class="section-head" data-reveal><span class="eyebrow">Défense en profondeur</span>
-<h2>Quatre niveaux issus de la même spécification.</h2></div><div class="security-grid">
+<section class="shell section"><div class="section-head" data-reveal><h2>Quatre niveaux issus de la même spécification.</h2></div><div class="security-grid">
 <article class="card proof-card" data-reveal><div class="proof-head"><span class="proof-icon">{icon('check')}</span><h2>Refus à la compilation</h2></div>
 <p>Une règle impossible n’est jamais ignorée silencieusement.</p><ul><li>Référence à un champ ou acteur absent</li><li>Propriété sans relation exploitable</li>
 <li>Paiement sur un montant modifiable par le client</li><li>Combinaisons de permissions contradictoires</li></ul><span class="evidence">Parseur + audit statique</span></article>
@@ -40,14 +38,13 @@ ce que le compilateur garantit de ce qui reste sous la responsabilité du déplo
 <li>Acteurs autorisés par action</li><li>Forme exacte des réponses d’authentification</li></ul><span class="evidence">frontend_contract.json versionné</span></article>
 </div></section>
 
-<section class="band"><div class="shell section"><div class="section-head"><span class="eyebrow">Attaques couvertes</span>
-<h2>Ce que la suite essaie réellement de casser.</h2></div><div class="tablewrap"><table class="grid attack-table"><thead><tr><th>Tentative</th><th>Défense attendue</th></tr></thead><tbody>
+<section class="band"><div class="shell section"><div class="section-head"><h2>Ce que la suite essaie réellement de casser.</h2></div><div class="tablewrap"><table class="grid attack-table"><thead><tr><th>Tentative</th><th>Défense attendue</th></tr></thead><tbody>
 <tr><td>JWT signé avec une mauvaise clé</td><td>401, identité refusée</td></tr><tr><td>Acteur authentifié mais non autorisé</td><td>403, aucune écriture</td></tr>
 <tr><td>Lecture directe d’un objet d’un autre compte</td><td>404, objet non divulgué</td></tr><tr><td>Deux actions simultanées oncePer</td><td>Une seule insertion grâce à l’index</td></tr>
 <tr><td>Commande supérieure au stock</td><td>409, stock inchangé</td></tr><tr><td>Montant fourni par le payeur</td><td>Corps ignoré ou règle refusée à la compilation</td></tr>
 </tbody></table></div></div></section>
 
-<section class="shell section"><div class="section-head"><span class="eyebrow">Frontière honnête</span><h2>Garanti par Monl ou à configurer par vous.</h2></div>
+<section class="shell section"><div class="section-head"><h2>Garanti par Monl ou à configurer par vous.</h2></div>
 <div class="boundary"><div class="guaranteed"><h2>Monl garantit</h2><ul><li>Cohérence entre spec, API, SQL et contrat</li><li>Application des permissions déclarées</li>
 <li>Secret JWT absent de l’archive</li><li>Clés MCP hachées, attribuées et révocables</li><li>Quotas persistants et workers de compilation bornés</li><li>Sortie reproductible pour une même version</li></ul></div>
 <div class="responsibility"><h2>Le déploiement doit garantir</h2><ul><li>HTTPS, sauvegardes et mises à jour</li><li>Protection des variables d’environnement</li>

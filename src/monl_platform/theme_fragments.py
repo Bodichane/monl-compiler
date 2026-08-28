@@ -118,7 +118,12 @@ code { font-family: var(--mono); font-size: .92em; }
   display: inline-flex; align-items: center; min-height: 44px;
   color:var(--ink); font-weight: 700; letter-spacing: -.02em; text-decoration: none;
 }
-.brand-wordmark { width:112px; height:auto; display:block; flex:none; }
+/* 88px et non 112 : à la taille précédente le mot occupait 44 px sur les
+   68 px de la barre, soit les deux tiers de sa hauteur, et il pesait plus
+   lourd que la navigation qu'il surplombe. À 88 il fait 35 px — les
+   lettres restent à 27 px, très au-dessus des 15 px des liens, donc il
+   mène toujours la barre sans la remplir. */
+.brand-wordmark { width:88px; height:auto; display:block; flex:none; }
 .mark {
   width: 34px; height: 34px; border-radius: 10px; flex: none;
   display: grid; place-items: center; overflow:hidden;
@@ -198,8 +203,43 @@ code { font-family: var(--mono); font-size: .92em; }
   border-radius: var(--radius); padding: var(--space-5);
   overflow-x: auto; font: 13px/1.7 var(--mono); white-space: pre;
 }
-.codeblock .kw { color: var(--code-accent); }
-.codeblock .cm { color: var(--code-muted); }
+/* Coloration syntaxique. UNE seule palette pour les deux thèmes : le fond de
+   code est sombre des deux côtés (#2E2B25 en clair, #0F0E0C en sombre), donc
+   une variante par thème serait une deuxième vérité à entretenir pour rien.
+   Les sept valeurs sont mesurées sur le PLUS CLAIR des deux fonds — celui où
+   c'est le plus dur — et tiennent toutes 4,5:1, le seuil du TEXTE et non celui
+   des graphiques : du code se lit.
+   L'or (--s-act) n'a plus qu'UN emploi, les actions CRUD. Avant, `.kw` le
+   donnait à tout mot-clé de toute spec : c'est ce qui le faisait revenir
+   partout sur le site.
+   Le contraste ENTRE deux jetons n'est pas la bonne mesure : WCAG parle du
+   fond, et deux couleurs de même clarté séparées par la teinte se distinguent
+   très bien. La règle tenue ici — et VÉRIFIÉE par un test — est qu'aucune
+   paire de jetons SATURÉS ne soit proche à la fois en teinte (< 35°) et en
+   clarté (< 1,35:1). Elle a coûté trois valeurs : les noms déclarés étaient
+   crème, donc à 1,06:1 de l'encre du bloc — une classe qui ne distinguait
+   rien ; le rose des mots-clés et l'olive des chaînes tombaient chacun à 32°
+   de l'or. */
+:root {
+  --s-kw: #e88ba6;    /* entity, rule, relation, workflow…  5,83:1 */
+  --s-act: #e7b875;   /* Create, Read, Update, Delete       7,73:1 */
+  --s-type: #9ec8a8;  /* String, Money, DateTime…           7,58:1 */
+  --s-nom: #c4b0dd;   /* les noms declares                  7,12:1 */
+  --s-str: #b9d489;   /* "chaines"                          8,63:1 */
+  --s-num: #9fbeda;   /* nombres                            7,29:1 */
+  --s-cm: #9d9488;    /* # commentaires                     4,72:1 */
+}
+.s-kw { color: var(--s-kw); }
+.s-act { color: var(--s-act); }
+.s-type { color: var(--s-type); }
+.s-nom { color: var(--s-nom); }
+.s-str { color: var(--s-str); }
+.s-num { color: var(--s-num); }
+.s-cm { color: var(--s-cm); }
+/* `.kw` et `.cm` restent pour ce qui n'est PAS une spec monl — les blocs shell
+   du guide portent des commentaires marqués à la main. */
+.codeblock .kw { color: var(--s-kw); }
+.codeblock .cm { color: var(--s-cm); }
 .copy {
   position: absolute; top: 8px; right: 8px; min-height: 44px;
   padding: 0 12px; border-radius: 8px; cursor: pointer; font-size: 13px;
@@ -216,7 +256,7 @@ table.grid th { font-size: 13px; text-transform: uppercase; letter-spacing: .06e
 table.grid td code { background: var(--surface-2); padding: 2px 6px; border-radius: 6px; }
 .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 
-.footer-wrap { border-top:1px solid var(--line); background:var(--surface); }
+.footer-wrap { border-top:1px solid var(--line); }
 .footer { padding:var(--space-7) 0 var(--space-5); color:var(--muted); font-size:14px; }
 .footer-grid { display:grid; grid-template-columns:1.35fr repeat(3,1fr); gap:var(--space-7); }
 .footer-brand { max-width:330px; }
@@ -248,6 +288,17 @@ table.grid td code { background: var(--surface-2); padding: 2px 6px; border-radi
     scroll-behavior: auto !important;
   }
 }
+
+/* Bascule de thème en révélation circulaire. Le fondu par défaut de l'API est
+   retiré : les deux calques restent opaques et c'est le clip-path du nouveau
+   qui découvre la page. Le bloc @media (prefers-reduced-motion) ne porte PAS
+   sur ces pseudo-éléments (aucun n'est atteint par `*`) — le refus du
+   mouvement est donc tenu en JavaScript, avant même d'ouvrir la transition. */
+::view-transition-old(root), ::view-transition-new(root) {
+  animation: none; mix-blend-mode: normal;
+}
+::view-transition-old(root) { z-index: 0; }
+::view-transition-new(root) { z-index: 1; }
 """
 
 # Appliqué avant le rendu : après, la page clignote en clair chez qui a
@@ -281,11 +332,27 @@ THEME_TOGGLE = """
     button.setAttribute('title', 'Thème ' + vers);
   }
   annoncer();
-  button.addEventListener('click', function () {
+  function basculer() {
     var suivant = courant() === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', suivant);
     try { localStorage.setItem('monl-theme', suivant); } catch (e) { /* ignoré */ }
     annoncer();
+  }
+  var doux = window.matchMedia('(prefers-reduced-motion: reduce)');
+  button.addEventListener('click', function () {
+    if (!document.startViewTransition || doux.matches) { basculer(); return; }
+    var boite = button.getBoundingClientRect();
+    var x = boite.left + boite.width / 2;
+    var y = boite.top + boite.height / 2;
+    var rayon = Math.hypot(Math.max(x, window.innerWidth - x),
+                           Math.max(y, window.innerHeight - y));
+    document.startViewTransition(basculer).ready.then(function () {
+      document.documentElement.animate(
+        { clipPath: ['circle(0px at ' + x + 'px ' + y + 'px)',
+                     'circle(' + rayon + 'px at ' + x + 'px ' + y + 'px)'] },
+        { duration: 420, easing: 'cubic-bezier(.4, 0, .2, 1)',
+          pseudoElement: '::view-transition-new(root)' });
+    }, function () { /* transition refusée : le thème a déjà basculé */ });
   });
 })();
 

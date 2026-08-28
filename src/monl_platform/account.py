@@ -30,10 +30,9 @@ CSS = """
 """
 
 AUTH_BODY = f"""
-<section class="shell auth-shell"><div class="card auth-card"><span class="eyebrow">Votre espace Monl</span>
-<h1 id="auth-title">Se connecter</h1><p class="muted" id="auth-help">Retrouvez vos projets et poursuivez vos compilations.</p>
+<section class="shell auth-shell"><div class="card auth-card"><h1 id="auth-title">Se connecter</h1><p class="muted" id="auth-help">Retrouvez vos projets et poursuivez vos compilations.</p>
 <div class="auth-tabs"><button class="active" type="button" data-mode="login">Connexion</button><button type="button" data-mode="register">Créer un compte</button></div>
-<div class="form-error" id="auth-error" role="alert"></div><form id="auth-form">
+<div class="form-error" id="auth-error" role="alert"></div><form id="auth-form" novalidate>
 <div class="form-field"><label for="email">Adresse email</label><input id="email" type="email" autocomplete="email" required></div>
 <div class="form-field"><label for="password">Mot de passe</label><input id="password" type="password" autocomplete="current-password" minlength="10" required><small class="muted">10 caractères au minimum.</small></div>
 <button class="primary" type="submit">{icon('user')} <span id="submit-label">Se connecter</span></button></form></div></section>
@@ -47,7 +46,16 @@ document.querySelectorAll('[data-mode]').forEach(button=>button.onclick=()=>{mod
  document.querySelector('#auth-title').textContent=mode==='login'?'Se connecter':'Créer votre compte';
  document.querySelector('#submit-label').textContent=mode==='login'?'Se connecter':'Créer le compte';
  document.querySelector('#password').autocomplete=mode==='login'?'current-password':'new-password';error.className='form-error';});
-form.onsubmit=async event=>{event.preventDefault();error.className='form-error';const button=form.querySelector('button[type=submit]');button.disabled=true;
+form.onsubmit=async event=>{event.preventDefault();error.className='form-error';
+ /* Le formulaire porte `novalidate` pour que CE code voie l'envoi. Sans lui,
+    le navigateur bloquait tout seul sur une adresse sans « @ » : aucune
+    requête ne partait, la bannière de la page restait VIDE, et le seul
+    message était une bulle native — celle que la fenêtre d'un gestionnaire de
+    mots de passe recouvre. Le bouton semblait ne rien faire. Le message n'est
+    pas réécrit : on reprend celui du navigateur, déjà traduit. */
+ const invalide=[...form.elements].find(champ=>champ.willValidate&&!champ.checkValidity());
+ if(invalide){error.textContent=invalide.validationMessage;error.className='form-error show';invalide.focus();return;}
+ const button=form.querySelector('button[type=submit]');button.disabled=true;
  try{const response=await fetch('/api/auth/'+mode,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email.value,password:password.value})});
  const data=await response.json();if(!response.ok)throw new Error(data.detail||'Impossible de continuer.');
  const next=new URLSearchParams(location.search).get('next');location.href=next&&next.startsWith('/')&&!next.startsWith('//')?next:'/console';
@@ -56,7 +64,7 @@ form.onsubmit=async event=>{event.preventDefault();error.className='form-error';
 """
 
 ACCOUNT_BODY = f"""
-<section class="shell account-head"><div><span class="eyebrow">Compte</span><h1>Vos projets.</h1><p class="muted" id="account-email"></p></div>
+<section class="shell account-head"><div><h1>Vos projets.</h1><p class="muted" id="account-email"></p></div>
 <button class="secondary" id="logout" type="button">Se déconnecter</button></section>
 <section class="shell account-grid"><article class="card account-panel"><div class="panel-head"><div><h2>Projets compilés</h2><p class="muted">Conservés dans votre espace.</p></div><a class="primary" href="/console">{icon('compiler')} Nouveau projet</a></div><div class="item-list" id="projects"></div></article>
 <article class="card account-panel" id="panneau-codes">

@@ -703,7 +703,10 @@ def test_yandexart_signale_le_depassement_du_delai(monkeypatch):
 
 
 def test_une_image_jpeg_reelle_est_reencodee_sans_perdre_ses_dimensions():
-    image_module = pytest.importorskip("PIL.Image")
+    # Plus d'`importorskip` : Pillow est déclaré dans l'extra `dev`, donc
+    # présent partout où les tests tournent. Le saut faisait passer ce test
+    # pour exécuté en CI alors qu'il ne vérifiait rien (point 140).
+    from PIL import Image as image_module
     source = image_module.effect_noise((1024, 1024), 100).convert("RGB")
     original_buffer = BytesIO()
     source.save(original_buffer, format="JPEG", quality=95)

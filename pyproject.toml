@@ -34,6 +34,13 @@ dev = [
     "mypy>=1.10,<2.0",       # contrats typés aux frontières de l'IR
     "vulture>=2.11,<3.0",    # recherche de code mort, revue manuelle conservée
     "requests>=2.31,<3.0",   # tests HTTP et fournisseurs frontend
+    # Pillow ne vivait que dans l'extra `ai`, que la CI n'installe pas. Deux
+    # conséquences, toutes deux du point 140 : le test de réencodage JPEG
+    # SAUTAIT en silence (un saut ne dit pas « rien à vérifier », il dit « je
+    # n'ai pas vérifié »), et le test qui garde les images de marque échouait
+    # franchement. Les tests ont besoin de la bibliothèque : elle est donc
+    # déclarée là où les tests s'installent.
+    "Pillow>=10.0,<13.0",
     # `tomllib` n'entre dans la bibliothèque standard qu'en 3.11, et le dépôt
     # supporte 3.10 : test_architecture.py lit `per-file-ignores` pour vérifier
     # qu'aucune exception de ruff ne vise un fichier disparu. SAUTER ce test

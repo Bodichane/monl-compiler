@@ -121,8 +121,15 @@ def test_le_signe_de_la_page_suit_la_couleur_du_texte():
     sur le thème sombre. En `currentColor`, il ne le peut plus."""
     assert "currentColor" in theme.LOGO_MARK
     assert "<text" not in theme.LOGO_MARK, "un tracé ne dépend d'aucune police"
-    # Aucune couleur figée : ni fond, ni trait.
-    assert not COULEUR.findall(theme.LOGO_MARK), theme.LOGO_MARK
+    # Ce qui est interdit est le FOND, pas la couleur. Le défaut d'origine
+    # était un signe portant sa propre pastille ; l'anneau du logo, lui, a une
+    # couleur de marque qui ne suit aucun thème — un logo qui change de teinte
+    # avec le fond n'est plus le logo. La seule couleur tolérée est donc
+    # exactement celle-là, et elle est LUE depuis theme.ORANGE plutôt que
+    # recopiée : recopiée, le test ne verrait pas la marque changer d'orange.
+    assert "<rect" not in theme.LOGO_MARK, "le signe s'est remis un fond"
+    figees = set(COULEUR.findall(theme.LOGO_MARK))
+    assert figees <= {theme.ORANGE}, f"couleur figée inattendue : {figees}"
 
 
 def test_le_favicon_porte_ses_couleurs_car_il_na_rien_a_heriter():
@@ -137,9 +144,17 @@ def test_le_favicon_porte_ses_couleurs_car_il_na_rien_a_heriter():
     couleurs = COULEUR.findall(theme.FAVICON)
     assert len(couleurs) >= 2, f"il faut un fond et au moins un tracé : {couleurs}"
     fond, traces = couleurs[0], couleurs[1:]
-    for trace in traces:
-        ratio = contraste(trace, fond)
-        assert ratio >= 4.5, f"tracé {trace} sur {fond} : {ratio:.2f}:1"
+    ratios = [contraste(trace, fond) for trace in traces]
+    # 3:1 est le seuil de WCAG 2.2 pour un objet GRAPHIQUE (1.4.11) — une
+    # icône n'est pas du texte, et la norme exempte même explicitement les
+    # logotypes. Le seuil de 4,5 valait quand la marque était une LETTRE.
+    # Mais un plancher seul laisserait l'icône devenir une bouillie à faible
+    # contraste : on exige donc AUSSI qu'au moins un tracé tienne 4,5, celui
+    # qui porte la lecture.
+    for trace, ratio in zip(traces, ratios, strict=True):
+        assert ratio >= 3.0, f"tracé {trace} sur {fond} : {ratio:.2f}:1"
+    assert max(ratios) >= 4.5, (
+        f"aucun tracé ne porte l'icône : {[f'{r:.2f}' for r in ratios]}")
 
 
 def test_le_fichier_de_marque_et_la_feuille_dessinent_le_meme_signe():
@@ -205,3 +220,211 @@ def test_les_cibles_tactiles_font_au_moins_44px(selecteur, module):
         "supprimer la garantie")
     assert hauteur >= MINIMUM, (
         f"`{selecteur}` ({module}) : {hauteur}px, il en faut {MINIMUM}")
+
+
+def test_le_wordmark_suit_le_theme_au_lieu_de_porter_son_fond():
+    """Le défaut mesuré : en `<img>`, la bannière du logo garde son fond
+    #2e2b25 quel que soit le thème — soit 1,29:1 contre la page sombre, un
+    logo littéralement invisible dans l'en-tête. Un raster ne peut pas suivre
+    un thème ; c'est la raison du SVG en ligne, pas une préférence.
+
+    Le test porte donc sur le MOYEN autant que sur le résultat : revenir à une
+    balise `<img>` reperdrait la garantie sans qu'aucune couleur ne change."""
+    assert "<img" not in theme.WORDMARK, (
+        "un raster ne suit aucun thème — le wordmark doit rester en SVG inline")
+    assert "currentColor" in theme.WORDMARK, "les lettres doivent hériter du texte"
+    # Plus de plaque du tout : les lettres sont peintes en direct et le fond de
+    # la page se voit à travers le trou des deux anneaux. C'est plus fort que
+    # l'ancienne garantie, qui creusait les lettres dans une bannière.
+    assert "<rect" not in theme.WORDMARK, "le wordmark s'est remis un fond"
+    figees = set(COULEUR.findall(theme.WORDMARK))
+    assert figees <= {theme.ORANGE}, f"couleur figée dans le wordmark : {figees}"
+    assert theme.WORDMARK in theme.page(title="t", description="d", body=""), (
+        "le wordmark n'est pas servi dans la page")
+
+
+@pytest.mark.parametrize("theme_nom", ["clair", "sombre"])
+def test_le_wordmark_reste_lisible_dans_les_deux_themes(theme_nom):
+    """Les lettres prennent `--ink` sur la page : c'est ce couple qui porte la
+    lecture du mot, l'anneau n'étant qu'un accent de marque. Il doit donc
+    tenir dans les DEUX thèmes, sans quoi le logo pâlit d'un côté."""
+    palette = _blocs()[theme_nom]
+    lettres = contraste(palette["ink"], palette["bg"])
+    assert lettres >= 4.5, (
+        f"[{theme_nom}] lettres {palette['ink']} sur page {palette['bg']} : "
+        f"{lettres:.2f}:1")
+
+
+def test_les_traces_de_marque_ne_portent_aucune_couleur():
+    """`brand.py` est de la DONNÉE : les couleurs se composent dans theme.py.
+
+    Exempter un fichier de plus de la règle « aucune couleur en dur » élargirait
+    la porte que `test_aucune_couleur_en_dur_hors_de_la_feuille` ferme — c'est
+    pourquoi les tracés en sortent au lieu d'y entrer."""
+    from monl_platform import brand
+    source = pathlib.Path(brand.__file__).read_text(encoding="utf-8")
+    assert not COULEUR.findall(source), COULEUR.findall(source)
+    for nom in ("LETTRES", "ANNEAU", "MARQUE_ANNEAU", "MARQUE_O"):
+        assert getattr(brand, nom).startswith("M"), f"{nom} n'est pas un tracé"
+    assert isinstance(brand.VUE, tuple) and len(brand.VUE) == 2, (
+        "VUE porte le viewBox du mot : sans elle, theme.py le devinerait")
+
+
+def test_les_balises_de_partage_ninventent_aucune_adresse(monkeypatch):
+    """Une image de partage doit être ABSOLUE pour qu'un robot la récupère.
+    La déduire de l'en-tête `Host` la ferait pointer où un tiers veut — même
+    frontière qu'au point 145 pour l'adresse de retour OAuth. Sans URL publique
+    déclarée, monl se tait plutôt que de deviner."""
+    monkeypatch.delenv("MONL_PLATFORM_PUBLIC_URL", raising=False)
+    muet = theme.page(title="t", description="d", body="")
+    assert "og:image" not in muet, "une image de partage a été inventée"
+    assert 'name="twitter:card" content="summary"' in muet
+
+    monkeypatch.setenv("MONL_PLATFORM_PUBLIC_URL", "https://exemple.test/")
+    parlant = theme.page(title="t", description="d", body="")
+    assert 'content="https://exemple.test/brand/monl-social.png"' in parlant
+    assert 'content="summary_large_image"' in parlant
+
+
+def test_les_images_raster_ne_derivent_pas_de_la_marque():
+    """`/favicon.ico` doit exister, et dire la MÊME chose que `/favicon.svg`.
+
+    Les navigateurs demandent ce chemin d'office, même quand la page déclare
+    un SVG. Il répondait 404 — et un 404 ne remplace rien : le navigateur
+    gardait l'ancienne icône de son cache, qui « réapparaissait » sans que le
+    serveur y soit pour rien.
+
+    Fabriqué DEPUIS `brand.MARQUE_ANNEAU` / `brand.MARQUE_O`, jamais
+    recopié d'un PNG :
+    un `.ico` recopié dériverait le jour où la marque change, en silence. Le
+    test régénère et compare, comme le fichier de marque du point 156 — qui
+    avait dérivé, et qu'un test a rattrapé.
+
+    **La comparaison porte sur les PIXELS, jamais sur les octets.** Le premier
+    essai comparait les fichiers octet pour octet : vert en local, rouge sur
+    les trois versions de Python de la CI. Un `.ico` et un `.png` portent des
+    pixels COMPRESSÉS, et le même Pillow 12.3 lié à des zlib différents
+    n'écrit pas la même suite d'octets pour la même image. Le test mesurait
+    donc l'ENCODEUR et pas le DESSIN — il aurait dénoncé une mise à jour de
+    dépendance aussi fort qu'une dérive de la marque. Le décodage, lui, est
+    sans perte.
+    """
+    import importlib.util
+    import tempfile
+
+    from PIL import Image
+
+    outil = pathlib.Path(theme.__file__).parents[2] / "outils" / "fabriquer_images.py"
+    assert outil.exists(), "l'outil qui fabrique les images a disparu"
+    spec = importlib.util.spec_from_file_location("fabriquer_images", outil)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    def _pixels(chemin):
+        """Les pixels décodés : toutes les tailles d'un ICO, l'image d'un PNG."""
+        with Image.open(chemin) as image:
+            if getattr(image, "format", "") != "ICO":
+                return [(image.size, image.convert("RGBA").tobytes())]
+            rendus = []
+            for taille in sorted(image.ico.sizes()):
+                image.size = taille
+                rendus.append((taille, image.convert("RGBA").tobytes()))
+            return rendus
+
+    # Les TROIS artefacts raster viennent du même outil et de la même source.
+    # N'en garder qu'un laisserait les deux autres dériver en silence — et la
+    # carte de partage est précisément celle que personne ne regarde.
+    with tempfile.TemporaryDirectory() as dossier:
+        temporaire = pathlib.Path(dossier)
+        for nom, fabrique in (("favicon.ico", module.fabriquer_ico),
+                              ("monl-wordmark.png", module.fabriquer_wordmark),
+                              ("monl-social.png", module.fabriquer_social)):
+            servi = PAQUET / "static" / nom
+            assert servi.exists(), f"{nom} n'existe pas"
+            refait = fabrique(temporaire / nom)
+
+            attendu, obtenu = _pixels(refait), _pixels(servi)
+            assert [t for t, _ in attendu] == [t for t, _ in obtenu], (
+                f"{nom} n'a plus les mêmes tailles d'image")
+            for (taille, a), (_, b) in zip(attendu, obtenu, strict=True):
+                assert a == b, (
+                    f"{nom} en {taille[0]}x{taille[1]} ne correspond plus aux "
+                    "tracés de la marque — relancer outils/fabriquer_images.py")
+
+
+def test_les_pages_declarent_les_deux_icones():
+    """Le SVG reste préféré, le `.ico` est le repli qui empêche le 404.
+
+    Déclarer le seul SVG laissait les navigateurs demander `/favicon.ico` et
+    n'en rien recevoir.
+    """
+    from monl_platform.theme import page
+
+    html = page(title="t", description="d", body="<main></main>", active="home")
+    assert '<link rel="icon" href="/favicon.ico?v=' in html
+    assert '<link rel="icon" href="/favicon.svg?v=' in html
+    assert html.index("/favicon.ico") < html.index("/favicon.svg"), (
+        "le SVG doit être déclaré APRÈS le .ico pour rester préféré")
+
+
+def test_l_adresse_de_l_icone_change_avec_son_contenu():
+    """L'empreinte déclarée est celle de l'octet servi, pas un numéro à la main.
+
+    `/favicon.ico` est une adresse qui ne change jamais : le navigateur garde
+    l'icône qu'il a déjà, et l'ANCIENNE réapparaît sans que le serveur y soit
+    pour rien — le défaut rapporté au changement de logo. Une empreinte du
+    CONTENU change exactement quand l'image change ; un numéro écrit à la main
+    aurait le même défaut le jour où on oublie de l'incrémenter.
+    """
+    import hashlib
+
+    from monl_platform.theme import FAVICON, ICONE_ICO, VERSION_ICO, VERSION_SVG, page
+
+    assert hashlib.sha256(ICONE_ICO.read_bytes()).hexdigest()[:8] == VERSION_ICO
+    assert hashlib.sha256(FAVICON.encode()).hexdigest()[:8] == VERSION_SVG
+    assert VERSION_ICO != VERSION_SVG, "deux fichiers, deux empreintes"
+
+    html = page(title="t", description="d", body="<main></main>", active="home")
+    assert f"/favicon.ico?v={VERSION_ICO}" in html
+    assert f"/favicon.svg?v={VERSION_SVG}" in html
+
+
+def test_seule_l_adresse_versionnee_se_garde_longtemps():
+    """Une URL nue ne peut pas être versionnée : elle se garde peu.
+
+    C'est celle que le navigateur demande D'OFFICE sans lire la page. La garder
+    un an, comme avant, faisait survivre une icône périmée bien après son
+    remplacement — et c'est ce qui rendait le défaut si tenace.
+    """
+    from monl_platform.theme import VERSION_ICO, cache_icone
+
+    versionnee = cache_icone(VERSION_ICO, VERSION_ICO)["Cache-Control"]
+    nue = cache_icone("", VERSION_ICO)["Cache-Control"]
+    perimee = cache_icone("vieille-empreinte", VERSION_ICO)["Cache-Control"]
+
+    assert "immutable" in versionnee and "max-age=31536000" in versionnee
+    assert "immutable" not in nue, "une adresse nue ne peut pas être immuable"
+    assert nue == perimee, "une empreinte fausse vaut une absence d'empreinte"
+    assert int(nue.rsplit("=", 1)[1]) <= 3600, (
+        f"l'adresse nue se garde {nue} — une icône périmée survivrait")
+
+
+def test_le_formulaire_de_compte_ne_refuse_jamais_en_silence():
+    """Un refus doit s'écrire DANS la page, jamais dans une bulle du navigateur.
+
+    Mesuré : avec « joe » comme adresse, aucune requête ne partait, la
+    bannière `#auth-error` restait VIDE, et le seul message était la bulle
+    native — celle qu'une fenêtre de gestionnaire de mots de passe recouvre.
+    Le bouton semblait ne rien faire.
+
+    `novalidate` est ce qui donne la main au script : sans lui, le navigateur
+    bloque l'envoi et `onsubmit` n'est jamais appelé. Le message n'est pas
+    réécrit — on reprend `validationMessage`, déjà traduit par le navigateur.
+    """
+    from monl_platform import account
+
+    assert '<form id="auth-form" novalidate>' in account.AUTH_HTML, (
+        "sans novalidate, le navigateur bloque l'envoi et la bannière reste vide")
+    assert "validationMessage" in account.AUTH_HTML, (
+        "le refus client n'atteint pas la bannière de la page")
+    assert "error.className='form-error show'" in account.AUTH_HTML

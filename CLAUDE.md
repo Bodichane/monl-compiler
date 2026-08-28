@@ -985,6 +985,104 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   sur volume séparé, et la barrière de couverture a retrouvé sa portée
   déclarée — `--cov=src/monl` et non `--cov=src`, la plateforme étant rapportée
   sans être barrée. Voir point 142.
+- **POINT 157 : le logo est celui au « o » orange, et une mesure peut mentir
+  de trois façons.** `outils/vectoriser_logo.py` sépare DEUX couches (anneau
+  orange, lettres crème), toutes deux en `evenodd` ; `brand.py` reste sans une
+  seule couleur et `theme.ORANGE` est la source unique, lue par l'outil qui
+  fabrique les images ET par le test qui vérifie qu'elles n'ont pas dérivé.
+  **Les trois pièges de mesure, tous éprouvés** : une vérification qui empile
+  les sous-chemins au lieu de les combiner en OU EXCLUSIF mesure sa propre
+  erreur (8,08 % annoncés pour 0,49 % réels) ; une classification « couleur la
+  plus proche » range le bord antialiasé d'une lettre claire du côté de
+  l'orange, d'où un liseré sur chaque lettre (séparer sur la SATURATION, avec
+  des seuils DÉRIVÉS des couleurs relevées) ; et **Lanczos invente des pixels
+  saturés** par dépassement aux bords francs — 52 morceaux au lieu de 4, contre
+  4 en bilinéaire. L'ICÔNE est le « o » entier et jamais l'anneau seul (les
+  lettres recouvrent l'anneau dans l'artwork, donc la couche isolée porte leurs
+  encoches) ; les deux tracés partagent UNE transformation, séparée par une
+  barre verticale et surtout pas par une espace. L'orange ne suit AUCUN thème
+  (5,67:1 en sombre, 2,94:1 en clair — WCAG exempte les logotypes, et ce sont
+  les lettres qui portent la lecture à 12,89:1). Les TROIS artefacts raster
+  sortent du même outil : `outils/fabriquer_images.py`. Voir point 157.
+- **POINT 156 : le volet Navigateur masqué ne recalcule PAS le style — il
+  mesure la géométrie, jamais la cascade.** Un style posé EN LIGNE n'y change
+  pas `getComputedStyle` ; un clone lit la même couleur avec et sans la classe
+  qu'on lui ajoute. Trois sondages y ont « prouvé » des choses fausses, dont
+  l'absence d'anneau de focus sur les onze types interactifs (un `.focus()`
+  scripté ne déclenche pas `:focus-visible` — mesurés ensuite à 6,52:1 au pire
+  en clair, 7,5:1 en sombre, soit très au-dessus des 3:1 de WCAG 2.2). **Toute
+  question de cascade se tranche donc hors du navigateur** : `_specificite()`
+  (tests/test_platform_landing.py) calcule le poids des deux sélecteurs et
+  exige que celui qui cède le fond soit plus fort ET écrit après. Le repère des
+  onglets (`case-repere`) est POSÉ par le script, jamais servi dans le balisage
+  — sinon il s'affiche dans l'angle chez qui n'exécute pas le script. Et la
+  bascule de thème tient le refus du mouvement en JAVASCRIPT : le bloc
+  `@media (prefers-reduced-motion)` porte sur `*`, qui n'atteint aucun
+  `::view-transition-*` ; la même garde couvre l'absence de l'API.
+  **Un commentaire CSS est du CONTENU de page** — écrire « ci-dessus » dans la
+  feuille inlinée a fait tomber un test de la page de confidentialité.
+  Voir point 156.
+- **POINT 158 : la coloration des specs DÉRIVE de la grammaire, et l'or n'a
+  plus qu'un emploi.** `src/monl_platform/coloration.py` rend la coloration au
+  SERVEUR (aucun JavaScript, aucune dépendance) et **n'écrit aucun mot-clé** :
+  les tables viennent des terminaux de `monl.parser.grammaire.grammar`, donc
+  une brique neuve est colorée le jour où elle entre dans la grammaire.
+  `_terminal()` ÉCHOUE plutôt que de rendre un ensemble vide — une coloration
+  qui manque ne ressemble pas à une panne. L'échappement se fait par FRAGMENT :
+  échapper d'abord ferait voir `&quot;` au motif de chaîne, qui ne
+  reconnaîtrait plus rien. Avant ce point il n'existait que `.kw` et `.cm`,
+  écrites à la main dans les gabarits : c'est pour ça que l'or marquait tout
+  mot-clé de toute spec, sur onze blocs.
+  **La règle de palette a TROIS axes, et le contraste entre deux jetons n'en
+  est pas un** : WCAG parle du FOND (4,5:1, seuil du TEXTE — du code se lit).
+  Deux jetons sont distincts s'ils diffèrent en teinte (≥ 35°, les deux ayant
+  une chroma utilisable), OU en clarté (≥ 1,35:1), OU en franchise (≥ 40 de
+  chroma). Ne pas employer la saturation HSV : un pastel est peu saturé par
+  construction, et le vert des types comme le violet des noms se voyaient
+  traités comme des gris. Gardé par `tests/test_platform_coloration.py`, dont
+  les contre-épreuves rejouent les deux défauts mesurés (noms en crème à
+  1,06:1 de l'encre ; rose et olive à 32° de l'or).
+  **Les surtitres de section sont retirés** — le seul `.eyebrow` qui survit est
+  « Erreur 404 », où le surtitre EST le titre.
+  **Le volet Navigateur masqué ment aussi sur le DÉFILEMENT** (point 156
+  élargi) : `scrollTop` reste à 0 quoi qu'on fasse, parce qu'une page qui ne
+  composite pas ne défile pas. `html { overflow-x: clip }` ne bloque RIEN — un
+  A/B en iframes le prouve (500 avec, sans, et avec `hidden`). Isoler la
+  variable, jamais lire la valeur.
+  **L'ANCIENNE ICÔNE REVENAIT DU CACHE, pas du serveur** : l'octet servi était
+  le bon, mais `/favicon.ico` est une adresse qui ne change jamais et les deux
+  routes répondaient `max-age=86400`. Les `<link rel="icon">` portent
+  maintenant une empreinte du CONTENU (`?v=3cf62446`) — pas un numéro à la
+  main, qui aurait le même défaut le jour où on oublie de l'incrémenter
+  (point 85 transposé au cache). `cache_icone` (theme.py) est la source unique
+  des deux politiques : versionnée un an et `immutable`, NUE cinq minutes —
+  l'adresse nue est celle que le navigateur demande d'office sans lire la page,
+  donc la seule qu'on ne peut pas versionner. Voir point 158.
+- **POINT 158bis : Pillow n'était que dans l'extra `ai`, et la CI installe
+  `.[dev,postgres]`.** Trois exécutions rouges pendant que la suite était verte
+  en local. Le correctif a découvert pire : un
+  `pytest.importorskip("PIL.Image")` faisait SAUTER le test de réencodage JPEG
+  à chaque exécution de la CI depuis qu'il existe — on ne l'a su que parce
+  qu'un test voisin échouait franchement. Pillow entre dans `dev`,
+  l'`importorskip` disparaît, et deux témoins de `tests/test_architecture.py`
+  gardent la paire : **aucun `importorskip` dans `tests/`** (détecté par AST) et
+  **les bibliothèques dont les tests dépendent sont déclarées là où la CI les
+  installe**. Les `pytest.skip` conditionnels restent permis — ils gardent une
+  intégration qu'on peut légitimement ne pas demander (un vrai PostgreSQL) et
+  ils la NOMMENT ; une bibliothèque Python installable, non. **Toute
+  bibliothèque qu'un test importe se déclare dans `dev`, jamais dans un extra
+  que la CI n'installe pas.** Voir point 158.
+- **POINT 158ter : un test d'image compare les PIXELS, jamais les octets.**
+  `test_les_images_raster_ne_derivent_pas_de_la_marque` comparait les fichiers
+  octet pour octet : vert en local, rouge sur les trois versions de Python de
+  la CI. Un `.ico` et un `.png` portent des pixels COMPRESSÉS, et le même
+  Pillow 12.3 lié à des zlib différents n'écrit pas la même suite d'octets pour
+  la même image — le test mesurait l'ENCODEUR et pas le DESSIN. Le décodage,
+  lui, est sans perte : la comparaison porte sur les pixels de toutes les
+  tailles de l'ICO. Contre-épreuve franche — décaler l'orange d'UN point fait
+  tomber le test. **Même leçon que la palette et que la ligne de commande :
+  une mesure peut porter sur autre chose que ce qu'on croit mesurer.**
+  Voir point 158.
 - **POINT 155 : aucun fichier de `src/` ne dépasse 400 lignes, aucune fonction
   non plus — et c'est VÉRIFIÉ.** `tests/test_architecture.py` porte trois
   contrats : `PLAFOND_FICHIER`, `PLAFOND_FONCTION`, et **une exception doit

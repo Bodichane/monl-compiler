@@ -72,6 +72,9 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [153](#153-le-garde-fou-dempreinte-nétait-plus-exercé-par-le-test-qui-le-nomme) Le garde-fou d'empreinte n'était plus exercé par le test qui le nomme ·
 [154](#154-un-décorateur-qui-saute-les-mixins-et-deux-exceptions-qui-nexcusaient-plus-rien) Un décorateur qui saute les mixins, et deux exceptions qui n'excusaient plus rien ·
 [155](#155-cinq-angles-morts-dans-lanalyse-qui-découpe-et-un-plafond-qui-nexistait-pas) Cinq angles morts dans l'analyse qui découpe, et un plafond qui n'existait pas ·
+[156](#156-un-repère-qui-glisse-une-bascule-qui-révèle-et-un-volet-qui-ment) Un repère qui glisse, une bascule qui révèle, et un volet qui ment ·
+[157](#157-le-logo-au--o--orange-et-trois-mesures-qui-mentaient) Le logo au « o » orange, et trois mesures qui mentaient ·
+[158](#158-sept-couleurs-dérivées-de-la-grammaire-et-un-surtitre-de-moins-par-section) Sept couleurs dérivées de la grammaire, et un surtitre de moins par section ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -10488,3 +10491,399 @@ Les cinq contre-épreuves ont été jouées : plafond abaissé, exception sur un
 fichier disparu, exception sur un fichier redevenu court, exception sans
 raison. Toutes échouent comme elles le doivent — un garde-fou qu'on n'a pas vu
 refuser n'est pas un garde-fou (point 145).
+
+## 156. Un repère qui glisse, une bascule qui révèle, et un volet qui ment
+
+Deux motifs d'interface ajoutés à la plateforme, et une leçon d'outillage qui
+vaut plus que les deux.
+
+**Le repère qui glisse** (motif de transitions.dev). Les onglets des cas métier
+changeaient de fond d'un coup : l'onglet quitté s'éteignait, l'onglet pris
+s'allumait, rien ne reliait les deux. Un repère unique — un seul `<span>` posé
+dans la liste — porte désormais le fond de l'onglet actif et se déplace de l'un
+à l'autre. Il est **posé par le script, jamais servi dans le balisage** : livré
+d'avance, il s'afficherait dans l'angle de la liste chez qui n'exécute pas le
+script, et l'onglet actif aurait cédé son fond sans que rien ne le remplace.
+C'est la classe `glisse`, ajoutée par le même script, qui autorise la cession.
+
+Une seule mesure suffit aux deux mises en page : `offsetLeft`/`offsetTop` se
+comptent depuis le bord de PADDING du parent positionné, exactement là où
+`top:0; left:0` pose un absolu, et l'onglet vit dans la boîte de CONTENU — donc
+`offsetLeft` vaut le padding (12 px mesurés) et le `translate` reconduit le
+repère pile sur l'onglet. Écart mesuré au navigateur : 0,0. La colonne
+verticale du bureau et la rangée horizontale du mobile sont couvertes sans une
+ligne de plus, et le repère est replacé au redimensionnement — sans animation,
+comme au premier placement, sinon il traverse la liste au chargement.
+
+**La bascule qui révèle** (motif de beUI). Le thème basculait sèchement ; il
+s'ouvre maintenant en cercle depuis le bouton, par l'API View Transition. Le
+fondu par défaut de l'API est retiré : les deux calques restent opaques et
+c'est le `clip-path` du nouveau qui découvre la page. **Le refus du mouvement
+ne peut PAS être tenu en CSS ici** — le bloc `@media (prefers-reduced-motion)`
+de la plateforme porte sur `*`, qui n'atteint aucun `::view-transition-*`. Il
+est donc tenu en JavaScript, avant même d'ouvrir la transition, et la même
+garde couvre l'absence de l'API : là où elle manque, le thème bascule quand
+même. Sans cette seconde moitié, la bascule cesserait simplement de marcher.
+
+**Et le volet qui ment.** Le volet Navigateur masqué **ne recalcule pas le
+style**. Un style posé EN LIGNE ne changeait pas la valeur rendue par
+`getComputedStyle` ; un clone inséré dans le corps lisait la même couleur avec
+et sans la classe qu'on lui ajoutait. Trois sondages successifs ont donc
+« prouvé » des choses fausses — d'abord que les onze types d'éléments
+interactifs n'avaient aucun anneau de focus (un `.focus()` scripté ne déclenche
+pas `:focus-visible`, et ma boucle de correspondance sautait le sélecteur nu),
+puis que la règle qui cède le fond ne mordait pas. Après correction, les
+anneaux sont à 6,52:1 au pire en clair et 7,5:1 en sombre, très au-dessus des
+3:1 de WCAG 2.2 SC 1.4.11 : il n'y avait aucun défaut.
+
+Ce qui se mesure dans ce volet, c'est la GÉOMÉTRIE (les rectangles étaient
+justes et concordants) ; ce qui ne s'y mesure pas, c'est la CASCADE. La cascade
+est donc **calculée dans un test** : `_specificite()` compte le sélecteur qui
+cède le fond et celui qui le pose, et exige que le premier soit plus fort ET
+écrit après. Elle refuse de compter `:is()`, `:not()`, `:where()` et `:has()`,
+dont le poids se délègue à leur contenu — mieux vaut une assertion qui s'arrête
+qu'un chiffre faux.
+
+**La contre-épreuve qui n'a pas mordu.** Le test qui interdit de servir le
+repère dans le balisage découpait la page sur `page.split("<script")[0]`. Or le
+script du thème vit dans le `<head>` : le découpage s'arrêtait avant tout le
+corps, et le test restait VERT en servant le repère en dur. Il retire désormais
+tous les `<script>` ET tous les `<style>` — la feuille contient les sélecteurs
+qu'on cherche, l'oublier aurait rendu le test rouge en permanence. Quatrième
+forme du même défaut après les points 152, 153 et 154 : **une garantie qui ne
+porte sur rien ne fait aucun bruit.**
+
+**Au passage.** Un commentaire CSS écrit « la règle @media ci-dessus » a fait
+tomber `test_la_confidentialite_garde_ladresse_ou_lon_exerce_ses_droits` : la
+feuille est inlinée dans TOUTES les pages, et ce test interdit « ci-dessus »
+dans la page de confidentialité pour empêcher un renvoi pendant. Le test avait
+raison, la formulation était en tort. Un commentaire de code livré au
+navigateur est du CONTENU de page.
+
+## 157. Le logo au « o » orange, et trois mesures qui mentaient
+
+Le dépôt portait DEUX logos déposés à la même minute, et le point 156 avait
+vectorisé le mauvais. Celui qui fait foi est « monl » en sans-serif, dont le
+« o » est cerclé d'un anneau orange tracé à main levée. La question a été posée
+plutôt que tranchée : les deux lectures de « ancienne icône qui réapparaît » —
+un cache de navigateur, ou un mauvais fichier vectorisé — menaient à des
+travaux entièrement différents.
+
+**Le dessin est fait de trois couches concentriques**, mesurées et non
+supposées : l'anneau ORANGE, un anneau CRÈME niché dedans qui est le vrai
+« o » du mot, et le fond qui se voit au centre. Les deux sont donc refermés en
+`evenodd`, et le fond n'est jamais peint — c'est la page qui se voit au
+travers, ce qui rend le mot théma-dépendant sans une ligne de plus.
+
+**TROIS mesures fausses, trouvées l'une après l'autre**, et c'est le vrai
+contenu de ce point.
+
+*Première.* La vérification du tracé empilait les sous-chemins au lieu de les
+combiner en OU EXCLUSIF. Le trou de l'anneau se remplissait, et l'outil
+annonçait 8,08 % d'écart en refusant d'écrire : **il mesurait sa propre
+erreur**, pas le tracé. Corrigée, la même trace tombe à 0,49 %.
+
+*Deuxième.* Les couches se séparaient par la couleur la plus PROCHE en distance
+RGB. Or le bord antialiasé d'une lettre crème sur le fond sombre passe par des
+demi-tons qui sont, en distance, plus près de l'ORANGE que des deux couleurs
+dont ils viennent : chaque lettre récoltait un liseré orange, et la couche
+sortait en quatorze morceaux au lieu de deux. La saturation, elle, sépare
+franchement — 0,074 pour le bord crème contre 0,650 pour le bord orange. Les
+deux seuils sont DÉRIVÉS des couleurs relevées (moitié de la saturation de
+l'anneau, milieu des valeurs fond/crème) et jamais écrits à la main : un
+artwork réexporté un peu différemment reste séparé sans qu'on y retouche.
+
+*Troisième, la plus retorse.* Le suréchantillonnage employait **Lanczos**, dont
+le dépassement aux bords francs fabrique des pixels artificiellement saturés.
+Le seuil de saturation les prenait pour de l'orange : 52 morceaux au lieu de 4.
+En bilinéaire, 4. **Un filtre qui « améliore » l'image invente de la matière
+que le tracé recopie ensuite.**
+
+**L'icône est le « o » ENTIER, jamais l'anneau seul.** Dans l'artwork, le « m »
+et le « n » sont dessinés PAR DESSUS l'orange : la couche orange isolée porte
+donc leurs encoches. Sur le mot on ne les voit pas — les lettres les
+recouvrent ; sur l'icône, si. Les deux tracés de l'icône partagent la MÊME
+transformation, sans quoi ils cessent d'être concentriques ; et le séparateur
+de cette normalisation conjointe est une barre verticale et surtout pas une
+espace, dont les tracés sont pleins — couper à la première espace tranchait au
+milieu du premier chemin.
+
+**L'orange ne suit AUCUN thème**, et c'est délibéré : un logo qui change de
+teinte avec le fond n'est plus le logo. Mesuré tout de même — 5,67:1 sur le
+fond sombre, 2,94:1 sur le clair. Ce second chiffre passe sous le 3:1 de
+WCAG 1.4.11 et c'est ACCEPTÉ, la norme exemptant explicitement les logotypes ;
+ce qui porte la lecture du mot, ce sont les lettres, à 12,89:1. La même valeur
+employée pour un composant d'interface serait, elle, un vrai défaut — et
+`docs/BRAND.md` le dit, parce que le dépôt a désormais TROIS oranges et que la
+tension mérite d'être nommée plutôt que découverte.
+
+`brand.py` reste sans une seule couleur : c'est `theme.py` qui compose, et
+`theme.ORANGE` est la source unique — lue par l'outil qui fabrique les images,
+et par le test qui vérifie qu'elles n'ont pas dérivé. Les TROIS artefacts
+raster (`favicon.ico`, `monl-wordmark.png`, `monl-social.png`) sortent du même
+outil : n'en garder qu'un sous garantie laisserait les deux autres dériver en
+silence, et la carte de partage est précisément celle que personne ne regarde.
+
+**Le bytecode périmé a mordu DEUX fois dans la même heure.** Une contre-épreuve
+avait laissé un `.pyc` portant l'orange faux ; l'outil de fabrication l'a lu et
+a écrit un `.ico` faux, puis le test de contraste a échoué sur une valeur qui
+était pourtant juste sur le disque. Purger `__pycache__` **pendant** qu'une
+suite tourne fait échouer un test sans rapport — un sous-processus relit le
+disque là où le pytest principal a son import en mémoire (déjà écrit au
+point 152, redécouvert ici).
+
+**Et un fichier de plus, pas une exception de plus.** `landing.py` a franchi le
+plafond de 400 lignes à 401. L'explorateur de cas est parti dans
+`landing_cas.py` — feuille, données, balisage et script ensemble, parce que
+séparer la classe `glisse` de la règle qui la lit n'aurait rien réglé. Les deux
+seules exceptions écrites restent des LITTÉRAUX de données ; du code qui grossit
+se découpe.
+
+
+---
+
+## 158. Sept couleurs dérivées de la grammaire, et un surtitre de moins par section
+
+Trois demandes en une phrase : *« pour la spec mettre plus de couleur comme le
+ferait vscode (on crée directement nos propre code couleur), pas besoin
+reprendre la couleur or partout sur le site, aussi à chaque section retirer les
+éléments comme "Le backend est compilé, pas improvisé", "Voyez le résultat", le
+site doit être facile à lire »*. Les trois se tiennent : c'est le MÊME or qui
+marquait tout mot-clé de toute spec, et c'est la même envie de tout annoncer
+qui posait une phrase avant chaque titre.
+
+### L'or n'avait pas deux emplois, il en avait un seul répété
+
+Il n'existait aucune coloration. Les `<span>` étaient écrits **à la main** dans
+les chaînes de gabarit, avec deux classes en tout — `.kw` et `.cm`. Donc
+`entity`, `rule`, `Create`, `String`, `min`, `public`, `"deposee"` : tout ce
+qui n'était pas un commentaire recevait la couleur d'accent. Onze blocs de code
+sur la page d'accueil, chacun repeignant l'or sur une ligne sur deux. Ce n'est
+pas que l'or « revenait partout » par excès de zèle décoratif : c'était la
+seule couleur que la page savait produire.
+
+`src/monl_platform/coloration.py` rend la coloration au SERVEUR, sans une ligne
+de JavaScript — une page qui n'exécute rien montre déjà le code coloré, et la
+plateforme n'ajoute aucune dépendance.
+
+**Aucun mot-clé n'y est écrit.** Les tables sont DÉRIVÉES des terminaux de la
+vraie grammaire (`monl.parser.grammaire.grammar`) : `TYPE`, `ACTION_TYPE`,
+`VALIDATION_TYPE`, `RELATION_TYPE`, et le reste des littéraux par complément.
+Une brique qui ajoute un mot-clé le voit coloré sans qu'on y pense ; un mot qui
+sort de la grammaire cesse d'être coloré. Une liste recopiée aurait divergé au
+premier point de journal — c'est le reproche du point 146 (« qui l'écrira ? »)
+appliqué à la coloration, et `_terminal()` ÉCHOUE plutôt que de rendre un
+ensemble vide, parce qu'une coloration qui manque ne ressemble pas à une panne.
+
+Détail qui a compté : **l'échappement se fait par fragment, pas d'abord.**
+Échapper le source avant de le parcourir ferait voir `&quot;` au motif de
+chaîne, qui ne reconnaîtrait plus rien — et le bloc sortirait sans une seule
+chaîne colorée, sans erreur.
+
+### Le contraste ENTRE deux jetons n'est pas la bonne mesure
+
+La première palette avait sept valeurs, toutes mesurées au-dessus de 4,5:1 sur
+le fond de code — le seuil du TEXTE et non celui des graphiques, parce que du
+code se lit. Elle avait quand même un défaut grossier : les noms déclarés
+étaient crème (`#f0e6d8`), donc à **1,06:1 de l'encre du bloc**. Une classe qui
+ne distinguait rien, et qui passait tous les contrôles WCAG puisque WCAG parle
+du FOND.
+
+En cherchant à corriger, je me suis trompé de mesure dans l'autre sens : j'ai
+voulu écarter les jetons deux à deux par le contraste, et le violet retenu pour
+les noms se mesurait à 1,02:1 du bleu des nombres. Or ces deux-là se lisent
+très bien — ils sont séparés par 58° de teinte. **Deux couleurs de même clarté
+ne sont confusables que si elles sont aussi de même teinte.**
+
+La règle finalement tenue, et vérifiée par un test, est à TROIS axes : une
+paire est acceptable si elle diffère assez en teinte (≥ 35°, à condition que
+les deux portent une chroma utilisable), OU en clarté (≥ 1,35:1), OU en
+franchise (≥ 40 de chroma sur 255). Le troisième axe n'est pas du confort :
+sans lui, le rose des mots-clés et le gris des commentaires — 52° et 1,23:1 —
+sortaient fautifs alors qu'ils ne se ressemblent en rien, l'un ayant 93 de
+chroma et l'autre 21.
+
+**Le premier essai de cette règle employait la saturation HSV, et c'était
+faux** : un pastel est peu saturé PAR CONSTRUCTION (clair et coloré), donc le
+vert des types (0,21) et le violet des noms (0,20) passaient sous le seuil et
+se voyaient traités comme des gris. La chroma — `max(RVB) − min(RVB)` — les
+sépare correctement des vrais gris (42 et 45, contre 21 pour le commentaire et
+12 pour l'encre).
+
+Deux valeurs ont bougé pour satisfaire la règle : les mots-clés passent de
+`#e8918c` à `#e88ba6` et les chaînes de `#cbd48a` à `#b9d489`, tous deux
+tombant à 32° de l'or. **L'or (`--s-act`) n'a plus qu'un seul emploi : les
+quatre actions CRUD.**
+
+Une seule palette pour les deux thèmes : le fond de code est sombre des deux
+côtés (`#2e2b25` en clair, `#0f0e0c` en sombre), donc une variante par thème
+serait une deuxième vérité à entretenir pour rien. Les sept valeurs sont
+mesurées sur le plus CLAIR des deux — celui où c'est le plus dur.
+
+### Les surtitres se lisaient avant les titres
+
+« Le backend est compilé, pas improvisé », « Voyez le résultat » : des phrases
+posées AVANT le titre de chaque section, qu'il fallait traverser pour arriver à
+ce que la section dit vraiment. Elles sont toutes retirées. Le seul `.eyebrow`
+qui survit est celui de la page d'erreur, où le surtitre EST le titre :
+« Erreur 404 » n'annonce pas une section, il la nomme.
+
+### Ce que les contre-épreuves ont trouvé
+
+Six garanties, six sabotages, et **l'un d'eux a rendu du vert** : remettre les
+noms déclarés en crème n'a pas fait tomber le test qui garde précisément ce
+défaut. Cause : `#c4b0dd` et `#f0e6d8` font sept caractères chacun, donc le
+fichier gardait la même TAILLE, et l'écriture retombait dans la même seconde —
+Python a rechargé son `.pyc` sans recompiler. Le bytecode périmé pour la
+troisième fois de la série (points 152 et 157), et pour la première fois sous
+une forme qui rendait une contre-épreuve *rassurante* au lieu de la casser.
+Purge du cache et `-B` : les six mordent.
+
+**Et une mesure du navigateur, encore fausse.** Le `scrollTop` de la page
+restait à 0 quelle que soit la commande — de quoi conclure que
+`html { overflow-x: clip }` bloquait le défilement vertical, ce que la lettre
+de la spécification CSS rend plausible. Un A/B dans deux iframes de la même
+page a tranché : avec la règle, sans la règle, et avec `hidden`, les trois
+défilent à 500. Le scroller gelé est un effet du volet Navigateur **non
+affiché** — il ne composite pas, donc il ne défile pas non plus. C'est le
+point 156 élargi : le volet masqué ne ment pas seulement sur la cascade, il
+ment aussi sur le défilement. La question se tranche en isolant la variable,
+jamais en lisant la valeur.
+
+### L'ancienne icône ne revenait pas du serveur, elle revenait du cache
+
+Rapporté après coup : *« le logo dans le titre de la page »* — l'onglet montrait
+encore l'icône d'avant. Le serveur n'y était pour rien : l'octet servi par
+`/favicon.ico` était bien la marque neuve, vérifié en la téléchargeant et en la
+regardant. Ce qui clochait était l'ADRESSE. Elle ne change jamais, et les deux
+routes répondaient `max-age=86400` : le navigateur gardait donc l'icône qu'il
+avait déjà, une journée entière, et Chrome tient en plus sa propre base de
+favicons indexée par URL.
+
+Les `<link rel="icon">` portent désormais une empreinte du CONTENU
+(`/favicon.ico?v=3cf62446`). **Une empreinte, pas un numéro de version** : un
+numéro écrit à la main a exactement le même défaut le jour où on oublie de
+l'incrémenter — c'est la leçon du point 85, transposée au cache. L'adresse
+change quand l'image change, jamais avant, jamais après.
+
+Le cache suit l'adresse. Versionnée, elle se garde un an et se déclare
+`immutable` : c'est désormais correct, puisqu'un contenu différent porterait
+une autre adresse. **L'adresse NUE, elle, se garde cinq minutes** — c'est celle
+que le navigateur demande d'office sans lire la page, donc la seule qu'on ne
+peut pas versionner ; la garder un an était précisément ce qui rendait le
+défaut si tenace. `cache_icone` (theme.py) est la source unique des deux
+politiques, et un test refuse que l'adresse nue dépasse l'heure.
+
+Quatre contre-épreuves, quatre rouges — dont celle qui compte : remplacer
+l'empreinte par un `"v2"` écrit à la main fait tomber le test, alors que
+l'adresse reste versionnée et que le site continue de marcher.
+
+**Et le mot-symbole a rétréci.** À 112 px de large il occupait 44 px sur les
+68 px de la barre — les deux tiers de sa hauteur — et pesait plus lourd que la
+navigation qu'il surplombe. À 88 px il fait 35 px de haut, ses lettres 27,
+toujours très au-dessus des 15 px des liens : il mène la barre sans la remplir.
+
+### Deux commandes sur une ligne, dans une carte de 309 pixels
+
+Repéré sur les captures, pas dans le code : les cartes du montage
+« l'un ou l'autre » portaient chacune leurs commandes tassées sur UNE ligne —
+`MONL_DATABASE_URL=postgresql://…  python3 -m uvicorn app:app`, et
+`monl frontend --provider …   ·   monl import`. Dans une carte de 309 px
+utiles, on lisait le début et rien de la fin.
+
+Une ligne par commande, donc. **La première a gagné un `export`** : en shell,
+`VAR=valeur commande` est UNE invocation, donc la couper en deux aurait produit
+une première ligne qui ne fait rien — le remède aurait été plus faux que le
+défaut. La seconde perd son point médian : il voulait dire « ou », mais deux
+commandes séparées par un caractère qui n'est pas du shell ne se copient pas.
+
+**La limite du test est MESURÉE, pas choisie** : 309 px utiles à 7,5 px par
+caractère de la fonte du bloc, relevés contre un vrai serveur à la largeur de
+bureau où les trois cartes tiennent côte à côte — la plus étroite des
+dispositions. Quarante et un caractères. La ligne la plus longue en faisait 42,
+et mordait donc dans la marge intérieure sans jamais déclencher de
+débordement : `clientWidth` compte le rembourrage, donc `scrollWidth` ne
+dénonçait rien.
+
+La longueur est un PROXY, et le test le dit — c'est la seule mesure qu'un test
+statique puisse faire. Le repli CSS est gardé à part : `overflow-x: auto` seul
+laisse la ligne défiler hors du cadre, et sur une carte personne ne va la
+chercher.
+
+### Les trois derniers surtitres, et le désalignement qu'ils cachaient
+
+Le premier passage n'avait retiré que la classe `.eyebrow`. Les trois cartes de
+positionnement portaient le leur sous un autre nom — `01 · INFRASTRUCTURE`,
+`02 · MONL COMPILER`, `03 · INTERFACES`, classe `.stage-no`. **Chercher un seul
+nom, c'était garder la moitié de la règle** ; le test compte désormais les deux,
+et un second témoin refuse qu'une règle CSS habille encore un surtitre disparu
+(forme du point 154 : une garantie qui ne porte plus sur rien ne fait aucun
+bruit).
+
+La numérotation n'était pas fautive en soi — elle décrivait bien une séquence,
+infrastructure → compilateur → interfaces. C'est la même demande que pour les
+autres : le site doit être facile à lire, et une carte se lit par son titre.
+
+**Le retrait a révélé un défaut que le surtitre masquait.** `.flow-stage h3`
+portait `margin-top: auto` : dans une colonne flex, le titre est donc poussé
+d'un espace libre qui dépend de la LONGUEUR du paragraphe — mesuré 282, 301 et
+321 px sur les trois cartes. Tant que le surtitre occupait le haut, lui aligné,
+l'œil s'accrochait à lui. Sans lui, trois titres à trois hauteurs sautent aux
+yeux. Le titre est remonté en haut et ce sont les ÉTIQUETTES qui portent
+désormais l'`auto`, ce qui les pose sur une base commune : écart mesuré 0 px sur
+les titres comme sur le bas des étiquettes, contre un vrai navigateur.
+
+**Retirer un élément décoratif est une mesure en soi** : il ne cachait pas
+seulement de la place, il cachait un alignement qui n'existait pas.
+
+### La CI a trouvé ce que la machine du mainteneur ne pouvait pas voir
+
+Trois exécutions rouges d'affilée sur `test_les_images_raster_ne_derivent_pas_de_la_marque`,
+alors que la suite était verte en local : **Pillow n'était déclaré que dans
+l'extra `ai`**, et la CI installe `.[dev,postgres]`. La bibliothèque est
+présente sur la machine du mainteneur et absente du conteneur — donc le test
+qui garde les images de marque (point 157) ne pouvait pas passer là où il
+compte.
+
+**Ce que le correctif a découvert au passage.** Une AUTRE ligne dépendait de
+Pillow, et elle, ne disait rien :
+`pytest.importorskip("PIL.Image")` dans `test_images_generees.py`. Le test de
+réencodage JPEG SAUTAIT à chaque exécution de la CI depuis qu'il existe. On ne
+l'a su que parce qu'un test voisin, lui, échouait franchement — le saut,
+lui, n'aurait jamais parlé. C'est le point 140 par une autre porte : *un saut
+ne dit pas « rien à vérifier ici », il dit « je n'ai pas vérifié ».*
+
+Pillow entre donc dans l'extra `dev`, l'`importorskip` disparaît, et **deux
+témoins gardent la paire** : aucun `importorskip` dans `tests/` (détecté par
+AST, pas par texte), et les bibliothèques dont les tests dépendent sont
+déclarées là où la CI les installe. Le second existe pour que retirer Pillow
+de `dev` échoue en DISANT pourquoi — sans quoi la tentation serait de remettre
+un saut. Les `pytest.skip` conditionnels restent permis : ils gardent une
+intégration qu'on peut légitimement ne pas demander (un vrai PostgreSQL) et
+ils la NOMMENT ; une bibliothèque Python installable, non.
+
+**Le second rouge n'était pas de cette branche.** `test_authentification_b4`
+recalcule un code TOTP pour vérifier qu'un REJEU est refusé, au lieu de rejouer
+la chaîne déjà employée : quand la fenêtre de 30 s bascule entre les deux
+appels HTTP, le « rejeu » est un code neuf que le serveur accepte à juste
+titre. Un échec sur trois exécutions, et la branche `main` est verte. Signalé
+à part — un sujet, une branche.
+
+**Et le vrai défaut était sous le premier.** Pillow installé, le test a échoué
+autrement : `favicon.ico ne correspond plus aux tracés de la marque`. Il
+comparait les fichiers **octet pour octet**. Or un `.ico` et un `.png` portent
+des pixels COMPRESSÉS, et le même Pillow 12.3 lié à des zlib différents — trois
+versions de Python dans la CI — n'écrit pas la même suite d'octets pour la même
+image. Le test mesurait donc l'ENCODEUR et pas le DESSIN : il aurait dénoncé
+une mise à jour de dépendance aussi fort qu'une dérive de la marque.
+
+La comparaison porte désormais sur les **pixels décodés**, toutes les tailles
+de l'ICO comprises — le décodage, lui, est sans perte et ne dépend pas du
+compresseur. La contre-épreuve reste franche : décaler l'orange d'UN point
+(`#d67730` → `#d67731`) fait tomber le test.
+
+Trois fois dans cette série, la même leçon sous trois formes : **une mesure
+peut porter sur autre chose que ce qu'on croit mesurer.** Le contraste entre
+deux jetons au lieu du contraste au fond ; la longueur d'une ligne au lieu de
+son débordement ; et ici l'encodage au lieu de l'image.
+

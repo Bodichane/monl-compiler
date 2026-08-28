@@ -6,6 +6,11 @@ large CSS and browser fragments are kept in a dedicated static module.
 
 from __future__ import annotations
 
+import hashlib
+import os
+from pathlib import Path
+
+from .brand import ANNEAU, LETTRES, MARQUE_ANNEAU, MARQUE_O, VUE
 from .theme_fragments import CSS, THEME_BOOT, THEME_TOGGLE
 
 ICON_THEME = (
@@ -40,38 +45,122 @@ def icon(name: str) -> str:
             f'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" '
             f'stroke-linejoin="round" aria-hidden="true">{path}</svg>')
 
-# Le signe assemble un « m » structurel et une barre de compilation. Les
-# formes sont des tracés, pas du texte : le dessin ne dépend d'aucune police.
+# L'orange de l'anneau, RELEVÉ sur l'artwork et non choisi. Il ne suit pas le
+# thème : un logo qui change de couleur avec le fond n'est plus le logo. WCAG
+# exempte explicitement les logotypes de ses seuils de contraste ; mesuré tout
+# de même, l'anneau tient 5,67:1 sur le fond sombre et 2,94:1 sur le clair.
+ORANGE = "#d67730"
+
+# Le « o » du logo, VECTORISÉ depuis l'artwork (voir brand.py). Un tracé, pas
+# du texte : le dessin ne dépend d'aucune police installée. Deux couches —
+# l'anneau garde sa couleur, le « o » suit l'encre de la page.
 LOGO_MARK = (
-    '<svg viewBox="0 0 48 48" role="img" aria-label="Monl">'
-    '<path d="M8 34V11h16v23M24 11h16v31" fill="none" stroke="currentColor" '
-    'stroke-width="4.4" stroke-linecap="butt" stroke-linejoin="miter"/>'
+    f'<svg viewBox="0 0 48 48" role="img" aria-label="Monl">'
+    f'<path d="{MARQUE_ANNEAU}" fill="{ORANGE}" fill-rule="evenodd"/>'
+    f'<path d="{MARQUE_O}" fill="currentColor" fill-rule="evenodd"/>'
     '</svg>'
 )
 
 # Le favicon, lui, ne peut PAS être en currentColor : il vit dans un onglet,
-# hors de toute page, sans couleur héritée. Il porte donc sa pastille et son
-# ambre en dur — c'est la seule place où un fond est justifié, et l'onglet
-# d'un navigateur en attend un.
+# hors de toute page, sans couleur héritée. Il porte donc sa pastille en dur —
+# c'est la seule place où un fond est justifié, et l'onglet d'un navigateur en
+# attend un.
 LOGO_SVG = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" '
     'aria-label="Monl">'
     '<rect width="48" height="48" rx="11" fill="#2e2b25"/>'
-    '<path d="M10 32V13h14v19M24 13h14v27" fill="none" stroke="#f9f4ed" '
-    'stroke-width="4" stroke-linecap="butt" stroke-linejoin="miter"/>'
+    f'<path d="{MARQUE_ANNEAU}" fill="{ORANGE}" fill-rule="evenodd"/>'
+    f'<path d="{MARQUE_O}" fill="#f9f4ed" fill-rule="evenodd"/>'
     '</svg>'
 )
 FAVICON = LOGO_SVG
 
+ICONE_ICO = Path(__file__).with_name("static") / "favicon.ico"
+
+
+def _empreinte(donnees: bytes) -> str:
+    """Huit caractères DÉRIVÉS du contenu de l'icône.
+
+    Ils voyagent dans l'URL déclarée par la page. Sans eux, `/favicon.ico` est
+    une adresse qui ne change JAMAIS : le navigateur garde l'icône qu'il a déjà,
+    et l'ancienne « réapparaît » sans que le serveur y soit pour rien — le
+    défaut rapporté sur le changement de logo. Un numéro de version écrit à la
+    main aurait le même effet le jour où on oublie de l'incrémenter ; une
+    empreinte du contenu change exactement quand l'image change, jamais avant,
+    jamais après.
+    """
+    return hashlib.sha256(donnees).hexdigest()[:8]
+
+
+VERSION_ICO = _empreinte(ICONE_ICO.read_bytes())
+VERSION_SVG = _empreinte(FAVICON.encode())
+
+
+def cache_icone(demandee: str, attendue: str) -> dict:
+    """L'en-tête de cache d'une icône, selon que l'URL porte son empreinte.
+
+    Une URL versionnée peut être gardée un an : son contenu ne changera pas,
+    puisqu'un contenu différent porterait une autre adresse. Une URL NUE, elle,
+    est celle que le navigateur demande d'office sans lire la page — on ne peut
+    pas la versionner, donc elle se garde peu, pour qu'une icône périmée expire
+    d'elle-même au lieu de survivre une journée.
+    """
+    if demandee == attendue:
+        return {"Cache-Control": "public, max-age=31536000, immutable"}
+    return {"Cache-Control": "public, max-age=300"}
+
+# Le wordmark est INLINE, et c'est un correctif, pas une préférence : servi en
+# `<img>`, il porterait le fond sombre de l'artwork quel que soit le thème —
+# soit un logo qui disparaît de l'en-tête clair (mesuré 1,29:1 sur l'ancien).
+# En SVG dans la page, les lettres suivent l'encre et le fond de la page se
+# voit à travers le trou des deux anneaux.
+WORDMARK = (
+    '<svg class="brand-wordmark" xmlns="http://www.w3.org/2000/svg" '
+    f'viewBox="0 0 {VUE[0]} {VUE[1]}" role="img" aria-label="monl">'
+    f'<path d="{ANNEAU}" fill="{ORANGE}" fill-rule="evenodd"/>'
+    f'<path d="{LETTRES}" fill="currentColor" fill-rule="evenodd"/>'
+    '</svg>'
+)
+
 
 def _brand() -> str:
-    return ('<img class="brand-wordmark" src="/brand/monl-wordmark.png" '
-            'width="256" height="100" alt="">')
+    return WORDMARK
 
 
 def _lien(href: str, libelle: str, actif: str, cle: str) -> str:
     courant = ' aria-current="page"' if actif == cle else ""
     return f'<a href="{href}"{courant}>{libelle}</a>'
+
+
+def _social(title: str, description: str) -> str:
+    """Les balises de partage.
+
+    Sans elles, une adresse collée dans Slack, X ou WhatsApp n'affiche qu'un
+    lien nu. L'image doit être ABSOLUE pour qu'un robot la récupère : elle
+    n'est donc émise que si `MONL_PLATFORM_PUBLIC_URL` est déclarée — jamais
+    devinée depuis l'en-tête `Host`, qu'un tiers contrôle (même frontière
+    qu'au point 145 pour l'adresse de retour OAuth)."""
+    base = (os.environ.get("MONL_PLATFORM_PUBLIC_URL") or "").rstrip("/")
+    commun = (
+        f'<meta property="og:type" content="website">'
+        f'<meta property="og:site_name" content="monl compiler">'
+        f'<meta property="og:title" content="{title}">'
+        f'<meta property="og:description" content="{description}">'
+        f'<meta property="og:locale" content="fr_FR">'
+        f'<meta name="twitter:title" content="{title}">'
+        f'<meta name="twitter:description" content="{description}">'
+    )
+    if not base:
+        return commun + '<meta name="twitter:card" content="summary">'
+    return (commun
+            + f'<meta property="og:url" content="{base}/">'
+            + f'<meta property="og:image" content="{base}/brand/monl-social.png">'
+            + '<meta property="og:image:width" content="1200">'
+            + '<meta property="og:image:height" content="630">'
+            + '<meta property="og:image:alt" content="monl — le backend est '
+              'compilé, pas improvisé">'
+            + '<meta name="twitter:card" content="summary_large_image">'
+            + f'<meta name="twitter:image" content="{base}/brand/monl-social.png">')
 
 
 def page(*, title: str, description: str, body: str, active: str = "",
@@ -85,8 +174,9 @@ def page(*, title: str, description: str, body: str, active: str = "",
 <meta name="description" content="{description}">
 <meta name="theme-color" content="#171512" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#f9f4ed" media="(prefers-color-scheme: light)">
+{_social(title, description)}
 <title>{title}</title>
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.ico?v={VERSION_ICO}" sizes="32x32"><link rel="icon" href="/favicon.svg?v={VERSION_SVG}" type="image/svg+xml">
 <script>{THEME_BOOT}</script>
 <style>{CSS}{extra_css}</style>
 </head>

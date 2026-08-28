@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .coloration import coloriser
 from .guide import REGLES_ACCES, REGLES_CHAMPS, REGLES_COMMERCE, REGLES_SERVEUR, TYPES
 from .theme import icon, page
 
@@ -25,25 +26,28 @@ EXTRA_CSS = """
 @media(max-width:620px){.keyword-grid,.type-grid{grid-template-columns:1fr}}
 """
 
-EXAMPLE = """<span class="kw">app</span> BoutiqueLocale
+# Écrit en TEXTE NU : la coloration est faite par le coloriseur, dont les
+# mots-clés viennent de la grammaire. Marqués à la main, ils dataient du jour
+# où on les avait écrits.
+EXAMPLE = coloriser("""app BoutiqueLocale
 
-<span class="kw">entity</span> Produit
+entity Produit
     nom: String
     prix: Money
     stock: Integer
 
-<span class="kw">actor</span> Client selfRegister
-<span class="kw">actor</span> Vendeur
+actor Client selfRegister
+actor Vendeur
 
-<span class="kw">rule</span> Produit.nom required
-<span class="kw">rule</span> Produit.prix min 0
-<span class="kw">rule</span> Produit.Read public
+rule Produit.nom required
+rule Produit.prix min 0
+rule Produit.Read public
 
-<span class="kw">workflow</span> GererCatalogue <span class="kw">for</span> Vendeur
+workflow GererCatalogue for Vendeur
     Create Produit
     Read Produit
     Update Produit
-    Delete Produit"""
+    Delete Produit""")
 
 
 def _types() -> str:
@@ -59,14 +63,14 @@ BODY = f"""
 <a href="#structure">Structure</a><a href="#mots-cles">Mots-clés</a><a href="#types">Types</a>
 <a href="#acces">Accès et sécurité</a><a href="#validation">Validation</a><a href="/guide#dsl">Référence avancée</a></aside>
 <article class="docs-main">
-<section id="structure"><span class="eyebrow">Référence du langage</span><h1>Écrire une spécification Monl.</h1>
+<section id="structure"><h1>Écrire une spécification Monl.</h1>
 <p class="lede">Une spec décrit le métier dans cet ordre : application, données, acteurs, relations, règles, puis actions autorisées.</p>
 <div class="quick"><pre class="codeblock"><code>{EXAMPLE}</code></pre><div class="anatomy">
 <article class="card"><span class="feature-icon">{icon('code')}</span><h3>Les données</h3><p><code>entity</code> déclare une table et ses champs typés.</p></article>
 <article class="card"><span class="feature-icon">{icon('shield')}</span><h3>Les droits</h3><p><code>actor</code> et <code>rule</code> déterminent qui agit sur quoi.</p></article>
 <article class="card"><span class="feature-icon">{icon('terminal')}</span><h3>Les actions</h3><p><code>workflow</code> ouvre les opérations de chaque acteur.</p></article></div></div></section>
 
-<section id="mots-cles"><span class="eyebrow">Les fondations</span><h2>Les mots-clés essentiels.</h2><div class="keyword-grid">
+<section id="mots-cles"><h2>Les mots-clés essentiels.</h2><div class="keyword-grid">
 <article class="keyword"><code>app Nom</code><p>Nomme l’application, une fois, au début.</p></article>
 <article class="keyword"><code>entity Nom</code><p>Déclare une donnée ; les lignes indentées sont ses champs.</p></article>
 <article class="keyword"><code>actor Nom [selfRegister]</code><p>Déclare un rôle et, éventuellement, son inscription publique.</p></article>
@@ -77,15 +81,15 @@ BODY = f"""
 <article class="keyword"><code>seed Entite</code><p>Ajoute les données initiales dans une table vide.</p></article>
 </div></section>
 
-<section id="types"><span class="eyebrow">Champs</span><h2>Les types acceptés.</h2>
+<section id="types"><h2>Les types acceptés.</h2>
 <p class="lede">Le type détermine validation, stockage SQL et contrat frontend.</p><div class="type-grid">{_types()}</div></section>
 
-<section id="acces"><span class="eyebrow">Règles métier</span><h2>Accès et sécurité.</h2>
+<section id="acces"><h2>Accès et sécurité.</h2>
 <p class="lede">Ces règles s’appliquent côté API : masquer un bouton ne constitue jamais une autorisation.</p>
 <div class="keyword-grid">{_rules(REGLES_ACCES)}</div><h2 style="margin-top:var(--space-7)">Validation et calcul serveur.</h2>
 <div class="keyword-grid">{_rules(REGLES_CHAMPS + REGLES_SERVEUR + REGLES_COMMERCE)}</div></section>
 
-<section id="validation"><span class="eyebrow">Avant de compiler</span><h2>Valider la spec.</h2>
+<section id="validation"><h2>Valider la spec.</h2>
 <div class="tip"><span class="feature-icon">{icon('check')}</span><p>Collez le fichier dans la <a href="/console">console</a> puis choisissez <b>Vérifier la spec</b>.
 En local : <code>monl compile ma-spec.ml</code>. Les capacités avancées sont détaillées dans le <a href="/guide#dsl">guide complet</a>.</p></div>
 <div class="docs-actions" style="margin-top:var(--space-5)"><a class="primary" href="/console">Tester une spécification {icon('arrow')}</a>
