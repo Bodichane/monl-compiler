@@ -1083,6 +1083,23 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   tomber le test. **Même leçon que la palette et que la ligne de commande :
   une mesure peut porter sur autre chose que ce qu'on croit mesurer.**
   Voir point 158.
+- **POINT 159 : un seuil de temps en SECONDES ne veut pas dire la même chose
+  sur deux machines.** Le test d'oracle temporel de `test_authentification_b4`
+  comparait l'écart entre le chemin « compte verrouillé » et le chemin
+  « compte inexistant » à 0,10 s fixe : la CI de `main` est tombée à 0,1016 s.
+  Deux défauts, à séparer avant de toucher au seuil. **L'ESTIMATEUR** — la
+  médiane de CINQ écarts appariés monte à 9,70 ms sur un blocage isolé, celle
+  de QUINZE reste sous 1,54 ms (`TOURS_MESURE`). **L'ÉCHELLE** — la tolérance
+  est désormais une PART du temps de réponse observé (20 %, plancher 5 ms),
+  parce que ce qui compte pour un attaquant est le SIGNAL sur le BRUIT, pas un
+  nombre de millisecondes. **Une différence RÉELLE subsiste** : le chemin
+  verrouillé coûte 1,7 ms de plus, dans 19 mesures sur 24 ; ce n'est PAS un
+  biais d'ordre (vérifié en inversant l'ordre dans chaque paire : +1,81 contre
+  +1,63 ms). Le test la BORNE, il n'exige pas zéro. **Contre-épreuve
+  obligatoire, et c'est elle qui distingue un seuil corrigé d'un seuil
+  désarmé** : une vraie fuite injectée dans le serveur généré est refusée à
+  20 ms (19,83 mesurées pour 16,45 de tolérance), pas à 10 — soit cinq fois
+  plus fin que les 100 ms d'avant. Voir point 159.
 - **POINT 155 : aucun fichier de `src/` ne dépasse 400 lignes, aucune fonction
   non plus — et c'est VÉRIFIÉ.** `tests/test_architecture.py` porte trois
   contrats : `PLAFOND_FICHIER`, `PLAFOND_FONCTION`, et **une exception doit
