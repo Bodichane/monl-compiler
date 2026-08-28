@@ -75,7 +75,8 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [156](#156-un-repère-qui-glisse-une-bascule-qui-révèle-et-un-volet-qui-ment) Un repère qui glisse, une bascule qui révèle, et un volet qui ment ·
 [157](#157-le-logo-au--o--orange-et-trois-mesures-qui-mentaient) Le logo au « o » orange, et trois mesures qui mentaient ·
 [158](#158-sept-couleurs-dérivées-de-la-grammaire-et-un-surtitre-de-moins-par-section) Sept couleurs dérivées de la grammaire, et un surtitre de moins par section ·
-[159](#159-un-seuil-de-temps-en-secondes-ne-veut-pas-dire-la-même-chose-sur-deux-machines) Un seuil de temps en secondes ne veut pas dire la même chose sur deux machines ·
+[159](#159-une-assertion-de-rejeu-qui-rejouait-un-code-neuf-et-sa-voisine-qui-ne-mesurait-plus-rien) Une assertion de rejeu qui rejouait un code neuf ·
+[160](#160-un-seuil-de-temps-en-secondes-ne-veut-pas-dire-la-même-chose-sur-deux-machines) Un seuil de temps en secondes ne veut pas dire la même chose sur deux machines ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -10888,9 +10889,88 @@ peut porter sur autre chose que ce qu'on croit mesurer.** Le contraste entre
 deux jetons au lieu du contraste au fond ; la longueur d'une ligne au lieu de
 son débordement ; et ici l'encodage au lieu de l'image.
 
+## 159. Une assertion de rejeu qui rejouait un code neuf, et sa voisine qui ne mesurait plus rien
+
+`tests/test_authentification_b4.py` échouait par intermittence en CI, sur le
+seul paramètre `[postgres]` (run 33136766014, `assert 200 == 401`). La phase
+TOTP se lisait ainsi : on se connecte avec un code, puis on vérifie que le
+**rejeu** du même code est refusé. Sauf que le second appel **recalculait**
+`_totp_code(secret)` au lieu de rejouer la chaîne déjà employée. Si la fenêtre
+de 30 s bascule entre les deux requêtes HTTP, le code recalculé est un code
+NEUF, jamais consommé — que le serveur accepte à **juste titre**. Le test
+dénonçait alors une application saine, exactement le reproche du point 140.
+
+**Le moteur n'y était pour rien.** La bascule de fenêtre a été forcée
+(`time.sleep(30 - time.time() % 30)` inséré avant l'assertion) : rouge sur
+SQLite **et** sur PostgreSQL, au caractère près le message de la CI. Le
+paramètre `[postgres]` n'était qu'un tirage d'ordonnancement — s'en tenir à ce
+qu'affiche le rapport aurait envoyé chercher une différence de moteur qui
+n'existe pas.
+
+**Le correctif est une variable.** Le pas est arrêté une fois
+(`pas = _pas_totp_stable()`), le code en est dérivé une fois, la connexion
+valide l'emploie et l'assertion de rejeu **rejoue cette même variable**. Le
+même témoin, rejoué sur la version corrigée, reste vert : le code capturé n'est
+plus courant après la bascule, donc il est refusé — par l'autre porte, mais
+refusé.
+
+`_totp_code(secret, step)` a perdu son défaut : le pas est désormais
+**obligatoire**. Déduire le pas de l'horloge à l'intérieur du helper est
+précisément ce qui laissait une assertion de rejeu porter sur un code neuf ;
+aucun appelant ne peut plus relire l'horloge en douce.
+
+`_pas_totp_stable` attend le début de la fenêtre suivante s'il reste moins de
+dix secondes. Sans cette marge, l'assertion continuerait de passer après une
+bascule — mais pour la mauvaise raison (« code périmé ») et non pour celle
+qu'elle annonce (« code déjà consommé »).
+
+### La voisine ne mesurait plus rien
+
+L'assertion suivante — la **fenêtre précédente** est refusée — ne souffrait pas
+du glissement : un code de la fenêtre `S-1` n'est jamais le code courant, quoi
+qu'il arrive. Elle souffrait de pire. Contre-épreuve : on donne au serveur une
+tolérance de ±1 fenêtre dans `_totp_code_is_current`, ce que l'assertion existe
+justement pour interdire. **Le test reste vert.**
+
+La raison : elle s'exécutait APRÈS la connexion valide. Celle-ci avait déjà
+posé `totp_last_step = S`, donc l'anti-rejeu refusait le code de `S-1` de toute
+façon — l'assertion mesurait l'anti-rejeu de sa voisine, pas la tolérance de
+fenêtre. Déplacée AVANT la connexion valide, la même contre-épreuve la fait
+tomber. C'est le point 145 mot pour mot : **un test qui passe ne prouve pas
+qu'il mord**, et le seul moyen de savoir est de retirer le garde-fou pour voir
+le test rougir.
+
+Effet de bord bienvenu : le compte n'atteint plus les trois échecs de
+`lockout: 3 in 10`. L'ancien ordre enchaînait exactement trois refus et
+verrouillait le compte à la dernière ligne — invisible parce que personne ne se
+reconnectait ensuite, mais une ligne de plus l'aurait fait tomber.
+
+### Ce que l'exécution a trouvé, et que la relecture n'aurait pas vu
+
+Le premier jet plaçait l'attente dans l'argument `body=` de l'activation :
+
+```python
+enabled = _call("POST", base, "/totp/enable",
+                token=_token(_login(...)),                    # évalué EN PREMIER
+                body={"code": _totp_code(secret, _pas_totp_stable())})
+```
+
+Python évalue les arguments dans l'ordre : le jeton est obtenu, **puis**
+l'attente a lieu — et `MONL_TOKEN_TTL_SECONDS` vaut 3 dans ce banc. Résultat
+mesuré : `401 {"detail":"Token invalide ou expiré"}`. Le commentaire posé au-
+dessus de cet appel avertissait déjà du contraire (« ne pas rendre le test
+sensible à la durée du premier appel ») et n'a pas suffi. Le pas est donc arrêté
+**avant** la connexion.
+
+**La règle à retenir** : un test qui dépend d'une horloge doit FIXER son instant
+de référence, puis ne plus la relire. Chaque relecture est une occasion pour la
+fenêtre de basculer entre ce que le test croit envoyer et ce que le serveur
+croit recevoir — et le test se met alors à mesurer autre chose que ce qu'il
+annonce, tantôt en rougissant à tort, tantôt en verdissant à tort.
+
 ---
 
-## 159. Un seuil de temps en secondes ne veut pas dire la même chose sur deux machines
+## 160. Un seuil de temps en secondes ne veut pas dire la même chose sur deux machines
 
 `test_authentification_b4` a fait tomber la CI de `main` sur une assertion de
 sécurité : *écart médian 0,1016 s* pour un seuil de 0,10. Un millimètre et

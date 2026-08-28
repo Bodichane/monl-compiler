@@ -1083,7 +1083,21 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   tomber le test. **Même leçon que la palette et que la ligne de commande :
   une mesure peut porter sur autre chose que ce qu'on croit mesurer.**
   Voir point 158.
-- **POINT 159 : un seuil de temps en SECONDES ne veut pas dire la même chose
+- **POINT 159 : un test qui dépend d'une horloge FIXE son instant de référence,
+  puis ne la relit plus.** L'assertion de rejeu TOTP de
+  `tests/test_authentification_b4.py` RECALCULAIT le code au lieu de rejouer
+  celui déjà employé : à chaque bascule de la fenêtre de 30 s elle envoyait un
+  code NEUF, jamais consommé, que le serveur acceptait à juste titre (`assert
+  200 == 401` en CI). Le pas est arrêté une fois (`_pas_totp_stable`), et
+  `_totp_code(secret, step)` n'a plus de défaut — déduire le pas dans le helper
+  est exactement ce qui laissait passer le défaut. **Le moteur affiché n'était
+  pas la cause** : la bascule forcée rougit sur les DEUX moteurs, `[postgres]`
+  n'était qu'un tirage d'ordonnancement. **Et sa voisine ne mordait plus** : la
+  fenêtre précédente était éprouvée APRÈS la connexion valide, donc refusée par
+  l'anti-rejeu de celle-ci — une tolérance de ±1 fenêtre donnée au serveur
+  laissait le test VERT. Déplacée avant, elle rougit. Point 145 mot pour mot.
+  Voir point 159.
+- **POINT 160 : un seuil de temps en SECONDES ne veut pas dire la même chose
   sur deux machines.** Le test d'oracle temporel de `test_authentification_b4`
   comparait l'écart entre le chemin « compte verrouillé » et le chemin
   « compte inexistant » à 0,10 s fixe : la CI de `main` est tombée à 0,1016 s.
@@ -1099,7 +1113,7 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   obligatoire, et c'est elle qui distingue un seuil corrigé d'un seuil
   désarmé** : une vraie fuite injectée dans le serveur généré est refusée à
   20 ms (19,83 mesurées pour 16,45 de tolérance), pas à 10 — soit cinq fois
-  plus fin que les 100 ms d'avant. Voir point 159.
+  plus fin que les 100 ms d'avant. Voir point 160.
 - **POINT 155 : aucun fichier de `src/` ne dépasse 400 lignes, aucune fonction
   non plus — et c'est VÉRIFIÉ.** `tests/test_architecture.py` porte trois
   contrats : `PLAFOND_FICHIER`, `PLAFOND_FONCTION`, et **une exception doit
