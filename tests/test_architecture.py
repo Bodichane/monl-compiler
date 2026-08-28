@@ -324,3 +324,65 @@ def test_chaque_exception_de_taille_vise_un_fichier_qui_depasse_encore():
             f"{rel} tient désormais dans {PLAFOND_FICHIER} lignes "
             f"({tailles[rel]}) : retirer l'exception")
         assert len(raison) > 40, f"exception sans raison écrite : {rel}"
+
+
+def test_aucun_test_ne_saute_faute_de_bibliotheque():
+    """`pytest.importorskip` rend du vert sans rien vérifier.
+
+    Trouvé par la CI, pas en local : Pillow n'était déclaré que dans l'extra
+    `ai`, que la CI n'installe pas. Le test de réencodage JPEG SAUTAIT donc à
+    chaque exécution — et le seul motif pour lequel on l'a su est qu'un test
+    voisin, lui, échouait franchement. Le saut, lui, n'aurait jamais parlé.
+
+    C'est le point 140 par une autre porte : un saut ne dit pas « rien à
+    vérifier ici », il dit « je n'ai pas vérifié ». Une bibliothèque dont un
+    test a besoin se DÉCLARE dans l'extra `dev` — celui que la CI installe —
+    au lieu d'être contournée.
+
+    Les `pytest.skip` conditionnels restent permis : ils gardent une
+    intégration qu'on peut légitimement ne pas demander (un vrai PostgreSQL),
+    et ils la NOMMENT. Une bibliothèque Python installable, non.
+    """
+    dossier = os.path.dirname(__file__)
+    fautifs = []
+    for nom in sorted(os.listdir(dossier)):
+        if not nom.endswith(".py"):
+            continue
+        chemin = os.path.join(dossier, nom)
+        with open(chemin, encoding="utf-8") as fh:
+            source = fh.read()
+        for noeud in ast.walk(ast.parse(source, filename=nom)):
+            if (isinstance(noeud, ast.Call)
+                    and isinstance(noeud.func, ast.Attribute)
+                    and noeud.func.attr == "importorskip"):
+                fautifs.append(f"{nom}:{noeud.lineno}")
+
+    assert not fautifs, (
+        "importorskip rend du vert sans vérifier — déclarer la bibliothèque "
+        "dans l'extra `dev` : " + ", ".join(fautifs))
+
+
+def test_les_bibliotheques_dont_les_tests_ont_besoin_sont_dans_dev():
+    """Le pendant du test ci-dessus : la déclaration, pas seulement l'absence
+    de contournement.
+
+    Sans lui, retirer Pillow de l'extra `dev` ferait échouer la CI sans qu'un
+    test explique POURQUOI — et la tentation serait de remettre un saut.
+    """
+    try:
+        import tomllib
+    except ModuleNotFoundError:      # 3.10 : `tomllib` n'arrive qu'en 3.11
+        import tomli as tomllib      # noqa: I001  (déclaré dans l'extra `dev`)
+
+    racine = os.path.join(os.path.dirname(__file__), "..")
+    with open(os.path.join(racine, "pyproject.toml"), "rb") as fh:
+        config = tomllib.load(fh)
+    dev = " ".join(config["project"]["optional-dependencies"]["dev"]).lower()
+
+    # Chacune est importée par au moins un test, directement ou via un module
+    # qu'un test importe (outils/fabriquer_images.py pour Pillow).
+    for distribution in ("pytest", "requests", "pillow"):
+        assert distribution in dev, (
+            f"{distribution} manque à l'extra `dev` : la CI installe "
+            f"`.[dev,postgres]`, donc les tests qui en dépendent sauteront "
+            f"ou échoueront")

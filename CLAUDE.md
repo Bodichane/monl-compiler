@@ -1058,6 +1058,20 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   des deux politiques : versionnée un an et `immutable`, NUE cinq minutes —
   l'adresse nue est celle que le navigateur demande d'office sans lire la page,
   donc la seule qu'on ne peut pas versionner. Voir point 158.
+- **POINT 158bis : Pillow n'était que dans l'extra `ai`, et la CI installe
+  `.[dev,postgres]`.** Trois exécutions rouges pendant que la suite était verte
+  en local. Le correctif a découvert pire : un
+  `pytest.importorskip("PIL.Image")` faisait SAUTER le test de réencodage JPEG
+  à chaque exécution de la CI depuis qu'il existe — on ne l'a su que parce
+  qu'un test voisin échouait franchement. Pillow entre dans `dev`,
+  l'`importorskip` disparaît, et deux témoins de `tests/test_architecture.py`
+  gardent la paire : **aucun `importorskip` dans `tests/`** (détecté par AST) et
+  **les bibliothèques dont les tests dépendent sont déclarées là où la CI les
+  installe**. Les `pytest.skip` conditionnels restent permis — ils gardent une
+  intégration qu'on peut légitimement ne pas demander (un vrai PostgreSQL) et
+  ils la NOMMENT ; une bibliothèque Python installable, non. **Toute
+  bibliothèque qu'un test importe se déclare dans `dev`, jamais dans un extra
+  que la CI n'installe pas.** Voir point 158.
 - **POINT 155 : aucun fichier de `src/` ne dépasse 400 lignes, aucune fonction
   non plus — et c'est VÉRIFIÉ.** `tests/test_architecture.py` porte trois
   contrats : `PLAFOND_FICHIER`, `PLAFOND_FONCTION`, et **une exception doit

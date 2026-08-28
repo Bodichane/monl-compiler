@@ -10836,3 +10836,36 @@ les titres comme sur le bas des étiquettes, contre un vrai navigateur.
 **Retirer un élément décoratif est une mesure en soi** : il ne cachait pas
 seulement de la place, il cachait un alignement qui n'existait pas.
 
+### La CI a trouvé ce que la machine du mainteneur ne pouvait pas voir
+
+Trois exécutions rouges d'affilée sur `test_les_images_raster_ne_derivent_pas_de_la_marque`,
+alors que la suite était verte en local : **Pillow n'était déclaré que dans
+l'extra `ai`**, et la CI installe `.[dev,postgres]`. La bibliothèque est
+présente sur la machine du mainteneur et absente du conteneur — donc le test
+qui garde les images de marque (point 157) ne pouvait pas passer là où il
+compte.
+
+**Ce que le correctif a découvert au passage.** Une AUTRE ligne dépendait de
+Pillow, et elle, ne disait rien :
+`pytest.importorskip("PIL.Image")` dans `test_images_generees.py`. Le test de
+réencodage JPEG SAUTAIT à chaque exécution de la CI depuis qu'il existe. On ne
+l'a su que parce qu'un test voisin, lui, échouait franchement — le saut,
+lui, n'aurait jamais parlé. C'est le point 140 par une autre porte : *un saut
+ne dit pas « rien à vérifier ici », il dit « je n'ai pas vérifié ».*
+
+Pillow entre donc dans l'extra `dev`, l'`importorskip` disparaît, et **deux
+témoins gardent la paire** : aucun `importorskip` dans `tests/` (détecté par
+AST, pas par texte), et les bibliothèques dont les tests dépendent sont
+déclarées là où la CI les installe. Le second existe pour que retirer Pillow
+de `dev` échoue en DISANT pourquoi — sans quoi la tentation serait de remettre
+un saut. Les `pytest.skip` conditionnels restent permis : ils gardent une
+intégration qu'on peut légitimement ne pas demander (un vrai PostgreSQL) et
+ils la NOMMENT ; une bibliothèque Python installable, non.
+
+**Le second rouge n'était pas de cette branche.** `test_authentification_b4`
+recalcule un code TOTP pour vérifier qu'un REJEU est refusé, au lieu de rejouer
+la chaîne déjà employée : quand la fenêtre de 30 s bascule entre les deux
+appels HTTP, le « rejeu » est un code neuf que le serveur accepte à juste
+titre. Un échec sur trois exécutions, et la branche `main` est verte. Signalé
+à part — un sujet, une branche.
+
