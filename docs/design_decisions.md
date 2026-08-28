@@ -10783,3 +10783,30 @@ l'adresse reste versionnée et que le site continue de marcher.
 navigation qu'il surplombe. À 88 px il fait 35 px de haut, ses lettres 27,
 toujours très au-dessus des 15 px des liens : il mène la barre sans la remplir.
 
+### Deux commandes sur une ligne, dans une carte de 309 pixels
+
+Repéré sur les captures, pas dans le code : les cartes du montage
+« l'un ou l'autre » portaient chacune leurs commandes tassées sur UNE ligne —
+`MONL_DATABASE_URL=postgresql://…  python3 -m uvicorn app:app`, et
+`monl frontend --provider …   ·   monl import`. Dans une carte de 309 px
+utiles, on lisait le début et rien de la fin.
+
+Une ligne par commande, donc. **La première a gagné un `export`** : en shell,
+`VAR=valeur commande` est UNE invocation, donc la couper en deux aurait produit
+une première ligne qui ne fait rien — le remède aurait été plus faux que le
+défaut. La seconde perd son point médian : il voulait dire « ou », mais deux
+commandes séparées par un caractère qui n'est pas du shell ne se copient pas.
+
+**La limite du test est MESURÉE, pas choisie** : 309 px utiles à 7,5 px par
+caractère de la fonte du bloc, relevés contre un vrai serveur à la largeur de
+bureau où les trois cartes tiennent côte à côte — la plus étroite des
+dispositions. Quarante et un caractères. La ligne la plus longue en faisait 42,
+et mordait donc dans la marge intérieure sans jamais déclencher de
+débordement : `clientWidth` compte le rembourrage, donc `scrollWidth` ne
+dénonçait rien.
+
+La longueur est un PROXY, et le test le dit — c'est la seule mesure qu'un test
+statique puisse faire. Le repli CSS est gardé à part : `overflow-x: auto` seul
+laisse la ligne défiler hors du cadre, et sur une carte personne ne va la
+chercher.
+

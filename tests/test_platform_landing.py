@@ -277,7 +277,7 @@ def test_la_promesse_postgresql_du_site_est_couverte_par_un_test():
     from monl_platform.landing_pourquoi import MONTAGES
     montage = next(m for m in MONTAGES if m["etat"] == "verifie"
                    and "MONL_DATABASE_URL" in m["texte"])
-    assert "postgresql://" in (montage["code"] or "")
+    assert "postgresql://" in "\n".join(montage["code"])
 
     epreuve = pathlib.Path(__file__).with_name("test_postgresql.py")
     assert epreuve.exists(), "la promesse ne pointe sur aucune épreuve"
@@ -443,3 +443,47 @@ def test_le_favicon_ico_repond_vraiment(platform):
     assert "immutable" not in reponse.headers["cache-control"], (
         "l'adresse nue se garde comme une adresse versionnée")
     assert versionnee.content == reponse.content, "deux icônes différentes"
+
+
+def test_aucune_commande_ne_deborde_de_sa_carte():
+    """Une commande tassée sort du cadre et se fait couper — en silence.
+
+    Mesuré : « MONL_DATABASE_URL=postgresql://…  python3 -m uvicorn app:app »
+    tenait sur UNE ligne dans une carte de 309 px utiles, on lisait le début et
+    rien de la fin, et deux commandes séparées par un point médian ne se
+    copiaient pas. La limite n'est pas choisie : elle est MESURÉE contre un
+    vrai serveur — 309 px utiles à 7,5 px par caractère de la fonte mono du
+    bloc, à la largeur de bureau où les trois cartes tiennent côte à côte,
+    c'est-à-dire la plus étroite des dispositions.
+
+    La longueur est un PROXY d'un débordement, et elle le dit : c'est la seule
+    mesure qu'un test statique puisse faire. Le repli CSS (`pre-wrap`) est
+    vérifié séparément ci-dessous — sans lui, une ligne trop longue serait
+    coupée au lieu d'être repliée, et la carte mentirait sur son contenu.
+    """
+    from monl_platform.landing_pourquoi import SECTIONS
+
+    blocs = re.findall(r"<pre><code>(.*?)</code></pre>", SECTIONS, re.S)
+    assert blocs, "plus aucun bloc de commande : le test ne garde plus rien"
+
+    for bloc in blocs:
+        for ligne in bloc.split("\n"):
+            assert len(ligne) <= 41, (
+                f"{len(ligne)} caractères — la carte en tient 41 :\n  {ligne}")
+            assert " · " not in ligne, (
+                "deux commandes sur une ligne, séparées par un point médian : "
+                "elles ne se copient pas")
+
+
+def test_un_bloc_de_commande_se_replie_au_lieu_d_etre_coupe():
+    """Le filet sous la limite ci-dessus.
+
+    `overflow-x: auto` seul laisse la ligne défiler HORS du cadre : sur une
+    carte, personne ne va la chercher. `pre-wrap` la replie.
+    """
+    from monl_platform.landing_pourquoi import EXTRA_CSS
+
+    regle = _declarations(EXTRA_CSS, ".montage pre")
+    assert regle, "la règle .montage pre est introuvable"
+    assert "pre-wrap" in regle[0], (
+        "une commande trop longue serait coupée au lieu d'être repliée")

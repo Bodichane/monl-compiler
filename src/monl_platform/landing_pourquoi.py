@@ -18,6 +18,8 @@ plafond de lignes ; la découpe suit celle du reste du paquet.
 
 from __future__ import annotations
 
+import html
+
 from .theme import icon
 
 # ---------------------------------------------------------------------------
@@ -106,7 +108,8 @@ MONTAGES = [
                  "console.",
         "preuve": "Éprouvé : les artefacts générés tournent contre un vrai "
                   "PostgreSQL dans la suite de tests.",
-        "code": "MONL_DATABASE_URL=postgresql://…  python3 -m uvicorn app:app",
+        "code": ("export MONL_DATABASE_URL=postgresql://…",
+                 "python3 -m uvicorn app:app"),
         "etat": "verifie",
     },
     {
@@ -117,7 +120,8 @@ MONTAGES = [
         "preuve": "Le contrat décrit ce que le backend fait vraiment, pas ce "
                   "que la spec déclare : un champ calculé par le serveur en "
                   "sort.",
-        "code": "monl frontend --provider …   ·   monl import",
+        "code": ("monl frontend --provider anthropic",
+                 "monl import  # ou le copier/coller"),
         "etat": "verifie",
     },
     {
@@ -127,7 +131,7 @@ MONTAGES = [
                  "restent chez votre fournisseur.",
         "preuve": "Un backend monl ne fait AUCUN appel réseau, hormis "
                   "l'encaissement quand vous le déclarez.",
-        "code": None,
+        "code": (),
         "etat": "limite",
     },
 ]
@@ -204,7 +208,8 @@ EXTRA_CSS = """
 .montage { display:flex; flex-direction:column; gap:12px; padding:22px; border:1px solid var(--line); border-radius:var(--radius-lg); background:var(--surface); }
 .montage h3 { margin:0; font-size:17px; }
 .montage p { margin:0; color:var(--muted); font-size:14.5px; }
-.montage pre { margin:auto 0 0; background:var(--code-bg); color:var(--code-ink); border-radius:var(--radius); padding:12px 14px; overflow-x:auto; font:500 12.5px/1.6 var(--mono); }
+.montage pre { margin:auto 0 0; background:var(--code-bg); color:var(--code-ink); border-radius:var(--radius); padding:12px 14px; white-space:pre-wrap; overflow-wrap:anywhere;
+  font:500 12.5px/1.6 var(--mono); }
 .etat { display:inline-flex; align-items:center; gap:7px; font:600 11px/1 var(--mono); letter-spacing:.07em; text-transform:uppercase; }
 .etat.verifie { color:var(--accent); }
 .etat.limite { color:var(--muted); }
@@ -246,7 +251,14 @@ def _montage(item: dict, index: int) -> str:
     libelle = ("vérifié par les tests" if item["etat"] == "verifie"
                else "limite énoncée")
     symbole = "check" if item["etat"] == "verifie" else "shield"
-    code = (f'<pre><code>{item["code"]}</code></pre>' if item["code"] else "")
+    # Une LIGNE par commande. Tassées sur une seule, elles sortaient du
+    # cadre et se faisaient couper : on lisait « postgresql://… python3 -m »
+    # sans la fin, et deux commandes séparées par un point médian ne se
+    # copiaient pas. La première carte gagne son `export` au passage : un
+    # préfixe `VAR=… commande` est UNE invocation, donc le couper en deux
+    # aurait donné une ligne qui ne fait rien.
+    lignes = "\n".join(html.escape(ligne) for ligne in item["code"])
+    code = f'<pre><code>{lignes}</code></pre>' if lignes else ""
     return f"""<article class="montage" data-reveal style="--reveal-delay:{index * 70}ms">
 <span class="etat {item['etat']}">{icon(symbole)}{libelle}</span>
 <h3>{item['titre']}</h3><p>{item['texte']}</p>
