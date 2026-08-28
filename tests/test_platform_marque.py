@@ -299,16 +299,37 @@ def test_les_images_raster_ne_derivent_pas_de_la_marque():
     un `.ico` recopié dériverait le jour où la marque change, en silence. Le
     test régénère et compare, comme le fichier de marque du point 156 — qui
     avait dérivé, et qu'un test a rattrapé.
+
+    **La comparaison porte sur les PIXELS, jamais sur les octets.** Le premier
+    essai comparait les fichiers octet pour octet : vert en local, rouge sur
+    les trois versions de Python de la CI. Un `.ico` et un `.png` portent des
+    pixels COMPRESSÉS, et le même Pillow 12.3 lié à des zlib différents
+    n'écrit pas la même suite d'octets pour la même image. Le test mesurait
+    donc l'ENCODEUR et pas le DESSIN — il aurait dénoncé une mise à jour de
+    dépendance aussi fort qu'une dérive de la marque. Le décodage, lui, est
+    sans perte.
     """
     import importlib.util
     import tempfile
 
+    from PIL import Image
 
     outil = pathlib.Path(theme.__file__).parents[2] / "outils" / "fabriquer_images.py"
     assert outil.exists(), "l'outil qui fabrique les images a disparu"
     spec = importlib.util.spec_from_file_location("fabriquer_images", outil)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+
+    def _pixels(chemin):
+        """Les pixels décodés : toutes les tailles d'un ICO, l'image d'un PNG."""
+        with Image.open(chemin) as image:
+            if getattr(image, "format", "") != "ICO":
+                return [(image.size, image.convert("RGBA").tobytes())]
+            rendus = []
+            for taille in sorted(image.ico.sizes()):
+                image.size = taille
+                rendus.append((taille, image.convert("RGBA").tobytes()))
+            return rendus
 
     # Les TROIS artefacts raster viennent du même outil et de la même source.
     # N'en garder qu'un laisserait les deux autres dériver en silence — et la
@@ -321,9 +342,14 @@ def test_les_images_raster_ne_derivent_pas_de_la_marque():
             servi = PAQUET / "static" / nom
             assert servi.exists(), f"{nom} n'existe pas"
             refait = fabrique(temporaire / nom)
-            assert refait.read_bytes() == servi.read_bytes(), (
-                f"{nom} ne correspond plus aux tracés de la marque — "
-                "relancer outils/fabriquer_images.py")
+
+            attendu, obtenu = _pixels(refait), _pixels(servi)
+            assert [t for t, _ in attendu] == [t for t, _ in obtenu], (
+                f"{nom} n'a plus les mêmes tailles d'image")
+            for (taille, a), (_, b) in zip(attendu, obtenu, strict=True):
+                assert a == b, (
+                    f"{nom} en {taille[0]}x{taille[1]} ne correspond plus aux "
+                    "tracés de la marque — relancer outils/fabriquer_images.py")
 
 
 def test_les_pages_declarent_les_deux_icones():
