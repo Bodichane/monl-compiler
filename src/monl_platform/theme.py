@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 
-from .brand import BANNIERE, LETTRES, MARQUE_M
+from .brand import ANNEAU, LETTRES, MARQUE_ANNEAU, MARQUE_O, VUE
 from .theme_fragments import CSS, THEME_BOOT, THEME_TOGGLE
 
 ICON_THEME = (
@@ -43,11 +43,19 @@ def icon(name: str) -> str:
             f'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" '
             f'stroke-linejoin="round" aria-hidden="true">{path}</svg>')
 
-# Le « m » du logo, VECTORISÉ depuis l'artwork (voir brand.py). Un tracé, pas
-# du texte : le dessin ne dépend d'aucune police installée.
+# L'orange de l'anneau, RELEVÉ sur l'artwork et non choisi. Il ne suit pas le
+# thème : un logo qui change de couleur avec le fond n'est plus le logo. WCAG
+# exempte explicitement les logotypes de ses seuils de contraste ; mesuré tout
+# de même, l'anneau tient 5,67:1 sur le fond sombre et 2,94:1 sur le clair.
+ORANGE = "#d67730"
+
+# Le « o » du logo, VECTORISÉ depuis l'artwork (voir brand.py). Un tracé, pas
+# du texte : le dessin ne dépend d'aucune police installée. Deux couches —
+# l'anneau garde sa couleur, le « o » suit l'encre de la page.
 LOGO_MARK = (
     f'<svg viewBox="0 0 48 48" role="img" aria-label="Monl">'
-    f'<path d="{MARQUE_M}" fill="currentColor"/>'
+    f'<path d="{MARQUE_ANNEAU}" fill="{ORANGE}" fill-rule="evenodd"/>'
+    f'<path d="{MARQUE_O}" fill="currentColor" fill-rule="evenodd"/>'
     '</svg>'
 )
 
@@ -59,20 +67,22 @@ LOGO_SVG = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" '
     'aria-label="Monl">'
     '<rect width="48" height="48" rx="11" fill="#2e2b25"/>'
-    f'<path d="{MARQUE_M}" fill="#f9f4ed"/>'
+    f'<path d="{MARQUE_ANNEAU}" fill="{ORANGE}" fill-rule="evenodd"/>'
+    f'<path d="{MARQUE_O}" fill="#f9f4ed" fill-rule="evenodd"/>'
     '</svg>'
 )
 FAVICON = LOGO_SVG
 
-# Le wordmark est INLINE, et c'est un correctif, pas une préférence : en
-# `<img>`, la bannière garde son fond #2e2b25 quel que soit le thème — soit
-# 1,29:1 contre le fond sombre, un logo qui disparaît de l'en-tête (mesuré).
-# En SVG dans la page, les deux tons suivent les variables et s'inversent.
+# Le wordmark est INLINE, et c'est un correctif, pas une préférence : servi en
+# `<img>`, il porterait le fond sombre de l'artwork quel que soit le thème —
+# soit un logo qui disparaît de l'en-tête clair (mesuré 1,29:1 sur l'ancien).
+# En SVG dans la page, les lettres suivent l'encre et le fond de la page se
+# voit à travers le trou des deux anneaux.
 WORDMARK = (
     '<svg class="brand-wordmark" xmlns="http://www.w3.org/2000/svg" '
-    'viewBox="0 0 256 100" role="img" aria-label="monl">'
-    f'<path d="{BANNIERE}" fill="currentColor"/>'
-    f'<path d="{LETTRES}" fill="var(--bg)" fill-rule="evenodd"/>'
+    f'viewBox="0 0 {VUE[0]} {VUE[1]}" role="img" aria-label="monl">'
+    f'<path d="{ANNEAU}" fill="{ORANGE}" fill-rule="evenodd"/>'
+    f'<path d="{LETTRES}" fill="currentColor" fill-rule="evenodd"/>'
     '</svg>'
 )
 

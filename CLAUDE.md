@@ -985,6 +985,25 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   sur volume séparé, et la barrière de couverture a retrouvé sa portée
   déclarée — `--cov=src/monl` et non `--cov=src`, la plateforme étant rapportée
   sans être barrée. Voir point 142.
+- **POINT 157 : le logo est celui au « o » orange, et une mesure peut mentir
+  de trois façons.** `outils/vectoriser_logo.py` sépare DEUX couches (anneau
+  orange, lettres crème), toutes deux en `evenodd` ; `brand.py` reste sans une
+  seule couleur et `theme.ORANGE` est la source unique, lue par l'outil qui
+  fabrique les images ET par le test qui vérifie qu'elles n'ont pas dérivé.
+  **Les trois pièges de mesure, tous éprouvés** : une vérification qui empile
+  les sous-chemins au lieu de les combiner en OU EXCLUSIF mesure sa propre
+  erreur (8,08 % annoncés pour 0,49 % réels) ; une classification « couleur la
+  plus proche » range le bord antialiasé d'une lettre claire du côté de
+  l'orange, d'où un liseré sur chaque lettre (séparer sur la SATURATION, avec
+  des seuils DÉRIVÉS des couleurs relevées) ; et **Lanczos invente des pixels
+  saturés** par dépassement aux bords francs — 52 morceaux au lieu de 4, contre
+  4 en bilinéaire. L'ICÔNE est le « o » entier et jamais l'anneau seul (les
+  lettres recouvrent l'anneau dans l'artwork, donc la couche isolée porte leurs
+  encoches) ; les deux tracés partagent UNE transformation, séparée par une
+  barre verticale et surtout pas par une espace. L'orange ne suit AUCUN thème
+  (5,67:1 en sombre, 2,94:1 en clair — WCAG exempte les logotypes, et ce sont
+  les lettres qui portent la lecture à 12,89:1). Les TROIS artefacts raster
+  sortent du même outil : `outils/fabriquer_images.py`. Voir point 157.
 - **POINT 156 : le volet Navigateur masqué ne recalcule PAS le style — il
   mesure la géométrie, jamais la cascade.** Un style posé EN LIGNE n'y change
   pas `getComputedStyle` ; un clone lit la même couleur avec et sans la classe

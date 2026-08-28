@@ -73,6 +73,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [154](#154-un-décorateur-qui-saute-les-mixins-et-deux-exceptions-qui-nexcusaient-plus-rien) Un décorateur qui saute les mixins, et deux exceptions qui n'excusaient plus rien ·
 [155](#155-cinq-angles-morts-dans-lanalyse-qui-découpe-et-un-plafond-qui-nexistait-pas) Cinq angles morts dans l'analyse qui découpe, et un plafond qui n'existait pas ·
 [156](#156-un-repère-qui-glisse-une-bascule-qui-révèle-et-un-volet-qui-ment) Un repère qui glisse, une bascule qui révèle, et un volet qui ment ·
+[157](#157-le-logo-au--o--orange-et-trois-mesures-qui-mentaient) Le logo au « o » orange, et trois mesures qui mentaient ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -10557,3 +10558,82 @@ feuille est inlinée dans TOUTES les pages, et ce test interdit « ci-dessus »
 dans la page de confidentialité pour empêcher un renvoi pendant. Le test avait
 raison, la formulation était en tort. Un commentaire de code livré au
 navigateur est du CONTENU de page.
+
+## 157. Le logo au « o » orange, et trois mesures qui mentaient
+
+Le dépôt portait DEUX logos déposés à la même minute, et le point 156 avait
+vectorisé le mauvais. Celui qui fait foi est « monl » en sans-serif, dont le
+« o » est cerclé d'un anneau orange tracé à main levée. La question a été posée
+plutôt que tranchée : les deux lectures de « ancienne icône qui réapparaît » —
+un cache de navigateur, ou un mauvais fichier vectorisé — menaient à des
+travaux entièrement différents.
+
+**Le dessin est fait de trois couches concentriques**, mesurées et non
+supposées : l'anneau ORANGE, un anneau CRÈME niché dedans qui est le vrai
+« o » du mot, et le fond qui se voit au centre. Les deux sont donc refermés en
+`evenodd`, et le fond n'est jamais peint — c'est la page qui se voit au
+travers, ce qui rend le mot théma-dépendant sans une ligne de plus.
+
+**TROIS mesures fausses, trouvées l'une après l'autre**, et c'est le vrai
+contenu de ce point.
+
+*Première.* La vérification du tracé empilait les sous-chemins au lieu de les
+combiner en OU EXCLUSIF. Le trou de l'anneau se remplissait, et l'outil
+annonçait 8,08 % d'écart en refusant d'écrire : **il mesurait sa propre
+erreur**, pas le tracé. Corrigée, la même trace tombe à 0,49 %.
+
+*Deuxième.* Les couches se séparaient par la couleur la plus PROCHE en distance
+RGB. Or le bord antialiasé d'une lettre crème sur le fond sombre passe par des
+demi-tons qui sont, en distance, plus près de l'ORANGE que des deux couleurs
+dont ils viennent : chaque lettre récoltait un liseré orange, et la couche
+sortait en quatorze morceaux au lieu de deux. La saturation, elle, sépare
+franchement — 0,074 pour le bord crème contre 0,650 pour le bord orange. Les
+deux seuils sont DÉRIVÉS des couleurs relevées (moitié de la saturation de
+l'anneau, milieu des valeurs fond/crème) et jamais écrits à la main : un
+artwork réexporté un peu différemment reste séparé sans qu'on y retouche.
+
+*Troisième, la plus retorse.* Le suréchantillonnage employait **Lanczos**, dont
+le dépassement aux bords francs fabrique des pixels artificiellement saturés.
+Le seuil de saturation les prenait pour de l'orange : 52 morceaux au lieu de 4.
+En bilinéaire, 4. **Un filtre qui « améliore » l'image invente de la matière
+que le tracé recopie ensuite.**
+
+**L'icône est le « o » ENTIER, jamais l'anneau seul.** Dans l'artwork, le « m »
+et le « n » sont dessinés PAR DESSUS l'orange : la couche orange isolée porte
+donc leurs encoches. Sur le mot on ne les voit pas — les lettres les
+recouvrent ; sur l'icône, si. Les deux tracés de l'icône partagent la MÊME
+transformation, sans quoi ils cessent d'être concentriques ; et le séparateur
+de cette normalisation conjointe est une barre verticale et surtout pas une
+espace, dont les tracés sont pleins — couper à la première espace tranchait au
+milieu du premier chemin.
+
+**L'orange ne suit AUCUN thème**, et c'est délibéré : un logo qui change de
+teinte avec le fond n'est plus le logo. Mesuré tout de même — 5,67:1 sur le
+fond sombre, 2,94:1 sur le clair. Ce second chiffre passe sous le 3:1 de
+WCAG 1.4.11 et c'est ACCEPTÉ, la norme exemptant explicitement les logotypes ;
+ce qui porte la lecture du mot, ce sont les lettres, à 12,89:1. La même valeur
+employée pour un composant d'interface serait, elle, un vrai défaut — et
+`docs/BRAND.md` le dit, parce que le dépôt a désormais TROIS oranges et que la
+tension mérite d'être nommée plutôt que découverte.
+
+`brand.py` reste sans une seule couleur : c'est `theme.py` qui compose, et
+`theme.ORANGE` est la source unique — lue par l'outil qui fabrique les images,
+et par le test qui vérifie qu'elles n'ont pas dérivé. Les TROIS artefacts
+raster (`favicon.ico`, `monl-wordmark.png`, `monl-social.png`) sortent du même
+outil : n'en garder qu'un sous garantie laisserait les deux autres dériver en
+silence, et la carte de partage est précisément celle que personne ne regarde.
+
+**Le bytecode périmé a mordu DEUX fois dans la même heure.** Une contre-épreuve
+avait laissé un `.pyc` portant l'orange faux ; l'outil de fabrication l'a lu et
+a écrit un `.ico` faux, puis le test de contraste a échoué sur une valeur qui
+était pourtant juste sur le disque. Purger `__pycache__` **pendant** qu'une
+suite tourne fait échouer un test sans rapport — un sous-processus relit le
+disque là où le pytest principal a son import en mémoire (déjà écrit au
+point 152, redécouvert ici).
+
+**Et un fichier de plus, pas une exception de plus.** `landing.py` a franchi le
+plafond de 400 lignes à 401. L'explorateur de cas est parti dans
+`landing_cas.py` — feuille, données, balisage et script ensemble, parce que
+séparer la classe `glisse` de la règle qui la lit n'aurait rien réglé. Les deux
+seules exceptions écrites restent des LITTÉRAUX de données ; du code qui grossit
+se découpe.

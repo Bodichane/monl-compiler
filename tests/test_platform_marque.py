@@ -121,8 +121,15 @@ def test_le_signe_de_la_page_suit_la_couleur_du_texte():
     sur le thème sombre. En `currentColor`, il ne le peut plus."""
     assert "currentColor" in theme.LOGO_MARK
     assert "<text" not in theme.LOGO_MARK, "un tracé ne dépend d'aucune police"
-    # Aucune couleur figée : ni fond, ni trait.
-    assert not COULEUR.findall(theme.LOGO_MARK), theme.LOGO_MARK
+    # Ce qui est interdit est le FOND, pas la couleur. Le défaut d'origine
+    # était un signe portant sa propre pastille ; l'anneau du logo, lui, a une
+    # couleur de marque qui ne suit aucun thème — un logo qui change de teinte
+    # avec le fond n'est plus le logo. La seule couleur tolérée est donc
+    # exactement celle-là, et elle est LUE depuis theme.ORANGE plutôt que
+    # recopiée : recopiée, le test ne verrait pas la marque changer d'orange.
+    assert "<rect" not in theme.LOGO_MARK, "le signe s'est remis un fond"
+    figees = set(COULEUR.findall(theme.LOGO_MARK))
+    assert figees <= {theme.ORANGE}, f"couleur figée inattendue : {figees}"
 
 
 def test_le_favicon_porte_ses_couleurs_car_il_na_rien_a_heriter():
@@ -137,9 +144,17 @@ def test_le_favicon_porte_ses_couleurs_car_il_na_rien_a_heriter():
     couleurs = COULEUR.findall(theme.FAVICON)
     assert len(couleurs) >= 2, f"il faut un fond et au moins un tracé : {couleurs}"
     fond, traces = couleurs[0], couleurs[1:]
-    for trace in traces:
-        ratio = contraste(trace, fond)
-        assert ratio >= 4.5, f"tracé {trace} sur {fond} : {ratio:.2f}:1"
+    ratios = [contraste(trace, fond) for trace in traces]
+    # 3:1 est le seuil de WCAG 2.2 pour un objet GRAPHIQUE (1.4.11) — une
+    # icône n'est pas du texte, et la norme exempte même explicitement les
+    # logotypes. Le seuil de 4,5 valait quand la marque était une LETTRE.
+    # Mais un plancher seul laisserait l'icône devenir une bouillie à faible
+    # contraste : on exige donc AUSSI qu'au moins un tracé tienne 4,5, celui
+    # qui porte la lecture.
+    for trace, ratio in zip(traces, ratios, strict=True):
+        assert ratio >= 3.0, f"tracé {trace} sur {fond} : {ratio:.2f}:1"
+    assert max(ratios) >= 4.5, (
+        f"aucun tracé ne porte l'icône : {[f'{r:.2f}' for r in ratios]}")
 
 
 def test_le_fichier_de_marque_et_la_feuille_dessinent_le_meme_signe():
@@ -217,23 +232,27 @@ def test_le_wordmark_suit_le_theme_au_lieu_de_porter_son_fond():
     balise `<img>` reperdrait la garantie sans qu'aucune couleur ne change."""
     assert "<img" not in theme.WORDMARK, (
         "un raster ne suit aucun thème — le wordmark doit rester en SVG inline")
-    assert "currentColor" in theme.WORDMARK, "la bannière doit hériter du texte"
-    assert "var(--bg)" in theme.WORDMARK, "les lettres doivent creuser dans le fond"
-    assert not COULEUR.findall(theme.WORDMARK), (
-        f"couleur figée dans le wordmark : {COULEUR.findall(theme.WORDMARK)}")
+    assert "currentColor" in theme.WORDMARK, "les lettres doivent hériter du texte"
+    # Plus de plaque du tout : les lettres sont peintes en direct et le fond de
+    # la page se voit à travers le trou des deux anneaux. C'est plus fort que
+    # l'ancienne garantie, qui creusait les lettres dans une bannière.
+    assert "<rect" not in theme.WORDMARK, "le wordmark s'est remis un fond"
+    figees = set(COULEUR.findall(theme.WORDMARK))
+    assert figees <= {theme.ORANGE}, f"couleur figée dans le wordmark : {figees}"
     assert theme.WORDMARK in theme.page(title="t", description="d", body=""), (
         "le wordmark n'est pas servi dans la page")
 
 
 @pytest.mark.parametrize("theme_nom", ["clair", "sombre"])
 def test_le_wordmark_reste_lisible_dans_les_deux_themes(theme_nom):
-    """La bannière prend `--ink`, les lettres `--bg` : l'inversion est
-    automatique, mais elle n'est vraie que si les deux couples tiennent."""
+    """Les lettres prennent `--ink` sur la page : c'est ce couple qui porte la
+    lecture du mot, l'anneau n'étant qu'un accent de marque. Il doit donc
+    tenir dans les DEUX thèmes, sans quoi le logo pâlit d'un côté."""
     palette = _blocs()[theme_nom]
-    banniere = contraste(palette["ink"], palette["bg"])
-    assert banniere >= 4.5, (
-        f"[{theme_nom}] bannière {palette['ink']} sur page {palette['bg']} : "
-        f"{banniere:.2f}:1")
+    lettres = contraste(palette["ink"], palette["bg"])
+    assert lettres >= 4.5, (
+        f"[{theme_nom}] lettres {palette['ink']} sur page {palette['bg']} : "
+        f"{lettres:.2f}:1")
 
 
 def test_les_traces_de_marque_ne_portent_aucune_couleur():
@@ -245,8 +264,10 @@ def test_les_traces_de_marque_ne_portent_aucune_couleur():
     from monl_platform import brand
     source = pathlib.Path(brand.__file__).read_text(encoding="utf-8")
     assert not COULEUR.findall(source), COULEUR.findall(source)
-    for nom in ("BANNIERE", "LETTRES", "MARQUE_M"):
+    for nom in ("LETTRES", "ANNEAU", "MARQUE_ANNEAU", "MARQUE_O"):
         assert getattr(brand, nom).startswith("M"), f"{nom} n'est pas un tracé"
+    assert isinstance(brand.VUE, tuple) and len(brand.VUE) == 2, (
+        "VUE porte le viewBox du mot : sans elle, theme.py le devinerait")
 
 
 def test_les_balises_de_partage_ninventent_aucune_adresse(monkeypatch):
@@ -265,7 +286,7 @@ def test_les_balises_de_partage_ninventent_aucune_adresse(monkeypatch):
     assert 'content="summary_large_image"' in parlant
 
 
-def test_le_favicon_ico_est_servi_et_ne_derive_pas_de_la_marque():
+def test_les_images_raster_ne_derivent_pas_de_la_marque():
     """`/favicon.ico` doit exister, et dire la MÊME chose que `/favicon.svg`.
 
     Les navigateurs demandent ce chemin d'office, même quand la page déclare
@@ -273,7 +294,8 @@ def test_le_favicon_ico_est_servi_et_ne_derive_pas_de_la_marque():
     gardait l'ancienne icône de son cache, qui « réapparaissait » sans que le
     serveur y soit pour rien.
 
-    Le fichier est fabriqué DEPUIS `brand.MARQUE_M`, jamais recopié d'un PNG :
+    Fabriqué DEPUIS `brand.MARQUE_ANNEAU` / `brand.MARQUE_O`, jamais
+    recopié d'un PNG :
     un `.ico` recopié dériverait le jour où la marque change, en silence. Le
     test régénère et compare, comme le fichier de marque du point 156 — qui
     avait dérivé, et qu'un test a rattrapé.
@@ -281,20 +303,27 @@ def test_le_favicon_ico_est_servi_et_ne_derive_pas_de_la_marque():
     import importlib.util
     import tempfile
 
-    ico = PAQUET / "static" / "favicon.ico"
-    assert ico.exists(), "le fichier servi par /favicon.ico n'existe pas"
 
-    outil = pathlib.Path(theme.__file__).parents[2] / "outils" / "fabriquer_favicon.py"
-    assert outil.exists(), "l'outil qui fabrique l'icône a disparu"
-    spec = importlib.util.spec_from_file_location("fabriquer_favicon", outil)
+    outil = pathlib.Path(theme.__file__).parents[2] / "outils" / "fabriquer_images.py"
+    assert outil.exists(), "l'outil qui fabrique les images a disparu"
+    spec = importlib.util.spec_from_file_location("fabriquer_images", outil)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
 
+    # Les TROIS artefacts raster viennent du même outil et de la même source.
+    # N'en garder qu'un laisserait les deux autres dériver en silence — et la
+    # carte de partage est précisément celle que personne ne regarde.
     with tempfile.TemporaryDirectory() as dossier:
-        refait = module.fabriquer(pathlib.Path(dossier) / "favicon.ico")
-        assert refait.read_bytes() == ico.read_bytes(), (
-            "favicon.ico ne correspond plus à MARQUE_M — relancer "
-            "outils/fabriquer_favicon.py")
+        temporaire = pathlib.Path(dossier)
+        for nom, fabrique in (("favicon.ico", module.fabriquer_ico),
+                              ("monl-wordmark.png", module.fabriquer_wordmark),
+                              ("monl-social.png", module.fabriquer_social)):
+            servi = PAQUET / "static" / nom
+            assert servi.exists(), f"{nom} n'existe pas"
+            refait = fabrique(temporaire / nom)
+            assert refait.read_bytes() == servi.read_bytes(), (
+                f"{nom} ne correspond plus aux tracés de la marque — "
+                "relancer outils/fabriquer_images.py")
 
 
 def test_les_pages_declarent_les_deux_icones():

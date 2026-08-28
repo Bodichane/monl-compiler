@@ -99,8 +99,8 @@ def mount_page_routes(application: FastAPI, identities: IdentityStore, service):
         # déclare un SVG. Ce chemin répondait 404, et un 404 ne remplace rien :
         # le navigateur gardait l'ANCIENNE icône de son cache, qui
         # « réapparaissait » sans que le serveur y soit pour rien. Le fichier
-        # est fabriqué depuis MARQUE_M par outils/fabriquer_favicon.py, donc il
-        # ne peut pas dire autre chose que /favicon.svg.
+        # est fabriqué depuis les tracés de la marque par outils/fabriquer_favicon.py,
+        # donc il ne peut pas dire autre chose que /favicon.svg.
         return FileResponse(
             FAVICON_ICO, media_type="image/x-icon",
             headers={"Cache-Control": "public, max-age=86400"},
