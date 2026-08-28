@@ -10869,3 +10869,21 @@ appels HTTP, le « rejeu » est un code neuf que le serveur accepte à juste
 titre. Un échec sur trois exécutions, et la branche `main` est verte. Signalé
 à part — un sujet, une branche.
 
+**Et le vrai défaut était sous le premier.** Pillow installé, le test a échoué
+autrement : `favicon.ico ne correspond plus aux tracés de la marque`. Il
+comparait les fichiers **octet pour octet**. Or un `.ico` et un `.png` portent
+des pixels COMPRESSÉS, et le même Pillow 12.3 lié à des zlib différents — trois
+versions de Python dans la CI — n'écrit pas la même suite d'octets pour la même
+image. Le test mesurait donc l'ENCODEUR et pas le DESSIN : il aurait dénoncé
+une mise à jour de dépendance aussi fort qu'une dérive de la marque.
+
+La comparaison porte désormais sur les **pixels décodés**, toutes les tailles
+de l'ICO comprises — le décodage, lui, est sans perte et ne dépend pas du
+compresseur. La contre-épreuve reste franche : décaler l'orange d'UN point
+(`#d67730` → `#d67731`) fait tomber le test.
+
+Trois fois dans cette série, la même leçon sous trois formes : **une mesure
+peut porter sur autre chose que ce qu'on croit mesurer.** Le contraste entre
+deux jetons au lieu du contraste au fond ; la longueur d'une ligne au lieu de
+son débordement ; et ici l'encodage au lieu de l'image.
+

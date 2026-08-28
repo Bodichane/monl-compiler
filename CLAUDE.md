@@ -1072,6 +1072,17 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   ils la NOMMENT ; une bibliothèque Python installable, non. **Toute
   bibliothèque qu'un test importe se déclare dans `dev`, jamais dans un extra
   que la CI n'installe pas.** Voir point 158.
+- **POINT 158ter : un test d'image compare les PIXELS, jamais les octets.**
+  `test_les_images_raster_ne_derivent_pas_de_la_marque` comparait les fichiers
+  octet pour octet : vert en local, rouge sur les trois versions de Python de
+  la CI. Un `.ico` et un `.png` portent des pixels COMPRESSÉS, et le même
+  Pillow 12.3 lié à des zlib différents n'écrit pas la même suite d'octets pour
+  la même image — le test mesurait l'ENCODEUR et pas le DESSIN. Le décodage,
+  lui, est sans perte : la comparaison porte sur les pixels de toutes les
+  tailles de l'ICO. Contre-épreuve franche — décaler l'orange d'UN point fait
+  tomber le test. **Même leçon que la palette et que la ligne de commande :
+  une mesure peut porter sur autre chose que ce qu'on croit mesurer.**
+  Voir point 158.
 - **POINT 155 : aucun fichier de `src/` ne dépasse 400 lignes, aucune fonction
   non plus — et c'est VÉRIFIÉ.** `tests/test_architecture.py` porte trois
   contrats : `PLAFOND_FICHIER`, `PLAFOND_FONCTION`, et **une exception doit
