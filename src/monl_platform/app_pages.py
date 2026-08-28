@@ -21,11 +21,10 @@ from .landing import LANDING_HTML
 from .legal import CONDITIONS_HTML, CONFIDENTIALITE_HTML, MENTIONS_HTML
 from .mcp_page import MCP_HTML
 from .security import SECURITY_HTML
-from .theme import FAVICON, LOGO_SVG
+from .theme import FAVICON, ICONE_ICO, LOGO_SVG, VERSION_ICO, VERSION_SVG, cache_icone
 
 WORDMARK = Path(__file__).with_name("static") / "monl-wordmark.png"
 SOCIAL = Path(__file__).with_name("static") / "monl-social.png"
-FAVICON_ICO = Path(__file__).with_name("static") / "favicon.ico"
 GUIDE_HTML = guide_html()
 
 
@@ -85,25 +84,25 @@ def mount_page_routes(application: FastAPI, identities: IdentityStore, service):
         return SECURITY_HTML
 
     @application.get("/favicon.svg", include_in_schema=False)
-    def favicon():
+    def favicon(v: str = ""):
         # Sans elle, chaque visite laisse un 404 dans les journaux du serveur —
         # et un journal qui contient du bruit normal cesse d'être lu.
         return Response(
             FAVICON, media_type="image/svg+xml",
-            headers={"Cache-Control": "public, max-age=86400"},
+            headers=cache_icone(v, VERSION_SVG),
         )
 
     @application.get("/favicon.ico", include_in_schema=False)
-    def favicon_ico():
+    def favicon_ico(v: str = ""):
         # Les navigateurs demandent /favicon.ico D'OFFICE, même quand la page
         # déclare un SVG. Ce chemin répondait 404, et un 404 ne remplace rien :
-        # le navigateur gardait l'ANCIENNE icône de son cache, qui
-        # « réapparaissait » sans que le serveur y soit pour rien. Le fichier
-        # est fabriqué depuis les tracés de la marque par outils/fabriquer_favicon.py,
+        # le navigateur gardait l'ANCIENNE icône de son cache. Le fichier est
+        # fabriqué depuis les tracés de la marque par outils/fabriquer_images.py,
         # donc il ne peut pas dire autre chose que /favicon.svg.
+        # L'empreinte reçue décide du cache : voir cache_icone (theme.py).
         return FileResponse(
-            FAVICON_ICO, media_type="image/x-icon",
-            headers={"Cache-Control": "public, max-age=86400"},
+            ICONE_ICO, media_type="image/x-icon",
+            headers=cache_icone(v, VERSION_ICO),
         )
 
     @application.get("/logo.svg", include_in_schema=False)

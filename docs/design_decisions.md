@@ -10749,3 +10749,37 @@ affiché** — il ne composite pas, donc il ne défile pas non plus. C'est le
 point 156 élargi : le volet masqué ne ment pas seulement sur la cascade, il
 ment aussi sur le défilement. La question se tranche en isolant la variable,
 jamais en lisant la valeur.
+
+### L'ancienne icône ne revenait pas du serveur, elle revenait du cache
+
+Rapporté après coup : *« le logo dans le titre de la page »* — l'onglet montrait
+encore l'icône d'avant. Le serveur n'y était pour rien : l'octet servi par
+`/favicon.ico` était bien la marque neuve, vérifié en la téléchargeant et en la
+regardant. Ce qui clochait était l'ADRESSE. Elle ne change jamais, et les deux
+routes répondaient `max-age=86400` : le navigateur gardait donc l'icône qu'il
+avait déjà, une journée entière, et Chrome tient en plus sa propre base de
+favicons indexée par URL.
+
+Les `<link rel="icon">` portent désormais une empreinte du CONTENU
+(`/favicon.ico?v=3cf62446`). **Une empreinte, pas un numéro de version** : un
+numéro écrit à la main a exactement le même défaut le jour où on oublie de
+l'incrémenter — c'est la leçon du point 85, transposée au cache. L'adresse
+change quand l'image change, jamais avant, jamais après.
+
+Le cache suit l'adresse. Versionnée, elle se garde un an et se déclare
+`immutable` : c'est désormais correct, puisqu'un contenu différent porterait
+une autre adresse. **L'adresse NUE, elle, se garde cinq minutes** — c'est celle
+que le navigateur demande d'office sans lire la page, donc la seule qu'on ne
+peut pas versionner ; la garder un an était précisément ce qui rendait le
+défaut si tenace. `cache_icone` (theme.py) est la source unique des deux
+politiques, et un test refuse que l'adresse nue dépasse l'heure.
+
+Quatre contre-épreuves, quatre rouges — dont celle qui compte : remplacer
+l'empreinte par un `"v2"` écrit à la main fait tomber le test, alors que
+l'adresse reste versionnée et que le site continue de marcher.
+
+**Et le mot-symbole a rétréci.** À 112 px de large il occupait 44 px sur les
+68 px de la barre — les deux tiers de sa hauteur — et pesait plus lourd que la
+navigation qu'il surplombe. À 88 px il fait 35 px de haut, ses lettres 27,
+toujours très au-dessus des 15 px des liens : il mène la barre sans la remplir.
+

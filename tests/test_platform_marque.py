@@ -335,10 +335,52 @@ def test_les_pages_declarent_les_deux_icones():
     from monl_platform.theme import page
 
     html = page(title="t", description="d", body="<main></main>", active="home")
-    assert '<link rel="icon" href="/favicon.ico" sizes="32x32">' in html
-    assert '<link rel="icon" href="/favicon.svg" type="image/svg+xml">' in html
+    assert '<link rel="icon" href="/favicon.ico?v=' in html
+    assert '<link rel="icon" href="/favicon.svg?v=' in html
     assert html.index("/favicon.ico") < html.index("/favicon.svg"), (
         "le SVG doit être déclaré APRÈS le .ico pour rester préféré")
+
+
+def test_l_adresse_de_l_icone_change_avec_son_contenu():
+    """L'empreinte déclarée est celle de l'octet servi, pas un numéro à la main.
+
+    `/favicon.ico` est une adresse qui ne change jamais : le navigateur garde
+    l'icône qu'il a déjà, et l'ANCIENNE réapparaît sans que le serveur y soit
+    pour rien — le défaut rapporté au changement de logo. Une empreinte du
+    CONTENU change exactement quand l'image change ; un numéro écrit à la main
+    aurait le même défaut le jour où on oublie de l'incrémenter.
+    """
+    import hashlib
+
+    from monl_platform.theme import FAVICON, ICONE_ICO, VERSION_ICO, VERSION_SVG, page
+
+    assert hashlib.sha256(ICONE_ICO.read_bytes()).hexdigest()[:8] == VERSION_ICO
+    assert hashlib.sha256(FAVICON.encode()).hexdigest()[:8] == VERSION_SVG
+    assert VERSION_ICO != VERSION_SVG, "deux fichiers, deux empreintes"
+
+    html = page(title="t", description="d", body="<main></main>", active="home")
+    assert f"/favicon.ico?v={VERSION_ICO}" in html
+    assert f"/favicon.svg?v={VERSION_SVG}" in html
+
+
+def test_seule_l_adresse_versionnee_se_garde_longtemps():
+    """Une URL nue ne peut pas être versionnée : elle se garde peu.
+
+    C'est celle que le navigateur demande D'OFFICE sans lire la page. La garder
+    un an, comme avant, faisait survivre une icône périmée bien après son
+    remplacement — et c'est ce qui rendait le défaut si tenace.
+    """
+    from monl_platform.theme import VERSION_ICO, cache_icone
+
+    versionnee = cache_icone(VERSION_ICO, VERSION_ICO)["Cache-Control"]
+    nue = cache_icone("", VERSION_ICO)["Cache-Control"]
+    perimee = cache_icone("vieille-empreinte", VERSION_ICO)["Cache-Control"]
+
+    assert "immutable" in versionnee and "max-age=31536000" in versionnee
+    assert "immutable" not in nue, "une adresse nue ne peut pas être immuable"
+    assert nue == perimee, "une empreinte fausse vaut une absence d'empreinte"
+    assert int(nue.rsplit("=", 1)[1]) <= 3600, (
+        f"l'adresse nue se garde {nue} — une icône périmée survivrait")
 
 
 def test_le_formulaire_de_compte_ne_refuse_jamais_en_silence():

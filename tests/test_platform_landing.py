@@ -432,3 +432,14 @@ def test_le_favicon_ico_repond_vraiment(platform):
     assert reponse.status_code == 200, "/favicon.ico ne répond plus"
     assert reponse.content[:4] == b"\x00\x00\x01\x00", "ce n'est pas un vrai ICO"
     assert reponse.headers["content-type"] == "image/x-icon"
+
+    # Et la ROUTE lit bien l'empreinte : sans le paramètre `v`, la politique de
+    # cache de theme.py resterait juste sans jamais être appliquée.
+    from monl_platform.theme import VERSION_ICO
+
+    versionnee = requests.get(
+        f"{platform}/favicon.ico?v={VERSION_ICO}", timeout=10)
+    assert "immutable" in versionnee.headers["cache-control"]
+    assert "immutable" not in reponse.headers["cache-control"], (
+        "l'adresse nue se garde comme une adresse versionnée")
+    assert versionnee.content == reponse.content, "deux icônes différentes"

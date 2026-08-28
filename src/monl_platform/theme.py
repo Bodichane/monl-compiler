@@ -6,7 +6,9 @@ large CSS and browser fragments are kept in a dedicated static module.
 
 from __future__ import annotations
 
+import hashlib
 import os
+from pathlib import Path
 
 from .brand import ANNEAU, LETTRES, MARQUE_ANNEAU, MARQUE_O, VUE
 from .theme_fragments import CSS, THEME_BOOT, THEME_TOGGLE
@@ -72,6 +74,40 @@ LOGO_SVG = (
     '</svg>'
 )
 FAVICON = LOGO_SVG
+
+ICONE_ICO = Path(__file__).with_name("static") / "favicon.ico"
+
+
+def _empreinte(donnees: bytes) -> str:
+    """Huit caractères DÉRIVÉS du contenu de l'icône.
+
+    Ils voyagent dans l'URL déclarée par la page. Sans eux, `/favicon.ico` est
+    une adresse qui ne change JAMAIS : le navigateur garde l'icône qu'il a déjà,
+    et l'ancienne « réapparaît » sans que le serveur y soit pour rien — le
+    défaut rapporté sur le changement de logo. Un numéro de version écrit à la
+    main aurait le même effet le jour où on oublie de l'incrémenter ; une
+    empreinte du contenu change exactement quand l'image change, jamais avant,
+    jamais après.
+    """
+    return hashlib.sha256(donnees).hexdigest()[:8]
+
+
+VERSION_ICO = _empreinte(ICONE_ICO.read_bytes())
+VERSION_SVG = _empreinte(FAVICON.encode())
+
+
+def cache_icone(demandee: str, attendue: str) -> dict:
+    """L'en-tête de cache d'une icône, selon que l'URL porte son empreinte.
+
+    Une URL versionnée peut être gardée un an : son contenu ne changera pas,
+    puisqu'un contenu différent porterait une autre adresse. Une URL NUE, elle,
+    est celle que le navigateur demande d'office sans lire la page — on ne peut
+    pas la versionner, donc elle se garde peu, pour qu'une icône périmée expire
+    d'elle-même au lieu de survivre une journée.
+    """
+    if demandee == attendue:
+        return {"Cache-Control": "public, max-age=31536000, immutable"}
+    return {"Cache-Control": "public, max-age=300"}
 
 # Le wordmark est INLINE, et c'est un correctif, pas une préférence : servi en
 # `<img>`, il porterait le fond sombre de l'artwork quel que soit le thème —
@@ -140,7 +176,7 @@ def page(*, title: str, description: str, body: str, active: str = "",
 <meta name="theme-color" content="#f9f4ed" media="(prefers-color-scheme: light)">
 {_social(title, description)}
 <title>{title}</title>
-<link rel="icon" href="/favicon.ico" sizes="32x32"><link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.ico?v={VERSION_ICO}" sizes="32x32"><link rel="icon" href="/favicon.svg?v={VERSION_SVG}" type="image/svg+xml">
 <script>{THEME_BOOT}</script>
 <style>{CSS}{extra_css}</style>
 </head>

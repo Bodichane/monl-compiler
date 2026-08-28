@@ -1048,7 +1048,16 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   élargi) : `scrollTop` reste à 0 quoi qu'on fasse, parce qu'une page qui ne
   composite pas ne défile pas. `html { overflow-x: clip }` ne bloque RIEN — un
   A/B en iframes le prouve (500 avec, sans, et avec `hidden`). Isoler la
-  variable, jamais lire la valeur. Voir point 158.
+  variable, jamais lire la valeur.
+  **L'ANCIENNE ICÔNE REVENAIT DU CACHE, pas du serveur** : l'octet servi était
+  le bon, mais `/favicon.ico` est une adresse qui ne change jamais et les deux
+  routes répondaient `max-age=86400`. Les `<link rel="icon">` portent
+  maintenant une empreinte du CONTENU (`?v=3cf62446`) — pas un numéro à la
+  main, qui aurait le même défaut le jour où on oublie de l'incrémenter
+  (point 85 transposé au cache). `cache_icone` (theme.py) est la source unique
+  des deux politiques : versionnée un an et `immutable`, NUE cinq minutes —
+  l'adresse nue est celle que le navigateur demande d'office sans lire la page,
+  donc la seule qu'on ne peut pas versionner. Voir point 158.
 - **POINT 155 : aucun fichier de `src/` ne dépasse 400 lignes, aucune fonction
   non plus — et c'est VÉRIFIÉ.** `tests/test_architecture.py` porte trois
   contrats : `PLAFOND_FICHIER`, `PLAFOND_FONCTION`, et **une exception doit
