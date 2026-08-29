@@ -55,7 +55,6 @@ def platform(tmp_path, dist):
         workspace=tmp_path / "projects",
         domain="localhost",
         downloads_dir=str(dist),
-        start_worker=False,
     )
     port = _free_port()
     server = uvicorn.Server(

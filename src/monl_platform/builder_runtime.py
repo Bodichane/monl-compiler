@@ -15,9 +15,7 @@ from monl.app_templates import TEMPLATES
 from .downloads import default_directory
 from .hosting import SiteManager
 from .paths import ProjectPathError, project_directory
-from .quota import TokenQuota
 from .store import PlatformStore
-from .worker import BuildWorker
 
 
 def _http_error(message, code):
@@ -29,30 +27,6 @@ def _require_user(request: Request, identities):
     if not user:
         raise HTTPException(status_code=401, detail="Connectez-vous pour continuer.")
     return user
-
-
-def _build_view(build):
-    return {
-        "id": build["id"],
-        "state": build["state"],
-        "error": build["error_message"],
-        "error_message": build["error_message"],
-        "warning_message": build["warning_message"],
-        "run_id": build["run_id"],
-        "tokens_consumed": build["tokens_consumed"],
-        "total_tokens": build["total_tokens"],
-        "input_tokens": build["input_tokens"],
-        "output_tokens": build["output_tokens"],
-        "cost": build["cost"],
-        "currency": build["currency"],
-        "price_status": build["price_status"],
-        "created_at": build["created_at"],
-        "started_at": build["started_at"],
-        "finished_at": build["finished_at"],
-        "snapshot_path": build["snapshot_path"],
-        "snapshot_sha256": build["snapshot_sha256"],
-        "snapshot_bytes": build["snapshot_bytes"],
-    }
 
 
 def _slug(name, project_id):
@@ -129,22 +103,19 @@ def _set_session_cookie(response, token):
 
 @dataclass
 class BuilderRuntime:
+    """Les dépendances des routes de projet, sans une seule d'IA (point 161)."""
+
     service: object
     identities: object
     store: PlatformStore
-    quota: TokenQuota
     sites: SiteManager
-    worker: BuildWorker
     workspace_root: Path
     downloads_dir: str | None
-    start_worker: bool = True
 
     def start(self):
-        if self.start_worker:
-            self.worker.start()
+        """Rien à démarrer : la compilation est synchrone et sans file."""
 
     def stop(self):
-        self.worker.stop(timeout=30)
         self.sites.stop_all()
 
     def remove_project(self, user_id, project_id):
@@ -159,56 +130,22 @@ class BuilderRuntime:
             shutil.rmtree(directory)
 
 
-def create_runtime(
-    service,
-    identities,
-    *,
-    domain=None,
-    quota_limit=1_000_000,
-    provider=None,
-    provider_factory=None,
-    model_provider_factory=None,
-    image_provider_factory=None,
-    image_provider=None,
-    prices_path=None,
-    poll_interval=0.05,
-    downloads_dir=None,
-    start_worker=True,
-):
-    """Construit les dépendances du constructeur sans monter de route."""
+def create_runtime(service, identities, *, domain=None, downloads_dir=None):
+    """Construit les dépendances des routes de projet, sans monter de route.
+
+    POINT 161 : plus de fournisseur IA, plus de quota, plus de worker. Ce qui
+    reste — le magasin, l'hébergement local — est déterministe, donc rien
+    n'est plus à injecter pour rendre la plateforme éprouvable hors ligne.
+    """
     store = PlatformStore(service.workspace)
-    quota = TokenQuota(store, service.workspace, quota_limit)
     sites = SiteManager(
         store, service.workspace, domain or os.environ.get("MONL_PLATFORM_DOMAIN", "localhost")
-    )
-    worker = BuildWorker(
-        store,
-        service.workspace,
-        quota,
-        provider_factory=provider_factory,
-        provider=provider,
-        model_provider_factory=model_provider_factory,
-        image_provider_factory=image_provider_factory,
-        image_provider=image_provider,
-        prices_path=prices_path,
-        on_success=lambda project, _build: _restart_if_running(sites, project),
-        poll_interval=poll_interval,
     )
     return BuilderRuntime(
         service=service,
         identities=identities,
         store=store,
-        quota=quota,
         sites=sites,
-        worker=worker,
         workspace_root=Path(service.workspace),
         downloads_dir=downloads_dir if downloads_dir is not None else default_directory(),
-        start_worker=start_worker,
     )
-
-
-def _restart_if_running(sites, project):
-    if not sites.is_running(project["project_id"]):
-        return
-    sites.stop_project(project["project_id"])
-    sites.start_project(project)

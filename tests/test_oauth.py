@@ -121,9 +121,6 @@ def plateforme(tmp_path, faux_github, monkeypatch):
     app = create_app(
         workspace=tmp_path / "projects",
         domain="localhost",
-        provider=FakeProvider(),
-        poll_interval=0.01,
-        start_worker=False,
     )
     serveur = uvicorn.Server(
         uvicorn.Config(app, host="127.0.0.1", port=port, log_level="error"))

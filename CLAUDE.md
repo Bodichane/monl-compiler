@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1184 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1379 tests
   actuellement ; `tests/test_demo.py` s'appuie sur le dossier `demo/`
   versionné — ne pas le supprimer. La démo est **CodexShop**, une papeterie
   qui exerce la chaîne marchande entière ; ses ENTRÉES seules sont suivies
@@ -1097,6 +1097,37 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   l'anti-rejeu de celle-ci — une tolérance de ±1 fenêtre donnée au serveur
   laissait le test VERT. Déplacée avant, elle rougit. Point 145 mot pour mot.
   Voir point 159.
+- **POINT 161 : la plateforme ne construit plus d'interface — et retirer une
+  fonctionnalité se prouve comme on prouve une brique.** Partis :
+  `builder.py`, `worker.py`, `seed_ai.py`, `progress.py`, `revisions.py`,
+  `quota.py`, `store_builds.py`, la file de constructions, `/api/usage` et les
+  huit paramètres d'IA de `create_app`. Restent la compilation
+  (`compilation.py` : `compiler_le_projet`, déterministe, isolée) et
+  l'hébergement.
+  **CE QUE LE RETRAIT A TROUVÉ, et qu'aucune relecture n'aurait donné.**
+  (a) **L'hébergement ne pouvait plus jamais démarrer** : `start_project`
+  exigeait un build `reussie` et servait son SNAPSHOT — sans constructeur, la
+  porte restait close à jamais. Il sert désormais le dossier COMPILÉ, et le
+  frontend devient FACULTATIF (le wrapper `serve.py` le disait déjà :
+  « l'API répond, /site renverra 404 »). `SiteNotBuiltError` →
+  `SiteNotCompiledError`, qui NOMME le fichier absent : sinon uvicorn meurt sur
+  un dossier vide et l'erreur parle de démarrage, jamais de compilation.
+  (b) **Aucun test n'exerçait `start_project`** — la seule couverture portait
+  sur l'ADRESSAGE. Le couplage pouvait être cassé sans qu'une ligne rougisse ;
+  d'où `tests/test_platform_hebergement.py` (vrai processus, vrai HTTP) et sa
+  contre-épreuve qui remet la porte du build.
+  (c) **`seed_ai.py` n'avait AUCUN appelant dans `src/`** (vérifié par
+  `git grep` au commit précédent) : le point 151 décrit une brique que rien ne
+  branchait, et deux fichiers de tests suffisaient à la faire paraître vivante.
+  Point 146 pour la deuxième fois.
+  **`compiler_dans` (service.py) est la source UNIQUE de la décision
+  d'isolation** — deux lectures de `MONL_ISOLATE_COMPILES` divergeraient sur la
+  seule barrière qui empêche une spec fournie de s'exécuter dans
+  l'interpréteur de la plateforme. La table `builds` et son garde-fou
+  survivent pour les bases ANTÉRIEURES, et c'est écrit à côté d'eux : sur une
+  base neuve ils ne refusent plus rien. La console : « Créer et lancer la
+  construction » → « Démarrer l'API » (`/compiler` puis `/start`).
+  Voir point 161.
 - **POINT 160 : un seuil de temps en SECONDES ne veut pas dire la même chose
   sur deux machines.** Le test d'oracle temporel de `test_authentification_b4`
   comparait l'écart entre le chemin « compte verrouillé » et le chemin

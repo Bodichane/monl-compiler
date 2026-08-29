@@ -17,22 +17,17 @@ def _projet(identity, platform, user, slug, name=None):
     return project_id
 
 
-def test_la_suppression_identite_cascade_le_projet_et_ses_constructions(tmp_path):
+def test_la_suppression_identite_cascade_le_projet(tmp_path):
     identity = IdentityStore(tmp_path)
     platform = PlatformStore(tmp_path)
     user = identity.register("cascade@example.test", "MotDePasse-123")
     project_id = _projet(identity, platform, user, "boutique")
-    platform.create_build(project_id)
 
     with sqlite3.connect(platform.database) as db:
         assert {
             (row[3], row[2], row[6])
             for row in db.execute("PRAGMA foreign_key_list(builder_projects)")
         } >= {("user_id", "users", "CASCADE"), ("project_id", "projects", "CASCADE")}
-        assert {
-            (row[3], row[2], row[6])
-            for row in db.execute("PRAGMA foreign_key_list(builds)")
-        } >= {("project_id", "builder_projects", "CASCADE")}
 
     # La connexion brute ci-dessus montre la valeur SQLite par défaut (OFF) :
     # ce n'est pas celle des stores. La suppression passe par
@@ -47,9 +42,6 @@ def test_la_suppression_identite_cascade_le_projet_et_ses_constructions(tmp_path
 
     with identity._connect() as db:
         assert db.execute("PRAGMA foreign_keys").fetchone()[0] == 1
-        assert db.execute(
-            "SELECT COUNT(*) FROM builds WHERE project_id = ?", (project_id,)
-        ).fetchone()[0] == 0
 
 
 def test_le_slug_est_unique_par_compte_et_non_global(tmp_path):

@@ -1,7 +1,6 @@
 """Lancement et relais des applications produites par monl."""
 
 import http.client
-import os
 import socket
 import subprocess
 import sys
@@ -16,8 +15,17 @@ class SiteHostingError(RuntimeError):
     """Le site ne peut pas être lancé ou relayé."""
 
 
-class SiteNotBuiltError(SiteHostingError):
-    """Le projet ne possède pas encore de site construit."""
+class SiteNotCompiledError(SiteHostingError):
+    """Le projet ne possède pas encore de backend compilé.
+
+    POINT 161. Avant le recentrage, « héberger » voulait dire servir le
+    SNAPSHOT d'une construction IA réussie : sans build en base, rien ne
+    démarrait jamais. Le constructeur retiré, ce qu'on met en marche est le
+    backend COMPILÉ par le dialogue — déterministe, présent dès 'monl compile'.
+    Le frontend reste FACULTATIF : c'est le wrapper serve.py qui le dit
+    (« l'API répond, /site renverra 404 »), et voir l'API tourner est
+    précisément l'usage que ce module garde.
+    """
 
 
 @dataclass
@@ -56,46 +64,14 @@ class SiteManager:
         except ProjectPathError as exc:
             raise SiteHostingError(str(exc)) from exc
 
-    def _successful_build_directory(self, project, project_dir):
-        builds = self.store.list_builds(project["project_id"])
-        successful = [build for build in builds if build["state"] == "reussie"]
-        if not successful:
-            raise SiteNotBuiltError(
-                f"le site du projet {project['project_id']} n'est pas construit"
-            )
-        build = successful[-1]
-        relative = build.get("snapshot_path")
-        if not relative:
-            # Compatibilité avec les builds produits avant les snapshots : le
-            # dossier historique reste le seul artefact disponible.
-            return project_dir
-        if not isinstance(relative, str) or relative.startswith("/"):
-            raise SiteHostingError("chemin de snapshot invalide")
-        parts = relative.replace("\\", "/").split("/")
-        if not parts or any(part in {"", ".", ".."} for part in parts):
-            raise SiteHostingError("chemin de snapshot invalide")
-        candidate = (project_dir / relative).resolve(strict=False)
-        revisions = (project_dir / "revisions").resolve(strict=False)
-        try:
-            inside = os.path.commonpath((str(revisions), str(candidate))) == str(revisions)
-        except ValueError as exc:
-            raise SiteHostingError("snapshot situé hors du projet") from exc
-        if not inside or not candidate.is_dir():
-            raise SiteNotBuiltError(
-                f"le snapshot du build {build['id']} est absent ou invalide"
-            )
-        return candidate
-
     def _require_site(self, project):
         directory = self._project_directory(project)
-        directory = self._successful_build_directory(project, directory)
-        if not (directory / "serve.py").is_file() or not (
-            directory / "frontend" / "index.html"
-        ).is_file():
-            raise SiteNotBuiltError(
-                f"le site du projet {project['project_id']} n'est pas construit : "
-                "frontend/index.html absent"
-            )
+        for fichier in ("app.py", "serve.py"):
+            if not (directory / fichier).is_file():
+                raise SiteNotCompiledError(
+                    f"le backend du projet {project['project_id']} n'est pas "
+                    f"compilé : {fichier} absent"
+                )
         return directory
 
     def _allocate_port(self):

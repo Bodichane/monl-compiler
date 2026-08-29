@@ -38,7 +38,6 @@ def test_la_sauvegarde_couvre_identite_et_constructeur(tmp_path):
     project = uuid.uuid4().hex
     identities.add_project(user["id"], project, "Atelier")
     platform.create_project(user["id"], project, "atelier")
-    build = platform.create_build(project)
 
     copie = identities.sauvegarder(tmp_path / "sauvegardes" / "base.sqlite3")
     connexion = sqlite3.connect(copie)
@@ -46,9 +45,6 @@ def test_la_sauvegarde_couvre_identite_et_constructeur(tmp_path):
         assert connexion.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 1
         assert connexion.execute(
             "SELECT COUNT(*) FROM builder_projects WHERE project_id = ?", (project,)
-        ).fetchone()[0] == 1
-        assert connexion.execute(
-            "SELECT COUNT(*) FROM builds WHERE id = ?", (build,)
         ).fetchone()[0] == 1
     finally:
         _fermer(connexion)
@@ -83,10 +79,9 @@ def test_identity_et_constructeur_cohabitent_sur_la_meme_base(tmp_path):
         project = f"{numero:032x}"
         identities.add_project(user["id"], project, f"Site {numero}")
         platform.create_project(user["id"], project, f"site-{numero}")
-        build = platform.create_build(project)
 
         assert identities.projects(user["id"])[0]["name"] == f"Site {numero}"
-        assert platform.get_build(build)["project_id"] == project
+        assert platform.get_project(project)["project_id"] == project
 
     connexion = sqlite3.connect(platform.database)
     try:
