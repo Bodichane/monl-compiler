@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
-from .hosting import SiteHostingError, SiteNotBuiltError
+from .hosting import SiteHostingError, SiteNotCompiledError
 
 
 def mount_builder_host_routes(application, runtime):
@@ -13,7 +13,7 @@ def mount_builder_host_routes(application, runtime):
     async def route_by_host(request, call_next):
         try:
             running = runtime.sites.target_for_host(request.headers.get("host"))
-        except SiteNotBuiltError as exc:
+        except SiteNotCompiledError as exc:
             return JSONResponse(status_code=409, content={"detail": str(exc)})
         except SiteHostingError as exc:
             return JSONResponse(status_code=503, content={"detail": str(exc)})

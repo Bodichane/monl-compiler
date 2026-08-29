@@ -15,6 +15,7 @@ from .app_http import (
     _rate_limit,
     _require_project,
     _require_user,
+    _require_user_ou_cle,
     _session_response,
 )
 from .identity import IdentityError, IdentityStore
@@ -226,7 +227,8 @@ def mount_api_routes(
 
     @application.get("/api/projects/{project_id}/download")
     def download(project_id: str, request: Request):
-        user = _require_user(request, identities)
+        user = _require_user_ou_cle(request, identities)
+        _rate_limit(request, identities, "download", user["id"], 30, 60)
         _require_project(identities, user["id"], project_id)
         try:
             archive = service.archive(project_id)

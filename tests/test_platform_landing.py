@@ -43,7 +43,6 @@ def platform(tmp_path):
     app = create_app(
         workspace=tmp_path / "projects",
         domain="localhost",
-        start_worker=False,
     )
     port = _free_port()
     server = uvicorn.Server(

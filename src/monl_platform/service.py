@@ -169,12 +169,7 @@ class CompilationService:
         spec_path.write_text(spec, encoding="utf-8")
         output = io.StringIO()
         try:
-            if os.environ.get("MONL_ISOLATE_COMPILES", "1").lower() in {
-                    "1", "true", "yes"}:
-                output.write(self._compile_in_worker(spec_path, project_dir))
-            else:
-                with contextlib.redirect_stdout(output):
-                    compile_project(str(spec_path), str(project_dir))
+            output.write(compiler_dans(spec_path, project_dir))
             contract = json.loads(
                 (project_dir / "frontend_contract.json").read_text(encoding="utf-8")
             )
@@ -200,7 +195,7 @@ class CompilationService:
         return manifest
 
     @staticmethod
-    def _compile_in_worker(spec_path: Path, project_dir: Path) -> str:
+    def compiler_isole(spec_path: Path, project_dir: Path) -> str:
         timeout = max(5, int(os.environ.get("MONL_COMPILE_TIMEOUT_SECONDS", "45")))
         command = [sys.executable, "-m", "monl.cli", "compile", str(spec_path),
                    "--output", str(project_dir)]
@@ -257,6 +252,25 @@ class CompilationService:
     def delete(self, project_id: str) -> None:
         directory = self._project_dir(project_id)
         shutil.rmtree(directory)
+
+
+def compiler_dans(spec_path: Path, project_dir: Path) -> str:
+    """Compile une spec dans un dossier et rend la sortie du compilateur.
+
+    SOURCE UNIQUE de la décision d'isolation (point 162) : le socle
+    (``/api/compile``) et la compilation d'un projet de compte
+    (``compilation.py``) passent tous deux par ici. Deux lectures de
+    ``MONL_ISOLATE_COMPILES`` finiraient par diverger, et la divergence
+    porterait sur la seule barrière qui empêche une spec fournie de
+    s'exécuter dans l'interpréteur de la plateforme.
+    """
+    output = io.StringIO()
+    if os.environ.get("MONL_ISOLATE_COMPILES", "1").lower() in {"1", "true", "yes"}:
+        output.write(CompilationService.compiler_isole(spec_path, project_dir))
+    else:
+        with contextlib.redirect_stdout(output):
+            compile_project(str(spec_path), str(project_dir))
+    return output.getvalue()
 
 
 def _worker_limits() -> None:

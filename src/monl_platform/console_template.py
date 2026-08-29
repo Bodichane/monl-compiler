@@ -251,11 +251,12 @@ compile — ce sont des spécifications entières, pas des extraits.</p>
 réunis dans une archive. Le secret JWT n'y est pas : il naît au premier démarrage.</p>
 <div id="delivery-content" class="empty">Compilez un backend pour obtenir son archive.</div>
 <div class="builder-card" id="builder-card">
-<h3>Construction du site</h3>
-<p>La compilation vérifie le backend. La construction produit ensuite le site,
-son historique et son suivi de consommation. Une panne d'image reste un
-<strong>Avertissement de construction</strong> : le frontend texte est conservé.</p>
-<div id="builder-content" class="empty">Compilez d'abord un projet pour lancer sa construction.</div>
+<h3>Essayer l'API</h3>
+<p>monl démarre le backend compilé et vous donne son adresse locale : la
+documentation interactive et toutes les routes du contrat répondent pour de
+vrai. L'interface, elle, se construit chez vous — avec l'archive, le contrat
+et votre propre fournisseur.</p>
+<div id="builder-content" class="empty">Compilez d'abord un projet pour démarrer son API.</div>
 </div>
 <h3 style="margin-top:var(--space-6)">Vos compilations</h3>
 <p class="hint">Conservées dans votre compte et accessibles uniquement par vous.</p>

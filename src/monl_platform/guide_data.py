@@ -166,17 +166,12 @@ ROUTES_API: list[tuple[str, str, str]] = [
     ("POST", "/api/compile", "Compile et rend un manifeste (201)."),
     ("GET", "/api/projects/{project_id}", "Manifeste et résumé d'une compilation."),
     ("GET", "/api/projects/{project_id}/contract", "Le contrat frontend complet."),
-    ("GET", "/api/projects/{project_id}/download", "Archive ZIP, sans le secret JWT."),
-    ("POST", "/api/projects/{project_id}/build", "Met une construction en file."),
-    ("POST", "/api/projects/{project_id}/builds", "Met une construction en file."),
-    ("GET", "/api/projects/{project_id}/builds", "Historique des constructions du projet."),
-    ("GET", "/api/projects/{project_id}/builds/{build_id}", "État et coût d'une construction."),
-    ("GET", "/api/projects/{project_id}/builds/{build_id}/etapes", "Étapes réellement journalisées."),
-    ("POST", "/api/projects/{project_id}/serve", "Démarre le site construit (alias explicite)."),
-    ("POST", "/api/projects/{project_id}/start", "Démarre le site construit."),
-    ("POST", "/api/projects/{project_id}/stop", "Arrête le site construit."),
-    ("GET", "/api/models", "Catalogue des modèles du constructeur."),
-    ("GET", "/api/usage", "Consommation de jetons du compte."),
+    ("GET", "/api/projects/{project_id}/download", "Archive ZIP, sans le secret JWT. Ouverte par la session OU par une clé MCP en Bearer."),
+    ("POST", "/api/projects/{project_id}/compiler", "Compile la spec du projet dans son dossier privé (201)."),
+    ("POST", "/api/projects/{project_id}/serve", "Démarre l'API compilée (alias explicite)."),
+    ("POST", "/api/projects/{project_id}/start", "Démarre l'API compilée pour l'essayer."),
+    ("POST", "/api/projects/{project_id}/stop", "Arrête l'API démarrée."),
+    ("GET", "/api/models", "Catalogue des dix modèles d'applications."),
     ("GET", "/api/telechargements", "Artefacts réellement disponibles au téléchargement."),
     ("GET", "/api/telechargements/{name}", "Télécharge un artefact publié."),
     ("GET", "/mcp", "Configuration MCP et gestion des clés d’accès."),
@@ -187,7 +182,10 @@ OUTILS_MCP: list[tuple[str, str]] = [
     ("monl_list_templates", "Découvrir les modèles métier."),
     ("monl_validate_spec", "Les erreurs du vrai parseur et de l'audit."),
     ("monl_compile_backend", "Compiler, et recevoir l'identifiant du projet."),
+    ("monl_list_projects", "Retrouver ses projets et leur adresse de téléchargement."),
     ("monl_inspect_contract", "Lire le manifeste et le contrat complet."),
+    ("monl_diff_spec", "Ce qu'une spec nouvelle changerait, sans rien écrire."),
+    ("monl_update_backend", "Recompiler un projet existant et recevoir le delta."),
 ]
 
 LIMITES: list[tuple[str, str]] = [
@@ -205,7 +203,7 @@ LIMITES: list[tuple[str, str]] = [
      "30 jours par défaut. Téléchargez l'archive avant cette échéance."),
     ("Compilations isolées et bornées",
      "Chaque compilation tourne dans un sous-processus limité en durée, CPU, "
-     "mémoire et fichiers. Les quotas sont persistés et partagés entre workers."),
+     "mémoire et fichiers — jamais dans l'interpréteur de la plateforme."),
     ("Le secret ne voyage pas",
      "L'archive ne contient jamais <code>.jwt_secret</code> : le backend en "
      "génère un au premier démarrage, sur la machine qui l'héberge."),

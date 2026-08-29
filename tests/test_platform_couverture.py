@@ -164,7 +164,6 @@ async def _dialogue(app):
         assert (await client.get("/api/auth/recovery-codes")).json()["remaining"] == 8
         assert (await client.get("/api/projects")).json()["projects"] == []
         assert (await client.get("/api/keys")).json()["keys"] == []
-        assert (await client.get("/api/usage")).status_code == 200
 
         duplicate = await client.post("/api/auth/register", json={
             "email": "COUVERTURE@EXEMPLE.TEST", "password": MOT_DE_PASSE})
@@ -186,19 +185,13 @@ async def _dialogue(app):
         archive = await client.get(f"/api/projects/{project_id}/download")
         assert archive.status_code == 200 and archive.content.startswith(b"PK")
 
-        build = await client.post(f"/api/projects/{project_id}/builds")
-        assert build.status_code == 202
-        build_id = build.json()["build"]["id"]
-        assert len((await client.get(f"/api/projects/{project_id}/builds")).json()["builds"]) == 1
-        assert (await client.get(
-            f"/api/projects/{project_id}/builds/{build_id}")).status_code == 200
-        assert (await client.get(
-            f"/api/projects/{project_id}/builds/{build_id}/etapes")).status_code == 200
-        assert (await client.get(
-            f"/api/projects/{project_id}/builds/999999")).status_code == 404
-        assert (await client.get(
-            f"/api/projects/{project_id}/builds/{build_id}/etapes")).json()["remaining"]
-        assert (await client.post(f"/api/projects/{project_id}/build")).status_code == 202
+        # POINT 162 : la file de constructions a laissé place à UNE compilation
+        # déterministe, puis au démarrage de l'API obtenue.
+        compilation = await client.post(f"/api/projects/{project_id}/compiler")
+        assert compilation.status_code == 201, compilation.json()
+        assert compilation.json()["routes"] > 0
+        assert "app.py" in compilation.json()["files"]
+        assert (await client.post(f"/api/projects/{project_id}/stop")).json()["stopped"] is False
 
         invalid_key = await client.post("/api/keys", json={"name": ""})
         assert invalid_key.status_code == 422
@@ -244,7 +237,7 @@ async def _dialogue(app):
 
 
 def test_les_routes_asgi_couvrent_les_reponses_et_les_effets(tmp_path):
-    app = create_app(workspace=tmp_path, start_worker=False)
+    app = create_app(workspace=tmp_path)
     asyncio.run(_dialogue(app))
 
 
@@ -493,21 +486,7 @@ def test_le_store_valide_ses_metadonnees_et_ses_transitions(tmp_path):
     assert store.list_projects_by_slug("BOUTIQUE")[0]["project_id"] == project_id
     assert store.discard_project(user["id"], "absent") is False
 
-    build_id = store.create_build(project_id)
-    assert store.claim_next_build()["state"] == "en_cours"
-    assert store.get_build_for_project(project_id, build_id)["total_tokens"] is None
-    with pytest.raises(ValueError, match="terminal"):
-        store.finish_build(build_id, "en_cours")
-    store.finish_build(build_id, "reussie", run_id="run", tokens_consumed=12,
-                       snapshot_path="revisions/1", snapshot_sha256="sha", snapshot_bytes=4)
-    assert store.get_build(build_id)["state"] == "reussie"
-    assert store.get_build(build_id)["total_tokens"] == 12
-    second = store.create_build(project_id)
-    store.start_build(second)
-    assert store.recover_in_progress_builds() == 1
-    assert store.get_build(second)["state"] == "echouee"
-    with pytest.raises(ValueError, match="déjà construit"):
-        store.discard_project(user["id"], project_id)
+    assert store.discard_project(user["id"], project_id) is True
 
 
 def test_l_adaptateur_oauth_couvre_configuration_et_reponses_fournisseur(monkeypatch):
@@ -619,68 +598,3 @@ def test_l_adaptateur_oauth_couvre_configuration_et_reponses_fournisseur(monkeyp
     monkeypatch.setattr(oauth, "_get_json", lambda *_args: {"sub": "1078"})
     with pytest.raises(oauth.OAuthError, match="vérifiée"):
         oauth.fetch_identity("google", "jeton", environnement)
-
-
-def test_le_personnalisateur_de_catalogue_revalide_et_restaure(tmp_path):
-    from monl_platform.app_templates import materialize_template
-    from monl_platform.seed_ai import (
-        MAX_FICHES,
-        SeedAIError,
-        _lignes_valides,
-        blocs_de_la_reponse,
-        personnaliser_le_jeu,
-        prompt_de_contenu,
-    )
-
-    spec_path = tmp_path / "spec.ml"
-    spec_path.write_text(materialize_template(
-        3, app_name="Vitrine", description="Une boulangerie."
-    ), encoding="utf-8")
-    response = (
-        "### Product\n```csv\n"
-        "name,price,description,imageUrl,stock\n"
-        "Baguette,1.30,Tradition,,20\n"
-        "```\n"
-    )
-
-    class Provider:
-        def __init__(self, answer):
-            self.answer = answer
-            self.prompts = []
-
-        def __call__(self, prompt):
-            self.prompts.append(prompt)
-            if isinstance(self.answer, Exception):
-                raise self.answer
-            return self.answer
-
-    assert blocs_de_la_reponse(None) == {}
-    assert blocs_de_la_reponse("### Product\n```csv\nname,price\nPain,1\n```\n")
-    assert "boulangerie" in prompt_de_contenu("Une boulangerie.", {"Product": "name,price"})
-    with pytest.raises(SeedAIError, match="en-tête"):
-        _lignes_valides("other\nvalue\n", ("name",))
-    with pytest.raises(SeedAIError, match="colonnes"):
-        _lignes_valides("name\na,b\n", ("name",))
-    entete, lignes = _lignes_valides(
-        "name\n" + "\n".join(f"pain-{i}" for i in range(MAX_FICHES + 1)),
-        ("name",),
-    )
-    assert entete == ["name"] and len(lignes) == MAX_FICHES
-
-    original = spec_path.read_text(encoding="utf-8")
-    vide = Provider(RuntimeError("fournisseur indisponible"))
-    assert personnaliser_le_jeu(str(spec_path), str(tmp_path), " ", vide)["entites"] == []
-    assert vide.prompts == []
-    panne = Provider(RuntimeError("fournisseur indisponible"))
-    rapport = personnaliser_le_jeu(
-        str(spec_path), str(tmp_path), "Une boulangerie.", panne
-    )
-    assert rapport["entites"] == [] and "n'a pas répondu" in rapport["raison"]
-    assert spec_path.read_text(encoding="utf-8") == original
-
-    bon = Provider(response)
-    rapport = personnaliser_le_jeu(
-        str(spec_path), str(tmp_path), "Une boulangerie.", bon
-    )
-    assert rapport["entites"] == [("Product", 1)]
-    assert "Baguette" in (tmp_path / "content" / "Product.csv").read_text(encoding="utf-8")

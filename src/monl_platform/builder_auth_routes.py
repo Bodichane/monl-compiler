@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import os
 
-from fastapi import HTTPException, Request, status
+from fastapi import HTTPException, status
 from fastapi.responses import FileResponse, RedirectResponse
 
 from .builder_runtime import (
     _http_error,
     _provider_catalogue,
-    _require_user,
     _set_session_cookie,
 )
 from .downloads import list_artifacts, resolve_artifact
@@ -85,20 +84,6 @@ def mount_builder_auth_routes(application, runtime):
     @application.get("/api/models")
     def models():
         return {"models": _provider_catalogue()}
-
-    @application.get("/api/usage")
-    def usage(request: Request):
-        user = _require_user(request, identities)
-        try:
-            current = runtime.quota.inspect(user["id"])
-        except Exception as exc:
-            _http_error(str(exc), 503)
-        return {"usage": {
-            "consumed_tokens": current.consumed_tokens,
-            "limit_tokens": current.limit_tokens,
-            "remaining_tokens": current.remaining_tokens,
-            "project_totals": current.project_totals,
-        }}
 
     @application.get("/api/telechargements")
     def downloads():

@@ -145,44 +145,34 @@ function rendreLivraison(p) {
       '<i class="chip">' + echapper(f) + '</i>').join('') + '</div>';
   $('#builder-content').className = '';
   $('#builder-content').innerHTML =
-    '<button class="primary" id="build-btn" type="button">Créer et lancer la construction</button>' +
+    '<button class="primary" id="build-btn" type="button">Démarrer l\'API</button>' +
     '<div class="builder-status" id="builder-status" role="status" aria-live="polite"></div>';
-  $('#build-btn').onclick = () => lancerConstruction(p.id);
+  $('#build-btn').onclick = () => demarrerAPI(p.id);
 }
 
-async function lancerConstruction(id) {
+async function demarrerAPI(id) {
   const bouton = $('#build-btn');
   if (!bouton) return;
   bouton.disabled = true;
-  try {
-    const reponse = await fetch('/api/projects/' + encodeURIComponent(id) + '/builds', { method: 'POST' });
-    const data = await reponse.json();
-    if (!reponse.ok) throw new Error(data.detail || 'La construction a échoué.');
-    afficherConstruction(data.build);
-    await suivreConstruction(id, data.build.id);
-  } catch (erreur) {
-    $('#builder-status').textContent = erreur.message;
-  } finally { bouton.disabled = false; }
-}
-function afficherConstruction(build) {
   const statut = $('#builder-status');
-  if (!statut) return;
-  const texte = build.warning_message || build.error_message;
-  statut.textContent = (build.state || 'en_attente') +
-    (texte ? '\n' + texte : '');
-}
-async function suivreConstruction(id, buildId) {
-  for (let essai = 0; essai < 120; essai += 1) {
-    const reponse = await fetch('/api/projects/' + encodeURIComponent(id) + '/builds/' + buildId);
-    if (!reponse.ok) return;
+  try {
+    statut.textContent = 'Compilation du projet…';
+    const compile = await fetch('/api/projects/' + encodeURIComponent(id) + '/compiler',
+      { method: 'POST' });
+    const compileData = await compile.json();
+    if (!compile.ok) throw new Error(compileData.detail || 'La compilation a échoué.');
+    statut.textContent = 'Démarrage du serveur…';
+    const reponse = await fetch('/api/projects/' + encodeURIComponent(id) + '/start',
+      { method: 'POST' });
     const data = await reponse.json();
-    afficherConstruction(data.build);
-    if (!['en_attente', 'en_cours'].includes(data.build.state)) {
-      retenir();
-      return;
-    }
-    await new Promise(resolve => setTimeout(resolve, 1000));
-  }
+    if (!reponse.ok) throw new Error(data.detail || 'Le démarrage a échoué.');
+    statut.innerHTML = 'API en marche sur <b>http://127.0.0.1:' + data.port +
+      '</b> — ' + compileData.routes + ' routes. ' +
+      '<a href="http://127.0.0.1:' + data.port + '/docs" target="_blank" rel="noopener">' +
+      'Ouvrir la documentation interactive</a>';
+  } catch (erreur) {
+    statut.textContent = erreur.message;
+  } finally { bouton.disabled = false; }
 }
 
 /* ----- actions ----- */

@@ -95,8 +95,27 @@ python3 -m monl_platform.mcp_server
 - `monl_list_templates` : découvrir les modèles métier ;
 - `monl_validate_spec` : obtenir les erreurs du vrai parseur et de l'audit ;
 - `monl_compile_backend` : compiler et recevoir l'identifiant du projet ainsi
-  que le chemin HTTP de téléchargement ;
-- `monl_inspect_contract` : lire le manifeste et le contrat complet.
+  que l'adresse de téléchargement ;
+- `monl_list_projects` : retrouver ses projets sans avoir mémorisé un
+  identifiant ;
+- `monl_inspect_contract` : lire le manifeste et le contrat complet ;
+- `monl_diff_spec` : ce qu'une spec nouvelle changerait pour l'interface,
+  **sans rien écrire** (l'équivalent de `monl diff`) ;
+- `monl_update_backend` : recompiler un projet EXISTANT et recevoir le delta
+  du contrat (l'équivalent de `monl update`). L'identifiant et l'adresse de
+  téléchargement ne changent pas ; une spec refusée laisse le projet intact.
+
+**L'archive se récupère avec la même clé** : `GET` sur `download_url` avec
+`Authorization: Bearer <clé MCP>`. Aucun navigateur n'est requis — c'était le
+dernier passage obligé par le site. L'adresse est absolue quand
+`MONL_PLATFORM_PUBLIC_URL` est déclarée, relative sinon ; elle n'est jamais
+déduite de l'en-tête `Host`, qu'un tiers contrôle.
+
+Le delta compte **dix rubriques** — routes, champs, accès, lecture seule,
+préalables, verrous de paiement, contenus éditoriaux, rattachements, types de
+champs, sections obligatoires. Ce n'est pas du zèle : dix fois (points 88 à
+119), un changement qui ne touchait aucune route a laissé un écran entier à
+réécrire pendant que le delta répondait « aucun changement d'interface ».
 
 ## Garde-fous d'exploitation
 

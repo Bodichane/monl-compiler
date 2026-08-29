@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from typing import Any
 
+from .evolution import contrat_dune_spec, delta_de_contrat, recompiler
 from .identity import IdentityStore
 from .service import (
     CompilationService,
@@ -13,6 +15,20 @@ from .service import (
 )
 
 PROTOCOL_VERSION = "2025-06-18"
+
+
+def _adresse_de_telechargement(project_id: str) -> str:
+    """L'adresse à laquelle un agent récupère l'archive, avec sa clé MCP.
+
+    POINT 162 : absolue quand ``MONL_PLATFORM_PUBLIC_URL`` est déclarée,
+    relative sinon. Elle n'est JAMAIS déduite de l'en-tête ``Host``, qu'un
+    tiers contrôle — même frontière qu'au point 145 pour l'adresse de retour
+    OAuth. Une adresse absolue fausse enverrait l'archive d'un compte vers un
+    serveur que quelqu'un d'autre a nommé.
+    """
+    chemin = f"/api/projects/{project_id}/download"
+    base = (os.environ.get("MONL_PLATFORM_PUBLIC_URL") or "").rstrip("/")
+    return base + chemin if base else chemin
 
 TOOLS = [
     {
@@ -37,6 +53,44 @@ TOOLS = [
             "type": "object",
             "properties": {"spec": {"type": "string", "description": "Spécification .ml"}},
             "required": ["spec"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "monl_list_projects",
+        "description": "Liste les projets compilés du compte, avec leur adresse de téléchargement.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "name": "monl_diff_spec",
+        "description": (
+            "Ce qu'une spec nouvelle changerait pour l'interface d'un projet, "
+            "SANS rien écrire. L'équivalent de 'monl diff'."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_id": {"type": "string"},
+                "spec": {"type": "string", "description": "Spécification .ml"},
+            },
+            "required": ["project_id", "spec"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "monl_update_backend",
+        "description": (
+            "Recompile un projet EXISTANT avec une spec nouvelle et rapporte le "
+            "delta du contrat. L'identifiant et l'adresse de téléchargement ne "
+            "changent pas. L'équivalent de 'monl update'."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "project_id": {"type": "string"},
+                "spec": {"type": "string", "description": "Spécification .ml"},
+            },
+            "required": ["project_id", "spec"],
             "additionalProperties": False,
         },
     },
@@ -114,18 +168,64 @@ class MCPDispatcher:
                 "project_id": manifest["id"],
                 "summary": manifest["summary"],
                 "download_path": f"/api/projects/{manifest['id']}/download",
+                "download_url": _adresse_de_telechargement(manifest["id"]),
+                "download_auth": (
+                    "GET avec l'en-tête 'Authorization: Bearer <votre clé MCP>' — "
+                    "la même clé que pour cet appel, aucun navigateur requis."
+                ),
                 "next": "Appelez monl_inspect_contract avec project_id.",
             })
+        if name == "monl_list_projects":
+            if not (self.identities and user_id):
+                raise PlatformNotFoundError("Aucun compte associé à cette clé.")
+            return _text_result({"projects": [
+                {
+                    "project_id": projet["project_id"],
+                    "name": projet["name"],
+                    "created_at": projet["created_at"],
+                    "expires_at": projet["expires_at"],
+                    "download_url": _adresse_de_telechargement(projet["project_id"]),
+                }
+                for projet in self.identities.projects(user_id)
+            ]})
+        if name == "monl_diff_spec":
+            project_id = self._projet_du_compte(arguments["project_id"], user_id)
+            return _text_result({
+                "project_id": project_id,
+                "delta": delta_de_contrat(
+                    self.service.contract(project_id),
+                    contrat_dune_spec(self.service, arguments["spec"]),
+                ),
+                "ecrit": False,
+            })
+        if name == "monl_update_backend":
+            project_id = self._projet_du_compte(arguments["project_id"], user_id)
+            delta = recompiler(self.service, project_id, arguments["spec"])
+            return _text_result({
+                "project_id": project_id,
+                "delta": delta,
+                "download_url": _adresse_de_telechargement(project_id),
+                "ecrit": True,
+            })
         if name == "monl_inspect_contract":
-            project_id = arguments["project_id"]
-            if self.identities and (not user_id or not self.identities.owns_project(
-                    user_id, project_id)):
-                raise PlatformNotFoundError("Projet introuvable.")
+            project_id = self._projet_du_compte(arguments["project_id"], user_id)
             return _text_result({
                 "project": self.service.inspect(project_id),
                 "contract": self.service.contract(project_id),
             })
         raise PlatformInputError(f"Outil inconnu : {name}")
+
+    def _projet_du_compte(self, project_id: str, user_id: str | None) -> str:
+        """Même réponse pour « n'existe pas » et « pas à vous ».
+
+        L'identifiant opaque ne devient pas un oracle d'existence — c'est la
+        règle déjà tenue par ``_require_project`` côté HTTP, et la répéter
+        ici n'est pas un doublon : le chemin MCP ne passe pas par elle.
+        """
+        if self.identities and (not user_id or not self.identities.owns_project(
+                user_id, project_id)):
+            raise PlatformNotFoundError("Projet introuvable.")
+        return project_id
 
     @staticmethod
     def _error(request_id: Any, code: int, message: str) -> dict[str, Any]:

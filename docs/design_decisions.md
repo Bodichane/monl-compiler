@@ -78,6 +78,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [159](#159-une-assertion-de-rejeu-qui-rejouait-un-code-neuf-et-sa-voisine-qui-ne-mesurait-plus-rien) Une assertion de rejeu qui rejouait un code neuf ·
 [160](#160-un-seuil-de-temps-en-secondes-ne-veut-pas-dire-la-même-chose-sur-deux-machines) Un seuil de temps en secondes ne veut pas dire la même chose sur deux machines ·
 [161](#161-la-ci-avait-deux--q-et-ses-sauts-ne-se-voyaient-pas) La CI avait deux `-q`, et ses sauts ne se voyaient pas ·
+[162](#162-le-cap--une-base-de-données-déterministe-et-sûre-le-reste-chez-le-fournisseur-de-lusager) Le cap : une base de données déterministe et sûre, le reste chez le fournisseur de l'usager ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -11071,3 +11072,196 @@ légitime qui reste (une dépendance système absente sur une version de Python
 donnée). Rendre le saut lisible est le geste qui a manqué pendant toute la
 vie du dépôt ; le rendre fatal est une décision séparée, à prendre sur des
 cas réels plutôt que par principe.
+---
+
+## 162. Le cap : une base de données déterministe et sûre, le reste chez le fournisseur de l'usager
+
+**Décision du mainteneur, prise le 28/08/2026.** monl produit le backend et sa
+base — déterministes, audités, sans appel réseau. Tout ce qui demande une IA se
+fait avec le fournisseur de L'USAGER, sur SA machine. La console web fonctionne
+comme la ligne de commande : dialogue guidé → contrat + base. Elle ne construit
+plus de frontend. Le serveur MCP existe pour qu'on n'ait pas à venir sur le
+site du tout.
+
+### Ce que ce cap résout, et qui n'était pas un défaut de code
+
+La plateforme avait été bâtie sur l'hypothèse inverse : NOTRE clé payait les
+constructions. Deux conséquences, l'une visible et l'autre pas.
+
+La visible : `monl-platform` sert `monl_platform.app:app`, c'est-à-dire
+`create_app(workspace=…)` **sans `provider_factory`**. Le worker retombait donc
+sur `_UnavailableProvider`, et toute construction répondait 503 — « aucun
+fournisseur IA n'est configuré pour la plateforme ». Les tests, eux, injectaient
+le fournisseur ; `create_app(` n'est appelé qu'une seule fois hors tests, et
+sans lui. C'est le point 146 appliqué à la plateforme : **une brique dont les
+tests prouvent le fonctionnement mais que rien ne branche n'existe pas en
+production.**
+
+L'invisible, et c'est elle qui a fait changer de cap : quand notre clé paie, les
+contrôles automatiques sont la seule barrière entre un site raté et une facture.
+Les points 147 à 150 racontent cette lutte — la correction automatique qui
+régresse, le budget qu'on impose puis qu'on reproche, la mesure indéterminée
+prise pour une mesure nulle. Ce n'était pas une série de défauts : c'était le
+symptôme d'une position intenable. Payer pour un tirage non déterministe qu'on
+ne contrôle pas oblige à inventer des garde-fous sans fin.
+
+### Ce que ça ne change PAS
+
+Le cœur. Parseur, validateur, générateur, audit de sécurité : aucun appel
+réseau, aucune clé, jamais. C'est ce qui a toujours été monl, et le cap ne fait
+que retirer ce qui s'y était greffé.
+
+Le compilateur en ligne de commande était DÉJÀ conforme : `monl frontend`
+accepte une clé Anthropic, n'importe quel fournisseur au dialecte OpenAI, ou un
+agent installé (`claude-code`, `codex`, `gemini`, `--agent-command`), et
+`monl import` couvre le copier/coller. Points 42, 43 et 69. Rien à écrire de ce
+côté — la voie par ABONNEMENT, en particulier, ne pouvait jamais traverser une
+plateforme hébergée : elle suppose un agent sur la machine de l'usager. Le cap
+la remet au centre au lieu de la traiter comme un repli.
+
+### Le trou mesuré, et pourquoi il est petit
+
+Un agent peut aujourd'hui valider et compiler par MCP sans quitter son
+terminal, et recevoir le contrat. Mais `/api/projects/{id}/download` appelle
+`_require_user`, qui lit le cookie `monl_session` : **une clé MCP ne l'ouvre
+pas.** Il faut donc ouvrir un navigateur pour récupérer `app.py` — exactement le
+passage que le cap veut supprimer.
+
+L'archive, elle, est déjà complète : `service.archive` empaquette tout le
+dossier compilé, `FRONTEND_PROMPT.md` et `frontend_contract.json` compris, et
+n'exclut que le zip lui-même et `.jwt_secret`.
+
+Trois manques, donc, et aucun n'est une brique nouvelle :
+
+1. **Récupérer les artefacts par MCP.** La route de téléchargement doit accepter
+   la clé MCP — le même chemin `api_key_user` que `/mcp` emploie déjà — et
+   `monl_compile_backend` doit rendre l'adresse. Le passage par une réponse
+   JSON-RPC en base64 est la voie ÉCARTÉE : une archive pèse des mégaoctets, et
+   le protocole n'est pas fait pour ça.
+2. **Retrouver ses projets.** Il n'existe pas de `monl_list_projects` : il faut
+   avoir mémorisé le `project_id`.
+3. **Recompiler et voir le delta.** Aucun équivalent de `monl update` ni de
+   `monl diff`. Or c'est TOUT le geste après la première compilation, et le
+   journal montre huit fois qu'un delta incomplet laisse un écran entier à
+   réécrire sans que rien ne le dise.
+
+### Ce qui part
+
+Le constructeur IA côté serveur et ce qui n'existait que pour lui : `builder.py`,
+`worker.py`, `seed_ai.py`, `progress.py`, `revisions.py`, `quota.py`,
+`store_builds.py`, la file de constructions et ses routes, `/api/usage`, et les
+huit paramètres d'IA de `create_app`. Le 503 part avec.
+
+**Retirer une fonctionnalité se prouve comme on prouve une brique** : la suite
+doit rester verte, et surtout aucune promesse du site ne doit survivre à ce
+qu'elle promettait. Une console qui garde son bouton « Construire » après le
+retrait serait pire que le 503 — elle mentirait au clic.
+
+### CE QUE LE RETRAIT A TROUVÉ
+
+**L'HÉBERGEMENT NE POUVAIT PLUS JAMAIS DÉMARRER.** `SiteManager.start_project`
+interrogeait `store.list_builds`, exigeait un build `reussie`, puis servait son
+SNAPSHOT. Aucun build n'étant plus jamais créé, la porte devenait
+définitivement close : garder l'hébergement — « voir l'API tourner est utile »,
+décision du mainteneur — imposait de le REPOINTER sur le dossier COMPILÉ. Ce
+qu'on démarre n'est plus un site construit par une IA, c'est le backend
+déterministe, et **le frontend devient FACULTATIF** : le wrapper `serve.py` le
+disait déjà lui-même depuis la brique 13 (« l'API répond, /site renverra 404 »).
+`SiteNotBuiltError` devient donc `SiteNotCompiledError`, et le message nomme le
+fichier absent — sans quoi uvicorn mourrait sur un dossier vide et l'erreur
+parlerait de démarrage, jamais de compilation : on chercherait la panne du
+mauvais côté.
+
+**AUCUN TEST N'EXERÇAIT `start_project`.** La seule couverture d'hébergement
+portait sur l'ADRESSAGE (`test_platform_adressage.py` : slug canonique, hôte
+d'un navigateur) — rien ne démarrait jamais un processus. Le couplage à la file
+de builds pouvait donc être cassé sans qu'une seule ligne rougisse. D'où
+`tests/test_platform_hebergement.py`, qui compile pour de vrai, lance le
+processus, et interroge `/openapi.json` en HTTP ; sa contre-épreuve remet la
+porte du build et les trois tests rougissent. **Un module qu'on garde doit être
+éprouvé le jour où l'on retire ce qui l'alimentait.**
+
+**`seed_ai.py` N'AVAIT AUCUN APPELANT.** Le point 151 décrit par le menu
+comment la plateforme personnalise le jeu de démonstration d'un modèle — et
+`git grep` sur `src/` au commit précédent ne rend que la définition. Deux
+fichiers de tests l'exerçaient, ce qui suffisait à la faire paraître vivante.
+C'est le point 146 pour la deuxième fois, et cette fois sur un point du journal
+lui-même : **une brique dont les tests prouvent le fonctionnement mais que rien
+n'appelle n'existe pas.** Elle part sans un remplaçant.
+
+**LA DÉCISION D'ISOLATION AVAIT DEUX LECTEURS EN PUISSANCE.** Compiler dans le
+dossier d'un compte et compiler dans le bac à sable du socle sont deux chemins ;
+`MONL_ISOLATE_COMPILES` est la seule barrière qui empêche une spec FOURNIE de
+s'exécuter dans l'interpréteur de la plateforme. `compiler_dans` (service.py)
+en est la source unique, appelée par les deux — deux lectures auraient fini par
+diverger, et la divergence aurait porté sur exactement cette barrière-là.
+
+**CE QUI RESTE, ET POURQUOI.** La table `builds` et le refus de suppression de
+compensation qui la lit survivent : une base ANTÉRIEURE porte de vraies lignes,
+et une migration additive rattrape une colonne, jamais un contenu (points 32 et
+89). Sur une base neuve la table reste vide et ce garde-fou ne refuse plus rien
+— c'est écrit à côté de lui, faute de quoi on le lirait comme une protection
+active. Le catalogue de slugs (`builder_projects`) reste : c'est lui qui donne
+son sous-domaine à une API démarrée.
+
+**LA CONSOLE.** Le bouton « Créer et lancer la construction » devient
+« Démarrer l'API » : il appelle `POST /api/projects/{id}/compiler`, puis
+`/start`, et affiche l'adresse locale avec un lien vers `/docs`. La carte ne
+promet plus un site, elle promet ce qui se produit vraiment — et le reste,
+l'interface, se construit chez l'usager avec l'archive, le contrat et SON
+fournisseur.
+
+### La boucle MCP, fermée
+
+Les trois manques nommés plus haut sont comblés, et aucun n'a demandé de brique
+nouvelle.
+
+**L'archive s'ouvre à la clé MCP.** `_require_user_ou_cle` (app_http.py) essaie
+la session PUIS la clé — dans cet ordre, pour qu'un en-tête `Authorization`
+traînant dans un navigateur ne l'emporte jamais sur qui est connecté. Ce n'est
+pas une seconde porte : c'est le MÊME `api_key_user` que `/mcp`, avec le même
+`_require_project` derrière. **Le renversement à comprendre** : une clé MCP
+identifie un COMPTE, pas une capacité — lui refuser ce que la session du même
+compte obtient n'était pas une protection, seulement une dépendance au
+navigateur. La contre-épreuve est dans le test : sans clé 401, avec une clé
+inconnue 401, avec la clé VALIDE d'un autre compte **404** — jamais 403, sans
+quoi l'identifiant opaque deviendrait un oracle d'existence.
+
+**`monl_diff_spec` et `monl_update_backend`** sont les équivalents de `monl
+diff` et `monl update`. Le delta n'est PAS recalculé : `_contract_signature`
+(monl.cli) reste la source unique des dix ensembles, et `evolution.py` se borne
+à la lire pour deux contrats. Les deux DICTIONNAIRES — contenus éditoriaux,
+sections obligatoires — portent une empreinte par clé, donc « modifié » existe à
+côté d'« ajouté » et « retiré » : réécrire une rubrique de fond en comble ne
+renomme rien, et il faut pourtant re-rendre la page (points 89, 94 et 96).
+
+**La contre-épreuve du delta a reproduit l'angle mort en direct.** En aveuglant
+`delta_de_contrat` sur tout sauf les ROUTES, la spec d'essai — un champ de plus
+ET un `oneOf` dessus — passait pour « interface inchangée » : le champ neuf ne
+crée aucune route. C'est exactement ce que les points 88 à 119 racontent dix
+fois, et c'est la première fois qu'on le fait rougir sur commande.
+
+**`recompiler` produit le nouveau dossier EN ENTIER avant de toucher à
+l'ancien** : une spec refusée laisse le projet exactement comme il était
+(éprouvé). L'identifiant et l'adresse de téléchargement SURVIVENT — c'est tout
+l'intérêt de recompiler plutôt que de repartir d'un projet neuf. Le résumé du
+manifeste, lui, est refait depuis le NOUVEAU contrat : le garder ferait mentir
+`/api/projects/{id}`.
+
+**`OUTILS_QUI_COMPILENT` (app_http.py) est le piège qu'on a failli laisser.**
+Le sémaphore de `MONL_MAX_CONCURRENT_COMPILES` était armé par un test d'égalité
+sur le seul `monl_compile_backend`. Le diff et la mise à jour compilent eux
+aussi — les oublier laissait la borne de concurrence intacte à la lecture et
+contournée à l'exécution. **Toute borne exprimée par une liste de noms doit être
+relue quand un nom s'ajoute** : c'est le point 85 (une règle qui ne produit
+rien) vu de l'autre côté, une borne qui ne borne plus.
+
+**L'adresse de téléchargement n'est jamais déduite de l'en-tête `Host`** :
+absolue si `MONL_PLATFORM_PUBLIC_URL` est déclarée, relative sinon — même
+frontière qu'au point 145. Une adresse absolue fausse enverrait l'archive d'un
+compte vers un serveur que quelqu'un d'autre a nommé.
+
+Éprouvé par `tests/test_platform_mcp_boucle.py` (5 tests, vrai serveur) : un
+agent compile, liste, télécharge les octets du ZIP, mesure un delta et
+recompile en place **sans jamais ouvrir de session**.
+

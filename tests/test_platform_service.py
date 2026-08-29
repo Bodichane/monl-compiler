@@ -78,7 +78,8 @@ def test_mcp_expose_validation_compilation_et_inspection(tmp_path):
                                   "method": "tools/list"})
     assert {tool["name"] for tool in listed["result"]["tools"]} == {
         "monl_list_templates", "monl_validate_spec", "monl_compile_backend",
-        "monl_inspect_contract",
+        "monl_list_projects", "monl_inspect_contract", "monl_diff_spec",
+        "monl_update_backend",
     }
 
     compiled = dispatcher.dispatch({

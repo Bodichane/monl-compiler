@@ -22,21 +22,14 @@ from .mcp_server import MCPDispatcher
 from .service import CompilationService
 
 
-def create_app(
-    *,
-    workspace=None,
-    domain=None,
-    quota_limit=1_000_000,
-    provider=None,
-    provider_factory=None,
-    model_provider_factory=None,
-    image_provider_factory=None,
-    image_provider=None,
-    prices_path=None,
-    poll_interval=0.05,
-    downloads_dir=None,
-    start_worker=True,
-) -> FastAPI:
+def create_app(*, workspace=None, domain=None, downloads_dir=None) -> FastAPI:
+    """POINT 162 : plus aucun fournisseur IA à injecter.
+
+    Les huit paramètres retirés (provider, provider_factory, quota_limit,
+    prices_path, poll_interval, start_worker, et les deux d'images) servaient
+    tous le constructeur frontend. La plateforme ne construit plus d'interface
+    et n'appelle plus aucun modèle : ce qu'elle fait, elle le fait hors ligne.
+    """
     configurer()
     service = CompilationService(workspace)
     identities = IdentityStore(service.workspace)
@@ -54,19 +47,7 @@ def create_app(
               purges=_purger(service, identities))
 
     builder_runtime = create_runtime(
-        service,
-        identities,
-        domain=domain,
-        quota_limit=quota_limit,
-        provider=provider,
-        provider_factory=provider_factory,
-        model_provider_factory=model_provider_factory,
-        image_provider_factory=image_provider_factory,
-        image_provider=image_provider,
-        prices_path=prices_path,
-        poll_interval=poll_interval,
-        downloads_dir=downloads_dir,
-        start_worker=start_worker,
+        service, identities, domain=domain, downloads_dir=downloads_dir
     )
     dispatcher = MCPDispatcher(service, identities)
     compile_slots = threading.BoundedSemaphore(
@@ -83,9 +64,7 @@ def create_app(
     application.state.identity_store = identities
     application.state.builder_runtime = builder_runtime
     application.state.store = builder_runtime.store
-    application.state.quota = builder_runtime.quota
     application.state.sites = builder_runtime.sites
-    application.state.worker = builder_runtime.worker
 
     mount_builder_routes(application, builder_runtime)
     mount_page_routes(application, identities, service)
