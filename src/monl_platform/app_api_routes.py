@@ -18,6 +18,7 @@ from .app_http import (
     _require_user_ou_cle,
     _session_response,
 )
+from .dialogue import DialogueInputError, bounded_answer, bounded_answers, soumettre
 from .identity import IdentityError, IdentityStore
 from .journal import anomalie, court, evenement
 from .mcp_server import MCPDispatcher
@@ -184,6 +185,29 @@ def mount_api_routes(
                 status_code=503, detail=str(exc), headers={"Retry-After": "10"}
             ) from exc
 
+    @application.post("/api/dialogue")
+    async def dialogue(request: Request):
+        """Rejouer le dialogue guidé jusqu'à la prochaine question.
+
+        La liste complète vient du navigateur à chaque appel ; elle n'est
+        jamais persistée par la plateforme. Le dialogue reste le seul endroit
+        qui sait valider les réponses et construire le DSL.
+
+        La réponse porte ``answers`` : la liste FAISANT AUTORITÉ, celle que le
+        navigateur doit adopter telle quelle. Une réponse refusée n'y entre
+        pas — sinon elle brûlerait une des trois tentatives du moteur et trois
+        fautes de frappe tueraient le dialogue (voir ``soumettre``).
+        """
+        user = _require_user(request, identities)
+        _rate_limit(request, identities, "dialogue", user["id"], 120, 60)
+        payload = await _json_body(request)
+        try:
+            answers = bounded_answers(payload.get("answers"))
+            candidate = bounded_answer(payload.get("answer"))
+            return await run_in_threadpool(soumettre, answers, candidate)
+        except DialogueInputError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     @application.post("/api/compile", status_code=201)
     async def compile_backend(request: Request):
         user = _require_user(request, identities)
@@ -262,4 +286,3 @@ def mount_api_routes(
             if needs_compiler:
                 compile_slots.release()
         return JSONResponse(response or {}, status_code=200)
-

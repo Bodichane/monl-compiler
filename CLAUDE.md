@@ -1113,6 +1113,32 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   l'anti-rejeu de celle-ci — une tolérance de ±1 fenêtre donnée au serveur
   laissait le test VERT. Déplacée avant, elle rougit. Point 145 mot pour mot.
   Voir point 159.
+- **POINT 163 : « servi » n'est pas « exécutable » — deux pages étaient mortes
+  et 1373 tests verts ne le disaient pas.** Dans une chaîne Python NON BRUTE,
+  `\\'` vaut `'` : écrire `'…Démarrer l\\'API…'` dans un gabarit émet une
+  apostrophe NUE au milieu d'un littéral JavaScript, le navigateur lève
+  `SyntaxError` et **tout le script de la page cesse de s'exécuter**. Deux
+  occurrences — `/console`, et **`/account` cassée sur `main` depuis `bc01b40`
+  (26/08/2026)**, le commit même qui donne les codes de secours du point 142 :
+  la page où l'on récupère un compte perdu n'avait jamais exécuté une ligne de
+  JavaScript.
+  **Pourquoi rien ne l'a vu** : les tests de page CHERCHENT DES CHAÎNES dans le
+  HTML servi, ce qu'une page morte contient tout aussi bien — et l'assertion
+  `"Démarrer l'API" in response.text` visait la forme NUE, donc elle passait
+  *exactement parce que* la page était cassée. `tests/test_console_javascript.py`
+  extrait le script de ce que la ROUTE rend — jamais de la constante du module,
+  c'est ENTRE LES DEUX que l'échappement se perd — et le passe à `node --check`
+  sur les six pages qui en portent. Node est déclaré dans `ci.yml` et son
+  absence fait ÉCHOUER, jamais sauter (point 140).
+  **Le dialogue guidé de la console** repose sur le REJEU : le moteur étant
+  entièrement déterministe, on le relance depuis le début avec un `ask` qui
+  dépile les réponses connues — donc **serveur sans état**, et **aucune règle
+  du dialogue en JavaScript** (point 146). Le piège : le moteur retente TROIS
+  fois avant de lever, et une réponse refusée qui reste dans la liste brûle une
+  tentative pour toujours — trois fautes de frappe et le dialogue mourait, 48
+  réponses perdues. `soumettre` rejoue avant/après et ne retient la réponse que
+  si la question a AVANCÉ (quand le moteur refuse, il redemande le MÊME texte) ;
+  la réponse HTTP porte la liste FAISANT AUTORITÉ. Voir point 163.
 - **POINT 162 : la plateforme ne construit plus d'interface — et retirer une
   fonctionnalité se prouve comme on prouve une brique.** Partis :
   `builder.py`, `worker.py`, `seed_ai.py`, `progress.py`, `revisions.py`,

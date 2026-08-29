@@ -79,6 +79,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [160](#160-un-seuil-de-temps-en-secondes-ne-veut-pas-dire-la-même-chose-sur-deux-machines) Un seuil de temps en secondes ne veut pas dire la même chose sur deux machines ·
 [161](#161-la-ci-avait-deux--q-et-ses-sauts-ne-se-voyaient-pas) La CI avait deux `-q`, et ses sauts ne se voyaient pas ·
 [162](#162-le-cap--une-base-de-données-déterministe-et-sûre-le-reste-chez-le-fournisseur-de-lusager) Le cap : une base de données déterministe et sûre, le reste chez le fournisseur de l'usager ·
+[163](#163-le-dialogue-guidé-sur-le-web-et-deux-pages-mortes-que-rien-ne-voyait) Le dialogue guidé sur le web, et deux pages mortes ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -11265,3 +11266,90 @@ compte vers un serveur que quelqu'un d'autre a nommé.
 agent compile, liste, télécharge les octets du ZIP, mesure un delta et
 recompile en place **sans jamais ouvrir de session**.
 
+---
+
+## 163. Le dialogue guidé sur le web, et deux pages mortes que rien ne voyait
+
+**Le mainteneur, en une phrase** : « la console web fonctionne comme le cli :
+dialogue → contrat + database ». La console partait d'une spec DÉJÀ ÉCRITE, et
+`guide_data.py` l'annonçait noir sur blanc : « Pas de dialogue guidé ». La
+moitié de la promesse manquait.
+
+### Le rejeu, mesuré avant d'être conçu
+
+`GuidedDialogue` prend `ask` et `say` injectables et le moteur est ENTIÈREMENT
+déterministe — aucune IA, aucun réseau, aucune horloge. Il se REJOUE donc : à
+chaque requête on relance le dialogue depuis le début avec un `ask` qui dépile
+les réponses connues ; quand il n'en reste plus, la question demandée est la
+suivante.
+
+Vérifié en exécutant, pas en lisant : deux rejeux identiques rendent exactement
+la même chose, et `SCENARIO_PORTFOLIO` rejoué réponse par réponse donne **48
+questions, 48 rejeux, puis une spec de 42 lignes** que le moteur audite
+lui-même. Conséquence : **le serveur reste SANS ÉTAT**, le navigateur détient
+les réponses, et aucune règle du dialogue n'a besoin d'exister en JavaScript.
+C'est tout l'enjeu — le point 146 rappelle que deux mises en œuvre d'une même
+règle divergent toujours ; ici il n'y en a qu'une.
+
+### TROIS FAUTES DE FRAPPE TUAIENT LE DIALOGUE
+
+Le moteur retente **trois** fois avant de lever (`max_retries`), et le
+navigateur ne dépilait jamais : une réponse refusée restait dans la liste et
+brûlait une tentative POUR TOUJOURS. À la troisième faute sur la même question,
+tout rejeu ultérieur répondait 422 — quarante-huit réponses perdues, sans
+retour possible, pendant que la console proposait poliment de « recommencer ».
+Mesuré en trois lignes, pas supposé.
+
+Le signal qui tranche : **quand le moteur refuse, il redemande le MÊME texte de
+question.** `soumettre` rejoue donc deux fois — avant et après la réponse
+proposée — et ne la retient que si la question a AVANCÉ. La réponse HTTP porte
+`answers`, la liste FAISANT AUTORITÉ, que le navigateur adopte telle quelle :
+il ne décide jamais lui-même ce qui compte comme une réponse valide. Le budget
+de tentatives n'est plus jamais entamé ; six refus d'affilée laissent le
+dialogue intact (éprouvé en HTTP, puis dans un vrai navigateur).
+
+### DEUX PAGES ÉTAIENT MORTES, ET RIEN NE LE DISAIT
+
+C'est la vraie trouvaille de ce point, et elle est arrivée en ouvrant la
+console pour de bon.
+
+Dans une chaîne Python NON BRUTE, `\'` vaut `'`. Écrire
+`'…Démarrer l\'API…'` dans un gabarit émet donc `'…Démarrer l'API…'` : une
+apostrophe NUE au milieu d'un littéral JavaScript. Le navigateur lève
+`SyntaxError: Unexpected identifier 'API'` et **tout le script de la page
+cesse de s'exécuter** — plus un seul bouton ne répond.
+
+Deux occurrences, dont une bien antérieure :
+
+- `/console`, introduite dans la même session (le bouton « Démarrer l'API ») ;
+- **`/account`, cassée sur `main` depuis le commit `bc01b40` du 26/08/2026** —
+  celui-là même qui ferme la « falaise produit » du point 142 en donnant huit
+  codes de secours. La page où l'on récupère un compte perdu n'avait jamais
+  exécuté une ligne de JavaScript : ni liste de projets, ni téléchargement, ni
+  suppression de compte, ni codes de secours.
+
+**Pourquoi rien ne l'a vu.** 1373 tests, la CI verte sur trois versions de
+Python, et les tests de page lisaient le HTML servi pour y CHERCHER DES
+CHAÎNES — ce qu'une page morte contient tout aussi bien. Pire : mon propre test
+affirmait `"Démarrer l'API" in response.text`, la forme NUE, donc il passait
+**exactement parce que** la page était cassée. Une chaîne présente dans du HTML
+ne distingue pas une page qui marche d'une page qui ne marche pas.
+
+C'est le point 83 transposé au script : *« présent » n'est pas « servi »* devient
+*« servi » n'est pas « exécutable »*. Et c'est le « sur-échappement de backslash
+entre couches de templating Python » que `CLAUDE.md` range depuis longtemps
+parmi les défauts que seule l'exécution révèle.
+
+`tests/test_console_javascript.py` ferme la porte : il extrait le script de ce
+que la ROUTE rend — jamais de la constante du module, c'est ENTRE LES DEUX que
+l'échappement se perd — et le passe à `node --check`, sur les six pages qui en
+portent. Node est déclaré dans `.github/workflows/ci.yml`, et son absence fait
+ÉCHOUER plutôt que sauter : un saut dirait « rien à vérifier ici » alors qu'il
+dirait « je n'ai pas vérifié » (point 140, mot pour mot).
+
+### Preuve
+
+Suite verte, et le parcours refait dans un vrai navigateur : quatre réponses
+invalides d'affilée — plus que le budget de trois tentatives — chacune refusée
+avec son message (« ✗ Choisir un numéro du menu. »), zéro retenue, puis deux
+réponses acceptées qui font avancer le dialogue.
