@@ -81,6 +81,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [162](#162-le-cap--une-base-de-données-déterministe-et-sûre-le-reste-chez-le-fournisseur-de-lusager) Le cap : une base de données déterministe et sûre, le reste chez le fournisseur de l'usager ·
 [163](#163-le-dialogue-guidé-sur-le-web-et-deux-pages-mortes-que-rien-ne-voyait) Le dialogue guidé sur le web, et deux pages mortes ·
 [164](#164-quatre-bloquants-quaucun-test-ne-voyait-trouvés-en-étant-le-premier-usager) Quatre bloquants trouvés en étant le premier usager ·
+[165](#165-le-site-à-375-pixels--quatre-défauts-et-une-mesure-qui-portait-à-côté) Le site à 375 pixels, et une mesure qui portait à côté ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -11471,3 +11472,103 @@ depuis le dépôt. Ce n'est pas un bug — c'est une décision jamais prise. C'e
 le dernier obstacle réel entre monl et quelqu'un qui n'a pas le dépôt, et il
 demande un arbitrage humain (nom sur l'index, compte, licence FSL-1.1-ALv2),
 pas une correction.
+
+---
+
+## 165. Le site à 375 pixels : quatre défauts, et une mesure qui portait à côté
+
+Le point 164 a fait le trajet de l'usager ; il restait deux choses déclarées
+non éprouvées, dont **le rendu sur écran étroit**. Le volet Navigateur masqué
+ment sur la cascade et sur le défilement (points 156 et 158) — mais il mesure
+la GÉOMÉTRIE, et c'est exactement ce qu'il faut ici.
+
+La sonde ne cherche pas « ça déborde » : elle cherche **du contenu coupé sans
+recours**. Pour chaque élément dont le bord droit dépasse la fenêtre, elle
+remonte les ancêtres jusqu'au premier qui gère l'`overflow`. Trois issues :
+dans un conteneur qui DÉFILE (une bande d'onglets, un bloc de code — c'est
+voulu) ; dans un conteneur qui CLIPPE sans défiler (perdu) ; ou dans AUCUN
+conteneur, donc coupé par l'`overflow-x:clip` du `body` (perdu, et invisible
+parce que `documentElement.scrollWidth` reste égal à la fenêtre).
+
+### 1. Une @media n'ajoute AUCUNE spécificité — seul l'ORDRE la défend
+
+`.case-explorer` — l'explorateur de cas métier, la vitrine interactive de
+l'accueil — sortait en **deux colonnes de 230 et 103 pixels** sur un écran de
+375. `landing.py` posait bien `grid-template-columns:1fr` sous 760px, et
+`matchMedia('(max-width:760px)')` répondait `true`. Mais `extra_css` concatène
+`landing.EXTRA_CSS` PUIS `landing_cas.EXTRA_CSS`, et la règle nue de ce second
+module — même poids `0,1,0` — était écrite plus tard. Elle gagnait.
+
+Le panneau faisait donc 103 pixels de large, clippé par l'`overflow:hidden` de
+la carte. La règle responsive vit désormais dans le module de son composant,
+donc APRÈS sa propre règle de base. **Un balayage de tout le CSS servi n'a
+trouvé qu'UNE collision de cette forme** — c'est le témoin qui le dit, sur les
+204 règles de la page.
+
+Piège dans le piège : l'extracteur du témoin ne retirait pas les commentaires
+CSS. Les commentaires de ce dépôt citent volontiers la règle qu'ils expliquent,
+accolades comprises (point 156 — un commentaire CSS est du CONTENU de page), et
+la contre-épreuve pouvait donc mesurer le commentaire au lieu de la règle. Elle
+a été REFAITE après correction de l'extracteur.
+
+### 2. `1fr` vaut `minmax(auto, 1fr)`, et ce plancher est le min-content
+
+Trois manifestations du même défaut, dont deux mesurées :
+
+- **`.doc` (le guide)** : piste unique de **550 pixels** dans un écran de 375,
+  soit **351 éléments coupés** — le guide entier illisible sur téléphone.
+- **`.refus-body` (l'accueil)** : piste de 497 pixels dans un conteneur de 333.
+
+Dans les deux cas la règle responsive était au bon endroit et s'appliquait
+vraiment : c'est le plancher `auto` — la largeur min-content de l'enfant, ici
+une ligne de spec non sécable dans un bloc de code — qui gonflait la piste.
+`minmax(0,1fr)` la laisse rétrécir, et le `overflow-x:auto` du bloc de code
+rend le contenu atteignable.
+
+**La réécriture en masse a été ÉCARTÉE, et c'est le cœur de la décision.** Le
+motif apparaît 119 fois dans le CSS de la plateforme. Mais `minmax(0,1fr)` ne
+supprime pas la coupure : il la DÉPLACE de la page vers l'enfant. Elle ne
+répare que si cet enfant porte son propre défilement. Poser le plancher partout
+aurait donné une garantie FAUSSE ailleurs — mot pour mot la leçon du point 84
+(« une garantie trop large n'est pas plus sûre, elle est fausse ailleurs »).
+Seuls les deux cas mesurés sont corrigés.
+
+### 3. Un tableau ne se plancherie pas, il se fait défiler
+
+Sur `/confidentialite`, **17 éléments hors de tout conteneur** : la troisième
+colonne du tableau des durées de conservation — « Combien de temps » — était
+coupée, sur la page qui ÉNONCE ces durées. La première colonne porte
+`white-space:nowrap` (un nom de table ne se coupe pas), donc aucune piste
+plancherée n'y peut rien. Le tableau vit maintenant dans son propre conteneur
+`overflow-x:auto`.
+
+### 4. La console portait le titre de l'accueil
+
+Trouvé parce que la sonde rapportait le `<title>` de chaque page et que deux
+lignes étaient identiques. Toutes les voisines se nomment (« MCP — … »,
+« Votre compte — … ») ; avec plusieurs onglets ouverts, la console était
+indiscernable de la page d'accueil.
+
+### Ce que la mesure elle-même a appris
+
+**Un module installé peut MASQUER l'arbre source.** Le premier correctif de
+`.case-explorer` n'a rien changé au navigateur : `import monl_platform`
+résolvait vers `~/.local/lib/.../site-packages/`, une copie non-éditable
+laissée par la preuve d'empaquetage du point 164. Les tests, eux, voyaient
+`src/` — `tests/conftest.py` l'insère en tête de `sys.path`. **Deux vérités,
+et c'est la mesure qui portait sur la mauvaise.** Famille du bytecode périmé,
+une couche plus haut : isoler la variable, jamais lire la valeur.
+
+**Une page qui répond n'est pas la page qu'on croit.** Le premier balayage
+couvrait dix adresses ; deux étaient des 404 (`/securite`, `/documentation` —
+les vraies sont `/security` et `/docs`) et trois redirigeaient vers la
+connexion. Cinq mesures sur dix portaient donc sur deux pages seulement. Les
+codes HTTP ont été relevés APRÈS coup, ce qui est le bon ordre inversé.
+
+### Résultat
+
+Douze pages, 2 300 éléments, 375 pixels : **zéro élément hors de tout
+conteneur, zéro élément coupé sans moyen de défiler.** En thème CLAIR, 45
+couples couleur/fond mesurés, aucun sous le seuil WCAG — avec son contrôle de
+validité (les variables de thème changent bien entre clair et sombre, sans quoi
+on aurait mesuré deux fois le même thème).

@@ -18,8 +18,6 @@ import ast
 import fnmatch
 import os
 
-import tomllib
-
 SRC = os.path.join(os.path.dirname(__file__), "..", "src", "monl")
 
 # Les modules du projet. Un PAQUET compte pour un seul nœud : son découpage
@@ -382,6 +380,11 @@ def test_tout_fichier_statique_de_la_plateforme_est_embarque_dans_le_paquet():
     Ce test se lit sur le DISQUE et non sur une liste écrite à la main : un
     `.svg` ou un `.woff2` ajouté demain rouvrirait le même trou en silence.
     """
+    try:
+        import tomllib
+    except ModuleNotFoundError:      # 3.10 : `tomllib` n'arrive qu'en 3.11
+        import tomli as tomllib      # noqa: I001  (déclaré dans l'extra `dev`)
+
     racine = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     statiques = os.path.join(racine, "src", "monl_platform", "static")
     with open(os.path.join(racine, "pyproject.toml"), "rb") as fh:
@@ -461,3 +464,55 @@ def test_les_bibliotheques_dont_les_tests_ont_besoin_sont_dans_dev():
             f"{distribution} manque à l'extra `dev` : la CI installe "
             f"`.[dev,postgres]`, donc les tests qui en dépendent sauteront "
             f"ou échoueront")
+
+
+# Modules entrés dans la bibliothèque standard APRÈS la version minimale
+# déclarée par `requires-python` (3.10). Les importer EN TÊTE de fichier fait
+# échouer la COLLECTE sur la plus vieille version que la CI couvre — donc tout
+# le fichier, pas seulement le test concerné.
+APRES_LA_VERSION_MINIMALE = {
+    "tomllib": "3.11",     # lecture de pyproject.toml
+    "asyncio.taskgroups": "3.11",
+}
+
+
+def test_aucun_test_n_importe_en_tete_un_module_absent_de_la_version_minimale():
+    """Un import de tête tue la COLLECTE, pas seulement son test.
+
+    `import tomllib` posé en tête de `test_architecture.py` a rendu la CI rouge
+    sur Python 3.10 (`ModuleNotFoundError`) alors que la suite était verte en
+    local : cette machine est en 3.14, où le module existe. Le fichier portait
+    DÉJÀ deux fois le repli correct — un `try/except ModuleNotFoundError` dans
+    la fonction — et l'import de tête le contournait.
+
+    Le repli doit rester DANS la fonction : là, seul le test qui a besoin du
+    module échoue si `tomli` manque, et il le dit. En tête, c'est le fichier
+    entier qui disparaît de la collecte, ce qui ressemble à « rien à vérifier »
+    (point 140).
+    """
+    dossier = os.path.dirname(os.path.abspath(__file__))
+    fichiers = sorted(nom for nom in os.listdir(dossier)
+                      if nom.startswith("test_") and nom.endswith(".py"))
+    assert fichiers, "aucun fichier de test lu : ce témoin ne garde plus rien"
+
+    fautes = []
+    for nom_fichier in fichiers:
+        with open(os.path.join(dossier, nom_fichier), encoding="utf-8") as fh:
+            arbre = ast.parse(fh.read())
+        for noeud in arbre.body:            # le CORPS du module, pas les fonctions
+            if isinstance(noeud, ast.Import):
+                noms = [alias.name for alias in noeud.names]
+            elif isinstance(noeud, ast.ImportFrom):
+                noms = [noeud.module or ""]
+            else:
+                continue
+            for nom in noms:
+                if nom in APRES_LA_VERSION_MINIMALE:
+                    fautes.append(
+                        f"{nom_fichier}:{noeud.lineno} importe « {nom} » en tête "
+                        f"(entré en {APRES_LA_VERSION_MINIMALE[nom]}, minimum "
+                        f"déclaré 3.10)")
+
+    assert not fautes, (
+        "import(s) de tête absent(s) de la version minimale — la collecte du "
+        "fichier ENTIER échoue sur cette version : " + " ; ".join(fautes))

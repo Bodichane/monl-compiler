@@ -111,7 +111,15 @@ CSS = """
 .legal p, .legal li { color: var(--muted); }
 .legal strong { color: var(--ink); font-weight: 600; }
 .legal ul { padding-left: var(--space-5); display: grid; gap: 6px; margin: var(--space-3) 0; }
-.legal table { width: 100%; border-collapse: collapse; margin: var(--space-4) 0; font-size: 14px; }
+.legal table { width: 100%; border-collapse: collapse; margin: 0; font-size: 14px; }
+/* Le tableau vit dans son PROPRE conteneur défilant. Mesuré à 375px avant
+   correction : 17 éléments hors de l'écran et hors de tout conteneur, donc
+   coupés par l'`overflow-x:clip` du `body` — la troisième colonne (« Combien
+   de temps ») était perdue, sur la page qui ÉNONCE les durées de conservation.
+   La première colonne porte `white-space:nowrap` (un nom de table ne se coupe
+   pas), donc la largeur minimale ne peut pas descendre : il faut un défilement,
+   pas une piste plancherée. */
+.legal .table-large { overflow-x: auto; margin: var(--space-4) 0; }
 .legal th, .legal td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line);
                        vertical-align: top; }
 .legal th { color: var(--ink); font-weight: 600; }
@@ -158,10 +166,10 @@ confrontée au schéma de la base par la suite de tests : une donnée conservée
 décrite ici fait échouer la construction.</p>
 
 <h2>Les données conservées</h2>
-<table>
+<div class="table-large"><table>
 <thead><tr><th>Où</th><th>Quoi</th><th>Combien de temps</th></tr></thead>
 <tbody>{_LIGNES}</tbody>
-</table>
+</table></div>
 
 <h3>Ce que le service ne fait pas</h3>
 <ul>

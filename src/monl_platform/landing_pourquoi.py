@@ -177,11 +177,19 @@ EXTRA_CSS = """
 .refus .fold { display:grid; grid-template-rows:0fr; transition:grid-template-rows .26s cubic-bezier(.2,.8,.2,1); }
 .refus details[open] .fold { grid-template-rows:1fr; }
 .refus .fold > div { overflow:hidden; }
+/* `minmax(0,1fr)` et non `1fr` : un `1fr` vaut `minmax(auto,1fr)`, et ce
+   plancher `auto` est la largeur MIN-CONTENT de l'enfant — soit, ici, la ligne
+   de spec non sécable du bloc de code. Mesuré à 375px avant correction : une
+   colonne unique de 497px dans un conteneur de 333, coupée par
+   l'`overflow:hidden` du dépliant, donc du texte perdu sans moyen de
+   l'atteindre. Le `min-width:0` sur l'enfant fait la même chose pour la taille
+   minimale automatique de l'élément de grille ; il faut les DEUX. Le
+   défilement reste offert par le `overflow-x:auto` du bloc de code lui-même. */
 .refus-body {
-  display:grid; grid-template-columns:1fr 1fr; gap:1px;
+  display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:1px;
   background:var(--line); border-top:1px solid var(--line);
 }
-.refus-body > div { background:var(--surface); padding:20px; }
+.refus-body > div { background:var(--surface); padding:20px; min-width:0; }
 .refus-body h4 {
   margin:0 0 10px; font:600 11px/1 var(--mono); letter-spacing:.09em;
   text-transform:uppercase; color:var(--muted);
@@ -217,7 +225,7 @@ EXTRA_CSS = """
 @media(max-width:900px){
   .montages{grid-template-columns:1fr}
   .compare-row{grid-template-columns:1fr}
-  .refus-body{grid-template-columns:1fr}
+  .refus-body{grid-template-columns:minmax(0,1fr)}
 }
 @media(prefers-reduced-motion:reduce){
   .refus .fold, .refus summary .chev { transition:none; }
