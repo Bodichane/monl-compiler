@@ -1083,6 +1083,22 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   tomber le test. **Même leçon que la palette et que la ligne de commande :
   une mesure peut porter sur autre chose que ce qu'on croit mesurer.**
   Voir point 158.
+- **POINT 161 : la CI avait DEUX `-q`, donc ses sauts ne se voyaient pas.**
+  `pyproject.toml` pose `addopts = "-q"` et chaque commande de `ci.yml` en
+  posait un second : `-qq` supprime la ligne de décompte ET la section de
+  résumé. Un saut n'apparaissait plus que comme un `s` au milieu de 1 377
+  points — c'est ainsi que le saut de Pillow a vécu dans cette CI depuis
+  toujours. Le `-q` redondant est retiré, `-rs` NOMME chaque saut avec son
+  motif (compter ne suffit pas : « 2 skipped » ne dit pas lesquels).
+  **La garantie est gardée par un test** — `tests/test_ci_les_sauts_se_voient.py`
+  refuse toute commande qui repose `-q` ou qui n'emporte pas `-rs`, avec un
+  témoin sur la prémisse (`addopts` porte-t-il encore `-q` ?) et un témoin sur
+  l'EXTRACTEUR, sans quoi une fonction qui ne trouve rien rendrait les deux
+  règles vertes en ne regardant rien. Piège de lecture YAML : `--cov=…`
+  commence par un tiret comme un élément de liste — c'est le tiret SUIVI D'UNE
+  ESPACE qui ouvre une liste, et sans cette distinction la commande repliée
+  `>-` est coupée en son milieu. Faire ÉCHOUER sur un saut est une décision
+  SÉPARÉE, volontairement non prise. Voir point 161.
 - **POINT 159 : un test qui dépend d'une horloge FIXE son instant de référence,
   puis ne la relit plus.** L'assertion de rejeu TOTP de
   `tests/test_authentification_b4.py` RECALCULAIT le code au lieu de rejouer
