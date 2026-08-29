@@ -68,7 +68,7 @@ where = ["src"]
 "" = "src"
 
 [tool.setuptools.package-data]
-monl_platform = ["static/*.png"]
+monl_platform = ["static/*.png", "static/*.ico"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

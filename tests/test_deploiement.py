@@ -188,6 +188,18 @@ def test_production_sans_secret_refuse_le_demarrage(projet):
     assert "MONL_JWT_SECRET" in sortie
 
 
+def test_un_projet_livre_sans_secret_le_cree_au_premier_demarrage(projet):
+    (projet / ".jwt_secret").unlink()
+
+    with _serveur(projet) as (base, _processus):
+        assert requests.get(f"{base}/health", timeout=5).status_code == 200
+
+    secret = projet / ".jwt_secret"
+    assert secret.is_file()
+    assert len(secret.read_text(encoding="utf-8").strip()) == 64
+    assert secret.stat().st_mode & 0o077 == 0
+
+
 def test_dockerfile_et_dockerignore_sont_crees_et_preserves(projet):
     dockerfile = projet / "Dockerfile"
     dockerignore = projet / ".dockerignore"

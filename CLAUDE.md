@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1379 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1391 tests
   actuellement ; `tests/test_demo.py` s'appuie sur le dossier `demo/`
   versionné — ne pas le supprimer. La démo est **CodexShop**, une papeterie
   qui exerce la chaîne marchande entière ; ses ENTRÉES seules sont suivies
@@ -1113,6 +1113,83 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   l'anti-rejeu de celle-ci — une tolérance de ±1 fenêtre donnée au serveur
   laissait le test VERT. Déplacée avant, elle rougit. Point 145 mot pour mot.
   Voir point 159.
+- **POINT 165 : le site à 375 px — une `@media` n'ajoute AUCUNE spécificité, et
+  `1fr` vaut `minmax(auto,1fr)`.** Le volet Navigateur masqué ment sur la
+  cascade et le défilement (points 156, 158) mais mesure la GÉOMÉTRIE : la
+  sonde ne cherche pas « ça déborde », elle remonte les ancêtres et distingue
+  trois cas — contenu dans un conteneur qui DÉFILE (voulu), dans un conteneur
+  qui CLIPPE (perdu), ou dans AUCUN conteneur donc coupé par
+  l'`overflow-x:clip` du `body` (perdu, et invisible : `scrollWidth` reste
+  égal à la fenêtre).
+  (a) **Collision de cascade** : `.case-explorer` sortait en `230px 103px`
+  alors que `matchMedia('(max-width:760px)')` valait `true` — `extra_css`
+  concatène `landing.EXTRA_CSS` puis `landing_cas.EXTRA_CSS`, et la règle NUE
+  du second (même poids 0,1,0) était écrite plus tard, donc gagnait. **Une
+  règle responsive vit dans le module de son composant**, après sa règle de
+  base. Un balayage du CSS servi n'a trouvé qu'UNE collision de cette forme sur
+  204 règles ; le témoin la garde.
+  (b) **Plancher min-content** : `.doc` (le guide) rendait une piste de 550 px
+  dans 375 — 351 éléments coupés, le guide illisible — et `.refus-body` 497 px
+  dans 333. La règle responsive s'appliquait bien : c'est le plancher `auto`
+  d'un `1fr`, égal au min-content d'une ligne de spec non sécable, qui gonflait
+  la piste. **La réécriture en masse des 119 occurrences est ÉCARTÉE** :
+  `minmax(0,1fr)` DÉPLACE la coupure vers l'enfant au lieu de la supprimer, et
+  ne répare que si cet enfant porte son propre défilement — une garantie trop
+  large est fausse ailleurs (point 84).
+  (c) Le tableau des durées de conservation de `/confidentialite` perdait sa
+  troisième colonne : `white-space:nowrap` sur la première rend tout plancher
+  inopérant, il faut un conteneur qui DÉFILE.
+  (d) La console portait le titre de l'ACCUEIL — trouvé parce que la sonde
+  rapportait chaque `<title>` et que deux lignes étaient identiques.
+  **CE QUE LA MESURE A APPRIS.** Un module INSTALLÉ peut masquer l'arbre
+  source : le premier correctif ne changeait rien au navigateur parce que
+  `import monl_platform` résolvait vers `site-packages` (copie non-éditable
+  laissée par la preuve du point 164) pendant que les tests voyaient `src/` via
+  `conftest.py` — deux vérités, et la mesure portait sur la mauvaise. Et **une
+  page qui répond n'est pas la page qu'on croit** : sur dix adresses sondées,
+  deux étaient des 404 (`/securite`, `/documentation` ; les vraies sont
+  `/security` et `/docs`) et trois redirigeaient vers la connexion. Relever les
+  codes HTTP AVANT de mesurer, pas après.
+  Résultat : douze pages, 2 300 éléments, zéro coupure ; 45 couples de contraste
+  en thème clair, aucun sous le seuil WCAG. Voir point 165.
+- **POINT 164 : quatre bloquants qu'aucun test ne voyait, parce qu'ils vivent
+  dans CE QUE L'USAGER REÇOIT.** Trouvés en faisant le trajet — installer,
+  dialoguer, compiler, télécharger, démarrer l'archive ailleurs, MCP, perdre son
+  mot de passe, supprimer son compte.
+  (a) **La plateforme était INDÉPLOYABLE** : `package-data` ne déclarait que
+  `static/*.png`, donc `favicon.ico` n'entrait pas dans le paquet, et `theme.py`
+  le lit AU NIVEAU DU MODULE — depuis un `pip install` ordinaire,
+  `import monl_platform.app` levait `FileNotFoundError`. Le garde-fou de la CI
+  écrit pour cette classe de défaut ne l'a pas vu parce qu'il installe en
+  ÉDITABLE, ce qui fait pointer les modules vers l'arbre source. **Une garantie
+  peut être exacte et regarder à côté.** Le témoin neuf lit le DISQUE et
+  confronte chaque fichier de `static/` aux motifs de `package-data`.
+  (b) **L'archive téléchargée ne démarrait pas** : la documentation promettait
+  depuis toujours que le backend crée `.jwt_secret` au premier démarrage, et le
+  runtime généré ne le faisait pas — il renvoyait vers le compilateur, conseil
+  impossible pour qui n'a qu'un ZIP. Créé désormais avec `O_EXCL` et `0600` ;
+  `MONL_ENV=production` continue d'EXIGER `MONL_JWT_SECRET` (un secret refait à
+  chaque redémarrage invaliderait toutes les sessions).
+  (c) **`requirements.txt` était documenté mais pas livré** — et le correctif a
+  créé le défaut suivant : deux listes de dépendances tenues séparément (le
+  fichier listait toujours `python-multipart`, le Dockerfile ne l'ajoutait que
+  pour un `Upload`). Le Dockerfile n'énumère plus rien, il fait
+  `-r requirements.txt`. **Le piège attrapé en chemin** : `DOCKERFILES_HERITES`
+  était DÉRIVÉ du gabarit courant par `.replace()` — changer le gabarit faisait
+  désigner des formes JAMAIS ÉMISES, donc tout projet existant voyait son
+  Dockerfile pris pour personnalisé et gelé à jamais, en silence. **Un
+  « hérité » décrit le PASSÉ : il ne se déduit pas du présent.** Les quatre
+  formes réellement émises sont écrites en toutes lettres.
+  (d) **La page `/mcp` annonçait quatre outils inexistants** (`monl_validate`,
+  `monl_compile`, `monl_templates`, `monl_example`) : la liste était écrite à la
+  main, comme `guide_data.py` listait les routes avant qu'un test ne les
+  confronte aux décorateurs réels. Confrontée désormais à `TOOLS`.
+  **Ce que les quatre ont en commun** : aucun n'est dans le code métier. La
+  suite éprouve ce que le compilateur PRODUIT, pas ce qui ARRIVE chez
+  quelqu'un — point 83 d'un cran de plus, après le point 163 :
+  « présent » ≠ « servi » ≠ « exécutable » ≠ **« installable ailleurs »**.
+  Reste ouvert et ce n'est PAS un défaut : `monl-compiler` n'est publié sur
+  aucun index. Voir point 164.
 - **POINT 163 : « servi » n'est pas « exécutable » — deux pages étaient mortes
   et 1373 tests verts ne le disaient pas.** Dans une chaîne Python NON BRUTE,
   `\\'` vaut `'` : écrire `'…Démarrer l\\'API…'` dans un gabarit émet une

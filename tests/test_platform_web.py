@@ -85,6 +85,14 @@ def test_page_explique_compile_et_mcp(tmp_path):
         assert mcp_page.status_code == 200
         assert "Clés d’accès" in mcp_page.text
         assert "Créer une clé" in mcp_page.text
+        for tool in (
+            "monl_list_templates", "monl_validate_spec", "monl_compile_backend",
+            "monl_list_projects", "monl_inspect_contract", "monl_diff_spec",
+            "monl_update_backend",
+        ):
+            assert f"<span>{tool}</span>" in mcp_page.text
+        for obsolete in ("monl_validate", "monl_compile", "monl_templates", "monl_example"):
+            assert f"<span>{obsolete}</span>" not in mcp_page.text
 
         docs = requests.get(base + "/docs", timeout=30)
         assert docs.status_code == 200

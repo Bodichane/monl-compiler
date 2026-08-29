@@ -138,7 +138,7 @@ EXTRA_CSS = """
 .final .secondary { background:var(--surface); color:var(--ink); border:0; }
 @media(max-width:760px){
   .landing-hero { padding-top:56px; grid-template-columns:1fr; }
-  .pipeline,.bento,.step-list,.editorial,.platform-flow,.case-explorer { grid-template-columns:1fr; }
+  .pipeline,.bento,.step-list,.editorial,.platform-flow { grid-template-columns:1fr; }
   .flow-stage { min-height:220px; border-right:0; border-bottom:1px solid var(--line); }.flow-stage:last-child{border-bottom:0}
   .proof-rail{grid-template-columns:1fr 1fr}.proof-rail div:nth-child(2){border-right:0}.proof-rail div:nth-child(-n+2){border-bottom:1px solid var(--line)}
   .layers{grid-template-columns:1fr}.layer:nth-child(2){transform:none}.layer-arrow{display:none}

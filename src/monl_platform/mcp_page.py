@@ -24,7 +24,7 @@ BODY = f"""
 <section class="shell mcp-grid">
 <article class="card mcp-panel"><h2>Configurer la connexion</h2><p class="muted">Votre agent appelle le compilateur distant avec une clé personnelle. La spec reste le contrat d’entrée.</p>
 <h3>Adresse du serveur</h3><div class="endpoint"><code id="mcp-endpoint">/mcp</code><button class="secondary copy-endpoint" type="button">Copier</button></div>
-<h3>Outils disponibles</h3><div class="tool-list"><span>monl_validate</span><span>monl_compile</span><span>monl_templates</span><span>monl_example</span></div>
+<h3>Outils disponibles</h3><div class="tool-list"><span>monl_list_templates</span><span>monl_validate_spec</span><span>monl_compile_backend</span><span>monl_list_projects</span><span>monl_inspect_contract</span><span>monl_diff_spec</span><span>monl_update_backend</span></div>
 <p class="muted" style="margin-top:var(--space-5)">Utilisez la clé comme jeton Bearer. Une clé par appareil permet de révoquer un accès sans interrompre les autres.</p>
 <a class="secondary" href="/docs">Lire la syntaxe des specs</a></article>
 <article class="card mcp-panel"><div class="panel-head"><div><h2>Clés d’accès</h2><p class="muted">Gérez les accès de vos agents.</p></div><button class="primary" id="new-key" type="button">{icon('key')} Créer une clé</button></div>

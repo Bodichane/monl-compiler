@@ -57,7 +57,15 @@ EXTRA_CSS = """
 @media(max-width:760px){
   .case-tabs { border-right:0; border-bottom:1px solid var(--line); display:flex; overflow-x:auto; }
   .case-tab { width:190px; flex:none; }.case-tab span { display:none; }
-  .case-panel.active { grid-template-columns:1fr; }.case-explorer { min-height:0; }
+  .case-panel.active { grid-template-columns:1fr; }
+  /* Une seule colonne sous 760px. Cette règle DOIT vivre ici et non dans
+     landing.py : une @media n'ajoute AUCUNE spécificité, et `extra_css`
+     concatène landing.EXTRA_CSS AVANT celui-ci — la règle nue ci-dessus
+     (`.case-explorer { grid-template-columns:minmax(230px,.7fr) … }`, même
+     poids 0,1,0) écrasait donc la version responsive écrite là-bas. Mesuré
+     à 375px : colonnes `230px 103px`, soit un panneau de cas métier de
+     103 pixels de large, clippé par l'`overflow:hidden` de la carte. */
+  .case-explorer { grid-template-columns:1fr; min-height:0; }
 }
 """
 

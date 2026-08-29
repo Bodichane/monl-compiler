@@ -286,9 +286,9 @@ class SocleRuntimeMixin:
             # CORRECTIF (bêta, hygiène de secret) : le secret JWT est lu en
             # priorité depuis la variable d'environnement MONL_JWT_SECRET
             # (recommandé en production — le secret ne touche jamais le disque
-            # ni un dépôt), et retombe sinon sur le fichier '.jwt_secret'
-            # généré à la compilation. Un projet peut ainsi être livré SANS
-            # secret embarqué et se le voir injecter au déploiement.
+            # ni un dépôt), et retombe sinon sur le fichier '.jwt_secret'.
+            # Une archive livrée sans secret peut ainsi en créer un au premier
+            # démarrage, sur la machine qui l'héberge.
             "JWT_SECRET = (os.environ.get('MONL_JWT_SECRET') or '').strip()",
             "_MONL_ENV = os.environ.get('MONL_ENV', '').strip().lower()",
             "if _MONL_ENV == 'production' and not JWT_SECRET:",
@@ -302,13 +302,21 @@ class SocleRuntimeMixin:
             "            JWT_SECRET = _f.read().strip()",
             "        if not JWT_SECRET:",
             "            raise ValueError('.jwt_secret est vide')",
-            "    except (FileNotFoundError, ValueError) as _e:",
-            "        raise RuntimeError(",
-            "            \"Aucun secret JWT : définissez la variable d'environnement \"",
-            "            \"MONL_JWT_SECRET, ou laissez le compilateur monl générer \"",
-            "            \"'.jwt_secret' (relancez 'python3 src/main.py <spec.ml>' depuis la \"",
-            "            \"racine du projet avant de démarrer le serveur).\"",
-            "        ) from _e",
+            "    except FileNotFoundError:",
+            "        JWT_SECRET = secrets.token_hex(32)",
+            "        try:",
+            "            _fd = os.open('.jwt_secret', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)",
+            "        except FileExistsError:",
+            "            with open('.jwt_secret', 'r', encoding='utf-8') as _f:",
+            "                JWT_SECRET = _f.read().strip()",
+            "        except OSError as _e:",
+            "            raise RuntimeError(\"Impossible de créer .jwt_secret : définissez \"",
+            "                               \"MONL_JWT_SECRET ou rendez le dossier inscriptible.\") from _e",
+            "        else:",
+            "            with os.fdopen(_fd, 'w', encoding='utf-8') as _f:",
+            "                _f.write(JWT_SECRET)",
+            "    if not JWT_SECRET:",
+            "        raise RuntimeError('Le fichier .jwt_secret est vide')",
             "JWT_ALGORITHM = 'HS256'",
             f"VALID_ACTORS = [{actors_literal}]",
             # CORRECTIF (bêta 3, faille critique d'élévation de privilège) :

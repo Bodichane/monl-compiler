@@ -36,13 +36,16 @@ GOLDENS = {
     # réessayée. Le changement vit dans le RUNTIME, donc seuls app.py et
     # monl.json (qui scelle son empreinte) bougent : schema.sql, manage.py et
     # le Dockerfile restent à l'octet près, ce qui est le contrôle de portée.
+    # La génération d'un secret JWT au premier démarrage d'une archive sans
+    # `.jwt_secret` est un second changement de runtime : app.py et monl.json
+    # bougent volontairement, les autres artefacts restent inchangés.
     # POINT 138 : l'indicatif téléphonique s'applique désormais même sans zéro
     # de tête (il ne canonicalisait qu'un numéro européen). La normalisation
     # vit aux DEUX endroits qui doivent rester identiques, donc app.py ET
     # manage.py bougent, plus monl.json qui scelle l'empreinte du backend.
     # schema.sql, le contrat, le brief, le wrapper et le conteneur restent à
     # l'octet près : la correction ne touche que l'identifiant de compte.
-    "app.py": "43a587eb63fa612dc6083c4e567a624ac5dad2943c0d7fc762dd3415f29abbf5",
+    "app.py": "9c7059778a626958de2077296b791a228c264ac4bfa008d30dc9f81e9292d140",
     "schema.sql": "244eb93ba9a727aa855bca0a96d76b2a329f8ee69c6b5bf2ba693d4c6eacba1f",
     "sandbox_ai.py": "53bcf473618c141b6df5b9326c540984d16b3fa2c64b7ed7787003b5da019c07",
     "manage.py": "bc1529315536d6f9599efe8635d10b87827abc180b7d1dd77d793fc1f3d1f37f",
@@ -54,7 +57,22 @@ GOLDENS = {
     # dossiers sont servis. app.py, schema.sql, manage.py et sandbox_ai.py ne
     # bougent PAS — le contrôle de portée du changement.
     "serve.py": "cf2526ab9a4660201617e9204b74b394440b1e08eecf71641e11103f1ca2f3f2",
-    "Dockerfile": "e6d8293d7375a5b797901f2678a3e3e27fa85049a3c42826a8f168abc64e21d7",
+    # LE DOCKERFILE N'ÉNUMÈRE PLUS AUCUNE DÉPENDANCE : il installe
+    # `-r requirements.txt`. Deux listes à tenir d'accord divergent toujours,
+    # et celle-ci divergeait déjà — le gabarit n'ajoutait 'python-multipart'
+    # que si la spec déclare un Upload, quand requirements.txt le listait
+    # TOUJOURS. Il dit aussi, désormais, que MONL_ENV=production rend
+    # MONL_JWT_SECRET obligatoire : le conteneur refusait de démarrer sans
+    # lui, et il fallait avoir lu ses journaux pour l'apprendre.
+    # SEULS le Dockerfile et requirements.txt bougent — app.py, schema.sql,
+    # manage.py, le contrat, le brief et le wrapper restent à l'octet près :
+    # c'est le contrôle de portée d'un changement qui ne touche que le
+    # déploiement.
+    "Dockerfile": "8296f97a1cb627bc8420715306de7c69cb926153c06eba9809e532686ada93a7",
+    # requirements.txt n'était suivi par AUCUNE empreinte alors qu'il est
+    # livré dans chaque archive : un artefact que personne ne regarde peut
+    # changer sans qu'on le sache.
+    "requirements.txt": "27a4075fed32b2a5edc575357721c5946ed99054bd0488bc219463d077f9ea06",
     ".dockerignore": "7b7115e2c802900c8522a4090b06ad13d6f7733dcba154ee3bd392020219ff0b",
     # A2 ajoute l'historique _monl_migrations et le runtime de migrations
     # additives/explicites ; ces artefacts restent déterministes.
@@ -91,7 +109,7 @@ GOLDENS = {
     # cotes et doit etre recalculee. Reprendre l'une des deux donnerait un test
     # qui passe sans rien prouver. Tous les autres artefacts restent identiques
     # a l'octet, trois fois de suite : c'est ce que ce test est la pour tenir.
-    "monl.json": "c69d53779b3eb0737c6e3cadbe62a42f8a2395a875925e581679f259569ef6fb",
+    "monl.json": "3e2d592af8640a251644f229e33ce42376f259cda838f16cd340a9ddcb909c89",
 }
 
 

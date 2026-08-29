@@ -36,7 +36,14 @@ EXTRA_CSS = """
 .note p:last-child { margin-bottom: 0; }
 .method { font: 600 12px var(--mono); color: var(--brand); }
 @media (max-width: 900px) {
-  .doc { grid-template-columns: 1fr; gap: var(--space-5); }
+  /* `minmax(0,…)` et non `1fr` : le plancher `auto` d'un `1fr` est la largeur
+     MIN-CONTENT de l'enfant, ici les lignes de spec non sécables des blocs de
+     code. Mesuré à 375px avant correction : une piste de 550px dans un écran
+     de 375, donc 351 éléments coupés par l'`overflow-x:clip` du `body` — le
+     guide entier illisible sur téléphone. Le défilement reste offert par le
+     `overflow-x:auto` du bloc de code lui-même : plancherer la piste sans
+     cela ne ferait que DÉPLACER la coupure. */
+  .doc { grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
   .toc { position: static; border-bottom: 1px solid var(--line); padding-bottom: var(--space-4); }
   .toc ol { display: flex; flex-wrap: wrap; gap: var(--space-1); }
 }

@@ -511,3 +511,133 @@ def test_les_trois_cartes_de_position_alignent_leurs_titres():
         "le titre repousse encore : les trois cartes se désalignent")
     assert "margin-top:auto" in tags[0].replace(" ", ""), (
         "rien ne pousse les étiquettes en bas : elles suivent le paragraphe")
+
+
+def _regles_css(css: str) -> list:
+    """Rend [(rang, media, selecteur, {propriétés})] pour tout le CSS servi.
+
+    Les blocs `@keyframes` sont SAUTÉS en entier : leurs « 0% » et « to » ne
+    sont pas des sélecteurs, et les compter ferait comparer des étapes
+    d'animation à des règles de mise en page.
+
+    Les COMMENTAIRES sont retirés d'abord : ceux de ce dépôt citent volontiers
+    la règle qu'ils expliquent, accolades comprises (point 156 — un commentaire
+    CSS est du contenu de page), et un extracteur naïf les lirait comme de
+    vraies règles.
+    """
+    css = re.sub(r"/\*.*?\*/", " ", css, flags=re.S)
+    regles, i, rang = [], 0, 0
+    fins_de_media = []
+    while i < len(css):
+        while fins_de_media and i >= fins_de_media[-1]:
+            fins_de_media.pop()
+        saut = re.compile(r"@(keyframes|font-face|supports)[^{]*\{").match(css, i)
+        if saut:
+            profondeur, j = 1, saut.end()
+            while j < len(css) and profondeur:
+                profondeur += (css[j] == "{") - (css[j] == "}")
+                j += 1
+            i = j
+            continue
+        ouverture = re.compile(r"@media([^{]*)\{").match(css, i)
+        if ouverture:
+            profondeur, j = 1, ouverture.end()
+            while j < len(css) and profondeur:
+                profondeur += (css[j] == "{") - (css[j] == "}")
+                j += 1
+            fins_de_media.append(j - 1)
+            i = ouverture.end()
+            continue
+        regle = re.compile(r"([^{}@]+)\{([^{}]*)\}").match(css, i)
+        if regle:
+            proprietes = {
+                declaration.split(":", 1)[0].strip()
+                for declaration in regle.group(2).split(";")
+                if ":" in declaration
+            }
+            for selecteur in regle.group(1).split(","):
+                regles.append(
+                    (rang, bool(fins_de_media), selecteur.strip(), proprietes))
+                rang += 1
+            i = regle.end()
+            continue
+        i += 1
+    return regles
+
+
+def test_aucune_regle_responsive_n_est_ecrasee_par_une_regle_nue(platform):
+    """Une `@media` n'ajoute AUCUNE spécificité : seul l'ORDRE la défend.
+
+    `extra_css` concatène plusieurs modules, donc une règle nue écrite dans un
+    module PLUS TARDIF écrase la version responsive d'un module antérieur, à
+    poids égal, sans que rien ne le dise. C'est arrivé sur `.case-explorer` :
+    `landing.py` posait `grid-template-columns:1fr` sous 760px, et la règle nue
+    de `landing_cas.py` reprenait deux colonnes. Mesuré à 375px avant
+    correction : `230px 103px`, soit un panneau de cas métier large de 103
+    pixels, coupé par l'`overflow:hidden` de la carte — la vitrine du site,
+    illisible sur téléphone.
+
+    Le témoin porte sur la page RÉELLEMENT SERVIE, jamais sur un module : c'est
+    entre les deux que la concaténation se joue.
+    """
+    page = requests.get(platform, timeout=10).text
+    feuilles = re.findall(r"<style[^>]*>(.*?)</style>", page, re.S)
+    assert feuilles, "aucune feuille de style dans la page servie"
+    regles = _regles_css("\n".join(feuilles))
+    assert len(regles) > 100, f"extracteur muet : {len(regles)} règles lues"
+    assert any(media for _, media, _, _ in regles), "aucune @media reconnue"
+
+    ecrasees = []
+    for rang, media, selecteur, proprietes in regles:
+        if not media:
+            continue
+        for rang2, media2, selecteur2, proprietes2 in regles:
+            if media2 or rang2 <= rang or selecteur2 != selecteur:
+                continue
+            communes = proprietes & proprietes2
+            if communes and _specificite(selecteur2) >= _specificite(selecteur):
+                ecrasees.append(f"{selecteur} → {sorted(communes)}")
+
+    assert not ecrasees, (
+        "règle(s) responsive écrasée(s) par une règle nue écrite plus tard, "
+        "à poids égal ou supérieur : " + " ; ".join(sorted(set(ecrasees))))
+
+
+def test_chaque_page_du_site_porte_un_titre_qui_la_nomme():
+    """Deux pages ne peuvent pas porter le même `<title>`.
+
+    La console portait mot pour mot celui de l'ACCUEIL — « monl compiler, le
+    métier est compilé ». Toutes ses voisines se nomment (« MCP — … », « Votre
+    compte — … ») : avec plusieurs onglets ouverts, celui de la console était
+    indiscernable de la page d'accueil, et un signet ne disait pas où il
+    menait. Trouvé en mesurant le site à 375px, pas en le relisant : la sonde
+    rapportait le titre de chaque page, et deux lignes étaient identiques.
+
+    Le témoin lit les constantes de PAGE et non les routes : une page peut
+    exister sans être encore montée, et c'est son titre qui est en cause.
+    """
+    import importlib
+    import pkgutil
+
+    import monl_platform
+
+    titres = {}
+    for module in pkgutil.iter_modules(monl_platform.__path__):
+        charge = importlib.import_module(f"monl_platform.{module.name}")
+        for nom in dir(charge):
+            valeur = getattr(charge, nom)
+            if not (isinstance(valeur, str) and nom.endswith("_HTML")):
+                continue
+            trouve = re.search(r"<title>(.*?)</title>", valeur, re.S)
+            if not trouve:
+                continue
+            titre = trouve.group(1).strip()
+            # Un même HTML ré-exporté par deux modules (app_pages) n'est pas un
+            # doublon : c'est la MÊME page. On indexe donc par contenu.
+            titres.setdefault(titre, set()).add(valeur)
+
+    assert len(titres) > 5, f"extracteur muet : {len(titres)} titre(s) lu(s)"
+    partages = {titre: len(pages) for titre, pages in titres.items() if len(pages) > 1}
+    assert not partages, (
+        "des pages DIFFÉRENTES partagent un titre — un onglet ne dit plus "
+        f"laquelle est ouverte : {partages}")
