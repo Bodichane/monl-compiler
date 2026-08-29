@@ -11347,6 +11347,26 @@ portent. Node est déclaré dans `.github/workflows/ci.yml`, et son absence fait
 ÉCHOUER plutôt que sauter : un saut dirait « rien à vérifier ici » alors qu'il
 dirait « je n'ai pas vérifié » (point 140, mot pour mot).
 
+### Une décision écrite mais non gardée se réapprend en la cassant
+
+Le test neuf montait la plateforme avec `fastapi.testclient`. Vert en local
+avec un simple avertissement de dépréciation, **rouge sur les trois versions
+de Python en CI** : `starlette.testclient` exige `httpx2`, absent des
+dépendances, et la suite s'arrête à la COLLECTE.
+
+Or c'était déjà écrit — en tête de `tests/test_platform_web.py`, qui raconte
+cette panne exacte et la refonte contre un uvicorn éphémère. La décision
+existait, en toutes lettres, et **rien ne la gardait** : la porte s'est
+rouverte à la première occasion. C'est le point 152 (« une garantie qui cesse
+de porter ne fait aucun bruit ») appliqué non plus à du code mais à une
+consigne de prose — une note dans une docstring n'empêche rien.
+
+`test_aucun_test_ne_monte_la_plateforme_avec_testclient` (test_architecture.py)
+la rend exécutoire, par AST. Contre-épreuve : un fichier témoin qui importe
+`TestClient` la fait rougir en le nommant. Et le remède n'est PAS d'ajouter
+`httpx2` — un client en processus ne traverse ni la couche ASGI réelle, ni le
+démarrage du serveur, donc il ne peut pas dire ce que le serveur SERT.
+
 ### Preuve
 
 Suite verte, et le parcours refait dans un vrai navigateur : quatre réponses

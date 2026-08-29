@@ -20,10 +20,14 @@ module : c'est entre les deux que l'échappement se perd.
 
 import re
 import shutil
+import socket
 import subprocess
+import threading
+import time
 
 import pytest
-from fastapi.testclient import TestClient
+import requests
+import uvicorn
 
 from monl_platform.app import create_app
 
@@ -47,15 +51,49 @@ def _node():
 
 @pytest.fixture(scope="module")
 def client(tmp_path_factory):
+    """Un VRAI serveur, comme le reste de la suite.
+
+    ``fastapi.testclient`` est la voie écartée : il exige ``httpx2`` sur les
+    versions récentes de Starlette — vert en local avec un simple
+    avertissement de dépréciation, ROUGE en CI. Et il vaut mieux ici : ce
+    qu'on veut analyser est ce qui sort par HTTP, pas ce qu'un client
+    en-mémoire reconstitue.
+    """
     application = create_app(workspace=tmp_path_factory.mktemp("js"))
-    with TestClient(application, follow_redirects=True) as client:
-        client.post("/api/auth/register",
-                    json={"email": "js@example.test", "password": "MotDePasse-123"})
-        yield client
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    serveur = uvicorn.Server(
+        uvicorn.Config(application, host="127.0.0.1", port=port, log_level="error")
+    )
+    fil = threading.Thread(target=serveur.run, daemon=True)
+    fil.start()
+    base = f"http://127.0.0.1:{port}"
+    session = requests.Session()
+    try:
+        for _ in range(200):
+            try:
+                if requests.get(f"{base}/health", timeout=0.2).status_code == 200:
+                    break
+            except requests.RequestException:
+                time.sleep(0.02)
+        else:
+            pytest.fail("le serveur n'a pas démarré")
+        inscription = session.post(
+            f"{base}/api/auth/register",
+            json={"email": "js@example.test", "password": "MotDePasse-123"},
+            timeout=10,
+        )
+        assert inscription.status_code == 201, inscription.text
+        yield base, session
+    finally:
+        serveur.should_exit = True
+        fil.join(timeout=10)
 
 
 def _scripts_de(client, chemin):
-    reponse = client.get(chemin)
+    base, session = client
+    reponse = session.get(f"{base}{chemin}", timeout=10)
     assert reponse.status_code == 200, f"{chemin} : {reponse.status_code}"
     return BLOC_SCRIPT.findall(reponse.text)
 

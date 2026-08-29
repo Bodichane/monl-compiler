@@ -1138,7 +1138,14 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   tentative pour toujours — trois fautes de frappe et le dialogue mourait, 48
   réponses perdues. `soumettre` rejoue avant/après et ne retient la réponse que
   si la question a AVANCÉ (quand le moteur refuse, il redemande le MÊME texte) ;
-  la réponse HTTP porte la liste FAISANT AUTORITÉ. Voir point 163.
+  la réponse HTTP porte la liste FAISANT AUTORITÉ.
+  **ET UNE DÉCISION ÉCRITE MAIS NON GARDÉE SE RÉAPPREND EN LA CASSANT** : le
+  test neuf a monté la plateforme avec `fastapi.testclient` — vert en local
+  (simple avertissement de dépréciation), ROUGE sur les trois versions en CI,
+  `starlette.testclient` exigeant `httpx2`. La consigne existait en toutes
+  lettres en tête de `tests/test_platform_web.py`, et rien ne la gardait.
+  `test_aucun_test_ne_monte_la_plateforme_avec_testclient` la rend exécutoire
+  par AST. Voir point 163.
 - **POINT 162 : la plateforme ne construit plus d'interface — et retirer une
   fonctionnalité se prouve comme on prouve une brique.** Partis :
   `builder.py`, `worker.py`, `seed_ai.py`, `progress.py`, `revisions.py`,
