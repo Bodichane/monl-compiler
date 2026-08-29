@@ -76,6 +76,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [157](#157-le-logo-au--o--orange-et-trois-mesures-qui-mentaient) Le logo au « o » orange, et trois mesures qui mentaient ·
 [158](#158-sept-couleurs-dérivées-de-la-grammaire-et-un-surtitre-de-moins-par-section) Sept couleurs dérivées de la grammaire, et un surtitre de moins par section ·
 [159](#159-une-assertion-de-rejeu-qui-rejouait-un-code-neuf-et-sa-voisine-qui-ne-mesurait-plus-rien) Une assertion de rejeu qui rejouait un code neuf ·
+[160](#160-un-seuil-de-temps-en-secondes-ne-veut-pas-dire-la-même-chose-sur-deux-machines) Un seuil de temps en secondes ne veut pas dire la même chose sur deux machines ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -10966,3 +10967,48 @@ de référence, puis ne plus la relire. Chaque relecture est une occasion pour l
 fenêtre de basculer entre ce que le test croit envoyer et ce que le serveur
 croit recevoir — et le test se met alors à mesurer autre chose que ce qu'il
 annonce, tantôt en rougissant à tort, tantôt en verdissant à tort.
+
+---
+
+## 160. Un seuil de temps en secondes ne veut pas dire la même chose sur deux machines
+
+`test_authentification_b4` a fait tomber la CI de `main` sur une assertion de
+sécurité : *écart médian 0,1016 s* pour un seuil de 0,10. Un millimètre et
+demi de trop sur cent. Le test vérifie qu'un compte VERROUILLÉ et un compte
+INEXISTANT répondent en des temps indiscernables — les distinguer, fût-ce par
+la durée, apprendrait à un attaquant quelles adresses existent.
+
+Deux défauts distincts, et il fallait les séparer avant de toucher au seuil.
+
+**L'ESTIMATEUR.** La médiane de CINQ écarts appariés reste sensible à un
+blocage isolé. Mesuré sur douze répétitions : elle monte à 9,70 ms au repos et
+6,29 ms sous charge, là où la médiane de QUINZE reste sous 1,54 ms et 2,95 ms.
+C'est bien l'estimateur qui a lâché, pas le serveur.
+
+**L'ÉCHELLE.** Cent millisecondes en absolu ne veulent pas dire la même chose
+sur un runner partagé où un appel prend 300 ms et sur une machine où il en
+prend 66. Le seuil était tantôt impossible à tenir, tantôt trop large pour
+dire quoi que ce soit. Ce qui compte pour un attaquant n'est pas un nombre de
+millisecondes, c'est le SIGNAL par rapport au BRUIT. La tolérance est donc
+devenue une PART du temps de réponse observé — 20 %, avec un plancher de 5 ms
+pour la machine rapide, où 20 % tomberaient sous le bruit de mesure.
+
+**Une hypothèse fausse, écartée par la mesure.** L'écart était positif dans 19
+cas sur 24 — trop régulier pour du bruit. J'ai cru à un biais d'ORDRE : dans
+chaque paire, le chemin A est appelé en premier, donc il absorbe la montée en
+charge. Mesuré en inversant l'ordre une paire sur deux : +1,81 ms contre
++1,63 ms, toujours 11 sur 12 positifs. Le biais ne vient pas de l'ordre. La
+différence est RÉELLE et petite — le chemin verrouillé coûte 1,7 ms de plus.
+Le test la borne, il n'exige pas zéro : exiger zéro d'une mesure de temps
+serait une promesse qu'aucune machine ne tient.
+
+**Ce que le nouveau seuil attrape, mesuré et pas supposé.** Une vraie fuite
+injectée dans la branche « compte verrouillé » du serveur généré : 10 ms
+passent, 20 ms sont refusées (19,83 mesurées pour 16,45 de tolérance), 30 ms
+aussi. Le plancher de détection est d'une vingtaine de millisecondes — **cinq
+fois plus fin que les 100 ms absolues d'avant**, qui laissaient passer tout ce
+qui était en dessous. Le seuil relatif est à la fois plus sensible et plus
+robuste : ce n'est pas un assouplissement, et c'est précisément ce qu'une
+contre-épreuve doit établir. Sans elle, un seuil élargi et un seuil corrigé se
+ressemblent parfaitement.
+

@@ -265,7 +265,45 @@ def _token(response):
 
 # Nombre de tours des mesures de temps. Le compteur de messages plus bas en
 # dépend : la voie « adresse connue » envoie un courriel à CHAQUE tour.
-TOURS_MESURE = 5
+#
+# Cinq tours ne suffisaient pas. La médiane de CINQ écarts appariés reste
+# sensible à un blocage isolé : mesuré sur douze répétitions, elle montait à
+# 9,70 ms au repos et 6,29 ms sous charge, là où la médiane de QUINZE restait
+# sous 1,54 ms et 2,95 ms. Et c'est bien l'estimateur qui a lâché en CI, avec
+# une médiane de 0,1016 s pour un seuil de 0,10 — 1,6 ms de trop.
+TOURS_MESURE = 15
+
+# La tolérance est RELATIVE au temps de réponse observé, avec un plancher.
+# Cent millisecondes en absolu ne veulent pas dire la même chose sur un runner
+# partagé où un appel prend 300 ms et sur cette machine où il en prend 66 : le
+# seuil était tantôt impossible à tenir, tantôt trop large pour rien dire.
+# Ce qui compte pour un attaquant est le SIGNAL par rapport au BRUIT.
+#
+# Les chiffres, mesurés sur 36 répétitions de quinze tours (au repos et sous
+# charge) : l'écart médian vaut 0,1 à 3,8 ms pour un appel de 48 à 85 ms, soit
+# un rapport d'au plus 4,4 %. Vingt pour cent laissent donc 4,5 fois la marge
+# du pire cas observé.
+#
+# CE QUE LE SEUIL ATTRAPE, mesuré en injectant une vraie fuite dans la branche
+# « compte verrouillé » du serveur généré : 10 ms passent, 20 ms sont refusées
+# (19,83 ms mesurées pour une tolérance de 16,45), 30 ms aussi. Le plancher de
+# détection est donc d'une vingtaine de millisecondes sur cette machine — cinq
+# fois plus fin que les 100 ms absolues d'avant, qui laissaient passer tout ce
+# qui était en dessous. Le seuil relatif est à la fois plus SENSIBLE et plus
+# ROBUSTE ; ce n'est pas un assouplissement.
+#
+# Une différence RÉELLE et petite subsiste, et il faut la connaître : le chemin
+# verrouillé coûte 1,6 à 1,8 ms de plus que le chemin absent, dans 19 mesures
+# sur 24. Ce n'est pas un artefact de l'ordre des appels — mesuré en inversant
+# l'ordre à l'intérieur de chaque paire, le biais ne bouge pas (+1,81 ms contre
+# +1,63 ms). Le test BORNE cette différence, il n'exige pas zéro : exiger zéro
+# d'une mesure de temps serait une promesse qu'aucune machine ne tient.
+#
+# Le plancher existe pour la machine RAPIDE : à 5 ms par appel, 20 % feraient
+# 1 ms, sous le bruit de mesure. Un seuil qu'aucune machine ne peut tenir ne
+# mesure plus rien, il apprend à ignorer l'échec (point 57).
+PART_ECART_TOLEREE = 0.20
+PLANCHER_ECART = 0.005
 
 
 def _ecart_apparie(appel_a, appel_b, tours=TOURS_MESURE):
@@ -294,7 +332,7 @@ def _ecart_apparie(appel_a, appel_b, tours=TOURS_MESURE):
     points 13 et 33) répondrait 429 au sixième appel et mesurerait le refus du
     limiteur au lieu du chemin d'authentification.
     """
-    ecarts = []
+    ecarts, durees = [], []
     reponse_a = reponse_b = None
     for tour in range(tours):
         depart = time.perf_counter()
@@ -304,7 +342,18 @@ def _ecart_apparie(appel_a, appel_b, tours=TOURS_MESURE):
         reponse_b = appel_b(tour)
         duree_b = time.perf_counter() - depart
         ecarts.append(duree_a - duree_b)
-    return statistics.median(ecarts), reponse_a, reponse_b
+        durees += [duree_a, duree_b]
+    # La durée médiane accompagne l'écart : c'est l'ÉCHELLE à laquelle il doit
+    # être jugé. Sans elle, l'appelant ne pourrait comparer qu'à un nombre de
+    # secondes écrit d'avance, qui ne veut pas dire la même chose d'une machine
+    # à l'autre.
+    return (statistics.median(ecarts), statistics.median(durees),
+            reponse_a, reponse_b)
+
+
+def _tolerance_ecart(duree_mediane):
+    """La marge admise pour un écart de temps, à l'échelle de la machine."""
+    return max(PART_ECART_TOLEREE * duree_mediane, PLANCHER_ECART)
 
 
 def _wait_for_message(smtp, count):
@@ -397,7 +446,7 @@ def test_authentification_b4_complete_sur_les_deux_moteurs(b4_application):
     assert locked.json()["detail"] == "Identifiants invalides."
     bob_token = _token(_login(base, bob, "motdepasse8", ip="bob-before-totp"))
 
-    ecart_verrou, locked_probe, missing_probe = _ecart_apparie(
+    ecart_verrou, duree_verrou, locked_probe, missing_probe = _ecart_apparie(
         lambda tour: _login(base, alice, "motdepasse8",
                             ip=f"lock-timing-{tour}"),
         lambda tour: _login(base, "absent-b4@example.invalid", "motdepasse8",
@@ -407,7 +456,10 @@ def test_authentification_b4_complete_sur_les_deux_moteurs(b4_application):
     # Un compte VERROUILLÉ et un compte INEXISTANT doivent être
     # indiscernables : les distinguer, fût-ce par le temps de réponse,
     # apprendrait à un attaquant quelles adresses existent.
-    assert abs(ecart_verrou) < 0.10, f"ecart median {ecart_verrou:.4f} s"
+    tolerance = _tolerance_ecart(duree_verrou)
+    assert abs(ecart_verrou) < tolerance, (
+        f"ecart median {ecart_verrou*1000:.2f} ms pour un appel de "
+        f"{duree_verrou*1000:.2f} ms — au-dela de {tolerance*1000:.2f} ms")
     assert _login(base, alice, "motdepasse8", ip="lock-still-closed").status_code == 401
     # La fenêtre de verrouillage est passée de 2 à 10 secondes, et ce n'est
     # pas du confort : la mesure d'oracle ci-dessus fait DIX appels, et avec
@@ -421,7 +473,7 @@ def test_authentification_b4_complete_sur_les_deux_moteurs(b4_application):
 
     # 2. Réinitialisation réellement livrée par la brique de messages, sans
     # différence de réponse entre une adresse connue et une adresse absente.
-    ecart_reset, known, unknown = _ecart_apparie(
+    ecart_reset, duree_reset, known, unknown = _ecart_apparie(
         lambda tour: _call("POST", base, "/password-reset/request",
                            body={"username": alice}, ip=f"reset-known-{tour}"),
         lambda tour: _call("POST", base, "/password-reset/request",
@@ -429,7 +481,10 @@ def test_authentification_b4_complete_sur_les_deux_moteurs(b4_application):
                            ip=f"reset-unknown-{tour}"))
     assert known.status_code == unknown.status_code == 200
     assert known.json() == unknown.json()
-    assert abs(ecart_reset) < 0.10, f"ecart median {ecart_reset:.4f} s"
+    tolerance = _tolerance_ecart(duree_reset)
+    assert abs(ecart_reset) < tolerance, (
+        f"ecart median {ecart_reset*1000:.2f} ms pour un appel de "
+        f"{duree_reset*1000:.2f} ms — au-dela de {tolerance*1000:.2f} ms")
     # La voie « adresse connue » a envoyé un courriel par tour : le jeton
     # utilisable est celui du DERNIER, les précédents ayant pu être invalidés.
     alice_reset = _wait_for_message(smtp, TOURS_MESURE)
