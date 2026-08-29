@@ -185,7 +185,7 @@ async def _dialogue(app):
         archive = await client.get(f"/api/projects/{project_id}/download")
         assert archive.status_code == 200 and archive.content.startswith(b"PK")
 
-        # POINT 161 : la file de constructions a laissé place à UNE compilation
+        # POINT 162 : la file de constructions a laissé place à UNE compilation
         # déterministe, puis au démarrage de l'API obtenue.
         compilation = await client.post(f"/api/projects/{project_id}/compiler")
         assert compilation.status_code == 201, compilation.json()

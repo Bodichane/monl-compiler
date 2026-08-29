@@ -20,7 +20,7 @@ PROTOCOL_VERSION = "2025-06-18"
 def _adresse_de_telechargement(project_id: str) -> str:
     """L'adresse à laquelle un agent récupère l'archive, avec sa clé MCP.
 
-    POINT 161 : absolue quand ``MONL_PLATFORM_PUBLIC_URL`` est déclarée,
+    POINT 162 : absolue quand ``MONL_PLATFORM_PUBLIC_URL`` est déclarée,
     relative sinon. Elle n'est JAMAIS déduite de l'en-tête ``Host``, qu'un
     tiers contrôle — même frontière qu'au point 145 pour l'adresse de retour
     OAuth. Une adresse absolue fausse enverrait l'archive d'un compte vers un

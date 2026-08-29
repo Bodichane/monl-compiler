@@ -1,6 +1,6 @@
 """Compiler un projet DANS son dossier privé, sans une once d'IA.
 
-POINT 161. C'est ce qui reste de ``builder.py`` une fois le constructeur
+POINT 162. C'est ce qui reste de ``builder.py`` une fois le constructeur
 frontend retiré. L'ancien ``build_project`` enchaînait cinq choses — quota,
 écriture de la spec, compilation, ``generate_and_verify`` (l'IA), snapshot —
 et facturait les quatre dernières à la plateforme. Le cap ayant changé, seule

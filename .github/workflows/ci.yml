@@ -82,7 +82,15 @@ jobs:
         # a élargi la mesure sans que personne ne le décide, et la barrière est
         # tombée à 87,6 % SANS qu'aucun test n'échoue. Rétablir la portée
         # déclarée n'abaisse aucune exigence : le compilateur reste à 90,4 %.
-        run: python -m pytest tests/ -q --cov=src/monl --cov-report=term-missing
+        #
+        # PAS de `-q` ici : `pyproject.toml` en pose déjà un dans `addopts`, et
+        # deux `-q` valent `-qq`, qui SUPPRIME la ligne de décompte et la
+        # section de résumé. Un saut ne se voyait alors que comme un `s` perdu
+        # au milieu d'un mur de points — c'est ainsi que le saut de Pillow a
+        # vécu dans cette CI sans que personne ne le lise. `-rs` NOMME chaque
+        # test sauté avec son motif : un saut ne dit pas « rien à vérifier
+        # ici », il dit « je n'ai pas vérifié » (point 140).
+        run: python -m pytest tests/ -rs --cov=src/monl --cov-report=term-missing
 
       - name: Couverture de la plateforme (barrière à 90 %)
         # Les garanties HTTP restent éprouvées contre de VRAIS serveurs
@@ -92,5 +100,5 @@ jobs:
         # Le seuil est le plancher entier de la mesure locale (90,24 %).
         run: >-
           python -m pytest tests/test_platform_*.py tests/test_oauth.py
-          tests/test_administration.py tests/test_codes_de_secours.py -q
+          tests/test_administration.py tests/test_codes_de_secours.py -rs
           --cov=src/monl_platform --cov-report=term --cov-fail-under=90

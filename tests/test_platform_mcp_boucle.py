@@ -1,6 +1,6 @@
 """La boucle MCP se ferme SANS navigateur — preuve HTTP contre un vrai serveur.
 
-POINT 161. Un agent pouvait valider et compiler par MCP, puis butait sur trois
+POINT 162. Un agent pouvait valider et compiler par MCP, puis butait sur trois
 murs : l'archive n'était ouverte que par le cookie `monl_session`, il n'existait
 aucun moyen de retrouver ses projets, et aucun équivalent de `monl update` ni de
 `monl diff` — or c'est TOUT le geste après la première compilation.

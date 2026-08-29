@@ -54,7 +54,7 @@ class StoreProjectsMixin:
             )
             if row is None:
                 return False
-            # POINT 161 : plus rien n'écrit dans 'builds'. La table et ce
+            # POINT 162 : plus rien n'écrit dans 'builds'. La table et ce
             # garde-fou survivent pour les bases ANTÉRIEURES, qui portent de
             # vraies lignes : une migration additive rattrape une colonne,
             # jamais un contenu (points 32 et 89). Sur une base neuve, la

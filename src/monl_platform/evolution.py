@@ -1,6 +1,6 @@
 """Ce qui a changé entre deux compilations d'un même projet.
 
-POINT 161. Un agent pouvait compiler par MCP, jamais RECOMPILER : il fallait
+POINT 162. Un agent pouvait compiler par MCP, jamais RECOMPILER : il fallait
 repartir d'un projet neuf, donc d'une adresse neuve, sans jamais savoir ce que
 le changement de spec impliquait pour l'interface déjà écrite. Or c'est TOUT le
 geste après la première compilation — et le journal montre dix fois (points 88

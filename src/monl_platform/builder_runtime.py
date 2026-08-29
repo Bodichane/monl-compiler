@@ -103,7 +103,7 @@ def _set_session_cookie(response, token):
 
 @dataclass
 class BuilderRuntime:
-    """Les dépendances des routes de projet, sans une seule d'IA (point 161)."""
+    """Les dépendances des routes de projet, sans une seule d'IA (point 162)."""
 
     service: object
     identities: object
@@ -133,7 +133,7 @@ class BuilderRuntime:
 def create_runtime(service, identities, *, domain=None, downloads_dir=None):
     """Construit les dépendances des routes de projet, sans monter de route.
 
-    POINT 161 : plus de fournisseur IA, plus de quota, plus de worker. Ce qui
+    POINT 162 : plus de fournisseur IA, plus de quota, plus de worker. Ce qui
     reste — le magasin, l'hébergement local — est déterministe, donc rien
     n'est plus à injecter pour rendre la plateforme éprouvable hors ligne.
     """

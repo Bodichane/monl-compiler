@@ -257,7 +257,7 @@ class CompilationService:
 def compiler_dans(spec_path: Path, project_dir: Path) -> str:
     """Compile une spec dans un dossier et rend la sortie du compilateur.
 
-    SOURCE UNIQUE de la décision d'isolation (point 161) : le socle
+    SOURCE UNIQUE de la décision d'isolation (point 162) : le socle
     (``/api/compile``) et la compilation d'un projet de compte
     (``compilation.py``) passent tous deux par ici. Deux lectures de
     ``MONL_ISOLATE_COMPILES`` finiraient par diverger, et la divergence

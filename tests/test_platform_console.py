@@ -96,7 +96,7 @@ def test_la_console_est_servie_sans_ressource_distante(running_platform):
 
 
 def test_la_console_compile_puis_demarre_l_api_du_projet(running_platform):
-    """Le parcours entier de la console, contre un vrai serveur (point 161).
+    """Le parcours entier de la console, contre un vrai serveur (point 162).
 
     Ce que la version d'avant prouvait — une construction IA menée à son
     terme — n'existe plus. Ce qui compte désormais : le catalogue répond, la
@@ -131,7 +131,7 @@ def test_la_console_compile_puis_demarre_l_api_du_projet(running_platform):
 
 
 def test_demarrer_sans_compiler_est_refuse_en_le_disant(running_platform):
-    """La contre-épreuve du point 161 : le démarrage EXIGE une compilation.
+    """La contre-épreuve du point 162 : le démarrage EXIGE une compilation.
 
     Sans elle, un ``_require_site`` permissif laisserait uvicorn mourir sur un
     dossier vide et la console afficherait « le serveur n'a pas démarré » —

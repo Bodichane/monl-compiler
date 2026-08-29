@@ -1,6 +1,6 @@
 """Démarrer un projet, c'est démarrer son BACKEND COMPILÉ — pas un build IA.
 
-POINT 161. Tant que la plateforme construisait le frontend, « héberger »
+POINT 162. Tant que la plateforme construisait le frontend, « héberger »
 voulait dire servir le SNAPSHOT d'une construction réussie : ``start_project``
 interrogeait la file de builds et refusait tout projet qui n'en avait aucun.
 Le constructeur retiré, cette porte ne s'ouvrait plus jamais — l'hébergement

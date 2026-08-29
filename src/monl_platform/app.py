@@ -23,7 +23,7 @@ from .service import CompilationService
 
 
 def create_app(*, workspace=None, domain=None, downloads_dir=None) -> FastAPI:
-    """POINT 161 : plus aucun fournisseur IA à injecter.
+    """POINT 162 : plus aucun fournisseur IA à injecter.
 
     Les huit paramètres retirés (provider, provider_factory, quota_limit,
     prices_path, poll_interval, start_worker, et les deux d'images) servaient

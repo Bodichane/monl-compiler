@@ -59,7 +59,7 @@ def _cle_mcp(request: Request) -> str | None:
 def _require_user_ou_cle(request: Request, identities: IdentityStore) -> dict[str, str]:
     """La session du navigateur OU une clé MCP.
 
-    POINT 161. Récupérer son archive était la SEULE chose qu'un agent ne
+    POINT 162. Récupérer son archive était la SEULE chose qu'un agent ne
     pouvait pas faire sans ouvrir un navigateur — exactement le passage que le
     cap veut supprimer. Ce n'est pas une seconde porte : c'est le MÊME chemin
     d'authentification que ``/mcp`` (``api_key_user``), avec le même contrôle
@@ -115,7 +115,7 @@ def _rate_limit(request: Request, identities: IdentityStore, scope: str,
 
 
 #: Les outils MCP qui font tourner le COMPILATEUR, donc qui doivent prendre
-#: une place au sémaphore de `MONL_MAX_CONCURRENT_COMPILES`. POINT 161 : le
+#: une place au sémaphore de `MONL_MAX_CONCURRENT_COMPILES`. POINT 162 : le
 #: diff et la mise à jour compilent eux aussi (dans un dossier jetable pour le
 #: premier, dans le projet pour le second) — les oublier ici laisserait la
 #: borne de concurrence intacte à la lecture et contournée à l'exécution.

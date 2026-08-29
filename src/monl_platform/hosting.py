@@ -18,7 +18,7 @@ class SiteHostingError(RuntimeError):
 class SiteNotCompiledError(SiteHostingError):
     """Le projet ne possède pas encore de backend compilé.
 
-    POINT 161. Avant le recentrage, « héberger » voulait dire servir le
+    POINT 162. Avant le recentrage, « héberger » voulait dire servir le
     SNAPSHOT d'une construction IA réussie : sans build en base, rien ne
     démarrait jamais. Le constructeur retiré, ce qu'on met en marche est le
     backend COMPILÉ par le dialogue — déterministe, présent dès 'monl compile'.

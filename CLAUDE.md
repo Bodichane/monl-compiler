@@ -1083,6 +1083,22 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   tomber le test. **Même leçon que la palette et que la ligne de commande :
   une mesure peut porter sur autre chose que ce qu'on croit mesurer.**
   Voir point 158.
+- **POINT 161 : la CI avait DEUX `-q`, donc ses sauts ne se voyaient pas.**
+  `pyproject.toml` pose `addopts = "-q"` et chaque commande de `ci.yml` en
+  posait un second : `-qq` supprime la ligne de décompte ET la section de
+  résumé. Un saut n'apparaissait plus que comme un `s` au milieu de 1 377
+  points — c'est ainsi que le saut de Pillow a vécu dans cette CI depuis
+  toujours. Le `-q` redondant est retiré, `-rs` NOMME chaque saut avec son
+  motif (compter ne suffit pas : « 2 skipped » ne dit pas lesquels).
+  **La garantie est gardée par un test** — `tests/test_ci_les_sauts_se_voient.py`
+  refuse toute commande qui repose `-q` ou qui n'emporte pas `-rs`, avec un
+  témoin sur la prémisse (`addopts` porte-t-il encore `-q` ?) et un témoin sur
+  l'EXTRACTEUR, sans quoi une fonction qui ne trouve rien rendrait les deux
+  règles vertes en ne regardant rien. Piège de lecture YAML : `--cov=…`
+  commence par un tiret comme un élément de liste — c'est le tiret SUIVI D'UNE
+  ESPACE qui ouvre une liste, et sans cette distinction la commande repliée
+  `>-` est coupée en son milieu. Faire ÉCHOUER sur un saut est une décision
+  SÉPARÉE, volontairement non prise. Voir point 161.
 - **POINT 159 : un test qui dépend d'une horloge FIXE son instant de référence,
   puis ne la relit plus.** L'assertion de rejeu TOTP de
   `tests/test_authentification_b4.py` RECALCULAIT le code au lieu de rejouer
@@ -1097,7 +1113,7 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   l'anti-rejeu de celle-ci — une tolérance de ±1 fenêtre donnée au serveur
   laissait le test VERT. Déplacée avant, elle rougit. Point 145 mot pour mot.
   Voir point 159.
-- **POINT 161 : la plateforme ne construit plus d'interface — et retirer une
+- **POINT 162 : la plateforme ne construit plus d'interface — et retirer une
   fonctionnalité se prouve comme on prouve une brique.** Partis :
   `builder.py`, `worker.py`, `seed_ai.py`, `progress.py`, `revisions.py`,
   `quota.py`, `store_builds.py`, la file de constructions, `/api/usage` et les
@@ -1127,8 +1143,8 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   survivent pour les bases ANTÉRIEURES, et c'est écrit à côté d'eux : sur une
   base neuve ils ne refusent plus rien. La console : « Créer et lancer la
   construction » → « Démarrer l'API » (`/compiler` puis `/start`).
-  Voir point 161.
-- **POINT 161bis : la boucle MCP est fermée, et une borne exprimée par une
+  Voir point 162.
+- **POINT 162bis : la boucle MCP est fermée, et une borne exprimée par une
   liste de noms cesse de borner en silence.** Sept outils désormais —
   `monl_list_projects`, `monl_diff_spec` et `monl_update_backend` s'ajoutent
   aux quatre existants — et **l'archive s'ouvre à la clé MCP**
@@ -1149,7 +1165,7 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   aveuglé sur tout sauf les ROUTES, le delta déclarait « interface inchangée »
   pour un champ ajouté avec son `oneOf`. Éprouvé par
   `tests/test_platform_mcp_boucle.py` — un agent compile, liste, télécharge le
-  ZIP, mesure et recompile sans jamais ouvrir de session. Voir point 161.
+  ZIP, mesure et recompile sans jamais ouvrir de session. Voir point 162.
 - **POINT 160 : un seuil de temps en SECONDES ne veut pas dire la même chose
   sur deux machines.** Le test d'oracle temporel de `test_authentification_b4`
   comparait l'écart entre le chemin « compte verrouillé » et le chemin

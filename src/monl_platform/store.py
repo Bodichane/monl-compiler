@@ -1,6 +1,6 @@
 """Façade de persistance du magasin de plateforme.
 
-POINT 161 : le mixin des constructions a disparu avec la file de builds. Ne
+POINT 162 : le mixin des constructions a disparu avec la file de builds. Ne
 restent que la base et les projets — un catalogue de slugs, pas un historique
 de travaux facturés.
 """

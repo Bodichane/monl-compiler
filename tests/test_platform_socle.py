@@ -1,6 +1,6 @@
 """Preuves d'exécution du socle de plateforme, sans serveur HTTP public.
 
-POINT 161. Ce fichier éprouvait la boucle de CONSTRUCTION : quota, appel du
+POINT 162. Ce fichier éprouvait la boucle de CONSTRUCTION : quota, appel du
 modèle, consommation de jetons, snapshot. Le constructeur retiré, ce qui reste
 à prouver est la compilation d'un projet de compte — déterministe, hors ligne,
 et confinée au dossier privé de son propriétaire.

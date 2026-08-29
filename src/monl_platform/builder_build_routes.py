@@ -1,6 +1,6 @@
 """Compilation d'un projet de compte et cycle de vie de son API.
 
-POINT 161. Ce module portait la file de constructions IA — mise en attente,
+POINT 162. Ce module portait la file de constructions IA — mise en attente,
 suivi d'étapes, historique et coût. Le constructeur retiré, il ne reste que
 deux gestes, et ils sont déterministes : COMPILER la spec du projet dans son
 dossier privé, puis DÉMARRER le backend obtenu pour l'essayer.
