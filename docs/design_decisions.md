@@ -77,6 +77,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [158](#158-sept-couleurs-dérivées-de-la-grammaire-et-un-surtitre-de-moins-par-section) Sept couleurs dérivées de la grammaire, et un surtitre de moins par section ·
 [159](#159-une-assertion-de-rejeu-qui-rejouait-un-code-neuf-et-sa-voisine-qui-ne-mesurait-plus-rien) Une assertion de rejeu qui rejouait un code neuf ·
 [160](#160-un-seuil-de-temps-en-secondes-ne-veut-pas-dire-la-même-chose-sur-deux-machines) Un seuil de temps en secondes ne veut pas dire la même chose sur deux machines ·
+[161](#161-la-ci-avait-deux--q-et-ses-sauts-ne-se-voyaient-pas) La CI avait deux `-q`, et ses sauts ne se voyaient pas ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -11012,3 +11013,61 @@ robuste : ce n'est pas un assouplissement, et c'est précisément ce qu'une
 contre-épreuve doit établir. Sans elle, un seuil élargi et un seuil corrigé se
 ressemblent parfaitement.
 
+## 161. La CI avait deux `-q`, et ses sauts ne se voyaient pas
+
+Trouvé en surveillant la CI du point 159, pas en la cherchant. Le journal
+d'exécution portait **un `s` unique au milieu de 1 377 points**, au même index
+sur les trois versions de Python — donc déterministe, donc là depuis toujours.
+C'était `test_une_image_jpeg_reelle_est_reencodee_sans_perdre_ses_dimensions`,
+sauté par `pytest.importorskip("PIL.Image")` parce que Pillow ne vivait que
+dans l'extra `ai`, que la CI n'installe pas. Le point 140 l'avait déjà dit :
+**un saut ne dit pas « rien à vérifier ici », il dit « je n'ai pas
+vérifié »** — mais encore faut-il pouvoir le lire.
+
+**La cause est une addition.** `pyproject.toml` pose `addopts = "-q"`, et
+chaque commande de `ci.yml` posait un SECOND `-q`. Deux `-q` valent `-qq`, et
+pytest supprime alors la ligne de décompte ET la section de résumé. Mesuré sur
+un fichier qui saute quand PostgreSQL est absent :
+
+| Ce que la commande porte | Ce que la CI affichait |
+|---|---|
+| `-q` en plus de l'`addopts` (= `-qq`) | `.s.s` — **et rien d'autre** |
+| rien en plus (l'`addopts` seul) | `2 passed, 2 skipped` |
+| `-rs` | `SKIPPED [1] …:381: MONL_TEST_DATABASE_URL absent` |
+
+Le `-q` redondant est retiré des deux invocations, remplacé par `-rs` : le
+saut est désormais **nommé, avec son fichier, sa ligne et son motif**.
+Compter ne suffisait pas — « 2 skipped » dit qu'il y en a, pas lesquels.
+
+**La garantie est gardée par un test**, parce qu'elle se perdrait exactement
+comme elle s'est perdue : en ajoutant un `-q` que personne ne relit.
+`tests/test_ci_les_sauts_se_voient.py` lit `ci.yml` et refuse toute commande
+qui repose `-q` ou qui n'emporte pas `-rs`. Trois précautions y vivent, et
+aucune n'est décorative :
+
+- **Un témoin sur la prémisse.** Si `addopts` cessait un jour de porter `-q`,
+  la règle « pas de `-q` dans la CI » deviendrait sans objet et refuserait un
+  drapeau redevenu légitime. Le test le dit plutôt que de le laisser deviner.
+- **Un témoin sur l'extracteur.** Les deux règles ne valent que ce que vaut la
+  fonction qui recolle les commandes : un extracteur qui ne trouve RIEN les
+  rendrait vertes en ne regardant rien — la forme d'erreur que ce fichier
+  existe pour interdire ailleurs. Un workflow-témoin vérifie qu'il trouve les
+  DEUX formes, dont le scalaire replié `>-` dont la commande occupe trois
+  lignes.
+- **La contre-épreuve.** Les `-q` ont été réellement remis dans `ci.yml` : les
+  deux règles rougissent, et l'extracteur retrouve bien le `-q` caché en
+  deuxième ligne de la commande repliée. Un test qui passe ne prouve pas qu'il
+  mord (point 145).
+
+**Le détail qui départage un lien juste d'un lien mort**, ici : `--cov=…`
+commence par un tiret, comme un élément de liste YAML. C'est le tiret SUIVI
+D'UNE ESPACE qui ouvre une liste — sans cette distinction, l'extracteur coupe
+la commande repliée en son milieu et laisse passer tout ce qui suit.
+
+**Ce que monl ne fait PAS, et le dit** : faire ÉCHOUER la CI sur un saut. En
+intégration continue tout saut est suspect — PostgreSQL est là, les extras
+sont installés — mais l'interdire d'office figerait le seul mécanisme
+légitime qui reste (une dépendance système absente sur une version de Python
+donnée). Rendre le saut lisible est le geste qui a manqué pendant toute la
+vie du dépôt ; le rendre fatal est une décision séparée, à prendre sur des
+cas réels plutôt que par principe.
