@@ -10,16 +10,16 @@ def _ensure_container_artifacts(staging_dir, uploads=False):
     """Émet les gabarits de conteneur sans écraser ceux de l'auteur."""
     dockerfile = nomenclature.DEFAULT_DOCKERFILE
     dockerignore = nomenclature.DEFAULT_DOCKERIGNORE
+    requirements = nomenclature.DEFAULT_REQUIREMENTS
     if uploads:
-        dockerfile = dockerfile.replace(
-            "    'PyJWT>=2.8,<3.0'\n",
-            "    'PyJWT>=2.8,<3.0' " + "\\\n"
-            "    'python-multipart>=0.0.9,<1.0'\n",
-        )
+        # Le Dockerfile ne bouge plus : il installe `-r requirements.txt`,
+        # donc la dépendance d'Upload n'a plus qu'UN endroit où s'ajouter.
+        requirements = nomenclature.REQUIREMENTS_UPLOAD
         dockerignore += ".monl_uploads/\n"
     defaults = {
         "Dockerfile": dockerfile,
         ".dockerignore": dockerignore,
+        "requirements.txt": requirements,
     }
     for name, content in defaults.items():
         path = os.path.join(staging_dir, name)
@@ -38,8 +38,17 @@ def _ensure_container_artifacts(staging_dir, uploads=False):
             # touchées », sinon une spec qui perd son Upload garderait la
             # dépendance devenue inutile.
             connus = (nomenclature.DEFAULT_DOCKERFILE, content, *nomenclature.DOCKERFILES_HERITES)
-        else:
+        elif name == ".dockerignore":
             connus = (nomenclature.DEFAULT_DOCKERIGNORE,)
+        else:
+            # Les DEUX formes (avec et sans Upload) comptent comme « jamais
+            # touchée » : une spec qui perd son Upload doit voir la
+            # dépendance disparaître, comme pour le Dockerfile ci-dessus.
+            # REQUIREMENTS_UPLOAD est AUSSI la forme émise avant que la
+            # dépendance ne devienne conditionnelle : une seule entrée suffit
+            # donc, et en ajouter une identique ne protégerait de rien.
+            connus = (nomenclature.DEFAULT_REQUIREMENTS,
+                      nomenclature.REQUIREMENTS_UPLOAD)
         if actuel in connus and actuel != content:
             with open(path, "w", encoding="utf-8") as fh:
                 fh.write(content)

@@ -42,7 +42,8 @@ def test_validation_compile_inspection_et_archive_partagent_le_pipeline(tmp_path
     archive = service.archive(project["id"])
     with zipfile.ZipFile(archive) as bundle:
         names = set(bundle.namelist())
-    assert {"spec.ml", "app.py", "schema.sql", "frontend_contract.json"} <= names
+    assert {"spec.ml", "app.py", "schema.sql", "frontend_contract.json",
+            "requirements.txt"} <= names
     assert ".jwt_secret" not in names
 
 

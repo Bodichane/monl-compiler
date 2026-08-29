@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1379 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1388 tests
   actuellement ; `tests/test_demo.py` s'appuie sur le dossier `demo/`
   versionné — ne pas le supprimer. La démo est **CodexShop**, une papeterie
   qui exerce la chaîne marchande entière ; ses ENTRÉES seules sont suivies
@@ -1113,6 +1113,44 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   l'anti-rejeu de celle-ci — une tolérance de ±1 fenêtre donnée au serveur
   laissait le test VERT. Déplacée avant, elle rougit. Point 145 mot pour mot.
   Voir point 159.
+- **POINT 164 : quatre bloquants qu'aucun test ne voyait, parce qu'ils vivent
+  dans CE QUE L'USAGER REÇOIT.** Trouvés en faisant le trajet — installer,
+  dialoguer, compiler, télécharger, démarrer l'archive ailleurs, MCP, perdre son
+  mot de passe, supprimer son compte.
+  (a) **La plateforme était INDÉPLOYABLE** : `package-data` ne déclarait que
+  `static/*.png`, donc `favicon.ico` n'entrait pas dans le paquet, et `theme.py`
+  le lit AU NIVEAU DU MODULE — depuis un `pip install` ordinaire,
+  `import monl_platform.app` levait `FileNotFoundError`. Le garde-fou de la CI
+  écrit pour cette classe de défaut ne l'a pas vu parce qu'il installe en
+  ÉDITABLE, ce qui fait pointer les modules vers l'arbre source. **Une garantie
+  peut être exacte et regarder à côté.** Le témoin neuf lit le DISQUE et
+  confronte chaque fichier de `static/` aux motifs de `package-data`.
+  (b) **L'archive téléchargée ne démarrait pas** : la documentation promettait
+  depuis toujours que le backend crée `.jwt_secret` au premier démarrage, et le
+  runtime généré ne le faisait pas — il renvoyait vers le compilateur, conseil
+  impossible pour qui n'a qu'un ZIP. Créé désormais avec `O_EXCL` et `0600` ;
+  `MONL_ENV=production` continue d'EXIGER `MONL_JWT_SECRET` (un secret refait à
+  chaque redémarrage invaliderait toutes les sessions).
+  (c) **`requirements.txt` était documenté mais pas livré** — et le correctif a
+  créé le défaut suivant : deux listes de dépendances tenues séparément (le
+  fichier listait toujours `python-multipart`, le Dockerfile ne l'ajoutait que
+  pour un `Upload`). Le Dockerfile n'énumère plus rien, il fait
+  `-r requirements.txt`. **Le piège attrapé en chemin** : `DOCKERFILES_HERITES`
+  était DÉRIVÉ du gabarit courant par `.replace()` — changer le gabarit faisait
+  désigner des formes JAMAIS ÉMISES, donc tout projet existant voyait son
+  Dockerfile pris pour personnalisé et gelé à jamais, en silence. **Un
+  « hérité » décrit le PASSÉ : il ne se déduit pas du présent.** Les quatre
+  formes réellement émises sont écrites en toutes lettres.
+  (d) **La page `/mcp` annonçait quatre outils inexistants** (`monl_validate`,
+  `monl_compile`, `monl_templates`, `monl_example`) : la liste était écrite à la
+  main, comme `guide_data.py` listait les routes avant qu'un test ne les
+  confronte aux décorateurs réels. Confrontée désormais à `TOOLS`.
+  **Ce que les quatre ont en commun** : aucun n'est dans le code métier. La
+  suite éprouve ce que le compilateur PRODUIT, pas ce qui ARRIVE chez
+  quelqu'un — point 83 d'un cran de plus, après le point 163 :
+  « présent » ≠ « servi » ≠ « exécutable » ≠ **« installable ailleurs »**.
+  Reste ouvert et ce n'est PAS un défaut : `monl-compiler` n'est publié sur
+  aucun index. Voir point 164.
 - **POINT 163 : « servi » n'est pas « exécutable » — deux pages étaient mortes
   et 1373 tests verts ne le disaient pas.** Dans une chaîne Python NON BRUTE,
   `\\'` vaut `'` : écrire `'…Démarrer l\\'API…'` dans un gabarit émet une

@@ -80,6 +80,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [161](#161-la-ci-avait-deux--q-et-ses-sauts-ne-se-voyaient-pas) La CI avait deux `-q`, et ses sauts ne se voyaient pas ·
 [162](#162-le-cap--une-base-de-données-déterministe-et-sûre-le-reste-chez-le-fournisseur-de-lusager) Le cap : une base de données déterministe et sûre, le reste chez le fournisseur de l'usager ·
 [163](#163-le-dialogue-guidé-sur-le-web-et-deux-pages-mortes-que-rien-ne-voyait) Le dialogue guidé sur le web, et deux pages mortes ·
+[164](#164-quatre-bloquants-quaucun-test-ne-voyait-trouvés-en-étant-le-premier-usager) Quatre bloquants trouvés en étant le premier usager ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -11373,3 +11374,100 @@ Suite verte, et le parcours refait dans un vrai navigateur : quatre réponses
 invalides d'affilée — plus que le budget de trois tentatives — chacune refusée
 avec son message (« ✗ Choisir un numéro du menu. »), zéro retenue, puis deux
 réponses acceptées qui font avancer le dialogue.
+
+---
+
+## 164. Quatre bloquants qu'aucun test ne voyait, trouvés en étant le premier usager
+
+**Le mainteneur** : « le compilateur et la plateforme prêts pour de vrais
+utilisateurs. » On a donc fait le trajet — installer, dialoguer, compiler,
+télécharger, démarrer l'archive ailleurs, s'en servir par MCP, perdre son mot
+de passe, le récupérer, supprimer son compte. Pas un audit : un parcours
+EXÉCUTÉ.
+
+Quatre bloquants sont sortis. Aucun n'était visible dans 1386 tests verts, et
+c'est ce qu'ils ont en commun qui compte.
+
+### 1. La plateforme était INDÉPLOYABLE depuis une installation normale
+
+`package-data` ne déclarait que `static/*.png`. `favicon.ico` — ajouté avec le
+nouveau logo — n'entrait donc pas dans le paquet. Or `theme.py` le lit **au
+niveau du module**, pour en dériver l'empreinte de cache : depuis un
+`pip install` ordinaire, `import monl_platform.app` levait `FileNotFoundError`.
+La plateforme entière ne démarrait pas.
+
+**Pourquoi la CI ne l'a pas vu** : son garde-fou « le paquet s'installe et la
+commande répond » — écrit précisément pour cette classe de défaut, après
+qu'un `.gitignore` eut fait disparaître `app.py` — tourne après un
+`pip install -e .`. **L'installation ÉDITABLE fait pointer les modules vers
+l'arbre source**, où le fichier est. Une garantie peut être exacte et regarder
+à côté.
+
+`test_tout_fichier_statique_de_la_plateforme_est_embarque_dans_le_paquet` lit
+le DISQUE et non une liste écrite à la main : un `.svg` ou un `.woff2` ajouté
+demain rouvrirait le trou en silence.
+
+### 2. L'archive téléchargée ne démarrait pas
+
+`.jwt_secret` est exclu de l'archive, et la documentation promet depuis
+toujours que « le backend en génère un au premier démarrage, sur la machine
+qui l'héberge ». **Le runtime généré ne le faisait pas** : il levait en
+demandant de relancer le compilateur — un conseil impossible à suivre pour qui
+n'a reçu qu'un ZIP. La documentation ne mentait pas par négligence, elle
+décrivait une intention jamais écrite.
+
+Le secret est désormais créé avec `O_EXCL` et le mode `0600` (une seconde
+instance qui perd la course relit le fichier au lieu de l'écraser). **En
+production rien ne change** : `MONL_ENV=production` continue d'exiger
+`MONL_JWT_SECRET`, et le refus est explicite — un secret fabriqué au démarrage
+changerait à chaque redémarrage, invalidant toutes les sessions.
+
+### 3. L'archive documentait un `requirements.txt` qu'elle ne livrait pas
+
+`pip install -r requirements.txt` était la première commande du guide, et le
+fichier n'existait pas.
+
+**Et le correctif a créé le défaut suivant** : `requirements.txt` listait
+toujours `python-multipart`, quand le Dockerfile ne l'ajoutait que si la spec
+déclare un `Upload`. Deux listes de dépendances, tenues séparément — ce que ce
+journal refuse partout ailleurs. Le Dockerfile n'énumère donc plus rien : il
+installe `-r requirements.txt`, et la conditionnalité vit à UN seul endroit.
+
+**Le piège attrapé en chemin** : `DOCKERFILES_HERITES` était *dérivé* du
+gabarit courant par `.replace()`. Changer le gabarit faisait donc désigner à
+ces constantes des formes qui n'ont **jamais été émises** — la détection
+cessait de reconnaître les vrais fichiers hérités, et tout projet existant
+voyait son Dockerfile traité comme personnalisé, donc gelé pour toujours.
+Silencieusement. **Un « hérité » décrit le PASSÉ : il ne peut pas se déduire
+du présent.** Les quatre formes réellement émises sont maintenant écrites en
+toutes lettres.
+
+Le Dockerfile DIT enfin que `MONL_ENV=production` rend `MONL_JWT_SECRET`
+obligatoire. Le message d'erreur du serveur nommait déjà la variable — mais il
+fallait avoir lancé le conteneur et lu ses journaux pour l'apprendre.
+
+### 4. La page `/mcp` annonçait quatre outils qui n'ont jamais existé
+
+`monl_validate`, `monl_compile`, `monl_templates`, `monl_example` : aucun n'est
+dans `TOOLS`. Qui configurait son agent depuis cette page appelait des noms
+inexistants. La page listait les outils À LA MAIN — comme `guide_data.py`
+listait les routes avant qu'un test ne les confronte aux décorateurs réels.
+Un test les confronte désormais aux sept vrais noms, et refuse les quatre
+anciens.
+
+### Ce que les quatre ont en commun
+
+Aucun n'est dans le code métier. Tous vivent dans **ce que l'usager reçoit** :
+le paquet installé, l'archive livrée, l'image construite, la page qui explique.
+La suite éprouve ce que le compilateur PRODUIT ; elle n'éprouvait pas ce qui
+ARRIVE chez quelqu'un. C'est le point 83 poussé d'un cran de plus —
+« présent » n'est pas « servi », « servi » n'est pas « exécutable » (point 163),
+et désormais **« exécutable ici » n'est pas « installable ailleurs »**.
+
+### Ce qui reste, et qui n'est pas un défaut
+
+`monl-compiler` n'est publié sur aucun index : on ne peut l'installer que
+depuis le dépôt. Ce n'est pas un bug — c'est une décision jamais prise. C'est
+le dernier obstacle réel entre monl et quelqu'un qui n'a pas le dépôt, et il
+demande un arbitrage humain (nom sur l'index, compte, licence FSL-1.1-ALv2),
+pas une correction.

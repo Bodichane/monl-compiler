@@ -15,7 +15,10 @@
 # Les imports DANS les fonctions comptent autant que ceux en tête de
 # fichier : c'est précisément là que les dépendances interdites se cachent.
 import ast
+import fnmatch
 import os
+
+import tomllib
 
 SRC = os.path.join(os.path.dirname(__file__), "..", "src", "monl")
 
@@ -360,6 +363,39 @@ def test_aucun_test_ne_saute_faute_de_bibliotheque():
     assert not fautifs, (
         "importorskip rend du vert sans vérifier — déclarer la bibliothèque "
         "dans l'extra `dev` : " + ", ".join(fautifs))
+
+
+def test_tout_fichier_statique_de_la_plateforme_est_embarque_dans_le_paquet():
+    """Un fichier non déclaré dans `package-data` n'est PAS installé.
+
+    Mesuré, pas supposé : `package-data` ne déclarait que `static/*.png`, donc
+    `favicon.ico` restait dans l'arbre de travail et jamais dans le paquet. Or
+    `theme.py` le lit AU NIVEAU DU MODULE (pour en dériver l'empreinte de
+    cache) : depuis une installation normale, `import monl_platform.app`
+    levait `FileNotFoundError` — **la plateforme entière était indéployable**.
+
+    Pourquoi la CI ne l'a pas vu : son garde-fou « le paquet s'installe et la
+    commande répond » tourne après un `pip install -e .`, donc les modules
+    pointent vers l'arbre source où le fichier EST. L'installation éditable
+    masque exactement cette classe de défaut.
+
+    Ce test se lit sur le DISQUE et non sur une liste écrite à la main : un
+    `.svg` ou un `.woff2` ajouté demain rouvrirait le même trou en silence.
+    """
+    racine = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    statiques = os.path.join(racine, "src", "monl_platform", "static")
+    with open(os.path.join(racine, "pyproject.toml"), "rb") as fh:
+        motifs = tomllib.load(fh)["tool"]["setuptools"]["package-data"]["monl_platform"]
+
+    presents = sorted(nom for nom in os.listdir(statiques)
+                      if os.path.isfile(os.path.join(statiques, nom)))
+    assert presents, "aucun fichier statique : ce test ne garde plus rien"
+    absents = [nom for nom in presents
+               if not any(fnmatch.fnmatch(f"static/{nom}", m) for m in motifs)]
+
+    assert not absents, (
+        "ces fichiers ne seront PAS installés avec le paquet — ajouter leur "
+        f"motif à [tool.setuptools.package-data] : {', '.join(absents)}")
 
 
 def test_aucun_test_ne_monte_la_plateforme_avec_testclient():

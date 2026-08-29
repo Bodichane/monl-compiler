@@ -47,7 +47,7 @@ def projet(tmp_path):
 def test_compile_ecrit_l_etat_et_le_contrat(projet):
     for artefact in ("app.py", "schema.sql", "manage.py",
                      "frontend_contract.json", "FRONTEND_PROMPT.md",
-                     STATE_FILENAME):
+                     "requirements.txt", STATE_FILENAME):
         assert (projet / artefact).exists(), artefact
     etat = json.loads((projet / STATE_FILENAME).read_text(encoding="utf-8"))
     assert etat["spec"].endswith("spec.ml")
