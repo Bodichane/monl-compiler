@@ -100,7 +100,7 @@ async function chargerCodes(){try{const d=await json('/api/auth/recovery-codes')
  etatCodes.className=d.remaining?'muted':'codes-manquants';}catch(e){etatCodes.textContent='';}}
 document.querySelector('#regenerer-codes').onclick=async()=>{erreurCodes.className='form-error';
  try{const d=await json('/api/auth/recovery-codes',{method:'POST'});
-  affiches.innerHTML='<p class="codes-avis"><b>Notez-les maintenant.</b> Ils ne seront plus jamais affichés, et l\'ancienne série ne fonctionne plus. Chaque code ne sert qu\'une fois.</p><div class="codes-liste">'+d.recovery_codes.map(c=>`<code>${esc(c)}</code>`).join('')+'</div>';
+  affiches.innerHTML='<p class="codes-avis"><b>Notez-les maintenant.</b> Ils ne seront plus jamais affichés, et l\\'ancienne série ne fonctionne plus. Chaque code ne sert qu\\'une fois.</p><div class="codes-liste">'+d.recovery_codes.map(c=>`<code>${esc(c)}</code>`).join('')+'</div>';
   chargerCodes();}catch(e){erreurCodes.textContent=e.message;erreurCodes.className='form-error show';}};
 document.querySelector('#logout').onclick=async()=>{await fetch('/api/auth/logout',{method:'POST'});location.href='/';};
 const zone=document.querySelector('#suppression'),erreur=document.querySelector('#erreur-suppression');

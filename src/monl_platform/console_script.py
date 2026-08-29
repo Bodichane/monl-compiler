@@ -59,6 +59,76 @@ async function api(chemin, corps) {
   return data;
 }
 
+/* ----- dialogue guidé : le serveur reste l'unique moteur ----- */
+let dialogueAnswers = [];
+function rendreDialogue(messages) {
+  const journal = $('#dialogue-log');
+  journal.replaceChildren();
+  (messages || []).forEach(ligne => {
+    const bloc = document.createElement('pre');
+    bloc.textContent = ligne;
+    journal.appendChild(bloc);
+  });
+}
+function afficherDialogue(data) {
+  rendreDialogue(data.messages);
+  const question = $('#dialogue-question');
+  const formulaire = $('#dialogue-form');
+  const depart = $('#dialogue-start');
+  const termine = $('#dialogue-complete');
+  if (data.complete) {
+    question.classList.add('hidden');
+    formulaire.classList.add('hidden');
+    depart.classList.add('hidden');
+    termine.classList.remove('hidden');
+    $('#dialogue-status').textContent = 'Dialogue terminé : la spec est prête à vérifier.';
+    $('#spec-input').value = data.spec || '';
+    compter();
+    return;
+  }
+  question.textContent = data.question || '';
+  question.classList.remove('hidden');
+  formulaire.classList.remove('hidden');
+  depart.classList.add('hidden');
+  termine.classList.add('hidden');
+  $('#dialogue-status').textContent = data.accepted === false
+    ? 'Réponse refusée par le moteur : voyez le message ci-dessus.'
+    : 'Question suivante.';
+  $('#dialogue-answer').value = '';
+  $('#dialogue-answer').focus();
+}
+async function rejouerDialogue(reponse) {
+  const bouton = $('#dialogue-submit');
+  if (bouton) occupe(bouton, true);
+  try {
+    const corps = { answers: dialogueAnswers };
+    if (reponse !== undefined) corps.answer = reponse;
+    const data = await api('/api/dialogue', corps);
+    // La liste FAISANT AUTORITÉ vient du serveur : une réponse qu'il a refusée
+    // n'y entre pas. Le navigateur ne décide donc jamais ce qui compte comme
+    // une réponse valide — il adopte ce que le moteur a retenu.
+    dialogueAnswers = data.answers || dialogueAnswers;
+    afficherDialogue(data);
+  } catch (erreur) {
+    $('#dialogue-status').textContent = 'Réponse refusée : ' + erreur.message +
+      ' Vous pouvez recommencer le dialogue.';
+    if (!dialogueAnswers.length) $('#dialogue-start').classList.remove('hidden');
+  } finally { if (bouton) occupe(bouton, false); }
+}
+function recommencerDialogue() {
+  dialogueAnswers = [];
+  rendreDialogue([]);
+  $('#dialogue-status').textContent = 'Commencez quand vous êtes prêt.';
+  $('#dialogue-question').classList.add('hidden');
+  $('#dialogue-form').classList.add('hidden');
+  $('#dialogue-complete').classList.add('hidden');
+  $('#dialogue-start').classList.remove('hidden');
+}
+function verifierDialogue() {
+  panneau('spec');
+  valider();
+}
+
 /* ----- catalogue d'exemples, servi par l'API ----- */
 async function chargerCatalogue() {
   try {
@@ -145,7 +215,7 @@ function rendreLivraison(p) {
       '<i class="chip">' + echapper(f) + '</i>').join('') + '</div>';
   $('#builder-content').className = '';
   $('#builder-content').innerHTML =
-    '<button class="primary" id="build-btn" type="button">Démarrer l\'API</button>' +
+    '<button class="primary" id="build-btn" type="button">Démarrer l\\'API</button>' +
     '<div class="builder-status" id="builder-status" role="status" aria-live="polite"></div>';
   $('#build-btn').onclick = () => demarrerAPI(p.id);
 }
@@ -220,6 +290,13 @@ $('#spec-input').addEventListener('input', compter);
 $$('.rail button').forEach(b => b.onclick = () => panneau(b.dataset.panel));
 $('#validate-btn').onclick = valider;
 $('#compile-btn').onclick = compiler;
+$('#dialogue-start button').onclick = () => rejouerDialogue();
+$('#dialogue-form').onsubmit = e => {
+  e.preventDefault();
+  rejouerDialogue($('#dialogue-answer').value);
+};
+$('#dialogue-reset').onclick = recommencerDialogue;
+$('#dialogue-validate').onclick = verifierDialogue;
 $('#reset-btn').onclick = () => {
   if (exemples.length) charger(exemples[0].id);
   panneau('spec');
@@ -256,4 +333,3 @@ rendreHistorique();
 chargerCatalogue();
 </script>
 """
-

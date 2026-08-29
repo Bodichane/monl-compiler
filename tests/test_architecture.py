@@ -362,6 +362,45 @@ def test_aucun_test_ne_saute_faute_de_bibliotheque():
         "dans l'extra `dev` : " + ", ".join(fautifs))
 
 
+def test_aucun_test_ne_monte_la_plateforme_avec_testclient():
+    """`starlette.testclient` exige `httpx2`, que la CI n'installe pas.
+
+    La décision est ÉCRITE depuis longtemps, en tête de
+    `tests/test_platform_web.py` : ce fichier montait la plateforme avec
+    `TestClient`, la suite s'arrêtait à la COLLECTE sur les trois versions de
+    Python, et tout a été refait contre un uvicorn éphémère.
+
+    Rien ne la gardait. Un test neuf a donc réintroduit `TestClient` et rougi
+    la CI exactement de la même façon — vert en local avec un simple
+    avertissement de dépréciation, cassé là où ça compte. **Une décision
+    écrite mais non gardée se réapprend en la cassant** ; c'est le point 152
+    (« une garantie qui cesse de porter ne fait aucun bruit ») appliqué à une
+    consigne de prose.
+
+    Le remède n'est pas d'ajouter `httpx2` : un client en processus ne
+    traverse ni la couche ASGI réelle, ni le démarrage du serveur.
+    """
+    dossier = os.path.dirname(__file__)
+    fautifs = []
+    for nom in sorted(os.listdir(dossier)):
+        if not nom.endswith(".py"):
+            continue
+        with open(os.path.join(dossier, nom), encoding="utf-8") as fh:
+            source = fh.read()
+        for noeud in ast.walk(ast.parse(source, filename=nom)):
+            if isinstance(noeud, ast.ImportFrom) and noeud.module and (
+                    noeud.module.endswith("testclient")):
+                fautifs.append(f"{nom}:{noeud.lineno}")
+            elif isinstance(noeud, ast.Import):
+                for alias in noeud.names:
+                    if alias.name.endswith("testclient"):
+                        fautifs.append(f"{nom}:{noeud.lineno}")
+
+    assert not fautifs, (
+        "TestClient exige httpx2 et n'exerce pas le vrai serveur — monter un "
+        "uvicorn éphémère à la place : " + ", ".join(fautifs))
+
+
 def test_les_bibliotheques_dont_les_tests_ont_besoin_sont_dans_dev():
     """Le pendant du test ci-dessus : la déclaration, pas seulement l'absence
     de contournement.

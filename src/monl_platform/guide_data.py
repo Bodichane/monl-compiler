@@ -148,6 +148,7 @@ ROUTES_API: list[tuple[str, str, str]] = [
     ("GET", "/api/templates", "Les dix modèles métier du dialogue guidé."),
     ("GET", "/api/examples", "Le catalogue des spécifications d'exemple."),
     ("GET", "/api/examples/{example_id}", "La spécification d'un exemple, en texte."),
+    ("POST", "/api/dialogue", "La prochaine question du dialogue guidé, ou sa spec complète."),
     ("GET", "/auth/fournisseurs", "Fournisseurs OAuth réellement configurés."),
     ("POST", "/api/auth/register", "Crée un compte et ouvre une session."),
     ("POST", "/api/auth/login", "Ouvre une session avec email et mot de passe."),
@@ -195,9 +196,6 @@ LIMITES: list[tuple[str, str]] = [
      "existe, et rien ici ne permet de le déposer. Utilisez "
      "<code>String</code> pour une adresse distante, ou le compilateur en "
      "local avec <code>monl assets add</code>."),
-    ("Pas de dialogue guidé",
-     "Le dialogue qui produit une spec par questions est une commande locale "
-     "(<code>monl</code>). La plateforme part d'une spécification déjà écrite."),
     ("Rétention bornée",
      "Les projets vivent dans le stockage persistant puis expirent après "
      "30 jours par défaut. Téléchargez l'archive avant cette échéance."),
@@ -208,4 +206,3 @@ LIMITES: list[tuple[str, str]] = [
      "L'archive ne contient jamais <code>.jwt_secret</code> : le backend en "
      "génère un au premier démarrage, sur la machine qui l'héberge."),
 ]
-

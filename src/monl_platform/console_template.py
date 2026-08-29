@@ -54,6 +54,28 @@ EXTRA_CSS = """
 .panel { display: none; } .panel.active { display: block; }
 .panel h2 { font-size: 26px; margin-bottom: var(--space-2); }
 .panel .lede { color: var(--muted); margin-bottom: var(--space-5); }
+.dialogue-card { background: var(--surface-2); border: 1px solid var(--line);
+                 border-radius: var(--radius); padding: var(--space-5); }
+.dialogue-log { margin-bottom: var(--space-5); background: var(--code-bg);
+                color: var(--code-ink); border-radius: var(--radius); padding: var(--space-4);
+                max-height: 360px; overflow: auto; }
+.dialogue-log:empty { display: none; }
+.dialogue-log pre { margin: 0 0 var(--space-3); white-space: pre-wrap;
+                    overflow-wrap: anywhere; font: 13px/1.6 var(--mono); }
+.dialogue-log pre:last-child { margin-bottom: 0; }
+.dialogue-question { margin: 0 0 var(--space-4); padding: var(--space-4);
+                     border: 1px solid var(--line); border-radius: var(--radius);
+                     white-space: pre-wrap; overflow-wrap: anywhere;
+                     font: 14px/1.65 var(--mono); }
+.dialogue-form { display: flex; gap: var(--space-3); align-items: end; }
+.dialogue-form label { display: block; font-weight: 600; margin-bottom: 7px; }
+.dialogue-form input { width: 100%; min-height: 46px; padding: 10px 12px;
+                       border: 1px solid var(--line); border-radius: var(--radius);
+                       background: var(--surface); color: var(--ink); font: 16px var(--sans); }
+.dialogue-field { min-width: 0; flex: 1; }
+.dialogue-actions { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+.dialogue-complete { margin-top: var(--space-4); }
+.dialogue-status { color: var(--muted); min-height: 1.5em; margin: 0 0 var(--space-4); }
 
 .gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
            gap: var(--space-3); margin-bottom: var(--space-5); }
@@ -154,6 +176,7 @@ kbd { font: 11px var(--mono); border: 1px solid var(--line); border-bottom-width
   .mcp { grid-template-columns: 1fr; }
   .route { grid-template-columns: 60px 1fr; } .lock { display: none; }
   .console-head { align-items:start; flex-direction:column; }
+  .dialogue-form { align-items: stretch; flex-direction: column; }
 }
 """
 
@@ -187,8 +210,8 @@ workflow Ecrire for Auteur
 BODY = f"""
 <section class="shell console-head" data-reveal>
 <div><h1>Console de compilation</h1>
-<p>Écrivez ou importez une spécification, vérifiez ses règles puis téléchargez
-un backend autonome et son contrat frontend.</p></div>
+<p>Répondez au dialogue guidé ou écrivez une spécification, vérifiez ses règles
+puis téléchargez un backend autonome et son contrat frontend.</p></div>
 <span class="console-badge">{icon('shield')} Compilation locale et vérifiable</span>
 </section>
 
@@ -196,6 +219,7 @@ un backend autonome et son contrat frontend.</p></div>
 <div class="studio">
 <aside class="rail" aria-label="Étapes du parcours">
 <p class="rail-title">Parcours</p>
+<button data-panel="dialogue" type="button">{icon('terminal')} Dialogue guidé</button>
 <button class="active" data-panel="spec" type="button">{icon('code')} Spécification</button>
 <button data-panel="review" type="button">{icon('check')} Vérification</button>
 <button data-panel="contract" type="button">{icon('shield')} Contrat</button>
@@ -203,10 +227,37 @@ un backend autonome et son contrat frontend.</p></div>
 </aside>
 <div class="workspace">
 
+<section class="panel" id="panel-dialogue">
+<h2>Construisez par questions</h2>
+<p class="lede">Le même dialogue déterministe que <code>monl</code>. La console
+rejoue les réponses déjà données et vous montre la question suivante.</p>
+<div class="dialogue-card">
+<div id="dialogue-log" class="dialogue-log" aria-label="Journal du dialogue"></div>
+<p id="dialogue-status" class="dialogue-status" role="status" aria-live="polite">
+Commencez quand vous êtes prêt.</p>
+<pre id="dialogue-question" class="dialogue-question hidden"></pre>
+<form id="dialogue-form" class="dialogue-form hidden">
+<div class="dialogue-field"><label for="dialogue-answer">Votre réponse</label>
+<input id="dialogue-answer" name="answer" type="text" autocomplete="off"></div>
+<div class="dialogue-actions"><button class="primary" id="dialogue-submit" type="submit">
+<span class="btn-label">Envoyer la réponse</span><i class="spinner hidden"></i></button>
+<button class="ghost" id="dialogue-reset" type="button">Recommencer</button></div>
+</form>
+<div id="dialogue-start" class="dialogue-complete">
+<button class="primary" type="button">Commencer le dialogue</button>
+</div>
+<div id="dialogue-complete" class="dialogue-complete hidden">
+<p class="feedback ok show">La spec est prête. Elle sera repassée par
+<code>/api/validate</code> avant toute compilation.</p>
+<button class="primary" id="dialogue-validate" type="button">Vérifier la spec et continuer</button>
+</div>
+</div>
+</section>
+
 <section class="panel active" id="panel-spec">
 <h2>Décrivez l'application</h2>
-<p class="lede">Quatre exemples réels, du plus simple au plus complet. Chacun
-compile — ce sont des spécifications entières, pas des extraits.</p>
+<p class="lede">Collez une spec, importez un fichier ou passez par le dialogue
+guidé. Les exemples ci-dessous sont des spécifications entières, pas des extraits.</p>
 <div class="gallery" id="gallery" role="group" aria-label="Exemples de spécification"></div>
 <div class="field-head">
 <label for="spec-input">Spécification monl</label>
@@ -266,4 +317,3 @@ et votre propre fournisseur.</p>
 </div></div>
 </section>
 """
-

@@ -45,6 +45,15 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
+      # Node n'est pas une dépendance du produit : il ANALYSE le JavaScript
+      # que les pages servent. Sans lui, tests/test_console_javascript.py
+      # échoue au lieu de sauter — un saut dirait « rien à vérifier ici »
+      # alors qu'il dirait « je n'ai pas vérifié » (point 140). Il est déclaré
+      # ici, là où la CI l'installe, exactement comme Pillow au point 158bis.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
       - name: Installer les dépendances
         run: |
           python -m pip install --upgrade pip

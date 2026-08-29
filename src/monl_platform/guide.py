@@ -76,11 +76,13 @@ et la direction retenue, pour que l'IA d'interface ne réinvente pas la palette.
 
         ("demarrer", "Démarrer", "3 étapes", f"""
 <h2>Trois étapes</h2>
-<p class="lede">Depuis cette page, sans rien installer.</p>
+<p class="lede">Depuis cette page, sans rien installer — en répondant au
+dialogue guidé ou en apportant votre spec.</p>
 <div class="steps">
 <article class="card step"><span class="step-no">01 / ÉCRIRE</span>
-<h3>Partez d'un exemple</h3><p>Le studio en propose quatre, du plus simple au plus
-complet. Chacun compile : ce sont des specs réelles, pas des extraits.</p></article>
+<h3>Répondez ou partez d'un exemple</h3><p>Le panneau Dialogue guidé pose les
+mêmes questions que <code>monl</code>. Le studio propose aussi quatre specs
+réelles, du plus simple au plus complet.</p></article>
 <article class="card step"><span class="step-no">02 / VÉRIFIER</span>
 <h3>Validez</h3><p>Le vrai parseur et le vrai audit répondent. Les erreurs nomment
 la ligne et disent quoi corriger.</p></article>
