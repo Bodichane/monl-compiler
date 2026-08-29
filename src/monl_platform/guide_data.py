@@ -166,7 +166,7 @@ ROUTES_API: list[tuple[str, str, str]] = [
     ("POST", "/api/compile", "Compile et rend un manifeste (201)."),
     ("GET", "/api/projects/{project_id}", "Manifeste et résumé d'une compilation."),
     ("GET", "/api/projects/{project_id}/contract", "Le contrat frontend complet."),
-    ("GET", "/api/projects/{project_id}/download", "Archive ZIP, sans le secret JWT."),
+    ("GET", "/api/projects/{project_id}/download", "Archive ZIP, sans le secret JWT. Ouverte par la session OU par une clé MCP en Bearer."),
     ("POST", "/api/projects/{project_id}/compiler", "Compile la spec du projet dans son dossier privé (201)."),
     ("POST", "/api/projects/{project_id}/serve", "Démarre l'API compilée (alias explicite)."),
     ("POST", "/api/projects/{project_id}/start", "Démarre l'API compilée pour l'essayer."),
@@ -182,7 +182,10 @@ OUTILS_MCP: list[tuple[str, str]] = [
     ("monl_list_templates", "Découvrir les modèles métier."),
     ("monl_validate_spec", "Les erreurs du vrai parseur et de l'audit."),
     ("monl_compile_backend", "Compiler, et recevoir l'identifiant du projet."),
+    ("monl_list_projects", "Retrouver ses projets et leur adresse de téléchargement."),
     ("monl_inspect_contract", "Lire le manifeste et le contrat complet."),
+    ("monl_diff_spec", "Ce qu'une spec nouvelle changerait, sans rien écrire."),
+    ("monl_update_backend", "Recompiler un projet existant et recevoir le delta."),
 ]
 
 LIMITES: list[tuple[str, str]] = [

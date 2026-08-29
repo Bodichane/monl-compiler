@@ -48,6 +48,43 @@ def _require_user(request: Request, identities: IdentityStore) -> dict[str, str]
     return user
 
 
+def _cle_mcp(request: Request) -> str | None:
+    """La clé portée par l'en-tête ``Authorization: Bearer …``, ou rien."""
+    autorisation = request.headers.get("authorization", "")
+    if not autorisation.lower().startswith("bearer "):
+        return None
+    return autorisation[7:].strip() or None
+
+
+def _require_user_ou_cle(request: Request, identities: IdentityStore) -> dict[str, str]:
+    """La session du navigateur OU une clé MCP.
+
+    POINT 161. Récupérer son archive était la SEULE chose qu'un agent ne
+    pouvait pas faire sans ouvrir un navigateur — exactement le passage que le
+    cap veut supprimer. Ce n'est pas une seconde porte : c'est le MÊME chemin
+    d'authentification que ``/mcp`` (``api_key_user``), avec le même contrôle
+    de propriété derrière (``_require_project``). Le renversement à comprendre :
+    une clé MCP identifie un COMPTE, pas une capacité — lui refuser ce que la
+    session du même compte obtient n'était pas une protection, seulement une
+    dépendance au navigateur.
+
+    La session est essayée en PREMIER : dans un navigateur, un en-tête
+    ``Authorization`` traînant ne doit jamais l'emporter sur qui est connecté.
+    """
+    user = identities.session_user(request.cookies.get("monl_session"))
+    if user:
+        return user
+    cle = _cle_mcp(request)
+    if cle:
+        user = identities.api_key_user(cle)
+        if user:
+            return user
+    raise HTTPException(
+        status_code=401,
+        detail="Connectez-vous, ou fournissez une clé MCP en en-tête Authorization.",
+    )
+
+
 def _require_project(identities: IdentityStore, user_id: str, project_id: str) -> None:
     if not identities.owns_project(user_id, project_id):
         # Même réponse pour un projet absent et celui d'un autre compte :
@@ -77,12 +114,22 @@ def _rate_limit(request: Request, identities: IdentityStore, scope: str,
         )
 
 
+#: Les outils MCP qui font tourner le COMPILATEUR, donc qui doivent prendre
+#: une place au sémaphore de `MONL_MAX_CONCURRENT_COMPILES`. POINT 161 : le
+#: diff et la mise à jour compilent eux aussi (dans un dossier jetable pour le
+#: premier, dans le projet pour le second) — les oublier ici laisserait la
+#: borne de concurrence intacte à la lecture et contournée à l'exécution.
+OUTILS_QUI_COMPILENT = frozenset({
+    "monl_compile_backend", "monl_diff_spec", "monl_update_backend",
+})
+
+
 def _is_compile_message(message: dict) -> bool:
     params = message.get("params")
     return (
         message.get("method") == "tools/call"
         and isinstance(params, dict)
-        and params.get("name") == "monl_compile_backend"
+        and params.get("name") in OUTILS_QUI_COMPILENT
     )
 
 

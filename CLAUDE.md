@@ -1128,6 +1128,28 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   base neuve ils ne refusent plus rien. La console : « Créer et lancer la
   construction » → « Démarrer l'API » (`/compiler` puis `/start`).
   Voir point 161.
+- **POINT 161bis : la boucle MCP est fermée, et une borne exprimée par une
+  liste de noms cesse de borner en silence.** Sept outils désormais —
+  `monl_list_projects`, `monl_diff_spec` et `monl_update_backend` s'ajoutent
+  aux quatre existants — et **l'archive s'ouvre à la clé MCP**
+  (`_require_user_ou_cle`, app_http.py : session PUIS clé, pour qu'un en-tête
+  `Authorization` traînant ne l'emporte jamais sur qui est connecté ; même
+  `api_key_user` que `/mcp`, même `_require_project` derrière ; 404 et jamais
+  403 pour la clé valide d'un autre compte). Le delta n'est PAS recalculé :
+  `_contract_signature` reste la source unique, `evolution.py` la lit pour DEUX
+  contrats. `recompiler` produit le nouveau dossier EN ENTIER avant de toucher
+  à l'ancien — une spec refusée laisse le projet intact — et l'identifiant
+  comme l'adresse de téléchargement SURVIVENT.
+  **LE PIÈGE** : `MONL_MAX_CONCURRENT_COMPILES` était armé par une égalité sur
+  le seul `monl_compile_backend`. Les deux outils neufs compilent aussi ; les
+  oublier laissait la borne intacte à la lecture et contournée à l'exécution
+  (`OUTILS_QUI_COMPILENT`). **Toute borne exprimée par une liste de noms doit
+  être relue quand un nom s'ajoute.**
+  **La contre-épreuve a reproduit l'angle mort des points 88 à 119 en direct** :
+  aveuglé sur tout sauf les ROUTES, le delta déclarait « interface inchangée »
+  pour un champ ajouté avec son `oneOf`. Éprouvé par
+  `tests/test_platform_mcp_boucle.py` — un agent compile, liste, télécharge le
+  ZIP, mesure et recompile sans jamais ouvrir de session. Voir point 161.
 - **POINT 160 : un seuil de temps en SECONDES ne veut pas dire la même chose
   sur deux machines.** Le test d'oracle temporel de `test_authentification_b4`
   comparait l'écart entre le chemin « compte verrouillé » et le chemin

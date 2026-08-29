@@ -11152,3 +11152,57 @@ promet plus un site, elle promet ce qui se produit vraiment — et le reste,
 l'interface, se construit chez l'usager avec l'archive, le contrat et SON
 fournisseur.
 
+### La boucle MCP, fermée
+
+Les trois manques nommés plus haut sont comblés, et aucun n'a demandé de brique
+nouvelle.
+
+**L'archive s'ouvre à la clé MCP.** `_require_user_ou_cle` (app_http.py) essaie
+la session PUIS la clé — dans cet ordre, pour qu'un en-tête `Authorization`
+traînant dans un navigateur ne l'emporte jamais sur qui est connecté. Ce n'est
+pas une seconde porte : c'est le MÊME `api_key_user` que `/mcp`, avec le même
+`_require_project` derrière. **Le renversement à comprendre** : une clé MCP
+identifie un COMPTE, pas une capacité — lui refuser ce que la session du même
+compte obtient n'était pas une protection, seulement une dépendance au
+navigateur. La contre-épreuve est dans le test : sans clé 401, avec une clé
+inconnue 401, avec la clé VALIDE d'un autre compte **404** — jamais 403, sans
+quoi l'identifiant opaque deviendrait un oracle d'existence.
+
+**`monl_diff_spec` et `monl_update_backend`** sont les équivalents de `monl
+diff` et `monl update`. Le delta n'est PAS recalculé : `_contract_signature`
+(monl.cli) reste la source unique des dix ensembles, et `evolution.py` se borne
+à la lire pour deux contrats. Les deux DICTIONNAIRES — contenus éditoriaux,
+sections obligatoires — portent une empreinte par clé, donc « modifié » existe à
+côté d'« ajouté » et « retiré » : réécrire une rubrique de fond en comble ne
+renomme rien, et il faut pourtant re-rendre la page (points 89, 94 et 96).
+
+**La contre-épreuve du delta a reproduit l'angle mort en direct.** En aveuglant
+`delta_de_contrat` sur tout sauf les ROUTES, la spec d'essai — un champ de plus
+ET un `oneOf` dessus — passait pour « interface inchangée » : le champ neuf ne
+crée aucune route. C'est exactement ce que les points 88 à 119 racontent dix
+fois, et c'est la première fois qu'on le fait rougir sur commande.
+
+**`recompiler` produit le nouveau dossier EN ENTIER avant de toucher à
+l'ancien** : une spec refusée laisse le projet exactement comme il était
+(éprouvé). L'identifiant et l'adresse de téléchargement SURVIVENT — c'est tout
+l'intérêt de recompiler plutôt que de repartir d'un projet neuf. Le résumé du
+manifeste, lui, est refait depuis le NOUVEAU contrat : le garder ferait mentir
+`/api/projects/{id}`.
+
+**`OUTILS_QUI_COMPILENT` (app_http.py) est le piège qu'on a failli laisser.**
+Le sémaphore de `MONL_MAX_CONCURRENT_COMPILES` était armé par un test d'égalité
+sur le seul `monl_compile_backend`. Le diff et la mise à jour compilent eux
+aussi — les oublier laissait la borne de concurrence intacte à la lecture et
+contournée à l'exécution. **Toute borne exprimée par une liste de noms doit être
+relue quand un nom s'ajoute** : c'est le point 85 (une règle qui ne produit
+rien) vu de l'autre côté, une borne qui ne borne plus.
+
+**L'adresse de téléchargement n'est jamais déduite de l'en-tête `Host`** :
+absolue si `MONL_PLATFORM_PUBLIC_URL` est déclarée, relative sinon — même
+frontière qu'au point 145. Une adresse absolue fausse enverrait l'archive d'un
+compte vers un serveur que quelqu'un d'autre a nommé.
+
+Éprouvé par `tests/test_platform_mcp_boucle.py` (5 tests, vrai serveur) : un
+agent compile, liste, télécharge les octets du ZIP, mesure un delta et
+recompile en place **sans jamais ouvrir de session**.
+

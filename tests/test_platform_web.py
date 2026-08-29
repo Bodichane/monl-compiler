@@ -124,7 +124,7 @@ def test_page_explique_compile_et_mcp(tmp_path):
             "Authorization": "Bearer " + key.json()["key"]},
             json={"jsonrpc": "2.0", "id": 8, "method": "tools/list"}, timeout=30)
         assert mcp.status_code == 200
-        assert len(mcp.json()["result"]["tools"]) == 4
+        assert len(mcp.json()["result"]["tools"]) == 7
 
 
 def test_erreurs_web_restent_actionnables(tmp_path):
