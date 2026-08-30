@@ -82,6 +82,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [163](#163-le-dialogue-guidé-sur-le-web-et-deux-pages-mortes-que-rien-ne-voyait) Le dialogue guidé sur le web, et deux pages mortes ·
 [164](#164-quatre-bloquants-quaucun-test-ne-voyait-trouvés-en-étant-le-premier-usager) Quatre bloquants trouvés en étant le premier usager ·
 [165](#165-le-site-à-375-pixels--quatre-défauts-et-une-mesure-qui-portait-à-côté) Le site à 375 pixels, et une mesure qui portait à côté ·
+[166](#166-le-chemin-conteneur-enfin-exécuté--et-le-déploiement-recommandé-était-aveugle) Le chemin conteneur exécuté, et la supervision aveugle ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -11572,3 +11573,89 @@ conteneur, zéro élément coupé sans moyen de défiler.** En thème CLAIR, 45
 couples couleur/fond mesurés, aucun sous le seuil WCAG — avec son contrôle de
 validité (les variables de thème changent bien entre clair et sombre, sans quoi
 on aurait mesuré deux fois le même thème).
+
+---
+
+## 166. Le chemin conteneur, enfin exécuté — et le déploiement recommandé était aveugle
+
+Le point 164 déclarait UN trou en toutes lettres : **le chemin conteneur n'a
+jamais été exécuté**, Docker étant absent de la machine. `podman` y était.
+Cette fois le trajet a été fait, deux fois — par Codex puis par moi.
+
+### Ce qui marche, et qui n'avait jamais été prouvé
+
+`Dockerfile.platform` fait `pip install .`, une installation **NON ÉDITABLE** :
+c'est exactement le chemin où le défaut de `favicon.ico` du point 164 mordait,
+et que la CI ne voit pas parce qu'elle installe en éditable. L'image construite
+sert `/favicon.ico` en 200, **6 376 octets dont l'empreinte SHA-256 commence
+par `3cf62446`** — celle du fichier du dépôt, et celle du `?v=3cf62446` du
+point 158. Le correctif est prouvé là où il compte.
+
+Sous les restrictions RÉELLES du compose — `--read-only`, `--cap-drop ALL`,
+`no-new-privileges`, `/tmp` en tmpfs — et en `uid=100(monl)` : inscription 201,
+compilation 201 (17 routes, 3 entités), archive de 51 Ko téléchargée. L'image
+du projet livré se construit et tourne : `openapi` 200, lecture publique 200 en
+anonyme, lecture privée **401 en anonyme et 200 avec jeton**, création de
+commande 200. Et la frontière de la bêta 3 tient DANS l'image : `Client`
+(porteur de `selfRegister`) s'inscrit en 200, `Vendeur` reçoit **403**.
+
+Le secret JWT se comporte comme le point 164 l'a écrit : le Dockerfile livré
+pose `MONL_ENV=production`, donc l'image **refuse de démarrer** sans
+`MONL_JWT_SECRET` — code 1, message nommant la variable — et démarre avec la
+commande `openssl rand -hex 32` que son commentaire donne.
+
+La sauvegarde est vérifiée **par son contenu et non par sa taille** : prise sur
+une base VIVANTE, elle contient le compte, le projet, la session, les huit
+codes de secours, et `pragma integrity_check` rend `ok`. Le fichier appartient
+à `monl:monl` dans un volume nommé — le point que le Dockerfile désigne
+lui-même comme fragile, puisqu'un volume arrivant à `root` ferait échouer la
+sauvegarde en silence tous les jours.
+
+### LE DÉFAUT : le déploiement recommandé perdait le contrôle de santé
+
+`Dockerfile.platform` déclare un `HEALTHCHECK` sur `/ready`. **Le format d'image
+OCI ne sait pas le porter, et podman construit en OCI par défaut.** Mesuré :
+`podman inspect --format '{{.HealthCheck}}'` rend `<nil>`, et le contrôle
+complet avec `--format docker` — après quoi le conteneur passe réellement à
+`healthy` (la première sonde échoue pendant la période de démarrage de dix
+secondes, la suivante réussit).
+
+Et c'est la commande DOCUMENTÉE qui était concernée : `podman compose … up`
+construit en OCI. Le déploiement que `EXPLOITATION.md` recommande produisait
+donc une image sans contrôle de santé. Le drapeau passe à travers compose
+(`--podman-build-args="--format docker"`), vérifié : `Up (healthy)`.
+
+**Ce défaut ne casse rien de visible** — la route répond, l'application tourne
+— et c'est la SUPERVISION qui devient muette : un conteneur mort ne sera jamais
+redémarré par une politique qui attend un état que l'image ne produit pas.
+C'est la famille du point 140 déplacée dans l'exploitation : *une garantie qui
+ne garde plus rien ne fait aucun bruit.*
+
+La première rédaction — celle de Codex — nommait correctement le problème et
+conseillait de recâbler une sonde ailleurs. Elle a été remplacée : **un
+document qui décrit une limite sans donner le remède qu'il connaît envoie
+travailler pour rien.** Le témoin exige donc les DEUX drapeaux (celui de
+`podman build` et celui de la voie compose) et la mention de la conséquence,
+sans quoi l'exploitant lit une subtilité de format et passe.
+
+### Deux fois, la mesure a failli mentir — dans la même heure
+
+**Un `ready: 200` qui venait d'ailleurs.** En démarrant le compose, le port
+8022 était déjà pris et `curl` répondait 200 : c'était le serveur de
+développement de la session, pas le conteneur. Le point 165 venait d'écrire
+qu'*une page qui répond n'est pas la page qu'on croit* ; il a fallu le
+réapprendre trente minutes plus tard.
+
+**Une commande crue amputée.** En lisant la commande du service de sauvegarde,
+elle semblait finir sans son `done` — une boucle `while` sans fin de bloc,
+donc un service mort-né. C'était une troncature à 200 caractères dans ma propre
+sonde d'affichage. La commande fait 205 caractères. **Une sonde qui coupe ce
+qu'elle montre fabrique le défaut qu'elle croit trouver.**
+
+### Ce qui reste, et qui n'est pas un défaut de monl
+
+Le volume de sauvegarde est séparé mais reste sur la MÊME machine — le document
+le disait déjà. `podman compose` n'est qu'un aiguillage vers un
+`docker-compose` ou `podman-compose` installé à part ; sans l'un des deux la
+commande échoue en le disant. Et **Docker lui-même n'a pas été exécuté** :
+seul podman était disponible.
