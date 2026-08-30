@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1391 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1392 tests
   actuellement ; `tests/test_demo.py` s'appuie sur le dossier `demo/`
   versionné — ne pas le supprimer. La démo est **CodexShop**, une papeterie
   qui exerce la chaîne marchande entière ; ses ENTRÉES seules sont suivies
@@ -1113,6 +1113,39 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   l'anti-rejeu de celle-ci — une tolérance de ±1 fenêtre donnée au serveur
   laissait le test VERT. Déplacée avant, elle rougit. Point 145 mot pour mot.
   Voir point 159.
+- **POINT 166 : le chemin conteneur exécuté — et le déploiement RECOMMANDÉ
+  était aveugle.** Le point 164 déclarait ce trou en toutes lettres ; `podman`
+  était là. **Le format d'image OCI ne porte pas `HEALTHCHECK`, et podman
+  construit en OCI par défaut** : `podman inspect --format '{{.HealthCheck}}'`
+  rend `<nil>`, et le contrôle complet avec `--format docker` — après quoi le
+  conteneur passe réellement à `healthy`. La commande DOCUMENTÉE
+  (`podman compose … up`) était concernée ; le drapeau passe par
+  `--podman-build-args="--format docker"`, vérifié `Up (healthy)`. **Ce défaut
+  ne casse rien de visible** — la route répond, l'application tourne — et c'est
+  la SUPERVISION qui devient muette : un conteneur mort ne sera jamais redémarré
+  par une politique qui attend un état que l'image ne produit pas. Famille du
+  point 140 déplacée dans l'exploitation. La première rédaction nommait le
+  problème et conseillait de recâbler une sonde ailleurs : **un document qui
+  décrit une limite sans donner le remède qu'il connaît envoie travailler pour
+  rien** — le témoin exige les DEUX drapeaux et la conséquence écrite.
+  **CE QUI EST PROUVÉ AU PASSAGE.** `Dockerfile.platform` fait `pip install .`
+  (NON éditable) : `/favicon.ico` y sort en 200, 6 376 octets, empreinte
+  `3cf62446` identique au dépôt — le correctif du point 164 tient là où la CI
+  ne regarde pas. Sous `--read-only --cap-drop ALL` en `uid=100(monl)` :
+  inscription, compilation (17 routes), archive de 51 Ko. L'image du projet
+  livré tourne et garde ses invariants — lecture privée 401 anonyme / 200 avec
+  jeton, `selfRegister` 200 contre 403 pour l'acteur fermé, et refus de démarrer
+  sans `MONL_JWT_SECRET` puisque le Dockerfile pose `MONL_ENV=production`. La
+  sauvegarde est vérifiée PAR SON CONTENU sur une base vivante (compte, projet,
+  session, huit codes, `integrity_check ok`), en `monl:monl` dans un volume
+  nommé — le point que le Dockerfile désigne lui-même comme fragile.
+  **DEUX FOIS LA MESURE A FAILLI MENTIR, dans la même heure.** Un `ready: 200`
+  qui venait du serveur de développement de la session et non du conteneur
+  (point 165 réappris trente minutes après l'avoir écrit) ; et une commande crue
+  amputée de son `done` — c'était une troncature à 200 caractères dans ma propre
+  sonde, la commande en fait 205. **Une sonde qui coupe ce qu'elle montre
+  fabrique le défaut qu'elle croit trouver.** Docker lui-même n'a PAS été
+  exécuté : seul podman était disponible. Voir point 166.
 - **POINT 165 : le site à 375 px — une `@media` n'ajoute AUCUNE spécificité, et
   `1fr` vaut `minmax(auto,1fr)`.** Le volet Navigateur masqué ment sur la
   cascade et le défilement (points 156, 158) mais mesure la GÉOMÉTRIE : la
