@@ -14,9 +14,8 @@ requires-python = ">=3.10"
 # chaque artefact.
 license = "LicenseRef-FSL-1.1-ALv2"
 license-files = ["LICENSE"]
-# L'identité de l'auteur est une décision du mainteneur, pas une déduction du
-# nom du paquet. `Itchane Bodi` est la proposition (EDITEUR dans legal.py),
-# mais aucun auteur n'est inscrit tant que cette décision n'est pas confirmée.
+# Valeur confirmée par le mainteneur, alignée sur `legal.EDITEUR`.
+authors = [{ name = "Itchane Bodi" }]
 keywords = ["dsl", "compiler", "fastapi", "codegen", "low-code"]
 classifiers = [
     "Development Status :: 4 - Beta",

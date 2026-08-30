@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1399 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1400 tests
   actuellement ; `tests/test_demo.py` s'appuie sur le dossier `demo/`
   versionné — ne pas le supprimer. La démo est **CodexShop**, une papeterie
   qui exerce la chaîne marchande entière ; ses ENTRÉES seules sont suivies
@@ -1113,6 +1113,25 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   l'anti-rejeu de celle-ci — une tolérance de ±1 fenêtre donnée au serveur
   laissait le test VERT. Déplacée avant, elle rougit. Point 145 mot pour mot.
   Voir point 159.
+- **POINT 167bis : un témoin peut être CREUX DÈS SA NAISSANCE.**
+  `test_un_auteur_ne_peut_pas_etre_le_nom_du_paquet` s'écrivait
+  `all(a["name"] != project["name"] for a in project.get("authors", []))` — et
+  `authors` était VIDE, le point 167 ayant délibérément laissé le champ vacant.
+  Or `all([])` vaut `True` : le témoin passait au vert **sans rien regarder**,
+  dans la PR même qui l'introduisait. Point 152 à sa forme la plus courte, sauf
+  qu'ici la garantie n'a JAMAIS porté. **Un test écrit en même temps que
+  l'absence qu'il devrait interdire ne peut pas la détecter** — lui donner sa
+  contre-épreuve le jour où on l'écrit, pas le jour où la valeur arrive. Il
+  porte désormais `assert auteurs, "…ne garderait plus rien"`.
+  **Décisions tranchées** : auteur = `Itchane Bodi` (le NOM seul — « mets
+  l'auteur » n'autorise pas `contact@monl.dev`, décision distincte), avec une
+  SOURCE UNIQUE gardée par un second témoin (`project.authors ==
+  [{"name": legal.EDITEUR}]`). Nom de distribution `monl-compiler` CONFIRMÉ :
+  le projet a déjà migré depuis `monl` (`dist/anciens/` en garde la trace), et
+  le nom est partout — dépôt, titre du site, `/health`. **`monl` tout court
+  reste libre sur l'index**, à surveiller. Vérifié dans les métadonnées
+  PRODUITES et non dans le fichier source : `Author: Itchane Bodi`, aucun
+  `Author-email`, `twine check` deux fois `PASSED`. Voir point 167bis.
 - **POINT 167 : rendre le compilateur PUBLIABLE, sans le publier.** Il restait
   une seule chose entre monl et qui n'a pas le dépôt. `pyproject.toml` n'avait
   ni `classifiers` ni `[project.urls]`, et déclarait comme auteur… le nom du
