@@ -51,6 +51,8 @@ dev = [
     "mypy>=1.10,<2.0",       # contrats typés aux frontières de l'IR
     "vulture>=2.11,<3.0",    # recherche de code mort, revue manuelle conservée
     "requests>=2.31,<3.0",   # tests HTTP et fournisseurs frontend
+    "packaging>=24,<27",      # normalisation officielle du tag de publication
+    "PyYAML>=6.0,<7.0",       # parsing local du workflow de publication dans ses témoins
     # Pillow ne vivait que dans l'extra `ai`, que la CI n'installe pas. Deux
     # conséquences, toutes deux du point 140 : le test de réencodage JPEG
     # SAUTAIT en silence (un saut ne dit pas « rien à vérifier », il dit « je
