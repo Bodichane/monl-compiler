@@ -11752,3 +11752,45 @@ le nom de distribution, la version à publier, et **l'identité de l'auteur** �
 auteur n'est inscrit** tant que ce n'est pas confirmé : une identité réelle ne
 se déduit pas d'un nom de paquet, et une autorisation donnée pour les pages
 légales ne s'étend pas d'office aux métadonnées d'un index public.
+
+### 167bis. Les décisions tranchées — et un témoin creux de naissance
+
+Le mainteneur a tranché deux des trois points laissés ouverts.
+
+**L'auteur** : `Itchane Bodi`, la valeur de `legal.EDITEUR`. Le NOM seulement,
+pas l'adresse — « mets l'auteur » n'autorise pas `contact@monl.dev`, qui est
+une décision distincte. Vérifié dans les métadonnées RÉELLEMENT produites, pas
+dans le fichier source : `Author: Itchane Bodi`, aucun `Author-email`,
+`License-Expression: LicenseRef-FSL-1.1-ALv2`, `License-File: LICENSE`,
+`twine check` deux fois `PASSED`.
+
+**Le nom de distribution reste `monl-compiler`**, décision déléguée. Le projet
+a DÉJÀ migré depuis `monl` — `dist/anciens/` en garde la trace avec des
+artefacts `monl-0.9.0b5` — et revenir en arrière déferait un choix délibéré. Le
+nom est par ailleurs partout ailleurs : le dépôt, le titre du site, la réponse
+de `/health` (`"service":"monl-compiler"`). Qu'on installe `monl-compiler` pour
+obtenir la commande `monl` est la norme et non une bizarrerie (`Pillow` donne
+`PIL`, `beautifulsoup4` donne `bs4`). **`monl` tout court reste libre sur
+l'index** : à surveiller, un tiers qui le prendrait recevrait les
+`pip install monl` des usagers distraits.
+
+**LE TÉMOIN ÉTAIT CREUX DÈS SA NAISSANCE.**
+`test_un_auteur_ne_peut_pas_etre_le_nom_du_paquet` s'écrivait
+`all(a["name"] != project["name"] for a in project.get("authors", []))` — et
+`authors` était VIDE, puisque le point 167 avait délibérément laissé le champ
+vacant. Or `all([])` vaut `True` : le témoin passait au vert **sans rien
+regarder**, dans la PR même qui l'introduisait, une heure plus tôt.
+
+C'est le point 152 à sa forme la plus courte : *une garantie qui cesse de
+porter sur quoi que ce soit ne fait aucun bruit* — sauf qu'ici elle n'a jamais
+porté. La leçon à retenir n'est pas « relire les tests » mais **« un test écrit
+en même temps que l'absence qu'il devrait interdire ne peut pas la
+détecter »** : il faut lui donner sa contre-épreuve le jour où on l'écrit, pas
+le jour où la valeur arrive. Il porte désormais
+`assert auteurs, "aucun auteur déclaré : ce témoin ne garderait plus rien"`.
+
+Et l'identité a maintenant **une source unique** : un second témoin exige
+`project.authors == [{"name": legal.EDITEUR}]`. Deux endroits qui déclarent la
+même personne finissent toujours par se contredire — même raisonnement que
+`_contract_signature`, `compiler_dans`, `_decrement_fk_column` ou
+`requirements.txt`.

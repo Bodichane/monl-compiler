@@ -2,6 +2,8 @@
 
 import os
 
+from monl_platform import legal
+
 
 def _project():
     try:
@@ -78,5 +80,15 @@ def test_la_licence_non_spdx_est_nomme_et_livree_sans_substitution():
 
 def test_un_auteur_ne_peut_pas_etre_le_nom_du_paquet():
     project = _project()
+    auteurs = project.get("authors", [])
 
-    assert all(auteur["name"] != project["name"] for auteur in project.get("authors", []))
+    assert auteurs, "aucun auteur déclaré : ce témoin ne garderait plus rien"
+    assert all(auteur["name"] != project["name"] for auteur in auteurs)
+
+
+def test_l_auteur_de_la_distribution_est_l_editeur_legal():
+    project = _project()
+
+    assert project["authors"] == [{"name": legal.EDITEUR}], (
+        "l'auteur de la distribution doit rester identique à legal.EDITEUR"
+    )
