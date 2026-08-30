@@ -4,6 +4,7 @@ import argparse
 import os
 import sys
 
+from .. import __version__
 from ..errors import MonlError
 from . import consommation, construction, contenu_editorial, delta, lancement, retouche
 
@@ -14,6 +15,7 @@ def _dispatch(argv=None):
         prog="monl",
         description="monl — plateforme d'orchestration : dialogue guidé → "
                     "DSL → backend + contrat frontend → IA UI → run/update.")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = parser.add_subparsers(dest="command")
 
     p_init = sub.add_parser("init", help="Dialogue guidé (défaut sans sous-commande).")

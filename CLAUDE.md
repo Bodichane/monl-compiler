@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1392 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1399 tests
   actuellement ; `tests/test_demo.py` s'appuie sur le dossier `demo/`
   versionné — ne pas le supprimer. La démo est **CodexShop**, une papeterie
   qui exerce la chaîne marchande entière ; ses ENTRÉES seules sont suivies
@@ -1113,6 +1113,38 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   l'anti-rejeu de celle-ci — une tolérance de ±1 fenêtre donnée au serveur
   laissait le test VERT. Déplacée avant, elle rougit. Point 145 mot pour mot.
   Voir point 159.
+- **POINT 167 : rendre le compilateur PUBLIABLE, sans le publier.** Il restait
+  une seule chose entre monl et qui n'a pas le dépôt. `pyproject.toml` n'avait
+  ni `classifiers` ni `[project.urls]`, et déclarait comme auteur… le nom du
+  paquet. **La licence était le point délicat** : `license = { text = … }` est
+  dépréciée par la PEP 639, et FSL-1.1-ALv2 n'est PAS un identifiant SPDX —
+  écrire `Apache-2.0` (ce que FSL devient au bout de deux ans) serait faux
+  aujourd'hui. La forme prévue est `LicenseRef-FSL-1.1-ALv2`, plus le fichier
+  par `license-files`. `twine check` passe sur les deux artefacts.
+  **LE PIÈGE, et il est DÉFINITIF** : `dist/` est ignoré par git — donc absent
+  d'un dépôt cloné, mais présent sur la machine qui publie, qui est celle qui a
+  déjà construit. Mesuré : `dist/` portait `0.9.0b7` pour une version à publier
+  en `0.9.0b8`, et `dist/anciens/` des artefacts nommés `monl-0.9.0b5`, soit
+  l'ANCIEN nom de distribution. `twine upload dist/*` les enverrait tous, et
+  **un numéro de version envoyé à PyPI ne se réutilise jamais, même après
+  suppression**. Le témoin exige `rm -rf dist/` AVANT `python -m build` —
+  l'ordre EST la garantie — et exige que la conséquence soit ÉCRITE.
+  **Une liste écrite à la main, pour la deuxième fois** : le premier témoin
+  recopiait les versions Python (`"3.10", "3.12", "3.14"`), défaut du point 164
+  sur `/mcp`. Elles sont lues sur la matrice de `ci.yml`, dans un seul sens —
+  toute version ÉPROUVÉE doit être annoncée, jamais l'inverse — et une matrice
+  illisible fait ÉCHOUER le témoin au lieu de passer sur un ensemble vide.
+  **La preuve** : roue installée dans un venv vierge et exercée HORS du dépôt
+  (sinon l'arbre source la masque, point 165) — `monl --version` (qui
+  n'existait pas), `import monl_platform.app` sans lever depuis une VRAIE roue,
+  `monl compile` puis un backend qui démarre et s'inscrit, `monl-platform` qui
+  sert `/favicon.ico` en 6 376 octets. Le contenu de la roue est confronté au
+  DISQUE : tout fichier non-`.py` de `src/` doit s'y trouver.
+  **Reste au mainteneur, et ce n'est pas technique** : les trois noms sont
+  libres sur l'index (`monl` tout court aussi), la version, et l'identité de
+  l'auteur — `Itchane Bodi` est PROPOSÉ, aucun auteur n'est inscrit ; une
+  autorisation donnée pour les pages légales ne s'étend pas d'office aux
+  métadonnées d'un index public. Voir point 167.
 - **POINT 166 : le chemin conteneur exécuté — et le déploiement RECOMMANDÉ
   était aveugle.** Le point 164 déclarait ce trou en toutes lettres ; `podman`
   était là. **Le format d'image OCI ne porte pas `HEALTHCHECK`, et podman

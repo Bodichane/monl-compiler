@@ -83,6 +83,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [164](#164-quatre-bloquants-quaucun-test-ne-voyait-trouvés-en-étant-le-premier-usager) Quatre bloquants trouvés en étant le premier usager ·
 [165](#165-le-site-à-375-pixels--quatre-défauts-et-une-mesure-qui-portait-à-côté) Le site à 375 pixels, et une mesure qui portait à côté ·
 [166](#166-le-chemin-conteneur-enfin-exécuté--et-le-déploiement-recommandé-était-aveugle) Le chemin conteneur exécuté, et la supervision aveugle ·
+[167](#167-rendre-le-compilateur-publiable--sans-le-publier) Rendre le compilateur publiable, sans le publier ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -11659,3 +11660,95 @@ le disait déjà. `podman compose` n'est qu'un aiguillage vers un
 `docker-compose` ou `podman-compose` installé à part ; sans l'un des deux la
 commande échoue en le disant. Et **Docker lui-même n'a pas été exécuté** :
 seul podman était disponible.
+
+---
+
+## 167. Rendre le compilateur publiable — sans le publier
+
+Trois rondes ont rendu la plateforme déployable (164), le site lisible sur
+téléphone (165) et le conteneur éprouvé (166). Il restait **une seule chose**
+entre monl et quelqu'un qui n'a pas le dépôt : le compilateur n'est publié sur
+aucun index. Le but de ce point n'est pas de publier — c'est de rendre la
+publication possible ET prouvée, pour qu'il ne reste qu'une commande à lancer,
+avec des identifiants que seul le mainteneur touche.
+
+### Ce que les métadonnées ne disaient pas
+
+`pyproject.toml` n'avait **aucun `classifiers`** et **aucun `[project.urls]`** :
+une page d'index qui ne dit ni les versions de Python, ni le statut, ni où
+trouver le dépôt. Et l'auteur déclaré était… le nom du paquet
+(`authors = [{ name = "monl-compiler" }]`).
+
+**La licence était le point délicat.** `license = { text = "FSL-1.1-ALv2" }`
+emploie une forme que la PEP 639 déprécie, et FSL-1.1-ALv2 **n'est pas un
+identifiant SPDX** : la forme moderne l'aurait donc refusée. La tentation
+serait d'écrire `Apache-2.0` — la licence que FSL devient au bout de deux ans —
+et ce serait faux aujourd'hui. La bonne réponse existe et s'appelle
+`LicenseRef-` : `license = "LicenseRef-FSL-1.1-ALv2"`, prévue exactement pour
+nommer une licence personnalisée sans la faire passer pour une autre. Le
+fichier `LICENSE` voyage en plus dans les deux artefacts (`license-files`).
+`twine check` passe sur la roue ET sur l'archive source.
+
+**`monl --version` n'existait pas.** Trouvé en suivant les étapes de preuve,
+pas en relisant : un paquet publié dont on ne peut pas demander la version.
+
+### LE PIÈGE, et il aurait été définitif
+
+Le guide écrivait `python -m build` puis `twine upload dist/*`. Or **`dist/`
+est ignoré par git — donc absent d'un dépôt cloné, mais bien présent sur la
+machine qui publie**, qui est précisément celle qui a déjà construit. Mesuré au
+moment d'écrire : `dist/` contenait `monl_compiler-0.9.0b7` alors que la
+version à publier est `0.9.0b8`, et `dist/anciens/` portait des artefacts
+nommés `monl-0.9.0b5` — l'ANCIEN nom de distribution, dont l'envoi créerait un
+second projet sur l'index.
+
+Construire sans nettoyer laisse les deux côte à côte, `dist/*` développe quatre
+fichiers, et **un numéro de version envoyé à PyPI ne peut plus être réutilisé,
+même après suppression**. C'est la seule faute de cette série qu'on ne peut pas
+défaire. Le témoin exige `rm -rf dist/` **avant** `python -m build` — l'ordre
+EST la garantie — et exige que la conséquence soit écrite, sinon la commande
+passe pour une coquetterie et le premier qui publie sous pression la saute.
+
+### Une liste écrite à la main, pour la deuxième fois
+
+Le premier témoin des métadonnées vérifiait les versions de Python en les
+**recopiant** : `("3.10", "3.12", "3.14")`. C'est le défaut du point 164 sur la
+page `/mcp`, qui annonçait quatre outils inexistants pour la même raison. Les
+versions sont désormais **lues sur la matrice de `ci.yml`**.
+
+Le sens du contrôle est choisi : on exige que toute version ÉPROUVÉE soit
+annoncée, jamais l'inverse. Annoncer 3.11 sans la tester serait une promesse
+invérifiable ; la tester sans l'annoncer prive l'usager d'une information
+vraie. Et une matrice devenue illisible fait ÉCHOUER le témoin plutôt que de le
+laisser passer sur un ensemble vide — sans quoi il cesserait de garder quoi que
+ce soit en silence, ce que le point 152 a déjà vu arriver.
+
+### La preuve qui compte
+
+Roue installée dans un venv VIERGE, exercée **hors du dépôt** (sans quoi
+l'arbre source masquerait le paquet — point 165) :
+
+- `monl --version` → `monl 0.9.0-beta.8` ;
+- les deux modules résolvent vers `site-packages`, vérifié en imprimant
+  `__file__` ;
+- `import monl_platform.app` ne lève pas — c'est le défaut du point 164, prouvé
+  cette fois depuis une VRAIE roue et non une simulation ;
+- `monl compile` produit un backend qui démarre : `/openapi.json` 200,
+  inscription 200 avec l'acteur porteur de `selfRegister`, `.jwt_secret` créé
+  en `-rw-------` de 64 octets au premier démarrage ;
+- `monl-platform` sert `/ready` 200, `/favicon.ico` 200 en 6 376 octets.
+
+Et le contenu de la roue est confronté au DISQUE, pas à une liste : tout
+fichier non-`.py` de `src/` doit s'y trouver. Les trois fichiers de
+`monl_platform/static/` y sont ; les douze « absents » sont des `egg-info`,
+métadonnées de construction qui n'ont rien à faire dans une roue.
+
+### Ce qui reste, et qui n'est PAS technique
+
+Les trois noms sont libres sur l'index — `monl-compiler`, mais aussi `monl`
+tout court, alors que la commande s'appelle déjà `monl`. Restent au mainteneur :
+le nom de distribution, la version à publier, et **l'identité de l'auteur** —
+`Itchane Bodi` est proposé (c'est l'`EDITEUR` de `legal.py`) mais **aucun
+auteur n'est inscrit** tant que ce n'est pas confirmé : une identité réelle ne
+se déduit pas d'un nom de paquet, et une autorisation donnée pour les pages
+légales ne s'étend pas d'office aux métadonnées d'un index public.

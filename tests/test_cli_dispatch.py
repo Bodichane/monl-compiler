@@ -21,7 +21,7 @@ import os
 
 import pytest
 
-from monl import cli
+from monl import __version__, cli
 
 SPEC = """app Carnet
 
@@ -106,6 +106,14 @@ def test_sans_sous_commande_le_dialogue_guide_s_ouvre(monkeypatch):
     cli.main(["init", "--dir", "/ici"])
 
     assert recu == [None, "/ici"]
+
+
+def test_la_version_est_disponible_sans_sous_commande(capsys):
+    with pytest.raises(SystemExit) as sortie:
+        cli.main(["--version"])
+
+    assert sortie.value.code == 0
+    assert f"monl {__version__}" in capsys.readouterr().out
 
 
 # ------------------------------------------- frontend : quelle voie est prise --
