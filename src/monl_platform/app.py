@@ -20,6 +20,7 @@ from .identity import IdentityStore
 from .journal import anomalie, configurer, evenement
 from .mcp_server import MCPDispatcher
 from .service import CompilationService
+from .session import verifier_configuration_cookie
 
 
 def create_app(*, workspace=None, domain=None, downloads_dir=None) -> FastAPI:
@@ -30,6 +31,7 @@ def create_app(*, workspace=None, domain=None, downloads_dir=None) -> FastAPI:
     tous le constructeur frontend. La plateforme ne construit plus d'interface
     et n'appelle plus aucun modèle : ce qu'elle fait, elle le fait hors ligne.
     """
+    verifier_configuration_cookie()
     configurer()
     service = CompilationService(workspace)
     identities = IdentityStore(service.workspace)

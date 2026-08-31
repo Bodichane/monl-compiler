@@ -34,6 +34,18 @@ def test_un_jeton_de_forte_entropie_est_masque_sous_nimporte_quel_nom():
     assert J.MASQUE in J.evenement("essai", ref=jeton)
 
 
+def test_un_jeton_dans_une_url_de_journal_est_masque():
+    jeton = "monl_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6"
+    url = f"GET https://client.example/reset?token={jeton}&next=/compte"
+    ligne = J.masquer_texte(url)
+    assert jeton not in ligne
+    assert "token=[masqué]" in ligne
+    assert "next=/compte" in ligne
+    assert jeton not in J.evenement("sortie_site", url=url)
+    assert "token=[masqué]" in J.masquer_texte("token=jeton-court")
+    assert "Bearer [masqué]" in J.masquer_texte("Authorization: Bearer court")
+
+
 def test_ce_qui_nest_pas_un_secret_passe_tel_quel():
     """Le témoin : un masquage qui masquerait tout serait inutilisable."""
     ligne = J.evenement("compilation", projet="a3f9", routes=17, duree_ms=812)

@@ -6,12 +6,14 @@ exécutent aussi les fonctions de route dans le processus mesuré : sinon la
 couverture confondrait « éprouvé » et « visible par coverage.py ».
 """
 
+import ast
 import asyncio
 import io
 import json
 import json as json_module
 import urllib.error
 from http.cookies import SimpleCookie
+from pathlib import Path
 from urllib.parse import urlsplit
 
 import pytest
@@ -327,6 +329,46 @@ def test_les_garde_fous_http_normalisent_et_refusent_les_entrees_invalides(
         asyncio.run(app_http._json_body(_request(body=b"pas-json")))
     with pytest.raises(HTTPException, match="objet JSON"):
         asyncio.run(app_http._json_body(_request(body=b"[]")))
+
+
+def test_la_pose_du_cookie_est_unique_et_suit_la_configuration(tmp_path, monkeypatch):
+    """Les deux chemins de session lisent la même pose, et aucun troisième n'existe."""
+    racine = Path(__file__).resolve().parent.parent / "src" / "monl_platform"
+    poses = []
+    for chemin in racine.glob("*.py"):
+        arbre = ast.parse(chemin.read_text(encoding="utf-8"))
+        poses.extend(
+            (chemin.name, noeud.lineno)
+            for noeud in ast.walk(arbre)
+            if isinstance(noeud, ast.Call)
+            and isinstance(noeud.func, ast.Attribute)
+            and noeud.func.attr == "set_cookie"
+        )
+    assert len(poses) == 1
+    assert poses[0][0] == "session.py"
+
+    from fastapi.responses import Response
+
+    from monl_platform import app_http
+    from monl_platform.builder_runtime import _set_session_cookie
+    from monl_platform.identity import IdentityStore
+
+    identities = IdentityStore(tmp_path)
+    user = identities.register("cookie@exemple.test", MOT_DE_PASSE)
+    monkeypatch.setenv("MONL_COOKIE_SECURE", "yes")
+    secure = app_http._session_response(identities, user)
+    oauth_secure = Response()
+    _set_session_cookie(oauth_secure, "jeton-de-test")
+    for response in (secure, oauth_secure):
+        assert b"Secure" in b"".join(
+            value for key, value in response.raw_headers if key == b"set-cookie"
+        )
+
+    monkeypatch.setenv("MONL_COOKIE_SECURE", "0")
+    insecure = app_http._session_response(identities, user)
+    assert b"Secure" not in b"".join(
+        value for key, value in insecure.raw_headers if key == b"set-cookie"
+    )
 
 
 def test_le_cycle_de_vie_demarre_arrete_et_maintient_la_purge(monkeypatch):

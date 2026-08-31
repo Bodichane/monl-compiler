@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from .identity import IdentityStore
 from .journal import anomalie
+from .session import set_session_cookie
 from .theme import page
 
 
@@ -33,11 +34,7 @@ def _session_response(identities: IdentityStore, user: dict[str, str],
                       status_code: int = 200, extra: dict | None = None) -> JSONResponse:
     token = identities.create_session(user["id"])
     response = JSONResponse({"user": user, **(extra or {})}, status_code=status_code)
-    response.set_cookie(
-        "monl_session", token, max_age=30 * 24 * 3600, path="/",
-        httponly=True, samesite="strict",
-        secure=os.environ.get("MONL_COOKIE_SECURE", "").lower() in {"1", "true", "yes"},
-    )
+    set_session_cookie(response, token)
     return response
 
 
@@ -182,4 +179,3 @@ def mount_error_handler(application):
         if _veut_du_json(request):
             return JSONResponse({"detail": detail}, status_code=404)
         return HTMLResponse(_page_404(detail), status_code=404)
-

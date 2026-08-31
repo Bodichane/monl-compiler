@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1441 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1452 tests
   actuellement ; `tests/test_demo.py` s'appuie sur le dossier `demo/`
   versionné — ne pas le supprimer. La démo est **CodexShop**, une papeterie
   qui exerce la chaîne marchande entière ; ses ENTRÉES seules sont suivies
@@ -1113,6 +1113,45 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   l'anti-rejeu de celle-ci — une tolérance de ±1 fenêtre donnée au serveur
   laissait le test VERT. Déplacée avant, elle rougit. Point 145 mot pour mot.
   Voir point 159.
+- **POINT 172 : le serveur SAIT et ne dit pas — deux fois, avant la mise en
+  ligne.** Aucun des deux ne casse rien à l'usage : tout marche, simplement
+  sans protection et sans trace.
+  **(a) Le cookie de session pouvait partir en clair.** La règle était écrite
+  DEUX fois (`app_http.py` et `builder_runtime.py`) — `session.py` est
+  désormais la source unique, un test exige un seul `set_cookie` dans toute la
+  plateforme. Et la **contradiction** `MONL_PLATFORM_PUBLIC_URL=https://…` +
+  `MONL_COOKIE_SECURE` non activée fait REFUSER le démarrage en nommant les
+  deux réglages — précédent exact du point 145. **Le refus ne porte QUE sur la
+  contradiction** : `http://` et l'absence d'adresse restent permis, sans quoi
+  on casserait des déploiements corrects (point 84). Les QUATRE cas sont
+  mesurés contre un vrai serveur ; sans les deux derniers on saurait que le
+  garde-fou refuse, jamais qu'il accepte ce qu'il doit accepter.
+  **(b) Un site hébergé qui plante ne laissait aucune trace** —
+  `stdout`/`stderr` vers `DEVNULL`, `_wait_ready` n'attrapant que l'échec au
+  DÉMARRAGE. Point 140 déplacé dans l'exploitation. Sortie dans `site.log`, lue
+  par `monl-platform admin journal` et **jamais par une route web** (point 142 ;
+  un test lit `/openapi.json`).
+  **CE QUE LA VÉRIFICATION A TROUVÉ DANS LE CORRECTIF, et c'est la leçon.**
+  La borne d'1 Mio était tenue — et gardait le DÉBUT. Mesuré : 10 Mio de trafic
+  puis un plantage, et la trace du plantage était **entièrement perdue**, parce
+  qu'elle arrive en DERNIER. Le témoin existant vérifiait `taille <= borne`, ce
+  qui **passe dans les deux cas**. Le journal garde désormais la FIN (compactage
+  au double de la borne, coupe sur une ligne entière), et le témoin mesure ce
+  qu'on GARDE. *Un test qui mesure la contrainte ne mesure pas le service
+  rendu.*
+  **L'EXTRACTEUR NE SAVAIT PAS LIRE UNE CONSTANTE.** Ranger
+  `"MONL_COOKIE_SECURE"` dans `COOKIE_SECURE_ENV` a fait dire au témoin de
+  documentation « documentée sans être lue » — et **le remède apparent aurait
+  été de la RETIRER du document**, donc d'effacer la trace d'un réglage de
+  sécurité actif. Cause : une regex qui ne voit que les noms écrits en dur AU
+  POINT DE LECTURE. Résolution des constantes par AST (point 153), avec **son
+  propre témoin** (point 161). Dès sa première exécution il a trouvé
+  `MONL_PLATFORM_DOWNLOADS` : lue depuis toujours à travers une variable
+  locale, **jamais documentée**.
+  **La leçon, sous quatre formes** : une garantie se mesure sur ce qu'elle
+  SERT, pas sur ce qu'elle contraint. Un cookie posé n'est pas un cookie
+  protégé ; une borne tenue n'est pas une trace utile ; un motif qui trouve
+  quelque chose ne trouve pas forcément tout. Voir point 172.
 - **POINT 171 : la console JETAIT la liste des choix, et une barre translucide
   coupe le texte.** Né d'une question d'usager — « comment différencier site
   web et application web dans la console ? » — pas d'une relecture.

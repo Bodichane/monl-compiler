@@ -23,6 +23,8 @@ from monl.errors import MonlError
 from monl.frontend_contract import CONTRACT_VERSION
 from monl.parser import parse_monl_file
 
+from .hosting import SITE_LOG_FILENAME
+
 MAX_SPEC_BYTES = 256_000
 PROJECT_ID = re.compile(r"^[0-9a-f]{32}$")
 
@@ -241,7 +243,10 @@ class CompilationService:
         directory = self._project_dir(project_id)
         archive = directory / "backend-monl.zip"
         temporary = directory / ".backend-monl.zip.tmp"
-        excluded = {"backend-monl.zip", ".backend-monl.zip.tmp", ".jwt_secret"}
+        excluded = {
+            "backend-monl.zip", ".backend-monl.zip.tmp", ".jwt_secret",
+            SITE_LOG_FILENAME,
+        }
         with zipfile.ZipFile(temporary, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
             for path in sorted(directory.rglob("*")):
                 if path.is_file() and path.name not in excluded:
