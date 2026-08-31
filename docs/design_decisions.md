@@ -89,6 +89,8 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [170](#170-la-complexité-mesurée-devient-un-cliquet--et-un-témoin-qui-ne-rougit-jamais-seul) La complexité devient un cliquet, et le témoin qui ne rougit jamais seul ·
 [171](#171-la-console-jetait-la-liste-des-choix--et-une-barre-translucide-coupe-le-texte) La console jetait la liste des choix, et la barre translucide ·
 [172](#172-le-serveur-sait-et-ne-dit-pas--deux-fois-avant-la-mise-en-ligne) Le serveur sait et ne dit pas : cookie en clair, sites hébergés muets ·
+[172bis](#172bis-une-borne-de-disque-se-tient-à-chaque-instant-pas-seulement-à-la-fin) Une borne de disque se tient à chaque instant ·
+[173](#173-trois-briques-que-le-dialogue-nécrivait-pas--et-une-photo-que-personne-ne-voyait) Trois briques sans producteur, et la photo que personne ne voyait ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -12499,3 +12501,99 @@ C'est le point 145 sur une borne : *un test qui passe ne prouve pas qu'il
 mord.* Et une variante du point 168 : quand un verdict dépend du bruit ambiant,
 ce n'est pas le seuil qu'il faut bouger, c'est l'instrument.
 
+---
+
+## 173. Trois briques que le dialogue n'écrivait pas — et une photo que personne ne voyait
+
+`upload`, `filter` et `sort` existaient, produisaient du vrai code, étaient
+éprouvées contre un vrai serveur — et **le dialogue guidé n'en écrivait
+aucune**. Aucun des dix modèles non plus. Elles ne servaient donc **qu'à qui
+écrit la spécification à la main**, c'est-à-dire à personne parmi les usagers
+que la plateforme vise. Point 146 mot pour mot : *une brique sans producteur
+n'existe pas*.
+
+### Dériver, plutôt que demander
+
+`tests/test_app_templates.py::test_le_dialogue_a_bien_ete_allege` existe : le
+dialogue a été allégé exprès. Trois questions de plus le rechargeraient. La
+règle appliquée est donc : **dériver ce qui est dérivable, ne demander que ce
+qui ne l'est pas.**
+
+- **`sort`** se dérive d'un champ `timestamp`. Le point 89 avait déjà tranché
+  cet arbitrage pour l'horodatage lui-même — *« émis par le dialogue sans
+  aucune question, la seule réponse utile serait oui »*. Un carnet de commandes
+  sans tri par date est inutilisable.
+- **`filter`** se dérive d'un champ `oneOf` : la liste est FERMÉE, le contrat
+  porte déjà `allowed_values` pour en faire un menu déroulant, et filtrer
+  dessus ne demande aucune information nouvelle.
+- **`upload`** ne se dérive pas. monl ne peut pas deviner qu'une fiche porte un
+  fichier, ni lesquels, ni quelle taille. Une question, par fiche éligible.
+
+Mesuré : une à deux questions ajoutées par modèle, jamais plus.
+
+### La contrainte qui gouverne la question de dépôt
+
+Le compilateur oppose deux refus, tous deux justes :
+
+- un champ `Upload` sans règle de dépôt (« le type seul ne produirait ni limite
+  ni route ») ;
+- une lecture publique sur une entité qui porte un `Upload` (« pour qu'un
+  fichier ne soit pas lisible par simple connaissance de son chemin »).
+
+Un dialogue qui poserait la question ailleurs produirait une spec **refusée à
+la compilation** — le pire résultat possible pour quelqu'un qu'on guide. La
+question n'est donc posée que sur une entité possédée et non publique.
+
+### CE QUE LA VÉRIFICATION A TROUVÉ, et c'est le cœur du point
+
+Une fiche photo avait été ajoutée au modèle « Petites annonces ». **La spec
+compilait. L'ACL était correcte. Le site produit était inutilisable.**
+
+Mesuré contre un vrai serveur : `read_listingphoto_photo` exige
+`current_actor == "Seller"`, donc **un ACHETEUR récolte 403 sur la photo d'une
+annonce**. Un catalogue de petites annonces dont personne ne voit les images —
+et c'est pire que pas de photo du tout, parce que le vendeur croit en avoir
+mis.
+
+La cause n'est pas une erreur de code : c'est que **monl ne sait pas servir
+publiquement un fichier déposé**, et que satisfaire cette contrainte en rendant
+la photo privée satisfait le compilateur en trahissant le besoin. Le dépôt a
+donc été déplacé là où « privé » est le BUT et non un pis-aller : le
+**justificatif d'une dépense**. Personne d'autre n'a de raison de le voir ; la
+contrainte et le besoin coïncident.
+
+*Une contrainte qu'on satisfait sans servir le besoin produit un défaut qu'aucun
+test de compilation ne peut voir.*
+
+### La question doit dire ce qu'elle produit
+
+« Quel dépôt de fichier pour Annonce ? » ne prévenait de rien. On choisit
+« Photo » en croyant que les acheteurs la verront. Elle dit désormais **« le
+fichier ne sera lisible que par son propriétaire »** — dérivé de la règle
+réellement écrite (`ownedBy`), pas d'une intention.
+
+### La preuve qui manquait, et qui était DÉCLARÉE manquante
+
+L'auteur du correctif avait écrit en toutes lettres : *« le dépôt HTTP généré
+par le catalogue est non mesuré »*. `tests/test_uploads.py` éprouve la brique
+sur une spec écrite à la main ; la chaîne **dialogue → spec → serveur → fichier
+déposé** n'avait jamais été parcourue en entier.
+
+`tests/test_depot_depuis_le_dialogue.py` la parcourt : **deux comptes** (avec un
+seul, « le fichier est-il privé ? » devient « puis-je lire le mien ? », piège
+nommé aux points 81, 90 et 116), un vrai PNG déposé et relu **à l'octet près**,
+l'autre compte refusé, l'anonyme en 401, la limite de taille en 413 et le SVG
+rebaptisé `.png` en 415 — le type venant de la SIGNATURE D'OCTETS.
+
+**Contre-épreuve** : porter la limite déclarée de 5 à 32 Mio fait rougir le
+témoin. Il mesure donc bien ce que le dialogue DÉCLARE, et non une valeur en
+dur.
+
+### Et une contre-épreuve qui ne mesurait rien
+
+Le contrat doit voir ces briques, sinon `monl update` répond « aucun changement
+d'interface » en laissant un écran à refaire — l'angle mort qui s'est reproduit
+huit fois (points 88 à 116). La première version du témoin comparait la spec
+modifiée à la spec d'origine : **elle ne regardait pas la signature du tout**,
+et un `replace` qui ne trouvait pas sa cible l'aurait rendue verte. Elle compile
+désormais les DEUX specs et compare ce que le contrat porte.

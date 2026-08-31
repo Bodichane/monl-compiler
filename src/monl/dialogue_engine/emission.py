@@ -47,6 +47,20 @@ class EmissionMixin:
         emission_parts.emit_structure(lines, entities, relations, actors, self_register)
         emission_parts.emit_capability(lines, account_identifier)
 
+        extra_rules = list(extra_rules)
+        extra_rules.extend(emission_parts.derived_list_rules(entities, extra_rules))
+        if payable:
+            entity = payable["entity"]
+            timestamped = any(
+                field == self.CHAMP_DATE
+                for field, _type in entities.get(entity, ()))
+            if timestamped:
+                sort_rule = f"rule {entity}.Read sort {self.CHAMP_DATE}"
+                # Le timestamp de payable est émis par `emit_payable`, pas
+                # dans `extra_rules`; son tri doit néanmoins suivre la même
+                # dérivation sans recopier la règle timestamp elle-même.
+                if sort_rule not in extra_rules:
+                    extra_rules.append(sort_rule)
         calculated = emission_parts.calculated_server_fields(self, payable)
         emission_parts.emit_base_rules(
             lines, entities, extra_rules, public_read, public_create, owned,

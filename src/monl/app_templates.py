@@ -322,6 +322,12 @@ TEMPLATES = [
                          "manager": "Buyer", "readers": ["Seller"],
                          "public_read": False, "public_create": False, "owned": True},
         },
+        # PAS de fiche photo ici : une photo d'annonce doit être vue par les
+        # ACHETEURS, et monl refuse (à juste titre) qu'un fichier déposé soit
+        # lisible publiquement. Une photo privée sur une annonce publique
+        # donnerait un catalogue dont personne ne voit les images — mesuré :
+        # l'acheteur récolte 403 sur la route du fichier. Le dépôt reste
+        # proposé là où « privé » est le but (un justificatif de dépense).
         "relations": [("Listing", "hasMany", "Purchase")],
         "extra_rules": [
             'rule Purchase.status oneOf "en attente", "payée", "annulée"',
