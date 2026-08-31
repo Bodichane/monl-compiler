@@ -54,6 +54,12 @@ workflow Main for User
     Read Note
 """
 
+# Le banc garde deux fenêtres délibérément différentes. Le serveur principal
+# éprouve la réouverture spontanée avec la fenêtre courte ; le serveur de
+# mesure doit pouvoir contenir l'escalade complète (135 paires, soit 270
+# appels) sans transformer le verrou en variable cachée de la mesure.
+SPEC_B4_MESURE = SPEC_B4.replace("lockout: 3 in 10", "lockout: 3 in 300")
+
 SPEC_LEGACY = """app CompleteAuth
 
 entity Note
@@ -146,6 +152,12 @@ def b4_application(request, tmp_path, faux_smtp):
     spec_path.write_text(SPEC_B4, encoding="utf-8")
     with contextlib.redirect_stdout(io.StringIO()):
         compile_project(str(spec_path), str(tmp_path))
+    mesure_dir = tmp_path / "mesure-verrou"
+    mesure_dir.mkdir()
+    mesure_spec = mesure_dir / "spec.ml"
+    mesure_spec.write_text(SPEC_B4_MESURE, encoding="utf-8")
+    with contextlib.redirect_stdout(io.StringIO()):
+        compile_project(str(mesure_spec), str(mesure_dir))
 
     env = os.environ.copy()
     env.pop("MONL_DATABASE_URL", None)
@@ -167,8 +179,9 @@ def b4_application(request, tmp_path, faux_smtp):
     if dsn:
         env["MONL_DATABASE_URL"] = dsn
     try:
-        with uvicorn_server(str(tmp_path), env=env) as base:
-            yield base, Path(tmp_path), dsn, faux_smtp
+        with (uvicorn_server(str(tmp_path), env=env) as base,
+              uvicorn_server(str(mesure_dir), env=env) as mesure_base):
+            yield base, Path(tmp_path), dsn, faux_smtp, mesure_base
     finally:
         if admin is not None:
             admin.close()
@@ -263,46 +276,29 @@ def _token(response):
     return value
 
 
-# Nombre de tours des mesures de temps. Le compteur de messages plus bas en
-# dépend : la voie « adresse connue » envoie un courriel à CHAQUE tour.
-#
-# Cinq tours ne suffisaient pas. La médiane de CINQ écarts appariés reste
-# sensible à un blocage isolé : mesuré sur douze répétitions, elle montait à
-# 9,70 ms au repos et 6,29 ms sous charge, là où la médiane de QUINZE restait
-# sous 1,54 ms et 2,95 ms. Et c'est bien l'estimateur qui a lâché en CI, avec
-# une médiane de 0,1016 s pour un seuil de 0,10 — 1,6 ms de trop.
+# Nombre de tours de départ des mesures de temps. Le compteur de messages plus
+# bas en dépend : la voie « adresse connue » envoie un courriel à CHAQUE tour.
+# Le témoin de bruit peut acheter de la résolution, sans dépasser la borne
+# déclarée ci-dessous.
 TOURS_MESURE = 15
+TOURS_ESCALADE = (TOURS_MESURE, TOURS_MESURE * 3, TOURS_MESURE * 9)
 
-# La tolérance est RELATIVE au temps de réponse observé, avec un plancher.
-# Cent millisecondes en absolu ne veulent pas dire la même chose sur un runner
-# partagé où un appel prend 300 ms et sur cette machine où il en prend 66 : le
-# seuil était tantôt impossible à tenir, tantôt trop large pour rien dire.
-# Ce qui compte pour un attaquant est le SIGNAL par rapport au BRUIT.
+# La tolérance vient d'un TÉMOIN mesuré juste avant chaque comparaison : deux
+# appels du même chemin, avec des IP distinctes. Leur écart ne peut pas porter
+# une fuite applicative ; il mesure le bruit du runner à cet instant. Deux fois
+# ce bruit couvrent les deux médianes comparées, et le plancher protège la
+# machine assez rapide pour laquelle un témoin nul ne signifie pas une horloge
+# parfaite.
 #
-# Les chiffres, mesurés sur 36 répétitions de quinze tours (au repos et sous
-# charge) : l'écart médian vaut 0,1 à 3,8 ms pour un appel de 48 à 85 ms, soit
-# un rapport d'au plus 4,4 %. Vingt pour cent laissent donc 4,5 fois la marge
-# du pire cas observé.
+# Le bruit n'est PAS autorisé à désarmer l'oracle. Le témoin doit rester sous
+# 7,5 ms, ce qui borne la marge dérivée à 15 ms et laisse une fuite de l'ordre
+# de 20 ms détectable. S'il dépasse cette borne, on dépense d'abord plus de
+# mesure (15 → 45 → 135) ; s'il reste trop grand, le test échoue explicitement.
 #
-# CE QUE LE SEUIL ATTRAPE, mesuré en injectant une vraie fuite dans la branche
-# « compte verrouillé » du serveur généré : 10 ms passent, 20 ms sont refusées
-# (19,83 ms mesurées pour une tolérance de 16,45), 30 ms aussi. Le plancher de
-# détection est donc d'une vingtaine de millisecondes sur cette machine — cinq
-# fois plus fin que les 100 ms absolues d'avant, qui laissaient passer tout ce
-# qui était en dessous. Le seuil relatif est à la fois plus SENSIBLE et plus
-# ROBUSTE ; ce n'est pas un assouplissement.
-#
-# Une différence RÉELLE et petite subsiste, et il faut la connaître : le chemin
-# verrouillé coûte 1,6 à 1,8 ms de plus que le chemin absent, dans 19 mesures
-# sur 24. Ce n'est pas un artefact de l'ordre des appels — mesuré en inversant
-# l'ordre à l'intérieur de chaque paire, le biais ne bouge pas (+1,81 ms contre
-# +1,63 ms). Le test BORNE cette différence, il n'exige pas zéro : exiger zéro
-# d'une mesure de temps serait une promesse qu'aucune machine ne tient.
-#
-# Le plancher existe pour la machine RAPIDE : à 5 ms par appel, 20 % feraient
-# 1 ms, sous le bruit de mesure. Un seuil qu'aucune machine ne peut tenir ne
-# mesure plus rien, il apprend à ignorer l'échec (point 57).
-PART_ECART_TOLEREE = 0.20
+# Ces deux constantes expriment une exigence de résolution, pas un étalonnage
+# de machine : la fuite de 20 ms est la contre-épreuve du point 160.
+FACTEUR_MARGE_BRUIT = 2.0
+BRUIT_MAX_RESOLUBLE = 0.0075
 PLANCHER_ECART = 0.005
 
 
@@ -351,9 +347,68 @@ def _ecart_apparie(appel_a, appel_b, tours=TOURS_MESURE):
             reponse_a, reponse_b)
 
 
-def _tolerance_ecart(duree_mediane):
-    """La marge admise pour un écart de temps, à l'échelle de la machine."""
-    return max(PART_ECART_TOLEREE * duree_mediane, PLANCHER_ECART)
+def _mesurer_bruit(appel_a, appel_b, *, nom):
+    """Mesure le bruit pur, puis augmente la dépense si nécessaire.
+
+    `appel_a` et `appel_b` doivent représenter le même chemin. Le décalage
+    transmis aux callbacks rend les IP uniques même si une escalade rejoue la
+    mesure : le limiteur ne doit jamais devenir le signal observé.
+    """
+    offset = 0
+    dernier_ecart = 0.0
+    for tours in TOURS_ESCALADE:
+        ecart, duree, reponse_a, reponse_b = _ecart_apparie(
+            lambda tour, offset=offset: appel_a(offset + tour),
+            lambda tour, offset=offset: appel_b(offset + tour),
+            tours=tours)
+        dernier_ecart = ecart
+        if abs(ecart) <= BRUIT_MAX_RESOLUBLE:
+            return ecart, duree, tours, reponse_a, reponse_b
+        offset += tours
+    raise AssertionError(
+        f"machine trop bruyante pour {nom}: témoin médian "
+        f"{abs(dernier_ecart) * 1000:.2f} ms après {TOURS_ESCALADE[-1]} "
+        f"tours, au-delà de {BRUIT_MAX_RESOLUBLE * 1000:.2f} ms; "
+        "impossible de conclure sur une fuite de 20 ms")
+
+
+def _tolerance_ecart(ecart_bruit):
+    """La marge dérivée du témoin, avec une borne de résolution."""
+    return max(FACTEUR_MARGE_BRUIT * abs(ecart_bruit), PLANCHER_ECART)
+
+
+def _mesurer_ecart_corrige(appel_a, appel_b, *, bruit, tours_depart,
+                           statut_attendu, nom):
+    """Mesure l'écart réel, en rendant un sursaut isolé indécis explicite.
+
+    Le témoin choisit un premier nombre de paires. Si la mesure réelle reste
+    au-delà de sa marge, on achète la même résolution supplémentaire (45 puis
+    135 paires) ; le banc long garantit que le compte verrouillé reste fermé
+    pendant cette reprise. Une fuite réelle reste présente à chaque palier et
+    échoue donc encore à la fin.
+    """
+    tolerance = _tolerance_ecart(bruit)
+    candidats = TOURS_ESCALADE[TOURS_ESCALADE.index(tours_depart):]
+    total_appels_a = 0
+    offset = 0
+    dernier = None
+    for tours in candidats:
+        mesure = _ecart_apparie(
+            lambda tour, offset=offset: appel_a(offset + tour),
+            lambda tour, offset=offset: appel_b(offset + tour),
+            tours=tours)
+        total_appels_a += tours
+        offset += tours
+        ecart, duree, reponse_a, reponse_b = mesure
+        if not (reponse_a.status_code == reponse_b.status_code == statut_attendu):
+            raise AssertionError(
+                f"mesure {nom} non concluante : réponses "
+                f"{reponse_a.status_code} et {reponse_b.status_code} après "
+                f"{total_appels_a} appels du premier chemin")
+        dernier = (*mesure, tours, total_appels_a)
+        if abs(ecart - bruit) < tolerance:
+            return dernier
+    return dernier
 
 
 def _wait_for_message(smtp, count):
@@ -428,15 +483,14 @@ def _totp_code(secret, step):
 
 
 def test_authentification_b4_complete_sur_les_deux_moteurs(b4_application):
-    base, directory, dsn, smtp = b4_application
+    base, directory, dsn, smtp, mesure_base = b4_application
     alice = "alice-b4@example.invalid"
     bob = "bob-b4@example.invalid"
     _register(base, alice)
     _register(base, bob)
 
-    # 1. Compteur par compte, réponse générique et durée comparable à
-    # l'identifiant absent. Les IP changent pour ne pas confondre ce test avec
-    # la limitation historique par IP.
+    # La fenêtre courte est éprouvée sur le serveur principal. Le sommeil est
+    # volontaire : il prouve la réouverture spontanée, sans écriture SQL.
     for index in range(3):
         failed = _login(base, alice, "mauvais-pass", ip=f"lock-fail-{index}")
         assert failed.status_code == 401
@@ -445,53 +499,97 @@ def test_authentification_b4_complete_sur_les_deux_moteurs(b4_application):
     assert locked.status_code == 401
     assert locked.json()["detail"] == "Identifiants invalides."
     bob_token = _token(_login(base, bob, "motdepasse8", ip="bob-before-totp"))
+    assert _login(base, alice, "motdepasse8", ip="lock-still-closed").status_code == 401
+    time.sleep(10.5)
+    alice_token = _token(_login(base, alice, "motdepasse8", ip="lock-expired"))
 
-    ecart_verrou, duree_verrou, locked_probe, missing_probe = _ecart_apparie(
-        lambda tour: _login(base, alice, "motdepasse8",
-                            ip=f"lock-timing-{tour}"),
-        lambda tour: _login(base, "absent-b4@example.invalid", "motdepasse8",
-                            ip=f"missing-timing-{tour}"))
+    # Le témoin et la mesure vivent sur le second serveur : son `3 in 300`
+    # n'est pas une valeur de production, mais la configuration de banc qui
+    # rend la résolution indépendante du temps dépensé par l'escalade.
+    mesure_alice = "alice-lock-mesure@example.invalid"
+    _register(mesure_base, mesure_alice)
+    # 1. Compteur par compte, réponse générique et durée comparable à
+    # l'identifiant absent. Les IP changent pour ne pas confondre ce test avec
+    # la limitation historique par IP.
+    for index in range(3):
+        failed = _login(mesure_base, mesure_alice, "mauvais-pass",
+                        ip=f"mesure-lock-fail-{index}")
+        assert failed.status_code == 401
+        assert failed.json()["detail"] == "Identifiants invalides."
+    locked = _login(mesure_base, mesure_alice, "motdepasse8", ip="mesure-lock-correct")
+    assert locked.status_code == 401
+    assert locked.json()["detail"] == "Identifiants invalides."
+
+    # Le témoin est pris immédiatement AVANT la mesure, mais APRÈS avoir posé
+    # le verrou : sur le banc long, même l'escalade complète ne peut plus le
+    # faire expirer. Le bruit et la comparaison subissent ainsi la même charge
+    # du serveur, au lieu de comparer deux instants éloignés.
+    bruit_verrou, _, tours_verrou, control_a, control_b = _mesurer_bruit(
+        lambda tour: _login(mesure_base, f"absent-lock-a-{tour}@example.invalid",
+                            "motdepasse8", ip=f"lock-noise-a-{tour}"),
+        lambda tour: _login(mesure_base, f"absent-lock-b-{tour}@example.invalid",
+                            "motdepasse8", ip=f"lock-noise-b-{tour}"),
+        nom="verrouillage")
+    assert control_a.status_code == control_b.status_code == 401
+    assert control_a.json() == control_b.json()
+
+    (ecart_verrou, duree_verrou, locked_probe, missing_probe,
+     tours_verrou_reel, _verrou_appels) = _mesurer_ecart_corrige(
+        lambda tour: _login(mesure_base, mesure_alice, "motdepasse8",
+                            ip=f"mesure-lock-timing-{tour}"),
+        lambda tour: _login(mesure_base, "absent-b4@example.invalid", "motdepasse8",
+                            ip=f"mesure-missing-timing-{tour}"),
+        bruit=bruit_verrou, tours_depart=tours_verrou,
+        statut_attendu=401, nom="verrouillage")
     assert locked_probe.status_code == missing_probe.status_code == 401
     assert locked_probe.json() == missing_probe.json()
     # Un compte VERROUILLÉ et un compte INEXISTANT doivent être
     # indiscernables : les distinguer, fût-ce par le temps de réponse,
     # apprendrait à un attaquant quelles adresses existent.
-    tolerance = _tolerance_ecart(duree_verrou)
-    assert abs(ecart_verrou) < tolerance, (
-        f"ecart median {ecart_verrou*1000:.2f} ms pour un appel de "
-        f"{duree_verrou*1000:.2f} ms — au-dela de {tolerance*1000:.2f} ms")
-    assert _login(base, alice, "motdepasse8", ip="lock-still-closed").status_code == 401
-    # La fenêtre de verrouillage est passée de 2 à 10 secondes, et ce n'est
-    # pas du confort : la mesure d'oracle ci-dessus fait DIX appels, et avec
-    # une fenêtre de 2 s elle expirait le verrou avant l'assertion « toujours
-    # fermé » — le test échouait alors sous charge en accusant le mauvais
-    # coupable. Le `sleep` reste, parce qu'il prouve ce qu'aucune écriture en
-    # base ne prouverait : que le verrou se rouvre TOUT SEUL, au bout du temps
-    # déclaré.
-    time.sleep(10.5)
-    alice_token = _token(_login(base, alice, "motdepasse8", ip="lock-expired"))
-
+    ecart_corrige = ecart_verrou - bruit_verrou
+    tolerance = _tolerance_ecart(bruit_verrou)
+    assert abs(ecart_corrige) < tolerance, (
+        f"ecart median {ecart_verrou*1000:.2f} ms, témoin "
+        f"{bruit_verrou*1000:.2f} ms, pour un appel de "
+        f"{duree_verrou*1000:.2f} ms — au-dela de "
+        f"{tolerance*1000:.2f} ms ({tours_verrou_reel} tours)")
     # 2. Réinitialisation réellement livrée par la brique de messages, sans
     # différence de réponse entre une adresse connue et une adresse absente.
-    ecart_reset, duree_reset, known, unknown = _ecart_apparie(
+    bruit_reset, _, tours_reset, reset_control_a, reset_control_b = _mesurer_bruit(
+        lambda tour: _call("POST", base, "/password-reset/request",
+                           body={"username": f"reset-noise-a-{tour}@example.invalid"},
+                           ip=f"reset-noise-a-{tour}"),
+        lambda tour: _call("POST", base, "/password-reset/request",
+                           body={"username": f"reset-noise-b-{tour}@example.invalid"},
+                           ip=f"reset-noise-b-{tour}"),
+        nom="réinitialisation")
+    assert reset_control_a.status_code == reset_control_b.status_code == 200
+    assert reset_control_a.json() == reset_control_b.json()
+    (ecart_reset, duree_reset, known, unknown,
+     tours_reset_reel, reset_known_count) = _mesurer_ecart_corrige(
         lambda tour: _call("POST", base, "/password-reset/request",
                            body={"username": alice}, ip=f"reset-known-{tour}"),
         lambda tour: _call("POST", base, "/password-reset/request",
                            body={"username": "nobody-b4@example.invalid"},
-                           ip=f"reset-unknown-{tour}"))
+                           ip=f"reset-unknown-{tour}"),
+        bruit=bruit_reset, tours_depart=tours_reset,
+        statut_attendu=200, nom="réinitialisation")
     assert known.status_code == unknown.status_code == 200
     assert known.json() == unknown.json()
-    tolerance = _tolerance_ecart(duree_reset)
-    assert abs(ecart_reset) < tolerance, (
-        f"ecart median {ecart_reset*1000:.2f} ms pour un appel de "
-        f"{duree_reset*1000:.2f} ms — au-dela de {tolerance*1000:.2f} ms")
+    ecart_corrige = ecart_reset - bruit_reset
+    tolerance = _tolerance_ecart(bruit_reset)
+    assert abs(ecart_corrige) < tolerance, (
+        f"ecart median {ecart_reset*1000:.2f} ms, témoin "
+        f"{bruit_reset*1000:.2f} ms, pour un appel de "
+        f"{duree_reset*1000:.2f} ms — au-dela de "
+        f"{tolerance*1000:.2f} ms ({tours_reset_reel} tours)")
     # La voie « adresse connue » a envoyé un courriel par tour : le jeton
     # utilisable est celui du DERNIER, les précédents ayant pu être invalidés.
-    alice_reset = _wait_for_message(smtp, TOURS_MESURE)
+    alice_reset = _wait_for_message(smtp, reset_known_count)
 
     _call("POST", base, "/password-reset/request",
           body={"username": bob}, ip="reset-bob")
-    bob_reset = _wait_for_message(smtp, TOURS_MESURE + 1)
+    bob_reset = _wait_for_message(smtp, reset_known_count + 1)
     assert bob_reset != alice_reset
     wrong_account = _call(
         "POST", base, "/password-reset/confirm",
@@ -501,7 +599,7 @@ def test_authentification_b4_complete_sur_les_deux_moteurs(b4_application):
 
     _call("POST", base, "/password-reset/request",
           body={"username": alice}, ip="reset-expired-request")
-    expired = _wait_for_message(smtp, TOURS_MESURE + 2)
+    expired = _wait_for_message(smtp, reset_known_count + 2)
     _expire_reset_token(directory, dsn, expired)
     assert _call(
         "POST", base, "/password-reset/confirm",
@@ -510,7 +608,7 @@ def test_authentification_b4_complete_sur_les_deux_moteurs(b4_application):
 
     _call("POST", base, "/password-reset/request",
           body={"username": alice}, ip="reset-success-request")
-    fresh = _wait_for_message(smtp, TOURS_MESURE + 3)
+    fresh = _wait_for_message(smtp, reset_known_count + 3)
     confirmed = _call(
         "POST", base, "/password-reset/confirm",
         body={"username": alice, "token": fresh, "password": "nouveau-alice-8"},
