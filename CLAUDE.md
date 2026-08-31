@@ -60,8 +60,9 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1462 tests
-  actuellement ; `tests/test_demo.py` s'appuie sur le dossier `demo/`
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1447 tests qui
+  passent et 16 sauts déclarés — les seuls légitimes, PostgreSQL
+  d'intégration non demandé, chacun nommé par `-rs` ; `tests/test_demo.py` s'appuie sur le dossier `demo/`
   versionné — ne pas le supprimer. La démo est **CodexShop**, une papeterie
   qui exerce la chaîne marchande entière ; ses ENTRÉES seules sont suivies
   (`spec.ml`, `frontend/`, `assets/`), jamais sa sortie compilée ni son
