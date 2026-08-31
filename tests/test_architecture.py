@@ -20,7 +20,52 @@ import os
 import re
 import sys
 
+from monl.parser.grammaire import grammar
+
 SRC = os.path.join(os.path.dirname(__file__), "..", "src", "monl")
+
+
+def _litteraux_de_la_grammaire():
+    """Dérive les mots littéraux des productions Lark, sans liste recopiée.
+
+    Les commentaires et leurs exemples ne sont pas des productions : les
+    retirer avant l'extraction empêche un nom de produit ou d'illustration
+    cité dans une explication de devenir par accident un mot-clé du DSL.
+    Comme `_terminal` dans `coloration.py`, cette fonction ÉCHOUE si elle ne
+    trouve rien : un extracteur muet ne doit pas rendre la garde verte.
+    """
+    productions = "\n".join(
+        ligne.split("#", 1)[0] for ligne in grammar.splitlines())
+    litteraux = frozenset(
+        re.findall(r'"([a-zA-Z][a-zA-Z_]{1,24})"', productions))
+    if not litteraux:
+        raise AssertionError("la grammaire ne fournit aucun littéral à vérifier")
+    return litteraux
+
+
+def _passages_de_code(texte):
+    """Les passages écrits COMME DU CODE : `mot`, et les blocs clôturés.
+
+    Un passage de code ne franchit pas la fin de ligne — `[^`\\n]+` et non
+    `[^`]+` : une expression trop large apparie deux backticks de lignes
+    différentes et rend un texte qui n'a jamais existé. Mesuré en l'écrivant :
+    la version large déclarait `ownedBy` et `sumOf` absents de la mémoire alors
+    qu'ils y sont, tous les deux, dans un passage de code.
+    """
+    return re.findall(r"`([^`\n]+)`", texte) + re.findall(
+        r"```.*?```", texte, flags=re.S)
+
+
+def _ecrit_comme_du_code(texte, mot):
+    """Le mot doit être écrit comme un MOT-CLÉ, pas croisé dans une phrase.
+
+    C'est la seule différence qui rend la garde utile, et elle est MESURÉE sur
+    la dérive réelle qu'on répare ici : chercher le mot n'importe où en attrape
+    5 sur 11, l'exiger dans un passage de code en attrape 6 — et sur la mémoire
+    corrigée, la règle stricte ne réclame rien à tort.
+    """
+    motif = rf"(?<![A-Za-z0-9_]){re.escape(mot)}(?![A-Za-z0-9_])"
+    return any(re.search(motif, passage) for passage in _passages_de_code(texte))
 
 # Les modules du projet. Un PAQUET compte pour un seul nœud : son découpage
 # interne est une affaire de couches, pas de frontières.
@@ -869,3 +914,62 @@ def test_aucun_test_n_importe_en_tete_un_module_absent_de_la_version_minimale():
     assert not fautes, (
         "import(s) de tête absent(s) de la version minimale — la collecte du "
         "fichier ENTIER échoue sur cette version : " + " ; ".join(fautes))
+
+
+def test_lextracteur_de_mots_cles_ne_regarde_pas_dans_le_vide():
+    """Le témoin du garde-fou : l'extracteur trouve des productions réelles.
+
+    Tester seulement que l'extracteur existe permettrait une fonction qui
+    rend toujours ``frozenset()``. Ces trois formes couvrent un bloc, une règle
+    et un type ajouté tardivement : elles doivent toutes venir de la grammaire
+    importée, pas d'une liste locale de mots-clés.
+    """
+    mots = _litteraux_de_la_grammaire()
+    assert len(mots) >= 50
+    assert {"app", "rule", "Upload"} <= mots
+
+
+def _paragraphe_de_reference(memoire):
+    """Le paragraphe de `CLAUDE.md` qui ÉNUMÈRE les mots-clés du DSL."""
+    debut = memoire.index("**Référence des mots-clés du DSL.**")
+    fin = memoire.index("aucun n'est une brique autonome.", debut)
+    return memoire[debut:fin]
+
+
+def test_la_reference_des_mots_cles_ne_nomme_rien_qui_ait_disparu():
+    """L'autre sens : la mémoire ne doit pas annoncer un mot-clé retiré.
+
+    Le paragraphe de référence est une liste ÉCRITE À LA MAIN — la forme
+    exacte que les points 164, 167 et 169 ont vu cesser de border trois fois.
+    On ne peut pas la dériver, `CLAUDE.md` étant un document ; on peut en
+    revanche la CONFRONTER, comme le point 169 confronte le tableau de
+    l'éditeur de confiance à `[project.urls]`. Une brique retirée de la
+    grammaire fait donc échouer ici, au lieu d'être promise pour toujours.
+    """
+    racine = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(racine, "CLAUDE.md"), encoding="utf-8") as fh:
+        reference = _paragraphe_de_reference(fh.read())
+    reels = _litteraux_de_la_grammaire()
+    annonces = set(re.findall(r"`([a-zA-Z][a-zA-Z_]{1,24})`", reference))
+    fantomes = sorted(annonces - reels)
+    assert not fantomes, (
+        "la référence de CLAUDE.md annonce des mots-clés que la grammaire "
+        "n'implémente pas : " + ", ".join(fantomes))
+
+
+def test_tous_les_mots_cles_de_la_grammaire_sont_nommes_dans_claude():
+    """La mémoire ne doit pas perdre un mot quand la grammaire en gagne un.
+
+    La liste attendue est calculée depuis les productions Lark. Le test ne
+    connaît donc pas les briques à venir ; il ne recopie que les exceptions de
+    liaison, chacune justifiée et gardée par le test voisin.
+    """
+    racine = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(racine, "CLAUDE.md"), encoding="utf-8") as fh:
+        memoire = fh.read()
+    absents = sorted(
+        mot for mot in _litteraux_de_la_grammaire()
+        if not _ecrit_comme_du_code(memoire, mot))
+    assert not absents, (
+        "mots-clés de la grammaire absents de CLAUDE.md : "
+        + ", ".join(absents))

@@ -91,6 +91,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [172](#172-le-serveur-sait-et-ne-dit-pas--deux-fois-avant-la-mise-en-ligne) Le serveur sait et ne dit pas : cookie en clair, sites hébergés muets ·
 [172bis](#172bis-une-borne-de-disque-se-tient-à-chaque-instant-pas-seulement-à-la-fin) Une borne de disque se tient à chaque instant ·
 [173](#173-trois-briques-que-le-dialogue-nécrivait-pas--et-une-photo-que-personne-ne-voyait) Trois briques sans producteur, et la photo que personne ne voyait ·
+[174](#174-la-mémoire-du-projet-ignorait-des-briques-et-un-garde-fou-la-rend-vivante) La mémoire du projet ignorait des briques, et un garde-fou la rend vivante ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -12597,3 +12598,83 @@ huit fois (points 88 à 116). La première version du témoin comparait la spec
 modifiée à la spec d'origine : **elle ne regardait pas la signature du tout**,
 et un `replace` qui ne trouvait pas sa cible l'aurait rendue verte. Elle compile
 désormais les DEUX specs et compare ce que le contrat porte.
+
+---
+
+## 174. La mémoire du projet ignorait des briques, et un garde-fou la rend vivante
+
+**Le constat est mesuré.** `CLAUDE.md` affirmait en toutes lettres que le
+filtrage, le tri et l'envoi de courriel n'existaient pas. Ils existent : les
+points 120 à 128 les ont livrés — migration nommée, `Upload`, `sends`,
+`filter`/`sort`, authentification B4, devise, prestataire. L'inventaire des
+briques s'arrêtait à la brique 30 (point 146) ; sept mots-clés de la grammaire
+n'apparaissaient nulle part dans la mémoire.
+
+**Pourquoi c'est grave, et pas cosmétique.** C'est le fichier que tout agent lit
+avant de travailler ici. Une mémoire qui dit « le filtrage n'existe pas » fait
+reconstruire le filtrage. C'est le point 146 retourné : *une brique que la
+mémoire ne nomme pas n'existe pas non plus, pour qui lit la mémoire.* Les deux
+affirmations fausses ne sont pas effacées mais FERMÉES (`(FERMÉ au point 122…)`,
+`(FERMÉ au point 123…)`) — la trace de ce qui était ouvert a de la valeur.
+
+**Le garde-fou dérive, il ne recopie pas.** `tests/test_architecture.py` lit
+`monl.parser.grammaire.grammar`, retire les commentaires et extrait les
+littéraux des productions Lark — même discipline que `coloration.py` au
+point 158, et même refus : un extracteur qui ne trouve rien ÉCHOUE, il ne rend
+pas la garde verte. Un témoin exige qu'il retrouve réellement `app`, `rule` et
+`Upload`.
+
+### CE QUE LA VÉRIFICATION A TROUVÉ DANS LE GARDE-FOU LUI-MÊME
+
+**Une liste d'exceptions que personne ne lisait.** La première version portait
+huit « mots de liaison exemptés », chacun avec sa raison, et un test qui
+vérifiait que chaque exception servait encore. Elle n'était **consultée par
+aucune règle** : la garde principale exigeait tous les littéraux, exemptions
+comprises. Une structure qui se garde elle-même et rien d'autre — le point 167bis
+mot pour mot, et le témoin retiré du point 170. Retirée. Sans elle, un futur mot
+de liaison fera rougir la garde : c'est le bon échec, il force à écrire une
+raison plutôt qu'à en hériter d'une.
+
+**La règle cherchait le mot n'importe où, et c'est presque sans effet.** Mesuré
+sur la dérive réelle qu'on répare ici — onze briques absentes de la mémoire :
+chercher le mot **n'importe où dans la prose** en attrape **5** ; exiger qu'il
+soit écrit **comme du code** (`` `mot` ``, ou un bloc clôturé) en attrape **6**,
+et ne réclame RIEN à tort sur la mémoire corrigée. La règle stricte a été
+adoptée sur cette mesure, pas sur une intuition. La différence n'est pas
+théorique : elle attrape `migration`, que la règle molle laisse passer parce que
+le mot vit ailleurs dans le fichier comme un nom commun.
+
+**Et ma propre sonde a menti, pour la troisième fois de la série.** L'expression
+`` `[^`]+` `` apparie deux backticks de LIGNES DIFFÉRENTES : elle fabriquait des
+passages qui n'ont jamais existé et déclarait `ownedBy` et `sumOf` absents de la
+mémoire alors qu'ils y sont tous les deux. Corrigée en `` `[^`\n]+` ``. Points
+157, 158ter et 170 dans un quatrième domaine : *une mesure peut porter sur autre
+chose que ce qu'on croit mesurer* — ici, sur l'appariement de la sonde.
+
+**Le paragraphe de référence est confronté DANS LES DEUX SENS.** La mémoire
+porte une énumération lisible des mots-clés, écrite à la main : c'est la forme
+exacte qui a cessé de border trois fois (points 164, 167, 169). On ne peut pas
+la dériver — `CLAUDE.md` est un document — mais on peut la CONFRONTER, comme le
+point 169 confronte le tableau de l'éditeur de confiance à `[project.urls]`. Un
+mot-clé retiré de la grammaire mais toujours annoncé fait désormais échouer.
+
+**Les trois contre-épreuves mordent**, et elles sont faites : renommer les huit
+occurrences de `sumOf` → échec nommant `sumOf` ; retirer les backticks autour
+des passages contenant `migration`, en laissant le mot huit fois en prose →
+échec nommant `migration` (la règle molle serait restée verte) ; annoncer
+`chiffreAutomatique` dans la référence → échec nommant `chiffreAutomatique`.
+Mémoire restaurée, les trois repassent au vert.
+
+**Le fond est vérifié par exécution, pas par relecture.** La brique que la
+mémoire niait le plus fort a été compilée puis éprouvée contre un vrai serveur :
+filtre par égalité exacte (`?statut=en attente` → 2 lignes sur 4), borné par la
+liste `oneOf` (422 sur une valeur hors liste), tri dans les deux sens, et **422
+« Colonne de tri non déclarée »** sur un champ hors de la liste blanche. La
+mémoire dit vrai.
+
+**La limite est énoncée.** Cette garde prouve que la mémoire **NOMME** chaque
+mot-clé, jamais qu'elle l'EXPLIQUE : un mot ajouté à la seule énumération de
+référence la satisfait. Elle ne dit rien du comportement — les tests contre
+serveur restent la seule preuve. Et une nouvelle syntaxe doit entrer dans une
+production Lark pour être couverte : les commentaires et exemples de la
+grammaire sont écartés, sinon un nom d'illustration deviendrait un mot-clé.
