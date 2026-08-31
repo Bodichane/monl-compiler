@@ -86,6 +86,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [167](#167-rendre-le-compilateur-publiable--sans-le-publier) Rendre le compilateur publiable, sans le publier ·
 [168](#168-loracle-temporel-tombe-une-troisième-fois--le-bruit-se-mesure) L'oracle temporel tombe une troisième fois : le bruit se mesure ·
 [169](#169-publier-sans-secret--et-les-trois-listes-écrites-à-la-main) Publier sans secret, et les listes écrites à la main ·
+[170](#170-la-complexité-mesurée-devient-un-cliquet--et-un-témoin-qui-ne-rougit-jamais-seul) La complexité devient un cliquet, et le témoin qui ne rougit jamais seul ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -12135,3 +12136,112 @@ endroits. Elle n'est pas élargie ici : 83 lignes déjà exercées par quatre
 tests directs ne valent pas de réécrire une commande de référence dans huit
 fichiers au détour d'une tâche de publication. `ruff check scripts` passe
 (vérifié) ; c'est une décision, pas un oubli.
+
+---
+
+## 170. La complexité mesurée devient un cliquet — et un témoin qui ne rougit jamais seul
+
+**Le constat.** 532 fonctions dans `src/`, 87 % sous 10 points de décision,
+mais 37 au-dessus de 15 et cinq au-dessus de 30. La pire, `_emit_spec`
+(`dialogue_engine/emission.py`), pesait 45 points sur 253 lignes : c'est la
+fonction qui écrit la spec à la sortie du dialogue guidé, donc celle qu'il
+faut rouvrir chaque fois qu'une brique gagne un producteur (point 146).
+
+**Ce qui a été fait, et ce qui ne l'a pas été.** Cinq fonctions dénouées, pas
+davantage — `_emit_spec` (45 → 1), `_design_completeness_errors` (29 → 3),
+`importer_contenu` (26 → 7), `check_coherence` (26 → 5),
+`_frontend_fetch_calls` (25 → 1), mesures ruff/McCabe. Trois modules neufs
+portent l'extraction : `dialogue_engine/emission_parts.py`,
+`content_import.py`, `cli/couverture_fetch.py`. Les cinq signatures sont
+inchangées. Vue d'ensemble : 37 → 32 fonctions au-dessus de 15, maximum 45 →
+39. **Le reste est laissé en place et NOMMÉ** — c'est tout l'objet du
+garde-fou.
+
+### Le garde-fou : un cliquet, pas un plafond de confort
+
+`PLAFOND_COMPLEXITE = 15` dans `tests/test_architecture.py`, sur le modèle de
+`PLAFOND_FICHIER`/`PLAFOND_FONCTION` (point 155), avec 64 exceptions portant
+chacune **sa valeur mesurée et sa raison écrite**. Trois contrats :
+
+1. aucune fonction de `src/` ne dépasse le plafond sans être listée ;
+2. **une exception doit encore servir** — une fonction repassée sous 15 fait
+   ÉCHOUER, sinon la liste devient un cimetière qu'on n'ose plus toucher ;
+3. **égalité stricte** au score enregistré : un point de plus comme un point
+   de moins fait échouer en le disant. C'est plus dur qu'un cliquet, et c'est
+   délibéré — même discipline que les empreintes de
+   `tests/test_golden_artifacts.py`, la valeur inscrite ne peut pas se
+   périmer en silence.
+
+**Le compteur est écrit en Python dans le test, et volontairement distinct de
+ruff.** Il doit tourner avec la suite minimale, donc il ne peut pas appeler
+ruff. Sa définition est documentée dans sa docstring. La divergence est
+réelle et il faut savoir laquelle des deux mesures on lit :
+`mount_api_routes` (plateforme) marque **39 chez ruff et 1 ici**, parce que
+ruff additionne au parent les vingt gestionnaires de routes imbriqués quand
+le garde-fou les mesure un par un (`ast.walk` les visite séparément — rien
+n'échappe, l'attribution change). Pour la question posée — *cette unité
+est-elle difficile à relire ?* — la seconde lecture est la bonne, et c'est
+exactement l'argument déjà admis pour `_generate_read_route_lines` (liste
+plate légitime). **Le trou, énoncé et non fermé** : une `lambda` est sautée
+par le compteur et jamais reprise par `ast.walk`. Mesuré : aucune `lambda` de
+`src/` ne porte trois points de décision, donc le trou est théorique
+aujourd'hui — il est écrit ici pour qu'il ne se découvre pas un jour comme
+une surprise.
+
+### Le témoin qui ne rougit jamais seul
+
+Trois façons de casser le garde-fou ont été essayées en vrai — fonction neuve
+trop complexe, exception qui ne sert plus, exception qui empire. À chaque
+fois, `test_le_cliquet_de_complexite_interdit_toute_regression` rougissait
+**exactement quand le test de plafond rougissait**, et jamais sans lui : il
+rejouait mot pour mot `_violations_de_complexite(_fonctions_de_src(),
+EXCEPTIONS_DE_COMPLEXITE)`. Le cliquet, lui, vit dans l'égalité stricte de
+`test_chaque_exception_de_complexite_sert_encore`, seule à rougir au cas 2.
+
+Le test est retiré et sa raison d'être déplacée là où la garantie vit
+réellement. **Un témoin qui annonce par son nom une garantie portée ailleurs
+fait croire qu'elle est doublement gardée** — point 167bis sous une autre
+forme : là-bas le témoin ne regardait rien, ici il regarde deux fois la même
+chose sous un nom qui promet autre chose.
+
+### Prouver qu'un rangement ne change rien
+
+Les onze empreintes de `tests/test_golden_artifacts.py` sont INCHANGÉES —
+c'est la preuve pour tout ce que le générateur produit. Mais **`_emit_spec`
+n'y est pas** : elle écrit la spec en amont de la compilation, aucune
+empreinte ne la couvre. Un banc dédié déroule le VRAI dialogue sur les dix
+modèles en tout-non et en tout-oui, avant et après, et compare : 20 specs de
+chaque côté, **40 955 octets, identiques à l'octet**.
+
+**DEUX FOIS MA PROPRE MESURE A MENTI DANS CETTE SÉANCE**, et c'est la leçon
+la plus transférable du point.
+
+La première version du banc s'est arrêtée à la première itération (les
+modèles sont numérotés à partir de 1, la boucle partait de 0) : les deux
+dossiers de sortie étaient VIDES, et `diff -r` sur deux dossiers vides rend 0.
+Le banc a donc affiché « identiques à l'octet » sans avoir comparé une seule
+spec. Le remède n'est pas de mieux relire : le banc **échoue** désormais s'il
+ne produit pas ses vingt fichiers. *Un banc qui peut rendre un verdict sans
+avoir rien mesuré finira par le faire.*
+
+La seconde : l'extracteur qui lit la sortie de ruff ne reconnaissait pas son
+format, laissait passer les lignes telles quelles, et `sort -rn` triait des
+chemins de fichiers. Verdict affiché : « 1 fonction au-dessus de 15 avant,
+572 après ». Il n'a été attrapé que parce que le nombre était absurde — un
+écart plus petit serait passé. Le compte des lignes non reconnues est
+désormais affiché à côté du résultat.
+
+C'est le point 158ter et le point 157 dans un troisième domaine : **une
+mesure peut porter sur autre chose que ce qu'on croit mesurer**, et le seul
+garde-fou fiable est de la faire échouer bruyamment quand elle ne mesure
+rien.
+
+### Les 64 exceptions ne sont pas une dette acceptée
+
+Elles sont une dette **rendue visible et bornée**. Trois familles s'y lisent :
+les validateurs emmêlés (`_valider_controle_dacces` à 38, `_valider_capacites`
+à 43), l'émission ligne par ligne (les `_generate_*_route_lines`, jusqu'à 51 —
+liste plate légitime, la découper nuirait), et les parcours de dialogue
+(`_run_free` à 46). La première famille est le prochain chantier évident ; les
+deux autres sont probablement à laisser. Aucune ne peut plus empirer sans que
+la suite le dise.

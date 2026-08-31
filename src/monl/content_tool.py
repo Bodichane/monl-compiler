@@ -1,9 +1,10 @@
 """Export et import du contenu de démonstration sans édition manuelle du DSL."""
 import csv
-import itertools
 import os
 import re
+from types import SimpleNamespace
 
+from . import content_import
 from .assets_tool import (
     DEFAULT_ASSETS_DIR,
     AssetsToolError,
@@ -258,97 +259,23 @@ def _avertissements(project_dir, normalized, spec_changee):
 
 
 def importer_contenu(spec_path, project_dir):
-    normalized = _appeler(_charger, spec_path)
-    with open(spec_path, encoding="utf-8") as fh:
-        original = fh.read()
-    lignes = original.splitlines(keepends=True)
-    blocs = _blocs_seed(lignes)
-    dossier_content = os.path.join(project_dir, "content")
-    dossier_assets = (normalized.get("assets") or {}).get("dir") or DEFAULT_ASSETS_DIR
-    operations, rapports = [], {}
-    for entite, types in normalized["schema"]["entities"].items():
-        chemin = os.path.join(dossier_content, f"{entite}.csv")
-        if not os.path.isfile(chemin):
-            continue
-        infos, parent = _infos_parent(lignes, blocs, entite)
-        colonnes = _colonnes(normalized, entite, bool(parent))
-        rows = _lire_csv(chemin, colonnes)
-        if "_parent" in colonnes and any(not row["_parent"] for _n, row in rows):
-            numero = next(n for n, row in rows if not row["_parent"])
-            raise ContentToolError(f"{entite}.csv ligne {numero} : la colonne _parent est vide.")
-        attendues = []
-        for (_i, _plages, parent_info), bloc in zip(
-                infos, [b for b in normalized.get("seeds", [])
-                        if b["entity"] == entite], strict=True):
-            for ast_row in bloc["rows"]:
-                attendu = {}
-                if parent:
-                    attendu["_parent"] = parent_info[2]
-                for nom in colonnes:
-                    if nom != "_parent":
-                        attendu[nom] = _valeur_csv(ast_row.get(nom), types[nom])
-                attendues.append(attendu)
-        inchange = [row for _numero, row in rows] == attendues
-        morceaux, precedent = [], object()
-        for numero, row in rows:
-            parent_value = row.get("_parent")
-            if parent and parent_value != precedent:
-                try:
-                    valeur = _litteral(parent_value)
-                except AssetsToolError as err:
-                    raise ContentToolError(
-                        f"{entite}.csv ligne {numero}, colonne _parent : {err}") from None
-                morceaux.append(f"seed {entite} for {parent[0]}.{parent[1]} {valeur}\n")
-                precedent = parent_value
-            elif not parent and precedent.__class__ is object:
-                morceaux.append(f"seed {entite}\n")
-                precedent = None
-            morceaux.append(_texte_fiche(entite, row, numero, types, dossier_assets))
-        nouveau = "".join(morceaux)
-        existants = [p for p in _plages_blocs(lignes) if p[0] == entite]
-        if existants:
-            for gauche, droite in itertools.pairwise(existants):
-                entre = "".join(lignes[gauche[2] + 1:droite[1]])
-                if not _seulement_espaces_commentaires(entre):
-                    raise ContentToolError(
-                        f"Les blocs seed de {entite} ne sont pas contigus. Les "
-                        "regrouper à la main avant l'import.")
-            debut, fin = existants[0][1], existants[-1][2]
-        else:
-            tous = _plages_blocs(lignes)
-            if tous:
-                debut = fin = tous[-1][2] + 1
-            else:
-                debut = next((i for i, li in enumerate(lignes)
-                              if re.match(r"^workflow\s+", li)), len(lignes))
-                fin = debut
-        if not inchange:
-            operations.append((debut, fin, nouveau, entite, rows, bool(existants)))
-        rapports[entite] = {"fiches": len(rows)}
-    texte_lignes = list(lignes)
-    for debut, fin, nouveau, _entite, _rows, remplace in sorted(operations, reverse=True):
-        texte_lignes[debut:fin + 1 if remplace else debut] = nouveau.splitlines(keepends=True)
-    texte = "".join(texte_lignes)
-    apres = _appeler(_revalider, texte, spec_path)
-    for entite, rapport in rapports.items():
-        chemin = os.path.join(dossier_content, f"{entite}.csv")
-        rows = _lire_csv(chemin, _colonnes(normalized, entite, bool(
-            _infos_parent(lignes, blocs, entite)[1])))
-        types = normalized["schema"]["entities"][entite]
-        for numero, row in rows:
-            for nom, type_ in types.items():
-                valeur = row.get(nom, "")
-                if type_ == "Image" and valeur:
-                    chemin = f"{dossier_assets}/{valeur}"
-                    if not resoudre_asset(project_dir, dossier_assets, chemin):
-                        raise ContentToolError(
-                            f"{entite}.csv ligne {numero} : le fichier image "
-                            f"'{valeur}' est introuvable dans {dossier_assets}/.")
-    changee = texte != original
-    if changee:
-        with open(spec_path, "w", encoding="utf-8") as fh:
-            fh.write(texte)
-    avertissements = _avertissements(project_dir, apres, changee)
-    for rapport in rapports.values():
-        rapport.update({"spec_changee": changee, "avertissements": avertissements})
-    return {"entites": rapports, "spec_changee": changee}
+    return content_import.importer_contenu(
+        spec_path, project_dir, SimpleNamespace(
+            _appeler=_appeler,
+            _charger=_charger,
+            _blocs_seed=_blocs_seed,
+            _infos_parent=_infos_parent,
+            _colonnes=_colonnes,
+            _lire_csv=_lire_csv,
+            _revalider=_revalider,
+            _seulement_espaces_commentaires=_seulement_espaces_commentaires,
+            _plages_blocs=_plages_blocs,
+            _litteral=_litteral,
+            _valeur_csv=_valeur_csv,
+            _texte_fiche=_texte_fiche,
+            _avertissements=_avertissements,
+            resoudre_asset=resoudre_asset,
+            ContentToolError=ContentToolError,
+            AssetsToolError=AssetsToolError,
+            DEFAULT_ASSETS_DIR=DEFAULT_ASSETS_DIR,
+        ))

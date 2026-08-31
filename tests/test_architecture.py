@@ -329,6 +329,251 @@ def test_chaque_exception_de_taille_vise_un_fichier_qui_depasse_encore():
         assert len(raison) > 40, f"exception sans raison écrite : {rel}"
 
 
+# ---- La complexité cyclomatique ------------------------------------
+#
+# Ruff mesure utilement la complexité, mais ce garde-fou doit rester
+# exécutable avec la suite minimale du projet : il compte donc lui-même son
+# AST. Le plafond est volontairement 15, le seuil au-delà duquel le chantier
+# a commencé. Les exceptions sont explicites et portent la valeur observée ;
+# elles sont des cliquets, pas des plafonds de confort.
+PLAFOND_COMPLEXITE = 15
+EXCEPTIONS_DE_COMPLEXITE = {
+    "monl/assets_tool/commandes.py:ajouter_asset": (25, "La commande assemble une liste de contrôles et reste hors des cinq cibles refactorées."),
+    "monl/assets_tool/resolution.py:_resoudre_seed": (37, "Le résolveur conserve plusieurs cas métier liés aux seeds ; il est hors périmètre et borné par son cliquet."),
+    "monl/ast_validator/acces.py:_valider_controle_dacces": (38, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
+    "monl/ast_validator/assets.py:_valider_assets_et_seeds": (16, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
+    "monl/ast_validator/assets.py:_valider_parent_de_seed": (18, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
+    "monl/ast_validator/audit.py:_audit_security_rules": (17, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
+    "monl/ast_validator/capacites.py:_valider_capacites": (43, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
+    "monl/ast_validator/capacites.py:_valider_identifiant_de_compte": (18, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
+    "monl/ast_validator/champs.py:_valider_champs_categorises": (18, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
+    "monl/ast_validator/champs.py:_valider_champs_enumeres": (20, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
+    "monl/ast_validator/champs.py:_valider_contraintes_de_champ": (19, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
+    "monl/ast_validator/champs_calcules.py:_valider_champs_agreges": (30, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
+    "monl/ast_validator/champs_calcules.py:_valider_champs_derives": (34, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
+    "monl/ast_validator/champs_calcules.py:_valider_effets_compteurs": (21, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
+    "monl/ast_validator/champs_calcules.py:_valider_regles_once_per": (20, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
+    "monl/ast_validator/collisions.py:_valider_regles_message": (20, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
+    "monl/ast_validator/collisions.py:_valider_workflows_et_collisions": (20, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
+    "monl/ast_validator/commerce.py:_valider_requires_own_et_payable": (28, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
+    "monl/ast_validator/commerce.py:_valider_securite_calculs_paiement": (18, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
+    "monl/ast_validator/cycle_de_vie.py:_valider_regle_apres_paiement": (23, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
+    "monl/ast_validator/cycle_de_vie.py:_valider_regles_liberation": (19, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
+    "monl/ast_validator/migrations.py:_valider_migrations": (18, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
+    "monl/ast_validator/presentation.py:_valider_landing": (16, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
+    "monl/ast_validator/uploads.py:_valider_champs_uploades": (41, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
+    "monl/cli/couverture.py:_frontend_route_coverage": (26, "Contrôle de couverture hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
+    "monl/cli/delta.py:_rapporter_delta": (46, "Rapport de delta hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
+    "monl/cli/delta.py:_write_update_brief": (18, "Émission ligne par ligne conservée pour rester lisible ; cette fonction est hors des cinq cibles."),
+    "monl/cli/dispatch.py:_dispatch": (27, "Routage de commandes hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
+    "monl/cli/lancement.py:cmd_run": (17, "Orchestration de commande hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
+    "monl/cli/signature.py:_contract_signature": (53, "Sérialisation et émission de signature conservées ligne par ligne ; cas plat hors des cinq cibles."),
+    "monl/content_tool.py:_lisez_moi": (17, "Assemblage éditorial hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
+    "monl/design_system/profil.py:_guarantees": (18, "Sélection de garanties hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
+    "monl/design_system/profil.py:infer_design_profile": (23, "Inférence de profil hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
+    "monl/design_system/rendu.py:render_design_system": (22, "Rendu de design hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
+    "monl/dialogue_engine/commerce.py:_ask_payable": (32, "Parcours de dialogue hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
+    "monl/dialogue_engine/libre.py:_run_free": (46, "Parcours de dialogue hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
+    "monl/dialogue_engine/parcours.py:_run_from_template": (36, "Parcours de dialogue hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
+    "monl/frontend_ai/agents.py:generate_with_cli_agent": (34, "Orchestration d'agent hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
+    "monl/frontend_ai/controles_fichiers.py:_frontend_local_reference_errors": (17, "Contrôle de fichiers hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
+    "monl/frontend_ai/orchestration.py:generate_and_verify": (29, "Orchestration frontend hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
+    "monl/frontend_contract/brief.py:_render_prompt": (46, "Émission de prompt ligne par ligne conservée pour rester lisible ; cas plat hors des cinq cibles."),
+    "monl/frontend_contract/contrat_entites.py:_specs_des_entites": (25, "Assemblage de contrat hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
+    "monl/frontend_contract/contrat_routes.py:_routes_du_contrat": (21, "Assemblage de routes hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
+    "monl/frontend_contract/roles_de_champs.py:_assign_field_roles": (39, "Attribution de rôles hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
+    "monl/generator/core.py:__init__": (24, "Initialisation déclarative du générateur conservée telle quelle ; fonction hors des cinq cibles."),
+    "monl/generator/pipeline.py:build_compilation_plans": (21, "Assemblage de plans de compilation hors des cinq cibles ; dette cliquetée."),
+    "monl/generator/proprietaire.py:_identity_fk_columns": (16, "Déduction de colonnes hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
+    "monl/generator/routes_creation.py:_generate_create_route_lines": (43, "Émission de routes ligne par ligne : liste plate légitime, conservée hors des cinq cibles."),
+    "monl/generator/routes_lecture.py:_generate_read_route_lines": (49, "Émission de routes ligne par ligne : liste plate légitime, conservée hors des cinq cibles."),
+    "monl/generator/routes_lecture_filtree.py:_generate_read_route_lines_with_query": (51, "Émission de routes ligne par ligne : liste plate légitime, conservée hors des cinq cibles."),
+    "monl/generator/routes_modification.py:_generate_update_route_lines": (42, "Émission de routes ligne par ligne : liste plate légitime, conservée hors des cinq cibles."),
+    "monl/generator/routes_paiement.py:_generate_payment_routes": (17, "Émission de routes ligne par ligne : liste plate légitime, conservée hors des cinq cibles."),
+    "monl/generator/routes_prestataires.py:_generate_postpayment_routes": (19, "Émission de routes ligne par ligne : liste plate légitime, conservée hors des cinq cibles."),
+    "monl/generator/routes_suppression.py:_generate_delete_route_lines": (28, "Émission de routes ligne par ligne : liste plate légitime, conservée hors des cinq cibles."),
+    "monl/generator/runtime_connexion.py:_socle_authentification": (16, "Émission de socle ligne par ligne : liste plate légitime, hors des cinq cibles."),
+    "monl/generator/schemas.py:_generate_schema_lines": (34, "Émission de schéma ligne par ligne : liste plate légitime, hors des cinq cibles."),
+    "monl/image_ai.py:call": (19, "Appel de service hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
+    "monl/parser/transformer_structure.py:app": (30, "Transformation d'AST hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
+    "monl/smoke_test/etapes.py:_eprouver_les_routes": (27, "Parcours de smoke test hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
+    "monl/smoke_test/etapes.py:_frontend_dans_jsdom": (16, "Parcours de smoke test hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
+    "monl/ui_patterns.py:select_ui_patterns": (23, "Sélection de motifs hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
+    "monl/usage.py:_aggregate": (19, "Agrégation de métriques hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
+    "monl/usage.py:_load_prices": (23, "Chargement de tarifs hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
+    "monl_platform/store_core.py:_reject_non_additive_project_schema": (16, "Contrôle de schéma plateforme hors des cinq cibles ; dette explicitement cliquetée."),
+}
+
+
+class _CompteurComplexite(ast.NodeVisitor):
+    """Compteur local et déterministe, distinct de la définition de Ruff.
+
+    Le score commence à 1 et ajoute un point pour chaque ``if`` (donc chaque
+    ``elif``, représenté par un ``if`` dans le ``orelse``), ``for``/``async
+    for``, ``while``, gestionnaire ``except``, ternaire ``IfExp``, nœud
+    booléen ``and``/``or``, générateur de compréhension et filtre ``if`` de
+    compréhension, ainsi que pour chaque ``assert``. Les fonctions, lambdas
+    et classes imbriquées sont volontairement ignorées pendant la visite de
+    leur parente ; ``ast.walk`` les mesure séparément. Une compréhension à
+    plusieurs générateurs compte donc chaque générateur et chaque filtre.
+    """
+
+    def __init__(self):
+        self.score = 1
+
+    def visit_FunctionDef(self, _node):
+        pass
+
+    def visit_AsyncFunctionDef(self, _node):
+        pass
+
+    def visit_Lambda(self, _node):
+        pass
+
+    def visit_ClassDef(self, _node):
+        pass
+
+    def visit_If(self, node):
+        self.score += 1
+        self.generic_visit(node)
+
+    def visit_For(self, node):
+        self.score += 1
+        self.generic_visit(node)
+
+    def visit_AsyncFor(self, node):
+        self.score += 1
+        self.generic_visit(node)
+
+    def visit_While(self, node):
+        self.score += 1
+        self.generic_visit(node)
+
+    def visit_ExceptHandler(self, node):
+        self.score += 1
+        self.generic_visit(node)
+
+    def visit_IfExp(self, node):
+        self.score += 1
+        self.generic_visit(node)
+
+    def visit_BoolOp(self, node):
+        self.score += 1
+        self.generic_visit(node)
+
+    def visit_comprehension(self, node):
+        self.score += 1 + len(node.ifs)
+        self.generic_visit(node)
+
+    def visit_Assert(self, node):
+        self.score += 1
+        self.generic_visit(node)
+
+
+def _complexite_fonction(noeud):
+    compteur = _CompteurComplexite()
+    for instruction in noeud.body:
+        compteur.visit(instruction)
+    return compteur.score
+
+
+def _fonctions_de_src():
+    for rel, chemin in _fichiers_de_src():
+        with open(chemin, encoding="utf-8") as fh:
+            arbre = ast.parse(fh.read(), filename=chemin)
+        for noeud in ast.walk(arbre):
+            if isinstance(noeud, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                yield f"{rel}:{noeud.name}", _complexite_fonction(noeud)
+
+
+def _violations_de_complexite(fonctions, exceptions):
+    violations = {}
+    for nom, score in fonctions:
+        limite = exceptions.get(nom, (PLAFOND_COMPLEXITE, ""))[0]
+        if score > limite:
+            violations[nom] = {"mesure": score, "limite": limite}
+    return violations
+
+
+def test_aucune_fonction_de_src_ne_depasse_le_plafond_de_complexite():
+    """Le plafond commun s'applique aussi aux fonctions nouvelles."""
+    violations = _violations_de_complexite(
+        _fonctions_de_src(), EXCEPTIONS_DE_COMPLEXITE)
+    assert not violations, (
+        f"fonctions au-dessus de {PLAFOND_COMPLEXITE} sans cliquet valide : "
+        f"{violations}")
+
+
+def test_chaque_exception_de_complexite_sert_encore():
+    """Une exception repassée sous le plafond doit être retirée.
+
+    C'EST ICI que vit le cliquet, dans l'égalité stricte au score enregistré
+    — pas dans un test à part. Un second test rejouant
+    `_violations_de_complexite` a existé sous le nom « le cliquet interdit
+    toute régression » : mesuré, il ne rougissait JAMAIS seul (contre-épreuve
+    faite sur les trois façons de casser le garde-fou), il refaisait mot pour
+    mot l'assertion du plafond. Un témoin qui annonce une garantie portée
+    ailleurs finit par la faire croire deux fois gardée — point 167bis.
+    """
+    fonctions = dict(_fonctions_de_src())
+    for nom, (valeur, raison) in EXCEPTIONS_DE_COMPLEXITE.items():
+        assert nom in fonctions, f"exception sur une fonction disparue : {nom}"
+        assert fonctions[nom] > PLAFOND_COMPLEXITE, (
+            f"{nom} tient désormais dans {PLAFOND_COMPLEXITE} lignes de score "
+            f"({fonctions[nom]}) : retirer l'exception")
+        assert fonctions[nom] == valeur, (
+            f"{nom} a changé de score ({fonctions[nom]} au lieu de {valeur}) : "
+            "mettre à jour le code ou le cliquet après revue")
+        assert len(raison) > 40, f"exception sans raison écrite : {nom}"
+
+
+def test_le_compteur_de_complexite_compte_les_constructions_annoncees():
+    source = """\
+def probe(values):
+    def nested(value):
+        if value:
+            return value
+        return 0
+    for value in values:
+        if value and value > 0 or value < 0:
+            pass
+        elif value:
+            pass
+        while value:
+            break
+        try:
+            assert value
+        except ValueError:
+            pass
+    return [value if value else 0 for value in values if value]
+"""
+    arbre = ast.parse(source, filename="synthetic.py")
+    fonctions = [n for n in ast.walk(arbre)
+                 if isinstance(n, ast.FunctionDef)]
+    scores = {n.name: _complexite_fonction(n) for n in fonctions}
+    assert scores == {"probe": 12, "nested": 2}
+
+
+def test_le_garde_fou_rougit_pour_une_fonction_trop_complexe():
+    source = "def trop_complexe(value):\n" + "".join(
+        "    if value:\n        pass\n" for _ in range(16))
+    arbre = ast.parse(source, filename="synthetic.py")
+    fonctions = [(f"synthetic.py:{n.name}", _complexite_fonction(n))
+                 for n in ast.walk(arbre)
+                 if isinstance(n, ast.FunctionDef)]
+    assert _violations_de_complexite(fonctions, {}) == {
+        "synthetic.py:trop_complexe": {"mesure": 17, "limite": 15}}
+
+
+def test_le_garde_fou_rougit_si_on_retire_une_exception_utile():
+    fonctions = list(_fonctions_de_src())
+    exceptions = dict(EXCEPTIONS_DE_COMPLEXITE)
+    retiree = next(iter(exceptions))
+    del exceptions[retiree]
+    violations = _violations_de_complexite(fonctions, exceptions)
+    assert retiree in violations
+
+
 def test_aucun_test_ne_saute_faute_de_bibliotheque():
     """`pytest.importorskip` rend du vert sans rien vérifier.
 

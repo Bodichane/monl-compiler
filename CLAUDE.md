@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1409 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1430 tests
   actuellement ; `tests/test_demo.py` s'appuie sur le dossier `demo/`
   versionné — ne pas le supprimer. La démo est **CodexShop**, une papeterie
   qui exerce la chaîne marchande entière ; ses ENTRÉES seules sont suivies
@@ -1113,6 +1113,50 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   l'anti-rejeu de celle-ci — une tolérance de ±1 fenêtre donnée au serveur
   laissait le test VERT. Déplacée avant, elle rougit. Point 145 mot pour mot.
   Voir point 159.
+- **POINT 170 : la complexité est un CLIQUET, et un témoin qui ne rougit
+  jamais seul ne garde rien.** `PLAFOND_COMPLEXITE = 15`
+  (tests/test_architecture.py), sur le modèle de `PLAFOND_FICHIER` du
+  point 155, avec 64 exceptions portant chacune **sa valeur mesurée et sa
+  raison écrite**. Trois contrats : aucune fonction au-dessus sans être
+  listée ; **une exception doit encore servir** (repasser sous 15 fait
+  ÉCHOUER) ; et **égalité stricte** au score enregistré — un point de plus
+  comme un point de moins fait échouer, discipline des empreintes de
+  `test_golden_artifacts.py`, pour qu'une valeur inscrite ne se périme jamais
+  en silence. Cinq fonctions dénouées : `_emit_spec` 45 → 1,
+  `_design_completeness_errors` 29 → 3, `importer_contenu` 26 → 7,
+  `check_coherence` 26 → 5, `_frontend_fetch_calls` 25 → 1 (mesures ruff).
+  **Le compteur est écrit en Python DANS le test** — il doit tourner avec la
+  suite minimale, donc il ne peut pas appeler ruff — et il diverge de ruff à
+  dessein : `mount_api_routes` marque **39 chez ruff et 1 ici**, ruff
+  additionnant au parent vingt gestionnaires imbriqués que `ast.walk` mesure
+  un par un. Rien n'échappe, l'attribution change ; c'est l'argument déjà
+  admis pour `_generate_read_route_lines`. **Trou énoncé, non fermé** : une
+  `lambda` est sautée et jamais reprise — mesuré, aucune de `src/` ne porte
+  trois points de décision.
+  **LE TÉMOIN RETIRÉ.** `test_le_cliquet_..._interdit_toute_regression`
+  rejouait mot pour mot l'assertion du plafond : éprouvé sur les TROIS façons
+  de casser le garde-fou, il rougissait exactement quand l'autre rougissait,
+  jamais seul. Le cliquet vit dans l'égalité stricte de
+  `test_chaque_exception_de_complexite_sert_encore`. **Un témoin qui annonce
+  par son NOM une garantie portée ailleurs la fait croire doublement
+  gardée** — point 167bis par l'autre bout (là-bas il ne regardait rien, ici
+  il regarde deux fois la même chose).
+  **PROUVER QU'UN RANGEMENT NE CHANGE RIEN** : les onze empreintes golden
+  sont inchangées, mais **`_emit_spec` n'y est pas** (elle écrit la spec en
+  amont de la compilation). Banc dédié : le VRAI dialogue sur les dix modèles
+  en tout-non et tout-oui, avant/après — 20 specs, 40 955 octets, identiques
+  à l'octet.
+  **ET DEUX FOIS MA MESURE A MENTI dans la même séance.** Le banc partait de
+  l'indice 0 quand les modèles sont numérotés à partir de 1 : il mourait à la
+  première itération, les deux dossiers restaient VIDES, et `diff -r` sur
+  deux dossiers vides rend 0 — « identiques à l'octet » sans avoir comparé
+  une seule spec. Il ÉCHOUE désormais s'il ne produit pas ses vingt fichiers.
+  Puis l'extracteur de la sortie ruff n'a pas reconnu son format, laissé
+  passer les lignes, et `sort -rn` a trié des chemins : « 1 fonction >15
+  avant, 572 après », attrapé seulement parce que le chiffre était absurde.
+  Le compte des lignes non reconnues s'affiche maintenant à côté du résultat.
+  *Un banc qui peut rendre un verdict sans avoir rien mesuré finira par le
+  faire* — points 157 et 158ter dans un troisième domaine. Voir point 170.
 - **POINT 168 : l'oracle temporel, troisième chute — le bruit se MESURE, et
   une escalade peut rouvrir un défaut fermé.** Le seuil relatif du point 160
   (`max(20 % de la durée, 5 ms)`) supposait un bruit PROPORTIONNEL au temps de
