@@ -186,11 +186,14 @@ async function chargerCatalogue() {
   } catch (e) { exemples = []; }
   const galerie = $('#gallery');
   if (!exemples.length) { galerie.remove(); return; }
+  // Les mots-clés du DSL (`public`, `seed`, `derivedFrom`…) ne sont PAS sur ces
+  // cartes : ils débordaient de la troisième et se coupaient en plein mot, et
+  // ils ne servent qu'à qui connaît déjà le langage — pas à qui choisit un
+  // exemple. Ils restent sur la page d'accueil, où ils sont le sujet.
   galerie.innerHTML = exemples.map(e =>
     '<button class="example" type="button" data-id="' + echapper(e.id) + '" aria-pressed="false">' +
-    '<b>' + echapper(e.name) + '</b><span>' + echapper(e.summary) + '</span>' +
-    '<span class="chips">' + (e.teaches || []).map(t =>
-      '<i class="chip">' + echapper(t) + '</i>').join('') + '</span></button>').join('');
+    '<b>' + echapper(e.name) + '</b><span>' + echapper(e.summary) +
+    '</span></button>').join('');
   $$('.example').forEach(bouton => bouton.onclick = () => charger(bouton.dataset.id));
   const demande = new URLSearchParams(window.location.search).get('example');
   charger(exemples.some(e => e.id === demande) ? demande : exemples[0].id);
