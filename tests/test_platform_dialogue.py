@@ -176,3 +176,55 @@ def test_trois_fautes_de_frappe_ne_tuent_pas_le_dialogue(running_platform):
     assert suite.json()["accepted"] is True
     assert suite.json()["answers"] == ["1"]
     assert "Nom de l'application" in suite.json()["question"]
+
+
+# ─────────── POINT 171 : la liste des choix ne se jette plus ───────────
+#
+# `_ask` recevait `kind` et `options` depuis toujours et ne s'en servait
+# JAMAIS : la console ne recevait que le texte de TERMINAL et le collait dans
+# un <pre>. Onze modèles s'affichaient en une bouillie de crochets. Ces
+# témoins portent sur ce que la ROUTE renvoie, pas sur ce que le moteur
+# calcule : c'est entre les deux que la métadonnée se perdait.
+
+def _premiere_question(base):
+    session = _session(base)
+    reponse = session.post(f"{base}/api/dialogue", json={"answers": []}, timeout=10)
+    assert reponse.status_code == 200, reponse.text
+    return reponse.json()
+
+
+def test_les_choix_arrivent_jusqua_la_route(running_platform):
+    data = _premiere_question(running_platform)
+    assert data["kind"] == "choice"
+    assert data["title"] == "Quel type d'application construisez-vous ?"
+    options = data["options"]
+    assert len(options) == 11, options
+    assert [o["value"] for o in options] == [str(n) for n in range(1, 12)]
+    assert options[0]["label"] == "Portfolio / site vitrine"
+    # Le texte de terminal reste servi : un client qui l'affichait continue.
+    assert "[1] Portfolio" in data["question"]
+
+
+def test_chaque_choix_porte_son_aide(running_platform):
+    data = _premiere_question(running_platform)
+    aides = data["hints"]
+    for option in data["options"]:
+        assert aides.get(option["label"]), option["label"]
+
+
+def test_la_valeur_a_repondre_vient_du_serveur_jamais_du_rang():
+    """« aucun » se répond par 0, et cette règle ne vit qu'à un endroit.
+
+    Sans elle portée par le serveur, une couche de présentation numéroterait
+    « aucun » d'après son rang dans la liste et enverrait 12 sur onze
+    modèles — deux mises en œuvre d'une même règle divergent toujours
+    (point 146).
+    """
+    dialogue = GuidedDialogue(ask=lambda _prompt: "0")
+    assert dialogue._ask_choice("Une question ?", ["a", "b"],
+                                allow_none=True) is None
+    assert dialogue.derniere_question["options"] == [
+        {"label": "a", "value": "1"},
+        {"label": "b", "value": "2"},
+        {"label": "aucun", "value": "0"},
+    ]

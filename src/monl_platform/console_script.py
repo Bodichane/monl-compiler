@@ -70,14 +70,54 @@ function rendreDialogue(messages) {
     journal.appendChild(bloc);
   });
 }
+// POINT 171 : le moteur calculait la liste des choix depuis toujours et la
+// JETAIT ; la console ne recevait que le texte de TERMINAL et le collait dans
+// un <pre>, ce qui donnait onze modèles en une bouillie de crochets. Chaque
+// option porte sa VALEUR depuis le serveur — « aucun » se répond par 0 et non
+// par son rang, et cette règle ne doit pas être réécrite ici (point 146).
+function rendreChoix(boite, data) {
+  boite.replaceChildren();
+  const options = Array.isArray(data.options) ? data.options : null;
+  if (data.kind !== "choice" || !options || !options.length) {
+    boite.classList.add("hidden");
+    return false;
+  }
+  const aides = data.hints || {};
+  options.forEach(option => {
+    const bouton = document.createElement("button");
+    bouton.type = "button";
+    bouton.className = "dialogue-choice";
+    const rang = document.createElement("span");
+    rang.className = "dialogue-choice-num";
+    rang.textContent = option.value;
+    const titre = document.createElement("span");
+    titre.className = "dialogue-choice-label";
+    titre.textContent = option.label;
+    bouton.append(rang, titre);
+    const aide = aides[option.label];
+    if (aide) {
+      const note = document.createElement("span");
+      note.className = "dialogue-choice-hint";
+      note.textContent = aide;
+      bouton.append(note);
+    }
+    bouton.addEventListener("click", () => rejouerDialogue(option.value));
+    boite.append(bouton);
+  });
+  boite.classList.remove("hidden");
+  return true;
+}
 function afficherDialogue(data) {
   rendreDialogue(data.messages);
   const question = $('#dialogue-question');
   const formulaire = $('#dialogue-form');
   const depart = $('#dialogue-start');
   const termine = $('#dialogue-complete');
+  const boite = $('#dialogue-choices');
   if (data.complete) {
     question.classList.add('hidden');
+    boite.replaceChildren();
+    boite.classList.add('hidden');
     formulaire.classList.add('hidden');
     depart.classList.add('hidden');
     termine.classList.remove('hidden');
@@ -86,7 +126,16 @@ function afficherDialogue(data) {
     compter();
     return;
   }
-  question.textContent = data.question || '';
+  const enChoix = rendreChoix(boite, data);
+  // Avec des boutons, le <pre> ne garde que l'INTITULÉ : répéter le menu de
+  // terminal en dessous ferait lire deux fois la même chose.
+  // Avec des boutons, le <pre> ne garde que l'INTITULÉ, envoyé TEL QUEL par
+  // le serveur : le redécouper ici demanderait un retour à la ligne dans une
+  // chaîne JS, et ce gabarit Python le transformerait en vrai saut de ligne —
+  // la page entière cesserait de s'exécuter (point 163, mesuré en l'écrivant).
+  question.textContent = enChoix
+    ? (data.title || data.question || '')
+    : (data.question || '');
   question.classList.remove('hidden');
   formulaire.classList.remove('hidden');
   depart.classList.add('hidden');
@@ -137,11 +186,14 @@ async function chargerCatalogue() {
   } catch (e) { exemples = []; }
   const galerie = $('#gallery');
   if (!exemples.length) { galerie.remove(); return; }
+  // Les mots-clés du DSL (`public`, `seed`, `derivedFrom`…) ne sont PAS sur ces
+  // cartes : ils débordaient de la troisième et se coupaient en plein mot, et
+  // ils ne servent qu'à qui connaît déjà le langage — pas à qui choisit un
+  // exemple. Ils restent sur la page d'accueil, où ils sont le sujet.
   galerie.innerHTML = exemples.map(e =>
     '<button class="example" type="button" data-id="' + echapper(e.id) + '" aria-pressed="false">' +
-    '<b>' + echapper(e.name) + '</b><span>' + echapper(e.summary) + '</span>' +
-    '<span class="chips">' + (e.teaches || []).map(t =>
-      '<i class="chip">' + echapper(t) + '</i>').join('') + '</span></button>').join('');
+    '<b>' + echapper(e.name) + '</b><span>' + echapper(e.summary) +
+    '</span></button>').join('');
   $$('.example').forEach(bouton => bouton.onclick = () => charger(bouton.dataset.id));
   const demande = new URLSearchParams(window.location.search).get('example');
   charger(exemples.some(e => e.id === demande) ? demande : exemples[0].id);

@@ -87,6 +87,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [168](#168-loracle-temporel-tombe-une-troisième-fois--le-bruit-se-mesure) L'oracle temporel tombe une troisième fois : le bruit se mesure ·
 [169](#169-publier-sans-secret--et-les-trois-listes-écrites-à-la-main) Publier sans secret, et les listes écrites à la main ·
 [170](#170-la-complexité-mesurée-devient-un-cliquet--et-un-témoin-qui-ne-rougit-jamais-seul) La complexité devient un cliquet, et le témoin qui ne rougit jamais seul ·
+[171](#171-la-console-jetait-la-liste-des-choix--et-une-barre-translucide-coupe-le-texte) La console jetait la liste des choix, et la barre translucide ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -12245,3 +12246,120 @@ liste plate légitime, la découper nuirait), et les parcours de dialogue
 (`_run_free` à 46). La première famille est le prochain chantier évident ; les
 deux autres sont probablement à laisser. Aucune ne peut plus empirer sans que
 la suite le dise.
+
+---
+
+## 171. La console jetait la liste des choix — et une barre translucide coupe le texte
+
+**L'origine est une question d'usager**, pas une relecture de code : *« dans la
+console, comment différencier site web et application web ? »* La console ne
+pose pas la question — et c'est juste, tout ce que monl produit a un serveur et
+une base ; ce qui varie, c'est si quelqu'un s'inscrit. Mais **rien ne le disait
+nulle part** : on choisissait dans une liste de onze sans savoir ce qu'elle
+impliquait. En allant regarder, deux défauts sont sortis, tous deux invisibles
+depuis le code.
+
+### A. Une barre collante translucide coupe ce qui défile dessous
+
+`.topbar` portait `background: color-mix(in srgb, var(--bg) 92%, transparent)`
+plus `backdrop-filter: blur(14px)`. Huit pour cent du contenu transparaissait :
+la ligne qui passait sous la barre se lisait **coupée en deux**. Fond opaque,
+et le `backdrop-filter` part avec — il ne floute plus rien derrière un fond
+opaque et coûte une couche de composition.
+
+**Le témoin a échoué sur son propre commentaire.** Écrite DANS la règle,
+l'explication contenait le mot `backdrop-filter`, que le test cherchait à
+proscrire. C'est le point 156 mot pour mot — *un commentaire CSS est du CONTENU
+de page*. Corrigé des deux côtés : le commentaire vit hors de la règle, et le
+témoin retire les commentaires avant de lire, pour qu'un futur commentaire ne le
+fasse pas mentir dans l'autre sens.
+
+### B. `_ask` recevait la liste des choix et la JETAIT
+
+```python
+def _ask(self, prompt, validate, error_msg, kind="free_text", options=None):
+    for _ in range(self.max_retries):
+        answer = self._ask_fn(prompt).strip()
+```
+
+`kind` et `options` étaient là depuis toujours, calculés à chaque question,
+**jamais employés** ; `_ask_choice` construisait en plus un dictionnaire
+`hints` qu'il ne donnait qu'au rendu terminal. La console web ne recevait donc
+que la chaîne formatée POUR UN TERMINAL et la collait dans un `<pre>` : onze
+modèles en une bouillie `[1] Portfolio / site vitrine  [2] Blog  [3] …`.
+
+C'est **le point 85** dans une autre couche : une règle déclarée qui ne produit
+rien. Et le point 146 par-dessus — la brique existait, aucun producteur ne la
+branchait.
+
+Le moteur enregistre désormais sur son instance ce qu'il sait de la question en
+cours (`derniere_question`), la console rend de vrais boutons, et le champ texte
+reste là. **L'état est écrit avant chaque appel et jamais relu par le moteur** :
+il ne peut pas changer une décision du dialogue, qui reste entièrement
+déterministe et sans état côté serveur.
+
+#### Deux décisions à ne pas rouvrir
+
+**Chaque option porte sa VALEUR, pas son rang.** « aucun » se répond par `0` et
+non par sa place dans la liste : laisser une couche de présentation redécouvrir
+cette règle, ce serait deux mises en œuvre d'une même règle, et elles divergent
+toujours (point 146). Le serveur envoie
+`{"label": "aucun", "value": "0"}` ; le navigateur ne calcule rien.
+
+**L'intitulé est envoyé par le serveur, jamais redécoupé en JavaScript.** La
+première version faisait `data.question.split('\n')[0]`. `SCRIPT` est une chaîne
+Python NON BRUTE : le `\n` devient un **vrai retour à la ligne** au milieu d'un
+littéral JavaScript, le navigateur lève `SyntaxError` et tout le script de la
+page cesse de s'exécuter. C'est exactement le point 163 — deux pages ont vécu
+mortes ainsi, dont `/account` pendant un mois. **Reproduit et mesuré en
+l'écrivant** (le script rendu portait bien le saut de ligne dans la chaîne),
+puis fermé par la bonne voie : `_ask_choice` connaît son intitulé brut, il le
+transmet.
+
+### La ligne qui répond à la question de départ
+
+Sous chaque modèle, le menu dit maintenant si les visiteurs auront un compte —
+et cette ligne est **DÉRIVÉE**, jamais écrite à la main. Sa source est
+`_default_self_register`, celle-là même que le dialogue emploie comme défaut :
+ce qui est affiché ne peut donc pas diverger de ce qui sera construit. Une table
+indexée par nom de modèle cesserait de border au premier ajout — point 146, pour
+la énième fois.
+
+**La formulation est étroite à dessein**, parce que le sens de la fonction
+l'est : elle dit quel rôle serait offert à l'inscription libre, **pas** si le
+site est lisible sans compte.
+
+- un rôle → `inscription libre : <Rôle>` (7 modèles sur 10)
+- aucun → `comptes créés par l'administrateur` (Portfolio, Inventaire,
+  Classement communautaire)
+
+« Inventaire / gestion de stock » n'a pas de rôle public et n'est pourtant pas
+une vitrine : écrire « consultable par tous » aurait été faux. *Une valeur
+dérivée doit être formulée dans les termes de ce qu'elle mesure, pas dans ceux
+de la question qu'on aimerait lui poser.*
+
+### Ce qui prouve que rien n'a changé ailleurs
+
+- Les vingt specs des dix modèles (tout-non et tout-oui) : **40 955 octets,
+  identiques à l'octet** au chiffre relevé sur `main` au point 170.
+- Les onze empreintes de `tests/test_golden_artifacts.py` : inchangées.
+- Aucune question nouvelle : les réponses scriptées de `test_app_templates.py`
+  ne se décalent pas.
+
+### Et ce qui prouve que le défaut est bien fermé
+
+`tests/test_console_choix.py` pilote la **vraie page** avec jsdom contre le
+**vrai serveur** — inscription, chargement de `/console`, clic sur « Commencer
+le dialogue », puis comptage de ce qui est réellement posé dans le document :
+onze boutons, un intitulé qui ne répète plus le menu de terminal, chaque bouton
+portant son rang, son nom et son aide, et un clic qui fait avancer le dialogue.
+Chercher une chaîne dans du HTML ne distinguerait pas une page qui marche d'une
+page morte (point 163). **Les quatre témoins mordent** : rendu désarmé, les
+quatre rougissent.
+
+**Un témoin a dû être refait.** La première version de
+`test_la_ligne_de_compte_atteint_le_menu_du_dialogue` construisait elle-même le
+dictionnaire d'aides puis vérifiait son propre travail : elle serait restée
+verte face à un dialogue qui ne montre rien. Elle déroule maintenant le moteur
+réel et lit ce qu'il a effectivement posé. Point 167bis, encore — *un témoin qui
+fabrique ce qu'il mesure ne mesure rien.*

@@ -28,8 +28,12 @@ class DialogueInputError(ValueError):
 class DialogueIncomplete(Exception):
     """Le moteur vient de demander la prochaine réponse."""
 
-    def __init__(self, prompt: str):
+    def __init__(self, prompt: str, meta: dict | None = None):
         self.prompt = prompt
+        # Ce que le moteur SAIT de cette question (point 171) : sa nature, ses
+        # options, leurs aides. Sans elle, la console ne reçoit que le texte de
+        # TERMINAL et n'a d'autre choix que de le coller tel quel.
+        self.meta = meta
 
 
 def bounded_answers(value) -> list[str]:
@@ -95,9 +99,13 @@ def replay(answers: list[str]) -> dict:
 
     def ask(prompt=""):
         if not remaining:
-            raise DialogueIncomplete(prompt)
+            # Liaison TARDIVE : `dialogue` n'existe pas encore quand cette
+            # fermeture est définie, mais il existe quand elle est APPELÉE —
+            # le moteur ne peut poser une question qu'une fois construit.
+            raise DialogueIncomplete(prompt, dialogue.derniere_question)
         return remaining.pop(0)
 
+    dialogue = GuidedDialogue(ask=ask, say=said.append, ui=PlainDialogueUI())
     sortie = io.StringIO()
     try:
         # L'audit historique du vrai validateur écrit encore ses lignes sur
@@ -105,16 +113,17 @@ def replay(answers: list[str]) -> dict:
         # le verrou évite qu'un rejeu concurrent mélange deux dialogues dans
         # le même tampon global.
         with _STDOUT_LOCK, contextlib.redirect_stdout(sortie):
-            spec = GuidedDialogue(
-                ask=ask,
-                say=said.append,
-                ui=PlainDialogueUI(),
-            ).run()
+            spec = dialogue.run()
     except DialogueIncomplete as incomplete:
+        meta = incomplete.meta or {}
         return {
             "complete": False,
             "question": incomplete.prompt,
             "messages": said,
+            "kind": meta.get("kind"),
+            "title": meta.get("title"),
+            "options": meta.get("options"),
+            "hints": meta.get("hints"),
         }
     except DialogueError as exc:
         raise DialogueInputError(str(exc)) from exc
@@ -128,5 +137,9 @@ def replay(answers: list[str]) -> dict:
         "complete": True,
         "question": None,
         "messages": said,
+        "kind": None,
+        "title": None,
+        "options": None,
+        "hints": None,
         "spec": spec,
     }

@@ -369,3 +369,68 @@ def test_le_dialogue_sait_encore_produire_une_commande_simple():
     assert "entity LigneOrder" not in spec
     assert "rule Order.total derivedFrom Product.price by quantite" in spec
     MonlAST(parse_monl_string(spec)).validate_and_audit()
+
+
+class _Arret(Exception):
+    """Arrêter le moteur à sa première question, sans y répondre."""
+
+
+# ─────── POINT 171 : « les visiteurs auront-ils un compte ? », DÉRIVÉ ───────
+
+def test_la_ligne_de_compte_est_derivee_et_non_ecrite_a_la_main():
+    """Un modèle INCONNU doit recevoir sa ligne sans qu'on l'ait écrite.
+
+    C'est la contre-épreuve, donnée le jour même où le témoin est écrit
+    (point 167bis) : une table indexée par nom de modèle rendrait ces deux
+    assertions rouges, puisque « ModeleInvente » n'y figurerait pas. Une liste
+    écrite à la main cesse de border en silence au premier ajout — point 146.
+    """
+    avec_role = {
+        "name": "ModeleInvente",
+        "actors": ["Patron", "Visiteur"],
+        "entities": {
+            "Fiche": {"manager": "Patron", "owned": False},
+            "Demande": {"manager": "Visiteur", "owned": True},
+        },
+    }
+    sans_role = {
+        "name": "AutreModeleInvente",
+        "actors": ["Patron"],
+        "entities": {"Fiche": {"manager": "Patron", "owned": False}},
+    }
+    assert GuidedDialogue._ligne_de_compte(avec_role) == "inscription libre : Visiteur"
+    assert (GuidedDialogue._ligne_de_compte(sans_role)
+            == "comptes créés par l'administrateur")
+
+
+def test_chaque_modele_du_catalogue_dit_si_on_s_y_inscrit():
+    """Aucun modèle ne se choisit sans savoir ce qu'il implique."""
+    formes = 0
+    for tpl in TEMPLATES:
+        ligne = GuidedDialogue._ligne_de_compte(tpl)
+        assert (ligne.startswith("inscription libre : ")
+                or ligne == "comptes créés par l'administrateur"), (tpl["name"], ligne)
+        formes += ligne.startswith("inscription libre : ")
+    # Les DEUX formes existent dans le catalogue : si une seule sortait, le
+    # témoin ci-dessus passerait sans rien départager.
+    assert 0 < formes < len(TEMPLATES), formes
+
+
+def test_la_ligne_de_compte_atteint_le_menu_du_dialogue():
+    """Elle doit être VUE par l'usager, et par le VRAI chemin.
+
+    Une première version de ce témoin construisait elle-même le dictionnaire
+    d'aides puis vérifiait son propre travail : elle serait restée verte avec
+    un dialogue qui ne montre rien. On déroule donc le moteur réel et on lit
+    ce qu'il a effectivement posé sur sa question.
+    """
+    dialogue = GuidedDialogue(ask=lambda _p: (_ for _ in ()).throw(_Arret()))
+    with pytest.raises(_Arret):
+        dialogue.run()
+    aides = dialogue.derniere_question["hints"]
+    assert dialogue.derniere_question["title"] == \
+        "Quel type d'application construisez-vous ?"
+    assert "inscription libre : Customer" in aides["Boutique en ligne"]
+    assert "comptes créés par l" in aides["Portfolio / site vitrine"]
+    # Et l'aide d'origine n'a pas été REMPLACÉE par la ligne de compte.
+    assert "catalogue public" in aides["Boutique en ligne"]

@@ -103,10 +103,15 @@ code { font-family: var(--mono); font-size: .92em; }
 .skip:focus { left: 0; }
 
 /* ---------- barre de navigation ---------- */
+/* Fond OPAQUE, et pas 92 % : à 92 % le texte qui défile dessous transparaît
+   et se lit comme une ligne coupée en deux — mesuré sur /console. Le
+   `backdrop-filter` disparaît avec : il ne floute plus rien derrière un fond
+   opaque. Ce commentaire vit HORS de la règle, un commentaire CSS étant du
+   CONTENU de page (point 156) — dedans, il faisait échouer son propre
+   témoin. */
 .topbar {
   position: sticky; top: 0; z-index: 30;
-  background: color-mix(in srgb, var(--bg) 92%, transparent);
-  backdrop-filter: blur(14px);
+  background: var(--bg);
   border-bottom: 1px solid var(--line);
 }
 .scroll-progress {

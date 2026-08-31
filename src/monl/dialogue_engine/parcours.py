@@ -22,7 +22,8 @@ class ParcoursMixin:
         labels = [f"{t['name']} — {t['hint']}" for t in TEMPLATES] + [FREE_MODE_LABEL]
         courts = {label: TEMPLATES[i]["name"] for i, label in enumerate(labels[:-1])}
         courts[FREE_MODE_LABEL] = FREE_MODE_LABEL.split(" (")[0]
-        aides = {TEMPLATES[i]["name"]: TEMPLATES[i]["hint"] for i in range(len(TEMPLATES))}
+        aides = {t["name"]: f'{t["hint"]} — {self._ligne_de_compte(t)}'
+                 for t in TEMPLATES}
         aides[courts[FREE_MODE_LABEL]] = "décrire librement mes entités, sans modèle"
 
         self._show(self.ui.plan(["Type d'application", "Identité du projet",
@@ -71,6 +72,33 @@ class ParcoursMixin:
             "blocs utiles et produit des illustrations SVG locales cohérentes, "
             "sans inventer de donnée, de route ni de fonctionnalité"
         )
+
+    @staticmethod
+    def _ligne_de_compte(template):
+        """Les visiteurs auront-ils un compte ? DÉRIVÉ, jamais écrit à la main.
+
+        La question « site web ou application ? » n'existe pas dans le
+        dialogue, et c'est volontaire : tout ce que monl produit a un serveur
+        et une base. Ce qui varie, c'est si quelqu'un s'inscrit — et on ne
+        choisit pas dans une liste sans savoir ce qu'elle implique.
+
+        La réponse vient de `_default_self_register`, celle-là même que le
+        dialogue emploie comme défaut : la ligne affichée ne peut donc pas
+        diverger de ce qui sera réellement construit. Écrire une table à la
+        main la ferait cesser de border au premier modèle ajouté — point 146.
+
+        Le sens de cette fonction est ÉTROIT et la phrase le respecte : elle
+        dit quel rôle serait offert à l'inscription libre, PAS si le site est
+        lisible sans compte. « Inventaire » n'a pas de rôle public et n'est
+        pourtant pas une vitrine.
+        """
+        managers = {n: [m["manager"]] for n, m in template["entities"].items()}
+        owned = {n: m["manager"] for n, m in template["entities"].items()
+                 if m["owned"]}
+        role = ParcoursMixin._default_self_register(
+            template["actors"], managers, owned)
+        return (f"inscription libre : {role}" if role
+                else "comptes créés par l'administrateur")
 
     @staticmethod
     def _default_self_register(actors, managers, owned):
