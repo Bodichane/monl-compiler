@@ -84,6 +84,8 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [165](#165-le-site-à-375-pixels--quatre-défauts-et-une-mesure-qui-portait-à-côté) Le site à 375 pixels, et une mesure qui portait à côté ·
 [166](#166-le-chemin-conteneur-enfin-exécuté--et-le-déploiement-recommandé-était-aveugle) Le chemin conteneur exécuté, et la supervision aveugle ·
 [167](#167-rendre-le-compilateur-publiable--sans-le-publier) Rendre le compilateur publiable, sans le publier ·
+[168](#168-loracle-temporel-tombe-une-troisième-fois--le-bruit-se-mesure) L'oracle temporel : le bruit se mesure ·
+[168](#168-loracle-temporel-tombe-une-troisième-fois--le-bruit-se-mesure) L'oracle temporel tombe une troisième fois : le bruit se mesure ·
 
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -11794,3 +11796,224 @@ Et l'identité a maintenant **une source unique** : un second témoin exige
 même personne finissent toujours par se contredire — même raisonnement que
 `_contract_signature`, `compiler_dans`, `_decrement_fk_column` ou
 `requirements.txt`.
+
+## 168. L'oracle temporel tombe une troisième fois : le bruit se mesure
+
+Le point 160 avait remplacé un seuil absolu par `max(20 % de la durée, 5 ms)`.
+La CI a ensuite trouvé le cas que cette formule rendait le plus fragile : un
+appel de 25,05 ms avec un écart de -13,69 ms, donc une tolérance de 5,01 ms.
+L'exécution voisine, sur le même commit et le même Python 3.12, passait. Le
+défaut n'était pas dans l'ordre des appels, mais dans l'hypothèse que le bruit
+grandit avec la durée de l'appel.
+
+### La mesure tranche l'hypothèse
+
+Sur le runner local (Python 3.14.7 ; Python 3.12 n'y est pas installé), le
+témoin a été mesuré avec `_ecart_apparie`, 15 paires en alternance, entre deux
+comptes inexistants distincts et avec des IP distinctes. Douze séries par état :
+
+| état | écart médian observé | durée médiane d'un appel | étendue des durées |
+|---|---:|---:|---:|
+| repos | +0,011 ms | 87,393 ms | 86,994–89,151 ms |
+| 2 calculs CPU concurrents | -0,087 ms | 89,390 ms | 87,574–119,092 ms |
+
+Les écarts signés des séries étaient de -0,815 à +0,925 ms au repos et de
+-1,000 à +2,538 ms sous charge. La durée a donc pris des pointes sans que
+l'écart se mette à les suivre proportionnellement : le bruit est largement
+additif à cette échelle. Le test ne relit plus une fraction de la durée.
+
+### Le correctif et sa borne
+
+Avant chaque comparaison réelle, le test mesure le même chemin contre lui-même
+(inexistant contre inexistant pour `/login` et pour la réinitialisation). La
+marge est `max(2 × |témoin|, 5 ms)`, et le témoin doit rester sous 7,5 ms. Le
+nombre de paires augmente si nécessaire, de 15 à 45 puis 135, avec des IP
+uniques entre les tentatives ; un témoin encore trop grand échoue en le disant.
+La borne empêche le bruit de devenir une permission illimitée : la marge
+maximale est 15 ms, de sorte qu'une fuite d'environ 20 ms reste résoluble.
+Le nombre retenu sert aussi à la mesure réelle et au comptage des messages.
+
+Le test corrigé a passé quatre répétitions SQLite sous deux calculs CPU
+concurrents, ainsi que le repos. La contre-épreuve dans un serveur généré,
+avec la fuite injectée dans la branche verrouillée, a donné :
+
+| fuite injectée | écart mesuré | marge nouvelle | verdict nouveau | ancien seuil local |
+|---:|---:|---:|---|---|
+| 10 ms | 10,715 ms | 5,000 ms | refusée | passait |
+| 20 ms | 20,708 ms | 5,000 ms | refusée | passait ici |
+| 30 ms | 31,016 ms | 5,000 ms | refusée | refusée |
+
+Le point 160 avait obtenu 10 ms passée, 20 ms refusée à 19,83 ms pour une
+marge de 16,45 ms, et 30 ms refusée. Le changement est donc plus sensible sur
+la machine locale ; il n'est pas moins sensible. Le fait que 20 ms passait
+encore avec l'ancienne formule locale, parce que l'appel y était plus long,
+confirme précisément qu'elle mesurait la mauvaise échelle.
+
+La reproduction exacte du message CI (-13,69 ms pour 25,05 ms) n'a pas été
+obtenue avec l'application complète locale : son PBKDF2 prend environ 87 ms.
+Les premières charges brutes ont aussi fait expirer le verrou de 10 secondes
+avant la sonde (`200` contre `401`), panne de préparation et non panne de
+l'oracle. Le mécanisme du défaut a toutefois été rejoué sur l'échelle de 25 ms
+dans un serveur temporaire accéléré, et la mesure réelle sous charge a bien
+montré le bruit additif ci-dessus. Cette distinction reste importante : une
+reproduction exacte demanderait le runner Python 3.12 et ses voisins CI.
+
+### La régression : le bruit a mangé la fenêtre
+
+Cette décision avait une deuxième conséquence que la première mesure n'avait
+pas vue. `_record_account_failure`, dans `src/monl/generator/runtime_fonctions_auth.py`,
+commence par retourner après `COMMIT` quand `locked_until > now`. Un appel sur
+un compte déjà verrouillé ne prolonge donc pas le verrou ; il ne peut pas non
+plus le reposer avant son expiration. Toute mesure du chemin verrouillé doit
+tenir entièrement dans `window_seconds`.
+
+L'escalade du témoin `15 → 45 → 135` peut faire mesurer 270 appels dans la
+paire réelle. Avec `lockout: 3 in 10`, la version de cette décision a donc
+rouvert le compte pendant la mesure. Reproduction sur cette machine, avec une
+boucle Python épinglée sur chacun des huit cœurs :
+
+```text
+python -m pytest -q tests/test_authentification_b4.py::test_authentification_b4_complete_sur_les_deux_moteurs -k sqlite
+...
+E       assert 200 == 401
+tests/test_authentification_b4.py:474
+elapsed=30.84 s
+```
+
+Le `200` était la dernière réponse du compte verrouillé, le `401` celle du
+compte inexistant. Ce n'était donc pas le seuil temporel qui tranchait : le
+prérequis de la mesure avait disparu.
+
+### Le choix : deux bancs, et aucune écriture de contournement
+
+Le serveur principal conserve `lockout: 3 in 10` et conserve le
+`time.sleep(10.5)`. Il pose trois échecs, vérifie que le compte reste fermé,
+attend le dépassement de la fenêtre, puis exige une connexion réussie. Ce
+sommeil reste la preuve de la réouverture spontanée ; il n'est remplacé ni par
+un `UPDATE` SQL ni par un autre raccourci.
+
+La fixture démarre en parallèle logique un second serveur généré, dans un
+dossier et avec un compte distinct, avec `lockout: 3 in 300`. Cette valeur est
+une configuration de banc, pas une valeur de production : elle couvre la
+dépense maximale de l'escalade tout en laissant la fenêtre courte éprouver le
+contrat d'expiration. Le témoin est maintenant pris juste après la pose du
+verrou, sur ce banc long, afin que le bruit et la comparaison traversent le
+même état de charge. La mesure réelle peut reprendre aux paliers suivants si
+son premier résultat n'est pas résolu ; ses IP restent uniques. Les réponses
+qui ne restent pas dans l'état attendu échouent explicitement : aucun verdict
+n'est produit après expiration.
+
+J'ai écarté la borne par temps restant : avec une fenêtre courte, refuser le
+palier suivant quand 45 ou 135 paires ne tiennent plus aurait laissé le test
+sans conclusion précisément dans le cas de charge qu'il doit garder. J'ai
+également écarté l'allongement du sommeil et l'écriture SQL, pour les raisons
+déjà inscrites ci-dessus, ainsi que l'élargissement de la marge, qui aurait
+perdu la sensibilité de 10 ms. Le second serveur ajoute un démarrage et une
+compilation de banc ; il ne rallonge pas le sommeil délibéré de 10,5 s.
+
+Après ce changement, cinq exécutions SQLite sous huit boucles Python saturant
+les huit cœurs ont passé en `104,90`, `80,87`, `59,78`, `70,58` et `127,23 s`.
+Trois exécutions au repos ont passé en `37,28`, `29,76` et `30,03 s`. La
+contre-épreuve injectée dans le `app.py` généré a refusé les trois fuites :
+10 ms (`10,078 ms` corrigés contre `5,000 ms`), 20 ms (`20,856 ms` contre
+`5,000 ms`) et 30 ms (`30,539 ms` contre `5,000 ms`). Le résultat 10 ms reste
+donc refusé, comme dans la mesure précédente, et la sensibilité du point 160
+n'est pas perdue.
+
+### Vérification indépendante, et le témoin qui manquait
+
+Tout ce qui précède a été rejoué depuis zéro sur la machine du mainteneur,
+sans reprendre aucun chiffre. Cinq exécutions sous huit boucles saturant les
+huit cœurs (moyenne de charge relevée à **13,52** PENDANT les essais, pas
+avant — une charge moyenne est un indicateur à retard, la lire trop tôt aurait
+fait croire à une mesure au repos) : **5 sur 5 passent**. Deux au repos :
+passent.
+
+La contre-épreuve a été refaite avec son propre banc, en injectant
+`time.sleep(N)` dans la branche verrouillée du `app.py` GÉNÉRÉ, puis en
+faisant tourner l'instrument EXACT du test — mêmes fonctions, mêmes
+constantes. La colonne de droite recalcule, **sur les mêmes tirages**, ce
+qu'aurait dit la formule du point 160 :
+
+| fuite injectée | écart mesuré | témoin | appel | marge | verdict | point 160 |
+|---:|---:|---:|---:|---:|---|---|
+| 0 ms | 0,39 ms | 0,824 ms | 51,09 ms | 5,00 ms | passe | passe |
+| 10 ms | 10,63 ms | 0,629 ms | 61,21 ms | 5,00 ms | **REFUSE** | 12,24 ms → **passait** |
+| 20 ms | 20,85 ms | 0,404 ms | 75,31 ms | 5,00 ms | REFUSE | 15,06 ms → refusait |
+| 30 ms | 30,09 ms | -0,201 ms | 82,36 ms | 5,00 ms | REFUSE | 16,47 ms → refusait |
+
+**La ligne à 0 ms est celle qui manquait**, et ni le point 160 ni la première
+mesure de cette décision ne la portaient : sans elle, on sait qu'un seuil
+refuse des fuites, jamais qu'il laisse passer un serveur SAIN. Un instrument
+qui refuse tout est aussi inutile qu'un instrument qui accepte tout — et il a
+l'air plus sérieux. Le contrôle se règle en 15 paires ; les trois fuites, elles,
+épuisent l'escalade jusqu'à 135, ce qui est le comportement voulu : **une fuite
+réelle est présente à chaque palier, un sursaut isolé se dilue.**
+
+Suite complète après ce changement : **1400 passés, 16 sautés en 8 min 10**,
+même décompte que `main` et durée dans la bande habituelle malgré le second
+serveur de banc. `ruff check src tests` : zéro.
+
+### Et l'instrument a trouvé une VRAIE fuite — dans le produit, pas dans le test
+
+La CI a refusé le correctif de mesure ci-dessus, sur ses cinq travaux :
+
+```
+ecart median 6.50 ms, témoin 0.01 ms, pour un appel de 39.75 ms
+                — au-dela de 5.00 ms (135 tours)
+```
+
+**Ces trois nombres se lisent ensemble.** Le témoin vaut 0,01 ms : deux chemins
+identiques ne diffèrent quasiment pas sur ce runner, donc la machine n'est pas
+bruyante. L'écart de 6,50 ms persiste à travers 135 paires, soit 270 appels —
+l'escalade est faite pour diluer un sursaut isolé, elle ne l'a pas dilué. Et
+l'ancien seuil valait `max(20 % × 39,75, 5) = 7,95 ms` : **il couvrait 6,50**.
+La fuite était donc là depuis toujours ; le seuil était simplement assez large
+pour ne pas la voir. Le point 160 l'avait d'ailleurs ÉCRIT — « une différence
+réelle de 1,6 à 1,8 ms subsiste, le test la BORNE, il n'exige pas zéro ». Sur un
+disque plus lent, 1,7 ms devient 6,5.
+
+**La cause, établie par mesure INTERNE et non de bout en bout.** Une mesure par
+HTTP ajoute le réseau, ASGI et l'ordonnanceur à ce qu'on veut voir ; le
+comptage à l'intérieur du serveur généré tranche sans ambiguïté :
+`_account_lock_active` était appelée **135 fois pour un compte existant et
+ZÉRO fois pour un compte absent**. `db_user_id is not None and
+_account_lock_active(db_user_id)` court-circuitait, et cette fonction ouvre une
+connexion, fait un `SELECT`, parfois un `UPDATE` + `commit`, et referme. **Un
+compte qui existe payait un aller-retour de base que l'absent ne payait pas.**
+
+La portée est plus large que « verrouillé contre absent » : la garde se
+déclenchait pour tout `db_user_id is not None`, donc l'oracle distinguait
+**compte existant / compte inexistant**. C'est exactement l'énumération
+d'adresses que la brique B4 promet d'empêcher — on pouvait essayer une liste
+d'adresses et savoir lesquelles sont inscrites.
+
+**Le correctif est celui que le fichier appliquait DÉJÀ au hachage.** La
+connexion calcule un `_DUMMY_HASH` sur un `_DUMMY_SALT_HEX` pour que le compte
+absent paie le même PBKDF2 ; il ne le faisait pas pour la lecture du verrou.
+L'appel devient inconditionnel — `if _account_lock_active(db_user_id):` — et
+pour un absent `db_user_id` vaut `None` : aucune ligne ne peut correspondre,
+donc **ni `UPDATE`, ni `commit`, ni création**. Mesuré après : helper actif
+0,631 ms contre helper factice 0,638 ms.
+
+**LA MACHINE LOCALE NE POUVAIT PAS TRANCHER, et il faut le dire.** Un A/B de
+bout en bout sur trois séries de 45 paires a donné `A +0,341 / -0,113 / +0,239`
+contre `B +0,101 / +0,593 / -0,026` — **A n'est pas systématiquement supérieur
+à B**. Le SSD rend la requête quasi gratuite ici ; l'effet est sous le bruit
+local. C'est la mesure INTERNE qui a établi la cause, pas la mesure de bout en
+bout. *Quand l'effet est sous le bruit, changer d'instrument, pas de seuil.*
+
+**Le voisin, examiné et laissé tel quel.** `/password-reset/request` porte une
+autre asymétrie : l'adresse connue fait `DELETE` + `INSERT` + `commit`
+(17,4 ms), l'absente n'écrit rien (2,7 ms). Un plancher de 50 ms la masque
+aujourd'hui — mesuré, les écarts HTTP restent sous 0,3 ms. Elle n'est PAS
+corrigée : retirer ou déplacer cette écriture changerait les effets de la
+route. La limite est ÉNONCÉE plutôt que corrigée en silence — un `commit`
+dépassant 50 ms sur un disque très lent la rendrait visible.
+
+**L'instrument n'a pas été touché.** Contre-épreuve refaite après le correctif
+produit : 0 ms accepté, 10, 20 et 30 ms refusés. Corriger le produit ne devait
+pas endormir la mesure, et ne l'a pas fait. Les empreintes dorées ne bougent
+pas : la spec dorée n'active pas `lockout`. La preuve PostgreSQL reste à faire
+en CI — `MONL_TEST_DATABASE_URL` est absent en local, et le chemin de code est
+commun mais non exécuté ici.

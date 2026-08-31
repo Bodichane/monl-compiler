@@ -37,7 +37,10 @@ class ConnexionRuntimeMixin:
             ]
             if self.auth_features.get("lockout"):
                 lookup_lines += [
-                    "    if db_user_id is not None and _account_lock_active(db_user_id):",
+                    # Le compte absent paie aussi la lecture du verrou, sur
+                    # `None` : aucune ligne ne peut correspondre à cette
+                    # valeur factice, donc aucun UPDATE ne peut être émis.
+                    "    if _account_lock_active(db_user_id):",
                     "        raise HTTPException(status_code=401, detail='Identifiants invalides.')",
                 ]
             lookup_lines += [

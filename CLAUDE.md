@@ -1113,6 +1113,58 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   l'anti-rejeu de celle-ci — une tolérance de ±1 fenêtre donnée au serveur
   laissait le test VERT. Déplacée avant, elle rougit. Point 145 mot pour mot.
   Voir point 159.
+- **POINT 168 : l'oracle temporel, troisième chute — le bruit se MESURE, et
+  une escalade peut rouvrir un défaut fermé.** Le seuil relatif du point 160
+  (`max(20 % de la durée, 5 ms)`) supposait un bruit PROPORTIONNEL au temps de
+  réponse. Mesuré : deux chemins strictement IDENTIQUES donnent un écart médian
+  de +0,011 ms au repos et -0,087 ms sous charge, pendant que la durée d'appel
+  monte de 87 à 119 ms — **le bruit est additif, il ne suit pas la durée**. Sur
+  la CI, un appel de 25 ms (plus rapide que toute la plage d'étalonnage) donnait
+  donc la tolérance la plus PETITE face à une gigue de 13,7 ms. Le miroir exact
+  du défaut que le point 160 avait corrigé.
+  **Le remède** : un TÉMOIN pris sur la machine au moment même — le même chemin
+  contre lui-même, qui ne peut porter aucune fuite. Marge `max(2 × |témoin|,
+  5 ms)`, témoin plafonné à 7,5 ms, donc marge bornée entre 5 et 15 ms
+  INDÉPENDAMMENT de la vitesse de la machine. Si le témoin dépasse, on dépense
+  plus de mesure (15 → 45 → 135 paires) ; s'il persiste, le test ÉCHOUE en le
+  disant plutôt que de rendre un verdict qu'il ne peut pas soutenir.
+  **LA RÉGRESSION QUE L'ESCALADE A ROUVERTE**, et c'est la leçon la plus
+  transférable : `_record_account_failure` (runtime_fonctions_auth.py) RETOURNE
+  si le compte est déjà verrouillé — un appel pendant le verrou ne le prolonge
+  pas, et on ne peut pas le reposer sans attendre son expiration. Toute mesure
+  du chemin verrouillé doit donc tenir ENTIÈRE dans `window_seconds`. Le
+  commentaire du code disait déjà que la fenêtre était passée de 2 à 10 s « parce
+  que la mesure fait au moins TRENTE appels » : l'escalade en fait **270**.
+  Trouvé en chargeant à HUIT cœurs (Codex n'avait chargé qu'à deux) — 2 échecs
+  sur 3, et pas sur le seuil : `assert 200 == 401`, le verrou expiré.
+  **Un paramètre portant deux exigences contraires se DÉDOUBLE** : le banc garde
+  `lockout: 3 in 10` pour prouver la réouverture spontanée (le `time.sleep(10.5)`
+  est délibéré et reste — aucune écriture SQL ne prouverait que le verrou se
+  rouvre TOUT SEUL), et monte un SECOND serveur en `3 in 300` pour la mesure.
+  **Le témoin qui manquait** : la ligne à 0 ms. Vérifié indépendamment — fuite
+  injectée de 10 ms REFUSÉE là où le point 160 la laissait passer, 20 et 30 ms
+  refusées, et **serveur sain accepté**. Sans ce dernier contrôle on sait qu'un
+  seuil refuse des fuites, jamais qu'il laisse passer une application correcte ;
+  un instrument qui refuse tout est aussi inutile qu'un instrument qui accepte
+  tout, et il a l'air plus sérieux. Voir point 168.
+  **ET L'INSTRUMENT A TROUVÉ UNE VRAIE FUITE, dans le PRODUIT.** La CI a refusé
+  le correctif : `écart 6,50 ms, témoin 0,01 ms, 135 tours`. Témoin nul = machine
+  non bruyante ; écart persistant sur 270 appels = signal réel ; ancien seuil
+  7,95 ms = il le COUVRAIT. `db_user_id is not None and
+  _account_lock_active(...)` court-circuitait, or cette fonction ouvre une
+  connexion et fait un `SELECT` : **un compte qui existe payait un aller-retour
+  de base que l'absent ne payait pas**, donc on pouvait énumérer les adresses
+  inscrites — ce que la brique B4 promet d'empêcher. L'appel est désormais
+  INCONDITIONNEL (`db_user_id` vaut `None` pour un absent : aucune ligne, donc
+  ni `UPDATE` ni `commit`), exactement la discipline que le fichier appliquait
+  déjà au hachage avec `_DUMMY_HASH`/`_DUMMY_SALT_HEX`.
+  **La cause a été établie par mesure INTERNE** (helper appelé 135 fois contre
+  ZÉRO), jamais de bout en bout : l'A/B HTTP local était NON CONCLUANT, le SSD
+  rendant l'effet sous-jacent invisible. *Quand l'effet est sous le bruit,
+  changer d'instrument, pas de seuil.* `/password-reset/request` porte une
+  asymétrie voisine (17,4 ms contre 2,7 ms) masquée par un plancher de 50 ms :
+  ÉNONCÉE, pas corrigée — retirer son écriture changerait ses effets.
+  Voir point 168.
 - **POINT 167bis : un témoin peut être CREUX DÈS SA NAISSANCE.**
   `test_un_auteur_ne_peut_pas_etre_le_nom_du_paquet` s'écrivait
   `all(a["name"] != project["name"] for a in project.get("authors", []))` — et
