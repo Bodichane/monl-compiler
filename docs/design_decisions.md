@@ -12459,3 +12459,43 @@ chose sous quatre formes : **une garantie doit être mesurée sur ce qu'elle
 SERT, pas sur ce qu'elle contraint.** Un cookie posé n'est pas un cookie
 protégé ; une borne tenue n'est pas une trace utile ; un motif qui trouve
 quelque chose ne trouve pas forcément tout.
+
+---
+
+## 172bis. Une borne de disque se tient à chaque instant, pas seulement à la fin
+
+Le point 172 a corrigé la borne du journal d'un site hébergé pour qu'elle garde
+la FIN. **Elle ne tenait toujours pas.** La CI de la tranche suivante l'a
+attrapée sur Python 3.14 : `2 101 261 octets pour une borne annoncée à
+2 097 152`.
+
+Le compactage avait lieu **après** l'écriture du bloc. Le fichier dépassait donc
+la borne, puis y revenait — et le compactage relit tout le journal, tronque et
+réécrit, ce qui prend le temps que ça prend. Il existait une fenêtre de quelques
+millisecondes pendant laquelle le disque portait 4 109 octets de trop, et le
+test l'a photographiée.
+
+**Le vert n'était pas une preuve, et le rouge pas un hasard.** Le témoin de
+taille photographiait un instant unique, et son verdict dépendait de la quantité
+de bruit qu'uvicorn avait écrite AVANT la ligne de mesure : assez de bruit, un
+bloc franchissait la borne plus tôt, le compactage avait eu lieu, vert. Pas
+assez, la copie s'arrêtait juste au-dessus, rouge. **La mesure dépendait de
+rien du tout** — le même commit passe sur son exécution `push` et tombe sur son
+exécution `pull_request`, à la même minute.
+
+**Le correctif est de tenir la promesse, pas d'élargir le témoin.** Compacter
+AVANT d'écrire un bloc qui ferait franchir la borne : le fichier ne la dépasse
+alors à aucun instant, puisqu'après compactage il pèse au plus la moitié et
+qu'un bloc fait 8 Kio. Élargir l'assertion à `borne + 8 Kio` aurait été exact
+et aurait laissé la documentation du produit mentir — elle annonce 2 Mio.
+
+**Le témoin neuf ne change aucune taille** : il allonge la fenêtre qui existe
+déjà, en faisant patienter le compactage au moment où il commence, et
+photographie le disque pendant ce temps. Il est donc déterministe là où
+l'ancien tirait à pile ou face, il n'a besoin d'aucun serveur, et sa
+contre-épreuve rend **exactement** le nombre relevé par la CI (2 101 261).
+
+C'est le point 145 sur une borne : *un test qui passe ne prouve pas qu'il
+mord.* Et une variante du point 168 : quand un verdict dépend du bruit ambiant,
+ce n'est pas le seuil qu'il faut bouger, c'est l'instrument.
+
