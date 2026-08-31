@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1400 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1409 tests
   actuellement ; `tests/test_demo.py` s'appuie sur le dossier `demo/`
   versionné — ne pas le supprimer. La démo est **CodexShop**, une papeterie
   qui exerce la chaîne marchande entière ; ses ENTRÉES seules sont suivies
@@ -1165,7 +1165,51 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   asymétrie voisine (17,4 ms contre 2,7 ms) masquée par un plancher de 50 ms :
   ÉNONCÉE, pas corrigée — retirer son écriture changerait ses effets.
   Voir point 168.
-- **POINT 167bis : un témoin peut être CREUX DÈS SA NAISSANCE.**
+- **POINT 169 : publier sans secret — et TROIS listes écrites à la main, dont
+  deux mordaient déjà.** `.github/workflows/publication.yml` publie par
+  **Trusted Publishing** : un tag `v*`, une identité OIDC de courte durée
+  échangée contre un droit d'envoi temporaire, **aucun secret de longue durée**
+  nulle part. `id-token: write` n'est donné qu'aux deux travaux qui publient ;
+  celui qui lance la suite ne peut pas demander le pouvoir de publier. La
+  construction est faite UNE fois et voyage par `upload-artifact`.
+  **Le garde-fou** (`scripts/check_publication_version.py`) compare tag et
+  `pyproject.toml` par `packaging.version.Version` et **jamais par égalité de
+  chaînes** : `"0.9.0b8" == "0.9.0-beta.8"` est FAUX en chaînes et VRAI en
+  versions, donc une comparaison naïve refuserait une publication CORRECTE. Il
+  vit dans un script pour être éprouvable HORS de GitHub — une garantie qu'on
+  ne peut essayer qu'en publiant n'en est pas une.
+  **CE QUE LE DÉPÔT NE PEUT PAS GARANTIR** : la porte d'approbation avant PyPI
+  n'est PAS dans le YAML. Un workflow ne peut que NOMMER un environnement, et
+  **GitHub le crée implicitement à la première utilisation, SANS protection**.
+  Vérifié : le dépôt n'en déclare aucun. Tant que le *required reviewer* n'est
+  pas posé sur `pypi`, la porte annoncée n'existe pas. Ne pas laisser croire le
+  contraire.
+  **LES TROIS LISTES.** (a) Le témoin des dépendances de test nommait
+  `("pytest", "requests", "pillow")` — trois sur les NEUF modules de tierce
+  partie que les tests importent ; ajouter `packaging` et `PyYAML` ne l'aurait
+  pas réveillé (contre-épreuve : ancien témoin VERT, nouveau rouge en nommant
+  `yaml`). Il DÉRIVE désormais la liste (AST → `packages_distributions()` →
+  PEP 503 → ce que `.[dev,postgres]` pose vraiment). Sa limite est ÉNONCÉE :
+  associer un module à sa distribution exige qu'il soit INSTALLÉ — ce qu'on ne
+  peut pas associer, on ne le juge pas, on le NOMME (arbitrage du point 83).
+  (b) La publication n'éprouvait le tag que sur Python 3.12 quand la CI en
+  couvre trois : **une garantie plus étroite que la phrase qui l'annonce**, et
+  définitive. Matrice alignée, témoin à LECTEUR UNIQUE — en écrire un second
+  reproduirait le défaut qu'il mesure. (c) Le tableau de l'éditeur de confiance
+  était écrit à la main ; PyPI ne vérifie ces champs qu'à l'ENVOI et répond
+  `invalid-publisher` **sans dire lequel est faux**. Confronté désormais à
+  `[project.urls].Repository`, sur les DEUX tableaux (PyPI et TestPyPI).
+  **Et la réécriture du guide avait emporté la MESURE du point 167** sur
+  `rm -rf dist/` au profit d'une phrase générique — le témoin exigeait qu'une
+  conséquence soit écrite, pas qu'elle soit mesurée. Restaurée et revérifiée.
+  **Un document garde sa règle quand il garde sa mesure.**
+  **INÉPROUVABLE ICI, assumé** : la poignée de main OIDC ne se vérifie qu'en
+  publiant. Prouvé en revanche sans réseau — le YAML se parse et déclare ce
+  qu'on attend, **les six actions épinglées existent** (résolues en SHA sur
+  l'API GitHub ; un tag inventé ne se verrait qu'à l'exécution), le garde-fou
+  rougit et verdit sur onze cas, et les deux noms sont libres (404/404).
+  Limite bornée : `scripts/` reste hors de `ruff check src tests` — décision
+  écrite, pas oubli. Voir point 169.- **POINT 167bis : un témoin peut être CREUX DÈS SA NAISSANCE.**
   `test_un_auteur_ne_peut_pas_etre_le_nom_du_paquet` s'écrivait
   `all(a["name"] != project["name"] for a in project.get("authors", []))` — et
   `authors` était VIDE, le point 167 ayant délibérément laissé le champ vacant.

@@ -16,20 +16,26 @@ def _project():
         return tomllib.load(fichier)["project"]
 
 
-def _versions_de_la_ci():
-    """Rend les versions de Python que la CI éprouve réellement.
+def _versions_du_workflow(nom):
+    """Rend les versions de Python qu'un workflow éprouve réellement.
 
-    Lue sur `.github/workflows/ci.yml` plutôt que recopiée : deux listes de
-    versions tenues séparément finissent toujours par diverger.
+    Lue sur le fichier plutôt que recopiée : deux listes de versions tenues
+    séparément finissent toujours par diverger. Un seul lecteur pour les deux
+    workflows, pour la même raison — en écrire un second reproduirait, au
+    niveau de la mesure, le défaut que la mesure cherche à interdire.
     """
     import re
 
     racine = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    chemin = os.path.join(racine, ".github", "workflows", "ci.yml")
+    chemin = os.path.join(racine, ".github", "workflows", nom)
     with open(chemin, encoding="utf-8") as fichier:
         contenu = fichier.read()
     ligne = re.search(r"python-version:\s*\[([^\]]*)\]", contenu)
     return re.findall(r"\d+\.\d+", ligne.group(1)) if ligne else []
+
+
+def _versions_de_la_ci():
+    return _versions_du_workflow("ci.yml")
 
 
 def test_les_metadonnees_de_publication_decrivent_le_projet():
@@ -92,3 +98,30 @@ def test_l_auteur_de_la_distribution_est_l_editeur_legal():
     assert project["authors"] == [{"name": legal.EDITEUR}], (
         "l'auteur de la distribution doit rester identique à legal.EDITEUR"
     )
+
+
+def test_la_publication_eprouve_le_tag_sur_les_memes_versions_que_la_ci():
+    """Publier sur moins de versions que la CI rendrait sa propre phrase fausse.
+
+    `publication.yml` justifie en commentaire qu'il rejoue tests et lint parce
+    que « la CI de main ne suffit pas : elle a tourné sur un commit, pas
+    forcément sur celui que le tag désigne ». Cette raison ne vaut que si le
+    tag est éprouvé sur les MÊMES versions : n'en rejouer qu'une laisserait
+    partir, définitivement, une version dont deux tiers du support annoncé
+    n'ont jamais été vérifiés sur ce commit-là.
+
+    Le sens du contrôle est l'égalité, pas l'inclusion. Une version publiée
+    sans être annoncée n'aurait pas de classifieur (le témoin ci-dessus le
+    refuse déjà) ; une version annoncée que la publication n'éprouve pas est
+    exactement le trou que ce témoin ferme.
+    """
+    ci = _versions_du_workflow("ci.yml")
+    publication = _versions_du_workflow("publication.yml")
+
+    assert ci, "matrice de ci.yml illisible : ce témoin ne garde plus rien"
+    assert publication, (
+        "matrice de publication.yml illisible : ce témoin ne garde plus rien")
+    assert publication == ci, (
+        f"la publication éprouve {publication} quand la CI éprouve {ci} : "
+        f"le tag partirait sans avoir été rejoué sur toutes les versions "
+        f"annoncées sur l'index")

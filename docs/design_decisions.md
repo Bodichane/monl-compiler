@@ -84,9 +84,8 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [165](#165-le-site-à-375-pixels--quatre-défauts-et-une-mesure-qui-portait-à-côté) Le site à 375 pixels, et une mesure qui portait à côté ·
 [166](#166-le-chemin-conteneur-enfin-exécuté--et-le-déploiement-recommandé-était-aveugle) Le chemin conteneur exécuté, et la supervision aveugle ·
 [167](#167-rendre-le-compilateur-publiable--sans-le-publier) Rendre le compilateur publiable, sans le publier ·
-[168](#168-loracle-temporel-tombe-une-troisième-fois--le-bruit-se-mesure) L'oracle temporel : le bruit se mesure ·
 [168](#168-loracle-temporel-tombe-une-troisième-fois--le-bruit-se-mesure) L'oracle temporel tombe une troisième fois : le bruit se mesure ·
-
+[169](#169-publier-sans-secret--et-les-trois-listes-écrites-à-la-main) Publier sans secret, et les listes écrites à la main ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -12017,3 +12016,122 @@ pas endormir la mesure, et ne l'a pas fait. Les empreintes dorées ne bougent
 pas : la spec dorée n'active pas `lockout`. La preuve PostgreSQL reste à faire
 en CI — `MONL_TEST_DATABASE_URL` est absent en local, et le chemin de code est
 commun mais non exécuté ici.
+
+---
+
+## 169. Publier sans secret — et les trois listes écrites à la main
+
+**Ce qui est acquis.** `.github/workflows/publication.yml` publie
+`monl-compiler` par **Trusted Publishing** : un tag `v*` déclenche la chaîne,
+PyPI échange une identité OIDC de courte durée contre un droit d'envoi
+temporaire, et **aucun secret de longue durée ne vit dans le dépôt ni sur la
+machine du mainteneur**. Cinq travaux — `verify-tag`, `tests`, `build`,
+`publish-testpypi`, `publish-pypi`. `id-token: write` n'est donné qu'aux deux
+derniers ; les trois premiers n'ont que `contents: read`, donc le travail qui
+exécute la suite ne peut pas demander le pouvoir de publier. La construction
+est faite **une fois** et voyage par `upload-artifact` : reconstruire entre
+TestPyPI et PyPI enverrait deux fois des octets qui peuvent différer
+(point 158ter, mesuré sur des images).
+
+**LE GARDE-FOU QUI PORTE LA CHAÎNE : le tag doit dire la vérité.** Un tag
+`v0.9.0b9` publiant un `pyproject.toml` en `0.9.0-beta.8` produirait une
+version dont le nom ne désigne rien — **et une version envoyée ne se réutilise
+jamais, même supprimée**. `scripts/check_publication_version.py` compare par
+`packaging.version.Version` et **jamais par égalité de chaînes** : mesuré,
+`"0.9.0b8" == "0.9.0-beta.8"` est FAUX en chaînes et VRAI en versions, donc
+une comparaison naïve refuserait une publication CORRECTE. Éprouvé sur onze
+cas ; trois limites, toutes justes — `v0.9.0.0b8` accepté (PEP 440 : même
+version), `V0.9.0b8` refusé (le filtre `v*` de GitHub ne l'aurait pas
+déclenché non plus), `v0.9.0b8+local` refusé (PyPI refuse les étiquettes
+locales). Le garde-fou vit dans un script pour être éprouvable HORS de
+GitHub : une garantie qu'on ne peut essayer qu'en publiant n'est pas une
+garantie.
+
+**CE QUE LE DÉPÔT NE PEUT PAS GARANTIR, ET QU'IL FAUT DIRE SANS L'ADOUCIR.**
+La porte d'approbation manuelle avant PyPI **n'est pas dans le YAML** : un
+workflow ne peut que NOMMER un environnement, la règle de protection vit dans
+les réglages GitHub. Pire — **GitHub crée un environnement implicitement à la
+première utilisation, sans aucune protection**. Vérifié le 30/08/2026 :
+`gh api repos/Bodichane/monl-compiler/environments` ne rend rien, aucun
+environnement n'existe. Tant que le mainteneur n'a pas ajouté le *required
+reviewer* sur `pypi`, la porte annoncée par le commentaire du workflow et par
+le guide **n'existe pas**. Le document la réclame ; le dépôt ne peut pas
+l'imposer, et prétendre le contraire serait la pire des trois listes de ce
+point.
+
+**CE QUI EST INÉPROUVABLE ICI, ET C'EST ASSUMÉ.** La poignée de main OIDC ne
+se vérifie qu'en publiant pour de vrai. Rien dans cette suite ne l'atteste, et
+rien ne le prétend : la première preuve sera le premier envoi. Ce qui EST
+prouvé sans réseau ni compte : le YAML se parse et déclare les travaux, les
+permissions et les environnements attendus ; **les six actions épinglées
+existent réellement**, interrogées une par une sur l'API GitHub et résolues en
+SHA — un tag inventé ne se verrait qu'à l'exécution, c'est-à-dire au pire
+moment ; le garde-fou rougit et verdit ; et les deux noms sont libres sur les
+deux index (404 / 404).
+
+### LES TROIS LISTES ÉCRITES À LA MAIN
+
+Le point 162bis l'énonce : *une borne exprimée par une liste de noms cesse de
+borner en silence*. Ce point en a trouvé trois d'un coup, dont deux qui
+mordaient déjà.
+
+**(a) Le témoin des dépendances de test nommait trois bibliothèques sur
+neuf.** `test_les_bibliotheques_dont_les_tests_ont_besoin_sont_dans_dev`
+vérifiait `("pytest", "requests", "pillow")` ; les tests importent en réalité
+neuf modules de tierce partie. Ce point en ajoute deux — `packaging` et
+`PyYAML` — et **l'ancien témoin serait resté vert sans rien regarder**
+(contre-épreuve faite : `PyYAML` retiré de `dev`, ancien témoin VERT, nouveau
+témoin rouge en nommant `yaml (distribution ['pyyaml'], importé par
+test_publication.py)`). La liste est désormais DÉRIVÉE : AST des imports sous
+`tests/`, correspondance module → distribution par
+`importlib.metadata.packages_distributions()`, normalisation PEP 503, puis
+confrontation à ce que `pip install -e ".[dev,postgres]"` pose vraiment — donc
+aux dépendances du paquet ET aux deux extras, pas au seul `dev`. Deux pièges :
+sur Python 3.10 `tomllib` n'est pas dans `sys.stdlib_module_names` et serait
+pris pour une dépendance externe (d'où la réutilisation
+d'`APRES_LA_VERSION_MINIMALE`), et la correspondance exige que le module soit
+INSTALLÉ — **ce qu'on ne peut pas associer, on ne le juge pas, on le NOMME**,
+plutôt que de deviner un nom de distribution et de refuser une déclaration
+correcte (même arbitrage qu'au point 83 : sans `base_dir`, le validateur se
+tait).
+
+**(b) La publication n'éprouvait le tag que sur Python 3.12**, quand la CI en
+couvre trois. Le workflow justifie en commentaire qu'il rejoue tests et lint
+parce que « la CI de `main` ne suffit pas : elle a tourné sur un commit, pas
+forcément sur celui que le tag désigne » — et n'en rejouait qu'un tiers. **Une
+garantie plus étroite que la phrase qui l'annonce**, et définitive : la version
+serait partie avec deux tiers de son support annoncé jamais vérifié sur ce
+commit-là. La matrice est alignée, et un témoin confronte les deux fichiers
+par un LECTEUR UNIQUE — en écrire un second reproduirait, au niveau de la
+mesure, le défaut que la mesure interdit.
+
+**(c) Le tableau de l'éditeur de confiance était écrit à la main.** Le guide
+dicte au mainteneur les cinq champs à recopier dans un formulaire PyPI. Or
+**PyPI ne vérifie pas ces champs à la déclaration** : il les confronte au jeton
+OIDC lors de l'envoi, et un propriétaire ou un dépôt faux produit un
+`invalid-publisher` **qui ne dit pas lequel des champs est faux**. Le tableau
+est désormais confronté à `[project.urls].Repository`, lui-même déjà figé par
+`test_package_metadata.py` ; et la vérification porte sur les DEUX tableaux,
+PyPI et TestPyPI — ne contrôler que le premier laisserait diverger l'instance
+d'essai, qui est justement celle qu'on remplit d'abord.
+
+### Ce que la réécriture du guide avait emporté
+
+`docs/PUBLICATION.md` a été refondu pour la voie OIDC, et **la mesure du
+point 167 sur `rm -rf dist/` a disparu au profit d'une phrase générique**. Le
+témoin ne pouvait pas le voir : il exige qu'*une* conséquence soit écrite, pas
+qu'elle soit MESURÉE. Le relevé est restauré et revérifié le 30/08/2026 —
+`dist/` porte `monl_compiler-0.9.0b7`, `dist/anciens/` porte `monl-0.9.0b5`
+(l'ANCIEN nom de distribution), la version à publier est `0.9.0-beta.8` : sans
+nettoyage, `dist/*` développe quatre fichiers et `twine upload` enverrait une
+version qu'on ne voulait pas, plus un SECOND projet sur l'index. **Un document
+garde sa règle quand il garde sa mesure** ; une règle réduite à son énoncé se
+fait couper au premier remaniement.
+
+### Limite connue, bornée et assumée
+
+`scripts/` échappe à `ruff check src tests`, la commande documentée en huit
+endroits. Elle n'est pas élargie ici : 83 lignes déjà exercées par quatre
+tests directs ne valent pas de réécrire une commande de référence dans huit
+fichiers au détour d'une tâche de publication. `ruff check scripts` passe
+(vérifié) ; c'est une décision, pas un oubli.

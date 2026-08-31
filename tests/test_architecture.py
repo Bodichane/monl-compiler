@@ -17,6 +17,8 @@
 import ast
 import fnmatch
 import os
+import re
+import sys
 
 SRC = os.path.join(os.path.dirname(__file__), "..", "src", "monl")
 
@@ -440,12 +442,103 @@ def test_aucun_test_ne_monte_la_plateforme_avec_testclient():
         "uvicorn éphémère à la place : " + ", ".join(fautifs))
 
 
+# Les arbres du dépôt que les tests exercent. `outils/` en fait partie parce
+# que Pillow n'y entre que par `outils/fabriquer_images.py`, et `scripts/`
+# parce que le garde-fou de publication y vit (point 168).
+ARBRES_EXERCES = ("tests", "outils", "scripts")
+
+
+def _normalise_distribution(nom):
+    """PEP 503 : `PyYAML`, `pyyaml` et `Py_Yaml` sont la MÊME distribution."""
+    return re.sub(r"[-_.]+", "-", nom).lower()
+
+
+def _distributions_du_module(module):
+    """Rend les distributions qui fournissent *module*, ou None si inconnu.
+
+    None ne veut pas dire « aucune » mais « pas installé ici, donc pas
+    mesurable » : la correspondance nom d'import → nom de distribution est
+    portée par l'environnement, pas par le code.
+    """
+    from importlib.metadata import packages_distributions
+
+    fournisseurs = packages_distributions().get(module)
+    if fournisseurs is None:
+        return None
+    return {_normalise_distribution(nom) for nom in fournisseurs}
+
+
+def _modules_du_depot():
+    """Tout ce qui vit dans l'arbre : ni à déclarer, ni à installer."""
+    racine = os.path.join(os.path.dirname(__file__), "..")
+    noms = set(ARBRES_EXERCES)
+    for base in ARBRES_EXERCES + ("src",):
+        chemin = os.path.join(racine, base)
+        if not os.path.isdir(chemin):
+            continue
+        for dossier, sous_dossiers, fichiers in os.walk(chemin):
+            noms |= {f[:-3] for f in fichiers
+                     if f.endswith(".py") and f != "__init__.py"}
+            noms |= {d for d in sous_dossiers
+                     if os.path.exists(os.path.join(dossier, d, "__init__.py"))}
+    return noms
+
+
+def _modules_tiers_importes_par_les_tests():
+    """Les modules de TIERCE PARTIE importés sous `tests/`, par l'AST.
+
+    Par l'AST et non par `grep` : un import multi-lignes ou un accès par
+    attribut échappe au texte (point 153). Les modules entrés dans la
+    bibliothèque standard APRÈS la version minimale sont écartés — sur
+    Python 3.10, `tomllib` n'est pas dans `sys.stdlib_module_names` et serait
+    pris pour une dépendance de tierce partie.
+    """
+    interne = _modules_du_depot()
+    standard = set(sys.stdlib_module_names) | set(APRES_LA_VERSION_MINIMALE)
+    vus = {}
+    dossier = os.path.join(os.path.dirname(__file__))
+    for racine_courante, _, fichiers in os.walk(dossier):
+        for nom in sorted(f for f in fichiers if f.endswith(".py")):
+            chemin = os.path.join(racine_courante, nom)
+            with open(chemin, encoding="utf-8") as fh:
+                arbre = ast.parse(fh.read(), filename=chemin)
+            for noeud in ast.walk(arbre):
+                if isinstance(noeud, ast.Import):
+                    cibles = [alias.name for alias in noeud.names]
+                elif isinstance(noeud, ast.ImportFrom) and not noeud.level:
+                    cibles = [noeud.module] if noeud.module else []
+                else:
+                    continue
+                for cible in cibles:
+                    tete = cible.split(".")[0]
+                    if tete not in standard and tete not in interne:
+                        vus.setdefault(tete, set()).add(nom)
+    return vus
+
+
 def test_les_bibliotheques_dont_les_tests_ont_besoin_sont_dans_dev():
     """Le pendant du test ci-dessus : la déclaration, pas seulement l'absence
     de contournement.
 
     Sans lui, retirer Pillow de l'extra `dev` ferait échouer la CI sans qu'un
     test explique POURQUOI — et la tentation serait de remettre un saut.
+
+    **La liste des bibliothèques est DÉRIVÉE, jamais écrite ici.** Elle l'a
+    été, et elle nommait `pytest`, `requests` et `pillow` — trois sur les neuf
+    que les tests importaient réellement. Une borne exprimée par une liste de
+    noms cesse de borner dès qu'un nom s'ajoute, et sans faire de bruit : c'est
+    le défaut du point 162bis (`OUTILS_QUI_COMPILENT`), du point 164 (la page
+    `/mcp`) et du point 167 (les versions de Python). Ajouter `packaging` et
+    `PyYAML` au point 168 n'aurait rien réveillé.
+
+    **Sa limite est ÉNONCÉE** : associer un module à sa distribution
+    (`PIL` → `pillow`, `yaml` → `PyYAML`) exige que le module soit INSTALLÉ,
+    car c'est l'environnement qui porte cette correspondance. Ce qu'on ne peut
+    pas associer, on ne le juge pas — on le NOMME dans le message, plutôt que
+    de deviner un nom de distribution et de refuser une déclaration correcte
+    (même arbitrage qu'au point 83 : sans `base_dir`, le validateur se tait).
+    Sur la CI la question ne se pose pas : un module qu'aucune installation ne
+    fournit fait échouer la collecte du fichier qui l'importe.
     """
     try:
         import tomllib
@@ -455,15 +548,30 @@ def test_les_bibliotheques_dont_les_tests_ont_besoin_sont_dans_dev():
     racine = os.path.join(os.path.dirname(__file__), "..")
     with open(os.path.join(racine, "pyproject.toml"), "rb") as fh:
         config = tomllib.load(fh)
-    dev = " ".join(config["project"]["optional-dependencies"]["dev"]).lower()
 
-    # Chacune est importée par au moins un test, directement ou via un module
-    # qu'un test importe (outils/fabriquer_images.py pour Pillow).
-    for distribution in ("pytest", "requests", "pillow"):
-        assert distribution in dev, (
-            f"{distribution} manque à l'extra `dev` : la CI installe "
-            f"`.[dev,postgres]`, donc les tests qui en dépendent sauteront "
-            f"ou échoueront")
+    # Ce que `pip install -e ".[dev,postgres]"` — la ligne exacte de ci.yml —
+    # pose réellement. Pas seulement `dev` : une bibliothèque déclarée dans
+    # les dépendances du paquet est là aussi.
+    requis = list(config["project"].get("dependencies", []))
+    for extra in ("dev", "postgres"):
+        requis += config["project"]["optional-dependencies"].get(extra, [])
+    installees = {_normalise_distribution(re.split(r"[<>=!;\[ ]", ligne.strip())[0])
+                  for ligne in requis}
+
+    manquantes, non_mesurables = [], []
+    for module, fichiers in sorted(_modules_tiers_importes_par_les_tests().items()):
+        distributions = _distributions_du_module(module)
+        if distributions is None:
+            non_mesurables.append(module)      # non installé : voir docstring
+        elif not (distributions & installees):
+            manquantes.append(f"{module} (distribution {sorted(distributions)}, "
+                              f"importé par {sorted(fichiers)[0]})")
+
+    assert not manquantes, (
+        f"la CI installe `.[dev,postgres]` et n'y trouvera pas : {manquantes}. "
+        f"Les tests qui en dépendent échoueront à la collecte, ou sauteront — "
+        f"et un saut ne dit pas « rien à vérifier », il dit « je n'ai pas "
+        f"vérifié » (point 140). Non mesurables ici : {non_mesurables or 'aucun'}")
 
 
 # Modules entrés dans la bibliothèque standard APRÈS la version minimale
