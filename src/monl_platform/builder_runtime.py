@@ -15,6 +15,7 @@ from monl.app_templates import TEMPLATES
 from .downloads import default_directory
 from .hosting import SiteManager
 from .paths import ProjectPathError, project_directory
+from .session import set_session_cookie
 from .store import PlatformStore
 
 
@@ -93,12 +94,7 @@ def _provider_catalogue():
 
 
 def _set_session_cookie(response, token):
-    response.set_cookie(
-        "monl_session", token, max_age=30 * 24 * 3600, path="/",
-        httponly=True, samesite="strict",
-        secure=os.environ.get("MONL_COOKIE_SECURE", "").lower()
-        in {"1", "true", "yes"},
-    )
+    set_session_cookie(response, token)
 
 
 @dataclass

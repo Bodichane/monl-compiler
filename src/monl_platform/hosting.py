@@ -7,6 +7,7 @@ import sys
 import threading
 import time
 from dataclasses import dataclass
+from pathlib import Path
 
 from .paths import ProjectPathError, project_directory
 
@@ -28,12 +29,35 @@ class SiteNotCompiledError(SiteHostingError):
     """
 
 
+SITE_LOG_FILENAME = "site.log"
+SITE_LOG_MAX_BYTES = 1_048_576
+# On laisse le fichier grossir jusqu'au double avant de compacter : compacter à
+# chaque bloc relirait tout le journal huit mille fois par mégaoctet. Le disque
+# reste borné, par 2 Mio et non par 1.
+SITE_LOG_COMPACT_BYTES = SITE_LOG_MAX_BYTES * 2
+
+
+def site_log_path(workspace_root, project):
+    """Retourne le journal d'un projet après le même contrôle de chemin."""
+    try:
+        return project_directory(
+            workspace_root,
+            project["user_id"],
+            project["project_id"],
+            create=False,
+        ) / SITE_LOG_FILENAME
+    except ProjectPathError as exc:
+        raise SiteHostingError(str(exc)) from exc
+
+
 @dataclass
 class _RunningSite:
     project_id: str
     host: str
     port: int
     process: subprocess.Popen
+    log_path: Path
+    output_thread: threading.Thread
 
 
 class SiteManager:
@@ -64,6 +88,10 @@ class SiteManager:
         except ProjectPathError as exc:
             raise SiteHostingError(str(exc)) from exc
 
+    def site_log_path(self, project):
+        """Le fichier de sortie privé du projet, lisible par la CLI seulement."""
+        return site_log_path(self.workspace_root, project)
+
     def _require_site(self, project):
         directory = self._project_directory(project)
         for fichier in ("app.py", "serve.py"):
@@ -91,6 +119,62 @@ class SiteManager:
                 time.sleep(0.02)
         return False
 
+    @staticmethod
+    def _capture_output(stream, log_path):
+        """Copie la sortie de l'enfant en gardant la FIN, jamais le début.
+
+        La première version cessait d'écrire une fois la borne atteinte. La
+        borne était donc tenue — et le journal gardait le mégaoctet le moins
+        utile : mesuré, un site qui bavarde puis plante perdait entièrement la
+        trace de son plantage, parce qu'elle arrive en DERNIER. Un test qui
+        vérifie seulement la taille du fichier passe dans les deux cas ; c'est
+        la raison pour laquelle il faut mesurer ce qu'on GARDE, pas ce qu'on
+        jette.
+        """
+        try:
+            with log_path.open("a+b") as journal:
+                lire = getattr(stream, "read1", stream.read)
+                journal.seek(0, 2)
+                taille = journal.tell()
+                if taille > SITE_LOG_COMPACT_BYTES:
+                    taille = SiteManager._compacter_journal(journal)
+                while True:
+                    bloc = lire(8192)
+                    if not bloc:
+                        break
+                    journal.write(bloc)
+                    journal.flush()
+                    taille += len(bloc)
+                    if taille > SITE_LOG_COMPACT_BYTES:
+                        taille = SiteManager._compacter_journal(journal)
+        finally:
+            stream.close()
+
+    @staticmethod
+    def _compacter_journal(journal):
+        """Ne garder que la fin, coupée sur une ligne entière."""
+        journal.seek(0)
+        garde = journal.read()[-SITE_LOG_MAX_BYTES:]
+        # La coupe tombe au milieu d'une ligne : la jeter évite un fragment
+        # illisible en tête de journal, qu'on prendrait pour un message tronqué
+        # par le site lui-même.
+        coupe = garde.find(b"\n")
+        if 0 <= coupe < len(garde) - 1:
+            garde = garde[coupe + 1:]
+        journal.truncate(0)
+        journal.seek(0)
+        journal.write(garde)
+        journal.flush()
+        return len(garde)
+
+    @staticmethod
+    def _join_output(output_thread):
+        output_thread.join(timeout=5)
+
+    def _stop_running(self, running):
+        self._stop_process(running.process)
+        self._join_output(running.output_thread)
+
     def start_project(self, project):
         with self._lock:
             current = self._running.get(project["project_id"])
@@ -98,8 +182,10 @@ class SiteManager:
                 return current
             if current is not None:
                 self._running.pop(project["project_id"], None)
+                self._stop_running(current)
             directory = self._require_site(project)
             port = self._allocate_port()
+            log_path = directory / SITE_LOG_FILENAME
             process = subprocess.Popen(
                 [
                     sys.executable,
@@ -115,13 +201,22 @@ class SiteManager:
                 ],
                 cwd=directory,
                 stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
             )
             host = self.host_for(project)
-            running = _RunningSite(project["project_id"], host, port, process)
+            output_thread = threading.Thread(
+                target=self._capture_output,
+                args=(process.stdout, log_path),
+                name=f"monl-site-log-{project['project_id'][:8]}",
+                daemon=True,
+            )
+            output_thread.start()
+            running = _RunningSite(
+                project["project_id"], host, port, process, log_path, output_thread
+            )
             if not self._wait_ready(process, port):
-                self._stop_process(process)
+                self._stop_running(running)
                 raise SiteHostingError(f"le serveur du site {host} n'a pas démarré")
             self._running[project["project_id"]] = running
             return running
@@ -131,7 +226,7 @@ class SiteManager:
             running = self._running.pop(project_id, None)
             if running is None:
                 return False
-            self._stop_process(running.process)
+            self._stop_running(running)
             return True
 
     def is_running(self, project_id):
@@ -142,6 +237,7 @@ class SiteManager:
                 return False
             if running.process.poll() is not None:
                 self._running.pop(project_id, None)
+                self._join_output(running.output_thread)
                 return False
             return True
 
@@ -160,7 +256,7 @@ class SiteManager:
             running = list(self._running.values())
             self._running.clear()
         for item in running:
-            self._stop_process(item.process)
+            self._stop_running(item)
 
     def _host_without_port(self, host):
         host = (host or "").strip().lower()

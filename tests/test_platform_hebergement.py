@@ -14,12 +14,20 @@ compilé est refusé en NOMMANT le fichier absent.
 """
 
 import http.client
+import io
+import tempfile
+import time
 import uuid
+from pathlib import Path
 
 import pytest
 
 from monl.cli import compile_project
-from monl_platform.hosting import SiteManager, SiteNotCompiledError
+from monl_platform.hosting import (
+    SITE_LOG_COMPACT_BYTES,
+    SiteManager,
+    SiteNotCompiledError,
+)
 from monl_platform.identity import IdentityStore
 from monl_platform.paths import project_directory
 from monl_platform.store import PlatformStore
@@ -79,6 +87,17 @@ def _get(port, chemin):
         connexion.close()
 
 
+def _attendre_marqueur(chemin, marqueur):
+    marqueurs = (marqueur,) if isinstance(marqueur, str) else tuple(marqueur)
+    for _ in range(100):
+        if chemin.is_file():
+            contenu = chemin.read_text(encoding="utf-8", errors="replace")
+            if all(attendu in contenu for attendu in marqueurs):
+                return contenu
+        time.sleep(0.02)
+    return chemin.read_text(encoding="utf-8", errors="replace") if chemin.is_file() else ""
+
+
 def test_un_projet_compile_demarre_et_son_api_repond(plateforme, capsys):
     store, projet, sites, tmp_path = plateforme
     dossier = _compiler(projet, tmp_path / "projets", tmp_path)
@@ -120,3 +139,91 @@ def test_le_frontend_reste_facultatif_et_le_site_le_dit(plateforme, capsys):
 
     assert _get(running.port, "/site/")[0] == 404
     assert _get(running.port, "/openapi.json")[0] == 200
+
+
+def test_un_site_qui_plante_laisse_la_trace_de_son_erreur(plateforme, capsys):
+    """Le fichier doit expliquer un crash, pas seulement prouver sa présence."""
+    _store, projet, sites, tmp_path = plateforme
+    dossier = _compiler(projet, tmp_path / "projets", tmp_path)
+    capsys.readouterr()
+    (dossier / "serve.py").write_text(
+        """import sys
+from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get('/crash')
+def crash():
+    print('SITE_CRASH_MARKER: panne volontaire', file=sys.stderr, flush=True)
+    raise RuntimeError('erreur volontaire du site')
+""",
+        encoding="utf-8",
+    )
+
+    running = sites.start_project(projet)
+    assert _get(running.port, "/crash")[0] == 500
+
+    journal = sites.site_log_path(projet)
+    contenu = _attendre_marqueur(
+        journal, ("SITE_CRASH_MARKER", "RuntimeError", "erreur volontaire du site")
+    )
+    assert "SITE_CRASH_MARKER" in contenu
+    assert "RuntimeError" in contenu
+    assert "erreur volontaire du site" in contenu
+
+
+def test_la_sortie_dun_site_reste_bornee(plateforme, capsys):
+    """Une boucle de sortie ne doit pas transformer le journal en panne disque."""
+    _store, projet, sites, tmp_path = plateforme
+    dossier = _compiler(projet, tmp_path / "projets", tmp_path)
+    capsys.readouterr()
+    (dossier / "serve.py").write_text(
+        f"""import sys
+from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get('/bruit')
+def bruit():
+    print('SITE_OUTPUT ' + 'x' * ({SITE_LOG_COMPACT_BYTES} + 4096), file=sys.stderr, flush=True)
+    return {{'ok': True}}
+""",
+        encoding="utf-8",
+    )
+
+    running = sites.start_project(projet)
+    assert _get(running.port, "/bruit")[0] == 200
+    journal = sites.site_log_path(projet)
+    _attendre_marqueur(journal, "SITE_OUTPUT")
+    # La borne DISQUE est le seuil de compactage, pas la taille conservée : le
+    # journal grossit jusqu'au double avant d'être ramené à sa fin, parce que
+    # compacter à chaque bloc relirait tout le fichier à chaque 8 Kio.
+    assert journal.stat().st_size <= SITE_LOG_COMPACT_BYTES
+
+
+def test_le_journal_borne_garde_la_FIN_et_jamais_le_debut():
+    """Une borne tenue ne dit pas que ce qu'on garde sert à quelque chose.
+
+    La première version cessait d'écrire une fois la borne atteinte : la taille
+    du fichier était juste, et le mégaoctet conservé était le moins utile. Un
+    site qui bavarde puis plante perdait ENTIÈREMENT la trace de son plantage,
+    parce qu'elle arrive en dernier — mesuré, pas supposé.
+
+    Le témoin de taille qui existait passait dans les deux cas. C'est pourquoi
+    celui-ci mesure ce qu'on GARDE : la dernière ligne écrite par le site doit
+    se retrouver dans son journal, et la première doit être entière.
+    """
+    with tempfile.TemporaryDirectory() as base:
+        journal = Path(base) / "site.log"
+        bavardage = b"ligne de trafic ordinaire\n" * 400_000       # ~10 Mio
+        plantage = b"TRACE-DU-PLANTAGE: RuntimeError: base absente\n"
+        SiteManager._capture_output(io.BytesIO(bavardage + plantage), journal)
+
+        contenu = journal.read_bytes()
+        assert len(contenu) <= SITE_LOG_COMPACT_BYTES, len(contenu)
+        assert len(contenu) < len(bavardage), "aucun compactage n'a eu lieu"
+        assert b"TRACE-DU-PLANTAGE" in contenu, "la trace du plantage est perdue"
+        assert contenu.rstrip(b"\n").split(b"\n")[-1].startswith(b"TRACE-DU-PLANTAGE")
+        # Pas de fragment en tête : on le prendrait pour un message tronqué par
+        # le site lui-même plutôt que par la borne.
+        assert contenu.split(b"\n")[0] == b"ligne de trafic ordinaire"

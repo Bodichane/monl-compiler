@@ -28,8 +28,10 @@ import sys
 import time
 from datetime import datetime, timezone
 
+from .hosting import SITE_LOG_MAX_BYTES, SiteHostingError, site_log_path
 from .identity import IdentityStore
-from .journal import configurer, court, evenement
+from .journal import configurer, court, evenement, masquer_texte
+from .paths import ProjectPathError
 from .service import CompilationService, PlatformNotFoundError
 
 JOUR = 24 * 3600
@@ -123,6 +125,37 @@ def _projets(magasin: IdentityStore, _service, args) -> int:
     for projet in projets:
         print(f"{projet['project_id']:34s} {projet['email'][:28]:28s} "
               f"{projet['name'][:22]:22s} {_echeance(projet['expires_at'])}")
+    return 0
+
+
+def _journal(magasin: IdentityStore, service: CompilationService, args) -> int:
+    """Lit la sortie d'un site depuis le shell, après masquage des secrets."""
+    projet = next(
+        (ligne for ligne in magasin.tous_les_projets()
+         if ligne["project_id"] == args.projet),
+        None,
+    )
+    if projet is None:
+        print(f"Aucun projet {args.projet!r}.", file=sys.stderr)
+        return 1
+    try:
+        chemin = site_log_path(service.workspace, projet)
+    except (ProjectPathError, SiteHostingError) as exc:
+        print(f"Journal illisible : {exc}", file=sys.stderr)
+        return 1
+    if chemin.is_symlink():
+        print("Journal illisible : le fichier est un lien symbolique.", file=sys.stderr)
+        return 1
+    if not chemin.is_file():
+        evenement("journal_site_lu_par_exploitant", projet=court(args.projet), octets=0)
+        print(f"Aucun journal pour le projet {args.projet}.")
+        return 0
+
+    brut = chemin.read_bytes()[:SITE_LOG_MAX_BYTES].decode("utf-8", errors="replace")
+    evenement("journal_site_lu_par_exploitant", projet=court(args.projet),
+              octets=len(brut.encode("utf-8")))
+    rendu = masquer_texte(brut)
+    print(rendu, end="" if rendu.endswith("\n") else "\n")
     return 0
 
 
@@ -242,6 +275,12 @@ def construire_parseur() -> argparse.ArgumentParser:
 "projets", parents=[commun], help="Liste les projets.")
     liste.add_argument("--compte", default=None, metavar="EMAIL")
     liste.set_defaults(faire=_projets)
+
+    journal = sous.add_parser(
+        "journal", aliases=["journaux"], parents=[commun],
+        help="Lit la sortie du site depuis le shell.")
+    journal.add_argument("projet")
+    journal.set_defaults(faire=_journal)
 
     codes = sous.add_parser(
 "codes", parents=[commun], help="Nouvelle série de codes de secours pour un compte bloqué.")

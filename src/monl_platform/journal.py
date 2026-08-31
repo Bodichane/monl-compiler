@@ -33,6 +33,16 @@ NOMS_SENSIBLES = ("password", "mot_de_passe", "secret", "token", "jeton",
 # de la plateforme commencent par `monl_` ; les jetons de session sont des
 # chaînes URL-safe longues et sans espace.
 FORMES_SENSIBLES = re.compile(r"^(monl_[A-Za-z0-9_-]{8,}|[A-Za-z0-9_-]{32,})$")
+FORMES_SENSIBLES_DANS_TEXTE = re.compile(
+    r"(?<![A-Za-z0-9_-])(?:monl_[A-Za-z0-9_-]{8,}|[A-Za-z0-9_-]{32,})"
+    r"(?![A-Za-z0-9_-])"
+)
+PARAMETRES_SENSIBLES = re.compile(
+    r"((?:^|[?&\s])(?:token|jeton|access_token|refresh_token|api_key|apikey|secret|"
+    r"password|mot_de_passe|authorization|cookie|session)(?:=|%3d))[^&#\s]+",
+    re.IGNORECASE,
+)
+AUTHENTIFICATION_SENSIBLE = re.compile(r"((?:bearer|basic)\s+)[^\s]+", re.IGNORECASE)
 
 MASQUE = "[masqué]"
 
@@ -80,9 +90,24 @@ def _valeur(nom: str, valeur: Any) -> str:
     texte = str(valeur)
     if FORMES_SENSIBLES.match(texte):
         return MASQUE
+    texte = masquer_texte(texte)
     if any(c.isspace() for c in texte):
         return '"' + texte.replace('"', "'").replace("\n", " ") + '"'
     return texte or "-"
+
+
+def masquer_texte(texte: Any) -> str:
+    """Masque les secrets dans une sortie libre, notamment une URL.
+
+    Les journaux d'un site ne sont pas structurés en ``champ=valeur`` : un
+    jeton peut donc se trouver au milieu d'une URL. Cette frontière réutilise
+    les deux mêmes garanties que ``evenement`` — nom sensible des paramètres
+    et forme sensible de la valeur — avant que la CLI ne rende le texte.
+    """
+    texte = str(texte)
+    texte = PARAMETRES_SENSIBLES.sub(r"\1" + MASQUE, texte)
+    texte = AUTHENTIFICATION_SENSIBLE.sub(r"\1" + MASQUE, texte)
+    return FORMES_SENSIBLES_DANS_TEXTE.sub(MASQUE, texte)
 
 
 def evenement(_nom: str, /, *, niveau: int = logging.INFO, **champs: Any) -> str:

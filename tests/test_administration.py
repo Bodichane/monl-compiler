@@ -25,7 +25,10 @@ import time
 import pytest
 import requests
 
+from monl_platform.hosting import SiteManager
 from monl_platform.identity import IdentityStore
+from monl_platform.paths import project_directory
+from monl_platform.store import PlatformStore
 from tests.support.server import uvicorn_server
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -403,3 +406,46 @@ def test_la_cli_nomme_les_entrees_invalides_et_les_positions_d_options(tmp_path,
     assert administration.main(["--workspace", str(tmp_path), "comptes"]) == 0
     assert administration.main(["comptes", "--workspace", str(tmp_path)]) == 0
     assert "Aucun compte" in capsys.readouterr().out
+
+
+def test_la_cli_lit_le_journal_du_site_sans_exposer_son_jeton(tmp_path):
+    """La trace d'un crash est lisible au shell, jamais servie par HTTP."""
+    identifiant = "a" * 32
+    secret = "monl_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6"
+    magasin = IdentityStore(tmp_path)
+    store = PlatformStore(tmp_path)
+    user = magasin.register("journal-site@exemple.test", MOT_DE_PASSE)
+    magasin.add_project(user["id"], identifiant, "Journal site")
+    store.create_project(user["id"], identifiant, "journal-site")
+    projet = store.get_project(identifiant)
+    dossier = project_directory(tmp_path, user["id"], identifiant)
+    (dossier / "app.py").write_text("# backend présent\n", encoding="utf-8")
+    (dossier / "serve.py").write_text(
+        f"""import sys
+from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get('/crash')
+def crash():
+    print('SITE_ADMIN_CRASH https://client.example/reset?token={secret}',
+          file=sys.stderr, flush=True)
+    raise RuntimeError('crash relisible par exploitant')
+""",
+        encoding="utf-8",
+    )
+    sites = SiteManager(store, tmp_path, "localhost", startup_timeout=25)
+    try:
+        running = sites.start_project(projet)
+        assert requests.get(f"http://127.0.0.1:{running.port}/crash", timeout=10).status_code == 500
+    finally:
+        sites.stop_all()
+
+    rendu = admin(tmp_path, "journal", identifiant)
+    assert rendu.returncode == 0, rendu.stderr
+    assert "SITE_ADMIN_CRASH" in rendu.stdout
+    assert "RuntimeError" in rendu.stdout
+    assert "crash relisible par exploitant" in rendu.stdout
+    assert secret not in rendu.stdout
+    assert "token=[masqué]" in rendu.stdout
+    assert "journal_site_lu_par_exploitant" in rendu.stderr

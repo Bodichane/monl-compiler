@@ -88,6 +88,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [169](#169-publier-sans-secret--et-les-trois-listes-écrites-à-la-main) Publier sans secret, et les listes écrites à la main ·
 [170](#170-la-complexité-mesurée-devient-un-cliquet--et-un-témoin-qui-ne-rougit-jamais-seul) La complexité devient un cliquet, et le témoin qui ne rougit jamais seul ·
 [171](#171-la-console-jetait-la-liste-des-choix--et-une-barre-translucide-coupe-le-texte) La console jetait la liste des choix, et la barre translucide ·
+[172](#172-le-serveur-sait-et-ne-dit-pas--deux-fois-avant-la-mise-en-ligne) Le serveur sait et ne dit pas : cookie en clair, sites hébergés muets ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -12363,3 +12364,98 @@ dictionnaire d'aides puis vérifiait son propre travail : elle serait restée
 verte face à un dialogue qui ne montre rien. Elle déroule maintenant le moteur
 réel et lit ce qu'il a effectivement posé. Point 167bis, encore — *un témoin qui
 fabrique ce qu'il mesure ne mesure rien.*
+
+---
+
+## 172. Le serveur sait, et ne dit pas — deux fois, avant la mise en ligne
+
+Tranche préparatoire au lancement. Les deux défauts sont **le même défaut sous
+deux formes** : la plateforme dispose d'une information et ne la transmet à
+personne. Aucun des deux ne casse quoi que ce soit à l'usage, et c'est
+exactement pourquoi ils ont survécu — tout marche, simplement sans protection
+et sans trace.
+
+### A. Le cookie de session pouvait partir en clair, en silence
+
+`MONL_COOKIE_SECURE` vaut `0` par défaut, et **c'est juste** : le développement
+local n'a pas de certificat. Deux problèmes distincts vivaient là.
+
+**La règle était écrite DEUX fois** — `app_http.py` et `builder_runtime.py`
+posaient chacun leur `set_cookie`. Deux mises en œuvre d'une même règle
+divergent toujours (point 146). `session.py` est désormais la source unique, et
+un test vérifie qu'il n'existe qu'un seul `set_cookie` dans toute la
+plateforme.
+
+**Une contradiction détectable n'était pas détectée.** Déclarer
+`MONL_PLATFORM_PUBLIC_URL=https://…` tout en laissant le cookie non sûr, c'est
+énoncer deux choses incompatibles : « mon site est en HTTPS » et « n'exige pas
+HTTPS pour le cookie de session ». Le serveur REFUSE désormais de démarrer, en
+nommant les deux réglages et le remède — précédent exact du point 145, où
+l'absence de `MONL_PLATFORM_PUBLIC_URL` empêche le démarrage dès qu'un
+fournisseur OAuth est configuré, « plutôt que de laisser un bouton répondre 503
+au clic ».
+
+**Le refus ne porte QUE sur la contradiction.** Une adresse publique en `http://`
+reste permise, une adresse absente aussi : un refus plus large casserait des
+déploiements corrects, et *une garantie trop large n'est pas plus sûre, elle est
+fausse ailleurs* (point 84). Les quatre cas sont mesurés contre un vrai serveur
+— `https`+sûr démarre, `https`+non sûr refuse, `http`+non sûr démarre, aucune
+adresse démarre. Sans le troisième et le quatrième, on saurait que le garde-fou
+refuse, jamais qu'il accepte ce qu'il doit accepter.
+
+### B. Un site hébergé qui plante ne laissait aucune trace
+
+`hosting.py` lançait chaque site client avec `stdout` et `stderr` vers
+`DEVNULL`. `_wait_ready` attrapait l'échec au DÉMARRAGE ; tout ce qui arrivait
+ensuite était perdu. C'est le point 140 déplacé dans l'exploitation : *un
+processus silencieux ne dit pas « tout va bien », il dit « je ne regarde
+pas »*.
+
+La sortie va dans `site.log`, dans le dossier du projet, lue par
+`monl-platform admin journal` — **et jamais par une route web**. Le point 142 a
+écarté le panneau web d'administration : il demanderait sa propre
+authentification et deviendrait la cible dont une faille donne tous les
+comptes, alors que qui possède le shell possède déjà la base. Un test lit
+`/openapi.json` et échoue si une route d'administration apparaît.
+
+### CE QUE LA VÉRIFICATION A TROUVÉ DANS LE CORRECTIF
+
+**La borne était tenue, et gardait le mauvais mégaoctet.** La première version
+cessait d'écrire une fois la limite atteinte : la taille du fichier était juste,
+et le contenu conservé était le moins utile. Mesuré — un site qui produit
+10 Mio de trafic ordinaire puis plante perdait **entièrement** la trace de son
+plantage, parce qu'elle arrive en DERNIER.
+
+Le témoin qui existait vérifiait `taille <= borne`. **Il passe dans les deux
+cas.** C'est toute la leçon : *un test qui mesure la contrainte ne mesure pas le
+service rendu.* Le journal garde désormais la FIN (compactage au double de la
+borne, coupe sur une ligne entière pour ne pas laisser un fragment qu'on
+prendrait pour un message tronqué par le site), et le témoin mesure ce qu'on
+GARDE — la dernière ligne écrite doit s'y retrouver.
+
+**L'extracteur de variables ne savait pas lire une constante.** Ranger
+`"MONL_COOKIE_SECURE"` dans `COOKIE_SECURE_ENV` — la bonne pratique, pour qu'un
+renommage ne laisse pas deux vérités — a fait dire au témoin de documentation :
+« documentée sans être lue ». **Le remède apparent aurait été de la RETIRER du
+document**, c'est-à-dire d'effacer la trace d'un réglage de sécurité actif.
+
+La cause : `re.findall(r'os\.environ\.get\(\s*"([A-Z_]+)"')`, qui ne voit que
+les noms écrits en dur AU POINT DE LECTURE. L'extracteur résout désormais les
+constantes de module par AST — *une surface se mesure par AST, jamais par grep*
+(point 153) — et porte **son propre témoin** : sans lui, un extracteur muet
+rendrait les deux règles vertes en ne regardant rien (point 161).
+
+**Et il a trouvé une variable oubliée depuis toujours.** Dès sa première
+exécution, l'extracteur AST a signalé `MONL_PLATFORM_DOWNLOADS` : lue par
+`downloads.py` à travers une variable locale, donc invisible à l'expression
+régulière, et **jamais documentée**. Une règle qui regarde mieux trouve
+immédiatement ce que l'ancienne laissait passer — comme au point 169, où
+dériver la liste des dépendances de test en a révélé six sur neuf.
+
+### La leçon transférable
+
+Les deux défauts, et les deux trouvailles de leur vérification, disent la même
+chose sous quatre formes : **une garantie doit être mesurée sur ce qu'elle
+SERT, pas sur ce qu'elle contraint.** Un cookie posé n'est pas un cookie
+protégé ; une borne tenue n'est pas une trace utile ; un motif qui trouve
+quelque chose ne trouve pas forcément tout.
