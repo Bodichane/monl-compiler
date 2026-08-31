@@ -142,11 +142,19 @@ class SiteManager:
                     bloc = lire(8192)
                     if not bloc:
                         break
+                    # Compacter AVANT d'écrire, jamais après. Compacter après
+                    # laisse le fichier DÉPASSER la borne pendant toute la
+                    # durée du compactage — qui relit tout le journal, tronque
+                    # et réécrit. Mesuré : 2 101 261 octets sur disque pour une
+                    # borne annoncée à 2 097 152, et c'est exactement l'instant
+                    # que la CI a photographié. Une borne de disque est une
+                    # promesse sur ce qu'on OCCUPE : elle doit tenir à chaque
+                    # instant, pas seulement quand le fil a fini son travail.
+                    if taille + len(bloc) > SITE_LOG_COMPACT_BYTES:
+                        taille = SiteManager._compacter_journal(journal)
                     journal.write(bloc)
                     journal.flush()
                     taille += len(bloc)
-                    if taille > SITE_LOG_COMPACT_BYTES:
-                        taille = SiteManager._compacter_journal(journal)
         finally:
             stream.close()
 
