@@ -641,3 +641,34 @@ def test_chaque_page_du_site_porte_un_titre_qui_la_nomme():
     assert not partages, (
         "des pages DIFFÉRENTES partagent un titre — un onglet ne dit plus "
         f"laquelle est ouverte : {partages}")
+
+
+def test_la_barre_du_haut_est_opaque(platform):
+    """Une barre collante translucide COUPE le texte qui défile dessous.
+
+    Mesuré sur /console : `background: color-mix(in srgb, var(--bg) 92%,
+    transparent)` laissait transparaître 8 % du contenu, et la ligne qui
+    passait sous la barre se lisait comme coupée en deux. Un défaut qui ne
+    casse rien et qu'aucun test ne pouvait voir — il n'existe que dans ce que
+    l'usager REÇOIT (point 164).
+
+    Le témoin porte sur la page SERVIE, et sur la propriété plutôt que sur une
+    valeur : `backdrop-filter` derrière un fond opaque ne floute plus rien, sa
+    présence signalerait que la translucidité est revenue avec.
+    """
+    page = requests.get(platform, timeout=10).text
+    feuilles = re.findall(r"<style[^>]*>(.*?)</style>", page, re.S)
+    assert feuilles, "aucune feuille de style dans la page servie"
+    regles = _regles_css("\n".join(feuilles))
+    topbars = [(sel, props) for _, _, sel, props in regles
+               if sel.strip() == ".topbar"]
+    assert topbars, "règle .topbar introuvable : l'extracteur ne regarde rien"
+    css = "\n".join(feuilles)
+    bloc = re.search(r"\.topbar\s*\{([^}]*)\}", css, re.S)
+    assert bloc, "corps de .topbar illisible"
+    # Un commentaire CSS est du CONTENU (point 156) : laissé en place, le mot
+    # « backdrop-filter » écrit dans une explication ferait rougir ce témoin.
+    corps = re.sub(r"/\*.*?\*/", "", bloc.group(1), flags=re.S)
+    assert "transparent" not in corps, corps
+    assert "backdrop-filter" not in corps, corps
+    assert re.search(r"background:\s*var\(--bg\)", corps), corps

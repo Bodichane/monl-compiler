@@ -16,7 +16,29 @@ class QuestionsMixin:
             self._say(rendu)
 
     # ---------- primitives de question (chacune valide et redemande) ----------
-    def _ask(self, prompt, validate, error_msg, kind="free_text", options=None):
+    def _ask(self, prompt, validate, error_msg, kind="free_text", options=None,
+             hints=None, title=None):
+        # POINT 171 : `kind` et `options` étaient reçus depuis toujours et
+        # JAMAIS employés — le point 85 sous une autre forme. La console web
+        # ne recevait donc que le texte de TERMINAL et le collait dans un
+        # <pre> : onze modèles en une bouillie « [1] … [2] … ». On les
+        # enregistre ici, au plus près de l'appel, pour que toute couche de
+        # présentation puisse rendre autre chose qu'une chaîne.
+        #
+        # L'état est écrasé à chaque question et n'est JAMAIS lu par le
+        # moteur : il ne peut pas changer une décision du dialogue, qui reste
+        # entièrement déterministe.
+        self.derniere_question = {
+            "kind": kind,
+            # L'intitulé SEUL, tel que le moteur l'a reçu. Le reconstruire en
+            # découpant le texte de terminal obligerait la couche de
+            # présentation à connaître sa mise en forme — et, dans un gabarit
+            # Python non brut, à écrire un `\n` qui devient un vrai retour à
+            # la ligne au milieu d'une chaîne JavaScript (point 163).
+            "title": title,
+            "options": [dict(o) for o in options] if options else None,
+            "hints": dict(hints) if hints else None,
+        }
         for _ in range(self.max_retries):
             answer = self._ask_fn(prompt).strip()
             ok, value = validate(answer)
@@ -59,8 +81,18 @@ class QuestionsMixin:
             if a.isdigit() and 1 <= int(a) <= len(options):
                 return True, options[int(a) - 1]
             return False, None
+        # Chaque option porte la VALEUR à répondre, et pas seulement son
+        # libellé : « aucun » se répond par 0 et non par son rang. Laisser
+        # une couche de présentation redécouvrir cette règle, ce serait deux
+        # mises en œuvre d'une même règle — elles divergent toujours
+        # (point 146).
+        choix = [{"label": libelle, "value": str(rang)}
+                 for rang, libelle in enumerate(options, start=1)]
+        if allow_none:
+            choix.append({"label": "aucun", "value": "0"})
         return self._ask(full, validate, "Choisir un numéro du menu.",
-                         kind="choice", options=list(options) + (["aucun"] if allow_none else []))
+                         kind="choice", options=choix, hints=hints,
+                         title=prompt)
 
     def _ask_yes_no(self, prompt):
         def validate(a):

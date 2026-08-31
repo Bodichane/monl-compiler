@@ -67,6 +67,23 @@ EXTRA_CSS = """
                      border: 1px solid var(--line); border-radius: var(--radius);
                      white-space: pre-wrap; overflow-wrap: anywhere;
                      font: 14px/1.65 var(--mono); }
+/* Les choix du dialogue sont des BOUTONS, pas un menu de terminal recopié.
+   `min(100%, 260px)` et non `260px` : une piste plus large que son conteneur
+   déborde à 375 px sans que rien ne le signale (point 165). */
+.dialogue-choices { display: grid; gap: var(--space-3);
+                    margin: 0 0 var(--space-4);
+                    grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }
+.dialogue-choice { display: grid; grid-template-columns: 26px 1fr;
+                   gap: 2px var(--space-3); align-items: start; text-align: left;
+                   padding: var(--space-3) var(--space-4); font: inherit;
+                   color: inherit; cursor: pointer; background: var(--surface);
+                   border: 1px solid var(--line); border-radius: var(--radius); }
+.dialogue-choice:hover { border-color: var(--accent); }
+.dialogue-choice-num { grid-row: 1 / span 2; color: var(--muted);
+                       font: 13px/1.6 var(--mono); }
+.dialogue-choice-label { font-weight: 600; overflow-wrap: anywhere; }
+.dialogue-choice-hint { grid-column: 2; color: var(--muted); font-size: 14px;
+                        overflow-wrap: anywhere; }
 .dialogue-form { display: flex; gap: var(--space-3); align-items: end; }
 .dialogue-form label { display: block; font-weight: 600; margin-bottom: 7px; }
 .dialogue-form input { width: 100%; min-height: 46px; padding: 10px 12px;
@@ -177,6 +194,7 @@ kbd { font: 11px var(--mono); border: 1px solid var(--line); border-bottom-width
   .route { grid-template-columns: 60px 1fr; } .lock { display: none; }
   .console-head { align-items:start; flex-direction:column; }
   .dialogue-form { align-items: stretch; flex-direction: column; }
+  .dialogue-choices { grid-template-columns: 1fr; }
 }
 """
 
@@ -236,6 +254,8 @@ rejoue les réponses déjà données et vous montre la question suivante.</p>
 <p id="dialogue-status" class="dialogue-status" role="status" aria-live="polite">
 Commencez quand vous êtes prêt.</p>
 <pre id="dialogue-question" class="dialogue-question hidden"></pre>
+<div id="dialogue-choices" class="dialogue-choices hidden" role="group"
+     aria-label="Choix proposés"></div>
 <form id="dialogue-form" class="dialogue-form hidden">
 <div class="dialogue-field"><label for="dialogue-answer">Votre réponse</label>
 <input id="dialogue-answer" name="answer" type="text" autocomplete="off"></div>

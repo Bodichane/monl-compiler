@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1430 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1441 tests
   actuellement ; `tests/test_demo.py` s'appuie sur le dossier `demo/`
   versionné — ne pas le supprimer. La démo est **CodexShop**, une papeterie
   qui exerce la chaîne marchande entière ; ses ENTRÉES seules sont suivies
@@ -1113,6 +1113,48 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   l'anti-rejeu de celle-ci — une tolérance de ±1 fenêtre donnée au serveur
   laissait le test VERT. Déplacée avant, elle rougit. Point 145 mot pour mot.
   Voir point 159.
+- **POINT 171 : la console JETAIT la liste des choix, et une barre translucide
+  coupe le texte.** Né d'une question d'usager — « comment différencier site
+  web et application web dans la console ? » — pas d'une relecture.
+  **(a) `_ask` (dialogue_engine/questions.py) recevait `kind` et `options`
+  depuis toujours et ne s'en servait JAMAIS** ; `_ask_choice` calculait en plus
+  des `hints` réservés au rendu terminal. La console web ne recevait donc que
+  la chaîne formatée POUR UN TERMINAL et la collait dans un `<pre>` : onze
+  modèles en bouillie de crochets. Point 85 dans une autre couche, point 146
+  par-dessus. Le moteur pose désormais `self.derniere_question`
+  (`kind`/`title`/`options`/`hints`), écrite avant chaque appel et **jamais
+  relue par le moteur** — elle ne peut pas changer une décision du dialogue,
+  qui reste déterministe et sans état côté serveur.
+  **Deux décisions à ne pas rouvrir.** Chaque option porte sa **VALEUR** et non
+  son rang : « aucun » se répond par `0`, et faire redécouvrir cette règle à
+  une couche de présentation ferait deux mises en œuvre d'une même règle
+  (point 146). Et **l'intitulé vient du serveur, jamais redécoupé en JS** : la
+  première version faisait `data.question.split('\n')[0]`, or `SCRIPT` est une
+  chaîne Python NON BRUTE — le `\n` devient un **vrai saut de ligne** dans un
+  littéral JavaScript et toute la page cesse de s'exécuter (point 163, deux
+  pages mortes dont `/account` un mois durant). **Reproduit et mesuré en
+  l'écrivant**, puis fermé par la bonne voie.
+  **(b) `.topbar` était à 92 % d'opacité + `backdrop-filter`** : la ligne qui
+  défilait dessous se lisait coupée en deux. Fond opaque, filtre retiré.
+  **Le témoin a échoué sur son PROPRE commentaire** — écrit dans la règle, il
+  contenait le mot proscrit : *un commentaire CSS est du CONTENU de page*
+  (point 156). Commentaire sorti de la règle, ET témoin qui retire les
+  commentaires avant de lire.
+  **La ligne qui répond à la question de départ** : sous chaque modèle, le menu
+  dit si les visiteurs auront un compte, **DÉRIVÉ** de
+  `_default_self_register` — donc l'affiché ne peut pas diverger du construit ;
+  une table par nom de modèle cesserait de border au premier ajout. Formulation
+  ÉTROITE à dessein : « inscription libre : X » (7/10) ou « comptes créés par
+  l'administrateur » (3/10) — jamais « consultable par tous », qui serait faux
+  pour Inventaire. *Une valeur dérivée se formule dans les termes de ce qu'elle
+  mesure, pas de la question qu'on aimerait lui poser.*
+  **PREUVES** : 20 specs à **40 955 octets identiques à l'octet**, onze
+  empreintes golden inchangées, aucune question nouvelle. Et
+  `tests/test_console_choix.py` pilote la VRAIE page en jsdom contre le VRAI
+  serveur (onze boutons, intitulé sans le menu de terminal, rang/nom/aide, clic
+  qui fait avancer) — **les quatre mordent**, rendu désarmé ils rougissent tous.
+  Un témoin a dû être refait : il construisait lui-même les aides puis
+  vérifiait son propre travail (point 167bis). Voir point 171.
 - **POINT 170 : la complexité est un CLIQUET, et un témoin qui ne rougit
   jamais seul ne garde rien.** `PLAFOND_COMPLEXITE = 15`
   (tests/test_architecture.py), sur le modèle de `PLAFOND_FICHIER` du

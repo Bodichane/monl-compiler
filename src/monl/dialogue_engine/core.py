@@ -47,3 +47,8 @@ class GuidedDialogue(
         # stylé. Le moteur, lui, ne connaît que cette interface.
         from ..tui import PlainDialogueUI
         self.ui = ui or PlainDialogueUI()
+        # Ce que le moteur SAIT de la question en cours (point 171) : sa
+        # nature, ses options, leurs aides. Écrit par `_ask` avant chaque
+        # appel, jamais relu par le moteur — une couche de présentation qui
+        # ne rend pas du texte de terminal en a besoin, le dialogue non.
+        self.derniere_question = None
