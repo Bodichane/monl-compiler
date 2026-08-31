@@ -16,6 +16,7 @@ compilé est refusé en NOMMANT le fichier absent.
 import http.client
 import io
 import tempfile
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -199,6 +200,55 @@ def bruit():
     # journal grossit jusqu'au double avant d'être ramené à sa fin, parce que
     # compacter à chaque bloc relirait tout le fichier à chaque 8 Kio.
     assert journal.stat().st_size <= SITE_LOG_COMPACT_BYTES
+
+
+def test_la_borne_du_journal_tient_PENDANT_le_compactage(tmp_path, monkeypatch):
+    """Une borne de disque se tient à chaque instant, pas seulement à la fin.
+
+    LE DÉFAUT MESURÉ. Le compactage avait lieu APRÈS l'écriture du bloc : le
+    fichier dépassait donc la borne, puis y revenait — et le compactage relit
+    tout le journal, tronque et réécrit, ce qui dure. La CI a photographié cet
+    instant : 2 101 261 octets pour une borne annoncée à 2 097 152. Le témoin
+    de taille qui existait déjà passait ou tombait selon la quantité de bruit
+    écrite AVANT par uvicorn, c'est-à-dire selon rien du tout.
+
+    Ce témoin-ci ne change aucune taille : il allonge seulement la fenêtre qui
+    existe déjà, en faisant patienter le compactage au moment où il commence,
+    et il photographie le disque pendant ce temps.
+    """
+    journal = tmp_path / "site.log"
+    journal.touch()
+
+    entre = threading.Event()
+    sortir = threading.Event()
+    vrai_compactage = SiteManager._compacter_journal
+
+    def compactage_qui_patiente(fichier):
+        entre.set()
+        sortir.wait(10)
+        return vrai_compactage(fichier)
+
+    monkeypatch.setattr(
+        SiteManager, "_compacter_journal", staticmethod(compactage_qui_patiente)
+    )
+
+    ligne = b"SITE_OUTPUT " + b"x" * (SITE_LOG_COMPACT_BYTES + 4096) + b"\n"
+    flux = io.BufferedReader(io.BytesIO(ligne))
+    fil = threading.Thread(
+        target=SiteManager._capture_output, args=(flux, journal), daemon=True
+    )
+    fil.start()
+    try:
+        assert entre.wait(10), "aucun compactage : le témoin ne mesurerait rien"
+        pic = journal.stat().st_size
+    finally:
+        sortir.set()
+        fil.join(10)
+
+    assert pic <= SITE_LOG_COMPACT_BYTES, (
+        f"le journal occupe {pic} octets pendant le compactage, "
+        f"pour une borne annoncée à {SITE_LOG_COMPACT_BYTES}"
+    )
 
 
 def test_le_journal_borne_garde_la_FIN_et_jamais_le_debut():
