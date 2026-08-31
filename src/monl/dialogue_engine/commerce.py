@@ -11,6 +11,14 @@ class CommerceMixin:
 
     CHAMP_QUANTITE = "quantite"
 
+    # BRIQUE B1 : un seul menu porte les trois choix qu'un Upload exige. Il
+    # n'existe pas de plafond ou de type implicite : l'usager choisit un profil
+    # dont le libellé expose le champ, la limite exacte et les MIME autorisés.
+    UPLOAD_PROFILES = (
+        ("Photo", "photo", 5 * 1024 * 1024, ("image/png", "image/jpeg")),
+        ("Document PDF", "document", 10 * 1024 * 1024, ("application/pdf",)),
+    )
+
     # POINT 86 : le sous-total d'une ligne de panier. Nommé ici plutôt qu'en dur
     # dans l'émetteur — deux endroits finiraient par diverger.
     CHAMP_SOUS_TOTAL = "sousTotal"
@@ -21,6 +29,63 @@ class CommerceMixin:
     # réponse utile serait « oui ». Le dialogue émet déjà de même le total, le
     # plancher de stock et le décompte sans les faire arbitrer un par un.
     CHAMP_DATE = "creeLe"
+
+    @classmethod
+    def _upload_profiles_for(cls, fields):
+        """Profils que cette entité peut recevoir sans collision de champ."""
+        types = dict(fields)
+        existants = [name for name, type_ in fields if type_ == "Upload"]
+        if len(existants) > 1:
+            return []
+        result = []
+        for label, default_field, maximum, accepted_types in cls.UPLOAD_PROFILES:
+            field = existants[0] if existants else default_field
+            if not existants and field in types:
+                continue
+            result.append((label, field, maximum, accepted_types))
+        return result
+
+    def _ask_uploads(self, entities, public_read, owned):
+        """Déclare les dépôts qu'un dialogue peut produire de façon sûre.
+
+        Un Upload doit avoir une route Read et Update privée, et une ACL par
+        ligne. Le dialogue produit ces routes et l'ACL `ownedBy` pour une
+        entité possédée non publique ; toutes les autres sont donc exclues
+        avant de poser la question. Un profil choisi écrit le champ et la
+        règle complète en un seul passage.
+        """
+        public = set(public_read)
+        rules = []
+        for entity, fields in entities.items():
+            if entity not in owned or entity in public:
+                continue
+            profiles = self._upload_profiles_for(fields)
+            if not profiles:
+                continue
+            labels = [
+                f"{label} — champ {field}, {maximum} octets, "
+                f"types {', '.join(accepted_types)}"
+                for label, field, maximum, accepted_types in profiles
+            ]
+            # La question DIT ce qu'elle produit. Sans ça, on choisit « Photo »
+            # pour une annonce en croyant que les acheteurs la verront — or la
+            # règle écrite est `ownedBy`, et eux récoltent 403 (mesuré). monl
+            # ne sait pas servir publiquement un fichier déposé, et le taire
+            # ferait construire un catalogue sans images.
+            choice = self._ask_choice(
+                f"Quel dépôt de fichier pour {entity} ? "
+                "(le fichier ne sera lisible que par son propriétaire)",
+                labels, allow_none=True)
+            if choice is None:
+                continue
+            profile = profiles[labels.index(choice)]
+            _label, field, maximum, accepted_types = profile
+            if not any(name == field for name, _type in fields):
+                fields.append((field, "Upload"))
+            mime_list = ", ".join(f'"{mime}"' for mime in accepted_types)
+            rules.append(
+                f"rule {entity}.{field} upload max {maximum} types {mime_list}")
+        return rules
 
     def _ask_payable(self, entities, owned, relations, managers, readers):
         """Quel montant cette application encaisse-t-elle ? (points 75 et 79)

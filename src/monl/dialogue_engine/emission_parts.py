@@ -3,6 +3,31 @@
 from .fondations import SEEDABLE_TYPES
 
 
+def derived_list_rules(entities, extra_rules):
+    """Dérive les capacités de liste déjà décidées par d'autres règles."""
+    declared = {entity: dict(fields) for entity, fields in entities.items()}
+    existing = set(extra_rules)
+    derived = []
+    for rule in extra_rules:
+        parts = rule.split(maxsplit=3)
+        if len(parts) < 3 or parts[0] != "rule" or "." not in parts[1]:
+            continue
+        entity, field = parts[1].split(".", 1)
+        kind = parts[2]
+        if entity not in declared or field not in declared[entity]:
+            continue
+        if kind == "oneOf":
+            candidate = f"rule {entity}.Read filter {field}"
+        elif kind == "timestamp" and declared[entity][field] == "DateTime":
+            candidate = f"rule {entity}.Read sort {field}"
+        else:
+            continue
+        if candidate not in existing:
+            derived.append(candidate)
+            existing.add(candidate)
+    return derived
+
+
 def spec_header(app_name, description, image_topic):
     """Émet l'en-tête et son commentaire documentaire."""
     lines = [f"app {app_name}", "",

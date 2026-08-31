@@ -220,6 +220,7 @@ class ParcoursMixin:
         self._show(self.ui.phase(3))
         self_register = self._ask_self_register(actors, managers, owned)
         account_identifier = self._ask_account_identifier(self_register)
+        upload_rules = self._ask_uploads(entities, public_read, owned)
         payable = (self._ask_payable(entities, owned, relations, managers, readers)
                    if template.get("accept_payments", True) else None)
         want_seed = bool(template["seeds"]) and self._ask_yes_no(
@@ -243,7 +244,7 @@ class ParcoursMixin:
                                image_topic=image_topic,
                                self_register=self_register,
                                account_identifier=account_identifier,
-                               extra_rules=template["extra_rules"],
+                               extra_rules=template["extra_rules"] + upload_rules,
                                extra_workflows=template.get("extra_workflows", ()),
                                custom_seeds=template["seeds"],
                                payable=payable)

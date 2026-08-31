@@ -4,10 +4,13 @@
 # ajouté au catalogue sans respecter les règles strictes du compilateur
 # (collisions, ownedBy sans relation…) casse immédiatement la CI.
 
+import re
+
 import pytest
 
 from monl.app_templates import FREE_MODE_LABEL, TEMPLATES
-from monl.ast_validator import MonlAST
+from monl.ast_validator import ASTValidationError, MonlAST
+from monl.cli import _contract_signature, compile_project
 from monl.dialogue_engine import GuidedDialogue
 from monl.parser import parse_monl_string
 
@@ -45,7 +48,8 @@ def _champs_payables(tpl):
     return candidats
 
 
-def _run_template(index, followup_answer, want_seed):
+def _run_template(index, followup_answer, want_seed, upload_pour=None,
+                  prompts=None):
     """Déroule le dialogue sur le modèle n° index (1-based) avec la même
     réponse à toutes les questions de suivi. Exécution réelle du dialogue,
     jamais un assemblage direct du modèle — c'est le CHEMIN UTILISATEUR
@@ -60,6 +64,14 @@ def _run_template(index, followup_answer, want_seed):
     # « tout accepter » = téléphone + indicatif, pour que les DIX modèles
     # prouvent que le bloc émis compile.
     answers += (["1", "+229"] if followup_answer == "o" else ["0"])
+    upload_entities = [
+        name for name, meta in tpl["entities"].items()
+        if meta["owned"] and not meta["public_read"]
+    ]
+    answers += [
+        "1" if followup_answer == "o" or name == upload_pour else "0"
+        for name in upload_entities
+    ]
     candidats_payables = _champs_payables(tpl)
     if candidats_payables:                             # question payable posée (point 75)
         answers += [followup_answer]
@@ -106,7 +118,9 @@ def _run_template(index, followup_answer, want_seed):
         answers += [""] * proposees
     answers += ["n"]                                   # pas d'autre lien
     it = iter(answers)
-    return GuidedDialogue(ask=lambda p: next(it)).run()
+    ask = ((lambda prompt: (prompts.append(prompt), next(it))[1])
+           if prompts is not None else (lambda _prompt: next(it)))
+    return GuidedDialogue(ask=ask).run()
 
 
 @pytest.mark.parametrize("index", range(1, len(TEMPLATES) + 1),
@@ -165,9 +179,196 @@ def test_la_boutique_guidee_date_ses_commandes():
     spec = _run_template(3, "o", want_seed=True)   # Boutique en ligne
     assert "creeLe: DateTime" in spec
     assert "rule Order.creeLe timestamp" in spec
+    assert "rule Order.Read sort creeLe" in spec
     # Et le refus du point 85 ne doit pas se déclencher : le champ est ajouté en
     # QUEUE, donc la règle « premier champ requis » ne le vise pas.
     assert "rule Order.creeLe required" not in spec
+
+
+def test_le_dialogue_derive_filtre_et_tri_dans_les_deux_sens():
+    """oneOf devient filtre, timestamp devient tri, sans question dédiée."""
+    task_index = next(i for i, t in enumerate(TEMPLATES, 1)
+                      if t["name"] == "Gestion de tâches")
+    task_prompts = []
+    task_rules = [line for line in _run_template(
+        task_index, "n", False, prompts=task_prompts).splitlines()
+                  if line.startswith("rule ")]
+    assert "rule Task.Read filter status" in task_rules
+    assert "rule Task.Read filter priority" in task_rules
+    assert not any(" sort " in line for line in task_rules)
+    assert not any("filtr" in prompt.lower() or "trier" in prompt.lower()
+                   for prompt in task_prompts)
+
+    ranking_index = next(i for i, t in enumerate(TEMPLATES, 1)
+                         if t["name"] == "Classement communautaire")
+    ranking_rules = [line for line in _run_template(ranking_index, "n", False).splitlines()
+                     if line.startswith("rule ")]
+    assert "rule Entry.Read sort submittedOn" in ranking_rules
+    assert not any(" filter " in line for line in ranking_rules)
+
+    portfolio_rules = [line for line in _run_template(1, "n", False).splitlines()
+                       if line.startswith("rule ")]
+    assert not any(" filter " in line or " sort " in line
+                   for line in portfolio_rules)
+
+
+def test_plusieurs_oneof_restent_des_filtres_avec_un_where_en_et(tmp_path):
+    index = next(i for i, t in enumerate(TEMPLATES, 1)
+                 if t["name"] == "Gestion de tâches")
+    spec = _run_template(index, "n", False)
+    spec_path = tmp_path / "spec.ml"
+    spec_path.write_text(spec, encoding="utf-8")
+    contract = compile_project(str(spec_path), str(tmp_path))
+    route = next(r for r in contract["routes"]
+                 if r["method"] == "GET" and r["path"] == "/task")
+    assert [item["field"] for item in route["list_query"]["filters"]] == [
+        "status", "priority"]
+    assert "_filter_where = ' AND '.join(_filter_parts)" in (
+        tmp_path / "app.py").read_text(encoding="utf-8")
+
+
+def test_un_justificatif_de_depense_exerce_le_depot_prive(tmp_path):
+    """Le dépôt est proposé là où « privé » est le BUT, pas subi.
+
+    LA VOIE ÉCARTÉE, et c'est le cœur de la décision. Une fiche photo avait
+    d'abord été ajoutée aux « Petites annonces ». La spec compilait, l'ACL
+    était correcte — et le site produit était inutilisable : mesuré contre un
+    vrai serveur, un ACHETEUR récolte 403 sur la route du fichier. Une photo
+    d'annonce doit être vue par les acheteurs, et monl refuse (à juste titre)
+    qu'un fichier déposé soit lisible publiquement. Le résultat était donc un
+    catalogue dont personne ne voit les images — pire que pas de photo du
+    tout, parce que le vendeur croit en avoir mis.
+
+    Un justificatif de dépense, lui, n'a AUCUNE raison d'être vu par
+    quelqu'un d'autre : la contrainte du compilateur et le besoin coïncident.
+    """
+    index = next(i for i, t in enumerate(TEMPLATES, 1)
+                 if t["name"] == "Suivi de dépenses personnelles")
+    prompts = []
+    spec = _run_template(index, "n", False, upload_pour="Expense",
+                         prompts=prompts)
+    depots = [p for p in prompts if "dépôt de fichier" in p]
+    assert len(depots) == 2, depots          # Expense et Budget sont éligibles
+    # La question DIT ce qu'elle produit : sans cette phrase, on choisit
+    # « Photo » en croyant que d'autres la verront.
+    assert all("lisible que par son propriétaire" in p for p in depots), depots
+
+    normalized = MonlAST(parse_monl_string(spec)).validate_and_audit()
+    assert "photo: Upload" in spec
+    assert ("rule Expense.photo upload max 5242880 types "
+            '"image/png", "image/jpeg"') in spec
+    assert normalized["security"]["upload_fields"] == [{
+        "entity": "Expense", "field": "photo", "max_bytes": 5242880,
+        "accepted_types": ["image/png", "image/jpeg"],
+    }]
+    assert "Expense.Read" in normalized["security"]["ownership"]
+    assert "Expense.Update" in normalized["security"]["ownership"]
+
+    spec_path = tmp_path / "spec.ml"
+    spec_path.write_text(spec, encoding="utf-8")
+    contract = compile_project(str(spec_path), str(tmp_path))
+    assert any(route.get("upload", {}).get("field_name") == "photo"
+               for route in contract["routes"])
+    # Le CONTRAT doit voir le dépôt, sinon `monl update` répondrait « aucun
+    # changement d'interface » en laissant tout un écran à écrire — l'angle
+    # mort qui s'est reproduit HUIT fois (points 88 à 116).
+    signature = _contract_signature(contract)
+    assert "upload de Expense.photo" in signature[6]
+    # Ce modèle n'a ni statut fermé ni horodatage : aucune capacité de liste
+    # n'est dérivable, et en exiger une ici ferait passer le témoin pour une
+    # preuve du filtrage. Elle est éprouvée là où elle existe, ci-dessous.
+    assert not any(k.startswith("capacités de liste de ") for k in signature[6])
+
+
+def test_le_contrat_voit_le_filtre_et_le_tri_derives(tmp_path):
+    """L'angle mort du delta, pour la neuvième fois (points 88 à 116).
+
+    Une route qui gagne un filtre ou un tri change ce qu'une interface doit
+    dessiner — un menu déroulant, un en-tête de colonne cliquable. Si
+    `_contract_signature` ne les voit pas, `monl update` répond « aucun
+    changement d'interface » en laissant l'écran à refaire.
+    """
+    index = next(i for i, t in enumerate(TEMPLATES, 1)
+                 if t["name"] == "Boutique en ligne")
+    spec = _run_template(index, "o", True)
+    spec_path = tmp_path / "spec.ml"
+    spec_path.write_text(spec, encoding="utf-8")
+    contract = compile_project(str(spec_path), str(tmp_path))
+    signature = _contract_signature(contract)
+    listes = [k for k in signature[6] if k.startswith("capacités de liste de ")]
+    assert listes, "le contrat ne porte aucune capacité de liste"
+
+    # CONTRE-ÉPREUVE : retirer la règle de tri doit CHANGER la signature.
+    # Une première version comparait la spec modifiée à la spec d'origine —
+    # elle ne mesurait donc rien de la signature, et un `replace` qui ne
+    # trouvait pas sa cible la rendait verte. On compile les DEUX et on
+    # compare ce que le contrat porte.
+    ligne_de_tri = "rule Order.Read sort creeLe"
+    assert ligne_de_tri in spec, "la règle dérivée a changé de forme"
+    ampute = spec.replace(ligne_de_tri + "\n", "")
+    assert ampute != spec
+    autre = tmp_path / "ampute"
+    autre.mkdir()
+    (autre / "spec.ml").write_text(ampute, encoding="utf-8")
+    signature_amputee = _contract_signature(
+        compile_project(str(autre / "spec.ml"), str(autre)))
+    assert signature_amputee[6] != signature[6], (
+        "le contrat ne suit pas le tri : monl update dirait « aucun "
+        "changement d'interface » en laissant un écran à refaire")
+
+
+def test_une_annonce_publique_ne_recoit_jamais_de_depot(tmp_path):
+    """Contre-épreuve de la décision ci-dessus, sur le modèle qui l'a motivée.
+
+    Si un dépôt réapparaissait sur « Petites annonces », il serait par
+    construction privé — donc invisible aux acheteurs. Ce témoin garde le
+    choix produit, pas seulement l'intention écrite en commentaire.
+    """
+    index = next(i for i, t in enumerate(TEMPLATES, 1)
+                 if t["name"] == "Petites annonces")
+    spec = _run_template(index, "o", True)
+    assert "ListingPhoto" not in spec
+    entites = {n for n, _ in re.findall(r"^entity (\w+)()$", spec, re.M)}
+    assert "Listing" in entites
+    for ligne in spec.splitlines():
+        if " upload max " in ligne:
+            assert "Listing." not in ligne, ligne
+
+
+def test_la_question_upload_ne_vise_que_les_lignes_privees():
+    prompts = []
+    dialogue = GuidedDialogue(
+        ask=lambda prompt: (prompts.append(prompt), "0")[1])
+    entities = {
+        "Public": [("title", "String")],
+        "Private": [("title", "String")],
+    }
+    rules = dialogue._ask_uploads(
+        entities, ["Public"], {"Public": "User", "Private": "User"})
+    assert len(prompts) == 1
+    assert "Private" in prompts[0]
+    assert "Public" not in prompts[0]
+    assert rules == []
+    assert entities["Public"] == [("title", "String")]
+
+
+def test_forcer_un_upload_public_fait_rougir_le_compilateur():
+    """Contre-épreuve : contourner le filtre d'éligibilité doit être refusé."""
+    dialogue = GuidedDialogue(ask=lambda _prompt: "1")
+    entities = {
+        "User": [("name", "String")],
+        "Public": [("title", "String")],
+    }
+    rules = dialogue._ask_uploads(entities, [], {"Public": "User"})
+    spec = dialogue._emit_spec(
+        "PublicUpload", "contre-épreuve", entities,
+        [("User", "hasMany", "Public")], ["User"],
+        {"User": ["User"], "Public": ["User"]},
+        {"User": set(), "Public": set()}, ["Public"], [],
+        {"Public": "User"}, False, False, self_register="User",
+        extra_rules=rules)
+    with pytest.raises(ASTValidationError, match="ne peut pas être public"):
+        MonlAST(parse_monl_string(spec)).validate_and_audit()
 
 
 def test_forum_likes_via_increments():
@@ -353,6 +554,7 @@ def test_le_dialogue_sait_encore_produire_une_commande_simple():
     answers += ["n"] * len(tpl["followups"])
     answers += ["n", "1"]                     # pas d'entité perso ; inscription libre
     answers += ["0"]                          # identifiant de compte : aucun (point 138)
+    answers += ["0"]                          # aucun dépôt pour Order
     answers += ["o"]                          # encaisser un paiement
     candidats = _champs_payables(tpl)
     if len(candidats) > 1:

@@ -251,6 +251,7 @@ def test_ownership_cree_entite_proprietaire_et_regles():
         "n",           # relations supplémentaires ? non
         "1",           # inscription libre : 1er rôle proposé
         "0",           # identifiant de compte : aucun (point 138)
+        "0",           # aucun dépôt pour Topic
         "n", "n",      # ni seed ni landing
     ]
     it = iter(answers)

@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1452 tests
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1462 tests
   actuellement ; `tests/test_demo.py` s'appuie sur le dossier `demo/`
   versionné — ne pas le supprimer. La démo est **CodexShop**, une papeterie
   qui exerce la chaîne marchande entière ; ses ENTRÉES seules sont suivies
@@ -1113,6 +1113,44 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   l'anti-rejeu de celle-ci — une tolérance de ±1 fenêtre donnée au serveur
   laissait le test VERT. Déplacée avant, elle rougit. Point 145 mot pour mot.
   Voir point 159.
+- **POINT 173 : trois briques que le dialogue n'écrivait pas — et une photo que
+  personne ne voyait.** `upload`, `filter` et `sort` existaient, produisaient du
+  vrai code, étaient éprouvées contre un vrai serveur, et **ni le dialogue ni
+  aucun des dix modèles ne les écrivait**. Point 146 mot pour mot.
+  **DÉRIVER PLUTÔT QUE DEMANDER**, parce que
+  `test_le_dialogue_a_bien_ete_allege` existe : `sort` se dérive d'un
+  `timestamp` (argument du point 89 — « la seule réponse utile serait oui »),
+  `filter` se dérive d'un `oneOf` (liste FERMÉE, `allowed_values` déjà au
+  contrat). Seul `upload` demande une question : monl ne peut pas deviner qu'une
+  fiche porte un fichier. Mesuré : 1 à 2 questions par modèle, jamais plus.
+  **La question n'est posée que sur une entité POSSÉDÉE et NON PUBLIQUE** — le
+  compilateur refuse un `Upload` sans règle de dépôt, et une lecture publique
+  sur une entité qui en porte un. Ailleurs, le dialogue produirait une spec
+  refusée à la compilation, le pire résultat pour qui est guidé.
+  **CE QUE LA VÉRIFICATION A TROUVÉ.** Une fiche photo avait été ajoutée aux
+  « Petites annonces » : **la spec compilait, l'ACL était correcte, le site
+  était inutilisable**. Mesuré contre un vrai serveur — un ACHETEUR récolte
+  **403** sur la photo d'une annonce, parce que monl ne sait pas servir
+  publiquement un fichier déposé. Un catalogue dont personne ne voit les
+  images, pire que pas de photo : le vendeur croit en avoir mis. Le dépôt vit
+  désormais là où « privé » est le BUT — le justificatif d'une dépense.
+  *Une contrainte qu'on satisfait sans servir le besoin produit un défaut
+  qu'aucun test de compilation ne peut voir.*
+  **La question DIT ce qu'elle produit** : « le fichier ne sera lisible que par
+  son propriétaire », dérivé de la règle réellement écrite (`ownedBy`).
+  **LA PREUVE ÉTAIT DÉCLARÉE MANQUANTE et l'est restée jusqu'ici** : la chaîne
+  dialogue → spec → serveur → fichier déposé n'avait jamais été parcourue
+  (`test_uploads.py` part d'une spec écrite à la main).
+  `tests/test_depot_depuis_le_dialogue.py` la parcourt — DEUX comptes (avec un
+  seul, « le fichier est-il privé ? » devient « puis-je lire le mien ? »,
+  points 81/90/116), PNG relu à l'octet près, autre compte refusé, anonyme en
+  401, 413 sur la taille, 415 sur un SVG rebaptisé `.png` (type par SIGNATURE
+  D'OCTETS). Contre-épreuve : porter la limite déclarée de 5 à 32 Mio fait
+  rougir le témoin — il mesure ce que le dialogue DÉCLARE.
+  **Et une contre-épreuve qui ne mesurait rien** : le témoin du contrat
+  comparait la spec modifiée à la spec d'origine, sans jamais regarder la
+  signature ; un `replace` sans cible l'aurait rendu vert. Il compile
+  désormais les DEUX specs. Voir point 173.
 - **POINT 172 : le serveur SAIT et ne dit pas — deux fois, avant la mise en
   ligne.** Aucun des deux ne casse rien à l'usage : tout marche, simplement
   sans protection et sans trace.
