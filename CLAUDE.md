@@ -1147,6 +1147,24 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   seuil refuse des fuites, jamais qu'il laisse passer une application correcte ;
   un instrument qui refuse tout est aussi inutile qu'un instrument qui accepte
   tout, et il a l'air plus sérieux. Voir point 168.
+  **ET L'INSTRUMENT A TROUVÉ UNE VRAIE FUITE, dans le PRODUIT.** La CI a refusé
+  le correctif : `écart 6,50 ms, témoin 0,01 ms, 135 tours`. Témoin nul = machine
+  non bruyante ; écart persistant sur 270 appels = signal réel ; ancien seuil
+  7,95 ms = il le COUVRAIT. `db_user_id is not None and
+  _account_lock_active(...)` court-circuitait, or cette fonction ouvre une
+  connexion et fait un `SELECT` : **un compte qui existe payait un aller-retour
+  de base que l'absent ne payait pas**, donc on pouvait énumérer les adresses
+  inscrites — ce que la brique B4 promet d'empêcher. L'appel est désormais
+  INCONDITIONNEL (`db_user_id` vaut `None` pour un absent : aucune ligne, donc
+  ni `UPDATE` ni `commit`), exactement la discipline que le fichier appliquait
+  déjà au hachage avec `_DUMMY_HASH`/`_DUMMY_SALT_HEX`.
+  **La cause a été établie par mesure INTERNE** (helper appelé 135 fois contre
+  ZÉRO), jamais de bout en bout : l'A/B HTTP local était NON CONCLUANT, le SSD
+  rendant l'effet sous-jacent invisible. *Quand l'effet est sous le bruit,
+  changer d'instrument, pas de seuil.* `/password-reset/request` porte une
+  asymétrie voisine (17,4 ms contre 2,7 ms) masquée par un plancher de 50 ms :
+  ÉNONCÉE, pas corrigée — retirer son écriture changerait ses effets.
+  Voir point 168.
 - **POINT 167bis : un témoin peut être CREUX DÈS SA NAISSANCE.**
   `test_un_auteur_ne_peut_pas_etre_le_nom_du_paquet` s'écrivait
   `all(a["name"] != project["name"] for a in project.get("authors", []))` — et

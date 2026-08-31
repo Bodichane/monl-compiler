@@ -11953,3 +11953,67 @@ réelle est présente à chaque palier, un sursaut isolé se dilue.**
 Suite complète après ce changement : **1400 passés, 16 sautés en 8 min 10**,
 même décompte que `main` et durée dans la bande habituelle malgré le second
 serveur de banc. `ruff check src tests` : zéro.
+
+### Et l'instrument a trouvé une VRAIE fuite — dans le produit, pas dans le test
+
+La CI a refusé le correctif de mesure ci-dessus, sur ses cinq travaux :
+
+```
+ecart median 6.50 ms, témoin 0.01 ms, pour un appel de 39.75 ms
+                — au-dela de 5.00 ms (135 tours)
+```
+
+**Ces trois nombres se lisent ensemble.** Le témoin vaut 0,01 ms : deux chemins
+identiques ne diffèrent quasiment pas sur ce runner, donc la machine n'est pas
+bruyante. L'écart de 6,50 ms persiste à travers 135 paires, soit 270 appels —
+l'escalade est faite pour diluer un sursaut isolé, elle ne l'a pas dilué. Et
+l'ancien seuil valait `max(20 % × 39,75, 5) = 7,95 ms` : **il couvrait 6,50**.
+La fuite était donc là depuis toujours ; le seuil était simplement assez large
+pour ne pas la voir. Le point 160 l'avait d'ailleurs ÉCRIT — « une différence
+réelle de 1,6 à 1,8 ms subsiste, le test la BORNE, il n'exige pas zéro ». Sur un
+disque plus lent, 1,7 ms devient 6,5.
+
+**La cause, établie par mesure INTERNE et non de bout en bout.** Une mesure par
+HTTP ajoute le réseau, ASGI et l'ordonnanceur à ce qu'on veut voir ; le
+comptage à l'intérieur du serveur généré tranche sans ambiguïté :
+`_account_lock_active` était appelée **135 fois pour un compte existant et
+ZÉRO fois pour un compte absent**. `db_user_id is not None and
+_account_lock_active(db_user_id)` court-circuitait, et cette fonction ouvre une
+connexion, fait un `SELECT`, parfois un `UPDATE` + `commit`, et referme. **Un
+compte qui existe payait un aller-retour de base que l'absent ne payait pas.**
+
+La portée est plus large que « verrouillé contre absent » : la garde se
+déclenchait pour tout `db_user_id is not None`, donc l'oracle distinguait
+**compte existant / compte inexistant**. C'est exactement l'énumération
+d'adresses que la brique B4 promet d'empêcher — on pouvait essayer une liste
+d'adresses et savoir lesquelles sont inscrites.
+
+**Le correctif est celui que le fichier appliquait DÉJÀ au hachage.** La
+connexion calcule un `_DUMMY_HASH` sur un `_DUMMY_SALT_HEX` pour que le compte
+absent paie le même PBKDF2 ; il ne le faisait pas pour la lecture du verrou.
+L'appel devient inconditionnel — `if _account_lock_active(db_user_id):` — et
+pour un absent `db_user_id` vaut `None` : aucune ligne ne peut correspondre,
+donc **ni `UPDATE`, ni `commit`, ni création**. Mesuré après : helper actif
+0,631 ms contre helper factice 0,638 ms.
+
+**LA MACHINE LOCALE NE POUVAIT PAS TRANCHER, et il faut le dire.** Un A/B de
+bout en bout sur trois séries de 45 paires a donné `A +0,341 / -0,113 / +0,239`
+contre `B +0,101 / +0,593 / -0,026` — **A n'est pas systématiquement supérieur
+à B**. Le SSD rend la requête quasi gratuite ici ; l'effet est sous le bruit
+local. C'est la mesure INTERNE qui a établi la cause, pas la mesure de bout en
+bout. *Quand l'effet est sous le bruit, changer d'instrument, pas de seuil.*
+
+**Le voisin, examiné et laissé tel quel.** `/password-reset/request` porte une
+autre asymétrie : l'adresse connue fait `DELETE` + `INSERT` + `commit`
+(17,4 ms), l'absente n'écrit rien (2,7 ms). Un plancher de 50 ms la masque
+aujourd'hui — mesuré, les écarts HTTP restent sous 0,3 ms. Elle n'est PAS
+corrigée : retirer ou déplacer cette écriture changerait les effets de la
+route. La limite est ÉNONCÉE plutôt que corrigée en silence — un `commit`
+dépassant 50 ms sur un disque très lent la rendrait visible.
+
+**L'instrument n'a pas été touché.** Contre-épreuve refaite après le correctif
+produit : 0 ms accepté, 10, 20 et 30 ms refusés. Corriger le produit ne devait
+pas endormir la mesure, et ne l'a pas fait. Les empreintes dorées ne bougent
+pas : la spec dorée n'active pas `lockout`. La preuve PostgreSQL reste à faire
+en CI — `MONL_TEST_DATABASE_URL` est absent en local, et le chemin de code est
+commun mais non exécuté ici.
