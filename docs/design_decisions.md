@@ -94,6 +94,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [174](#174-la-mémoire-du-projet-ignorait-des-briques-et-un-garde-fou-la-rend-vivante) La mémoire du projet ignorait des briques, et un garde-fou la rend vivante ·
 [175](#175-un-fichier-vide-quon-ne-peut-pas-enlever-et-une-adresse-quun-inconnu-vous-prend) Un fichier vide qu'on ne peut pas enlever, et une adresse volée ·
 [176](#176-une-archive-se-lit--docs-pour-ce-qui-se-lit-la-racine-pour-ce-qui-sexécute) Une archive se lit : docs/ pour ce qui se lit, la racine pour ce qui s'exécute ·
+[177](#177-le-logo-monochrome-remplace-lorange--et-un-témoin-nommait-le-mauvais-signe) Le logo monochrome remplace l'orange, et un témoin nommait le mauvais signe ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -12791,3 +12792,86 @@ quarante endroits où un chemin était écrit en dur, plus les empreintes golden
 et le sommaire du journal. Aucun n'était devinable en relisant le correctif.
 Un déplacement de fichier est un changement d'interface : il se prouve comme
 tel.
+## 177. Le logo monochrome remplace l'orange — et un témoin nommait le mauvais signe
+
+Le logo retenu est le signe monochrome : un noyau stable entouré de quatre
+étapes de transformation ouvertes, associé au mot **MONL** et au descripteur
+**COMPILER**. Il remplace celui du point 157, dont **tout le raisonnement
+cesse ici de décrire la réalité** — `theme.ORANGE` n'existe plus, il n'y a plus
+de couche à séparer par la saturation, et plus de liseré à craindre puisqu'il
+n'y a plus qu'une encre. Le point 157 reste utile pour ses trois pièges de
+MESURE, qui eux n'ont pas vieilli ; sa description de la marque, non.
+
+**DEUX signes, et la distinction est délibérée.** Le lockup complet (`WORDMARK`)
+porte MONL sur deux lignes avec COMPILER en dessous : c'est lui qu'on trouve
+dans l'image de partage et les fichiers de marque. La barre du site emploie la
+forme COURTE (`NAV_WORDMARK`), MONL seul — un en-tête n'a pas la place d'un
+descripteur, et l'imposer écraserait la ligne de navigation.
+
+**LE TÉMOIN QUI NOMMAIT AUTRE CHOSE QUE CE QU'IL VÉRIFIAIT.**
+`test_la_marque_se_lit_monl_compiler` assertait `aria-label="MONL"`. Son NOM
+promettait le lockup complet, son assertion portait sur la forme courte : qui
+lisait la liste des tests croyait le descripteur gardé sur la page. Point 167bis
+dans sa forme la plus courte — le témoin regardait bien quelque chose, mais pas
+ce que son nom annonçait. **Vérifié en RENDANT les deux signes en image** avant
+de toucher au code : la barre dessine « MONL » seul, donc l'intitulé était JUSTE
+et c'est le nom qui mentait. L'inverse — corriger l'intitulé pour le faire
+coller au nom — aurait fait annoncer aux lecteurs d'écran un mot que la page ne
+dessine pas.
+
+Le témoin renommé garde désormais les DEUX moitiés, et la seconde n'existait
+pas : que le lockup CONSERVE sa ligne de descripteur. La mesure porte sur la
+géométrie du tracé — deux lignes de texte occupent toute la hauteur de la vue,
+une seule en occupe 38 %. Contre-épreuve : lockup remplacé par la forme courte,
+le témoin rougit. Sans elle, « COMPILER » pouvait disparaître du logo sans
+qu'aucun test ne bronche.
+
+**ET UNE ASSERTION QUI MESURAIT LA PROSE.** La première version cherchait
+l'absence du mot « COMPILER » dans la page servie, pour prouver que la barre ne
+l'annonce pas. Elle rougissait sur une page CORRECTE : le mot y figure en
+toutes lettres dans le texte d'accueil (« un réseau pour compiler »). L'intitulé
+d'un lien, c'est son `aria-label` et rien d'autre — chercher un mot dans la page
+entière mesurait le contenu éditorial. Retirée, avec la raison écrite à côté.
+
+**LE GARDE-FOU DE FIDÉLITÉ, PERDU PUIS RESTAURÉ.** Le point 157 avait posé
+dans `outils/vectoriser_logo.py` un refus d'écrire si le tracé re-rasterisé
+s'écartait de plus de 6 % du dessin d'origine. La réécriture de l'outil pour le
+logo monochrome l'avait **retiré**, et rien ne l'avait remplacé : plus rien ne
+garantissait qu'un tracé RESSEMBLE au dessin fourni. C'est la forme la plus
+sournoise de régression — l'outil marche, il produit un fichier, et il a cessé
+de vérifier.
+
+**LE PIÈGE DE CADRAGE, mesuré en s'y laissant prendre.** Une première tentative
+de quantifier l'écart annonçait **234 %** sur un logo parfaitement fidèle. Cause
+: l'outil seuille le canal alpha à `ALPHA_MIN = 96` AVANT de recadrer, quand un
+`getbbox()` nu retient le moindre pixel d'antialiasing — soit une emprise de
+1676 × 492 au lieu de 1667 × 438, deux cadrages différents comparés l'un à
+l'autre. **Le seuil fait partie de la mesure.** Au bon cadrage, les écarts réels
+sont de 3,23 % (lockup), 2,47 % (signe de nav) et 2,55 % (texte de nav) : le
+seuil de 6 % du point 157 tient sans qu'on touche au dessin. C'est la troisième
+fois qu'une mesure de marque porte sur autre chose que ce qu'on croit mesurer
+(points 157, 158ter) — et cette fois le chiffre était si absurde qu'il s'est
+dénoncé lui-même, ce qui n'est pas une méthode.
+
+**UN SEUL RASTERISEUR, parce que le second sert à VÉRIFIER le premier.** `rendre`
+descend dans `tracage.py`, la feuille du paquet : l'outil qui fabrique les
+images et celui qui vectorise doivent rendre exactement la même chose, sinon le
+contrôle mesurerait l'écart entre deux rasteriseurs. Preuve que le déplacement
+est neutre : les trois images raster régénérées sont **identiques à l'octet**,
+et `brand.py` réécrit ne produit aucun diff.
+
+**DEUX GARDE-FOUS, ET CE N'EST PAS UN DOUBLON.** L'outil REFUSE D'ÉCRIRE
+au-delà de la tolérance — contre-épreuve : `EPSILON` porté de 2,2 à 30 donne
+51,22 % d'écart, refus, et `brand.py` reste intact (le contrôle vit AVANT
+l'écriture ; placé après, il laisserait sur le disque le tracé qu'il vient de
+déclarer faux). Et `test_les_traces_ressemblent_au_dessin_fourni` refuse d'en
+GARDER un — contre-épreuve : lockup remplacé par le tracé de nav, 56,07 %,
+rouge. L'outil ne tourne que le jour où quelqu'un re-vectorise ; le témoin
+tourne à chaque exécution de la suite.
+
+**Ce que ce témoin garde et qu'aucun autre ne gardait** : tous les autres
+comparent les artefacts ENTRE EUX — les rasters ne dérivent pas de la marque,
+la feuille dessine le même signe que le fichier. Ils resteraient donc VERTS sur
+un logo faux, pourvu qu'il soit faux partout de la même façon. Seule la
+confrontation au PNG fourni par l'humain dit si le tracé ressemble à ce qu'on a
+demandé.

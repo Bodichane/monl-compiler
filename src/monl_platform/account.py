@@ -113,7 +113,7 @@ load();
 </script>
 """
 
-AUTH_HTML = page(title="Connexion — monl compiler", description="Accédez à votre espace Monl.",
+AUTH_HTML = page(title="Connexion — MONL", description="Accédez à votre espace Monl.",
                  body=AUTH_BODY, extra_css=CSS, scripts=AUTH_SCRIPT)
-ACCOUNT_HTML = page(title="Votre compte — monl compiler", description="Vos projets compilés avec Monl.",
+ACCOUNT_HTML = page(title="Votre compte — MONL", description="Vos projets compilés avec Monl.",
                     body=ACCOUNT_BODY, active="account", extra_css=CSS, scripts=ACCOUNT_SCRIPT)

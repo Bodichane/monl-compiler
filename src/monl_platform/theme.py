@@ -10,7 +10,15 @@ import hashlib
 import os
 from pathlib import Path
 
-from .brand import ANNEAU, LETTRES, MARQUE_ANNEAU, MARQUE_O, VUE
+from .brand import (
+    MARK_PATH,
+    NAV_MARK_PATH,
+    NAV_TEXT_OFFSET_Y,
+    NAV_TEXT_PATH,
+    NAV_VUE,
+    VUE,
+    WORDMARK_PATH,
+)
 from .theme_fragments import CSS, THEME_BOOT, THEME_TOGGLE
 
 ICON_THEME = (
@@ -45,19 +53,11 @@ def icon(name: str) -> str:
             f'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" '
             f'stroke-linejoin="round" aria-hidden="true">{path}</svg>')
 
-# L'orange de l'anneau, RELEVÉ sur l'artwork et non choisi. Il ne suit pas le
-# thème : un logo qui change de couleur avec le fond n'est plus le logo. WCAG
-# exempte explicitement les logotypes de ses seuils de contraste ; mesuré tout
-# de même, l'anneau tient 5,67:1 sur le fond sombre et 2,94:1 sur le clair.
-ORANGE = "#d67730"
-
-# Le « o » du logo, VECTORISÉ depuis l'artwork (voir brand.py). Un tracé, pas
-# du texte : le dessin ne dépend d'aucune police installée. Deux couches —
-# l'anneau garde sa couleur, le « o » suit l'encre de la page.
+# Le cœur du compilateur, vectorisé depuis l'artwork. Monochrome et sans fond,
+# il hérite de l'encre de la page et reste donc lisible dans les deux thèmes.
 LOGO_MARK = (
     f'<svg viewBox="0 0 48 48" role="img" aria-label="Monl">'
-    f'<path d="{MARQUE_ANNEAU}" fill="{ORANGE}" fill-rule="evenodd"/>'
-    f'<path d="{MARQUE_O}" fill="currentColor" fill-rule="evenodd"/>'
+    f'<path d="{MARK_PATH}" fill="currentColor" fill-rule="evenodd"/>'
     '</svg>'
 )
 
@@ -69,8 +69,7 @@ LOGO_SVG = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" '
     'aria-label="Monl">'
     '<rect width="48" height="48" rx="11" fill="#2e2b25"/>'
-    f'<path d="{MARQUE_ANNEAU}" fill="{ORANGE}" fill-rule="evenodd"/>'
-    f'<path d="{MARQUE_O}" fill="#f9f4ed" fill-rule="evenodd"/>'
+    f'<path d="{MARK_PATH}" fill="#f9f4ed" fill-rule="evenodd"/>'
     '</svg>'
 )
 FAVICON = LOGO_SVG
@@ -112,19 +111,26 @@ def cache_icone(demandee: str, attendue: str) -> dict:
 # Le wordmark est INLINE, et c'est un correctif, pas une préférence : servi en
 # `<img>`, il porterait le fond sombre de l'artwork quel que soit le thème —
 # soit un logo qui disparaît de l'en-tête clair (mesuré 1,29:1 sur l'ancien).
-# En SVG dans la page, les lettres suivent l'encre et le fond de la page se
-# voit à travers le trou des deux anneaux.
+# En SVG dans la page, tout le lockup suit l'encre et son fond reste transparent.
 WORDMARK = (
-    '<svg class="brand-wordmark" xmlns="http://www.w3.org/2000/svg" '
+    '<svg class="brand-wordmark brand-wordmark-full" xmlns="http://www.w3.org/2000/svg" '
     f'viewBox="0 0 {VUE[0]} {VUE[1]}" role="img" aria-label="monl">'
-    f'<path d="{ANNEAU}" fill="{ORANGE}" fill-rule="evenodd"/>'
-    f'<path d="{LETTRES}" fill="currentColor" fill-rule="evenodd"/>'
+    f'<path d="{WORDMARK_PATH}" fill="currentColor" fill-rule="evenodd"/>'
+    '</svg>'
+)
+
+NAV_WORDMARK = (
+    '<svg class="brand-wordmark" xmlns="http://www.w3.org/2000/svg" '
+    f'viewBox="0 0 {NAV_VUE[0]} {NAV_VUE[1]}" role="img" aria-label="Monl">'
+    f'<path d="{NAV_MARK_PATH}" fill="currentColor" fill-rule="evenodd"/>'
+    f'<path d="{NAV_TEXT_PATH}" fill="currentColor" fill-rule="evenodd" '
+    f'transform="translate(0 {NAV_TEXT_OFFSET_Y})"/>'
     '</svg>'
 )
 
 
 def _brand() -> str:
-    return WORDMARK
+    return NAV_WORDMARK
 
 
 def _lien(href: str, libelle: str, actif: str, cle: str) -> str:
@@ -143,7 +149,7 @@ def _social(title: str, description: str) -> str:
     base = (os.environ.get("MONL_PLATFORM_PUBLIC_URL") or "").rstrip("/")
     commun = (
         f'<meta property="og:type" content="website">'
-        f'<meta property="og:site_name" content="monl compiler">'
+        f'<meta property="og:site_name" content="MONL">'
         f'<meta property="og:title" content="{title}">'
         f'<meta property="og:description" content="{description}">'
         f'<meta property="og:locale" content="fr_FR">'
@@ -184,7 +190,7 @@ def page(*, title: str, description: str, body: str, active: str = "",
 <div class="scroll-progress" aria-hidden="true"></div>
 <a class="skip" href="#contenu">Aller au contenu</a>
 <header class="topbar"><nav class="shell nav" aria-label="Navigation principale">
-<a class="brand" href="/" aria-label="Monl compiler">{_brand()}</a>
+<a class="brand" href="/" aria-label="MONL">{_brand()}</a>
 <div class="navlinks">
 {_lien("/", icon("home") + "Accueil", active, "home")}
 {_lien("/guide", icon("book") + "Guide", active, "guide")}
@@ -200,13 +206,13 @@ def page(*, title: str, description: str, body: str, active: str = "",
 </main>
 <div class="footer-wrap"><footer class="shell footer">
 <div class="footer-grid">
-<div class="footer-brand"><a class="brand" href="/" aria-label="Monl compiler">{_brand()}</a>
+<div class="footer-brand"><a class="brand" href="/" aria-label="MONL">{_brand()}</a>
 <p>Le métier est compilé, l’interface reste libre. Un backend déterministe et son contrat à partir d’une seule spécification.</p></div>
 <div><h2>Produit</h2><nav aria-label="Produit"><a href="/console">Console</a><a href="/guide#frontiere">Pourquoi Monl</a><a href="/guide#limites">Limites actuelles</a></nav></div>
 <div><h2>Développeurs</h2><nav aria-label="Développeurs"><a href="/guide#dsl">Référence DSL</a><a href="/guide#api">API HTTP</a><a href="/docs">Documentation développeur</a><a href="/api-docs">Explorateur OpenAPI</a><a href="/mcp">Serveur MCP</a></nav></div>
 <div><h2>Ressources</h2><nav aria-label="Ressources"><a href="/guide">Guide de démarrage</a><a href="/security">Sécurité et garanties</a><a href="/api/version">Versions</a><a href="/health">État du service</a></nav></div>
 </div>
-<div class="footer-bottom"><span>© monl compiler</span><nav class="footer-legal" aria-label="Informations légales"><a href="/mentions-legales">Mentions légales</a><a href="/conditions">Conditions d’utilisation</a><a href="/confidentialite">Confidentialité</a></nav><a class="service-status" href="/health">Service opérationnel</a></div>
+<div class="footer-bottom"><span>© MONL</span><nav class="footer-legal" aria-label="Informations légales"><a href="/mentions-legales">Mentions légales</a><a href="/conditions">Conditions d’utilisation</a><a href="/confidentialite">Confidentialité</a></nav><a class="service-status" href="/health">Service opérationnel</a></div>
 </footer></div>
 <script>{THEME_TOGGLE}</script>
 {scripts}

@@ -54,6 +54,7 @@ EXTRA_CSS = """
 .panel { display: none; } .panel.active { display: block; }
 .panel h2 { font-size: 26px; margin-bottom: var(--space-2); }
 .panel .lede { color: var(--muted); margin-bottom: var(--space-5); }
+.panel-actions { display:flex; justify-content:flex-end; gap:var(--space-3); margin-top:var(--space-5); }
 .dialogue-card { background: var(--surface-2); border: 1px solid var(--line);
                  border-radius: var(--radius); padding: var(--space-5); }
 .dialogue-log { margin-bottom: var(--space-5); background: var(--code-bg);
@@ -235,13 +236,13 @@ puis téléchargez un backend autonome et son contrat frontend.</p></div>
 
 <section id="studio" class="shell" style="padding-bottom:var(--space-8)" data-reveal>
 <div class="studio">
-<aside class="rail" aria-label="Étapes du parcours">
+<aside class="rail" role="tablist" aria-label="Étapes du parcours">
 <p class="rail-title">Parcours</p>
-<button data-panel="dialogue" type="button">{icon('terminal')} Dialogue guidé</button>
-<button class="active" data-panel="spec" type="button">{icon('code')} Spécification</button>
-<button data-panel="review" type="button">{icon('check')} Vérification</button>
-<button data-panel="contract" type="button">{icon('shield')} Contrat</button>
-<button data-panel="delivery" type="button">{icon('package')} Livraison</button>
+<button data-panel="dialogue" role="tab" aria-controls="panel-dialogue" aria-selected="false" type="button">{icon('terminal')} Dialogue guidé</button>
+<button class="active" data-panel="spec" role="tab" aria-controls="panel-spec" aria-selected="true" type="button">{icon('code')} Spécification</button>
+<button data-panel="review" role="tab" aria-controls="panel-review" aria-selected="false" type="button">{icon('check')} Vérification</button>
+<button data-panel="contract" role="tab" aria-controls="panel-contract" aria-selected="false" type="button">{icon('shield')} Contrat</button>
+<button data-panel="delivery" role="tab" aria-controls="panel-delivery" aria-selected="false" type="button">{icon('package')} Livraison</button>
 </aside>
 <div class="workspace">
 
@@ -310,13 +311,14 @@ guidé. Les exemples ci-dessous sont des spécifications entières, pas des extr
 <div class="feedback" id="compile-feedback" role="status" aria-live="polite"></div>
 </section>
 
-<section class="panel" id="panel-contract">
+<section class="panel" id="panel-contract" role="tabpanel" tabindex="0">
 <h2>Backend et contrat</h2>
 <p class="lede">Routes, entités et droits : de quoi construire n'importe quelle interface.</p>
 <div id="contract-content" class="empty">Aucune compilation disponible.</div>
+<div class="panel-actions"><button class="primary" id="delivery-next" type="button">Voir la livraison {icon('arrow')}</button></div>
 </section>
 
-<section class="panel" id="panel-delivery">
+<section class="panel" id="panel-delivery" role="tabpanel" tabindex="0">
 <h2>Livraison reproductible</h2>
 <p class="lede">Le backend, le schéma SQL, le contrat et les instructions sont
 réunis dans une archive. Le secret JWT n'y est pas : il naît au premier démarrage.</p>
@@ -332,6 +334,7 @@ et votre propre fournisseur.</p>
 <h3 style="margin-top:var(--space-6)">Vos compilations</h3>
 <p class="hint">Conservées dans votre compte et accessibles uniquement par vous.</p>
 <ul class="history" id="history"></ul>
+<div class="panel-actions"><button class="secondary" id="contract-back" type="button">{icon('arrow')} Revoir le contrat</button></div>
 </section>
 
 </div></div>

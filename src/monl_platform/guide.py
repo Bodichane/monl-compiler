@@ -204,7 +204,7 @@ def guide_html() -> str:
 <article>{corps}</article>
 </div>"""
     return page(
-        title="Guide — monl compiler",
+        title="Guide — MONL",
         description="Écrire une spécification monl : types, règles d'accès, "
                     "contraintes, API HTTP et serveur MCP.",
         body=body,

@@ -15,10 +15,12 @@ couleur en dur n'appartient à aucun thème et ne casse jamais.
 
 import pathlib
 import re
+import sys
 
 import pytest
+from PIL import Image
 
-from monl_platform import theme
+from monl_platform import brand, theme
 
 PAQUET = pathlib.Path(theme.__file__).parent
 COULEUR = re.compile(r"#[0-9a-fA-F]{6}\b")
@@ -121,15 +123,11 @@ def test_le_signe_de_la_page_suit_la_couleur_du_texte():
     sur le thème sombre. En `currentColor`, il ne le peut plus."""
     assert "currentColor" in theme.LOGO_MARK
     assert "<text" not in theme.LOGO_MARK, "un tracé ne dépend d'aucune police"
-    # Ce qui est interdit est le FOND, pas la couleur. Le défaut d'origine
-    # était un signe portant sa propre pastille ; l'anneau du logo, lui, a une
-    # couleur de marque qui ne suit aucun thème — un logo qui change de teinte
-    # avec le fond n'est plus le logo. La seule couleur tolérée est donc
-    # exactement celle-là, et elle est LUE depuis theme.ORANGE plutôt que
-    # recopiée : recopiée, le test ne verrait pas la marque changer d'orange.
+    # Le signe est désormais entièrement monochrome : aucune couleur figée,
+    # et aucun fond qui le ferait disparaître dans l'un des deux thèmes.
     assert "<rect" not in theme.LOGO_MARK, "le signe s'est remis un fond"
     figees = set(COULEUR.findall(theme.LOGO_MARK))
-    assert figees <= {theme.ORANGE}, f"couleur figée inattendue : {figees}"
+    assert not figees, f"couleur figée inattendue : {figees}"
 
 
 def test_le_favicon_porte_ses_couleurs_car_il_na_rien_a_heriter():
@@ -233,20 +231,20 @@ def test_le_wordmark_suit_le_theme_au_lieu_de_porter_son_fond():
     assert "<img" not in theme.WORDMARK, (
         "un raster ne suit aucun thème — le wordmark doit rester en SVG inline")
     assert "currentColor" in theme.WORDMARK, "les lettres doivent hériter du texte"
-    # Plus de plaque du tout : les lettres sont peintes en direct et le fond de
-    # la page se voit à travers le trou des deux anneaux. C'est plus fort que
+    # Plus de plaque du tout : le lockup est peint en direct et le fond de
+    # la page se voit à travers ses ouvertures. C'est plus fort que
     # l'ancienne garantie, qui creusait les lettres dans une bannière.
     assert "<rect" not in theme.WORDMARK, "le wordmark s'est remis un fond"
     figees = set(COULEUR.findall(theme.WORDMARK))
-    assert figees <= {theme.ORANGE}, f"couleur figée dans le wordmark : {figees}"
-    assert theme.WORDMARK in theme.page(title="t", description="d", body=""), (
-        "le wordmark n'est pas servi dans la page")
+    assert not figees, f"couleur figée dans le wordmark : {figees}"
+    assert theme.NAV_WORDMARK in theme.page(title="t", description="d", body=""), (
+        "le wordmark compact n'est pas servi dans la page")
 
 
 @pytest.mark.parametrize("theme_nom", ["clair", "sombre"])
 def test_le_wordmark_reste_lisible_dans_les_deux_themes(theme_nom):
-    """Les lettres prennent `--ink` sur la page : c'est ce couple qui porte la
-    lecture du mot, l'anneau n'étant qu'un accent de marque. Il doit donc
+    """Le lockup prend `--ink` sur la page : c'est ce couple qui porte la
+    lecture du mot. Il doit donc
     tenir dans les DEUX thèmes, sans quoi le logo pâlit d'un côté."""
     palette = _blocs()[theme_nom]
     lettres = contraste(palette["ink"], palette["bg"])
@@ -264,7 +262,7 @@ def test_les_traces_de_marque_ne_portent_aucune_couleur():
     from monl_platform import brand
     source = pathlib.Path(brand.__file__).read_text(encoding="utf-8")
     assert not COULEUR.findall(source), COULEUR.findall(source)
-    for nom in ("LETTRES", "ANNEAU", "MARQUE_ANNEAU", "MARQUE_O"):
+    for nom in ("WORDMARK_PATH", "NAV_MARK_PATH", "NAV_TEXT_PATH", "MARK_PATH"):
         assert getattr(brand, nom).startswith("M"), f"{nom} n'est pas un tracé"
     assert isinstance(brand.VUE, tuple) and len(brand.VUE) == 2, (
         "VUE porte le viewBox du mot : sans elle, theme.py le devinerait")
@@ -294,7 +292,7 @@ def test_les_images_raster_ne_derivent_pas_de_la_marque():
     gardait l'ancienne icône de son cache, qui « réapparaissait » sans que le
     serveur y soit pour rien.
 
-    Fabriqué DEPUIS `brand.MARQUE_ANNEAU` / `brand.MARQUE_O`, jamais
+    Fabriqué DEPUIS `brand.MARK_PATH`, jamais
     recopié d'un PNG :
     un `.ico` recopié dériverait le jour où la marque change, en silence. Le
     test régénère et compare, comme le fichier de marque du point 156 — qui
@@ -428,3 +426,68 @@ def test_le_formulaire_de_compte_ne_refuse_jamais_en_silence():
     assert "validationMessage" in account.AUTH_HTML, (
         "le refus client n'atteint pas la bannière de la page")
     assert "error.className='form-error show'" in account.AUTH_HTML
+
+
+def test_les_traces_ressemblent_au_dessin_fourni():
+    """LA FIDÉLITÉ, que rien d'autre ne garde.
+
+    Tous les autres témoins de ce fichier comparent les artefacts ENTRE EUX —
+    les rasters ne dérivent pas de la marque, la feuille dessine le même signe
+    que le fichier. Ils resteraient donc VERTS sur un logo faux, pourvu qu'il
+    soit faux partout de la même façon. Seule la confrontation au PNG fourni
+    par l'humain dit si le tracé ressemble à ce qu'on a demandé.
+
+    Le garde-fou existe aussi dans `outils/vectoriser_logo.py`, qui REFUSE
+    d'écrire au-delà de la tolérance. Ce n'est pas un doublon : l'outil ne
+    tourne que le jour où quelqu'un re-vectorise, ce témoin tourne à chaque
+    exécution de la suite. L'un empêche d'écrire un mauvais tracé, l'autre
+    empêche d'en garder un.
+
+    LE PIÈGE DE CADRAGE, mesuré en s'y laissant prendre : l'outil seuille le
+    canal alpha à `ALPHA_MIN` avant de recadrer. Comparer sur un `getbbox()`
+    nu — qui retient le moindre pixel d'antialiasing — donne une emprise de
+    1676 x 492 au lieu de 1667 x 438, deux cadrages différents, et un écart
+    annoncé de 234 % sur un logo parfaitement fidèle. Le seuil fait partie de
+    la mesure.
+    """
+    outils = pathlib.Path(__file__).resolve().parent.parent / "outils"
+    sys.path.insert(0, str(outils))
+    try:
+        import vectoriser_logo
+        from tracage import ecart_de_rendu
+    finally:
+        sys.path.remove(str(outils))
+
+    source = (pathlib.Path(__file__).resolve().parent.parent
+              / "docs" / "brand" / "monl-logo-source.png")
+    alpha = Image.open(source).convert("RGBA").getchannel("A")
+    seuil = alpha.point(lambda a: 255 if a >= vectoriser_logo.ALPHA_MIN else 0)
+    alpha = alpha.crop(seuil.getbbox())
+
+    separation = vectoriser_logo._separation(alpha)
+    coupe = vectoriser_logo._coupe_descripteur(alpha, separation)
+    parties = {
+        "WORDMARK_PATH": (alpha, brand.WORDMARK_PATH),
+        "NAV_MARK_PATH": (vectoriser_logo._partie(alpha, lambda x, _y: x < separation),
+                          brand.NAV_MARK_PATH),
+        "NAV_TEXT_PATH": (vectoriser_logo._partie(
+            alpha, lambda x, y: x >= separation and y < coupe), brand.NAV_TEXT_PATH),
+    }
+
+    mesures = {}
+    for nom, (reference, trace) in parties.items():
+        masque = reference.point(
+            lambda a: 255 if a >= vectoriser_logo.ALPHA_MIN else 0).convert("1")
+        mesures[nom] = ecart_de_rendu(masque, trace)
+
+    trop_loin = {n: f"{e:.2%}" for n, e in mesures.items()
+                 if e > vectoriser_logo.TOLERANCE}
+    assert not trop_loin, (
+        f"le tracé ne ressemble plus au dessin fourni : {trop_loin} "
+        f"(tolérance {vectoriser_logo.TOLERANCE:.0%})")
+    # Le pendant : une tolérance très au-dessus de ce qu'on mesure ne refuse
+    # plus rien. Si les écarts réels tombaient à zéro, c'est la MESURE qu'il
+    # faudrait suspecter — un rendu identique au pixel près supposerait qu'on
+    # compare le tracé à lui-même.
+    assert max(mesures.values()) > 0, (
+        "écart nul : la mesure compare probablement le tracé avec lui-même")

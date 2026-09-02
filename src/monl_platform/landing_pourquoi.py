@@ -291,7 +291,7 @@ n'apporte pas.</p></div>
 <div class="compare" data-reveal>
 <div class="compare-row head"><div>&nbsp;</div>
 <div class="who"><span class="dot them"></span>Une plateforme managée</div>
-<div class="who"><span class="dot us"></span>monl compiler</div></div>
+<div class="who"><span class="dot us"></span>MONL</div></div>
 {"".join(_ligne(*ligne) for ligne in COMPARAISON)}
 </div></div></section>
 
