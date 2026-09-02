@@ -92,6 +92,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [172bis](#172bis-une-borne-de-disque-se-tient-à-chaque-instant-pas-seulement-à-la-fin) Une borne de disque se tient à chaque instant ·
 [173](#173-trois-briques-que-le-dialogue-nécrivait-pas--et-une-photo-que-personne-ne-voyait) Trois briques sans producteur, et la photo que personne ne voyait ·
 [174](#174-la-mémoire-du-projet-ignorait-des-briques-et-un-garde-fou-la-rend-vivante) La mémoire du projet ignorait des briques, et un garde-fou la rend vivante ·
+[177](#177-le-logo-monochrome-remplace-lorange--et-un-témoin-nommait-le-mauvais-signe) Le logo monochrome remplace l'orange, et un témoin nommait le mauvais signe ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -12678,3 +12679,57 @@ référence la satisfait. Elle ne dit rien du comportement — les tests contre
 serveur restent la seule preuve. Et une nouvelle syntaxe doit entrer dans une
 production Lark pour être couverte : les commentaires et exemples de la
 grammaire sont écartés, sinon un nom d'illustration deviendrait un mot-clé.
+
+## 177. Le logo monochrome remplace l'orange — et un témoin nommait le mauvais signe
+
+Le logo retenu est le signe monochrome : un noyau stable entouré de quatre
+étapes de transformation ouvertes, associé au mot **MONL** et au descripteur
+**COMPILER**. Il remplace celui du point 157, dont **tout le raisonnement
+cesse ici de décrire la réalité** — `theme.ORANGE` n'existe plus, il n'y a plus
+de couche à séparer par la saturation, et plus de liseré à craindre puisqu'il
+n'y a plus qu'une encre. Le point 157 reste utile pour ses trois pièges de
+MESURE, qui eux n'ont pas vieilli ; sa description de la marque, non.
+
+**DEUX signes, et la distinction est délibérée.** Le lockup complet (`WORDMARK`)
+porte MONL sur deux lignes avec COMPILER en dessous : c'est lui qu'on trouve
+dans l'image de partage et les fichiers de marque. La barre du site emploie la
+forme COURTE (`NAV_WORDMARK`), MONL seul — un en-tête n'a pas la place d'un
+descripteur, et l'imposer écraserait la ligne de navigation.
+
+**LE TÉMOIN QUI NOMMAIT AUTRE CHOSE QUE CE QU'IL VÉRIFIAIT.**
+`test_la_marque_se_lit_monl_compiler` assertait `aria-label="MONL"`. Son NOM
+promettait le lockup complet, son assertion portait sur la forme courte : qui
+lisait la liste des tests croyait le descripteur gardé sur la page. Point 167bis
+dans sa forme la plus courte — le témoin regardait bien quelque chose, mais pas
+ce que son nom annonçait. **Vérifié en RENDANT les deux signes en image** avant
+de toucher au code : la barre dessine « MONL » seul, donc l'intitulé était JUSTE
+et c'est le nom qui mentait. L'inverse — corriger l'intitulé pour le faire
+coller au nom — aurait fait annoncer aux lecteurs d'écran un mot que la page ne
+dessine pas.
+
+Le témoin renommé garde désormais les DEUX moitiés, et la seconde n'existait
+pas : que le lockup CONSERVE sa ligne de descripteur. La mesure porte sur la
+géométrie du tracé — deux lignes de texte occupent toute la hauteur de la vue,
+une seule en occupe 38 %. Contre-épreuve : lockup remplacé par la forme courte,
+le témoin rougit. Sans elle, « COMPILER » pouvait disparaître du logo sans
+qu'aucun test ne bronche.
+
+**ET UNE ASSERTION QUI MESURAIT LA PROSE.** La première version cherchait
+l'absence du mot « COMPILER » dans la page servie, pour prouver que la barre ne
+l'annonce pas. Elle rougissait sur une page CORRECTE : le mot y figure en
+toutes lettres dans le texte d'accueil (« un réseau pour compiler »). L'intitulé
+d'un lien, c'est son `aria-label` et rien d'autre — chercher un mot dans la page
+entière mesurait le contenu éditorial. Retirée, avec la raison écrite à côté.
+
+**CE QUI N'EST PAS FERMÉ, et c'est écrit plutôt que tu.** Le point 157 avait
+posé un garde-fou dans `outils/vectoriser_logo.py` : refuser d'écrire si le
+tracé re-rasterisé s'écartait de plus de 6 % du dessin d'origine. La réécriture
+de l'outil l'a **retiré**, et rien ne l'a remplacé — vérifié par lecture du
+fichier, aucune tolérance n'y subsiste. Les témoins existants gardent la
+COHÉRENCE entre artefacts (les rasters ne dérivent pas de la marque, point
+158ter) mais jamais la FIDÉLITÉ au dessin fourni. Une tentative de quantifier
+l'écart est restée NON CONCLUANTE : l'encre du PNG source fait 1676 × 492
+(rapport 3,407) quand la vue du tracé fait 1667 × 438 (rapport 3,806), et je
+n'ai pas su reconstituer le cadrage exact de l'outil — donc aucun chiffre n'est
+avancé ici. *Une mesure qu'on ne peut pas soutenir ne s'écrit pas ; le fait
+qu'on a vérifié, si.*

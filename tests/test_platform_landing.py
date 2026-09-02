@@ -15,6 +15,7 @@ import pytest
 import requests
 import uvicorn
 
+from monl_platform import brand
 from monl_platform.app import create_app
 from monl_platform.landing import LANDING_HTML
 
@@ -154,10 +155,53 @@ def test_la_pastille_de_marque_garde_sa_couleur_d_encre():
     assert "brand-wordmark" in LANDING_HTML
 
 
-def test_la_marque_se_lit_monl_compiler(platform):
-    reponse = requests.get(platform, timeout=10)
+def _bande_verticale(trace):
+    """Le haut et le bas réellement dessinés par un tracé.
 
+    Un tracé sur DEUX lignes descend jusqu'en bas de sa vue ; un tracé sur une
+    seule ligne, centré, laisse du vide au-dessus et au-dessous. C'est la seule
+    façon de vérifier la présence d'un second mot sans lire le dessin à l'œil.
+    """
+    nombres = [float(n) for n in re.findall(r"-?\d+\.?\d*", trace)]
+    ordonnees = nombres[1::2]
+    assert ordonnees, "tracé illisible : la mesure porterait sur du vide"
+    return min(ordonnees), max(ordonnees)
+
+
+def test_la_barre_porte_la_forme_courte_et_son_intitule_le_dit(platform):
+    """L'intitulé lu à voix haute doit être ce qui est DESSINÉ.
+
+    Ce témoin s'appelait `test_la_marque_se_lit_monl_compiler` et vérifiait
+    `aria-label="MONL"` : son NOM promettait le lockup complet, son assertion
+    portait sur la forme courte. Point 167bis — un témoin dont le nom annonce
+    une garantie qu'il ne tient pas la fait croire gardée. Mesuré en rendant
+    les deux signes : la barre dessine « MONL » seul, l'intitulé est donc JUSTE
+    et c'est le nom qui mentait.
+
+    Le lockup complet — celui qui porte COMPILER — reste employé ailleurs
+    (l'image de partage, les fichiers de marque). Le garder ICI serait faux ;
+    ne le garder NULLE PART le laisserait disparaître en silence, d'où la
+    seconde moitié du témoin.
+    """
+    reponse = requests.get(platform, timeout=10)
     assert 'aria-label="MONL"' in reponse.text
+    # On ne cherche PAS « COMPILER » dans la page pour prouver que la barre ne
+    # l'annonce pas : le mot y figure légitimement en toutes lettres (« un
+    # réseau pour compiler »), et le témoin mesurait alors la PROSE au lieu de
+    # l'intitulé. L'intitulé, c'est l'`aria-label` ci-dessus — rien d'autre
+    # n'est lu à sa place. Vérifié en le mesurant : l'assertion large rougissait
+    # sur une page correcte.
+
+    haut_court, bas_court = _bande_verticale(brand.NAV_TEXT_PATH)
+    haut_long, bas_long = _bande_verticale(brand.WORDMARK_PATH)
+    hauteur = brand.VUE[1]
+
+    assert (bas_court - haut_court) < 0.5 * hauteur, (
+        "le texte de la barre occupe deux lignes : ce n'est plus la forme "
+        "courte que son intitulé annonce")
+    assert (bas_long - haut_long) > 0.9 * hauteur, (
+        "le lockup a perdu sa seconde ligne — le logo choisi ne porte plus "
+        "COMPILER, et rien d'autre ne le garde")
 
 
 def test_aucune_couleur_n_est_ecrite_hors_du_theme():
