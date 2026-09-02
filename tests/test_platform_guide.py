@@ -13,7 +13,7 @@ serveur MCP, et le compilateur lui-même pour les spécifications d'exemple.
 
 import re
 
-from monl_platform import examples, guide
+from monl_platform import docs_page, examples, guide, guide_data
 from monl_platform.app import create_app
 from monl_platform.mcp_server import TOOLS
 from monl_platform.service import CompilationService
@@ -39,7 +39,10 @@ def test_le_guide_documente_exactement_les_types_de_la_grammaire():
     """Dans les DEUX sens. Un type documenté qui n'existe pas fait écrire une
     spec refusée ; un type existant non documenté reste introuvable pour qui
     n'a pas le dépôt sous les yeux."""
-    documentes = {nom for nom, _ in guide.TYPES}
+    # La référence DSL a quitté /guide pour /docs : la donnée se lit
+    # désormais dans `guide_data`, sa SOURCE, que les deux pages
+    # rendent. La garantie est inchangée — seul le module lu a bougé.
+    documentes = {nom for nom, _ in guide_data.TYPES}
     reels = _types_de_la_grammaire()
     assert documentes == reels, (
         f"documentés en trop : {sorted(documentes - reels)} · "
@@ -86,6 +89,18 @@ def test_le_guide_ne_promet_pas_de_fausses_cles_mcp():
     assert "Authorization: Bearer" in html
     assert "l'empreinte" in html
     assert "révocation" in html
+
+
+def test_la_documentation_oriente_avant_de_detailler_la_reference():
+    """La page de docs reste une porte d'entrée : le lecteur doit pouvoir
+    commencer, chercher la syntaxe ou vérifier les droits avant de plonger
+    dans les tableaux complets."""
+    html = docs_page.DOCS_HTML
+    for texte in ("Choisissez votre point de départ", "Première spec",
+                  "Référence du langage", "Sécurité et droits",
+                  'href="#premiere-spec"', 'href="#mots-cles"',
+                  'href="#acces"'):
+        assert texte in html
 
 
 def test_chaque_exemple_compile_vraiment(tmp_path):
@@ -149,8 +164,8 @@ def test_les_regles_citees_par_le_guide_portent_toutes_un_mot_cle_connu():
                 else [racine / "ast_validator.py"])
     assert fichiers, "source du validateur introuvable"
     validateur = "\n".join(f.read_text(encoding="utf-8") for f in fichiers)
-    tableaux = (guide.REGLES_ACCES + guide.REGLES_CHAMPS
-                + guide.REGLES_SERVEUR + guide.REGLES_COMMERCE)
+    tableaux = (guide_data.REGLES_ACCES + guide_data.REGLES_CHAMPS
+                + guide_data.REGLES_SERVEUR + guide_data.REGLES_COMMERCE)
     for regle, _ in tableaux:
         mots = re.findall(r"\b(ownedBy|accessibleBy|public|publicWhen|sharedBy|oncePer|"
                           r"requiresOwn|min|max|unique|required|oneOf|generated|timestamp|"

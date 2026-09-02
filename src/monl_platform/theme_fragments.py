@@ -157,6 +157,7 @@ code { font-family: var(--mono); font-size: .92em; }
   border: 1px solid transparent; cursor: pointer; text-decoration: none;
   display: inline-flex; align-items: center; justify-content: center; gap: 9px;
   font-weight: 600;
+  touch-action: manipulation;
   transition: background .18s ease, border-color .18s ease, color .18s ease;
 }
 .primary, .nav-cta { background: var(--brand); color: var(--on-brand); }

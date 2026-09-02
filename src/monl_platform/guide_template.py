@@ -27,6 +27,12 @@ EXTRA_CSS = """
 .doc li { margin-bottom: var(--space-2); }
 .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
          gap: var(--space-3); margin-bottom: var(--space-5); }
+.boundary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--space-3);
+            margin:var(--space-5) 0 var(--space-6); }
+.boundary article { border:1px solid var(--line); border-radius:var(--radius); padding:var(--space-4);
+                   background:var(--surface-2); }
+.boundary h3 { margin:var(--space-3) 0 var(--space-2); font-size:17px; }
+.boundary p { color:var(--muted); margin:0; font-size:15px; }
 .step-no { font: 600 12px var(--mono); color: var(--brand); }
 .step h3 { margin: var(--space-3) 0 var(--space-2); font-size: 17px; }
 .step p { margin: 0; color: var(--muted); font-size: 15px; }
@@ -46,6 +52,7 @@ EXTRA_CSS = """
   .doc { grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
   .toc { position: static; border-bottom: 1px solid var(--line); padding-bottom: var(--space-4); }
   .toc ol { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+  .boundary { grid-template-columns:1fr; }
 }
 """
 
@@ -108,4 +115,3 @@ workflow Ecrire for Auteur
 workflow Relire for Relecteur
     Read Fiche
     Update Fiche""")
-

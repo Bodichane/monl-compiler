@@ -198,7 +198,7 @@ def page(*, title: str, description: str, body: str, active: str = "",
 {_lien("/docs", icon("docs") + "Docs API", active, "docs")}
 {_lien("/account", icon("user") + "Compte", active, "account")}
 <button class="icon-btn" id="theme-toggle" type="button" aria-label="Basculer le thème">{ICON_THEME}</button>
-<a class="nav-cta" href="/console">{icon("compiler")} Ouvrir la console</a>
+<a class="nav-cta" href="/console" target="_blank" rel="noopener">{icon("compiler")} Ouvrir la console</a>
 </div>
 </nav></header>
 <main id="contenu">
@@ -209,7 +209,7 @@ def page(*, title: str, description: str, body: str, active: str = "",
 <div class="footer-brand"><a class="brand" href="/" aria-label="MONL">{_brand()}</a>
 <p>Le métier est compilé, l’interface reste libre. Un backend déterministe et son contrat à partir d’une seule spécification.</p></div>
 <div><h2>Produit</h2><nav aria-label="Produit"><a href="/console">Console</a><a href="/guide#frontiere">Pourquoi Monl</a><a href="/guide#limites">Limites actuelles</a></nav></div>
-<div><h2>Développeurs</h2><nav aria-label="Développeurs"><a href="/guide#dsl">Référence DSL</a><a href="/guide#api">API HTTP</a><a href="/docs">Documentation développeur</a><a href="/api-docs">Explorateur OpenAPI</a><a href="/mcp">Serveur MCP</a></nav></div>
+<div><h2>Développeurs</h2><nav aria-label="Développeurs"><a href="/docs">Référence DSL</a><a href="/guide#api">API HTTP</a><a href="/api-docs">Explorateur OpenAPI</a><a href="/mcp">Serveur MCP</a></nav></div>
 <div><h2>Ressources</h2><nav aria-label="Ressources"><a href="/guide">Guide de démarrage</a><a href="/security">Sécurité et garanties</a><a href="/api/version">Versions</a><a href="/health">État du service</a></nav></div>
 </div>
 <div class="footer-bottom"><span>© MONL</span><nav class="footer-legal" aria-label="Informations légales"><a href="/mentions-legales">Mentions légales</a><a href="/conditions">Conditions d’utilisation</a><a href="/confidentialite">Confidentialité</a></nav><a class="service-status" href="/health">Service opérationnel</a></div>

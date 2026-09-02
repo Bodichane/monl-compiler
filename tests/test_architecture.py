@@ -317,6 +317,11 @@ EXCEPTIONS_DE_TAILLE = {
     "monl/parser/grammaire.py":
         "La grammaire Lark est UNE chaîne. La couper en deux ferait deux "
         "moitiés dont aucune n'est une grammaire.",
+    "monl_platform/console_script.py":
+        "402 de ses 405 lignes vivent dans UNE chaîne : le script JavaScript "
+        "servi à la console. Le couper en deux constantes Python recollées à "
+        "l'émission ne le rendrait pas plus lisible, et multiplierait les "
+        "frontières d'échappement — celles qui ont tué deux pages au point 163.",
 }
 
 

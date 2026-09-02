@@ -31,7 +31,7 @@ from .theme import icon
 # relisant du code. Les montants sont ceux qui ont été mesurés.
 REFUS = [
     {
-        "titre": "Le prix venait du navigateur",
+        "titre": "Une valeur calculée arrivait du client",
         "attaque": 'POST /commande\n{ "total": 0.01 }',
         "avant": "La commande était enregistrée à un centime, puis encaissée "
                  "pour ce montant.",
@@ -41,7 +41,7 @@ REFUS = [
         "point": "points 77 et 78",
     },
     {
-        "titre": "On commandait cinquante paires sur douze",
+        "titre": "Une action dépassait une limite métier",
         "attaque": 'POST /ligne\n{ "quantite": 50 }',
         "avant": "Le paiement passait. Le stock ne bougeait pas.",
         "regle": "rule Ligne.Create decrements Produit.stock by quantite",
@@ -51,7 +51,7 @@ REFUS = [
         "point": "point 86",
     },
     {
-        "titre": "Une commande payée acceptait encore des articles",
+        "titre": "Un état final restait modifiable",
         "attaque": 'POST /ligne\n{ "commande": 12, "produit": 7 }',
         "avant": "Réglée 89 €, la commande remontait à 238 € — et le "
                  "back-office affichait « Payée » en face d'un montant que "
@@ -160,6 +160,7 @@ EXTRA_CSS = """
   font-weight:600; color:var(--ink);
 }
 .refus summary::-webkit-details-marker { display:none; }
+.refus summary:hover { background:var(--surface-2); }
 .refus summary:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
 .refus summary .chev {
   margin-left:auto; flex:none; width:18px; height:18px; color:var(--muted);
@@ -236,7 +237,7 @@ EXTRA_CSS = """
 def _refus(item: dict, index: int) -> str:
     """Une tentative, repliée. Ouverte, le pourquoi et le comment."""
     return f"""<details data-reveal style="--reveal-delay:{index * 60}ms">
-<summary><span class="tag-refus">refusé</span>{item['titre']}
+<summary><span class="tag-refus">règle appliquée</span>{item['titre']}
 <span class="chev">{icon('arrow')}</span></summary>
 <div class="fold"><div><div class="refus-body">
 <div><h4>Ce que le client envoyait</h4>
@@ -275,19 +276,14 @@ def _montage(item: dict, index: int) -> str:
 
 SECTIONS = f"""
 <section class="shell section" aria-labelledby="pourquoi-title">
-<div class="section-head" data-reveal><h2 id="pourquoi-title">Trois écritures que le client tentait. Trois refus compilés.</h2>
-<p>Aucune n'a été trouvée en relisant du code : chacune vient d'un serveur en
-marche, et chacune a coûté quelque chose de réel — un article vendu à un
-centime, un stock qui ne bougeait pas, une commande qui grossissait après
-paiement.</p></div>
+<div class="section-head" data-reveal><h2 id="pourquoi-title">Les règles métier continuent de s’appliquer.</h2>
+<p>Valeurs calculées, limites et états finaux vivent dans le backend, pas dans un bouton d’interface. Ouvrez un exemple pour voir la règle et le contrôle qui l’appliquent.</p></div>
 <div class="refus">{"".join(_refus(r, i) for i, r in enumerate(REFUS))}</div>
 </section>
 
 <section class="band"><div class="shell section" aria-labelledby="compare-title">
-<div class="section-head" data-reveal><h2 id="compare-title">Supabase héberge et exécute. Monl compile et refuse.</h2>
-<p>Les deux ne répondent pas à la même question, et le tableau est écrit pour
-être juste plutôt que pour gagner : la dernière ligne dit ce que monl
-n'apporte pas.</p></div>
+<div class="section-head" data-reveal><h2 id="compare-title">Monl complète votre plateforme. Il ne cherche pas à la remplacer.</h2>
+<p>Une plateforme managée fournit l’infrastructure. Monl fournit un backend à partir de règles métier. Le tableau montre précisément ce qui appartient à chaque couche.</p></div>
 <div class="compare" data-reveal>
 <div class="compare-row head"><div>&nbsp;</div>
 <div class="who"><span class="dot them"></span>Une plateforme managée</div>
@@ -296,9 +292,8 @@ n'apporte pas.</p></div>
 </div></div></section>
 
 <section class="shell section" aria-labelledby="ensemble-title">
-<div class="section-head" data-reveal><h2 id="ensemble-title">Le choix n'est pas « l'un ou l'autre ».</h2>
-<p>Monl produit un backend qui parle PostgreSQL. Le vôtre peut être celui d'un
-service managé — vous gardez sa console, ses sauvegardes et ses répliques.</p></div>
+<div class="section-head" data-reveal><h2 id="ensemble-title">Utilisez Monl avec les outils que vous avez déjà.</h2>
+<p>Le backend généré parle PostgreSQL. Vous gardez le fournisseur, la console, les sauvegardes et les répliques qui conviennent à votre équipe.</p></div>
 <div class="montages">{"".join(_montage(m, i) for i, m in enumerate(MONTAGES))}</div>
 </section>
 """

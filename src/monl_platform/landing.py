@@ -4,6 +4,13 @@ from __future__ import annotations
 
 from . import landing_cas, landing_pourquoi
 from .coloration import coloriser, en_lignes
+from .landing_vitrine import (
+    ARBRE,
+    ENTITES,
+    FICHIERS,
+    ROUTES,
+    extrait_affiche,
+)
 from .theme import icon, page
 
 EXTRA_CSS = """
@@ -28,7 +35,7 @@ EXTRA_CSS = """
 .proof-rail span{color:var(--muted);font-size:12px}.proof-rail .proof-word{color:var(--ink)}
 .start-card { position:relative; background:var(--code-bg); color:var(--code-ink); border:1px solid var(--line);
   border-radius:calc(var(--radius-lg) + 4px); padding:var(--space-3); box-shadow:0 28px 70px rgba(0,0,0,.22);
-  transform:rotate(1deg); }
+  transform:rotate(1deg); transition:transform .28s cubic-bezier(.2,.8,.2,1),box-shadow .28s ease; }
 .start-card::before { content:""; position:absolute; inset:18px -16px -16px 18px; border:1px solid var(--line);
   border-radius:inherit; z-index:-1; background:var(--surface-2); transform:rotate(-2deg); }
 .demo-window { border:1px solid color-mix(in srgb,var(--code-ink) 15%,transparent);border-radius:14px;overflow:hidden;background:var(--code-bg); }
@@ -45,6 +52,7 @@ EXTRA_CSS = """
 .demo-result { display:grid;grid-template-columns:1.25fr repeat(3,.6fr);gap:1px;background:rgba(255,255,255,.1);border-top:1px solid rgba(255,255,255,.1); }
 .demo-result div { padding:14px;background:var(--code-bg); }.demo-result b{display:block;color:var(--code-ink);font:600 16px var(--mono)}
 .demo-result span{font:10px var(--mono);color:var(--code-muted)}.demo-result .verified b{color:var(--code-accent);font-size:12px;text-transform:uppercase;letter-spacing:.08em}
+@media (hover:hover){.start-card:hover{transform:translateY(-4px) rotate(.35deg);box-shadow:0 34px 76px rgba(0,0,0,.28)}}
 @keyframes scan { 0%,100%{transform:translateY(-8px);opacity:.25} 50%{transform:translateY(8px);opacity:1} }
 .start-head { display:flex; justify-content:space-between; align-items:center; gap:var(--space-3);
   padding-bottom:var(--space-4); border-bottom:1px solid var(--line); }
@@ -147,7 +155,7 @@ EXTRA_CSS = """
   .bento article:first-child { grid-column:auto; }
 }
 @media(max-width:520px){.start-card{transform:none}.start-card::before{display:none}.demo-result{grid-template-columns:1fr 1fr}.capability-grid{grid-template-columns:1fr}.capability{border-right:0;border-bottom:1px solid var(--line)!important}.capability:last-child{border-bottom:0!important}}
-@media(prefers-reduced-motion:reduce){.scan-line{animation:none}}
+@media(prefers-reduced-motion:reduce){.scan-line{animation:none}.start-card{transition:none}}
 """
 
 
@@ -169,53 +177,50 @@ entity Produit
 rule Produit.stock min 0
 rule Produit.Read public""")
 
-MINI_SPEC = coloriser("""entity Produit
-    nom: String
-    prix: Money
-    stock: Integer
+MINI_SPEC = coloriser(extrait_affiche())
 
-rule Produit.prix min 0
-rule Produit.stock min 0
-rule Produit.Read public""")
+#: Chaque nom vient de `ARBRE`, dont le témoin exige qu'il figure dans
+#: l'archive réellement compilée. Écrire un nom ici ne suffit plus à le
+#: faire exister — c'est tout l'objet de `landing_vitrine`.
+ARBRE_HTML = "<br>".join(
+    f'{"└──" if i == len(ARBRE) - 1 else "├──"} {nom} <span>{role}</span>'
+    for i, (nom, role) in enumerate(ARBRE))
 
 
 BODY = f"""
 <section class="shell landing-hero">
-<div><h1 data-reveal style="--reveal-delay:60ms">Décrivez vos règles.<br>Téléchargez votre backend.</h1>
-<p class="lede" data-reveal style="--reveal-delay:120ms">Partez d’un exemple, indiquez vos données,
-vos utilisateurs et leurs droits. Monl vérifie votre spécification puis génère une API FastAPI, sa base SQL
-et le contrat destiné à votre interface.</p>
+<div><h1 data-reveal style="--reveal-delay:60ms">Décrivez votre métier.<br>Monl construit le backend.</h1>
+<p class="lede" data-reveal style="--reveal-delay:120ms">Déclarez vos données, les personnes qui agissent et les règles à ne jamais contourner. Monl les vérifie puis vous remet une API, son schéma SQL et un contrat exact pour vos interfaces.</p>
 <div class="hero-actions" data-reveal style="--reveal-delay:180ms">
-<a class="primary" href="/console">{icon('terminal')} Créer un backend</a>
-<a class="secondary" href="/docs">{icon('book')} Voir comment écrire la spec</a></div>
+<a class="primary" href="/console">{icon('terminal')} Essayer dans la console</a>
+<a class="secondary" href="/docs">{icon('book')} Lire la documentation</a></div>
 <div class="trust" data-reveal style="--reveal-delay:220ms">
-<span>{icon('check')} Compte gratuit</span><span>{icon('check')} Exemples inclus</span>
-<span>{icon('check')} Backend autonome</span></div></div>
-<aside class="start-card" data-reveal style="--reveal-delay:120ms" aria-label="Ce que vous allez faire">
-<div class="demo-window"><div class="demo-bar"><i></i><i></i><i></i><span>compilation vérifiée</span></div>
+<span>{icon('check')} Commencez avec un exemple</span><span>{icon('check')} Vérifiez avant de compiler</span>
+<span>{icon('check')} Exécutez où vous voulez</span></div></div>
+<aside class="start-card" data-reveal style="--reveal-delay:120ms" aria-label="Une compilation Monl">
+<div class="demo-window"><div class="demo-bar"><i></i><i></i><i></i><span>specification vérifiée</span></div>
 <div class="demo-code">{DEMO_HERO}</div>
 <div class="scan-line"></div><div class="demo-result"><div class="verified"><b>{icon('check')} valide</b><span>audit métier</span></div>
-<div><b>3</b><span>entités</span></div><div><b>17</b><span>routes</span></div><div><b>12</b><span>fichiers</span></div></div></div></aside>
+<div><b>{ENTITES}</b><span>entités</span></div><div><b>{ROUTES}</b><span>routes</span></div><div><b>{FICHIERS}</b><span>fichiers</span></div></div></div></aside>
 </section>
 
 <section class="proof-rail" aria-label="Preuves du compilateur">
-<div><b>4</b><span>spécifications complètes incluses</span></div><div><b>0</b><span>appel réseau pour compiler</span></div>
-<div><b class="proof-word">Refus</b><span>si une règle est incohérente</span></div><div><b class="proof-word">Export</b><span>backend autonome, sans verrouillage</span></div>
+<div><b>4</b><span>exemples pour commencer</span></div><div><b>0</b><span>appel réseau pour compiler</span></div>
+<div><b class="proof-word">Vérifié</b><span>avant de produire l’archive</span></div><div><b class="proof-word">À vous</b><span>backend autonome, sans verrouillage</span></div>
 </section>
 
 <section class="band"><div class="shell section">
-<div class="section-head" data-reveal><h2>Une spec entre. Un backend complet sort.</h2>
-<p>Exemple réel de boutique : les métriques ci-dessous sont vérifiées en recompilant la spec dans les tests.</p></div>
+<div class="section-head" data-reveal><h2>Une règle claire devient un backend utilisable.</h2>
+<p>Voici ce que Monl produit à partir d’une spec de boutique : les résultats sont revérifiés à chaque évolution du compilateur.</p></div>
 <div class="output-flow" data-reveal><pre class="codeblock mini-spec"><code>{MINI_SPEC}</code></pre>
 <span class="flow-arrow">{icon('arrow')}</span><div class="artifact"><div class="artifact-head"><b>PetiteBoutique</b><span class="muted">archive autonome</span></div>
-<div class="artifact-body"><div class="artifact-stats"><div><b>3</b><span>entités</span></div><div><b>17</b><span>routes API</span></div><div><b>12</b><span>fichiers</span></div></div>
-<div class="tree"><b>backend/</b><br>├── app.py <span>API FastAPI</span><br>├── schema.sql <span>base de données</span><br>
-├── frontend_contract.json <span>droits et routes</span><br>├── manage.py <span>administration</span><br>└── README.md <span>démarrage</span></div></div></div></div>
+<div class="artifact-body"><div class="artifact-stats"><div><b>{ENTITES}</b><span>entités</span></div><div><b>{ROUTES}</b><span>routes API</span></div><div><b>{FICHIERS}</b><span>fichiers</span></div></div>
+<div class="tree"><b>backend/</b><br>{ARBRE_HTML}</div></div></div></div>
 </div></section>
 
 <section class="shell section" aria-labelledby="position-title">
-<div class="section-head" data-reveal><h2 id="position-title">Votre infrastructure exécute. Monl décide ce qui est valide.</h2>
-<p>Postgres, votre cloud ou un service managé hébergent les données. Monl intervient avant eux et reste indépendant de l’interface.</p></div>
+<div class="section-head" data-reveal><h2 id="position-title">Gardez votre infrastructure. Rendez le métier non négociable.</h2>
+<p>Votre cloud et PostgreSQL exécutent l’application. Monl transforme vos règles en comportements que le serveur applique, quelle que soit l’interface qui appelle l’API.</p></div>
 <div class="platform-flow" data-reveal>
 <article class="flow-stage"><h3>Les fondations</h3><p>Base de données, calcul, stockage et réseau restent chez le fournisseur que vous choisissez.</p><div class="stage-tags"><span>Postgres</span><span>cloud</span><span>self-hosted</span></div></article>
 <article class="flow-stage"><h3>Le métier vérifié</h3><p>Acteurs, droits, propriété, paiements et invariants deviennent une API et un contrat cohérents. Le même moteur pour les agents MCP.</p><div class="stage-tags"><span>spec.ml</span><span>audit</span><span>contrat</span></div></article>
