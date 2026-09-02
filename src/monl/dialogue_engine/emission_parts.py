@@ -1,6 +1,13 @@
 """Morceaux nommés de l'émission déterministe d'une spec."""
 
+from ..ast_validator.champs import ChampsMixin
 from .fondations import SEEDABLE_TYPES
+
+#: Les types sur lesquels `min` compte des CARACTÈRES et non une valeur.
+#: Lue chez le validateur, jamais recopiée : une seconde liste finirait par
+#: diverger, et le dialogue émettrait alors une règle que le compilateur
+#: refuse — le pire résultat pour qui est guidé (point 173).
+TYPES_TEXTE = ChampsMixin.BORNES_TEXTE
 
 
 def derived_list_rules(entities, extra_rules):
@@ -110,9 +117,21 @@ def emit_base_rules(lines, entities, extra_rules, public_read,
                     public_create, owned, managers, calculated):
     """Émet les règles communes avant les capacités avancées."""
     for ent, fields in entities.items():
-        first_field = fields[0][0]
+        first_field, first_type = fields[0][0], fields[0][1]
         if (ent, first_field) not in calculated:
             lines.append(f"rule {ent}.{first_field} required")
+            # `required` dit que le champ est PRÉSENT, jamais qu'il est REMPLI
+            # (point 85) : mesuré sur un catalogue né du dialogue, une fiche
+            # au titre VIDE passait en 200. Sur du texte, `min 1` ferme
+            # l'écart — 422 avant tout INSERT. Il est DÉRIVÉ du type et jamais
+            # demandé : la seule réponse utile serait « oui », argument du
+            # point 89, et le dialogue reste allégé.
+            #
+            # Sur un NOMBRE, `min` porte sur la valeur : y écrire 1
+            # interdirait un stock ou un prix à zéro, qui sont des valeurs
+            # légitimes. La règle ne vaut donc que pour les types texte.
+            if first_type in TYPES_TEXTE:
+                lines.append(f"rule {ent}.{first_field} min 1")
     public_when = public_when_entities(extra_rules)
     for ent in public_read:
         if ent not in public_when:

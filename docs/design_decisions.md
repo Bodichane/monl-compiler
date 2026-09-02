@@ -96,6 +96,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [176](#176-une-archive-se-lit--docs-pour-ce-qui-se-lit-la-racine-pour-ce-qui-sexécute) Une archive se lit : docs/ pour ce qui se lit, la racine pour ce qui s'exécute ·
 [177](#177-le-logo-monochrome-remplace-lorange--et-un-témoin-nommait-le-mauvais-signe) Le logo monochrome remplace l'orange, et un témoin nommait le mauvais signe ·
 [178](#178-la-page-daccueil-affirmait-une-vérification-qui-nexistait-pas) La page d'accueil affirmait une vérification qui n'existait pas ·
+[179](#179-required-disait--présent--jamais--rempli---et-le-dialogue-sen-contentait) `required` disait « présent », jamais « rempli » ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -12944,3 +12945,62 @@ la feuille dessine le même signe que le fichier. Ils resteraient donc VERTS sur
 un logo faux, pourvu qu'il soit faux partout de la même façon. Seule la
 confrontation au PNG fourni par l'humain dit si le tracé ressemble à ce qu'on a
 demandé.
+
+## 179. `required` disait « présent », jamais « rempli » — et le dialogue s'en contentait
+
+Constaté sur une archive RÉELLEMENT téléchargée depuis la plateforme, pas en
+relisant : sur un catalogue né du dialogue guidé, `rule Realisation.titre
+required` acceptait `titre: ""` et rendait **200**. La fiche entrait en base, et
+le site affichait une carte sans nom.
+
+Le compilateur n'était pas en tort : `required` dit qu'un champ est **PRÉSENT**
+dans le corps de requête, et il l'était. C'est le point 85 lu à la lettre —
+lecture que personne n'avait faite depuis l'autre bout de la chaîne. Le
+plancher existait déjà (`min`), il était éprouvé, et **rien ne l'écrivait pour
+les champs de texte obligatoires**. Point 146 pour la énième fois : une brique
+sans producteur ne protège que les specs écrites à la main.
+
+**DÉRIVER, JAMAIS DEMANDER.** Aucune question nouvelle — `test_le_dialogue_a_
+bien_ete_allege` interdit d'en ajouter, et la seule réponse utile à « voulez-vous
+qu'un titre obligatoire soit non vide ? » serait « oui » (argument du point 89,
+mot pour mot). Le plancher est déduit du TYPE du champ.
+
+**Et il ne vaut QUE pour le texte.** Sur un nombre, `min` porte sur la VALEUR :
+y écrire 1 interdirait un prix, un stock ou un total à zéro — des valeurs
+parfaitement légitimes. La portée est donc lue chez le validateur
+(`TYPES_TEXTE = ChampsMixin.BORNES_TEXTE`, soit `String`, `Text`, `Email`) et
+**jamais recopiée** : une seconde liste finirait par diverger, et le dialogue
+émettrait alors une règle que le compilateur refuse — le pire résultat pour qui
+est guidé (point 173).
+
+**LA MESURE S'EST COUPÉE ELLE-MÊME.** Ma première sonde sur les dix modèles
+rendait ses résultats à travers un `tail -50` : les modèles 1 à 3 en étaient
+absents, et j'ai cru un instant que le correctif ne les touchait pas. Ils
+étaient simplement au-dessus de la coupe. *Une sonde qui tronque ce qu'elle
+montre fabrique le défaut qu'elle croit trouver* — point 166, dans un troisième
+domaine.
+
+**LE BALAYAGE NE POUVAIT PAS MESURER LA LIMITE.** Le premier témoin du versant
+numérique parcourait le texte des dix specs et échouait sur
+`StockReceipt.quantity min 1` — émis à dessein par un producteur DIFFÉRENT (un
+mouvement de stock de zéro unité ne veut rien dire). Lire la spec confond les
+deux producteurs ; la limite est donc éprouvée sur `emit_base_rules`
+elle-même, avec sa contre-épreuve positive à côté — sans quoi une fonction qui
+n'émettrait plus jamais de plancher rendrait les deux témoins verts.
+
+**LES DEUX SENS SONT MESURÉS CONTRE UN VRAI SERVEUR**, et les deux mordent.
+Correctif désarmé : `displayName: ""` repasse en 200. Liste des types élargie
+aux nombres : `total: 0` devient **refusé**, et une boutique correcte cesse de
+fonctionner. Un instrument qui refuse tout est aussi inutile qu'un instrument
+qui accepte tout, et il a l'air plus sérieux (point 168).
+
+**CE QUE MONL NE FAIT PAS, ET LE DIT.** Une chaîne d'ESPACES reste acceptée :
+`min_length` compte des caractères, elle n'en retire pas. Une fiche nommée
+`"   "` est aussi illisible qu'une fiche sans nom, mais la fermer demanderait de
+normaliser avant de mesurer — c'est-à-dire de toucher à la brique du point 85
+pour tous les champs de tous les projets. La limite est donc ÉNONCÉE et gardée
+par son propre témoin, plutôt qu'élargie en silence (arbitrage du point 83).
+
+Éprouvé par `tests/test_champ_texte_non_vide.py` (9 témoins, vrai serveur).
+56 règles ajoutées sur les dix modèles, dans les deux sens du dialogue ; les six
+`min 1` préexistants sont sur des quantités et n'ont pas bougé.
