@@ -35,7 +35,11 @@ function compter() {
   validee = false;
 }
 function panneau(nom) {
-  $$('.rail button').forEach(b => b.classList.toggle('active', b.dataset.panel === nom));
+  $$('.rail button').forEach(b => {
+    const actif = b.dataset.panel === nom;
+    b.classList.toggle('active', actif);
+    b.setAttribute('aria-selected', String(actif));
+  });
   $$('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + nom));
 }
 function occupe(bouton, actif) {
@@ -340,6 +344,8 @@ async function compiler() {
 /* ----- câblage ----- */
 $('#spec-input').addEventListener('input', compter);
 $$('.rail button').forEach(b => b.onclick = () => panneau(b.dataset.panel));
+$('#delivery-next').onclick = () => panneau('delivery');
+$('#contract-back').onclick = () => panneau('contract');
 $('#validate-btn').onclick = valider;
 $('#compile-btn').onclick = compiler;
 $('#dialogue-start button').onclick = () => rejouerDialogue();

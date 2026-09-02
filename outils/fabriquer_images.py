@@ -10,8 +10,7 @@ Trois artefacts, une seule source :
   monl-social.png    1200x630 — la carte Open Graph.
 
 Recopiés d'un fichier image, ces trois-là dériveraient le jour où la marque
-change, sans que rien ne le dise. Ici ils viennent de `brand.py` pour la forme
-et de `theme.ORANGE` pour la couleur, qui n'existe donc qu'à un seul endroit.
+change, sans que rien ne le dise. Ici ils viennent de `brand.py`.
 Aucun TEXTE n'y est rendu : il faudrait une police installée, et la plateforme
 refuse cette dépendance partout ailleurs.
 """
@@ -24,8 +23,7 @@ from PIL import Image, ImageChops, ImageDraw
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "src"))
 
-from monl_platform.brand import ANNEAU, LETTRES, MARQUE_ANNEAU, MARQUE_O, VUE
-from monl_platform.theme import ORANGE
+from monl_platform.brand import MARK_PATH, VUE, WORDMARK_PATH
 
 STATIQUE = (pathlib.Path(__file__).resolve().parent.parent
             / "src" / "monl_platform" / "static")
@@ -39,7 +37,6 @@ PAPIER = (23, 21, 18)    # --bg sombre, pour la carte de partage
 RAYON = 11               # le même que le <rect rx> de LOGO_SVG
 SEGMENTS = 16            # découpe d'une quadratique en segments
 
-ORANGE_RVB = tuple(int(ORANGE[i:i + 2], 16) for i in (1, 3, 5))
 
 
 def _sous_chemins(chemin, echelle, decalage=(0, 0)):
@@ -81,8 +78,8 @@ def _sous_chemins(chemin, echelle, decalage=(0, 0)):
 def _masque(chemin, taille, echelle, decalage=(0, 0)):
     """Rend un tracé en OU EXCLUSIF : c'est la règle `evenodd`.
 
-    Empilés, les sous-chemins rempliraient le trou de l'anneau — et le signe
-    sortirait en pastille pleine au lieu d'un « o ».
+    Empilés, les sous-chemins rempliraient les contre-formes des lettres et
+    les ouvertures du signe.
     """
     rendu = Image.new("1", taille, 0)
     for points in _sous_chemins(chemin, echelle, decalage):
@@ -95,16 +92,14 @@ def _masque(chemin, taille, echelle, decalage=(0, 0)):
 
 
 def _poser_mot(image, echelle, decalage, encre):
-    image.paste(ORANGE_RVB, (0, 0), _masque(ANNEAU, image.size, echelle, decalage))
-    image.paste(encre, (0, 0), _masque(LETTRES, image.size, echelle, decalage))
+    image.paste(encre, (0, 0), _masque(WORDMARK_PATH, image.size, echelle, decalage))
 
 
 def fabriquer_ico(destination):
     echelle = RENDU / CADRE
     carre = (RENDU, RENDU)
     image = Image.new("RGB", carre, FOND)
-    image.paste(ORANGE_RVB, (0, 0), _masque(MARQUE_ANNEAU, carre, echelle))
-    image.paste(ENCRE, (0, 0), _masque(MARQUE_O, carre, echelle))
+    image.paste(ENCRE, (0, 0), _masque(MARK_PATH, carre, echelle))
 
     plaque = Image.new("1", carre, 0)
     ImageDraw.Draw(plaque).rounded_rectangle(
@@ -124,8 +119,7 @@ def fabriquer_wordmark(destination, largeur=1024):
     echelle = largeur / VUE[0] * 4
     grand = (largeur * 4, int(VUE[1] * echelle))
     image = Image.new("RGBA", grand, (0, 0, 0, 0))
-    image.paste(ORANGE_RVB + (255,), (0, 0), _masque(ANNEAU, grand, echelle))
-    image.paste(ENCRE + (255,), (0, 0), _masque(LETTRES, grand, echelle))
+    image.paste(ENCRE + (255,), (0, 0), _masque(WORDMARK_PATH, grand, echelle))
     image.resize((largeur, grand[1] // 4), Image.LANCZOS).save(destination)
     return destination
 

@@ -57,7 +57,7 @@ def create_app(*, workspace=None, domain=None, downloads_dir=None) -> FastAPI:
     )
     application = FastAPI(
         lifespan=create_lifespan(service, identities, builder_runtime),
-        title="Monl Compiler Platform",
+        title="MONL Platform",
         description="Validation et compilation distante de backends Monl.",
         version="0.2.0",
         docs_url="/api-docs",

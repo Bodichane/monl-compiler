@@ -15,7 +15,7 @@ CONSOLE_HTML = page(
     # pages se nomment (« MCP — … », « Votre compte — … ») : avec plusieurs
     # onglets ouverts, celui de la console était indiscernable de la page
     # d'accueil, et un signet ne disait pas où il menait.
-    title="Console — monl compiler",
+    title="Console — MONL",
     description="Décrivez vos règles métier. Monl compile un backend autonome, "
                 "son schéma SQL et son contrat frontend.",
     body=BODY,

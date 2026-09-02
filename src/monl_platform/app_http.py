@@ -138,7 +138,7 @@ def _veut_du_json(request: Request) -> bool:
 
 def _page_404(detail: str) -> str:
     return page(
-        title="Page introuvable — monl compiler",
+        title="Page introuvable — MONL",
         description="Cette adresse n'existe pas sur la plateforme monl.",
         body=f"""
 <section class="shell section" style="text-align:center;padding-block:var(--space-8)">

@@ -121,15 +121,11 @@ def test_le_signe_de_la_page_suit_la_couleur_du_texte():
     sur le thème sombre. En `currentColor`, il ne le peut plus."""
     assert "currentColor" in theme.LOGO_MARK
     assert "<text" not in theme.LOGO_MARK, "un tracé ne dépend d'aucune police"
-    # Ce qui est interdit est le FOND, pas la couleur. Le défaut d'origine
-    # était un signe portant sa propre pastille ; l'anneau du logo, lui, a une
-    # couleur de marque qui ne suit aucun thème — un logo qui change de teinte
-    # avec le fond n'est plus le logo. La seule couleur tolérée est donc
-    # exactement celle-là, et elle est LUE depuis theme.ORANGE plutôt que
-    # recopiée : recopiée, le test ne verrait pas la marque changer d'orange.
+    # Le signe est désormais entièrement monochrome : aucune couleur figée,
+    # et aucun fond qui le ferait disparaître dans l'un des deux thèmes.
     assert "<rect" not in theme.LOGO_MARK, "le signe s'est remis un fond"
     figees = set(COULEUR.findall(theme.LOGO_MARK))
-    assert figees <= {theme.ORANGE}, f"couleur figée inattendue : {figees}"
+    assert not figees, f"couleur figée inattendue : {figees}"
 
 
 def test_le_favicon_porte_ses_couleurs_car_il_na_rien_a_heriter():
@@ -233,20 +229,20 @@ def test_le_wordmark_suit_le_theme_au_lieu_de_porter_son_fond():
     assert "<img" not in theme.WORDMARK, (
         "un raster ne suit aucun thème — le wordmark doit rester en SVG inline")
     assert "currentColor" in theme.WORDMARK, "les lettres doivent hériter du texte"
-    # Plus de plaque du tout : les lettres sont peintes en direct et le fond de
-    # la page se voit à travers le trou des deux anneaux. C'est plus fort que
+    # Plus de plaque du tout : le lockup est peint en direct et le fond de
+    # la page se voit à travers ses ouvertures. C'est plus fort que
     # l'ancienne garantie, qui creusait les lettres dans une bannière.
     assert "<rect" not in theme.WORDMARK, "le wordmark s'est remis un fond"
     figees = set(COULEUR.findall(theme.WORDMARK))
-    assert figees <= {theme.ORANGE}, f"couleur figée dans le wordmark : {figees}"
-    assert theme.WORDMARK in theme.page(title="t", description="d", body=""), (
-        "le wordmark n'est pas servi dans la page")
+    assert not figees, f"couleur figée dans le wordmark : {figees}"
+    assert theme.NAV_WORDMARK in theme.page(title="t", description="d", body=""), (
+        "le wordmark compact n'est pas servi dans la page")
 
 
 @pytest.mark.parametrize("theme_nom", ["clair", "sombre"])
 def test_le_wordmark_reste_lisible_dans_les_deux_themes(theme_nom):
-    """Les lettres prennent `--ink` sur la page : c'est ce couple qui porte la
-    lecture du mot, l'anneau n'étant qu'un accent de marque. Il doit donc
+    """Le lockup prend `--ink` sur la page : c'est ce couple qui porte la
+    lecture du mot. Il doit donc
     tenir dans les DEUX thèmes, sans quoi le logo pâlit d'un côté."""
     palette = _blocs()[theme_nom]
     lettres = contraste(palette["ink"], palette["bg"])
@@ -264,7 +260,7 @@ def test_les_traces_de_marque_ne_portent_aucune_couleur():
     from monl_platform import brand
     source = pathlib.Path(brand.__file__).read_text(encoding="utf-8")
     assert not COULEUR.findall(source), COULEUR.findall(source)
-    for nom in ("LETTRES", "ANNEAU", "MARQUE_ANNEAU", "MARQUE_O"):
+    for nom in ("WORDMARK_PATH", "NAV_MARK_PATH", "NAV_TEXT_PATH", "MARK_PATH"):
         assert getattr(brand, nom).startswith("M"), f"{nom} n'est pas un tracé"
     assert isinstance(brand.VUE, tuple) and len(brand.VUE) == 2, (
         "VUE porte le viewBox du mot : sans elle, theme.py le devinerait")
@@ -294,7 +290,7 @@ def test_les_images_raster_ne_derivent_pas_de_la_marque():
     gardait l'ancienne icône de son cache, qui « réapparaissait » sans que le
     serveur y soit pour rien.
 
-    Fabriqué DEPUIS `brand.MARQUE_ANNEAU` / `brand.MARQUE_O`, jamais
+    Fabriqué DEPUIS `brand.MARK_PATH`, jamais
     recopié d'un PNG :
     un `.ico` recopié dériverait le jour où la marque change, en silence. Le
     test régénère et compare, comme le fichier de marque du point 156 — qui

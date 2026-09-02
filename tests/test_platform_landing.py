@@ -157,7 +157,7 @@ def test_la_pastille_de_marque_garde_sa_couleur_d_encre():
 def test_la_marque_se_lit_monl_compiler(platform):
     reponse = requests.get(platform, timeout=10)
 
-    assert 'aria-label="Monl compiler"' in reponse.text
+    assert 'aria-label="MONL"' in reponse.text
 
 
 def test_aucune_couleur_n_est_ecrite_hors_du_theme():

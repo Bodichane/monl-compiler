@@ -52,6 +52,6 @@ ce que le compilateur garantit de ce qui reste sous la responsabilité du déplo
 <div style="margin-top:var(--space-5)"><a class="primary" href="/docs#acces">Lire les règles de sécurité {icon('arrow')}</a></div></section>
 """
 
-SECURITY_HTML = page(title="Sécurité — monl compiler",
+SECURITY_HTML = page(title="Sécurité — MONL",
     description="Garanties, preuves et limites de sécurité du compilateur Monl.",
     body=BODY, active="security", extra_css=EXTRA_CSS)
