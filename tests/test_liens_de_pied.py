@@ -176,7 +176,7 @@ def test_le_brief_dit_quoi_mettre_dans_le_pied_de_page(tmp_path):
     with contextlib.redirect_stdout(io.StringIO()):
         compile_project(str(spec), str(tmp_path))
 
-    brief = (tmp_path / "DESIGN_SYSTEM.md").read_text(encoding="utf-8")
+    brief = (tmp_path / "docs/DESIGN_SYSTEM.md").read_text(encoding="utf-8")
 
     assert "## Pied de page" in brief
     assert "https://instagram.com/atelier" in brief

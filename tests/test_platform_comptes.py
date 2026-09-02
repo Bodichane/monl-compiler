@@ -4,8 +4,6 @@ import importlib
 import sqlite3
 import uuid
 
-import pytest
-
 from monl_platform.identity import IdentityStore
 from monl_platform.store import PlatformStore
 
@@ -44,21 +42,36 @@ def test_la_suppression_identite_cascade_le_projet(tmp_path):
         assert db.execute("PRAGMA foreign_keys").fetchone()[0] == 1
 
 
-def test_le_slug_est_unique_par_compte_et_non_global(tmp_path):
+def test_le_slug_est_unique_GLOBALEMENT_et_les_homonymes_sont_ecartes(tmp_path):
+    """L'adresse est un SOUS-DOMAINE : son unicité ne peut pas être par compte.
+
+    Ce témoin exigeait l'inverse, et c'était le défaut. Deux comptes pouvaient
+    porter « boutique » ; après quoi `project_for_host` refusait de servir les
+    DEUX (« l'hôte désigne plusieurs projets »), donc un inconnu rendait votre
+    site injoignable rien qu'en le nommant comme le vôtre. Et sur un MÊME
+    compte, le second nom identique sortait en 500.
+
+    Le détail des deux défauts est dans tests/test_projets_homonymes.py ; ce
+    qu'on garde ici, c'est que chaque compte continue de ne voir que les siens.
+    """
     identity = IdentityStore(tmp_path)
     platform = PlatformStore(tmp_path)
     alice = identity.register("alice@example.test", "MotDePasse-123")
     bob = identity.register("bob@example.test", "MotDePasse-123")
 
-    _projet(identity, platform, alice, "boutique")
-    _projet(identity, platform, bob, "boutique")
+    premier = _projet(identity, platform, alice, "boutique")
+    vole = _projet(identity, platform, bob, "boutique")
 
     duplicate_id = uuid.uuid4().hex
     identity.add_project(alice["id"], duplicate_id, "Deuxième boutique")
-    with pytest.raises(sqlite3.IntegrityError):
-        platform.create_project(alice["id"], duplicate_id, "BOUTIQUE")
+    troisieme = platform.create_project(alice["id"], duplicate_id, "BOUTIQUE")
 
-    assert len(platform.list_projects(alice["id"])) == 1
+    assert platform.get_project(premier)["slug"] == "boutique", (
+        "le premier a perdu l'adresse que son nom annonce")
+    assert platform.get_project(vole)["slug"] == "boutique-2"
+    assert troisieme == "boutique-3"
+
+    assert len(platform.list_projects(alice["id"])) == 2
     assert len(platform.list_projects(bob["id"])) == 1
 
 

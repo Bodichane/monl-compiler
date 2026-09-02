@@ -92,6 +92,8 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [172bis](#172bis-une-borne-de-disque-se-tient-à-chaque-instant-pas-seulement-à-la-fin) Une borne de disque se tient à chaque instant ·
 [173](#173-trois-briques-que-le-dialogue-nécrivait-pas--et-une-photo-que-personne-ne-voyait) Trois briques sans producteur, et la photo que personne ne voyait ·
 [174](#174-la-mémoire-du-projet-ignorait-des-briques-et-un-garde-fou-la-rend-vivante) La mémoire du projet ignorait des briques, et un garde-fou la rend vivante ·
+[175](#175-un-fichier-vide-quon-ne-peut-pas-enlever-et-une-adresse-quun-inconnu-vous-prend) Un fichier vide qu'on ne peut pas enlever, et une adresse volée ·
+[176](#176-une-archive-se-lit--docs-pour-ce-qui-se-lit-la-racine-pour-ce-qui-sexécute) Une archive se lit : docs/ pour ce qui se lit, la racine pour ce qui s'exécute ·
 [177](#177-le-logo-monochrome-remplace-lorange--et-un-témoin-nommait-le-mauvais-signe) Le logo monochrome remplace l'orange, et un témoin nommait le mauvais signe ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
@@ -12680,6 +12682,116 @@ serveur restent la seule preuve. Et une nouvelle syntaxe doit entrer dans une
 production Lark pour être couverte : les commentaires et exemples de la
 grammaire sont écartés, sinon un nom d'illustration deviendrait un mot-clé.
 
+## 175. Un fichier vide qu'on ne peut pas enlever, et une adresse qu'un inconnu vous prend
+
+Deux défauts trouvés sur une archive RÉELLEMENT téléchargée et une console
+RÉELLEMENT remplie, pas en relisant le code.
+
+**(a) `sandbox_ai.py` était livré à tout le monde.** Le fichier faisait UNE
+ligne — un commentaire — `app.py` l'importait en tête sans jamais en appeler
+quoi que ce soit, et le supprimer faisait échouer le démarrage sur
+`ModuleNotFoundError`. Soit un fichier qui ne fait rien et qu'on ne peut pas
+enlever, au milieu d'une archive que l'usager ouvre et doit comprendre. C'est
+**le point 85 retourné** : là-bas une règle déclarée ne produisait rien, ici un
+fichier vide portait le démarrage par accident. L'import était écrit en dur
+dans `runtime_socle.py`, sans jamais regarder si la spec avait un bloc `custom`.
+
+La règle a **une source unique** (`sans_sandbox`, `artifacts.py`) parce que DEUX
+couches décident de publier le module — la génération et la ligne de commande —
+et que deux mises en œuvre d'une même règle finissent toujours par diverger.
+**Les deux sens sont éprouvés** (`tests/test_bloc_custom_absent.py`) : sans la
+contre-épreuve, ne plus JAMAIS émettre le module rendrait le fichier de tests
+vert tout en tuant la brique `custom`. Et la preuve qui compte n'est pas une
+recherche de chaîne mais un `import app` dans un interpréteur séparé — une
+chaîne absente ne distingue pas un import retiré d'un import déplacé.
+
+**(b) Un homonyme rendait votre site injoignable.** Le slug — l'adresse
+d'hébergement — était dérivé du seul NOM de l'application, sans jamais vérifier
+qu'il était libre. MÊME compte : `IntegrityError` sur `UNIQUE(user_id, slug)`,
+que `_ensure_builder_project` n'attrapait pas, donc **500** — trois lignes
+« AtelierVitrine » dans la console et deux projets qui ne démarreraient jamais.
+DEUX comptes : accepté en silence, puis `project_for_host` refusant de servir
+**les deux** en disant « désigne plusieurs projets ». La recherche par slug est
+GLOBALE — c'est un sous-domaine, elle ne peut pas être par compte.
+
+Le remède est le même pour les deux : le slug est choisi LIBRE à la création,
+**sous le verrou du magasin**, et l'unicité est tenue par un INDEX plutôt que
+par une vérification applicative — une vérification laisse passer deux écritures
+concurrentes qui lisent toutes les deux « libre », un index non. Le PREMIER
+garde l'adresse que son nom annonce : c'est lui qui est déjà en ligne, et la lui
+retirer casserait un site qui marche. Les bases ANTÉRIEURES portent déjà des
+doublons — l'index ne peut pas s'y créer, et refuser de démarrer immobiliserait
+un service qui fonctionne : ils sont **COMPTÉS et NOMMÉS** au démarrage, jamais
+réécrits en silence (point 89 mot pour mot ; renommer changerait l'adresse d'un
+site déjà en ligne).
+
+**CE QUE LE TÉMOIN A TROUVÉ DANS LE CORRECTIF, et c'est la leçon.** La requête
+de liberté portait bien `COLLATE NOCASE`… et le résultat était comparé en Python
+par un `in` sur un ensemble, donc **sensible à la casse**. Une ligne antérieure
+écrite `myOwn` était remontée par la requête, puis jugée différente de `myown` :
+deux projets pour un seul hôte, c'est-à-dire le défaut (b) intact sur les bases
+déjà en service. Mesuré rouge, puis vert. *Replier la casse d'un seul côté d'une
+comparaison ne replie rien* — et c'est la SÉLECTION qui avait l'air de porter la
+garantie.
+
+**Trois témoins ont dû être renversés**, tous nommés d'après le comportement
+qu'on vient de corriger : `test_le_slug_est_unique_par_compte_et_non_global`
+exigeait précisément le défaut (b), et deux autres exigeaient l'`IntegrityError`
+du défaut (a). Ils sont réécrits vers le nouvel invariant, jamais affaiblis —
+et là où un décompte d'artefacts passe de 16 à 15, le fichier retiré est NOMMÉ :
+*un décompte qu'on ajuste sans dire ce qu'on enlève ne garde plus rien.*
+
+## 176. Une archive se lit : `docs/` pour ce qui se lit, la racine pour ce qui s'exécute
+
+Trois défauts constatés sur une archive RÉELLEMENT téléchargée, aucun visible
+depuis le dépôt : ils ne vivent pas dans ce que le compilateur produit, mais
+dans ce que quelqu'un REÇOIT. Point 164 d'un cran de plus.
+
+**(a) Quinze fichiers à plat**, sans rien pour distinguer ce qu'on LANCE de ce
+qu'on LIT. Les quatre documents destinés à l'IA d'interface — le brief et la
+direction visuelle — partent dans `docs/`. **Le contrat JSON reste à la
+racine**, et c'est la seule exception qui compte : c'est l'interface MACHINE du
+projet, celle qu'un outil ouvre sans rien connaître de l'arborescence, et vingt
+modules du compilateur la nomment.
+
+**(b) La mémoire du projet s'appelait `CLAUDE.md`.** Le frontend peut être
+écrit par claude-code, codex ou gemini (point 69) : un fichier nommé d'après un
+seul agent est un fichier que les deux autres ne lisent pas. C'est `AGENTS.md`.
+
+**(c) Aucun `README.md`**, alors que la page d'accueil de la plateforme en
+promet un dans son aperçu d'arborescence — `landing.py` l'affiche, personne ne
+le produisait. Le témoin ne se contente pas de vérifier qu'il PARLE de
+démarrage : la commande qu'il donne est EXÉCUTÉE et l'application doit se
+charger. Point 163 appliqué à de la documentation — « présent » n'est pas
+« exact », et un README qui décrit un autre dossier est pire qu'absent.
+
+**CE QUI SE JOUE DANS LE DÉPLACEMENT, et c'est tout le point.** Écrire au
+nouvel emplacement sans bouger l'ancien produirait DEUX vérités, dont une
+périmée — et c'est la périmée qu'un agent lirait, puisqu'elle est à la racine.
+C'est exactement le reproche fait à `sandbox_ai.py` au point 175. On DÉPLACE
+donc, une seule fois, avant toute autre chose. **L'ordre EST la garantie** : la
+copie préservée va chercher les documents dans `docs/` ; ranger après elle
+ferait remplacer un `DESIGN_SPEC.md` retouché à la main par un document tout
+neuf, c'est-à-dire effacer du travail humain en silence.
+
+Le renommage porte, lui, la règle inverse : un `CLAUDE.md` **sans notre
+marqueur** appartient à l'utilisateur et n'est JAMAIS touché. Le renommer
+déplacerait son texte sous un nom que monl écrase à la compilation suivante —
+sa mémoire disparaîtrait à retardement, ce qui est pire qu'un écrasement
+immédiat parce qu'on ne peut pas le relier à son geste.
+
+**LA LISTE DES ANCIENS EMPLACEMENTS EST ÉCRITE EN TOUTES LETTRES**, jamais
+dérivée des constantes courantes : un « ancien emplacement » décrit le PASSÉ,
+il ne peut pas se déduire du présent. C'est mot pour mot la leçon des
+Dockerfiles hérités (point 164), et la dériver ferait cesser la migration de
+reconnaître ce qu'elle doit déplacer le jour où les chemins rebougent.
+
+**CE QUE LA SUITE A TROUVÉ, et c'est l'argument pour la lancer entière.** Les
+six témoins neufs passaient ; la suite complète a rendu **40 échecs** —
+quarante endroits où un chemin était écrit en dur, plus les empreintes golden
+et le sommaire du journal. Aucun n'était devinable en relisant le correctif.
+Un déplacement de fichier est un changement d'interface : il se prouve comme
+tel.
 ## 177. Le logo monochrome remplace l'orange — et un témoin nommait le mauvais signe
 
 Le logo retenu est le signe monochrome : un noyau stable entouré de quatre

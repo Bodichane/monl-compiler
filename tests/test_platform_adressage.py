@@ -62,12 +62,49 @@ def test_l_hote_envoye_par_un_navigateur_designe_le_projet(store, tmp_path):
 
 
 def test_deux_casses_du_meme_nom_ne_font_pas_deux_adresses(store):
+    """« myOwn » et « MYOWN » visent le même hôte : le second doit s'écarter.
+
+    Ce témoin exigeait autrefois une `IntegrityError` ici. C'était le défaut :
+    le second projet ne pouvait jamais être créé et l'erreur sortait en 500.
+    Il reçoit désormais une adresse LIBRE. L'invariant que ce fichier garde est
+    INCHANGÉ — une différence de casse ne fabrique pas deux fois la même
+    adresse — seule l'issue change : on écarte au lieu de refuser.
+    """
     user_id, _first = _compte_et_projet(store, "a@monl.test", "myOwn")
     second = uuid.uuid4().hex
     IdentityStore(store.workspace).add_project(user_id, second, "autre")
 
-    with pytest.raises(sqlite3.IntegrityError):
-        store.create_project(user_id, second, "MYOWN")
+    retenu = store.create_project(user_id, second, "MYOWN")
+
+    assert retenu == "myown-2", (
+        f"la casse a refabriqué une adresse déjà prise : {retenu!r}")
+    assert len(store.list_projects_by_slug("myown")) == 1, (
+        "l'hôte myown désigne deux projets : il ne serait plus servi du tout")
+
+
+def test_une_adresse_deja_en_majuscules_est_vue_comme_prise(store):
+    """La recherche d'adresse libre ignore la casse EN BASE, pas seulement
+    celle qu'on lui passe.
+
+    `create_project` range son argument en minuscules avant tout : la
+    comparaison sans casse ne serait donc jamais mise à l'épreuve par l'appel.
+    C'est une ligne ANTÉRIEURE, écrite du temps où le slug gardait sa
+    majuscule, qui l'éprouve — le cas réel du témoin
+    `test_un_projet_deja_en_base_avec_une_majuscule_reste_joignable`.
+    """
+    user_id, premier = _compte_et_projet(store, "a@monl.test", "provisoire")
+    raw = sqlite3.connect(store.database)
+    raw.execute("UPDATE builder_projects SET slug = 'myOwn' WHERE project_id = ?",
+                (premier,))
+    raw.commit()
+    raw.close()
+
+    second = uuid.uuid4().hex
+    IdentityStore(store.workspace).add_project(user_id, second, "autre")
+    retenu = store.create_project(user_id, second, "myown")
+
+    assert retenu == "myown-2", (
+        f"la ligne 'myOwn' n'a pas été vue comme prise : {retenu!r}")
 
 
 def test_la_forme_canonique_est_nommee_et_partagee():

@@ -273,7 +273,9 @@ def test_un_journal_absent_est_un_usage_nul(tmp_path):
 def test_la_voie_agent_aussi_est_identifiee(monkeypatch, tmp_path):
     project = tmp_path / "projet"
     project.mkdir()
-    (project / frontend_ai.PROMPT_FILENAME).write_text("brief", encoding="utf-8")
+    brief = project / frontend_ai.PROMPT_FILENAME
+    brief.parent.mkdir(parents=True, exist_ok=True)
+    brief.write_text("brief", encoding="utf-8")
     (project / "frontend").mkdir()
     (project / "frontend" / "index.html").write_text("<html></html>", encoding="utf-8")
     fingerprints = iter([{"avant": "1"}, {"apres": "2"}])

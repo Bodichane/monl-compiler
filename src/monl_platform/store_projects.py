@@ -28,14 +28,57 @@ class StoreProjectsMixin:
         if not isinstance(generate_images, bool):
             raise ValueError("generate_images doit être un booléen")
         routes = self._normalize_model_routes(model_routes)
+        # Le slug est choisi LIBRE, sous le verrou, et l'écriture suit
+        # immédiatement : une vérification faite hors du verrou laisserait deux
+        # appels simultanés lire « libre » tous les deux. L'index global de
+        # `store_core` refuse la collision même si ce chemin est contourné.
         with self._lock, self._connect() as db:
+            slug = self._slug_libre(db, slug)
             db.execute(
                 "INSERT INTO builder_projects(project_id, user_id, slug, created_at, "
                 "model_routes, generate_images) VALUES (?, ?, ?, ?, ?, ?)",
                 (project_id, user_id, slug, _now(), json.dumps(routes, sort_keys=True),
                  int(generate_images)),
             )
-            return project_id
+            return slug
+
+    #: Au-delà, on refuse plutôt que de boucler : un nom qui a déjà cent
+    #: homonymes est le signe d'autre chose qu'un usage normal.
+    HOMONYMES_MAX = 100
+
+    @staticmethod
+    def _slug_libre(db, base):
+        """La première adresse libre : `nom`, puis `nom-2`, `nom-3`…
+
+        Le PREMIER projet garde l'adresse que son nom annonce — c'est celui
+        qui était déjà en ligne, et la lui retirer casserait un site qui
+        marche. Ce sont les suivants qui portent le suffixe.
+
+        L'adresse est un sous-domaine, donc l'unicité est GLOBALE et non par
+        compte : sans cela, un inconnu qui nomme son projet comme le vôtre
+        rendait les deux injoignables (`project_for_host` refuse de servir
+        quand deux projets répondent au même hôte, et il a raison de refuser).
+        """
+        # `.lower()` n'est pas redondant avec le `COLLATE NOCASE` : celui-ci
+        # gouverne la SÉLECTION, le repli ci-dessous gouverne la COMPARAISON en
+        # Python. Sans lui, une ligne ANTÉRIEURE écrite « myOwn » — du temps où
+        # le slug gardait sa casse — était bien remontée par la requête, puis
+        # jugée différente de « myown » : deux projets pour un seul hôte, donc
+        # `project_for_host` refusant de servir les deux. C'est le défaut (b)
+        # survivant sur les bases déjà en service, trouvé par un témoin et non
+        # par relecture. Replier d'un seul côté d'une comparaison ne replie rien.
+        prise = {ligne["slug"].lower() for ligne in db.execute(
+            "SELECT slug FROM builder_projects WHERE slug = ? COLLATE NOCASE "
+            "OR slug LIKE ? COLLATE NOCASE", (base, f"{base}-%"))}
+        if base not in prise:
+            return base
+        for rang in range(2, StoreProjectsMixin.HOMONYMES_MAX + 1):
+            candidat = f"{base}-{rang}"
+            if candidat not in prise:
+                return candidat
+        raise ValueError(
+            f"trop de projets portent l'adresse '{base}' "
+            f"({StoreProjectsMixin.HOMONYMES_MAX} au plus)")
 
     def discard_project(self, user_id, project_id):
         """Supprime un projet tout juste créé si son initialisation échoue.

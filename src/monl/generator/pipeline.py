@@ -7,7 +7,7 @@ partagée entre la génération FastAPI et le contrat frontend
 import os
 import secrets
 
-from ..artifacts import copy_preserved_files, publish_files, staging_directory
+from ..artifacts import copy_preserved_files, publish_files, sans_sandbox, staging_directory
 from ..ir import CompilationPlans, RoutePlan
 
 # Colonnes de suivi ajoutées par la brique 'payable' (point 74). Jamais
@@ -18,6 +18,7 @@ from ..ir import CompilationPlans, RoutePlan
 # occasions de le faire dériver.
 BACKEND_ARTIFACTS = ("app.py", "schema.sql", "sandbox_ai.py", "manage.py",
                      ".jwt_secret")
+
 
 
 
@@ -74,13 +75,21 @@ class PipelineMixin:
 
                 with open(sql_path, "w", encoding="utf-8") as f: f.write(sql_content)
                 with open(api_path, "w", encoding="utf-8") as f: f.write(api_content)
-                with open(sandbox_path, "w", encoding="utf-8") as f: f.write(sandbox_content)
+                if self.custom_functions:
+                    with open(sandbox_path, "w", encoding="utf-8") as f: f.write(sandbox_content)
                 with open(manage_path, "w", encoding="utf-8") as f: f.write(manage_content)
             finally:
                 self.output_dir = target_dir
-            publish_files(temporary, target_dir, BACKEND_ARTIFACTS)
+            # `publish_files` exige que tout nom listé EXISTE : la condition
+            # doit donc porter sur la liste, pas seulement sur l'écriture.
+            publie = (BACKEND_ARTIFACTS if self.custom_functions
+                      else sans_sandbox(BACKEND_ARTIFACTS))
+            publish_files(temporary, target_dir, publie)
 
-        print("💾 Socle généré : 'schema.sql', 'app.py', 'sandbox_ai.py' et 'manage.py' sont prêts !")
+        produits = "'schema.sql', 'app.py' et 'manage.py'"
+        if self.custom_functions:
+            produits = "'schema.sql', 'app.py', 'sandbox_ai.py' et 'manage.py'"
+        print(f"💾 Socle généré : {produits} sont prêts !")
         if not self.self_register_actors:
             print("🔒 Aucun rôle en inscription libre : créez le premier compte avec "
                   "'python3 manage.py adduser <utilisateur> <role>'.")

@@ -167,7 +167,7 @@ def test_le_contrat_et_le_brief_portent_la_liste(tmp_path, capsys):
     champ = next(f for f in contrat["entities"]["Commande"]["fields"]
                  if f["name"] == "statut")
     assert champ["allowed_values"] == ["panier", "en préparation", "expédiée", "livrée"]
-    brief = (tmp_path / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    brief = (tmp_path / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     assert "MENU DÉROULANT" in brief
     assert "« en préparation »" in brief
 
@@ -180,7 +180,7 @@ def test_sans_regle_aucune_liste_dans_le_contrat(tmp_path, capsys):
     assert not any(f.get("allowed_values")
                    for f in contrat["entities"]["Commande"]["fields"])
     assert "MENU DÉROULANT" not in (
-        tmp_path / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+        tmp_path / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
 
 
 def test_le_delta_signale_une_liste_qui_change(tmp_path, capsys):

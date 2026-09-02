@@ -45,9 +45,16 @@ GOLDENS = {
     # manage.py bougent, plus monl.json qui scelle l'empreinte du backend.
     # schema.sql, le contrat, le brief, le wrapper et le conteneur restent à
     # l'octet près : la correction ne touche que l'identifiant de compte.
-    "app.py": "9c7059778a626958de2077296b791a228c264ac4bfa008d30dc9f81e9292d140",
+    "app.py": "e491ae6745289f831695da4b8f8257c9131b12f8c44292981335807420338b94",
     "schema.sql": "244eb93ba9a727aa855bca0a96d76b2a329f8ee69c6b5bf2ba693d4c6eacba1f",
-    "sandbox_ai.py": "53bcf473618c141b6df5b9326c540984d16b3fa2c64b7ed7787003b5da019c07",
+    # `sandbox_ai.py` SORT des empreintes, et ce n'est pas un relâchement : la
+    # spec de banc n'a aucun bloc `custom`, donc le module n'est plus produit.
+    # Il ne contenait qu'un commentaire, `app.py` l'importait sans jamais
+    # l'appeler, et le supprimer faisait échouer le démarrage — un fichier qui
+    # ne fait rien et qu'on ne peut pas enlever. Son absence est AFFIRMÉE
+    # ci-dessous plutôt que simplement cessée d'être regardée, et sa présence
+    # avec un bloc `custom` est gardée par `tests/test_bloc_custom_absent.py`.
+    # app.py perd donc sa ligne d'import : son empreinte change avec.
     "manage.py": "bc1529315536d6f9599efe8635d10b87827abc180b7d1dd77d793fc1f3d1f37f",
     # POINT 133 : le Dockerfile lançait `app:app`, donc l'image servait l'API
     # et répondait 404 sur /site et sur les photos — le wrapper qui les monte
@@ -97,8 +104,18 @@ GOLDENS = {
     # inline, puis la carte exécutable des marqueurs obligatoires : cette
     # empreinte change volontairement avec ces règles, tandis que les artefacts
     # backend restent inchangés à l'octet.
-    "FRONTEND_PROMPT.md": "062fa3c243c3a3da3d2133c2a5c45db9d5653d14626ae836ffe51131915685d3",
-    "CLAUDE.md": "ebf07f5ca26ffa6bf8571ca6e0379afc31978b600b2cecd2ffe330719495183f",
+    # POINT 176 : les documents partent dans `docs/` et la mémoire du projet
+    # s'appelle AGENTS.md. Le brief change d'empreinte pour une raison de FOND
+    # et pas seulement d'emplacement — il dit à l'IA où trouver la direction
+    # visuelle, donc il devait apprendre les nouveaux chemins. `README.md`
+    # entre ici parce qu'il est livré : un artefact que personne ne regarde
+    # peut changer sans qu'on le sache, même argument que requirements.txt.
+    # LE CONTRÔLE DE PORTÉE : app.py, schema.sql, manage.py, serve.py, le
+    # contrat, le Dockerfile et monl.json restent identiques à l'octet — un
+    # rangement de fichiers ne touche rien de ce que le backend FAIT.
+    "docs/FRONTEND_PROMPT.md": "3b3226c932f1139b2b247a1e689aea91b0a3076a2384f6ddcb02e78918d82f80",
+    "AGENTS.md": "391c122e231bba4634597f498965767fd6427e734e50b9c17c747bd27d80c8a1",
+    "README.md": "e325fa18c21c24dda20c8e56c1829dce44db91dbc7f0e494b7c3eeb437cf79b1",
     # Revue A2 : manage.py NOMME le remède au lieu de laisser filer une
     # trace quand la base attend une migration. app.py ne bouge PAS —
     # la preuve que le correctif ne touche que la commande d'administration.
@@ -109,7 +126,7 @@ GOLDENS = {
     # cotes et doit etre recalculee. Reprendre l'une des deux donnerait un test
     # qui passe sans rien prouver. Tous les autres artefacts restent identiques
     # a l'octet, trois fois de suite : c'est ce que ce test est la pour tenir.
-    "monl.json": "3e2d592af8640a251644f229e33ce42376f259cda838f16cd340a9ddcb909c89",
+    "monl.json": "a5fc35baa4753f368110cf99b95a8d71cbf3de242326396216528e2ed629fd20",
 }
 
 
@@ -127,7 +144,22 @@ def test_une_recompilation_garde_les_artefacts_deterministes(tmp_path, capsys):
     compile_project(str(spec), str(tmp_path))
     capsys.readouterr()
     assert _empreintes(tmp_path) == GOLDENS
+    _aucun_module_custom_inutile(tmp_path)
 
     compile_project(str(spec), str(tmp_path))
     capsys.readouterr()
     assert _empreintes(tmp_path) == GOLDENS
+    _aucun_module_custom_inutile(tmp_path)
+
+
+def _aucun_module_custom_inutile(project_dir: Path):
+    """Retirer une empreinte n'AFFIRME rien — cesser de regarder n'est pas une
+    garantie. La spec de banc n'ayant aucun bloc `custom`, l'absence du module
+    est le résultat attendu, et c'est elle qu'on mesure.
+
+    Sa PRÉSENCE quand un bloc `custom` existe est gardée ailleurs
+    (`tests/test_bloc_custom_absent.py`) : sans cette contre-épreuve, ne plus
+    jamais l'émettre rendrait les deux fichiers verts en tuant la brique.
+    """
+    assert not (project_dir / "sandbox_ai.py").exists(), (
+        "un module 'custom' vide est livré alors que la spec n'en déclare aucun")

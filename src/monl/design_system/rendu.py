@@ -275,6 +275,7 @@ spécifique écrit par l'auteur.
     for name, written in ((DESIGN_SPEC_FILENAME, design_spec_written),
                           (ASSET_MANIFEST_FILENAME, manifest_written)):
         if not written and not (staging / name).exists() and (project / name).exists():
+            (staging / name).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(project / name, staging / name)
     return {
         DESIGN_SYSTEM_FILENAME: design_system,

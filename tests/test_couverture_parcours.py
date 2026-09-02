@@ -216,7 +216,7 @@ def test_un_chemin_fetch_irreductible_ne_declenche_rien(tmp_path):
 
 def test_le_brief_enonce_le_plancher_des_workflows(tmp_path):
     project, _contract = _project(tmp_path)
-    brief = (project / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    brief = (project / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
 
     assert "PLANCHER DE PARCOURS" in brief
     assert "workflows déclarés par la spec" in brief
@@ -232,7 +232,7 @@ def test_le_brief_interdit_les_images_locales_hors_manifeste_et_nomme_svg_en_lig
     # reformatage sans qu'aucune règle n'ait bougé. On compare donc sur les
     # espaces normalisés, ce qui laisse le sens comme seul invariant.
     brief = " ".join(
-        (project / "FRONTEND_PROMPT.md").read_text(encoding="utf-8").split())
+        (project / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8").split())
 
     assert "INTERDICTION EXPLICITE" in brief
     assert (
@@ -245,8 +245,8 @@ def test_le_brief_interdit_les_images_locales_hors_manifeste_et_nomme_svg_en_lig
 
 def test_le_brief_enumere_les_marqueurs_avec_fichier_et_bloc(tmp_path):
     project, _contract = _visual_project(tmp_path)
-    brief = (project / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
-    manifest_lines = (project / "ASSET_MANIFEST.json").read_text(
+    brief = (project / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    manifest_lines = (project / "docs/ASSET_MANIFEST.json").read_text(
         encoding="utf-8").splitlines()
     manifest = json.loads("\n".join(manifest_lines[1:]))
     markers = manifest["required_markers"]["index.html"]
@@ -264,7 +264,7 @@ def test_le_brief_enumere_les_marqueurs_avec_fichier_et_bloc(tmp_path):
 
 def test_un_projet_sans_marqueur_ne_declenche_pas_une_liste_visuelle_vide(tmp_path):
     project, _contract = _project(tmp_path)
-    brief = (project / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    brief = (project / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
 
     assert "Marqueurs visuels obligatoires — fichier et bloc exacts" not in brief
 

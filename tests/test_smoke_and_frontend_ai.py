@@ -486,7 +486,7 @@ open("app.py", "a").write("\\n# intrusion\\n")
 
 
 def test_claude_md_de_projet_genere_et_jamais_ecrase(project):
-    claude_md = project / "CLAUDE.md"
+    claude_md = project / "AGENTS.md"
     assert claude_md.exists()
     assert PROJECT_CLAUDE_MD_MARKER in claude_md.read_text(encoding="utf-8")
     # Repris en main par l'utilisateur (marqueur retiré) -> intouchable.
