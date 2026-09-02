@@ -16,12 +16,14 @@ refuse cette dépendance partout ailleurs.
 """
 
 import pathlib
-import re
 import sys
 
-from PIL import Image, ImageChops, ImageDraw
+from PIL import Image, ImageDraw
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "src"))
+
+from tracage import rendre as _masque
 
 from monl_platform.brand import MARK_PATH, VUE, WORDMARK_PATH
 
@@ -35,60 +37,7 @@ FOND = (46, 43, 37)      # --brand
 ENCRE = (249, 244, 237)  # --on-brand
 PAPIER = (23, 21, 18)    # --bg sombre, pour la carte de partage
 RAYON = 11               # le même que le <rect rx> de LOGO_SVG
-SEGMENTS = 16            # découpe d'une quadratique en segments
 
-
-
-def _sous_chemins(chemin, echelle, decalage=(0, 0)):
-    """Aplatit chaque sous-chemin en une liste de points.
-
-    Les tracés n'emploient que M, L, Q et Z. Toute autre commande fait échouer
-    plutôt que d'être ignorée : un chemin à moitié rendu produirait une image
-    fausse mais plausible, ce qui est pire qu'une erreur.
-    """
-    dx, dy = decalage
-    courant, position = [], (0.0, 0.0)
-    for commande, corps in re.findall(r"([MLQZ])([^MLQZ]*)", chemin):
-        valeurs = [float(n) * echelle for n in re.findall(r"-?\d*\.?\d+", corps)]
-        if commande == "Z":
-            continue
-        if commande == "M":
-            if courant:
-                yield courant
-            courant = []
-        if commande in ("M", "L"):
-            if len(valeurs) != 2:
-                raise ValueError(f"{commande} attend 2 nombres, reçu {len(valeurs)}")
-            position = (valeurs[0], valeurs[1])
-            courant.append((position[0] + dx, position[1] + dy))
-        elif commande == "Q":
-            if len(valeurs) != 4:
-                raise ValueError(f"Q attend 4 nombres, reçu {len(valeurs)}")
-            (x0, y0), (cx, cy), (x1, y1) = position, valeurs[:2], valeurs[2:]
-            for pas in range(1, SEGMENTS + 1):
-                t = pas / SEGMENTS
-                u = 1 - t
-                courant.append((u * u * x0 + 2 * u * t * cx + t * t * x1 + dx,
-                                u * u * y0 + 2 * u * t * cy + t * t * y1 + dy))
-            position = (x1, y1)
-    if courant:
-        yield courant
-
-
-def _masque(chemin, taille, echelle, decalage=(0, 0)):
-    """Rend un tracé en OU EXCLUSIF : c'est la règle `evenodd`.
-
-    Empilés, les sous-chemins rempliraient les contre-formes des lettres et
-    les ouvertures du signe.
-    """
-    rendu = Image.new("1", taille, 0)
-    for points in _sous_chemins(chemin, echelle, decalage):
-        if len(points) < 3:
-            continue
-        couche = Image.new("1", taille, 0)
-        ImageDraw.Draw(couche).polygon(points, fill=1, outline=1)
-        rendu = ImageChops.logical_xor(rendu, couche)
-    return rendu
 
 
 def _poser_mot(image, echelle, decalage, encre):

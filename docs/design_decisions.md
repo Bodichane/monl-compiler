@@ -12721,15 +12721,45 @@ toutes lettres dans le texte d'accueil (« un réseau pour compiler »). L'intit
 d'un lien, c'est son `aria-label` et rien d'autre — chercher un mot dans la page
 entière mesurait le contenu éditorial. Retirée, avec la raison écrite à côté.
 
-**CE QUI N'EST PAS FERMÉ, et c'est écrit plutôt que tu.** Le point 157 avait
-posé un garde-fou dans `outils/vectoriser_logo.py` : refuser d'écrire si le
-tracé re-rasterisé s'écartait de plus de 6 % du dessin d'origine. La réécriture
-de l'outil l'a **retiré**, et rien ne l'a remplacé — vérifié par lecture du
-fichier, aucune tolérance n'y subsiste. Les témoins existants gardent la
-COHÉRENCE entre artefacts (les rasters ne dérivent pas de la marque, point
-158ter) mais jamais la FIDÉLITÉ au dessin fourni. Une tentative de quantifier
-l'écart est restée NON CONCLUANTE : l'encre du PNG source fait 1676 × 492
-(rapport 3,407) quand la vue du tracé fait 1667 × 438 (rapport 3,806), et je
-n'ai pas su reconstituer le cadrage exact de l'outil — donc aucun chiffre n'est
-avancé ici. *Une mesure qu'on ne peut pas soutenir ne s'écrit pas ; le fait
-qu'on a vérifié, si.*
+**LE GARDE-FOU DE FIDÉLITÉ, PERDU PUIS RESTAURÉ.** Le point 157 avait posé
+dans `outils/vectoriser_logo.py` un refus d'écrire si le tracé re-rasterisé
+s'écartait de plus de 6 % du dessin d'origine. La réécriture de l'outil pour le
+logo monochrome l'avait **retiré**, et rien ne l'avait remplacé : plus rien ne
+garantissait qu'un tracé RESSEMBLE au dessin fourni. C'est la forme la plus
+sournoise de régression — l'outil marche, il produit un fichier, et il a cessé
+de vérifier.
+
+**LE PIÈGE DE CADRAGE, mesuré en s'y laissant prendre.** Une première tentative
+de quantifier l'écart annonçait **234 %** sur un logo parfaitement fidèle. Cause
+: l'outil seuille le canal alpha à `ALPHA_MIN = 96` AVANT de recadrer, quand un
+`getbbox()` nu retient le moindre pixel d'antialiasing — soit une emprise de
+1676 × 492 au lieu de 1667 × 438, deux cadrages différents comparés l'un à
+l'autre. **Le seuil fait partie de la mesure.** Au bon cadrage, les écarts réels
+sont de 3,23 % (lockup), 2,47 % (signe de nav) et 2,55 % (texte de nav) : le
+seuil de 6 % du point 157 tient sans qu'on touche au dessin. C'est la troisième
+fois qu'une mesure de marque porte sur autre chose que ce qu'on croit mesurer
+(points 157, 158ter) — et cette fois le chiffre était si absurde qu'il s'est
+dénoncé lui-même, ce qui n'est pas une méthode.
+
+**UN SEUL RASTERISEUR, parce que le second sert à VÉRIFIER le premier.** `rendre`
+descend dans `tracage.py`, la feuille du paquet : l'outil qui fabrique les
+images et celui qui vectorise doivent rendre exactement la même chose, sinon le
+contrôle mesurerait l'écart entre deux rasteriseurs. Preuve que le déplacement
+est neutre : les trois images raster régénérées sont **identiques à l'octet**,
+et `brand.py` réécrit ne produit aucun diff.
+
+**DEUX GARDE-FOUS, ET CE N'EST PAS UN DOUBLON.** L'outil REFUSE D'ÉCRIRE
+au-delà de la tolérance — contre-épreuve : `EPSILON` porté de 2,2 à 30 donne
+51,22 % d'écart, refus, et `brand.py` reste intact (le contrôle vit AVANT
+l'écriture ; placé après, il laisserait sur le disque le tracé qu'il vient de
+déclarer faux). Et `test_les_traces_ressemblent_au_dessin_fourni` refuse d'en
+GARDER un — contre-épreuve : lockup remplacé par le tracé de nav, 56,07 %,
+rouge. L'outil ne tourne que le jour où quelqu'un re-vectorise ; le témoin
+tourne à chaque exécution de la suite.
+
+**Ce que ce témoin garde et qu'aucun autre ne gardait** : tous les autres
+comparent les artefacts ENTRE EUX — les rasters ne dérivent pas de la marque,
+la feuille dessine le même signe que le fichier. Ils resteraient donc VERTS sur
+un logo faux, pourvu qu'il soit faux partout de la même façon. Seule la
+confrontation au PNG fourni par l'humain dit si le tracé ressemble à ce qu'on a
+demandé.
