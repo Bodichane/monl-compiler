@@ -97,6 +97,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [177](#177-le-logo-monochrome-remplace-lorange--et-un-témoin-nommait-le-mauvais-signe) Le logo monochrome remplace l'orange, et un témoin nommait le mauvais signe ·
 [178](#178-la-page-daccueil-affirmait-une-vérification-qui-nexistait-pas) La page d'accueil affirmait une vérification qui n'existait pas ·
 [179](#179-required-disait--présent--jamais--rempli---et-le-dialogue-sen-contentait) `required` disait « présent », jamais « rempli » ·
+[180](#180-une-limite-annoncée-se-périme-comme-une-brique--la-table-du-guide-disait-faux) Une limite annoncée se périme comme une brique ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -13004,3 +13005,79 @@ par son propre témoin, plutôt qu'élargie en silence (arbitrage du point 83).
 Éprouvé par `tests/test_champ_texte_non_vide.py` (9 témoins, vrai serveur).
 56 règles ajoutées sur les dix modèles, dans les deux sens du dialogue ; les six
 `min 1` préexistants sont sur des quantités et n'ont pas bougé.
+## 180. Une limite ANNONCÉE se périme comme une brique — la table du guide disait faux
+
+Né d'une question du mainteneur — « les limites relevées dans le guide ne
+sont-elles pas déjà fermées ? » — pas d'une relecture. La réponse est **une sur
+quatre**, et c'est celle qui comptait.
+
+La table « Ce que cette plateforme ne fait pas » annonçait **« Aucun
+téléversement »**. Mesuré contre la plateforme en marche : une spec portant un
+champ `Upload` **compile en 201**, et le backend produit reçoit de vrais
+fichiers depuis la brique 32 (point 121) — le dialogue guidé l'écrit même tout
+seul depuis le point 173. La page disait donc impossible ce que le produit
+faisait, et un lecteur en concluait que monl ne sait pas prendre de fichier.
+
+**La limite RÉELLE existe, elle est juste ailleurs** : ce qui manque, c'est de
+déposer un fichier **AVANT** la compilation — un bloc `assets`, ou une valeur
+`Image` dans un `seed`. Mesuré aussi : un champ `Image` **seul** compile (il
+déclare un TYPE, pas un chemin) ; c'est la VALEUR qui est vérifiée. La table
+disait « un champ `Image` est refusé » : faux dans les deux sens à la fois.
+Les trois autres lignes tiennent (rétention 30 jours, isolation des
+compilations, secret hors archive — archive de 17 fichiers vérifiée).
+
+**LA CINQUIÈME AFFIRMATION, hors tableau.** Le guide finissait sur
+`pip install monl-compiler`. Le paquet **n'est publié sur aucun index** — 404
+sur PyPI, et le point 167 l'écrit noir sur blanc. La commande donnée au lecteur
+échoue. Le README portait la même faute sur `pip install 'monl-compiler[ai]'`,
+et `examples.py` la même affirmation périmée sur le téléversement : **trois
+fichiers, une seule idée fausse**, exactement la forme du point 164 (la page
+`/mcp` annonçant quatre outils inexistants) et du point 178 (la carte d'accueil
+et ses trois chiffres).
+
+**LE TÉMOIN NE RELIT PAS LA TABLE, IL MESURE LE COMPILATEUR.**
+`tests/test_limites_du_guide.py` compile quatre specs par le chemin de la
+plateforme (`base_dir` connu, donc l'existence est vraiment vérifiée) :
+`Upload` passe, `Image` seul passe, un `assets` absent est refusé, une valeur
+`Image` absente est refusée. **Le lien est DÉRIVÉ** — la spec `Upload` est
+compilée d'abord, et c'est parce qu'elle passe qu'aucune ligne de la table n'a
+le droit de nier le téléversement. Recopier la phrase attendue ne mesurerait
+que ma propre recopie (point 167bis).
+
+**DISTINGUER UN NOM D'INDEX D'UN CHEMIN ne se fait pas par un motif à trous.**
+Mon premier témoin cherchait le nom de la distribution dans la ligne : il a
+dénoncé `pip install ./monl-compiler`, qui est précisément le remède. On isole
+chaque argument, on retire l'extra `[ai]`, et on compare au nom **LU dans
+`pyproject.toml`** — un chemin porte une barre oblique, donc il ne peut pas
+être égal au nom.
+
+**LIMITE ÉNONCÉE** : le témoin ne peut pas vérifier que le paquet est absent de
+PyPI, la suite ne faisant aucun appel réseau. Il garde la cohérence entre ce
+qu'on montre et ce que le dépôt permet ; le jour de la publication, c'est lui
+qui rappellera de revisiter ces lignes. Même arbitrage qu'au point 169 pour la
+poignée de main OIDC : prouver tout le prouvable hors ligne, et **nommer** ce
+qui ne l'est pas.
+
+**Et le compilateur m'a corrigé trois fois en écrivant la spec du banc** : un
+`Upload` exige un workflow `Update`, puis une ACL sur cet `Update` — « pour
+qu'un fichier ne soit pas lisible par simple connaissance de son chemin ». Un
+refus qui enseigne vaut mieux qu'une compilation qui laisse passer.
+
+Éprouvé par `tests/test_limites_du_guide.py` (9 témoins), avec sa
+contre-épreuve : les trois fautes d'origine remises en place font rougir
+exactement quatre témoins, et les quatre mesures du compilateur restent vertes
+— elles mesurent le code, qui n'a pas changé.
+
+**DEUX GARDE-FOUS DU DÉPÔT ONT MORDU EN ÉCRIVANT CE BANC**, et c'est le
+meilleur signe qu'ils servent. (a) Une phrase FIGÉE vivait dans
+`test_platform_web.py` : `assert "Aucun téléversement" in page.text`. Elle
+demandait que la limite soit SERVIE — intention juste — mais en recopiant son
+intitulé, donc elle a survécu à la brique qui l'avait rendue fausse et
+exigeait de servir une contrevérité. Les intitulés sont désormais LUS dans
+`LIMITES` : le test garde son intention et perd son littéral. (b)
+`test_aucun_test_n_importe_en_tete_un_module_absent_de_la_version_minimale` a
+refusé mon `import tomllib` de tête — entré en 3.11, minimum déclaré 3.10, et
+c'est la COLLECTE du fichier entier qui aurait échoué sur cette version. Le
+dépôt portait déjà le motif (repli sur `tomli`, dans la fonction) ; je ne
+l'avais pas cherché. *Un garde-fou qui rougit sur le travail de son auteur est
+un garde-fou qui a été écrit pour la bonne raison.*

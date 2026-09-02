@@ -22,6 +22,7 @@ import os
 
 import requests
 
+from monl_platform.guide_data import LIMITES
 from tests.support.server import uvicorn_server
 from tests.test_platform_service import SPEC
 
@@ -232,9 +233,12 @@ def test_le_guide_est_servi_et_couvre_ses_sections(tmp_path):
         for ancre in ('id="frontiere"', 'id="demarrer"', 'id="dsl"',
                       'id="api"', 'id="mcp"', 'id="limites"'):
             assert ancre in page.text, ancre
-        # La limite la plus surprenante doit être ÉNONCÉE, pas découverte en
-        # collant une spec qui déclare un logo.
-        assert "Aucun téléversement" in page.text
+        # Les limites doivent être ÉNONCÉES, pas découvertes en collant une
+        # spec qui déclare un logo. Les intitulés sont LUS dans la table et
+        # jamais recopiés ici : la phrase figée qui vivait à cette ligne a
+        # survécu à la brique qui l'avait rendue fausse (point 180).
+        for titre, _texte in LIMITES:
+            assert titre in page.text, titre
 
 
 def test_les_exemples_sont_servis_et_compilent_par_lapi(tmp_path):
