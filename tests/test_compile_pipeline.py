@@ -46,13 +46,17 @@ def test_compile_project_ne_parse_et_ne_valide_quune_fois(tmp_path, monkeypatch)
     for artefact in (
         "app.py",
         "schema.sql",
-        "sandbox_ai.py",
         "manage.py",
         "frontend_contract.json",
         "FRONTEND_PROMPT.md",
         "monl.json",
     ):
         assert (tmp_path / artefact).is_file()
+    # `sandbox_ai.py` a quitté cette liste : SPEC n'a aucun bloc `custom`, donc
+    # le module n'est plus émis (voir tests/test_bloc_custom_absent.py). On
+    # affirme son ABSENCE plutôt que de cesser de le regarder — une liste dont
+    # on retire un nom ne dit plus rien de ce nom.
+    assert not (tmp_path / "sandbox_ai.py").exists()
 
 
 def test_compile_monl_retourne_le_modele_utilise_pour_generer(tmp_path):

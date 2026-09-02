@@ -103,6 +103,11 @@ def test_chaque_exemple_compile_vraiment(tmp_path):
         fichiers = set(manifeste["files"])
         assert {"app.py", "schema.sql", "frontend_contract.json"} <= fichiers, exemple["id"]
         assert ".jwt_secret" not in fichiers, exemple["id"]
+        # Le décompte est passé de 16 à 15 : aucun exemple ne porte de bloc
+        # `custom`, donc aucun ne reçoit plus `sandbox_ai.py`. On NOMME le
+        # fichier retiré — un décompte qu'on ajuste sans dire ce qu'on enlève
+        # ne garde plus rien.
+        assert "sandbox_ai.py" not in fichiers, exemple["id"]
 
 
 def test_aucun_exemple_ne_declare_dasset(tmp_path):

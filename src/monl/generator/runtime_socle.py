@@ -74,7 +74,13 @@ class SocleRuntimeMixin:
             "import urllib.parse",
             "import urllib.request",
             "import urllib.error",
-            "import sandbox_ai  # Fonctions 'custom' écrites à la main (module isolé)\n",
+            # L'import ne s'écrit QUE si la spec porte des blocs `custom`.
+            # Écrit en dur, il rendait `sandbox_ai.py` obligatoire pour tout
+            # projet : un fichier d'UNE ligne, jamais appelé, et dont la
+            # suppression faisait échouer le démarrage sur `ModuleNotFoundError`
+            # — un fichier qui ne fait rien et qu'on ne peut pas enlever.
+            *(["import sandbox_ai  # Fonctions 'custom' écrites à la main (module isolé)\n"]
+              if self.custom_functions else []),
             "from contextlib import asynccontextmanager\n",
             "DB_FILE = 'app.db'\n",
             # A1 : le moteur est un choix de DÉMARRAGE, jamais de compilation.

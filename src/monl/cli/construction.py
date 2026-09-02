@@ -5,7 +5,7 @@ import os
 import re
 import sys
 
-from ..artifacts import copy_preserved_files, publish_files, staging_directory
+from ..artifacts import copy_preserved_files, publish_files, sans_sandbox, staging_directory
 from ..design_system import (
     ASSET_MANIFEST_FILENAME,
     DESIGN_SPEC_FILENAME,
@@ -61,6 +61,8 @@ def compile_project(spec_path, project_dir, base_dir=None, save_state=True):
             emplacement._save_state(temporary, spec_rel, spec_source_path=spec_abs)
         artefacts = nomenclature.PROJECT_ARTEFACTS if save_state else tuple(
             name for name in nomenclature.PROJECT_ARTEFACTS if name != nomenclature.STATE_FILENAME)
+        if not compilation.ir.get("sandbox_ai", {}).get("custom_functions"):
+            artefacts = sans_sandbox(artefacts)
         publish_files(temporary, proj_abs, artefacts)
 
     print(f" -> Contrat frontend      : {CONTRACT_FILENAME} + {PROMPT_FILENAME}")

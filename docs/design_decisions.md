@@ -12678,3 +12678,62 @@ référence la satisfait. Elle ne dit rien du comportement — les tests contre
 serveur restent la seule preuve. Et une nouvelle syntaxe doit entrer dans une
 production Lark pour être couverte : les commentaires et exemples de la
 grammaire sont écartés, sinon un nom d'illustration deviendrait un mot-clé.
+
+## 175. Un fichier vide qu'on ne peut pas enlever, et une adresse qu'un inconnu vous prend
+
+Deux défauts trouvés sur une archive RÉELLEMENT téléchargée et une console
+RÉELLEMENT remplie, pas en relisant le code.
+
+**(a) `sandbox_ai.py` était livré à tout le monde.** Le fichier faisait UNE
+ligne — un commentaire — `app.py` l'importait en tête sans jamais en appeler
+quoi que ce soit, et le supprimer faisait échouer le démarrage sur
+`ModuleNotFoundError`. Soit un fichier qui ne fait rien et qu'on ne peut pas
+enlever, au milieu d'une archive que l'usager ouvre et doit comprendre. C'est
+**le point 85 retourné** : là-bas une règle déclarée ne produisait rien, ici un
+fichier vide portait le démarrage par accident. L'import était écrit en dur
+dans `runtime_socle.py`, sans jamais regarder si la spec avait un bloc `custom`.
+
+La règle a **une source unique** (`sans_sandbox`, `artifacts.py`) parce que DEUX
+couches décident de publier le module — la génération et la ligne de commande —
+et que deux mises en œuvre d'une même règle finissent toujours par diverger.
+**Les deux sens sont éprouvés** (`tests/test_bloc_custom_absent.py`) : sans la
+contre-épreuve, ne plus JAMAIS émettre le module rendrait le fichier de tests
+vert tout en tuant la brique `custom`. Et la preuve qui compte n'est pas une
+recherche de chaîne mais un `import app` dans un interpréteur séparé — une
+chaîne absente ne distingue pas un import retiré d'un import déplacé.
+
+**(b) Un homonyme rendait votre site injoignable.** Le slug — l'adresse
+d'hébergement — était dérivé du seul NOM de l'application, sans jamais vérifier
+qu'il était libre. MÊME compte : `IntegrityError` sur `UNIQUE(user_id, slug)`,
+que `_ensure_builder_project` n'attrapait pas, donc **500** — trois lignes
+« AtelierVitrine » dans la console et deux projets qui ne démarreraient jamais.
+DEUX comptes : accepté en silence, puis `project_for_host` refusant de servir
+**les deux** en disant « désigne plusieurs projets ». La recherche par slug est
+GLOBALE — c'est un sous-domaine, elle ne peut pas être par compte.
+
+Le remède est le même pour les deux : le slug est choisi LIBRE à la création,
+**sous le verrou du magasin**, et l'unicité est tenue par un INDEX plutôt que
+par une vérification applicative — une vérification laisse passer deux écritures
+concurrentes qui lisent toutes les deux « libre », un index non. Le PREMIER
+garde l'adresse que son nom annonce : c'est lui qui est déjà en ligne, et la lui
+retirer casserait un site qui marche. Les bases ANTÉRIEURES portent déjà des
+doublons — l'index ne peut pas s'y créer, et refuser de démarrer immobiliserait
+un service qui fonctionne : ils sont **COMPTÉS et NOMMÉS** au démarrage, jamais
+réécrits en silence (point 89 mot pour mot ; renommer changerait l'adresse d'un
+site déjà en ligne).
+
+**CE QUE LE TÉMOIN A TROUVÉ DANS LE CORRECTIF, et c'est la leçon.** La requête
+de liberté portait bien `COLLATE NOCASE`… et le résultat était comparé en Python
+par un `in` sur un ensemble, donc **sensible à la casse**. Une ligne antérieure
+écrite `myOwn` était remontée par la requête, puis jugée différente de `myown` :
+deux projets pour un seul hôte, c'est-à-dire le défaut (b) intact sur les bases
+déjà en service. Mesuré rouge, puis vert. *Replier la casse d'un seul côté d'une
+comparaison ne replie rien* — et c'est la SÉLECTION qui avait l'air de porter la
+garantie.
+
+**Trois témoins ont dû être renversés**, tous nommés d'après le comportement
+qu'on vient de corriger : `test_le_slug_est_unique_par_compte_et_non_global`
+exigeait précisément le défaut (b), et deux autres exigeaient l'`IntegrityError`
+du défaut (a). Ils sont réécrits vers le nouvel invariant, jamais affaiblis —
+et là où un décompte d'artefacts passe de 16 à 15, le fichier retiré est NOMMÉ :
+*un décompte qu'on ajuste sans dire ce qu'on enlève ne garde plus rien.*

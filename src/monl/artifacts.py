@@ -56,6 +56,23 @@ def _replace(source: Path, destination: Path) -> None:
     os.replace(source, destination)
 
 
+#: Le module des blocs `custom`. Nommé ici parce que DEUX couches décident de
+#: le publier ou non — la génération et la ligne de commande — et que deux
+#: mises en œuvre d'une même règle finissent toujours par diverger.
+SANDBOX_FILENAME = "sandbox_ai.py"
+
+
+def sans_sandbox(noms):
+    """Retire le module `custom` d'une liste d'artefacts.
+
+    Un projet sans bloc `custom` n'en reçoit pas : le fichier ne contenait
+    qu'un commentaire, `app.py` l'importait sans jamais l'appeler, et le
+    supprimer faisait échouer le démarrage. Un fichier qui ne fait rien et
+    qu'on ne peut pas enlever n'a pas sa place dans une archive livrée.
+    """
+    return tuple(nom for nom in noms if nom != SANDBOX_FILENAME)
+
+
 def publish_files(staging_dir: str | os.PathLike[str],
                   target_dir: str | os.PathLike[str],
                   names: Iterable[str]) -> None:
