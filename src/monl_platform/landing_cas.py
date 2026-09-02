@@ -52,7 +52,9 @@ EXTRA_CSS = """
 .case-result { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
 .case-result b { display:block; color:var(--ink); font:700 18px var(--mono); }
 .case-result span { color:var(--muted); font-size:10px; }
-.case-open { display:inline-flex; align-items:center; gap:6px; margin-top:24px; color:var(--ink); font-size:13px; font-weight:650; }
+.case-open { display:inline-flex; align-items:center; gap:6px; margin-top:24px; color:var(--ink); font-size:13px; font-weight:650; text-decoration-thickness:1px; text-underline-offset:4px; }
+.case-open .icon{transition:transform .16s cubic-bezier(.2,.8,.2,1)}
+@media (hover:hover){.case-open:hover .icon{transform:translateX(3px)}.case-tab:hover{background:color-mix(in srgb,var(--surface) 72%,transparent)}}
 @keyframes case-in { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:none; } }
 @media(max-width:760px){
   .case-tabs { border-right:0; border-bottom:1px solid var(--line); display:flex; overflow-x:auto; }
@@ -67,6 +69,7 @@ EXTRA_CSS = """
      103 pixels de large, clippé par l'`overflow:hidden` de la carte. */
   .case-explorer { grid-template-columns:1fr; min-height:0; }
 }
+@media(prefers-reduced-motion:reduce){.case-repere,.case-open .icon{transition:none}.case-panel.active{animation:none}}
 """
 
 

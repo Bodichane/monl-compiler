@@ -39,7 +39,7 @@ EXTRA_CSS = """
 .studio { display: grid; grid-template-columns: 232px minmax(0, 1fr);
           border: 1px solid var(--line); border-radius: var(--radius-lg);
           overflow: hidden; background: var(--surface); box-shadow: var(--shadow); }
-.rail { background: var(--surface-2); border-right: 1px solid var(--line); padding: var(--space-4) var(--space-3); }
+.rail { position:relative; background: var(--surface-2); border-right: 1px solid var(--line); padding: var(--space-4) var(--space-3); }
 .rail-title { font: 600 11px var(--mono); letter-spacing: .1em; text-transform: uppercase;
               color: var(--muted); margin: 0 10px var(--space-3); }
 .rail button { width: 100%; border: 0; background: transparent; text-align: left;
@@ -47,7 +47,7 @@ EXTRA_CSS = """
                display: flex; gap: 10px; align-items: center; min-height: 44px;
                transition: background .18s ease, color .18s ease; }
 .rail button:hover { color: var(--ink); }
-.rail button.active { background: var(--surface); color: var(--ink); font-weight: 600; }
+.rail button.active { background:transparent; color:var(--ink); font-weight:600; box-shadow:inset 2px 0 0 var(--brand); }
 .rail .num { width: 22px; height: 22px; border-radius: 7px; border: 1px solid var(--line);
              display: grid; place-items: center; font: 11px var(--mono); flex: none; }
 .workspace { padding: var(--space-6); min-width: 0; }
@@ -197,6 +197,7 @@ kbd { font: 11px var(--mono); border: 1px solid var(--line); border-bottom-width
   .dialogue-form { align-items: stretch; flex-direction: column; }
   .dialogue-choices { grid-template-columns: 1fr; }
 }
+@media(prefers-reduced-motion:reduce){.panel.active{animation:none}}
 """
 
 # La SPEC passe par le coloriseur ; les lignes de résultat gardent leurs

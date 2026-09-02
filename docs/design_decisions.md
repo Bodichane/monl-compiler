@@ -93,6 +93,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [173](#173-trois-briques-que-le-dialogue-nécrivait-pas--et-une-photo-que-personne-ne-voyait) Trois briques sans producteur, et la photo que personne ne voyait ·
 [174](#174-la-mémoire-du-projet-ignorait-des-briques-et-un-garde-fou-la-rend-vivante) La mémoire du projet ignorait des briques, et un garde-fou la rend vivante ·
 [177](#177-le-logo-monochrome-remplace-lorange--et-un-témoin-nommait-le-mauvais-signe) Le logo monochrome remplace l'orange, et un témoin nommait le mauvais signe ·
+[178](#178-la-page-daccueil-affirmait-une-vérification-qui-nexistait-pas) La page d'accueil affirmait une vérification qui n'existait pas ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -12733,3 +12734,59 @@ l'écart est restée NON CONCLUANTE : l'encre du PNG source fait 1676 × 492
 n'ai pas su reconstituer le cadrage exact de l'outil — donc aucun chiffre n'est
 avancé ici. *Une mesure qu'on ne peut pas soutenir ne s'écrit pas ; le fait
 qu'on a vérifié, si.*
+
+## 178. La page d'accueil affirmait une vérification qui n'existait pas
+
+Constaté à l'œil sur le site en marche, pas en relisant : la carte
+« PetiteBoutique » de l'accueil annonçait **3 entités, 17 routes, 12 fichiers**
+et listait une arborescence de `backend/` se terminant par `README.md`. Elle
+écrivait juste au-dessus, en toutes lettres : « les métriques ci-dessous sont
+vérifiées en recompilant la spec dans les tests ».
+
+**Quatre choses fausses.** Aucun test ne compilait cette spec. `PetiteBoutique`
+n'existait nulle part dans le code — les trois chiffres étaient de simples
+affirmations. Le fragment affiché ne *pouvait pas* compiler (ni `app`, ni
+`actor`, ni `workflow`), ce qui, sur la page d'accueil d'un compilateur, est le
+pire endroit possible pour ce défaut. Et sur les trois nombres, **deux étaient
+faux** : 14 routes mesurées pour 17 annoncées, 15 fichiers pour 12. Le
+`README.md` promis, lui, n'était produit par aucune compilation.
+
+C'est le point 164 — la page `/mcp` annonçait quatre outils inexistants parce
+que la liste était écrite à la main — mais d'un cran au-dessus : ici la page
+**revendiquait** la vérification qui lui manquait. *Une affirmation de
+vérification est une affirmation comme une autre : elle se vérifie.*
+
+**Le remède est celui du point 164, appliqué à la lettre** :
+`landing_vitrine.py` porte la VRAIE spec, celle qui compile, et cinq témoins la
+recompilent pour confronter chaque chiffre et chaque nom de fichier de
+l'arborescence au résultat réel. Écrire un nom dans la carte ne suffit plus à le
+faire exister. Contre-épreuves : remettre « 17 routes » ou « README.md » fait
+rougir.
+
+**L'extrait affiché est DÉCOUPÉ dans la spec, jamais recopié à côté** — deux
+textes à tenir d'accord divergent toujours. Et le découpage se fait par ce que
+les lignes CONCERNENT (le bloc d'entité et ses règles) plutôt que par des bornes
+de position : un numéro de ligne se décale à la première règle ajoutée, en
+silence, et l'extrait montrerait alors autre chose. La fonction ÉCHOUE si elle
+ne trouve ni champ ni règle, plutôt que de rendre une chaîne vide — un cadre
+creux ressemble à un défaut de style, pas à une spec qui a changé de forme.
+
+Le `required` sur le multiplicateur n'est pas décoratif dans cette spec : le
+compilateur REFUSE `derivedFrom` sans lui (point 77), et il a refusé la première
+version. La page montre donc exactement ce qu'elle promet — une règle
+incohérente ne passe pas.
+
+**CE QUE LA VÉRIFICATION DE LA BRANCHE A TROUVÉ D'AUTRE.** Une cible tactile de
+`/docs` à 40 px pour 44 exigés (le témoin du point 156 l'a nommée). Et six
+imports que `ruff` donnait pour **morts** dans `guide.py` : ils ne l'étaient
+pas. `docs_page.py` lisait ces constantes **à travers** `guide`, qui n'était
+plus qu'un tuyau — les retirer a cassé la page à l'import. *Un signalement
+d'import inutilisé décrit le fichier, pas le programme :* la réexportation
+portait une autre page. Elles se lisent désormais dans `guide_data`, leur
+source, et le tuyau a disparu.
+
+**Et le plafond du point 155 a mordu** : `console_script.py` passait à 405
+lignes. Exception ÉCRITE plutôt que seuil relevé — 402 de ses 405 lignes vivent
+dans une seule chaîne, le script servi à la console ; le couper en deux
+constantes recollées à l'émission multiplierait les frontières d'échappement,
+celles-là même qui ont tué deux pages au point 163.

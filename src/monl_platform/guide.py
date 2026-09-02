@@ -6,17 +6,7 @@ symbols are re-exported here for existing consumers and synchronization tests.
 
 from __future__ import annotations
 
-from .guide_data import (
-    CONTENU,
-    LIMITES,
-    OUTILS_MCP,
-    REGLES_ACCES,
-    REGLES_CHAMPS,
-    REGLES_COMMERCE,
-    REGLES_SERVEUR,
-    ROUTES_API,
-    TYPES,
-)
+from .guide_data import LIMITES, OUTILS_MCP, ROUTES_API
 from .guide_template import EXTRA_CSS, SCRIPT, SPEC_EXEMPLE
 from .theme import page
 
@@ -33,9 +23,6 @@ def _tableau(entetes: tuple[str, str], lignes: list[tuple[str, str]]) -> str:
 
 def _sections() -> list[tuple[str, str, str, str]]:
     """(ancre, titre court, compteur affiché, contenu HTML)."""
-    types = "".join(
-        f"<tr><td><code>{nom}</code></td><td>{quoi}</td></tr>" for nom, quoi in TYPES
-    )
     routes = "".join(
         f'<tr><td><span class="method">{verbe}</span> <code>{chemin}</code></td>'
         f"<td>{quoi}</td></tr>"
@@ -48,15 +35,31 @@ def _sections() -> list[tuple[str, str, str, str]]:
         f"<tr><td><b>{titre}</b></td><td>{texte}</td></tr>" for titre, texte in LIMITES
     )
     return [
-        ("frontiere", "La frontière", "", """
-<h2>Ce que monl compile, et ce qu'il ne fait pas</h2>
-<p class="lede">Monl transforme une intention métier explicite en backend cohérent.
-Il n'a aucun avis sur votre interface, et il n'en produit aucune.</p>
-<p>Vous décrivez des <b>entités</b>, des <b>acteurs</b> et des <b>règles</b>. Le
-compilateur en dérive le schéma SQL, les routes, l'authentification, le contrôle
-d'accès au niveau de l'enregistrement — et un <b>contrat frontend</b> qui décrit
-ce que le backend fait vraiment. Une IA, une équipe ou un client mobile
-construisent l'interface contre ce contrat.</p>
+        ("frontiere", "Ce que Monl produit", "", """
+<h2>Monl compile le backend. L’interface est une étape séparée.</h2>
+<p class="lede">Vous écrivez les règles du métier. La compilation produit une API,
+une base de données et des garanties serveur. Elle ne rend ni ne sert un site.</p>
+<div class="boundary" aria-label="Ce que Monl compile et ce qu'il laisse à l'interface">
+<article><span class="step-no">VOUS ÉCRIVEZ</span><h3>Une spec métier</h3>
+<p>Entités, acteurs, relations, droits et invariants.</p></article>
+<article><span class="step-no">MONL COMPILE</span><h3>Un backend vérifiable</h3>
+<p>SQL, API, authentification et contrôle d’accès par enregistrement.</p></article>
+<article><span class="step-no">ÉTAPE OPTIONNELLE</span><h3>Une interface est générée ou écrite</h3>
+<p>Votre équipe ou <code>monl frontend</code> utilise le contrat et les briefs fournis.</p></article>
+</div>
+<h3>Contrat, brief et interface : trois choses différentes</h3>
+<p>Le <code>frontend_contract.json</code> est une description lisible par une IA,
+une équipe web ou une application mobile. Il ne contient ni HTML, ni React, ni
+navigation. Il répond simplement à la question : <i>« quelles
+opérations cette interface a-t-elle vraiment le droit d’appeler ? »</i></p>
+<p><code>FRONTEND_PROMPT.md</code>, <code>DESIGN_SYSTEM.md</code>,
+<code>DESIGN_SPEC.md</code> et <code>ASSET_MANIFEST.json</code> sont des
+instructions et ressources pour cette étape UI. Un <code>DESIGN_SPEC.md</code>
+écrit par l’auteur est prioritaire. Ils ne sont pas l’interface elle-même.</p>
+<p>Si vous lancez <code>monl frontend</code>, un agent IA écrit l’interface dans
+<code>frontend/</code>, puis Monl la contrôle contre le contrat. Vous pouvez tout
+aussi bien faire écrire cette interface par votre équipe ou par une application
+mobile : le backend, lui, reste le même.</p>
 <div class="note"><p><b>Rien n'est deviné.</b> Le dialogue, la validation et la
 génération sont entièrement déterministes : même spec, mêmes octets. Une règle
 sans effet est refusée à la compilation plutôt qu'ignorée en silence, et une
@@ -66,61 +69,57 @@ correspond laisse croire à une protection qui n'existe pas.</p></div>
 <ul>
 <li><code>app.py</code> — l'API FastAPI complète, comptes et sessions compris.</li>
 <li><code>schema.sql</code> — le schéma, avec ses index et ses clés étrangères.</li>
-<li><code>frontend_contract.json</code> et <code>FRONTEND_PROMPT.md</code> — le contrat, et le brief qui va avec.</li>
+<li><code>frontend_contract.json</code> — les routes, champs et droits réellement disponibles.</li>
+<li><code>FRONTEND_PROMPT.md</code> — un brief pour l’agent ou l’équipe qui construira l’interface.</li>
 <li><code>manage.py</code> — la création des comptes privilégiés, hors ligne.</li>
 <li><code>Dockerfile</code>, <code>serve.py</code> — de quoi le mettre en ligne.</li>
-<li><code>DESIGN_SYSTEM.md</code>, <code>DESIGN_SPEC.md</code> — le système de design
-et la direction retenue, pour que l'IA d'interface ne réinvente pas la palette.</li>
-<li><code>ASSET_MANIFEST.json</code> — ce que le site doit fournir, et qui sert de preuve.</li>
+<li><code>DESIGN_SYSTEM.md</code>, <code>DESIGN_SPEC.md</code> — les contraintes de
+composition et le cahier visuel utilisés lors d’une génération UI optionnelle.</li>
+<li><code>ASSET_MANIFEST.json</code> — les visuels attendus et leur contrôle lors de cette même étape.</li>
 </ul>"""),
 
-        ("demarrer", "Démarrer", "3 étapes", f"""
-<h2>Trois étapes</h2>
-<p class="lede">Depuis cette page, sans rien installer — en répondant au
-dialogue guidé ou en apportant votre spec.</p>
-<div class="steps">
-<article class="card step"><span class="step-no">01 / ÉCRIRE</span>
-<h3>Répondez ou partez d'un exemple</h3><p>Le panneau Dialogue guidé pose les
-mêmes questions que <code>monl</code>. Le studio propose aussi quatre specs
-réelles, du plus simple au plus complet.</p></article>
-<article class="card step"><span class="step-no">02 / VÉRIFIER</span>
-<h3>Validez</h3><p>Le vrai parseur et le vrai audit répondent. Les erreurs nomment
-la ligne et disent quoi corriger.</p></article>
-<article class="card step"><span class="step-no">03 / COMPILER</span>
-<h3>Récupérez l'archive</h3><p>Backend, schéma, contrat et instructions. Le secret
-JWT n'y est pas : il naît au premier démarrage, chez vous.</p></article>
-</div>
-<h3>Une spécification complète</h3>
+        ("demarrer", "Premier backend", "3 étapes", f"""
+<h2>Compilez d’abord un backend réel</h2>
+<p class="lede">Partez de cette spec complète, validez-la dans la console, puis
+récupérez une archive qui démarre localement. Chaque étape produit un résultat
+que vous pouvez contrôler.</p>
+<h3>1. Décrivez le métier</h3>
 <pre class="codeblock"><code>{SPEC_EXEMPLE}</code></pre>
-<h3>Puis, en local</h3>
+<p><a class="primary" href="/console">Ouvrir la console et compiler une spec</a></p>
+<h3>2. Vérifiez puis compilez</h3>
+<p>Le parseur et l’audit signalent les règles impossibles ou incomplètes. Si la
+spec est valide, l’archive contient l’API, le schéma SQL et le contrat qui
+décrit exactement ses capacités.</p>
+<h3>3. Lancez l’archive</h3>
 <pre class="codeblock"><code>unzip monl-backend-*.zip -d carnet &amp;&amp; cd carnet
 pip install -r requirements.txt
 python3 -m uvicorn app:app --port 8000
-<span class="cm"># la documentation OpenAPI du backend : http://127.0.0.1:8000/docs</span></code></pre>"""),
+<span class="cm"># la documentation OpenAPI du backend : http://127.0.0.1:8000/docs</span></code></pre>
+<h3>Facultatif : construire une interface ensuite</h3>
+<p>Une fois le backend démarré, vous pouvez garder votre propre interface ou
+demander à l’étape IA d’en construire une, séparément :</p>
+<pre class="codeblock"><code>cd carnet
+monl frontend . <span class="cm"># utilise FRONTEND_PROMPT.md et écrit frontend/</span></code></pre>
+<p>Cette commande nécessite un fournisseur IA configuré. Elle ne modifie pas la
+spec, le schéma, l’API ni le contrat.</p>"""),
 
-        ("dsl", "Référence DSL", f"{len(TYPES)} types", f"""
-<h2>Écrire une spécification</h2>
-<p class="lede">Cinq blocs suffisent : <code>app</code>, <code>entity</code>,
-<code>actor</code>, <code>relation</code>, <code>workflow</code>. Les
-<code>rule</code> ajoutent le comportement.</p>
-<h3>Les types de champ</h3>
-<div class="tablewrap"><table class="grid"><thead><tr><th>Type</th><th>Quand l'employer</th></tr></thead><tbody>{types}</tbody></table></div>
-<h3>Contrôle d'accès</h3>
-<p>Il s'exprime au niveau de l'enregistrement, <b>lecture comprise</b> — c'est
-là que le contrôle d'accès écrit à la main se trompe le plus souvent.</p>
-{_tableau(("Règle", "Effet"), REGLES_ACCES)}
-<h3>Contraintes de champ</h3>
-<p>Appliquées, pas seulement déclarées : elles répondent 422 ou 409 avant
-d'écrire quoi que ce soit.</p>
-{_tableau(("Règle", "Effet"), REGLES_CHAMPS)}
-<h3>Champs peuplés par le serveur</h3>
-<p>Tous disparaissent des corps de requête, création <b>et</b> modification.
-Un champ que le client peut écrire est un champ qu'il peut négocier.</p>
-{_tableau(("Règle", "Effet"), REGLES_SERVEUR)}
-<h3>Compteurs, stock et encaissement</h3>
-{_tableau(("Règle", "Effet"), REGLES_COMMERCE)}
-<h3>Contenu, comptes et démonstration</h3>
-{_tableau(("Bloc", "Rôle"), CONTENU)}"""),
+        ("dsl", "Lire la référence", "", """
+<h2>Quand utiliser la documentation du langage</h2>
+<p class="lede">Le guide vous accompagne pour créer et lancer un premier backend.
+La documentation est l’endroit où retrouver une syntaxe précise pendant que
+vous écrivez votre spec.</p>
+<div class="boundary" aria-label="Ce que contient la documentation du langage">
+<article><span class="step-no">STRUCTURE</span><h3>Les blocs</h3>
+<p><code>app</code>, <code>entity</code>, <code>actor</code>, <code>relation</code>,
+<code>workflow</code> et <code>rule</code>.</p></article>
+<article><span class="step-no">RÉFÉRENCE</span><h3>Les types et contraintes</h3>
+<p>Types de champ, validations, calculs serveur, compteurs et encaissement.</p></article>
+<article><span class="step-no">SÉCURITÉ</span><h3>Les droits réellement appliqués</h3>
+<p>Lecture, propriété, rôles et autorisations sont décrits à côté de leur syntaxe.</p></article>
+</div>
+<p><a class="primary" href="/docs">Ouvrir la référence de la spec</a></p>
+<p class="muted">Vous cherchez l’API de la plateforme ou le serveur MCP ? Les
+sections suivantes les documentent séparément.</p>"""),
 
         ("api", "API HTTP", f"{len(ROUTES_API)} routes", f"""
 <h2>L'API de la plateforme</h2>
@@ -205,8 +204,7 @@ def guide_html() -> str:
 </div>"""
     return page(
         title="Guide — MONL",
-        description="Écrire une spécification monl : types, règles d'accès, "
-                    "contraintes, API HTTP et serveur MCP.",
+        description="Tutoriel pour compiler un premier backend Monl, utiliser la plateforme et le serveur MCP.",
         body=body,
         active="guide",
         scripts=SCRIPT,

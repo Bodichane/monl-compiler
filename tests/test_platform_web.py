@@ -51,14 +51,14 @@ def test_page_explique_compile_et_mcp(tmp_path):
         session = _compte(base)
         page = requests.get(base + "/", timeout=30)
         assert page.status_code == 200
-        assert "Décrivez vos règles" in page.text
-        assert "Ce que vous allez faire" in page.text
-        assert "compilation vérifiée" in page.text
+        assert "Décrivez votre métier" in page.text
+        assert "Une compilation Monl" in page.text
+        assert "specification vérifiée" in page.text
         assert "scroll-progress" in page.text
-        assert "Votre infrastructure exécute. Monl décide ce qui est valide." in page.text
+        assert "Gardez votre infrastructure. Rendez le métier non négociable." in page.text
         assert "0</b><span>appel réseau pour compiler" in page.text
-        assert "Créer un backend" in page.text
-        assert "Une spec entre. Un backend complet sort" in page.text
+        assert "Essayer dans la console" in page.text
+        assert "Une règle claire devient un backend utilisable." in page.text
         # Le TITRE de la section, pas son accroche : les accroches ont été
         # retirées du site, et un test accroché à un ornement retient une
         # décoration au lieu du contenu.
@@ -66,7 +66,8 @@ def test_page_explique_compile_et_mcp(tmp_path):
         assert 'href="/security"' in page.text
         assert "Le même moteur pour les agents" in page.text
         assert 'href="/console"' in page.text
-        assert "Documentation développeur" in page.text
+        assert 'href="/console" target="_blank" rel="noopener"' in page.text
+        assert "Référence DSL" in page.text
         assert "Service opérationnel" in page.text
         assert 'id="spec-input"' not in page.text
 

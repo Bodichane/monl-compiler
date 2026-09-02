@@ -343,7 +343,19 @@ async function compiler() {
 
 /* ----- câblage ----- */
 $('#spec-input').addEventListener('input', compter);
-$$('.rail button').forEach(b => b.onclick = () => panneau(b.dataset.panel));
+$$('.rail button').forEach((b, index, boutons) => {
+  b.onclick = () => panneau(b.dataset.panel);
+  b.onkeydown = event => {
+    if (!['ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    let suivant = index;
+    if (event.key === 'Home') suivant = 0;
+    else if (event.key === 'End') suivant = boutons.length - 1;
+    else suivant = (index + (event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1 : -1) + boutons.length) % boutons.length;
+    panneau(boutons[suivant].dataset.panel);
+    boutons[suivant].focus();
+  };
+});
 $('#delivery-next').onclick = () => panneau('delivery');
 $('#contract-back').onclick = () => panneau('contract');
 $('#validate-btn').onclick = valider;

@@ -5,6 +5,7 @@ personne qui l'ignore avait la console en pleine figure, sans un mot sur le
 produit ni le moindre moyen de l'installer.
 """
 
+import json
 import pathlib
 import re
 import socket
@@ -15,7 +16,7 @@ import pytest
 import requests
 import uvicorn
 
-from monl_platform import brand
+from monl_platform import brand, landing_vitrine
 from monl_platform.app import create_app
 from monl_platform.landing import LANDING_HTML
 
@@ -75,7 +76,7 @@ def test_la_racine_presente_le_produit(platform):
     assert '<html lang="fr">' in reponse.text
     # Ce qu'une page produit doit dire : ce que c'est, et comment l'obtenir.
     assert "compilateur" in reponse.text.lower()
-    assert "Créer un backend" in reponse.text
+    assert "Essayer dans la console" in reponse.text
 
 
 def test_la_page_conduit_a_la_console(platform):
@@ -230,7 +231,7 @@ def test_la_demonstration_montre_de_vraies_sorties_de_compilation(platform):
     """
     page = requests.get(platform, timeout=10).text
 
-    assert "compilation vérifiée" in page
+    assert "specification vérifiée" in page
     # Les quatre exemples réellement compilés par les tests de la plateforme.
     for modele in ("Vitrine publique", "Carnet de rendez-vous",
                    "Boutique et paiement", "Fil communautaire"):
@@ -716,3 +717,126 @@ def test_la_barre_du_haut_est_opaque(platform):
     assert "transparent" not in corps, corps
     assert "backdrop-filter" not in corps, corps
     assert re.search(r"background:\s*var\(--bg\)", corps), corps
+
+
+# ---------------------------------------------------------------------------
+# La carte « PetiteBoutique » : ce qu'elle annonce, confronté à une VRAIE
+# compilation. La page écrit « les métriques ci-dessous sont vérifiées en
+# recompilant la spec dans les tests » — c'était faux : aucun test ne
+# compilait cette spec, `PetiteBoutique` n'existait nulle part dans le code,
+# le fragment affiché ne pouvait même pas compiler (ni `app`, ni `actor`, ni
+# `workflow`), et sur les trois chiffres DEUX étaient faux (17 routes
+# annoncées pour 14, 12 fichiers pour 15). L'arborescence promettait en outre
+# un `README.md` que le compilateur ne produisait pas.
+#
+# Défaut du point 164 — la page `/mcp` annonçait quatre outils inexistants
+# parce que la liste était écrite à la main — en pire : ici la page
+# revendiquait explicitement une vérification qui n'existait pas.
+# ---------------------------------------------------------------------------
+
+#: Ce qu'on ne compte pas comme « fichier livré » : la spec est l'ENTRÉE, le
+#: secret est fabriqué au premier démarrage, la base n'existe qu'à l'exécution.
+#: La règle est écrite ici plutôt que devinée — sans elle, le chiffre annoncé
+#: dépendrait de l'ordre dans lequel on a lancé le test.
+_HORS_ARCHIVE = {"spec.ml", ".jwt_secret"}
+
+
+def _archive_de_la_vitrine(dossier):
+    """Compile la spec de l'accueil et rend ce qu'un usager reçoit."""
+    from monl.cli import compile_project
+
+    spec = dossier / "spec.ml"
+    spec.write_text(landing_vitrine.SPEC_VITRINE, encoding="utf-8")
+    compile_project(str(spec), str(dossier))
+    fichiers = {
+        chemin.relative_to(dossier).as_posix()
+        for chemin in dossier.rglob("*")
+        if chemin.is_file() and chemin.name not in _HORS_ARCHIVE
+        and not chemin.name.endswith(".db")
+    }
+    routes = len(re.findall(r"^@app\.(?:get|post|put|delete|patch)\(",
+                            (dossier / "app.py").read_text(encoding="utf-8"), re.M))
+    contrat = json.loads((dossier / "frontend_contract.json").read_text(encoding="utf-8"))
+    return fichiers, routes, len(contrat["entities"])
+
+
+def test_la_spec_de_l_accueil_compile_vraiment(tmp_path):
+    """Le préalable : la spec MONTRÉE doit être une spec qui passe.
+
+    Celle d'avant était un fragment. Montrer sur la page d'accueil d'un
+    compilateur une spec qui ne compile pas est le pire endroit possible pour
+    ce défaut — c'est précisément ce que le produit promet de refuser.
+    """
+    fichiers, routes, entites = _archive_de_la_vitrine(tmp_path)
+
+    assert "app.py" in fichiers and "schema.sql" in fichiers
+    assert routes > 0 and entites > 0
+
+
+def test_les_chiffres_annonces_sont_ceux_de_la_compilation(tmp_path):
+    """Les trois nombres de la carte, confrontés au résultat réel."""
+    fichiers, routes, entites = _archive_de_la_vitrine(tmp_path)
+
+    assert entites == landing_vitrine.ENTITES, (
+        f"la carte annonce {landing_vitrine.ENTITES} entités, la compilation en "
+        f"produit {entites}")
+    assert routes == landing_vitrine.ROUTES, (
+        f"la carte annonce {landing_vitrine.ROUTES} routes, app.py en déclare "
+        f"{routes}")
+    assert len(fichiers) == landing_vitrine.FICHIERS, (
+        f"la carte annonce {landing_vitrine.FICHIERS} fichiers, l'archive en "
+        f"contient {len(fichiers)} : {sorted(fichiers)}")
+
+
+def test_l_arborescence_ne_nomme_aucun_fichier_absent(tmp_path):
+    """LE DÉFAUT D'ORIGINE : la carte promettait un `README.md` inexistant.
+
+    On vérifie aussi que l'arborescence reste un EXTRAIT. Sans cela, la lister
+    en entier ferait passer le témoin sans rien garantir de la lisibilité, et
+    surtout la carte cesserait d'être une carte.
+    """
+    fichiers, _routes, _entites = _archive_de_la_vitrine(tmp_path)
+    annonces = [nom for nom, _role in landing_vitrine.ARBRE]
+
+    absents = [nom for nom in annonces if nom not in fichiers]
+    assert not absents, (
+        f"la carte nomme des fichiers que le compilateur ne produit pas : "
+        f"{absents}")
+    assert 0 < len(annonces) < len(fichiers), (
+        "l'arborescence doit rester un extrait lisible, pas l'archive entière")
+
+
+def test_l_extrait_affiche_est_pris_dans_la_spec_qui_compile():
+    """Deux textes à tenir d'accord divergent toujours.
+
+    L'extrait montré n'est pas recopié à côté de la spec : il en est découpé.
+    Le témoin le prouve en exigeant que chacune de ses lignes figure dans la
+    spec — et qu'il porte au moins une règle, sinon le découpage aurait pu
+    rendre le seul bloc d'entité sans que personne ne le voie.
+    """
+    extrait = landing_vitrine.extrait_affiche()
+    lignes = [ligne for ligne in extrait.splitlines() if ligne.strip()]
+
+    assert lignes, "l'extrait est vide"
+    for ligne in lignes:
+        assert ligne in landing_vitrine.SPEC_VITRINE, (
+            f"l'extrait affiché contient une ligne absente de la spec : {ligne!r}")
+    assert any(ligne.startswith("rule ") for ligne in lignes), (
+        "l'extrait ne montre aucune règle : la page ne montrerait que des champs")
+
+
+def test_la_page_affiche_les_chiffres_verifies(platform):
+    """Le dernier maillon : les constantes atteignent bien la PAGE SERVIE.
+
+    Sans lui, on saurait que les constantes sont justes, jamais qu'elles sont
+    celles qu'un visiteur lit — c'est la distinction du point 163 entre ce qui
+    est vérifié et ce qui est servi.
+    """
+    texte = requests.get(platform, timeout=10).text
+
+    assert f"<b>{landing_vitrine.ROUTES}</b><span>routes API</span>" in texte
+    assert f"<b>{landing_vitrine.FICHIERS}</b><span>fichiers</span>" in texte
+    for nom, _role in landing_vitrine.ARBRE:
+        assert nom in texte, f"{nom} n'apparaît pas dans la page servie"
+    assert "README.md" not in texte.split('class="tree"')[1][:400], (
+        "l'arborescence promet encore un fichier que l'archive ne contient pas")
