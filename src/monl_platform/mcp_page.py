@@ -45,4 +45,4 @@ document.querySelector('.copy-endpoint').onclick=event=>copy(location.origin+'/m
 </script>
 """
 
-MCP_HTML = page(title="MCP — monl compiler", description="Connectez votre agent au serveur MCP Monl.", body=BODY, active="mcp", extra_css=CSS, scripts=SCRIPT)
+MCP_HTML = page(title="MCP — MONL", description="Connectez votre agent au serveur MCP Monl.", body=BODY, active="mcp", extra_css=CSS, scripts=SCRIPT)

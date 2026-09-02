@@ -123,12 +123,9 @@ code { font-family: var(--mono); font-size: .92em; }
   display: inline-flex; align-items: center; min-height: 44px;
   color:var(--ink); font-weight: 700; letter-spacing: -.02em; text-decoration: none;
 }
-/* 88px et non 112 : à la taille précédente le mot occupait 44 px sur les
-   68 px de la barre, soit les deux tiers de sa hauteur, et il pesait plus
-   lourd que la navigation qu'il surplombe. À 88 il fait 35 px — les
-   lettres restent à 27 px, très au-dessus des 15 px des liens, donc il
-   mène toujours la barre sans la remplir. */
-.brand-wordmark { width:88px; height:auto; display:block; flex:none; }
+/* Le lockup compact ne garde que MONL : à 112 px il fait 32 px de haut,
+   suffisamment lisible sans prendre le dessus sur la navigation. */
+.brand-wordmark { width:112px; height:auto; display:block; flex:none; }
 .mark {
   width: 34px; height: 34px; border-radius: 10px; flex: none;
   display: grid; place-items: center; overflow:hidden;
@@ -396,4 +393,3 @@ THEME_TOGGLE = """
   items.forEach(function (item) { observer.observe(item); });
 })();
 """
-

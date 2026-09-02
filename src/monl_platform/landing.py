@@ -247,7 +247,7 @@ et le contrat destiné à votre interface.</p>
 
 
 LANDING_HTML = page(
-    title="monl compiler — le métier est compilé",
+    title="MONL — le métier est compilé",
     description="Monl compile vos règles métier en backend autonome et contrat frontend vérifiable.",
     body=BODY,
     active="home",

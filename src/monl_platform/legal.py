@@ -275,20 +275,20 @@ page.</p>
 """
 
 MENTIONS_HTML = page(
-    title="Mentions légales — monl compiler",
+    title="Mentions légales — MONL",
     description="Qui édite ce service, qui l'héberge, et comment nous joindre.",
     body=MENTIONS, extra_css=CSS,
 )
 
 CONDITIONS_HTML = page(
-    title="Conditions d'utilisation — monl compiler",
+    title="Conditions d'utilisation — MONL",
     description="Ce que le service promet, ce qu'il ne garantit pas, et comment "
                 "résilier un compte.",
     body=CONDITIONS, extra_css=CSS,
 )
 
 CONFIDENTIALITE_HTML = page(
-    title="Confidentialité — monl compiler",
+    title="Confidentialité — MONL",
     description="Les données conservées par la plateforme, leur durée de vie, et "
                 "comment tout effacer.",
     body=CONFIDENTIALITE, extra_css=CSS,
