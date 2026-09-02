@@ -5,7 +5,13 @@ import os
 import re
 import sys
 
-from ..artifacts import copy_preserved_files, publish_files, sans_sandbox, staging_directory
+from .. import artifacts
+from ..artifacts import (
+    copy_preserved_files,
+    publish_files,
+    sans_sandbox,
+    staging_directory,
+)
 from ..design_system import (
     ASSET_MANIFEST_FILENAME,
     DESIGN_SPEC_FILENAME,
@@ -17,7 +23,46 @@ from ..frontend_contract import (
     PROMPT_FILENAME,
     generate_frontend_contract,
 )
+from ..frontend_contract.projet import (
+    LEGACY_AGENTS_FILENAME,
+    PROJECT_CLAUDE_MD_MARKER,
+)
 from . import conteneur, emplacement, nomenclature
+
+#: Ce qui a changé de place. Écrit ici en toutes lettres et jamais dérivé des
+#: constantes courantes : un « ancien emplacement » décrit le PASSÉ, il ne peut
+#: pas se déduire du présent — leçon des Dockerfiles hérités (point 164).
+_DOCUMENTS_RANGES = (
+    PROMPT_FILENAME,
+    "docs/FRONTEND_UPDATE_PROMPT.md",
+    DESIGN_SYSTEM_FILENAME,
+    DESIGN_SPEC_FILENAME,
+    ASSET_MANIFEST_FILENAME,
+)
+
+
+def _ranger_les_documents(project_dir):
+    """Range un projet compilé par une version antérieure, une seule fois.
+
+    Deux gestes, pour la même raison : ne rien laisser de périmé à côté du
+    fichier qui le remplace. Écrire au nouvel emplacement sans déplacer
+    l'ancien produirait deux vérités, dont une fausse — et c'est la fausse
+    qu'un agent lirait, puisqu'elle est à la racine.
+    """
+    deplaces = list(artifacts.deplacer_vers_docs(project_dir, _DOCUMENTS_RANGES))
+    ancien = os.path.join(project_dir, LEGACY_AGENTS_FILENAME)
+    nouveau = os.path.join(project_dir, nomenclature.AGENTS_FILENAME)
+    # Un CLAUDE.md SANS notre marqueur appartient à l'utilisateur : il reste où
+    # il est, intact. Le renommer déplacerait son travail sous un nom que monl
+    # écrase à la compilation suivante.
+    if os.path.isfile(ancien) and not os.path.exists(nouveau):
+        with open(ancien, encoding="utf-8") as fh:
+            if PROJECT_CLAUDE_MD_MARKER in fh.read():
+                os.replace(ancien, nouveau)
+                deplaces.append(nomenclature.AGENTS_FILENAME)
+    if deplaces:
+        print(" -> Documents rangés      : " + ", ".join(deplaces))
+    return deplaces
 
 
 # ---------------------------------------------------------------- compile --
@@ -40,19 +85,28 @@ def compile_project(spec_path, project_dir, base_dir=None, save_state=True):
     proj_abs = os.path.abspath(project_dir)
     spec_rel = (os.path.relpath(spec_abs, proj_abs)
                 if spec_abs.startswith(proj_abs + os.sep) else spec_abs)
+    # Ranger AVANT de copier ce qu'on préserve : un DESIGN_SPEC.md retouché à
+    # la main est resté à la racine tant qu'on ne l'a pas déplacé, et la copie
+    # préservée irait le chercher dans `docs/` où il n'est pas encore. On
+    # déplacerait alors du travail humain dans l'oubli, en le remplaçant par
+    # un document tout neuf.
+    _ranger_les_documents(proj_abs)
     with staging_directory(proj_abs) as temporary:
-        # Le secret, CLAUDE.md et les deux artefacts de conteneur ne sont
-        # jamais régénérés depuis zéro dans le staging : ils survivent à la
-        # compilation et restent protégés contre un remplacement accidentel.
+        # Le secret, les documents d'accueil et les deux artefacts de
+        # conteneur ne sont jamais régénérés depuis zéro dans le staging : ils
+        # survivent à la compilation et restent protégés contre un
+        # remplacement accidentel.
         copy_preserved_files(
             proj_abs, temporary,
-            (".jwt_secret", "CLAUDE.md", DESIGN_SYSTEM_FILENAME,
-             DESIGN_SPEC_FILENAME, ASSET_MANIFEST_FILENAME, *nomenclature.CONTAINER_ARTEFACTS),
+            (".jwt_secret", nomenclature.AGENTS_FILENAME,
+             nomenclature.README_FILENAME, DESIGN_SYSTEM_FILENAME,
+             DESIGN_SPEC_FILENAME, ASSET_MANIFEST_FILENAME,
+             *nomenclature.CONTAINER_ARTEFACTS),
         )
         compilation = compile_monl(
             spec_path, output_dir=temporary, base_dir=reference_dir)
         contract = generate_frontend_contract(
-            compilation.ir, compilation.plans, temporary)
+            compilation.ir, compilation.plans, temporary, spec_rel)
         direction = ensure_design_artifacts(proj_abs, temporary, contract)
         conteneur._ensure_container_artifacts(
             temporary, uploads=bool(compilation.ir["security"].get("upload_fields")))

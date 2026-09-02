@@ -9,7 +9,12 @@ from ..design_system import (
     DESIGN_SPEC_FILENAME,
     DESIGN_SYSTEM_FILENAME,
 )
-from ..frontend_contract import CONTRACT_FILENAME, PROMPT_FILENAME
+from ..frontend_contract import (
+    AGENTS_FILENAME,
+    CONTRACT_FILENAME,
+    PROMPT_FILENAME,
+    README_FILENAME,
+)
 
 STATE_FILENAME = "monl.json"
 
@@ -32,7 +37,8 @@ PROJECT_ARTEFACTS = (
     DESIGN_SYSTEM_FILENAME,
     DESIGN_SPEC_FILENAME,
     ASSET_MANIFEST_FILENAME,
-    "CLAUDE.md",
+    AGENTS_FILENAME,
+    README_FILENAME,
     STATE_FILENAME,
 )
 

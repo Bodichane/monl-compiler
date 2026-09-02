@@ -20,7 +20,7 @@ from . import fondations, fournisseurs, images, redaction
 # place, écrit dans frontend/, et monl re-vérifie derrière.
 #
 # Deux usages :
-#   - interactif : 'cd MonProjet && claude' — le CLAUDE.md généré dans le
+#   - interactif : 'cd MonProjet && claude' — le AGENTS.md généré dans le
 #     dossier du projet (voir write_project_claude_md) cadre la session
 #     (rôle, fichiers interdits, commande de vérification) ;
 #   - headless : 'monl frontend --provider claude-code' invoque
@@ -63,9 +63,9 @@ from . import fondations, fournisseurs, images, redaction
 # demande de parcourir le projet entier ; à faire, pas à improviser ici.
 PROTECTED_ARTEFACTS = ("spec.ml", "app.py", "schema.sql", "sandbox_ai.py",
                        "manage.py", "serve.py", "Dockerfile", ".dockerignore",
-                       "frontend_contract.json", "FRONTEND_PROMPT.md",
-                       "DESIGN_SYSTEM.md", "DESIGN_SPEC.md",
-                       "ASSET_MANIFEST.json", "monl.json", ".jwt_secret")
+                       "frontend_contract.json", "docs/FRONTEND_PROMPT.md",
+                       "docs/DESIGN_SYSTEM.md", "docs/DESIGN_SPEC.md",
+                       "docs/ASSET_MANIFEST.json", "monl.json", ".jwt_secret")
 
 # POINT 62 : budget de tours de l'agent. 40 était un chiffre posé avant que le
 # brief ne porte l'intention visuelle (point 53), les rubriques éditoriales
@@ -80,7 +80,7 @@ CLAUDE_CODE_INSTRUCTION = (
     "Lis {brief} et construis le frontend demandé, en écrivant UNIQUEMENT "
     "dans le dossier frontend/ (point d'entrée frontend/index.html, "
     "autonome : aucun CDN). Ne modifie AUCUN autre fichier du projet — "
-    "ni la spec .ml, ni app.py, ni le contrat. Le CLAUDE.md du dossier "
+    "ni la spec .ml, ni app.py, ni le contrat. Le AGENTS.md du dossier "
     "détaille le contexte."
 )
 
@@ -93,7 +93,7 @@ RETOUCHE_INSTRUCTION = (
     "ce défaut-là dans le frontend EXISTANT (dossier frontend/), et lui seul — "
     "ne réécris pas ce qui fonctionne déjà, ne refais pas la mise en page "
     "générale. Ne modifie AUCUN autre fichier du projet : ni la spec .ml, ni "
-    "app.py, ni le contrat. Le CLAUDE.md du dossier détaille le contexte."
+    "app.py, ni le contrat. Le AGENTS.md du dossier détaille le contexte."
 )
 
 # ─────────────────────────────────────────────────────────────────────

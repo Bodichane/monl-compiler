@@ -100,6 +100,13 @@ def publish_files(staging_dir: str | os.PathLike[str],
             source = staging / name
             destination = target / name
             backup = backup_dir / name
+            # Un artefact peut vivre dans un sous-dossier (`docs/…`) : sans ce
+            # `mkdir`, `os.replace` lève `FileNotFoundError` sur un dossier
+            # absent — et la publication entière serait annulée pour un dossier
+            # qu'il suffisait de créer. `copy_preserved_files` le faisait déjà
+            # de son côté ; les deux couches se répondent maintenant.
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            backup.parent.mkdir(parents=True, exist_ok=True)
             if destination.exists():
                 _replace(destination, backup)
                 backups.append(name)
@@ -123,3 +130,47 @@ def publish_files(staging_dir: str | os.PathLike[str],
         ) from exc
     finally:
         shutil.rmtree(backup_dir, ignore_errors=True)
+
+
+#: Les documents qui se LISENT vivent dans `docs/` ; la racine garde ce qui
+#: s'EXÉCUTE. Une archive dont les quinze fichiers sont à plat ne se lit pas :
+#: on ne distingue pas ce qu'on lance de ce qu'on consulte.
+DOCS_DIR = "docs"
+
+
+def chemin_pret(base, nom):
+    """Le chemin d'un artefact, son dossier créé si besoin.
+
+    Un artefact peut vivre dans `docs/` : l'ouvrir en écriture sans avoir créé
+    le dossier lève `FileNotFoundError`, et le staging est toujours neuf, donc
+    le dossier n'y existe jamais la première fois.
+    """
+    cible = Path(base) / nom
+    cible.parent.mkdir(parents=True, exist_ok=True)
+    return cible
+
+
+def deplacer_vers_docs(project_dir, chemins):
+    """Range une seule fois les documents restés à la racine.
+
+    Les projets compilés AVANT ce rangement portent ces fichiers à la racine.
+    Écrire simplement au nouvel emplacement les laisserait sur place, périmés
+    et sans un mot — c'est exactement le reproche fait à `sandbox_ai.py`, et
+    le défaut serait pire ici : un `DESIGN_SPEC.md` retouché à la main est du
+    travail humain, et la copie préservée irait le chercher où il n'est plus.
+
+    On DÉPLACE donc, ce qui garde la personnalisation et n'orpheline rien. Un
+    fichier déjà présent au nouvel emplacement gagne : c'est lui que la
+    compilation vient de produire ou que l'auteur tient à jour.
+    """
+    racine = Path(project_dir)
+    deplaces = []
+    for chemin in chemins:
+        cible = racine / chemin
+        ancien = racine / Path(chemin).name
+        if cible.exists() or not ancien.is_file() or ancien == cible:
+            continue
+        cible.parent.mkdir(parents=True, exist_ok=True)
+        _replace(ancien, cible)
+        deplaces.append(chemin)
+    return deplaces

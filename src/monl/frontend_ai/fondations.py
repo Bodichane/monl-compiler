@@ -10,7 +10,7 @@ MAX_TOTAL_BYTES = 2_000_000
 # une construction neuve). Nommés ici plutôt que chez leur producteur : c'est
 # frontend_ai qui les consomme, et cli.py les importe — l'inverse ferait
 # dépendre la couche IA de la couche commande.
-UPDATE_PROMPT_FILENAME = "FRONTEND_UPDATE_PROMPT.md"
+UPDATE_PROMPT_FILENAME = "docs/FRONTEND_UPDATE_PROMPT.md"
 
 RETOUCHE_PROMPT_FILENAME = "FRONTEND_RETOUCHE_PROMPT.md"
 

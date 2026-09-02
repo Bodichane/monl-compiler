@@ -118,11 +118,11 @@ def test_diff_necrit_pas_la_consigne_devolution(projet, capsys):
     _modifier(projet)
     cmd_diff(str(projet))
     capsys.readouterr()
-    assert not (projet / "FRONTEND_UPDATE_PROMPT.md").exists()
+    assert not (projet / "docs/FRONTEND_UPDATE_PROMPT.md").exists()
 
     cmd_update(str(projet))
     capsys.readouterr()
-    assert (projet / "FRONTEND_UPDATE_PROMPT.md").exists()
+    assert (projet / "docs/FRONTEND_UPDATE_PROMPT.md").exists()
 
 
 def test_diff_ne_touche_pas_au_contrat_de_reference(projet, capsys):

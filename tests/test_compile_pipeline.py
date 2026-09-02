@@ -48,7 +48,7 @@ def test_compile_project_ne_parse_et_ne_valide_quune_fois(tmp_path, monkeypatch)
         "schema.sql",
         "manage.py",
         "frontend_contract.json",
-        "FRONTEND_PROMPT.md",
+        "docs/FRONTEND_PROMPT.md",
         "monl.json",
     ):
         assert (tmp_path / artefact).is_file()

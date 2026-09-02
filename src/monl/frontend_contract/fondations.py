@@ -4,6 +4,7 @@
 interdit le saut de ligne dans un STRING_LITERAL, et c'est ainsi qu'une
 `section` porte plusieurs paragraphes sans brique nouvelle."""
 
+from ..artifacts import DOCS_DIR
 from ..ir import CompilationPlans
 
 CONTRACT_VERSION = 9  # 2 : base_url même origine (51) · 3 : rôles + archétypes (54)
@@ -39,9 +40,20 @@ STOCK_HINTS = ("stock", "quantity", "quantite", "inventaire", "disponib",
 
 CONTRACT_FILENAME = "frontend_contract.json"
 
-PROMPT_FILENAME = "FRONTEND_PROMPT.md"
+#: Le brief se LIT : il part dans `docs/`. Le contrat, lui, reste à la racine —
+#: c'est l'interface MACHINE du projet, celle qu'un outil ouvre sans rien
+#: connaître de l'arborescence.
+PROMPT_FILENAME = f"{DOCS_DIR}/FRONTEND_PROMPT.md"
 
-FRONTEND_ARTIFACTS = (CONTRACT_FILENAME, PROMPT_FILENAME, "CLAUDE.md")
+#: La mémoire du projet s'appelle AGENTS.md et non CLAUDE.md : le frontend peut
+#: être écrit par claude-code, codex ou gemini (point 69), et nommer le fichier
+#: d'après un seul d'entre eux en fait un fichier que les autres ne lisent pas.
+AGENTS_FILENAME = "AGENTS.md"
+
+README_FILENAME = "README.md"
+
+FRONTEND_ARTIFACTS = (CONTRACT_FILENAME, PROMPT_FILENAME,
+                      AGENTS_FILENAME, README_FILENAME)
 
 def paragraphes(texte):
     """Retraduit le séparateur de paragraphes de la spec en vrais sauts

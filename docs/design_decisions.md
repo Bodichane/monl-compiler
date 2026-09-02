@@ -92,6 +92,8 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [172bis](#172bis-une-borne-de-disque-se-tient-à-chaque-instant-pas-seulement-à-la-fin) Une borne de disque se tient à chaque instant ·
 [173](#173-trois-briques-que-le-dialogue-nécrivait-pas--et-une-photo-que-personne-ne-voyait) Trois briques sans producteur, et la photo que personne ne voyait ·
 [174](#174-la-mémoire-du-projet-ignorait-des-briques-et-un-garde-fou-la-rend-vivante) La mémoire du projet ignorait des briques, et un garde-fou la rend vivante ·
+[175](#175-un-fichier-vide-quon-ne-peut-pas-enlever-et-une-adresse-quun-inconnu-vous-prend) Un fichier vide qu'on ne peut pas enlever, et une adresse volée ·
+[176](#176-une-archive-se-lit--docs-pour-ce-qui-se-lit-la-racine-pour-ce-qui-sexécute) Une archive se lit : docs/ pour ce qui se lit, la racine pour ce qui s'exécute ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -12737,3 +12739,55 @@ exigeait précisément le défaut (b), et deux autres exigeaient l'`IntegrityErr
 du défaut (a). Ils sont réécrits vers le nouvel invariant, jamais affaiblis —
 et là où un décompte d'artefacts passe de 16 à 15, le fichier retiré est NOMMÉ :
 *un décompte qu'on ajuste sans dire ce qu'on enlève ne garde plus rien.*
+
+## 176. Une archive se lit : `docs/` pour ce qui se lit, la racine pour ce qui s'exécute
+
+Trois défauts constatés sur une archive RÉELLEMENT téléchargée, aucun visible
+depuis le dépôt : ils ne vivent pas dans ce que le compilateur produit, mais
+dans ce que quelqu'un REÇOIT. Point 164 d'un cran de plus.
+
+**(a) Quinze fichiers à plat**, sans rien pour distinguer ce qu'on LANCE de ce
+qu'on LIT. Les quatre documents destinés à l'IA d'interface — le brief et la
+direction visuelle — partent dans `docs/`. **Le contrat JSON reste à la
+racine**, et c'est la seule exception qui compte : c'est l'interface MACHINE du
+projet, celle qu'un outil ouvre sans rien connaître de l'arborescence, et vingt
+modules du compilateur la nomment.
+
+**(b) La mémoire du projet s'appelait `CLAUDE.md`.** Le frontend peut être
+écrit par claude-code, codex ou gemini (point 69) : un fichier nommé d'après un
+seul agent est un fichier que les deux autres ne lisent pas. C'est `AGENTS.md`.
+
+**(c) Aucun `README.md`**, alors que la page d'accueil de la plateforme en
+promet un dans son aperçu d'arborescence — `landing.py` l'affiche, personne ne
+le produisait. Le témoin ne se contente pas de vérifier qu'il PARLE de
+démarrage : la commande qu'il donne est EXÉCUTÉE et l'application doit se
+charger. Point 163 appliqué à de la documentation — « présent » n'est pas
+« exact », et un README qui décrit un autre dossier est pire qu'absent.
+
+**CE QUI SE JOUE DANS LE DÉPLACEMENT, et c'est tout le point.** Écrire au
+nouvel emplacement sans bouger l'ancien produirait DEUX vérités, dont une
+périmée — et c'est la périmée qu'un agent lirait, puisqu'elle est à la racine.
+C'est exactement le reproche fait à `sandbox_ai.py` au point 175. On DÉPLACE
+donc, une seule fois, avant toute autre chose. **L'ordre EST la garantie** : la
+copie préservée va chercher les documents dans `docs/` ; ranger après elle
+ferait remplacer un `DESIGN_SPEC.md` retouché à la main par un document tout
+neuf, c'est-à-dire effacer du travail humain en silence.
+
+Le renommage porte, lui, la règle inverse : un `CLAUDE.md` **sans notre
+marqueur** appartient à l'utilisateur et n'est JAMAIS touché. Le renommer
+déplacerait son texte sous un nom que monl écrase à la compilation suivante —
+sa mémoire disparaîtrait à retardement, ce qui est pire qu'un écrasement
+immédiat parce qu'on ne peut pas le relier à son geste.
+
+**LA LISTE DES ANCIENS EMPLACEMENTS EST ÉCRITE EN TOUTES LETTRES**, jamais
+dérivée des constantes courantes : un « ancien emplacement » décrit le PASSÉ,
+il ne peut pas se déduire du présent. C'est mot pour mot la leçon des
+Dockerfiles hérités (point 164), et la dériver ferait cesser la migration de
+reconnaître ce qu'elle doit déplacer le jour où les chemins rebougent.
+
+**CE QUE LA SUITE A TROUVÉ, et c'est l'argument pour la lancer entière.** Les
+six témoins neufs passaient ; la suite complète a rendu **40 échecs** —
+quarante endroits où un chemin était écrit en dur, plus les empreintes golden
+et le sommaire du journal. Aucun n'était devinable en relisant le correctif.
+Un déplacement de fichier est un changement d'interface : il se prouve comme
+tel.

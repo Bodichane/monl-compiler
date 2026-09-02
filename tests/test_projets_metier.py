@@ -273,7 +273,7 @@ def test_achat_expose_calcul_paiement_et_livraison_post_paiement(gestion):
     assert route["allowed_actors"] == ["Seller"]
     assert set(route["request_fields"]) == {"deliveryStatus", "trackingNumber"}
     assert "PUT /purchase/{id}/apres-paiement" in \
-        (chemin / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+        (chemin / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
 
 
 def test_le_contrat_de_communaute_transporte_les_deux_regles_metier(communaute):

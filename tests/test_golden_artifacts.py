@@ -104,8 +104,18 @@ GOLDENS = {
     # inline, puis la carte exécutable des marqueurs obligatoires : cette
     # empreinte change volontairement avec ces règles, tandis que les artefacts
     # backend restent inchangés à l'octet.
-    "FRONTEND_PROMPT.md": "062fa3c243c3a3da3d2133c2a5c45db9d5653d14626ae836ffe51131915685d3",
-    "CLAUDE.md": "ebf07f5ca26ffa6bf8571ca6e0379afc31978b600b2cecd2ffe330719495183f",
+    # POINT 176 : les documents partent dans `docs/` et la mémoire du projet
+    # s'appelle AGENTS.md. Le brief change d'empreinte pour une raison de FOND
+    # et pas seulement d'emplacement — il dit à l'IA où trouver la direction
+    # visuelle, donc il devait apprendre les nouveaux chemins. `README.md`
+    # entre ici parce qu'il est livré : un artefact que personne ne regarde
+    # peut changer sans qu'on le sache, même argument que requirements.txt.
+    # LE CONTRÔLE DE PORTÉE : app.py, schema.sql, manage.py, serve.py, le
+    # contrat, le Dockerfile et monl.json restent identiques à l'octet — un
+    # rangement de fichiers ne touche rien de ce que le backend FAIT.
+    "docs/FRONTEND_PROMPT.md": "3b3226c932f1139b2b247a1e689aea91b0a3076a2384f6ddcb02e78918d82f80",
+    "AGENTS.md": "391c122e231bba4634597f498965767fd6427e734e50b9c17c747bd27d80c8a1",
+    "README.md": "e325fa18c21c24dda20c8e56c1829dce44db91dbc7f0e494b7c3eeb437cf79b1",
     # Revue A2 : manage.py NOMME le remède au lieu de laisser filer une
     # trace quand la base attend une migration. app.py ne bouge PAS —
     # la preuve que le correctif ne touche que la commande d'administration.

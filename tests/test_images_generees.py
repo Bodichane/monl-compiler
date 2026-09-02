@@ -64,7 +64,7 @@ VERBOSE_BRIEF = (
 
 
 def _manifest(project):
-    lines = (project / "ASSET_MANIFEST.json").read_text(encoding="utf-8").splitlines()
+    lines = (project / "docs/ASSET_MANIFEST.json").read_text(encoding="utf-8").splitlines()
     return json.loads("\n".join(lines[1:]))
 
 

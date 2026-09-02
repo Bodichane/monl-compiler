@@ -61,7 +61,9 @@ def test_styles_css_peut_etre_route_et_usage_regroupe_deux_modeles(
     project = tmp_path / "projet"
     project.mkdir()
     (project / "monl.json").write_text("{}", encoding="utf-8")
-    (project / "FRONTEND_PROMPT.md").write_text("brief", encoding="utf-8")
+    brief = project / "docs/FRONTEND_PROMPT.md"
+    brief.parent.mkdir(parents=True, exist_ok=True)
+    brief.write_text("brief", encoding="utf-8")
     providers = {}
 
     def provider_factory(model):

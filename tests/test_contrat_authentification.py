@@ -72,7 +72,7 @@ def _contrat(sortie):
 
 
 def _brief(sortie):
-    with open(os.path.join(str(sortie), "FRONTEND_PROMPT.md"),
+    with open(os.path.join(str(sortie), "docs/FRONTEND_PROMPT.md"),
               encoding="utf-8") as fh:
         return fh.read()
 
