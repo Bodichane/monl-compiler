@@ -118,6 +118,16 @@ def test_chaque_exemple_compile_vraiment(tmp_path):
         fichiers = set(manifeste["files"])
         assert {"app.py", "schema.sql", "frontend_contract.json"} <= fichiers, exemple["id"]
         assert ".jwt_secret" not in fichiers, exemple["id"]
+        # Le décompte reste à 16, et c'est une COÏNCIDENCE qu'il faut dire :
+        # `sandbox_ai.py` est parti (aucun exemple n'a de bloc `custom`) et
+        # `README.md` est arrivé. Un décompte inchangé aurait laissé croire
+        # qu'aucun des deux n'avait bougé — on nomme donc les deux, et on
+        # vérifie le RANGEMENT plutôt que le seul total.
+        assert "sandbox_ai.py" not in fichiers, exemple["id"]
+        assert {"README.md", "AGENTS.md", "docs/FRONTEND_PROMPT.md",
+                "docs/DESIGN_SYSTEM.md", "docs/DESIGN_SPEC.md",
+                "docs/ASSET_MANIFEST.json"} <= fichiers, exemple["id"]
+        assert "CLAUDE.md" not in fichiers, exemple["id"]
 
 
 def test_aucun_exemple_ne_declare_dasset(tmp_path):

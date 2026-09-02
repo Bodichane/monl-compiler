@@ -15,10 +15,12 @@ couleur en dur n'appartient à aucun thème et ne casse jamais.
 
 import pathlib
 import re
+import sys
 
 import pytest
+from PIL import Image
 
-from monl_platform import theme
+from monl_platform import brand, theme
 
 PAQUET = pathlib.Path(theme.__file__).parent
 COULEUR = re.compile(r"#[0-9a-fA-F]{6}\b")
@@ -424,3 +426,68 @@ def test_le_formulaire_de_compte_ne_refuse_jamais_en_silence():
     assert "validationMessage" in account.AUTH_HTML, (
         "le refus client n'atteint pas la bannière de la page")
     assert "error.className='form-error show'" in account.AUTH_HTML
+
+
+def test_les_traces_ressemblent_au_dessin_fourni():
+    """LA FIDÉLITÉ, que rien d'autre ne garde.
+
+    Tous les autres témoins de ce fichier comparent les artefacts ENTRE EUX —
+    les rasters ne dérivent pas de la marque, la feuille dessine le même signe
+    que le fichier. Ils resteraient donc VERTS sur un logo faux, pourvu qu'il
+    soit faux partout de la même façon. Seule la confrontation au PNG fourni
+    par l'humain dit si le tracé ressemble à ce qu'on a demandé.
+
+    Le garde-fou existe aussi dans `outils/vectoriser_logo.py`, qui REFUSE
+    d'écrire au-delà de la tolérance. Ce n'est pas un doublon : l'outil ne
+    tourne que le jour où quelqu'un re-vectorise, ce témoin tourne à chaque
+    exécution de la suite. L'un empêche d'écrire un mauvais tracé, l'autre
+    empêche d'en garder un.
+
+    LE PIÈGE DE CADRAGE, mesuré en s'y laissant prendre : l'outil seuille le
+    canal alpha à `ALPHA_MIN` avant de recadrer. Comparer sur un `getbbox()`
+    nu — qui retient le moindre pixel d'antialiasing — donne une emprise de
+    1676 x 492 au lieu de 1667 x 438, deux cadrages différents, et un écart
+    annoncé de 234 % sur un logo parfaitement fidèle. Le seuil fait partie de
+    la mesure.
+    """
+    outils = pathlib.Path(__file__).resolve().parent.parent / "outils"
+    sys.path.insert(0, str(outils))
+    try:
+        import vectoriser_logo
+        from tracage import ecart_de_rendu
+    finally:
+        sys.path.remove(str(outils))
+
+    source = (pathlib.Path(__file__).resolve().parent.parent
+              / "docs" / "brand" / "monl-logo-source.png")
+    alpha = Image.open(source).convert("RGBA").getchannel("A")
+    seuil = alpha.point(lambda a: 255 if a >= vectoriser_logo.ALPHA_MIN else 0)
+    alpha = alpha.crop(seuil.getbbox())
+
+    separation = vectoriser_logo._separation(alpha)
+    coupe = vectoriser_logo._coupe_descripteur(alpha, separation)
+    parties = {
+        "WORDMARK_PATH": (alpha, brand.WORDMARK_PATH),
+        "NAV_MARK_PATH": (vectoriser_logo._partie(alpha, lambda x, _y: x < separation),
+                          brand.NAV_MARK_PATH),
+        "NAV_TEXT_PATH": (vectoriser_logo._partie(
+            alpha, lambda x, y: x >= separation and y < coupe), brand.NAV_TEXT_PATH),
+    }
+
+    mesures = {}
+    for nom, (reference, trace) in parties.items():
+        masque = reference.point(
+            lambda a: 255 if a >= vectoriser_logo.ALPHA_MIN else 0).convert("1")
+        mesures[nom] = ecart_de_rendu(masque, trace)
+
+    trop_loin = {n: f"{e:.2%}" for n, e in mesures.items()
+                 if e > vectoriser_logo.TOLERANCE}
+    assert not trop_loin, (
+        f"le tracé ne ressemble plus au dessin fourni : {trop_loin} "
+        f"(tolérance {vectoriser_logo.TOLERANCE:.0%})")
+    # Le pendant : une tolérance très au-dessus de ce qu'on mesure ne refuse
+    # plus rien. Si les écarts réels tombaient à zéro, c'est la MESURE qu'il
+    # faudrait suspecter — un rendu identique au pixel près supposerait qu'on
+    # compare le tracé à lui-même.
+    assert max(mesures.values()) > 0, (
+        "écart nul : la mesure compare probablement le tracé avec lui-même")

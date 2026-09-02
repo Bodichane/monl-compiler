@@ -142,7 +142,7 @@ def test_un_agent_compile_liste_et_telecharge_sans_jamais_ouvrir_de_session(plat
     with zipfile.ZipFile(io.BytesIO(archive.content)) as paquet:
         noms = set(paquet.namelist())
     assert {"app.py", "schema.sql", "frontend_contract.json",
-            "FRONTEND_PROMPT.md"} <= noms
+            "docs/FRONTEND_PROMPT.md"} <= noms
     assert ".jwt_secret" not in noms
 
 

@@ -18,11 +18,45 @@ from PIL import Image
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
-from tracage import RACINE, contours, envelopper, lisser, normaliser, simplifier
+from tracage import (
+    RACINE,
+    contours,
+    ecart_de_rendu,
+    envelopper,
+    lisser,
+    normaliser,
+    simplifier,
+)
 
 ALPHA_MIN = 96
 EPSILON = 2.2
 BOUCLE_MINIMALE = 36
+
+#: La part de l'encre du dessin d'origine que le tracé a le droit de manquer.
+#: Six pour cent, la valeur du point 157 — restaurée ici parce que la
+#: réécriture de cet outil pour le logo monochrome l'avait fait disparaître, et
+#: que rien ne l'avait remplacée : plus rien ne garantissait qu'un tracé
+#: RESSEMBLE au dessin fourni. Les mesures relevées sur l'artwork courant sont
+#: de 2,5 à 3,3 %, donc le seuil laisse la marge d'une simplification honnête
+#: (EPSILON) sans laisser passer un signe visiblement faux.
+TOLERANCE = 0.06
+
+
+def _verifier(nom: str, reference: Image.Image, chemin: str) -> float:
+    """Refuse d'ÉCRIRE un tracé qui ne ressemble pas à ce qu'on lui a donné.
+
+    Le contrôle porte sur la FIDÉLITÉ au dessin fourni, ce qu'aucun autre
+    témoin ne garde : ceux de la suite comparent les artefacts ENTRE EUX, donc
+    ils resteraient verts sur un logo faux vectorisé de façon cohérente.
+    """
+    masque = reference.point(lambda a: 255 if a >= ALPHA_MIN else 0).convert("1")
+    ecart = ecart_de_rendu(masque, chemin)
+    if ecart > TOLERANCE:
+        raise SystemExit(
+            f"{nom} s'écarte de {ecart:.2%} du dessin d'origine "
+            f"(tolérance {TOLERANCE:.0%}) — rien n'est écrit. "
+            f"Vérifier l'artwork, le seuil alpha ou EPSILON.")
+    return ecart
 
 
 def _masque(alpha: Image.Image) -> list[list[int]]:
@@ -126,6 +160,16 @@ def principal(argv: list[str]) -> int:
     signe = normaliser(_chemin(signe_alpha.crop(signe_boite)), cible=48, marge=3)
     vue = alpha.size
 
+    nav_mot = _chemin(nav_signe)
+    nav_lettres = _chemin(nav_texte)
+    # AVANT toute écriture : un contrôle placé après laisserait sur le disque
+    # le tracé qu'il vient de déclarer faux.
+    ecarts = {
+        "WORDMARK_PATH": _verifier("WORDMARK_PATH", alpha, mot),
+        "NAV_MARK_PATH": _verifier("NAV_MARK_PATH", nav_signe, nav_mot),
+        "NAV_TEXT_PATH": _verifier("NAV_TEXT_PATH", nav_texte, nav_lettres),
+    }
+
     cible = RACINE / "src" / "monl_platform" / "brand.py"
     cible.write_text(
         '''"""Tracés monochromes de la marque Monl, vectorisés depuis l'artwork.
@@ -134,8 +178,8 @@ La couleur appartient au thème ; ce module ne contient que la géométrie.
 Généré par ``outils/vectoriser_logo.py`` — ne pas retoucher à la main.
 """\n\nfrom __future__ import annotations\n\n'''
         + envelopper("WORDMARK_PATH", mot)
-        + envelopper("NAV_MARK_PATH", _chemin(nav_signe))
-        + envelopper("NAV_TEXT_PATH", _chemin(nav_texte))
+        + envelopper("NAV_MARK_PATH", nav_mot)
+        + envelopper("NAV_TEXT_PATH", nav_lettres)
         + envelopper("MARK_PATH", signe)
         + f"VUE = ({vue[0]}, {vue[1]})\n"
         + f"NAV_VUE = ({vue[0]}, {vue[1]})\n"
@@ -148,6 +192,8 @@ Généré par ``outils/vectoriser_logo.py`` — ne pas retoucher à la main.
     wordmark.write_text(_svg(vue, mot, "Monl Compiler"), encoding="utf-8")
     print(f"artwork : {source.name} {image.width}x{image.height}")
     print(f"emprise : {vue[0]}x{vue[1]} · séparation x={separation}, coupe y={coupe}")
+    print("fidélité : " + " · ".join(f"{n} {e:.2%}" for n, e in ecarts.items())
+          + f" (tolérance {TOLERANCE:.0%})")
     print(f"écrit : {cible.relative_to(RACINE)}, {marque.relative_to(RACINE)}, "
           f"{wordmark.relative_to(RACINE)}")
     return 0

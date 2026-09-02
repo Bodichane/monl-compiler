@@ -46,7 +46,7 @@ def projet(tmp_path):
 
 def test_compile_ecrit_l_etat_et_le_contrat(projet):
     for artefact in ("app.py", "schema.sql", "manage.py",
-                     "frontend_contract.json", "FRONTEND_PROMPT.md",
+                     "frontend_contract.json", "docs/FRONTEND_PROMPT.md",
                      "requirements.txt", STATE_FILENAME):
         assert (projet / artefact).exists(), artefact
     etat = json.loads((projet / STATE_FILENAME).read_text(encoding="utf-8"))
@@ -91,7 +91,7 @@ def test_update_rapporte_le_champ_ajoute_et_prepare_la_consigne(projet, capsys):
     sortie = capsys.readouterr().out
     assert "Note.body" in sortie, sortie
     assert "champ ajouté" in sortie, sortie
-    assert (projet / "FRONTEND_UPDATE_PROMPT.md").exists()
+    assert (projet / "docs/FRONTEND_UPDATE_PROMPT.md").exists()
     # Le delta doit aussi être arrivé dans le contrat lui-même.
     contrat = json.loads((projet / "frontend_contract.json").read_text(encoding="utf-8"))
     assert "body" in str(contrat)
@@ -103,7 +103,7 @@ def test_update_sans_changement_ne_fabrique_pas_de_consigne(projet, capsys):
     cmd_update(str(projet))
     sortie = capsys.readouterr().out
     assert "aucun changement d'interface" in sortie, sortie
-    assert not (projet / "FRONTEND_UPDATE_PROMPT.md").exists()
+    assert not (projet / "docs/FRONTEND_UPDATE_PROMPT.md").exists()
 
 
 def test_update_refuse_un_dossier_qui_n_est_pas_un_projet(tmp_path):

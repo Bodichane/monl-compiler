@@ -100,7 +100,7 @@ def _dispatch(argv=None):
                               "uniquement). Défaut : 120.")
     p_front.add_argument("--update", action="store_true",
                          help="Faire évoluer le frontend existant à partir de "
-                              "FRONTEND_UPDATE_PROMPT.md au lieu de repartir de zéro.")
+                              "docs/FRONTEND_UPDATE_PROMPT.md au lieu de repartir de zéro.")
     p_front.add_argument(
         "--generate-images", action="store_true",
         help="Générer explicitement les images matricielles planifiées dans le "

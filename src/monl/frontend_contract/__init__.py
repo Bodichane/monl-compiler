@@ -8,14 +8,23 @@ plus sur l'appel réel."""
 
 from .assemblage import build_contract
 from .emission import contract_sha256, generate_frontend_contract
-from .fondations import CONTRACT_FILENAME, CONTRACT_VERSION, PROMPT_FILENAME, paragraphes
+from .fondations import (
+    AGENTS_FILENAME,
+    CONTRACT_FILENAME,
+    CONTRACT_VERSION,
+    PROMPT_FILENAME,
+    README_FILENAME,
+    paragraphes,
+)
 from .projet import PROJECT_CLAUDE_MD_MARKER
 
 __all__ = [
+    "AGENTS_FILENAME",
     "CONTRACT_FILENAME",
     "CONTRACT_VERSION",
     "PROJECT_CLAUDE_MD_MARKER",
     "PROMPT_FILENAME",
+    "README_FILENAME",
     "build_contract",
     "contract_sha256",
     "generate_frontend_contract",

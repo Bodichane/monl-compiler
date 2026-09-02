@@ -115,5 +115,9 @@ ARBRE = (
     ("schema.sql", "base de données"),
     ("frontend_contract.json", "droits et routes"),
     ("manage.py", "administration"),
-    ("Dockerfile", "déploiement"),
+    # `README.md` était déjà dans la maquette d'origine — mais le compilateur
+    # ne le produisait pas, et la carte promettait donc un fichier absent.
+    # Il existe depuis le point 176 : la ligne redevient vraie, et c'est le
+    # témoin qui l'autorise plutôt qu'une relecture.
+    ("README.md", "démarrage"),
 )

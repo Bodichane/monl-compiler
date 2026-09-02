@@ -148,7 +148,47 @@ class StoreCoreMixin:
                         db.execute(
                             f"ALTER TABLE {table} ADD COLUMN {name} {definition}"
                         )
+            self._armer_unicite_du_slug(db)
             db.execute("PRAGMA user_version = 2")
+
+    @staticmethod
+    def _armer_unicite_du_slug(db):
+        """L'adresse d'un site est UNIQUE sur toute la plateforme.
+
+        C'est un sous-domaine : deux projets qui la partagent rendent l'hôte
+        ambigu, et `SiteManager.project_for_host` refuse alors de servir — il
+        a raison de refuser, mais rien n'empêchait d'en arriver là.
+        `UNIQUE(user_id, slug)` ne protégeait que d'un homonyme du MÊME compte.
+
+        Un INDEX, et pas une vérification applicative : c'est lui qui tient
+        aussi deux écritures concurrentes. Et `IF NOT EXISTS`, comme au
+        point 85 — la migration additive du dépôt ajoute, elle ne réécrit pas.
+
+        SUR UNE BASE DÉJÀ EN DOUBLON, la création échoue. On ne renomme PAS :
+        changer l'adresse d'un site en ligne au démarrage serait pire que le
+        défaut qu'on corrige. Les doublons sont COMPTÉS et NOMMÉS — même
+        arbitrage qu'au point 89 pour les enregistrements sans horodatage —
+        et l'exploitant tranche en supprimant les projets en trop.
+        """
+        try:
+            db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_builder_projects_slug "
+                       "ON builder_projects(slug)")
+            return
+        except sqlite3.IntegrityError:
+            pass
+        doublons = [
+            (ligne["slug"], ligne["combien"])
+            for ligne in db.execute(
+                "SELECT slug, COUNT(*) AS combien FROM builder_projects "
+                "GROUP BY slug COLLATE NOCASE HAVING combien > 1 ORDER BY slug")
+        ]
+        details = ", ".join(f"{slug} ({combien})" for slug, combien in doublons)
+        print(
+            f"⚠️  {len(doublons)} adresse(s) de site portée(s) par plusieurs projets : "
+            f"{details}. Ces sites ne peuvent pas être servis tant que le doublon "
+            "dure — supprimez les projets en trop, l'unicité s'armera au "
+            "redémarrage suivant."
+        )
 
     @staticmethod
     def _reject_non_additive_project_schema(db, *, complete=True):

@@ -393,7 +393,7 @@ def test_le_contrat_transmet_lindicatif_au_frontend(tmp_path, capsys):
     assert inscription["identifier_forms"] == ["email", "phone"]
     assert inscription["phone_prefix"] == "+33"
     assert "+33" in inscription["note"]
-    assert "+33" in (tmp_path / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    assert "+33" in (tmp_path / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     capsys.readouterr()
 
 

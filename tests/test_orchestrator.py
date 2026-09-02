@@ -85,7 +85,7 @@ def test_brief_express_autorise_textes_blocs_et_images_matricielles_locales(tmp_
     spec = proj / "spec.ml"
     spec.write_text(spec_text, encoding="utf-8")
     compile_project(str(spec), str(proj))
-    prompt = (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    prompt = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     assert "Mode express" in prompt
     assert "page dense en blocs réellement utiles" in prompt
     # Renversement explicite : le texte peut organiser la page, mais les
@@ -120,7 +120,7 @@ def test_contrat_impose_la_meme_origine_jamais_un_port_code_en_dur(tmp_path):
     seule base correcte est l'origine de la page."""
     proj, _spec, contract = _fresh_project(tmp_path)
     assert contract["api"]["base_url"] == ""
-    brief = (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     absolue = re.findall(r"`https?://[^`]+`", brief)
     assert not absolue, f"le brief impose encore une URL absolue : {absolue}"
     assert "RELATIFS" in brief
@@ -388,7 +388,7 @@ def test_le_brief_transmet_la_forme_conseillee(tmp_path):
     """Un rôle calculé mais absent du brief ne servirait à personne."""
     proj = tmp_path / "formes"
     _contrat_archetypes(tmp_path)
-    brief = (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     assert "Forme conseillée : galerie" in brief
     assert "Forme conseillée : boutique" in brief
     assert "MÉDIA" in brief and "TITRE" in brief
@@ -413,7 +413,7 @@ def test_contenu_editorial_transmis_tel_quel(tmp_path):
     assert contract["sections"] == [
         {"title": "À propos",
          "body": "Atelier fondé en 2015, spécialisé dans la pièce unique."}]
-    brief = (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     # Le texte doit arriver INTACT : c'est du contenu, pas une consigne de
     # style que l'IA pourrait reformuler.
     assert "Atelier fondé en 2015, spécialisé dans la pièce unique." in brief
@@ -423,7 +423,7 @@ def test_contenu_editorial_transmis_tel_quel(tmp_path):
 def test_sans_section_aucun_bloc_editorial_dans_le_brief(tmp_path):
     proj, _spec, contract = _fresh_project(tmp_path)
     assert contract["sections"] == []
-    brief = (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     assert "Contenu éditorial" not in brief
 
 
@@ -513,7 +513,7 @@ def test_le_brief_annonce_le_corps_attendu(tmp_path):
     proj.mkdir()
     (proj / "spec.ml").write_text(SPEC_DEUX_PARENTS, encoding="utf-8")
     compile_project(str(proj / "spec.ml"), str(proj))
-    brief = (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     assert "corps : `{content, article_id}`" in brief
 
 
@@ -542,7 +542,7 @@ def test_le_contenu_editorial_est_exige_sur_la_page_d_accueil(tmp_path):
     proj.mkdir()
     (proj / "spec.ml").write_text(SPEC_EDITORIALE, encoding="utf-8")
     compile_project(str(proj / "spec.ml"), str(proj))
-    brief = (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     assert "page d'accueil, pas seulement derrière un lien" in brief
     # Un texte long garde le droit d'avoir sa propre page EN PLUS.
     assert "se prolonger sur sa propre page" in brief
@@ -556,7 +556,7 @@ def test_le_brief_donne_l_anatomie_et_les_voisins(tmp_path):
     laissait improviser."""
     proj = tmp_path / "formes"
     _contrat_archetypes(tmp_path)
-    brief = (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     assert "Proche de :" in brief
     assert "Ce qu'un visiteur s'attend à y trouver" in brief
     # Chaque forme apporte ses propres attentes, jamais une liste unique.
@@ -587,7 +587,7 @@ workflow W for Admin
     contract = compile_project(str(proj / "spec.ml"), str(proj))
     roles = {f["name"]: f["role"] for f in contract["entities"]["Product"]["fields"]}
     assert roles["stock"] == "stock"
-    assert "DISPONIBILITÉ" in (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    assert "DISPONIBILITÉ" in (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
 
 
 # ------------------------------------------- paiement (point 74) ------------
@@ -660,7 +660,7 @@ def test_le_brief_dit_comment_regler_et_de_ne_pas_appeler_le_webhook(tmp_path):
     devine mal ; et le webhook, lui, doit être explicitement écarté, sinon
     une interface consciencieuse tentera de le notifier elle-même."""
     proj, _contract = _projet_payable(tmp_path)
-    brief = (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     assert "POST /commande/{id}/paiement" in brief
     assert "AUCUN corps" in brief and "montant_centimes" in brief
     assert "jamais par le frontend" in brief
@@ -677,7 +677,7 @@ def test_sans_payable_le_brief_ne_parle_jamais_de_paiement(tmp_path):
     aucune trace dans le brief. Une consigne de règlement sur un portfolio
     enverrait l'IA construire un bouton qui n'a pas de route."""
     proj, _spec, _contract = _fresh_project(tmp_path)
-    brief = (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     assert "paiement" not in brief.lower()
 
 
@@ -743,7 +743,7 @@ def test_le_brief_explique_chaque_colonne_de_suivi_distinctement(tmp_path):
     proj, contract = _projet_payable(tmp_path)
     champs = _champs_commande(contract)
     assert champs["payment_status"]["note"] != champs["payment_ref"]["note"]
-    brief = (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     # Les valeurs à comparer sont écrites : sans elles, l'IA devine 'paid'.
     assert "'en_attente'" in brief and "'payee'" in brief
     for colonne in ("payment_status", "payment_ref"):
@@ -924,7 +924,7 @@ def test_le_delta_signale_un_role_nouvellement_autorise(tmp_path, capsys):
     assert "aucun changement d'interface" not in sortie, sortie
     assert "accès ouvert : PUT /commande/{id} → Patron" in sortie, sortie
     # Et la consigne pour l'IA frontend dit quoi en faire.
-    brief = (proj / "FRONTEND_UPDATE_PROMPT.md").read_text(encoding="utf-8")
+    brief = (proj / "docs/FRONTEND_UPDATE_PROMPT.md").read_text(encoding="utf-8")
     assert "Rôles nouvellement autorisés" in brief
     assert "supervision" in brief
 
@@ -987,7 +987,7 @@ def test_le_delta_signale_un_champ_devenu_en_lecture_seule(tmp_path, capsys):
     # Aucun champ n'a été ajouté ni retiré : c'est bien le SENS qui a changé.
     assert "champ ajouté" not in sortie, sortie
     assert "champ retiré" not in sortie, sortie
-    brief = (proj / "FRONTEND_UPDATE_PROMPT.md").read_text(encoding="utf-8")
+    brief = (proj / "docs/FRONTEND_UPDATE_PROMPT.md").read_text(encoding="utf-8")
     assert "LECTURE SEULE" in brief
     assert "retirer des formulaires" in brief
 
@@ -1018,7 +1018,7 @@ def test_le_delta_signale_un_prealable_ajoute(tmp_path, capsys):
     assert "route ajoutée" not in sortie, sortie
     assert "champ ajouté" not in sortie, sortie
     assert "accès ouvert" not in sortie, sortie
-    brief = (proj / "FRONTEND_UPDATE_PROMPT.md").read_text(encoding="utf-8")
+    brief = (proj / "docs/FRONTEND_UPDATE_PROMPT.md").read_text(encoding="utf-8")
     assert "PRÉALABLES ajoutés" in brief
     assert "AVANT le formulaire" in brief
 
@@ -1161,7 +1161,7 @@ def test_sans_payable_aucune_route_n_est_verrouillee(tmp_path):
     assert not [r for r in contract["routes"] if r.get("payment_locked")]
     assert not _routes_verrouillees_dans_app(
         (proj / "app.py").read_text(encoding="utf-8"))
-    brief = (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     assert "VERROU" not in brief
 
 
@@ -1188,7 +1188,7 @@ def test_le_delta_signale_un_verrou_de_paiement(tmp_path, capsys):
         in sortie, sortie
     assert "verrou de paiement : POST /ligne → figé une fois Commande réglé" \
         in sortie, sortie
-    brief = (proj / "FRONTEND_UPDATE_PROMPT.md").read_text(encoding="utf-8")
+    brief = (proj / "docs/FRONTEND_UPDATE_PROMPT.md").read_text(encoding="utf-8")
     assert "VERROUS de paiement" in brief
     assert "payment_status" in brief
 
@@ -1271,7 +1271,7 @@ def test_le_brief_dit_que_la_faq_est_une_liste_et_jamais_un_paragraphe(tmp_path)
     couples sans dire ce qu'ils sont laisserait refaire exactement le pavé de
     prose qu'on répare."""
     proj, _contract = _projet_faq(tmp_path)
-    brief = (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     assert "Questions fréquentes — une LISTE" in brief
     assert "Jamais en un seul paragraphe" in brief
     assert "**Comment choisir ma taille ?**" in brief
@@ -1283,7 +1283,7 @@ def test_sans_question_aucun_bloc_faq_dans_le_brief(tmp_path):
     Une FAQ vide annoncée enverrait l'IA construire un accordéon sans contenu."""
     proj, _spec, contract = _fresh_project(tmp_path)
     assert contract["faq"] == []
-    brief = (proj / "FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     assert "Questions fréquentes" not in brief
 
 
@@ -1327,6 +1327,6 @@ def test_le_delta_signale_une_question_ajoutee_et_un_texte_reecrit(tmp_path, cap
     # Rien d'autre n'a bougé : ni route, ni champ.
     assert "route ajoutée" not in sortie, sortie
     assert "champ ajouté" not in sortie, sortie
-    brief = (proj / "FRONTEND_UPDATE_PROMPT.md").read_text(encoding="utf-8")
+    brief = (proj / "docs/FRONTEND_UPDATE_PROMPT.md").read_text(encoding="utf-8")
     assert "Contenu éditorial AJOUTÉ" in brief
     assert "Contenu RÉÉCRIT" in brief

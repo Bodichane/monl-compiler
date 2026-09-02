@@ -5,7 +5,7 @@ import os
 import re
 from html import unescape
 
-from ..design_system import GENERATED_MARKER
+from ..design_system import ASSET_MANIFEST_FILENAME, GENERATED_MARKER
 from ..section_substance import substance_errors
 from . import controles_fichiers
 
@@ -43,7 +43,7 @@ def _design_completeness_errors(project_dir):
 
 
 def _load_manifest(project_dir):
-    manifest_path = os.path.join(project_dir, "ASSET_MANIFEST.json")
+    manifest_path = os.path.join(project_dir, ASSET_MANIFEST_FILENAME)
     if not os.path.exists(manifest_path):
         return None, []
     try:

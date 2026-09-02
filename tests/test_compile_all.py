@@ -51,9 +51,17 @@ def test_example_compiles(yaml_path):
         # 'frontend.html' (l'ancien back-office React '/ui') n'est plus généré
         # du tout — voir docs/design_decisions.md, point 22. Plus AUCUN front
         # n'est généré depuis le pivot (point 41) — voir le dernier test.
-        for artefact in ("app.py", "schema.sql", "sandbox_ai.py"):
+        for artefact in ("app.py", "schema.sql"):
             artefact_path = os.path.join(sortie, artefact)
             assert os.path.exists(artefact_path), f"{artefact} n'a pas été généré pour {os.path.basename(yaml_path)}"
+        # `sandbox_ai.py` n'est plus livré à un projet SANS bloc `custom` :
+        # il ne contenait qu'un commentaire, `app.py` l'importait sans jamais
+        # l'appeler, et le supprimer faisait échouer le démarrage. Aucun des
+        # cinq exemples n'a de bloc `custom` — son absence est donc la bonne
+        # sortie, et on l'affirme plutôt que de cesser de regarder.
+        assert not os.path.exists(os.path.join(sortie, "sandbox_ai.py")), (
+            f"{os.path.basename(yaml_path)} n'a aucun bloc 'custom' et reçoit "
+            "pourtant le module vide")
 
 
 def test_at_least_one_example_exists():

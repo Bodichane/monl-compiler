@@ -1,7 +1,7 @@
 # ─────────────────────────────────────────────────────────────────────
 # GÉNÉRATION DU FRONTEND PAR IA — pivot orchestrateur, point 4 : fermer
 # complètement la boucle. 'monl frontend' envoie le brief
-# (FRONTEND_PROMPT.md, ou FRONTEND_UPDATE_PROMPT.md + fichiers existants en
+# (docs/FRONTEND_PROMPT.md, ou docs/FRONTEND_UPDATE_PROMPT.md + fichiers existants en
 # mode --update) à une IA spécialisée, écrit les fichiers rendus dans
 # frontend/, puis RE-VÉRIFIE automatiquement l'ensemble (cohérence statique
 # + smoke test comportemental). En cas d'échec, les erreurs constatées sont

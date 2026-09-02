@@ -825,18 +825,31 @@ def test_l_extrait_affiche_est_pris_dans_la_spec_qui_compile():
         "l'extrait ne montre aucune règle : la page ne montrerait que des champs")
 
 
-def test_la_page_affiche_les_chiffres_verifies(platform):
-    """Le dernier maillon : les constantes atteignent bien la PAGE SERVIE.
+def test_la_page_servie_ne_nomme_que_des_fichiers_reels(platform, tmp_path):
+    """Le dernier maillon : la règle porte sur la PAGE SERVIE, pas sur les
+    constantes.
 
     Sans lui, on saurait que les constantes sont justes, jamais qu'elles sont
-    celles qu'un visiteur lit — c'est la distinction du point 163 entre ce qui
-    est vérifié et ce qui est servi.
+    celles qu'un visiteur lit — distinction du point 163 entre ce qui est
+    vérifié et ce qui est servi.
+
+    La première version de ce témoin interdisait `README.md` EN DUR. C'était
+    figer un défaut passé au lieu de garder l'invariant : le fichier n'existait
+    pas, il existe depuis le point 176, et l'assertion est devenue fausse le
+    jour où la page a eu raison. On lit donc l'arborescence RÉELLEMENT servie
+    et on la confronte à l'archive — une règle, pas une liste de noms
+    interdits.
     """
     texte = requests.get(platform, timeout=10).text
+    fichiers, _routes, _entites = _archive_de_la_vitrine(tmp_path)
 
     assert f"<b>{landing_vitrine.ROUTES}</b><span>routes API</span>" in texte
     assert f"<b>{landing_vitrine.FICHIERS}</b><span>fichiers</span>" in texte
-    for nom, _role in landing_vitrine.ARBRE:
-        assert nom in texte, f"{nom} n'apparaît pas dans la page servie"
-    assert "README.md" not in texte.split('class="tree"')[1][:400], (
-        "l'arborescence promet encore un fichier que l'archive ne contient pas")
+
+    arbre = texte.split('class="tree"')[1].split("</div>")[0]
+    noms = re.findall(r"[├└]──\s*([^\s<]+)", arbre)
+    assert noms, "l'arborescence servie est vide ou a changé de forme"
+    absents = [nom for nom in noms if nom not in fichiers]
+    assert not absents, (
+        f"la page servie nomme des fichiers que l'archive ne contient pas : "
+        f"{absents}")
