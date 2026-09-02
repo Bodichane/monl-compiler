@@ -60,7 +60,7 @@ de code seule.** Concrètement :
 - Faire de vrais appels (`curl`, ou un script Node+jsdom pour le JS front —
   voir `/tmp/jsdom_test/` dans les sessions précédentes, à recréer si besoin :
   `npm install jsdom` puis charger le HTML généré avec `runScripts: "dangerously"`)
-- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1447 tests qui
+- Lancer la suite de tests : `python3 -m pytest tests/ -q` (1450 tests qui
   passent et 16 sauts déclarés — les seuls légitimes, PostgreSQL
   d'intégration non demandé, chacun nommé par `-rs` ; `tests/test_demo.py` s'appuie sur le dossier `demo/`
   versionné — ne pas le supprimer. La démo est **CodexShop**, une papeterie
@@ -109,7 +109,7 @@ fois plusieurs capacités réelles éprouvées). Chaque brique est petite,
 testée avant la suivante. Progression du simple au complexe, avec un
 réseau social anonyme comme banc d'essai final.
 
-### Briques terminées et testées (points 24-31, puis 74)
+### Briques terminées et testées (points 24-31, puis 74, 120-124, 126 et 128)
 
 > **Où sont passés les fichiers de preuve.** Chaque brique avait à l'origine
 > son `exemples/NN_xxx_demo.yaml` dédié. La bêta 3 (commit `2105a1f`) les a
@@ -749,6 +749,72 @@ réseau social anonyme comme banc d'essai final.
     VÉRIFIÉ** — deux mises en œuvre d'une même règle divergent toujours.
     Éprouvée par `tests/test_liens_de_pied.py` (10 tests) et
     `tests/test_liens_pied_de_page.py` (5 tests). Voir points 144 et 146.
+31. **`migration nom` avec `rename`, `alter` ou `drop`** — les changements de
+    schéma NON ADDITIFS sont nommés et exécutés explicitement, car une
+    comparaison ne peut pas deviner qu'une colonne en remplace une autre.
+    Sans migration correspondante, le serveur et `manage.py` refusent de
+    démarrer en nommant `monl migrate`; les opérations réversibles sont
+    transactionnelles et `drop` reste irréversible sans sauvegarde. L'historique
+    porte l'opération et l'empreinte du schéma. Éprouvée par
+    `tests/test_migrations.py` contre un vrai serveur et une base redémarrée.
+    Voir point 120.
+32. **`Upload` et `rule X.champ upload max N types "…"`** — un fichier envoyé
+    à l'exécution est distinct d'une `Image` fournie à la compilation. La
+    limite en octets et les MIME sont obligatoires; le type réel vient de la
+    signature des octets, HTML/SVG sont refusés, et la référence SQL reste
+    séparée du fichier hors de `frontend/`. Read/Update et la ligne portent
+    la même ACL, jamais un accès public par défaut. Éprouvée contre un vrai
+    serveur par `tests/test_uploads.py`. Voir point 121.
+33. **`rule X.Create sends "sujet" "corps"`** — une création métier réussie
+    lance un message vers l'identifiant email du compte authentifié; `¶`
+    sépare les paragraphes. La règle exige `capability auth` avec
+    `identifier: email`, refuse une création publique et ne promet ni remise,
+    ni retry, ni vérification de boîte : l'échec reste une trace serveur après
+    le commit métier. Éprouvée par `tests/test_messages.py` contre un vrai
+    serveur et un faux SMTP. Voir point 122.
+34. **`rule X.Read filter champ` et `rule X.Read sort champ`** — filtre par
+    égalité exacte et tri sur une whitelist déclarée, sans recherche textuelle
+    ni langage de requête; les filtres restent joints au contrôle d'accès.
+    Les champs `hidden`, `categorized`, `Upload` et les secrets sont refusés,
+    comme les expressions SQL venues du client. `limit`/`offset` restent
+    inchangés. Éprouvée contre de vrais serveurs par
+    `tests/test_filtrage_tri.py`. Voir point 123.
+35. **`capability auth` avec `lockout`, `password_reset`/`passwordReset`,
+    `refresh_tokens`/`refreshTokens` et `totp`** — verrouille après une fenêtre
+    d'échecs, permet la réinitialisation par email, fait tourner les jetons et
+    ajoute le double facteur; chaque durée est déclarée, sans défaut caché.
+    401 reste générique, le rejeu est refusé, et les comptes historiques ne
+    sont pas convertis. Éprouvée par `tests/test_authentification_b4.py` contre
+    de vrais serveurs SQLite/PostgreSQL et un faux SMTP. Voir point 124.
+36. **`capability payment` avec `currency` et `provider`** — la devise porte
+    l'exposant de son unité mineure (`XOF` n'a pas de centimes), et le
+    prestataire est enfichable pour le mobile money (`fedapay`) sans réécrire
+    l'émission Stripe. Une devise inconnue ou à trois décimales est refusée;
+    un prestataire non prouvé est refusé plutôt que deviné, et la paire entre
+    dans la signature du contrat. Éprouvée par `tests/test_devise.py` et
+    `tests/test_fedapay.py` contre de vrais serveurs et des prestataires faux.
+    Voir points 126 et 128.
+
+**Référence des mots-clés du DSL.** La grammaire implémente les mots suivants,
+et cette mémoire les nomme volontairement tous : `app`, `entity`, `actor`,
+`selfRegister`, `relation`, `hasMany`, `belongsTo`, `hasOne`, `rule`, `workflow`,
+`custom`, `input`, `output`, `description`, `seed`, `capability`, `identifier`,
+`phone_prefix`, `lockout`, `password_reset`, `passwordReset`, `refresh_tokens`,
+`refreshTokens`, `totp`, `currency`, `provider`, `assets`, `dir`, `logo`,
+`favicon`, `migration`, `rename`, `alter`, `drop`, `landing`, `mode`, `template`,
+`brief`, `section`, `question`, `link`, `ui`, `theme`, `primary`, `order`,
+`oneOf`, `releases`, `upload`, `max`, `types`, `sends`, `filter`, `sort`,
+`restrictedTo`, `writableAfterPayment`, `sharedBy`, `ownedBy`, `accessibleBy`,
+`public`, `publicWhen`, `oncePer`, `hidden`, `decrements`, `increments`,
+`categorized`, `generated`, `payable`, `derivedFrom`, `sumOf`, `timestamp`,
+`numbered`, `requiresOwn`, `required`, `unique`, `min`, `String`, `Text`,
+`Integer`, `Float`, `Boolean`, `Date`, `DateTime`, `Email`, `UUID`, `Money`,
+`Image`, `Upload`, `Create`, `Read`, `Update`, `Delete`, et `Execute`.
+Les mots de liaison `by`, `for`, `in`, `to`, `from`, `below`, `otherwise` et la
+valeur `true` sont exemptés : `by` relie une quantité, `for` relie un acteur ou
+un parent, `in` sépare les deux durées du verrou, `to` et `from` donnent le
+sens d'une migration, `below` et `otherwise` composent les paliers, et `true`
+est une valeur booléenne explicite — aucun n'est une brique autonome.
 
 ### Briques suivantes déjà évoquées, non cadrées
 - Le **panier multi-articles est terminé** : ses trois briques cadrées au
@@ -781,7 +847,9 @@ réseau social anonyme comme banc d'essai final.
   du panier, et elle n'est pas écrite. Hors de portée et assumés dans la même
   série : les frais de port et la TVA (le total est la somme des lignes, rien
   d'autre — décision produit, pas défaut du compilateur) et tout envoi de
-  courriel.
+  courriel. **(FERMÉ au point 122 : `rule X.Create sends "sujet" "corps"`,
+  avec la limite explicitement conservée — envoi asynchrone sans garantie de
+  remise.)**
 - **Attribution VISIBLE exigée par une licence** — reste à trancher (point 83).
   C'est un comportement (un texte doit être sur la page), donc vérifiable par le
   smoke test, contrairement à la véracité d'un nom d'auteur. Règle retenue :
@@ -795,13 +863,15 @@ réseau social anonyme comme banc d'essai final.
   tampon n'aurait rien vu. Avertissement et non erreur : bloquer immobiliserait
   tout projet après n'importe quelle évolution du compilateur. `cli.py:263`,
   test dans `tests/test_orchestrator.py`.)
-- **Le filtrage et le tri sur les routes de liste** — `limit`/`offset`
+- **(historique) Le filtrage et le tri sur les routes de liste** — `limit`/`offset`
   seulement. « Les commandes à expédier » se fait donc côté navigateur, ce qui
   passe à l'échelle d'un SneakerLab et pas au-delà. Volontairement gardé pour
   APRÈS la page d'administration : on décidera sur ce qui coince vraiment. Le
   risque à surveiller est de dériver vers un langage de requête, ce que ce
   fichier refuse. Le tri, lui, est déjà possible sans rien ajouter depuis le
-  point 89 — un horodatage se trie comme du texte.
+  point 89 — un horodatage se trie comme du texte. **(FERMÉ au point 123 :
+  `rule X.Read filter champ` et `rule X.Read sort champ`, égalité exacte et
+  whitelist de tri, sans langage de requête.)**
 - (FERMÉ au point 86 : le décompte du stock par un champ, et la vérification
   de disponibilité qu'il exige.)
 - (FERMÉ au point 89 : la date de création, née du back-office du point 88.)
