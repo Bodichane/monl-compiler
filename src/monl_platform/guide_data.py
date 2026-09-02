@@ -190,10 +190,14 @@ OUTILS_MCP: list[tuple[str, str]] = [
 ]
 
 LIMITES: list[tuple[str, str]] = [
-    ("Aucun téléversement",
-     "Une spec déclarant un bloc <code>assets</code> ou un champ "
-     "<code>Image</code> est refusée : le compilateur vérifie que le fichier "
-     "existe, et rien ici ne permet de le déposer. Utilisez "
+    ("Aucun fichier fourni à la compilation",
+     "Un fichier envoyé à l'<b>exécution</b> fonctionne : déclarez un champ "
+     "<code>Upload</code>, et le backend produit le reçoit, vérifie son type "
+     "sur la signature des octets et le range hors du site. Ce qui manque "
+     "ici, c'est de déposer un fichier <b>avant</b> la compilation — un bloc "
+     "<code>assets</code>, ou une valeur <code>Image</code> dans un "
+     "<code>seed</code> : le compilateur vérifie qu'il existe, rien sur cette "
+     "page ne permet de l'y mettre, donc la compilation échoue. Utilisez "
      "<code>String</code> pour une adresse distante, ou le compilateur en "
      "local avec <code>monl assets add</code>."),
     ("Rétention bornée",

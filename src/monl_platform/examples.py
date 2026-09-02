@@ -12,10 +12,11 @@ puisse pourrir en silence.
 Chacune est courte à dessein : elle enseigne une famille de règles, elle ne
 démontre pas tout. `exemples/` reste la référence complète, commentée.
 
-Aucune ne déclare d'`assets` : la plateforme n'offre aucun moyen de
-téléverser un fichier, et une spec qui en déclare est refusée à la
-compilation (brique 13). Une vitrine en ligne montre donc ses images par
-`String`, jamais par `Image`.
+Aucune ne déclare d'`assets` : la plateforme n'offre aucun moyen de déposer
+un fichier AVANT la compilation, et un asset déclaré mais absent la fait
+échouer (brique 13). Une vitrine en ligne montre donc ses images par
+`String`, jamais par une valeur `Image`. Le fichier envoyé à l'EXÉCUTION est
+une autre affaire, et il fonctionne : voir la brique 32 (`Upload`).
 """
 
 from __future__ import annotations

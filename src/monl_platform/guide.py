@@ -171,8 +171,10 @@ sa révocation. Le client MCP la transmet avec
 <div class="tablewrap"><table class="grid"><thead><tr><th>Limite</th><th>Pourquoi, et le contournement</th></tr></thead><tbody>{limites}</tbody></table></div>
 <h3>Pour aller plus loin</h3>
 <p>Le compilateur en local ouvre le dialogue guidé, les assets, le contenu en CSV
-et la reconstruction d'interface par IA :</p>
-<pre class="codeblock"><code>pip install monl-compiler
+et la reconstruction d'interface par IA. Il n'est publié sur aucun index de
+paquets : on l'installe depuis une copie du dépôt.</p>
+<pre class="codeblock"><code>git clone https://github.com/Bodichane/monl-compiler
+pip install ./monl-compiler
 monl                      <span class="cm"># dialogue guidé : spec + backend + contrat</span>
 monl run MonProjet        <span class="cm"># cohérence, smoke test, puis lancement</span></code></pre>""")
     ]

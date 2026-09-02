@@ -55,7 +55,7 @@ monl run MonProjet
 ```
 
 Les fournisseurs frontend par API nécessitent l'extra optionnel :
-`pip install 'monl-compiler[ai]'`. Les agents locaux et `monl import` n'en ont
+`pip install '.[ai]'`. Les agents locaux et `monl import` n'en ont
 pas besoin.
 
 Yandex Cloud AI Studio est disponible par son API compatible OpenAI. La clé et
