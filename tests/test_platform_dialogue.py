@@ -94,7 +94,7 @@ def test_le_rejeu_http_complet_produit_un_backend_attendu(running_platform):
     assert "Aucune vulnérabilité" in "\n".join(resultat["messages"])
     spec = resultat["spec"]
     assert spec.splitlines()[0] == "app StudioTest"
-    assert len(spec.splitlines()) == 42
+    assert len(spec.splitlines()) == 44
     attendu = iter(SCENARIO_PORTFOLIO)
     spec_directe = GuidedDialogue(ask=lambda _prompt: next(attendu)).run()
     assert spec == spec_directe

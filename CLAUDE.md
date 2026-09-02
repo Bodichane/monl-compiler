@@ -447,6 +447,21 @@ réseau social anonyme comme banc d'essai final.
     celui qui exige que compiler AVEC et SANS ces règles donne des sorties
     différentes. Corrigé au passage : `payload.dict()` dans les blocs `custom`,
     déprécié en Pydantic v2 et **retiré en v3**. Voir point 85.
+    **POINT 179 : `required` dit PRÉSENT, jamais REMPLI — et le dialogue s'en
+    contentait.** Mesuré sur une archive téléchargée : `rule X.titre required`
+    acceptait `titre: ""` en 200, et le site affichait une carte sans nom. Le
+    plancher existait, il était éprouvé, et **rien ne l'écrivait** (point 146).
+    `emit_base_rules` pose désormais `min 1` à côté de `required`, **DÉRIVÉ du
+    type et jamais demandé** (aucune question nouvelle — point 89). Il ne vaut
+    QUE pour le texte : sur un nombre `min` porte sur la VALEUR, et 1
+    interdirait un prix, un stock ou un total à zéro. La portée est LUE chez le
+    validateur (`TYPES_TEXTE = ChampsMixin.BORNES_TEXTE`), jamais recopiée —
+    une seconde liste ferait émettre au dialogue une règle que le compilateur
+    refuse. **La chaîne d'ESPACES reste acceptée**, et c'est ÉNONCÉ : la fermer
+    demanderait de normaliser avant de mesurer, donc de toucher au point 85 pour
+    tous les projets. Éprouvée par `tests/test_champ_texte_non_vide.py`
+    (9 témoins, vrai serveur), dont les DEUX contre-épreuves : correctif désarmé
+    → 200 revient ; liste élargie aux nombres → un total à zéro devient refusé.
 
 15. **`rule Entite.Create decrements Entite.champ by champ`** — décompter CE QUE
     LE CLIENT A DEMANDÉ, pas une constante. La boutique encaissait depuis le
