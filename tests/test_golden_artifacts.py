@@ -45,7 +45,9 @@ GOLDENS = {
     # manage.py bougent, plus monl.json qui scelle l'empreinte du backend.
     # schema.sql, le contrat, le brief, le wrapper et le conteneur restent à
     # l'octet près : la correction ne touche que l'identifiant de compte.
-    "app.py": "e491ae6745289f831695da4b8f8257c9131b12f8c44292981335807420338b94",
+    # Ce chantier ajoute `_LOOKUP_INDEXES` et la dépendance intermédiaire
+    # `_identite_du_jeton` dans le runtime compilé : app.py change réellement.
+    "app.py": "ca3ad841f0ce358c545d3220b834ad4a6b4acae8cd4808c53f9b4eea04c3532f",
     "schema.sql": "244eb93ba9a727aa855bca0a96d76b2a329f8ee69c6b5bf2ba693d4c6eacba1f",
     # `sandbox_ai.py` SORT des empreintes, et ce n'est pas un relâchement : la
     # spec de banc n'a aucun bloc `custom`, donc le module n'est plus produit.
@@ -126,7 +128,9 @@ GOLDENS = {
     # cotes et doit etre recalculee. Reprendre l'une des deux donnerait un test
     # qui passe sans rien prouver. Tous les autres artefacts restent identiques
     # a l'octet, trois fois de suite : c'est ce que ce test est la pour tenir.
-    "monl.json": "a5fc35baa4753f368110cf99b95a8d71cbf3de242326396216528e2ed629fd20",
+    # monl.json scelle l'empreinte de ce nouvel app.py ; aucun autre artefact
+    # n'est touché par les deux correctifs backend.
+    "monl.json": "894daca2dc88daca60abddce7084d350d6493ad4c909a9850ee71aeef59a759b",
 }
 
 

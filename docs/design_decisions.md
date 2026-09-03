@@ -98,6 +98,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [178](#178-la-page-daccueil-affirmait-une-vérification-qui-nexistait-pas) La page d'accueil affirmait une vérification qui n'existait pas ·
 [179](#179-required-disait--présent--jamais--rempli---et-le-dialogue-sen-contentait) `required` disait « présent », jamais « rempli » ·
 [180](#180-une-limite-annoncée-se-périme-comme-une-brique--la-table-du-guide-disait-faux) Une limite annoncée se périme comme une brique ·
+[181](#181-ce-quune-route-interroge-nétait-pas-indexé-et-le-jeton-se-décodait-deux-fois) Ce qu'une route interroge n'était pas indexé ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -13081,3 +13082,90 @@ c'est la COLLECTE du fichier entier qui aurait échoué sur cette version. Le
 dépôt portait déjà le motif (repli sur `tomli`, dans la fonction) ; je ne
 l'avais pas cherché. *Un garde-fou qui rougit sur le travail de son auteur est
 un garde-fou qui a été écrit pour la bonne raison.*
+
+## 181. Ce qu'une route INTERROGE n'était pas indexé, et le jeton se décodait deux fois
+
+Né d'un audit de performance demandé par le mainteneur, pas d'une gêne
+constatée. Les cinq points examinés ; deux méritaient un correctif, et ce sont
+les deux qui ne demandaient aucune décision d'architecture.
+
+**LE PREMIER EST LE PLUS COÛTEUX, et il était invisible.** Le seul index posé
+sur une table métier était UNIQUE (`unique`, `oncePer`, `numbered`). Or toute
+route `ownedBy` exécute `WHERE "<fk>" = ?`, et la clé étrangère **n'était
+indexée nulle part** — pas plus qu'un champ déclaré `rule X.Read filter champ`.
+Le chemin le plus fréquent de toute application monl était un balayage complet
+de table. Mesuré sur 50 000 lignes réparties sur 50 comptes :
+
+| Requête de la route de liste | Avec index | Sans |
+|---|---|---|
+| `SELECT COUNT(*) … WHERE client_id = ?` | 0,033 ms | 2,306 ms (**70×**) |
+| `SELECT * … WHERE client_id = ? LIMIT 100` | 0,137 ms | 0,340 ms (2,5×) |
+
+Le `LIMIT` s'arrête tôt, donc il masque le défaut ; c'est le `COUNT` qui
+balaie, et **la route exécute les deux à chaque appel**. Une mesure prise sur
+la seule seconde requête aurait conclu « 2,5×, ça peut attendre ».
+
+**Les index sont créés au DÉMARRAGE, jamais dans `schema.sql`.** Les poser
+dans le schéma ne servirait que les bases neuves ; la discipline de migration
+additive du point 32 veut qu'un projet déjà en service les reçoive aussi.
+`_compute_lookup_indexes()` (sql_colonnes.py) lit les clés étrangères chez
+`_compute_fk_placements()` — **la source qui alimente déjà `sql_schema.py`**
+pour écrire les contraintes `FOREIGN KEY` — et les filtres chez
+`filterable_fields_by_entity`. Deux listes divergeraient (point 92). Une
+colonne déjà couverte par un index UNIQUE est **dédoublonnée** : un second
+index coûterait de l'écriture sans rien servir.
+
+**LE PIÈGE, mesuré avant d'écrire une ligne.** `runtime_montage.py` porte un
+bloc `init_db()` complet qui crée lui aussi des index — et **ce bloc est
+MORT** : le fichier construit la tranche puis la REMPLACE
+(`api_lines[:legacy_db_start] + self._generate_database_runtime_lines() + …`)
+par la version de `runtime_preparation.py`. Prouvé par un mot distinctif : le
+message de montage (« Index unique sur … ignoré ») apparaît **0 fois** dans un
+`app.py` compilé, celui de preparation (« … non appliqué ») **1 fois**. Un
+correctif écrit là n'aurait rien fait, et **aucun test n'aurait rougi** — le
+point 146 dans la couche du générateur. Le code mort n'est pas retiré ici :
+c'est un autre sujet, noté à part.
+
+**LE SECOND : le jeton était décodé deux fois par requête.** Tracé au SQL,
+un `POST` authentifié ouvrait **3 connexions** et exécutait **deux fois**
+`SELECT 1 FROM _monl_revoked_tokens WHERE jti = ?`. Cause :
+`verify_jwt_and_get_actor` et `get_current_user_id` sont deux dépendances
+FastAPI DISTINCTES appelant chacune `_decode_and_verify_token`, qui ouvre sa
+propre connexion — FastAPI met en cache **par identité de callable**, donc deux
+callables font deux exécutions. `get_current_anon_handle` en ajoutait une
+troisième. Les trois dérivent désormais d'une dépendance unique
+(`_identite_du_jeton`), mise en cache une fois par requête.
+
+Mesuré, même sonde avant et après : **11 → 8 instructions SQL, 3 → 2
+connexions, 2 → 1 contrôle de révocation.**
+
+**On supprime une RÉPÉTITION, jamais un contrôle** : signature et révocation
+s'exécutent toujours à chaque requête authentifiée — vérifié contre un vrai
+serveur (200, puis **401** après `logout`, 401 sur un jeton bidon).
+**`get_optional_identity` reste volontairement à part** (point 116) : elle prend
+`request` et rend `{}` quand le jeton manque, là où la dépendance stricte doit
+répondre 401. Les fusionner ferait répondre 401 à une route publique. **Limite
+énoncée** : une route qui déclarerait les deux paierait encore deux décodages ;
+aucune ne le fait aujourd'hui, et forcer le partage coûterait la garantie.
+
+**LA PREUVE QUI COMPTE N'EST PAS « L'INDEX EXISTE ».** C'est le point 83 sous
+un autre jour — « existe » n'est pas « servi ». `EXPLAIN QUERY PLAN` rend
+`SEARCH commande USING COVERING INDEX idx_lookup_commande_client_id`, et non
+`SCAN` : le planificateur s'en sert vraiment. Un test qui se serait contenté de
+lire `sqlite_master` aurait été vert sur un index que personne n'utilise.
+
+**Trois points de l'audit n'ont PAS été corrigés, et c'est délibéré.** Le
+driver `psycopg` est synchrone mais **aucune route générée n'est `async def`** :
+FastAPI les exécute dans son pool de threads, la boucle d'événements n'est pas
+bloquée — le plafond est le pool (40 par défaut), pas le driver. Il n'existe
+**aucun pool de connexions** : c'est le prochain gain, et il demande une
+décision. Et il n'y a **pas de N+1** côté serveur (2 requêtes constantes pour
+100 lignes, mesuré) mais **pas de jointure non plus** : la clé étrangère sort
+brute, donc le N+1 est déplacé chez le client — changer cela toucherait le
+contrat frontend.
+
+Éprouvé par `tests/test_indexation_et_decodage.py` (6 témoins, vrai serveur,
+traçage SQL par `sitecustomize` sans toucher à l'artefact scellé), avec quatre
+contre-épreuves. Contrôle indépendant : le correctif RETIRÉ de la source fait
+rougir 4 des 6 témoins ; les deux qui restent verts mesurent la révocation,
+qui n'a pas changé.
