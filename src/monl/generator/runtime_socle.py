@@ -1,6 +1,11 @@
 """Le haut de app.py : imports, application, secret, quota, enveloppe SQLite,
 et ce que le serveur généré sait faire seul (horodatage, numérotation)."""
 
+
+DB_POOL_MIN_ENV = "MONL_DB_POOL_MIN"
+DB_POOL_MAX_ENV = "MONL_DB_POOL_MAX"
+
+
 class SocleRuntimeMixin:
     """Le haut de app.py : imports, application, secret, quota, enveloppe SQLite,"""
 
@@ -11,7 +16,6 @@ class SocleRuntimeMixin:
         message_imports = ([
             "import logging",
             "import smtplib",
-            "import threading",
             "from email.message import EmailMessage",
         ] if (self.message_rules_by_trigger or self.auth_features.get("password_reset")) else [])
         totp_imports = (["import base64", "import struct"]
@@ -60,6 +64,7 @@ class SocleRuntimeMixin:
             "import os",
             "import secrets",
             "import time",
+            "import threading",
             *message_imports,
             *totp_imports,
             # POINT 95 : la forme de l'identifiant de compte se vérifie par
@@ -89,6 +94,7 @@ class SocleRuntimeMixin:
             "MONL_DATABASE_URL = (os.environ.get('MONL_DATABASE_URL') or '').strip()",
             "_DATABASE_KIND = 'sqlite'",
             "_psycopg = None",
+            "_psycopg_pool = None",
             "if MONL_DATABASE_URL:",
             "    if not MONL_DATABASE_URL.startswith(('postgresql://', 'postgres://')):",
             "        raise RuntimeError(\"MONL_DATABASE_URL doit commencer par postgresql:// ou postgres://.\")",
@@ -96,6 +102,10 @@ class SocleRuntimeMixin:
             "        import psycopg as _psycopg",
             "    except ImportError as _err:",
             "        raise RuntimeError(\"PostgreSQL demande la dépendance optionnelle '.[postgres]' (pip install monl-compiler[postgres]).\") from _err",
+            "    try:",
+            "        import psycopg_pool as _psycopg_pool",
+            "    except ImportError:",
+            "        _psycopg_pool = None",
             "    _DATABASE_KIND = 'postgresql'",
             "    if MONL_DATABASE_URL.startswith('postgres://'):",
             "        MONL_DATABASE_URL = 'postgresql://' + MONL_DATABASE_URL[len('postgres://'):]",
@@ -151,6 +161,14 @@ class SocleRuntimeMixin:
             "class _DatabaseConnection:",
             "    def __init__(self, raw):",
             "        self._raw = raw",
+            "        self._pool = None",
+            "        self._closed = False",
+
+            "    @classmethod",
+            "    def from_pool(cls, raw, pool):",
+            "        connection = cls(raw)",
+            "        connection._pool = pool",
+            "        return connection",
             "",
             "    def cursor(self):",
             "        return _DatabaseCursor(self._raw.cursor())",
@@ -174,6 +192,12 @@ class SocleRuntimeMixin:
             "        return self._raw.rollback()",
             "",
             "    def close(self):",
+            "        if self._closed:",
+            "            return None",
+            "        self._closed = True",
+            "        if self._pool is not None:",
+            "            # `putconn()` remet au pool après son reset : psycopg_pool rollbacke les transactions INTRANS/INERROR.",
+            "            return self._pool.putconn(self._raw)",
             "        return self._raw.close()",
             "",
             "    @property",
@@ -193,6 +217,7 @@ class SocleRuntimeMixin:
     def _socle_outils_generes(self, actors_literal, self_register_literal):
         """Ce que le serveur généré sait faire seul : schéma, horodatage, numéro."""
         return [
+            *self._pool_runtime_lines(),
             "def _schema_for_database(script):",
             "    if _DATABASE_KIND == 'postgresql':",
             "        # schema.sql reste directement exécutable par SQLite. Pour",
@@ -204,7 +229,11 @@ class SocleRuntimeMixin:
             "",
             "def _connect():",
             "    if _DATABASE_KIND == 'postgresql':",
-            "        return _DatabaseConnection(_psycopg.connect(MONL_DATABASE_URL, connect_timeout=10))",
+            "        if _psycopg_pool is None:",
+            "            _announce_database_pool_fallback()",
+            "            return _DatabaseConnection(_psycopg.connect(MONL_DATABASE_URL, connect_timeout=10))",
+            "        _pool = _database_pool()",
+            "        return _DatabaseConnection.from_pool(_pool.getconn(), _pool)",
             "    # CORRECTIF (bêta 3) : toutes les connexions de requête passent par",
             "    # ce helper. Il active l'intégrité référentielle (SQLite la désactive",
             "    # par défaut) et un délai d'attente sur verrou.",

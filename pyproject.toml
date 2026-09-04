@@ -67,7 +67,7 @@ dev = [
     "tomli>=2.0; python_version < '3.11'",
 ]
 postgres = [
-    "psycopg>=3.1,<4.0",
+    "psycopg[pool]>=3.1,<4.0",
 ]
 
 [project.urls]

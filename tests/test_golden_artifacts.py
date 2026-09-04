@@ -47,7 +47,12 @@ GOLDENS = {
     # l'octet près : la correction ne touche que l'identifiant de compte.
     # Ce chantier ajoute `_LOOKUP_INDEXES` et la dépendance intermédiaire
     # `_identite_du_jeton` dans le runtime compilé : app.py change réellement.
-    "app.py": "ca3ad841f0ce358c545d3220b834ad4a6b4acae8cd4808c53f9b4eea04c3532f",
+    # Le pool PostgreSQL est lui aussi une évolution du runtime : app.py porte
+    # ses réglages, sa fermeture dans le lifespan et son repli explicite ;
+    # monl.json en scelle l'empreinte. schema.sql, manage.py et requirements.txt
+    # restent hors de portée : psycopg[pool] est l'extra de compilation, pas une
+    # dépendance du projet livré.
+    "app.py": "2e07af6fed0f42860f6c18af075aa51ac7785fa2798366044fb4e0914df036ee",
     "schema.sql": "244eb93ba9a727aa855bca0a96d76b2a329f8ee69c6b5bf2ba693d4c6eacba1f",
     # `sandbox_ai.py` SORT des empreintes, et ce n'est pas un relâchement : la
     # spec de banc n'a aucun bloc `custom`, donc le module n'est plus produit.
@@ -130,7 +135,7 @@ GOLDENS = {
     # a l'octet, trois fois de suite : c'est ce que ce test est la pour tenir.
     # monl.json scelle l'empreinte de ce nouvel app.py ; aucun autre artefact
     # n'est touché par les deux correctifs backend.
-    "monl.json": "894daca2dc88daca60abddce7084d350d6493ad4c909a9850ee71aeef59a759b",
+    "monl.json": "35bb222280ec90ad923e728f038e2034d502cf6d706fc868340dc820e1fe5775",
 }
 
 
