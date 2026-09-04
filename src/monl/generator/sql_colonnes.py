@@ -99,7 +99,10 @@ class SqlColonnesMixin:
         source que `sql_schema.py` utilise pour émettre les colonnes et les
         contraintes `FOREIGN KEY`. Les champs filtrables viennent de l'IR
         préparée par `core.py`; aucune seconde liste de relations ou de filtres
-        ne doit pouvoir diverger de ce que les routes acceptent.
+        ne doit pouvoir diverger de ce que les routes acceptent. Les colonnes
+        des règles `accessibleBy` et `publicWhen` sont ajoutées depuis leurs
+        propres structures IR : ce sont aussi des filtres de route, même si
+        elles ne sont ni des clés étrangères ni des champs `filter`.
 
         Une colonne déjà couverte par `_compute_unique_indexes` n'a pas besoin
         d'un second index. Les tuples sont dédupliqués puis triés afin que le
@@ -122,6 +125,16 @@ class SqlColonnesMixin:
             for column in fields:
                 if (table, column) not in unique_columns:
                     lookup_columns.add((table, column))
+        for reference, columns in self.access_parties.items():
+            table = reference.split(".", 1)[0].lower()
+            for column in columns:
+                if (table, column) not in unique_columns:
+                    lookup_columns.add((table, column))
+        for (entity, _action), condition in self.public_conditions.items():
+            table = entity.lower()
+            column = condition["field"]
+            if (table, column) not in unique_columns:
+                lookup_columns.add((table, column))
         return [
             (table, column, f"idx_lookup_{table}_{column.lower()}")
             for table, column in sorted(lookup_columns)

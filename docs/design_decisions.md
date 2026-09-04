@@ -100,6 +100,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [180](#180-une-limite-annoncée-se-périme-comme-une-brique--la-table-du-guide-disait-faux) Une limite annoncée se périme comme une brique ·
 [181](#181-ce-quune-route-interroge-nétait-pas-indexé-et-le-jeton-se-décodait-deux-fois) Ce qu'une route interroge n'était pas indexé ·
 [182](#182-une-connexion-neuve-par-requête--11-ms-payés-54-fois-le-prix-de-la-requête) Une connexion neuve par requête ·
+[183](#183-un-correctif-ferme-les-cas-connus--un-invariant-ferme-la-classe) Un invariant ferme la classe ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -13237,3 +13238,62 @@ avec, aucun saut**.
 serveur, mais pas de jointure non plus — la clé étrangère sort brute et le N+1
 vit chez le client. Le changer toucherait le contrat frontend, donc c'est une
 décision produit, pas un défaut du compilateur.
+## 183. Un correctif ferme les cas connus ; un invariant ferme la classe
+
+Né d'une question du mainteneur après les points 181 et 182 : « le compilateur
+doit maintenant intégrer performance et scalabilité ». La réponse honnête était
+que non, pas encore — et elle se prouve.
+
+Le point 181 indexe les clés étrangères et les champs `filter`. Balayage des
+cinq exemples du dépôt : **il restait deux colonnes filtrées sans index**, dans
+`exemples/03_reseau_social.ml`. `recipient_id` vient de
+`rule PrivateMessage.Read accessibleBy member_id, recipient_id` ; `status` de
+`rule Post.Read publicWhen status "published"`. Ni clé étrangère, ni champ
+`filter` : le point 181 ne pouvait pas les voir. **Toute messagerie privée
+écrite avec monl balayait encore sa table entière.**
+
+Mesuré sur 40 000 messages, la requête RÉELLE de la route de liste :
+`COUNT(*) … WHERE member_id = ? OR recipient_id = ?` passe de **1,811 ms à
+0,201 ms (9×)**, et le plan devient `MULTI-INDEX OR` — SQLite se sert des DEUX
+index et les unit. Le gain de `status` est plus modeste (2×) et c'est dit :
+« published » couvre 75 % des lignes, un index peu sélectif ne fait pas de
+miracle.
+
+**LA VRAIE LIVRAISON N'EST PAS CES DEUX COLONNES.** C'est
+`tests/test_invariants_performance.py`, le jumeau de
+`test_invariants_securite.py` : il compile **les 13 specs du dépôt** (5 exemples
+et 8 projets réels) et exige que toute colonne d'une table métier apparaissant
+dans un `WHERE` du code produit soit indexée. Le point 181 aurait été
+impossible à écrire ; la prochaine brique qui ajoute un `WHERE` ne pourra plus
+rouvrir le trou en silence.
+
+**TROIS PIÈGES, tous rencontrés en écrivant la sonde d'abord à la main.**
+
+1. **Le SQL est CONCATÉNÉ.** Les routes émettent
+   `'SELECT * FROM "commande"' + _own_where + ' LIMIT ? OFFSET ?'` : `FROM` et
+   `WHERE` ne sont JAMAIS dans le même littéral. Ma première sonde exigeait les
+   deux ensemble et a répondu **« 0 colonne filtrée » sur quatre exemples sur
+   cinq** — un feu vert entièrement faux, sur la mesure même qui devait fonder
+   la décision.
+2. **Aucune liste d'exclusion écrite à la main.** J'avais listé `jti`,
+   `bucket`, `client_ip`… c'est le défaut que ce dépôt reproche partout
+   (points 152, 164, 167, 169). Le périmètre se DÉRIVE : `_EXPECTED_COLUMNS`,
+   dans l'`app.py` produit, ne contient que les tables MÉTIER — vérifié, aucune
+   `_monl_*`. Une colonne n'est jugée que si elle appartient à une table métier,
+   et `id` en sort tout seul puisqu'il n'y figure pas.
+3. **Le témoin doit prouver qu'il VOIT quelque chose.**
+   `test_le_temoins_voit_les_quatre_filtres_du_reseau_social` exige de trouver
+   les quatre couples `(table, colonne)` nommés. Sans lui, un extracteur cassé
+   rend l'invariant vert en ne regardant rien — c'est exactement ce qui m'était
+   arrivé, et aucune relecture ne l'aurait montré.
+
+Deux contre-épreuves, une par source : retirer `accessibleBy` fait lever sur
+`recipient_id`, retirer `publicWhen` sur `status`.
+
+**Et un écho, rencontré en vérifiant le balayage** : `--collect-only -q`
+n'affichait aucun test, parce que le `-q` de `addopts` se cumule en `-qq`
+(point 161, mot pour mot, dans une troisième situation). Il a fallu
+`-o addopts=` pour voir les 13 specs réellement paramétrées. *Une commande qui
+n'affiche rien n'affirme pas qu'il n'y a rien.*
+
+`ruff` propre, **1514 passent, 16 sauts déclarés**.

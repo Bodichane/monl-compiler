@@ -20,6 +20,31 @@ workflow Ecrire for Auteur
     Read Note
 """
 
+# Banc backend dédié aux deux sources ajoutées au point 181. Il reste
+# séparé de SPEC : le golden historique doit continuer à prouver que les
+# artefacts d'une spec sans ces règles ne changent pas. Ici, les deux index
+# supplémentaires sont effectivement présents dans _LOOKUP_INDEXES.
+SPEC_LOOKUP_SOURCES = """app GoldenLookup
+
+entity Note
+    titre: String
+    status: String
+
+entity Message
+    contenu: Text
+    member_id: Integer
+    recipient_id: Integer
+
+actor Reader selfRegister
+
+rule Note.Read publicWhen status "published"
+rule Message.Read accessibleBy member_id, recipient_id
+
+workflow Lire for Reader
+    Read Note
+    Read Message
+"""
+
 GOLDENS = {
     # CHANTIER A1 : app.py porte le choix de dialecte au démarrage, les
     # migrations PostgreSQL et les intégrités structurées. schema.sql change
@@ -138,6 +163,20 @@ GOLDENS = {
     "monl.json": "35bb222280ec90ad923e728f038e2034d502cf6d706fc868340dc820e1fe5775",
 }
 
+# Empreintes de la fixture qui porte réellement `publicWhen` et
+# `accessibleBy` : le correctif ajoute les index de `status` et
+# `recipient_id` au runtime, et monl.json scelle le nouvel app.py.
+LOOKUP_GOLDENS = {
+    # Recalculées à la fusion des points 182 et 183 : chaque branche avait
+    # inscrit SON empreinte, et le code combiné en produit une TROISIÈME. La
+    # fusion automatique de git ne l'a pas signalé — seul ce test l'a fait.
+    # Vérifié avant de réinscrire : l'app.py mesuré porte bien le pool
+    # (`_close_database_pool`) ET les index d'`accessibleBy`/`publicWhen`
+    # (`recipient_id` dans `_LOOKUP_INDEXES`), et rien d'autre n'a bougé.
+    "app.py": "bfb2a82664c4c6d29cf27ceb46679813a8515efb4a8121678eb39b9515bb0a0f",
+    "monl.json": "4a36752f12f8b863c315c19a41facb499445f7e47e5d0f9b150c31365443bf20",
+}
+
 
 def _empreintes(project_dir: Path):
     return {
@@ -159,6 +198,20 @@ def test_une_recompilation_garde_les_artefacts_deterministes(tmp_path, capsys):
     capsys.readouterr()
     assert _empreintes(tmp_path) == GOLDENS
     _aucun_module_custom_inutile(tmp_path)
+
+
+def test_les_sources_de_filtrage_du_point_181_sont_dans_le_golden(
+        tmp_path, capsys):
+    """Le golden backend exerce les deux familles de filtres ajoutées."""
+    spec = tmp_path / "spec.ml"
+    spec.write_text(SPEC_LOOKUP_SOURCES, encoding="utf-8")
+
+    compile_project(str(spec), str(tmp_path))
+    capsys.readouterr()
+    empreintes = _empreintes(tmp_path)
+    assert {name: empreintes[name] for name in ("app.py", "monl.json")} == {
+        name: LOOKUP_GOLDENS[name] for name in ("app.py", "monl.json")
+    }
 
 
 def _aucun_module_custom_inutile(project_dir: Path):
