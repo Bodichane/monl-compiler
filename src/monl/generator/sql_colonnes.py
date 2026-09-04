@@ -92,6 +92,41 @@ class SqlColonnesMixin:
             for entite, champ in sorted(vises)
         ]
 
+    def _compute_lookup_indexes(self):
+        """Index de recherche pour les clés étrangères et les filtres.
+
+        Les clés étrangères viennent de `_compute_fk_placements`, la même
+        source que `sql_schema.py` utilise pour émettre les colonnes et les
+        contraintes `FOREIGN KEY`. Les champs filtrables viennent de l'IR
+        préparée par `core.py`; aucune seconde liste de relations ou de filtres
+        ne doit pouvoir diverger de ce que les routes acceptent.
+
+        Une colonne déjà couverte par `_compute_unique_indexes` n'a pas besoin
+        d'un second index. Les tuples sont dédupliqués puis triés afin que le
+        runtime généré reste déterministe, même si une colonne est à la fois
+        une clé étrangère et filtrable.
+        """
+        unique_columns = {
+            (table, column)
+            for table, column, _index in self._compute_unique_indexes()
+        }
+        lookup_columns = set()
+        for entity, placements in self._compute_fk_placements().items():
+            table = entity.lower()
+            for placement in placements:
+                column = placement["fk_column"]
+                if (table, column) not in unique_columns:
+                    lookup_columns.add((table, column))
+        for entity, fields in self.filterable_fields_by_entity.items():
+            table = entity.lower()
+            for column in fields:
+                if (table, column) not in unique_columns:
+                    lookup_columns.add((table, column))
+        return [
+            (table, column, f"idx_lookup_{table}_{column.lower()}")
+            for table, column in sorted(lookup_columns)
+        ]
+
     def _compute_numbered_columns(self):
         """POINT 102 : [(table, colonne)] pour chaque 'rule Entite.champ numbered'.
 

@@ -31,6 +31,9 @@ class JetonsRuntimeMixin:
             # s'applique à une table déjà peuplée et reste idempotent. La
             # promesse de migration additive (point 32) est donc tenue.
             f"_UNIQUE_INDEXES = {self._compute_unique_indexes()!r}\n",
+            "# Index de recherche des clés étrangères et des champs filtrables,\n",
+            "# créés au démarrage pour aussi rattraper les bases déjà en service.\n",
+            f"_LOOKUP_INDEXES = {self._compute_lookup_indexes()!r}\n",
             "# Unicités métier multi-colonnes (ex. un vote par compte et par entrée).\n",
             f"_ONCE_PER_INDEXES = {self._compute_once_per_indexes()!r}\n",
             # POINT 89 : les colonnes horodatées, pour que le démarrage puisse
@@ -65,23 +68,32 @@ class JetonsRuntimeMixin:
             "            raise HTTPException(status_code=401, detail='Ce token a été révoqué (déconnexion effectuée).')",
             "    return payload\n",
 
-            "def verify_jwt_and_get_actor(credentials: HTTPAuthorizationCredentials = Depends(security_bearer)) -> str:",
-            "    return _decode_and_verify_token(credentials).get('actor')\n",
+            # Une seule dépendance FastAPI stricte porte le décodage et le
+            # contrôle de révocation. Les trois consommateurs partagent son
+            # identité de callable, donc FastAPI la met en cache une fois par
+            # requête. `get_optional_identity`, émise séparément pour les
+            # routes publiques, reste volontairement distincte : elle rend
+            # `{}` au lieu de 401 pour un jeton absent, invalide ou révoqué.
+            "def _identite_du_jeton(credentials: HTTPAuthorizationCredentials = Depends(security_bearer)) -> dict:",
+            "    return _decode_and_verify_token(credentials)\n",
+
+            "def verify_jwt_and_get_actor(payload: dict = Depends(_identite_du_jeton)) -> str:",
+            "    return payload.get('actor')\n",
 
             # AJOUT (post-v6, roadmap) : dépendance séparée pour récupérer l'identité
             # numérique (user_id) portée par le token, utilisée par le contrôle
             # d'accès par propriété ('ownedBy') et par le peuplement automatique
             # des colonnes de clé étrangère à la création d'un enregistrement.
-            "def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(security_bearer)) -> int:",
-            "    return _decode_and_verify_token(credentials).get('user_id', 0)\n",
+            "def get_current_user_id(payload: dict = Depends(_identite_du_jeton)) -> int:",
+            "    return payload.get('user_id', 0)\n",
 
             # AJOUT (roadmap, écosystème de capacités -- suite de la brique 1) :
             # dépendance séparée pour récupérer le pseudonyme anonyme stable
             # du compte courant, utilisée par les champs 'generated' -- déjà
             # porté par le JWT depuis /login (voir plus bas), pas besoin
             # d'une requête DB supplémentaire à chaque appel.
-            "def get_current_anon_handle(credentials: HTTPAuthorizationCredentials = Depends(security_bearer)) -> str:",
-            "    return _decode_and_verify_token(credentials).get('anon_handle', '')\n",
+            "def get_current_anon_handle(payload: dict = Depends(_identite_du_jeton)) -> str:",
+            "    return payload.get('anon_handle', '')\n",
         ]
 
     def _generate_identifier_helpers(self):
