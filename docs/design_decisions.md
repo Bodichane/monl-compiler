@@ -99,6 +99,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [179](#179-required-disait--présent--jamais--rempli---et-le-dialogue-sen-contentait) `required` disait « présent », jamais « rempli » ·
 [180](#180-une-limite-annoncée-se-périme-comme-une-brique--la-table-du-guide-disait-faux) Une limite annoncée se périme comme une brique ·
 [181](#181-ce-quune-route-interroge-nétait-pas-indexé-et-le-jeton-se-décodait-deux-fois) Ce qu'une route interroge n'était pas indexé ·
+[182](#182-une-connexion-neuve-par-requête--11-ms-payés-54-fois-le-prix-de-la-requête) Une connexion neuve par requête ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -13169,3 +13170,70 @@ traçage SQL par `sitecustomize` sans toucher à l'artefact scellé), avec quatr
 contre-épreuves. Contrôle indépendant : le correctif RETIRÉ de la source fait
 rougir 4 des 6 témoins ; les deux qui restent verts mesurent la révocation,
 qui n'a pas changé.
+
+## 182. Une connexion neuve par requête : 11 ms payés 54 fois le prix de la requête
+
+Suite directe du point 181, et le plus gros gain de la série. `_connect()`
+ouvrait une connexion NEUVE à chaque appel, sur les deux moteurs. Mesuré contre
+un vrai PostgreSQL 16 :
+
+| | |
+|---|---|
+| Ouvrir une connexion + `SELECT 1` | **11,1 ms** |
+| `SELECT 1` sur une connexion ouverte | 0,206 ms |
+| → coût d'établissement | **10,9 ms, soit 54× la requête** |
+
+Une requête authentifiée en ouvrait deux (une pour l'identité, une pour la
+donnée — le point 181 avait déjà retiré la troisième). Mesuré de bout en bout,
+en HTTP : `GET /commande` **28,67 ms → 5,07 ms** de médiane (p95 5,64).
+
+**MAIS LA VITESSE N'EST PAS LA GARANTIE QUI COMPTE.** `max_connections` vaut
+100 par défaut chez PostgreSQL (vérifié). Sans pool, le nombre de connexions
+**suit le nombre de requêtes en vol** : 40 fils Starlette × N instances
+derrière un répartiteur, et le serveur refuse. Mesuré : 400 requêtes sur 40
+fils, `pg_stat_activity` culmine à **42 sans pool** et à **3 avec
+`MONL_DB_POOL_MAX=3`** — exactement le plafond déclaré, toutes les requêtes en
+200. C'est la différence entre « lent » et « refusé ».
+
+**SQLITE EST HORS SUJET, ET C'EST MESURÉ** — pas supposé. Ouvrir + PRAGMA +
+`SELECT 1` y coûte **0,094 ms**, soit **116× moins** que PostgreSQL. Mutualiser
+des connexions SQLite entre threads ajouterait `check_same_thread` et des
+verrous pour un gain de neuf centièmes de milliseconde. Le chemin SQLite ferme
+donc toujours sa connexion, et le vérifier fait partie du banc : 8 instructions
+et 2 connexions par `POST`, identiques au point 181.
+
+**LE POINT DÉLICAT EST `close()`.** Toutes les routes générées font
+`conn = _connect()` … `conn.close()`, et l'interface ne devait pas changer :
+`close()` **rend** désormais la connexion au pool. Une connexion rendue avec une
+transaction ouverte empoisonnerait la requête suivante — `psycopg_pool` fait un
+`rollback` à la remise, et cela a été **vérifié plutôt que supposé** (une
+insertion non validée donne bien 0 ligne après `putconn()` puis `getconn()`).
+Aucun `routes_*.py` n'a été touché : le correctif vit dans la seule couche de
+connexion.
+
+**LE REPLI EST BRUYANT, à dessein.** `psycopg_pool` est un extra de psycopg ;
+absent, le serveur retombe sur une connexion par requête **et le DIT une fois
+au démarrage**, en nommant ce qu'il faut installer. Précédent : le 503 de
+`payable` qui NOMME la variable absente (point 74). Un repli silencieux ferait
+croire au gain — c'est la famille du point 85 transposée à l'exploitation.
+
+**Le piège du point 181 était toujours là, et il a été évité par la mesure** :
+la fermeture du pool devait entrer dans le `lifespan`, or `runtime_montage.py`
+porte aussi le bloc `init_db()` MORT. Vérifié sur l'`app.py` produit — le
+`_close_database_pool()` est bien dans le `finally` du `lifespan` vivant.
+
+Deux variables, sans défaut caché : `MONL_DB_POOL_MIN` (1) et
+`MONL_DB_POOL_MAX` (10), documentées dans `docs/EXPLOITATION.md` — le point 141
+confronte ce document au code **dans les deux sens**, donc une variable lue et
+non documentée fait échouer la suite.
+
+Éprouvé par `tests/test_pool_de_connexions.py` et quatre contre-épreuves
+(émission du pool retirée, `putconn()` retiré, diagnostic retiré, branche SQLite
+forcée vers PostgreSQL — les quatre rougissent). La suite tourne **des deux
+façons** : 1501 passent sans PostgreSQL avec 16 sauts déclarés, **1517 passent
+avec, aucun saut**.
+
+**Ce qui reste ouvert après cette série** : il n'y a toujours pas de N+1 côté
+serveur, mais pas de jointure non plus — la clé étrangère sort brute et le N+1
+vit chez le client. Le changer toucherait le contrat frontend, donc c'est une
+décision produit, pas un défaut du compilateur.
