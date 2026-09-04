@@ -20,6 +20,31 @@ workflow Ecrire for Auteur
     Read Note
 """
 
+# Banc backend dédié aux deux sources ajoutées au point 181. Il reste
+# séparé de SPEC : le golden historique doit continuer à prouver que les
+# artefacts d'une spec sans ces règles ne changent pas. Ici, les deux index
+# supplémentaires sont effectivement présents dans _LOOKUP_INDEXES.
+SPEC_LOOKUP_SOURCES = """app GoldenLookup
+
+entity Note
+    titre: String
+    status: String
+
+entity Message
+    contenu: Text
+    member_id: Integer
+    recipient_id: Integer
+
+actor Reader selfRegister
+
+rule Note.Read publicWhen status "published"
+rule Message.Read accessibleBy member_id, recipient_id
+
+workflow Lire for Reader
+    Read Note
+    Read Message
+"""
+
 GOLDENS = {
     # CHANTIER A1 : app.py porte le choix de dialecte au démarrage, les
     # migrations PostgreSQL et les intégrités structurées. schema.sql change
@@ -133,6 +158,14 @@ GOLDENS = {
     "monl.json": "894daca2dc88daca60abddce7084d350d6493ad4c909a9850ee71aeef59a759b",
 }
 
+# Empreintes de la fixture qui porte réellement `publicWhen` et
+# `accessibleBy` : le correctif ajoute les index de `status` et
+# `recipient_id` au runtime, et monl.json scelle le nouvel app.py.
+LOOKUP_GOLDENS = {
+    "app.py": "6d2a5709117183d1999978bee0f00ae205593acae5411881523766898d15953a",
+    "monl.json": "45171cc5390da2f43432d774d10ebfe48c584e10661ba31cbf2e33ee9ceecc35",
+}
+
 
 def _empreintes(project_dir: Path):
     return {
@@ -154,6 +187,20 @@ def test_une_recompilation_garde_les_artefacts_deterministes(tmp_path, capsys):
     capsys.readouterr()
     assert _empreintes(tmp_path) == GOLDENS
     _aucun_module_custom_inutile(tmp_path)
+
+
+def test_les_sources_de_filtrage_du_point_181_sont_dans_le_golden(
+        tmp_path, capsys):
+    """Le golden backend exerce les deux familles de filtres ajoutées."""
+    spec = tmp_path / "spec.ml"
+    spec.write_text(SPEC_LOOKUP_SOURCES, encoding="utf-8")
+
+    compile_project(str(spec), str(tmp_path))
+    capsys.readouterr()
+    empreintes = _empreintes(tmp_path)
+    assert {name: empreintes[name] for name in ("app.py", "monl.json")} == {
+        name: LOOKUP_GOLDENS[name] for name in ("app.py", "monl.json")
+    }
 
 
 def _aucun_module_custom_inutile(project_dir: Path):
