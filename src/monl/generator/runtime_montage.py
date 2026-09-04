@@ -202,8 +202,11 @@ class MontageRuntimeMixin:
             "__MONL_DB_END__",
             "@asynccontextmanager",
             "async def _lifespan(_app: FastAPI):",
-            "    init_db()",
-            "    yield\n",
+            "    try:",
+            "        init_db()",
+            "        yield",
+            "    finally:",
+            "        _close_database_pool()\n",
             # CORRECTIF (bêta 3) : '/docs' et '/openapi.json' publiaient la
             # surface complète de l'API en toutes circonstances. Indispensable
             # en développement, rarement souhaitable en déploiement :

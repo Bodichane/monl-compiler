@@ -13,12 +13,14 @@ from .runtime_fonctions_auth import FonctionsAuthRuntimeMixin
 from .runtime_jetons import JetonsRuntimeMixin
 from .runtime_migrations import MigrationsRuntimeMixin
 from .runtime_montage import MontageRuntimeMixin
+from .runtime_pool import PoolRuntimeMixin
 from .runtime_preparation import PreparationRuntimeMixin
 from .runtime_socle import SocleRuntimeMixin
 
 
 class RuntimeMixin(
     SocleRuntimeMixin,
+    PoolRuntimeMixin,
     JetonsRuntimeMixin,
     MontageRuntimeMixin,
     ConnexionRuntimeMixin,
