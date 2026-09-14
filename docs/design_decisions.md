@@ -101,6 +101,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [181](#181-ce-quune-route-interroge-nétait-pas-indexé-et-le-jeton-se-décodait-deux-fois) Ce qu'une route interroge n'était pas indexé ·
 [182](#182-une-connexion-neuve-par-requête--11-ms-payés-54-fois-le-prix-de-la-requête) Une connexion neuve par requête ·
 [183](#183-un-correctif-ferme-les-cas-connus--un-invariant-ferme-la-classe) Un invariant ferme la classe ·
+[184](#184-une-barrière-de-couverture-mesurée-sur-une-liste-de-tests-ment-sur-ce-quelle-mesure) Une barrière mesurée sur une liste ment ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -13297,3 +13298,106 @@ n'affichait aucun test, parce que le `-q` de `addopts` se cumule en `-qq`
 n'affiche rien n'affirme pas qu'il n'y a rien.*
 
 `ruff` propre, **1514 passent, 16 sauts déclarés**.
+
+---
+
+## 184. Une barrière de couverture mesurée sur une LISTE de tests ment sur ce qu'elle mesure
+
+La CI portait deux barrières à 90 %. La première mesurait le compilateur sur
+toute la suite ; la seconde mesurait la plateforme sur **une liste de fichiers
+écrite à la main** :
+
+```yaml
+python -m pytest tests/test_platform_*.py tests/test_oauth.py
+  tests/test_administration.py tests/test_codes_de_secours.py
+  --cov=src/monl_platform --cov-fail-under=90
+```
+
+**Mesuré avant de toucher à quoi que ce soit** : 32 fichiers de `tests/`
+mentionnent `monl_platform`, 24 entraient dans la sélection. Cinq l'exerçaient
+réellement hors de la mesure — `test_console_javascript.py` (qui garde les
+pages mortes du point 163), `test_liens_pied_de_page.py`,
+`test_limites_du_guide.py`, `test_package_metadata.py`,
+`test_projets_homonymes.py`.
+
+Ces cinq-là s'exécutaient bien : la suite complète les lançait. Ce qu'ils
+perdaient, c'est leur CONTRIBUTION à la barrière. Le nombre annoncé était donc
+celui d'un sous-ensemble arbitraire de ce qui exerce la plateforme, et le
+défaut suivant était écrit d'avance : **un test rangé sous un autre nom sort de
+la mesure sans un mot**. Je l'avais moi-même contourné la veille en baptisant
+un fichier `test_platform_mot_de_passe_oublie.py` pour qu'il tombe dans le
+motif — un contournement n'est pas une garantie, c'est une dette qu'on accepte
+de porter à la main. Point 169 pour la quatrième fois.
+
+### La correction ne rallonge pas la liste, elle la supprime
+
+Rallonger aurait reconduit le défaut d'un cran. La suite tourne désormais UNE
+fois en mesurant les deux paquets, et les barrières sont tirées de la même
+exécution :
+
+```yaml
+run: >-
+  python -m pytest tests/ -rs --cov=src/monl --cov=src/monl_platform
+  --cov-report=term-missing --cov-fail-under=0
+run: |
+  python -m coverage report --include='src/monl/*' --fail-under=90
+  python -m coverage report --include='src/monl_platform/*' --fail-under=90
+```
+
+Trois choses à ne pas défaire. **`--cov-fail-under=0` n'abaisse rien** : sans
+lui, la barrière de `pyproject.toml` s'appliquerait au TOTAL des deux paquets —
+un nombre qui ne veut rien dire, et où un paquet compenserait l'autre.
+**`--include=` sépare les deux mesures** sans séparer les exécutions, donc sans
+rouvrir la question « quels tests exercent quoi ». Et la CI y **perd une
+seconde exécution partielle de pytest**, celle qui redémarrait de vrais
+serveurs pour vingt-quatre fichiers déjà lancés une ligne plus haut.
+
+**Ce que la mesure a donné, et c'est le chiffre qui juge la correction** : la
+plateforme passe de **90,24 %** (ancienne sélection) à **91,59 %** (suite
+entière). Les cinq fichiers écartés apportaient bien des lignes ; la barrière
+était tenue de justesse sur une mesure incomplète. Le compilateur reste à
+**90,97 %**. `1551 passent, 16 sauts déclarés`.
+
+### Le témoin, et ce qui l'empêche d'être creux
+
+`tests/test_ci_la_couverture_porte_sur_tout.py` porte trois règles, chacune
+dans une FONCTION plutôt que dans le corps d'un test — sans quoi sa
+contre-épreuve devrait réécrire la règle pour la vérifier, ce qui est
+exactement le témoin retiré du point 170 :
+
+1. **toute commande qui mesure une couverture sélectionne l'intégralité des
+   fichiers de tests** (la règle qui rend la liste impossible à réintroduire) ;
+2. **chaque fichier de tests du disque est exécuté par la CI** — posé pendant
+   que le dépôt n'en a aucun en souffrance, parce qu'un témoin écrit le jour où
+   le manque apparaît arrive trop tard (point 167bis) ;
+3. **chaque paquet de `src/` porte sa barrière**, les paquets lus sur le DISQUE
+   et le seuil lu dans `pyproject.toml` — recopier l'un ou l'autre referait,
+   dans le témoin, la liste écrite à la main qu'il existe pour interdire.
+
+Les contre-épreuves rejouent le texte EXACT que `ci.yml` portait : la règle 1
+dénonce la commande restreinte et nomme `test_console_javascript.py`, sans
+dénoncer celle qui prend toute la suite. **Vérifié en exécutant le témoin
+contre le `ci.yml` d'avant le correctif : deux échecs, puis vert après.** Et
+les barrières elles-mêmes ont leur contre-épreuve : à `--fail-under=99` les
+deux sortent en code 2, à 90 en code 0 — un seuil qui refuse tout est aussi
+inutile qu'un seuil qui accepte tout (point 168).
+
+**Deux pièges d'extraction, tous deux fermés.** Une cible que l'extracteur ne
+sait pas résoudre LÈVE au lieu de s'évaporer : ignorée, elle ferait passer une
+commande étroite pour une commande large. Et un bloc littéral `run: |` porte
+PLUSIEURS commandes, une par ligne — recollées comme un scalaire replié `>-`,
+les deux barrières n'en feraient qu'une, et la règle 3 déclarerait un paquet
+gardé alors qu'il ne l'est plus.
+
+**La lecture du workflow a désormais UNE source**,
+`tests/support/ci_workflow.py`, partagée avec le témoin des sauts du
+point 161 : deux lectures d'un même repliage YAML divergeraient (point 146), et
+la distinction qui les fait vivre — un tiret SUIVI D'UNE ESPACE ouvre une
+liste, `--cov=…` non — est trop fine pour être réécrite deux fois.
+
+**Et une mesure qui ne mesurait rien, dans ma propre sonde.** Mon script de
+banc écrivait `python -m coverage report … | tail -5` puis lisait `$?` : c'est
+le code de `tail` qu'il relevait, jamais celui de la barrière. Il annonçait
+`0` quoi qu'il arrive. Rejoué sans le tuyau pour obtenir les vrais codes.
+*Un tuyau avale le verdict de ce qui le précède* — points 157, 158ter et 170
+dans un quatrième domaine.

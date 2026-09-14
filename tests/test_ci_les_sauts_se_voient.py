@@ -15,53 +15,12 @@ pas : aucune commande ne repose `-q` (sinon le résumé disparaît de nouveau),
 et chacune porte `-rs` (sinon le résumé existe mais ne nomme personne).
 """
 
-import re
-from pathlib import Path
+from support.ci_workflow import CI, addopts_du_projet, commandes_pytest
 
-RACINE = Path(__file__).resolve().parent.parent
-CI = RACINE / ".github" / "workflows" / "ci.yml"
-PYPROJECT = RACINE / "pyproject.toml"
-
-# Un élément de liste YAML (« - name: ... ») ou une clé (« run: ... ») ferme
-# la commande en cours. « --cov=... » commence aussi par un tiret : c'est le
-# tiret SUIVI D'UNE ESPACE qui fait la liste, et la distinction n'est pas
-# cosmétique — sans elle, une commande repliée serait coupée en son milieu.
-NOUVEL_ELEMENT = re.compile(r"^\s*-\s")
-NOUVELLE_CLE = re.compile(r"^\s*[A-Za-z_][\w -]*:(\s|$)")
-
-
-def commandes_pytest(texte):
-    """Les invocations pytest du workflow, chacune recollée sur une ligne.
-
-    Le workflow emploie les deux formes : « run: python -m pytest ... » sur
-    une ligne, et un scalaire replié « run: >- » dont la commande occupe
-    plusieurs lignes de MÊME indentation.
-    """
-    commandes, courante = [], None
-    for ligne in texte.splitlines():
-        if not ligne.strip() or ligne.strip().startswith("#"):
-            continue
-        if courante is not None:
-            if not NOUVEL_ELEMENT.match(ligne) and not NOUVELLE_CLE.match(ligne):
-                courante += " " + ligne.strip()
-                continue
-            commandes.append(courante)
-            courante = None
-        if "python -m pytest" in ligne:
-            courante = ligne.strip()
-    if courante is not None:
-        commandes.append(courante)
-    return commandes
-
-
-def addopts_du_projet():
-    try:
-        import tomllib
-    except ModuleNotFoundError:      # 3.10 : `tomllib` n'arrive qu'en 3.11
-        import tomli as tomllib      # noqa: I001  (déclaré dans l'extra `dev`)
-    with PYPROJECT.open("rb") as fh:
-        config = tomllib.load(fh)
-    return config["tool"]["pytest"]["ini_options"]["addopts"].split()
+# `commandes_pytest` vit dans `tests/support/ci_workflow.py` et non ici : deux
+# fichiers de tests lisent maintenant ce workflow, et deux lectures d'un même
+# repliage YAML divergeraient (point 146). Son témoin d'extracteur, lui, reste
+# en bas de CE fichier — c'est ici qu'il est né.
 
 
 def test_le_projet_pose_bien_un_q_dans_addopts():

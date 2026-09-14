@@ -1185,6 +1185,24 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   ESPACE qui ouvre une liste, et sans cette distinction la commande repliée
   `>-` est coupée en son milieu. Faire ÉCHOUER sur un saut est une décision
   SÉPARÉE, volontairement non prise. Voir point 161.
+- **POINT 184 : une barrière de couverture mesurée sur une LISTE de tests ment
+  sur ce qu'elle mesure.** La plateforme était barrée à 90 % sur
+  `tests/test_platform_*.py tests/test_oauth.py …` — cinq fichiers l'exerçaient
+  hors de cette sélection, dont `test_console_javascript.py`. La liste n'est
+  pas rallongée, elle est SUPPRIMÉE : la suite tourne une fois avec
+  `--cov=src/monl --cov=src/monl_platform --cov-fail-under=0`, puis deux
+  `coverage report --include='src/<paquet>/*' --fail-under=90` tirent les
+  barrières de la MÊME exécution. **`--cov-fail-under=0` n'abaisse rien** :
+  sans lui la barrière de `pyproject.toml` porterait sur le TOTAL des deux
+  paquets, et l'un compenserait l'autre. Mesuré : la plateforme passe de
+  90,24 % à **91,59 %** — les fichiers écartés apportaient bien des lignes.
+  `tests/test_ci_la_couverture_porte_sur_tout.py` garde les trois règles
+  (couverture sur toute la suite, chaque fichier de tests exécuté, chaque
+  paquet de `src/` barré), chacune dans une FONCTION que sa contre-épreuve
+  exerce — dans le corps d'un test, la contre-épreuve la réécrirait
+  (point 170). La lecture de `ci.yml` a UNE source,
+  `tests/support/ci_workflow.py`, partagée avec le témoin du point 161.
+  Voir point 184.
 - **POINT 159 : un test qui dépend d'une horloge FIXE son instant de référence,
   puis ne la relit plus.** L'assertion de rejeu TOTP de
   `tests/test_authentification_b4.py` RECALCULAIT le code au lieu de rejouer

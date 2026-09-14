@@ -83,14 +83,12 @@ jobs:
       - name: Recherche de code mort (confiance haute)
         run: vulture src/monl --min-confidence 90
 
-      - name: Suite complète, avec couverture du compilateur
-        # `--cov=src/monl` et non `--cov=src` : la barrière de 90 % (point 63)
-        # porte sur le COMPILATEUR, ce que `pyproject.toml` déclare déjà par
-        # `source = ["src/monl"]`. Les deux étaient équivalents tant que `src/`
-        # ne contenait que le paquet `monl` ; l'arrivée de `src/monl_platform`
-        # a élargi la mesure sans que personne ne le décide, et la barrière est
-        # tombée à 87,6 % SANS qu'aucun test n'échoue. Rétablir la portée
-        # déclarée n'abaisse aucune exigence : le compilateur reste à 90,4 %.
+      - name: Suite complète, en mesurant les DEUX paquets
+        # `--cov-fail-under=0` n'abaisse aucune exigence : les barrières sont
+        # tirées de cette exécution à l'étape suivante, une par paquet. Sans
+        # ce 0, la barrière de `pyproject.toml` s'appliquerait au TOTAL des
+        # deux paquets — un nombre qui ne veut rien dire, et qui laisserait un
+        # paquet compenser l'autre.
         #
         # PAS de `-q` ici : `pyproject.toml` en pose déjà un dans `addopts`, et
         # deux `-q` valent `-qq`, qui SUPPRIME la ligne de décompte et la
@@ -99,15 +97,23 @@ jobs:
         # vécu dans cette CI sans que personne ne le lise. `-rs` NOMME chaque
         # test sauté avec son motif : un saut ne dit pas « rien à vérifier
         # ici », il dit « je n'ai pas vérifié » (point 140).
-        run: python -m pytest tests/ -rs --cov=src/monl --cov-report=term-missing
-
-      - name: Couverture de la plateforme (barrière à 90 %)
-        # Les garanties HTTP restent éprouvées contre de VRAIS serveurs
-        # éphémères. `tests/test_platform_couverture.py` rejoue en plus les
-        # mêmes effets dans l'ASGI du processus mesuré : les sous-processus
-        # uvicorn ne peuvent pas transmettre leurs lignes à cette mesure.
-        # Le seuil est le plancher entier de la mesure locale (90,24 %).
         run: >-
-          python -m pytest tests/test_platform_*.py tests/test_oauth.py
-          tests/test_administration.py tests/test_codes_de_secours.py -rs
-          --cov=src/monl_platform --cov-report=term --cov-fail-under=90
+          python -m pytest tests/ -rs --cov=src/monl --cov=src/monl_platform
+          --cov-report=term-missing --cov-fail-under=0
+
+      - name: Deux barrières à 90 %, tirées de la MÊME exécution
+        # La plateforme était mesurée sur une LISTE DE FICHIERS écrite à la
+        # main (`tests/test_platform_*.py tests/test_oauth.py …`). Mesuré :
+        # cinq fichiers l'exerçaient hors de cette liste, dont
+        # `tests/test_console_javascript.py` qui garde les pages mortes du
+        # point 163 — leurs lignes ne comptaient pas dans les 90 %, et un test
+        # rangé sous un autre nom en serait sorti sans un mot (point 169).
+        #
+        # `coverage report --include=…` relit les données de l'étape
+        # précédente : la suite tourne UNE fois, chaque paquet garde SA
+        # barrière, et il n'y a plus de liste à tenir à jour. La portée reste
+        # celle du point 63 — `src/monl` et non `src/` — mais elle est
+        # désormais exprimée par paquet plutôt que par sélection de tests.
+        run: |
+          python -m coverage report --include='src/monl/*' --fail-under=90
+          python -m coverage report --include='src/monl_platform/*' --fail-under=90
