@@ -75,3 +75,9 @@ archives/
 # Ces données ne doivent jamais entrer dans l'historique du compilateur.
 /platform.db
 /platform-projects/
+
+# Réglages locaux de déploiement : l'exemple versionné reste partageable,
+# les valeurs réelles (URL, OAuth, secrets) ne doivent jamais entrer dans Git.
+.env
+.env.*
+!.env.platform.example

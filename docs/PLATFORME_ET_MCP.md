@@ -38,6 +38,9 @@ Pour une installation conteneurisée, le dépôt fournit une image non-root et
 un volume persistant :
 
 ```bash
+cp .env.platform.example .env
+# Remplacer le domaine et l'URL publique dans .env avant le démarrage.
+python3 scripts/check_platform_env.py .env
 docker compose -f compose.platform.yaml up --build -d
 ```
 
@@ -45,6 +48,13 @@ Le port n'est exposé que sur `127.0.0.1` : placez un reverse proxy HTTPS
 devant le service. `MONL_COOKIE_SECURE=1` exige ce HTTPS. Ne définissez
 `MONL_TRUST_PROXY=1` que si ce proxy remplace l'en-tête `X-Forwarded-For` reçu
 du public.
+
+Le DNS doit pointer la valeur de `MONL_PLATFORM_DOMAIN` et son wildcard vers le
+proxy : chaque projet compilé reçoit son propre sous-domaine. Un exemple Nginx
+prêt à adapter (avec `monl.example.com` comme placeholder) se trouve dans
+`deploy/nginx/monl-platform.conf.example`; le runbook complet est dans
+[`deploy/README.md`](../deploy/README.md). Vérifier `/health` et `/ready` après
+le TLS avant d'ouvrir les inscriptions.
 
 Les téléchargements n'incluent jamais `.jwt_secret`. Le backend en génère un
 au premier démarrage, ce qui évite de transporter un secret de la plateforme.
