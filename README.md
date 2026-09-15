@@ -141,7 +141,8 @@ Voir [Plateforme web et serveur MCP](docs/PLATFORME_ET_MCP.md).
 En production, `compose.platform.yaml` lance l'application comme utilisateur
 non-root avec stockage persistant, readiness, quotas partagés et compilations
 isolées. Le port reste lié à localhost pour être publié derrière un reverse
-proxy HTTPS.
+proxy HTTPS. La procédure reproductible (variables, DNS, TLS, sauvegardes et
+sondes) est détaillée dans [le runbook de déploiement](deploy/README.md).
 
 | Commande | Ce qu'elle fait |
 |---|---|
@@ -490,6 +491,8 @@ automatisée.
 | [docs/MIGRATIONS.md](docs/MIGRATIONS.md) | Évolution du schéma sans perte |
 | [docs/BETA.md](docs/BETA.md) | État de la bêta et feuille de route |
 | [docs/DEPRECATIONS.md](docs/DEPRECATIONS.md) | Compatibilités historiques et politique de retrait |
+| [docs/PUBLICATION.md](docs/PUBLICATION.md) | Publication PyPI et image de plateforme GHCR |
+| [deploy/README.md](deploy/README.md) | Runbook de déploiement Docker, DNS, TLS et smoke test |
 | [CHANGELOG.md](CHANGELOG.md) | Historique des versions |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Méthode de travail, règles du dépôt, checklist avant PR |
 

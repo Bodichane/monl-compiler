@@ -1,0 +1,44 @@
+# Exemple Nginx pour monl.example.com et les sites compilés.
+# Remplacer monl.example.com, puis obtenir le certificat (y compris le
+# wildcard) avec le mécanisme ACME de votre hébergeur avant d'activer le bloc
+# HTTPS. Un certificat wildcard nécessite généralement un challenge DNS.
+
+server {
+    listen 80;
+    server_name monl.example.com *.monl.example.com;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name monl.example.com *.monl.example.com;
+
+    ssl_certificate /etc/letsencrypt/live/monl.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/monl.example.com/privkey.pem;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    # Ce bloc dessert AUSSI les sites compilés hébergés sous *.monl.example.com
+    # (server_name plus haut). Une règle `upload max N` (en octets) déclarée
+    # dans une spec peut aller jusqu'à 32 Mio (mesuré dans la suite du
+    # compilateur, tests/test_depot_depuis_le_dialogue.py) : un plafond bas ici
+    # rejetterait en 413, AVANT d'atteindre l'application, un dépôt que le
+    # backend compilé accepterait — relever cette valeur si un projet hébergé
+    # déclare une limite d'upload plus haute.
+    client_max_body_size 50m;
+    location / {
+        proxy_pass http://127.0.0.1:8022;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 90s;
+    }
+}

@@ -117,3 +117,62 @@ jobs:
         run: |
           python -m coverage report --include='src/monl/*' --fail-under=90
           python -m coverage report --include='src/monl_platform/*' --fail-under=90
+
+  image:
+    name: Image de plateforme
+    needs: verifier
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Récupérer le commit testé
+        uses: actions/checkout@v4.2.2
+
+      - name: Valider la configuration Compose
+        run: docker compose -f compose.platform.yaml config --quiet
+
+      - name: Valider l’exemple de configuration de production
+        run: python scripts/check_platform_env.py .env.platform.example
+
+      - name: Construire l'image de production
+        run: docker build --file Dockerfile.platform --tag monl-platform:ci .
+
+      - name: Vérifier les modules livrés dans l'image
+        run: >-
+          docker run --rm --entrypoint python monl-platform:ci
+          -c "import monl_platform.app, monl_platform.backup_healthcheck"
+
+      - name: Démarrer l'image et jouer le smoke test
+        run: |
+          set -euo pipefail
+          docker rm --force monl-platform-ci >/dev/null 2>&1 || true
+          docker run --detach --name monl-platform-ci \
+            --publish 127.0.0.1:18022:8022 monl-platform:ci
+          nettoyer() {
+            docker logs monl-platform-ci || true
+            docker rm --force monl-platform-ci || true
+          }
+          trap nettoyer EXIT
+
+          pret=false
+          for tentative in $(seq 1 60); do
+            if curl --fail --silent --show-error \
+              --max-time 2 http://127.0.0.1:18022/ready >/dev/null; then
+              pret=true
+              break
+            fi
+            sleep 1
+          done
+          test "$pret" = true
+          healthy=false
+          for tentative in $(seq 1 60); do
+            if [ "$(docker inspect --format '{{.State.Health.Status}}' \
+              monl-platform-ci)" = healthy ]; then
+              healthy=true
+              break
+            fi
+            sleep 1
+          done
+          test "$healthy" = true
+          curl --fail --silent --show-error http://127.0.0.1:18022/health >/dev/null
+          test "$(docker inspect --format '{{.Config.User}}' monl-platform-ci)" = monl

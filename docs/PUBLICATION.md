@@ -10,6 +10,19 @@ Le workflow n'a ni identifiant, ni mot de passe, ni jeton enregistré. L'action
 PyPA demande à GitHub une identité OIDC de courte durée ; PyPI la vérifie et
 émet alors le droit d'envoi temporaire. Les tests locaux ne font aucun envoi.
 
+## Image de la plateforme
+
+Le tag déclenche aussi `.github/workflows/platform-image.yml`. Ce workflow
+reconstruit `Dockerfile.platform`, vérifie les modules installés, `/ready`, le
+healthcheck Docker et l'utilisateur non-root, puis publie l'image validée sous
+`ghcr.io/bodichane/monl-platform:<tag>`. Il publie également `latest` pour un
+tag et `edge` lors d'un déclenchement manuel.
+
+Pour utiliser l'image sur un serveur, rendre le paquet GHCR accessible à ce
+serveur et renseigner `MONL_PLATFORM_IMAGE` avec un tag précis dans `.env`.
+L'image n'est jamais poussée avec un secret du dépôt : le workflow utilise le
+`GITHUB_TOKEN` éphémère et la permission `packages: write`.
+
 ## Prérequis des comptes
 
 PyPI n'accepte plus le mot de passe pour un envoi. Pour publier, le mainteneur

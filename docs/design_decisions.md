@@ -102,6 +102,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [182](#182-une-connexion-neuve-par-requête--11-ms-payés-54-fois-le-prix-de-la-requête) Une connexion neuve par requête ·
 [183](#183-un-correctif-ferme-les-cas-connus--un-invariant-ferme-la-classe) Un invariant ferme la classe ·
 [184](#184-une-barrière-de-couverture-mesurée-sur-une-liste-de-tests-ment-sur-ce-quelle-mesure) Une barrière mesurée sur une liste ment ·
+[185](#185-le-déploiement-de-production-éprouvé-pour-de-vrai--quatre-défauts-quaucune-lecture-naurait-montrés) Le déploiement de production, éprouvé pour de vrai ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -13401,3 +13402,99 @@ le code de `tail` qu'il relevait, jamais celui de la barrière. Il annonçait
 `0` quoi qu'il arrive. Rejoué sans le tuyau pour obtenir les vrais codes.
 *Un tuyau avale le verdict de ce qui le précède* — points 157, 158ter et 170
 dans un quatrième domaine.
+
+---
+
+## 185. Le déploiement de production, éprouvé pour de vrai — quatre défauts qu'aucune lecture n'aurait montrés
+
+Codex a préparé la mise en production (`9e4879b`) : image publiée sur GHCR,
+`.env.platform.example`, `scripts/deploy_platform.sh`, une sauvegarde saine
+par `healthcheck` dédié, un exemple Nginx. Rien de tout ça n'a été accepté
+sur relecture — la méthode du dépôt l'interdit — et faire tourner le vrai
+stack (podman + podman-compose, aucun Docker sur la machine) a trouvé quatre
+défauts, chacun invisible autrement.
+
+**(a) `backup_healthcheck._sqlite_valide` rouvrait le point 141.** La sonde
+tourne toutes les 30 s dans le conteneur de sauvegarde et ouvrait sa
+connexion avec `with sqlite3.connect(...)` — qui valide mais ne FERME pas.
+Mesuré : 300 appels laissent 260 descripteurs ouverts, 193 encore présents
+après un `gc.collect()` manuel. Pire qu'une fuite lente : au-delà d'un
+certain nombre de descripteurs, `sqlite3.connect` lève à son tour, et le code
+existant AVALE cette erreur (`except (OSError, sqlite3.Error): return
+False`) — un service qui épuise ses descripteurs deviendrait `unhealthy` pour
+une sauvegarde pourtant saine. Fermeture explicite ajoutée, même idiome que
+`identity_database.py`. Le témoin qui le garde
+(`tests/test_backup_healthcheck.py`) a d'abord accusé la sonde à tort : sa
+propre aide de test `_copie_valide` portait le MÊME défaut, non fermée,
+laissant un descripteur permanent qui empêchait le compte de retomber à zéro
+— corrigée à son tour, dans le fichier même qui démontre la règle.
+
+**(b) `deploy_platform.sh` et `export_platform_backups.sh` échouaient tous
+les deux sur le chemin que `deploy/README.md` RECOMMANDE.** Les deux
+appelaient `compose ps -q sauvegarde` — syntaxe Docker Compose v2. Avec
+`podman-compose` 1.6.0 (le fournisseur cité en exemple pour Podman), `ps` ne
+prend AUCUN nom de service (`unrecognized arguments: sauvegarde`), mesuré en
+lançant réellement le script. Le repli : les deux fournisseurs posent le même
+label sur chaque conteneur (`com.docker.compose.service`), vérifié sur le
+conteneur réel avant d'écrire une ligne. `scripts/lib_compose.sh`
+(`find_container_by_service`) en est la source UNIQUE, sourcée par les DEUX
+scripts — l'écrire deux fois aurait reproduit exactement le défaut que ce
+dépôt reproche ailleurs (point 146). Preuve : `deploy_platform.sh` mène
+l'image jusqu'à `healthy` sur les deux services, real podman ; puis
+`export_platform_backups.sh` copie réellement `/backups` d'un conteneur
+vivant.
+
+**(c) Le proxy Nginx plafonnait les dépôts À UN CINQUIÈME de ce que
+l'application accepte.** `client_max_body_size 256k` sur un bloc qui dessert
+AUSSI les sites hébergés (`*.monl.example.com`) — dont un peut déclarer
+`upload max 5242880` (5 Mio, valeur déjà exercée par
+`tests/test_limites_du_guide.py`) voire 32 Mio (point 173). Un dépôt que le
+backend compilé aurait accepté se faisait donc refuser par le proxy, en 413,
+AVANT d'atteindre l'application — invisible depuis le code Python, visible
+seulement en lisant ce que la couche devant lui promet. Relevé à 50 Mio, avec
+un témoin qui LIT la valeur déclarée et la compare à la plus grande limite
+d'upload exercée dans le dépôt plutôt que de comparer une chaîne figée
+(`test_proxy_ne_plafonne_pas_les_depots_sous_ce_que_lapp_accepte`).
+
+**(d) Le plus sérieux : la sauvegarde en continu remplissait le disque sans
+que `--garder N` y voie jamais rien.** `Connection.backup()` (identity_admin.py)
+copie aussi l'EN-TÊTE de page 1 de la source, qui porte le mode journal — la
+copie hérite silencieusement du WAL, sans qu'aucun `-wal`/`-shm` n'apparaisse
+tant que personne ne la lit : `sauvegarder()` seule ressort propre. **C'est la
+lecture SUIVANTE qui déclenche la fuite** — le healthcheck du point (a) ouvre
+justement la copie en `mode=ro` toutes les 30 s, et un lecteur seul suffit à
+faire naître `-shm` sans pouvoir le rabattre à la fermeture (le checkpoint qui
+range exige l'écriture, qu'un lecteur n'a pas). Mesuré en conditions
+RÉELLES — podman compose, sauvegardes toutes les 20 s pendant 18 h, la
+sauvegarde du point (b) ci-dessus tournant sans interruption : **719 paires
+`-wal`/`-shm` orphelines pour 14 fichiers `.sqlite3`**. `_rotation`
+(`__main__.py`) ne filtre QUE sur `cible.suffix` — `.sqlite3` — qui ne
+correspond ni à `.sqlite3-wal` ni à `.sqlite3-shm` : ces annexes ne sont
+JAMAIS purgées, quel que soit `--garder`. Une sauvegarde sans rotation
+efficace remplit le disque, et un disque plein arrête le service qu'elle
+protégeait — la sauvegarde devient la panne qu'elle devait empêcher.
+Remède à la racine, pas au symptôme : `copie.execute("PRAGMA journal_mode =
+DELETE")` juste après le `backup()`, avant de fermer — un repli WAL→rollback
+force un checkpoint complet et supprime les deux fichiers. Une sauvegarde
+redevient un fichier UNIQUE et portable, et aucun lecteur ultérieur, quel
+qu'il soit, ne peut plus y faire naître d'annexe.
+
+**Le témoin a d'abord semblé ne rien trouver**, et c'est instructif : vérifier
+`-wal`/`-shm` juste après `sauvegarder()` (sans lecture entre les deux)
+passait déjà SANS le correctif — la fuite n'existe qu'après le passage d'un
+lecteur. Le premier jet du témoin aurait donc été VERT pour de mauvaises
+raisons (point 145 : un test qui passe ne prouve pas qu'il mord). Corrigé en
+faisant rejouer, dans le test, la même chaîne que la production — sauvegarde
+PUIS passage de la sonde de healthcheck PUIS vérification des annexes — la
+seule séquence qui reproduit fidèlement ce qu'un service réel fait.
+Contre-épreuve : sur les quatre points, retirer le correctif fait échouer le
+témoin correspondant et lui seul ; pour (d), la contre-épreuve sur 5 cycles
+sauvegarde+sonde+rotation laisse dix fichiers orphelins au lieu de zéro.
+
+**Ce que les quatre ont en commun** : aucun n'était visible depuis le code
+Python seul, et aucun ne l'était depuis un test qui monte un client HTTP en
+mémoire. Il a fallu FAIRE TOURNER le vrai stack — un vrai conteneur, un vrai
+fournisseur Compose, un vrai cycle de sauvegarde répété dans le temps — pour
+que chacun se révèle. `1581` tests passent, `16` sauts déclarés, les deux
+barrières de couverture tiennent (90,97 % `monl`, 90,91 % `monl_platform`).
+Voir point 185.

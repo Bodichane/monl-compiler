@@ -1,5 +1,6 @@
 services:
   platform:
+    image: ${MONL_PLATFORM_IMAGE:-monl-platform:local}
     build:
       context: .
       dockerfile: Dockerfile.platform
@@ -9,6 +10,15 @@ services:
       - "127.0.0.1:8022:8022"
     environment:
       MONL_PLATFORM_WORKSPACE: /data
+      MONL_PLATFORM_DOMAIN: ${MONL_PLATFORM_DOMAIN:-localhost}
+      MONL_PLATFORM_PUBLIC_URL: ${MONL_PLATFORM_PUBLIC_URL:-}
+      MONL_PLATFORM_OAUTH_STATE_SECRET: ${MONL_PLATFORM_OAUTH_STATE_SECRET:-}
+      MONL_OAUTH_GITHUB_CLIENT_ID: ${MONL_OAUTH_GITHUB_CLIENT_ID:-}
+      MONL_OAUTH_GITHUB_SECRET: ${MONL_OAUTH_GITHUB_SECRET:-}
+      MONL_OAUTH_GITHUB_BASE_URL: ${MONL_OAUTH_GITHUB_BASE_URL:-}
+      MONL_OAUTH_GOOGLE_CLIENT_ID: ${MONL_OAUTH_GOOGLE_CLIENT_ID:-}
+      MONL_OAUTH_GOOGLE_SECRET: ${MONL_OAUTH_GOOGLE_SECRET:-}
+      MONL_OAUTH_GOOGLE_BASE_URL: ${MONL_OAUTH_GOOGLE_BASE_URL:-}
       # Ces deux-là ne se voient pas quand ils manquent : le cookie de session
       # part en clair, et la limitation de débit compte toute la planète sur
       # l'adresse du proxy. Voir docs/EXPLOITATION.md §1.
@@ -46,13 +56,15 @@ services:
   # moment de la remonter ailleurs. Elle emploie la même image, donc la même
   # commande que celle documentée — il n'y a pas deux façons de sauvegarder.
   sauvegarde:
+    image: ${MONL_PLATFORM_IMAGE:-monl-platform:local}
     build:
       context: .
       dockerfile: Dockerfile.platform
     restart: unless-stopped
     init: true
     depends_on:
-      - platform
+      platform:
+        condition: service_healthy
     # `--garder 14` : sans rotation, une sauvegarde quotidienne finit par
     # remplir le disque, et un disque plein arrête le service qu'elle
     # protégeait. La sauvegarde deviendrait alors la panne.
@@ -61,14 +73,19 @@ services:
       - -c
       - >
         while true; do
-        monl-platform sauvegarde
+        if ! monl-platform sauvegarde
         "/backups/base-$$(date +%Y%m%d-%H%M%S).sqlite3"
-        --workspace /data --garder 14 || echo "sauvegarde en échec" >&2;
+        --workspace /data --garder 14; then
+        echo "sauvegarde en échec, nouvel essai dans 60 s" >&2;
+        sleep 60;
+        continue;
+        fi;
         sleep "$${MONL_BACKUP_INTERVAL_SECONDS:-86400}";
         done
     environment:
       MONL_PLATFORM_WORKSPACE: /data
-      MONL_BACKUP_INTERVAL_SECONDS: "86400"
+      MONL_BACKUP_INTERVAL_SECONDS: ${MONL_BACKUP_INTERVAL_SECONDS:-86400}
+      MONL_BACKUP_MAX_AGE_SECONDS: ${MONL_BACKUP_MAX_AGE_SECONDS:-172800}
     volumes:
       - monl-platform-data:/data
       - monl-platform-backups:/backups
@@ -79,6 +96,12 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=16m,mode=1777
+    healthcheck:
+      test: ["CMD", "python", "-m", "monl_platform.backup_healthcheck"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 2
 
 volumes:
   monl-platform-data:

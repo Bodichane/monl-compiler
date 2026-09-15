@@ -1,0 +1,106 @@
+# Image de la plateforme : testée localement, puis publiée dans GHCR.
+# Le déploiement peut encore construire localement ; cette image est une voie
+# optionnelle pour installer exactement l'artefact validé par la CI.
+name: Image plateforme
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    name: Construire et publier l'image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Récupérer le commit à publier
+        uses: actions/checkout@v4.2.2
+
+      - name: Installer Python pour le contrôle de version
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/setup-python@v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Vérifier la version du tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          python -m pip install "packaging>=24,<27"
+          python scripts/check_publication_version.py "$GITHUB_REF_NAME"
+
+      - name: Construire l'image à éprouver
+        run: docker build --file Dockerfile.platform --tag monl-platform:release .
+
+      - name: Vérifier les modules livrés
+        run: >-
+          docker run --rm --entrypoint python monl-platform:release
+          -c "import monl_platform.app, monl_platform.backup_healthcheck"
+
+      - name: Démarrer l'image et vérifier sa santé
+        run: |
+          set -euo pipefail
+          docker rm --force monl-platform-release >/dev/null 2>&1 || true
+          docker run --detach --name monl-platform-release \
+            --publish 127.0.0.1:18022:8022 monl-platform:release
+          nettoyer() {
+            docker logs monl-platform-release || true
+            docker rm --force monl-platform-release || true
+          }
+          trap nettoyer EXIT
+
+          pret=false
+          for tentative in $(seq 1 60); do
+            if curl --fail --silent --show-error --max-time 2 \
+              http://127.0.0.1:18022/ready >/dev/null; then
+              pret=true
+              break
+            fi
+            sleep 1
+          done
+          test "$pret" = true
+
+          healthy=false
+          for tentative in $(seq 1 60); do
+            if [ "$(docker inspect --format '{{.State.Health.Status}}' \
+              monl-platform-release)" = healthy ]; then
+              healthy=true
+              break
+            fi
+            sleep 1
+          done
+          test "$healthy" = true
+          curl --fail --silent --show-error \
+            http://127.0.0.1:18022/health >/dev/null
+
+      - name: Se connecter à GHCR
+        uses: docker/login-action@v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Décrire les tags de l'image
+        id: meta
+        uses: docker/metadata-action@v5.6.1
+        with:
+          images: ghcr.io/bodichane/monl-platform
+          tags: |
+            type=ref,event=tag
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') }}
+            type=raw,value=edge,enable=${{ github.event_name == 'workflow_dispatch' }}
+
+      - name: Publier l'image validée
+        uses: docker/build-push-action@v6.17.0
+        with:
+          context: .
+          file: Dockerfile.platform
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

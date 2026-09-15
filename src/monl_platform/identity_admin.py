@@ -145,6 +145,21 @@ class IdentityAdminMixin:
         transactions encore dans le journal. `Connection.backup()` prend une
         copie cohérente pendant que le serveur continue de servir — c'est la
         seule raison d'être de cette méthode plutôt que d'une ligne de shell.
+
+        `backup()` copie aussi l'EN-TÊTE de page 1 de la source, qui porte le
+        mode journal : la copie hérite donc du WAL et sqlite3 lui laisse ses
+        fichiers annexes `-wal`/`-shm` en la fermant. Mesuré en conditions
+        réelles (podman compose, sauvegardes toutes les 20 s pendant 18 h) :
+        **719 paires `-wal`/`-shm` orphelines** pour 14 fichiers `.sqlite3`
+        — `_rotation` (`__main__.py`) ne filtre que sur `cible.suffix`
+        (`.sqlite3`), qui ne correspond ni à `.sqlite3-wal` ni à
+        `.sqlite3-shm` : ces annexes ne sont JAMAIS purgées, quel que soit
+        `--garder`. Un service de sauvegarde sans rotation efficace remplit
+        le disque — la sauvegarde devient la panne qu'elle devait empêcher.
+        Repasser la copie en DELETE avant de la fermer force un checkpoint
+        complet et fait disparaître les deux fichiers : une sauvegarde doit
+        être un unique fichier portable, jamais un couple qui ne se comprend
+        qu'ensemble.
         """
         cible = Path(destination).resolve()
         cible.parent.mkdir(parents=True, exist_ok=True)
@@ -152,6 +167,7 @@ class IdentityAdminMixin:
         copie = sqlite3.connect(cible)
         try:
             source.backup(copie)
+            copie.execute("PRAGMA journal_mode = DELETE")
         finally:
             copie.close()
             source.close()

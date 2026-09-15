@@ -1203,6 +1203,35 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   (point 170). La lecture de `ci.yml` a UNE source,
   `tests/support/ci_workflow.py`, partagée avec le témoin du point 161.
   Voir point 184.
+- **POINT 185 : le déploiement de production, éprouvé pour de vrai — quatre
+  défauts qu'aucune lecture n'aurait montrés.** Codex a préparé la mise en
+  ligne (image GHCR, `deploy_platform.sh`, healthcheck de sauvegarde, exemple
+  Nginx) ; faire tourner le vrai stack (podman + podman-compose, sans Docker)
+  a trouvé quatre défauts invisibles depuis le code seul.
+  (a) `backup_healthcheck._sqlite_valide` rouvrait le point 141 (connexion
+  jamais fermée) — 260 descripteurs sur 300 appels, et le code AVALAIT
+  l'erreur qui en résulterait (`unhealthy` pour une sauvegarde saine).
+  (b) `deploy_platform.sh` ET `export_platform_backups.sh` échouaient sur le
+  chemin que `deploy/README.md` recommande : `compose ps -q <service>` n'est
+  pas supporté par podman-compose. Repli sur le label `com.docker.compose.
+  service`, source UNIQUE dans `scripts/lib_compose.sh`, partagée par les
+  deux scripts.
+  (c) Nginx plafonnait les dépôts à 256 Kio sur un bloc qui dessert aussi les
+  sites hébergés, où `upload max` va jusqu'à 32 Mio (point 173) — relevé à
+  50 Mio, témoin qui LIT la valeur déclarée plutôt qu'une chaîne figée.
+  (d) **Le plus sérieux** : `Connection.backup()` copie l'en-tête WAL de la
+  source, la copie hérite silencieusement du mode — invisible tant que
+  personne ne la lit. C'est le healthcheck de (a), qui LIT justement la copie
+  toutes les 30 s, qui fait naître `-shm`/`-wal` (un lecteur seul ne peut pas
+  checkpointer). Mesuré en réel, 18 h : **719 paires orphelines pour 14
+  fichiers `.sqlite3`** — `_rotation` ne filtre que sur `.sqlite3`, ces
+  annexes ne sont JAMAIS purgées. Remède à la racine :
+  `PRAGMA journal_mode = DELETE` juste après le `backup()`, dans
+  `identity_admin.py`. **Le témoin a d'abord semblé ne rien trouver** :
+  vérifier les annexes juste après `sauvegarder()` (sans lecture entre les
+  deux) passait déjà sans le correctif — il a fallu rejouer la même chaîne
+  que la production (sauvegarde PUIS sonde PUIS vérification) pour que le
+  test morde (point 145). Voir point 185.
 - **POINT 159 : un test qui dépend d'une horloge FIXE son instant de référence,
   puis ne la relit plus.** L'assertion de rejeu TOTP de
   `tests/test_authentification_b4.py` RECALCULAIT le code au lieu de rejouer
