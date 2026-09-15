@@ -6,6 +6,7 @@ secret dans le dépôt.
 """
 
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -70,6 +71,30 @@ def test_proxy_transmet_le_nom_hote_et_le_schema():
     assert "127.0.0.1:8022" in contenu
 
 
+def test_proxy_ne_plafonne_pas_les_depots_sous_ce_que_lapp_accepte():
+    """Ce bloc dessert AUSSI les sites hébergés (*.monl.example.com), dont un
+    peut déclarer `rule X.champ upload max N` jusqu'à 32 Mio (mesuré,
+    tests/test_depot_depuis_le_dialogue.py). Le plafond nginx d'origine était
+    de 256 Kio — bien en-dessous de la limite 5 Mio déjà exercée dans le
+    dépôt (test_limites_du_guide.py) — donc un dépôt que le backend compilé
+    accepte se serait fait refuser par le proxy, en 413, avant même
+    d'atteindre l'application."""
+    contenu = (RACINE / "deploy/nginx/monl-platform.conf.example").read_text(
+        encoding="utf-8"
+    )
+    correspondance = re.search(r"client_max_body_size\s+([0-9]+)([kKmMgG]?);", contenu)
+    assert correspondance, "aucun client_max_body_size déclaré"
+    valeur, unite = correspondance.groups()
+    multiplicateur = {"": 1, "k": 1024, "m": 1024**2, "g": 1024**3}[unite.lower()]
+    octets = int(valeur) * multiplicateur
+
+    LIMITE_DEPOT_MAX_TESTEE = 32 * 1024 * 1024
+    assert octets >= LIMITE_DEPOT_MAX_TESTEE, (
+        f"client_max_body_size ({octets} octets) est sous une limite d'upload "
+        f"déjà exercée par la suite ({LIMITE_DEPOT_MAX_TESTEE} octets) : "
+        "un dépôt valide pour l'application serait refusé par le proxy.")
+
+
 def test_smoke_platform_sonde_les_deux_endpoints_et_est_executable():
     script = RACINE / "scripts/smoke_platform.sh"
     contenu = script.read_text(encoding="utf-8")
@@ -105,7 +130,15 @@ def test_script_deploiement_enchaine_validation_compose_et_readiness():
     assert 'if [ "$pret" != true ]' in contenu
     assert "La plateforme ne devient pas prête" in contenu
     assert "logs --tail=100 platform" in contenu
-    assert "ps -q sauvegarde" in contenu
+    # `compose ps -q <service>` est du Docker Compose v2 : podman-compose
+    # 1.6.0 — le fournisseur que deploy/README.md recommande pour Podman —
+    # refuse un nom de service en argument. Éprouvé en réel (podman +
+    # podman-compose) : le script échouait sur « unrecognized arguments:
+    # sauvegarde ». `lib_compose.sh` (source unique, partagée avec
+    # export_platform_backups.sh) lit le LABEL de compose posé par les deux
+    # fournisseurs, jamais une syntaxe `ps` que l'un des deux ignore.
+    assert ". \"$racine/scripts/lib_compose.sh\"" in contenu
+    assert "find_container_by_service" in contenu
     assert 'backup_started=false' in contenu
     assert 'if [ "$backup_started" != true ]' in contenu
     assert "Le service sauvegarde ne démarre pas" in contenu
@@ -171,7 +204,10 @@ def test_export_des_sauvegardes_est_borne_a_un_dossier_hote():
     assert 'compose_file=${COMPOSE_FILE:-"$racine/compose.platform.yaml"}' in contenu
     assert 'env_file=${ENV_FILE:-"$racine/.env"}' in contenu
     assert 'container_runtime=${CONTAINER_RUNTIME:-docker}' in contenu
-    assert 'ps -q sauvegarde' in contenu
+    # Même défaut, même correctif que deploy_platform.sh : `ps -q <service>`
+    # n'est pas supporté par podman-compose (voir le test du script voisin).
+    assert ". \"$racine/scripts/lib_compose.sh\"" in contenu
+    assert "find_container_by_service" in contenu
     assert '--env-file "$env_file"' in contenu
     assert "/backups" in contenu
     assert 'umask 077' in contenu

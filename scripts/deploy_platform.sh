@@ -7,6 +7,7 @@ compose_file=${COMPOSE_FILE:-"$racine/compose.platform.yaml"}
 container_runtime=${CONTAINER_RUNTIME:-docker}
 use_prebuilt_image=${USE_PREBUILT_IMAGE:-0}
 python_bin=${PYTHON_BIN:-python3}
+. "$racine/scripts/lib_compose.sh"
 
 case "$use_prebuilt_image" in
     0|1) ;;
@@ -102,7 +103,8 @@ if [ "$pret" != true ]; then
 fi
 backup_started=false
 for tentative in $(seq 1 90); do
-    backup_container=$(compose --env-file "$env_file" -f "$compose_file" ps -q sauvegarde)
+    backup_container=$(find_container_by_service "$container_runtime" sauvegarde \
+        $(compose --env-file "$env_file" -f "$compose_file" ps -q) || true)
     if [ -n "$backup_container" ]; then
         backup_started=true
         break

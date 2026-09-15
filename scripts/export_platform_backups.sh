@@ -6,6 +6,7 @@ racine=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 compose_file=${COMPOSE_FILE:-"$racine/compose.platform.yaml"}
 env_file=${ENV_FILE:-"$racine/.env"}
 container_runtime=${CONTAINER_RUNTIME:-docker}
+. "$racine/scripts/lib_compose.sh"
 
 case "$env_file" in
     /*) ;;
@@ -36,7 +37,8 @@ fi
 
 mkdir -p "$destination"
 chmod 700 "$destination"
-conteneur=$("$container_runtime" compose --env-file "$env_file" -f "$compose_file" ps -q sauvegarde)
+conteneur=$(find_container_by_service "$container_runtime" sauvegarde \
+    $("$container_runtime" compose --env-file "$env_file" -f "$compose_file" ps -q) || true)
 if [ -z "$conteneur" ]; then
     printf 'Le service sauvegarde n’est pas démarré.\n' >&2
     exit 1

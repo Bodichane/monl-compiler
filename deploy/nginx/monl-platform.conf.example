@@ -24,7 +24,14 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/monl.example.com/privkey.pem;
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
-    client_max_body_size 256k;
+    # Ce bloc dessert AUSSI les sites compilés hébergés sous *.monl.example.com
+    # (server_name plus haut). Une règle `upload max N` (en octets) déclarée
+    # dans une spec peut aller jusqu'à 32 Mio (mesuré dans la suite du
+    # compilateur, tests/test_depot_depuis_le_dialogue.py) : un plafond bas ici
+    # rejetterait en 413, AVANT d'atteindre l'application, un dépôt que le
+    # backend compilé accepterait — relever cette valeur si un projet hébergé
+    # déclare une limite d'upload plus haute.
+    client_max_body_size 50m;
     location / {
         proxy_pass http://127.0.0.1:8022;
         proxy_http_version 1.1;

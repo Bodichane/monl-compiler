@@ -13,12 +13,29 @@ DEFAULT_MAX_AGE = 172800
 
 
 def _sqlite_valide(chemin: Path) -> bool:
-    """Vérifie qu'une copie récente est réellement lisible par SQLite."""
+    """Vérifie qu'une copie récente est réellement lisible par SQLite.
+
+    `with sqlite3.connect(...)` valide la transaction mais ne FERME pas la
+    connexion (point 141, identity_database.py) : un objet `Connection` de
+    CPython prend part à des cycles de références, donc il n'est rendu qu'au
+    ramasse-miettes cyclique. Cette sonde tourne toutes les 30 s dans le
+    conteneur de sauvegarde — sans fermeture explicite, elle accumule un
+    descripteur par appel jusqu'à heurter la limite du conteneur, moment où
+    `sqlite3.connect` lève à son tour une erreur que ce bloc absorbe déjà :
+    le healthcheck se déclarerait alors unhealthy pour une sauvegarde
+    pourtant valide.
+    """
     try:
-        with sqlite3.connect(f"file:{chemin}?mode=ro", uri=True) as connexion:
+        connexion = sqlite3.connect(f"file:{chemin}?mode=ro", uri=True)
+    except (OSError, sqlite3.Error):
+        return False
+    try:
+        with connexion:
             return connexion.execute("PRAGMA integrity_check").fetchone() == ("ok",)
     except (OSError, sqlite3.Error):
         return False
+    finally:
+        connexion.close()
 
 
 def sauvegarde_recente(
