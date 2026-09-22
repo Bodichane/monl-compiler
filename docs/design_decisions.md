@@ -105,6 +105,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [185](#185-le-déploiement-de-production-éprouvé-pour-de-vrai--quatre-défauts-quaucune-lecture-naurait-montrés) Le déploiement de production, éprouvé pour de vrai ·
 [186](#186-un-audit-statique-trouve-cinq-défauts-réels--le-corps-http-et-la-recompilation-fermés) Un audit statique trouve cinq défauts réels — le corps HTTP et la recompilation fermés ·
 [187](#187-le-state-oauth-ne-prouvait-rien-du-navigateur--et-la-page-de-confidentialité-affirmait-un-seul-cookie) Le `state` OAuth ne prouvait rien du navigateur ·
+[188](#188-les-deux-derniers-défauts-de-laudit--et-la-borne-quon-mesurait-sur-ce-quelle-contraint-jamais-sur-ce-quelle-sert) Une borne mesurée sur ce qu'elle contraint, jamais sur ce qu'elle sert ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -13631,3 +13632,122 @@ Suite complète : `1581` tests passent, `16` sauts déclarés (les mêmes, nomm�
 barrières de couverture tenues. Voir points 145 (les quatre décisions OAuth qui
 tiennent toujours), 141 (une politique qui affirme) et 172 (un extracteur qui
 ne voit que les littéraux).
+
+## 188. Les deux derniers défauts de l'audit — et la borne qu'on mesurait sur ce qu'elle contraint, jamais sur ce qu'elle sert
+
+Les constats 4 et 5 de l'audit du point 186. Aucun des deux ne casse quoi que
+ce soit à l'usage : tout marche, simplement sans limite.
+
+**(a) Un processus de plus à chaque site visité, sans plafond.** Une requête
+sur un hôte de projet démarrait un `serve.py` et le laissait tourner ; rien ne
+disait jamais « assez ». Sur la machine qui héberge — un vieux PC — une
+poignée de visites sur des projets distincts suffisait à épuiser la mémoire,
+sans qu'aucun compte n'ait rien fait d'anormal. `hosting_admission.py` pose
+deux plafonds, `MONL_MAX_RUNNING_SITES` (20) et
+`MONL_MAX_RUNNING_SITES_PER_ACCOUNT` (3), tous deux déclarés dans
+`docs/EXPLOITATION.md` et dans le compose.
+
+**Le plafond par COMPTE passe avant celui de la plateforme, et c'est lui qui
+rend le reste acceptable.** Quand le plafond global est atteint, le site évincé
+peut appartenir à un AUTRE compte — décision assumée : un site inactif depuis
+cinq minutes n'est pas supprimé, il est arrêté, et la requête suivante le
+relance au prix d'un démarrage. C'est un cache à remplacement, pas une
+expulsion. L'alternative — ne jamais toucher au site d'un tiers — ferait
+refuser un compte parce que d'autres ont laissé des sites endormis, ce qui
+punit le mauvais ; et le plafond par compte interdit déjà d'occuper la
+plateforme à soi seul. **L'inactivité est une condition NÉCESSAIRE** : on
+n'arrête jamais un site qui a servi dans les cinq dernières minutes, même pour
+faire de la place — dans ce cas on refuse, 503 avec `Retry-After`.
+
+Les plafonds sont lus **UNE fois**, à la construction du `SiteManager` : les
+changer sur un serveur en marche ne déplace rien, il faut le redémarrer. Une
+lecture par requête ferait dépendre une décision d'admission de l'état de
+l'environnement à l'instant de l'appel. Corollaire pour les tests : poser
+l'environnement AVANT de construire l'application. Une valeur impropre replie
+sur le défaut plutôt que d'empêcher le démarrage — un plafond mal tapé ne doit
+pas rendre la plateforme indémarrable.
+
+**(b) Le webhook de paiement matérialisait le corps avant de vérifier la
+signature.** C'est le SEUL endroit du backend généré où un tiers non
+authentifié écrit en base (point 74), et il lisait `await request.body()` sans
+borne : n'importe qui pouvait faire allouer au serveur la taille de son choix
+avant même qu'on regarde s'il avait le droit de parler. Borné à 256 Kio, sur
+les deux encodages — taille annoncée et flux découpé.
+
+**(c) LA LEÇON, et elle vaut pour les trois bornes.** Les témoins qui gardaient
+déjà ces limites — celui du point 186 comme celui du relais — vérifient qu'un
+corps trop gros reçoit un **413**. Ils seraient verts sur un serveur qui avale
+tout avant de refuser : le code HTTP est ce que la borne CONTRAINT, la mémoire
+est ce qu'elle SERT. Point 172 mot pour mot, dans un troisième domaine.
+`tests/test_bornes_memoire.py` mesure donc la RSS du serveur pendant l'envoi,
+depuis un PROCESSUS séparé (un serveur monté dans un fil de pytest mêlerait sa
+mémoire à celle de la suite). Mesuré, 200 Mio poussés en chunked :
+
+| | croissance RSS | réponse |
+|---|---|---|
+| plateforme, borne en place | +1,0 Mio | 413 |
+| plateforme, borne désarmée | **+197,2 Mio** | 400 |
+| relais, borne en place | +1,0 Mio | 413 |
+| relais, borne désarmée | **+196,8 Mio** | 413 |
+
+L'ancien lecteur JSON avalait 400 Mio (mesure à 400) pour finalement répondre
+« corps JSON invalide », sur `/api/auth/register`, route ANONYME. La ligne du
+relais désarmé est celle qui compte le plus : **la réponse reste 413 dans les
+deux cas**, et seule la mémoire distingue le serveur protégé de celui qui ne
+l'est pas. Un témoin qui ne regarde que le statut ne pouvait pas le voir.
+
+**L'ORDRE DES ASSERTIONS est la garantie.** La première version assertait le
+statut avant la mémoire : la contre-épreuve rougissait sur le code HTTP, donc
+pour exactement la même raison que le témoin qui existait déjà, et ce fichier
+ne gardait rien de plus. C'est le point 170 par un autre bout — *un témoin qui
+rougit toujours en même temps qu'un autre ne garde rien*. La mémoire est
+désormais assertée EN PREMIER, et les deux contre-épreuves rougissent sur elle.
+
+**Pas d'étalonnage de bruit**, contrairement aux oracles temporels des
+points 160 et 168 : l'écart est d'un facteur 200, et la mémoire d'un processus
+au repos ne varie pas de dizaines de mégaoctets. Un seuil fixe suffit, et c'est
+ce qui rend ces témoins stables.
+
+**TROIS MESURES QUI ONT FAILLI MENTIR, toutes dans la même séance.**
+1. Le témoin du `Content-Length` annoncé ne mesurait rien : `requests`
+   **recalcule** l'en-tête depuis le corps qu'on lui donne, donc l'annonce
+   forgée n'atteignait jamais le serveur, qui voyait UN octet et répondait 200
+   à juste titre. Réécrit en `http.client` brut, et **sans envoyer un seul
+   octet de corps** — ce qui le rend incontournable : un serveur qui ne lirait
+   pas l'annonce attendrait les 40 Mio promis, et le témoin échouerait sur un
+   dépassement de délai, jamais par accident sur un 200 (vérifié, la
+   contre-épreuve rend bien `TimeoutError`).
+2. Le banc du relais montait un store dans un dossier et la plateforme dans un
+   autre : **deux bases SQLite**, projet introuvable, relais jamais atteint. Le
+   test mesurait la plateforme en croyant mesurer le relais.
+3. Et son amorce ne prouvait rien : elle demandait `/openapi.json`, **que la
+   plateforme sert AUSSI**. Un 200 ne disait donc pas que le site était
+   joignable. Elle vise désormais `/note`, qui n'existe que sur le site —
+   *une page qui répond n'est pas celle qu'on croit* (point 165).
+
+**LE GARDE-FOU DU POINT 186 A SERVI, DÈS SA PREMIÈRE OCCASION.** La suite
+complète a rougi sur un seul test —
+`test_les_routes_ne_lisent_pas_le_corps_hors_des_lecteurs_bornes` — parce que
+la lecture du corps du relais a changé de place : de `route_by_host` →
+`request.body()` vers `_bounded_body` → `request.stream()`. Tout le reste était
+vert. C'est exactement ce qu'on lui demande : un lecteur de corps qui bouge se
+REDÉCLARE, il ne se glisse pas. Écrit huit jours plus tôt pour empêcher qu'une
+route contourne le lecteur borné, il a attrapé le correctif suivant — la preuve
+qu'un invariant ferme la classe et pas seulement le cas connu (point 183).
+
+**CE QUI N'EST PAS FERMÉ, et qui est ÉNONCÉ.** La borne protège la MÉMOIRE, pas
+la BANDE PASSANTE : le serveur accepte bien les 200 Mio de trafic avant de
+refuser, et cela se traite en amont chez le serveur frontal
+(`client_max_body_size`, réglé à 50 Mio au point 185). Le relais, lui, accumule
+par NÉCESSITÉ jusqu'à sa propre borne — il doit retransmettre le corps — donc
+plusieurs requêtes simultanées multiplient cette empreinte ; la fermer
+demanderait de relayer en flux, autre chantier. Et **aucune spec golden ne
+porte `payable`** : le webhook généré n'a donc pas d'empreinte dans
+`test_golden_artifacts.py`, ce qui est une lacune de corpus à savoir, pas un
+oubli — sa couverture vient de `tests/test_paiement.py`, contre un vrai serveur
+et un faux Stripe.
+
+Suite complète rejouée : `1601` tests passent, `16` sauts déclarés (les mêmes,
+tous nommés), barrières de couverture tenues. Voir points 186 (les trois
+premiers constats), 172 (mesurer ce qu'une garantie sert) et 170 (un témoin qui
+ne rougit jamais seul).

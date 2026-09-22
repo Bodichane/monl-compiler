@@ -459,6 +459,23 @@ def test_le_webhook_signe_marque_l_enregistrement_paye(application):
     assert lu["data"]["payment_status"] == "payee", lu
 
 
+def test_un_webhook_trop_volumineux_est_refuse_avec_ou_sans_content_length(
+        application):
+    """Les deux encodages HTTP s'arrêtent avant l'analyse de la signature."""
+    base, _dossier = application
+    corps = b"x" * (256 * 1024 + 1)
+
+    annonce = requests.post(f"{base}/paiement/webhook", data=corps, timeout=10)
+    morceaux = (corps[i:i + 8192] for i in range(0, len(corps), 8192))
+    decoupe = requests.post(
+        f"{base}/paiement/webhook", data=morceaux,
+        headers={"stripe-signature": "invalide"}, timeout=10,
+    )
+
+    assert annonce.status_code == 413, annonce.text
+    assert decoupe.status_code == 413, decoupe.text
+
+
 @pytest.mark.parametrize("entete", [
     None,
     "",
