@@ -1,10 +1,23 @@
+# `restart: always` et JAMAIS `unless-stopped` : ce qui relance les conteneurs
+# après un redémarrage de la machine, c'est `podman-restart.service`, et il fait
+# `podman start --all --filter restart-policy=always`. Un conteneur
+# `unless-stopped` n'entre pas dans ce filtre — il reste à terre indéfiniment.
+# Mesuré sur la machine d'hébergement : après un redémarrage, `monl-nginx`
+# (lancé en `always`) tournait, la PLATEFORME était en `Created` depuis
+# cinquante minutes, et rien ne l'avait dit. Vérifié sans redémarrer, en
+# rejouant exactement ce que fait le boot : conteneur arrêté, puis
+# `systemctl --user restart podman-restart.service` → toujours `Exited`.
+# La nuance perdue en passant à `always` est qu'un arrêt volontaire ne survit
+# pas au prochain démarrage de la machine. Pour un service de production c'est
+# le bon sens de l'erreur : mieux vaut remonter un service qu'on voulait
+# éteindre que laisser éteint un service qu'on voulait servir.
 services:
   platform:
     image: ${MONL_PLATFORM_IMAGE:-monl-platform:local}
     build:
       context: .
       dockerfile: Dockerfile.platform
-    restart: unless-stopped
+    restart: always
     init: true
     ports:
       - "127.0.0.1:8022:8022"
@@ -62,7 +75,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.platform
-    restart: unless-stopped
+    restart: always
     init: true
     depends_on:
       platform:

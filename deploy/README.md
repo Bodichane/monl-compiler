@@ -10,6 +10,37 @@ par exemple), puis lancer les scripts avec `CONTAINER_RUNTIME=podman` ; le
 script ajoute alors le format d'image Docker nécessaire au transport du
 `HEALTHCHECK`. Une machine Docker reste la voie la plus simple.
 
+**Deux pièges de Podman, tous deux mesurés en production.**
+
+*Le PATH d’une session non interactive.* `podman-compose` s’installe souvent
+dans `~/.local/bin`, qui n’est PAS dans le `PATH` d’un `ssh serveur
+'commande'` — le script échoue alors sur `looking up compose provider failed`
+en listant sept chemins, dont aucun n’est le bon. Déployer à distance demande
+donc `export PATH="$HOME/.local/bin:$PATH"` avant l’appel, ou un chemin absolu.
+
+*Le redémarrage de la machine.* Ce qui relance les conteneurs après un
+redémarrage, c’est `podman-restart.service`, dont la commande est
+`podman start --all --filter restart-policy=always`. Un service déclaré
+`restart: unless-stopped` **n’entre pas dans ce filtre** et reste à terre
+indéfiniment. Le compose déclare donc `restart: always` partout, et un test le
+garde. Vérifier que le mécanisme est armé :
+
+```bash
+loginctl enable-linger "$USER"          # sinon rien ne tourne hors session
+systemctl --user enable --now podman-restart.service
+```
+
+Se le prouver SANS redémarrer, en rejouant exactement ce que fait le boot :
+
+```bash
+podman stop monl-compiler_platform_1
+systemctl --user restart podman-restart.service
+podman ps --format '{{.Names}} {{.Status}}'   # doit être « Up »
+```
+
+Un conteneur qui ne remonte pas ne laisse **aucune trace** : il n’a pas
+planté, il n’a jamais démarré. C’est la panne la plus silencieuse du lot.
+
 La CI construit aussi `Dockerfile.platform`, démarre l’image et vérifie son
 healthcheck sur chaque push : une régression de packaging ou de readiness est
 détectée avant le déploiement manuel.

@@ -51,6 +51,39 @@ def test_compose_garde_le_port_prive_et_attend_la_readiness():
         assert variable in contenu
 
 
+def test_chaque_service_remonte_apres_un_redemarrage_de_la_machine():
+    """`always`, et jamais `unless-stopped` — la nuance coûte le service.
+
+    Ce qui relance les conteneurs après un redémarrage, c'est
+    `podman-restart.service`, dont la commande est
+    `podman start --all --filter restart-policy=always`. Un conteneur déclaré
+    `unless-stopped` n'entre pas dans ce filtre : il reste à terre.
+
+    Mesuré sur la machine d'hébergement, pas déduit — après un redémarrage,
+    `monl-nginx` (lancé en `always`) tournait, la plateforme était en `Created`
+    depuis cinquante minutes, et **rien ne l'avait dit**. Un conteneur qui ne
+    remonte pas ne laisse aucune trace : il n'a pas planté, il n'a jamais
+    démarré.
+
+    Le témoin porte sur TOUS les services, pas sur les deux d'aujourd'hui : un
+    service ajouté plus tard hériterait sinon du défaut en silence.
+    """
+    compose = yaml.safe_load(
+        (RACINE / "compose.platform.yaml").read_text(encoding="utf-8"))
+    politiques = {
+        nom: service.get("restart")
+        for nom, service in compose["services"].items()
+    }
+
+    assert politiques, "aucun service lu : le témoin ne garderait rien"
+    fautifs = {nom: valeur for nom, valeur in politiques.items()
+               if valeur != "always"}
+    assert not fautifs, (
+        f"ces services ne remonteront pas après un redémarrage : {fautifs} — "
+        f"seul `always` entre dans le filtre de podman-restart.service"
+    )
+
+
 def test_commande_de_sauvegarde_repliee_est_du_shell_valide():
     compose = yaml.safe_load((RACINE / "compose.platform.yaml").read_text(encoding="utf-8"))
     commande = compose["services"]["sauvegarde"]["command"][2]
@@ -232,8 +265,15 @@ def test_runbook_documente_le_dns_le_tls_et_les_sauvegardes_hors_site():
                     "smoke_platform.sh", "MONL_PLATFORM_PUBLIC_URL",
                     "check_platform_env.py", "chmod 600 .env",
                     "export_platform_backups.sh", "Dockerfile.platform",
-                    "régression de packaging", "pare-feu", "TCP 80 et 443"):
-        assert attendu in contenu
+                    "régression de packaging", "pare-feu", "TCP 80 et 443",
+                    # Les deux pièges de Podman mesurés au point 189. Un
+                    # document qui décrit une limite sans donner le remède
+                    # qu'il connaît envoie travailler pour rien (point 166) :
+                    # le témoin exige donc la CAUSE et le GESTE, pas juste le
+                    # symptôme.
+                    "podman-restart.service", "restart-policy=always",
+                    "enable-linger", 'export PATH="$HOME/.local/bin:$PATH"'):
+        assert attendu in contenu, f"le runbook ne dit plus : {attendu}"
 
 
 def test_la_ci_construit_et_sonde_l_image_de_plateforme():
