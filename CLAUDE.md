@@ -1246,6 +1246,34 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   dans `app.py`. Contre-épreuve : sans (a), le corps passait (`401` au lieu de
   `413`) ; sans (b), compilation et recompilation ne partageaient ni quota ni
   sémaphore (`201` au lieu de `429`/`503`). Voir point 186.
+- **POINT 187 : le `state` OAuth était signé et daté, mais lié à PERSONNE.**
+  Troisième défaut de l'audit, et le plus sérieux : un attaquant démarrait un
+  aller depuis son navigateur et faisait ouvrir l'adresse de retour à la
+  victime, qui se retrouvait connectée **sur le compte de l'attaquant** —
+  *login CSRF*, sans aucune faille supplémentaire. Le `state` porte désormais
+  l'**empreinte HMAC** d'un secret tiré à l'aller et gardé dans le cookie
+  `monl_oauth_flow` : porter le secret lui-même le publierait, puisque le
+  `state` voyage en clair dans une URL et finit dans les journaux du
+  fournisseur. Trois décisions à ne pas rouvrir — `samesite="lax"` et jamais
+  `strict` (le retour est une navigation venue d'un autre site ; `strict`
+  retiendrait le cookie et refuserait toute connexion LÉGITIME, la façon la
+  plus sûre de se faire désarmer) ; cookie borné à `path=/auth/` et à
+  `max_age=STATE_TTL` (une seule durée, deux finiraient par diverger) ; et
+  **effacé sur les DEUX issues**, sans quoi un `code` capté reste rejouable —
+  c'est cet effacement qui oblige la branche d'erreur à rendre une
+  `JSONResponse` plutôt qu'à lever, une exception ne portant pas de cookie.
+  **CE QUE LA VÉRIFICATION A TROUVÉ** : la page de confidentialité affirmait
+  « le seul cookie déposé est `monl_session` » — fausse le jour même, sur la
+  page qui engage juridiquement (point 141 : *elle n'est pas absente, elle
+  AFFIRME*). Un témoin confronte désormais les `<code>monl_*</code>` de la page
+  aux `set_cookie` réels, **dans les deux sens**. Il résout les constantes
+  NOMMÉES par `importlib` : un motif limité aux littéraux aurait vu
+  `monl_session`, trouvé la page exacte et rendu du vert sans regarder
+  `OAUTH_FLOW_COOKIE`, le seul cas qui l'intéressait (point 172 mot pour mot) ;
+  ce qu'il ne sait pas lire fait ÉCHOUER (point 161). Éprouvé par
+  `tests/test_oauth.py` (22 témoins) — l'attaque complète est refusée en 400,
+  le code n'est **même pas présenté** au fournisseur, `sessions` et `users`
+  restent vides ; contre-épreuve `assert 303 == 400`. Voir point 187.
 - **POINT 159 : un test qui dépend d'une horloge FIXE son instant de référence,
   puis ne la relit plus.** L'assertion de rejeu TOTP de
   `tests/test_authentification_b4.py` RECALCULAIT le code au lieu de rejouer

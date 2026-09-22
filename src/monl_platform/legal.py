@@ -179,8 +179,11 @@ scrypt, avec un sel propre à chaque compte.</li>
 ni code de secours. Une clé perdue ne peut pas être retrouvée, seulement révoquée
 et remplacée ; un code de secours perdu, seulement régénéré.</li>
 <li><strong>Aucun traceur, aucune mesure d'audience, aucun cookie publicitaire.</strong>
-Le seul cookie déposé est <code>monl_session</code>, strictement nécessaire à la
-connexion.</li>
+Deux cookies seulement, tous deux strictement nécessaires à la connexion :
+<code>monl_session</code>, qui vous garde connecté, et <code>monl_oauth_flow</code>,
+posé le temps d'une connexion par Google ou GitHub pour vérifier que le retour du
+fournisseur arrive bien dans le navigateur qui a commencé — il est effacé dès que
+l'aller-retour est terminé.</li>
 <li><strong>Aucun courriel n'est envoyé.</strong> Votre adresse sert d'identifiant de
 connexion, rien d'autre. Elle n'est ni vérifiée, ni utilisée pour vous écrire.</li>
 <li><strong>Aucune donnée n'est transmise à un tiers.</strong> Les specs que vous
