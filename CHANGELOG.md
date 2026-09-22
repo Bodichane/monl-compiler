@@ -1,5 +1,104 @@
 # Journal des modifications
 
+## 0.9.0-beta.9 — Le cap, et la mise en production
+
+La bêta 8 ouvrait une plateforme ; celle-ci la met en ligne pour de vrai, et
+change d'abord ce qu'elle promet. **Décision du mainteneur (point 162) : monl
+produit le backend et sa base — déterministes, audités, sans appel réseau —
+et tout ce qui demande une IA se fait avec le fournisseur de l'usager, sur sa
+machine.** La console web ne construit plus de frontend ; elle fait ce que
+fait la ligne de commande : dialogue guidé → contrat + base. Quarante-huit
+points de conception, 143 à 190.
+
+1606 tests, 16 sauts déclarés (tous PostgreSQL d'intégration non demandé),
+`ruff` propre. Le compilateur ne change sa sortie que là où un point le dit :
+entre beta.8 et beta.9 compilées du même code, `diff -r` ne montre qu'une
+ligne, `compiler_version` dans `monl.json`.
+
+### Changement cassant
+
+- **La plateforme ne construit plus d'interface** (point 162). Le
+  constructeur par IA part — `builder`, `worker`, la file de constructions et
+  ses routes, les quotas, `/api/usage` et les huit paramètres d'IA de
+  `create_app`. En production il répondait 503 faute de fournisseur branché ;
+  et quand notre clé payait, chaque compte ouvrait une facture. L'hébergement
+  sert désormais le dossier **compilé**, frontend facultatif. `monl frontend`
+  en ligne de commande est inchangé.
+- **L'archive d'un projet compilé est rangée** (point 176) : les documents
+  destinés à l'IA d'interface partent dans `docs/` (`docs/FRONTEND_PROMPT.md`
+  et la direction visuelle), la mémoire du projet s'appelle `AGENTS.md` au
+  lieu de `CLAUDE.md`, et `sandbox_ai.py` n'est plus produit sans bloc
+  `custom` (point 175). `frontend_contract.json` reste à la racine.
+
+### La boucle se ferme sans navigateur
+
+- **Dialogue guidé sur le web** (point 163) : la console rejoue le moteur
+  déterministe à chaque requête, sans état caché.
+- **MCP** : `monl_list_projects`, `monl_diff_spec`, `monl_update_backend`,
+  et l'archive téléchargeable avec la clé — un agent compile, récupère et met
+  à jour un projet sans jamais ouvrir le site.
+- **Connexion par GitHub ou Google** (point 145) : une identité vérifiée par
+  un tiers, et toujours aucun message envoyé par monl. La page de connexion
+  offre le chemin des codes de secours.
+
+### Prêt pour de vrais usagers, et en production
+
+- **Quatre bloquants trouvés en étant le premier usager** (point 164), dont une
+  plateforme **indéployable depuis un `pip install` ordinaire** : `favicon.ico`
+  n'entrait pas dans le paquet, et la CI, installée en éditable, ne pouvait pas
+  le voir. Le site tient à 375 pixels (point 165).
+- **Le chemin conteneur exécuté** (point 166) sous les restrictions réelles du
+  compose, puis **le déploiement de production éprouvé** (point 185) — image
+  GHCR, `scripts/deploy_platform.sh`, sonde de sauvegarde qui ne fuit plus ses
+  descripteurs.
+- **La plateforme remonte après un redémarrage** (point 189) : le compose
+  déclarait `unless-stopped`, que `podman-restart.service` ne relance pas.
+
+### Sécurité : un audit statique, cinq défauts réels, tous fermés
+
+- Corps HTTP **borné même sans `Content-Length`** et admission de
+  recompilation limitée (point 186).
+- **Le `state` OAuth est lié au navigateur** qui a commencé l'aller — fin du
+  *login CSRF* qui connectait un visiteur au compte d'un attaquant (point 187).
+- **Plafond de sites hébergés** (20 au total, 3 par compte) et corps du
+  webhook de paiement borné (point 188).
+- La plateforme **refuse de démarrer** si elle se déclare en HTTPS avec un
+  cookie de session non sûr, et un site hébergé qui plante laisse enfin une
+  trace, `site.log`, lue par `monl-platform admin journal` et jamais par une
+  route web (point 172).
+
+### Compilateur
+
+- **Performance** : index sur ce qu'une route interroge (clés étrangères,
+  `filter`, puis `accessibleBy` et `publicWhen` par invariant), jeton décodé
+  une fois, **pool de connexions PostgreSQL — 28,7 ms → 5,1 ms** par requête
+  authentifiée (points 181 à 183).
+- `upload`, `filter` et `sort` sont **enfin écrits par le dialogue guidé**
+  (point 173), et un texte `required` doit être **rempli**, plus seulement
+  présent (point 179).
+- La libération de stock suit le champ que le paiement lui a pris.
+- Compilateur et plans IR consolidés ; validateur devenu paquet (points 152
+  à 155).
+
+### Publication
+
+- **Le compilateur est publiable** (points 167 et 169) : métadonnées
+  complètes, licence en `LicenseRef-FSL-1.1-ALv2`, et un workflow **Trusted
+  Publishing** — un tag `v*` éprouve le commit du tag sur trois versions de
+  Python, construit une seule fois, envoie à TestPyPI puis à PyPI après
+  approbation. Aucun secret de longue durée. Voir `docs/PUBLICATION.md`.
+
+### Marque
+
+- Nouveau logo : signe monochrome et lockup MONL COMPILER (point 177).
+
+### Outillage
+
+- La complexité mesurée devient un **cliquet** (point 170), la barrière de
+  couverture de la plateforme ne dépend plus d'une liste de fichiers
+  (point 184), et **un invariant garde toute la documentation** contre la
+  péremption silencieuse (point 190).
+
 ## 0.9.0-beta.8 — La plateforme, et le droit d'ouvrir au public
 
 Une bêta qui ne change presque rien au compilateur et beaucoup à ce qui
