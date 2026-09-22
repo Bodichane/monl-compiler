@@ -54,6 +54,8 @@ import urllib.request
 #: webhook de paiement : assez pour une connexion humaine, trop court pour un
 #: rejeu.
 STATE_TTL = 600
+OAUTH_FLOW_COOKIE = "monl_oauth_flow"
+OAUTH_FLOW_PATH = "/auth/"
 
 #: Ce qu'il faut pour proposer un fournisseur. La valeur de gauche est la
 #: variable d'environnement, celle de droite ce qu'elle contient.
@@ -171,20 +173,34 @@ def _signer(secret, charge):
                     hashlib.sha256).hexdigest()
 
 
-def make_state(provider, secret, *, maintenant=None):
-    """Un jeton d'aller, signé et daté."""
+def make_browser_secret():
+    """Crée le secret éphémère qui ne quitte que le navigateur initiateur."""
+    return secrets.token_urlsafe(32)
+
+
+def _browser_digest(secret, browser_secret):
+    return hmac.new(
+        secret.encode("utf-8"),
+        f"oauth-browser.{browser_secret}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def make_state(provider, secret, browser_secret, *, maintenant=None):
+    """Un jeton d'aller signé, daté et lié au navigateur initiateur."""
     horodatage = int(maintenant if maintenant is not None else time.time())
-    charge = f"{provider}.{horodatage}.{secrets.token_urlsafe(16)}"
+    empreinte = _browser_digest(secret, browser_secret)
+    charge = f"{provider}.{horodatage}.{secrets.token_urlsafe(16)}.{empreinte}"
     return f"{charge}.{_signer(secret, charge)}"
 
 
-def check_state(state, provider, secret, *, maintenant=None):
+def check_state(state, provider, secret, browser_secret, *, maintenant=None):
     """Refuse un état forgé, rejoué ou venu d'un autre fournisseur."""
     morceaux = str(state or "").split(".")
-    if len(morceaux) != 4:
+    if len(morceaux) != 5:
         raise OAuthError("état de connexion illisible", status_code=400)
-    nom, horodatage, _alea, signature = morceaux
-    charge = ".".join(morceaux[:3])
+    nom, horodatage, _alea, empreinte, signature = morceaux
+    charge = ".".join(morceaux[:4])
     if not hmac.compare_digest(signature, _signer(secret, charge)):
         raise OAuthError("état de connexion non signé par ce serveur",
                          status_code=400)
@@ -198,6 +214,12 @@ def check_state(state, provider, secret, *, maintenant=None):
     if age < -STATE_TTL or age > STATE_TTL:
         raise OAuthError("connexion expirée : recommencer depuis la console",
                          status_code=400)
+    attendue = _browser_digest(secret, browser_secret or "")
+    if not browser_secret or not hmac.compare_digest(empreinte, attendue):
+        raise OAuthError(
+            "état de connexion absent de ce navigateur ou déjà utilisé",
+            status_code=400,
+        )
     return True
 
 

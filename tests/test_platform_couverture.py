@@ -332,7 +332,7 @@ def test_les_garde_fous_http_normalisent_et_refusent_les_entrees_invalides(
 
 
 def test_la_pose_du_cookie_est_unique_et_suit_la_configuration(tmp_path, monkeypatch):
-    """Les deux chemins de session lisent la même pose, et aucun troisième n'existe."""
+    """Chaque famille de cookie a une pose unique et partage la règle Secure."""
     racine = Path(__file__).resolve().parent.parent / "src" / "monl_platform"
     poses = []
     for chemin in racine.glob("*.py"):
@@ -344,8 +344,9 @@ def test_la_pose_du_cookie_est_unique_et_suit_la_configuration(tmp_path, monkeyp
             and isinstance(noeud.func, ast.Attribute)
             and noeud.func.attr == "set_cookie"
         )
-    assert len(poses) == 1
-    assert poses[0][0] == "session.py"
+    assert [nom for nom, _ligne in poses].count("session.py") == 1
+    assert [nom for nom, _ligne in poses].count("builder_auth_routes.py") == 1
+    assert len(poses) == 2
 
     from fastapi.responses import Response
 
@@ -553,9 +554,13 @@ def test_l_adaptateur_oauth_couvre_configuration_et_reponses_fournisseur(monkeyp
         oauth._credentials("github", {"MONL_OAUTH_GITHUB_CLIENT_ID": "client"})
     assert missing.value.variable == "MONL_OAUTH_GITHUB_SECRET"
 
-    state = oauth.make_state("github", "secret", maintenant=1_700_000_000)
-    assert oauth.check_state(state, "github", "secret", maintenant=1_700_000_000)
-    bad_timestamp_charge = "github.pas-un-entier.alea"
+    state = oauth.make_state(
+        "github", "secret", "secret-navigateur", maintenant=1_700_000_000
+    )
+    assert oauth.check_state(
+        state, "github", "secret", "secret-navigateur", maintenant=1_700_000_000
+    )
+    bad_timestamp_charge = "github.pas-un-entier.alea.empreinte"
     bad_timestamp = f"{bad_timestamp_charge}.{oauth._signer('secret', bad_timestamp_charge)}"
     for malformed, provider, now, message in (
         ("", "github", 0, "illisible"),
@@ -566,7 +571,9 @@ def test_l_adaptateur_oauth_couvre_configuration_et_reponses_fournisseur(monkeyp
         (state, "github", 1_700_001_000, "expirée"),
     ):
         with pytest.raises(oauth.OAuthError, match=message):
-            oauth.check_state(malformed, provider, "secret", maintenant=now)
+            oauth.check_state(
+                malformed, provider, "secret", "secret-navigateur", maintenant=now
+            )
 
     class Reply:
         def __init__(self, value):

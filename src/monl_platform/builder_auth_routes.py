@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import os
 
-from fastapi import HTTPException, status
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi import HTTPException, Request, status
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
 from .builder_runtime import (
     _http_error,
@@ -14,16 +14,37 @@ from .builder_runtime import (
 )
 from .downloads import list_artifacts, resolve_artifact
 from .oauth import (
+    OAUTH_FLOW_COOKIE,
+    OAUTH_FLOW_PATH,
+    STATE_TTL,
     OAuthError,
     authorize_url,
     check_state,
     configured_providers,
     exchange_code,
     fetch_identity,
+    make_browser_secret,
     make_state,
 )
+from .session import cookie_secure
 
 OAUTH_STATE_SECRET_ENV = "MONL_PLATFORM_OAUTH_STATE_SECRET"
+
+
+def _set_oauth_cookie(response, browser_secret):
+    response.set_cookie(
+        OAUTH_FLOW_COOKIE,
+        browser_secret,
+        max_age=STATE_TTL,
+        path=OAUTH_FLOW_PATH,
+        httponly=True,
+        samesite="lax",
+        secure=cookie_secure(),
+    )
+
+
+def _clear_oauth_cookie(response):
+    response.delete_cookie(OAUTH_FLOW_COOKIE, path=OAUTH_FLOW_PATH)
 
 
 def mount_builder_auth_routes(application, runtime):
@@ -46,15 +67,24 @@ def mount_builder_auth_routes(application, runtime):
                        f"{OAUTH_STATE_SECRET_ENV} n'est pas renseignée sur ce serveur",
             )
         try:
-            state = make_state(provider, secret)
+            browser_secret = make_browser_secret()
+            state = make_state(provider, secret, browser_secret)
             target = authorize_url(provider, state)
         except OAuthError as exc:
             _http_error(str(exc), exc.status_code)
-        return RedirectResponse(target, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+        response = RedirectResponse(target, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+        _set_oauth_cookie(response, browser_secret)
+        return response
 
     @application.get("/auth/{provider}/retour")
     @application.get("/auth/{provider}/callback", include_in_schema=False)
-    def auth_return(provider: str, code: str = "", state: str = "", error: str = ""):
+    def auth_return(
+        request: Request,
+        provider: str,
+        code: str = "",
+        state: str = "",
+        error: str = "",
+    ):
         if error:
             return RedirectResponse("/console#erreur=refus", status_code=303)
         secret = os.environ.get("MONL_PLATFORM_OAUTH_STATE_SECRET", "").strip()
@@ -65,7 +95,7 @@ def mount_builder_auth_routes(application, runtime):
                        f"{OAUTH_STATE_SECRET_ENV} n'est pas renseignée sur ce serveur",
             )
         try:
-            check_state(state, provider, secret)
+            check_state(state, provider, secret, request.cookies.get(OAUTH_FLOW_COOKIE))
             if not code:
                 raise OAuthError("le fournisseur n'a renvoyé aucun code", status_code=400)
             provider_token = exchange_code(provider, code)
@@ -75,10 +105,13 @@ def mount_builder_auth_routes(application, runtime):
             )
         except (OAuthError, ValueError) as exc:
             code_status = getattr(exc, "status_code", 422)
-            _http_error(str(exc), code_status)
+            response = JSONResponse({"detail": str(exc)}, status_code=code_status)
+            _clear_oauth_cookie(response)
+            return response
         token = identities.create_session(user_id)
         response = RedirectResponse("/console", status_code=303)
         _set_session_cookie(response, token)
+        _clear_oauth_cookie(response)
         return response
 
     @application.get("/api/models")

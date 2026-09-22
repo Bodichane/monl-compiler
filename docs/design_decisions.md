@@ -104,6 +104,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [184](#184-une-barrière-de-couverture-mesurée-sur-une-liste-de-tests-ment-sur-ce-quelle-mesure) Une barrière mesurée sur une liste ment ·
 [185](#185-le-déploiement-de-production-éprouvé-pour-de-vrai--quatre-défauts-quaucune-lecture-naurait-montrés) Le déploiement de production, éprouvé pour de vrai ·
 [186](#186-un-audit-statique-trouve-cinq-défauts-réels--le-corps-http-et-la-recompilation-fermés) Un audit statique trouve cinq défauts réels — le corps HTTP et la recompilation fermés ·
+[187](#187-le-state-oauth-ne-prouvait-rien-du-navigateur--et-la-page-de-confidentialité-affirmait-un-seul-cookie) Le `state` OAuth ne prouvait rien du navigateur ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -13559,3 +13560,74 @@ Suite complète rejouée après coup : `1586` tests passent, `16` sauts déclar�
 couverture tenues (90,97 % `monl`, 91,64 % `monl_platform`). Voir points 185
 (le déploiement qui a rendu ce chantier possible) et 146 (une garantie écrite
 à un seul endroit).
+
+## 187. Le `state` OAuth ne prouvait rien du navigateur — et la page de confidentialité affirmait un seul cookie
+
+Deuxième défaut de l'audit du point 186, et le plus sérieux des cinq : le
+`state` de la connexion par Google ou GitHub était **signé et daté, mais lié à
+personne**. Il disait « ce jeton vient bien de ce serveur, et il a moins de dix
+minutes » — jamais « il a été demandé par le navigateur qui revient ». Un
+attaquant démarrait donc un aller depuis SON navigateur, gardait le `state`
+frais, et faisait ouvrir au visiteur l'adresse de retour portant son propre
+`code` : le visiteur se retrouvait connecté **sur le compte de l'attaquant**,
+sans rien voir. Les projets qu'il compilait ensuite, sa clé MCP, son archive,
+tout atterrissait dans un compte qui n'était pas le sien. C'est la forme
+classique du *login CSRF*, et elle ne demande aucune faille supplémentaire :
+tout le reste du parcours fonctionne exactement comme prévu.
+
+**Le remède est un secret qui ne quitte pas le navigateur initiateur.**
+`make_browser_secret()` tire 32 octets à l'aller ; le navigateur les reçoit
+dans un cookie `monl_oauth_flow`, et le `state` n'emporte que leur **empreinte
+HMAC** (`_browser_digest`, cinquième morceau du jeton). Au retour,
+`check_state` recalcule l'empreinte depuis le cookie présenté : sans cookie, ou
+avec celui d'un autre aller, c'est 400 et **le code n'est jamais échangé**.
+Porter l'empreinte plutôt que le secret est la seule forme utilisable — le
+`state` voyage en clair dans une URL, il passe par le fournisseur, il finit
+dans ses journaux ; y mettre le secret reviendrait à le publier.
+
+**Trois décisions à ne pas rouvrir.** `samesite="lax"` et pas `strict` : le
+retour du fournisseur est une navigation de premier plan venue d'un autre site,
+et `strict` retiendrait le cookie — le garde-fou refuserait alors toutes les
+connexions légitimes, ce qui est la façon la plus sûre de se faire désarmer.
+Le cookie est borné à `path=/auth/` et à `max_age=STATE_TTL` (les mêmes dix
+minutes que le jeton : deux durées séparées finiraient par diverger), et il est
+**effacé sur les deux issues** — succès comme erreur. Sans l'effacement au
+succès, un `code` capté restait rejouable tant que le cookie vivait ; c'est ce
+que mesure `test_un_callback_rejoue_apres_succes_est_refuse`. Et c'est
+l'effacement qui a forcé la branche d'erreur du callback à rendre une
+`JSONResponse` au lieu de lever : une exception ne porte pas de cookie.
+
+**CE QUE LA VÉRIFICATION A TROUVÉ, et que l'audit n'avait pas vu.** La page de
+confidentialité affirmait : *« Le seul cookie déposé est `monl_session` »*. Le
+correctif en dépose un second — la phrase devenait **fausse le jour même**, sur
+la page qui engage juridiquement. Exactement le reproche du point 141 à une
+politique désynchronisée : *elle n'est pas absente, elle AFFIRME*. Une table
+oubliée était déjà gardée depuis ce point-là ; un cookie oublié ne l'était pas,
+alors que c'est la seule donnée que le visiteur emporte chez lui.
+`test_la_page_de_confidentialite_nomme_tout_cookie_reellement_depose`
+confronte désormais les `<code>monl_*</code>` de la page aux `set_cookie`
+réellement écrits dans `src/monl_platform/`, **dans les deux sens** — un cookie
+retiré du code mais resté sur la page fait mentir la page tout autant.
+
+**L'extracteur ne se contente pas des littéraux**, et c'est ce qui décide s'il
+garde quelque chose : `monl_session` est écrit en clair dans `session.py`, mais
+`monl_oauth_flow` passe par la constante `OAUTH_FLOW_COOKIE` — un motif qui ne
+lit que les chaînes littérales aurait vu UN cookie, trouvé la page exacte, et
+rendu du vert en ne regardant pas le seul cas qui l'intéressait. C'est le
+défaut du point 172 mot pour mot, d'où la même issue : résolution du nom par
+`importlib` sur le module, et **échec bruyant** sur ce qu'on ne sait pas lire
+(point 161) plutôt qu'un ensemble vide.
+
+Éprouvé par `tests/test_oauth.py` (22 témoins, dont quatre neufs contre un vrai
+serveur et un faux fournisseur embarqué) : l'attaque complète — deux sessions
+HTTP distinctes, celle de la victime portant un `state` valide obtenu ailleurs
+— est refusée en 400, `_FauxGitHub.codes_vus` reste **vide** (le code n'est
+même pas présenté) et les tables `sessions` et `users` restent à zéro ligne.
+La contre-épreuve désarme la vérification d'empreinte : `assert 303 == 400`,
+l'attaque réussit et la victime est connectée sur le compte de l'attaquant.
+Les deux sens du témoin de confidentialité mordent aussi, séparément.
+
+Suite complète : `1581` tests passent, `16` sauts déclarés (les mêmes, nommés),
+barrières de couverture tenues. Voir points 145 (les quatre décisions OAuth qui
+tiennent toujours), 141 (une politique qui affirme) et 172 (un extracteur qui
+ne voit que les littéraux).
