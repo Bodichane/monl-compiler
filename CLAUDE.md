@@ -1332,6 +1332,38 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   interactive — écrit au runbook AVEC son remède (point 166). Vérifié en réel
   sur la production remise à jour : 50 Mio sur `/api/auth/register` → **413**.
   Voir point 189.
+- **POINT 190 : la documentation est gardée par un INVARIANT, plus par des
+  témoins ciblés.** `CODEBASE_AUDIT.md` annonçait « 812 tests, 91,62 % » quand
+  il y en avait **1602** ; `CONTRIBUTING.md` envoyait vers six fichiers devenus
+  des paquets (points 152-155). Il existait pourtant beaucoup de témoins de
+  doc — tous CIBLÉS sur UN document, aucun sur l'ENSEMBLE (point 183 : *un
+  correctif ferme les cas connus, un invariant ferme la classe*).
+  `tests/test_documentation.py` porte SIX règles sur tous les `.md` : chemin
+  cité qui existe, verbe de CLI qui existe, lien interne qui pointe, aucun
+  nombre de tests ni couverture figés dans un document prescriptif, **tout
+  verbe livré présent au tableau du README**, **tout chemin de projet
+  confronté à une VRAIE compilation**. Exemptions (historiques, artefacts
+  générés) motivées une par une, et **une exemption qui ne sert plus fait
+  ÉCHOUER** (point 155).
+  **CE QUE LA VÉRIFICATION A TROUVÉ, plus précieux que le témoin.** (a) Il
+  lisait une LISTE ÉCRITE POUR LUI : un `build_parser()` de `monl-platform`
+  recopiait à la main les verbes que `main()` dispatche par des
+  `if argv[0] == …` — le défaut du point 164 reproduit par son propre remède.
+  Les verbes vivent désormais dans une table `VERBES` **que le dispatch LIT**.
+  (b) Il a **FABRIQUÉ un mensonge** : `docs/PUBLICATION.md` décrit le contenu
+  d'une ROUE (`monl_platform/static/`), la règle a fait « corriger » en
+  `src/monl_platform/static/` — faux, `package-dir` retire ce préfixe. Les
+  préfixes sont maintenant DÉRIVÉS de `pyproject.toml` (point 84). (c) Une
+  exemption CACHAIT un défaut : `FRONTEND_PROMPT.md` étant généré donc exempté,
+  personne ne voyait que le README envoyait vers `Boutique/FRONTEND_PROMPT.md`
+  quand il sort dans `Boutique/docs/`. (d) Le SENS INVERSE n'était gardé par
+  personne : `monl usage` livré et documenté NULLE PART, plus trois verbes
+  absents du tableau (point 169 transposé).
+  **ET MES PROPRES SONDES ONT MENTI DEUX FOIS** : 71 faux positifs en prenant
+  une ellipse (`cli.py`) pour un mensonge (point 157), puis un verdict complet
+  sur ZÉRO donnée, extraction muette (point 161) — les onze verbes documentés
+  déclarés absents. Chaque extracteur porte donc son assertion de non-vacuité.
+  Dix contre-épreuves exécutées. Voir point 190.
 - **POINT 159 : un test qui dépend d'une horloge FIXE son instant de référence,
   puis ne la relit plus.** L'assertion de rejeu TOTP de
   `tests/test_authentification_b4.py` RECALCULAIT le code au lieu de rejouer

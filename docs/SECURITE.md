@@ -124,7 +124,7 @@ préférée, « bloqué » = toute réponse non-2xx, routes publiques et rôles 
 auto-inscriptibles traités en « N/A ».
 
 **Statut des `[CRITICAL_WARNING]` statiques.** L'audit statique signale toute
-suppression par un acteur non-`Admin` (`ast_validator.py`, `_audit_security_rules`).
+suppression par un acteur non-`Admin` (`src/monl/ast_validator/`, `_audit_security_rules`).
 C'est une heuristique volontairement prudente, pas une preuve de bug : `monl` ne
 peut pas décider de la politique de suppression de son utilisateur. Sur
 `02_boutique`, les trois signalements sont effectivement couverts au runtime par

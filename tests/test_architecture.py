@@ -420,7 +420,7 @@ EXCEPTIONS_DE_COMPLEXITE = {
     "monl/cli/couverture.py:_frontend_route_coverage": (26, "Contrôle de couverture hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/cli/delta.py:_rapporter_delta": (46, "Rapport de delta hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/cli/delta.py:_write_update_brief": (18, "Émission ligne par ligne conservée pour rester lisible ; cette fonction est hors des cinq cibles."),
-    "monl/cli/dispatch.py:_dispatch": (27, "Routage de commandes hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
+    "monl/cli/dispatch.py:_dispatch": (25, "Routage de commandes hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/cli/lancement.py:cmd_run": (17, "Orchestration de commande hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/cli/signature.py:_contract_signature": (53, "Sérialisation et émission de signature conservées ligne par ligne ; cas plat hors des cinq cibles."),
     "monl/content_tool.py:_lisez_moi": (17, "Assemblage éditorial hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),

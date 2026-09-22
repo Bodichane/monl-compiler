@@ -96,10 +96,10 @@ manuelle passait sans un mot, pendant que 'monl run' affichait
 
 | Ce que vous voulez faire | Où |
 |---|---|
-| Ajouter une question au dialogue | `src/monl/dialogue_engine.py` |
+| Ajouter une question au dialogue | le module concerné dans `src/monl/dialogue_engine/` |
 | Ajouter ou modifier un modèle d'application | `src/monl/app_templates.py` |
-| Nouveau mot-clé du langage `.ml` | `src/monl/parser.py`, puis `ast_validator.py` |
+| Nouveau mot-clé du langage `.ml` | le module concerné dans `src/monl/parser/`, puis `src/monl/ast_validator/` |
 | Changer ce que le backend génère | le module concerné dans `src/monl/generator/` |
-| Changer ce que l'IA frontend reçoit | `src/monl/frontend_contract.py` |
-| Ajouter une vérification au lancement | `src/monl/cli.py` (statique) ou `smoke_test.py` (réelle) |
+| Changer ce que l'IA frontend reçoit | le module concerné dans `src/monl/frontend_contract/` |
+| Ajouter une vérification au lancement | le module concerné dans `src/monl/cli/` (statique) ou `src/monl/smoke_test/` (réelle) |
 | Comprendre *pourquoi* une règle existe | `docs/design_decisions.md` |

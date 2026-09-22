@@ -8,6 +8,20 @@ import sys
 import uvicorn
 
 
+def _build_serve_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Plateforme web Monl")
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8022)
+    return parser
+
+
+def _administrer(argv: list[str]) -> int:
+    """Import PARESSEUX : l'administration tire la base, servir n'en a pas besoin."""
+    from .administration import main as administrer
+
+    return administrer(argv)
+
+
 def _sauvegarder(argv: list[str]) -> int:
     """`monl-platform sauvegarde <destination>`.
 
@@ -69,17 +83,25 @@ def _rotation(cible, garder: int) -> list:
     return retirees
 
 
+#: Les verbes de ``monl-platform``, et ce qu'ils appellent. C'est une TABLE et
+#: non une suite de ``if`` parce que le dispatch la LIT : un verbe ajouté ici
+#: est servi, et un verbe servi est forcément ici. La documentation est
+#: confrontée à cette table (`tests/test_documentation.py`), ce qui n'aurait
+#: aucune valeur si le témoin lisait une liste écrite pour lui — c'est
+#: exactement le défaut du point 164, où la page `/mcp` annonçait quatre outils
+#: inexistants parce que sa liste était recopiée à la main.
+VERBES = {
+    "sauvegarde": _sauvegarder,
+    "admin": _administrer,
+}
+
+
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
-    if argv and argv[0] == "sauvegarde":
-        return _sauvegarder(argv[1:])
-    if argv and argv[0] == "admin":
-        from .administration import main as administrer
-        return administrer(argv[1:])
+    if argv and argv[0] in VERBES:
+        return VERBES[argv[0]](argv[1:])
 
-    parser = argparse.ArgumentParser(description="Plateforme web Monl")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8022)
+    parser = _build_serve_parser()
     args = parser.parse_args(argv)
     uvicorn.run("monl_platform.app:app", host=args.host, port=args.port)
     return 0

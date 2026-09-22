@@ -63,7 +63,7 @@ quota non atomique, secret en 0644, liste noire non purgée, clés étrangères
 jamais appliquées) et un défaut de déterminisme (ordre d'acteurs issu d'un
 `set`). Tous corrigés et couverts par `tests/test_beta3_regressions.py` ;
 détail dans `CHANGELOG.md`. Le générateur monolithique a été découpé en
-package `src/generator/`.
+package `src/monl/generator/`.
 
 ## Ce que corrige la bêta 0.9.0-beta.1
 

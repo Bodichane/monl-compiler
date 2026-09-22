@@ -22,7 +22,7 @@ de migration.
 - Les alias Claude Code seront retirés seulement après une version bêta
   annonçant explicitement la rupture.
 
-Les documents `docs/phase_*.md` décrivent l'historique de conception ; ils ne
-constituent pas une description normative de l'architecture courante. Pour
-celle-ci, consulter le rapport [CODEBASE_AUDIT.md](../CODEBASE_AUDIT.md) et le
-README.
+Les documents `docs/phase_*.md` et `CODEBASE_AUDIT.md` décrivent l'historique
+de conception et des audits datés ; ils ne constituent pas une description
+normative de l'architecture courante. Pour celle-ci, consulter le
+[README](../README.md) et les résultats de la CI.
