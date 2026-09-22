@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import json
 import os
 
 from fastapi import HTTPException, Request
@@ -11,6 +13,10 @@ from .identity import IdentityStore
 from .journal import anomalie
 from .session import set_session_cookie
 from .theme import page
+
+TAILLE_MAX_CORPS_JSON = 300_000
+LIMITE_COMPILATIONS_PAR_HEURE = 10
+FENETRE_COMPILATIONS_SECONDES = 3600
 
 
 def _liens_de_pied(brut):
@@ -157,17 +163,50 @@ def _page_404(detail: str) -> str:
 async def _json_body(request: Request) -> dict:
     if request.headers.get("content-length"):
         try:
-            if int(request.headers["content-length"]) > 300_000:
+            if int(request.headers["content-length"]) > TAILLE_MAX_CORPS_JSON:
                 raise HTTPException(status_code=413, detail="Requête trop volumineuse.")
         except ValueError:
             raise HTTPException(status_code=400, detail="Content-Length invalide.") from None
     try:
-        payload = await request.json()
+        morceaux = []
+        taille = 0
+        async for morceau in request.stream():
+            taille += len(morceau)
+            if taille > TAILLE_MAX_CORPS_JSON:
+                raise HTTPException(status_code=413, detail="Requête trop volumineuse.")
+            morceaux.append(morceau)
+        payload = json.loads(b"".join(morceaux))
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=400, detail="Corps JSON invalide.") from exc
     if not isinstance(payload, dict):
         raise HTTPException(status_code=400, detail="Un objet JSON est attendu.")
     return payload
+
+
+@contextlib.asynccontextmanager
+async def _admission_compilation(request, identities, compile_slots, preparer=None):
+    """Partage le quota et la place d'exécution de toute compilation HTTP."""
+    _rate_limit(
+        request,
+        identities,
+        "compile",
+        _require_user(request, identities)["id"],
+        LIMITE_COMPILATIONS_PAR_HEURE,
+        FENETRE_COMPILATIONS_SECONDES,
+    )
+    preparation = await preparer() if preparer is not None else None
+    if not compile_slots.acquire(blocking=False):
+        raise HTTPException(
+            status_code=503,
+            detail="Les compilateurs sont occupés. Réessayez dans quelques instants.",
+            headers={"Retry-After": "5"},
+        )
+    try:
+        yield preparation
+    finally:
+        compile_slots.release()
 
 
 def mount_error_handler(application):

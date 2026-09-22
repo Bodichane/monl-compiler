@@ -9,6 +9,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 from .app_http import (
+    _admission_compilation,
     _client_ip,
     _is_compile_message,
     _json_body,
@@ -211,25 +212,18 @@ def mount_api_routes(
     @application.post("/api/compile", status_code=201)
     async def compile_backend(request: Request):
         user = _require_user(request, identities)
-        _rate_limit(request, identities, "compile", user["id"], 10, 3600)
-        payload = await _json_body(request)
-        if not compile_slots.acquire(blocking=False):
-            raise HTTPException(
-                status_code=503,
-                detail="Les compilateurs sont occupés. Réessayez dans quelques instants.",
-                headers={"Retry-After": "5"},
-            )
-        try:
-            manifest = await run_in_threadpool(service.compile, payload.get("spec"))
-            identities.add_project(user["id"], manifest["id"], manifest["summary"]["app"])
-            evenement("compilation", compte=court(user["id"]), projet=court(manifest["id"]),
-                      routes=len(manifest["summary"].get("routes", [])))
-            return manifest
-        except PlatformInputError as exc:
-            anomalie("compilation_refusee", compte=court(user["id"]), cause=str(exc)[:120])
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
-        finally:
-            compile_slots.release()
+        async with _admission_compilation(
+            request, identities, compile_slots, lambda: _json_body(request)
+        ) as payload:
+            try:
+                manifest = await run_in_threadpool(service.compile, payload.get("spec"))
+                identities.add_project(user["id"], manifest["id"], manifest["summary"]["app"])
+                evenement("compilation", compte=court(user["id"]), projet=court(manifest["id"]),
+                          routes=len(manifest["summary"].get("routes", [])))
+                return manifest
+            except PlatformInputError as exc:
+                anomalie("compilation_refusee", compte=court(user["id"]), cause=str(exc)[:120])
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @application.get("/api/projects/{project_id}")
     def inspect(project_id: str, request: Request):

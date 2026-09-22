@@ -1232,6 +1232,20 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   deux) passait déjà sans le correctif — il a fallu rejouer la même chaîne
   que la production (sauvegarde PUIS sonde PUIS vérification) pour que le
   test morde (point 145). Voir point 185.
+- **POINT 186 : un audit STATIQUE a trouvé cinq défauts réels — deux fermés
+  ici.** (a) `_json_body` ne bornait le corps qu'en présence de
+  `Content-Length` : sans lui, `await request.json()` matérialisait tout le
+  corps sur des routes ANONYMES avant toute vérification. Corrigé par une
+  lecture CUMULATIVE de `request.stream()`, 413 dès dépassement ; un test AST
+  interdit désormais toute lecture de corps hors de `_json_body` et du relais
+  d'hébergement (point à part). (b) `POST /api/projects/{id}/compiler`
+  (recompilation) échappait au quota ET au sémaphore que `/api/compile`
+  applique depuis toujours — deux portes vers le même compilateur, une seule
+  gardée. `_admission_compilation` (app_http.py) est la SEULE porte pour les
+  deux routes désormais : même quota, même sémaphore, une seule instance créée
+  dans `app.py`. Contre-épreuve : sans (a), le corps passait (`401` au lieu de
+  `413`) ; sans (b), compilation et recompilation ne partageaient ni quota ni
+  sémaphore (`201` au lieu de `429`/`503`). Voir point 186.
 - **POINT 159 : un test qui dépend d'une horloge FIXE son instant de référence,
   puis ne la relit plus.** L'assertion de rejeu TOTP de
   `tests/test_authentification_b4.py` RECALCULAIT le code au lieu de rejouer

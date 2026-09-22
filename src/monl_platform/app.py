@@ -68,7 +68,7 @@ def create_app(*, workspace=None, domain=None, downloads_dir=None) -> FastAPI:
     application.state.store = builder_runtime.store
     application.state.sites = builder_runtime.sites
 
-    mount_builder_routes(application, builder_runtime)
+    mount_builder_routes(application, builder_runtime, compile_slots)
     mount_page_routes(application, identities, service)
     mount_api_routes(application, service, identities, builder_runtime, dispatcher, compile_slots)
     mount_error_handler(application)
