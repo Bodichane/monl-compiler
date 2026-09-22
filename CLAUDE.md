@@ -1306,6 +1306,32 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   accumule par nécessité jusqu'à sa borne, donc N requêtes la multiplient ; et
   aucune spec golden ne porte `payable`, le webhook généré n'a pas d'empreinte.
   Voir point 188.
+- **POINT 189 : la production était à terre depuis cinquante minutes, et rien
+  ne l'avait dit.** Aucun défaut de code. Le point 185 avait éprouvé le
+  déploiement pour de vrai, sauf UNE ligne — la survie au redémarrage, qui
+  était *configurée* et jamais MESURÉE. Après un redémarrage de la machine :
+  `monl-nginx` tournait, les deux conteneurs de la plateforme étaient en
+  **`Created`** — pas `Exited`, pas en échec, **jamais démarrés**. Cause :
+  `podman-restart.service` fait `podman start --all --filter
+  restart-policy=always`, et le compose déclarait `unless-stopped` — une
+  politique valide qui n'entre simplement PAS dans ce filtre (nginx remontait
+  parce qu'il avait été lancé à la main en `always`). Prouvé **sans
+  redémarrer**, en rejouant ce que fait le boot : conteneur arrêté puis
+  `systemctl --user restart podman-restart.service` → toujours `Exited`.
+  Compose en `restart: always` PARTOUT ; la nuance perdue (un arrêt volontaire
+  ne survit plus au démarrage suivant) est le bon sens de l'erreur pour un
+  service de production. Le témoin lit TOUS les services du YAML — pas les deux
+  d'aujourd'hui — et échoue si la liste est vide (point 161).
+  **LA PROPRIÉTÉ QUI REND CETTE PANNE SI DANGEREUSE** : un conteneur qui ne
+  remonte pas ne laisse AUCUNE trace — pas de pile, pas de code de sortie, rien
+  au journal ; il n'a jamais démarré. Point 140 déplacé dans l'exploitation :
+  **une absence de message ne dit pas que tout va bien, elle ne dit rien.**
+  Second piège, trouvé en déployant : `deploy_platform.sh` échoue sur
+  `looking up compose provider failed` via `ssh serveur 'commande'`, parce que
+  `podman-compose` vit dans `~/.local/bin`, hors du PATH d'une session non
+  interactive — écrit au runbook AVEC son remède (point 166). Vérifié en réel
+  sur la production remise à jour : 50 Mio sur `/api/auth/register` → **413**.
+  Voir point 189.
 - **POINT 159 : un test qui dépend d'une horloge FIXE son instant de référence,
   puis ne la relit plus.** L'assertion de rejeu TOTP de
   `tests/test_authentification_b4.py` RECALCULAIT le code au lieu de rejouer

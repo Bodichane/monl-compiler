@@ -106,6 +106,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [186](#186-un-audit-statique-trouve-cinq-défauts-réels--le-corps-http-et-la-recompilation-fermés) Un audit statique trouve cinq défauts réels — le corps HTTP et la recompilation fermés ·
 [187](#187-le-state-oauth-ne-prouvait-rien-du-navigateur--et-la-page-de-confidentialité-affirmait-un-seul-cookie) Le `state` OAuth ne prouvait rien du navigateur ·
 [188](#188-les-deux-derniers-défauts-de-laudit--et-la-borne-quon-mesurait-sur-ce-quelle-contraint-jamais-sur-ce-quelle-sert) Une borne mesurée sur ce qu'elle contraint, jamais sur ce qu'elle sert ·
+[189](#189-la-production-était-à-terre-depuis-cinquante-minutes-et-rien-ne-lavait-dit) La production était à terre, et rien ne l'avait dit ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -13751,3 +13752,63 @@ Suite complète rejouée : `1601` tests passent, `16` sauts déclarés (les mêm
 tous nommés), barrières de couverture tenues. Voir points 186 (les trois
 premiers constats), 172 (mesurer ce qu'une garantie sert) et 170 (un témoin qui
 ne rougit jamais seul).
+
+## 189. La production était à terre depuis cinquante minutes, et rien ne l'avait dit
+
+Aucun défaut de code. Le point 185 avait éprouvé le déploiement pour de vrai —
+les deux services `healthy`, TLS, sauvegarde vérifiée par son contenu, survie
+au redémarrage « configurée ». Configurée, pas MESURÉE : c'est la seule ligne
+de ce point-là qui n'avait pas été exécutée, et c'est celle qui était fausse.
+
+La machine d'hébergement a redémarré. Au retour : `monl-nginx` tournait depuis
+quarante-huit minutes, `monl-compiler_platform_1` et `monl-compiler_sauvegarde_1`
+étaient en **`Created`**. Pas `Exited`, pas en échec — **jamais démarrés**.
+
+**La cause tient en un mot de trop.** Ce qui relance les conteneurs après un
+redémarrage, c'est `podman-restart.service`, dont la commande est
+`podman start --all --filter restart-policy=always`. Le compose déclarait
+`restart: unless-stopped` : une politique parfaitement valide, qui ne fait
+simplement **pas partie du filtre**. Nginx remontait parce qu'il avait été
+lancé à la main en `always` ; la plateforme, déclarée par le compose, restait à
+terre. Deux mécanismes, deux politiques, et le seul qui comptait était celui
+qu'on n'avait pas regardé.
+
+**Prouvé sans redémarrer**, en rejouant exactement ce que fait le boot :
+conteneur arrêté, puis `systemctl --user restart podman-restart.service` → il
+reste `Exited`. Un redémarrage complet de la machine aurait été la preuve
+ultime, mais la machine n'est pas à moi et la mesure est la même ; ce qui
+compte est que le mécanisme du boot ait été EXÉCUTÉ, pas déduit de sa
+documentation.
+
+**Le compose passe en `restart: always` partout.** La nuance perdue est qu'un
+arrêt volontaire ne survit plus au prochain démarrage de la machine — pour un
+service de production, c'est le bon sens de l'erreur : mieux vaut remonter un
+service qu'on voulait éteindre que laisser éteint un service qu'on voulait
+servir. Le témoin porte sur **TOUS** les services lus dans le YAML, pas sur les
+deux d'aujourd'hui : un service ajouté plus tard hériterait sinon du défaut en
+silence. Il échoue aussi si la liste des services est vide — un témoin qui ne
+lit rien rend vert (point 161).
+
+**LA PROPRIÉTÉ QUI REND CETTE PANNE SI DANGEREUSE** : un conteneur qui ne
+remonte pas ne laisse **aucune trace**. Il n'a pas planté, il n'y a pas de pile
+d'appels, pas de code de sortie, rien dans le journal — il n'a jamais démarré.
+Le point 172 avait rendu visible le site hébergé qui meurt ; celui-ci n'est
+même pas né. C'est le pendant exact du point 140 (*un saut ne dit pas « rien à
+vérifier ici », il dit « je n'ai pas vérifié »*) déplacé dans l'exploitation :
+**une absence de message ne dit pas que tout va bien, elle ne dit rien.**
+
+**Le second piège, trouvé en déployant.** `scripts/deploy_platform.sh` échoue
+sur `looking up compose provider failed` quand on l'appelle par
+`ssh serveur 'commande'` : `podman-compose` vit dans `~/.local/bin`, qui n'est
+pas dans le `PATH` d'une session non interactive. L'erreur liste sept chemins
+essayés, aucun n'est le bon, et elle ne nomme pas la cause. Écrit dans le
+runbook avec son remède, comme l'exige le point 166 — *un document qui décrit
+une limite sans donner le remède qu'il connaît envoie travailler pour rien*.
+
+**Ce que la remise en ligne a confirmé par de vrais appels** : sur la
+plateforme de production mise à jour, 50 Mio poussés en chunked sur
+`/api/auth/register` (route anonyme) reçoivent **413**. Les correctifs des
+points 186 à 188 ne sont plus seulement dans le dépôt.
+
+Voir points 185 (le déploiement éprouvé, sauf cette ligne), 166 (un document
+qui connaît le remède le donne) et 140 (le silence n'est pas une garantie).
