@@ -15,11 +15,11 @@ from .builder_runtime import (
 )
 
 
-def mount_builder_routes(application, runtime):
+def mount_builder_routes(application, runtime, compile_slots):
     """Mount all builder concerns while preserving the historical entrypoint."""
     mount_builder_host_routes(application, runtime)
     mount_builder_auth_routes(application, runtime)
-    mount_builder_build_routes(application, runtime)
+    mount_builder_build_routes(application, runtime, compile_slots)
     return runtime
 
 

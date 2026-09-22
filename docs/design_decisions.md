@@ -103,6 +103,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [183](#183-un-correctif-ferme-les-cas-connus--un-invariant-ferme-la-classe) Un invariant ferme la classe ·
 [184](#184-une-barrière-de-couverture-mesurée-sur-une-liste-de-tests-ment-sur-ce-quelle-mesure) Une barrière mesurée sur une liste ment ·
 [185](#185-le-déploiement-de-production-éprouvé-pour-de-vrai--quatre-défauts-quaucune-lecture-naurait-montrés) Le déploiement de production, éprouvé pour de vrai ·
+[186](#186-un-audit-statique-trouve-cinq-défauts-réels--le-corps-http-et-la-recompilation-fermés) Un audit statique trouve cinq défauts réels — le corps HTTP et la recompilation fermés ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -13498,3 +13499,63 @@ fournisseur Compose, un vrai cycle de sauvegarde répété dans le temps — pou
 que chacun se révèle. `1581` tests passent, `16` sauts déclarés, les deux
 barrières de couverture tiennent (90,97 % `monl`, 90,91 % `monl_platform`).
 Voir point 185.
+
+## 186. Un audit statique trouve cinq défauts réels — le corps HTTP et la recompilation fermés
+
+Un audit de sécurité STATIQUE (aucun PoC exécuté, aucun test de charge) a
+passé au crible la plateforme et rendu cinq constats de sévérité moyenne, tous
+confiance haute. Aucun n'était inventé : les cinq ont été relus dans le code
+courant, puis chacun corrigé et PROUVÉ contre un vrai serveur, dans un
+`git worktree` séparé pour ne jamais toucher au travail en cours d'un autre
+chantier sur la même branche `main` (leçon du point 146 par une autre porte —
+deux Codex sur le même arbre auraient fini par se marcher dessus). Ce point
+ferme les deux premiers ; les trois autres (CSRF de l'aller OAuth, plafond des
+sites hébergés, corps du webhook de paiement) sont chacun un point à part.
+
+**(1) `_json_body` ne bornait le corps qu'en présence de `Content-Length`.**
+Un client qui omet cet en-tête (transfert `Transfer-Encoding: chunked`) faisait
+matérialiser TOUT le corps par `await request.json()` avant la moindre
+vérification de taille — sur des routes ANONYMES (`/api/auth/register`,
+`/login`, `/recover`, `/validate`). La borne de 300 000 octets existait, mais
+elle protégeait contre un en-tête, pas contre un corps. Corrigé en lisant
+`request.stream()` avec un compteur CUMULATIF : la réponse 413 tombe dès le
+dépassement, sans jamais matérialiser le reste — le rejet anticipé sur
+`Content-Length` reste en place pour ne rien changer au cas le plus courant.
+Un test relit l'app.py de la plateforme PAR AST et exige qu'aucune route,
+hors de ce lecteur unique et du relais d'hébergement (point à part), ne lise
+`.json()`/`.body()`/`.form()`/`.stream()` — sans quoi une route future
+rouvrirait le trou en silence, exactement le risque qu'un motif interdit sans
+garde-fou laisse toujours rouvrir (point 108, même discipline transposée du
+SQL au corps HTTP).
+
+**(2) La recompilation d'un projet (`POST /api/projects/{id}/compiler`)
+échappait au quota ET au sémaphore de compilation.** `POST /api/compile`
+applique depuis toujours `_rate_limit(… "compile", 10, 3600)` puis
+`compile_slots.acquire(blocking=False)` (503 si occupé) — deux chemins vers le
+MÊME compilateur, un seul protégé. Un compte pouvait donc lancer autant de
+recompilations parallèles que de projets, chacune un sous-processus avec ses
+propres limites individuelles mais sans borne agrégée : un déni de service
+multi-comptes atteignable sans aucun privilège. `_admission_compilation`
+(app_http.py) est désormais la SEULE porte vers le compilateur pour les deux
+routes HTTP — même quota, même sémaphore, même instance créée une fois dans
+`app.py` et transmise aux deux montages de routes ; le sémaphore est relâché
+dans un `finally` y compris après un 404 ou un 422. Le chemin MCP garde son
+admission propre (quota `"mcp"`, même sémaphore) : il n'était pas dans le
+constat et son comportement n'a pas changé.
+
+**Contre-épreuve, les deux fois** : retirer localement la lecture bornée fait
+tomber `test_un_corps_chunked_trop_grand_est_refuse` (`assert 401 == 413` — le
+corps passait) et le garde AST (une lecture directe redevient visible) ;
+retirer `_admission_compilation` de la route de recompilation fait tomber les
+trois témoins qui mêlent compilation et recompilation
+(`test_compilation_et_recompilation_partagent_le_quota` :
+`assert 201 == 429` ; `…partagent_le_semaphore` : `assert 201 == 503` ; le
+troisième bloque indéfiniment faute d'admission à synchroniser dessus). Le
+comportement légitime — connexion refusée normalement, compilation seule,
+erreurs qui libèrent leur place — reste vert dans les deux cas.
+
+Suite complète rejouée après coup : `1586` tests passent, `16` sauts déclarés
+(les mêmes, tous nommés — PostgreSQL d'intégration non demandé), barrières de
+couverture tenues (90,97 % `monl`, 91,64 % `monl_platform`). Voir points 185
+(le déploiement qui a rendu ce chantier possible) et 146 (une garantie écrite
+à un seul endroit).
