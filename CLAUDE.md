@@ -1274,6 +1274,38 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   `tests/test_oauth.py` (22 témoins) — l'attaque complète est refusée en 400,
   le code n'est **même pas présenté** au fournisseur, `sessions` et `users`
   restent vides ; contre-épreuve `assert 303 == 400`. Voir point 187.
+- **POINT 188 : une borne de corps se mesure en MÉMOIRE, jamais en code de
+  retour.** Les deux derniers constats de l'audit — un `serve.py` de plus à
+  chaque site visité sans aucun plafond (`hosting_admission.py` :
+  `MONL_MAX_RUNNING_SITES` 20, `MONL_MAX_RUNNING_SITES_PER_ACCOUNT` 3, lus UNE
+  fois à la construction du `SiteManager`), et le webhook de paiement qui
+  matérialisait le corps AVANT de vérifier la signature, seul endroit où un
+  tiers non authentifié écrit en base. **Le plafond par COMPTE passe avant
+  celui de la plateforme** : c'est lui qui rend acceptable d'évincer le site
+  d'un AUTRE compte quand le plafond global est atteint — un site inactif
+  depuis 5 min est ARRÊTÉ, pas supprimé, et la requête suivante le relance
+  (cache à remplacement). L'inactivité est NÉCESSAIRE : sinon 503 avec
+  `Retry-After`, jamais d'arrêt d'un site qui sert.
+  **LA LEÇON.** Les témoins existants vérifiaient qu'un corps trop gros reçoit
+  un 413 — verts sur un serveur qui avale tout avant de refuser. Le code HTTP
+  est ce que la borne CONTRAINT, la mémoire ce qu'elle SERT (point 172, 3ᵉ
+  domaine). `tests/test_bornes_memoire.py` mesure la RSS depuis un PROCESSUS
+  séparé : 200 Mio poussés donnent +1,0 Mio borne en place contre **+197 Mio**
+  désarmée. La ligne qui compte : relais désarmé, **la réponse reste 413** —
+  seule la mémoire distingue les deux. **L'ORDRE DES ASSERTIONS EST LA
+  GARANTIE** : statut d'abord, la contre-épreuve rougissait sur le code HTTP,
+  donc pour la même raison que le témoin déjà là (point 170).
+  **Trois mesures ont failli mentir** : `requests` RECALCULE le
+  `Content-Length`, donc un en-tête forgé n'atteint jamais le serveur (témoin
+  réécrit en `http.client` brut, sans un octet de corps — un serveur qui ne
+  lirait pas l'annonce partirait en `TimeoutError`, jamais en 200 par
+  accident) ; un banc montait DEUX bases SQLite et mesurait la plateforme en
+  croyant mesurer le relais ; et son amorce visait `/openapi.json`, **que la
+  plateforme sert AUSSI** (point 165). **Non fermé et ÉNONCÉ** : la borne
+  protège la mémoire, pas la bande passante (Nginx, point 185) ; le relais
+  accumule par nécessité jusqu'à sa borne, donc N requêtes la multiplient ; et
+  aucune spec golden ne porte `payable`, le webhook généré n'a pas d'empreinte.
+  Voir point 188.
 - **POINT 159 : un test qui dépend d'une horloge FIXE son instant de référence,
   puis ne la relit plus.** L'assertion de rejeu TOTP de
   `tests/test_authentification_b4.py` RECALCULAIT le code au lieu de rejouer

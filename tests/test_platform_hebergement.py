@@ -13,21 +13,33 @@ le dit lui-même : « l'API répond, /site renverra 404 »), et un projet non
 compilé est refusé en NOMMANT le fichier absent.
 """
 
+import hashlib
 import http.client
 import io
 import tempfile
 import threading
 import time
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
+import requests
+import uvicorn
 
 from monl.cli import compile_project
+from monl_platform.app import create_app
+from monl_platform.builder_host import SITE_MAX_BODY_BYTES
 from monl_platform.hosting import (
     SITE_LOG_COMPACT_BYTES,
+    SiteHostingError,
     SiteManager,
     SiteNotCompiledError,
+)
+from monl_platform.hosting_admission import (
+    DEFAULT_MAX_RUNNING_SITES,
+    DEFAULT_MAX_RUNNING_SITES_PER_ACCOUNT,
+    hosting_limits,
 )
 from monl_platform.identity import IdentityStore
 from monl_platform.paths import project_directory
@@ -97,6 +109,203 @@ def _attendre_marqueur(chemin, marqueur):
                 return contenu
         time.sleep(0.02)
     return chemin.read_text(encoding="utf-8", errors="replace") if chemin.is_file() else ""
+
+
+@pytest.mark.parametrize("valeur", ["invalide", "0", "-1"])
+def test_les_plafonds_invalides_replient_sur_les_defauts(monkeypatch, valeur):
+    monkeypatch.setenv("MONL_MAX_RUNNING_SITES", valeur)
+    monkeypatch.setenv("MONL_MAX_RUNNING_SITES_PER_ACCOUNT", valeur)
+
+    assert hosting_limits() == (
+        DEFAULT_MAX_RUNNING_SITES,
+        DEFAULT_MAX_RUNNING_SITES_PER_ACCOUNT,
+    )
+
+
+@contextmanager
+def _serveur_plateforme(application):
+    config = uvicorn.Config(application, host="127.0.0.1", port=0, log_level="error")
+    server = uvicorn.Server(config)
+    with server.capture_signals():
+        fil = threading.Thread(target=server.run, daemon=True)
+        fil.start()
+        while not server.started:
+            assert fil.is_alive(), "uvicorn s'est arrêté avant de démarrer"
+            time.sleep(0.01)
+        port = server.servers[0].sockets[0].getsockname()[1]
+        try:
+            yield f"http://127.0.0.1:{port}"
+        finally:
+            server.should_exit = True
+            fil.join(10)
+
+
+def _projet_compile(store, identities, racine, email, slug):
+    user = identities.register(email, "MotDePasse-123")
+    project_id = uuid.uuid4().hex
+    identities.add_project(user["id"], project_id, slug)
+    store.create_project(user["id"], project_id, slug)
+    projet = store.get_project(project_id)
+    _compiler(projet, racine, racine.parent)
+    return projet
+
+
+def test_plafond_global_refuse_sans_creer_de_processus_et_repond_503(
+        tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("MONL_MAX_RUNNING_SITES", "2")
+    monkeypatch.setenv("MONL_MAX_RUNNING_SITES_PER_ACCOUNT", "10")
+    app = create_app(workspace=tmp_path / "projets", domain="localhost")
+    projets = [
+        _projet_compile(app.state.store, app.state.identity_store,
+                        tmp_path / "projets", f"global-{i}@monl.test", f"global-{i}")
+        for i in range(3)
+    ]
+    capsys.readouterr()
+    sites = app.state.sites
+    sites.start_project(projets[0])
+    sites.start_project(projets[1])
+    processus = {site.process.pid for site in sites._running.values()}
+
+    with _serveur_plateforme(app) as base:
+        refus = requests.get(
+            base + "/openapi.json", headers={"Host": "global-2.localhost"}, timeout=10
+        )
+        assert refus.status_code == 503, refus.text
+        assert refus.headers["Retry-After"] == "300"
+        assert set(sites._running) == {p["project_id"] for p in projets[:2]}
+        assert {site.process.pid for site in sites._running.values()} == processus
+
+
+def test_eviction_du_plus_ancien_inactif_et_refus_quand_tous_sont_recents(
+        tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("MONL_MAX_RUNNING_SITES", "2")
+    monkeypatch.setenv("MONL_MAX_RUNNING_SITES_PER_ACCOUNT", "10")
+    app = create_app(workspace=tmp_path / "projets", domain="localhost")
+    projets = [
+        _projet_compile(app.state.store, app.state.identity_store,
+                        tmp_path / "projets", f"eviction-{i}@monl.test", f"eviction-{i}")
+        for i in range(4)
+    ]
+    capsys.readouterr()
+    instant = [0.0]
+    sites = app.state.sites
+    sites._clock = lambda: instant[0]
+    ancien = sites.start_project(projets[0])
+    instant[0] = 301.0
+    recent = sites.start_project(projets[1])
+    sites.forward(recent, "GET", "/openapi.json", {}, b"")
+    nouveau = sites.start_project(projets[2])
+
+    assert ancien.process.poll() is not None
+    assert projets[0]["project_id"] not in sites._running
+    assert sites.is_running(projets[1]["project_id"])
+    assert sites.is_running(nouveau.project_id)
+    with pytest.raises(SiteHostingError, match="plafond de sites actifs"):
+        sites.start_project(projets[3])
+    assert len(sites._running) == 2
+
+
+def test_plafond_par_compte_nempeche_pas_un_autre_compte(
+        tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("MONL_MAX_RUNNING_SITES", "10")
+    monkeypatch.setenv("MONL_MAX_RUNNING_SITES_PER_ACCOUNT", "1")
+    app = create_app(workspace=tmp_path / "projets", domain="localhost")
+    identities, store = app.state.identity_store, app.state.store
+    alice = identities.register("alice-plafond@monl.test", "MotDePasse-123")
+    projets = []
+    for i in range(2):
+        project_id = uuid.uuid4().hex
+        identities.add_project(alice["id"], project_id, f"alice-{i}")
+        store.create_project(alice["id"], project_id, f"alice-{i}")
+        projet = store.get_project(project_id)
+        _compiler(projet, tmp_path / "projets", tmp_path)
+        projets.append(projet)
+    bob = _projet_compile(store, identities, tmp_path / "projets",
+                          "bob-plafond@monl.test", "bob")
+    capsys.readouterr()
+    sites = app.state.sites
+    sites.start_project(projets[0])
+
+    with pytest.raises(SiteHostingError, match="plafond de sites actifs"):
+        sites.start_project(projets[1])
+    running_bob = sites.start_project(bob)
+
+    assert sites.is_running(projets[0]["project_id"])
+    assert _get(running_bob.port, "/openapi.json")[0] == 200
+
+
+def _annoncer_sans_envoyer(base, hote, taille):
+    """Forge un `Content-Length` mensonger, et n'envoie AUCUN octet de corps.
+
+    `requests` recalcule toujours l'en-tête depuis le corps qu'on lui donne :
+    l'annonce forgée n'atteint jamais le serveur, qui voit la taille réelle et
+    répond 200 à juste titre. Mesuré — la première version de ce témoin passait
+    à côté de ce qu'elle croyait mesurer. Il faut donc parler HTTP en brut.
+
+    N'envoyer aucun corps est délibéré : c'est ce qui rend le témoin
+    INCONTOURNABLE. Un serveur qui ne lirait pas l'annonce attendrait les
+    40 Mio promis et le test échouerait sur un dépassement de délai, jamais par
+    accident sur un 200.
+    """
+    connexion = http.client.HTTPConnection(base.removeprefix("http://"), timeout=10)
+    try:
+        connexion.putrequest("POST", "/echo", skip_host=True,
+                             skip_accept_encoding=True)
+        connexion.putheader("Host", hote)
+        connexion.putheader("Content-Length", str(taille))
+        connexion.endheaders()
+        return connexion.getresponse().status
+    finally:
+        connexion.close()
+
+
+def test_relais_borne_le_corps_et_transmet_un_corps_legitime_intact(
+        tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("MONL_MAX_RUNNING_SITES", "2")
+    app = create_app(workspace=tmp_path / "projets", domain="localhost")
+    projet = _projet_compile(
+        app.state.store, app.state.identity_store, tmp_path / "projets",
+        "relais@monl.test", "relais",
+    )
+    dossier = project_directory(
+        tmp_path / "projets", projet["user_id"], projet["project_id"]
+    )
+    (dossier / "serve.py").write_text(
+        """import hashlib
+from fastapi import FastAPI, Request
+
+app = FastAPI()
+
+@app.post('/echo')
+async def echo(request: Request):
+    corps = await request.body()
+    return {'taille': len(corps), 'sha256': hashlib.sha256(corps).hexdigest()}
+""",
+        encoding="utf-8",
+    )
+    capsys.readouterr()
+    corps = b"monl" * (1024 * 1024 // 4)
+    with _serveur_plateforme(app) as base:
+        accepte = requests.post(
+            base + "/echo", data=corps, headers={"Host": "relais.localhost"}, timeout=20
+        )
+        refuse = requests.post(
+            base + "/echo",
+            data=(b"x" * (1024 * 1024) for _ in range(41)),
+            headers={"Host": "relais.localhost"},
+            timeout=30,
+        )
+        refuse_annonce = _annoncer_sans_envoyer(
+            base, "relais.localhost", SITE_MAX_BODY_BYTES + 1
+        )
+
+    assert accepte.status_code == 200, accepte.text
+    assert accepte.json() == {
+        "taille": len(corps),
+        "sha256": hashlib.sha256(corps).hexdigest(),
+    }
+    assert refuse.status_code == 413, refuse.text
+    assert refuse_annonce == 413, refuse_annonce
 
 
 def test_un_projet_compile_demarre_et_son_api_repond(plateforme, capsys):

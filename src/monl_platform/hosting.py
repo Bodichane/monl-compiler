@@ -9,6 +9,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from .hosting_admission import eviction_candidate, hosting_limits
 from .paths import ProjectPathError, project_directory
 
 
@@ -53,17 +54,22 @@ def site_log_path(workspace_root, project):
 @dataclass
 class _RunningSite:
     project_id: str
+    user_id: str
     host: str
     port: int
     process: subprocess.Popen
     log_path: Path
     output_thread: threading.Thread
+    last_activity: float
 
 
 class SiteManager:
     """Associe un hôte de projet à un processus ``serve.py`` local."""
 
-    def __init__(self, store, workspace_root, domain="localhost", *, startup_timeout=5):
+    def __init__(
+        self, store, workspace_root, domain="localhost", *, startup_timeout=5,
+        clock=time.monotonic,
+    ):
         domain = str(domain).strip().lower().strip(".")
         if not domain or "/" in domain or "\\" in domain:
             raise ValueError("domaine de plateforme invalide")
@@ -71,6 +77,8 @@ class SiteManager:
         self.workspace_root = workspace_root
         self.domain = domain
         self.startup_timeout = startup_timeout
+        self._clock = clock
+        self._global_limit, self._account_limit = hosting_limits()
         self._running = {}
         self._lock = threading.RLock()
 
@@ -187,10 +195,33 @@ class SiteManager:
         with self._lock:
             current = self._running.get(project["project_id"])
             if current is not None and current.process.poll() is None:
+                current.last_activity = self._clock()
                 return current
             if current is not None:
                 self._running.pop(project["project_id"], None)
                 self._stop_running(current)
+            stopped = [
+                item for item in self._running.values()
+                if item.process.poll() is not None
+            ]
+            for item in stopped:
+                self._running.pop(item.project_id, None)
+                self._join_output(item.output_thread)
+            now = self._clock()
+            candidate, limit_reached = eviction_candidate(
+                self._running,
+                project["user_id"],
+                now,
+                self._global_limit,
+                self._account_limit,
+            )
+            if candidate is not None:
+                self._running.pop(candidate.project_id, None)
+                self._stop_running(candidate)
+            elif limit_reached:
+                raise SiteHostingError(
+                    "le plafond de sites actifs est atteint ; réessayez plus tard"
+                )
             directory = self._require_site(project)
             port = self._allocate_port()
             log_path = directory / SITE_LOG_FILENAME
@@ -221,11 +252,13 @@ class SiteManager:
             )
             output_thread.start()
             running = _RunningSite(
-                project["project_id"], host, port, process, log_path, output_thread
+                project["project_id"], project["user_id"], host, port, process,
+                log_path, output_thread, now,
             )
             if not self._wait_ready(process, port):
                 self._stop_running(running)
                 raise SiteHostingError(f"le serveur du site {host} n'a pas démarré")
+            running.last_activity = self._clock()
             self._running[project["project_id"]] = running
             return running
 
@@ -298,6 +331,9 @@ class SiteManager:
         return self.start_project(project)
 
     def forward(self, running, method, path, headers, body):
+        with self._lock:
+            if self._running.get(running.project_id) is running:
+                running.last_activity = self._clock()
         forwarded = {
             key: value
             for key, value in headers.items()

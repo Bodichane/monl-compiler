@@ -115,9 +115,15 @@ def test_un_json_chunked_non_objet_garde_son_erreur(plateforme):
 
 def test_les_routes_ne_lisent_pas_le_corps_hors_des_lecteurs_bornes():
     racine = Path(__file__).parents[1] / "src" / "monl_platform"
+    # DEUX lecteurs, pas un de plus, et chacun est BORNÉ. La liste a déjà
+    # servi : le relais lisait `route_by_host` → `request.body()`, sans borne,
+    # et le point 188 l'a déplacé dans `_bounded_body` → `request.stream()`.
+    # Ce témoin a rougi sur ce déplacement alors que tout le reste était vert,
+    # ce qui est exactement ce qu'on lui demande : un lecteur qui bouge se
+    # redéclare, il ne se glisse pas.
     autorises = {
         ("app_http.py", "_json_body", "stream"),
-        ("builder_host.py", "route_by_host", "body"),
+        ("builder_host.py", "_bounded_body", "stream"),
     }
     lectures = set()
     for chemin in racine.glob("*.py"):
