@@ -1,5 +1,9 @@
 # Audit de cohérence, maintenabilité et nettoyage de MONL-Compiler
 
+> **Document historique — chiffres relevés le 11 août 2026.** Ce rapport est
+> une photographie de l'audit et de sa clôture, pas une référence sur l'état
+> courant du dépôt. Pour celui-ci, consulter le README et la CI.
+
 Date de l'audit initial : 11 août 2026  
 Périmètre : `src/monl/`, `tests/`, configuration, documentation et dépendances. Les applications générées sous `projets/` sont des sorties/démonstrations et ne sont pas considérées comme le code du compilateur.  
 État documenté ici : audit initial, puis vérification de clôture après les refactorings réalisés dans l'arbre de travail.

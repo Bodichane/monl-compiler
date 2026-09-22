@@ -107,6 +107,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [187](#187-le-state-oauth-ne-prouvait-rien-du-navigateur--et-la-page-de-confidentialité-affirmait-un-seul-cookie) Le `state` OAuth ne prouvait rien du navigateur ·
 [188](#188-les-deux-derniers-défauts-de-laudit--et-la-borne-quon-mesurait-sur-ce-quelle-contraint-jamais-sur-ce-quelle-sert) Une borne mesurée sur ce qu'elle contraint, jamais sur ce qu'elle sert ·
 [189](#189-la-production-était-à-terre-depuis-cinquante-minutes-et-rien-ne-lavait-dit) La production était à terre, et rien ne l'avait dit ·
+[190](#190-la-documentation-ne-peut-plus-se-périmer-en-silence--et-le-témoin-a-fabriqué-un-mensonge-avant-quon-le-corrige) La documentation ne peut plus se périmer en silence ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -13812,3 +13813,95 @@ points 186 à 188 ne sont plus seulement dans le dépôt.
 
 Voir points 185 (le déploiement éprouvé, sauf cette ligne), 166 (un document
 qui connaît le remède le donne) et 140 (le silence n'est pas une garantie).
+
+## 190. La documentation ne peut plus se périmer en silence — et le témoin a fabriqué un mensonge avant qu'on le corrige
+
+`CODEBASE_AUDIT.md` annonçait « **812 tests**, tous réussis » et « **91,62 %**
+de couverture ». Il y en avait **1602**. Le document date du 11 août, rien ne le
+marquait comme périmé, et `docs/DEPRECATIONS.md` y renvoyait comme référence de
+l'état courant. `CONTRIBUTING.md`, lui, envoyait les contributeurs vers six
+fichiers qui n'existent plus — tous devenus des paquets aux points 152 à 155.
+
+**Pourquoi un invariant et pas six corrections.** Il existait DÉJÀ beaucoup de
+témoins de documentation, mais tous **CIBLÉS** : `test_platform_exploitation.py`
+garde `docs/EXPLOITATION.md`, `test_deploiement_production.py` garde
+`deploy/README.md`, `test_platform_guide.py` garde le guide. Aucun ne portait
+sur l'ENSEMBLE — et c'est précisément pour ça que `CODEBASE_AUDIT.md` a pu
+doubler d'écart sans qu'une ligne rougisse. Point 183 mot pour mot : *un
+correctif ferme les cas connus, un invariant ferme la classe.*
+
+`tests/test_documentation.py` porte six règles sur tous les `.md` du dépôt :
+chemin cité qui existe, verbe de CLI qui existe, lien interne qui pointe,
+aucun nombre de tests ni pourcentage de couverture figé dans un document
+prescriptif, **tout verbe livré présent au tableau du README**, et **tout
+chemin d'un projet compilé confronté à une vraie compilation**. Les deux
+dernières sont nées de la vérification, pas du cahier des charges.
+
+**La discipline des exemptions fait la valeur du reste.** Deux listes
+explicites — documents historiques, artefacts générés — chacune portant sa
+raison écrite, et **une exemption qui ne sert plus fait ÉCHOUER** (point 155).
+Sans ça la liste devient un cimetière qui n'excuse plus rien, exactement le
+défaut du point 154 où des `per-file-ignores` visaient des chemins disparus.
+
+**CE QUE LA VÉRIFICATION A TROUVÉ, et qui vaut plus que le témoin lui-même.**
+
+**(a) Le témoin lisait une liste écrite pour lui.** Pour connaître les verbes de
+`monl-platform`, un `build_parser()` avait été fabriqué qui déclarait
+`sauvegarde` et `admin`… recopiés à la main, alors que le vrai `main()`
+dispatche par des `if argv[0] == "…"`. Une **seconde source de vérité** dans le
+témoin même qui existe pour les interdire — le défaut du point 164 (la page
+`/mcp` et ses quatre outils inexistants) reproduit par son propre remède. Les
+verbes vivent désormais dans une table `VERBES` que **le dispatch LIT** : un
+verbe ajouté est servi, un verbe servi est forcément dans la table.
+
+**(b) Le témoin a FABRIQUÉ un mensonge.** `docs/PUBLICATION.md` disait que la
+roue doit contenir `monl_platform/static/` — chemin qui n'existe pas dans le
+dépôt, où il vit sous `src/`. La règle « tout chemin cité existe » a donc fait
+corriger en `src/monl_platform/static/`, ce qui est **faux** : `package-dir`
+retire ce préfixe, et une roue ne contient aucun `src/`. Une garantie trop
+large n'est pas plus sûre, elle est fausse ailleurs (point 84), et ici elle ne
+s'est pas contentée d'être fausse — elle a fait écrire l'erreur. Le témoin
+DÉRIVE maintenant les préfixes retirés depuis `pyproject.toml`, jamais une
+liste : le jour où le dépôt change de disposition, il suit au lieu de mentir.
+
+**(c) Une exemption cachait un vrai défaut.** `FRONTEND_PROMPT.md` est produit
+par la compilation, donc absent du dépôt, donc exempté — donc le témoin ne
+pouvait pas voir que le README envoyait copier `Boutique/FRONTEND_PROMPT.md`
+quand le fichier sort dans `Boutique/docs/`. Trouvé en COMPILANT réellement
+`01_portfolio.ml` et en comparant à ce que la doc promet. Le remède n'est pas
+de retirer l'exemption — l'absence du dépôt est normale — mais de confronter
+ces chemins-là à une vraie compilation, qui est déterministe et hors ligne.
+
+**(d) Le sens inverse n'était gardé par personne.** `monl usage` était livré,
+fonctionnel, et documenté **nulle part** ; `diff`, `migrate` et `retouche`
+n'étaient mentionnés qu'au détour d'une phrase, jamais au tableau des
+commandes. Une commande qu'on livre et que rien ne nomme n'existe pour
+personne — l'arbitrage du point 169 sur les versions de Python (*toute version
+éprouvée doit être annoncée*), transposé.
+
+**ET MES PROPRES SONDES ONT MENTI DEUX FOIS, avant même d'écrire le témoin.**
+La première signalait 71 chemins morts dans `CLAUDE.md` : elle ignorait qu'un
+nom cité sans son chemin (`cli.py` pour `src/monl/cli.py`) est une ELLIPSE et
+non un mensonge — elle mesurait sa propre naïveté (point 157). La seconde a
+déclaré les **onze** verbes documentés absents de la CLI : son extraction était
+muette, et elle a rendu un verdict complet sur zéro donnée. Les deux fois, le
+chiffre était assez gros pour éveiller le doute ; il ne le sera pas toujours.
+Chaque extracteur du témoin porte donc son assertion de non-vacuité, et un test
+dédié les exerce sur un texte connu (point 161).
+
+**Décision sur `CODEBASE_AUDIT.md` :** gardé comme photographie datée, avec un
+bandeau qui le dit, plutôt que réécrit. Un audit est un instantané ; en
+rafraîchir les chiffres reviendrait à prétendre qu'il a été refait. Le renvoi
+de `docs/DEPRECATIONS.md` pointe maintenant vers le README et la CI pour l'état
+courant. Les huit `docs/phase_*.md` portaient déjà leur bandeau : rien à y
+faire.
+
+Preuves : **dix contre-épreuves exécutées**, chacune désarmant une règle et la
+voyant rougir — chemin, verbe, lien, nombre de tests, couverture, verbe non
+documenté, chemin de projet compilé, exemption historique inutile, exemption de
+verbe inutile, verbe retiré de la table de la plateforme. Les deux verbes de
+`monl-platform` ont été rejoués après le changement de dispatch (`admin
+--help`, `sauvegarde` sans argument, `--help` du service). Suite complète :
+`1606` tests passent, `16` sauts déclarés, barrières tenues. Voir points 183
+(un invariant ferme la classe), 164 (une liste écrite à la main), 84 (une
+garantie trop large est fausse ailleurs) et 161 (un extracteur muet).

@@ -9,8 +9,9 @@ from ..errors import MonlError
 from . import consommation, construction, contenu_editorial, delta, lancement, retouche
 
 
-# ------------------------------------------------------------------- main --
-def _dispatch(argv=None):
+# ----------------------------------------------------------- construction --
+def build_parser():
+    """Construire le parseur public, source de vérité de la CLI ``monl``."""
     parser = argparse.ArgumentParser(
         prog="monl",
         description="monl — plateforme d'orchestration : dialogue guidé → "
@@ -183,6 +184,22 @@ def _dispatch(argv=None):
                                          "JSON {'files': ...} téléchargé depuis Claude.")
     p_import.add_argument("dir", nargs="?", default=".", help="Dossier du projet.")
 
+    return parser
+
+
+def _subparser(parser, command):
+    """Retrouver un sous-parseur pour afficher son aide contextuelle."""
+    return next(
+        action.choices[command]
+        for action in parser._actions
+        if isinstance(action, argparse._SubParsersAction)
+    )
+
+
+# ------------------------------------------------------------------- main --
+def _dispatch(argv=None):
+    parser = build_parser()
+
     args = parser.parse_args(argv)
 
     if args.command in (None, "init"):
@@ -213,7 +230,7 @@ def _dispatch(argv=None):
         elif args.assets_command == "list":
             contenu_editorial.cmd_assets_list(args.dir)
         else:
-            p_assets.print_help()
+            _subparser(parser, "assets").print_help()
             sys.exit(1)
     elif args.command == "content":
         if args.content_command == "export":
@@ -221,7 +238,7 @@ def _dispatch(argv=None):
         elif args.content_command == "import":
             contenu_editorial.cmd_content_import(args.dir)
         else:
-            p_content.print_help()
+            _subparser(parser, "content").print_help()
             sys.exit(1)
     elif args.command == "frontend":
         retouche._lancer_ia(args, update_mode=args.update)

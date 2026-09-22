@@ -150,8 +150,12 @@ sondes) est détaillée dans [le runbook de déploiement](deploy/README.md).
 | `monl compile <spec.ml> --output <dir>` | Compile une spécification existante |
 | `monl frontend <App>` | L'IA écrit l'interface dans `frontend/` |
 | `monl import <zip\|html\|dossier> <App>` | Installe un frontend obtenu sans clé API |
+| `monl retouche "<ce qui cloche>" <App>` | Corrige un défaut d'affichage sans reconstruire le site |
 | `monl run <App>` | Vérifie la cohérence, joue le smoke test, puis lance |
+| `monl diff <App>` | Montre le delta du contrat **sans rien recompiler ni écrire** |
 | `monl update <App>` | Recompile après évolution de la spec, préserve les données |
+| `monl migrate <App> --name <nom>` | Applique (ou défait avec `--down`) une migration de schéma nommée |
+| `monl usage <App>` | Mesure la consommation IA et le coût déclaré du projet |
 | `monl assets add <fichier> --for "<fiche>"` | Installe une photo et la déclare dans la spec |
 | `monl assets list <App>` | Ce que la spec déclare, ce qui est présent, ce qui traîne |
 | `monl content export <App>` | Exporte les fiches de démonstration vers `content/*.csv` |
@@ -410,7 +414,7 @@ clé** :
 
 ```bash
 monl compile boutique.ml --output ./Boutique   # hors ligne
-# coller le contenu de Boutique/FRONTEND_PROMPT.md dans n'importe quel
+# coller le contenu de Boutique/docs/FRONTEND_PROMPT.md dans n'importe quel
 # assistant accessible par navigateur, récupérer le résultat…
 monl import interface.zip ./Boutique           # mêmes garde-fous, même vérification
 monl run ./Boutique

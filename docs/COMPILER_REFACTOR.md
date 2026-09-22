@@ -34,8 +34,9 @@ leur construction.
 ## Vérifications finales
 
 - `python -m pytest tests/ -rs --cov=src/monl --cov-report=term-missing` :
-  1 540 tests passés, 16 tests PostgreSQL ignorés sans
-  `MONL_TEST_DATABASE_URL`, couverture totale 90,94 %.
+  suite complète réussie ; les scénarios PostgreSQL restent conditionnés à
+  `MONL_TEST_DATABASE_URL`. Le nombre de cas et la couverture courants sont
+  publiés par la CI plutôt que figés dans ce document.
 - `ruff check src tests`, `mypy --strict` sur les frontières IR et
   `vulture src/monl --min-confidence 90` : aucun signalement.
 - Les huit spécifications de référence (cinq exemples, la démo et les bancs
@@ -48,5 +49,5 @@ leur construction.
   contrat frontend.
 
 La seule limite d'environnement constatée est l'absence de PostgreSQL de test,
-qui explique les 16 tests ignorés ; les parcours SQLite et les contrôles de
+qui explique les scénarios ignorés ; les parcours SQLite et les contrôles de
 compilation restent entièrement exercés.
