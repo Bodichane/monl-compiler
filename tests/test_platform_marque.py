@@ -20,7 +20,7 @@ import sys
 import pytest
 from PIL import Image
 
-from monl_platform import brand, theme
+from monl_platform import brand, theme, theme_fragments
 
 PAQUET = pathlib.Path(theme.__file__).parent
 COULEUR = re.compile(r"#[0-9a-fA-F]{6}\b")
@@ -45,7 +45,7 @@ def _palette(bloc: str) -> dict[str, str]:
 
 
 def _blocs() -> dict[str, dict[str, str]]:
-    css = theme.CSS
+    css = theme_fragments.CSS
     racine = css[css.index(":root {"):css.index("@media (prefers-color-scheme: dark)")]
     sombre_debut = css.index(':root[data-theme="dark"] {')
     sombre = css[sombre_debut:css.index("}", sombre_debut)]
@@ -66,6 +66,18 @@ COUPLES_TEXTE = [
     ("danger", "danger-bg"),
 ]
 COUPLES_CONTROLE = [("line-strong", "bg"), ("line-strong", "surface")]
+
+
+@pytest.mark.parametrize("theme_nom", ["clair", "sombre"])
+def test_la_palette_de_texte_tient_sur_les_trois_surfaces(theme_nom):
+    """Le témoin de la palette assombrie lit la feuille, jamais une copie."""
+    palette = _blocs()[theme_nom]
+    for avant in ("ink", "muted", "accent", "danger"):
+        for arriere in ("bg", "surface", "surface-2"):
+            ratio = contraste(palette[avant], palette[arriere])
+            assert ratio >= 4.5, (
+                f"[{theme_nom}] {avant} ({palette[avant]}) sur {arriere} "
+                f"({palette[arriere]}) : {ratio:.2f}:1, il faut 4.5")
 
 
 @pytest.mark.parametrize("theme_nom", ["clair", "sombre"])

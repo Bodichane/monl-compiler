@@ -13,14 +13,39 @@ from .landing_vitrine import (
 )
 from .theme import icon, page
 
+GITHUB_URL = "https://github.com/Bodichane/monl-compiler"
+GITHUB_ICON = ('<svg class="icon" viewBox="0 0 24 24" fill="currentColor" '
+               'aria-hidden="true"><path d="M12 2C6.48 2 2 6.58 2 12.24c0 4.52 '
+               '2.87 8.35 6.84 9.71.5.1.68-.22.68-.49v-1.71c-2.78.62-3.37-1.39 '
+               '-3.37-1.39-.45-1.19-1.11-1.51-1.11-1.51-.91-.64.07-.63.07-.63 '
+               '1 .08 1.53 1.06 1.53 1.06.9 1.59 2.35 1.13 2.92.86.09-.67.35-1.13 '
+               '.64-1.39-2.22-.26-4.56-1.15-4.56-5.09 0-1.12.39-2.04 1.03-2.76 '
+               '-.1-.26-.45-1.31.1-2.73 0 0 .84-.28 2.75 1.05A9.2 9.2 0 0 1 12 '
+               '7.9c.85 0 1.71.12 2.5.35 1.91-1.33 2.75-1.05 2.75-1.05.55 1.42 '
+               '.2 2.47.1 2.73.64.72 1.03 1.64 1.03 2.76 0 3.95-2.34 4.83-4.57 '
+               '5.08.36.32.68.95.68 1.92v2.84c0 .27.18.59.69.49A10.2 10.2 0 0 0 '
+               '22 12.24C22 6.58 17.52 2 12 2Z"/></svg>')
+
 EXTRA_CSS = """
-.landing-hero { position:relative; padding: 88px 0 80px; display:grid; grid-template-columns:1.08fr .92fr;
-  gap:clamp(32px,6vw,76px); align-items:center; }
+.landing-hero { position:relative; isolation:isolate; min-height:calc(100svh - 68px); padding: 84px 0 112px; display:grid; grid-template-columns:minmax(0,1.04fr) minmax(420px,.96fr);
+  gap:clamp(42px,7vw,94px); align-items:center; }
 .landing-hero::before { content:""; position:absolute; width:520px; height:520px; right:-180px; top:-170px;
   border-radius:50%; pointer-events:none; filter:blur(4px);
-  background:radial-gradient(circle,color-mix(in srgb,var(--brand) 12%,transparent),transparent 68%); }
+  background:radial-gradient(circle,color-mix(in srgb,var(--brand) 12%,transparent),transparent 68%); z-index:-1; animation:landing-glow 14s ease-in-out infinite alternate; }
+.landing-hero::after { content:""; position:absolute; inset:0; pointer-events:none; z-index:-1; opacity:.48;
+  background-image:linear-gradient(color-mix(in srgb,var(--line) 42%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--line) 42%,transparent) 1px,transparent 1px);
+  background-size:48px 48px; mask-image:radial-gradient(ellipse at 70% 35%,black,transparent 72%); }
+.landing-network { position:absolute; inset:0; z-index:-1; pointer-events:none; }
+.landing-network::before { content:""; position:absolute; width:42%; right:5%; top:22%; border-top:1px dashed var(--line-strong); transform:rotate(-17deg); opacity:.55; }
+.landing-network::after { content:""; position:absolute; width:30%; right:17%; top:42%; border-top:1px dashed var(--line-strong); transform:rotate(28deg); opacity:.4; }
+.landing-node { position:absolute; width:9px; height:9px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 6px color-mix(in srgb,var(--accent) 12%,transparent); animation:landing-node 4.4s ease-in-out infinite; }
+.landing-node-a { right:24%; top:19%; }.landing-node-b { right:11%; top:39%; animation-delay:-1.4s; }.landing-node-c { left:47%; top:10%; animation-delay:-2.8s; }.landing-node-d { right:38%; top:46%; width:7px; height:7px; animation-delay:-.8s; }.landing-node-e { right:4%; top:16%; width:7px; height:7px; animation-delay:-2s; }.landing-node-f { left:40%; top:56%; width:7px; height:7px; animation-delay:-3.2s; }
+.landing-hero>div:not(.landing-network),.landing-hero>aside { position:relative; z-index:1; }
+.hero-copy { padding-bottom:var(--space-5); }.hero-copy .eyebrow{margin-bottom:var(--space-5)}
+.hero-copy::after { content:"01 / SPEC → API"; position:absolute; left:-52px; top:50%; transform:rotate(-90deg) translateX(-50%); transform-origin:left top; color:var(--muted); font:600 10px var(--mono); letter-spacing:.14em; opacity:.7; }
 .landing-hero h1 { max-width: 760px; margin: 0 0 var(--space-5);
-  font-size: clamp(42px, 6vw, 70px); line-height: .98; letter-spacing: -.055em; }
+  font-size: clamp(48px, 7vw, 82px); line-height: .94; letter-spacing: -.06em; text-wrap:balance; }
+.landing-hero h1 span { display:block; color:var(--accent); font-style:italic; font-weight:640; }
 .landing-hero .lede { max-width: 650px; margin: 0 0 var(--space-6);
   color: var(--muted); font-size: clamp(18px, 2.2vw, 21px); }
 .hero-actions { display:flex; flex-wrap:wrap; gap:var(--space-3); }
@@ -28,14 +53,19 @@ EXTRA_CSS = """
   margin-top:var(--space-6); color:var(--muted); font-size:14px; }
 .trust span { display:inline-flex; gap:7px; align-items:center; }
 .trust .icon { color:var(--ink); }
-.proof-rail { display:grid;grid-template-columns:repeat(4,1fr);border-block:1px solid var(--line);
-  padding-inline:max(20px,calc((100vw - var(--shell))/2)); }
-.proof-rail div { padding:20px clamp(16px,3vw,34px);border-right:1px solid var(--line); }
-.proof-rail div:last-child{border-right:0}.proof-rail b{display:block;font:700 clamp(18px,2vw,24px) var(--mono);letter-spacing:-.04em}
-.proof-rail span{color:var(--muted);font-size:12px}.proof-rail .proof-word{color:var(--ink)}
+.proof-deck { position:relative; z-index:4; display:grid; grid-template-columns:1.35fr .8fr .8fr 1.35fr;
+  margin-top:-54px; margin-bottom:var(--space-7); border:1px solid var(--line); border-radius:var(--radius-lg);
+  overflow:hidden; background:color-mix(in srgb,var(--surface) 94%,transparent); box-shadow:var(--shadow); }
+.proof-deck div { min-height:112px; padding:22px clamp(16px,2.5vw,30px); border-right:1px solid var(--line); display:flex; flex-direction:column; justify-content:center; }
+.proof-deck div:last-child{border-right:0}.proof-deck div:first-child{background:var(--code-bg);color:var(--code-ink)}
+.proof-deck b{display:block;font:700 clamp(19px,2vw,26px) var(--mono);letter-spacing:-.04em}
+.proof-deck span{color:var(--muted);font-size:12px}.proof-deck div:first-child span{color:var(--code-muted)}.proof-deck .proof-word{color:inherit}
+.proof-rail { position:relative; }
+.hero-visual { position:relative; perspective:1100px; transform-style:preserve-3d; }
 .start-card { position:relative; background:var(--code-bg); color:var(--code-ink); border:1px solid var(--line);
   border-radius:calc(var(--radius-lg) + 4px); padding:var(--space-3); box-shadow:0 28px 70px rgba(0,0,0,.22);
-  transform:rotate(1deg); transition:transform .28s cubic-bezier(.2,.8,.2,1),box-shadow .28s ease; }
+  transform:rotate(1deg) rotateX(var(--tilt-x,0deg)) rotateY(var(--tilt-y,0deg)); transform-style:preserve-3d;
+  transition:transform .42s var(--ease-out),box-shadow .28s ease; }
 .start-card::before { content:""; position:absolute; inset:18px -16px -16px 18px; border:1px solid var(--line);
   border-radius:inherit; z-index:-1; background:var(--surface-2); transform:rotate(-2deg); }
 .demo-window { border:1px solid color-mix(in srgb,var(--code-ink) 15%,transparent);border-radius:14px;overflow:hidden;background:var(--code-bg); }
@@ -52,8 +82,15 @@ EXTRA_CSS = """
 .demo-result { display:grid;grid-template-columns:1.25fr repeat(3,.6fr);gap:1px;background:rgba(255,255,255,.1);border-top:1px solid rgba(255,255,255,.1); }
 .demo-result div { padding:14px;background:var(--code-bg); }.demo-result b{display:block;color:var(--code-ink);font:600 16px var(--mono)}
 .demo-result span{font:10px var(--mono);color:var(--code-muted)}.demo-result .verified b{color:var(--code-accent);font-size:12px;text-transform:uppercase;letter-spacing:.08em}
-@media (hover:hover){.start-card:hover{transform:translateY(-4px) rotate(.35deg);box-shadow:0 34px 76px rgba(0,0,0,.28)}}
+@media (hover:hover){.start-card:hover{transform:translateY(-5px) rotate(.35deg) rotateX(var(--tilt-x,0deg)) rotateY(var(--tilt-y,0deg));box-shadow:0 38px 84px rgba(0,0,0,.3)}}
 @keyframes scan { 0%,100%{transform:translateY(-8px);opacity:.25} 50%{transform:translateY(8px);opacity:1} }
+@keyframes landing-glow { to { transform:translate3d(-24px,18px,0) scale(1.06); } }
+@keyframes landing-node { 50% { transform:scale(1.35); box-shadow:0 0 0 12px color-mix(in srgb,var(--accent) 3%,transparent); } }
+.float-card { position:absolute; z-index:3; display:flex; align-items:center; gap:9px; min-height:44px; padding:9px 13px;
+  border:1px solid var(--line); border-radius:12px; background:var(--surface); color:var(--ink); box-shadow:var(--shadow);
+  font:600 12px var(--mono); animation:hero-float 4.8s ease-in-out infinite; }
+.float-card .icon{color:var(--accent)}.float-a{right:-30px;top:13%;}.float-b{left:-42px;bottom:12%;animation-delay:-2.4s}
+@keyframes hero-float { 50% { transform:translateY(-9px) rotate(.5deg); } }
 .start-head { display:flex; justify-content:space-between; align-items:center; gap:var(--space-3);
   padding-bottom:var(--space-4); border-bottom:1px solid var(--line); }
 .start-head b { font-size:17px; }.start-head span { color:var(--muted); font:12px var(--mono); }
@@ -92,9 +129,11 @@ EXTRA_CSS = """
 .principle .feature-icon { margin:0; background:transparent; border:1px solid var(--line); color:var(--ink); }
 .principle h3 { font-size:19px; margin-bottom:6px; }
 .principle p { color:var(--muted); margin:0; }
-.output-flow { display:grid; grid-template-columns:.8fr auto 1.2fr; gap:var(--space-4); align-items:center; }
+.compiler-layout { display:grid; grid-template-columns:minmax(230px,.58fr) minmax(0,1.42fr); gap:clamp(40px,8vw,110px); align-items:start; }
+.compiler-layout>.section-head { position:sticky; top:100px; margin:0; }
+.output-flow { display:grid; grid-template-columns:1fr; gap:var(--space-4); align-items:center; }
 .mini-spec { margin:0; min-height:300px; }
-.flow-arrow { width:52px;height:52px;border-radius:50%;display:grid;place-items:center;background:var(--brand);color:var(--on-brand); }
+.flow-arrow { width:52px;height:52px;border-radius:50%;display:grid;place-items:center;background:var(--brand);color:var(--on-brand); transform:rotate(90deg); margin:-2px auto; box-shadow:0 0 0 10px color-mix(in srgb,var(--brand) 7%,transparent); }
 .artifact { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-lg); overflow:hidden; }
 .artifact-head { padding:var(--space-4); border-bottom:1px solid var(--line); display:flex;justify-content:space-between;gap:var(--space-3); }
 .artifact-body { padding:var(--space-5); }
@@ -145,17 +184,18 @@ EXTRA_CSS = """
 .final p { max-width:620px; margin:0 auto var(--space-6); opacity:.86; }
 .final .secondary { background:var(--surface); color:var(--ink); border:0; }
 @media(max-width:760px){
-  .landing-hero { padding-top:56px; grid-template-columns:1fr; }
+  .landing-hero { min-height:0; padding:56px 0 92px; grid-template-columns:1fr; }
+  .hero-copy::after{display:none}.hero-visual{width:min(100%,620px);margin-inline:auto}.float-a{right:-8px}.float-b{left:-8px}
   .pipeline,.bento,.step-list,.editorial,.platform-flow { grid-template-columns:1fr; }
   .flow-stage { min-height:220px; border-right:0; border-bottom:1px solid var(--line); }.flow-stage:last-child{border-bottom:0}
-  .proof-rail{grid-template-columns:1fr 1fr}.proof-rail div:nth-child(2){border-right:0}.proof-rail div:nth-child(-n+2){border-bottom:1px solid var(--line)}
+  .proof-deck{grid-template-columns:1fr 1fr;margin-top:-44px}.proof-deck div{border-right:1px solid var(--line);border-bottom:1px solid var(--line)}.proof-deck div:nth-child(2n){border-right:0}.proof-deck div:nth-last-child(-n+2){border-bottom:0}
   .layers{grid-template-columns:1fr}.layer:nth-child(2){transform:none}.layer-arrow{display:none}
-  .output-flow { grid-template-columns:1fr; }.flow-arrow{transform:rotate(90deg);margin:auto}
+  .compiler-layout{grid-template-columns:1fr}.compiler-layout>.section-head{position:static}.output-flow { grid-template-columns:1fr; }.flow-arrow{transform:rotate(90deg);margin:auto}
   .pipeline article:not(:last-child)::after { display:none; }
   .bento article:first-child { grid-column:auto; }
 }
-@media(max-width:520px){.start-card{transform:none}.start-card::before{display:none}.demo-result{grid-template-columns:1fr 1fr}.capability-grid{grid-template-columns:1fr}.capability{border-right:0;border-bottom:1px solid var(--line)!important}.capability:last-child{border-bottom:0!important}}
-@media(prefers-reduced-motion:reduce){.scan-line{animation:none}.start-card{transition:none}}
+@media(max-width:520px){.start-card{transform:none}.start-card::before{display:none}.float-card{position:static;margin-top:var(--space-3);animation:none}.hero-visual{display:flex;flex-direction:column}.demo-result{grid-template-columns:1fr 1fr}.capability-grid{grid-template-columns:1fr}.capability{border-right:0;border-bottom:1px solid var(--line)!important}.capability:last-child{border-bottom:0!important}}
+@media(prefers-reduced-motion:reduce){.scan-line,.landing-hero::before,.landing-node,.float-card{animation:none}.start-card{transition:none}}
 """
 
 
@@ -187,29 +227,57 @@ ARBRE_HTML = "<br>".join(
     for i, (nom, role) in enumerate(ARBRE))
 
 
+LANDING_MOTION = """<script>
+(function () {
+  var visual = document.querySelector('.hero-visual');
+  var card = document.querySelector('.start-card');
+  if (!visual || !card || window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
+      window.matchMedia('(pointer: coarse)').matches) return;
+  var frame = 0;
+  visual.addEventListener('pointermove', function (event) {
+    if (frame) cancelAnimationFrame(frame);
+    frame = requestAnimationFrame(function () {
+      var box = visual.getBoundingClientRect();
+      var x = (event.clientX - box.left) / box.width - .5;
+      var y = (event.clientY - box.top) / box.height - .5;
+      card.style.setProperty('--tilt-x', (-y * 3).toFixed(2) + 'deg');
+      card.style.setProperty('--tilt-y', (x * 3).toFixed(2) + 'deg');
+    });
+  });
+  visual.addEventListener('pointerleave', function () {
+    if (frame) cancelAnimationFrame(frame);
+    card.style.setProperty('--tilt-x', '0deg');
+    card.style.setProperty('--tilt-y', '0deg');
+  });
+})();
+</script>"""
+
+
 BODY = f"""
-<section class="shell landing-hero">
-<div><h1 data-reveal style="--reveal-delay:60ms">Décrivez votre métier.<br>Monl construit le backend.</h1>
+<section class="shell landing-hero"><div class="landing-network" aria-hidden="true"><i class="landing-node landing-node-a"></i><i class="landing-node landing-node-b"></i><i class="landing-node landing-node-c"></i><i class="landing-node landing-node-d"></i><i class="landing-node landing-node-e"></i><i class="landing-node landing-node-f"></i></div>
+<div class="hero-copy"><h1 data-reveal style="--reveal-delay:60ms">Décrivez votre métier.<span>Monl construit le backend.</span></h1>
 <p class="lede" data-reveal style="--reveal-delay:120ms">Déclarez vos données, les personnes qui agissent et les règles à ne jamais contourner. Monl les vérifie puis vous remet une API, son schéma SQL et un contrat exact pour vos interfaces.</p>
 <div class="hero-actions" data-reveal style="--reveal-delay:180ms">
 <a class="primary" href="/console">{icon('terminal')} Essayer dans la console</a>
-<a class="secondary" href="/docs">{icon('book')} Lire la documentation</a></div>
+<a class="secondary" href="/docs">{icon('book')} Lire la documentation</a>
+<a class="secondary github-link" href="{GITHUB_URL}" target="_blank" rel="noopener">{GITHUB_ICON} Voir le projet sur GitHub</a></div>
 <div class="trust" data-reveal style="--reveal-delay:220ms">
 <span>{icon('check')} Commencez avec un exemple</span><span>{icon('check')} Vérifiez avant de compiler</span>
 <span>{icon('check')} Exécutez où vous voulez</span></div></div>
-<aside class="start-card" data-reveal style="--reveal-delay:120ms" aria-label="Une compilation Monl">
+<div class="hero-visual" data-reveal style="--reveal-delay:120ms"><aside class="start-card" aria-label="Une compilation Monl">
 <div class="demo-window"><div class="demo-bar"><i></i><i></i><i></i><span>specification vérifiée</span></div>
 <div class="demo-code">{DEMO_HERO}</div>
 <div class="scan-line"></div><div class="demo-result"><div class="verified"><b>{icon('check')} valide</b><span>audit métier</span></div>
 <div><b>{ENTITES}</b><span>entités</span></div><div><b>{ROUTES}</b><span>routes</span></div><div><b>{FICHIERS}</b><span>fichiers</span></div></div></div></aside>
+<span class="float-card float-a" aria-hidden="true">{icon('shield')} Droits vérifiés</span><span class="float-card float-b" aria-hidden="true">{icon('package')} Archive autonome</span></div>
 </section>
 
-<section class="proof-rail" aria-label="Preuves du compilateur">
+<section class="shell proof-deck proof-rail" aria-label="Preuves du compilateur" data-reveal>
 <div><b>4</b><span>exemples pour commencer</span></div><div><b>0</b><span>appel réseau pour compiler</span></div>
 <div><b class="proof-word">Vérifié</b><span>avant de produire l’archive</span></div><div><b class="proof-word">À vous</b><span>backend autonome, sans verrouillage</span></div>
 </section>
 
-<section class="band"><div class="shell section">
+<section class="band"><div class="shell section compiler-layout">
 <div class="section-head" data-reveal><h2>Une règle claire devient un backend utilisable.</h2>
 <p>Voici ce que Monl produit à partir d’une spec de boutique : les résultats sont revérifiés à chaque évolution du compilateur.</p></div>
 <div class="output-flow" data-reveal><pre class="codeblock mini-spec"><code>{MINI_SPEC}</code></pre>
@@ -257,5 +325,5 @@ LANDING_HTML = page(
     body=BODY,
     active="home",
     extra_css=EXTRA_CSS + landing_cas.EXTRA_CSS + landing_pourquoi.EXTRA_CSS,
-    scripts=landing_cas.CASE_SCRIPT,
+    scripts=LANDING_MOTION + landing_cas.CASE_SCRIPT,
 )

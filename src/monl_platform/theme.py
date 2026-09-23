@@ -19,6 +19,7 @@ from .brand import (
     VUE,
     WORDMARK_PATH,
 )
+from .theme_ambiance import CSS as AMBIANCE_CSS
 from .theme_fragments import CSS, THEME_BOOT, THEME_TOGGLE
 
 ICON_THEME = (
@@ -184,10 +185,11 @@ def page(*, title: str, description: str, body: str, active: str = "",
 <title>{title}</title>
 <link rel="icon" href="/favicon.ico?v={VERSION_ICO}" sizes="32x32"><link rel="icon" href="/favicon.svg?v={VERSION_SVG}" type="image/svg+xml">
 <script>{THEME_BOOT}</script>
-<style>{CSS}{extra_css}</style>
+<style>{CSS}{AMBIANCE_CSS}{extra_css}</style>
 </head>
 <body>
 <div class="scroll-progress" aria-hidden="true"></div>
+<div class="site-ambient" aria-hidden="true"><div class="ambient-grid"></div><div class="ambient-orbit ambient-orbit-a"><i></i><i></i><i></i></div><div class="ambient-orbit ambient-orbit-b"><i></i><i></i><i></i></div><span class="ambient-beam"></span></div>
 <a class="skip" href="#contenu">Aller au contenu</a>
 <header class="topbar"><nav class="shell nav" aria-label="Navigation principale">
 <a class="brand" href="/" aria-label="MONL">{_brand()}</a>

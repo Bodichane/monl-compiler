@@ -394,7 +394,7 @@ def test_un_refus_de_l_usager_n_est_pas_une_panne(plateforme):
                           allow_redirects=False, timeout=10)
 
     assert retour.status_code == 303
-    assert retour.headers["location"] == "/console#erreur=refus"
+    assert retour.headers["location"] == "/login?erreur=refus"
 
 
 def test_un_compte_de_fournisseur_ne_se_connecte_pas_par_mot_de_passe(plateforme):
