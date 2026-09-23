@@ -46,6 +46,29 @@ jobs:
     # rendre la garantie plus étroite que la phrase qui l'annonce. Un témoin
     # confronte les deux matrices — deux listes de versions tenues séparément
     # finissent toujours par diverger (point 167, sur les classifieurs).
+    #
+    # Même raison pour l'ENVIRONNEMENT : la CI installe `.[dev,postgres]` et
+    # monte un vrai PostgreSQL. La première exécution de cette chaîne, sur le
+    # tag v0.9.0-beta.9, n'installait que `.[dev]` : un test exigeant
+    # `psycopg` a échoué sur les trois versions, et seize tests PostgreSQL
+    # auraient de toute façon SAUTÉ ici alors qu'ils s'exécutent en CI. Un
+    # témoin confronte désormais extras, service et variable aux mêmes
+    # réglages de `ci.yml`.
+    env:
+      MONL_TEST_DATABASE_URL: postgresql://postgres:monl@127.0.0.1:5432/monltest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: monl
+          POSTGRES_DB: monltest
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d monltest"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
     strategy:
       fail-fast: false
       matrix:
@@ -74,7 +97,7 @@ jobs:
       - name: Installer les dépendances de test
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]"
+          python -m pip install -e ".[dev,postgres]"
 
       # Le lint est ici, dans la chaîne de publication, pour que la CI d'une
       # autre exécution ne puisse pas être prise pour la preuve de ce tag.
