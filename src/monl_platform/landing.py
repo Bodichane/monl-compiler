@@ -255,7 +255,7 @@ LANDING_MOTION = """<script>
 
 BODY = f"""
 <section class="shell landing-hero"><div class="landing-network" aria-hidden="true"><i class="landing-node landing-node-a"></i><i class="landing-node landing-node-b"></i><i class="landing-node landing-node-c"></i><i class="landing-node landing-node-d"></i><i class="landing-node landing-node-e"></i><i class="landing-node landing-node-f"></i></div>
-<div class="hero-copy"><span class="eyebrow" data-reveal>Compilateur métier déterministe</span><h1 data-reveal style="--reveal-delay:60ms">Décrivez votre métier.<span>Monl construit le backend.</span></h1>
+<div class="hero-copy"><h1 data-reveal style="--reveal-delay:60ms">Décrivez votre métier.<span>Monl construit le backend.</span></h1>
 <p class="lede" data-reveal style="--reveal-delay:120ms">Déclarez vos données, les personnes qui agissent et les règles à ne jamais contourner. Monl les vérifie puis vous remet une API, son schéma SQL et un contrat exact pour vos interfaces.</p>
 <div class="hero-actions" data-reveal style="--reveal-delay:180ms">
 <a class="primary" href="/console">{icon('terminal')} Essayer dans la console</a>

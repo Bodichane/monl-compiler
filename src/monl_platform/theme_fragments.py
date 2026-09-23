@@ -40,7 +40,6 @@ CSS = """
   --space-5: 24px; --space-6: 32px; --space-7: 48px; --space-8: 64px;
   --shadow: 0 1px 2px rgba(46, 43, 37, .08), 0 18px 44px rgba(46, 43, 37, .09);
 }
-
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
   --bg: #171512;
@@ -62,7 +61,6 @@ CSS = """
   --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 12px 32px rgba(0, 0, 0, .3);
   }
 }
-
 :root[data-theme="dark"] {
   --bg: #171512;
   --surface: #211e1a;
@@ -82,7 +80,6 @@ CSS = """
   --code-bg: #0f0e0c;
   --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 12px 32px rgba(0, 0, 0, .3);
 }
-
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; scroll-padding-top: 88px; overflow-x: clip; }
 body {
@@ -98,30 +95,6 @@ h1, h2, h3, h4 { line-height: 1.12; letter-spacing: -.035em; margin: 0; font-wei
 p { margin: 0 0 var(--space-4); }
 code { font-family: var(--mono); font-size: .92em; }
 main,.footer-wrap { position:relative; z-index:1; }
-
-/* ---------- ambiance partagée ---------- */
-.site-ambient { position:fixed; inset:68px 0 0; z-index:0; overflow:hidden;
-  pointer-events:none; contain:strict; opacity:.72; }
-.ambient-grid { position:absolute; inset:0;
-  background-image:linear-gradient(color-mix(in srgb,var(--line) 28%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--line) 28%,transparent) 1px,transparent 1px);
-  background-size:72px 72px; mask-image:linear-gradient(to bottom,black,transparent 88%); }
-.ambient-orbit { position:absolute; aspect-ratio:1; border:1px dashed color-mix(in srgb,var(--line-strong) 48%,transparent);
-  border-radius:50%; will-change:transform; animation:ambient-turn 42s linear infinite; }
-.ambient-orbit-a { width:min(46vw,660px); right:-220px; top:-180px; }
-.ambient-orbit-b { width:min(34vw,480px); left:-190px; top:44%; animation-duration:56s; animation-direction:reverse; }
-.ambient-orbit::before,.ambient-orbit::after,.ambient-orbit i { content:""; position:absolute; border-radius:50%; }
-.ambient-orbit::before { width:34%; aspect-ratio:1; inset:33%; border:1px solid color-mix(in srgb,var(--line) 54%,transparent); }
-.ambient-orbit::after { width:10px; height:10px; left:12%; top:18%; background:var(--accent);
-  box-shadow:0 0 0 8px color-mix(in srgb,var(--accent) 9%,transparent); }
-.ambient-orbit i { width:7px; height:7px; background:var(--brand); }
-.ambient-orbit i:nth-child(1) { right:8%; top:42%; }
-.ambient-orbit i:nth-child(2) { left:31%; bottom:3%; background:var(--accent); }
-.ambient-orbit i:nth-child(3) { left:2%; top:54%; }
-.ambient-beam { position:absolute; width:min(48vw,680px); height:1px; right:8%; top:42%;
-  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--accent) 42%,transparent),transparent);
-  transform:rotate(-14deg); opacity:.7; }
-@keyframes ambient-turn { to { transform:rotate(1turn); } }
-
 .shell { width: min(var(--shell), calc(100% - 40px)); margin-inline: auto; }
 .skip {
   position: absolute; left: -9999px; top: 0; z-index: 60;
@@ -129,7 +102,6 @@ main,.footer-wrap { position:relative; z-index:1; }
   padding: var(--space-3) var(--space-4); border-radius: 0 0 var(--radius) 0;
 }
 .skip:focus { left: 0; }
-
 /* ---------- barre de navigation ---------- */
 /* Fond OPAQUE, et pas 92 % : à 92 % le texte qui défile dessous transparaît
    et se lit comme une ligne coupée en deux — mesuré sur /console. Le
@@ -315,9 +287,6 @@ table.grid td code { background: var(--surface-2); padding: 2px 6px; border-radi
   .section { padding: var(--space-7) 0; }
   .footer-grid { grid-template-columns:1fr 1fr; gap:var(--space-6); }
   .footer-brand { grid-column:1/-1; }
-  .site-ambient { opacity:.48; }
-  .ambient-grid { background-size:56px 56px; }
-  .ambient-orbit-b { display:none; }
 }
 @media (max-width: 480px) { .footer-grid { grid-template-columns:1fr; } .footer-brand { grid-column:auto; } .brand-copy small { display:none; } }
 @media (prefers-reduced-motion: reduce) {
@@ -325,7 +294,6 @@ table.grid td code { background: var(--surface-2); padding: 2px 6px; border-radi
     animation-duration: .01ms !important; transition-duration: .01ms !important;
     scroll-behavior: auto !important;
   }
-  .ambient-orbit { animation:none !important; }
 }
 
 /* Bascule de thème en révélation circulaire. Le fondu par défaut de l'API est

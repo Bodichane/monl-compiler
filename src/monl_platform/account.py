@@ -61,7 +61,7 @@ CSS = """
 
 AUTH_BODY = f"""
 <section class="auth-stage"><div class="auth-backdrop" aria-hidden="true"><div class="auth-network"><i class="n1"></i><i class="n2"></i><i class="n3"></i><i class="n4"></i></div></div><div class="shell auth-layout">
-<div class="auth-story" data-reveal><span class="eyebrow">Espace de compilation</span><h2>Vos règles deviennent un backend.</h2><p>Connectez-vous pour retrouver vos spécifications, vérifier leur contrat et livrer un backend reproductible.</p>
+<div class="auth-story" data-reveal><h2>Vos règles deviennent un backend.</h2><p>Connectez-vous pour retrouver vos spécifications, vérifier leur contrat et livrer un backend reproductible.</p>
 <div class="auth-flow" role="list" aria-label="Parcours de compilation">
 <div class="auth-step" role="listitem">{icon('code')}<b>Décrire</b><small>Une spec lisible</small></div>
 <div class="auth-step" role="listitem">{icon('check')}<b>Vérifier</b><small>Règles et accès</small></div>
@@ -76,7 +76,7 @@ AUTH_BODY = f"""
 <div class="form-field masque" id="champ-code"><label for="code">Code de secours</label><input id="code" type="text" autocomplete="one-time-code" spellcheck="false"><small class="muted">L’un des huit codes remis à la création de votre compte. Chaque code ne sert qu’une fois.</small></div>
 <div class="form-field"><label for="password" id="password-label">Mot de passe</label><div class="password-wrap"><input id="password" type="password" autocomplete="current-password" minlength="10" required><button class="password-toggle" id="password-toggle" type="button" aria-controls="password" aria-pressed="false">Afficher</button></div><small class="muted">10 caractères au minimum.</small></div>
 <button class="primary" type="submit">{icon('user')} <span id="submit-label">Se connecter</span></button></form><button class="auth-recovery" id="auth-recovery" type="button" data-mode="recover">Mot de passe oublié ?</button>
-<p class="auth-note">{icon('shield')} <span>Votre session reste dans un cookie sécurisé. Monl ne demande jamais votre secret de compilation.</span></p>
+<p class="auth-note">{icon('shield')} <span>Monl n’envoie aucun courriel : gardez vos codes de secours, ils sont la seule voie de reprise.</span></p>
 <p class="auth-secours" id="auth-secours" hidden>Vos codes ont été affichés une seule fois, à la création du compte. Sans code, personne ne peut rouvrir votre compte à votre place : Monl n’envoie aucun courriel et ne conserve pas de quoi vous identifier autrement. Écrivez à l’exploitant du service, qui seul dispose d’un accès d’administration.</p></div></div></section>
 """
 
@@ -124,10 +124,9 @@ document.querySelector('.auth-tabs').onkeydown=event=>{if(!['ArrowLeft','ArrowRi
 passwordToggle.onclick=()=>{const champ=document.querySelector('#password');const visible=champ.type==='text';champ.type=visible?'password':'text';passwordToggle.textContent=visible?'Afficher':'Masquer';passwordToggle.setAttribute('aria-pressed',String(!visible));champ.focus();};
 fetch('/auth/fournisseurs').then(response=>response.ok?response.json():{providers:[]}).then(data=>{
  const fournisseurs=Array.isArray(data.providers)?data.providers:[];
- const github=fournisseurs.find(provider=>provider.name==='github');
  const githubIcon='<svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.58 2 12.24c0 4.52 2.87 8.35 6.84 9.71.5.1.68-.22.68-.49v-1.71c-2.78.62-3.37-1.39-3.37-1.39-.45-1.19-1.11-1.51-1.11-1.51-.91-.64.07-.63.07-.63 1 .08 1.53 1.06 1.53 1.06.9 1.59 2.35 1.13 2.92.86.09-.67.35-1.13.64-1.39-2.22-.26-4.56-1.15-4.56-5.09 0-1.12.39-2.04 1.03-2.76-.1-.26-.45-1.31.1-2.73 0 0 .84-.28 2.75 1.05A9.2 9.2 0 0 1 12 7.9c.85 0 1.71.12 2.5.35 1.91-1.33 2.75-1.05 2.75-1.05.55 1.42.2 2.47.1 2.73.64.72 1.03 1.64 1.03 2.76 0 3.95-2.34 4.83-4.57 5.08.36.32.68.95.68 1.92v2.84c0 .27.18.59.69.49A10.2 10.2 0 0 0 22 12.24C22 6.58 17.52 2 12 2Z"/></svg>';
  const boutons=fournisseurs.map(provider=>`<a class="secondary oauth-button" href="/auth/${encodeURIComponent(provider.name)}">${provider.name==='github'?githubIcon:''}Continuer avec ${provider.label}</a>`);
- if(!github) boutons.push(`<button class="secondary oauth-button" type="button" disabled>${githubIcon}<span>Continuer avec GitHub<small class="oauth-unavailable">À activer dans la configuration du serveur</small></span></button>`);
+ oauthZone.innerHTML=boutons.join('');
 }).catch(()=>{oauthZone.innerHTML='';});
 form.onsubmit=async event=>{event.preventDefault();error.className='form-error';
  /* Le formulaire porte `novalidate` pour que CE code voie l'envoi. Sans lui,
