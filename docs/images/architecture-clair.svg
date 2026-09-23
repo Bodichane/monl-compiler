@@ -1,68 +1,75 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1020 380" width="1020" height="380" role="img" aria-labelledby="title desc" font-family="Arial,Helvetica,sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1020 360" width="1020" height="360" role="img" aria-labelledby="title desc" font-family="Arial,Helvetica,sans-serif">
   <title id="title">Ce que produit monl-compiler</title>
   <desc id="desc">À partir de la description de l'utilisateur, monl-compiler produit la spécification, le backend et le contrat frontend. Une intelligence artificielle utilise ensuite le contrat pour créer l'interface. La commande monl run vérifie le backend et le frontend avant lancement.</desc>
-  <rect width="1020" height="380" fill="#ffffff"/>
+  <rect width="1020" height="360" fill="#ffffff"/>
+
+  <!--
+    Grille. Colonnes : A 30–190 · B 224–404 · C 438–596 · D 630–788 · E 822–990
+    (34 px entre deux colonnes, marges de 30 px). Rangées des livrables :
+    88–150 · 158–220 · 228–290, centres 119 · 189 · 259. Le flux principal
+    suit la rangée du milieu (y = 189) ; chaque flèche est droite.
+  -->
 
   <text x="510" y="33" text-anchor="middle" font-size="23" font-weight="700" fill="#000000">Ce que produit monl-compiler</text>
   <text x="510" y="56" text-anchor="middle" font-size="13" fill="#000000">Une description simple devient une application complète et vérifiée</text>
 
-  <!-- Axe du flux principal : y = 189, milieu exact de la colonne des livrables (88 → 290). -->
+  <!-- A · Votre projet (143–235, centre 189) -->
+  <rect x="30" y="143" width="160" height="92" rx="10" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <text x="110" y="176" text-anchor="middle" font-size="17" font-weight="700" fill="#000000">Votre projet</text>
+  <text x="110" y="202" text-anchor="middle" font-size="12.5" fill="#000000">type · nom · description</text>
+  <text x="110" y="221" text-anchor="middle" font-size="12.5" fill="#000000">textes et photos</text>
 
-  <!-- Votre projet -->
-  <rect x="30" y="143" width="165" height="92" rx="10" fill="#ffffff" stroke="#000000" stroke-width="2"/>
-  <text x="112.5" y="176" text-anchor="middle" font-size="17" font-weight="700" fill="#000000">Votre projet</text>
-  <text x="112.5" y="202" text-anchor="middle" font-size="12.5" fill="#000000">type · nom · description</text>
-  <text x="112.5" y="221" text-anchor="middle" font-size="12.5" fill="#000000">textes et photos</text>
+  <line x1="190" y1="189" x2="212" y2="189" stroke="#000000" stroke-width="2"/>
+  <polygon points="212,182 224,189 212,196" fill="#000000"/>
 
-  <line x1="195" y1="189" x2="234" y2="189" stroke="#000000" stroke-width="2"/>
-  <polygon points="234,182 246,189 234,196" fill="#000000"/>
+  <!-- B · monl-compiler (131–247, centre 189), contour accentué -->
+  <rect x="224" y="131" width="180" height="116" rx="12" fill="#ffffff" stroke="#000000" stroke-width="3"/>
+  <text x="314" y="171" text-anchor="middle" font-size="19" font-weight="700" fill="#000000">monl-compiler</text>
+  <text x="314" y="200" text-anchor="middle" font-size="13" fill="#000000">dialogue guidé</text>
+  <text x="314" y="221" text-anchor="middle" font-size="13" fill="#000000">compilation · sécurité</text>
 
-  <!-- monl-compiler (contour accentué) -->
-  <rect x="246" y="131" width="205" height="116" rx="12" fill="#ffffff" stroke="#000000" stroke-width="3"/>
-  <text x="348.5" y="171" text-anchor="middle" font-size="19" font-weight="700" fill="#000000">monl-compiler</text>
-  <text x="348.5" y="200" text-anchor="middle" font-size="13" fill="#000000">dialogue guidé</text>
-  <text x="348.5" y="221" text-anchor="middle" font-size="13" fill="#000000">compilation · sécurité</text>
+  <line x1="404" y1="189" x2="426" y2="189" stroke="#000000" stroke-width="2"/>
+  <polygon points="426,182 438,189 426,196" fill="#000000"/>
 
-  <line x1="451" y1="189" x2="491" y2="189" stroke="#000000" stroke-width="2"/>
-  <polygon points="491,182 503,189 491,196" fill="#000000"/>
+  <!-- C · les trois livrables -->
+  <text x="517" y="74" text-anchor="middle" font-size="11.5" font-weight="700" letter-spacing="1.2" fill="#000000">3 LIVRABLES</text>
 
-  <text x="582" y="74" text-anchor="middle" font-size="11.5" font-weight="700" letter-spacing="1.2" fill="#000000">3 LIVRABLES</text>
+  <rect x="438" y="88" width="158" height="62" rx="8" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <text x="517" y="116" text-anchor="middle" font-size="17" font-weight="700" fill="#000000">spec.ml</text>
+  <text x="517" y="136" text-anchor="middle" font-size="12" fill="#000000">source de vérité</text>
 
-  <!-- spec.ml -->
-  <rect x="503" y="88" width="158" height="62" rx="8" fill="#ffffff" stroke="#000000" stroke-width="2"/>
-  <text x="582" y="116" text-anchor="middle" font-size="17" font-weight="700" fill="#000000">spec.ml</text>
-  <text x="582" y="136" text-anchor="middle" font-size="12" fill="#000000">source de vérité</text>
+  <rect x="438" y="158" width="158" height="62" rx="8" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <text x="517" y="186" text-anchor="middle" font-size="17" font-weight="700" fill="#000000">Backend</text>
+  <text x="517" y="206" text-anchor="middle" font-size="12" fill="#000000">API · base · comptes</text>
 
-  <!-- Backend : centré sur l'axe du flux (158 → 220) -->
-  <rect x="503" y="158" width="158" height="62" rx="8" fill="#ffffff" stroke="#000000" stroke-width="2"/>
-  <text x="582" y="186" text-anchor="middle" font-size="17" font-weight="700" fill="#000000">Backend</text>
-  <text x="582" y="206" text-anchor="middle" font-size="12" fill="#000000">API · base · comptes</text>
+  <rect x="438" y="228" width="158" height="62" rx="8" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <text x="517" y="256" text-anchor="middle" font-size="17" font-weight="700" fill="#000000">Contrat frontend</text>
+  <text x="517" y="276" text-anchor="middle" font-size="12" fill="#000000">guide de l'interface</text>
 
-  <!-- Contrat frontend -->
-  <rect x="503" y="228" width="158" height="62" rx="8" fill="#ffffff" stroke="#000000" stroke-width="2"/>
-  <text x="582" y="256" text-anchor="middle" font-size="17" font-weight="700" fill="#000000">Contrat frontend</text>
-  <text x="582" y="276" text-anchor="middle" font-size="12" fill="#000000">guide de l'interface</text>
+  <!-- Backend → monl run : traverse la rangée vide de la colonne D -->
+  <line x1="596" y1="189" x2="810" y2="189" stroke="#000000" stroke-width="2"/>
+  <polygon points="810,182 822,189 810,196" fill="#000000"/>
 
-  <!-- Étape IA : pointillés (le seul lien non déterministe) -->
-  <line x1="661" y1="259" x2="693" y2="259" stroke="#000000" stroke-width="2" stroke-dasharray="6 4"/>
-  <polygon points="693,252 705,259 693,266" fill="#000000"/>
+  <!-- Contrat → Frontend : pointillés, le seul lien non déterministe -->
+  <line x1="596" y1="259" x2="618" y2="259" stroke="#000000" stroke-width="2" stroke-dasharray="6 4"/>
+  <polygon points="618,252 630,259 618,266" fill="#000000"/>
 
-  <!-- Frontend : contour en pointillés = écrit par l'IA, centré sur le contrat (y = 259) -->
-  <rect x="705" y="218" width="145" height="82" rx="10" fill="#ffffff" stroke="#000000" stroke-width="2" stroke-dasharray="6 4"/>
-  <text x="777.5" y="251" text-anchor="middle" font-size="17" font-weight="700" fill="#000000">Frontend</text>
-  <text x="777.5" y="276" text-anchor="middle" font-size="12.5" fill="#000000">créé par l'IA</text>
+  <!-- D · Frontend, même rangée et même taille que le contrat -->
+  <rect x="630" y="228" width="158" height="62" rx="8" fill="#ffffff" stroke="#000000" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="709" y="256" text-anchor="middle" font-size="17" font-weight="700" fill="#000000">Frontend</text>
+  <text x="709" y="276" text-anchor="middle" font-size="12" fill="#000000">créé par l'IA</text>
 
-  <!-- monl run vérifie backend + frontend : un collecteur à x = 880, centre de sa boîte -->
-  <path d="M661 189H880V306" fill="none" stroke="#000000" stroke-width="2"/>
-  <path d="M850 259H880" fill="none" stroke="#000000" stroke-width="2"/>
-  <polygon points="873,306 880,318 887,306" fill="#000000"/>
+  <!-- Frontend → monl run -->
+  <line x1="788" y1="259" x2="810" y2="259" stroke="#000000" stroke-width="2"/>
+  <polygon points="810,252 822,259 810,266" fill="#000000"/>
 
-  <rect x="770" y="318" width="220" height="32" rx="6" fill="#ffffff" stroke="#000000" stroke-width="2"/>
-  <text x="880" y="339" text-anchor="middle" font-size="13" font-weight="700" fill="#000000">monl run vérifie et lance</text>
+  <!-- E · monl run, couvre les rangées Backend et Frontend (158–290) -->
+  <rect x="822" y="158" width="168" height="132" rx="10" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <text x="906" y="218" text-anchor="middle" font-size="17" font-weight="700" fill="#000000">monl run</text>
+  <text x="906" y="240" text-anchor="middle" font-size="12.5" fill="#000000">vérifie et lance</text>
 
-  <!-- légende -->
-  <line x1="30" y1="314" x2="58" y2="314" stroke="#000000" stroke-width="2" stroke-dasharray="6 4"/>
-  <text x="64" y="318" font-size="11.5" fill="#000000">pointillés = écrit par l'IA</text>
-  <text x="30" y="344" font-size="12" font-weight="700" fill="#000000">Backend déterministe</text>
-  <text x="30" y="362" font-size="12" fill="#000000">IA limitée au frontend</text>
+  <!-- légende, alignée sur la colonne A -->
+  <line x1="30" y1="318" x2="58" y2="318" stroke="#000000" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="66" y="322" font-size="11.5" fill="#000000">pointillés = écrit par l'IA</text>
+  <text x="30" y="344" font-size="12" font-weight="700" fill="#000000">Backend déterministe · IA limitée au frontend</text>
 </svg>

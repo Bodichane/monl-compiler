@@ -5,8 +5,6 @@
 [![CI](https://github.com/Bodichane/monl-compiler/actions/workflows/ci.yml/badge.svg)](https://github.com/Bodichane/monl-compiler/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/badge/version-0.9.0--beta.9-blue)](CHANGELOG.md)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
-[![Tests](https://img.shields.io/badge/tests-CI-brightgreen)](tests/)
-[![Couverture](https://img.shields.io/badge/couverture-CI-brightgreen)](#qualité-et-vérification)
 [![Licence](https://img.shields.io/badge/licence-FSL--1.1--ALv2-blue)](LICENSE)
 
 On décrit l'intention d'une application dans un DSL dédié ; monl-compiler en génère la base
@@ -61,33 +59,10 @@ Les fournisseurs frontend par API nécessitent l'extra optionnel :
 `pip install 'monl-compiler[ai]'`. Les agents locaux et `monl import`
 n'en ont pas besoin.
 
-Yandex Cloud AI Studio est disponible par son API compatible OpenAI. La clé et
-le dossier restent dans l'environnement ; l'identifiant de modèle est celui
-affiché par AI Studio :
-
-```bash
-export YANDEX_API_KEY='…'
-export YANDEX_FOLDER_ID='…'
-monl frontend MonProjet --provider yandex \
-  --model "gpt://$YANDEX_FOLDER_ID/yandexgpt/latest"
-```
-
-Si un modèle lent dépasse le délai HTTP, réduire le plafond de réponse pour cet
-appel : `MONL_AI_MAX_TOKENS=8000 monl frontend …`.
-
-Chaque appel API mesurable ajoute dans le projet une ligne à
-`.monl_ai_usage.jsonl` (ignoré par Git) : fournisseur, modèle, durée et jetons,
-sans prompt, réponse ni clé. Ce journal permet de chiffrer une construction et
-une retouche avant de fixer le prix du service.
-
 Le parcours **Personnalisation détaillée** reste disponible pour choisir chaque
 option, rôle, contenu éditorial et intention visuelle. Sans agent local ni clé
-API, ouvrez `MonProjet/docs/FRONTEND_PROMPT.md` dans l'IA de votre choix, puis installez le ZIP
-ou le fichier HTML obtenu avec `monl import`.
-
-> **Ubuntu / Debian.** Le Python système est protégé (PEP 668) : préférez
-> `pipx install monl-compiler` à
-> `pip install --break-system-packages`.
+API, ouvrez `MonProjet/docs/FRONTEND_PROMPT.md` dans l'IA de votre choix, puis
+installez le ZIP ou le fichier HTML obtenu avec `monl import`.
 
 Le parcours complet, interface comprise, est détaillé dans
 [QUICKSTART.md](QUICKSTART.md).
@@ -128,9 +103,8 @@ backend et le contrat frontend ; l'IA écrit l'interface contre ce contrat ;
 
 ### Plateforme web et MCP
 
-Le compilateur peut aussi être utilisé sans cloner le dépôt sur la machine de
-l'utilisateur. La plateforme web explique Monl, valide une spec, compile le
-backend, expose son contrat et livre une archive sans secret :
+Le compilateur est aussi accessible par une plateforme web : elle valide une
+spec, compile le backend, expose son contrat et livre une archive sans secret :
 
 ```bash
 monl-platform --port 8022
@@ -222,11 +196,9 @@ qui envoie son propre prix est un panier qu'on peut négocier. Le webhook, lui,
 vérifie la signature du prestataire avant d'écrire quoi que ce soit — c'est le
 seul endroit du backend généré où un tiers non authentifié touche à la base.
 
-Six situations sont refusées **à la compilation** plutôt qu'au moment
-d'encaisser : entité ou champ inexistant, champ non numérique, cumul avec
-`hidden` (un montant illisible est invérifiable par celui qui le règle), deux
-champs `payable` sur une même entité (plus rien ne dit lequel encaisser), et
-création `public` (un paiement exige un appelant identifié).
+Les cas qui rendraient l'encaissement douteux — champ non numérique, montant
+que le client peut écrire, montant masqué, deux champs `payable`, création
+`public` — sont refusés **à la compilation** plutôt qu'au moment d'encaisser.
 
 Les clés (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`) viennent de
 l'environnement, comme le secret JWT. Absentes, les routes répondent 503 **en
@@ -366,14 +338,15 @@ direction visuelle préparée avant le code. Chaque compilation produit :
 - `frontend_contract.json` — description machine-lisible des routes destinées à
   l'interface, de l'authentification et des règles de champ, dérivée de la même
   spec que le backend ;
-- `FRONTEND_PROMPT.md` — un brief prêt à confier à une IA d'interface : structure,
-  rôles, contenu et intention déclarée, sans aucune prescription visuelle.
-- `DESIGN_SYSTEM.md` — pattern de page, tokens de départ, anti-patterns et
-  checklist UX déterminés depuis le contrat ; il est lu avant le HTML/CSS/JS.
-- `DESIGN_SPEC.md` — synthèse visuelle éditable ; si l'auteur la remplace, elle
-  devient prioritaire et Monl ne l'écrase pas.
-- `ASSET_MANIFEST.json` — plan d'assets et marqueurs de sections. Il est
-  d'abord `planned`, puis devient vérifiable après `monl frontend` ou `monl import`.
+- dans `docs/`, ce qui se lit avant d'écrire l'interface :
+  - `FRONTEND_PROMPT.md` — le brief à confier à une IA d'interface : structure,
+    rôles, contenu et intention déclarée, sans prescription visuelle ;
+  - `DESIGN_SYSTEM.md` — pattern de page, tokens de départ, anti-patterns et
+    checklist UX déterminés depuis le contrat ;
+  - `DESIGN_SPEC.md` — synthèse visuelle éditable ; si l'auteur la remplace,
+    elle devient prioritaire et Monl ne l'écrase pas ;
+  - `ASSET_MANIFEST.json` — plan d'assets et marqueurs de sections, vérifiable
+    après `monl frontend` ou `monl import`.
 
 Le système de design sélectionne aussi un catalogue local de patterns Monl —
 hero, catalogue, éditorial, réassurance, FAQ, contact et CTA final — avec des
@@ -470,11 +443,6 @@ fichiers de tests oublierait ceux qui n'y figurent pas).
 
 ```bash
 ruff check src tests
-```
-
-```bash
-python3 -m mypy src/monl/ir.py src/monl/ir_types.py src/monl/planning.py src/monl/policies.py src/monl/errors.py src/monl/generator/emitters.py --strict
-vulture src/monl --min-confidence 90
 ```
 
 monl-compiler ne dépend d'aucun modèle d'IA et ne fait aucun appel réseau :
