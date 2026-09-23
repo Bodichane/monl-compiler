@@ -31,12 +31,13 @@ pour construire le frontend à partir du contrat garanti par le compilateur —
 - [Commandes](#commandes)
 - [La spécification](#la-spécification)
 - [Le backend généré](#le-backend-généré)
-- [Photos, logo et favicon](#vos-fichiers--photos-logo-favicon)
+- [Vos fichiers : photos, logo, favicon](#vos-fichiers--photos-logo-favicon)
 - [Remplacer le contenu sans ouvrir le DSL](#remplacer-le-contenu-sans-ouvrir-le-dsl)
 - [Le frontend : contrat et IA spécialisée](#le-frontend--contrat-et-ia-spécialisée)
 - [Qualité et vérification](#qualité-et-vérification)
 - [Structure du dépôt](#structure-du-dépôt)
 - [Documentation](#documentation)
+- [Licence](#licence)
 
 ---
 
@@ -48,15 +49,17 @@ et le contrat frontend. Cette première étape reste déterministe, sans modèle
 sans appel réseau. L'IA intervient ensuite uniquement pour dessiner l'interface.
 
 ```bash
-pip install .
+pip install monl-compiler
 monl
 monl frontend MonProjet --provider codex
 monl run MonProjet
 ```
 
+Depuis un clone du dépôt, `pip install .` installe la même chose.
+
 Les fournisseurs frontend par API nécessitent l'extra optionnel :
-`pip install '.[ai]'`. Les agents locaux et `monl import` n'en ont
-pas besoin.
+`pip install 'monl-compiler[ai]'`. Les agents locaux et `monl import`
+n'en ont pas besoin.
 
 Yandex Cloud AI Studio est disponible par son API compatible OpenAI. La clé et
 le dossier restent dans l'environnement ; l'identifiant de modèle est celui
@@ -79,11 +82,12 @@ une retouche avant de fixer le prix du service.
 
 Le parcours **Personnalisation détaillée** reste disponible pour choisir chaque
 option, rôle, contenu éditorial et intention visuelle. Sans agent local ni clé
-API, ouvrez `FRONTEND_PROMPT.md` dans l'IA de votre choix, puis installez le ZIP
+API, ouvrez `MonProjet/docs/FRONTEND_PROMPT.md` dans l'IA de votre choix, puis installez le ZIP
 ou le fichier HTML obtenu avec `monl import`.
 
 > **Ubuntu / Debian.** Le Python système est protégé (PEP 668) : préférez
-> `pipx install .` à `pip install . --break-system-packages`.
+> `pipx install monl-compiler` à
+> `pip install --break-system-packages`.
 
 Le parcours complet, interface comprise, est détaillé dans
 [QUICKSTART.md](QUICKSTART.md).
@@ -114,7 +118,7 @@ d'exécution ne font pas partie de cette identité. Voir le
 
 ## Architecture
 
-<img alt="Dialogue express ou détaillé et contenu CSV vers spec.ml ; compilation et audit vers backend et contrat ; frontend écrit par une IA puis ensemble vérifié par monl run" src="docs/images/architecture-clair.svg" width="100%">
+<img alt="Votre projet entre dans monl-compiler, qui produit trois livrables : spec.ml, le backend et le contrat frontend. Une IA écrit le frontend à partir du contrat ; monl run vérifie backend et frontend puis lance l'application." src="docs/images/architecture-clair.svg" width="100%">
 
 Le dialogue produit la spécification ; le compilateur en dérive **à la fois** le
 backend et le contrat frontend ; l'IA écrit l'interface contre ce contrat ;
@@ -455,9 +459,14 @@ serveur. Toute exception ou tout appel hors contrat bloque le lancement
 | **CI** | Workflow configuré pour Python 3.10, 3.12 et 3.14 à chaque push et pull request |
 
 ```bash
-python3 -m pytest tests/ -rs --cov=src/monl --cov-report=term-missing
-python3 -m pytest tests/test_platform_*.py tests/test_oauth.py tests/test_administration.py tests/test_codes_de_secours.py -rs --cov=src/monl_platform --cov-report=term --cov-fail-under=90
+python3 -m pytest tests/ -rs --cov=src/monl --cov=src/monl_platform --cov-report=term-missing --cov-fail-under=0
+python3 -m coverage report --include='src/monl/*' --fail-under=90
+python3 -m coverage report --include='src/monl_platform/*' --fail-under=90
 ```
+
+Une seule exécution de toute la suite, puis deux barrières tirées des mêmes
+mesures : c'est ce que fait la CI (une barrière mesurée sur une liste de
+fichiers de tests oublierait ceux qui n'y figurent pas).
 
 ```bash
 ruff check src tests
@@ -480,17 +489,19 @@ automatisée.
 |---|---|
 | `src/monl/` | Le paquet : parseur, validateur, dialogue, design system, contrat frontend, CLI |
 | `src/monl/generator/` | Le générateur de backend, une couche par module |
+| `src/monl_platform/` | La plateforme web et le serveur MCP : comptes, compilation, hébergement, administration |
 | `exemples/` | Cinq spécifications `.ml` d'une page, compilées à chaque test |
-| `demo/` | La démo StudioNova : sa spécification et son frontend |
+| `demo/` | La démo CodexShop, une papeterie qui exerce toute la chaîne marchande : sa spécification, son frontend et ses photos |
 | `tests/` | Non-régression, audit offensif, frontières d'architecture |
-| `docs/` | Décisions de conception, sécurité, migrations |
+| `docs/` | Décisions de conception, sécurité, migrations, exploitation, publication |
+| `deploy/` | Runbook et fichiers de mise en production de la plateforme |
 
 ## Documentation
 
 | Fichier | Contenu |
 |---|---|
 | [QUICKSTART.md](QUICKSTART.md) | Le parcours complet, en trois étapes |
-| [docs/design_decisions.md](docs/design_decisions.md) | Le journal du projet : 115 points, chacun avec son *pourquoi* |
+| [docs/design_decisions.md](docs/design_decisions.md) | Le journal du projet, point par point, chacun avec son *pourquoi* |
 | [docs/SECURITE.md](docs/SECURITE.md) | Modèle de sécurité |
 | [docs/MIGRATIONS.md](docs/MIGRATIONS.md) | Évolution du schéma sans perte |
 | [docs/BETA.md](docs/BETA.md) | État de la bêta et feuille de route |

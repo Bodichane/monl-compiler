@@ -143,45 +143,75 @@ def _nom_de_distribution():
         return tomllib.load(f)["project"]["name"]
 
 
-def _installations_depuis_un_index(texte):
-    """Les commandes `pip install` qui NOMMENT la distribution au lieu de
-    désigner un chemin.
+def _noms_installes_depuis_un_index(texte):
+    """Les noms que les commandes `pip install` / `pipx install` vont CHERCHER
+    sur un index, par opposition à un chemin local ou à un fichier d'exigences.
 
-    La distinction ne se fait pas par un motif à trous — `./monl-compiler`
-    contient le nom et n'est pas une installation depuis un index. On isole
-    chaque argument, on retire l'extra `[ai]`, et on compare au nom LU dans
-    `pyproject.toml` : un chemin porte une barre oblique ou commence par un
-    point, donc il ne peut pas être égal au nom."""
-    nom = _nom_de_distribution()
-    fautifs = []
-    for commande in re.findall(r"pip install ([^<\n`]*)", texte):
+    Un chemin porte une barre oblique, commence par un point ou un tilde ; un
+    drapeau commence par un tiret ; l'argument qui suit `-r`, `-c` ou
+    `--requirement` est un FICHIER. L'extra (`[ai]`) et une contrainte de
+    version (`==0.9.0b9`) sont retirés : c'est le NOM qui décide de ce qui
+    est installé."""
+    noms = []
+    for commande in re.findall(r"pipx? install ([^<\n`]*)", texte):
+        suivant_est_un_fichier = False
         for brut in commande.split():
-            argument = brut.strip("\"'").split("[")[0]
-            if argument == nom:
-                fautifs.append(f"pip install {brut}")
-    return fautifs
+            argument = brut.strip("\"'")
+            if suivant_est_un_fichier:
+                suivant_est_un_fichier = False
+                continue
+            if argument in {"-r", "-c", "--requirement", "--constraint"}:
+                suivant_est_un_fichier = True
+                continue
+            if (not argument or argument.startswith(("-", ".", "/", "~"))
+                    or "/" in argument):
+                continue
+            noms.append(re.split(r"[\[=<>!~;]", argument)[0])
+    return noms
+
+
+def test_l_extracteur_distingue_un_nom_d_un_chemin():
+    """Sans ce témoin, un extracteur qui ne rend rien rendrait la règle
+    ci-dessous verte sans rien regarder (point 161)."""
+    assert _noms_installes_depuis_un_index("pip install monl") == ["monl"]
+    assert _noms_installes_depuis_un_index(
+        "pip install 'monl-compiler[ai]'") == ["monl-compiler"]
+    assert _noms_installes_depuis_un_index(
+        "pipx install monl-compiler==0.9.0b9") == ["monl-compiler"]
+    assert _noms_installes_depuis_un_index(
+        "pip install ./monl-compiler -r requirements.txt -e .") == []
 
 
 @pytest.mark.parametrize("chemin", ["README.md", "QUICKSTART.md"])
-def test_aucune_documentation_ne_fait_installer_depuis_un_index(chemin):
-    """`monl-compiler` n'est publié sur AUCUN index (point 167, toujours vrai).
-    Une commande `pip install monl-compiler` échoue donc chez le lecteur, et
-    une commande qui échoue est pire qu'une commande absente : elle se voit
-    (même argument qu'au point 144 pour un lien sans schéma).
+def test_une_installation_depuis_un_index_nomme_la_vraie_distribution(chemin):
+    """`monl-compiler` est publié sur PyPI depuis la 0.9.0-beta.9 : l'ancien
+    témoin, qui interdisait toute installation depuis un index tant que rien
+    n'était publié, l'annonçait lui-même — « le jour de la publication, c'est
+    lui qui rappellera de revisiter ces lignes ».
 
-    Le nom est LU dans `pyproject.toml`, jamais recopié.
+    Le danger qui reste est le NOM. `monl` tout court est LIBRE sur l'index
+    (point 167bis) : une documentation qui écrirait `pip install monl`
+    ferait installer le paquet de quiconque s'en emparerait. Toute
+    installation depuis un index doit donc nommer la distribution LUE dans
+    `pyproject.toml`.
 
-    LIMITE ÉNONCÉE : ce témoin ne peut pas vérifier que le paquet est absent de
-    PyPI — la suite ne fait aucun appel réseau. Il garde la cohérence entre ce
-    qu'on montre et ce que le dépôt permet ; le jour de la publication, c'est
-    lui qui rappellera de revisiter ces lignes."""
-    fautifs = _installations_depuis_un_index(
-        (RACINE / chemin).read_text(encoding="utf-8"))
-    assert not fautifs, f"{chemin} fait installer depuis un index : {fautifs}"
+    Mesuré le 24/09/2026 : sans `--pre`, `pip install monl-compiler` installe
+    bien la bêta — pip accepte une pré-version quand l'index n'a rien d'autre.
+    Le drapeau n'est donc pas exigé ici ; l'exiger enseignerait une étape
+    inutile."""
+    nom = _nom_de_distribution()
+    etrangers = [n for n in _noms_installes_depuis_un_index(
+        (RACINE / chemin).read_text(encoding="utf-8")) if n != nom]
+    assert not etrangers, (
+        f"{chemin} fait installer depuis un index autre chose que {nom} : "
+        f"{etrangers}")
 
 
-def test_le_guide_ne_fait_pas_installer_depuis_un_index():
+def test_le_guide_n_installe_que_la_vraie_distribution():
     """Même règle sur la page SERVIE, et pas sur la constante du module :
     c'est entre les deux que le point 163 a vu une page se casser."""
-    fautifs = _installations_depuis_un_index(guide_html())
-    assert not fautifs, f"le guide servi fait installer depuis un index : {fautifs}"
+    nom = _nom_de_distribution()
+    etrangers = [n for n in _noms_installes_depuis_un_index(guide_html())
+                 if n != nom]
+    assert not etrangers, (
+        f"le guide servi fait installer autre chose que {nom} : {etrangers}")
