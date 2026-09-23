@@ -160,7 +160,10 @@ GOLDENS = {
     # a l'octet, trois fois de suite : c'est ce que ce test est la pour tenir.
     # monl.json scelle l'empreinte de ce nouvel app.py ; aucun autre artefact
     # n'est touché par les deux correctifs backend.
-    "monl.json": "35bb222280ec90ad923e728f038e2034d502cf6d706fc868340dc820e1fe5775",
+    # 0.9.0-beta.9 : seul monl.json bouge, et `diff -r` entre deux compilations
+    # du même code sous beta.8 puis beta.9 ne montre qu'une ligne —
+    # `compiler_version`. Quatrième version de suite où c'est vrai.
+    "monl.json": "5a037fa5a0173453a86d13864b4579c0fa651aaf59361158e0c8f459a1f1ad57",
 }
 
 # Empreintes de la fixture qui porte réellement `publicWhen` et
@@ -174,7 +177,8 @@ LOOKUP_GOLDENS = {
     # (`_close_database_pool`) ET les index d'`accessibleBy`/`publicWhen`
     # (`recipient_id` dans `_LOOKUP_INDEXES`), et rien d'autre n'a bougé.
     "app.py": "bfb2a82664c4c6d29cf27ceb46679813a8515efb4a8121678eb39b9515bb0a0f",
-    "monl.json": "4a36752f12f8b863c315c19a41facb499445f7e47e5d0f9b150c31365443bf20",
+    # 0.9.0-beta.9 : monl.json seul, pour la même raison que ci-dessus.
+    "monl.json": "7834cd2e5f6ee464191b0fae1eb4285104cf8149287dd112ec0229da5ed962ce",
 }
 
 

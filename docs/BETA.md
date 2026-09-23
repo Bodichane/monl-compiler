@@ -1,6 +1,20 @@
 # État bêta et route vers la GA
 
-## Ce qu'apporte la bêta 0.9.0-beta.8
+## Ce qu'apporte la bêta 0.9.0-beta.9
+
+Un **changement de cap** (point 162) : monl produit le backend et sa base,
+déterministes et sans appel réseau ; tout ce qui demande une IA se fait avec le
+fournisseur de l'usager, sur sa machine. La plateforme ne construit donc plus
+de frontend — sa console mène le **dialogue guidé** comme la ligne de commande,
+et le **serveur MCP** liste, compare et met à jour un projet sans navigateur.
+L'archive d'un projet compilé range ses documents dans `docs/` et nomme sa
+mémoire AGENTS.md. La plateforme est **déployée pour de vrai** (image GHCR,
+survie au redémarrage), un **audit de sécurité** y a fermé cinq défauts réels
+(dont le *login CSRF* de l'aller OAuth), le backend généré gagne ses **index**
+et un **pool PostgreSQL**, et le compilateur devient **publiable** par Trusted
+Publishing. Points 143 à 190 de `docs/design_decisions.md`.
+
+## Ce qu'apportait la bêta 0.9.0-beta.8
 
 Le dépôt passe sous **licence FSL-1.1-ALv2** (bascule automatique vers
 Apache-2.0 deux ans après chaque version), et monl gagne une **plateforme
