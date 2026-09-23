@@ -188,6 +188,7 @@ def page(*, title: str, description: str, body: str, active: str = "",
 </head>
 <body>
 <div class="scroll-progress" aria-hidden="true"></div>
+<div class="site-ambient" aria-hidden="true"><div class="ambient-grid"></div><div class="ambient-orbit ambient-orbit-a"><i></i><i></i><i></i></div><div class="ambient-orbit ambient-orbit-b"><i></i><i></i><i></i></div><span class="ambient-beam"></span></div>
 <a class="skip" href="#contenu">Aller au contenu</a>
 <header class="topbar"><nav class="shell nav" aria-label="Navigation principale">
 <a class="brand" href="/" aria-label="MONL">{_brand()}</a>

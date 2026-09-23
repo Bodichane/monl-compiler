@@ -6,6 +6,10 @@ from .coloration import coloriser
 from .theme import icon
 
 EXTRA_CSS = """
+.console-stage{position:relative;isolation:isolate;overflow:hidden}.console-ambient{position:absolute;inset:0;z-index:-1;pointer-events:none;overflow:hidden;background:radial-gradient(circle at 83% 8%,color-mix(in srgb,var(--accent) 11%,transparent),transparent 25%)}
+.console-ambient::before{content:"";position:absolute;inset:22px 4% auto auto;width:min(44vw,620px);height:310px;opacity:.48;background-image:linear-gradient(color-mix(in srgb,var(--line) 55%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--line) 55%,transparent) 1px,transparent 1px);background-size:42px 42px;mask-image:radial-gradient(ellipse at center,black,transparent 72%);animation:console-grid 16s ease-in-out infinite alternate}
+.console-ambient::after{content:"";position:absolute;right:8%;top:118px;width:390px;border-top:1px dashed var(--line-strong);transform:rotate(22deg);opacity:.48}
+.console-node{position:absolute;width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 6px color-mix(in srgb,var(--accent) 13%,transparent);animation:console-pulse 3.6s ease-in-out infinite}.console-node-a{right:13%;top:82px}.console-node-b{right:38%;top:190px;animation-delay:-1.2s}.console-node-c{right:26%;top:300px;animation-delay:-2.4s}.console-node-d{right:6%;top:242px;width:7px;height:7px;animation-delay:-.6s}.console-node-e{right:47%;top:96px;width:7px;height:7px;animation-delay:-1.8s}.console-node-f{right:20%;top:410px;width:7px;height:7px;animation-delay:-3s}
 .hero { padding: var(--space-8) 0 var(--space-7); display: grid;
         grid-template-columns: 1.05fr .95fr; gap: var(--space-7); align-items: center; }
 .hero h1 { font-size: clamp(38px, 5.5vw, 66px); line-height: 1.02; letter-spacing: -.045em;
@@ -38,7 +42,7 @@ EXTRA_CSS = """
 
 .studio { display: grid; grid-template-columns: 232px minmax(0, 1fr);
           border: 1px solid var(--line); border-radius: var(--radius-lg);
-          overflow: hidden; background: var(--surface); box-shadow: var(--shadow); }
+          overflow: hidden; background:color-mix(in srgb,var(--surface) 97%,transparent);box-shadow:var(--shadow),0 28px 80px color-mix(in srgb,var(--brand) 8%,transparent);backdrop-filter:blur(10px); }
 .rail { position:relative; background: var(--surface-2); border-right: 1px solid var(--line); padding: var(--space-4) var(--space-3); }
 .rail-title { font: 600 11px var(--mono); letter-spacing: .1em; text-transform: uppercase;
               color: var(--muted); margin: 0 10px var(--space-3); }
@@ -183,6 +187,8 @@ kbd { font: 11px var(--mono); border: 1px solid var(--line); border-bottom-width
            border-top-color: currentColor; border-radius: 50%; animation: spin .7s linear infinite; }
 .hidden { display: none !important; }
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes console-grid{to{transform:translate3d(-22px,14px,0)}}
+@keyframes console-pulse{50%{transform:scale(1.35);box-shadow:0 0 0 12px color-mix(in srgb,var(--accent) 3%,transparent)}}
 @media (max-width: 900px) {
   .hero { grid-template-columns: 1fr; padding-top: var(--space-6); }
   .studio { grid-template-columns: 1fr; }
@@ -197,7 +203,7 @@ kbd { font: 11px var(--mono); border: 1px solid var(--line); border-bottom-width
   .dialogue-form { align-items: stretch; flex-direction: column; }
   .dialogue-choices { grid-template-columns: 1fr; }
 }
-@media(prefers-reduced-motion:reduce){.panel.active{animation:none}}
+@media(prefers-reduced-motion:reduce){.panel.active,.console-ambient::before,.console-node{animation:none}}
 """
 
 # La SPEC passe par le coloriseur ; les lignes de résultat gardent leurs
@@ -228,6 +234,7 @@ workflow Ecrire for Auteur
 <span class="arrow">✓</span> Contrat frontend"""
 
 BODY = f"""
+<div class="console-stage"><div class="console-ambient" aria-hidden="true"><i class="console-node console-node-a"></i><i class="console-node console-node-b"></i><i class="console-node console-node-c"></i><i class="console-node console-node-d"></i><i class="console-node console-node-e"></i><i class="console-node console-node-f"></i></div>
 <section class="shell console-head" data-reveal>
 <div><h1>Console de compilation</h1>
 <p>Répondez au dialogue guidé ou écrivez une spécification, vérifiez ses règles
@@ -340,4 +347,5 @@ et votre propre fournisseur.</p>
 
 </div></div>
 </section>
+</div>
 """
