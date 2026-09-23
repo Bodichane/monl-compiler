@@ -19,10 +19,22 @@ def _guide():
         return fichier.read()
 
 
-def _workflow():
-    chemin = Path(_racine()) / ".github" / "workflows" / "publication.yml"
+def _workflow(nom="publication.yml"):
+    chemin = Path(_racine()) / ".github" / "workflows" / nom
     with chemin.open(encoding="utf-8") as fichier:
         return yaml.safe_load(fichier)
+
+
+def _extras_installes(job):
+    """Les extras que le job passe à `pip install -e ".[…]"`.
+
+    Un job qui n'installe le paquet par aucune commande de cette forme lève :
+    rendre un ensemble vide ferait passer l'égalité entre deux jobs muets.
+    """
+    commandes = "\n".join(etape.get("run", "") for etape in job["steps"])
+    trouves = re.findall(r'pip install -e "\.\[([^\]]*)\]"', commandes)
+    assert len(trouves) == 1, f"installation du paquet introuvable ou multiple : {trouves}"
+    return {extra.strip() for extra in trouves[0].split(",")}
 
 
 def _project():
@@ -217,3 +229,24 @@ def test_le_tableau_de_l_editeur_de_confiance_dit_le_vrai_depot():
             f"le guide devrait porter deux fois {ligne!r} (PyPI et TestPyPI), "
             f"il le porte {guide.count(ligne)} fois — l'éditeur de confiance "
             f"refuserait l'envoi sans dire quel champ est faux")
+
+
+def test_la_publication_eprouve_le_tag_dans_l_environnement_de_la_ci():
+    """Même raison que la matrice, portée sur ce qui est INSTALLÉ et MONTÉ.
+
+    La première exécution réelle de cette chaîne, sur le tag v0.9.0-beta.9, a
+    échoué sur un seul test : la publication installait `.[dev]` quand la CI
+    installe `.[dev,postgres]`, et `psycopg` manquait. Rien n'était publié —
+    le garde-fou a tenu — mais la cause est une liste tenue à la main à deux
+    endroits. Pire que le test rouge : sans le service PostgreSQL, seize
+    tests auraient SAUTÉ ici alors qu'ils s'exécutent en CI, et la chaîne
+    aurait publié un tag moins éprouvé que le commit de `main`.
+    """
+    ci = _workflow("ci.yml")["jobs"]["verifier"]
+    publication = _workflow()["jobs"]["tests"]
+
+    extras_ci = _extras_installes(ci)
+    assert "postgres" in extras_ci, "prémisse : la CI éprouve PostgreSQL"
+    assert _extras_installes(publication) == extras_ci
+    assert publication.get("services") == ci.get("services")
+    assert publication.get("env") == ci.get("env")
