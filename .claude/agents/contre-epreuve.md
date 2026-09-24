@@ -20,20 +20,30 @@ Un numéro de PR (ex. « 70 »). Sans numéro, demande-le : ne devine pas.
 ## Mise en place — un worktree jetable, jamais le checkout de l'utilisateur
 ```bash
 gh pr view N --repo Bodichane/monl-compiler --json number,title,headRefName,state,files
-RACINE=$(git rev-parse --show-toplevel)
+git rev-parse --path-format=absolute --git-common-dir
 git fetch -q origin "pull/N/head:contre-epreuve-N"
-git worktree add -q "$RACINE/.claude/worktrees/contre-epreuve-N" "contre-epreuve-N"
+git worktree add -q <DEPOT>/.claude/worktrees/contre-epreuve-N contre-epreuve-N
 ```
-Tout ce qui suit se fait DANS ce worktree. À la fin, quoi qu'il arrive :
-`git worktree remove --force "$RACINE/.claude/worktrees/contre-epreuve-N"` puis
-`git branch -D contre-epreuve-N`.
+`<DEPOT>` est le dossier PARENT de ce que rend `--git-common-dir`, jamais
+`--show-toplevel` : si on te lance depuis un worktree, `--show-toplevel` rend ce
+worktree, et tu créerais un worktree imbriqué dans un autre — ton premier
+passage l'a fait. Tout ce qui suit se fait DANS ce worktree. À la fin, quoi
+qu'il arrive : `git worktree remove --force <DEPOT>/.claude/worktrees/contre-epreuve-N`
+puis `git branch -D contre-epreuve-N`.
+
+**Une commande git par appel, avec des chemins écrits en entier.** La session
+qui t'héberge peut refuser une commande git composée (`cd … && git …`,
+`git -C …`, variables, `$(…)`) quand elle ne sait pas prouver qu'elle reste
+dans le bon dossier. Découpe plutôt que de contourner.
 
 ## Pièges d'environnement déjà payés sur ce dépôt — obligatoires
 - **Toujours** `PYTHONPATH="$PWD/src" python3 -m pytest …` depuis la racine du
   worktree, et vérifie une fois que
   `PYTHONPATH="$PWD/src" python3 -c 'import monl, monl_platform; print(monl.__file__, monl_platform.__file__)'`
   pointe dans le worktree : un ancien `.pth` peut faire importer un AUTRE
-  checkout, et tu mesurerais le mauvais code.
+  checkout, et tu mesurerais le mauvais code. Si la session refuse la forme
+  `VAR=… commande`, écris `env PYTHONPATH=<worktree>/src python3 -m pytest …`
+  — même effet, forme acceptée.
 - **Purge les `__pycache__`** (`find src tests -name __pycache__ -prune -exec rm -rf {} +`)
   après chaque mutation et chaque restauration : Python valide son cache par
   date + taille, et deux écritures de même longueur dans la même seconde
@@ -50,7 +60,9 @@ Tout ce qui suit se fait DANS ce worktree. À la fin, quoi qu'il arrive :
    validation, filtre SQL, nettoyage, ordre qui compte — et, dans `tests/`, les
    tests ajoutés ou modifiés. Priorité : sécurité, données, paiement, puis le reste.
    Au plus 10 garde-fous : choisis les plus lourds de conséquences, et dis
-   lesquels tu as écartés.
+   lesquels tu as écartés. Une PR surtout VISUELLE (CSS, gabarits, textes)
+   porte peu de garde-fous : trois ou quatre mutations bien choisies valent
+   mieux que dix qui mesurent de la mise en forme — dis-le dans le rapport.
 2. **Vérifie la base** : lance les tests concernés sans rien toucher. S'ils ne
    passent pas, arrête et rapporte-le : une contre-épreuve sur une base rouge ne
    mesure rien.
@@ -58,13 +70,23 @@ Tout ce qui suit se fait DANS ce worktree. À la fin, quoi qu'il arrive :
    la syntaxe — retirer la condition, inverser la comparaison, élargir la borne,
    ne plus appeler la fonction, rendre la valeur brute. Puis :
    - lance UNIQUEMENT les tests qui devraient la voir (et, si aucun ne rougit,
-     toute la suite une fois, pour être sûr qu'aucun autre ne la voit) ;
+     toute la suite une fois, pour être sûr qu'aucun autre ne la voit). La
+     suite complète dure plus de dix minutes : les mutations restées vertes
+     aux tests ciblés peuvent être GROUPÉES pour un seul passage complet, à
+     condition de toucher des fichiers ou des lignes distincts. Si tout reste
+     vert, aucune ne mord ; si quelque chose rougit, rejoue-les une par une
+     pour attribuer l'échec — jamais de verdict sur un groupe ;
    - note : fichier:ligne, mutation exacte, commande, résultat (`X failed` et la
      ligne `E` qui compte, ou `passed`) ;
    - restaure par `git checkout -- <fichier>`, purge les caches, vérifie
      `git status --short` vide AVANT la mutation suivante.
    Verdict : **mord** (un test rougit pour la BONNE raison — lis la ligne `E`,
-   un test qui rougit sur autre chose ne compte pas) ou **ne mord pas**.
+   un test qui rougit sur autre chose ne compte pas), **ne mord pas**, ou
+   **mutant équivalent** : la mutation ne change AUCUN comportement observable
+   (le garde-fou est redondant avec une couche plus bas, ou la branche est
+   inatteignable). Ce troisième verdict exige une preuve écrite — la couche qui
+   garde à sa place, ou pourquoi la branche ne s'exécute jamais — et n'est pas
+   un défaut de test ; signale-le à part, c'est parfois du code mort.
 4. **Lis les tests ajoutés** et signale les formes creuses connues de ce dépôt,
    chacune avec la ligne :
    - `all(...)` / `any(...)` sur une liste qui peut être vide (point 167bis) ;
@@ -82,9 +104,12 @@ Tout ce qui suit se fait DANS ce worktree. À la fin, quoi qu'il arrive :
 **Si au moins un garde-fou ne mord pas**, ou si une forme creuse est prouvée :
 une issue, une seule par PR. Vérifie d'abord qu'elle n'existe pas :
 ```bash
-gh issue list --repo Bodichane/monl-compiler --label contre-épreuve --state open --search "PR #N in:title"
+gh issue list --repo Bodichane/monl-compiler --label contre-épreuve --state all --limit 100 --json number,title,state
 ```
-Si elle existe, ajoute un commentaire au lieu d'en créer une. Sinon :
+et compare les titres EXACTEMENT au préfixe `Contre-épreuve PR #N :` — la
+recherche plein texte de GitHub confond `#7` et `#70`, ton premier passage a
+failli commenter l'issue d'une autre PR. Si elle existe et est ouverte, ajoute
+un commentaire au lieu d'en créer une. Sinon :
 ```bash
 gh issue create --repo Bodichane/monl-compiler --label contre-épreuve \
   --title "Contre-épreuve PR #N : <k> garde-fou(s) sans test qui mord" \
