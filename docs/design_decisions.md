@@ -108,6 +108,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [188](#188-les-deux-derniers-défauts-de-laudit--et-la-borne-quon-mesurait-sur-ce-quelle-contraint-jamais-sur-ce-quelle-sert) Une borne mesurée sur ce qu'elle contraint, jamais sur ce qu'elle sert ·
 [189](#189-la-production-était-à-terre-depuis-cinquante-minutes-et-rien-ne-lavait-dit) La production était à terre, et rien ne l'avait dit ·
 [190](#190-la-documentation-ne-peut-plus-se-périmer-en-silence--et-le-témoin-a-fabriqué-un-mensonge-avant-quon-le-corrige) La documentation ne peut plus se périmer en silence ·
+[191](#191-le-statut-post-paiement-naissait-hors-de-son-propre-cycle-de-vie) Le statut post-paiement naissait hors de son propre cycle de vie ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -13905,3 +13906,44 @@ verbe inutile, verbe retiré de la table de la plateforme. Les deux verbes de
 `1606` tests passent, `16` sauts déclarés, barrières tenues. Voir points 183
 (un invariant ferme la classe), 164 (une liste écrite à la main), 84 (une
 garantie trop large est fausse ailleurs) et 161 (un extracteur muet).
+
+## 191. Le statut post-paiement naissait hors de son propre cycle de vie
+
+**Le constat, trouvé par l'agent premier-usager (issue #73).** L'exemple
+canonique `02_boutique.ml` déclare le cycle de vie de `Order.status` par un
+`oneOf` ordonné, le réserve à `writableAfterPayment`, et annonce pourtant ce
+champ requis au frontend. Sur le vrai backend compilé, chaque commande naissait
+avec `status = NULL` et restait hors des six états pendant tout le panier et
+l'attente du règlement. Le menu déroulant demandé par le brief affichait donc
+un vide que son propre contrat interdisait.
+
+**La cause.** `writableAfterPayment` retire légitimement le champ du schéma
+d'entrée générique, mais la route de création remplaçait alors TOUS les champs
+post-paiement par `None`. Elle confondait un numéro de suivi réellement inconnu
+avec un statut dont le premier état est déjà déclaré. Le point 96 avait pourtant
+tranché que l'ordre du `oneOf` est celui du cycle de vie.
+
+**Trois décisions.** Premièrement, un champ qui cumule `oneOf` et
+`writableAfterPayment` naît avec la PREMIÈRE valeur déclarée, émise par `repr()`.
+La liste vient de `enumerated_fields`, la même structure qui produit le
+`Literal` Pydantic : aucune seconde lecture du DSL (point 146). Un champ
+post-paiement sans `oneOf`, tel un suivi, reste `NULL`. Deuxièmement, si cette
+première valeur est aussi celle d'une règle `releases` du même champ, la
+compilation refuse en nommant champ et valeur et demande de déclarer d'abord
+l'état initial : naître dans l'état terminal « libéré » rendrait ce qui n'a
+jamais été consommé. Troisièmement, aucune ligne existante n'est rattrapée. Le
+runtime réemploie le comptage du point 89, nomme au démarrage chaque colonne et
+le nombre de `NULL`, puis les laisse intacts : choisir après coup un état que le
+serveur n'a pas observé ferait mentir la base.
+
+**Ce que la vérification a trouvé.** Le banc minimal contre uvicorn confirme la
+première valeur dans la réponse et dans SQLite, maintient le suivi à `NULL`,
+paie par webhook signé puis fait avancer le statut par la route dédiée. Un
+redémarrage sur une base pré-peuplée compte la ligne ancienne sans la modifier.
+Le même parcours, exécuté sur `exemples/02_boutique.ml`, crée désormais une
+commande en `"panier"`. Le contrat frontend ne change pas : il disait déjà le
+cycle de vie juste, c'est le backend qui lui mentait.
+
+Les deux contre-épreuves portent la correction : remettre `None` pour tous les
+champs post-paiement fait rougir la création ; retirer le refus laisse compiler
+l'état terminal initial et fait rougir son témoin. Voir point 191.

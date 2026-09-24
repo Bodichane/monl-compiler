@@ -1945,7 +1945,10 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   `PUT /entite/{id}/apres-paiement`, réservée à l'acteur nommé (jamais le
   propriétaire), sans toucher au verrou générique d'`Update` qui reste
   absolu. Ne PAS ajouter d'exception d'acteur dans `_payment_lock_lines` —
-  c'est la voie explicitement écartée.
+  c'est la voie explicitement écartée. Un champ qui cumule
+  `writableAfterPayment` et `oneOf` naît avec la PREMIÈRE valeur déclarée ;
+  si cette valeur déclenche aussi `releases`, la compilation refuse et demande
+  de déclarer d'abord l'état initial. Voir point 191.
 - Un rôle n'est inscriptible que s'il porte `selfRegister` dans la spec
   (bêta 3). Toute évolution touchant `/register`, le contrat frontend ou le
   smoke test doit conserver cette frontière : c'est elle qui empêche un

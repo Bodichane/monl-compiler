@@ -7,6 +7,11 @@ les mêmes plans pour conserver la cible de chaque effet."""
 class CalculsMixin:
     """Ce que le serveur CALCULE : dérivation, somme, compteurs."""
 
+    def _valeur_initiale_postpaiement(self, entity, field):
+        """Premier état fermé, ou absence légitime de valeur connue."""
+        choix = self.enumerated_fields.get(entity, {}).get(field)
+        return repr(choix[0]) if choix else "None"
+
     def _derived_field_names(self, entity: str) -> list[str]:
         """Champs de 'entity' calculés par le serveur (brique 10, point 77).
 

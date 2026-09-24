@@ -77,7 +77,10 @@ GOLDENS = {
     # monl.json en scelle l'empreinte. schema.sql, manage.py et requirements.txt
     # restent hors de portée : psycopg[pool] est l'extra de compilation, pas une
     # dépendance du projet livré.
-    "app.py": "2e07af6fed0f42860f6c18af075aa51ac7785fa2798366044fb4e0914df036ee",
+    # POINT 191 : le diff réel ajoute la liste des colonnes oneOf réservées à
+    # l'après-paiement et généralise l'UNIQUE boucle du point 89 qui compte les
+    # NULL irrécupérables. Aucune route ni aucun contrat ne change ici.
+    "app.py": "e6d7a32d44f8bbbf4efdf44c583e819d09550b9d37972169786310e5f482934f",
     "schema.sql": "244eb93ba9a727aa855bca0a96d76b2a329f8ee69c6b5bf2ba693d4c6eacba1f",
     # `sandbox_ai.py` SORT des empreintes, et ce n'est pas un relâchement : la
     # spec de banc n'a aucun bloc `custom`, donc le module n'est plus produit.
@@ -163,7 +166,9 @@ GOLDENS = {
     # 0.9.0-beta.9 : seul monl.json bouge, et `diff -r` entre deux compilations
     # du même code sous beta.8 puis beta.9 ne montre qu'une ligne —
     # `compiler_version`. Quatrième version de suite où c'est vrai.
-    "monl.json": "5a037fa5a0173453a86d13864b4579c0fa651aaf59361158e0c8f459a1f1ad57",
+    # POINT 191 : le diff réel ne change que backend_sha256.app.py, reflet de
+    # la boucle de comptage ci-dessus ; toutes les autres empreintes sont fixes.
+    "monl.json": "d9321f6c5f8542aff0b207df4a5121954f0d3ffa7b24880d020012911b62e38e",
 }
 
 # Empreintes de la fixture qui porte réellement `publicWhen` et
@@ -176,9 +181,12 @@ LOOKUP_GOLDENS = {
     # Vérifié avant de réinscrire : l'app.py mesuré porte bien le pool
     # (`_close_database_pool`) ET les index d'`accessibleBy`/`publicWhen`
     # (`recipient_id` dans `_LOOKUP_INDEXES`), et rien d'autre n'a bougé.
-    "app.py": "bfb2a82664c4c6d29cf27ceb46679813a8515efb4a8121678eb39b9515bb0a0f",
+    # POINT 191 : même diff runtime que le golden principal — nouvelle liste
+    # post-paiement vide ici, et comptage mutualisé avec l'horodatage.
+    "app.py": "8d7a05a4ddb1865da98d57c73194a977aaf5fa3a47fe4700604e75eec141d885",
     # 0.9.0-beta.9 : monl.json seul, pour la même raison que ci-dessus.
-    "monl.json": "7834cd2e5f6ee464191b0fae1eb4285104cf8149287dd112ec0229da5ed962ce",
+    # POINT 191 : le diff réel ne change que l'empreinte app.py scellée.
+    "monl.json": "29da0a22e8851c0973c98c2f39cc7865a7f09a999764778e5a16cf4ff35d1d74",
 }
 
 
