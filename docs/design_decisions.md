@@ -109,6 +109,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [189](#189-la-production-était-à-terre-depuis-cinquante-minutes-et-rien-ne-lavait-dit) La production était à terre, et rien ne l'avait dit ·
 [190](#190-la-documentation-ne-peut-plus-se-périmer-en-silence--et-le-témoin-a-fabriqué-un-mensonge-avant-quon-le-corrige) La documentation ne peut plus se périmer en silence ·
 [191](#191-le-statut-post-paiement-naissait-hors-de-son-propre-cycle-de-vie) Le statut post-paiement naissait hors de son propre cycle de vie ·
+[192](#192-les-tests-dhébergement-laissaient-leurs-serveurs-orphelins) Les tests d'hébergement laissaient leurs serveurs orphelins ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -13947,3 +13948,36 @@ cycle de vie juste, c'est le backend qui lui mentait.
 Les deux contre-épreuves portent la correction : remettre `None` pour tous les
 champs post-paiement fait rougir la création ; retirer le refus laisse compiler
 l'état terminal initial et fait rougir son témoin. Voir point 191.
+
+## 192. Les tests d'hébergement laissaient leurs serveurs orphelins
+
+Issue #74, trouvée en étant le premier usager : **59 puis 75** processus
+`uvicorn serve:app` restaient vivants après les suites, avec leurs dossiers
+pytest déjà supprimés. La cause était précise : quatre tests construisaient
+leur propre application avec `create_app(...)`, hors du `lifespan` qui appelle
+`stop_all()`. Le fixture `plateforme` nettoyait bien son propre `SiteManager`,
+mais ne pouvait rien faire pour ces autres applications. `tests/test_administration.py`
+exerçait aussi `start_project`, et mesurait déjà son `stop_all()` dans un
+`finally` : ce chemin n'était pas la fuite.
+
+Les quatre tests utilisent désormais un seul fixture d'application dont le
+`finally` appelle `app.state.sites.stop_all()`. Son teardown vérifie l'effet :
+il exige qu'au moins un PID ait démarré, puis que les PID suivis aient disparu
+du système. Le test dédié fait démarrer le vrai site et vérifie qu'il répond
+avant ce contrôle. Pas de changement dans `src/` : `stop_all()` arrête et
+attend les processus encore gérés ; le site évincé est déjà arrêté par le
+chemin d'éviction.
+
+**Contre-épreuve obligatoire :** retirer l'appel d'arrêt du fixture doit faire
+échouer le témoin de PID, et le compteur machine `pgrep -fc 'serve:app'` doit
+augmenter après les deux fichiers de tests. Mesuré avec l'appel d'arrêt retiré :
+le site a répondu, le teardown a échoué parce que `os.kill(pid, 0)` voyait
+encore le PID, et le compteur est passé de **76 à 77**. Arrêt rétabli, les deux
+fichiers ont donné **32 passés**, compteur **76 → 76**. La suite complète a
+donné **1623 passés, 16 sautés**, compteur **76 → 76**. Ces nombres incluent
+les processus préexistants ; aucun n'a été tué.
+
+**La leçon :** un test qui ne nettoie pas ce qu'il démarre ne vérifie pas non
+plus que l'arrêt fonctionne. Un appel de nettoyage n'est pas une preuve ; le
+processus doit être absent après le teardown, et le témoin doit avoir vu un
+serveur tourner. Voir aussi les points 140 et 188.

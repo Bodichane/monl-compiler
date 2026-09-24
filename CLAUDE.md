@@ -1306,6 +1306,10 @@ contourner. Avant de retoucher : le contenu dit-il vraiment ce qu'on veut voir ?
   accumule par nécessité jusqu'à sa borne, donc N requêtes la multiplient ; et
   aucune spec golden ne porte `payable`, le webhook généré n'a pas d'empreinte.
   Voir point 188.
+- **POINT 192 : tout test qui démarre un `serve:app` doit passer par un
+  fixture/gestionnaire dont le `finally` appelle `stop_all()`, avec un témoin
+  qui vérifie qu'un site a répondu puis que son PID a disparu. Une application
+  créée hors `lifespan` ne reçoit pas l'arrêt automatique. Voir point 192.
 - **POINT 189 : la production était à terre depuis cinquante minutes, et rien
   ne l'avait dit.** Aucun défaut de code. Le point 185 avait éprouvé le
   déploiement pour de vrai, sauf UNE ligne — la survie au redémarrage, qui
