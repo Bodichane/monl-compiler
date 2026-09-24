@@ -110,6 +110,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [190](#190-la-documentation-ne-peut-plus-se-périmer-en-silence--et-le-témoin-a-fabriqué-un-mensonge-avant-quon-le-corrige) La documentation ne peut plus se périmer en silence ·
 [191](#191-le-statut-post-paiement-naissait-hors-de-son-propre-cycle-de-vie) Le statut post-paiement naissait hors de son propre cycle de vie ·
 [192](#192-les-tests-dhébergement-laissaient-leurs-serveurs-orphelins) Les tests d'hébergement laissaient leurs serveurs orphelins ·
+[193](#193-la-page-de-connexion-avait-quatre-comportements-quaucun-test-ne-voyait) La page de connexion avait quatre comportements qu'aucun test ne voyait ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -13981,3 +13982,45 @@ les processus préexistants ; aucun n'a été tué.
 plus que l'arrêt fonctionne. Un appel de nettoyage n'est pas une preuve ; le
 processus doit être absent après le teardown, et le témoin doit avoir vu un
 serveur tourner. Voir aussi les points 140 et 188.
+
+## 193. La page de connexion avait quatre comportements qu'aucun test ne voyait
+
+Issue #75, trouvée par l'agent contre-épreuve sur la PR #70 (refonte de la
+connexion) : dix garde-fous désarmés un par un, et quatre ne faisaient rougir
+AUCUN test de la suite complète. Chacun avait sa raison, et les trois
+premières se ressemblent : le pilote jsdom regardait l'endroit où l'effet ne
+peut pas se voir.
+
+- **La zone OAuth masquée en mode reprise** n'était éprouvée que sur la page
+  SANS fournisseur — où la zone est vide, donc masquée ou non, rien ne change.
+  Le témoin passe désormais par la page qui A un fournisseur.
+- **Le retour de la reprise vers la connexion** n'était jamais cliqué : le
+  pilote cliquait UNE fois sur « Mot de passe oublié ? », donc la moitié
+  « ← Retour à la connexion » du même lien — seule sortie visible du mode hors
+  des onglets — n'avait jamais été exécutée. Il clique deux fois.
+- **L'inclinaison de la carte sous `prefers-reduced-motion`** était gardée par
+  des recherches de CHAÎNES dans le CSS, jamais par le script, qui porte
+  l'autre moitié du comportement (point 163 : une chaîne présente ne prouve pas
+  un comportement). Le témoin fournit un `matchMedia` qui répond « réduit »,
+  émet un `pointermove`, et exige les DEUX sens : sans le second, un script
+  qui n'inclinerait jamais rien passerait pour respectueux.
+- **L'encodage du nom de fournisseur** était un mutant équivalent sur les
+  données du jour (`github`, `google` n'ont rien à encoder). Il mord désormais
+  parce que le pilote sert un fournisseur piégé (`x/y?#`, et un libellé qui
+  serait du balisage). Et la mesure a fait apparaître un vrai défaut voisin :
+  le LIBELLÉ partait dans `innerHTML` sans échappement. Constante serveur
+  aujourd'hui, donc inexploitable — mais une défense qui suppose sa source
+  sûre cesse de défendre le jour où la source change. Le bouton est maintenant
+  construit par le DOM : nom encodé dans l'adresse, libellé en TEXTE, seule
+  l'icône (constante de la page) reste du balisage.
+
+**Et l'attente fixe de 600 ms est retirée.** « La zone OAuth est vide » était
+vrai aussi AVANT la réponse de `/auth/fournisseurs` : sur une machine lente,
+l'assertion passait sans avoir rien mesuré. Le pilote compte désormais les
+requêtes en vol de chaque page et attend qu'elles soient revenues, avec une
+limite qui fait ÉCHOUER en nommant la page (point 140 : jamais sauter).
+
+**Contre-épreuves, chacune mesurée :** nom non encodé, libellé repassé en
+`innerHTML`, zone jamais masquée, lien qui ne ramène plus, test de réduction
+de mouvement retiré — cinq mutations, cinq échecs du témoin attendu et d'aucun
+autre. Voir aussi les points 145 et 163.
