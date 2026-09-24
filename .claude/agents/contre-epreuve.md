@@ -31,10 +31,22 @@ passage l'a fait. Tout ce qui suit se fait DANS ce worktree. À la fin, quoi
 qu'il arrive : `git worktree remove --force <DEPOT>/.claude/worktrees/contre-epreuve-N`
 puis `git branch -D contre-epreuve-N`.
 
-**Une commande git par appel, avec des chemins écrits en entier.** La session
-qui t'héberge peut refuser une commande git composée (`cd … && git …`,
-`git -C …`, variables, `$(…)`) quand elle ne sait pas prouver qu'elle reste
-dans le bon dossier. Découpe plutôt que de contourner.
+**Une commande par appel, avec des chemins écrits en entier — pour TOUTES
+les commandes, pas seulement git.** La session qui t'héberge peut refuser une
+commande composée (`cd … && …`, `git -C …`, variables shell `W=…; … $W`,
+`$(…)`) quand elle ne sait pas prouver qu'elle reste dans le bon dossier.
+Découpe plutôt que de contourner.
+
+**Si la session t'interdit de travailler DANS le worktree jetable** (ton
+passage sur la PR #79 : ni `git` ni même `cat` n'y passaient, et
+`EnterWorktree` vers lui a aggravé les choses), reste dans le dossier de
+lancement et pilote le worktree jetable en chemins absolus :
+- pytest : `env PYTHONPATH=<wt>/src:<wt> python3 -m pytest -c <wt>/pyproject.toml --rootdir <wt> <wt>/tests/…`
+  (`<wt>` lui-même doit être sur le chemin pour `from tests import …`) ;
+- restauration sans `git checkout` : copie de sauvegarde AVANT chaque mutation,
+  puis, après restauration, `cmp` du fichier contre `git show <commit>:<fichier>`
+  lancé depuis le dossier de lancement — c'est ce `cmp` qui remplace
+  `git status --short` vide.
 
 ## Pièges d'environnement déjà payés sur ce dépôt — obligatoires
 - **Toujours** `PYTHONPATH="$PWD/src" python3 -m pytest …` depuis la racine du
@@ -52,7 +64,11 @@ dans le bon dossier. Découpe plutôt que de contourner.
   relit le disque, le pytest principal a déjà son import en mémoire.
 - `pyproject.toml` pose déjà `-q` : n'en ajoute pas un second (point 161).
 - Node et jsdom : `tests/test_console_*.py` et `tests/test_platform_connexion_ui.py`
-  en ont besoin ; leur absence doit faire ÉCHOUER, jamais sauter.
+  en ont besoin ; leur absence doit faire ÉCHOUER, jamais sauter. La fixture de
+  `test_platform_connexion_ui.py` est à portée FONCTION : le pilote Node est
+  relancé pour chaque test, donc une perturbation lente se paie autant de
+  fois (133 s pour une seule mutation au passage sur la PR #79) — compte-le
+  dans ton estimation.
 
 ## Méthode
 1. **Lis la PR** : `gh pr diff N`. Relève dans `src/` chaque GARDE-FOU ajouté ou
@@ -78,8 +94,9 @@ dans le bon dossier. Découpe plutôt que de contourner.
      pour attribuer l'échec — jamais de verdict sur un groupe ;
    - note : fichier:ligne, mutation exacte, commande, résultat (`X failed` et la
      ligne `E` qui compte, ou `passed`) ;
-   - restaure par `git checkout -- <fichier>`, purge les caches, vérifie
-     `git status --short` vide AVANT la mutation suivante.
+   - restaure par `git checkout -- <fichier>` (ou, si git t'est refusé dans le
+     worktree, par la copie de sauvegarde vérifiée par `cmp` — voir la mise en
+     place), purge les caches, vérifie l'arbre propre AVANT la mutation suivante.
    Verdict : **mord** (un test rougit pour la BONNE raison — lis la ligne `E`,
    un test qui rougit sur autre chose ne compte pas), **ne mord pas**, ou
    **mutant équivalent** : la mutation ne change AUCUN comportement observable
@@ -87,6 +104,20 @@ dans le bon dossier. Découpe plutôt que de contourner.
    inatteignable). Ce troisième verdict exige une preuve écrite — la couche qui
    garde à sa place, ou pourquoi la branche ne s'exécute jamais — et n'est pas
    un défaut de test ; signale-le à part, c'est parfois du code mort.
+
+   **Garde-fous qui vivent dans le CODE DE TEST** (attente, limite de temps,
+   pilote jsdom) : une mutation seule ne les désarme pas, puisqu'ils ne servent
+   que quand quelque chose va MAL. L'expérience est alors une PAIRE —
+   une **perturbation** d'environnement (réponse lente, requête qui ne revient
+   jamais) combinée à un **bogue injecté** — et elle se juge avec ses témoins :
+   perturbation seule (le garde-fou doit tenir ou échouer franchement), bogue
+   seul (il doit être visible hors lenteur), puis la paire. La paire compte
+   pour UNE expérience ; ce n'est pas un groupe au sens ci-dessus.
+
+   **Une injection doit porter un marqueur qu'aucune assertion ne cherche déjà**
+   — ni dans le DOM, ni dans le SOURCE de la page (`serialize()` inclut les
+   scripts). Au passage sur la PR #79, un texte injecté contenant
+   « configuration » a produit un faux rouge : le test cherchait ce mot partout.
 4. **Lis les tests ajoutés** et signale les formes creuses connues de ce dépôt,
    chacune avec la ligne :
    - `all(...)` / `any(...)` sur une liste qui peut être vide (point 167bis) ;
