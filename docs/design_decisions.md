@@ -111,6 +111,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [191](#191-le-statut-post-paiement-naissait-hors-de-son-propre-cycle-de-vie) Le statut post-paiement naissait hors de son propre cycle de vie ·
 [192](#192-les-tests-dhébergement-laissaient-leurs-serveurs-orphelins) Les tests d'hébergement laissaient leurs serveurs orphelins ·
 [193](#193-la-page-de-connexion-avait-quatre-comportements-quaucun-test-ne-voyait) La page de connexion avait quatre comportements qu'aucun test ne voyait ·
+[194](#194-lattente-sarrêtait-aux-en-têtes-et-linclinaison-passait-sur-une-carte-de-taille-nulle) L'attente s'arrêtait aux en-têtes, et l'inclinaison passait sur une carte de taille nulle ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -14024,3 +14025,43 @@ limite qui fait ÉCHOUER en nommant la page (point 140 : jamais sauter).
 `innerHTML`, zone jamais masquée, lien qui ne ramène plus, test de réduction
 de mouvement retiré — cinq mutations, cinq échecs du témoin attendu et d'aucun
 autre. Voir aussi les points 145 et 163.
+
+## 194. L'attente s'arrêtait aux en-têtes, et l'inclinaison passait sur une carte de taille nulle
+
+Issue #80 : l'agent contre-épreuve, lancé sur la PR #79 qui fermait l'issue
+#75, a prouvé que DEUX des témoins qu'elle ajoutait étaient creux. Le point 193
+annonçait « l'attente fixe de 600 ms est retirée » : c'était vrai à moitié.
+
+**(A) `fetch` se résout à l'arrivée des EN-TÊTES.** Le compteur de requêtes en
+vol était décrémenté dans le `finally` du `fetch` ; la lecture du corps
+(`response.json()`) et le `.then` qui remplit la zone OAuth viennent APRÈS.
+Avec un corps lent, « la zone est vide » était relevé avant ce traitement — et
+un bogue qui remplissait la zone restait vert. La fin de la chaîne reposait
+encore sur 50 ms fixes. Chaque lecture de corps (`json`, `text`) est désormais
+comptée elle aussi, et les 50 ms deviennent un simple tour de boucle : les
+microtâches qui suivent une lecture s'enchaînent avant la tâche suivante, donc
+le compteur ne retombe à zéro qu'après elles. Le fournisseur piégé du point 193
+est servi avec un corps LENT (1,5 s) : c'est lui qui rend la garantie mesurable.
+
+**(B) jsdom ne fait aucune mise en page.** `getBoundingClientRect()` y rend
+0×0, le calcul divise par zéro, et le témoin « inclinaison libre » passait sur
+`-Infinitydeg` — une valeur qu'un navigateur REJETTE, donc une carte qui ne
+s'incline jamais : exactement ce que sa docstring prétendait exclure.
+`endswith("deg")` acceptait aussi `NaNdeg`. La zone reçoit maintenant une vraie
+taille (200×100) et le témoin exige les valeurs EXACTES des deux axes
+(`0.75deg` chacun) — `--tilt-y` n'était lu par aucun test.
+
+**Contre-épreuves** : suivi du corps retiré → le fournisseur au corps lent
+n'est jamais vu (`chemin: None`) ; `box.height` → `box.heigth` et `box.width` →
+`box.widht` → le témoin d'inclinaison rougit (`NaNdeg`) ; et le TÉMOIN — suivi
+retiré ET corps rapide → vert, ce qui prouve que c'est bien la lenteur du corps
+qui expose l'arrêt aux en-têtes. Au passage, la règle CSS `.oauth-unavailable`,
+qu'aucun code n'émettait plus, est retirée.
+
+**La leçon, qui ferme la boucle du point 145** : les témoins ajoutés pour
+fermer une contre-épreuve doivent eux-mêmes passer à la contre-épreuve. Ceux
+de la PR #79 avaient été éprouvés contre les mutations que CONNAISSAIT leur
+auteur ; l'agent a cherché ailleurs, et trouvé. La consigne de l'agent
+(`.claude/agents/contre-epreuve.md`) apprend au passage à juger un garde-fou
+qui vit dans le code de test : une PERTURBATION d'environnement plus un bogue
+injecté, avec leurs témoins.

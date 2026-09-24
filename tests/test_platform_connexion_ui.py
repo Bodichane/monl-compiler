@@ -32,6 +32,15 @@ const erreurs = [];
    Seul le pilote les sert : la table du serveur n'en contient aucun. */
 const PIEGE = { name: "x/y?#", label: '<img src="x" id="injecte">Piège' };
 
+function reponseLente(texte, delai) {
+  const corps = new ReadableStream({
+    start(flux) {
+      setTimeout(() => { flux.enqueue(new TextEncoder().encode(texte)); flux.close(); }, delai);
+    },
+  });
+  return new Response(corps, { headers: { "content-type": "application/json" } });
+}
+
 function equiper(w, base, options) {
   const reduit = Boolean(options.reduit);
   w.matchMedia = q => ({
@@ -39,15 +48,29 @@ function equiper(w, base, options) {
     addEventListener() {}, removeEventListener() {},
     addListener() {}, removeListener() {}, dispatchEvent() { return false; },
   });
+  /* `fetch` se résout à l'arrivée des EN-TÊTES : la lecture du corps et le
+     `.then` qui remplit la page viennent après (issue #80). Chaque lecture de
+     corps est donc comptée elle aussi — la page ne se relâche qu'une fois ses
+     réponses LUES. Les microtâches qui suivent une lecture s'enchaînent avant
+     la prochaine tâche : le compteur ne retombe à zéro qu'après elles. */
   w.__enCours = 0;
-  w.fetch = (u, o) => {
+  const suivre = promesse => {
     w.__enCours += 1;
+    return promesse.finally(() => { w.__enCours -= 1; });
+  };
+  w.fetch = (u, o) => {
     const cible = new URL(u, base);
     const reponse = options.fournisseurs && cible.pathname === "/auth/fournisseurs"
-      ? Promise.resolve(new Response(JSON.stringify({ providers: options.fournisseurs }),
-          { headers: { "content-type": "application/json" } }))
+      ? Promise.resolve(reponseLente(JSON.stringify({ providers: options.fournisseurs }),
+          options.corpsLent || 0))
       : fetch(cible, o);
-    return reponse.finally(() => { w.__enCours -= 1; });
+    return suivre(reponse.then(r => {
+      for (const lecture of ["json", "text"]) {
+        const lire = r[lecture].bind(r);
+        r[lecture] = () => suivre(lire());
+      }
+      return r;
+    }));
   };
   w.addEventListener("error", e => erreurs.push(String(e.message)));
 }
@@ -69,7 +92,7 @@ async function charger(base, chemin, options = {}) {
     if (Date.now() > limite) throw new Error("requêtes toujours en cours : " + chemin);
     await new Promise(r => setTimeout(r, 20));
   }
-  await new Promise(r => setTimeout(r, 50));
+  await new Promise(r => setTimeout(r, 0));
   return dom;
 }
 
@@ -89,10 +112,15 @@ async function inclinaison(base, reduit) {
   const carte = w.document.querySelector(".start-card");
   const present = Boolean(visuel && carte);
   if (present) {
-    visuel.dispatchEvent(new w.MouseEvent("pointermove", { clientX: 10, clientY: 10, bubbles: true }));
+    /* jsdom ne calcule aucune mise en page : sans taille, la carte mesure 0×0,
+       le calcul divise par zéro et rend « -Infinitydeg » — une valeur qu'un
+       navigateur refuse, donc une carte qui ne s'incline jamais (issue #80). */
+    visuel.getBoundingClientRect = () => ({ left: 0, top: 0, width: 200, height: 100 });
+    visuel.dispatchEvent(new w.MouseEvent("pointermove", { clientX: 150, clientY: 25, bubbles: true }));
     await new Promise(r => setTimeout(r, 100));
   }
-  const tilt = present ? carte.style.getPropertyValue("--tilt-x") : null;
+  const tilt = present ? [carte.style.getPropertyValue("--tilt-x"),
+                          carte.style.getPropertyValue("--tilt-y")] : null;
   w.close();
   return { present, tilt };
 }
@@ -107,7 +135,9 @@ async function inclinaison(base, reduit) {
   gdoc.querySelector("#auth-recovery").click();
   const repriseFermee = etatReprise(gdoc);
 
-  const piege = await charger(sansFournisseur, "/login", { fournisseurs: [PIEGE] });
+  const piege = await charger(sansFournisseur, "/login", {
+    fournisseurs: [PIEGE], corpsLent: 1500,
+  });
   const lienPiege = piege.window.document.querySelector("#oauth-zone a");
   const rapportPiege = {
     chemin: lienPiege && lienPiege.getAttribute("href"),
@@ -242,9 +272,12 @@ def test_l_inclinaison_de_la_carte_obeit_a_la_reduction_de_mouvement(
     par rien. Les DEUX sens sont exigés : sans le second, un script qui
     n'inclinerait jamais rien passerait pour respectueux.
     """
-    assert rapport_connexion_jsdom["mouvement_reduit"] == {"present": True, "tilt": ""}
-    libre = rapport_connexion_jsdom["mouvement_libre"]
-    assert libre["present"] and libre["tilt"].endswith("deg"), libre
+    assert rapport_connexion_jsdom["mouvement_reduit"] == {"present": True, "tilt": ["", ""]}
+    # Pointeur à (150, 25) sur une zone de 200×100 : x = +0,25, y = -0,25, donc
+    # 0,75° sur chaque axe. Une valeur EXACTE : « finit par deg » acceptait
+    # « NaNdeg » et « -Infinitydeg », que le navigateur rejette (issue #80).
+    assert rapport_connexion_jsdom["mouvement_libre"] == {
+        "present": True, "tilt": ["0.75deg", "0.75deg"]}
 
 
 def test_le_formulaire_reste_structure_et_nomme():
