@@ -41,6 +41,8 @@ class JetonsRuntimeMixin:
             # bloc de migration : c'est le seul cas du compilateur où une
             # colonne ajoutée ne peut pas être rattrapée.
             f"_TIMESTAMP_COLUMNS = {self._compute_timestamp_columns()!r}\n",
+            f"_POSTPAYMENT_ENUM_COLUMNS = "
+            f"{self._compute_postpayment_enumerated_columns()!r}\n",
             f"_NUMBERED_COLUMNS = {self._compute_numbered_columns()!r}\n",
             "security_bearer = HTTPBearer()\n",
             # CORRECTIF (roadmap, révocation de token) : la vérification du

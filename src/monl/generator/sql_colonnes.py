@@ -164,6 +164,20 @@ class SqlColonnesMixin:
             for champ in sorted(champs)
         ]
 
+    def _compute_postpayment_enumerated_columns(self):
+        """POINT 191 : statuts après-paiement dont les anciens NULL se nomment.
+
+        La source des valeurs reste ``enumerated_fields``, identique à celle
+        des ``Literal`` Pydantic et de la valeur initiale à la création.
+        """
+        return [
+            (entity.lower(), field)
+            for entity, config in sorted(
+                self.postpayment_writable_by_entity.items())
+            for field in sorted(config.get("fields", []))
+            if self.enumerated_fields.get(entity, {}).get(field)
+        ]
+
     def _compute_expected_columns(self):
         """AJOUT (roadmap long terme, migrations sans perte de données) :
         retourne {nom_table: [(colonne, type_sql), ...]} pour toutes les

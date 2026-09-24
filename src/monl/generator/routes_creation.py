@@ -194,7 +194,14 @@ class CreationRoutesMixin:
             self.postpayment_writable_by_entity.get(
                 base_target, {}).get("fields", []))
         for nom_postpaiement in postpaiement_ici:
-            calcules[nom_postpaiement] = "None"
+            # POINT 191 : l'ordre du `oneOf` est le cycle de vie (point 96).
+            # Un statut réservé à l'après-paiement naît donc dans son premier
+            # état ; une donnée sans liste fermée (numéro de suivi, etc.) reste
+            # légitimement inconnue. `enumerated_fields` est la source unique
+            # déjà consommée par les `Literal` Pydantic, et `repr()` protège le
+            # littéral généré comme partout ailleurs.
+            calcules[nom_postpaiement] = self._valeur_initiale_postpaiement(
+                base_target, nom_postpaiement)
         # BRIQUE 22 (point 102) : le numéro lisible. Le compteur est lu
         # ET incrémenté en base ; ces lignes partent donc DANS le `try`
         # ci-dessous, pas ici — hors de la transaction, une insertion

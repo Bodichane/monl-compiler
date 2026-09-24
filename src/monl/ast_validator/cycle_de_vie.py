@@ -11,6 +11,20 @@ from .socle import ASTValidationError
 class CycleDeVieMixin:
     """Ce qu'un enregistrement devient APRÈS son règlement."""
 
+    def _refuser_premier_etat_libere(self, entity, field):
+        """Un nouvel objet ne peut pas naître dans son état terminal."""
+        choix = self.enumerated_fields.get(entity, {}).get(field)
+        liberation = next((item for item in self.release_rules
+                           if item["entity"] == entity
+                           and item["field"] == field), None)
+        if choix and liberation and choix[0] == liberation["value"]:
+            raise ASTValidationError(
+                f"Structure : '{entity}.{field}' naîtrait avec la valeur "
+                f"{choix[0]!r}, qui déclenche aussi 'releases' — un "
+                f"enregistrement créé déjà libéré n'aurait rien consommé. "
+                f"Déclarer d'abord l'état initial dans le 'oneOf' de "
+                f"'{entity}.{field}'.")
+
     def _valider_regles_liberation(self):
         """Valide les transitions qui rendent un compteur décrémenté."""
         self.release_rules = []
@@ -137,6 +151,7 @@ class CycleDeVieMixin:
                 raise ASTValidationError(
                     f"Structure : plusieurs règles 'writableAfterPayment' déclarées "
                     f"pour '{entity}.{field}' — une seule autorisée.")
+            self._refuser_premier_etat_libere(entity, field)
             champs_vus.add((entity, field))
             if config is None:
                 config = {"actor": actor, "fields": []}
