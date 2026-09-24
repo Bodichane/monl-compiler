@@ -125,9 +125,17 @@ passwordToggle.onclick=()=>{const champ=document.querySelector('#password');cons
 fetch('/auth/fournisseurs').then(response=>response.ok?response.json():{providers:[]}).then(data=>{
  const fournisseurs=Array.isArray(data.providers)?data.providers:[];
  const githubIcon='<svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.58 2 12.24c0 4.52 2.87 8.35 6.84 9.71.5.1.68-.22.68-.49v-1.71c-2.78.62-3.37-1.39-3.37-1.39-.45-1.19-1.11-1.51-1.11-1.51-.91-.64.07-.63.07-.63 1 .08 1.53 1.06 1.53 1.06.9 1.59 2.35 1.13 2.92.86.09-.67.35-1.13.64-1.39-2.22-.26-4.56-1.15-4.56-5.09 0-1.12.39-2.04 1.03-2.76-.1-.26-.45-1.31.1-2.73 0 0 .84-.28 2.75 1.05A9.2 9.2 0 0 1 12 7.9c.85 0 1.71.12 2.5.35 1.91-1.33 2.75-1.05 2.75-1.05.55 1.42.2 2.47.1 2.73.64.72 1.03 1.64 1.03 2.76 0 3.95-2.34 4.83-4.57 5.08.36.32.68.95.68 1.92v2.84c0 .27.18.59.69.49A10.2 10.2 0 0 0 22 12.24C22 6.58 17.52 2 12 2Z"/></svg>';
- const boutons=fournisseurs.map(provider=>`<a class="secondary oauth-button" href="/auth/${encodeURIComponent(provider.name)}">${provider.name==='github'?githubIcon:''}Continuer avec ${provider.label}</a>`);
- oauthZone.innerHTML=boutons.join('');
-}).catch(()=>{oauthZone.innerHTML='';});
+ /* Le bouton est construit par le DOM, jamais par innerHTML : le nom part
+    dans l'adresse ENCODÉ, le libellé part dans le texte, et seule l'icône —
+    une constante de cette page — est du balisage. Nom et libellé viennent
+    aujourd'hui d'une table du serveur ; une défense qui suppose la source sûre
+    cesse de défendre le jour où elle change (issue #75). */
+ oauthZone.replaceChildren(...fournisseurs.map(provider=>{
+  const bouton=document.createElement('a');bouton.className='secondary oauth-button';
+  bouton.setAttribute('href','/auth/'+encodeURIComponent(provider.name));
+  if(provider.name==='github')bouton.innerHTML=githubIcon;
+  bouton.append('Continuer avec '+provider.label);return bouton;}));
+}).catch(()=>{oauthZone.replaceChildren();});
 form.onsubmit=async event=>{event.preventDefault();error.className='form-error';
  /* Le formulaire porte `novalidate` pour que CE code voie l'envoi. Sans lui,
     le navigateur bloquait tout seul sur une adresse sans « @ » : aucune
