@@ -16,6 +16,7 @@ compilé est refusé en NOMMANT le fichier absent.
 import hashlib
 import http.client
 import io
+import os
 import tempfile
 import threading
 import time
@@ -80,6 +81,39 @@ def plateforme(tmp_path):
     sites = SiteManager(store, tmp_path / "projets", "localhost", startup_timeout=25)
     yield store, projet, sites, tmp_path
     sites.stop_all()
+
+
+@pytest.fixture()
+def application_hebergement(tmp_path, request):
+    """Fabrique une app après réglage de l'environnement et nettoie en finally."""
+    def construire():
+        app = create_app(workspace=tmp_path / "projets", domain="localhost")
+
+        def arreter():
+            # Arrête même si le test lève : le finalizer appartient au fixture.
+            sites = app.state.sites
+            pids = [site.process.pid for site in sites._running.values()]
+            sites.stop_all()
+            if request.node.name == "test_le_fixture_arrete_un_site_qui_a_repondu":
+                assert pids, "le témoin de nettoyage n'a vu aucun site démarrer"
+            for pid in pids:
+                with pytest.raises(ProcessLookupError):
+                    os.kill(pid, 0)
+
+        request.addfinalizer(arreter)
+        return app
+
+    return construire
+
+
+def test_le_fixture_arrete_un_site_qui_a_repondu(tmp_path, application_hebergement):
+    app = application_hebergement()
+    projet = _projet_compile(
+        app.state.store, app.state.identity_store, tmp_path / "projets",
+        "temoin-nettoyage@monl.test", "temoin-nettoyage",
+    )
+    running = app.state.sites.start_project(projet)
+    assert _get(running.port, "/openapi.json")[0] == 200
 
 
 def _compiler(projet, racine, tmp_path):
@@ -151,10 +185,10 @@ def _projet_compile(store, identities, racine, email, slug):
 
 
 def test_plafond_global_refuse_sans_creer_de_processus_et_repond_503(
-        tmp_path, monkeypatch, capsys):
+        tmp_path, monkeypatch, capsys, application_hebergement):
     monkeypatch.setenv("MONL_MAX_RUNNING_SITES", "2")
     monkeypatch.setenv("MONL_MAX_RUNNING_SITES_PER_ACCOUNT", "10")
-    app = create_app(workspace=tmp_path / "projets", domain="localhost")
+    app = application_hebergement()
     projets = [
         _projet_compile(app.state.store, app.state.identity_store,
                         tmp_path / "projets", f"global-{i}@monl.test", f"global-{i}")
@@ -177,10 +211,10 @@ def test_plafond_global_refuse_sans_creer_de_processus_et_repond_503(
 
 
 def test_eviction_du_plus_ancien_inactif_et_refus_quand_tous_sont_recents(
-        tmp_path, monkeypatch, capsys):
+        tmp_path, monkeypatch, capsys, application_hebergement):
     monkeypatch.setenv("MONL_MAX_RUNNING_SITES", "2")
     monkeypatch.setenv("MONL_MAX_RUNNING_SITES_PER_ACCOUNT", "10")
-    app = create_app(workspace=tmp_path / "projets", domain="localhost")
+    app = application_hebergement()
     projets = [
         _projet_compile(app.state.store, app.state.identity_store,
                         tmp_path / "projets", f"eviction-{i}@monl.test", f"eviction-{i}")
@@ -206,10 +240,10 @@ def test_eviction_du_plus_ancien_inactif_et_refus_quand_tous_sont_recents(
 
 
 def test_plafond_par_compte_nempeche_pas_un_autre_compte(
-        tmp_path, monkeypatch, capsys):
+        tmp_path, monkeypatch, capsys, application_hebergement):
     monkeypatch.setenv("MONL_MAX_RUNNING_SITES", "10")
     monkeypatch.setenv("MONL_MAX_RUNNING_SITES_PER_ACCOUNT", "1")
-    app = create_app(workspace=tmp_path / "projets", domain="localhost")
+    app = application_hebergement()
     identities, store = app.state.identity_store, app.state.store
     alice = identities.register("alice-plafond@monl.test", "MotDePasse-123")
     projets = []
@@ -260,9 +294,9 @@ def _annoncer_sans_envoyer(base, hote, taille):
 
 
 def test_relais_borne_le_corps_et_transmet_un_corps_legitime_intact(
-        tmp_path, monkeypatch, capsys):
+        tmp_path, monkeypatch, capsys, application_hebergement):
     monkeypatch.setenv("MONL_MAX_RUNNING_SITES", "2")
-    app = create_app(workspace=tmp_path / "projets", domain="localhost")
+    app = application_hebergement()
     projet = _projet_compile(
         app.state.store, app.state.identity_store, tmp_path / "projets",
         "relais@monl.test", "relais",
