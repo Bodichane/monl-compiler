@@ -184,8 +184,12 @@ def _frontend_references(frontend_dir, known_prefixes):
 def _frontend_coherence(project_dir, spec_path):
     frontend_dir = os.path.join(project_dir, "frontend")
     if not os.path.isdir(frontend_dir):
-        return [], ["Aucun dossier frontend/ — l'app sera servie avec ses seules "
-                    "pages générées (landing, /app, /docs)."]
+        # Le frontend généré par monl a été retiré au point 41 : sans
+        # frontend/, il n'y a ni landing ni /app. Les promettre envoyait
+        # l'usager sur un 404 JSON qu'il prenait pour une panne (issue #83).
+        return [], ["Aucun dossier frontend/ — seule l'API sera servie : / redirige "
+                    "vers /docs, et /site/ répondra 404 tant que 'monl frontend' "
+                    "ou 'monl import' n'aura pas produit l'interface."]
     if not os.path.exists(os.path.join(frontend_dir, "index.html")):
         return ["frontend/ existe mais frontend/index.html est absent "
                 "(point d'entrée exigé par le contrat)."], []
@@ -196,7 +200,7 @@ def _frontend_coherence(project_dir, spec_path):
     with open(os.path.join(project_dir, CONTRACT_FILENAME), encoding="utf-8") as fh:
         contract = json.load(fh)
     known_prefixes = {r["path"].split("/")[1] for r in contract["routes"]}
-    known_prefixes |= {"register", "login", "logout", "docs", "app", "site", "workflow"}
+    known_prefixes |= {"register", "login", "logout", "docs", "site", "workflow"}
     unknown = _frontend_references(frontend_dir, known_prefixes)
     warnings = []
     if unknown:
