@@ -1,6 +1,17 @@
 # État bêta et route vers la GA
 
-## Ce qu'apporte la bêta 0.9.0-beta.9
+## Ce qu'apporte la bêta 0.9.0-beta.10
+
+Une bêta de **justesse** : deux agents d'amélioration continue refont le
+parcours d'un usager depuis une roue installée ailleurs et éprouvent les
+témoins ajoutés. Ce qu'ils ont trouvé est corrigé — le contrat annonce enfin la
+clé visée par un compteur (un frontend fidèle récoltait un 422), `monl run
+--check` ne promet plus de pages inexistantes et accepte un projet à assets
+sans frontend, `monl-platform --help` liste ses verbes, et le statut
+post-paiement naît dans son premier état. Points 191 à 196 de
+`docs/design_decisions.md`.
+
+## Ce qu'apportait la bêta 0.9.0-beta.9
 
 Un **changement de cap** (point 162) : monl produit le backend et sa base,
 déterministes et sans appel réseau ; tout ce qui demande une IA se fait avec le
