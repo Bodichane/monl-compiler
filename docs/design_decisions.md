@@ -113,6 +113,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [193](#193-la-page-de-connexion-avait-quatre-comportements-quaucun-test-ne-voyait) La page de connexion avait quatre comportements qu'aucun test ne voyait ·
 [194](#194-lattente-sarrêtait-aux-en-têtes-et-linclinaison-passait-sur-une-carte-de-taille-nulle) L'attente s'arrêtait aux en-têtes, et l'inclinaison passait sur une carte de taille nulle ·
 [195](#195-le-contrat-omettait-la-clé-visée-par-le-compteur) Le contrat omettait la clé visée par le compteur ·
+[196](#196-deux-aides-qui-mentaient-par-omission-ou-par-promesse) Deux aides qui mentaient, par omission ou par promesse ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -14126,3 +14127,48 @@ contre-épreuves ci-dessus, les six compilations et les 39 routes POST/PUT de
 l'invariant, les cinq
 `monl run --check`, `ruff` et la suite complète. Aucune empreinte golden ne
 bouge (`tests/test_golden_artifacts.py` vert sans modification).
+
+## 196. Deux aides qui mentaient, par omission ou par promesse
+
+**Constat** (agent premier-usager, second passage, issues #83 et #84, roue
+installée dans un venv vierge). Deux textes que l'usager lit AVANT tout le
+reste disaient faux.
+
+(a) `monl run --check` sur un projet sans `frontend/` annonçait « l'app sera
+servie avec ses seules pages générées (landing, /app, /docs) ». Mesuré sur un
+vrai serveur : `/` répond 307 vers `/docs`, `/app` et `/site/` un 404 JSON. Le
+frontend généré par monl a disparu au point 41 ; la phrase lui avait survécu.
+Un avertissement qui promet une page inexistante envoie l'usager conclure que
+son déploiement est cassé — et apprend à ne plus lire les avertissements
+(point 92). Le même reliquat vivait dans les préfixes « connus » de la
+cohérence : `app` y figurait, donc un frontend qui appelait `/app/…` n'était
+jamais signalé alors que le serveur y répond 404.
+
+(b) `monl-platform --help` ne décrivait que `--host` et `--port`. `admin` et
+`sauvegarde` existaient (table `VERBES`, point 190) et n'étaient découvrables
+que dans `docs/EXPLOITATION.md`, qui ne voyage pas dans la roue : l'exploitant
+retombait sur `sqlite3` serveur arrêté, la falaise fermée au point 142.
+
+**Remède.** (a) Le message dit ce qui est servi : l'API, `/` qui redirige vers
+`/docs`, `/site/` en 404 tant que `monl frontend` ou `monl import` n'a pas
+produit l'interface ; `app` sort des préfixes connus. (b) L'épilogue de l'aide
+est DÉRIVÉ de `VERBES` — le résumé d'un verbe est la première ligne de la
+docstring de la fonction appelée, et un verbe sans docstring fait ÉCHOUER
+l'aide plutôt que de l'annoncer muet. Aucune liste n'est écrite pour l'aide.
+
+**Témoins.** `tests/test_avertissement_sans_frontend.py` ne compare pas le
+message à une phrase attendue : il extrait chaque chemin qu'il cite et le
+DEMANDE à un vrai serveur monté comme `monl run` (`serve:app`), la réponse
+devant correspondre à ce qui est dit. `tests/test_platform_aide.py` exige que
+chaque verbe de la table et son résumé figurent dans l'aide, qu'un verbe
+ajouté à la table y apparaisse sans autre changement, et qu'un verbe muet
+fasse échouer.
+
+**Contre-épreuves.** Ancien message remis : le témoin rougit sur
+« l'avertissement cite /app, qui répond 404 ». Sa première version rougissait
+sur l'assertion de non-vacuité (une liste de chemins attendus recopiée dans le
+test) — donc pour une autre raison que le défaut ; elle exige désormais
+seulement qu'au moins un chemin soit extrait, et c'est le serveur qui juge.
+Préfixe `app` remis : le frontend qui appelle `/app/tableau` n'est plus
+signalé. Épilogue retiré : les trois témoins de l'aide rougissent.
+

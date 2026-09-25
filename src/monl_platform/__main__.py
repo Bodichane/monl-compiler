@@ -8,23 +8,57 @@ import sys
 import uvicorn
 
 
+def _resume(fonction) -> str:
+    """La première ligne de la docstring d'un verbe : c'est ce que `--help`
+    en dit. Un verbe sans docstring fait échouer plutôt que d'afficher une
+    ligne vide — une aide muette est le défaut de l'issue #84."""
+    doc = (fonction.__doc__ or "").strip()
+    if not doc:
+        raise ValueError(f"le verbe {fonction.__name__} n'a pas de docstring")
+    return doc.splitlines()[0]
+
+
+def _aide_des_verbes() -> str:
+    """L'épilogue de `monl-platform --help`, DÉRIVÉ de `VERBES`.
+
+    Avant l'issue #84, l'aide de premier niveau ne décrivait que `--host` et
+    `--port` : `admin` et `sauvegarde` n'étaient découvrables que par
+    `docs/EXPLOITATION.md`, qui ne voyage pas dans la roue. Lire la table du
+    dispatch (point 190) garantit qu'un verbe servi est un verbe annoncé.
+    """
+    largeur = max(len(nom) for nom in VERBES)
+    lignes = [f"  {nom.ljust(largeur)}  {_resume(fonction)}"
+              for nom, fonction in VERBES.items()]
+    return ("commandes (sans commande : sert la plateforme) :\n"
+            + "\n".join(lignes)
+            + "\n\nAide d'une commande : monl-platform <commande> --help")
+
+
 def _build_serve_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Plateforme web Monl")
+    parser = argparse.ArgumentParser(
+        prog="monl-platform",
+        description="Plateforme web Monl",
+        epilog=_aide_des_verbes(),
+        formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8022)
     return parser
 
 
 def _administrer(argv: list[str]) -> int:
-    """Import PARESSEUX : l'administration tire la base, servir n'en a pas besoin."""
+    """Gestes d'exploitation sur les comptes et les projets.
+
+    Import PARESSEUX : l'administration tire la base, servir n'en a pas besoin.
+    """
     from .administration import main as administrer
 
     return administrer(argv)
 
 
 def _sauvegarder(argv: list[str]) -> int:
-    """`monl-platform sauvegarde <destination>`.
+    """Copie cohérente de la base de comptes, serveur en marche.
 
+    `monl-platform sauvegarde <destination>`.
     Passe par l'API de sauvegarde en ligne de SQLite plutôt que par une copie
     de fichier : la plateforme écrit en WAL, donc copier le `.sqlite3` d'un
     serveur en marche peut rendre une base amputée des dernières transactions.
