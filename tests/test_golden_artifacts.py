@@ -168,7 +168,11 @@ GOLDENS = {
     # `compiler_version`. Quatrième version de suite où c'est vrai.
     # POINT 191 : le diff réel ne change que backend_sha256.app.py, reflet de
     # la boucle de comptage ci-dessus ; toutes les autres empreintes sont fixes.
-    "monl.json": "d9321f6c5f8542aff0b207df4a5121954f0d3ffa7b24880d020012911b62e38e",
+    # 0.9.0-beta.10 : `diff -r` entre deux compilations du même code sous
+    # beta.9 puis beta.10 ne montre que `compiler_version` (et le
+    # `.jwt_secret`, tiré au hasard, hors de ce test). Cinquième version de
+    # suite.
+    "monl.json": "1ad805d3d39fde486cc59027a2b550d169c3ea699eb040cc24650221db2952bb",
 }
 
 # Empreintes de la fixture qui porte réellement `publicWhen` et
@@ -186,7 +190,8 @@ LOOKUP_GOLDENS = {
     "app.py": "8d7a05a4ddb1865da98d57c73194a977aaf5fa3a47fe4700604e75eec141d885",
     # 0.9.0-beta.9 : monl.json seul, pour la même raison que ci-dessus.
     # POINT 191 : le diff réel ne change que l'empreinte app.py scellée.
-    "monl.json": "29da0a22e8851c0973c98c2f39cc7865a7f09a999764778e5a16cf4ff35d1d74",
+    # 0.9.0-beta.10 : monl.json seul, `compiler_version`, comme ci-dessus.
+    "monl.json": "4dceae5b369c90a0ce30e1c7f4129e9dd468964e34526e938c038e5d8d493842",
 }
 
 

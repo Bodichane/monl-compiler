@@ -197,7 +197,7 @@ python -m twine upload --repository testpypi dist/*
 python -m pip install \
   --index-url https://test.pypi.org/simple/ \
   --extra-index-url https://pypi.org/simple/ \
-  monl-compiler==0.9.0-beta.9
+  monl-compiler==0.9.0-beta.10
 python -m twine upload dist/*
 ```
 

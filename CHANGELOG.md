@@ -1,5 +1,64 @@
 # Journal des modifications
 
+## 0.9.0-beta.10 — Ce que l'usager reçoit
+
+Une bêta courte, née de deux agents d'amélioration continue ajoutés au dépôt
+(`.claude/agents/`) : **premier-usager** refait le parcours de quelqu'un qui
+n'a pas le dépôt — roue installée dans un venv vierge, compilation, backend
+livré, plateforme, MCP, compte perdu puis supprimé — et **contre-épreuve**
+vérifie qu'un test ajouté mord vraiment. Chaque défaut qu'ils ont constaté est
+devenu une issue, puis une correction avec son témoin. Six points de
+conception, 191 à 196.
+
+1634 tests, 16 sauts déclarés (tous PostgreSQL d'intégration non demandé),
+`ruff` propre. Entre beta.9 et beta.10 compilées du même code, `diff -r` ne
+montre qu'une ligne, `compiler_version` dans `monl.json` ; les changements de
+sortie de cette version viennent du point 191, qui les documente.
+
+### Une spec peut être refusée
+
+- **Le statut post-paiement naît dans son premier état** (point 191). Un champ
+  `writableAfterPayment` portant un `oneOf` reçoit à la création la PREMIÈRE
+  valeur déclarée, au lieu de `NULL` hors de son propre cycle de vie. Si cette
+  première valeur déclenche aussi `releases`, la compilation refuse désormais
+  et demande de déclarer d'abord l'état initial. Les lignes antérieures restent
+  à `NULL` et sont comptées au démarrage (point 89).
+
+### Ce que l'usager reçoit disait vrai
+
+- **Le contrat annonce la clé visée par un compteur** (point 195). Quand la
+  relation visée par `increments`/`decrements` n'était pas la première
+  relation entrante, le contrat l'omettait : `POST /orderline` sans
+  `variant_id`, `POST /like` sans `post_id` — tout frontend fidèle au contrat
+  récoltait un 422. Le contrat lit la même source que le schéma, et un
+  invariant confronte les 39 routes POST/PUT des specs du dépôt au schéma
+  Pydantic réellement émis, dans les deux sens. `monl update` sur un projet
+  existant annonce donc ces champs : c'est le contrat qui devient exact.
+- **`monl run --check` sur un projet à assets sans frontend** ne refuse plus
+  une application saine : le smoke test monte le wrapper dès qu'il y a des
+  assets, comme `monl run` (point 195).
+- **`monl run --check` n'annonce plus de pages inexistantes** (point 196) :
+  « landing, /app » étaient promis, 404 servis. Le préfixe mort `/app` sort
+  aussi de la cohérence, qui signale désormais un frontend qui l'appelle.
+- **`monl-platform --help` liste `admin` et `sauvegarde`** (point 196),
+  dérivés de la table que lit le dispatch.
+
+### La plateforme
+
+- **Refonte visuelle** de la connexion, de la console et de l'accueil.
+- **Quatre comportements de la page de connexion** enfin gardés par un test
+  (point 193) — dont le bouton de fournisseur OAuth, désormais construit par
+  le DOM.
+
+### Les tests
+
+- **Les tests d'hébergement ne laissent plus de serveurs orphelins**
+  (point 192) : tout test qui démarre un `serve:app` passe par un gestionnaire
+  dont le `finally` arrête tout, et un témoin vérifie que le PID a disparu.
+- **Deux témoins creux corrigés** (point 194), prouvés tels par l'agent
+  contre-épreuve : une attente qui s'arrêtait aux en-têtes, et une inclinaison
+  mesurée sur une carte de taille nulle.
+
 ## 0.9.0-beta.9 — Le cap, et la mise en production
 
 La bêta 8 ouvrait une plateforme ; celle-ci la met en ligne pour de vrai, et
