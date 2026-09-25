@@ -697,7 +697,9 @@ réseau social anonyme comme banc d'essai final.
     de CHAQUE règle, et `_client_fk_columns`,
     `schemas.py` et `routes.py` la lisent tous les trois — la colonne est
     écrite exactement une fois, jamais zéro. Le refus reste actif, mais
-    seulement pour une colonne réellement jamais écrite. Le 409 d'`oncePer` et celui
+    seulement pour une colonne réellement jamais écrite. Le contrat frontend
+    lit aussi le `target_fk` des plans compteur : ne jamais recalculer cette
+    clé à côté (point 195). Le 409 d'`oncePer` et celui
     d'`unique` se distinguent sur les COLONNES nommées par SQLite, sinon le
     premier volait la phrase du second (défaut du point 85, rouvert).
     Éprouvée par `tests/test_unicite_composite.py` (8 tests, DEUX comptes et

@@ -19,6 +19,10 @@ from .fondations import _identifiant_smoke
 from .sondes import _sample_value
 
 
+def _wrapper_necessaire(has_frontend, has_assets):
+    return has_frontend or has_assets
+
+
 def run_smoke_test(project_dir, say=print):
     """Retourne (ok, erreurs, avertissements). Lève seulement sur bug interne."""
     errors, warnings = [], []
@@ -48,7 +52,7 @@ def run_smoke_test(project_dir, say=print):
         if has_assets:
             shutil.copytree(assets_src, os.path.join(workdir, assets_dir))
         module = "app:app"
-        if has_frontend:
+        if _wrapper_necessaire(has_frontend, has_assets):
             with open(os.path.join(workdir, "serve.py"), "w", encoding="utf-8") as fh:
                 fh.write(rendre_wrapper(assets_dir if has_assets else None))
             module = "serve:app"

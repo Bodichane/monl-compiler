@@ -112,6 +112,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [192](#192-les-tests-dhébergement-laissaient-leurs-serveurs-orphelins) Les tests d'hébergement laissaient leurs serveurs orphelins ·
 [193](#193-la-page-de-connexion-avait-quatre-comportements-quaucun-test-ne-voyait) La page de connexion avait quatre comportements qu'aucun test ne voyait ·
 [194](#194-lattente-sarrêtait-aux-en-têtes-et-linclinaison-passait-sur-une-carte-de-taille-nulle) L'attente s'arrêtait aux en-têtes, et l'inclinaison passait sur une carte de taille nulle ·
+[195](#195-le-contrat-omettait-la-clé-visée-par-le-compteur) Le contrat omettait la clé visée par le compteur ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -14065,3 +14066,58 @@ auteur ; l'agent a cherché ailleurs, et trouvé. La consigne de l'agent
 (`.claude/agents/contre-epreuve.md`) apprend au passage à juger un garde-fou
 qui vit dans le code de test : une PERTURBATION d'environnement plus un bogue
 injecté, avec leurs témoins.
+
+## 195. Le contrat omettait la clé visée par le compteur
+
+Issue #82, découverte par l'agent premier-usager au second passage et
+reproduite par le mainteneur : `POST /orderline` et `PUT /orderline/{id}`
+annonçaient `[order_id, quantity]` alors que Pydantic exigeait aussi
+`variant_id`; `POST /like` annonçait `[note]` sans le `post_id` obligatoire.
+Un client fidèle récoltait 422.
+
+Le point 57 était rouvert. `_client_supplied_fks` recalculait à côté la cible
+du compteur à partir de la première relation entrante, malgré sa promesse de
+réutiliser la même analyse. Depuis le point 117, la source unique est
+`_counter_fk_columns`, qui lit le `target_fk` de chaque plan compteur. Le
+`CompilationPlans` transmis au contrat contient déjà ces plans : le contrat
+consomme désormais `reputation_rules_by_trigger[*].target_fk`, puis dédoublonne
+les clés dans un ordre stable. Le lecteur de contrat des routes PUT réutilise
+la même liste de clés : puisque le schéma Pydantic est unique par entité, il
+annonce aussi ces clés obligatoires, avec sa note indiquant qu'elles ne sont
+pas modifiées par PUT. `monl diff` rapporte donc ces champs comme ajouts du
+contrat sur les projets compilés existants ; c'est la correction d'un contrat
+jusque-là faux. La mesure de `monl diff` sur un projet 02_boutique compilé
+avec l'ancien contrat rapporte exactement un changement : `rattachement :
+OrderLine.variant_id → l'id d'un Variant, à envoyer par le client`.
+
+L'invariant compile les cinq `exemples/*.ml` et `demo/spec.ml`, lit `app.py`
+par AST, associe chaque décorateur POST/PUT au modèle réellement annoté par la
+fonction FastAPI, puis compare dans les deux sens tous les champs annoncés et
+acceptés. L'association par route est nécessaire pour les schémas dédiés
+(comme l'après-paiement) et les routes sans corps. La non-vacuité est mesurée
+et imposée par un minimum de routes comparées ; un extracteur muet échoue au
+lieu de rendre le test vert. Contre-épreuve : remettre l'ancienne condition
+`if owner and owner["source"] in owners` fait rougir le témoin sur les trois
+routes `/orderline`, `/orderline/{id}` et `/like`; vider l'extracteur AST fait
+rougir sa garde de non-vacuité ou les comparaisons.
+
+Le smoke test construit déjà son corps depuis `request_fields` et résout
+chaque clé étrangère par `_premier_id` dans une ligne existante lisible. Les
+cinq `monl run --check` exécutés restent verts : il sait donc fournir des IDs
+valides sur les exemples concernés. La lacune mesurée était ailleurs : le
+smoke test n'essaie qu'une création par acteur, sur la première route
+créable, et ses jeux de données ne créaient pas un enfant `OrderLine` ni un
+`Like` avec le corps du contrat. Il pouvait donc rester vert malgré ces deux
+corps incorrects. L'exécution sur les cinq exemples a aussi révélé que le
+wrapper n'était utilisé que si `frontend/` existait : avec des assets mais sans
+frontend, le smoke signalait 404 sur les assets. Il lance maintenant le
+wrapper dans les deux cas. L'invariant permanent ferme la divergence du
+contrat ; les parcours HTTP de l'issue éprouvent en plus le stock décrémenté
+sur la variante et le compteur `likes` incrémenté sur le post.
+
+Éprouvé par le serveur réel sur `02_boutique` et `03_reseau_social`, par les
+contre-épreuves ci-dessus, les six compilations et les 39 routes POST/PUT de
+l'invariant, les cinq
+`monl run --check`, `ruff` et la suite complète. Les empreintes golden qui
+bougent sont justifiées individuellement par leurs diffs ancien/nouveau et le
+commentaire du test golden.

@@ -66,8 +66,14 @@ def _client_supplied_fks(plans: CompilationPlans, entity):
     }
     if owner and owner["source"] in owners:
         colonnes.append(owner["fk_column"])
+    # Même source que les schémas et les routes : le plan de chaque compteur
+    # porte la clé visée. Une cible peut aussi être une FK client ordinaire.
+    colonnes.extend(
+        plan.target_fk
+        for plan in plans.reputation_rules_by_trigger.get(entity, ())
+    )
     colonnes.extend(plans.client_foreign_keys.get(entity, ()))
-    return colonnes
+    return list(dict.fromkeys(colonnes))
 
 def _creatable_fields(entity_spec):
     if not entity_spec:
