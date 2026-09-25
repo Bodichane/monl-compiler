@@ -25,6 +25,7 @@ Deux moitiés de question, deux familles de tests ici :
 import contextlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -307,3 +308,21 @@ def test_sans_assets_declares_le_wrapper_ne_monte_que_le_frontend(tmp_path):
     # Le montage conditionnel reste présent mais inerte : il ne s'exécute pas.
     assert "if _ASSETS_DIR and os.path.isdir" in texte
     assert os.sep not in "assets"  # garde-fou : le contrat parle d'URL, pas de chemin OS
+
+
+def test_des_assets_sans_frontend_passent_le_smoke_test(tmp_path, capsys):
+    """Juste après `monl compile`, avant tout `monl frontend`, un projet porte
+    ses assets et aucun frontend/. Le smoke test lançait alors `app:app` nu :
+    les trois assets répondaient 404 et `monl run --check` refusait une
+    application saine (trouvé en corrigeant l'issue #82). Il doit monter le
+    wrapper dès qu'il y a des assets, comme `monl run`."""
+    from monl.smoke_test import run_smoke_test
+
+    spec = _projet(tmp_path)
+    shutil.rmtree(tmp_path / "frontend")
+    compile_project(str(spec), str(tmp_path))
+    capsys.readouterr()
+    assert not (tmp_path / "frontend").exists(), "le banc doit rester sans frontend"
+
+    ok, erreurs, _avertissements = run_smoke_test(str(tmp_path), say=lambda *_: None)
+    assert ok, erreurs

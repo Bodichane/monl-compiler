@@ -19,6 +19,17 @@ from .fondations import _identifiant_smoke
 from .sondes import _sample_value
 
 
+def _wrapper_necessaire(has_frontend, has_assets):
+    """Le smoke test monte le projet comme `monl run` le fera (point 83).
+
+    Des assets déclarés sans frontend — l'état normal juste après
+    `monl compile`, avant tout `monl frontend` — exigent aussi le wrapper :
+    servis par `app:app` nu, ils répondaient 404 et `monl run --check`
+    refusait une application saine (trouvé en corrigeant l'issue #82).
+    """
+    return has_frontend or has_assets
+
+
 def run_smoke_test(project_dir, say=print):
     """Retourne (ok, erreurs, avertissements). Lève seulement sur bug interne."""
     errors, warnings = [], []
@@ -48,7 +59,7 @@ def run_smoke_test(project_dir, say=print):
         if has_assets:
             shutil.copytree(assets_src, os.path.join(workdir, assets_dir))
         module = "app:app"
-        if has_frontend:
+        if _wrapper_necessaire(has_frontend, has_assets):
             with open(os.path.join(workdir, "serve.py"), "w", encoding="utf-8") as fh:
                 fh.write(rendre_wrapper(assets_dir if has_assets else None))
             module = "serve:app"

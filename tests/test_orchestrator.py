@@ -2,10 +2,13 @@
 # run (cohérence) et monl update (delta). Le test central vérifie que le
 # contrat ne peut PAS diverger de l'API : chaque route du contrat est
 # confrontée aux décorateurs réellement écrits dans app.py.
+import ast
 import hashlib
 import json
 import os
 import re
+import shutil
+from pathlib import Path
 
 import pytest
 
@@ -468,12 +471,39 @@ workflow GererReader for Reader
 
 
 def _schemas_pydantic(app_code):
-    """Champs de chaque classe `<Entite>Schema` réellement écrite dans app.py."""
-    schemas = {}
-    for bloc in re.finditer(r"class (\w+)Schema\(BaseModel\):\n((?:    .+\n)+)", app_code):
-        champs = re.findall(r"^    (\w+)\s*:", bloc.group(2), re.M)
-        schemas[bloc.group(1)] = champs
-    return schemas
+    """Champs des schémas Pydantic et leurs usages sur les routes FastAPI."""
+    tree = ast.parse(app_code)
+    class_fields = {
+        node.name: [
+            child.target.id for child in node.body
+            if isinstance(child, ast.AnnAssign)
+            and isinstance(child.target, ast.Name)
+        ]
+        for node in tree.body
+        if isinstance(node, ast.ClassDef)
+    }
+    schemas = {name: fields for name, fields in class_fields.items()
+               if name.endswith("Schema")}
+    classes = set(class_fields)
+    routes = {}
+    for node in tree.body:
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for decorator in node.decorator_list:
+            if not isinstance(decorator, ast.Call) or not isinstance(decorator.func, ast.Attribute):
+                continue
+            if not isinstance(decorator.func.value, ast.Name) or decorator.func.value.id != "app":
+                continue
+            if decorator.func.attr not in ("post", "put") or not decorator.args:
+                continue
+            if not isinstance(decorator.args[0], ast.Constant):
+                continue
+            model = next((arg.annotation.id for arg in node.args.args
+                          if isinstance(arg.annotation, ast.Name)
+                          and arg.annotation.id in classes), None)
+            routes[(decorator.func.attr.upper(), decorator.args[0].value)] = (
+                class_fields[model] if model is not None else [])
+    return schemas, routes
 
 
 def test_le_corps_annonce_est_celui_qu_exige_le_backend(tmp_path):
@@ -481,21 +511,42 @@ def test_le_corps_annonce_est_celui_qu_exige_le_backend(tmp_path):
     alors que le backend exigeait aussi `article_id` : tout frontend fidèle
     au contrat récoltait un 422. Un contrat qui décrit mal ce qu'il faut
     envoyer est pire qu'un contrat muet — on croit l'avoir suivi."""
-    proj = tmp_path / "blog"
-    proj.mkdir()
-    spec = proj / "spec.ml"
-    spec.write_text(SPEC_DEUX_PARENTS, encoding="utf-8")
-    contract = compile_project(str(spec), str(proj))
-    schemas = _schemas_pydantic((proj / "app.py").read_text(encoding="utf-8"))
-
-    for route in contract["routes"]:
-        if route["action"] not in ("Create", "Update"):
-            continue
-        attendu = schemas.get(route["entity"])
-        assert attendu is not None, f"aucun schéma Pydantic pour {route['entity']}"
-        assert sorted(route["request_fields"]) == sorted(attendu), (
-            f"{route['method']} {route['path']} : le contrat annonce "
-            f"{sorted(route['request_fields'])}, le backend exige {sorted(attendu)}")
+    racine = os.path.dirname(os.path.dirname(__file__))
+    specs = [*(Path(racine) / "exemples").glob("*.ml"),
+             Path(racine) / "demo/spec.ml"]
+    specs.append(None)  # témoin historique à deux parents, indépendant des exemples
+    total = 0
+    ecarts = []
+    for index, source in enumerate(specs):
+        proj = tmp_path / f"projet_{index}"
+        proj.mkdir()
+        spec = proj / "spec.ml"
+        spec.write_text(SPEC_DEUX_PARENTS if source is None else
+                        source.read_text(encoding="utf-8"), encoding="utf-8")
+        if source is not None and (source.parent / "assets").is_dir():
+            shutil.copytree(source.parent / "assets", proj / "assets")
+        contract = compile_project(str(spec), str(proj))
+        schemas, routes_app = _schemas_pydantic(
+            (proj / "app.py").read_text(encoding="utf-8"))
+        for route in contract["routes"]:
+            if route["method"] not in ("POST", "PUT"):
+                continue
+            total += 1
+            attendu = routes_app.get((route["method"], route["path"]))
+            annonces = route.get("request_fields")
+            ident = f"{route['method']} {route['path']} ({source or 'témoin blog'})"
+            if attendu is None:
+                ecarts.append(f"{ident}: aucune route POST/PUT AST correspondante")
+                continue
+            manquants = sorted(set(attendu) - set(annonces or []))
+            superflus = sorted(set(annonces or []) - set(attendu))
+            if manquants or superflus:
+                ecarts.append(f"{ident}: exigés non annoncés={manquants}, "
+                              f"annoncés non acceptés={superflus}")
+    assert total >= 1, "non-vacuité: aucune route POST/PUT comparée"
+    assert total >= 39, f"non-vacuité: seulement {total} routes comparées (39 mesurées)"
+    assert schemas, "non-vacuité: aucun schéma Pydantic extrait par AST"
+    assert not ecarts, "\n".join(ecarts)
 
     # Le cas précis qui a fait échouer la génération réelle : le parent
     # NON propriétaire doit être demandé au client (le propriétaire, lui,
