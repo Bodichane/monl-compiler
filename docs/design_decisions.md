@@ -14111,13 +14111,18 @@ créable, et ses jeux de données ne créaient pas un enfant `OrderLine` ni un
 corps incorrects. L'exécution sur les cinq exemples a aussi révélé que le
 wrapper n'était utilisé que si `frontend/` existait : avec des assets mais sans
 frontend, le smoke signalait 404 sur les assets. Il lance maintenant le
-wrapper dans les deux cas. L'invariant permanent ferme la divergence du
+wrapper dans les deux cas (`_wrapper_necessaire`) ; le témoin
+`test_des_assets_sans_frontend_passent_le_smoke_test` (tests/test_assets.py)
+rougit en nommant les deux 404 si l'on revient à `return has_frontend`.
+L'ancien calcul « propriétaire » de `_client_supplied_fks` n'est pas gardé à
+côté de la nouvelle lecture : il était entièrement redondant avec les
+`target_fk`, et deux calculs finissent par diverger — c'est le défaut même.
+Sans les `target_fk`, trois tests rougissent. L'invariant permanent ferme la divergence du
 contrat ; les parcours HTTP de l'issue éprouvent en plus le stock décrémenté
 sur la variante et le compteur `likes` incrémenté sur le post.
 
 Éprouvé par le serveur réel sur `02_boutique` et `03_reseau_social`, par les
 contre-épreuves ci-dessus, les six compilations et les 39 routes POST/PUT de
 l'invariant, les cinq
-`monl run --check`, `ruff` et la suite complète. Les empreintes golden qui
-bougent sont justifiées individuellement par leurs diffs ancien/nouveau et le
-commentaire du test golden.
+`monl run --check`, `ruff` et la suite complète. Aucune empreinte golden ne
+bouge (`tests/test_golden_artifacts.py` vert sans modification).

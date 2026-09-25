@@ -20,6 +20,13 @@ from .sondes import _sample_value
 
 
 def _wrapper_necessaire(has_frontend, has_assets):
+    """Le smoke test monte le projet comme `monl run` le fera (point 83).
+
+    Des assets déclarés sans frontend — l'état normal juste après
+    `monl compile`, avant tout `monl frontend` — exigent aussi le wrapper :
+    servis par `app:app` nu, ils répondaient 404 et `monl run --check`
+    refusait une application saine (trouvé en corrigeant l'issue #82).
+    """
     return has_frontend or has_assets
 
 
