@@ -31,7 +31,12 @@ une issue GitHub par défaut distinct.
   `.pth` ou un PYTHONPATH hérité ferait importer le dépôt au lieu du paquet
   installé (point 165). Si ta session refuse `env`, vérifie une fois que
   `PYTHONPATH` est vide, puis appelle les binaires du venv par leur chemin
-  complet. Dans tous les cas, vérifie au début que
+  complet. Si ta session est isolée (worktree) et refuse les commandes
+  composées ou les variables shell, écris des commandes SIMPLES avec des
+  chemins absolus LITTÉRAUX (le `mktemp -d` une fois, puis son résultat recopié
+  en dur), et regroupe ce qui doit tenir dans un même appel — démarrer un
+  serveur et l'interroger — dans un script écrit sous `$T` puis lancé par son
+  chemin. Dans tous les cas, vérifie au début que
   `$T/venv/bin/python -c 'import monl; print(monl.__file__)'` pointe dans `$T/venv`.
 - **Ne suppose pas qu'un serveur lancé en arrière-plan survit à l'appel Bash
   suivant** — selon l'environnement, il meurt ou il survit. Démarre-le et
@@ -52,6 +57,11 @@ Tu peux LIRE le dépôt pour apprendre ; tu n'EXÉCUTES que le paquet installé.
 ## Le parcours — chaque étape : commande, attendu, observé
 **A. Installer.** `pip install monl-compiler` (ou la roue), puis `monl --version`,
 `monl --help`, `monl-platform --help`. Note la version réellement installée.
+Une aide qui tait une commande est un défaut : l'usager n'a qu'elle pour
+découvrir ses outils (issue #84 — `admin` et `sauvegarde` absents de
+`monl-platform --help`). Confronte chaque aide de premier niveau aux verbes
+réellement servis (`monl <verbe> --help` qui répond, table `VERBES` de
+`monl_platform/__main__.py` lue dans le dépôt).
 
 **B. Compiler.** Pour chaque `exemples/*.ml` de la même version (lus depuis le
 dépôt, au tag ou à la référence mesurée) : `monl compile <spec> --output <dir>`.
@@ -65,7 +75,22 @@ démarre `uvicorn app:app`, puis `/docs` 200, inscription d'un rôle
 `selfRegister` **200** (le backend généré répond 200 ; c'est la plateforme qui
 répond 201), connexion, création et lecture d'un enregistrement,
 lecture privée **401 en anonyme et 200 avec jeton**, inscription d'un rôle
-non `selfRegister` **refusée**. Lance aussi `monl run <dir> --check`.
+non `selfRegister` **refusée**.
+
+Puis **joue le client fidèle au contrat** : pour CHAQUE route `POST` et `PUT`
+de `frontend_contract.json`, envoie un corps contenant EXACTEMENT ses
+`request_fields` — ni plus, ni moins — avec des valeurs valides (pour une clé
+étrangère, l'`id` d'une ligne existante que tu as créée ou lue avant). Un
+**422** sur un tel corps est un défaut du CONTRAT, pas de ta requête : un
+frontend qui obéit au contrat récolterait le même (issue #82 — `variant_id`
+absent de `POST /orderline`). Un 403/409 attendu par une règle déclarée
+(propriété, préalable, stock) n'en est pas un : lis la note de la route.
+
+Lance aussi `monl run <dir> --check`, AVANT et APRÈS avoir déposé un
+`frontend/`. Chaque chemin qu'un message annonce (« servi sur /x ») se
+DEMANDE au serveur monté comme `monl run` le monte (`uvicorn serve:app`), sans
+suivre les redirections : une page promise qui répond 404 est un défaut
+(issue #83 — « landing, /app » annoncés, 404 servis).
 
 **D. La plateforme.** `monl-platform` sur un espace de travail neuf :
 `/health`, `/ready`, `/favicon.ico` en 200 ; les pages `/`, `/login`, `/guide`,
@@ -94,9 +119,13 @@ défaut du produit : note-la comme limite de ta mesure, avec la raison.
 **Un défaut = une issue**, jamais un fourre-tout. Avant d'en créer une,
 cherche un doublon :
 ```bash
-gh issue list --repo Bodichane/monl-compiler --label premier-usager --state open --search "<mots-clés>"
+gh issue list --repo Bodichane/monl-compiler --state all --search "<mots-clés>"
 ```
-S'il existe, commente-le avec ta nouvelle observation (version, date). Sinon :
+`--state all` et sans filtre d'étiquette : un défaut déjà CORRIGÉ qui revient
+est une RÉGRESSION, et une issue ouverte par un autre agent compte comme
+doublon. Si une issue ouverte existe, commente-la avec ta nouvelle observation
+(version, date). Si elle est fermée, crée une nouvelle issue dont le titre
+commence par « Régression : » et qui cite la première. Sinon :
 ```bash
 gh issue create --repo Bodichane/monl-compiler --label premier-usager \
   --title "Premier usager : <ce qui casse, en une phrase>" --body-file <fichier>
