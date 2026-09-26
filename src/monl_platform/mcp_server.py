@@ -5,6 +5,8 @@ import os
 import sys
 from typing import Any
 
+from monl import __version__ as VERSION_DU_PAQUET
+
 from .evolution import contrat_dune_spec, delta_de_contrat, recompiler
 from .identity import IdentityStore
 from .service import (
@@ -130,7 +132,10 @@ class MCPDispatcher:
                 result = {
                     "protocolVersion": PROTOCOL_VERSION,
                     "capabilities": {"tools": {"listChanged": False}},
-                    "serverInfo": {"name": "monl-compiler", "version": "0.1.0"},
+                    # La version du PAQUET, jamais une valeur recopiée : écrite en
+                    # dur, elle annonçait 0.1.0 aux clients MCP pendant que le
+                    # paquet était en 0.9.0-beta.10 (issue #90).
+                    "serverInfo": {"name": "monl-compiler", "version": VERSION_DU_PAQUET},
                     "instructions": (
                         "Utilisez Monl pour valider et compiler les règles métier. "
                         "Le frontend reste libre et consomme frontend_contract.json."
