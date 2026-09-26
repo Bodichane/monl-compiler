@@ -99,10 +99,13 @@ réduits, conteneur, ou WASM) est un objectif GA — voir `docs/BETA.md`.
 
 ## Validation par audit offensif (branche `paiement-et-outillage`)
 
-`tests/test_exploit_all.py` compile puis sert chaque exemple de `exemples/` et y
-rejoue trois attaques (usurpation de rôle par en-tête brut, JWT forgé,
-élévation de privilège). Résultat sur les cinq exemples : **vert** — aucune
-attaque n'atteint la couche de données (aucun accès 2xx).
+`tests/test_audit_offensif_exemples.py` compile puis sert chaque exemple de
+`exemples/` et y rejoue trois attaques (usurpation de rôle par en-tête brut,
+JWT forgé, élévation de privilège), avec le code exact attendu — `401`, `401`,
+`403` — après une contre-épreuve par jeton légitime. Résultat sur les cinq
+exemples : **vert**. (Jusqu'au point 197, cet audit vivait dans un script
+que pytest ne collectait pas : la CI ne le rejouait
+pas, contrairement à ce que cette page affirmait.)
 
 Deux signaux apparus lors de l'analyse approfondie sont des **faux positifs**,
 reproduits en direct, pas des vulnérabilités :

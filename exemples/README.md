@@ -33,7 +33,7 @@ au plus complet.
 ## Ce que la suite de tests en fait
 
 `tests/test_compile_all.py` compile les cinq à chaque exécution, et
-`tests/test_exploit_all.py` rejoue sur chacun l'audit offensif — usurpation de
+`tests/test_audit_offensif_exemples.py` rejoue sur chacun l'audit offensif — usurpation de
 rôle, JWT forgé, élévation de privilège. Un exemple ne peut donc pas cesser de
 compiler, ni devenir vulnérable, sans que la CI le dise.
 
