@@ -991,11 +991,12 @@ def test_chaque_test_python_exerce_une_assertion():
     racine = pathlib.Path(__file__).resolve().parent
     fonctions = []
     sans_temoin = []
+    exemptions_servies = set()
     exemptions = {
         "test_app_templates.py:test_chaque_modele_compile_tout_refuse":
             "la validation complète doit accepter chaque spec tout-refus; toute erreur échoue le test",
         "test_beta3_regressions.py:test_login_ne_revele_pas_l_existence_du_compte":
-            "le scénario est entièrement établi par la fixture partagée, ses assertions sont dans le test paramétré voisin",
+            "ses assertions vivent dans le helper _mesurer_canal_temporel, appelé dans un try/finally qui arrête le serveur",
         "test_cli_commandes.py:test_run_check_passe_sur_un_projet_sain":
             "le contrat est précisément que cmd_run termine normalement; une erreur lève SystemExit et échoue",
         "test_platform_couverture.py:test_les_routes_asgi_couvrent_les_reponses_et_les_effets":
@@ -1020,9 +1021,16 @@ def test_chaque_test_python_exerce_une_assertion():
             helper = any(
                 isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
                 and "assert" in n.func.id.lower() for n in noeuds)
+            identifiant = f"{chemin.name}:{fonction.name}"
             if not (assertion or erreur_attendue or helper):
-                identifiant = f"{chemin.name}:{fonction.name}"
-                if identifiant not in exemptions:
+                if identifiant in exemptions:
+                    exemptions_servies.add(identifiant)
+                else:
                     sans_temoin.append(f"{identifiant}:{fonction.lineno}")
     assert len(fonctions) >= 1000, f"extracteur de tests trop pauvre : {len(fonctions)}"
     assert not sans_temoin, "tests sans assertion : " + ", ".join(sans_temoin)
+    # Une exemption qui ne sert plus (test disparu, ou qui porte désormais
+    # une assertion) fait échouer : sinon elle excuserait en silence le
+    # prochain test qui prendrait ce nom (point 155).
+    perimees = sorted(set(exemptions) - exemptions_servies)
+    assert not perimees, "exemptions qui ne servent plus : " + ", ".join(perimees)

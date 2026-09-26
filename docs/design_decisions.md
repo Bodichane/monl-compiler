@@ -14197,17 +14197,41 @@ ne couvrait donc pas la session de plateforme.
 **Sort des anciens fichiers.** `test_exploit.py` est retiré : son usurpation
 de header est couverte par les témoins d'authentification et de contrat, sa
 signature JWT par le nouveau témoin, et son élévation de rôle par les tests
-d'accès et d'exploitation existants. `test_exploit_all.py` est retiré : il
-n'était pas collecté et ses trois scénarios généralisés n'avaient aucune
-assertion ; les invariants sont déjà éprouvés sur les specs et serveurs
-spécifiques de la suite.
+d'accès et d'exploitation existants.
+
+**`test_exploit_all.py` n'est PAS simplement retiré, il est TENU.** La première
+version du correctif le supprimait en le disant couvert ailleurs — et la suite
+complète l'a refusé : `docs/SECURITE.md`, `docs/BETA.md` et
+`exemples/README.md` promettaient que la CI rejouait l'audit offensif sur
+chaque exemple (témoin de documentation, point 190). La promesse était déjà
+fausse AVANT le retrait, puisque le fichier n'était pas collecté ; corriger
+les documents l'aurait effacée, la tenir coûte un fichier.
+`tests/test_audit_offensif_exemples.py` compile chaque exemple, le sert par
+`uvicorn_server` et y rejoue les trois attaques avec le code EXACT attendu —
+`401` pour l'en-tête `x_actor`, `401` pour un jeton signé d'une autre clé,
+`403` pour un rôle inscriptible non autorisé — là où l'ancien script acceptait
+tout code `>= 400`, qu'un corps invalide suffit à produire. Contre-épreuve
+d'abord : un jeton LÉGITIME du rôle autorisé ne reçoit pas `401` (trois
+exemples sur cinq, là où ce rôle est inscriptible). Aucun saut : une
+compilation qui échoue fait échouer, et une spec sans création protégée aussi.
+**Piège mesuré en l'écrivant** : une modification (`PUT`) valide son corps
+AVANT le contrôle du rôle — un corps vide rendait `422` et l'attaque ne
+mesurait rien. Le test préfère donc une suppression, et construit sinon le
+corps depuis le CONTRAT compilé (`server_generated` exclu, première des
+`allowed_values`), jamais depuis une table de valeurs devinées. Élévation
+exercée sur quatre exemples sur cinq (`05_classement` n'a qu'un rôle, autorisé
+partout). Contre-épreuves : signature non vérifiée → les cinq échouent
+(`422`/`200` au lieu de `401`) ; contrôle de rôle désarmé dans
+`routes_acces.py` → les quatre échouent (`200`/`409` au lieu de `403`).
 
 **Invariant.** `test_chaque_test_python_exerce_une_assertion` parcourt par AST
 les fonctions `test_` des fichiers `tests/test_*.py`, exige un `assert`, un
 `pytest.raises` ou un helper nommé comme assertion, et exige d'avoir examiné
 au moins 1 000 fonctions. Six exemptions nommées documentent les tests
 d'acceptation dont l'opération testée échoue elle-même en levant une
-exception ; elles ne masquent pas un fichier entier.
+exception ; elles ne masquent pas un fichier entier. **Une exemption qui ne
+sert plus fait échouer** (point 155) : sans cette règle, une exemption
+survivrait au test qu'elle excusait et en couvrirait un autre du même nom.
 
 **Contre-épreuves.** Le décodage JWT avec
 `options={'verify_signature': False}` fait rougir le témoin du jeton sur
