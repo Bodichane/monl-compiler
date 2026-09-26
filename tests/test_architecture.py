@@ -17,6 +17,7 @@
 import ast
 import fnmatch
 import os
+import pathlib
 import re
 import sys
 
@@ -983,3 +984,45 @@ def test_tous_les_mots_cles_de_la_grammaire_sont_nommes_dans_claude():
     assert not absents, (
         "mots-clés de la grammaire absents de CLAUDE.md : "
         + ", ".join(absents))
+
+
+def test_chaque_test_python_exerce_une_assertion():
+    """Un test collecté doit pouvoir rougir sur son propre scénario."""
+    racine = pathlib.Path(__file__).resolve().parent
+    fonctions = []
+    sans_temoin = []
+    exemptions = {
+        "test_app_templates.py:test_chaque_modele_compile_tout_refuse":
+            "la validation complète doit accepter chaque spec tout-refus; toute erreur échoue le test",
+        "test_beta3_regressions.py:test_login_ne_revele_pas_l_existence_du_compte":
+            "le scénario est entièrement établi par la fixture partagée, ses assertions sont dans le test paramétré voisin",
+        "test_cli_commandes.py:test_run_check_passe_sur_un_projet_sain":
+            "le contrat est précisément que cmd_run termine normalement; une erreur lève SystemExit et échoue",
+        "test_platform_couverture.py:test_les_routes_asgi_couvrent_les_reponses_et_les_effets":
+            "_dialogue fait des assertions ASGI détaillées pendant son exécution",
+        "test_publication.py:test_le_tag_qui_correspond_est_accepte":
+            "validate_tag_version est un validateur pur qui lève sur toute version refusée",
+        "test_publication.py:test_les_deux_ecritures_d_une_meme_version_sont_acceptees":
+            "les deux appels au validateur pur doivent terminer sans exception",
+    }
+    for chemin in sorted(racine.glob("test_*.py")):
+        arbre = ast.parse(chemin.read_text(encoding="utf-8"), filename=str(chemin))
+        for fonction in (n for n in ast.walk(arbre)
+                         if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+                         and n.name.startswith("test_")):
+            fonctions.append(f"{chemin.name}:{fonction.lineno}")
+            noeuds = list(ast.walk(fonction))
+            assertion = any(isinstance(n, ast.Assert) for n in noeuds)
+            erreur_attendue = any(
+                isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                and n.func.attr == "raises" and isinstance(n.func.value, ast.Name)
+                and n.func.value.id == "pytest" for n in noeuds)
+            helper = any(
+                isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                and "assert" in n.func.id.lower() for n in noeuds)
+            if not (assertion or erreur_attendue or helper):
+                identifiant = f"{chemin.name}:{fonction.name}"
+                if identifiant not in exemptions:
+                    sans_temoin.append(f"{identifiant}:{fonction.lineno}")
+    assert len(fonctions) >= 1000, f"extracteur de tests trop pauvre : {len(fonctions)}"
+    assert not sans_temoin, "tests sans assertion : " + ", ".join(sans_temoin)

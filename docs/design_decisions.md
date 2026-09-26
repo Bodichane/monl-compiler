@@ -114,6 +114,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [194](#194-lattente-sarrêtait-aux-en-têtes-et-linclinaison-passait-sur-une-carte-de-taille-nulle) L'attente s'arrêtait aux en-têtes, et l'inclinaison passait sur une carte de taille nulle ·
 [195](#195-le-contrat-omettait-la-clé-visée-par-le-compteur) Le contrat omettait la clé visée par le compteur ·
 [196](#196-deux-aides-qui-mentaient-par-omission-ou-par-promesse) Deux aides qui mentaient, par omission ou par promesse ·
+[197](#197-deux-garanties-dauthentification-sans-témoin-et-deux-fichiers-de-tests-creux) Deux garanties d'authentification sans témoin ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -14172,3 +14173,51 @@ seulement qu'au moins un chemin soit extrait, et c'est le serveur qui juge.
 Préfixe `app` remis : le frontend qui appelle `/app/tableau` n'est plus
 signalé. Épilogue retiré : les trois témoins de l'aide rougissent.
 
+## 197. Deux garanties d'authentification sans témoin et deux fichiers de tests creux
+
+**Constat du 26/09/2026, issue #92.** La relecture de sécurité disait que
+`_decode_and_verify_token` rejetait les signatures étrangères, et que le
+cookie de session de la plateforme portait `HttpOnly` et `SameSite=Strict`.
+Aucun témoin de bout en bout ne gardait ces deux garanties. `test_exploit.py`
+appelait une cible codée en dur sans démarrer son serveur, n'avait aucun
+`assert` et avalait les exceptions. `test_exploit_all.py` ne définissait aucun
+`test_` : pytest ne le collectait pas.
+
+**Témoins réels.** `tests/test_temoins_securite.py` compile une spec, démarre
+le backend par `uvicorn_server`, inscrit puis connecte un compte. Il exige
+d'abord 200 avec le jeton légitime, puis 401 avec le même contenu signé par
+une autre clé, et enfin 401 pour `alg: none`. L'ordre est une contre-épreuve :
+un serveur qui refuse tout échoue avant de pouvoir faire croire que la
+signature est vérifiée (point 168). Le second scénario monte la plateforme
+dans Uvicorn, inscrit un compte et examine le vrai `Set-Cookie` de la réponse
+HTTP ; il vérifie `HttpOnly` et `SameSite=Strict`. Le témoin OAuth voisin
+vérifie un cookie transitoire différent, au `SameSite=Lax` intentionnel : il
+ne couvrait donc pas la session de plateforme.
+
+**Sort des anciens fichiers.** `test_exploit.py` est retiré : son usurpation
+de header est couverte par les témoins d'authentification et de contrat, sa
+signature JWT par le nouveau témoin, et son élévation de rôle par les tests
+d'accès et d'exploitation existants. `test_exploit_all.py` est retiré : il
+n'était pas collecté et ses trois scénarios généralisés n'avaient aucune
+assertion ; les invariants sont déjà éprouvés sur les specs et serveurs
+spécifiques de la suite.
+
+**Invariant.** `test_chaque_test_python_exerce_une_assertion` parcourt par AST
+les fonctions `test_` des fichiers `tests/test_*.py`, exige un `assert`, un
+`pytest.raises` ou un helper nommé comme assertion, et exige d'avoir examiné
+au moins 1 000 fonctions. Six exemptions nommées documentent les tests
+d'acceptation dont l'opération testée échoue elle-même en levant une
+exception ; elles ne masquent pas un fichier entier.
+
+**Contre-épreuves.** Le décodage JWT avec
+`options={'verify_signature': False}` fait rougir le témoin du jeton sur
+l'assertion du refus du jeton mal signé (ligne E). `httponly=False`, puis
+`samesite="lax"`, font échouer séparément le témoin du cookie. Un test
+temporaire sans assertion est nommé par l'invariant ; un extracteur neutralisé
+fait échouer son seuil de non-vacuité. Chaque mutation est restaurée avant la
+suivante.
+
+**Leçon.** Un test sans `assert` qui vise un serveur jamais démarré peut
+passer au vert sans attaquer quoi que ce soit. L'existence d'un fichier nommé
+`test_` et d'un scénario raconté ne constitue pas une preuve (points 145,
+183 et 190).
