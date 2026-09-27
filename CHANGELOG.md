@@ -1,5 +1,15 @@
 # Journal des modifications
 
+## Non publié
+
+- **Plugin Claude Code** (point 198) : `claude plugin marketplace add
+  Bodichane/monl-compiler` puis `claude plugin install monl@monl-compiler`.
+  La compétence `monl-spec` mène du besoin à un backend vérifié par la ligne
+  de commande ; les cinq compétences d'interface suivent.
+- **Audit offensif des exemples tenu** (point 197) : rejoué par la CI contre
+  un vrai serveur, avec le code exact attendu ; témoins du jeton et du cookie
+  de session.
+
 ## 0.9.0-beta.10 — Ce que l'usager reçoit
 
 Une bêta courte, née de deux agents d'amélioration continue ajoutés au dépôt

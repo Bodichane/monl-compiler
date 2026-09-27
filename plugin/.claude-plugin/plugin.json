@@ -1,0 +1,13 @@
+{
+  "name": "monl",
+  "displayName": "monl — compilateur de backends",
+  "version": "0.9.0-beta.10",
+  "description": "Décrire une application en spécification monl (.ml), la compiler en backend FastAPI + SQLite + JWT déterministe, la vérifier contre un vrai serveur, puis construire son interface.",
+  "author": {
+    "name": "Itchane Bodi"
+  },
+  "homepage": "https://github.com/Bodichane/monl-compiler",
+  "repository": "https://github.com/Bodichane/monl-compiler",
+  "license": "LicenseRef-FSL-1.1-ALv2",
+  "keywords": ["backend", "dsl", "compiler", "fastapi", "sqlite", "jwt"]
+}

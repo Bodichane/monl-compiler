@@ -115,6 +115,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [195](#195-le-contrat-omettait-la-clé-visée-par-le-compteur) Le contrat omettait la clé visée par le compteur ·
 [196](#196-deux-aides-qui-mentaient-par-omission-ou-par-promesse) Deux aides qui mentaient, par omission ou par promesse ·
 [197](#197-deux-garanties-dauthentification-sans-témoin-et-deux-fichiers-de-tests-creux) Deux garanties d'authentification sans témoin ·
+[198](#198-monl-comme-plugin-claude-code-la-cli-plutôt-que-le-mcp-local) monl comme plugin Claude Code ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -14245,3 +14246,66 @@ suivante.
 passer au vert sans attaquer quoi que ce soit. L'existence d'un fichier nommé
 `test_` et d'un scénario raconté ne constitue pas une preuve (points 145,
 183 et 190).
+
+## 198. monl comme plugin Claude Code, la CLI plutôt que le MCP local
+
+**Ce qui est livré.** Le dépôt est un marketplace (`.claude-plugin/marketplace.json`)
+qui liste un plugin, `monl`, logé dans `plugin/`. On l'ajoute par
+`claude plugin marketplace add Bodichane/monl-compiler`, puis
+`claude plugin install monl@monl-compiler`. Il porte six compétences : une
+nouvelle, `monl-spec` (du besoin à un backend vérifié), et les cinq qui
+existaient déjà pour construire l'interface. Il n'est PAS listé dans le
+répertoire d'Anthropic : c'est une soumission distincte, par le portail
+claude.ai, avec relecture.
+
+**Pourquoi pas le serveur MCP.** Le premier plan branchait `monl-mcp` par
+`.mcp.json`. Piloté en stdio comme le ferait Claude Code, depuis le paquet
+PyPI, il valide et compile — mais (a) `CompilationService()` crée
+`platform-projects/` dans le RÉPERTOIRE COURANT dès le démarrage, donc dans
+chaque projet où l'usager ouvre Claude Code, même s'il ne sert jamais ;
+(b) la compilation répond « téléchargez l'archive avec votre clé MCP », une
+adresse qui n'a aucun sens hors plateforme, et l'agent ne sait pas où sont
+les fichiers ; (c) `monl_list_projects` échoue faute de compte. La ligne de
+commande, elle, écrit dans le projet de l'usager et couvre compile, run
+--check, diff et update. Le mode stdio local du MCP reste à corriger à part.
+
+**Le plugin ne contient que des LIENS.** Avec le dépôt entier pour racine,
+chaque installation copiait tests, sources et `demo/` dans le cache, et
+`claude plugin validate --strict` le signalait (le `CLAUDE.md` des
+développeurs n'est pas chargé par un plugin). `plugin/` porte le manifeste et
+trois liens — `skills`, `exemples`, `grammaire.py` — que Claude Code remplace
+par leur contenu en copiant depuis un marketplace git. **La compétence
+n'enseigne pas le langage de mémoire** : elle renvoie aux exemples, compilés
+par la suite à chaque changement, et à la grammaire, qui fait foi. Une
+référence recopiée dériverait ; ceux-là ne le peuvent pas.
+
+**La version.** Le manifeste porte la version du paquet, et la compétence
+épingle `uvx --from monl-compiler==<même version>` : une compétence qui
+appelle un compilateur plus récent ou plus ancien que celui dont elle décrit
+les commandes promettrait des verbes qui n'existent pas. **Une release doit
+donc changer les deux** — le test l'impose. Fenêtre connue : entre la fusion
+d'une release et sa publication sur PyPI (une vingtaine de minutes, avec
+l'approbation), la compétence épingle une version pas encore publiée.
+
+**Gardé par** `tests/test_plugin_claude_code.py` (7 témoins, chacun avec sa
+non-vacuité) : version du manifeste = paquet, version épinglée = paquet, nom
+au catalogue = nom du manifeste, liens qui mènent dans le dépôt, compétence
+nommée comme son dossier, chaque `${CLAUDE_PLUGIN_ROOT}/…` cité qui existe,
+chaque verbe `monl` cité comme commande qui existe dans la CLI. Contre-épreuves
+exécutées : version du manifeste, version épinglée, nom au catalogue, chemin
+cité, verbe cité — chacune fait échouer exactement son témoin. L'extracteur
+de verbes a d'abord pris la PROSE pour une commande (« pourquoi monl refuse
+ma spec » → `refuse`) : il ne lit plus qu'une ligne de code ou un accent
+grave.
+
+**Prouvé par exécution.** `claude plugin validate --strict` passe sur le
+catalogue et sur une copie aux liens déréférencés — le validateur ne suit
+pas un lien, une session si. Installation réelle depuis le marketplace
+local, dans une configuration Claude Code isolée : six compétences, environ
+400 jetons ajoutés à chaque session. Les commandes de la compétence, rejouées
+à la lettre dans un dossier vide par `uvx` depuis PyPI : compile, `run
+--check` vert, `diff` qui n'écrit rien (empreinte de `app.py` inchangée) et
+annonce le champ ajouté, `update`, `run --check` vert. **Non prouvé ici** :
+une session d'agent réelle guidée par la compétence — le garde de worktree
+refuse une session imbriquée qui a l'outil Bash, et ce refus n'a pas été
+contourné.

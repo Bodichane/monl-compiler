@@ -1,0 +1,14 @@
+{
+  "name": "monl-compiler",
+  "description": "Le compilateur monl comme plugin Claude Code.",
+  "owner": {
+    "name": "Itchane Bodi"
+  },
+  "plugins": [
+    {
+      "name": "monl",
+      "source": "./plugin",
+      "description": "Écrire une spec monl, la compiler en backend vérifié, puis construire son interface."
+    }
+  ]
+}
