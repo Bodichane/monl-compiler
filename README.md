@@ -101,6 +101,22 @@ backend et le contrat frontend ; l'IA écrit l'interface contre ce contrat ;
 
 ## Commandes
 
+### Plugin Claude Code
+
+Le dépôt est aussi un marketplace de plugins Claude Code. Le plugin `monl-compiler`
+apprend à Claude à écrire une spec depuis les exemples, à la compiler, à la
+vérifier contre un vrai serveur, puis à construire son interface :
+
+```bash
+claude plugin marketplace add Bodichane/monl-compiler
+claude plugin install monl-compiler@monl-compiler
+```
+
+Dans une session, `/monl-compiler:monl-spec` suivi de ce que l'application doit faire.
+La compétence appelle la ligne de commande par `uvx`, sans installation
+préalable, dans la version du plugin. Le plugin n'est pas listé dans le
+répertoire d'Anthropic : on l'ajoute par ces deux commandes.
+
 ### Plateforme web et MCP
 
 Le compilateur est aussi accessible par une plateforme web : elle valide une
@@ -459,6 +475,7 @@ automatisée.
 | `src/monl/generator/` | Le générateur de backend, une couche par module |
 | `src/monl_platform/` | La plateforme web et le serveur MCP : comptes, compilation, hébergement, administration |
 | `exemples/` | Cinq spécifications `.ml` d'une page, compilées à chaque test |
+| `plugin/`, `.claude-plugin/` | Le plugin Claude Code et son catalogue : les compétences (`plugin/skills/` — écrire la spec avec `monl-spec`, puis construire l'interface) et une copie exacte des exemples et de la grammaire (`plugin/reference/`) |
 | `demo/` | La démo CodexShop, une papeterie qui exerce toute la chaîne marchande : sa spécification, son frontend et ses photos |
 | `tests/` | Non-régression, audit offensif, frontières d'architecture |
 | `docs/` | Décisions de conception, sécurité, migrations, exploitation, publication |
