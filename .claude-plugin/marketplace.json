@@ -6,7 +6,7 @@
   },
   "plugins": [
     {
-      "name": "monl",
+      "name": "monl-compiler",
       "source": "./plugin",
       "description": "Écrire une spec monl, la compiler en backend vérifié, puis construire son interface."
     }

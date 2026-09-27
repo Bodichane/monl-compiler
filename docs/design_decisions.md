@@ -14250,9 +14250,9 @@ passer au vert sans attaquer quoi que ce soit. L'existence d'un fichier nommé
 ## 198. monl comme plugin Claude Code, la CLI plutôt que le MCP local
 
 **Ce qui est livré.** Le dépôt est un marketplace (`.claude-plugin/marketplace.json`)
-qui liste un plugin, `monl`, logé dans `plugin/`. On l'ajoute par
+qui liste un plugin, `monl-compiler`, logé dans `plugin/`. On l'ajoute par
 `claude plugin marketplace add Bodichane/monl-compiler`, puis
-`claude plugin install monl@monl-compiler`. Il porte six compétences : une
+`claude plugin install monl-compiler@monl-compiler`. Il porte six compétences : une
 nouvelle, `monl-spec` (du besoin à un backend vérifié), et les cinq qui
 existaient déjà pour construire l'interface. Il n'est PAS listé dans le
 répertoire d'Anthropic : c'est une soumission distincte, par le portail

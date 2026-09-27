@@ -103,16 +103,16 @@ backend et le contrat frontend ; l'IA écrit l'interface contre ce contrat ;
 
 ### Plugin Claude Code
 
-Le dépôt est aussi un marketplace de plugins Claude Code. Le plugin `monl`
+Le dépôt est aussi un marketplace de plugins Claude Code. Le plugin `monl-compiler`
 apprend à Claude à écrire une spec depuis les exemples, à la compiler, à la
 vérifier contre un vrai serveur, puis à construire son interface :
 
 ```bash
 claude plugin marketplace add Bodichane/monl-compiler
-claude plugin install monl@monl-compiler
+claude plugin install monl-compiler@monl-compiler
 ```
 
-Dans une session, `/monl:monl-spec` suivi de ce que l'application doit faire.
+Dans une session, `/monl-compiler:monl-spec` suivi de ce que l'application doit faire.
 La compétence appelle la ligne de commande par `uvx`, sans installation
 préalable, dans la version du plugin. Le plugin n'est pas listé dans le
 répertoire d'Anthropic : on l'ajoute par ces deux commandes.

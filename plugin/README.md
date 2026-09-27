@@ -13,7 +13,7 @@ l'interface de l'application.
 
 - **`monl-spec`** — du besoin à un backend vérifié : écrire `spec.ml`, le
   compiler, lire les refus du compilateur, lancer la vérification, faire
-  évoluer. Invocation : `/monl:monl-spec <ce que l'application doit faire>`.
+  évoluer. Invocation : `/monl-compiler:monl-spec <ce que l'application doit faire>`.
 - **`monl-showcase`**, **`monl-design-system`**, **`monl-ui-patterns`**,
   **`monl-commerce`**, **`monl-operations`** — construire l'interface d'un
   projet compilé en respectant son contrat.

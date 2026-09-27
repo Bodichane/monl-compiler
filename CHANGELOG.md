@@ -3,7 +3,7 @@
 ## Non publié
 
 - **Plugin Claude Code** (point 198) : `claude plugin marketplace add
-  Bodichane/monl-compiler` puis `claude plugin install monl@monl-compiler`.
+  Bodichane/monl-compiler` puis `claude plugin install monl-compiler@monl-compiler`.
   La compétence `monl-spec` mène du besoin à un backend vérifié par la ligne
   de commande ; les cinq compétences d'interface suivent.
 - **Audit offensif des exemples tenu** (point 197) : rejoué par la CI contre
