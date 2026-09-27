@@ -14269,15 +14269,24 @@ les fichiers ; (c) `monl_list_projects` échoue faute de compte. La ligne de
 commande, elle, écrit dans le projet de l'usager et couvre compile, run
 --check, diff et update. Le mode stdio local du MCP reste à corriger à part.
 
-**Le plugin ne contient que des LIENS.** Avec le dépôt entier pour racine,
-chaque installation copiait tests, sources et `demo/` dans le cache, et
-`claude plugin validate --strict` le signalait (le `CLAUDE.md` des
-développeurs n'est pas chargé par un plugin). `plugin/` porte le manifeste et
-trois liens — `skills`, `exemples`, `grammaire.py` — que Claude Code remplace
-par leur contenu en copiant depuis un marketplace git. **La compétence
-n'enseigne pas le langage de mémoire** : elle renvoie aux exemples, compilés
-par la suite à chaque changement, et à la grammaire, qui fait foi. Une
-référence recopiée dériverait ; ceux-là ne le peuvent pas.
+**Le plugin est un sous-dossier, en fichiers ORDINAIRES.** Avec le dépôt
+entier pour racine, chaque installation copiait tests, sources et `demo/`
+dans le cache, et `claude plugin validate --strict` le signalait (le
+`CLAUDE.md` des développeurs n'est pas chargé par un plugin). La première
+version de `plugin/` ne portait que des LIENS symboliques — Claude Code les
+déréférence en copiant depuis git, mesuré — mais la liste de contrôle du
+répertoire d'Anthropic BLOQUE un lien dans ce qu'un plugin charge : la voie
+qui marchait pour notre marketplace fermait l'autre. Les compétences vivent
+donc pour de vrai dans `plugin/skills/` (elles n'avaient pas d'autre
+lecteur que la docstring de `design_skills.py`), et les exemples et la
+grammaire, qui restent à leur place, sont COPIÉS dans `plugin/reference/`.
+**Une copie dérive** : un témoin exige l'identité à l'octet avec
+l'original, et nomme ce qu'il faut recopier. **La compétence n'enseigne pas
+le langage de mémoire** : elle renvoie aux exemples, compilés par la suite à
+chaque changement, et à la grammaire, qui fait foi. Le portail exige aussi un
+README d'au moins 40 mots DANS le dossier du plugin : `plugin/README.md` dit
+ce que le plugin exécute, écrit et télécharge — c'est ce que lit le scan de
+sécurité.
 
 **La version.** Le manifeste porte la version du paquet, et la compétence
 épingle `uvx --from monl-compiler==<même version>` : une compétence qui
@@ -14287,20 +14296,21 @@ donc changer les deux** — le test l'impose. Fenêtre connue : entre la fusion
 d'une release et sa publication sur PyPI (une vingtaine de minutes, avec
 l'approbation), la compétence épingle une version pas encore publiée.
 
-**Gardé par** `tests/test_plugin_claude_code.py` (7 témoins, chacun avec sa
-non-vacuité) : version du manifeste = paquet, version épinglée = paquet, nom
-au catalogue = nom du manifeste, liens qui mènent dans le dépôt, compétence
+**Gardé par** `tests/test_plugin_claude_code.py` (9 témoins, chacun avec sa
+non-vacuité) : version du manifeste = paquet, version épinglée (compétence ET
+README) = paquet, nom au catalogue = nom du manifeste, aucun lien symbolique,
+copies identiques à l'octet, README d'au moins 40 mots hors code, compétence
 nommée comme son dossier, chaque `${CLAUDE_PLUGIN_ROOT}/…` cité qui existe,
-chaque verbe `monl` cité comme commande qui existe dans la CLI. Contre-épreuves
-exécutées : version du manifeste, version épinglée, nom au catalogue, chemin
-cité, verbe cité — chacune fait échouer exactement son témoin. L'extracteur
+chaque verbe `monl` cité comme commande qui existe dans la CLI. Neuf
+contre-épreuves exécutées — dont un exemple modifié sans sa copie, un lien
+réintroduit, un README réduit — chacune fait échouer exactement son témoin.
+L'extracteur
 de verbes a d'abord pris la PROSE pour une commande (« pourquoi monl refuse
 ma spec » → `refuse`) : il ne lit plus qu'une ligne de code ou un accent
 grave.
 
 **Prouvé par exécution.** `claude plugin validate --strict` passe sur le
-catalogue et sur une copie aux liens déréférencés — le validateur ne suit
-pas un lien, une session si. Installation réelle depuis le marketplace
+catalogue et sur `plugin/`. Installation réelle depuis le marketplace
 local, dans une configuration Claude Code isolée : six compétences, environ
 400 jetons ajoutés à chaque session. Les commandes de la compétence, rejouées
 à la lettre dans un dossier vide par `uvx` depuis PyPI : compile, `run

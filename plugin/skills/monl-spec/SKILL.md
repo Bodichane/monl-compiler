@@ -30,15 +30,16 @@ commande retenue.
 ## 2. Apprendre le langage sur les exemples, pas de mémoire
 
 Le langage n'a pas de référence séparée : ses exemples sont compilés par la
-suite de tests à chaque changement, ils ne peuvent donc pas mentir.
+suite de tests à chaque changement, ils ne peuvent donc pas mentir. Le plugin
+en porte une copie exacte.
 
-1. Lis `${CLAUDE_PLUGIN_ROOT}/exemples/README.md` : il dit ce que chaque exemple
-   démontre.
+1. Lis `${CLAUDE_PLUGIN_ROOT}/reference/exemples/README.md` : il dit ce que
+   chaque exemple démontre.
 2. Lis en entier l'exemple le plus proche du besoin
-   (`${CLAUDE_PLUGIN_ROOT}/exemples/*.ml`). Chacun explique en commentaire
-   **pourquoi** chaque règle est là.
+   (`${CLAUDE_PLUGIN_ROOT}/reference/exemples/*.ml`). Chacun explique en
+   commentaire **pourquoi** chaque règle est là.
 3. En cas de doute sur une syntaxe, la grammaire fait foi :
-   `${CLAUDE_PLUGIN_ROOT}/grammaire.py`. N'invente aucun
+   `${CLAUDE_PLUGIN_ROOT}/reference/grammaire.py`. N'invente aucun
    mot-clé qui n'y figure pas.
 
 ## 3. Écrire la spec dans le projet de l'utilisateur

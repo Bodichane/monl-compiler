@@ -1,11 +1,13 @@
 """Le plugin Claude Code ne dérive pas en silence (point 198).
 
-Le plugin vit dans `plugin/` et ne contient que des liens vers ce qui sert
-(`skills/`, `exemples/`, la grammaire) : Claude Code les remplace par leur
-contenu en copiant depuis un marketplace git. Ce qui peut casser sans bruit :
-une version qui ne suit plus le paquet, une compétence qui épingle une version
-jamais publiée, un lien vers un fichier déplacé, un chemin cité qui n'existe
-plus. Chacun est gardé ici, avec sa non-vacuité.
+Le plugin vit dans `plugin/`, en fichiers ORDINAIRES : le répertoire
+d'Anthropic refuse un lien symbolique dans ce qu'un plugin charge. Ses
+compétences y vivent pour de vrai ; les exemples et la grammaire, qui restent
+à leur place dans le dépôt, y sont COPIÉS — et une copie dérive, d'où le
+témoin d'identité à l'octet. Ce qui peut encore casser sans bruit : une
+version qui ne suit plus le paquet, une compétence qui épingle une version
+jamais publiée, un chemin cité qui n'existe plus. Chacun est gardé ici, avec
+sa non-vacuité.
 """
 import json
 import pathlib
@@ -26,19 +28,27 @@ MANIFESTE = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text(enc
 CATALOGUE = json.loads((RACINE / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8"))
 VERSION_PAQUET = Version(tomllib.loads(
     (RACINE / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"])
-COMPETENCES = sorted((RACINE / "skills").glob("*/SKILL.md"))
+COMPETENCES = sorted((PLUGIN / "skills").glob("*/SKILL.md"))
+# Copie dans le plugin -> original dans le dépôt.
+COPIES = {
+    PLUGIN / "reference" / "grammaire.py": RACINE / "src" / "monl" / "parser" / "grammaire.py",
+    PLUGIN / "reference" / "exemples" / "README.md": RACINE / "exemples" / "README.md",
+    **{PLUGIN / "reference" / "exemples" / p.name: p
+       for p in sorted((RACINE / "exemples").glob("*.ml"))},
+}
 
 
 def test_le_plugin_suit_la_version_du_paquet():
     assert Version(MANIFESTE["version"]) == VERSION_PAQUET == Version(monl.__version__)
 
 
-def test_chaque_version_epinglee_par_une_competence_est_celle_du_paquet():
-    epinglees = [Version(v) for chemin in COMPETENCES
+def test_chaque_version_epinglee_par_le_plugin_est_celle_du_paquet():
+    textes = [*COMPETENCES, PLUGIN / "README.md"]
+    epinglees = [Version(v) for chemin in textes
                  for v in re.findall(r"monl-compiler==([0-9][^\s`\"']*)",
                                      chemin.read_text(encoding="utf-8"))]
     # Sans épinglage trouvé, la règle ne regarderait rien.
-    assert epinglees, "aucune version épinglée trouvée dans les compétences"
+    assert len(epinglees) >= 2, "versions épinglées introuvables"
     assert set(epinglees) == {VERSION_PAQUET}, epinglees
 
 
@@ -50,13 +60,27 @@ def test_le_catalogue_designe_le_plugin_sous_le_meme_nom():
     assert (source / ".claude-plugin" / "plugin.json").is_file()
 
 
-def test_les_liens_du_plugin_menent_dans_le_depot():
-    liens = [p for p in PLUGIN.iterdir() if p.is_symlink()]
-    assert len(liens) >= 3, liens
-    for lien in liens:
-        cible = lien.resolve()
-        assert cible.exists(), f"{lien.name} -> {cible} n'existe pas"
-        assert RACINE.resolve() in cible.parents, f"{lien.name} sort du dépôt : {cible}"
+def test_le_plugin_ne_contient_aucun_lien_symbolique():
+    fichiers = list(PLUGIN.rglob("*"))
+    assert len(fichiers) >= 20, fichiers
+    liens = [str(p.relative_to(PLUGIN)) for p in fichiers if p.is_symlink()]
+    assert not liens, f"le répertoire d'Anthropic refuse un lien : {liens}"
+
+
+def test_les_copies_du_plugin_sont_identiques_a_leur_original():
+    assert len(COPIES) >= 7, COPIES
+    divergentes = [str(copie.relative_to(RACINE)) for copie, original in COPIES.items()
+                   if not copie.is_file() or copie.read_bytes() != original.read_bytes()]
+    assert not divergentes, (
+        "copies absentes ou divergentes : " + ", ".join(divergentes)
+        + " — recopier l'original (exemples/, src/monl/parser/grammaire.py)")
+
+
+def test_le_readme_du_plugin_suffit_au_repertoire():
+    texte = (PLUGIN / "README.md").read_text(encoding="utf-8")
+    sans_code = re.sub(r"```.*?```", "", texte, flags=re.DOTALL)
+    # Seuil du portail : 40 mots hors blocs de code, sinon la soumission bloque.
+    assert len(sans_code.split()) >= 40
 
 
 def test_chaque_competence_est_nommee_comme_son_dossier():
@@ -75,8 +99,7 @@ def test_chaque_chemin_du_plugin_cite_par_une_competence_existe():
                                     chemin.read_text(encoding="utf-8"))]
     assert cites, "aucun chemin ${CLAUDE_PLUGIN_ROOT} trouvé : la règle ne regarderait rien"
     for competence, cite in cites:
-        motif = cite.replace("*", "")
-        trouves = list(PLUGIN.glob(cite)) if "*" in cite else [PLUGIN / motif]
+        trouves = list(PLUGIN.glob(cite)) if "*" in cite else [PLUGIN / cite]
         assert trouves and all(t.exists() for t in trouves), f"{competence} : {cite}"
 
 
@@ -84,7 +107,7 @@ def test_chaque_verbe_cite_par_la_competence_d_entree_existe():
     from monl.cli.dispatch import build_parser
 
     sous = next(a for a in build_parser()._actions if a.dest == "command")
-    texte = (RACINE / "skills" / "monl-spec" / "SKILL.md").read_text(encoding="utf-8")
+    texte = (PLUGIN / "skills" / "monl-spec" / "SKILL.md").read_text(encoding="utf-8")
     # Une COMMANDE (début de ligne d'un bloc de code, ou après un accent
     # grave), jamais la prose : « pourquoi monl refuse ma spec » n'en est pas.
     verbes = set(re.findall(r"(?:^|`)monl (\w+)", texte, flags=re.MULTILINE))

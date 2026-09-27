@@ -1,7 +1,7 @@
 """Compétences de composition injectées dans le brief frontend.
 
 Elles prescrivent une profondeur vérifiable, jamais une identité visuelle.
-Les dossiers ``skills/`` portent leur version utilisable par les agents ; ce
+Les dossiers ``plugin/skills/`` portent leur version utilisable par les agents ; ce
 module en garde le noyau déterministe destiné aux artefacts compilés.
 """
 
