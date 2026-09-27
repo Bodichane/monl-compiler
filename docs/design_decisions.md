@@ -14286,7 +14286,9 @@ le langage de mémoire** : elle renvoie aux exemples, compilés par la suite à
 chaque changement, et à la grammaire, qui fait foi. Le portail exige aussi un
 README d'au moins 40 mots DANS le dossier du plugin : `plugin/README.md` dit
 ce que le plugin exécute, écrit et télécharge — c'est ce que lit le scan de
-sécurité.
+sécurité. L'icône (`plugin/.claude-plugin/icon.svg`) est le favicon de la
+plateforme agrandi à 256 px — pastille sombre, signe crème — et un témoin
+l'y attache : la marque garde une seule source.
 
 **La version.** Le manifeste porte la version du paquet, et la compétence
 épingle `uvx --from monl-compiler==<même version>` : une compétence qui

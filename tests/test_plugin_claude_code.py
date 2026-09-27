@@ -76,6 +76,17 @@ def test_les_copies_du_plugin_sont_identiques_a_leur_original():
         + " — recopier l'original (exemples/, src/monl/parser/grammaire.py)")
 
 
+def test_l_icone_du_plugin_est_celle_de_la_plateforme():
+    # Une seule source pour la marque : le favicon de la plateforme (pastille
+    # sombre, signe crème — lisible hors de toute page, point 157), agrandi à
+    # 256 px parce que le répertoire demande un carré d'au moins 128 px.
+    from monl_platform.theme import FAVICON
+
+    icone = (PLUGIN / ".claude-plugin" / "icon.svg").read_text(encoding="utf-8").strip()
+    assert 'width="256" height="256"' in icone
+    assert icone == FAVICON.replace("<svg ", '<svg width="256" height="256" ', 1)
+
+
 def test_le_readme_du_plugin_suffit_au_repertoire():
     texte = (PLUGIN / "README.md").read_text(encoding="utf-8")
     sans_code = re.sub(r"```.*?```", "", texte, flags=re.DOTALL)
