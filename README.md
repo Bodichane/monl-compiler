@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="plugin/.claude-plugin/icon.svg" alt="monl-compiler" width="96" height="96">
+</p>
+
 # monl-compiler
 
 **Un compilateur qui transforme une spécification déclarative en backend complet, déterministe et sûr.**
