@@ -1,98 +1,97 @@
 ---
 name: monl-spec
-description: Décrire une application en spécification monl (.ml), la compiler en backend FastAPI + SQLite + JWT déterministe, et la vérifier contre un vrai serveur. À utiliser quand on demande de créer, modifier ou vérifier le backend d'une application avec monl, ou d'écrire/corriger un fichier .ml.
-when_to_use: « crée-moi une API pour… », « un backend avec comptes et rôles », « ajoute un champ/une règle à ma spec monl », « pourquoi monl refuse ma spec ».
-argument-hint: "[ce que l'application doit faire]"
+description: Describe an application in a monl specification (.ml), compile it into a deterministic FastAPI + SQLite + JWT backend, and verify it against a real server. Use when asked to create, modify, or verify an application's backend with monl, or to write or fix a .ml file.
+when_to_use: '"create an API for me…", "a backend with accounts and roles", "add a field or rule to my monl spec", "why does monl reject my spec"; « crée-moi une API pour… », « un backend avec comptes et rôles », « ajoute un champ/une règle à ma spec monl », « pourquoi monl refuse ma spec ».'
+argument-hint: "[what the application should do]"
 ---
 
-# Écrire et compiler une spécification monl
+# Write and compile a monl specification
 
-monl compile une spec déclarative en backend complet : schéma SQL, API REST,
-authentification JWT, contrôle d'accès, et un contrat frontend. Le compilateur
-est **déterministe et sans IA** : ton travail est d'écrire la spec juste, le
-sien est de refuser ce qui ne tient pas.
+The monl compiler turns a declarative spec into a complete backend: a SQL
+schema, a REST API, JWT authentication, access control, and a frontend
+contract. The compiler is **deterministic and uses no AI**: your job is to
+write a correct spec; its job is to reject anything that does not hold up.
 
-Demande de l'utilisateur : $ARGUMENTS
+User request: $ARGUMENTS
 
-## 1. Trouver la commande
+## 1. Find the command
 
-Dans l'ordre, garde la première qui répond :
+In order, keep the first command that responds:
 
 ```bash
-monl --version                                      # installé par pip
-uvx --from monl-compiler==0.9.0b10 monl --version   # sinon, sans rien installer
+monl --version                                      # installed with pip
+uvx --from monl-compiler==0.9.0b10 monl --version   # otherwise, without installing anything
 ```
 
-Si aucune ne répond, propose `pip install monl-compiler==0.9.0b10` à
-l'utilisateur ; ne l'installe pas d'office. Dans la suite, `monl` désigne la
-commande retenue.
+If neither responds, suggest `pip install monl-compiler==0.9.0b10` to the
+user; do not install it automatically. Below, `monl` means the selected
+command.
 
-## 2. Apprendre le langage sur les exemples, pas de mémoire
+## 2. Learn the language from examples, not memory
 
-Le langage n'a pas de référence séparée : ses exemples sont compilés par la
-suite de tests à chaque changement, ils ne peuvent donc pas mentir. Le plugin
-en porte une copie exacte.
+The language has no separate reference: its examples are compiled by the test
+suite on every change, so they cannot lie. The plugin carries an exact copy.
 
-1. Lis `${CLAUDE_PLUGIN_ROOT}/reference/exemples/README.md` : il dit ce que
-   chaque exemple démontre.
-2. Lis en entier l'exemple le plus proche du besoin
-   (`${CLAUDE_PLUGIN_ROOT}/reference/exemples/*.ml`). Chacun explique en
-   commentaire **pourquoi** chaque règle est là.
-3. En cas de doute sur une syntaxe, la grammaire fait foi :
-   `${CLAUDE_PLUGIN_ROOT}/reference/grammaire.py`. N'invente aucun
-   mot-clé qui n'y figure pas.
+1. Read `${CLAUDE_PLUGIN_ROOT}/reference/exemples/README.md`: it explains what
+   each example demonstrates.
+2. Read the entire example closest to the user's need
+   (`${CLAUDE_PLUGIN_ROOT}/reference/exemples/*.ml`). Each example explains in
+   comments **why** each rule is there.
+3. If syntax is unclear, the grammar is authoritative:
+   `${CLAUDE_PLUGIN_ROOT}/reference/grammaire.py`. Do not invent keywords that
+   are not in it.
 
-## 3. Écrire la spec dans le projet de l'utilisateur
+## 3. Write the spec in the user's project
 
-Écris `spec.ml` à la racine du projet (ou là où l'utilisateur le demande) —
-jamais dans le dossier du plugin. `monl update` relira ce fichier à cet
-emplacement.
+Write `spec.ml` at the project root (or wherever the user requests) — never in
+the plugin directory. `monl update` will reread the file at that location.
 
-Trois questions à trancher avec l'utilisateur plutôt qu'à deviner :
-- **Qui a un compte, et qui s'inscrit seul ?** Seuls les rôles `selfRegister`
-  s'inscrivent en ligne ; les autres se créent par le `manage.py` généré.
-- **Qui voit et modifie quoi ?** `ownedBy`, `sharedBy`, `accessibleBy`,
-  `public` : un choix de sécurité, donc celui de l'utilisateur.
-- **Un montant est-il encaissé ?** `payable` exige que le montant soit calculé
-  par le serveur (`derivedFrom` ou `sumOf`) : un montant que le client écrit
-  est refusé à la compilation, à dessein.
+Three questions to settle with the user instead of guessing:
+- **Who has an account, and who signs up independently?** Only `selfRegister`
+  roles can sign up online; the others are created with the generated
+  `manage.py`.
+- **Who can see and change what?** `ownedBy`, `sharedBy`, `accessibleBy`,
+  `public`: this is a security choice, so the user must make it.
+- **Is a payment collected?** `payable` requires the amount to be calculated
+  by the server (`derivedFrom` or `sumOf`): an amount written by the client is
+  deliberately rejected at compile time.
 
-## 4. Compiler, et lire les refus
+## 4. Compile and read rejections
 
 ```bash
 monl compile spec.ml --output backend
 ```
 
-Un refus sort avec le code 1 et une ligne `❌` qui nomme la règle fautive et
-explique pourquoi. **Corrige la spec ; ne contourne jamais un refus** (en
-retirant la règle de sécurité qui gêne, par exemple) sans l'accord explicite
-de l'utilisateur : chaque refus protège d'un défaut réel.
+A rejection exits with code 1 and a line marked `❌` that names the offending
+rule and explains why. **Fix the spec; never work around a rejection** (for
+example, by removing an inconvenient security rule) without the user's
+explicit agreement: every rejection protects against a real defect.
 
-## 5. Prouver par exécution
+## 5. Prove it by running it
 
 ```bash
 monl run backend --check
 ```
 
-Cohérence spec ↔ backend ↔ contrat, puis smoke test contre un serveur
-éphémère sur une base neuve. Tant que cette commande n'est pas verte, la
-tâche n'est pas finie — ne l'annonce pas comme faite.
+This checks consistency across the spec, backend, and contract, then runs a
+smoke test against an ephemeral server with a fresh database. Until this
+command passes, the task is not finished — do not report it as done.
 
-Pour lancer l'application : `monl run backend` (API sur `/`, documentation
-sur `/docs`).
+To start the application: `monl run backend` (API at `/`, documentation at
+`/docs`).
 
-## 6. Faire évoluer
+## 6. Evolve it
 
-- `monl diff backend` : ce qu'un changement de `spec.ml` ferait au contrat,
-  **sans rien écrire**. À montrer à l'utilisateur avant d'appliquer.
-- `monl update backend` : recompile et rapporte le delta (routes, champs,
-  accès, verrous). Refais ensuite `monl run backend --check`.
+- `monl diff backend`: shows what a change to `spec.ml` would do to the
+  contract, **without writing anything**. Show it to the user before applying.
+- `monl update backend`: recompiles and reports the delta (routes, fields,
+  access, locks). Then rerun `monl run backend --check`.
 
-## 7. L'interface
+## 7. The interface
 
-Le backend compilé porte `AGENTS.md`, `frontend_contract.json` et
-`docs/FRONTEND_PROMPT.md`. Pour construire l'interface, lis-les d'abord, puis
-applique les compétences `monl-showcase`, `monl-design-system`,
-`monl-ui-patterns`, et `monl-commerce` ou `monl-operations` selon le métier.
-Ne modifie jamais `app.py`, `schema.sql` ni `manage.py` : ils sont scellés par
-empreinte, et `monl run --check` le détecte.
+The compiled backend contains `AGENTS.md`, `frontend_contract.json`, and
+`docs/FRONTEND_PROMPT.md`. To build the interface, read them first, then
+apply the `monl-showcase`, `monl-design-system`, `monl-ui-patterns`, and
+`monl-commerce` or `monl-operations` skills as appropriate for the business.
+Never modify `app.py`, `schema.sql`, or `manage.py`: they are sealed by a
+fingerprint, and `monl run --check` detects changes.
