@@ -1,47 +1,46 @@
-# monl — plugin Claude Code
+# monl — Claude Code plugin
 
-monl compile une spécification déclarative (un fichier `.ml`) en backend
-complet : schéma SQLite, API REST FastAPI, authentification JWT, contrôle
-d'accès par rôle et par enregistrement, et un contrat qui décrit l'interface à
-construire. Le compilateur est déterministe et n'utilise aucune IA.
+monl compiles a declarative specification (a `.ml` file) into a complete
+backend: a SQLite schema, a FastAPI REST API, JWT authentication, role-based
+and record-level access control, and a contract describing the interface to
+build. The compiler is deterministic and uses no AI.
 
-Ce plugin apprend à Claude à écrire cette spécification à partir d'un besoin,
-à la compiler, à prouver le résultat contre un vrai serveur, puis à construire
-l'interface de l'application.
+This plugin teaches Claude to write that specification from a user's
+requirements, compile it, prove the result against a real server, and then
+build the application's interface.
 
-## Compétences
+## Skills
 
-- **`monl-spec`** — du besoin à un backend vérifié : écrire `spec.ml`, le
-  compiler, lire les refus du compilateur, lancer la vérification, faire
-  évoluer. Invocation : `/monl-compiler:monl-spec <ce que l'application doit faire>`.
+- **`monl-spec`** — from requirements to a verified backend: write `spec.ml`,
+  compile it, read compiler rejections, run verification, and evolve the spec.
+  Invoke with: `/monl-compiler:monl-spec <what the application should do>`.
 - **`monl-showcase`**, **`monl-design-system`**, **`monl-ui-patterns`**,
-  **`monl-commerce`**, **`monl-operations`** — construire l'interface d'un
-  projet compilé en respectant son contrat.
+  **`monl-commerce`**, **`monl-operations`** — build a compiled project's
+  interface in accordance with its contract.
 
-## Ce que le plugin exécute, écrit et télécharge
+## What the plugin runs, writes, and downloads
 
-Le plugin ne contient ni hook, ni serveur MCP, ni script. La compétence
-`monl-spec` demande à Claude de lancer la ligne de commande du compilateur :
+The plugin contains no hooks, MCP servers, or scripts. The `monl-spec` skill
+asks Claude to run the compiler's command-line interface:
 
-- `monl`, si l'utilisateur l'a déjà installé ; sinon
-  `uvx --from monl-compiler==0.9.0b10 monl`, qui **télécharge depuis PyPI** le
-  paquet `monl-compiler` à cette version exacte, et ses dépendances ;
-- elle écrit `spec.ml` et le dossier compilé **dans le projet de
-  l'utilisateur** ;
-- la vérification (`monl run --check`) démarre un serveur **local** éphémère
-  sur une base neuve, le temps d'un test, puis l'arrête.
+- `monl`, if the user has already installed it; otherwise
+  `uvx --from monl-compiler==0.9.0b10 monl`, which **downloads from PyPI** the
+  `monl-compiler` package at that exact version and its dependencies;
+- it writes `spec.ml` and the compiled directory **in the user's project**;
+- verification (`monl run --check`) starts an ephemeral **local** server on a
+  fresh database for the duration of a test, then stops it.
 
-Aucune donnée n'est envoyée ailleurs : le compilateur ne fait aucun appel
-réseau. Le dossier `reference/` contient une copie exacte des exemples et de
-la grammaire du langage, que la compétence lit.
+No data is sent elsewhere: the compiler makes no network calls. The
+`reference/` directory contains exact copies of the language examples and
+grammar, which the skill reads.
 
-## Prérequis
+## Prerequisites
 
-Un environnement qui peut exécuter des commandes — Claude Code, typiquement —
-avec [uv](https://docs.astral.sh/uv/) ou Python 3.10+ et `pip`.
+An environment that can run commands — typically Claude Code — with
+[uv](https://docs.astral.sh/uv/) or Python 3.10+ and `pip`.
 
-## Licence et source
+## License and source
 
 Functional Source License 1.1, Apache 2.0 Future License
-(`LicenseRef-FSL-1.1-ALv2`). Code source, documentation et exemples :
+(`LicenseRef-FSL-1.1-ALv2`). Source code, documentation, and examples:
 <https://github.com/Bodichane/monl-compiler>.
