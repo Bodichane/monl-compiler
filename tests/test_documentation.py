@@ -23,9 +23,6 @@ DOCUMENTS_HISTORIQUES = {
     **{
         f"docs/phase_{numero}_{nom}.md": "archive d'une phase de conception achevée"
         for numero, nom in (
-            (0, "cadrage"),
-            (1, "model_conceptuel"),
-            (2, "dsl"),
             (3, "parser"),
             (4, "ast"),
             (5, "generator"),

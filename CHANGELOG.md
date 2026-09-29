@@ -1,828 +1,814 @@
-# Journal des modifications
+# Changelog
 
-## Non publié
+## Unreleased
 
-- **Plugin Claude Code** (point 198) : `claude plugin marketplace add
-  Bodichane/monl-compiler` puis `claude plugin install monl-compiler@monl-compiler`.
-  La compétence `monl-spec` mène du besoin à un backend vérifié par la ligne
-  de commande ; les cinq compétences d'interface suivent.
-- **Audit offensif des exemples tenu** (point 197) : rejoué par la CI contre
-  un vrai serveur, avec le code exact attendu ; témoins du jeton et du cookie
-  de session.
+- **Claude Code plugin** (point 198): `claude plugin marketplace add
+  Bodichane/monl-compiler` then `claude plugin install monl-compiler@monl-compiler`.
+  The `monl-spec` skill takes you from a need to a backend verified by the
+  command line; the five interface skills follow.
+- **Offensive audit of the examples held** (point 197): replayed by CI against
+  a real server, with the exact expected code; token and session cookie witnesses.
 
-## 0.9.0-beta.10 — Ce que l'usager reçoit
+## 0.9.0-beta.10 — What the user gets
 
-Une bêta courte, née de deux agents d'amélioration continue ajoutés au dépôt
-(`.claude/agents/`) : **premier-usager** refait le parcours de quelqu'un qui
-n'a pas le dépôt — roue installée dans un venv vierge, compilation, backend
-livré, plateforme, MCP, compte perdu puis supprimé — et **contre-épreuve**
-vérifie qu'un test ajouté mord vraiment. Chaque défaut qu'ils ont constaté est
-devenu une issue, puis une correction avec son témoin. Six points de
-conception, 191 à 196.
+A short beta, born from two continuous improvement agents added to the repository
+(`.claude/agents/`): **first-user** repeats the journey of someone who does not
+have the repository — wheel installed in a fresh venv, compilation, delivered
+backend, platform, MCP, lost account then deleted — and **counter-proof**
+checks that an added test really bites. Every defect they found became an issue,
+then a fix with its witness. Six design points, 191 to 196.
 
-1634 tests, 16 sauts déclarés (tous PostgreSQL d'intégration non demandé),
-`ruff` propre. Entre beta.9 et beta.10 compilées du même code, `diff -r` ne
-montre qu'une ligne, `compiler_version` dans `monl.json` ; les changements de
-sortie de cette version viennent du point 191, qui les documente.
+1634 tests, 16 declared skips (all unrequested PostgreSQL integration tests),
+clean `ruff`. Between beta.9 and beta.10 compiled from the same code, `diff -r`
+shows only one line, `compiler_version` in `monl.json`; the output changes in
+this version come from point 191, which documents them.
 
-### Une spec peut être refusée
+### A spec can be refused
 
-- **Le statut post-paiement naît dans son premier état** (point 191). Un champ
-  `writableAfterPayment` portant un `oneOf` reçoit à la création la PREMIÈRE
-  valeur déclarée, au lieu de `NULL` hors de son propre cycle de vie. Si cette
-  première valeur déclenche aussi `releases`, la compilation refuse désormais
-  et demande de déclarer d'abord l'état initial. Les lignes antérieures restent
-  à `NULL` et sont comptées au démarrage (point 89).
+- **The post-payment status starts in its first state** (point 191). A
+  `writableAfterPayment` field carrying a `oneOf` receives the FIRST declared
+  value on creation, instead of `NULL` outside its own lifecycle. If this first
+  value also triggers `releases`, compilation now refuses and asks you to
+  declare the initial state first. Earlier rows remain `NULL` and are counted
+  at startup (point 89).
 
-### Ce que l'usager reçoit disait vrai
+### What the user gets was accurate
 
-- **Le contrat annonce la clé visée par un compteur** (point 195). Quand la
-  relation visée par `increments`/`decrements` n'était pas la première
-  relation entrante, le contrat l'omettait : `POST /orderline` sans
-  `variant_id`, `POST /like` sans `post_id` — tout frontend fidèle au contrat
-  récoltait un 422. Le contrat lit la même source que le schéma, et un
-  invariant confronte les 39 routes POST/PUT des specs du dépôt au schéma
-  Pydantic réellement émis, dans les deux sens. `monl update` sur un projet
-  existant annonce donc ces champs : c'est le contrat qui devient exact.
-- **`monl run --check` sur un projet à assets sans frontend** ne refuse plus
-  une application saine : le smoke test monte le wrapper dès qu'il y a des
-  assets, comme `monl run` (point 195).
-- **`monl run --check` n'annonce plus de pages inexistantes** (point 196) :
-  « landing, /app » étaient promis, 404 servis. Le préfixe mort `/app` sort
-  aussi de la cohérence, qui signale désormais un frontend qui l'appelle.
-- **`monl-platform --help` liste `admin` et `sauvegarde`** (point 196),
-  dérivés de la table que lit le dispatch.
+- **The contract announces the key targeted by a counter** (point 195). When
+  the relation targeted by `increments`/`decrements` was not the first incoming
+  relation, the contract omitted it: `POST /orderline` without `variant_id`,
+  `POST /like` without `post_id` — any frontend faithful to the contract got a
+  422. The contract reads from the same source as the schema, and an invariant
+  compares the 39 POST/PUT routes in the repository specs against the actual
+  emitted Pydantic schema, in both directions. `monl update` on an existing
+  project therefore announces these fields: the contract becomes accurate.
+- **`monl run --check` on an assets project without a frontend** no longer
+  refuses a healthy application: the smoke test mounts the wrapper whenever
+  there are assets, as `monl run` does (point 195).
+- **`monl run --check` no longer announces nonexistent pages** (point 196):
+  « landing, /app » were promised, 404s served. The dead `/app` prefix is also
+  removed from consistency checks, which now flag a frontend that calls it.
+- **`monl-platform --help` lists `admin` and `backup`** (point 196), derived
+  from the table used by dispatch.
 
-### La plateforme
+### The platform
 
-- **Refonte visuelle** de la connexion, de la console et de l'accueil.
-- **Quatre comportements de la page de connexion** enfin gardés par un test
-  (point 193) — dont le bouton de fournisseur OAuth, désormais construit par
-  le DOM.
+- **Visual redesign** of sign-in, the console, and the home page.
+- **Four behaviors of the sign-in page** are finally guarded by a test
+  (point 193) — including the OAuth provider button, now built with the DOM.
 
-### Les tests
+### The tests
 
-- **Les tests d'hébergement ne laissent plus de serveurs orphelins**
-  (point 192) : tout test qui démarre un `serve:app` passe par un gestionnaire
-  dont le `finally` arrête tout, et un témoin vérifie que le PID a disparu.
-- **Deux témoins creux corrigés** (point 194), prouvés tels par l'agent
-  contre-épreuve : une attente qui s'arrêtait aux en-têtes, et une inclinaison
-  mesurée sur une carte de taille nulle.
+- **Hosting tests no longer leave orphaned servers** (point 192): every test
+  that starts a `serve:app` goes through a manager whose `finally` stops
+  everything, and a witness verifies that the PID has disappeared.
+- **Two hollow witnesses fixed** (point 194), proven hollow by the
+  counter-proof agent: an assertion that stopped at the headers, and a tilt
+  measured on a zero-size card.
 
-## 0.9.0-beta.9 — Le cap, et la mise en production
+## 0.9.0-beta.9 — The direction, and production deployment
 
-La bêta 8 ouvrait une plateforme ; celle-ci la met en ligne pour de vrai, et
-change d'abord ce qu'elle promet. **Décision du mainteneur (point 162) : monl
-produit le backend et sa base — déterministes, audités, sans appel réseau —
-et tout ce qui demande une IA se fait avec le fournisseur de l'usager, sur sa
-machine.** La console web ne construit plus de frontend ; elle fait ce que
-fait la ligne de commande : dialogue guidé → contrat + base. Quarante-huit
-points de conception, 143 à 190.
+Beta 8 opened a platform; this one deploys it for real, and first changes what
+it promises. **Maintainer decision (point 162): monl produces the backend and
+its database — deterministic, audited, with no network call — and everything
+that requires AI is done with the user's provider, on their machine.** The web
+console no longer builds a frontend; it does what the command line does:
+guided dialogue → contract + database. Forty-eight design points, 143 to 190.
 
-1606 tests, 16 sauts déclarés (tous PostgreSQL d'intégration non demandé),
-`ruff` propre. Le compilateur ne change sa sortie que là où un point le dit :
-entre beta.8 et beta.9 compilées du même code, `diff -r` ne montre qu'une
-ligne, `compiler_version` dans `monl.json`.
+1606 tests, 16 declared skips (all unrequested PostgreSQL integration tests),
+clean `ruff`. The compiler changes its output only where a point says so:
+between beta.8 and beta.9 compiled from the same code, `diff -r` shows only one
+line, `compiler_version` in `monl.json`.
 
-### Changement cassant
+### Breaking change
 
-- **La plateforme ne construit plus d'interface** (point 162). Le
-  constructeur par IA part — `builder`, `worker`, la file de constructions et
-  ses routes, les quotas, `/api/usage` et les huit paramètres d'IA de
-  `create_app`. En production il répondait 503 faute de fournisseur branché ;
-  et quand notre clé payait, chaque compte ouvrait une facture. L'hébergement
-  sert désormais le dossier **compilé**, frontend facultatif. `monl frontend`
-  en ligne de commande est inchangé.
-- **L'archive d'un projet compilé est rangée** (point 176) : les documents
-  destinés à l'IA d'interface partent dans `docs/` (`docs/FRONTEND_PROMPT.md`
-  et la direction visuelle), la mémoire du projet s'appelle `AGENTS.md` au
-  lieu de `CLAUDE.md`, et `sandbox_ai.py` n'est plus produit sans bloc
-  `custom` (point 175). `frontend_contract.json` reste à la racine.
+- **The platform no longer builds interfaces** (point 162). The AI builder is
+  removed — `builder`, `worker`, the build queue and its routes, quotas,
+  `/api/usage`, and the eight AI settings in `create_app`. In production it
+  returned 503 because no provider was connected; and when our key paid for it,
+  every account opened a bill. Hosting now serves the **compiled** directory,
+  frontend optional. The command-line `monl frontend` is unchanged.
+- **The archive of a compiled project is organized** (point 176): documents
+  intended for interface AI go into `docs/` (`docs/FRONTEND_PROMPT.md` and the
+  visual direction), project memory is called `AGENTS.md` instead of `CLAUDE.md`,
+  and `sandbox_ai.py` is no longer produced without a `custom` block (point 175).
+  `frontend_contract.json` remains at the root.
 
-### La boucle se ferme sans navigateur
+### The loop closes without a browser
 
-- **Dialogue guidé sur le web** (point 163) : la console rejoue le moteur
-  déterministe à chaque requête, sans état caché.
-- **MCP** : `monl_list_projects`, `monl_diff_spec`, `monl_update_backend`,
-  et l'archive téléchargeable avec la clé — un agent compile, récupère et met
-  à jour un projet sans jamais ouvrir le site.
-- **Connexion par GitHub ou Google** (point 145) : une identité vérifiée par
-  un tiers, et toujours aucun message envoyé par monl. La page de connexion
-  offre le chemin des codes de secours.
+- **Guided dialogue on the web** (point 163): the console replays the
+  deterministic engine on every request, with no hidden state.
+- **MCP**: `monl_list_projects`, `monl_diff_spec`, `monl_update_backend`,
+  and a downloadable archive with the key — an agent compiles, retrieves, and
+  updates a project without ever opening the site.
+- **Sign-in with GitHub or Google** (point 145): an identity verified by a
+  third party, and still no message sent by monl. The sign-in page offers the
+  backup code route.
 
-### Prêt pour de vrais usagers, et en production
+### Ready for real users, and in production
 
-- **Quatre bloquants trouvés en étant le premier usager** (point 164), dont une
-  plateforme **indéployable depuis un `pip install` ordinaire** : `favicon.ico`
-  n'entrait pas dans le paquet, et la CI, installée en éditable, ne pouvait pas
-  le voir. Le site tient à 375 pixels (point 165).
-- **Le chemin conteneur exécuté** (point 166) sous les restrictions réelles du
-  compose, puis **le déploiement de production éprouvé** (point 185) — image
-  GHCR, `scripts/deploy_platform.sh`, sonde de sauvegarde qui ne fuit plus ses
-  descripteurs.
-- **La plateforme remonte après un redémarrage** (point 189) : le compose
-  déclarait `unless-stopped`, que `podman-restart.service` ne relance pas.
+- **Four blockers found by being the first user** (point 164), including a
+  platform **that could not be deployed from an ordinary `pip install`**:
+  `favicon.ico` was not included in the package, and CI, installed in editable
+  mode, could not see it. The site fits at 375 pixels (point 165).
+- **The container path executed** (point 166) under the actual compose
+  restrictions, then **the production deployment tested** (point 185) — GHCR
+  image, `scripts/deploy_platform.sh`, backup probe that no longer leaks its
+  file descriptors.
+- **The platform comes back after a restart** (point 189): compose declared
+  `unless-stopped`, which `podman-restart.service` does not restart.
 
-### Sécurité : un audit statique, cinq défauts réels, tous fermés
+### Security: a static audit, five real defects, all fixed
 
-- Corps HTTP **borné même sans `Content-Length`** et admission de
-  recompilation limitée (point 186).
-- **Le `state` OAuth est lié au navigateur** qui a commencé l'aller — fin du
-  *login CSRF* qui connectait un visiteur au compte d'un attaquant (point 187).
-- **Plafond de sites hébergés** (20 au total, 3 par compte) et corps du
-  webhook de paiement borné (point 188).
-- La plateforme **refuse de démarrer** si elle se déclare en HTTPS avec un
-  cookie de session non sûr, et un site hébergé qui plante laisse enfin une
-  trace, `site.log`, lue par `monl-platform admin journal` et jamais par une
-  route web (point 172).
+- HTTP bodies **bounded even without `Content-Length`** and recompilation
+  admission limited (point 186).
+- **OAuth `state` is bound to the browser** that started the flow — ending the
+  *login CSRF* that signed a visitor into an attacker's account (point 187).
+- **Hosted site cap** (20 total, 3 per account) and payment webhook body
+  bounded (point 188).
+- The platform **refuses to start** if it declares HTTPS with an insecure
+  session cookie, and a hosted site that crashes finally leaves a trace,
+  `site.log`, read by `monl-platform admin journal` and never by a web route
+  (point 172).
 
-### Compilateur
+### Compiler
 
-- **Performance** : index sur ce qu'une route interroge (clés étrangères,
-  `filter`, puis `accessibleBy` et `publicWhen` par invariant), jeton décodé
-  une fois, **pool de connexions PostgreSQL — 28,7 ms → 5,1 ms** par requête
-  authentifiée (points 181 à 183).
-- `upload`, `filter` et `sort` sont **enfin écrits par le dialogue guidé**
-  (point 173), et un texte `required` doit être **rempli**, plus seulement
-  présent (point 179).
-- La libération de stock suit le champ que le paiement lui a pris.
-- Compilateur et plans IR consolidés ; validateur devenu paquet (points 152
-  à 155).
+- **Performance**: indexes on what a route queries (foreign keys, `filter`,
+  then `accessibleBy` and `publicWhen` by invariant), token decoded once,
+  **PostgreSQL connection pool — 28.7 ms → 5.1 ms** per authenticated request
+  (points 181 to 183).
+- `upload`, `filter`, and `sort` are **finally written by guided dialogue**
+  (point 173), and `required` text must be **filled in**, not merely present
+  (point 179).
+- Stock release follows the field that payment took from it.
+- Compiler and IR plans consolidated; validator made a package (points 152
+  to 155).
 
 ### Publication
 
-- **Le compilateur est publiable** (points 167 et 169) : métadonnées
-  complètes, licence en `LicenseRef-FSL-1.1-ALv2`, et un workflow **Trusted
-  Publishing** — un tag `v*` éprouve le commit du tag sur trois versions de
-  Python, construit une seule fois, envoie à TestPyPI puis à PyPI après
-  approbation. Aucun secret de longue durée. Voir `docs/PUBLICATION.md`.
+- **The compiler is publishable** (points 167 and 169): complete metadata,
+  license as `LicenseRef-FSL-1.1-ALv2`, and a **Trusted Publishing** workflow —
+  a `v*` tag tests the tag's commit on three Python versions, builds once,
+  uploads to TestPyPI then to PyPI after approval. No long-lived secret. See
+  `docs/PUBLICATION.md`.
 
-### Marque
+### Brand
 
-- Nouveau logo : signe monochrome et lockup MONL COMPILER (point 177).
+- New logo: monochrome mark and MONL COMPILER lockup (point 177).
 
-### Outillage
+### Tooling
 
-- La complexité mesurée devient un **cliquet** (point 170), la barrière de
-  couverture de la plateforme ne dépend plus d'une liste de fichiers
-  (point 184), et **un invariant garde toute la documentation** contre la
-  péremption silencieuse (point 190).
+- Measured complexity becomes a **ratchet** (point 170), the platform coverage
+  gate no longer depends on a file list (point 184), and **an invariant
+  protects all documentation** against silent staleness (point 190).
 
-## 0.9.0-beta.8 — La plateforme, et le droit d'ouvrir au public
+## 0.9.0-beta.8 — The platform, and the right to open it to the public
 
-Une bêta qui ne change presque rien au compilateur et beaucoup à ce qui
-l'entoure. Le dépôt est passé sous **licence FSL-1.1-ALv2** (bascule
-automatique vers Apache-2.0 deux ans après chaque version), et monl a gagné
-une **plateforme web** : compiler par API, par clé, ou par serveur MCP, avec
-des comptes, des projets et un panneau d'administration en ligne de commande.
-Dix-huit points de conception, 125 à 142.
+A beta that changes almost nothing in the compiler and a lot in what surrounds
+it. The repository moved to the **FSL-1.1-ALv2 license** (automatic switch to
+Apache-2.0 two years after each release), and monl gained a **web platform**:
+compile through an API, with a key, or through an MCP server, with accounts,
+projects, and a command-line administration panel. Eighteen design points,
+125 to 142.
 
-La bascule sous licence est le changement le plus lourd de conséquences :
-l'usage libre, professionnel et commercial reste entier, y compris pour livrer
-des applications à des clients. Seul l'usage *concurrent* — refaire un
-monl-compiler — est réservé, et il cesse de l'être au bout de deux ans.
+The license switch has the biggest consequences: free, professional, and
+commercial use remain fully allowed, including delivering applications to
+clients. Only *competing* use — making a monl-compiler again — is reserved, and
+that restriction ends after two years.
 
-1113 tests, `ruff` propre, couverture du compilateur à 90 %. Le compilateur
-lui-même est **inchangé à l'octet** sur toute spec qui ne demande pas les
-nouvelles briques : les golden tests le prouvent, seul `monl.json` bouge parce
-qu'il scelle le numéro de version.
+1113 tests, clean `ruff`, compiler coverage at 90%. The compiler itself is
+**unchanged byte for byte** for any spec that does not request the new bricks:
+golden tests prove it; only `monl.json` changes because it seals the version
+number.
 
-### Une plateforme web, du portail au panneau d'administration
+### A web platform, from portal to administration panel
 
-- **Compiler sans rien installer** : `POST /api/compile` et `/api/validate`,
-  console web, guide, catalogue d'exemples, téléchargement du projet compilé.
-- **Serveur MCP** (`/mcp`) et **clés d'API** révocables, pour brancher un agent
-  sur le compilateur plutôt que sur une console.
-- **Comptes** : inscription, sessions, suppression de compte et de ses données.
-- **Huit codes de secours** remis une seule fois à l'inscription. « On vous
-  envoie un lien » est la voie écartée : elle commencerait par « monl sait
-  envoyer un message », et la politique de confidentialité promet le contraire.
-- **`monl-platform admin`** — huit verbes sur les comptes et les projets. Le
-  panneau web est refusé volontairement : il demanderait sa propre
-  authentification et deviendrait la cible dont une faille donne tous les
-  comptes, alors que qui possède le shell possède déjà la base.
-- **Journal, sauvegarde tournante et purge périodique**, plus une image de
-  conteneur en lecture seule et un compagnon de sauvegarde sur volume séparé.
-- **Pages légales** — conditions, confidentialité, mentions. `legal.py`
-  n'invente aucune identité : ce qui manque porte un marqueur visible dans la
-  page servie, gardé par un test. La liste des données conservées est
-  confrontée au schéma SQLite réel — une politique désynchronisée est pire
-  qu'absente, elle affirme.
+- **Compile without installing anything**: `POST /api/compile` and
+  `/api/validate`, web console, guide, example catalog, compiled project
+  download.
+- **MCP server** (`/mcp`) and revocable **API keys**, to connect an agent to the
+  compiler rather than to a console.
+- **Accounts**: registration, sessions, account and data deletion.
+- **Eight backup codes** provided once at registration. “We'll send you a
+  link” is the rejected approach: it would begin with “monl can send a message,”
+  and the privacy policy promises the opposite.
+- **`monl-platform admin`** — eight commands for accounts and projects. The web
+  panel is deliberately refused: it would need its own authentication and
+  become a target where a vulnerability exposes every account, while anyone
+  with the shell already has the database.
+- **Log, rotating backup, and periodic purge**, plus a read-only container
+  image and a backup companion on a separate volume.
+- **Legal pages** — terms, privacy, notices. `legal.py` invents no identity:
+  missing information gets a visible marker on the served page, guarded by a
+  test. The list of retained data is checked against the actual SQLite schema —
+  a policy out of sync is worse than none; it makes claims.
+### Accept payments by mobile money (points 126 to 128, 131)
 
-### Encaisser par mobile money (points 126 à 128, 131)
+- **FedaPay** joins Stripe: the provider becomes pluggable, the payment
+  currency and its exponent are declared, and webhook matching is
+  proven rather than assumed.
 
-- **FedaPay** rejoint Stripe : le prestataire devient enfichable, la devise
-  d'encaissement et son exposant sont déclarés, et l'appariement du webhook est
-  prouvé plutôt que supposé.
+### Compiler: four bricks and a safeguard (points 135 to 139)
 
-### Compilateur : quatre briques et un garde-fou (points 135 à 139)
+- **Design system and pattern library**, and a manifest that becomes
+  evidence rather than intention.
+- **Brick 29 — every local file requested by the frontend must be served.**
+  A site built for 48 rubles referenced six SVGs, none of which were
+  delivered, while `monl run --check` was green on both sides: a missing file
+  raises no exception, jsdom receives the 404 and continues.
+- **`capability auth` is connected to the guided dialogue**, and `phone_prefix`
+  works outside Europe: a Beninese number is written without a leading zero, so
+  `"+229"` produced nothing and login failed after a successful registration.
+- **The compiler no longer chooses the palette**, through the remaining pipe
+  available to it.
 
-- **Système de design et bibliothèque de motifs**, et un manifeste qui devient
-  une preuve plutôt qu'une intention.
-- **Brique 29 — tout fichier local réclamé par le frontend doit être servi.**
-  Un site construit pour 48 roubles référençait six SVG dont aucun n'était
-  livré, et `monl run --check` était au vert des deux côtés : un fichier absent
-  ne lève aucune exception, jsdom reçoit le 404 et continue.
-- **`capability auth` est branchée au dialogue guidé**, et `phone_prefix`
-  fonctionne hors d'Europe : un numéro béninois s'écrit sans zéro de tête, donc
-  `"+229"` ne produisait rien et la connexion échouait après une inscription
-  réussie.
-- **Le compilateur ne choisit plus la palette**, par le tuyau qui lui restait.
+### The test harness fails instead of skipping (point 140)
 
-### Le harnais de test échoue au lieu de sauter (point 140)
-
-- `uvicorn_server` convertissait la mort d'un serveur en `pytest.skip` : vingt
-  et un fichiers d'intégration pouvaient ne rien vérifier en rendant du vert.
-  La socket est désormais liée par le parent et passée à l'enfant, donc la
-  collision de port est impossible plutôt que retentée. **Dès sa première
-  exécution, le correctif a trouvé un fichier de tests qui ne s'exécutait plus
-  du tout** — `python-multipart` absent, pourtant déclaré. Un saut ne dit pas
-  « rien à vérifier ici », il dit « je n'ai pas vérifié ».
-- La barrière de couverture avait changé de portée sans que personne ne le
-  décide : `--cov=src` au lieu de `--cov=src/monl`.
+- `uvicorn_server` converted a server crash into `pytest.skip`: twenty-one
+  integration files could verify nothing while showing green. The socket is
+  now bound by the parent and passed to the child, so a port collision is
+  impossible rather than retried. **On its very first run, the fix found a test
+  file that no longer ran at all** — `python-multipart` was missing, despite
+  being declared. A skip does not say «nothing to check here»; it says «I did not
+  check».
+- The coverage threshold had changed scope without anyone deciding to do so:
+  `--cov=src` instead of `--cov=src/monl`.
 
 ### Documentation
 
-- README et diagramme d'architecture repassés en français.
-- `docs/EXPLOITATION.md` — procédure d'exploitation, confrontée au code par
-  deux tests dans les deux sens : une variable morte ne se réglera pas, une
-  variable documentée mais ignorée se réglera pour rien.
-- Dix liens du sommaire de `docs/design_decisions.md` pointaient dans le vide
-  sans que rien ne le regarde ; une garde les tient désormais.
+- README and architecture diagram switched back to French.
+- `docs/EXPLOITATION.md` — operating procedure, checked against the code by
+  two tests in both directions: a dead variable will not be configured, and a
+  documented but ignored variable will be configured for nothing.
+- Ten links in the contents of `docs/design_decisions.md` pointed nowhere
+  without anything checking them; a safeguard now keeps them valid.
 
-## 0.9.0-beta.7 — Prêt production
+## 0.9.0-beta.7 — Production-ready
 
-Deux familles de chantiers menées jusqu'au bout : ce qui bloquait la mise en
-ligne (déploiement, couche données, migrations) et ce que le backend généré ne
-savait pas faire (téléversement, courriel, filtrage/tri, authentification
-complète). Huit points de conception, 117 à 124, chacun éprouvé contre un vrai
-serveur — et un vrai PostgreSQL — avant d'être intégré.
+Two groups of work completed end to end: what blocked deployment (deployment,
+data layer, migrations) and what the generated backend could not do (uploads,
+email, filtering/sorting, full authentication). Eight design points, 117 to 124,
+each tested against a real server — and a real PostgreSQL — before being
+integrated.
 
-891 tests, `ruff` propre, et les golden tests inchangés pour toute spec qui ne
-demande pas les nouvelles briques : rien de tout cela ne modifie un projet
-existant qui ne le réclame pas.
+891 tests, clean `ruff`, and golden tests unchanged for any spec that does not
+request the new bricks: none of this changes an existing project that does not
+ask for it.
 
-- Les fonctions de bibliothèque lèvent désormais une famille commune
-  `MonlError` ; la conversion en code de sortie reste à la frontière CLI.
-- `CompilationPlans` est calculé une seule fois par générateur et devient le
-  catalogue canonique partagé par les renderers backend et le contrat frontend.
-- Des golden tests verrouillent les artefacts déterministes d'une compilation
-  représentative, y compris le contrat et l'état du projet.
-- `requests` est déplacé dans l'extra optionnel `.[ai]` et les compatibilités
-  historiques sont documentées dans `docs/DEPRECATIONS.md`.
+- Library functions now raise a common `MonlError` family; conversion to an
+  exit code remains at the CLI boundary.
+- `CompilationPlans` is computed only once per generator and becomes the
+  canonical catalog shared by the backend renderers and the frontend contract.
+- Golden tests lock down the deterministic artifacts of a representative
+  compilation, including the contract and project state.
+- `requests` is moved into the optional `.[ai]` extra, and historical
+  compatibility is documented in `docs/DEPRECATIONS.md`.
 
-### Briques 27 et 28 remises d'aplomb (point 116)
+### Bricks 27 and 28 set right (point 116)
 
-- **`publicWhen` ne cache plus le contenu à qui doit le voir.** Un `sharedBy`
-  sur la même référence nomme les rôles superviseurs, et le propriétaire
-  retrouve toujours ses enregistrements. Avant ce correctif, masquer un contenu
-  le retirait AUSSI au modérateur qui venait de le masquer, et à son auteur.
-- **`oncePer` refusait parfois sans rien protéger.** Un index composite posé sur
-  une colonne que la route `Create` n'écrit jamais laissait passer tous les
-  doublons ; la génération refuse désormais ce cas en nommant la relation à
-  déplacer. Son 409 ne vole plus le message de `unique`.
-- **`monl update` voit les deux règles.** Elles vivaient dans `business_rules`,
-  que la signature de contrat ne lisait pas : le delta répondait « aucun
-  changement d'interface ». Contrat en version 9.
-- **La suite passe sur un clone neuf.** `tests/test_projets_metier.py` lisait
-  `projets/`, ignoré par git : six tests échouaient en CI. Les specs sont
-  désormais dans le fichier de test.
-- Les deux briques sont éprouvées contre un vrai serveur
+- **`publicWhen` no longer hides content from those who should see it.** A
+  `sharedBy` on the same reference names the supervisor roles, and the owner
+  always gets their records back. Before this fix, hiding content ALSO removed
+  it from the moderator who had just hidden it, and from its author.
+- **`oncePer` sometimes refused without protecting anything.** A composite
+  index placed on a column that the `Create` route never writes let all
+  duplicates through; generation now refuses this case and names the relation
+  to move. Its 409 no longer steals the `unique` message.
+- **`monl update` sees both rules.** They lived in `business_rules`, which the
+  contract signature did not read: the delta returned «no interface changes».
+  Contract version 9.
+- **The suite passes on a fresh clone.** `tests/test_projets_metier.py` read
+  `projets/`, which git ignores: six tests failed in CI. The specs are now in
+  the test file.
+- Both bricks are tested against a real server
   (`tests/test_publication_conditionnelle.py`, `tests/test_unicite_composite.py`)
-  et compilées par `exemples/03_reseau_social.ml`.
+  and compiled from `exemples/03_reseau_social.ml`.
 
-### La colonne du compteur ne dépend plus de l'ordre des relations (point 117)
+### The counter column no longer depends on relation order (point 117)
 
-- **Correction de données.** Une entité à deux relations entrantes dont celle du
-  compteur était déclarée en premier créait ses lignes avec la clé étrangère de
-  la cible à `NULL` : le compteur montait, mais l'enregistrement ne savait pas
-  sur quoi il portait. Inverser les deux relations suffisait à tout réparer —
-  bug d'ordre, invisible sur la spec qui l'a fait naître.
-- `_counter_fk_columns` dérive désormais cette colonne de `_decrement_fk_column`
-  pour chaque règle, et le schéma Pydantic, les clés étrangères client et
-  l'INSERT la lisent tous les trois : écrite exactement une fois, jamais zéro.
-- Le repli silencieux vers la première relation entrante devient une erreur de
-  génération explicite.
-- **Le catalogue déclare le superviseur de lecture** : les modèles Blog et
-  Communauté livraient une modération à sens unique, le modérateur perdant de vue
-  ce qu'il venait de masquer.
+- **Data correction.** An entity with two incoming relations, where the
+  counter's relation was declared first, created its rows with the target's
+  foreign key set to `NULL`: the counter increased, but the record did not know
+  what it counted. Reversing the two relations was enough to fix everything —
+  an order-dependent bug, invisible in the spec that gave rise to it.
+- `_counter_fk_columns` now derives this column from `_decrement_fk_column`
+  for each rule, and the Pydantic schema, client foreign keys, and `INSERT` all
+  read it: written exactly once, never zero times.
+- Silent fallback to the first incoming relation becomes an explicit
+  generation error.
+- **The catalog declares the read supervisor**: the Blog and Community models
+  provided one-way moderation, leaving the moderator unable to see what they
+  had just hidden.
 
-### Authentification complète (point 124)
+### Full authentication (point 124)
 
-- Quatre capacités DÉCLARATIVES sous `capability auth` : `lockout: N in S`,
-  `password_reset: S`, `refresh_tokens: S`, `totp`. Une spec qui n'en demande
-  aucune produit des artefacts identiques à l'octet.
-- **Verrouillage PAR COMPTE**, là où la limitation du point 9 était par IP :
-  un attaquant réparti la contournait, et un utilisateur derrière un NAT
-  partagé était puni pour les autres.
-- **Le verrou n'est pas un oracle d'existence** : un compte verrouillé et un
-  compte inexistant rendent la même réponse, et l'écart de temps médian est de
-  1,28 ms sur 47 ms. Un verrou qui annoncerait « compte verrouillé » ne
-  protégerait pas un compte, il en publierait la liste. Et pendant le verrou,
-  le BON mot de passe est refusé.
-- **Réinitialisation de mot de passe**, débloquée par le point 122 : réponse
-  identique pour une adresse connue ou non, jeton à usage unique, lié au
-  compte, et l'ancien mot de passe cesse aussitôt de fonctionner.
-- **Jetons de rafraîchissement avec ROTATION** : `/refresh` rend un couple
-  neuf et rejette l'ancien — un vol devient un incident détectable plutôt
-  qu'un accès permanent. Un jeton de rafraîchissement ne vaut pas comme jeton
-  d'accès.
-- **Double facteur TOTP** (RFC 6238, pur calcul, donc hors ligne) : le rejeu
-  d'un code est refusé, y compris dans sa propre fenêtre ; le secret ne sort
-  d'aucune route de lecture.
-- Aucun compte existant n'est cassé : ils se connectent encore et sont COMPTÉS
-  au démarrage, sans qu'aucune activation soit inventée (point 89).
-- `manage.py` gagne `unlock` et continue de fonctionner depuis n'importe quel
-  dossier.
+- Four DECLARATIVE capabilities under `capability auth`: `lockout: N in S`,
+  `password_reset: S`, `refresh_tokens: S`, `totp`. A spec that requests none
+  produces byte-identical artifacts.
+- **ACCOUNT-BASED locking**, where the point 9 limit was IP-based: a distributed
+  attacker could bypass it, and a user behind a shared NAT was punished for
+  others.
+- **The lock is not an existence oracle**: a locked account and a nonexistent
+  account return the same response, and the median time difference is 1.28 ms
+  out of 47 ms. A lock that announced «account locked» would not protect an
+  account; it would publish the list of accounts. And during the lock, the
+  CORRECT password is refused.
+- **Password reset**, enabled by point 122: identical response for a known or
+  unknown address, single-use token tied to the account, and the old password
+  stops working immediately.
+- **Refresh tokens with ROTATION**: `/refresh` returns a fresh pair and rejects
+  the old one — a theft becomes a detectable incident rather than permanent
+  access. A refresh token is not valid as an access token.
+- **TOTP two-factor authentication** (RFC 6238, pure computation, therefore
+  offline): replay of a code is refused, including within its own window; the
+  secret is never exposed by any read route.
+- No existing account is broken: users can still log in and are COUNTED at
+  startup, without inventing any activation (point 89).
+- `manage.py` gains `unlock` and continues to work from any directory.
 
-### Filtrer et trier côté serveur, sans langage de requête (point 123)
+### Filter and sort on the server, without a query language (point 123)
 
-- `rule Entite.Read filter <champ>` et `rule Entite.Read sort <champ>`. Ce qui
-  est filtrable ou triable est DÉCLARÉ ; le client ne choisit ni le champ, ni
-  l'opérateur, ni l'expression. La ligne rouge de `CLAUDE.md` tient.
-- **Un filtre est un oracle** : filtrer ou trier sur un champ `hidden` ou
-  `categorized` est refusé à la compilation. Compter les lignes qui reviennent
-  pour chaque valeur lit un champ que la brique 2 retire de toutes les
-  réponses, et retrouve le nombre exact que la brique 5 remplace par un
-  libellé — une fuite qui passe par le TOTAL, pas par une réponse.
-- **Deux bornes qui ne tombent pas ensemble** : la valeur de filtre est typée
-  par le `Literal` du `oneOf` (422 avant toute requête), puis liée par
-  `sql.bind()`. Le nom de colonne de tri est élu dans un dictionnaire construit
-  à la compilation — jamais concaténé —, le sens est du SQL fixe.
-- **Le filtre s'AJOUTE au contrôle d'accès, il ne le remplace pas** : avec deux
-  comptes, la liste filtrée de l'un ne montre jamais une ligne de l'autre.
-- `limit`/`offset` sont inchangés ; une spec sans filtre ni tri produit des
-  artefacts identiques à l'octet, et les tests de la frontière SQL (point 108)
-  restent verts sans avoir été assouplis.
-- Ce que la brique n'offre PAS et le dit : aucune recherche textuelle, aucun
-  index automatique, aucune promesse de performance sur colonne non indexée.
+- `rule Entite.Read filter <champ>` and `rule Entite.Read sort <champ>`. What
+  can be filtered or sorted is DECLARED; the client chooses neither the field,
+  the operator, nor the expression. The red line in `CLAUDE.md` holds.
+- **A filter is an oracle**: filtering or sorting on a `hidden` or `categorized`
+  field is refused at compilation. Counting the rows returned for each value
+  reads a field that brick 2 removes from all responses, and recovers the exact
+  number that brick 5 replaces with a label — a leak through the TOTAL, not
+  through a response.
+- **Two bounds that do not overlap**: the filter value is typed by the `Literal`
+  from `oneOf` (422 before any query), then bound with `sql.bind()`. The sort
+  column name is selected from a dictionary built at compilation — never
+  concatenated — and the direction is fixed SQL.
+- **The filter ADDS to access control; it does not replace it**: with two
+  accounts, one account's filtered list never shows a row belonging to the
+  other.
+- `limit`/`offset` are unchanged; a spec without filtering or sorting produces
+  byte-identical artifacts, and the SQL boundary tests (point 108) remain green
+  without being loosened.
+- What the brick does NOT offer, and says so: no text search, no automatic
+  index, no performance promise on an unindexed column.
 
-### monl sait envoyer un message (point 122)
+### monl can send a message (point 122)
 
-- La capacité NOMMÉE comme préalable depuis le point 95 : `rule Entite.Create
-  sends "<sujet>" "<corps>"`. Pas la réinitialisation de mot de passe, pas la
-  vérification d'adresse — la capacité d'envoyer, et rien de plus.
-- **Le refus qui porte la brique** : une spec qui veut écrire sans déclarer
-  `capability auth` + `identifier: email` n'a aucune adresse où écrire. Un
-  champ métier libre nommé `email` ne vaut pas une adresse de compte, et le
-  message de refus le dit.
-- **L'adresse est l'identifiant de COMPTE**, ce qui ferme l'injection
-  d'en-têtes en amont : un identifiant ne peut pas contenir d'espacement, donc
-  aucun client ne fabrique de destinataire caché (vérifié, 422 à l'inscription).
-- Le corps se structure avec le `¶` du point 64 — aucune syntaxe multiligne
-  n'a été inventée.
-- **Un échec d'envoi ne défait jamais une écriture métier et n'est jamais
-  avalé** : la route rend 200 en moins de 4 ms même SMTP mort, et la trace
-  nomme l'entité, l'identifiant et la cause. Secrets par l'environnement,
-  variable absente NOMMÉE — mêmes invariants que `payable` (points 74-75).
-- Ce que la brique ne promet PAS, et le dit : aucun réessai, aucune file
-  persistante, aucune garantie de remise.
-- Une spec sans message produit des artefacts identiques à l'octet ; le smoke
-  test reste vert hors ligne.
+- The capability NAMED as a prerequisite since point 95: `rule Entite.Create
+  sends "<sujet>" "<corps>"`. Not password reset, not address verification — the
+  ability to send, and nothing more.
+- **The refusal that comes with the brick**: a spec that wants to write without
+  declaring `capability auth` + `identifier: email` has no address to write to.
+  A free-form business field named `email` is not an account address, and the
+  refusal message says so.
+- **The address is the ACCOUNT identifier**, which prevents header injection
+  upstream: an identifier cannot contain whitespace, so no client can forge a
+  hidden recipient (verified, 422 at registration).
+- The body is structured with the `¶` from point 64 — no multiline syntax was
+  invented.
+- **A sending failure never rolls back a business write and is never swallowed**:
+  the route returns 200 in under 4 ms even when SMTP is dead, and the trace
+  names the entity, identifier, and cause. Secrets come from the environment;
+  a missing variable is NAMED — the same invariants as `payable` (points 74-75).
+- What the brick does NOT promise, and says so: no retries, no persistent queue,
+  no delivery guarantee.
+- A spec without a message produces byte-identical artifacts; the smoke test
+  stays green offline.
 
-### L'utilisateur final peut déposer un fichier (point 121)
+### The end user can upload a file (point 121)
 
-- **`Upload` n'est pas `Image`.** La brique 13 désigne ce que l'AUTEUR fournit
-  à la compilation et que le compilateur vérifie présent ; `Upload` désigne des
-  octets que le CLIENT envoie à l'exécution, dont le compilateur ne sait rien.
-  Les fusionner ferait vérifier l'existence d'un fichier avant son envoi.
-- `rule Entite.champ upload max <octets> types "…", "…"` — limite et types sont
-  OBLIGATOIRES : deviner un plafond serait deviner faux.
-- **Le type est établi par signature d'octets**, jamais par le nom ni le
-  `Content-Type` du client, et le nom du client n'est jamais un chemin. HTML et
-  SVG sont refusés ; la lecture répond en `application/octet-stream` avec
-  `nosniff` et `Content-Disposition: attachment` — un fichier déposé ne doit
-  jamais pouvoir s'exécuter en même origine.
-- **L'ACL porte sur le FICHIER, pas seulement sur la ligne** : connaître la
-  référence ne suffit pas, un tiers reçoit 404. C'est la leçon du point 116.
-- Les octets vivent hors de `frontend/` (que `monl frontend` renomme en
-  silence), hors des artefacts scellés, ignorés par git et par Docker.
-- Une spec sans dépôt produit des artefacts identiques à l'octet.
+- **`Upload` is not `Image`.** Brick 13 refers to what the AUTHOR provides at
+  compilation and the compiler verifies is present; `Upload` refers to bytes
+  the CLIENT sends at runtime, which the compiler knows nothing about.
+  Combining them would mean checking that a file exists before it is uploaded.
+- `rule Entite.champ upload max <octets> types "…", "…"` — the limit and
+  types are REQUIRED: guessing a limit would mean guessing wrong.
+- **The type is determined by byte signature**, never by the name or the
+  client's `Content-Type`, and the client's name is never a path. HTML and SVG
+  are refused; reading returns `application/octet-stream` with `nosniff` and
+  `Content-Disposition: attachment` — an uploaded file must never be able to
+  execute on the same origin.
+- **The ACL applies to the FILE, not just the row**: knowing the reference is
+  not enough; a third party receives 404. That is the lesson of point 116.
+- The bytes live outside `frontend/` (which `monl frontend` silently renames),
+  outside the sealed artifacts, and are ignored by git and Docker.
+- A spec without an upload produces byte-identical artifacts.
 
-### Les migrations non additives sont nommées, appliquées à la main, réversibles (point 120)
+### Non-additive migrations are named, applied manually, and reversible (point 120)
 
-- **Le moteur ne devine plus rien.** Un renommage était vu comme une
-  suppression suivie d'un ajout : l'ancienne colonne restait pleine, la
-  nouvelle arrivait vide, et rien ne le disait. Un changement de type n'était
-  pas appliqué du tout. Une colonne retirée restait indéfiniment sans être
-  rapportée.
-- **Une syntaxe déclarative et NOMMÉE** : `migration <nom>` avec `rename`,
-  `alter … from … to …` et `drop`, appliquée par `monl migrate PROJET --name
-  <nom>` et défaite par `--down`.
-- **Un changement destructif ne s'applique jamais tout seul au démarrage.**
-  Le serveur REFUSE de démarrer en nommant la colonne et la commande à lancer,
-  au lieu d'avaler l'échec et de servir une base à moitié migrée.
-- **Une table d'historique** `_monl_migrations` enregistre chaque opération
-  avec l'empreinte du schéma résultant. La descente d'un `drop` est refusée :
-  elle ne se défait pas sans sauvegarde, et prétendre le contraire serait pire
-  que ne rien offrir.
-- La migration additive reste automatique : elle ne détruit rien. Une base
-  créée par le compilateur d'avant démarre sans rien perdre — vérifié.
-- **Un défaut trouvé en revue** : `manage.py` sortait sur une trace de quinze
-  lignes qui noyait le diagnostic. Il nomme désormais le remède et le dossier.
+- **The engine no longer guesses.** A rename was seen as a deletion followed
+  by an addition: the old column remained full, the new one arrived empty, and
+  nothing reported it. A type change was not applied at all. A removed column
+  stayed indefinitely without being reported.
+- **A declarative and NAMED syntax**: `migration <nom>` with `rename`,
+  `alter … from … to …`, and `drop`, applied with `monl migrate PROJET --name
+  <nom>` and undone with `--down`.
+- **A destructive change is never applied automatically at startup.** The
+  server REFUSES to start, naming the column and the command to run, instead of
+  swallowing the failure and serving a half-migrated database.
+- **A history table**, `_monl_migrations`, records each operation with the
+  fingerprint of the resulting schema. Rolling back a `drop` is refused: it
+  cannot be undone without a backup, and pretending otherwise would be worse
+  than offering nothing.
+- Additive migration remains automatic: it destroys nothing. A database
+  created by the previous compiler starts without losing anything — verified.
+- **A flaw found in review**: `manage.py` exited with a fifteen-line traceback
+  that buried the diagnosis. It now names the remedy and the directory.
+### The data layer chooses its dialect at startup (point 119)
 
-### La couche données choisit son dialecte au démarrage (point 119)
-
-- **PostgreSQL à côté de SQLite.** `MONL_DATABASE_URL` absente : SQLite,
-  comportement strictement inchangé. `postgresql://` : psycopg v3. Le choix est
-  fait au DÉMARRAGE et non à la compilation, pour que le même artefact scellé
-  tourne en développement et en production sans être recompilé. `psycopg` est
-  une dépendance optionnelle (`.[postgres]`), et son absence avec un DSN est
-  nommée explicitement.
-- **La traduction `?` → `%s` est sûre par le point 108** : aucune valeur client
-  n'entre jamais dans le texte d'une requête, donc le texte traduit ne contient
-  que du SQL fixe. Sans cet invariant, la traduction serait une faille.
-- `AUTOINCREMENT` devient une identité PostgreSQL, `PRAGMA table_info` devient
-  `information_schema`, `lastrowid` devient `RETURNING id`, `Float` devient
-  `DOUBLE PRECISION`. `Money` reste `NUMERIC(10, 2)` : un flottant binaire
-  n'est pas un type d'argent.
-- **Les erreurs d'intégrité sont lues structurées** (SQLSTATE `23505`/`23503`
-  et nom de contrainte) au lieu du message SQLite, qui n'existe pas sur
-  PostgreSQL. Les trois 409 restent distincts.
-- La CI lance un vrai service PostgreSQL ; les tests se sautent proprement sans
+- **PostgreSQL alongside SQLite.** `MONL_DATABASE_URL` absent: SQLite,
+  behavior strictly unchanged. `postgresql://`: psycopg v3. The choice is
+  made at STARTUP and not at compilation, so that the same sealed artifact
+  runs in development and production without being recompiled. `psycopg` is
+  an optional dependency (`.[postgres]`), and its absence with a DSN is
+  named explicitly.
+- **The `?` → `%s` translation is safe because of point 108**: no client value
+  ever enters the text of a query, so the translated text contains only fixed
+  SQL. Without this invariant, the translation would be a vulnerability.
+- `AUTOINCREMENT` becomes a PostgreSQL identity, `PRAGMA table_info` becomes
+  `information_schema`, `lastrowid` becomes `RETURNING id`, `Float` becomes
+  `DOUBLE PRECISION`. `Money` remains `NUMERIC(10, 2)`: a binary float
+  is not a money type.
+- **Integrity errors are read structurally** (SQLSTATE `23505`/`23503`
+  and constraint name) instead of the SQLite message, which does not exist on
+  PostgreSQL. The three 409s remain distinct.
+- CI launches a real PostgreSQL service; tests skip cleanly without
   `MONL_TEST_DATABASE_URL`.
-- **Deux défauts trouvés en revue et corrigés.** Le bloc d'intégrité ne se
-  terminait plus par un `raise` : une erreur d'une quatrième espèce en sortait
-  sans rien lever et la route allait jusqu'à `return success` après un
-  `rollback` (mesuré : 500 `UnboundLocalError` sur une référence `numbered` en
-  double). Et `manage.py`, important `app` en tête de fichier, ne fonctionnait
-  plus depuis un autre dossier — or c'est le seul chemin pour créer un compte à
-  rôle privilégié.
+- **Two defects found in review and fixed.** The integrity block no longer
+  ended with a `raise`: a fourth kind of error exited it without raising
+  anything and the route reached `return success` after a `rollback` (measured:
+  500 `UnboundLocalError` on a duplicate `numbered` reference). And `manage.py`,
+  importing `app` at the top of the file, no longer worked from another folder—
+  whereas it is the only way to create an account with a privileged role.
 
-### Le backend généré est déployable (point 118)
+### The generated backend is deployable (point 118)
 
-- **CORS opt-in.** `MONL_CORS_ORIGINS` liste des origines explicites ; absente,
-  aucun en-tête CORS n'est émis et le comportement est inchangé. L'origine `*`
-  fait échouer le démarrage : combinée aux identifiants, elle laisserait
-  n'importe quel site lire les réponses authentifiées d'un utilisateur connecté.
-  Les méthodes annoncées sont calculées depuis les routes réellement émises.
-- **Deux healthchecks.** `/health` ne touche pas la base (vivacité),
-  `/health/ready` exécute un `SELECT 1` et rend 503 si elle ne répond pas
-  (disponibilité). Les deux restent hors du contrat frontend.
-- **Journaux structurés.** `MONL_LOG_FORMAT=json` émet une ligne JSON par
-  requête. Aucun corps, aucun en-tête entrant, aucune query string n'y entre —
-  le corps de `/register` contient le mot de passe en clair. L'`X-Request-ID`
-  fourni n'est repris que s'il passe un motif étroit, sinon il est régénéré.
-- **`MONL_ENV=production` exige `MONL_JWT_SECRET`.** Le refus vaut même si un
-  `.jwt_secret` est présent : ce repli fait dépendre tous les jetons émis d'un
-  fichier qui ne suit pas l'image, donc perdu au premier redéploiement.
-- **`Dockerfile` et `.dockerignore` sont produits, jamais scellés.** Écrits
-  s'ils manquent, préservés ensuite, et hors des empreintes d'artefacts
-  protégés : adapter l'image est le cas normal d'un déploiement réel.
-- Éprouvé par `tests/test_deploiement.py` (9 tests) et par une construction
-  d'image réelle : conteneur refusant de démarrer sans secret, puis servant
-  inscription, connexion, création et lecture, secret absent de l'image.
+- **CORS opt-in.** `MONL_CORS_ORIGINS` lists explicit origins; absent,
+  no CORS header is emitted and behavior is unchanged. The `*` origin makes
+  startup fail: combined with credentials, it would let any site read the
+  authenticated responses of a logged-in user. The announced methods are
+  calculated from the routes actually emitted.
+- **Two healthchecks.** `/health` does not touch the database (liveness),
+  `/health/ready` runs a `SELECT 1` and returns 503 if it does not respond
+  (readiness). Both remain outside the frontend contract.
+- **Structured logs.** `MONL_LOG_FORMAT=json` emits one JSON line per
+  request. No body, incoming header, or query string is included—the body of
+  `/register` contains the password in plaintext. A supplied `X-Request-ID` is
+  reused only if it matches a narrow pattern; otherwise it is regenerated.
+- **`MONL_ENV=production` requires `MONL_JWT_SECRET`.** The refusal applies even if
+  a `.jwt_secret` is present: this fallback makes all issued tokens depend on a
+  file that does not travel with the image, and is therefore lost on the first
+  redeployment.
+- **`Dockerfile` and `.dockerignore` are produced, never sealed.** Written
+  if missing, preserved thereafter, and excluded from the fingerprints of
+  protected artifacts: adapting the image is the normal case for a real
+  deployment.
+- Proven by `tests/test_deploiement.py` (9 tests) and an actual image build:
+  container refusing to start without a secret, then serving registration,
+  login, creation and reading, secret absent from the image.
 
-## 0.9.0-beta.6 — Capacités métier et contrôle d'accès approfondi
+## 0.9.0-beta.6 — Business capabilities and in-depth access control
 
-Cette version complète le noyau déclaratif avec les capacités ajoutées depuis
-la bêta 5 : calculs serveur (`derivedFrom`, `sumOf`), propriété transitive,
-décompte de stock, horodatage et numérotation serveur, contraintes de champs,
-valeurs énumérées, profils obligatoires, verrouillage après paiement et
-outillage de retouche du frontend. Le contrôle d'accès SQL typé et ses
-invariants de sécurité sont également consolidés.
+This version completes the declarative core with the capabilities added since
+beta 5: server-side calculations (`derivedFrom`, `sumOf`), transitive ownership,
+stock counting, server-side timestamping and numbering, field constraints,
+enumerated values, required profiles, locking after payment, and frontend
+retouching tools. Typed SQL access control and its security invariants are also
+consolidated.
 
-La version du paquet, du contrat de suivi (`monl.json`) et de la documentation
-est désormais alignée sur `0.9.0-beta.6`.
+The package version, tracking contract (`monl.json`), and documentation
+are now aligned at `0.9.0-beta.6`.
 
-## 0.9.0-beta.5 — N'importe quelle clé API, n'importe quel agent
+## 0.9.0-beta.5 — Any API key, any agent
 
-**Le compilateur reste inchangé.** Aucune règle, aucune route générée, aucun
-contrat ne diffère de la bêta 4. Cette version ouvre le dernier maillon — celui
-où une IA écrit le frontend — à autre chose qu'Anthropic. Détail et raisons
-complètes au point 69 de `docs/design_decisions.md`.
+**The compiler remains unchanged.** No rule, generated route, or
+contract differs from beta 4. This version opens the last link—the one
+where an AI writes the frontend—to providers other than Anthropic. Full details and reasons
+at point 69 of `docs/design_decisions.md`.
 
-### Voie API : n'importe quelle clé
+### API path: any key
 
-- **Fournisseurs au dialecte OpenAI.** `groq`, `openai`, `openrouter`,
-  `deepseek`, `mistral`, `together`, `xai` et `ollama` sont préréglés, chacun
-  lisant **sa propre** variable d'environnement (`GROQ_API_KEY`,
-  `OPENAI_API_KEY`…) — une clé absente nomme la variable attendue plutôt que de
-  renvoyer « clé manquante » sans dire laquelle.
-- **Échappatoire totale** pour un point de terminaison absent de la table
-  (serveur maison, vLLM, llama.cpp) : `--provider openai-compatible` avec
-  `MONL_AI_BASE_URL` et `MONL_AI_API_KEY`.
-- Un seul fournisseur paramétré plutôt qu'un par marque : écrire du code par
-  acteur aurait produit de la duplication et une liste éternellement en retard.
-  Deux dialectes — Anthropic Messages et OpenAI Chat Completions — couvrent le
-  marché.
-- **`--model` est exigé hors voie Anthropic**, à dessein. Inscrire `gpt-4o` ou
-  `llama-3.3-70b-versatile` en dur aurait transformé une erreur claire en 404
-  obscur six mois plus tard, chez un utilisateur qui n'a rien changé.
-- La clé reste lue dans l'environnement, jamais en argument de ligne de
-  commande : la règle posée pour la voie Anthropic n'avait aucune raison d'être
-  plus laxiste ailleurs.
+- **OpenAI dialect providers.** `groq`, `openai`, `openrouter`,
+  `deepseek`, `mistral`, `together`, `xai`, and `ollama` are preset, each
+  reading **its own** environment variable (`GROQ_API_KEY`,
+  `OPENAI_API_KEY`…)—a missing key names the expected variable rather than
+  returning “missing key” without saying which one.
+- **Complete escape hatch** for an endpoint absent from the table
+  (custom server, vLLM, llama.cpp): `--provider openai-compatible` with
+  `MONL_AI_BASE_URL` and `MONL_AI_API_KEY`.
+- A single configurable provider instead of one per brand: writing code per
+  actor would have produced duplication and a list that was always out of date.
+  Two dialects—Anthropic Messages and OpenAI Chat Completions—cover the
+  market.
+- **`--model` is required outside the Anthropic path**, deliberately. Hard-coding
+  `gpt-4o` or `llama-3.3-70b-versatile` would have turned a clear error into an obscure 404
+  six months later, for a user who had changed nothing.
+- The key is still read from the environment, never as a command-line
+  argument: the rule set for the Anthropic path had no reason to be more lax
+  elsewhere.
 
-### Voie agent : Codex, Gemini, et tout autre
+### Agent path: Codex, Gemini, and any other
 
-- **`--provider codex` et `--provider gemini`** s'ajoutent à `claude-code`.
-- **`--agent-command "<cmd> {instruction}"`** câble n'importe quel agent en
-  ligne de commande, et permet aussi de corriger un préréglage devenu faux sans
-  attendre une version de monl. Un gabarit dépourvu de `{instruction}` est
-  refusé plutôt que lancé muet.
-- **Aucun garde-fou n'est relâché pour un agent tiers.** L'empreinte des
-  artefacts protégés, la re-vérification (cohérence + smoke test) et la
-  correction unique sont exactement celles écrites pour Claude Code : seule la
-  ligne de commande change. Deux tests l'établissent en faisant tenter à un
-  agent factice « codex » l'intrusion dans `app.py` que l'agent Claude factice
-  ne pouvait pas commettre — elle est bloquée de la même façon.
-- **Ce qui est vérifié, dit franchement** : seul `claude` est éprouvé contre le
-  vrai binaire. Les préréglages `codex` et `gemini` suivent l'invocation non
-  interactive publiée par ces outils, mais aucun des deux n'était installé sur
-  la machine de développement. Ce sont des préréglages, pas des garanties, et
-  le commentaire de la table le dit à cet endroit précis.
-- Les noms d'origine (`run_claude_code`, `generate_with_claude_code`) sont
-  conservés comme cas particuliers : la voie du point 43 reste ce qu'elle était.
+- **`--provider codex` and `--provider gemini`** are added to
+  `claude-code`.
+- **`--agent-command "<cmd> {instruction}"`** wires up any command-line
+  agent, and also makes it possible to correct a preset that has become wrong without
+  waiting for a monl release. A template without `{instruction}` is
+  refused rather than run silently.
+- **No safeguard is relaxed for a third-party agent.** The fingerprint of
+  protected artifacts, re-verification (consistency + smoke test), and the
+  single correction are exactly those written for Claude Code: only the command
+  line changes. Two tests establish this by having a fake “codex” agent attempt
+  the intrusion into `app.py` that the fake Claude agent could not commit—it is
+  blocked in the same way.
+- **What is verified, plainly stated**: only `claude` is tested against the
+  real binary. The `codex` and `gemini` presets follow the non-interactive invocation
+  published by those tools, but neither was installed on the development
+  machine. They are presets, not guarantees, and the table comment says so
+  at that exact location.
+- The original names (`run_claude_code`, `generate_with_claude_code`) are
+  retained as special cases: the path from point 43 remains what it was.
 
-### Vérification
+### Verification
 
-- **164 tests** (11 nouveaux) : requête réellement formée pour la voie API
-  (URL, en-tête `Bearer`, corps, extraction de la réponse), variable de clé
-  nommée pour chaque préréglage, ligne de commande de chaque agent, gabarit
-  libre traversant la boucle complète, et les deux tests d'intrusion.
-- Couverture maintenue à 85 %, `ruff` sans signalement, frontières
-  d'architecture inchangées.
+- **164 tests** (11 new): query actually formed for the API path
+  (URL, `Bearer` header, body, response extraction), key variable named for each
+  preset, command line for each agent, free-form template going through the
+  complete loop, and the two intrusion tests.
+- Coverage maintained at 85%, `ruff` reports no issues, architecture boundaries
+  unchanged.
 
-## 0.9.0-beta.4 — Ouverture publique : licence, documentation, démonstration
+## 0.9.0-beta.4 — Public opening: license, documentation, demonstration
 
-**Le compilateur est inchangé.** Aucune règle, aucune route générée, aucun
-contrat ne diffère de la bêta 3 : cette version rend le dépôt lisible par
-quelqu'un qui le découvre, maintenant qu'il est public. Mettre à jour ne
-demande donc rien de plus qu'un `pip install -e .`.
+**The compiler is unchanged.** No rule, generated route, or
+contract differs from beta 3: this version makes the repository readable to
+someone discovering it, now that it is public. Updating therefore requires
+nothing more than `pip install -e .`.
 
-### Licence et gouvernance
+### License and governance
 
-- **`LICENSE` ajouté.** Le dépôt est devenu public *sans* fichier de licence.
-  Juridiquement, l'absence vaut déjà « tous droits réservés » — mais le lecteur
-  ne peut pas distinguer un choix d'un oubli, et cette ambiguïté ne sert
-  personne. Le fichier met par écrit ce que `pyproject.toml` déclare depuis
-  toujours (`license = "Proprietary"`) : public pour lecture et évaluation, pas
-  libre. Précision qui n'allait pas de soi : les applications *produites* par
-  monl-compiler appartiennent à leur auteur — la licence porte sur le compilateur, pas
-  sur sa sortie.
-- **`CONTRIBUTING.md` ajouté.** Documente la méthode plutôt qu'il n'invite aux
-  contributions, qui ne sont pas ouvertes : preuve par exécution réelle,
-  checklist avant PR, frontières exécutables, format des messages de commit,
-  table « où intervenir ». S'adresse au mainteneur, à un futur collaborateur
-  autorisé, et à toute IA de développement travaillant sur le dépôt.
-- **`demo/.jwt_secret` et `demo/app.db` retirés du suivi.** Le `.jwt_secret` de
-  la racine était ignoré depuis toujours ; l'exception avait suivi le dossier de
-  démonstration. Portée réelle faible (rien n'est déployé), portée symbolique
-  non : le projet publiait ce qu'il traite comme sensible. Les deux se
-  régénèrent au premier démarrage. L'historique n'est **pas** réécrit — le
-  secret d'une démo locale ne justifie pas de casser les clones existants.
+- **`LICENSE` added.** The repository became public *without* a license file.
+  Legally, absence already means “all rights reserved”—but readers cannot tell
+  a choice from an omission, and this ambiguity helps no one. The file puts in
+  writing what `pyproject.toml` has always declared (`license = "Proprietary"`):
+  public for reading and evaluation, not open source. A clarification that was
+  not self-evident: applications *produced* by monl-compiler belong to their
+  author—the license covers the compiler, not its output.
+- **`CONTRIBUTING.md` added.** Documents the method rather than inviting
+  contributions, which are not open: proof through actual execution,
+  pre-PR checklist, executable boundaries, commit message format,
+  “where to intervene” table. It addresses the maintainer, a future authorized
+  collaborator, and any development AI working on the repository.
+- **`demo/.jwt_secret` and `demo/app.db` removed from version control.** The root
+  `.jwt_secret` had always been ignored; the exception had followed the demo
+  folder. The real scope was small (nothing is deployed), but the symbolic
+  scope was not: the project was publishing what it treats as sensitive. Both
+  are regenerated on first startup. The history is **not** rewritten—the secret
+  of a local demo does not justify breaking existing clones.
 
-### Démonstration
+### Demonstration
 
-- **`demo/` ne versionne plus sa propre sortie.** Neuf fichiers générés
-  (`app.py`, `schema.sql`, `manage.py`, le contrat, le brief, `serve.py`…)
-  étaient commités à côté de la spec dont ils découlent — une contradiction en
-  page d'accueil, dans un projet dont la thèse est que la spec est l'unique
-  source de vérité. Le dommage était constaté : le contrat livré datait d'avant
-  les points 51, 52 et 56 (URL absolue avec port en dur, police à télécharger,
-  aucun ton dérivé). Ne restent que `spec.ml` et `frontend/`, les deux seuls
-  écrits qu'aucune recompilation ne reproduit. Les tests ne perdent rien : ils
-  compilaient déjà dans un dossier temporaire à partir de ces deux entrées.
-- **StudioNova remplace AtelierVélo** — un portfolio de photographe dont le
-  frontend a été écrit par Claude Code contre le contrat.
-- **`tests/test_design_contract.py` est retourné plutôt que supprimé.**
-  L'ancienne démo épinglait un thème et le test s'en servait pour vérifier
-  qu'un frontend livré respecte une palette imposée ; StudioNova n'épingle
-  rien, et son IA s'est autorisé une palette entièrement différente. Le test
-  prouve désormais, sur un livrable réel, que monl-compiler se **tait** quand le thème
-  n'est que déduit — la moitié la moins intuitive du point 58. La contrainte
-  reste éprouvée juste à côté, sur un frontend construit pour l'occasion.
+- **`demo/` no longer versions its own output.** Nine generated files
+  (`app.py`, `schema.sql`, `manage.py`, the contract, the brief, `serve.py`…)
+  were committed alongside the spec from which they derive—a contradiction on
+  the home page of a project whose thesis is that the spec is the sole source of
+  truth. The damage was observed: the delivered contract predated
+  points 51, 52, and 56 (absolute URL with hard-coded port, font to download,
+  no derived tone). Only `spec.ml` and `frontend/` remain, the only two authored
+  artifacts that recompilation cannot reproduce. Tests lose nothing: they
+  already compiled in a temporary folder from these two inputs.
+- **StudioNova replaces AtelierVélo**—a photographer's portfolio whose
+  frontend was written by Claude Code against the contract.
+- **`tests/test_design_contract.py` was repurposed rather than deleted.**
+  The old demo pinned a theme and the test used it to check that a delivered
+  frontend respected an imposed palette; StudioNova pins nothing, and its AI
+  allowed itself a completely different palette. The test now proves, on an
+  actual deliverable, that monl-compiler **stays silent** when the theme
+  is only inferred—the less intuitive half of point 58. The constraint
+  remains tested right alongside it, on a frontend built for the occasion.
 
 ### Documentation
 
-- **README refait.** Démarrage rapide en trois lignes au-dessus de la ligne de
-  flottaison, qui n'exige aucun fichier préexistant et mène à une application à
-  soi — l'entrée réelle du produit est le dialogue guidé, pas la compilation de
-  l'exemple de quelqu'un d'autre. Badges, sommaire, tableaux pour les commandes
-  et les règles d'accès, section « Qualité et vérification ». Faits
-  resynchronisés : `src/` est devenu le paquet `src/monl/` (point 65).
-- **Le schéma d'architecture devient une vraie image** : deux SVG (clair et
-  sombre) servis par `<picture>` selon le thème du lecteur, générés depuis un
-  seul modèle pour qu'ils ne puissent pas diverger. La géométrie est vérifiée —
-  aucune boîte chevauchée, aucun trait traversant une boîte *ou un texte*, aucun
-  libellé plus large que sa boîte.
-- **La section « Pourquoi » compare enfin monl-compiler à quelque chose.** Elle critiquait
-  un framework et un générateur d'IA sans jamais dire ce que monl-compiler fait ; c'est
-  désormais un tableau à trois colonnes où monl-compiler a la sienne, ligne par ligne.
-- **`exemples/` gagne un README** : le dossier ne contient pas cinq applications
-  mais les cinq fichiers `.ml` qui suffisent à les décrire. Un lecteur qui croit
-  ouvrir des applications passe à côté de la thèse du projet.
-- **Les ouvertures affirment leur contenu au lieu de le nier.** Plusieurs
-  passages commençaient par une absence (« ce dossier ne contient pas… », « monl-compiler
-  ne génère aucune interface ») : le lecteur devait retenir ce qui manquait
-  avant d'apprendre ce qu'il avait sous les yeux.
-- Nomenclature unifiée : **monl-compiler** dans les titres et la prose, `monl` pour la
-  commande et le paquet.
+- **README rewritten.** Quick start in three lines above the fold, requiring
+  no pre-existing files and leading to an application of one's own—the actual
+  product entry point is the guided dialogue, not compiling someone else's
+  example. Badges, contents, tables for commands and access rules, “Quality and
+  verification” section. Facts resynchronized: `src/` became the `src/monl/` package (point 65).
+- **The architecture diagram becomes a real image**: two SVGs (light and
+  dark) served by `<picture>` according to the reader's theme, generated from
+  a single model so they cannot diverge. Geometry is checked—no overlapping
+  boxes, no line crossing a box *or text*, no label wider than its box.
+- **The “Why” section finally compares monl-compiler with something.** It criticized
+  a framework and an AI generator without ever saying what monl-compiler does; it is
+  now a three-column table where monl-compiler has its own column, row by row.
+- **`exemples/` gets a README**: the folder does not contain five applications
+  but the five `.ml` files that suffice to describe them. A reader who thinks
+  they are opening applications misses the project's thesis.
+- **Opening paragraphs state what they contain instead of denying it.** Several
+  passages began with an absence (“this folder does not contain…”, “monl-compiler
+  generates no interface”): readers had to remember what was missing
+  before learning what they had in front of them.
+- Unified naming: **monl-compiler** in titles and prose, `monl` for the
+  command and package.
 
-### Tests et intégration continue
+### Tests and continuous integration
+- **The temporal channel test no longer depends on machine load.** It
+  intermittently failed in CI (twice in a row on 3.12, then passed on the
+  third attempt, on a branch that touched only documentation): it compared two
+  HTTP measurements against half the cost of a PBKDF2, and a single runner
+  preemption was enough to make the gap explode. Widening the threshold would
+  have made the test blind to the leak it monitors; instead, five samples per
+  group with the minimum retained (noise can only add time), the entire
+  measurement replayed up to three times (a real leak is systematic, noise
+  is not), quota emptied between groups.
+- **A test server is no longer left orphaned if a failure occurs.** Its
+  shutdown was written after the measurements: any failure abandoned a
+  `uvicorn` and a temporary directory on a machine that would go on to run
+  other tests. Moved under `try/finally`.
+- **CI listens to all branches.** It was triggered only on `main` and pull
+  requests: pushing a work branch started nothing, and the Actions page stayed
+  empty, giving the impression of a repository without continuous integration.
+- `dist/` and `build/` are ignored by git — the output of `python -m build` and
+  the output directory suggested by the quick start never need to be
+  versioned.
 
-- **Le test du canal temporel ne dépend plus de la charge de la machine.** Il
-  échouait par intermittence en CI (deux fois de suite sur 3.12, puis vert au
-  troisième essai, sur une branche qui ne touchait que de la documentation) :
-  il comparait deux mesures HTTP à la moitié du coût d'un PBKDF2, et une seule
-  préemption du runner suffisait à faire exploser l'écart. Élargir le seuil
-  aurait rendu le test aveugle à la fuite qu'il surveille ; à la place, cinq
-  échantillons par groupe dont on retient le minimum (le bruit ne peut
-  qu'ajouter du temps), mesure entière rejouée jusqu'à trois fois (une vraie
-  fuite est systématique, le bruit non), quota vidé entre les groupes.
-- **Un serveur de test n'est plus laissé orphelin en cas d'échec.** Son arrêt
-  était écrit après les mesures : tout échec abandonnait un `uvicorn` et un
-  dossier temporaire sur une machine qui allait enchaîner d'autres tests. Passé
-  sous `try/finally`.
-- **La CI écoute toutes les branches.** Elle ne se déclenchait que sur `main` et
-  les pull requests : pousser une branche de travail ne lançait rien, et la page
-  Actions restait vide en donnant l'illusion d'un dépôt sans intégration
-  continue.
-- `dist/` et `build/` sont ignorés par git — la sortie de `python -m build` et
-  le dossier de sortie que le démarrage rapide propose n'ont jamais à être
-  versionnés.
+## 0.9.0-beta.3 — Audit fixes and generator split
 
-## 0.9.0-beta.3 — Correctifs d'audit et découpage du générateur
+### Security (second review, before external testing)
 
-### Sécurité (seconde relecture, avant test externe)
+- **`ownedBy` protected writes only (data leak between accounts).**
+  `rule X.Update ownedBy A` properly restricted changes, but `GET /x`
+  returned records from *all* accounts to any authorized caller, and
+  `GET /x/{id}` returned 200 for someone else's record. In the “personal
+  expense tracking” model, whose catalog promises that each person sees only
+  their own records, two accounts were enough to read each other's data.
+  `ownedBy` now filters reads — for the designated owner actor only: an
+  authorized third party role (shop manager viewing orders, manager viewing
+  tasks) continues to see everything. Direct access returns 404 rather than
+  403, so it does not confirm the existence of a record the caller is not
+  allowed to read.
+- **A rule with no effect is refused at compilation.** `rule X.Read ownedBy A`
+  compiled without producing anything, and `rule X.Create ownedBy A` was
+  accepted even though the generator does nothing with it: a silently ignored
+  security rule is worse than no rule, because the author believes protection
+  is in place.
+- **Size limits on text fields**: a string several MB long was accepted and
+  written to the database. The Pydantic limit now matches the SQL column
+  (255 / 320 for Email / 20,000 for Text); refusal is returned as 422.
+- **`/docs` and `/openapi.json` can be disabled** with `MONL_DOCS=off`.
+- **Unified token lifetime**: 2 h in the code versus “1 h” stated in the
+  frontend contract. A single value, configurable through
+  `MONL_TOKEN_TTL_HOURS`, is published as is in the contract.
+- **CI finally runs the frontend**: without Node.js on the runner, the jsdom
+  smoke test degraded to a warning — the project's strongest guarantee was
+  never executed in continuous integration. The package is also installed by
+  `pip install -e .` and the `monl` command is exercised.
 
-- **`ownedBy` ne protégeait que l'écriture (fuite de données entre comptes).**
-  `rule X.Update ownedBy A` restreignait bien la modification, mais `GET /x`
-  renvoyait les enregistrements de *tous* les comptes à n'importe quel appelant
-  autorisé, et `GET /x/{id}` répondait 200 sur l'enregistrement d'autrui. Sur le
-  modèle « suivi de dépenses personnelles », dont le catalogue promet que chacun
-  ne voit que les siennes, deux comptes suffisaient à se lire mutuellement.
-  `ownedBy` filtre désormais la lecture — pour le seul acteur désigné
-  propriétaire : un rôle tiers autorisé (gestionnaire de boutique face aux
-  commandes, responsable face aux tâches) continue de tout voir. L'accès direct
-  répond 404 et non 403, pour ne pas confirmer l'existence d'un enregistrement
-  qu'on n'a pas le droit de lire.
-- **Une règle sans effet est refusée à la compilation.** `rule X.Read ownedBy A`
-  compilait sans rien produire, et `rule X.Create ownedBy A` était accepté alors
-  que le générateur n'en fait rien : une règle de sécurité silencieusement
-  ignorée est pire que son absence, l'auteur croyant la protection en place.
-- **Bornes de taille sur les champs texte** : une chaîne de plusieurs Mo était
-  acceptée et écrite en base. La borne Pydantic reflète la colonne SQL
-  (255 / 320 pour Email / 20 000 pour Text), le refus arrive en 422.
-- **`/docs` et `/openapi.json` désactivables** par `MONL_DOCS=off`.
-- **Durée de jeton unifiée** : 2 h dans le code contre « 1 h » annoncée dans le
-  contrat frontend. Valeur unique, réglable par `MONL_TOKEN_TTL_HOURS`, publiée
-  telle quelle dans le contrat.
-- **La CI exécute enfin le frontend** : sans Node.js sur le runner, le smoke
-  test jsdom se dégradait en avertissement — la garantie la plus forte du projet
-  ne s'exécutait jamais en intégration continue. Le paquet est aussi installé
-  par `pip install -e .` et la commande `monl` est éprouvée.
+External audit of the beta 2 repository: one critical vulnerability, five
+significant defects, and one determinism defect. All fixed, each with a
+regression test (`tests/test_beta3_regressions.py`).
 
-Audit externe du dépôt bêta 2 : une faille critique, cinq défauts importants et
-un défaut de déterminisme. Tous corrigés, chacun accompagné d'un test de
-non-régression (`tests/test_beta3_regressions.py`).
+### Security
 
-### Sécurité
+- **Privilege escalation through registration (critical).** `POST /register`
+  accepted any declared role chosen by the client: on the example shop, two
+  anonymous HTTP calls were enough to get a `ShopManager` account and write to
+  the catalog. The role in the token did come from the actual account — but
+  the account chose its own role. The DSL gains an explicit marker:
+  `actor Customer selfRegister` enables open registration, while
+  `actor ShopManager` (without the marker) does not. Refusal by default: a
+  spec that omits the marker closes registration instead of opening it wide.
+  The compiler displays the selected scope on every compilation, the frontend
+  contract publishes it (`self_register_actors`), and the smoke test attempts
+  registration for a provisioned role on every run.
+- **Offline provisioning.** Each compilation now produces `manage.py`
+  (`adduser`, `setactor`, `passwd`, `users`, `revoke-all`): privileged roles
+  are created on the machine hosting the database, never over HTTP.
+  `revoke-all` renews the secret and invalidates all sessions.
+- **Account enumeration through a temporal channel.** `/login` returned 401
+  without performing the 100,000 PBKDF2 iterations when the identifier did
+  not exist; the response time gap (~100 ms) revealed which accounts exist.
+  A dummy hash is now always computed.
+- **Attempt quota could be bypassed (TOCTOU).** Counting and recording were
+  done in two separate autocommit executions: N parallel requests read the
+  same counter and all exceeded the quota. The whole operation now runs in a
+  `BEGIN IMMEDIATE` transaction.
+- **Signing secret readable by everyone.** `.jwt_secret` was created with
+  default permissions (0644): any local account could read the key and forge
+  tokens. It is created with mode 0600, and permissions on an existing
+  project are tightened on recompilation.
+- **Token blacklist with no cleanup.** `_monl_revoked_tokens` grew
+  indefinitely and was checked on every authenticated request. Added an
+  `expires_at` column (with migration of the system table) and cleanup of
+  already expired tokens — their signatures are rejected anyway.
 
-- **Élévation de privilège par l'inscription (critique).** `POST /register`
-  acceptait n'importe quel rôle déclaré, choisi par le client : sur la boutique
-  d'exemple, deux appels HTTP anonymes suffisaient à obtenir un compte
-  `ShopManager` et à écrire dans le catalogue. Le rôle porté par le jeton venait
-  bien du compte réel — mais ce compte se choisissait lui-même son rôle. Le DSL
-  gagne un marqueur explicite : `actor Customer selfRegister` ouvre
-  l'inscription libre, `actor ShopManager` (sans marqueur) ne l'ouvre pas. Refus
-  par défaut : une spec qui oublie le marqueur ferme l'inscription au lieu de
-  l'ouvrir en grand. Le compilateur affiche le périmètre retenu à chaque
-  compilation, le contrat frontend le publie (`self_register_actors`) et le
-  smoke test tente l'inscription d'un rôle provisionné à chaque lancement.
-- **Provisionnement hors ligne.** Chaque compilation produit désormais
-  `manage.py` (`adduser`, `setactor`, `passwd`, `users`, `revoke-all`) : les
-  rôles privilégiés se créent sur la machine qui héberge la base, jamais par
-  HTTP. `revoke-all` renouvelle le secret et invalide toutes les sessions.
-- **Énumération de comptes par canal temporel.** `/login` répondait 401 sans
-  dérouler les 100 000 itérations PBKDF2 quand l'identifiant n'existait pas ;
-  l'écart de temps de réponse (~100 ms) révélait quels comptes existent. Un
-  hachage factice est désormais toujours calculé.
-- **Quota de tentatives contournable (TOCTOU).** Comptage et enregistrement se
-  faisaient en deux exécutions autocommit distinctes : N requêtes parallèles
-  lisaient le même compteur et franchissaient toutes le quota. Le tout est
-  passé en transaction `BEGIN IMMEDIATE`.
-- **Secret de signature lisible par tous.** `.jwt_secret` était créé avec les
-  permissions par défaut (0644) : n'importe quel compte local pouvait lire la
-  clé et forger des jetons. Création en 0600, et resserrage des permissions
-  d'un projet existant à la recompilation.
-- **Liste noire de jetons sans purge.** `_monl_revoked_tokens` grossissait
-  indéfiniment et était consultée à chaque requête authentifiée. Colonne
-  `expires_at` (avec migration de la table système) et purge des jetons déjà
-  expirés — leur signature est de toute façon refusée.
+### Reliability
 
-### Fiabilité
-
-- **Intégrité référentielle réellement appliquée.** SQLite ignore les clés
-  étrangères par défaut : celles déclarées dans `schema.sql` n'étaient jamais
-  vérifiées. Toutes les connexions de requête passent par `_connect()`
-  (`PRAGMA foreign_keys`, `busy_timeout`, WAL). Une violation devient un 409
-  explicite au lieu d'un 500.
-- **Boucle d'événements bloquée.** Les handlers étaient `async def` alors que
-  tous les appels SQLite sont bloquants : chaque requête gelait la boucle. Ils
-  sont désormais synchrones, donc exécutés par le pool de threads de FastAPI.
-- **Déterminisme.** La liste des acteurs transitait par un `set` : l'ordre
-  dépendait de `PYTHONHASHSEED` et `VALID_ACTORS` pouvait changer d'une
-  compilation à l'autre — la garantie « même spec, même backend à l'octet
-  près » était fausse. Ordre de déclaration conservé, ensembles restants
-  triés, et test de reproductibilité entre deux processus aux graines opposées.
-- `@app.on_event('startup')` (déprécié) remplacé par un gestionnaire
-  `lifespan` ; mot de passe borné à 256 caractères à l'inscription.
+- **Referential integrity is actually enforced.** SQLite ignores foreign
+  keys by default: those declared in `schema.sql` were never checked. All
+  request connections go through `_connect()` (`PRAGMA foreign_keys`,
+  `busy_timeout`, WAL). A violation becomes an explicit 409 instead of a 500.
+- **Event loop was blocked.** Handlers were `async def` even though all SQLite
+  calls are blocking: each request froze the loop. They are now synchronous,
+  so they run in FastAPI's thread pool.
+- **Determinism.** The actor list passed through a `set`: ordering depended on
+  `PYTHONHASHSEED` and `VALID_ACTORS` could change from one compilation to the
+  next — the guarantee “same spec, same backend byte for byte” was false.
+  Declaration order is preserved, remaining sets are sorted, and a
+  reproducibility test compares two processes with opposite seeds.
+- Deprecated `@app.on_event('startup')` replaced with a `lifespan` handler;
+  password limited to 256 characters at registration.
 
 ### Architecture
 
-- `src/generator.py` (1 307 lignes) découpé en package `src/generator/` :
-  `core` (état et orchestration), `runtime` (auth, base, migrations),
-  `routes` (CRUD et contrôle d'accès), `schemas`, `sql_schema`, `theme`,
-  `sandbox`, `admin_cli`. Composition par mixins ; l'import historique
-  `from generator import MonlSecureGenerator` reste valide. Le découpage a été
-  vérifié en comparant octet à octet la sortie générée sur les six specs.
+- `src/generator.py` (1,307 lines) split into package `src/generator/`:
+  `core` (state and orchestration), `runtime` (auth, database, migrations),
+  `routes` (CRUD and access control), `schemas`, `sql_schema`, `theme`,
+  `sandbox`, `admin_cli`. Composition through mixins; the historical import
+  `from generator import MonlSecureGenerator` remains valid. The split was
+  verified by comparing generated output byte for byte across the six specs.
 
 ### Interface
 
-- **Le dialogue guidé a une présentation à part entière** (`src/tui.py`) :
-  déroulé de l'entretien affiché avant la première question et étape en cours
-  marquée, menus en colonnes alignées avec l'explication de chaque option,
-  invite dédiée, récapitulatif de ce que la spec va déclarer avant compilation.
-  Aucune dépendance ajoutée (séquences ANSI), et dégradation silencieuse :
-  rendu nu hors terminal interactif, sans couleur si `NO_COLOR`, sans caractère
-  de dessin si l'encodage ne les supporte pas. Le moteur ne connaît qu'une
-  interface de présentation dont la version nue reproduit exactement les
-  chaînes historiques — les dialogues scriptés sont insensibles à l'habillage.
-- **Le dialogue pose la question de l'inscription** (régression corrigée) :
-  depuis le marqueur `selfRegister`, l'émetteur écrivait `actor X` sans
-  marqueur — toute application créée par le dialogue refusait donc *toute*
-  inscription. La question est désormais explicite, et l'ordre des réponses
-  porte la recommandation : d'abord les rôles qui n'écrivent que sur leurs
-  propres enregistrements, jamais le gestionnaire des données communes.
-- **La direction de design devient vérifiable quand la spec la déclare.** La
-  clause `design` du contrat était la seule qu'aucun contrôle ne confrontait au
-  livrable : un frontend pouvait l'ignorer en silence. Désormais, un thème
-  épinglé par un bloc `ui … theme:` est contraignant — sa palette est publiée
-  exacte (sans la variation de teinte propre au projet) et le smoke test exige
-  de la retrouver dans les styles livrés. Un thème simplement déduit du
-  vocabulaire des entités reste une proposition : l'écart est signalé, jamais
-  bloquant.
-- Sixième thème, `atelier` : papier technique quadrillé, trait fin, données en
-  chasse fixe, un seul accent haute visibilité, et aucune police distante — il
-  couvre le vocabulaire de la pièce détachée et de la réparation, mal servi par
-  `market`. C'est celui qu'épingle désormais la démo.
+- **Guided dialogue now has a presentation of its own** (`src/tui.py`):
+  interview flow displayed before the first question and current step marked,
+  menus in aligned columns with an explanation for each option, dedicated
+  prompt, summary of what the spec will declare before compilation. No added
+  dependencies (ANSI sequences), and graceful degradation: plain rendering
+  outside an interactive terminal, no color with `NO_COLOR`, no drawing
+  characters if the encoding does not support them. The engine knows only a
+  presentation interface whose plain version reproduces the historical
+  strings exactly — scripted dialogues are unaffected by the styling.
+- **The dialogue asks about registration** (regression fixed): since the
+  `selfRegister` marker, the emitter wrote `actor X` without a marker — every
+  application created through the dialogue therefore refused *all*
+  registration. The question is now explicit, and the answer order conveys
+  the recommendation: first the roles that write only to their own records,
+  never the manager of shared data.
+- **Design direction becomes verifiable when declared in the spec.** The
+  contract's `design` clause was the only one no check compared against the
+  deliverable: a frontend could silently ignore it. Now a theme pinned by a
+  `ui … theme:` block is binding — its exact palette is published (without
+  the project's own hue variation) and the smoke test requires it to appear
+  in the delivered styles. A theme merely inferred from entity vocabulary
+  remains a proposal: deviations are reported, never blocking.
+- Sixth theme, `atelier`: graph paper, fine lines, monospaced data, a single
+  high-visibility accent, and no remote fonts — it covers the vocabulary of
+  spare parts and repair, poorly served by `market`. This is now the theme
+  pinned by the demo.
 
 ### Documentation
 
-- Les six specs livrées déclarent leur rôle auto-inscriptible.
-- `docs/SECURITE.md` : périmètre d'inscription, provisionnement, réglages.
+- The six shipped specs declare their self-registering actor.
+- `docs/SECURITE.md`: registration scope, provisioning, settings.
 
-## 0.9.0-beta.2 — Retrait de l'IA générative locale
+## 0.9.0-beta.2 — Removal of local generative AI
 
-Le compilateur devient entièrement déterministe. La seule IA du cycle de vie est
-désormais celle qui construit le frontend (Claude), contre le contrat.
+The compiler becomes fully deterministic. The only AI in the lifecycle is now
+the one that builds the frontend (Claude), against the contract.
 
-### Retiré
-- Suppression complète d'Ollama et des modules associés (`nl_interpreter.py`,
+### Removed
+- Complete removal of Ollama and related modules (`nl_interpreter.py`,
   `ai_translator.py`, `ai_sandbox_filler.py`).
-- Options retirées : `--nl` (réponses libres au dialogue), `--prompt` (spec
-  depuis une description), `--fill-custom` (remplissage des blocs `custom`).
-- Le dialogue guidé est purement à saisie stricte ; les blocs `custom` sont des
-  coquilles vides à compléter à la main (aucune génération de code automatisée).
+- Removed options: `--nl` (free-form dialogue answers), `--prompt` (spec from a
+  description), `--fill-custom` (filling `custom` blocks).
+- Guided dialogue is strict-input only; `custom` blocks are empty shells to
+  complete by hand (no automated code generation).
 
-### Corrigé
-- Défaut de compilation mort supprimé (référence à un exemple inexistant).
-- Documentation alignée (README, `docs/SECURITE.md`, `docs/BETA.md`) : plus
-  aucune mention d'Ollama ni d'IA générative dans le cœur du produit.
+### Fixed
+- Removed dead compilation defect (reference to a nonexistent example).
+- Documentation aligned (README, `docs/SECURITE.md`, `docs/BETA.md`): no more
+  mention of Ollama or generative AI in the product core.
 
-## 0.9.0-beta.1 — Première bêta
+## 0.9.0-beta.1 — First beta
 
-Correction de tous les défauts bloquants identifiés à l'audit. Détail dans
-`docs/BETA.md` ; modèle de sécurité dans `docs/SECURITE.md`.
+Fixed all blocking defects identified in the audit. Details in `docs/BETA.md`;
+security model in `docs/SECURITE.md`.
 
-> Note : certains éléments décrits ci-dessous (bloc `custom` par IA locale,
-> garde-fou du code généré) ont été retirés en 0.9.0-beta.2. Entrée conservée
-> comme historique.
+> Note: some items described below (local AI `custom` block,
+> generated-code safeguard) were removed in 0.9.0-beta.2. Entry retained
+> for historical reference.
 
-### Sécurité
-- Bloc `custom` désactivé par défaut ; activation explicite par `--fill-custom`.
-  La compilation nominale est désormais 100 % déterministe et hors-ligne.
-- Garde-fou statique du code `custom` durci : blocage des évasions par
-  introspection (`__class__`, `__subclasses__`, `__globals__`, `__code__`,
-  `__mro__`…), détection élargie des boucles à condition constamment vraie,
-  liste d'imports bas-niveau étendue (`inspect`, `threading`, `marshal`, `gc`…).
-- Comparaison à temps constant (`hmac.compare_digest`) des empreintes de mot de
-  passe à la connexion.
-- Secret JWT injectable par variable d'environnement `MONL_JWT_SECRET`
-  (prioritaire sur le fichier `.jwt_secret`) — le secret peut ne jamais toucher
-  le disque en production.
-- Limitation de débit consciente du proxy via `MONL_TRUST_PROXY` ;
-  `X-Forwarded-For` ignoré par défaut pour empêcher l'usurpation d'IP.
+### Security
+- `custom` block disabled by default; explicit activation with `--fill-custom`.
+  Nominal compilation is now 100% deterministic and offline.
+- Hardened static safeguard for `custom` code: blocks introspection escapes
+  (`__class__`, `__subclasses__`, `__globals__`, `__code__`, `__mro__`…),
+  expanded detection of loops with an always-true condition, expanded list of
+  low-level imports (`inspect`, `threading`, `marshal`, `gc`…).
+- Constant-time comparison (`hmac.compare_digest`) of password fingerprints
+  on login.
+- JWT secret injectable through environment variable `MONL_JWT_SECRET`
+  (takes precedence over `.jwt_secret` file) — the secret need never touch
+  disk in production.
+- Proxy-aware rate limiting through `MONL_TRUST_PROXY`;
+  `X-Forwarded-For` ignored by default to prevent IP spoofing.
 
-### Fiabilité
-- Intégrité transactionnelle : création d'un enregistrement et effets liés
-  (`increments`/`decrements`) exécutés dans une seule transaction avec rollback.
+### Reliability
+- Transactional integrity: record creation and related effects
+  (`increments`/`decrements`) run in one transaction with rollback.
 
 ### Packaging & documentation
-- `pyproject.toml` (métadonnées, entrée console `monl`, config pytest).
-- Dépendances épinglées avec bornes hautes (`requirements.txt` + `pyproject.toml`).
-- Nouveaux documents : `docs/SECURITE.md`, `docs/BETA.md`.
-- Nouveau test : `tests/test_sandbox_guardrail.py` (20 cas, dont évasions par
-  introspection).
-- Archive de distribution nettoyée (aucun secret ni artefact généré).
+- `pyproject.toml` (metadata, `monl` console entry point, pytest config).
+- Dependencies pinned with upper bounds (`requirements.txt` + `pyproject.toml`).
+- New documents: `docs/SECURITE.md`, `docs/BETA.md`.
+- New test: `tests/test_sandbox_guardrail.py` (20 cases, including
+  introspection escapes).
+- Cleaned distribution archive (no secrets or generated artifacts).

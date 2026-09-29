@@ -4,51 +4,49 @@
 
 # monl-compiler
 
-**Un compilateur qui transforme une spécification déclarative en backend complet, déterministe et sûr.**
+**A compiler that turns a declarative specification into a complete, deterministic, and secure backend.**
 
 [![CI](https://github.com/Bodichane/monl-compiler/actions/workflows/ci.yml/badge.svg)](https://github.com/Bodichane/monl-compiler/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/badge/version-0.9.0--beta.10-blue)](CHANGELOG.md)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
 [![Licence](https://img.shields.io/badge/licence-FSL--1.1--ALv2-blue)](LICENSE)
 
-On décrit l'intention d'une application dans un DSL dédié ; monl-compiler en génère la base
-de données, l'API REST, l'authentification et le contrôle d'accès — puis produit un
-contrat que le frontend doit respecter. **La spécification est l'unique source de
-vérité** : on ne maintient pas le code d'infrastructure à la main.
+You describe an application's intent in a dedicated DSL; monl-compiler generates its database,
+REST API, authentication, and access control — then produces a frontend contract that the frontend must follow. **The specification is the sole source of
+truth**: infrastructure code is not maintained by hand.
 
-Un dialogue guidé aide à rédiger cette spécification sans connaître la syntaxe.
-Son mode express demande seulement le type de site, son nom et une phrase de
-description ; monl-compiler prépare ensuite la structure, les données de démonstration et
-un brief éditorial complet. Le seul recours à l'IA se situe au bout de la chaîne,
-pour construire le frontend à partir du contrat garanti par le compilateur —
-**jamais** pour le backend, les permissions ni la logique métier.
+A guided dialogue helps you write this specification without knowing the syntax.
+Its express mode asks only for the site type, its name, and a one-sentence
+description; monl-compiler then prepares the structure, demo data, and a complete editorial brief. The only use of AI comes at the end of the pipeline,
+to build the frontend from the contract guaranteed by the compiler —
+**never** for the backend, permissions, or business logic.
 
 ---
 
-## Sommaire
+## Contents
 
-- [Démarrage rapide](#démarrage-rapide)
-- [Pourquoi monl-compiler ?](#pourquoi-monl-compiler-)
+- [Quick start](#quick-start)
+- [Why monl-compiler?](#why-monl-compiler)
 - [Architecture](#architecture)
-- [Commandes](#commandes)
-- [La spécification](#la-spécification)
-- [Le backend généré](#le-backend-généré)
-- [Vos fichiers : photos, logo, favicon](#vos-fichiers--photos-logo-favicon)
-- [Remplacer le contenu sans ouvrir le DSL](#remplacer-le-contenu-sans-ouvrir-le-dsl)
-- [Le frontend : contrat et IA spécialisée](#le-frontend--contrat-et-ia-spécialisée)
-- [Qualité et vérification](#qualité-et-vérification)
-- [Structure du dépôt](#structure-du-dépôt)
+- [Commands](#commands)
+- [The specification](#the-specification)
+- [The generated backend](#the-generated-backend)
+- [Your files: photos, logo, favicon](#your-files-photos-logo-favicon)
+- [Replace content without opening the DSL](#replace-content-without-opening-the-dsl)
+- [The frontend: contract and specialized AI](#the-frontend-contract-and-specialized-ai)
+- [Quality and verification](#quality-and-verification)
+- [Repository structure](#repository-structure)
 - [Documentation](#documentation)
-- [Licence](#licence)
+- [License](#license)
 
 ---
 
-## Démarrage rapide
+## Quick start
 
-`monl` ouvre le dialogue guidé. Choisissez une catégorie, puis **Création rapide
-avec l'IA** : trois réponses suffisent pour produire la spécification, le backend
-et le contrat frontend. Cette première étape reste déterministe, sans modèle et
-sans appel réseau. L'IA intervient ensuite uniquement pour dessiner l'interface.
+`monl` opens the guided dialogue. Choose a category, then **Quick creation
+with AI**: three answers are enough to produce the specification, backend,
+and frontend contract. This first step is deterministic, with no model and
+no network call. AI is used afterward only to build the interface.
 
 ```bash
 pip install monl-compiler
@@ -57,249 +55,247 @@ monl frontend MonProjet --provider codex
 monl run MonProjet
 ```
 
-Depuis un clone du dépôt, `pip install .` installe la même chose.
+From a repository clone, `pip install .` installs the same thing.
 
-Les fournisseurs frontend par API nécessitent l'extra optionnel :
-`pip install 'monl-compiler[ai]'`. Les agents locaux et `monl import`
-n'en ont pas besoin.
+Frontend providers that use an API require the optional extra:
+`pip install 'monl-compiler[ai]'`. Local agents and `monl import`
+do not need it.
 
-Le parcours **Personnalisation détaillée** reste disponible pour choisir chaque
-option, rôle, contenu éditorial et intention visuelle. Sans agent local ni clé
-API, ouvrez `MonProjet/docs/FRONTEND_PROMPT.md` dans l'IA de votre choix, puis
-installez le ZIP ou le fichier HTML obtenu avec `monl import`.
+The **Detailed customization** workflow remains available for choosing every
+option, role, editorial content item, and visual intention. Without a local agent or API key, open
+`MonProjet/docs/FRONTEND_PROMPT.md` in the AI of your choice, then
+install the resulting ZIP or HTML file with `monl import`.
 
-Le parcours complet, interface comprise, est détaillé dans
+The full workflow, including the interface, is described in
 [QUICKSTART.md](QUICKSTART.md).
 
-## Pourquoi monl-compiler ?
+## Why monl-compiler?
 
-| | Framework classique<br><sub>Django, Rails, FastAPI…</sub> | Générateur d'IA<br><sub>v0, Bolt, assistants de code</sub> | **monl-compiler** |
+| | Traditional framework<br><sub>Django, Rails, FastAPI…</sub> | AI generator<br><sub>v0, Bolt, coding assistants</sub> | **monl-compiler** |
 |---|---|---|---|
-| **Code d'infrastructure** | écrit et maintenu à la main | produit une fois, à reprendre ensuite | **dérivé de la spec, jamais maintenu** |
-| **Deux compilations identiques** | sans objet | résultat différent à chaque fois | **sources backend identiques à entrée et version de compilateur identiques** |
-| **Contrôle d'accès** | vérifié route par route, à la vigilance | ce que le modèle a compris | **vérifié à la compilation : une collision de privilèges empêche de compiler** |
-| **Cohérence schéma / API / règles** | trois endroits à synchroniser | aucune garantie | **une source unique, propagée à la recompilation** |
-| **Sécurité** | dépend de l'auteur | dépend du code produit et de sa revue | **contrôles générés : requêtes paramétrées, rôle issu du compte réel, secret hors du code** |
-| **Rôle de l'IA** | aucun | écrit tout, backend compris | **cantonnée au frontend, encadrée par un contrat et un smoke test** |
-| **Évolution du schéma** | migrations à écrire | à reprendre à la main | **additive et non destructive, données préservées** |
+| **Infrastructure code** | written and maintained by hand | produced once, then taken over | **derived from the spec, never maintained** |
+| **Two identical compilations** | not applicable | different result each time | **identical backend sources for identical input and compiler version** |
+| **Access control** | checked route by route, relying on diligence | what the model understood | **checked at compilation: a privilege collision prevents compilation** |
+| **Schema / API / rules consistency** | three places to synchronize | no guarantees | **one source, propagated on recompilation** |
+| **Security** | depends on the author | depends on generated code and its review | **generated safeguards: parameterized queries, role taken from the actual account, secret kept out of code** |
+| **Role of AI** | none | writes everything, including the backend | **limited to the frontend, bounded by a contract and a smoke test** |
+| **Schema evolution** | migrations to write | manual rework | **additive and non-destructive, data preserved** |
 
-**Ce que vous écrivez :** une spécification d'une page. **Ce que vous
-modifiez, ensuite :** la même page. Le code produit se recompile ; il n'est
-jamais un point de départ à retoucher.
+**What you write:** a one-page specification. **What you
+change afterward:** that same page. The generated code is recompiled; it is
+never a starting point to edit.
 
-Ces contrôles couvrent les règles prises en charge par le compilateur ; ils
-ne garantissent pas la sécurité globale d'une application. La pertinence des
-permissions déclarées, le code `custom`, le frontend, les dépendances et
-l'exploitation demandent leurs propres vérifications. Les sources générées
-sont déterministes ; les secrets créés pour chaque projet et les données
-d'exécution ne font pas partie de cette identité. Voir le
-[modèle de sécurité](docs/SECURITE.md) et le [guide d'exploitation](docs/EXPLOITATION.md).
+These safeguards cover the rules supported by the compiler; they
+do not guarantee an application's overall security. The suitability of the
+declared permissions, `custom` code, the frontend, dependencies, and
+operations require their own checks. Generated sources
+are deterministic; secrets created for each project and runtime data
+are not part of that identity. See the
+[security model](docs/SECURITE.md) and the [operations guide](docs/EXPLOITATION.md).
 
 ## Architecture
 
-<img alt="Votre projet entre dans monl-compiler, qui produit trois livrables : spec.ml, le backend et le contrat frontend. Une IA écrit le frontend à partir du contrat ; monl run vérifie backend et frontend puis lance l'application." src="docs/images/architecture-clair.svg" width="100%">
+<img alt="Your project goes into monl-compiler, which produces three deliverables: spec.ml, the backend, and the frontend contract. An AI writes the frontend from the contract; monl run checks the backend and frontend, then launches the application." src="docs/images/architecture-clair.svg" width="100%">
 
-Le dialogue produit la spécification ; le compilateur en dérive **à la fois** le
-backend et le contrat frontend ; l'IA écrit l'interface contre ce contrat ;
-`monl run` vérifie que les trois restent cohérents avant de lancer l'application.
+The dialogue produces the specification; the compiler derives both the
+backend and the frontend contract from it; AI writes the interface against this contract;
+`monl run` checks that all three remain consistent before launching the application.
 
-## Commandes
+## Commands
 
-### Plugin Claude Code
+### Claude Code plugin
 
-Le dépôt est aussi un marketplace de plugins Claude Code. Le plugin `monl-compiler`
-apprend à Claude à écrire une spec depuis les exemples, à la compiler, à la
-vérifier contre un vrai serveur, puis à construire son interface :
+The repository is also a Claude Code plugin marketplace. The `monl-compiler`
+plugin teaches Claude to write a spec from examples, compile it, check it
+against a real server, and then build its interface:
 
 ```bash
 claude plugin marketplace add Bodichane/monl-compiler
 claude plugin install monl-compiler@monl-compiler
 ```
 
-Dans une session, `/monl-compiler:monl-spec` suivi de ce que l'application doit faire.
-La compétence appelle la ligne de commande par `uvx`, sans installation
-préalable, dans la version du plugin. Le plugin n'est pas listé dans le
-répertoire d'Anthropic : on l'ajoute par ces deux commandes.
+In a session, use `/monl-compiler:monl-spec` followed by what the application should do.
+The skill calls the command line through `uvx`, without prior
+installation, using the plugin version. The plugin is not listed in Anthropic's
+directory: it is added with these two commands.
 
-### Plateforme web et MCP
+### Web platform and MCP
 
-Le compilateur est aussi accessible par une plateforme web : elle valide une
-spec, compile le backend, expose son contrat et livre une archive sans secret :
+The compiler is also available through a web platform: it validates a
+spec, compiles the backend, exposes its contract, and delivers an archive without secrets:
 
 ```bash
 monl-platform --port 8022
 ```
 
-Les agents compatibles MCP peuvent appeler le même pipeline avec `monl-mcp`
-en stdio ou le point HTTP `/mcp`. Aucun second générateur n'est maintenu : CLI,
-web et MCP délèguent tous à `compile_project`.
+MCP-compatible agents can call the same pipeline with `monl-mcp`
+over stdio or the HTTP endpoint `/mcp`. No second generator is maintained: the CLI,
+web, and MCP all delegate to `compile_project`.
 
-Voir [Plateforme web et serveur MCP](docs/PLATFORME_ET_MCP.md).
+See [Web platform and MCP server](docs/PLATFORME_ET_MCP.md).
 
-En production, `compose.platform.yaml` lance l'application comme utilisateur
-non-root avec stockage persistant, readiness, quotas partagés et compilations
-isolées. Le port reste lié à localhost pour être publié derrière un reverse
-proxy HTTPS. La procédure reproductible (variables, DNS, TLS, sauvegardes et
-sondes) est détaillée dans [le runbook de déploiement](deploy/README.md).
+In production, `compose.platform.yaml` launches the application as a
+non-root user with persistent storage, readiness checks, shared quotas, and isolated compilations. The port remains bound to localhost so it can be published behind an HTTPS reverse
+proxy. The reproducible procedure (variables, DNS, TLS, backups, and
+probes) is detailed in [the deployment runbook](deploy/README.md).
 
-| Commande | Ce qu'elle fait |
+| Command | What it does |
 |---|---|
-| `monl` | Dialogue guidé → `spec.ml` + backend + contrat frontend |
-| `monl compile <spec.ml> --output <dir>` | Compile une spécification existante |
-| `monl frontend <App>` | L'IA écrit l'interface dans `frontend/` |
-| `monl import <zip\|html\|dossier> <App>` | Installe un frontend obtenu sans clé API |
-| `monl retouche "<ce qui cloche>" <App>` | Corrige un défaut d'affichage sans reconstruire le site |
-| `monl run <App>` | Vérifie la cohérence, joue le smoke test, puis lance |
-| `monl diff <App>` | Montre le delta du contrat **sans rien recompiler ni écrire** |
-| `monl update <App>` | Recompile après évolution de la spec, préserve les données |
-| `monl migrate <App> --name <nom>` | Applique (ou défait avec `--down`) une migration de schéma nommée |
-| `monl usage <App>` | Mesure la consommation IA et le coût déclaré du projet |
-| `monl assets add <fichier> --for "<fiche>"` | Installe une photo et la déclare dans la spec |
-| `monl assets list <App>` | Ce que la spec déclare, ce qui est présent, ce qui traîne |
-| `monl content export <App>` | Exporte les fiches de démonstration vers `content/*.csv` |
-| `monl content import <App>` | Remplace les fiches depuis les CSV, puis revalide toute la spec |
+| `monl` | Guided dialogue → `spec.ml` + backend + frontend contract |
+| `monl compile <spec.ml> --output <dir>` | Compiles an existing specification |
+| `monl frontend <App>` | AI writes the interface in `frontend/` |
+| `monl import <zip\|html\|dossier> <App>` | Installs a frontend obtained without an API key |
+| `monl retouche "<ce qui cloche>" <App>` | Fixes a display issue without rebuilding the site |
+| `monl run <App>` | Checks consistency, runs the smoke test, then launches |
+| `monl diff <App>` | Shows the contract delta **without recompiling or writing anything** |
+| `monl update <App>` | Recompiles after spec changes, preserves data |
+| `monl migrate <App> --name <nom>` | Applies (or undoes with `--down`) a named schema migration |
+| `monl usage <App>` | Measures AI usage and the project's declared cost |
+| `monl assets add <fichier> --for "<fiche>"` | Installs a photo and declares it in the spec |
+| `monl assets list <App>` | What the spec declares, what is present, and what is left over |
+| `monl content export <App>` | Exports demo records to `content/*.csv` |
+| `monl content import <App>` | Replaces records from CSV files, then revalidates the entire spec |
 
-Chaque projet se compile dans son propre dossier via `--output`, afin de ne pas
-écraser le précédent. Les spécifications portent l'extension `.ml`.
+Each project is compiled in its own directory through `--output`, so the previous one is not
+overwritten. Specifications use the `.ml` extension.
 
-## La spécification
+## The specification
 
-Une spec décrit des **entités** (tables et champs), des **acteurs** (rôles) et des
-**règles** d'accès. Le compilateur en dérive le schéma, les routes CRUD et le
-contrôle d'accès. Les identifiants sont contraints par la grammaire, ce qui exclut
-toute injection par les noms de tables ou de colonnes.
+A spec describes **entities** (tables and fields), **actors** (roles), and
+access **rules**. The compiler derives the schema, CRUD routes, and access control from it. Identifiers are constrained by the grammar, which rules out
+injection through table or column names.
 
-**Le contrôle d'accès s'exprime au niveau de l'enregistrement, lecture comprise :**
+**Access control is expressed at the record level, including reads:**
 
-| Règle | Effet |
+| Rule | Effect |
 |---|---|
-| `rule Entite.Action ownedBy Acteur` | Seul le propriétaire (relation auto-peuplée à la création) peut agir — **le filtrage couvre aussi la lecture**, liste et accès direct |
-| `rule Entite.Action accessibleBy col1, col2` | Réservé aux parties référencées par l'enregistrement (messagerie privée : expéditeur et destinataire) |
-| `rule Entite.Action public` | Retire l'authentification d'une action précise (galerie publique, formulaire de contact) |
-| `rule Article.Read publicWhen status "published"` | Lecture publique **sous condition** : liste filtrée, détail en 404. Un `sharedBy` sur la même référence exempte les modérateurs ; le propriétaire retrouve toujours les siens |
-| `rule Vote.Create oncePer Participant, Entry` | Index unique composite : un compte ne peut effectuer l'action qu'une fois par cible |
+| `rule Entite.Action ownedBy Acteur` | Only the owner (a relation auto-populated on creation) can act — **filtering also covers reads**, both lists and direct access |
+| `rule Entite.Action accessibleBy col1, col2` | Restricted to the parties referenced by the record (private messaging: sender and recipient) |
+| `rule Entite.Action public` | Removes authentication from a specific action (public gallery, contact form) |
+| `rule Article.Read publicWhen status "published"` | Conditional public read: filtered list, detail returns 404. A `sharedBy` on the same reference exempts moderators; the owner can always retrieve their own records |
+| `rule Vote.Create oncePer Participant, Entry` | Composite unique index: an account can perform the action only once per target |
 
-**Les contraintes de champ sont appliquées, pas seulement déclarées :**
+**Field constraints are enforced, not merely declared:**
 
-| Règle | Effet |
+| Rule | Effect |
 |---|---|
-| `rule Produit.prix min 0` | Borne d'entrée — **422 avant tout INSERT**. Valeur sur les types nombre, longueur sur les types texte |
-| `rule Membre.pseudo unique` | Index unique en base — un doublon répond 409, à la création comme à la modification |
-| `rule Produit.nom required` | Assertion vérifiée : le champ doit exister (les schémas rendent déjà tout champ obligatoire) |
-| `rule Ligne.Create decrements Produit.stock by quantite` | Décompte **la quantité demandée**, et refuse en 409 de passer sous le `min` déclaré |
-| `rule Commande.passeeLe timestamp` | Date de création écrite par le **serveur** (ISO 8601 UTC), absente des corps de requête — création comme modification |
-| `rule Commande.statut oneOf "panier", "expédiée"` | Refuse toute autre valeur à la création comme à la modification |
-| `rule Commande.statut "annulée" releases Ligne` | Rend le stock une seule fois lorsque la commande est annulée |
-| `rule Commande.statut writableAfterPayment Admin` | Réserve ce champ à une route authentifiée dédiée ; les totaux calculés restent inaccessibles |
+| `rule Produit.prix min 0` | Input bound — **422 before any INSERT**. Value for number types, length for text types |
+| `rule Membre.pseudo unique` | Unique database index — a duplicate returns 409, on both creation and modification |
+| `rule Produit.nom required` | Checked assertion: the field must exist (schemas already make every field required) |
+| `rule Ligne.Create decrements Produit.stock by quantite` | Decrements **the requested quantity**, and refuses with 409 to go below the declared `min` |
+| `rule Commande.passeeLe timestamp` | Creation date written by the **server** (ISO 8601 UTC), absent from request bodies — on both creation and modification |
+| `rule Commande.statut oneOf "panier", "expédiée"` | Refuses any other value on both creation and modification |
+| `rule Commande.statut "annulée" releases Ligne` | Restores stock once when the order is cancelled |
+| `rule Commande.statut writableAfterPayment Admin` | Restricts this field to a dedicated authenticated route; calculated totals remain inaccessible |
 
-D'autres marqueurs affinent champs et comportement : `hidden`, `generated`,
-`categorized`, `derivedFrom` / `sumOf` (montants calculés par le serveur),
-`payable` (encaissement, ci-dessous), ainsi qu'un bloc `seed` idempotent qui
-pré-remplit la base au démarrage. Une règle sans effet est **refusée à la
-compilation** plutôt qu'ignorée en silence — et une règle qui désigne un champ
-inexistant aussi : une contrainte à laquelle rien ne correspond laisse croire à
-une protection qui n'existe pas.
+Other markers refine fields and behavior: `hidden`, `generated`,
+`categorized`, `derivedFrom` / `sumOf` (amounts calculated by the server),
+`payable` (payment collection, below), as well as an idempotent `seed` block that
+pre-populates the database at startup. A rule with no effect is **refused at
+compilation** rather than silently ignored — and so is a rule that names a
+nonexistent field: a constraint that matches nothing gives the impression of
+protection that does not exist.
 
 <details>
-<summary><b>Encaisser : <code>rule Commande.total payable</code></b></summary>
-
+<summary><b>Collecting payment: <code>rule Commande.total payable</code></b></summary>
 <br>
 
-La règle nomme le champ qui porte le **montant** ; l'entité qui le contient est
-celle qu'on encaisse. monl-compiler en dérive deux colonnes de suivi et deux routes —
-`POST /commande/{id}/paiement`, qui ouvre une session de règlement, et
-`POST /paiement/webhook`, qui reçoit la confirmation du prestataire.
+The rule names the field that carries the **amount**; the entity that contains it
+is the one being charged. monl-compiler derives two tracking columns and two
+routes from it — `POST /commande/{id}/paiement`, which opens a payment session,
+and `POST /paiement/webhook`, which receives the provider's confirmation.
 
-**Le montant vient de la base, jamais du client.** La route de règlement
-n'accepte aucun corps de requête : elle relit le champ à chaque appel. Un panier
-qui envoie son propre prix est un panier qu'on peut négocier. Le webhook, lui,
-vérifie la signature du prestataire avant d'écrire quoi que ce soit — c'est le
-seul endroit du backend généré où un tiers non authentifié touche à la base.
+**The amount comes from the database, never from the client.** The payment route
+accepts no request body: it rereads the field on every call. A cart that sends
+its own price is a cart whose price can be negotiated. The webhook, in turn,
+checks the provider's signature before writing anything — it is the only place
+in the generated backend where an unauthenticated third party touches the
+database.
 
-Les cas qui rendraient l'encaissement douteux — champ non numérique, montant
-que le client peut écrire, montant masqué, deux champs `payable`, création
-`public` — sont refusés **à la compilation** plutôt qu'au moment d'encaisser.
+Cases that would make charging questionable — a non-numeric field, an amount
+the client can write, a hidden amount, two `payable` fields, `public` creation —
+are refused **at compile time** rather than at the moment of charging.
 
-Les clés (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`) viennent de
-l'environnement, comme le secret JWT. Absentes, les routes répondent 503 **en
-nommant la variable manquante** et le reste du serveur fonctionne normalement :
-un projet fraîchement compilé se lance et se teste hors ligne.
+The keys (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`) come from the
+environment, like the JWT secret. If they are missing, the routes respond 503
+**naming the missing variable** and the rest of the server works normally: a
+freshly compiled project starts and can be tested offline.
 
 </details>
 
 <details>
-<summary><b>Inscription : pourquoi un rôle ne s'obtient pas en un appel HTTP</b></summary>
+<summary><b>Registration: why a role cannot be obtained in a single HTTP call</b></summary>
 
 <br>
 
-Un acteur n'est pas inscriptible par défaut. `actor Client selfRegister` ouvre
-`POST /register` à ce rôle ; un `actor Admin` sans marqueur ne peut être obtenu que
-par provisionnement hors ligne (`manage.py`, généré à côté du backend). Laisser le
-client choisir son rôle à l'inscription serait une élévation de privilège en un
-appel HTTP.
+An actor is not registerable by default. `actor Client selfRegister` opens
+`POST /register` to that role; an `actor Admin` without a marker can only be
+obtained through offline provisioning (`manage.py`, generated alongside the
+backend). Letting the client choose its role during registration would be a
+privilege escalation in a single HTTP call.
 
 </details>
 
-**Cinq spécifications de référence**, commentées, dans
-[`exemples/`](exemples/) : un fichier `.ml` d'une page par application —
-portfolio, boutique, réseau social, kanban, classement — dont monl-compiler dérive tout
-le reste.
+**Five commented reference specifications** in
+[`exemples/`](exemples/): a one-page `.ml` file for each application —
+portfolio, shop, social network, kanban, ranking — from which monl-compiler
+derives everything else.
 
 <details>
-<summary><b>Direction visuelle : elle ne vient pas du compilateur</b></summary>
+<summary><b>Visual direction: it does not come from the compiler</b></summary>
 
 <br>
 
-monl-compiler n'a **aucun** avis sur le visuel — ni palette, ni typographie, ni grille.
-Il ne sait pas à quoi un projet doit ressembler ; il ne connaît que des noms de
-tables. La direction est celle que l'auteur formule dans le dialogue (registre
-visuel, place des images) : elle voyage dans le brief, et c'est l'IA
-d'interface qui la sert.
+monl-compiler has **no** opinion about visuals — no palette, typography, or
+grid. It does not know what a project should look like; it only knows table
+names. The direction is what the author expresses in the dialogue (visual
+register, placement of images): it travels in the brief, and the interface AI
+implements it.
 
-Deux exigences seulement subsistent, et ce ne sont pas des questions de goût :
-le **contraste** (WCAG AA), qui rend l'interface lisible, et l'**autonomie** du
-frontend, qui la rend vérifiable par le smoke test.
+Only two requirements remain, and they are not matters of taste: **contrast**
+(WCAG AA), which makes the interface readable, and frontend **autonomy**, which
+makes it verifiable by the smoke test.
 
 </details>
 
-## Le backend généré
+## The generated backend
 
-**Comptes et rôles.** `POST /register` n'accepte que les rôles marqués
-`selfRegister` ; tout autre est refusé (403). Les comptes privilégiés se créent
-avec le `manage.py` généré, sur la machine qui héberge la base :
-`python3 manage.py adduser <utilisateur> <role>`. La même commande gère rôle, mot
-de passe, liste des comptes et révocation globale des sessions.
+**Accounts and roles.** `POST /register` accepts only roles marked
+`selfRegister`; any other role is refused (403). Privileged accounts are created
+with the generated `manage.py`, on the machine hosting the database:
+`python3 manage.py adduser <utilisateur> <role>`. The same command manages roles,
+passwords, the account list, and global session revocation.
 
-**Authentification.** Registre d'utilisateurs propre à chaque application (table
-`_monl_users`, mots de passe en PBKDF2-HMAC-SHA256, sel unique par compte,
-comparaison à temps constant). Flux : `POST /register` → `POST /login` (jeton JWT)
-→ `POST /logout` (révocation avant expiration). **Le rôle et l'identité portés par
-le jeton proviennent du compte réel**, jamais d'une déclaration du client.
+**Authentication.** A user registry dedicated to each application (table
+`_monl_users`, passwords in PBKDF2-HMAC-SHA256, a unique salt per account,
+constant-time comparison). Flow: `POST /register` → `POST /login` (JWT token)
+→ `POST /logout` (revocation before expiration). **The role and identity carried
+by the token come from the actual account**, never from a client declaration.
 
-**Secret JWT.** Généré aléatoirement à la première compilation, stocké dans
-`.jwt_secret` (jamais versionné). En production, `MONL_JWT_SECRET` est prioritaire
-et permet de livrer un projet sans secret sur le disque.
+**JWT secret.** Generated randomly on the first compilation, stored in
+`.jwt_secret` (never versioned). In production, `MONL_JWT_SECRET` takes
+precedence and lets you deliver a project without a secret on disk.
 
-**Multi-workers.** Révocation de jetons et limitation de débit (5 tentatives /
-60 s / IP sur `/register` et `/login`) sont persistées en base, donc partagées :
-`uvicorn app:app --workers N` n'en démultiplie pas les quotas. Derrière un reverse
-proxy de confiance, `MONL_TRUST_PROXY=1` fait lire l'IP réelle dans
-`X-Forwarded-For` ; sans ce réglage l'en-tête est ignoré, pour empêcher toute
-usurpation.
+**Multi-worker.** Token revocation and rate limiting (5 attempts / 60 s / IP on
+`/register` and `/login`) are persisted in the database, so they are shared:
+`uvicorn app:app --workers N` does not multiply the quotas. Behind a trusted
+reverse proxy, `MONL_TRUST_PROXY=1` makes the app read the real IP from
+`X-Forwarded-For`; without this setting the header is ignored to prevent
+spoofing.
 
-**Migrations.** Recompiler dans le même dossier, en conservant `app.db`, ajoute les
-colonnes par `ALTER TABLE ADD COLUMN` sans toucher aux données. Les changements
-destructifs ne sont pas automatisés, à dessein — voir [docs/MIGRATIONS.md](docs/MIGRATIONS.md).
+**Migrations.** Recompiling in the same directory while keeping `app.db` adds
+columns with `ALTER TABLE ADD COLUMN` without touching the data. Destructive
+changes are not automated, by design — see [docs/MIGRATIONS.md](docs/MIGRATIONS.md).
 
-**Routes servies.** `/docs` (Swagger, toujours disponible) · `/` (redirige vers
-`/docs`) · `/site` (l'interface, si `frontend/` existe et que l'app est lancée par
-`monl run`).
+**Served routes.** `/docs` (Swagger, always available) · `/` (redirects to
+`/docs`) · `/site` (the interface, if `frontend/` exists and the app is started
+with `monl run`).
 
-## Vos fichiers : photos, logo, favicon
+## Your files: photos, logo, favicon
 
-Une image cassée ne se voit qu'à l'œil, en ligne — le pire endroit pour découvrir
-une faute de frappe. Les fichiers que vous fournissez se déclarent donc dans la
-spec, et le compilateur **refuse de compiler s'ils ne sont pas là** :
+A broken image is only visible to the eye, once deployed — the worst place to
+discover a typo. So the files you provide are declared in the spec, and the
+compiler **refuses to compile if they are not there**:
 
 ```monl
 assets
@@ -307,149 +303,147 @@ assets
     logo: "logo.svg"
 
 entity Produit
-    photo: Image          # un fichier LOCAL, vérifié présent
+    photo: Image          # a LOCAL file, checked for presence
 ```
 
-`Image` désigne un fichier du projet : une URL y est refusée, parce que monl ne
-fait aucun appel réseau et ne pourrait rien affirmer d'une adresse distante —
-`String` reste là pour ce cas, non vérifié. Le dossier vit **hors de
-`frontend/`**, qui est renommé à chaque reconstruction du frontend.
+`Image` designates a project file: a URL is refused, because monl makes no
+network calls and could not verify anything about a remote address — `String`
+remains available for that case, without verification. The directory lives
+**outside `frontend/`**, which is renamed each time the frontend is rebuilt.
 
-Pour ne pas écrire ces chemins à la main :
+To avoid writing these paths by hand:
 
 ```bash
 monl assets add ~/photos/IMG_4821.jpg --for "Halo RS"   # → assets/halo-rs.jpg
 monl assets add ~/logo.svg --logo
-monl assets list                                        # présents, manquants, orphelins
+monl assets list                                        # present, missing, orphaned
 ```
 
-La commande copie le fichier, le renomme en slug, écrit la déclaration — puis fait
-**revalider la spec obtenue par le compilateur avant de l'enregistrer**. En cas de
-refus, ni la spec ni le dossier ne sont modifiés. Elle ne supprime jamais un
-fichier : remplacer une photo signale l'ancienne comme orpheline, elle ne l'efface
-pas.
+The command copies the file, renames it as a slug, writes the declaration — then
+has the compiler **revalidate the resulting spec before saving it**. If it is
+refused, neither the spec nor the directory is modified. It never deletes a
+file: replacing a photo marks the old one as orphaned; it does not delete it.
 
-## Remplacer le contenu sans ouvrir le DSL
+## Replace content without opening the DSL
 
-Le seed de démonstration permet de voir immédiatement une interface, mais il
-n'est pas destiné à devenir le vrai catalogue. Un humain peut remplacer textes,
-prix et noms de photos avec un tableur :
+The demo seed lets you see an interface immediately, but it is not meant to
+become the real catalog. A person can replace text, prices, and photo names with
+a spreadsheet:
 
 ```bash
 monl content export MonProjet
-# modifier content/Produit.csv et déposer les photos dans assets/
+# edit content/Produit.csv and put the photos in assets/
 monl content import MonProjet
 monl update MonProjet
 ```
 
-Chaque CSV conserve l'ordre des champs et des fiches. `LISEZMOI.txt` explique en
-français les valeurs permises, les champs obligatoires, les bornes et les images
-attendues. Une cellule vide est omise : c'est le vrai compilateur qui décide si
-elle était obligatoire. Les nombres invalides, fichiers absents, chemins suspects
-et blocs ambigus sont refusés avant toute écriture. L'import remplace le contenu
-complet de l'entité ; il ne fusionne jamais silencieusement deux sources de
-vérité.
+Each CSV preserves the order of fields and records. `LISEZMOI.txt` explains in
+French the allowed values, required fields, limits, and expected images. An
+empty cell is omitted: the actual compiler decides whether it was required.
+Invalid numbers, missing files, suspicious paths, and ambiguous blocks are
+refused before any writes. Import replaces the entity's entire content; it
+never silently merges two sources of truth.
 
-## Le frontend : contrat et IA spécialisée
+## The frontend: contract and specialized AI
 
-L'interface est écrite par une IA, à partir d'un contrat métier et d'une
-direction visuelle préparée avant le code. Chaque compilation produit :
+The interface is written by an AI, from a business contract and a visual
+direction prepared before coding. Each compilation produces:
 
-- `frontend_contract.json` — description machine-lisible des routes destinées à
-  l'interface, de l'authentification et des règles de champ, dérivée de la même
-  spec que le backend ;
-- dans `docs/`, ce qui se lit avant d'écrire l'interface :
-  - `FRONTEND_PROMPT.md` — le brief à confier à une IA d'interface : structure,
-    rôles, contenu et intention déclarée, sans prescription visuelle ;
-  - `DESIGN_SYSTEM.md` — pattern de page, tokens de départ, anti-patterns et
-    checklist UX déterminés depuis le contrat ;
-  - `DESIGN_SPEC.md` — synthèse visuelle éditable ; si l'auteur la remplace,
-    elle devient prioritaire et Monl ne l'écrase pas ;
-  - `ASSET_MANIFEST.json` — plan d'assets et marqueurs de sections, vérifiable
-    après `monl frontend` ou `monl import`.
+- `frontend_contract.json` — a machine-readable description of the routes
+  intended for the interface, authentication, and field rules, derived from the
+  same spec as the backend;
+- in `docs/`, the material to read before writing the interface:
+  - `FRONTEND_PROMPT.md` — the brief to give an interface AI: structure, roles,
+    content, and declared intent, without visual prescriptions;
+  - `DESIGN_SYSTEM.md` — page pattern, starting tokens, anti-patterns, and UX
+    checklist determined from the contract;
+  - `DESIGN_SPEC.md` — editable visual summary; if the author replaces it, it
+    takes priority and Monl does not overwrite it;
+  - `ASSET_MANIFEST.json` — asset plan and section markers, verifiable after
+    `monl frontend` or `monl import`.
 
-Le système de design sélectionne aussi un catalogue local de patterns Monl —
-hero, catalogue, éditorial, réassurance, FAQ, contact et CTA final — avec des
-variantes adaptées au type d'application. Ces patterns sont des structures
-HTML/CSS/JS autonomes, pas des composants React à installer.
+The design system also selects a local catalog of Monl patterns — hero, catalog,
+editorial, reassurance, FAQ, contact, and final CTA — with variants suited to
+the application type. These patterns are standalone HTML/CSS/JS structures,
+not React components to install.
 
-L'IA écrit dans `frontend/` (point d'entrée `index.html`), que `monl run` sert sur
-`/site` sans jamais toucher au backend. Plusieurs voies, mêmes garde-fous :
+The AI writes to `frontend/` (entry point `index.html`), which `monl run` serves
+at `/site` without ever touching the backend. Several paths, the same
+safeguards:
 
-| Voie | Commande | Authentification |
+| Path | Command | Authentication |
 |---|---|---|
-| Manuelle | déposer les fichiers dans `frontend/` | — |
-| Copier-coller | `monl import <zip\|html\|dossier> <App>` | aucune |
-| Agent local | `monl frontend <App> --provider claude-code\|codex\|gemini` | abonnement de l'agent |
-| Agent quelconque | `monl frontend <App> --agent-command "<cmd> {instruction}"` | celle de l'agent |
-| API Anthropic | `monl frontend <App> --provider claude` | `ANTHROPIC_API_KEY` |
-| API tierce | `monl frontend <App> --provider groq --model <id>` | `GROQ_API_KEY`, etc. |
+| Manual | put the files in `frontend/` | — |
+| Copy-paste | `monl import <zip\|html\|dossier> <App>` | none |
+| Local agent | `monl frontend <App> --provider claude-code\|codex\|gemini` | agent subscription |
+| Any agent | `monl frontend <App> --agent-command "<cmd> {instruction}"` | the agent's |
+| Anthropic API | `monl frontend <App> --provider claude` | `ANTHROPIC_API_KEY` |
+| Third-party API | `monl frontend <App> --provider groq --model <id>` | `GROQ_API_KEY`, etc. |
 
-**N'importe quelle clé fait l'affaire.** Les fournisseurs au dialecte OpenAI —
-`groq`, `openai`, `openrouter`, `deepseek`, `mistral`, `together`, `xai`,
-`ollama` — sont préréglés, chacun lisant sa propre variable d'environnement. Pour
-un point de terminaison absent de cette liste, `--provider openai-compatible`
-avec `MONL_AI_BASE_URL` et `MONL_AI_API_KEY`. Hors voie Anthropic, `--model` est
-exigé : monl ne code aucun identifiant de modèle en dur, les catalogues changeant
-trop vite pour qu'une valeur figée reste vraie. La clé se lit toujours dans
-l'environnement, jamais en argument — le shell l'archiverait.
+**Any key will do.** OpenAI-dialect providers — `groq`, `openai`, `openrouter`,
+`deepseek`, `mistral`, `together`, `xai`, `ollama` — are preconfigured, each
+reading its own environment variable. For an endpoint not in this list, use
+`--provider openai-compatible` with `MONL_AI_BASE_URL` and `MONL_AI_API_KEY`.
+Outside the Anthropic path, `--model` is required: monl hardcodes no model ID,
+because catalogs change too quickly for a fixed value to stay accurate. The key
+is always read from the environment, never passed as an argument — the shell
+would record it.
 
-Garde-fous communs : extensions en liste blanche, protection contre le zip-slip,
-frontend autonome sans CDN, direction de design injectée avant la génération,
-et re-vérification systématique des routes, assets et sections obligatoires.
+Shared safeguards: allowlisted extensions, protection against zip-slip, a
+standalone frontend without a CDN, design direction injected before generation,
+and systematic rechecking of routes, assets, and required sections.
 
-### Sans clé API, sans carte bancaire, sans réseau
+### No API key, no credit card, no network
 
-**Le compilateur n'appelle jamais l'extérieur.** `monl compile` produit `app.py`,
-`schema.sql`, `manage.py`, le contrat et le brief entièrement hors ligne : le
-parseur, le validateur et le générateur ne contiennent aucun appel réseau. Tout
-le backend — routes, base, JWT, contrôle d'accès, paiement, back-office —
-s'obtient sans compte chez qui que ce soit.
-
-L'IA n'intervient qu'à l'étape frontend, et cette étape a une voie **sans aucune
-clé** :
+**The compiler never calls the outside world.** `monl compile` produces
+`app.py`, `schema.sql`, `manage.py`, the contract, and the brief entirely
+offline: the parser, validator, and generator contain no network calls. The
+entire backend — routes, database, JWT, access control, payments, back office —
+is obtained without an account anywhere.
+AI is involved only in the frontend step, and this step has a path **without any
+key**:
 
 ```bash
-monl compile boutique.ml --output ./Boutique   # hors ligne
-# coller le contenu de Boutique/docs/FRONTEND_PROMPT.md dans n'importe quel
-# assistant accessible par navigateur, récupérer le résultat…
-monl import interface.zip ./Boutique           # mêmes garde-fous, même vérification
+monl compile boutique.ml --output ./Boutique   # offline
+# paste the contents of Boutique/docs/FRONTEND_PROMPT.md into any browser-accessible
+# assistant, retrieve the result…
+monl import interface.zip ./Boutique           # same safeguards, same verification
 monl run ./Boutique
 ```
 
-`monl import` n'est pas une porte dérobée : la source vient d'une conversation,
-elle est donc traitée comme une entrée non fiable — liste blanche d'extensions,
-refus du zip-slip, refus des CDN, `index.html` obligatoire, puis contrôle de
-cohérence et smoke test, exactement comme une réponse d'API.
+`monl import` is not a backdoor: the source comes from a conversation, so it is
+treated as untrusted input — extension allowlist, zip-slip refusal, CDN refusal,
+`index.html` required, then consistency check and smoke test, exactly like an API
+response.
 
-Restent, selon ce que vous avez sous la main : `--provider ollama` pour un modèle
-entièrement local, les agents en ligne de commande qui s'authentifient par
-abonnement plutôt que par clé, et les fournisseurs au dialecte OpenAI dont
-plusieurs proposent un palier gratuit. monl n'en privilégie aucun et n'en revend
-aucun : il ne consomme aucun jeton pour son propre compte.
+What remains, depending on what you have available: `--provider ollama` for a
+fully local model, command-line agents that authenticate by subscription rather
+than by key, and OpenAI-dialect providers, several of which offer a free tier.
+monl does not favor or resell any of them: it consumes no tokens on its own
+account.
 
-> **Ce qui est prouvé, et ce qui ne l'est pas.** Le parcours hors ligne, la voie
-> copier-coller et la voie Anthropic sont éprouvés de bout en bout contre un vrai
-> serveur. Les préréglages `codex` et `gemini` sont écrits et couverts au niveau
-> de la plomberie, mais n'ont pas été éprouvés contre les binaires réels — les
-> employer, c'est essuyer les plâtres.
+> **What has been proven, and what has not.** The offline path, the copy-paste
+> path, and the Anthropic path have been tested end to end against a real server.
+> The `codex` and `gemini` presets are written and covered at the plumbing level,
+> but have not been tested against the real binaries — using them means being the
+> first to try them out.
 
-**Avant tout lancement**, `monl run` exécute un smoke test comportemental sur un
-serveur éphémère à base neuve : chaque route du contrat est éprouvée en HTTP réel
-et, si Node.js est présent, `frontend/index.html` est exécuté dans jsdom contre ce
-serveur. Toute exception ou tout appel hors contrat bloque le lancement
-(`--skip-smoke` pour outrepasser en connaissance de cause).
+**Before every launch**, `monl run` runs a behavioral smoke test against a fresh
+ephemeral server: every contract route is tested over real HTTP and, if Node.js
+is available, `frontend/index.html` is executed in jsdom against this server. Any
+exception or out-of-contract call blocks the launch (`--skip-smoke` to override
+with full awareness).
 
-## Qualité et vérification
+## Quality and verification
 
 | | |
 |---|---|
-| **Tests publiés par la CI** | Validations unitaires et serveurs éphémères pour les parcours HTTP ; consulter l'exécution CI de la révision concernée |
-| **Couverture publiée par la CI** | Compilateur et plateforme mesurés séparément, avec un seuil de 90 % pour chacun |
-| **Audit offensif** | Usurpation de rôle, JWT forgé, élévation de privilège |
-| **Frontières d'architecture** | Contrats d'import vérifiés par les tests, notamment l'indépendance de l'analyse vis-à-vis des émetteurs |
-| **Lint** | `ruff check src tests` — zéro signalement, exceptions justifiées dans `pyproject.toml` |
-| **CI** | Workflow configuré pour Python 3.10, 3.12 et 3.14 à chaque push et pull request |
+| **Tests published by CI** | Unit validations and ephemeral servers for HTTP paths; consult the CI run for the relevant revision |
+| **Coverage published by CI** | Compiler and platform measured separately, with a 90% threshold for each |
+| **Offensive audit** | Role impersonation, forged JWT, privilege escalation |
+| **Architecture boundaries** | Import contracts verified by tests, including the independence of analysis from emitters |
+| **Lint** | `ruff check src tests` — zero findings, justified exceptions in `pyproject.toml` |
+| **CI** | Workflow configured for Python 3.10, 3.12, and 3.14 on every push and pull request |
 
 ```bash
 python3 -m pytest tests/ -rs --cov=src/monl --cov=src/monl_platform --cov-report=term-missing --cov-fail-under=0
@@ -457,65 +451,64 @@ python3 -m coverage report --include='src/monl/*' --fail-under=90
 python3 -m coverage report --include='src/monl_platform/*' --fail-under=90
 ```
 
-Une seule exécution de toute la suite, puis deux barrières tirées des mêmes
-mesures : c'est ce que fait la CI (une barrière mesurée sur une liste de
-fichiers de tests oublierait ceux qui n'y figurent pas).
+A single run of the whole suite, followed by two gates drawn from the same
+measurements: that is what CI does (a gate measured against a list of test files
+would forget those not on the list).
 
 ```bash
 ruff check src tests
 ```
 
-monl-compiler ne dépend d'aucun modèle d'IA et ne fait aucun appel réseau :
-dialogue, spécification et génération du backend sont entièrement déterministes.
-Les blocs `custom` produisent des coquilles vides sûres dans `sandbox_ai.py`, dont
-la logique métier est écrite à la main — aucune génération de code n'est
-automatisée.
+monl-compiler does not depend on any AI model and makes no network calls:
+dialogue, specification, and backend generation are entirely deterministic.
+`custom` blocks produce safe empty stubs in `sandbox_ai.py`, whose business logic
+is written by hand — no code generation is automated.
 
-## Structure du dépôt
+## Repository structure
 
-| Dossier | Contenu |
+| Directory | Contents |
 |---|---|
-| `src/monl/` | Le paquet : parseur, validateur, dialogue, design system, contrat frontend, CLI |
-| `src/monl/generator/` | Le générateur de backend, une couche par module |
-| `src/monl_platform/` | La plateforme web et le serveur MCP : comptes, compilation, hébergement, administration |
-| `exemples/` | Cinq spécifications `.ml` d'une page, compilées à chaque test |
-| `plugin/`, `.claude-plugin/` | Le plugin Claude Code et son catalogue : les compétences (`plugin/skills/` — écrire la spec avec `monl-spec`, puis construire l'interface) et une copie exacte des exemples et de la grammaire (`plugin/reference/`) |
-| `demo/` | La démo CodexShop, une papeterie qui exerce toute la chaîne marchande : sa spécification, son frontend et ses photos |
-| `tests/` | Non-régression, audit offensif, frontières d'architecture |
-| `docs/` | Décisions de conception, sécurité, migrations, exploitation, publication |
-| `deploy/` | Runbook et fichiers de mise en production de la plateforme |
+| `src/monl/` | The package: parser, validator, dialogue, design system, frontend contract, CLI |
+| `src/monl/generator/` | The backend generator, one layer per module |
+| `src/monl_platform/` | The web platform and MCP server: accounts, compilation, hosting, administration |
+| `exemples/` | Five one-page `.ml` specifications, compiled in every test |
+| `plugin/`, `.claude-plugin/` | The Claude Code plugin and its catalog: skills (`plugin/skills/` — write the spec with `monl-spec`, then build the interface) and an exact copy of the examples and grammar (`plugin/reference/`) |
+| `demo/` | The CodexShop demo, a stationery shop that exercises the entire commerce flow: its specification, frontend, and photos |
+| `tests/` | Regression tests, offensive audit, architecture boundaries |
+| `docs/` | Design decisions, security, migrations, operations, publication |
+| `deploy/` | Runbook and platform production deployment files |
 
 ## Documentation
 
-| Fichier | Contenu |
+| File | Contents |
 |---|---|
-| [QUICKSTART.md](QUICKSTART.md) | Le parcours complet, en trois étapes |
-| [docs/design_decisions.md](docs/design_decisions.md) | Le journal du projet, point par point, chacun avec son *pourquoi* |
-| [docs/SECURITE.md](docs/SECURITE.md) | Modèle de sécurité |
-| [docs/MIGRATIONS.md](docs/MIGRATIONS.md) | Évolution du schéma sans perte |
-| [docs/BETA.md](docs/BETA.md) | État de la bêta et feuille de route |
-| [docs/DEPRECATIONS.md](docs/DEPRECATIONS.md) | Compatibilités historiques et politique de retrait |
-| [docs/PUBLICATION.md](docs/PUBLICATION.md) | Publication PyPI et image de plateforme GHCR |
-| [deploy/README.md](deploy/README.md) | Runbook de déploiement Docker, DNS, TLS et smoke test |
-| [CHANGELOG.md](CHANGELOG.md) | Historique des versions |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Méthode de travail, règles du dépôt, checklist avant PR |
+| [QUICKSTART.md](QUICKSTART.md) | The complete workflow, in three steps |
+| [docs/design_decisions.md](docs/design_decisions.md) | The project journal, point by point, each with its *why* (in French) |
+| [docs/DESIGN_DECISIONS_SUMMARY.md](docs/DESIGN_DECISIONS_SUMMARY.md) | English map of the journal: every point by theme, linked to its entry |
+| [docs/SECURITE.md](docs/SECURITE.md) | Security model |
+| [docs/MIGRATIONS.md](docs/MIGRATIONS.md) | Schema evolution without loss |
+| [docs/BETA.md](docs/BETA.md) | Beta status and roadmap |
+| [docs/DEPRECATIONS.md](docs/DEPRECATIONS.md) | Historical compatibility and removal policy |
+| [docs/PUBLICATION.md](docs/PUBLICATION.md) | PyPI publication and GHCR platform image |
+| [deploy/README.md](deploy/README.md) | Docker deployment runbook, DNS, TLS, and smoke test |
+| [CHANGELOG.md](CHANGELOG.md) | Version history |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Working method, repository rules, pre-PR checklist |
 
-## Licence
+## License
 
-**FSL-1.1-ALv2** — *Functional Source License*, avec bascule automatique vers
-**Apache-2.0 deux ans après la publication de chaque version**
+**FSL-1.1-ALv2** — *Functional Source License*, with automatic conversion to
+**Apache-2.0 two years after the publication of each version**
 ([LICENSE](LICENSE)).
 
-Vous pouvez utiliser monl-compiler librement, y compris en contexte
-professionnel, le modifier, le redistribuer, et **vous en servir pour livrer
-des applications à vos clients**. La seule restriction est l'usage
-*concurrent* : en faire un produit ou un service commercial qui se substitue à
-monl-compiler. Les applications *produites* à partir de vos propres
-spécifications vous appartiennent.
+You may use monl-compiler freely, including professionally, modify it,
+redistribute it, and **use it to deliver applications to your clients**. The
+only restriction is *competitive* use: making it into a commercial product or
+service that substitutes for monl-compiler. Applications *produced* from your
+own specifications belong to you.
 
-Le détail en français : [LICENSE-FAQ.md](LICENSE-FAQ.md).
+Details in French: [LICENSE-FAQ.md](LICENSE-FAQ.md).
 
-Les rapports de bug et remarques sont bienvenus dans les *issues*.
+Bug reports and feedback are welcome in the *issues*.
 
 ---
 

@@ -1,23 +1,23 @@
-# 🟢 Phase 0 — Cadrage, Vision et Positionnement Sécurisé
+# 🟢 Phase 0 — Scope, Vision, and Secure Positioning
 
-> **Document historique.** Cette page décrit une étape de conception ; elle ne
-> remplace pas l'architecture courante. Voir `README.md` et `CODEBASE_AUDIT.md`.
+> **Historical document.** This page describes a design stage; it does not
+> replace the current architecture. See `README.md` and `CODEBASE_AUDIT.md`.
 
-## Constat de départ
-De nombreux débutants ou développeurs intermédiaires utilisent l’IA (prompts itératifs, “vibe coding”) pour créer des applications. Ils se retrouvent rapidement avec une masse critique de code qu’ils ne comprennent pas et ne peuvent donc pas maintenir, faire évoluer, ou sécuriser correctement. 
+## Starting observation
+Many beginners or intermediate developers use AI (iterative prompts, “vibe coding”) to create applications. They quickly end up with a critical mass of code they do not understand and therefore cannot maintain, extend, or secure properly.
 
-## Positionnement de monl
-monl n’est pas un générateur d’applications de plus, ni un outil no-code grand public. C’est un langage structuré conçu spécifiquement pour rendre le “vibe coding” traçable et sécurisé. L’utilisateur exprime son besoin via une spécification déclarative claire plutôt qu’un prompt libre non structuré. Cela donne à l’IA une direction vérifiable, limitant son rôle à l'interprétation purement locale et balisée.
+## monl's positioning
+monl is not another application generator or a consumer no-code tool. It is a structured language designed specifically to make “vibe coding” traceable and secure. The user expresses a need through a clear declarative specification rather than an unstructured free-form prompt. This gives AI a verifiable direction, limiting its role to narrowly scoped, local interpretation.
 
-## Architecture Cible : Socle Déterministe + Échappatoire IA Balisé
-Le pipeline de compilation sépare strictement l'infrastructure de la logique métier arbitraire :
+## Target Architecture: Deterministic Foundation + Bounded AI Escape Hatch
+The compilation pipeline strictly separates infrastructure from arbitrary business logic:
 
-1. **Le Socle (Compilateur classique)** : Génère tout ce qui est standard, répétitif et prévisible (schéma de base de données, routes API, authentification, contrôle d'accès basé sur les rôles et workflows).
-   - **Déterministe** : La même spécification produit toujours le même code, bit pour bit.
-   - **Sécurisé par défaut** : Requêtes paramétrées, validation stricte, contrôle d'accès systématique appliqués par construction.
-   - **Traçable** : Chaque ligne de code générée correspond à une règle fixe et à une portion identifiable de la spécification.
+1. **The Foundation (conventional compiler)**: Generates everything standard, repetitive, and predictable (database schema, API routes, authentication, role-based access control, and workflows).
+   - **Deterministic**: The same specification always produces the same code, bit for bit.
+   - **Secure by default**: Parameterized queries, strict validation, and systematic access control are applied by construction.
+   - **Traceable**: Every generated line of code corresponds to a fixed rule and an identifiable portion of the specification.
 
-2. **L’Échappatoire IA (Blocs `custom`)** : Intervient uniquement pour la logique métier que le DSL ne peut pas exprimer nativement. L’IA génère alors une fonction isolée et étanche, appelée par le code déterministe sans jamais s’y mélanger, facilitant un contrôle de sécurité renforcé (audit) sur ce code spécifique avant intégration.
+2. **The AI Escape Hatch (`custom` blocks)**: Used only for business logic that the DSL cannot express natively. AI then generates an isolated, sealed function, called by deterministic code without ever mixing into it. This makes it easier to perform a strengthened security review (audit) of that specific code before integration.
 
-## Objectif à Long Terme
-Rendre le code généré (Python, SQL…) aussi secondaire pour l’utilisateur final que l’assembleur l’est pour un développeur de haut niveau aujourd’hui, garantissant qu'aucune fuite d'abstraction ne vienne polluer le domaine couvert par monl.
+## Long-Term Goal
+Make generated code (Python, SQL, etc.) as secondary to the end user as assembly language is to a high-level developer today, ensuring that no abstraction leak contaminates the domain covered by monl.

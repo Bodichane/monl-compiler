@@ -1,36 +1,36 @@
-# 🟢 Phase 5 — Moteur de Génération de Code
+# 🟢 Phase 5 — Code Generation Engine
 
-> **Document historique.** Cette page décrit une étape de conception ; elle ne
-> remplace pas l'architecture courante. Voir `README.md` et `CODEBASE_AUDIT.md`.
+> **Historical document.** This page describes a design stage; it does not
+> replace the current architecture. See `README.md` and `CODEBASE_AUDIT.md`.
 
-## Objectif
-L'objectif de cette phase est de concevoir le moteur de transformation final (le générateur). Il prend en entrée l'Arbre de Syntaxe Abstraite (AST) normalisé et validé en Phase 4, puis produit automatiquement les livrables d'infrastructure (Base de données et API Backend) sans aucune écriture de code métier à la main.
+## Goal
+The goal of this phase is to design the final transformation engine (the generator). It takes as input the normalized AST validated in Phase 4, then automatically produces infrastructure deliverables (database and backend API) without manually writing business logic code.
 
-## Composants Générés (`src/generator.py`)
-Le générateur produit deux fichiers autonomes et exploitables à la racine du projet :
-1. **Couche de Persistance (`schema.sql`)** : 
-   - Traduction des types sémantiques monl en types SQL natifs (ex: `Money` -> `NUMERIC(10,2)`, `Email` -> `VARCHAR(255)`).
-   - Génération des requêtes `CREATE TABLE` et gestion automatique des relations d'intégrité référentielle par injection de clés étrangères (`ALTER TABLE`).
-2. **Couche Logique et API (`app.py`)** :
-   - Initialisation d'une architecture moderne basée sur **FastAPI**.
-   - Génération de modèles de typage et de validation de données stricts via **Pydantic** pour chaque entité.
-   - Création de routes CRUD dynamiques et typées, isolées selon les permissions et cas d'usage décrits dans les `workflows`.
+## Generated Components (`src/generator.py`)
+The generator produces two standalone files ready to use at the project root:
+1. **Persistence Layer (`schema.sql`)**:
+   - Translate monl semantic types into native SQL types (e.g. `Money` -> `NUMERIC(10,2)`, `Email` -> `VARCHAR(255)`).
+   - Generate `CREATE TABLE` queries and automatically manage referential integrity relations by injecting foreign keys (`ALTER TABLE`).
+2. **Logic and API Layer (`app.py`)**:
+   - Initialize a modern architecture based on **FastAPI**.
+   - Generate strict data typing and validation models through **Pydantic** for each entity.
+   - Create dynamic, typed CRUD routes, isolated according to permissions and use cases described in `workflows`.
 
 ## Validation
-Le test de génération sur l'application `TodoApp` prouve la viabilité du pipeline. Les structures générées sont normalisées, standardisées et prêtes pour le déploiement ou l'exécution en production.
+The generation test on the `TodoApp` application demonstrates the viability of the pipeline. Generated structures are normalized, standardized, and ready for deployment or production execution.
 
-## ⚠️ Avertissement Crucial de Sécurité — Modèle de Menace & Limite du Prototype
+## ⚠️ Critical Security Warning — Threat Model & Prototype Limitation
 
-Bien que le générateur porte le nom de `MonlSecureGenerator`, la structure actuelle de l'API générée (`app.py`) présente une limite architecturale majeure héritée de son statut de prototype (PoC) :
+Although the generator is named `MonlSecureGenerator`, the current generated API structure (`app.py`) has a major architectural limitation inherited from its prototype status (PoC):
 
-### L'illusion du contrôle d'accès par Header
-Les routes FastAPI générées appliquent le contrôle d'accès en lisant directement la valeur brute d'un en-tête HTTP personnalisé (`x_actor = Header(...)`). 
-- **Le Risque** : Cet en-tête n'est protégé par aucune signature cryptographique, aucune session serveur et aucun mécanisme d'authentification (ex: token JWT signé). N'importe quel utilisateur ou attaquant peut usurper l'identité de l'acteur de son choix (y compris le rôle `Admin`) en modifiant simplement la valeur de l'en-tête dans sa requête HTTP.
+### The illusion of header-based access control
+Generated FastAPI routes apply access control by reading the raw value of a custom HTTP header (`x_actor = Header(...)`).
+- **Risk**: This header is protected by no cryptographic signature, server session, or authentication mechanism (e.g. signed JWT token). Any user or attacker can impersonate any actor, including `Admin`, simply by changing the header value in their HTTP request.
 
-### Conséquence sur la responsabilité de la Sécurité
-Tant qu'un mécanisme d'authentification cryptographique fort n'est pas implémenté côté serveur :
-1. **La sécurité de l'application dépend entièrement du client**, ce qui viole les bonnes pratiques de développement où le serveur ne doit jamais faire confiance aux données en provenance du client.
-2. Un déploiement direct en production dans cet état exposerait l'intégralité des données et des actions critiques (comme la suppression d'entités) à des élévations de privilèges triviales.
+### Security responsibility
+Until strong cryptographic authentication is implemented on the server:
+1. **Application security depends entirely on the client**, violating development best practices: the server must never trust data from the client.
+2. A direct production deployment in this state would expose all data and critical actions (such as deleting entities) to trivial privilege escalation.
 
-### Condition d'honnêteté du terme "SecureGenerator"
-L'implémentation d'un intercepteur (Middleware) dans FastAPI pour valider et décoder un **jeton JWT signé cryptographiquement par le serveur** (contenant le rôle vérifié de l'acteur) n'est pas une amélioration de confort. **C'est la condition obligatoire pour que la mention "Sécurisé par défaut" du générateur soit techniquement honnête.** En l'état, ce fichier `app.py` doit être traité uniquement comme une maquette d'architecture et non comme un backend sécurisé prêt pour la production.
+### Requirement for an honest “SecureGenerator” label
+Implementing FastAPI middleware to validate and decode a **JWT token cryptographically signed by the server** (containing the verified actor role) is not a convenience improvement. **It is required for the generator's “Secure by default” claim to be technically honest.** As it stands, this `app.py` must be treated only as an architectural mock-up, not as a secure backend ready for production.

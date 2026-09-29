@@ -1,12 +1,8 @@
-# Données de démonstration (`seed`)
+# Demo Data (`seed`)
 
-Une application monl est pilotée par les données : sans données, ses pages
-publiques (galerie, boutique, fil social, classement…) s'affichent vides.
-Le bloc `seed` permet de déclarer des données de démonstration directement
-dans la spec, pour qu'un site s'ouvre **déjà rempli** — utile pour les
-démos, les captures d'écran et la prise en main.
+A monl application is driven by data: without data, its public pages (gallery, shop, social feed, leaderboard…) appear empty. The `seed` block lets you declare demo data directly in the spec, so a site opens **already populated** — useful for demos, screenshots, and getting started.
 
-## Syntaxe
+## Syntax
 
 ```
 seed NomEntité
@@ -14,8 +10,7 @@ seed NomEntité
     champ: valeur, champ: valeur, ...
 ```
 
-Une ligne indentée = un enregistrement. Les valeurs sont soit des chaînes
-entre guillemets, soit des nombres (entiers ou décimaux). Exemple :
+An indented line is one record. Values are either quoted strings or numbers (integers or decimals). Example:
 
 ```
 seed Product
@@ -23,43 +18,26 @@ seed Product
     name: "Table Onde", price: 1200.00, stock: 0, imageUrl: "https://picsum.photos/seed/table/700/560"
 ```
 
-Plusieurs blocs `seed` peuvent viser la même entité ; leurs lignes sont
-concaténées.
+Multiple `seed` blocks can target the same entity; their rows are concatenated.
 
 ## Images
 
-Pour des visuels réels sans rien télécharger ni héberger, on utilise des URLs
-publiques stables comme [picsum.photos](https://picsum.photos) :
-`https://picsum.photos/seed/<clé>/<largeur>/<hauteur>`. La `<clé>` fixe
-l'image (la même clé renvoie toujours la même photo), ce qui garde les démos
-reproductibles. Ces images se chargent dans le navigateur de l'utilisateur au
-moment où il ouvre le site.
+For real visuals without downloading or hosting anything, use stable public URLs such as [picsum.photos](https://picsum.photos): `https://picsum.photos/seed/<key>/<width>/<height>`. The `<key>` fixes the image (the same key always returns the same photo), keeping demos reproducible. These images load in the user's browser when they open the site.
 
-## Insertion au démarrage : idempotente
+## Inserted at startup: idempotent
 
-Les données sont insérées par `init_db()` au lancement du serveur, **et
-seulement si la table est vide**. Conséquences :
+Data is inserted by `init_db()` when the server starts, **and only if the table is empty**. Consequences:
 
-- au 1er lancement, le site s'affiche peuplé ;
-- un redémarrage n'empile PAS de doublons ;
-- dès que de vraies données existent (créées via l'API), le seed ne fait
-  plus rien — les données réelles ne sont jamais écrasées.
+- on the first launch, the site appears populated;
+- a restart does NOT add duplicates;
+- once real data exists (created through the API), the seed does nothing — real data is never overwritten.
 
-Pour repartir d'un seed frais, supprimer `app.db` avant de redémarrer.
+To start again with a fresh seed, delete `app.db` before restarting.
 
-## Validation stricte
+## Strict validation
 
-Comme le reste du compilateur, le seed est validé à la compilation, pas au
-runtime : une entité inexistante, un champ non déclaré, ou un type
-incohérent (une chaîne pour un champ numérique, ou l'inverse) **font échouer
-la compilation** avec un message clair. Une donnée de démo erronée ne peut
-donc pas produire une insertion invalide au démarrage.
+Like the rest of the compiler, the seed is validated at compilation, not at runtime: a nonexistent entity, undeclared field, or inconsistent type (a string for a numeric field, or the reverse) **causes compilation to fail** with a clear message. Invalid demo data therefore cannot cause an invalid insertion at startup.
 
-## Champs `generated`
+## `generated` fields
 
-Un champ marqué `generated` (par ex. un pseudonyme anonyme d'auteur) est
-normalement assigné par le serveur à la création, jamais fourni par le
-client. Dans un seed, il n'a donc pas à être renseigné : le compilateur lui
-attribue une valeur synthétique stable (`Anon#1000`, `Anon#1001`…) pour que
-les enregistrements de démonstration soient complets et cohérents avec le
-rendu (fil social anonyme, etc.).
+A field marked `generated` (e.g. an anonymous author pseudonym) is normally assigned by the server on creation, never supplied by the client. It therefore does not need to be specified in a seed: the compiler assigns it a stable synthetic value (`Anon#1000`, `Anon#1001`…) so the demo records are complete and consistent with rendering (anonymous social feed, etc.).

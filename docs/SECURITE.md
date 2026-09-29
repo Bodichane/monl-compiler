@@ -1,159 +1,158 @@
-# Modèle de sécurité — monl (bêta)
+# Security Model — monl (beta)
 
-Ce document décrit ce que monl garantit, ce qu'il ne garantit pas, et les
-réglages de déploiement. Il complète `docs/design_decisions.md`.
+This document describes what monl guarantees, what it does not guarantee, and
+the deployment settings. It complements `docs/design_decisions.md`.
 
-## Principe : déterministe par défaut
+## Principle: deterministic by default
 
-Le chemin nominal est entièrement déterministe et hors-ligne :
+The normal path is fully deterministic and offline:
 
-    dialogue dirigé (règles, sans IA) → spec .ml → parseur → audit → backend
+    guided dialogue (rules, no AI) → spec .ml → parser → audit → backend
 
-Aucun modèle d'IA n'intervient pour produire le backend. La spec est revalidée
-par le vrai parseur avant d'être écrite, et l'audit statique refuse de compiler
-une spec dont le contrôle d'accès est incohérent (collision de privilèges non
-couverte par `sharedBy` / `ownedBy` / `accessibleBy`).
+No AI model is involved in producing the backend. The spec is revalidated
+by the real parser before it is written, and the static audit refuses to compile
+a spec whose access control is inconsistent (a privilege collision not
+covered by `sharedBy` / `ownedBy` / `accessibleBy`).
 
-Les blocs `custom` de la spécification produisent des coquilles vides sûres dans
-`sandbox_ai.py`. Leur logique métier est écrite à la main par le développeur ;
-aucune génération de code n'est automatisée.
+The `custom` blocks in the specification produce safe empty shells in
+`sandbox_ai.py`. Their business logic is written by hand by the developer;
+no code generation is automated.
 
-## Qui peut obtenir quel rôle
+## Who can obtain which role
 
-C'est la frontière la plus importante du modèle, et elle se déclare dans la
-spec :
+This is the most important boundary in the model, and it is declared in the
+spec:
 
-- `actor Client selfRegister` — n'importe qui peut créer un compte portant ce
-  rôle via `POST /register`.
-- `actor Admin` (sans marqueur) — aucune inscription possible (403). Les comptes
-  sont créés sur la machine qui héberge la base :
+- `actor Client selfRegister` — anyone can create an account with this
+  role via `POST /register`.
+- `actor Admin` (without a marker) — registration is not possible (403). Accounts
+  are created on the machine hosting the database:
   `python3 manage.py adduser patron Admin`.
 
-Par défaut, un rôle n'est donc **pas** inscriptible : une spec qui oublie le
-marqueur ferme l'inscription plutôt que de l'ouvrir. Le compilateur affiche le
-périmètre retenu à chaque compilation, le contrat frontend le publie
-(`self_register_actors`, pour que l'interface ne propose que ces rôles) et le
-smoke test tente à chaque lancement d'inscrire un rôle provisionné — un succès
-fait échouer le lancement.
+By default, a role is therefore **not** open for registration: a spec that omits
+the marker closes registration instead of opening it. The compiler displays the
+selected scope at every compilation, the frontend contract publishes it
+(`self_register_actors`, so the interface offers only these roles), and the
+smoke test attempts to register a provisioned role at every launch — success
+makes the launch fail.
 
-`manage.py` couvre aussi le changement de rôle (`setactor`), le mot de passe
-(`passwd`), l'inventaire des comptes (`users`) et la révocation globale
-(`revoke-all`, qui renouvelle le secret et invalide toutes les sessions).
+`manage.py` also handles role changes (`setactor`), passwords
+(`passwd`), account inventory (`users`), and global revocation
+(`revoke-all`, which renews the secret and invalidates all sessions).
 
-## Ce qui est garanti dans le backend généré
+## What is guaranteed in the generated backend
 
-- **Aucune injection SQL par les valeurs** : toutes les valeurs runtime passent
-  par des requêtes paramétrées (`?`). Les identifiants (tables/colonnes) sont
-  contraints par la grammaire à `[A-Za-z_][A-Za-z0-9_]*` et interpolés entre
-  guillemets — ils ne peuvent pas porter d'injection.
-- **Authentification** : mots de passe hachés en PBKDF2-HMAC-SHA256 (100 000
-  itérations, sel unique par compte), comparaison à **temps constant**
-  (`hmac.compare_digest`) à la connexion. Un hachage factice est calculé même
-  quand l'identifiant est inconnu, pour que le temps de réponse ne révèle pas
-  quels comptes existent. JWT signé en HS256, décodé avec la
-  liste d'algorithmes explicite (pas de confusion d'algorithme / `alg:none`),
-  révocation par `jti` via `/logout`.
-- **Contrôle d'accès** : rôle (`actor`) et identité (`user_id`) tirés du compte
-  réel porté par le JWT, jamais d'une déclaration libre du client. Règles
-  `ownedBy` / `accessibleBy` / `public` / `hidden` / `generated` appliquées au
-  niveau des routes.
-- **Intégrité transactionnelle** : la création d'un enregistrement et ses effets
-  liés (`increments` / `decrements`) sont exécutés dans une seule transaction
-  (commit unique, rollback en cas d'erreur).
-- **Limitation de débit** persistée en base (partagée entre workers) sur
-  `/register` et `/login`, comptée et enregistrée dans une seule transaction en
-  écriture immédiate — un lot de requêtes simultanées ne franchit pas le quota.
-- **Propriété par enregistrement** (`ownedBy`) : restreint la modification, la
-  suppression **et la lecture** (liste filtrée en SQL, accès direct en 404) —
-  pour le seul acteur désigné propriétaire. Un autre rôle autorisé à lire
-  l'entité continue de tout voir : c'est ce qui permet à un gestionnaire de
-  consulter les commandes de tous ses clients.
-- **Intégrité référentielle** : les clés étrangères sont réellement appliquées
-  (`PRAGMA foreign_keys`, désactivé par défaut dans SQLite) ; une violation
-  répond 409 plutôt que 500.
-- **Hygiène du secret** : `.jwt_secret` est créé avec les permissions 0600, et
-  la liste noire des jetons révoqués est purgée de ses entrées expirées.
+- **No SQL injection through values**: all runtime values go through
+  parameterized queries (`?`). Identifiers (tables/columns) are
+  constrained by the grammar to `[A-Za-z_][A-Za-z0-9_]*` and interpolated between
+  quotes — they cannot carry an injection.
+- **Authentication**: passwords hashed with PBKDF2-HMAC-SHA256 (100,000
+  iterations, unique salt per account), compared in **constant time**
+  (`hmac.compare_digest`) at login. A dummy hash is computed even
+  when the identifier is unknown, so response time does not reveal
+  which accounts exist. JWT signed with HS256, decoded using an
+  explicit algorithm list (no algorithm confusion / `alg:none`),
+  revocation by `jti` via `/logout`.
+- **Access control**: role (`actor`) and identity (`user_id`) are taken from the real
+  account carried by the JWT, never from a free-form client declaration. Rules
+  `ownedBy` / `accessibleBy` / `public` / `hidden` / `generated` are enforced at
+  the route level.
+- **Transactional integrity**: creating a record and its related effects
+  (`increments` / `decrements`) are executed in a single transaction
+  (one commit, rollback on error).
+- **Rate limiting** persisted in the database (shared between workers) on
+  `/register` and `/login`, counted and recorded in a single immediate-write
+  transaction — a batch of simultaneous requests cannot exceed the quota.
+- **Per-record ownership** (`ownedBy`): restricts modification, deletion
+  **and reading** (SQL-filtered list, direct access returns 404) —
+  for the designated owner actor only. Another role authorized to read
+  the entity continues to see everything: this is what allows a manager to
+  view all their customers' orders.
+- **Referential integrity**: foreign keys are actually enforced
+  (`PRAGMA foreign_keys`, disabled by default in SQLite); a violation
+  returns 409 instead of 500.
+- **Secret hygiene**: `.jwt_secret` is created with 0600 permissions, and
+  expired entries are purged from the revoked-token blacklist.
 
-## Réglages de déploiement (variables d'environnement)
+## Deployment settings (environment variables)
 
-- `MONL_JWT_SECRET` : si définie, le secret JWT est lu depuis
-  l'environnement et **ne touche jamais le disque**. C'est le mode recommandé en
-  production. Sinon, monl retombe sur le fichier `.jwt_secret` généré à la
-  compilation (jamais committé — voir `.gitignore`).
-- `MONL_TRUST_PROXY=1` : à activer **uniquement** si l'application tourne
-  derrière un reverse proxy de confiance. La limitation de débit lit alors la
-  première IP de `X-Forwarded-For`. Sans ce réglage, l'en-tête est ignoré (un
-  client direct ne peut pas l'usurper pour contourner le quota).
+- `MONL_JWT_SECRET`: if set, the JWT secret is read from the
+  environment and **never touches disk**. This is the recommended mode in
+  production. Otherwise, monl falls back to the `.jwt_secret` file generated
+  at compilation (never committed — see `.gitignore`).
+- `MONL_TRUST_PROXY=1`: enable **only** if the application runs
+  behind a trusted reverse proxy. Rate limiting then reads the first IP in
+  `X-Forwarded-For`. Without this setting, the header is ignored (a
+  direct client cannot spoof it to bypass the quota).
 
-## Le bloc `custom` : code écrit à la main
+## The `custom` block: hand-written code
 
-Les blocs `custom` sont un point d'extension explicite : à la compilation, monl
-génère pour chacun une coquille vide dans `sandbox_ai.py`, que le développeur
-complète à la main. Ce code relève de sa responsabilité, au même titre que
-n'importe quel code applicatif qu'il écrit — monl ne l'analyse ni ne le génère.
-Les bonnes pratiques du backend généré restent la référence : requêtes SQL
-paramétrées, pas d'exécution dynamique, pas d'accès système non maîtrisé.
+The `custom` blocks are an explicit extension point: at compilation, monl
+generates an empty shell for each in `sandbox_ai.py`, which the developer
+completes by hand. This code is their responsibility, just like
+any application code they write — monl neither analyzes nor generates it.
+The generated backend's best practices remain the reference: parameterized SQL
+queries, no dynamic execution, no uncontrolled system access.
 
-Une isolation d'exécution dédiée pour ce code (sous-processus à privilèges
-réduits, conteneur, ou WASM) est un objectif GA — voir `docs/BETA.md`.
+A dedicated execution sandbox for this code (reduced-privilege subprocess,
+container, or WASM) is a GA goal — see `docs/BETA.md`.
 
-## Validation par audit offensif (branche `paiement-et-outillage`)
+## Validation through offensive audit (branch `paiement-et-outillage`)
 
-`tests/test_audit_offensif_exemples.py` compile puis sert chaque exemple de
-`exemples/` et y rejoue trois attaques (usurpation de rôle par en-tête brut,
-JWT forgé, élévation de privilège), avec le code exact attendu — `401`, `401`,
-`403` — après une contre-épreuve par jeton légitime. Résultat sur les cinq
-exemples : **vert**. (Jusqu'au point 197, cet audit vivait dans un script
-que pytest ne collectait pas : la CI ne le rejouait
-pas, contrairement à ce que cette page affirmait.)
+`tests/test_audit_offensif_exemples.py` compiles and serves each example in
+`exemples/` and replays three attacks against it (role spoofing via raw header,
+forged JWT, privilege escalation), with the exact expected status codes — `401`, `401`,
+`403` — after a counter-proof using a legitimate token. Result across the five
+examples: **green**. (Up to point 197, this audit lived in a script
+that pytest did not collect: CI did not replay it,
+contrary to what this page claimed.)
 
-Deux signaux apparus lors de l'analyse approfondie sont des **faux positifs**,
-reproduits en direct, pas des vulnérabilités :
+Two signals that appeared during the in-depth analysis are **false positives**,
+reproduced live, not vulnerabilities:
 
-- **`01_portfolio` (StudioNova)** — création ciblée publique. L'audit visait
-  `Message`, une route **publique** (`rule Message.Create public`, formulaire de
-  contact) : il n'y a aucune authentification à détourner. Le `422` venait d'un
-  champ `email` invalide dans le payload de test. Avec un `email` valide et sans
-  token, la route répond `200` par conception.
-- **`02_boutique` (AtelierBoutique)** — élévation `ShopManager`. `ShopManager`
-  n'est pas `selfRegister` (provisionné hors ligne) : l'audit ne pouvait pas
-  obtenir de token, d'où un `401` (échec d'**initiation**) confondu avec un
-  `403` (échec d'**autorisation**). Repro avec un vrai compte hors ligne :
-  `PUT`/`DELETE /orderline` → `403`, ownership transitive → `403`, action
-  légitime `PUT /order/{id}` (statut) → `200`.
+- **`01_portfolio` (StudioNova)** — targeted public creation. The audit targeted
+  `Message`, a **public** route (`rule Message.Create public`, contact form):
+  there is no authentication to subvert. The `422` came from an invalid `email`
+  field in the test payload. With a valid `email` and no
+  token, the route returns `200` by design.
+- **`02_boutique` (AtelierBoutique)** — `ShopManager` escalation. `ShopManager`
+  is not `selfRegister` (provisioned offline): the audit could not
+  obtain a token, hence a `401` (failure of **initiation**) confused with a
+  `403` (failure of **authorization**). Reproduction with a real offline account:
+  `PUT`/`DELETE /orderline` → `403`, transitive ownership → `403`, legitimate
+  action `PUT /order/{id}` (status) → `200`.
 
-L'outillage a été durci pour refléter ce modèle : cible `Create` non publique
-préférée, « bloqué » = toute réponse non-2xx, routes publiques et rôles non
-auto-inscriptibles traités en « N/A ».
+The tooling was hardened to reflect this model: non-public `Create` target
+preferred, “blocked” = any non-2xx response, public routes and non-self-registerable
+roles treated as “N/A”.
 
-**Statut des `[CRITICAL_WARNING]` statiques.** L'audit statique signale toute
-suppression par un acteur non-`Admin` (`src/monl/ast_validator/`, `_audit_security_rules`).
-C'est une heuristique volontairement prudente, pas une preuve de bug : `monl` ne
-peut pas décider de la politique de suppression de son utilisateur. Sur
-`02_boutique`, les trois signalements sont effectivement couverts au runtime par
-le backend généré :
+**Status of static `[CRITICAL_WARNING]` findings.** The static audit flags any
+deletion by a non-`Admin` actor (`src/monl/ast_validator/`, `_audit_security_rules`).
+This is a deliberately cautious heuristic, not proof of a bug: `monl` cannot
+decide its user's deletion policy. In
+`02_boutique`, the three findings are indeed covered at runtime by the generated
+backend:
 
-| Signalement | Gardes générées au runtime |
+| Finding | Runtime safeguards generated |
 |---|---|
-| `Customer` → `Delete OrderLine` | rôle `403` (Customer requis) + ownership transitive `403` + verrou de paiement `409` (commande réglée intouchable) |
-| `ShopManager` → `Delete Product` | rôle `403` + intégrité référentielle `409` (FK `NO ACTION` : refusé tant qu'il reste des variantes) |
-| `ShopManager` → `Delete Variant` | rôle `403` + intégrité référentielle `409` (refusé tant qu'il reste des lignes de commande) |
+| `Customer` → `Delete OrderLine` | role `403` (Customer required) + transitive ownership `403` + payment lock `409` (paid order cannot be changed) |
+| `ShopManager` → `Delete Product` | role `403` + referential integrity `409` (FK `NO ACTION`: refused while variants remain) |
+| `ShopManager` → `Delete Variant` | role `403` + referential integrity `409` (refused while order lines remain) |
 
-**Conclusion** : aucune vulnérabilité identifiée sur la branche
-`paiement-et-outillage` ; le générateur n'a pas eu besoin d'être modifié. Le seul
-point d'arbitrage restant n'est pas une faille mais un choix de politique métier
-situé côté infra (suppression d'un produit déjà commandé), signalé par
-l'heuristique — à trancher au déploiement, pas dans le compilateur.
+**Conclusion**: no vulnerability identified on the
+`paiement-et-outillage` branch; the generator did not need to be modified. The only
+remaining policy decision is not a flaw but a business policy choice
+located on the infrastructure side (deletion of an already ordered product),
+flagged by the heuristic — to be decided at deployment, not in the compiler.
 
-## Limites connues de la bêta
+## Known beta limitations
 
-- Base SQLite : convient au prototypage et aux déploiements légers ; la
-  concurrence en écriture sous forte charge multi-workers reste limitée
-  (objectif GA : couche PostgreSQL). Voir `docs/BETA.md`.
-- Migrations additives uniquement (`ALTER ADD COLUMN`) ; les changements
-  destructifs sont refusés volontairement (voir `docs/MIGRATIONS.md`).
-- Auth sans réinitialisation de mot de passe ni vérification d'email (objectif
-  post-bêta).
-- Pas de CORS configurable ni d'en-têtes de sécurité HTTP : le frontend est
-  servi par la même origine que l'API (`/site`). Une interface hébergée
-  ailleurs relève du déploiement, pas encore du générateur (objectif GA).
+- SQLite database: suitable for prototyping and lightweight deployments; write
+  concurrency under heavy multi-worker load remains limited
+  (GA goal: PostgreSQL layer). See `docs/BETA.md`.
+- Additive migrations only (`ALTER ADD COLUMN`); destructive changes are
+  deliberately refused (see `docs/MIGRATIONS.md`).
+- Authentication without password reset or email verification (post-beta goal).
+- No configurable CORS or HTTP security headers: the frontend is
+  served from the same origin as the API (`/site`). An interface hosted
+  elsewhere is a deployment matter, not yet handled by the generator (GA goal).

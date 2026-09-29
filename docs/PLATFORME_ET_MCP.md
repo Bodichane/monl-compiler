@@ -1,88 +1,75 @@
-# Plateforme web et serveur MCP
+# Web Platform and MCP Server
 
-Monl conserve une seule autorité de compilation. La ligne de commande, la
-plateforme web et le serveur MCP appellent le même pipeline Python :
+Monl keeps a single compilation authority. The command line, web platform, and MCP server call the same Python pipeline:
 `monl.cli.compile_project`.
 
-La plateforme ne génère pas de design et n'exécute aucun agent IA. Elle sert à :
+The platform does not generate design or run AI agents. It is used to:
 
-1. expliquer la frontière entre interface libre et métier compilé ;
-2. saisir ou importer une spécification `.ml` ;
-3. valider puis compiler le backend ;
-4. inspecter les entités, acteurs et routes du contrat ;
-5. télécharger le backend, son schéma SQL et son contrat ;
-6. exposer les mêmes opérations aux agents par MCP.
+1. explain the boundary between a free-form interface and compiled business logic;
+2. enter or import a `.ml` specification;
+3. validate and then compile the backend;
+4. inspect the entities, actors, and contract routes;
+5. download the backend, its SQL schema, and its contract;
+6. expose the same operations to agents through MCP.
 
-## Lancer la plateforme
+## Launch the platform
 
-Après installation du paquet :
+After installing the package:
 
 ```bash
 monl-platform --host 127.0.0.1 --port 8022
 ```
 
-Ou depuis le dépôt :
+Or from the repository:
 
 ```bash
 python3 -m monl_platform --port 8022
 ```
 
-L'espace de compilation vaut `platform-projects/` par défaut. Pour choisir un
-autre emplacement :
+The compilation workspace defaults to `platform-projects/`. To choose another location:
 
 ```bash
 MONL_PLATFORM_WORKSPACE=/var/lib/monl monl-platform --host 0.0.0.0
 ```
 
-Pour une installation conteneurisée, le dépôt fournit une image non-root et
-un volume persistant :
+For a containerized installation, the repository provides a non-root image and a persistent volume:
 
 ```bash
 cp .env.platform.example .env
-# Remplacer le domaine et l'URL publique dans .env avant le démarrage.
+# Replace the domain and public URL in .env before starting.
 python3 scripts/check_platform_env.py .env
 docker compose -f compose.platform.yaml up --build -d
 ```
 
-Le port n'est exposé que sur `127.0.0.1` : placez un reverse proxy HTTPS
-devant le service. `MONL_COOKIE_SECURE=1` exige ce HTTPS. Ne définissez
-`MONL_TRUST_PROXY=1` que si ce proxy remplace l'en-tête `X-Forwarded-For` reçu
-du public.
+The port is exposed only on `127.0.0.1`: put an HTTPS reverse proxy in front of the service. `MONL_COOKIE_SECURE=1` requires HTTPS. Set `MONL_TRUST_PROXY=1` only if the proxy replaces the incoming public `X-Forwarded-For` header.
 
-Le DNS doit pointer la valeur de `MONL_PLATFORM_DOMAIN` et son wildcard vers le
-proxy : chaque projet compilé reçoit son propre sous-domaine. Un exemple Nginx
-prêt à adapter (avec `monl.example.com` comme placeholder) se trouve dans
-`deploy/nginx/monl-platform.conf.example`; le runbook complet est dans
-[`deploy/README.md`](../deploy/README.md). Vérifier `/health` et `/ready` après
-le TLS avant d'ouvrir les inscriptions.
+DNS must point the value of `MONL_PLATFORM_DOMAIN` and its wildcard to the proxy: each compiled project gets its own subdomain. An Nginx example ready to adapt (using `monl.example.com` as a placeholder) is in `deploy/nginx/monl-platform.conf.example`; the full runbook is in [`deploy/README.md`](../deploy/README.md). Check `/health` and `/ready` after TLS is set up and before opening registration.
 
-Les téléchargements n'incluent jamais `.jwt_secret`. Le backend en génère un
-au premier démarrage, ce qui évite de transporter un secret de la plateforme.
+Downloads never include `.jwt_secret`. The backend generates one on first startup, so a platform secret is not carried over.
 
-## API web
+## Web API
 
-| Méthode | Route | Effet |
+| Method | Route | Effect |
 |---|---|---|
-| `GET` | `/health` | État du service |
-| `GET` | `/ready` | Disponibilité de SQLite et du stockage |
-| `POST` | `/api/auth/register` | Crée un compte et une session |
-| `POST` | `/api/auth/login` | Ouvre une session |
-| `POST` | `/api/auth/logout` | Révoque la session active |
-| `GET` | `/api/templates` | Catalogue des dix modèles métier |
-| `POST` | `/api/validate` | Validation sans écriture persistante |
-| `POST` | `/api/compile` | Backend et contrat dans un projet opaque |
-| `GET` | `/api/projects` | Projets du compte actif |
-| `GET` | `/api/projects/{id}` | Manifeste et résumé |
-| `GET` | `/api/projects/{id}/contract` | Contrat frontend complet |
-| `GET` | `/api/projects/{id}/download` | Archive ZIP sans secret |
-| `POST` | `/api/keys` | Crée une clé MCP affichée une fois |
-| `DELETE` | `/api/keys/{id}` | Révoque une clé MCP |
-| `POST` | `/mcp` | Transport MCP HTTP avec clé Bearer |
+| `GET` | `/health` | Service status |
+| `GET` | `/ready` | SQLite and storage availability |
+| `POST` | `/api/auth/register` | Creates an account and session |
+| `POST` | `/api/auth/login` | Opens a session |
+| `POST` | `/api/auth/logout` | Revokes the active session |
+| `GET` | `/api/templates` | Catalog of ten business templates |
+| `POST` | `/api/validate` | Validation without persistent writes |
+| `POST` | `/api/compile` | Backend and contract in an opaque project |
+| `GET` | `/api/projects` | Projects for the active account |
+| `GET` | `/api/projects/{id}` | Manifest and summary |
+| `GET` | `/api/projects/{id}/contract` | Full frontend contract |
+| `GET` | `/api/projects/{id}/download` | ZIP archive without secrets |
+| `POST` | `/api/keys` | Creates an MCP key shown once |
+| `DELETE` | `/api/keys/{id}` | Revokes an MCP key |
+| `POST` | `/mcp` | MCP HTTP transport with a Bearer key |
 
-La plateforme n'accepte jamais de chemin de sortie fourni par le client. Une
-spec est limitée à 256 ko et chaque projet reçoit un identifiant UUID opaque.
+The platform never accepts an output path provided by the client. A spec is limited to 256 KB and each project receives an opaque UUID.
 
-## MCP local, par stdio
+## Local MCP over stdio
 
 ```json
 {
@@ -94,53 +81,35 @@ spec est limitée à 256 ko et chaque projet reçoit un identifiant UUID opaque.
 }
 ```
 
-Depuis le dépôt, la commande équivalente est :
+From the repository, the equivalent command is:
 
 ```bash
 python3 -m monl_platform.mcp_server
 ```
 
-## Outils MCP
+## MCP tools
 
-- `monl_list_templates` : découvrir les modèles métier ;
-- `monl_validate_spec` : obtenir les erreurs du vrai parseur et de l'audit ;
-- `monl_compile_backend` : compiler et recevoir l'identifiant du projet ainsi
-  que l'adresse de téléchargement ;
-- `monl_list_projects` : retrouver ses projets sans avoir mémorisé un
-  identifiant ;
-- `monl_inspect_contract` : lire le manifeste et le contrat complet ;
-- `monl_diff_spec` : ce qu'une spec nouvelle changerait pour l'interface,
-  **sans rien écrire** (l'équivalent de `monl diff`) ;
-- `monl_update_backend` : recompiler un projet EXISTANT et recevoir le delta
-  du contrat (l'équivalent de `monl update`). L'identifiant et l'adresse de
-  téléchargement ne changent pas ; une spec refusée laisse le projet intact.
+- `monl_list_templates`: discover business templates;
+- `monl_validate_spec`: get errors from the real parser and audit;
+- `monl_compile_backend`: compile and receive the project ID and download address;
+- `monl_list_projects`: find projects without having to remember an ID;
+- `monl_inspect_contract`: read the manifest and full contract;
+- `monl_diff_spec`: what a new spec would change in the interface, **without writing anything** (equivalent to `monl diff`);
+- `monl_update_backend`: recompile an EXISTING project and receive the contract delta (equivalent to `monl update`). The ID and download address do not change; a refused spec leaves the project intact.
 
-**L'archive se récupère avec la même clé** : `GET` sur `download_url` avec
-`Authorization: Bearer <clé MCP>`. Aucun navigateur n'est requis — c'était le
-dernier passage obligé par le site. L'adresse est absolue quand
-`MONL_PLATFORM_PUBLIC_URL` est déclarée, relative sinon ; elle n'est jamais
-déduite de l'en-tête `Host`, qu'un tiers contrôle.
+**The archive is fetched with the same key**: `GET` on `download_url` with `Authorization: Bearer <MCP key>`. No browser is needed — this was the last step that required the site. The address is absolute when `MONL_PLATFORM_PUBLIC_URL` is declared, relative otherwise; it is never derived from the `Host` header, which a third party controls.
 
-Le delta compte **dix rubriques** — routes, champs, accès, lecture seule,
-préalables, verrous de paiement, contenus éditoriaux, rattachements, types de
-champs, sections obligatoires. Ce n'est pas du zèle : dix fois (points 88 à
-119), un changement qui ne touchait aucune route a laissé un écran entier à
-réécrire pendant que le delta répondait « aucun changement d'interface ».
+The delta counts **ten categories** — routes, fields, access, read-only, prerequisites, payment locks, editorial content, associations, field types, required sections. This is not excessive caution: ten times (points 88 to 119), a change that touched no route left an entire screen to rewrite while the delta said “no interface changes.”
 
-## Garde-fous d'exploitation
+## Operational safeguards
 
-- mots de passe `scrypt`, sessions et clés stockées uniquement sous forme
-  d'empreintes ;
-- projets isolés par compte, expirant après 30 jours par défaut ;
-- cinq tentatives de connexion ou inscription par minute et par IP ;
-- dix compilations par heure et par compte, 120 appels MCP par minute ;
-- compteurs persistés dans SQLite et partagés entre workers web ;
-- au plus deux compilations simultanées par processus web ;
-- chaque compilation s'exécute dans un sous-processus borné en temps CPU,
-  mémoire, taille de fichiers et nombre de descripteurs ;
-- le conteneur est non-root, sans capabilities, en lecture seule hors `/data`.
+- `scrypt` passwords, sessions, and keys stored only as fingerprints;
+- projects isolated by account, expiring after 30 days by default;
+- five login or registration attempts per minute per IP;
+- ten compilations per hour per account, 120 MCP calls per minute;
+- counters persisted in SQLite and shared between web workers;
+- at most two simultaneous compilations per web process;
+- each compilation runs in a subprocess bounded by CPU time, memory, file size, and number of file descriptors;
+- the container is non-root, without capabilities, and read-only outside `/data`.
 
-Les valeurs d'exploitation se règlent avec
-`MONL_PROJECT_RETENTION_DAYS`, `MONL_MAX_CONCURRENT_COMPILES`,
-`MONL_COMPILE_TIMEOUT_SECONDS`, `MONL_COMPILE_CPU_SECONDS`,
-`MONL_COMPILE_MEMORY_MB` et `MONL_COMPILE_OUTPUT_MB`.
+Operational values are configured with `MONL_PROJECT_RETENTION_DAYS`, `MONL_MAX_CONCURRENT_COMPILES`, `MONL_COMPILE_TIMEOUT_SECONDS`, `MONL_COMPILE_CPU_SECONDS`, `MONL_COMPILE_MEMORY_MB`, and `MONL_COMPILE_OUTPUT_MB`.

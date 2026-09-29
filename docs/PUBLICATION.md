@@ -1,140 +1,141 @@
-# Publier monl-compiler par Trusted Publishing
+# Publish monl-compiler with Trusted Publishing
 
-Cette procédure publie `monl-compiler` sans secret de longue durée. Un tag
-`v*` déclenche `.github/workflows/publication.yml`, qui teste et lint le commit
-du tag, construit les distributions une seule fois, les envoie d'abord à
-TestPyPI, puis attend l'approbation de l'environnement protégé `pypi` avant
-l'envoi à PyPI.
+This procedure publishes `monl-compiler` without a long-lived secret. A `v*`
+tag triggers `.github/workflows/publication.yml`, which tests and lints the
+commit tagged, builds the distributions once, sends them first to TestPyPI,
+then waits for approval from the protected `pypi` environment before sending
+them to PyPI.
 
-Le workflow n'a ni identifiant, ni mot de passe, ni jeton enregistré. L'action
-PyPA demande à GitHub une identité OIDC de courte durée ; PyPI la vérifie et
-émet alors le droit d'envoi temporaire. Les tests locaux ne font aucun envoi.
+The workflow has no stored username, password, or token. The PyPA action asks
+GitHub for a short-lived OIDC identity; PyPI verifies it and then issues a
+temporary upload authorization. Local tests do not upload anything.
 
-## Image de la plateforme
+## Platform image
 
-Le tag déclenche aussi `.github/workflows/platform-image.yml`. Ce workflow
-reconstruit `Dockerfile.platform`, vérifie les modules installés, `/ready`, le
-healthcheck Docker et l'utilisateur non-root, puis publie l'image validée sous
-`ghcr.io/bodichane/monl-platform:<tag>`. Il publie également `latest` pour un
-tag et `edge` lors d'un déclenchement manuel.
+The tag also triggers `.github/workflows/platform-image.yml`. This workflow
+rebuilds `Dockerfile.platform`, checks the installed modules, `/ready`, the
+Docker healthcheck, and the non-root user, then publishes the validated image
+as `ghcr.io/bodichane/monl-platform:<tag>`. It also publishes `latest` for a
+tag and `edge` when triggered manually.
 
-Pour utiliser l'image sur un serveur, rendre le paquet GHCR accessible à ce
-serveur et renseigner `MONL_PLATFORM_IMAGE` avec un tag précis dans `.env`.
-L'image n'est jamais poussée avec un secret du dépôt : le workflow utilise le
-`GITHUB_TOKEN` éphémère et la permission `packages: write`.
+To use the image on a server, make the GHCR package accessible to that server
+and set `MONL_PLATFORM_IMAGE` to a specific tag in `.env`. The image is never
+pushed with a repository secret: the workflow uses the ephemeral
+`GITHUB_TOKEN` and the `packages: write` permission.
 
-## Prérequis des comptes
+## Account prerequisites
 
-PyPI n'accepte plus le mot de passe pour un envoi. Pour publier, le mainteneur
-doit utiliser Trusted Publishing ou, uniquement en secours, un jeton API.
+PyPI no longer accepts passwords for uploads. To publish, the maintainer must
+use Trusted Publishing or, only as a fallback, an API token.
 
-La 2FA est exigée sur le compte qui administre ou publie sur PyPI. Il faut
-l'activer avant de configurer l'éditeur de confiance.
+2FA is required on the account that administers or publishes on PyPI. It must
+be enabled before configuring the trusted publisher.
 
-TestPyPI est une instance séparée de PyPI :
+TestPyPI is a separate instance from PyPI:
 
-- autre compte et autre inscription sur `test.pypi.org` ;
-- autre adresse de vérification, ou au minimum une vérification séparée de
-  l'adresse dans cette instance ;
-- autre projet, autre éditeur de confiance et autre environnement ;
-- la 2FA doit aussi être active sur le compte TestPyPI qui le configure.
+- a separate account and registration at `test.pypi.org`;
+- a separate verification email address, or at minimum separate verification
+  of the address on that instance;
+- a separate project, trusted publisher, and environment;
+- 2FA must also be active on the TestPyPI account used to configure it.
 
-Une inscription ou une adresse vérifiée sur PyPI ne donne donc aucun accès à
-TestPyPI, et inversement.
+So a registration or verified address on PyPI grants no access to TestPyPI,
+and vice versa.
 
-## Déclarer l'éditeur de confiance côté PyPI
+## Configure the trusted publisher on PyPI
 
-Le mainteneur fait cette configuration dans son navigateur, avec la 2FA
-activée. Il ne crée ni copie ni saisie de jeton.
+The maintainer performs this configuration in their browser, with 2FA
+enabled. They do not create, copy, or enter a token.
 
-Pour un projet déjà créé, ouvrir **Your projects → Manage → Publishing** sur
-l'instance concernée. Pour `monl-compiler` avant son premier envoi, ouvrir
-**Account → Publishing**, choisir un éditeur en attente (**pending publisher**)
-et remplir aussi le nom du projet à créer. Un éditeur en attente permet de
-créer le projet au premier envoi réussi, sans aucun jeton ; il ne réserve pas
-le nom entre-temps.
+For an existing project, open **Your projects → Manage → Publishing** on the
+relevant instance. For `monl-compiler` before its first upload, open
+**Account → Publishing**, choose a pending publisher, and also fill in the
+name of the project to create. A pending publisher allows the project to be
+created on the first successful upload, without any token; it does not reserve
+the name in the meantime.
 
-Sur PyPI, ajouter un éditeur **GitHub Actions** avec les champs suivants :
+On PyPI, add a **GitHub Actions** publisher with these fields:
 
-| Champ PyPI | Valeur à saisir |
+| PyPI field | Value to enter |
 | --- | --- |
-| Projet | `monl-compiler` |
-| Propriétaire du dépôt | `Bodichane` |
-| Dépôt | `monl-compiler` |
+| Project | `monl-compiler` |
+| Repository owner | `Bodichane` |
+| Repository | `monl-compiler` |
 | Workflow | `publication.yml` |
-| Environnement | `pypi` |
+| Environment | `pypi` |
 
-Le champ Workflow est le nom du fichier sous `.github/workflows`, pas le nom
-lisible `Publication` affiché par GitHub Actions. Le mainteneur répète la
-même démarche sur `test.pypi.org` (compte TestPyPI séparé), avec exactement :
+The Workflow field is the filename under `.github/workflows`, not the
+readable name `Publication` displayed by GitHub Actions. The maintainer
+repeats the same process on `test.pypi.org` (a separate TestPyPI account),
+with exactly these values:
 
-| Champ TestPyPI | Valeur à saisir |
+| TestPyPI field | Value to enter |
 | --- | --- |
-| Projet | `monl-compiler` |
-| Propriétaire du dépôt | `Bodichane` |
-| Dépôt | `monl-compiler` |
+| Project | `monl-compiler` |
+| Repository owner | `Bodichane` |
+| Repository | `monl-compiler` |
 | Workflow | `publication.yml` |
-| Environnement | `testpypi` |
+| Environment | `testpypi` |
 
-Les valeurs `pypi` et `testpypi` sont les noms déclarés dans le workflow. Une
-faute dans le propriétaire, le dépôt, le fichier ou l'environnement produit
-un refus `invalid-publisher` sans que l'action puisse le corriger.
+The values `pypi` and `testpypi` are the names declared in the workflow. A
+typo in the owner, repository, file, or environment results in an
+`invalid-publisher` refusal that the action cannot fix.
 
-Enfin, dans **GitHub → Settings → Environments**, créer ou vérifier
-l'environnement `pypi` et ajouter le mainteneur comme **required reviewer**.
-L'environnement `testpypi` peut avoir ses propres règles, mais l'approbation
-manuelle obligatoire est la porte qui protège l'envoi définitif à PyPI.
+Finally, in **GitHub → Settings → Environments**, create or check the `pypi`
+environment and add the maintainer as a **required reviewer**. The `testpypi`
+environment can have its own rules, but mandatory manual approval is the gate
+that protects the final upload to PyPI.
 
-## Avant la construction
+## Before building
 
-Le nom de distribution reste `monl-compiler`. Le vérifier ne demande aucune
-authentification :
+The distribution name remains `monl-compiler`. Checking it requires no
+authentication:
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' \
   https://pypi.org/pypi/monl-compiler/json
 ```
 
-`404` signifie que l'API ne retourne pas encore de projet pour ce nom ; `200`
-signifie qu'il est déjà occupé. Dans ce second cas, arrêter et décider d'un
-autre nom : `twine` ne crée pas un second projet.
+`404` means the API does not yet return a project for this name; `200` means
+it is already taken. In the latter case, stop and choose another name:
+`twine` does not create a second project.
 
-## Ce que le workflow vérifie
+## What the workflow checks
 
-Le workflow est volontairement déclenché par `push.tags: ["v*"]`, jamais par
-un push de branche : fusionner sur `main` ne publie pas. Le job de vérification
-compare le tag à la version de `pyproject.toml` avec
-`packaging.version.Version`. Ainsi `0.9.0-beta.8` et `0.9.0b8` sont reconnus
-comme la même version Python ; une égalité de chaînes refuserait à tort cette
-publication correcte. Une divergence nomme les deux valeurs et arrête la
-chaîne avant la construction.
+The workflow is deliberately triggered by `push.tags: ["v*"]`, never by a
+branch push: merging into `main` does not publish. The verification job
+compares the tag with the `pyproject.toml` version using
+`packaging.version.Version`. Thus `0.9.0-beta.8` and `0.9.0b8` are recognized
+as the same Python version; string equality would incorrectly refuse this
+valid publication. A mismatch names both values and stops the pipeline before
+building.
 
-Les tests et `ruff check src tests` tournent dans ce workflow sur le commit
-désigné par le tag, avant le job de construction. La CI de `main` n'est pas une
-preuve suffisante : elle peut avoir testé un autre commit.
+Tests and `ruff check src tests` run in this workflow on the commit designated
+by the tag, before the build job. The CI for `main` is not sufficient proof: it
+may have tested a different commit.
 
-Le job `build` exécute dans cet ordre `rm -rf dist/`, puis construit une seule
-fois avec `python -m build`. Il valide la roue et l'archive source, puis
-transmet les mêmes fichiers par `upload-artifact`. Les jobs de publication
-utilisent `download-artifact`.
+The `build` job runs `rm -rf dist/` in that order, then builds exactly once
+with `python -m build`. It validates the wheel and source archive, then passes
+the same files through `upload-artifact`. The publishing jobs use
+`download-artifact`.
 
-Ne pas reconstruire entre les deux envois, TestPyPI et PyPI. Une version envoyée est
-définitive et ne peut plus être réutilisée, même après suppression ; un
-artefact périmé dans `dist/` pourrait donc publier la mauvaise version.
+Do not rebuild between the two uploads, to TestPyPI and PyPI. An uploaded
+version is final and cannot be reused, even after deletion; a stale artifact
+in `dist/` could therefore publish the wrong version.
 
-## Voie manuelle de secours uniquement
+## Manual fallback path only
 
-Cette voie reste documentée pour le cas exceptionnel où Trusted Publishing
-serait indisponible. Elle ne fait pas partie du workflow normal. Le mot de
-passe ne convient pas à un envoi PyPI : il faut un jeton API, avec le nom
-d'utilisateur littéral `__token__` et une valeur de jeton commençant par
-`pypi-`. Le jeton reste uniquement dans le trousseau du mainteneur ou dans
-son `~/.pypirc` personnel, jamais dans ce dépôt, un ticket, un journal ou une
-commande copiée. Ce guide n'utilise aucune valeur de secret et la voie OIDC
-n'utilise ni `TWINE_PASSWORD`, ni option `--password`.
+This path is documented for the exceptional case where Trusted Publishing is
+unavailable. It is not part of the normal workflow. A password is not
+suitable for a PyPI upload: an API token is required, with the literal
+username `__token__` and a token value beginning with `pypi-`. The token stays
+only in the maintainer's keychain or personal `~/.pypirc`, never in this
+repository, a ticket, a log, or a copied command. This guide uses no secret
+value, and the OIDC path uses neither `TWINE_PASSWORD` nor the `--password`
+option.
 
-Si cette voie de secours est réellement choisie, `~/.pypirc` peut contenir les
-adresses publiques des deux index, sans secret dans cet extrait :
+If this fallback path is actually chosen, `~/.pypirc` can contain the public
+addresses of both indexes, with no secret in this excerpt:
 
 ```ini
 [distutils]
@@ -149,9 +150,9 @@ repository = https://test.pypi.org/legacy/
 repository = https://upload.pypi.org/legacy/
 ```
 
-Depuis la racine du dépôt, contrôler d'abord le nom et la version. Le
-nettoyage doit précéder la construction : `dist/` est ignoré par git mais
-survit d'une construction à l'autre sur une machine de publication.
+From the repository root, first check the name and version. Cleanup must
+precede building: `dist/` is ignored by git but persists from one build to the
+next on a publishing machine.
 
 ```bash
 rm -rf dist/
@@ -160,37 +161,35 @@ python -m twine check dist/*
 unzip -l dist/*.whl
 ```
 
-**`rm -rf dist/` n'est pas une précaution de style, et c'est mesuré.** `dist/`
-est ignoré par git, donc il n'existe pas dans un dépôt fraîchement cloné —
-mais il survit sur la machine qui a déjà construit, qui est précisément celle
-qui publie. Relevé sur celle du mainteneur au moment d'écrire ces lignes :
-`dist/` contenait `monl_compiler-0.9.0b7` alors que la version à publier est
-`0.9.0b8`, et `dist/anciens/` portait encore des artefacts nommés
-`monl-0.9.0b5`, c'est-à-dire l'ANCIEN nom de distribution. Construire sans
-nettoyer laisse les deux côte à côte, et `dist/*` développe alors les quatre
-fichiers : **`twine upload` publierait une version qu'on ne voulait pas
-envoyer, et qu'on ne peut plus retirer d'un index** — PyPI ne permet pas de
-republier un numéro de version, même après suppression. Les artefacts
-`monl-0.9.0b5` créeraient en plus un SECOND projet sur l'index. `twine check`
-et `unzip -l dist/*.whl` deviennent au passage ambigus, donc leur contrôle ne
-dit plus sur quoi il a porté.
+**`rm -rf dist/` is not a style precaution; this is measured.** `dist/` is
+ignored by git, so it does not exist in a freshly cloned repository—but it
+persists on a machine that has already built, which is precisely the machine
+that publishes. Observed on the maintainer's machine when writing this:
+`dist/` contained `monl_compiler-0.9.0b7` while the version to publish was
+`0.9.0b8`, and `dist/anciens/` still contained artifacts named
+`monl-0.9.0b5`, that is, the OLD distribution name. Building without cleanup
+leaves both side by side, and `dist/*` then expands to all four files:
+**`twine upload` would publish a version we did not intend to send, and that
+cannot be removed from an index**—PyPI does not allow republishing a version
+number, even after deletion. The `monl-0.9.0b5` artifacts would also create a
+SECOND project on the index. `twine check` and `unzip -l dist/*.whl` also
+become ambiguous, so their checks no longer show what they applied to.
 
-Dans le workflow, `dist/` n'existe pas au départ — chaque exécution part d'une
-machine neuve. Le `rm -rf dist/` y est conservé quand même : le jour où
-quelqu'un ajoute un cache entre deux étapes, la garantie doit déjà être là.
+In the workflow, `dist/` does not exist at the start—each run starts on a
+fresh machine. The `rm -rf dist/` is retained there anyway: when someone adds
+a cache between two steps, the guarantee must already be in place.
 
-La première commande de construction doit produire une archive source
-(`.tar.gz`) et une roue (`.whl`). `twine check` doit valider les deux et la
-roue doit notamment contenir `monl_platform/static/`, les modules, la
-grammaire, les gabarits, les modèles d'applications et
-`*.dist-info/licenses/LICENSE`.
+The first build command must produce a source archive (`.tar.gz`) and a wheel
+(`.whl`). `twine check` must validate both, and the wheel must in particular
+contain `monl_platform/static/`, the modules, grammar, templates, application
+models, and `*.dist-info/licenses/LICENSE`.
 
-Ne pas utiliser `dist/anciens/` : ce dossier peut contenir des artefacts de
-l'ancien nom de distribution `monl-0.9.0b5`. Les envoyer créerait un second
-projet sur l'index.
+Do not use `dist/anciens/`: this directory may contain artifacts with the old
+distribution name `monl-0.9.0b5`. Uploading them would create a second
+project on the index.
 
-Les mêmes fichiers de `dist/` sont ensuite utilisés pour les deux index. Ne
-pas reconstruire entre les deux envois :
+The same files in `dist/` are then used for both indexes. Do not rebuild
+between the two uploads:
 
 ```bash
 python -m twine upload --repository testpypi dist/*
@@ -200,15 +199,14 @@ python -m pip install \
   monl-compiler==0.9.0-beta.10
 python -m twine upload dist/*
 ```
+A first release goes to TestPyPI. After the test installation, run the proof
+workflow outside the repository: `monl --version`, `monl --help`, compilation
+of a specification without assets, backend startup and requests, then
+`monl-platform` on `/health`, `/ready` and `/favicon.ico`. The second release
+goes to PyPI and must happen only after this validation. Neither of these two
+actual releases is performed by the repository's test suite.
 
-Le premier envoi est TestPyPI. Après l'installation d'essai, exécuter hors du
-dépôt le parcours de preuve : `monl --version`, `monl --help`, compilation
-d'une spécification sans asset, démarrage et requêtes du backend, puis
-`monl-platform` sur `/health`, `/ready` et `/favicon.ico`. Le second envoi est
-PyPI et ne doit avoir lieu qu'après cette validation. Aucun de ces deux envois
-réels n'est exécuté par la suite de tests du dépôt.
-
-Une publication réussie peut ensuite être vérifiée sans authentification avec :
+A successful publication can then be checked without authentication with:
 
 ```bash
 python -m pip index versions monl-compiler

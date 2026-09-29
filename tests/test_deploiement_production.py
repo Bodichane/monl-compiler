@@ -261,11 +261,11 @@ def test_export_des_sauvegardes_est_borne_a_un_dossier_hote():
 def test_runbook_documente_le_dns_le_tls_et_les_sauvegardes_hors_site():
     contenu = (RACINE / "deploy/README.md").read_text(encoding="utf-8")
 
-    for attendu in ("wildcard", "certificat TLS", "stockage séparé",
+    for attendu in ("wildcard", "TLS certificate", "separate storage",
                     "smoke_platform.sh", "MONL_PLATFORM_PUBLIC_URL",
                     "check_platform_env.py", "chmod 600 .env",
                     "export_platform_backups.sh", "Dockerfile.platform",
-                    "régression de packaging", "pare-feu", "TCP 80 et 443",
+                    "packaging or readiness regression", "firewall", "TCP 80 and 443",
                     # Les deux pièges de Podman mesurés au point 189. Un
                     # document qui décrit une limite sans donner le remède
                     # qu'il connaît envoie travailler pour rien (point 166) :

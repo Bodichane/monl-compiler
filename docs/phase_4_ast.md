@@ -1,31 +1,31 @@
-# 🟢 Phase 4 — L'Arbre de Syntaxe Abstraite (AST) & Audit Statique de Sécurité
+# 🟢 Phase 4 — Abstract Syntax Tree (AST) & Static Security Audit
 
-> **Document historique.** Cette page décrit une étape de conception ; elle ne
-> remplace pas l'architecture courante. Voir `README.md` et `CODEBASE_AUDIT.md`.
+> **Historical document.** This page describes a design stage; it does not
+> replace the current architecture. See `README.md` and `CODEBASE_AUDIT.md`.
 
-## Objectif
-L'Arbre de Syntaxe Abstraite (AST) normalise le dictionnaire brut issu du Parser (Phase 3). Cette phase implémente le moteur d'**Analyse Statique de Sécurité** (Axe : "Sécurisé et audité") conçu pour intercepter les vulnérabilités d'architecture directement au moment de la compilation, avant la génération des fichiers d'infrastructure.
+## Goal
+The Abstract Syntax Tree (AST) normalizes the raw dictionary produced by the Parser (Phase 3). This phase implements the **Static Security Analysis** engine (axis: “Secure and audited”), designed to intercept architectural vulnerabilities during compilation, before infrastructure files are generated.
 
-## Validations de Cohérence Structurelle (`src/ast_validator.py`)
-Le validateur résout les dépendances logiques et intercepte les incohérences de spécification :
-1. **Déclarations d'Acteurs** : Vérification stricte que chaque profil d'acteur attaché à un workflow a été préalablement recensé dans le bloc global `actor`.
-2. **Résolution des Notations Pointées** : Prise en charge chirurgicale des cibles de champs imbriqués (ex: `Order.status`). L'analyseur isole dynamiquement l'entité maîtresse (`Order`) pour valider son existence dans le schéma de données avant de valider l'attribut, évitant tout crash de compilation sur les applications complexes.
+## Structural Consistency Checks (`src/ast_validator.py`)
+The validator resolves logical dependencies and catches specification inconsistencies:
+1. **Actor declarations**: Strictly check that every actor profile attached to a workflow was previously listed in the global `actor` block.
+2. **Dotted notation resolution**: Precisely support nested field targets (e.g. `Order.status`). The analyzer dynamically isolates the master entity (`Order`) to validate its existence in the data schema before validating the attribute, avoiding compilation crashes on complex applications.
 
-## Algorithme d'Audit Statique de Sécurité
-L'analyseur statique traque activement deux vulnérabilités architecturales majeures :
+## Static Security Audit Algorithm
+The static analyzer actively tracks two major architectural vulnerabilities:
 
-### 1. Détection des Privilèges Destructeurs Non Protégés (Orphan Delete)
-Le moteur scanne l'intégralité des workflows. Si une action de type `Delete` est détectée sur une entité alors que le workflow est rattaché à un acteur générique autre que l'administrateur (`Admin`), le compilateur émet une alerte critique `[CRITICAL_WARNING]` pour forcer l'équipe technique à valider la sécurité de cette faille de spécification.
+### 1. Detecting Unprotected Destructive Privileges (Orphan Delete)
+The engine scans all workflows. If it detects a `Delete` action on an entity while the workflow is attached to a generic actor other than the administrator (`Admin`), the compiler emits a critical `[CRITICAL_WARNING]` alert so the technical team must review this specification vulnerability.
 
-### 2. Audit d'Isolation des Blocs IA & Résolution Dynamique des Acteurs
-Pour sécuriser l'utilisation de la donnée au sein de l'échappatoire IA (blocs `custom`), le compilateur applique un algorithme de graphe d'appels :
-- **Problématique résolue** : Les blocs `custom` n'ont pas d'acteur attitré nativement. L'analyseur cartographie l'arbre des dépendances en identifiant chaque workflow qui invoque la fonction IA via une instruction `Execute`.
-- **Analyse des Fuites** : Si un bloc `custom` reçoit en paramètre (`input`) un champ protégé par une contrainte de confidentialité stricte (`restrictedTo`), le moteur compare cette restriction à l'ensemble des acteurs ayant le droit d'exécuter ce bloc.
-- **Alerte** : Si un acteur non autorisé est capable de déclencher indirectement le bloc IA, un log de sécurité `[SECURITY_AUDIT]` est généré. Le compilateur ordonne alors l'injection de filtres d'anonymisation automatiques au niveau de la Sandbox pour protéger la donnée.
+### 2. Auditing AI Block Isolation & Dynamic Actor Resolution
+To secure data use inside the AI escape hatch (`custom` blocks), the compiler applies a call-graph algorithm:
+- **Problem addressed**: `custom` blocks do not natively have an assigned actor. The analyzer maps the dependency tree and identifies every workflow that invokes the AI function through an `Execute` instruction.
+- **Leak analysis**: If an AI block receives as an `input` a field protected by a strict confidentiality constraint (`restrictedTo`), the engine compares that restriction against all actors allowed to execute this block.
+- **Alert**: If an unauthorized actor can indirectly trigger the AI block, a `[SECURITY_AUDIT]` security log is generated. The compiler then directs automatic anonymization filters to be injected at the Sandbox level to protect the data.
 
-## Structure de l'AST Normalisé Sécurisé
-Une fois l'audit validé, l'AST produit un objet structuré en quatre piliers étanches prêts pour le générateur déterministe :
-- `meta` : Métadonnées et historique des logs d'audit de sécurité.
-- `schema` : Structure relationnelle pure des données (Entités, Attributs, Relations).
-- `security` : Profils d'acteurs, règles de filtrage de champs et droits d'accès CRUD.
-- `sandbox_ai` : Signatures d'I/O et consignes d'isolation pour le remplissage automatisé du LLM.
+## Structure of the Normalized, Secured AST
+Once the audit passes, the AST produces a structured object with four sealed pillars, ready for the deterministic generator:
+- `meta`: Metadata and history of security audit logs.
+- `schema`: Pure relational data structure (Entities, Attributes, Relations).
+- `security`: Actor profiles, field filtering rules, and CRUD access rights.
+- `sandbox_ai`: I/O signatures and isolation instructions for automated LLM completion.

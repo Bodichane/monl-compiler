@@ -1,18 +1,17 @@
-# 🟢 Phase 7 — Traduction par Intelligence Artificielle Locale
+# 🟢 Phase 7 — Translation by Local Artificial Intelligence
 
-> **Document historique — fonctionnalité retirée en 0.9.0-beta.2.** La
-> traduction langage naturel → DSL (`--prompt`) et l'interprétation des
-> réponses libres (`--nl`), toutes deux fondées sur un modèle local (Ollama),
-> ont été supprimées : le compilateur est désormais entièrement déterministe.
-> Cette page est conservée comme trace de conception. Voir `CHANGELOG.md`.
+> **Historical document — feature removed in 0.9.0-beta.2.** Natural-language
+> to DSL translation (`--prompt`) and interpretation of free-form answers
+> (`--nl`), both based on a local model (Ollama), have been removed: the
+> compiler is now fully deterministic. This page remains as a design record. See `CHANGELOG.md`.
 
-## Objectif
-L'objectif de cette ultime phase est de couronner le compilateur en plaçant une couche d'Intelligence Artificielle en amont du pipeline. L'utilisateur exprime son besoin fonctionnel en langage naturel (français), et l'IA génère automatiquement le fichier de spécification monl valide, éliminant tout besoin d'écriture syntaxique manuelle.
+## Goal
+The goal of this final phase is to complete the compiler by placing an Artificial Intelligence layer before the pipeline. The user expresses a functional need in natural language (French), and AI automatically generates a valid monl specification file, removing the need to write syntax by hand.
 
-## Choix Techniques & Optimisations Low-RAM
-Pour garantir une indépendance réseau absolue et une exécution fluide sur une configuration matérielle grand public (8 Go de RAM), les choix suivants ont été opérés :
-- **Moteur d'inférence** : `llama-cpp-python` exécutant des modèles au format GGUF pré-compilés.
-- **Modèle** : `Qwen2.5-Coder-3B-Instruct` quantifié en 4-bits (`Q4_K_M`), limitant l'empreinte mémoire à 2,2 Go de RAM.
+## Technical Choices & Low-RAM Optimizations
+To ensure full network independence and smooth execution on consumer hardware (8 GB RAM), these choices were made:
+- **Inference engine**: `llama-cpp-python` running precompiled GGUF models.
+- **Model**: `Qwen2.5-Coder-3B-Instruct` quantized to 4-bit (`Q4_K_M`), limiting memory usage to 2.2 GB RAM.
 
-## Fonctionnement et Prompts
-Le script `src/ai_translator.py` encapsule un *System Prompt* strict agissant comme un dictionnaire de règles de grammaire. L'IA extrait les concepts de la demande de l'utilisateur (Entités, Attributs, Relations, Acteurs, Workflows) et restitue un code monl brut, immédiatement consommable par le Parser (Phase 3).
+## Operation and Prompts
+The `src/ai_translator.py` script wraps a strict *System Prompt* that acts as a grammar rule dictionary. AI extracts concepts from the user's request (Entities, Attributes, Relations, Actors, Workflows) and returns raw monl code, ready for the Parser (Phase 3).
