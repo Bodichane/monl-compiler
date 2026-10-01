@@ -1,20 +1,20 @@
-# 🟢 Phase 6 — Système Complet (Boucle Fermée)
+# 🟢 Phase 6 — Complete System (Closed Loop)
 
-> **Document historique.** Cette page décrit une étape de conception ; elle ne
-> remplace pas l'architecture courante. Voir `README.md` et `CODEBASE_AUDIT.md`.
+> **Historical document.** This page describes a design stage; it does not
+> replace the current architecture. See `README.md` and `CODEBASE_AUDIT.md`.
 
-## Objectif
-L'objectif de cette phase est de sceller l'intégration de toutes les briques logicielles développées précédemment (`parser.py`, `ast_validator.py`, `generator.py`) au sein d'un orchestrateur central unique. La validation repose sur la capacité du compilateur à reconfigurer instantanément l'intégralité de l'infrastructure logicielle cible dès que le fichier source DSL est modifié.
+## Goal
+The goal of this phase is to bring together all software components developed earlier (`parser.py`, `ast_validator.py`, `generator.py`) in a single central orchestrator. Validation is based on the compiler's ability to instantly reconfigure the entire target software infrastructure whenever the DSL source file changes.
 
-## Implémentation de l'Orchestrateur (`src/main.py`)
-Un point d'entrée centralisé sous forme d'interface en ligne de commande (CLI) a été développé en Python. Il automatise le flux séquentiel :
-1. Lecture et validation de la structure syntaxique brute via Lark.
-2. Validation des règles métiers et sémantiques de l'AST (sécurité, acteurs, références).
-3. Génération des artéfacts techniques physiques (`schema.sql` et `app.py`).
+## Orchestrator Implementation (`src/main.py`)
+A centralized entry point in the form of a Python command-line interface (CLI) was developed. It automates the sequential flow:
+1. Read and validate raw syntax through Lark.
+2. Validate AST business and semantic rules (security, actors, references).
+3. Generate physical technical artifacts (`schema.sql` and `app.py`).
 
-## Test de la Boucle Fermée
-La validation a été éprouvée en basculant la compilation d'un cas d'usage à un autre :
-- `python3 src/main.py` -> Génère instantanément l'architecture complète pour la `TodoList`.
-- `python3 src/main.py exemples/02_blog.ml` -> Écrase et reconfigure immédiatement la base de données et l'API FastAPI pour l'adapter au domaine fonctionnel du `TechBlog`.
+## Closed-Loop Test
+Validation was exercised by switching compilation from one use case to another:
+- `python3 src/main.py` -> Instantly generates the full architecture for `TodoList`.
+- `python3 src/main.py exemples/02_blog.ml` -> Immediately overwrites and reconfigures the database and FastAPI API for the `TechBlog` business domain.
 
-Le pipeline est fluide, synchrone et sans aucun effet de bord.
+The pipeline is smooth, synchronous, and has no side effects.

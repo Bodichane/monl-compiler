@@ -1,92 +1,87 @@
-# La licence de monl-compiler, en clair
+# The monl-compiler license, explained
 
-> Ce document **explique** la licence, il ne la modifie pas et n'y ajoute
-> aucune condition. En cas de divergence, seul le texte de
-> [LICENSE](LICENSE) fait foi.
+> This document **explains** the license; it does not modify it or add any
+> conditions. In case of conflict, only the text of [LICENSE](LICENSE) governs.
 
-monl-compiler est publié sous **FSL-1.1-ALv2** — la *Functional Source
-License*, avec bascule automatique vers Apache-2.0. Le texte est celui,
-inchangé, publié sur [fsl.software](https://fsl.software).
+monl-compiler is released under **FSL-1.1-ALv2** — the *Functional Source
+License*, with automatic conversion to Apache-2.0. The text is unchanged from
+the version published at [fsl.software](https://fsl.software).
 
-## Ce qui change par rapport à l'ancienne licence
+## What changed from the old license
 
-L'ancienne licence propriétaire réservait « l'utilisation du logiciel, y
-compris à des fins internes ou personnelles ». Autrement dit : le dépôt était
-lisible, et rien de plus. Ce n'est plus le cas.
+The old proprietary license reserved “use of the software, including for
+internal or personal purposes.” In other words: the repository was readable,
+and nothing more. That is no longer the case.
 
-**Vous pouvez désormais**, sans rien demander :
+**You can now**, without asking:
 
-- utiliser monl-compiler, y compris dans un cadre professionnel et commercial ;
-- l'installer en interne, dans votre CI, chez vos clients ;
-- le modifier, le forker, en dériver des travaux ;
-- le redistribuer, sous ces mêmes conditions ;
-- vous en servir dans le cadre de prestations que vous facturez.
+- use monl-compiler, including professionally and commercially;
+- install it internally, in your CI, or at your clients' sites;
+- modify it, fork it, and derive works from it;
+- redistribute it under the same conditions;
+- use it for services you charge for.
 
-Ce dernier point est explicite dans la licence (*Permitted Purposes*, point 4) :
-une agence ou un indépendant peut employer monl-compiler pour livrer des
-applications à ses clients, et facturer cette prestation.
+This last point is explicit in the license (*Permitted Purposes*, point 4): an
+agency or independent contractor can use monl-compiler to deliver applications
+to clients and charge for that service.
 
-## La seule chose interdite : l'usage concurrent
+## The only prohibited activity: competing use
 
-La licence interdit un **Competing Use** : rendre le logiciel disponible à des
-tiers dans un produit ou un service commercial qui s'y substitue, ou qui offre
-une fonctionnalité identique ou substantiellement similaire.
+The license prohibits a **Competing Use**: making the software available to
+third parties in a commercial product or service that substitutes for it or
+offers identical or substantially similar functionality.
 
-Concrètement, pour monl-compiler :
+For monl-compiler, in practical terms:
 
-| Vous voulez… | Permis ? |
+| You want to… | Permitted? |
 |---|---|
-| Compiler vos propres applications, pour vous ou pour un client | Oui |
-| Vendre le développement d'applications réalisées avec monl-compiler | Oui |
-| Enseigner ou étudier monl-compiler hors cadre commercial | Oui |
-| Forker et publier vos correctifs sous la même licence | Oui |
-| Lancer un service en ligne qui compile des specs monl pour des tiers | Non |
-| Reprendre le compilateur dans votre propre produit low-code commercial | Non |
+| Compile your own applications, for yourself or a client | Yes |
+| Sell application development done with monl-compiler | Yes |
+| Teach or study monl-compiler outside a commercial setting | Yes |
+| Fork it and publish your fixes under the same license | Yes |
+| Launch an online service that compiles monl specs for third parties | No |
+| Include the compiler in your own commercial low-code product | No |
 
-Ces deux derniers cas ne sont pas fermés définitivement : ils demandent une
-licence commerciale — ouvrez une *issue* sur
-<https://github.com/Bodichane/monl-compiler>.
+These last two cases are not permanently closed: they require a commercial
+license — open an *issue* at <https://github.com/Bodichane/monl-compiler>.
 
-## Les applications produites vous appartiennent
+## You own the applications you produce
 
-La licence porte sur **le compilateur et son outillage**, pas sur ce qu'ils
-génèrent. Les `app.py`, `schema.sql`, `manage.py` et frontends produits à
-partir de **vos** spécifications sont à vous : vous les hébergez, les modifiez
-et les maintenez librement, y compris après la fin de toute relation
-commerciale. Aucun composant de monl-compiler n'est embarqué dans
-l'application générée, et celle-ci ne rappelle jamais monl à l'exécution.
+The license covers **the compiler and its tooling**, not what they generate.
+The `app.py`, `schema.sql`, `manage.py`, and frontends produced from **your**
+specifications belong to you: you can host, modify, and maintain them freely,
+including after any commercial relationship ends. No monl-compiler component
+is bundled into the generated application, and it never calls monl at runtime.
 
-Les **dépendances tierces** de l'application produite (FastAPI, Lark, PyJWT,
-uvicorn, psycopg…) restent régies par leurs licences respectives.
+The generated application's **third-party dependencies** (FastAPI, Lark,
+PyJWT, uvicorn, psycopg…) remain under their respective licenses.
 
-## La bascule vers Apache-2.0
+## Conversion to Apache-2.0
 
-Chaque version publiée devient utilisable sous **Apache-2.0 deux ans après sa
-mise à disposition**. Le compte à rebours est **par version**, pas global :
+Each published version becomes available under **Apache-2.0 two years after its
+release**. The countdown is **per version**, not global:
 
-- `v0.9.0-beta.7`, publiée le **12 août 2026**, sera sous Apache-2.0 le
-  **12 août 2028** ;
-- une version publiée en 2027 basculera en 2029.
+- `v0.9.0-beta.7`, published on **August 12, 2026**, will be under Apache-2.0
+  on **August 12, 2028**;
+- a version published in 2027 will convert in 2029.
 
-Cette bascule est **irrévocable** : elle est accordée dans le texte même de la
-licence, au moment de la publication. Elle ne dépend d'aucune décision
-ultérieure du titulaire des droits.
+This conversion is **irrevocable**: it is granted in the license text itself,
+at publication. It does not depend on any later decision by the rights holder.
 
-## Ce qui n'est plus réservé
+## What is no longer reserved
 
-Par honnêteté, deux réserves de l'ancienne licence ont disparu, parce que la
-FSL est reprise sans modification et ne les contient pas :
+For transparency, two reservations from the old license have disappeared
+because the FSL is reproduced unchanged and does not contain them:
 
-- **l'entraînement de modèles sur ce code** n'est plus explicitement interdit ;
-- l'intégration dans un autre logiciel est désormais permise, tant qu'elle ne
-  constitue pas un usage concurrent.
+- **training models on this code** is no longer explicitly prohibited;
+- integrating it into other software is now permitted, as long as it does not
+  constitute a competing use.
 
-C'est le prix assumé d'une licence standard, identifiable et lisible par les
-outils de conformité — plutôt qu'un texte maison que chaque service juridique
-devrait faire analyser.
+This is the accepted cost of a standard license that is recognizable and
+readable by compliance tools, instead of custom text that every legal team
+would need to analyze.
 
 ## Contributions
 
-Les contributions extérieures ne sont pas ouvertes pour l'instant (voir
-[CONTRIBUTING.md](CONTRIBUTING.md)). Les rapports de bug et remarques restent
-bienvenus dans les *issues*.
+Outside contributions are not open at this time (see [CONTRIBUTING.md](CONTRIBUTING.md)).
+Bug reports and feedback are still welcome in the *issues*.

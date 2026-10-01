@@ -1,64 +1,65 @@
-# Déploiement de la plateforme
+# Platform deployment
 
-Ces fichiers préparent un déploiement Docker/Podman derrière un reverse proxy
-TLS. Ils ne contiennent aucun secret et ne remplacent pas la configuration du
-DNS ou du fournisseur d'hébergement.
+These files prepare a Docker/Podman deployment behind a TLS reverse proxy.
+They contain no secrets and do not replace the configuration of the
+DNS or hosting provider.
 
-Les commandes utilisent Docker Compose v2 (`docker compose`). Avec Podman,
-installer au préalable un fournisseur Compose compatible (`podman-compose`,
-par exemple), puis lancer les scripts avec `CONTAINER_RUNTIME=podman` ; le
-script ajoute alors le format d'image Docker nécessaire au transport du
-`HEALTHCHECK`. Une machine Docker reste la voie la plus simple.
+The commands use Docker Compose v2 (`docker compose`). With Podman,
+first install a compatible Compose provider (`podman-compose`,
+for example), then run the scripts with `CONTAINER_RUNTIME=podman`;
+the script then adds the Docker image format required to transport the
+`HEALTHCHECK`. A Docker machine remains the simplest option.
 
-**Deux pièges de Podman, tous deux mesurés en production.**
+**Two Podman pitfalls, both measured in production.**
 
-*Le PATH d’une session non interactive.* `podman-compose` s’installe souvent
-dans `~/.local/bin`, qui n’est PAS dans le `PATH` d’un `ssh serveur
-'commande'` — le script échoue alors sur `looking up compose provider failed`
-en listant sept chemins, dont aucun n’est le bon. Déployer à distance demande
-donc `export PATH="$HOME/.local/bin:$PATH"` avant l’appel, ou un chemin absolu.
+*The PATH of a non-interactive session.* `podman-compose` is often installed
+in `~/.local/bin`, which is NOT in the `PATH` of an `ssh server
+'command'` — the script then fails with `looking up compose provider failed`
+while listing seven paths, none of which is the right one. Remote deployment
+therefore requires `export PATH="$HOME/.local/bin:$PATH"` before the call,
+or an absolute path.
 
-*Le redémarrage de la machine.* Ce qui relance les conteneurs après un
-redémarrage, c’est `podman-restart.service`, dont la commande est
-`podman start --all --filter restart-policy=always`. Un service déclaré
-`restart: unless-stopped` **n’entre pas dans ce filtre** et reste à terre
-indéfiniment. Le compose déclare donc `restart: always` partout, et un test le
-garde. Vérifier que le mécanisme est armé :
+*Machine restart.* What restarts the containers after a
+restart is `podman-restart.service`, whose command is
+`podman start --all --filter restart-policy=always`. A service declared
+`restart: unless-stopped` **is not included in this filter** and stays down
+indefinitely. The compose file therefore declares `restart: always` everywhere, and a test
+guards it. Check that the mechanism is armed:
 
 ```bash
-loginctl enable-linger "$USER"          # sinon rien ne tourne hors session
+loginctl enable-linger "$USER"          # otherwise nothing runs outside the session
 systemctl --user enable --now podman-restart.service
 ```
 
-Se le prouver SANS redémarrer, en rejouant exactement ce que fait le boot :
+Prove it to yourself WITHOUT restarting, by replaying exactly what boot does:
 
 ```bash
 podman stop monl-compiler_platform_1
 systemctl --user restart podman-restart.service
-podman ps --format '{{.Names}} {{.Status}}'   # doit être « Up »
+podman ps --format '{{.Names}} {{.Status}}'   # must be « Up »
 ```
 
-Un conteneur qui ne remonte pas ne laisse **aucune trace** : il n’a pas
-planté, il n’a jamais démarré. C’est la panne la plus silencieuse du lot.
+A container that does not come back leaves **no trace**: it did not
+crash; it never started. This is the quietest failure of the lot.
 
-La CI construit aussi `Dockerfile.platform`, démarre l’image et vérifie son
-healthcheck sur chaque push : une régression de packaging ou de readiness est
-détectée avant le déploiement manuel.
+CI also builds `Dockerfile.platform`, starts the image, and checks its
+healthcheck on every push: a packaging or readiness regression is
+detected before manual deployment.
 
-Sur un tag `v*`, le workflow d’image publie en plus
-`ghcr.io/bodichane/monl-platform` après ce contrôle. Pour l’utiliser, rendre
-le paquet GHCR accessible au serveur puis renseigner `MONL_PLATFORM_IMAGE` avec
-un tag précis dans `.env`, puis lancer :
+On a `v*` tag, the image workflow also publishes
+`ghcr.io/bodichane/monl-platform` after this check. To use it, make the GHCR
+package accessible to the server, then set `MONL_PLATFORM_IMAGE` to
+a specific tag in `.env`, then run:
 
 ```bash
 USE_PREBUILT_IMAGE=1 scripts/deploy_platform.sh
 ```
 
-L’image locale reste le repli par défaut.
-En mode `USE_PREBUILT_IMAGE=1`, le script refuse `latest` et les références
-sans tag ; utiliser un tag immuable de release ou un digest `sha256`.
+The local image remains the default fallback.
+In `USE_PREBUILT_IMAGE=1` mode, the script refuses `latest` and references
+without a tag; use an immutable release tag or a `sha256` digest.
 
-## Préparer la machine
+## Prepare the machine
 
 ```bash
 git clone https://github.com/Bodichane/monl-compiler.git
@@ -69,36 +70,36 @@ chmod 600 .env
 python3 scripts/check_platform_env.py .env
 ```
 
-Renseigner au minimum `MONL_PLATFORM_DOMAIN` et
-`MONL_PLATFORM_PUBLIC_URL`. Si aucun fournisseur OAuth n'est activé,
-`MONL_PLATFORM_OAUTH_STATE_SECRET` peut rester vide. Ne jamais mettre de
-valeur réelle dans le dépôt.
+Set at least `MONL_PLATFORM_DOMAIN` and
+`MONL_PLATFORM_PUBLIC_URL`. If no OAuth provider is enabled,
+`MONL_PLATFORM_OAUTH_STATE_SECRET` may remain empty. Never put a
+real value in the repository.
 
-Le DNS doit pointer la valeur de `MONL_PLATFORM_DOMAIN` et son wildcard
-(`*.MONL_PLATFORM_DOMAIN`, en remplaçant ce texte par le domaine réel) vers la
-machine. Le wildcard est nécessaire pour les hôtes attribués aux projets
-compilés.
+DNS must point the value of `MONL_PLATFORM_DOMAIN` and its wildcard
+(`*.MONL_PLATFORM_DOMAIN`, replacing this text with the real domain) to the
+machine. The wildcard is required for the hosts assigned to
+compiled projects.
 
-Le pare-feu de la machine ne doit exposer que TCP 80 et 443. Le port 8022 est
-lié à `127.0.0.1` et ne doit jamais être ouvert directement sur Internet.
+The machine firewall must expose only TCP 80 and 443. Port 8022 is
+bound to `127.0.0.1` and must never be opened directly to the Internet.
 
-## Démarrer
+## Start
 
-Le chemin recommandé enchaîne la validation, le contrôle Compose, le build,
-le démarrage, la readiness locale et l'état `healthy` de la sauvegarde :
+The recommended path chains validation, the Compose check, the build,
+startup, local readiness, and the `healthy` state of the backup service:
 
 ```bash
 scripts/deploy_platform.sh
 ```
 
-Les commandes équivalentes restent disponibles si un opérateur doit
-intervenir entre deux étapes.
+Equivalent commands remain available if an operator needs to
+intervene between two steps.
 
-Le port 8022 reste privé. Installer le reverse proxy et copier
-`deploy/nginx/monl-platform.conf.example` dans la configuration Nginx après
-avoir remplacé le domaine et installé le certificat TLS.
+Port 8022 remains private. Install the reverse proxy and copy
+`deploy/nginx/monl-platform.conf.example` into the Nginx configuration after
+replacing the domain and installing the TLS certificate.
 
-Après activation du proxy :
+After enabling the proxy:
 
 ```bash
 curl -fsS https://monl.example.com/health
@@ -106,29 +107,29 @@ curl -fsS https://monl.example.com/ready
 ./scripts/smoke_platform.sh https://monl.example.com
 ```
 
-## Vérification avant ouverture
+## Checks before opening
 
-- inscription, connexion et récupération par code de secours ;
-- compilation d'une spec et téléchargement de l'archive ;
-- création puis révocation d'une clé MCP ;
-- isolation des projets entre deux comptes ;
-- réponse `503` explicite si un OAuth déclaré manque de secret ;
-- sauvegarde créée dans `/backups`, puis restauration testée sur une copie ;
-- état `healthy` du service `sauvegarde` après sa première copie ;
-- alerte externe branchée sur `/ready` ;
-- certificat renouvelable et logs de proxy configurés.
+- sign-up, sign-in, and recovery with a backup code;
+- compilation of a spec and download of the archive;
+- creation and then revocation of an MCP key;
+- isolation of projects between two accounts;
+- explicit `503` response if a declared OAuth provider lacks a secret;
+- backup created in `/backups`, then restoration tested on a copy;
+- `healthy` state of the `backup` service after its first copy;
+- external alert connected to `/ready`;
+- renewable certificate and configured proxy logs.
 
-La sauvegarde compose reste sur la même machine : exporter les fichiers du
-volume `monl-platform-backups` vers un stockage séparé avant l'ouverture.
+The Compose backup remains on the same machine: export the files in the
+`monl-platform-backups` volume to separate storage before opening.
 
-Pour copier les sauvegardes vers un dossier de l'hôte sans connaître le nom
-préfixé du volume Compose :
+To copy backups to a host directory without knowing the prefixed name
+of the Compose volume:
 
 ```bash
 sudo install -d -m 700 /var/backups/monl
 sudo scripts/export_platform_backups.sh /var/backups/monl
 ```
 
-Synchroniser ensuite `/var/backups/monl` vers un stockage hors machine
-(restic, S3, rsync vers un autre hôte, etc.). Le script ne modifie jamais le
-volume source et refuse un chemin d'export relatif ou la racine `/`.
+Then synchronize `/var/backups/monl` to off-machine storage
+(restic, S3, rsync to another host, etc.). The script never modifies the
+source volume and refuses a relative export path or the root `/`.

@@ -1,17 +1,17 @@
-# 🟡 Phase 2 — Conception du DSL
+# 🟡 Phase 2 — DSL Design
 
-> **Document historique.** Cette page décrit une étape de conception ; elle ne
-> remplace pas l'architecture courante. Voir `README.md` et `CODEBASE_AUDIT.md`.
+> **Historical document.** This page describes a design stage; it does not
+> replace the current architecture. See `README.md` and `CODEBASE_AUDIT.md`.
 
-## Principes de Syntaxe
-- **Déclaratif & Lisible** : Compréhensible immédiatement sans explication technique.
-- **Indentation propre** : Utilisation stricte de 4 espaces pour la hiérarchie.
-- **Épuré** : Aucune accolade `{}`, aucun point-virgule `;`, une seule instruction par ligne.
+## Syntax Principles
+- **Declarative & Readable**: Immediately understandable without technical explanation.
+- **Clean indentation**: Strict use of 4 spaces for hierarchy.
+- **Lean**: No braces `{}`, no semicolons `;`, one instruction per line.
 
-## Conventions de Nommage
-- **PascalCase** : Entités (`User`), Acteurs (`ShopManager`), Workflows (`ManageTodo`), Types primitives (`String`).
-- **camelCase** : Attributs (`publishedAt`, `totalAmount`).
+## Naming Conventions
+- **PascalCase**: Entities (`User`), Actors (`ShopManager`), Workflows (`ManageTodo`), primitive types (`String`).
+- **camelCase**: Attributes (`publishedAt`, `totalAmount`).
 
-## Types Primitifs Supportés
+## Supported Primitive Types
 - `String`, `Text`, `Integer`, `Float`, `Boolean`
 - `Date`, `DateTime`, `Email`, `UUID`, `Money`

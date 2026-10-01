@@ -1,100 +1,54 @@
-# Identité Monl
+# Monl Brand
 
-Monl compile des règles métier en un backend exact. L'identité est
-**typographique** : charbon, crème, et un cuivre réservé à ce qui est
-actionnable. Le monde de référence est l'imprimerie, pas le terminal — une
-spécification se lit avant de s'exécuter.
+Monl compiles business rules into a precise backend. Its identity is **typographic**: charcoal, cream, and copper reserved for actionable elements. The reference world is printing, not the terminal — a specification is read before it is executed.
 
-## Signe
+## Mark
 
-Le signe représente le cœur du compilateur : un noyau stable entouré de quatre
-étapes de transformation ouvertes. Le lockup horizontal associe ce signe au
-mot **MONL** et au descripteur **COMPILER**. Toute la marque est monochrome.
+The mark represents the compiler core: a stable nucleus surrounded by four open transformation steps. The horizontal lockup pairs this mark with the word **MONL** and the descriptor **COMPILER**. The entire brand is monochrome.
 
-Fichiers sources : [`brand/monl-mark.svg`](brand/monl-mark.svg) (le signe),
-[`brand/monl-wordmark.svg`](brand/monl-wordmark.svg) (le mot). Tous deux sont
-**vectorisés depuis l'artwork** par `outils/vectoriser_logo.py`, à partir du
-canal alpha du PNG transparent. Ne pas les retoucher à la main :
-`src/monl_platform/brand.py` est la source, tout le reste en découle.
-L'artwork d'origine est conservé à côté d'eux
-([`brand/monl-logo-source.png`](brand/monl-logo-source.png)) : sans lui, on ne
-pourrait ni re-vectoriser ni vérifier. Le logo orange précédent est archivé
-sous `brand/monl-logo-precedent-orange.png`, et la première bannière sous
-`brand/monl-logo-precedent.png`. Ces archives ne sont jamais des sources de
-génération.
+Source files: [`brand/monl-mark.svg`](brand/monl-mark.svg) (the mark), [`brand/monl-wordmark.svg`](brand/monl-wordmark.svg) (the wordmark). Both are **vectorized from the artwork** by `outils/vectoriser_logo.py`, from the alpha channel of the transparent PNG. Do not edit them by hand: `src/monl_platform/brand.py` is the source; everything else derives from it. The original artwork is kept alongside them ([`brand/monl-logo-source.png`](brand/monl-logo-source.png)): without it, we could neither re-vectorize nor verify. The previous orange logo is archived as `brand/monl-logo-precedent-orange.png`, and the first banner as `brand/monl-logo-precedent.png`. These archives are never generation sources.
 
-**Le lockup est tracé en `currentColor`, sans fond.** C'est la règle qui
-compte, et elle vient d'un défaut mesuré : servi en `<img>`, le logo garde le
-fond sombre de son artwork quel que soit le thème — l'ancienne bannière tombait
-à **1,29:1** contre la page sombre, un logo littéralement invisible dans
-l'en-tête. En SVG dans la page, le signe et les lettres prennent la couleur du
-texte, tandis que le fond de la page reste visible dans les ouvertures.
+**The lockup is drawn in `currentColor`, with no background.** This is the rule that matters, and it comes from a measured defect: served as an `<img>`, the logo keeps the dark background of its artwork regardless of theme — the old banner had a **1.29:1** ratio against the dark page, making it literally invisible in the header. As SVG in the page, the mark and letters take the text color, while the page background remains visible through the openings.
 
-**Une seule exception, le favicon.** Il vit dans un onglet, hors de toute page,
-sans couleur à hériter : il porte donc sa pastille et ses tracés en dur. C'est
-la seule place où un fond est justifié — un onglet en attend un. Et
-`/favicon.ico` existe à côté du SVG : les navigateurs le demandent d'office, et
-un 404 les laisse afficher l'ancienne icône gardée en cache.
+**One exception: the favicon.** It lives in a tab, outside any page, with no inherited color, so it has its own badge and fixed strokes. This is the only place where a background is justified — a tab expects one. And `/favicon.ico` exists alongside the SVG: browsers request it automatically, and a 404 leaves them showing an old cached icon.
 
-- Ne pas modifier les proportions ni l'épaisseur des tracés.
-- Conserver les quatre ouvertures du cercle et le noyau central.
-- Ne pas remplacer les tracés par des caractères typographiques.
-- Conserver autour du signe un espace libre au moins égal au quart de sa largeur.
-- Taille minimale : 16 px pour le signe, 96 px pour le lockup complet.
+- Do not change the proportions or stroke thickness.
+- Keep all four openings in the circle and the central nucleus.
+- Do not replace the strokes with typographic characters.
+- Keep clear space around the mark at least one quarter of its width.
+- Minimum size: 16 px for the mark, 96 px for the full lockup.
 
 ## Palette
 
-| Rôle | Clair | Sombre |
+| Role | Light | Dark |
 |---|---|---|
-| Encre | `#2E2B25` | `#F9F4ED` |
-| Papier | `#F9F4ED` | `#171512` |
+| Ink | `#2E2B25` | `#F9F4ED` |
+| Paper | `#F9F4ED` | `#171512` |
 | Surface | `#FFFDF9` | `#211E1A` |
-| Texte secondaire | `#665F55` | `#B9B0A5` |
-| Séparateur | `#DDD4C8` | `#403B34` |
-| Bordure de contrôle | `#8B8175` | `#786F64` |
-| Action principale | `#2E2B25` | `#F9F4ED` |
-| Accent cuivre | `#924821` | `#E5A45F` |
-| Fond de code | `#2E2B25` | `#0F0E0C` |
-| Alerte | `#B3123C` | `#FF90A6` |
+| Secondary text | `#665F55` | `#B9B0A5` |
+| Divider | `#DDD4C8` | `#403B34` |
+| Control border | `#8B8175` | `#786F64` |
+| Primary action | `#2E2B25` | `#F9F4ED` |
+| Copper accent | `#924821` | `#E5A45F` |
+| Code background | `#2E2B25` | `#0F0E0C` |
+| Alert | `#B3123C` | `#FF90A6` |
 
-**L’action principale reste monochrome.** Boutons, liens et états actifs
-reprennent l’encre ou le crème du logo. Le cuivre est réservé aux repères fins :
-surtitres, progression et syntaxe. Il ne remplit ni carte ni grande section.
+**The primary action stays monochrome.** Buttons, links, and active states use the logo's ink or cream. Copper is reserved for fine markers: eyebrows, progress, and syntax. It does not fill a card or large section.
 
-**Deux valeurs pour un seul cuivre.** `#924821` sur papier (6,62:1), `#E5A45F`
-sur fond sombre (6,59:1). Le cuivre de jour serait trop sombre la nuit, et
-l'inverse illisible le jour : c'est la même couleur à deux valeurs, pas deux
-accents à entretenir.
+**Two values for one copper.** `#924821` on paper (6.62:1), `#E5A45F` on a dark background (6.59:1). Daytime copper would be too dark at night, and the reverse would be unreadable by day: it is one color in two values, not two accents to maintain.
 
-**Deux bordures, pas une.** `Séparateur` délimite une carte ou une ligne de
-tableau ; `Bordure de contrôle` entoure ce qui se clique ou se remplit, et tient
-**3:1** parce que WCAG 1.4.11 l'exige d'un composant d'interface. Confondre les
-deux donne des boutons secondaires et des champs qu'on ne distingue pas du fond.
+**Two borders, not one.** `Divider` outlines a card or table row; `Control border` surrounds what can be clicked or filled in, and reaches **3:1** because WCAG 1.4.11 requires this of an interface component. Confusing the two makes secondary buttons and fields hard to distinguish from the background.
 
-**L'alerte est un rouge d'encre, pas un orangé.** Il doit se lire comme une
-autre encre, pas comme une variation du cuivre d'action.
+**The alert is an ink red, not orange.** It should read as another ink, not as a variation of the action copper.
 
-Aucun état ne se lit par la couleur seule : un libellé ou une icône le porte
-toujours aussi.
+No state is communicated by color alone: a label or icon always carries it too.
 
-## Où vivent ces valeurs
+## Where these values live
 
-Dans `src/monl_platform/theme.py`, et **nulle part ailleurs**. Les pages
-n'écrivent que des variables (`var(--brand)`, `var(--code-muted)`) : c'est ainsi
-qu'un changement d'identité se fait en un endroit. Une refonte antérieure avait
-laissé cinq verts en dur dans la console — ils ont survécu à un changement
-complet de palette sans que rien ne le signale. `tests/test_platform_marque.py`
-l'interdit désormais, et ne cite lui-même aucune couleur : il mesure des
-contrastes depuis les variables réellement déclarées, ce qui le laisse valable
-d'une direction à l'autre.
+In `src/monl_platform/theme.py`, and **nowhere else**. Pages use only variables (`var(--brand)`, `var(--code-muted)`): this is how an identity change is made in one place. An earlier redesign had left five hard-coded greens in the console — they survived a complete palette change without anything flagging them. `tests/test_platform_marque.py` now forbids this, and does not itself name any color: it measures contrast from the actually declared variables, so it remains valid as the direction changes.
 
-## Typographie et ton
+## Typography and tone
 
-Les textes emploient la police sans serif du système, les données techniques sa
-monospace. Aucune police distante : la plateforme doit s'ouvrir derrière un
-pare-feu, et c'est déjà l'autonomie qu'elle exige des frontends qu'elle fait
-produire.
+Text uses the system sans-serif font; technical data uses monospace. No remote fonts: the platform must open behind a firewall, and this is the same independence it requires of the frontends it generates.
 
-Le ton est direct et factuel : verbe d'action, résultat observable, aucune
-promesse vague. On écrit « Compiler le backend » plutôt que « Commencer la
-magie ».
+The tone is direct and factual: an action verb, an observable result, no vague promises. Write “Compile the backend” rather than “Start the magic.”

@@ -1,24 +1,24 @@
-# 🟢 Phase 3 — Le Parser Syntaxique
+# 🟢 Phase 3 — The Syntax Parser
 
-> **Document historique.** Cette page décrit une étape de conception ; elle ne
-> remplace pas l'architecture courante. Voir `README.md` et `CODEBASE_AUDIT.md`.
+> **Historical document.** This page describes a design stage; it does not
+> replace the current architecture. See `README.md` and `CODEBASE_AUDIT.md`.
 
-## Objectif
-L'objectif de cette phase est de concevoir un analyseur syntaxique (Parser) capable de lire un fichier brut écrit en DSL monl (extension `.ml` — historiquement `.yaml`, avant que le projet n'adopte son extension propre) et de le convertir en une structure de données informatique brute au format JSON.
+## Goal
+The goal of this phase is to design a parser that can read a raw file written in the monl DSL (extension `.ml` — historically `.yaml`, before the project adopted its own extension) and convert it to a raw computer data structure in JSON format.
 
-## Choix Techniques
-- **Langage** : Python 3.10+
-- **Bibliothèque** : `lark` (Analyseur syntaxique LALR)
-- **Gestion de l'indentation** : Utilisation du module natif `PythonIndenter` réadapté pour monl (`MonlIndenter`) afin de capturer proprement les blocs logiques de 4 espaces sans accolades.
+## Technical Choices
+- **Language**: Python 3.10+
+- **Library**: `lark` (LALR parser)
+- **Indentation handling**: Adapt the native `PythonIndenter` module for monl (`MonlIndenter`) to cleanly capture logical blocks of 4 spaces without braces.
 
-## Implémentation (`src/parser.py`)
-Le parser utilise une grammaire formelle définissant de manière stricte les mots-clés du langage (`app`, `entity`, `relation`, `actor`, `rule`, `workflow`) et s'appuie sur la classe `Transformer` pour extraire les jetons (tokens).
+## Implementation (`src/parser.py`)
+The parser uses a formal grammar that strictly defines the language keywords (`app`, `entity`, `relation`, `actor`, `rule`, `workflow`) and relies on the `Transformer` class to extract tokens.
 
-## Critères de Validation et Test
-Le test de validation a été exécuté avec succès sur le fichier d'entrée `exemples/01_todo_list.ml`. 
-L'analyseur produit un dictionnaire stable de ce type :
-- Extraction correcte des entités (`User`, `Todo`) et de leurs types primitifs sémantiques.
-- Capture des liaisons de relations (`hasMany`).
-- Isolation des workflows et des listes d'actions CRUD associées.
+## Validation and Test Criteria
+The validation test ran successfully on the input file `exemples/01_todo_list.ml`.
+The parser produces a stable dictionary of this kind:
+- Correct extraction of entities (`User`, `Todo`) and their semantic primitive types.
+- Capture of relation links (`hasMany`).
+- Isolation of workflows and their associated CRUD action lists.
 
-Le résultat est parfaitement prédictible : un même fichier source produit systématiquement le même dictionnaire JSON.
+The result is fully predictable: the same source file always produces the same JSON dictionary.

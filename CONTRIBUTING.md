@@ -1,87 +1,85 @@
-# Travailler sur monl
+# Working on monl
 
-> **Statut.** Dépôt public sous **FSL-1.1-ALv2** — usage libre hors usage
-> concurrent, bascule Apache-2.0 à deux ans (voir [LICENSE](LICENSE) et
-> [LICENSE-FAQ.md](LICENSE-FAQ.md)).
-> Les contributions extérieures ne sont pas ouvertes pour l'instant. Ce document
-> décrit comment travailler sur le dépôt — il s'adresse au mainteneur, à un
-> futur collaborateur autorisé, et à toute IA de développement travaillant ici.
-> Les rapports de bug et remarques restent bienvenus dans les *issues*.
+> **Status.** Public repository under **FSL-1.1-ALv2** — free use except
+> competing use, conversion to Apache-2.0 after two years (see [LICENSE](LICENSE)
+> and [LICENSE-FAQ.md](LICENSE-FAQ.md)).
+> Outside contributions are not open at this time. This document describes how
+> to work on the repository — it is for the maintainer, a future authorized
+> collaborator, and any development AI working here. Bug reports and feedback
+> are still welcome in the *issues*.
 
-## Mise en place
+## Setup
 
 ```bash
-pipx install -e ".[dev]" # ou : pip install -e ".[dev]" --break-system-packages
+pipx install -e ".[dev]" # or: pip install -e ".[dev]" --break-system-packages
 python3 -m pytest tests/ -q
 ```
 
-La suite dure environ six minutes : elle démarre de vrais serveurs. C'est
-délibéré, voir ci-dessous.
+The suite takes about six minutes: it starts real servers. This is deliberate;
+see below.
 
-## La règle non négociable
+## The non-negotiable rule
 
-**Chaque changement est prouvé par exécution réelle, jamais par relecture de code
-seule.** Compiler pour de vrai, relancer un vrai serveur, faire de vrais appels,
-lancer la suite.
+**Every change is proven through real execution, never by code review alone.**
+Compile for real, restart a real server, make real calls, run the suite.
 
-Ce n'est pas un principe décoratif. Plusieurs bugs réels du projet — ordre des
-contraintes `FOREIGN KEY`, collision avec un mot-clé SQL réservé, sur-échappement
-de backslash entre couches de templating, un mécanisme de clé étrangère qui
-décrémentait le mauvais enregistrement — ne se seraient **jamais** révélés par
-lecture. Les tests démarrent donc des serveurs éphémères et exécutent le vrai
-dialogue plutôt que de le simuler ; c'est pourquoi ils sont lents.
+This is not a decorative principle. Several real bugs in the project —
+`FOREIGN KEY` constraint ordering, a collision with a reserved SQL keyword,
+over-escaped backslashes between templating layers, a foreign key mechanism
+that decremented the wrong record — would **never** have been found by reading
+the code. Tests therefore start ephemeral servers and execute the real dialogue
+instead of simulating it; that is why they are slow.
 
-Corollaire : un test qui ne peut pas échouer ne vaut rien. Si vous écrivez un
-garde-fou, vérifiez qu'il **voit** encore quelque chose — un contrôle devenu muet
-est pire qu'un contrôle absent, parce qu'il rassure.
+Corollary: a test that cannot fail is worthless. If you write a safeguard,
+check that it still **detects** something — a silent check is worse than no
+check, because it gives false confidence.
 
-## Avant d'ouvrir une pull request
+## Before opening a pull request
 
 ```bash
-ruff check src tests                                   # zéro signalement attendu
+ruff check src tests                                   # zero findings expected
 python3 -m pytest tests/ -q --cov=src --cov-report=term-missing
-python3 -m pytest tests/test_architecture.py -q        # frontières d'architecture
+python3 -m pytest tests/test_architecture.py -q        # architecture boundaries
 ```
 
-La CI rejoue tout cela sur Python 3.10, 3.12 et 3.14, et `main` est protégée :
-rien ne fusionne sans que les trois vérifications passent.
+CI reruns all of this on Python 3.10, 3.12, and 3.14, and `main` is protected:
+nothing merges unless all three checks pass.
 
-## Les règles du dépôt
+## Repository rules
 
-**Le journal d'abord.** [`docs/design_decisions.md`](docs/design_decisions.md)
-contient 74 points, chacun expliquant le *pourquoi* d'une règle, pas seulement le
-*quoi*. **Le consulter avant d'ajouter quoi que ce soit** : plusieurs pièges ne
-sont pas devinables depuis le code. Toute décision structurante y gagne un point
-numéroté, avec ce qui a été écarté et pourquoi.
+**The journal comes first.** [`docs/design_decisions.md`](docs/design_decisions.md)
+contains 74 points, each explaining *why* a rule exists, not just *what* it is.
+**Consult it before adding anything**: some pitfalls cannot be inferred from the
+code. Every structural decision should add a numbered point explaining what
+was rejected and why.
 
-**Les exceptions portent leur raison.** Une exception `ruff` sans justification
-écrite dans `pyproject.toml`, un `# noqa` orphelin, une clause de contrat que
-rien ne vérifie : trois façons de rouvrir une porte que le projet a fermée
-exprès. Une clause que rien ne vérifie n'est pas une clause.
+**Exceptions include their reason.** A `ruff` exception without a written
+justification in `pyproject.toml`, an orphaned `# noqa`, or a contract clause
+that nothing checks: three ways to reopen a door the project deliberately
+closed. A clause that nothing checks is not a clause.
 
-**Les frontières sont exécutables.** Le compilateur (`parser`, `ast_validator`,
-`generator`) ignore l'orchestrateur ; `tui.py` ne porte aucune logique de
-dialogue ; `app_templates.py` est de la donnée, pas du code.
-`tests/test_architecture.py` le vérifie — ne le contournez pas, corrigez la
-dépendance.
+**Boundaries are executable.** The compiler (`parser`, `ast_validator`,
+`generator`) ignores the orchestrator; `tui.py` contains no dialogue logic;
+`app_templates.py` is data, not code. `tests/test_architecture.py` checks this
+— do not bypass it; fix the dependency.
 
-**Le déterminisme est un acquis.** Aucune IA, aucun appel réseau dans le
-compilateur : même spec, même sortie, à l'octet près. La seule IA du cycle de vie
-construit le frontend, à partir du contrat.
+**Determinism is established.** No AI and no network calls in the compiler:
+same spec, same output, byte for byte. The only AI in the lifecycle builds the
+frontend from the contract.
 
-**Nettoyer après une compilation manuelle** (la suite de tests, elle, ne salit
-plus la racine) :
+**Clean up after a manual compilation** (the test suite no longer dirties the
+root):
 
 ```bash
 rm -f app.py schema.sql sandbox_ai.py manage.py .jwt_secret .monl_theme_seed *.db \
       frontend_contract.json FRONTEND_PROMPT.md FRONTEND_UPDATE_PROMPT.md monl.json serve.py
 ```
 
-## Messages de commit
+## Commit messages
 
-Format `type(portée): résumé à l'impératif`, puis un corps qui explique le
-**pourquoi** — pas la liste des fichiers touchés, que `git diff` donne déjà. Si
-le changement correspond à un point du journal, le citer par son numéro.
+Format `type(scope): imperative summary`, followed by a body explaining
+**why** — not the list of changed files, which `git diff` already shows. If the
+change corresponds to a journal point, cite it by number.
 
 ```
 fix(cohérence): le scellé du backend n'était mesuré par rien
@@ -92,14 +90,14 @@ manuelle passait sans un mot, pendant que 'monl run' affichait
 « Cohérence statique vérifiée ».
 ```
 
-## Où intervenir
+## Where to make changes
 
-| Ce que vous voulez faire | Où |
+| What you want to do | Where |
 |---|---|
-| Ajouter une question au dialogue | le module concerné dans `src/monl/dialogue_engine/` |
-| Ajouter ou modifier un modèle d'application | `src/monl/app_templates.py` |
-| Nouveau mot-clé du langage `.ml` | le module concerné dans `src/monl/parser/`, puis `src/monl/ast_validator/` |
-| Changer ce que le backend génère | le module concerné dans `src/monl/generator/` |
-| Changer ce que l'IA frontend reçoit | le module concerné dans `src/monl/frontend_contract/` |
-| Ajouter une vérification au lancement | le module concerné dans `src/monl/cli/` (statique) ou `src/monl/smoke_test/` (réelle) |
-| Comprendre *pourquoi* une règle existe | `docs/design_decisions.md` |
+| Add a dialogue question | The relevant module in `src/monl/dialogue_engine/` |
+| Add or change an application template | `src/monl/app_templates.py` |
+| Add a `.ml` language keyword | The relevant module in `src/monl/parser/`, then `src/monl/ast_validator/` |
+| Change what the backend generates | The relevant module in `src/monl/generator/` |
+| Change what the frontend AI receives | The relevant module in `src/monl/frontend_contract/` |
+| Add a launch check | The relevant module in `src/monl/cli/` (static) or `src/monl/smoke_test/` (real) |
+| Understand *why* a rule exists | `docs/design_decisions.md` |

@@ -942,8 +942,8 @@ def test_lextracteur_de_mots_cles_ne_regarde_pas_dans_le_vide():
 
 def _paragraphe_de_reference(memoire):
     """Le paragraphe de `CLAUDE.md` qui ÉNUMÈRE les mots-clés du DSL."""
-    debut = memoire.index("**Référence des mots-clés du DSL.**")
-    fin = memoire.index("aucun n'est une brique autonome.", debut)
+    debut = memoire.index("**DSL keyword reference.**")
+    fin = memoire.index("none is a standalone brick.", debut)
     return memoire[debut:fin]
 
 

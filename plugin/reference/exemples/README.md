@@ -1,22 +1,22 @@
-# Exemples de spécifications
+# Specification Examples
 
-Les fonctions métier supplémentaires du dialogue sont regroupées dans deux
-projets complets sous `projets/` : `CommunauteHub` et `GestionPro`.
+The additional business functions of the dialogue are grouped into two
+complete projects under `projets/`: `CommunauteHub` and `GestionPro`.
 
-**Cinq fichiers `.ml`, une page chacun : la description complète de cinq
-applications.** C'est la seule chose écrite à la main. Le schéma de base, l'API
-REST, l'authentification, le contrôle d'accès et le contrat frontend en sont
-dérivés à la compilation.
+**Five `.ml` files, one page each: the complete description of five
+applications.** This is the only thing written by hand. The database schema, REST
+API, authentication, access control, and frontend contract are derived from it
+at compile time.
 
-| Spécification | Ce qu'elle décrit | Ce qu'elle démontre du langage |
+| Specification | What it describes | What it demonstrates about the language |
 |---|---|---|
-| `01_portfolio.ml` | Galerie publique + zone d'administration | `public` en lecture, formulaire de contact ouvert en écriture seule, bloc `seed` |
-| `02_boutique.ml` | Catalogue et commandes | Deux acteurs, `ownedBy` sur les commandes, thème épinglé |
-| `03_reseau_social.ml` | Réseau social anonyme | Le plus dense : `generated` (pseudonyme), `hidden`, `categorized`, `increments` / `decrements`, `accessibleBy` (messagerie privée) |
-| `04_kanban.ml` | Tâches d'équipe | Propriété par enregistrement, lecture comprise |
-| `05_classement.ml` | Classement communautaire | Compteurs transactionnels : un vote fait monter un score |
+| `01_portfolio.ml` | Public gallery + administration area | `public` for reading, contact form open for writing only, `seed` block |
+| `02_boutique.ml` | Catalog and orders | Two actors, `ownedBy` on orders, pinned theme |
+| `03_reseau_social.ml` | Anonymous social network | The densest: `generated` (pseudonym), `hidden`, `categorized`, `increments` / `decrements`, `accessibleBy` (private messaging) |
+| `04_kanban.ml` | Team tasks | Ownership by record, including reading |
+| `05_classement.ml` | Community ranking | Transactional counters: one vote raises a score |
 
-## Les lire, les compiler
+## Reading and compiling them
 
 ```bash
 monl compile exemples/01_portfolio.ml --output /tmp/portfolio
@@ -26,16 +26,16 @@ monl compile exemples/01_portfolio.ml --output /tmp/portfolio
 monl run /tmp/portfolio
 ```
 
-Chaque fichier est commenté : ce qui est déclaré, et **pourquoi** cette règle
-plutôt qu'une autre. Les lire dans l'ordre donne une progression du plus simple
-au plus complet.
+Each file is commented: what is declared, and **why** this rule rather than
+another. Reading them in order gives a progression from the simplest to the
+most complete.
 
-## Ce que la suite de tests en fait
+## What the test suite does with them
 
-`tests/test_compile_all.py` compile les cinq à chaque exécution, et
-`tests/test_audit_offensif_exemples.py` rejoue sur chacun l'audit offensif — usurpation de
-rôle, JWT forgé, élévation de privilège. Un exemple ne peut donc pas cesser de
-compiler, ni devenir vulnérable, sans que la CI le dise.
+`tests/test_compile_all.py` compiles all five on each run, and
+`tests/test_audit_offensif_exemples.py` reruns the offensive audit on each one — role
+impersonation, forged JWT, privilege escalation. An example therefore cannot stop
+compiling or become vulnerable without CI reporting it.
 
-C'est aussi ce qui les rend fiables comme documentation : une syntaxe montrée
-ici est nécessairement une syntaxe que le compilateur accepte encore.
+That is also what makes them reliable as documentation: syntax shown
+here is necessarily syntax the compiler still accepts.

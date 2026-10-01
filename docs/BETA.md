@@ -1,192 +1,188 @@
-# État bêta et route vers la GA
+# Beta status and path to GA
 
-## Ce qu'apporte la bêta 0.9.0-beta.10
+## What beta 0.9.0-beta.10 brings
 
-Une bêta de **justesse** : deux agents d'amélioration continue refont le
-parcours d'un usager depuis une roue installée ailleurs et éprouvent les
-témoins ajoutés. Ce qu'ils ont trouvé est corrigé — le contrat annonce enfin la
-clé visée par un compteur (un frontend fidèle récoltait un 422), `monl run
---check` ne promet plus de pages inexistantes et accepte un projet à assets
-sans frontend, `monl-platform --help` liste ses verbes, et le statut
-post-paiement naît dans son premier état. Points 191 à 196 de
+A beta focused on **correctness**: two continuous improvement agents repeat the
+journey of a user from a wheel installed elsewhere and exercise the added
+witness tests. What they found has been fixed — the contract finally announces
+the key targeted by a counter (a faithful frontend was getting a 422), `monl run
+--check` no longer promises nonexistent pages and accepts a project with assets
+but no frontend, `monl-platform --help` lists its verbs, and post-payment status
+is created in its initial state. Points 191 to 196 of
 `docs/design_decisions.md`.
 
-## Ce qu'apportait la bêta 0.9.0-beta.9
+## What beta 0.9.0-beta.9 brought
 
-Un **changement de cap** (point 162) : monl produit le backend et sa base,
-déterministes et sans appel réseau ; tout ce qui demande une IA se fait avec le
-fournisseur de l'usager, sur sa machine. La plateforme ne construit donc plus
-de frontend — sa console mène le **dialogue guidé** comme la ligne de commande,
-et le **serveur MCP** liste, compare et met à jour un projet sans navigateur.
-L'archive d'un projet compilé range ses documents dans `docs/` et nomme sa
-mémoire AGENTS.md. La plateforme est **déployée pour de vrai** (image GHCR,
-survie au redémarrage), un **audit de sécurité** y a fermé cinq défauts réels
-(dont le *login CSRF* de l'aller OAuth), le backend généré gagne ses **index**
-et un **pool PostgreSQL**, et le compilateur devient **publiable** par Trusted
-Publishing. Points 143 à 190 de `docs/design_decisions.md`.
-
-## Ce qu'apportait la bêta 0.9.0-beta.8
-
-Le dépôt passe sous **licence FSL-1.1-ALv2** (bascule automatique vers
-Apache-2.0 deux ans après chaque version), et monl gagne une **plateforme
-web** : compiler par API, par clé d'API ou par **serveur MCP**, avec comptes,
-projets, codes de secours, pages légales, journal, sauvegarde tournante et un
-panneau d'administration en ligne de commande — jamais en web, parce qu'un
-panneau deviendrait la cible dont une faille donne tous les comptes. Côté
-compilateur : **FedaPay** rejoint Stripe pour le mobile money, la **brique 29**
-exige que tout fichier réclamé par le frontend soit réellement servi, et le
-harnais de test **échoue au lieu de sauter**. Points 125 à 142 de
+A **change of direction** (point 162): monl produces the backend and its database,
+deterministically and without network calls; everything that requires AI is
+done with the user's provider, on their machine. The platform therefore no
+longer builds a frontend — its console leads the **guided dialogue** like the
+command line, and the **MCP server** lists, compares, and updates a project
+without a browser. The archive of a compiled project stores its documents in
+`docs/` and names its memory AGENTS.md. The platform is **actually deployed**
+(GHCR image, survives restarts), a **security audit** closed five real flaws
+there (including the *login CSRF* in the OAuth round trip), the generated
+backend gains its **indexes** and a **PostgreSQL pool**, and the compiler becomes
+**publishable** through Trusted Publishing. Points 143 to 190 of
 `docs/design_decisions.md`.
 
-## Ce qu'apportait la bêta 0.9.0-beta.7
+## What beta 0.9.0-beta.8 brought
 
-Le backend généré est **déployable** (CORS, healthchecks, journaux structurés,
-conteneur), parle **PostgreSQL** autant que SQLite, sait **migrer** un schéma
-non additif sans perdre de données, accepte un **fichier téléversé**, sait
-**envoyer un message**, sait **filtrer et trier** côté serveur sans exposer de
-langage de requête, et porte une **authentification complète** (verrouillage par
-compte, réinitialisation, jetons de rafraîchissement rotatifs, TOTP). Points 117
-à 124 de `docs/design_decisions.md`.
+The repository moves to the **FSL-1.1-ALv2 license** (automatic switch to
+Apache-2.0 two years after each release), and monl gains a **web platform**:
+compile through an API, API key, or **MCP server**, with accounts, projects,
+backup codes, legal pages, journal, rotating backup, and a command-line
+administration panel — never on the web, because a panel would become a target
+where one flaw exposes every account. On the compiler side: **FedaPay** joins
+Stripe for mobile money, **brick 29** requires every file requested by the
+frontend to actually be served, and the test harness **fails instead of
+skipping**. Points 125 to 142 of `docs/design_decisions.md`.
 
-## Ce que corrige la bêta 0.9.0-beta.6
+## What beta 0.9.0-beta.7 brought
 
-Cette version ajoute les capacités métier et le contrôle d'accès approfondi
-développés depuis la bêta 5 : calculs serveur (`derivedFrom`, `sumOf`),
-agrégations (`sumOf`), propriété transitive, stock, horodatage, numérotation,
-contraintes de champs, valeurs énumérées, profils obligatoires et verrouillage
-des enregistrements après paiement. Elle ajoute aussi l'outillage de retouche
-du frontend et aligne les métadonnées de version du paquet et des projets
-compilés.
+The generated backend is **deployable** (CORS, health checks, structured logs,
+container), speaks **PostgreSQL** as well as SQLite, can **migrate** a
+non-additive schema without losing data, accepts an **uploaded file**, can
+**send a message**, can **filter and sort** on the server without exposing a
+query language, and provides **complete authentication** (per-account lock,
+reset, rotating refresh tokens, TOTP). Points 117 to 124 of
+`docs/design_decisions.md`.
 
-## Ce que corrige la bêta 0.9.0-beta.5
+## What beta 0.9.0-beta.6 fixes
 
-Un défaut d'ouverture, pas de correction : le dernier maillon du cycle — l'IA
-qui écrit le frontend — n'acceptait qu'Anthropic, alors que le module promettait
-depuis le pivot une abstraction « extensible sans toucher à la boucle
-d'orchestration ». Elle l'est désormais : n'importe quelle clé au dialecte
-OpenAI (`groq`, `openai`, `openrouter`, `deepseek`, `mistral`, `together`,
-`xai`, `ollama`, plus une échappatoire pour tout autre point de terminaison), et
-n'importe quel agent en ligne de commande (`codex`, `gemini`, ou `--agent-command`).
-Aucun garde-fou n'est relâché au passage — c'est le point 69. Le compilateur
-lui-même est inchangé.
+This release adds the business capabilities and in-depth access control
+developed since beta 5: server-side calculations (`derivedFrom`, `sumOf`),
+aggregations (`sumOf`), transitive ownership, stock, timestamps, numbering,
+field constraints, enumerated values, required profiles, and locking records
+after payment. It also adds frontend editing tools and aligns the version
+metadata of the package and compiled projects.
 
-## Ce que corrige la bêta 0.9.0-beta.4
+## What beta 0.9.0-beta.5 fixes
 
-Rien dans le compilateur : aucune règle, aucune route générée, aucun contrat ne
-diffère de la bêta 3. Cette version rend le dépôt lisible par quelqu'un qui le
-découvre, maintenant qu'il est public — `LICENSE` et `CONTRIBUTING.md` ajoutés,
-README refait, `demo/` cesse de versionner sa propre sortie. Deux correctifs
-réels tout de même, côté vérification : le test du canal temporel ne dépend plus
-de la charge de la machine (il échouait par intermittence en CI), et il ne
-laisse plus de serveur orphelin en cas d'échec. Détail dans `CHANGELOG.md`.
+A gap in scope, not a fix: the last link in the cycle — the AI that writes the
+frontend — only accepted Anthropic, while the module had promised since the
+pivot an abstraction “extensible without touching the orchestration loop.” It
+now is: any OpenAI-dialect key (`groq`, `openai`, `openrouter`, `deepseek`,
+`mistral`, `together`, `xai`, `ollama`, plus a fallback for any other endpoint),
+and any command-line agent (`codex`, `gemini`, or `--agent-command`). No
+safeguard is relaxed along the way — that is point 69. The compiler itself is
+unchanged.
 
-## Ce que corrige la bêta 0.9.0-beta.3
+## What beta 0.9.0-beta.4 fixes
 
-Audit externe du dépôt : une faille critique (auto-attribution d'un rôle
-privilégié à l'inscription), cinq défauts importants (énumération par timing,
-quota non atomique, secret en 0644, liste noire non purgée, clés étrangères
-jamais appliquées) et un défaut de déterminisme (ordre d'acteurs issu d'un
-`set`). Tous corrigés et couverts par `tests/test_beta3_regressions.py` ;
-détail dans `CHANGELOG.md`. Le générateur monolithique a été découpé en
-package `src/monl/generator/`.
+Nothing in the compiler: no rule, generated route, or contract differs from
+beta 3. This release makes the repository readable to someone discovering it,
+now that it is public — `LICENSE` and `CONTRIBUTING.md` added, README rewritten,
+`demo/` stops versioning its own output. Two real fixes nonetheless, on the
+verification side: the time-channel test no longer depends on machine load (it
+failed intermittently in CI), and it no longer leaves an orphan server on
+failure. Details in `CHANGELOG.md`.
 
-## Ce que corrige la bêta 0.9.0-beta.1
+## What beta 0.9.0-beta.3 fixes
 
-Tous les défauts bloquants identifiés à l'audit ont été corrigés :
+External repository audit: one critical flaw (self-assignment of a privileged
+role during signup), five serious flaws (timing-based enumeration, non-atomic
+quota, secret with mode 0644, blacklist not purged, foreign keys never
+enforced), and one determinism flaw (actor order derived from a `set`). All
+fixed and covered by `tests/test_beta3_regressions.py`; details in
+`CHANGELOG.md`. The monolithic generator was split into package
+`src/monl/generator/`.
 
-1. **IA générative locale retirée.** Suppression complète d'Ollama et des trois
-   fonctions qui en dépendaient (`--nl`, `--prompt`, remplissage `--fill-custom`
-   des blocs `custom`). Le compilateur est désormais entièrement déterministe et
-   hors-ligne ; les blocs `custom` sont des coquilles vides écrites à la main. La
-   seule IA du cycle de vie est celle qui construit le frontend (Claude).
-2. **Intégrité transactionnelle.** Création + effets `increments`/`decrements`
-   dans une seule transaction (commit unique, rollback sur erreur).
-3. **Hygiène de secret.** Le secret JWT peut être injecté par
-   `MONL_JWT_SECRET` (jamais sur disque). Aucun artefact généré ni secret
-   n'est inclus dans l'archive de distribution.
-4. **Comparaison à temps constant** des empreintes de mot de passe à la connexion.
-5. **Limitation de débit consciente du proxy** (`MONL_TRUST_PROXY`), sans quoi
-   `X-Forwarded-For` est ignoré (pas d'usurpation par un client direct).
-6. **Packaging.** `pyproject.toml`, dépendances épinglées avec bornes hautes,
-   commande `monl` via `pip install -e .`.
-7. **Documentation** : `docs/SECURITE.md` (modèle de sécurité), ce fichier.
+## What beta 0.9.0-beta.1 fixes
 
-## Critères de sortie de la bêta (Definition of Done) — atteints
+All blocking flaws identified in the audit have been fixed:
 
-- [x] `pip install -r requirements.txt` puis compilation d'un `.ml` produit un
-      backend fonctionnel, sans aucune IA ni dépendance réseau.
-- [x] Suite de tests verte, incluant l'audit offensif rejoué sur tous les
-      exemples (usurpation de rôle, JWT forgé, élévation de privilège).
-- [x] Aucun secret ni artefact généré dans l'archive livrée.
-- [x] Secret injectable par variable d'environnement.
-- [x] Opérations multi-étapes atomiques.
+1. **Local generative AI removed.** Complete removal of Ollama and the three
+   functions that depended on it (`--nl`, `--prompt`, `--fill-custom` filling
+   of `custom` blocks). The compiler is now fully deterministic and offline;
+   `custom` blocks are empty shells written by hand. The only AI in the
+   lifecycle is the one that builds the frontend (Claude).
+2. **Transactional integrity.** Creation + `increments`/`decrements` effects
+   in a single transaction (one commit, rollback on error).
+3. **Secret hygiene.** The JWT secret can be injected through
+   `MONL_JWT_SECRET` (never on disk). No generated artifact or secret is
+   included in the distribution archive.
+4. **Constant-time comparison** of password fingerprints at login.
+5. **Proxy-aware rate limiting** (`MONL_TRUST_PROXY`), without which
+   `X-Forwarded-For` is ignored (no spoofing by a direct client).
+6. **Packaging.** `pyproject.toml`, dependencies pinned with upper bounds,
+   `monl` command via `pip install -e .`.
+7. **Documentation**: `docs/SECURITE.md` (security model), this file.
 
-## Ce qui est fait depuis que cette liste a été écrite
+## Beta exit criteria (Definition of Done) — met
 
-- [x] **Empaquetage en vrai paquet Python** — le code vit dans `src/monl/`,
-      `pip install -e .` fournit la commande `monl`, et `import monl` fonctionne
-      depuis n'importe quel dossier. Le shim et les `sys.path.insert` ont
-      disparu ; la CI rejoue l'installation à chaque push. Voir le point 65.
-      C'était l'item 7 de la liste ci-dessous, et le laisser parmi les chantiers
-      restants faisait passer pour dû ce qui était livré.
-- [x] **Audit offensif généralisé et vert** — `tests/test_audit_offensif_exemples.py` rejoue les
-      trois attaques sur chaque exemple (usurpation de rôle, JWT forgé,
-      élévation de privilège) : aucune ne passe. Les deux signaux étudiés en
-      profondeur sont des faux positifs (route publique, rôle non auto-inscrit),
-      et les `CRITICAL_WARNING` statiques sont couverts au runtime (rôle,
-      ownership, verrou de paiement, intégrité référentielle). Détail et statut
-      dans `docs/SECURITE.md`.
+- [x] `pip install -r requirements.txt` followed by compiling an `.ml` file
+      produces a working backend, with no AI or network dependency.
+- [x] Green test suite, including the offensive audit replayed against all
+      examples (role spoofing, forged JWT, privilege escalation).
+- [x] No secret or generated artifact in the delivered archive.
+- [x] Secret injectable through an environment variable.
+- [x] Multi-step operations are atomic.
 
-## Ce qui reste pour une GA « outil professionnel »
+## What has been done since this list was written
 
-Par ordre de priorité :
+- [x] **Packaged as a real Python package** — the code lives in `src/monl/`,
+      `pip install -e .` provides the `monl` command, and `import monl` works
+      from any directory. The shim and `sys.path.insert` calls are gone; CI
+      repeats the installation on every push. See point 65. This was item 7 on
+      the list below, and leaving it among the remaining tasks would make work
+      already delivered look outstanding.
+- [x] **Generalized offensive audit, passing** —
+      `tests/test_audit_offensif_exemples.py` replays the three attacks against
+      every example (role spoofing, forged JWT, privilege escalation): none
+      succeeds. The two signals studied in depth are false positives (public
+      route, role not self-assigned), and the static `CRITICAL_WARNING`s are
+      covered at runtime (role, ownership, payment lock, referential integrity).
+      Details and status in `docs/SECURITE.md`.
 
-1. ~~**Couche données de production**~~ — **FAIT (chantier A1)** : le même
-   `app.py` choisit SQLite ou PostgreSQL au démarrage via
-   `MONL_DATABASE_URL`; `psycopg` reste optionnel dans `.[postgres]`. Les
-   migrations additives, intégrités, numérotation et décompte de stock sont
-   éprouvés contre un vrai PostgreSQL et la CI lance le service. **Reste
-   ouvert** : pooling de connexions et migrations descendantes destructives.
-2. **Générateur par templates/AST** en remplacement de la construction du code
-   par concaténation de chaînes, avec *golden-file tests* sur la sortie générée
-   et fuzzing du parseur. Le découpage en package (bêta 3) a séparé les couches
-   (`runtime`, `routes`, `schemas`, `sql_schema`) : c'est le préalable, chaque
-   module pouvant migrer vers des templates indépendamment.
-3. ~~**Prêt déploiement**~~ — **FAIT (point 118)** : CORS opt-in par
-   `MONL_CORS_ORIGINS` (`*` refusé au démarrage), logs JSON avec identifiant de
-   requête par `MONL_LOG_FORMAT=json`, healthchecks `/health` et
-   `/health/ready`, `Dockerfile`/`.dockerignore` produits et préservés, refus de
-   démarrer si `MONL_ENV=production` sans `MONL_JWT_SECRET`. Prouvé par une
-   construction d'image réelle. **Reste ouvert** : l'intégration à un
-   gestionnaire de secrets dédié (Vault, SSM) — le secret vient aujourd'hui de
-   l'environnement, ce qui est le contrat attendu par ces gestionnaires mais ne
-   les remplace pas.
-4. ~~**Auth complète**~~ — **FAIT (point 124)** : verrouillage PAR COMPTE (la
-   limitation du point 9 était par IP), réinitialisation de mot de passe
-   (débloquée par le point 122), jetons de rafraîchissement AVEC ROTATION, et
-   double facteur TOTP hors ligne. Le verrou n'est pas un oracle d'existence :
-   compte verrouillé et compte inexistant rendent la même réponse, à 1,28 ms
-   près. **Reste ouvert** : la vérification d'adresse à l'inscription — monl
-   sait désormais envoyer, mais confirmer une adresse est une décision de
-   parcours (que fait-on d'un compte non confirmé ?) qui n'a pas été prise.
-5. **Gouvernance du DSL** : versionner la grammaire, garantir la
-   rétrocompatibilité, politique de dépréciation.
-6. **Isolation d'exécution du code `custom`** (sous-processus à privilèges
-   réduits / conteneur / WASM). **Descendu de la première à cette place, et
-   pourquoi** : cette priorité datait de l'époque où les blocs `custom` étaient
-   remplis par une IA locale — fonction retirée en bêta 1. Le générateur n'y
-   écrit plus que des coquilles vides que l'auteur du projet complète lui-même
-   (`src/monl/generator/sandbox.py`). Isoler du code que l'auteur a écrit
-   sciemment n'est plus la même frontière de sécurité qu'isoler du code produit
-   par un modèle ; l'item reste légitime pour une exécution multi-tenant, il
-   n'est simplement plus le chantier qui débloque le reste.
-7. **Audit/pentest externe** et modèle de menace écrit.
+## What remains for a “professional tool” GA
 
-## Positionnement
+In priority order:
 
-Le cœur de valeur est le **compilateur d'intention backend, déterministe et
-sûr**. La seule IA du cycle de vie est celle qui construit le frontend, contre
-un contrat vérifié. La couche données de production est désormais éprouvée;
-l'effort GA peut donc se concentrer sur le pooling, les migrations
-destructives et les autres chantiers ci-dessus plutôt que sur un « générateur
-d'app complet par IA ».
+1. ~~**Production data layer**~~ — **DONE (workstream A1)**: the same
+   `app.py` chooses SQLite or PostgreSQL at startup through
+   `MONL_DATABASE_URL`; `psycopg` remains optional in `.[postgres]`. Additive
+   migrations, integrity, numbering, and stock count have been tested against
+   a real PostgreSQL, and CI starts the service. **Still open**: connection
+   pooling and destructive down migrations.
+2. **Template/AST-based generator** to replace code construction by string
+   concatenation, with *golden-file tests* on generated output and parser
+   fuzzing. The package split (beta 3) separated the layers (`runtime`,
+   `routes`, `schemas`, `sql_schema`): this is the prerequisite, as each module
+   can migrate to templates independently.
+3. ~~**Deployment-ready**~~ — **DONE (point 118)**: CORS opt-in through
+   `MONL_CORS_ORIGINS` (`*` refused at startup), JSON logs with request ID via
+   `MONL_LOG_FORMAT=json`, health checks `/health` and `/health/ready`,
+   `Dockerfile`/`.dockerignore` generated and preserved, refusal to start if
+   `MONL_ENV=production` without `MONL_JWT_SECRET`. Proven by an actual image
+   build. **Still open**: integration with a dedicated secrets manager (Vault,
+   SSM) — the secret currently comes from the environment, which is the
+   contract these managers expect but does not replace them.
+4. ~~**Complete auth**~~ — **DONE (point 124)**: PER-ACCOUNT lock (the point 9
+   limit was per IP), password reset (unblocked by point 122), refresh tokens
+   WITH ROTATION, and offline TOTP two-factor authentication. The lock is not
+   an existence oracle: a locked account and a nonexistent account return the
+   same response, within 1.28 ms. **Still open**: address verification at
+   signup — monl can now send messages, but confirming an address is a flow
+   decision (what do we do with an unconfirmed account?) that has not been
+   made.
+5. **DSL governance**: version the grammar, ensure backward compatibility,
+   deprecation policy.
+6. **Execution isolation for `custom` code** (lower-privilege subprocess /
+   container / WASM). **Moved down from first place, and why**: this priority
+   dates from when `custom` blocks were filled by local AI — a feature removed
+   in beta 1. The generator now only writes empty shells that the project
+   author completes themselves (`src/monl/generator/sandbox.py`). Isolating
+   code the author knowingly wrote is no longer the same security boundary as
+   isolating code produced by a model; the item remains relevant for
+   multi-tenant execution, it simply is no longer the task that unblocks the
+   rest.
+7. **External audit/penetration test** and written threat model.
+
+## Positioning
+
+The core value is the **deterministic, safe backend intent compiler**. The
+only AI in the lifecycle is the one that builds the frontend against a
+verified contract. The production data layer has now been proven; GA effort
+can therefore focus on pooling, destructive migrations, and the other tasks
+above instead of on an “AI app generator.”

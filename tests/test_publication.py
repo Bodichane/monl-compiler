@@ -73,8 +73,8 @@ def test_le_guide_isole_les_identifiants_du_depot_et_des_commandes():
     assert "~/.pypirc" in guide
     assert "TWINE_PASSWORD" in guide
     assert "--password" in guide
-    assert "jamais dans ce dépôt" in guide
-    assert "Ne pas reconstruire entre les deux envois" in guide
+    assert "never in this repository" in " ".join(guide.split())
+    assert "Do not rebuild between the two uploads" in guide
 
 
 def test_le_guide_fait_vider_dist_avant_de_construire():
@@ -101,7 +101,7 @@ def test_le_guide_fait_vider_dist_avant_de_construire():
         "le nettoyage est écrit APRÈS la construction : il ne protège de rien")
     # La conséquence doit être écrite, sinon la commande passe pour une
     # coquetterie et le premier qui publie sous pression la saute.
-    assert "ne peut plus" in guide or "ne permet pas de republier" in guide, (
+    assert "cannot be reused" in guide or "does not allow republishing" in guide, (
         "le guide ne dit pas qu'un numéro de version envoyé est définitif")
 
 
@@ -185,8 +185,8 @@ def test_le_guide_nomme_le_workflow_et_les_environnements_reels():
     assert ".github/workflows/publication.yml" in guide
     assert "publication.yml" in guide
     assert "| Workflow | `publication.yml` |" in guide
-    assert "| Environnement | `pypi` |" in guide
-    assert "| Environnement | `testpypi` |" in guide
+    assert "| Environment | `pypi` |" in guide
+    assert "| Environment | `testpypi` |" in guide
     assert {"testpypi", "pypi"} <= environnements
     for environnement in environnements:
         assert f"`{environnement}`" in guide
@@ -220,9 +220,9 @@ def test_le_tableau_de_l_editeur_de_confiance_dit_le_vrai_depot():
     # n'en vérifier qu'un laisserait l'instance d'essai diverger, et c'est
     # justement celle qu'on remplit en premier.
     for etiquette, valeur in (
-        ("Projet", project["name"]),
-        ("Propriétaire du dépôt", proprietaire),
-        ("Dépôt", nom_du_depot),
+        ("Project", project["name"]),
+        ("Repository owner", proprietaire),
+        ("Repository", nom_du_depot),
     ):
         ligne = f"| {etiquette} | `{valeur}` |"
         assert guide.count(ligne) == 2, (

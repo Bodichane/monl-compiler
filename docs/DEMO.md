@@ -1,17 +1,17 @@
-# Application de référence — CodexShop
+# Reference Application — CodexShop
 
-CodexShop est la papeterie livrée dans `demo/`. Elle sert de parcours de
-référence pour vérifier la création d'une boutique, une commande et l'évolution
-du schéma avec conservation des données. Sa spécification, son interface et
-ses photos sont versionnées ; le backend et le contrat sont recompilés.
+CodexShop is the stationery shop delivered in `demo/`. It serves as a reference
+path for verifying the creation of a shop, an order, and schema evolution while
+preserving data. Its specification, interface, and photos are versioned; the
+backend and contract are recompiled.
 
-Ce guide décrit le projet actuel. Les vérifications automatisées ci-dessous
-ne constituent pas un retour d'utilisateurs réels.
+This guide describes the current project. The automated checks below do not
+constitute feedback from real users.
 
-## 1. Préparer une copie de travail
+## 1. Prepare a working copy
 
-Depuis la racine du dépôt, avec monl installé dans votre environnement Python
-(`pip install -e '.[dev]'` pour disposer aussi des outils de vérification) :
+From the repository root, with monl installed in your Python environment
+(`pip install -e '.[dev]'` to also get the verification tools):
 
 ```bash
 projet_demo="$(mktemp -d /tmp/codexshop-XXXXXX)"
@@ -22,62 +22,61 @@ monl run "$projet_demo" --check
 monl run "$projet_demo"
 ```
 
-Conservez ce terminal et la valeur de `projet_demo` pour la suite. Pour garder
-la boutique durablement, déplacez le dossier temporaire vers votre espace de
-projets après avoir arrêté le serveur.
+Keep this terminal and the value of `projet_demo` for what follows. To keep
+the shop permanently, move the temporary directory into your project space
+after stopping the server.
 
-Ouvrez `http://127.0.0.1:8000/site` pour la boutique et
-`http://127.0.0.1:8000/docs` pour explorer l'API générée.
-La copie contient sa propre `spec.ml` : une évolution ne modifie donc pas
-l'exemple du dépôt. Compiler directement `demo/spec.ml` vers un autre dossier
-conserverait une référence à la spec d'origine.
+Open `http://127.0.0.1:8000/site` for the shop and
+`http://127.0.0.1:8000/docs` to explore the generated API.
+The copy contains its own `spec.ml`, so an evolution does not modify the
+repository example. Compiling `demo/spec.ml` directly to another directory
+would retain a reference to the original spec.
 
-## 2. Passer une commande
+## 2. Place an order
 
-Dans une copie neuve, le catalogue contient douze produits. Effectuez ce
-parcours dans l'interface :
+In a fresh copy, the catalog contains twelve products. Follow this path in the
+interface:
 
-1. Ajoutez deux **Carnets Lin Ivoire**, à 24 € pièce, au panier.
-2. Créez un compte client avec une adresse e-mail comme **identifiant**,
-   un mot de passe d'au moins huit caractères et une fiche de livraison complète.
-   Utilisez des données fictives pour cette démonstration locale.
-3. Confirmez la commande et retrouvez-la dans votre compte.
-4. Vérifiez le total de **48 €**, la référence `CMD-…`, la date de création
-   et le stock du produit, passé de **18 à 16**.
+1. Add two **Ivory Linen Notebooks**, at €24 each, to the cart.
+2. Create a customer account with an email address as the **identifier**,
+   a password of at least eight characters, and a complete delivery record.
+   Use fictional data for this local demonstration.
+3. Confirm the order and find it in your account.
+4. Check the total of **€48**, the `CMD-…` reference, the creation date,
+   and the product stock, reduced from **18 to 16**.
 
-Le compte d'authentification et la fiche de livraison sont deux objets
-distincts. L'API refuse de créer une commande sans fiche, avec le statut 409.
-L'interface guide la création de cette fiche.
+The authentication account and delivery record are two distinct objects.
+The API refuses to create an order without a record, with status 409.
+The interface guides the creation of this record.
 
-Le total et les sous-totaux sont calculés par le serveur. Pour reproduire les
-appels depuis Swagger, utilisez `/register`, puis `/login`, et collez le
-`access_token` dans **Authorize**. Après création de la fiche `/customer`,
-créez une commande avec `POST /order` :
+The total and subtotals are calculated by the server. To reproduce the calls
+from Swagger, use `/register`, then `/login`, and paste the
+`access_token` into **Authorize**. After creating the `/customer` record,
+create an order with `POST /order`:
 
 ```json
 {"status": "À confirmer"}
 ```
 
-Ajoutez ensuite sa ligne avec `POST /ligneorder` :
+Then add its line with `POST /ligneorder`:
 
 ```json
 {"order_id": 1, "product_id": 1, "quantite": 2}
 ```
 
-Remplacez les identifiants par ceux renvoyés par votre API.
-N'envoyez ni `total`, ni `sousTotal`, ni référence de commande.
+Replace the identifiers with those returned by your API.
+Do not send `total`, `sousTotal`, or an order reference.
 
-Sans `STRIPE_SECRET_KEY`, la demande de paiement répond **503** en nommant la
-configuration manquante. C'est la limite du parcours local : aucune somme n'est
-encaissée. Les lignes réservent déjà du stock ; l'annulation le restitue.
-Le paiement auprès du prestataire et l'expédition après règlement nécessitent
-une validation séparée en environnement de test du prestataire.
+Without `STRIPE_SECRET_KEY`, the payment request responds **503**, naming the
+missing configuration. This is the limit of the local path: no money is
+collected. The lines already reserve stock; cancellation restores it.
+Payment through the provider and shipment after payment require separate
+validation in the provider's test environment.
 
-## 3. Faire évoluer une commande sans la perdre
+## 3. Evolve an order without losing it
 
-Arrêtez le serveur avec `Ctrl+C`. Dans **la copie** `$projet_demo/spec.ml`,
-ajoutez une ligne `    note: Text` juste après `entity Order`, en conservant
-tous les champs existants.
+Stop the server with `Ctrl+C`. In **the copy** `$projet_demo/spec.ml`, add a
+line `    note: Text` just after `entity Order`, keeping all existing fields.
 
 ```bash
 monl run "$projet_demo" --check
@@ -85,87 +84,87 @@ monl diff "$projet_demo"
 monl update "$projet_demo"
 ```
 
-La première commande doit refuser la spec non recompilée. `diff` permet de lire
-le changement prévu, puis `update` régénère le backend et le contrat et produit
-`$projet_demo/docs/FRONTEND_UPDATE_PROMPT.md`, qui mentionne `Order.note`.
-La base `app.db`, les comptes, le secret JWT et les fichiers frontend sont conservés.
+The first command must refuse the spec that has not been recompiled. `diff`
+lets you read the planned change, then `update` regenerates the backend and
+contract and produces `$projet_demo/docs/FRONTEND_UPDATE_PROMPT.md`, which
+mentions `Order.note`.
+The `app.db` database, accounts, JWT secret, and frontend files are preserved.
 
-Pour vérifier la migration côté API avant d'adapter l'interface, démarrez le
-backend depuis le même terminal :
+To verify the migration on the API side before adapting the interface, start
+the backend from the same terminal:
 
 ```bash
 (cd "$projet_demo" && python -m uvicorn app:app --host 127.0.0.1 --port 8000)
 ```
 
-Connectez-vous dans Swagger avec le même compte. La commande existante doit
-garder son identifiant, sa référence, sa date et son total ; `note` vaut `null`.
-Le stock doit rester à 16 et le catalogue à douze produits : redémarrer ne doit
-ni restituer le stock réservé ni dupliquer les données initiales.
+Log in to Swagger with the same account. The existing order must keep its
+identifier, reference, date, and total; `note` is `null`.
+Stock must remain at 16 and the catalog at twelve products: restarting must
+neither restore reserved stock nor duplicate the initial data.
 
-Avec `PUT /order/{id}`, envoyez :
+With `PUT /order/{id}`, send:
 
 ```json
 {"status": "À confirmer", "note": "Livrer le matin"}
 ```
 
-Relisez la commande pour vérifier la note. Puis envoyez deux fois :
+Read the order again to verify the note. Then send twice:
 
 ```json
 {"status": "Annulée", "note": "Livrer le matin"}
 ```
 
-Le stock revient à 18 et y reste. Arrêtez ce serveur après vérification.
+Stock returns to 18 and stays there. Stop this server after verification.
 
-Cette évolution change aussi le formulaire attendu : `note` doit être envoyé
-dans les nouvelles créations et modifications. `update` ne réécrit pas
-l'interface. Utilisez le brief d'évolution pour ajouter sa saisie et son
-affichage au frontend, puis rejouez `monl run "$projet_demo" --check` et le
-parcours de commande. Le test de migration ci-dessous vérifie l'API évoluée ;
-il ne prétend pas adapter ou valider ce nouveau formulaire.
+This evolution also changes the expected form: `note` must be sent in new
+creations and modifications. `update` does not rewrite the interface. Use the
+evolution brief to add its input and display to the frontend, then rerun
+`monl run "$projet_demo" --check` and the order path. The migration test below
+checks the evolved API; it does not claim to adapt or validate this new form.
 
-## 4. Rejouer les vérifications automatiques
+## 4. Rerun the automated checks
 
-Depuis la racine du dépôt :
+From the repository root:
 
 ```bash
 python -m pytest tests/test_demo.py tests/test_demo_cycle.py -q
 ```
 
-Ces tests nécessitent de pouvoir ouvrir des ports locaux. Le smoke test de
-l'interface utilise Node et jsdom ; les diagnostics indiquent leur disponibilité.
+These tests require the ability to open local ports. The interface smoke test
+uses Node and jsdom; the diagnostics indicate their availability.
 
-| Vérification | Preuve automatisée |
+| Check | Automated proof |
 |---|---|
-| Spec, backend, contrat et interface cohérents | `test_demo.py` |
-| Interface autonome et appels API au démarrage | `test_demo.py` |
-| Fiche obligatoire, montant calculé et stock décrémenté | `test_demo_cycle.py` |
-| Commande invisible depuis un autre compte client | `test_demo_cycle.py` |
-| Stock insuffisant refusé sans changement partiel | `test_demo_cycle.py` |
-| Paiement indisponible explicitement sans clé | `test_demo_cycle.py` |
-| Compte, jeton, commande et stock conservés après update | `test_demo_cycle.py` |
-| Nouveau champ utilisable et annulation sans double restitution | `test_demo_cycle.py` |
+| Spec, backend, contract, and interface are consistent | `test_demo.py` |
+| Standalone interface and API calls at startup | `test_demo.py` |
+| Required record, calculated amount, and reduced stock | `test_demo_cycle.py` |
+| Order hidden from another customer account | `test_demo_cycle.py` |
+| Insufficient stock refused without partial change | `test_demo_cycle.py` |
+| Payment explicitly unavailable without a key | `test_demo_cycle.py` |
+| Account, token, order, and stock preserved after update | `test_demo_cycle.py` |
+| New field usable and cancellation without double restoration | `test_demo_cycle.py` |
 
-Les tests travaillent dans des dossiers temporaires. Ils n'appellent aucun
-prestataire de paiement et ne modifient pas votre boutique de travail.
+The tests work in temporary directories. They do not call any payment provider
+and do not modify your working shop.
 
-## 5. Observer un premier utilisateur
+## 5. Observe a first user
 
-Faites essayer la copie initiale à une personne qui ne connaît pas Monl. Donnez
-un objectif (« commander deux carnets puis retrouver la commande ») et observez
-les étapes avant de fournir des explications. Pour le parcours exploitant,
-faites suivre les sections de préparation et d'évolution à un développeur.
+Ask someone unfamiliar with Monl to try the initial copy. Give them a goal
+(“order two notebooks, then find the order”) and observe the steps before
+offering explanations. For the operator path, have a developer follow the
+preparation and evolution sections.
 
-Pour chaque session, relevez :
+For each session, record:
 
-| Tâche | Réussie sans aide ? | Durée | Blocage ou message observé |
+| Task | Completed without help? | Duration | Observed blockage or message |
 |---|---|---|---|
-| Lancer la boutique depuis le guide | À renseigner | À mesurer | À renseigner |
-| Créer un compte et compléter la livraison | À renseigner | À mesurer | À renseigner |
-| Commander et retrouver référence et montant | À renseigner | À mesurer | À renseigner |
-| Comprendre l'indisponibilité du paiement local | À renseigner | À mesurer | À renseigner |
-| Mettre à jour la spec et retrouver la commande | À renseigner | À mesurer | À renseigner |
+| Launch the shop from the guide | To be filled in | To be measured | To be filled in |
+| Create an account and complete delivery details | To be filled in | To be measured | To be filled in |
+| Place an order and find its reference and amount | To be filled in | To be measured | To be filled in |
+| Understand why local payment is unavailable | To be filled in | To be measured | To be filled in |
+| Update the spec and find the order again | To be filled in | To be measured | To be filled in |
 
-Notez la version de Monl et les étapes exactes de reproduction, sans mot de
-passe ni jeton. Corrigez en priorité les blocages qui empêchent de terminer une
-tâche ou font perdre confiance dans le montant, le stock ou la conservation des
-données. Aucun résultat utilisateur n'est encore consigné dans ce guide.
+Note the Monl version and the exact reproduction steps, without any password
+or token. Prioritize fixes for blockages that prevent completing a task or
+undermine confidence in the amount, stock, or data preservation. No user
+results have yet been recorded in this guide.

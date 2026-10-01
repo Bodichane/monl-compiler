@@ -80,3 +80,29 @@ def test_la_regle_dancre_est_bien_celle_de_github():
     assert (ancre_github("110. Rust évalué par un spike mesuré, et écarté")
             == "110-rust-évalué-par-un-spike-mesuré-et-écarté")
     assert ancre_github("42. L'apostrophe disparaît") == "42-lapostrophe-disparaît"
+
+
+RESUME = JOURNAL.parent / "DESIGN_DECISIONS_SUMMARY.md"
+
+
+def _liens_du_resume():
+    return re.findall(r"\[(\d+)\]\(design_decisions\.md#([^)]+)\)",
+                      RESUME.read_text(encoding="utf-8"))
+
+
+def test_le_resume_anglais_suit_le_sommaire_du_journal():
+    """Le journal reste en français ; son résumé anglais en est la carte.
+
+    Une carte qui oublie un point ne se voit pas : elle rend simplement une
+    page plus courte. Les liens du résumé doivent donc être EXACTEMENT ceux
+    du sommaire — un point ajouté au journal sans sa ligne anglaise fait
+    échouer, un lien du résumé qui ne vise plus rien aussi (les liens du
+    sommaire étant eux-mêmes gardés par le test ci-dessus).
+    """
+    _, liens = _titres_et_liens()
+    resume = _liens_du_resume()
+    assert liens, "aucun lien lu dans le sommaire : l'extracteur ne regarde plus rien"
+    manquants = sorted(set(liens) - set(resume), key=lambda lien: int(lien[0]))
+    orphelins = sorted(set(resume) - set(liens), key=lambda lien: int(lien[0]))
+    assert not manquants, f"points du journal absents du résumé anglais : {manquants}"
+    assert not orphelins, f"liens du résumé anglais hors du sommaire : {orphelins}"

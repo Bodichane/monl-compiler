@@ -1,28 +1,19 @@
-# Compatibilités historiques et dépréciations
+# Historical Compatibility and Deprecations
 
-Ce fichier fixe les compatibilités conservées pendant la bêta. Une
-compatibilité n'est supprimée qu'après une période d'avertissement et un test
-de migration.
+This file sets out the compatibility maintained during beta. A compatibility is removed only after a warning period and a migration test.
 
-| Élément | État actuel | Remplacement recommandé |
+| Item | Current state | Recommended replacement |
 |---|---|---|
-| `*.yaml` | Accepté pour les anciennes specs | Utiliser `*.ml` |
-| `landing.mode` / `landing.template` | Acceptés, avertissement à la validation, sans effet sur le backend | Conserver uniquement `landing.brief`, `section` et `question` |
-| `run_claude_code()` | Alias conservé pour compatibilité | Utiliser `run_cli_agent(..., agent="claude-code")` ou `generate_with_cli_agent()` |
-| `generate_with_claude_code()` | Façade conservée | Utiliser `generate_with_cli_agent()` |
+| `*.yaml` | Accepted for older specs | Use `*.ml` |
+| `landing.mode` / `landing.template` | Accepted, warning during validation, no effect on backend | Keep only `landing.brief`, `section`, and `question` |
+| `run_claude_code()` | Alias retained for compatibility | Use `run_cli_agent(..., agent="claude-code")` or `generate_with_cli_agent()` |
+| `generate_with_claude_code()` | Facade retained | Use `generate_with_cli_agent()` |
 
-## Règles de retrait
+## Removal Rules
 
-- Aucun élément ne sera supprimé sans recherche d'usage interne et test de
-  compatibilité.
-- Les avertissements de `landing.mode` et `landing.template` sont déjà émis
-  par le validateur.
-- Les extensions `.yaml` restent compilables tant que des exemples ou projets
-  externes en dépendent.
-- Les alias Claude Code seront retirés seulement après une version bêta
-  annonçant explicitement la rupture.
+- Nothing will be removed without an internal usage search and a compatibility test.
+- Warnings for `landing.mode` and `landing.template` are already emitted by the validator.
+- `.yaml` extensions remain compilable while external examples or projects depend on them.
+- Claude Code aliases will be removed only after a beta version explicitly announces the breaking change.
 
-Les documents `docs/phase_*.md` et `CODEBASE_AUDIT.md` décrivent l'historique
-de conception et des audits datés ; ils ne constituent pas une description
-normative de l'architecture courante. Pour celle-ci, consulter le
-[README](../README.md) et les résultats de la CI.
+The `docs/phase_*.md` documents and `CODEBASE_AUDIT.md` describe design history and dated audits; they are not normative descriptions of the current architecture. For that, consult the [README](../README.md) and CI results.
