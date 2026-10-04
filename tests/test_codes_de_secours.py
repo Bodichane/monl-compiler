@@ -197,7 +197,8 @@ def test_une_nouvelle_serie_invalide_lancienne(tmp_path):
         session, corps = _inscrire(base, "renouvelle@exemple.test")
         anciens = corps["recovery_codes"]
 
-        neufs = session.post(f"{base}/api/auth/recovery-codes", timeout=30)
+        neufs = session.post(f"{base}/api/auth/recovery-codes", timeout=30,
+                             json={"password": ANCIEN})
         assert neufs.status_code == 201
         neufs = neufs.json()["recovery_codes"]
         assert len(neufs) == 8

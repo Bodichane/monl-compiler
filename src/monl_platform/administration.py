@@ -171,9 +171,10 @@ def _codes(magasin: IdentityStore, _service, args) -> int:
     l'exploitant doit laisser une trace qu'on peut relire après coup.
     """
     compte = _compte_ou_sortir(magasin, args.email)
-    codes = magasin.create_recovery_codes(compte["id"])
+    codes = magasin.create_recovery_codes(compte["id"], revoke_access=True)
     evenement("codes_regeneres_par_exploitant", compte=court(compte["id"]))
     print(f"Nouvelle série pour {compte['email']} — l'ancienne ne fonctionne plus.")
+    print("Toutes les sessions sont supprimées et toutes les clés MCP sont révoquées.")
     print("Ces codes ne seront plus jamais affichés :\n")
     for code in codes:
         print(f"  {code}")

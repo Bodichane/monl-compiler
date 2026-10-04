@@ -18,8 +18,9 @@ class IdentityProjectsMixin:
 
     def owns_project(self, user_id: str, project_id: str) -> bool:
         with self._connect() as db:
-            row = db.execute("SELECT 1 FROM projects WHERE user_id = ? AND project_id = ?",
-                             (user_id, project_id)).fetchone()
+            row = db.execute("SELECT 1 FROM projects WHERE user_id = ? AND project_id = ? "
+                             "AND (expires_at IS NULL OR expires_at > ?)",
+                             (user_id, project_id, int(time.time()))).fetchone()
         return bool(row)
 
     def projects(self, user_id: str) -> list[dict[str, Any]]:
@@ -54,6 +55,3 @@ class IdentityProjectsMixin:
                               (user_id,)).fetchall()
             db.execute("DELETE FROM users WHERE id = ?", (user_id,))
         return [row["project_id"] for row in rows]
-
-
-

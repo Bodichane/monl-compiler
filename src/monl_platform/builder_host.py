@@ -32,6 +32,11 @@ def mount_builder_host_routes(application, runtime):
     @application.middleware("http")
     async def route_by_host(request, call_next):
         try:
+            project = runtime.sites.project_for_host(request.headers.get("host"))
+            if project is not None and not runtime.identities.owns_project(
+                    project["user_id"], project["project_id"]):
+                await run_in_threadpool(runtime.sites.stop_project, project["project_id"])
+                return JSONResponse(status_code=404, content={"detail": "Projet introuvable."})
             running = runtime.sites.target_for_host(request.headers.get("host"))
         except SiteNotCompiledError as exc:
             return JSONResponse(status_code=409, content={"detail": str(exc)})

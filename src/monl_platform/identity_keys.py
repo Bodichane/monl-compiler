@@ -11,13 +11,19 @@ from .identity_primitives import IdentityError
 
 
 class IdentityKeysMixin:
-    def create_api_key(self, user_id: str, name: Any) -> dict[str, Any]:
+    def create_api_key(self, user_id: str, name: Any, *, session: str | None = None
+                       ) -> dict[str, Any]:
         label = str(name or "").strip()
         if not 1 <= len(label) <= 80:
             raise IdentityError("Le nom de la clé doit contenir entre 1 et 80 caractères.")
         raw = "monl_" + secrets.token_urlsafe(32)
         key_id, now = uuid.uuid4().hex, int(time.time())
         with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            if session is not None and not db.execute(
+                    "SELECT 1 FROM sessions WHERE user_id = ? AND token_hash = ? "
+                    "AND expires_at > ?", (user_id, self._token_hash(session), now)).fetchone():
+                raise IdentityError("Connectez-vous pour continuer.")
             db.execute("INSERT INTO api_keys VALUES (?, ?, ?, ?, ?, ?, NULL, NULL)",
                        (key_id, user_id, label, raw[:13], self._token_hash(raw), now))
         return {"id": key_id, "name": label, "prefix": raw[:13], "key": raw,
@@ -53,7 +59,4 @@ class IdentityKeysMixin:
                 db.execute("UPDATE api_keys SET last_used_at = ? WHERE id = ?",
                            (now, row["key_id"]))
         return {"id": row["id"], "email": row["email"]} if row else None
-
-
-
 
