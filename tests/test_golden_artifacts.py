@@ -46,6 +46,9 @@ workflow Lire for Reader
 """
 
 # WAL startup now retries within the busy timeout and propagates expiry.
+# POINT 201 : les trois bancs gagnent l'import field_validator dans app.py.
+# monl.json scelle cette empreinte et language_version (point 200).
+# Tous les autres artefacts mesurés restent identiques à l'octet.
 GOLDENS = {
     # CHANTIER A1 : app.py porte le choix de dialecte au démarrage, les
     # migrations PostgreSQL et les intégrités structurées. schema.sql change
@@ -81,7 +84,7 @@ GOLDENS = {
     # POINT 191 : le diff réel ajoute la liste des colonnes oneOf réservées à
     # l'après-paiement et généralise l'UNIQUE boucle du point 89 qui compte les
     # NULL irrécupérables. Aucune route ni aucun contrat ne change ici.
-    "app.py": "73abee9a07ca8094f17019567d1f6c20b3870d8f401091f977044adb846653a5",
+    "app.py": "20e86f3d17c9d0ac5a852f6f73405568cb35c7212e1e5b42132b15ff40fcee95",
     "schema.sql": "244eb93ba9a727aa855bca0a96d76b2a329f8ee69c6b5bf2ba693d4c6eacba1f",
     # `sandbox_ai.py` SORT des empreintes, et ce n'est pas un relâchement : la
     # spec de banc n'a aucun bloc `custom`, donc le module n'est plus produit.
@@ -173,7 +176,7 @@ GOLDENS = {
     # beta.9 puis beta.10 ne montre que `compiler_version` (et le
     # `.jwt_secret`, tiré au hasard, hors de ce test). Cinquième version de
     # suite.
-    "monl.json": "5942766232aacde3f4287fe58ff577829358363a870550cbda25ba04f4c552c7",
+    "monl.json": "ff516193971d82bbd7087f394ed750fbaff7cd8f0d32715a595d95d4602621ab",
 }
 
 # Empreintes de la fixture qui porte réellement `publicWhen` et
@@ -188,11 +191,11 @@ LOOKUP_GOLDENS = {
     # (`recipient_id` dans `_LOOKUP_INDEXES`), et rien d'autre n'a bougé.
     # POINT 191 : même diff runtime que le golden principal — nouvelle liste
     # post-paiement vide ici, et comptage mutualisé avec l'horodatage.
-    "app.py": "b3d5002d96634c1167754500811277ce1861ef715d258b6eb074224781ab47ff",
+    "app.py": "a06f3096b38b79e0ee39a5a3dd4d52a76480f00ddec11194c362b8f74502b731",
     # 0.9.0-beta.9 : monl.json seul, pour la même raison que ci-dessus.
     # POINT 191 : le diff réel ne change que l'empreinte app.py scellée.
     # 0.9.0-beta.10 : monl.json seul, `compiler_version`, comme ci-dessus.
-    "monl.json": "2fdd13adce5561edadcd71758fd596a2cf0fb6676f6a02a3ca31666ce46fc3dd",
+    "monl.json": "dd7ebc63187db1b42b44c0ac122cebcfea32c6dc4e987bb2411afe922a04284b",
 }
 
 
@@ -266,12 +269,12 @@ def _aucun_module_custom_inutile(project_dir: Path):
 # passe requis pour TOTP, la récupération opérateur et leur documentation.
 # Les deux bancs historiques ci-dessus restent inchangés à l'octet près.
 B4_GOLDENS = {
-    'app.py': 'd0c83aaba6657baa55d772c22cce79ec4ccbcb6c61c27246642ee556ab68970d',
+    'app.py': 'f2de4397050bd85a92bdbd7241621edbc3f58e1f41bb63c5523c4f88a628a515',
     'schema.sql': 'b7ce5934827e96aefd45d91677d166da749cd28f7a088568538c1de96db7f570',
     'manage.py': '2720f78d744692f86ac3b2b42ae47fbe3644e522a1006f703a1a8e77c8aab2cb',
     'frontend_contract.json': 'bad9074237ea4aa83fe28c533a2a50978843d7ce419043edf2be0308767568d6',
     'README.md': '2f6f6acf57a40e0e4bd685aa43a1e3477a1e0e5bcee83ab86adb617ebac2290e',
-    'monl.json': '51c9efbd387ef1d957cdc346831faf743eb79a1dcfbaade7190ceeacd0954787',
+    'monl.json': 'b005f57434f4a56dc9f557c02af46e285d5f56467975d1b886d8937cd4391714',
 }
 
 

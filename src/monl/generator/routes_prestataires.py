@@ -184,6 +184,8 @@ class PrestatairesRoutesMixin:
                 else:
                     lignes.append(f"    {field}: Optional[{py_type}] = None")
 
+            lignes.extend(self._required_text_validator(entite, config["fields"]))
+
             existence = sql.cat(
                 sql.kw("SELECT id, "), sql.ident("payment_status"),
                 sql.kw(" FROM "), sql.ident(table),

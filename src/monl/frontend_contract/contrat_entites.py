@@ -1,5 +1,6 @@
 """Le contrat de chaque entité : champs, rôles, ce que le serveur peuple."""
 
+from ..ast_validator.champs import ChampsMixin
 from ..ir import PAYMENT_REF_COLUMN, PAYMENT_STATUS_COLUMN
 from . import champs, roles_de_champs
 
@@ -107,6 +108,7 @@ def _specs_des_entites(entities, fk_placements, lisibles, plans):
                 if borne:
                     champ[f"{nom}_{'length' if borne.portee == 'longueur' else 'value'}"] = \
                         borne.valeur
+            champ.update(_non_blank_constraint(ftype, policy))
             if policy.constraints.unique:
                 champ["unique"] = True
                 champ["unique_note"] = ("valeur unique imposée par la base : une "
@@ -247,3 +249,10 @@ def _specs_des_entites(entities, fk_placements, lisibles, plans):
                      and plans.access_policies[(ent, "Read")].public)),
         }
     return entity_specs
+
+
+def _non_blank_constraint(type_, policy):
+    if (type_ in ChampsMixin.BORNES_TEXTE and policy.constraints.required
+            and not policy.server_generated):
+        return {"non_blank": True}
+    return {}

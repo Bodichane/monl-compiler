@@ -56,7 +56,7 @@ class SocleRuntimeMixin:
             "# API Déterministe Sécurisée par défaut - Ne pas modifier à la main",
             f"from fastapi import FastAPI, HTTPException, Header, Depends, Request{', UploadFile, File' if self.upload_fields else ''}",
             "from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials",
-            "from pydantic import BaseModel, Field",
+            "from pydantic import BaseModel, Field, field_validator",
             # BRIQUE 19 (point 96) : 'Literal' porte les listes de valeurs
             # autorisées dans les schémas Pydantic. Absent, le app.py généré
             # ne démarre pas — même défaut que 're' au point 95, et trouvé

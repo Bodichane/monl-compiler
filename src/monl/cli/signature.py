@@ -103,6 +103,7 @@ def _contract_signature(contract):
             ).hexdigest()
     for entite, spec in sorted((contract.get("entities") or {}).items()):
         for champ in spec.get("fields") or []:
+            contenus.update(_non_blank_signature(entite, champ))
             if champ.get("allowed_values"):
                 contenus[f"choix de {entite}.{champ['name']}"] = hashlib.sha256(
                     "\n".join(champ["allowed_values"]).encode("utf-8")).hexdigest()
@@ -218,3 +219,9 @@ def _contract_signature(contract):
     }
     return (routes, fields, acces, lecture_seule, prealables, verrous,
             contenus, liens, field_types, sections_obligatoires)
+
+
+def _non_blank_signature(entity, field):
+    if field.get("non_blank"):
+        return {f"texte non vide de {entity}.{field['name']}": "strip"}
+    return {}

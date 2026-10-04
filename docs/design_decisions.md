@@ -118,6 +118,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [198](#198-monl-comme-plugin-claude-code-la-cli-plutôt-que-le-mcp-local) monl comme plugin Claude Code ·
 [199](#199-un-compteur-sur-une-fiche-dacteur-frappait-au-hasard) Un compteur sur une fiche d'acteur ·
 [200](#200-la-grammaire-devient-une-promesse-vérifiable) La grammaire devient une promesse vérifiable ·
+[201](#201-un-texte-required-doit-contenir-autre-chose-que-des-espaces) Un texte `required` doit contenir autre chose que des espaces ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -14427,3 +14428,45 @@ reste vert. Les empreintes golden de `monl.json`, elles, changent nécessairemen
 avec ce champ : trois tests rougissent, uniquement sur cet artefact. Ni leurs
 empreintes ni le test golden ne sont retouchés ; cette incompatibilité entre
 les deux contraintes est laissée visible, pas dissimulée par une normalisation.
+
+
+## 201. Un texte `required` doit contenir autre chose que des espaces
+
+**Pourquoi revenir au point 179.** L'issue #117 montre la limite que ce point
+avait laissée écrite : `min 1` compte trois espaces comme trois caractères.
+Le formulaire envoie un titre, la base le reçoit, et la carte n'a toujours
+aucun nom lisible. Une présence ne suffit donc pas à tenir la promesse de
+`required` pour du texte.
+
+**Refuser le vide, sans réécrire la donnée.** Les schémas Pydantic générés
+vérifient `strip()` pour les champs texte déclarés `required`, puis rendent
+la valeur ORIGINALE. `"   "` reçoit 422 avant tout INSERT ou UPDATE ;
+`" a "` est accepté et relu avec ses espaces. Le même schéma protège création
+et modification ; les schémas dédiés à l’après-paiement réutilisent le même
+validateur : aucun contrôle recopié dans les routes. Les types viennent
+de `ChampsMixin.BORNES_TEXTE`, la source du validateur, jamais d'une seconde
+liste. Un texte non `required` garde ses espaces ; un nombre obligatoire à
+zéro reste légitime. `min` et `max` continuent de mesurer la valeur originale.
+
+**La question de `_contract_signature`, posée.** Le contrat décrivait déjà
+les bornes ; il annonce désormais `non_blank` sur ces champs. Son `required`
+existant décrit la présence dans le corps HTTP, même sans règle explicite :
+le confondre avec cette nouvelle contrainte interdirait aussi les espaces des
+champs non `required`. La signature inclut cette promesse dans les contenus
+comparés ; une interface existante doit pouvoir expliquer son nouveau 422.
+Les helpers extraits tiennent les plafonds d'architecture sans les relever.
+
+**Compatibilité, dite.** Le langage et les données stockées ne changent pas,
+mais l'API refuse désormais une entrée auparavant acceptée. C'est un
+resserrement de validation décidé en bêta, une correction de comportement,
+pas une normalisation silencieuse ni une promesse de compatibilité HTTP
+inchangée pour une version stable. Les lignes déjà présentes en base ne sont
+pas réécrites.
+
+**Preuves et contre-épreuve.** Le banc du point 179 tourne sur un vrai serveur :
+espaces refusés en création et modification, valeur précédente conservée après
+le refus, `" a "` relu tel quel, texte non obligatoire et total zéro acceptés.
+Le contrôle désarmé rend rouges les deux refus (`200` au lieu de `422`), puis
+le contrôle restauré rend le banc vert. Les specs du golden sont recompilées ;
+seules les empreintes réellement différentes sont remplacées, y compris
+`monl.json` qui scelle les artefacts et porte la version du langage (point 200).

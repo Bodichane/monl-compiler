@@ -14,6 +14,7 @@ sérieux (point 168).
 """
 
 import contextlib
+import copy
 import io
 import os
 from tempfile import TemporaryDirectory
@@ -24,7 +25,9 @@ import requests
 from monl.app_templates import TEMPLATES
 from monl.ast_validator import MonlAST
 from monl.ast_validator.champs import ChampsMixin
+from monl.cli.signature import _contract_signature
 from monl.dialogue_engine.emission_parts import TYPES_TEXTE, emit_base_rules
+from monl.frontend_contract import build_contract
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
 from tests.support.server import uvicorn_server
@@ -165,26 +168,24 @@ def test_le_serveur_refuse_un_champ_texte_vide(boutique, entete):
 
 def test_le_serveur_refuse_aussi_un_champ_qui_n_a_que_des_espaces(
         boutique, entete):
-    """Une chaîne d'espaces n'est pas vide au sens de la longueur — et une
-    fiche nommée « " " » est aussi illisible qu'une fiche sans nom. Ce que
-    monl fait ici est ÉNONCÉ plutôt que supposé : il ne le refuse PAS."""
+    """Le vide après strip est refusé avant insertion."""
     reponse = requests.post(f"{boutique}/customer", headers=entete,
                             json={"displayName": "   "}, timeout=10)
-    assert reponse.status_code == 200, reponse.text
+    assert reponse.status_code == 422, reponse.text
 
 
 def test_le_serveur_accepte_toujours_une_fiche_nommee(boutique, entete):
     """La contre-épreuve qui distingue un plancher juste d'un plancher qui
     refuse tout."""
     reponse = requests.post(f"{boutique}/customer", headers=entete,
-                            json={"displayName": "Naya"}, timeout=10)
+                            json={"displayName": " a "}, timeout=10)
     assert reponse.status_code == 200, reponse.text
     # Relu EN BASE : un code de retour dit que la route a répondu, jamais que
     # la valeur est arrivée.
     fiche = requests.get(f"{boutique}/customer/{reponse.json()['id']}",
                          headers=entete, timeout=10)
     assert fiche.status_code == 200, fiche.text
-    assert fiche.json()["data"]["displayName"] == "Naya"
+    assert fiche.json()["data"]["displayName"] == " a "
 
 
 def test_un_total_a_zero_reste_accepte(boutique, entete):
@@ -193,3 +194,48 @@ def test_un_total_a_zero_reste_accepte(boutique, entete):
     reponse = requests.post(f"{boutique}/order", headers=entete,
                             json={"total": 0, "status": "nouvelle"}, timeout=10)
     assert reponse.status_code == 200, reponse.text
+
+
+def test_modification_refuse_le_vide_sans_changer_la_valeur(boutique, entete):
+    creation = requests.post(f"{boutique}/customer", headers=entete,
+                             json={"displayName": " a "}, timeout=10)
+    assert creation.status_code == 200, creation.text
+    url = f"{boutique}/customer/{creation.json()['id']}"
+    refus = requests.put(url, headers=entete, json={"displayName": "   "}, timeout=10)
+    assert refus.status_code == 422, refus.text
+    assert requests.get(url, headers=entete, timeout=10).json()["data"]["displayName"] == " a "
+    accepte = requests.put(url, headers=entete, json={"displayName": " a "}, timeout=10)
+    assert accepte.status_code == 200, accepte.text
+    assert requests.get(url, headers=entete, timeout=10).json()["data"]["displayName"] == " a "
+
+
+def test_texte_non_required_reste_accepte(boutique, entete):
+    creation = requests.post(f"{boutique}/order", headers=entete,
+                             json={"total": 0, "status": "   "}, timeout=10)
+    assert creation.status_code == 200, creation.text
+    url = f"{boutique}/order/{creation.json()['id']}"
+    assert requests.get(url, headers=entete, timeout=10).json()["data"]["status"] == "   "
+    update = requests.put(url, headers=entete, json={"total": 0, "status": "   "}, timeout=10)
+    assert update.status_code == 200, update.text
+    assert requests.get(url, headers=entete, timeout=10).json()["data"]["status"] == "   "
+
+
+def test_contrat_annonce_le_non_vide_et_la_signature_le_voit(tmp_path):
+    # Sans min 1 : la promesse appartient à required, pas au dialogue seul.
+    spec = _spec(BOUTIQUE).replace("rule Customer.displayName min 1", "")
+    with contextlib.redirect_stdout(io.StringIO()):
+        ast = MonlAST(parse_monl_string(spec)).validate_and_audit()
+        generator = MonlSecureGenerator(ast, output_dir=str(tmp_path))
+        contract = build_contract(ast, generator)
+    fields = {f"{entity}.{field['name']}": field
+              for entity, model in contract["entities"].items()
+              for field in model["fields"]}
+    assert fields["Customer.displayName"]["non_blank"] is True
+    assert "non_blank" not in fields["Order.status"]
+    assert "non_blank" not in fields["Order.total"]
+    previous = copy.deepcopy(contract)
+    for model in previous["entities"].values():
+        for field in model["fields"]:
+            field.pop("non_blank", None)
+    assert _contract_signature(previous) != _contract_signature(contract)
+    assert "@field_validator('displayName')" in "\n".join(generator._generate_schema_lines())
