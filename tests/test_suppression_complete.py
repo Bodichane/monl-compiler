@@ -150,7 +150,11 @@ def test_suppression_complete_et_sites_voisins_preserves(tmp_path, monkeypatch, 
         assert _get(vivant.port, "/openapi.json")[0] == 200
         _supprimer(mode, app, base, session, alice, cible)
         for _ in range(200):
-            if vivant.process.poll() is not None and not dossier.exists():
+            # La purge peut encore retirer les lignes en base après le dossier.
+            if (vivant.process.poll() is not None and not dossier.exists()
+                    and app.state.store.get_project(cible["project_id"]) is None
+                    and not any(projet["project_id"] == cible["project_id"]
+                                for projet in identites.projects(alice["id"]))):
                 break
             time.sleep(0.05)
         assert vivant.process.poll() is not None, "Le processus du site supprimé est encore vivant"
