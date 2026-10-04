@@ -10,6 +10,8 @@ from collections.abc import Iterator
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .sqlite_database import activate_wal
+
 BUILD_STATES = ("en_attente", "en_cours", "reussie", "echouee")
 
 
@@ -36,10 +38,10 @@ class StoreCoreMixin:
         connection = sqlite3.connect(
             self.database, check_same_thread=False, timeout=30
         )
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys = ON")
-        connection.execute("PRAGMA journal_mode = WAL")
         try:
+            connection.row_factory = sqlite3.Row
+            connection.execute("PRAGMA foreign_keys = ON")
+            activate_wal(connection)
             with connection:
                 yield connection
         finally:

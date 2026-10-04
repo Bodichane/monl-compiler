@@ -8,6 +8,8 @@ import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
 
+from .sqlite_database import activate_wal
+
 
 class IdentityDatabaseMixin:
     def __init__(self, workspace: str | os.PathLike[str]):
@@ -42,10 +44,10 @@ class IdentityDatabaseMixin:
         l'exécution, pas relue dans la connexion.
         """
         connection = sqlite3.connect(self.path, timeout=10)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys = ON")
-        connection.execute("PRAGMA journal_mode = WAL")
         try:
+            connection.row_factory = sqlite3.Row
+            connection.execute("PRAGMA foreign_keys = ON")
+            activate_wal(connection)
             with connection:
                 yield connection
         finally:

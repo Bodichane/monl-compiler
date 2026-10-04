@@ -45,6 +45,7 @@ workflow Lire for Reader
     Read Message
 """
 
+# WAL startup now retries within the busy timeout and propagates expiry.
 GOLDENS = {
     # CHANTIER A1 : app.py porte le choix de dialecte au démarrage, les
     # migrations PostgreSQL et les intégrités structurées. schema.sql change
@@ -80,7 +81,7 @@ GOLDENS = {
     # POINT 191 : le diff réel ajoute la liste des colonnes oneOf réservées à
     # l'après-paiement et généralise l'UNIQUE boucle du point 89 qui compte les
     # NULL irrécupérables. Aucune route ni aucun contrat ne change ici.
-    "app.py": "e6d7a32d44f8bbbf4efdf44c583e819d09550b9d37972169786310e5f482934f",
+    "app.py": "73abee9a07ca8094f17019567d1f6c20b3870d8f401091f977044adb846653a5",
     "schema.sql": "244eb93ba9a727aa855bca0a96d76b2a329f8ee69c6b5bf2ba693d4c6eacba1f",
     # `sandbox_ai.py` SORT des empreintes, et ce n'est pas un relâchement : la
     # spec de banc n'a aucun bloc `custom`, donc le module n'est plus produit.
@@ -172,7 +173,7 @@ GOLDENS = {
     # beta.9 puis beta.10 ne montre que `compiler_version` (et le
     # `.jwt_secret`, tiré au hasard, hors de ce test). Cinquième version de
     # suite.
-    "monl.json": "1ad805d3d39fde486cc59027a2b550d169c3ea699eb040cc24650221db2952bb",
+    "monl.json": "1747b4370d1ca32d6418c223682381f447fe06fb8b9b63930fadf5117efa3400",
 }
 
 # Empreintes de la fixture qui porte réellement `publicWhen` et
@@ -187,11 +188,11 @@ LOOKUP_GOLDENS = {
     # (`recipient_id` dans `_LOOKUP_INDEXES`), et rien d'autre n'a bougé.
     # POINT 191 : même diff runtime que le golden principal — nouvelle liste
     # post-paiement vide ici, et comptage mutualisé avec l'horodatage.
-    "app.py": "8d7a05a4ddb1865da98d57c73194a977aaf5fa3a47fe4700604e75eec141d885",
+    "app.py": "b3d5002d96634c1167754500811277ce1861ef715d258b6eb074224781ab47ff",
     # 0.9.0-beta.9 : monl.json seul, pour la même raison que ci-dessus.
     # POINT 191 : le diff réel ne change que l'empreinte app.py scellée.
     # 0.9.0-beta.10 : monl.json seul, `compiler_version`, comme ci-dessus.
-    "monl.json": "4dceae5b369c90a0ce30e1c7f4129e9dd468964e34526e938c038e5d8d493842",
+    "monl.json": "c93af661afb3653492a74ed46991239a8e9f2995a3d139e8a25a41ba235a1da3",
 }
 
 
@@ -265,12 +266,12 @@ def _aucun_module_custom_inutile(project_dir: Path):
 # passe requis pour TOTP, la récupération opérateur et leur documentation.
 # Les deux bancs historiques ci-dessus restent inchangés à l'octet près.
 B4_GOLDENS = {
-    'app.py': '6b1cdcc7829698115e96d1ea320879d28fb05f161c0d3a3c9b425f98f6a52041',
+    'app.py': 'd0c83aaba6657baa55d772c22cce79ec4ccbcb6c61c27246642ee556ab68970d',
     'schema.sql': 'b7ce5934827e96aefd45d91677d166da749cd28f7a088568538c1de96db7f570',
     'manage.py': '2720f78d744692f86ac3b2b42ae47fbe3644e522a1006f703a1a8e77c8aab2cb',
     'frontend_contract.json': 'bad9074237ea4aa83fe28c533a2a50978843d7ce419043edf2be0308767568d6',
     'README.md': '2f6f6acf57a40e0e4bd685aa43a1e3477a1e0e5bcee83ab86adb617ebac2290e',
-    'monl.json': 'b6ac0a85a56c7d97ef2ca489b2ccfaae111a50d6587f93b1c94897a8f8defd29',
+    'monl.json': '7a80a979205bb5e3f710ad12f905168ba5f50cb24de71214f6139dce8b2e2101',
 }
 
 

@@ -171,6 +171,14 @@ def test_le_demarrage_survit_a_une_base_deja_verrouillee():
                 "le serveur est mort sur une base verrouillée :\n"
                 + "".join(journal[-20:]))
             assert _wait(port), "le serveur n'a pas démarré"
+            # Survivre ne suffit pas : l'ancien repli démarrait aussi, mais en
+            # renonçant au WAL. Le pragma réessaie désormais dans le budget de
+            # busy_timeout — la base doit donc être passée en WAL.
+            mode = sqlite3.connect(chemin)
+            try:
+                assert mode.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+            finally:
+                mode.close()
         finally:
             proc.terminate()
             try:
