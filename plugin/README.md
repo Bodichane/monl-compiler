@@ -1,46 +1,45 @@
 # monl — Claude Code plugin
 
-monl compiles a declarative specification (a `.ml` file) into a complete
-backend: a SQLite schema, a FastAPI REST API, JWT authentication, role-based
-and record-level access control, and a contract describing the interface to
-build. The compiler is deterministic and uses no AI.
+Describe your app in plain words, and Claude builds a working backend with a database, API, accounts and permissions — then checks that it runs.
 
-This plugin teaches Claude to write that specification from a user's
-requirements, compile it, prove the result against a real server, and then
-build the application's interface.
+## Try it
 
-## Skills
+```text
+/monl-compiler:monl-spec <what your app should do>
+```
 
-- **`monl-spec`** — from requirements to a verified backend: write `spec.ml`,
-  compile it, read compiler rejections, run verification, and evolve the spec.
-  Invoke with: `/monl-compiler:monl-spec <what the application should do>`.
-- **`monl-showcase`**, **`monl-design-system`**, **`monl-ui-patterns`**,
-  **`monl-commerce`**, **`monl-operations`** — build a compiled project's
-  interface in accordance with its contract.
+For example:
 
-## What the plugin runs, writes, and downloads
+- A booking site with customer accounts and appointment reservations.
+- A small shop with cart and payment.
+- A team task board with assignments and progress tracking.
 
-The plugin contains no hooks, MCP servers, or scripts. The `monl-spec` skill
-asks Claude to run the compiler's command-line interface:
+## What happens
 
-- `monl`, if the user has already installed it; otherwise
-  `uvx --from monl-compiler==0.9.0b10 monl`, which **downloads from PyPI** the
-  `monl-compiler` package at that exact version and its dependencies;
-- it writes `spec.ml` and the compiled directory **in the user's project**;
-- verification (`monl run --check`) starts an ephemeral **local** server on a
-  fresh database for the duration of a test, then stops it.
+1. Claude writes a short spec file describing your app.
+2. monl compiles that file into the backend.
+3. monl starts the backend on a local test server and checks that it works.
 
-No data is sent elsewhere: the compiler makes no network calls. The
-`reference/` directory contains exact copies of the language examples and
-grammar, which the skill reads.
+Under the hood: FastAPI, SQLite and JWT; the compiler is deterministic and uses no AI.
+
+## Then build the interface
+
+Once the backend runs, five skills help Claude build its screens from what the backend actually allows: `monl-showcase`, `monl-design-system`, `monl-ui-patterns`, `monl-commerce` and `monl-operations`. Claude picks the ones that fit your app.
+
+## What the plugin runs, writes and downloads
+
+The plugin contains no hooks, MCP servers or scripts. The `monl-spec` skill asks Claude to run the compiler:
+
+- `monl` if already installed, or `uvx --from monl-compiler==0.9.0b10 monl`, which downloads that exact package version and its dependencies from PyPI.
+- It writes `spec.ml` and the compiled directory only in your project.
+- Verification (`monl run --check`) starts a temporary local server with a fresh database, then stops it after the test.
+
+The compiler makes no network calls and sends no data elsewhere. The skill reads `reference/`, which contains exact copies of the language examples and grammar.
 
 ## Prerequisites
 
-An environment that can run commands — typically Claude Code — with
-[uv](https://docs.astral.sh/uv/) or Python 3.10+ and `pip`.
+An environment that can run commands, typically Claude Code, with [uv](https://docs.astral.sh/uv/) or Python 3.10+ and `pip`.
 
 ## License and source
 
-Functional Source License 1.1, Apache 2.0 Future License
-(`LicenseRef-FSL-1.1-ALv2`). Source code, documentation, and examples:
-<https://github.com/Bodichane/monl-compiler>.
+Functional Source License 1.1, Apache 2.0 Future License (`LicenseRef-FSL-1.1-ALv2`); [source, documentation and examples](https://github.com/Bodichane/monl-compiler).

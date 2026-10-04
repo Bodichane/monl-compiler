@@ -8,7 +8,7 @@
     {
       "name": "monl-compiler",
       "source": "./plugin",
-      "description": "Write a monl spec, compile it into a verified backend, then build its interface."
+      "description": "Describe your app in plain words. Claude helps build and test a working backend with a database, API, accounts and permissions."
     }
   ]
 }
