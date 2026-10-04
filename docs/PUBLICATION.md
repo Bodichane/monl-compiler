@@ -196,7 +196,7 @@ python -m twine upload --repository testpypi dist/*
 python -m pip install \
   --index-url https://test.pypi.org/simple/ \
   --extra-index-url https://pypi.org/simple/ \
-  monl-compiler==0.9.0-beta.10
+  monl-compiler==1.0.0-rc.1
 python -m twine upload dist/*
 ```
 A first release goes to TestPyPI. After the test installation, run the proof

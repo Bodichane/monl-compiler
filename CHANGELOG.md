@@ -1,13 +1,60 @@
 # Changelog
 
-## Unreleased
+## 1.0.0-rc.1 — A verifiable promise
+
+This first release candidate declares language version 1 and the interfaces
+promised for 1.0. Security changes cover both the platform and generated
+backends, with executable witnesses. The repository documentation is now
+in English. Design points 197 to 200 accompany this release.
+
+### Security
+
+- **Platform revocation reaches every access method**: security changes revoke
+  sessions and API/MCP access as appropriate. Project and account deletion
+  removes owned resources and stops hosted sites; deletion requires
+  reauthentication.
+- **Generated backends require the password for TOTP changes**. `token_version`
+  invalidates existing tokens after password changes, password resets and
+  TOTP changes. `manage.py totp-reset` provides operator recovery.
+- **The offensive audit of the examples remains active** (point 197), replayed
+  by CI against real servers with explicit expected responses and token and
+  session-cookie witnesses.
+- **SECURITE.md describes the delivered backend**, including its limits.
+
+### A spec can be refused
+
+- **Counters cannot target an entity sharing an actor's name** (point 199).
+  Account identifiers do not identify rows in that entity. Compilation refuses
+  `increments`/`decrements` on such a target; the social example now targets
+  the post score and limits reports to one per account and post.
+
+### Commands and stability
+
+- **`monl init` exits without a traceback** on EOF, interruption or three
+  invalid answers.
+- **SQLite WAL activation waits at startup** within the busy timeout instead
+  of failing at once when two workers start on a fresh database. The platform
+  reports the error when that timeout expires; a generated backend keeps its
+  rule of never failing startup and stays on SQLite's default journal.
+- **Language version 1 is explicit** in the CLI and `monl.json` (point 200).
+  A grammar ratchet guards vocabulary changes; STABILITY.md defines the
+  promised interfaces, breaking-change policy and deprecation period.
+
+### Claude Code and documentation
 
 - **Claude Code plugin** (point 198): `claude plugin marketplace add
   Bodichane/monl-compiler` then `claude plugin install monl-compiler@monl-compiler`.
-  The `monl-spec` skill takes you from a need to a backend verified by the
-  command line; the five interface skills follow.
-- **Offensive audit of the examples held** (point 197): replayed by CI against
-  a real server, with the exact expected code; token and session cookie witnesses.
+  The `monl-spec` skill takes a need to a backend verified by the command line;
+  the five interface skills follow.
+- **The plugin moves to this version after publication**; its manifest and
+  compiler pins retain the published beta until then.
+- **Repository documentation is in English**.
+
+1721 tests, 23 declared skips (all unrequested PostgreSQL integration tests),
+clean `ruff`. Across the three golden specs, changing the compiler version
+changes only `compiler_version` in `monl.json`. The wheel was built, checked
+with `twine check`, installed in a fresh venv outside the repository and
+exercised end to end (compile, backend, platform) before tagging.
 
 ## 0.9.0-beta.10 — What the user gets
 

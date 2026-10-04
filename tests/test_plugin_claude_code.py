@@ -40,18 +40,23 @@ COPIES = {
 }
 
 
-def test_le_plugin_suit_la_version_du_paquet():
-    assert Version(MANIFESTE["version"]) == VERSION_PAQUET == Version(monl.__version__)
+def test_le_plugin_ne_devance_jamais_le_paquet():
+    """Le plugin épingle une version PUBLIÉE : le répertoire d'Anthropic relit
+    main, et une épingle vers une version absente de PyPI casserait chaque
+    installation. Il suit donc le paquet avec un temps de retard — jamais
+    d'avance — et rattrape la version après la publication."""
+    assert Version(monl.__version__) == VERSION_PAQUET
+    assert Version(MANIFESTE["version"]) <= VERSION_PAQUET
 
 
-def test_chaque_version_epinglee_par_le_plugin_est_celle_du_paquet():
+def test_chaque_version_epinglee_par_le_plugin_est_celle_de_son_manifeste():
     textes = [*COMPETENCES, PLUGIN / "README.md"]
     epinglees = [Version(v) for chemin in textes
                  for v in re.findall(r"monl-compiler==([0-9][^\s`\"']*)",
                                      chemin.read_text(encoding="utf-8"))]
     # Sans épinglage trouvé, la règle ne regarderait rien.
     assert len(epinglees) >= 2, "versions épinglées introuvables"
-    assert set(epinglees) == {VERSION_PAQUET}, epinglees
+    assert set(epinglees) == {Version(MANIFESTE["version"])}, epinglees
 
 
 def test_le_catalogue_designe_le_plugin_sous_le_meme_nom():
