@@ -157,7 +157,7 @@ form.onsubmit=async event=>{event.preventDefault();error.className='form-error';
   throw new Error(detail);}
  if(mode==='recover'){const adresse=email.value;basculer('login');email.value=adresse;
   document.querySelector('#code').value='';password.value='';
-  succes.textContent='Mot de passe changé, et vos autres sessions ont été fermées. Connectez-vous avec le nouveau mot de passe.';
+  succes.textContent='Mot de passe changé, toutes les sessions fermées et toutes les clés MCP révoquées. Connectez-vous avec le nouveau mot de passe.';
   succes.className='form-succes show';password.focus();return;}
  const next=new URLSearchParams(location.search).get('next');location.href=next&&next.startsWith('/')&&!next.startsWith('//')?next:'/console';
  }catch(e){error.textContent=e.message;error.className='form-error show';}finally{button.disabled=false;form.removeAttribute('aria-busy');}};
@@ -171,7 +171,9 @@ ACCOUNT_BODY = f"""
 <article class="card account-panel" id="panneau-codes">
 <div class="panel-head"><div><h2>Codes de secours</h2>
 <p class="muted">Le seul moyen de reprendre la main si vous perdez votre mot de passe.</p></div>
+<input id="mdp-codes" type="password" autocomplete="current-password" aria-label="Mot de passe actuel" placeholder="Mot de passe actuel">
 <button class="secondary" id="regenerer-codes" type="button">Générer une nouvelle série</button></div>
+<p class="muted">Mot de passe actuel obligatoire. Les autres sessions seront fermées ; les clés MCP restent valides. Indisponible pour les comptes OAuth.</p>
 <p class="muted" id="etat-codes">…</p>
 <div id="codes-affiches"></div>
 <div class="form-error" id="erreur-codes" role="alert"></div></article>
@@ -200,7 +202,8 @@ async function chargerCodes(){try{const d=await json('/api/auth/recovery-codes')
  etatCodes.textContent=d.remaining?`${d.remaining} code${d.remaining>1?'s':''} encore utilisable${d.remaining>1?'s':''}. Ils ne sont pas relisibles : générer une nouvelle série remplace l'ancienne.`:"Aucun code utilisable. Sans mot de passe et sans code, ce compte serait définitivement inaccessible — générez une série maintenant.";
  etatCodes.className=d.remaining?'muted':'codes-manquants';}catch(e){etatCodes.textContent='';}}
 document.querySelector('#regenerer-codes').onclick=async()=>{erreurCodes.className='form-error';
- try{const d=await json('/api/auth/recovery-codes',{method:'POST'});
+ try{const d=await json('/api/auth/recovery-codes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:document.querySelector('#mdp-codes').value})});
+  document.querySelector('#mdp-codes').value='';
   affiches.innerHTML='<p class="codes-avis"><b>Notez-les maintenant.</b> Ils ne seront plus jamais affichés, et l\\'ancienne série ne fonctionne plus. Chaque code ne sert qu\\'une fois.</p><div class="codes-liste">'+d.recovery_codes.map(c=>`<code>${esc(c)}</code>`).join('')+'</div>';
   chargerCodes();}catch(e){erreurCodes.textContent=e.message;erreurCodes.className='form-error show';}};
 document.querySelector('#logout').onclick=async()=>{await fetch('/api/auth/logout',{method:'POST'});location.href='/';};

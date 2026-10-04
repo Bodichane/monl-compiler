@@ -65,9 +65,15 @@ def mount_api_routes(
         return {"remaining": identities.count_recovery_codes(user["id"])}
 
     @application.post("/api/auth/recovery-codes", status_code=201)
-    def regenerer_codes(request: Request):
+    async def regenerer_codes(request: Request):
         user = _require_user(request, identities)
-        codes = identities.create_recovery_codes(user["id"])
+        _rate_limit(request, identities, "regenerer_codes", user["id"], 5, 60)
+        payload = await _json_body(request)
+        if not identities.authenticate(user["email"], payload.get("password")):
+            raise HTTPException(status_code=403,
+                                detail="Mot de passe incorrect : les codes n'ont pas été régénérés. Les comptes OAuth ne peuvent pas régénérer de codes.")
+        codes = identities.create_recovery_codes(
+            user["id"], session=request.cookies.get("monl_session"))
         evenement("codes_regeneres", compte=court(user["id"]))
         return {"recovery_codes": codes}
 
@@ -160,10 +166,13 @@ def mount_api_routes(
         user = _require_user(request, identities)
         payload = await _json_body(request)
         try:
-            cle = identities.create_api_key(user["id"], payload.get("name"))
+            cle = await run_in_threadpool(
+                identities.create_api_key, user["id"], payload.get("name"),
+                session=request.cookies.get("monl_session"))
             evenement("cle_creee", compte=court(user["id"]), cle=court(cle["id"]))
             return cle
         except IdentityError as exc:
+            _require_user(request, identities)
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @application.delete("/api/keys/{key_id}", status_code=204)

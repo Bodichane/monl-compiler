@@ -37,6 +37,8 @@ def _slug(name, project_id):
 
 
 def _identity_project(identities, user_id, project_id):
+    if not identities.owns_project(user_id, project_id):
+        return None
     for project in identities.projects(user_id):
         if project["project_id"] == project_id:
             return project

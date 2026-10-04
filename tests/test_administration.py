@@ -278,8 +278,8 @@ def test_tout_geste_qui_ecrit_laisse_une_trace(tmp_path):
                            timeout=30).json()["id"]
 
     gestes = {
-        "codes_regeneres_par_exploitant": ("codes", "trace@exemple.test"),
         "cle_revoquee_par_exploitant": ("revoquer-cle", cle),
+        "codes_regeneres_par_exploitant": ("codes", "trace@exemple.test"),
         "compte_supprime_par_exploitant": ("supprimer-compte", "trace@exemple.test",
                                            "--confirmer"),
     }
@@ -358,6 +358,8 @@ def test_les_actions_de_la_cli_sont_aussi_verifiees_dans_le_processus(tmp_path, 
     assert len(codes) == 8
     assert magasin.consume_recovery_code(
         user["email"], codes[0], "Nouveau-MotDePasse-2026")
+    assert magasin.api_key_user(key["key"]) is None
+    key = magasin.create_api_key(user["id"], "nouveau poste")
 
     assert administration._prolonger(
         magasin, service, Namespace(projet=project_id, jours=2, jamais=False)
