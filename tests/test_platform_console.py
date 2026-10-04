@@ -10,6 +10,7 @@ import requests
 import uvicorn
 
 from monl_platform.app import create_app
+from monl_platform.paths import project_directory
 
 SPEC = """app ConsoleWeb
 
@@ -136,7 +137,7 @@ def test_la_console_compile_puis_demarre_l_api_du_projet(running_platform):
     assert arret.status_code == 200 and arret.json()["stopped"] is True
 
 
-def test_demarrer_sans_compiler_est_refuse_en_le_disant(running_platform):
+def test_demarrer_sans_compiler_est_refuse_en_le_disant(running_platform, tmp_path):
     """La contre-épreuve du point 162 : le démarrage EXIGE une compilation.
 
     Sans elle, un ``_require_site`` permissif laisserait uvicorn mourir sur un
@@ -147,6 +148,11 @@ def test_demarrer_sans_compiler_est_refuse_en_le_disant(running_platform):
     session = _register(base, "sans-compilation@example.test")
     cree = session.post(f"{base}/api/compile", json={"spec": SPEC}, timeout=10)
     project_id = cree.json()["id"]
+
+    # Un backend absent doit toujours être refusé, même avec un manifeste.
+    compte = session.get(f"{base}/api/auth/me", timeout=10).json()["id"]
+    dossier = project_directory(tmp_path / "projects", compte, project_id)
+    (dossier / "app.py").unlink()
 
     refus = session.post(f"{base}/api/projects/{project_id}/start", timeout=30)
 

@@ -164,7 +164,7 @@ ROUTES_API: list[tuple[str, str, str]] = [
     ("POST", "/api/keys", "Crée une clé MCP affichée une seule fois."),
     ("DELETE", "/api/keys/{key_id}", "Révoque définitivement une clé MCP."),
     ("POST", "/api/validate", "Parseur et audit réels, sans rien écrire."),
-    ("POST", "/api/compile", "Compile et rend un manifeste (201)."),
+    ("POST", "/api/compile", "Compile dans le dossier privé et rend un manifeste (201), prêt pour /start."),
     ("GET", "/api/projects/{project_id}", "Manifeste et résumé d'une compilation."),
     ("GET", "/api/projects/{project_id}/contract", "Le contrat frontend complet."),
     ("GET", "/api/projects/{project_id}/download", "Archive ZIP, sans le secret JWT. Ouverte par la session OU par une clé MCP en Bearer."),
@@ -182,7 +182,7 @@ ROUTES_API: list[tuple[str, str, str]] = [
 OUTILS_MCP: list[tuple[str, str]] = [
     ("monl_list_templates", "Découvrir les modèles métier."),
     ("monl_validate_spec", "Les erreurs du vrai parseur et de l'audit."),
-    ("monl_compile_backend", "Compiler, et recevoir l'identifiant du projet."),
+    ("monl_compile_backend", "Compiler un projet prêt pour /start, et recevoir son identifiant."),
     ("monl_list_projects", "Retrouver ses projets et leur adresse de téléchargement."),
     ("monl_inspect_contract", "Lire le manifeste et le contrat complet."),
     ("monl_diff_spec", "Ce qu'une spec nouvelle changerait, sans rien écrire."),
