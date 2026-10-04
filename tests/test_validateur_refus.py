@@ -1188,3 +1188,39 @@ def test_sommer_un_champ_client_reste_permis_hors_paiement():
                                "entity Commande\n    total: Money\n    nbArticles: Integer")
     assert _valide(spec.format(
         regles="rule Commande.nbArticles sumOf Ligne.quantite"))
+
+
+# Issue #89 : un compteur sur une entité qui porte le nom d'un acteur. Ses
+# lignes ne sont liées à aucun compte, alors que les clés `membre_id` lues
+# par un client portent un id de COMPTE : mesuré sur 03_reseau_social,
+# signaler l'auteur d'un post faisait baisser la réputation du signaleur.
+SPEC_COMPTEUR_ACTEUR = """app T
+
+entity {cible}
+    nom: String
+    reputation: Integer
+
+entity Signalement
+    motif: String
+
+relation {cible} hasMany Signalement
+
+actor Membre selfRegister
+
+rule Signalement.Create decrements {cible}.reputation by 10
+
+workflow W for Membre
+    Create {cible}
+    Create Signalement
+"""
+
+
+def test_un_compteur_sur_une_entite_acteur_est_refuse():
+    with pytest.raises(ASTValidationError) as refus:
+        _valide(SPEC_COMPTEUR_ACTEUR.format(cible="Membre"))
+    assert "'Membre' est aussi un acteur" in str(refus.value)
+
+
+def test_le_meme_compteur_sur_une_entite_metier_compile():
+    """Témoin : seule la cible change de nom, et la règle compile."""
+    assert _valide(SPEC_COMPTEUR_ACTEUR.format(cible="Profil"))

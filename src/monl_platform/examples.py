@@ -214,13 +214,13 @@ COMMUNAUTE = """app FilCommun
 
 entity Membre
     pseudo: String
-    reputation: Integer
 
 entity Message
     contenu: Text
     auteur: String
     statut: String
     jaimes: Integer
+    score: Integer
     publieLe: DateTime
 
 entity Jaime
@@ -233,6 +233,7 @@ relation Membre hasMany Message
 relation Membre hasMany Jaime
 relation Message hasMany Jaime
 relation Membre hasMany Signalement
+relation Message hasMany Signalement
 
 actor Membre selfRegister
 actor Moderateur
@@ -260,7 +261,10 @@ rule Message.jaimes categorized: "discret" below 10, "suivi" below 100, "viral" 
 # — c'est lui qui protege aussi deux requetes simultanees.
 rule Jaime.Create oncePer Membre, Message
 rule Jaime.Create increments Message.jaimes by 1
-rule Signalement.Create decrements Membre.reputation by 10
+# Un signalement vise un MESSAGE, une fois par compte : 'Membre' est aussi
+# l'acteur, et un compteur sur ses fiches toucherait une fiche au hasard.
+rule Signalement.Create oncePer Membre, Message
+rule Signalement.Create decrements Message.score by 10
 
 workflow Rejoindre for Membre
     Create Membre

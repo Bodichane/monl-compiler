@@ -138,8 +138,8 @@ grammar = r"""
     # un signalement), la décrémentation d'un champ numérique sur l'entité
     # liée dont il dépend (via une relation existante, ex.
     # "Member hasMany Report"). Ex. :
-    #   rule Report.Create decrements Member.reputation
-    #   rule Report.Create decrements Member.reputation by 10
+    #   rule Report.Create decrements Post.score
+    #   rule Report.Create decrements Post.score by 10
     # Le montant par défaut (sans "by N") est 1.
     #
     # AJOUT (roadmap, écosystème de capacités -- brique 4) : "increments",

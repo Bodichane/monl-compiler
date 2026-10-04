@@ -44,12 +44,12 @@ SPEC_BANC = """app BancEssai
 
 entity Member
     name: String
-    reputation: Integer
 
 entity Post
     content: Text
     author: String
     likes: Integer
+    score: Integer
 
 entity Like
     note: String
@@ -60,6 +60,7 @@ entity Report
 relation Member hasMany Post
 relation Post hasMany Like
 relation Member hasMany Report
+relation Post hasMany Report
 
 actor Member selfRegister
 
@@ -67,7 +68,7 @@ rule Post.Read public
 rule Post.author generated
 rule Post.likes categorized: "discret" below 10, "populaire" below 100, "viral" otherwise
 rule Like.Create increments Post.likes by 1
-rule Report.Create decrements Member.reputation by 10
+rule Report.Create decrements Post.score by 10
 
 workflow Inscrire for Member
     Create Member
@@ -168,7 +169,7 @@ def test_le_champ_generated_ne_peut_pas_etre_forge_par_le_client(application):
 
     identifiant = _cree(base, "post", entetes,
                         {"content": "coucou", "author": "Administration",
-                         "likes": 0})
+                         "likes": 0, "score": 0})
 
     corps = _post(base, identifiant)
     assert corps["author"] != "Administration", (
@@ -191,8 +192,8 @@ def test_le_pseudonyme_est_stable_par_compte_et_distinct_entre_comptes(applicati
     base, _dossier = application
     entetes = _entetes(application, "stable")
 
-    premier = _cree(base, "post", entetes, {"content": "un", "likes": 0})
-    second = _cree(base, "post", entetes, {"content": "deux", "likes": 0})
+    premier = _cree(base, "post", entetes, {"content": "un", "likes": 0, "score": 0})
+    second = _cree(base, "post", entetes, {"content": "deux", "likes": 0, "score": 0})
     assert _post(base, premier)["author"] == _post(base, second)["author"]
 
     # Reconnexion : le pseudonyme est fixé à l'inscription, pas tiré à chaque
@@ -202,11 +203,11 @@ def test_le_pseudonyme_est_stable_par_compte_et_distinct_entre_comptes(applicati
                                   "password": MOT_DE_PASSE}).json()
     apres = _cree(base, "post",
                   {"Authorization": "Bearer " + rejeton["access_token"]},
-                  {"content": "trois", "likes": 0})
+                  {"content": "trois", "likes": 0, "score": 0})
     assert _post(base, apres)["author"] == _post(base, premier)["author"]
 
     autre = _entetes(application, "voisine")
-    ailleurs = _cree(base, "post", autre, {"content": "quatre", "likes": 0})
+    ailleurs = _cree(base, "post", autre, {"content": "quatre", "likes": 0, "score": 0})
     assert _post(base, ailleurs)["author"] != _post(base, premier)["author"]
 
 
@@ -241,8 +242,8 @@ def test_increments_touche_le_bon_enregistrement_et_lui_seul(application):
     base, dossier = application
     entetes = _entetes(application, "likeuse")
 
-    vise = _cree(base, "post", entetes, {"content": "visé", "likes": 41})
-    temoin = _cree(base, "post", entetes, {"content": "témoin", "likes": 41})
+    vise = _cree(base, "post", entetes, {"content": "visé", "likes": 41, "score": 0})
+    temoin = _cree(base, "post", entetes, {"content": "témoin", "likes": 41, "score": 0})
 
     _cree(base, "like", entetes, {"note": "bravo", "post_id": vise})
 
@@ -259,15 +260,13 @@ def test_decrements_retire_le_montant_declare_a_la_cible(application):
     base, _dossier = application
     entetes = _entetes(application, "signaleuse")
 
-    membre = _cree(base, "member", entetes, {"name": "cible", "reputation": 100})
-    temoin = _cree(base, "member", entetes, {"name": "témoin", "reputation": 100})
+    cible = _cree(base, "post", entetes, {"content": "cible", "likes": 0, "score": 100})
+    temoin = _cree(base, "post", entetes, {"content": "témoin", "likes": 0, "score": 100})
 
-    _cree(base, "report", entetes, {"reason": "spam", "member_id": membre})
+    _cree(base, "report", entetes, {"reason": "spam", "post_id": cible})
 
-    lu = requests.get(f"{base}/member/{membre}", headers=entetes).json()
-    assert lu["data"]["reputation"] == 90, lu
-    intact = requests.get(f"{base}/member/{temoin}", headers=entetes).json()
-    assert intact["data"]["reputation"] == 100, intact
+    assert _post(base, cible)["score"] == 90
+    assert _post(base, temoin)["score"] == 100
 
 
 def test_une_cible_inexistante_annule_toute_la_creation(application):
@@ -302,7 +301,7 @@ def test_categorized_remplace_la_valeur_en_liste_et_en_detail(application):
     base, _dossier = application
     entetes = _entetes(application, "categorisee")
 
-    identifiant = _cree(base, "post", entetes, {"content": "chiffres", "likes": 137})
+    identifiant = _cree(base, "post", entetes, {"content": "chiffres", "likes": 137, "score": 0})
 
     detail = _post(base, identifiant)
     assert detail["likes_category"] == "viral", detail
@@ -324,7 +323,7 @@ def test_categorized_traite_below_comme_une_borne_stricte(application):
     attendus = {9: "discret", 10: "populaire", 99: "populaire", 100: "viral"}
     for valeur, libelle in attendus.items():
         identifiant = _cree(base, "post", entetes,
-                            {"content": f"likes={valeur}", "likes": valeur})
+                            {"content": f"likes={valeur}", "likes": valeur, "score": 0})
         assert _post(base, identifiant)["likes_category"] == libelle, (
             f"{valeur} classé {_post(base, identifiant)['likes_category']}, "
             f"attendu {libelle}")
@@ -336,7 +335,7 @@ def test_categorized_ne_touche_pas_a_la_valeur_stockee(application):
     base, dossier = application
     entetes = _entetes(application, "stockage")
 
-    identifiant = _cree(base, "post", entetes, {"content": "en base", "likes": 137})
+    identifiant = _cree(base, "post", entetes, {"content": "en base", "likes": 137, "score": 0})
 
     with _base(dossier) as cnx:
         stocke = cnx.execute("SELECT likes FROM post WHERE id = ?",
