@@ -35,7 +35,7 @@ To change the app, edit the file and recompile; never edit generated code.
 </p>
 
 [![CI](https://github.com/Bodichane/monl-compiler/actions/workflows/ci.yml/badge.svg)](https://github.com/Bodichane/monl-compiler/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.9.0--beta.10-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.0.0--rc.1-blue)](CHANGELOG.md)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
 [![Licence](https://img.shields.io/badge/licence-FSL--1.1--ALv2-blue)](LICENSE)
 
@@ -541,4 +541,4 @@ Bug reports and feedback are welcome in the *issues*.
 
 ---
 
-**monl-compiler 0.9.0-beta.10**
+**monl-compiler 1.0.0-rc.1**

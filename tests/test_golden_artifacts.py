@@ -173,7 +173,7 @@ GOLDENS = {
     # beta.9 puis beta.10 ne montre que `compiler_version` (et le
     # `.jwt_secret`, tiré au hasard, hors de ce test). Cinquième version de
     # suite.
-    "monl.json": "043bc62a536f6b5266c4be4f7adac7a483d23f975763cec0381aac7b55bc52ab",
+    "monl.json": "5942766232aacde3f4287fe58ff577829358363a870550cbda25ba04f4c552c7",
 }
 
 # Empreintes de la fixture qui porte réellement `publicWhen` et
@@ -192,7 +192,7 @@ LOOKUP_GOLDENS = {
     # 0.9.0-beta.9 : monl.json seul, pour la même raison que ci-dessus.
     # POINT 191 : le diff réel ne change que l'empreinte app.py scellée.
     # 0.9.0-beta.10 : monl.json seul, `compiler_version`, comme ci-dessus.
-    "monl.json": "a6832f14bf09eadbb0f121fd7a241cad433f31c8db265e275962d422a42d40bb",
+    "monl.json": "2fdd13adce5561edadcd71758fd596a2cf0fb6676f6a02a3ca31666ce46fc3dd",
 }
 
 
@@ -271,7 +271,7 @@ B4_GOLDENS = {
     'manage.py': '2720f78d744692f86ac3b2b42ae47fbe3644e522a1006f703a1a8e77c8aab2cb',
     'frontend_contract.json': 'bad9074237ea4aa83fe28c533a2a50978843d7ce419043edf2be0308767568d6',
     'README.md': '2f6f6acf57a40e0e4bd685aa43a1e3477a1e0e5bcee83ab86adb617ebac2290e',
-    'monl.json': 'ef120c666941066b4c76810365d6b9d3e61a3a4b760977b5666e2e49ba742a6e',
+    'monl.json': '51c9efbd387ef1d957cdc346831faf743eb79a1dcfbaade7190ceeacd0954787',
 }
 
 

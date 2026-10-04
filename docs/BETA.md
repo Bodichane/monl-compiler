@@ -1,6 +1,11 @@
 # Beta status and path to GA
 
-## What beta 0.9.0-beta.10 brings
+## What release candidate 1.0.0-rc.1 brings
+
+The release candidate strengthens security, declares language version 1 and
+its stability contract, and adds the Claude Code plugin. See CHANGELOG.md.
+
+## What beta 0.9.0-beta.10 brought
 
 A beta focused on **correctness**: two continuous improvement agents repeat the
 journey of a user from a wheel installed elsewhere and exercise the added
