@@ -5,6 +5,9 @@ lors du découpage en package — voir docs/design_decisions.md.
 """
 
 
+from ..ast_validator.champs import ChampsMixin
+
+
 class SchemasMixin:
     def _generate_schema_lines(self):
         """Schémas d'entrée : un par entité, un par bloc 'custom'."""
@@ -48,12 +51,14 @@ class SchemasMixin:
             postpaiement_ici = self.postpayment_writable_by_entity.get(
                 ent_name, {}).get("fields", [])
             has_schema_field = False
+            non_blank = []
             for attr_name, attr_type in attrs.items():
                 if (attr_name in generated_here_schema or attr_name in derives_ici
                         or attr_name in sommes_ici or attr_name in horodates_ici
                         or attr_name in postpaiement_ici
                         or attr_type == "Upload"):
                     continue
+                non_blank.extend(self._non_blank_field(ent_name, attr_name, attr_type))
                 py_type = "str"
                 if attr_type == "Integer": py_type = "int"
                 if attr_type in ["Float", "Money"]: py_type = "float"
@@ -152,6 +157,7 @@ class SchemasMixin:
             # invalide en Python.
             if not has_schema_field:
                 api_lines.append("    pass")
+            api_lines.extend(_blank_validator_lines(non_blank))
             api_lines.append("\n")
 
         # 2. Schémas stricts pour les entrées des fonctions 'custom'
@@ -179,3 +185,27 @@ class SchemasMixin:
             api_lines.append("\n")
 
         return api_lines
+
+    def _required_text_validator(self, entity, fields):
+        return _blank_validator_lines([
+            field for field in fields
+            if self._non_blank_field(entity, field, self.entities[entity][field])])
+
+    def _non_blank_field(self, entity, field, type_):
+        if (type_ in ChampsMixin.BORNES_TEXTE
+                and self.field_constraints.get(entity, {}).get(field, {}).get("required")):
+            return [field]
+        return []
+
+
+def _blank_validator_lines(fields):
+    if not fields:
+        return []
+    return [
+        f"    @field_validator({', '.join(map(repr, fields))})",
+        "    @classmethod",
+        "    def _refuse_blank(cls, value):",
+        "        if value is not None and not value.strip():",
+        "            raise ValueError('required text must not be blank')",
+        "        return value",
+    ]

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### A spec can be refused
+
+- **A required text field rejects a blank value** (point 201, issue #117).
+  `"   "` on a `required` text field now returns 422 on create and update,
+  before any write; the stored value is never trimmed (`" a "` stays
+  `" a "`). The contract marks these fields `non_blank`.
+
 ## 1.0.0-rc.1 — A verifiable promise
 
 This first release candidate declares language version 1 and the interfaces

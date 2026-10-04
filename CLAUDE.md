@@ -441,10 +441,12 @@ anonymous social network as the final test bench.
     for a number, `min` applies to the VALUE, and 1 would forbid a price, stock,
     or total of zero. Scope is READ from the validator (`TYPES_TEXTE =
     ChampsMixin.BORNES_TEXTE`), never copied — a second list would make the
-    dialogue emit a rule the compiler refuses. **A string of SPACES remains
-    accepted**, and this is STATED: closing that would require normalizing before
-    measuring, so touching point 85 for all projects. Proven by
-    `tests/test_champ_texte_non_vide.py` (9 witnesses, real server), including
+    dialogue emit a rule the compiler refuses. **Point 201 closes the SPACES gap**: generated Pydantic field validators
+    reject required text empty after `strip()` in creation AND modification,
+    before writing. They return the ORIGINAL value: `" a "` remains `" a "`.
+    Non-required text and numeric zero remain accepted. The contract declares
+    `non_blank`, and `_contract_signature` sees it. Proven by
+    `tests/test_champ_texte_non_vide.py` (real server), including
     the TWO counter-proofs: disable the fix → 200 returns; expand the list to
     numbers → a zero total is refused.
 15. **`rule Entite.Create decrements Entite.champ by champ`** — decrement WHAT
