@@ -272,7 +272,8 @@ def test_la_documentation_respecte_les_invariants_du_depot():
     documents = _documents()
     assert documents, "extracteur inopérant : aucun document Markdown lu"
     fichiers = set(subprocess.check_output(
-        ["git", "ls-files"], cwd=RACINE, text=True
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
+        cwd=RACINE, text=True
     ).splitlines())
     citations = {
         doc: _citations_de_fichiers(texte) for doc, texte in documents.items()

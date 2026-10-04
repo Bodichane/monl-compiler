@@ -143,11 +143,15 @@ In priority order:
    `app.py` chooses SQLite or PostgreSQL at startup through
    `MONL_DATABASE_URL`; `psycopg` remains optional in `.[postgres]`. Additive
    migrations, integrity, numbering, and stock count have been tested against
-   a real PostgreSQL, and CI starts the service. **Still open**: connection
-   pooling and destructive down migrations.
+   a real PostgreSQL, and CI starts the service. The PostgreSQL pool is implemented with `MONL_DB_POOL_MIN` /
+   `MONL_DB_POOL_MAX` (point 182). Non-additive migrations are implemented
+   (point 120): rename, type changes and explicit drops; reversible operations
+   support down migrations, while a down migration containing an irreversible
+   drop is refused and requires backup recovery (see [MIGRATIONS.md](MIGRATIONS.md)).
 2. **Template/AST-based generator** to replace code construction by string
-   concatenation, with *golden-file tests* on generated output and parser
-   fuzzing. The package split (beta 3) separated the layers (`runtime`,
+   concatenation. *Golden-file tests* already exist in
+   `tests/test_golden_artifacts.py`; template/AST emission and parser fuzzing
+   remain open. The package split (beta 3) separated the layers (`runtime`,
    `routes`, `schemas`, `sql_schema`): this is the prerequisite, as each module
    can migrate to templates independently.
 3. ~~**Deployment-ready**~~ — **DONE (point 118)**: CORS opt-in through
@@ -166,8 +170,9 @@ In priority order:
    signup — monl can now send messages, but confirming an address is a flow
    decision (what do we do with an unconfirmed account?) that has not been
    made.
-5. **DSL governance**: version the grammar, ensure backward compatibility,
-   deprecation policy.
+5. ~~**DSL governance**~~ — **DONE (point 200)**: language version,
+   keyword/type compatibility ratchet, all repository and plugin examples
+   compiled, and [stability and deprecation policy](STABILITY.md).
 6. **Execution isolation for `custom` code** (lower-privilege subprocess /
    container / WASM). **Moved down from first place, and why**: this priority
    dates from when `custom` blocks were filled by local AI — a feature removed
@@ -177,12 +182,14 @@ In priority order:
    isolating code produced by a model; the item remains relevant for
    multi-tenant execution, it simply is no longer the task that unblocks the
    rest.
-7. **External audit/penetration test** and written threat model.
+7. **Independent external audit/penetration test** and a maintained written
+   threat model remain open. Internal offensive regression tests and the dated
+   `CODEBASE_AUDIT.md` already exist; they do not establish an independent audit.
 
 ## Positioning
 
 The core value is the **deterministic, safe backend intent compiler**. The
 only AI in the lifecycle is the one that builds the frontend against a
 verified contract. The production data layer has now been proven; GA effort
-can therefore focus on pooling, destructive migrations, and the other tasks
-above instead of on an “AI app generator.”
+can therefore focus on the remaining generator, operational integration and
+independent review tasks above.

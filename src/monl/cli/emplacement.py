@@ -11,6 +11,7 @@ import os
 import sys
 
 from ..frontend_contract import CONTRACT_FILENAME, contract_sha256
+from ..parser.version import LANGUAGE_VERSION
 from . import nomenclature, signature
 
 
@@ -72,6 +73,7 @@ def _save_state(project_dir, spec_relpath, spec_source_path=None):
         # la génération, elle, a changé. C'est exactement ce qui s'est produit
         # des points 74 à 84. Le numéro sert à NOMMER l'écart, pas à le trouver.
         "compiler_version": __version__,
+        "language_version": LANGUAGE_VERSION,
         "spec_sha256": _sha256_file(spec_path),
         "contract_sha256": contract_sha256(project_dir),
         # POINT 64 : empreinte du backend généré. « app.py reste scellé » était

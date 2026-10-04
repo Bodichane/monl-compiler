@@ -34,7 +34,11 @@ from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_file
 
 EXEMPLES_DIR = os.path.join(os.path.dirname(__file__), "../exemples")
-EXAMPLE_FILES = sorted(glob.glob(os.path.join(EXEMPLES_DIR, "*.ml")) + glob.glob(os.path.join(EXEMPLES_DIR, "*.monl")) + glob.glob(os.path.join(EXEMPLES_DIR, "*.yaml")))
+PLUGIN_EXEMPLES_DIR = os.path.join(os.path.dirname(__file__), "../plugin/reference/exemples")
+EXAMPLE_FILES = sorted(
+    path for directory in (EXEMPLES_DIR, PLUGIN_EXEMPLES_DIR)
+    for extension in ("ml", "monl", "yaml")
+    for path in glob.glob(os.path.join(directory, "**", f"*.{extension}"), recursive=True))
 
 
 @pytest.mark.parametrize("yaml_path", EXAMPLE_FILES, ids=[os.path.basename(p) for p in EXAMPLE_FILES])
@@ -42,7 +46,7 @@ def test_example_compiles(yaml_path):
     """Compile le socle déterministe (parsing + audit + génération) pour
     chaque exemple, et vérifie qu'il aboutit sans erreur."""
     raw_json = parse_monl_file(yaml_path)
-    ast_manager = MonlAST(raw_json, base_dir=EXEMPLES_DIR)
+    ast_manager = MonlAST(raw_json, base_dir=os.path.dirname(yaml_path))
     normalized_ast = ast_manager.validate_and_audit()
     with tempfile.TemporaryDirectory() as sortie:
         MonlSecureGenerator(normalized_ast, output_dir=sortie).generate_all()
@@ -76,7 +80,9 @@ def test_example_compiles(yaml_path):
 
 def test_at_least_one_example_exists():
     """Garde-fou : évite un faux 'tout est vert' si le dossier exemples/ est vide."""
-    assert len(EXAMPLE_FILES) > 0, "Aucun fichier .ml (ou .yaml) trouvé dans exemples/"
+    for directory in (EXEMPLES_DIR, PLUGIN_EXEMPLES_DIR):
+        assert any(p.startswith(directory + os.sep)
+                   for p in EXAMPLE_FILES), f"No specs in {directory}"
 
 
 def test_no_example_ever_produces_frontend_html():
@@ -86,7 +92,7 @@ def test_no_example_ever_produces_frontend_html():
     une régression qui restaure _generate_frontend), ce test doit échouer."""
     for yaml_path in EXAMPLE_FILES:
         raw_json = parse_monl_file(yaml_path)
-        normalized_ast = MonlAST(raw_json, base_dir=EXEMPLES_DIR).validate_and_audit()
+        normalized_ast = MonlAST(raw_json, base_dir=os.path.dirname(yaml_path)).validate_and_audit()
         with tempfile.TemporaryDirectory() as sortie:
             MonlSecureGenerator(normalized_ast, output_dir=sortie).generate_all()
             frontend_path = os.path.join(sortie, "frontend.html")
@@ -103,7 +109,7 @@ def test_no_example_ever_produces_any_generated_frontend():
     l'interface vient exclusivement de l'IA frontend, via le contrat."""
     for yaml_path in EXAMPLE_FILES:
         raw_json = parse_monl_file(yaml_path)
-        normalized_ast = MonlAST(raw_json, base_dir=EXEMPLES_DIR).validate_and_audit()
+        normalized_ast = MonlAST(raw_json, base_dir=os.path.dirname(yaml_path)).validate_and_audit()
         with tempfile.TemporaryDirectory() as sortie:
             MonlSecureGenerator(normalized_ast, output_dir=sortie).generate_all()
             fantomes = {g: os.path.exists(os.path.join(sortie, g))

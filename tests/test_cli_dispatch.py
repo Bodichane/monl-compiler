@@ -113,7 +113,8 @@ def test_la_version_est_disponible_sans_sous_commande(capsys):
         cli.main(["--version"])
 
     assert sortie.value.code == 0
-    assert f"monl {__version__}" in capsys.readouterr().out
+    from monl.parser.version import LANGUAGE_VERSION
+    assert f"monl {__version__} (language {LANGUAGE_VERSION})" in capsys.readouterr().out
 
 
 # ------------------------------------------- frontend : quelle voie est prise --
