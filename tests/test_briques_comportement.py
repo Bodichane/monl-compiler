@@ -77,6 +77,7 @@ workflow Inscrire for Member
 workflow Publier for Member
     Create Post
     Read Post
+    Update Post
 
 workflow Reagir for Member
     Create Like
@@ -192,8 +193,8 @@ def test_le_pseudonyme_est_stable_par_compte_et_distinct_entre_comptes(applicati
     base, _dossier = application
     entetes = _entetes(application, "stable")
 
-    premier = _cree(base, "post", entetes, {"content": "un", "likes": 0, "score": 0})
-    second = _cree(base, "post", entetes, {"content": "deux", "likes": 0, "score": 0})
+    premier = _cree(base, "post", entetes, {"content": "un", "score": 0})
+    second = _cree(base, "post", entetes, {"content": "deux", "score": 0})
     assert _post(base, premier)["author"] == _post(base, second)["author"]
 
     # Reconnexion : le pseudonyme est fixé à l'inscription, pas tiré à chaque
@@ -203,11 +204,11 @@ def test_le_pseudonyme_est_stable_par_compte_et_distinct_entre_comptes(applicati
                                   "password": MOT_DE_PASSE}).json()
     apres = _cree(base, "post",
                   {"Authorization": "Bearer " + rejeton["access_token"]},
-                  {"content": "trois", "likes": 0, "score": 0})
+                  {"content": "trois", "score": 0})
     assert _post(base, apres)["author"] == _post(base, premier)["author"]
 
     autre = _entetes(application, "voisine")
-    ailleurs = _cree(base, "post", autre, {"content": "quatre", "likes": 0, "score": 0})
+    ailleurs = _cree(base, "post", autre, {"content": "quatre", "score": 0})
     assert _post(base, ailleurs)["author"] != _post(base, premier)["author"]
 
 
@@ -229,7 +230,7 @@ def test_le_champ_generated_est_absent_du_schema_de_creation(application):
     modele = schema["components"]["schemas"][reference.rsplit("/", 1)[-1]]
 
     proprietes = modele["properties"]
-    assert "content" in proprietes and "likes" in proprietes, proprietes
+    assert "content" in proprietes and "likes" not in proprietes, proprietes
     assert "author" not in proprietes, (
         f"le champ 'generated' est proposé en entrée : {proprietes}")
 
@@ -242,16 +243,16 @@ def test_increments_touche_le_bon_enregistrement_et_lui_seul(application):
     base, dossier = application
     entetes = _entetes(application, "likeuse")
 
-    vise = _cree(base, "post", entetes, {"content": "visé", "likes": 41, "score": 0})
-    temoin = _cree(base, "post", entetes, {"content": "témoin", "likes": 41, "score": 0})
+    vise = _cree(base, "post", entetes, {"content": "visé", "score": 0})
+    temoin = _cree(base, "post", entetes, {"content": "témoin", "score": 0})
 
     _cree(base, "like", entetes, {"note": "bravo", "post_id": vise})
 
     with _base(dossier) as cnx:
         valeurs = dict(cnx.execute(
             "SELECT id, likes FROM post WHERE id IN (?, ?)", (vise, temoin)))
-    assert valeurs[vise] == 42, valeurs
-    assert valeurs[temoin] == 41, f"le voisin a bougé : {valeurs}"
+    assert valeurs[vise] == 1, valeurs
+    assert valeurs[temoin] == 0, f"le voisin a bougé : {valeurs}"
 
 
 def test_decrements_retire_le_montant_declare_a_la_cible(application):
@@ -260,8 +261,8 @@ def test_decrements_retire_le_montant_declare_a_la_cible(application):
     base, _dossier = application
     entetes = _entetes(application, "signaleuse")
 
-    cible = _cree(base, "post", entetes, {"content": "cible", "likes": 0, "score": 100})
-    temoin = _cree(base, "post", entetes, {"content": "témoin", "likes": 0, "score": 100})
+    cible = _cree(base, "post", entetes, {"content": "cible", "score": 100})
+    temoin = _cree(base, "post", entetes, {"content": "témoin", "score": 100})
 
     _cree(base, "report", entetes, {"reason": "spam", "post_id": cible})
 
@@ -298,11 +299,12 @@ def test_categorized_remplace_la_valeur_en_liste_et_en_detail(application):
     """Substitution, pas addition : la valeur exacte disparaît des deux routes
     de lecture. La laisser à côté du libellé rendrait la brique inutile — son
     objet est justement de ne pas publier le score."""
-    base, _dossier = application
+    base, dossier = application
     entetes = _entetes(application, "categorisee")
 
-    identifiant = _cree(base, "post", entetes, {"content": "chiffres", "likes": 137, "score": 0})
+    identifiant = _cree(base, "post", entetes, {"content": "chiffres", "score": 0})
 
+    _peupler_compteur(dossier, identifiant, 137)
     detail = _post(base, identifiant)
     assert detail["likes_category"] == "viral", detail
     assert "likes" not in detail, f"la valeur exacte fuit en détail : {detail}"
@@ -317,13 +319,14 @@ def test_categorized_traite_below_comme_une_borne_stricte(application):
     """`below 10` exclut 10. La borne est le seul endroit où une chaîne
     if/elif générée peut se décaler d'un cran sans que rien ne le signale ;
     9, 10 et 100 l'encadrent des deux côtés."""
-    base, _dossier = application
+    base, dossier = application
     entetes = _entetes(application, "bornes")
 
     attendus = {9: "discret", 10: "populaire", 99: "populaire", 100: "viral"}
     for valeur, libelle in attendus.items():
         identifiant = _cree(base, "post", entetes,
-                            {"content": f"likes={valeur}", "likes": valeur, "score": 0})
+                            {"content": f"likes={valeur}", "score": 0})
+        _peupler_compteur(dossier, identifiant, valeur)
         assert _post(base, identifiant)["likes_category"] == libelle, (
             f"{valeur} classé {_post(base, identifiant)['likes_category']}, "
             f"attendu {libelle}")
@@ -335,9 +338,31 @@ def test_categorized_ne_touche_pas_a_la_valeur_stockee(application):
     base, dossier = application
     entetes = _entetes(application, "stockage")
 
-    identifiant = _cree(base, "post", entetes, {"content": "en base", "likes": 137, "score": 0})
+    identifiant = _cree(base, "post", entetes, {"content": "en base", "score": 0})
 
+    _peupler_compteur(dossier, identifiant, 137)
     with _base(dossier) as cnx:
         stocke = cnx.execute("SELECT likes FROM post WHERE id = ?",
                              (identifiant,)).fetchone()
     assert stocke and stocke[0] == 137, stocke
+
+
+def _peupler_compteur(dossier, identifiant, valeur):
+    """Préparation serveur des catégories, sans simuler une saisie client."""
+    with _base(dossier) as cnx:
+        cnx.execute("UPDATE post SET likes = ? WHERE id = ?", (valeur, identifiant))
+
+
+def test_compteur_ignore_post_et_put(application):
+    base, dossier = application
+    entetes = _entetes(application, "forgecompteur")
+    identifiant = _cree(base, "post", entetes,
+                       {"content": "attaque", "score": 100, "likes": 5000})
+    with _base(dossier) as cnx:
+        assert cnx.execute("SELECT likes FROM post WHERE id = ?", (identifiant,)).fetchone()[0] == 0
+    reponse = requests.put(f"{base}/post/{identifiant}", headers=entetes,
+                           json={"content": "modifié", "score": 100, "likes": 9000})
+    assert reponse.status_code == 200, reponse.text
+    _cree(base, "like", entetes, {"note": "bravo", "post_id": identifiant})
+    with _base(dossier) as cnx:
+        assert cnx.execute("SELECT likes FROM post WHERE id = ?", (identifiant,)).fetchone()[0] == 1

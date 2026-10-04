@@ -71,7 +71,7 @@ def test_la_cle_de_la_cible_du_compteur_est_ecrite_dans_les_deux_ordres(
 
         post = requests.post(
             f"{base_url}/post", timeout=10, headers=en_tete,
-            json={"content": "Un post", "likes": 0},
+            json={"content": "Un post"},
         )
         assert post.status_code == 200, post.text
         post_id = post.json()["id"]
