@@ -106,16 +106,21 @@ class IdentityAuthMixin:
         return token
 
     def session_user(self, token: str | None) -> dict[str, str] | None:
+        session = self.session_proof(token)
+        return {"id": session["id"], "email": session["email"]} if session else None
+
+    def session_proof(self, token: str | None) -> dict | None:
         if not token:
             return None
         now = int(time.time())
         with self._connect() as db:
             row = db.execute(
-                "SELECT users.id, users.email FROM sessions JOIN users "
+                "SELECT users.id, users.email, users.auth_provider, "
+                "sessions.created_at AS session_created_at FROM sessions JOIN users "
                 "ON users.id = sessions.user_id WHERE token_hash = ? AND expires_at > ?",
                 (self._token_hash(token), now),
             ).fetchone()
-        return {"id": row["id"], "email": row["email"]} if row else None
+        return dict(row) if row else None
 
     def revoke_session(self, token: str | None) -> None:
         if token:

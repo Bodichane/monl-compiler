@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .hosting_admission import eviction_candidate, hosting_limits
+from .hosting_control import arreter_distant
 from .paths import ProjectPathError, project_directory
 
 
@@ -266,7 +267,9 @@ class SiteManager:
         with self._lock:
             running = self._running.pop(project_id, None)
             if running is None:
-                return False
+                if getattr(self, "controle_local", False):
+                    return False
+                return arreter_distant(self.workspace_root, project_id)
             self._stop_running(running)
             return True
 

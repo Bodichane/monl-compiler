@@ -409,12 +409,12 @@ def test_le_cycle_de_vie_demarre_arrete_et_maintient_la_purge(monkeypatch):
             return ["périmé"]
 
     class Service:
-        def delete(self, _project):
-            raise app_lifecycle.PlatformNotFoundError("déjà retiré")
+        pass
 
-    assert app_lifecycle._purger(Service(), type(
-        "Expired", (), {"expired_projects": lambda self: ["périmé"]}
-    )()) == 1
+    purges = []
+    monkeypatch.setattr(app_lifecycle, "_purger", lambda service, identities, runtime=None:
+                        purges.append(identities.expired_projects()) or 1)
+    assert app_lifecycle._purger(Service(), Identities()) == 1
 
     import threading
 

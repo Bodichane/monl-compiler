@@ -549,3 +549,34 @@ def test_la_console_traverse_la_connexion_dans_un_vrai_navigateur(plateforme, tm
     assert "#" not in retour.headers["location"]
     assert session.get(f"{plateforme}/console", timeout=10).status_code == 200
     assert session.get(f"{plateforme}/api/auth/me", timeout=10).json()["email"] == "github:4242"
+
+
+@pytest.mark.parametrize("ancienne", [False, True])
+def test_suppression_oauth_exige_une_connexion_recente(plateforme, tmp_path, ancienne):
+    session = requests.Session()
+    etat = _aller(plateforme, session)
+    retour = session.get(plateforme + "/auth/github/retour",
+                         params={"code": "bon-code", "state": etat},
+                         allow_redirects=False, timeout=10)
+    assert retour.status_code == 303, retour.text
+    cle = session.post(plateforme + "/api/keys", json={"name": "preuve"}, timeout=10)
+    assert cle.status_code == 201, cle.text
+    assert requests.post(plateforme + "/mcp",
+                         headers={"Authorization": "Bearer " + cle.json()["key"]},
+                         json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+                         timeout=10).status_code == 200
+    if ancienne:
+        with sqlite3.connect(tmp_path / "projects" / "platform.sqlite3") as db:
+            db.execute("UPDATE sessions SET created_at = created_at - 601")
+    reponse = session.delete(plateforme + "/api/auth/account", json={}, timeout=10)
+    if ancienne:
+        assert reponse.status_code == 403, "Une session OAuth ancienne autorise la suppression"
+        assert "Reconnectez-vous avec votre fournisseur OAuth" in reponse.text
+        assert session.get(plateforme + "/api/auth/me", timeout=10).status_code == 200
+    else:
+        assert reponse.status_code == 204, "Une connexion OAuth récente ne permet pas la suppression"
+        assert session.get(plateforme + "/api/auth/me", timeout=10).status_code == 401
+        assert requests.post(plateforme + "/mcp",
+                             headers={"Authorization": "Bearer " + cle.json()["key"]},
+                             json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+                             timeout=10).status_code == 401

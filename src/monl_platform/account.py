@@ -182,6 +182,7 @@ ACCOUNT_BODY = f"""
 <p>Efface définitivement votre compte, vos clés d’accès, vos projets et les fichiers
 compilés qui leur appartiennent. <b>Cette action est irréversible</b> — téléchargez
 ce que vous voulez garder avant de continuer.</p>
+<p id="suppression-oauth" class="muted" hidden>Pour un compte OAuth, reconnectez-vous avec votre fournisseur puis supprimez votre compte dans les dix minutes. Aucun mot de passe local n’est nécessaire.</p>
 <button class="danger" id="ouvrir-suppression" type="button">Supprimer mon compte</button>
 <form id="suppression"><div class="form-field"><label for="mdp-suppression">Confirmez avec votre mot de passe</label>
 <input id="mdp-suppression" type="password" autocomplete="current-password" required></div>
@@ -195,6 +196,7 @@ ACCOUNT_SCRIPT = """
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function json(url,options){const r=await fetch(url,options);if(r.status===401){location.href='/login?next=/account';throw new Error('session');}const d=r.status===204?{}:await r.json();if(!r.ok)throw new Error(d.detail||'Erreur');return d;}
 async function load(){const [me,projects]=await Promise.all([json('/api/auth/me'),json('/api/projects')]);
+ const oauth=Boolean(me.auth_provider);document.querySelector('#suppression-oauth').hidden=!oauth;document.querySelector('#mdp-suppression').required=!oauth;document.querySelector('#mdp-suppression').parentElement.hidden=oauth;
  document.querySelector('#account-email').textContent=me.email;document.querySelector('#projects').innerHTML=projects.projects.length?projects.projects.map(p=>`<div class="account-item"><div><b>${esc(p.name)}</b><p>Créé le ${new Date(p.created_at*1000).toLocaleDateString('fr-FR')} · expire le ${new Date(p.expires_at*1000).toLocaleDateString('fr-FR')}</p></div><span><a class="secondary" href="/api/projects/${encodeURIComponent(p.project_id)}/download">Télécharger</a><button class="ghost delete-project" data-id="${esc(p.project_id)}" type="button">Supprimer</button></span></div>`).join(''):'<div class="empty-account">Aucun projet. Compilez votre première spec.</div>';
  document.querySelectorAll('.delete-project').forEach(b=>b.onclick=async()=>{if(!b.dataset.confirmed){b.dataset.confirmed='1';b.textContent='Confirmer';b.classList.add('danger');return;}await json('/api/projects/'+b.dataset.id,{method:'DELETE'});load();});}
 const etatCodes=document.querySelector('#etat-codes'),affiches=document.querySelector('#codes-affiches'),erreurCodes=document.querySelector('#erreur-codes');

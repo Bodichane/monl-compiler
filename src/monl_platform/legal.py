@@ -199,7 +199,10 @@ tout moment depuis la console.</p>
 <h2>Vos droits</h2>
 <p><strong>La suppression est immédiate et complète.</strong> Depuis la page de votre
 compte, la suppression efface le compte, ses sessions, ses clés d'API, ses projets en
-base <em>et</em> les dossiers correspondants sur le disque. Rien n'est conservé, et
+base <em>et</em> les dossiers correspondants sur le disque, y compris les bases de
+données des visiteurs. Les sites hébergés sont arrêtés. Un compte OAuth exige une
+connexion avec son fournisseur datant de moins de dix minutes ; un compte local
+exige son mot de passe. Rien n'est conservé, et
 l'opération est irréversible.</p>
 <p>Pour l'accès, la rectification, l'opposition ou la portabilité, écrivez à
 <strong>{CONTACT}</strong>. Le responsable du traitement est nommé dans les
@@ -263,7 +266,7 @@ sa sécurité d'exploitation et la sauvegarde de ses données vous incombent.</l
 </ul>
 
 <h2>Résiliation</h2>
-<p>Vous pouvez supprimer votre compte à tout moment depuis la page de votre compte :
+<p>Vous pouvez supprimer votre compte à tout moment depuis la page de votre compte. Pour un compte OAuth, reconnectez-vous avec votre fournisseur dans les dix minutes précédant la suppression ; pour un compte local, confirmez votre mot de passe. Les sites sont arrêtés et leurs bases visiteurs effacées :
 l'effacement est immédiat, complet et irréversible. L'éditeur peut suspendre un compte
 qui met le service en péril ou en fait un usage illicite.</p>
 

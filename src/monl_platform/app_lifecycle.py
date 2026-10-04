@@ -6,25 +6,29 @@ import contextlib
 import os
 import threading
 
+from .builder_runtime import create_runtime
+from .deletion import supprimer_projet
 from .identity import IdentityStore
 from .journal import evenement, panne
-from .service import CompilationService, PlatformNotFoundError
+from .service import CompilationService
 
 
-def _purger(service: CompilationService, identities: IdentityStore) -> int:
+def _purger(service: CompilationService, identities: IdentityStore, runtime=None) -> int:
     """Efface les projets échus, en base ET sur le disque.
 
     Source unique : le démarrage et la boucle périodique appellent la même
     fonction. Deux copies auraient fini par diverger, et c'est le nettoyage
     qui aurait perdu.
     """
+    runtime = runtime or create_runtime(service, identities)
     efface = 0
     for expired_id in identities.expired_projects():
-        try:
-            service.delete(expired_id)
-        except PlatformNotFoundError:
-            pass
-        efface += 1
+        with identities._connect() as db:
+            projet = db.execute("SELECT user_id FROM projects WHERE project_id = ?",
+                                (expired_id,)).fetchone()
+        if projet:
+            supprimer_projet(runtime, projet["user_id"], expired_id)
+            efface += 1
     return efface
 
 
@@ -45,7 +49,7 @@ def create_lifespan(service: CompilationService, identities: IdentityStore, buil
         def boucle():
             while not arret.wait(intervalle):
                 try:
-                    efface = _purger(service, identities)
+                    efface = _purger(service, identities, builder_runtime)
                     if efface:
                         evenement("purge", projets=efface)
                 except Exception as exc:
