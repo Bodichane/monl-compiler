@@ -35,6 +35,8 @@ COPIES = {
     PLUGIN / "reference" / "exemples" / "README.md": RACINE / "exemples" / "README.md",
     **{PLUGIN / "reference" / "exemples" / p.name: p
        for p in sorted((RACINE / "exemples").glob("*.ml"))},
+    **{PLUGIN / "reference" / "exemples" / "assets" / p.relative_to(RACINE / "exemples" / "assets"): p
+       for p in sorted((RACINE / "exemples" / "assets").rglob("*")) if p.is_file()},
 }
 
 
@@ -68,7 +70,8 @@ def test_le_plugin_ne_contient_aucun_lien_symbolique():
 
 
 def test_les_copies_du_plugin_sont_identiques_a_leur_original():
-    assert len(COPIES) >= 7, COPIES
+    assert len(COPIES) >= 15, COPIES
+    assert sum(p.parent.name == "assets" for p in COPIES) >= 8, "assets introuvables"
     divergentes = [str(copie.relative_to(RACINE)) for copie, original in COPIES.items()
                    if not copie.is_file() or copie.read_bytes() != original.read_bytes()]
     assert not divergentes, (

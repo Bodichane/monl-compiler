@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300" role="img" aria-label="App Meridian">
+  <title>App Meridian</title>
+  <rect width="400" height="300" fill="#0f2027"/>
+  <rect x="150" y="40" width="150" height="180" rx="18" fill="#2f9c95"/>
+  <text x="24" y="272" font-family="Georgia, serif" font-size="22" fill="#e6f2f1">App Meridian</text>
+</svg>

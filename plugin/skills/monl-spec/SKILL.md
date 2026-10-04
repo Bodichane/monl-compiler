@@ -44,7 +44,9 @@ suite on every change, so they cannot lie. The plugin carries an exact copy.
 ## 3. Write the spec in the user's project
 
 Write `spec.ml` at the project root (or wherever the user requests) — never in
-the plugin directory. `monl update` will reread the file at that location.
+the plugin directory. When copying an example, also copy
+`${CLAUDE_PLUGIN_ROOT}/reference/exemples/assets/` beside the spec so its
+local images remain available. `monl update` will reread the file at that location.
 
 Three questions to settle with the user instead of guessing:
 - **Who has an account, and who signs up independently?** Only `selfRegister`

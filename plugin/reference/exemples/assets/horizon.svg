@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300" role="img" aria-label="Site Horizon">
+  <title>Site Horizon</title>
+  <rect width="400" height="300" fill="#12111a"/>
+  <rect x="40" y="150" width="320" height="8" fill="#e05263"/><circle cx="200" cy="110" r="52" fill="#e05263"/>
+  <text x="24" y="272" font-family="Georgia, serif" font-size="22" fill="#f2ece2">Site Horizon</text>
+</svg>
