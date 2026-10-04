@@ -178,8 +178,6 @@ class IdentityAdminMixin:
         with self._connect() as db:
             rows = db.execute("SELECT project_id FROM projects "
                               "WHERE expires_at IS NOT NULL AND expires_at <= ?", (now,)).fetchall()
-            db.executemany("DELETE FROM projects WHERE project_id = ?",
-                           [(row["project_id"],) for row in rows])
         return [row["project_id"] for row in rows]
 
 

@@ -48,6 +48,11 @@ def test_projets_appartiennent_a_un_seul_compte(tmp_path):
     with sqlite3.connect(store.path) as db:
         db.execute("UPDATE projects SET expires_at = 0 WHERE project_id = ?", ("a" * 32,))
     assert reopened.expired_projects() == ["a" * 32]
+    assert reopened.projects(alice["id"]), "La sélection des projets échus ne doit pas effacer leur propriétaire"
+    from monl_platform.app_lifecycle import _purger
+    from monl_platform.service import CompilationService
+
+    assert _purger(CompilationService(tmp_path), reopened) == 1
     assert reopened.projects(alice["id"]) == []
 
 

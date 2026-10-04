@@ -28,11 +28,13 @@ import sys
 import time
 from datetime import datetime, timezone
 
+from .builder_runtime import create_runtime
+from .deletion import supprimer_compte
 from .hosting import SITE_LOG_MAX_BYTES, SiteHostingError, site_log_path
 from .identity import IdentityStore
 from .journal import configurer, court, evenement, masquer_texte
 from .paths import ProjectPathError
-from .service import CompilationService, PlatformNotFoundError
+from .service import CompilationService
 
 JOUR = 24 * 3600
 
@@ -226,14 +228,9 @@ def _supprimer(magasin: IdentityStore, service: CompilationService, args) -> int
         print("Rien n'a été fait. Ajoutez --confirmer pour effacer "
               "définitivement le compte, ses clés, ses projets et leurs fichiers.")
         return 1
-    projets = magasin.delete_user(compte["id"])
-    effaces = 0
-    for projet in projets:
-        try:
-            service.delete(projet)
-            effaces += 1
-        except PlatformNotFoundError:
-            continue
+    runtime = create_runtime(service, magasin)
+    projets = supprimer_compte(runtime, compte["id"])
+    effaces = len(projets)
     evenement("compte_supprime_par_exploitant", compte=court(compte["id"]),
               projets=len(projets), dossiers=effaces)
     print(f"{compte['email']} supprimé — {len(projets)} projet(s) en base, "

@@ -45,12 +45,11 @@ def create_app(*, workspace=None, domain=None, downloads_dir=None) -> FastAPI:
             nombre=comptes_herites,
             raison="hachage et identifiants du registre historique incompatibles",
         )
-    evenement("demarrage", workspace=str(service.workspace),
-              purges=_purger(service, identities))
-
     builder_runtime = create_runtime(
         service, identities, domain=domain, downloads_dir=downloads_dir
     )
+    evenement("demarrage", workspace=str(service.workspace),
+              purges=_purger(service, identities, builder_runtime))
     dispatcher = MCPDispatcher(service, identities)
     compile_slots = threading.BoundedSemaphore(
         max(1, int(os.environ.get("MONL_MAX_CONCURRENT_COMPILES", "2")))

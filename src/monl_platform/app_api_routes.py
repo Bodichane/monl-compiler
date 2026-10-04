@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import contextlib
-
 from fastapi import HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, Response
 
+from .account_deletion import verifier_suppression
 from .app_http import (
     _admission_compilation,
     _client_ip,
@@ -19,6 +18,7 @@ from .app_http import (
     _require_user_ou_cle,
     _session_response,
 )
+from .deletion import supprimer_compte, supprimer_projet
 from .dialogue import DialogueInputError, bounded_answer, bounded_answers, soumettre
 from .identity import IdentityError, IdentityStore
 from .journal import anomalie, court, evenement
@@ -111,28 +111,10 @@ def mount_api_routes(
 
     @application.delete("/api/auth/account", status_code=204)
     async def delete_account(request: Request):
-        """Efface le compte, ses clés, ses projets et leurs dossiers.
-
-        **Le mot de passe est exigé à nouveau**, session valide ou non : une
-        suppression irréversible ne doit pas tenir au seul fait qu'un onglet
-        soit resté ouvert, ni pouvoir être déclenchée par une requête que
-        l'utilisateur n'a pas voulue.
-
-        Les dossiers sont retirés APRÈS l'effacement en base : si le disque
-        résiste, le compte est déjà parti et le ménage se rattrape à la purge
-        périodique — l'inverse laisserait un compte sans ses projets.
-        """
         user = _require_user(request, identities)
         payload = await _json_body(request)
-        if not identities.authenticate(user["email"], payload.get("password")):
-            anomalie("suppression_compte_refusee", compte=court(user["id"]))
-            raise HTTPException(status_code=403,
-                                detail="Mot de passe incorrect : le compte n'a pas été supprimé.")
-        projets = identities.delete_user(user["id"])
-        for project_id in projets:
-            with contextlib.suppress(PlatformNotFoundError):
-                service.delete(project_id)
-            builder_runtime.remove_project(user["id"], project_id)
+        verifier_suppression(identities, user, request.cookies.get("monl_session"), payload)
+        projets = supprimer_compte(builder_runtime, user["id"])
         evenement("compte_supprime", compte=court(user["id"]), projets=len(projets))
         response = Response(status_code=204)
         response.delete_cookie("monl_session", path="/", httponly=True, samesite="strict")
@@ -140,7 +122,9 @@ def mount_api_routes(
 
     @application.get("/api/auth/me")
     def me(request: Request):
-        return _require_user(request, identities)
+        user = _require_user(request, identities)
+        preuve = identities.session_proof(request.cookies.get("monl_session"))
+        return {**user, "auth_provider": preuve["auth_provider"] if preuve else None}
 
     @application.get("/api/projects")
     def list_projects(request: Request):
@@ -151,9 +135,7 @@ def mount_api_routes(
     def delete_project(project_id: str, request: Request):
         user = _require_user(request, identities)
         _require_project(identities, user["id"], project_id)
-        service.delete(project_id)
-        builder_runtime.remove_project(user["id"], project_id)
-        identities.delete_project(user["id"], project_id)
+        supprimer_projet(builder_runtime, user["id"], project_id)
         return Response(status_code=204)
 
     @application.get("/api/keys")
