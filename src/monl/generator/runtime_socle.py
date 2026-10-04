@@ -39,6 +39,12 @@ class SocleRuntimeMixin:
                 "        conn.rollback()",
                 "        raise RuntimeError(f'Migration TOTP échouée : {_error}') from _error",
             ]
+        if self.auth_features:
+            totp_migration_lines += [
+                "    if 'token_version' not in _table_columns(_sys_cur, '_monl_users'):",
+                "        _sys_cur.execute('ALTER TABLE _monl_users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0')",
+                '        conn.commit()',
+            ]
         api_lines = (self._socle_imports_et_connexion(message_imports, totp_imports)
                      + self._socle_outils_generes(actors_literal, self_register_literal)
                      + self._socle_jetons())

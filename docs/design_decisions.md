@@ -8082,6 +8082,37 @@ durées, et _contract_signature inclut la configuration B4 complète. C'est
 nécessaire : ajouter un refresh change l'état local du frontend même si la
 forme historique de /login est conservée pour le smoke test.
 
+### B4 : invalidation des sessions et reprise par l'exploitant (D3–D5)
+
+Un audit a montré qu'un jeton d'accès volé suffisait à activer le TOTP avec le
+secret de l'intrus, sans mot de passe : la victime était exclue pour toujours,
+aucune route ni commande ne retirant le double facteur. Activer le TOTP exige
+désormais le mot de passe ET un code valide, vérifiés par le même chemin à
+temps constant que la connexion, avec le même refus (aucun oracle sur ce qui
+était faux). L'activation révoque tous les refresh tokens et incrémente le
+`token_version` du compte : chaque appareil doit se reconnecter avec le second
+facteur. La confirmation d'une réinitialisation par courriel et `manage.py
+passwd` incrémentent aussi cette version et révoquent les refresh tokens : un
+jeton d'accès émis avant ne sert plus, au lieu de vivre jusqu'à son TTL. Chaque
+requête authentifiée compare la version du JWT à celle du compte, à côté de la
+liste noire de déconnexion.
+
+La migration additive (SQLite et PostgreSQL) pose `token_version INTEGER NOT
+NULL DEFAULT 0`, et une revendication absente vaut zéro : les jetons des
+comptes non touchés survivent à la mise à jour (point 32 — on ne déconnecte
+pas tout le monde en montant de version). Une réinitialisation par courriel NE
+retire PAS le TOTP : sinon la compromission d'une boîte contournerait le
+second facteur. La reprise d'un compte verrouillé passe par l'exploitant :
+`python3 manage.py totp-reset <identifiant>` efface le TOTP et révoque toutes
+les sessions. La déconnexion garde son comportement.
+
+Le contrat frontend exige `password` et `code` pour `/totp/enable`, décrit
+l'invalidation des sessions, et le corps requis entre dans l'empreinte B4 lue
+par `_contract_signature`. Le banc sur vrai serveur prouve les gardes, la
+reprise légitime, et la survie d'un JWT à la mise à jour depuis une base sans
+la colonne. Les specs golden existantes n'ont aucune option B4 et gardent leur
+empreinte ; une spec golden B4 dédiée couvre les artefacts modifiés.
+
 ### TOTP reste hors ligne, avec une protection de rejeu
 
 totp utilise uniquement la bibliothèque standard : secret aléatoire, HMAC-SHA1,

@@ -133,3 +133,13 @@ def test_l_invariant_voit_vraiment_du_controle_dacces():
     assert controle, "aucune requête de contrôle d'accès générée — invariant aveugle"
     assert any("= ?" in r for r in controle), \
         "le contrôle d'accès ne lie aucune valeur — régression du point 107"
+
+
+def test_b4_ne_colle_aucune_valeur_dans_le_sql():
+    from tests.test_authentification_b4 import SPEC_B4
+
+    source = _app_source(SPEC_B4, depuis_fichier=False, base_dir=None)
+    for requete in _litteraux_sql(source):
+        for interdit in (*INTERDITS_EN_SQL, "req.", "payload.", "row["):
+            assert interdit not in requete, (
+                f"B4 : valeur '{interdit}' collée dans le texte SQL — {requete!r}")

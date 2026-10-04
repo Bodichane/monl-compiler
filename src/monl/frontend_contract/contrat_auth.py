@@ -48,9 +48,10 @@ def _fonctions_dauth(plans, routes):
                       "fois ; ne pas transformer sa réponse en route de lecture.")),
             champs._route(
                 "POST", "/totp/enable", "TotpEnable", "Authentication", False,
-                auth_actors, request_fields=["code"],
+                auth_actors, request_fields=["code", "password"],
                 note=("Active le double facteur après vérification d'un code "
-                      "TOTP courant.")),
+                      "TOTP courant et du mot de passe actuel ; révoque toutes les "
+                      "sessions et exige une nouvelle connexion avec TOTP.")),
         ])
     return auth_features
 
@@ -155,6 +156,8 @@ def _auth_du_contrat(auth_features, plans):
         b4_contract["totp"] = {
             "setup_path": "/totp/setup",
             "enable_path": "/totp/enable",
+            "enable_body": {"code": "string", "password": "string (obligatoire, mot de passe actuel)"},
+            "enable_invalidates_sessions": True,
             "step_seconds": 30,
             "replay_protection": True,
         }

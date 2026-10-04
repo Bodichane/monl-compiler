@@ -36,6 +36,12 @@ class MigrationsRuntimeMixin:
                 "            if _sans_totp:",
                 "                print(f\"ℹ️ {_sans_totp} compte(s) restent sans double facteur TOTP : aucune activation n\\'est inventée.\")",
             ]
+        if self.auth_features:
+            totp_migration_lines += [
+                "            if 'token_version' not in _table_columns(_sys_cur, '_monl_users'):",
+                "                _sys_cur.execute('ALTER TABLE _monl_users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0')",
+                '                conn.commit()',
+            ]
         return (self._lignes_de_migration(system_tables_literal)
                 + self._lignes_de_base(totp_migration_lines))
 

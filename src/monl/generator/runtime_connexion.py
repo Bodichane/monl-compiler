@@ -14,7 +14,7 @@ class ConnexionRuntimeMixin:
         login_request_extra = (["    totp_code: Optional[str] = None"]
                                if self.auth_features.get("totp") else [])
         if auth_checks:
-            select = "SELECT id, password_hash, salt, actor, anon_handle"
+            select = "SELECT id, password_hash, salt, actor, anon_handle" + self._colonne_version()
             if self.auth_features.get("totp"):
                 select += ", totp_secret, totp_enabled, totp_last_step"
             lookup_lines = [
@@ -29,9 +29,9 @@ class ConnexionRuntimeMixin:
                 "    else:",
             ]
             if self.auth_features.get("totp"):
-                lookup_lines.append("        db_user_id, stored_hash, salt_hex, actor, anon_handle, totp_secret, totp_enabled, totp_last_step = row")
+                lookup_lines.append("        db_user_id, stored_hash, salt_hex, actor, anon_handle, token_version, totp_secret, totp_enabled, totp_last_step = row")
             else:
-                lookup_lines.append("        db_user_id, stored_hash, salt_hex, actor, anon_handle = row")
+                lookup_lines.append("        db_user_id, stored_hash, salt_hex, actor, anon_handle, token_version = row")
             lookup_lines += [
                 "    _candidate_hash = _hash_password(req.password if row else req.password[:256], salt_hex)",
             ]
@@ -71,6 +71,7 @@ class ConnexionRuntimeMixin:
                 "    if not hmac.compare_digest(_hash_password(req.password, salt_hex), stored_hash):",
                 "        raise HTTPException(status_code=401, detail='Identifiants invalides.')",
             ]
+        lookup_lines = self._lookup_avec_version(lookup_lines, auth_checks)
         success_lines = (["    _clear_account_failures(db_user_id)"]
                          if self.auth_features.get("lockout") else [])
         if self.auth_features.get("refresh_tokens"):
@@ -238,6 +239,7 @@ class ConnexionRuntimeMixin:
              if self.auth_features.get('refresh_tokens') else
              "        'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=TOKEN_TTL_HOURS)"),
             "    }",
+            *self._ligne_version_du_jeton(),
             "    token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)",
             *success_lines,
             *login_return_lines,
@@ -263,3 +265,19 @@ class ConnexionRuntimeMixin:
             "# --- VALIDATION STRICTE DES DONNÉES CRUD (PYDANTIC) ---"
         ]
         return api_lines
+
+    # BRIQUE B4 (D3–D5) : la version de jeton du compte voyage dans le JWT ;
+    # sans option B4, aucune de ces lignes n'est émise (sortie historique
+    # inchangée à l'octet).
+    def _colonne_version(self):
+        return ", token_version" if self.auth_features else ""
+
+    def _lookup_avec_version(self, lookup_lines, auth_checks):
+        if not self.auth_features or auth_checks:
+            return lookup_lines
+        return [line.replace('anon_handle FROM', 'anon_handle, token_version FROM')
+                .replace('anon_handle = row', 'anon_handle, token_version = row')
+                for line in lookup_lines]
+
+    def _ligne_version_du_jeton(self):
+        return ["    payload['token_version'] = token_version"] if self.auth_features else []

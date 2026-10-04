@@ -26,7 +26,7 @@ class AdminCliMixin:
         prefixe = self.auth_phone_prefix
         password_invalidation = ""
         if any(self.auth_features.get(name) for name in
-               ("password_reset", "refresh_tokens", "lockout")):
+               ("password_reset", "refresh_tokens", "lockout", "totp")):
             password_invalidation += (
                 "    user_id = cur.execute(\"SELECT id FROM _monl_users WHERE "
                 "username = ?\", (_normalize_identifier(args.username),)).fetchone()[0]\n"
@@ -48,6 +48,36 @@ class AdminCliMixin:
                 "    cur.execute(\"UPDATE _monl_account_lockouts SET failed_count = 0, "
                 "first_failed_at = ?, locked_until = NULL WHERE user_id = ?\", "
                 "(datetime.datetime.now(datetime.timezone.utc).timestamp(), user_id))\n"
+            )
+        if self.auth_features:
+            password_invalidation += (
+                "    cur.execute(\"UPDATE _monl_users SET token_version = token_version + 1 "
+                "WHERE id = ?\", (user_id,))\n"
+            )
+        totp_command = ""
+        totp_function = ""
+        totp_entry = ""
+        if self.auth_features.get("totp"):
+            totp_command = "    python3 manage.py totp-reset <utilisateur>          # révoque les sessions\n"
+            totp_function = '''
+def cmd_totp_reset(args):
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM _monl_users WHERE username = ?", (_normalize_identifier(args.username),))
+    if not cur.fetchone():
+        conn.close()
+        sys.exit(f"Compte introuvable : {{args.username}}")
+    cur.execute("UPDATE _monl_users SET totp_secret = NULL, totp_enabled = NULL, totp_last_step = NULL WHERE username = ?", (_normalize_identifier(args.username),))
+''' + password_invalidation + '''    conn.commit()
+    conn.close()
+    print(f"✅ Double facteur supprimé pour '{{args.username}}' ; sessions révoquées.")
+
+
+'''
+            totp_entry = (
+                '    p = sub.add_parser("totp-reset", help="supprimer le double facteur et révoquer les sessions")\n'
+                '    p.add_argument("username")\n'
+                '    p.set_defaults(func=cmd_totp_reset)\n\n'
             )
         unlock_command = ""
         unlock_parser = ""
@@ -92,7 +122,7 @@ s'attribuer un rôle privilégié.
     python3 manage.py adduser <utilisateur> <role>     # mot de passe demandé
     python3 manage.py setactor <utilisateur> <role>
     python3 manage.py passwd <utilisateur>
-{unlock_command}    python3 manage.py users
+{totp_command}{unlock_command}    python3 manage.py users
     python3 manage.py revoke-all                       # invalide les sessions
 """
 import argparse
@@ -266,7 +296,7 @@ def cmd_passwd(args):
     conn.close()
 
 
-{unlock_parser}def cmd_users(_args):
+{totp_function}{unlock_parser}def cmd_users(_args):
     conn = _connect()
     cur = conn.cursor()
     cur.execute("SELECT id, username, actor FROM _monl_users ORDER BY id")
@@ -312,7 +342,7 @@ def main():
     p.add_argument("username")
     p.set_defaults(func=cmd_passwd)
 
-{unlock_parser_entry}    sub.add_parser("users", help="lister les comptes").set_defaults(func=cmd_users)
+{totp_entry}{unlock_parser_entry}    sub.add_parser("users", help="lister les comptes").set_defaults(func=cmd_users)
     sub.add_parser("revoke-all", help="invalider toutes les sessions").set_defaults(func=cmd_revoke_all)
 
     args = parser.parse_args()
