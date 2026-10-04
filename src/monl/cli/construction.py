@@ -132,8 +132,18 @@ def cmd_init(project_dir=None):
     # Dialogue guidé à règles, entièrement déterministe (aucune IA, aucun
     # appel réseau). La spec produite est revalidée par le vrai parseur avant
     # d'être écrite.
-    from ..dialogue_engine import run_interactive_dialogue
-    spec_text = run_interactive_dialogue()
+    from ..dialogue_engine import DialogueError, run_interactive_dialogue
+    try:
+        spec_text = run_interactive_dialogue()
+    except (EOFError, KeyboardInterrupt) as err:
+        print("Entrée interrompue : rien n'a été écrit, relancez `monl init`.",
+              file=sys.stderr)
+        raise SystemExit(130 if isinstance(err, KeyboardInterrupt) else 2) from None
+    except DialogueError as err:
+        # Le moteur garde son détail de question pour les autres appelants.
+        message = str(err).split(" : ", 1)[0]
+        print(f"{message} : rien n'a été écrit, relancez `monl init`.", file=sys.stderr)
+        raise SystemExit(2) from None
     app_match = re.match(r"app\s+(\w+)", spec_text)
     app_name = app_match.group(1) if app_match else "MonProjet"
     project_dir = os.path.abspath(project_dir or app_name)
