@@ -30,7 +30,7 @@ Once the backend runs, five skills help Claude build its screens from what the b
 
 The plugin contains no hooks, MCP servers or scripts. The `monl-spec` skill asks Claude to run the compiler:
 
-- `monl` if already installed, or `uvx --from monl-compiler==0.9.0b10 monl`, which downloads that exact package version and its dependencies from PyPI.
+- `monl` if already installed, or `uvx --from monl-compiler==1.0.0rc1 monl`, which downloads that exact package version and its dependencies from PyPI.
 - It writes `spec.ml` and the compiled directory only in your project.
 - Verification (`monl run --check`) starts a temporary local server with a fresh database, then stops it after the test.
 
