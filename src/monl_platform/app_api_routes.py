@@ -207,7 +207,9 @@ def mount_api_routes(
             request, identities, compile_slots, lambda: _json_body(request)
         ) as payload:
             try:
-                manifest = await run_in_threadpool(service.compile, payload.get("spec"))
+                manifest = await run_in_threadpool(
+                    service.compile, payload.get("spec"), account_id=user["id"]
+                )
                 identities.add_project(user["id"], manifest["id"], manifest["summary"]["app"])
                 evenement("compilation", compte=court(user["id"]), projet=court(manifest["id"]),
                           routes=len(manifest["summary"].get("routes", [])))

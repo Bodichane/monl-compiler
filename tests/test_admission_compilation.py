@@ -137,10 +137,10 @@ def test_compilation_et_recompilation_partagent_le_semaphore(
     sortir = threading.Event()
     vraie_compilation = CompilationService.compile
 
-    def compilation_retenue(service, spec):
+    def compilation_retenue(service, spec, **kwargs):
         entre.set()
         assert sortir.wait(timeout=10)
-        return vraie_compilation(service, spec)
+        return vraie_compilation(service, spec, **kwargs)
 
     monkeypatch.setattr(CompilationService, "compile", compilation_retenue)
     resultat = {}

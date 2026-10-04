@@ -520,3 +520,36 @@ def test_le_journal_borne_garde_la_FIN_et_jamais_le_debut():
         # Pas de fragment en tête : on le prendrait pour un message tronqué par
         # le site lui-même plutôt que par la borne.
         assert contenu.split(b"\n")[0] == b"ligne de trafic ordinaire"
+
+
+@pytest.mark.parametrize("canal", ["api", "mcp"])
+def test_creation_compilee_demarre_directement(application_hebergement, canal):
+    """Issue #115 : aucun /compiler intermédiaire, sur un vrai serveur."""
+    app = application_hebergement()
+    spec = (Path(__file__).parents[1] / "exemples/02_boutique.ml").read_text()
+    try:
+        with _serveur_plateforme(app) as base, requests.Session() as session:
+            inscription = session.post(base + "/api/auth/register", json={
+                "email": "direct@monl.test", "password": "MotDePasse-123"}, timeout=10)
+            assert inscription.status_code == 201, inscription.text
+            if canal == "api":
+                compilation = session.post(base + "/api/compile", json={"spec": spec}, timeout=120)
+                assert compilation.status_code == 201, compilation.text
+                project_id = compilation.json()["id"]
+            else:
+                from test_platform_mcp_boucle import _appel
+
+                cle = session.post(base + "/api/keys", json={"name": "direct"},
+                                   timeout=10).json()["key"]
+                project_id = _appel(base, cle, "monl_compile_backend", {"spec": spec})["project_id"]
+            demarrage = session.post(base + f"/api/projects/{project_id}/start", timeout=30)
+            assert demarrage.status_code == 200, demarrage.text
+            site = requests.get(base + "/openapi.json",
+                                headers={"Host": demarrage.json()["host"]}, timeout=10)
+            assert site.status_code == 200, site.text
+            compte = inscription.json()["user"]["id"]
+            dossier = project_directory(app.state.builder_runtime.workspace_root, compte, project_id)
+            assert (dossier / "app.py").is_file()
+            assert not (app.state.compilation_service.workspace / project_id).exists()
+    finally:
+        app.state.sites.stop_all()

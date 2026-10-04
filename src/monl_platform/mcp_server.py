@@ -165,7 +165,7 @@ class MCPDispatcher:
         if name == "monl_validate_spec":
             return _text_result(self.service.validate(arguments["spec"]).as_dict())
         if name == "monl_compile_backend":
-            manifest = self.service.compile(arguments["spec"])
+            manifest = self.service.compile(arguments["spec"], account_id=user_id)
             if self.identities and user_id:
                 self.identities.add_project(
                     user_id, manifest["id"], manifest["summary"]["app"])

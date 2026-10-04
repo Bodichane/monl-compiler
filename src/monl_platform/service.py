@@ -24,6 +24,7 @@ from monl.frontend_contract import CONTRACT_VERSION
 from monl.parser import parse_monl_file
 
 from .hosting import SITE_LOG_FILENAME
+from .paths import project_directory
 
 MAX_SPEC_BYTES = 256_000
 PROJECT_ID = re.compile(r"^[0-9a-f]{32}$")
@@ -158,15 +159,22 @@ class CompilationService:
                 return ValidationResult(False, None, [str(exc)])
         return ValidationResult(True, _ir_summary(ir), [])
 
-    def compile(self, spec: str) -> dict[str, Any]:
+    def compile(self, spec: str, *, account_id: str | None = None) -> dict[str, Any]:
+        """Compile directement dans le dossier privé du compte, si authentifié.
+
+        Le MCP local sans compte conserve son espace de travail historique.
+        Comme /compiler, ce chemin appelle uniquement compiler_dans : aucune
+        seconde décision d’isolation ni copie du backend produit.
+        """
         spec = _bounded_spec(spec)
         validation = self.validate(spec)
         if not validation.valid:
             raise PlatformInputError(validation.errors[0])
 
         project_id = uuid.uuid4().hex
-        project_dir = self.workspace / project_id
-        project_dir.mkdir(mode=0o700)
+        project_dir = (project_directory(self.workspace, account_id, project_id)
+                       if account_id else self.workspace / project_id)
+        project_dir.mkdir(mode=0o700, exist_ok=True)
         spec_path = project_dir / "spec.ml"
         spec_path.write_text(spec, encoding="utf-8")
         output = io.StringIO()
@@ -224,7 +232,17 @@ class CompilationService:
     def _project_dir(self, project_id: str) -> Path:
         if not PROJECT_ID.fullmatch(project_id or ""):
             raise PlatformNotFoundError("Projet introuvable.")
+        # Les anciens projets et le MCP local restent lisibles à la racine.
+        # Les projets privés sont résolus sur disque, sans accès aux comptes.
         directory = self.workspace / project_id
+        candidates = list(self.workspace.glob(
+            f"accounts/*/projects/{project_id}/platform-manifest.json"))
+        if len(candidates) > 1:
+            raise PlatformNotFoundError("Projet introuvable.")
+        if candidates:
+            account_id = candidates[0].parents[2].name
+            directory = project_directory(self.workspace, account_id, project_id,
+                                          create=False)
         if not (directory / "platform-manifest.json").is_file():
             raise PlatformNotFoundError("Projet introuvable.")
         return directory
