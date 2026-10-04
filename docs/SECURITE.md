@@ -81,17 +81,62 @@ legacy JWTs without this claim remain valid for untouched accounts.
   returns 409 instead of 500.
 - **Secret hygiene**: `.jwt_secret` is created with 0600 permissions, and
   expired entries are purged from the revoked-token blacklist.
+- **Optional authentication hardening** (`capability auth`, see point 124 of
+  `docs/design_decisions.md`): account lockout after a declared failure
+  window, password reset by email with single-use tokens, rotating refresh
+  tokens with replay refusal, and TOTP two-factor authentication. A password
+  change, a reset or a TOTP change increments the account's `token_version`,
+  which invalidates every token issued before it.
 
 ## Deployment settings (environment variables)
 
-- `MONL_JWT_SECRET`: if set, the JWT secret is read from the
-  environment and **never touches disk**. This is the recommended mode in
-  production. Otherwise, monl falls back to the `.jwt_secret` file generated
-  at compilation (never committed — see `.gitignore`).
-- `MONL_TRUST_PROXY=1`: enable **only** if the application runs
-  behind a trusted reverse proxy. Rate limiting then reads the first IP in
-  `X-Forwarded-For`. Without this setting, the header is ignored (a
-  direct client cannot spoof it to bypass the quota).
+These are all the variables the generated backend reads. A variable that
+belongs to a brick is only read when the spec uses that brick.
+`tests/test_securite_variables.py` compares this list with the compiled code,
+in both directions.
+
+**Secrets and environment**
+- `MONL_JWT_SECRET`: if set, the JWT secret is read from the environment and
+  **never touches disk**. Recommended in production. Otherwise the backend
+  uses the `.jwt_secret` file (created with 0600 permissions, never committed).
+- `MONL_ENV`: `production` makes startup **fail** when `MONL_JWT_SECRET` is
+  missing — a secret recreated on disk at each restart would invalidate all
+  sessions.
+- `MONL_TOKEN_TTL_HOURS`: access token lifetime in hours (default 2).
+  `MONL_TOKEN_TTL_SECONDS` overrides it in seconds when refresh tokens are
+  enabled.
+
+**Network exposure**
+- `MONL_TRUST_PROXY=1`: enable **only** behind a trusted reverse proxy. Rate
+  limiting then reads the first IP in `X-Forwarded-For`. Without it, the
+  header is ignored, so a direct client cannot spoof it to bypass the quota.
+- `MONL_CORS_ORIGINS`: comma-separated list of allowed origins. CORS is off by
+  default (the frontend is served from the same origin, under `/site`), and
+  `*` is refused at startup.
+- `MONL_DOCS=off`: disables `/docs`, `/redoc` and `/openapi.json`.
+- `MONL_LOG_FORMAT=json`: structured logs.
+
+**Database and files**
+- `MONL_DATABASE_URL`: PostgreSQL connection URL. Without it, the backend
+  uses the local SQLite file. `MONL_DB_POOL_MIN` and `MONL_DB_POOL_MAX` size
+  the PostgreSQL connection pool (defaults 1 and 10).
+- `MONL_UPLOADS_DIR`: where runtime uploads are stored (default
+  `.monl_uploads`, outside the served `frontend/`).
+
+**Email** (`sends` rule, password reset)
+- `MONL_SMTP_HOST`, `MONL_SMTP_PORT`, `MONL_SMTP_USERNAME`,
+  `MONL_SMTP_PASSWORD`, `MONL_SMTP_FROM`: the SMTP server used to send
+  messages.
+- `MONL_PASSWORD_RESET_URL`: optional address of the frontend reset page,
+  added to the reset email.
+
+**Payment** (`payable`; a missing key returns 503 naming it, and the rest of
+the server keeps working)
+- `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`: Stripe provider.
+- `MONL_FEDAPAY_SECRET_KEY`, `MONL_FEDAPAY_WEBHOOK_SECRET`: FedaPay provider.
+- `MONL_STRIPE_BASE_URL`, `MONL_FEDAPAY_BASE_URL`: provider address. They
+  exist so that tests can use a fake provider; leave them unset in
+  production.
 
 ## The `custom` block: hand-written code
 
@@ -105,7 +150,7 @@ queries, no dynamic execution, no uncontrolled system access.
 A dedicated execution sandbox for this code (reduced-privilege subprocess,
 container, or WASM) is a GA goal — see `docs/BETA.md`.
 
-## Validation through offensive audit (branch `paiement-et-outillage`)
+## Validation through offensive audit
 
 `tests/test_audit_offensif_exemples.py` compiles and serves each example in
 `exemples/` and replays three attacks against it (role spoofing via raw header,
@@ -153,14 +198,35 @@ remaining policy decision is not a flaw but a business policy choice
 located on the infrastructure side (deletion of an already ordered product),
 flagged by the heuristic — to be decided at deployment, not in the compiler.
 
+## Hosting platform
+
+The hosted platform (`monl-platform`) has its own operating guide,
+`docs/EXPLOITATION.md`, and `docs/PLATFORME_ET_MCP.md` covers MCP access.
+What it guarantees to account holders:
+
+- Deleting a project or an account removes everything it owns: the hosted
+  site is stopped, compiled and private directories are erased (visitor
+  databases included), then the database rows. The web route, the operator
+  command and the periodic cleanup share the same function.
+- Account deletion requires a fresh proof of identity: the password for a
+  local account, or a sign-in with the OAuth provider less than ten minutes
+  old.
+- Recovering an account with a recovery code closes every session and
+  revokes every MCP key. Regenerating codes requires the password and closes
+  the account's other sessions.
+- An expired project can no longer be read, downloaded or served.
+
 ## Known beta limitations
 
-- SQLite database: suitable for prototyping and lightweight deployments; write
-  concurrency under heavy multi-worker load remains limited
-  (GA goal: PostgreSQL layer). See `docs/BETA.md`.
-- Additive migrations only (`ALTER ADD COLUMN`); destructive changes are
-  deliberately refused (see `docs/MIGRATIONS.md`).
-- Authentication without password reset or email verification (post-beta goal).
-- No configurable CORS or HTTP security headers: the frontend is
-  served from the same origin as the API (`/site`). An interface hosted
-  elsewhere is a deployment matter, not yet handled by the generator (GA goal).
+- No email address verification: monl checks the form of an identifier,
+  never that an inbox receives mail.
+- Messages (`sends`, password reset) are sent without a delivery guarantee or
+  retries: a failure is logged after the business transaction has committed.
+- No global HTTP security headers (CSP, HSTS, `X-Frame-Options`): set them at
+  the reverse proxy. Only uploaded files are served with
+  `X-Content-Type-Options: nosniff`.
+- SQLite is the default database; under heavy multi-worker write load, use
+  PostgreSQL (`MONL_DATABASE_URL`).
+- `drop` migrations are irreversible without a backup (see
+  `docs/MIGRATIONS.md`).
+- Hand-written `custom` code runs without a dedicated sandbox (see above).
