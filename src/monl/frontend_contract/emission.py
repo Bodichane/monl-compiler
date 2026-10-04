@@ -30,7 +30,9 @@ def generate_frontend_contract(normalized_ast: CompilationIR, plans_or_generator
         with open(chemin_pret(temporary, fondations.PROMPT_FILENAME),
                   "w", encoding="utf-8") as fh:
             fh.write(brief._render_prompt(contract))
-        projet.write_project_claude_md(contract["app"], temporary, spec_name)
+        projet.write_project_claude_md(
+            contract["app"], temporary, spec_name,
+            contract.get("api", {}).get("auth", {}).get("features"))
         publish_files(temporary, target_dir, fondations.FRONTEND_ARTIFACTS)
     return contract
 

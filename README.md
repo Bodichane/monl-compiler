@@ -288,6 +288,11 @@ makes it verifiable by the smoke test.
 with the generated `manage.py`, on the machine hosting the database:
 `python3 manage.py adduser <username> <role>`. The same command manages roles,
 passwords, the account list, and global session revocation.
+With B4 TOTP enabled, `python3 manage.py totp-reset <identifier>` is the operator
+recovery command: it clears TOTP and revokes all sessions for that account.
+Email password reset preserves TOTP. TOTP activation requires the current
+password and a valid code; activation, password reset, and `manage.py passwd`
+invalidate existing access and refresh tokens. Every device must log in again.
 
 **Authentication.** A user registry dedicated to each application (table
 `_monl_users`, passwords in PBKDF2-HMAC-SHA256, a unique salt per account,

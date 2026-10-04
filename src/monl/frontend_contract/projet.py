@@ -126,14 +126,23 @@ def _ecrire_si_a_nous(path, marker, contenu):
     return True
 
 
-def write_project_claude_md(app_name, output_dir, spec_name="spec.ml"):
+def write_project_claude_md(app_name, output_dir, spec_name="spec.ml", auth_features=None):
     """Écrit AGENTS.md et README.md du PROJET (pas ceux du dépôt monl)."""
     _ecrire_si_a_nous(
         os.path.join(output_dir, AGENTS_FILENAME),
         PROJECT_CLAUDE_MD_MARKER,
         PROJECT_CLAUDE_MD.format(marker=PROJECT_CLAUDE_MD_MARKER, app=app_name))
+    readme = PROJECT_README.format(marker=PROJECT_README_MARKER, app=app_name,
+                                  spec=spec_name)
+    if (auth_features or {}).get("totp"):
+        readme += (
+            "\n## TOTP recovery\n\n"
+            "`python3 manage.py totp-reset <identifier>` clears TOTP and revokes "
+            "all account sessions. This is the operator recovery path. Email "
+            "password reset preserves TOTP. TOTP enable requires the current "
+            "password and a valid code; all devices must log in again with TOTP.\n"
+        )
     _ecrire_si_a_nous(
         os.path.join(output_dir, README_FILENAME),
         PROJECT_README_MARKER,
-        PROJECT_README.format(marker=PROJECT_README_MARKER, app=app_name,
-                              spec=spec_name))
+        readme)

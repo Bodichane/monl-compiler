@@ -259,3 +259,28 @@ def _aucun_module_custom_inutile(project_dir: Path):
     """
     assert not (project_dir / "sandbox_ai.py").exists(), (
         "un module 'custom' vide est livré alors que la spec n'en déclare aucun")
+
+
+# D3–D5 : seuls les artefacts B4 portent la version de session, le mot de
+# passe requis pour TOTP, la récupération opérateur et leur documentation.
+# Les deux bancs historiques ci-dessus restent inchangés à l'octet près.
+B4_GOLDENS = {
+    'app.py': '6b1cdcc7829698115e96d1ea320879d28fb05f161c0d3a3c9b425f98f6a52041',
+    'schema.sql': 'b7ce5934827e96aefd45d91677d166da749cd28f7a088568538c1de96db7f570',
+    'manage.py': '2720f78d744692f86ac3b2b42ae47fbe3644e522a1006f703a1a8e77c8aab2cb',
+    'frontend_contract.json': 'bad9074237ea4aa83fe28c533a2a50978843d7ce419043edf2be0308767568d6',
+    'README.md': '2f6f6acf57a40e0e4bd685aa43a1e3477a1e0e5bcee83ab86adb617ebac2290e',
+    'monl.json': 'b6ac0a85a56c7d97ef2ca489b2ccfaae111a50d6587f93b1c94897a8f8defd29',
+}
+
+
+def test_empreintes_b4_securite(tmp_path, capsys):
+    from tests.test_authentification_b4 import SPEC_B4
+
+    spec = tmp_path / "spec.ml"
+    spec.write_text(SPEC_B4, encoding="utf-8")
+    for _ in range(2):
+        compile_project(str(spec), str(tmp_path))
+        capsys.readouterr()
+        assert {name: hashlib.sha256((tmp_path / name).read_bytes()).hexdigest()
+                for name in B4_GOLDENS} == B4_GOLDENS

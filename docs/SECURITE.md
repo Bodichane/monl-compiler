@@ -40,6 +40,14 @@ makes the launch fail.
 (`passwd`), account inventory (`users`), and global revocation
 (`revoke-all`, which renews the secret and invalidates all sessions).
 
+For generated B4 projects, `python3 manage.py totp-reset <identifier>` is the
+operator recovery path: it clears TOTP and revokes all access and refresh tokens
+for that account. Email password resets preserve TOTP. TOTP activation requires
+the current password and a valid code, revokes all sessions, and requires a new
+login with the second factor. Password reset and `manage.py passwd` also revoke
+all account sessions. The additive `token_version` column defaults to zero;
+legacy JWTs without this claim remain valid for untouched accounts.
+
 ## What is guaranteed in the generated backend
 
 - **No SQL injection through values**: all runtime values go through

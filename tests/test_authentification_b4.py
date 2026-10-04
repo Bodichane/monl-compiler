@@ -171,7 +171,7 @@ def b4_application(request, tmp_path, faux_smtp):
         # le test dénonçait alors une application saine. C'est le reproche que
         # la bêta 4 avait déjà traité sur le test du canal temporel : un test
         # ne doit pas dépendre de la charge de la machine.
-        "MONL_TOKEN_TTL_SECONDS": "3",
+        "MONL_TOKEN_TTL_SECONDS": ("3" if "complete_sur" in request.node.name else "120"),
         "MONL_SMTP_HOST": faux_smtp.server_address[0],
         "MONL_SMTP_PORT": str(faux_smtp.server_address[1]),
         "MONL_SMTP_FROM": "no-reply@example.invalid",
@@ -228,6 +228,8 @@ def legacy_b4_application(request, tmp_path, faux_smtp):
     try:
         with uvicorn_server(str(tmp_path), env=env) as old_base:
             _register(old_base, "legacy-b4@example.invalid")
+            old_token = _token(_login(old_base, "legacy-b4@example.invalid",
+                                      "motdepasse8", ip="avant-migration"))
 
         spec_path.write_text(SPEC_B4, encoding="utf-8")
         with contextlib.redirect_stdout(io.StringIO()):
@@ -236,7 +238,7 @@ def legacy_b4_application(request, tmp_path, faux_smtp):
         env["MONL_SMTP_PORT"] = str(faux_smtp.server_address[1])
         env["MONL_SMTP_FROM"] = "no-reply@example.invalid"
         with uvicorn_server(str(tmp_path), env=env) as base:
-            yield base, Path(tmp_path), dsn
+            yield base, Path(tmp_path), dsn, old_token
     finally:
         if schema:
             import psycopg
@@ -664,7 +666,7 @@ def test_authentification_b4_complete_sur_les_deux_moteurs(b4_application):
     enabled = _call("POST", base, "/totp/enable",
                     token=_token(_login(base, bob, "motdepasse8",
                                         ip="totp-enable-session")),
-                    body={"code": _totp_code(secret, pas_activation)},
+                    body={"code": _totp_code(secret, pas_activation), "password": "motdepasse8"},
                     ip="totp-enable")
     assert enabled.status_code == 200, enabled.text
     # Le pas est arrêté UNE fois : les trois connexions qui suivent portent
@@ -705,7 +707,9 @@ def test_authentification_b4_complete_sur_les_deux_moteurs(b4_application):
 
 
 def test_b4_ne_casse_pas_un_compte_historique(legacy_b4_application):
-    base, directory, dsn = legacy_b4_application
+    base, directory, dsn, old_token = legacy_b4_application
+    assert _call("GET", base, "/note", token=old_token).status_code == 200, (
+        "La migration doit préserver le jeton ancien du compte inchangé")
     legacy = _login(base, "legacy-b4@example.invalid", "motdepasse8",
                     ip="legacy-login")
     assert legacy.status_code == 200, legacy.text
@@ -735,5 +739,145 @@ def test_b4_ne_casse_pas_un_compte_historique(legacy_b4_application):
                 ("legacy-b4@example.invalid",)).fetchone()
         finally:
             conn.close()
-    assert {"totp_secret", "totp_enabled", "totp_last_step"} <= columns
+    assert {"totp_secret", "totp_enabled", "totp_last_step", "token_version"} <= columns
     assert row == (None, None, None)
+
+
+
+def _session_b4(base, username):
+    _register(base, username)
+    response = _login(base, username, "motdepasse8", ip=username)
+    _token(response)
+    return response.json()
+
+
+def _activation_b4(base, session, password="motdepasse8"):
+    pas = _pas_totp_stable()
+    setup = _call("POST", base, "/totp/setup", token=session["access_token"])
+    assert setup.status_code == 200, setup.text
+    secret = setup.json()["secret"]
+    enabled = _call("POST", base, "/totp/enable", token=session["access_token"],
+                    body={"password": password, "code": _totp_code(secret, pas)})
+    assert enabled.status_code == 200, enabled.text
+    return secret, pas
+
+
+def _manage_b4(directory, dsn, command, username, password=None):
+    env = os.environ.copy()
+    env.pop("MONL_DATABASE_URL", None)
+    env["MONL_JWT_SECRET"] = "b4-integration-secret-32-bytes-min"
+    if dsn:
+        env["MONL_DATABASE_URL"] = dsn
+    # getpass est remplacé dans le processus enfant, sans modifier manage.py.
+    script = ("import getpass, runpy, sys; "
+              f"getpass.getpass = lambda *a, **k: {password!r}; "
+              f"sys.argv = ['manage.py', {command!r}, {username!r}]; "
+              f"runpy.run_path({str(directory / 'manage.py')!r}, run_name='__main__')")
+    result = subprocess.run([sys.executable, "-c", script], cwd="/tmp", env=env,
+                            capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stderr
+    return result
+
+
+def test_b4_activation_exige_le_mot_de_passe(b4_application):
+    base, _, _, _, _ = b4_application
+    username = "victime@example.invalid"
+    session = _session_b4(base, username)
+    pas = _pas_totp_stable()
+    setup = _call("POST", base, "/totp/setup", token=session["access_token"])
+    code = _totp_code(setup.json()["secret"], pas)
+    absent = _call("POST", base, "/totp/enable", token=session["access_token"],
+                   body={"code": code})
+    assert absent.status_code >= 400, "Activation TOTP acceptée sans mot de passe"
+    wrong = _call("POST", base, "/totp/enable", token=session["access_token"],
+                  body={"code": code, "password": "incorrect"})
+    assert wrong.status_code == 401, "Activation TOTP acceptée avec un mot de passe incorrect"
+    bad_code = _call("POST", base, "/totp/enable", token=session["access_token"],
+                     body={"code": "invalide", "password": "motdepasse8"})
+    assert wrong.json() == bad_code.json() == {"detail": "Identifiants invalides."}, (
+        "Le code et le mot de passe incorrects doivent partager le refus générique")
+    assert _login(base, username, "motdepasse8", ip="victime-intacte").status_code == 200
+
+
+@pytest.mark.parametrize("jeton", ["refresh", "access"])
+def test_b4_activation_revoque_les_jetons(b4_application, jeton):
+    base, _, _, _, _ = b4_application
+    username = "activation@example.invalid"
+    session = _session_b4(base, username)
+    temoin = _session_b4(base, "temoin@example.invalid")
+    secret, pas = _activation_b4(base, session)
+    if jeton == "refresh":
+        response = _call("POST", base, "/refresh",
+                         body={"refresh_token": session["refresh_token"]})
+    else:
+        response = _call("GET", base, "/note", token=session["access_token"])
+    assert response.status_code == 401, f"Ancien jeton {jeton} accepté après activation TOTP"
+    assert _call("GET", base, "/note", token=temoin["access_token"]).status_code == 200
+    assert _login(base, username, "motdepasse8", ip="activation-sans-code").status_code == 401
+    fresh = _login(base, username, "motdepasse8", ip="activation-legitime",
+                   code=_totp_code(secret, pas))
+    assert _call("GET", base, "/note", token=_token(fresh)).status_code == 200
+
+
+@pytest.mark.parametrize("changement", ["reset", "passwd", "totp-reset"])
+def test_b4_changement_revoque_les_sessions(b4_application, changement):
+    base, directory, dsn, smtp, _ = b4_application
+    username = "recuperation@example.invalid"
+    session = _session_b4(base, username)
+    temoin = _session_b4(base, "intact@example.invalid")
+    password = "nouveau-motdepasse8"
+    if changement == "totp-reset":
+        secret, pas = _activation_b4(base, session)
+        session = _login(base, username, "motdepasse8", ip="avant-recuperation",
+                         code=_totp_code(secret, pas)).json()
+        _manage_b4(directory, dsn, "totp-reset", username)
+        password = "motdepasse8"
+    elif changement == "passwd":
+        _manage_b4(directory, dsn, "passwd", username, password)
+    else:
+        _call("POST", base, "/password-reset/request", body={"username": username})
+        reset = _wait_for_message(smtp, 1)
+        response = _call("POST", base, "/password-reset/confirm",
+                         body={"username": username, "token": reset, "password": password})
+        assert response.status_code == 200, response.text
+    assert _call("GET", base, "/note", token=session["access_token"]).status_code == 401, (
+        f"Ancien accès accepté après {changement}")
+    assert _call("POST", base, "/refresh", body={"refresh_token": session["refresh_token"]}).status_code == 401, (
+        f"Ancien rafraîchissement accepté après {changement}")
+    assert _call("GET", base, "/note", token=temoin["access_token"]).status_code == 200
+    fresh = _login(base, username, password, ip="apres-recuperation")
+    assert fresh.status_code == 200, (
+        f"Connexion légitime refusée après {changement} : {fresh.text}")
+    assert _call("GET", base, "/note", token=_token(fresh)).status_code == 200
+    assert _call("POST", base, "/refresh", body={
+        "refresh_token": fresh.json()["refresh_token"]}).status_code == 200, (
+        f"Rafraîchissement légitime refusé après {changement}")
+
+
+def test_b4_reset_email_preserve_totp_et_signature(b4_application):
+    import copy
+    import json
+
+    from monl.cli import _contract_signature
+
+    base, directory, _, smtp, _ = b4_application
+    username = "double-facteur@example.invalid"
+    session = _session_b4(base, username)
+    secret, pas = _activation_b4(base, session)
+    _call("POST", base, "/password-reset/request", body={"username": username})
+    reset = _wait_for_message(smtp, 1)
+    assert _call("POST", base, "/password-reset/confirm", body={
+        "username": username, "token": reset, "password": "nouveau-motdepasse8"}).status_code == 200
+    assert _login(base, username, "nouveau-motdepasse8", ip="reset-sans-code").status_code == 401, (
+        "La réinitialisation par e-mail a supprimé le double facteur")
+    assert _token(_login(base, username, "nouveau-motdepasse8", ip="reset-avec-code",
+                         code=_totp_code(secret, pas)))
+    contract = json.loads((directory / "frontend_contract.json").read_text())
+    enable_route = next(route for route in contract["routes"]
+                        if route["path"] == "/totp/enable")
+    assert "password" in enable_route["request_fields"], (
+        "Le contrat oublie le mot de passe requis à l'activation TOTP")
+    old = copy.deepcopy(contract)
+    del old["api"]["auth"]["features"]["totp"]["enable_body"]["password"]
+    assert _contract_signature(old) != _contract_signature(contract), (
+        "La signature ignore le mot de passe requis à l'activation TOTP")

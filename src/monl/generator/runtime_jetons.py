@@ -68,6 +68,15 @@ class JetonsRuntimeMixin:
             "        revoked = cursor.fetchone(); conn.close()",
             "        if revoked:",
             "            raise HTTPException(status_code=401, detail='Ce token a été révoqué (déconnexion effectuée).')",
+            *([
+                "    conn = _connect()",
+                "    try:",
+                "        row = conn.execute('SELECT token_version FROM _monl_users WHERE id = ?', (payload.get('user_id'),)).fetchone()",
+                "    finally:",
+                "        conn.close()",
+                "    if not row or payload.get('token_version', 0) != row[0]:",
+                "        raise HTTPException(status_code=401, detail='Session invalidée : reconnectez-vous.')",
+            ] if self.auth_features else []),
             "    return payload\n",
 
             # Une seule dépendance FastAPI stricte porte le décodage et le

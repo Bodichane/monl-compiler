@@ -25,7 +25,10 @@ class SqlSchemaMixin:
         # (voir /register), indépendant de la spec -- toujours présent,
         # utilisé seulement si un champ 'generated' le référence.
         sql_lines.append("    anon_handle VARCHAR(255) UNIQUE NOT NULL" +
-                         ("," if self.auth_features.get("totp") else ""))
+                         ("," if self.auth_features else ""))
+        if self.auth_features:
+            sql_lines.append("    token_version INTEGER NOT NULL DEFAULT 0" +
+                             ("," if self.auth_features.get("totp") else ""))
         if self.auth_features.get("totp"):
             # BRIQUE B4 : NULL signifie « double facteur non activé ». Une
             # base existante n'est jamais convertie et un compte historique
