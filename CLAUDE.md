@@ -38,7 +38,7 @@ Lark grammar (`src/parser.py`) → validator + security audit
 ## Documentation to read before any new brick
 
 **`docs/design_decisions.md`** is the project's detailed design journal — numbered
-through 90, with a complete contents list at the start of the file. Two numbering
+through 199, with a complete contents list at the start of the file. Two numbering
 traps, both intentional: numbers **45 and 46 each refer to two distinct
 points** (a merger remnant), and **point 6 is a reserved duplicate** of point 1,
 empty, kept to avoid shifting cross-references. Cite a point by its title as
@@ -208,7 +208,10 @@ anonymous social network as the final test bench.
 3. **`rule Entite.Create decrements Entite.champ [by N]`** — decrements a
    numeric field on an entity linked to the creation of a record
    (typically a report). Compiled by `exemples/03_reseau_social.ml`
-   (`Report.Create decrements Member.reputation`).
+   (`Report.Create decrements Post.score`). **Refused on an entity named
+   like an actor** (point 199, issue #89): its rows are linked to no account,
+   while a client reads account ids under the same `<actor>_id` name, so the
+   counter hit a random profile — the reporter's own, measured.
 4. **`rule Entite.Create increments Entite.champ [by N]`** — symmetric to
    `decrements`, for likes/appreciations. Grammar: two distinct Lark productions
    (`decrement_rule`/`increment_rule`), not a single rule shared by keyword (avoids

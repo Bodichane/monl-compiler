@@ -6,7 +6,8 @@ app RezoAnon
 #     fourni par le client) ;
 #   • likes affichés en CATÉGORIES (peu / populaire / viral) plutôt qu'en
 #     nombre exact ;
-#   • RÉPUTATION des membres qui baisse en cas de signalement ;
+#   • SCORE des posts qui baisse en cas de signalement (un seul
+#     signalement par compte et par post) ;
 #   • messages PRIVÉS accessibles au seul expéditeur et destinataire ;
 #   • commentaires publics, modifiables par leur seul auteur.
 # Le fil s'affiche déjà peuplé grâce aux données de démonstration.
@@ -14,7 +15,6 @@ app RezoAnon
 
 entity Member
     name: String
-    reputation: Integer
 
 entity Post
     content: Text
@@ -23,6 +23,7 @@ entity Post
     likes: Integer
     dislikes: Integer
     reposts: Integer
+    score: Integer
 
 entity Comment
     content: Text
@@ -55,6 +56,7 @@ relation Post hasMany Repost
 relation Post hasMany Comment
 relation Member hasMany Comment
 relation Member hasMany Report
+relation Post hasMany Report
 relation Member hasMany PrivateMessage
 
 actor Member selfRegister
@@ -78,14 +80,18 @@ rule Post.author generated
 rule Post.likes categorized: "confidentiel" below 10, "populaire" below 100, "viral" otherwise
 
 # Réactions Twitter-like : like, dislike, repost font monter les compteurs ;
-# un signalement baisse la réputation du membre visé.
+# un signalement baisse le score du post visé. Il vise un POST, pas un
+# membre : 'Member' est aussi l'acteur, ses fiches ne sont liées à aucun
+# compte, et le compilateur refuse un compteur sur elles (issue #89).
+# Le compte qui signale est relié par la première relation, comme pour Like.
 # Brique 28 : un compte ne like qu'UNE fois chaque post — l'unicité tient à un
 # index composite (compte + post), pas à une empreinte fournie par le client.
 rule Like.Create oncePer Member, Post
 rule Like.Create increments Post.likes by 1
 rule Dislike.Create increments Post.dislikes by 1
 rule Repost.Create increments Post.reposts by 1
-rule Report.Create decrements Member.reputation by 10
+rule Report.Create oncePer Member, Post
+rule Report.Create decrements Post.score by 10
 
 # Commentaires publics en lecture, éditables par leur seul auteur.
 rule Comment.Read public
@@ -133,11 +139,11 @@ workflow Moderate for Moderator
 # L'auteur affiché sera le pseudonyme anonyme généré, pas ces valeurs — le
 # champ 'author' est 'generated', donc le seed ne le renseigne pas.
 seed Post
-    content: "Premier jour sur RezoAnon. L'anonymat change vraiment la façon de s'exprimer.", status: "published", likes: 4
-    content: "Astuce : les likes ne montrent qu'une catégorie, pas un score exact. Moins de course aux chiffres.", status: "published", likes: 42
-    content: "Ce post part pour devenir viral, on dirait. Merci à tous !", status: "published", likes: 230
-    content: "Question ouverte : préférez-vous l'anonymat total ou un pseudonyme stable ?", status: "published", likes: 17
-    content: "La réputation baisse quand on est signalé — ça calme les trolls.", status: "published", likes: 8
+    content: "Premier jour sur RezoAnon. L'anonymat change vraiment la façon de s'exprimer.", status: "published", score: 100, likes: 4
+    content: "Astuce : les likes ne montrent qu'une catégorie, pas un score exact. Moins de course aux chiffres.", status: "published", score: 100, likes: 42
+    content: "Ce post part pour devenir viral, on dirait. Merci à tous !", status: "published", score: 100, likes: 230
+    content: "Question ouverte : préférez-vous l'anonymat total ou un pseudonyme stable ?", status: "published", score: 100, likes: 17
+    content: "Le score d'un post baisse quand il est signalé — ça calme les trolls.", status: "published", score: 100, likes: 8
 
 landing
-    brief: "RezoAnon est un réseau social où les posts sont publics mais les auteurs restent anonymes, les likes s'affichent en catégories, et la réputation protège la communauté."
+    brief: "RezoAnon est un réseau social où les posts sont publics mais les auteurs restent anonymes, les likes s'affichent en catégories, et les signalements protègent la communauté."

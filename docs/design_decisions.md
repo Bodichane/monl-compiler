@@ -116,6 +116,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [196](#196-deux-aides-qui-mentaient-par-omission-ou-par-promesse) Deux aides qui mentaient, par omission ou par promesse ·
 [197](#197-deux-garanties-dauthentification-sans-témoin-et-deux-fichiers-de-tests-creux) Deux garanties d'authentification sans témoin ·
 [198](#198-monl-comme-plugin-claude-code-la-cli-plutôt-que-le-mcp-local) monl comme plugin Claude Code ·
+[199](#199-un-compteur-sur-une-fiche-dacteur-frappait-au-hasard) Un compteur sur une fiche d'acteur ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -14352,3 +14353,42 @@ annonce le champ ajouté, `update`, `run --check` vert. **Non prouvé ici** :
 une session d'agent réelle guidée par la compétence — le garde de worktree
 refuse une session imbriquée qui a l'outil Bash, et ce refus n'a pas été
 contourné.
+
+## 199. Un compteur sur une fiche d'acteur frappait au hasard
+
+**Mesuré (issue #89).** Dans `exemples/03_reseau_social.ml`, signaler l'auteur
+d'un post faisait baisser la réputation du SIGNALEUR. `Member` est à la fois
+une entité et l'acteur : toute clé `member_id` lisible par un client (sur un
+post, un commentaire) porte un id de COMPTE (point 88), alors que
+`Report.member_id` désignait une LIGNE de la table `member` — table qui n'a
+aucune colonne de compte. Il suffisait que l'ordre de création des fiches
+diffère de celui des comptes : `UPDATE member … WHERE id = <id de compte>`
+touchait la fiche d'un autre. Réponse 200, aucune erreur, contrat et schéma
+d'accord entre eux : rien d'autre que la lecture de la base ne le montrait.
+
+**Refuser, pas réparer en douce.** `_refuser_compteur_sur_acteur`
+(`ast_validator/champs_calcules.py`) refuse tout `increments`/`decrements` dont
+la cible porte le nom d'un acteur. Le refus vaut aussi quand la clé vient du
+jeton : elle contient alors un id de compte, qui ne désigne pas davantage une
+ligne de `member`. Le cas ne peut donc jamais être juste, et une règle qui
+frappe au hasard est pire qu'une règle absente (point 85). Relier les fiches
+d'acteur aux comptes serait une brique à part, avec sa migration ; elle n'est
+pas écrite.
+
+**L'exemple vise un post.** Le signalement baisse `Post.score`, et
+`oncePer Member, Post` limite à un signalement par compte et par post — sans
+quoi un seul compte ferait tomber n'importe quel score. `Member.reputation`
+disparaît : un champ que plus rien ne calcule, et que le client écrivait à sa
+création (famille du point 77). Le banc `tests/test_briques_comportement.py`
+suit le même changement.
+
+**Preuves.** Le scénario de l'issue est rejoué sur un vrai serveur : bruno crée
+sa fiche avant alice, signale le post d'alice → seul ce post passe de 100 à
+90, et un second signalement de bruno reçoit 409. Le refus a son témoin
+(`tests/test_validateur_refus.py`, la même spec avec la cible renommée
+compile) ; désarmé, le test de refus devient rouge.
+
+**Non traité, et dit.** Un compteur (`likes`, `score`) reste écrivable par le
+client à la CRÉATION de l'enregistrement qui le porte : c'est vrai de tous les
+compteurs depuis la brique 4, pas de cet exemple seul.
+

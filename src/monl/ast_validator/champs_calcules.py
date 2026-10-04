@@ -210,6 +210,7 @@ class ChampsCalculesMixin:
                 )
             if target_entity not in self.entities:
                 raise ASTValidationError(f"Structure : '{direction}' référence l'entité '{target_entity}' qui n'existe pas.")
+            self._refuser_compteur_sur_acteur(direction, target_entity, target_field)
             target_type = self.entities[target_entity].get(target_field)
             if target_type not in ("Integer", "Float"):
                 raise ASTValidationError(
@@ -249,6 +250,25 @@ class ChampsCalculesMixin:
                 "target_field": target_field, "amount": rule.get("amount"),
                 "amount_field": amount_field, "direction": direction,
             })
+
+    def _refuser_compteur_sur_acteur(self, direction, target_entity, target_field):
+        """Refuse un compteur dont la cible porte le nom d'un acteur (issue #89).
+
+        Les lignes d'une telle entité ne sont liées à aucun compte, alors que
+        toute clé homonyme lisible par un client (`member_id` sur un post)
+        porte un id de COMPTE (point 88). Le décompte viserait la fiche dont
+        l'id de LIGNE coïncide avec l'id de compte reçu : mesuré, signaler
+        l'auteur d'un post faisait baisser la réputation du signaleur.
+        Refuser plutôt que produire une règle qui frappe au hasard (point 85).
+        """
+        if target_entity in self.actors:
+            raise ASTValidationError(
+                f"Structure : '{direction}' cible '{target_entity}.{target_field}', mais "
+                f"'{target_entity}' est aussi un acteur. Ses lignes ne sont liées à aucun "
+                f"compte, et les clés '{target_entity.lower()}_id' lues par un client portent "
+                f"un id de compte : le compteur toucherait une fiche au hasard. Placez le "
+                f"compteur sur une entité métier (ex. '{direction} Post.score')."
+            )
 
     def _valider_regles_once_per(self):
         """Valide l'unicité métier d'une action par compte et par cibles.
