@@ -22,6 +22,7 @@ import re
 import sys
 
 from monl.parser.grammaire import grammar
+from monl.parser.version import LANGUAGE_VERSION
 
 SRC = os.path.join(os.path.dirname(__file__), "..", "src", "monl")
 
@@ -1034,3 +1035,33 @@ def test_chaque_test_python_exerce_une_assertion():
     # prochain test qui prendrait ce nom (point 155).
     perimees = sorted(set(exemptions) - exemptions_servies)
     assert not perimees, "exemptions qui ne servent plus : " + ", ".join(perimees)
+
+
+def test_language_compatibility_ratchet():
+    """Keep historical witnesses; additions must be declared in the current one."""
+    current = _litteraux_de_la_grammaire()
+    witnesses = sorted(pathlib.Path(__file__).parent.glob("grammaire_v*.txt"))
+    assert witnesses, "no language compatibility witnesses"
+    versions = set()
+    for witness in witnesses:
+        version = int(witness.stem.removeprefix("grammaire_v"))
+        versions.add(version)
+        declared = frozenset(witness.read_text(encoding="utf-8").splitlines())
+        assert declared, f"empty witness: {witness}"
+        assert version <= LANGUAGE_VERSION, f"future witness: {witness}"
+        if version == LANGUAGE_VERSION:
+            assert not declared - current, (
+                "language break requires LANGUAGE_VERSION increment: "
+                + ", ".join(sorted(declared - current)))
+            assert not current - declared, (
+                "undeclared language additions: "
+                + ", ".join(sorted(current - declared)))
+    assert LANGUAGE_VERSION in versions, "current language witness missing"
+
+
+def test_language_extractor_refuses_empty_grammar(monkeypatch):
+    import pytest
+
+    monkeypatch.setitem(globals(), "grammar", "TYPE: /[A-Z]+/")
+    with pytest.raises(AssertionError, match="aucun littéral"):
+        _litteraux_de_la_grammaire()

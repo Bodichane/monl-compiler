@@ -117,6 +117,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [197](#197-deux-garanties-dauthentification-sans-témoin-et-deux-fichiers-de-tests-creux) Deux garanties d'authentification sans témoin ·
 [198](#198-monl-comme-plugin-claude-code-la-cli-plutôt-que-le-mcp-local) monl comme plugin Claude Code ·
 [199](#199-un-compteur-sur-une-fiche-dacteur-frappait-au-hasard) Un compteur sur une fiche d'acteur ·
+[200](#200-la-grammaire-devient-une-promesse-vérifiable) La grammaire devient une promesse vérifiable ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -14392,3 +14393,37 @@ compile) ; désarmé, le test de refus devient rouge.
 client à la CRÉATION de l'enregistrement qui le porte : c'est vrai de tous les
 compteurs depuis la brique 4, pas de cet exemple seul.
 
+
+## 200. La grammaire devient une promesse vérifiable
+
+**Pourquoi maintenant.** Le point 5 de BETA demandait une gouvernance du DSL,
+mais le seul numéro public était celui du CONTRAT frontend. Une interface
+JSON peut changer sans changer les mots du langage ; confondre les deux
+versions empêcherait de dire à un projet ce qui lui est réellement promis.
+`LANGUAGE_VERSION`, près de la grammaire, vaut 1 ; la CLI l'affiche et
+`monl.json` le mémorise. Un ancien état sans ce champ reste accepté : la
+fraîcheur des artefacts se mesure par régénération, pas par un numéro.
+
+**Un cliquet, pas une photographie décorative.** `tests/grammaire_v1.txt`
+conserve les mots et types extraits des productions Lark par le même
+extracteur que les gardes d'architecture. Un ajout non déclaré rougit ; un
+mot retiré exige une nouvelle version du langage, avec conservation du
+témoin historique. Cela ne prouve pas le sens des programmes : le test de
+compilation des exemples existait déjà, et couvre désormais aussi les specs
+du plugin, sans second banc concurrent.
+
+**La limite est écrite.** STABILITY nomme les interfaces promises pour 1.0,
+et exclut les détails du Python généré, la plateforme hébergée et les prompts
+IA. Une rupture du langage demande version de langage ET version majeure ;
+une obsolescence doit vivre au moins une mineure avec avertissement et test
+de migration. Le contrat et les goldens restent intacts. BETA cesse aussi de
+réclamer un pool et des migrations non additives qui existent déjà ; un DROP
+irréversible ne devient pas réversible parce qu'une feuille de route le veut.
+
+**Contre-épreuves.** Retirer `Boolean` du témoin → ajout non déclaré ;
+ajouter `FakeKeyword` → rupture sans incrément. Rouge dans les deux cas,
+puis témoin restauré. Le contrôle des anciens projets sans version de langage
+reste vert. Les empreintes golden de `monl.json`, elles, changent nécessairement
+avec ce champ : trois tests rougissent, uniquement sur cet artefact. Ni leurs
+empreintes ni le test golden ne sont retouchés ; cette incompatibilité entre
+les deux contraintes est laissée visible, pas dissimulée par une normalisation.

@@ -51,6 +51,8 @@ def test_compile_ecrit_l_etat_et_le_contrat(projet):
         assert (projet / artefact).exists(), artefact
     etat = json.loads((projet / STATE_FILENAME).read_text(encoding="utf-8"))
     assert etat["spec"].endswith("spec.ml")
+    from monl.parser.version import LANGUAGE_VERSION
+    assert etat["language_version"] == LANGUAGE_VERSION
 
 
 def test_la_coherence_passe_juste_apres_une_compilation(projet):
@@ -110,3 +112,20 @@ def test_update_refuse_un_dossier_qui_n_est_pas_un_projet(tmp_path):
     with pytest.raises(SystemExit) as sortie:
         cmd_update(str(tmp_path))
     assert sortie.value.code == 1
+
+
+def test_legacy_state_without_language_version_remains_valid(projet):
+    _, _, original_warnings = check_coherence(str(projet))
+    path = projet / STATE_FILENAME
+    state = json.loads(path.read_text(encoding="utf-8"))
+    del state["language_version"]
+    path.write_text(json.dumps(state), encoding="utf-8")
+    ok, errors, warnings = check_coherence(str(projet))
+    assert ok, errors
+    assert warnings == original_warnings
+    cmd_run(str(projet), check_only=True, skip_smoke=True)
+    backend = projet / "app.py"
+    backend.write_text(backend.read_text(encoding="utf-8") + "\n# changed\n")
+    ok, errors, _ = check_coherence(str(projet))
+    assert not ok
+    assert any("app.py" in error for error in errors)

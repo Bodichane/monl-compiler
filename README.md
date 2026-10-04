@@ -515,6 +515,7 @@ is written by hand — no code generation is automated.
 | [docs/DESIGN_DECISIONS_SUMMARY.md](docs/DESIGN_DECISIONS_SUMMARY.md) | English map of the journal: every point by theme, linked to its entry |
 | [docs/SECURITE.md](docs/SECURITE.md) | Security model |
 | [docs/MIGRATIONS.md](docs/MIGRATIONS.md) | Schema evolution without loss |
+| [docs/STABILITY.md](docs/STABILITY.md) | 1.0 public interfaces, language version and compatibility policy |
 | [docs/BETA.md](docs/BETA.md) | Beta status and roadmap |
 | [docs/DEPRECATIONS.md](docs/DEPRECATIONS.md) | Historical compatibility and removal policy |
 | [docs/PUBLICATION.md](docs/PUBLICATION.md) | PyPI publication and GHCR platform image |

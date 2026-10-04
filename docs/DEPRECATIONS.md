@@ -1,6 +1,10 @@
 # Historical Compatibility and Deprecations
 
-This file sets out the compatibility maintained during beta. A compatibility is removed only after a warning period and a migration test.
+This file inventories historical compatibility during beta and implements the
+[1.0 stability policy](STABILITY.md). Deprecations remain available for at least
+one minor release with a warning, a documented replacement and a migration
+test. Breaking removal requires a major release; a language break also
+increments `LANGUAGE_VERSION`.
 
 | Item | Current state | Recommended replacement |
 |---|---|---|
@@ -14,6 +18,6 @@ This file sets out the compatibility maintained during beta. A compatibility is 
 - Nothing will be removed without an internal usage search and a compatibility test.
 - Warnings for `landing.mode` and `landing.template` are already emitted by the validator.
 - `.yaml` extensions remain compilable while external examples or projects depend on them.
-- Claude Code aliases will be removed only after a beta version explicitly announces the breaking change.
+- Claude Code aliases will be removed only after the warning period and migration test above, with a major release for breaking removal.
 
 The `docs/phase_*.md` documents and `CODEBASE_AUDIT.md` describe design history and dated audits; they are not normative descriptions of the current architecture. For that, consult the [README](../README.md) and CI results.
