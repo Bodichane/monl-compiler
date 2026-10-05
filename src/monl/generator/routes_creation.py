@@ -171,6 +171,7 @@ class CreationRoutesMixin:
                 f"* int(data.{regle.factor}), 2)",
             ]
         calcules = {r.field: f"_calcul_{r.field}" for r in derives_ici}
+        calcules.update(dict.fromkeys(self.event_counters_by_entity.get(base_target, ()), "0"))
         # AJOUT (brique 12, point 82) : une commande naît sans ligne, donc
         # son total naît à 0 — jamais à NULL, qu'aucun frontend ne sait
         # afficher, et jamais depuis `data` (le champ n'y est plus). La

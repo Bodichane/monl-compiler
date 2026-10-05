@@ -184,6 +184,7 @@ class ModificationRoutesMixin:
                 base_target, {}).get("fields", []))
         ecrits = [f for f in fields
                   if f not in generated_upd and f not in sommes_upd
+                  and (base_target, f) not in self.event_counters
                   and f not in horodates_upd
                   and f not in postpaiement_upd
                   and self.entities[base_target][f] != "Upload"]

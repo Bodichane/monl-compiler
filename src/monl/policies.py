@@ -36,6 +36,27 @@ class _FieldDirectives:
     uploads: Mapping[FieldKey, UploadPlan]
 
 
+def event_counter_fields(security: SecurityIR) -> frozenset[FieldKey]:
+    """Point 202 : événements constants uniquement, jamais un budget réglable."""
+    events: set[FieldKey] = set()
+    budgets: set[FieldKey] = set()
+    for rule in security.get("reputation_rules", []):
+        key = (rule["target_entity"], rule["target_field"])
+        if rule["direction"] == "increments" and not rule.get("amount_field"):
+            events.add(key)
+        else:
+            budgets.add(key)
+    return frozenset(events - budgets)
+
+
+def event_counters_by_entity(security: SecurityIR) -> dict[str, list[str]]:
+    """Les compteurs d'événements groupés par entité, que la création met à 0."""
+    groupes: dict[str, list[str]] = {}
+    for entity, field in sorted(event_counter_fields(security)):
+        groupes.setdefault(entity, []).append(field)
+    return groupes
+
+
 def _field_directives(security: SecurityIR) -> _FieldDirectives:
     return _FieldDirectives(
         generated=frozenset((r["entity"], r["field"]) for r in security["generated_fields"]),
@@ -67,6 +88,7 @@ def plan_entity_models(
 ) -> Mapping[str, EntityModel]:
     """Consolide les marqueurs validés sans lire l'état d'un générateur."""
     directives = _field_directives(security)
+    events = event_counter_fields(security)
     models: dict[str, EntityModel] = {}
     for entity, fields in entities.items():
         derived = {r.field: r for r in derivations.get(entity, ())}
@@ -76,7 +98,7 @@ def plan_entity_models(
             key = (entity, name)
             policies[name] = FieldPolicy(
                 name=name, type=type_, hidden_in_reads=f"{entity}.{name}" in directives.hidden,
-                server_generated=(key in directives.generated or name in derived or name in aggregated
+                server_generated=(key in events or key in directives.generated or name in derived or name in aggregated
                                   or key in directives.numbered or key in directives.timestamped),
                 categorized_in_reads=key in directives.categorized,
                 postpayment_only=key in directives.postpayment,

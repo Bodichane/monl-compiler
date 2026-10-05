@@ -119,6 +119,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [199](#199-un-compteur-sur-une-fiche-dacteur-frappait-au-hasard) Un compteur sur une fiche d'acteur ·
 [200](#200-la-grammaire-devient-une-promesse-vérifiable) La grammaire devient une promesse vérifiable ·
 [201](#201-un-texte-required-doit-contenir-autre-chose-que-des-espaces) Un texte `required` doit contenir autre chose que des espaces ·
+[202](#202-un-compteur-dévénements-appartient-au-serveur) Un compteur d'événements appartient au serveur ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -14390,9 +14391,10 @@ sa fiche avant alice, signale le post d'alice → seul ce post passe de 100 à
 (`tests/test_validateur_refus.py`, la même spec avec la cible renommée
 compile) ; désarmé, le test de refus devient rouge.
 
-**Non traité, et dit.** Un compteur (`likes`, `score`) reste écrivable par le
-client à la CRÉATION de l'enregistrement qui le porte : c'est vrai de tous les
-compteurs depuis la brique 4, pas de cet exemple seul.
+**Non traité, et dit.** Un compteur (`likes`, `score`) restait écrivable par le
+client à la CRÉATION de l'enregistrement qui le porte : c'était vrai de tous les
+compteurs depuis la brique 4, pas de cet exemple seul. (FERMÉ au point 202
+pour les compteurs d'événements ; `score`, budget décrémenté, reste réglable.)
 
 
 ## 200. La grammaire devient une promesse vérifiable
@@ -14470,3 +14472,43 @@ Le contrôle désarmé rend rouges les deux refus (`200` au lieu de `422`), puis
 le contrôle restauré rend le banc vert. Les specs du golden sont recompilées ;
 seules les empreintes réellement différentes sont remplacées, y compris
 `monl.json` qui scelle les artefacts et porte la version du langage (point 200).
+
+## 202. Un compteur d'événements appartient au serveur
+
+**Mesuré (issue #116).** Un post se créait avec `likes: 5000` : la valeur de
+départ d'un compteur venait du corps de requête, pour tous les compteurs depuis
+la brique 4. Même famille que le point 77 — une valeur que le serveur tient ne
+doit pas être fournie par le client — et `categorized` (brique 5) perdait son
+sens : un post naissait « viral ».
+
+**La règle : événements contre budgets.** Tous les compteurs ne se ressemblent
+pas, et c'est le mainteneur qui a tranché. Un champ visé UNIQUEMENT par des
+`increments … by N` à montant constant compte des ÉVÉNEMENTS (likes, reposts,
+vues) : il n'a pas de valeur de départ légitime autre que zéro. Il devient tenu
+par le serveur — absent des schémas de création ET de modification (point 78),
+initialisé à 0, marqué `server_generated` et retiré de `request_fields` dans le
+contrat (point 79). Un champ visé par au moins un `decrements`, ou par un
+`increments … by champ`, est un BUDGET : le stock d'un produit, qu'un
+commerçant doit pouvoir fixer à la création (brique 15), ou un score de départ.
+Il reste réglable. Le rendre serveur aurait cassé la boutique ; la règle
+universelle a été écartée pour cette raison. `event_counter_fields`
+(`policies.py`) est la source unique, lue par les schémas, la création, la
+modification, le contrat et l'export CSV (`content_tool`).
+
+**Pas de nouveau mot-clé.** La distinction se lit dans les règles déjà écrites ;
+un mot-clé `startsAt 0` aurait donné le contrôle au cas par cas au prix d'un
+mot de plus dans le langage (point 200). Un `seed` continue de renseigner le
+compteur : il s'exécute côté serveur.
+
+**Ce que voit un projet existant.** Pydantic ignore un champ en trop : un client
+qui envoie encore `likes` n'obtient pas de 422, sa valeur est simplement
+ignorée. `monl diff` et `monl update` l'annoncent — « champ devenu en lecture
+seule : Post.likes » (point 89), mesuré sur `03_reseau_social` compilé par la
+version précédente.
+
+**Preuves.** `test_compteur_ignore_post_et_put` (serveur réel) : création avec
+`likes: 5000` → 0 en base, modification avec `likes: 9000` sans effet, un like
+→ 1. Contre-épreuve : détection désarmée → `assert 5000 == 0`. Les seeds de
+`03_reseau_social` donnent toujours confidentiel / populaire / viral ;
+`tests/test_stock.py` prouve que le stock reste fixé par le commerçant.
+

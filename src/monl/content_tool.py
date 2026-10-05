@@ -16,6 +16,7 @@ from .assets_tool import (
     resoudre_asset,
 )
 from .errors import ToolError
+from .policies import event_counter_fields
 
 
 class ContentToolError(ToolError):
@@ -38,7 +39,8 @@ def _appeler(fonction, *args):
 
 def _exclus(normalized, entite):
     security = normalized.get("security", {})
-    exclus = set()
+    exclus = {field for entity, field in event_counter_fields(security)
+              if entity == entite}
     for cle in ("generated_fields", "derived_fields", "aggregated_fields",
                 "timestamp_fields", "numbered_fields"):
         for item in security.get(cle) or []:

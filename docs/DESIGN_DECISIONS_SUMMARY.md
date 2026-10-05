@@ -119,6 +119,7 @@ its title as well as by its number.
 [199](design_decisions.md#199-un-compteur-sur-une-fiche-dacteur-frappait-au-hasard) A counter on an actor's profile hit at random ·
 [200](design_decisions.md#200-la-grammaire-devient-une-promesse-vérifiable) Grammar compatibility becomes an executable promise ·
 [201](design_decisions.md#201-un-texte-required-doit-contenir-autre-chose-que-des-espaces) Required text rejects whitespace without changing stored data ·
+[202](design_decisions.md#202-un-compteur-dévénements-appartient-au-serveur) An event counter belongs to the server ·
 **AI escape hatch**:[4](design_decisions.md#4-garde-fou-statique-sur-le-code-généré-par-lia) Static safeguard (`custom`) ·
 [21](design_decisions.md#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) `landing` block (text safeguard)
 

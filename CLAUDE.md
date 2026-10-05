@@ -218,6 +218,13 @@ anonymous social network as the final test bench.
    the Lark filtering trap that caused the first attempt to be cancelled).
    `ast_validator.py` validates both in the same loop, each rule carrying a
    `"direction"` field. `generator.py` chooses `+`/`-` based on that field.
+   **Point 202 (issue #116): a field targeted ONLY by constant `increments … by N`
+   is an EVENT counter held by the server** — absent from Create/Update bodies,
+   starts at 0, `server_generated` in the contract, still fillable by `seed`.
+   A field with any `decrements` or `increments … by champ` is a BUDGET (stock,
+   score) and stays client-settable: making it server-held would stop a
+   merchant from setting stock. Single source: `event_counter_fields`
+   (`policies.py`).
    Compiled by `exemples/03_reseau_social.ml` and
    `exemples/05_classement.ml`.
 5. **`rule Entite.champ categorized: "label" below N, ..., "label" otherwise`**

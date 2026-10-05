@@ -9,6 +9,16 @@
   before any write; the stored value is never trimmed (`" a "` stays
   `" a "`). The contract marks these fields `non_blank`.
 
+### Behavior change
+
+- **Event counters belong to the server** (point 202, issue #116). A field
+  targeted only by constant `increments … by N` (likes, reposts, views) is no
+  longer accepted in create or update bodies: it starts at 0 and only the
+  server changes it. A client that still sends it sees the value ignored, not a
+  422; `monl diff` reports the field as now read-only. Fields that are also
+  decremented, such as a product's stock, stay settable by whoever creates the
+  record. `seed` blocks still fill counters.
+
 ## 1.0.0-rc.1 — A verifiable promise
 
 This first release candidate declares language version 1 and the interfaces

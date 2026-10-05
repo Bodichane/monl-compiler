@@ -13,7 +13,12 @@ from ..planning import (
     plan_relations,
     plan_routes,
 )
-from ..policies import plan_access_policies, plan_entity_models
+from ..policies import (
+    event_counter_fields,
+    event_counters_by_entity,
+    plan_access_policies,
+    plan_entity_models,
+)
 from .admin_cli import AdminCliMixin
 from .calculs import CalculsMixin
 from .emitters import BackendEmitter
@@ -279,6 +284,9 @@ class MonlSecureGenerator(
         # Vue typée commune aux consommateurs de la sémantique des champs.
         # Les dictionnaires historiques restent disponibles pendant la
         # migration des émetteurs SQL et API.
+        self.event_counters = event_counter_fields(normalized_ast["security"])
+        # Point 202 : la création initialise ces compteurs à 0, par entité.
+        self.event_counters_by_entity = event_counters_by_entity(normalized_ast["security"])
         self.entity_models = plan_entity_models(
             self.entities, normalized_ast["security"], self.derived_by_entity,
             self.aggregated_by_entity)
