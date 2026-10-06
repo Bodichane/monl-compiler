@@ -56,28 +56,56 @@ CONSIGNE = (
     "the source of truth. Write files only in frontend/. When you are done, run "
     "`monl run . --check` and fix every failure it reports, then stop."
 )
-OUTILS = "Read,Write,Edit,Glob,Grep,Bash(monl run:*),Bash(ls:*),Bash(cat:*)"
+# `Skill` est autorisé dans les DEUX bras : sinon une compétence chargée serait
+# refusée, et le bras « avec » mesurerait le refus, pas la compétence.
+OUTILS = "Read,Write,Edit,Glob,Grep,Skill,Bash(monl run:*),Bash(ls:*),Bash(cat:*)"
 MONL = [sys.executable, "-c", "import sys; from monl.cli import main; "
         "sys.argv[0] = 'monl'; main()"]
 
 
-def _claude(dossier, avec_plugin, consigne, tours=60, delai=1800):
-    commande = ["claude", "-p", consigne, "--output-format", "json",
+def _claude(dossier, avec_plugin, consigne, tours=60, delai=1800, outils=OUTILS):
+    commande = ["claude", "-p", consigne, "--output-format", "stream-json", "--verbose",
                 "--settings", REGLAGES, "--setting-sources", "project",
-                "--permission-mode", "acceptEdits", "--allowedTools", OUTILS,
+                "--permission-mode", "acceptEdits", "--allowedTools", outils,
                 "--max-turns", str(tours)]
     if avec_plugin:
         commande += ["--plugin-dir", str(PLUGIN)]
     debut = time.monotonic()
     rendu = subprocess.run(commande, cwd=dossier, capture_output=True, text=True,
                            timeout=delai, stdin=subprocess.DEVNULL)
-    duree = time.monotonic() - debut
-    try:
-        resultat = json.loads(rendu.stdout)
-    except json.JSONDecodeError:
-        resultat = {"is_error": True, "result": rendu.stdout[-2000:] + rendu.stderr[-2000:]}
-    resultat["duree_s"] = round(duree, 1)
+    resultat = _lire_flux(rendu.stdout)
+    if resultat is None:
+        resultat = {"is_error": True, "result": rendu.stdout[-2000:] + rendu.stderr[-2000:],
+                    "outils": {}, "competences": []}
+    resultat["duree_s"] = round(time.monotonic() - debut, 1)
     return resultat
+
+
+def _lire_flux(texte):
+    """Lit le flux stream-json : résultat final + chaque appel d'outil.
+
+    Le résultat seul ne dit pas si une compétence a été chargée : il faut les
+    appels `Skill` eux-mêmes, d'où le flux complet.
+    """
+    outils, competences, final = {}, [], None
+    for ligne in texte.splitlines():
+        try:
+            evenement = json.loads(ligne)
+        except json.JSONDecodeError:
+            continue
+        if evenement.get("type") == "result":
+            final = evenement
+        if evenement.get("type") != "assistant":
+            continue
+        for bloc in evenement.get("message", {}).get("content", []):
+            if bloc.get("type") != "tool_use":
+                continue
+            outils[bloc["name"]] = outils.get(bloc["name"], 0) + 1
+            if bloc["name"] == "Skill":
+                competences.append(bloc.get("input", {}).get("skill", "?"))
+    if final is None:
+        return None
+    return {**final, "outils": outils, "competences": competences}
 
 
 def sonde():
@@ -176,6 +204,7 @@ def mesurer(specs, essais, sortie):
                          "tours": execution.get("num_turns"),
                          "duree_s": execution["duree_s"],
                          "refus_bash": len(refus),
+                         "competences": execution.get("competences", []),
                          "erreur_claude": execution.get("is_error", False)}
                 lignes.append(ligne)
                 (sortie / "resultats.json").write_text(
