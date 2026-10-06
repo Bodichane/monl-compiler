@@ -193,9 +193,11 @@ def mesurer(specs, essais, sortie):
                     # Une écriture refusée mesure le harnais, pas les compétences :
                     # mieux vaut s'arrêter que noter un frontend vide.
                     raise SystemExit(f"écriture refusée dans {dossier} : {ecritures[:2]}")
-                if execution.get("is_error") and not execution.get("total_cost_usd"):
-                    # Claude n'a rien fait (limite d'usage, panne) : ce n'est pas un
-                    # essai raté, c'est un essai qui n'a pas eu lieu.
+                coupe = "session limit" in str(execution.get("result", "")).lower()
+                if execution.get("is_error") and (coupe or not execution.get("total_cost_usd")):
+                    # Claude n'a rien fait, ou a été COUPÉ en route par la limite
+                    # d'usage : ce n'est pas un essai raté, c'est un essai qui n'a
+                    # pas eu lieu — même s'il a déjà coûté quelques tours.
                     raise SystemExit(f"Claude n'a pas travaillé dans {dossier} : "
                                      f"{str(execution.get('result'))[:200]}")
                 note = noter(dossier)
