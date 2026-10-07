@@ -120,6 +120,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [200](#200-la-grammaire-devient-une-promesse-vérifiable) La grammaire devient une promesse vérifiable ·
 [201](#201-un-texte-required-doit-contenir-autre-chose-que-des-espaces) Un texte `required` doit contenir autre chose que des espaces ·
 [202](#202-un-compteur-dévénements-appartient-au-serveur) Un compteur d'événements appartient au serveur ·
+[203](#203-les-en-têtes-de-sécurité-enveloppent-aussi-le-site) Les en-têtes de sécurité enveloppent aussi le site ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -14512,3 +14513,56 @@ version précédente.
 `03_reseau_social` donnent toujours confidentiel / populaire / viral ;
 `tests/test_stock.py` prouve que le stock reste fixé par le commerçant.
 
+
+
+## 203. Les en-têtes de sécurité enveloppent aussi le site
+
+**Manque mesuré (issue #118).** Le backend compilé ne posait aucun en-tête
+HTTP global ; les fichiers montés par `serve.py` sous `/site` étaient donc
+également sans politique. Le proxy pouvait les ajouter, mais une application
+annoncée sécurisée par défaut devait les produire elle-même.
+
+**Une enveloppe ASGI externe.** `runtime_headers.py` émet le middleware et une
+sous-classe FastAPI qui enveloppe la pile construite, À L'EXTÉRIEUR du
+`ServerErrorMiddleware`. Un middleware HTTP ordinaire laisse les erreurs 500
+hors de sa portée. L'enveloppe conserve l'application FastAPI, ses routes,
+son lifespan et les montages ultérieurs de `serve.py`. Elle pose `nosniff`,
+`X-Frame-Options: DENY`, une politique de référent stricte entre origines et
+une CSP avec `object-src 'none'` et `frame-ancestors 'none'`, sur toute réponse.
+
+**Trois contextes, aucune ouverture CDN générale.** La source FastAPI installée
+et le HTML réellement servi nomment les ressources : Swagger charge son
+bundle et sa feuille depuis jsDelivr, son favicon depuis FastAPI ; ReDoc
+charge son bundle depuis jsDelivr, sa feuille depuis Google Fonts et les
+polices depuis gstatic, son logo depuis `cdn.redoc.ly/redoc/logo-mini.svg`
+(ressource découverte par exécution dans Chromium, absente du HTML initial).
+Les permissions sont limitées à `/docs` et `/redoc`,
+avec les chemins exacts pour les bundles et le favicon. `/site` permet les
+scripts et styles locaux ET inline : la démo tient dans un seul HTML, le
+portfolio dans trois fichiers. Interdire l'inline aurait cassé une forme
+légitime de site autonome. Le retour OAuth Swagger permet son script inline,
+sans permission CDN. Ce compromis ne prétend pas bloquer un script inline
+injecté ; il préserve les sites existants tout en fermant objets et frames.
+
+**HTTPS seulement.** HSTS vaut `max-age=31536000`, sans sous-domaines ni
+préchargement, uniquement si le schéma est HTTPS ou si
+`X-Forwarded-Proto: https` est reçu. Une réponse HTTP ordinaire n'en contient
+jamais ; le proxy doit écraser cet en-tête entrant. La variable
+`MONL_SECURITY_HEADERS=off` désactive toute l'enveloppe au démarrage, sans
+modifier les artefacts scellés. Elle est documentée dans SECURITE et gardée
+par le témoin bidirectionnel des variables.
+
+**Preuves.** `tests/test_security_headers.py` compile et sert par Uvicorn :
+API, `/site`, redirection, 401, 404 et 500 portent les en-têtes ; HTTP n'a pas
+HSTS, le proxy HTTPS l'a ; les URL du HTML des deux documentations sont
+admises par leur CSP ; la désactivation retire les cinq en-têtes.
+Chromium ouvre aussi la démo et le frontend copié depuis
+`~/mesure-competences-v2-portfolio/01_portfolio/sans-1/frontend` : interaction
+de connexion fonctionnelle, styles chargés, aucune violation CSP ni erreur
+JavaScript ; Swagger et ReDoc sont rendus et n'émettent aucune violation.
+La démo est compilée dans un dossier temporaire, puis `monl run demo --check`
+y réussit (la couverture frontend existante de 14/19 routes reste annoncée).
+Le middleware retiré fait échouer le témoin API sur `nosniff` absent, puis
+sa restauration rend le banc vert. Les trois fixtures golden sont réellement
+recompilées : seuls `app.py` et `monl.json` changent, le second scellant
+l'empreinte du premier. Aucun plafond ni cliquet d'architecture n'est relevé.
