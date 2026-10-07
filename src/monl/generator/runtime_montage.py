@@ -1,5 +1,8 @@
 """Le socle de base de données monté dans app.py, et les téléversements."""
 
+from .runtime_headers import security_headers_lines
+
+
 class MontageRuntimeMixin:
     """Le socle de base de données monté dans app.py, et les téléversements."""
 
@@ -212,7 +215,8 @@ class MontageRuntimeMixin:
             # en développement, rarement souhaitable en déploiement :
             # MONL_DOCS=off les désactive sans toucher au code généré.
             "_docs_actives = os.environ.get('MONL_DOCS', 'on').lower() != 'off'",
-            f"app = FastAPI(title='{self.app_name} - Secure Core', lifespan=_lifespan,",
+            *security_headers_lines(),
+            f"app = _SecurityFastAPI(title='{self.app_name} - Secure Core', lifespan=_lifespan,",
             "               docs_url='/docs' if _docs_actives else None,",
             "               redoc_url='/redoc' if _docs_actives else None,",
             "               openapi_url='/openapi.json' if _docs_actives else None)\n",

@@ -113,6 +113,16 @@ in both directions.
 - `MONL_CORS_ORIGINS`: comma-separated list of allowed origins. CORS is off by
   default (the frontend is served from the same origin, under `/site`), and
   `*` is refused at startup.
+- `MONL_SECURITY_HEADERS=off`: disables all global security headers (enabled
+  by default). Every response, including `/site`, errors and redirects, carries
+  `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+  `Referrer-Policy: strict-origin-when-cross-origin` and a CSP. The CSP allows
+  local and inline scripts/styles under `/site`; CDN resources are allowed only
+  on `/docs` (jsDelivr, FastAPI favicon) and `/redoc` (also Google Fonts and
+  the exact ReDoc logo URL).
+  HSTS (`max-age=31536000`, without subdomains or preload) is emitted only for
+  HTTPS or `X-Forwarded-Proto: https`, never plain HTTP. A reverse proxy must
+  overwrite this header rather than forward a client's arbitrary value.
 - `MONL_DOCS=off`: disables `/docs`, `/redoc` and `/openapi.json`.
 - `MONL_LOG_FORMAT=json`: structured logs.
 
@@ -222,9 +232,6 @@ What it guarantees to account holders:
   never that an inbox receives mail.
 - Messages (`sends`, password reset) are sent without a delivery guarantee or
   retries: a failure is logged after the business transaction has committed.
-- No global HTTP security headers (CSP, HSTS, `X-Frame-Options`): set them at
-  the reverse proxy. Only uploaded files are served with
-  `X-Content-Type-Options: nosniff`.
 - SQLite is the default database; under heavy multi-worker write load, use
   PostgreSQL (`MONL_DATABASE_URL`).
 - `drop` migrations are irreversible without a backup (see

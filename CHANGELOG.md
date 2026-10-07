@@ -11,6 +11,8 @@
 
 ### Behavior change
 
+- Generated backends emit global security headers, including `/site`, with scoped CSP permissions and HTTPS-only HSTS; `MONL_SECURITY_HEADERS=off` disables them (point 203, issue #118).
+
 - **Event counters belong to the server** (point 202, issue #116). A field
   targeted only by constant `increments … by N` (likes, reposts, views) is no
   longer accepted in create or update bodies: it starts at 0 and only the
