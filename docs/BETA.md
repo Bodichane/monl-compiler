@@ -193,7 +193,7 @@ In priority order:
 7. **Written threat model completed; independent external audit/penetration
    test remains open** (issue #124). The maintained [threat model](THREAT_MODEL.md)
    covers the generated backend and hosting platform with verified test references
-   and explicit gaps. Internal offensive regression tests and the dated
+   and explicit gaps; the [external audit brief](EXTERNAL_AUDIT.md) is prepared but nothing is commissioned. Internal offensive regression tests and the dated
    `CODEBASE_AUDIT.md` do not establish an independent audit.
 
 ## Positioning

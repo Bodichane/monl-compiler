@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Documentation
+
+- Prepare the external security audit brief (`docs/EXTERNAL_AUDIT.md`): frozen-version scope, known gaps handed to the auditor, rules of engagement, what is published afterwards (issue #124, second half; nothing is commissioned).
+
 ### Fixed
 
 - **A damaged spec gets a monl error, never a Python traceback** (point 204,

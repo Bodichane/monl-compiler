@@ -198,7 +198,8 @@ security boundary. An implementation receives backend process authority.
 - **Limits recorded in SECURITE.md.** SMTP sends have no delivery guarantee or
   retry; SQLite can bottleneck under heavy multi-worker writes; `drop` migrations
   need backups for recovery. None has a universal prevention/recovery proof here.
-- **External audit remains open (#124, second half).** Existing internal tests,
+- **External audit remains open (#124, second half).** The scope and brief are
+  prepared in [EXTERNAL_AUDIT.md](EXTERNAL_AUDIT.md); nothing is commissioned. Existing internal tests,
   this model and CODEBASE_AUDIT.md do not replace it. Future changes must refresh
   the boundaries, version and evidence; passing reference checks only prevents
   dangling test names.
