@@ -14,6 +14,15 @@ def _fonctions_dauth(plans, routes):
     # octet de contrat par défaut.
     auth_features = dict(plans.auth_features or {})
     auth_actors = sorted(plans.actors)
+    if auth_features.get("verify_email"):
+        routes.extend([
+            champs._route("POST", "/verify-email", "VerifyEmail", "Authentication",
+                          True, [], request_fields=["username", "token"],
+                          note="Confirmation par POST : jeton opaque lié au compte, à usage unique et durée limitée. Aucun GET ne consomme le lien."),
+            champs._route("POST", "/verify-email/resend", "VerifyEmailResend", "Authentication",
+                          True, [], request_fields=["username"],
+                          note="Renvoi limité, réponse générique avec le même plancher de durée, même quand la limite est atteinte."),
+        ])
     if auth_features.get("password_reset"):
         routes.extend([
             champs._route(
@@ -129,6 +138,22 @@ def _auth_du_contrat(auth_features, plans):
             "str — jeton OPAQUE de rafraîchissement (ce n'est pas un JWT), "
             "à conserver et à rejouer sur POST /refresh")
     b4_contract = {}
+    if auth_features.get("verify_email"):
+        auth_contract["login"]["errors"] = {
+            "403": {"code": "email_not_verified", "message": "Confirmez votre adresse e-mail avant de vous connecter."},
+            "401": "Identifiants invalides. (mot de passe incorrect ou compte absent)",
+        }
+        auth_contract["register"]["response"] = {"status": "pending", "user_id": "int", "detail": "str"}
+        auth_contract["register"]["note"] += " Confirmation requise, aucun jeton de session avant confirmation."
+        b4_contract["verify_email"] = {
+            "confirm_path": "/verify-email", "resend_path": "/verify-email/resend",
+            "confirm_body": {"username": "str", "token": "str"},
+            "ttl_seconds": auth_features["verify_email"],
+            "resend": auth_features["verify_resend"],
+            "single_use": True, "invalidated_on_resend": True,
+            "login_unconfirmed": {"status": 403, "code": "email_not_verified"},
+            "online_registration_only": True,
+        }
     if auth_features.get("lockout"):
         b4_contract["account_lockout"] = {
             "max_attempts": auth_features["lockout"]["max_attempts"],

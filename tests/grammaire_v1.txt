@@ -96,5 +96,7 @@ types
 ui
 unique
 upload
+verify_email
+verify_resend
 workflow
 writableAfterPayment

@@ -7,6 +7,15 @@
 - Prepare the external security audit brief (`docs/EXTERNAL_AUDIT.md`): frozen-version scope, known gaps handed to the auditor, rules of engagement, what is published afterwards (issue #124, second half; nothing is commissioned).
 - Document the custom-code trust boundary and measured decision to defer isolation until the platform accepts user Python; guard compiler shells and platform writes (point 208, issue #123).
 
+### Added
+
+- Opt-in email confirmation at online registration (point 209, issue #122):
+  `verify_email: 86400` and `verify_resend: 3 in 3600`, with `identifier: email`.
+  POST confirmation and generic limited resend reuse password-reset SMTP;
+  login refuses unconfirmed accounts with 403 after a correct password.
+  Historical and offline accounts stay confirmed. Dialogue, frontend contract,
+  update delta and smoke test support the flow; no automatic account purge.
+
 ### Fixed
 
 - **A damaged spec gets a monl error, never a Python traceback** (point 204,

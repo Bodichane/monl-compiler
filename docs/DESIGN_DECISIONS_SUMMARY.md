@@ -13,7 +13,8 @@ its title as well as by its number.
 
 ## Contents by theme
 
-**Security and access control**:[206](design_decisions.md#206-un-modèle-de-menaces-défensif-avec-des-preuves-vérifiables) Defensive threat model with verified test evidence ·
+**Security and access control**: [209](design_decisions.md#209-confirmer-ladresse-e-mail-sans-convertir-les-comptes-existants) Opt-in online email confirmation, single-use links, generic limited resend and preserved historical accounts ·
+[206](design_decisions.md#206-un-modèle-de-menaces-défensif-avec-des-preuves-vérifiables) Defensive threat model with verified test evidence ·
 [1](design_decisions.md#1-collision-de-privilèges-critical_collision) Privilege collision ·
 [2](design_decisions.md#2-restriction-de-champ-restrictedto) Field restriction ·
 [3](design_decisions.md#3-avertissement-sur-les-suppressions-non-admin-critical_warning) Warning on non-Admin deletions ·

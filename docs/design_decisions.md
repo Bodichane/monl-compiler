@@ -13,9 +13,10 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 
 ## Sommaire
 
-[206](#206-un-modèle-de-menaces-défensif-avec-des-preuves-vérifiables) Modèle de menaces et références de tests vérifiées ·
+[209](#209-confirmer-ladresse-e-mail-sans-convertir-les-comptes-existants) Confirmer l'adresse e-mail sans convertir les comptes existants ·
 [208](#208-code-custom-sous-la-responsabilité-de-son-auteur) Code custom sous la responsabilité de son auteur ·
 [207](#207-premier-gabarit-python-sans-changer-les-octets) Premier gabarit Python sans changer les octets ·
+[206](#206-un-modèle-de-menaces-défensif-avec-des-preuves-vérifiables) Modèle de menaces et références de tests vérifiées ·
 
 **Sécurité et contrôle d'accès** : [1](#1-collision-de-privilèges-critical_collision) Collision de privilèges ·
 [2](#2-restriction-de-champ-restrictedto) Restriction de champ ·
@@ -14789,3 +14790,125 @@ AST (docstring puis retour constant, aucun import). Le garde AST inspecte les
 refuse un périmètre vide ; il ne prétend pas résoudre les chemins dynamiques.
 La contre-épreuve ajoute temporairement une écriture de la coquille dans un
 module de plateforme, constate le rouge, puis retire cette modification.
+
+## 209. Confirmer l'adresse e-mail sans convertir les comptes existants
+
+Issue #122, dans le style du point 124 (B4). La forme d'une adresse ne prouve
+pas que l'inscrit possède la boîte. La vérification concerne l'inscription
+en ligne, donc les acteurs `selfRegister` ; `manage.py adduser` reste le
+chemin des rôles de service, sans adresse obligatoire et déjà confirmés.
+Le changement de mot de passe par `manage.py passwd` garde l'invalidation
+B4 : la vérification seule crée aussi `token_version`, donc la recherche de
+l'identifiant interne doit reconnaître cette option. La preuve crée un
+compte de service, change son mot de passe et rejoue son ancien JWT, refusé.
+Aucune nouvelle entrée n'est ajoutée à la liste des briques de CLAUDE.md.
+
+### Deux déclarations ensemble, sans défaut caché
+
+    capability auth
+        identifier: email
+        verify_email: 86400
+        verify_resend: 3 in 3600
+
+La validité du lien, le nombre de renvois et la fenêtre sont des entiers
+strictement positifs en secondes. Les deux réglages sont indissociables et
+exigent exclusivement `identifier: email` : proposer aussi le téléphone
+créerait des comptes qui ne peuvent pas recevoir leur confirmation. Une spec
+sans ces réglages garde ses octets générés ; aucun défaut n'arme la brique.
+Le compilateur ne contacte jamais SMTP.
+
+### Le compte existe ; le mot de passe précède la garde
+
+`/register` crée le compte non confirmé et le message, sans session. Le BON
+mot de passe reçoit 403 `email_not_verified`, avec une invitation à confirmer.
+Un mauvais mot de passe et un compte absent rendent le 401 générique
+historique, sans information supplémentaire. La garde vient après la preuve
+du mot de passe et avant toute émission de jeton d'accès ou de refresh.
+Un compte non confirmé peut demander un nouveau lien.
+
+`POST /verify-email` reçoit `username` et `token` dans le corps. Le jeton est
+opaque, aléatoire, stocké seulement en SHA-256, lié au compte, daté et à usage
+unique. Sa consommation conditionnelle et la confirmation vivent dans une
+transaction : une confirmation échouée ne brûle pas le lien. Aucun GET ne
+consomme le jeton, sinon un scanner de liens confirmerait à la place de
+l'humain. Chaque émission invalide les anciens jetons du même compte.
+
+`POST /verify-email/resend` reste générique pour adresse connue, absente,
+déjà confirmée et quota atteint. Le quota persistant utilise la même fenêtre
+déclarative que `lockout`, comptée par empreinte de l'identifiant, y compris
+pour les adresses absentes ; le plancher est celui de password_reset/request.
+La saturation ne donne donc pas un nouvel oracle d'existence. L'inscription
+initiale ne compte pas comme un renvoi.
+
+### Une migration additive, jamais une reconversion
+
+La colonne `email_verified INTEGER NOT NULL DEFAULT 1` préserve les comptes
+antérieurs et ceux de `manage.py`. Seul `/register`, après sa garde
+`selfRegister`, écrit zéro. Quand la colonne manque, le démarrage compte et
+annonce les comptes antérieurs conservés confirmés. Cela ne prétend pas que
+leur boîte a été vérifiée : le point 89 interdit de changer leur comportement
+à la montée de version. Les tables des jetons et des renvois sont ajoutées
+conditionnellement ; les émissions SQL et migrations suivent le socle
+SQLite/PostgreSQL. La preuve d'exécution de cette brique porte sur SQLite. Pour maintenir le
+plafond de complexité sans le relever, les colonnes du registre sont extraites
+dans `_user_registry_sql_lines` ; les octets historiques sont conservés.
+
+### Un seul transport et trois clients
+
+Le message réutilise `_send_password_reset`, sa configuration SMTP et
+`MONL_PASSWORD_RESET_URL`, avec le sujet et le corps de confirmation. Le
+thread est lancé après commit ; transport en panne = trace, jamais erreur de
+route. Aucun nouveau chemin d'envoi, aucune garantie de livraison ni relance.
+
+Le frontend_contract porte les deux POST, leurs corps, la durée, le quota et
+le 403. `_contract_signature` les voit dans les routes et les fonctionnalités
+d'authentification ; le vrai `monl update` annonce leur ajout. Le brief demande
+un écran de confirmation et une action explicite avant le POST.
+
+Le producteur est `_ask_account_identifier` : seulement pour une inscription
+en ligne et un identifiant exclusivement e-mail, une question propose la
+confirmation, puis demande les trois nombres sans les deviner. Refuser
+n'ajoute aucune ligne : les vingt specs all-no/all-yes des dix modèles,
+mesurées avant et après (43 758 octets), restent identiques. Aucune empreinte
+de `tests/test_golden_artifacts.py` n'a été recalculée : toutes restent
+inchangées, y compris le banc B4 sans vérification. Un second témoin
+compare les vingt parcours e-mail avec refus à ceux sans la question.
+Les scénarios sont composés par pièces nommées.
+
+Le vérificateur est un client comme un autre : le smoke inscrit un compte,
+constate le 403 attendu et vérifie les deux POST dans l'OpenAPI réel. Il ne
+confirme pas automatiquement et annonce que la connexion et les créations
+authentifiées après confirmation ne sont pas éprouvées dans ce smoke.
+
+### Preuves et limites assumées
+
+`tests/test_verification_email.py` compile puis démarre un vrai uvicorn et un
+faux SMTP : DEUX comptes pour distinguer « le bon compte est confirmé » de
+« tous les comptes sont confirmés ». Inscription et message reçu, 403/401,
+confirmation et connexion, rejeu, expiration forcée en base, autre compte,
+renvoi générique, quota et invalidation, base déjà peuplée puis redémarrage,
+compte de service créé par manage.py, contrat/delta et `monl run --check`.
+Chaque garde désarmée (403, consommation, expiration, quota) rend le même
+témoin rouge dans une application compilée jetable, jamais en mutant le dépôt
+pendant un autre test.
+
+Pas de purge automatique des comptes non confirmés : limite assumée de cette
+brique. Le lien utilise la configuration de password_reset ; l'exploitant
+choisit un écran qui distingue les parcours. Les jetons de confirmation
+consommés sont conservés ; seule la fenêtre des renvois est nettoyée. La
+possession du lien prouve l'accès à la boîte à cet instant, jamais l'identité
+civile ni la livraison de tous les messages futurs.
+
+### Limites assumées
+
+Pas de purge des comptes non confirmés : un compte jamais confirmé reste en
+base. **Pré-inscription** : quelqu'un peut inscrire l'adresse d'une autre
+personne avec un mot de passe qu'il choisit ; si cette personne confirme
+le message reçu, elle confirme un compte dont l'autre connaît le mot de passe.
+Sans la brique, la situation est pire (l'adresse est prise sans que personne
+la possède), mais ce n'est pas résolu pour autant. Piste, non faite : une
+nouvelle inscription sur un compte non confirmé REMPLACE son mot de passe et
+invalide les anciens jetons (le dernier à s'inscrire gagne, et il n'y a rien
+à perdre : aucun jeton d'accès n'a été émis). Le renvoi est limité par
+identifiant : l'attaquant peut épuiser le quota d'une adresse qu'il connaît.
+`test_verrou_prime_sur_compte_non_confirme` garde l'ordre avec le verrouillage.

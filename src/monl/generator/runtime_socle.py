@@ -17,7 +17,7 @@ class SocleRuntimeMixin:
             "import logging",
             "import smtplib",
             "from email.message import EmailMessage",
-        ] if (self.message_rules_by_trigger or self.auth_features.get("password_reset")) else [])
+        ] if (self.message_rules_by_trigger or self.auth_features.get("password_reset") or self.auth_features.get("verify_email")) else [])
         totp_imports = (["import base64", "import struct"]
                         if self.auth_features.get("totp") else [])
         totp_migration_lines = []

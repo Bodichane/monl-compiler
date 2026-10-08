@@ -247,6 +247,7 @@ contrat.
             f"- Verrouillage de compte : après {lockout['max_attempts']} échecs "
             f"dans {lockout['window_seconds']} s, afficher l'échec générique "
             "sans tenter de deviner si l'adresse existe.")
+    auth_feature_lines += _instructions_verification(auth_features)
     if "password_reset" in auth_features:
         reset = auth_features["password_reset"]
         auth_feature_lines.append(
@@ -364,3 +365,16 @@ dans le fichier). L'utilisateur l'installera ensuite avec :
 re-vérifiera automatiquement l'ensemble (cohérence + smoke test) et, en cas
 d'erreurs, elles vous seront recollées ici pour correction.
 """
+
+
+def _instructions_verification(auth_features):
+    """Parcours de confirmation, sans augmenter la complexité du brief."""
+    auth_feature_lines = []
+    if "verify_email" in auth_features:
+        auth_feature_lines.append(
+            "- Confirmation e-mail : après /register, afficher l'attente de confirmation, sans session. "
+            "Traiter /login 403 detail.code=email_not_verified en proposant POST /verify-email/resend "
+            "avec username ; afficher sa réponse générique même à la limite. Le lien reçu ouvre un écran : "
+            "demander une action explicite puis POST /verify-email avec username et token dans le corps, "
+            "jamais de confirmation automatique par GET. Après confirmation, proposer /login.")
+    return auth_feature_lines

@@ -12,7 +12,7 @@ from monl.parser import parse_monl_string
 # nombres négatifs (`[:-4]`, `[:-5]`) : chaque question ajoutée en fin de
 # dialogue déplaçait la coupe et cassait huit tests d'un coup, sans que le
 # nombre magique dise jamais ce qu'il retirait.
-SCENARIO_PORTFOLIO_TRONC = [
+SCENARIO_PORTFOLIO_BASE = [
     "11",              # partir de zéro (dialogue libre)
     "StudioTest", "Un portfolio de studio créatif avec contact.",
     "Project", "title", "1", "imageUrl", "1", "year", "3", "",
@@ -29,8 +29,10 @@ SCENARIO_PORTFOLIO_TRONC = [
     "0",               # identifiant de compte : aucun (point 138)
     "o",               # seed
     "n",               # images génériques (point 59)
-    "o",               # landing
 ]
+LANDING_OUI = ["o"]
+LANDING_NON = ["n"]
+SCENARIO_PORTFOLIO_TRONC = SCENARIO_PORTFOLIO_BASE + LANDING_OUI
 
 # Brief transmis -> l'intention visuelle est demandée (point 53) :
 # action attendue du visiteur, registre, place des images.
@@ -45,7 +47,7 @@ SCENARIO_PORTFOLIO = (SCENARIO_PORTFOLIO_TRONC + INTENTION_PAR_DEFAUT
                       + AUCUNE_SECTION + AUCUN_LIEN)
 #: Le même parcours en refusant la page d'accueil : ni intention, ni
 #: rubrique, ni lien ne sont alors demandés.
-SCENARIO_SANS_LANDING = SCENARIO_PORTFOLIO_TRONC[:-1] + ["n"]
+SCENARIO_SANS_LANDING = SCENARIO_PORTFOLIO_BASE + LANDING_NON
 
 
 def _run(answers):

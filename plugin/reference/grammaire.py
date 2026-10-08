@@ -286,7 +286,7 @@ grammar = r"""
     #   capability auth
     #       identifier: email, phone
     capability_block: "capability" NAME _NL [_INDENT capability_prop+ _DEDENT]
-    ?capability_prop: capability_identifier | capability_phone_prefix | capability_lockout | capability_password_reset | capability_refresh_tokens | capability_totp | capability_currency | capability_provider
+    ?capability_prop: capability_identifier | capability_phone_prefix | capability_lockout | capability_password_reset | capability_refresh_tokens | capability_totp | capability_verify_email | capability_verify_resend | capability_currency | capability_provider
     capability_identifier: "identifier" ":" NAME ("," NAME)* _NL
     # AJOUT (point 95, trouvé en éprouvant la brique sur un vrai site) :
     # '06 12 34 56 78' et '+33612345678' sont le MÊME numéro, et faisaient deux
@@ -303,6 +303,8 @@ grammar = r"""
     #   password_reset: 900
     #   refresh_tokens: 2592000
     #   totp
+    capability_verify_email: "verify_email" ":" INT _NL
+    capability_verify_resend: "verify_resend" ":" INT "in" INT _NL
     capability_lockout: "lockout" ":" INT "in" INT _NL
     capability_password_reset: ("password_reset" | "passwordReset") ":" INT _NL
     capability_refresh_tokens: ("refresh_tokens" | "refreshTokens") ":" INT _NL

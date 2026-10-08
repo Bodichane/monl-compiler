@@ -72,6 +72,7 @@ class ConnexionRuntimeMixin:
                 "        raise HTTPException(status_code=401, detail='Identifiants invalides.')",
             ]
         lookup_lines = self._lookup_avec_version(lookup_lines, auth_checks)
+        lookup_lines = self._lookup_avec_verification(lookup_lines)
         success_lines = (["    _clear_account_failures(db_user_id)"]
                          if self.auth_features.get("lockout") else [])
         if self.auth_features.get("refresh_tokens"):
@@ -202,8 +203,9 @@ class ConnexionRuntimeMixin:
             "    cursor.execute('INSERT INTO _monl_users (username, password_hash, salt, actor, anon_handle) VALUES (?, ?, ?, ?, ?) RETURNING id',",
             "                   (_identifiant, pwd_hash, salt_hex, req.actor, anon_handle))",
             "    new_user_id = cursor.fetchone()[0]",
+            *self._verification_register_lines(),
             "    conn.commit(); conn.close()",
-            "    return {'status': 'success', 'user_id': new_user_id}\n",
+            *self._verification_register_return_lines(),
 
             "class LoginRequest(BaseModel):",
             "    username: str",

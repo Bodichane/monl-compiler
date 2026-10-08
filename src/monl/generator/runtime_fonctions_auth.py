@@ -60,7 +60,7 @@ class FonctionsAuthRuntimeMixin:
                 "",
             ]
 
-        if features.get("password_reset"):
+        if features.get("password_reset") or features.get("verify_email"):
             if not self.message_rules_by_trigger:
                 lines += [
                     "def _message_header_safe(value, name):",
@@ -70,7 +70,7 @@ class FonctionsAuthRuntimeMixin:
                 ]
             lines += [
                 "# --- RÉINITIALISATION DE MOT DE PASSE (brique B4) ---",
-                f"PASSWORD_RESET_TTL_SECONDS = {features['password_reset']}",
+                f"PASSWORD_RESET_TTL_SECONDS = {features.get('password_reset', features.get('verify_email'))}",
                 "PASSWORD_RESET_RESPONSE_FLOOR = 0.05",
                 "RESET_LOGGER = logging.getLogger('monl.password_reset')",
                 "_DUMMY_RESET_HASH = hashlib.sha256(b'monl-reset-dummy').hexdigest()",
@@ -192,6 +192,9 @@ class FonctionsAuthRuntimeMixin:
                 "    return 'otpauth://totp/' + label + '?secret=' + secret + '&issuer=' + issuer + '&algorithm=SHA1&digits=6&period=30'",
                 "",
             ]
+        if features.get("verify_email"):
+            lines = self._verification_sender_lines(lines)
+            lines += self._generate_verification_helpers()
         return lines
 
     def _generate_auth_feature_routes(self):
@@ -345,4 +348,4 @@ class FonctionsAuthRuntimeMixin:
                 "    conn.commit(); conn.close()",
                 "    return {'status': 'enabled', 'detail': 'Sessions invalidées : reconnectez-vous avec le double facteur.'}\n",
             ]
-        return lines
+        return lines + self._generate_verification_routes()

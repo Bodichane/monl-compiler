@@ -71,6 +71,10 @@ def emit_capability(lines, account_identifier):
     lines.append("# sans forme canonique, une majuscule de plus fait un second compte.")
     lines.append("capability auth")
     lines.append(f"    identifier: {', '.join(account_identifier['formes'])}")
+    if account_identifier.get("verify_email"):
+        lines.append(f"    verify_email: {account_identifier['verify_email']}")
+        maximum, fenetre = account_identifier["verify_resend"]
+        lines.append(f"    verify_resend: {maximum} in {fenetre}")
     if account_identifier.get("prefixe"):
         lines.append(f'    phone_prefix: "{account_identifier["prefixe"]}"')
     lines.append("")

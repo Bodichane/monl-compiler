@@ -174,10 +174,12 @@ In priority order:
    limit was per IP), password reset (unblocked by point 122), refresh tokens
    WITH ROTATION, and offline TOTP two-factor authentication. The lock is not
    an existence oracle: a locked account and a nonexistent account return the
-   same response, within 1.28 ms. **Still open**: address verification at
-   signup — monl can now send messages, but confirming an address is a flow
-   decision (what do we do with an unconfirmed account?) that has not been
-   made.
+   same response, within 1.28 ms. **Email confirmation DONE (point 209,
+   issue #122)**: declared link validity and resend quota, no login before
+   confirmation, single-use hash-only tokens and POST confirmation. Proven by
+   `tests/test_verification_email.py` against real uvicorn and fake SMTP.
+   Historical/offline accounts remain confirmed; no automatic purge or delivery
+   guarantee.
 5. ~~**DSL governance**~~ — **DONE (point 200)**: language version,
    keyword/type compatibility ratchet, all repository and plugin examples
    compiled, and [stability and deprecation policy](STABILITY.md).

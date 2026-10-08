@@ -49,7 +49,7 @@ def _champs_payables(tpl):
 
 
 def _run_template(index, followup_answer, want_seed, upload_pour=None,
-                  prompts=None):
+                  prompts=None, account_answers=None):
     """Déroule le dialogue sur le modèle n° index (1-based) avec la même
     réponse à toutes les questions de suivi. Exécution réelle du dialogue,
     jamais un assemblage direct du modèle — c'est le CHEMIN UTILISATEUR
@@ -63,7 +63,8 @@ def _run_template(index, followup_answer, want_seed, upload_pour=None,
     # (spec sans bloc `capability auth`, comme avant la question) ; chemin
     # « tout accepter » = téléphone + indicatif, pour que les DIX modèles
     # prouvent que le bloc émis compile.
-    answers += (["1", "+229"] if followup_answer == "o" else ["0"])
+    answers += (account_answers if account_answers is not None else
+                (["1", "+229"] if followup_answer == "o" else ["0"]))
     upload_entities = [
         name for name, meta in tpl["entities"].items()
         if meta["owned"] and not meta["public_read"]

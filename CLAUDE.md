@@ -797,12 +797,26 @@ anonymous social network as the final test bench.
     `tests/test_fedapay.py` against real servers and fake providers. See points
     126 and 128.
 
+37. **`capability auth` with `verify_email` and `verify_resend`** — confirms
+    that the registrant owns the inbox. Opt-in and declared together
+    (`verify_email: 86400`, `verify_resend: 3 in 3600`), requires
+    `identifier: email`. An unconfirmed account exists but cannot log in: the
+    RIGHT password gets 403 `email_not_verified`, a wrong one or an absent
+    account the generic 401, and a locked account stays 401 (no existence
+    oracle, point 124). Token: opaque, hashed, single use, consumed in the
+    confirming transaction, confirmed by POST (a link scanner would burn a GET).
+    Earlier accounts are never converted (point 89) and are counted at startup;
+    `manage.py` creates confirmed accounts. Stated limits: no purge of unconfirmed
+    accounts, and an attacker can pre-register someone else's address. Proven by
+    `tests/test_verification_email.py` against a real server and a fake SMTP,
+    with TWO accounts. See point 209.
+
 **DSL keyword reference.** The grammar implements the following words, and this
 memory deliberately names all of them: `app`, `entity`, `actor`,
 `selfRegister`, `relation`, `hasMany`, `belongsTo`, `hasOne`, `rule`, `workflow`,
 `custom`, `input`, `output`, `description`, `seed`, `capability`, `identifier`,
 `phone_prefix`, `lockout`, `password_reset`, `passwordReset`, `refresh_tokens`,
-`refreshTokens`, `totp`, `currency`, `provider`, `assets`, `dir`, `logo`,
+`refreshTokens`, `totp`, `verify_email`, `verify_resend`, `currency`, `provider`, `assets`, `dir`, `logo`,
 `favicon`, `migration`, `rename`, `alter`, `drop`, `landing`, `mode`, `template`,
 `brief`, `section`, `question`, `link`, `ui`, `theme`, `primary`, `order`,
 `oneOf`, `releases`, `upload`, `max`, `types`, `sends`, `filter`, `sort`,

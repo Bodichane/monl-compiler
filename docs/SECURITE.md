@@ -236,9 +236,16 @@ What it guarantees to account holders:
 
 ## Known beta limitations
 
-- No email address verification: monl checks the form of an identifier,
-  never that an inbox receives mail.
-- Messages (`sends`, password reset) are sent without a delivery guarantee or
+- Email confirmation is opt-in: `verify_email` and `verify_resend` together
+  require `identifier: email`. Online accounts cannot log in before confirmation:
+  the correct password gets 403 `email_not_verified`, an incorrect password or
+  missing account gets the same generic 401. Opaque tokens are stored as hashes,
+  bound to the account, expiring and consumed in the confirmation transaction;
+  resend invalidates the old token. Proven with two accounts, real HTTP and fake
+  SMTP by `tests/test_verification_email.py`. Historical and offline service
+  accounts remain confirmed; this does not claim proof of their inbox ownership.
+  Unconfirmed accounts are not automatically purged.
+- Messages (`sends`, password reset, email confirmation) are sent without a delivery guarantee or
   retries: a failure is logged after the business transaction has committed.
 - SQLite is the default database; under heavy multi-worker write load, use
   PostgreSQL (`MONL_DATABASE_URL`).

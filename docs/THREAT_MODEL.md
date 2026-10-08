@@ -174,12 +174,26 @@ security boundary. An implementation receives backend process authority.
 - Deployment-specific hardening and real-provider behavior require external
   review. This model was reviewed sequentially, without an independent reviewer.
 
+## Email confirmation evidence (#122)
+
+| Threat | Control | Execution evidence |
+| --- | --- | --- |
+| Online account uses an unconfirmed address (S) | Correct password returns 403 `email_not_verified` until confirmation; incorrect password and absent account share generic 401. | tests/test_verification_email.py::test_inscription_confirmation_et_rejeu |
+| Captured confirmation token is replayed or applied to another account (S, T) | Hash-only storage, account binding and single-use consumption in the confirmation transaction. POST only, no consuming GET. | tests/test_verification_email.py::test_jeton_autre_compte; tests/test_verification_email.py::test_inscription_confirmation_et_rejeu |
+| Expired confirmation link (S) | Expiration checked in the atomic consumption statement. | tests/test_verification_email.py::test_jeton_expire |
+| Enumeration or message flooding through resend (I, D) | Same generic response and duration floor for absent, known and limited addresses; declared persistent resend quota, old token invalidated on issuance. | tests/test_verification_email.py::test_renvoi_generique_limite_et_invalidation |
+| Healthy guard is mistakenly reported as broken (D) | Smoke expects the unconfirmed 403 and checks both POST routes; names untested authenticated flows. | tests/test_verification_email.py::test_monl_run_check |
+| Guard silently stops protecting | Each disabled 403, consumption, expiry and resend quota makes the same execution witness fail. | tests/test_verification_email.py::test_contre_epreuves |
+
 ## Known gaps
 
 - **#123: custom execution isolation.** No dedicated sandbox or containment
   witness; handwritten code can access process secrets, database and host resources.
-- **#122: email verification.** Identifier syntax/normalization does not prove
-  inbox ownership; no email-verification control or proof is claimed.
+- **Email confirmation scope (#122, point 209).** Confirmation is opt-in for
+  online registration; historical and offline service accounts remain confirmed
+  without claiming evidence of inbox ownership. No automatic purge, SMTP retry
+  or delivery guarantee is provided. Specs without the feature retain syntax-only
+  identifier validation.
 - **Tenant process containment.** Hosted processes and compilation workers are
   not separated by restricted users, scrubbed environments or filesystem/network
   sandboxing in the inspected launchers. No hostile-child containment witness

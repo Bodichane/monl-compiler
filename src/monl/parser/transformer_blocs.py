@@ -131,6 +131,13 @@ class BlocsMixin(Transformer):
         return {"lockout": {"max_attempts": int(maximum),
                              "window_seconds": int(fenetre)}}
 
+    def capability_verify_email(self, duree):
+        return {"verify_email": int(duree)}
+
+    def capability_verify_resend(self, maximum, fenetre):
+        return {"verify_resend": {"max_attempts": int(maximum),
+                                  "window_seconds": int(fenetre)}}
+
     def capability_password_reset(self, duree):
         return {"password_reset": int(duree)}
 
