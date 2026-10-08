@@ -188,9 +188,11 @@ In priority order:
    isolating code produced by a model; the item remains relevant for
    multi-tenant execution, it simply is no longer the task that unblocks the
    rest.
-7. **Independent external audit/penetration test** and a maintained written
-   threat model remain open. Internal offensive regression tests and the dated
-   `CODEBASE_AUDIT.md` already exist; they do not establish an independent audit.
+7. **Written threat model completed; independent external audit/penetration
+   test remains open** (issue #124). The maintained [threat model](THREAT_MODEL.md)
+   covers the generated backend and hosting platform with verified test references
+   and explicit gaps. Internal offensive regression tests and the dated
+   `CODEBASE_AUDIT.md` do not establish an independent audit.
 
 ## Positioning
 

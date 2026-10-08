@@ -13,6 +13,8 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 
 ## Sommaire
 
+[206](#206-un-modèle-de-menaces-défensif-avec-des-preuves-vérifiables) Modèle de menaces et références de tests vérifiées ·
+
 **Sécurité et contrôle d'accès** : [1](#1-collision-de-privilèges-critical_collision) Collision de privilèges ·
 [2](#2-restriction-de-champ-restrictedto) Restriction de champ ·
 [3](#3-avertissement-sur-les-suppressions-non-admin-critical_warning) Avertissement suppressions non-Admin ·
@@ -14670,3 +14672,22 @@ golden et documentation : `35 passed in 18.06s` (empreintes inchangées).
 
 Suite complète réellement exécutée après restauration :
 `1712 passed, 23 skipped in 738.36s` ; aucun échec.
+## 206. Un modèle de menaces défensif avec des preuves vérifiables
+
+Issue #124, première moitié : `docs/THREAT_MODEL.md` décrit en anglais le
+backend généré et la plateforme multi-comptes pour un auditeur externe.
+Il nomme les actifs, acteurs, six frontières de confiance, menaces STRIDE,
+parades existantes, hypothèses de déploiement et lacunes. Un sous-processus
+avec des limites ne constitue pas une sandbox de locataire ; `custom` reste
+non isolé (#123), et la vérification d'adresse email reste ouverte (#122).
+Les en-têtes HTTP sont déjà présents : les décrire comme absents aurait été faux.
+
+`tests/test_threat_model.py` extrait les références de fonctions de tests,
+exige une liste non vide et vérifie par AST chaque fichier et fonction au
+niveau du module. Il ne prétend pas prouver la pertinence ni exécuter les
+parades citées. Une référence inventée ajoutée temporairement fait échouer
+le témoin ; son retrait remet le contrôle au vert. Ruff et les témoins de
+ documentation sont exécutés. Aucun changement du compilateur n'est nécessaire.
+
+Les liens depuis SECURITE.md et le point 7 de BETA.md marquent le modèle
+comme livré, sans fermer l'audit externe indépendant, seconde moitié de #124.
