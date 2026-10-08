@@ -14,6 +14,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 ## Sommaire
 
 [206](#206-un-modèle-de-menaces-défensif-avec-des-preuves-vérifiables) Modèle de menaces et références de tests vérifiées ·
+[208](#208-code-custom-sous-la-responsabilité-de-son-auteur) Code custom sous la responsabilité de son auteur ·
 [207](#207-premier-gabarit-python-sans-changer-les-octets) Premier gabarit Python sans changer les octets ·
 
 **Sécurité et contrôle d'accès** : [1](#1-collision-de-privilèges-critical_collision) Collision de privilèges ·
@@ -14750,3 +14751,41 @@ Validation finale : `python3 -m pytest tests/ -rs` donne **1711 passed,
 23 skipped in 641.59s (0:10:41)**. La première exécution avait détecté deux
 chemins abrégés dans BETA ; ils sont corrigés et la suite entière relancée
 est verte. Les sorties manuelles de comparaison sont ensuite retirées.
+
+
+## 208. Code custom sous la responsabilité de son auteur
+
+**Décision prise (issue #123) : pas d'isolation maintenant.** Le code `custom`
+est écrit par l'auteur du projet et tourne dans le processus du backend,
+avec accès au secret JWT et à toute la base, sous sa responsabilité. La
+plateforme web n'accepte pas de Python utilisateur : elle écrit uniquement
+les specs ; le compilateur produit la coquille déterministe.
+
+L'[étude mesurée](../etudes/isolation-custom/RAPPORT.md) a appelé le code hostile
+sur un vrai serveur, puis comparé les accès au secret (fichier et environnement),
+à la base et au réseau hôte. Médianes par appel, quatre options mesurées :
+
+| Mesure | Dans le processus | Sous-processus `-I`, env vide, RLIMIT | bubblewrap | podman |
+|---|---|---|---|---|
+| Protection réelle | aucun accès bloqué | variable bloquée ; secret fichier, base et réseau accessibles | secret, base et réseau hôte bloqués | secret, base et réseau hôte bloqués |
+| Coût médian | 0,5 ms | 38 ms | 41 ms | 397 ms |
+
+Le sous-processus simple garde les droits du même utilisateur : ce n'est pas
+une isolation des fichiers. La contre-épreuve bubblewrap, en remontant le
+backend, rend secret et base lisibles : la protection vient du montage.
+WASM n'a pas été mesuré. Isoler maintenant ajouterait un coût et supprimerait
+l'accès direct à la base pour du code que l'auteur a choisi d'écrire.
+
+**Condition de réouverture : la plateforme accepte du Python d'un utilisateur.**
+Alors l'isolation devra être mise en place ; bubblewrap est l'option mesurée
+retenue, avec vérification dans le conteneur de plateforme, échanges JSON et
+politique explicite pour les systèmes autres que Linux.
+
+`tests/test_custom_hors_plateforme.py` compile réellement via le service de
+plateforme trois descriptions piégées : apostrophe et import, triples guillemets
+échappés, substitution de gabarit. Il compare les octets de la coquille et son
+AST (docstring puis retour constant, aucun import). Le garde AST inspecte les
+écritures de tous les modules de plateforme, suit les variables de chemin et
+refuse un périmètre vide ; il ne prétend pas résoudre les chemins dynamiques.
+La contre-épreuve ajoute temporairement une écriture de la coquille dans un
+module de plateforme, constate le rouge, puis retire cette modification.

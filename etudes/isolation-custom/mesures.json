@@ -1,0 +1,54 @@
+[
+  {
+    "option": "a. processus actuel (référence)",
+    "tentatives_reussies": "5/5",
+    "detail": {
+      "jwt_file": true,
+      "environment": true,
+      "database": true,
+      "socket": true,
+      "vers_hote": true
+    },
+    "mediane_ms": 0.48,
+    "tours": 50
+  },
+  {
+    "option": "b. sous-processus -I, env vide, cwd tmp, RLIMIT",
+    "tentatives_reussies": "4/5",
+    "detail": {
+      "jwt_file": true,
+      "environment": false,
+      "database": true,
+      "socket": true,
+      "vers_hote": true
+    },
+    "mediane_ms": 37.86,
+    "tours": 50
+  },
+  {
+    "option": "c. bubblewrap (namespaces, FS vide, pas de réseau)",
+    "tentatives_reussies": "1/5",
+    "detail": {
+      "jwt_file": false,
+      "environment": false,
+      "database": false,
+      "socket": true,
+      "vers_hote": false
+    },
+    "mediane_ms": 41.39,
+    "tours": 50
+  },
+  {
+    "option": "d. podman --network none --read-only",
+    "tentatives_reussies": "1/5",
+    "detail": {
+      "jwt_file": false,
+      "environment": false,
+      "database": false,
+      "socket": true,
+      "vers_hote": false
+    },
+    "mediane_ms": 396.87,
+    "tours": 15
+  }
+]

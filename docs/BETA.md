@@ -181,15 +181,14 @@ In priority order:
 5. ~~**DSL governance**~~ — **DONE (point 200)**: language version,
    keyword/type compatibility ratchet, all repository and plugin examples
    compiled, and [stability and deprecation policy](STABILITY.md).
-6. **Execution isolation for `custom` code** (lower-privilege subprocess /
-   container / WASM). **Moved down from first place, and why**: this priority
-   dates from when `custom` blocks were filled by local AI — a feature removed
-   in beta 1. The generator now only writes empty shells that the project
-   author completes themselves (`src/monl/generator/sandbox.py`). Isolating
-   code the author knowingly wrote is no longer the same security boundary as
-   isolating code produced by a model; the item remains relevant for
-   multi-tenant execution, it simply is no longer the task that unblocks the
-   rest.
+6. **Execution isolation for `custom` code: decision made, study completed**
+   (issue #123, point 208). No isolation now: the author writes code under
+   their responsibility; the web platform accepts specifications only and
+   runs compiler shells. A compilation witness and AST guard enforce this
+   boundary. The [measured study](../etudes/isolation-custom/RAPPORT.md)
+   found that a plain subprocess leaves files accessible; bubblewrap blocks
+   them at about 41 ms per call. Reopen only when the platform accepts Python
+   supplied by a user, then implement isolation.
 7. **Written threat model completed; independent external audit/penetration
    test remains open** (issue #124). The maintained [threat model](THREAT_MODEL.md)
    covers the generated backend and hosting platform with verified test references
