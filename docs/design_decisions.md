@@ -14732,6 +14732,20 @@ remontait 942 erreurs dans 51 fichiers, AVANT comme APRÈS la migration (même
 sortie avec le changement remisé) : un artefact de l'environnement local, pas
 un défaut du code, et aucune configuration n'est assouplie.
 
+**Défaut trouvé ensuite par l'étude de l'issue #123.** Garder les octets ne
+suffisait pas : la description est insérée dans une docstring NON raw. Une
+description contenant `\N`, `\u12` ou `\x` passait le parseur et la
+compilation, puis rendait `sandbox_ai.py` invalide (`SyntaxError: unicode
+error`) : le backend ne s'importait plus. Aucune injection n'est possible —
+un guillemet nu est refusé par le parseur, et `\"\"\"` reste inerte —, mais
+c'est exactement la classe d'échappement que vise l'issue #119.
+`_docstring_litterale` double les antislashs avant la substitution. Les
+empreintes golden ne changent pas : aucun banc golden ni exemple ne déclare de
+description avec un antislash. `test_sandbox_description_antislash_litteral`
+compile, importe et exécute la coquille pour cinq descriptions, puis compare
+`__doc__` à la description d'origine. Contre-épreuve : sans le doublement,
+six tests passent au rouge.
+
 Validation finale : `python3 -m pytest tests/ -rs` donne **1711 passed,
 23 skipped in 641.59s (0:10:41)**. La première exécution avait détecté deux
 chemins abrégés dans BETA ; ils sont corrigés et la suite entière relancée
