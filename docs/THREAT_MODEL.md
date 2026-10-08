@@ -184,6 +184,8 @@ security boundary. An implementation receives backend process authority.
 | Healthy guard is mistakenly reported as broken (D) | Smoke expects the unconfirmed 403 and checks both POST routes; names untested authenticated flows. | tests/test_verification_email.py::test_monl_run_check |
 | Guard silently stops protecting | Each disabled 403, consumption, expiry and resend quota makes the same execution witness fail. | tests/test_verification_email.py::test_contre_epreuves |
 
+| Pre-registration password takeover or blocking (S, D) | Unconfirmed replacement with shared quota; confirmed-account guard; same pending response. Last registrant can still win before confirmation. | tests/test_verification_email.py::test_preinscription |
+
 ## Known gaps
 
 - **#123: custom execution isolation.** No dedicated sandbox or containment
@@ -193,6 +195,14 @@ security boundary. An implementation receives backend process authority.
   without claiming evidence of inbox ownership. No automatic purge, SMTP retry
   or delivery guarantee is provided. Specs without the feature retain syntax-only
   identifier validation.
+  Re-registering an unconfirmed address replaces its password and permitted role,
+  invalidates old confirmation tokens and sends a new message within the shared
+  resend quota, atomically; confirmed accounts remain untouched (409). The last
+  registration before confirmation wins: an attacker registering afterwards and
+  having their message confirmed can still win. Choosing the password at
+  confirmation would fully address this, but changes the /register contract and
+  is deferred. An attacker can still exhaust an identifier's resend quota.
+
 - **Tenant process containment.** Hosted processes and compilation workers are
   not separated by restricted users, scrubbed environments or filesystem/network
   sandboxing in the inspected launchers. No hostile-child containment witness

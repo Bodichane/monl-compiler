@@ -144,7 +144,7 @@ def _auth_du_contrat(auth_features, plans):
             "401": "Identifiants invalides. (mot de passe incorrect ou compte absent)",
         }
         auth_contract["register"]["response"] = {"status": "pending", "user_id": "int", "detail": "str"}
-        auth_contract["register"]["note"] += " Confirmation requise, aucun jeton de session avant confirmation."
+        auth_contract["register"]["note"] += " Confirmation requise, aucun jeton de session avant confirmation. Une nouvelle inscription sur une adresse non confirmée remplace le mot de passe et renvoie un message dans le quota verify_resend ; prévenir l’utilisateur."
         b4_contract["verify_email"] = {
             "confirm_path": "/verify-email", "resend_path": "/verify-email/resend",
             "confirm_body": {"username": "str", "token": "str"},
@@ -153,6 +153,7 @@ def _auth_du_contrat(auth_features, plans):
             "single_use": True, "invalidated_on_resend": True,
             "login_unconfirmed": {"status": 403, "code": "email_not_verified"},
             "online_registration_only": True,
+            "unconfirmed_registration": "Une nouvelle inscription remplace le mot de passe et renvoie un message, dans le quota verify_resend. Le frontend doit prévenir l’utilisateur.",
         }
     if auth_features.get("lockout"):
         b4_contract["account_lockout"] = {

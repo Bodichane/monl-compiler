@@ -245,6 +245,14 @@ What it guarantees to account holders:
   SMTP by `tests/test_verification_email.py`. Historical and offline service
   accounts remain confirmed; this does not claim proof of their inbox ownership.
   Unconfirmed accounts are not automatically purged.
+  Re-registering an unconfirmed address replaces its password and permitted role,
+  invalidates old confirmation tokens and sends a new message within the shared
+  resend quota, atomically; confirmed accounts remain untouched (409). The last
+  registration before confirmation wins: an attacker registering afterwards and
+  having their message confirmed can still win. Choosing the password at
+  confirmation would fully address this, but changes the /register contract and
+  is deferred. An attacker can still exhaust an identifier's resend quota.
+
 - Messages (`sends`, password reset, email confirmation) are sent without a delivery guarantee or
   retries: a failure is logged after the business transaction has committed.
 - SQLite is the default database; under heavy multi-worker write load, use

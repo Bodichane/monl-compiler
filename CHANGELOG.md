@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Fixed
+
+- Re-registering an unconfirmed email replaces its password and permitted role,
+  invalidates previous confirmation tokens and sends a new message within the
+  shared resend quota (point 209, PR #137). Confirmed accounts remain untouched;
+  quota exhaustion keeps the same pending response without changes or delivery.
+  Lockout and sessions are reset. The last registration before confirmation wins.
+
 ## 1.0.0 — The first stable release
 
 ### Documentation

@@ -14902,13 +14902,24 @@ civile ni la livraison de tous les messages futurs.
 ### Limites assumées
 
 Pas de purge des comptes non confirmés : un compte jamais confirmé reste en
-base. **Pré-inscription** : quelqu'un peut inscrire l'adresse d'une autre
-personne avec un mot de passe qu'il choisit ; si cette personne confirme
-le message reçu, elle confirme un compte dont l'autre connaît le mot de passe.
-Sans la brique, la situation est pire (l'adresse est prise sans que personne
-la possède), mais ce n'est pas résolu pour autant. Piste, non faite : une
-nouvelle inscription sur un compte non confirmé REMPLACE son mot de passe et
-invalide les anciens jetons (le dernier à s'inscrire gagne, et il n'y a rien
-à perdre : aucun jeton d'accès n'a été émis). Le renvoi est limité par
-identifiant : l'attaquant peut épuiser le quota d'une adresse qu'il connaît.
+base. **Pré-inscription (PR #137)** : une nouvelle inscription remplace le
+mot de passe et le rôle autorisé d'un compte non confirmé, invalide ses anciens
+liens et renvoie un message. Un compte déjà confirmé reste intouchable (409).
+La garde selfRegister précède tout ; PBKDF2 précède la transaction. Le quota
+verify_resend est partagé avec les renvois, par identifiant normalisé ; à
+saturation, même réponse pending sans remplacement ni message. Remplacement,
+quota et émission sont atomiques ; verrouillage et sessions sont réinitialisés.
+Les specs sans verify_email gardent leurs empreintes golden.
+
+Cela résout le blocage 409 de la vraie personne et lui permet de reprendre
+son adresse avant confirmation. **Le DERNIER inscrit avant la confirmation
+gagne** : un attaquant qui s'inscrit juste après la vraie personne et fait
+confirmer SON message peut encore gagner. La parade complète exige de choisir
+le mot de passe à la confirmation ; elle n'est pas faite car elle change le
+contrat de /register. Le renvoi par identifiant peut toujours être épuisé.
+`test_preinscription` prouve remplacement, deux comptes confirmés intouchables,
+forme identique, quota partagé et réinitialisation du verrou sur vrai uvicorn
+avec faux SMTP. Ses contre-épreuves désarment séparément la garde confirmé,
+le remplacement et le quota dans l'application jetable : chaque témoin devient
+rouge ; le dépôt n'est jamais muté pendant les tests.
 `test_verrou_prime_sur_compte_non_confirme` garde l'ordre avec le verrouillage.
