@@ -14,6 +14,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 ## Sommaire
 
 [206](#206-un-modèle-de-menaces-défensif-avec-des-preuves-vérifiables) Modèle de menaces et références de tests vérifiées ·
+[207](#207-premier-gabarit-python-sans-changer-les-octets) Premier gabarit Python sans changer les octets ·
 
 **Sécurité et contrôle d'accès** : [1](#1-collision-de-privilèges-critical_collision) Collision de privilèges ·
 [2](#2-restriction-de-champ-restrictedto) Restriction de champ ·
@@ -14691,3 +14692,61 @@ le témoin ; son retrait remet le contrôle au vert. Ruff et les témoins de
 
 Les liens depuis SECURITE.md et le point 7 de BETA.md marquent le modèle
 comme livré, sans fermer l'audit externe indépendant, seconde moitié de #124.
+
+
+## 207. Premier gabarit Python sans changer les octets
+
+**Périmètre (issue #119, première étape seulement).** L'inventaire mesuré des
+modules et l'ordre proposé figurent dans `GENERATOR_EMISSION_INVENTORY.md`.
+`sandbox.py` est le plus petit émetteur Python présentant le risque visé :
+17 lignes, une f-string, accolades doublées et guillemets échappés. Les doubles
+antislashs seuls ne suffisent donc pas à mesurer le risque.
+
+**Choix.** `string.Template` remplace cette f-string par un gabarit multilignes
+avec guillemets et accolades Python littéraux. La substitution ne réinterprète
+pas les dollars ou accolades des valeurs. `ast.unparse` normaliserait la mise
+en forme, les commentaires et les docstrings : inutile pour cette coquille
+fixe dont nous voulons conserver tous les octets. La jointure des blocs reste
+l'assemblage d'instances du gabarit. Aucun SQL n'est émis ici ; la frontière
+typée `generator/sql.py` du point 108 reste intacte.
+
+**Preuves exécutées.** Les cinq exemples et `demo/spec.ml` sont compilés dans
+deux dossiers distincts avant/après : tous les fichiers Python générés ont des
+`ast.dump` égaux ET des octets identiques ; `schema.sql` reste identique aussi.
+Aucune empreinte de `tests/test_golden_artifacts.py` n'est recalculée. Les bancs
+golden n'ont pas de bloc custom : un témoin dédié compile donc une description
+avec `${name}`, accolades, dollar et antislash, vérifie les octets de la
+coquille, puis la compile et appelle sa fonction. Un test AST interdit les
+f-strings et additions dans le module migré.
+
+**Contre-épreuve réelle.** Réintroduire `{{` à la place de `{` dans le gabarit
+fait échouer `test_sandbox_custom_octets_et_execution` à l'octet 198. La
+restauration rend le test vert. La mutation est exécutée hors de toute suite
+concurrente. Aucun plafond de lignes/complexité ni cliquet n'est relevé.
+
+La démo compilée réussit `monl run build/issue119/after/demo --check` avec
+serveur éphémère et frontend exécuté ; sa couverture annoncée reste 14/19.
+Ruff et les tests golden/architecture passent. La commande mypy de la CI
+passe depuis le dépôt principal ; lancée depuis le worktree de travail, elle
+remontait 942 erreurs dans 51 fichiers, AVANT comme APRÈS la migration (même
+sortie avec le changement remisé) : un artefact de l'environnement local, pas
+un défaut du code, et aucune configuration n'est assouplie.
+
+**Défaut trouvé ensuite par l'étude de l'issue #123.** Garder les octets ne
+suffisait pas : la description est insérée dans une docstring NON raw. Une
+description contenant `\N`, `\u12` ou `\x` passait le parseur et la
+compilation, puis rendait `sandbox_ai.py` invalide (`SyntaxError: unicode
+error`) : le backend ne s'importait plus. Aucune injection n'est possible —
+un guillemet nu est refusé par le parseur, et `\"\"\"` reste inerte —, mais
+c'est exactement la classe d'échappement que vise l'issue #119.
+`_docstring_litterale` double les antislashs avant la substitution. Les
+empreintes golden ne changent pas : aucun banc golden ni exemple ne déclare de
+description avec un antislash. `test_sandbox_description_antislash_litteral`
+compile, importe et exécute la coquille pour cinq descriptions, puis compare
+`__doc__` à la description d'origine. Contre-épreuve : sans le doublement,
+six tests passent au rouge.
+
+Validation finale : `python3 -m pytest tests/ -rs` donne **1711 passed,
+23 skipped in 641.59s (0:10:41)**. La première exécution avait détecté deux
+chemins abrégés dans BETA ; ils sont corrigés et la suite entière relancée
+est verte. Les sorties manuelles de comparaison sont ensuite retirées.

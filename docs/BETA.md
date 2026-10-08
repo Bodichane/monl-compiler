@@ -153,13 +153,15 @@ In priority order:
    (point 120): rename, type changes and explicit drops; reversible operations
    support down migrations, while a down migration containing an irreversible
    drop is refused and requires backup recovery (see [MIGRATIONS.md](MIGRATIONS.md)).
-2. **Template/AST-based generator** to replace code construction by string
-   concatenation. *Golden-file tests* already exist in
-   `tests/test_golden_artifacts.py`; template/AST emission remains open.
+2. **Template/AST-based generator**, first step delivered (point 207,
+   issue #119): `src/monl/generator/sandbox.py` now emits Python with `string.Template`,
+   preserving bytes. Runtime, routes, schemas and admin_cli emitters remain
+   to migrate, along with their assembly; see
+   [the measured inventory and migration order](GENERATOR_EMISSION_INVENTORY.md).
+   SQL continues through the typed `src/monl/generator/sql.py` boundary (point 108).
+   Golden tests and a custom-block byte/execution witness guard this step.
    Parser fuzzing is done (point 204): mutated specs compile or get a named
-   monl error, checked by `tests/test_fuzzing_parseur.py`. The package split (beta 3) separated the layers (`runtime`,
-   `routes`, `schemas`, `sql_schema`): this is the prerequisite, as each module
-   can migrate to templates independently.
+   monl error, checked by `tests/test_fuzzing_parseur.py`.
 3. ~~**Deployment-ready**~~ — **DONE (point 118)**: CORS opt-in through
    `MONL_CORS_ORIGINS` (`*` refused at startup), JSON logs with request ID via
    `MONL_LOG_FORMAT=json`, health checks `/health` and `/health/ready`,
