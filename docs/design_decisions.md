@@ -122,6 +122,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [202](#202-un-compteur-dévénements-appartient-au-serveur) Un compteur d'événements appartient au serveur ·
 [203](#203-les-en-têtes-de-sécurité-enveloppent-aussi-le-site) Les en-têtes de sécurité enveloppent aussi le site ·
 [204](#204-une-spec-abîmée-reçoit-une-erreur-monl-jamais-une-trace-python) Une spec abîmée reçoit une erreur monl ·
+[205](#205-les-petites-specs-ne-prouvent-pas-la-croissance-du-compilateur) Les petites specs ne prouvent pas la croissance du compilateur ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -14616,3 +14617,56 @@ plantage après correction. Contre-épreuves : chaque correction retirée → le
 banc ET son test de régression passent au rouge ; un `KeyError` injecté dans
 le validateur → le banc échoue dès le cas 0.
 
+## 205. Les petites specs ne prouvent pas la croissance du compilateur
+
+Issue #121 : compiler les exemples ne mesure ni la croissance ni toutes les
+combinaisons de règles. Le nouveau `tests/test_generated_specs.py` construit
+exactement N entités avec une graine 121 : deux acteurs `selfRegister`, des
+workflows CRUD, une propriété directe et des paires parent/enfant `hasMany`,
+contraintes `required`/`min`/`max`/`oneOf`, horodatage, compteurs `increments`,
+filtrage et tri. Chaque source traverse le VRAI compilateur, jusqu'au contrat,
+aux empreintes et à la publication. Aucun validateur n'est remplacé.
+
+**LA BORNE VIENT DE LA MESURE.** Après chauffe, trois passages entrelacés et
+leur médiane : N=5/10/20/40/80 prennent 19,51/30,26/57,81/109,96/214,52 ms.
+La pente de régression log-log est **0,878**. La garde exige **moins de 1,5** :
+elle laisse de la marge au bruit de machine, tout en refusant une croissance
+quadratique dominante. Ce n'est pas une preuve asymptotique pour tous les
+DSL : le graphe ici est de degré borné et de profondeur constante ; une
+famille dense ou une chaîne profonde demanderait une mesure distincte.
+Les médianes et toutes les répétitions sont imprimées pour rendre un refus
+vérifiable, sans plafond absolu dépendant de la vitesse de la machine.
+
+**LE CONTRAT EST APPELÉ, PAS RELU.** À N=20, un vrai uvicorn lancé par
+`tests/support/server.py` reçoit deux inscriptions (les ids de compte sont
+ainsi décalés), un login, les 100 routes métier, puis un logout. Les créations
+précèdent les lectures et mises à jour ; les suppressions remontent le graphe
+en sens inverse. Chaque identifiant vient de la réponse réelle de création.
+Les corps utilisent les champs du contrat et les clés étrangères déjà créées.
+Toutes les réponses doivent être 2xx — un 422 n'est pas une preuve qu'une
+route valide fonctionne. Les listes vérifient aussi l'id, l'horodatage et le
+compteur incrémenté. Aucun défaut réel du compilateur trouvé dans cette famille.
+
+**LA CONTRE-ÉPREUVE MORD.** Dans `generator/pipeline.py`, avant l'émission,
+une boucle temporaire parcourt les entités et exécute pour chacune
+`sum(range(len(self.entities) ** 2 * 300))` : travail total cubique réellement
+traversé, sans sommeil artificiel. Courbe : 18,70/36,19/113,10/613,58/3940,46 ms,
+pente **1,952**, `1 failed in 14.48s`, code de sortie 1. Le fichier est restauré
+à l'octet dans un `finally` avant toute autre vérification. Aucun code émis
+ne change : les empreintes golden doivent rester intactes.
+
+Le banc court final a passé en **9,23 s** (`3 passed`), avec une pente
+**0,908** ; les témoins imposent 100 routes et 20 créations pour interdire
+une couverture vide. La variante longue est explicitement
+hors suite ordinaire : `MONL_LONG_BENCH=1` ajoute N=160/320/640, commande
+documentée en tête du fichier. Aucune compilation ne pollue la racine : tout
+reste dans les répertoires temporaires de pytest.
+
+**Mesure longue réellement exécutée** : N=5/10/20/40/80/160/320/640,
+24,85/35,75/69,12/125,03/253,09/582,25/1201,60/3091,55 ms ; pente **1,004**,
+`3 passed in 23.27s`. Ce second relevé conforte la marge 1,5 au-delà des
+petites tailles. `ruff check src tests` : `All checks passed!` ; architecture,
+golden et documentation : `35 passed in 18.06s` (empreintes inchangées).
+
+Suite complète réellement exécutée après restauration :
+`1712 passed, 23 skipped in 738.36s` ; aucun échec.
