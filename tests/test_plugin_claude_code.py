@@ -103,7 +103,9 @@ def test_le_readme_du_plugin_suffit_au_repertoire():
 
 
 def test_chaque_competence_est_nommee_comme_son_dossier():
-    assert len(COMPETENCES) >= 6, COMPETENCES
+    # La liste EXACTE : un seuil « au moins N » aurait laissé passer la
+    # disparition d'une compétence comme l'ajout d'une compétence non revue.
+    assert sorted(c.parent.name for c in COMPETENCES) == ["monl-frontend", "monl-spec"]
     for chemin in COMPETENCES:
         entete = chemin.read_text(encoding="utf-8").split("---")[1]
         champs = dict(ligne.split(":", 1) for ligne in entete.strip().splitlines()
