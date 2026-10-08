@@ -1,17 +1,27 @@
-"""Coquilles vides des blocs 'custom' (sandbox_ai.py).
+"""Coquilles vides des blocs 'custom' (sandbox_ai.py)."""
 
-Extrait de l'ancien module monolithique src/generator.py (1307 lignes)
-lors du découpage en package — voir docs/design_decisions.md.
-"""
+from string import Template
+
+_CUSTOM_FUNCTION = Template('''def ${name}(context: dict) -> dict:
+    """
+    Objectif : ${description}
+    """
+    # TODO:
+    return {'message': 'Coquille vide déterministe pour ${name}'}
+''')
 
 
 class SandboxMixin:
     def _generate_ai_sandbox(self):
-        """Génère les coquilles vides des blocs 'custom' — logique métier
-        à écrire à la main dans ce module (aucune IA ne les remplit)."""
+        """Génère les coquilles à compléter à la main, sans normaliser les octets.
+
+        substitute ne réinterprète pas les dollars/accolades des valeurs.
+        Le SQL reste exclusivement derrière la frontière generator/sql.py.
+        """
         sb_lines = ["# BLOCS 'custom' — logique métier à compléter à la main (déterministe)\n"]
         for func in self.custom_functions:
-            name = func["name"]
-            desc = func.get("description", "Logique métier custom.").strip()
-            sb_lines.append(f"def {name}(context: dict) -> dict:\n    \"\"\"\n    Objectif : {desc}\n    \"\"\"\n    # TODO:\n    return {{'message': 'Coquille vide déterministe pour {name}'}}\n")
+            sb_lines.append(_CUSTOM_FUNCTION.substitute(
+                name=func["name"],
+                description=func.get("description", "Logique métier custom.").strip(),
+            ))
         return "\n".join(sb_lines)

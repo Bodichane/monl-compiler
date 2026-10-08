@@ -124,6 +124,7 @@ its title as well as by its number.
 [203](design_decisions.md#203-les-en-têtes-de-sécurité-enveloppent-aussi-le-site) Security headers wrap the API and static site ·
 [204](design_decisions.md#204-une-spec-abîmée-reçoit-une-erreur-monl-jamais-une-trace-python) A damaged spec gets a monl error, never a Python traceback ·
 [205](design_decisions.md#205-les-petites-specs-ne-prouvent-pas-la-croissance-du-compilateur) Deterministic generated specs measure compilation growth and exercise every contract route on a real server ·
+[207](design_decisions.md#207-premier-gabarit-python-sans-changer-les-octets) First Python template with byte-identical output ·
 **AI escape hatch**:[4](design_decisions.md#4-garde-fou-statique-sur-le-code-généré-par-lia) Static safeguard (`custom`) ·
 [21](design_decisions.md#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) `landing` block (text safeguard)
 
