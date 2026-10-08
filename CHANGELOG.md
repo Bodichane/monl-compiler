@@ -10,6 +10,10 @@
   parser; each now names the line. `1e3` in a `seed` reads as `1000.0`.
   `tests/test_fuzzing_parseur.py` mutates the repository's specs on every run.
 
+### Tests
+
+- Add a deterministic generated-spec benchmark with a compilation growth guard, real HTTP coverage of every contract route, and an opt-in large-spec run (`MONL_LONG_BENCH=1`; point 205, issue #121).
+
 ### A spec can be refused
 
 - **A required text field rejects a blank value** (point 201, issue #117).
