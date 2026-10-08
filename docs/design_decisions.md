@@ -14754,6 +14754,51 @@ chemins abrégés dans BETA ; ils sont corrigés et la suite entière relancée
 est verte. Les sorties manuelles de comparaison sont ensuite retirées.
 
 
+**Deuxième étape (issue #119).** `runtime_annexes.py`,
+`runtime_preparation.py` et `runtime_migrations.py` utilisent maintenant des
+gabarits raw `string.Template` : accolades, guillemets et antislashs sont ceux
+du Python émis, les données variables passent par `substitute`. Les mixins
+et leurs interfaces restent identiques ; les listes de fragments s'assemblent
+par dépaquetage/extend, sans additions. Aucun autre émetteur ni la frontière
+SQL du point 108 n'est modifié. Aucun octet ne change, donc aucune
+normalisation AST ni exception d'équivalence n'est nécessaire.
+
+**Corpus préalable.** `tests/support/corpus_octets.py` compile réellement via
+`compile_project` les cinq exemples, la démo, les trois specs golden, les dix
+dialogues tout-refusé/tout-accepté (avec leur vrai harnais), une authentification
+avec lockout/password_reset/refresh_tokens/totp/verify_email et une migration
+rename/alter/drop, ainsi que le banc généré à 20 entités. Les **39 cas et 547
+fichiers** sont figés dans `tests/data/corpus_octets.json` sur le code de main,
+après deux compilations indépendantes identiques. Les 32 cas/448 fichiers
+initiaux sont enregistrés AVANT migration ; sept témoins supplémentaires
+(chaque option auth isolée, messages et custom) sont ensuite enregistrés avec
+les trois émetteurs temporairement restaurés depuis HEAD non modifié, puis
+les gabarits remis. Les 448 hashes initiaux sont vérifiés inchangés lors de
+cette extension. Le chemin relatif stable
+`spec.ml` évite de mesurer le nom aléatoire du dossier temporaire.
+Tous les fichiers produits sont comparés, y compris contrat, documentation
+et conteneur ; seuls monl.json (compiler_version), secret JWT et bases sont
+exclus. La spec d'entrée n'est pas un artefact généré. Un corpus vide, un cas
+vide, un fichier ajouté/supprimé ou un hash différent échouent.
+Régénération depuis la racine : `PYTHONPATH=src python3 -m tests.support.corpus_octets` ;
+elle exige une justification écrite et les preuves comportementales, jamais
+une actualisation destinée à cacher un rouge.
+
+**Limites et contre-épreuves.** Le corpus n'est pas une preuve exhaustive de
+toutes les combinaisons ni de PostgreSQL à l'exécution. Le cas custom ne
+couvre pas tous les échappements de description : le témoin sandbox dédié
+reste nécessaire. Les tests comportementaux
+de la suite restent indispensables. Sur main, altérer la signature PNG fait
+rougir le corpus. Après migration, altérer l'échappement PNG, retirer un
+antislash d'apostrophe dans la préparation ou inverser `\s`/`\S` dans les
+migrations le fait rougir ; réintroduire une f-string fait rougir la garde
+AST, qui porte désormais sur quatre modules et exige une liste non vide.
+Toutes les mutations sont restaurées avant les vérifications finales.
+Les plafonds et cliquets restent inchangés. La commande mypy exacte de CI
+passe depuis la racine avec `PYTHONPATH=src` : sans cela, l'installation
+editable locale résout un autre worktree et entraîne des erreurs étrangères
+au périmètre, sans assouplissement de configuration.
+
 ## 208. Code custom sous la responsabilité de son auteur
 
 **Décision prise (issue #123) : pas d'isolation maintenant.** Le code `custom`

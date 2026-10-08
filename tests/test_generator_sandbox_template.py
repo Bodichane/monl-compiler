@@ -6,12 +6,19 @@ import inspect
 
 import pytest
 
-from monl.generator import sandbox
+from monl.generator import runtime_annexes, runtime_migrations, runtime_preparation, sandbox
 from tests.test_bloc_custom_absent import AVEC_CUSTOM, _compiler
 
+MIGRATED_MODULES = (sandbox, runtime_annexes, runtime_preparation, runtime_migrations)
 
-def test_sandbox_emission_sans_f_string_ni_addition():
-    tree = ast.parse(inspect.getsource(sandbox))
+
+def test_liste_modules_migres_non_vide():
+    assert MIGRATED_MODULES
+
+
+@pytest.mark.parametrize("module", MIGRATED_MODULES)
+def test_sandbox_emission_sans_f_string_ni_addition(module):
+    tree = ast.parse(inspect.getsource(module))
     assert not any(isinstance(node, ast.JoinedStr) for node in ast.walk(tree))
     assert not any(isinstance(node, (ast.BinOp, ast.AugAssign))
                    and isinstance(node.op, ast.Add) for node in ast.walk(tree))
