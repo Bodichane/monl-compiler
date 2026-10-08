@@ -7,8 +7,9 @@ analyse. Ne pas le reconstruire ailleurs."""
 import re
 
 from lark import Lark
+from lark.exceptions import VisitError
 
-from .erreurs import _format_lark_error
+from .erreurs import MonlSyntaxError, NombreHorsLimites, _format_lark_error
 from .grammaire import grammar
 from .transformer import MonlIndenter, MonlTransformer
 
@@ -76,6 +77,7 @@ def parse_monl_string(content, file_path=None):
     Lève MonlSyntaxError (message localisé : fichier, ligne, colonne,
     extrait) plutôt que l'exception Lark brute."""
     from lark.exceptions import UnexpectedInput
+    from lark.indenter import DedentError
     parser = _get_parser()
     original = content + "\n"
     stripped, line_map = _strip_standalone_comment_lines(original)
@@ -84,9 +86,41 @@ def parse_monl_string(content, file_path=None):
         line_map.append(line_map[-1] + 1 if line_map else 1)
     try:
         tree = parser.parse(stripped)
-    except UnexpectedInput as err:
+    except (UnexpectedInput, DedentError) as err:
         raise _format_lark_error(err, original, line_map, file_path=file_path) from None
-    return MonlTransformer().transform(tree)
+    try:
+        return MonlTransformer().transform(tree)
+    except VisitError as err:
+        nombre = _nombre_trop_long(err, original, file_path)
+        if nombre is None:
+            raise
+        raise nombre from None
+
+
+def _nombre_trop_long(err, original, file_path):
+    """Point 204 : deux nombres que la grammaire accepte mais que Python ne
+    convertit pas — plus de 4 300 chiffres, ou un exposant qui donne l'infini.
+    L'erreur remontait enveloppée dans un `VisitError` de Lark, sans ligne.
+    Aucun usage réel n'écrit un tel nombre : on le refuse en nommant la ligne. Toute AUTRE erreur de transformation reste un défaut
+    du compilateur et remonte telle quelle — l'avaler ici le cacherait."""
+    cause = err.orig_exc
+    if isinstance(cause, NombreHorsLimites):
+        motif = re.escape(str(cause))
+        message = (f"nombre hors limites : {str(cause)[:40]} ne tient dans "
+                   "aucune colonne numérique.")
+    elif isinstance(cause, ValueError) and "integer string conversion" in str(cause):
+        motif = r"\d{1000,}"
+        message = ("nombre trop long : monl n'accepte pas un entier de plusieurs "
+                   "milliers de chiffres.")
+    else:
+        return None
+    lignes = original.split("\n")
+    ligne = next((i for i, texte in enumerate(lignes, 1)
+                  if re.search(motif, texte)), None)
+    return MonlSyntaxError(
+        message, line=ligne,
+        source_line=lignes[ligne - 1][:80] + "…" if ligne else None,
+        file_path=file_path)
 
 def parse_monl_file(file_path):
     with open(file_path, encoding='utf-8') as f:
