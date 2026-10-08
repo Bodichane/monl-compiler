@@ -1,7 +1,9 @@
 # Security Model — monl (beta)
 
 This document describes what monl guarantees, what it does not guarantee, and
-the deployment settings. It complements `docs/design_decisions.md`.
+the deployment settings. It complements `docs/design_decisions.md`. See the maintained
+[defensive threat model](THREAT_MODEL.md) for trust boundaries, STRIDE threats,
+verified test references and known gaps.
 
 ## Principle: deterministic by default
 

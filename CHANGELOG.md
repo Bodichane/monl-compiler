@@ -14,6 +14,10 @@
 
 - Add a deterministic generated-spec benchmark with a compilation growth guard, real HTTP coverage of every contract route, and an opt-in large-spec run (`MONL_LONG_BENCH=1`; point 205, issue #121).
 
+### Documentation
+
+- Add a defensive threat model with checked test references for the generated backend and hosting platform (point 206, issue #124); independent external audit remains open.
+
 ### A spec can be refused
 
 - **A required text field rejects a blank value** (point 201, issue #117).
