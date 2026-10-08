@@ -45,7 +45,7 @@ sys.path.insert(0, str(RACINE / "src"))
 
 from monl.cli import couverture  # noqa: E402
 
-PLUGIN = RACINE / "plugin"
+PLUGIN = Path(os.environ.get("MONL_PLUGIN_MESURE", RACINE / "plugin"))
 REGLAGES = json.dumps({"enabledPlugins": {
     "design@synced": False,
     "ui-ux-pro-max@ui-ux-pro-max-skill": False,
@@ -58,7 +58,8 @@ CONSIGNE = (
 )
 # `Skill` est autorisé dans les DEUX bras : sinon une compétence chargée serait
 # refusée, et le bras « avec » mesurerait le refus, pas la compétence.
-OUTILS = "Read,Write,Edit,Glob,Grep,Skill,Bash(monl run:*),Bash(ls:*),Bash(cat:*)"
+OUTILS = ("Read,Write,Edit,Glob,Grep,Skill,Bash(monl run:*),Bash(ls:*),Bash(cat:*),"
+          "Bash(python3:*)")
 MONL = [sys.executable, "-c", "import sys; from monl.cli import main; "
         "sys.argv[0] = 'monl'; main()"]
 
