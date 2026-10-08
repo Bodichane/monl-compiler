@@ -2,8 +2,7 @@
 
 ## Scope and version
 
-This model covers **1.0.0-rc.1**, as declared in `pyproject.toml`, and the
-current worktree, including the security headers added after that release tag.
+This model covers **1.0.0**, as declared in `pyproject.toml`.
 It completes the written-model half of issue #124; an independent external
 audit/penetration test remains open. It is a defensive architecture review,
 not a certification or a claim that every attack has been tested.
