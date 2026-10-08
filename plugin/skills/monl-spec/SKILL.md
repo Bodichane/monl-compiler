@@ -20,10 +20,10 @@ In order, keep the first command that responds:
 
 ```bash
 monl --version                                      # installed with pip
-uvx --from monl-compiler==1.0.0rc1 monl --version   # otherwise, without installing anything
+uvx --from monl-compiler==1.0.0 monl --version   # otherwise, without installing anything
 ```
 
-If neither responds, suggest `pip install monl-compiler==1.0.0rc1` to the
+If neither responds, suggest `pip install monl-compiler==1.0.0` to the
 user; do not install it automatically. Below, `monl` means the selected
 command.
 
