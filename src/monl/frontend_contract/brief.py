@@ -372,7 +372,8 @@ def _instructions_verification(auth_features):
     auth_feature_lines = []
     if "verify_email" in auth_features:
         auth_feature_lines.append(
-            "- Confirmation e-mail : après /register, afficher l'attente de confirmation, sans session. "
+            "- Prévenir l’utilisateur : une nouvelle inscription sur une adresse non confirmée remplace le mot de passe et renvoie un message, dans le quota verify_resend. "
+            "Confirmation e-mail : après /register, afficher l'attente de confirmation, sans session. "
             "Traiter /login 403 detail.code=email_not_verified en proposant POST /verify-email/resend "
             "avec username ; afficher sa réponse générique même à la limite. Le lien reçu ouvre un écran : "
             "demander une action explicite puis POST /verify-email avec username et token dans le corps, "

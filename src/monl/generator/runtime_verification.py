@@ -75,6 +75,65 @@ CREATE INDEX IF NOT EXISTS idx_verify_resend ON _monl_verify_email_resends (iden
         raise HTTPException(status_code=403, detail={'code': 'email_not_verified', 'message': 'Confirmez votre adresse e-mail avant de vous connecter.'})
 '''.splitlines()
 
+    def _verification_registration_flow(self, lines):
+        if not self.auth_features.get('verify_email'):
+            return lines
+        start = lines.index("    conn = _connect(); cursor = conn.cursor()", lines.index("def register(req: RegisterRequest, request: Request):"))
+        end = lines.index("class LoginRequest(BaseModel):", start)
+        return lines[:start] + """    salt_hex = os.urandom(16).hex()
+    pwd_hash = _hash_password(req.password, salt_hex)
+    new_user_id, verification_token = _register_verification(_identifiant, pwd_hash, salt_hex, req.actor)
+    if verification_token:
+        _dispatch_verification(new_user_id, verification_token)
+    return {'status': 'pending', 'user_id': new_user_id, 'detail': 'Confirmez votre adresse e-mail avant de vous connecter.'}
+
+""".splitlines() + lines[end:]
+
+    def _verification_registration_helpers(self):
+        cleanup = []
+        if self.auth_features.get('lockout'):
+            cleanup.append("            cursor.execute('DELETE FROM _monl_account_lockouts WHERE user_id = ?', (user_id,))")
+        if self.auth_features.get('refresh_tokens'):
+            cleanup.append("            cursor.execute('DELETE FROM _monl_refresh_tokens WHERE user_id = ?', (user_id,))")
+        if self.auth_features.get('password_reset'):
+            cleanup.append("            cursor.execute('DELETE FROM _monl_password_reset_tokens WHERE user_id = ?', (user_id,))")
+        return """def _register_verification(identifier, pwd_hash, salt_hex, actor):
+    conn = _connect(); conn.isolation_level = None; cursor = conn.cursor()
+    try:
+        cursor.execute('BEGIN IMMEDIATE')
+        cursor.execute('SELECT id, email_verified FROM _monl_users WHERE username = ?', (identifier,))
+        row = cursor.fetchone()
+        if row and row[1]:
+            raise HTTPException(status_code=409, detail=_conflit_identifiant())
+        if row:
+            user_id = row[0]
+            if not _verification_quota(cursor, identifier):
+                cursor.execute('COMMIT')
+                return user_id, None
+            cursor.execute('UPDATE _monl_users SET password_hash = ?, salt = ?, actor = ?, token_version = token_version + 1 WHERE id = ?', (pwd_hash, salt_hex, actor, user_id))
+""".splitlines() + cleanup + """        else:
+            anon_handle = None
+            for _ in range(10):
+                candidate = f'Anon#{secrets.randbelow(9000) + 1000}'
+                cursor.execute('SELECT 1 FROM _monl_users WHERE anon_handle = ?', (candidate,))
+                if not cursor.fetchone():
+                    anon_handle = candidate
+                    break
+            if anon_handle is None:
+                raise HTTPException(status_code=500, detail='Impossible de générer un pseudonyme unique, réessayez.')
+            cursor.execute('INSERT INTO _monl_users (username, password_hash, salt, actor, anon_handle, email_verified) VALUES (?, ?, ?, ?, ?, 0) RETURNING id', (identifier, pwd_hash, salt_hex, actor, anon_handle))
+            user_id = cursor.fetchone()[0]
+        token = _issue_verification_token(cursor, user_id)
+        cursor.execute('COMMIT')
+        return user_id, token
+    except Exception:
+        cursor.execute('ROLLBACK')
+        raise
+    finally:
+        conn.close()
+
+""".splitlines()
+
     def _verification_register_lines(self):
         if not self.auth_features.get('verify_email'):
             return []
@@ -107,19 +166,24 @@ def _issue_verification_token(cursor, user_id):
 def _dispatch_verification(user_id, raw_token):
     threading.Thread(target=_send_password_reset, args=(user_id, raw_token, 'verify_email'), daemon=True, name='monl-password-reset').start()
 
-def _verification_resend(identifier):
+def _verification_quota(cursor, identifier):
     now = datetime.datetime.now(datetime.timezone.utc).timestamp()
     identifier_hash = hashlib.sha256(identifier.encode('utf-8')).hexdigest()
+    cursor.execute('DELETE FROM _monl_verify_email_resends WHERE attempted_at <= ?', (now - VERIFY_RESEND_WINDOW,))
+    cursor.execute('SELECT COUNT(*) FROM _monl_verify_email_resends WHERE identifier_hash = ?', (identifier_hash,))
+    recent = cursor.fetchone()[0]
+    if recent >= VERIFY_RESEND_MAX:
+        return False
+    cursor.execute('INSERT INTO _monl_verify_email_resends (identifier_hash, attempted_at) VALUES (?, ?)', (identifier_hash, now))
+    return True
+
+def _verification_resend(identifier):
     conn = _connect(); conn.isolation_level = None; cursor = conn.cursor()
     try:
         cursor.execute('BEGIN IMMEDIATE')
-        cursor.execute('DELETE FROM _monl_verify_email_resends WHERE attempted_at <= ?', (now - VERIFY_RESEND_WINDOW,))
-        cursor.execute('SELECT COUNT(*) FROM _monl_verify_email_resends WHERE identifier_hash = ?', (identifier_hash,))
-        recent = cursor.fetchone()[0]
-        if recent >= VERIFY_RESEND_MAX:
+        if not _verification_quota(cursor, identifier):
             cursor.execute('COMMIT')
             return None
-        cursor.execute('INSERT INTO _monl_verify_email_resends (identifier_hash, attempted_at) VALUES (?, ?)', (identifier_hash, now))
         cursor.execute('SELECT id FROM _monl_users WHERE username = ? AND email_verified = 0', (identifier,))
         row = cursor.fetchone()
         delivery = (row[0], _issue_verification_token(cursor, row[0])) if row else None
@@ -131,7 +195,7 @@ def _verification_resend(identifier):
     finally:
         conn.close()
 
-'''.splitlines()
+'''.splitlines() + self._verification_registration_helpers()
 
     def _generate_verification_routes(self):
         if not self.auth_features.get('verify_email'):

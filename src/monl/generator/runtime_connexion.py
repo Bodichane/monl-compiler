@@ -266,7 +266,7 @@ class ConnexionRuntimeMixin:
             *self._generate_auth_feature_routes(),
             "# --- VALIDATION STRICTE DES DONNÉES CRUD (PYDANTIC) ---"
         ]
-        return api_lines
+        return self._verification_registration_flow(api_lines)
 
     # BRIQUE B4 (D3–D5) : la version de jeton du compte voyage dans le JWT ;
     # sans option B4, aucune de ces lignes n'est émise (sortie historique
