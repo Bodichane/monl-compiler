@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Fixed
+
+- **A damaged spec gets a monl error, never a Python traceback** (point 204,
+  issue #120). A line dedented to a column no block opened, an integer of
+  thousands of digits, and an exponent such as `1e999900` used to crash the
+  parser; each now names the line. `1e3` in a `seed` reads as `1000.0`.
+  `tests/test_fuzzing_parseur.py` mutates the repository's specs on every run.
+
 ### A spec can be refused
 
 - **A required text field rejects a blank value** (point 201, issue #117).

@@ -1,6 +1,10 @@
 """La charpente : entités, relations, acteurs, workflows, seeds."""
 
+import math
+
 from lark import Transformer, v_args
+
+from .erreurs import NombreHorsLimites
 
 
 @v_args(inline=True)
@@ -124,5 +128,13 @@ class StructureMixin(Transformer):
             parsed = token[1:-1].replace('\\"', '"').replace('\\\\', '\\')
         else:
             # Nombre : entier ou décimal (les Money/Float acceptent un point).
-            parsed = float(token) if ("." in token) else int(token)
+            # La grammaire accepte aussi l'exposant (`1e3`) : c'est un décimal,
+            # jamais un `int()`, qui plantait (point 204). Un exposant démesuré
+            # donne l'infini, qu'aucune base ne sait stocker : refusé.
+            if any(c in token for c in ".eE"):
+                parsed = float(token)
+                if not math.isfinite(parsed):
+                    raise NombreHorsLimites(token)
+            else:
+                parsed = int(token)
         return {str(name): parsed}

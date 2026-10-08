@@ -36,6 +36,12 @@ class MonlSyntaxError(ParseError):
         super().__init__("\n".join(parts))
 
 
+class NombreHorsLimites(ValueError):
+    """Point 204 : un nombre que la grammaire accepte mais qu'aucune base ne
+    stocke (`1e999900` vaut l'infini). Levé pendant la transformation, donc
+    enveloppé par Lark ; `lecture.py` le traduit en `MonlSyntaxError`."""
+
+
 # Traduction des noms de tokens de la grammaire vers le vocabulaire du DSL,
 # pour que "attendu : ..." parle à l'utilisateur plutôt qu'au mainteneur.
 _TOKEN_LABELS = {
@@ -56,6 +62,7 @@ _TOKEN_LABELS = {
 
 def _format_lark_error(err, original_content, line_map, file_path=None):
     from lark.exceptions import UnexpectedCharacters, UnexpectedToken
+    from lark.indenter import DedentError
     original_lines = original_content.split("\n")
     line = getattr(err, "line", None)
     column = getattr(err, "column", None)
@@ -74,6 +81,10 @@ def _format_lark_error(err, original_content, line_map, file_path=None):
         message = f"élément inattendu : {token_repr}."
         if expected:
             message += " Attendu ici : " + " ; ".join(expected) + "."
+    elif isinstance(err, DedentError):
+        message = ("indentation incohérente : cette ligne revient à une colonne "
+                   "où aucun bloc ouvert ne commence. Aligne-la sur le bloc "
+                   "qu'elle continue (même nombre d'espaces que ses voisines).")
     elif isinstance(err, UnexpectedCharacters):
         message = f"caractère inattendu : '{err.char}'."
     else:

@@ -121,6 +121,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 [201](#201-un-texte-required-doit-contenir-autre-chose-que-des-espaces) Un texte `required` doit contenir autre chose que des espaces ·
 [202](#202-un-compteur-dévénements-appartient-au-serveur) Un compteur d'événements appartient au serveur ·
 [203](#203-les-en-têtes-de-sécurité-enveloppent-aussi-le-site) Les en-têtes de sécurité enveloppent aussi le site ·
+[204](#204-une-spec-abîmée-reçoit-une-erreur-monl-jamais-une-trace-python) Une spec abîmée reçoit une erreur monl ·
 **Échappatoire IA** : [4](#4-garde-fou-statique-sur-le-code-généré-par-lia) Garde-fou statique (`custom`) ·
 [21](#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) Bloc `landing` (garde-fou texte)
 
@@ -14566,3 +14567,52 @@ Le middleware retiré fait échouer le témoin API sur `nosniff` absent, puis
 sa restauration rend le banc vert. Les trois fixtures golden sont réellement
 recompilées : seuls `app.py` et `monl.json` changent, le second scellant
 l'empreinte du premier. Aucun plafond ni cliquet d'architecture n'est relevé.
+
+
+## 204. Une spec abîmée reçoit une erreur monl, jamais une trace Python
+
+**Constat (issue #120).** Le parseur et le validateur n'avaient jamais été
+exercés que par des specs écrites à la main. Rien ne garantissait qu'une spec
+abîmée — une ligne supprimée, une indentation cassée, une chaîne non fermée —
+produise une erreur monl lisible plutôt qu'une exception interne.
+
+**Le banc.** `tests/test_fuzzing_parseur.py` mute les specs valides du dépôt
+(suppression, duplication et permutation de lignes, indentation, troncature,
+caractères Unicode et de contrôle, mots-clés déplacés, nombres extrêmes,
+guillemets) et exige que chaque mutation COMPILE réellement ou lève une erreur
+monl nommée. Graine fixe : un échec se rejoue à l'identique. 1 500 cas dans la
+suite (~11 s) ; la campagne longue se lance hors suite
+(`MONL_FUZZ_CASES=20000 MONL_FUZZ_SEED=7`).
+
+**Ce qu'il a trouvé : trois plantages.**
+(a) Une ligne revenue à une colonne qu'aucun bloc n'a ouverte faisait lever à
+Lark un `DedentError` SANS position, hors de la famille `UnexpectedInput` que
+la lecture traduisait : l'utilisateur recevait la trace brute. `MonlIndenter`
+y attache désormais la ligne et la colonne du jeton, et l'erreur dit quoi
+aligner. (b) Un entier de plus de 4 300 chiffres : Python refuse de le
+convertir, et l'erreur remontait dans un `VisitError` de Lark. (c) La grammaire
+accepte l'exposant (`SIGNED_NUMBER`), mais `seed_pair` faisait `int('1e3')` ;
+`1e3` vaut maintenant `1000.0`, et `1e999900` — l'infini, qu'aucune base ne
+stocke — est refusé en nommant la ligne. Le troisième était CACHÉ par le
+deuxième : la première campagne regroupait les plantages par dernière ligne
+exécutée, et les deux tombent dans la même ligne de Lark. Le regroupement lit
+maintenant l'exception d'origine.
+
+**Ce qui n'est PAS un plantage, et pourquoi le test le distingue.** `main.py`
+enveloppe toute exception de génération dans `CompilationGenerationError`,
+défauts de code compris. Une spec tronquée qui a perdu le workflow créant une
+entité `payable` atteint le garde-fou volontaire du point 99 — un refus avec un
+message clair, pas un défaut. Le test regarde donc la CAUSE : `KeyError`,
+`TypeError`, `AttributeError`, `IndexError`… trahissent un bogue et le font
+échouer ; un refus voulu passe. La première version du test exigeait une
+`OSError` et aurait condamné ce garde-fou.
+
+**On ne traduit QUE ce qu'on connaît.** Toute autre erreur de transformation
+remonte telle quelle : un `except Exception` dans la lecture aurait fait
+disparaître le prochain défaut au lieu de le nommer.
+
+**Preuves.** Deux campagnes de 20 000 mutations (graines 120 et 7) : zéro
+plantage après correction. Contre-épreuves : chaque correction retirée → le
+banc ET son test de régression passent au rouge ; un `KeyError` injecté dans
+le validateur → le banc échoue dès le cas 0.
+

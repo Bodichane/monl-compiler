@@ -155,8 +155,9 @@ In priority order:
    drop is refused and requires backup recovery (see [MIGRATIONS.md](MIGRATIONS.md)).
 2. **Template/AST-based generator** to replace code construction by string
    concatenation. *Golden-file tests* already exist in
-   `tests/test_golden_artifacts.py`; template/AST emission and parser fuzzing
-   remain open. The package split (beta 3) separated the layers (`runtime`,
+   `tests/test_golden_artifacts.py`; template/AST emission remains open.
+   Parser fuzzing is done (point 204): mutated specs compile or get a named
+   monl error, checked by `tests/test_fuzzing_parseur.py`. The package split (beta 3) separated the layers (`runtime`,
    `routes`, `schemas`, `sql_schema`): this is the prerequisite, as each module
    can migrate to templates independently.
 3. ~~**Deployment-ready**~~ — **DONE (point 118)**: CORS opt-in through
