@@ -14,29 +14,7 @@ class SqlSchemaMixin:
         # existe indépendamment de la spec (toute application générée en a
         # besoin pour /register et /login), donc elle est injectée ici plutôt
         # que déclarée par l'utilisateur dans le DSL.
-        sql_lines.append("CREATE TABLE IF NOT EXISTS _monl_users (")
-        sql_lines.append("    id INTEGER PRIMARY KEY AUTOINCREMENT,")
-        sql_lines.append("    username VARCHAR(255) UNIQUE NOT NULL,")
-        sql_lines.append("    password_hash VARCHAR(255) NOT NULL,")
-        sql_lines.append("    salt VARCHAR(255) NOT NULL,")
-        sql_lines.append("    actor VARCHAR(255) NOT NULL,")
-        # AJOUT (roadmap, écosystème de capacités -- suite de la brique 1) :
-        # pseudonyme anonyme stable, généré une seule fois à l'inscription
-        # (voir /register), indépendant de la spec -- toujours présent,
-        # utilisé seulement si un champ 'generated' le référence.
-        sql_lines.append("    anon_handle VARCHAR(255) UNIQUE NOT NULL" +
-                         ("," if self.auth_features else ""))
-        if self.auth_features:
-            sql_lines.append("    token_version INTEGER NOT NULL DEFAULT 0" +
-                             ("," if self.auth_features.get("totp") else ""))
-        if self.auth_features.get("totp"):
-            # BRIQUE B4 : NULL signifie « double facteur non activé ». Une
-            # base existante n'est jamais convertie et un compte historique
-            # reste donc connectable.
-            sql_lines.append("    totp_secret VARCHAR(64),")
-            sql_lines.append("    totp_enabled BOOLEAN,")
-            sql_lines.append("    totp_last_step BIGINT")
-        sql_lines.append(");\n")
+        sql_lines += self._user_registry_sql_lines()
 
         # AJOUT (roadmap, révocation de token) : liste noire persistante des
         # tokens explicitement révoqués via /logout, avant leur expiration
@@ -69,6 +47,7 @@ class SqlSchemaMixin:
         sql_lines.append(");")
         sql_lines.append('CREATE INDEX IF NOT EXISTS idx_rate_limit_lookup ON _monl_rate_limit (bucket, client_ip, attempted_at);\n')
 
+        sql_lines += self._verification_sql_lines()
         if self.auth_features.get("lockout"):
             sql_lines.append("CREATE TABLE IF NOT EXISTS _monl_account_lockouts (")
             sql_lines.append("    user_id INTEGER PRIMARY KEY,")
@@ -195,3 +174,35 @@ class SqlSchemaMixin:
             sql_lines[-1] = sql_lines[-1].rstrip(",")
             sql_lines.append(");\n")
         return "\n".join(sql_lines)
+
+    def _user_registry_sql_lines(self):
+        """Colonnes du registre : état historique et options déclarées."""
+        sql_lines = []
+        sql_lines.append("CREATE TABLE IF NOT EXISTS _monl_users (")
+        sql_lines.append("    id INTEGER PRIMARY KEY AUTOINCREMENT,")
+        sql_lines.append("    username VARCHAR(255) UNIQUE NOT NULL,")
+        sql_lines.append("    password_hash VARCHAR(255) NOT NULL,")
+        sql_lines.append("    salt VARCHAR(255) NOT NULL,")
+        sql_lines.append("    actor VARCHAR(255) NOT NULL,")
+        # AJOUT (roadmap, écosystème de capacités -- suite de la brique 1) :
+        # pseudonyme anonyme stable, généré une seule fois à l'inscription
+        # (voir /register), indépendant de la spec -- toujours présent,
+        # utilisé seulement si un champ 'generated' le référence.
+        sql_lines.append("    anon_handle VARCHAR(255) UNIQUE NOT NULL" +
+                         ("," if self.auth_features else ""))
+        if self.auth_features:
+            sql_lines.append("    token_version INTEGER NOT NULL DEFAULT 0" +
+                             ("," if self.auth_features.get("totp") or self.auth_features.get("verify_email") else ""))
+        if self.auth_features.get("verify_email"):
+            sql_lines.append("    email_verified INTEGER NOT NULL DEFAULT 1" +
+                             ("," if self.auth_features.get("totp") else ""))
+        if self.auth_features.get("totp"):
+            # BRIQUE B4 : NULL signifie « double facteur non activé ». Une
+            # base existante n'est jamais convertie et un compte historique
+            # reste donc connectable.
+            sql_lines.append("    totp_secret VARCHAR(64),")
+            sql_lines.append("    totp_enabled BOOLEAN,")
+            sql_lines.append("    totp_last_step BIGINT")
+        sql_lines.append(");\n")
+
+        return sql_lines

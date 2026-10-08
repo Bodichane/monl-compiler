@@ -97,7 +97,7 @@ class CapacitesMixin:
 
         allowed_auth_options = {
             "name", "identifier", "phone_prefix", "lockout", "password_reset",
-            "refresh_tokens", "totp",
+            "refresh_tokens", "totp", "verify_email", "verify_resend",
         }
         # BRIQUE 2a : 'currency' est la première option qui n'appartient PAS à
         # 'capability auth'. La grammaire partage un seul jeu de propriétés
@@ -151,7 +151,8 @@ class CapacitesMixin:
                 self.payment_currency = self._valider_devise(capability["currency"])
             if nom != "auth":
                 continue
-            for option in ("lockout", "password_reset", "refresh_tokens", "totp"):
+            for option in ("lockout", "password_reset", "refresh_tokens", "totp",
+                           "verify_email", "verify_resend"):
                 if option not in capability:
                     continue
                 if option in features:
@@ -179,6 +180,7 @@ class CapacitesMixin:
                 "Structure : 'password_reset' exige 'capability auth' avec "
                 "'identifier: email' : le message de récupération doit avoir "
                 "une adresse de compte, sans deviner un champ métier.")
+        self._valider_verification_email(features)
         self.auth_features = features
 
         # BRIQUE 2a : une devise déclarée sans rien à encaisser ne produit
@@ -234,6 +236,20 @@ class CapacitesMixin:
                 f"le refus arrive maintenant plutôt qu'au premier vrai "
                 f"paiement. Ajouter 'currency: {attendue.split(', ')[0]}' au "
                 f"bloc 'capability payment'.")
+
+    def _valider_verification_email(self, features):
+        """Deux réglages ensemble, un destinataire exclusivement e-mail."""
+        if ("verify_email" in features) != ("verify_resend" in features):
+            raise ASTValidationError("Structure : verify_email et verify_resend doivent être déclarés ensemble.")
+        if "verify_email" not in features:
+            return
+        if self.auth_identifier != ["email"]:
+            raise ASTValidationError("Structure : verify_email exige identifier: email exclusivement.")
+        if features["verify_email"] < 1:
+            raise ASTValidationError("Structure : verify_email exige une durée positive en secondes.")
+        resend = features["verify_resend"]
+        if resend["max_attempts"] < 1 or resend["window_seconds"] < 1:
+            raise ASTValidationError("Structure : verify_resend exige un maximum et une fenêtre positifs.")
 
     def _valider_prestataire(self, nom):
         """Résout le prestataire d'encaissement — ou refuse en l'expliquant."""

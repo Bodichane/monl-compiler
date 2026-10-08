@@ -11,7 +11,7 @@ import os
 import shutil
 import subprocess
 
-from . import fichiers_reclames, fondations, sondes
+from . import fichiers_reclames, fondations, sondes, verification_email
 
 
 def _compte_de_test(base, contract, errors, warnings):
@@ -40,10 +40,8 @@ def _compte_de_test(base, contract, errors, warnings):
             errors.append(f"/register a répondu {status} (attendu 200)")
         status, body = fondations._http("POST", base + "/login",
                              {"username": identifiant, "password": "smokepass123"})
-        token = body.get("token") or body.get("access_token")
-        if status != 200 or not token:
-            errors.append(f"/login a répondu {status} sans jeton exploitable")
-            token = None
+        token = verification_email.verifier_connexion(
+            base, contract, status, body, errors, warnings)
         # Un rôle NON ouvert à l'inscription ne doit jamais pouvoir être
         # obtenu par un simple appel HTTP : c'est la faille corrigée en
         # bêta 3, éprouvée ici à chaque lancement.
@@ -58,7 +56,7 @@ def _compte_de_test(base, contract, errors, warnings):
     else:
         warnings.append("Aucun rôle 'selfRegister' : parcours d'inscription non éprouvé "
                         "(comptes provisionnés par manage.py).")
-    return actor, token
+    return verification_email.acteur_connecte(actor, contract), token
 
 def _eprouver_les_routes(actor, base, contract, errors, token):
     """Chaque route du contrat, appelée pour de vrai."""

@@ -26,7 +26,7 @@ class AdminCliMixin:
         prefixe = self.auth_phone_prefix
         password_invalidation = ""
         if any(self.auth_features.get(name) for name in
-               ("password_reset", "refresh_tokens", "lockout", "totp")):
+               ("password_reset", "refresh_tokens", "lockout", "totp", "verify_email")):
             password_invalidation += (
                 "    user_id = cur.execute(\"SELECT id FROM _monl_users WHERE "
                 "username = ?\", (_normalize_identifier(args.username),)).fetchone()[0]\n"

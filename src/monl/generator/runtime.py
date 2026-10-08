@@ -16,10 +16,12 @@ from .runtime_montage import MontageRuntimeMixin
 from .runtime_pool import PoolRuntimeMixin
 from .runtime_preparation import PreparationRuntimeMixin
 from .runtime_socle import SocleRuntimeMixin
+from .runtime_verification import VerificationRuntimeMixin
 
 
 class RuntimeMixin(
     SocleRuntimeMixin,
+    VerificationRuntimeMixin,
     PoolRuntimeMixin,
     JetonsRuntimeMixin,
     MontageRuntimeMixin,

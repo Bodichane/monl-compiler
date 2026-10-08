@@ -14,6 +14,8 @@ class MigrationsRuntimeMixin:
             "_monl_users", "_monl_revoked_tokens", "_monl_rate_limit",
             "_monl_sequences", "_monl_migrations",
         ]
+        if self.auth_features.get("verify_email"):
+            system_tables += ["_monl_verify_email_tokens", "_monl_verify_email_resends"]
         if self.auth_features.get("lockout"):
             system_tables.append("_monl_account_lockouts")
         if self.auth_features.get("password_reset"):
@@ -42,6 +44,7 @@ class MigrationsRuntimeMixin:
                 "                _sys_cur.execute('ALTER TABLE _monl_users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0')",
                 '                conn.commit()',
             ]
+        totp_migration_lines += self._verification_migration_lines()
         return (self._lignes_de_migration(system_tables_literal)
                 + self._lignes_de_base(totp_migration_lines))
 

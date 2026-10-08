@@ -113,4 +113,24 @@ class ComptesMixin:
                 self._show(self.ui.note(
                     "Sans indicatif, '97…' et '+22997…' seront deux comptes "
                     "différents pour la même personne."))
-        return {"formes": formes, "prefixe": prefixe}
+        configuration = {"formes": formes, "prefixe": prefixe}
+        if formes == ["email"]:
+            configuration.update(self._ask_email_verification())
+        return configuration
+
+    def _ask_email_verification(self):
+        """Le producteur de la brique : uniquement une inscription par e-mail."""
+        if not self._ask_yes_no("Exiger la confirmation de l'adresse e-mail avant la connexion ?"):
+            return {}
+        duree = self._ask_positive_seconds("Validité du lien de confirmation, en secondes")
+        maximum = self._ask_positive_seconds("Nombre maximal de renvois dans la fenêtre")
+        fenetre = self._ask_positive_seconds("Fenêtre des renvois, en secondes")
+        return {"verify_email": duree, "verify_resend": (maximum, fenetre)}
+
+    def _ask_positive_seconds(self, titre):
+        def valide(value):
+            if value.isdecimal() and int(value) > 0:
+                return True, int(value)
+            return False, None
+        return self._ask(self.ui.field(titre + " > "), valide,
+                         "Saisissez un entier strictement positif.", kind="free_text")
