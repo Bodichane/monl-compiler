@@ -152,15 +152,21 @@ the server keeps working)
 
 ## The `custom` block: hand-written code
 
-The `custom` blocks are an explicit extension point: at compilation, monl
-generates an empty shell for each in `sandbox_ai.py`, which the developer
-completes by hand. This code is their responsibility, just like
-any application code they write — monl neither analyzes nor generates it.
-The generated backend's best practices remain the reference: parameterized SQL
-queries, no dynamic execution, no uncontrolled system access.
+The project author writes the business logic in `sandbox_ai.py` by hand.
+It runs in the backend process, with access to the JWT secret and the
+whole database, under that author's responsibility.
 
-A dedicated execution sandbox for this code (reduced-privilege subprocess,
-container, or WASM) is a GA goal — see `docs/BETA.md`.
+**Decision: no dedicated isolation now.** The web platform accepts no Python
+from users: it writes specifications only; the compiler produces the empty
+`sandbox_ai.py` shells. `tests/test_custom_hors_plateforme.py` compiles hostile
+looking descriptions through the platform service and guards platform file
+writes with an AST check, which must never pass with an empty file list.
+
+See the [measured isolation study](../etudes/isolation-custom/RAPPORT.md).
+A plain subprocess does not protect the files. Bubblewrap blocks secret,
+database and host network access at about 41 ms per call. Reopen this decision
+only when the platform accepts Python supplied by a user; that is when
+execution isolation must be implemented.
 
 ## Validation through offensive audit
 

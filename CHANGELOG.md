@@ -5,6 +5,7 @@
 ### Documentation
 
 - Prepare the external security audit brief (`docs/EXTERNAL_AUDIT.md`): frozen-version scope, known gaps handed to the auditor, rules of engagement, what is published afterwards (issue #124, second half; nothing is commissioned).
+- Document the custom-code trust boundary and measured decision to defer isolation until the platform accepts user Python; guard compiler shells and platform writes (point 208, issue #123).
 
 ### Fixed
 
