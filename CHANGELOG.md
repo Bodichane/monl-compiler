@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.0.0 — The first stable release
+
 ### Documentation
 
 - Prepare the external security audit brief (`docs/EXTERNAL_AUDIT.md`): frozen-version scope, known gaps handed to the auditor, rules of engagement, what is published afterwards (issue #124, second half; nothing is commissioned).
