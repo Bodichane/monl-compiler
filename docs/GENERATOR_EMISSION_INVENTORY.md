@@ -1,6 +1,7 @@
-# Generator emission inventory — issue #119, step 1
+# Generator emission inventory — issue #119, steps 1 and 2
 
-Measured on the source before point 207. Counts are syntactic indicators,
+Measured on the source before point 207, except the four migrated rows updated
+after step 2 (marked below). Counts are syntactic indicators,
 not estimates of generated lines: F = AST JoinedStr nodes (including adjacent
 f-strings merged by Python); A = Add expressions/assignments; J = calls to
 append/extend/join. They include analysis/list operations and generated-code
@@ -33,17 +34,17 @@ double backslashes in source; Q counts backslash-double-quote pairs.
 | routes_suppression | 243 | 40 | 13 | 32 | 1 | 26 | 2 |
 | routes_uploads | 64 | 14 | 4 | 0 | 0 | 12 | 0 |
 | runtime | 90 | 0 | 3 | 0 | 0 | 0 | 0 |
-| runtime_annexes | 164 | 1 | 0 | 0 | 16 | 2 | 0 |
+| runtime_annexes (migrated) | 167 | 0 | 0 | 0 | 0 | 0 | 0 |
 | runtime_connexion | 283 | 1 | 10 | 5 | 0 | 4 | 1 |
 | runtime_fonctions_auth | 348 | 6 | 8 | 0 | 5 | 2 | 0 |
 | runtime_headers | 67 | 0 | 1 | 0 | 0 | 0 | 0 |
 | runtime_jetons | 206 | 11 | 0 | 0 | 0 | 16 | 0 |
-| runtime_migrations | 253 | 1 | 2 | 4 | 6 | 74 | 0 |
+| runtime_migrations (migrated) | 259 | 0 | 0 | 7 | 0 | 0 | 0 |
 | runtime_montage | 327 | 3 | 7 | 0 | 6 | 98 | 0 |
 | runtime_pool | 63 | 1 | 0 | 0 | 0 | 2 | 37 |
-| runtime_preparation | 222 | 0 | 0 | 0 | 7 | 124 | 0 |
+| runtime_preparation (migrated) | 226 | 0 | 0 | 0 | 0 | 0 | 0 |
 | runtime_socle | 378 | 5 | 3 | 2 | 7 | 24 | 0 |
-| sandbox | 17 | 1 | 0 | 2 | 0 | 6 | 0 |
+| sandbox (migrated) | 35 | 0 | 0 | 2 | 5 | 2 | 0 |
 | schemas | 212 | 13 | 1 | 25 | 0 | 0 | 1 |
 | sql | 100 | 3 | 5 | 2 | 0 | 0 | 0 |
 | sql_colonnes | 252 | 4 | 0 | 9 | 0 | 0 | 0 |
@@ -56,7 +57,13 @@ provides typed interfaces. __init__ only exports the package. sql_schema and
 sql_colonnes emit schema components; sql is the typed SQL boundary (point 108).
 These SQL modules are outside this Python migration and remain authoritative.
 
-Proposed migration order:
+Four modules are migrated. The three step-2 modules together have F=0, A=0,
+B=0, Q=0, C=0; their generated Python retains its own runtime f-strings and
+operators as literal template content. Their 39-case/547-file corpus covers
+all generated artifacts, not only Python, with unchanged baseline hashes.
+See point 207 for exclusions, determinism and executed mutation proofs.
+
+Proposed migration order (first two steps delivered):
 
 1. sandbox: smallest Python emitter with escaped quotes and doubled braces;
    Template removes both, preserving exact bytes (17 lines before migration).
