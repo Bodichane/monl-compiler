@@ -6,10 +6,22 @@ import inspect
 
 import pytest
 
-from monl.generator import runtime_annexes, runtime_migrations, runtime_preparation, sandbox
+from monl.generator import (
+    admin_cli,
+    runtime_annexes,
+    runtime_fonctions_auth,
+    runtime_migrations,
+    runtime_montage,
+    runtime_preparation,
+    runtime_socle,
+    sandbox,
+)
 from tests.test_bloc_custom_absent import AVEC_CUSTOM, _compiler
 
-MIGRATED_MODULES = (sandbox, runtime_annexes, runtime_preparation, runtime_migrations)
+MIGRATED_MODULES = (
+    sandbox, runtime_annexes, runtime_preparation, runtime_migrations,
+    admin_cli, runtime_fonctions_auth, runtime_montage, runtime_socle,
+)
 
 
 def test_liste_modules_migres_non_vide():

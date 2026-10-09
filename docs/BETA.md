@@ -153,15 +153,20 @@ In priority order:
    (point 120): rename, type changes and explicit drops; reversible operations
    support down migrations, while a down migration containing an irreversible
    drop is refused and requires backup recovery (see [MIGRATIONS.md](MIGRATIONS.md)).
-2. **Template/AST-based generator**, first two steps delivered (point 207,
+2. **Template/AST-based generator**, first three steps delivered (point 207,
    issue #119): `src/monl/generator/sandbox.py`, `src/monl/generator/runtime_annexes.py`,
-   `src/monl/generator/runtime_preparation.py` and `src/monl/generator/runtime_migrations.py`
-   now emit Python with `string.Template`, preserving bytes. Other runtime, routes, schemas and admin_cli emitters remain
+   `src/monl/generator/runtime_preparation.py`, `src/monl/generator/runtime_migrations.py`,
+   `src/monl/generator/admin_cli.py`, `src/monl/generator/runtime_fonctions_auth.py`,
+   `src/monl/generator/runtime_montage.py` and `src/monl/generator/runtime_socle.py`
+   now emit Python with `string.Template`, preserving bytes. Other runtime, routes and schemas emitters remain
    to migrate, along with their assembly; see
    [the measured inventory and migration order](GENERATOR_EMISSION_INVENTORY.md).
    SQL continues through the typed `src/monl/generator/sql.py` boundary (point 108).
-   A 39-case, 547-file SHA-256 corpus, golden tests, a custom-block byte/execution
-   witness and a four-module AST guard protect these steps, with red mutation proofs.
+   A 42-case, 589-file SHA-256 corpus, golden tests, a custom-block byte/execution
+   witness and an eight-module AST guard protect these steps. The third step
+   closes the sole missing measured emitter branch (messages with account
+   recovery); phone normalization and multi-role registration have explicit cases.
+   Real-server behavioral tests and per-module red mutation proofs complement bytes.
    Parser fuzzing is done (point 204): mutated specs compile or get a named
    monl error, checked by `tests/test_fuzzing_parseur.py`.
 3. ~~**Deployment-ready**~~ — **DONE (point 118)**: CORS opt-in through

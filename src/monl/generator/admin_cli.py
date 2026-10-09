@@ -9,6 +9,9 @@ appel HTTP anonyme.
 """
 
 
+from string import Template
+
+
 class AdminCliMixin:
     def _generate_manage_cli(self):
         """Retourne le source de manage.py pour cette application."""
@@ -24,42 +27,30 @@ class AdminCliMixin:
         # service ('supervision', 'sauvegarde') qui n'ont ni adresse ni numéro.
         formes = self.auth_identifier or []
         prefixe = self.auth_phone_prefix
-        password_invalidation = ""
+        password_invalidation = []
         if any(self.auth_features.get(name) for name in
                ("password_reset", "refresh_tokens", "lockout", "totp", "verify_email")):
-            password_invalidation += (
-                "    user_id = cur.execute(\"SELECT id FROM _monl_users WHERE "
-                "username = ?\", (_normalize_identifier(args.username),)).fetchone()[0]\n"
-            )
+            password_invalidation.append(Template(r'''    user_id = cur.execute("SELECT id FROM _monl_users WHERE username = ?", (_normalize_identifier(args.username),)).fetchone()[0]
+''').substitute())
         if self.auth_features.get("password_reset"):
-            password_invalidation += (
-                "    cur.execute(\"UPDATE _monl_password_reset_tokens SET "
-                "used_at = COALESCE(used_at, ?) WHERE user_id = ?\", "
-                "(datetime.datetime.now(datetime.timezone.utc).timestamp(), user_id))\n"
-            )
+            password_invalidation.append(Template(r'''    cur.execute("UPDATE _monl_password_reset_tokens SET used_at = COALESCE(used_at, ?) WHERE user_id = ?", (datetime.datetime.now(datetime.timezone.utc).timestamp(), user_id))
+''').substitute())
         if self.auth_features.get("refresh_tokens"):
-            password_invalidation += (
-                "    cur.execute(\"UPDATE _monl_refresh_tokens SET revoked_at = ? "
-                "WHERE user_id = ? AND revoked_at IS NULL\", "
-                "(datetime.datetime.now(datetime.timezone.utc).timestamp(), user_id))\n"
-            )
+            password_invalidation.append(Template(r'''    cur.execute("UPDATE _monl_refresh_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL", (datetime.datetime.now(datetime.timezone.utc).timestamp(), user_id))
+''').substitute())
         if self.auth_features.get("lockout"):
-            password_invalidation += (
-                "    cur.execute(\"UPDATE _monl_account_lockouts SET failed_count = 0, "
-                "first_failed_at = ?, locked_until = NULL WHERE user_id = ?\", "
-                "(datetime.datetime.now(datetime.timezone.utc).timestamp(), user_id))\n"
-            )
+            password_invalidation.append(Template(r'''    cur.execute("UPDATE _monl_account_lockouts SET failed_count = 0, first_failed_at = ?, locked_until = NULL WHERE user_id = ?", (datetime.datetime.now(datetime.timezone.utc).timestamp(), user_id))
+''').substitute())
         if self.auth_features:
-            password_invalidation += (
-                "    cur.execute(\"UPDATE _monl_users SET token_version = token_version + 1 "
-                "WHERE id = ?\", (user_id,))\n"
-            )
+            password_invalidation.append(Template(r'''    cur.execute("UPDATE _monl_users SET token_version = token_version + 1 WHERE id = ?", (user_id,))
+''').substitute())
         totp_command = ""
         totp_function = ""
         totp_entry = ""
         if self.auth_features.get("totp"):
-            totp_command = "    python3 manage.py totp-reset <utilisateur>          # révoque les sessions\n"
-            totp_function = '''
+            totp_command = Template(r'''    python3 manage.py totp-reset <utilisateur>          # révoque les sessions
+''').substitute()
+            totp_function = Template(r'''
 def cmd_totp_reset(args):
     conn = _connect()
     cur = conn.cursor()
@@ -68,24 +59,27 @@ def cmd_totp_reset(args):
         conn.close()
         sys.exit(f"Compte introuvable : {{args.username}}")
     cur.execute("UPDATE _monl_users SET totp_secret = NULL, totp_enabled = NULL, totp_last_step = NULL WHERE username = ?", (_normalize_identifier(args.username),))
-''' + password_invalidation + '''    conn.commit()
+${password_invalidation}    conn.commit()
     conn.close()
     print(f"✅ Double facteur supprimé pour '{{args.username}}' ; sessions révoquées.")
 
 
-'''
+''').substitute(password_invalidation=''.join(password_invalidation))
             totp_entry = (
-                '    p = sub.add_parser("totp-reset", help="supprimer le double facteur et révoquer les sessions")\n'
-                '    p.add_argument("username")\n'
-                '    p.set_defaults(func=cmd_totp_reset)\n\n'
+                Template(r'''    p = sub.add_parser("totp-reset", help="supprimer le double facteur et révoquer les sessions")
+    p.add_argument("username")
+    p.set_defaults(func=cmd_totp_reset)
+
+''').substitute()
             )
         unlock_command = ""
         unlock_parser = ""
         if self.auth_features.get("lockout"):
             unlock_command = (
-                "    python3 manage.py unlock <utilisateur>                 # lève un verrou\n"
+                Template(r'''    python3 manage.py unlock <utilisateur>                 # lève un verrou
+''').substitute()
             )
-            unlock_parser = '''
+            unlock_parser = Template(r'''
 
 def cmd_unlock(args):
     conn = _connect()
@@ -104,17 +98,19 @@ def cmd_unlock(args):
     conn.commit()
     print(f"✅ Verrou levé pour '{{args.username}}'.")
     conn.close()
-'''
+''').substitute()
         unlock_parser_entry = ""
         if self.auth_features.get("lockout"):
             unlock_parser_entry = (
-                "    p = sub.add_parser(\"unlock\", help=\"lever le verrouillage d'un compte\")\n"
-                "    p.add_argument(\"username\")\n"
-                "    p.set_defaults(func=cmd_unlock)\n\n"
-            )
-        return f'''"""Administration hors ligne de {self.app_name} — généré par monl.
+                Template(r'''    p = sub.add_parser("unlock", help="lever le verrouillage d'un compte")
+    p.add_argument("username")
+    p.set_defaults(func=cmd_unlock)
 
-Les rôles ouverts à l'inscription libre ({self_reg or "aucun"}) se créent par
+''').substitute()
+            )
+        return Template(r'''"""Administration hors ligne de ${app_name} — généré par monl.
+
+Les rôles ouverts à l'inscription libre (${self_register_description}) se créent par
 'POST /register'. Tous les autres rôles se créent ICI, sur la machine qui
 héberge la base : c'est la frontière qui empêche un client anonyme de
 s'attribuer un rôle privilégié.
@@ -122,7 +118,7 @@ s'attribuer un rôle privilégié.
     python3 manage.py adduser <utilisateur> <role>     # mot de passe demandé
     python3 manage.py setactor <utilisateur> <role>
     python3 manage.py passwd <utilisateur>
-{totp_command}{unlock_command}    python3 manage.py users
+${totp_command}${unlock_command}    python3 manage.py users
     python3 manage.py revoke-all                       # invalide les sessions
 """
 import argparse
@@ -135,10 +131,10 @@ import secrets
 import sys
 
 DB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app.db")
-VALID_ACTORS = [{actors}]
-AUTH_IDENTIFIER_FORMS = {formes!r}
-AUTH_PHONE_PREFIX = {prefixe!r}
-_RE_PHONE = re.compile(r'^\\+?[0-9][0-9 .\\-()]{{4,20}}$')
+VALID_ACTORS = [${actors}]
+AUTH_IDENTIFIER_FORMS = ${identifier_forms}
+AUTH_PHONE_PREFIX = ${phone_prefix}
+_RE_PHONE = re.compile(r'^\+?[0-9][0-9 .\-()]{4,20}$$')
 
 
 def _normalize_identifier(valeur):
@@ -166,7 +162,7 @@ def _normalize_identifier(valeur):
     return valeur
 
 
-SELF_REGISTER_ACTORS = [{self_reg}]
+SELF_REGISTER_ACTORS = [${self_register_actors}]
 MIN_PASSWORD_LENGTH = 8
 
 
@@ -210,9 +206,9 @@ def _connect():
             # laisser suivre d'une trace de quinze lignes le noierait, et une
             # trace n'apprend rien à qui doit décider. On sort en NOMMANT le
             # remède et le dossier, jamais sur un traceback.
-            sys.exit(f"{{erreur}}\\n"
+            sys.exit(f"{erreur}\n"
                      f"Remède : déclarez la migration dans la spec, puis "
-                     f"lancez 'monl migrate {{dossier}} --name <migration>'.")
+                     f"lancez 'monl migrate {dossier} --name <migration>'.")
         return _database_connect()
     finally:
         os.chdir(courant)
@@ -221,7 +217,7 @@ def _connect():
 def _ask_password():
     pwd = getpass.getpass("Mot de passe : ")
     if len(pwd) < MIN_PASSWORD_LENGTH:
-        sys.exit(f"Mot de passe trop court ({{MIN_PASSWORD_LENGTH}} caractères minimum).")
+        sys.exit(f"Mot de passe trop court ({MIN_PASSWORD_LENGTH} caractères minimum).")
     if pwd != getpass.getpass("Confirmation : "):
         sys.exit("Les deux saisies diffèrent.")
     return pwd
@@ -229,12 +225,12 @@ def _ask_password():
 
 def _check_actor(actor):
     if actor not in VALID_ACTORS:
-        sys.exit(f"Rôle inconnu : {{actor}}. Rôles déclarés : {{VALID_ACTORS}}")
+        sys.exit(f"Rôle inconnu : {actor}. Rôles déclarés : {VALID_ACTORS}")
 
 
 def _unique_anon_handle(cur):
     for _ in range(50):
-        candidate = f"Anon#{{secrets.randbelow(9000) + 1000}}"
+        candidate = f"Anon#{secrets.randbelow(9000) + 1000}"
         cur.execute("SELECT 1 FROM _monl_users WHERE anon_handle = ?", (candidate,))
         if not cur.fetchone():
             return candidate
@@ -248,7 +244,7 @@ def cmd_adduser(args):
     _identifiant = _normalize_identifier(args.username)
     cur.execute("SELECT 1 FROM _monl_users WHERE username = ?", (_identifiant,))
     if cur.fetchone():
-        sys.exit(f"Le compte '{{_identifiant}}' existe déjà.")
+        sys.exit(f"Le compte '{_identifiant}' existe déjà.")
     password = _ask_password()
     salt_hex = os.urandom(16).hex()
     cur.execute(
@@ -258,7 +254,7 @@ def cmd_adduser(args):
          _unique_anon_handle(cur)),
     )
     conn.commit()
-    print(f"✅ Compte '{{_identifiant}}' créé avec le rôle '{{args.actor}}'.")
+    print(f"✅ Compte '{_identifiant}' créé avec le rôle '{args.actor}'.")
     conn.close()
 
 
@@ -268,10 +264,10 @@ def cmd_setactor(args):
     cur = conn.cursor()
     cur.execute("UPDATE _monl_users SET actor = ? WHERE username = ?", (args.actor, _normalize_identifier(args.username)))
     if cur.rowcount == 0:
-        sys.exit(f"Compte introuvable : {{args.username}}")
+        sys.exit(f"Compte introuvable : {args.username}")
     conn.commit()
     print(
-        f"✅ '{{args.username}}' porte désormais le rôle '{{args.actor}}'. "
+        f"✅ '{args.username}' porte désormais le rôle '{args.actor}'. "
         "Les jetons déjà émis gardent l'ancien rôle jusqu'à expiration "
         "(revoke-all pour les invalider immédiatement)."
     )
@@ -283,7 +279,7 @@ def cmd_passwd(args):
     cur = conn.cursor()
     cur.execute("SELECT 1 FROM _monl_users WHERE username = ?", (_normalize_identifier(args.username),))
     if not cur.fetchone():
-        sys.exit(f"Compte introuvable : {{args.username}}")
+        sys.exit(f"Compte introuvable : {args.username}")
     password = _ask_password()
     salt_hex = os.urandom(16).hex()
     cur.execute(
@@ -291,12 +287,12 @@ def cmd_passwd(args):
         (_hash_password(password, salt_hex), salt_hex,
          _normalize_identifier(args.username)),
     )
-{password_invalidation}    conn.commit()
-    print(f"✅ Mot de passe de '{{args.username}}' mis à jour.")
+${password_invalidation}    conn.commit()
+    print(f"✅ Mot de passe de '{args.username}' mis à jour.")
     conn.close()
 
 
-{totp_function}{unlock_parser}def cmd_users(_args):
+${totp_function}${unlock_parser}def cmd_users(_args):
     conn = _connect()
     cur = conn.cursor()
     cur.execute("SELECT id, username, actor FROM _monl_users ORDER BY id")
@@ -305,7 +301,7 @@ def cmd_passwd(args):
         print("Aucun compte.")
     for uid, username, actor in rows:
         libre = " (inscription libre)" if actor in SELF_REGISTER_ACTORS else " (provisionné)"
-        print(f"{{uid:>4}}  {{username:<24}} {{actor}}{{libre}}")
+        print(f"{uid:>4}  {username:<24} {actor}{libre}")
     conn.close()
 
 
@@ -342,7 +338,7 @@ def main():
     p.add_argument("username")
     p.set_defaults(func=cmd_passwd)
 
-{totp_entry}{unlock_parser_entry}    sub.add_parser("users", help="lister les comptes").set_defaults(func=cmd_users)
+${totp_entry}${unlock_parser_entry}    sub.add_parser("users", help="lister les comptes").set_defaults(func=cmd_users)
     sub.add_parser("revoke-all", help="invalider toutes les sessions").set_defaults(func=cmd_revoke_all)
 
     args = parser.parse_args()
@@ -351,4 +347,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-'''
+''').substitute(app_name=self.app_name, self_register_description=self_reg or "aucun", totp_command=totp_command, unlock_command=unlock_command, actors=actors, identifier_forms=repr(formes), phone_prefix=repr(prefixe), self_register_actors=self_reg, password_invalidation=''.join(password_invalidation), totp_function=totp_function, unlock_parser=unlock_parser, totp_entry=totp_entry, unlock_parser_entry=unlock_parser_entry)

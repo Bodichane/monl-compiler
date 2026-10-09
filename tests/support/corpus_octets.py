@@ -14,6 +14,7 @@ from tests.test_authentification_b4 import SPEC_B4
 from tests.test_bloc_custom_absent import AVEC_CUSTOM
 from tests.test_generated_specs import generated_spec
 from tests.test_golden_artifacts import SPEC, SPEC_LOOKUP_SOURCES
+from tests.test_identifiant_de_compte import SPEC as SPEC_IDENTIFIANT
 from tests.test_messages import SPEC as SPEC_MESSAGES
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -42,6 +43,14 @@ def corpus_specs():
         cases[f"auth_{name}"] = SPEC.replace(
             "workflow", f"capability auth\n    identifier: email\n    {option}\n\nworkflow")
     cases["messages"] = SPEC_MESSAGES
+    cases["messages_auth_recovery"] = SPEC_MESSAGES.replace(
+        "    identifier: email\n",
+        "    identifier: email\n    password_reset: 60\n    verify_email: 86400\n"
+        "    verify_resend: 3 in 3600\n")
+    cases["auth_phone"] = SPEC_IDENTIFIANT.replace("identifier: email, phone", "identifier: phone")
+    cases["auth_phone_prefix_multirole"] = cases["auth_phone"].replace(
+        "    identifier: phone\n", '    identifier: phone\n    phone_prefix: "+229"\n'
+    ).replace("actor Patron", "actor Patron selfRegister\nactor Operateur")
     cases["custom"] = AVEC_CUSTOM
     cases["migration"] = '''app MigrationCorpus
 entity User

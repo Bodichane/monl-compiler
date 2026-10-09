@@ -14799,6 +14799,67 @@ passe depuis la racine avec `PYTHONPATH=src` : sans cela, l'installation
 editable locale résout un autre worktree et entraîne des erreurs étrangères
 au périmètre, sans assouplissement de configuration.
 
+**Troisième étape (issue #119).** Seuls `admin_cli.py`,
+`runtime_fonctions_auth.py`, `runtime_montage.py` et `runtime_socle.py` migrent
+vers des gabarits raw `string.Template`. Les valeurs ont des substitutions
+nommées ; les fragments s'assemblent avec extend, dépaquetage et join, jamais
+par f-string ou addition dans le générateur. Les f-strings du Python ÉMIS
+restent littérales. Les quatre `\"` du socle appartiennent déjà aux octets émis,
+pas à une couche d'échappement du générateur. `generator/sql.py` (point 108)
+reste intact. Aucun changement d'octets, donc aucune exception AST ni mise à
+jour d'une empreinte existante.
+
+**Mesure AVANT modification des émetteurs.** Sur main non migré (HEAD
+`fbd53b3`), `coverage run --branch` et `tests/test_corpus_octets.py` donnent :
+
+| Module | Lignes non atteintes | Branches non atteintes | Après élargissement |
+|---|---|---|---|
+| admin_cli | aucune (33/33) | aucune (16/16) | aucune |
+| runtime_fonctions_auth | aucune (29/29) | 64→71 (17/18) | aucune (18/18) |
+| runtime_montage | aucune (13/13) | aucune (4/4) | aucune |
+| runtime_socle | aucune (19/19) | aucune (4/4) | aucune |
+
+La branche manquante réutilise le nettoyeur SMTP déjà émis pour les messages
+lorsque password_reset/verify_email sont aussi déclarés : le nouveau cas
+`messages_auth_recovery` l'exerce. Deux témoins supplémentaires,
+`auth_phone` et `auth_phone_prefix_multirole`, explicitent téléphone sans/avec
+préfixe, plusieurs acteurs selfRegister et un acteur provisionné. Les options
+auth isolées/ensemble, uploads, contraintes, numérotation, horodatage et paiement
+étaient déjà exercés par les exemples, dialogues et bancs existants. Il ne
+reste aucune ligne/branche instrumentée inaccessible à justifier ; cela ne
+prétend pas couvrir toutes les combinaisons de données ni le Python émis à
+l'exécution. La configuration coverage du dépôt impose `source=src/monl`
+(donc avertissement include ignoré) ; le rapport JSON est filtré sur ces quatre
+modules, avec toutes leurs branches, sans exclusion ajoutée.
+
+**Gel préalable.** Deux compilations indépendantes identiques sur les émetteurs
+non migrés ajoutent seulement les trois cas : **42 cas, 589 fichiers**. La
+comparaison JSON confirme que les **39 entrées/547 fichiers anciens sont
+identiques**. Ce gel précède la migration ; aucune régénération après celle-ci.
+La garde AST interdit JoinedStr et Add dans huit modules et exige une liste
+non vide. Les plafonds 400 lignes/complexité 15 et le cliquet restent intacts.
+
+**Contre-épreuves exécutées sans suite concurrente.** Un seul caractère du
+Python émis est remplacé par module : `100_000` → `100_001` dans le hachage
+de manage.py ; `1000000` → `1000001` dans le calcul TOTP ; `_auth[7:]` →
+`_auth[8:]` dans l'identité optionnelle ; défaut JWT `'2'` → `'3'` dans le
+socle. Chaque module reste importable, et `test_corpus_octets` échoue sur
+l'assertion « Octets modifiés », pas à la collecte. Chaque restauration est
+suivie du même test vert. Remplacer le préfixe raw par f-string sur le gabarit
+TOKEN_TTL_HOURS, sans changer ses octets émis, fait rougir uniquement la
+garde JoinedStr du socle ; restauration et garde verte ensuite.
+
+**Preuves comportementales.** Les tests authentification B4, identifiant de
+compte, vérification e-mail, messages, uploads, administration et régressions
+bêta 3 (dont manage.py) exécutent de vrais processus uvicorn et faux SMTP :
+**130 passed, 14 skipped in 165.29s**. Les skips sont les intégrations
+PostgreSQL non demandées (`MONL_TEST_DATABASE_URL` absent). Le sandbox local
+interdisait initialement les sockets ; la relance autorisée hors sandbox
+est verte. Corpus, golden, architecture, documentation et garde de gabarits :
+**51 passed**. Ruff est vert ; la commande mypy --strict exacte de CI, avec
+`MYPYPATH=src PYTHONPATH=src`, annonce **Success: no issues found in 6 source
+files**. Aucun plafond, exception de complexité ou réglage n'est relevé.
+
 ## 208. Code custom sous la responsabilité de son auteur
 
 **Décision prise (issue #123) : pas d'isolation maintenant.** Le code `custom`
