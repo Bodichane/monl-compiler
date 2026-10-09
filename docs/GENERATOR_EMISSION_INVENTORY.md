@@ -1,7 +1,7 @@
-# Generator emission inventory — issue #119, steps 1 and 2
+# Generator emission inventory — issue #119, steps 1 to 3
 
-Measured on the source before point 207, except the four migrated rows updated
-after step 2 (marked below). Counts are syntactic indicators,
+Measured on the source before point 207, except the eight migrated rows updated
+after steps 2 and 3 (marked below). Counts are syntactic indicators,
 not estimates of generated lines: F = AST JoinedStr nodes (including adjacent
 f-strings merged by Python); A = Add expressions/assignments; J = calls to
 append/extend/join. They include analysis/list operations and generated-code
@@ -13,7 +13,7 @@ double backslashes in source; Q counts backslash-double-quote pairs.
 | Module | Lines | F | A | J | B | Q | C |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | __init__ | 9 | 0 | 0 | 0 | 0 | 0 | 0 |
-| admin_cli | 354 | 1 | 7 | 2 | 3 | 16 | 12 |
+| admin_cli (migrated) | 350 | 0 | 0 | 9 | 0 | 0 | 0 |
 | calculs | 116 | 10 | 1 | 3 | 0 | 0 | 0 |
 | core | 303 | 0 | 0 | 9 | 0 | 2 | 0 |
 | emitters | 46 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -36,14 +36,14 @@ double backslashes in source; Q counts backslash-double-quote pairs.
 | runtime | 90 | 0 | 3 | 0 | 0 | 0 | 0 |
 | runtime_annexes (migrated) | 167 | 0 | 0 | 0 | 0 | 0 | 0 |
 | runtime_connexion | 283 | 1 | 10 | 5 | 0 | 4 | 1 |
-| runtime_fonctions_auth | 348 | 6 | 8 | 0 | 5 | 2 | 0 |
+| runtime_fonctions_auth (migrated) | 362 | 0 | 0 | 9 | 0 | 0 | 0 |
 | runtime_headers | 67 | 0 | 1 | 0 | 0 | 0 | 0 |
 | runtime_jetons | 206 | 11 | 0 | 0 | 0 | 16 | 0 |
 | runtime_migrations (migrated) | 259 | 0 | 0 | 7 | 0 | 0 | 0 |
-| runtime_montage | 327 | 3 | 7 | 0 | 6 | 98 | 0 |
+| runtime_montage (migrated) | 339 | 0 | 0 | 4 | 0 | 0 | 0 |
 | runtime_pool | 63 | 1 | 0 | 0 | 0 | 2 | 37 |
 | runtime_preparation (migrated) | 226 | 0 | 0 | 0 | 0 | 0 | 0 |
-| runtime_socle | 378 | 5 | 3 | 2 | 7 | 24 | 0 |
+| runtime_socle (migrated) | 385 | 0 | 0 | 3 | 0 | 4 | 0 |
 | sandbox (migrated) | 35 | 0 | 0 | 2 | 5 | 2 | 0 |
 | schemas | 212 | 13 | 1 | 25 | 0 | 0 | 1 |
 | sql | 100 | 3 | 5 | 2 | 0 | 0 | 0 |
@@ -57,21 +57,27 @@ provides typed interfaces. __init__ only exports the package. sql_schema and
 sql_colonnes emit schema components; sql is the typed SQL boundary (point 108).
 These SQL modules are outside this Python migration and remain authoritative.
 
-Four modules are migrated. The three step-2 modules together have F=0, A=0,
+Eight modules are migrated. The three step-2 modules together have F=0, A=0,
 B=0, Q=0, C=0; their generated Python retains its own runtime f-strings and
-operators as literal template content. Their 39-case/547-file corpus covers
+operators as literal template content. The four step-3 modules also have
+F=0, A=0, B=0 and C=0. runtime_socle retains four single backslash-quote pairs
+already present in emitted Python, not escaping through generator layers.
+The expanded 42-case/589-file corpus covers
 all generated artifacts, not only Python, with unchanged baseline hashes.
 See point 207 for exclusions, determinism and executed mutation proofs.
 
-Proposed migration order (first two steps delivered):
+Proposed migration order (first three steps delivered):
 
 1. sandbox: smallest Python emitter with escaped quotes and doubled braces;
    Template removes both, preserving exact bytes (17 lines before migration).
 2. runtime_annexes: 16 double-backslash occurrences, only one outer f-string;
    then runtime_preparation (7) and runtime_migrations (6), with focused runtime
    witnesses for regexes and migration behavior.
-3. admin_cli, runtime_fonctions_auth, runtime_montage, runtime_socle:
-   nested escaping and authentication/startup surfaces need stronger witnesses.
+3. admin_cli, runtime_fonctions_auth, runtime_montage, runtime_socle: delivered.
+   All measured lines/branches are covered before migration (94 statements,
+   42 branches); account recovery with messages closes branch 64→71 in
+   runtime_fonctions_auth. Phone with/without prefix and multiple selfRegister
+   roles have explicit additional witnesses. No unchanged corpus entry is replaced.
 4. routes_uploads, runtime_pool, paiement, prealables, calculs, schemas,
    routes_acces, runtime_jetons, runtime_connexion: bounded emitters, progressing
    from small fragments to models and account state.
