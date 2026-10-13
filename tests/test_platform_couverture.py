@@ -67,7 +67,13 @@ class _ASGIClient:
         chunks = []
 
         async def receive():
-            return messages.pop(0)
+            # Comme un vrai serveur ASGI : le corps livré, la lecture suivante
+            # BLOQUE jusqu'à la fin de la réponse (Starlette récent l'attend
+            # en parallèle pour détecter une déconnexion). Ni liste vide qui
+            # lève IndexError, ni déconnexion immédiate qui coupe un fichier.
+            if messages:
+                return messages.pop(0)
+            await asyncio.Event().wait()
 
         async def send(message):
             if message["type"] == "http.response.start":
