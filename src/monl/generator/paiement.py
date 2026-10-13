@@ -4,6 +4,8 @@
 ferme ET par le contrat (`_verrou_paiement` l'appelle, il ne recalcule
 pas la chaîne — deux vérités finiraient par diverger)."""
 
+from string import Template
+
 from ..ir import PAYMENT_STATUS_COLUMN
 
 
@@ -47,14 +49,11 @@ class PaiementMixin:
         encaissé. 409 et non 403 — ce n'est pas un droit qui manque, c'est un
         état définitif, et le message dit lequel."""
         return [
-            f"{indent}cursor.execute('SELECT \"{PAYMENT_STATUS_COLUMN}\" FROM "
-            f"\"{table}\" WHERE id = ?', ({id_expr},))",
-            f"{indent}{var} = cursor.fetchone()",
-            f"{indent}if {var} and {var}[0] == 'payee':",
-            f"{indent}    conn.close()",
-            f"{indent}    raise HTTPException(status_code=409, detail=(",
-            f"{indent}        '{entity} déjà réglé : un enregistrement encaissé ne peut "
-            f"plus être '",
-            f"{indent}        'modifié ni supprimé. Passez par un remboursement chez le "
-            f"prestataire.'))",
+            Template(r"""${indent}cursor.execute('SELECT "${PAYMENT_STATUS_COLUMN}" FROM "${table}" WHERE id = ?', (${id_expr},))""").substitute(indent=indent, PAYMENT_STATUS_COLUMN=PAYMENT_STATUS_COLUMN, table=table, id_expr=id_expr),
+            Template(r"""${indent}${var} = cursor.fetchone()""").substitute(indent=indent, var=var),
+            Template(r"""${indent}if ${var} and ${var_2}[0] == 'payee':""").substitute(indent=indent, var=var, var_2=var),
+            Template(r"""${indent}    conn.close()""").substitute(indent=indent),
+            Template(r"""${indent}    raise HTTPException(status_code=409, detail=(""").substitute(indent=indent),
+            Template(r"""${indent}        '${entity} déjà réglé : un enregistrement encaissé ne peut plus être '""").substitute(indent=indent, entity=entity),
+            Template(r"""${indent}        'modifié ni supprimé. Passez par un remboursement chez le prestataire.'))""").substitute(indent=indent),
         ]

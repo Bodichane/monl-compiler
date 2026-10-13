@@ -3,6 +3,8 @@
 POINT 108 : tout le SQL de contrôle d'accès passe par `generator/sql.py`.
 Ne jamais reconstruire une requête de contrôle par f-string."""
 
+from string import Template
+
 from . import sql
 
 
@@ -18,24 +20,17 @@ class AccesRoutesMixin:
         allowed_actors = sorted(access.actors)
         is_public = access.public
         if is_public:
-            security_check = (
-                "    pass  # Route publique (règle 'public') : "
-                "aucune authentification requise"
-            )
+            security_check = Template(r"""    pass  # Route publique (règle 'public') : aucune authentification requise""").substitute()
             dependency_injection = ""
         elif len(allowed_actors) == 1:
             security_check = (
-                f'    if current_actor != "{allowed_actors[0]}": '
-                f'raise HTTPException(status_code=403, detail="Contrôle d\'accès : '
-                f'Rôle {allowed_actors[0]} requis")'
+                Template(r"""    if current_actor != "${actor}": raise HTTPException(status_code=403, detail="Contrôle d'accès : Rôle ${actor} requis")""").substitute(actor=allowed_actors[0])
             )
             dependency_injection = "current_actor: str = Depends(verify_jwt_and_get_actor)"
         else:
-            allowed_set_literal = ", ".join(f'"{actor}"' for actor in allowed_actors)
+            allowed_set_literal = ", ".join(Template(r'''"${actor}"''').substitute(actor=actor) for actor in allowed_actors)
             security_check = (
-                f'    if current_actor not in {{{allowed_set_literal}}}: '
-                f'raise HTTPException(status_code=403, detail="Contrôle d\'accès : '
-                f'Rôle parmi [{", ".join(allowed_actors)}] requis")'
+                Template(r"""    if current_actor not in {${allowed_set_literal}}: raise HTTPException(status_code=403, detail="Contrôle d'accès : Rôle parmi [${actors}] requis")""").substitute(allowed_set_literal=allowed_set_literal, actors=", ".join(allowed_actors))
             )
             dependency_injection = "current_actor: str = Depends(verify_jwt_and_get_actor)"
         return {
@@ -47,7 +42,7 @@ class AccesRoutesMixin:
             "is_public": is_public,
             "security_check": security_check,
             "dependency_injection": dependency_injection,
-            "dep_suffix": f", {dependency_injection}" if dependency_injection else "",
+            "dep_suffix": Template(r""", ${dependency_injection}""").substitute(dependency_injection=dependency_injection) if dependency_injection else "",
         }
 
     def _upload_access_context(self, action, entity):
@@ -58,40 +53,40 @@ class AccesRoutesMixin:
         dependencies = context["dependency_injection"]
         lines = [context["security_check"]]
         if access.party_fields:
-            dependencies += ", current_user_id: int = Depends(get_current_user_id)"
-            columns = ", ".join(f'"{column}"' for column in access.party_fields)
-            lines += [
-                "    _acl_conn = _connect(); _acl_cur = _acl_conn.cursor()",
-                f"    _acl_cur.execute('SELECT {columns} FROM \"{entity.lower()}\" WHERE id = ?', (id,))",
-                "    _acl_row = _acl_cur.fetchone(); _acl_conn.close()",
-                "    if not _acl_row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
-            ]
+            dependencies = Template(r"""${dependencies}, current_user_id: int = Depends(get_current_user_id)""").substitute(dependencies=dependencies)
+            columns = ", ".join(Template(r'''"${column}"''').substitute(column=column) for column in access.party_fields)
+            lines.extend([
+                Template(r"""    _acl_conn = _connect(); _acl_cur = _acl_conn.cursor()""").substitute(),
+                Template(r"""    _acl_cur.execute('SELECT ${columns} FROM "${entity}" WHERE id = ?', (id,))""").substitute(columns=columns, entity=entity.lower()),
+                *Template(r"""    _acl_row = _acl_cur.fetchone(); _acl_conn.close()
+    if not _acl_row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')""").substitute().split("\n"),
+            ])
             supervisors = sorted(access.supervisors)
             if supervisors:
                 literal = ", ".join(repr(actor) for actor in supervisors)
-                lines += [
-                    f"    if current_actor not in {{{literal}}} and current_user_id not in _acl_row:",
-                    "        raise HTTPException(status_code=404, detail='Fichier introuvable')",
-                ]
+                lines.extend([
+                    Template(r"""    if current_actor not in {${literal}} and current_user_id not in _acl_row:""").substitute(literal=literal),
+                    Template(r"""        raise HTTPException(status_code=404, detail='Fichier introuvable')""").substitute(),
+                ])
             else:
-                lines += [
-                    "    if current_user_id not in _acl_row:",
-                    "        raise HTTPException(status_code=404, detail='Fichier introuvable')",
-                ]
+                lines.extend([
+                    *Template(r"""    if current_user_id not in _acl_row:
+        raise HTTPException(status_code=404, detail='Fichier introuvable')""").substitute().split("\n"),
+                ])
         elif access.owner_entity:
             check_actor, owner_select = self._owner_lookup_sql(
                 entity, access.owner_entity)
-            dependencies += ", current_user_id: int = Depends(get_current_user_id)"
-            lines += [
-                f"    if current_actor == {check_actor!r}:",
-                "        _acl_conn = _connect(); _acl_cur = _acl_conn.cursor()",
-                f"        _acl_cur.execute({owner_select.text!r}, {sql.params_tuple(owner_select)})",
-                "        _acl_row = _acl_cur.fetchone(); _acl_conn.close()",
-                "        if not _acl_row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
-                "        if _acl_row[0] != current_user_id:",
-                "            raise HTTPException(status_code=404, detail='Fichier introuvable')",
-            ]
+            dependencies = Template(r"""${dependencies}, current_user_id: int = Depends(get_current_user_id)""").substitute(dependencies=dependencies)
+            lines.extend([
+                Template(r"""    if current_actor == ${check_actor}:""").substitute(check_actor=repr(check_actor)),
+                Template(r"""        _acl_conn = _connect(); _acl_cur = _acl_conn.cursor()""").substitute(),
+                Template(r"""        _acl_cur.execute(${text}, ${sql})""").substitute(text=repr(owner_select.text), sql=sql.params_tuple(owner_select)),
+                *Template(r"""        _acl_row = _acl_cur.fetchone(); _acl_conn.close()
+        if not _acl_row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')
+        if _acl_row[0] != current_user_id:
+            raise HTTPException(status_code=404, detail='Fichier introuvable')""").substitute().split("\n"),
+            ])
         else:
             raise ValueError(
-                f"Génération : aucune ACL par ligne pour {entity}.{action} Upload")
+                Template(r"""Génération : aucune ACL par ligne pour ${entity}.${action} Upload""").substitute(entity=entity, action=action))
         return context, dependencies, lines

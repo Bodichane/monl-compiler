@@ -5,7 +5,7 @@ les deux exemptions DÉCLARATIVES de `publicWhen` (point 116) — le
 superviseur et le propriétaire. `_condition_exemptions` est la source
 unique partagée par la route et le runtime."""
 
-
+from string import Template
 
 
 class PrealablesMixin:
@@ -24,7 +24,7 @@ class PrealablesMixin:
         """
         if (entity, "Read") not in self.public_conditions:
             return [], []
-        superviseurs = sorted(self.access_supervisors.get(f"{entity}.Read", []))
+        superviseurs = sorted(self.access_supervisors.get(Template(r"""${entity}.Read""").substitute(entity=entity), []))
         proprietaire = sorted(self._identity_fk_columns().get(entity, set()))
         return superviseurs, proprietaire
 

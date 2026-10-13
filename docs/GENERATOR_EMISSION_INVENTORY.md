@@ -1,6 +1,6 @@
-# Generator emission inventory — issue #119, steps 1 to 3
+# Generator emission inventory — issue #119, steps 1 to 4
 
-Measured on the source before point 207, except the eight migrated rows updated
+Measured on the source before point 207, except the seventeen migrated rows updated
 after steps 2 and 3 (marked below), then the legacy database cleanup in issue
 #142 for runtime_montage and runtime_socle. Counts are syntactic indicators,
 not estimates of generated lines: F = AST JoinedStr nodes (including adjacent
@@ -15,16 +15,16 @@ double backslashes in source; Q counts backslash-double-quote pairs.
 |---|---:|---:|---:|---:|---:|---:|---:|
 | __init__ | 9 | 0 | 0 | 0 | 0 | 0 | 0 |
 | admin_cli (migrated) | 350 | 0 | 0 | 9 | 0 | 0 | 0 |
-| calculs | 116 | 10 | 1 | 3 | 0 | 0 | 0 |
+| calculs (migrated) | 112 | 0 | 0 | 4 | 0 | 0 | 0 |
 | core | 303 | 0 | 0 | 9 | 0 | 2 | 0 |
 | emitters | 46 | 0 | 0 | 0 | 0 | 0 | 0 |
 | modele | 119 | 2 | 1 | 8 | 0 | 0 | 0 |
-| paiement | 60 | 7 | 0 | 1 | 0 | 4 | 0 |
+| paiement (migrated) | 59 | 0 | 0 | 1 | 0 | 0 | 0 |
 | pipeline | 171 | 3 | 2 | 7 | 0 | 0 | 1 |
-| prealables | 83 | 1 | 0 | 1 | 0 | 0 | 0 |
+| prealables (migrated) | 83 | 0 | 0 | 1 | 0 | 0 | 0 |
 | proprietaire | 298 | 6 | 1 | 1 | 0 | 0 | 0 |
 | routes | 40 | 0 | 0 | 0 | 0 | 0 | 0 |
-| routes_acces | 97 | 10 | 6 | 4 | 0 | 2 | 1 |
+| routes_acces (migrated) | 92 | 0 | 0 | 8 | 0 | 0 | 0 |
 | routes_creation | 399 | 37 | 8 | 46 | 2 | 22 | 2 |
 | routes_lecture | 307 | 46 | 9 | 75 | 0 | 30 | 0 |
 | routes_lecture_filtree | 296 | 42 | 27 | 29 | 0 | 12 | 0 |
@@ -33,20 +33,20 @@ double backslashes in source; Q counts backslash-double-quote pairs.
 | routes_paiement | 366 | 22 | 12 | 2 | 0 | 18 | 2 |
 | routes_prestataires | 235 | 21 | 7 | 9 | 0 | 20 | 2 |
 | routes_suppression | 243 | 40 | 13 | 32 | 1 | 26 | 2 |
-| routes_uploads | 64 | 14 | 4 | 0 | 0 | 12 | 0 |
+| routes_uploads (migrated) | 67 | 0 | 0 | 2 | 0 | 0 | 0 |
 | runtime | 90 | 0 | 3 | 0 | 0 | 0 | 0 |
 | runtime_annexes (migrated) | 167 | 0 | 0 | 0 | 0 | 0 | 0 |
-| runtime_connexion | 283 | 1 | 10 | 5 | 0 | 4 | 1 |
+| runtime_connexion (migrated) | 297 | 0 | 0 | 13 | 0 | 0 | 0 |
 | runtime_fonctions_auth (migrated) | 362 | 0 | 0 | 9 | 0 | 0 | 0 |
 | runtime_headers | 67 | 0 | 1 | 0 | 0 | 0 | 0 |
-| runtime_jetons | 206 | 11 | 0 | 0 | 0 | 16 | 0 |
+| runtime_jetons (migrated) | 226 | 0 | 0 | 0 | 0 | 0 | 0 |
 | runtime_migrations (migrated) | 259 | 0 | 0 | 7 | 0 | 0 | 0 |
 | runtime_montage (migrated) | 155 | 0 | 0 | 5 | 0 | 0 | 0 |
-| runtime_pool | 63 | 1 | 0 | 0 | 0 | 2 | 37 |
+| runtime_pool (migrated) | 65 | 0 | 0 | 0 | 0 | 0 | 0 |
 | runtime_preparation (migrated) | 226 | 0 | 0 | 0 | 0 | 0 | 0 |
 | runtime_socle (migrated) | 360 | 0 | 0 | 2 | 0 | 0 | 0 |
 | sandbox (migrated) | 35 | 0 | 0 | 2 | 5 | 2 | 0 |
-| schemas | 212 | 13 | 1 | 25 | 0 | 0 | 1 |
+| schemas (migrated) | 214 | 0 | 0 | 25 | 0 | 0 | 0 |
 | sql | 100 | 3 | 5 | 2 | 0 | 0 | 0 |
 | sql_colonnes | 252 | 4 | 0 | 9 | 0 | 0 | 0 |
 | sql_schema | 197 | 6 | 2 | 76 | 0 | 0 | 0 |
@@ -58,16 +58,16 @@ provides typed interfaces. __init__ only exports the package. sql_schema and
 sql_colonnes emit schema components; sql is the typed SQL boundary (point 108).
 These SQL modules are outside this Python migration and remain authoritative.
 
-Eight modules are migrated. The three step-2 modules together have F=0, A=0,
+Seventeen modules are migrated. The three step-2 modules together have F=0, A=0,
 B=0, Q=0, C=0; their generated Python retains its own runtime f-strings and
 operators as literal template content. The four step-3 modules also have
 F=0, A=0, B=0, Q=0 and C=0 after issue #142: the four single
 backslash-quote pairs in runtime_socle belonged to the discarded TOTP fragment.
-The expanded 42-case/589-file corpus covers
+The expanded 52-case/732-file corpus covers
 all generated artifacts, not only Python, with unchanged baseline hashes.
 See point 207 for exclusions, determinism and executed mutation proofs.
 
-Proposed migration order (first three steps delivered):
+Proposed migration order (first four steps delivered):
 
 1. sandbox: smallest Python emitter with escaped quotes and doubled braces;
    Template removes both, preserving exact bytes (17 lines before migration).
@@ -80,8 +80,13 @@ Proposed migration order (first three steps delivered):
    runtime_fonctions_auth. Phone with/without prefix and multiple selfRegister
    roles have explicit additional witnesses. No unchanged corpus entry is replaced.
 4. routes_uploads, runtime_pool, paiement, prealables, calculs, schemas,
-   routes_acces, runtime_jetons, runtime_connexion: bounded emitters, progressing
-   from small fragments to models and account state.
+   routes_acces, runtime_jetons, runtime_connexion: delivered. Ten real specs
+   are frozen before migration, retaining all 42 previous entries. All measured
+   emitter branches are covered except the defensive Upload-without-ACL refusal:
+   validated specs cannot reach it. prealables returns metadata; its mutation
+   changes downstream emitted access-control bytes. All nine corpus mutations
+   fail the byte assertion, not generator collection or syntax. F=A=B=Q=C=0
+   for these nine modules. No architecture exception increases or decreases.
 5. routes_suppression, routes_creation, routes_modification, routes_lecture,
    routes_lecture_filtree, routes_prestataires, routes_paiement: many assembled
    fragments, branch-heavy behavior and typed SQL integrations. Migrate one

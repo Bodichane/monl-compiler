@@ -126,7 +126,7 @@ its title as well as by its number.
 [204](design_decisions.md#204-une-spec-abîmée-reçoit-une-erreur-monl-jamais-une-trace-python) A damaged spec gets a monl error, never a Python traceback ·
 [205](design_decisions.md#205-les-petites-specs-ne-prouvent-pas-la-croissance-du-compilateur) Deterministic generated specs measure compilation growth and exercise every contract route on a real server ·
 [208](design_decisions.md#208-code-custom-sous-la-responsabilité-de-son-auteur) Custom code remains the project author’s responsibility; isolate only when the platform accepts user Python ·
-[207](design_decisions.md#207-premier-gabarit-python-sans-changer-les-octets) First Python template with byte-identical output ·
+[207](design_decisions.md#207-premier-gabarit-python-sans-changer-les-octets) Byte-identical Python templates, migration steps 1–4 and frozen corpus ·
 **AI escape hatch**:[4](design_decisions.md#4-garde-fou-statique-sur-le-code-généré-par-lia) Static safeguard (`custom`) ·
 [21](design_decisions.md#21-bloc-landing--front-marketing-sur--deuxième-échappatoire-ia) `landing` block (text safeguard)
 
