@@ -21,33 +21,8 @@ from email.message import EmailMessage''').substitute().split("\n"),
         totp_imports = ([*Template(r'''import base64
 import struct''').substitute().split("\n")]
                         if self.auth_features.get("totp") else [])
-        totp_migration_lines = []
-        if self.auth_features.get("totp"):
-            totp_migration_lines = [
-                *Template(r'''    # BRIQUE B4 : les colonnes TOTP restent NULL pour les comptes
-    # historiques ; elles sont comptées, jamais remplies au démarrage.
-    try:
-        _totp_columns = _table_columns(_sys_cur, '_monl_users')
-        for _name, _type in (('totp_secret', 'VARCHAR(64)'), ('totp_enabled', 'BOOLEAN'), ('totp_last_step', 'BIGINT')):
-            if _name not in _totp_columns:
-                _sys_cur.execute(f'ALTER TABLE _monl_users ADD COLUMN {_name} {_type}')
-                print(f'🔧 Migration : colonne \"{_name}\" ajoutée à \"_monl_users\" ({_type}).')
-        conn.commit()
-        _sans_totp = conn.execute("SELECT COUNT(*) FROM _monl_users WHERE totp_secret IS NULL").fetchone()[0]
-        if _sans_totp:
-            print(f'ℹ️ {_sans_totp} compte(s) restent sans double facteur TOTP : aucune activation n'est inventée.')
-    except Exception as _error:
-        conn.rollback()
-        raise RuntimeError(f'Migration TOTP échouée : {_error}') from _error''').substitute().split("\n"),
-            ]
-        if self.auth_features:
-            totp_migration_lines.extend([
-                *Template(r'''    if 'token_version' not in _table_columns(_sys_cur, '_monl_users'):
-        _sys_cur.execute('ALTER TABLE _monl_users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0')
-        conn.commit()''').substitute().split("\n"),
-            ])
         api_lines = ([*self._socle_imports_et_connexion(message_imports, totp_imports), *self._socle_outils_generes(actors_literal, self_register_literal), *self._socle_jetons()])
-        return api_lines, totp_migration_lines
+        return api_lines
 
     def _socle_imports_et_connexion(self, message_imports, totp_imports):
         """Imports, application FastAPI, secret, quota, et l'enveloppe SQLite."""

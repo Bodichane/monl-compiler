@@ -61,7 +61,7 @@ class RuntimeMixin(
 
     def _generate_runtime_lines(self):
         """Lignes de app.py jusqu'aux schémas Pydantic (incluses)."""
-        api_lines, totp_migration_lines = self._socle_et_schemas()
+        api_lines = self._socle_et_schemas()
         # POINT 116 : identité FACULTATIVE, et elle n'existe que pour les
         # lectures publiques conditionnées ('publicWhen'). Une route publique
         # ne doit JAMAIS répondre 401 : un jeton absent, invalide ou révoqué
@@ -71,7 +71,7 @@ class RuntimeMixin(
         # seulement si une EXEMPTION existe (`_condition_exemptions`, source
         # unique) : sans superviseur ni propriétaire, aucune route ne l'appelle
         # et l'app.py produit reste celui d'avant le point 116.
-        api_lines = self._socle_base_et_uploads(api_lines, totp_migration_lines)
+        api_lines = self._socle_base_et_uploads(api_lines)
 
         # ── POINT 95 : la forme de l'identifiant de compte ──────────────
         # Le champ reste nommé 'username' SUR LE FIL. Le renommer en 'email'

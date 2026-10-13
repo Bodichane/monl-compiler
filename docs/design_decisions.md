@@ -14799,6 +14799,26 @@ passe depuis la racine avec `PYTHONPATH=src` : sans cela, l'installation
 editable locale résout un autre worktree et entraîne des erreurs étrangères
 au périmètre, sans assouplissement de configuration.
 
+**Suppression du socle legacy (issue #142).** Le bloc de `legacy_db_start`
+à la sentinelle incluse comptait exactement **183 lignes**, et non environ
+290 : il était émis puis jeté. Son inspection AST avant suppression confirme
+uniquement des gabarits littéraux, leur découpage et la lecture du fragment
+TOTP : aucune affectation à `self`, aucune mutation de liste partagée, aucun
+appel modifiant l’état du générateur hors de la liste d’émission jetée.
+`_generate_database_runtime_lines()` est désormais émis directement à cette
+position, sans indices ni sentinelle ; `runtime_montage.py` passe de 339 à
+155 lignes (**184 lignes nettes retirées**, découpe comprise). Le paramètre
+`totp_migration_lines` ne servait qu’au bloc mort : sa construction locale dans
+`runtime_socle.py` disparaît aussi (25 lignes nettes), et `runtime.py` utilise
+le retour simple et l’appel sans ce paramètre ; les migrations TOTP actives
+restent dans `runtime_migrations.py`. Preuve exécutée : corpus gelé inchangé
+**42 cas / 589 fichiers**, golden artifacts, architecture et documentation
+verts, sans régénération ; aucun plafond d’exception n’a besoin de baisser.
+La garde AST exige une liste de modules non vide et refuse `api_lines.index`
+et la sentinelle : chacune réintroduite fait rougir le test, puis est annulée.
+Changer un caractère du texte émis (`_table_exists` → `_table_existx`) fait
+rougir le corpus sur les octets, puis sa restauration le rend vert.
+
 **Troisième étape (issue #119).** Seuls `admin_cli.py`,
 `runtime_fonctions_auth.py`, `runtime_montage.py` et `runtime_socle.py` migrent
 vers des gabarits raw `string.Template`. Les valeurs ont des substitutions

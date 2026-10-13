@@ -1,7 +1,8 @@
 # Generator emission inventory — issue #119, steps 1 to 3
 
 Measured on the source before point 207, except the eight migrated rows updated
-after steps 2 and 3 (marked below). Counts are syntactic indicators,
+after steps 2 and 3 (marked below), then the legacy database cleanup in issue
+#142 for runtime_montage and runtime_socle. Counts are syntactic indicators,
 not estimates of generated lines: F = AST JoinedStr nodes (including adjacent
 f-strings merged by Python); A = Add expressions/assignments; J = calls to
 append/extend/join. They include analysis/list operations and generated-code
@@ -40,10 +41,10 @@ double backslashes in source; Q counts backslash-double-quote pairs.
 | runtime_headers | 67 | 0 | 1 | 0 | 0 | 0 | 0 |
 | runtime_jetons | 206 | 11 | 0 | 0 | 0 | 16 | 0 |
 | runtime_migrations (migrated) | 259 | 0 | 0 | 7 | 0 | 0 | 0 |
-| runtime_montage (migrated) | 339 | 0 | 0 | 4 | 0 | 0 | 0 |
+| runtime_montage (migrated) | 155 | 0 | 0 | 5 | 0 | 0 | 0 |
 | runtime_pool | 63 | 1 | 0 | 0 | 0 | 2 | 37 |
 | runtime_preparation (migrated) | 226 | 0 | 0 | 0 | 0 | 0 | 0 |
-| runtime_socle (migrated) | 385 | 0 | 0 | 3 | 0 | 4 | 0 |
+| runtime_socle (migrated) | 360 | 0 | 0 | 2 | 0 | 0 | 0 |
 | sandbox (migrated) | 35 | 0 | 0 | 2 | 5 | 2 | 0 |
 | schemas | 212 | 13 | 1 | 25 | 0 | 0 | 1 |
 | sql | 100 | 3 | 5 | 2 | 0 | 0 | 0 |
@@ -60,8 +61,8 @@ These SQL modules are outside this Python migration and remain authoritative.
 Eight modules are migrated. The three step-2 modules together have F=0, A=0,
 B=0, Q=0, C=0; their generated Python retains its own runtime f-strings and
 operators as literal template content. The four step-3 modules also have
-F=0, A=0, B=0 and C=0. runtime_socle retains four single backslash-quote pairs
-already present in emitted Python, not escaping through generator layers.
+F=0, A=0, B=0, Q=0 and C=0 after issue #142: the four single
+backslash-quote pairs in runtime_socle belonged to the discarded TOTP fragment.
 The expanded 42-case/589-file corpus covers
 all generated artifacts, not only Python, with unchanged baseline hashes.
 See point 207 for exclusions, determinism and executed mutation proofs.
