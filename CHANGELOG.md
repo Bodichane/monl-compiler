@@ -4,6 +4,12 @@
 
 ### Refactoring
 
+- Remove the discarded legacy database runtime block (183 source lines) and
+  index-based replacement from `runtime_montage` (issue #142, point 207).
+  Emit the authoritative database runtime directly in the same position and
+  remove the unused TOTP fragment plumbing. The frozen 42-case / 589-file
+  corpus remains unchanged; AST and byte guards have executed red witnesses.
+
 - Migrate account administration, authentication helpers and startup emitters
   (`admin_cli`, `runtime_fonctions_auth`, `runtime_montage`, `runtime_socle`) to
   raw `string.Template` (issue #119, step 3, point 207). Expand the frozen corpus

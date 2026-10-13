@@ -23,6 +23,31 @@ MIGRATED_MODULES = (
     admin_cli, runtime_fonctions_auth, runtime_montage, runtime_socle,
 )
 
+DATABASE_MONTAGE_MODULES = (runtime_montage,)
+
+
+def test_liste_modules_montage_non_vide():
+    assert DATABASE_MONTAGE_MODULES
+
+
+@pytest.mark.parametrize("module", DATABASE_MONTAGE_MODULES)
+def test_montage_sans_decoupage_legacy(module):
+    tree = ast.parse(inspect.getsource(module))
+    assert not any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "index"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "api_lines"
+        for node in ast.walk(tree)
+    )
+    assert not any(
+        isinstance(node, ast.Constant)
+        and isinstance(node.value, str)
+        and "__MONL_DB_END__" in node.value
+        for node in ast.walk(tree)
+    )
+
 
 def test_liste_modules_migres_non_vide():
     assert MIGRATED_MODULES
