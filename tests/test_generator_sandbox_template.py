@@ -8,19 +8,30 @@ import pytest
 
 from monl.generator import (
     admin_cli,
+    calculs,
+    paiement,
+    prealables,
+    routes_acces,
+    routes_uploads,
     runtime_annexes,
+    runtime_connexion,
     runtime_fonctions_auth,
+    runtime_jetons,
     runtime_migrations,
     runtime_montage,
+    runtime_pool,
     runtime_preparation,
     runtime_socle,
     sandbox,
+    schemas,
 )
 from tests.test_bloc_custom_absent import AVEC_CUSTOM, _compiler
 
 MIGRATED_MODULES = (
     sandbox, runtime_annexes, runtime_preparation, runtime_migrations,
     admin_cli, runtime_fonctions_auth, runtime_montage, runtime_socle,
+    routes_uploads, runtime_pool, paiement, prealables, calculs, schemas,
+    routes_acces, runtime_jetons, runtime_connexion,
 )
 
 DATABASE_MONTAGE_MODULES = (runtime_montage,)
@@ -72,6 +83,20 @@ def test_sandbox_custom_octets_et_execution(tmp_path):
     assert namespace['Publier']({}) == {
         'message': 'Coquille vide déterministe pour Publier',
     }
+
+
+def test_schema_champs_serveur_ne_masquent_pas_les_sous_chaines(tmp_path):
+    source = AVEC_CUSTOM.replace(
+        "    titre: String", "    titre: String\n    a: String\n    created_at: DateTime"
+    ) + "\nrule Note.created_at timestamp\n"
+    folder = _compiler(source, tmp_path / "schema")
+    tree = ast.parse((folder / "app.py").read_text(encoding="utf-8"))
+    schema = next(node for node in tree.body
+                  if isinstance(node, ast.ClassDef) and node.name == "NoteSchema")
+    fields = {node.target.id for node in schema.body
+              if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)}
+    assert "a" in fields
+    assert "created_at" not in fields
 
 
 @pytest.mark.parametrize("description", [

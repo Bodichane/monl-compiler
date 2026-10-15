@@ -14880,6 +14880,90 @@ est verte. Corpus, golden, architecture, documentation et garde de gabarits :
 `MYPYPATH=src PYTHONPATH=src`, annonce **Success: no issues found in 6 source
 files**. Aucun plafond, exception de complexité ou réglage n'est relevé.
 
+**Quatrième étape (issue #119, worktree palier 4).** Les neuf modules
+`routes_uploads`, `runtime_pool`, `paiement`, `prealables`, `calculs`, `schemas`,
+`routes_acces`, `runtime_jetons` et `runtime_connexion` passent aux gabarits raw
+`string.Template`, avec substitution nommée, sans f-string ni addition dans
+leur AST. Les fragments se réunissent par extend, dépaquetage et join ; les
+accolades et antislashs restent ceux du texte émis. Les dollars littéraux des
+expressions régulières sont doublés dans le gabarit, jamais dans ses valeurs.
+Aucun autre module du générateur n'est modifié, notamment la frontière SQL.
+
+**Corpus d'abord, émetteurs NON migrés.** La commande
+`PYTHONPATH=$(pwd)/src python3 -m coverage run --branch --source=monl.generator -m pytest tests/test_corpus_octets.py -q`
+mesure les 42 cas existants. Les nombres ci-dessous sont les statements puis
+les branches du générateur, pas la couverture du serveur produit. Le second
+rapport provient de deux compilations indépendantes du corpus élargi, encore
+AVANT migration, avec `coverage run --branch -m tests.support.corpus_octets` :
+
+| Module | Avant : lignes ; branches | Après élargissement : lignes ; branches |
+|---|---|---|
+| routes_uploads | 15/15 ; 2/2 | 15/15 ; 2/2 |
+| runtime_pool | 4/4 ; 0/0 | 4/4 ; 0/0 |
+| paiement | 17/17 ; 4/4 | 17/17 ; 4/4 |
+| prealables | 25/30 ; 8/12 | 30/30 ; 12/12 |
+| calculs | 39/40 ; 9/10 | 40/40 ; 10/10 |
+| schemas | 82/89 ; 37/40 | 89/89 ; 40/40 |
+| routes_acces | 31/40 ; 6/10 | 39/40 ; 9/10 |
+| runtime_jetons | 6/6 ; 0/0 | 6/6 ; 0/0 |
+| runtime_connexion | 44/44 ; 20/20 | 44/44 ; 20/20 |
+
+Les dix nouvelles specs compilées couvrent requiresOwn avec/sans identité
+de dépendante et sans création de fiche, compteurs mixtes avec restitution,
+uploads accessibleBy avec/sans superviseur, custom sans entrée, références
+custom typées, UUID et borne numérique. La seule branche restante est
+`routes_acces.py` **81→95 sur le code non migré** : le refus de génération
+d'un Upload sans ACL. Le validateur `ast_validator/uploads.py` exige ownedBy
+ou accessibleBy sur Read ET Update avant de construire les plans. Aucune
+spec réelle validée n'atteint donc ce refus défensif ; aucune exclusion de
+coverage n'est ajoutée. Les autres branches initialement absentes sont atteintes.
+Le fallback `ref` sans point de `schemas` n'est pas une branche instrumentée
+par coverage : la grammaire impose `REFERENCE = Entite.champ` pour une entrée
+custom référencée (un nom seul exige `: TYPE`). Son repli vers `id` n'est donc
+pas atteignable par une spec réelle ; les références pointées couvrent les
+quatre familles de types effectivement émises.
+
+**Gel.** Le JSON contient désormais **52 cas / 732 fichiers**. Les
+**42 entrées / 589 fichiers anciens** restent identiques, comparaison avec
+HEAD exécutée. Deux compilations indépendantes identiques figent les ajouts
+avant toute migration ; aucune régénération du JSON après migration. Les
+onze empreintes golden ne sont pas modifiées. MIGRATED_MODULES contient
+désormais dix-sept modules. Aucun plafond ni exception d'architecture n'est
+relevé ; l'exception de complexité des schémas reste nécessaire à la même valeur.
+
+**Contre-épreuves isolées.** Chaque module reste importable. Une mutation
+d'un caractère entraîne l'AssertionError « Octets modifiés » de
+`test_corpus_octets`, puis est annulée ; aucun rouge de collecte ou de syntaxe
+du générateur ne tient lieu de preuve.
+
+| Module | Mutation | Résultat corpus |
+|---|---|---|
+| routes_uploads | Upload → Uploae dans le tag émis | rouge |
+| runtime_pool | défaut min 1 → 2 | rouge |
+| paiement | réglé → réglée dans le message émis | rouge |
+| prealables | clé .Read → .Reae | rouge |
+| calculs | ROUND → ROUNE dans la requête émise | rouge |
+| schemas | BaseModel → BaseModeM | rouge |
+| routes_acces | Rôle → Rôlf dans le refus émis | rouge |
+| runtime_jetons | JWT_ALGORITHM → JWT_ALGORITHN | rouge |
+| runtime_connexion | _DUMMY_SALT_HEX → _DUMMY_SALT_HEY | rouge |
+
+Précision sur `prealables` : ce module ne rend pas directement du Python,
+mais des métadonnées de préalables et d'exemptions. La mutation porte sur
+sa clé de consultation interpolée, pas sur sa syntaxe ; elle change les
+octets du contrôle d'accès émis en aval. Ce n'est pas une mutation d'un
+littéral Python directement émis par ce module, puisqu'il n'en possède pas.
+
+**Vérifications ciblées.** Ruff sur src/tests et la commande mypy --strict
+de CI (six fichiers, avec MYPYPATH=src et PYTHONPATH absolu du worktree)
+passent. Corpus complet, golden artifacts, architecture, documentation et
+garde des gabarits passent. Les intégrations serveur paiement, agrégation,
+uploads, authentification B4, stock et access_parties passent sur SQLite ;
+un cas uploads et neuf cas B4 sont ignorés avec la raison explicite
+`MONL_TEST_DATABASE_URL absent`. Aucun PostgreSQL réel n'est lancé pour ce
+palier. Les tests sont lancés un fichier après l'autre, sans suite complète
+sur cette machine à mémoire limitée. Aucun commit ni push n'est effectué.
+
 ## 208. Code custom sous la responsabilité de son auteur
 
 **Décision prise (issue #123) : pas d'isolation maintenant.** Le code `custom`

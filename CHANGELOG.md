@@ -4,6 +4,12 @@
 
 ### Refactoring
 
+- Migrate uploads, pool, payment guards, prerequisites, calculations, schemas,
+  access policies, tokens and login to raw `string.Template` (issue #119,
+  step 4, point 207). Freeze ten additional real specs before migration:
+  52 cases / 732 files, preserving every existing hash and all golden hashes.
+  The AST guard now covers seventeen modules; each has a red corpus mutation.
+
 - Remove the discarded legacy database runtime block (183 source lines) and
   index-based replacement from `runtime_montage` (issue #142, point 207).
   Emit the authoritative database runtime directly in the same position and

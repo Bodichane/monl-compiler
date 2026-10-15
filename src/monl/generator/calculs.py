@@ -4,6 +4,9 @@ Les clés des dérivations, agrégations et compteurs sont déterminées par
 `planning`. Les émetteurs de création, modification et suppression lisent
 les mêmes plans pour conserver la cible de chaque effet."""
 
+from string import Template
+
+
 class CalculsMixin:
     """Ce que le serveur CALCULE : dérivation, somme, compteurs."""
 
@@ -38,10 +41,7 @@ class CalculsMixin:
             fk = plan.parent_fk
             recalculs.append({
                 "fk_column": fk,
-                "sql": (f'UPDATE "{plan.entity.lower()}" SET "{plan.field}" = '
-                        f'(SELECT ROUND(COALESCE(SUM("{plan.source_field}"), 0), 2) '
-                        f'FROM "{source_entity.lower()}" WHERE "{fk}" = ?) '
-                        f'WHERE id = ?'),
+                "sql": (Template(r"""UPDATE "${entity}" SET "${field}" = (SELECT ROUND(COALESCE(SUM("${source_field}"), 0), 2) FROM "${source_entity}" WHERE "${fk}" = ?) WHERE id = ?""").substitute(entity=plan.entity.lower(), field=plan.field, source_field=plan.source_field, source_entity=source_entity.lower(), fk=fk)),
             })
         return recalculs
 
@@ -63,17 +63,13 @@ class CalculsMixin:
                 continue
             champ = decompte.amount_field
             quantite = "_l[1]" if champ else str(decompte.amount)
-            colonnes = (f'"{decompte.target_fk}", "{champ}"' if champ
-                        else f'"{decompte.target_fk}"')
-            lignes += [
-                f"{indent}cursor.execute('SELECT {colonnes} FROM "
-                f'"{enfant.lower()}" WHERE "{fk_enfant}" = ?\', (id,))',
-                f"{indent}for _l in cursor.fetchall():",
-                f"{indent}    cursor.execute('UPDATE "
-                f'"{decompte.target_entity.lower()}" SET '
-                f'"{decompte.target_field}" = "{decompte.target_field}" '
-                f"+ ? WHERE id = ?', (int({quantite} or 0), _l[0]))",
-            ]
+            colonnes = (Template(r'''"${target_fk}", "${champ}"''').substitute(target_fk=decompte.target_fk, champ=champ) if champ
+                        else Template(r'''"${target_fk}"''').substitute(target_fk=decompte.target_fk))
+            lignes.extend([
+                Template(r"""${indent}cursor.execute('SELECT ${colonnes} FROM "${enfant}" WHERE "${fk_enfant}" = ?', (id,))""").substitute(indent=indent, colonnes=colonnes, enfant=enfant.lower(), fk_enfant=fk_enfant),
+                Template(r"""${indent}for _l in cursor.fetchall():""").substitute(indent=indent),
+                Template(r"""${indent}    cursor.execute('UPDATE "${target_entity}" SET "${target_field}" = "${target_field_2}" + ? WHERE id = ?', (int(${quantite} or 0), _l[0]))""").substitute(indent=indent, target_entity=decompte.target_entity.lower(), target_field=decompte.target_field, target_field_2=decompte.target_field, quantite=quantite),
+            ])
         return lignes
 
     def _fk_enfant_libere(self, parent, enfant):
@@ -100,17 +96,17 @@ class CalculsMixin:
         couvre nécessairement toute valeur possible."""
         field = categorized_field["field"]
         clauses = categorized_field["clauses"]
-        cat_key = f"{field}_category"
+        cat_key = Template(r"""${field}_category""").substitute(field=field)
         # repr() plutôt qu'une interpolation manuelle entre guillemets : le
         # libellé vient d'un STRING_LITERAL utilisateur et peut contenir des
         # apostrophes/antislashs -- repr() produit toujours un littéral
         # Python syntaxiquement valide, quel que soit le contenu.
-        lines = [f"{indent}_v = {row_var}.pop('{field}')"]
+        lines = [Template(r"""${indent}_v = ${row_var}.pop('${field}')""").substitute(indent=indent, row_var=row_var, field=field)]
         for i, clause in enumerate(clauses):
             label_literal = repr(clause["label"])
             if "otherwise" in clause:
-                lines.append(f"{indent}else: {row_var}['{cat_key}'] = {label_literal}")
+                lines.append(Template(r"""${indent}else: ${row_var}['${cat_key}'] = ${label_literal}""").substitute(indent=indent, row_var=row_var, cat_key=cat_key, label_literal=label_literal))
             else:
                 keyword = "if" if i == 0 else "elif"
-                lines.append(f"{indent}{keyword} _v < {clause['below']}: {row_var}['{cat_key}'] = {label_literal}")
+                lines.append(Template(r"""${indent}${keyword} _v < ${value}: ${row_var}['${cat_key}'] = ${label_literal}""").substitute(indent=indent, keyword=keyword, value=clause['below'], row_var=row_var, cat_key=cat_key, label_literal=label_literal))
         return lines

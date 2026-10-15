@@ -153,19 +153,27 @@ In priority order:
    (point 120): rename, type changes and explicit drops; reversible operations
    support down migrations, while a down migration containing an irreversible
    drop is refused and requires backup recovery (see [MIGRATIONS.md](MIGRATIONS.md)).
-2. **Template/AST-based generator**, first three steps delivered (point 207,
+2. **Template/AST-based generator**, first four steps delivered (point 207,
    issue #119): `src/monl/generator/sandbox.py`, `src/monl/generator/runtime_annexes.py`,
    `src/monl/generator/runtime_preparation.py`, `src/monl/generator/runtime_migrations.py`,
    `src/monl/generator/admin_cli.py`, `src/monl/generator/runtime_fonctions_auth.py`,
-   `src/monl/generator/runtime_montage.py` and `src/monl/generator/runtime_socle.py`
-   now emit Python with `string.Template`, preserving bytes. Other runtime, routes and schemas emitters remain
+   `src/monl/generator/runtime_montage.py`, `src/monl/generator/runtime_socle.py`,
+   `src/monl/generator/routes_uploads.py`, `src/monl/generator/runtime_pool.py`,
+   `src/monl/generator/paiement.py`, `src/monl/generator/prealables.py`,
+   `src/monl/generator/calculs.py`, `src/monl/generator/schemas.py`,
+   `src/monl/generator/routes_acces.py`, `src/monl/generator/runtime_jetons.py`
+   and `src/monl/generator/runtime_connexion.py`
+   use `string.Template`, preserving bytes. Other runtime and routes emitters remain
    to migrate, along with their assembly; see
    [the measured inventory and migration order](GENERATOR_EMISSION_INVENTORY.md).
    SQL continues through the typed `src/monl/generator/sql.py` boundary (point 108).
-   A 42-case, 589-file SHA-256 corpus, golden tests, a custom-block byte/execution
-   witness and an eight-module AST guard protect these steps. The third step
+   A 52-case, 732-file SHA-256 corpus, golden tests, a custom-block byte/execution
+   witness and a seventeen-module AST guard protect these steps. The third step
    closes the sole missing measured emitter branch (messages with account
    recovery); phone normalization and multi-role registration have explicit cases.
+   Step four adds ten pre-migration specs; only the defensive Upload-without-ACL
+   refusal is unreachable from validated specs. Prerequisites produce metadata,
+   not Python directly; their mutation changes downstream access-control bytes.
    Real-server behavioral tests and per-module red mutation proofs complement bytes.
    Parser fuzzing is done (point 204): mutated specs compile or get a named
    monl error, checked by `tests/test_fuzzing_parseur.py`.
