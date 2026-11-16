@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.0.1 — Re-registration fix and template-based generator
+
 ### Refactoring
 
 - Migrate uploads, pool, payment guards, prerequisites, calculations, schemas,
