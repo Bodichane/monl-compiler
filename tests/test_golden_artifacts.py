@@ -176,7 +176,7 @@ GOLDENS = {
     # beta.9 puis beta.10 ne montre que `compiler_version` (et le
     # `.jwt_secret`, tiré au hasard, hors de ce test). Cinquième version de
     # suite.
-    "monl.json": "e1cd4e3e56bfa51677530d5530a17031ce8eb818b70aec847dcfb30cf51fc3e4",
+    "monl.json": "0082f406d507fa42e47ae61150678ed1e68558bfee9a8facd0ffd805c9cb8a10",
 }
 
 # POINT 203 : app.py gagne l’enveloppe ASGI de sécurité globale ;
@@ -198,7 +198,7 @@ LOOKUP_GOLDENS = {
     # 0.9.0-beta.9 : monl.json seul, pour la même raison que ci-dessus.
     # POINT 191 : le diff réel ne change que l'empreinte app.py scellée.
     # 0.9.0-beta.10 : monl.json seul, `compiler_version`, comme ci-dessus.
-    "monl.json": "cc28a57ac16c750b31e77d5a63217826f2954d7acacf411f82238433f42a31cd",
+    "monl.json": "eb2da81233322514cafe8448497cbcda139092540557349800234affa86c274d",
 }
 
 
@@ -277,7 +277,7 @@ B4_GOLDENS = {
     'manage.py': '2720f78d744692f86ac3b2b42ae47fbe3644e522a1006f703a1a8e77c8aab2cb',
     'frontend_contract.json': 'bad9074237ea4aa83fe28c533a2a50978843d7ce419043edf2be0308767568d6',
     'README.md': '2f6f6acf57a40e0e4bd685aa43a1e3477a1e0e5bcee83ab86adb617ebac2290e',
-    'monl.json': 'efbc40b57dfd90796835b52ccaddb3d66d411a76443412307eaa34e45a8f4fcf',
+    'monl.json': '245e79501c838f8c91625c0af8549b8a66189e1c00e092bdf468d01f2093e2e2',
 }
 
 
