@@ -97,8 +97,8 @@ class ParcoursMixin:
                  if m["owned"]}
         role = ParcoursMixin._default_self_register(
             template["actors"], managers, owned)
-        return (f"inscription libre : {role}" if role
-                else "comptes créés par l'administrateur")
+        return (f"self-registration: {role}" if role
+                else "accounts created by the administrator")
 
     @staticmethod
     def _default_self_register(actors, managers, owned):

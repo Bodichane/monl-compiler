@@ -611,9 +611,9 @@ def test_la_ligne_de_compte_est_derivee_et_non_ecrite_a_la_main():
         "actors": ["Patron"],
         "entities": {"Fiche": {"manager": "Patron", "owned": False}},
     }
-    assert GuidedDialogue._ligne_de_compte(avec_role) == "inscription libre : Visiteur"
+    assert GuidedDialogue._ligne_de_compte(avec_role) == "self-registration: Visiteur"
     assert (GuidedDialogue._ligne_de_compte(sans_role)
-            == "comptes créés par l'administrateur")
+            == "accounts created by the administrator")
 
 
 def test_chaque_modele_du_catalogue_dit_si_on_s_y_inscrit():
@@ -621,9 +621,9 @@ def test_chaque_modele_du_catalogue_dit_si_on_s_y_inscrit():
     formes = 0
     for tpl in TEMPLATES:
         ligne = GuidedDialogue._ligne_de_compte(tpl)
-        assert (ligne.startswith("inscription libre : ")
-                or ligne == "comptes créés par l'administrateur"), (tpl["name"], ligne)
-        formes += ligne.startswith("inscription libre : ")
+        assert (ligne.startswith("self-registration: ")
+                or ligne == "accounts created by the administrator"), (tpl["name"], ligne)
+        formes += ligne.startswith("self-registration: ")
     # Les DEUX formes existent dans le catalogue : si une seule sortait, le
     # témoin ci-dessus passerait sans rien départager.
     assert 0 < formes < len(TEMPLATES), formes
@@ -642,8 +642,8 @@ def test_la_ligne_de_compte_atteint_le_menu_du_dialogue():
         dialogue.run()
     aides = dialogue.derniere_question["hints"]
     assert dialogue.derniere_question["title"] == \
-        "Quel type d'application construisez-vous ?"
-    assert "inscription libre : Customer" in aides["Boutique en ligne"]
-    assert "comptes créés par l" in aides["Portfolio / site vitrine"]
+        "What type of application are you building?"
+    assert "self-registration: Customer" in aides["Boutique en ligne"]
+    assert "accounts created by the" in aides["Portfolio / site vitrine"]
     # Et l'aide d'origine n'a pas été REMPLACÉE par la ligne de compte.
     assert "catalogue public" in aides["Boutique en ligne"]

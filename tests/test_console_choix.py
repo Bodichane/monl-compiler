@@ -129,7 +129,7 @@ def test_chaque_bouton_porte_son_rang_son_nom_et_son_aide(rapport_jsdom):
     assert premier["libelle"] == "Portfolio / site vitrine"
     # L'aide dit AUSSI si les visiteurs auront un compte — la question que la
     # console ne posait nulle part.
-    assert "comptes créés par l" in premier["aide"], premier["aide"]
+    assert "accounts created by the" in premier["aide"], premier["aide"]
 
 
 def test_un_clic_repond_et_fait_avancer_le_dialogue(rapport_jsdom):
