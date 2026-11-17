@@ -143,8 +143,8 @@ def _session_paiement(montant_centimes, devise, reference, retour):
         lignes = []
         for entite, config in sorted(self.postpayment_writable_by_entity.items()):
             table = entite.lower()
-            schema = f"{entite}ApresPaiementSchema"
-            lignes += ["", f"class {schema}(BaseModel):"]
+            schema = Template(r"""${entite}ApresPaiementSchema""").substitute(entite=entite)
+            lignes += ["", Template(r"""class ${schema}(BaseModel):""").substitute(schema=schema)]
             for field in config["fields"]:
                 field_type = self.entities[entite][field]
                 py_type = "str"
@@ -157,7 +157,7 @@ def _session_paiement(montant_centimes, devise, reference, retour):
                 choix = self.enumerated_fields.get(entite, {}).get(field)
                 if choix:
                     valeurs = ", ".join(repr(v) for v in choix)
-                    py_type = f"Literal[{valeurs}]"
+                    py_type = Template(r"""Literal[${valeurs}]""").substitute(valeurs=valeurs)
                 contraintes = self.field_constraints.get(entite, {}).get(field, {})
                 bornes = []
                 for nom, mot_texte, mot_nombre in (("min", "min_length", "ge"),
@@ -165,12 +165,12 @@ def _session_paiement(montant_centimes, devise, reference, retour):
                     borne = contraintes.get(nom)
                     if borne:
                         mot = mot_texte if borne["portee"] == "longueur" else mot_nombre
-                        bornes.append(f"{mot}={borne['valeur']}")
+                        bornes.append(Template(r"""${mot}=${valeur}""").substitute(mot=mot, valeur=borne["valeur"]))
                 if py_type == "str":
                     limite = {"Text": 20000, "Email": 320, "UUID": 36}.get(
                         field_type, 255)
                     if not any(b.startswith("max_length=") for b in bornes):
-                        bornes.append(f"max_length={limite}")
+                        bornes.append(Template(r"""max_length=${limite}""").substitute(limite=limite))
                     if field_type == "Email":
                         bornes.append(r"pattern=r'^[^@\s]+@[^@\s]+\.[^@\s]{2,}$'")
                     if field_type == "UUID":
@@ -179,9 +179,9 @@ def _session_paiement(montant_centimes, devise, reference, retour):
                             r"[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'")
                 if bornes and not choix:
                     lignes.append(
-                        f"    {field}: Optional[{py_type}] = Field(None, {', '.join(bornes)})")
+                        Template(r"""    ${field}: Optional[${py_type}] = Field(None, ${bornes})""").substitute(field=field, py_type=py_type, bornes=', '.join(bornes)))
                 else:
-                    lignes.append(f"    {field}: Optional[{py_type}] = None")
+                    lignes.append(Template(r"""    ${field}: Optional[${py_type}] = None""").substitute(field=field, py_type=py_type))
 
             lignes.extend(self._required_text_validator(entite, config["fields"]))
 
@@ -192,15 +192,14 @@ def _session_paiement(montant_centimes, devise, reference, retour):
             existence_sql, existence_params = sql.execute_args(existence)
             lignes += [
                 "",
-                f"@app.put('/{table}/{{id}}/apres-paiement', tags=['Paiement'])",
-                f"def modifier_{table}_apres_paiement(id: int, data: {schema}, "
-                "current_actor: str = Depends(verify_jwt_and_get_actor)):",
-                f"    if current_actor != {config['actor']!r}:",
+                Template(r"""@app.put('/${table}/{id}/apres-paiement', tags=['Paiement'])""").substitute(table=table),
+                Template(r"""def modifier_${table}_apres_paiement(id: int, data: ${schema}, current_actor: str = Depends(verify_jwt_and_get_actor)):""").substitute(table=table, schema=schema),
+                Template(r"""    if current_actor != ${actor}:""").substitute(actor=repr(config['actor'])),
                 "        raise HTTPException(status_code=403, detail=(",
                 "            \"Contrôle d'accès : seules les parties de la ressource \"",
                 "            'peuvent exécuter cette action'))",
                 "    conn = _connect(); cursor = conn.cursor()",
-                f"    cursor.execute({existence_sql}, {existence_params})",
+                Template(r"""    cursor.execute(${existence_sql}, ${existence_params})""").substitute(existence_sql=existence_sql, existence_params=existence_params),
                 "    enregistrement = cursor.fetchone()",
                 "    if not enregistrement:",
                 "        conn.close()",
@@ -219,12 +218,12 @@ def _session_paiement(montant_centimes, devise, reference, retour):
             for field in config["fields"]:
                 update = sql.cat(
                     sql.kw("UPDATE "), sql.ident(table), sql.kw(" SET "),
-                    sql.ident(field), sql.kw(" = "), sql.bind(f"data.{field}"),
+                    sql.ident(field), sql.kw(" = "), sql.bind(Template(r"""data.${field}""").substitute(field=field)),
                     sql.kw(" WHERE id = "), sql.bind("id"))
                 update_sql, update_params = sql.execute_args(update)
                 lignes += [
-                    f"    if data.{field} is not None:",
-                    f"        cursor.execute({update_sql}, {update_params})",
+                    Template(r"""    if data.${field} is not None:""").substitute(field=field),
+                    Template(r"""        cursor.execute(${update_sql}, ${update_params})""").substitute(update_sql=update_sql, update_params=update_params),
                 ]
             lignes += [
                 "    conn.commit(); conn.close()",
