@@ -229,7 +229,7 @@ def test_as_refuse_un_chemin(tmp_path):
         ajouter_asset(str(spec), str(tmp_path),
                       str(tmp_path / "source" / "photo une.png"),
                       pour="Halo RS", nom="../evade.png")
-    assert "pas un chemin" in str(refus.value)
+    assert "not a path" in str(refus.value)
 
 
 # --------------------------------------------------------------------------
@@ -253,7 +253,7 @@ def test_une_valeur_partagee_par_deux_entites_est_refusee(tmp_path):
                       str(tmp_path / "source" / "photo une.png"),
                       pour="Sørlund Deck")
     message = str(refus.value)
-    assert "2 lignes" in message and "--entity" in message
+    assert "2 rows" in message and "--entity" in message
 
 
 def test_entity_leve_lambiguite(tmp_path, capsys):
@@ -276,7 +276,7 @@ def test_une_entite_sans_champ_image_est_refusee_en_nommant_le_remede(tmp_path):
                       str(tmp_path / "source" / "photo une.png"),
                       pour="Sørlund Deck", entity="Maison")
     message = str(refus.value)
-    assert "aucun champ de type 'Image'" in message
+    assert "no field of type 'Image'" in message
     assert "photo: Image" in message          # le remède, pas seulement le refus
 
 
@@ -301,7 +301,7 @@ def test_field_sur_un_champ_non_image_est_refuse(tmp_path):
         ajouter_asset(str(spec), str(tmp_path),
                       str(tmp_path / "source" / "photo une.png"),
                       pour="Halo RS", field="nom")
-    assert "pas 'Image'" in str(refus.value)
+    assert "not 'Image'" in str(refus.value)
 
 
 def test_ecrire_dans_une_spec_deja_cassee_est_refuse(tmp_path):
@@ -311,7 +311,7 @@ def test_ecrire_dans_une_spec_deja_cassee_est_refuse(tmp_path):
     with pytest.raises(AssetsToolError) as refus:
         ajouter_asset(str(spec), str(tmp_path),
                       str(tmp_path / "source" / "photo une.png"), pour="Halo RS")
-    assert "ne compile pas en l'état" in str(refus.value)
+    assert "does not compile as it stands" in str(refus.value)
     assert not (tmp_path / "assets").exists()      # rien n'a été copié
 
 
@@ -461,7 +461,7 @@ def test_une_base_existante_declenche_lavertissement_du_seed(tmp_path, capsys):
     rapport = ajouter_asset(str(spec), str(tmp_path),
                             str(tmp_path / "source" / "photo une.png"),
                             pour="Halo RS")
-    assert any("base NEUVE" in m for m in rapport["avertissements"])
+    assert any("NEW database" in m for m in rapport["avertissements"])
     capsys.readouterr()
 
 
@@ -536,7 +536,7 @@ def test_add_reste_utilisable_quand_un_autre_asset_manque(tmp_path, capsys):
                             str(tmp_path / "source" / "photo une.png"),
                             pour="Halo RS")
     assert rapport["fichier"] == "assets/halo-rs.png"
-    assert any("jamais-fournie.png" in m and "absent" in m
+    assert any("jamais-fournie.png" in m and "missing" in m
                for m in rapport["avertissements"])
     capsys.readouterr()
 
@@ -558,7 +558,7 @@ def test_un_chemin_qui_ne_resout_pas_est_refuse_et_annule(tmp_path, monkeypatch,
         outil.ajouter_asset(str(spec), str(tmp_path),
                             str(tmp_path / "source" / "photo une.png"),
                             pour="Halo RS")
-    assert "ne résout vers aucun fichier" in str(refus.value)
+    assert "does not resolve to a file" in str(refus.value)
     assert spec.read_text(encoding="utf-8") == avant
     capsys.readouterr()
 
@@ -605,4 +605,4 @@ def test_la_ligne_de_commande_sort_en_erreur_sur_un_refus(tmp_path, capsys):
         main(["assets", "add", str(tmp_path / "source" / "photo une.png"),
               "--for", "Inexistant", "--dir", str(tmp_path)])
     assert sortie.value.code == 1
-    assert "Aucune ligne de seed" in capsys.readouterr().out
+    assert "No seed row has the value" in capsys.readouterr().out

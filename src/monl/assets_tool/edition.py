@@ -155,8 +155,8 @@ def _litteral(valeur):
     déjà rencontré (surcharge de backslash, voir la méthode de travail)."""
     if any(c in valeur for c in '"\\\n\r'):
         raise AssetsToolError(
-            f"'{valeur}' contient un guillemet, un backslash ou un retour à la "
-            f"ligne : impossible à écrire dans la spec, et illisible dans une URL.")
+            f"'{valeur}' contains a quote, backslash, or newline: it cannot be "
+            f"written to the spec and would be unreadable in a URL.")
     return f'"{valeur}"'
 
 def _ecrire_paire(ligne, champ, valeur):

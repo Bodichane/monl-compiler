@@ -45,9 +45,9 @@ def _charger(spec_path):
         return _valider(texte, spec_path)
     except Exception as err:
         raise AssetsToolError(
-            f"La spec ne compile pas en l'état : {err}\n"
-            f"   L'outil refuse d'y écrire tant qu'elle est cassée — sinon "
-            f"l'échec suivant semblerait venir de lui.") from None
+            f"The spec does not compile as it stands: {err}\n"
+            f"   The tool will not write to it while it is broken — otherwise "
+            f"the next failure could appear to come from the tool.") from None
 
 def _revalider(texte, spec_path):
     """LE contrôle qui rend cet outil sûr : la spec obtenue est-elle valide ?
@@ -60,5 +60,5 @@ def _revalider(texte, spec_path):
         return _valider(texte, spec_path)
     except Exception as err:
         raise AssetsToolError(
-            f"Écriture ANNULÉE — la spec obtenue ne compilerait pas : {err}\n"
-            f"   Ni la spec ni le dossier d'assets n'ont été modifiés.") from None
+            f"Write CANCELLED — the resulting spec would not compile: {err}\n"
+            f"   Neither the spec nor the assets directory was modified.") from None

@@ -21,10 +21,10 @@ def ajouter_asset(spec_path, project_dir, source, pour=None, cible=None,
     ou 'favicon'. Retourne un rapport (dict) — l'affichage appartient au CLI."""
     if bool(pour) == bool(cible):
         raise AssetsToolError(
-            "Préciser la destination : --for \"<valeur>\" pour une fiche de seed, "
-            "ou --logo / --favicon.")
+            "Specify a destination: --for \"<value>\" for a seed row, "
+            "or --logo / --favicon.")
     if not os.path.isfile(source):
-        raise AssetsToolError(f"'{source}' n'existe pas, ou n'est pas un fichier.")
+        raise AssetsToolError(f"'{source}' does not exist or is not a file.")
 
     project_dir = os.path.abspath(project_dir)
     normalized = _charger(spec_path)
@@ -57,8 +57,8 @@ def ajouter_asset(spec_path, project_dir, source, pour=None, cible=None,
     identique = existait and _sha256(destination) == _sha256(source)
     if existait and not identique and not sur_place and not force:
         raise AssetsToolError(
-            f"'{dossier}/{fichier}' existe déjà avec un contenu DIFFÉRENT. "
-            f"Relancer avec --force pour l'écraser, ou choisir --as <autre-nom>.")
+            f"'{dossier}/{fichier}' already exists with DIFFERENT contents. "
+            f"Run again with --force to overwrite it, or choose --as <another-name>.")
 
     sauvegarde = None
     try:
@@ -81,9 +81,9 @@ def ajouter_asset(spec_path, project_dir, source, pour=None, cible=None,
         # l'outil inutilisable là où il sert justement à en poser un.
         if not resoudre_asset(project_dir, dossier, valeur):
             raise AssetsToolError(
-                f"Écriture ANNULÉE — '{valeur}' ne résout vers aucun fichier une "
-                f"fois écrit. C'est exactement ce que la couche 1 refuse à la "
-                f"compilation, et l'outil ne doit pas le produire.")
+                f"Write CANCELLED — '{valeur}' does not resolve to a file after "
+                f"writing. This is exactly what layer 1 rejects during compilation, "
+                f"and the tool must not produce it.")
         # Redéclarer ce qui l'est déjà ne doit rien écrire : réécrire un texte
         # identique invaliderait l'empreinte de 'monl run --check' pour rien.
         spec_changee = texte != "".join(lignes)
@@ -145,9 +145,9 @@ def _avertissements(project_dir, dossier, fichier, spec_changee, normalized,
                  if c != valeur and not resoudre_asset(project_dir, dossier, c)]
     if manquants:
         messages.append(
-            f"{len(manquants)} autre(s) asset déclaré(s) reste(nt) absent(s) : "
+            f"{len(manquants)} other declared asset(s) are still missing: "
             + ", ".join(manquants)
-            + ". La compilation les refusera — 'monl assets list' fait le point.")
+            + ". Compilation will reject them — 'monl assets list' shows their status.")
     # 1. Le seed ne nourrit qu'une base NEUVE. La migration de SneakerLab à la
     # couche 1 l'a montré : 12 fiches gardaient l'ancien chemin, et le site
     # aurait affiché 12 cadres vides sans que rien ne le signale. Ne concerne
@@ -156,9 +156,9 @@ def _avertissements(project_dir, dossier, fichier, spec_changee, normalized,
     # ignorer tous.
     if seed and spec_changee and os.path.exists(os.path.join(project_dir, "app.db")):
         messages.append(
-            "La base existe déjà : le bloc 'seed' ne nourrit qu'une base NEUVE. "
-            "Les fiches déjà enregistrées gardent leur ancienne valeur — les "
-            "corriger via l'API (PUT) ou repartir d'une base vide.")
+            "The database already exists: the 'seed' block only populates a NEW "
+            "database. Existing records keep their old values — update them via "
+            "the API (PUT) or start with an empty database.")
     # 2. Crédits : complétude, jamais véracité (point 83).
     for candidat in NOMS_DE_CREDITS:
         chemin = os.path.join(project_dir, dossier, candidat)
@@ -167,14 +167,13 @@ def _avertissements(project_dir, dossier, fichier, spec_changee, normalized,
         with open(chemin, encoding="utf-8", errors="replace") as fh:
             if fichier not in fh.read():
                 messages.append(
-                    f"{dossier}/{candidat} ne mentionne pas '{fichier}'. monl ne "
-                    f"peut pas vérifier une attribution, seulement constater "
-                    f"qu'elle manque.")
+                    f"{dossier}/{candidat} does not mention '{fichier}'. monl cannot "
+                    f"verify attribution; it can only report that it is missing.")
         break
     # 3. La spec a changé : les artefacts ne l'ont pas suivie.
     if spec_changee:
-        messages.append("Spec modifiée : lancer 'monl update' pour resynchroniser "
-                        "backend et contrat.")
+        messages.append("Spec changed: run 'monl update' to resynchronize the "
+                        "backend and contract.")
     return messages
 
 # ----------------------------------------------------------------- list --
