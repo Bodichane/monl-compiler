@@ -76,7 +76,7 @@ def test_delta_signale_un_type_de_champ_modifie(tmp_path, capsys):
         str(tmp_path),
         ecrire_brief=False,
     )
-    assert "type de champ changé : Note.priority : String → Integer" in capsys.readouterr().out
+    assert "field type changed: Note.priority: String → Integer" in capsys.readouterr().out
 
 
 def test_brief_express_autorise_textes_blocs_et_images_matricielles_locales(tmp_path):
@@ -974,12 +974,12 @@ def test_le_delta_signale_un_role_nouvellement_autorise(tmp_path, capsys):
     cmd_update(str(proj))
     sortie = capsys.readouterr().out
 
-    assert "aucun changement d'interface" not in sortie, sortie
-    assert "accès ouvert : PUT /commande/{id} → Patron" in sortie, sortie
+    assert "no interface changes" not in sortie, sortie
+    assert "access granted: PUT /commande/{id} → Patron" in sortie, sortie
     # Et la consigne pour l'IA frontend dit quoi en faire.
     brief = (proj / "docs/FRONTEND_UPDATE_PROMPT.md").read_text(encoding="utf-8")
-    assert "Rôles nouvellement autorisés" in brief
-    assert "supervision" in brief
+    assert "Newly authorized roles" in brief
+    assert "supervisor" in brief
 
     contrat = json.loads((proj / "frontend_contract.json").read_text(encoding="utf-8"))
     put = next(r for r in contrat["routes"]
@@ -1007,8 +1007,8 @@ def test_le_delta_ne_rapporte_pas_deux_fois_une_route_nouvelle(tmp_path, capsys)
     cmd_update(str(proj))
     sortie = capsys.readouterr().out
 
-    assert "route ajoutée : DELETE /commande/{id}" in sortie, sortie
-    assert "accès ouvert : DELETE /commande/{id}" not in sortie, sortie
+    assert "route added: DELETE /commande/{id}" in sortie, sortie
+    assert "access granted: DELETE /commande/{id}" not in sortie, sortie
 
 
 def test_le_delta_signale_un_champ_devenu_en_lecture_seule(tmp_path, capsys):
@@ -1035,14 +1035,14 @@ def test_le_delta_signale_un_champ_devenu_en_lecture_seule(tmp_path, capsys):
     cmd_update(str(proj))
     sortie = capsys.readouterr().out
 
-    assert "aucun changement d'interface" not in sortie, sortie
-    assert "champ devenu en lecture seule : Commande.creeLe" in sortie, sortie
+    assert "no interface changes" not in sortie, sortie
+    assert "field is now read-only: Commande.creeLe" in sortie, sortie
     # Aucun champ n'a été ajouté ni retiré : c'est bien le SENS qui a changé.
-    assert "champ ajouté" not in sortie, sortie
-    assert "champ retiré" not in sortie, sortie
+    assert "field added" not in sortie, sortie
+    assert "field removed" not in sortie, sortie
     brief = (proj / "docs/FRONTEND_UPDATE_PROMPT.md").read_text(encoding="utf-8")
-    assert "LECTURE SEULE" in brief
-    assert "retirer des formulaires" in brief
+    assert "READ-ONLY" in brief
+    assert "remove from forms" in brief
 
 
 def test_le_delta_signale_un_prealable_ajoute(tmp_path, capsys):
@@ -1065,15 +1065,15 @@ def test_le_delta_signale_un_prealable_ajoute(tmp_path, capsys):
     cmd_update(str(proj))
     sortie = capsys.readouterr().out
 
-    assert "aucun changement d'interface" not in sortie, sortie
-    assert "préalable ajouté : POST /commande → exige un Client" in sortie, sortie
+    assert "no interface changes" not in sortie, sortie
+    assert "prerequisite added: POST /commande → exige un Client" in sortie, sortie
     # Rien d'autre n'a bougé : c'est bien la CONDITION seule qui change.
-    assert "route ajoutée" not in sortie, sortie
-    assert "champ ajouté" not in sortie, sortie
-    assert "accès ouvert" not in sortie, sortie
+    assert "route added" not in sortie, sortie
+    assert "field added" not in sortie, sortie
+    assert "access granted" not in sortie, sortie
     brief = (proj / "docs/FRONTEND_UPDATE_PROMPT.md").read_text(encoding="utf-8")
-    assert "PRÉALABLES ajoutés" in brief
-    assert "AVANT le formulaire" in brief
+    assert "Added PREREQUISITES" in brief
+    assert "BEFORE the form" in brief
 
 
 def test_un_champ_neuf_en_lecture_seule_est_annonce_comme_tel(tmp_path, capsys):
@@ -1096,9 +1096,9 @@ def test_un_champ_neuf_en_lecture_seule_est_annonce_comme_tel(tmp_path, capsys):
     cmd_update(str(proj))
     sortie = capsys.readouterr().out
 
-    assert "champ ajouté : Commande.creeLe (lecture seule" in sortie, sortie
+    assert "field added: Commande.creeLe (read-only" in sortie, sortie
     # Et le champ ordinaire du même lot, lui, ne porte pas l'annotation.
-    assert "champ devenu en lecture seule" not in sortie, sortie
+    assert "field is now read-only" not in sortie, sortie
 
 
 # --------------------------------------------------- POINT 91 : les verrous --
@@ -1236,13 +1236,13 @@ def test_le_delta_signale_un_verrou_de_paiement(tmp_path, capsys):
     cmd_update(str(proj))
     sortie = capsys.readouterr().out
 
-    assert "aucun changement d'interface" not in sortie, sortie
-    assert "verrou de paiement : PUT /commande/{id} → figé une fois Commande réglé" \
+    assert "no interface changes" not in sortie, sortie
+    assert "payment lock: PUT /commande/{id} → figé une fois Commande réglé" \
         in sortie, sortie
-    assert "verrou de paiement : POST /ligne → figé une fois Commande réglé" \
+    assert "payment lock: POST /ligne → figé une fois Commande réglé" \
         in sortie, sortie
     brief = (proj / "docs/FRONTEND_UPDATE_PROMPT.md").read_text(encoding="utf-8")
-    assert "VERROUS de paiement" in brief
+    assert "PAYMENT LOCKS" in brief
     assert "payment_status" in brief
 
 
@@ -1270,8 +1270,8 @@ def test_le_delta_ne_rapporte_pas_deux_fois_un_verrou_sur_route_nouvelle(tmp_pat
     cmd_update(str(proj))
     sortie = capsys.readouterr().out
 
-    assert "route ajoutée : DELETE /commande/{id}" in sortie, sortie
-    assert "verrou de paiement" not in sortie, sortie
+    assert "route added: DELETE /commande/{id}" in sortie, sortie
+    assert "payment lock" not in sortie, sortie
 
 
 # --------------------------------------------------- POINT 94 : la FAQ --
@@ -1374,12 +1374,12 @@ def test_le_delta_signale_une_question_ajoutee_et_un_texte_reecrit(tmp_path, cap
     cmd_update(str(proj))
     sortie = capsys.readouterr().out
 
-    assert "aucun changement d'interface" not in sortie, sortie
-    assert "contenu ajouté : question « Livrez-vous en Europe ? »" in sortie, sortie
-    assert "contenu réécrit : section « À propos »" in sortie, sortie
+    assert "no interface changes" not in sortie, sortie
+    assert "content added: question « Livrez-vous en Europe ? »" in sortie, sortie
+    assert "content rewritten: section « À propos »" in sortie, sortie
     # Rien d'autre n'a bougé : ni route, ni champ.
-    assert "route ajoutée" not in sortie, sortie
-    assert "champ ajouté" not in sortie, sortie
+    assert "route added" not in sortie, sortie
+    assert "field added" not in sortie, sortie
     brief = (proj / "docs/FRONTEND_UPDATE_PROMPT.md").read_text(encoding="utf-8")
-    assert "Contenu éditorial AJOUTÉ" in brief
-    assert "Contenu RÉÉCRIT" in brief
+    assert "ADDED editorial content" in brief
+    assert "REWRITTEN content" in brief

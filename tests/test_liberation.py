@@ -187,9 +187,9 @@ def test_le_delta_signale_une_liberation_ajoutee(tmp_path, capsys):
     cmd_update(str(proj))
     sortie = capsys.readouterr().out
 
-    assert "aucun changement d'interface" not in sortie, sortie
+    assert "no interface changes" not in sortie, sortie
     assert "libération de PUT /commande/{id}" in sortie, sortie
-    assert "route ajoutée" not in sortie, sortie
+    assert "route added" not in sortie, sortie
 
 
 # --------------------------------------------------------------------------

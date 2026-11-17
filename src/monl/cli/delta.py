@@ -33,136 +33,134 @@ def _write_update_brief(project_dir, added_routes, removed_routes,
         return "\n".join(f"- {verb} `{i}`" for i in sorted(items))
     sections = []
     if added_routes:
-        sections.append("## Nouvelles routes à exploiter\n"
-                        + bullet(added_routes, "brancher"))
+        sections.append("## New routes to use\n"
+                        + bullet(added_routes, "connect"))
     if removed_routes:
-        sections.append("## Routes SUPPRIMÉES — retirer tout appel\n"
-                        + bullet(removed_routes, "ne plus appeler"))
+        sections.append("## REMOVED routes — remove every call\n"
+                        + bullet(removed_routes, "stop calling"))
     if added_fields:
-        sections.append("## Nouveaux champs à afficher/saisir\n"
-                        + bullet(added_fields, "intégrer"))
+        sections.append("## New fields to display or enter\n"
+                        + bullet(added_fields, "integrate"))
     if removed_fields:
-        sections.append("## Champs SUPPRIMÉS — retirer des vues et formulaires\n"
-                        + bullet(removed_fields, "retirer"))
+        sections.append("## REMOVED fields — remove from views and forms\n"
+                        + bullet(removed_fields, "remove"))
     if changed_types:
         sections.append(
-            "## Types de champs MODIFIÉS — revoir saisie et affichage\n"
-            "Le nom du champ n'a pas bougé, mais sa valeur attendue si : "
-            "adapter le contrôle de saisie, le formatage et les messages "
-            "d'erreur au nouveau type.\n"
-            + bullet(changed_types, "adapter"))
+            "## CHANGED field types — review input and display\n"
+            "The field name is unchanged, but its expected value is: "
+            "adapt input validation, formatting, and error messages to the "
+            "new type.\n"
+            + bullet(changed_types, "adapt"))
     # POINT 88 : un rôle qui gagne l'accès à une route existante n'ajoute aucune
     # route, mais réclame souvent tout un écran (un back-office, une vue de
     # supervision). C'est le cas le plus silencieux du delta : rien n'est cassé,
     # et pourtant il manque quelque chose.
     if added_acces:
         sections.append(
-            "## Rôles nouvellement autorisés — écrans à prévoir\n"
-            "Ces routes existaient déjà ; un rôle de plus peut désormais les "
-            "appeler. Vérifier que l'interface le lui propose, et qu'un rôle "
-            "de supervision voit bien l'ensemble des enregistrements — pas "
-            "seulement les siens.\n"
-            + bullet(added_acces, "ouvrir à"))
+            "## Newly authorized roles — plan screens\n"
+            "These routes already existed; one more role can now call them. "
+            "Make sure the interface offers them to that role, and that a "
+            "supervisor role can see all records, not only its own.\n"
+            + bullet(added_acces, "make available to"))
     if removed_acces:
         sections.append(
-            "## Accès RETIRÉS — masquer ce qui répondra 403\n"
-            + bullet(removed_acces, "ne plus proposer à"))
+            "## REMOVED access — hide actions that will return 403\n"
+            + bullet(removed_acces, "stop offering to"))
     # POINT 99 : la clé étrangère change de nature sans changer de nom. Deux
     # conséquences bien distinctes pour l'interface — une jointure à refaire, ou
     # un champ obligatoire de plus au formulaire de création — d'où les deux
     # consignes séparées plutôt qu'une phrase qui couvrirait les deux à moitié.
     if changed_liens:
         sections.append(
-            "## Rattachements dont la nature a changé\n"
-            "Pour chacun : si la ligne dit « un identifiant de compte », joindre "
-            "par la colonne HOMONYME de la fiche, jamais par son `id`. Si elle "
-            "dit « à envoyer par le client », le formulaire de création doit "
-            "proposer de CHOISIR l'enregistrement lié (une liste déroulante "
-            "alimentée par la route de lecture correspondante) — sans ce champ, "
-            "la création répond 422.\n"
-            + bullet(changed_liens, "revoir"))
+            "## Relationships whose kind changed\n"
+            "For each one: if the line says ‘an account identifier’, join "
+            "through the matching profile column, never its `id`. If it says "
+            "‘provided by the client’, the creation form must let the user "
+            "CHOOSE the related record (a dropdown populated by the matching "
+            "read route); without this field, creation returns 422.\n"
+            + bullet(changed_liens, "review"))
     # POINT 89 : le champ existe toujours et porte le même nom — seul son sens a
     # changé. C'est le second cas silencieux du delta : rien n'est cassé, et
     # pourtant un formulaire est devenu un affichage.
     if scelles:
         sections.append(
-            "## Champs devenus en LECTURE SEULE — retirer des formulaires\n"
-            "Le serveur les calcule ou les horodate désormais lui-même. Les "
-            "envoyer n'échoue pas : ils sont simplement ignorés, ce qui est "
-            "pire — l'utilisateur croit avoir saisi une valeur.\n"
-            + bullet(scelles, "ne plus envoyer, seulement afficher"))
+            "## Fields now READ-ONLY — remove from forms\n"
+            "The server now calculates or timestamps these fields itself. "
+            "Sending them does not fail: they are simply ignored, which is "
+            "worse because users think they entered a value.\n"
+            + bullet(scelles, "stop sending; display only"))
     if liberes:
         sections.append(
-            "## Champs redevenus SAISISSABLES\n"
-            + bullet(liberes, "proposer à la saisie"))
+            "## Fields editable again\n"
+            + bullet(liberes, "offer for input"))
     # POINT 90 : la route n'a pas bougé, son PRÉALABLE oui. C'est le parcours
     # utilisateur qu'il faut reprendre, pas un champ à ajouter.
     if added_prea:
         sections.append(
-            "## PRÉALABLES ajoutés — le parcours change, pas seulement l'écran\n"
-            "Ces routes existaient déjà et répondent désormais 409 tant que "
-            "l'appelant ne possède pas l'enregistrement nommé. Vérifier au "
-            "chargement et proposer la création AVANT le formulaire : découvert "
-            "à la fin, le refus tombe là où l'utilisateur a déjà tout rempli.\n"
-            + bullet(added_prea, "prévoir"))
+            "## Added PREREQUISITES — the user flow changes, not just the screen\n"
+            "These routes already existed and now return 409 until the caller "
+            "owns the named record. Check during loading and offer creation "
+            "BEFORE the form: if discovered at the end, the refusal arrives "
+            "after the user has filled everything in.\n"
+            + bullet(added_prea, "plan for"))
     if removed_prea:
         sections.append(
-            "## Préalables LEVÉS — l'étape intermédiaire n'est plus nécessaire\n"
-            + bullet(removed_prea, "ne plus imposer"))
+            "## Removed PREREQUISITES — the intermediate step is no longer needed\n"
+            + bullet(removed_prea, "stop requiring"))
     # POINT 91 : la route n'a pas bougé, elle a gagné un REFUS conditionnel.
     # C'est un bouton à masquer selon l'état de l'enregistrement affiché — pas
     # un écran de plus, pas un champ de plus : le cas le plus facile à manquer
     # en relisant la seule liste des routes.
     if added_verrous:
         sections.append(
-            "## VERROUS de paiement — actions à masquer sur un enregistrement payé\n"
-            "Ces routes existaient déjà et répondent désormais 409 dès que "
-            "l'enregistrement concerné est réglé (`payment_status` vaut "
-            "`payee`). Conditionner l'affichage du bouton à ce champ, que les "
-            "routes de lecture renvoient déjà : découvert au clic, le refus "
-            "arrive après que l'utilisateur a modifié son panier. Un montant "
-            "encaissé ne se modifie plus, il se rembourse chez le prestataire.\n"
-            + bullet(added_verrous, "conditionner"))
+            "## PAYMENT LOCKS — hide actions on a paid record\n"
+            "These routes already existed and now return 409 once the record "
+            "has been paid (`payment_status` is `payee`). Show the button only "
+            "when this field allows it; read routes already return it. If "
+            "discovered on click, the refusal comes after the user changed "
+            "their cart. A captured payment cannot be edited; refund it through "
+            "the provider.\n"
+            + bullet(added_verrous, "condition"))
     if removed_verrous:
         sections.append(
-            "## Verrous LEVÉS — l'action redevient possible après règlement\n"
-            + bullet(removed_verrous, "ne plus conditionner"))
+            "## Removed locks — the action is available again after payment\n"
+            + bullet(removed_verrous, "stop conditioning"))
     # POINT 94 : du CONTENU, pas des données. Aucune route ne le sert — il
     # n'existe que dans le contrat, donc une IA qui ne le lit pas ici ne
     # l'apprendra nulle part ailleurs.
     if added_contenus:
         sections.append(
-            "## Contenu éditorial AJOUTÉ — à publier sur l'accueil\n"
-            "Le texte complet est dans `FRONTEND_PROMPT.md` (rubriques "
-            "« Contenu éditorial » et « Questions fréquentes »). Une FAQ se rend "
-            "en entrées distinctes — jamais en un seul paragraphe.\n"
-            + bullet(added_contenus, "publier"))
+            "## ADDED editorial content — publish on the home page\n"
+            "The full text is in `FRONTEND_PROMPT.md` (the ‘Editorial content’ "
+            "and ‘Frequently asked questions’ sections). Render each FAQ item "
+            "separately, never as one paragraph.\n"
+            + bullet(added_contenus, "publish"))
     if removed_contenus:
         sections.append(
-            "## Contenu RETIRÉ — à faire disparaître de la page\n"
-            + bullet(removed_contenus, "retirer"))
+            "## REMOVED content — remove from the page\n"
+            + bullet(removed_contenus, "remove"))
     if modifies_contenus:
         sections.append(
-            "## Contenu RÉÉCRIT — même titre, texte différent\n"
-            "Le titre n'a pas bougé, le texte si : reprendre la version à jour "
-            "dans `FRONTEND_PROMPT.md`. C'est le changement le plus facile à "
-            "manquer, puisque rien n'a l'air d'avoir bougé.\n"
-            + bullet(modifies_contenus, "remplacer le texte de"))
-    body = f"""# Mise à jour du frontend (delta généré par 'monl update')
+            "## REWRITTEN content — same title, different text\n"
+            "The title is unchanged, but the text changed: use the current "
+            "version in `FRONTEND_PROMPT.md`. This is the easiest change to "
+            "miss because nothing appears to have moved.\n"
+            + bullet(modifies_contenus, "replace the text of"))
+    body = f"""# Frontend update (delta generated by 'monl update')
 
-Le backend a évolué. Modifiez le frontend existant dans `frontend/` pour
-refléter UNIQUEMENT les changements ci-dessous — ne réécrivez pas ce qui
-fonctionne déjà. Le contrat complet à jour est dans `frontend_contract.json`
-(les règles de `FRONTEND_PROMPT.md` restent en vigueur).
+The backend has changed. Update the existing frontend in `frontend/` to
+reflect ONLY the changes below; do not rewrite what already works. The full,
+current contract is in `frontend_contract.json` (the rules in
+`FRONTEND_PROMPT.md` still apply).
 
 {chr(10).join(sections)}
 
-Après modification, `monl run` revalidera l'ensemble (cohérence statique
-+ smoke test comportemental) avant tout lancement.
+After the change, `monl run` will revalidate everything (static consistency
++ behavioral smoke test) before launch.
 
-Si vous lisez ceci dans une conversation (sans clé API) : rendez le
-frontend mis à jour en ZIP téléchargeable ou en `index.html` autonome —
-l'utilisateur l'installera avec `monl import <fichier> <projet>`.
+If you are reading this in a conversation (without an API key): provide the
+updated frontend as a downloadable ZIP or standalone `index.html`; the user
+will install it with `monl import <file> <project>`.
 """
     path = os.path.join(project_dir, UPDATE_PROMPT_FILENAME)
     with open(path, "w", encoding="utf-8") as fh:
@@ -220,7 +218,7 @@ def _rapporter_delta(ancienne, nouvelle, project_dir, ecrire_brief=True):
     entites_stables = {f.split(".", 1)[0] for f in new_fields & old_fields}
     changed_liens = {li for li in (new_liens - old_liens)
                      if li.split(".", 1)[0] in entites_stables}
-    changed_types = {f"{field} : {old_types[field]} → {new_types[field]}"
+    changed_types = {f"{field}: {old_types[field]} → {new_types[field]}"
                      for field in (new_fields & old_fields)
                      if old_types.get(field) != new_types.get(field)}
     # POINT 119 : trois cas comme pour le contenu (point 94) — une section
@@ -240,52 +238,52 @@ def _rapporter_delta(ancienne, nouvelle, project_dir, ecrire_brief=True):
     # Le nom seul ne dit pas qu'un champ neuf est en lecture seule ; la rubrique
     # du brief s'intitule « à afficher/saisir », ce qui serait un contresens sur
     # un horodatage ou un total calculé.
-    added_fields = {f"{c} (lecture seule — écrit par le serveur)" if c in new_ro else c
+    added_fields = {f"{c} (read-only — set by the server)" if c in new_ro else c
                     for c in added_fields}
 
-    print("\n─── Delta du contrat frontend ───")
+    print("\n─── Frontend contract delta ───")
     for item in sorted(added_routes):
-        print(f"  + route ajoutée : {item}")
+        print(f"  + route added: {item}")
     for item in sorted(removed_routes):
-        print(f"  - route retirée : {item}")
+        print(f"  - route removed: {item}")
     for item in sorted(added_fields):
-        print(f"  + champ ajouté : {item}")
+        print(f"  + field added: {item}")
     for item in sorted(removed_fields):
-        print(f"  - champ retiré : {item}")
+        print(f"  - field removed: {item}")
     for item in sorted(added_acces):
-        print(f"  + accès ouvert : {item}")
+        print(f"  + access granted: {item}")
     for item in sorted(removed_acces):
-        print(f"  - accès retiré : {item}")
+        print(f"  - access removed: {item}")
     for item in sorted(scelles):
-        print(f"  ! champ devenu en lecture seule : {item}")
+        print(f"  ! field is now read-only: {item}")
     for item in sorted(liberes):
-        print(f"  ! champ redevenu saisissable : {item}")
+        print(f"  ! field is editable again: {item}")
     for item in sorted(added_prea):
-        print(f"  ! préalable ajouté : {item}")
+        print(f"  ! prerequisite added: {item}")
     for item in sorted(removed_prea):
-        print(f"  ! préalable levé : {item}")
+        print(f"  ! prerequisite removed: {item}")
     for item in sorted(added_verrous):
-        print(f"  ! verrou de paiement : {item}")
+        print(f"  ! payment lock: {item}")
     for item in sorted(removed_verrous):
-        print(f"  ! verrou de paiement levé : {item}")
+        print(f"  ! payment lock removed: {item}")
     for item in sorted(changed_liens):
-        print(f"  ! rattachement : {item}")
+        print(f"  ! relationship: {item}")
     for item in sorted(changed_types):
-        print(f"  ! type de champ changé : {item}")
+        print(f"  ! field type changed: {item}")
     for item in sorted(added_contenus):
-        print(f"  + contenu ajouté : {item}")
+        print(f"  + content added: {item}")
     for item in sorted(removed_contenus):
-        print(f"  - contenu retiré : {item}")
+        print(f"  - content removed: {item}")
     for item in sorted(modifies_contenus):
-        print(f"  ! contenu réécrit : {item}")
+        print(f"  ! content rewritten: {item}")
     for item in sorted(added_sections):
-        print(f"  + section obligatoire : {item} — à dessiner sur l'accueil")
+        print(f"  + required section: {item} — add to the home page")
     for item in sorted(removed_sections):
-        print(f"  - section obligatoire retirée : {item}")
+        print(f"  - required section removed: {item}")
     for item in sorted(modifies_sections):
-        print(f"  ! section obligatoire durcie : {item} — son contenu minimal a changé")
+        print(f"  ! required section strengthened: {item} — its minimum content changed")
     if not changes:
-        print("  (aucun changement d'interface — le frontend existant reste valide)")
+        print("  (no interface changes — the existing frontend remains valid)")
     elif ecrire_brief:
         brief_path = _write_update_brief(project_dir, added_routes, removed_routes,
                                          added_fields, removed_fields,
@@ -296,17 +294,17 @@ def _rapporter_delta(ancienne, nouvelle, project_dir, ecrire_brief=True):
                                          added_contenus, removed_contenus,
                                          modifies_contenus, changed_liens,
                                          changed_types)
-        print(f"  → Consigne prête pour l'IA frontend : {os.path.basename(brief_path)}")
+        print(f"  → Instructions ready for the frontend AI: {os.path.basename(brief_path)}")
     print("──────────────────────────────────────────────────────────────────")
     return changes
 
 def cmd_update(project_dir):
-    project_dir, spec_path = emplacement._situer_projet(project_dir, "mettre à jour")
+    project_dir, spec_path = emplacement._situer_projet(project_dir, "update")
     ancienne = emplacement._signature_precedente(project_dir)
     nouveau = construction.compile_project(spec_path, project_dir)
     _rapporter_delta(ancienne, signature._contract_signature(nouveau), project_dir)
-    print("La base de données existante est préservée : les nouvelles colonnes "
-          "sont ajoutées par migration additive au démarrage (docs/MIGRATIONS.md).")
+    print("The existing database is preserved: new columns are added by an "
+          "additive migration at startup (docs/MIGRATIONS.md).")
 
 # ------------------------------------------------------------------- diff --
 # POINT 103 : `monl update` écrit PUIS rapporte. Tant que le rapport dit ce
@@ -339,10 +337,10 @@ def cmd_diff(project_dir):
             print(f" ❌ {err}")
             raise SystemExit(1) from err
 
-    print("\n[DRY-RUN] Aucun fichier modifié — comparaison seule.")
+    print("\n[DRY-RUN] No files changed — comparison only.")
     changes = _rapporter_delta(ancienne, signature._contract_signature(nouveau),
                                project_dir, ecrire_brief=False)
     if changes:
-        print("Pour appliquer ce changement et écrire la consigne d'évolution : "
+        print("To apply this change and write the update instructions: "
               "monl update")
     return changes

@@ -201,9 +201,9 @@ def test_le_delta_signale_une_liste_qui_change(tmp_path, capsys):
     cmd_update(str(proj))
     sortie = capsys.readouterr().out
 
-    assert "aucun changement d'interface" not in sortie, sortie
-    assert "contenu réécrit : choix de Commande.statut" in sortie, sortie
-    assert "champ ajouté" not in sortie, sortie
+    assert "no interface changes" not in sortie, sortie
+    assert "content rewritten: choix de Commande.statut" in sortie, sortie
+    assert "field added" not in sortie, sortie
 
 
 # --------------------------------------------------------------------------
