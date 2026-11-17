@@ -369,7 +369,7 @@ def test_un_indicatif_mal_forme_est_refuse(capsys):
     for mauvais in ['"33"', '"+"', '"+abc"', '"+123456"']:
         with pytest.raises(ASTValidationError) as refus:
             _valide(SPEC_PREFIXE.replace('"+33"', mauvais))
-        assert "indicatif" in str(refus.value)
+        assert "international calling code" in str(refus.value)
     capsys.readouterr()
 
 
