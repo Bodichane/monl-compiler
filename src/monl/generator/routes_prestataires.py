@@ -26,77 +26,77 @@ class PrestatairesRoutesMixin:
     # est qualifiée par l'entité, la clé absente donne 503 en la nommant.
     # ─────────────────────────────────────────────────────────────────
     def _prelude_fedapay(self, code_devise):
-        return [
-            "",
-            "# ── Paiement (brique 'payable', prestataire FedaPay) ─────────",
-            "FEDAPAY_SECRET_KEY = (os.environ.get('MONL_FEDAPAY_SECRET_KEY') or '').strip()",
-            "FEDAPAY_WEBHOOK_SECRET = (os.environ.get('MONL_FEDAPAY_WEBHOOK_SECRET') or '').strip()",
-            "# Bac à sable par défaut : une clé de test et un point de",
-            "# terminaison de production ne vont jamais ensemble, et le défaut",
-            "# le moins coûteux en cas d'erreur est celui qui n'encaisse pas de",
-            "# vrai argent. Le passage en production est un geste EXPLICITE.",
-            "FEDAPAY_BASE_URL = (os.environ.get('MONL_FEDAPAY_BASE_URL')",
-            "                    or 'https://sandbox-api.fedapay.com').rstrip('/')",
-            "",
-            "def _exiger_cle_paiement(nom, valeur):",
-            "    if not valeur:",
-            "        raise HTTPException(status_code=503, detail=(",
-            "            f\"Paiement indisponible : la variable d'environnement {nom} n'est pas \"",
-            "            'définie sur le serveur. Aucun règlement ne peut être accepté tant '",
-            "            \"qu'elle manque.\"))",
-            "",
-            "def _appel_fedapay(chemin, corps=None):",
-            "    donnees = json.dumps(corps).encode() if corps is not None else b''",
-            "    requete = urllib.request.Request(",
-            "        FEDAPAY_BASE_URL + chemin, data=donnees, method='POST')",
-            "    requete.add_header('Authorization', 'Bearer ' + FEDAPAY_SECRET_KEY)",
-            "    requete.add_header('Content-Type', 'application/json')",
-            "    try:",
-            "        with urllib.request.urlopen(requete, timeout=15) as reponse:",
-            "            return json.loads(reponse.read() or b'{}')",
-            "    except urllib.error.HTTPError as e:",
-            "        with e:",
-            "            detail = (e.read() or b'')[:400].decode('utf-8', 'replace')",
-            "        raise HTTPException(status_code=502, detail=(",
-            "            f'Le prestataire de paiement a refusé la demande ({e.code}) : {detail}'))",
-            "    except urllib.error.URLError as e:",
-            "        raise HTTPException(status_code=502, detail=(",
-            "            f'Prestataire de paiement injoignable : {e.reason}'))",
-            "",
-            "def _session_paiement(montant_centimes, devise, reference, retour):",
-            "    \"\"\"Crée une transaction FedaPay puis son lien de paiement.",
-            "",
-            "    Le montant arrive DÉJÀ converti dans l'unité mineure de la",
-            "    devise (brique 2a) et vient de la base, jamais du client.",
-            "    \"\"\"",
-            "    transaction = _appel_fedapay('/v1/transactions', {",
-            "        'description': f'Commande {reference}',",
-            "        'amount': int(montant_centimes),",
-            Template(r"""        'currency': {'iso': '$code_devise'},""").substitute(
-                code_devise=code_devise),
-            "        'callback_url': retour + '?paiement=retour',",
-            "        # La référence qualifiée 'Entite:id' (point 75) est envoyée",
-            "        # dans les DEUX champs que FedaPay documente pour cela : le",
-            "        # webhook n'expose pas le même selon la version, et en",
-            "        # renseigner un seul reviendrait à parier sur laquelle.",
-            "        'merchant_reference': str(reference),",
-            "        'custom_metadata': {'monl_reference': str(reference)},",
-            "    })",
-            "    objet = transaction.get('v1/transaction') or transaction.get('transaction') or transaction",
-            "    identifiant = objet.get('id')",
-            "    if not identifiant:",
-            "        raise HTTPException(status_code=502, detail=(",
-            "            \"Le prestataire n'a pas renvoyé d'identifiant de transaction.\"))",
-            "    jeton = _appel_fedapay(f'/v1/transactions/{identifiant}/token')",
-            "    url = jeton.get('url')",
-            "    if not url:",
-            "        raise HTTPException(status_code=502, detail=(",
-            "            \"Le prestataire n'a pas renvoyé d'URL de paiement.\"))",
-            "    # Même forme de retour que la voie Stripe : la route de règlement",
-            "    # est commune et ne connaît pas le prestataire.",
-            "    return {'url': url, 'id': identifiant}",
-            "",
-        ]
+        """Gabarit du client FedaPay ; seul le code devise varie."""
+        source = Template(r'''
+# ── Paiement (brique 'payable', prestataire FedaPay) ─────────
+FEDAPAY_SECRET_KEY = (os.environ.get('MONL_FEDAPAY_SECRET_KEY') or '').strip()
+FEDAPAY_WEBHOOK_SECRET = (os.environ.get('MONL_FEDAPAY_WEBHOOK_SECRET') or '').strip()
+# Bac à sable par défaut : une clé de test et un point de
+# terminaison de production ne vont jamais ensemble, et le défaut
+# le moins coûteux en cas d'erreur est celui qui n'encaisse pas de
+# vrai argent. Le passage en production est un geste EXPLICITE.
+FEDAPAY_BASE_URL = (os.environ.get('MONL_FEDAPAY_BASE_URL')
+                    or 'https://sandbox-api.fedapay.com').rstrip('/')
+
+def _exiger_cle_paiement(nom, valeur):
+    if not valeur:
+        raise HTTPException(status_code=503, detail=(
+            f"Paiement indisponible : la variable d'environnement {nom} n'est pas "
+            'définie sur le serveur. Aucun règlement ne peut être accepté tant '
+            "qu'elle manque."))
+
+def _appel_fedapay(chemin, corps=None):
+    donnees = json.dumps(corps).encode() if corps is not None else b''
+    requete = urllib.request.Request(
+        FEDAPAY_BASE_URL + chemin, data=donnees, method='POST')
+    requete.add_header('Authorization', 'Bearer ' + FEDAPAY_SECRET_KEY)
+    requete.add_header('Content-Type', 'application/json')
+    try:
+        with urllib.request.urlopen(requete, timeout=15) as reponse:
+            return json.loads(reponse.read() or b'{}')
+    except urllib.error.HTTPError as e:
+        with e:
+            detail = (e.read() or b'')[:400].decode('utf-8', 'replace')
+        raise HTTPException(status_code=502, detail=(
+            f'Le prestataire de paiement a refusé la demande ({e.code}) : {detail}'))
+    except urllib.error.URLError as e:
+        raise HTTPException(status_code=502, detail=(
+            f'Prestataire de paiement injoignable : {e.reason}'))
+
+def _session_paiement(montant_centimes, devise, reference, retour):
+    """Crée une transaction FedaPay puis son lien de paiement.
+
+    Le montant arrive DÉJÀ converti dans l'unité mineure de la
+    devise (brique 2a) et vient de la base, jamais du client.
+    """
+    transaction = _appel_fedapay('/v1/transactions', {
+        'description': f'Commande {reference}',
+        'amount': int(montant_centimes),
+        'currency': {'iso': '$code_devise'},
+        'callback_url': retour + '?paiement=retour',
+        # La référence qualifiée 'Entite:id' (point 75) est envoyée
+        # dans les DEUX champs que FedaPay documente pour cela : le
+        # webhook n'expose pas le même selon la version, et en
+        # renseigner un seul reviendrait à parier sur laquelle.
+        'merchant_reference': str(reference),
+        'custom_metadata': {'monl_reference': str(reference)},
+    })
+    objet = transaction.get('v1/transaction') or transaction.get('transaction') or transaction
+    identifiant = objet.get('id')
+    if not identifiant:
+        raise HTTPException(status_code=502, detail=(
+            "Le prestataire n'a pas renvoyé d'identifiant de transaction."))
+    jeton = _appel_fedapay(f'/v1/transactions/{identifiant}/token')
+    url = jeton.get('url')
+    if not url:
+        raise HTTPException(status_code=502, detail=(
+            "Le prestataire n'a pas renvoyé d'URL de paiement."))
+    # Même forme de retour que la voie Stripe : la route de règlement
+    # est commune et ne connaît pas le prestataire.
+    return {'url': url, 'id': identifiant}
+
+''').substitute(code_devise=code_devise)
+        return source.split("\n")[:-1]
 
     def _lignes_bascule_apres_paiement(self, entite, config, table):
         """Libération d'un effet depuis la route après-paiement (brique 20).
