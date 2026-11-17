@@ -13,13 +13,16 @@ from tests.test_app_templates import _run_template
 from tests.test_authentification_b4 import SPEC_B4
 from tests.test_bloc_custom_absent import AVEC_CUSTOM
 from tests.test_fiche_obligatoire import SPEC as SPEC_FICHE
+from tests.test_filtrage_tri import SPEC as SPEC_FILTRE
 from tests.test_generated_specs import generated_spec
 from tests.test_golden_artifacts import SPEC, SPEC_LOOKUP_SOURCES
 from tests.test_identifiant_de_compte import SPEC as SPEC_IDENTIFIANT
 from tests.test_liberation import SPEC as SPEC_LIBERATION
+from tests.test_liberation import SPEC_APRES_PAIEMENT
 from tests.test_messages import SPEC as SPEC_MESSAGES
 from tests.test_stock import SPEC as SPEC_STOCK
 from tests.test_uploads import SPEC as SPEC_UPLOADS
+from tests.test_paiement_transitif import SPEC as SPEC_PAIEMENT_TRANSITIF
 
 ROOT = Path(__file__).resolve().parents[2]
 BASELINE = ROOT / "tests/data/corpus_octets.json"
@@ -87,6 +90,12 @@ def corpus_specs():
     ).replace("rule Ligne.Create decrements Produit.stock by quantite",
               "rule Ligne.Create decrements Produit.stock by quantite\n"
               "rule Ligne.Create increments Produit.points")
+    cases["filtered_sort_public"] = SPEC_FILTRE.replace(
+        "rule Item.Read ownedBy User\n", "rule Item.Read public\n")
+    cases["postpayment_release"] = SPEC_APRES_PAIEMENT
+    cases["payment_transitive"] = SPEC_PAIEMENT_TRANSITIF
+    cases["delete_and_execute"] = AVEC_CUSTOM.replace(
+        "    Read Note\n", "    Read Note\n    Delete Note\n    Execute Publier\n")
     cases["migration"] = '''app MigrationCorpus
 entity User
     name: String
