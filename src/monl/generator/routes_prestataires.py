@@ -3,6 +3,8 @@
 `writableAfterPayment` (point 113) : route dédiée, réservée à l'acteur
 nommé, sans toucher au verrou générique d'`Update` qui reste absolu."""
 
+from string import Template
+
 from . import sql
 
 
@@ -70,7 +72,8 @@ class PrestatairesRoutesMixin:
             "    transaction = _appel_fedapay('/v1/transactions', {",
             "        'description': f'Commande {reference}',",
             "        'amount': int(montant_centimes),",
-            f"        'currency': {{'iso': '{code_devise}'}},",
+            Template(r"""        'currency': {'iso': '$code_devise'},""").substitute(
+                code_devise=code_devise),
             "        'callback_url': retour + '?paiement=retour',",
             "        # La référence qualifiée 'Entite:id' (point 75) est envoyée",
             "        # dans les DEUX champs que FedaPay documente pour cela : le",
