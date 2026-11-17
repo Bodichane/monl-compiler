@@ -18,7 +18,7 @@ class EmissionMixin:
             ("Entities", ", ".join(entities) or "none"),
             ("Roles", ", ".join(actors) or "none"),
             ("Online registration", self_register or "closed (manage.py)"),
-            ("Lisible sans compte", ", ".join(public_read) or "rien"),
+            ("Readable without an account", ", ".join(public_read) or "none"),
         ]
         prives = [e for e in owned if e not in public_read]
         if prives:
@@ -84,7 +84,7 @@ class EmissionMixin:
         """Valeur de seed -> littéral DSL (la grammaire n'accepte que
         STRING_LITERAL et SIGNED_NUMBER)."""
         if isinstance(value, bool):
-            raise DialogueError("un seed ne peut pas contenir de booléen (grammaire)")
+            raise DialogueError("a seed cannot contain a boolean (grammar)")
         if isinstance(value, (int, float)):
             return str(value)
         return '"' + str(value).replace('"', "'") + '"'
