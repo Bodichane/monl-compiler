@@ -176,7 +176,7 @@ class ChampsMixin:
             if "otherwise" not in clauses[-1]:
                 raise ASTValidationError(
                     f"Structure: 'categorized' on '{entity}.{field}' must end with an 'otherwise' tier "
-                    f"(palier de secours qui couvre toute valeur au-delà du dernier seuil)."
+                    f"(the fallback tier that covers every value beyond the last threshold)."
                 )
             thresholds = [clause["below"] for clause in clauses[:-1]]
             if thresholds != sorted(set(thresholds)) or len(thresholds) != len(set(thresholds)):

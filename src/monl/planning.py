@@ -91,7 +91,7 @@ def plan_derivations(
             raise ValueError(
                 f"Generation: no foreign-key column on '{entity}' references "
                 f"'{source}', although the validator required it "
-                f"pour 'derivedFrom'.")
+                f"for 'derivedFrom'.")
         plans.setdefault(entity, []).append(DerivedPlan(
             entity=entity, field=rule["field"], source_entity=source,
             source_field=rule["source_field"], factor=rule["factor"], source_fk=fk,
@@ -113,7 +113,7 @@ def plan_aggregations(
             raise ValueError(
                 f"Generation: no foreign-key column on "
                 f"'{source}' references '{entity}', although "
-                "although the validator required it for 'sumOf'.")
+                "the validator required it for 'sumOf'.")
         plan = AggregatePlan(
             entity=entity, field=rule["field"], source_entity=source,
             source_field=rule["source_field"], parent_fk=fk,
@@ -139,7 +139,7 @@ def plan_counters(
         if fk is None:
             raise ValueError(
                 f"Generation: no foreign key on '{trigger}' references "
-                f"'{target}', alors que l'effet compteur l'exige.")
+                f"'{target}', although the counter effect requires it.")
         bound = constraints.get((target, rule["target_field"]), {}).get("min")
         plans.setdefault(trigger, []).append(CounterPlan(
             trigger_entity=trigger, target_entity=target, target_field=rule["target_field"],

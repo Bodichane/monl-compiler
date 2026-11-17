@@ -447,8 +447,8 @@ def test_les_blocs_annexes_sont_validés_comme_les_regles():
         ("ui Fantome\n    primary: titre", "targets an entity that does not exist"),
         ("ui Note\n    primary: fantome", "primary: fantome"),
         ("ui Note\n    order: titre, fantome", "unknown fields in 'order'"),
-        ("seed Fantome\n    titre: \"a\"", "cible l'entité 'Fantome'"),
-        ("seed Note\n    titre: \"a\", fantome: \"b\"", "référence le champ 'fantome'"),
+        ("seed Fantome\n    titre: \"a\"", "targets entity 'Fantome'"),
+        ("seed Note\n    titre: \"a\", fantome: \"b\"", "references field 'fantome'"),
     ]
     noms = ["ui-entité", "ui-primary", "ui-order", "seed-entité", "seed-champ"]
 
