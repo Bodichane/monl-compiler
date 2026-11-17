@@ -1,11 +1,16 @@
 """Quelles routes écrire, et dans quel ordre."""
 
+from string import Template
+
+
 class OrchestrationRoutesMixin:
     """Quelles routes écrire, et dans quel ordre."""
 
     def _generate_route_lines(self):
         """Assemble les familles de routes dans un ordre stable."""
-        api_lines = ["# --- ENFORCEMENT DU CONTRÔLE D'ACCÈS PAR JWT ET PERSISTANCE ---"]
+        api_lines = [Template(
+            "# --- ENFORCEMENT DU CONTRÔLE D'ACCÈS PAR JWT ET PERSISTANCE ---"
+        ).substitute()]
         api_lines.extend(self._generate_crud_and_action_route_lines())
         api_lines.extend(self._generate_upload_route_lines())
         api_lines.extend(self._generate_payment_routes())
