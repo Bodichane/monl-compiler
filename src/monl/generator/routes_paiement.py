@@ -8,6 +8,8 @@ le reste du serveur de fonctionner."""
 
 from string import Template
 
+from . import sql
+
 
 class PaiementRoutesMixin:
     """Les deux routes d'encaissement."""
@@ -132,13 +134,13 @@ async def paiement_webhook(request: Request):
                 "def _exiger_cle_paiement(nom, valeur):",
                 "    if not valeur:",
                 "        raise HTTPException(status_code=503, detail=(",
-                "            f\"Paiement indisponible : la variable d'environnement {nom} n'est pas \"",
+                Template(r'''            f"Paiement indisponible : la variable d'environnement {nom} n'est pas "''').substitute(),
                 "            'définie sur le serveur. Aucun règlement ne peut être accepté tant '",
-                "            \"qu'elle manque.\"))",
+                Template(r"""            "qu'elle manque."))""").substitute(),
                 "",
                 "def _session_paiement(montant_centimes, devise, reference, retour):",
-                "    \"\"\"Crée une session de règlement. Le montant est en CENTIMES,",
-                "    calculé côté serveur depuis la base.\"\"\"",
+                Template(r'''    """Crée une session de règlement. Le montant est en CENTIMES,''').substitute(),
+                Template(r'''    calculé côté serveur depuis la base."""''').substitute(),
                 "    corps = urllib.parse.urlencode({",
                 "        'mode': 'payment',",
                 "        'success_url': retour + '?paiement=ok',",
@@ -207,19 +209,23 @@ async def paiement_webhook(request: Request):
                 # Briques 11 et 24 : une chaîne de JOIN, une par maillon, jusqu'au
                 # compte. Montant, état et propriétaire sortent de la MÊME lecture.
                 _depuis, _cur, _fk = self._chain_join(entite)
-                colonnes = f't."{champ}", t.payment_status, {_cur}."{_fk}"'
-                depuis = _depuis
+                colonnes = sql.cat(sql.kw("t."), sql.ident(champ), sql.kw(", t.payment_status, "), sql.kw(_cur), sql.kw("."), sql.ident(_fk))
+                depuis = sql.kw(_depuis)
             else:
-                colonnes = (f'"{champ}", payment_status, "{proprio["fk_column"]}"')
-                depuis = f'"{table}"'
+                colonnes = sql.cat(
+                    sql.ident(champ), sql.kw(", payment_status, "),
+                    sql.ident(proprio["fk_column"]),
+                )
+                depuis = sql.ident(table)
+            requete_select = sql.cat(sql.kw("SELECT "), colonnes, sql.kw(" FROM "), depuis,
+                                     sql.kw(" WHERE "), sql.kw("t." if chaine else ""),
+                                     sql.kw("id = "), sql.bind("id"))
             lignes += [
-                f"@app.post('/{table}/{{id}}/paiement', tags=['Paiement'])",
-                f"def payer_{table}(id: int, request: Request, "
-                "current_user_id: int = Depends(get_current_user_id)):",
-                f"    _exiger_cle_paiement('{cle_env}', {cle_var})",
+                Template(r"""@app.post('/$table/{id}/paiement', tags=['Paiement'])""").substitute(table=table),
+                Template(r"""def payer_$table(id: int, request: Request, current_user_id: int = Depends(get_current_user_id)):""").substitute(table=table),
+                Template(r"""    _exiger_cle_paiement('$cle_env', $cle_var)""").substitute(cle_env=cle_env, cle_var=cle_var),
                 "    conn = _connect(); cursor = conn.cursor()",
-                f"    cursor.execute('SELECT {colonnes} FROM {depuis} WHERE "
-                f"{'t.' if chaine else ''}id = ?', (id,))",
+                Template(r"""    cursor.execute($query, ($params,))""").substitute(query=repr(requete_select.text), params=", ".join(requete_select.params)),
                 "    ligne = cursor.fetchone()",
                 "    conn.close()",
                 # Sous jointure, une ligne ORPHELINE (intermédiaire disparu) ne
@@ -243,8 +249,7 @@ async def paiement_webhook(request: Request):
                 # le franc CFA n'a pas de sous-unité, une commande de 5 000 FCFA
                 # serait partie pour 500 000. La variable garde le nom
                 # `centimes` — c'est le mot du code, pas du fil (voir plus bas).
-                "    centimes = int(round(float(montant or 0) * "
-                f"{10 ** exposant_devise}))",
+                Template(r"""    centimes = int(round(float(montant or 0) * $factor))""").substitute(factor=str(10 ** exposant_devise)),
                 "    if centimes <= 0:",
                 "        raise HTTPException(status_code=400, detail=(",
                 "            'Montant nul ou négatif : rien à encaisser.'))",
@@ -254,9 +259,8 @@ async def paiement_webhook(request: Request):
                 # d'une AUTRE entité payable de la même app -- le webhook
                 # marquait alors comme payé un enregistrement d'une table
                 # totalement différente, portant seulement le même id.
-                f"    reference = '{entite}:' + str(id)",
-                f"    session = _session_paiement(centimes, '{code_devise}', "
-                "reference, retour)",
+                Template(r"""    reference = '$entite:' + str(id)""").substitute(entite=entite),
+                Template(r"""    session = _session_paiement(centimes, '$code_devise', reference, retour)""").substitute(code_devise=code_devise),
             ]
             if prestataire == "fedapay":
                 lignes += [
@@ -277,8 +281,15 @@ async def paiement_webhook(request: Request):
                     # `merchant_reference`, qui ne bouge pas. Les deux voies se
                     # couvrent l'une l'autre.
                     "    _c_ref = _connect()",
-                    f"    _c_ref.execute('UPDATE \"{table}\" SET payment_ref = ? "
-                    "WHERE id = ?', (str(session.get('id')), id))",
+                    Template(r"""    _c_ref.execute($query, ($params))""").substitute(
+                        query=repr(sql.cat(
+                            sql.kw("UPDATE "), sql.ident(table),
+                            sql.kw(" SET payment_ref = "),
+                            sql.bind("str(session.get('id'))"),
+                            sql.kw(" WHERE id = "), sql.bind("id"),
+                        ).text),
+                        params=", ".join(("str(session.get('id'))", "id")),
+                    ),
                     "    _c_ref.commit(); _c_ref.close()",
                 ]
             lignes += [
@@ -293,7 +304,7 @@ async def paiement_webhook(request: Request):
                 "    return {'status': 'success', 'url': session.get('url'),",
                 "            'session_id': session.get('id'), "
                 "'montant_centimes': centimes,",
-                f"            'devise': '{devise['code']}', 'montant': montant}}",
+                Template(r"""            'devise': '$currency', 'montant': montant}""").substitute(currency=devise["code"]),
                 "",
             ]
         lignes += self._payment_webhook_size_guard(secret_env, secret_var)
@@ -332,12 +343,12 @@ async def paiement_webhook(request: Request):
             "            try:",
             ]
             for entite in sorted(self.payable_by_entity):
+                requete_reference = sql.cat(sql.kw("SELECT id FROM "), sql.ident(entite.lower()),
+                                            sql.kw(" WHERE payment_ref = "), sql.bind("_ref_prestataire"))
                 lignes += [
-            f"                _cur_lu.execute('SELECT id FROM \"{entite.lower()}\" "
-            "WHERE payment_ref = ?', (_ref_prestataire,))",
+            Template(r"""                _cur_lu.execute($query, ($params,))""").substitute(query=repr(requete_reference.text), params=", ".join(requete_reference.params)),
             "                _ligne_lu = _cur_lu.fetchone()",
-            f"                if _ligne_lu and not _repli: _repli = '{entite}:' "
-            "+ str(_ligne_lu[0])",
+            Template(r"""                if _ligne_lu and not _repli: _repli = '$entite:' + str(_ligne_lu[0])""").substitute(entite=entite),
                 ]
             lignes += [
             "            finally:",
@@ -365,10 +376,13 @@ async def paiement_webhook(request: Request):
         ]
         for indice, entite in enumerate(sorted(self.payable_by_entity)):
             mot_cle = "if" if indice == 0 else "elif"
-            lignes.append(f"        {mot_cle} entite_ref == '{entite}':")
-            lignes.append(
-                f"            cursor.execute('UPDATE \"{entite.lower()}\" SET payment_status = ?, "
-                f"payment_ref = ? WHERE id = ?', ('payee', objet.get('id'), id_cible))")
+            lignes.append(Template(r"""        $mot_cle entite_ref == '$entite':""").substitute(
+                mot_cle=mot_cle, entite=entite))
+            requete_update = sql.cat(sql.kw("UPDATE "), sql.ident(entite.lower()),
+                                     sql.kw(" SET payment_status = "), sql.bind("'payee'"),
+                                     sql.kw(", payment_ref = "), sql.bind("objet.get('id')"),
+                                     sql.kw(" WHERE id = "), sql.bind("id_cible"))
+            lignes.append(Template(r"""            cursor.execute($query, ($params))""").substitute(query=repr(requete_update.text), params=", ".join(requete_update.params)))
         lignes += [
             "        conn.commit()",
             "    except Exception:",
