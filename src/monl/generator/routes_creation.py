@@ -5,7 +5,13 @@ de stock, la dérivation, l'agrégation, le préalable `requiresOwn`, la
 numérotation, l'horodatage et le verrou de paiement — tous dans LA MÊME
 transaction que l'insertion."""
 
+from string import Template
+
 from . import sql
+
+
+def _render(template, **values):
+    return Template(template).substitute(**values)
 
 
 class CreationRoutesMixin:
@@ -64,13 +70,13 @@ class CreationRoutesMixin:
         fiche_exigee = self._profile_lookup(base_target)
         create_deps = dependency_injection
         if populate_owner or verifie_parent or fiche_exigee or message_here:
-            create_deps += ", current_user_id: int = Depends(get_current_user_id)" if create_deps else "current_user_id: int = Depends(get_current_user_id)"
+            create_deps = _render("${dependencies}, current_user_id: int = Depends(get_current_user_id)", dependencies=create_deps) if create_deps else "current_user_id: int = Depends(get_current_user_id)"
         if generated_here:
-            create_deps += ", current_anon_handle: str = Depends(get_current_anon_handle)" if create_deps else "current_anon_handle: str = Depends(get_current_anon_handle)"
-        create_deps_suffix = f", {create_deps}" if create_deps else ""
+            create_deps = _render("${dependencies}, current_anon_handle: str = Depends(get_current_anon_handle)", dependencies=create_deps) if create_deps else "current_anon_handle: str = Depends(get_current_anon_handle)"
+        create_deps_suffix = _render(', ${_v0}', _v0=create_deps) if create_deps else ""
 
-        api_lines.append(f"@app.post('/{base_target.lower()}', tags=['{tag}'])")
-        api_lines.append(f"def create_{base_target.lower()}(data: {base_target}Schema{create_deps_suffix}):")
+        api_lines.append(_render("@app.post('/${_v0}', tags=['${_v1}'])", _v0=base_target.lower(), _v1=tag))
+        api_lines.append(_render('def create_${_v0}(data: ${_v1}Schema${_v2}):', _v0=base_target.lower(), _v1=base_target, _v2=create_deps_suffix))
         api_lines.append(security_check)
         api_lines.append("    conn = _connect(); cursor = conn.cursor()")
         fields = [
@@ -86,19 +92,16 @@ class CreationRoutesMixin:
         # un état à corriger, et le message dit lequel.
         if fiche_exigee:
             table_fiche, colonne_fiche = fiche_exigee
-            api_lines += [
-                f"    cursor.execute('SELECT 1 FROM \"{table_fiche}\" "
-                f'WHERE "{colonne_fiche}" = ?\', (current_user_id,))',
+            api_lines.extend([
+                _render('    cursor.execute(\'SELECT 1 FROM "${_v0}" WHERE "${_v1}" = ?\', (current_user_id,))', _v0=table_fiche, _v1=colonne_fiche),
                 "    if not cursor.fetchone():",
                 "        conn.close()",
                 "        raise HTTPException(status_code=409, detail=(",
                 # Pas d'article devant le nom de l'entité : il n'a pas de
                 # genre, et « un Commande » se lisait mal.
-                f"            \"Créez d'abord votre fiche "
-                f"{self.required_profiles[base_target]} : un enregistrement \"",
-                f"            '{base_target} sans elle ne pourrait être "
-                f"rattaché à personne.'))",
-            ]
+                _render('            "Créez d\'abord votre fiche ${_v0} : un enregistrement "', _v0=self.required_profiles[base_target]),
+                _render("            '${_v0} sans elle ne pourrait être rattaché à personne.'))", _v0=base_target),
+            ])
         # AJOUT (brique 11, point 81) : la vérification qui remplace le
         # peuplement depuis le jeton. Sans elle, la brique ouvrirait un
         # trou plus large que celui qu'elle ferme : n'importe quel
@@ -123,17 +126,17 @@ class CreationRoutesMixin:
             # texte. C'est la classe de défaut du point 107 rendue
             # impossible — texte et params sortent ENSEMBLE de l'objet Sql.
             _owner_q = self._chain_owner_scalar(
-                base_target, sql.bind(f"data.{chaine_create['via_fk']}"))
+                base_target, sql.bind(_render('data.${_v0}', _v0=chaine_create['via_fk'])))
             _sql_lit, _params_lit = sql.execute_args(_owner_q, prefix="SELECT ")
-            api_lines += [
-                f"    cursor.execute({_sql_lit}, {_params_lit})",
+            api_lines.extend([
+                _render('    cursor.execute(${_v0}, ${_v1})', _v0=_sql_lit, _v1=_params_lit),
                 "    _parent = cursor.fetchone()",
                 "    if not _parent or _parent[0] is None or _parent[0] != current_user_id:",
                 "        conn.close()",
                 "        raise HTTPException(status_code=403, detail=(",
-                f"            \"Contrôle d'accès : ce {chaine_create['via']} ne vous \"",
-                "            'appartient pas, ou n\\'existe pas.'))",
-            ]
+                _render('            "Contrôle d\'accès : ce ${_v0} ne vous "', _v0=chaine_create['via']),
+                _render(r"""            'appartient pas, ou n\'existe pas.'))"""),
+            ])
         # AJOUT (brique 18, point 91) : on n'ajoute pas une ligne à une
         # commande DÉJÀ RÉGLÉE. Le parent vient de `data.<fk>` ici — le
         # client le désigne — mais il a été validé juste au-dessus par la
@@ -141,9 +144,9 @@ class CreationRoutesMixin:
         # vient avant tout calcul et avant tout décompte de stock : une
         # écriture refusée ne doit rien avoir consommé.
         for verrou in self._payment_locked_parents(base_target):
-            api_lines += self._payment_lock_lines(
-                verrou["table"], f"data.{verrou['fk_column']}",
-                verrou["entity"], var="_parent_regle")
+            api_lines.extend(self._payment_lock_lines(
+                verrou["table"], _render('data.${_v0}', _v0=verrou['fk_column']),
+                verrou["entity"], var="_parent_regle"))
         # AJOUT (brique 10, point 77) : un champ 'derivedFrom' n'est pas
         # dans `data` — le serveur le calcule ici, AVANT l'insertion, en
         # lisant le prix sur la ligne liée que le client a désignée. Le
@@ -152,25 +155,21 @@ class CreationRoutesMixin:
         derives_ici = self.derived_by_entity.get(base_target, ())
         for regle in derives_ici:
             fk_col = regle.source_fk
-            var = f"_calcul_{regle.field}"
-            api_lines += [
-                f"    cursor.execute('SELECT \"{regle.source_field}\" FROM "
-                f'"{regle.source_entity.lower()}" WHERE id = ?\', '
-                f"(data.{fk_col},))",
-                f"    _src_{regle.field} = cursor.fetchone()",
-                f"    if not _src_{regle.field}:",
+            var = _render('_calcul_${_v0}', _v0=regle.field)
+            api_lines.extend([
+                _render('    cursor.execute(\'SELECT "${_v0}" FROM "${_v1}" WHERE id = ?\', (data.${_v2},))', _v0=regle.source_field, _v1=regle.source_entity.lower(), _v2=fk_col),
+                _render('    _src_${_v0} = cursor.fetchone()', _v0=regle.field),
+                _render('    if not _src_${_v0}:', _v0=regle.field),
                 "        conn.close()",
                 "        raise HTTPException(status_code=409, detail=(",
-                f"            '{regle.source_entity} introuvable : impossible de calculer "
-                f"{regle.field}.'))",
-                f"    if data.{regle.factor} <= 0:",
+                _render("            '${_v0} introuvable : impossible de calculer ${_v1}.'))", _v0=regle.source_entity, _v1=regle.field),
+                _render('    if data.${_v0} <= 0:', _v0=regle.factor),
                 "        conn.close()",
                 "        raise HTTPException(status_code=400, detail=(",
                 "            'La quantité doit être strictement positive.'))",
-                f"    {var} = round(float(_src_{regle.field}[0] or 0) "
-                f"* int(data.{regle.factor}), 2)",
-            ]
-        calcules = {r.field: f"_calcul_{r.field}" for r in derives_ici}
+                _render('    ${_v0} = round(float(_src_${_v1}[0] or 0) * int(data.${_v2}), 2)', _v0=var, _v1=regle.field, _v2=regle.factor),
+            ])
+        calcules = {r.field: _render('_calcul_${_v0}', _v0=r.field) for r in derives_ici}
         calcules.update(dict.fromkeys(self.event_counters_by_entity.get(base_target, ()), "0"))
         # AJOUT (brique 12, point 82) : une commande naît sans ligne, donc
         # son total naît à 0 — jamais à NULL, qu'aucun frontend ne sait
@@ -212,15 +211,13 @@ class CreationRoutesMixin:
         # tromperait dès que deux créations se croisent.
         lignes_numerotation = []
         for regle in self.numbered_fields_by_entity.get(base_target, []):
-            var = f"_numero_{regle['field']}"
+            var = _render('_numero_${_v0}', _v0=regle['field'])
             lignes_numerotation.append(
-                f"        {var} = _attribuer_numero(cursor, "
-                f"{base_target!r}, {regle['field']!r}, "
-                f"{regle['format']!r}, {regle['periode']!r})")
+                _render('        ${_v0} = _attribuer_numero(cursor, ${_v1}, ${_v2}, ${_v3}, ${_v4})', _v0=var, _v1=repr(base_target), _v2=repr(regle['field']), _v3=repr(regle['format']), _v4=repr(regle['periode'])))
             calcules[regle["field"]] = var
         value_exprs = [
             calcules.get(f, "current_anon_handle" if f in generated_here
-                         else f"data.{f}")
+                         else _render('data.${_v0}', _v0=f))
             for f in fields
         ]
         if populate_owner:
@@ -229,7 +226,7 @@ class CreationRoutesMixin:
         if is_reputation_fk:
             for counter_fk in counter_fk_columns:
                 insert_columns.append(counter_fk)
-                value_exprs.append(f"data.{counter_fk}")
+                value_exprs.append(_render('data.${_v0}', _v0=counter_fk))
         # Tout parent que le jeton ne désigne pas doit être désigné par
         # l'appelant. Trois cas y mènent : les parents SECONDAIRES d'une
         # entité possédée (un commentaire et son article) ; sous
@@ -241,10 +238,10 @@ class CreationRoutesMixin:
         # comportement historique conservé.
         for _client_fk in self._client_fk_columns(base_target):
             insert_columns.append(_client_fk)
-            value_exprs.append(f"data.{_client_fk}")
-        columns = ", ".join(f'"{c}"' for c in insert_columns)
+            value_exprs.append(_render('data.${_v0}', _v0=_client_fk))
+        columns = ", ".join(_render('"${_v0}"', _v0=c) for c in insert_columns)
         placeholders = ", ".join(["?"] * len(insert_columns))
-        api_lines.append(f"    query = 'INSERT INTO \"{base_target.lower()}\" ({columns}) VALUES ({placeholders}) RETURNING id'")
+        api_lines.append(_render('    query = \'INSERT INTO "${_v0}" (${_v1}) VALUES (${_v2}) RETURNING id\'', _v0=base_target.lower(), _v1=columns, _v2=placeholders))
         values_list = ", ".join(value_exprs)
         # CORRECTIF (bêta, intégrité transactionnelle) : l'insertion et
         # les effets 'increments'/'decrements' liés sont exécutés dans
@@ -256,8 +253,8 @@ class CreationRoutesMixin:
         # d'effet inexistante ne lève toujours pas d'erreur (UPDATE sans
         # ligne correspondante) — elle ne fait simplement rien.
         api_lines.append("    try:")
-        api_lines += lignes_numerotation
-        api_lines.append(f"        cursor.execute(query, ({values_list},))")
+        api_lines.extend(lignes_numerotation)
+        api_lines.append(_render('        cursor.execute(query, (${_v0},))', _v0=values_list))
         api_lines.append("        row_id = cursor.fetchone()[0]")
         # AJOUT (brique 12, point 82) : le total du parent est recalculé
         # DANS la même transaction que l'insertion de la ligne. Un commit
@@ -265,9 +262,9 @@ class CreationRoutesMixin:
         # arrière — c'est-à-dire un panier qui ne dit pas ce qu'il coûte,
         # et sur une entité 'payable', un montant faux à encaisser.
         for recalcul in self._aggregation_recomputes(base_target):
-            parent = f"data.{recalcul['fk_column']}"
+            parent = _render('data.${_v0}', _v0=recalcul['fk_column'])
             api_lines.append(
-                f"        cursor.execute({recalcul['sql']!r}, ({parent}, {parent}))")
+                _render('        cursor.execute(${_v0}, (${_v1}, ${_v2}))', _v0=repr(recalcul['sql']), _v1=parent, _v2=parent))
         for rule in reputation_rules_here:
             target_table = rule.target_entity.lower()
             target_field = rule.target_field
@@ -283,10 +280,10 @@ class CreationRoutesMixin:
             # décrémentait le mauvais enregistrement ») : il est revenu
             # par la porte de la deuxième relation.
             fk_vers_cible = rule.target_fk
-            fk_value_expr = f"data.{fk_vers_cible}"
+            fk_value_expr = _render('data.${_v0}', _v0=fk_vers_cible)
             # BRIQUE 14 (point 86) : la quantité est soit une constante,
             # soit un champ du corps de requête ('by quantity').
-            quantite = (f"data.{rule.amount_field}" if rule.amount_field
+            quantite = (_render('data.${_v0}', _v0=rule.amount_field) if rule.amount_field
                         else str(rule.amount))
             # LE cœur de la brique. Un décompte qui peut passer sous son
             # plancher est un stock qui MENT : la boutique afficherait
@@ -301,25 +298,21 @@ class CreationRoutesMixin:
                 # évaluées ensemble, donc deux commandes simultanées ne
                 # peuvent pas lire le même stock et le décompter deux fois.
                 api_lines.append(
-                    f"        cursor.execute('UPDATE \"{target_table}\" SET \"{target_field}\" = "
-                    f'"{target_field}" - ? WHERE id = ? AND "{target_field}" - ? >= ?\', '
-                    f"({quantite}, {fk_value_expr}, {quantite}, {borne}))")
+                    _render('        cursor.execute(\'UPDATE "${_v0}" SET "${_v1}" = "${_v2}" - ? WHERE id = ? AND "${_v3}" - ? >= ?\', (${_v4}, ${_v5}, ${_v6}, ${_v7}))', _v0=target_table, _v1=target_field, _v2=target_field, _v3=target_field, _v4=quantite, _v5=fk_value_expr, _v6=quantite, _v7=borne))
                 # Ni rollback ni close ICI : on est dans le `try` de la
                 # création, dont le `except Exception` s'en charge avant
                 # de relayer. Les faire deux fois donnait 500 — la
                 # seconde fermeture opérait sur une connexion déjà close
                 # (vérifié contre un vrai serveur : le refus de stock
                 # répondait 500 au lieu de 409).
-                api_lines += [
+                api_lines.extend([
                     "        if cursor.rowcount == 0:",
                     "            raise HTTPException(status_code=409, detail=(",
-                    f"                '{rule.target_entity}.{target_field} insuffisant : "
-                    f"la quantité demandée dépasse ce qui reste disponible.'))",
-                ]
+                    _render("                '${_v0}.${_v1} insuffisant : la quantité demandée dépasse ce qui reste disponible.'))", _v0=rule.target_entity, _v1=target_field),
+                ])
             else:
                 api_lines.append(
-                    f"        cursor.execute('UPDATE \"{target_table}\" SET \"{target_field}\" = \"{target_field}\" {sql_op} ? "
-                    f"WHERE id = ?', ({quantite}, {fk_value_expr}))"
+                    _render('        cursor.execute(\'UPDATE "${_v0}" SET "${_v1}" = "${_v2}" ${_v3} ? WHERE id = ?\', (${_v4}, ${_v5}))', _v0=target_table, _v1=target_field, _v2=target_field, _v3=sql_op, _v4=quantite, _v5=fk_value_expr)
                 )
         api_lines.append("        conn.commit()")
         # POINT 85 : jusqu'ici ce 409 ne pouvait venir que d'une clé
@@ -351,18 +344,15 @@ class CreationRoutesMixin:
         # `raise` est un `except` qui ment.
         once_names = tuple(index[2] for index in once_ici)
         once_signatures = tuple(
-            f"{table}.{col}" for table, columns, _index in once_ici for col in columns)
+            _render('${_v0}.${_v1}', _v0=table, _v1=col) for table, columns, _index in once_ici for col in columns)
         api_lines.append("    except _DATABASE_INTEGRITY_ERRORS as _err:")
         api_lines.append("        conn.rollback(); conn.close()")
         api_lines.append(
-            f"        _integrity_kind = _database_integrity_kind(_err, {once_names!r}, "
-            f"{once_signatures!r})")
+            _render('        _integrity_kind = _database_integrity_kind(_err, ${_v0}, ${_v1})', _v0=repr(once_names), _v1=repr(once_signatures)))
         if once_ici:
             api_lines.append("        if _integrity_kind == 'once_per':")
             api_lines.append("            raise HTTPException(status_code=409, detail=(")
-            api_lines.append(
-                "                'Cette action a déjà été effectuée pour cette "
-                "cible par ce compte.'))")
+            api_lines.append(_render(r"""                'Cette action a déjà été effectuée pour cette cible par ce compte.'))"""))
         # La branche `unique` est émise MÊME sans champ `unique` déclaré : la
         # brique 22 (`numbered`) pose un index unique sans qu'on le déclare,
         # et le point 85 en pose un par `unique`. Ne l'émettre que sur la
@@ -371,19 +361,16 @@ class CreationRoutesMixin:
         api_lines.append("            raise HTTPException(status_code=409, detail=(")
         if uniques_ici:
             api_lines.append(
-                f"                'Valeur déjà utilisée : {', '.join(uniques_ici)} "
-                f"doit être unique.'))")
+                _render("                'Valeur déjà utilisée : ${_v0} doit être unique.'))", _v0=', '.join(uniques_ici)))
         else:
-            api_lines.append(
-                "                'Valeur déjà utilisée : cet enregistrement "
-                "existe déjà.'))")
+            api_lines.append(_render(r"""                'Valeur déjà utilisée : cet enregistrement existe déjà.'))"""))
         api_lines.append("        if _integrity_kind == 'foreign_key':")
         api_lines.append("            raise HTTPException(status_code=409, detail=(")
         api_lines.append("                'Référence invalide : un identifiant lié fourni ne correspond à aucun '")
         api_lines.append("                'enregistrement existant.'))")
         api_lines.append("        raise HTTPException(status_code=409, detail=(")
-        api_lines.append("            \"Conflit d'intégrité en base : l'écriture a été annulée, \"")
-        api_lines.append("            'rien n\\'a été enregistré.'))")
+        api_lines.append(_render(r'''            "Conflit d'intégrité en base : l'écriture a été annulée, "'''))
+        api_lines.append(_render(r"""            'rien n\'a été enregistré.'))"""))
         api_lines.append("    except Exception:")
         api_lines.append("        conn.rollback(); conn.close(); raise")
         api_lines.append("    conn.close()")
@@ -392,7 +379,7 @@ class CreationRoutesMixin:
             # panne SMTP ne peut donc ni annuler la ligne ni transformer une
             # route métier en route d'attente réseau.
             api_lines.append(
-                f"    _declencher_message({base_target!r}, current_user_id, row_id)")
+                _render('    _declencher_message(${_v0}, current_user_id, row_id)', _v0=repr(base_target)))
         api_lines.append("    return {'status': 'success', 'id': row_id}")
         api_lines.append("")
 
