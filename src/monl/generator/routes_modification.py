@@ -4,6 +4,8 @@ Le montant est RECALCULÉ ici depuis la clé étrangère STOCKÉE, jamais celle
 du corps de requête — leçon du point 78 : calculer sur `data.<fk>` laissait
 facturer 89 € un article à 189 €."""
 
+from string import Template
+
 from . import sql
 
 
@@ -45,16 +47,16 @@ class ModificationRoutesMixin:
         ownership_check_lines = []
         if apply_update_parties:
             update_deps += ", current_user_id: int = Depends(get_current_user_id)" if update_deps else "current_user_id: int = Depends(get_current_user_id)"
-            cols_literal = ", ".join(f'\"{c}\"' for c in update_parties)
+            cols_literal = ", ".join(Template('"${_t0}"').substitute(_t0=c) for c in update_parties)
             ownership_check_lines = [
                 "    _p_conn = _connect(); _p_cur = _p_conn.cursor()",
-                f"    _p_cur.execute('SELECT {cols_literal} FROM \"{base_target.lower()}\" WHERE id = ?', (id,))",
+                Template('    _p_cur.execute(\'SELECT ${_t0} FROM "${_t1}" WHERE id = ?\', (id,))').substitute(_t0=cols_literal, _t1=base_target.lower()),
                 "    _p_row = _p_cur.fetchone(); _p_conn.close()",
                 "    if not _p_row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
             ]
             if apply_update_super:
-                _superset = ", ".join(f'"{s}"' for s in update_supers)
-                ownership_check_lines.append(f"    if current_actor not in {{{_superset}}}:")
+                _superset = ", ".join(Template('"${_t0}"').substitute(_t0=s) for s in update_supers)
+                ownership_check_lines.append(Template('    if current_actor not in {${_t0}}:').substitute(_t0=_superset))
                 ownership_check_lines.append("        if current_user_id not in _p_row: raise HTTPException(status_code=403, ")
                 ownership_check_lines.append("        detail=\"Contrôle d'accès : seules les parties de la ressource peuvent exécuter cette action\")")
             else:
@@ -74,18 +76,17 @@ class ModificationRoutesMixin:
             # retrouverait bloqué à tort, puisqu'il ne "possède" jamais
             # la ressource au sens de la relation hasMany/belongsTo.
             ownership_check_lines = [
-                f"    if current_actor == \"{check_actor}\":",
+                Template('    if current_actor == "${_t0}":').substitute(_t0=check_actor),
                 "        _owner_conn = _connect(); _owner_cur = _owner_conn.cursor()",
-                f"        _owner_cur.execute({owner_select.text!r}, {sql.params_tuple(owner_select)})",
+                Template('        _owner_cur.execute(${_t0}, ${_t1})').substitute(_t0=repr(owner_select.text), _t1=sql.params_tuple(owner_select)),
                 "        _owner_row = _owner_cur.fetchone(); _owner_conn.close()",
                 "        if not _owner_row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
-                "        if _owner_row[0] != current_user_id: raise HTTPException(status_code=403, "
-                "detail=\"Contrôle d'accès : seul le propriétaire de la ressource peut exécuter cette action\")",
+                Template("        if _owner_row[0] != current_user_id: raise HTTPException(status_code=403, detail=\"Contrôle d'accès : seul le propriétaire de la ressource peut exécuter cette action\")").substitute(),
             ]
 
-        update_deps_suffix = f", {update_deps}" if update_deps else ""
-        api_lines.append(f"@app.put('/{base_target.lower()}/{{id}}', tags=['{tag}'])")
-        api_lines.append(f"def update_{base_target.lower()}(id: int, data: {base_target}Schema{update_deps_suffix}):")
+        update_deps_suffix = Template(', ${_t0}').substitute(_t0=update_deps) if update_deps else ""
+        api_lines.append(Template("@app.put('/${_t0}/{id}', tags=['${_t1}'])").substitute(_t0=base_target.lower(), _t1=tag))
+        api_lines.append(Template('def update_${_t0}(id: int, data: ${_t1}Schema${_t2}):').substitute(_t0=base_target.lower(), _t1=base_target, _t2=update_deps_suffix))
         api_lines.append(security_check)
         api_lines.extend(ownership_check_lines)
         api_lines.append("    conn = _connect(); cursor = conn.cursor()")
@@ -102,15 +103,14 @@ class ModificationRoutesMixin:
         # commande que celle à laquelle la ligne appartient (leçon du
         # point 78).
         for verrou in self._payment_locked_parents(base_target):
-            lien = f"_verrou_{verrou['fk_column']}"
+            lien = Template('_verrou_${_t0}').substitute(_t0=verrou['fk_column'])
             api_lines += [
-                f"    cursor.execute('SELECT \"{verrou['fk_column']}\" FROM "
-                f'"{base_target.lower()}" WHERE id = ?\', (id,))',
-                f"    {lien} = cursor.fetchone()",
-                f"    if {lien} and {lien}[0] is not None:",
+                Template('    cursor.execute(\'SELECT "${_t0}" FROM "${_t1}" WHERE id = ?\', (id,))').substitute(_t0=verrou['fk_column'], _t1=base_target.lower()),
+                Template('    ${_t0} = cursor.fetchone()').substitute(_t0=lien),
+                Template('    if ${_t0} and ${_t1}[0] is not None:').substitute(_t0=lien, _t1=lien),
             ]
             api_lines += self._payment_lock_lines(
-                verrou["table"], f"{lien}[0]", verrou["entity"],
+                verrou["table"], Template('${_t0}[0]').substitute(_t0=lien), verrou["entity"],
                 indent="        ", var="_parent_regle")
         fields = list(self.entities[base_target].keys())
         # CORRECTIF (point 78) : un champ 'generated' n'est PAS dans le
@@ -139,27 +139,22 @@ class ModificationRoutesMixin:
                 # `data.<fk>` laissait un client abaisser le montant en
                 # déclarant un article bon marché qu'il ne pointait pas
                 # (189 € facturés 89 €, vérifié).
-                f"    cursor.execute('SELECT \"{fk_col}\" FROM "
-                f'"{base_target.lower()}" WHERE id = ?\', (id,))',
-                f"    _lien_{champ} = cursor.fetchone()",
-                f"    if not _lien_{champ}:",
+                Template('    cursor.execute(\'SELECT "${_t0}" FROM "${_t1}" WHERE id = ?\', (id,))').substitute(_t0=fk_col, _t1=base_target.lower()),
+                Template('    _lien_${_t0} = cursor.fetchone()').substitute(_t0=champ),
+                Template('    if not _lien_${_t0}:').substitute(_t0=champ),
                 "        conn.close()",
                 "        raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
-                f"    cursor.execute('SELECT \"{regle.source_field}\" FROM "
-                f'"{regle.source_entity.lower()}" WHERE id = ?\', '
-                f"(_lien_{champ}[0],))",
-                f"    _src_{champ} = cursor.fetchone()",
-                f"    if not _src_{champ}:",
+                Template('    cursor.execute(\'SELECT "${_t0}" FROM "${_t1}" WHERE id = ?\', (_lien_${_t2}[0],))').substitute(_t0=regle.source_field, _t1=regle.source_entity.lower(), _t2=champ),
+                Template('    _src_${_t0} = cursor.fetchone()').substitute(_t0=champ),
+                Template('    if not _src_${_t0}:').substitute(_t0=champ),
                 "        conn.close()",
                 "        raise HTTPException(status_code=409, detail=(",
-                f"            '{regle.source_entity} introuvable : impossible de recalculer "
-                f"{champ}.'))",
-                f"    if data.{regle.factor} <= 0:",
+                Template("            '${_t0} introuvable : impossible de recalculer ${_t1}.'))").substitute(_t0=regle.source_entity, _t1=champ),
+                Template('    if data.${_t0} <= 0:').substitute(_t0=regle.factor),
                 "        conn.close()",
                 "        raise HTTPException(status_code=400, detail=(",
                 "            'La quantité doit être strictement positive.'))",
-                f"    _calcul_{champ} = round(float(_src_{champ}[0] or 0) "
-                f"* int(data.{regle.factor}), 2)",
+                Template('    _calcul_${_t0} = round(float(_src_${_t1}[0] or 0) * int(data.${_t2}), 2)').substitute(_t0=champ, _t1=champ, _t2=regle.factor),
             ]
         # AJOUT (brique 12, point 82) : un champ 'sumOf' n'est pas dans
         # `data` et n'a rien à faire dans le SET — le réécrire depuis la
@@ -222,8 +217,7 @@ class ModificationRoutesMixin:
             # pouvoir fermer la connexion, ce que le `except
             # IntegrityError` des écritures ne ferait pas pour lui.
             api_lines += [
-                f"    cursor.execute('SELECT \"{regle['field']}\" FROM "
-                f'"{base_target.lower()}" WHERE id = ?\', (id,))',
+                Template('    cursor.execute(\'SELECT "${_t0}" FROM "${_t1}" WHERE id = ?\', (id,))').substitute(_t0=regle['field'], _t1=base_target.lower()),
                 "    _etat_avant = cursor.fetchone()",
                 # LE trou que la première version laissait ouverte :
                 # annuler rendait le stock, puis RÉACTIVER la commande la
@@ -232,16 +226,14 @@ class ModificationRoutesMixin:
                 # reprendre au retour supposerait qu'il soit encore
                 # disponible, ce que rien ne garantit : l'état libéré est
                 # donc TERMINAL, et le message dit quoi faire à la place.
-                f"    if (_etat_avant and _etat_avant[0] == {regle['value']!r}",
-                f"            and data.{regle['field']} != {regle['value']!r}):",
+                Template('    if (_etat_avant and _etat_avant[0] == ${_t0}').substitute(_t0=repr(regle['value'])),
+                Template('            and data.${_t0} != ${_t1}):').substitute(_t0=regle['field'], _t1=repr(regle['value'])),
                 "        conn.close()",
                 "        raise HTTPException(status_code=409, detail=(",
-                f"            \"Cet enregistrement est {regle['value']} : ce qu'il "
-                f"avait consommé a été rendu, \"",
-                "            'et rien ne garantit que ce soit encore disponible. "
-                "En créer un nouveau.'))",
-                f"    _bascule = (_etat_avant and _etat_avant[0] != {regle['value']!r}",
-                f"                and data.{regle['field']} == {regle['value']!r})",
+                Template('            "Cet enregistrement est ${_t0} : ce qu\'il avait consommé a été rendu, "').substitute(_t0=regle['value']),
+                Template("            'et rien ne garantit que ce soit encore disponible. En créer un nouveau.'))").substitute(),
+                Template('    _bascule = (_etat_avant and _etat_avant[0] != ${_t0}').substitute(_t0=repr(regle['value'])),
+                Template('                and data.${_t0} == ${_t1})').substitute(_t0=regle['field'], _t1=repr(regle['value'])),
             ]
             lignes_ecriture.append("if _bascule:")
             # Aucun plancher : on rend un état qui a existé et qui était
@@ -281,30 +273,25 @@ class ModificationRoutesMixin:
             cible = rule.target_entity.lower()
             vise = rule.target_field
             lignes_ecriture += [
-                f"cursor.execute('SELECT \"{champ}\", \"{fk_cible}\" FROM "
-                f'"{base_target.lower()}" WHERE id = ?\', (id,))',
+                Template('cursor.execute(\'SELECT "${_t0}", "${_t1}" FROM "${_t2}" WHERE id = ?\', (id,))').substitute(_t0=champ, _t1=fk_cible, _t2=base_target.lower()),
                 "_avant = cursor.fetchone()",
                 "if _avant and _avant[1] is not None:",
-                f"    _delta = int(data.{champ}) - int(_avant[0] or 0)",
+                Template('    _delta = int(data.${_t0}) - int(_avant[0] or 0)').substitute(_t0=champ),
                 "    if _delta != 0:",
-                f"        cursor.execute('UPDATE \"{cible}\" SET \"{vise}\" = "
-                f'"{vise}" - ? WHERE id = ? AND "{vise}" - ? >= ?\', '
-                "(_delta, _avant[1], _delta, "
-                f"{plancher}))",
+                Template('        cursor.execute(\'UPDATE "${_t0}" SET "${_t1}" = "${_t2}" - ? WHERE id = ? AND "${_t3}" - ? >= ?\', (_delta, _avant[1], _delta, ${_t4}))').substitute(_t0=cible, _t1=vise, _t2=vise, _t3=vise, _t4=plancher),
                 "        if cursor.rowcount == 0:",
                 "            conn.rollback(); conn.close()",
                 "            raise HTTPException(status_code=409, detail=(",
-                f"                '{rule.target_entity}.{vise} insuffisant : "
-                f"la quantité demandée dépasse ce qui reste disponible.'))",
+                Template("                '${_t0}.${_t1} insuffisant : la quantité demandée dépasse ce qui reste disponible.'))").substitute(_t0=rule.target_entity, _t1=vise),
             ]
         if ecrits:
-            update_stmt = ", ".join([f'"{f}" = ?' for f in ecrits])
-            lignes_ecriture.append(f"query = 'UPDATE \"{base_target.lower()}\" SET {update_stmt} WHERE id = ?'")
+            update_stmt = ", ".join([Template('"${_t0}" = ?').substitute(_t0=f) for f in ecrits])
+            lignes_ecriture.append(Template('query = \'UPDATE "${_t0}" SET ${_t1} WHERE id = ?\'').substitute(_t0=base_target.lower(), _t1=update_stmt))
             values_list = ", ".join([
-                f"_calcul_{f}" if f in noms_derives else f"data.{f}"
+                Template('_calcul_${_t0}').substitute(_t0=f) if f in noms_derives else Template('data.${_t0}').substitute(_t0=f)
                 for f in ecrits
             ])
-            lignes_ecriture.append(f"cursor.execute(query, ({values_list}, id))")
+            lignes_ecriture.append(Template('cursor.execute(query, (${_t0}, id))').substitute(_t0=values_list))
         else:
             # Entité dont TOUS les attributs sont peuplés par le serveur :
             # « SET  WHERE id = ? » serait du SQL invalide. Rien à écrire
@@ -318,13 +305,12 @@ class ModificationRoutesMixin:
         # commande, et pas celui de la vraie. Exactement la leçon du
         # point 78, sur une autre brique.
         for recalcul in self._aggregation_recomputes(base_target):
-            var = f"_parent_{recalcul['fk_column']}"
+            var = Template('_parent_${_t0}').substitute(_t0=recalcul['fk_column'])
             lignes_ecriture += [
-                f"cursor.execute('SELECT \"{recalcul['fk_column']}\" FROM "
-                f'"{base_target.lower()}" WHERE id = ?\', (id,))',
-                f"{var} = cursor.fetchone()",
-                f"if {var}:",
-                f"    cursor.execute({recalcul['sql']!r}, ({var}[0], {var}[0]))",
+                Template('cursor.execute(\'SELECT "${_t0}" FROM "${_t1}" WHERE id = ?\', (id,))').substitute(_t0=recalcul['fk_column'], _t1=base_target.lower()),
+                Template('${_t0} = cursor.fetchone()').substitute(_t0=var),
+                Template('if ${_t0}:').substitute(_t0=var),
+                Template('    cursor.execute(${_t0}, (${_t1}[0], ${_t2}[0]))').substitute(_t0=repr(recalcul['sql']), _t1=var, _t2=var),
             ]
         # POINT 85 : la route Update n'écrivait AUCUNE clé étrangère, donc
         # elle ne pouvait pas lever d'IntegrityError — d'où l'absence de
@@ -335,17 +321,16 @@ class ModificationRoutesMixin:
         uniques_upd = self._unique_fields(base_target)
         if uniques_upd:
             api_lines.append("    try:")
-            api_lines += [f"        {ligne}" for ligne in lignes_ecriture]
+            api_lines += [Template('        ${_t0}').substitute(_t0=ligne) for ligne in lignes_ecriture]
             api_lines.append("        conn.commit()")
             api_lines.append("    except _DATABASE_INTEGRITY_ERRORS:")
             api_lines.append("        conn.rollback(); conn.close()")
             api_lines.append("        raise HTTPException(status_code=409, detail=(")
             api_lines.append(
-                f"            'Valeur déjà utilisée : {', '.join(uniques_upd)} "
-                f"doit être unique.'))")
+                Template("            'Valeur déjà utilisée : ${_t0} doit être unique.'))").substitute(_t0=', '.join(uniques_upd)))
             api_lines.append("    conn.close()")
         else:
-            api_lines += [f"    {ligne}" for ligne in lignes_ecriture]
+            api_lines += [Template('    ${_t0}').substitute(_t0=ligne) for ligne in lignes_ecriture]
             api_lines.append("    conn.commit(); conn.close()")
         api_lines.append("    return {'status': 'success', 'id': id}")
         api_lines.append("")
