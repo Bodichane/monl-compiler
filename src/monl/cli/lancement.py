@@ -16,7 +16,7 @@ def cmd_run(project_dir, check_only=False, port=8000, skip_smoke=False):
         for e in errors:
             print(f" ❌ {e}")
         sys.exit(1)
-    print(" ✅ Cohérence statique vérifiée (spec ↔ backend ↔ contrat ↔ frontend).")
+    print(" ✅ Static consistency verified (spec ↔ backend ↔ contract ↔ frontend).")
 
     # Point 1 du pivot : la cohérence statique ne garantit pas que ça
     # FONCTIONNE. Smoke test comportemental sur serveur éphémère (base
@@ -24,18 +24,18 @@ def cmd_run(project_dir, check_only=False, port=8000, skip_smoke=False):
     # HTTP réel, frontend exécuté dans jsdom si Node est disponible.
     if not skip_smoke:
         from ..smoke_test import run_smoke_test
-        print(" -> Smoke test comportemental (serveur éphémère, base neuve)…")
+        print(" -> Behavioral smoke test (temporary server, fresh database)…")
         smoke_ok, smoke_errors, smoke_warnings = run_smoke_test(project_dir)
         for w in smoke_warnings:
             print(f" ⚠️  {w}")
         if not smoke_ok:
             for e in smoke_errors:
                 print(f" ❌ {e}")
-            print(" ❌ Smoke test échoué — l'application ne sera pas lancée "
-                  "(contourner en connaissance de cause : --skip-smoke).")
+            print(" ❌ Smoke test failed — the application will not be started "
+                  "(bypass knowingly with --skip-smoke).")
             sys.exit(1)
-        print(" ✅ Smoke test réussi : l'API répond conformément au contrat"
-              + (" et le frontend s'exécute sans erreur." if os.path.isdir(
+        print(" ✅ Smoke test passed: the API responds according to the contract"
+              + (" and the frontend runs without errors." if os.path.isdir(
                   os.path.join(os.path.abspath(project_dir), "frontend")) else "."))
     if check_only:
         return
@@ -68,13 +68,13 @@ def cmd_run(project_dir, check_only=False, port=8000, skip_smoke=False):
             fh.write(rendre_wrapper(assets_dir))
     module = "serve:app"
     if has_frontend:
-        print(f" -> Frontend monté sur http://127.0.0.1:{port}/site")
+        print(f" -> Frontend mounted at http://127.0.0.1:{port}/site")
         if assets_dir and os.path.isdir(os.path.join(project_dir, assets_dir)):
-            print(f" -> Assets ({assets_dir}/) montés sur "
+            print(f" -> Assets ({assets_dir}/) mounted at "
                   f"http://127.0.0.1:{port}/site/{assets_dir}/")
     else:
-        print(" -> Aucun frontend : l'API répond, /site renverra 404 "
-              "(construire l'interface avec 'monl frontend').")
-    print(f" -> Lancement : uvicorn {module} (port {port})")
+        print(" -> No frontend: the API is available; /site will return 404 "
+              "(build the interface with 'monl frontend').")
+    print(f" -> Starting: uvicorn {module} (port {port})")
     subprocess.run([sys.executable, "-m", "uvicorn", module,
                     "--host", "127.0.0.1", "--port", str(port)], cwd=project_dir)
