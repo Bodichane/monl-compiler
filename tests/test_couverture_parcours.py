@@ -103,7 +103,7 @@ def test_un_frontend_minimal_n_est_pas_declare_reussi(tmp_path):
 
     assert not ok
     message = "\n".join(errors + warnings)
-    assert "Couverture frontend" in message
+    assert "Frontend coverage:" in message
     assert "workflow 'Commande'" in message
     assert "workflow 'Compte'" in message
     assert "POST /order" in message
@@ -125,8 +125,8 @@ def test_un_frontend_qui_couvre_les_routes_du_contrat_passe(tmp_path):
     ok, errors, warnings = check_coherence(str(project))
 
     assert ok, errors
-    assert not any("Couverture frontend" in warning for warning in warnings)
-    assert not any("Parcours frontend manquant" in warning for warning in warnings)
+    assert not any("Frontend coverage:" in warning for warning in warnings)
+    assert not any("Missing frontend workflow:" in warning for warning in warnings)
 
 
 def test_un_fetch_par_gabarit_api_base_couvre_la_bonne_route(tmp_path):
@@ -167,7 +167,7 @@ async function authenticate(action) {
 
     assert not ok
     message = "\n".join(errors)
-    assert "REFUSÉ" in message
+    assert "REJECTED: fetch calls path /auth, which is absent from the contract" in message
     assert "/auth" in message
     assert "/login" in message and "/register" in message
 
@@ -211,7 +211,8 @@ def test_un_chemin_fetch_irreductible_ne_declenche_rien(tmp_path):
     ok, errors, warnings = check_coherence(str(project))
 
     assert ok, errors
-    assert not any("REFUSÉ" in message for message in errors + warnings)
+    assert not any("REJECTED: fetch calls path" in message
+                   for message in errors + warnings)
 
 
 def test_le_brief_enonce_le_plancher_des_workflows(tmp_path):
