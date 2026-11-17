@@ -108,7 +108,7 @@ def test_sans_oneOf_la_regle_est_refusee(capsys):
 def test_une_valeur_hors_de_la_liste_est_refusee(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace('"annulée" releases', '"remboursée" releases'))
-    assert "jamais" in str(refus.value)
+    assert "it would never occur" in str(refus.value)
     capsys.readouterr()
 
 
@@ -141,7 +141,7 @@ def test_une_entite_inconnue_est_refusee(capsys):
 def test_deux_regles_sur_le_meme_champ_sont_refusees(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC + 'rule Commande.statut "panier" releases Ligne\n')
-    assert "deuxième fois" in str(refus.value)
+    assert "the second would return it a second time" in str(refus.value)
     capsys.readouterr()
 
 

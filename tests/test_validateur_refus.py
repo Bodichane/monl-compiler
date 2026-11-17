@@ -68,10 +68,10 @@ CIBLES_INEXISTANTES = [
      "targets field 'Note.fantome'"),
     ("writableAfterPayment sur une entité absente",
      "rule Fantome.titre writableAfterPayment Admin",
-     "'writableAfterPayment' cible l'entité 'Fantome'"),
+     "'writableAfterPayment' rule targets entity 'Fantome'"),
     ("writableAfterPayment sur un champ absent",
      "rule Note.fantome writableAfterPayment Admin",
-     "cible le champ 'Note.fantome'"),
+     "targets field 'Note.fantome'"),
     ("hidden sur une entité absente", "rule Fantome.titre hidden",
      "'hidden' rule targets entity 'Fantome'"),
     ("hidden sur un champ absent", "rule Note.fantome hidden",
@@ -964,7 +964,7 @@ def test_writable_after_payment_exige_une_entite_payable():
         _valide(SPEC_PANIER.format(
             regles=SOMME
             + "\nrule Commande.libelle writableAfterPayment Client"))
-    assert "ne vaut que sur une entité 'payable'" in str(refus.value)
+    assert "only applies to a 'payable' entity" in str(refus.value)
 
 
 def test_writable_after_payment_refuse_un_champ_ecrit_par_le_serveur():
@@ -1013,7 +1013,7 @@ def test_writable_after_payment_refuse_le_proprietaire():
     with pytest.raises(ASTValidationError) as refus:
         _valide(_apres_paiement(
             "rule Commande.statut writableAfterPayment Client"))
-    assert "déjà propriétaire" in str(refus.value)
+    assert "who already owns 'Commande'" in str(refus.value)
 
 
 def test_writable_after_payment_refuse_deux_acteurs_par_entite():
@@ -1031,7 +1031,7 @@ def test_writable_after_payment_refuse_un_doublon_de_champ():
     regle = "rule Commande.statut writableAfterPayment Superviseur"
     with pytest.raises(ASTValidationError) as refus:
         _valide(_apres_paiement(regle + "\n" + regle))
-    assert "plusieurs règles 'writableAfterPayment'" in str(refus.value)
+    assert "multiple 'writableAfterPayment' rules are declared" in str(refus.value)
 
 
 def test_writable_after_payment_bien_forme_compile_et_normalise():
