@@ -306,4 +306,5 @@ class LectureRoutesMixin:
             "Integer": "int", "Float": "float", "Money": "float",
             "Boolean": "bool",
         }
-        return f"Optional[{type_map.get(self.entities[entity][field], 'str')}]"
+        return Template("Optional[$field_type]").substitute(
+            field_type=type_map.get(self.entities[entity][field], "str"))
