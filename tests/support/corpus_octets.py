@@ -96,6 +96,30 @@ def corpus_specs():
               "rule Ligne.Create increments Produit.points")
     cases["filtered_sort_public"] = SPEC_FILTRE.replace(
         "rule Item.Read ownedBy User\n", "rule Item.Read public\n")
+    cases["filtered_sort_hidden"] = SPEC_FILTRE.replace(
+        "    rank: Integer\n", "    rank: Integer\n    secret: String\n"
+    ).replace(
+        "rule Item.Read filter title\n",
+        "rule Item.Read filter title\nrule Item.secret hidden\n",
+    )
+    cases["filtered_sort_categorized"] = SPEC_FILTRE.replace(
+        "    rank: Integer\n", "    rank: Integer\n    likes: Integer\n"
+    ).replace(
+        "rule Item.Read filter title\n",
+        "rule Item.Read filter title\n"
+        'rule Item.likes categorized: "discret" below 10, "populaire" below 100, "viral" otherwise\n',
+    )
+    cases["filtered_sort_parties_supervisor"] = SPEC_FILTRE.replace(
+        "    rank: Integer\n", "    rank: Integer\n    recipient_id: Integer\n"
+    ).replace(
+        "rule Item.Read ownedBy User\n",
+        "rule Item.Read accessibleBy user_id, recipient_id\n"
+        "rule Item.Read sharedBy Moderator\nactor Moderator\n",
+    )
+    cases["filtered_sort_public_when_owner"] = SPEC_FILTRE.replace(
+        "rule Item.Read ownedBy User\n",
+        'rule Item.Read ownedBy User\nrule Item.Read publicWhen status "shipped"\n',
+    )
     cases["postpayment_release"] = SPEC_APRES_PAIEMENT
     cases["payment_transitive"] = SPEC_PAIEMENT_TRANSITIF
     cases["delete_and_execute"] = AVEC_CUSTOM.replace(
