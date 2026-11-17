@@ -9,16 +9,16 @@ from monl.dialogue_engine import GuidedDialogue
 
 def _template_index(template):
     if isinstance(template, bool):
-        raise ValueError("un modèle doit être son numéro ou son nom")
+        raise ValueError("a template must be its number or its name")
     if isinstance(template, int):
         if 1 <= template <= len(TEMPLATES):
             return template
-        raise ValueError(f"modèle inconnu : {template}")
+        raise ValueError(f"unknown template: {template}")
     names = {item["name"]: index for index, item in enumerate(TEMPLATES, 1)}
     try:
         return names[str(template)]
     except KeyError as exc:
-        raise ValueError(f"modèle inconnu : {template}") from exc
+        raise ValueError(f"unknown template: {template}") from exc
 
 
 def materialize_template(
@@ -39,7 +39,7 @@ def materialize_template(
     """
     index = _template_index(template)
     if description is None:
-        description = f"Application issue du modèle {TEMPLATES[index - 1]['name']}."
+        description = f"Application built from the {TEMPLATES[index - 1]['name']} template."
     answers = iter((str(index), app_name, description, str(actor_choice)))
     dialogue = GuidedDialogue(
         ask=lambda _prompt: next(answers),

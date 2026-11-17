@@ -142,7 +142,7 @@ def test_erreurs_web_restent_actionnables(tmp_path):
         session = _compte(base)
         empty = requests.post(base + "/api/validate", json={"spec": ""}, timeout=30)
         assert empty.status_code == 422
-        assert "vide" in empty.json()["detail"]
+        assert "empty" in empty.json()["detail"]
         assert session.get(base + "/api/projects/invalide", timeout=30).status_code == 404
 
 
@@ -195,7 +195,7 @@ def test_comptes_isolent_projets_et_cles_mcp(tmp_path):
         foreign = requests.post(base + "/mcp", json=inspect_call,
                                 headers={"Authorization": f"Bearer {bob_key}"}, timeout=30)
         assert foreign.json()["result"]["isError"] is True
-        assert "introuvable" in foreign.text
+        assert "not found" in foreign.text
         assert alice.delete(f"{base}/api/keys/{key_id}", timeout=30).status_code == 204
         assert requests.post(base + "/mcp", json=call,
                              headers={"Authorization": f"Bearer {raw_key}"},
@@ -294,7 +294,7 @@ def test_version_favicon_et_page_introuvable(tmp_path):
         navigateur = requests.get(base + "/inexistant",
                                   headers={"Accept": "text/html"}, timeout=30)
         assert navigateur.status_code == 404
-        assert "Cette page n'existe pas" in navigateur.text
+        assert "This page does not exist" in navigateur.text
 
         client = session.get(base + "/api/projects/inexistant", timeout=30)
         assert client.status_code == 404

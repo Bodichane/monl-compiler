@@ -42,7 +42,7 @@ def _arreter_worker(adresse, project_id):
         canal.sendall(project_id.encode())
         canal.shutdown(socket.SHUT_WR)
         if canal.recv(1) != b"1":
-            raise RuntimeError("Le gestionnaire n'a pas confirmé l'arrêt du site.")
+            raise RuntimeError("The manager did not confirm that the site stopped.")
     return True
 
 

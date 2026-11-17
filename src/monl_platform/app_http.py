@@ -84,7 +84,7 @@ def _require_user_ou_cle(request: Request, identities: IdentityStore) -> dict[st
             return user
     raise HTTPException(
         status_code=401,
-        detail="Connectez-vous, ou fournissez une clé MCP en en-tête Authorization.",
+        detail="Sign in, or provide an MCP key in the Authorization header.",
     )
 
 
@@ -92,7 +92,7 @@ def _require_project(identities: IdentityStore, user_id: str, project_id: str) -
     if not identities.owns_project(user_id, project_id):
         # Même réponse pour un projet absent et celui d'un autre compte :
         # l'identifiant opaque ne devient pas un oracle d'existence.
-        raise HTTPException(status_code=404, detail="Projet introuvable.")
+        raise HTTPException(status_code=404, detail="Project not found.")
 
 
 def _client_ip(request: Request) -> str:
@@ -112,7 +112,7 @@ def _rate_limit(request: Request, identities: IdentityStore, scope: str,
         anomalie("debit_depasse", portee=scope, attente_s=retry)
         raise HTTPException(
             status_code=429,
-            detail="Trop de requêtes. Réessayez plus tard.",
+            detail="Too many requests. Try again later.",
             headers={"Retry-After": str(retry)},
         )
 
@@ -144,17 +144,17 @@ def _veut_du_json(request: Request) -> bool:
 
 def _page_404(detail: str) -> str:
     return page(
-        title="Page introuvable — MONL",
-        description="Cette adresse n'existe pas sur la plateforme monl.",
+        title="Page not found — MONL",
+        description="This address does not exist on the monl platform.",
         body=f"""
 <section class="shell section" style="text-align:center;padding-block:var(--space-8)">
-<span class="eyebrow" style="justify-content:center">Erreur 404</span>
-<h2 style="font-size:clamp(28px,4vw,40px);margin-bottom:var(--space-3)">Cette page n'existe pas.</h2>
+<span class="eyebrow" style="justify-content:center">Error 404</span>
+<h2 style="font-size:clamp(28px,4vw,40px);margin-bottom:var(--space-3)">This page does not exist.</h2>
 <p class="muted" style="max-width:520px;margin:0 auto var(--space-6)">{detail}</p>
 <div style="display:flex;gap:var(--space-3);justify-content:center;flex-wrap:wrap">
-<a class="primary" href="/">Retour à l’accueil</a>
-<a class="secondary" href="/console">Ouvrir la console</a>
-<a class="secondary" href="/guide">Lire le guide</a>
+<a class="primary" href="/">Back to home</a>
+<a class="secondary" href="/console">Open the console</a>
+<a class="secondary" href="/guide">Read the guide</a>
 </div>
 </section>""",
     )
@@ -164,7 +164,7 @@ async def _json_body(request: Request) -> dict:
     if request.headers.get("content-length"):
         try:
             if int(request.headers["content-length"]) > TAILLE_MAX_CORPS_JSON:
-                raise HTTPException(status_code=413, detail="Requête trop volumineuse.")
+                raise HTTPException(status_code=413, detail="Request too large.")
         except ValueError:
             raise HTTPException(status_code=400, detail="Content-Length invalide.") from None
     try:
@@ -173,7 +173,7 @@ async def _json_body(request: Request) -> dict:
         async for morceau in request.stream():
             taille += len(morceau)
             if taille > TAILLE_MAX_CORPS_JSON:
-                raise HTTPException(status_code=413, detail="Requête trop volumineuse.")
+                raise HTTPException(status_code=413, detail="Request too large.")
             morceaux.append(morceau)
         payload = json.loads(b"".join(morceaux))
     except HTTPException:
@@ -181,7 +181,7 @@ async def _json_body(request: Request) -> dict:
     except Exception as exc:
         raise HTTPException(status_code=400, detail="Corps JSON invalide.") from exc
     if not isinstance(payload, dict):
-        raise HTTPException(status_code=400, detail="Un objet JSON est attendu.")
+        raise HTTPException(status_code=400, detail="A JSON object is expected.")
     return payload
 
 
@@ -200,7 +200,7 @@ async def _admission_compilation(request, identities, compile_slots, preparer=No
     if not compile_slots.acquire(blocking=False):
         raise HTTPException(
             status_code=503,
-            detail="Les compilateurs sont occupés. Réessayez dans quelques instants.",
+            detail="The compilers are busy. Try again in a moment.",
             headers={"Retry-After": "5"},
         )
     try:

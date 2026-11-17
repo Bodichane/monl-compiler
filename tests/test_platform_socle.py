@@ -108,7 +108,7 @@ def test_deux_utilisateurs_sont_isoles(platform):
         compiler_le_projet(
             projet_alice, account_id=bob, store=store, workspace_root=root
         )
-    with pytest.raises(ValueError, match="remontée"):
+    with pytest.raises(ValueError, match="path traversal"):
         store.create_project(alice, uuid.uuid4().hex, "../autre")
 
 

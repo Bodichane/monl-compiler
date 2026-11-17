@@ -44,7 +44,7 @@ PARAMETRES_SENSIBLES = re.compile(
 )
 AUTHENTIFICATION_SENSIBLE = re.compile(r"((?:bearer|basic)\s+)[^\s]+", re.IGNORECASE)
 
-MASQUE = "[masqué]"
+MASQUE = "[masked]"
 
 
 def court(identifiant: Any) -> str:

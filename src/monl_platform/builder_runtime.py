@@ -56,7 +56,7 @@ def _ensure_builder_project(runtime, user, project_id):
     """
     identity_project = _identity_project(runtime.identities, user["id"], project_id)
     if identity_project is None:
-        _http_error("Projet introuvable.", status.HTTP_404_NOT_FOUND)
+        _http_error("Project not found.", status.HTTP_404_NOT_FOUND)
 
     project = runtime.store.get_project_for_user(user["id"], project_id)
     if project is None:
@@ -65,7 +65,7 @@ def _ensure_builder_project(runtime, user, project_id):
                 user["id"], project_id, _slug(identity_project["name"], project_id)
             )
         except (OSError, ValueError):
-            _http_error("Le projet ne peut pas être préparé pour une construction.", 422)
+            _http_error("The project cannot be prepared for a build.", 422)
         project = runtime.store.get_project_for_user(user["id"], project_id)
 
     try:
@@ -79,7 +79,7 @@ def _ensure_builder_project(runtime, user, project_id):
     if not spec_path.is_file():
         source = Path(runtime.service.workspace) / project_id / "spec.ml"
         if not source.is_file():
-            _http_error("La spécification du projet est introuvable.", 404)
+            _http_error("The project specification was not found.", 404)
         spec_path.write_bytes(source.read_bytes())
     return project
 

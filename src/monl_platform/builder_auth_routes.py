@@ -63,8 +63,8 @@ def mount_builder_auth_routes(application, runtime):
         if not secret:
             raise HTTPException(
                 status_code=503,
-                detail=f"connexion indisponible : la variable d'environnement "
-                       f"{OAUTH_STATE_SECRET_ENV} n'est pas renseignée sur ce serveur",
+                detail=f"sign-in unavailable: the environment variable "
+                       f"{OAUTH_STATE_SECRET_ENV} is not set on this server",
             )
         try:
             browser_secret = make_browser_secret()
@@ -95,13 +95,13 @@ def mount_builder_auth_routes(application, runtime):
         if not secret:
             raise HTTPException(
                 status_code=503,
-                detail=f"connexion indisponible : la variable d'environnement "
-                       f"{OAUTH_STATE_SECRET_ENV} n'est pas renseignée sur ce serveur",
+                detail=f"sign-in unavailable: the environment variable "
+                       f"{OAUTH_STATE_SECRET_ENV} is not set on this server",
             )
         try:
             check_state(state, provider, secret, request.cookies.get(OAUTH_FLOW_COOKIE))
             if not code:
-                raise OAuthError("le fournisseur n'a renvoyé aucun code", status_code=400)
+                raise OAuthError("the provider returned no code", status_code=400)
             provider_token = exchange_code(provider, code)
             identifier, display_name = fetch_identity(provider, provider_token)
             user_id, _created = identities.upsert_oauth_account(
@@ -130,5 +130,5 @@ def mount_builder_auth_routes(application, runtime):
     def download(name: str):
         path = resolve_artifact(runtime.downloads_dir, name)
         if path is None:
-            _http_error("artefact introuvable", 404)
+            _http_error("artifact not found", 404)
         return FileResponse(path, media_type="application/octet-stream", filename=path.name)

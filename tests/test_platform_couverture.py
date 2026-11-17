@@ -294,7 +294,7 @@ def test_les_garde_fous_http_normalisent_et_refusent_les_entrees_invalides(
     assert app_http._require_user(authenticated, identities)["id"] == user["id"]
     with pytest.raises(HTTPException, match="Connectez-vous"):
         app_http._require_user(_request(), identities)
-    with pytest.raises(HTTPException, match="Projet introuvable"):
+    with pytest.raises(HTTPException, match="Project not found"):
         app_http._require_project(identities, user["id"], "absent")
 
     assert app_http._client_ip(_request()) == "127.0.0.1"
@@ -312,7 +312,7 @@ def test_les_garde_fous_http_normalisent_et_refusent_les_entrees_invalides(
     assert app_http._veut_du_json(_request("/api/test", headers=(("accept", "text/html"),)))
     assert not app_http._veut_du_json(_request("/page", headers=(("accept", "text/html"),)))
     assert app_http._veut_du_json(_request("/page", headers=(("accept", "application/json"),)))
-    assert "Cette page n'existe pas" in app_http._page_404("absente")
+    assert "This page does not exist" in app_http._page_404("absente")
 
     response = app_http._session_response(identities, user, extra={"ok": True})
     assert response.status_code == 200 and b'"ok":true' in response.body
@@ -323,7 +323,7 @@ def test_les_garde_fous_http_normalisent_et_refusent_les_entrees_invalides(
     assert asyncio.run(app_http._json_body(_request(
         body=b'{"spec":"ok"}', headers=(("content-type", "application/json"),)
     ))) == {"spec": "ok"}
-    with pytest.raises(HTTPException, match="trop volumineuse"):
+    with pytest.raises(HTTPException, match="too large"):
         asyncio.run(app_http._json_body(_request(
             headers=(("content-length", "300001"),), body=b"{}"
         )))
@@ -333,7 +333,7 @@ def test_les_garde_fous_http_normalisent_et_refusent_les_entrees_invalides(
         )))
     with pytest.raises(HTTPException, match="Corps JSON invalide"):
         asyncio.run(app_http._json_body(_request(body=b"pas-json")))
-    with pytest.raises(HTTPException, match="objet JSON"):
+    with pytest.raises(HTTPException, match="JSON object"):
         asyncio.run(app_http._json_body(_request(body=b"[]")))
 
 
@@ -511,13 +511,13 @@ def test_le_store_valide_ses_metadonnees_et_ses_transitions(tmp_path):
     assert PlatformStore._normalize_model_routes([" Product = quality "]) == {
         "Product": "quality"
     }
-    with pytest.raises(ValueError, match="chaînes"):
+    with pytest.raises(ValueError, match="strings"):
         PlatformStore._normalize_model_routes([1])
-    with pytest.raises(ValueError, match="attendue"):
+    with pytest.raises(ValueError, match="expected form"):
         PlatformStore._normalize_model_routes(["Product"])
-    with pytest.raises(ValueError, match="répétée"):
+    with pytest.raises(ValueError, match="repeated"):
         PlatformStore._normalize_model_routes(["Product=a", "Product=b"])
-    with pytest.raises(ValueError, match="objet"):
+    with pytest.raises(ValueError, match="object"):
         PlatformStore._normalize_model_routes("Product=fast")
     assert PlatformStore._project_values(None) is None
     assert PlatformStore._project_values({"model_routes": "pas-json"})["model_routes"] == {}
@@ -569,12 +569,12 @@ def test_l_adaptateur_oauth_couvre_configuration_et_reponses_fournisseur(monkeyp
     bad_timestamp_charge = "github.pas-un-entier.alea.empreinte"
     bad_timestamp = f"{bad_timestamp_charge}.{oauth._signer('secret', bad_timestamp_charge)}"
     for malformed, provider, now, message in (
-        ("", "github", 0, "illisible"),
-        (state, "google", 1_700_000_000, "autre fournisseur"),
-        (state.rsplit(".", 1)[0] + ".faux", "github", 1_700_000_000, "non signé"),
+        ("", "github", 0, "unreadable"),
+        (state, "google", 1_700_000_000, "another provider"),
+        (state.rsplit(".", 1)[0] + ".faux", "github", 1_700_000_000, "not signed"),
         (bad_timestamp,
-         "github", 1_700_000_000, "illisible"),
-        (state, "github", 1_700_001_000, "expirée"),
+         "github", 1_700_000_000, "unreadable"),
+        (state, "github", 1_700_001_000, "expired"),
     ):
         with pytest.raises(oauth.OAuthError, match=message):
             oauth.check_state(
@@ -605,24 +605,24 @@ def test_l_adaptateur_oauth_couvre_configuration_et_reponses_fournisseur(monkeyp
         raise urllib.error.HTTPError("https://faux.test", 502, "refus", {}, None)
 
     monkeypatch.setattr(oauth.urllib.request, "urlopen", http_failure)
-    with pytest.raises(oauth.OAuthError, match="refusé"):
+    with pytest.raises(oauth.OAuthError, match="refused"):
         oauth._post_json("https://faux.test", {})
-    with pytest.raises(oauth.OAuthError, match="refusé"):
+    with pytest.raises(oauth.OAuthError, match="refused"):
         oauth._get_json("https://faux.test", "jeton")
 
     def network_failure(*_args, **_kwargs):
         raise urllib.error.URLError("hors ligne")
 
     monkeypatch.setattr(oauth.urllib.request, "urlopen", network_failure)
-    with pytest.raises(oauth.OAuthError, match="injoignable"):
+    with pytest.raises(oauth.OAuthError, match="unreachable"):
         oauth._post_json("https://faux.test", {})
-    with pytest.raises(oauth.OAuthError, match="injoignable"):
+    with pytest.raises(oauth.OAuthError, match="unreachable"):
         oauth._get_json("https://faux.test", "jeton")
 
     monkeypatch.setattr(oauth, "_post_json", lambda *_args, **_kwargs: {"access_token": "ok"})
     assert oauth.exchange_code("github", "code", environnement) == "ok"
     monkeypatch.setattr(oauth, "_post_json", lambda *_args, **_kwargs: {})
-    with pytest.raises(oauth.OAuthError, match="jeton"):
+    with pytest.raises(oauth.OAuthError, match="access token"):
         oauth.exchange_code("github", "code", environnement)
 
     def github_identity(url, _token):
@@ -635,12 +635,12 @@ def test_l_adaptateur_oauth_couvre_configuration_et_reponses_fournisseur(monkeyp
         "github:42", "alice@example.test"
     )
     monkeypatch.setattr(oauth, "_get_json", lambda *_args: {"id": 0})
-    with pytest.raises(oauth.OAuthError, match="identifié"):
+    with pytest.raises(oauth.OAuthError, match="did not identify"):
         oauth.fetch_identity("github", "jeton", environnement)
     monkeypatch.setattr(oauth, "_get_json", lambda url, _token: (
         {"id": 42} if url.endswith("/user") else []
     ))
-    with pytest.raises(oauth.OAuthError, match="principale vérifiée"):
+    with pytest.raises(oauth.OAuthError, match="verified primary"):
         oauth.fetch_identity("github", "jeton", environnement)
 
     def google_identity(_url, _token):
@@ -651,5 +651,5 @@ def test_l_adaptateur_oauth_couvre_configuration_et_reponses_fournisseur(monkeyp
         "google:1078", "google@example.test"
     )
     monkeypatch.setattr(oauth, "_get_json", lambda *_args: {"sub": "1078"})
-    with pytest.raises(oauth.OAuthError, match="vérifiée"):
+    with pytest.raises(oauth.OAuthError, match="verified"):
         oauth.fetch_identity("google", "jeton", environnement)

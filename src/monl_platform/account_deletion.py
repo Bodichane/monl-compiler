@@ -13,10 +13,10 @@ def verifier_suppression(identities, user, token, payload):
         age = time.time() - session["session_created_at"]
         if 0 <= age < 600:
             return
-        message = "Reconnectez-vous avec votre fournisseur OAuth puis réessayez : la connexion doit dater de moins de dix minutes."
+        message = "Sign in again with your OAuth provider, then retry: the sign-in must be less than ten minutes old."
     elif identities.authenticate(user["email"], payload.get("password")):
         return
     else:
-        message = "Mot de passe incorrect : le compte n'a pas été supprimé."
+        message = "Incorrect password: the account was not deleted."
     anomalie("suppression_compte_refusee", compte=court(user["id"]))
     raise HTTPException(status_code=403, detail=message)

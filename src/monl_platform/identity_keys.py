@@ -15,7 +15,7 @@ class IdentityKeysMixin:
                        ) -> dict[str, Any]:
         label = str(name or "").strip()
         if not 1 <= len(label) <= 80:
-            raise IdentityError("Le nom de la clé doit contenir entre 1 et 80 caractères.")
+            raise IdentityError("The key name must contain between 1 and 80 characters.")
         raw = "monl_" + secrets.token_urlsafe(32)
         key_id, now = uuid.uuid4().hex, int(time.time())
         with self._connect() as db:

@@ -45,7 +45,7 @@ def compiler_le_projet(project_id, *, account_id, store, workspace_root, service
     project = store.get_project_for_user(account_id, project_id)
     if project is None:
         raise ProjectIsolationError(
-            f"projet {project_id} introuvable pour le compte {account_id}"
+            f"project {project_id} not found for account {account_id}"
         )
     try:
         project_dir = project_directory(
@@ -56,7 +56,7 @@ def compiler_le_projet(project_id, *, account_id, store, workspace_root, service
 
     spec_path = project_dir / "spec.ml"
     if not spec_path.is_file():
-        raise PlatformInputError("La spécification du projet est introuvable.")
+        raise PlatformInputError("The project specification was not found.")
     spec = spec_path.read_text(encoding="utf-8")
 
     validation = (service or CompilationService(workspace_root)).validate(spec)

@@ -24,9 +24,9 @@ class StoreProjectsMixin:
             raise ValueError("identifiant de projet invalide")
         slug = normalize_slug(slug)
         if not slug or slug in {".", ".."} or "/" in slug or "\\" in slug:
-            raise ValueError("slug de projet invalide : remontée de chemin refusée")
+            raise ValueError("invalid project slug: path traversal refused")
         if not isinstance(generate_images, bool):
-            raise ValueError("generate_images doit être un booléen")
+            raise ValueError("generate_images must be a boolean")
         routes = self._normalize_model_routes(model_routes)
         # Le slug est choisi LIBRE, sous le verrou, et l'écriture suit
         # immédiatement : une vérification faite hors du verrou laisserait deux
@@ -107,7 +107,7 @@ class StoreProjectsMixin:
                 "SELECT id FROM builds WHERE project_id = ? LIMIT 1", (project_id,)
             )
             if build is not None:
-                raise ValueError("projet déjà construit : suppression de compensation refusée")
+                raise ValueError("project already built: compensating deletion refused")
             deleted = db.execute(
                 "DELETE FROM builder_projects WHERE project_id = ? AND user_id = ?",
                 (project_id, user_id),

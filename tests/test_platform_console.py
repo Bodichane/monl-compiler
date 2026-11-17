@@ -157,7 +157,7 @@ def test_demarrer_sans_compiler_est_refuse_en_le_disant(running_platform, tmp_pa
     refus = session.post(f"{base}/api/projects/{project_id}/start", timeout=30)
 
     assert refus.status_code == 409, refus.text
-    assert "compilé" in refus.json()["detail"]
+    assert "not compiled" in refus.json()["detail"]
 
 
 def test_le_routage_par_hote_sert_l_api_et_reste_distinct_de_la_console(running_platform):

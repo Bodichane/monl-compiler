@@ -177,7 +177,7 @@ def test_une_cle_revoquee_cesse_de_fonctionner_sur_le_fil(tmp_path):
     # Deux fois : elle n'est plus active, la commande le dit sans mentir.
     encore = admin(tmp_path, "revoquer-cle", cle["id"])
     assert encore.returncode == 1
-    assert "Aucune clé active" in encore.stderr
+    assert "No active key" in encore.stderr
 
 
 def test_prolonger_repousse_lecheance_depuis_maintenant(tmp_path):
@@ -242,7 +242,7 @@ def test_supprimer_sans_confirmer_ne_touche_a_rien(tmp_path):
 
     rendu = admin(tmp_path, "supprimer-compte", "prudent@exemple.test")
     assert rendu.returncode == 1
-    assert "Rien n'a été fait" in rendu.stdout
+    assert "Nothing was done" in rendu.stdout
     assert "prudent@exemple.test" in admin(tmp_path, "comptes").stdout
 
 
@@ -341,7 +341,7 @@ def test_les_actions_de_la_cli_sont_aussi_verifiees_dans_le_processus(tmp_path, 
     key = magasin.create_api_key(user["id"], "poste")
 
     assert administration._date(None) == "—"
-    assert administration._echeance(None) == "jamais"
+    assert administration._echeance(None) == "never"
     assert administration._comptes(magasin, service, Namespace()) == 0
     assert "direct@exemple.test" in capsys.readouterr().out
 
@@ -407,7 +407,7 @@ def test_la_cli_nomme_les_entrees_invalides_et_les_positions_d_options(tmp_path,
     # Le parseur accepte --workspace avant ET après le sous-verbe.
     assert administration.main(["--workspace", str(tmp_path), "comptes"]) == 0
     assert administration.main(["comptes", "--workspace", str(tmp_path)]) == 0
-    assert "Aucun compte" in capsys.readouterr().out
+    assert "No accounts" in capsys.readouterr().out
 
 
 def test_la_cli_lit_le_journal_du_site_sans_exposer_son_jeton(tmp_path):
@@ -449,5 +449,5 @@ def crash():
     assert "RuntimeError" in rendu.stdout
     assert "crash relisible par exploitant" in rendu.stdout
     assert secret not in rendu.stdout
-    assert "token=[masqué]" in rendu.stdout
+    assert "token=[masked]" in rendu.stdout
     assert "journal_site_lu_par_exploitant" in rendu.stderr

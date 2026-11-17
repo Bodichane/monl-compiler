@@ -27,7 +27,7 @@ class IdentityAuthMixin:
                      int(time.time())),
                 )
         except sqlite3.IntegrityError:
-            raise IdentityError("Un compte existe déjà pour cette adresse.") from None
+            raise IdentityError("An account already exists for this address.") from None
         return {"id": user_id, "email": normalized}
 
     def authenticate(self, email: Any, password: Any) -> dict[str, str] | None:
@@ -81,7 +81,7 @@ class IdentityAuthMixin:
             ).fetchone()
             if row is not None:
                 if row["auth_provider"] != provider:
-                    raise IdentityError("identité OAuth déjà attachée à un autre fournisseur")
+                    raise IdentityError("OAuth identity already attached to another provider")
                 return row["id"], False
             user_id = uuid.uuid4().hex
             # Ces octets ne sont pas un digest calculé depuis un secret connu.

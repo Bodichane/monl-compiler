@@ -16,8 +16,8 @@ CONSOLE_HTML = page(
     # onglets ouverts, celui de la console était indiscernable de la page
     # d'accueil, et un signet ne disait pas où il menait.
     title="Console — MONL",
-    description="Décrivez vos règles métier. Monl compile un backend autonome, "
-                "son schéma SQL et son contrat frontend.",
+    description="Describe your business rules. Monl compiles a standalone backend, "
+                "its SQL schema and its frontend contract.",
     body=BODY,
     active="console",
     scripts=SCRIPT,

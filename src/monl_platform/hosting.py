@@ -106,8 +106,8 @@ class SiteManager:
         for fichier in ("app.py", "serve.py"):
             if not (directory / fichier).is_file():
                 raise SiteNotCompiledError(
-                    f"le backend du projet {project['project_id']} n'est pas "
-                    f"compilé : {fichier} absent"
+                    f"the backend of project {project['project_id']} is not "
+                    f"compiled: {fichier} missing"
                 )
         return directory
 
@@ -221,7 +221,7 @@ class SiteManager:
                 self._stop_running(candidate)
             elif limit_reached:
                 raise SiteHostingError(
-                    "le plafond de sites actifs est atteint ; réessayez plus tard"
+                    "the active-site limit is reached; try again later"
                 )
             directory = self._require_site(project)
             port = self._allocate_port()
@@ -258,7 +258,7 @@ class SiteManager:
             )
             if not self._wait_ready(process, port):
                 self._stop_running(running)
-                raise SiteHostingError(f"le serveur du site {host} n'a pas démarré")
+                raise SiteHostingError(f"the server for site {host} did not start")
             running.last_activity = self._clock()
             self._running[project["project_id"]] = running
             return running
@@ -324,7 +324,7 @@ class SiteManager:
         if not projects:
             return None
         if len(projects) > 1:
-            raise SiteHostingError(f"l'hôte {name} désigne plusieurs projets")
+            raise SiteHostingError(f"host {name} designates several projects")
         return projects[0]
 
     def target_for_host(self, host):
@@ -359,7 +359,7 @@ class SiteManager:
             ]
             status = response.status
         except (OSError, http.client.HTTPException) as exc:
-            raise SiteHostingError(f"le site {running.host} est indisponible") from exc
+            raise SiteHostingError(f"site {running.host} is unavailable") from exc
         finally:
             connection.close()
         from fastapi.responses import Response

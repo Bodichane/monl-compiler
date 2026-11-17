@@ -54,13 +54,13 @@ class ValidationResult:
 
 def _bounded_spec(spec: str) -> str:
     if not isinstance(spec, str):
-        raise PlatformInputError("La spécification doit être du texte UTF-8.")
+        raise PlatformInputError("The specification must be UTF-8 text.")
     if not spec.strip():
-        raise PlatformInputError("La spécification est vide.")
+        raise PlatformInputError("The specification is empty.")
     if len(spec.encode("utf-8")) > MAX_SPEC_BYTES:
-        raise PlatformInputError("La spécification dépasse la limite de 256 ko.")
+        raise PlatformInputError("The specification exceeds the 256 KB limit.")
     if "\x00" in spec:
-        raise PlatformInputError("La spécification contient un octet NUL interdit.")
+        raise PlatformInputError("The specification contains a forbidden NUL byte.")
     return spec
 
 
@@ -222,29 +222,29 @@ class CompilationService:
             completed = subprocess.run(command, **kwargs)
         except subprocess.TimeoutExpired as exc:
             raise PlatformExecutionError(
-                f"La compilation a dépassé le délai maximal de {timeout} secondes."
+                f"Compilation exceeded the maximum time of {timeout} seconds."
             ) from exc
         if completed.returncode != 0:
-            detail = (completed.stderr or completed.stdout or "erreur inconnue").strip()
-            raise PlatformExecutionError(f"Le worker de compilation a échoué : {detail[-1000:]}")
+            detail = (completed.stderr or completed.stdout or "unknown error").strip()
+            raise PlatformExecutionError(f"The compilation worker failed: {detail[-1000:]}")
         return completed.stdout
 
     def _project_dir(self, project_id: str) -> Path:
         if not PROJECT_ID.fullmatch(project_id or ""):
-            raise PlatformNotFoundError("Projet introuvable.")
+            raise PlatformNotFoundError("Project not found.")
         # Les anciens projets et le MCP local restent lisibles à la racine.
         # Les projets privés sont résolus sur disque, sans accès aux comptes.
         directory = self.workspace / project_id
         candidates = list(self.workspace.glob(
             f"accounts/*/projects/{project_id}/platform-manifest.json"))
         if len(candidates) > 1:
-            raise PlatformNotFoundError("Projet introuvable.")
+            raise PlatformNotFoundError("Project not found.")
         if candidates:
             account_id = candidates[0].parents[2].name
             directory = project_directory(self.workspace, account_id, project_id,
                                           create=False)
         if not (directory / "platform-manifest.json").is_file():
-            raise PlatformNotFoundError("Projet introuvable.")
+            raise PlatformNotFoundError("Project not found.")
         return directory
 
     def inspect(self, project_id: str) -> dict[str, Any]:

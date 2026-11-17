@@ -31,9 +31,9 @@ def verifier_configuration_cookie(environ=None) -> None:
     if (public_url and urlsplit(public_url).scheme.lower() == "https"
             and not cookie_secure(source)):
         raise RuntimeError(
-            f"configuration incompatible : {PUBLIC_URL_ENV} annonce HTTPS, mais "
-            f"{COOKIE_SECURE_ENV} n'est pas activée ; définir "
-            f"{COOKIE_SECURE_ENV}=1 pour exiger HTTPS du cookie de session."
+            f"incompatible configuration: {PUBLIC_URL_ENV} announces HTTPS, but "
+            f"{COOKIE_SECURE_ENV} is not enabled; set "
+            f"{COOKIE_SECURE_ENV}=1 to require HTTPS for the session cookie."
         )
 
 

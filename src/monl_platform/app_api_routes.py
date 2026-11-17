@@ -71,7 +71,7 @@ def mount_api_routes(
         payload = await _json_body(request)
         if not identities.authenticate(user["email"], payload.get("password")):
             raise HTTPException(status_code=403,
-                                detail="Mot de passe incorrect : les codes n'ont pas été régénérés. Les comptes OAuth ne peuvent pas régénérer de codes.")
+                                detail="Incorrect password: the codes were not regenerated. OAuth accounts cannot regenerate codes.")
         codes = identities.create_recovery_codes(
             user["id"], session=request.cookies.get("monl_session"))
         evenement("codes_regeneres", compte=court(user["id"]))
@@ -97,7 +97,7 @@ def mount_api_routes(
         if not user:
             anomalie("recuperation_refusee", ip=_client_ip(request))
             raise HTTPException(status_code=401,
-                                detail="Code de secours invalide ou déjà utilisé.")
+                                detail="Invalid or already used recovery code.")
         evenement("compte_recupere", compte=court(user["id"]),
                   restants=identities.count_recovery_codes(user["id"]))
         return Response(status_code=204)
@@ -161,7 +161,7 @@ def mount_api_routes(
     def revoke_key(key_id: str, request: Request):
         user = _require_user(request, identities)
         if not identities.revoke_api_key(user["id"], key_id):
-            raise HTTPException(status_code=404, detail="Clé introuvable.")
+            raise HTTPException(status_code=404, detail="Key not found.")
         evenement("cle_revoquee", compte=court(user["id"]), cle=court(key_id))
         return Response(status_code=204)
 
@@ -257,14 +257,14 @@ def mount_api_routes(
         raw_key = authorization[7:] if authorization.lower().startswith("bearer ") else None
         user = identities.api_key_user(raw_key)
         if not user:
-            raise HTTPException(status_code=401, detail="Clé MCP absente, invalide ou révoquée.")
+            raise HTTPException(status_code=401, detail="MCP key missing, invalid or revoked.")
         _rate_limit(request, identities, "mcp", user["id"], 120, 60)
         message = await _json_body(request)
         needs_compiler = _is_compile_message(message)
         if needs_compiler and not compile_slots.acquire(blocking=False):
             raise HTTPException(
                 status_code=503,
-                detail="Les compilateurs sont occupés. Réessayez dans quelques instants.",
+                detail="The compilers are busy. Try again in a moment.",
                 headers={"Retry-After": "5"},
             )
         try:

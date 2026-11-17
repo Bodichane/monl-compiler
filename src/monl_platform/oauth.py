@@ -101,8 +101,8 @@ class OAuthNotConfigured(OAuthError):
 
     def __init__(self, variable):
         super().__init__(
-            f"connexion indisponible : la variable d'environnement {variable} "
-            "n'est pas renseignée sur ce serveur",
+            f"sign-in unavailable: the environment variable {variable} "
+            "is not set on this server",
             status_code=503,
         )
         self.variable = variable
@@ -198,26 +198,26 @@ def check_state(state, provider, secret, browser_secret, *, maintenant=None):
     """Refuse un état forgé, rejoué ou venu d'un autre fournisseur."""
     morceaux = str(state or "").split(".")
     if len(morceaux) != 5:
-        raise OAuthError("état de connexion illisible", status_code=400)
+        raise OAuthError("unreadable sign-in state", status_code=400)
     nom, horodatage, _alea, empreinte, signature = morceaux
     charge = ".".join(morceaux[:4])
     if not hmac.compare_digest(signature, _signer(secret, charge)):
-        raise OAuthError("état de connexion non signé par ce serveur",
+        raise OAuthError("sign-in state not signed by this server",
                          status_code=400)
     if nom != provider:
-        raise OAuthError("état de connexion émis pour un autre fournisseur",
+        raise OAuthError("sign-in state issued for another provider",
                          status_code=400)
     try:
         age = int(maintenant if maintenant is not None else time.time()) - int(horodatage)
     except ValueError:
-        raise OAuthError("état de connexion illisible", status_code=400) from None
+        raise OAuthError("unreadable sign-in state", status_code=400) from None
     if age < -STATE_TTL or age > STATE_TTL:
-        raise OAuthError("connexion expirée : recommencer depuis la console",
+        raise OAuthError("sign-in expired: start again from the console",
                          status_code=400)
     attendue = _browser_digest(secret, browser_secret or "")
     if not browser_secret or not hmac.compare_digest(empreinte, attendue):
         raise OAuthError(
-            "état de connexion absent de ce navigateur ou déjà utilisé",
+            "sign-in state missing from this browser or already used",
             status_code=400,
         )
     return True
@@ -251,9 +251,9 @@ def _post_json(url, donnees, entetes=None, timeout=15):
     except urllib.error.HTTPError as exc:
         with exc:
             raise OAuthError(
-                f"le fournisseur a refusé l'échange ({exc.code})") from exc
+                f"the provider refused the exchange ({exc.code})") from exc
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-        raise OAuthError(f"fournisseur injoignable : {exc}") from exc
+        raise OAuthError(f"provider unreachable: {exc}") from exc
 
 
 def _get_json(url, jeton, timeout=15):
@@ -266,9 +266,9 @@ def _get_json(url, jeton, timeout=15):
             return json.loads(reponse.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         with exc:
-            raise OAuthError(f"le fournisseur a refusé la lecture ({exc.code})") from exc
+            raise OAuthError(f"the provider refused the read ({exc.code})") from exc
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-        raise OAuthError(f"fournisseur injoignable : {exc}") from exc
+        raise OAuthError(f"provider unreachable: {exc}") from exc
 
 
 def exchange_code(provider, code, environ=None):
@@ -282,7 +282,7 @@ def exchange_code(provider, code, environ=None):
     })
     jeton = reponse.get("access_token")
     if not jeton:
-        raise OAuthError("le fournisseur n'a pas délivré de jeton d'accès")
+        raise OAuthError("the provider issued no access token")
     return jeton
 
 
@@ -297,7 +297,7 @@ def fetch_identity(provider, jeton, environ=None):
         compte = _get_json(f"{api}/user", jeton)
         sujet = compte.get("id")
         if not sujet:
-            raise OAuthError("le fournisseur n'a pas identifié le compte")
+            raise OAuthError("the provider did not identify the account")
         adresses = _get_json(f"{api}/user/emails", jeton)
         verifiee = next(
             (a.get("email") for a in adresses
@@ -306,18 +306,18 @@ def fetch_identity(provider, jeton, environ=None):
         )
         if not verifiee:
             raise OAuthError(
-                "ce compte GitHub n'a aucune adresse principale vérifiée : "
-                "vérifiez-la chez GitHub, puis recommencez",
+                "this GitHub account has no verified primary address: "
+                "verify it on GitHub, then start again",
                 status_code=403,
             )
         return f"github:{sujet}", verifiee
     compte = _get_json(f"{api}/v1/userinfo", jeton)
     sujet = compte.get("sub")
     if not sujet:
-        raise OAuthError("le fournisseur n'a pas identifié le compte")
+        raise OAuthError("the provider did not identify the account")
     if not compte.get("email_verified"):
         raise OAuthError(
-            "ce compte Google n'a pas d'adresse vérifiée",
+            "this Google account has no verified address",
             status_code=403,
         )
     return f"google:{sujet}", compte.get("email") or f"google:{sujet}"

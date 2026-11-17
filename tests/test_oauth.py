@@ -189,13 +189,13 @@ def test_l_adresse_de_retour_vient_de_la_configuration():
 
 # ────────────────────────────────────────────────────────────── state ──
 def test_un_etat_forge_est_refuse():
-    with pytest.raises(OAuthError, match="non signé"):
+    with pytest.raises(OAuthError, match="not signed"):
         check_state("github.1700000000.abcd.empreinte.faux", "github", SECRET, "secret")
 
 
 def test_un_etat_d_un_autre_fournisseur_est_refuse():
     etat = make_state("google", SECRET, "secret-navigateur")
-    with pytest.raises(OAuthError, match="autre fournisseur"):
+    with pytest.raises(OAuthError, match="another provider"):
         check_state(etat, "github", SECRET, "secret-navigateur")
 
 
@@ -207,7 +207,7 @@ def test_un_etat_perime_est_refuse():
     assert check_state(
         etat, "github", SECRET, "secret-navigateur", maintenant=1_700_000_300
     )
-    with pytest.raises(OAuthError, match="expirée"):
+    with pytest.raises(OAuthError, match="expired"):
         check_state(
             etat, "github", SECRET, "secret-navigateur", maintenant=1_700_001_000
         )
@@ -217,7 +217,7 @@ def test_un_etat_signe_par_un_autre_serveur_est_refuse():
     etat = make_state(
         "github", "un-autre-secret-de-plateforme-tout-autre", "secret-navigateur"
     )
-    with pytest.raises(OAuthError, match="non signé"):
+    with pytest.raises(OAuthError, match="not signed"):
         check_state(etat, "github", SECRET, "secret-navigateur")
 
 
@@ -289,7 +289,7 @@ def test_une_adresse_non_verifiee_est_refusee(plateforme):
     )
 
     assert retour.status_code == 403, retour.text
-    assert "vérifiée" in retour.json()["detail"]
+    assert "verified" in retour.json()["detail"]
 
 
 def test_un_retour_sans_etat_valide_n_ouvre_rien(plateforme):
@@ -319,7 +319,7 @@ def test_l_attaque_connexion_state_valide_sans_cookie_est_refusee(
     )
 
     assert retour.status_code == 400
-    assert "navigateur" in retour.json()["detail"]
+    assert "browser" in retour.json()["detail"]
     assert _FauxGitHub.codes_vus == []
     assert "monl_session" not in victime.cookies
     assert _nombre(tmp_path, "sessions") == 0
@@ -571,7 +571,7 @@ def test_suppression_oauth_exige_une_connexion_recente(plateforme, tmp_path, anc
     reponse = session.delete(plateforme + "/api/auth/account", json={}, timeout=10)
     if ancienne:
         assert reponse.status_code == 403, "Une session OAuth ancienne autorise la suppression"
-        assert "Reconnectez-vous avec votre fournisseur OAuth" in reponse.text
+        assert "Sign in again with your OAuth provider" in reponse.text
         assert session.get(plateforme + "/api/auth/me", timeout=10).status_code == 200
     else:
         assert reponse.status_code == 204, "Une connexion OAuth récente ne permet pas la suppression"

@@ -186,10 +186,10 @@ class StoreCoreMixin:
         ]
         details = ", ".join(f"{slug} ({combien})" for slug, combien in doublons)
         print(
-            f"⚠️  {len(doublons)} adresse(s) de site portée(s) par plusieurs projets : "
-            f"{details}. Ces sites ne peuvent pas être servis tant que le doublon "
-            "dure — supprimez les projets en trop, l'unicité s'armera au "
-            "redémarrage suivant."
+            f"⚠️  {len(doublons)} site address(es) carried by several projects: "
+            f"{details}. These sites cannot be served while the duplicate "
+            "lasts — delete the extra projects; uniqueness will be enforced at the "
+            "next restart."
         )
 
     @staticmethod
@@ -215,13 +215,13 @@ class StoreCoreMixin:
             return
         if "id" in builder or "account_id" in builder:
             raise RuntimeError(
-                "migration non additive requise : builder_projects utilise encore "
-                "id/account_id ; aucune conversion automatique n'est effectuée"
+                "non-additive migration required: builder_projects still uses "
+                "id/account_id; no automatic conversion is performed"
             )
         if builds and builds.get("project_id") != "TEXT":
             raise RuntimeError(
-                "migration non additive requise : builds.project_id doit être TEXT ; "
-                "aucune reconstruction automatique n'est effectuée"
+                "non-additive migration required: builds.project_id must be TEXT; "
+                "no automatic rebuild is performed"
             )
         if not complete:
             return
@@ -231,8 +231,8 @@ class StoreCoreMixin:
         }
         if ("project_id", "projects", "CASCADE") not in builder_fks:
             raise RuntimeError(
-                "schéma constructeur invalide : builder_projects.project_id doit "
-                "référencer projects avec ON DELETE CASCADE"
+                "invalid builder schema: builder_projects.project_id must "
+                "reference projects with ON DELETE CASCADE"
             )
         build_fks = {
             (row["from"], row["table"], row["on_delete"])
@@ -240,8 +240,8 @@ class StoreCoreMixin:
         }
         if ("project_id", "builder_projects", "CASCADE") not in build_fks:
             raise RuntimeError(
-                "schéma constructeur invalide : builds.project_id doit référencer "
-                "builder_projects avec ON DELETE CASCADE"
+                "invalid builder schema: builds.project_id must reference "
+                "builder_projects with ON DELETE CASCADE"
             )
 
     @staticmethod
@@ -264,28 +264,28 @@ class StoreCoreMixin:
             parsed = []
             for declaration in routes:
                 if not isinstance(declaration, str):
-                    raise ValueError("model_routes doit contenir des chaînes CIBLE=MODELE")
+                    raise ValueError("model_routes must contain TARGET=MODEL strings")
                 target, separator, model = declaration.partition("=")
                 if not separator:
                     raise ValueError(
-                        f"routage de modèle invalide : {declaration!r} — "
-                        "la forme attendue est CIBLE=MODELE."
+                        f"invalid model routing: {declaration!r} — "
+                        "the expected form is TARGET=MODEL."
                     )
                 parsed.append((target, model))
             declarations = parsed
         else:
-            raise ValueError("model_routes doit être un objet CIBLE: MODELE")
+            raise ValueError("model_routes must be a TARGET: MODEL object")
 
         normalized = {}
         for target, model in declarations:
             if not isinstance(target, str) or not isinstance(model, str):
-                raise ValueError("model_routes doit contenir des chaînes CIBLE: MODELE")
+                raise ValueError("model_routes must contain TARGET: MODEL strings")
             target = target.strip().replace("\\", "/")
             model = model.strip()
             if not target or not model:
-                raise ValueError("routage de modèle invalide : cible et modèle requis")
+                raise ValueError("invalid model routing: target and model required")
             if target in normalized:
-                raise ValueError(f"cible répétée dans le routage des modèles : {target!r}")
+                raise ValueError(f"target repeated in the model routing: {target!r}")
             normalized[target] = model
         return normalized
 
