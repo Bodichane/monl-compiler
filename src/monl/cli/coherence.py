@@ -73,8 +73,8 @@ def check_coherence(project_dir):
         return False, errors, warnings
 
     if contract_sha256(project_dir) != state["contract_sha256"]:
-        errors.append(f"{CONTRACT_FILENAME} a été modifié à la main — le contrat est "
-                      "dérivé de la spec, il ne se modifie que via 'monl update'.")
+        errors.append(f"{CONTRACT_FILENAME} was modified manually — the contract is "
+                      "derived from the spec and can only be changed via 'monl update'.")
         return False, errors, warnings
 
     warnings.extend(_outdated_artifact_warnings(project_dir, state, spec_path))
@@ -93,23 +93,23 @@ def _project_state(project_dir):
     state = emplacement._load_state(project_dir)
     if state is None:
         return None, None, [
-            f"{nomenclature.STATE_FILENAME} introuvable — ce dossier n'est pas un projet "
-            "monl compilé (lancer 'monl' ou 'monl compile')."
+            f"{nomenclature.STATE_FILENAME} not found — this directory is not a compiled "
+            "monl project (run 'monl' or 'monl compile')."
         ]
     spec_path = (state["spec"] if os.path.isabs(state["spec"])
                  else os.path.join(project_dir, state["spec"]))
     if not os.path.exists(spec_path):
-        return None, None, [f"Spec introuvable : {spec_path}"]
+        return None, None, [f"Spec not found: {spec_path}"]
     errors = []
     if emplacement._sha256_file(spec_path) != state["spec_sha256"]:
-        errors.append("La spec a été modifiée depuis la dernière compilation — "
-                      "lancer 'monl update' pour resynchroniser backend et contrat.")
+        errors.append("The spec has changed since the last compilation — run 'monl update' "
+                      "to resynchronize the backend and contract.")
     return state, spec_path, errors
 
 
 def _missing_artifacts(project_dir):
     return [
-        f"Artefact manquant : {artefact}"
+        f"Missing artifact: {artefact}"
         for artefact in ("app.py", "schema.sql", CONTRACT_FILENAME)
         if not os.path.exists(os.path.join(project_dir, artefact))
     ]
@@ -119,30 +119,29 @@ def _backend_integrity(project_dir, state):
     """Vérifie le sceau enregistré du backend."""
     empreintes = state.get("backend_sha256")
     if not empreintes:
-        return [], ["État antérieur au scellé du backend : recompiler "
-                    "('monl update') pour que app.py et schema.sql soient "
-                    "réellement vérifiés."]
+        return [], ["State predates the backend seal: recompile ('monl update') so that "
+                    "app.py and schema.sql are actually verified."]
     errors = []
     for nom, attendu in sorted(empreintes.items()):
         chemin = os.path.join(project_dir, nom)
         if not os.path.exists(chemin):
             errors.append(
-                f"{nom} est enregistré dans {nomenclature.STATE_FILENAME} mais absent "
-                "du projet — il est généré depuis la spec : recompiler "
+                f"{nom} is recorded in {nomenclature.STATE_FILENAME} but missing "
+                "from the project — it is generated from the spec: recompile "
                 "('monl update').")
         elif emplacement._sha256_file(chemin) != attendu:
             errors.append(
-                f"{nom} a été modifié à la main — le backend est généré "
-                "depuis la spec. Modifier la spec puis 'monl update' ; "
-                "toute retouche directe sera écrasée.")
+                f"{nom} was modified manually — the backend is generated "
+                "from the spec. Modify the spec, then run 'monl update'; "
+                "any direct edits will be overwritten.")
     return errors, []
 
 
 def _outdated_artifact_warnings(project_dir, state, spec_path):
     frais = _empreintes_regenerees(spec_path)
     if frais is None:
-        return ["Impossible de recompiler la spec pour comparer les artefacts "
-                "au compilateur courant — vérification non effectuée."]
+        return ["Unable to recompile the spec to compare artifacts with the current "
+                "compiler — check not performed."]
     perimes = sorted(
         nom for nom, empreinte in frais.items()
         if os.path.exists(os.path.join(project_dir, nom))
@@ -155,10 +154,9 @@ def _outdated_artifact_warnings(project_dir, state, spec_path):
     depuis = (f" (construit avec monl {construit_avec}, courant "
               f"{__version__})" if construit_avec else "")
     return [
-        f"Artefacts produits par un compilateur antérieur : {', '.join(perimes)}"
-        f"{depuis}. La spec n'a pas changé, monl si — lancer 'monl update' pour "
-        f"resynchroniser (un correctif de sécurité n'atteint un projet "
-        f"qu'après recompilation)."
+        f"Artifacts produced by an earlier compiler: {', '.join(perimes)}"
+        f"{depuis}. The spec has not changed, but monl has — run 'monl update' to "
+        f"resynchronize (a security fix reaches a project only after recompilation)."
     ]
 
 
@@ -187,12 +185,12 @@ def _frontend_coherence(project_dir, spec_path):
         # Le frontend généré par monl a été retiré au point 41 : sans
         # frontend/, il n'y a ni landing ni /app. Les promettre envoyait
         # l'usager sur un 404 JSON qu'il prenait pour une panne (issue #83).
-        return [], ["Aucun dossier frontend/ — seule l'API sera servie : / redirige "
-                    "vers /docs, et /site/ répondra 404 tant que 'monl frontend' "
-                    "ou 'monl import' n'aura pas produit l'interface."]
+        return [], ["No frontend/ directory — only the API will be served: / redirects "
+                    "to /docs, and /site/ will return 404 until 'monl frontend' "
+                    "or 'monl import' has produced the interface."]
     if not os.path.exists(os.path.join(frontend_dir, "index.html")):
-        return ["frontend/ existe mais frontend/index.html est absent "
-                "(point d'entrée exigé par le contrat)."], []
+        return ["frontend/ exists but frontend/index.html is missing "
+                "(entry point required by the contract)."], []
     from ..frontend_ai import _design_completeness_errors
     design_errors = _design_completeness_errors(project_dir)
     if design_errors:
@@ -204,7 +202,7 @@ def _frontend_coherence(project_dir, spec_path):
     unknown = _frontend_references(frontend_dir, known_prefixes)
     warnings = []
     if unknown:
-        warnings.append("Le frontend référence des chemins absents du contrat : "
+        warnings.append("The frontend references paths missing from the contract: "
                         + ", ".join(f"/{u}" for u in unknown))
     appels = couverture._frontend_fetch_calls(frontend_dir)
     errors = couverture._frontend_fetch_contract_errors(contract, appels)

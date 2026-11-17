@@ -180,7 +180,7 @@ def test_run_check_detecte_spec_modifiee_et_contrat_edite(tmp_path):
     data["app"] = "Falsifié"
     contract_path.write_text(json.dumps(data), encoding="utf-8")
     ok, errors, _w = check_coherence(str(proj))
-    assert not ok and any("modifié à la main" in e for e in errors)
+    assert not ok and any("modified manually" in e for e in errors)
 
 
 def test_run_check_signale_un_artefact_produit_par_un_compilateur_anterieur(tmp_path):
@@ -204,7 +204,7 @@ def test_run_check_signale_un_artefact_produit_par_un_compilateur_anterieur(tmp_
     proj, _spec, _c = _fresh_project(tmp_path)
     ok, _errors, warnings = check_coherence(str(proj))
     assert ok
-    assert not any("compilateur antérieur" in w for w in warnings)
+    assert not any("Artifacts produced by an earlier compiler" in w for w in warnings)
 
     contract_path = proj / "frontend_contract.json"
     data = json.loads(contract_path.read_text(encoding="utf-8"))
@@ -223,7 +223,8 @@ def test_run_check_signale_un_artefact_produit_par_un_compilateur_anterieur(tmp_
     # celles qui ne la concernent pas. Même arbitrage que pour l'état antérieur
     # au scellé du backend.
     assert ok, errors
-    perimes = [w for w in warnings if "compilateur antérieur" in w]
+    perimes = [w for w in warnings
+               if "Artifacts produced by an earlier compiler" in w]
     assert perimes, warnings
     # L'avertissement doit NOMMER l'artefact et la commande qui resynchronise :
     # sans cela il ne serait pas actionnable.
@@ -236,7 +237,8 @@ def test_run_check_signale_un_artefact_produit_par_un_compilateur_anterieur(tmp_
     compile_project(str(_spec), str(proj))
     ok, errors, warnings = check_coherence(str(proj))
     assert ok, errors
-    assert not any("compilateur antérieur" in w for w in warnings)
+    assert not any("Artifacts produced by an earlier compiler" in w
+                   for w in warnings)
 
 
 def test_frontend_hors_contrat_declenche_avertissement(tmp_path):
@@ -254,7 +256,7 @@ def test_frontend_hors_contrat_declenche_avertissement(tmp_path):
     assert any("/fantome" in w for w in warnings)
     # Le nouveau contrôle peut nommer /item dans son décompte de couverture ;
     # ce test porte uniquement sur l'ancien avertissement de chemin inconnu.
-    assert not any("chemins absents du contrat" in w and "/item" in w
+    assert not any("paths missing from the contract" in w and "/item" in w
                    for w in warnings)
 
 
