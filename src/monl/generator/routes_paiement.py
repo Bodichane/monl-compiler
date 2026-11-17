@@ -149,7 +149,7 @@ async def paiement_webhook(request: Request):
                 "        'line_items[0][quantity]': '1',",
                 "        'line_items[0][price_data][currency]': devise,",
                 "        'line_items[0][price_data][unit_amount]': str(montant_centimes),",
-                "        'line_items[0][price_data][product_data][name]': f'Commande {reference}',",
+                Template(r"""        'line_items[0][price_data][product_data][name]': f'Commande {reference}',""").substitute(),
                 "    }).encode()",
                 "    requete = urllib.request.Request(",
                 "        STRIPE_BASE_URL + '/v1/checkout/sessions', data=corps, method='POST')",
@@ -162,10 +162,10 @@ async def paiement_webhook(request: Request):
                 "        with e:",
                 "            detail = (e.read() or b'')[:400].decode('utf-8', 'replace')",
                 "        raise HTTPException(status_code=502, detail=(",
-                "            f'Le prestataire de paiement a refusé la demande ({e.code}) : {detail}'))",
+                Template(r"""            f'Le prestataire de paiement a refusé la demande ({e.code}) : {detail}'))""").substitute(),
                 "    except urllib.error.URLError as e:",
                 "        raise HTTPException(status_code=502, detail=(",
-                "            f'Prestataire de paiement injoignable : {e.reason}'))",
+                Template(r"""            f'Prestataire de paiement injoignable : {e.reason}'))""").substitute(),
                 "",
             ]
         for entite, champ in sorted(self.payable_by_entity.items()):
