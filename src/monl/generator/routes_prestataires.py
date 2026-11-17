@@ -121,24 +121,20 @@ def _session_paiement(montant_centimes, devise, reference, retour):
                 continue
             champ, valeur = regle["field"], regle["value"]
             lignes += [
-                f"    cursor.execute('SELECT \"{champ}\" FROM "
-                f'"{table}" WHERE id = ?\', (id,))',
-                "    _etat_avant = cursor.fetchone()",
+                Template(r'''    cursor.execute('SELECT "${champ}" FROM "${table}" WHERE id = ?', (id,))''').substitute(champ=champ, table=table),
+                Template(r'''    _etat_avant = cursor.fetchone()''').substitute(),
                 # L'état libéré est TERMINAL : ce qui a été rendu n'est plus
                 # garanti disponible, et reprendre la commande donnerait du
                 # stock gratuit — famille du point 77.
-                f"    if (_etat_avant and _etat_avant[0] == {valeur!r}",
-                f"            and data.{champ} is not None "
-                f"and data.{champ} != {valeur!r}):",
-                "        conn.close()",
-                "        raise HTTPException(status_code=409, detail=(",
-                f"            \"Cet enregistrement est {valeur} : ce qu'il "
-                f"avait consommé a été rendu, \"",
-                "            'et rien ne garantit que ce soit encore disponible. "
-                "En créer un nouveau.'))",
-                f"    _bascule = (_etat_avant and _etat_avant[0] != {valeur!r}",
-                f"                and data.{champ} == {valeur!r})",
-                "    if _bascule:",
+                Template(r'''    if (_etat_avant and _etat_avant[0] == ${valeur}''').substitute(valeur=repr(valeur)),
+                Template(r'''            and data.${champ} is not None and data.${champ} != ${valeur}):''').substitute(champ=champ, valeur=repr(valeur)),
+                Template(r'''        conn.close()''').substitute(),
+                Template(r'''        raise HTTPException(status_code=409, detail=(''').substitute(),
+                Template(r'''            "Cet enregistrement est ${valeur} : ce qu'il avait consommé a été rendu, "''').substitute(valeur=valeur),
+                Template(r'''            'et rien ne garantit que ce soit encore disponible. En créer un nouveau.'))''').substitute(),
+                Template(r'''    _bascule = (_etat_avant and _etat_avant[0] != ${valeur}''').substitute(valeur=repr(valeur)),
+                Template(r'''                and data.${champ} == ${valeur})''').substitute(champ=champ, valeur=repr(valeur)),
+                Template(r'''    if _bascule:''').substitute(),
             ]
             lignes += self._lignes_restitution(enfant, fk_enfant, indent="        ")
         return lignes
