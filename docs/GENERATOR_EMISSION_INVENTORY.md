@@ -1,4 +1,4 @@
-# Generator emission inventory — issue #119, steps 1 to 6 (partial)
+# Generator emission inventory — issue #119, steps 1 to 6
 
 The route rows below are measured from the current source; earlier rows retain
 their documented baseline unless marked migrated. Counts are syntactic indicators,
@@ -29,7 +29,7 @@ double backslashes in source; Q counts backslash-double-quote pairs.
 | routes_lecture_filtree (migrated) | 299 | 0 | 0 | 29 | 0 | 6 | 0 |
 | routes_modification (migrated) | 338 | 0 | 0 | 29 | 0 | 6 | 0 |
 | routes_orchestration | 60 | 0 | 0 | 9 | 0 | 2 | 0 |
-| routes_paiement (partiel) | 380 | 17 | 0 | 3 | 0 | 16 | 2 |
+| routes_paiement (migrated) | 394 | 1 | 0 | 7 | 0 | 0 | 4 |
 | routes_prestataires | 233 | 0 | 0 | 16 | 0 | 2 | 1 |
 | routes_suppression (migrated) | 238 | 0 | 0 | 43 | 0 | 10 | 0 |
 | routes_uploads (migrated) | 67 | 0 | 0 | 2 | 0 | 0 | 0 |
@@ -90,13 +90,16 @@ Proposed migration order (first four steps delivered):
    `routes_lecture`, `routes_lecture_filtree` and `routes_prestataires` are
    delivered. `routes_prestataires` has J=16 line-list additions, Q=2 escaped
    quotes in emitted literals and C=1 adjacent literal pair; A and B are zero.
-   `routes_paiement` is partially delivered: the
-   webhook size and signature guards are complete Template-emitting functions,
-   while `_generate_payment_routes` retains 17 JoinedStr nodes. Its remaining
-   A=0, J=3 assembles emitted lines,
-   Q=16 are escaped quotes in emitted Python/SQL text, and C=2 are adjacent
-   literal pairs. The payment migration deliberately stops at the completed
-   guards for this tour; the rest of step 5 is not claimed delivered.
+   `routes_paiement` is delivered: the webhook guards and
+   `_generate_payment_routes` emit through `string.Template`. Its one remaining
+   JoinedStr is a generation-time refusal message (a compiler diagnostic, not
+   emitted code). Its twelve `lines += [...]` extend the line list, the same
+   assembly counted as J elsewhere, so no text is concatenated; C=4 are
+   adjacent literal pairs. The payment invariants are unchanged (amount read
+   from the database, no request body, ownership join inside the existing
+   SELECT, signature checked before any write): corpus and golden bytes are
+   identical, and `test_paiement`, `test_fedapay` and `test_verrou_paiement`
+   pass against real servers.
    `routes_lecture_filtree` and `routes_modification` each have Q=6 escaped
    quotes in emitted literals; J=29 counts their line-list additions.
    `routes_suppression` has Q=10 and J=43 for emitted body lines. These Q/J

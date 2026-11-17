@@ -15169,9 +15169,12 @@ et son résultat sont consignés dans le rapport de travail associé à ce point
 Le relevé actuel de tous les modules `routes_*` sépare les formes syntaxiques
 qui écrivent réellement le code Python des appels de liste employés pour le
 composer. Les routes de création, lecture, lecture filtrée, modification,
-suppression et prestataires ont F=0. `routes_paiement` reste la seule route
-avec émission f-string (F=17), dans `_generate_payment_routes`; les gardes de
-webhook sont déjà en `string.Template`. Les mesures A, B et C sont nulles pour
+suppression et prestataires ont F=0. **Complément, même journée** : `routes_paiement`
+est migré à son tour ; sa seule f-string restante est un message de refus à la
+compilation, pas du code émis, et ses douze `lignes += [...]` assemblent des
+lignes sans concaténer de texte. Octets du corpus et des goldens inchangés ;
+une mutation de `@app.` dans six modules migrés rougit le corpus sur
+l'assertion d'octets (contre-épreuve refaite hors de l'exécutant). Les mesures A, B et C sont nulles pour
 les routes, sauf C=2 dans paiement et C=1 dans prestataires. Les A non nuls
 rapportés auparavant pour certains modules ne sont pas présents dans le code
 actuel. Les J non nuls comptent des ajouts de lignes au code généré ou des
