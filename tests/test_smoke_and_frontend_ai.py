@@ -3,6 +3,7 @@
 # jamais de simple relecture — seul le FOURNISSEUR d'IA est factice
 # (l'orchestration, elle, s'exécute pour de vrai de bout en bout).
 import json
+import pathlib
 
 import pytest
 
@@ -1002,7 +1003,7 @@ def test_la_retouche_demande_linterpretation_la_plus_etroite(project):
 
     _projet_avec_frontend(project)
     chemin = cmd_retouche(str(project), DEMANDE, say=_quiet)
-    consigne = open(chemin, encoding="utf-8").read()
+    consigne = pathlib.Path(chemin).read_text(encoding="utf-8")
     assert "ÉTROITE" in consigne
     assert "ne pas refaire la mise en page générale" in consigne.lower()
     # Et le garde-fou de contenu : ce qui vient de la spec ne se rattrape pas

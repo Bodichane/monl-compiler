@@ -25,6 +25,7 @@ import requests
 from monl.ast_validator import ASTValidationError, MonlAST
 from monl.cli import _contract_signature, compile_project
 from monl.parser import parse_monl_string
+from tests.support.processus import fermer_tubes
 from tests.support.server import free_port
 
 SPEC = """app Notifications
@@ -157,6 +158,9 @@ class _RunningServer:
             self.process.kill()
             self.process.wait(timeout=5)
         self._lecteur.join(timeout=5)
+        # Fermer APRÈS la fin du fil lecteur : fermer pendant qu'il lit lui
+        # ferait lever une erreur de son côté.
+        fermer_tubes(self.process)
 
 
 @contextlib.contextmanager

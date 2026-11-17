@@ -19,7 +19,8 @@ def _planned_generated_asset_paths(project_dir):
     if not os.path.exists(path):
         return []
     try:
-        content = open(path, encoding="utf-8").read()
+        with open(path, encoding="utf-8") as fichier:
+            content = fichier.read()
         if content.startswith(GENERATED_MARKER):
             content = "\n".join(content.splitlines()[1:])
         manifest = json.loads(content)

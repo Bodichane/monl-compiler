@@ -1,6 +1,7 @@
 """`monl content export/import` travaille uniquement sur fichiers locaux."""
 import csv
 import os
+import pathlib
 import tempfile
 
 import pytest
@@ -57,10 +58,10 @@ def _write_rows(racine, champs, rows, entite="Produit"):
 def test_aller_retour_sans_modification_est_stable_a_loctet():
     temporaire, spec = _projet()
     with temporaire:
-        avant = open(spec, encoding="utf-8").read()
+        avant = pathlib.Path(spec).read_text(encoding="utf-8")
         exporter_contenu(spec, temporaire.name)
         rapport = importer_contenu(spec, temporaire.name)
-        assert open(spec, encoding="utf-8").read() == avant
+        assert pathlib.Path(spec).read_text(encoding="utf-8") == avant
         assert rapport["spec_changee"] is False
 
 
@@ -72,7 +73,7 @@ def test_modifier_une_valeur_ne_touche_pas_le_reste_de_la_spec():
         rows[1]["nom"] = "Grande table"
         _write_rows(temporaire.name, champs, rows)
         importer_contenu(spec, temporaire.name)
-        texte = open(spec, encoding="utf-8").read()
+        texte = pathlib.Path(spec).read_text(encoding="utf-8")
         assert 'nom: "Grande table", prix: 20, etat: "occasion"' in texte
         assert "entity Page\n    titre: String" in texte
 
@@ -154,7 +155,7 @@ seed Variante for Produit.nom "Table"
         rows.append({"_parent": "Table", "nom": "Blanc"})
         _write_rows(temporaire.name, champs, rows, "Variante")
         importer_contenu(spec, temporaire.name)
-        texte = open(spec, encoding="utf-8").read()
+        texte = pathlib.Path(spec).read_text(encoding="utf-8")
         assert texte.count('seed Variante for Produit.nom "Table"') == 1
         assert '    nom: "Noir"\n    nom: "Blanc"' in texte
 
@@ -172,8 +173,7 @@ def test_lisez_moi_enumere_les_valeurs_oneof():
     temporaire, spec = _projet()
     with temporaire:
         exporter_contenu(spec, temporaire.name)
-        texte = open(os.path.join(temporaire.name, "content", "LISEZMOI.txt"),
-                     encoding="utf-8").read()
+        texte = pathlib.Path(os.path.join(temporaire.name, "content", "LISEZMOI.txt")).read_text(encoding="utf-8")
         assert "valeurs permises : neuf, occasion" in texte
 
 
@@ -191,7 +191,6 @@ def test_export_exclut_les_champs_serveur_et_les_booleens():
         champs, _rows_ = _rows(temporaire.name)
         assert "cree" not in champs
         assert "publie" not in champs
-        texte = open(os.path.join(temporaire.name, "content", "LISEZMOI.txt"),
-                     encoding="utf-8").read()
+        texte = pathlib.Path(os.path.join(temporaire.name, "content", "LISEZMOI.txt")).read_text(encoding="utf-8")
         assert "publie" in texte
         assert "littéral vrai/faux" in texte

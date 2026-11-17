@@ -155,7 +155,8 @@ def _frontend_local_reference_errors(project_dir):
                 continue
             path = os.path.join(root, name)
             try:
-                content = open(path, encoding="utf-8", errors="ignore").read()
+                with open(path, encoding="utf-8", errors="ignore") as fichier:
+                    content = fichier.read()
             except OSError as exc:
                 errors.append(f"frontend illisible : {path} — {exc}")
                 continue
@@ -188,7 +189,8 @@ def _frontend_behavioral_quality_errors(project_dir):
                 continue
             path = os.path.join(root, name)
             try:
-                content = open(path, encoding="utf-8", errors="ignore").read()
+                with open(path, encoding="utf-8", errors="ignore") as fichier:
+                    content = fichier.read()
             except OSError:
                 continue
             for match in re.finditer(

@@ -254,11 +254,12 @@ def _appel(url, corps=None, jeton=None, methode=None):
         with urllib.request.urlopen(requete, timeout=10) as reponse:
             return reponse.status, json.loads(reponse.read() or b"{}")
     except urllib.error.HTTPError as err:
-        brut = err.read()
-        try:
-            return err.code, json.loads(brut or b"{}")
-        except ValueError:
-            return err.code, {"brut": brut[:300].decode("utf-8", "replace")}
+        with err:
+            brut = err.read()
+            try:
+                return err.code, json.loads(brut or b"{}")
+            except ValueError:
+                return err.code, {"brut": brut[:300].decode("utf-8", "replace")}
 
 
 class _Serveur:
@@ -282,7 +283,8 @@ class _Serveur:
             if self.processus.poll() is not None:
                 pytest.fail(self.processus.stdout.read().decode("utf-8", "replace")[-2000:])
             try:
-                urllib.request.urlopen(self.base + "/docs", timeout=5).read()
+                with urllib.request.urlopen(self.base + "/docs", timeout=5) as reponse:
+                    reponse.read()
                 return self.base
             except OSError:
                 time.sleep(0.25)

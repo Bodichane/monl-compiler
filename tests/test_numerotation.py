@@ -38,6 +38,7 @@ import pytest
 from monl.ast_validator import ASTValidationError, MonlAST
 from monl.cli import compile_project
 from monl.parser import parse_monl_string
+from tests.support.processus import arreter_processus, fermer_tubes
 from tests.support.server import free_port as _port_libre
 
 SPEC = """app BancNumero
@@ -243,7 +244,8 @@ def _appel(url, corps=None, jeton=None, methode=None):
         with urllib.request.urlopen(requete, timeout=20) as reponse:
             return reponse.status, json.loads(reponse.read() or b"{}")
     except urllib.error.HTTPError as err:
-        return err.code, {}
+        with err:
+            return err.code, {}
 
 
 def _demarrer(dossier, port):
@@ -254,22 +256,26 @@ def _demarrer(dossier, port):
     base = f"http://127.0.0.1:{port}"
     for _ in range(120):
         if processus.poll() is not None:
-            pytest.fail(processus.stdout.read().decode("utf-8", "replace")[-2000:])
+            sortie = processus.stdout.read().decode("utf-8", "replace")[-2000:]
+            fermer_tubes(processus)
+            pytest.fail(sortie)
         try:
-            urllib.request.urlopen(base + "/docs", timeout=5).read()
+            with urllib.request.urlopen(base + "/docs", timeout=5) as reponse:
+                reponse.read()
             return processus, base
         except OSError:
             time.sleep(0.25)
-    processus.kill()
+    arreter_processus(processus)
     pytest.fail("le serveur n'a jamais répondu")
 
 
 def _arreter(processus):
     processus.terminate()
     try:
+        # communicate() lit jusqu'au bout ET ferme les tubes.
         return processus.communicate(timeout=10)[0].decode("utf-8", "replace")
     except subprocess.TimeoutExpired:
-        processus.kill()
+        arreter_processus(processus)
         return ""
 
 

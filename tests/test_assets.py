@@ -226,7 +226,8 @@ def _serveur(dossier, assets_dir="assets"):
     try:
         for _ in range(80):
             try:
-                urllib.request.urlopen(base + "/openapi.json", timeout=1).close()
+                with urllib.request.urlopen(base + "/openapi.json", timeout=1):
+                    pass
                 break
             except Exception:
                 time.sleep(0.25)

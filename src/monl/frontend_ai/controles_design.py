@@ -105,8 +105,9 @@ def _frontend_source(frontend_dir):
             if not name.endswith((".html", ".css", ".js")):
                 continue
             try:
-                sources.append(open(os.path.join(root, name), encoding="utf-8",
-                                    errors="ignore").read())
+                with open(os.path.join(root, name), encoding="utf-8",
+                          errors="ignore") as fichier:
+                    sources.append(fichier.read())
             except OSError:
                 pass
     return "\n".join(sources)
@@ -172,8 +173,9 @@ def _generated_asset_reuse_errors(frontend_dir, generated_assets):
             if not name.endswith(".html"):
                 continue
             try:
-                html_sources.append(open(os.path.join(root, name), encoding="utf-8",
-                                         errors="ignore").read())
+                with open(os.path.join(root, name), encoding="utf-8",
+                          errors="ignore") as fichier:
+                    html_sources.append(fichier.read())
             except OSError:
                 pass
     refs = re.findall(

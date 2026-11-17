@@ -20,6 +20,7 @@ import requests
 from monl.ast_validator import MonlAST
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
+from tests.support.processus import arreter_processus
 from tests.support.server import free_port as _find_free_port
 
 SPEC = """app RL
@@ -116,11 +117,7 @@ def test_rate_limit_is_shared_across_workers():
             assert codes[5] == 429, codes
             assert codes[6] == 429, codes
         finally:
-            proc.terminate()
-            try:
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                proc.kill()
+            arreter_processus(proc, delai=5)
 
 
 def test_le_demarrage_survit_a_une_base_deja_verrouillee():
@@ -180,8 +177,4 @@ def test_le_demarrage_survit_a_une_base_deja_verrouillee():
             finally:
                 mode.close()
         finally:
-            proc.terminate()
-            try:
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                proc.kill()
+            arreter_processus(proc, delai=5)

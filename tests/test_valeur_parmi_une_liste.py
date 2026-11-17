@@ -29,6 +29,7 @@ import pytest
 from monl.ast_validator import ASTValidationError, MonlAST
 from monl.cli import compile_project
 from monl.parser import parse_monl_string
+from tests.support.processus import arreter_processus
 from tests.support.server import free_port as _port_libre
 
 SPEC = """app BancChoix
@@ -219,11 +220,12 @@ def _appel(url, corps=None, jeton=None, methode=None):
         with urllib.request.urlopen(requete, timeout=10) as reponse:
             return reponse.status, json.loads(reponse.read() or b"{}")
     except urllib.error.HTTPError as err:
-        brut = err.read()
-        try:
-            return err.code, json.loads(brut or b"{}")
-        except ValueError:
-            return err.code, {"detail": brut.decode("utf-8", "replace")}
+        with err:
+            brut = err.read()
+            try:
+                return err.code, json.loads(brut or b"{}")
+            except ValueError:
+                return err.code, {"detail": brut.decode("utf-8", "replace")}
 
 
 @pytest.fixture
@@ -241,7 +243,8 @@ def serveur(tmp_path):
             if proc.poll() is not None:
                 pytest.fail(proc.stdout.read().decode("utf-8", "replace")[-2000:])
             try:
-                urllib.request.urlopen(base + "/docs", timeout=5).read()
+                with urllib.request.urlopen(base + "/docs", timeout=5) as reponse:
+                    reponse.read()
                 break
             except OSError:
                 time.sleep(0.25)
@@ -253,11 +256,7 @@ def serveur(tmp_path):
                                             "password": "motdepasse1"})
         yield base, jeton["access_token"]
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        arreter_processus(proc, delai=10)
 
 
 @pytest.mark.parametrize("valide", ["panier", "en préparation", "expédiée", "livrée"])
