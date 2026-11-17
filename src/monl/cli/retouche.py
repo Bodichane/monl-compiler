@@ -92,7 +92,7 @@ def sauvegarder_frontend(project_dir, say=print):
     backup = source + ".precedent"
     shutil.rmtree(backup, ignore_errors=True)
     shutil.copytree(source, backup)
-    say(" -> Frontend actuel copié dans frontend.precedent/ (retour en arrière possible).")
+    say(" -> Current frontend copied to frontend.precedent/ (you can restore it later).")
     return backup
 
 def _lancer_ia(args, update_mode=False, retouche_mode=False):
@@ -127,8 +127,8 @@ def _lancer_ia(args, update_mode=False, retouche_mode=False):
             if model_routes:
                 declared = ", ".join(
                     f"{target}={model}" for target, model in sorted(model_routes.items()))
-                print(" -> Routage par étage non appliqué : la voie agent ne comporte "
-                      f"pas d'appels découpés (correspondances déclarées : {declared}).")
+                print(" -> Per-stage routing not applied: the agent workflow does not "
+                      f"use split calls (declared mappings: {declared}).")
             ok, _errors = generate_with_cli_agent(
                 args.dir, update_mode=update_mode, retouche_mode=retouche_mode,
                 max_turns=args.max_turns or DEFAULT_MAX_TURNS,
@@ -179,11 +179,11 @@ def cmd_retouche(project_dir, demande, say=print):
     l'appelant (main), qui porte déjà le choix du fournisseur — la retouche
     n'ouvre AUCUNE voie nouvelle vers le modèle."""
     if _arguments_inverses(demande, project_dir):
-        say(" ❌ Les deux arguments semblent inversés.")
-        say(f"    « {demande} » ressemble à un dossier, et « {project_dir[:50]}"
-            f"{'…' if len(project_dir) > 50 else ''} » à ce qui cloche.")
-        say("    'retouche' attend la DEMANDE d'abord (c'est le seul geste dans "
-            "ce sens) :")
+        say(" ❌ The two arguments appear to be reversed.")
+        say(f"    ‘{demande}’ looks like a directory, and ‘{project_dir[:50]}"
+            f"{'…' if len(project_dir) > 50 else ''}’ like a description of the issue.")
+        say("    'retouche' expects the REQUEST first (it is the only command "
+            "that works this way):")
         # La commande proposée doit MARCHER telle quelle : recopier un chemin
         # dont on sait déjà qu'il est faux ferait buter l'auteur une deuxième
         # fois, sur un autre message.
@@ -199,17 +199,17 @@ def cmd_retouche(project_dir, demande, say=print):
         say(souci)
         sys.exit(1)
     if emplacement._load_state(project_dir) is None:
-        say(f" ❌ {nomenclature.STATE_FILENAME} introuvable — ce dossier n'est pas un projet monl.")
+        say(f" ❌ {nomenclature.STATE_FILENAME} not found — this directory is not a monl project.")
         sys.exit(1)
     if not os.path.exists(os.path.join(project_dir, "frontend", "index.html")):
-        say(" ❌ Aucun frontend à retoucher (frontend/index.html absent) — "
-            "construire d'abord avec 'monl frontend' ou 'monl import'.")
+        say(" ❌ No frontend to touch up (frontend/index.html is missing) — "
+            "build one first with 'monl frontend' or 'monl import'.")
         sys.exit(1)
     if not demande or not demande.strip():
-        say(" ❌ La demande est vide — décrire ce qui cloche, en nommant l'écran "
-            "et l'élément.")
+        say(" ❌ The request is empty — describe the issue, naming the screen "
+            "and the element.")
         sys.exit(1)
     sauvegarder_frontend(project_dir, say=say)
     chemin = _write_retouche_brief(project_dir, demande)
-    say(f" -> Consigne écrite : {os.path.basename(chemin)}")
+    say(f" -> Instructions written: {os.path.basename(chemin)}")
     return chemin

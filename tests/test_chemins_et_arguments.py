@@ -168,7 +168,7 @@ def test_le_message_dinversion_propose_une_commande_utilisable(tmp_path, monkeyp
                      say=lignes.append)
     capsys.readouterr()
     rendu = "\n".join(lignes)
-    assert "inversés" in rendu
+    assert "arguments appear to be reversed" in rendu
     propose = next(li for li in lignes if li.strip().startswith("monl retouche"))
     assert '"utilise plutôt des icônes"' in propose
     assert "/projets/SneakerLab" not in propose
@@ -181,8 +181,8 @@ def test_une_retouche_bien_ecrite_passe_le_controle(projet, capsys):
     with pytest.raises(SystemExit):
         cmd_retouche(str(projet), "les images sont mal cadrées")
     sortie = capsys.readouterr().out
-    assert "inversés" not in sortie
-    assert "Aucun frontend à retoucher" in sortie
+    assert "arguments appear to be reversed" not in sortie
+    assert "No frontend to touch up (frontend/index.html is missing)" in sortie
 
 
 def test_compile_avec_output_cherche_les_assets_a_cote_de_la_spec(tmp_path, capsys):
