@@ -444,9 +444,9 @@ def test_les_blocs_annexes_sont_validés_comme_les_regles():
     """`ui` et `seed` ne portent aucune sécurité — mais une faute de frappe qui
     y passe inaperçue se paie au rendu ou au démarrage, loin de sa cause."""
     table = [
-        ("ui Fantome\n    primary: titre", "cible une entité qui n'existe pas"),
+        ("ui Fantome\n    primary: titre", "targets an entity that does not exist"),
         ("ui Note\n    primary: fantome", "primary: fantome"),
-        ("ui Note\n    order: titre, fantome", "champs inconnus"),
+        ("ui Note\n    order: titre, fantome", "unknown fields in 'order'"),
         ("seed Fantome\n    titre: \"a\"", "cible l'entité 'Fantome'"),
         ("seed Note\n    titre: \"a\", fantome: \"b\"", "référence le champ 'fantome'"),
     ]
