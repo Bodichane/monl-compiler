@@ -12,8 +12,8 @@ from monl.cli import compile_project
 from tests.test_app_templates import _run_template
 from tests.test_authentification_b4 import SPEC_B4
 from tests.test_bloc_custom_absent import AVEC_CUSTOM
-from tests.test_fiche_obligatoire import SPEC as SPEC_FICHE
 from tests.test_fedapay import SPEC_FEDAPAY
+from tests.test_fiche_obligatoire import SPEC as SPEC_FICHE
 from tests.test_filtrage_tri import SPEC as SPEC_FILTRE
 from tests.test_generated_specs import generated_spec
 from tests.test_golden_artifacts import SPEC, SPEC_LOOKUP_SOURCES
