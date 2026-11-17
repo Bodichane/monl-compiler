@@ -33,4 +33,4 @@ def test_error_suggests_expected_tokens():
     spec = "app Demo\n\nentity User\n    name String\n"
     with pytest.raises(MonlSyntaxError) as exc:
         parse_monl_string(spec)
-    assert "Attendu ici" in str(exc.value)
+    assert "Expected here" in str(exc.value)
