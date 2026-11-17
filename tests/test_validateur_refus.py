@@ -380,7 +380,7 @@ def test_ownedby_sans_relation_correspondante_est_refuse():
     README promet de refuser plutôt que d'ignorer."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(_socle("rule Note.Update ownedBy Admin"))
-    assert "aucune relation" in str(refus.value)
+    assert "no compatible relationship" in str(refus.value)
 
 
 def test_deux_acteurs_sur_la_meme_ecriture_ne_compilent_pas():
@@ -668,7 +668,7 @@ def test_un_intermediaire_sans_proprietaire_ne_mene_a_aucun_compte():
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC_PROPRIETE.format(regles="rule Ligne.Read ownedBy Commande"))
     message = str(refus.value)
-    assert "ne remonte à AUCUN acteur" in message
+    assert "does not lead to ANY actor" in message
     # Le message doit dire ce qui manque, pas seulement ce qui cloche.
     assert "ownedBy" in message
 
@@ -750,7 +750,7 @@ workflow V for Vendeur
 """
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec)
-    assert "ambiguë" in str(refus.value)
+    assert "is ambiguous at" in str(refus.value)
 
 
 def test_melanger_propriete_directe_et_transitive_est_refuse():
@@ -784,7 +784,7 @@ workflow W for Client
 """
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec)
-    assert "un seul propriétaire" in str(refus.value)
+    assert "Designate only one owner" in str(refus.value)
 
 
 def test_payable_sur_une_entite_possedee_transitivement_compile_desormais():
