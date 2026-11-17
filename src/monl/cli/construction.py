@@ -61,7 +61,7 @@ def _ranger_les_documents(project_dir):
                 os.replace(ancien, nouveau)
                 deplaces.append(nomenclature.AGENTS_FILENAME)
     if deplaces:
-        print(" -> Documents rangés      : " + ", ".join(deplaces))
+        print(" -> Documents moved       : " + ", ".join(deplaces))
     return deplaces
 
 
@@ -119,12 +119,12 @@ def compile_project(spec_path, project_dir, base_dir=None, save_state=True):
             artefacts = sans_sandbox(artefacts)
         publish_files(temporary, proj_abs, artefacts)
 
-    print(f" -> Contrat frontend      : {CONTRACT_FILENAME} + {PROMPT_FILENAME}")
+    print(f" -> Frontend contract     : {CONTRACT_FILENAME} + {PROMPT_FILENAME}")
     generated_direction = [name for name, written in direction.items() if written]
     if generated_direction:
-        print(" -> Direction visuelle    : " + ", ".join(generated_direction))
+        print(" -> Visual direction      : " + ", ".join(generated_direction))
     if save_state:
-        print(f" -> État du projet        : {nomenclature.STATE_FILENAME}")
+        print(f" -> Project state         : {nomenclature.STATE_FILENAME}")
     return contract
 
 # ------------------------------------------------------------------- init --
@@ -136,13 +136,13 @@ def cmd_init(project_dir=None):
     try:
         spec_text = run_interactive_dialogue()
     except (EOFError, KeyboardInterrupt) as err:
-        print("Entrée interrompue : rien n'a été écrit, relancez `monl init`.",
+        print("Input interrupted: nothing was written; rerun `monl init`.",
               file=sys.stderr)
         raise SystemExit(130 if isinstance(err, KeyboardInterrupt) else 2) from None
     except DialogueError as err:
         # Le moteur garde son détail de question pour les autres appelants.
         message = str(err).split(" : ", 1)[0]
-        print(f"{message} : rien n'a été écrit, relancez `monl init`.", file=sys.stderr)
+        print(f"{message}: nothing was written; rerun `monl init`.", file=sys.stderr)
         raise SystemExit(2) from None
     app_match = re.match(r"app\s+(\w+)", spec_text)
     app_name = app_match.group(1) if app_match else "MonProjet"
@@ -151,11 +151,11 @@ def cmd_init(project_dir=None):
     spec_path = os.path.join(project_dir, "spec.ml")
     with open(spec_path, "w", encoding="utf-8") as fh:
         fh.write(spec_text)
-    print(f"\n✅ Spécification écrite : {spec_path}")
+    print(f"\n✅ Specification written: {spec_path}")
     compile_project(spec_path, project_dir)
-    print("\nProchaines étapes :")
-    print(f"  1. Donner {PROMPT_FILENAME} (dans {project_dir}) à une IA frontend")
-    print(f"     — elle doit écrire son résultat dans {project_dir}/frontend/")
+    print("\nNext steps:")
+    print(f"  1. Give {PROMPT_FILENAME} (in {project_dir}) to a frontend AI")
+    print(f"     — it should write its output to {project_dir}/frontend/")
     print("  2. monl run", project_dir)
     return project_dir
 
@@ -164,7 +164,7 @@ def cmd_migrate(project_dir, name=None, down=False, list_only=False):
     project_dir, _spec_path = emplacement._situer_projet(project_dir, "migrer")
     app_path = os.path.join(project_dir, "app.py")
     if not os.path.exists(app_path):
-        print(f" ❌ Artefact manquant : {app_path} — lancer 'monl update'.")
+        print(f" ❌ Missing artifact: {app_path} — run 'monl update'.")
         raise SystemExit(1)
     courant = os.getcwd()
     module = None
@@ -175,7 +175,7 @@ def cmd_migrate(project_dir, name=None, down=False, list_only=False):
         module_name = f"_monl_migration_app_{id(project_dir)}"
         spec = importlib.util.spec_from_file_location(module_name, app_path)
         if spec is None or spec.loader is None:
-            raise RuntimeError("impossible de charger app.py")
+            raise RuntimeError("unable to load app.py")
         module = importlib.util.module_from_spec(spec)
         sys.modules[module_name] = module
         spec.loader.exec_module(module)
@@ -186,20 +186,20 @@ def cmd_migrate(project_dir, name=None, down=False, list_only=False):
                 for migration in module._MIGRATIONS:
                     state = module._migration_is_applied(conn, migration)
                     irreversible = any(not op["reversible"] for op in migration["operations"])
-                    suffix = " ; down irréversible (DROP)" if irreversible else " ; down disponible"
-                    status = "✅ appliquée" if state else "⏳ en attente"
+                    suffix = " ; irreversible down (DROP)" if irreversible else " ; down available"
+                    status = "✅ applied" if state else "⏳ pending"
                     print(f"{status}  {migration['name']}{suffix}")
             finally:
                 conn.close()
             return
         if not name:
-            print(" ❌ Indiquer --name NOM, ou utiliser --list.")
+            print(" ❌ Specify --name NAME, or use --list.")
             raise SystemExit(1)
         module.apply_migration(name, "down" if down else "up")
     except SystemExit:
         raise
     except Exception as error:
-        print(f" ❌ Migration échouée : {error}")
+        print(f" ❌ Migration failed: {error}")
         raise SystemExit(1) from error
     finally:
         os.chdir(courant)
