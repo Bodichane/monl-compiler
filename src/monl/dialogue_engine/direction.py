@@ -60,11 +60,11 @@ class DirectionMixin:
     #: liste est PROPOSÉE, jamais imposée : chaque entrée se passe en laissant
     #: vide, exactement comme les rubriques du point 61.
     LIENS_PROPOSES = (
-        {"label": "Courriel", "ask": "adresse de contact"},
-        {"label": "Téléphone", "ask": "numéro à appeler"},
-        {"label": "Instagram", "ask": "adresse du compte"},
-        {"label": "Facebook", "ask": "adresse de la page"},
-        {"label": "LinkedIn", "ask": "adresse de la page"},
+        {"label": "Courriel", "ask": "contact address"},
+        {"label": "Téléphone", "ask": "phone number"},
+        {"label": "Instagram", "ask": "account address"},
+        {"label": "Facebook", "ask": "page address"},
+        {"label": "LinkedIn", "ask": "page address"},
     )
 
     #: La complétion vit au niveau du module : la console web de la
@@ -116,8 +116,8 @@ class DirectionMixin:
                 f"  {propose['label']} — {propose['ask']} > ")
             if saisie:
                 retenir(propose["label"], saisie)
-        while self._ask_yes_no("  Ajouter un autre lien (X, YouTube, TikTok, "
-                               "presse…) ?"):
+        while self._ask_yes_no("  Add another link (X, YouTube, TikTok, "
+                               "press…) ?"):
             libelle = self._ask_free_text("  Its label (e.g. YouTube) > ")
             saisie = self._ask_optional_free_text("  Its address > ")
             if saisie:
@@ -157,7 +157,7 @@ class DirectionMixin:
             return sections
         while True:
             titre = self._ask_free_text(
-                f"  Titre de la section {len(sections) + 1} "
+                f"  Section title {len(sections) + 1} "
                 f"(e.g. About) > ")
             corps = self._ask_paragraphs("  Its text > ")
             if corps:
