@@ -1,13 +1,13 @@
 """Un corps repris mot pour mot du contrat doit agir sur sa cible réelle."""
 
 import shutil
-import sqlite3
 from pathlib import Path
 
 import requests
 
 from monl.cli import compile_project
 from tests.support.server import uvicorn_server
+from tests.support.sqlite import base_sqlite
 
 RACINE = Path(__file__).resolve().parents[1]
 MOT_DE_PASSE = "MotDePasse123!"
@@ -48,13 +48,14 @@ def test_post_orderline_du_contrat_decremente_la_variante(tmp_path):
         commande = commande_r.json()
         variantes = requests.get(f"{base}/variant", timeout=10).json()["data"]
         variante = variantes[0]
-        before = sqlite3.connect(projet / "app.db").execute(
-            "SELECT stock FROM variant WHERE id = ?", (variante["id"],)).fetchone()[0]
+        with base_sqlite(projet / "app.db") as db:
+            before = db.execute("SELECT stock FROM variant WHERE id = ?",
+                                (variante["id"],)).fetchone()[0]
         valeurs = {"order_id": commande["id"], "variant_id": variante["id"], "quantity": 1}
         corps = {field: valeurs[field] for field in route["request_fields"]}
         resultat = requests.post(f"{base}/orderline", timeout=10, headers=headers, json=corps)
         assert resultat.status_code == 200, resultat.text
-        with sqlite3.connect(projet / "app.db") as db:
+        with base_sqlite(projet / "app.db") as db:
             after = db.execute("SELECT stock FROM variant WHERE id = ?",
                                (variante["id"],)).fetchone()[0]
     assert after == before - 1
@@ -68,14 +69,14 @@ def test_post_like_du_contrat_incremente_le_post(tmp_path):
     with uvicorn_server(str(projet)) as base:
         headers = _jeton(base, "Member", "membre@example.test")
         post = requests.get(f"{base}/post", timeout=10).json()["data"][0]
-        with sqlite3.connect(projet / "app.db") as db:
+        with base_sqlite(projet / "app.db") as db:
             before = db.execute("SELECT likes FROM post WHERE id = ?",
                                  (post["id"],)).fetchone()[0]
         valeurs = {"note": "bravo", "post_id": post["id"]}
         corps = {field: valeurs[field] for field in route["request_fields"]}
         resultat = requests.post(f"{base}/like", timeout=10, headers=headers, json=corps)
         assert resultat.status_code == 200, resultat.text
-        with sqlite3.connect(projet / "app.db") as db:
+        with base_sqlite(projet / "app.db") as db:
             after = db.execute("SELECT likes FROM post WHERE id = ?",
                                (post["id"],)).fetchone()[0]
     assert after == before + 1

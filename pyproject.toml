@@ -97,6 +97,18 @@ monl_platform = ["static/*.png", "static/*.ico"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+# Une connexion SQLite laissée au ramasse-miettes est un défaut, pas un
+# bruit : 72 `unclosed database` sous Python 3.14 venaient de
+# `with sqlite3.connect(...)`, qui valide sans fermer (points 141 et 185).
+# Le second filtre couvre le même avertissement levé dans un destructeur,
+# que pytest relaie sous ce nom. Limité à SQLite À DESSEIN : la suite fuit
+# encore des fichiers, des tubes de sous-processus et des réponses urllib
+# (mesuré en élargissant le filtre à tout ResourceWarning) ; l'élargir est
+# l'étape suivante, une fois ces fuites fermées.
+filterwarnings = [
+    "error:unclosed database:ResourceWarning",
+    "error:.*sqlite3\\.Connection:pytest.PytestUnraisableExceptionWarning",
+]
 
 # ─────────────────────────────────────────────────────────────────────
 # Ruff — le linter. Jeu de règles CHOISI, pas le catalogue complet : un

@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Tests
+
+- Close every SQLite connection the test suite opens. Python 3.14 reported
+  72 `ResourceWarning: unclosed database` in CI: 33 test sites used
+  `with sqlite3.connect(...)`, which commits but never closes (the trap of
+  points 141 and 185; shipped code had already left it), and one chained
+  `sqlite3.connect(...).execute(...)` that the error filter caught on its first
+  run, in the NEXT test, where the collector reclaimed it. They now go through
+  `tests.support.sqlite.base_sqlite`, which keeps the commit/rollback semantics
+  and always closes. Two guards keep it that way: pytest turns any
+  `ResourceWarning` into an error, and an AST check in `test_architecture.py`
+  refuses the bare pattern in `tests/` and `src/`, with a counter-proof.
+
 ## 1.0.1 — Re-registration fix and template-based generator
 
 ### Refactoring

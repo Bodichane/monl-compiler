@@ -19,12 +19,12 @@ passe, et que les sessions ouvertes tombent bien avec.
 """
 
 import os
-import sqlite3
 
 import requests
 
 from monl_platform.identity import IdentityStore
 from tests.support.server import uvicorn_server
+from tests.support.sqlite import base_sqlite
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ANCIEN = "MotDePasse-Ancien-2026"
@@ -82,7 +82,7 @@ def test_les_codes_ne_sont_jamais_stockes_en_clair(tmp_path):
         codes = corps["recovery_codes"]
 
     magasin = IdentityStore(_espace(tmp_path))
-    with sqlite3.connect(magasin.path) as db:
+    with base_sqlite(magasin.path) as db:
         stockes = [r[0] for r in db.execute("SELECT code_hash FROM recovery_codes")]
     assert len(stockes) == 8
     for code in codes:
@@ -231,7 +231,7 @@ def test_supprimer_le_compte_emporte_ses_codes(tmp_path):
                                json={"password": ANCIEN}).status_code == 204
 
     magasin = IdentityStore(_espace(tmp_path))
-    with sqlite3.connect(magasin.path) as db:
+    with base_sqlite(magasin.path) as db:
         assert db.execute("SELECT COUNT(*) FROM recovery_codes").fetchone()[0] == 0
 
 

@@ -17,7 +17,6 @@ possède déjà la base — la ligne de commande n'ajoute aucune surface d'attaq
 
 import json
 import os
-import sqlite3
 import subprocess
 import sys
 import time
@@ -30,6 +29,7 @@ from monl_platform.identity import IdentityStore
 from monl_platform.paths import project_directory
 from monl_platform.store import PlatformStore
 from tests.support.server import uvicorn_server
+from tests.support.sqlite import base_sqlite
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MOT_DE_PASSE = "MotDePasse-Administration-2026"
@@ -190,11 +190,11 @@ def test_prolonger_repousse_lecheance_depuis_maintenant(tmp_path):
                               timeout=180).json()["id"]
 
     magasin = IdentityStore(_espace(tmp_path))
-    with sqlite3.connect(magasin.path) as db:
+    with base_sqlite(magasin.path) as db:
         db.execute("UPDATE projects SET expires_at = ?", (int(time.time()) - 100_000,))
 
     assert admin(tmp_path, "prolonger", projet, "--jours", "30").returncode == 0
-    with sqlite3.connect(magasin.path) as db:
+    with base_sqlite(magasin.path) as db:
         echeance = db.execute("SELECT expires_at FROM projects").fetchone()[0]
     assert echeance > int(time.time()) + 29 * 24 * 3600
 
@@ -208,7 +208,7 @@ def test_prolonger_sans_limite_retire_lecheance(tmp_path):
 
     assert admin(tmp_path, "prolonger", projet, "--jamais").returncode == 0
     magasin = IdentityStore(_espace(tmp_path))
-    with sqlite3.connect(magasin.path) as db:
+    with base_sqlite(magasin.path) as db:
         assert db.execute("SELECT expires_at FROM projects").fetchone()[0] is None
 
 
@@ -226,11 +226,11 @@ def test_expirer_laisse_la_purge_faire_le_menage(tmp_path):
 
         magasin = IdentityStore(_espace(tmp_path))
         for _ in range(40):
-            with sqlite3.connect(magasin.path) as db:
+            with base_sqlite(magasin.path) as db:
                 if db.execute("SELECT COUNT(*) FROM projects").fetchone()[0] == 0:
                     break
             time.sleep(0.25)
-        with sqlite3.connect(magasin.path) as db:
+        with base_sqlite(magasin.path) as db:
             assert db.execute("SELECT COUNT(*) FROM projects").fetchone()[0] == 0
 
 
@@ -260,7 +260,7 @@ def test_supprimer_avec_confirmer_efface_jusquau_disque(tmp_path):
     assert not dossier.exists(), "le dossier compilé survit à la suppression"
 
     magasin = IdentityStore(_espace(tmp_path))
-    with sqlite3.connect(magasin.path) as db:
+    with base_sqlite(magasin.path) as db:
         for table in ("users", "projects", "api_keys", "recovery_codes"):
             assert db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0, table
 
@@ -296,7 +296,7 @@ def test_le_journal_de_ladministration_ne_livre_aucun_identifiant_nu(tmp_path):
         _, corps = _inscrire(base, "nu@exemple.test")
 
     magasin = IdentityStore(_espace(tmp_path))
-    with sqlite3.connect(magasin.path) as db:
+    with base_sqlite(magasin.path) as db:
         identifiant = db.execute("SELECT id FROM users").fetchone()[0]
 
     rendu = admin(tmp_path, "codes", "nu@exemple.test")

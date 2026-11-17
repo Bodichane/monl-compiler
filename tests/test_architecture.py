@@ -744,6 +744,74 @@ def test_aucun_test_ne_monte_la_plateforme_avec_testclient():
         "uvicorn éphémère à la place : " + ", ".join(fautifs))
 
 
+def _ouvertures_sqlite_nues(source, nom):
+    """Lignes où `sqlite3.connect(...)` sert DIRECTEMENT de gestionnaire `with`.
+
+    Ce `with` valide ou annule la transaction, il ne FERME pas la connexion
+    (points 141 et 185). Lu par AST : un commentaire, une docstring ou une
+    chaîne émise dans le code généré qui citent le piège ne comptent pas.
+    """
+    lignes = []
+    for noeud in ast.walk(ast.parse(source, filename=nom)):
+        if not isinstance(noeud, (ast.With, ast.AsyncWith)):
+            continue
+        for item in noeud.items:
+            appel = item.context_expr
+            if (isinstance(appel, ast.Call)
+                    and isinstance(appel.func, ast.Attribute)
+                    and appel.func.attr == "connect"
+                    and isinstance(appel.func.value, ast.Name)
+                    and appel.func.value.id == "sqlite3"):
+                lignes.append(noeud.lineno)
+    return lignes
+
+
+def test_aucune_connexion_sqlite_n_est_ouverte_par_un_with_nu():
+    """`with sqlite3.connect(...)` laisse la connexion au ramasse-miettes.
+
+    72 `ResourceWarning: unclosed database` sous Python 3.14 venaient de ce
+    seul motif, 33 fois dans `tests/` ; le code livré l'avait déjà quitté
+    (`identity_database`, `backup_healthcheck`, `store_core`). Le filtre
+    `error::ResourceWarning` de `pyproject.toml` attrape une fuite QUAND un
+    test la produit ; cette garde refuse le motif avant qu'il serve.
+    Utiliser `tests.support.sqlite.base_sqlite` (ou `try/finally` + `close`).
+    """
+    racine = pathlib.Path(__file__).resolve().parent.parent
+    fautifs = []
+    for arbre in ("tests", "src"):
+        for chemin in sorted((racine / arbre).rglob("*.py")):
+            source = chemin.read_text(encoding="utf-8")
+            fautifs += [f"{chemin.relative_to(racine)}:{ligne}"
+                        for ligne in _ouvertures_sqlite_nues(source, str(chemin))]
+    assert not fautifs, (
+        "`with sqlite3.connect(...)` valide sans fermer — utiliser "
+        "tests.support.sqlite.base_sqlite : " + ", ".join(fautifs))
+
+
+def test_lextracteur_de_connexions_nues_voit_le_motif():
+    """Contre-épreuve : sans elle, un extracteur qui ne trouve jamais rien
+    rendrait la garde verte sans rien regarder (point 161)."""
+    fautif = (
+        "import sqlite3\n"
+        "def f(p):\n"
+        "    with sqlite3.connect(p) as db:\n"
+        "        db.execute('select 1')\n"
+        "    with open(p) as a, sqlite3.connect(p) as b:\n"
+        "        pass\n"
+    )
+    assert _ouvertures_sqlite_nues(fautif, "fautif.py") == [3, 5]
+    sain = (
+        "import sqlite3\n"
+        "from tests.support.sqlite import base_sqlite\n"
+        "# with sqlite3.connect(p) as db:  -- un commentaire ne compte pas\n"
+        "CODE = 'with sqlite3.connect(p) as db:'\n"
+        "def f(p):\n"
+        "    with base_sqlite(p) as db:\n"
+        "        db.execute('select 1')\n"
+    )
+    assert _ouvertures_sqlite_nues(sain, "sain.py") == []
+
+
 # Les arbres du dépôt que les tests exercent. `outils/` en fait partie parce
 # que Pillow n'y entre que par `outils/fabriquer_images.py`, et `scripts/`
 # parce que le garde-fou de publication y vit (point 168).
