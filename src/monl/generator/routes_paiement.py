@@ -6,8 +6,33 @@ toute écriture — c'est le SEUL endroit du backend généré où un tiers non
 authentifié écrit ; une clé absente donne 503 en la NOMMANT, sans empêcher
 le reste du serveur de fonctionner."""
 
+from string import Template
+
+
 class PaiementRoutesMixin:
     """Les deux routes d'encaissement."""
+
+    def _payment_webhook_size_guard(self, secret_env, secret_var):
+        """Émet le contrôle de taille du corps webhook."""
+        return Template(r"""WEBHOOK_MAX_BYTES = 256 * 1024
+
+@app.post('/paiement/webhook', tags=['Paiement'])
+async def paiement_webhook(request: Request):
+    _exiger_cle_paiement('${secret_env}', ${secret_var})
+    _taille_annoncee = request.headers.get('content-length')
+    try:
+        _taille_annoncee = int(_taille_annoncee) if _taille_annoncee is not None else None
+    except ValueError:
+        _taille_annoncee = None
+    if _taille_annoncee is not None and _taille_annoncee > WEBHOOK_MAX_BYTES:
+        raise HTTPException(status_code=413, detail='Webhook trop volumineux.')
+    _blocs, _taille = [], 0
+    async for _bloc in request.stream():
+        _taille += len(_bloc)
+        if _taille > WEBHOOK_MAX_BYTES:
+            raise HTTPException(status_code=413, detail='Webhook trop volumineux.')
+        _blocs.append(_bloc)
+    brut = b''.join(_blocs)""").substitute(secret_env=secret_env, secret_var=secret_var).split("\n")
 
     # ─────────────────────────────────────────────────────────────────
     # BRIQUE PAIEMENT (point 74). Deux routes seulement, et un principe :
@@ -235,26 +260,8 @@ class PaiementRoutesMixin:
                 f"            'devise': '{devise['code']}', 'montant': montant}}",
                 "",
             ]
-        lignes += [
-            "WEBHOOK_MAX_BYTES = 256 * 1024",
-            "",
-            "@app.post('/paiement/webhook', tags=['Paiement'])",
-            "async def paiement_webhook(request: Request):",
-            f"    _exiger_cle_paiement('{secret_env}', {secret_var})",
-            "    _taille_annoncee = request.headers.get('content-length')",
-            "    try:",
-            "        _taille_annoncee = int(_taille_annoncee) if _taille_annoncee is not None else None",
-            "    except ValueError:",
-            "        _taille_annoncee = None",
-            "    if _taille_annoncee is not None and _taille_annoncee > WEBHOOK_MAX_BYTES:",
-            "        raise HTTPException(status_code=413, detail='Webhook trop volumineux.')",
-            "    _blocs, _taille = [], 0",
-            "    async for _bloc in request.stream():",
-            "        _taille += len(_bloc)",
-            "        if _taille > WEBHOOK_MAX_BYTES:",
-            "            raise HTTPException(status_code=413, detail='Webhook trop volumineux.')",
-            "        _blocs.append(_bloc)",
-            "    brut = b''.join(_blocs)",
+        lignes += self._payment_webhook_size_guard(secret_env, secret_var)
+        lignes.extend([
             f"    entete = request.headers.get('{entete_signature}', '')",
             f"    # Signature : t=<horodatage>,{schema_signature}=<hmac sha256 de \"t.corps\">.",
             "    # Sans cette vérification, n'importe qui marquerait n'importe",
@@ -284,7 +291,7 @@ class PaiementRoutesMixin:
             "    if not any(hmac.compare_digest(attendue, s) for s in signatures):",
             "        raise HTTPException(status_code=400, detail='Signature invalide.')",
             "    evenement = json.loads(brut or b'{}')",
-        ]
+        ])
         if prestataire == "fedapay":
             lignes += [
             "    # La clé `entity` est PROUVÉE : le plugin Odoo officiel de",
