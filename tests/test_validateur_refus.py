@@ -78,10 +78,10 @@ CIBLES_INEXISTANTES = [
      "references field 'fantome'"),
     ("increments vers une entité absente",
      "rule Note.Create increments Fantome.score by 1",
-     "référence l'entité 'Fantome'"),
+     "references entity 'Fantome'"),
     ("increments vers un champ absent",
      "rule Note.Create increments Autre.fantome by 1",
-     "cible le champ 'Autre.fantome'"),
+     "targets field 'Autre.fantome'"),
     ("payable sur une entité absente", "rule Fantome.score payable",
      "'payable' cible l'entité 'Fantome'"),
     ("payable sur un champ absent", "rule Note.fantome payable",
@@ -96,7 +96,7 @@ TYPES_INCOMPATIBLES = [
      "doit être un attribut String"),
     ("increments sur un champ texte",
      "rule Note.Create increments Autre.nom by 1",
-     "Integer ou Float"),
+     "Integer or Float attribute"),
     # On n'encaisse pas du texte : la seule façon d'en tirer un montant serait
     # de le convertir, donc de deviner.
     ("payable sur un champ texte", "rule Note.titre payable",
@@ -207,7 +207,7 @@ def test_un_compteur_sans_relation_entre_les_deux_entites_est_refuse():
     with pytest.raises(ASTValidationError) as refus:
         _valide(sans_relation.format(
             regles="rule Like.Create increments Post.likes by 1"))
-    assert "exige une relation" in str(refus.value)
+    assert "requires a relation" in str(refus.value)
 
 
 def test_un_compteur_hors_creation_est_refuse():
@@ -544,25 +544,25 @@ def test_les_derivations_mal_formees_sont_refusees():
     à encaisser, l'échec au runtime coûterait de l'argent."""
     table = [
         ("rule Fantome.total derivedFrom Article.prix by quantite",
-         "cible l'entité 'Fantome'"),
+         "targets entity 'Fantome'"),
         ("rule Commande.total derivedFrom Fantome.prix by quantite",
-         "lit l'entité 'Fantome'"),
+         "reads entity 'Fantome'"),
         ("rule Commande.fantome derivedFrom Article.prix by quantite",
-         "champ inexistant"),
+         "field does not exist"),
         ("rule Commande.total derivedFrom Article.nom by quantite",
-         "lit 'Article.nom'"),
+         "reads 'Article.nom'"),
         (REGLE_VALIDE + "\nrule Commande.total derivedFrom Article.prix by quantite",
-         "plusieurs règles 'derivedFrom'"),
+         "multiple 'derivedFrom' rules"),
         # `quantite` est Integer, donc recevable à la fois comme champ calculé et
         # comme multiplicateur : c'est le seul montage qui ATTEINT ce refus. Avec
         # `total` (Money), c'est le contrôle de type du multiplicateur qui refuse
         # avant — juste, mais pas le garde-fou qu'on prétend éprouver.
         ("rule Commande.quantite derivedFrom Article.prix by quantite",
-         "son propre multiplicateur"),
+         "cannot be its own multiplier"),
         ("rule Commande.total derivedFrom Article.prix by nom",
-         "champ inexistant"),
+         "field does not exist"),
         (REGLE_VALIDE + "\nrule Commande.total hidden",
-         "à la fois 'hidden' et 'derivedFrom'"),
+         "is both 'hidden' and 'derivedFrom'"),
     ]
     noms = ["entité-calculée-absente", "entité-source-absente", "champ-absent",
         "source-non-numérique", "deux-règles", "auto-multiplicateur",
@@ -595,7 +595,7 @@ def test_la_source_ne_peut_pas_etre_le_proprietaire():
                         "entity Client\n    displayName: String\n    remise: Float")
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec)
-    assert "propriétaire" in str(refus.value)
+    assert "owner" in str(refus.value)
 
 
 def test_une_entite_sans_proprietaire_ne_peut_pas_deriver():
@@ -605,7 +605,7 @@ def test_une_entite_sans_proprietaire_ne_peut_pas_deriver():
         "rule Commande.Read ownedBy Client\n", "")
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec)
-    assert "propriétaire" in str(refus.value)
+    assert "owner" in str(refus.value)
 
 
 def test_une_source_sans_relation_est_refusee():
@@ -615,7 +615,7 @@ def test_une_source_sans_relation_est_refusee():
         "relation Article hasMany Commande\n", "")
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec)
-    assert "exige une relation" in str(refus.value)
+    assert "requires a relation" in str(refus.value)
 
 
 # ------------------------- propriété : la chaîne doit remonter à un COMPTE ---
@@ -1078,15 +1078,15 @@ def test_writable_after_payment_ne_casse_ni_create_ni_update(tmp_path):
 
 def test_refus_de_somme_mal_formee():
     table = [
-        ("rule Fantome.total sumOf Ligne.sousTotal", "n'existe pas"),
-        ("rule Commande.total sumOf Fantome.sousTotal", "n'existe pas"),
-        ("rule Commande.libelle sumOf Ligne.sousTotal", "Money, Float ou Integer"),
-        ("rule Commande.absent sumOf Ligne.sousTotal", "champ inexistant"),
-        ("rule Commande.total sumOf Ligne.quantiteAbsente", "champ inexistant"),
+        ("rule Fantome.total sumOf Ligne.sousTotal", "does not exist"),
+        ("rule Commande.total sumOf Fantome.sousTotal", "does not exist"),
+        ("rule Commande.libelle sumOf Ligne.sousTotal", "Money, Float, or Integer"),
+        ("rule Commande.absent sumOf Ligne.sousTotal", "field does not exist"),
+        ("rule Commande.total sumOf Ligne.quantiteAbsente", "field does not exist"),
         # Une entité ne peut pas s'additionner elle-même.
-        ("rule Commande.total sumOf Commande.total", "ne peut pas s'additionner"),
+        ("rule Commande.total sumOf Commande.total", "cannot sum itself"),
         # Sans relation parent-enfant, la somme porterait sur la table entière.
-        ("rule Commande.total sumOf Article.prix", "relation parent-enfant"),
+        ("rule Commande.total sumOf Article.prix", "parent-child relation"),
     ]
 
     def cas(regle, attendu):
@@ -1152,14 +1152,14 @@ workflow W for Client
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec)
     message = str(refus.value)
-    assert "'derivedFrom' et 'sumOf'" in message
-    assert "choisir lequel" in message
+    assert "has both 'derivedFrom' and 'sumOf'" in message
+    assert "choose one" in message
 
 
 def test_deux_sommes_sur_le_meme_champ_sont_refusees():
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC_PANIER.format(regles=SOMME + "\n" + SOMME))
-    assert "une seule somme" in str(refus.value)
+    assert "only one sum is allowed per field" in str(refus.value)
 
 
 def test_sommer_une_entite_sans_proprietaire_est_refuse():
@@ -1179,7 +1179,7 @@ def test_sommer_une_entite_sans_proprietaire_est_refuse():
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec.format(regles="rule Commande.total sumOf Ligne.quantite"))
     message = str(refus.value)
-    assert "n'a pas de propriétaire" in message
+    assert "has no owner" in message
     assert "ownedBy" in message
 
 
@@ -1245,7 +1245,7 @@ workflow W for Membre
 def test_un_compteur_sur_une_entite_acteur_est_refuse():
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC_COMPTEUR_ACTEUR.format(cible="Membre"))
-    assert "'Membre' est aussi un acteur" in str(refus.value)
+    assert "is also an actor" in str(refus.value)
 
 
 def test_le_meme_compteur_sur_une_entite_metier_compile():

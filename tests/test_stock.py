@@ -121,7 +121,7 @@ def test_la_spec_du_banc_compile(capsys):
 def test_une_quantite_qui_nest_pas_un_champ_est_refusee(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace("by quantite", "by fantome"))
-    assert "champ inexistant" in str(refus.value)
+    assert "field does not exist" in str(refus.value)
     capsys.readouterr()
 
 
