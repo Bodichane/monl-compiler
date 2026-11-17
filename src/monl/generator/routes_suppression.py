@@ -3,7 +3,13 @@
 Le parent est lu AVANT le `DELETE` : après, la clé étrangère a disparu et
 plus rien ne dit quoi rendre ni à qui (points 82 et 92)."""
 
+from string import Template
+
 from . import sql
+
+
+def _render(template, **values):
+    return Template(template).substitute(**values)
 
 
 class SuppressionRoutesMixin:
@@ -29,17 +35,17 @@ class SuppressionRoutesMixin:
         delete_deps = dependency_injection
         ownership_check_lines = []
         if apply_delete_parties:
-            delete_deps += ", current_user_id: int = Depends(get_current_user_id)" if delete_deps else "current_user_id: int = Depends(get_current_user_id)"
-            cols_literal = ", ".join(f'\"{c}\"' for c in delete_parties)
+            delete_deps = _render("${dependencies}, current_user_id: int = Depends(get_current_user_id)", dependencies=delete_deps) if delete_deps else "current_user_id: int = Depends(get_current_user_id)"
+            cols_literal = ", ".join(_render('"${column}"', column=c) for c in delete_parties)
             ownership_check_lines = [
                 "    _p_conn = _connect(); _p_cur = _p_conn.cursor()",
-                f"    _p_cur.execute('SELECT {cols_literal} FROM \"{base_target.lower()}\" WHERE id = ?', (id,))",
+                _render('    _p_cur.execute(\'SELECT ${columns} FROM "${table}" WHERE id = ?\', (id,))', columns=cols_literal, table=base_target.lower()),
                 "    _p_row = _p_cur.fetchone(); _p_conn.close()",
                 "    if not _p_row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
             ]
             if apply_delete_super:
-                _superset = ", ".join(f'"{s}"' for s in delete_supers)
-                ownership_check_lines.append(f"    if current_actor not in {{{_superset}}}:")
+                _superset = ", ".join(_render('"${actor}"', actor=s) for s in delete_supers)
+                ownership_check_lines.append(_render("    if current_actor not in {${actors}}:", actors=_superset))
                 ownership_check_lines.append("        if current_user_id not in _p_row: raise HTTPException(status_code=403, ")
                 ownership_check_lines.append("        detail=\"Contrôle d'accès : seules les parties de la ressource peuvent exécuter cette action\")")
             else:
@@ -47,23 +53,22 @@ class SuppressionRoutesMixin:
                 ownership_check_lines.append("        detail=\"Contrôle d'accès : seules les parties de la ressource peuvent exécuter cette action\")")
         elif apply_ownership:
             check_actor, owner_select = self._owner_lookup_sql(base_target, owner_entity)
-            delete_deps += ", current_user_id: int = Depends(get_current_user_id)" if delete_deps else "current_user_id: int = Depends(get_current_user_id)"
+            delete_deps = _render("${dependencies}, current_user_id: int = Depends(get_current_user_id)", dependencies=delete_deps) if delete_deps else "current_user_id: int = Depends(get_current_user_id)"
             # Voir le commentaire équivalent dans le bloc "Update" ci-dessus :
             # le contrôle de propriété ne s'applique qu'à l'acteur
             # explicitement désigné comme propriétaire par 'ownedBy'.
             ownership_check_lines = [
-                f"    if current_actor == \"{check_actor}\":",
+                _render('    if current_actor == "${actor}":', actor=check_actor),
                 "        _owner_conn = _connect(); _owner_cur = _owner_conn.cursor()",
-                f"        _owner_cur.execute({owner_select.text!r}, {sql.params_tuple(owner_select)})",
+                _render("        _owner_cur.execute(${query}, ${params})", query=repr(owner_select.text), params=sql.params_tuple(owner_select)),
                 "        _owner_row = _owner_cur.fetchone(); _owner_conn.close()",
                 "        if not _owner_row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
-                "        if _owner_row[0] != current_user_id: raise HTTPException(status_code=403, "
-                "detail=\"Contrôle d'accès : seul le propriétaire de la ressource peut exécuter cette action\")",
+                "        if _owner_row[0] != current_user_id: raise HTTPException(status_code=403, detail=\"Contrôle d'accès : seul le propriétaire de la ressource peut exécuter cette action\")",
             ]
 
-        delete_deps_suffix = f", {delete_deps}" if delete_deps else ""
-        api_lines.append(f"@app.delete('/{base_target.lower()}/{{id}}', tags=['{tag}'])")
-        api_lines.append(f"def delete_{base_target.lower()}(id: int{delete_deps_suffix}):")
+        delete_deps_suffix = _render(", ${dependencies}", dependencies=delete_deps) if delete_deps else ""
+        api_lines.append(_render("@app.delete('/${table}/{id}', tags=['${tag}'])", table=base_target.lower(), tag=tag))
+        api_lines.append(_render("def delete_${table}(id: int${dependencies}):", table=base_target.lower(), dependencies=delete_deps_suffix))
         api_lines.append(security_check)
         api_lines.extend(ownership_check_lines)
         api_lines.append("    conn = _connect(); cursor = conn.cursor()")
@@ -77,17 +82,14 @@ class SuppressionRoutesMixin:
         dependantes = self._profile_dependents(base_target)
         col_compte = self._profile_account_column(base_target)
         if dependantes and col_compte:
-            api_lines += [
-                f"    cursor.execute('SELECT COUNT(*) FROM "
-                f'"{base_target.lower()}" WHERE "{col_compte}" = ?\', '
-                "(current_user_id,))",
+            api_lines.extend([
+                _render('    cursor.execute(\'SELECT COUNT(*) FROM "${table}" WHERE "${column}" = ?\', (current_user_id,))', table=base_target.lower(), column=col_compte),
                 "    _restantes = cursor.fetchone()[0] - 1",
                 "    if _restantes <= 0:",
-            ]
+            ])
             for nom, table, colonne in dependantes:
-                api_lines += [
-                    f"        cursor.execute('SELECT COUNT(*) FROM "
-                    f'"{table}" WHERE "{colonne}" = ?\', (current_user_id,))',
+                api_lines.extend([
+                    _render('        cursor.execute(\'SELECT COUNT(*) FROM "${table}" WHERE "${column}" = ?\', (current_user_id,))', table=table, column=colonne),
                     "        _dep = cursor.fetchone()[0]",
                     "        if _dep:",
                     "            conn.close()",
@@ -95,29 +97,26 @@ class SuppressionRoutesMixin:
                     # Le nom de l'entité tel que la SPEC l'écrit :
                     # c'est le vocabulaire que l'auteur du projet
                     # reconnaît, et celui du contrat frontend.
-                    f"                f'Suppression impossible : {{_dep}} "
-                    f"enregistrement(s) {nom} dépendent de cette fiche. '",
-                    "                'Sans elle, ils ne seraient plus rattachés à "
-                    "personne.'))",
-                ]
+                    _render("                f'Suppression impossible : {_dep} enregistrement(s) ${entity} dépendent de cette fiche. '", entity=nom),
+                    "                'Sans elle, ils ne seraient plus rattachés à personne.'))",
+                ])
         # BRIQUE 18 (point 91) : supprimer efface la trace d'un
         # encaissement. Le 409 que renvoyait la clé étrangère ne
         # protégeait rien — il suffisait de retirer les lignes d'abord,
         # et la commande réglée disparaissait de la base (vérifié).
         if self._payment_lock_field(base_target):
-            api_lines += self._payment_lock_lines(
-                base_target.lower(), "id", base_target)
+            api_lines.extend(self._payment_lock_lines(
+                base_target.lower(), "id", base_target))
         for verrou in self._payment_locked_parents(base_target):
-            lien = f"_verrou_{verrou['fk_column']}"
-            api_lines += [
-                f"    cursor.execute('SELECT \"{verrou['fk_column']}\" FROM "
-                f'"{base_target.lower()}" WHERE id = ?\', (id,))',
-                f"    {lien} = cursor.fetchone()",
-                f"    if {lien} and {lien}[0] is not None:",
-            ]
-            api_lines += self._payment_lock_lines(
-                verrou["table"], f"{lien}[0]", verrou["entity"],
-                indent="        ", var="_parent_regle")
+            lien = _render("_verrou_${column}", column=verrou["fk_column"])
+            api_lines.extend([
+                _render('    cursor.execute(\'SELECT "${column}" FROM "${table}" WHERE id = ?\', (id,))', column=verrou["fk_column"], table=base_target.lower()),
+                _render("    ${variable} = cursor.fetchone()", variable=lien),
+                _render("    if ${variable} and ${variable}[0] is not None:", variable=lien),
+            ])
+            api_lines.extend(self._payment_lock_lines(
+                verrou["table"], _render("${variable}[0]", variable=lien), verrou["entity"],
+                indent="        ", var="_parent_regle"))
         # CORRECTIF (bêta 3) : les clés étrangères sont désormais
         # réellement appliquées (PRAGMA foreign_keys), donc supprimer un
         # enregistrement encore référencé lève une IntegrityError. On la
@@ -131,12 +130,11 @@ class SuppressionRoutesMixin:
         # 'payable' on encaisserait un article rendu.
         recalculs_del = self._aggregation_recomputes(base_target)
         for recalcul in recalculs_del:
-            var = f"_parent_{recalcul['fk_column']}"
-            api_lines += [
-                f"    cursor.execute('SELECT \"{recalcul['fk_column']}\" FROM "
-                f'"{base_target.lower()}" WHERE id = ?\', (id,))',
-                f"    {var} = cursor.fetchone()",
-            ]
+            var = _render("_parent_${column}", column=recalcul["fk_column"])
+            api_lines.extend([
+                _render('    cursor.execute(\'SELECT "${column}" FROM "${table}" WHERE id = ?\', (id,))', column=recalcul["fk_column"], table=base_target.lower()),
+                _render("    ${variable} = cursor.fetchone()", variable=var),
+            ])
         # BRIQUE 15 (point 92) : la suppression DÉFAIT le décompte. Le
         # troisième branchement, celui qu'on oublie — le point 82 l'avait
         # nommé pour l'agrégation et l'avait traité ; le décompte, lui, ne
@@ -157,64 +155,61 @@ class SuppressionRoutesMixin:
         for indice, rule in enumerate(
                 self.reputation_rules_by_trigger.get(base_target, [])):
             fk_cible = rule.target_fk
-            var = f"_rendu_{indice}"
+            var = _render("_rendu_${index}", index=indice)
             champ = rule.amount_field
             # La quantité et la clé étrangère sont lues AVANT le DELETE :
             # après, la ligne n'existe plus et rien ne dit quoi rendre ni
             # à qui. Même raison qu'au point 82, deux lignes plus haut.
-            colonnes = f'"{champ}", "{fk_cible}"' if champ else f'"{fk_cible}"'
-            api_lines += [
-                f"    cursor.execute('SELECT {colonnes} FROM "
-                f'"{base_target.lower()}" WHERE id = ?\', (id,))',
-                f"    {var} = cursor.fetchone()",
-            ]
+            colonnes = _render('"${field}", "${fk}"', field=champ, fk=fk_cible) if champ else _render('"${fk}"', fk=fk_cible)
+            api_lines.extend([
+                _render("    cursor.execute('SELECT ${columns} FROM \"${table}\" WHERE id = ?', (id,))", columns=colonnes, table=base_target.lower()),
+                _render("    ${variable} = cursor.fetchone()", variable=var),
+            ])
             restitutions.append({
                 "var": var,
                 # Décompter, c'est retrancher : rendre, c'est ajouter.
                 "op": "+" if rule.direction == "decrements" else "-",
                 "table": rule.target_entity.lower(),
                 "champ": rule.target_field,
-                "montant": (f"int({var}[0] or 0)" if champ
+                "montant": (_render("int(${variable}[0] or 0)", variable=var) if champ
                             else str(rule.amount)),
                 "fk_index": 1 if champ else 0,
             })
         upload_refs = []
         for upload in self.upload_fields_by_entity.get(base_target, []):
-            ref_var = f"_upload_ref_{upload['field']}"
-            api_lines += [
-                f"    cursor.execute('SELECT \"{upload['field']}\" FROM \"{base_target.lower()}\" WHERE id = ?', (id,))",
-                f"    {ref_var} = cursor.fetchone()",
-            ]
+            ref_var = _render("_upload_ref_${field}", field=upload["field"])
+            api_lines.extend([
+                _render('    cursor.execute(\'SELECT "${field}" FROM "${table}" WHERE id = ?\', (id,))', field=upload["field"], table=base_target.lower()),
+                _render("    ${variable} = cursor.fetchone()", variable=ref_var),
+            ])
             upload_refs.append((upload, ref_var))
         api_lines.append("    try:")
-        api_lines.append(f"        cursor.execute('DELETE FROM \"{base_target.lower()}\" WHERE id = ?', (id,))")
+        api_lines.append(_render('        cursor.execute(\'DELETE FROM "${table}" WHERE id = ?\', (id,))', table=base_target.lower()))
         for recalcul in recalculs_del:
-            var = f"_parent_{recalcul['fk_column']}"
-            api_lines += [
-                f"        if {var}:",
-                f"            cursor.execute({recalcul['sql']!r}, ({var}[0], {var}[0]))",
-            ]
+            var = _render("_parent_${column}", column=recalcul["fk_column"])
+            api_lines.extend([
+                _render("        if ${variable}:", variable=var),
+                _render("            cursor.execute(${query}, (${variable}[0], ${variable}[0]))", query=repr(recalcul["sql"]), variable=var),
+            ])
         for rendu in restitutions:
             var = rendu["var"]
-            api_lines += [
-                f"        if {var} and {var}[{rendu['fk_index']}] is not None:",
-                f"            cursor.execute('UPDATE \"{rendu['table']}\" SET "
-                f'"{rendu["champ"]}" = "{rendu["champ"]}" {rendu["op"]} ? '
-                f"WHERE id = ?', ({rendu['montant']}, {var}[{rendu['fk_index']}]))",
-            ]
+            api_lines.extend([
+                _render("        if ${variable} and ${variable}[${index}] is not None:", variable=var, index=rendu["fk_index"]),
+                _render('            cursor.execute(\'UPDATE "${table}" SET "${field}" = "${field}" ${op} ? WHERE id = ?\', (${amount}, ${variable}[${index}]))', table=rendu["table"], field=rendu["champ"], op=rendu["op"], amount=rendu["montant"], variable=var, index=rendu["fk_index"]),
+            ])
         api_lines.append("        conn.commit()")
         api_lines.append("    except _DATABASE_INTEGRITY_ERRORS:")
         api_lines.append("        conn.rollback(); conn.close()")
         api_lines.append("        raise HTTPException(status_code=409, detail=(")
         api_lines.append("            \"Suppression impossible : cet enregistrement est encore référencé \"")
-        api_lines.append("            'par des données liées. Supprimez-les d\\'abord.'")
+        api_lines.append(_render(r"            'par des données liées. Supprimez-les d\'abord.'"))
         api_lines.append("        ))")
         api_lines.append("    conn.close()")
         for upload, ref_var in upload_refs:
-            api_lines += [
-                f"    if {ref_var} and {ref_var}[0]:",
-                f"        _remove_upload({base_target.lower()!r}, id, {upload['field']!r}, {ref_var}[0])",
-            ]
+            api_lines.extend([
+                _render("    if ${variable} and ${variable}[0]:", variable=ref_var),
+                _render("        _remove_upload(${table}, id, ${field}, ${variable}[0])", table=repr(base_target.lower()), field=repr(upload["field"]), variable=ref_var),
+            ])
         api_lines.append("    return {'status': 'success', 'id': id}")
         api_lines.append("")
 
@@ -227,8 +222,8 @@ class SuppressionRoutesMixin:
         tag = context["tag"]
         security_check = context["security_check"]
         dependency_injection = context["dependency_injection"]
-        api_lines.append(f"@app.post('/workflow/{tag.lower()}/{target.lower()}', tags=['{tag}'])")
-        api_lines.append(f"def execute_{target.lower()}(payload: {target}InputSchema, {dependency_injection}):")
+        api_lines.append(_render("@app.post('/workflow/${path_tag}/${path_target}', tags=['${tag}'])", path_tag=tag.lower(), path_target=target.lower(), tag=tag))
+        api_lines.append(_render("def execute_${function}(payload: ${target}InputSchema, ${dependencies}):", function=target.lower(), target=target, dependencies=dependency_injection))
         api_lines.append(security_check)
         # CORRECTIF (point 85) : `.dict()` est DÉPRÉCIÉ en Pydantic v2 et
         # sera retiré en v3 — vérifié en le déclenchant. Tout backend
@@ -236,7 +231,7 @@ class SuppressionRoutesMixin:
         # la première installation sur Pydantic 3, sans que rien dans le
         # dépôt ne le signale (aucun exemple, aucun test n'exerçait ce
         # chemin : c'est le trou de couverture qui l'a fait trouver).
-        api_lines.append(f"    result = sandbox_ai.{target}(payload.model_dump())")
+        api_lines.append(_render("    result = sandbox_ai.${target}(payload.model_dump())", target=target))
         api_lines.append("    return {'status': 'executed', 'sandbox_result': result}")
         api_lines.append("")
 
