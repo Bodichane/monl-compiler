@@ -257,11 +257,11 @@ def test_un_justificatif_de_depense_exerce_le_depot_prive(tmp_path):
     prompts = []
     spec = _run_template(index, "n", False, upload_pour="Expense",
                          prompts=prompts)
-    depots = [p for p in prompts if "dépôt de fichier" in p]
+    depots = [p for p in prompts if "file upload" in p]
     assert len(depots) == 2, depots          # Expense et Budget sont éligibles
     # La question DIT ce qu'elle produit : sans cette phrase, on choisit
     # « Photo » en croyant que d'autres la verront.
-    assert all("lisible que par son propriétaire" in p for p in depots), depots
+    assert all("only be readable by its owner" in p for p in depots), depots
 
     normalized = MonlAST(parse_monl_string(spec)).validate_and_audit()
     assert "photo: Upload" in spec
@@ -377,7 +377,7 @@ def test_forcer_un_upload_public_fait_rougir_le_compilateur():
         {"User": set(), "Public": set()}, ["Public"], [],
         {"Public": "User"}, False, False, self_register="User",
         extra_rules=rules)
-    with pytest.raises(ASTValidationError, match="ne peut pas être public"):
+    with pytest.raises(ASTValidationError, match="cannot be public"):
         MonlAST(parse_monl_string(spec)).validate_and_audit()
 
 
