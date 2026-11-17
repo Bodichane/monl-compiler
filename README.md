@@ -467,7 +467,7 @@ with full awareness).
 | **Offensive audit** | Role impersonation, forged JWT, privilege escalation |
 | **Architecture boundaries** | Import contracts verified by tests, including the independence of analysis from emitters |
 | **Lint** | `ruff check src tests` — zero findings, justified exceptions in `pyproject.toml` |
-| **CI** | Workflow configured for Python 3.10, 3.12, and 3.14 on every push and pull request |
+| **CI** | Workflow configured for Python 3.10, 3.12, 3.14, and 3.15 on every push and pull request |
 
 ```bash
 python3 -m pytest tests/ -rs --cov=src/monl --cov=src/monl_platform --cov-report=term-missing --cov-fail-under=0

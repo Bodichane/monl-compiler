@@ -42,7 +42,7 @@ python3 -m pytest tests/ -q --cov=src --cov-report=term-missing
 python3 -m pytest tests/test_architecture.py -q        # architecture boundaries
 ```
 
-CI reruns all of this on Python 3.10, 3.12, and 3.14, and `main` is protected:
+CI reruns all of this on Python 3.10, 3.12, 3.14, and 3.15, and `main` is protected:
 nothing merges unless all three checks pass.
 
 ## Repository rules
