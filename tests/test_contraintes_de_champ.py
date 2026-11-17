@@ -201,7 +201,7 @@ workflow Acheter for Client
 """
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec)
-    assert "le SERVEUR calcule ce champ" in str(refus.value)
+    assert "the SERVER calculates this field" in str(refus.value)
     capsys.readouterr()
 
 
