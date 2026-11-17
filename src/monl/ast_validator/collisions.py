@@ -24,28 +24,27 @@ class CollisionsMixin:
                 continue
             if "." not in rule["reference"]:
                 raise ASTValidationError(
-                    f"Structure : la règle 'restrictedTo' doit référencer "
-                    f"'Entite.champ', reçu '{rule['reference']}'."
+                    f"Structure: the 'restrictedTo' rule must reference "
+                    f"'Entity.field'; received '{rule['reference']}'."
                 )
             entity, field = rule["reference"].split(".", 1)
             if entity not in self.entities:
                 raise ASTValidationError(
-                    f"Structure : la règle 'restrictedTo' cible l'entité "
-                    f"'{entity}' qui n'existe pas."
+                    f"Structure: the 'restrictedTo' rule targets entity "
+                    f"'{entity}', which does not exist."
                 )
             if field not in self.entities[entity]:
                 raise ASTValidationError(
-                    f"Structure : la règle 'restrictedTo' cible le champ "
-                    f"'{entity}.{field}', qui n'est pas un attribut déclaré -- "
-                    f"une faute de frappe désactiverait silencieusement la "
-                    f"restriction."
+                    f"Structure: the 'restrictedTo' rule targets field "
+                    f"'{entity}.{field}', which is not a declared attribute -- "
+                    f"a typo would silently disable the restriction."
                 )
             actor = rule["value"]
             if actor not in self.actors:
                 raise ASTValidationError(
-                    f"Structure : la règle 'restrictedTo' sur "
-                    f"'{entity}.{field}' restreint à l'acteur '{actor}', qui "
-                    f"n'est pas un acteur déclaré."
+                    f"Structure: the 'restrictedTo' rule on "
+                    f"'{entity}.{field}' restricts access to actor '{actor}', "
+                    f"which is not a declared actor."
                 )
 
     def _valider_regles_message(self):
@@ -64,57 +63,57 @@ class CollisionsMixin:
             reference = rule["reference"]
             if "." not in reference:
                 raise ASTValidationError(
-                    f"Structure : la règle 'sends' doit référencer "
-                    f"'Entite.Create', reçu '{reference}'.")
+                    f"Structure: the 'sends' rule must reference "
+                    f"'Entity.Create'; received '{reference}'.")
             entity, action = reference.split(".", 1)
             if entity not in self.entities:
                 raise ASTValidationError(
-                    f"Structure : 'sends' cible l'entité '{entity}' qui n'existe pas.")
+                    f"Structure: 'sends' targets entity '{entity}', which does not exist.")
             if action != "Create":
                 raise ASTValidationError(
-                    f"Structure : 'sends' ne vaut que sur 'Entite.Create' "
-                    f"(reçu '{reference}'). La transition oneOf est volontairement "
-                    "hors de cette brique.")
+                    f"Structure: 'sends' only applies to 'Entity.Create' "
+                    f"(received '{reference}'). The oneOf transition is deliberately "
+                    "outside this feature.")
             if reference in references:
                 raise ASTValidationError(
-                    f"Structure : plusieurs règles 'sends' sur '{reference}' -- "
-                    "une création ne doit déclencher qu'un seul message.")
+                    f"Structure: multiple 'sends' rules target '{reference}' -- "
+                    "a creation must trigger only one message.")
             references.add(reference)
             if (entity, "Create") in self.public_actions:
                 raise ASTValidationError(
-                    f"Structure : '{reference}' est public, mais 'sends' doit "
-                    "connaître le compte destinataire. Une création publique "
-                    "n'offre aucune identité à laquelle écrire.")
+                    f"Structure: '{reference}' is public, but 'sends' must "
+                    "know the recipient account. A public creation provides "
+                    "no identity to send a message to.")
             if not any(
                     action_["type"] == "Create" and action_["target"] == entity
                     for workflow in self.workflows
                     for action_ in workflow["actions"]):
                 raise ASTValidationError(
-                    f"Structure : '{reference}' porte 'sends', mais aucune route "
-                    f"Create {entity} n'est déclarée -- l'envoi ne se déclencherait jamais.")
+                    f"Structure: '{reference}' has 'sends', but no Create {entity} "
+                    "route is declared -- the message would never be sent.")
             if not self.auth_identifier or "email" not in self.auth_identifier:
                 raise ASTValidationError(
-                    f"Structure : '{reference}' veut envoyer un courriel, mais la spec "
-                    "ne déclare pas 'capability auth' avec 'identifier: email'. "
-                    "Sans cette identité de compte, monl n'a aucune adresse où écrire ; "
-                    "un champ texte libre nommé 'email' ne vaut pas une adresse de compte.")
+                    f"Structure: '{reference}' wants to send an email, but the spec "
+                    "does not declare 'capability auth' with 'identifier: email'. "
+                    "Without this account identity, monl has no address to send to; "
+                    "a free-text field named 'email' is not an account address.")
 
             subject = rule.get("subject", "")
             body = rule.get("body", "")
             if not subject.strip():
                 raise ASTValidationError(
-                    f"Structure : le sujet du message '{reference}' ne peut pas être vide.")
+                    f"Structure: the subject of message '{reference}' cannot be empty.")
             if not body.strip():
                 raise ASTValidationError(
-                    f"Structure : le corps du message '{reference}' ne peut pas être vide.")
+                    f"Structure: the body of message '{reference}' cannot be empty.")
             if "\r" in subject or "\n" in subject:
                 raise ASTValidationError(
-                    f"Structure : le sujet de '{reference}' contient un saut de ligne. "
-                    "Refusé pour empêcher une injection d'en-têtes SMTP (Bcc, Cc, etc.).")
+                    f"Structure: the subject of '{reference}' contains a line break. "
+                    "Rejected to prevent SMTP header injection (Bcc, Cc, etc.).")
             if "\r" in body or "\n" in body:
                 raise ASTValidationError(
-                    f"Structure : le corps de '{reference}' contient un saut de ligne brut. "
-                    "Utiliser le séparateur '¶' entre les paragraphes.")
+                    f"Structure: the body of '{reference}' contains a raw line break. "
+                    "Use the '¶' separator between paragraphs.")
             self.message_rules.append({
                 "trigger_entity": entity,
                 "trigger_action": action,
@@ -133,7 +132,7 @@ class CollisionsMixin:
             actor = workflow["actor"]
             if actor not in self.actors:
                 raise ASTValidationError(
-                    f"Structure : L'acteur '{actor}' dans le workflow '{workflow['name']}' n'est pas déclaré."
+                    f"Structure: actor '{actor}' in workflow '{workflow['name']}' is not declared."
                 )
             for action in workflow["actions"]:
                 target = action["target"]
@@ -141,13 +140,13 @@ class CollisionsMixin:
                 if action_type == "Execute":
                     if target not in self.custom_logic:
                         raise ASTValidationError(
-                            f"Architecture : L'action Execute appelle '{target}', mais ce bloc custom n'est pas défini."
+                            f"Architecture: Execute action calls '{target}', but this custom block is not defined."
                         )
                     continue
                 entity = target.split(".")[0] if "." in target else target
                 if entity not in self.entities:
                     raise ASTValidationError(
-                        f"Structure : L'action cible l'entité '{entity}' qui n'existe pas."
+                        f"Structure: action targets entity '{entity}', which does not exist."
                     )
                 if (entity, action_type) in self.public_actions:
                     continue
@@ -160,30 +159,29 @@ class CollisionsMixin:
                 key = f"{entity}.{action_type}"
                 allowed_shared = shared_permissions.get(key)
                 if allowed_shared and authorized_actors.issubset(allowed_shared):
-                    print(f"🤝 [SHARED_PRIVILEGE] L'action '{action_type}' sur '{entity}' est explicitement "
-                          f"partagée entre [{', '.join(sorted(authorized_actors))}] via une règle 'sharedBy'.")
+                    print(f"🤝 [SHARED_PRIVILEGE] Action '{action_type}' on '{entity}' is explicitly "
+                          f"shared among [{', '.join(sorted(authorized_actors))}] via a 'sharedBy' rule.")
                     continue
                 if (entity, action_type) in self.ownership_rules:
-                    print(f"🔐 [SHARED_PRIVILEGE_VIA_OWNERSHIP] L'action '{action_type}' sur '{entity}' est partagée "
-                          f"entre [{', '.join(sorted(authorized_actors))}], mais protégée au niveau de chaque "
-                          f"enregistrement par la règle 'ownedBy' (propriétaire : "
+                    print(f"🔐 [SHARED_PRIVILEGE_VIA_OWNERSHIP] Action '{action_type}' on '{entity}' is shared "
+                          f"among [{', '.join(sorted(authorized_actors))}], but protected at the record level "
+                          f"by the 'ownedBy' rule (owner: "
                           f"{self.ownership_rules[(entity, action_type)]}).")
                     continue
                 if (entity, action_type) in self.access_party_rules:
-                    print(f"🔐 [SHARED_PRIVILEGE_VIA_ACCESS] L'action '{action_type}' sur '{entity}' est partagée "
-                          f"entre [{', '.join(sorted(authorized_actors))}], mais protégée au niveau de chaque "
-                          f"enregistrement par la règle 'accessibleBy' "
-                          f"(parties : {self.access_party_rules[(entity, action_type)]}).")
+                    print(f"🔐 [SHARED_PRIVILEGE_VIA_ACCESS] Action '{action_type}' on '{entity}' is shared "
+                          f"among [{', '.join(sorted(authorized_actors))}], but protected at the record level "
+                          f"by the 'accessibleBy' rule (parties: {self.access_party_rules[(entity, action_type)]}).")
                     continue
                 actors = ", ".join(sorted(authorized_actors))
                 suggestion = f"'rule {entity}.{action_type} sharedBy {actors}'"
                 extra = ""
                 if allowed_shared:
                     uncovered = authorized_actors - allowed_shared
-                    extra = (f" Une règle 'sharedBy' existe déjà pour '{key}' mais ne couvre pas : "
+                    extra = (f" A 'sharedBy' rule already exists for '{key}' but does not cover: "
                              f"[{', '.join(sorted(uncovered))}].")
                 raise ASTValidationError(
-                    f"🔒 [CRITICAL_COLLISION] Conflit d'autorité sur l'entité '{entity}' : "
-                    f"les acteurs [{actors}] ont tous le droit d'exécuter l'action '{action_type}'. "
-                    f"Séparez ces privilèges, ou déclarez explicitement le partage avec : {suggestion}.{extra}"
+                    f"🔒 [CRITICAL_COLLISION] Authority conflict on entity '{entity}': "
+                    f"actors [{actors}] are all allowed to perform action '{action_type}'. "
+                    f"Separate these privileges, or explicitly declare sharing with: {suggestion}.{extra}"
                 )
