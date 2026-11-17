@@ -83,9 +83,9 @@ CIBLES_INEXISTANTES = [
      "rule Note.Create increments Autre.fantome by 1",
      "targets field 'Autre.fantome'"),
     ("payable sur une entité absente", "rule Fantome.score payable",
-     "'payable' cible l'entité 'Fantome'"),
+     "'payable' rule targets entity 'Fantome'"),
     ("payable sur un champ absent", "rule Note.fantome payable",
-     "champ inexistant"),
+     "field does not exist"),
 ]
 
 TYPES_INCOMPATIBLES = [
@@ -100,7 +100,7 @@ TYPES_INCOMPATIBLES = [
     # On n'encaisse pas du texte : la seule façon d'en tirer un montant serait
     # de le convertir, donc de deviner.
     ("payable sur un champ texte", "rule Note.titre payable",
-     "Money, Float ou Integer"),
+     "Money, Float, or Integer"),
 ]
 
 PALIERS_MAL_FORMES = [
@@ -123,7 +123,7 @@ REGLES_QUI_SE_CONTREDISENT = [
     # qui le règle : il paierait un chiffre qu'on refuse de lui montrer.
     ("hidden et payable sur le même champ",
      "rule Note.score hidden\nrule Note.score payable",
-     "à la fois 'hidden' et 'payable'"),
+     "both 'hidden' and 'payable'"),
 ]
 
 TOUS_LES_CAS = (CIBLES_INEXISTANTES + TYPES_INCOMPATIBLES
@@ -281,7 +281,7 @@ def test_un_seul_champ_payable_par_entite():
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC_PAYABLE.format(
             regles="rule Commande.total payable\nrule Commande.frais payable"))
-    assert "plusieurs champs 'payable'" in str(refus.value)
+    assert "multiple 'payable' fields" in str(refus.value)
 
 
 def test_un_seul_champ_payable_compile():
@@ -308,7 +308,7 @@ def test_payable_refuse_un_montant_que_le_client_peut_ecrire():
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC_PAYABLE.format(regles="rule Commande.total payable"))
     message = str(refus.value)
-    assert "le client peut l'écrire" in message
+    assert "the client can write it" in message
     # Le message doit nommer la sortie, pas seulement le problème.
     assert "derivedFrom" in message
 
@@ -870,7 +870,7 @@ workflow W for Client
 """
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec)
-    assert "le client peut l'écrire" in str(refus.value)
+    assert "the client can write it" in str(refus.value)
 
 
 # ------------------------- agrégation : sommer un total (brique 12) ----------
@@ -1201,7 +1201,7 @@ def test_encaisser_une_somme_de_montants_ecrits_par_le_client_est_refuse():
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec.format(regles=SOMME + "\nrule Commande.total payable"))
     message = str(refus.value)
-    assert "que le client peut écrire" in message
+    assert "which the client can write" in message
     # Le message doit nommer la ligne fautive et proposer le correctif.
     assert "Ligne.sousTotal" in message
     assert "derivedFrom" in message

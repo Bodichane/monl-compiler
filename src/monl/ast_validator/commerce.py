@@ -32,14 +32,14 @@ class CommerceMixin:
                 continue
             if "." not in rule["reference"]:
                 raise ASTValidationError(
-                    f"Structure : la règle 'requiresOwn' doit référencer 'Entite.Action', "
-                    f"reçu '{rule['reference']}'."
+                    f"Structure: the 'requiresOwn' rule must reference 'Entity.Action', "
+                    f"received '{rule['reference']}'."
                 )
             entity, act_type = rule["reference"].split(".", 1)
             requise = rule["value"]
             if entity not in self.entities:
                 raise ASTValidationError(
-                    f"Structure : la règle 'requiresOwn' cible l'entité '{entity}' qui n'existe pas."
+                    f"Structure: the 'requiresOwn' rule targets entity '{entity}', which does not exist."
                 )
             # Seule la création peut l'exiger : c'est le moment où
             # l'enregistrement naît sans propriétaire nommé. Sur Read/Update/
@@ -47,21 +47,20 @@ class CommerceMixin:
             # posteriori rendrait inaccessibles des données qu'on possède.
             if act_type != "Create":
                 raise ASTValidationError(
-                    f"Structure : 'requiresOwn' ne vaut que sur '{entity}.Create' "
-                    f"(reçu '{entity}.{act_type}') -- sur une action de lecture ou de "
-                    f"modification, l'enregistrement existe déjà et sa fiche ne peut "
-                    f"plus rien empêcher."
+                    f"Structure: 'requiresOwn' only applies to '{entity}.Create' "
+                    f"(received '{entity}.{act_type}') -- on a read or modification "
+                    f"action, the record already exists and its profile can no longer "
+                    f"prevent anything."
                 )
             if requise not in self.entities:
                 raise ASTValidationError(
-                    f"Structure : la règle 'requiresOwn' sur '{entity}.Create' exige un "
-                    f"'{requise}', qui n'est pas une entité déclarée."
+                    f"Structure: the 'requiresOwn' rule on '{entity}.Create' requires "
+                    f"'{requise}', which is not a declared entity."
                 )
             if requise == entity:
                 raise ASTValidationError(
-                    f"Structure : '{entity}.Create requiresOwn {entity}' -- une entité ne "
-                    f"peut pas exiger d'elle-même : le premier enregistrement ne pourrait "
-                    f"jamais être créé."
+                    f"Structure: '{entity}.Create requiresOwn {entity}' -- an entity "
+                    f"cannot require itself: the first record could never be created."
                 )
             # L'entité exigée doit être possédée DIRECTEMENT par un acteur :
             # « en posséder un » n'a de sens que si la propriété se déduit du
@@ -72,23 +71,23 @@ class CommerceMixin:
                              if ent == requise}
             if not (proprietaires & set(self.actors)):
                 raise ASTValidationError(
-                    f"Structure : '{entity}.Create requiresOwn {requise}', mais "
-                    f"'{requise}' n'est possédé par aucun acteur -- « en posséder un » "
-                    f"ne veut alors rien dire. Ajouter une règle "
+                    f"Structure: '{entity}.Create requiresOwn {requise}', but "
+                    f"'{requise}' is not owned by any actor -- 'owning one' would "
+                    f"then have no meaning. Add a rule "
                     f"'rule {requise}.Read ownedBy <Acteur>'."
                 )
             # Une création publique n'a aucune identité : impossible de chercher
             # « sa » fiche. Même refus que 'generated' et 'payable', même raison.
             if (entity, "Create") in self.public_actions:
                 raise ASTValidationError(
-                    f"Structure : '{entity}.Create' est 'public' et exige pourtant un "
-                    f"'{requise}' possédé -- incompatible : sans appelant identifié, "
-                    f"aucune fiche ne peut être cherchée."
+                    f"Structure: '{entity}.Create' is 'public' but still requires an "
+                    f"owned '{requise}' -- incompatible: without an identified caller, "
+                    f"no profile can be looked up."
                 )
             if entity in self.required_profiles:
                 raise ASTValidationError(
-                    f"Structure : plusieurs règles 'requiresOwn' déclarées pour "
-                    f"'{entity}.Create' -- une seule autorisée."
+                    f"Structure: multiple 'requiresOwn' rules declared for "
+                    f"'{entity}.Create' -- only one is allowed."
                 )
             self.required_profiles[entity] = requise
 
@@ -103,40 +102,40 @@ class CommerceMixin:
                 continue
             if "." not in rule["reference"]:
                 raise ASTValidationError(
-                    f"Structure : la règle 'payable' doit référencer 'Entite.champ', reçu '{rule['reference']}'."
+                    f"Structure: the 'payable' rule must reference 'Entity.field', received '{rule['reference']}'."
                 )
             entity, field = rule["reference"].split(".", 1)
             if entity not in self.entities:
                 raise ASTValidationError(
-                    f"Structure : la règle 'payable' cible l'entité '{entity}' qui n'existe pas."
+                    f"Structure: the 'payable' rule targets entity '{entity}', which does not exist."
                 )
             field_type = self.entities.get(entity, {}).get(field)
             if field_type not in ("Money", "Float", "Integer"):
                 raise ASTValidationError(
-                    f"Structure : 'payable' cible le champ '{entity}.{field}', qui doit être un attribut "
-                    f"Money, Float ou Integer déclaré (reçu : {field_type or 'champ inexistant'}) -- "
-                    f"on n'encaisse pas du texte."
+                    f"Structure: 'payable' targets field '{entity}.{field}', which must be a declared "
+                    f"Money, Float, or Integer attribute (received: {field_type or 'field does not exist'}) -- "
+                    f"text cannot be charged."
                 )
             # Un montant masqué serait invérifiable par le client qui paie :
             # il ne pourrait pas confronter ce qu'on lui demande à ce qu'il a
             # commandé.
             if (entity, field) in self.masked_fields:
                 raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' est à la fois 'hidden' et 'payable' -- incompatible : "
-                    f"un montant qu'on ne peut pas lire ne peut pas être vérifié par celui qui le règle."
+                    f"Structure: '{entity}.{field}' is both 'hidden' and 'payable' -- incompatible: "
+                    f"a payer cannot verify an amount they cannot read."
                 )
             if any(p["entity"] == entity for p in self.payable_fields):
                 raise ASTValidationError(
-                    f"Structure : '{entity}' porte plusieurs champs 'payable' -- un seul montant par entité, "
-                    f"sinon rien ne dit lequel encaisser."
+                    f"Structure: '{entity}' has multiple 'payable' fields -- only one amount per entity, "
+                    f"otherwise nothing specifies which one to charge."
                 )
             # Encaisser exige de savoir QUI paie : une création publique n'a
             # aucune identité à rattacher au règlement, ni personne à qui
             # rendre l'argent.
             if (entity, "Create") in self.public_actions:
                 raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' est 'payable', mais '{entity}.Create' est 'public' -- "
-                    f"incompatible : un paiement exige un appelant identifié."
+                    f"Structure: '{entity}.{field}' is 'payable', but '{entity}.Create' is 'public' -- "
+                    f"incompatible: a payment requires an identified caller."
                 )
             # CORRECTIF SÉCURITÉ : sans relation entrante, le générateur ne
             # peut déterminer AUCUN propriétaire pour la route de règlement,
@@ -151,9 +150,9 @@ class CommerceMixin:
             )
             if not has_owner_relation:
                 raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' est 'payable', mais aucune relation ne désigne qui "
-                    f"possède un enregistrement de '{entity}' (ex. 'Client hasMany {entity}') -- sans elle, "
-                    f"la route de règlement ne pourrait vérifier qui a le droit de payer."
+                    f"Structure: '{entity}.{field}' is 'payable', but no relation identifies who "
+                    f"owns a '{entity}' record (e.g. 'Client hasMany {entity}') -- without it, "
+                    f"the payment route could not verify who is allowed to pay."
                 )
             # LEVÉ AU POINT 87. Le point 81 refusait ici toute entité possédée
             # TRANSITIVEMENT, parce que la route de règlement comparait la clé
@@ -188,39 +187,39 @@ class CommerceMixin:
             bounds = [name for name in ("min", "max") if name in constraints]
             if bounds:
                 raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' porte "
-                    f"'{ '/'.join(bounds) }' alors que le SERVEUR calcule ce champ : il "
-                    f"est absent du corps de requête, donc la borne ne s'appliquerait "
-                    f"à rien. La retirer, ou borner le champ d'où la valeur vient."
+                    f"Structure: '{entity}.{field}' has "
+                    f"'{ '/'.join(bounds) }' even though the SERVER calculates this field: it "
+                    f"is absent from the request body, so the bound would apply to "
+                    f"nothing. Remove it, or bound the field the value comes from."
                 )
             if "required" in constraints:
                 raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' est 'required' alors que le SERVEUR "
-                    f"le calcule : le client ne peut pas le fournir, et le contrat "
-                    f"dirait à la fois « à remplir » et « à ne pas envoyer »."
+                    f"Structure: '{entity}.{field}' is 'required' even though the SERVER "
+                    f"calculates it: the client cannot provide it, and the contract "
+                    f"would say both 'fill this in' and 'do not send it'."
                 )
 
         for payable in self.payable_fields:
             entity, field = payable["entity"], payable["field"]
             if (entity, field) not in derived and (entity, field) not in sums:
                 raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' est 'payable' mais le client peut l'écrire -- "
-                    f"le créateur d'un '{entity}' en devient le propriétaire, donc le payeur : il "
-                    f"fixerait lui-même ce qu'il règle. Ajouter une règle qui fait calculer le "
-                    f"montant par le serveur, par exemple "
+                    f"Structure: '{entity}.{field}' is 'payable' but the client can write it -- "
+                    f"the creator of a '{entity}' becomes its owner, and therefore the payer: they "
+                    f"would set the amount they pay. Add a rule that makes the server calculate the "
+                    f"amount, for example "
                     f"'rule {entity}.{field} derivedFrom Article.prix by quantite', ou "
-                    f"'rule {entity}.{field} sumOf Ligne.sousTotal' pour un panier."
+                    f"'rule {entity}.{field} sumOf Ligne.sousTotal' for a cart."
                 )
             total = sums.get((entity, field))
             if total is not None:
                 source = (total["source_entity"], total["source_field"])
                 if source not in derived and source not in sums:
                     raise ASTValidationError(
-                        f"Structure : '{entity}.{field}' est 'payable' et somme "
-                        f"'{total['source_entity']}.{total['source_field']}', que le client peut "
-                        f"écrire -- additionner un montant fourni par le payeur donne un total que le "
-                        f"payeur fixe encore, en une addition de plus. Faire calculer la ligne par le "
-                        f"serveur, par exemple 'rule {total['source_entity']}."
+                        f"Structure: '{entity}.{field}' is 'payable' and sums "
+                        f"'{total['source_entity']}.{total['source_field']}', which the client can "
+                        f"write -- adding an amount supplied by the payer still lets the payer set "
+                        f"the total, with one extra addition. Make the line calculated by the "
+                        f"server, for example 'rule {total['source_entity']}."
                         f"{total['source_field']} derivedFrom Article.prix by quantite'."
                     )
 
@@ -242,11 +241,10 @@ class CommerceMixin:
             } & set(self.actors) - targets
             if not actor_parents:
                 raise ASTValidationError(
-                    f"Structure : '{entity}.{payable['field']}' est 'payable', mais aucun "
-                    f"ACTEUR ne possède un enregistrement de '{entity}'. Une relation vers "
-                    f"une table métier ne suffit pas : la colonne qu'elle produit porte "
-                    f"l'id de cette ligne, pas celui d'un compte, et la route de règlement "
-                    f"la compare à l'appelant. Déclarer 'un_acteur hasMany {entity}', ou "
-                    f"rattacher '{entity}' à un acteur à travers son parent "
+                    f"Structure: '{entity}.{payable['field']}' is 'payable', but no "
+                    f"ACTOR owns a '{entity}' record. A relation to a business table is "
+                    f"not enough: the column it creates contains that row's ID, not an "
+                    f"account ID, and the payment route compares it to the caller. Declare "
+                    f"'an_actor hasMany {entity}', or attach '{entity}' to an actor through its parent "
                     f"('rule {entity}.Read ownedBy <Parent>')."
                 )
