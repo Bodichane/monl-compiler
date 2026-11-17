@@ -73,9 +73,9 @@ CIBLES_INEXISTANTES = [
      "rule Note.fantome writableAfterPayment Admin",
      "cible le champ 'Note.fantome'"),
     ("hidden sur une entité absente", "rule Fantome.titre hidden",
-     "'hidden' cible l'entité 'Fantome'"),
+     "'hidden' rule targets entity 'Fantome'"),
     ("hidden sur un champ absent", "rule Note.fantome hidden",
-     "référence le champ 'fantome'"),
+     "references field 'fantome'"),
     ("increments vers une entité absente",
      "rule Note.Create increments Fantome.score by 1",
      "référence l'entité 'Fantome'"),
@@ -91,7 +91,7 @@ CIBLES_INEXISTANTES = [
 TYPES_INCOMPATIBLES = [
     ("categorized sur un champ texte",
      'rule Note.titre categorized: "bas" below 5, "haut" otherwise',
-     "Integer ou Float"),
+     "Integer or Float"),
     ("generated sur un champ numérique", "rule Note.score generated",
      "doit être un attribut String"),
     ("increments sur un champ texte",
@@ -109,13 +109,13 @@ PALIERS_MAL_FORMES = [
      "'otherwise'"),
     ("categorized à seuils décroissants",
      'rule Note.score categorized: "a" below 10, "b" below 5, "c" otherwise',
-     "strictement croissants"),
+     "strictly increasing"),
 ]
 
 REGLES_QUI_SE_CONTREDISENT = [
     ("hidden et categorized sur le même champ",
      'rule Note.score hidden\nrule Note.score categorized: "bas" below 5, "haut" otherwise',
-     "à la fois 'hidden' et 'categorized'"),
+     "is both 'hidden' and 'categorized'"),
     ("hidden et generated sur le même champ",
      "rule Note.titre generated\nrule Note.titre hidden",
      "à la fois 'hidden' et 'generated'"),
