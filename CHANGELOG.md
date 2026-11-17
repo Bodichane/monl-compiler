@@ -12,6 +12,17 @@
 
 ### Tests
 
+- 155 fewer collected tests (1,808 → 1,653) with every case still checked.
+  Forty parametrized functions with no per-case state (no `tmp_path`,
+  `monkeypatch` or function-scoped server) now walk their table inside one
+  test through `tests.support.cas.verifier_chaque_cas`, which runs EVERY case,
+  names each failing one, and refuses an empty table. Function names are kept
+  (documents cite them). The conversion was scripted from the AST and proven:
+  for each function, the case body, the table and the case names are
+  AST-identical to the original; 198 cases run, as many as the 198 former
+  parametrized items. The proof caught one real slip on the way (re-indenting
+  the inside of a multi-line spec string) before it reached a commit.
+
 - Every `ResourceWarning` is now a test error (it was limited to SQLite). The
   wider filter found, besides the shipped leaks above, eleven server fixtures
   that stopped their `uvicorn` without closing its `stdout` pipe, eight

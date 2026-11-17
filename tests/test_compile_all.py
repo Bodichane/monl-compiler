@@ -27,11 +27,10 @@ import glob
 import os
 import tempfile
 
-import pytest
-
 from monl.ast_validator import MonlAST
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_file
+from tests.support.cas import verifier_chaque_cas
 
 EXEMPLES_DIR = os.path.join(os.path.dirname(__file__), "../exemples")
 PLUGIN_EXEMPLES_DIR = os.path.join(os.path.dirname(__file__), "../plugin/reference/exemples")
@@ -41,41 +40,46 @@ EXAMPLE_FILES = sorted(
     for path in glob.glob(os.path.join(directory, "**", f"*.{extension}"), recursive=True))
 
 
-@pytest.mark.parametrize("yaml_path", EXAMPLE_FILES, ids=[os.path.basename(p) for p in EXAMPLE_FILES])
-def test_example_compiles(yaml_path):
+def test_example_compiles():
     """Compile le socle déterministe (parsing + audit + génération) pour
     chaque exemple, et vérifie qu'il aboutit sans erreur."""
-    raw_json = parse_monl_file(yaml_path)
-    ast_manager = MonlAST(raw_json, base_dir=os.path.dirname(yaml_path))
-    normalized_ast = ast_manager.validate_and_audit()
-    with tempfile.TemporaryDirectory() as sortie:
-        MonlSecureGenerator(normalized_ast, output_dir=sortie).generate_all()
+    table = EXAMPLE_FILES
+    noms = [os.path.basename(p) for p in EXAMPLE_FILES]
 
-        # Vérifie que les 3 artefacts d'infrastructure attendus ont bien été
-        # produits. SUPPRESSION (roadmap, sur demande explicite) :
-        # 'frontend.html' (l'ancien back-office React '/ui') n'est plus généré
-        # du tout — voir docs/design_decisions.md, point 22. Plus AUCUN front
-        # n'est généré depuis le pivot (point 41) — voir le dernier test.
-        for artefact in ("app.py", "schema.sql"):
-            artefact_path = os.path.join(sortie, artefact)
-            assert os.path.exists(artefact_path), f"{artefact} n'a pas été généré pour {os.path.basename(yaml_path)}"
-        # Une présence sur disque ne prouve pas qu'un émetteur a produit un
-        # module importable. Parser chaque source générée attrape immédiatement
-        # une quote ou une indentation cassée, sans exécuter le code produit ni
-        # dépendre d'un service externe.
-        for module in ("app.py", "manage.py", "sandbox_ai.py"):
-            module_path = os.path.join(sortie, module)
-            if os.path.exists(module_path):
-                with open(module_path, encoding="utf-8") as generated:
-                    ast.parse(generated.read(), filename=module)
-        # `sandbox_ai.py` n'est plus livré à un projet SANS bloc `custom` :
-        # il ne contenait qu'un commentaire, `app.py` l'importait sans jamais
-        # l'appeler, et le supprimer faisait échouer le démarrage. Aucun des
-        # cinq exemples n'a de bloc `custom` — son absence est donc la bonne
-        # sortie, et on l'affirme plutôt que de cesser de regarder.
-        assert not os.path.exists(os.path.join(sortie, "sandbox_ai.py")), (
-            f"{os.path.basename(yaml_path)} n'a aucun bloc 'custom' et reçoit "
+    def cas(yaml_path):
+        raw_json = parse_monl_file(yaml_path)
+        ast_manager = MonlAST(raw_json, base_dir=os.path.dirname(yaml_path))
+        normalized_ast = ast_manager.validate_and_audit()
+        with tempfile.TemporaryDirectory() as sortie:
+            MonlSecureGenerator(normalized_ast, output_dir=sortie).generate_all()
+
+            # Vérifie que les 3 artefacts d'infrastructure attendus ont bien été
+            # produits. SUPPRESSION (roadmap, sur demande explicite) :
+            # 'frontend.html' (l'ancien back-office React '/ui') n'est plus généré
+            # du tout — voir docs/design_decisions.md, point 22. Plus AUCUN front
+            # n'est généré depuis le pivot (point 41) — voir le dernier test.
+            for artefact in ("app.py", "schema.sql"):
+                artefact_path = os.path.join(sortie, artefact)
+                assert os.path.exists(artefact_path), f"{artefact} n'a pas été généré pour {os.path.basename(yaml_path)}"
+            # Une présence sur disque ne prouve pas qu'un émetteur a produit un
+            # module importable. Parser chaque source générée attrape immédiatement
+            # une quote ou une indentation cassée, sans exécuter le code produit ni
+            # dépendre d'un service externe.
+            for module in ("app.py", "manage.py", "sandbox_ai.py"):
+                module_path = os.path.join(sortie, module)
+                if os.path.exists(module_path):
+                    with open(module_path, encoding="utf-8") as generated:
+                        ast.parse(generated.read(), filename=module)
+            # `sandbox_ai.py` n'est plus livré à un projet SANS bloc `custom` :
+            # il ne contenait qu'un commentaire, `app.py` l'importait sans jamais
+            # l'appeler, et le supprimer faisait échouer le démarrage. Aucun des
+            # cinq exemples n'a de bloc `custom` — son absence est donc la bonne
+            # sortie, et on l'affirme plutôt que de cesser de regarder.
+            assert not os.path.exists(os.path.join(sortie, "sandbox_ai.py")), (
+                f"{os.path.basename(yaml_path)} n'a aucun bloc 'custom' et reçoit "
             "pourtant le module vide")
+
+    verifier_chaque_cas([(valeur,) for valeur in table], cas, ids=noms)
 
 
 def test_at_least_one_example_exists():

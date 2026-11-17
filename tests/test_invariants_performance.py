@@ -26,6 +26,7 @@ import pytest
 from monl.ast_validator import MonlAST
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_file
+from tests.support.cas import verifier_chaque_cas
 
 EXEMPLES_DIR = os.path.join(os.path.dirname(__file__), "../exemples")
 PROJETS_DIR = os.path.join(os.path.dirname(__file__), "../projets")
@@ -197,11 +198,15 @@ def _assert_performance_invariant(path, *, minimum_witness=None):
     return found
 
 
-@pytest.mark.parametrize("path", SPEC_FILES,
-                         ids=[os.path.relpath(path) for path in SPEC_FILES])
-def test_toute_colonne_metier_filtre_dune_liste_est_indexee(path):
-    minimum = MIN_COLONNES_TEMOIN if path == SPEC_TEMOIN else None
-    _assert_performance_invariant(path, minimum_witness=minimum)
+def test_toute_colonne_metier_filtre_dune_liste_est_indexee():
+    table = SPEC_FILES
+    noms = [os.path.relpath(path) for path in SPEC_FILES]
+
+    def cas(path):
+        minimum = MIN_COLONNES_TEMOIN if path == SPEC_TEMOIN else None
+        _assert_performance_invariant(path, minimum_witness=minimum)
+
+    verifier_chaque_cas([(valeur,) for valeur in table], cas, ids=noms)
 
 
 def test_le_temoins_voit_les_quatre_filtres_du_reseau_social():

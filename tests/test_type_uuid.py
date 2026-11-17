@@ -36,6 +36,7 @@ import pytest
 
 from monl.cli import compile_project
 from monl.smoke_test import _sample_value, run_smoke_test
+from tests.support.cas import verifier_chaque_cas
 from tests.support.processus import arreter_processus
 from tests.support.server import free_port as _port_libre
 
@@ -190,19 +191,27 @@ def application(tmp_path_factory):
         arreter_processus(processus, delai=10)
 
 
-@pytest.mark.parametrize("valeur", MAL_FORMES)
-def test_une_reference_mal_formee_est_refusee(application, valeur):
-    base, jeton = application
-    code, _ = _appel(base + "/commande",
-                     {"reference": valeur, "libelle": "essai"}, jeton)
-    assert code == 422
+def test_une_reference_mal_formee_est_refusee(application):
+    table = MAL_FORMES
+
+    def cas(valeur):
+        base, jeton = application
+        code, _ = _appel(base + "/commande",
+                         {"reference": valeur, "libelle": "essai"}, jeton)
+        assert code == 422
+
+    verifier_chaque_cas([(valeur,) for valeur in table], cas)
 
 
-@pytest.mark.parametrize("valeur", BIEN_FORMES)
-def test_une_reference_bien_formee_reste_acceptee(application, valeur):
+def test_une_reference_bien_formee_reste_acceptee(application):
     """La contre-épreuve du refus : un motif trop strict ferait passer le test
     précédent en rejetant aussi les vrais identifiants."""
-    base, jeton = application
-    code, _ = _appel(base + "/commande",
-                     {"reference": valeur, "libelle": "essai"}, jeton)
-    assert code == 200
+    table = BIEN_FORMES
+
+    def cas(valeur):
+        base, jeton = application
+        code, _ = _appel(base + "/commande",
+                         {"reference": valeur, "libelle": "essai"}, jeton)
+        assert code == 200
+
+    verifier_chaque_cas([(valeur,) for valeur in table], cas)

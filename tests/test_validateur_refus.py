@@ -20,6 +20,7 @@ import pytest
 
 from monl.ast_validator import ASTValidationError, MonlAST
 from monl.parser import MonlSyntaxError, parse_monl_string
+from tests.support.cas import verifier_chaque_cas
 
 
 def _valide(spec):
@@ -129,35 +130,43 @@ TOUS_LES_CAS = (CIBLES_INEXISTANTES + TYPES_INCOMPATIBLES
                 + PALIERS_MAL_FORMES + REGLES_QUI_SE_CONTREDISENT)
 
 
-@pytest.mark.parametrize("regles,fragment",
-                         [(r, f) for _n, r, f in TOUS_LES_CAS],
-                         ids=[n for n, _r, _f in TOUS_LES_CAS])
-def test_une_regle_fautive_est_refusee_en_nommant_sa_cause(regles, fragment):
+def test_une_regle_fautive_est_refusee_en_nommant_sa_cause():
     """Refuser ne suffit pas : le message doit nommer ce qui cloche. Un
     validateur qui lèverait une erreur générique laisserait l'auteur de la spec
     chercher lui-même, ce qui est la moitié du travail que le compilateur
     existe pour éviter."""
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(_socle(regles))
-    assert fragment in str(refus.value), str(refus.value)
+    table = [(r, f) for _n, r, f in TOUS_LES_CAS]
+    noms = [n for n, _r, _f in TOUS_LES_CAS]
+
+    def cas(regles, fragment):
+        with pytest.raises(ASTValidationError) as refus:
+            _valide(_socle(regles))
+        assert fragment in str(refus.value), str(refus.value)
+
+    verifier_chaque_cas(table, cas, ids=noms)
 
 
-@pytest.mark.parametrize("regles", [
-    "rule Note.Read public",
-    "rule Note.titre hidden",
-    'rule Note.score categorized: "bas" below 5, "haut" otherwise',
-    "rule Note.titre generated",
-    # `payable` ne figure PLUS ici : depuis le point 79 il exige un montant
-    # calculé par le serveur, donc une entité source, une relation, une
-    # quantité `required` et un propriétaire — une structure que le socle ne
-    # porte pas, et qu'y ajouter romprait sa raison d'être (« la ligne fautive
-    # est la seule différence entre un cas et son témoin »). Son témoin est
-    # `test_un_seul_champ_payable_compile`, sur la spec dédiée plus bas.
-], ids=["public", "hidden", "categorized", "generated"])
-def test_la_meme_regle_bien_formee_compile(regles):
+def test_la_meme_regle_bien_formee_compile():
     """Le témoin. Sans lui, un validateur qui refuserait tout passerait les
     tests ci-dessus sans qu'on s'en aperçoive."""
-    assert _valide(_socle(regles))
+    table = [
+        "rule Note.Read public",
+        "rule Note.titre hidden",
+        'rule Note.score categorized: "bas" below 5, "haut" otherwise',
+        "rule Note.titre generated",
+        # `payable` ne figure PLUS ici : depuis le point 79 il exige un montant
+        # calculé par le serveur, donc une entité source, une relation, une
+        # quantité `required` et un propriétaire — une structure que le socle ne
+        # porte pas, et qu'y ajouter romprait sa raison d'être (« la ligne fautive
+        # est la seule différence entre un cas et son témoin »). Son témoin est
+        # `test_un_seul_champ_payable_compile`, sur la spec dédiée plus bas.
+    ]
+    noms = ["public", "hidden", "categorized", "generated"]
+
+    def cas(regles):
+        assert _valide(_socle(regles))
+
+    verifier_chaque_cas([(valeur,) for valeur in table], cas, ids=noms)
 
 
 # Les compteurs ont leur propre témoin : ils exigent une relation entre
@@ -431,19 +440,24 @@ workflow W for Admin
     assert "CalculMagique" in str(refus.value)
 
 
-@pytest.mark.parametrize("bloc,fragment", [
-    ("ui Fantome\n    primary: titre", "cible une entité qui n'existe pas"),
-    ("ui Note\n    primary: fantome", "primary: fantome"),
-    ("ui Note\n    order: titre, fantome", "champs inconnus"),
-    ("seed Fantome\n    titre: \"a\"", "cible l'entité 'Fantome'"),
-    ("seed Note\n    titre: \"a\", fantome: \"b\"", "référence le champ 'fantome'"),
-], ids=["ui-entité", "ui-primary", "ui-order", "seed-entité", "seed-champ"])
-def test_les_blocs_annexes_sont_validés_comme_les_regles(bloc, fragment):
+def test_les_blocs_annexes_sont_validés_comme_les_regles():
     """`ui` et `seed` ne portent aucune sécurité — mais une faute de frappe qui
     y passe inaperçue se paie au rendu ou au démarrage, loin de sa cause."""
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(_socle(bloc))
-    assert fragment in str(refus.value)
+    table = [
+        ("ui Fantome\n    primary: titre", "cible une entité qui n'existe pas"),
+        ("ui Note\n    primary: fantome", "primary: fantome"),
+        ("ui Note\n    order: titre, fantome", "champs inconnus"),
+        ("seed Fantome\n    titre: \"a\"", "cible l'entité 'Fantome'"),
+        ("seed Note\n    titre: \"a\", fantome: \"b\"", "référence le champ 'fantome'"),
+    ]
+    noms = ["ui-entité", "ui-primary", "ui-order", "seed-entité", "seed-champ"]
+
+    def cas(bloc, fragment):
+        with pytest.raises(ASTValidationError) as refus:
+            _valide(_socle(bloc))
+        assert fragment in str(refus.value)
+
+    verifier_chaque_cas(table, cas, ids=noms)
 
 
 def test_un_bloc_ui_bien_forme_compile():
@@ -525,36 +539,41 @@ def test_une_derivation_bien_formee_compile():
     }]
 
 
-@pytest.mark.parametrize("regles,fragment", [
-    ("rule Fantome.total derivedFrom Article.prix by quantite",
-     "cible l'entité 'Fantome'"),
-    ("rule Commande.total derivedFrom Fantome.prix by quantite",
-     "lit l'entité 'Fantome'"),
-    ("rule Commande.fantome derivedFrom Article.prix by quantite",
-     "champ inexistant"),
-    ("rule Commande.total derivedFrom Article.nom by quantite",
-     "lit 'Article.nom'"),
-    (REGLE_VALIDE + "\nrule Commande.total derivedFrom Article.prix by quantite",
-     "plusieurs règles 'derivedFrom'"),
-    # `quantite` est Integer, donc recevable à la fois comme champ calculé et
-    # comme multiplicateur : c'est le seul montage qui ATTEINT ce refus. Avec
-    # `total` (Money), c'est le contrôle de type du multiplicateur qui refuse
-    # avant — juste, mais pas le garde-fou qu'on prétend éprouver.
-    ("rule Commande.quantite derivedFrom Article.prix by quantite",
-     "son propre multiplicateur"),
-    ("rule Commande.total derivedFrom Article.prix by nom",
-     "champ inexistant"),
-    (REGLE_VALIDE + "\nrule Commande.total hidden",
-     "à la fois 'hidden' et 'derivedFrom'"),
-], ids=["entité-calculée-absente", "entité-source-absente", "champ-absent",
-        "source-non-numérique", "deux-règles", "auto-multiplicateur",
-        "multiplicateur-absent", "cumul-hidden"])
-def test_les_derivations_mal_formees_sont_refusees(regles, fragment):
+def test_les_derivations_mal_formees_sont_refusees():
     """Un calcul mal déclaré doit échouer à la COMPILATION : c'est un montant
     à encaisser, l'échec au runtime coûterait de l'argent."""
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(_socle_derive(regles))
-    assert fragment in str(refus.value)
+    table = [
+        ("rule Fantome.total derivedFrom Article.prix by quantite",
+         "cible l'entité 'Fantome'"),
+        ("rule Commande.total derivedFrom Fantome.prix by quantite",
+         "lit l'entité 'Fantome'"),
+        ("rule Commande.fantome derivedFrom Article.prix by quantite",
+         "champ inexistant"),
+        ("rule Commande.total derivedFrom Article.nom by quantite",
+         "lit 'Article.nom'"),
+        (REGLE_VALIDE + "\nrule Commande.total derivedFrom Article.prix by quantite",
+         "plusieurs règles 'derivedFrom'"),
+        # `quantite` est Integer, donc recevable à la fois comme champ calculé et
+        # comme multiplicateur : c'est le seul montage qui ATTEINT ce refus. Avec
+        # `total` (Money), c'est le contrôle de type du multiplicateur qui refuse
+        # avant — juste, mais pas le garde-fou qu'on prétend éprouver.
+        ("rule Commande.quantite derivedFrom Article.prix by quantite",
+         "son propre multiplicateur"),
+        ("rule Commande.total derivedFrom Article.prix by nom",
+         "champ inexistant"),
+        (REGLE_VALIDE + "\nrule Commande.total hidden",
+         "à la fois 'hidden' et 'derivedFrom'"),
+    ]
+    noms = ["entité-calculée-absente", "entité-source-absente", "champ-absent",
+        "source-non-numérique", "deux-règles", "auto-multiplicateur",
+        "multiplicateur-absent", "cumul-hidden"]
+
+    def cas(regles, fragment):
+        with pytest.raises(ASTValidationError) as refus:
+            _valide(_socle_derive(regles))
+        assert fragment in str(refus.value)
+
+    verifier_chaque_cas(table, cas, ids=noms)
 
 
 def test_le_multiplicateur_doit_etre_declare_required():
@@ -948,27 +967,31 @@ def test_writable_after_payment_exige_une_entite_payable():
     assert "ne vaut que sur une entité 'payable'" in str(refus.value)
 
 
-@pytest.mark.parametrize("regle_serveur", [
-    "rule Commande.statut generated",
-    "rule Commande.calcule derivedFrom Article.prix by quantite",
-    "rule Commande.creeLe timestamp",
-    'rule Commande.reference numbered "CMD-{YYYY}-{NNNN}"',
-], ids=["generated", "derivedFrom", "timestamp", "numbered"])
-def test_writable_after_payment_refuse_un_champ_ecrit_par_le_serveur(
-        regle_serveur):
-    cible = {
-        "generated": "statut",
-        "derivedFrom": "calcule",
-        "timestamp": "creeLe",
-        "numbered": "reference",
-    }[regle_serveur.split()[2]]
-    spec = _apres_paiement(
-        regle_serveur
-        + f"\nrule Commande.{cible} writableAfterPayment Superviseur")
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(spec)
-    assert "writableAfterPayment" in str(refus.value)
-    assert regle_serveur.split()[2] in str(refus.value)
+def test_writable_after_payment_refuse_un_champ_ecrit_par_le_serveur():
+    table = [
+        "rule Commande.statut generated",
+        "rule Commande.calcule derivedFrom Article.prix by quantite",
+        "rule Commande.creeLe timestamp",
+        'rule Commande.reference numbered "CMD-{YYYY}-{NNNN}"',
+    ]
+    noms = ["generated", "derivedFrom", "timestamp", "numbered"]
+
+    def cas(regle_serveur):
+        cible = {
+            "generated": "statut",
+            "derivedFrom": "calcule",
+            "timestamp": "creeLe",
+            "numbered": "reference",
+        }[regle_serveur.split()[2]]
+        spec = _apres_paiement(
+            regle_serveur
+            + f"\nrule Commande.{cible} writableAfterPayment Superviseur")
+        with pytest.raises(ASTValidationError) as refus:
+            _valide(spec)
+        assert "writableAfterPayment" in str(refus.value)
+        assert regle_serveur.split()[2] in str(refus.value)
+
+    verifier_chaque_cas([(valeur,) for valeur in table], cas, ids=noms)
 
 
 def test_writable_after_payment_refuse_un_champ_somme():
@@ -1053,21 +1076,25 @@ def test_writable_after_payment_ne_casse_ni_create_ni_update(tmp_path):
     assert "uniquement après confirmation du paiement" in genere
 
 
-@pytest.mark.parametrize("regle, attendu", [
-    ("rule Fantome.total sumOf Ligne.sousTotal", "n'existe pas"),
-    ("rule Commande.total sumOf Fantome.sousTotal", "n'existe pas"),
-    ("rule Commande.libelle sumOf Ligne.sousTotal", "Money, Float ou Integer"),
-    ("rule Commande.absent sumOf Ligne.sousTotal", "champ inexistant"),
-    ("rule Commande.total sumOf Ligne.quantiteAbsente", "champ inexistant"),
-    # Une entité ne peut pas s'additionner elle-même.
-    ("rule Commande.total sumOf Commande.total", "ne peut pas s'additionner"),
-    # Sans relation parent-enfant, la somme porterait sur la table entière.
-    ("rule Commande.total sumOf Article.prix", "relation parent-enfant"),
-])
-def test_refus_de_somme_mal_formee(regle, attendu):
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(SPEC_PANIER.format(regles=regle))
-    assert attendu in str(refus.value)
+def test_refus_de_somme_mal_formee():
+    table = [
+        ("rule Fantome.total sumOf Ligne.sousTotal", "n'existe pas"),
+        ("rule Commande.total sumOf Fantome.sousTotal", "n'existe pas"),
+        ("rule Commande.libelle sumOf Ligne.sousTotal", "Money, Float ou Integer"),
+        ("rule Commande.absent sumOf Ligne.sousTotal", "champ inexistant"),
+        ("rule Commande.total sumOf Ligne.quantiteAbsente", "champ inexistant"),
+        # Une entité ne peut pas s'additionner elle-même.
+        ("rule Commande.total sumOf Commande.total", "ne peut pas s'additionner"),
+        # Sans relation parent-enfant, la somme porterait sur la table entière.
+        ("rule Commande.total sumOf Article.prix", "relation parent-enfant"),
+    ]
+
+    def cas(regle, attendu):
+        with pytest.raises(ASTValidationError) as refus:
+            _valide(SPEC_PANIER.format(regles=regle))
+        assert attendu in str(refus.value)
+
+    verifier_chaque_cas(table, cas)
 
 
 def test_une_somme_masquee_est_refusee():

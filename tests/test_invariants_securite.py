@@ -22,11 +22,10 @@ import glob
 import os
 import tempfile
 
-import pytest
-
 from monl.ast_validator import MonlAST
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_file, parse_monl_string
+from tests.support.cas import verifier_chaque_cas
 
 EXEMPLES_DIR = os.path.join(os.path.dirname(__file__), "../exemples")
 
@@ -101,15 +100,19 @@ workflow W for Client
 EXEMPLES = sorted(glob.glob(os.path.join(EXEMPLES_DIR, "*.ml")))
 
 
-@pytest.mark.parametrize("chemin", EXEMPLES,
-                         ids=[os.path.basename(p) for p in EXEMPLES])
-def test_aucun_exemple_ne_colle_de_valeur_dans_le_sql(chemin):
-    source = _app_source(chemin, depuis_fichier=True, base_dir=EXEMPLES_DIR)
-    for requete in _litteraux_sql(source):
-        for interdit in INTERDITS_EN_SQL:
-            assert interdit not in requete, (
-                f"{os.path.basename(chemin)} : valeur '{interdit}' collée dans "
+def test_aucun_exemple_ne_colle_de_valeur_dans_le_sql():
+    table = EXEMPLES
+    noms = [os.path.basename(p) for p in EXEMPLES]
+
+    def cas(chemin):
+        source = _app_source(chemin, depuis_fichier=True, base_dir=EXEMPLES_DIR)
+        for requete in _litteraux_sql(source):
+            for interdit in INTERDITS_EN_SQL:
+                assert interdit not in requete, (
+                    f"{os.path.basename(chemin)} : valeur '{interdit}' collée dans "
                 f"le texte SQL (point 107) — {requete!r}")
+
+    verifier_chaque_cas([(valeur,) for valeur in table], cas, ids=noms)
 
 
 def test_la_profondeur_2_ne_colle_aucune_valeur_dans_le_sql():

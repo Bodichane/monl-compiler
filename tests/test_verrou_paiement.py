@@ -42,6 +42,7 @@ import requests
 from monl.ast_validator import MonlAST
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
+from tests.support.cas import verifier_chaque_cas
 from tests.support.server import uvicorn_server
 
 SPEC = """app BancVerrou
@@ -392,31 +393,38 @@ def test_un_horodatage_illisible_ne_passe_pas_pour_frais(application, alice):
 
 # ------------------------------------------------------------------- courriel
 
-@pytest.mark.parametrize("adresse", [
-    "pas-un-courriel", "sans@point", "espace @exemple.fr", "@exemple.fr",
-    "deux@@exemple.fr",
-])
-def test_le_type_email_refuse_une_adresse_qui_n_en_est_pas_une(application,
-                                                               alice, adresse):
+def test_le_type_email_refuse_une_adresse_qui_n_en_est_pas_une(application, alice):
     """POINT 91 : le type ne fixait qu'une longueur. 'pas-un-courriel' entrait
     en base avec un 200 — une adresse à laquelle aucun colis ne part."""
-    base, _dossier = application
+    table = [
+        "pas-un-courriel", "sans@point", "espace @exemple.fr", "@exemple.fr",
+        "deux@@exemple.fr",
+    ]
 
-    reponse = requests.post(f"{base}/commande", headers=alice,
-                            json={"libelle": "adresse", "courriel": adresse})
+    def cas(adresse):
+        base, _dossier = application
 
-    assert reponse.status_code == 422, reponse.text
+        reponse = requests.post(f"{base}/commande", headers=alice,
+                                json={"libelle": "adresse", "courriel": adresse})
+
+        assert reponse.status_code == 422, reponse.text
+
+    verifier_chaque_cas([(valeur,) for valeur in table], cas)
 
 
-@pytest.mark.parametrize("adresse", [
-    "acheteuse@exemple.fr", "prenom.nom+etiquette@sous.domaine.co.uk",
-])
-def test_une_adresse_valide_reste_acceptee(application, alice, adresse):
+def test_une_adresse_valide_reste_acceptee(application, alice):
     """La contre-épreuve du refus : un motif trop strict ferait passer le test
     précédent en rejetant aussi les vraies adresses."""
-    base, _dossier = application
+    table = [
+        "acheteuse@exemple.fr", "prenom.nom+etiquette@sous.domaine.co.uk",
+    ]
 
-    reponse = requests.post(f"{base}/commande", headers=alice,
-                            json={"libelle": "adresse", "courriel": adresse})
+    def cas(adresse):
+        base, _dossier = application
 
-    assert reponse.status_code in (200, 201), reponse.text
+        reponse = requests.post(f"{base}/commande", headers=alice,
+                                json={"libelle": "adresse", "courriel": adresse})
+
+        assert reponse.status_code in (200, 201), reponse.text
+
+    verifier_chaque_cas([(valeur,) for valeur in table], cas)

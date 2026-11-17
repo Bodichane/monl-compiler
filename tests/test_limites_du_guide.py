@@ -23,6 +23,7 @@ from monl.ast_validator import ASTValidationError, MonlAST
 from monl.parser import parse_monl_string
 from monl_platform.guide import guide_html
 from monl_platform.guide_data import LIMITES
+from tests.support.cas import verifier_chaque_cas
 
 RACINE = Path(__file__).resolve().parent.parent
 
@@ -182,8 +183,7 @@ def test_l_extracteur_distingue_un_nom_d_un_chemin():
         "pip install ./monl-compiler -r requirements.txt -e .") == []
 
 
-@pytest.mark.parametrize("chemin", ["README.md", "QUICKSTART.md"])
-def test_une_installation_depuis_un_index_nomme_la_vraie_distribution(chemin):
+def test_une_installation_depuis_un_index_nomme_la_vraie_distribution():
     """`monl-compiler` est publié sur PyPI depuis la 0.9.0-beta.9 : l'ancien
     témoin, qui interdisait toute installation depuis un index tant que rien
     n'était publié, l'annonçait lui-même — « le jour de la publication, c'est
@@ -199,12 +199,17 @@ def test_une_installation_depuis_un_index_nomme_la_vraie_distribution(chemin):
     bien la bêta — pip accepte une pré-version quand l'index n'a rien d'autre.
     Le drapeau n'est donc pas exigé ici ; l'exiger enseignerait une étape
     inutile."""
-    nom = _nom_de_distribution()
-    etrangers = [n for n in _noms_installes_depuis_un_index(
-        (RACINE / chemin).read_text(encoding="utf-8")) if n != nom]
-    assert not etrangers, (
-        f"{chemin} fait installer depuis un index autre chose que {nom} : "
+    table = ["README.md", "QUICKSTART.md"]
+
+    def cas(chemin):
+        nom = _nom_de_distribution()
+        etrangers = [n for n in _noms_installes_depuis_un_index(
+            (RACINE / chemin).read_text(encoding="utf-8")) if n != nom]
+        assert not etrangers, (
+            f"{chemin} fait installer depuis un index autre chose que {nom} : "
         f"{etrangers}")
+
+    verifier_chaque_cas([(valeur,) for valeur in table], cas)
 
 
 def test_le_guide_n_installe_que_la_vraie_distribution():

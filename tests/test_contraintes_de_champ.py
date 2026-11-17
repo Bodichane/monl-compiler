@@ -41,6 +41,7 @@ import pytest
 from monl.ast_validator import ASTValidationError, MonlAST
 from monl.cli import compile_project
 from monl.parser import parse_monl_string
+from tests.support.cas import verifier_chaque_cas
 from tests.support.server import free_port as _port_libre
 
 SPEC = """app BancContraintes
@@ -92,23 +93,27 @@ def test_une_spec_bien_formee_compile(capsys):
     capsys.readouterr()
 
 
-@pytest.mark.parametrize("regle", [
-    "rule Membre.champFantome required",
-    "rule Membre.champFantome unique",
-    "rule Membre.champFantome min 2",
-    "rule Membre.champFantome max 9",
-])
-def test_un_champ_inexistant_est_refuse(regle, capsys):
+def test_un_champ_inexistant_est_refuse(capsys):
     """LE défaut du point 85 : ces quatre lignes compilaient sans un mot.
     L'auteur croit tenir une contrainte, il n'en a aucune, et rien ne le dit."""
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(SPEC + regle + "\n")
-    message = str(refus.value)
-    assert "champFantome" in message
-    assert "ne déclare pas" in message
-    # Le message doit dire POURQUOI le refus est là, pas seulement refuser.
-    assert "ne s'applique à rien" in message
-    capsys.readouterr()
+    table = [
+        "rule Membre.champFantome required",
+        "rule Membre.champFantome unique",
+        "rule Membre.champFantome min 2",
+        "rule Membre.champFantome max 9",
+    ]
+
+    def cas(regle):
+        with pytest.raises(ASTValidationError) as refus:
+            _valide(SPEC + regle + "\n")
+        message = str(refus.value)
+        assert "champFantome" in message
+        assert "ne déclare pas" in message
+        # Le message doit dire POURQUOI le refus est là, pas seulement refuser.
+        assert "ne s'applique à rien" in message
+        capsys.readouterr()
+
+    verifier_chaque_cas([(valeur,) for valeur in table], cas)
 
 
 def test_une_entite_inexistante_est_refusee(capsys):

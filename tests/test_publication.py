@@ -8,6 +8,7 @@ import pytest
 import yaml
 
 from scripts.check_publication_version import PublicationVersionError, validate_tag_version
+from tests.support.cas import verifier_chaque_cas
 
 
 def _racine():
@@ -114,15 +115,16 @@ def test_le_tag_qui_diverge_est_refuse_et_nomme_les_deux_valeurs():
         validate_tag_version("v0.9.0b9", "0.9.0-beta.8")
 
 
-@pytest.mark.parametrize(
-    ("tag", "declared_version"),
-    [
+def test_les_deux_ecritures_d_une_meme_version_sont_acceptees():
+    table = [
         ("v0.9.0b8", "0.9.0-beta.8"),
         ("v0.9.0-beta.8", "0.9.0b8"),
-    ],
-)
-def test_les_deux_ecritures_d_une_meme_version_sont_acceptees(tag, declared_version):
-    validate_tag_version(tag, declared_version)
+    ]
+
+    def cas(tag, declared_version):
+        validate_tag_version(tag, declared_version)
+
+    verifier_chaque_cas(table, cas)
 
 
 def test_le_workflow_est_parse_et_porte_la_chaine_sans_secret():

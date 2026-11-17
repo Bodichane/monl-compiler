@@ -22,6 +22,7 @@ from monl.design_system import ASSET_MANIFEST_FILENAME, activate_asset_manifest
 from monl.frontend_ai import _design_completeness_errors
 from monl.parser import parse_monl_string
 from monl.section_substance import rule_for
+from tests.support.cas import verifier_chaque_cas
 
 BASE = """app Atelier
 
@@ -67,20 +68,24 @@ def test_une_spec_sans_lien_compile_a_l_identique():
 
 
 # ──────────────────────────────────────────────────── ce qu'elle refuse ──
-@pytest.mark.parametrize("ligne, attendu", [
-    ('link "Instagram": "instagram.com/atelier"', "chemin du site lui-même"),
-    ('link "Site": "www.exemple.fr"', "chemin du site lui-même"),
-    ('link "Vide": ""', "non vides"),
-    ('link "": "https://exemple.fr"', "non vides"),
-])
-def test_une_adresse_inutilisable_est_refusee(ligne, attendu):
+def test_une_adresse_inutilisable_est_refusee():
     """Un lien qui ne marche pas est pire qu'un lien absent : il se voit.
 
     Sans schéma, le navigateur lit « instagram.com/atelier » comme un chemin
     RELATIF et mène à une page inexistante du site.
     """
-    with pytest.raises(ValueError, match=attendu):
-        _valider([ligne])
+    table = [
+        ('link "Instagram": "instagram.com/atelier"', "chemin du site lui-même"),
+        ('link "Site": "www.exemple.fr"', "chemin du site lui-même"),
+        ('link "Vide": ""', "non vides"),
+        ('link "": "https://exemple.fr"', "non vides"),
+    ]
+
+    def cas(ligne, attendu):
+        with pytest.raises(ValueError, match=attendu):
+            _valider([ligne])
+
+    verifier_chaque_cas(table, cas)
 
 
 def test_deux_liens_au_meme_libelle_sont_refuses():
