@@ -119,7 +119,7 @@ def test_les_onze_modeles_sont_onze_boutons_et_pas_un_bloc_de_texte(rapport_jsdo
 
 def test_l_intitule_ne_repete_pas_le_menu_de_terminal(rapport_jsdom):
     intitule = rapport_jsdom["intitule"]
-    assert intitule == "Quel type d'application construisez-vous ?", intitule
+    assert intitule == "What type of application are you building?", intitule
     assert "[1]" not in intitule
 
 
