@@ -26,7 +26,7 @@ def test_rendu_nu_conserve_les_chaines_historiques():
     assert ui.menu("Type ?", ["A", "B"], allow_none=True) == "Type ?\n  [1] A  [2] B  [0] aucun\n> "
     assert ui.yes_no("Continuer ?") == "Continuer ? (o/n) > "
     assert ui.field("Nom (ex. Studio) > ") == "Nom (ex. Studio) > "
-    assert ui.error("Répondre o ou n.") == "  ✗ Répondre o ou n."
+    assert ui.error("Answer y or n.") == "  ✗ Answer y or n."
     # Les éléments purement visuels n'existent pas en rendu nu.
     assert ui.banner() is None and ui.plan(["A"]) is None and ui.phase(0) is None
 

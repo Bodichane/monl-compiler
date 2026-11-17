@@ -24,12 +24,12 @@ class ParcoursMixin:
         courts[FREE_MODE_LABEL] = FREE_MODE_LABEL.split(" (")[0]
         aides = {t["name"]: f'{t["hint"]} — {self._ligne_de_compte(t)}'
                  for t in TEMPLATES}
-        aides[courts[FREE_MODE_LABEL]] = "décrire librement mes entités, sans modèle"
+        aides[courts[FREE_MODE_LABEL]] = "describe my entities freely, without a template"
 
-        self._show(self.ui.plan(["Type d'application", "Identité du projet",
-                                 "Options du modèle", "Finitions"]))
+        self._show(self.ui.plan(["Application type", "Project identity",
+                                 "Template options", "Finishing touches"]))
         self._show(self.ui.phase(0))
-        choisi_court = self._ask_choice("Quel type d'application construisez-vous ?",
+        choisi_court = self._ask_choice("What type of application are you building?",
                                         [courts[label] for label in labels], hints=aides)
         picked = labels[[courts[label] for label in labels].index(choisi_court)]
         if picked == FREE_MODE_LABEL:
@@ -37,15 +37,15 @@ class ParcoursMixin:
         template = TEMPLATES[labels.index(picked)]
         if self.choose_experience:
             experience = self._ask_choice(
-                "Quelle expérience souhaitez-vous ?",
-                ["Création rapide avec l’IA", "Personnalisation détaillée"],
+                "Which experience would you like?",
+                ["Quick creation with AI", "Detailed customization"],
                 hints={
-                    "Création rapide avec l’IA":
-                        "recommandé — Monl prépare structure, contenu et direction visuelle",
-                    "Personnalisation détaillée":
-                        "toutes les questions de structure, contenu et présentation",
+                    "Quick creation with AI":
+                        "recommended — Monl prepares the structure, content, and visual direction",
+                    "Detailed customization":
+                        "all questions about structure, content, and presentation",
                 })
-            self.express = experience.startswith("Création rapide")
+            self.express = experience.startswith("Quick creation")
         return self._run_from_template(template)
 
     @staticmethod
@@ -142,9 +142,9 @@ class ParcoursMixin:
         template = copy.deepcopy(template)
 
         self._show(self.ui.phase(1))
-        app_name = self._ask_identifier("Nom de l'application (ex. StudioNova) > ")
+        app_name = self._ask_identifier("Application name (e.g. StudioNova) > ")
         description = self._ask_free_text(
-            "Décrivez le projet en une phrase (servira de brief frontend) > ")
+            "Describe the project in one sentence (used as the frontend brief) > ")
 
         if self.express:
             entities = {name: list(meta["fields"])
@@ -195,24 +195,24 @@ class ParcoursMixin:
         relations = list(template["relations"])
 
         # Échappatoire : une entité personnalisée en plus du modèle.
-        while self._ask_yes_no("Ajouter une entité personnalisée en plus du modèle ?"):
-            name = self._ask_identifier("  Nom de l'entité > ", forbidden=entities.keys())
+        while self._ask_yes_no("Add a custom entity in addition to the template?"):
+            name = self._ask_identifier("  Entity name > ", forbidden=entities.keys())
             fields = []
             while True:
                 taken = [f for f, _ in fields]
-                fprompt = (f"  Premier champ de {name} > " if not fields
-                           else f"  Autre champ de {name} (vide pour terminer) > ")
+                fprompt = (f"  First field for {name} > " if not fields
+                           else f"  Another field for {name} (leave blank to finish) > ")
                 fname = (self._ask_identifier(fprompt, forbidden=taken) if not fields
                          else self._ask_optional_identifier(fprompt, forbidden=taken))
                 if fname is None:
                     break
-                ftype = self._ask_choice(f"  Type de {name}.{fname} ?", FIELD_TYPES)
+                ftype = self._ask_choice(f"  Type of {name}.{fname}?", FIELD_TYPES)
                 fields.append((fname, ftype))
             entities[name] = fields
             managers[name] = [actors[0] if len(actors) == 1
-                              else self._ask_choice(f"  Qui gère {name} en écriture ?", actors)]
+                              else self._ask_choice(f"  Who manages {name} for writing?", actors)]
             readers[name] = set()
-            if self._ask_yes_no(f"  {name} doit-elle être lisible sans compte ?"):
+            if self._ask_yes_no(f"  Should {name} be readable without an account?"):
                 public_read.append(name)
 
         self._ensure_ownership_structure(entities, managers, readers, owned, relations)
@@ -224,10 +224,10 @@ class ParcoursMixin:
         payable = (self._ask_payable(entities, owned, relations, managers, readers)
                    if template.get("accept_payments", True) else None)
         want_seed = bool(template["seeds"]) and self._ask_yes_no(
-            "Pré-remplir le site avec les données de démonstration du modèle ?")
+            "Pre-fill the site with the template's demo data?")
         image_topic = self._ask_image_topic() if want_seed else None
         want_landing = self._ask_yes_no(
-            "Transmettre votre description à l'IA frontend comme brief de page d'accueil ?")
+            "Send your description to the frontend AI as the homepage brief?")
         design_intent = self._ask_design_intent() if want_landing else None
         sections = (self._ask_editorial_sections(template.get("sections", []))
                     if want_landing else [])

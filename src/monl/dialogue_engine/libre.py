@@ -8,21 +8,21 @@ class LibreMixin:
 
     def _run_free(self):
         """Le dialogue libre historique — inchangé, derrière « partir de zéro »."""
-        self._show(self.ui.plan(["Identité du projet", "Données", "Accès public",
-                                 "Acteurs", "Droits d'écriture", "Relations",
-                                 "Finitions"]))
+        self._show(self.ui.plan(["Project identity", "Data", "Public access",
+                                 "Actors", "Write permissions", "Relations",
+                                 "Finishing touches"]))
         self._show(self.ui.phase(0))
-        app_name = self._ask_identifier("Nom de l'application (ex. StudioNova) > ")
-        description = self._ask_free_text("Décrivez le projet en une phrase (servira à la page d'accueil) > ")
+        app_name = self._ask_identifier("Application name (e.g. StudioNova) > ")
+        description = self._ask_free_text("Describe the project in one sentence (used on the homepage) > ")
 
         # Entités et champs
         entities = {}   # name -> [(field, type)]
         self._show(self.ui.phase(1))
         self._show(self.ui.section(
-            "Définissons les données (entités). Exemple : Project, Message, Article…"))
+            "Let's define the data (entities). Example: Project, Message, Article…"))
         while True:
-            prompt = ("Nom de la 1ère entité > " if not entities
-                      else "Nom d'une autre entité (vide pour terminer) > ")
+            prompt = ("Name of the first entity > " if not entities
+                      else "Name of another entity (leave blank to finish) > ")
             name = (self._ask_identifier(prompt, forbidden=entities.keys()) if not entities
                     else self._ask_optional_identifier(prompt, forbidden=entities.keys()))
             if name is None:
@@ -30,13 +30,13 @@ class LibreMixin:
             fields = []
             while True:
                 taken = [f for f, _ in fields]
-                fprompt = (f"  Premier champ de {name} > " if not fields
-                           else f"  Autre champ de {name} (vide pour terminer) > ")
+                fprompt = (f"  First field for {name} > " if not fields
+                           else f"  Another field for {name} (leave blank to finish) > ")
                 fname = (self._ask_identifier(fprompt, forbidden=taken) if not fields
                          else self._ask_optional_identifier(fprompt, forbidden=taken))
                 if fname is None:
                     break
-                ftype = self._ask_choice(f"  Type de {name}.{fname} ?", FIELD_TYPES)
+                ftype = self._ask_choice(f"  Type of {name}.{fname}?", FIELD_TYPES)
                 fields.append((fname, ftype))
             entities[name] = fields
 
@@ -46,19 +46,19 @@ class LibreMixin:
         self._show(self.ui.phase(2))
         public_read = []
         for ent in entity_names:
-            if self._ask_yes_no(f"L'entité {ent} doit-elle être LISIBLE sans compte (vitrine publique) ?"):
+            if self._ask_yes_no(f"Should entity {ent} be READABLE without an account (public showcase)?"):
                 public_read.append(ent)
         public_create = self._ask_choice(
-            "Une entité peut-elle être CRÉÉE sans compte (ex. formulaire de contact) ?",
+            "Can an entity be CREATED without an account (e.g. a contact form)?",
             entity_names, allow_none=True)
 
         # Acteurs
         actors = []
         self._show(self.ui.phase(3))
-        self._show(self.ui.section("Qui utilise l'application ? (ex. Admin, Visitor, Member…)"))
+        self._show(self.ui.section("Who uses the application? (e.g. Admin, Visitor, Member…)"))
         while True:
-            prompt = ("Nom du 1er acteur > " if not actors
-                      else "Autre acteur (vide pour terminer) > ")
+            prompt = ("Name of the first actor > " if not actors
+                      else "Another actor (leave blank to finish) > ")
             a = (self._ask_identifier(prompt, forbidden=actors) if not actors
                  else self._ask_optional_identifier(prompt, forbidden=actors))
             if a is None:
@@ -76,16 +76,16 @@ class LibreMixin:
                 managers[ent] = [actors[0]]
                 continue
             pick = self._ask_choice(
-                f"Qui gère {ent} en écriture (création/modification/suppression) ?",
-                actors + ["(plusieurs acteurs se partagent la gestion)"])
-            if pick != "(plusieurs acteurs se partagent la gestion)":
+                f"Who manages {ent} for writing (create/update/delete)?",
+                actors + ["(multiple actors share management)"])
+            if pick != "(multiple actors share management)":
                 managers[ent] = [pick]
                 continue
             shared = [a for a in actors
-                      if self._ask_yes_no(f"  {a} participe-t-il à la gestion de {ent} ?")]
+                      if self._ask_yes_no(f"  Does {a} help manage {ent}?")]
             if len(shared) < 2:
-                self._say(self.ui.error("Un partage exige au moins deux acteurs — "
-                                        "gestion attribuée au premier acteur."))
+                self._say(self.ui.error("Sharing requires at least two actors — "
+                                        "management assigned to the first actor."))
                 shared = [shared[0] if shared else actors[0]]
             managers[ent] = shared
 
@@ -100,8 +100,8 @@ class LibreMixin:
                 continue
             actor = managers[ent][0]
             if not self._ask_yes_no(
-                    f"Chaque enregistrement de {ent} doit-il appartenir à son "
-                    f"créateur (lui seul pourra le modifier/supprimer) ?"):
+                    f"Should every {ent} record belong to its creator "
+                    f"(only they can update/delete it)?"):
                 continue
             owned[ent] = actor
             if actor not in entities:
@@ -109,8 +109,8 @@ class LibreMixin:
                 entity_names.append(actor)
                 managers[actor] = [actor]
                 self._show(self.ui.note(
-                    f"Entité propriétaire '{actor}' créée automatiquement "
-                    f"(displayName: String), reliée par '{actor} hasMany {ent}'."))
+                    f"Owner entity '{actor}' created automatically "
+                    f"(displayName: String), linked by '{actor} hasMany {ent}'."))
 
         # Lecteurs supplémentaires (les lectures ne créent pas de collision)
         readers = {ent: set() for ent in entity_names}
@@ -118,23 +118,23 @@ class LibreMixin:
             for act in actors:
                 if act in managers[ent]:
                     continue
-                if self._ask_yes_no(f"{act} peut-il LIRE {ent} (une fois connecté) ?"):
+                if self._ask_yes_no(f"Can {act} READ {ent} (once signed in)?"):
                     readers[ent].add(act)
 
         # Relations
         relations = []
-        if len(entity_names) >= 2 and self._ask_yes_no("\nDes entités sont-elles liées entre elles ?"):
+        if len(entity_names) >= 2 and self._ask_yes_no("\nAre any entities related to each other?"):
             while True:
-                src = self._ask_choice("Entité source de la relation ?", entity_names + ["(terminer)"])
-                if src == "(terminer)":
+                src = self._ask_choice("Source entity for the relation?", entity_names + ["(finish)"])
+                if src == "(finish)":
                     break
                 rtype = self._ask_choice(
-                    f"Type de lien depuis {src} ? (hasMany : {src} contient plusieurs cibles)",
+                    f"Relation type from {src}? (hasMany: {src} contains multiple targets)",
                     RELATION_TYPES)
                 targets = [e for e in entity_names if e != src]
-                tgt = self._ask_choice("Entité cible ?", targets)
+                tgt = self._ask_choice("Target entity?", targets)
                 relations.append((src, rtype, tgt))
-                if not self._ask_yes_no("Ajouter une autre relation ?"):
+                if not self._ask_yes_no("Add another relation?"):
                     break
 
         self._show(self.ui.phase(6))
@@ -142,10 +142,10 @@ class LibreMixin:
         account_identifier = self._ask_account_identifier(self_register)
         upload_rules = self._ask_uploads(entities, public_read, owned)
         payable = self._ask_payable(entities, owned, relations, managers, readers)
-        want_seed = self._ask_yes_no("Pré-remplir le site avec des données de démonstration ?")
+        want_seed = self._ask_yes_no("Pre-fill the site with demo data?")
         image_topic = self._ask_image_topic() if want_seed else None
         want_landing = self._ask_yes_no(
-            "Transmettre votre description à l'IA frontend comme brief de page d'accueil ?")
+            "Send your description to the frontend AI as the homepage brief?")
         design_intent = self._ask_design_intent() if want_landing else None
         sections = self._ask_editorial_sections() if want_landing else []
         links = self._ask_footer_links() if want_landing else []

@@ -39,28 +39,28 @@ PARAGRAPH_SEP = " ¶ "
 # images. Menus FERMÉS (le dialogue reste déterministe et sans IA) ; chaque
 # entrée porte un libellé court pour l'écran et une phrase pour le brief.
 DESIGN_REGISTERS = [
-    ("Sobre et institutionnel",
+    ("Formal and institutional",
      "registre sobre et institutionnel : lisibilité et confiance avant tout, "
      "peu d'effets, hiérarchie typographique nette"),
-    ("Chaleureux et éditorial",
+    ("Warm and editorial",
      "registre chaleureux et éditorial : longues plages de texte, respiration "
      "généreuse, matière et nuances plutôt que contrastes brutaux"),
-    ("Dense et fonctionnel",
+    ("Dense and functional",
      "registre dense et fonctionnel : l'outil prime sur la vitrine, "
      "information compacte, l'utilisateur va vite et revient souvent"),
-    ("Affirmé et graphique",
+    ("Bold and graphic",
      "registre affirmé et graphique : grandes échelles typographiques, "
      "contrastes marqués, parti pris visuel assumé"),
 ]
 
 DESIGN_IMAGERY = [
-    ("Les images portent le site",
+    ("Images define the site",
      "les images portent le site (photo, œuvre, produit) : elles occupent de "
      "grandes surfaces et commandent la mise en page"),
-    ("Texte d'abord, images d'appoint",
+    ("Text first, supporting images",
      "le texte porte le site, les images viennent en appui et restent "
      "secondaires dans la mise en page"),
-    ("Aucune image",
+    ("No images",
      "aucune image : tout repose sur la typographie, l'espacement et la "
      "couleur"),
 ]

@@ -37,17 +37,17 @@ class ComptesMixin:
                 privilegies.add(acteur)
         consommateurs = [a for a in actors if a not in privilegies]
         ordonnes = consommateurs + [a for a in actors if a in privilegies]
-        aides = {a: ("recommandé — n'écrit que sur ses propres données"
+        aides = {a: ("recommended — writes only to their own data"
                      if a in consommateurs else
-                     "gère des données communes : à ouvrir en connaissance de cause")
+                     "manages shared data: enable with care")
                  for a in ordonnes}
         choisi = self._ask_choice(
-            "Quel rôle peut créer son compte depuis le site ?",
+            "Which role can create an account on the site?",
             ordonnes, allow_none=True, hints=aides)
         if choisi is None:
             self._show(self.ui.note(
-                "Aucune inscription en ligne : les comptes seront créés sur le "
-                "serveur avec 'python3 manage.py adduser'."))
+                "No online registration: accounts will be created on the "
+                "server with 'python3 manage.py adduser'."))
         return choisi
 
     def _ask_account_identifier(self, self_register):
@@ -76,22 +76,22 @@ class ComptesMixin:
         if not self_register:
             return None
         choix = self._ask_choice(
-            "Avec quoi les comptes se connectent-ils ?",
-            ["Numéro de téléphone", "Adresse e-mail", "Téléphone ou e-mail, au choix"],
+            "How will users sign in?",
+            ["Phone number", "Email address", "Phone or email, user's choice"],
             allow_none=True,
             hints={
-                "Numéro de téléphone": "recommandé si vous rappelez vos clients",
-                "Adresse e-mail": "si vos échanges se font par écrit",
-                "Téléphone ou e-mail, au choix": "chacun s'inscrit comme il préfère",
+                "Phone number": "recommended if you call your customers back",
+                "Email address": "if you communicate in writing",
+                "Phone or email, user's choice": "each person signs up as they prefer",
             })
         if choix is None:
             self._show(self.ui.note(
-                "Identifiant libre : n'importe quel texte fera un compte, et "
-                "vous n'aurez aucun moyen de recontacter la personne."))
+                "Unrestricted identifier: any text can be used for an account, "
+                "and you will have no way to contact the person again."))
             return None
-        formes = {"Numéro de téléphone": ["phone"],
-                  "Adresse e-mail": ["email"],
-                  "Téléphone ou e-mail, au choix": ["email", "phone"]}[choix]
+        formes = {"Phone number": ["phone"],
+                  "Email address": ["email"],
+                  "Phone or email, user's choice": ["email", "phone"]}[choix]
 
         prefixe = None
         if "phone" in formes:
@@ -105,14 +105,14 @@ class ComptesMixin:
                     return True, a
                 return False, None
             prefixe = self._ask(
-                self.ui.field("Indicatif du pays pour les numéros "
-                              "(ex. +229 pour le Bénin, vide pour aucun) > "),
-                valide, "Un indicatif commence par + suivi de 1 à 4 chiffres.",
+                self.ui.field("Country calling code for phone numbers "
+                              "(e.g. +229 for Benin, leave blank for none) > "),
+                valide, "A calling code starts with + followed by 1 to 4 digits.",
                 kind="free_text")
             if prefixe is None:
                 self._show(self.ui.note(
-                    "Sans indicatif, '97…' et '+22997…' seront deux comptes "
-                    "différents pour la même personne."))
+                    "Without a calling code, '97…' and '+22997…' will be "
+                    "different accounts for the same person."))
         configuration = {"formes": formes, "prefixe": prefixe}
         if formes == ["email"]:
             configuration.update(self._ask_email_verification())
@@ -120,11 +120,11 @@ class ComptesMixin:
 
     def _ask_email_verification(self):
         """Le producteur de la brique : uniquement une inscription par e-mail."""
-        if not self._ask_yes_no("Exiger la confirmation de l'adresse e-mail avant la connexion ?"):
+        if not self._ask_yes_no("Require email address confirmation before sign-in?"):
             return {}
-        duree = self._ask_positive_seconds("Validité du lien de confirmation, en secondes")
-        maximum = self._ask_positive_seconds("Nombre maximal de renvois dans la fenêtre")
-        fenetre = self._ask_positive_seconds("Fenêtre des renvois, en secondes")
+        duree = self._ask_positive_seconds("Confirmation link validity, in seconds")
+        maximum = self._ask_positive_seconds("Maximum resends in the window")
+        fenetre = self._ask_positive_seconds("Resend window, in seconds")
         return {"verify_email": duree, "verify_resend": (maximum, fenetre)}
 
     def _ask_positive_seconds(self, titre):
@@ -133,4 +133,4 @@ class ComptesMixin:
                 return True, int(value)
             return False, None
         return self._ask(self.ui.field(titre + " > "), valide,
-                         "Saisissez un entier strictement positif.", kind="free_text")
+                         "Enter a strictly positive integer.", kind="free_text")

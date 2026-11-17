@@ -45,7 +45,7 @@ class QuestionsMixin:
             if ok:
                 return value
             self._say(self.ui.error(error_msg))
-        raise DialogueError(f"Réponse invalide après {self.max_retries} tentatives : {prompt!r}")
+        raise DialogueError(f"Invalid response after {self.max_retries} attempts: {prompt!r}")
 
     def _ask_identifier(self, prompt, forbidden=()):
         prompt = self.ui.field(prompt)
@@ -55,7 +55,7 @@ class QuestionsMixin:
                 return True, a
             return False, None
         return self._ask(prompt, validate,
-                         "Identifiant attendu (lettres/chiffres, commence par une lettre, sans doublon).",
+                         "Expected identifier (letters/digits, starts with a letter, no duplicates).",
                          kind="identifier")
 
     def _ask_optional_identifier(self, prompt, forbidden=()):
@@ -69,7 +69,7 @@ class QuestionsMixin:
                 return True, a
             return False, None
         return self._ask(prompt, validate,
-                         "Identifiant attendu (ou vide pour terminer), sans doublon.",
+                         "Expected identifier (or leave blank to finish), no duplicates.",
                          kind="identifier")
 
     def _ask_choice(self, prompt, options, allow_none=False, hints=None):
@@ -89,8 +89,8 @@ class QuestionsMixin:
         choix = [{"label": libelle, "value": str(rang)}
                  for rang, libelle in enumerate(options, start=1)]
         if allow_none:
-            choix.append({"label": "aucun", "value": "0"})
-        return self._ask(full, validate, "Choisir un numéro du menu.",
+            choix.append({"label": "none", "value": "0"})
+        return self._ask(full, validate, "Choose a menu number.",
                          kind="choice", options=choix, hints=hints,
                          title=prompt)
 
@@ -102,7 +102,7 @@ class QuestionsMixin:
             if low in ("n", "non", "no"):
                 return True, False
             return False, None
-        return self._ask(self.ui.yes_no(prompt), validate, "Répondre o ou n.", kind="yes_no")
+        return self._ask(self.ui.yes_no(prompt), validate, "Answer y or n.", kind="yes_no")
 
     def _ask_free_text(self, prompt):
         prompt = self.ui.field(prompt)
@@ -112,7 +112,7 @@ class QuestionsMixin:
             if a and '"' not in a and "\n" not in a:
                 return True, a
             return False, None
-        return self._ask(prompt, validate, "Texte non vide, sans guillemets doubles.",
+        return self._ask(prompt, validate, "Text must not be empty or contain double quotes.",
                          kind="free_text")
 
     def _ask_optional_free_text(self, prompt):
@@ -126,7 +126,7 @@ class QuestionsMixin:
                 return True, a
             return False, None
         return self._ask(prompt, validate,
-                         "Texte sans guillemets doubles (ou vide pour passer).",
+                         "Text must not contain double quotes (or leave blank to skip).",
                          kind="free_text")
 
     def _ask_paragraphs(self, prompt):
@@ -148,7 +148,7 @@ class QuestionsMixin:
         paragraphes = [premier]
         while True:
             suite = self._ask_optional_free_text(
-                "    … paragraphe suivant (vide pour terminer) > ")
+                "    … next paragraph (leave blank to finish) > ")
             if not suite:
                 return PARAGRAPH_SEP.join(paragraphes)
             paragraphes.append(suite)
