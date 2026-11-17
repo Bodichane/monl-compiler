@@ -120,7 +120,7 @@ def _session_paiement(montant_centimes, devise, reference, retour):
             if not fk_enfant:
                 continue
             champ, valeur = regle["field"], regle["value"]
-            lignes += [
+            lignes.extend([
                 Template(r'''    cursor.execute('SELECT "${champ}" FROM "${table}" WHERE id = ?', (id,))''').substitute(champ=champ, table=table),
                 Template(r'''    _etat_avant = cursor.fetchone()''').substitute(),
                 # L'état libéré est TERMINAL : ce qui a été rendu n'est plus
@@ -135,8 +135,8 @@ def _session_paiement(montant_centimes, devise, reference, retour):
                 Template(r'''    _bascule = (_etat_avant and _etat_avant[0] != ${valeur}''').substitute(valeur=repr(valeur)),
                 Template(r'''                and data.${champ} == ${valeur})''').substitute(champ=champ, valeur=repr(valeur)),
                 Template(r'''    if _bascule:''').substitute(),
-            ]
-            lignes += self._lignes_restitution(enfant, fk_enfant, indent="        ")
+            ])
+            lignes.extend(self._lignes_restitution(enfant, fk_enfant, indent="        "))
         return lignes
 
     def _generate_postpayment_routes(self):
@@ -144,7 +144,7 @@ def _session_paiement(montant_centimes, devise, reference, retour):
         for entite, config in sorted(self.postpayment_writable_by_entity.items()):
             table = entite.lower()
             schema = Template(r"""${entite}ApresPaiementSchema""").substitute(entite=entite)
-            lignes += ["", Template(r"""class ${schema}(BaseModel):""").substitute(schema=schema)]
+            lignes.extend(["", Template(r"""class ${schema}(BaseModel):""").substitute(schema=schema)])
             for field in config["fields"]:
                 field_type = self.entities[entite][field]
                 py_type = "str"
@@ -190,7 +190,7 @@ def _session_paiement(montant_centimes, devise, reference, retour):
                 sql.kw(" FROM "), sql.ident(table),
                 sql.kw(" WHERE id = "), sql.bind("id"))
             existence_sql, existence_params = sql.execute_args(existence)
-            lignes += [
+            lignes.extend([
                 "",
                 Template(r"""@app.put('/${table}/{id}/apres-paiement', tags=['Paiement'])""").substitute(table=table),
                 Template(r"""def modifier_${table}_apres_paiement(id: int, data: ${schema}, current_actor: str = Depends(verify_jwt_and_get_actor)):""").substitute(table=table, schema=schema),
@@ -208,26 +208,26 @@ def _session_paiement(montant_centimes, devise, reference, retour):
                 "        conn.close()",
                 "        raise HTTPException(status_code=409, detail=(",
                 "            'Action disponible uniquement après confirmation du paiement'))",
-            ]
+            ])
             # BRIQUE 20 sur un champ que cette route s'est réservé. Quand
             # `writableAfterPayment` prend le champ d'une règle `releases`, il
             # le retire du schéma de l'Update générique : la bascule doit donc
             # vivre ICI, sinon annuler une commande PAYÉE ne rendrait jamais
             # son stock — une perte silencieuse, pire que le 500 qu'on répare.
-            lignes += self._lignes_bascule_apres_paiement(entite, config, table)
+            lignes.extend(self._lignes_bascule_apres_paiement(entite, config, table))
             for field in config["fields"]:
                 update = sql.cat(
                     sql.kw("UPDATE "), sql.ident(table), sql.kw(" SET "),
                     sql.ident(field), sql.kw(" = "), sql.bind(Template(r"""data.${field}""").substitute(field=field)),
                     sql.kw(" WHERE id = "), sql.bind("id"))
                 update_sql, update_params = sql.execute_args(update)
-                lignes += [
+                lignes.extend([
                     Template(r"""    if data.${field} is not None:""").substitute(field=field),
                     Template(r"""        cursor.execute(${update_sql}, ${update_params})""").substitute(update_sql=update_sql, update_params=update_params),
-                ]
-            lignes += [
+                ])
+            lignes.extend([
                 "    conn.commit(); conn.close()",
                 "    return {'status': 'success', 'id': id}",
                 "",
-            ]
+            ])
         return lignes
