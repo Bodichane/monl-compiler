@@ -51,35 +51,35 @@ class CapacitesDeListeMixin:
             reference = rule["reference"]
             if "." not in reference:
                 raise ASTValidationError(
-                    f"Structure : la règle '{kind}' doit référencer "
-                    f"'Entite.Read', reçu '{reference}'."
+                    f"Structure: rule '{kind}' must reference "
+                    f"'Entity.Read', received '{reference}'."
                 )
             entity, action = reference.split(".", 1)
             if entity not in self.entities:
                 raise ASTValidationError(
-                    f"Structure : la règle '{kind}' cible l'entité "
-                    f"'{entity}' qui n'existe pas."
+                    f"Structure: rule '{kind}' targets entity "
+                    f"'{entity}', which does not exist."
                 )
             if action != "Read":
                 raise ASTValidationError(
-                    f"Structure : '{kind}' ne vaut que sur une route Read "
-                    f"(reçu '{reference}')."
+                    f"Structure: '{kind}' is only valid on a Read route "
+                    f"(received '{reference}')."
                 )
             if entity not in has_read:
                 raise ASTValidationError(
-                    f"Structure : '{reference}' n'a aucune route de lecture "
-                    f"dans les workflows."
+                    f"Structure: '{reference}' has no read route "
+                    f"in the workflows."
                 )
             field = rule.get("field")
             if field not in self.entities[entity]:
                 raise ASTValidationError(
-                    f"Structure : '{kind}' cible le champ '{entity}.{field}', "
-                    "qui n'est pas un attribut déclaré."
+                    f"Structure: '{kind}' targets field '{entity}.{field}', "
+                    "which is not a declared attribute."
                 )
             if field in self.LIST_QUERY_RESERVED:
                 raise ASTValidationError(
-                    f"Structure : le champ '{entity}.{field}' ne peut pas être "
-                    f"{kind} : son nom est réservé aux paramètres de liste "
+                    f"Structure: field '{entity}.{field}' cannot be used for "
+                    f"{kind}: its name is reserved for list parameters "
                     "(limit, offset, sort, direction)."
                 )
             return entity, field
@@ -87,22 +87,22 @@ class CapacitesDeListeMixin:
         def refuser_oracle(entity, field, kind):
             type_champ = self.entities[entity][field]
             if (entity, field) in self.masked_fields:
-                raison = "hidden : le compter révélerait une valeur masquée"
+                raison = "hidden: counting it would reveal a masked value"
             elif any(item["entity"] == entity and item["field"] == field
                      for item in self.categorized_fields):
-                raison = "categorized : le compter révélerait le nombre remplacé par un libellé"
+                raison = "categorized: counting it would reveal the number replaced by a label"
             elif type_champ == "Upload":
-                raison = "Upload : le compter révélerait l'existence d'un fichier"
+                raison = "Upload: counting it would reveal whether a file exists"
             else:
                 compact = field.lower().replace("-", "_")
                 if any(part in compact for part in self.LIST_QUERY_SECRET_PARTS):
-                    raison = "nom de secret : le compter révélerait une donnée sensible"
+                    raison = "secret name: counting it would reveal sensitive data"
                 else:
                     return type_champ
             raise ASTValidationError(
-                f"Sécurité : '{entity}.{field}' ne peut pas être {kind} : "
-                f"{raison}. Un filtre ou un tri est un oracle ; déclarer un "
-                "champ visible et non transformé."
+                f"Security: '{entity}.{field}' cannot be used for {kind}: "
+                f"{raison}. A filter or sort is an oracle; declare a "
+                "visible, untransformed field."
             )
 
         for rule in self.rules:
@@ -113,24 +113,24 @@ class CapacitesDeListeMixin:
             type_champ = refuser_oracle(entity, field, kind)
             if type_champ not in self.LIST_QUERY_TYPES:
                 raise ASTValidationError(
-                    f"Structure : '{kind}' ne peut viser que les champs scalaires "
-                    f"déclarés ({', '.join(self.LIST_QUERY_TYPES)}), reçu "
+                    f"Structure: '{kind}' can only target declared scalar fields "
+                    f"({', '.join(self.LIST_QUERY_TYPES)}), received "
                     f"'{entity}.{field}: {type_champ}'."
                 )
             cible = (entity, field)
             if kind == "filter":
                 if cible in seen_filters:
                     raise ASTValidationError(
-                        f"Structure : plusieurs règles 'filter' sur "
-                        f"'{entity}.{field}' -- une seule déclaration suffit."
+                        f"Structure: multiple 'filter' rules for "
+                        f"'{entity}.{field}' -- one declaration is enough."
                     )
                 seen_filters.add(cible)
                 self.filterable_fields.append({"entity": entity, "field": field})
             else:
                 if cible in seen_sorts:
                     raise ASTValidationError(
-                        f"Structure : plusieurs règles 'sort' sur "
-                        f"'{entity}.{field}' -- une seule déclaration suffit."
+                        f"Structure: multiple 'sort' rules for "
+                        f"'{entity}.{field}' -- one declaration is enough."
                     )
                 seen_sorts.add(cible)
                 self.sortable_fields.append({"entity": entity, "field": field})
