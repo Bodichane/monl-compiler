@@ -19,9 +19,9 @@ from tests.test_golden_artifacts import SPEC, SPEC_LOOKUP_SOURCES
 from tests.test_identifiant_de_compte import SPEC as SPEC_IDENTIFIANT
 from tests.test_liberation import SPEC as SPEC_LIBERATION
 from tests.test_liberation import SPEC_APRES_PAIEMENT
+from tests.test_masquage_hidden import SPEC_MASQUAGE
 from tests.test_messages import SPEC as SPEC_MESSAGES
 from tests.test_paiement_transitif import SPEC as SPEC_PAIEMENT_TRANSITIF
-from tests.test_masquage_hidden import SPEC_MASQUAGE
 from tests.test_publication_conditionnelle import SPEC as SPEC_PUBLICATION
 from tests.test_stock import SPEC as SPEC_STOCK
 from tests.test_uploads import SPEC as SPEC_UPLOADS

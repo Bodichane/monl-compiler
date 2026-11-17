@@ -3,6 +3,8 @@
 Un `SELECT *` : toute colonne ajoutée par une brique sort dans les réponses
 et doit donc être déclarée au contrat (point 76)."""
 
+from string import Template
+
 from . import sql
 
 
@@ -298,8 +300,8 @@ class LectureRoutesMixin:
         """Type FastAPI du paramètre de filtre exact déclaré en spec."""
         choices = self.enumerated_fields.get(entity, {}).get(field)
         if choices:
-            return "Optional[Literal[{}]]".format(
-                ", ".join(repr(value) for value in choices))
+            return Template("Optional[Literal[$choices]]").substitute(
+                choices=", ".join(repr(value) for value in choices))
         type_map = {
             "Integer": "int", "Float": "float", "Money": "float",
             "Boolean": "bool",
