@@ -37,6 +37,7 @@ from monl.ast_validator import ASTValidationError, MonlAST
 from monl.cli import compile_project
 from monl.parser import parse_monl_string
 from monl.serving import rendre_wrapper
+from tests.support.cas import verifier_chaque_cas
 from tests.support.server import free_port as _port_libre
 
 SPEC = """app BancAssets
@@ -132,19 +133,23 @@ def test_un_logo_declare_mais_absent_ne_compile_pas(tmp_path):
     assert "assets.logo" in str(refus.value)
 
 
-@pytest.mark.parametrize("chemin, fragment", [
-    ("/etc/passwd", "ABSOLU"),
-    ("../../secret.jpg", "REMONTE"),
-    ("https://picsum.photos/400", "adresse distante"),
-])
-def test_les_chemins_mal_formes_sont_refuses_sans_toucher_au_disque(chemin, fragment):
+def test_les_chemins_mal_formes_sont_refuses_sans_toucher_au_disque():
     """Ces trois contrôles sont PURS : ils ne demandent aucun fichier, donc ils
     s'appliquent même sans 'base_dir'. C'est le partage voulu de la brique — la
     forme toujours, l'existence quand on sait où l'on est."""
-    spec = SPEC.format(photo=chemin, dossier="assets")
-    with pytest.raises(ASTValidationError) as refus:
-        _valide(spec)                      # AUCUN base_dir
-    assert fragment in str(refus.value)
+    table = [
+        ("/etc/passwd", "ABSOLU"),
+        ("../../secret.jpg", "REMONTE"),
+        ("https://picsum.photos/400", "adresse distante"),
+    ]
+
+    def cas(chemin, fragment):
+        spec = SPEC.format(photo=chemin, dossier="assets")
+        with pytest.raises(ASTValidationError) as refus:
+            _valide(spec)                      # AUCUN base_dir
+        assert fragment in str(refus.value)
+
+    verifier_chaque_cas(table, cas)
 
 
 def test_sans_base_dir_l_existence_n_est_pas_verifiee(capsys):

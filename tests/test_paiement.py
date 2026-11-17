@@ -44,6 +44,7 @@ import requests
 from monl.ast_validator import MonlAST
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
+from tests.support.cas import verifier_chaque_cas
 from tests.support.server import uvicorn_server
 
 SPEC_BOUTIQUE = """app Boutique
@@ -476,31 +477,36 @@ def test_un_webhook_trop_volumineux_est_refuse_avec_ou_sans_content_length(
     assert decoupe.status_code == 413, decoupe.text
 
 
-@pytest.mark.parametrize("entete", [
-    None,
-    "",
-    "t=1700000000",
-    "v1=" + "0" * 64,
-    "t=1700000000,v1=" + "0" * 64,
-], ids=["absente", "vide", "sans-signature", "sans-horodatage", "forgée"])
-def test_un_webhook_mal_signe_ne_paie_rien(application, entete):
+def test_un_webhook_mal_signe_ne_paie_rien(application):
     """LE test de sécurité de la brique. Sans vérification de signature,
     n'importe qui marque n'importe quelle commande comme payée avec un simple
     `curl` — c'est le seul endroit du backend généré où un tiers non
     authentifié écrit en base. Chaque forme de signature invalide est essayée
     séparément : une seule branche de l'analyse qui laisserait passer suffit à
     ouvrir la porte."""
-    base, dossier = application
-    entetes = _entetes(application, f"tentative{abs(hash(str(entete))) % 10000}")
-    identifiant = _commande(application, entetes, "coffre", 60.00)
+    table = [
+        None,
+        "",
+        "t=1700000000",
+        "v1=" + "0" * 64,
+        "t=1700000000,v1=" + "0" * 64,
+    ]
+    noms = ["absente", "vide", "sans-signature", "sans-horodatage", "forgée"]
 
-    corps = _evenement("cs_forge", identifiant)
-    envoi = {} if entete is None else {"stripe-signature": entete}
-    refus = requests.post(f"{base}/paiement/webhook", data=corps, headers=envoi)
+    def cas(entete):
+        base, dossier = application
+        entetes = _entetes(application, f"tentative{abs(hash(str(entete))) % 10000}")
+        identifiant = _commande(application, entetes, "coffre", 60.00)
 
-    assert refus.status_code == 400, refus.text
-    assert _etat_en_base(dossier, identifiant)[0] == "en_attente", (
-        "une signature invalide a suffi à marquer la commande payée")
+        corps = _evenement("cs_forge", identifiant)
+        envoi = {} if entete is None else {"stripe-signature": entete}
+        refus = requests.post(f"{base}/paiement/webhook", data=corps, headers=envoi)
+
+        assert refus.status_code == 400, refus.text
+        assert _etat_en_base(dossier, identifiant)[0] == "en_attente", (
+            "une signature invalide a suffi à marquer la commande payée")
+
+    verifier_chaque_cas([(valeur,) for valeur in table], cas, ids=noms)
 
 
 def test_une_signature_valide_pour_un_autre_corps_est_refusee(application):

@@ -30,6 +30,7 @@ from monl.assets_tool import (
 )
 from monl.ast_validator import MonlAST
 from monl.parser import parse_monl_string
+from tests.support.cas import verifier_chaque_cas
 
 SPEC = """app BancOutil
 
@@ -191,18 +192,22 @@ def test_redeclarer_a_lidentique_ne_touche_pas_la_spec(tmp_path, capsys):
 # Le nom du fichier
 # --------------------------------------------------------------------------
 
-@pytest.mark.parametrize("texte, attendu", [
-    ("Halo RS", "halo-rs"),
-    ("Sørlund Deck", "sorlund-deck"),      # NFKD ne décompose pas le « ø »
-    ("Café Crème", "cafe-creme"),
-    ("Air 95 — édition", "air-95-edition"),
-    ("  ", ""),
-])
-def test_le_slug_reste_lisible(texte, attendu):
+def test_le_slug_reste_lisible():
     """« Sørlund » donnait « srlund » avant la table de translittération : un
     nom de fichier muet là où le nom était lisible. Le catalogue du projet
     porte déjà une maison nordique — le cas n'est pas théorique."""
-    assert sluggify(texte) == attendu
+    table = [
+        ("Halo RS", "halo-rs"),
+        ("Sørlund Deck", "sorlund-deck"),      # NFKD ne décompose pas le « ø »
+        ("Café Crème", "cafe-creme"),
+        ("Air 95 — édition", "air-95-edition"),
+        ("  ", ""),
+    ]
+
+    def cas(texte, attendu):
+        assert sluggify(texte) == attendu
+
+    verifier_chaque_cas(table, cas)
 
 
 def test_une_source_sans_extension_est_refusee(tmp_path):

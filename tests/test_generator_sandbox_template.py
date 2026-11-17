@@ -25,6 +25,7 @@ from monl.generator import (
     sandbox,
     schemas,
 )
+from tests.support.cas import verifier_chaque_cas
 from tests.test_bloc_custom_absent import AVEC_CUSTOM, _compiler
 
 MIGRATED_MODULES = (
@@ -41,35 +42,43 @@ def test_liste_modules_montage_non_vide():
     assert DATABASE_MONTAGE_MODULES
 
 
-@pytest.mark.parametrize("module", DATABASE_MONTAGE_MODULES)
-def test_montage_sans_decoupage_legacy(module):
-    tree = ast.parse(inspect.getsource(module))
-    assert not any(
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and node.func.attr == "index"
-        and isinstance(node.func.value, ast.Name)
-        and node.func.value.id == "api_lines"
-        for node in ast.walk(tree)
-    )
-    assert not any(
-        isinstance(node, ast.Constant)
-        and isinstance(node.value, str)
-        and "__MONL_DB_END__" in node.value
-        for node in ast.walk(tree)
-    )
+def test_montage_sans_decoupage_legacy():
+    table = DATABASE_MONTAGE_MODULES
+
+    def cas(module):
+        tree = ast.parse(inspect.getsource(module))
+        assert not any(
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "index"
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "api_lines"
+            for node in ast.walk(tree)
+        )
+        assert not any(
+            isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+            and "__MONL_DB_END__" in node.value
+            for node in ast.walk(tree)
+        )
+
+    verifier_chaque_cas([(valeur,) for valeur in table], cas)
 
 
 def test_liste_modules_migres_non_vide():
     assert MIGRATED_MODULES
 
 
-@pytest.mark.parametrize("module", MIGRATED_MODULES)
-def test_sandbox_emission_sans_f_string_ni_addition(module):
-    tree = ast.parse(inspect.getsource(module))
-    assert not any(isinstance(node, ast.JoinedStr) for node in ast.walk(tree))
-    assert not any(isinstance(node, (ast.BinOp, ast.AugAssign))
-                   and isinstance(node.op, ast.Add) for node in ast.walk(tree))
+def test_sandbox_emission_sans_f_string_ni_addition():
+    table = MIGRATED_MODULES
+
+    def cas(module):
+        tree = ast.parse(inspect.getsource(module))
+        assert not any(isinstance(node, ast.JoinedStr) for node in ast.walk(tree))
+        assert not any(isinstance(node, (ast.BinOp, ast.AugAssign))
+                       and isinstance(node.op, ast.Add) for node in ast.walk(tree))
+
+    verifier_chaque_cas([(valeur,) for valeur in table], cas)
 
 
 def test_sandbox_custom_octets_et_execution(tmp_path):

@@ -21,6 +21,7 @@ from monl.ast_validator import ASTValidationError, MonlAST
 from monl.cli import _contract_signature, compile_project
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
+from tests.support.cas import verifier_chaque_cas
 from tests.support.server import uvicorn_server
 
 SPEC = """app B3
@@ -217,9 +218,8 @@ def test_contrat_et_signature_decrivent_les_capacites(tmp_path):
     assert _contract_signature(contract)[6] != _contract_signature(contract_sans)[6]
 
 
-@pytest.mark.parametrize(
-    ("fragment", "needle"),
-    [
+def test_oracles_refuses_a_la_compilation():
+    table = [
         ("rule Doc.value hidden\nrule Doc.Read filter value", "hidden"),
         (
             "rule Doc.score categorized: \"low\" below 10, \"high\" otherwise\n"
@@ -228,18 +228,18 @@ def test_contrat_et_signature_decrivent_les_capacites(tmp_path):
         ),
         ("rule Doc.Read filter file", "Upload"),
         ("rule Doc.Read filter apiSecret", "secret"),
-    ],
-)
-def test_oracles_refuses_a_la_compilation(fragment, needle):
-    field = "file: Upload" if "filter file" in fragment else (
-        "score: Integer" if "score" in fragment else (
-            "apiSecret: String" if "apiSecret" in fragment else "value: String"))
-    upload_rule = (
-        "rule Doc.file upload max 1024 types \"application/pdf\"\n"
+    ]
+
+    def cas(fragment, needle):
+        field = "file: Upload" if "filter file" in fragment else (
+            "score: Integer" if "score" in fragment else (
+                "apiSecret: String" if "apiSecret" in fragment else "value: String"))
+        upload_rule = (
+            "rule Doc.file upload max 1024 types \"application/pdf\"\n"
         "rule Doc.Read ownedBy User\n"
         "rule Doc.Update ownedBy User\n"
-        if field == "file: Upload" else "")
-    spec = f"""app Oracle
+            if field == "file: Upload" else "")
+        spec = f"""app Oracle
 
 entity User
     name: String
@@ -258,5 +258,7 @@ workflow W for User
     Read Doc
     Update Doc
 """
-    with pytest.raises(ASTValidationError, match=needle):
-        MonlAST(parse_monl_string(spec)).validate_and_audit()
+        with pytest.raises(ASTValidationError, match=needle):
+            MonlAST(parse_monl_string(spec)).validate_and_audit()
+
+    verifier_chaque_cas(table, cas)

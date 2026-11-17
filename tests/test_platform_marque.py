@@ -17,10 +17,10 @@ import pathlib
 import re
 import sys
 
-import pytest
 from PIL import Image
 
 from monl_platform import brand, theme, theme_fragments
+from tests.support.cas import verifier_chaque_cas
 
 PAQUET = pathlib.Path(theme.__file__).parent
 COULEUR = re.compile(r"#[0-9a-fA-F]{6}\b")
@@ -68,50 +68,66 @@ COUPLES_TEXTE = [
 COUPLES_CONTROLE = [("line-strong", "bg"), ("line-strong", "surface")]
 
 
-@pytest.mark.parametrize("theme_nom", ["clair", "sombre"])
-def test_la_palette_de_texte_tient_sur_les_trois_surfaces(theme_nom):
+def test_la_palette_de_texte_tient_sur_les_trois_surfaces():
     """Le témoin de la palette assombrie lit la feuille, jamais une copie."""
-    palette = _blocs()[theme_nom]
-    for avant in ("ink", "muted", "accent", "danger"):
-        for arriere in ("bg", "surface", "surface-2"):
+    table = ["clair", "sombre"]
+
+    def cas(theme_nom):
+        palette = _blocs()[theme_nom]
+        for avant in ("ink", "muted", "accent", "danger"):
+            for arriere in ("bg", "surface", "surface-2"):
+                ratio = contraste(palette[avant], palette[arriere])
+                assert ratio >= 4.5, (
+                    f"[{theme_nom}] {avant} ({palette[avant]}) sur {arriere} "
+                f"({palette[arriere]}) : {ratio:.2f}:1, il faut 4.5")
+
+    verifier_chaque_cas([(valeur,) for valeur in table], cas)
+
+
+def test_le_texte_tient_le_contraste_wcag_aa():
+    table = ["clair", "sombre"]
+
+    def cas(theme_nom):
+        palette = _blocs()[theme_nom]
+        for avant, arriere in COUPLES_TEXTE:
+            assert avant in palette and arriere in palette, f"{avant}/{arriere} absent"
             ratio = contraste(palette[avant], palette[arriere])
             assert ratio >= 4.5, (
                 f"[{theme_nom}] {avant} ({palette[avant]}) sur {arriere} "
-                f"({palette[arriere]}) : {ratio:.2f}:1, il faut 4.5")
-
-
-@pytest.mark.parametrize("theme_nom", ["clair", "sombre"])
-def test_le_texte_tient_le_contraste_wcag_aa(theme_nom):
-    palette = _blocs()[theme_nom]
-    for avant, arriere in COUPLES_TEXTE:
-        assert avant in palette and arriere in palette, f"{avant}/{arriere} absent"
-        ratio = contraste(palette[avant], palette[arriere])
-        assert ratio >= 4.5, (
-            f"[{theme_nom}] {avant} ({palette[avant]}) sur {arriere} "
             f"({palette[arriere]}) : {ratio:.2f}:1, il faut 4.5")
 
+    verifier_chaque_cas([(valeur,) for valeur in table], cas)
 
-@pytest.mark.parametrize("theme_nom", ["clair", "sombre"])
-def test_les_controles_se_distinguent_du_fond(theme_nom):
+
+def test_les_controles_se_distinguent_du_fond():
     """WCAG 1.4.11 : un composant d'interface se délimite à 3:1. C'est la
     raison d'être de `--line-strong` — `--line`, lui, ne sépare que des cartes
     et n'a pas à tenir ce seuil."""
-    palette = _blocs()[theme_nom]
-    for avant, arriere in COUPLES_CONTROLE:
-        ratio = contraste(palette[avant], palette[arriere])
-        assert ratio >= 3.0, (
-            f"[{theme_nom}] bordure de contrôle {palette[avant]} sur "
+    table = ["clair", "sombre"]
+
+    def cas(theme_nom):
+        palette = _blocs()[theme_nom]
+        for avant, arriere in COUPLES_CONTROLE:
+            ratio = contraste(palette[avant], palette[arriere])
+            assert ratio >= 3.0, (
+                f"[{theme_nom}] bordure de contrôle {palette[avant]} sur "
             f"{palette[arriere]} : {ratio:.2f}:1, il faut 3.0")
 
+    verifier_chaque_cas([(valeur,) for valeur in table], cas)
 
-@pytest.mark.parametrize("theme_nom", ["clair", "sombre"])
-def test_les_deux_themes_declarent_les_memes_roles(theme_nom):
+
+def test_les_deux_themes_declarent_les_memes_roles():
     """Un rôle défini d'un seul côté laisse l'autre thème hériter d'une
     couleur pensée pour le premier — c'est ainsi qu'un fond clair se retrouve
     sur une page sombre."""
-    blocs = _blocs()
-    manquants = set(blocs["clair"]) - set(blocs["sombre"])
-    assert not manquants, f"rôles absents du thème sombre : {sorted(manquants)}"
+    table = ["clair", "sombre"]
+
+    def cas(theme_nom):
+        blocs = _blocs()
+        manquants = set(blocs["clair"]) - set(blocs["sombre"])
+        assert not manquants, f"rôles absents du thème sombre : {sorted(manquants)}"
+
+    verifier_chaque_cas([(valeur,) for valeur in table], cas)
 
 
 def test_aucune_couleur_en_dur_hors_de_la_feuille():
@@ -217,19 +233,23 @@ def _hauteur_declaree(source: str, selecteur: str) -> int | None:
     return int(trouve.group(1)) if trouve else None
 
 
-@pytest.mark.parametrize("selecteur,module", CIBLES)
-def test_les_cibles_tactiles_font_au_moins_44px(selecteur, module):
+def test_les_cibles_tactiles_font_au_moins_44px():
     """WCAG 2.5.5 : une cible se rate au doigt sous 44 px. Un lien de
     navigation raté n'échoue pas — il ouvre la page d'à côté, ce qui est pire
     qu'un clic sans effet."""
-    source = (PAQUET / module).read_text(encoding="utf-8")
-    hauteur = _hauteur_declaree(source, selecteur)
-    assert hauteur is not None, (
-        f"`{selecteur}` ne déclare plus de hauteur dans {module} — "
+    table = CIBLES
+
+    def cas(selecteur, module):
+        source = (PAQUET / module).read_text(encoding="utf-8")
+        hauteur = _hauteur_declaree(source, selecteur)
+        assert hauteur is not None, (
+            f"`{selecteur}` ne déclare plus de hauteur dans {module} — "
         "si la règle a été renommée, mettez CIBLES à jour plutôt que de "
         "supprimer la garantie")
-    assert hauteur >= MINIMUM, (
-        f"`{selecteur}` ({module}) : {hauteur}px, il en faut {MINIMUM}")
+        assert hauteur >= MINIMUM, (
+            f"`{selecteur}` ({module}) : {hauteur}px, il en faut {MINIMUM}")
+
+    verifier_chaque_cas(table, cas)
 
 
 def test_le_wordmark_suit_le_theme_au_lieu_de_porter_son_fond():
@@ -253,16 +273,20 @@ def test_le_wordmark_suit_le_theme_au_lieu_de_porter_son_fond():
         "le wordmark compact n'est pas servi dans la page")
 
 
-@pytest.mark.parametrize("theme_nom", ["clair", "sombre"])
-def test_le_wordmark_reste_lisible_dans_les_deux_themes(theme_nom):
+def test_le_wordmark_reste_lisible_dans_les_deux_themes():
     """Le lockup prend `--ink` sur la page : c'est ce couple qui porte la
     lecture du mot. Il doit donc
     tenir dans les DEUX thèmes, sans quoi le logo pâlit d'un côté."""
-    palette = _blocs()[theme_nom]
-    lettres = contraste(palette["ink"], palette["bg"])
-    assert lettres >= 4.5, (
-        f"[{theme_nom}] lettres {palette['ink']} sur page {palette['bg']} : "
+    table = ["clair", "sombre"]
+
+    def cas(theme_nom):
+        palette = _blocs()[theme_nom]
+        lettres = contraste(palette["ink"], palette["bg"])
+        assert lettres >= 4.5, (
+            f"[{theme_nom}] lettres {palette['ink']} sur page {palette['bg']} : "
         f"{lettres:.2f}:1")
+
+    verifier_chaque_cas([(valeur,) for valeur in table], cas)
 
 
 def test_les_traces_de_marque_ne_portent_aucune_couleur():

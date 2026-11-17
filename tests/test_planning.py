@@ -22,6 +22,7 @@ from monl.planning import (
     plan_relations,
     plan_routes,
 )
+from tests.support.cas import verifier_chaque_cas
 
 
 def test_routes_qualifiees_fusionnent_sans_confondre_actions_et_fonctions():
@@ -96,29 +97,33 @@ def test_une_analyse_vide_ne_cree_aucune_route_ni_relation():
     assert plan_counters([], [], {}) == {}
 
 
-@pytest.mark.parametrize("source_relation", [
-    RelationModel("Produit", "hasMany", "Ligne"),
-    RelationModel("Produit", "hasOne", "Ligne"),
-    RelationModel("Ligne", "belongsTo", "Produit"),
-])
-def test_derivation_choisit_la_source_et_non_le_parent_proprietaire(source_relation):
-    rule: DerivedFieldIR = {
-        "entity": "Ligne", "field": "sousTotal", "source_entity": "Produit",
-        "source_field": "prix", "factor": "quantite",
-    }
-    relations = [RelationModel("Commande", "hasMany", "Ligne"), source_relation]
+def test_derivation_choisit_la_source_et_non_le_parent_proprietaire():
+    table = [
+        RelationModel("Produit", "hasMany", "Ligne"),
+        RelationModel("Produit", "hasOne", "Ligne"),
+        RelationModel("Ligne", "belongsTo", "Produit"),
+    ]
 
-    plan = plan_derivations([rule], relations)["Ligne"][0]
+    def cas(source_relation):
+        rule: DerivedFieldIR = {
+            "entity": "Ligne", "field": "sousTotal", "source_entity": "Produit",
+            "source_field": "prix", "factor": "quantite",
+        }
+        relations = [RelationModel("Commande", "hasMany", "Ligne"), source_relation]
 
-    assert plan.source_fk == "produit_id"
-    assert plan.as_ir() == rule
-    rule["source_field"] = "prixModifie"
-    assert plan.source_field == "prix"
-    with pytest.raises(FrozenInstanceError):
-        plan.source_fk = "commande_id"
-    copy = plan.as_ir()
-    copy["factor"] = "autreQuantite"
-    assert plan.factor == "quantite"
+        plan = plan_derivations([rule], relations)["Ligne"][0]
+
+        assert plan.source_fk == "produit_id"
+        assert plan.as_ir() == rule
+        rule["source_field"] = "prixModifie"
+        assert plan.source_field == "prix"
+        with pytest.raises(FrozenInstanceError):
+            plan.source_fk = "commande_id"
+        copy = plan.as_ir()
+        copy["factor"] = "autreQuantite"
+        assert plan.factor == "quantite"
+
+    verifier_chaque_cas([(valeur,) for valeur in table], cas)
 
 
 def test_derivations_conservent_plusieurs_sources_et_lordre_des_champs():
@@ -144,39 +149,47 @@ def test_derivations_conservent_plusieurs_sources_et_lordre_des_champs():
     assert plans["AutreLigne"][0].source_fk == "produit_id"
 
 
-@pytest.mark.parametrize("relations", [[], [RelationModel("Ligne", "hasMany", "Produit")]])
-def test_derivation_refuse_une_relation_absente_ou_dans_le_mauvais_sens(relations):
-    rule: DerivedFieldIR = {
-        "entity": "Ligne", "field": "sousTotal", "source_entity": "Produit",
-        "source_field": "prix", "factor": "quantite",
-    }
-    with pytest.raises(ValueError, match=r"aucune colonne.*'Ligne'.*'Produit'.*derivedFrom"):
-        plan_derivations([rule], relations)
+def test_derivation_refuse_une_relation_absente_ou_dans_le_mauvais_sens():
+    table = [[], [RelationModel("Ligne", "hasMany", "Produit")]]
+
+    def cas(relations):
+        rule: DerivedFieldIR = {
+            "entity": "Ligne", "field": "sousTotal", "source_entity": "Produit",
+            "source_field": "prix", "factor": "quantite",
+        }
+        with pytest.raises(ValueError, match=r"aucune colonne.*'Ligne'.*'Produit'.*derivedFrom"):
+            plan_derivations([rule], relations)
+
+    verifier_chaque_cas([(valeur,) for valeur in table], cas)
 
 
-@pytest.mark.parametrize("parent_relation", [
-    RelationModel("Commande", "hasMany", "Ligne"),
-    RelationModel("Commande", "hasOne", "Ligne"),
-    RelationModel("Ligne", "belongsTo", "Commande"),
-])
-def test_aggregation_partage_un_plan_immuable_et_selectionne_le_bon_parent(parent_relation):
-    rule: AggregatedFieldIR = {
-        "entity": "Commande", "field": "total",
-        "source_entity": "Ligne", "source_field": "sousTotal",
-    }
-    plans = plan_aggregations([rule], [
-        RelationModel("Produit", "hasMany", "Ligne"), parent_relation,
-    ])
-    plan = plans.by_entity["Commande"][0]
-    assert plans.by_source["Ligne"][0] is plan
-    assert plan.parent_fk == "commande_id"
-    assert plan.as_ir() == rule
-    rule["source_field"] = "quantite"
-    assert plan.source_field == "sousTotal"
-    with pytest.raises(FrozenInstanceError):
-        plan.parent_fk = "produit_id"
-    with pytest.raises(TypeError):
-        plans.by_source["Ligne"] = ()
+def test_aggregation_partage_un_plan_immuable_et_selectionne_le_bon_parent():
+    table = [
+        RelationModel("Commande", "hasMany", "Ligne"),
+        RelationModel("Commande", "hasOne", "Ligne"),
+        RelationModel("Ligne", "belongsTo", "Commande"),
+    ]
+
+    def cas(parent_relation):
+        rule: AggregatedFieldIR = {
+            "entity": "Commande", "field": "total",
+            "source_entity": "Ligne", "source_field": "sousTotal",
+        }
+        plans = plan_aggregations([rule], [
+            RelationModel("Produit", "hasMany", "Ligne"), parent_relation,
+        ])
+        plan = plans.by_entity["Commande"][0]
+        assert plans.by_source["Ligne"][0] is plan
+        assert plan.parent_fk == "commande_id"
+        assert plan.as_ir() == rule
+        rule["source_field"] = "quantite"
+        assert plan.source_field == "sousTotal"
+        with pytest.raises(FrozenInstanceError):
+            plan.parent_fk = "produit_id"
+        with pytest.raises(TypeError):
+            plans.by_source["Ligne"] = ()
+
+    verifier_chaque_cas([(valeur,) for valeur in table], cas)
 
 
 def test_aggregation_indexe_plusieurs_sommes_sans_perdre_le_declencheur():
@@ -194,44 +207,52 @@ def test_aggregation_indexe_plusieurs_sommes_sans_perdre_le_declencheur():
     assert plans.by_source["Colis"][0] is plans.by_entity["Commande"][1]
 
 
-@pytest.mark.parametrize("relations", [[], [RelationModel("Ligne", "hasMany", "Commande")]])
-def test_aggregation_refuse_un_parent_sans_cle_etrangere_sur_lenfant(relations):
-    rule: AggregatedFieldIR = {
-        "entity": "Commande", "field": "total",
-        "source_entity": "Ligne", "source_field": "sousTotal",
-    }
-    with pytest.raises(ValueError, match=r"aucune colonne.*'Ligne'.*'Commande'.*sumOf"):
-        plan_aggregations([rule], relations)
+def test_aggregation_refuse_un_parent_sans_cle_etrangere_sur_lenfant():
+    table = [[], [RelationModel("Ligne", "hasMany", "Commande")]]
+
+    def cas(relations):
+        rule: AggregatedFieldIR = {
+            "entity": "Commande", "field": "total",
+            "source_entity": "Ligne", "source_field": "sousTotal",
+        }
+        with pytest.raises(ValueError, match=r"aucune colonne.*'Ligne'.*'Commande'.*sumOf"):
+            plan_aggregations([rule], relations)
+
+    verifier_chaque_cas([(valeur,) for valeur in table], cas)
 
 
-@pytest.mark.parametrize("relation", [
-    RelationModel("Produit", "hasMany", "Ligne"),
-    RelationModel("Produit", "hasOne", "Ligne"),
-    RelationModel("Ligne", "belongsTo", "Produit"),
-])
-def test_compteur_resout_la_cible_et_conserve_le_plancher_zero(relation):
-    rule: CounterRuleIR = {
-        "trigger_entity": "Ligne", "target_entity": "Produit", "target_field": "stock",
-        "direction": "decrements", "amount": None, "amount_field": "quantite",
-    }
-    constraints: dict[tuple[str, str], FieldConstraintsIR] = {
-        ("Produit", "stock"): {"min": {"portee": "valeur", "valeur": 0}},
-    }
-    plans = plan_counters([rule], [RelationModel("Commande", "hasMany", "Ligne"), relation], constraints)
-    plan = plans["Ligne"][0]
-    assert plan.target_fk == "produit_id"
-    assert plan.minimum == 0
-    assert plan.amount is None
-    assert plan.amount_field == "quantite"
-    assert plan.as_ir() == rule
-    rule["amount_field"] = "autreQuantite"
-    constraints[("Produit", "stock")]["min"]["valeur"] = 10
-    assert plan.minimum == 0
-    assert plan.amount_field == "quantite"
-    with pytest.raises(FrozenInstanceError):
-        plan.target_fk = "commande_id"
-    with pytest.raises(TypeError):
-        plans["Ligne"] = ()
+def test_compteur_resout_la_cible_et_conserve_le_plancher_zero():
+    table = [
+        RelationModel("Produit", "hasMany", "Ligne"),
+        RelationModel("Produit", "hasOne", "Ligne"),
+        RelationModel("Ligne", "belongsTo", "Produit"),
+    ]
+
+    def cas(relation):
+        rule: CounterRuleIR = {
+            "trigger_entity": "Ligne", "target_entity": "Produit", "target_field": "stock",
+            "direction": "decrements", "amount": None, "amount_field": "quantite",
+        }
+        constraints: dict[tuple[str, str], FieldConstraintsIR] = {
+            ("Produit", "stock"): {"min": {"portee": "valeur", "valeur": 0}},
+        }
+        plans = plan_counters([rule], [RelationModel("Commande", "hasMany", "Ligne"), relation], constraints)
+        plan = plans["Ligne"][0]
+        assert plan.target_fk == "produit_id"
+        assert plan.minimum == 0
+        assert plan.amount is None
+        assert plan.amount_field == "quantite"
+        assert plan.as_ir() == rule
+        rule["amount_field"] = "autreQuantite"
+        constraints[("Produit", "stock")]["min"]["valeur"] = 10
+        assert plan.minimum == 0
+        assert plan.amount_field == "quantite"
+        with pytest.raises(FrozenInstanceError):
+            plan.target_fk = "commande_id"
+        with pytest.raises(TypeError):
+            plans["Ligne"] = ()
+
+    verifier_chaque_cas([(valeur,) for valeur in table], cas)
 
 
 def test_compteurs_constants_et_variables_ne_se_confondent_pas():
@@ -252,11 +273,15 @@ def test_compteurs_constants_et_variables_ne_se_confondent_pas():
     assert all(plan.minimum is None for plan in plans)
 
 
-@pytest.mark.parametrize("relations", [[], [RelationModel("Ligne", "hasMany", "Produit")]])
-def test_compteur_refuse_une_relation_absente_ou_inversee(relations):
-    rule: CounterRuleIR = {
-        "trigger_entity": "Ligne", "target_entity": "Produit", "target_field": "stock",
-        "direction": "decrements", "amount": 1, "amount_field": None,
-    }
-    with pytest.raises(ValueError, match=r"aucune clé étrangère.*'Ligne'.*'Produit'"):
-        plan_counters([rule], relations, {})
+def test_compteur_refuse_une_relation_absente_ou_inversee():
+    table = [[], [RelationModel("Ligne", "hasMany", "Produit")]]
+
+    def cas(relations):
+        rule: CounterRuleIR = {
+            "trigger_entity": "Ligne", "target_entity": "Produit", "target_field": "stock",
+            "direction": "decrements", "amount": 1, "amount_field": None,
+        }
+        with pytest.raises(ValueError, match=r"aucune clé étrangère.*'Ligne'.*'Produit'"):
+            plan_counters([rule], relations, {})
+
+    verifier_chaque_cas([(valeur,) for valeur in table], cas)

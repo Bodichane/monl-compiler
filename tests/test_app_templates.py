@@ -13,6 +13,7 @@ from monl.ast_validator import ASTValidationError, MonlAST
 from monl.cli import _contract_signature, compile_project
 from monl.dialogue_engine import GuidedDialogue
 from monl.parser import parse_monl_string
+from tests.support.cas import verifier_chaque_cas
 
 
 def _champs_payables(tpl):
@@ -124,22 +125,30 @@ def _run_template(index, followup_answer, want_seed, upload_pour=None,
     return GuidedDialogue(ask=ask).run()
 
 
-@pytest.mark.parametrize("index", range(1, len(TEMPLATES) + 1),
-                         ids=[t["name"] for t in TEMPLATES])
-def test_chaque_modele_compile_tout_refuse(index):
-    spec = _run_template(index, "n", want_seed=False)
-    MonlAST(parse_monl_string(spec)).validate_and_audit()
+def test_chaque_modele_compile_tout_refuse():
+    table = range(1, len(TEMPLATES) + 1)
+    noms = [t["name"] for t in TEMPLATES]
+
+    def cas(index):
+        spec = _run_template(index, "n", want_seed=False)
+        MonlAST(parse_monl_string(spec)).validate_and_audit()
+
+    verifier_chaque_cas([(valeur,) for valeur in table], cas, ids=noms)
 
 
-@pytest.mark.parametrize("index", range(1, len(TEMPLATES) + 1),
-                         ids=[t["name"] for t in TEMPLATES])
-def test_chaque_modele_compile_tout_accepte(index):
-    spec = _run_template(index, "o", want_seed=True)
-    normalized = MonlAST(parse_monl_string(spec)).validate_and_audit()
-    # Toute règle ownedBy émise a bien sa structure (le validateur l'exige,
-    # mais on vérifie explicitement que le dialogue n'a rien contourné).
-    for ref, owner in normalized["security"]["ownership"].items():
-        assert owner in normalized["schema"]["entities"]
+def test_chaque_modele_compile_tout_accepte():
+    table = range(1, len(TEMPLATES) + 1)
+    noms = [t["name"] for t in TEMPLATES]
+
+    def cas(index):
+        spec = _run_template(index, "o", want_seed=True)
+        normalized = MonlAST(parse_monl_string(spec)).validate_and_audit()
+        # Toute règle ownedBy émise a bien sa structure (le validateur l'exige,
+        # mais on vérifie explicitement que le dialogue n'a rien contourné).
+        for ref, owner in normalized["security"]["ownership"].items():
+            assert owner in normalized["schema"]["entities"]
+
+    verifier_chaque_cas([(valeur,) for valeur in table], cas, ids=noms)
 
 
 def test_chaque_modele_ouvre_l_inscription_a_un_role(index=3):
@@ -378,15 +387,16 @@ def test_forum_likes_via_increments():
     assert "relation Post hasMany Like" in spec
 
 
-@pytest.mark.parametrize(
-    ("index", "reference"),
-    [(2, "Article.Read"), (5, "Post.Read")],
-    ids=["blog", "forum"],
-)
-def test_les_modeles_public_when_declarent_le_superviseur(index, reference):
+def test_les_modeles_public_when_declarent_le_superviseur():
     """Un modérateur doit garder accès aux publications masquées."""
-    spec = _run_template(index, "n", want_seed=False)
-    assert f"rule {reference} sharedBy Moderator" in spec
+    table = [(2, "Article.Read"), (5, "Post.Read")]
+    noms = ["blog", "forum"]
+
+    def cas(index, reference):
+        spec = _run_template(index, "n", want_seed=False)
+        assert f"rule {reference} sharedBy Moderator" in spec
+
+    verifier_chaque_cas(table, cas, ids=noms)
 
 
 def test_entite_personnalisee_en_plus_du_modele():

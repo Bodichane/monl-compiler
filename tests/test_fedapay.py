@@ -35,6 +35,7 @@ import requests
 from monl.ast_validator import ASTValidationError, MonlAST
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
+from tests.support.cas import verifier_chaque_cas
 from tests.support.server import uvicorn_server
 from tests.test_paiement import SPEC_BOUTIQUE
 
@@ -270,25 +271,29 @@ def test_le_webhook_signe_marque_la_commande_payee(faux_fedapay):
         assert _etat(dossier, identifiant) == "payee"
 
 
-@pytest.mark.parametrize("entete", [
-    "",
-    "t=1,s=deadbeef",
-    "s=deadbeef",
-])
-def test_un_webhook_mal_signe_ne_paie_rien(faux_fedapay, entete):
-    with _application(faux_fedapay) as (base, dossier):
-        identifiant, entetes = _commande(base, dossier, 5000, f"x{len(entete)}@e.fr")
-        requests.post(f"{base}/commande/{identifiant}/paiement",
-                      headers=entetes, timeout=10)
-        corps = json.dumps({"name": "transaction.approved",
-                            "entity": {"id": ID_TRANSACTION,
-                                       "merchant_reference": f"Commande:{identifiant}"}}).encode()
-        reponse = requests.post(
-            f"{base}/paiement/webhook", data=corps, timeout=10,
-            headers={"Content-Type": "application/json",
-                     "x-fedapay-signature": entete})
-        assert reponse.status_code == 400, reponse.text
-        assert _etat(dossier, identifiant) == "en_attente"
+def test_un_webhook_mal_signe_ne_paie_rien(faux_fedapay):
+    table = [
+        "",
+        "t=1,s=deadbeef",
+        "s=deadbeef",
+    ]
+
+    def cas(entete):
+        with _application(faux_fedapay) as (base, dossier):
+            identifiant, entetes = _commande(base, dossier, 5000, f"x{len(entete)}@e.fr")
+            requests.post(f"{base}/commande/{identifiant}/paiement",
+                          headers=entetes, timeout=10)
+            corps = json.dumps({"name": "transaction.approved",
+                                "entity": {"id": ID_TRANSACTION,
+                                           "merchant_reference": f"Commande:{identifiant}"}}).encode()
+            reponse = requests.post(
+                f"{base}/paiement/webhook", data=corps, timeout=10,
+                headers={"Content-Type": "application/json",
+                         "x-fedapay-signature": entete})
+            assert reponse.status_code == 400, reponse.text
+            assert _etat(dossier, identifiant) == "en_attente"
+
+    verifier_chaque_cas([(valeur,) for valeur in table], cas)
 
 
 def test_une_signature_datee_du_futur_est_refusee(faux_fedapay):

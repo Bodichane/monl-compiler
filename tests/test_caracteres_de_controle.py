@@ -10,6 +10,7 @@ import json
 import pytest
 
 from monl.frontend_ai import FrontendAIError, parse_files_payload
+from tests.support.cas import verifier_chaque_cas
 
 NUL = "\x00"
 
@@ -47,7 +48,11 @@ def test_les_accents_corrects_passent():
     assert parse_files_payload(_reponse(html))["index.html"] == html
 
 
-@pytest.mark.parametrize("blanc", ["\t", "\n", "\r"])
-def test_les_blancs_legitimes_restent_autorises(blanc):
-    html = f"<h1>Titre</h1>{blanc}<p>Corps</p>"
-    assert parse_files_payload(_reponse(html))["index.html"] == html
+def test_les_blancs_legitimes_restent_autorises():
+    table = ["\t", "\n", "\r"]
+
+    def cas(blanc):
+        html = f"<h1>Titre</h1>{blanc}<p>Corps</p>"
+        assert parse_files_payload(_reponse(html))["index.html"] == html
+
+    verifier_chaque_cas([(valeur,) for valeur in table], cas)
