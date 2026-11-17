@@ -13,6 +13,7 @@ from tests.test_app_templates import _run_template
 from tests.test_authentification_b4 import SPEC_B4
 from tests.test_bloc_custom_absent import AVEC_CUSTOM
 from tests.test_fiche_obligatoire import SPEC as SPEC_FICHE
+from tests.test_fedapay import SPEC_FEDAPAY
 from tests.test_filtrage_tri import SPEC as SPEC_FILTRE
 from tests.test_generated_specs import generated_spec
 from tests.test_golden_artifacts import SPEC, SPEC_LOOKUP_SOURCES
@@ -121,6 +122,26 @@ def corpus_specs():
         'rule Item.Read ownedBy User\nrule Item.Read publicWhen status "shipped"\n',
     )
     cases["postpayment_release"] = SPEC_APRES_PAIEMENT
+    cases["fedapay"] = SPEC_FEDAPAY
+    cases["postpayment_schema_variants"] = SPEC_APRES_PAIEMENT.replace(
+        "entity Commande\n    statut: String\n    montant: Money",
+        "entity Commande\n    statut: String\n    montant: Money\n"
+        "    suivi: String\n    code: Integer\n    actif: Boolean\n"
+        "    note: Text\n    adresse: Email\n    jeton: UUID\n    reference: String"
+    ).replace(
+        "rule Commande.statut writableAfterPayment Gerant",
+        "rule Commande.statut writableAfterPayment Gerant\n"
+        'rule Commande.suivi oneOf "préparation", "expédition"\n'
+        "rule Commande.code min 1\nrule Commande.code max 999\n"
+        "rule Commande.suivi min 2\nrule Commande.suivi max 80\n"
+        "rule Commande.suivi writableAfterPayment Gerant\n"
+        "rule Commande.code writableAfterPayment Gerant\n"
+        "rule Commande.actif writableAfterPayment Gerant\n"
+        "rule Commande.note writableAfterPayment Gerant\n"
+        "rule Commande.adresse writableAfterPayment Gerant\n"
+        "rule Commande.jeton writableAfterPayment Gerant\n"
+        "rule Commande.reference writableAfterPayment Gerant"
+    )
     cases["payment_transitive"] = SPEC_PAIEMENT_TRANSITIF
     cases["delete_and_execute"] = AVEC_CUSTOM.replace(
         "    Read Note\n", "    Read Note\n    Delete Note\n    Execute Publier\n")

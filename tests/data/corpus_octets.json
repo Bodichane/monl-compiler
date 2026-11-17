@@ -947,6 +947,38 @@
     "schema.sql": "a15d2f795f10973ec6dadd3dd2507cee9a449ebeb7f5f60f756a11767b369f5a",
     "serve.py": "cf2526ab9a4660201617e9204b74b394440b1e08eecf71641e11103f1ca2f3f2"
   },
+  "fedapay": {
+    ".dockerignore": "7b7115e2c802900c8522a4090b06ad13d6f7733dcba154ee3bd392020219ff0b",
+    "AGENTS.md": "4aebbf3831989df00c875280a9ad0610dd61a6f87522f78ea90e05c0c70780f7",
+    "Dockerfile": "8296f97a1cb627bc8420715306de7c69cb926153c06eba9809e532686ada93a7",
+    "README.md": "7338b98f7d9fdebc8a03ce841d685a118e4671000d2c18538eab41669f180b47",
+    "app.py": "bf532779391ec63959815b2a563553ad08aee950a5aa1bda9c75e86f33f77116",
+    "docs/ASSET_MANIFEST.json": "68f18dd5938e90770129180d8441246a5a072eb17bf5ea72fbc6c75e47022da6",
+    "docs/DESIGN_SPEC.md": "8683fdb53c83ef87a340908c7bcc3727dd8db3b8fdd640a7170b5a47e69a7f0e",
+    "docs/DESIGN_SYSTEM.md": "8845054a5838f84d69fb6db3be613b10aea859cfe4dd9674902f0e47bac88e2f",
+    "docs/FRONTEND_PROMPT.md": "ee6051f29b32bd91a14dd05da6bbdc0c28426afa23d6530fd4ccae8e5a947755",
+    "frontend_contract.json": "55119324b3135249cd58c57ecc9aa95129b239df1a0c0785d635c27b6cac0a4f",
+    "manage.py": "083bc40871f2026cc873e6973f83931d079b8446ee0d0e94d9a930239962907e",
+    "requirements.txt": "27a4075fed32b2a5edc575357721c5946ed99054bd0488bc219463d077f9ea06",
+    "schema.sql": "9b38f2e50f4f2a7a1b2f5aa240b80909488d0afaa6a19f913dc6a5c5028f320a",
+    "serve.py": "cf2526ab9a4660201617e9204b74b394440b1e08eecf71641e11103f1ca2f3f2"
+  },
+  "postpayment_schema_variants": {
+    ".dockerignore": "7b7115e2c802900c8522a4090b06ad13d6f7733dcba154ee3bd392020219ff0b",
+    "AGENTS.md": "71804b068249a5b6673a34fd18876bb0e674148f7e2202bad1306c8519ae85a2",
+    "Dockerfile": "8296f97a1cb627bc8420715306de7c69cb926153c06eba9809e532686ada93a7",
+    "README.md": "af4dca70d7b99a08853ebfed60091c66acb60e573c9dff91ba0d4d72e8cfd77f",
+    "app.py": "9fdadf60c4087bbf58569cd0ed0d905223871aaeaf6d3b9ef41b182ddcfc7d1a",
+    "docs/ASSET_MANIFEST.json": "68f18dd5938e90770129180d8441246a5a072eb17bf5ea72fbc6c75e47022da6",
+    "docs/DESIGN_SPEC.md": "be0535ce2444e9d887129a57a6ede0f37932589743077f3d5e7a80c804771d01",
+    "docs/DESIGN_SYSTEM.md": "38814a7a06cffaaa2014bf3a6aa4a700c1f7eaa2dabf869a392df8136b753eb7",
+    "docs/FRONTEND_PROMPT.md": "b366e902744f3c21b2d992631bb811a3dc9b3cc11bc33b0f4755985c27d78070",
+    "frontend_contract.json": "fb38405ee28d2072637adcd2654dd84050f97d7f25e3c66eb8dacd9657a5589f",
+    "manage.py": "6459f354e6e801ba895f3a350c6989ddaed93e7f3e1b7cf1c3555d569e96c5c9",
+    "requirements.txt": "27a4075fed32b2a5edc575357721c5946ed99054bd0488bc219463d077f9ea06",
+    "schema.sql": "e9a67ca371326a085967764e6d3260c2f0d3c300b2240138751ef9a4de92b5c0",
+    "serve.py": "cf2526ab9a4660201617e9204b74b394440b1e08eecf71641e11103f1ca2f3f2"
+  },
   "payment_transitive": {
     ".dockerignore": "7b7115e2c802900c8522a4090b06ad13d6f7733dcba154ee3bd392020219ff0b",
     "AGENTS.md": "b163303da16ef475ca431b3fa3c526be0307f3404fb5b148ad0ce28d61df5482",
