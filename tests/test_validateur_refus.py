@@ -93,7 +93,7 @@ TYPES_INCOMPATIBLES = [
      'rule Note.titre categorized: "bas" below 5, "haut" otherwise',
      "Integer or Float"),
     ("generated sur un champ numérique", "rule Note.score generated",
-     "doit être un attribut String"),
+     "must be a declared String attribute"),
     ("increments sur un champ texte",
      "rule Note.Create increments Autre.nom by 1",
      "Integer or Float attribute"),
@@ -118,7 +118,7 @@ REGLES_QUI_SE_CONTREDISENT = [
      "is both 'hidden' and 'categorized'"),
     ("hidden et generated sur le même champ",
      "rule Note.titre generated\nrule Note.titre hidden",
-     "à la fois 'hidden' et 'generated'"),
+     "is both 'hidden' and 'generated'"),
     # Un montant qu'on ne peut pas lire ne peut pas être vérifié par celui
     # qui le règle : il paierait un chiffre qu'on refuse de lui montrer.
     ("hidden et payable sur le même champ",

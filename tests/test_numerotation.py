@@ -82,7 +82,7 @@ def test_un_champ_inexistant_est_refuse(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace("Commande.reference numbered",
                              "Commande.fantome numbered"))
-    assert "champ inexistant" in str(refus.value)
+    assert "field does not exist" in str(refus.value)
     capsys.readouterr()
 
 
@@ -120,7 +120,7 @@ def test_deux_regles_sur_le_meme_champ_sont_refusees(capsys):
                         'rule Commande.reference numbered "AUTRE-{NNNN}"')
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec)
-    assert "une seule autorisée" in str(refus.value)
+    assert "only one is allowed" in str(refus.value)
     capsys.readouterr()
 
 
@@ -129,28 +129,28 @@ def test_un_gabarit_sans_sequence_est_refuse(capsys):
     porteraient le même numéro — ce qui n'en est pas un (point 85)."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace('"CMD-{YYYY}-{NNNN}"', '"CMD-{YYYY}"'))
-    assert "aucune séquence" in str(refus.value)
+    assert "has no sequence" in str(refus.value)
     capsys.readouterr()
 
 
 def test_deux_sequences_sont_refusees(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace('"CMD-{YYYY}-{NNNN}"', '"CMD-{NN}-{NNNN}"'))
-    assert "laquelle s'incrémente" in str(refus.value)
+    assert "which one to increment" in str(refus.value)
     capsys.readouterr()
 
 
 def test_un_jalon_inconnu_est_refuse(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace('"CMD-{YYYY}-{NNNN}"', '"CMD-{MOIS}-{NNNN}"'))
-    assert "ne veut rien dire" in str(refus.value)
+    assert "which has no meaning" in str(refus.value)
     capsys.readouterr()
 
 
 def test_une_accolade_orpheline_est_refusee(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace('"CMD-{YYYY}-{NNNN}"', '"CMD-{YYYY-{NNNN}"'))
-    assert "accolade orpheline" in str(refus.value)
+    assert "unmatched brace" in str(refus.value)
     capsys.readouterr()
 
 
@@ -159,7 +159,7 @@ def test_un_mois_sans_annee_est_refuse(capsys):
     unique l'attraperait — un an plus tard, et en production."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace('"CMD-{YYYY}-{NNNN}"', '"CMD-{MM}-{NNNN}"'))
-    assert "sans '{YYYY}'" in str(refus.value)
+    assert "without '{YYYY}'" in str(refus.value)
     capsys.readouterr()
 
 
