@@ -21,6 +21,8 @@ from tests.test_liberation import SPEC as SPEC_LIBERATION
 from tests.test_liberation import SPEC_APRES_PAIEMENT
 from tests.test_messages import SPEC as SPEC_MESSAGES
 from tests.test_paiement_transitif import SPEC as SPEC_PAIEMENT_TRANSITIF
+from tests.test_masquage_hidden import SPEC_MASQUAGE
+from tests.test_publication_conditionnelle import SPEC as SPEC_PUBLICATION
 from tests.test_stock import SPEC as SPEC_STOCK
 from tests.test_uploads import SPEC as SPEC_UPLOADS
 
@@ -50,6 +52,8 @@ def corpus_specs():
         cases[f"auth_{name}"] = SPEC.replace(
             "workflow", f"capability auth\n    identifier: email\n    {option}\n\nworkflow")
     cases["messages"] = SPEC_MESSAGES
+    cases["read_hidden_field"] = SPEC_MASQUAGE
+    cases["read_public_condition_supervisor"] = SPEC_PUBLICATION
     cases["messages_auth_recovery"] = SPEC_MESSAGES.replace(
         "    identifier: email\n",
         "    identifier: email\n    password_reset: 60\n    verify_email: 86400\n"

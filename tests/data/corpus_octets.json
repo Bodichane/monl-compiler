@@ -591,6 +591,38 @@
     "schema.sql": "58bb6d56f177805255dabbce437b8fbd00231117fb58e807f0fff41f91ab6399",
     "serve.py": "cf2526ab9a4660201617e9204b74b394440b1e08eecf71641e11103f1ca2f3f2"
   },
+  "read_hidden_field": {
+    ".dockerignore": "7b7115e2c802900c8522a4090b06ad13d6f7733dcba154ee3bd392020219ff0b",
+    "AGENTS.md": "67171e6360833434b265d096ff7e32406ef25391534c46ad37b4d3d5318c1632",
+    "Dockerfile": "8296f97a1cb627bc8420715306de7c69cb926153c06eba9809e532686ada93a7",
+    "README.md": "cc71e49c1cf749d9f31d2a365256a87c7b6ea09e2aaa9c7c952513101cc38786",
+    "app.py": "279f05fe15b45de992c6966229f0b186fe7e5568b26ef5fe301b3ee3e279a03a",
+    "docs/ASSET_MANIFEST.json": "68f18dd5938e90770129180d8441246a5a072eb17bf5ea72fbc6c75e47022da6",
+    "docs/DESIGN_SPEC.md": "6a047c7f119882d6d6ca420b3f09109082bd7385501d5a81a1dc9a1e5b4326ba",
+    "docs/DESIGN_SYSTEM.md": "25cdb104ebf00f24c5f4b232fd45228a61d71da0472ccfc8907731158605c457",
+    "docs/FRONTEND_PROMPT.md": "f1c644fb2c4d957a99620e7a78f9e4d1374ca14a6b94fdeccf4543b56745c28b",
+    "frontend_contract.json": "0fa2c930670780f2bad796d5d1f29c3afa85ae8861e19df07d7de23b90267939",
+    "manage.py": "d30fd7e32683807cd6dac47f93df312e13bbe1f44ee40d9c8a6155bd9532d5e0",
+    "requirements.txt": "27a4075fed32b2a5edc575357721c5946ed99054bd0488bc219463d077f9ea06",
+    "schema.sql": "5c5421fc1ee26eb6f3708029f762d358790de21fc8908ef6600e8b2bb878e0f5",
+    "serve.py": "cf2526ab9a4660201617e9204b74b394440b1e08eecf71641e11103f1ca2f3f2"
+  },
+  "read_public_condition_supervisor": {
+    ".dockerignore": "7b7115e2c802900c8522a4090b06ad13d6f7733dcba154ee3bd392020219ff0b",
+    "AGENTS.md": "2d0f26fa2da69100e4ad0512a4c237fe48532e509cec0c4be47e99388e7720fe",
+    "Dockerfile": "8296f97a1cb627bc8420715306de7c69cb926153c06eba9809e532686ada93a7",
+    "README.md": "5f95eed66f041febc4d5a6f57d120a99d97bb52d80edef35b1bb1125e5faef24",
+    "app.py": "bb32bbab6ff90967594e9dfb586feffd587622b7ea276ea92a138585ccea8c1a",
+    "docs/ASSET_MANIFEST.json": "68f18dd5938e90770129180d8441246a5a072eb17bf5ea72fbc6c75e47022da6",
+    "docs/DESIGN_SPEC.md": "aa494f423ed7ebcfcb1484e32bc78e50470c58a9252bb89f5686d8660115462f",
+    "docs/DESIGN_SYSTEM.md": "cf5b9880bfcafcf47bb604d8bc8e51ff1de00f29118b6392ec69fd36370e1e1d",
+    "docs/FRONTEND_PROMPT.md": "5efae25b11ac58153e3efdad50c3d3c2c01ffca9ce6b3f80335e5199237f78c1",
+    "frontend_contract.json": "c6d20978fcdb015f624eb766de57a6c9f31eb09fce948d16881decb6978fb514",
+    "manage.py": "0f783c0335032677a97c94e88966626d4cabada7b10265f033894c88e07ddca5",
+    "requirements.txt": "27a4075fed32b2a5edc575357721c5946ed99054bd0488bc219463d077f9ea06",
+    "schema.sql": "a2e3c7e0968f0450728df91eedb40d2bbd4a93bb7a07f309072d8cb8930ad5fe",
+    "serve.py": "cf2526ab9a4660201617e9204b74b394440b1e08eecf71641e11103f1ca2f3f2"
+  },
   "messages_auth_recovery": {
     ".dockerignore": "7b7115e2c802900c8522a4090b06ad13d6f7733dcba154ee3bd392020219ff0b",
     "AGENTS.md": "fcd9e34184c6bf5b9d9849acad3a75339e4dc65291df6e3009a65c7834e19202",
