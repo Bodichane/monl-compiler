@@ -52,14 +52,14 @@ def test_seed_is_parsed_and_exported():
 
 def test_seed_unknown_entity_is_rejected():
     spec = SEED_SPEC.replace("seed Product", "seed Ghost")
-    with pytest.raises(ASTValidationError, match="n'existe pas"):
+    with pytest.raises(ASTValidationError, match="does not exist"):
         _validate(spec)
 
 
 def test_seed_unknown_field_is_rejected():
     spec = SEED_SPEC.replace('name: "Chaise", price: 249.90, stock: 12',
                              'name: "Chaise", couleur: "rouge"')
-    with pytest.raises(ASTValidationError, match="n'est pas déclaré"):
+    with pytest.raises(ASTValidationError, match="is not declared on"):
         _validate(spec)
 
 
@@ -67,7 +67,7 @@ def test_seed_type_mismatch_is_rejected():
     # price (Money) attend un nombre, pas une chaîne.
     spec = SEED_SPEC.replace('name: "Chaise", price: 249.90, stock: 12',
                              'name: "Chaise", price: "cher", stock: 12')
-    with pytest.raises(ASTValidationError, match="attend un nombre"):
+    with pytest.raises(ASTValidationError, match="expects a number"):
         _validate(spec)
 
 

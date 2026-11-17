@@ -49,23 +49,23 @@ class AssetsMixin:
         d'une URL. `String` reste là pour ce cas."""
         if not isinstance(valeur, str) or not valeur.strip():
             raise ASTValidationError(
-                f"Structure : {ou} attend un chemin de fichier non vide.")
+                f"Structure: {ou} expects a non-empty file path.")
         chemin = valeur.strip()
         if image and "://" in chemin:
             raise ASTValidationError(
-                f"Structure : {ou} vaut '{chemin}', une adresse distante, alors que le type "
-                f"'Image' désigne un fichier LOCAL que le compilateur vérifie. monl ne fait "
-                f"aucun appel réseau : il ne peut rien affirmer d'une URL. Déposer le fichier "
-                f"dans le dossier d'assets, ou déclarer ce champ 'String' pour une adresse "
-                f"distante (non vérifiée).")
+                f"Structure: {ou} is '{chemin}', a remote address, but type "
+                f"'Image' designates a LOCAL file that the compiler verifies. monl makes "
+                f"no network calls, so it cannot verify a URL. Place the file "
+                f"in the assets directory, or declare this field as 'String' for a remote "
+                f"address (not verified).")
         if chemin.startswith(("/", "\\")) or ":" in chemin.split("/")[0]:
             raise ASTValidationError(
-                f"Structure : {ou} vaut '{chemin}', un chemin ABSOLU. Les assets sont relatifs "
-                f"au projet, sans quoi le site ne serait servable que depuis cette machine.")
+                f"Structure: {ou} is '{chemin}', an ABSOLUTE path. Assets are relative "
+                f"to the project; otherwise the site could only be served from this machine.")
         if ".." in chemin.replace("\\", "/").split("/"):
             raise ASTValidationError(
-                f"Structure : {ou} vaut '{chemin}', qui REMONTE hors du projet ('..'). Un asset "
-                f"doit vivre dans le projet pour être déployé avec lui.")
+                f"Structure: {ou} is '{chemin}', which TRAVELS outside the project ('..'). An asset "
+                f"must live in the project to be deployed with it.")
 
     def _verifier_asset_present(self, valeur, ou):
         """Contrôle d'EXISTENCE — seulement quand on sait où est le projet.
@@ -80,11 +80,11 @@ class AssetsMixin:
         if resoudre_asset(self.base_dir, dossier, chemin):
             return
         candidats = candidats_asset(self.base_dir, dossier, chemin)
-        essayes = " ni ".join(os.path.relpath(c, self.base_dir) for c in candidats)
+        essayes = " or ".join(os.path.relpath(c, self.base_dir) for c in candidats)
         raise ASTValidationError(
-            f"Structure : {ou} désigne '{chemin}', qui n'existe pas ({essayes} introuvable). "
-            f"Un asset déclaré mais absent donne une image cassée en ligne, que seul l'œil "
-            f"repère -- c'est pourquoi la compilation échoue ici.")
+            f"Structure: {ou} points to '{chemin}', which does not exist ({essayes} not found). "
+            f"A declared but missing asset produces a broken image online, detectable only "
+            f"by looking at the page -- that is why compilation fails here.")
 
     # Types sur lesquels une valeur de seed peut DÉSIGNER une ligne parente.
     # Un nombre est exclu : rapprocher deux flottants est déjà douteux, et un
@@ -104,8 +104,8 @@ class AssetsMixin:
         valeur = parent["value"]
         if cible not in self.entities:
             raise ASTValidationError(
-                f"Structure : le bloc 'seed {entity}' se rattache à '{cible}', "
-                f"qui n'est pas une entité déclarée.")
+                f"Structure: the 'seed {entity}' block is attached to '{cible}', "
+                f"which is not a declared entity.")
         # Même convention de relation que partout ailleurs (voir
         # _compute_fk_placements) : sans elle, aucune colonne ne porterait le
         # rattachement.
@@ -118,29 +118,28 @@ class AssetsMixin:
         )
         if not lie:
             raise ASTValidationError(
-                f"Structure : le bloc 'seed {entity}' se rattache à '{cible}', mais "
-                f"aucune relation ne les lie (ex. '{cible} hasMany {entity}') -- il "
-                f"n'existe donc aucune colonne où écrire ce rattachement.")
+                f"Structure: the 'seed {entity}' block is attached to '{cible}', but "
+                f"no relation links them (e.g. '{cible} hasMany {entity}') -- there "
+                f"is no column to store this attachment.")
         # POINT 99 : la colonne d'un parent ACTEUR porte un identifiant de
         # COMPTE, pas l'id d'une ligne. Un seed s'insère avant qu'aucun compte
         # n'existe : il n'y a rien à y désigner.
         if cible in self.actors:
             raise ASTValidationError(
-                f"Structure : le bloc 'seed {entity}' se rattache à l'acteur "
-                f"'{cible}'. Cette colonne-là porte un identifiant de COMPTE, "
-                f"renseigné à la création depuis le jeton de l'appelant -- un jeu "
-                f"de démonstration s'insère au démarrage, quand aucun compte "
-                f"n'existe encore, et n'a donc personne à désigner.")
+                f"Structure: the 'seed {entity}' block is attached to actor "
+                f"'{cible}'. This column stores an ACCOUNT identifier, "
+                f"set at creation from the caller's token -- demo data is inserted "
+                f"at startup, when no account exists yet, so there is no one to designate.")
         if champ not in self.entities[cible]:
             raise ASTValidationError(
-                f"Structure : le bloc 'seed {entity}' désigne son parent par "
-                f"'{cible}.{champ}', qui n'est pas un champ déclaré sur '{cible}'.")
+                f"Structure: the 'seed {entity}' block designates its parent by "
+                f"'{cible}.{champ}', which is not a declared field on '{cible}'.")
         type_declare = self.entities[cible][champ]
         if type_declare not in self.TYPES_DESIGNATION:
             raise ASTValidationError(
-                f"Structure : le bloc 'seed {entity}' désigne son parent par "
-                f"'{cible}.{champ}', de type {type_declare}. Désigner une ligne "
-                f"demande un champ qui la NOMME : "
+                f"Structure: the 'seed {entity}' block designates its parent by "
+                f"'{cible}.{champ}', of type {type_declare}. Designating a row "
+                f"requires a field that NAMES it: "
                 f"{', '.join(self.TYPES_DESIGNATION)}.")
         # L'ordre compte pour de vrai : les données de démonstration sont
         # insérées table par table, dans l'ordre de DÉCLARATION des blocs. Un
@@ -151,24 +150,23 @@ class AssetsMixin:
         deja = [s for s in self.seeds if s["entity"] == cible]
         if not deja:
             raise ASTValidationError(
-                f"Structure : le bloc 'seed {entity}' se rattache à un "
-                f"'{cible}' qu'aucun bloc 'seed' n'a encore déclaré. Les données "
-                f"de démonstration sont insérées dans l'ordre des blocs : "
-                f"écrire 'seed {cible}' AVANT 'seed {entity}'.")
+                f"Structure: the 'seed {entity}' block is attached to a "
+                f"'{cible}' that no 'seed' block has declared yet. Demo data "
+                f"is inserted in block order: write 'seed {cible}' BEFORE 'seed {entity}'.")
         correspondances = [ligne for bloc in deja for ligne in bloc["rows"]
                            if ligne.get(champ) == valeur]
         if not correspondances:
             raise ASTValidationError(
-                f"Structure : le bloc 'seed {entity}' se rattache au {cible} "
-                f"'{champ}: \"{valeur}\"', qu'aucune ligne de 'seed {cible}' ne "
-                f"porte. Une coquille ici donnerait une vitrine amputée sans que "
-                f"rien ne le dise.")
+                f"Structure: the 'seed {entity}' block is attached to {cible} "
+                f"'{champ}: \"{valeur}\"', which no row in 'seed {cible}' "
+                f"contains. A typo here would leave the storefront incomplete without "
+                f"any indication.")
         if len(correspondances) > 1:
             raise ASTValidationError(
-                f"Structure : le bloc 'seed {entity}' se rattache au {cible} "
-                f"'{champ}: \"{valeur}\"', mais {len(correspondances)} lignes de "
-                f"'seed {cible}' portent cette valeur -- rien ne dit à laquelle. "
-                f"Désigner par un champ dont les valeurs sont distinctes.")
+                f"Structure: the 'seed {entity}' block is attached to {cible} "
+                f"'{champ}: \"{valeur}\"', but {len(correspondances)} rows in "
+                f"'seed {cible}' have this value -- there is no way to tell which one. "
+                f"Designate it using a field whose values are distinct.")
 
     def _valider_assets_et_seeds(self):
         """Valide les assets locaux et les données de démonstration."""
@@ -188,7 +186,7 @@ class AssetsMixin:
         for seed in self.seeds_raw:
             entity = seed["entity"]
             if entity not in self.entities:
-                raise ASTValidationError(f"Structure : le bloc 'seed' cible l'entité '{entity}' qui n'existe pas.")
+                raise ASTValidationError(f"Structure: the 'seed' block targets entity '{entity}', which does not exist.")
             entity_fields = self.entities[entity]
             if seed.get("parent"):
                 self._valider_parent_de_seed(entity, seed["parent"])
@@ -196,29 +194,28 @@ class AssetsMixin:
                 for field, value in row.items():
                     if field not in entity_fields:
                         raise ASTValidationError(
-                            f"Structure : le bloc 'seed {entity}' (ligne {index}) référence le champ "
-                            f"'{field}', qui n'est pas déclaré sur '{entity}'."
+                            f"Structure: the 'seed {entity}' block (row {index}) references field "
+                            f"'{field}', which is not declared on '{entity}'."
                         )
                     declared_type = entity_fields[field]
                     is_number = isinstance(value, (int, float)) and not isinstance(value, bool)
                     if declared_type in numeric_types and not is_number:
                         raise ASTValidationError(
-                            f"Structure : 'seed {entity}' (ligne {index}), champ '{field}' de type "
-                            f"{declared_type} attend un nombre, reçu une chaîne."
+                            f"Structure: 'seed {entity}' (row {index}), field '{field}' of type "
+                            f"{declared_type} expects a number, received a string."
                         )
                     if declared_type not in numeric_types and is_number:
                         raise ASTValidationError(
-                            f"Structure : 'seed {entity}' (ligne {index}), champ '{field}' de type "
-                            f"{declared_type} attend une chaîne entre guillemets, reçu un nombre."
+                            f"Structure: 'seed {entity}' (row {index}), field '{field}' of type "
+                            f"{declared_type} expects a quoted string, received a number."
                         )
                     if declared_type == "Upload":
                         raise ASTValidationError(
-                            f"Structure : un seed ne peut pas fournir '{entity}.{field}' "
-                            "de type Upload. Les octets arrivent uniquement à "
-                            "l'exécution par la route multipart, jamais dans la spec "
-                            "ou les artefacts scellés.")
+                            f"Structure: a seed cannot provide '{entity}.{field}' "
+                            "of type Upload. Bytes arrive only at runtime through "
+                            "the multipart route, never in the spec or sealed artifacts.")
                     if declared_type == "Image":
-                        location = f"seed {entity} (ligne {index}), champ '{field}'"
+                        location = f"seed {entity} (row {index}), field '{field}'"
                         self._verifier_forme_chemin_asset(value, location, image=True)
                         self._verifier_asset_present(value, location)
             self.seeds.append(seed)
