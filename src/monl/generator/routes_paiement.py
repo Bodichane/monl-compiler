@@ -34,6 +34,42 @@ async def paiement_webhook(request: Request):
         _blocs.append(_bloc)
     brut = b''.join(_blocs)""").substitute(secret_env=secret_env, secret_var=secret_var).split("\n")
 
+    def _payment_webhook_signature_guard(self, entete_signature, schema_signature, secret_var):
+        """Émet la vérification de signature avant le traitement de l'événement."""
+        return Template(r"""    entete = request.headers.get('$entete_signature', '')
+    # Signature : t=<horodatage>,$schema_signature=<hmac sha256 de "t.corps">.
+    # Sans cette vérification, n'importe qui marquerait n'importe
+    # quelle commande comme payée avec un simple curl.
+    horodatage, signatures = None, []
+    for morceau in entete.split(','):
+        cle, _, valeur = morceau.partition('=')
+        if cle.strip() == 't': horodatage = valeur.strip()
+        elif cle.strip() == '$schema_signature': signatures.append(valeur.strip())
+    if not horodatage or not signatures:
+        raise HTTPException(status_code=400, detail='Signature absente ou malformée.')
+    # POINT 91 : l'horodatage était LU pour vérifier la signature, mais
+    # jamais daté. Un appel signé capté une fois restait donc rejouable
+    # indéfiniment — c'est la parade que Stripe documente, et elle ne
+    # coûte que ces trois lignes. Tolérance de cinq minutes : au-delà,
+    # ce n'est plus un réseau lent, c'est un rejeu.
+    try:
+        _age = abs(datetime.datetime.now(datetime.timezone.utc).timestamp()
+                   - int(horodatage))
+    except ValueError:
+        raise HTTPException(status_code=400, detail='Horodatage de signature illisible.')
+    if _age > 300:
+        raise HTTPException(status_code=400, detail=(
+            'Signature expirée : cet appel a plus de cinq minutes.'))
+    attendue = hmac.new($secret_var.encode(),
+                        (horodatage + '.').encode() + brut, hashlib.sha256).hexdigest()
+    if not any(hmac.compare_digest(attendue, s) for s in signatures):
+        raise HTTPException(status_code=400, detail='Signature invalide.')
+    evenement = json.loads(brut or b'{}')""").substitute(
+            entete_signature=entete_signature,
+            schema_signature=schema_signature,
+            secret_var=secret_var,
+        ).split("\n")
+
     # ─────────────────────────────────────────────────────────────────
     # BRIQUE PAIEMENT (point 74). Deux routes seulement, et un principe :
     # le montant encaissé vient de la BASE, jamais du client. Un panier
@@ -261,37 +297,8 @@ async def paiement_webhook(request: Request):
                 "",
             ]
         lignes += self._payment_webhook_size_guard(secret_env, secret_var)
-        lignes.extend([
-            f"    entete = request.headers.get('{entete_signature}', '')",
-            f"    # Signature : t=<horodatage>,{schema_signature}=<hmac sha256 de \"t.corps\">.",
-            "    # Sans cette vérification, n'importe qui marquerait n'importe",
-            "    # quelle commande comme payée avec un simple curl.",
-            "    horodatage, signatures = None, []",
-            "    for morceau in entete.split(','):",
-            "        cle, _, valeur = morceau.partition('=')",
-            "        if cle.strip() == 't': horodatage = valeur.strip()",
-            f"        elif cle.strip() == '{schema_signature}': signatures.append(valeur.strip())",
-            "    if not horodatage or not signatures:",
-            "        raise HTTPException(status_code=400, detail='Signature absente ou malformée.')",
-            "    # POINT 91 : l'horodatage était LU pour vérifier la signature, mais",
-            "    # jamais daté. Un appel signé capté une fois restait donc rejouable",
-            "    # indéfiniment — c'est la parade que Stripe documente, et elle ne",
-            "    # coûte que ces trois lignes. Tolérance de cinq minutes : au-delà,",
-            "    # ce n'est plus un réseau lent, c'est un rejeu.",
-            "    try:",
-            "        _age = abs(datetime.datetime.now(datetime.timezone.utc).timestamp()",
-            "                   - int(horodatage))",
-            "    except ValueError:",
-            "        raise HTTPException(status_code=400, detail='Horodatage de signature illisible.')",
-            "    if _age > 300:",
-            "        raise HTTPException(status_code=400, detail=(",
-            "            'Signature expirée : cet appel a plus de cinq minutes.'))",
-            f"    attendue = hmac.new({secret_var}.encode(),",
-            "                        (horodatage + '.').encode() + brut, hashlib.sha256).hexdigest()",
-            "    if not any(hmac.compare_digest(attendue, s) for s in signatures):",
-            "        raise HTTPException(status_code=400, detail='Signature invalide.')",
-            "    evenement = json.loads(brut or b'{}')",
-        ])
+        lignes.extend(self._payment_webhook_signature_guard(
+            entete_signature, schema_signature, secret_var))
         if prestataire == "fedapay":
             lignes += [
             "    # La clé `entity` est PROUVÉE : le plugin Odoo officiel de",
