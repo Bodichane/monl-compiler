@@ -101,42 +101,41 @@ def _lisez_moi(normalized, exports, ignores):
     contraintes = security.get("field_constraints") or {}
     choix = security.get("enumerated_fields") or {}
     lignes = [
-        "MODIFIER LE CONTENU\n",
+        "EDIT CONTENT\n",
         "\n",
-        "Un fichier CSV correspond à une sorte de fiche. Gardez les noms de "
-        "colonnes tels quels, puis lancez `monl content import`. Une cellule "
-        "vide est volontairement absente de la fiche : les champs obligatoires "
-        "seront refusés avec une explication.\n",
+        "Each CSV file represents a type of record. Keep the column names as "
+        "they are, then run `monl content import`. An empty cell is intentionally "
+        "omitted from the record: required fields will be rejected with an explanation.\n",
     ]
     for entite, info in exports.items():
         lignes.extend(["\n", f"{entite}.csv\n"])
         champs = normalized["schema"]["entities"][entite]
         for colonne in info["colonnes"]:
             if colonne == "_parent":
-                texte = "la valeur d'une fiche de l'entité parente à laquelle rattacher cette ligne"
+                texte = "the value of a record in the parent entity to which this row should be linked"
             else:
                 details = []
                 enum = choix.get(entite, {}).get(colonne)
                 if enum:
-                    details.append("valeurs permises : " + ", ".join(enum))
+                    details.append("allowed values: " + ", ".join(enum))
                 regles = contraintes.get((entite, colonne), {})
                 if regles.get("required"):
-                    details.append("obligatoire")
+                    details.append("required")
                 for borne in ("min", "max"):
                     if borne in regles:
                         details.append(f"{borne} {regles[borne]['valeur']}")
                 if champs[colonne] == "Image":
-                    details.append("déposer le fichier dans `assets/`, écrire uniquement son nom ici")
-                texte = "; ".join(details) if details else "texte libre"
-            lignes.append(f"- {colonne} : {texte}.\n")
+                    details.append("put the file in `assets/` and enter only its name here")
+                texte = "; ".join(details) if details else "free text"
+            lignes.append(f"- {colonne}: {texte}.\n")
         booleens = [n for n, t in champs.items() if t == "Boolean"]
         if booleens:
-            lignes.append("  Champs booléens non proposés (le seed n'a pas de "
-                          "littéral vrai/faux) : " + ", ".join(booleens) + ".\n")
+            lignes.append("  Boolean fields are not offered (the seed has no "
+                          "true/false literal): " + ", ".join(booleens) + ".\n")
     if ignores:
-        lignes.extend(["\n", "Entités non exportées\n"])
+        lignes.extend(["\n", "Entities not exported\n"])
         for entite, raison in ignores.items():
-            lignes.append(f"- {entite} : {raison}\n")
+            lignes.append(f"- {entite}: {raison}\n")
     return "".join(lignes)
 
 

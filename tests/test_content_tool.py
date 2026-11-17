@@ -174,7 +174,7 @@ def test_lisez_moi_enumere_les_valeurs_oneof():
     with temporaire:
         exporter_contenu(spec, temporaire.name)
         texte = pathlib.Path(os.path.join(temporaire.name, "content", "LISEZMOI.txt")).read_text(encoding="utf-8")
-        assert "valeurs permises : neuf, occasion" in texte
+        assert "allowed values: neuf, occasion" in texte
 
 
 def test_export_exclut_les_champs_serveur_et_les_booleens():
@@ -193,4 +193,4 @@ def test_export_exclut_les_champs_serveur_et_les_booleens():
         assert "publie" not in champs
         texte = pathlib.Path(os.path.join(temporaire.name, "content", "LISEZMOI.txt")).read_text(encoding="utf-8")
         assert "publie" in texte
-        assert "littéral vrai/faux" in texte
+        assert "true/false literal" in texte
