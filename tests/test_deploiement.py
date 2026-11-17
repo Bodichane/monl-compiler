@@ -303,7 +303,7 @@ def test_un_artefact_scelle_mais_absent_fait_echouer_la_coherence(projet):
     (projet / "serve.py").unlink()
     ok, erreurs, _ = check_coherence(str(projet))
     assert not ok
-    assert any("serve.py" in e and "absent" in e for e in erreurs), erreurs
+    assert any("serve.py" in e and "missing" in e for e in erreurs), erreurs
 
 
 def test_monl_run_ninvalide_pas_letat_quil_vient_de_verifier(projet, monkeypatch):
