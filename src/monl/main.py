@@ -21,20 +21,20 @@ def compile_monl(
     """
     if not os.path.exists(file_path):
         raise CompilationInputError(
-            f"Le fichier de spécification '{file_path}' n'existe pas.")
+            f"Specification file '{file_path}' does not exist.")
 
     filename = os.path.basename(file_path)
     print("\n" + "=" * 65)
-    print(f" ⚙️  COMPILATEUR MONL : {filename}")
+    print(f" ⚙️  MONL COMPILER: {filename}")
     print("=" * 65)
 
     # --- ÉTAPE 1 : PARSING ---
-    print("\n [1/3] Analyse syntaxique...")
+    print("\n [1/3] Parsing...")
     raw_json = parse_monl_file(file_path)
-    print("    └─ AST de base extrait avec succès.")
+    print("    └─ Base AST extracted successfully.")
 
     # --- ÉTAPE 2 : AUDIT STATIQUE ---
-    print("\n [2/3] Audit statique d'architecture & restrictions...")
+    print("\n [2/3] Static architecture and restrictions audit...")
     # Le dossier de la SPEC est la référence des assets : c'est là que vivent
     # les photos, le logo et le favicon déclarés.
     reference_dir = base_dir or os.path.dirname(os.path.abspath(file_path))
@@ -42,7 +42,7 @@ def compile_monl(
     normalized_ast = ast_manager.validate_and_audit()
 
     # --- ÉTAPE 3 : GÉNÉRATION DU SOCLE ---
-    print("\n [3/3] Génération du socle déterministe...")
+    print("\n [3/3] Generating deterministic foundation...")
     generator = MonlSecureGenerator(normalized_ast, output_dir=output_dir)
     try:
         generator.generate_all()
@@ -50,17 +50,17 @@ def compile_monl(
         raise
     except Exception as exc:
         raise CompilationGenerationError(
-            f"La génération des artefacts a échoué : {exc}") from exc
-    print("    └─ Artefacts d'infrastructure scellés.")
+            f"Artifact generation failed: {exc}") from exc
+    print("    └─ Infrastructure artifacts sealed.")
 
     has_custom = bool(normalized_ast["sandbox_ai"]["custom_functions"])
 
     print("\n" + "=" * 65)
-    print(" 🎉 COMPILATION DE L'APPLICATION TERMINÉE !")
-    print(" -> Infrastructure : app.py, schema.sql validés (init auto DB active)")
+    print(" 🎉 APPLICATION COMPILATION COMPLETE!")
+    print(" -> Infrastructure: app.py, schema.sql validated (automatic DB initialization active)")
     if has_custom:
-        print(" -> Blocs 'custom' : coquilles vides sûres dans sandbox_ai.py")
-        print("                     (logique à écrire à la main).")
+        print(" -> 'custom' blocks: safe empty shells in sandbox_ai.py")
+        print("                     (logic to be written by hand).")
     print("=" * 65 + "\n")
 
     # Le contrat frontend réutilise exactement ce résultat dans la couche CLI.
@@ -73,14 +73,14 @@ def compile_monl(
 
 def main(argv=None) -> int:
     """Point d'entrée CLI : seule cette frontière traduit les erreurs attendues."""
-    parser = argparse.ArgumentParser(description="Compilateur monl.")
+    parser = argparse.ArgumentParser(description="monl compiler.")
     parser.add_argument(
-        "fichier", type=str, nargs="?",
-        help="Chemin du fichier .ml à compiler (l'ancienne extension .yaml reste acceptée).",
+        "fichier", type=str, nargs="?", metavar="file",
+        help="Path to the .ml file to compile (the legacy .yaml extension is still accepted).",
     )
     parser.add_argument(
         "--output", type=str, default=None,
-        help="Dossier où écrire les artefacts générés (app.py, schema.sql, "
+        help="Directory for generated artifacts (app.py, schema.sql, "
              "sandbox_ai.py, .jwt_secret...).",
     )
     args = parser.parse_args(argv)
@@ -89,7 +89,7 @@ def main(argv=None) -> int:
     try:
         compile_monl(fichier, output_dir=args.output)
     except MonlError as err:
-        print(f"\n ❌ ÉCHEC DU COMPILATEUR : {err}")
+        print(f"\n ❌ COMPILER FAILED: {err}")
         print("=" * 65 + "\n")
         return 1
     return 0

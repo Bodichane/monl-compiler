@@ -36,9 +36,9 @@ class UploadsMixin:
                     referenced_type = self.entities.get(ref_entity, {}).get(ref_field)
                 if input_type == "Upload" or referenced_type == "Upload":
                     raise ASTValidationError(
-                        f"Structure : le bloc custom '{custom['name']}' ne peut pas "
-                        "prendre un Upload en entrée. Les octets passent uniquement "
-                        "par la route multipart de l'entité, jamais par la sandbox.")
+                        f"Structure: custom block '{custom['name']}' cannot accept "
+                        "an Upload as input. Bytes pass only through the entity's "
+                        "multipart route, never through the sandbox.")
         regles = {}
         for rule in self.rules:
             if rule.get("type") != "upload":
@@ -46,47 +46,47 @@ class UploadsMixin:
             reference = rule.get("reference", "")
             if "." not in reference:
                 raise ASTValidationError(
-                    f"Structure : la règle 'upload' doit référencer 'Entite.champ', "
-                    f"reçu '{reference}'.")
+                    f"Structure: the 'upload' rule must reference 'Entity.field', "
+                    f"received '{reference}'.")
             entity, field = reference.split(".", 1)
             if entity not in self.entities:
                 raise ASTValidationError(
-                    f"Structure : la règle 'upload' cible l'entité '{entity}', "
-                    "qui n'existe pas.")
+                    f"Structure: the 'upload' rule targets entity '{entity}', "
+                    "which does not exist.")
             declared = self.entities[entity].get(field)
             if declared is None:
                 raise ASTValidationError(
-                    f"Structure : la règle 'upload' cible le champ '{reference}', "
-                    "qui n'est pas déclaré.")
+                    f"Structure: the 'upload' rule targets field '{reference}', "
+                    "which is not declared.")
             if declared != "Upload":
                 raise ASTValidationError(
-                    f"Structure : la règle 'upload' cible '{reference}' de type "
-                    f"'{declared}'. Seul le type Upload accepte un dépôt client ; "
-                    "Image reste un asset fourni à la compilation.")
+                    f"Structure: the 'upload' rule targets '{reference}' of type "
+                    f"'{declared}'. Only the Upload type accepts a client upload; "
+                    "Image remains a build-time asset.")
             if reference in regles:
                 raise ASTValidationError(
-                    f"Structure : plusieurs règles 'upload' déclarent '{reference}'.")
+                    f"Structure: multiple 'upload' rules declare '{reference}'.")
             maximum = rule.get("max_bytes")
             if not isinstance(maximum, int) or maximum <= 0:
                 raise ASTValidationError(
-                    f"Structure : la taille maximale de '{reference}' doit être un "
-                    f"entier strictement positif (reçu {maximum!r}).")
+                    f"Structure: the maximum size for '{reference}' must be a "
+                    f"strictly positive integer (received {maximum!r}).")
             accepted = list(rule.get("accepted_types") or [])
             if not accepted:
                 raise ASTValidationError(
-                    f"Structure : la règle 'upload' de '{reference}' doit déclarer "
-                    "au moins un type MIME autorisé.")
+                    f"Structure: the 'upload' rule for '{reference}' must declare "
+                    "at least one permitted MIME type.")
             if len(set(accepted)) != len(accepted):
                 raise ASTValidationError(
-                    f"Structure : la règle 'upload' de '{reference}' répète un type "
-                    "MIME ; chaque type doit être déclaré une seule fois.")
+                    f"Structure: the 'upload' rule for '{reference}' repeats a MIME "
+                    "type; each type must be declared only once.")
             inconnus = [mime for mime in accepted if mime not in self.UPLOAD_TYPES]
             if inconnus:
                 raise ASTValidationError(
-                    f"Structure : type(s) MIME non autorisé(s) pour '{reference}' : "
-                    f"{', '.join(inconnus)}. Formats sûrs reconnus : "
-                    f"{', '.join(sorted(self.UPLOAD_TYPES))}. HTML et SVG exécutables "
-                    "sont refusés par conception.")
+                    f"Structure: unauthorized MIME type(s) for '{reference}': "
+                    f"{', '.join(inconnus)}. Recognized safe formats: "
+                    f"{', '.join(sorted(self.UPLOAD_TYPES))}. Executable HTML and SVG "
+                    "are rejected by design.")
             regles[reference] = {
                 "entity": entity, "field": field, "max_bytes": maximum,
                 "accepted_types": accepted,
@@ -97,9 +97,9 @@ class UploadsMixin:
                 reference = f"{entity}.{field}"
                 if declared == "Upload" and reference not in regles:
                     raise ASTValidationError(
-                        f"Structure : '{reference}: Upload' n'a aucune règle de dépôt. "
-                        f"Déclarer 'rule {reference} upload max N types \"…\"' : "
-                        "le type seul ne produirait ni limite ni route.")
+                        f"Structure: '{reference}: Upload' has no upload rule. "
+                        f"Declare 'rule {reference} upload max N types \"…\"': "
+                        "the type alone would produce neither a limit nor a route.")
 
         for reference, rule in regles.items():
             entity = rule["entity"]
@@ -113,22 +113,22 @@ class UploadsMixin:
             missing = {"Read", "Update"} - has_actions
             if missing:
                 raise ASTValidationError(
-                    f"Structure : '{reference}' nécessite des workflows Read et Update "
-                    f"sur '{entity}' pour produire les routes de lecture/dépôt ; "
-                    f"il manque {', '.join(sorted(missing))}.")
+                    f"Structure: '{reference}' requires Read and Update workflows "
+                    f"on '{entity}' to produce the read/upload routes; "
+                    f"missing {', '.join(sorted(missing))}.")
             for action in ("Read", "Update"):
                 if (entity, action) in self.public_actions or (
                         action == "Read" and (entity, "Read") in self.public_conditions):
                     raise ASTValidationError(
-                        f"Sécurité : le fichier '{reference}' est privé par défaut ; "
-                        f"'{entity}.{action}' ne peut pas être public. Le contenu d'un "
-                        "Upload ne doit jamais être lisible sans l'ACL de la ligne.")
+                        f"Security: file '{reference}' is private by default; "
+                        f"'{entity}.{action}' cannot be public. Upload contents must "
+                        "never be readable without the row's ACL.")
                 if (entity, action) not in self.ownership_rules and (
                         entity, action) not in self.access_party_rules:
                     raise ASTValidationError(
-                        f"Sécurité : '{entity}.{action}' doit porter 'ownedBy' ou "
-                        "'accessibleBy' pour qu'un fichier Upload ne soit pas lisible "
-                        "par simple connaissance de son chemin.")
+                        f"Security: '{entity}.{action}' must use 'ownedBy' or "
+                        "'accessibleBy' so an Upload file cannot be read merely by "
+                        "knowing its path.")
         self.upload_fields = [
             regles[f"{entity}.{field}"]
             for entity, fields in self.entities.items()

@@ -113,7 +113,7 @@ def test_un_champ_date_est_refuse_en_le_disant(capsys):
         _valide(SPEC.replace("placedAt: DateTime", "placedAt: Date"))
     message = str(refus.value)
     assert "Date" in message
-    assert "ordonnables" in message, "le refus doit dire POURQUOI, pas seulement non"
+    assert "could no longer be ordered" in message, "le refus doit dire POURQUOI, pas seulement non"
     capsys.readouterr()
 
 
@@ -121,7 +121,7 @@ def test_un_champ_inexistant_est_refuse(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace("rule Commande.placedAt timestamp",
                              "rule Commande.fantome timestamp"))
-    assert "champ inexistant" in str(refus.value)
+    assert "field does not exist" in str(refus.value)
     capsys.readouterr()
 
 
@@ -129,7 +129,7 @@ def test_une_entite_inexistante_est_refusee(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace("rule Commande.placedAt timestamp",
                              "rule Fantome.placedAt timestamp"))
-    assert "n'existe pas" in str(refus.value)
+    assert "which does not exist" in str(refus.value)
     capsys.readouterr()
 
 
@@ -148,14 +148,14 @@ def test_deux_horodatages_sur_la_meme_entite_sont_refuses(capsys):
     spec = SPEC.replace("    statut: String", "    statut: String\n    updatedAt: DateTime")
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec + "rule Commande.updatedAt timestamp\n")
-    assert "MÊME instant" in str(refus.value)
+    assert "SAME creation time" in str(refus.value)
     capsys.readouterr()
 
 
 def test_deux_regles_sur_le_meme_champ_sont_refusees(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC + "rule Commande.placedAt timestamp\n")
-    assert "une seule autorisée" in str(refus.value)
+    assert "only one is allowed" in str(refus.value)
     capsys.readouterr()
 
 
@@ -164,7 +164,7 @@ def test_required_sur_un_champ_horodate_est_refuse(capsys):
     dirait à la fois « à remplir » et « à ne pas envoyer »."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC + "rule Commande.placedAt required\n")
-    assert "SERVEUR" in str(refus.value)
+    assert "SERVER" in str(refus.value)
     capsys.readouterr()
 
 

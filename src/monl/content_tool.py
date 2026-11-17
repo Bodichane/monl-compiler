@@ -69,12 +69,12 @@ def _infos_parent(lignes, blocs, entite):
     parents = [info for _i, _p, info in infos if info]
     if parents and len(parents) != len(infos):
         raise ContentToolError(
-            f"Les blocs seed de {entite} mélangent des formes avec et sans parent. "
-            "Les uniformiser à la main avant d'utiliser content.")
+            f"The seed blocks for {entite} mix forms with and without a parent. "
+            "Make them consistent by hand before using content.")
     if parents and len({p[:2] for p in parents}) != 1:
         raise ContentToolError(
-            f"Les blocs seed de {entite} ne désignent pas tous le parent de la "
-            "même façon. Les uniformiser à la main d'abord.")
+            f"The seed blocks for {entite} do not all identify the parent in the "
+            "same way. Make them consistent by hand first.")
     return infos, (parents[0][:2] if parents else None)
 
 
@@ -101,42 +101,41 @@ def _lisez_moi(normalized, exports, ignores):
     contraintes = security.get("field_constraints") or {}
     choix = security.get("enumerated_fields") or {}
     lignes = [
-        "MODIFIER LE CONTENU\n",
+        "EDIT CONTENT\n",
         "\n",
-        "Un fichier CSV correspond à une sorte de fiche. Gardez les noms de "
-        "colonnes tels quels, puis lancez `monl content import`. Une cellule "
-        "vide est volontairement absente de la fiche : les champs obligatoires "
-        "seront refusés avec une explication.\n",
+        "Each CSV file represents a type of record. Keep the column names as "
+        "they are, then run `monl content import`. An empty cell is intentionally "
+        "omitted from the record: required fields will be rejected with an explanation.\n",
     ]
     for entite, info in exports.items():
         lignes.extend(["\n", f"{entite}.csv\n"])
         champs = normalized["schema"]["entities"][entite]
         for colonne in info["colonnes"]:
             if colonne == "_parent":
-                texte = "la valeur d'une fiche de l'entité parente à laquelle rattacher cette ligne"
+                texte = "the value of a record in the parent entity to which this row should be linked"
             else:
                 details = []
                 enum = choix.get(entite, {}).get(colonne)
                 if enum:
-                    details.append("valeurs permises : " + ", ".join(enum))
+                    details.append("allowed values: " + ", ".join(enum))
                 regles = contraintes.get((entite, colonne), {})
                 if regles.get("required"):
-                    details.append("obligatoire")
+                    details.append("required")
                 for borne in ("min", "max"):
                     if borne in regles:
                         details.append(f"{borne} {regles[borne]['valeur']}")
                 if champs[colonne] == "Image":
-                    details.append("déposer le fichier dans `assets/`, écrire uniquement son nom ici")
-                texte = "; ".join(details) if details else "texte libre"
-            lignes.append(f"- {colonne} : {texte}.\n")
+                    details.append("put the file in `assets/` and enter only its name here")
+                texte = "; ".join(details) if details else "free text"
+            lignes.append(f"- {colonne}: {texte}.\n")
         booleens = [n for n, t in champs.items() if t == "Boolean"]
         if booleens:
-            lignes.append("  Champs booléens non proposés (le seed n'a pas de "
-                          "littéral vrai/faux) : " + ", ".join(booleens) + ".\n")
+            lignes.append("  Boolean fields are not offered (the seed has no "
+                          "true/false literal): " + ", ".join(booleens) + ".\n")
     if ignores:
-        lignes.extend(["\n", "Entités non exportées\n"])
+        lignes.extend(["\n", "Entities not exported\n"])
         for entite, raison in ignores.items():
-            lignes.append(f"- {entite} : {raison}\n")
+            lignes.append(f"- {entite}: {raison}\n")
     return "".join(lignes)
 
 
@@ -151,15 +150,15 @@ def exporter_contenu(spec_path, project_dir):
     os.makedirs(dossier, exist_ok=True)
     for entite in normalized["schema"]["entities"]:
         if entite not in entites_seedees:
-            ignores[entite] = ("aucun exemple seed ne fixe encore la forme du "
-                                "contenu; écrire d'abord un exemple à la main")
+            ignores[entite] = ("no seed example defines the content shape yet; "
+                                "write an example by hand first")
             continue
         infos, parent = _infos_parent(lignes, blocs, entite)
         colonnes = _colonnes(normalized, entite, bool(parent))
         blocs_ast = [b for b in normalized.get("seeds", []) if b["entity"] == entite]
         if len(infos) != len(blocs_ast):
             raise ContentToolError(
-                f"Les blocs seed de {entite} ne correspondent pas à la spec compilée.")
+                f"The seed blocks for {entite} do not match the compiled spec.")
         chemin = os.path.join(dossier, f"{entite}.csv")
         fiches = 0
         with open(chemin, "w", encoding="utf-8", newline="") as fh:
@@ -189,8 +188,8 @@ def _lire_csv(chemin, colonnes):
         reader = csv.DictReader(fh)
         if reader.fieldnames != colonnes:
             raise ContentToolError(
-                f"{os.path.basename(chemin)} : colonnes attendues : {', '.join(colonnes)}; "
-                f"colonnes reçues : {', '.join(reader.fieldnames or [])}.")
+                f"{os.path.basename(chemin)}: expected columns: {', '.join(colonnes)}; "
+                f"received columns: {', '.join(reader.fieldnames or [])}.")
         return [(numero, dict(row)) for numero, row in enumerate(reader, 2)]
 
 
@@ -203,8 +202,8 @@ def _texte_fiche(entite, row, numero, types, dossier_assets):
         if type_ in NUMERIQUES:
             if not NOMBRE.fullmatch(valeur):
                 raise ContentToolError(
-                    f"{entite}.csv ligne {numero} : '{valeur}' n'est pas un nombre "
-                    f"valide pour la colonne {nom}.")
+                    f"{entite}.csv row {numero}: '{valeur}' is not a valid number "
+                    f"for column {nom}.")
             literal = valeur
         else:
             if type_ == "Image" and (
@@ -213,14 +212,14 @@ def _texte_fiche(entite, row, numero, types, dossier_assets):
                     or "/" in valeur
                     or "\\" in valeur):
                 raise ContentToolError(
-                    f"{entite}.csv ligne {numero} : la colonne {nom} attend un "
-                    f"NOM de fichier seul, pas le chemin '{valeur}'.")
+                    f"{entite}.csv row {numero}: column {nom} expects a filename "
+                    f"only, not the path '{valeur}'.")
             try:
                 literal = _litteral(
                     f"{dossier_assets}/{valeur}" if type_ == "Image" else valeur)
             except AssetsToolError as err:
                 raise ContentToolError(
-                    f"{entite}.csv ligne {numero}, colonne {nom} : {err}") from None
+                f"{entite}.csv row {numero}, column {nom}: {err}") from None
         morceaux.append(f"{nom}: {literal}")
     return "    " + ", ".join(morceaux) + "\n"
 
@@ -251,12 +250,12 @@ def _avertissements(project_dir, normalized, spec_changee):
     manquants = [c for c in sorted(declares)
                  if not resoudre_asset(project_dir, dossier, c)]
     if manquants:
-        messages.append(f"{len(manquants)} asset(s) déclaré(s) reste(nt) absent(s) : "
-                        + ", ".join(manquants) + ". 'monl assets list' fait le point.")
+        messages.append(f"{len(manquants)} declared asset(s) are still missing: "
+                        + ", ".join(manquants) + ". Run 'monl assets list' for details.")
     if spec_changee and os.path.exists(os.path.join(project_dir, "app.db")):
-        messages.append("La base existe déjà : le seed ne nourrit qu'une base NEUVE.")
+        messages.append("The database already exists: seed data only populates a NEW database.")
     if spec_changee:
-        messages.append("Spec modifiée : lancer 'monl update' pour resynchroniser backend et contrat.")
+        messages.append("Spec changed: run 'monl update' to resynchronize the backend and contract.")
     return messages
 
 

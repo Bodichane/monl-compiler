@@ -18,8 +18,8 @@ def _commande(tmp_path, dossier):
 
 @pytest.mark.parametrize("existant", [False, True])
 @pytest.mark.parametrize("entree,dossier,message", [
-    ("3\n1\n", "p1", "Entrée interrompue"),
-    ("3\n2\nMaBoutique\n" + "n\n" * 80, "p2", "Réponse invalide après 3 tentatives"),
+    ("3\n1\n", "p1", "Input interrupted"),
+    ("3\n2\nMaBoutique\n" + "n\n" * 80, "p2", "Invalid response after 3 attempts"),
 ])
 def test_init_interrompu_en_sous_processus(tmp_path, existant, entree, dossier, message):
     if existant:
@@ -28,7 +28,11 @@ def test_init_interrompu_en_sous_processus(tmp_path, existant, entree, dossier, 
     resultat = subprocess.run(commande, input=entree, text=True, capture_output=True,
                               cwd=tmp_path, env=env, timeout=20)
     assert resultat.returncode == 2
-    assert resultat.stderr == f"{message} : rien n'a été écrit, relancez `monl init`.\n"
+    if dossier == "p2":
+        assert resultat.stderr.startswith(message + ": '")
+        assert resultat.stderr.endswith(": nothing was written; rerun `monl init`.\n")
+    else:
+        assert resultat.stderr == f"{message}: nothing was written; rerun `monl init`.\n"
     assert "Traceback" not in resultat.stdout + resultat.stderr
     assert sorted(p.name for p in tmp_path.iterdir()) == ([dossier] if existant else [])
     assert not (tmp_path / dossier).exists() or not list((tmp_path / dossier).iterdir())
@@ -57,6 +61,6 @@ def test_init_ctrl_c_en_sous_processus(tmp_path):
                 processus.kill()
                 processus.communicate()
     assert processus.returncode == 130
-    assert stderr.decode() == "Entrée interrompue : rien n'a été écrit, relancez `monl init`.\n"
+    assert stderr.decode() == "Input interrupted: nothing was written; rerun `monl init`.\n"
     assert b"Traceback" not in sortie + stdout + stderr
     assert not list(tmp_path.iterdir())

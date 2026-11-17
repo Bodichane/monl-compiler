@@ -42,13 +42,13 @@ const report = { js_errors: [], fetches: [] };
 html = html.replace(/<script([^>]*?)\ssrc=["']([^"']+)["']([^>]*)>\s*<\/script>/gi,
     (m, pre, src, post) => {
         if (/^https?:/i.test(src)) {
-            report.js_errors.push('script CDN non autonome (le contrat exige un frontend sans dépendance externe) : ' + src);
+            report.js_errors.push('non-self-contained CDN script (the contract requires a frontend without external dependencies): ' + src);
             return '';
         }
         const rel = src.replace(/^\.?\//, '').replace(/^site\//, '');
         const p = path.join(frontendDir, rel);
         if (!fs.existsSync(p)) {
-            report.js_errors.push('script local introuvable : ' + src);
+            report.js_errors.push('local script not found: ' + src);
             return '';
         }
         return '<script>\n' + fs.readFileSync(p, 'utf-8') + '\n</script>';
@@ -70,10 +70,9 @@ const dom = new JSDOM(html, {
                 // pouvait pas exploiter. On nomme le défaut, sans réécrire
                 // l'URL : la faute est réelle ('monl run --port' casserait
                 // pareil), la masquer ici serait un faux positif.
-                const msg = "URL absolue interdite — le contrat exige un chemin"
-                    + " relatif (/entite) : le frontend est servi sur /site par"
-                    + " le serveur de l'API, un port codé en dur casse dès qu'il"
-                    + " change";
+                const msg = "Absolute URL forbidden — the contract requires a"
+                    + " relative path (/entity): the frontend is served under /site"
+                    + " by the API server; a hard-coded port breaks when it changes";
                 // Consigné comme appel (et non comme erreur JS) : la tentative
                 // a bien eu lieu, sinon le rapport conclut à tort « aucun appel
                 // API au chargement ».
@@ -104,7 +103,7 @@ const dom = new JSDOM(html, {
 process.on('unhandledRejection', (err) => {
     const msg = String((err && err.message) || err);
     if (report.fetches.some((f) => f.error === msg)) return;
-    report.js_errors.push('promesse rejetée sans gestion : ' + msg);
+    report.js_errors.push('unhandled rejected promise: ' + msg);
 });
 
 // Laisser les scripts + leurs fetch initiaux se dérouler, puis rapporter.
@@ -184,7 +183,7 @@ def _ensure_jsdom(workdir, say):
         return True
     cache = _jsdom_cache_dir()
     os.makedirs(cache, exist_ok=True)
-    say(" -> Installation unique de jsdom (cache ~/.monl/jsdom)…")
+    say(" -> Installing jsdom once (cache ~/.monl/jsdom)…")
     proc = subprocess.run(["npm", "install", "--prefix", cache, "jsdom", "--silent"],
                           capture_output=True, text=True, timeout=300)
     return proc.returncode == 0 and os.path.isdir(os.path.join(_jsdom_node_path(), "jsdom"))

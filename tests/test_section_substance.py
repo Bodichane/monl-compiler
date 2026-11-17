@@ -51,9 +51,9 @@ def test_une_section_vide_est_refusee_en_nommant_ce_qui_manque():
 
     assert len(fautes) == 1
     assert "hero" in fautes[0]
-    assert "un titre" in fautes[0]
-    assert "une action" in fautes[0]
-    assert "texte lisible" in fautes[0]
+    assert "a heading" in fautes[0]
+    assert "an action" in fautes[0]
+    assert "readable text" in fautes[0]
 
 
 def test_un_titre_seul_ne_fait_pas_une_section():
@@ -62,7 +62,7 @@ def test_un_titre_seul_ne_fait_pas_une_section():
 
     fautes = substance_errors(_rendre("trust", "<h2>Confiance</h2>"), regles)
 
-    assert fautes and "texte lisible" in fautes[0]
+    assert fautes and "readable text" in fautes[0]
 
 
 def test_une_section_pourvue_est_acceptee():
@@ -83,7 +83,7 @@ def test_le_texte_d_un_script_ne_compte_pas():
 
     fautes = substance_errors(_rendre("trust", corps), regles)
 
-    assert fautes and "texte lisible" in fautes[0]
+    assert fautes and "readable text" in fautes[0]
 
 
 def test_une_section_n_emprunte_pas_le_texte_de_sa_voisine():
@@ -96,7 +96,7 @@ def test_une_section_n_emprunte_pas_le_texte_de_sa_voisine():
 
     fautes = substance_errors(html, regles)
 
-    assert fautes and "texte lisible" in fautes[0]
+    assert fautes and "readable text" in fautes[0]
 
 
 def test_un_formulaire_est_exige_la_ou_il_faut_ecrire():
@@ -206,7 +206,7 @@ def test_un_projet_livre_en_coquille_vide_est_refuse(projet):
     fautes = livrer(remplie=False)
 
     assert fautes, "une page de sections vides doit être refusée"
-    vides = [f for f in fautes if f.startswith("section vide ou incomplète")]
+    vides = [f for f in fautes if f.startswith("empty or incomplete section")]
     assert len(vides) == len(manifest["section_substance"]["index.html"])
 
 

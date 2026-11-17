@@ -20,13 +20,13 @@ class DirectionMixin:
         pressé. L'IA UI ne peut pas trancher, et sans indication elle rend
         le dénominateur commun."""
         self._show(self.ui.section(
-            "Intention visuelle — ce que la structure ne dit pas à l'IA "
-            "qui dessinera l'interface."))
+            "Visual direction — what the structure does not tell the AI "
+            "that will design the interface."))
         action = self._ask_free_text(
-            "Que doit pouvoir faire le visiteur en arrivant ? > ")
-        registre = self._ask_choice("Quel registre visuel ?",
+            "What should visitors be able to do when they arrive? > ")
+        registre = self._ask_choice("Which visual style?",
                                     [court for court, _ in DESIGN_REGISTERS])
-        images = self._ask_choice("Quelle place pour les images ?",
+        images = self._ask_choice("How prominent should images be?",
                                   [court for court, _ in DESIGN_IMAGERY])
         phrase_registre = dict(DESIGN_REGISTERS)[registre]
         phrase_images = dict(DESIGN_IMAGERY)[images]
@@ -44,12 +44,12 @@ class DirectionMixin:
         doivent évoquer. La question garde donc un effet ; ce sont les images
         de démonstration livrées par un tiers qui ont disparu."""
         if not self._ask_yes_no(
-                "Les illustrations doivent-elles évoquer un sujet précis ? "
-                "(sinon : aucune indication visuelle)"):
+                "Should the illustrations evoke a specific subject? "
+                "(otherwise: no visual guidance)"):
             return None
         return self._ask_free_text(
-            "  Mot-clé d'illustration, en anglais de préférence "
-            "(ex. cybersecurity, pottery, architecture) > ")
+            "  Illustration keyword, preferably in English "
+            "(e.g. cybersecurity, pottery, architecture) > ")
 
     @staticmethod
     def _est_champ_image(nom):
@@ -60,11 +60,11 @@ class DirectionMixin:
     #: liste est PROPOSÉE, jamais imposée : chaque entrée se passe en laissant
     #: vide, exactement comme les rubriques du point 61.
     LIENS_PROPOSES = (
-        {"label": "Courriel", "ask": "adresse de contact"},
-        {"label": "Téléphone", "ask": "numéro à appeler"},
-        {"label": "Instagram", "ask": "adresse du compte"},
-        {"label": "Facebook", "ask": "adresse de la page"},
-        {"label": "LinkedIn", "ask": "adresse de la page"},
+        {"label": "Courriel", "ask": "contact address"},
+        {"label": "Téléphone", "ask": "phone number"},
+        {"label": "Instagram", "ask": "account address"},
+        {"label": "Facebook", "ask": "page address"},
+        {"label": "LinkedIn", "ask": "page address"},
     )
 
     #: La complétion vit au niveau du module : la console web de la
@@ -92,34 +92,34 @@ class DirectionMixin:
             adresse = self._adresse_complete(saisie)
             if adresse is None:
                 self._say(self.ui.error(
-                    f"Adresse incomprise : {saisie!r}. Attendu une adresse web "
-                    "(exemple.fr/atelier), un courriel ou un numéro — le lien "
-                    "est passé."))
+                    f"Unrecognized address: {saisie!r}. Expected a web address "
+                    "(example.com/studio), an email address, or a phone number — "
+                    "skipping this link."))
                 return
             if adresse != saisie.strip():
-                self._say(self.ui.note(f"enregistré : {adresse}"))
+                self._say(self.ui.note(f"saved: {adresse}"))
             if label.casefold() in vus:
                 self._say(self.ui.error(
-                    f"« {label} » est déjà pris : un pied de page qui répète "
-                    "un libellé fait hésiter sur lequel suivre — lien ignoré."))
+                    f"‘{label}’ is already used: a footer with duplicate labels "
+                    "makes it unclear which link to follow — skipping this link."))
                 return
             vus.add(label.casefold())
             liens.append({"label": label, "url": adresse})
 
         self._show(self.ui.section(
-            "Pied de page — où vous joindre, et où vous suivre. Un pied sans "
-            "aucune destination donne un site à l'abandon. monl ne vérifie pas "
-            "qu'une adresse répond : il vérifie qu'un navigateur saura "
-            "l'ouvrir. Laisser vide pour passer."))
+            "Footer — how to contact and follow you. A footer with no "
+            "destinations makes a site look abandoned. monl does not check "
+            "whether an address responds; it checks that a browser can open it. "
+            "Leave blank to skip."))
         for propose in self.LIENS_PROPOSES:
             saisie = self._ask_optional_free_text(
                 f"  {propose['label']} — {propose['ask']} > ")
             if saisie:
                 retenir(propose["label"], saisie)
-        while self._ask_yes_no("  Ajouter un autre lien (X, YouTube, TikTok, "
-                               "presse…) ?"):
-            libelle = self._ask_free_text("  Son libellé (ex. YouTube) > ")
-            saisie = self._ask_optional_free_text("  Son adresse > ")
+        while self._ask_yes_no("  Add another link (X, YouTube, TikTok, "
+                               "press…) ?"):
+            libelle = self._ask_free_text("  Its label (e.g. YouTube) > ")
+            saisie = self._ask_optional_free_text("  Its address > ")
             if saisie:
                 retenir(libelle, saisie)
         return liens
@@ -141,27 +141,26 @@ class DirectionMixin:
             if not entete_montree:
                 entete_montree = True
                 self._show(self.ui.section(
-                    "Textes de présentation — ces rubriques sont attendues sur "
-                    "un site de ce type. Aucune donnée ne peut les fournir : "
-                    "seul votre texte le peut. Un paragraphe par saisie ; "
-                    "laisser vide pour passer."))
+                    "About content — these sections are expected on this type "
+                    "of site. No data can provide them; only your text can. "
+                    "Enter one paragraph at a time; leave blank to skip."))
             corps = self._ask_paragraphs(
                 f"  {spec['title']} — {spec['ask']} > ")
             if corps:
                 sections.append({"title": spec["title"], "body": corps})
         if defaults:
-            if not self._ask_yes_no("  Ajouter une autre section ?"):
+            if not self._ask_yes_no("  Add another section?"):
                 return sections
         elif not self._ask_yes_no(
-                "Ajouter du texte de présentation (à propos, méthode, "
-                "services…) ? Aucune donnée du site ne peut le fournir."):
+                "Add about content (about, approach, services…)? No site data "
+                "can provide this."):
             return sections
         while True:
             titre = self._ask_free_text(
-                f"  Titre de la section {len(sections) + 1} "
-                f"(ex. À propos) > ")
-            corps = self._ask_paragraphs("  Son texte > ")
+                f"  Section title {len(sections) + 1} "
+                f"(e.g. About) > ")
+            corps = self._ask_paragraphs("  Its text > ")
             if corps:
                 sections.append({"title": titre, "body": corps})
-            if not self._ask_yes_no("  Ajouter une autre section ?"):
+            if not self._ask_yes_no("  Add another section?"):
                 return sections

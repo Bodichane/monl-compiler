@@ -121,11 +121,11 @@ class MonlAST(
             self, pipeline: ValidationPipeline = DEFAULT_VALIDATION_PIPELINE
     ) -> CompilationIR:
         """Exécute la validation de cohérence et l'analyse statique de sécurité."""
-        print(f"🔬 Analyse statique et audit de sécurité pour '{self.app_name}'...")
+        print(f"🔬 Static analysis and security audit for '{self.app_name}'...")
 
         security_reports = pipeline.run(self)
 
-        print("✅ Analyse de l'AST terminée.")
+        print("✅ AST analysis complete.")
         return self.to_normalized_ast(security_reports)
 
     def to_normalized_ast(self, security_reports: list[str]) -> CompilationIR:

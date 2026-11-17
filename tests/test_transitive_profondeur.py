@@ -147,7 +147,7 @@ workflow W for A
     Read C1
     Read C2
 """
-    with pytest.raises(ASTValidationError, match="boucle"):
+    with pytest.raises(ASTValidationError, match="loops"):
         _validate(spec)
 
 
@@ -163,7 +163,7 @@ rule D1.Read ownedBy D2
 workflow W for A
     Read D1
 """
-    with pytest.raises(ASTValidationError, match=r"aucun acteur|AUCUN acteur"):
+    with pytest.raises(ASTValidationError, match=r"does not lead to ANY actor"):
         _validate(spec)
 
 

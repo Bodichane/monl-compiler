@@ -82,7 +82,7 @@ def test_lordre_declare_est_conserve(capsys):
 def test_un_champ_inexistant_est_refuse(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace("Commande.statut oneOf", "Commande.fantome oneOf"))
-    assert "champ inexistant" in str(refus.value)
+    assert "nonexistent field" in str(refus.value)
     capsys.readouterr()
 
 
@@ -92,7 +92,7 @@ def test_un_champ_numerique_est_refuse(capsys):
     spec = SPEC.replace("    note: String", "    montant: Integer")
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec.replace("Commande.statut oneOf", "Commande.montant oneOf"))
-    assert "String ou Text" in str(refus.value)
+    assert "String or Text" in str(refus.value)
     capsys.readouterr()
 
 
@@ -102,28 +102,28 @@ def test_une_seule_valeur_est_refusee(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace(
             'oneOf "panier", "en préparation", "expédiée", "livrée"', 'oneOf "panier"'))
-    assert "une valeur" in str(refus.value)
+    assert "only one value" in str(refus.value)
     capsys.readouterr()
 
 
 def test_une_valeur_vide_est_refusee(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace('"panier",', '"   ",'))
-    assert "vide" in str(refus.value)
+    assert "empty value" in str(refus.value)
     capsys.readouterr()
 
 
 def test_un_doublon_est_refuse(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace('"livrée"', '"panier"'))
-    assert "répète" in str(refus.value)
+    assert "repeats" in str(refus.value)
     capsys.readouterr()
 
 
 def test_deux_regles_sur_le_meme_champ_sont_refusees(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC + 'rule Commande.statut oneOf "a", "b"\n')
-    assert "laquelle" in str(refus.value)
+    assert "which list" in str(refus.value)
     capsys.readouterr()
 
 
@@ -201,9 +201,9 @@ def test_le_delta_signale_une_liste_qui_change(tmp_path, capsys):
     cmd_update(str(proj))
     sortie = capsys.readouterr().out
 
-    assert "aucun changement d'interface" not in sortie, sortie
-    assert "contenu réécrit : choix de Commande.statut" in sortie, sortie
-    assert "champ ajouté" not in sortie, sortie
+    assert "no interface changes" not in sortie, sortie
+    assert "content rewritten: choix de Commande.statut" in sortie, sortie
+    assert "field added" not in sortie, sortie
 
 
 # --------------------------------------------------------------------------

@@ -156,7 +156,7 @@ def test_une_reference_qui_sort_du_site_est_nommee(projet):
     _frontend(projet, **{"index.html": _page('<img src="../../secret.png">')})
     ok, errors, _w = run_smoke_test(str(projet), say=_quiet)
     assert not ok
-    assert any("sort du site" in e for e in errors), errors
+    assert any("escapes the site" in e for e in errors), errors
 
 
 # ------------------------------------------------- les faux positifs interdits --

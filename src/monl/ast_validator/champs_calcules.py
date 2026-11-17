@@ -22,54 +22,54 @@ class ChampsCalculesMixin:
             factor = rule["factor"]
             if "." not in reference or "." not in source_ref:
                 raise ASTValidationError(
-                    f"Structure : 'derivedFrom' doit référencer 'Entite.champ derivedFrom Entite.champ by champ', "
-                    f"reçu '{reference} derivedFrom {source_ref}'."
+                    f"Structure: 'derivedFrom' must reference 'Entity.field derivedFrom Entity.field by field', "
+                    f"received '{reference} derivedFrom {source_ref}'."
                 )
             entity, field = reference.split(".", 1)
             source_entity, source_field = source_ref.split(".", 1)
             if entity not in self.entities:
-                raise ASTValidationError(f"Structure : 'derivedFrom' cible l'entité '{entity}' qui n'existe pas.")
+                raise ASTValidationError(f"Structure: 'derivedFrom' targets entity '{entity}', which does not exist.")
             if source_entity not in self.entities:
-                raise ASTValidationError(f"Structure : 'derivedFrom' lit l'entité '{source_entity}' qui n'existe pas.")
+                raise ASTValidationError(f"Structure: 'derivedFrom' reads entity '{source_entity}', which does not exist.")
             field_type = self.entities[entity].get(field)
             if field_type not in ("Money", "Float", "Integer"):
                 raise ASTValidationError(
-                    f"Structure : 'derivedFrom' calcule '{entity}.{field}', qui doit être un attribut "
-                    f"Money, Float ou Integer déclaré (reçu : {field_type or 'champ inexistant'})."
+                    f"Structure: 'derivedFrom' calculates '{entity}.{field}', which must be a declared "
+                    f"Money, Float, or Integer attribute (received: {field_type or 'field does not exist'})."
                 )
             source_type = self.entities[source_entity].get(source_field)
             if source_type not in ("Money", "Float", "Integer"):
                 raise ASTValidationError(
-                    f"Structure : 'derivedFrom' lit '{source_entity}.{source_field}', qui doit être un attribut "
-                    f"Money, Float ou Integer déclaré (reçu : {source_type or 'champ inexistant'})."
+                    f"Structure: 'derivedFrom' reads '{source_entity}.{source_field}', which must be a declared "
+                    f"Money, Float, or Integer attribute (received: {source_type or 'field does not exist'})."
                 )
             factor_type = self.entities[entity].get(factor)
             if factor_type != "Integer":
                 raise ASTValidationError(
-                    f"Structure : 'derivedFrom ... by {factor}' exige que '{entity}.{factor}' soit un attribut "
-                    f"Integer déclaré (reçu : {factor_type or 'champ inexistant'}) -- on multiplie par une quantité."
+                    f"Structure: 'derivedFrom ... by {factor}' requires '{entity}.{factor}' to be a declared "
+                    f"Integer attribute (received: {factor_type or 'field does not exist'}) -- multiplication uses a quantity."
                 )
             required_fields = {r["reference"] for r in self.rules if r.get("type") == "required"}
             if f"{entity}.{factor}" not in required_fields:
                 raise ASTValidationError(
-                    f"Structure : '{entity}.{factor}' sert de multiplicateur à 'derivedFrom' et doit donc porter "
-                    f"'rule {entity}.{factor} required' -- sinon un client qui l'omet ferait calculer sur du vide."
+                    f"Structure: '{entity}.{factor}' is used as the multiplier for 'derivedFrom' and must therefore have "
+                    f"'rule {entity}.{factor} required' -- otherwise, a client omitting it would trigger a calculation with no value."
                 )
             if factor == field:
-                raise ASTValidationError(f"Structure : '{entity}.{field}' ne peut pas être son propre multiplicateur.")
+                raise ASTValidationError(f"Structure: '{entity}.{field}' cannot be its own multiplier.")
             if (entity, field) in self.masked_fields:
                 raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' est à la fois 'hidden' et 'derivedFrom' -- incompatible : "
-                    f"un montant calculé qu'on ne peut pas lire ne peut pas être vérifié."
+                    f"Structure: '{entity}.{field}' is both 'hidden' and 'derivedFrom' -- incompatible: "
+                    f"a calculated amount that cannot be read cannot be verified."
                 )
             if any(g["entity"] == entity and g["field"] == field for g in self.generated_fields):
                 raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' est à la fois 'generated' et 'derivedFrom' -- deux façons "
-                    f"concurrentes de le peupler côté serveur, il faut choisir."
+                    f"Structure: '{entity}.{field}' is both 'generated' and 'derivedFrom' -- two competing ways "
+                    f"to populate it on the server; choose one."
                 )
             if any(d["entity"] == entity and d["field"] == field for d in self.derived_fields):
                 raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' porte plusieurs règles 'derivedFrom' -- un seul calcul par champ."
+                    f"Structure: '{entity}.{field}' has multiple 'derivedFrom' rules -- only one calculation is allowed per field."
                 )
             has_source_relation = any(
                 (rel["type"] in ("hasMany", "hasOne")
@@ -80,22 +80,22 @@ class ChampsCalculesMixin:
             )
             if not has_source_relation:
                 raise ASTValidationError(
-                    f"Structure : 'derivedFrom' lit '{source_entity}.{source_field}' depuis '{entity}', ce qui exige "
-                    f"une relation entre les deux (ex. '{source_entity} hasMany {entity}'), absente ici -- sans "
-                    f"elle, rien ne dit QUELLE ligne de '{source_entity}' lire."
+                    f"Structure: 'derivedFrom' reads '{source_entity}.{source_field}' from '{entity}', which requires "
+                    f"a relation between them (e.g. '{source_entity} hasMany {entity}'), which is missing here -- without "
+                    f"it, there is no way to know WHICH row of '{source_entity}' to read."
                 )
             owners = {v for (ent, _act), v in self.ownership_rules.items() if ent == entity}
             if owners and source_entity in owners:
                 raise ASTValidationError(
-                    f"Structure : 'derivedFrom' lit '{source_entity}', qui est aussi le propriétaire de "
-                    f"'{entity}' (règle 'ownedBy') -- sa clé étrangère vient du jeton, pas du client, donc "
-                    f"aucune ligne de '{source_entity}' ne peut être désignée à la création."
+                    f"Structure: 'derivedFrom' reads '{source_entity}', which is also the owner of "
+                    f"'{entity}' ('ownedBy' rule) -- its foreign key comes from the token, not the client, so "
+                    f"no row from '{source_entity}' can be selected at creation time."
                 )
             if not owners:
                 raise ASTValidationError(
-                    f"Structure : 'derivedFrom' sur '{entity}.{field}' exige que '{entity}' ait un propriétaire "
-                    f"(une règle 'ownedBy') -- c'est lui qui distingue la clé étrangère peuplée par le serveur "
-                    f"de celle que le client fournit pour désigner la ligne à lire."
+                    f"Structure: 'derivedFrom' on '{entity}.{field}' requires '{entity}' to have an owner "
+                    f"(an 'ownedBy' rule) -- this distinguishes the foreign key populated by the server "
+                    f"from the one supplied by the client to select the row to read."
                 )
             self.derived_fields.append({
                 "entity": entity, "field": field,
@@ -112,32 +112,32 @@ class ChampsCalculesMixin:
             reference, source_ref = rule["reference"], rule["value"]
             if "." not in reference or "." not in source_ref:
                 raise ASTValidationError(
-                    f"Structure : 'sumOf' doit référencer 'Entite.champ sumOf Entite.champ', "
-                    f"reçu '{reference} sumOf {source_ref}'."
+                    f"Structure: 'sumOf' must reference 'Entity.field sumOf Entity.field', "
+                    f"received '{reference} sumOf {source_ref}'."
                 )
             entity, field = reference.split(".", 1)
             source_entity, source_field = source_ref.split(".", 1)
             if entity not in self.entities:
-                raise ASTValidationError(f"Structure : 'sumOf' cible l'entité '{entity}' qui n'existe pas.")
+                raise ASTValidationError(f"Structure: 'sumOf' targets entity '{entity}', which does not exist.")
             if source_entity not in self.entities:
-                raise ASTValidationError(f"Structure : 'sumOf' additionne l'entité '{source_entity}' qui n'existe pas.")
+                raise ASTValidationError(f"Structure: 'sumOf' sums entity '{source_entity}', which does not exist.")
             field_type = self.entities[entity].get(field)
             if field_type not in ("Money", "Float", "Integer"):
                 raise ASTValidationError(
-                    f"Structure : 'sumOf' calcule '{entity}.{field}', qui doit être un attribut "
-                    f"Money, Float ou Integer déclaré (reçu : {field_type or 'champ inexistant'})."
+                    f"Structure: 'sumOf' calculates '{entity}.{field}', which must be a declared "
+                    f"Money, Float, or Integer attribute (received: {field_type or 'field does not exist'})."
                 )
             source_type = self.entities[source_entity].get(source_field)
             if source_type not in ("Money", "Float", "Integer"):
                 raise ASTValidationError(
-                    f"Structure : 'sumOf' additionne '{source_entity}.{source_field}', qui doit être un "
-                    f"attribut Money, Float ou Integer déclaré (reçu : {source_type or 'champ inexistant'})."
+                    f"Structure: 'sumOf' sums '{source_entity}.{source_field}', which must be a "
+                    f"attribut Money, Float, or Integer attribute (received: {source_type or 'field does not exist'})."
                 )
             if source_entity == entity:
                 raise ASTValidationError(
-                    f"Structure : 'sumOf' fait de '{entity}.{field}' la somme d'un champ de '{entity}' lui-même "
-                    f"-- une entité ne peut pas s'additionner. La somme porte sur une entité ENFANT "
-                    f"(ex. 'Commande hasMany Ligne')."
+                    f"Structure: 'sumOf' makes '{entity}.{field}' the sum of a field from '{entity}' itself "
+                    f"-- an entity cannot sum itself. The sum must cover a CHILD entity "
+                    f"(e.g. 'Order hasMany Line')."
                 )
             child_relation = any(
                 (rel["type"] in ("hasMany", "hasOne")
@@ -148,38 +148,38 @@ class ChampsCalculesMixin:
             )
             if not child_relation:
                 raise ASTValidationError(
-                    f"Structure : 'sumOf' additionne '{source_entity}' depuis '{entity}', ce qui exige "
-                    f"une relation parent-enfant (ex. '{entity} hasMany {source_entity}'), absente ici -- "
-                    f"sans elle, rien ne dit QUELLES lignes de '{source_entity}' additionner, et la somme "
-                    f"porterait sur la table entière."
+                    f"Structure: 'sumOf' sums '{source_entity}' from '{entity}', which requires "
+                    f"a parent-child relation (e.g. '{entity} hasMany {source_entity}'), which is missing here -- "
+                    f"without it, there is no way to know WHICH rows of '{source_entity}' to sum, and the sum "
+                    f"would cover the entire table."
                 )
             if (entity, field) in self.masked_fields:
                 raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' est à la fois 'hidden' et 'sumOf' -- incompatible : "
-                    f"un total calculé qu'on ne peut pas lire ne peut pas être vérifié."
+                    f"Structure: '{entity}.{field}' is both 'hidden' and 'sumOf' -- incompatible: "
+                    f"a calculated total that cannot be read cannot be verified."
                 )
             if any(g["entity"] == entity and g["field"] == field for g in self.generated_fields):
                 raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' est à la fois 'generated' et 'sumOf' -- deux façons "
-                    f"concurrentes de le peupler côté serveur, il faut choisir."
+                    f"Structure: '{entity}.{field}' is both 'generated' and 'sumOf' -- two competing ways "
+                    f"to populate it on the server; choose one."
                 )
             if any(d["entity"] == entity and d["field"] == field for d in self.derived_fields):
                 raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' porte à la fois 'derivedFrom' et 'sumOf' -- deux "
-                    f"calculs concurrents pour un seul champ. 'derivedFrom' lit UNE ligne liée, 'sumOf' "
-                    f"additionne des enfants : choisir lequel."
+                    f"Structure: '{entity}.{field}' has both 'derivedFrom' and 'sumOf' -- two "
+                    f"competing calculations for one field. 'derivedFrom' reads ONE related row; 'sumOf' "
+                    f"sums children: choose one."
                 )
             if any(a["entity"] == entity and a["field"] == field for a in self.aggregated_fields):
                 raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' porte plusieurs règles 'sumOf' -- une seule somme par champ."
+                    f"Structure: '{entity}.{field}' has multiple 'sumOf' rules -- only one sum is allowed per field."
                 )
             source_owners = {v for (ent, _act), v in self.ownership_rules.items() if ent == source_entity}
             if not source_owners:
                 raise ASTValidationError(
-                    f"Structure : 'sumOf' additionne '{source_entity}', qui n'a pas de propriétaire "
-                    f"(une règle 'ownedBy') -- c'est lui qui distingue la clé étrangère peuplée par le "
-                    f"serveur de celle que le client fournit pour désigner le parent. Sans elle, "
-                    f"n'importe quel compte pourrait ajouter une ligne au total d'un tiers."
+                    f"Structure: 'sumOf' sums '{source_entity}', which has no owner "
+                    f"(an 'ownedBy' rule) -- this distinguishes the foreign key populated by the "
+                    f"server from the one supplied by the client to select the parent. Without it, "
+                    f"any account could add a row to someone else's total."
                 )
             self.aggregated_fields.append({
                 "entity": entity, "field": field,
@@ -196,26 +196,26 @@ class ChampsCalculesMixin:
             trigger_ref, target_ref = rule["reference"], rule["value"]
             if "." not in trigger_ref or "." not in target_ref:
                 raise ASTValidationError(
-                    f"Structure : la règle '{direction}' doit référencer 'Entite.Create {direction} Entite.champ', "
-                    f"reçu '{trigger_ref} {direction} {target_ref}'."
+                    f"Structure: rule '{direction}' must reference 'Entity.Create {direction} Entity.field', "
+                    f"received '{trigger_ref} {direction} {target_ref}'."
                 )
             trigger_entity, trigger_action = trigger_ref.split(".", 1)
             target_entity, target_field = target_ref.split(".", 1)
             if trigger_entity not in self.entities:
-                raise ASTValidationError(f"Structure : '{direction}' référence l'entité '{trigger_entity}' qui n'existe pas.")
+                raise ASTValidationError(f"Structure: '{direction}' references entity '{trigger_entity}', which does not exist.")
             if trigger_action != "Create":
                 raise ASTValidationError(
-                    f"Structure : '{direction}' n'est pris en charge que sur 'Create' pour l'instant "
-                    f"(reçu '{trigger_entity}.{trigger_action}')."
+                    f"Structure: '{direction}' is only supported on 'Create' for now "
+                    f"(received '{trigger_entity}.{trigger_action}')."
                 )
             if target_entity not in self.entities:
-                raise ASTValidationError(f"Structure : '{direction}' référence l'entité '{target_entity}' qui n'existe pas.")
+                raise ASTValidationError(f"Structure: '{direction}' references entity '{target_entity}', which does not exist.")
             self._refuser_compteur_sur_acteur(direction, target_entity, target_field)
             target_type = self.entities[target_entity].get(target_field)
             if target_type not in ("Integer", "Float"):
                 raise ASTValidationError(
-                    f"Structure : '{direction}' cible le champ '{target_entity}.{target_field}', qui doit être "
-                    f"un attribut Integer ou Float déclaré (reçu : {target_type or 'champ inexistant'})."
+                    f"Structure: '{direction}' targets field '{target_entity}.{target_field}', which must be "
+                    f"a declared Integer or Float attribute (received: {target_type or 'field does not exist'})."
                 )
             matching_relation = any(
                 (rel["type"] in ("hasMany", "hasOne")
@@ -226,24 +226,24 @@ class ChampsCalculesMixin:
             )
             if not matching_relation:
                 raise ASTValidationError(
-                    f"Structure : '{direction}' sur '{trigger_entity}.Create' vers '{target_entity}.{target_field}' "
-                    f"exige une relation entre les deux (ex. '{target_entity} hasMany {trigger_entity}'), absente ici."
+                    f"Structure: '{direction}' on '{trigger_entity}.Create' to '{target_entity}.{target_field}' "
+                    f"requires a relation between them (e.g. '{target_entity} hasMany {trigger_entity}'), which is missing here."
                 )
             amount_field = rule.get("amount_field")
             if amount_field:
                 amount_type = self.entities[trigger_entity].get(amount_field)
                 if amount_type != "Integer":
                     raise ASTValidationError(
-                        f"Structure : '{direction} ... by {amount_field}' désigne un champ de "
-                        f"'{trigger_entity}' qui doit être un Integer déclaré "
-                        f"(reçu : {amount_type or 'champ inexistant'})."
+                        f"Structure: '{direction} ... by {amount_field}' refers to a field on "
+                        f"'{trigger_entity}' which must be a declared Integer "
+                        f"(received: {amount_type or 'field does not exist'})."
                     )
                 required = {r["reference"] for r in self.rules if r.get("type") == "required"}
                 if f"{trigger_entity}.{amount_field}" not in required:
                     raise ASTValidationError(
-                        f"Structure : '{trigger_entity}.{amount_field}' sert de quantité à "
-                        f"'{direction}' : il lui faut 'rule {trigger_entity}.{amount_field} "
-                        f"required', sinon un client qui l'omet ferait décompter sur du vide."
+                        f"Structure: '{trigger_entity}.{amount_field}' is used as the quantity for "
+                        f"'{direction}': it requires 'rule {trigger_entity}.{amount_field} "
+                        f"required', otherwise a client omitting it would trigger a decrement with no value."
                     )
             self.reputation_rules.append({
                 "trigger_entity": trigger_entity, "target_entity": target_entity,
@@ -263,11 +263,11 @@ class ChampsCalculesMixin:
         """
         if target_entity in self.actors:
             raise ASTValidationError(
-                f"Structure : '{direction}' cible '{target_entity}.{target_field}', mais "
-                f"'{target_entity}' est aussi un acteur. Ses lignes ne sont liées à aucun "
-                f"compte, et les clés '{target_entity.lower()}_id' lues par un client portent "
-                f"un id de compte : le compteur toucherait une fiche au hasard. Placez le "
-                f"compteur sur une entité métier (ex. '{direction} Post.score')."
+                f"Structure: '{direction}' targets '{target_entity}.{target_field}', but "
+                f"'{target_entity}' is also an actor. Its rows are not linked to any "
+                f"account, and the '{target_entity.lower()}_id' keys read by a client contain "
+                f"an account ID: the counter would affect an arbitrary record. Put the "
+                f"counter on a business entity (e.g. '{direction} Post.score')."
             )
 
     def _valider_regles_once_per(self):
@@ -284,26 +284,26 @@ class ChampsCalculesMixin:
             reference = rule["reference"]
             if "." not in reference:
                 raise ASTValidationError(
-                    f"Structure : 'oncePer' doit référencer 'Entite.Create', reçu '{reference}'."
+                    f"Structure: 'oncePer' must reference 'Entity.Create', received '{reference}'."
                 )
             entity, action = reference.split(".", 1)
             if entity not in self.entities:
                 raise ASTValidationError(
-                    f"Structure : 'oncePer' cible l'entité '{entity}' qui n'existe pas."
+                    f"Structure: 'oncePer' targets entity '{entity}', which does not exist."
                 )
             if action != "Create":
                 raise ASTValidationError(
-                    f"Structure : 'oncePer' ne vaut que sur 'Create' (reçu '{reference}')."
+                    f"Structure: 'oncePer' only applies to 'Create' (received '{reference}')."
                 )
             parents = list(rule.get("parents") or [])
             if len(parents) < 2 or len(set(parents)) != len(parents):
                 raise ASTValidationError(
-                    f"Structure : 'oncePer' sur '{reference}' exige au moins deux parents distincts."
+                    f"Structure: 'oncePer' on '{reference}' requires at least two distinct parents."
                 )
             for parent in parents:
                 if parent not in self.entities and parent not in self.actors:
                     raise ASTValidationError(
-                        f"Structure : 'oncePer' référence le parent '{parent}', qui n'existe pas."
+                        f"Structure: 'oncePer' references parent '{parent}', which does not exist."
                     )
                 relie = any(
                     (rel["type"] in ("hasMany", "hasOne")
@@ -314,16 +314,16 @@ class ChampsCalculesMixin:
                 )
                 if not relie:
                     raise ASTValidationError(
-                        f"Structure : 'oncePer' exige une relation entre '{parent}' et '{entity}'."
+                        f"Structure: 'oncePer' requires a relation between '{parent}' and '{entity}'."
                     )
             if not any(parent in self.actors for parent in parents):
                 raise ASTValidationError(
-                    f"Structure : 'oncePer' sur '{reference}' doit inclure un parent acteur "
-                    "pour identifier le compte courant."
+                    f"Structure: 'oncePer' on '{reference}' must include an actor parent "
+                    "to identify the current account."
                 )
             if (entity, "Create") in self.public_actions:
                 raise ASTValidationError(
-                    f"Structure : '{reference}' est public, donc aucun compte ne peut porter "
-                    "l'unicité 'oncePer'."
+                    f"Structure: '{reference}' is public, so no account can enforce "
+                    "the 'oncePer' uniqueness constraint."
                 )
             self.once_per_rules.append({"trigger_entity": entity, "parents": parents})

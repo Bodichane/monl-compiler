@@ -15,24 +15,24 @@ class EmissionMixin:
         """Dernier regard sur ce qui va être écrit, avant compilation."""
         lignes = [
             ("Application", app_name),
-            ("Entités", ", ".join(entities) or "aucune"),
-            ("Rôles", ", ".join(actors) or "aucun"),
-            ("Inscription en ligne", self_register or "fermée (manage.py)"),
-            ("Lisible sans compte", ", ".join(public_read) or "rien"),
+            ("Entities", ", ".join(entities) or "none"),
+            ("Roles", ", ".join(actors) or "none"),
+            ("Online registration", self_register or "closed (manage.py)"),
+            ("Readable without an account", ", ".join(public_read) or "none"),
         ]
         prives = [e for e in owned if e not in public_read]
         if prives:
-            lignes.append(("Lecture réservée au propriétaire", ", ".join(prives)))
+            lignes.append(("Owner-only reading", ", ".join(prives)))
         if owned:
-            lignes.append(("Propriété par créateur",
+            lignes.append(("Creator ownership",
                            ", ".join(f"{e} ({a})" for e, a in owned.items())))
         if payable:
             lignes.append((
-                "Montant encaissé",
+                "Amount charged",
                 f"{payable['entity']}.{payable['field']} — calculé par le serveur "
                 f"({payable['source_entity']}.{payable['source_field']} × "
                 f"{payable['factor']}), clé Stripe requise"))
-        self._show(self.ui.recap("Ce que la spec va déclarer", lignes))
+        self._show(self.ui.recap("What the spec will declare", lignes))
 
     # ---------- émission déterministe de la spec ----------
     def _emit_spec(self, app_name, description, entities, relations, actors,
@@ -84,7 +84,7 @@ class EmissionMixin:
         """Valeur de seed -> littéral DSL (la grammaire n'accepte que
         STRING_LITERAL et SIGNED_NUMBER)."""
         if isinstance(value, bool):
-            raise DialogueError("un seed ne peut pas contenir de booléen (grammaire)")
+            raise DialogueError("a seed cannot contain a boolean (grammar)")
         if isinstance(value, (int, float)):
             return str(value)
         return '"' + str(value).replace('"', "'") + '"'

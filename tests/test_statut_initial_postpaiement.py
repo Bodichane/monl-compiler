@@ -236,7 +236,7 @@ def test_premier_etat_de_liberation_est_refuse(capsys):
     message = str(refus.value)
     assert "Commande.statut" in message
     assert "annulée" in message
-    assert "Déclarer d'abord l'état initial" in message
+    assert "First declare the initial state" in message
     capsys.readouterr()
 
 

@@ -73,8 +73,8 @@ class CommerceMixin:
             # ne sait pas servir publiquement un fichier déposé, et le taire
             # ferait construire un catalogue sans images.
             choice = self._ask_choice(
-                f"Quel dépôt de fichier pour {entity} ? "
-                "(le fichier ne sera lisible que par son propriétaire)",
+                f"Which file upload for {entity}? "
+                "(the file will only be readable by its owner)",
                 labels, allow_none=True)
             if choice is None:
                 continue
@@ -142,15 +142,15 @@ class CommerceMixin:
         if not candidats:
             return None
         if not self._ask_yes_no(
-                "Cette application encaisse-t-elle un paiement en ligne ?"):
+                "Does this application accept online payments?"):
             return None
         if len(candidats) == 1:
             choix = candidats[0]
         else:
-            libelles = [f"{e}.{m} (calculé depuis {s}.{p})"
+            libelles = [f"{e}.{m} (calculated from {s}.{p})"
                         for e, m, s, p in candidats]
             choix = candidats[libelles.index(
-                self._ask_choice("Quel montant encaisser ?", libelles))]
+                self._ask_choice("Which amount should be charged?", libelles))]
         entite, montant, source, prix = choix
         resultat = {"entity": entite, "field": montant,
                     "source_entity": source, "source_field": prix,
@@ -169,7 +169,7 @@ class CommerceMixin:
         # exactement l'argument qui avait fait naître cette question au
         # point 75, resté valable quatre briques plus tard.
         panier = self._ask_yes_no(
-            f"Un(e) {entite} peut-il contenir PLUSIEURS articles différents ?")
+            f"Can a {entite} contain MULTIPLE different items?")
         if panier:
             ligne = self._nom_de_ligne(entite, entities)
             # La quantité EN PREMIER : la règle « premier champ requis » de
@@ -187,9 +187,9 @@ class CommerceMixin:
             owned[ligne] = entite
             resultat["line_entity"] = ligne
             self._show(self.ui.note(
-                f"Panier : chaque {ligne} porte un article et sa quantité ; "
-                f"{entite}.{montant} en est la SOMME, recalculée par le serveur "
-                f"à chaque ligne ajoutée, modifiée ou supprimée."))
+                f"Cart: each {ligne} holds an item and its quantity; "
+                f"{entite}.{montant} is the TOTAL, recalculated by the server "
+                f"whenever a line is added, updated, or deleted."))
         else:
             # Forme mono-article : la quantité vit sur l'entité encaissée.
             if not any(c == self.CHAMP_QUANTITE for c, _t in entities[entite]):
@@ -202,13 +202,13 @@ class CommerceMixin:
         # décompter autre chose que ce qu'on croit, en silence.
         stocks = [c for c, t in entities[source] if t == "Integer" and c != prix]
         if stocks and self._ask_yes_no(
-                f"Faut-il décompter un stock de {source} à chaque achat ?"):
+                f"Should stock in {source} be decremented with each purchase?"):
             resultat["stock_field"] = (stocks[0] if len(stocks) == 1 else
-                                       self._ask_choice("Quel champ porte le stock ?",
+                                       self._ask_choice("Which field holds the stock?",
                                                         stocks))
 
         self._show(self.ui.note(
-            f"Montant encaissé : {entite}.{montant} — CALCULÉ par le serveur, "
-            "jamais envoyé par le navigateur. Sans ce calcul, l'acheteur "
-            "fixerait lui-même son prix."))
+            f"Amount charged: {entite}.{montant} — CALCULATED by the server, "
+            "never sent by the browser. Without this calculation, the buyer "
+            "would set their own price."))
         return resultat

@@ -15,175 +15,175 @@ def build_parser():
     """Construire le parseur public, source de vérité de la CLI ``monl``."""
     parser = argparse.ArgumentParser(
         prog="monl",
-        description="monl — plateforme d'orchestration : dialogue guidé → "
-                    "DSL → backend + contrat frontend → IA UI → run/update.")
+        description="monl — orchestration platform: guided dialogue → "
+                    "DSL → backend + frontend contract → UI AI → run/update.")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__} (language {LANGUAGE_VERSION})")
     sub = parser.add_subparsers(dest="command")
 
-    p_init = sub.add_parser("init", help="Dialogue guidé (défaut sans sous-commande).")
-    p_init.add_argument("--dir", default=None, help="Dossier du projet (défaut : ./NomApp)")
+    p_init = sub.add_parser("init", help="Guided dialogue (default when no subcommand is given).")
+    p_init.add_argument("--dir", default=None, help="Project directory (default: ./NomApp)")
 
-    p_compile = sub.add_parser("compile", help="Compiler une spec .ml existante.")
+    p_compile = sub.add_parser("compile", help="Compile an existing .ml spec.")
     p_compile.add_argument("spec")
     p_compile.add_argument("--output", default=None,
-                           help="Dossier du projet (défaut : dossier de la spec).")
+                           help="Project directory (default: spec directory).")
 
-    p_run = sub.add_parser("run", help="Vérifier la cohérence puis lancer l'application.")
+    p_run = sub.add_parser("run", help="Check consistency, then launch the application.")
     p_run.add_argument("dir", nargs="?", default=".")
-    p_run.add_argument("--check", action="store_true", help="Vérifier sans lancer.")
+    p_run.add_argument("--check", action="store_true", help="Check without launching.")
     p_run.add_argument("--skip-smoke", action="store_true",
-                       help="Sauter le smoke test comportemental (déconseillé).")
+                       help="Skip the behavioral smoke test (not recommended).")
     p_run.add_argument("--port", type=int, default=8000)
 
-    p_update = sub.add_parser("update", help="Recompiler après évolution de la spec.")
+    p_update = sub.add_parser("update", help="Recompile after the spec changes.")
     p_update.add_argument("dir", nargs="?", default=".")
 
     p_diff = sub.add_parser(
         "diff",
-        help="Voir le delta du contrat SANS rien recompiler ni écrire.")
+        help="Show the contract delta WITHOUT recompiling or writing anything.")
     p_diff.add_argument("dir", nargs="?", default=".")
 
     p_usage = sub.add_parser(
-        "usage", help="Mesurer la consommation IA et le coût déclaré du projet.")
+        "usage", help="Measure the project's AI usage and declared cost.")
     p_usage.add_argument("dir", nargs="?", default=".",
-                         help="Dossier du projet (premier argument; défaut : .).")
+                         help="Project directory (first argument; default: .).")
     p_usage.add_argument(
-        "--prices", default=None, metavar="FICHIER_JSON",
-        help="Table JSON fournisseur → modèle → tarifs par million de jetons; "
-             "prioritaire sur MONL_USAGE_PRICES. Format: "
-             "{currency, prices: {fournisseur: {modèle: "
+        "--prices", default=None, metavar="JSON_FILE",
+        help="JSON table provider → model → prices per million tokens; "
+             "takes precedence over MONL_USAGE_PRICES. Format: "
+             "{currency, prices: {provider: {model: "
              "{input_per_million_tokens, output_per_million_tokens}}}}.")
     p_usage.add_argument(
         "--json", action="store_true", dest="json_output",
-        help="Émettre le rapport JSON, pour quota et facturation.")
+        help="Emit the JSON report for quotas and billing.")
 
     p_migrate = sub.add_parser(
-        "migrate", help="Appliquer ou défaire une migration de schéma nommée.")
+        "migrate", help="Apply or roll back a named schema migration.")
     p_migrate.add_argument("dir", nargs="?", default=".")
-    p_migrate.add_argument("--name", default=None, metavar="NOM",
-                           help="Nom déclaré par un bloc 'migration'.")
+    p_migrate.add_argument("--name", default=None, metavar="NAME",
+                           help="Name declared by a 'migration' block.")
     p_migrate.add_argument("--down", action="store_true",
-                           help="Défaire la migration quand l'opération est réversible.")
+                           help="Roll back the migration when the operation is reversible.")
     p_migrate.add_argument("--list", action="store_true",
-                           help="Afficher l'état des migrations sans en appliquer.")
+                           help="Show migration status without applying any.")
 
     p_front = sub.add_parser(
-        "frontend", help="Générer le frontend par une IA spécialisée, avec "
-                         "re-vérification automatique (cohérence + smoke test).")
+        "frontend", help="Generate the frontend with a specialized AI, with "
+                         "automatic re-checks (consistency + smoke test).")
     p_front.add_argument("dir", nargs="?", default=".")
     from ..frontend_ai import CLI_AGENTS, GENERIC_PROVIDER, OPENAI_COMPATIBLE
     from ..image_ai import IMAGE_PROVIDERS
     _voies = sorted({"claude", GENERIC_PROVIDER} | set(OPENAI_COMPATIBLE) | set(CLI_AGENTS))
     p_front.add_argument("--provider", default="claude", choices=_voies,
-                         help="Clé API : 'claude' (ANTHROPIC_API_KEY) ; "
+                         help="API key: 'claude' (ANTHROPIC_API_KEY); "
                               + ", ".join(f"'{n}' ({v})" for n, (_u, v) in
                                           sorted(OPENAI_COMPATIBLE.items()))
-                              + f" ; '{GENERIC_PROVIDER}' pour tout autre point de "
-                                "terminaison au dialecte OpenAI (MONL_AI_BASE_URL + "
-                                "MONL_AI_API_KEY). Hors 'claude', '--model' est exigé. "
-                                "Agent en ligne de commande, sans clé : "
+                              + f" ; '{GENERIC_PROVIDER}' for any other "
+                                "endpoint using the OpenAI dialect (MONL_AI_BASE_URL + "
+                                "MONL_AI_API_KEY). Except for 'claude', '--model' is required. "
+                                "Command-line agents, no key required: "
                               + ", ".join(f"'{n}'" for n in sorted(CLI_AGENTS))
-                              + " — l'agent travaille dans le dossier du projet.")
-    p_front.add_argument("--model", default=None, help="Modèle du fournisseur.")
+                              + " — the agent works in the project directory.")
+    p_front.add_argument("--model", default=None, help="Provider model.")
     p_front.add_argument(
         "--model-for", dest="model_for", action="append", default=None,
-        metavar="CIBLE=MODELE",
-        help="Routage répétable de la génération découpée (ex. "
-             "styles.css=yandexgpt-lite). Cibles exactes : index.html, styles.css, "
-             "app.js et SVG planifiés. Une voie monolithique ou agent ne comporte "
-             "qu'un appel et signalera que ce routage n'est pas appliqué.")
+        metavar="TARGET=MODEL",
+        help="Repeatable routing for staged generation (e.g. "
+             "styles.css=yandexgpt-lite). Exact targets: index.html, styles.css, "
+             "app.js, and planned SVGs. A monolithic or agent path makes "
+             "one call and will report that this routing was not applied.")
     p_front.add_argument("--agent-command", default=None,
-                         help="Gabarit de commande pour un agent absent de la "
-                              "liste, {instruction} étant substitué — par exemple "
-                              "\"mon-agent --auto {instruction}\". L'emporte sur "
-                              "--provider et permet aussi de corriger un préréglage.")
+                         help="Command template for an agent not in the "
+                              "list, with {instruction} substituted — for example "
+                         "\"mon-agent --auto {instruction}\". Takes precedence over "
+                              "--provider and can also override a preset.")
     p_front.add_argument("--max-turns", type=int, default=None,
-                         help="Budget de tours de l'agent ('claude-code' "
-                              "uniquement). Défaut : 120.")
+                         help="Agent turn budget ('claude-code' "
+                              "only). Default: 120.")
     p_front.add_argument("--update", action="store_true",
-                         help="Faire évoluer le frontend existant à partir de "
-                              "docs/FRONTEND_UPDATE_PROMPT.md au lieu de repartir de zéro.")
+                         help="Update the existing frontend using "
+                              "docs/FRONTEND_UPDATE_PROMPT.md instead of starting from scratch.")
     p_front.add_argument(
         "--generate-images", action="store_true",
-        help="Générer explicitement les images matricielles planifiées dans le "
-             "dossier d'assets (défaut : aucune image).")
+        help="Explicitly generate planned raster images in the "
+             "assets directory (default: no images).")
     p_front.add_argument(
         "--image-provider", choices=sorted(IMAGE_PROVIDERS), default="yandexart",
-        help="Fournisseur d'images utilisé avec --generate-images (défaut : yandexart).")
+        help="Image provider used with --generate-images (default: yandexart).")
 
     # POINT 93 : corriger un défaut CONSTATÉ sur le site, sans le reconstruire.
     # Les options sont rigoureusement celles de 'frontend' — c'est la même voie
     # vers l'IA, avec les mêmes garde-fous ; seule l'origine du brief change.
     p_ret = sub.add_parser(
-        "retouche", help="Corriger un défaut constaté sur le site (mise en page, "
-                         "cadrage, lisibilité) sans reconstruire le frontend.")
-    p_ret.add_argument("demande", help="Ce qui cloche, en une phrase — nommer "
-                                       "l'écran et l'élément : \"les images de la "
-                                       "section Tendances sont mal cadrées\".")
+        "retouche", help="Fix an observed issue on the site (layout, "
+                         "framing, readability) without rebuilding the frontend.")
+    p_ret.add_argument("demande", help="Describe the issue in one sentence — name "
+                                       "the screen and element: \"images in the "
+                                       "Trends section are poorly framed\".")
     p_ret.add_argument("dir", nargs="?", default=".")
     p_ret.add_argument("--provider", default="claude", choices=_voies,
-                       help="Mêmes voies que 'monl frontend'.")
-    p_ret.add_argument("--model", default=None, help="Modèle du fournisseur.")
+                       help="Same options as 'monl frontend'.")
+    p_ret.add_argument("--model", default=None, help="Provider model.")
     p_ret.add_argument("--agent-command", default=None,
-                       help="Gabarit de commande pour un agent absent de la liste, "
-                            "{instruction} étant substitué.")
+                       help="Command template for an agent not in the list, "
+                            "with {instruction} substituted.")
     p_ret.add_argument("--max-turns", type=int, default=None,
-                       help="Budget de tours de l'agent. Défaut : 120.")
+                       help="Agent turn budget. Default: 120.")
     p_ret.add_argument("--consigne-seule", action="store_true",
-                       help="Écrire FRONTEND_RETOUCHE_PROMPT.md et s'arrêter là — "
-                            "pour le donner soi-même à une IA, puis 'monl import'.")
+                       help="Write FRONTEND_RETOUCHE_PROMPT.md and stop — "
+                            "to give it to an AI yourself, then run 'monl import'.")
 
     # BRIQUE 13, COUCHE 2 (point 84) : poser un fichier de l'humain et le
     # DÉCLARER, en une commande. L'outil écrit, le compilateur prouve : la spec
     # obtenue est revalidée avant d'être écrite, donc la couche 2 ne peut pas
     # produire ce que la couche 1 refuse.
     p_assets = sub.add_parser(
-        "assets", help="Installer les fichiers fournis par l'humain (photos, "
-                       "logo, favicon) et les déclarer dans la spec.")
+        "assets", help="Install user-provided files (photos, "
+                       "logo, favicon) and declare them in the spec.")
     sub_assets = p_assets.add_subparsers(dest="assets_command")
 
     p_add = sub_assets.add_parser(
-        "add", help="Copier un fichier dans le dossier d'assets et l'écrire dans la spec.")
-    p_add.add_argument("fichier", help="Le fichier à installer (photo, logo…).")
-    p_add.add_argument("--for", dest="pour", default=None, metavar="VALEUR",
-                       help="Fiche de seed visée, désignée par une de ses valeurs "
-                            "— par exemple --for \"Halo RS\".")
+        "add", help="Copy a file to the assets directory and declare it in the spec.")
+    p_add.add_argument("fichier", help="The file to install (photo, logo...).")
+    p_add.add_argument("--for", dest="pour", default=None, metavar="VALUE",
+                       help="Target seed record, identified by one of its values "
+                            "— for example --for \"Halo RS\".")
     p_add.add_argument("--logo", action="store_true",
-                       help="Déclarer ce fichier comme logo du projet (assets.logo).")
+                       help="Declare this file as the project logo (assets.logo).")
     p_add.add_argument("--favicon", action="store_true",
-                       help="Déclarer ce fichier comme favicon (assets.favicon).")
+                       help="Declare this file as the favicon (assets.favicon).")
     p_add.add_argument("--entity", default=None,
-                       help="Lever une ambiguïté quand la valeur de --for existe "
-                            "dans plusieurs entités.")
+                       help="Resolve ambiguity when the --for value exists "
+                            "in multiple entities.")
     p_add.add_argument("--field", default=None,
-                       help="Champ 'Image' visé, si l'entité en a plusieurs.")
-    p_add.add_argument("--as", dest="nom", default=None, metavar="NOM",
-                       help="Nom du fichier de destination (défaut : le slug de --for "
-                            "plus l'extension d'origine).")
+                       help="Target 'Image' field, if the entity has several.")
+    p_add.add_argument("--as", dest="nom", default=None, metavar="FILENAME",
+                       help="Destination filename (default: the --for slug "
+                            "plus the original extension).")
     p_add.add_argument("--force", action="store_true",
-                       help="Écraser un fichier de même nom au contenu différent.")
-    p_add.add_argument("--dir", default=".", help="Dossier du projet (défaut : .).")
+                       help="Overwrite a same-name file with different contents.")
+    p_add.add_argument("--dir", default=".", help="Project directory (default: .).")
 
     p_alist = sub_assets.add_parser(
-        "list", help="Ce que la spec déclare, ce qui est présent, ce qui traîne.")
+        "list", help="Show what the spec declares, what is present, and what is untracked.")
     p_alist.add_argument("dir", nargs="?", default=".")
 
     p_content = sub.add_parser(
-        "content", help="Exporter ou réimporter les fiches de démonstration en CSV.")
+        "content", help="Export or re-import demonstration records as CSV.")
     sub_content = p_content.add_subparsers(dest="content_command")
     p_cexport = sub_content.add_parser(
-        "export", help="Créer content/<Entite>.csv depuis les blocs seed.")
+        "export", help="Create content/<Entity>.csv from seed blocks.")
     p_cexport.add_argument("dir", nargs="?", default=".")
     p_cimport = sub_content.add_parser(
-        "import", help="Remplacer les blocs seed depuis les fichiers CSV.")
+        "import", help="Replace seed blocks from CSV files.")
     p_cimport.add_argument("dir", nargs="?", default=".")
 
     p_import = sub.add_parser(
-        "import", help="Installer un frontend obtenu SANS clé API (brief collé "
-                       "dans claude.ai, résultat téléchargé) puis re-vérifier.")
-    p_import.add_argument("source", help="Fichier .zip, index.html, dossier, ou "
-                                         "JSON {'files': ...} téléchargé depuis Claude.")
-    p_import.add_argument("dir", nargs="?", default=".", help="Dossier du projet.")
+        "import", help="Install a frontend obtained WITHOUT an API key (brief pasted "
+                       "into claude.ai, downloaded result), then re-check it.")
+    p_import.add_argument("source", help="A .zip file, index.html, directory, or "
+                                         "JSON {'files': ...} downloaded from Claude.")
+    p_import.add_argument("dir", nargs="?", default=".", help="Project directory.")
 
     return parser
 
@@ -221,8 +221,8 @@ def _dispatch(argv=None):
     elif args.command == "assets":
         if args.assets_command == "add":
             if args.logo and args.favicon:
-                print(" ❌ --logo et --favicon désignent deux déclarations "
-                      "différentes : les poser en deux commandes.")
+                print(" ❌ --logo and --favicon declare two different "
+                      "things; set them in separate commands.")
                 sys.exit(1)
             cible = "logo" if args.logo else ("favicon" if args.favicon else None)
             contenu_editorial.cmd_assets_add(args.dir, args.fichier, pour=args.pour, cible=cible,
@@ -246,8 +246,8 @@ def _dispatch(argv=None):
     elif args.command == "retouche":
         retouche.cmd_retouche(args.dir, args.demande)
         if args.consigne_seule:
-            print("  → Donner ce fichier à une IA, puis installer le résultat "
-                  "avec 'monl import'.")
+            print("  → Give this file to an AI, then install the result "
+                  "with 'monl import'.")
         else:
             retouche._lancer_ia(args, retouche_mode=True)
     elif args.command == "import":

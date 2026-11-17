@@ -77,13 +77,13 @@ def _lignes_de_delta(sortie):
     propres à chacun des deux gestes."""
     gardees, dedans = [], False
     for ligne in sortie.splitlines():
-        if ligne.startswith("─── Delta"):
+        if ligne.startswith("─── Frontend contract delta"):
             dedans = True
             continue
         if dedans:
             if ligne.startswith("───"):
                 break
-            if "Consigne prête" in ligne:
+            if "Instructions ready" in ligne:
                 continue  # propre à `update`, qui écrit le brief
             gardees.append(ligne.rstrip())
     return gardees
@@ -155,7 +155,7 @@ def test_diff_et_update_disent_exactement_la_meme_chose(projet, capsys):
 def test_diff_se_tait_quand_la_spec_na_pas_bouge(projet, capsys):
     cmd_diff(str(projet))
     sortie = capsys.readouterr().out
-    assert "aucun changement d'interface" in sortie
+    assert "no interface changes" in sortie
     assert "monl update" not in sortie, \
         "ne pas envoyer appliquer un changement qui n'existe pas"
 
@@ -165,7 +165,7 @@ def test_diff_annonce_quil_na_rien_ecrit(projet, capsys):
     cmd_diff(str(projet))
     sortie = capsys.readouterr().out
     assert "[DRY-RUN]" in sortie
-    assert "Aucun fichier modifié" in sortie
+    assert "No files changed" in sortie
 
 
 def test_diff_renvoie_vers_update_quand_il_y_a_de_quoi(projet, capsys):
@@ -177,7 +177,7 @@ def test_diff_renvoie_vers_update_quand_il_y_a_de_quoi(projet, capsys):
 def test_diff_sans_etat_de_projet_sarrete(tmp_path, capsys):
     with pytest.raises(SystemExit):
         cmd_diff(str(tmp_path))
-    assert "introuvable" in capsys.readouterr().out
+    assert "not found" in capsys.readouterr().out
 
 
 # --------------------------------------------------------------------------
@@ -204,8 +204,8 @@ def test_diff_trouve_les_assets_du_vrai_projet(tmp_path, capsys):
 
     cmd_diff(str(tmp_path))
     sortie = capsys.readouterr().out
-    assert "aucun changement d'interface" in sortie
-    assert "introuvable" not in sortie
+    assert "no interface changes" in sortie
+    assert "not found" not in sortie
     assert "manquant" not in sortie
 
 

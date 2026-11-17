@@ -89,13 +89,14 @@ def _frontend_fetch_contract_errors(contract, appels):
                for declare in chemins):
             continue
         label = _frontend_fetch_path_label(appele)
-        message = f"REFUSÉ : fetch appelle le chemin {label}, absent du contrat"
+        message = (f"REJECTED: fetch calls path {label}, which is absent from "
+                   "the contract")
         if label != appele:
-            message += f" (forme réduite : {appele})"
+            message += f" (reduced form: {appele})"
         suggestions = _frontend_fetch_path_suggestions(
             appele, chemins, chemins_auth)
         if suggestions:
-            message += "; chemins existants possibles : " + ", ".join(suggestions)
+            message += "; possible existing paths: " + ", ".join(suggestions)
         errors.append(message + ".")
     return list(dict.fromkeys(errors))
 
@@ -137,8 +138,8 @@ def _frontend_route_coverage(project_dir, spec_path, contract, appels=None):
     try:
         workflows = parse_monl_file(spec_path).get("workflows", [])
     except Exception as exc:  # pragma: no cover - artefact déjà validé en amont
-        return [], ["Couverture des parcours indéterminable : "
-                    f"lecture des workflows impossible ({exc})."]
+        return [], ["Frontend workflow coverage cannot be determined: "
+                    f"reading workflows failed ({exc})."]
 
     self_register = set(contract.get("self_register_actors") or [])
     route_workflows = {id(route): [] for route in routes}
@@ -164,15 +165,15 @@ def _frontend_route_coverage(project_dir, spec_path, contract, appels=None):
     missing_labels = []
     for route in missing_routes:
         workflows_noms = sorted(set(route_workflows[id(route)]))
-        suffix = (f" (workflows : {', '.join(workflows_noms)})"
-                  if workflows_noms else " (route auxiliaire du contrat)")
+        suffix = (f" (workflows: {', '.join(workflows_noms)})"
+                  if workflows_noms else " (auxiliary contract route)")
         missing_labels.append(_route_label(route) + suffix)
 
     errors, warnings = [], []
     if missing_routes:
         message = (
-            f"Couverture frontend : {len(couverts)}/{len(routes)} routes du contrat "
-            "sont référencées par frontend/. Routes jamais appelées : "
+            f"Frontend coverage: {len(couverts)}/{len(routes)} contract routes "
+            "are referenced by frontend/. Routes never called: "
             + "; ".join(missing_labels)
         )
         # Une route isolée n'est pas nécessairement un écran : un détail peut
@@ -184,9 +185,9 @@ def _frontend_route_coverage(project_dir, spec_path, contract, appels=None):
 
     for workflow, actions in parcours_manquants:
         message = (
-            f"Parcours frontend manquant : workflow '{workflow['name']}' "
-            f"pour l'acteur '{workflow['actor']}' — aucune entrée n'appelle "
-            "une route de ce workflow (actions déclarées : "
+            f"Missing frontend workflow: workflow '{workflow['name']}' "
+            f"for actor '{workflow['actor']}' — no entry calls "
+            "a route from this workflow (declared actions: "
             + ", ".join(actions)
             + ")"
         )

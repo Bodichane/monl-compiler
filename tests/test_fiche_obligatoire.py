@@ -114,7 +114,7 @@ def test_une_reference_sans_action_est_refusee(capsys):
     with pytest.raises(MonlSyntaxError) as refus:
         _valide(SPEC.replace("rule Commande.Create requiresOwn Client",
                              "rule Commande requiresOwn Client"))
-    assert "Entite.champ ou Entite.Action" in str(refus.value)
+    assert "an Entity.field or Entity.Action reference" in str(refus.value)
     capsys.readouterr()
 
 
@@ -122,7 +122,7 @@ def test_une_entite_inexistante_est_refusee(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace("rule Commande.Create requiresOwn Client",
                              "rule Fantome.Create requiresOwn Client"))
-    assert "n'existe pas" in str(refus.value)
+    assert "does not exist" in str(refus.value)
     capsys.readouterr()
 
 
@@ -139,7 +139,7 @@ def test_une_action_autre_que_create_est_refusee(capsys):
 def test_exiger_une_entite_inexistante_est_refuse(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace("requiresOwn Client", "requiresOwn Fantome"))
-    assert "pas une entité déclarée" in str(refus.value)
+    assert "not a declared entity" in str(refus.value)
     capsys.readouterr()
 
 
@@ -148,7 +148,7 @@ def test_une_entite_ne_peut_pas_sexiger_elle_meme(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace("rule Commande.Create requiresOwn Client",
                              "rule Client.Create requiresOwn Client"))
-    assert "elle-même" in str(refus.value)
+    assert "cannot require itself" in str(refus.value)
     capsys.readouterr()
 
 
@@ -162,7 +162,7 @@ def test_exiger_une_entite_que_personne_ne_possede_est_refuse(capsys):
                           .replace("rule Client.Delete ownedBy Client\n", ""))
     with pytest.raises(ASTValidationError) as refus:
         _valide(sans_propriete)
-    assert "possédé par aucun acteur" in str(refus.value)
+    assert "is not owned by any actor" in str(refus.value)
     capsys.readouterr()
 
 
@@ -178,7 +178,7 @@ def test_une_creation_publique_est_refusee(capsys):
 def test_deux_regles_sur_la_meme_entite_sont_refusees(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC + "rule Commande.Create requiresOwn Client\n")
-    assert "une seule autorisée" in str(refus.value)
+    assert "only one is allowed" in str(refus.value)
     capsys.readouterr()
 
 

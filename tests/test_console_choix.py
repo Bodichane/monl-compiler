@@ -119,7 +119,7 @@ def test_les_onze_modeles_sont_onze_boutons_et_pas_un_bloc_de_texte(rapport_jsdo
 
 def test_l_intitule_ne_repete_pas_le_menu_de_terminal(rapport_jsdom):
     intitule = rapport_jsdom["intitule"]
-    assert intitule == "Quel type d'application construisez-vous ?", intitule
+    assert intitule == "What type of application are you building?", intitule
     assert "[1]" not in intitule
 
 
@@ -129,7 +129,7 @@ def test_chaque_bouton_porte_son_rang_son_nom_et_son_aide(rapport_jsdom):
     assert premier["libelle"] == "Portfolio / site vitrine"
     # L'aide dit AUSSI si les visiteurs auront un compte — la question que la
     # console ne posait nulle part.
-    assert "comptes créés par l" in premier["aide"], premier["aide"]
+    assert "accounts created by the" in premier["aide"], premier["aide"]
 
 
 def test_un_clic_repond_et_fait_avancer_le_dialogue(rapport_jsdom):

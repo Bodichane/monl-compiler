@@ -74,7 +74,7 @@ def test_un_dossier_absent_est_nomme_comme_tel(tmp_path):
     """Le cœur du point : ne pas parler du CONTENU d'un dossier qu'on n'a pas
     trouvé."""
     message = _erreur_de_chemin(str(tmp_path / "nulle-part"))
-    assert "Dossier introuvable" in message
+    assert "Directory not found" in message
     assert "monl.json" not in message
     assert "compile" not in message.lower().replace("compilation", "")
 
@@ -83,7 +83,7 @@ def test_un_dossier_absent_dit_que_le_contenu_na_pas_ete_regarde(tmp_path):
     """Sans cette phrase, l'auteur cherche encore ce qui manque DANS le
     dossier."""
     message = _erreur_de_chemin(str(tmp_path / "nulle-part"))
-    assert "pas encore été regardé" in message
+    assert "have not been inspected yet" in message
 
 
 def test_un_dossier_existant_ne_declenche_rien(tmp_path):
@@ -98,8 +98,8 @@ def test_la_barre_oblique_de_tete_est_expliquee(tmp_path, monkeypatch):
     (tmp_path / "projets" / "SneakerLab").mkdir(parents=True)
     monkeypatch.chdir(tmp_path)
     message = _erreur_de_chemin("/projets/SneakerLab")
-    assert "racine du système" in message
-    assert "projets/SneakerLab" in message.split("Vouliez-vous dire :")[1]
+    assert "system root" in message
+    assert "projets/SneakerLab" in message.split("Did you mean:")[1]
 
 
 def test_sans_voisin_plausible_aucune_suggestion_nest_inventee(tmp_path, monkeypatch):
@@ -107,7 +107,7 @@ def test_sans_voisin_plausible_aucune_suggestion_nest_inventee(tmp_path, monkeyp
     non plus renverrait chercher une deuxième fois pour rien."""
     monkeypatch.chdir(tmp_path)
     message = _erreur_de_chemin("/vraiment/nulle/part")
-    assert "Vouliez-vous dire" not in message
+    assert "Did you mean" not in message
 
 
 @pytest.mark.parametrize("geste", [cmd_update, cmd_diff])
@@ -117,7 +117,7 @@ def test_les_gestes_sarretent_sur_le_chemin_pas_sur_letat(geste, tmp_path, capsy
     with pytest.raises(SystemExit):
         geste(str(tmp_path / "nulle-part"))
     sortie = capsys.readouterr().out
-    assert "Dossier introuvable" in sortie
+    assert "Directory not found" in sortie
     assert "monl.json introuvable" not in sortie
 
 
@@ -126,7 +126,7 @@ def test_la_verification_de_coherence_distingue_aussi(tmp_path):
     recompiler un projet jamais trouvé."""
     ok, erreurs, _avertissements = check_coherence(str(tmp_path / "nulle-part"))
     assert not ok
-    assert any("Dossier introuvable" in e for e in erreurs)
+    assert any("Directory not found" in e for e in erreurs)
     assert not any("monl compile" in e for e in erreurs)
 
 
@@ -168,7 +168,7 @@ def test_le_message_dinversion_propose_une_commande_utilisable(tmp_path, monkeyp
                      say=lignes.append)
     capsys.readouterr()
     rendu = "\n".join(lignes)
-    assert "inversés" in rendu
+    assert "arguments appear to be reversed" in rendu
     propose = next(li for li in lignes if li.strip().startswith("monl retouche"))
     assert '"utilise plutôt des icônes"' in propose
     assert "/projets/SneakerLab" not in propose
@@ -181,8 +181,8 @@ def test_une_retouche_bien_ecrite_passe_le_controle(projet, capsys):
     with pytest.raises(SystemExit):
         cmd_retouche(str(projet), "les images sont mal cadrées")
     sortie = capsys.readouterr().out
-    assert "inversés" not in sortie
-    assert "Aucun frontend à retoucher" in sortie
+    assert "arguments appear to be reversed" not in sortie
+    assert "No frontend to touch up (frontend/index.html is missing)" in sortie
 
 
 def test_compile_avec_output_cherche_les_assets_a_cote_de_la_spec(tmp_path, capsys):

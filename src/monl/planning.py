@@ -89,9 +89,9 @@ def plan_derivations(
         fk = foreign_keys.get((entity, source))
         if fk is None:
             raise ValueError(
-                f"Génération : aucune colonne de clé étrangère de '{entity}' ne "
-                f"désigne '{source}', alors que le validateur l'exigeait "
-                f"pour 'derivedFrom'.")
+                f"Generation: no foreign-key column on '{entity}' references "
+                f"'{source}', although the validator required it "
+                f"for 'derivedFrom'.")
         plans.setdefault(entity, []).append(DerivedPlan(
             entity=entity, field=rule["field"], source_entity=source,
             source_field=rule["source_field"], factor=rule["factor"], source_fk=fk,
@@ -111,9 +111,9 @@ def plan_aggregations(
         fk = foreign_keys.get((source, entity))
         if fk is None:
             raise ValueError(
-                f"Génération : aucune colonne de clé étrangère de "
-                f"'{source}' ne désigne '{entity}', alors que "
-                f"le validateur l'exigeait pour 'sumOf'.")
+                f"Generation: no foreign-key column on "
+                f"'{source}' references '{entity}', although "
+                "the validator required it for 'sumOf'.")
         plan = AggregatePlan(
             entity=entity, field=rule["field"], source_entity=source,
             source_field=rule["source_field"], parent_fk=fk,
@@ -138,8 +138,8 @@ def plan_counters(
         fk = foreign_keys.get((trigger, target))
         if fk is None:
             raise ValueError(
-                f"Génération : aucune clé étrangère de '{trigger}' ne désigne "
-                f"'{target}', alors que l'effet compteur l'exige.")
+                f"Generation: no foreign key on '{trigger}' references "
+                f"'{target}', although the counter effect requires it.")
         bound = constraints.get((target, rule["target_field"]), {}).get("min")
         plans.setdefault(trigger, []).append(CounterPlan(
             trigger_entity=trigger, target_entity=target, target_field=rule["target_field"],

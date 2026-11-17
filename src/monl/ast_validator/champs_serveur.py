@@ -22,32 +22,32 @@ class ChampsServeurMixin:
                 continue
             if "." not in rule["reference"]:
                 raise ASTValidationError(
-                    f"Structure : la règle 'generated' doit référencer 'Entite.champ', reçu '{rule['reference']}'."
+                    f"Structure: the 'generated' rule must reference 'Entity.field'; got '{rule['reference']}'."
                 )
             entity, field = rule["reference"].split(".", 1)
             if entity not in self.entities:
-                raise ASTValidationError(f"Structure : la règle 'generated' cible l'entité '{entity}' qui n'existe pas.")
+                raise ASTValidationError(f"Structure: the 'generated' rule targets entity '{entity}', which does not exist.")
             field_type = self.entities.get(entity, {}).get(field)
             if field_type != "String":
                 raise ASTValidationError(
-                    f"Structure : 'generated' cible le champ '{entity}.{field}', qui doit être un attribut "
-                    f"String déclaré (reçu : {field_type or 'champ inexistant'}) -- un pseudonyme est toujours "
-                    f"du texte court."
+                    f"Structure: 'generated' targets field '{entity}.{field}', which must be a declared "
+                    f"String attribute (got: {field_type or 'field does not exist'}) -- a pseudonym is always "
+                    f"short text."
                 )
             if (entity, field) in self.masked_fields:
                 raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' est à la fois 'hidden' et 'generated' -- incompatible : "
-                    f"'generated' produit déjà une valeur sûre à afficher, la masquer en plus n'a pas de sens."
+                    f"Structure: '{entity}.{field}' is both 'hidden' and 'generated' -- incompatible: "
+                    f"'generated' already produces a safe value to display; hiding it as well makes no sense."
                 )
             if (entity, field) in seen_fields:
                 raise ASTValidationError(
-                    f"Structure : plusieurs règles 'generated' déclarées pour '{entity}.{field}' -- une seule autorisée."
+                    f"Structure: multiple 'generated' rules declared for '{entity}.{field}' -- only one is allowed."
                 )
             seen_fields.add((entity, field))
             if (entity, "Create") in self.public_actions:
                 raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' est 'generated', mais '{entity}.Create' est 'public' -- "
-                    f"incompatible : 'generated' exige un appelant authentifié dont dériver le pseudonyme."
+                    f"Structure: '{entity}.{field}' is 'generated', but '{entity}.Create' is 'public' -- "
+                    f"incompatible: 'generated' requires an authenticated caller from whom to derive the pseudonym."
                 )
             self.generated_fields.append({"entity": entity, "field": field})
 
@@ -60,39 +60,39 @@ class ChampsServeurMixin:
                 continue
             if "." not in rule["reference"]:
                 raise ASTValidationError(
-                    f"Structure : la règle 'timestamp' doit référencer 'Entite.champ', reçu '{rule['reference']}'."
+                    f"Structure: the 'timestamp' rule must reference 'Entity.field'; got '{rule['reference']}'."
                 )
             entity, field = rule["reference"].split(".", 1)
             if entity not in self.entities:
                 raise ASTValidationError(
-                    f"Structure : la règle 'timestamp' cible l'entité '{entity}' qui n'existe pas."
+                    f"Structure: the 'timestamp' rule targets entity '{entity}', which does not exist."
                 )
             field_type = self.entities.get(entity, {}).get(field)
             if field_type != "DateTime":
                 indice = (
-                    " -- 'Date' tronquerait l'heure que le serveur connaît, et deux enregistrements du même jour "
-                    "ne seraient plus ordonnables" if field_type == "Date" else ""
+                    " -- 'Date' would truncate the time known by the server, and two records from the same day "
+                    "could no longer be ordered" if field_type == "Date" else ""
                 )
                 raise ASTValidationError(
-                    f"Structure : 'timestamp' cible le champ '{entity}.{field}', qui doit être "
-                    f"un attribut DateTime déclaré (reçu : {field_type or 'champ inexistant'}){indice}."
+                    f"Structure: 'timestamp' targets field '{entity}.{field}', which must be "
+                    f"a declared DateTime attribute (got: {field_type or 'field does not exist'}){indice}."
                 )
             if (entity, field) in self.masked_fields:
                 raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' est à la fois 'hidden' et 'timestamp' -- "
-                    f"incompatible : le client ne peut pas l'écrire et ne pourrait pas le lire, "
-                    f"donc ce champ n'existerait nulle part."
+                    f"Structure: '{entity}.{field}' is both 'hidden' and 'timestamp' -- "
+                    f"incompatible: the client cannot write it and could not read it either, "
+                    f"so this field would exist nowhere."
                 )
             if (entity, field) in seen_fields:
                 raise ASTValidationError(
-                    f"Structure : plusieurs règles 'timestamp' déclarées pour '{entity}.{field}' -- une seule autorisée."
+                    f"Structure: multiple 'timestamp' rules declared for '{entity}.{field}' -- only one is allowed."
                 )
             if any(timestamp["entity"] == entity for timestamp in self.timestamp_fields):
                 other = next(timestamp["field"] for timestamp in self.timestamp_fields if timestamp["entity"] == entity)
                 raise ASTValidationError(
-                    f"Structure : '{entity}' porte deux champs 'timestamp' ('{other}' et "
-                    f"'{field}') -- tous deux recevraient le MÊME instant de création. "
-                    f"Un horodatage de modification serait une autre brique, pas celle-ci."
+                    f"Structure: '{entity}' has two 'timestamp' fields ('{other}' and "
+                    f"'{field}') -- both would receive the SAME creation time. "
+                    f"A modification timestamp would be a different feature, not this one."
                 )
             seen_fields.add((entity, field))
             self.timestamp_fields.append({"entity": entity, "field": field})
@@ -119,26 +119,26 @@ class ChampsServeurMixin:
         # la compter séparément, sinon 'CMD-{YYYY' passerait pour du texte.
         if gabarit.count("{") != len(jalons) or gabarit.count("}") != len(jalons):
             raise ASTValidationError(
-                f"Structure : le gabarit de 'numbered' sur '{entity}.{field}' a une "
-                f"accolade orpheline : {gabarit!r}.")
+                f"Structure: the 'numbered' format for '{entity}.{field}' has an "
+                f"unmatched brace: {gabarit!r}.")
         sequences = [j for j in jalons if set(j) == {"N"}]
         inconnus = [j for j in jalons
                     if j not in self.JALONS_DATE and set(j) != {"N"}]
         if inconnus:
             raise ASTValidationError(
-                f"Structure : le gabarit de 'numbered' sur '{entity}.{field}' emploie "
-                f"{', '.join(repr('{' + j + '}') for j in inconnus)}, qui ne veut rien "
-                f"dire. Jalons acceptés : '{{YYYY}}', '{{MM}}', '{{DD}}', et une suite "
-                f"de N pour la séquence ('{{NNNN}}' = quatre chiffres).")
+                f"Structure: the 'numbered' format for '{entity}.{field}' uses "
+                f"{', '.join(repr('{' + j + '}') for j in inconnus)}, which has no "
+                f"meaning. Accepted tokens: '{{YYYY}}', '{{MM}}', '{{DD}}', and a sequence "
+                f"of Ns ('{{NNNN}}' = four digits).")
         if not sequences:
             raise ASTValidationError(
-                f"Structure : le gabarit de 'numbered' sur '{entity}.{field}' n'a aucune "
-                f"séquence ('{{NNNN}}') -- tous les enregistrements porteraient le MÊME "
-                f"numéro, ce qui n'en est pas un.")
+                f"Structure: the 'numbered' format for '{entity}.{field}' has no "
+                f"sequence ('{{NNNN}}') -- all records would have the SAME "
+                f"number, which would not be a number at all.")
         if len(sequences) > 1:
             raise ASTValidationError(
-                f"Structure : le gabarit de 'numbered' sur '{entity}.{field}' contient "
-                f"{len(sequences)} séquences -- rien ne dit laquelle s'incrémente.")
+                f"Structure: the 'numbered' format for '{entity}.{field}' contains "
+                f"{len(sequences)} sequences -- nothing says which one to increment.")
         # Une date incomplète fait se répéter la séquence : 'CMD-{MM}-{NNNN}'
         # redonne 'CMD-03-0001' tous les mois de mars. L'index unique
         # l'attraperait, mais un an plus tard et en production.
@@ -148,10 +148,10 @@ class ChampsServeurMixin:
                                       strict=False):
             if "{" + suivant + "}" in gabarit and "{" + précédent + "}" not in gabarit:
                 raise ASTValidationError(
-                    f"Structure : le gabarit de 'numbered' sur '{entity}.{field}' emploie "
-                    f"'{{{suivant}}}' sans '{{{précédent}}}' -- la séquence se remettrait "
-                    f"à zéro sans que le numéro dise de quelle période il s'agit, et "
-                    f"deux enregistrements finiraient par porter le même.")
+                    f"Structure: the 'numbered' format for '{entity}.{field}' uses "
+                    f"'{{{suivant}}}' without '{{{précédent}}}' -- the sequence would reset "
+                    f"without the number identifying the period, and "
+                    f"two records would eventually have the same number.")
 
     def _valider_champs_numerotes(self):
         """Valide les numéros lisibles générés côté serveur."""
@@ -161,32 +161,32 @@ class ChampsServeurMixin:
                 continue
             if "." not in rule["reference"]:
                 raise ASTValidationError(
-                    f"Structure : la règle 'numbered' doit référencer 'Entite.champ', reçu '{rule['reference']}'."
+                    f"Structure: the 'numbered' rule must reference 'Entity.field'; got '{rule['reference']}'."
                 )
             entity, field = rule["reference"].split(".", 1)
             if entity not in self.entities:
                 raise ASTValidationError(
-                    f"Structure : la règle 'numbered' cible l'entité '{entity}' qui n'existe pas."
+                    f"Structure: the 'numbered' rule targets entity '{entity}', which does not exist."
                 )
             field_type = self.entities.get(entity, {}).get(field)
             if field_type != "String":
                 indice = (
-                    " -- un 'UUID' vérifie sa forme depuis le point 101, et un numéro lisible n'en a pas la forme"
+                    " -- a 'UUID' validates its format as of point 101, and a readable number does not have that format"
                     if field_type == "UUID" else ""
                 )
                 raise ASTValidationError(
-                    f"Structure : 'numbered' cible le champ '{entity}.{field}', qui doit "
-                    f"être un attribut String déclaré (reçu : {field_type or 'champ inexistant'}){indice}."
+                    f"Structure: 'numbered' targets field '{entity}.{field}', which must "
+                    f"be a declared String attribute (got: {field_type or 'field does not exist'}){indice}."
                 )
             if (entity, field) in self.masked_fields:
                 raise ASTValidationError(
-                    f"Structure : '{entity}.{field}' est à la fois 'hidden' et "
-                    f"'numbered' -- incompatible : le client ne peut pas l'écrire et ne "
-                    f"pourrait pas le lire, donc ce numéro n'existerait pour personne."
+                    f"Structure: '{entity}.{field}' is both 'hidden' and "
+                    f"'numbered' -- incompatible: the client cannot write it and could not "
+                    f"read it either, so this number would exist for nobody."
                 )
             if any(numbered["entity"] == entity and numbered["field"] == field for numbered in self.numbered_fields):
                 raise ASTValidationError(
-                    f"Structure : plusieurs règles 'numbered' déclarées pour '{entity}.{field}' -- une seule autorisée."
+                    f"Structure: multiple 'numbered' rules declared for '{entity}.{field}' -- only one is allowed."
                 )
             self._valider_gabarit_de_numero(entity, field, rule["value"])
             self.numbered_fields.append({

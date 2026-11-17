@@ -92,7 +92,7 @@ def test_update_rapporte_le_champ_ajoute_et_prepare_la_consigne(projet, capsys):
     cmd_update(str(projet))
     sortie = capsys.readouterr().out
     assert "Note.body" in sortie, sortie
-    assert "champ ajouté" in sortie, sortie
+    assert "field added" in sortie, sortie
     assert (projet / "docs/FRONTEND_UPDATE_PROMPT.md").exists()
     # Le delta doit aussi être arrivé dans le contrat lui-même.
     contrat = json.loads((projet / "frontend_contract.json").read_text(encoding="utf-8"))
@@ -104,7 +104,7 @@ def test_update_sans_changement_ne_fabrique_pas_de_consigne(projet, capsys):
     l'IA frontend sur une interface déjà juste."""
     cmd_update(str(projet))
     sortie = capsys.readouterr().out
-    assert "aucun changement d'interface" in sortie, sortie
+    assert "no interface changes" in sortie, sortie
     assert not (projet / "docs/FRONTEND_UPDATE_PROMPT.md").exists()
 
 

@@ -72,13 +72,13 @@ def test_kkiapay_est_refuse_en_disant_pourquoi():
         _valide(SPEC_BOUTIQUE + "\ncapability payment\n    provider: kkiapay\n")
     message = str(refus.value)
     assert "kkiapay" in message
-    assert "devinera pas" in message
+    assert "is not implemented by monl, and this is intentional" in message
 
 
 def test_un_prestataire_inconnu_est_refuse():
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC_BOUTIQUE + "\ncapability payment\n    provider: banqueX\n")
-    assert "inconnu" in str(refus.value)
+    assert "unknown payment provider" in str(refus.value)
 
 
 def test_deux_prestataires_ne_compilent_pas():
@@ -86,7 +86,7 @@ def test_deux_prestataires_ne_compilent_pas():
             + "\ncapability payment\n    provider: fedapay\n")
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec)
-    assert "deux fois" in str(refus.value)
+    assert "payment provider is declared twice" in str(refus.value)
 
 
 def test_un_prestataire_sans_rien_a_encaisser_est_refuse():

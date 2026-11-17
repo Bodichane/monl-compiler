@@ -117,10 +117,10 @@ def test_une_photo_de_seed_absente_ne_compile_pas(tmp_path):
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec.read_text(encoding="utf-8"), base_dir=str(tmp_path))
     message = str(refus.value)
-    assert "n'existe pas" in message
+    assert "does not exist" in message
     # Le message doit nommer le champ ET dire pourquoi le refus est là.
     assert "'photo'" in message
-    assert "image cassée" in message
+    assert "broken image" in message
 
 
 def test_un_logo_declare_mais_absent_ne_compile_pas(tmp_path):
@@ -139,8 +139,8 @@ def test_les_chemins_mal_formes_sont_refuses_sans_toucher_au_disque():
     forme toujours, l'existence quand on sait où l'on est."""
     table = [
         ("/etc/passwd", "ABSOLU"),
-        ("../../secret.jpg", "REMONTE"),
-        ("https://picsum.photos/400", "adresse distante"),
+        ("../../secret.jpg", "TRAVELS outside the project"),
+        ("https://picsum.photos/400", "remote address"),
     ]
 
     def cas(chemin, fragment):

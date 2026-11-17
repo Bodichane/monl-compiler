@@ -42,8 +42,8 @@ def _resoudre_seed(normalized, lignes, pour, entity, field):
     blocs_ast = normalized.get("seeds") or []
     if not blocs_ast:
         raise AssetsToolError(
-            "Cette spec n'a aucun bloc 'seed' : rien à quoi rattacher une photo. "
-            "Ajouter le bloc, ou viser --logo / --favicon.")
+            "This spec has no 'seed' block to attach a photo to. Add the block, "
+            "or use --logo / --favicon.")
     # Filet : la correspondance fichier ↔ AST est ce sur quoi tout repose. Si
     # elle ne tient pas, s'arrêter vaut mieux qu'écrire sur une autre fiche —
     # une spec où la photo est sur la mauvaise ligne compile parfaitement.
@@ -51,9 +51,9 @@ def _resoudre_seed(normalized, lignes, pour, entity, field):
             or any(f[0] != a["entity"] for f, a in zip(blocs_fichier, blocs_ast, strict=True))
             or any(len(f[1]) != len(a["rows"]) for f, a in zip(blocs_fichier, blocs_ast, strict=True))):
         raise AssetsToolError(
-            "Les blocs 'seed' du fichier ne correspondent pas à ceux de la spec "
-            "compilée (nombre de fiches différent). L'outil s'arrête plutôt que "
-            "d'écrire sur une autre fiche que celle demandée.")
+            "The file's 'seed' blocks do not match those in the compiled spec "
+            "(different number of rows). The tool stops rather than writing to "
+            "a different row from the one requested.")
 
     candidats, toutes_valeurs = [], []
     for (ent, plages), bloc in zip(blocs_fichier, blocs_ast, strict=True):
@@ -75,15 +75,15 @@ def _resoudre_seed(normalized, lignes, pour, entity, field):
 
     if not candidats:
         proches = difflib.get_close_matches(pour, toutes_valeurs, n=3, cutoff=0.5)
-        indice = (" Peut-être : " + ", ".join(f"'{p}'" for p in proches)) if proches else ""
+        indice = (" Maybe: " + ", ".join(f"'{p}'" for p in proches)) if proches else ""
         raise AssetsToolError(
-            f"Aucune ligne de seed ne porte la valeur '{pour}'"
-            + (f" dans l'entité {entity}" if entity else "") + f".{indice}")
+            f"No seed row has the value '{pour}'"
+            + (f" in entity {entity}" if entity else "") + f".{indice}")
     if len(candidats) > 1:
         ou = ", ".join(f"{e} ligne {plage[0] + 1}" for e, plage, _ in candidats)
         raise AssetsToolError(
-            f"'{pour}' désigne {len(candidats)} lignes ({ou}) : préciser --entity, "
-            f"ou viser une valeur qui n'appartient qu'à une seule fiche.")
+            f"'{pour}' matches {len(candidats)} rows ({ou}): specify --entity, "
+            f"or use a value that belongs to only one row.")
 
     ent, plage, _row = candidats[0]
     champs = normalized["schema"]["entities"].get(ent, {})
@@ -93,37 +93,36 @@ def _resoudre_seed(normalized, lignes, pour, entity, field):
             return ent, field, plage
         if field in champs:
             raise AssetsToolError(
-                f"{ent}.{field} est de type '{champs[field]}', pas 'Image' — seul ce "
-                f"type fait vérifier le fichier à la compilation. "
-                + (f"Champs 'Image' de {ent} : {', '.join(images)}." if images
-                   else f"{ent} n'a aucun champ 'Image'."))
-        raise AssetsToolError(f"{ent} n'a pas de champ '{field}'.")
+                f"{ent}.{field} has type '{champs[field]}', not 'Image' — only this "
+                f"type makes compilation check the file. "
+                + (f"'Image' fields in {ent}: {', '.join(images)}." if images
+                   else f"{ent} has no 'Image' field."))
+        raise AssetsToolError(f"{ent} has no '{field}' field.")
     if not images:
         raise AssetsToolError(
-            f"L'entité {ent} n'a aucun champ de type 'Image' : déclarer par exemple "
-            f"'photo: Image' dans son bloc 'entity'. C'est ce type qui fait vérifier "
-            f"le fichier présent à la compilation — un champ 'String' accepterait "
-            f"n'importe quel chemin en silence.")
+            f"Entity {ent} has no field of type 'Image': declare, for example, "
+            f"'photo: Image' in its 'entity' block. This type makes compilation "
+            f"check that the file exists — a 'String' field would silently accept "
+            f"any path.")
     if len(images) > 1:
         raise AssetsToolError(
-            f"{ent} a plusieurs champs 'Image' ({', '.join(images)}) : préciser --field.")
+            f"{ent} has multiple 'Image' fields ({', '.join(images)}): specify --field.")
     return ent, images[0], plage
 
 def _nom_de_fichier(source, nom, pour, cible):
     if nom:
         if os.sep in nom or "/" in nom or nom.strip(".") == "":
             raise AssetsToolError(
-                f"--as attend un NOM de fichier, pas un chemin : '{nom}'.")
+                f"--as expects a file NAME, not a path: '{nom}'.")
         return nom
     racine = sluggify(pour or cible)
     if not racine:
         raise AssetsToolError(
-            f"'{pour or cible}' ne donne aucun nom de fichier utilisable "
-            f"(ni lettre ni chiffre) — préciser --as <nom>.")
+            f"'{pour or cible}' does not produce a usable filename "
+            f"(no letters or digits) — specify --as <name>.")
     extension = os.path.splitext(source)[1].lower()
     if not extension:
         raise AssetsToolError(
-            f"'{source}' n'a pas d'extension : servi tel quel, le navigateur ne "
-            f"saurait pas de quel type de fichier il s'agit. Renommer la source, "
-            f"ou donner --as <nom.ext>.")
+            f"'{source}' has no extension: served as-is, the browser cannot "
+            f"determine the file type. Rename the source, or provide --as <name.ext>.")
     return racine + extension

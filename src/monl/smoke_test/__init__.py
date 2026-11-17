@@ -76,11 +76,11 @@ def run_smoke_test(project_dir, say=print):
                 if status == 200:
                     break
                 if server.poll() is not None:
-                    raise fondations.SmokeFailure("le serveur éphémère s'est arrêté au démarrage : "
+                    raise fondations.SmokeFailure("the temporary server stopped during startup: "
                                        + server.stderr.read().decode(errors="replace")[-400:])
                 time.sleep(0.2)
             else:
-                raise fondations.SmokeFailure("le serveur éphémère n'a jamais répondu sur /docs")
+                raise fondations.SmokeFailure("the temporary server never responded on /docs")
 
             actor, token = etapes._compte_de_test(base, contract, errors, warnings)
 

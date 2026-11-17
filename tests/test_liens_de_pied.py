@@ -75,10 +75,10 @@ def test_une_adresse_inutilisable_est_refusee():
     RELATIF et mène à une page inexistante du site.
     """
     table = [
-        ('link "Instagram": "instagram.com/atelier"', "chemin du site lui-même"),
-        ('link "Site": "www.exemple.fr"', "chemin du site lui-même"),
-        ('link "Vide": ""', "non vides"),
-        ('link "": "https://exemple.fr"', "non vides"),
+        ('link "Instagram": "instagram.com/atelier"', "path on the site itself"),
+        ('link "Site": "www.exemple.fr"', "path on the site itself"),
+        ('link "Vide": ""', "non-empty"),
+        ('link "": "https://exemple.fr"', "non-empty"),
     ]
 
     def cas(ligne, attendu):
@@ -89,7 +89,7 @@ def test_une_adresse_inutilisable_est_refusee():
 
 
 def test_deux_liens_au_meme_libelle_sont_refuses():
-    with pytest.raises(ValueError, match="portent le libellé"):
+    with pytest.raises(ValueError, match="have the label"):
         _valider([
             'link "Instagram": "https://instagram.com/a"',
             'link "instagram": "https://instagram.com/b"',
@@ -97,7 +97,7 @@ def test_deux_liens_au_meme_libelle_sont_refuses():
 
 
 def test_la_meme_adresse_deux_fois_est_refusee():
-    with pytest.raises(ValueError, match="déclarée deux fois"):
+    with pytest.raises(ValueError, match="declared twice"):
         _valider([
             'link "Notre page": "https://exemple.fr"',
             'link "Nous suivre": "https://exemple.fr"',

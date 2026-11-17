@@ -94,8 +94,8 @@ def test_le_menu_interactif_propose_express_avant_la_personnalisation():
 
     spec = GuidedDialogue(ask=ask, choose_experience=True).run()
     assert "app StudioExpress" in spec
-    experience = next(p for p in prompts if "expérience" in p)
-    assert experience.index("Création rapide") < experience.index("Personnalisation")
+    experience = next(p for p in prompts if "experience" in p)
+    assert experience.index("Quick creation") < experience.index("Detailed customization")
 
 
 def test_spec_produite_compile_reellement():
@@ -167,7 +167,7 @@ def test_une_adresse_incomprehensible_est_passee_et_dite():
     spec = GuidedDialogue(ask=lambda p: next(it), say=dits.append).run()
 
     assert "link " not in spec
-    assert any("incomprise" in ligne for ligne in dits), dits
+    assert any("Unrecognized address" in ligne for ligne in dits), dits
     MonlAST(parse_monl_string(spec)).validate_and_audit()
 
 

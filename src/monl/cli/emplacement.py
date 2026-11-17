@@ -43,10 +43,10 @@ def _erreur_de_chemin(project_dir, *, fichier_requis=None):
     if os.path.isdir(project_dir):
         if fichier_requis and not os.path.isfile(
                 os.path.join(project_dir, fichier_requis)):
-            return (f" ❌ Contrat frontend incomplet : {fichier_requis} absent — "
-                    "lancer d'abord 'monl compile'.")
+            return (f" ❌ Incomplete frontend contract: {fichier_requis} missing — "
+                    "run 'monl compile' first.")
         return None
-    lignes = [f" ❌ Dossier introuvable : {project_dir}"]
+    lignes = [f" ❌ Directory not found: {project_dir}"]
     # La faute la plus courante, et celle qui a motivé ce point : un chemin
     # RELATIF écrit avec une barre oblique de tête. `/projets/X` n'est pas
     # « projets/X ici » — c'est « X dans le dossier projets À LA RACINE DU
@@ -55,11 +55,11 @@ def _erreur_de_chemin(project_dir, *, fichier_requis=None):
         voisin = project_dir.lstrip(os.sep)
         if os.path.isdir(voisin):
             lignes.append(
-                f"    Le chemin commence par « {os.sep} » : il est cherché à la "
-                f"racine du système, pas depuis ici.")
-            lignes.append(f"    Vouliez-vous dire : {voisin}")
-    lignes.append("    (le contenu du dossier n'a pas encore été regardé : "
-                  "c'est le chemin qui bloque, pas la compilation)")
+                f"    The path starts with '{os.sep}': it is searched from the "
+                f"system root, not from here.")
+            lignes.append(f"    Did you mean: {voisin}")
+    lignes.append("    (the directory contents have not been inspected yet: "
+                  "the path is the problem, not the compilation)")
     return "\n".join(lignes)
 
 def _save_state(project_dir, spec_relpath, spec_source_path=None):
@@ -104,7 +104,7 @@ def _situer_projet(project_dir, geste):
         sys.exit(1)
     state = _load_state(project_dir)
     if state is None:
-        print(f" ❌ {nomenclature.STATE_FILENAME} introuvable — rien à {geste} ici.")
+        print(f" ❌ {nomenclature.STATE_FILENAME} not found — nothing to {geste} here.")
         sys.exit(1)
     spec_path = state["spec"] if os.path.isabs(state["spec"]) \
         else os.path.join(project_dir, state["spec"])
@@ -132,13 +132,13 @@ def _spec_du_projet(project_dir):
         sys.exit(1)
     state = _load_state(os.path.abspath(project_dir))
     if state is None:
-        print(f" ❌ {nomenclature.STATE_FILENAME} introuvable — ce dossier n'est pas un projet "
-              "monl compilé (lancer 'monl' ou 'monl compile').")
+        print(f" ❌ {nomenclature.STATE_FILENAME} not found — this directory is not a compiled "
+              "monl project (run 'monl' or 'monl compile').")
         sys.exit(1)
     spec_path = state["spec"] if os.path.isabs(state["spec"]) \
         else os.path.join(os.path.abspath(project_dir), state["spec"])
     if not os.path.exists(spec_path):
-        print(f" ❌ Spec introuvable : {spec_path}")
+        print(f" ❌ Spec not found: {spec_path}")
         sys.exit(1)
     return spec_path
 

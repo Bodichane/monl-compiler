@@ -134,7 +134,7 @@ def test_la_forme_upload_est_distincte_et_complete(capsys):
 def test_un_upload_sans_regle_ne_produit_pas_une_fausse_promesse(capsys):
     spec = SPEC.replace(
         'rule Profile.avatar upload max 16 types "image/png", "image/jpeg"\n', "")
-    with pytest.raises(ASTValidationError, match="aucune règle de dépôt"):
+    with pytest.raises(ASTValidationError, match="has no upload rule"):
         MonlAST(parse_monl_string(spec)).validate_and_audit()
     capsys.readouterr()
 
@@ -155,7 +155,9 @@ def test_html_et_svg_ne_sont_pas_des_types_upload_acceptes(capsys):
         'rule Profile.avatar upload max 16 types "image/png", "image/jpeg"',
         'rule Profile.avatar upload max 16 types "text/html"',
     )
-    with pytest.raises(ASTValidationError, match="HTML et SVG"):
+    with pytest.raises(
+            ASTValidationError,
+            match="Executable HTML and SVG are rejected by design"):
         MonlAST(parse_monl_string(spec)).validate_and_audit()
     capsys.readouterr()
 

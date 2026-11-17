@@ -25,7 +25,7 @@ class AuditMixin:
             for action in wf["actions"]:
                 target = action["target"]
                 if action["type"] == "Delete" and actor != "Admin":
-                    reports.append(f"⚠️  [CRITICAL_WARNING] Le workflow '{wf['name']}' permet à l'acteur '{actor}' de supprimer l'entité '{target}'. Assurez-vous que cette action est hautement sécurisée au niveau infra.")
+                    reports.append(f"⚠️  [CRITICAL_WARNING] Workflow '{wf['name']}' allows actor '{actor}' to delete entity '{target}'. Ensure this action is highly secured at the infrastructure level.")
 
                 if action["type"] == "Execute":
                     if target not in custom_callers:
@@ -43,12 +43,12 @@ class AuditMixin:
                         allowed_actor = restricted_fields[ref]
                         for caller in calling_actors:
                             if caller != allowed_actor:
-                                reports.append(f"🔒 [SECURITY_AUDIT] Le bloc de logique IA '{c_name}' (exécuté par '{caller}') utilise la donnée sensible '{ref}' restreinte à l'acteur '{allowed_actor}'.")
+                                reports.append(f"🔒 [SECURITY_AUDIT] AI logic block '{c_name}' (run by '{caller}') uses sensitive data '{ref}', restricted to actor '{allowed_actor}'.")
 
         if not reports:
-            print("🛡️  Audit : Aucune vulnérabilité ou privilège excessif détecté dans la spécification.")
+            print("🛡️  Audit: No vulnerabilities or excessive privileges detected in the specification.")
         else:
-            print(f"🛑 Audit : {len(reports)} point(s) de vigilance sécurité identifié(s) :")
+            print(f"🛑 Audit: {len(reports)} security concern(s) identified:")
             for r in reports:
                 print(f"   {r}")
 
@@ -59,26 +59,26 @@ class AuditMixin:
         reports = []
         provisioned = [a for a in self.actors if a not in self.self_register_actors]
         if self.self_register_actors:
-            print(f"🔓 Inscription libre : [{', '.join(self.self_register_actors)}]"
-                  + (f" — provisionnés hors ligne : [{', '.join(provisioned)}]."
-                     if provisioned else " (tous les rôles)."))
+            print(f"🔓 Open registration: [{', '.join(self.self_register_actors)}]"
+                  + (f" — provisioned offline: [{', '.join(provisioned)}]."
+                     if provisioned else " (all roles)."))
         elif self.actors:
-            print("🔒 Aucun acteur 'selfRegister' : '/register' refusera toute inscription "
-                  "(comptes à créer via 'python3 manage.py adduser').")
+            print("🔒 No 'selfRegister' actor: '/register' will reject all registrations "
+                  "(accounts must be created via 'python3 manage.py adduser').")
         if not self.self_register_actors:
             reports.append(
-                "[SECURITY_NOTE] Aucun acteur n'est marqué 'selfRegister' : "
-                "'POST /register' refusera toutes les inscriptions et les comptes "
-                "devront être créés hors ligne (python3 manage.py adduser). "
-                f"Pour ouvrir l'inscription d'un rôle : 'actor {self.actors[0]} selfRegister'."
+                "[SECURITY_NOTE] No actor is marked 'selfRegister': "
+                "'POST /register' will reject all registrations and accounts "
+                "must be created offline (python3 manage.py adduser). "
+                f"To open registration for a role: 'actor {self.actors[0]} selfRegister'."
                 if self.actors else
-                "[SECURITY_NOTE] Aucun acteur déclaré."
+                "[SECURITY_NOTE] No actor declared."
             )
         else:
             reports.append(
-                "[SECURITY_NOTE] Inscription libre ouverte à "
+                "[SECURITY_NOTE] Open registration for "
                 f"[{', '.join(self.self_register_actors)}]"
-                + (f" ; rôles provisionnés hors ligne : [{', '.join(provisioned)}]."
-                   if provisioned else " (tous les rôles déclarés).")
+                + (f"; roles provisioned offline: [{', '.join(provisioned)}]."
+                   if provisioned else " (all declared roles).")
             )
         return reports

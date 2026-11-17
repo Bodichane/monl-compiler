@@ -62,7 +62,7 @@ def test_une_devise_inconnue_est_refusee_jamais_devinee():
         _valide(SPEC_BOUTIQUE + "\ncapability payment\n    currency: ZZZ\n")
     message = str(refus.value)
     assert "ZZZ" in message
-    assert "multiplierait chaque montant par cent" in message
+    assert "multiply every amount by one hundred" in message
 
 
 def test_une_devise_a_trois_decimales_est_refusee_en_le_disant():
@@ -70,7 +70,7 @@ def test_une_devise_a_trois_decimales_est_refusee_en_le_disant():
     pas envoyer chercher une faute de frappe."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC_BOUTIQUE + "\ncapability payment\n    currency: TND\n")
-    assert "trois décimales" in str(refus.value)
+    assert "three decimal places" in str(refus.value)
 
 
 def test_la_devise_posee_sur_capability_auth_nomme_la_bonne_capacite():
@@ -86,7 +86,7 @@ def test_deux_devises_ne_compilent_pas():
             + "\ncapability payment\n    currency: EUR\n")
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec)
-    assert "deux fois" in str(refus.value)
+    assert "currency is declared twice" in str(refus.value)
 
 
 def test_une_devise_sans_rien_a_encaisser_est_refusee():

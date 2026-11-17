@@ -63,7 +63,7 @@ def test_valid_spec_exports_access_parties():
 
 
 def test_unknown_column_is_rejected():
-    with pytest.raises(ASTValidationError, match="ni un champ déclaré"):
+    with pytest.raises(ASTValidationError, match="neither a declared field"):
         _validate(BASE_SPEC.format(recipient_type="Integer", action="Read",
                                    columns="user_id, colonne_inexistante", extra_rule=""))
 
@@ -75,7 +75,7 @@ def test_non_integer_column_is_rejected():
 
 
 def test_create_action_is_rejected():
-    with pytest.raises(ASTValidationError, match="invalide"):
+    with pytest.raises(ASTValidationError, match="invalid action"):
         _validate(BASE_SPEC.format(recipient_type="Integer", action="Create",
                                    columns="user_id, recipient_id", extra_rule=""))
 
@@ -88,7 +88,7 @@ def test_conflict_with_ownedby_is_rejected():
 
 
 def test_identical_parties_are_rejected():
-    with pytest.raises(ASTValidationError, match="DISTINCTES"):
+    with pytest.raises(ASTValidationError, match="distinct columns"):
         _validate(BASE_SPEC.format(recipient_type="Integer", action="Read",
                                    columns="user_id, user_id", extra_rule=""))
 
@@ -243,7 +243,7 @@ def test_supervisor_exported_without_collision():
 
 
 def test_supervisor_must_be_a_declared_actor():
-    with pytest.raises(ASTValidationError, match="pas un acteur"):
+    with pytest.raises(ASTValidationError, match="not a declared actor"):
         _validate(SUPER_SPEC.replace("rule Message.Read sharedBy Moderator",
                                      "rule Message.Read sharedBy Spectateur"))
 

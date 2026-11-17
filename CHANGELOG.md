@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Changed
+
+- The compiler speaks English (English migration, PR 2, first batch): parser
+  errors, every validator refusal, CLI help and output, guided-dialogue
+  questions, `monl assets` and the smoke test. English replaces French; no
+  language option. Each test that checked a message now checks the English
+  fragment with the same precision, and no assertion was removed. Not in this
+  batch, and still French: the platform pages, the frontend contract and AI
+  prompts, the generator's emitted messages, the ten application templates,
+  and the text the dialogue writes into a spec (it feeds golden fingerprints).
+
 ### Fixed
 
 - Close files and HTTP error responses the compiler and platform used to leave

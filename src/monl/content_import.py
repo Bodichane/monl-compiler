@@ -27,7 +27,7 @@ def _texte_seed_avec_parent(tool, entite, rows, types, dossier_assets, parent):
                 valeur = tool._litteral(parent_value)
             except tool.AssetsToolError as err:
                 raise tool.ContentToolError(
-                    f"{entite}.csv ligne {numero}, colonne _parent : {err}") from None
+                    f"{entite}.csv row {numero}, column _parent: {err}") from None
             morceaux.append(f"seed {entite} for {parent[0]}.{parent[1]} {valeur}\n")
             precedent = parent_value
         morceaux.append(tool._texte_fiche(
@@ -56,8 +56,8 @@ def _zone_des_seeds(tool, lignes, entite):
             entre = "".join(lignes[gauche[2] + 1:droite[1]])
             if not tool._seulement_espaces_commentaires(entre):
                 raise tool.ContentToolError(
-                    f"Les blocs seed de {entite} ne sont pas contigus. Les "
-                    "regrouper à la main avant l'import.")
+                    f"The seed blocks for {entite} are not contiguous. "
+                    "Group them by hand before importing.")
         return existants[0][1], existants[-1][2], True
     tous = tool._plages_blocs(lignes)
     if tous:
@@ -80,7 +80,7 @@ def _entite_import(tool, normalized, lignes, blocs, entite, types,
     if "_parent" in colonnes and any(not row["_parent"] for _n, row in rows):
         numero = next(n for n, row in rows if not row["_parent"])
         raise tool.ContentToolError(
-            f"{entite}.csv ligne {numero} : la colonne _parent est vide.")
+            f"{entite}.csv row {numero}: column _parent is empty.")
     attendues = _attendues(
         tool, normalized, entite, types, infos, parent, colonnes)
     nouveau = _nouveau_seed(tool, entite, rows, types, dossier_assets, parent)
@@ -106,8 +106,8 @@ def _images_importees(tool, project_dir, normalized, rapports,
                     asset = f"{dossier_assets}/{valeur}"
                     if not tool.resoudre_asset(project_dir, dossier_assets, asset):
                         raise tool.ContentToolError(
-                            f"{entite}.csv ligne {numero} : le fichier image "
-                            f"'{valeur}' est introuvable dans {dossier_assets}/.")
+                            f"{entite}.csv row {numero}: image file "
+                            f"'{valeur}' was not found in {dossier_assets}/.")
 
 
 def importer_contenu(spec_path, project_dir, tool):

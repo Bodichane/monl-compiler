@@ -103,14 +103,14 @@ class PlainDialogueUI:
 
     def menu(self, prompt, options, allow_none=False, hints=None):
         menu = "  ".join(f"[{i + 1}] {opt}" for i, opt in enumerate(options))
-        none_hint = "  [0] aucun" if allow_none else ""
+        none_hint = "  [0] none" if allow_none else ""
         return f"{prompt}\n  {menu}{none_hint}\n> "
 
     def field(self, prompt):
         return prompt
 
     def yes_no(self, prompt):
-        return f"{prompt} (o/n) > "
+        return f"{prompt} (y/n) > "
 
     def error(self, message):
         return f"  ✗ {message}"
@@ -138,10 +138,10 @@ class StyledDialogueUI(PlainDialogueUI):
         t = self.t
         titre = t.paint("monl", t.ACCENT, "1")
         tiret, fleche, point = t.glyph("—", "-"), t.glyph("→", "->"), t.glyph("·", "|")
-        sous = t.paint(f"compilateur d'intention {tiret} spec .ml {fleche} "
-                       "backend déterministe", t.MUTED)
-        garantie = t.paint(f"entretien guidé par règles {point} sans IA {point} "
-                           "hors-ligne", t.FAINT)
+        sous = t.paint(f"intent compiler {tiret} .ml spec {fleche} "
+                       "deterministic backend", t.MUTED)
+        garantie = t.paint(f"rules-based dialogue {point} no AI {point} "
+                           "offline", t.FAINT)
         # Le filet épouse la ligne de titre plutôt que la fenêtre : un trait
         # de 90 colonnes au-dessus de trois mots écrase le reste de l'écran.
         filet = t.glyph("─", "-") * 58
@@ -156,7 +156,7 @@ class StyledDialogueUI(PlainDialogueUI):
         """
         self._phases, self._current = list(phases), -1
         t = self.t
-        lignes = [t.paint("Déroulé de l'entretien", t.MUTED)]
+        lignes = [t.paint("Dialogue outline", t.MUTED)]
         for i, phase in enumerate(self._phases, 1):
             puce = t.glyph("○", "o")
             lignes.append(f"  {t.paint(puce, t.FAINT)} {t.paint(f'{i}.', t.FAINT)} "
@@ -217,7 +217,7 @@ class StyledDialogueUI(PlainDialogueUI):
             lignes.append(ligne)
         if allow_none:
             zero = t.paint(f"{0:>{largeur_num}}", t.FAINT)
-            lignes.append(f"  {self._rail()} {zero}  {t.paint('aucune', t.MUTED)}")
+            lignes.append(f"  {self._rail()} {zero}  {t.paint('none', t.MUTED)}")
         lignes.append(self._invite())
         return "\n".join(lignes)
 
@@ -250,7 +250,7 @@ class StyledDialogueUI(PlainDialogueUI):
         indente = prompt.startswith("  ")
         marge = "    " if indente else "  "
         return (f"\n{marge}{t.paint(texte, '1')}  "
-                f"{t.paint('o / n', t.MUTED)}{self._invite(marge)}")
+                f"{t.paint('y / n', t.MUTED)}{self._invite(marge)}")
 
     def _invite(self, marge="  "):
         return f"\n{marge}{self.t.paint(self.t.glyph('❯', '>'), self.t.ACCENT)} "

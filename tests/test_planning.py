@@ -157,7 +157,7 @@ def test_derivation_refuse_une_relation_absente_ou_dans_le_mauvais_sens():
             "entity": "Ligne", "field": "sousTotal", "source_entity": "Produit",
             "source_field": "prix", "factor": "quantite",
         }
-        with pytest.raises(ValueError, match=r"aucune colonne.*'Ligne'.*'Produit'.*derivedFrom"):
+        with pytest.raises(ValueError, match=r"no foreign-key column.*'Ligne'.*'Produit'.*derivedFrom"):
             plan_derivations([rule], relations)
 
     verifier_chaque_cas([(valeur,) for valeur in table], cas)
@@ -215,7 +215,7 @@ def test_aggregation_refuse_un_parent_sans_cle_etrangere_sur_lenfant():
             "entity": "Commande", "field": "total",
             "source_entity": "Ligne", "source_field": "sousTotal",
         }
-        with pytest.raises(ValueError, match=r"aucune colonne.*'Ligne'.*'Commande'.*sumOf"):
+        with pytest.raises(ValueError, match=r"no foreign-key column.*'Ligne'.*'Commande'.*sumOf"):
             plan_aggregations([rule], relations)
 
     verifier_chaque_cas([(valeur,) for valeur in table], cas)
@@ -281,7 +281,7 @@ def test_compteur_refuse_une_relation_absente_ou_inversee():
             "trigger_entity": "Ligne", "target_entity": "Produit", "target_field": "stock",
             "direction": "decrements", "amount": 1, "amount_field": None,
         }
-        with pytest.raises(ValueError, match=r"aucune clé étrangère.*'Ligne'.*'Produit'"):
+        with pytest.raises(ValueError, match=r"no foreign key.*'Ligne'.*'Produit'"):
             plan_counters([rule], relations, {})
 
     verifier_chaque_cas([(valeur,) for valeur in table], cas)

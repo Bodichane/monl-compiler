@@ -91,5 +91,6 @@ def test_un_frontend_qui_appelle_app_est_signale(tmp_path, capsys):
         encoding="utf-8")
 
     _ok, _erreurs, avertissements = check_coherence(str(tmp_path))
-    absents = [a for a in avertissements if "absents du contrat" in a]
+    absents = [a for a in avertissements
+               if "paths missing from the contract" in a]
     assert absents and "/app" in absents[0], avertissements

@@ -108,9 +108,9 @@ def test_un_champ_inexistant_est_refuse(capsys):
             _valide(SPEC + regle + "\n")
         message = str(refus.value)
         assert "champFantome" in message
-        assert "ne déclare pas" in message
+        assert "does not declare" in message
         # Le message doit dire POURQUOI le refus est là, pas seulement refuser.
-        assert "ne s'applique à rien" in message
+        assert "does not apply to anything" in message
         capsys.readouterr()
 
     verifier_chaque_cas([(valeur,) for valeur in table], cas)
@@ -119,7 +119,7 @@ def test_un_champ_inexistant_est_refuse(capsys):
 def test_une_entite_inexistante_est_refusee(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC + "rule Fantome.pseudo required\n")
-    assert "'Fantome'" in str(refus.value) and "n'existe pas" in str(refus.value)
+    assert "'Fantome'" in str(refus.value) and "which does not exist" in str(refus.value)
     capsys.readouterr()
 
 
@@ -152,7 +152,7 @@ def test_un_max_au_dela_de_la_colonne_est_refuse(capsys):
 def test_des_bornes_contradictoires_sont_refusees(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC + "rule Membre.courriel min 40\nrule Membre.courriel max 10\n")
-    assert "aucune valeur ne satisfait" in str(refus.value)
+    assert "no value satisfies both" in str(refus.value)
     capsys.readouterr()
 
 
@@ -201,14 +201,14 @@ workflow Acheter for Client
 """
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec)
-    assert "le SERVEUR calcule ce champ" in str(refus.value)
+    assert "the SERVER calculates this field" in str(refus.value)
     capsys.readouterr()
 
 
 def test_la_meme_contrainte_deux_fois_est_refusee(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC + "rule Membre.pseudo unique\n")
-    assert "deux fois" in str(refus.value)
+    assert "declared twice on the same field" in str(refus.value)
     capsys.readouterr()
 
 

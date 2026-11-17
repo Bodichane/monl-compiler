@@ -105,7 +105,7 @@ def test_un_parent_qui_nest_pas_une_entite_est_refuse(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace('for Produit.nom "Table Onde"',
                              'for Fantome.nom "Table Onde"'))
-    assert "n'est pas une entité déclarée" in str(refus.value)
+    assert "is not a declared entity" in str(refus.value)
     capsys.readouterr()
 
 
@@ -114,7 +114,7 @@ def test_un_parent_sans_relation_est_refuse(capsys):
     nulle part où aller."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace("relation Produit hasMany Variante\n", ""))
-    assert "aucune relation ne les lie" in str(refus.value)
+    assert "no relation links them" in str(refus.value)
     capsys.readouterr()
 
 
@@ -139,7 +139,7 @@ def test_un_parent_acteur_est_refuse(capsys):
                         'seed Variante for Client.nom "Zoe"')
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec)
-    assert "identifiant de COMPTE" in str(refus.value)
+    assert "ACCOUNT identifier" in str(refus.value)
     capsys.readouterr()
 
 
@@ -147,7 +147,7 @@ def test_un_champ_de_designation_inexistant_est_refuse(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace('for Produit.nom "Table Onde"',
                              'for Produit.fantome "Table Onde"'))
-    assert "n'est pas un champ déclaré" in str(refus.value)
+    assert "is not a declared field" in str(refus.value)
     capsys.readouterr()
 
 
@@ -159,7 +159,7 @@ def test_designer_par_un_nombre_est_refuse(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec.replace('for Produit.nom "Table Onde"',
                              'for Produit.poids "3"'))
-    assert "qui la NOMME" in str(refus.value)
+    assert "field that NAMES it" in str(refus.value)
     capsys.readouterr()
 
 
@@ -175,7 +175,7 @@ def test_un_parent_seme_apres_lenfant_est_refuse(capsys):
                  "    nom: \"Table Onde\", categorie: \"Tables\"\n")
     with pytest.raises(ASTValidationError) as refus:
         _valide(inverse)
-    assert "AVANT" in str(refus.value)
+    assert "BEFORE" in str(refus.value)
     capsys.readouterr()
 
 
@@ -185,7 +185,7 @@ def test_une_valeur_que_personne_ne_porte_est_refusee(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace('for Produit.nom "Table Onde"',
                              'for Produit.nom "Table Ondée"'))
-    assert "qu'aucune ligne de 'seed Produit' ne porte" in str(refus.value)
+    assert "which no row in 'seed Produit' contains" in str(refus.value)
     capsys.readouterr()
 
 
@@ -196,8 +196,8 @@ def test_une_designation_ambigue_est_refusee(capsys):
                         '    nom: "Table Onde", categorie: "Luminaires"')
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec)
-    assert "2 lignes" in str(refus.value)
-    assert "valeurs sont distinctes" in str(refus.value)
+    assert "2 rows" in str(refus.value)
+    assert "values are distinct" in str(refus.value)
     capsys.readouterr()
 
 

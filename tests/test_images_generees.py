@@ -348,7 +348,7 @@ def test_yandexart_refuse_localement_un_prompt_au_dessus_de_son_plafond(
         requests, "post", lambda *_args, **_kwargs: pytest.fail("aucun HTTP attendu"))
 
     provider = yandexart_provider()
-    with pytest.raises(ImageProviderError, match="prompt YandexART trop long"):
+    with pytest.raises(ImageProviderError, match="YandexART prompt is too long"):
         provider("x" * (YANDEXART_MAX_PROMPT_CHARS + 1))
 
 
@@ -536,9 +536,9 @@ def test_yandexart_refuse_un_dossier_absent(monkeypatch):
 @pytest.mark.parametrize(
     ("aspect_ratio", "message"),
     [
-        ("16:9", "rapport d'aspect doit être un objet"),
-        ({"width": 16}, "rapport d'aspect doit déclarer width/height"),
-        ({"width": True, "height": 9}, "dimensions du rapport d'aspect"),
+        ("16:9", "Aspect ratio must be an object"),
+        ({"width": 16}, "Aspect ratio must declare width/height"),
+        ({"width": True, "height": 9}, "Aspect ratio dimensions must be positive integers"),
     ],
 )
 def test_yandexart_refuse_un_rapport_d_aspect_invalide(
@@ -559,8 +559,8 @@ def test_yandexart_refuse_un_rapport_d_aspect_invalide(
     ("status", "payload", "json_error", "message"),
     [
         (500, {"error": "panne"}, False, "YandexART : 500"),
-        (200, None, True, "JSON invalide"),
-        (200, {}, False, "opération sans identifiant"),
+        (200, None, True, "YandexART returned invalid JSON"),
+        (200, {}, False, "operation without an ID"),
     ],
 )
 def test_yandexart_refuse_une_reponse_initiale_inexploitable(
@@ -593,17 +593,17 @@ def test_yandexart_signale_une_panne_http_initiale(monkeypatch):
         raise requests.RequestException("service hors ligne")
 
     monkeypatch.setattr(requests, "post", post)
-    with pytest.raises(ImageProviderError, match="inaccessible"):
+    with pytest.raises(ImageProviderError, match="is inaccessible"):
         yandexart_provider()("matière de l'atelier")
 
 
 @pytest.mark.parametrize(
     ("status", "payload", "json_error", "message"),
     [
-        (503, {"error": "panne"}, False, "lecture de l'opération 503"),
-        (200, None, True, "état d'opération invalide"),
+        (503, {"error": "panne"}, False, "operation read returned 503"),
+        (200, None, True, "invalid operation status"),
         (200, {"error": {"message": "quota dépassé"}}, False, "quota dépassé"),
-        (200, {"done": True}, False, "sans renvoyer de données image"),
+        (200, {"done": True}, False, "without returning image data"),
     ],
 )
 def test_yandexart_refuse_un_etat_d_operation_inexploitable(
@@ -655,13 +655,13 @@ def test_yandexart_signale_une_panne_http_pendant_le_polling(monkeypatch):
 
     monkeypatch.setattr(requests, "post", lambda *_args, **_kwargs: Response())
     monkeypatch.setattr(requests, "get", get)
-    with pytest.raises(ImageProviderError, match="lecture de l'opération impossible"):
+    with pytest.raises(ImageProviderError, match="unable to read operation"):
         yandexart_provider()("matière de l'atelier")
 
 
 @pytest.mark.parametrize("raw, message", [
-    ("pas-un-nombre", "doit être un nombre positif"),
-    ("0", "doit être un nombre positif"),
+    ("pas-un-nombre", "must be a positive number"),
+    ("0", "must be a positive number"),
 ])
 def test_yandexart_refuse_un_reglage_de_polling_invalide(monkeypatch, raw, message):
     monkeypatch.setenv("YANDEX_API_KEY", "cle-image")
@@ -698,7 +698,7 @@ def test_yandexart_signale_le_depassement_du_delai(monkeypatch):
     import requests
     monkeypatch.setattr(requests, "post", lambda *_args, **_kwargs: Response())
 
-    with pytest.raises(ImageProviderError, match="délai d'attente dépassé"):
+    with pytest.raises(ImageProviderError, match="operation timed out"):
         yandexart_provider()("matière de l'atelier")
 
 
@@ -736,7 +736,7 @@ def test_pillow_absent_conserve_l_image_et_ne_bloque_pas_la_construction(tmp_pat
     assert ok, errors
     paths = [item["path"] for item in _manifest(project)["generated_assets"]]
     assert all((project / path).read_bytes() == JPEG_BYTES for path in paths)
-    assert any("Pillow absent" in message for message in messages)
+    assert any("Pillow is unavailable" in message for message in messages)
 
 
 def test_mesure_image_requete_sans_jetons_et_usage_ne_la_compte_pas_gratuite(tmp_path):
@@ -775,4 +775,4 @@ def test_mesure_image_requete_sans_jetons_et_usage_ne_la_compte_pas_gratuite(tmp
     assert report["project_total"]["cost"] > 0
     assert report["project_total"]["cost"] != 0
     usage_line = cli._usage_total_line(report["project_total"], "RUB")
-    assert "30" in usage_line and "2 requête(s) d'image" in usage_line
+    assert "30" in usage_line and "2 image request(s)" in usage_line
