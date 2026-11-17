@@ -47,7 +47,7 @@ class LectureRoutesMixin:
         # via cette route, quel que soit qui l'appelle (contrairement
         # à 'restrictedTo', qui autorise un acteur précis).
         masked = self.hidden_fields_by_entity.get(base_target, [])
-        mask_literal = ", ".join(f"'{f}'" for f in masked)
+        mask_literal = ", ".join(Template("'${_v0}'").substitute(_v0=f) for f in masked)
         # AJOUT (roadmap, écosystème de capacités -- brique 5) :
         # champs 'categorized' remplacés par leur libellé de
         # catégorie, dans la même passe que le masquage ci-dessus —
@@ -91,11 +91,11 @@ class LectureRoutesMixin:
         apply_read_super = bool(read_supers) and apply_read_parties
         read_dep_suffix = dep_suffix
         if apply_condition_identity:
-            read_dep_suffix += ", _ident: dict = Depends(get_optional_identity)"
+            read_dep_suffix = Template("${suffix}, _ident: dict = Depends(get_optional_identity)").substitute(suffix=read_dep_suffix)
         parties_where = parties_params = ""
         if apply_read_parties:
-            read_dep_suffix += ", current_user_id: int = Depends(get_current_user_id)"
-            parties_where = " OR ".join(f'\"{c}\" = ?' for c in read_parties)
+            read_dep_suffix = Template("${suffix}, current_user_id: int = Depends(get_current_user_id)").substitute(suffix=read_dep_suffix)
+            parties_where = " OR ".join(Template('"${_v0}" = ?').substitute(_v0=c) for c in read_parties)
             parties_params = ", ".join(["current_user_id"] * len(read_parties))
 
         # CORRECTIF (bêta 3, fuite de données entre comptes) : une règle
@@ -126,33 +126,33 @@ class LectureRoutesMixin:
             else:
                 read_actor = read_owner
                 own_where_sql = sql.cat(
-                    sql.kw(' WHERE '), sql.ident(f"{read_owner.lower()}_id"),
+                    sql.kw(' WHERE '), sql.ident(Template('${_v0}_id').substitute(_v0=read_owner.lower())),
                     sql.kw(' = '), sql.bind("current_user_id"))
             if condition_fragment:
                 own_where_sql = sql.cat(
                     own_where_sql, sql.kw(" AND "), condition_fragment)
             if ", current_user_id" not in read_dep_suffix:
-                read_dep_suffix += ", current_user_id: int = Depends(get_current_user_id)"
-        list_params = f"limit: int = 50, offset: int = 0{read_dep_suffix}"
-        api_lines.append(f"@app.get('/{base_target.lower()}', tags=['{tag}'])")
-        api_lines.append(f"def list_{base_target.lower()}({list_params}):")
+                read_dep_suffix = Template("${suffix}, current_user_id: int = Depends(get_current_user_id)").substitute(suffix=read_dep_suffix)
+        list_params = Template('limit: int = 50, offset: int = 0${_v0}').substitute(_v0=read_dep_suffix)
+        api_lines.append(Template("@app.get('/${_v0}', tags=['${_v1}'])").substitute(_v0=base_target.lower(), _v1=tag))
+        api_lines.append(Template('def list_${_v0}(${_v1}):').substitute(_v0=base_target.lower(), _v1=list_params))
         api_lines.append(security_check)
         api_lines.append("    limit = max(1, min(limit, 200))")
         api_lines.append("    offset = max(0, offset)")
         if apply_read_owner:
             api_lines.append("    _own_where, _own_params = '', ()")
-            api_lines.append(f"    if current_actor == \"{read_actor}\":")
-            api_lines.append(f"        _own_where = {own_where_sql.text!r}")
-            api_lines.append(f"        _own_params = {sql.params_tuple(own_where_sql)}")
+            api_lines.append(Template('    if current_actor == "${_v0}":').substitute(_v0=read_actor))
+            api_lines.append(Template('        _own_where = ${_v0}').substitute(_v0=repr(own_where_sql.text)))
+            api_lines.append(Template('        _own_params = ${_v0}').substitute(_v0=sql.params_tuple(own_where_sql)))
         elif apply_read_super:
             # Le superviseur voit tout (WHERE vide) ; les parties restent
             # confinees a leurs colonnes. Meme mecanisme conditionnel que la
             # branche ownedBy juste au-dessus.
-            _superset = ", ".join(f'"{s}"' for s in read_supers)
+            _superset = ", ".join(Template('"${_v0}"').substitute(_v0=s) for s in read_supers)
             api_lines.append("    _own_where, _own_params = '', ()")
-            api_lines.append(f"    if current_actor not in {{{_superset}}}:")
-            api_lines.append(f"        _own_where = ' WHERE {parties_where}'")
-            api_lines.append(f"        _own_params = ({parties_params},)")
+            api_lines.append(Template('    if current_actor not in {${_v0}}:').substitute(_v0=_superset))
+            api_lines.append(Template("        _own_where = ' WHERE ${_v0}'").substitute(_v0=parties_where))
+            api_lines.append(Template('        _own_params = (${_v0},)').substitute(_v0=parties_params))
         elif apply_condition_identity:
             # POINT 116 : le WHERE de 'publicWhen' se décide à l'exécution,
             # exactement comme les deux branches ci-dessus. Par défaut la
@@ -160,54 +160,51 @@ class LectureRoutesMixin:
             # un propriétaire y AJOUTE ses propres lignes (OR), il ne la
             # remplace pas — sinon il perdrait le contenu public des autres.
             base_where = sql.cat(sql.kw(" WHERE "), condition_fragment)
-            api_lines.append(f"    _own_where = {base_where.text!r}")
-            api_lines.append(f"    _own_params = {sql.params_tuple(base_where)}")
+            api_lines.append(Template('    _own_where = ${_v0}').substitute(_v0=repr(base_where.text)))
+            api_lines.append(Template('    _own_params = ${_v0}').substitute(_v0=sql.params_tuple(base_where)))
             if condition_owner_columns:
                 frags = [sql.kw(" WHERE ("), condition_fragment]
                 for col in condition_owner_columns:
-                    frags += [sql.kw(" OR "), sql.ident(col), sql.kw(" = "),
-                              sql.bind("_ident.get('user_id')")]
+                    frags.extend([sql.kw(" OR "), sql.ident(col), sql.kw(" = "),
+                                  sql.bind("_ident.get('user_id')")])
                 owner_where = sql.cat(*frags, sql.kw(")"))
                 api_lines.append("    if _ident.get('user_id'):")
-                api_lines.append(f"        _own_where = {owner_where.text!r}")
-                api_lines.append(f"        _own_params = {sql.params_tuple(owner_where)}")
+                api_lines.append(Template('        _own_where = ${_v0}').substitute(_v0=repr(owner_where.text)))
+                api_lines.append(Template('        _own_params = ${_v0}').substitute(_v0=sql.params_tuple(owner_where)))
             if condition_supervisors:
-                _condset = ", ".join(f'"{s}"' for s in condition_supervisors)
-                api_lines.append(f"    if _ident.get('actor') in {{{_condset}}}:")
+                _condset = ", ".join(Template('"${_v0}"').substitute(_v0=s) for s in condition_supervisors)
+                api_lines.append(Template("    if _ident.get('actor') in {${_v0}}:").substitute(_v0=_condset))
                 api_lines.append("        _own_where, _own_params = '', ()")
         api_lines.append("    conn = _connect(); cursor = conn.cursor()")
         if apply_read_owner or apply_read_super or apply_condition_identity:
-            api_lines.append(f"    cursor.execute('SELECT COUNT(*) FROM \"{base_target.lower()}\"' + _own_where, _own_params)")
+            api_lines.append(Template('    cursor.execute(\'SELECT COUNT(*) FROM "${_v0}"\' + _own_where, _own_params)').substitute(_v0=base_target.lower()))
             api_lines.append("    total = cursor.fetchone()[0]")
-            api_lines.append(f"    cursor.execute('SELECT * FROM \"{base_target.lower()}\"' + _own_where + ' LIMIT ? OFFSET ?', _own_params + (limit, offset))")
+            api_lines.append(Template('    cursor.execute(\'SELECT * FROM "${_v0}"\' + _own_where + \' LIMIT ? OFFSET ?\', _own_params + (limit, offset))').substitute(_v0=base_target.lower()))
         elif apply_read_parties:
-            api_lines.append(f"    cursor.execute('SELECT COUNT(*) FROM \"{base_target.lower()}\" WHERE {parties_where}', ({parties_params},))")
+            api_lines.append(Template('    cursor.execute(\'SELECT COUNT(*) FROM "${_v0}" WHERE ${_v1}\', (${_v2},))').substitute(_v0=base_target.lower(), _v1=parties_where, _v2=parties_params))
         else:
             if condition_fragment:
                 api_lines.append(
-                    f"    cursor.execute('SELECT COUNT(*) FROM \"{base_target.lower()}\" WHERE "
-                    f"{condition_fragment.text}', {sql.params_tuple(condition_fragment)})")
+                    Template('    cursor.execute(\'SELECT COUNT(*) FROM "${_v0}" WHERE ${_v1}\', ${_v2})').substitute(_v0=base_target.lower(), _v1=condition_fragment.text, _v2=sql.params_tuple(condition_fragment)))
             else:
-                api_lines.append(f"    cursor.execute('SELECT COUNT(*) FROM \"{base_target.lower()}\"')")
+                api_lines.append(Template('    cursor.execute(\'SELECT COUNT(*) FROM "${_v0}"\')').substitute(_v0=base_target.lower()))
         if not (apply_read_owner or apply_read_super or apply_condition_identity):
             api_lines.append("    total = cursor.fetchone()[0]")
             if apply_read_parties:
-                api_lines.append(f"    cursor.execute('SELECT * FROM \"{base_target.lower()}\" WHERE {parties_where} LIMIT ? OFFSET ?', ({parties_params}, limit, offset))")
+                api_lines.append(Template('    cursor.execute(\'SELECT * FROM "${_v0}" WHERE ${_v1} LIMIT ? OFFSET ?\', (${_v2}, limit, offset))').substitute(_v0=base_target.lower(), _v1=parties_where, _v2=parties_params))
             elif condition_fragment:
                 params = sql.params_tuple(condition_fragment)
                 api_lines.append(
-                    f"    cursor.execute('SELECT * FROM \"{base_target.lower()}\" WHERE "
-                    f"{condition_fragment.text} LIMIT ? OFFSET ?', "
-                    f"{params[:-1]}limit, offset))")
+                    Template('    cursor.execute(\'SELECT * FROM "${_v0}" WHERE ${_v1} LIMIT ? OFFSET ?\', ${_v2}limit, offset))').substitute(_v0=base_target.lower(), _v1=condition_fragment.text, _v2=params[:-1]))
             else:
-                api_lines.append(f"    cursor.execute('SELECT * FROM \"{base_target.lower()}\" LIMIT ? OFFSET ?', (limit, offset))")
+                api_lines.append(Template('    cursor.execute(\'SELECT * FROM "${_v0}" LIMIT ? OFFSET ?\', (limit, offset))').substitute(_v0=base_target.lower()))
         api_lines.append("    rows = cursor.fetchall()")
         api_lines.append("    _columns = [d[0] for d in cursor.description]  # ordre réel en base (robuste aux migrations)")
         api_lines.append("    conn.close()")
         api_lines.append("    named_rows = [dict(zip(_columns, row)) for row in rows]")
         row_loop_lines = []
         if masked:
-            row_loop_lines.append(f"        for _f in [{mask_literal}]: _r.pop(_f, None)")
+            row_loop_lines.append(Template('        for _f in [${_v0}]: _r.pop(_f, None)').substitute(_v0=mask_literal))
         for cf in categorized_here:
             row_loop_lines.extend(self._emit_categorization_lines(cf, "_r", "        "))
         if row_loop_lines:
@@ -216,11 +213,11 @@ class LectureRoutesMixin:
         api_lines.append("    return {'status': 'success', 'total': total, 'limit': limit, 'offset': offset, 'data': named_rows}")
         api_lines.append("")
 
-        api_lines.append(f"@app.get('/{base_target.lower()}/{{id}}', tags=['{tag}'])")
-        api_lines.append(f"def read_{base_target.lower()}(id: int{read_dep_suffix}):")
+        api_lines.append(Template("@app.get('/${_v0}/{id}', tags=['${_v1}'])").substitute(_v0=base_target.lower(), _v1=tag))
+        api_lines.append(Template('def read_${_v0}(id: int${_v1}):').substitute(_v0=base_target.lower(), _v1=read_dep_suffix))
         api_lines.append(security_check)
         api_lines.append("    conn = _connect(); cursor = conn.cursor()")
-        api_lines.append(f"    cursor.execute('SELECT * FROM \"{base_target.lower()}\" WHERE id = ?', (id,))")
+        api_lines.append(Template('    cursor.execute(\'SELECT * FROM "${_v0}" WHERE id = ?\', (id,))').substitute(_v0=base_target.lower()))
         api_lines.append("    row = cursor.fetchone()")
         api_lines.append("    _columns = [d[0] for d in cursor.description]  # ordre réel en base (robuste aux migrations)")
         api_lines.append("    conn.close()")
@@ -232,20 +229,19 @@ class LectureRoutesMixin:
             # ouvrir. 404 et jamais 403 pour les autres : sur des identifiants
             # séquentiels, distinguer « n'existe pas » de « masqué » laisserait
             # dénombrer ce qui a été retiré.
-            garde = (f"    if named_row.get({public_condition.field!r}) != "
-                     f"{public_condition.value!r}")
+            garde = (Template('    if named_row.get(${_v0}) != ${_v1}').substitute(_v0=repr(public_condition.field), _v1=repr(public_condition.value)))
             if apply_condition_identity:
                 exemptions = []
                 if condition_supervisors:
-                    _condset = ", ".join(f'"{s}"' for s in condition_supervisors)
-                    exemptions.append(f"_ident.get('actor') in {{{_condset}}}")
+                    _condset = ", ".join(Template('"${_v0}"').substitute(_v0=s) for s in condition_supervisors)
+                    exemptions.append(Template("_ident.get('actor') in {${_v0}}").substitute(_v0=_condset))
                 for col in condition_owner_columns:
                     exemptions.append(
-                        f"(_ident.get('user_id') and named_row.get({col!r}) "
-                        f"== _ident.get('user_id'))")
-                garde += " and not (" + " or ".join(exemptions) + ")"
+                        Template("(_ident.get('user_id') and named_row.get(${_v0}) == _ident.get('user_id'))").substitute(_v0=repr(col)))
+                garde = Template("${garde} and not (${exemptions})").substitute(
+                    garde=garde, exemptions=" or ".join(exemptions))
             api_lines.append(
-                garde + ": raise HTTPException(status_code=404, detail='Enregistrement introuvable')")
+                Template("${garde}: raise HTTPException(status_code=404, detail='Enregistrement introuvable')").substitute(garde=garde))
         if apply_read_owner:
             # 404 et non 403 : sur une entité dont les identifiants sont
             # séquentiels, un 403 confirmerait l'existence de
@@ -260,35 +256,34 @@ class LectureRoutesMixin:
                 # et 404 est la bonne réponse pour les deux cas.
                 _owner_q = self._chain_owner_scalar(
                     base_target,
-                    sql.bind(f"named_row.get('{chaine_lecture['via_fk']}')"))
+                    sql.bind(Template("named_row.get('${_v0}')").substitute(_v0=chaine_lecture['via_fk'])))
                 _sql_lit, _params_lit = sql.execute_args(_owner_q, prefix="SELECT ")
-                api_lines += [
-                    f"    if current_actor == \"{read_actor}\":",
+                api_lines.extend([
+                    Template('    if current_actor == "${_v0}":').substitute(_v0=read_actor),
                     "        _tc = _connect(); _tcur = _tc.cursor()",
-                    f"        _tcur.execute({_sql_lit}, {_params_lit})",
+                    Template('        _tcur.execute(${_v0}, ${_v1})').substitute(_v0=_sql_lit, _v1=_params_lit),
                     "        _tr = _tcur.fetchone(); _tc.close()",
                     "        if not _tr or _tr[0] is None or _tr[0] != current_user_id:",
                     "            raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
-                ]
+                ])
             else:
-                api_lines.append(f"    if current_actor == \"{read_actor}\" and "
-                                 f"named_row.get('{read_owner.lower()}_id') != current_user_id:")
+                api_lines.append(Template('    if current_actor == "${_v0}" and named_row.get(\'${_v1}_id\') != current_user_id:').substitute(_v0=read_actor, _v1=read_owner.lower()))
                 api_lines.append("        raise HTTPException(status_code=404, detail='Enregistrement introuvable')")
         if apply_read_parties:
             # La vérification se fait AVANT le masquage 'hidden' :
             # une colonne de partie peut légitimement être masquée
             # en lecture tout en servant au contrôle d'accès.
-            parties_tuple = ", ".join(f"named_row.get('{c}')" for c in read_parties)
+            parties_tuple = ", ".join(Template("named_row.get('${_v0}')").substitute(_v0=c) for c in read_parties)
             if apply_read_super:
-                _superset = ", ".join(f'"{s}"' for s in read_supers)
-                api_lines.append(f"    if current_actor not in {{{_superset}}}:")
-                api_lines.append(f"        if current_user_id not in ({parties_tuple}):")
-                api_lines.append("            raise HTTPException(status_code=403, detail=\"Contrôle d'accès : seules les parties de la ressource peuvent la consulter\")")
+                _superset = ", ".join(Template('"${_v0}"').substitute(_v0=s) for s in read_supers)
+                api_lines.append(Template('    if current_actor not in {${_v0}}:').substitute(_v0=_superset))
+                api_lines.append(Template('        if current_user_id not in (${_v0}):').substitute(_v0=parties_tuple))
+                api_lines.append(Template(r'''            raise HTTPException(status_code=403, detail="Contrôle d'accès : seules les parties de la ressource peuvent la consulter")''').substitute())
             else:
-                api_lines.append(f"    if current_user_id not in ({parties_tuple}):")
-                api_lines.append("        raise HTTPException(status_code=403, detail=\"Contrôle d'accès : seules les parties de la ressource peuvent la consulter\")")
+                api_lines.append(Template('    if current_user_id not in (${_v0}):').substitute(_v0=parties_tuple))
+                api_lines.append(Template(r'''        raise HTTPException(status_code=403, detail="Contrôle d'accès : seules les parties de la ressource peuvent la consulter")''').substitute())
         if masked:
-            api_lines.append(f"    for _f in [{mask_literal}]: named_row.pop(_f, None)")
+            api_lines.append(Template('    for _f in [${_v0}]: named_row.pop(_f, None)').substitute(_v0=mask_literal))
         for cf in categorized_here:
             api_lines.extend(self._emit_categorization_lines(cf, "named_row", "    "))
         api_lines.append("    return {'status': 'success', 'data': named_row}")
