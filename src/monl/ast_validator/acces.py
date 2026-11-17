@@ -34,15 +34,15 @@ class AccesMixin:
             if rule["type"] == "ownedBy":
                 if "." not in rule["reference"]:
                     raise ASTValidationError(
-                        f"Structure : la règle 'ownedBy' doit référencer 'Entite.Action', reçu '{rule['reference']}'."
+                        f"Structure: the 'ownedBy' rule must reference 'Entity.Action', got '{rule['reference']}'."
                     )
                 entity, act_type = rule["reference"].split(".", 1)
                 owner_entity = rule["value"]
 
                 if entity not in self.entities:
-                    raise ASTValidationError(f"Structure : la règle 'ownedBy' cible l'entité '{entity}' qui n'existe pas.")
+                    raise ASTValidationError(f"Structure: the 'ownedBy' rule targets entity '{entity}', which does not exist.")
                 if act_type not in ("Create", "Read", "Update", "Delete"):
-                    raise ASTValidationError(f"Structure : action '{act_type}' invalide dans la règle 'ownedBy' sur '{entity}'.")
+                    raise ASTValidationError(f"Structure: invalid action '{act_type}' in the 'ownedBy' rule on '{entity}'.")
                 # CORRECTIF (bêta 3) : 'Create' était accepté alors que le
                 # générateur n'en fait rien — une règle de sécurité acceptée
                 # puis silencieusement ignorée est pire que son absence, car
@@ -52,7 +52,7 @@ class AccesMixin:
                 if act_type == "Create":
                     raise ASTValidationError(
                         f"Structure : 'ownedBy' n'a pas de sens sur '{entity}.Create' — "
-                        "à la création, le propriétaire est l'appelant par construction. "
+                        "on creation, the owner is the caller by definition. "
                         "Utiliser 'ownedBy' sur Read, Update ou Delete.")
 
                 # CORRECTIF (roadmap) : la vérification de la relation nécessaire
@@ -173,21 +173,21 @@ class AccesMixin:
                 continue
             if "." not in rule["reference"]:
                 raise ASTValidationError(
-                    f"Structure : la règle 'accessibleBy' doit référencer 'Entite.Action', reçu '{rule['reference']}'."
+                        f"Structure: the 'accessibleBy' rule must reference 'Entity.Action', got '{rule['reference']}'."
                 )
             entity, act_type = rule["reference"].split(".", 1)
             columns = rule["value"]
 
             if entity not in self.entities:
-                raise ASTValidationError(f"Structure : la règle 'accessibleBy' cible l'entité '{entity}' qui n'existe pas.")
+                raise ASTValidationError(f"Structure: the 'accessibleBy' rule targets entity '{entity}', which does not exist.")
             if act_type not in ("Read", "Update", "Delete"):
                 raise ASTValidationError(
-                    f"Structure : action '{act_type}' invalide dans la règle 'accessibleBy' sur '{entity}' "
-                    f"(seules Read/Update/Delete portent sur un enregistrement existant dont on peut vérifier les parties)."
+                    f"Structure: invalid action '{act_type}' in the 'accessibleBy' rule on '{entity}' "
+                    f"(only Read/Update/Delete apply to an existing record whose parties can be checked)."
                 )
             if len(set(columns)) < 2:
                 raise ASTValidationError(
-                    f"Structure : la règle 'accessibleBy' sur '{entity}.{act_type}' doit lister au moins deux "
+                    f"Structure: the 'accessibleBy' rule on '{entity}.{act_type}' must list at least two "
                     f"colonnes DISTINCTES — avec une seule partie, utiliser 'ownedBy'."
                 )
 
@@ -207,20 +207,20 @@ class AccesMixin:
                     continue
                 if declared_type is None:
                     raise ASTValidationError(
-                        f"Structure : la règle 'accessibleBy' sur '{entity}.{act_type}' référence la colonne "
-                        f"'{col}', qui n'est ni un champ déclaré de '{entity}', ni une colonne de relation "
+                        f"Structure: the 'accessibleBy' rule on '{entity}.{act_type}' references column "
+                        f"'{col}', which is neither a declared field of '{entity}' nor a relationship column "
                         f"entrante ({', '.join(sorted(relation_fk_columns)) or 'aucune relation entrante'})."
                     )
                 if declared_type != "Integer":
                     raise ASTValidationError(
-                        f"Structure : la règle 'accessibleBy' sur '{entity}.{act_type}' exige que '{col}' soit "
-                        f"de type Integer (identifiant d'utilisateur), reçu '{declared_type}'."
+                        f"Structure: the 'accessibleBy' rule on '{entity}.{act_type}' requires '{col}' to be "
+                        f"of type Integer (user identifier), got '{declared_type}'."
                     )
 
             if (entity, act_type) in self.ownership_rules:
                 raise ASTValidationError(
-                    f"Conflit : '{entity}.{act_type}' porte à la fois 'ownedBy' et 'accessibleBy' — "
-                    f"choisir l'un des deux ('accessibleBy' généralise 'ownedBy' à plusieurs parties)."
+                    f"Conflict: '{entity}.{act_type}' has both 'ownedBy' and 'accessibleBy' — "
+                    f"choose one ('accessibleBy' generalizes 'ownedBy' to multiple parties)."
                 )
 
             self.access_party_rules[(entity, act_type)] = list(columns)
@@ -255,8 +255,8 @@ class AccesMixin:
                 for role in r["value"]:
                     if role not in self.actors:
                         raise ASTValidationError(
-                            f"Structure : le rôle superviseur '{role}' de la règle "
-                            f"'sharedBy' sur '{ref}' n'est pas un acteur déclaré."
+                            f"Structure: supervisor role '{role}' in the 'sharedBy' rule "
+                            f"on '{ref}' is not a declared actor."
                         )
                     if role not in superviseurs:
                         superviseurs.append(role)
@@ -274,28 +274,28 @@ class AccesMixin:
             if rule["type"] == "public":
                 if "." not in rule["reference"]:
                     raise ASTValidationError(
-                        f"Structure : la règle 'public' doit référencer 'Entite.Action', reçu '{rule['reference']}'."
+                        f"Structure: the 'public' rule must reference 'Entity.Action', got '{rule['reference']}'."
                     )
                 entity, act_type = rule["reference"].split(".", 1)
                 if entity not in self.entities:
-                    raise ASTValidationError(f"Structure : la règle 'public' cible l'entité '{entity}' qui n'existe pas.")
+                    raise ASTValidationError(f"Structure: the 'public' rule targets entity '{entity}', which does not exist.")
                 if act_type not in ("Create", "Read", "Update", "Delete"):
-                    raise ASTValidationError(f"Structure : action '{act_type}' invalide dans la règle 'public' sur '{entity}'.")
+                    raise ASTValidationError(f"Structure: invalid action '{act_type}' in the 'public' rule on '{entity}'.")
                 self.public_actions.add((entity, act_type))
             elif rule["type"] == "publicWhen":
                 reference = rule["reference"]
                 if "." not in reference:
                     raise ASTValidationError(
-                        f"Structure : 'publicWhen' doit référencer 'Entite.Read', reçu '{reference}'."
+                        f"Structure: 'publicWhen' must reference 'Entity.Read', got '{reference}'."
                     )
                 entity, act_type = reference.split(".", 1)
                 if entity not in self.entities:
                     raise ASTValidationError(
-                        f"Structure : 'publicWhen' cible l'entité '{entity}' qui n'existe pas."
+                        f"Structure: 'publicWhen' targets entity '{entity}', which does not exist."
                     )
                 if act_type != "Read":
                     raise ASTValidationError(
-                        f"Structure : 'publicWhen' ne vaut que sur 'Read' (reçu '{reference}')."
+                        f"Structure: 'publicWhen' only applies to 'Read' (got '{reference}')."
                     )
                 field = rule.get("field")
                 if field not in self.entities[entity]:
@@ -304,18 +304,18 @@ class AccesMixin:
                     )
                 if self.entities[entity][field] not in ("String", "Text", "Email", "UUID"):
                     raise ASTValidationError(
-                        f"Structure : 'publicWhen' exige un champ texte, reçu '{entity}.{field}' "
+                        f"Structure: 'publicWhen' requires a text field, got '{entity}.{field}' "
                         f"de type '{self.entities[entity][field]}'."
                     )
                 if (entity, act_type) in self.public_actions:
                     raise ASTValidationError(
-                        f"Structure : '{reference}' est à la fois 'public' et 'publicWhen' — "
-                        "une seule politique de visibilité est autorisée."
+                        f"Structure: '{reference}' is both 'public' and 'publicWhen' — "
+                        "only one visibility policy is allowed."
                     )
                 if (entity, act_type) in self.public_conditions:
                     raise ASTValidationError(
-                        f"Structure : plusieurs règles 'publicWhen' sur '{reference}' — "
-                        "la condition serait ambiguë."
+                        f"Structure: multiple 'publicWhen' rules on '{reference}' — "
+                        "the condition would be ambiguous."
                     )
                 self.public_actions.add((entity, act_type))
                 self.public_conditions[(entity, act_type)] = {

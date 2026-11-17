@@ -57,11 +57,11 @@ def _socle(regles):
 
 CIBLES_INEXISTANTES = [
     ("ownedBy sur une entité absente", "rule Fantome.Update ownedBy Admin",
-     "'ownedBy' cible l'entité 'Fantome'"),
+     "'ownedBy' rule targets entity 'Fantome'"),
     ("ownedBy sur une action inventée", "rule Note.Manger ownedBy Admin",
-     "action 'Manger' invalide"),
+     "invalid action 'Manger'"),
     ("public sur une entité absente", "rule Fantome.Read public",
-     "'public' cible l'entité 'Fantome'"),
+     "'public' rule targets entity 'Fantome'"),
     ("restrictedTo sur une entité absente", "rule Fantome.titre restrictedTo Admin",
      "'restrictedTo' cible l'entité 'Fantome'"),
     ("restrictedTo sur un champ absent", "rule Note.fantome restrictedTo Admin",
