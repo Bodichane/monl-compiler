@@ -48,10 +48,10 @@ def build_parser():
     p_usage.add_argument("dir", nargs="?", default=".",
                          help="Project directory (first argument; default: .).")
     p_usage.add_argument(
-        "--prices", default=None, metavar="FICHIER_JSON",
-        help="Table JSON fournisseur → modèle → tarifs par million de jetons; "
-             "prioritaire sur MONL_USAGE_PRICES. Format: "
-             "{currency, prices: {fournisseur: {modèle: "
+        "--prices", default=None, metavar="JSON_FILE",
+        help="JSON table provider → model → prices per million tokens; "
+             "takes precedence over MONL_USAGE_PRICES. Format: "
+             "{currency, prices: {provider: {model: "
              "{input_per_million_tokens, output_per_million_tokens}}}}.")
     p_usage.add_argument(
         "--json", action="store_true", dest="json_output",
@@ -60,7 +60,7 @@ def build_parser():
     p_migrate = sub.add_parser(
         "migrate", help="Apply or roll back a named schema migration.")
     p_migrate.add_argument("dir", nargs="?", default=".")
-    p_migrate.add_argument("--name", default=None, metavar="NOM",
+    p_migrate.add_argument("--name", default=None, metavar="NAME",
                            help="Name declared by a 'migration' block.")
     p_migrate.add_argument("--down", action="store_true",
                            help="Roll back the migration when the operation is reversible.")
@@ -87,7 +87,7 @@ def build_parser():
     p_front.add_argument("--model", default=None, help="Provider model.")
     p_front.add_argument(
         "--model-for", dest="model_for", action="append", default=None,
-        metavar="CIBLE=MODELE",
+        metavar="TARGET=MODEL",
         help="Repeatable routing for staged generation (e.g. "
              "styles.css=yandexgpt-lite). Exact targets: index.html, styles.css, "
              "app.js, and planned SVGs. A monolithic or agent path makes "
@@ -95,7 +95,7 @@ def build_parser():
     p_front.add_argument("--agent-command", default=None,
                          help="Command template for an agent not in the "
                               "list, with {instruction} substituted — for example "
-                              "\"mon-agent --auto {instruction}\". L'emporte sur "
+                         "\"mon-agent --auto {instruction}\". Takes precedence over "
                               "--provider and can also override a preset.")
     p_front.add_argument("--max-turns", type=int, default=None,
                          help="Agent turn budget ('claude-code' "
@@ -118,15 +118,15 @@ def build_parser():
         "retouche", help="Fix an observed issue on the site (layout, "
                          "framing, readability) without rebuilding the frontend.")
     p_ret.add_argument("demande", help="Describe the issue in one sentence — name "
-                                       "the screen and element: \"les images de la "
+                                       "the screen and element: \"images in the "
                                        "Trends section are poorly framed\".")
     p_ret.add_argument("dir", nargs="?", default=".")
     p_ret.add_argument("--provider", default="claude", choices=_voies,
                        help="Same options as 'monl frontend'.")
     p_ret.add_argument("--model", default=None, help="Provider model.")
     p_ret.add_argument("--agent-command", default=None,
-                       help="Command template for an agent not in the liste, "
-                            "{instruction} étant substitué.")
+                       help="Command template for an agent not in the list, "
+                            "with {instruction} substituted.")
     p_ret.add_argument("--max-turns", type=int, default=None,
                        help="Agent turn budget. Default: 120.")
     p_ret.add_argument("--consigne-seule", action="store_true",
@@ -145,9 +145,9 @@ def build_parser():
     p_add = sub_assets.add_parser(
         "add", help="Copy a file to the assets directory and declare it in the spec.")
     p_add.add_argument("fichier", help="The file to install (photo, logo...).")
-    p_add.add_argument("--for", dest="pour", default=None, metavar="VALEUR",
+    p_add.add_argument("--for", dest="pour", default=None, metavar="VALUE",
                        help="Target seed record, identified by one of its values "
-                            "— par exemple --for \"Halo RS\".")
+                            "— for example --for \"Halo RS\".")
     p_add.add_argument("--logo", action="store_true",
                        help="Declare this file as the project logo (assets.logo).")
     p_add.add_argument("--favicon", action="store_true",
@@ -157,7 +157,7 @@ def build_parser():
                             "in multiple entities.")
     p_add.add_argument("--field", default=None,
                        help="Target 'Image' field, if the entity has several.")
-    p_add.add_argument("--as", dest="nom", default=None, metavar="NOM",
+    p_add.add_argument("--as", dest="nom", default=None, metavar="FILENAME",
                        help="Destination filename (default: the --for slug "
                             "plus the original extension).")
     p_add.add_argument("--force", action="store_true",
@@ -183,7 +183,7 @@ def build_parser():
                        "into claude.ai, downloaded result), then re-check it.")
     p_import.add_argument("source", help="A .zip file, index.html, directory, or "
                                          "JSON {'files': ...} downloaded from Claude.")
-    p_import.add_argument("dir", nargs="?", default=".", help="Dossier du projet.")
+    p_import.add_argument("dir", nargs="?", default=".", help="Project directory.")
 
     return parser
 
@@ -221,8 +221,8 @@ def _dispatch(argv=None):
     elif args.command == "assets":
         if args.assets_command == "add":
             if args.logo and args.favicon:
-                print(" ❌ --logo et --favicon désignent deux déclarations "
-                      "différentes : les poser en deux commandes.")
+                print(" ❌ --logo and --favicon declare two different "
+                      "things; set them in separate commands.")
                 sys.exit(1)
             cible = "logo" if args.logo else ("favicon" if args.favicon else None)
             contenu_editorial.cmd_assets_add(args.dir, args.fichier, pour=args.pour, cible=cible,
@@ -246,8 +246,8 @@ def _dispatch(argv=None):
     elif args.command == "retouche":
         retouche.cmd_retouche(args.dir, args.demande)
         if args.consigne_seule:
-            print("  → Donner ce fichier à une IA, puis installer le résultat "
-                  "avec 'monl import'.")
+            print("  → Give this file to an AI, then install the result "
+                  "with 'monl import'.")
         else:
             retouche._lancer_ia(args, retouche_mode=True)
     elif args.command == "import":
