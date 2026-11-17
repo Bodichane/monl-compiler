@@ -48,9 +48,9 @@ class LectureFiltreeRoutesMixin:
         apply_read_super = bool(read_supers) and apply_read_parties
         read_dep_suffix = dep_suffix
         if apply_condition_identity:
-            read_dep_suffix += ", _ident: dict = Depends(get_optional_identity)"
+            read_dep_suffix = Template('$v0, _ident: dict = Depends(get_optional_identity)').substitute(v0=read_dep_suffix)
         if apply_read_parties:
-            read_dep_suffix += ", current_user_id: int = Depends(get_current_user_id)"
+            read_dep_suffix = Template('$v0, current_user_id: int = Depends(get_current_user_id)').substitute(v0=read_dep_suffix)
 
         read_owner = access.owner_entity
         apply_read_owner = bool(read_owner) and not is_public and not apply_read_parties
@@ -71,7 +71,7 @@ class LectureFiltreeRoutesMixin:
             if condition_fragment:
                 owner_where = sql.cat(owner_where, sql.kw(" AND "), condition_fragment)
             if ", current_user_id" not in read_dep_suffix:
-                read_dep_suffix += ", current_user_id: int = Depends(get_current_user_id)"
+                read_dep_suffix = Template('$v0, current_user_id: int = Depends(get_current_user_id)').substitute(v0=read_dep_suffix)
 
         filter_fragments = {}
         for field in filter_fields:
@@ -249,9 +249,11 @@ class LectureFiltreeRoutesMixin:
                 exemptions.extend(
                     Template("(_ident.get('user_id') and named_row.get($v0) == _ident.get('user_id'))").substitute(v0=repr(column))
                     for column in condition_owner_columns)
-                guard += " and not (" + " or ".join(exemptions) + ")"
-            api_lines.append(
-                guard + ": raise HTTPException(status_code=404, detail='Enregistrement introuvable')")
+                guard = Template('$v0 and not ($v1)').substitute(
+                    v0=guard, v1=" or ".join(exemptions))
+            api_lines.append(Template(
+                "$v0: raise HTTPException(status_code=404, detail='Enregistrement introuvable')"
+            ).substitute(v0=guard))
         if apply_read_owner:
             if chain:
                 owner_query = self._chain_owner_scalar(
