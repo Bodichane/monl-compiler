@@ -96,6 +96,11 @@ def corpus_specs():
     cases["payment_transitive"] = SPEC_PAIEMENT_TRANSITIF
     cases["delete_and_execute"] = AVEC_CUSTOM.replace(
         "    Read Note\n", "    Read Note\n    Delete Note\n    Execute Publier\n")
+    cases["update_unique"] = SPEC.replace(
+        "    publiee: Boolean", "    publiee: Boolean\n    slug: String"
+    ).replace(
+        "rule Note.Read public", "rule Note.Read public\nrule Note.slug unique"
+    ).replace("    Create Note\n", "    Create Note\n    Update Note\n")
     cases["migration"] = '''app MigrationCorpus
 entity User
     name: String
