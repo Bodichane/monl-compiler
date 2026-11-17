@@ -23,8 +23,8 @@ class _TerminalNu(Terminal):
 
 def test_rendu_nu_conserve_les_chaines_historiques():
     ui = PlainDialogueUI()
-    assert ui.menu("Type ?", ["A", "B"], allow_none=True) == "Type ?\n  [1] A  [2] B  [0] aucun\n> "
-    assert ui.yes_no("Continuer ?") == "Continuer ? (o/n) > "
+    assert ui.menu("Type ?", ["A", "B"], allow_none=True) == "Type ?\n  [1] A  [2] B  [0] none\n> "
+    assert ui.yes_no("Continue?") == "Continue? (y/n) > "
     assert ui.field("Nom (ex. Studio) > ") == "Nom (ex. Studio) > "
     assert ui.error("Answer y or n.") == "  ✗ Answer y or n."
     # Les éléments purement visuels n'existent pas en rendu nu.
@@ -44,8 +44,8 @@ def test_rendu_style_sans_couleur_ni_unicode_reste_du_texte_pur():
     ui = StyledDialogueUI(_TerminalNu())
     ui.plan(["Un", "Deux"])
     sorties = [ui.banner(), ui.phase(0), ui.menu("Type ?", ["A"], allow_none=True),
-               ui.field("  Nom (ex. Studio) > "), ui.yes_no("Continuer ?"),
-               ui.error("Invalide."), ui.note("Créé."),
+               ui.field("  Name (e.g. Studio) > "), ui.yes_no("Continue?"),
+               ui.error("Invalid."), ui.note("Created."),
                ui.recap("Titre", [("Clé", "valeur")])]
     # Les glyphes de dessin ont un équivalent ASCII ; le texte français, lui,
     # reste accentué — un terminal incapable d'encoder « é » ne pourrait de

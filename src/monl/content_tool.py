@@ -69,12 +69,12 @@ def _infos_parent(lignes, blocs, entite):
     parents = [info for _i, _p, info in infos if info]
     if parents and len(parents) != len(infos):
         raise ContentToolError(
-            f"Les blocs seed de {entite} mélangent des formes avec et sans parent. "
-            "Les uniformiser à la main avant d'utiliser content.")
+            f"The seed blocks for {entite} mix forms with and without a parent. "
+            "Make them consistent by hand before using content.")
     if parents and len({p[:2] for p in parents}) != 1:
         raise ContentToolError(
-            f"Les blocs seed de {entite} ne désignent pas tous le parent de la "
-            "même façon. Les uniformiser à la main d'abord.")
+            f"The seed blocks for {entite} do not all identify the parent in the "
+            "same way. Make them consistent by hand first.")
     return infos, (parents[0][:2] if parents else None)
 
 
@@ -151,15 +151,15 @@ def exporter_contenu(spec_path, project_dir):
     os.makedirs(dossier, exist_ok=True)
     for entite in normalized["schema"]["entities"]:
         if entite not in entites_seedees:
-            ignores[entite] = ("aucun exemple seed ne fixe encore la forme du "
-                                "contenu; écrire d'abord un exemple à la main")
+            ignores[entite] = ("no seed example defines the content shape yet; "
+                                "write an example by hand first")
             continue
         infos, parent = _infos_parent(lignes, blocs, entite)
         colonnes = _colonnes(normalized, entite, bool(parent))
         blocs_ast = [b for b in normalized.get("seeds", []) if b["entity"] == entite]
         if len(infos) != len(blocs_ast):
             raise ContentToolError(
-                f"Les blocs seed de {entite} ne correspondent pas à la spec compilée.")
+                f"The seed blocks for {entite} do not match the compiled spec.")
         chemin = os.path.join(dossier, f"{entite}.csv")
         fiches = 0
         with open(chemin, "w", encoding="utf-8", newline="") as fh:
@@ -189,8 +189,8 @@ def _lire_csv(chemin, colonnes):
         reader = csv.DictReader(fh)
         if reader.fieldnames != colonnes:
             raise ContentToolError(
-                f"{os.path.basename(chemin)} : colonnes attendues : {', '.join(colonnes)}; "
-                f"colonnes reçues : {', '.join(reader.fieldnames or [])}.")
+                f"{os.path.basename(chemin)}: expected columns: {', '.join(colonnes)}; "
+                f"received columns: {', '.join(reader.fieldnames or [])}.")
         return [(numero, dict(row)) for numero, row in enumerate(reader, 2)]
 
 
@@ -203,8 +203,8 @@ def _texte_fiche(entite, row, numero, types, dossier_assets):
         if type_ in NUMERIQUES:
             if not NOMBRE.fullmatch(valeur):
                 raise ContentToolError(
-                    f"{entite}.csv ligne {numero} : '{valeur}' n'est pas un nombre "
-                    f"valide pour la colonne {nom}.")
+                    f"{entite}.csv row {numero}: '{valeur}' is not a valid number "
+                    f"for column {nom}.")
             literal = valeur
         else:
             if type_ == "Image" and (
@@ -213,14 +213,14 @@ def _texte_fiche(entite, row, numero, types, dossier_assets):
                     or "/" in valeur
                     or "\\" in valeur):
                 raise ContentToolError(
-                    f"{entite}.csv ligne {numero} : la colonne {nom} attend un "
-                    f"NOM de fichier seul, pas le chemin '{valeur}'.")
+                    f"{entite}.csv row {numero}: column {nom} expects a filename "
+                    f"only, not the path '{valeur}'.")
             try:
                 literal = _litteral(
                     f"{dossier_assets}/{valeur}" if type_ == "Image" else valeur)
             except AssetsToolError as err:
                 raise ContentToolError(
-                    f"{entite}.csv ligne {numero}, colonne {nom} : {err}") from None
+                f"{entite}.csv row {numero}, column {nom}: {err}") from None
         morceaux.append(f"{nom}: {literal}")
     return "    " + ", ".join(morceaux) + "\n"
 
@@ -251,12 +251,12 @@ def _avertissements(project_dir, normalized, spec_changee):
     manquants = [c for c in sorted(declares)
                  if not resoudre_asset(project_dir, dossier, c)]
     if manquants:
-        messages.append(f"{len(manquants)} asset(s) déclaré(s) reste(nt) absent(s) : "
-                        + ", ".join(manquants) + ". 'monl assets list' fait le point.")
+        messages.append(f"{len(manquants)} declared asset(s) are still missing: "
+                        + ", ".join(manquants) + ". Run 'monl assets list' for details.")
     if spec_changee and os.path.exists(os.path.join(project_dir, "app.db")):
-        messages.append("La base existe déjà : le seed ne nourrit qu'une base NEUVE.")
+        messages.append("The database already exists: seed data only populates a NEW database.")
     if spec_changee:
-        messages.append("Spec modifiée : lancer 'monl update' pour resynchroniser backend et contrat.")
+        messages.append("Spec changed: run 'monl update' to resynchronize the backend and contract.")
     return messages
 
 

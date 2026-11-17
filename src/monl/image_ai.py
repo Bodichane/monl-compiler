@@ -39,7 +39,7 @@ def _requests_module():
         import requests
     except ImportError as exc:
         raise ImageProviderError(
-            "Le fournisseur d'images nécessite l'extra optionnel : "
+            "The image provider requires the optional extra: "
             "pip install 'monl-compiler[ai]'."
         ) from exc
     return requests
@@ -52,9 +52,9 @@ def _poll_setting(name, default):
     try:
         value = float(raw)
     except ValueError as exc:
-        raise ImageProviderError(f"{name} doit être un nombre positif.") from exc
+        raise ImageProviderError(f"{name} must be a positive number.") from exc
     if value <= 0:
-        raise ImageProviderError(f"{name} doit être un nombre positif.")
+        raise ImageProviderError(f"{name} must be a positive number.")
     return value
 
 
@@ -66,9 +66,9 @@ def _image_from_operation(payload):
     try:
         image = base64.b64decode(encoded, validate=True)
     except (ValueError, TypeError) as exc:
-        raise ImageProviderError("YandexART a renvoyé une image base64 invalide.") from exc
+        raise ImageProviderError("YandexART returned invalid base64 image data.") from exc
     if not image:
-        raise ImageProviderError("YandexART a renvoyé une image vide.")
+        raise ImageProviderError("YandexART returned an empty image.")
     return image
 
 
@@ -91,7 +91,7 @@ def optimize_image_bytes(image):
     original = bytes(image)
     image_class = _pillow_image_class()
     if image_class is None:
-        return original, "Pillow absent : l'image est écrite telle quelle, sans ré-encodage."
+        return original, "Pillow is unavailable: the image is written as-is, without re-encoding."
     try:
         with image_class.open(BytesIO(original)) as source:
             if source.format != "JPEG":
@@ -106,7 +106,7 @@ def optimize_image_bytes(image):
                 progressive=True,
             )
     except (OSError, ValueError):
-        return original, "Pillow n'a pas pu ré-encoder l'image : l'originale est conservée."
+        return original, "Pillow could not re-encode the image: the original is preserved."
     optimized = output.getvalue()
     if len(optimized) >= len(original):
         return original, None
@@ -115,7 +115,7 @@ def optimize_image_bytes(image):
 
 def _yandex_aspect_ratio(aspect_ratio):
     if not isinstance(aspect_ratio, dict):
-        raise ImageProviderError("Le rapport d'aspect doit être un objet.")
+        raise ImageProviderError("Aspect ratio must be an object.")
     if {"width", "height"}.issubset(aspect_ratio):
         width = aspect_ratio["width"]
         height = aspect_ratio["height"]
@@ -124,7 +124,7 @@ def _yandex_aspect_ratio(aspect_ratio):
         height = aspect_ratio["heightRatio"]
     else:
         raise ImageProviderError(
-            "Le rapport d'aspect doit déclarer width/height."
+            "Aspect ratio must declare width/height."
         )
     if (
         isinstance(width, bool)
@@ -135,7 +135,7 @@ def _yandex_aspect_ratio(aspect_ratio):
         or height <= 0
     ):
         raise ImageProviderError(
-            "Les dimensions du rapport d'aspect doivent être des entiers positifs."
+            "Aspect ratio dimensions must be positive integers."
         )
     return {"widthRatio": width, "heightRatio": height}
 
@@ -151,12 +151,12 @@ def yandexart_provider(model=None, *, key_env="YANDEX_API_KEY",
     api_key = (os.environ.get(key_env) or "").strip()
     if not api_key:
         raise ImageProviderError(
-            f"503 — YandexART indisponible : {key_env} absent de l'environnement."
+            f"503 — YandexART unavailable: {key_env} is missing from the environment."
         )
     folder_id = (os.environ.get(folder_env) or "").strip()
     if not folder_id:
         raise ImageProviderError(
-            f"503 — YandexART indisponible : {folder_env} absent de l'environnement."
+            f"503 — YandexART unavailable: {folder_env} is missing from the environment."
         )
     model_name = model or DEFAULT_YANDEXART_MODEL
     model_uri = model or f"art://{folder_id}/{DEFAULT_YANDEXART_MODEL}"
@@ -167,11 +167,11 @@ def yandexart_provider(model=None, *, key_env="YANDEX_API_KEY",
 
     def call(prompt, *, aspect_ratio=None):
         if not isinstance(prompt, str) or not prompt.strip():
-            raise ImageProviderError("Le prompt YandexART ne peut pas être vide.")
+            raise ImageProviderError("YandexART prompt cannot be empty.")
         if len(prompt) > YANDEXART_MAX_PROMPT_CHARS:
             raise ImageProviderError(
-                "monl : prompt YandexART trop long — "
-                f"{len(prompt)} caractères, maximum {YANDEXART_MAX_PROMPT_CHARS}."
+                "monl: YandexART prompt is too long — "
+                f"{len(prompt)} characters, maximum {YANDEXART_MAX_PROMPT_CHARS}."
             )
         requests = _requests_module()
         started = time.monotonic()
@@ -193,7 +193,7 @@ def yandexart_provider(model=None, *, key_env="YANDEX_API_KEY",
                 timeout=300,
             )
         except requests.RequestException as exc:
-            raise ImageProviderError(f"YandexART inaccessible : {exc}") from exc
+            raise ImageProviderError(f"YandexART is inaccessible: {exc}") from exc
         if response.status_code not in (200, 202):
             raise ImageProviderError(
                 f"YandexART : {response.status_code} — {response.text[:300]}"
@@ -201,12 +201,12 @@ def yandexart_provider(model=None, *, key_env="YANDEX_API_KEY",
         try:
             operation = response.json()
         except (ValueError, json.JSONDecodeError) as exc:
-            raise ImageProviderError("YandexART a renvoyé un JSON invalide.") from exc
+            raise ImageProviderError("YandexART returned invalid JSON.") from exc
 
         image = _image_from_operation(operation)
         operation_id = operation.get("id")
         if image is None and not operation_id:
-            raise ImageProviderError("YandexART a renvoyé une opération sans identifiant.")
+            raise ImageProviderError("YandexART returned an operation without an ID.")
 
         if image is None:
             deadline = time.monotonic() + _poll_setting(
@@ -222,31 +222,31 @@ def yandexart_provider(model=None, *, key_env="YANDEX_API_KEY",
                     )
                 except requests.RequestException as exc:
                     raise ImageProviderError(
-                        f"YandexART : lecture de l'opération impossible — {exc}"
+                        f"YandexART: unable to read operation — {exc}"
                     ) from exc
                 if status.status_code != 200:
                     raise ImageProviderError(
-                        f"YandexART : lecture de l'opération {status.status_code} — "
+                        f"YandexART: operation read returned {status.status_code} — "
                         f"{status.text[:300]}"
                     )
                 try:
                     operation = status.json()
                 except (ValueError, json.JSONDecodeError) as exc:
                     raise ImageProviderError(
-                        "YandexART a renvoyé un état d'opération invalide."
+                        "YandexART returned an invalid operation status."
                     ) from exc
                 if operation.get("error"):
-                    detail = operation["error"].get("message", "erreur inconnue")
+                    detail = operation["error"].get("message", "unknown error")
                     raise ImageProviderError(f"YandexART : {detail}")
                 image = _image_from_operation(operation)
                 if image is not None:
                     break
                 if operation.get("done"):
                     raise ImageProviderError(
-                        "YandexART a terminé sans renvoyer de données image."
+                        "YandexART completed without returning image data."
                     )
             if image is None:
-                raise ImageProviderError("YandexART : délai d'attente dépassé.")
+                raise ImageProviderError("YandexART: operation timed out.")
 
         call.last_usage = {
             "duration_seconds": round(time.monotonic() - started, 3),

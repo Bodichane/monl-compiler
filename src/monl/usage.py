@@ -22,13 +22,13 @@ class UsagePriceError(ValueError):
 
 def _decimal(value, label):
     if isinstance(value, bool) or value is None:
-        raise UsagePriceError(f"tarif invalide pour {label}")
+        raise UsagePriceError(f"invalid rate for {label}")
     try:
         result = Decimal(str(value))
     except (InvalidOperation, ValueError) as exc:
-        raise UsagePriceError(f"tarif invalide pour {label}") from exc
+        raise UsagePriceError(f"invalid rate for {label}") from exc
     if not result.is_finite() or result < 0:
-        raise UsagePriceError(f"tarif invalide pour {label}")
+        raise UsagePriceError(f"invalid rate for {label}")
     return result
 
 
@@ -39,37 +39,37 @@ def _load_prices(path):
         with open(path, encoding="utf-8") as fh:
             document = json.load(fh)
     except OSError as exc:
-        raise UsagePriceError(f"table de prix illisible : {path} — {exc}") from exc
+        raise UsagePriceError(f"price table is unreadable: {path} — {exc}") from exc
     except json.JSONDecodeError as exc:
-        raise UsagePriceError(f"table de prix JSON invalide : {path}") from exc
+        raise UsagePriceError(f"price table contains invalid JSON: {path}") from exc
 
     if not isinstance(document, dict):
-        raise UsagePriceError("la table de prix doit être un objet JSON")
+        raise UsagePriceError("price table must be a JSON object")
     currency = document.get("currency")
     if currency is not None and (not isinstance(currency, str) or not currency.strip()):
-        raise UsagePriceError("currency doit être une chaîne non vide")
+        raise UsagePriceError("currency must be a non-empty string")
     declared = document.get("prices", document)
     if not isinstance(declared, dict):
-        raise UsagePriceError("prices doit être un objet fournisseur → modèle")
+        raise UsagePriceError("prices must be a provider-to-model object")
 
     prices = {}
     for provider, models in declared.items():
         if provider == "currency":
             continue
         if not isinstance(provider, str) or not isinstance(models, dict):
-            raise UsagePriceError("chaque fournisseur doit contenir un objet de modèles")
+            raise UsagePriceError("each provider must contain a model object")
         prices[provider] = {}
         for model, rates in models.items():
             if not isinstance(model, str) or not isinstance(rates, dict):
-                raise UsagePriceError("chaque modèle doit contenir un objet de tarifs")
+                raise UsagePriceError("each model must contain a rate object")
             input_rate = rates.get("input_per_million_tokens")
             output_rate = rates.get("output_per_million_tokens")
             request_rate = rates.get("per_request")
             if ((input_rate is None or output_rate is None)
                     and request_rate is None):
                 raise UsagePriceError(
-                    f"tarifs incomplets pour {provider}/{model} : "
-                    "déclarer les deux tarifs de jetons ou per_request")
+                    f"incomplete rates for {provider}/{model}: "
+                    "declare both token rates or per_request")
             prices[provider][model] = {
                 "input": (_decimal(input_rate, f"{provider}/{model} input")
                           if input_rate is not None else None),
@@ -122,7 +122,7 @@ def _unique(values):
 
 
 def _price_label(provider, model):
-    return f"{provider or 'fournisseur inconnu'}/{model or 'modèle inconnu'}"
+    return f"{provider or 'unknown provider'}/{model or 'unknown model'}"
 
 
 def _aggregate(events, price_table):
@@ -216,7 +216,7 @@ def _execution(run_id, events, price_table):
     aggregate.update({
         "run_id": run_id,
         "known": run_id is not None,
-        "label": "exécution" if run_id is not None else "exécution inconnue",
+        "label": "execution" if run_id is not None else "unknown execution",
         "operation": operations[0] if len(operations) == 1 else "multiple",
         "operations": operations,
         "attempts": attempts,
@@ -240,21 +240,21 @@ def build_usage_report(project_dir, prices_path=None):
             with open(journal_path, encoding="utf-8") as fh:
                 for line_number, line in enumerate(fh, 1):
                     if not line.strip():
-                        malformed_lines.append({"line": line_number, "error": "ligne vide"})
+                        malformed_lines.append({"line": line_number, "error": "empty line"})
                         continue
                     try:
                         event = json.loads(line)
                     except json.JSONDecodeError:
-                        malformed_lines.append({"line": line_number, "error": "JSON invalide"})
+                        malformed_lines.append({"line": line_number, "error": "invalid JSON"})
                         continue
                     if not isinstance(event, dict):
                         malformed_lines.append({
-                            "line": line_number, "error": "objet JSON attendu",
+                            "line": line_number, "error": "expected a JSON object",
                         })
                         continue
                     events.append(event)
         except OSError as exc:
-            raise UsagePriceError(f"journal illisible : {journal_path} — {exc}") from exc
+            raise UsagePriceError(f"usage journal is unreadable: {journal_path} — {exc}") from exc
 
     groups = {}
     for event in events:

@@ -6,6 +6,8 @@
 
 - Translate the `monl` command-line help into English.
 
+- Translate user-facing text in the top-level `src/monl` modules into English.
+
 - Translate user-facing smoke test errors, warnings, and progress output into
   English.
 

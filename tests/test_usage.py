@@ -133,7 +133,7 @@ def test_json_est_exploitable_et_signale_les_lignes_illisibles(tmp_path, capsys)
     report = json.loads(capsys.readouterr().out)
     assert report["executions"][0]["cost"] == pytest.approx(0.02)
     assert report["project_total"]["cost"] == pytest.approx(0.02)
-    assert report["malformed_lines"] == [{"line": 2, "error": "JSON invalide"}]
+    assert report["malformed_lines"] == [{"line": 2, "error": "invalid JSON"}]
 
 
 def test_journal_n_ajoute_ni_prompt_ni_cle(tmp_path):
@@ -166,20 +166,20 @@ def test_journal_n_ajoute_ni_prompt_ni_cle(tmp_path):
 @pytest.mark.parametrize(
     ("document", "message"),
     [
-        ([], "table de prix doit être un objet JSON"),
-        ({"currency": ""}, "currency doit être une chaîne non vide"),
-        ({"prices": []}, "prices doit être un objet fournisseur"),
-        ({"prices": {"yandex": []}}, "chaque fournisseur doit contenir un objet"),
+        ([], "price table must be a JSON object"),
+        ({"currency": ""}, "currency must be a non-empty string"),
+        ({"prices": []}, "prices must be a provider-to-model object"),
+        ({"prices": {"yandex": []}}, "each provider must contain a model object"),
         ({"prices": {"yandex": {"modele": []}}},
-         "chaque modèle doit contenir un objet"),
+         "each model must contain a rate object"),
         ({"prices": {"yandex": {"modele": {"per_request": True}}}},
-         "tarif invalide pour yandex/modele per_request"),
+         "invalid rate for yandex/modele per_request"),
         ({"prices": {"yandex": {"modele": {"per_request": "inconnu"}}}},
-         "tarif invalide pour yandex/modele per_request"),
+         "invalid rate for yandex/modele per_request"),
         ({"prices": {"yandex": {"modele": {"per_request": -1}}}},
-         "tarif invalide pour yandex/modele per_request"),
+         "invalid rate for yandex/modele per_request"),
         ({"prices": {"yandex": {"modele": {"input_per_million_tokens": 1}}}},
-         "tarifs incomplets pour yandex/modele"),
+         "incomplete rates for yandex/modele"),
     ],
 )
 def test_table_de_prix_refuse_une_forme_inexploitable(tmp_path, document, message):
@@ -191,12 +191,12 @@ def test_table_de_prix_refuse_une_forme_inexploitable(tmp_path, document, messag
 
 
 def test_table_de_prix_absente_ou_json_invalide_est_signalee(tmp_path):
-    with pytest.raises(UsagePriceError, match="table de prix illisible"):
+    with pytest.raises(UsagePriceError, match="price table is unreadable"):
         build_usage_report(str(tmp_path), str(tmp_path / "absente.json"))
 
     prices = tmp_path / "prices.json"
     prices.write_text("pas du json", encoding="utf-8")
-    with pytest.raises(UsagePriceError, match="table de prix JSON invalide"):
+    with pytest.raises(UsagePriceError, match="price table contains invalid JSON"):
         build_usage_report(str(tmp_path), str(prices))
 
 
@@ -208,8 +208,8 @@ def test_journal_signale_ligne_vide_et_valeur_json_non_objet(tmp_path):
     report = build_usage_report(str(project))
 
     assert report["malformed_lines"] == [
-        {"line": 1, "error": "ligne vide"},
-        {"line": 2, "error": "objet JSON attendu"},
+        {"line": 1, "error": "empty line"},
+        {"line": 2, "error": "expected a JSON object"},
     ]
     assert report["executions"] == []
 

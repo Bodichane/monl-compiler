@@ -88,7 +88,7 @@ def publish_files(staging_dir: str | os.PathLike[str],
     missing = [name for name in selected if not (staging / name).is_file()]
     if missing:
         raise ArtifactPublicationError(
-            "Artefacts manquants dans le staging : " + ", ".join(missing))
+            "Artifacts missing from staging: " + ", ".join(missing))
 
     target.mkdir(parents=True, exist_ok=True)
     backup_dir = Path(tempfile.mkdtemp(prefix=f".{target.name}.monl-backup-",
@@ -126,7 +126,7 @@ def publish_files(staging_dir: str | os.PathLike[str],
             if backup.exists():
                 _replace(backup, destination)
         raise ArtifactPublicationError(
-            "Publication interrompue : les artefacts précédents ont été restaurés."
+            "Publication interrupted: previous artifacts have been restored."
         ) from exc
     finally:
         shutil.rmtree(backup_dir, ignore_errors=True)

@@ -185,22 +185,22 @@ def substance_errors(html: str, rules: dict[str, dict]) -> list[str]:
         nom = marker.partition("=")[2].strip('"') or marker
         manques = []
         if regle.get("heading") and not releve["heading"]:
-            manques.append("un titre (<h1> à <h4>)")
+            manques.append("a heading (<h1> to <h4>)")
         if regle.get("action") and not releve["action"]:
-            manques.append("une action (<a> ou <button>)")
+            manques.append("an action (<a> or <button>)")
         if regle.get("form") and not releve["form"]:
-            manques.append("un <form>")
+            manques.append("a <form>")
         seuil = regle.get("text")
         if seuil:
             longueur = len(releve["text"])
             if longueur < seuil:
                 manques.append(
-                    f"du texte lisible ({longueur} caractères sur {seuil} attendus)"
+                f"readable text ({longueur} of {seuil} characters required)"
                 )
         if manques:
             errors.append(
-                f"section vide ou incomplète — « {nom} » : il manque "
+                f"empty or incomplete section — ‘{nom}’: missing "
                 + ", ".join(manques)
-                + ". Une section marquée doit porter sa matière, pas seulement son nom."
+                + ". A marked section must contain substantive content, not just its name."
             )
     return errors

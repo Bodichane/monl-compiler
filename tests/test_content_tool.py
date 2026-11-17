@@ -85,7 +85,7 @@ def test_image_absente_nomme_le_fichier_et_la_ligne_csv():
         champs, rows = _rows(temporaire.name)
         rows[0]["photo"] = "absente.jpg"
         _write_rows(temporaire.name, champs, rows)
-        with pytest.raises(ContentToolError, match=r"ligne 2.*absente\.jpg"):
+        with pytest.raises(ContentToolError, match=r"row 2.*absente\.jpg.*not found"):
             importer_contenu(spec, temporaire.name)
 
 
@@ -96,7 +96,7 @@ def test_image_refuse_un_chemin_avec_la_ligne_csv():
         champs, rows = _rows(temporaire.name)
         rows[0]["photo"] = "sous-dossier/photo.jpg"
         _write_rows(temporaire.name, champs, rows)
-        with pytest.raises(ContentToolError, match=r"ligne 2.*NOM de fichier"):
+        with pytest.raises(ContentToolError, match=r"row 2.*filename"):
             importer_contenu(spec, temporaire.name)
 
 
@@ -107,7 +107,7 @@ def test_nombre_invalide_est_refuse_avec_la_ligne_csv():
         champs, rows = _rows(temporaire.name)
         rows[0]["prix"] = "douze"
         _write_rows(temporaire.name, champs, rows)
-        with pytest.raises(ContentToolError, match=r"ligne 2.*douze"):
+        with pytest.raises(ContentToolError, match=r"row 2.*douze"):
             importer_contenu(spec, temporaire.name)
 
 
@@ -122,7 +122,7 @@ def test_blocs_de_meme_entite_non_contigus_sont_refuses():
         champs, rows = _rows(temporaire.name)
         rows[0]["nom"] = "Fauteuil"
         _write_rows(temporaire.name, champs, rows)
-        with pytest.raises(ContentToolError, match="ne sont pas contigus"):
+        with pytest.raises(ContentToolError, match="are not contiguous"):
             importer_contenu(spec, temporaire.name)
 
 
