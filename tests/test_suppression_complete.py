@@ -3,7 +3,6 @@
 import os
 import signal
 import socket
-import sqlite3
 import subprocess
 import sys
 import time
@@ -15,6 +14,7 @@ import requests
 
 from monl_platform.app import create_app
 from monl_platform.hosting_control import _adresses
+from tests.support.sqlite import base_sqlite
 from tests.test_platform_hebergement import _compiler, _get, _serveur_plateforme
 
 
@@ -92,7 +92,7 @@ def _projet(app, user, nom):
     projet = app.state.store.get_project(pid)
     dossier = _compiler(projet, app.state.compilation_service.workspace,
                         app.state.compilation_service.workspace)
-    with sqlite3.connect(dossier / "app.db") as db:
+    with base_sqlite(dossier / "app.db") as db:
         db.execute("CREATE TABLE visiteurs_prives (email TEXT)")
         db.execute("INSERT INTO visiteurs_prives VALUES (?)", ("visiteur@prive.test",))
     (dossier / ".jwt_secret").write_text("secret du site", encoding="utf-8")

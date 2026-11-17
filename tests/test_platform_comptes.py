@@ -1,11 +1,11 @@
 """Preuves de la tranche 2 : identité unique, projets et héritage."""
 
 import importlib
-import sqlite3
 import uuid
 
 from monl_platform.identity import IdentityStore
 from monl_platform.store import PlatformStore
+from tests.support.sqlite import base_sqlite
 
 
 def _projet(identity, platform, user, slug, name=None):
@@ -21,7 +21,7 @@ def test_la_suppression_identite_cascade_le_projet(tmp_path):
     user = identity.register("cascade@example.test", "MotDePasse-123")
     project_id = _projet(identity, platform, user, "boutique")
 
-    with sqlite3.connect(platform.database) as db:
+    with base_sqlite(platform.database) as db:
         assert {
             (row[3], row[2], row[6])
             for row in db.execute("PRAGMA foreign_key_list(builder_projects)")
@@ -31,7 +31,7 @@ def test_la_suppression_identite_cascade_le_projet(tmp_path):
     # ce n'est pas celle des stores. La suppression passe par
     # IdentityStore._connect, qui l'active à chaque transaction.
     assert identity.delete_user(user["id"]) == [project_id]
-    with sqlite3.connect(platform.database) as db:
+    with base_sqlite(platform.database) as db:
         assert db.execute("SELECT COUNT(*) FROM projects WHERE project_id = ?",
                           (project_id,)).fetchone()[0] == 0
         assert db.execute(
@@ -81,7 +81,7 @@ def test_un_oauth_refuse_le_mot_de_passe_exactement_comme_un_faux(tmp_path):
         "github:4242", "github", "alice@example.test"
     )
     assert created is True
-    with sqlite3.connect(identity.path) as db:
+    with base_sqlite(identity.path) as db:
         password_hash, password_salt, provider = db.execute(
             "SELECT password_hash, password_salt, auth_provider FROM users WHERE id = ?",
             (oauth_id,),
@@ -110,7 +110,7 @@ def test_un_oauth_refuse_le_mot_de_passe_exactement_comme_un_faux(tmp_path):
 def test_les_comptes_herites_sont_comptes_et_restent_hors_users(tmp_path, monkeypatch):
     identity = IdentityStore(tmp_path)
     platform = PlatformStore(tmp_path)
-    with sqlite3.connect(platform.database) as db:
+    with base_sqlite(platform.database) as db:
         db.execute(
             "INSERT INTO accounts(identifier, password_hash, created_at) "
             "VALUES (?, ?, ?)",
@@ -119,7 +119,7 @@ def test_les_comptes_herites_sont_comptes_et_restent_hors_users(tmp_path, monkey
 
     assert identity.comptes_herites() == 1
     assert platform.legacy_account_count() == 1
-    with sqlite3.connect(identity.path) as db:
+    with base_sqlite(identity.path) as db:
         assert db.execute(
             "SELECT COUNT(*) FROM users WHERE email = ?", ("ancien-compte",)
         ).fetchone()[0] == 0

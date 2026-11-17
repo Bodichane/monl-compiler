@@ -3,6 +3,7 @@ import sqlite3
 import pytest
 
 from monl_platform.identity import IdentityError, IdentityStore
+from tests.support.sqlite import base_sqlite
 
 
 def test_compte_session_et_mot_de_passe_hache(tmp_path):
@@ -17,7 +18,7 @@ def test_compte_session_et_mot_de_passe_hache(tmp_path):
     store.revoke_session(token)
     assert store.session_user(token) is None
 
-    with sqlite3.connect(store.path) as db:
+    with base_sqlite(store.path) as db:
         password_hash, salt = db.execute(
             "SELECT password_hash, password_salt FROM users WHERE id = ?", (user["id"],)
         ).fetchone()
@@ -45,7 +46,7 @@ def test_projets_appartiennent_a_un_seul_compte(tmp_path):
     assert store.projects(bob["id"]) == []
     reopened = IdentityStore(tmp_path)
     assert reopened.projects(alice["id"])[0]["project_id"] == "a" * 32
-    with sqlite3.connect(store.path) as db:
+    with base_sqlite(store.path) as db:
         db.execute("UPDATE projects SET expires_at = 0 WHERE project_id = ?", ("a" * 32,))
     assert reopened.expired_projects() == ["a" * 32]
     assert reopened.projects(alice["id"]), "La sélection des projets échus ne doit pas effacer leur propriétaire"
@@ -65,7 +66,7 @@ def test_cle_api_affichee_une_fois_hachee_et_revocable(tmp_path):
     assert listed[0]["prefix"] == created["prefix"]
     assert "key" not in listed[0]
 
-    with sqlite3.connect(store.path) as db:
+    with base_sqlite(store.path) as db:
         stored = db.execute("SELECT key_hash FROM api_keys").fetchone()[0]
     assert created["key"] not in stored
     assert store.api_key_user(created["key"]) == user
@@ -140,7 +141,7 @@ def test_wal_attend_la_fin_du_verrou_sur_base_neuve(tmp_path, monkeypatch, gener
         assert not worker.is_alive()
         assert errors == []
         assert len(stores) == 1
-        with sqlite3.connect(tmp_path / "platform.sqlite3") as check:
+        with base_sqlite(tmp_path / "platform.sqlite3") as check:
             assert check.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
     finally:
         blocker.rollback()

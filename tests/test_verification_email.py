@@ -10,7 +10,6 @@ import io
 import json
 import os
 import re
-import sqlite3
 import subprocess
 import sys
 import time
@@ -23,6 +22,7 @@ from monl.ast_validator import ASTValidationError
 from monl.cli import _contract_signature, compile_project
 from monl.cli.delta import cmd_update
 from tests.support.server import uvicorn_server
+from tests.support.sqlite import base_sqlite
 from tests.test_authentification_b4 import faux_smtp as faux_smtp
 from tests.test_messages import _uvicorn_with_output
 
@@ -76,7 +76,7 @@ def _login(base, account, password=PASSWORD):
     return _post(base, '/login', username=account, password=password)
 
 def _sql(directory, statement, parameters=()):
-    with sqlite3.connect(directory / 'app.db') as conn:
+    with base_sqlite(directory / 'app.db') as conn:
         return conn.execute(statement, parameters).fetchall()
 
 def _messages(smtp, count):

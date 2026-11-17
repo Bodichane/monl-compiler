@@ -13,7 +13,6 @@ appelant le vrai GitHub, c'est-à-dire jamais.
 import json
 import os
 import socket
-import sqlite3
 import threading
 import time
 from http.cookies import SimpleCookie
@@ -36,6 +35,7 @@ from monl_platform.oauth import (
     redirect_uri,
 )
 from tests.support.server import uvicorn_server
+from tests.support.sqlite import base_sqlite
 
 SECRET = "secret-de-plateforme-pour-les-tests-oauth-123456"
 OAUTH_FLOW_COOKIE = "monl_oauth_flow"
@@ -155,7 +155,7 @@ def _aller(base, session):
 
 
 def _nombre(base_path, table):
-    with sqlite3.connect(base_path / "projects" / "platform.sqlite3") as db:
+    with base_sqlite(base_path / "projects" / "platform.sqlite3") as db:
         return db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
 
 
@@ -566,7 +566,7 @@ def test_suppression_oauth_exige_une_connexion_recente(plateforme, tmp_path, anc
                          json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
                          timeout=10).status_code == 200
     if ancienne:
-        with sqlite3.connect(tmp_path / "projects" / "platform.sqlite3") as db:
+        with base_sqlite(tmp_path / "projects" / "platform.sqlite3") as db:
             db.execute("UPDATE sessions SET created_at = created_at - 601")
     reponse = session.delete(plateforme + "/api/auth/account", json={}, timeout=10)
     if ancienne:
