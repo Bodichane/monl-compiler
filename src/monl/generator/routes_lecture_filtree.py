@@ -1,5 +1,7 @@
 """La lecture avec filtrage et tri déclarés (brique B3)."""
 
+from string import Template
+
 from . import sql
 
 
@@ -64,7 +66,7 @@ class LectureFiltreeRoutesMixin:
                 read_actor = read_owner
                 owner_where = sql.cat(
                     sql.kw(" WHERE "),
-                    sql.ident(f"{read_owner.lower()}_id"),
+                    sql.ident(Template('${v0}_id').substitute(v0=read_owner.lower())),
                     sql.kw(" = "), sql.bind("current_user_id"))
             if condition_fragment:
                 owner_where = sql.cat(owner_where, sql.kw(" AND "), condition_fragment)
@@ -80,7 +82,7 @@ class LectureFiltreeRoutesMixin:
 
         list_params = ["limit: int = 50", "offset: int = 0"]
         list_params.extend(
-            f"{field}: {self._list_query_annotation(base_target, field)} = None"
+            Template('$v0: $v1 = None').substitute(v0=field, v1=self._list_query_annotation(base_target, field))
             for field in filter_fields)
         if sort_fields:
             list_params.extend(["sort: Optional[str] = None",
@@ -88,8 +90,8 @@ class LectureFiltreeRoutesMixin:
         if read_dep_suffix:
             list_params.append(read_dep_suffix.lstrip(", "))
         api_lines += [
-            f"@app.get('/{table}', tags=['{tag}'])",
-            f"def list_{table}({', '.join(list_params)}):",
+            Template("@app.get('/$v0', tags=['$v1'])").substitute(v0=table, v1=tag),
+            Template('def list_$v0($v1):').substitute(v0=table, v1=', '.join(list_params)),
             security_check,
             "    limit = max(1, min(limit, 200))",
             "    offset = max(0, offset)",
@@ -98,9 +100,9 @@ class LectureFiltreeRoutesMixin:
         if apply_read_owner:
             api_lines += [
                 "    _base_where, _base_params = '', ()",
-                f"    if current_actor == {read_actor!r}:",
-                f"        _base_where = {owner_where.text!r}",
-                f"        _base_params = {sql.params_tuple(owner_where)}",
+                Template('    if current_actor == $v0:').substitute(v0=repr(read_actor)),
+                Template('        _base_where = $v0').substitute(v0=repr(owner_where.text)),
+                Template('        _base_params = $v0').substitute(v0=sql.params_tuple(owner_where)),
             ]
         elif apply_read_super:
             # `sql.cat` n'est pas un builder de listes : construire ce fragment
@@ -116,15 +118,15 @@ class LectureFiltreeRoutesMixin:
             supers = ", ".join(repr(actor) for actor in sorted(read_supers))
             api_lines += [
                 "    _base_where, _base_params = '', ()",
-                f"    if current_actor not in {{{supers}}}:",
-                f"        _base_where = {parties.text!r}",
-                f"        _base_params = {sql.params_tuple(parties)}",
+                Template('    if current_actor not in {$v0}:').substitute(v0=supers),
+                Template('        _base_where = $v0').substitute(v0=repr(parties.text)),
+                Template('        _base_params = $v0').substitute(v0=sql.params_tuple(parties)),
             ]
         elif apply_condition_identity:
             base_where = sql.cat(sql.kw(" WHERE "), condition_fragment)
             api_lines += [
-                f"    _base_where = {base_where.text!r}",
-                f"    _base_params = {sql.params_tuple(base_where)}",
+                Template('    _base_where = $v0').substitute(v0=repr(base_where.text)),
+                Template('    _base_params = $v0').substitute(v0=sql.params_tuple(base_where)),
             ]
             if condition_owner_columns:
                 owner_parts = [sql.kw(" WHERE ("), condition_fragment]
@@ -136,14 +138,14 @@ class LectureFiltreeRoutesMixin:
                 owner_condition = sql.cat(*owner_parts)
                 api_lines += [
                     "    if _ident.get('user_id'):",
-                    f"        _base_where = {owner_condition.text!r}",
-                    f"        _base_params = {sql.params_tuple(owner_condition)}",
+                    Template('        _base_where = $v0').substitute(v0=repr(owner_condition.text)),
+                    Template('        _base_params = $v0').substitute(v0=sql.params_tuple(owner_condition)),
                 ]
             if condition_supervisors:
                 supervisors = ", ".join(repr(actor)
                                          for actor in sorted(condition_supervisors))
                 api_lines += [
-                    f"    if _ident.get('actor') in {{{supervisors}}}:",
+                    Template("    if _ident.get('actor') in {$v0}:").substitute(v0=supervisors),
                     "        _base_where, _base_params = '', ()",
                 ]
         elif apply_read_parties:
@@ -156,8 +158,8 @@ class LectureFiltreeRoutesMixin:
             party_parts.append(sql.kw(")"))
             parties = sql.cat(*party_parts)
             api_lines += [
-                f"    _base_where = {parties.text!r}",
-                f"    _base_params = {sql.params_tuple(parties)}",
+                Template('    _base_where = $v0').substitute(v0=repr(parties.text)),
+                Template('    _base_params = $v0').substitute(v0=sql.params_tuple(parties)),
             ]
         else:
             api_lines += ["    _base_where, _base_params = '', ()"]
@@ -168,9 +170,9 @@ class LectureFiltreeRoutesMixin:
         for field in filter_fields:
             fragment = filter_fragments[field]
             api_lines += [
-                f"    if {field} is not None:",
-                f"        _filter_parts.append({fragment.text!r})",
-                f"        _filter_params.append({field})",
+                Template('    if $v0 is not None:').substitute(v0=field),
+                Template('        _filter_parts.append($v0)').substitute(v0=repr(fragment.text)),
+                Template('        _filter_params.append($v0)').substitute(v0=field),
             ]
         api_lines += [
             "    if _filter_parts:",
@@ -186,13 +188,13 @@ class LectureFiltreeRoutesMixin:
         ]
         if sort_fields:
             columns = ", ".join(
-                f"{field!r}: {sql.ident(field).text!r}" for field in sort_fields)
+                Template('$v0: $v1').substitute(v0=repr(field), v1=repr(sql.ident(field).text)) for field in sort_fields)
             directions = ", ".join(
-                f"{direction!r}: {sql.kw(direction.upper()).text!r}"
+                Template('$v0: $v1').substitute(v0=repr(direction), v1=repr(sql.kw(direction.upper()).text))
                 for direction in ("asc", "desc"))
             api_lines += [
-                f"    _sort_columns = {{{columns}}}",
-                f"    _sort_directions = {{{directions}}}",
+                Template('    _sort_columns = {$v0}').substitute(v0=columns),
+                Template('    _sort_directions = {$v0}').substitute(v0=directions),
                 "    _order_by = ''",
                 "    if sort is not None:",
                 "        _sort_column = _sort_columns.get(sort)",
@@ -207,9 +209,9 @@ class LectureFiltreeRoutesMixin:
             api_lines.append("    _order_by = ''")
         api_lines += [
             "    conn = _connect(); cursor = conn.cursor()",
-            f"    cursor.execute('SELECT COUNT(*) FROM \"{table}\"' + _query_where, _query_params)",
+            Template('    cursor.execute(\'SELECT COUNT(*) FROM "$v0"\' + _query_where, _query_params)').substitute(v0=table),
             "    total = cursor.fetchone()[0]",
-            f"    cursor.execute('SELECT * FROM \"{table}\"' + _query_where + _order_by + ' LIMIT ? OFFSET ?', _query_params + (limit, offset))",
+            Template('    cursor.execute(\'SELECT * FROM "$v0"\' + _query_where + _order_by + \' LIMIT ? OFFSET ?\', _query_params + (limit, offset))').substitute(v0=table),
             "    rows = cursor.fetchall()",
             "    _columns = [d[0] for d in cursor.description]  # ordre réel en base (robuste aux migrations)",
             "    conn.close()",
@@ -217,7 +219,7 @@ class LectureFiltreeRoutesMixin:
         ]
         row_loop_lines = []
         if masked:
-            row_loop_lines.append(f"        for _f in [{mask_literal}]: _r.pop(_f, None)")
+            row_loop_lines.append(Template('        for _f in [$v0]: _r.pop(_f, None)').substitute(v0=mask_literal))
         for cf in categorized_here:
             row_loop_lines.extend(self._emit_categorization_lines(cf, "_r", "        "))
         if row_loop_lines:
@@ -225,11 +227,11 @@ class LectureFiltreeRoutesMixin:
         api_lines += [
             "    return {'status': 'success', 'total': total, 'limit': limit, 'offset': offset, 'data': named_rows}",
             "",
-            f"@app.get('/{table}/{{id}}', tags=['{tag}'])",
-            f"def read_{table}(id: int{read_dep_suffix}):",
+            Template("@app.get('/$v0/{id}', tags=['$v1'])").substitute(v0=table, v1=tag),
+            Template('def read_$v0(id: int$v1):').substitute(v0=table, v1=read_dep_suffix),
             security_check,
             "    conn = _connect(); cursor = conn.cursor()",
-            f"    cursor.execute('SELECT * FROM \"{table}\" WHERE id = ?', (id,))",
+            Template('    cursor.execute(\'SELECT * FROM "$v0" WHERE id = ?\', (id,))').substitute(v0=table),
             "    row = cursor.fetchone()",
             "    _columns = [d[0] for d in cursor.description]  # ordre réel en base (robuste aux migrations)",
             "    conn.close()",
@@ -237,16 +239,15 @@ class LectureFiltreeRoutesMixin:
             "    named_row = dict(zip(_columns, row))",
         ]
         if public_condition:
-            guard = (f"    if named_row.get({public_condition.field!r}) != "
-                     f"{public_condition.value!r}")
+            guard = (Template('    if named_row.get($v0) != $v1').substitute(v0=repr(public_condition.field), v1=repr(public_condition.value)))
             if apply_condition_identity:
                 exemptions = []
                 if condition_supervisors:
                     supervisors = ", ".join(repr(actor)
                                              for actor in sorted(condition_supervisors))
-                    exemptions.append(f"_ident.get('actor') in {{{supervisors}}}")
+                    exemptions.append(Template("_ident.get('actor') in {$v0}").substitute(v0=supervisors))
                 exemptions.extend(
-                    f"(_ident.get('user_id') and named_row.get({column!r}) == _ident.get('user_id'))"
+                    Template("(_ident.get('user_id') and named_row.get($v0) == _ident.get('user_id'))").substitute(v0=repr(column))
                     for column in condition_owner_columns)
                 guard += " and not (" + " or ".join(exemptions) + ")"
             api_lines.append(
@@ -254,39 +255,39 @@ class LectureFiltreeRoutesMixin:
         if apply_read_owner:
             if chain:
                 owner_query = self._chain_owner_scalar(
-                    base_target, sql.bind(f"named_row.get('{chain['via_fk']}')"))
+                    base_target, sql.bind(Template("named_row.get('$v0')").substitute(v0=chain['via_fk'])))
                 sql_literal, params_literal = sql.execute_args(owner_query, prefix="SELECT ")
                 api_lines += [
-                    f"    if current_actor == {read_actor!r}:",
+                    Template('    if current_actor == $v0:').substitute(v0=repr(read_actor)),
                     "        _tc = _connect(); _tcur = _tc.cursor()",
-                    f"        _tcur.execute({sql_literal}, {params_literal})",
+                    Template('        _tcur.execute($v0, $v1)').substitute(v0=sql_literal, v1=params_literal),
                     "        _tr = _tcur.fetchone(); _tc.close()",
                     "        if not _tr or _tr[0] is None or _tr[0] != current_user_id:",
                     "            raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
                 ]
             else:
                 api_lines += [
-                    f"    if current_actor == {read_actor!r} and named_row.get('{read_owner.lower()}_id') != current_user_id:",
+                    Template("    if current_actor == $v0 and named_row.get('${v1}_id') != current_user_id:").substitute(v0=repr(read_actor), v1=read_owner.lower()),
                     "        raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
                 ]
         if apply_read_parties:
-            parties_tuple = ", ".join(f"named_row.get('{column}')"
+            parties_tuple = ", ".join(Template("named_row.get('$v0')").substitute(v0=column)
                                        for column in read_parties)
             if apply_read_super:
                 supervisors = ", ".join(repr(actor)
                                          for actor in sorted(read_supers))
                 api_lines += [
-                    f"    if current_actor not in {{{supervisors}}}:",
-                    f"        if current_user_id not in ({parties_tuple},):",
+                    Template('    if current_actor not in {$v0}:').substitute(v0=supervisors),
+                    Template('        if current_user_id not in ($v0,):').substitute(v0=parties_tuple),
                     "            raise HTTPException(status_code=403, detail=\"Contrôle d'accès : seules les parties de la ressource peuvent la consulter\")",
                 ]
             else:
                 api_lines += [
-                    f"    if current_user_id not in ({parties_tuple},):",
+                    Template('    if current_user_id not in ($v0,):').substitute(v0=parties_tuple),
                     "        raise HTTPException(status_code=403, detail=\"Contrôle d'accès : seules les parties de la ressource peuvent la consulter\")",
                 ]
         if masked:
-            api_lines.append(f"    for _f in [{mask_literal}]: named_row.pop(_f, None)")
+            api_lines.append(Template('    for _f in [$v0]: named_row.pop(_f, None)').substitute(v0=mask_literal))
         for cf in categorized_here:
             api_lines.extend(self._emit_categorization_lines(cf, "named_row", "    "))
         api_lines += [
