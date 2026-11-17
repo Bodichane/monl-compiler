@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Changed
+
+- Translate user-facing smoke test errors, warnings, and progress output into
+  English.
+
 ### Fixed
 
 - Close files and HTTP error responses the compiler and platform used to leave

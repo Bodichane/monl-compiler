@@ -37,7 +37,7 @@ def _compte_de_test(base, contract, errors, warnings):
                            {"username": identifiant, "password": "smokepass123",
                             "actor": actor})
         if status != 200:
-            errors.append(f"/register a répondu {status} (attendu 200)")
+            errors.append(f"/register returned {status} (expected 200)")
         status, body = fondations._http("POST", base + "/login",
                              {"username": identifiant, "password": "smokepass123"})
         token = verification_email.verifier_connexion(
@@ -51,11 +51,11 @@ def _compte_de_test(base, contract, errors, warnings):
                                {"username": fondations._identifiant_smoke(contract, rang),
                                 "password": "smokepass123", "actor": provisioned})
             if status == 200:
-                errors.append(f"/register a accepté le rôle provisionné '{provisioned}' "
-                              f"(élévation de privilège : un refus 403 était attendu)")
+                errors.append(f"/register accepted provisioned role '{provisioned}' "
+                              f"(privilege escalation: expected a 403 refusal)")
     else:
-        warnings.append("Aucun rôle 'selfRegister' : parcours d'inscription non éprouvé "
-                        "(comptes provisionnés par manage.py).")
+        warnings.append("No 'selfRegister' role: registration flow not tested "
+                        "(accounts are provisioned by manage.py).")
     return verification_email.acteur_connecte(actor, contract), token
 
 def _eprouver_les_routes(actor, base, contract, errors, token):
@@ -72,14 +72,14 @@ def _eprouver_les_routes(actor, base, contract, errors, token):
             status, _b = fondations._http(method, base + concrete,
                                body={} if method in ("POST", "PUT") else None)
             if status < 400:
-                errors.append(f"{method} {path} a accepté un rafraîchissement vide "
-                              f"(réponse {status})")
+                errors.append(f"{method} {path} accepted an empty refresh "
+                              f"(response {status})")
         elif route["auth_required"] and route["allowed_actors"]:
             status, _b = fondations._http(method, base + concrete,
                                body={} if method in ("POST", "PUT") else None)
             if status not in (401, 403):
-                errors.append(f"{method} {path} sans jeton a répondu {status} "
-                              f"(un refus 401/403 était attendu)")
+                errors.append(f"{method} {path} without a token returned {status} "
+                              f"(expected a 401/403 refusal)")
         elif route["auth_required"]:
             # POINT 74 : une route protégée AUTREMENT que par un JWT —
             # le webhook de paiement, authentifié par la signature du
@@ -90,34 +90,34 @@ def _eprouver_les_routes(actor, base, contract, errors, token):
             status, _b = fondations._http(method, base + concrete,
                                body={} if method in ("POST", "PUT") else None)
             if status < 400:
-                errors.append(f"{method} {path} a accepté une requête sans "
-                              f"aucune authentification (réponse {status})")
+                errors.append(f"{method} {path} accepted a request without "
+                              f"any authentication (response {status})")
         if method == "GET" and not route["auth_required"]:
             status, _b = fondations._http("GET", base + concrete)
             if route["action"] == "List" and status != 200:
-                errors.append(f"GET {path} (public) a répondu {status} (attendu 200)")
+                errors.append(f"GET {path} (public) returned {status} (expected 200)")
             if route["action"] == "Read" and status not in (200, 404):
-                errors.append(f"GET {path} (public) a répondu {status} (attendu 200/404)")
+                errors.append(f"GET {path} (public) returned {status} (expected 200/404)")
         if method == "GET" and route["auth_required"] and token \
                 and actor in route["allowed_actors"] and route["action"] == "List":
             status, _b = fondations._http("GET", base + concrete, token=token)
             if status != 200:
-                errors.append(f"GET {path} avec jeton {actor} a répondu {status} "
-                              f"(attendu 200)")
+                errors.append(f"GET {path} with {actor} token returned {status} "
+                              f"(expected 200)")
             if status == 200 and route.get("list_query"):
                 probe = sondes._list_query_probe(route, contract)
                 status, _b = fondations._http("GET", base + concrete + probe,
                                    token=token)
                 if status != 200:
-                    errors.append(f"GET {path}{probe} avec les capacités de liste "
-                                  f"du contrat a répondu {status} (attendu 200)")
+                    errors.append(f"GET {path}{probe} with the contract's list "
+                                  f"capabilities returned {status} (expected 200)")
         if method == "GET" and not route["auth_required"] \
                 and route["action"] == "List" and route.get("list_query"):
             probe = sondes._list_query_probe(route, contract)
             status, _b = fondations._http("GET", base + concrete + probe)
             if status != 200:
-                errors.append(f"GET {path}{probe} (public) a répondu {status} "
-                              f"(attendu 200)")
+                errors.append(f"GET {path}{probe} (public) returned {status} "
+                              f"(expected 200)")
 
 def _eprouver_une_creation(actor, base, contract, errors, token, warnings):
     """Une création réelle, pour éprouver le corps de requête de bout en bout."""
@@ -153,16 +153,16 @@ def _eprouver_une_creation(actor, base, contract, errors, token, warnings):
         if parent_absent:
             nom, parent = parent_absent
             warnings.append(
-                f"création de {route['entity']} non éprouvée : « {nom} » "
-                f"exige un {parent} existant, et aucun n'est lisible "
-                f"(ajouter un bloc 'seed {parent}' rendrait ce chemin "
-                f"vérifiable)")
+                f"creation of {route['entity']} not tested: '{nom}' "
+                f"requires an existing {parent}, and none is readable "
+                f"(adding a 'seed {parent}' block would make this path "
+                f"verifiable)")
             break
         status, _b = fondations._http("POST", base + route["path"], payload,
                            token=None if not route["auth_required"] else token)
         if status != 200:
-            errors.append(f"POST {route['path']} avec un corps conforme au contrat "
-                          f"a répondu {status} (attendu 200)")
+            errors.append(f"POST {route['path']} with a contract-compliant body "
+                          f"returned {status} (expected 200)")
         break
 
 def _assets_reellement_servis(assets_dir, assets_src, base, contract, errors, has_assets):
@@ -182,8 +182,8 @@ def _assets_reellement_servis(assets_dir, assets_src, base, contract, errors, ha
             status, _b = fondations._http("GET", url)
             if status != 200:
                 errors.append(
-                    f"l'asset déclaré '{cle}' ({assets[cle]}) a répondu {status} sur "
-                    f"/site/{assets[cle]} : le fichier existe mais n'est pas SERVI.")
+                    f"declared asset '{cle}' ({assets[cle]}) returned {status} at "
+                    f"/site/{assets[cle]}: the file exists but is not SERVED.")
         # Un dossier d'assets déclaré mais monté nulle part est un piège
         # silencieux : on l'éprouve sur un fichier réel du dossier.
         temoin = next((n for n in sorted(os.listdir(assets_src))
@@ -192,8 +192,8 @@ def _assets_reellement_servis(assets_dir, assets_src, base, contract, errors, ha
             status, _b = fondations._http("GET", f"{base}/site/{assets_dir}/{temoin}")
             if status != 200:
                 errors.append(
-                    f"le dossier d'assets '{assets_dir}/' n'est pas servi : "
-                    f"/site/{assets_dir}/{temoin} a répondu {status}.")
+                    f"assets directory '{assets_dir}/' is not served: "
+                    f"/site/{assets_dir}/{temoin} returned {status}.")
 
 def _fichiers_reclames_servis(base, errors, has_frontend, workdir):
     """Les fichiers que l'IA a RÉCLAMÉS sont-ils livrés ? (brique 29)"""
@@ -208,13 +208,13 @@ def _fichiers_reclames_servis(base, errors, has_frontend, workdir):
             url = fichiers_reclames._url_de_reference(page, chemin)
             if url is None:
                 errors.append(
-                    f"frontend/{page} référence '{chemin}', qui sort du site.")
+                    f"frontend/{page} references '{chemin}', which escapes the site.")
                 continue
             status, _b = fondations._http("GET", base + url)
             if status == 200:
                 continue
-            detail = (f"frontend/{page} référence '{chemin}' : "
-                      f"{url} a répondu {status}.")
+            detail = (f"frontend/{page} references '{chemin}': "
+                      f"{url} returned {status}.")
             if chemin.lower().endswith(
                     (".png", ".jpg", ".jpeg", ".webp", ".gif", ".avif")):
                 # Cause fréquente et silencieuse : `monl import` ne
@@ -222,10 +222,10 @@ def _fichiers_reclames_servis(base, errors, has_frontend, workdir):
                 # dans l'archive est écartée sans un mot, et la page qui
                 # la réclame reste. Sa place est le dossier d'assets
                 # (brique 13), qui est versionné et vérifié.
-                detail += (" Une image livrée avec le frontend n'est pas "
-                           "retenue : la déclarer dans 'assets' de la spec.")
+                detail += (" An image delivered with the frontend is not "
+                           "retained: declare it in the spec's 'assets'.")
             else:
-                detail += " Ce fichier n'a pas été livré."
+                detail += " This file was not delivered."
             errors.append(detail)
 
 def _frontend_dans_jsdom(base, contract, errors, has_frontend, say, warnings, workdir):
@@ -234,14 +234,14 @@ def _frontend_dans_jsdom(base, contract, errors, has_frontend, say, warnings, wo
     if has_frontend:
         node = shutil.which("node")
         if not node:
-            warnings.append("Node.js introuvable — le frontend n'a pas été exécuté "
-                            "(vérification statique seule). Installer node pour un "
-                            "smoke test complet.")
+            warnings.append("Node.js not found — the frontend was not executed "
+                            "(static check only). Install node for a complete "
+                            "smoke test.")
         else:
             jsdom_ok = fondations._ensure_jsdom(workdir, say)
             if not jsdom_ok:
-                warnings.append("jsdom indisponible (installation npm échouée) — "
-                                "le frontend n'a pas été exécuté.")
+                warnings.append("jsdom unavailable (npm installation failed) — "
+                                "the frontend was not executed.")
             else:
                 runner = os.path.join(workdir, "_smoke_runner.js")
                 with open(runner, "w", encoding="utf-8") as fh:
@@ -258,21 +258,21 @@ def _frontend_dans_jsdom(base, contract, errors, has_frontend, say, warnings, wo
                     except json.JSONDecodeError:
                         continue
                 if report is None:
-                    errors.append("le runner jsdom n'a rendu aucun rapport : "
+                    errors.append("the jsdom runner produced no report: "
                                   + (proc.stderr or proc.stdout)[-300:])
                 else:
                     for err in dict.fromkeys(report["js_errors"]):  # dédoublonné (onerror + listener)
-                        errors.append(f"exception JavaScript dans le frontend : {err}")
+                        errors.append(f"JavaScript exception in frontend: {err}")
                     known = {r["path"].split("/")[1] for r in contract["routes"]}
                     known |= {"register", "login", "logout", "docs", "site"}
                     for f in report["fetches"]:
                         first = f["url"].lstrip("/").split("/")[0].split("?")[0]
                         if f["url"].startswith("/") and first not in known:
-                            errors.append(f"le frontend appelle un chemin hors "
-                                          f"contrat : {f['url']}")
+                            errors.append(f"frontend calls a path outside the "
+                                          f"contract: {f['url']}")
                         elif f["status"] in (0, 404, 422, 500):
-                            errors.append(f"appel frontend {f['url']} → "
+                            errors.append(f"frontend call {f['url']} → "
                                           f"{f['status'] or f.get('error', '?')}")
                     if not report["fetches"]:
-                        warnings.append("le frontend n'a émis aucun appel API au "
-                                        "chargement — rien à éprouver côté réseau.")
+                        warnings.append("the frontend made no API calls on "
+                                        "load — nothing to check over the network.")

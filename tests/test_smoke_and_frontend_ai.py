@@ -87,7 +87,7 @@ def test_smoke_valide_un_frontend_correct(project):
     ok, errors, warnings = run_smoke_test(str(project), say=_quiet)
     assert ok, errors
     # le fetch initial a bien été observé (pas un faux positif silencieux)
-    assert not any("aucun appel API" in w for w in warnings)
+    assert not any("the frontend made no API calls" in w for w in warnings)
 
 
 def test_coherence_refuse_une_image_locale_absente(project):
@@ -210,10 +210,10 @@ def test_smoke_nomme_lurl_absolue_au_lieu_de_fetch_failed(project):
     (front / "index.html").write_text(ABSOLUTE_FRONT, encoding="utf-8")
     ok, errors, warnings = run_smoke_test(str(project), say=_quiet)
     assert not ok
-    assert any("URL absolue" in e for e in errors), errors
+    assert any("Absolute URL forbidden" in e for e in errors), errors
     # La tentative compte comme un appel : sans cela le rapport conclurait
     # « aucun appel API au chargement », ce qui est faux et brouille la piste.
-    assert not any("aucun appel API" in w for w in warnings), warnings
+    assert not any("the frontend made no API calls" in w for w in warnings), warnings
 
 
 def test_parse_files_payload_gardes_fous():
