@@ -3,6 +3,8 @@
 `writableAfterPayment` (point 113) : route dédiée, réservée à l'acteur
 nommé, sans toucher au verrou générique d'`Update` qui reste absolu."""
 
+from string import Template
+
 from . import sql
 
 
@@ -24,76 +26,77 @@ class PrestatairesRoutesMixin:
     # est qualifiée par l'entité, la clé absente donne 503 en la nommant.
     # ─────────────────────────────────────────────────────────────────
     def _prelude_fedapay(self, code_devise):
-        return [
-            "",
-            "# ── Paiement (brique 'payable', prestataire FedaPay) ─────────",
-            "FEDAPAY_SECRET_KEY = (os.environ.get('MONL_FEDAPAY_SECRET_KEY') or '').strip()",
-            "FEDAPAY_WEBHOOK_SECRET = (os.environ.get('MONL_FEDAPAY_WEBHOOK_SECRET') or '').strip()",
-            "# Bac à sable par défaut : une clé de test et un point de",
-            "# terminaison de production ne vont jamais ensemble, et le défaut",
-            "# le moins coûteux en cas d'erreur est celui qui n'encaisse pas de",
-            "# vrai argent. Le passage en production est un geste EXPLICITE.",
-            "FEDAPAY_BASE_URL = (os.environ.get('MONL_FEDAPAY_BASE_URL')",
-            "                    or 'https://sandbox-api.fedapay.com').rstrip('/')",
-            "",
-            "def _exiger_cle_paiement(nom, valeur):",
-            "    if not valeur:",
-            "        raise HTTPException(status_code=503, detail=(",
-            "            f\"Paiement indisponible : la variable d'environnement {nom} n'est pas \"",
-            "            'définie sur le serveur. Aucun règlement ne peut être accepté tant '",
-            "            \"qu'elle manque.\"))",
-            "",
-            "def _appel_fedapay(chemin, corps=None):",
-            "    donnees = json.dumps(corps).encode() if corps is not None else b''",
-            "    requete = urllib.request.Request(",
-            "        FEDAPAY_BASE_URL + chemin, data=donnees, method='POST')",
-            "    requete.add_header('Authorization', 'Bearer ' + FEDAPAY_SECRET_KEY)",
-            "    requete.add_header('Content-Type', 'application/json')",
-            "    try:",
-            "        with urllib.request.urlopen(requete, timeout=15) as reponse:",
-            "            return json.loads(reponse.read() or b'{}')",
-            "    except urllib.error.HTTPError as e:",
-            "        with e:",
-            "            detail = (e.read() or b'')[:400].decode('utf-8', 'replace')",
-            "        raise HTTPException(status_code=502, detail=(",
-            "            f'Le prestataire de paiement a refusé la demande ({e.code}) : {detail}'))",
-            "    except urllib.error.URLError as e:",
-            "        raise HTTPException(status_code=502, detail=(",
-            "            f'Prestataire de paiement injoignable : {e.reason}'))",
-            "",
-            "def _session_paiement(montant_centimes, devise, reference, retour):",
-            "    \"\"\"Crée une transaction FedaPay puis son lien de paiement.",
-            "",
-            "    Le montant arrive DÉJÀ converti dans l'unité mineure de la",
-            "    devise (brique 2a) et vient de la base, jamais du client.",
-            "    \"\"\"",
-            "    transaction = _appel_fedapay('/v1/transactions', {",
-            "        'description': f'Commande {reference}',",
-            "        'amount': int(montant_centimes),",
-            f"        'currency': {{'iso': '{code_devise}'}},",
-            "        'callback_url': retour + '?paiement=retour',",
-            "        # La référence qualifiée 'Entite:id' (point 75) est envoyée",
-            "        # dans les DEUX champs que FedaPay documente pour cela : le",
-            "        # webhook n'expose pas le même selon la version, et en",
-            "        # renseigner un seul reviendrait à parier sur laquelle.",
-            "        'merchant_reference': str(reference),",
-            "        'custom_metadata': {'monl_reference': str(reference)},",
-            "    })",
-            "    objet = transaction.get('v1/transaction') or transaction.get('transaction') or transaction",
-            "    identifiant = objet.get('id')",
-            "    if not identifiant:",
-            "        raise HTTPException(status_code=502, detail=(",
-            "            \"Le prestataire n'a pas renvoyé d'identifiant de transaction.\"))",
-            "    jeton = _appel_fedapay(f'/v1/transactions/{identifiant}/token')",
-            "    url = jeton.get('url')",
-            "    if not url:",
-            "        raise HTTPException(status_code=502, detail=(",
-            "            \"Le prestataire n'a pas renvoyé d'URL de paiement.\"))",
-            "    # Même forme de retour que la voie Stripe : la route de règlement",
-            "    # est commune et ne connaît pas le prestataire.",
-            "    return {'url': url, 'id': identifiant}",
-            "",
-        ]
+        """Gabarit du client FedaPay ; seul le code devise varie."""
+        source = Template(r'''
+# ── Paiement (brique 'payable', prestataire FedaPay) ─────────
+FEDAPAY_SECRET_KEY = (os.environ.get('MONL_FEDAPAY_SECRET_KEY') or '').strip()
+FEDAPAY_WEBHOOK_SECRET = (os.environ.get('MONL_FEDAPAY_WEBHOOK_SECRET') or '').strip()
+# Bac à sable par défaut : une clé de test et un point de
+# terminaison de production ne vont jamais ensemble, et le défaut
+# le moins coûteux en cas d'erreur est celui qui n'encaisse pas de
+# vrai argent. Le passage en production est un geste EXPLICITE.
+FEDAPAY_BASE_URL = (os.environ.get('MONL_FEDAPAY_BASE_URL')
+                    or 'https://sandbox-api.fedapay.com').rstrip('/')
+
+def _exiger_cle_paiement(nom, valeur):
+    if not valeur:
+        raise HTTPException(status_code=503, detail=(
+            f"Paiement indisponible : la variable d'environnement {nom} n'est pas "
+            'définie sur le serveur. Aucun règlement ne peut être accepté tant '
+            "qu'elle manque."))
+
+def _appel_fedapay(chemin, corps=None):
+    donnees = json.dumps(corps).encode() if corps is not None else b''
+    requete = urllib.request.Request(
+        FEDAPAY_BASE_URL + chemin, data=donnees, method='POST')
+    requete.add_header('Authorization', 'Bearer ' + FEDAPAY_SECRET_KEY)
+    requete.add_header('Content-Type', 'application/json')
+    try:
+        with urllib.request.urlopen(requete, timeout=15) as reponse:
+            return json.loads(reponse.read() or b'{}')
+    except urllib.error.HTTPError as e:
+        with e:
+            detail = (e.read() or b'')[:400].decode('utf-8', 'replace')
+        raise HTTPException(status_code=502, detail=(
+            f'Le prestataire de paiement a refusé la demande ({e.code}) : {detail}'))
+    except urllib.error.URLError as e:
+        raise HTTPException(status_code=502, detail=(
+            f'Prestataire de paiement injoignable : {e.reason}'))
+
+def _session_paiement(montant_centimes, devise, reference, retour):
+    """Crée une transaction FedaPay puis son lien de paiement.
+
+    Le montant arrive DÉJÀ converti dans l'unité mineure de la
+    devise (brique 2a) et vient de la base, jamais du client.
+    """
+    transaction = _appel_fedapay('/v1/transactions', {
+        'description': f'Commande {reference}',
+        'amount': int(montant_centimes),
+        'currency': {'iso': '$code_devise'},
+        'callback_url': retour + '?paiement=retour',
+        # La référence qualifiée 'Entite:id' (point 75) est envoyée
+        # dans les DEUX champs que FedaPay documente pour cela : le
+        # webhook n'expose pas le même selon la version, et en
+        # renseigner un seul reviendrait à parier sur laquelle.
+        'merchant_reference': str(reference),
+        'custom_metadata': {'monl_reference': str(reference)},
+    })
+    objet = transaction.get('v1/transaction') or transaction.get('transaction') or transaction
+    identifiant = objet.get('id')
+    if not identifiant:
+        raise HTTPException(status_code=502, detail=(
+            "Le prestataire n'a pas renvoyé d'identifiant de transaction."))
+    jeton = _appel_fedapay(f'/v1/transactions/{identifiant}/token')
+    url = jeton.get('url')
+    if not url:
+        raise HTTPException(status_code=502, detail=(
+            "Le prestataire n'a pas renvoyé d'URL de paiement."))
+    # Même forme de retour que la voie Stripe : la route de règlement
+    # est commune et ne connaît pas le prestataire.
+    return {'url': url, 'id': identifiant}
+
+''').substitute(code_devise=code_devise)
+        return source.split("\n")[:-1]
 
     def _lignes_bascule_apres_paiement(self, entite, config, table):
         """Libération d'un effet depuis la route après-paiement (brique 20).
@@ -117,35 +120,31 @@ class PrestatairesRoutesMixin:
             if not fk_enfant:
                 continue
             champ, valeur = regle["field"], regle["value"]
-            lignes += [
-                f"    cursor.execute('SELECT \"{champ}\" FROM "
-                f'"{table}" WHERE id = ?\', (id,))',
-                "    _etat_avant = cursor.fetchone()",
+            lignes.extend([
+                Template(r'''    cursor.execute('SELECT "${champ}" FROM "${table}" WHERE id = ?', (id,))''').substitute(champ=champ, table=table),
+                Template(r'''    _etat_avant = cursor.fetchone()''').substitute(),
                 # L'état libéré est TERMINAL : ce qui a été rendu n'est plus
                 # garanti disponible, et reprendre la commande donnerait du
                 # stock gratuit — famille du point 77.
-                f"    if (_etat_avant and _etat_avant[0] == {valeur!r}",
-                f"            and data.{champ} is not None "
-                f"and data.{champ} != {valeur!r}):",
-                "        conn.close()",
-                "        raise HTTPException(status_code=409, detail=(",
-                f"            \"Cet enregistrement est {valeur} : ce qu'il "
-                f"avait consommé a été rendu, \"",
-                "            'et rien ne garantit que ce soit encore disponible. "
-                "En créer un nouveau.'))",
-                f"    _bascule = (_etat_avant and _etat_avant[0] != {valeur!r}",
-                f"                and data.{champ} == {valeur!r})",
-                "    if _bascule:",
-            ]
-            lignes += self._lignes_restitution(enfant, fk_enfant, indent="        ")
+                Template(r'''    if (_etat_avant and _etat_avant[0] == ${valeur}''').substitute(valeur=repr(valeur)),
+                Template(r'''            and data.${champ} is not None and data.${champ} != ${valeur}):''').substitute(champ=champ, valeur=repr(valeur)),
+                Template(r'''        conn.close()''').substitute(),
+                Template(r'''        raise HTTPException(status_code=409, detail=(''').substitute(),
+                Template(r'''            "Cet enregistrement est ${valeur} : ce qu'il avait consommé a été rendu, "''').substitute(valeur=valeur),
+                Template(r'''            'et rien ne garantit que ce soit encore disponible. En créer un nouveau.'))''').substitute(),
+                Template(r'''    _bascule = (_etat_avant and _etat_avant[0] != ${valeur}''').substitute(valeur=repr(valeur)),
+                Template(r'''                and data.${champ} == ${valeur})''').substitute(champ=champ, valeur=repr(valeur)),
+                Template(r'''    if _bascule:''').substitute(),
+            ])
+            lignes.extend(self._lignes_restitution(enfant, fk_enfant, indent="        "))
         return lignes
 
     def _generate_postpayment_routes(self):
         lignes = []
         for entite, config in sorted(self.postpayment_writable_by_entity.items()):
             table = entite.lower()
-            schema = f"{entite}ApresPaiementSchema"
-            lignes += ["", f"class {schema}(BaseModel):"]
+            schema = Template(r"""${entite}ApresPaiementSchema""").substitute(entite=entite)
+            lignes.extend(["", Template(r"""class ${schema}(BaseModel):""").substitute(schema=schema)])
             for field in config["fields"]:
                 field_type = self.entities[entite][field]
                 py_type = "str"
@@ -158,7 +157,7 @@ class PrestatairesRoutesMixin:
                 choix = self.enumerated_fields.get(entite, {}).get(field)
                 if choix:
                     valeurs = ", ".join(repr(v) for v in choix)
-                    py_type = f"Literal[{valeurs}]"
+                    py_type = Template(r"""Literal[${valeurs}]""").substitute(valeurs=valeurs)
                 contraintes = self.field_constraints.get(entite, {}).get(field, {})
                 bornes = []
                 for nom, mot_texte, mot_nombre in (("min", "min_length", "ge"),
@@ -166,12 +165,12 @@ class PrestatairesRoutesMixin:
                     borne = contraintes.get(nom)
                     if borne:
                         mot = mot_texte if borne["portee"] == "longueur" else mot_nombre
-                        bornes.append(f"{mot}={borne['valeur']}")
+                        bornes.append(Template(r"""${mot}=${valeur}""").substitute(mot=mot, valeur=borne["valeur"]))
                 if py_type == "str":
                     limite = {"Text": 20000, "Email": 320, "UUID": 36}.get(
                         field_type, 255)
                     if not any(b.startswith("max_length=") for b in bornes):
-                        bornes.append(f"max_length={limite}")
+                        bornes.append(Template(r"""max_length=${limite}""").substitute(limite=limite))
                     if field_type == "Email":
                         bornes.append(r"pattern=r'^[^@\s]+@[^@\s]+\.[^@\s]{2,}$'")
                     if field_type == "UUID":
@@ -180,9 +179,9 @@ class PrestatairesRoutesMixin:
                             r"[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'")
                 if bornes and not choix:
                     lignes.append(
-                        f"    {field}: Optional[{py_type}] = Field(None, {', '.join(bornes)})")
+                        Template(r"""    ${field}: Optional[${py_type}] = Field(None, ${bornes})""").substitute(field=field, py_type=py_type, bornes=', '.join(bornes)))
                 else:
-                    lignes.append(f"    {field}: Optional[{py_type}] = None")
+                    lignes.append(Template(r"""    ${field}: Optional[${py_type}] = None""").substitute(field=field, py_type=py_type))
 
             lignes.extend(self._required_text_validator(entite, config["fields"]))
 
@@ -191,17 +190,16 @@ class PrestatairesRoutesMixin:
                 sql.kw(" FROM "), sql.ident(table),
                 sql.kw(" WHERE id = "), sql.bind("id"))
             existence_sql, existence_params = sql.execute_args(existence)
-            lignes += [
+            lignes.extend([
                 "",
-                f"@app.put('/{table}/{{id}}/apres-paiement', tags=['Paiement'])",
-                f"def modifier_{table}_apres_paiement(id: int, data: {schema}, "
-                "current_actor: str = Depends(verify_jwt_and_get_actor)):",
-                f"    if current_actor != {config['actor']!r}:",
+                Template(r"""@app.put('/${table}/{id}/apres-paiement', tags=['Paiement'])""").substitute(table=table),
+                Template(r"""def modifier_${table}_apres_paiement(id: int, data: ${schema}, current_actor: str = Depends(verify_jwt_and_get_actor)):""").substitute(table=table, schema=schema),
+                Template(r"""    if current_actor != ${actor}:""").substitute(actor=repr(config['actor'])),
                 "        raise HTTPException(status_code=403, detail=(",
                 "            \"Contrôle d'accès : seules les parties de la ressource \"",
                 "            'peuvent exécuter cette action'))",
                 "    conn = _connect(); cursor = conn.cursor()",
-                f"    cursor.execute({existence_sql}, {existence_params})",
+                Template(r"""    cursor.execute(${existence_sql}, ${existence_params})""").substitute(existence_sql=existence_sql, existence_params=existence_params),
                 "    enregistrement = cursor.fetchone()",
                 "    if not enregistrement:",
                 "        conn.close()",
@@ -210,26 +208,26 @@ class PrestatairesRoutesMixin:
                 "        conn.close()",
                 "        raise HTTPException(status_code=409, detail=(",
                 "            'Action disponible uniquement après confirmation du paiement'))",
-            ]
+            ])
             # BRIQUE 20 sur un champ que cette route s'est réservé. Quand
             # `writableAfterPayment` prend le champ d'une règle `releases`, il
             # le retire du schéma de l'Update générique : la bascule doit donc
             # vivre ICI, sinon annuler une commande PAYÉE ne rendrait jamais
             # son stock — une perte silencieuse, pire que le 500 qu'on répare.
-            lignes += self._lignes_bascule_apres_paiement(entite, config, table)
+            lignes.extend(self._lignes_bascule_apres_paiement(entite, config, table))
             for field in config["fields"]:
                 update = sql.cat(
                     sql.kw("UPDATE "), sql.ident(table), sql.kw(" SET "),
-                    sql.ident(field), sql.kw(" = "), sql.bind(f"data.{field}"),
+                    sql.ident(field), sql.kw(" = "), sql.bind(Template(r"""data.${field}""").substitute(field=field)),
                     sql.kw(" WHERE id = "), sql.bind("id"))
                 update_sql, update_params = sql.execute_args(update)
-                lignes += [
-                    f"    if data.{field} is not None:",
-                    f"        cursor.execute({update_sql}, {update_params})",
-                ]
-            lignes += [
+                lignes.extend([
+                    Template(r"""    if data.${field} is not None:""").substitute(field=field),
+                    Template(r"""        cursor.execute(${update_sql}, ${update_params})""").substitute(update_sql=update_sql, update_params=update_params),
+                ])
+            lignes.extend([
                 "    conn.commit(); conn.close()",
                 "    return {'status': 'success', 'id': id}",
                 "",
-            ]
+            ])
         return lignes

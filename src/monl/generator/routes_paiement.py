@@ -6,8 +6,71 @@ toute écriture — c'est le SEUL endroit du backend généré où un tiers non
 authentifié écrit ; une clé absente donne 503 en la NOMMANT, sans empêcher
 le reste du serveur de fonctionner."""
 
+from string import Template
+
+from . import sql
+
+
 class PaiementRoutesMixin:
     """Les deux routes d'encaissement."""
+
+    def _payment_webhook_size_guard(self, secret_env, secret_var):
+        """Émet le contrôle de taille du corps webhook."""
+        return Template(r"""WEBHOOK_MAX_BYTES = 256 * 1024
+
+@app.post('/paiement/webhook', tags=['Paiement'])
+async def paiement_webhook(request: Request):
+    _exiger_cle_paiement('${secret_env}', ${secret_var})
+    _taille_annoncee = request.headers.get('content-length')
+    try:
+        _taille_annoncee = int(_taille_annoncee) if _taille_annoncee is not None else None
+    except ValueError:
+        _taille_annoncee = None
+    if _taille_annoncee is not None and _taille_annoncee > WEBHOOK_MAX_BYTES:
+        raise HTTPException(status_code=413, detail='Webhook trop volumineux.')
+    _blocs, _taille = [], 0
+    async for _bloc in request.stream():
+        _taille += len(_bloc)
+        if _taille > WEBHOOK_MAX_BYTES:
+            raise HTTPException(status_code=413, detail='Webhook trop volumineux.')
+        _blocs.append(_bloc)
+    brut = b''.join(_blocs)""").substitute(secret_env=secret_env, secret_var=secret_var).split("\n")
+
+    def _payment_webhook_signature_guard(self, entete_signature, schema_signature, secret_var):
+        """Émet la vérification de signature avant le traitement de l'événement."""
+        return Template(r"""    entete = request.headers.get('$entete_signature', '')
+    # Signature : t=<horodatage>,$schema_signature=<hmac sha256 de "t.corps">.
+    # Sans cette vérification, n'importe qui marquerait n'importe
+    # quelle commande comme payée avec un simple curl.
+    horodatage, signatures = None, []
+    for morceau in entete.split(','):
+        cle, _, valeur = morceau.partition('=')
+        if cle.strip() == 't': horodatage = valeur.strip()
+        elif cle.strip() == '$schema_signature': signatures.append(valeur.strip())
+    if not horodatage or not signatures:
+        raise HTTPException(status_code=400, detail='Signature absente ou malformée.')
+    # POINT 91 : l'horodatage était LU pour vérifier la signature, mais
+    # jamais daté. Un appel signé capté une fois restait donc rejouable
+    # indéfiniment — c'est la parade que Stripe documente, et elle ne
+    # coûte que ces trois lignes. Tolérance de cinq minutes : au-delà,
+    # ce n'est plus un réseau lent, c'est un rejeu.
+    try:
+        _age = abs(datetime.datetime.now(datetime.timezone.utc).timestamp()
+                   - int(horodatage))
+    except ValueError:
+        raise HTTPException(status_code=400, detail='Horodatage de signature illisible.')
+    if _age > 300:
+        raise HTTPException(status_code=400, detail=(
+            'Signature expirée : cet appel a plus de cinq minutes.'))
+    attendue = hmac.new($secret_var.encode(),
+                        (horodatage + '.').encode() + brut, hashlib.sha256).hexdigest()
+    if not any(hmac.compare_digest(attendue, s) for s in signatures):
+        raise HTTPException(status_code=400, detail='Signature invalide.')
+    evenement = json.loads(brut or b'{}')""").substitute(
+            entete_signature=entete_signature,
+            schema_signature=schema_signature,
+            secret_var=secret_var,
+        ).split("\n")
 
     # ─────────────────────────────────────────────────────────────────
     # BRIQUE PAIEMENT (point 74). Deux routes seulement, et un principe :
@@ -71,13 +134,13 @@ class PaiementRoutesMixin:
                 "def _exiger_cle_paiement(nom, valeur):",
                 "    if not valeur:",
                 "        raise HTTPException(status_code=503, detail=(",
-                "            f\"Paiement indisponible : la variable d'environnement {nom} n'est pas \"",
+                Template(r'''            f"Paiement indisponible : la variable d'environnement {nom} n'est pas "''').substitute(),
                 "            'définie sur le serveur. Aucun règlement ne peut être accepté tant '",
-                "            \"qu'elle manque.\"))",
+                Template(r"""            "qu'elle manque."))""").substitute(),
                 "",
                 "def _session_paiement(montant_centimes, devise, reference, retour):",
-                "    \"\"\"Crée une session de règlement. Le montant est en CENTIMES,",
-                "    calculé côté serveur depuis la base.\"\"\"",
+                Template(r'''    """Crée une session de règlement. Le montant est en CENTIMES,''').substitute(),
+                Template(r'''    calculé côté serveur depuis la base."""''').substitute(),
                 "    corps = urllib.parse.urlencode({",
                 "        'mode': 'payment',",
                 "        'success_url': retour + '?paiement=ok',",
@@ -86,7 +149,7 @@ class PaiementRoutesMixin:
                 "        'line_items[0][quantity]': '1',",
                 "        'line_items[0][price_data][currency]': devise,",
                 "        'line_items[0][price_data][unit_amount]': str(montant_centimes),",
-                "        'line_items[0][price_data][product_data][name]': f'Commande {reference}',",
+                Template(r"""        'line_items[0][price_data][product_data][name]': f'Commande {reference}',""").substitute(),
                 "    }).encode()",
                 "    requete = urllib.request.Request(",
                 "        STRIPE_BASE_URL + '/v1/checkout/sessions', data=corps, method='POST')",
@@ -99,10 +162,10 @@ class PaiementRoutesMixin:
                 "        with e:",
                 "            detail = (e.read() or b'')[:400].decode('utf-8', 'replace')",
                 "        raise HTTPException(status_code=502, detail=(",
-                "            f'Le prestataire de paiement a refusé la demande ({e.code}) : {detail}'))",
+                Template(r"""            f'Le prestataire de paiement a refusé la demande ({e.code}) : {detail}'))""").substitute(),
                 "    except urllib.error.URLError as e:",
                 "        raise HTTPException(status_code=502, detail=(",
-                "            f'Prestataire de paiement injoignable : {e.reason}'))",
+                Template(r"""            f'Prestataire de paiement injoignable : {e.reason}'))""").substitute(),
                 "",
             ]
         for entite, champ in sorted(self.payable_by_entity.items()):
@@ -146,19 +209,23 @@ class PaiementRoutesMixin:
                 # Briques 11 et 24 : une chaîne de JOIN, une par maillon, jusqu'au
                 # compte. Montant, état et propriétaire sortent de la MÊME lecture.
                 _depuis, _cur, _fk = self._chain_join(entite)
-                colonnes = f't."{champ}", t.payment_status, {_cur}."{_fk}"'
-                depuis = _depuis
+                colonnes = sql.cat(sql.kw("t."), sql.ident(champ), sql.kw(", t.payment_status, "), sql.kw(_cur), sql.kw("."), sql.ident(_fk))
+                depuis = sql.kw(_depuis)
             else:
-                colonnes = (f'"{champ}", payment_status, "{proprio["fk_column"]}"')
-                depuis = f'"{table}"'
+                colonnes = sql.cat(
+                    sql.ident(champ), sql.kw(", payment_status, "),
+                    sql.ident(proprio["fk_column"]),
+                )
+                depuis = sql.ident(table)
+            requete_select = sql.cat(sql.kw("SELECT "), colonnes, sql.kw(" FROM "), depuis,
+                                     sql.kw(" WHERE "), sql.kw("t." if chaine else ""),
+                                     sql.kw("id = "), sql.bind("id"))
             lignes += [
-                f"@app.post('/{table}/{{id}}/paiement', tags=['Paiement'])",
-                f"def payer_{table}(id: int, request: Request, "
-                "current_user_id: int = Depends(get_current_user_id)):",
-                f"    _exiger_cle_paiement('{cle_env}', {cle_var})",
+                Template(r"""@app.post('/$table/{id}/paiement', tags=['Paiement'])""").substitute(table=table),
+                Template(r"""def payer_$table(id: int, request: Request, current_user_id: int = Depends(get_current_user_id)):""").substitute(table=table),
+                Template(r"""    _exiger_cle_paiement('$cle_env', $cle_var)""").substitute(cle_env=cle_env, cle_var=cle_var),
                 "    conn = _connect(); cursor = conn.cursor()",
-                f"    cursor.execute('SELECT {colonnes} FROM {depuis} WHERE "
-                f"{'t.' if chaine else ''}id = ?', (id,))",
+                Template(r"""    cursor.execute($query, ($params,))""").substitute(query=repr(requete_select.text), params=", ".join(requete_select.params)),
                 "    ligne = cursor.fetchone()",
                 "    conn.close()",
                 # Sous jointure, une ligne ORPHELINE (intermédiaire disparu) ne
@@ -182,8 +249,7 @@ class PaiementRoutesMixin:
                 # le franc CFA n'a pas de sous-unité, une commande de 5 000 FCFA
                 # serait partie pour 500 000. La variable garde le nom
                 # `centimes` — c'est le mot du code, pas du fil (voir plus bas).
-                "    centimes = int(round(float(montant or 0) * "
-                f"{10 ** exposant_devise}))",
+                Template(r"""    centimes = int(round(float(montant or 0) * $factor))""").substitute(factor=str(10 ** exposant_devise)),
                 "    if centimes <= 0:",
                 "        raise HTTPException(status_code=400, detail=(",
                 "            'Montant nul ou négatif : rien à encaisser.'))",
@@ -193,9 +259,8 @@ class PaiementRoutesMixin:
                 # d'une AUTRE entité payable de la même app -- le webhook
                 # marquait alors comme payé un enregistrement d'une table
                 # totalement différente, portant seulement le même id.
-                f"    reference = '{entite}:' + str(id)",
-                f"    session = _session_paiement(centimes, '{code_devise}', "
-                "reference, retour)",
+                Template(r"""    reference = '$entite:' + str(id)""").substitute(entite=entite),
+                Template(r"""    session = _session_paiement(centimes, '$code_devise', reference, retour)""").substitute(code_devise=code_devise),
             ]
             if prestataire == "fedapay":
                 lignes += [
@@ -216,8 +281,15 @@ class PaiementRoutesMixin:
                     # `merchant_reference`, qui ne bouge pas. Les deux voies se
                     # couvrent l'une l'autre.
                     "    _c_ref = _connect()",
-                    f"    _c_ref.execute('UPDATE \"{table}\" SET payment_ref = ? "
-                    "WHERE id = ?', (str(session.get('id')), id))",
+                    Template(r"""    _c_ref.execute($query, ($params))""").substitute(
+                        query=repr(sql.cat(
+                            sql.kw("UPDATE "), sql.ident(table),
+                            sql.kw(" SET payment_ref = "),
+                            sql.bind("str(session.get('id'))"),
+                            sql.kw(" WHERE id = "), sql.bind("id"),
+                        ).text),
+                        params=", ".join(("str(session.get('id'))", "id")),
+                    ),
                     "    _c_ref.commit(); _c_ref.close()",
                 ]
             lignes += [
@@ -232,59 +304,12 @@ class PaiementRoutesMixin:
                 "    return {'status': 'success', 'url': session.get('url'),",
                 "            'session_id': session.get('id'), "
                 "'montant_centimes': centimes,",
-                f"            'devise': '{devise['code']}', 'montant': montant}}",
+                Template(r"""            'devise': '$currency', 'montant': montant}""").substitute(currency=devise["code"]),
                 "",
             ]
-        lignes += [
-            "WEBHOOK_MAX_BYTES = 256 * 1024",
-            "",
-            "@app.post('/paiement/webhook', tags=['Paiement'])",
-            "async def paiement_webhook(request: Request):",
-            f"    _exiger_cle_paiement('{secret_env}', {secret_var})",
-            "    _taille_annoncee = request.headers.get('content-length')",
-            "    try:",
-            "        _taille_annoncee = int(_taille_annoncee) if _taille_annoncee is not None else None",
-            "    except ValueError:",
-            "        _taille_annoncee = None",
-            "    if _taille_annoncee is not None and _taille_annoncee > WEBHOOK_MAX_BYTES:",
-            "        raise HTTPException(status_code=413, detail='Webhook trop volumineux.')",
-            "    _blocs, _taille = [], 0",
-            "    async for _bloc in request.stream():",
-            "        _taille += len(_bloc)",
-            "        if _taille > WEBHOOK_MAX_BYTES:",
-            "            raise HTTPException(status_code=413, detail='Webhook trop volumineux.')",
-            "        _blocs.append(_bloc)",
-            "    brut = b''.join(_blocs)",
-            f"    entete = request.headers.get('{entete_signature}', '')",
-            f"    # Signature : t=<horodatage>,{schema_signature}=<hmac sha256 de \"t.corps\">.",
-            "    # Sans cette vérification, n'importe qui marquerait n'importe",
-            "    # quelle commande comme payée avec un simple curl.",
-            "    horodatage, signatures = None, []",
-            "    for morceau in entete.split(','):",
-            "        cle, _, valeur = morceau.partition('=')",
-            "        if cle.strip() == 't': horodatage = valeur.strip()",
-            f"        elif cle.strip() == '{schema_signature}': signatures.append(valeur.strip())",
-            "    if not horodatage or not signatures:",
-            "        raise HTTPException(status_code=400, detail='Signature absente ou malformée.')",
-            "    # POINT 91 : l'horodatage était LU pour vérifier la signature, mais",
-            "    # jamais daté. Un appel signé capté une fois restait donc rejouable",
-            "    # indéfiniment — c'est la parade que Stripe documente, et elle ne",
-            "    # coûte que ces trois lignes. Tolérance de cinq minutes : au-delà,",
-            "    # ce n'est plus un réseau lent, c'est un rejeu.",
-            "    try:",
-            "        _age = abs(datetime.datetime.now(datetime.timezone.utc).timestamp()",
-            "                   - int(horodatage))",
-            "    except ValueError:",
-            "        raise HTTPException(status_code=400, detail='Horodatage de signature illisible.')",
-            "    if _age > 300:",
-            "        raise HTTPException(status_code=400, detail=(",
-            "            'Signature expirée : cet appel a plus de cinq minutes.'))",
-            f"    attendue = hmac.new({secret_var}.encode(),",
-            "                        (horodatage + '.').encode() + brut, hashlib.sha256).hexdigest()",
-            "    if not any(hmac.compare_digest(attendue, s) for s in signatures):",
-            "        raise HTTPException(status_code=400, detail='Signature invalide.')",
-            "    evenement = json.loads(brut or b'{}')",
-        ]
+        lignes += self._payment_webhook_size_guard(secret_env, secret_var)
+        lignes.extend(self._payment_webhook_signature_guard(
+            entete_signature, schema_signature, secret_var))
         if prestataire == "fedapay":
             lignes += [
             "    # La clé `entity` est PROUVÉE : le plugin Odoo officiel de",
@@ -318,12 +343,12 @@ class PaiementRoutesMixin:
             "            try:",
             ]
             for entite in sorted(self.payable_by_entity):
+                requete_reference = sql.cat(sql.kw("SELECT id FROM "), sql.ident(entite.lower()),
+                                            sql.kw(" WHERE payment_ref = "), sql.bind("_ref_prestataire"))
                 lignes += [
-            f"                _cur_lu.execute('SELECT id FROM \"{entite.lower()}\" "
-            "WHERE payment_ref = ?', (_ref_prestataire,))",
+            Template(r"""                _cur_lu.execute($query, ($params,))""").substitute(query=repr(requete_reference.text), params=", ".join(requete_reference.params)),
             "                _ligne_lu = _cur_lu.fetchone()",
-            f"                if _ligne_lu and not _repli: _repli = '{entite}:' "
-            "+ str(_ligne_lu[0])",
+            Template(r"""                if _ligne_lu and not _repli: _repli = '$entite:' + str(_ligne_lu[0])""").substitute(entite=entite),
                 ]
             lignes += [
             "            finally:",
@@ -351,10 +376,13 @@ class PaiementRoutesMixin:
         ]
         for indice, entite in enumerate(sorted(self.payable_by_entity)):
             mot_cle = "if" if indice == 0 else "elif"
-            lignes.append(f"        {mot_cle} entite_ref == '{entite}':")
-            lignes.append(
-                f"            cursor.execute('UPDATE \"{entite.lower()}\" SET payment_status = ?, "
-                f"payment_ref = ? WHERE id = ?', ('payee', objet.get('id'), id_cible))")
+            lignes.append(Template(r"""        $mot_cle entite_ref == '$entite':""").substitute(
+                mot_cle=mot_cle, entite=entite))
+            requete_update = sql.cat(sql.kw("UPDATE "), sql.ident(entite.lower()),
+                                     sql.kw(" SET payment_status = "), sql.bind("'payee'"),
+                                     sql.kw(", payment_ref = "), sql.bind("objet.get('id')"),
+                                     sql.kw(" WHERE id = "), sql.bind("id_cible"))
+            lignes.append(Template(r"""            cursor.execute($query, ($params))""").substitute(query=repr(requete_update.text), params=", ".join(requete_update.params)))
         lignes += [
             "        conn.commit()",
             "    except Exception:",
