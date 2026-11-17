@@ -381,7 +381,7 @@ def test_encaisser_sans_proprietaire_acteur_est_refuse(capsys):
     deux identifiants coïncident."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC_PAIEMENT)
-    assert "ACTEUR" in str(refus.value)
+    assert "ACTOR" in str(refus.value)
     assert "Facture" in str(refus.value)
     capsys.readouterr()
 

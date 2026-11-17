@@ -317,7 +317,7 @@ def cmd_update(project_dir):
 # n'est écrit — ni app.py, ni le contrat, ni monl.json, ni la consigne
 # d'évolution.
 def cmd_diff(project_dir):
-    project_dir, spec_path = emplacement._situer_projet(project_dir, "comparer")
+    project_dir, spec_path = emplacement._situer_projet(project_dir, "compare")
     ancienne = emplacement._signature_precedente(project_dir)
 
     # Le dossier de sortie est jetable, mais `base_dir` doit rester le VRAI

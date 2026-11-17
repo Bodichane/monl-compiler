@@ -147,7 +147,7 @@ workflow W for A
     Read C1
     Read C2
 """
-    with pytest.raises(ASTValidationError, match="boucle"):
+    with pytest.raises(ASTValidationError, match="loops"):
         _validate(spec)
 
 

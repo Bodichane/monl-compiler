@@ -359,7 +359,7 @@ def test_saut_de_ligne_dans_le_sujet_est_refuse_a_la_compilation(capsys):
         '"Commande reçue"', '"Sujet\\nBcc: hidden@example.invalid"')
     with pytest.raises(ASTValidationError) as refusal:
         MonlAST(parse_monl_string(spec)).validate_and_audit()
-    assert "injection d'en-têtes SMTP" in str(refusal.value)
+    assert "SMTP header injection" in str(refusal.value)
     capsys.readouterr()
 
 
@@ -368,7 +368,7 @@ def test_sans_identifier_email_la_regle_est_refusee(capsys):
     with pytest.raises(ASTValidationError) as refusal:
         MonlAST(parse_monl_string(spec)).validate_and_audit()
     assert "identifier: email" in str(refusal.value)
-    assert "champ texte libre" in str(refusal.value)
+    assert "free-text field" in str(refusal.value)
     capsys.readouterr()
 
 
@@ -379,7 +379,7 @@ def test_un_champ_email_libre_ne_suffit_pas(capsys):
     ).replace("capability auth\n    identifier: email\n", "capability auth\n")
     with pytest.raises(ASTValidationError) as refusal:
         MonlAST(parse_monl_string(spec)).validate_and_audit()
-    assert "champ texte libre" in str(refusal.value)
+    assert "free-text field" in str(refusal.value)
     capsys.readouterr()
 
 
@@ -390,7 +390,7 @@ def test_un_saut_de_ligne_dans_le_corps_doit_passer_par_le_separateur(capsys):
     )
     with pytest.raises(ASTValidationError) as refusal:
         MonlAST(parse_monl_string(spec)).validate_and_audit()
-    assert "séparateur '¶'" in str(refusal.value)
+    assert "'¶' separator" in str(refusal.value)
     capsys.readouterr()
 
 

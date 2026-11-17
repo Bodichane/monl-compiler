@@ -22,7 +22,7 @@ class MonlSyntaxError(ParseError):
         if file_path:
             location = os.path.basename(file_path)
         if line is not None:
-            location += f"{':' if location else 'ligne '}{line}"
+            location += f"{':' if location else 'line '}{line}"
             if column is not None:
                 location += f":{column}"
         if location:

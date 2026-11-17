@@ -114,7 +114,7 @@ def test_une_reference_sans_action_est_refusee(capsys):
     with pytest.raises(MonlSyntaxError) as refus:
         _valide(SPEC.replace("rule Commande.Create requiresOwn Client",
                              "rule Commande requiresOwn Client"))
-    assert "Entite.champ ou Entite.Action" in str(refus.value)
+    assert "an Entity.field or Entity.Action reference" in str(refus.value)
     capsys.readouterr()
 
 

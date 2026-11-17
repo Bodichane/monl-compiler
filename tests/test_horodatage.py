@@ -164,7 +164,7 @@ def test_required_sur_un_champ_horodate_est_refuse(capsys):
     dirait à la fois « à remplir » et « à ne pas envoyer »."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC + "rule Commande.placedAt required\n")
-    assert "SERVEUR" in str(refus.value)
+    assert "SERVER" in str(refus.value)
     capsys.readouterr()
 
 

@@ -177,7 +177,7 @@ def test_diff_renvoie_vers_update_quand_il_y_a_de_quoi(projet, capsys):
 def test_diff_sans_etat_de_projet_sarrete(tmp_path, capsys):
     with pytest.raises(SystemExit):
         cmd_diff(str(tmp_path))
-    assert "introuvable" in capsys.readouterr().out
+    assert "not found" in capsys.readouterr().out
 
 
 # --------------------------------------------------------------------------
@@ -205,7 +205,7 @@ def test_diff_trouve_les_assets_du_vrai_projet(tmp_path, capsys):
     cmd_diff(str(tmp_path))
     sortie = capsys.readouterr().out
     assert "no interface changes" in sortie
-    assert "introuvable" not in sortie
+    assert "not found" not in sortie
     assert "manquant" not in sortie
 
 

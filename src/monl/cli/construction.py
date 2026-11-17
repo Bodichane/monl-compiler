@@ -161,7 +161,7 @@ def cmd_init(project_dir=None):
 
 def cmd_migrate(project_dir, name=None, down=False, list_only=False):
     """Applique explicitement une migration du backend déjà compilé."""
-    project_dir, _spec_path = emplacement._situer_projet(project_dir, "migrer")
+    project_dir, _spec_path = emplacement._situer_projet(project_dir, "migrate")
     app_path = os.path.join(project_dir, "app.py")
     if not os.path.exists(app_path):
         print(f" ❌ Missing artifact: {app_path} — run 'monl update'.")

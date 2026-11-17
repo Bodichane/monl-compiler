@@ -775,4 +775,4 @@ def test_mesure_image_requete_sans_jetons_et_usage_ne_la_compte_pas_gratuite(tmp
     assert report["project_total"]["cost"] > 0
     assert report["project_total"]["cost"] != 0
     usage_line = cli._usage_total_line(report["project_total"], "RUB")
-    assert "30" in usage_line and "2 requête(s) d'image" in usage_line
+    assert "30" in usage_line and "2 image request(s)" in usage_line

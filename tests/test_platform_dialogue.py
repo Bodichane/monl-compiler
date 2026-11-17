@@ -90,8 +90,8 @@ def test_le_rejeu_http_complet_produit_un_backend_attendu(running_platform):
     resultat = derniere.json()
     assert resultat["complete"] is True
     assert resultat["question"] is None
-    assert "Ce que la spec va déclarer" in "\n".join(resultat["messages"])
-    assert "Aucune vulnérabilité" in "\n".join(resultat["messages"])
+    assert "What the spec will declare" in "\n".join(resultat["messages"])
+    assert "No vulnerabilities" in "\n".join(resultat["messages"])
     spec = resultat["spec"]
     assert spec.splitlines()[0] == "app StudioTest"
     assert len(spec.splitlines()) == 44
@@ -132,8 +132,8 @@ def test_le_rejeu_pur_reste_stable_et_s_arrete_a_la_question_suivante():
     premier = replay([])
     suivant = replay(["1"])
     assert premier == replay([])
-    assert "Quel type d'application construisez-vous ?" in premier["question"]
-    assert suivant["question"] == "Nom de l'application (ex. StudioNova) > "
+    assert "What type of application are you building?" in premier["question"]
+    assert suivant["question"] == "Application name (e.g. StudioNova) > "
 
 
 def test_trois_fautes_de_frappe_ne_tuent_pas_le_dialogue(running_platform):
@@ -175,7 +175,7 @@ def test_trois_fautes_de_frappe_ne_tuent_pas_le_dialogue(running_platform):
     assert suite.status_code == 200, suite.text
     assert suite.json()["accepted"] is True
     assert suite.json()["answers"] == ["1"]
-    assert "Nom de l'application" in suite.json()["question"]
+    assert "Application name" in suite.json()["question"]
 
 
 # ─────────── POINT 171 : la liste des choix ne se jette plus ───────────
@@ -196,7 +196,7 @@ def _premiere_question(base):
 def test_les_choix_arrivent_jusqua_la_route(running_platform):
     data = _premiere_question(running_platform)
     assert data["kind"] == "choice"
-    assert data["title"] == "Quel type d'application construisez-vous ?"
+    assert data["title"] == "What type of application are you building?"
     options = data["options"]
     assert len(options) == 11, options
     assert [o["value"] for o in options] == [str(n) for n in range(1, 12)]
@@ -226,5 +226,5 @@ def test_la_valeur_a_repondre_vient_du_serveur_jamais_du_rang():
     assert dialogue.derniere_question["options"] == [
         {"label": "a", "value": "1"},
         {"label": "b", "value": "2"},
-        {"label": "aucun", "value": "0"},
+        {"label": "none", "value": "0"},
     ]
