@@ -38,7 +38,8 @@ Lark grammar (`src/parser.py`) → validator + security audit
 ## Documentation to read before any new brick
 
 **`docs/design_decisions.md`** is the project's detailed design journal — numbered
-through 199, with a complete contents list at the start of the file. Two numbering
+point by point (the last number is in its contents list, never copied here: a
+copied number goes stale), with a complete contents list at the start of the file. Two numbering
 traps, both intentional: numbers **45 and 46 each refer to two distinct
 points** (a merger remnant), and **point 6 is a reserved duplicate** of point 1,
 empty, kept to avoid shifting cross-references. Cite a point by its title as
@@ -59,9 +60,13 @@ French entry) — add a line there whenever a point is added to the journal.
 - Make real calls (`curl`, or a Node+jsdom script for frontend JS —
   see `/tmp/jsdom_test/` in previous sessions, recreate if needed:
   `npm install jsdom` then load the generated HTML with `runScripts: "dangerously"`)
-- Run the test suite: `python3 -m pytest tests/ -q` (1450 tests passing and
-  16 declared skips — the only legitimate ones, integration PostgreSQL
-  not requested, each named by `-rs`; `tests/test_demo.py` relies on the
+- Run the test suite: `python3 -m pytest tests/ -rs` (`addopts` already sets
+  `-q`; a second `-q` hides the summary line, point 161). No count is written
+  here on purpose (point 190): the only legitimate skips are the PostgreSQL
+  integrations not requested, each named by `-rs`. Any `ResourceWarning` is a
+  test error (files, pipes, HTTP responses and SQLite connections must be
+  closed); a parametrized function without per-case state walks its table
+  through `tests.support.cas.verifier_chaque_cas`; `tests/test_demo.py` relies on the
   versioned `demo/` directory — do not delete it. The demo is **CodexShop**,
   a stationery shop exercising the entire commerce flow; only its INPUTS are
   tracked (`spec.ml`, `frontend/`, `assets/`), never its compiled output or
@@ -78,7 +83,10 @@ by simple code review — do not skip this step to go faster.
 ```bash
 ruff check src tests                                  # zero expected: every
                                                       # report is a real one
-python3 -m pytest tests/ -q --cov=src --cov-report=term-missing   # 89 %
+python3 -m pytest tests/ -rs --cov=src/monl --cov=src/monl_platform \
+    --cov-fail-under=0                                # then, as CI does:
+python3 -m coverage report --include='src/monl/*' --fail-under=90
+python3 -m coverage report --include='src/monl_platform/*' --fail-under=90
 python3 -m pytest tests/test_architecture.py -q       # this file's boundaries,
                                                       # verified
 ```

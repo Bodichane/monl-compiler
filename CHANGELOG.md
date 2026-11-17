@@ -12,6 +12,17 @@
 
 ### Tests
 
+- Coverage now follows Python subprocesses (`patch = ["subprocess"]`,
+  coverage.py ≥ 7.10). `monl migrate`, `monl init` and the test servers run as
+  `python -m …`, so the measure ignored code the suite does prove:
+  `cli/construction.py` showed 40 % and shows 69 % on the same tests;
+  the platform rises from 92 % to 94 %. Full suite unchanged and stable,
+  including the timing oracles.
+- CI tests Python 3.15 and announces it; Node 22 replaces Node 20, which is out
+  of maintenance; `ci.yml` pins exact action versions like the other workflows.
+- The pool-fallback witness no longer needs libpq: it stubbed `psycopg` after
+  importing the app, whose import loaded the real driver.
+
 - 155 fewer collected tests (1,808 → 1,653) with every case still checked.
   Forty parametrized functions with no per-case state (no `tmp_path`,
   `monkeypatch` or function-scoped server) now walk their table inside one
