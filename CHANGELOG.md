@@ -4,6 +4,7 @@
 
 ### Refactoring
 
+- Record current F/A/J/B/Q/C measurements for every `routes_*` module and clarify issue #119 steps 5–6: provider emission is migrated, payment route emission remains partial, and orchestration only assembles modules (point 211).
 - Continue issue #119 step 5 with byte-preserving `string.Template` webhook guards in `routes_paiement`; document measured route emission and the SQL boundary (point 210). The payment route emitter remains partially migrated.
 
 ### Fixed

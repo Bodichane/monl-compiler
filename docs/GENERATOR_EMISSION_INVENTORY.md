@@ -1,4 +1,4 @@
-# Generator emission inventory — issue #119, steps 1 to 5 (partial)
+# Generator emission inventory — issue #119, steps 1 to 6 (partial)
 
 The route rows below are measured from the current source; earlier rows retain
 their documented baseline unless marked migrated. Counts are syntactic indicators,
@@ -26,11 +26,11 @@ double backslashes in source; Q counts backslash-double-quote pairs.
 | routes_acces (migrated) | 92 | 0 | 0 | 8 | 0 | 0 | 0 |
 | routes_creation (migrated) | 386 | 0 | 0 | 52 | 0 | 0 | 0 |
 | routes_lecture (migrated) | 305 | 0 | 0 | 77 | 0 | 0 | 0 |
-| routes_lecture_filtree (migrated) | 299 | 0 | 20 | 29 | 0 | 6 | 0 |
-| routes_modification (migrated) | 338 | 0 | 12 | 29 | 0 | 6 | 0 |
+| routes_lecture_filtree (migrated) | 299 | 0 | 0 | 29 | 0 | 6 | 0 |
+| routes_modification (migrated) | 338 | 0 | 0 | 29 | 0 | 6 | 0 |
 | routes_orchestration | 60 | 0 | 0 | 9 | 0 | 2 | 0 |
-| routes_paiement (partiel) | 380 | 17 | 12 | 3 | 0 | 16 | 2 |
-| routes_prestataires (partiel) | 234 | 14 | 7 | 9 | 0 | 2 | 1 |
+| routes_paiement (partiel) | 380 | 17 | 0 | 3 | 0 | 16 | 2 |
+| routes_prestataires | 233 | 0 | 0 | 16 | 0 | 2 | 1 |
 | routes_suppression (migrated) | 238 | 0 | 0 | 43 | 0 | 10 | 0 |
 | routes_uploads (migrated) | 67 | 0 | 0 | 2 | 0 | 0 | 0 |
 | runtime | 90 | 0 | 3 | 0 | 0 | 0 | 0 |
@@ -86,26 +86,34 @@ Proposed migration order (first four steps delivered):
    changes downstream emitted access-control bytes. All nine corpus mutations
    fail the byte assertion, not generator collection or syntax. F=A=B=Q=C=0
    for these nine modules. No architecture exception increases or decreases.
-5. routes_suppression, routes_creation, routes_modification, routes_lecture
-   and routes_lecture_filtree are delivered. Their F/B/C counts are zero.
+5. `routes_suppression`, `routes_creation`, `routes_modification`,
+   `routes_lecture`, `routes_lecture_filtree` and `routes_prestataires` are
+   delivered. `routes_prestataires` has J=16 line-list additions, Q=2 escaped
+   quotes in emitted literals and C=1 adjacent literal pair; A and B are zero.
    `routes_paiement` is partially delivered: the
    webhook size and signature guards are complete Template-emitting functions,
    while `_generate_payment_routes` retains 17 JoinedStr nodes. Its remaining
-   A=12 builds line lists and SQL/query fragments, J=3 assembles emitted lines,
+   A=0, J=3 assembles emitted lines,
    Q=16 are escaped quotes in emitted Python/SQL text, and C=2 are adjacent
    literal pairs. The payment migration deliberately stops at the completed
    guards for this tour; the rest of step 5 is not claimed delivered.
-   `routes_lecture_filtree` has A=20 query/API line composition and Q=6 escaped
-   quote pairs in emitted literals. `routes_modification` has A=12 list/query
-   composition and Q=6 escaped quote pairs. `routes_prestataires` is also
-   partially delivered, with F=14 still present. These A/Q/J counts are
-   syntactic, include assembly or analysis, and do not by themselves mean
-   unsafe SQL; dynamic SQL remains composed through `src/monl/generator/sql.py`.
-6. `routes_orchestration` is assembly only (J=9, Q=2 in generated imports);
-   `core`, `pipeline`, `runtime` and `routes` have no measured JoinedStr
-   emission and are not migrated. The step-6 orchestration migration remains
-   outstanding. `runtime_headers` remains unchanged by decision. Analysis-only
-   modules need no code-template conversion.
+   `routes_lecture_filtree` and `routes_modification` each have Q=6 escaped
+   quotes in emitted literals; J=29 counts their line-list additions.
+   `routes_suppression` has Q=10 and J=43 for emitted body lines. These Q/J
+   counts describe Python source construction; SQL values remain composed
+   through `src/monl/generator/sql.py`.
+6. `routes_orchestration` is assembly only (J=9, Q=2 in generated imports) and
+   has no f-string emission to convert. `core` has no generated-text assembly;
+   `pipeline`'s three f-strings are console diagnostics, while its list additions
+   and `join` assemble already emitted sections. `runtime` appends emitted helper
+   lines, and `routes` only delegates to route mixins. These are list/module
+   assembly operations rather than f-string or string-addition emission, so no
+   Template conversion is indicated. Step 6's inspection is complete; there is
+   no emitted text concatenation in these orchestration modules to migrate.
+   `routes_acces` (J=8) and `routes_uploads` (J=2) also append emitted lines.
+   Across the measured `routes_*`, A is zero. Nonzero Q values are the escaped
+   quote pairs in generated literals described above. `runtime_headers` remains
+   unchanged by decision.
 
 Template is chosen over ast.unparse for sandbox because formatting, comments,
 docstrings and trailing newlines must remain byte-identical. Substitution is

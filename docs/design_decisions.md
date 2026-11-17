@@ -15,6 +15,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 
 [209](#209-confirmer-ladresse-e-mail-sans-convertir-les-comptes-existants) Confirmer l'adresse e-mail sans convertir les comptes existants ·
 [210](#210-les-routes-paient-par-gabarits-sans-déplacer-la-frontière-sql) Routes de paiement en gabarits, frontière SQL inchangée ·
+[211](#211-linventaire-des-routes-distingue-émission-et-assemblage) Inventaire mesuré des routes : émission et assemblage ·
 [208](#208-code-custom-sous-la-responsabilité-de-son-auteur) Code custom sous la responsabilité de son auteur ·
 [207](#207-premier-gabarit-python-sans-changer-les-octets) Premier gabarit Python sans changer les octets ·
 [206](#206-un-modèle-de-menaces-défensif-avec-des-preuves-vérifiables) Modèle de menaces et références de tests vérifiées ·
@@ -15162,3 +15163,28 @@ sans payable). La mutation d'un caractère du garde de signature fait échouer
 le corpus sur l'égalité d'octets, puis est restaurée. Les
 empreintes corpus et golden ne sont pas régénérées. La validation complète
 et son résultat sont consignés dans le rapport de travail associé à ce point.
+
+## 211. L'inventaire des routes distingue émission et assemblage
+
+Le relevé actuel de tous les modules `routes_*` sépare les formes syntaxiques
+qui écrivent réellement le code Python des appels de liste employés pour le
+composer. Les routes de création, lecture, lecture filtrée, modification,
+suppression et prestataires ont F=0. `routes_paiement` reste la seule route
+avec émission f-string (F=17), dans `_generate_payment_routes`; les gardes de
+webhook sont déjà en `string.Template`. Les mesures A, B et C sont nulles pour
+les routes, sauf C=2 dans paiement et C=1 dans prestataires. Les A non nuls
+rapportés auparavant pour certains modules ne sont pas présents dans le code
+actuel. Les J non nuls comptent des ajouts de lignes au code généré ou des
+imports assemblés. Les Q non nuls sont des guillemets échappés maintenus dans
+les littéraux de Python généré. Cela justifie la conversion des émetteurs sans
+confondre leur construction avec l'émission de SQL.
+
+Pour l'étape 6, `routes_orchestration` (J=9, Q=2) compose les imports et
+mélanges de classes; il ne contient pas d'émission `JoinedStr` à convertir.
+`core` n'assemble pas de texte généré. Les trois f-strings de `pipeline` sont
+des diagnostics de console ; ses ajouts et jointures composent les sections
+déjà émises. `runtime` ajoute les lignes de ses aides et `routes` délègue aux
+mixins : ces opérations assemblent des modules/listes, sans émission par
+f-string ou addition de texte à convertir. `runtime_headers` reste inchangé
+selon la décision antérieure. La frontière SQL du point 108 demeure dans
+`generator/sql.py`.
