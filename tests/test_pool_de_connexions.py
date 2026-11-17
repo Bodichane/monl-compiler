@@ -157,6 +157,13 @@ class MissingPool:
         return None
 
 sys.meta_path.insert(0, MissingPool())
+# Faux pilote AVANT `import app` : le vrai `psycopg` exige libpq, absente
+# de certaines machines, alors que ce témoin mesure le repli SANS pool, pas
+# le pilote. L'import ne lit de psycopg que `IntegrityError`.
+import types
+_pilote = types.ModuleType("psycopg")
+_pilote.IntegrityError = type("IntegrityError", (Exception,), {})
+sys.modules["psycopg"] = _pilote
 import app
 
 class Raw:
