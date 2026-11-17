@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Refactoring
+
+- Continue issue #119 step 5 with byte-preserving `string.Template` webhook guards in `routes_paiement`; document measured route emission and the SQL boundary (point 210). The payment route emitter remains partially migrated.
+
 ### Fixed
 
 - Close files and HTTP error responses the compiler and platform used to leave

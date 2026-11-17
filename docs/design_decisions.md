@@ -14,6 +14,7 @@ pour qui écrit une spec monl, et de mémoire pour le mainteneur du projet.
 ## Sommaire
 
 [209](#209-confirmer-ladresse-e-mail-sans-convertir-les-comptes-existants) Confirmer l'adresse e-mail sans convertir les comptes existants ·
+[210](#210-les-routes-paient-par-gabarits-sans-déplacer-la-frontière-sql) Routes de paiement en gabarits, frontière SQL inchangée ·
 [208](#208-code-custom-sous-la-responsabilité-de-son-auteur) Code custom sous la responsabilité de son auteur ·
 [207](#207-premier-gabarit-python-sans-changer-les-octets) Premier gabarit Python sans changer les octets ·
 [206](#206-un-modèle-de-menaces-défensif-avec-des-preuves-vérifiables) Modèle de menaces et références de tests vérifiées ·
@@ -15133,3 +15134,31 @@ avec faux SMTP. Ses contre-épreuves désarment séparément la garde confirmé,
 le remplacement et le quota dans l'application jetable : chaque témoin devient
 rouge ; le dépôt n'est jamais muté pendant les tests.
 `test_verrou_prime_sur_compte_non_confirme` garde l'ordre avec le verrouillage.
+
+## 210. Les routes paient par gabarits sans déplacer la frontière SQL
+
+L'étape 5 de l'issue #119 migre les émetteurs de routes vers `string.Template`
+par fonctions complètes, avec identité des octets du corpus et des artefacts
+golden. Dans `routes_paiement.py`, les contrôles de taille et de signature du
+webhook sont désormais rendus par deux fonctions Template dédiées. La migration
+reste partielle : `_generate_payment_routes` contient encore des f-strings et
+l'inventaire les mesure. Les routes de création, lecture, lecture filtrée,
+modification et suppression sont déjà sans `JoinedStr`; prestataires reste à
+migrer. L'étape 6 d'assemblage demeure ouverte : `routes_orchestration` assemble
+les modules, tandis que `core`, `pipeline`, `runtime` et `routes` ne montrent
+pas d'émission f-string mesurée. `runtime_headers` conserve son gabarit littéral
+selon la décision antérieure.
+
+La frontière SQL du point 108 ne bouge pas : les gabarits n'intègrent aucune
+valeur SQL brute et les requêtes continuent de passer par `generator/sql.py`
+(`sql.bind`, `sql.ident`, `sql.kw`). Les compteurs A, J et Q non nuls de
+l'inventaire sont justifiés par l'assemblage de listes/fragments de requête et
+les guillemets échappés des littéraux émis; ils ne sont pas assimilés à une
+concaténation SQL non typée.
+
+Preuves exécutées dans ce tour : le corpus octets couvre les instructions et
+branches de `routes_paiement`, avec une seule branche partielle (la branche
+sans payable). La mutation d'un caractère du garde de signature fait échouer
+le corpus sur l'égalité d'octets, puis est restaurée. Les
+empreintes corpus et golden ne sont pas régénérées. La validation complète
+et son résultat sont consignés dans le rapport de travail associé à ce point.

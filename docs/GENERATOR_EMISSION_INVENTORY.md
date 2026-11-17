@@ -1,8 +1,7 @@
-# Generator emission inventory — issue #119, steps 1 to 4
+# Generator emission inventory — issue #119, steps 1 to 5 (partial)
 
-Measured on the source before point 207, except the seventeen migrated rows updated
-after steps 2 and 3 (marked below), then the legacy database cleanup in issue
-#142 for runtime_montage and runtime_socle. Counts are syntactic indicators,
+The route rows below are measured from the current source; earlier rows retain
+their documented baseline unless marked migrated. Counts are syntactic indicators,
 not estimates of generated lines: F = AST JoinedStr nodes (including adjacent
 f-strings merged by Python); A = Add expressions/assignments; J = calls to
 append/extend/join. They include analysis/list operations and generated-code
@@ -25,14 +24,14 @@ double backslashes in source; Q counts backslash-double-quote pairs.
 | proprietaire | 298 | 6 | 1 | 1 | 0 | 0 | 0 |
 | routes | 40 | 0 | 0 | 0 | 0 | 0 | 0 |
 | routes_acces (migrated) | 92 | 0 | 0 | 8 | 0 | 0 | 0 |
-| routes_creation | 399 | 37 | 8 | 46 | 2 | 22 | 2 |
-| routes_lecture | 307 | 46 | 9 | 75 | 0 | 30 | 0 |
-| routes_lecture_filtree | 296 | 42 | 27 | 29 | 0 | 12 | 0 |
-| routes_modification | 353 | 46 | 12 | 29 | 0 | 34 | 2 |
-| routes_orchestration | 55 | 0 | 0 | 9 | 0 | 2 | 0 |
-| routes_paiement | 366 | 22 | 12 | 2 | 0 | 18 | 2 |
-| routes_prestataires | 235 | 21 | 7 | 9 | 0 | 20 | 2 |
-| routes_suppression | 243 | 40 | 13 | 32 | 1 | 26 | 2 |
+| routes_creation (migrated) | 386 | 0 | 0 | 52 | 0 | 0 | 0 |
+| routes_lecture (migrated) | 305 | 0 | 0 | 77 | 0 | 0 | 0 |
+| routes_lecture_filtree (migrated) | 299 | 0 | 20 | 29 | 0 | 6 | 0 |
+| routes_modification (migrated) | 338 | 0 | 12 | 29 | 0 | 6 | 0 |
+| routes_orchestration | 60 | 0 | 0 | 9 | 0 | 2 | 0 |
+| routes_paiement (partiel) | 380 | 17 | 12 | 3 | 0 | 16 | 2 |
+| routes_prestataires (partiel) | 234 | 14 | 7 | 9 | 0 | 2 | 1 |
+| routes_suppression (migrated) | 238 | 0 | 0 | 43 | 0 | 10 | 0 |
 | routes_uploads (migrated) | 67 | 0 | 0 | 2 | 0 | 0 | 0 |
 | runtime | 90 | 0 | 3 | 0 | 0 | 0 | 0 |
 | runtime_annexes (migrated) | 167 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -55,10 +54,10 @@ Python emitters: sandbox, admin_cli, schemas, runtime and runtime_*,
 routes and routes_*, calculs, paiement, prealables. core/pipeline assemble
 artifacts; modele/proprietaire calculate metadata and SQL plans; emitters
 provides typed interfaces. __init__ only exports the package. sql_schema and
-sql_colonnes emit schema components; sql is the typed SQL boundary (point 108).
+sql_colonnes emit schema components; `src/monl/generator/sql.py` is the typed SQL boundary (point 108).
 These SQL modules are outside this Python migration and remain authoritative.
 
-Seventeen modules are migrated. The three step-2 modules together have F=0, A=0,
+Twenty-two modules are fully migrated. The three step-2 modules together have F=0, A=0,
 B=0, Q=0, C=0; their generated Python retains its own runtime f-strings and
 operators as literal template content. The four step-3 modules also have
 F=0, A=0, B=0, Q=0 and C=0 after issue #142: the four single
@@ -87,14 +86,26 @@ Proposed migration order (first four steps delivered):
    changes downstream emitted access-control bytes. All nine corpus mutations
    fail the byte assertion, not generator collection or syntax. F=A=B=Q=C=0
    for these nine modules. No architecture exception increases or decreases.
-5. routes_suppression, routes_creation, routes_modification, routes_lecture,
-   routes_lecture_filtree, routes_prestataires, routes_paiement: many assembled
-   fragments, branch-heavy behavior and typed SQL integrations. Migrate one
-   concern at a time, keeping SQL composition behind sql.py.
-6. core/pipeline/runtime/routes/routes_orchestration assembly last; retain the
-   existing literal multiline template in runtime_headers unless a measured
-   problem requires changing it. Analysis-only modules need no code-template
-   conversion.
+5. routes_suppression, routes_creation, routes_modification, routes_lecture
+   and routes_lecture_filtree are delivered. Their F/B/C counts are zero.
+   `routes_paiement` is partially delivered: the
+   webhook size and signature guards are complete Template-emitting functions,
+   while `_generate_payment_routes` retains 17 JoinedStr nodes. Its remaining
+   A=12 builds line lists and SQL/query fragments, J=3 assembles emitted lines,
+   Q=16 are escaped quotes in emitted Python/SQL text, and C=2 are adjacent
+   literal pairs. The payment migration deliberately stops at the completed
+   guards for this tour; the rest of step 5 is not claimed delivered.
+   `routes_lecture_filtree` has A=20 query/API line composition and Q=6 escaped
+   quote pairs in emitted literals. `routes_modification` has A=12 list/query
+   composition and Q=6 escaped quote pairs. `routes_prestataires` is also
+   partially delivered, with F=14 still present. These A/Q/J counts are
+   syntactic, include assembly or analysis, and do not by themselves mean
+   unsafe SQL; dynamic SQL remains composed through `src/monl/generator/sql.py`.
+6. `routes_orchestration` is assembly only (J=9, Q=2 in generated imports);
+   `core`, `pipeline`, `runtime` and `routes` have no measured JoinedStr
+   emission and are not migrated. The step-6 orchestration migration remains
+   outstanding. `runtime_headers` remains unchanged by decision. Analysis-only
+   modules need no code-template conversion.
 
 Template is chosen over ast.unparse for sandbox because formatting, comments,
 docstrings and trailing newlines must remain byte-identical. Substitution is
