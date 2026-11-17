@@ -1,5 +1,7 @@
 """Preuves du point d'entrée actuel, sans configuration JWT parallèle."""
 
+import pathlib
+
 import pytest
 
 from monl_platform import __main__ as platform_main
@@ -32,5 +34,5 @@ def test_aucun_secret_jwt_n_est_accepte_en_argument(capsys):
 
 
 def test_le_module_ne_connait_plus_la_variable_jwt():
-    source = open(platform_main.__file__, encoding="utf-8").read()
+    source = pathlib.Path(platform_main.__file__).read_text(encoding="utf-8")
     assert "PLATFORM_" + "JWT_SECRET" not in source

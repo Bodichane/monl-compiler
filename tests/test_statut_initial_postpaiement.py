@@ -22,6 +22,7 @@ from monl.ast_validator import ASTValidationError, MonlAST
 from monl.cli import compile_project
 from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
+from tests.support.processus import arreter_processus, fermer_tubes
 from tests.support.server import free_port, uvicorn_server
 
 SPEC = """app BancStatutInitial
@@ -250,13 +251,14 @@ def _lancer_avec_journal(dossier, env):
     for _ in range(80):
         if processus.poll() is not None:
             sortie = processus.stdout.read().decode("utf-8", "replace")
+            fermer_tubes(processus)
             pytest.fail(sortie)
         try:
             if requests.get(base + "/openapi.json", timeout=1).status_code == 200:
                 return processus
         except requests.RequestException:
             time.sleep(0.25)
-    processus.terminate()
+    arreter_processus(processus)
     pytest.fail("le serveur n'a jamais répondu")
 
 

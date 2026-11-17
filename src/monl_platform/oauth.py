@@ -249,8 +249,9 @@ def _post_json(url, donnees, entetes=None, timeout=15):
         with urllib.request.urlopen(requete, timeout=timeout) as reponse:
             return json.loads(reponse.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
-        raise OAuthError(
-            f"le fournisseur a refusé l'échange ({exc.code})") from exc
+        with exc:
+            raise OAuthError(
+                f"le fournisseur a refusé l'échange ({exc.code})") from exc
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
         raise OAuthError(f"fournisseur injoignable : {exc}") from exc
 
@@ -264,7 +265,8 @@ def _get_json(url, jeton, timeout=15):
         with urllib.request.urlopen(requete, timeout=timeout) as reponse:
             return json.loads(reponse.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
-        raise OAuthError(f"le fournisseur a refusé la lecture ({exc.code})") from exc
+        with exc:
+            raise OAuthError(f"le fournisseur a refusé la lecture ({exc.code})") from exc
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
         raise OAuthError(f"fournisseur injoignable : {exc}") from exc
 

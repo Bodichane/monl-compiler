@@ -40,6 +40,7 @@ import pytest
 from monl.ast_validator import ASTValidationError, MonlAST
 from monl.cli import _contract_signature, compile_project
 from monl.parser import parse_monl_string
+from tests.support.processus import arreter_processus
 from tests.support.server import free_port as _port_libre
 
 # La relation MÉTIER (`Produit hasMany Variante`) est déclarée AVANT les autres,
@@ -417,11 +418,12 @@ def _appel(url, corps=None, jeton=None, methode=None):
         with urllib.request.urlopen(requete, timeout=10) as reponse:
             return reponse.status, json.loads(reponse.read() or b"{}")
     except urllib.error.HTTPError as err:
-        brut = err.read()
-        try:
-            return err.code, json.loads(brut or b"{}")
-        except ValueError:
-            return err.code, {"brut": brut[:300].decode("utf-8", "replace")}
+        with err:
+            brut = err.read()
+            try:
+                return err.code, json.loads(brut or b"{}")
+            except ValueError:
+                return err.code, {"brut": brut[:300].decode("utf-8", "replace")}
 
 
 @pytest.fixture
@@ -439,7 +441,8 @@ def boutique(tmp_path):
             if processus.poll() is not None:
                 pytest.fail(processus.stdout.read().decode("utf-8", "replace")[-2000:])
             try:
-                urllib.request.urlopen(base + "/docs", timeout=5).read()
+                with urllib.request.urlopen(base + "/docs", timeout=5) as reponse:
+                    reponse.read()
                 break
             except OSError:
                 time.sleep(0.25)
@@ -463,11 +466,7 @@ def boutique(tmp_path):
         yield (base, jeton_client["access_token"], jeton_patron["access_token"],
                tmp_path)
     finally:
-        processus.terminate()
-        try:
-            processus.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            processus.kill()
+        arreter_processus(processus, delai=10)
 
 
 def _en_base(tmp_path, requete, params=()):

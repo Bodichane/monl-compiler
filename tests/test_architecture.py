@@ -788,6 +788,59 @@ def test_aucune_connexion_sqlite_n_est_ouverte_par_un_with_nu():
         "tests.support.sqlite.base_sqlite : " + ", ".join(fautifs))
 
 
+OUVERTURES_A_FERMER = {"open", "io.open", "codecs.open", "urllib.request.urlopen", "urlopen"}
+
+
+def _ouvertures_hors_with(source, nom):
+    """Lignes où un fichier ou une réponse HTTP est ouvert HORS d'un `with`.
+
+    `open(p).read()` et `urlopen(u).read()` ferment au gré du ramasse-miettes :
+    cinq lectures de `frontend_ai` et huit attentes de serveur dans les tests
+    l'ont fait jusqu'à ce que `error::ResourceWarning` les rende visibles.
+    Lu par AST : seule la forme `with ouverture(...) as x:` est admise.
+    """
+    arbre = ast.parse(source, filename=nom)
+    gerees = {id(item.context_expr) for noeud in ast.walk(arbre)
+              if isinstance(noeud, (ast.With, ast.AsyncWith)) for item in noeud.items}
+    return sorted(noeud.lineno for noeud in ast.walk(arbre)
+                  if isinstance(noeud, ast.Call) and id(noeud) not in gerees
+                  and ast.unparse(noeud.func) in OUVERTURES_A_FERMER)
+
+
+def test_aucun_fichier_ni_reponse_http_n_est_ouvert_hors_d_un_with():
+    """Le filtre `error::ResourceWarning` n'attrape une fuite que si un test
+    EXÉCUTE le chemin qui fuit ; cette garde refuse le motif partout, même
+    dans une branche qu'aucun test ne parcourt."""
+    racine = pathlib.Path(__file__).resolve().parent.parent
+    fautifs = []
+    for arbre in ("tests", "src"):
+        for chemin in sorted((racine / arbre).rglob("*.py")):
+            source = chemin.read_text(encoding="utf-8")
+            fautifs += [f"{chemin.relative_to(racine)}:{ligne}"
+                        for ligne in _ouvertures_hors_with(source, str(chemin))]
+    assert not fautifs, (
+        "ouverture hors `with` : le fichier ou la réponse ne sera fermé que par "
+        "le ramasse-miettes — " + ", ".join(fautifs))
+
+
+def test_lextracteur_d_ouvertures_hors_with_voit_le_motif():
+    """Contre-épreuve de la garde ci-dessus (point 161)."""
+    fautif = (
+        "import urllib.request\n"
+        "texte = open('a').read()\n"
+        "urllib.request.urlopen('http://x').read()\n"
+        "f = open('b')\n"
+    )
+    assert _ouvertures_hors_with(fautif, "fautif.py") == [2, 3, 4]
+    sain = (
+        "import urllib.request\n"
+        "with open('a') as f, urllib.request.urlopen('http://x') as r:\n"
+        "    f.read(); r.read()\n"
+        "# open('a').read() dans un commentaire ne compte pas\n"
+    )
+    assert _ouvertures_hors_with(sain, "sain.py") == []
+
+
 def test_lextracteur_de_connexions_nues_voit_le_motif():
     """Contre-épreuve : sans elle, un extracteur qui ne trouve jamais rien
     rendrait la garde verte sans rien regarder (point 161)."""

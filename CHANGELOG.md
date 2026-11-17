@@ -2,7 +2,25 @@
 
 ## Unreleased
 
+### Fixed
+
+- Close files and HTTP error responses the compiler and platform used to leave
+  to the garbage collector: five `open(...).read()` in the frontend checks
+  (`frontend_ai/etages.py`, `controles_fichiers.py` twice, `controles_design.py`
+  twice) and the provider error responses in `monl_platform/oauth.py`. Found by
+  turning every `ResourceWarning` into a test error.
+
 ### Tests
+
+- Every `ResourceWarning` is now a test error (it was limited to SQLite). The
+  wider filter found, besides the shipped leaks above, eleven server fixtures
+  that stopped their `uvicorn` without closing its `stdout` pipe, eight
+  start-up probes reading `urlopen(...)` without closing it, eight unclosed
+  `HTTPError` responses and eight `open(...).read()` in tests. Stopping goes
+  through `tests.support.processus.arreter_processus` (terminate, bounded wait,
+  kill and wait, close pipes). An AST guard refuses `open(...)` and
+  `urlopen(...)` outside a `with` in `src/` and `tests/`, even on paths no test
+  runs; it has a counter-proof and was seen failing on the original leak.
 
 - Close every SQLite connection the test suite opens. Python 3.14 reported
   72 `ResourceWarning: unclosed database` in CI: 33 test sites used

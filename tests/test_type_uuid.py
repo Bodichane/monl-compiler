@@ -36,6 +36,7 @@ import pytest
 
 from monl.cli import compile_project
 from monl.smoke_test import _sample_value, run_smoke_test
+from tests.support.processus import arreter_processus
 from tests.support.server import free_port as _port_libre
 
 SPEC = """app BancUUID
@@ -153,7 +154,8 @@ def _appel(url, corps=None, jeton=None):
         with urllib.request.urlopen(requete, timeout=10) as reponse:
             return reponse.status, json.loads(reponse.read() or b"{}")
     except urllib.error.HTTPError as err:
-        return err.code, {}
+        with err:
+            return err.code, {}
 
 
 @pytest.fixture(scope="module")
@@ -172,7 +174,8 @@ def application(tmp_path_factory):
             if processus.poll() is not None:
                 pytest.fail(processus.stdout.read().decode("utf-8", "replace")[-2000:])
             try:
-                urllib.request.urlopen(base + "/docs", timeout=5).read()
+                with urllib.request.urlopen(base + "/docs", timeout=5) as reponse:
+                    reponse.read()
                 break
             except OSError:
                 time.sleep(0.25)
@@ -184,11 +187,7 @@ def application(tmp_path_factory):
                                             "password": "motdepasse1"})
         yield base, jeton["access_token"]
     finally:
-        processus.terminate()
-        try:
-            processus.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            processus.kill()
+        arreter_processus(processus, delai=10)
 
 
 @pytest.mark.parametrize("valeur", MAL_FORMES)
