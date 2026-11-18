@@ -29,6 +29,34 @@ def _entity_media(entity: dict) -> list[tuple[str, str]]:
         if field.get("role") == "media"
     ]
 
+# The next two functions are extracted from `infer_design_profile`
+# (complexity ceiling): same lists, same order.
+def _entites_media(entities):
+    """The entities carrying media fields, with those fields."""
+    return [
+        {"entity": name, "fields": [field for field, _type in _entity_media(spec)]}
+        for name, spec in entities.items()
+        if _entity_media(spec)
+    ]
+
+
+def _pages_du_profil(contract, kind, skills):
+    """The pages a site of this kind is expected to render, in order."""
+    pages = ["Home / main entry"]
+    if kind == "commerce":
+        pages.extend(["Catalog", "Detail page", "Cart or summary"])
+    elif kind == "service":
+        pages.append("Services, availability and booking")
+    if "monl-operations" in skills:
+        pages.append("Workspace per role")
+    if contract.get("sections"):
+        pages.append("Editorial sections on the home page, continued elsewhere if needed")
+    if contract.get("faq"):
+        pages.append("Structured FAQ")
+    pages.append("Account, authentication and useful error states")
+    return pages
+
+
 def infer_design_profile(contract: dict) -> dict:
     """Deduces an initial direction from signals in the contract.
 
@@ -69,23 +97,8 @@ def infer_design_profile(contract: dict) -> dict:
         kind = "generic"
         pattern = "Clear entry + main content + proof + next action"
 
-    media_entities = [
-        {"entity": name, "fields": [field for field, _type in _entity_media(spec)]}
-        for name, spec in entities.items()
-        if _entity_media(spec)
-    ]
-    pages = ["Home / main entry"]
-    if kind == "commerce":
-        pages.extend(["Catalog", "Detail page", "Cart or summary"])
-    elif kind == "service":
-        pages.append("Services, availability and booking")
-    if "monl-operations" in skills:
-        pages.append("Workspace per role")
-    if contract.get("sections"):
-        pages.append("Editorial sections on the home page, continued elsewhere if needed")
-    if contract.get("faq"):
-        pages.append("Structured FAQ")
-    pages.append("Account, authentication and useful error states")
+    media_entities = _entites_media(entities)
+    pages = _pages_du_profil(contract, kind, skills)
 
     profile = {
         "kind": kind,

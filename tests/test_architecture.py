@@ -407,7 +407,6 @@ EXCEPTIONS_DE_COMPLEXITE = {
     "monl/cli/delta.py:_rapporter_delta": (46, "Rapport de delta hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/cli/dispatch.py:_dispatch": (25, "Routage de commandes hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/cli/signature.py:_contract_signature": (53, "Sérialisation et émission de signature conservées ligne par ligne ; cas plat hors des cinq cibles."),
-    "monl/design_system/profil.py:infer_design_profile": (23, "Inférence de profil hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/dialogue_engine/commerce.py:_ask_payable": (32, "Parcours de dialogue hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/dialogue_engine/libre.py:_run_free": (46, "Parcours de dialogue hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/dialogue_engine/parcours.py:_run_from_template": (36, "Parcours de dialogue hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
