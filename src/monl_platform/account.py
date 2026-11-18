@@ -61,23 +61,23 @@ CSS = """
 
 AUTH_BODY = f"""
 <section class="auth-stage"><div class="auth-backdrop" aria-hidden="true"><div class="auth-network"><i class="n1"></i><i class="n2"></i><i class="n3"></i><i class="n4"></i></div></div><div class="shell auth-layout">
-<div class="auth-story" data-reveal><h2>Vos règles deviennent un backend.</h2><p>Connectez-vous pour retrouver vos spécifications, vérifier leur contrat et livrer un backend reproductible.</p>
-<div class="auth-flow" role="list" aria-label="Parcours de compilation">
-<div class="auth-step" role="listitem">{icon('code')}<b>Décrire</b><small>Une spec lisible</small></div>
-<div class="auth-step" role="listitem">{icon('check')}<b>Vérifier</b><small>Règles et accès</small></div>
-<div class="auth-step" role="listitem">{icon('package')}<b>Livrer</b><small>Backend autonome</small></div>
+<div class="auth-story" data-reveal><h2>Your rules become a backend.</h2><p>Sign in to find your specifications, check their contract and ship a reproducible backend.</p>
+<div class="auth-flow" role="list" aria-label="Compilation path">
+<div class="auth-step" role="listitem">{icon('code')}<b>Describe</b><small>A readable spec</small></div>
+<div class="auth-step" role="listitem">{icon('check')}<b>Check</b><small>Rules and access</small></div>
+<div class="auth-step" role="listitem">{icon('package')}<b>Ship</b><small>Self-contained backend</small></div>
 </div></div>
-<div class="card auth-card"><p class="auth-kicker">Console Monl</p><h1 id="auth-title">Se connecter</h1><p class="muted auth-intro" id="auth-help">Retrouvez vos projets et poursuivez vos compilations.</p>
-<div class="auth-tabs" role="tablist" aria-label="Accès au compte"><button class="active" type="button" role="tab" aria-selected="true" data-mode="login">Connexion</button><button type="button" role="tab" aria-selected="false" data-mode="register">Créer un compte</button></div>
-<div class="oauth-zone" id="oauth-zone" role="group" aria-label="Connexion avec un fournisseur"></div><div class="auth-divider"><span>ou avec votre adresse</span></div>
+<div class="card auth-card"><p class="auth-kicker">Monl console</p><h1 id="auth-title">Sign in</h1><p class="muted auth-intro" id="auth-help">Find your projects and carry on with your compilations.</p>
+<div class="auth-tabs" role="tablist" aria-label="Account access"><button class="active" type="button" role="tab" aria-selected="true" data-mode="login">Sign in</button><button type="button" role="tab" aria-selected="false" data-mode="register">Create an account</button></div>
+<div class="oauth-zone" id="oauth-zone" role="group" aria-label="Sign in with a provider"></div><div class="auth-divider"><span>or with your address</span></div>
 <div class="form-error" id="auth-error" role="alert"></div>
 <div class="form-succes" id="auth-succes" role="status" aria-live="polite"></div><form id="auth-form" novalidate>
-<div class="form-field"><label for="email">Adresse email</label><input id="email" type="email" autocomplete="email" required></div>
-<div class="form-field masque" id="champ-code"><label for="code">Code de secours</label><input id="code" type="text" autocomplete="one-time-code" spellcheck="false"><small class="muted">L’un des huit codes remis à la création de votre compte. Chaque code ne sert qu’une fois.</small></div>
-<div class="form-field"><label for="password" id="password-label">Mot de passe</label><div class="password-wrap"><input id="password" type="password" autocomplete="current-password" minlength="10" required><button class="password-toggle" id="password-toggle" type="button" aria-controls="password" aria-pressed="false">Afficher</button></div><small class="muted">10 caractères au minimum.</small></div>
-<button class="primary" type="submit">{icon('user')} <span id="submit-label">Se connecter</span></button></form><button class="auth-recovery" id="auth-recovery" type="button" data-mode="recover">Mot de passe oublié ?</button>
-<p class="auth-note">{icon('shield')} <span>Monl n’envoie aucun courriel : gardez vos codes de secours, ils sont la seule voie de reprise.</span></p>
-<p class="auth-secours" id="auth-secours" hidden>Vos codes ont été affichés une seule fois, à la création du compte. Sans code, personne ne peut rouvrir votre compte à votre place : Monl n’envoie aucun courriel et ne conserve pas de quoi vous identifier autrement. Écrivez à l’exploitant du service, qui seul dispose d’un accès d’administration.</p></div></div></section>
+<div class="form-field"><label for="email">Email address</label><input id="email" type="email" autocomplete="email" required></div>
+<div class="form-field masque" id="champ-code"><label for="code">Recovery code</label><input id="code" type="text" autocomplete="one-time-code" spellcheck="false"><small class="muted">One of the eight codes given when your account was created. Each code works only once.</small></div>
+<div class="form-field"><label for="password" id="password-label">Password</label><div class="password-wrap"><input id="password" type="password" autocomplete="current-password" minlength="10" required><button class="password-toggle" id="password-toggle" type="button" aria-controls="password" aria-pressed="false">Show</button></div><small class="muted">At least 10 characters.</small></div>
+<button class="primary" type="submit">{icon('user')} <span id="submit-label">Sign in</span></button></form><button class="auth-recovery" id="auth-recovery" type="button" data-mode="recover">Forgot your password?</button>
+<p class="auth-note">{icon('shield')} <span>Monl sends no email: keep your recovery codes, they are the only way back in.</span></p>
+<p class="auth-secours" id="auth-secours" hidden>Your codes were shown only once, when the account was created. Without a code, nobody can reopen your account for you: Monl sends no email and keeps nothing else to identify you. Write to the service operator, who alone has administrative access.</p></div></div></section>
 """
 
 AUTH_SCRIPT = """
@@ -87,24 +87,24 @@ const succes=document.querySelector('#auth-succes'),champCode=document.querySele
 const aide=document.querySelector('#auth-secours');
 const oauthZone=document.querySelector('#oauth-zone'),passwordToggle=document.querySelector('#password-toggle'),recoveryLink=document.querySelector('#auth-recovery');
 if(new URLSearchParams(location.search).get('erreur')==='refus'){
- error.textContent='Connexion annulée. Vous pouvez réessayer ou utiliser votre adresse email.';
+ error.textContent='Sign-in cancelled. You can try again or use your email address.';
  error.className='form-error show';
 }
 /* Un tableau par mode plutôt que des ternaires empilés : à trois modes, la
    forme « login ? a : b » cesse de dire la vérité sans qu'on le voie. */
 const MODES={
- login:{titre:'Se connecter',bouton:'Se connecter',
-  intro:'Retrouvez vos projets et poursuivez vos compilations.',
-  motdepasse:'Mot de passe',autocomplete:'current-password'},
- register:{titre:'Créer votre compte',bouton:'Créer le compte',
-  intro:'Vos huit codes de secours vous seront remis une seule fois, juste après.',
-  motdepasse:'Mot de passe',autocomplete:'new-password'},
- recover:{titre:'Retrouver votre compte',bouton:'Changer le mot de passe',
-  intro:'Entrez un de vos codes de secours et choisissez un nouveau mot de passe.',
-  motdepasse:'Nouveau mot de passe',autocomplete:'new-password'}};
+ login:{titre:'Sign in',bouton:'Sign in',
+  intro:'Find your projects and carry on with your compilations.',
+  motdepasse:'Password',autocomplete:'current-password'},
+ register:{titre:'Create your account',bouton:'Create the account',
+  intro:'Your eight recovery codes will be given to you only once, right after.',
+  motdepasse:'Password',autocomplete:'new-password'},
+ recover:{titre:'Recover your account',bouton:'Change the password',
+  intro:'Enter one of your recovery codes and choose a new password.',
+  motdepasse:'New password',autocomplete:'new-password'}};
 function basculer(nouveau){mode=nouveau;const conf=MODES[mode];
  document.querySelectorAll('.auth-tabs [data-mode]').forEach(x=>{const actif=x.dataset.mode===mode;x.classList.toggle('active',actif);x.setAttribute('aria-selected',String(actif));});
- recoveryLink.dataset.mode=mode==='recover'?'login':'recover';recoveryLink.textContent=mode==='recover'?'← Retour à la connexion':'Mot de passe oublié ?';
+ recoveryLink.dataset.mode=mode==='recover'?'login':'recover';recoveryLink.textContent=mode==='recover'?'← Back to sign in':'Forgot your password?';
  document.querySelector('#auth-title').textContent=conf.titre;
  document.querySelector('#auth-help').textContent=conf.intro;
  document.querySelector('#submit-label').textContent=conf.bouton;
@@ -121,7 +121,7 @@ function basculer(nouveau){mode=nouveau;const conf=MODES[mode];
  error.className='form-error';succes.className='form-succes';}
 document.querySelectorAll('[data-mode]').forEach(button=>button.onclick=()=>basculer(button.dataset.mode));
 document.querySelector('.auth-tabs').onkeydown=event=>{if(!['ArrowLeft','ArrowRight'].includes(event.key))return;const onglets=[...document.querySelectorAll('.auth-tabs [data-mode]')],index=onglets.indexOf(document.activeElement),pas=event.key==='ArrowRight'?1:-1,cible=onglets[(index+pas+onglets.length)%onglets.length];event.preventDefault();cible.focus();basculer(cible.dataset.mode);};
-passwordToggle.onclick=()=>{const champ=document.querySelector('#password');const visible=champ.type==='text';champ.type=visible?'password':'text';passwordToggle.textContent=visible?'Afficher':'Masquer';passwordToggle.setAttribute('aria-pressed',String(!visible));champ.focus();};
+passwordToggle.onclick=()=>{const champ=document.querySelector('#password');const visible=champ.type==='text';champ.type=visible?'password':'text';passwordToggle.textContent=visible?'Show':'Hide';passwordToggle.setAttribute('aria-pressed',String(!visible));champ.focus();};
 fetch('/auth/fournisseurs').then(response=>response.ok?response.json():{providers:[]}).then(data=>{
  const fournisseurs=Array.isArray(data.providers)?data.providers:[];
  const githubIcon='<svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.58 2 12.24c0 4.52 2.87 8.35 6.84 9.71.5.1.68-.22.68-.49v-1.71c-2.78.62-3.37-1.39-3.37-1.39-.45-1.19-1.11-1.51-1.11-1.51-.91-.64.07-.63.07-.63 1 .08 1.53 1.06 1.53 1.06.9 1.59 2.35 1.13 2.92.86.09-.67.35-1.13.64-1.39-2.22-.26-4.56-1.15-4.56-5.09 0-1.12.39-2.04 1.03-2.76-.1-.26-.45-1.31.1-2.73 0 0 .84-.28 2.75 1.05A9.2 9.2 0 0 1 12 7.9c.85 0 1.71.12 2.5.35 1.91-1.33 2.75-1.05 2.75-1.05.55 1.42.2 2.47.1 2.73.64.72 1.03 1.64 1.03 2.76 0 3.95-2.34 4.83-4.57 5.08.36.32.68.95.68 1.92v2.84c0 .27.18.59.69.49A10.2 10.2 0 0 0 22 12.24C22 6.58 17.52 2 12 2Z"/></svg>';
@@ -134,7 +134,7 @@ fetch('/auth/fournisseurs').then(response=>response.ok?response.json():{provider
   const bouton=document.createElement('a');bouton.className='secondary oauth-button';
   bouton.setAttribute('href','/auth/'+encodeURIComponent(provider.name));
   if(provider.name==='github')bouton.innerHTML=githubIcon;
-  bouton.append('Continuer avec '+provider.label);return bouton;}));
+  bouton.append('Continue with '+provider.label);return bouton;}));
 }).catch(()=>{oauthZone.replaceChildren();});
 form.onsubmit=async event=>{event.preventDefault();error.className='form-error';
  /* Le formulaire porte `novalidate` pour que CE code voie l'envoi. Sans lui,
@@ -152,12 +152,12 @@ form.onsubmit=async event=>{event.preventDefault();error.className='form-error';
  /* La récupération répond 204, SANS corps : demander son JSON lèverait sur le
     seul cas qui réussit, et la personne verrait une erreur après avoir brûlé
     un de ses huit codes. Le refus, lui, porte bien un détail. */
- if(!response.ok){let detail='Impossible de continuer.';
+ if(!response.ok){let detail='Unable to continue.';
   try{detail=(await response.json()).detail||detail;}catch(_){}
   throw new Error(detail);}
  if(mode==='recover'){const adresse=email.value;basculer('login');email.value=adresse;
   document.querySelector('#code').value='';password.value='';
-  succes.textContent='Mot de passe changé, toutes les sessions fermées et toutes les clés MCP révoquées. Connectez-vous avec le nouveau mot de passe.';
+  succes.textContent='Password changed, every session closed and every MCP key revoked. Sign in with the new password.';
   succes.className='form-succes show';password.focus();return;}
  const next=new URLSearchParams(location.search).get('next');location.href=next&&next.startsWith('/')&&!next.startsWith('//')?next:'/console';
  }catch(e){error.textContent=e.message;error.className='form-error show';}finally{button.disabled=false;form.removeAttribute('aria-busy');}};
@@ -165,48 +165,48 @@ form.onsubmit=async event=>{event.preventDefault();error.className='form-error';
 """
 
 ACCOUNT_BODY = f"""
-<section class="shell account-head"><div><h1>Vos projets.</h1><p class="muted" id="account-email"></p></div>
-<button class="secondary" id="logout" type="button">Se déconnecter</button></section>
-<section class="shell account-grid"><article class="card account-panel"><div class="panel-head"><div><h2>Projets compilés</h2><p class="muted">Conservés dans votre espace.</p></div><a class="primary" href="/console">{icon('compiler')} Nouveau projet</a></div><div class="item-list" id="projects"></div></article>
+<section class="shell account-head"><div><h1>Your projects.</h1><p class="muted" id="account-email"></p></div>
+<button class="secondary" id="logout" type="button">Sign out</button></section>
+<section class="shell account-grid"><article class="card account-panel"><div class="panel-head"><div><h2>Compiled projects</h2><p class="muted">Kept in your space.</p></div><a class="primary" href="/console">{icon('compiler')} New project</a></div><div class="item-list" id="projects"></div></article>
 <article class="card account-panel" id="panneau-codes">
-<div class="panel-head"><div><h2>Codes de secours</h2>
-<p class="muted">Le seul moyen de reprendre la main si vous perdez votre mot de passe.</p></div>
-<input id="mdp-codes" type="password" autocomplete="current-password" aria-label="Mot de passe actuel" placeholder="Mot de passe actuel">
-<button class="secondary" id="regenerer-codes" type="button">Générer une nouvelle série</button></div>
-<p class="muted">Mot de passe actuel obligatoire. Les autres sessions seront fermées ; les clés MCP restent valides. Indisponible pour les comptes OAuth.</p>
+<div class="panel-head"><div><h2>Recovery codes</h2>
+<p class="muted">The only way to regain control if you lose your password.</p></div>
+<input id="mdp-codes" type="password" autocomplete="current-password" aria-label="Current password" placeholder="Current password">
+<button class="secondary" id="regenerer-codes" type="button">Generate a new set</button></div>
+<p class="muted">Current password required. Other sessions will be closed; MCP keys stay valid. Unavailable for OAuth accounts.</p>
 <p class="muted" id="etat-codes">…</p>
 <div id="codes-affiches"></div>
 <div class="form-error" id="erreur-codes" role="alert"></div></article>
 <article class="zone-rouge">
-<h2>Supprimer votre compte</h2>
-<p>Efface définitivement votre compte, vos clés d’accès, vos projets et les fichiers
-compilés qui leur appartiennent. <b>Cette action est irréversible</b> — téléchargez
-ce que vous voulez garder avant de continuer.</p>
-<p id="suppression-oauth" class="muted" hidden>Pour un compte OAuth, reconnectez-vous avec votre fournisseur puis supprimez votre compte dans les dix minutes. Aucun mot de passe local n’est nécessaire.</p>
-<button class="danger" id="ouvrir-suppression" type="button">Supprimer mon compte</button>
-<form id="suppression"><div class="form-field"><label for="mdp-suppression">Confirmez avec votre mot de passe</label>
+<h2>Delete your account</h2>
+<p>Permanently erases your account, your access keys, your projects and the compiled
+files that belong to them. <b>This action is irreversible</b> — download
+what you want to keep before continuing.</p>
+<p id="suppression-oauth" class="muted" hidden>For an OAuth account, sign in again with your provider, then delete your account within ten minutes. No local password is needed.</p>
+<button class="danger" id="ouvrir-suppression" type="button">Delete my account</button>
+<form id="suppression"><div class="form-field"><label for="mdp-suppression">Confirm with your password</label>
 <input id="mdp-suppression" type="password" autocomplete="current-password" required></div>
-<button class="danger" type="submit">Supprimer définitivement</button>
-<button class="ghost" id="annuler-suppression" type="button">Annuler</button></form>
+<button class="danger" type="submit">Delete permanently</button>
+<button class="ghost" id="annuler-suppression" type="button">Cancel</button></form>
 <div class="form-error" id="erreur-suppression" role="alert"></div></article></section>
 """
 
 ACCOUNT_SCRIPT = """
 <script>
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-async function json(url,options){const r=await fetch(url,options);if(r.status===401){location.href='/login?next=/account';throw new Error('session');}const d=r.status===204?{}:await r.json();if(!r.ok)throw new Error(d.detail||'Erreur');return d;}
+async function json(url,options){const r=await fetch(url,options);if(r.status===401){location.href='/login?next=/account';throw new Error('session');}const d=r.status===204?{}:await r.json();if(!r.ok)throw new Error(d.detail||'Error');return d;}
 async function load(){const [me,projects]=await Promise.all([json('/api/auth/me'),json('/api/projects')]);
  const oauth=Boolean(me.auth_provider);document.querySelector('#suppression-oauth').hidden=!oauth;document.querySelector('#mdp-suppression').required=!oauth;document.querySelector('#mdp-suppression').parentElement.hidden=oauth;
- document.querySelector('#account-email').textContent=me.email;document.querySelector('#projects').innerHTML=projects.projects.length?projects.projects.map(p=>`<div class="account-item"><div><b>${esc(p.name)}</b><p>Créé le ${new Date(p.created_at*1000).toLocaleDateString('fr-FR')} · expire le ${new Date(p.expires_at*1000).toLocaleDateString('fr-FR')}</p></div><span><a class="secondary" href="/api/projects/${encodeURIComponent(p.project_id)}/download">Télécharger</a><button class="ghost delete-project" data-id="${esc(p.project_id)}" type="button">Supprimer</button></span></div>`).join(''):'<div class="empty-account">Aucun projet. Compilez votre première spec.</div>';
- document.querySelectorAll('.delete-project').forEach(b=>b.onclick=async()=>{if(!b.dataset.confirmed){b.dataset.confirmed='1';b.textContent='Confirmer';b.classList.add('danger');return;}await json('/api/projects/'+b.dataset.id,{method:'DELETE'});load();});}
+ document.querySelector('#account-email').textContent=me.email;document.querySelector('#projects').innerHTML=projects.projects.length?projects.projects.map(p=>`<div class="account-item"><div><b>${esc(p.name)}</b><p>Created ${new Date(p.created_at*1000).toLocaleDateString('en-GB')} · expires ${new Date(p.expires_at*1000).toLocaleDateString('en-GB')}</p></div><span><a class="secondary" href="/api/projects/${encodeURIComponent(p.project_id)}/download">Download</a><button class="ghost delete-project" data-id="${esc(p.project_id)}" type="button">Delete</button></span></div>`).join(''):'<div class="empty-account">No projects. Compile your first spec.</div>';
+ document.querySelectorAll('.delete-project').forEach(b=>b.onclick=async()=>{if(!b.dataset.confirmed){b.dataset.confirmed='1';b.textContent='Confirm';b.classList.add('danger');return;}await json('/api/projects/'+b.dataset.id,{method:'DELETE'});load();});}
 const etatCodes=document.querySelector('#etat-codes'),affiches=document.querySelector('#codes-affiches'),erreurCodes=document.querySelector('#erreur-codes');
 async function chargerCodes(){try{const d=await json('/api/auth/recovery-codes');
- etatCodes.textContent=d.remaining?`${d.remaining} code${d.remaining>1?'s':''} encore utilisable${d.remaining>1?'s':''}. Ils ne sont pas relisibles : générer une nouvelle série remplace l'ancienne.`:"Aucun code utilisable. Sans mot de passe et sans code, ce compte serait définitivement inaccessible — générez une série maintenant.";
+ etatCodes.textContent=d.remaining?`${d.remaining} code${d.remaining>1?'s':''} still usable. They cannot be read again: generating a new set replaces the old one.`:"No usable code. Without a password and without a code, this account would be permanently inaccessible — generate a set now.";
  etatCodes.className=d.remaining?'muted':'codes-manquants';}catch(e){etatCodes.textContent='';}}
 document.querySelector('#regenerer-codes').onclick=async()=>{erreurCodes.className='form-error';
  try{const d=await json('/api/auth/recovery-codes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:document.querySelector('#mdp-codes').value})});
   document.querySelector('#mdp-codes').value='';
-  affiches.innerHTML='<p class="codes-avis"><b>Notez-les maintenant.</b> Ils ne seront plus jamais affichés, et l\\'ancienne série ne fonctionne plus. Chaque code ne sert qu\\'une fois.</p><div class="codes-liste">'+d.recovery_codes.map(c=>`<code>${esc(c)}</code>`).join('')+'</div>';
+  affiches.innerHTML='<p class="codes-avis"><b>Write them down now.</b> They will never be shown again, and the old set no longer works. Each code works only once.</p><div class="codes-liste">'+d.recovery_codes.map(c=>`<code>${esc(c)}</code>`).join('')+'</div>';
   chargerCodes();}catch(e){erreurCodes.textContent=e.message;erreurCodes.className='form-error show';}};
 document.querySelector('#logout').onclick=async()=>{await fetch('/api/auth/logout',{method:'POST'});location.href='/';};
 const zone=document.querySelector('#suppression'),erreur=document.querySelector('#erreur-suppression');
@@ -219,7 +219,7 @@ load();
 </script>
 """
 
-AUTH_HTML = page(title="Connexion — MONL", description="Accédez à votre espace Monl.",
+AUTH_HTML = page(title="Sign in — MONL", description="Access your Monl space.",
                  body=AUTH_BODY, extra_css=CSS, scripts=AUTH_SCRIPT)
-ACCOUNT_HTML = page(title="Votre compte — MONL", description="Vos projets compilés avec Monl.",
+ACCOUNT_HTML = page(title="Your account — MONL", description="Your projects compiled with Monl.",
                     body=ACCOUNT_BODY, active="account", extra_css=CSS, scripts=ACCOUNT_SCRIPT)

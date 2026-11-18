@@ -94,8 +94,8 @@ def extrait_affiche() -> str:
     regles = [ligne for ligne in bloc if ligne.startswith("rule ")]
     if not regles or len(bloc) == len(regles):
         raise AssertionError(
-            f"extrait vide ou sans règle pour {ENTITE_MONTREE} : la spec a "
-            "changé de forme, la carte afficherait un cadre creux")
+            f"empty excerpt or no rule for {ENTITE_MONTREE}: the spec has "
+            "changed shape, the card would show an empty frame")
     champs = [ligne for ligne in bloc if ligne not in regles]
     return "\n".join(champs) + "\n\n" + "\n".join(regles)
 
@@ -112,12 +112,12 @@ FICHIERS = 15
 #: reste un EXTRAIT lisible : on ne montre pas quinze lignes dans une carte.
 ARBRE = (
     ("app.py", "API FastAPI"),
-    ("schema.sql", "base de données"),
-    ("frontend_contract.json", "droits et routes"),
+    ("schema.sql", "database"),
+    ("frontend_contract.json", "permissions and routes"),
     ("manage.py", "administration"),
     # `README.md` était déjà dans la maquette d'origine — mais le compilateur
     # ne le produisait pas, et la carte promettait donc un fichier absent.
     # Il existe depuis le point 176 : la ligne redevient vraie, et c'est le
     # témoin qui l'autorise plutôt qu'une relecture.
-    ("README.md", "démarrage"),
+    ("README.md", "getting started"),
 )

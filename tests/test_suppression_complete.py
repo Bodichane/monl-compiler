@@ -187,7 +187,7 @@ def test_compte_local_exige_toujours_son_mot_de_passe(tmp_path):
         for charge in ({}, {"password": "incorrect"}):
             refus = session.delete(base + "/api/auth/account", json=charge, timeout=10)
             assert refus.status_code == 403, "Un compte local est supprimé sans son mot de passe"
-            assert "Mot de passe incorrect" in refus.text
+            assert "Incorrect password" in refus.text
             assert session.get(base + "/api/auth/me", timeout=10).status_code == 200
         succes = session.delete(base + "/api/auth/account",
                                 json={"password": "MotDePasse-123"}, timeout=10)

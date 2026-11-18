@@ -59,11 +59,11 @@ def _session(base):
 
 
 def test_le_rejeu_est_borne_sans_tronquer():
-    with pytest.raises(ValueError, match="au plus"):
+    with pytest.raises(ValueError, match="at most"):
         bounded_answers(["x"] * (MAX_DIALOGUE_ANSWERS + 1))
-    with pytest.raises(ValueError, match="octets"):
+    with pytest.raises(ValueError, match="bytes"):
         bounded_answers(["x" * (MAX_DIALOGUE_ANSWER_BYTES + 1)])
-    with pytest.raises(ValueError, match="liste"):
+    with pytest.raises(ValueError, match="list of strings"):
         bounded_answers("pas une liste")
 
 
@@ -124,8 +124,8 @@ def test_le_rejeu_refuse_les_entrees_bornees_par_http(running_platform):
     )
     assert trop_long.status_code == 422, trop_long.text
     assert trop_grand.status_code == 422, trop_grand.text
-    assert "au plus" in trop_long.json()["detail"]
-    assert "octets" in trop_grand.json()["detail"]
+    assert "at most" in trop_long.json()["detail"]
+    assert "bytes" in trop_grand.json()["detail"]
 
 
 def test_le_rejeu_pur_reste_stable_et_s_arrete_a_la_question_suivante():

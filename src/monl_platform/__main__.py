@@ -14,7 +14,7 @@ def _resume(fonction) -> str:
     ligne vide — une aide muette est le défaut de l'issue #84."""
     doc = (fonction.__doc__ or "").strip()
     if not doc:
-        raise ValueError(f"le verbe {fonction.__name__} n'a pas de docstring")
+        raise ValueError(f"verb {fonction.__name__} has no docstring")
     return doc.splitlines()[0]
 
 
@@ -29,9 +29,9 @@ def _aide_des_verbes() -> str:
     largeur = max(len(nom) for nom in VERBES)
     lignes = [f"  {nom.ljust(largeur)}  {_resume(fonction)}"
               for nom, fonction in VERBES.items()]
-    return ("commandes (sans commande : sert la plateforme) :\n"
+    return ("commands (no command: serve the platform):\n"
             + "\n".join(lignes)
-            + "\n\nAide d'une commande : monl-platform <commande> --help")
+            + "\n\nHelp for a command: monl-platform <command> --help")
 
 
 def _build_serve_parser() -> argparse.ArgumentParser:
@@ -68,22 +68,22 @@ def _sauvegarder(argv: list[str]) -> int:
 
     parser = argparse.ArgumentParser(
         prog="monl-platform sauvegarde",
-        description="Copie cohérente de la base de comptes, serveur en marche.")
-    parser.add_argument("destination", help="Chemin du fichier de sauvegarde à écrire.")
+        description="Consistent copy of the accounts database, with the server running.")
+    parser.add_argument("destination", help="Path of the backup file to write.")
     parser.add_argument("--workspace", default=None,
-                        help="Espace de travail (par défaut MONL_PLATFORM_WORKSPACE).")
+                        help="Workspace (default: MONL_PLATFORM_WORKSPACE).")
     parser.add_argument("--garder", type=int, default=0, metavar="N",
-                        help="Ne conserver que les N sauvegardes les plus récentes "
-                             "du même dossier. 0 (défaut) n'efface rien.")
+                        help="Keep only the N most recent backups "
+                             "in the same folder. 0 (default) deletes nothing.")
     args = parser.parse_args(argv)
 
     magasin = IdentityStore(CompilationService(args.workspace).workspace)
     cible = magasin.sauvegarder(args.destination)
-    print(f"Base sauvegardée : {cible} ({cible.stat().st_size} octets)")
+    print(f"Database backed up: {cible} ({cible.stat().st_size} bytes)")
     for perimee in _rotation(cible, args.garder):
-        print(f"Sauvegarde retirée : {perimee}")
-    print("Les dossiers de projets ne sont PAS inclus : ils sont temporaires "
-          "et régénérables depuis les specs.")
+        print(f"Backup removed: {perimee}")
+    print("Project folders are NOT included: they are temporary "
+          "and can be regenerated from the specs.")
     return 0
 
 

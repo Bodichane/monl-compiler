@@ -135,7 +135,7 @@ def mount_page_routes(application: FastAPI, identities: IdentityStore, service):
     @application.get("/ready")
     def ready():
         if not identities.ready() or not os.access(service.workspace, os.W_OK):
-            raise HTTPException(status_code=503, detail="Le stockage n'est pas disponible.")
+            raise HTTPException(status_code=503, detail="Storage is not available.")
         return {"status": "ready", "storage": "available"}
 
     @application.get("/api/version")
@@ -159,5 +159,5 @@ def mount_page_routes(application: FastAPI, identities: IdentityStore, service):
         try:
             return {"id": example_id, "spec": examples.spec_of(example_id)}
         except KeyError:
-            raise HTTPException(status_code=404, detail="Exemple introuvable.") from None
+            raise HTTPException(status_code=404, detail="Example not found.") from None
 

@@ -43,7 +43,7 @@ def create_app(*, workspace=None, domain=None, downloads_dir=None) -> FastAPI:
         anomalie(
             "comptes_heritages_non_convertibles",
             nombre=comptes_herites,
-            raison="hachage et identifiants du registre historique incompatibles",
+            raison="legacy registry hashes and identifiers are incompatible",
         )
     builder_runtime = create_runtime(
         service, identities, domain=domain, downloads_dir=downloads_dir

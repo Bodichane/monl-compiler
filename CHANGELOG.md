@@ -12,6 +12,21 @@
   batch, and still French: the platform pages, the frontend contract and AI
   prompts, the generator's emitted messages, the ten application templates,
   and the text the dialogue writes into a spec (it feeds golden fingerprints).
+- The platform speaks English (English migration, PR 2, second batch): every
+  served page (home, console, guide, language docs, MCP, security, sign-in,
+  account, legal notice, terms, privacy), the console and page scripts, HTTP
+  error messages, OAuth, the MCP server, `monl-platform admin` output and the
+  operations log masking marker (`[masked]`). `<html lang>` is now `en`.
+  URLs, route paths and event names are identifiers and keep their names.
+  Not translated yet: the four example specs and the spec excerpts shown on
+  the pages (they mirror compiled specs, with the templates in a later
+  batch). Two choices worth knowing:
+  - the legal-page placeholder marker becomes `TO BE COMPLETED`; the warning
+    still names only what is missing;
+  - the console's "Start the project's API" button keeps an apostrophe on
+    purpose: `tests/test_console_javascript.py` guards the point 163 escaping
+    trap, and a label without an apostrophe would leave that counter-proof
+    checking nothing.
 
 ### Fixed
 

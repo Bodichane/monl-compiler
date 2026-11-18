@@ -28,10 +28,10 @@ def test_compte_session_et_mot_de_passe_hache(tmp_path):
 
 def test_email_duplique_et_secret_court_sont_refuses(tmp_path):
     store = IdentityStore(tmp_path)
-    with pytest.raises(IdentityError, match="10 caractères"):
+    with pytest.raises(IdentityError, match="10 characters"):
         store.register("a@example.com", "court")
     store.register("a@example.com", "assez-long-123")
-    with pytest.raises(IdentityError, match="existe déjà"):
+    with pytest.raises(IdentityError, match="already exists"):
         store.register("A@EXAMPLE.COM", "autre-secret-123")
 
 

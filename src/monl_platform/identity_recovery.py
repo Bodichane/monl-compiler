@@ -42,7 +42,7 @@ class IdentityRecoveryMixin:
             compte = db.execute("SELECT auth_provider FROM users WHERE id = ?",
                                 (user_id,)).fetchone()
             if compte and compte["auth_provider"] is not None:
-                raise IdentityError("Les comptes OAuth ne peuvent pas utiliser de codes de secours.")
+                raise IdentityError("OAuth accounts cannot use recovery codes.")
             db.execute("DELETE FROM recovery_codes WHERE user_id = ?", (user_id,))
             db.executemany(
                 "INSERT INTO recovery_codes VALUES (?, ?, ?)",

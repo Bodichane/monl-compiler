@@ -19,14 +19,14 @@ class StoreProjectsMixin:
         posséder la suppression en cascade.
         """
         if not isinstance(user_id, str) or not user_id or "\x00" in user_id:
-            raise ValueError("identifiant d'utilisateur invalide")
+            raise ValueError("invalid user identifier")
         if not isinstance(project_id, str) or not project_id or "\x00" in project_id:
-            raise ValueError("identifiant de projet invalide")
+            raise ValueError("invalid project identifier")
         slug = normalize_slug(slug)
         if not slug or slug in {".", ".."} or "/" in slug or "\\" in slug:
-            raise ValueError("slug de projet invalide : remontée de chemin refusée")
+            raise ValueError("invalid project slug: path traversal refused")
         if not isinstance(generate_images, bool):
-            raise ValueError("generate_images doit être un booléen")
+            raise ValueError("generate_images must be a boolean")
         routes = self._normalize_model_routes(model_routes)
         # Le slug est choisi LIBRE, sous le verrou, et l'écriture suit
         # immédiatement : une vérification faite hors du verrou laisserait deux
@@ -77,8 +77,8 @@ class StoreProjectsMixin:
             if candidat not in prise:
                 return candidat
         raise ValueError(
-            f"trop de projets portent l'adresse '{base}' "
-            f"({StoreProjectsMixin.HOMONYMES_MAX} au plus)")
+            f"too many projects use the address '{base}' "
+            f"({StoreProjectsMixin.HOMONYMES_MAX} at most)")
 
     def discard_project(self, user_id, project_id):
         """Supprime un projet tout juste créé si son initialisation échoue.
@@ -88,7 +88,7 @@ class StoreProjectsMixin:
         Un projet possédant déjà une construction ne peut pas être écarté.
         """
         if not isinstance(user_id, str) or not isinstance(project_id, str):
-            raise ValueError("identifiant de projet invalide")
+            raise ValueError("invalid project identifier")
         with self._lock, self._connect() as db:
             row = self._row(
                 db,
@@ -107,7 +107,7 @@ class StoreProjectsMixin:
                 "SELECT id FROM builds WHERE project_id = ? LIMIT 1", (project_id,)
             )
             if build is not None:
-                raise ValueError("projet déjà construit : suppression de compensation refusée")
+                raise ValueError("project already built: compensating deletion refused")
             deleted = db.execute(
                 "DELETE FROM builder_projects WHERE project_id = ? AND user_id = ?",
                 (project_id, user_id),

@@ -35,45 +35,45 @@ def _adresse_de_telechargement(project_id: str) -> str:
 TOOLS = [
     {
         "name": "monl_list_templates",
-        "description": "Liste les modèles métier disponibles pour orienter une spécification Monl.",
+        "description": "List the business templates available to guide a Monl specification.",
         "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
     },
     {
         "name": "monl_validate_spec",
-        "description": "Valide une spécification Monl sans produire d'artefact.",
+        "description": "Validate a Monl specification without producing any artifact.",
         "inputSchema": {
             "type": "object",
-            "properties": {"spec": {"type": "string", "description": "Spécification .ml"}},
+            "properties": {"spec": {"type": "string", "description": ".ml specification"}},
             "required": ["spec"],
             "additionalProperties": False,
         },
     },
     {
         "name": "monl_compile_backend",
-        "description": "Compile une spec validée en backend déterministe et contrat frontend.",
+        "description": "Compile a validated spec into a deterministic backend and frontend contract.",
         "inputSchema": {
             "type": "object",
-            "properties": {"spec": {"type": "string", "description": "Spécification .ml"}},
+            "properties": {"spec": {"type": "string", "description": ".ml specification"}},
             "required": ["spec"],
             "additionalProperties": False,
         },
     },
     {
         "name": "monl_list_projects",
-        "description": "Liste les projets compilés du compte, avec leur adresse de téléchargement.",
+        "description": "List the account's compiled projects, with their download address.",
         "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
     },
     {
         "name": "monl_diff_spec",
         "description": (
-            "Ce qu'une spec nouvelle changerait pour l'interface d'un projet, "
-            "SANS rien écrire. L'équivalent de 'monl diff'."
+            "What a new spec would change in a project's interface, "
+            "WITHOUT writing anything. The equivalent of 'monl diff'."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "project_id": {"type": "string"},
-                "spec": {"type": "string", "description": "Spécification .ml"},
+                "spec": {"type": "string", "description": ".ml specification"},
             },
             "required": ["project_id", "spec"],
             "additionalProperties": False,
@@ -82,15 +82,15 @@ TOOLS = [
     {
         "name": "monl_update_backend",
         "description": (
-            "Recompile un projet EXISTANT avec une spec nouvelle et rapporte le "
-            "delta du contrat. L'identifiant et l'adresse de téléchargement ne "
-            "changent pas. L'équivalent de 'monl update'."
+            "Recompile an EXISTING project with a new spec and report the "
+            "contract delta. The identifier and download address do not "
+            "change. The equivalent of 'monl update'."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "project_id": {"type": "string"},
-                "spec": {"type": "string", "description": "Spécification .ml"},
+                "spec": {"type": "string", "description": ".ml specification"},
             },
             "required": ["project_id", "spec"],
             "additionalProperties": False,
@@ -98,7 +98,7 @@ TOOLS = [
     },
     {
         "name": "monl_inspect_contract",
-        "description": "Retourne le résumé du backend et le contrat frontend complet d'une compilation.",
+        "description": "Return the backend summary and the full frontend contract of a compilation.",
         "inputSchema": {
             "type": "object",
             "properties": {"project_id": {"type": "string"}},
@@ -137,8 +137,8 @@ class MCPDispatcher:
                     # paquet était en 0.9.0-beta.10 (issue #90).
                     "serverInfo": {"name": "monl-compiler", "version": VERSION_DU_PAQUET},
                     "instructions": (
-                        "Utilisez Monl pour valider et compiler les règles métier. "
-                        "Le frontend reste libre et consomme frontend_contract.json."
+                        "Use Monl to validate and compile business rules. "
+                        "The frontend stays free and consumes frontend_contract.json."
                     ),
                 }
             elif method == "ping":
@@ -148,14 +148,14 @@ class MCPDispatcher:
             elif method == "tools/call":
                 result = self._call_tool(message.get("params") or {}, user_id)
             else:
-                return self._error(request_id, -32601, f"Méthode inconnue : {method}")
+                return self._error(request_id, -32601, f"Unknown method: {method}")
             return {"jsonrpc": "2.0", "id": request_id, "result": result}
         except (PlatformExecutionError, PlatformInputError, PlatformNotFoundError,
                 KeyError) as exc:
             return {"jsonrpc": "2.0", "id": request_id,
                     "result": _text_result(str(exc), is_error=True)}
         except Exception as exc:
-            return self._error(request_id, -32603, f"Erreur interne Monl : {exc}")
+            return self._error(request_id, -32603, f"Internal Monl error: {exc}")
 
     def _call_tool(self, params: dict[str, Any], user_id: str | None = None) -> dict[str, Any]:
         name = params.get("name")
@@ -175,14 +175,14 @@ class MCPDispatcher:
                 "download_path": f"/api/projects/{manifest['id']}/download",
                 "download_url": _adresse_de_telechargement(manifest["id"]),
                 "download_auth": (
-                    "GET avec l'en-tête 'Authorization: Bearer <votre clé MCP>' — "
-                    "la même clé que pour cet appel, aucun navigateur requis."
+                    "GET with the 'Authorization: Bearer <your MCP key>' header — "
+                    "the same key as for this call, no browser required."
                 ),
-                "next": "Appelez monl_inspect_contract avec project_id.",
+                "next": "Call monl_inspect_contract with project_id.",
             })
         if name == "monl_list_projects":
             if not (self.identities and user_id):
-                raise PlatformNotFoundError("Aucun compte associé à cette clé.")
+                raise PlatformNotFoundError("No account is associated with this key.")
             return _text_result({"projects": [
                 {
                     "project_id": projet["project_id"],
@@ -218,7 +218,7 @@ class MCPDispatcher:
                 "project": self.service.inspect(project_id),
                 "contract": self.service.contract(project_id),
             })
-        raise PlatformInputError(f"Outil inconnu : {name}")
+        raise PlatformInputError(f"Unknown tool: {name}")
 
     def _projet_du_compte(self, project_id: str, user_id: str | None) -> str:
         """Même réponse pour « n'existe pas » et « pas à vous ».
@@ -229,7 +229,7 @@ class MCPDispatcher:
         """
         if self.identities and (not user_id or not self.identities.owns_project(
                 user_id, project_id)):
-            raise PlatformNotFoundError("Projet introuvable.")
+            raise PlatformNotFoundError("Project not found.")
         return project_id
 
     @staticmethod
@@ -248,7 +248,7 @@ def run_stdio(service: CompilationService | None = None) -> None:
             message = json.loads(line)
             response = dispatcher.dispatch(message)
         except json.JSONDecodeError as exc:
-            response = MCPDispatcher._error(None, -32700, f"JSON invalide : {exc}")
+            response = MCPDispatcher._error(None, -32700, f"Invalid JSON: {exc}")
         if response is not None:
             sys.stdout.write(json.dumps(response, ensure_ascii=False, separators=(",", ":")) + "\n")
             sys.stdout.flush()

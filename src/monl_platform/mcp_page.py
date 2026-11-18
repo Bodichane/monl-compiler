@@ -19,30 +19,30 @@ CSS = """
 """
 
 BODY = f"""
-<section class="shell mcp-hero"><h1>Reliez votre agent au compilateur.</h1>
-<p class="muted">Créez une clé ici, configurez-la une fois dans votre agent, puis validez et compilez des backends Monl sans installer le projet.</p></section>
+<section class="shell mcp-hero"><h1>Connect your agent to the compiler.</h1>
+<p class="muted">Create a key here, configure it once in your agent, then validate and compile Monl backends without installing the project.</p></section>
 <section class="shell mcp-grid">
-<article class="card mcp-panel"><h2>Configurer la connexion</h2><p class="muted">Votre agent appelle le compilateur distant avec une clé personnelle. La spec reste le contrat d’entrée.</p>
-<h3>Adresse du serveur</h3><div class="endpoint"><code id="mcp-endpoint">/mcp</code><button class="secondary copy-endpoint" type="button">Copier</button></div>
-<h3>Outils disponibles</h3><div class="tool-list"><span>monl_list_templates</span><span>monl_validate_spec</span><span>monl_compile_backend</span><span>monl_list_projects</span><span>monl_inspect_contract</span><span>monl_diff_spec</span><span>monl_update_backend</span></div>
-<p class="muted" style="margin-top:var(--space-5)">Utilisez la clé comme jeton Bearer. Une clé par appareil permet de révoquer un accès sans interrompre les autres.</p>
-<a class="secondary" href="/docs">Lire la syntaxe des specs</a></article>
-<article class="card mcp-panel"><div class="panel-head"><div><h2>Clés d’accès</h2><p class="muted">Gérez les accès de vos agents.</p></div><button class="primary" id="new-key" type="button">{icon('key')} Créer une clé</button></div>
-<form class="key-create" id="key-create"><label class="skip" for="key-name">Nom de la clé</label><input id="key-name" placeholder="Ex. Codex portable" maxlength="80" required><button class="primary" type="submit">Générer</button></form>
-<div class="key-secret" id="key-secret"><b>Copiez cette clé maintenant</b><code></code><button class="secondary copy-secret" type="button">Copier la clé</button><p>Elle ne sera plus affichée après avoir quitté cette page.</p></div>
+<article class="card mcp-panel"><h2>Set up the connection</h2><p class="muted">Your agent calls the remote compiler with a personal key. The spec remains the input contract.</p>
+<h3>Server address</h3><div class="endpoint"><code id="mcp-endpoint">/mcp</code><button class="secondary copy-endpoint" type="button">Copy</button></div>
+<h3>Available tools</h3><div class="tool-list"><span>monl_list_templates</span><span>monl_validate_spec</span><span>monl_compile_backend</span><span>monl_list_projects</span><span>monl_inspect_contract</span><span>monl_diff_spec</span><span>monl_update_backend</span></div>
+<p class="muted" style="margin-top:var(--space-5)">Use the key as a Bearer token. One key per device lets you revoke one access without interrupting the others.</p>
+<a class="secondary" href="/docs">Read the spec syntax</a></article>
+<article class="card mcp-panel"><div class="panel-head"><div><h2>Access keys</h2><p class="muted">Manage your agents’ access.</p></div><button class="primary" id="new-key" type="button">{icon('key')} Create a key</button></div>
+<form class="key-create" id="key-create"><label class="skip" for="key-name">Key name</label><input id="key-name" placeholder="E.g. Codex laptop" maxlength="80" required><button class="primary" type="submit">Generate</button></form>
+<div class="key-secret" id="key-secret"><b>Copy this key now</b><code></code><button class="secondary copy-secret" type="button">Copy the key</button><p>It will not be shown again once you leave this page.</p></div>
 <div class="item-list" id="keys"></div></article></section>
 """
 
 SCRIPT = """
 <script>
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-async function json(url,options){const r=await fetch(url,options);if(r.status===401){location.href='/login?next=/mcp';throw new Error('session');}const d=r.status===204?{}:await r.json();if(!r.ok)throw new Error(d.detail||'Erreur');return d;}
-async function copy(value,button,label){await navigator.clipboard.writeText(value);button.textContent='Copié';setTimeout(()=>button.textContent=label,1400);}
-async function load(){await json('/api/auth/me');const keys=await json('/api/keys');document.querySelector('#keys').innerHTML=keys.keys.length?keys.keys.map(k=>`<div class="key-item"><div><b>${esc(k.name)}</b><p><code>${esc(k.prefix)}…</code> · ${k.revoked_at?'révoquée':k.last_used_at?'utilisée':'jamais utilisée'}</p></div>${k.revoked_at?'':`<button class="ghost revoke" data-id="${esc(k.id)}" type="button">Révoquer</button>`}</div>`).join(''):'<div class="empty-keys">Aucune clé. Créez-en une pour connecter votre premier agent.</div>';document.querySelectorAll('.revoke').forEach(b=>b.onclick=async()=>{await json('/api/keys/'+b.dataset.id,{method:'DELETE'});load();});}
+async function json(url,options){const r=await fetch(url,options);if(r.status===401){location.href='/login?next=/mcp';throw new Error('session');}const d=r.status===204?{}:await r.json();if(!r.ok)throw new Error(d.detail||'Error');return d;}
+async function copy(value,button,label){await navigator.clipboard.writeText(value);button.textContent='Copied';setTimeout(()=>button.textContent=label,1400);}
+async function load(){await json('/api/auth/me');const keys=await json('/api/keys');document.querySelector('#keys').innerHTML=keys.keys.length?keys.keys.map(k=>`<div class="key-item"><div><b>${esc(k.name)}</b><p><code>${esc(k.prefix)}…</code> · ${k.revoked_at?'revoked':k.last_used_at?'used':'never used'}</p></div>${k.revoked_at?'':`<button class="ghost revoke" data-id="${esc(k.id)}" type="button">Revoke</button>`}</div>`).join(''):'<div class="empty-keys">No keys. Create one to connect your first agent.</div>';document.querySelectorAll('.revoke').forEach(b=>b.onclick=async()=>{await json('/api/keys/'+b.dataset.id,{method:'DELETE'});load();});}
 document.querySelector('#new-key').onclick=()=>{const form=document.querySelector('#key-create');form.classList.toggle('show');if(form.classList.contains('show'))document.querySelector('#key-name').focus();};
-document.querySelector('#key-create').onsubmit=async e=>{e.preventDefault();const input=document.querySelector('#key-name');const key=await json('/api/keys',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:input.value})});const box=document.querySelector('#key-secret');box.querySelector('code').textContent=key.key;box.className='key-secret show';box.querySelector('.copy-secret').onclick=event=>copy(key.key,event.currentTarget,'Copier la clé');input.value='';document.querySelector('#key-create').classList.remove('show');load();};
-document.querySelector('.copy-endpoint').onclick=event=>copy(location.origin+'/mcp',event.currentTarget,'Copier');load();
+document.querySelector('#key-create').onsubmit=async e=>{e.preventDefault();const input=document.querySelector('#key-name');const key=await json('/api/keys',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:input.value})});const box=document.querySelector('#key-secret');box.querySelector('code').textContent=key.key;box.className='key-secret show';box.querySelector('.copy-secret').onclick=event=>copy(key.key,event.currentTarget,'Copy the key');input.value='';document.querySelector('#key-create').classList.remove('show');load();};
+document.querySelector('.copy-endpoint').onclick=event=>copy(location.origin+'/mcp',event.currentTarget,'Copy');load();
 </script>
 """
 
-MCP_HTML = page(title="MCP — MONL", description="Connectez votre agent au serveur MCP Monl.", body=BODY, active="mcp", extra_css=CSS, scripts=SCRIPT)
+MCP_HTML = page(title="MCP — MONL", description="Connect your agent to the Monl MCP server.", body=BODY, active="mcp", extra_css=CSS, scripts=SCRIPT)

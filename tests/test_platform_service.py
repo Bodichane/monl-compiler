@@ -49,9 +49,9 @@ def test_validation_compile_inspection_et_archive_partagent_le_pipeline(tmp_path
 
 def test_entrees_bornees_et_identifiants_opaques(tmp_path):
     service = CompilationService(tmp_path)
-    with pytest.raises(PlatformInputError, match="vide"):
+    with pytest.raises(PlatformInputError, match="empty"):
         service.validate(" ")
-    with pytest.raises(PlatformInputError, match="256 ko"):
+    with pytest.raises(PlatformInputError, match="256 KB"):
         service.validate("x" * 256_001)
     with pytest.raises(PlatformNotFoundError):
         service.inspect("../../etc/passwd")
@@ -64,7 +64,7 @@ def test_worker_interrompu_ne_publie_aucun_projet(tmp_path, monkeypatch):
         raise subprocess.TimeoutExpired(args[0], 5)
 
     monkeypatch.setattr(subprocess, "run", timeout)
-    with pytest.raises(PlatformExecutionError, match="délai maximal"):
+    with pytest.raises(PlatformExecutionError, match="maximum time"):
         service.compile(SPEC)
     assert list(tmp_path.iterdir()) == []
 

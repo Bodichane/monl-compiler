@@ -39,11 +39,11 @@ def test_un_jeton_dans_une_url_de_journal_est_masque():
     url = f"GET https://client.example/reset?token={jeton}&next=/compte"
     ligne = J.masquer_texte(url)
     assert jeton not in ligne
-    assert "token=[masqué]" in ligne
+    assert "token=[masked]" in ligne
     assert "next=/compte" in ligne
     assert jeton not in J.evenement("sortie_site", url=url)
-    assert "token=[masqué]" in J.masquer_texte("token=jeton-court")
-    assert "Bearer [masqué]" in J.masquer_texte("Authorization: Bearer court")
+    assert "token=[masked]" in J.masquer_texte("token=jeton-court")
+    assert "Bearer [masked]" in J.masquer_texte("Authorization: Bearer court")
 
 
 def test_ce_qui_nest_pas_un_secret_passe_tel_quel():

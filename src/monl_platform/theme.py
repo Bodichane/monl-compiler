@@ -164,8 +164,8 @@ def _social(title: str, description: str) -> str:
             + f'<meta property="og:image" content="{base}/brand/monl-social.png">'
             + '<meta property="og:image:width" content="1200">'
             + '<meta property="og:image:height" content="630">'
-            + '<meta property="og:image:alt" content="monl — le backend est '
-              'compilé, pas improvisé">'
+            + '<meta property="og:image:alt" content="monl — the backend is '
+              'compiled, not improvised">'
             + '<meta name="twitter:card" content="summary_large_image">'
             + f'<meta name="twitter:image" content="{base}/brand/monl-social.png">')
 
@@ -174,7 +174,7 @@ def page(*, title: str, description: str, body: str, active: str = "",
          scripts: str = "", extra_css: str = "") -> str:
     """Le gabarit commun. `body` est inséré tel quel dans `<main>`."""
     return f"""<!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -190,17 +190,17 @@ def page(*, title: str, description: str, body: str, active: str = "",
 <body>
 <div class="scroll-progress" aria-hidden="true"></div>
 <div class="site-ambient" aria-hidden="true"><div class="ambient-grid"></div><div class="ambient-orbit ambient-orbit-a"><i></i><i></i><i></i></div><div class="ambient-orbit ambient-orbit-b"><i></i><i></i><i></i></div><span class="ambient-beam"></span></div>
-<a class="skip" href="#contenu">Aller au contenu</a>
-<header class="topbar"><nav class="shell nav" aria-label="Navigation principale">
+<a class="skip" href="#contenu">Skip to content</a>
+<header class="topbar"><nav class="shell nav" aria-label="Main navigation">
 <a class="brand" href="/" aria-label="MONL">{_brand()}</a>
 <div class="navlinks">
-{_lien("/", icon("home") + "Accueil", active, "home")}
+{_lien("/", icon("home") + "Home", active, "home")}
 {_lien("/guide", icon("book") + "Guide", active, "guide")}
 {_lien("/mcp", icon("mcp") + "MCP", active, "mcp")}
-{_lien("/docs", icon("docs") + "Docs API", active, "docs")}
-{_lien("/account", icon("user") + "Compte", active, "account")}
-<button class="icon-btn" id="theme-toggle" type="button" aria-label="Basculer le thème">{ICON_THEME}</button>
-<a class="nav-cta" href="/console" target="_blank" rel="noopener">{icon("compiler")} Ouvrir la console</a>
+{_lien("/docs", icon("docs") + "API docs", active, "docs")}
+{_lien("/account", icon("user") + "Account", active, "account")}
+<button class="icon-btn" id="theme-toggle" type="button" aria-label="Toggle theme">{ICON_THEME}</button>
+<a class="nav-cta" href="/console" target="_blank" rel="noopener">{icon("compiler")} Open the console</a>
 </div>
 </nav></header>
 <main id="contenu">
@@ -209,12 +209,12 @@ def page(*, title: str, description: str, body: str, active: str = "",
 <div class="footer-wrap"><footer class="shell footer">
 <div class="footer-grid">
 <div class="footer-brand"><a class="brand" href="/" aria-label="MONL">{_brand()}</a>
-<p>Le métier est compilé, l’interface reste libre. Un backend déterministe et son contrat à partir d’une seule spécification.</p></div>
-<div><h2>Produit</h2><nav aria-label="Produit"><a href="/console">Console</a><a href="/guide#frontiere">Pourquoi Monl</a><a href="/guide#limites">Limites actuelles</a></nav></div>
-<div><h2>Développeurs</h2><nav aria-label="Développeurs"><a href="/docs">Référence DSL</a><a href="/guide#api">API HTTP</a><a href="/api-docs">Explorateur OpenAPI</a><a href="/mcp">Serveur MCP</a></nav></div>
-<div><h2>Ressources</h2><nav aria-label="Ressources"><a href="/guide">Guide de démarrage</a><a href="/security">Sécurité et garanties</a><a href="/api/version">Versions</a><a href="/health">État du service</a></nav></div>
+<p>The business logic is compiled, the interface stays free. A deterministic backend and its contract from a single specification.</p></div>
+<div><h2>Product</h2><nav aria-label="Product"><a href="/console">Console</a><a href="/guide#frontiere">Why Monl</a><a href="/guide#limites">Current limits</a></nav></div>
+<div><h2>Developers</h2><nav aria-label="Developers"><a href="/docs">DSL reference</a><a href="/guide#api">HTTP API</a><a href="/api-docs">OpenAPI explorer</a><a href="/mcp">MCP server</a></nav></div>
+<div><h2>Resources</h2><nav aria-label="Resources"><a href="/guide">Getting started</a><a href="/security">Security and guarantees</a><a href="/api/version">Versions</a><a href="/health">Service status</a></nav></div>
 </div>
-<div class="footer-bottom"><span>© MONL</span><nav class="footer-legal" aria-label="Informations légales"><a href="/mentions-legales">Mentions légales</a><a href="/conditions">Conditions d’utilisation</a><a href="/confidentialite">Confidentialité</a></nav><a class="service-status" href="/health">Service opérationnel</a></div>
+<div class="footer-bottom"><span>© MONL</span><nav class="footer-legal" aria-label="Legal information"><a href="/mentions-legales">Legal notice</a><a href="/conditions">Terms of use</a><a href="/confidentialite">Privacy</a></nav><a class="service-status" href="/health">Service operational</a></div>
 </footer></div>
 <script>{THEME_TOGGLE}</script>
 {scripts}

@@ -11,9 +11,9 @@ class ProjectPathError(ValueError):
 def _safe_component(value, label):
     text = str(value)
     if not text or text in {".", ".."} or "\x00" in text:
-        raise ProjectPathError(f"{label} invalide : remontée de chemin refusée")
+        raise ProjectPathError(f"invalid {label}: path traversal refused")
     if "/" in text or "\\" in text:
-        raise ProjectPathError(f"{label} invalide : séparateur de chemin refusé")
+        raise ProjectPathError(f"invalid {label}: path separator refused")
     return text
 
 
@@ -25,11 +25,11 @@ def project_directory(workspace_root, account_id, project_id, *, create=True):
     chemin fourni par l'utilisateur. Un lien symbolique existant est refusé :
     sinon un dossier du compte A pourrait pointer vers les fichiers du compte B.
     """
-    account = _safe_component(account_id, "identifiant de compte")
-    project = _safe_component(project_id, "identifiant de projet")
+    account = _safe_component(account_id, "account identifier")
+    project = _safe_component(project_id, "project identifier")
     root = Path(workspace_root).absolute()
     if root.exists() and root.is_symlink():
-        raise ProjectPathError("l'espace de travail ne peut pas être un lien symbolique")
+        raise ProjectPathError("the workspace cannot be a symbolic link")
     if create:
         root.mkdir(parents=True, exist_ok=True)
     root = root.resolve()
@@ -40,17 +40,17 @@ def project_directory(workspace_root, account_id, project_id, *, create=True):
     candidate = projects_dir / project
     for path in (account_root, account_dir, projects_dir, candidate):
         if path.is_symlink():
-            raise ProjectPathError(f"chemin de projet non sûr : lien symbolique {path}")
+            raise ProjectPathError(f"unsafe project path: symbolic link {path}")
 
     if create:
         candidate.mkdir(parents=True, exist_ok=True)
     resolved = candidate.resolve(strict=False)
     lexical = candidate.absolute()
     if resolved != lexical:
-        raise ProjectPathError("chemin de projet hors de son dossier privé")
+        raise ProjectPathError("project path outside its private folder")
     try:
         if os.path.commonpath((str(root), str(resolved))) != str(root):
-            raise ProjectPathError("chemin de projet hors de l'espace de travail")
+            raise ProjectPathError("project path outside the workspace")
     except ValueError as exc:
-        raise ProjectPathError("chemin de projet sur un volume différent") from exc
+        raise ProjectPathError("project path on a different volume") from exc
     return resolved

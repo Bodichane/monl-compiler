@@ -39,18 +39,18 @@ class DialogueIncomplete(Exception):
 def bounded_answers(value) -> list[str]:
     """Valider les réponses du navigateur sans les tronquer."""
     if not isinstance(value, list):
-        raise DialogueInputError("Le champ 'answers' doit être une liste de textes.")
+        raise DialogueInputError("The 'answers' field must be a list of strings.")
     if len(value) > MAX_DIALOGUE_ANSWERS:
         raise DialogueInputError(
-            f"Le dialogue accepte au plus {MAX_DIALOGUE_ANSWERS} réponses."
+            f"The dialogue accepts at most {MAX_DIALOGUE_ANSWERS} answers."
         )
     for answer in value:
         if not isinstance(answer, str):
-            raise DialogueInputError("Chaque réponse du dialogue doit être un texte.")
+            raise DialogueInputError("Each dialogue answer must be a string.")
         if len(answer.encode("utf-8")) > MAX_DIALOGUE_ANSWER_BYTES:
             raise DialogueInputError(
-                "Chaque réponse du dialogue doit tenir en "
-                f"{MAX_DIALOGUE_ANSWER_BYTES} octets UTF-8."
+                "Each dialogue answer must fit in "
+                f"{MAX_DIALOGUE_ANSWER_BYTES} UTF-8 bytes."
             )
     return value
 
@@ -131,7 +131,7 @@ def replay(answers: list[str]) -> dict:
     said.extend(ligne for ligne in sortie.getvalue().splitlines() if ligne)
     if remaining:
         raise DialogueInputError(
-            "Le dialogue est terminé, mais des réponses supplémentaires ont été fournies."
+            "The dialogue is complete, but extra answers were provided."
         )
     return {
         "complete": True,

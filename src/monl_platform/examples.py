@@ -289,16 +289,16 @@ landing
 EXAMPLES: list[dict[str, Any]] = [
     {
         "id": "vitrine",
-        "name": "Vitrine publique",
-        "summary": "Un catalogue que tout le monde lit, que seul l'atelier modifie.",
+        "name": "Public showcase",
+        "summary": "A catalog everyone can read and only the workshop can change.",
         "teaches": ["public", "seed", "landing"],
         "result": {"entities": 1, "routes": 5, "files": 16},
         "spec": VITRINE,
     },
     {
         "id": "rendez-vous",
-        "name": "Carnet de rendez-vous",
-        "summary": "Chacun ne voit que ses propres demandes ; le praticien les voit toutes.",
+        "name": "Appointment book",
+        "summary": "Everyone sees only their own requests; the practitioner sees them all.",
         "teaches": ["ownedBy", "sharedBy", "requiresOwn", "oneOf", "timestamp",
                     "capability auth"],
         "result": {"entities": 2, "routes": 9, "files": 16},
@@ -306,8 +306,8 @@ EXAMPLES: list[dict[str, Any]] = [
     },
     {
         "id": "boutique",
-        "name": "Boutique et paiement",
-        "summary": "Panier, stock décompté et encaissement — aucun montant écrit par le client.",
+        "name": "Shop and payment",
+        "summary": "Cart, counted stock and payment — no amount written by the client.",
         "teaches": ["derivedFrom", "sumOf", "decrements", "min", "payable",
                     "numbered", "releases", "writableAfterPayment"],
         "result": {"entities": 3, "routes": 17, "files": 16},
@@ -315,8 +315,8 @@ EXAMPLES: list[dict[str, Any]] = [
     },
     {
         "id": "communaute",
-        "name": "Fil communautaire",
-        "summary": "Publication sous pseudonyme, un j'aime par compte, modération réelle.",
+        "name": "Community feed",
+        "summary": "Pseudonymous posting, one like per account, real moderation.",
         "teaches": ["generated", "publicWhen", "oncePer", "increments",
                     "categorized", "decrements"],
         "result": {"entities": 4, "routes": 8, "files": 16},

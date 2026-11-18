@@ -135,6 +135,6 @@ def test_les_comptes_herites_sont_comptes_et_restent_hors_users(tmp_path, monkey
         "comptes_heritages_non_convertibles",
         {
             "nombre": 1,
-            "raison": "hachage et identifiants du registre historique incompatibles",
+            "raison": "legacy registry hashes and identifiers are incompatible",
         },
     )]

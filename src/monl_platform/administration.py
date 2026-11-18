@@ -52,11 +52,11 @@ def _echeance(instant: int | None) -> str:
     ligne où l'on décide s'il faut prolonger. Le mot « échu » se lit d'un coup.
     """
     if instant is None:
-        return "jamais"
+        return "never"
     reste = instant - int(time.time())
     if reste <= 0:
-        return f"{_date(instant)} (échu)"
-    return f"{_date(instant)} (dans {reste // JOUR} j)"
+        return f"{_date(instant)} (expired)"
+    return f"{_date(instant)} (in {reste // JOUR} d)"
 
 
 def _magasin(workspace):
@@ -67,7 +67,7 @@ def _magasin(workspace):
 def _compte_ou_sortir(magasin: IdentityStore, adresse: str) -> dict:
     compte = magasin.compte_par_adresse(adresse)
     if not compte:
-        print(f"Aucun compte pour {adresse!r}.", file=sys.stderr)
+        print(f"No account for {adresse!r}.", file=sys.stderr)
         raise SystemExit(1)
     return compte
 
@@ -79,9 +79,9 @@ def _compte_ou_sortir(magasin: IdentityStore, adresse: str) -> dict:
 def _comptes(magasin: IdentityStore, _service, args) -> int:
     lignes = magasin.comptes()
     if not lignes:
-        print("Aucun compte.")
+        print("No accounts.")
         return 0
-    print(f"{'ADRESSE':38s} {'CRÉÉ':17s} {'PROJETS':>7s} {'CLÉS':>5s} {'CODES':>6s}")
+    print(f"{'ADDRESS':38s} {'CREATED':17s} {'PROJECTS':>7s} {'KEYS':>5s} {'CODES':>6s}")
     for ligne in lignes:
         print(f"{ligne['email'][:38]:38s} {_date(ligne['created_at']):17s} "
               f"{ligne['projets']:>7d} {ligne['cles']:>5d} {ligne['codes']:>6d}")
@@ -90,30 +90,30 @@ def _comptes(magasin: IdentityStore, _service, args) -> int:
         # Un compte sans code n'a AUCUN moyen de reprendre la main sur un mot
         # de passe perdu. C'est la seule colonne de ce tableau qui annonce une
         # perte de données à venir : elle est répétée en clair.
-        print(f"\n{len(manquants)} compte(s) sans code de secours : "
-              f"un mot de passe perdu y serait définitif.")
+        print(f"\n{len(manquants)} account(s) without recovery codes: "
+              f"a lost password would be final there.")
     return 0
 
 
 def _compte(magasin: IdentityStore, _service, args) -> int:
     compte = _compte_ou_sortir(magasin, args.email)
-    print(f"Compte   {compte['email']}")
+    print(f"Account  {compte['email']}")
     print(f"         {compte['id']}")
-    print(f"Codes de secours restants : {magasin.count_recovery_codes(compte['id'])}")
+    print(f"Recovery codes left: {magasin.count_recovery_codes(compte['id'])}")
 
     projets = magasin.tous_les_projets(compte["id"])
-    print(f"\nProjets ({len(projets)})")
+    print(f"\nProjects ({len(projets)})")
     for projet in projets:
         print(f"  {projet['project_id']}  {projet['name'][:30]:30s} "
               f"{_echeance(projet['expires_at'])}")
 
     cles = magasin.cles_du_compte(compte["id"])
     vivantes = [cle for cle in cles if not cle["revoked_at"]]
-    print(f"\nClés d'API ({len(vivantes)} active(s) sur {len(cles)})")
+    print(f"\nAPI keys ({len(vivantes)} active of {len(cles)})")
     for cle in cles:
-        etat = "révoquée" if cle["revoked_at"] else "active"
+        etat = "revoked" if cle["revoked_at"] else "active"
         print(f"  {cle['id']}  {cle['prefix']}…  {cle['name'][:24]:24s} {etat:9s} "
-              f"dernier usage {_date(cle['last_used_at'])}")
+              f"last used {_date(cle['last_used_at'])}")
     return 0
 
 
@@ -121,9 +121,9 @@ def _projets(magasin: IdentityStore, _service, args) -> int:
     compte = _compte_ou_sortir(magasin, args.compte) if args.compte else None
     projets = magasin.tous_les_projets(compte["id"] if compte else None)
     if not projets:
-        print("Aucun projet.")
+        print("No projects.")
         return 0
-    print(f"{'IDENTIFIANT':34s} {'COMPTE':28s} {'NOM':22s} ÉCHÉANCE")
+    print(f"{'IDENTIFIER':34s} {'ACCOUNT':28s} {'NAME':22s} EXPIRES")
     for projet in projets:
         print(f"{projet['project_id']:34s} {projet['email'][:28]:28s} "
               f"{projet['name'][:22]:22s} {_echeance(projet['expires_at'])}")
@@ -138,19 +138,19 @@ def _journal(magasin: IdentityStore, service: CompilationService, args) -> int:
         None,
     )
     if projet is None:
-        print(f"Aucun projet {args.projet!r}.", file=sys.stderr)
+        print(f"No project {args.projet!r}.", file=sys.stderr)
         return 1
     try:
         chemin = site_log_path(service.workspace, projet)
     except (ProjectPathError, SiteHostingError) as exc:
-        print(f"Journal illisible : {exc}", file=sys.stderr)
+        print(f"Unreadable log: {exc}", file=sys.stderr)
         return 1
     if chemin.is_symlink():
-        print("Journal illisible : le fichier est un lien symbolique.", file=sys.stderr)
+        print("Unreadable log: the file is a symbolic link.", file=sys.stderr)
         return 1
     if not chemin.is_file():
         evenement("journal_site_lu_par_exploitant", projet=court(args.projet), octets=0)
-        print(f"Aucun journal pour le projet {args.projet}.")
+        print(f"No log for project {args.projet}.")
         return 0
 
     brut = chemin.read_bytes()[:SITE_LOG_MAX_BYTES].decode("utf-8", errors="replace")
@@ -175,9 +175,9 @@ def _codes(magasin: IdentityStore, _service, args) -> int:
     compte = _compte_ou_sortir(magasin, args.email)
     codes = magasin.create_recovery_codes(compte["id"], revoke_access=True)
     evenement("codes_regeneres_par_exploitant", compte=court(compte["id"]))
-    print(f"Nouvelle série pour {compte['email']} — l'ancienne ne fonctionne plus.")
-    print("Toutes les sessions sont supprimées et toutes les clés MCP sont révoquées.")
-    print("Ces codes ne seront plus jamais affichés :\n")
+    print(f"New set for {compte['email']} — the old one no longer works.")
+    print("All sessions are deleted and all MCP keys are revoked.")
+    print("These codes will never be shown again:\n")
     for code in codes:
         print(f"  {code}")
     return 0
@@ -186,12 +186,12 @@ def _codes(magasin: IdentityStore, _service, args) -> int:
 def _prolonger(magasin: IdentityStore, _service, args) -> int:
     secondes = None if args.jamais else args.jours * JOUR
     if not magasin.deplacer_echeance(args.projet, secondes):
-        print(f"Aucun projet {args.projet!r}.", file=sys.stderr)
+        print(f"No project {args.projet!r}.", file=sys.stderr)
         return 1
     evenement("echeance_deplacee", projet=court(args.projet),
               jours=None if args.jamais else args.jours)
-    quand = "jamais" if args.jamais else f"dans {args.jours} jours"
-    print(f"Projet {args.projet} : expire {quand}.")
+    quand = "never" if args.jamais else f"in {args.jours} days"
+    print(f"Project {args.projet}: expires {quand}.")
     return 0
 
 
@@ -202,20 +202,20 @@ def _expirer(magasin: IdentityStore, _service, args) -> int:
     par diverger — celui qu'on emprunte le moins étant celui qui se casse.
     """
     if not magasin.deplacer_echeance(args.projet, -1):
-        print(f"Aucun projet {args.projet!r}.", file=sys.stderr)
+        print(f"No project {args.projet!r}.", file=sys.stderr)
         return 1
     evenement("projet_expire_par_exploitant", projet=court(args.projet))
-    print(f"Projet {args.projet} marqué échu. La purge le retirera au prochain tour.")
+    print(f"Project {args.projet} marked expired. The purge will remove it on its next run.")
     return 0
 
 
 def _revoquer(magasin: IdentityStore, _service, args) -> int:
     cle = magasin.revoquer_cle_par_id(args.cle)
     if not cle:
-        print(f"Aucune clé active {args.cle!r}.", file=sys.stderr)
+        print(f"No active key {args.cle!r}.", file=sys.stderr)
         return 1
     evenement("cle_revoquee_par_exploitant", cle=court(args.cle))
-    print(f"Clé {cle['name']!r} de {cle['email']} révoquée.")
+    print(f"Key {cle['name']!r} of {cle['email']} revoked.")
     return 0
 
 
@@ -223,18 +223,18 @@ def _supprimer(magasin: IdentityStore, service: CompilationService, args) -> int
     compte = _compte_ou_sortir(magasin, args.email)
     if not args.confirmer:
         projets = magasin.tous_les_projets(compte["id"])
-        print(f"{compte['email']} — {len(projets)} projet(s), "
-              f"{len(magasin.cles_du_compte(compte['id']))} clé(s).")
-        print("Rien n'a été fait. Ajoutez --confirmer pour effacer "
-              "définitivement le compte, ses clés, ses projets et leurs fichiers.")
+        print(f"{compte['email']} — {len(projets)} project(s), "
+              f"{len(magasin.cles_du_compte(compte['id']))} key(s).")
+        print("Nothing was done. Add --confirmer to permanently erase "
+              "the account, its keys, its projects and their files.")
         return 1
     runtime = create_runtime(service, magasin)
     projets = supprimer_compte(runtime, compte["id"])
     effaces = len(projets)
     evenement("compte_supprime_par_exploitant", compte=court(compte["id"]),
               projets=len(projets), dossiers=effaces)
-    print(f"{compte['email']} supprimé — {len(projets)} projet(s) en base, "
-          f"{effaces} dossier(s) sur le disque.")
+    print(f"{compte['email']} deleted — {len(projets)} project(s) in the database, "
+          f"{effaces} folder(s) on disk.")
     return 0
 
 
@@ -245,7 +245,7 @@ def _supprimer(magasin: IdentityStore, service: CompilationService, args) -> int
 def construire_parseur() -> argparse.ArgumentParser:
     parseur = argparse.ArgumentParser(
         prog="monl-platform admin",
-        description="Gestes d'exploitation sur les comptes et les projets.")
+        description="Operator actions on accounts and projects.")
     # `--workspace` est déclaré DEUX fois : sur le parseur principal et sur
     # chaque sous-verbe, via un parent commun. Trouvé en l'exécutant — argparse
     # n'accepte une option de premier niveau qu'AVANT le sous-verbe, alors
@@ -257,54 +257,54 @@ def construire_parseur() -> argparse.ArgumentParser:
     # `admin --workspace X comptes` cesse de marcher. Corriger une position
     # en cassant l'autre n'est pas une correction.
     commun.add_argument("--workspace", default=argparse.SUPPRESS,
-                        help="Espace de travail (par défaut MONL_PLATFORM_WORKSPACE).")
+                        help="Workspace (default: MONL_PLATFORM_WORKSPACE).")
     parseur.add_argument("--workspace", default=None, help=argparse.SUPPRESS)
     sous = parseur.add_subparsers(dest="geste", required=True)
 
     sous.add_parser("comptes", parents=[commun],
-                    help="Liste tous les comptes.").set_defaults(faire=_comptes)
+                    help="List all accounts.").set_defaults(faire=_comptes)
 
     detail = sous.add_parser(
-"compte", parents=[commun], help="Détail d'un compte : projets et clés.")
+"compte", parents=[commun], help="Account details: projects and keys.")
     detail.add_argument("email")
     detail.set_defaults(faire=_compte)
 
     liste = sous.add_parser(
-"projets", parents=[commun], help="Liste les projets.")
+"projets", parents=[commun], help="List projects.")
     liste.add_argument("--compte", default=None, metavar="EMAIL")
     liste.set_defaults(faire=_projets)
 
     journal = sous.add_parser(
         "journal", aliases=["journaux"], parents=[commun],
-        help="Lit la sortie du site depuis le shell.")
+        help="Read the site output from the shell.")
     journal.add_argument("projet")
     journal.set_defaults(faire=_journal)
 
     codes = sous.add_parser(
-"codes", parents=[commun], help="Nouvelle série de codes de secours pour un compte bloqué.")
+"codes", parents=[commun], help="New set of recovery codes for a locked-out account.")
     codes.add_argument("email")
     codes.set_defaults(faire=_codes)
 
     prolonger = sous.add_parser(
-"prolonger", parents=[commun], help="Repousse l'expiration d'un projet.")
+"prolonger", parents=[commun], help="Push back a project's expiry.")
     prolonger.add_argument("projet")
     prolonger.add_argument("--jours", type=int, default=30)
     prolonger.add_argument("--jamais", action="store_true",
-                           help="Le projet n'expire plus.")
+                           help="The project no longer expires.")
     prolonger.set_defaults(faire=_prolonger)
 
     expirer = sous.add_parser(
-"expirer", parents=[commun], help="Marque un projet échu ; la purge nettoiera.")
+"expirer", parents=[commun], help="Mark a project expired; the purge will clean it up.")
     expirer.add_argument("projet")
     expirer.set_defaults(faire=_expirer)
 
     revoquer = sous.add_parser(
-"revoquer-cle", parents=[commun], help="Révoque une clé d'API par son identifiant.")
+"revoquer-cle", parents=[commun], help="Revoke an API key by its identifier.")
     revoquer.add_argument("cle")
     revoquer.set_defaults(faire=_revoquer)
 
     supprimer = sous.add_parser(
-"supprimer-compte", parents=[commun], help="Efface un compte et tout ce qui lui appartient.")
+"supprimer-compte", parents=[commun], help="Erase an account and everything that belongs to it.")
     supprimer.add_argument("email")
     supprimer.add_argument("--confirmer", action="store_true")
     supprimer.set_defaults(faire=_supprimer)

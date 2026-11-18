@@ -14,7 +14,7 @@ class IdentityCredentialsMixin:
     def _email(value: Any) -> str:
         email = str(value or "").strip().lower()
         if len(email) > 254 or not EMAIL.fullmatch(email):
-            raise IdentityError("Saisissez une adresse email valide.")
+            raise IdentityError("Enter a valid email address.")
         return email
 
     @classmethod
@@ -32,9 +32,9 @@ class IdentityCredentialsMixin:
     def _password(value: Any) -> str:
         password = str(value or "")
         if len(password) < 10:
-            raise IdentityError("Le mot de passe doit contenir au moins 10 caractères.")
+            raise IdentityError("The password must contain at least 10 characters.")
         if len(password.encode("utf-8")) > 1024:
-            raise IdentityError("Le mot de passe est trop long.")
+            raise IdentityError("The password is too long.")
         return password
 
     @staticmethod

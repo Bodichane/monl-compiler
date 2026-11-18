@@ -73,7 +73,7 @@ def test_un_corps_chunked_trop_grand_est_refuse(plateforme):
     statut, contenu = _post_chunked(plateforme, morceaux)
 
     assert statut == 413
-    assert contenu["detail"] == "Requête trop volumineuse."
+    assert contenu["detail"] == "Request too large."
 
 
 def test_un_corps_chunked_borne_et_valide_reste_accepte(plateforme):
@@ -83,7 +83,7 @@ def test_un_corps_chunked_borne_et_valide_reste_accepte(plateforme):
     )
 
     assert statut == 401
-    assert contenu["detail"] == "Email ou mot de passe incorrect."
+    assert contenu["detail"] == "Incorrect email or password."
 
 
 def test_content_length_trop_grand_est_refuse_avant_lecture(plateforme):
@@ -103,14 +103,14 @@ def test_content_length_trop_grand_est_refuse_avant_lecture(plateforme):
     connexion.close()
 
     assert reponse.status == 413
-    assert contenu["detail"] == "Requête trop volumineuse."
+    assert contenu["detail"] == "Request too large."
 
 
 def test_un_json_chunked_non_objet_garde_son_erreur(plateforme):
     statut, contenu = _post_chunked(plateforme, [b"[", b"]"])
 
     assert statut == 400
-    assert contenu["detail"] == "Un objet JSON est attendu."
+    assert contenu["detail"] == "A JSON object is expected."
 
 
 def test_les_routes_ne_lisent_pas_le_corps_hors_des_lecteurs_bornes():

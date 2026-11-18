@@ -31,34 +31,34 @@ from .theme import icon
 # relisant du code. Les montants sont ceux qui ont été mesurés.
 REFUS = [
     {
-        "titre": "Une valeur calculée arrivait du client",
-        "attaque": 'POST /commande\n{ "total": 0.01 }',
-        "avant": "La commande était enregistrée à un centime, puis encaissée "
-                 "pour ce montant.",
-        "regle": "rule Ligne.sousTotal derivedFrom Produit.prix by quantite",
-        "apres": "Le champ disparaît du corps de requête. Le serveur le calcule "
-                 "depuis la ligne liée, à la création ET à la modification.",
-        "point": "points 77 et 78",
+        "titre": "A calculated value came from the client",
+        "attaque": 'POST /order\n{ "total": 0.01 }',
+        "avant": "The order was recorded at one cent, then charged for that "
+                 "amount.",
+        "regle": "rule Line.subtotal derivedFrom Product.price by quantity",
+        "apres": "The field disappears from the request body. The server "
+                 "calculates it from the linked row, on creation AND on update.",
+        "point": "points 77 and 78",
     },
     {
-        "titre": "Une action dépassait une limite métier",
-        "attaque": 'POST /ligne\n{ "quantite": 50 }',
-        "avant": "Le paiement passait. Le stock ne bougeait pas.",
-        "regle": "rule Ligne.Create decrements Produit.stock by quantite",
-        "apres": "Une seule instruction SQL porte la condition et l'écriture : "
-                 "deux commandes simultanées ne peuvent pas lire le même stock. "
-                 "409 si le plancher est franchi.",
+        "titre": "An action exceeded a business limit",
+        "attaque": 'POST /line\n{ "quantity": 50 }',
+        "avant": "The payment went through. The stock did not move.",
+        "regle": "rule Line.Create decrements Product.stock by quantity",
+        "apres": "A single SQL statement carries the condition and the write: "
+                 "two simultaneous orders cannot read the same stock. "
+                 "409 if the floor is crossed.",
         "point": "point 86",
     },
     {
-        "titre": "Un état final restait modifiable",
-        "attaque": 'POST /ligne\n{ "commande": 12, "produit": 7 }',
-        "avant": "Réglée 89 €, la commande remontait à 238 € — et le "
-                 "back-office affichait « Payée » en face d'un montant que "
-                 "personne n'avait versé.",
-        "regle": "rule Commande.total payable",
-        "apres": "Cinq portes se ferment, pas une : le total ne se modifie pas "
-                 "par la commande mais par la LIGNE.",
+        "titre": "A final state stayed editable",
+        "attaque": 'POST /line\n{ "order": 12, "product": 7 }',
+        "avant": "Settled at €89, the order climbed to €238 — and the "
+                 "back office showed “Paid” next to an amount nobody had "
+                 "paid.",
+        "regle": "rule Order.total payable",
+        "apres": "Five doors close, not one: the total is not changed through "
+                 "the order but through the LINE.",
         "point": "point 91",
     },
 ]
@@ -67,32 +67,32 @@ REFUS = [
 # jugement : « plus simple », « plus moderne » et « plus sûr » n'ont pas leur
 # place ici. Le lecteur tranche.
 COMPARAISON = [
-    ("Ce que vous recevez",
-     "Un service hébergé : base, API, authentification, stockage.",
-     "Du code source — <code>app.py</code>, <code>schema.sql</code>, "
-     "<code>manage.py</code> — que vous exécutez où vous voulez."),
-    ("Où vivent les droits",
-     "Des politiques <abbr title=\"Row Level Security\">RLS</abbr> écrites en "
-     "SQL, table par table, et tenues à jour à la main.",
-     "Déclarés une fois dans la spec. La compilation ÉCHOUE si deux règles se "
-     "contredisent."),
-    ("Les invariants métier",
-     "Stock, totaux, états : à écrire en triggers, en fonctions, ou dans "
-     "l'application appelante.",
-     "Compilés dans les routes elles-mêmes, dans la transaction de "
-     "l'écriture."),
-    ("Ce que le frontend sait",
-     "Le schéma de la base, via le client généré. Les droits restent à "
-     "deviner.",
-     "Un contrat explicite : routes, champs, actions, acteurs autorisés, "
-     "champs en lecture seule."),
-    ("Le jour où vous partez",
-     "L'API et les politiques sont celles du service.",
-     "L'archive tourne seule. Aucun composant monl à l'exécution."),
-    ("Ce qu'il n'apporte pas",
+    ("What you receive",
+     "A hosted service: database, API, authentication, storage.",
+     "Source code — <code>app.py</code>, <code>schema.sql</code>, "
+     "<code>manage.py</code> — that you run wherever you want."),
+    ("Where permissions live",
+     "<abbr title=\"Row Level Security\">RLS</abbr> policies written in SQL, "
+     "table by table, and kept up to date by hand.",
+     "Declared once in the spec. Compilation FAILS if two rules contradict "
+     "each other."),
+    ("Business invariants",
+     "Stock, totals, states: to be written as triggers, functions, or in the "
+     "calling application.",
+     "Compiled into the routes themselves, inside the write's "
+     "transaction."),
+    ("What the frontend knows",
+     "The database schema, through the generated client. Permissions are "
+     "left to guess.",
+     "An explicit contract: routes, fields, actions, allowed actors, "
+     "read-only fields."),
+    ("The day you leave",
+     "The API and the policies belong to the service.",
+     "The archive runs on its own. No monl component at runtime."),
+    ("What it does not provide",
      "—",
-     "Ni hébergement, ni temps réel, ni stockage de fichiers managé, ni "
-     "tableau de bord d'administration hébergé."),
+     "No hosting, no real-time, no managed file storage, no hosted "
+     "admin dashboard."),
 ]
 
 # Trois montages réels. Le premier est ÉPROUVÉ : `tests/test_postgresql.py`
@@ -101,36 +101,35 @@ COMPARAISON = [
 # la nuance est écrite, pour ne rien promettre qui ne soit vérifié.
 MONTAGES = [
     {
-        "titre": "Le Postgres est managé, les règles sont compilées",
-        "texte": "Le backend généré lit <code>MONL_DATABASE_URL</code>. "
-                 "Pointez-le vers le Postgres de votre fournisseur — Supabase, "
-                 "Neon, RDS — et gardez ses sauvegardes, ses répliques et sa "
-                 "console.",
-        "preuve": "Éprouvé : les artefacts générés tournent contre un vrai "
-                  "PostgreSQL dans la suite de tests.",
+        "titre": "Postgres is managed, the rules are compiled",
+        "texte": "The generated backend reads <code>MONL_DATABASE_URL</code>. "
+                 "Point it at your provider’s Postgres — Supabase, Neon, RDS — "
+                 "and keep its backups, its replicas and its console.",
+        "preuve": "Proven: the generated artifacts run against a real "
+                  "PostgreSQL in the test suite.",
         "code": ("export MONL_DATABASE_URL=postgresql://…",
                  "python3 -m uvicorn app:app"),
         "etat": "verifie",
     },
     {
-        "titre": "Le contrat nourrit le générateur d'interface",
-        "texte": "<code>frontend_contract.json</code> énumère les routes, les "
-                 "champs acceptés et les acteurs autorisés. Un outil de "
-                 "génération d'UI reçoit la liste au lieu de l'inventer.",
-        "preuve": "Le contrat décrit ce que le backend fait vraiment, pas ce "
-                  "que la spec déclare : un champ calculé par le serveur en "
-                  "sort.",
+        "titre": "The contract feeds the interface generator",
+        "texte": "<code>frontend_contract.json</code> lists the routes, the "
+                 "accepted fields and the allowed actors. A UI generation "
+                 "tool receives the list instead of inventing it.",
+        "preuve": "The contract describes what the backend really does, not "
+                  "what the spec declares: a server-calculated field is left "
+                  "out.",
         "code": ("monl frontend --provider anthropic",
-                 "monl import  # ou le copier/coller"),
+                 "monl import  # or copy/paste"),
         "etat": "verifie",
     },
     {
-        "titre": "Ce que monl laisse à côté",
-        "texte": "Fichiers volumineux, temps réel, envoi de courriel : monl "
-                 "n'en fait rien et ne prétend pas le contraire. Ces briques "
-                 "restent chez votre fournisseur.",
-        "preuve": "Un backend monl ne fait AUCUN appel réseau, hormis "
-                  "l'encaissement quand vous le déclarez.",
+        "titre": "What monl leaves aside",
+        "texte": "Large files, real-time, sending email: monl does none of "
+                 "this and does not pretend otherwise. These pieces stay with "
+                 "your provider.",
+        "preuve": "A monl backend makes NO network calls, except for payment "
+                  "when you declare it.",
         "code": (),
         "etat": "limite",
     },
@@ -237,16 +236,16 @@ EXTRA_CSS = """
 def _refus(item: dict, index: int) -> str:
     """Une tentative, repliée. Ouverte, le pourquoi et le comment."""
     return f"""<details data-reveal style="--reveal-delay:{index * 60}ms">
-<summary><span class="tag-refus">règle appliquée</span>{item['titre']}
+<summary><span class="tag-refus">rule enforced</span>{item['titre']}
 <span class="chev">{icon('arrow')}</span></summary>
 <div class="fold"><div><div class="refus-body">
-<div><h4>Ce que le client envoyait</h4>
+<div><h4>What the client sent</h4>
 <pre class="codeblock"><code>{item['attaque']}</code></pre>
 <p>{item['avant']}</p></div>
-<div><h4>La règle qui ferme</h4>
+<div><h4>The rule that closes it</h4>
 <pre class="codeblock"><code>{item['regle']}</code></pre>
 <p>{item['apres']}</p></div>
-</div><p class="refus-src">Mesuré sur un serveur réel — {item['point']} de
+</div><p class="refus-src">Measured on a real server — {item['point']} of
 <code>docs/design_decisions.md</code>.</p></div></div>
 </details>"""
 
@@ -257,8 +256,8 @@ def _ligne(axe: str, eux: str, nous: str) -> str:
 
 
 def _montage(item: dict, index: int) -> str:
-    libelle = ("vérifié par les tests" if item["etat"] == "verifie"
-               else "limite énoncée")
+    libelle = ("verified by the tests" if item["etat"] == "verifie"
+               else "stated limit")
     symbole = "check" if item["etat"] == "verifie" else "shield"
     # Une LIGNE par commande. Tassées sur une seule, elles sortaient du
     # cadre et se faisaient couper : on lisait « postgresql://… python3 -m »
@@ -276,24 +275,24 @@ def _montage(item: dict, index: int) -> str:
 
 SECTIONS = f"""
 <section class="shell section" aria-labelledby="pourquoi-title">
-<div class="section-head" data-reveal><h2 id="pourquoi-title">Les règles métier continuent de s’appliquer.</h2>
-<p>Valeurs calculées, limites et états finaux vivent dans le backend, pas dans un bouton d’interface. Ouvrez un exemple pour voir la règle et le contrôle qui l’appliquent.</p></div>
+<div class="section-head" data-reveal><h2 id="pourquoi-title">The business rules keep applying.</h2>
+<p>Calculated values, limits and final states live in the backend, not in an interface button. Open an example to see the rule and the check that enforces it.</p></div>
 <div class="refus">{"".join(_refus(r, i) for i, r in enumerate(REFUS))}</div>
 </section>
 
 <section class="band"><div class="shell section" aria-labelledby="compare-title">
-<div class="section-head" data-reveal><h2 id="compare-title">Monl complète votre plateforme. Il ne cherche pas à la remplacer.</h2>
-<p>Une plateforme managée fournit l’infrastructure. Monl fournit un backend à partir de règles métier. Le tableau montre précisément ce qui appartient à chaque couche.</p></div>
+<div class="section-head" data-reveal><h2 id="compare-title">Monl complements your platform. It does not try to replace it.</h2>
+<p>A managed platform provides the infrastructure. Monl provides a backend from business rules. The table shows exactly what belongs to each layer.</p></div>
 <div class="compare" data-reveal>
 <div class="compare-row head"><div>&nbsp;</div>
-<div class="who"><span class="dot them"></span>Une plateforme managée</div>
+<div class="who"><span class="dot them"></span>A managed platform</div>
 <div class="who"><span class="dot us"></span>MONL</div></div>
 {"".join(_ligne(*ligne) for ligne in COMPARAISON)}
 </div></div></section>
 
 <section class="shell section" aria-labelledby="ensemble-title">
-<div class="section-head" data-reveal><h2 id="ensemble-title">Utilisez Monl avec les outils que vous avez déjà.</h2>
-<p>Le backend généré parle PostgreSQL. Vous gardez le fournisseur, la console, les sauvegardes et les répliques qui conviennent à votre équipe.</p></div>
+<div class="section-head" data-reveal><h2 id="ensemble-title">Use Monl with the tools you already have.</h2>
+<p>The generated backend speaks PostgreSQL. You keep the provider, console, backups and replicas that suit your team.</p></div>
 <div class="montages">{"".join(_montage(m, i) for i, m in enumerate(MONTAGES))}</div>
 </section>
 """

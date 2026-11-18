@@ -33,10 +33,10 @@ def _terminal(nom: str) -> frozenset:
     """
     trouve = re.search(rf"^\s*{nom}:\s*(.+)$", grammar, re.M)
     if not trouve:
-        raise RuntimeError(f"terminal {nom} introuvable dans la grammaire")
+        raise RuntimeError(f"terminal {nom} not found in the grammar")
     alternatives = frozenset(re.findall(r'"([^"]+)"', trouve.group(1)))
     if not alternatives:
-        raise RuntimeError(f"terminal {nom} sans alternative littérale")
+        raise RuntimeError(f"terminal {nom} has no literal alternative")
     return alternatives
 
 

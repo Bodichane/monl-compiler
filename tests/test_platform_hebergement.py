@@ -234,7 +234,7 @@ def test_eviction_du_plus_ancien_inactif_et_refus_quand_tous_sont_recents(
     assert projets[0]["project_id"] not in sites._running
     assert sites.is_running(projets[1]["project_id"])
     assert sites.is_running(nouveau.project_id)
-    with pytest.raises(SiteHostingError, match="plafond de sites actifs"):
+    with pytest.raises(SiteHostingError, match="active-site limit"):
         sites.start_project(projets[3])
     assert len(sites._running) == 2
 
@@ -260,7 +260,7 @@ def test_plafond_par_compte_nempeche_pas_un_autre_compte(
     sites = app.state.sites
     sites.start_project(projets[0])
 
-    with pytest.raises(SiteHostingError, match="plafond de sites actifs"):
+    with pytest.raises(SiteHostingError, match="active-site limit"):
         sites.start_project(projets[1])
     running_bob = sites.start_project(bob)
 

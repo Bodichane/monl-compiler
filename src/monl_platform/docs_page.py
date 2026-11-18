@@ -44,25 +44,25 @@ EXTRA_CSS = """
 # Écrit en TEXTE NU : la coloration est faite par le coloriseur, dont les
 # mots-clés viennent de la grammaire. Marqués à la main, ils dataient du jour
 # où on les avait écrits.
-EXAMPLE = coloriser("""app BoutiqueLocale
+EXAMPLE = coloriser("""app LocalShop
 
-entity Produit
-    nom: String
-    prix: Money
+entity Product
+    name: String
+    price: Money
     stock: Integer
 
-actor Client selfRegister
-actor Vendeur
+actor Customer selfRegister
+actor Seller
 
-rule Produit.nom required
-rule Produit.prix min 0
-rule Produit.Read public
+rule Product.name required
+rule Product.price min 0
+rule Product.Read public
 
-workflow GererCatalogue for Vendeur
-    Create Produit
-    Read Produit
-    Update Produit
-    Delete Produit""")
+workflow ManageCatalog for Seller
+    Create Product
+    Read Product
+    Update Product
+    Delete Product""")
 
 
 def _types() -> str:
@@ -75,47 +75,47 @@ def _rules(rows: list[tuple[str, str]]) -> str:
 
 BODY = f"""
 <div class="shell docs-layout"><article class="docs-main">
-<section id="structure"><p class="docs-eyebrow">Documentation du langage</p><h1>Écrire une spécification Monl.</h1>
-<p class="lede">Décrivez les données, les personnes qui agissent et les règles qui ne doivent jamais être contournées. Monl compile ensuite le backend et son contrat exact.</p>
-<div class="docs-start"><h2>Choisissez votre point de départ</h2><nav class="docs-paths" aria-label="Points de départ de la documentation">
-<a class="docs-path" href="#premiere-spec"><b>Première spec</b><span>Comprendre l’ordre des blocs avec un exemple complet.</span></a>
-<a class="docs-path" href="#mots-cles"><b>Référence du langage</b><span>Retrouver un mot-clé, un type ou une règle.</span></a>
-<a class="docs-path" href="#acces"><b>Sécurité et droits</b><span>Définir ce que chaque acteur peut réellement faire.</span></a>
+<section id="structure"><p class="docs-eyebrow">Language documentation</p><h1>Write a Monl specification.</h1>
+<p class="lede">Describe the data, the people who act on it, and the rules that must never be bypassed. Monl then compiles the backend and its exact contract.</p>
+<div class="docs-start"><h2>Choose your starting point</h2><nav class="docs-paths" aria-label="Documentation starting points">
+<a class="docs-path" href="#premiere-spec"><b>First spec</b><span>Understand the order of the blocks with a complete example.</span></a>
+<a class="docs-path" href="#mots-cles"><b>Language reference</b><span>Find a keyword, a type or a rule.</span></a>
+<a class="docs-path" href="#acces"><b>Security and permissions</b><span>Define what each actor can actually do.</span></a>
 </nav></div>
 <div id="premiere-spec" class="quick"><pre class="codeblock"><code>{EXAMPLE}</code></pre><div class="anatomy">
-<article class="card"><span class="feature-icon">{icon('code')}</span><h3>Les données</h3><p><code>entity</code> déclare une table et ses champs typés.</p></article>
-<article class="card"><span class="feature-icon">{icon('shield')}</span><h3>Les droits</h3><p><code>actor</code> et <code>rule</code> déterminent qui agit sur quoi.</p></article>
-<article class="card"><span class="feature-icon">{icon('terminal')}</span><h3>Les actions</h3><p><code>workflow</code> ouvre les opérations de chaque acteur.</p></article></div></div></section>
+<article class="card"><span class="feature-icon">{icon('code')}</span><h3>The data</h3><p><code>entity</code> declares a table and its typed fields.</p></article>
+<article class="card"><span class="feature-icon">{icon('shield')}</span><h3>The permissions</h3><p><code>actor</code> and <code>rule</code> decide who acts on what.</p></article>
+<article class="card"><span class="feature-icon">{icon('terminal')}</span><h3>The actions</h3><p><code>workflow</code> opens each actor’s operations.</p></article></div></div></section>
 
-<section id="mots-cles"><h2>Les mots-clés essentiels.</h2><div class="keyword-grid">
-<article class="keyword"><code>app Nom</code><p>Nomme l’application, une fois, au début.</p></article>
-<article class="keyword"><code>entity Nom</code><p>Déclare une donnée ; les lignes indentées sont ses champs.</p></article>
-<article class="keyword"><code>actor Nom [selfRegister]</code><p>Déclare un rôle et, éventuellement, son inscription publique.</p></article>
-<article class="keyword"><code>relation A hasMany B</code><p>Relie les objets et donne le chemin de propriété.</p></article>
-<article class="keyword"><code>rule Cible contrainte</code><p>Ajoute validation, calcul serveur ou règle d’accès.</p></article>
-<article class="keyword"><code>workflow Nom for Acteur</code><p>Liste Create, Read, Update et Delete autorisés.</p></article>
-<article class="keyword"><code>capability auth</code><p>Configure l’identification et les sessions.</p></article>
-<article class="keyword"><code>seed Entite</code><p>Ajoute les données initiales dans une table vide.</p></article>
+<section id="mots-cles"><h2>The essential keywords.</h2><div class="keyword-grid">
+<article class="keyword"><code>app Name</code><p>Names the application, once, at the top.</p></article>
+<article class="keyword"><code>entity Name</code><p>Declares a piece of data; the indented lines are its fields.</p></article>
+<article class="keyword"><code>actor Name [selfRegister]</code><p>Declares a role and, optionally, its public sign-up.</p></article>
+<article class="keyword"><code>relation A hasMany B</code><p>Links objects and gives the ownership path.</p></article>
+<article class="keyword"><code>rule Target constraint</code><p>Adds validation, a server calculation or an access rule.</p></article>
+<article class="keyword"><code>workflow Name for Actor</code><p>Lists the allowed Create, Read, Update and Delete.</p></article>
+<article class="keyword"><code>capability auth</code><p>Configures identification and sessions.</p></article>
+<article class="keyword"><code>seed Entity</code><p>Adds initial data to an empty table.</p></article>
 </div></section>
 
-<section id="types"><h2>Les types acceptés.</h2>
-<p class="lede">Le type détermine validation, stockage SQL et contrat frontend.</p><div class="type-grid">{_types()}</div></section>
+<section id="types"><h2>Accepted types.</h2>
+<p class="lede">The type determines validation, SQL storage and the frontend contract.</p><div class="type-grid">{_types()}</div></section>
 
-<section id="acces"><h2>Accès et sécurité.</h2>
-<p class="lede">Ces règles s’appliquent côté API : masquer un bouton ne constitue jamais une autorisation.</p>
-<div class="keyword-grid">{_rules(REGLES_ACCES)}</div><h2 style="margin-top:var(--space-7)">Validation et calcul serveur.</h2>
+<section id="acces"><h2>Access and security.</h2>
+<p class="lede">These rules apply in the API: hiding a button is never an authorization.</p>
+<div class="keyword-grid">{_rules(REGLES_ACCES)}</div><h2 style="margin-top:var(--space-7)">Validation and server calculation.</h2>
 <div class="keyword-grid">{_rules(REGLES_CHAMPS + REGLES_SERVEUR + REGLES_COMMERCE)}</div></section>
 
-<section id="validation"><h2>Valider la spec.</h2>
-<div class="tip"><span class="feature-icon">{icon('check')}</span><p>Collez le fichier dans la <a href="/console">console</a> puis choisissez <b>Vérifier la spec</b>.
-En local : <code>monl compile ma-spec.ml</code>. Pour le parcours complet, l’archive et son démarrage, suivez le <a href="/guide#demarrer">guide de démarrage</a>.</p></div>
-<div class="docs-actions" style="margin-top:var(--space-5)"><a class="primary" href="/console">Tester une spécification {icon('arrow')}</a>
-<a class="secondary" href="/api-docs">Documentation de l’API</a></div></section>
-</article><aside class="docs-nav" aria-label="Sommaire"><p>Dans cette page</p>
-<a href="#structure">Vue d’ensemble</a><a href="#premiere-spec">Première spec</a><a href="#mots-cles">Mots-clés</a><a href="#types">Types</a>
-<a href="#acces">Accès et sécurité</a><a href="#validation">Compiler et valider</a><a href="/guide#demarrer">Guide de démarrage</a></aside></div>
+<section id="validation"><h2>Validate the spec.</h2>
+<div class="tip"><span class="feature-icon">{icon('check')}</span><p>Paste the file into the <a href="/console">console</a>, then choose <b>Check the spec</b>.
+Locally: <code>monl compile my-spec.ml</code>. For the full path, the archive and how to start it, follow the <a href="/guide#demarrer">getting-started guide</a>.</p></div>
+<div class="docs-actions" style="margin-top:var(--space-5)"><a class="primary" href="/console">Try a specification {icon('arrow')}</a>
+<a class="secondary" href="/api-docs">API documentation</a></div></section>
+</article><aside class="docs-nav" aria-label="Contents"><p>On this page</p>
+<a href="#structure">Overview</a><a href="#premiere-spec">First spec</a><a href="#mots-cles">Keywords</a><a href="#types">Types</a>
+<a href="#acces">Access and security</a><a href="#validation">Compile and validate</a><a href="/guide#demarrer">Getting started</a></aside></div>
 """
 
-DOCS_HTML = page(title="Écrire une spécification — documentation Monl",
-    description="Mots-clés, types et règles pour écrire une spécification Monl valide.",
+DOCS_HTML = page(title="Write a specification — Monl documentation",
+    description="Keywords, types and rules for writing a valid Monl specification.",
     body=BODY, active="docs", extra_css=EXTRA_CSS)

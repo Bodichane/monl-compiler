@@ -169,7 +169,7 @@ def test_changement_securite_sur_tous_les_acces(plateforme, tmp_path, capsys, ac
     if action == "administrer":
         assert administrer(["codes", "preuve@exemple.test", "--workspace", str(tmp_path / "projects")]) == 0
         sortie = capsys.readouterr().out
-        assert "révoquées" in sortie
+        assert "revoked" in sortie
         code_operateur = next(ligne.strip() for ligne in sortie.splitlines()
                               if ligne.startswith("  "))
     else:
