@@ -412,7 +412,6 @@ EXCEPTIONS_DE_COMPLEXITE = {
     "monl/frontend_ai/agents.py:generate_with_cli_agent": (34, "Orchestration d'agent hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/frontend_ai/orchestration.py:generate_and_verify": (29, "Orchestration frontend hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/frontend_contract/brief.py:_render_prompt": (46, "Émission de prompt ligne par ligne conservée pour rester lisible ; cas plat hors des cinq cibles."),
-    "monl/frontend_contract/contrat_entites.py:_specs_des_entites": (25, "Assemblage de contrat hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/frontend_contract/roles_de_champs.py:_assign_field_roles": (39, "Attribution de rôles hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/generator/routes_creation.py:_generate_create_route_lines": (41, "Émission de routes ligne par ligne : liste plate légitime, conservée hors des cinq cibles."),
     "monl/generator/routes_lecture.py:_generate_read_route_lines": (49, "Émission de routes ligne par ligne : liste plate légitime, conservée hors des cinq cibles."),
