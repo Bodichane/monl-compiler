@@ -7,11 +7,9 @@
 name: CI
 
 # On ALL branches, not only main: a CI that only fires on merge arrives
-# too
-# late to be useful. Pull requests therefore replay the same thing a
-# second
-# time — an assumed duplicate, immediate feedback beats an elegant run
-# graph.
+# too late to be useful. Pull requests therefore replay the same thing
+# a second time — an assumed duplicate, immediate feedback beats an
+# elegant run graph.
 on: [push, pull_request]
 
 jobs:
@@ -36,8 +34,7 @@ jobs:
       fail-fast: false
       matrix:
         # The lower bound declared in pyproject.toml, an intermediate
-        # supported
-        # version and the recent version exercised locally.
+        # supported version and the recent version exercised locally.
         python-version: ["3.10", "3.12", "3.14", "3.15"]
 
     steps:
@@ -49,13 +46,10 @@ jobs:
           cache: pip
 
       # Node is not a product dependency: it PARSES the JavaScript the pages
-      # serve.
-      # Without it, tests/test_console_javascript.py fails instead of skipping
-      # — a
-      # skip would say "nothing to check here" when it means "I did not check"
-      # (point 140). It is declared here, where CI installs it, exactly like
-      # Pillow
-      # at point 158bis.
+      # serve. Without it, tests/test_console_javascript.py fails instead of
+      # skipping — a skip would say "nothing to check here" when it means "I
+      # did not check" (point 140). It is declared here, where CI installs it,
+      # exactly like Pillow at point 158bis.
       - uses: actions/setup-node@v4.4.0
         with:
           node-version: "22"
@@ -66,25 +60,18 @@ jobs:
           pip install -e ".[dev,postgres]"  # paquet + outils + PostgreSQL réel
 
       # What the suite does not say: that the package installs and the
-      # command
-      # exists. A green repository whose 'pip install' fails is usable
-      # only by its
-      # author (point 65).
+      # command exists. A green repository whose 'pip install' fails
+      # is usable only by its author (point 65).
       - name: Le paquet s'installe et la commande répond
         run: |
           monl --help
           cd "$(mktemp -d)" && python -c "import monl; print(monl.__version__)"
           # The platform and the MCP server are shipped by the PACKAGE, not
-          # only
-          # present in the working tree. An unanchored `.gitignore` pattern
-          # had made
-          # src/monl_platform/app.py vanish from the repository without a
-          # word:
-          # `monl-platform` no longer started, and no step here saw it — only
-          # the suite
-          # said so, by stopping at collection. Two lines close the door at
-          # the right
-          # level.
+          # only present in the working tree. An unanchored `.gitignore`
+          # pattern had made src/monl_platform/app.py vanish from the
+          # repository without a word: `monl-platform` no longer started, and
+          # no step here saw it — only the suite said so, by stopping at
+          # collection. Two lines close the door at the right level.
           cd "$(mktemp -d)" && python -c "import monl_platform.app, monl_platform.mcp_server"
 
       - name: Linter (jeu de règles de pyproject.toml)
@@ -98,23 +85,17 @@ jobs:
 
       - name: Suite complète, en mesurant les DEUX paquets
         # `--cov-fail-under=0` lowers no requirement: the gates are drawn from
-        # this
-        # run at the next step, one per package. Without this 0, the
-        # `pyproject.toml`
-        # gate would apply to the TOTAL of both packages — a number that means
-        # nothing, and would let one package make up for the other.
+        # this run at the next step, one per package. Without this 0, the
+        # `pyproject.toml` gate would apply to the TOTAL of both packages — a
+        # number that means nothing, and would let one package make up for the
+        # other.
         #
         # NO `-q` here: `pyproject.toml` already sets one in `addopts`, and two
-        # `-q`
-        # make `-qq`, which REMOVES the count line and the summary section. A
-        # skip
-        # then only showed as an `s` lost in a wall of dots — that is how the
-        # Pillow
-        # skip lived in this CI without anyone reading it. `-rs` NAMES each
-        # skipped
-        # test with its reason: a skip does not say "nothing to check here", it
-        # says
-        # "I did not check" (point 140).
+        # `-q` make `-qq`, which REMOVES the count line and the summary
+        # section. A skip then only showed as an `s` lost in a wall of dots —
+        # that is how the Pillow skip lived in this CI without anyone reading
+        # it. `-rs` NAMES each skipped test with its reason: a skip does not
+        # say "nothing to check here", it says "I did not check" (point 140).
         run: >-
           python -m pytest tests/ -rs --cov=src/monl --cov=src/monl_platform
           --cov-report=term-missing --cov-fail-under=0
@@ -122,21 +103,17 @@ jobs:
       - name: Deux barrières à 90 %, tirées de la MÊME exécution
         # The platform was measured on a hand-written LIST OF FILES
         # (`tests/test_platform_*.py tests/test_oauth.py …`). Measured: five
-        # files
-        # exercised it outside that list, including
-        # `tests/test_console_javascript.py`
-        # which guards the dead pages of point 163 — their lines did not count
-        # in the
-        # 90 %, and a test filed under another name would have dropped out
-        # without a
-        # word (point 169).
+        # files exercised it outside that list, including
+        # `tests/test_console_javascript.py` which guards the dead pages of
+        # point 163 — their lines did not count in the 90 %, and a test filed
+        # under another name would have dropped out without a word (point
+        # 169).
         #
         # `coverage report --include=…` rereads the previous step's data: the
-        # suite
-        # runs ONCE, each package keeps ITS gate, and there is no list left to
-        # maintain. The scope stays that of point 63 — `src/monl` and not
-        # `src/` —
-        # but it is now expressed per package rather than by test selection.
+        # suite runs ONCE, each package keeps ITS gate, and there is no list
+        # left to maintain. The scope stays that of point 63 — `src/monl` and
+        # not `src/` — but it is now expressed per package rather than by test
+        # selection.
         run: |
           python -m coverage report --include='src/monl/*' --fail-under=90
           python -m coverage report --include='src/monl_platform/*' --fail-under=90

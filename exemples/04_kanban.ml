@@ -3,10 +3,8 @@ app FluxBoard
 # ─────────────────────────────────────────────────────────────────────
 # COMPLETE KANBAN BOARD — team task tracking.
 # Public column view (kanban archetype: one column per status, discovered
-# at
-# runtime) + manager administration. The demo tasks fill the columns from
-# the
-# first opening.
+# at runtime) + manager administration. The demo tasks fill the columns
+# from the first opening.
 # ─────────────────────────────────────────────────────────────────────
 
 entity Task

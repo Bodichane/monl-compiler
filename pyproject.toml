@@ -57,15 +57,13 @@ dev = [
     # consequences, both from point 140: the JPEG re-encoding test SKIPPED
     # silently (a skip does not say "nothing to check", it says "I did not
     # check"), and the test guarding the brand images failed outright. The
-    # tests
-    # need the library: so it is declared where the tests get installed.
+    # tests need the library: so it is declared where the tests get
+    # installed.
     "Pillow>=10.0,<13.0",
     # `tomllib` only enters the standard library in 3.11, and the repository
     # supports 3.10: test_architecture.py reads `per-file-ignores` to check
-    # that
-    # no ruff exception targets a vanished file. SKIPPING that test on 3.10
-    # would
-    # silence it where it matters most (point 140).
+    # that no ruff exception targets a vanished file. SKIPPING that test on
+    # 3.10 would silence it where it matters most (point 140).
     "tomli>=2.0; python_version < '3.11'",
 ]
 postgres = [
@@ -84,9 +82,8 @@ monl-mcp = "monl_platform.mcp_server:main"
 
 # POINT 65: a real Python package. The beta's "flat src layout" was only
 # installable through a shim that manipulated sys.path; the code now lives
-# in
-# src/monl/ and is imported like any library — including from the tests,
-# which no longer carry an incantation at the top of the file.
+# in src/monl/ and is imported like any library — including from the
+# tests, which no longer carry an incantation at the top of the file.
 [tool.setuptools.packages.find]
 where = ["src"]
 
@@ -113,11 +110,9 @@ filterwarnings = [
 
 # ─────────────────────────────────────────────────────────────────────
 # Ruff — the linter. A CHOSEN rule set, not the full catalog: a linter
-# that
-# shouts at deliberate code ends up ignored, and an ignored warning is
-# worth
-# no more than no warning (same reasoning as point 48 for the contract's
-# clauses).
+# that shouts at deliberate code ends up ignored, and an ignored warning
+# is worth no more than no warning (same reasoning as point 48 for the
+# contract's clauses).
 # ─────────────────────────────────────────────────────────────────────
 [tool.ruff]
 target-version = "py310"
@@ -127,14 +122,12 @@ line-length = 100
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
 ignore = [
     # « — », « … », typographic quotes and accented letters are
-    # deliberate: the
-    # design journal stays in French, and generated-file markers are
-    # French on
-    # purpose. They are not ambiguous characters to fix.
+    # deliberate: the design journal stays in French, and
+    # generated-file markers are French on purpose. They are not
+    # ambiguous characters to fix.
     "RUF001", "RUF002", "RUF003",
     # Long brief and grammar strings: wrapping at 100 columns would
-    # hurt the
-    # reading of what matters most.
+    # hurt the reading of what matters most.
     "E501",
     # The repository's assumed style, not defects:
     "E701",    # « with open(...) as f: f.write(x) » — compact et lisible
@@ -148,18 +141,15 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 # The Lark grammar lives in a string literal: its blank lines CARRY
-# spaces,
-# and touching them would change the text Lark parses. The linter sees
-# physical lines, not the boundary of the literal.
+# spaces, and touching them would change the text Lark parses. The
+# linter sees physical lines, not the boundary of the literal.
 "src/monl/parser/grammaire.py" = ["W293"]
 # (The E402 exception for frontend_ai.py FELL with its file: the package
-# keeps
-# each section's imports in the header of its own module, so there is nothing
-# left to excuse. A path that no longer exists excuses nothing either — it
-# only makes people believe a rule is still relaxed.)
-# Three successive sections in one file (API path, import path, Claude Code
-# path), each with its imports: the reading of the file decides, not the
-# convention.
+# keeps each section's imports in the header of its own module, so there is
+# nothing left to excuse. A path that no longer exists excuses nothing either
+# — it only makes people believe a rule is still relaxed.) Three successive
+# sections in one file (API path, import path, Claude Code path), each with
+# its imports: the reading of the file decides, not the convention.
 "tests/test_smoke_and_frontend_ai.py" = ["E402"]
 # The test builds the code of a SUBPROCESS: "%r" quotes paths there without
 # any quoting risk, it does not format a display.

@@ -32,16 +32,13 @@ services:
       MONL_OAUTH_GOOGLE_SECRET: ${MONL_OAUTH_GOOGLE_SECRET:-}
       MONL_OAUTH_GOOGLE_BASE_URL: ${MONL_OAUTH_GOOGLE_BASE_URL:-}
       # These two go unnoticed when missing: the session cookie travels in
-      # clear,
-      # and rate limiting counts the whole planet on the proxy's address. See
-      # docs/EXPLOITATION.md §1.
+      # clear, and rate limiting counts the whole planet on the proxy's
+      # address. See docs/EXPLOITATION.md §1.
       MONL_COOKIE_SECURE: "1"
       MONL_TRUST_PROXY: "1"
       # Written even when they equal the default: an operations setting
-      # nobody
-      # sees in the compose file is a setting nobody thinks of changing the
-      # day it
-      # is needed.
+      # nobody sees in the compose file is a setting nobody thinks of
+      # changing the day it is needed.
       MONL_LOG_LEVEL: INFO
       MONL_PURGE_INTERVAL_SECONDS: "3600"
       MONL_ISOLATE_COMPILES: "1"
@@ -71,8 +68,7 @@ services:
   # The backup runs INSIDE the compose file, not in a host cron: a service
   # that deploys with the application cannot be forgotten when it is brought
   # up elsewhere. It uses the same image, hence the same documented command
-  # —
-  # there are not two ways to back up.
+  # — there are not two ways to back up.
   sauvegarde:
     image: ${MONL_PLATFORM_IMAGE:-monl-platform:local}
     build:
@@ -84,10 +80,8 @@ services:
       platform:
         condition: service_healthy
     # `--garder 14`: without rotation, a daily backup ends up filling the
-    # disk,
-    # and a full disk stops the service it protected. The backup would
-    # then
-    # become the outage.
+    # disk, and a full disk stops the service it protected. The backup
+    # would then become the outage.
     command:
       - sh
       - -c
@@ -96,7 +90,7 @@ services:
         if ! monl-platform sauvegarde
         "/backups/base-$$(date +%Y%m%d-%H%M%S).sqlite3"
         --workspace /data --garder 14; then
-        echo "sauvegarde en échec, nouvel essai dans 60 s" >&2;
+        echo "backup failed, retrying in 60 s" >&2;
         sleep 60;
         continue;
         fi;

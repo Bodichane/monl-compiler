@@ -46,12 +46,9 @@ entity PrivateMessage
 
 relation Member hasMany Post
 # ORDER MATTERS: the relation to the actor first, otherwise the
-# 'post_id'
-# column — targeted by 'increments' — would leave the INSERT and
-# 'oncePer'
-# would apply to a column that is always NULL (refused at compile time
-# since
-# point 116).
+# 'post_id' column — targeted by 'increments' — would leave the INSERT
+# and 'oncePer' would apply to a column that is always NULL (refused
+# at compile time since point 116).
 relation Member hasMany Like
 relation Post hasMany Like
 relation Post hasMany Dislike
@@ -139,10 +136,8 @@ workflow Moderate for Moderator
     Update Post
 
 # Demo feed: public posts already liked (varied categories). The author
-# shown
-# will be the generated anonymous pseudonym, not these values — the
-# 'author'
-# field is 'generated', so the seed does not fill it.
+# shown will be the generated anonymous pseudonym, not these values —
+# the 'author' field is 'generated', so the seed does not fill it.
 seed Post
     content: "Premier jour sur RezoAnon. L'anonymat change vraiment la façon de s'exprimer.", status: "published", score: 100, likes: 4
     content: "Astuce : les likes ne montrent qu'une catégorie, pas un score exact. Moins de course aux chiffres.", status: "published", score: 100, likes: 42

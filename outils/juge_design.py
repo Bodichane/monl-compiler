@@ -1,16 +1,16 @@
-"""Jugement du design, à l'aveugle, des frontends produits par mesure_competences.
+"""Blind design judgment of the frontends produced by mesure_competences.
 
-La note de monl dit si un frontend MARCHE (check, routes) ; elle ne dit rien de
-sa qualité visuelle — ce que les compétences d'interface prétendent améliorer.
-Ce module la juge, avec trois précautions :
-  - le juge ne voit que des captures nommées A et B, dans un dossier neutre :
-    ni chemin, ni nom de bras, ni code ;
-  - chaque paire est jugée DANS LES DEUX ORDRES : un juge qui préfère toujours
-    la première image se contredit, et sa préférence s'annule au lieu de
-    passer pour un résultat ;
-  - toutes les paires sans-i × avec-j d'un projet sont jugées, jamais une seule.
+monl's grade says whether a frontend WORKS (check, routes); it says nothing of
+its visual quality — what the interface skills claim to improve. This module
+judges it, with three precautions:
+  - the judge only sees screenshots named A and B, in a neutral folder: no
+    path, no arm name, no code;
+  - each pair is judged IN BOTH ORDERS: a judge who always prefers the first
+    image contradicts itself, and its preference cancels out instead of
+    passing for a result;
+  - every sans-i × avec-j pair of a project is judged, never a single one.
 
-Usage :
+Usage:
   python3 outils/juge_design.py ~/mesure-competences-portfolio
 """
 
@@ -54,9 +54,9 @@ def _port_libre():
 
 
 def capturer(projet, cible):
-    """Sert le projet par son propre serve.py et photographie /site/."""
+    """Serves the project through its own serve.py and screenshots /site/."""
     if NAVIGATEUR is None:
-        raise SystemExit("chrome-headless-shell introuvable dans ~/.cache/ms-playwright")
+        raise SystemExit("chrome-headless-shell not found in ~/.cache/ms-playwright")
     copie = Path(tempfile.mkdtemp(prefix="juge-"))
     shutil.copytree(projet, copie / "p", ignore=shutil.ignore_patterns("*.db", "_claude.json"))
     port = _port_libre()
@@ -73,13 +73,13 @@ def capturer(projet, cible):
             except OSError:
                 time.sleep(0.5)
         else:
-            raise SystemExit(f"{projet} : /site/ ne répond pas")
+            raise SystemExit(f"{projet}: /site/ does not answer")
         for nom, taille in FORMATS.items():
             image = cible / f"{nom}.png"
             image.unlink(missing_ok=True)
             for _ in range(2):
-                # Le navigateur headless se bloque parfois sur une page qui a
-                # pourtant été capturée au passage précédent : on retente une fois.
+                # The headless browser sometimes hangs on a page that was
+                # nonetheless captured on the previous pass: retry once.
                 try:
                     subprocess.run([str(NAVIGATEUR), "--no-sandbox", "--hide-scrollbars",
                                     f"--window-size={taille}", "--virtual-time-budget=6000",
@@ -89,8 +89,8 @@ def capturer(projet, cible):
                 except subprocess.TimeoutExpired:
                     continue
             if not image.is_file() or image.stat().st_size < 5000:
-                # Une capture vide jugée serait une note inventée : on s'arrête.
-                raise SystemExit(f"capture {nom} de {projet} vide ou absente")
+                # Judging an empty capture would invent a grade: stop.
+                raise SystemExit(f"screenshot {nom} of {projet} empty or missing")
     finally:
         serveur.terminate()
         serveur.wait(timeout=10)
@@ -98,16 +98,16 @@ def capturer(projet, cible):
 
 
 def _verdict(texte):
-    """Le DERNIER {"winner": …} de la réponse, où qu'il soit écrit."""
+    """The LAST {"winner": …} of the answer, wherever it is written."""
     trouves = re.findall(r'\{\s*"winner"\s*:\s*"(A|B|tie)"\s*\}', texte)
     return trouves[-1] if trouves else None
 
 
 def juger_paire(captures_a, captures_b, journal):
-    """Une comparaison : 'A', 'B', 'tie' ou None, et son coût.
+    """One comparison: 'A', 'B', 'tie' or None, and its cost.
 
-    Un verdict illisible (tours épuisés avant la conclusion) est retenté une
-    fois ; la réponse brute est gardée dans `journal` pour pouvoir le relire.
+    An unreadable verdict (turns exhausted before the conclusion) is retried
+    once; the raw answer is kept in `journal` so it can be reread.
     """
     neutre = Path(tempfile.mkdtemp(prefix="paire-"))
     cout, gagnant = 0.0, None
@@ -133,8 +133,8 @@ def juger_paire(captures_a, captures_b, journal):
 
 def juger(racine):
     racine = Path(racine).resolve()
-    # Seuls les essais dont `monl run --check` est passé sont jugés : la beauté
-    # d'un frontend cassé (ou interrompu) ne dit rien d'une compétence.
+    # Only the attempts whose `monl run --check` passed are judged: the beauty
+    # of a broken (or interrupted) frontend says nothing about a skill.
     lignes = json.loads((racine / "resultats.json").read_text(encoding="utf-8"))
     retenus = {}
     for ligne in lignes:
@@ -142,7 +142,7 @@ def juger(racine):
             nom = f"{ligne['bras']}-{ligne['essai']}"
             retenus.setdefault(ligne["projet"], {})[nom] = racine / ligne["projet"] / nom
     if not retenus:
-        raise SystemExit(f"aucun essai réussi à juger sous {racine}")
+        raise SystemExit(f"no successful attempt to judge under {racine}")
     bilan, cout = {}, 0.0
     for projet, essais in sorted(retenus.items()):
         captures = racine / "_captures" / projet
@@ -153,7 +153,7 @@ def juger(racine):
         avec = [n for n in essais if n.startswith("avec")]
         compte = {"avec": 0, "sans": 0, "egal": 0, "illisible": 0}
         for s, a in itertools.product(sans, avec):
-            # Les deux ordres : un biais de position s'annule au lieu de compter.
+            # Both orders: a position bias cancels out instead of counting.
             for premier, second in ((s, a), (a, s)):
                 gagnant, prix = juger_paire(captures / premier, captures / second,
                                             captures / "verdicts.md")
@@ -165,10 +165,10 @@ def juger(racine):
                 print(f"{projet} {premier} vs {second} → {gagnant} ({cle})", flush=True)
         bilan[projet] = compte
     (racine / "jugement.json").write_text(json.dumps(bilan, indent=2), encoding="utf-8")
-    print("\nprojet        avec  sans  égal  illisible")
+    print("\nproject       avec  sans  tie   unreadable")
     for projet, c in bilan.items():
         print(f"{projet:13} {c['avec']:>4}  {c['sans']:>4}  {c['egal']:>4}  {c['illisible']:>9}")
-    print(f"coût du jugement : {cout:.2f} $")
+    print(f"judging cost: {cout:.2f} $")
 
 
 if __name__ == "__main__":

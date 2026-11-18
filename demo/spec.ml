@@ -86,18 +86,17 @@ rule Order.total sumOf LigneOrder.sousTotal
 # go below zero and the stock would lie.
 rule Product.stock min 0
 
-# POINT 86: the stock follows the orders, and removes WHAT
-# THE
+# POINT 86: the stock follows the orders, and removes WHAT THE
 # CUSTOMER ASKED FOR — not a constant. Ordering more than the
 # available stock answers 409, without deducting anything.
 rule LigneOrder.Create decrements Product.stock by quantite
 
 # Payment: the named field carries the AMOUNT, hence the
-# entity to charge. Two routes follow from it —
-# POST /entity/{id}/paiement (no body: the amount is
-# reread from the database) and POST /paiement/webhook,
-# whose signature is checked. Without STRIPE_SECRET_KEY,
-# they answer 503; the rest of the application works.
+# entity to charge. Two routes follow from it — POST
+# /entity/{id}/paiement (no body: the amount is reread from
+# the database) and POST /paiement/webhook, whose signature is
+# checked. Without STRIPE_SECRET_KEY, they answer 503; the
+# rest of the application works.
 rule Order.total payable
 
 # An order without a complete customer profile cannot be shipped. So the

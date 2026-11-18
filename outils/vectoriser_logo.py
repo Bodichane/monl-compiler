@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Vectorise le logo Monl monochrome depuis son PNG transparent.
+"""Vectorizes the monochrome Monl logo from its transparent PNG.
 
     python3 outils/vectoriser_logo.py [artwork]
 
-Le masque vient exclusivement du canal alpha. Le script extrait à la fois le
-lockup horizontal et le signe situé à gauche, les normalise, puis écrit la
-source Python et les deux SVG documentaires. Aucun nom de police n'entre dans
-la chaîne : toutes les lettres restent des tracés.
+The mask comes exclusively from the alpha channel. The script extracts both
+the horizontal lockup and the sign on its left, normalizes them, then writes
+the Python source and the two documentation SVGs. No font name enters the
+chain: every letter stays an outline.
 """
 
 from __future__ import annotations
@@ -32,30 +32,30 @@ ALPHA_MIN = 96
 EPSILON = 2.2
 BOUCLE_MINIMALE = 36
 
-#: La part de l'encre du dessin d'origine que le tracé a le droit de manquer.
-#: Six pour cent, la valeur du point 157 — restaurée ici parce que la
-#: réécriture de cet outil pour le logo monochrome l'avait fait disparaître, et
-#: que rien ne l'avait remplacée : plus rien ne garantissait qu'un tracé
-#: RESSEMBLE au dessin fourni. Les mesures relevées sur l'artwork courant sont
-#: de 2,5 à 3,3 %, donc le seuil laisse la marge d'une simplification honnête
-#: (EPSILON) sans laisser passer un signe visiblement faux.
+#: The share of the original drawing's ink the outline is allowed to miss.
+#: Six percent, the value of point 157 — restored here because rewriting this
+#: tool for the monochrome logo had made it disappear, and nothing had
+#: replaced it: nothing guaranteed any more that an outline LOOKS LIKE the
+#: supplied drawing. The measurements taken on the current artwork are 2.5 to
+#: 3.3 %, so the threshold leaves room for an honest simplification (EPSILON)
+#: without letting a visibly wrong sign through.
 TOLERANCE = 0.06
 
 
 def _verifier(nom: str, reference: Image.Image, chemin: str) -> float:
-    """Refuse d'ÉCRIRE un tracé qui ne ressemble pas à ce qu'on lui a donné.
+    """Refuses to WRITE an outline that does not look like what it was given.
 
-    Le contrôle porte sur la FIDÉLITÉ au dessin fourni, ce qu'aucun autre
-    témoin ne garde : ceux de la suite comparent les artefacts ENTRE EUX, donc
-    ils resteraient verts sur un logo faux vectorisé de façon cohérente.
+    The check is about FIDELITY to the supplied drawing, which no other
+    witness guards: the suite's witnesses compare the artifacts WITH EACH
+    OTHER, so they would stay green on a wrong logo vectorized consistently.
     """
     masque = reference.point(lambda a: 255 if a >= ALPHA_MIN else 0).convert("1")
     ecart = ecart_de_rendu(masque, chemin)
     if ecart > TOLERANCE:
         raise SystemExit(
-            f"{nom} s'écarte de {ecart:.2%} du dessin d'origine "
-            f"(tolérance {TOLERANCE:.0%}) — rien n'est écrit. "
-            f"Vérifier l'artwork, le seuil alpha ou EPSILON.")
+            f"{nom} departs {ecart:.2%} from the original drawing "
+            f"(tolerance {TOLERANCE:.0%}) — nothing is written. "
+            f"Check the artwork, the alpha threshold or EPSILON.")
     return ecart
 
 
@@ -70,12 +70,12 @@ def _chemin(alpha: Image.Image) -> str:
     boucles = [b for b in contours(masque, alpha.width, alpha.height)
                if len(b) > BOUCLE_MINIMALE]
     if not boucles:
-        raise SystemExit("aucun tracé trouvé dans le canal alpha")
+        raise SystemExit("no outline found in the alpha channel")
     return "".join(lisser(simplifier(b, EPSILON)) for b in boucles)
 
 
 def _separation(alpha: Image.Image) -> int:
-    """Trouve le plus grand intervalle transparent entre signe et mot."""
+    """Finds the widest transparent gap between sign and word."""
     colonnes = [alpha.crop((x, 0, x + 1, alpha.height)).getbbox() is not None
                 for x in range(alpha.width)]
     intervalles, debut = [], None
@@ -89,13 +89,13 @@ def _separation(alpha: Image.Image) -> int:
     candidats = [i for i in intervalles
                   if alpha.width * .15 < i[1] < alpha.width * .45]
     if not candidats:
-        raise SystemExit("impossible de séparer le signe du mot")
+        raise SystemExit("cannot separate the sign from the word")
     _, gauche, droite = max(candidats)
     return (gauche + droite) // 2
 
 
 def _coupe_descripteur(alpha: Image.Image, separation: int) -> int:
-    """Trouve le vide entre MONL et le mot COMPILER, côté lettres."""
+    """Finds the gap between MONL and the word COMPILER, on the letters side."""
     lettres = alpha.crop((separation, 0, alpha.width, alpha.height))
     lignes = [lettres.crop((0, y, lettres.width, y + 1)).getbbox() is not None
               for y in range(lettres.height)]
@@ -108,13 +108,13 @@ def _coupe_descripteur(alpha: Image.Image, separation: int) -> int:
                 intervalles.append((y - debut, debut, y))
             debut = None
     if not intervalles:
-        raise SystemExit("impossible de séparer MONL de COMPILER")
+        raise SystemExit("cannot separate MONL from COMPILER")
     _, haut, bas = max(intervalles)
     return (haut + bas) // 2
 
 
 def _partie(alpha: Image.Image, garde) -> Image.Image:
-    """Extrait une partie du lockup, en gardant son repère d'origine."""
+    """Extracts part of the lockup, keeping its original coordinates."""
     pixels = alpha.load()
     partie = Image.new("L", alpha.size)
     sortie = partie.load()
@@ -124,7 +124,7 @@ def _partie(alpha: Image.Image, garde) -> Image.Image:
                 sortie[x, y] = pixels[x, y]
     boite = partie.point(lambda a: 255 if a >= ALPHA_MIN else 0).getbbox()
     if not boite:
-        raise SystemExit("partie de lockup vide")
+        raise SystemExit("empty lockup part")
     return partie
 
 
@@ -141,7 +141,7 @@ def principal(argv: list[str]) -> int:
     image = Image.open(source).convert("RGBA")
     boite = image.getchannel("A").point(lambda a: 255 if a >= ALPHA_MIN else 0).getbbox()
     if not boite:
-        raise SystemExit("artwork transparent ou vide")
+        raise SystemExit("artwork transparent or empty")
     alpha = image.getchannel("A").crop(boite)
     mot = _chemin(alpha)
     separation = _separation(alpha)
@@ -156,14 +156,14 @@ def principal(argv: list[str]) -> int:
     signe_alpha = alpha.crop((0, 0, separation, alpha.height))
     signe_boite = signe_alpha.getbbox()
     if not signe_boite:
-        raise SystemExit("signe introuvable à gauche du lockup")
+        raise SystemExit("sign not found to the left of the lockup")
     signe = normaliser(_chemin(signe_alpha.crop(signe_boite)), cible=48, marge=3)
     vue = alpha.size
 
     nav_mot = _chemin(nav_signe)
     nav_lettres = _chemin(nav_texte)
-    # AVANT toute écriture : un contrôle placé après laisserait sur le disque
-    # le tracé qu'il vient de déclarer faux.
+    # BEFORE any write: a check placed afterwards would leave on disk the
+    # outline it has just declared wrong.
     ecarts = {
         "WORDMARK_PATH": _verifier("WORDMARK_PATH", alpha, mot),
         "NAV_MARK_PATH": _verifier("NAV_MARK_PATH", nav_signe, nav_mot),
@@ -172,11 +172,10 @@ def principal(argv: list[str]) -> int:
 
     cible = RACINE / "src" / "monl_platform" / "brand.py"
     cible.write_text(
-        '''"""Tracés monochromes de la marque Monl, vectorisés depuis l'artwork.
+        '''"""Monochrome paths of the Monl brand, vectorized from the artwork.
 
-La couleur appartient au thème ; ce module ne contient que la géométrie.
-Généré par ``outils/vectoriser_logo.py`` — ne pas retoucher à la main.
-"""\n\nfrom __future__ import annotations\n\n'''
+Color belongs to the theme; this module contains only the geometry.
+Generated by ``outils/vectoriser_logo.py`` — do not edit by hand."""\n\nfrom __future__ import annotations\n\n'''
         + envelopper("WORDMARK_PATH", mot)
         + envelopper("NAV_MARK_PATH", nav_mot)
         + envelopper("NAV_TEXT_PATH", nav_lettres)
@@ -190,11 +189,11 @@ Généré par ``outils/vectoriser_logo.py`` — ne pas retoucher à la main.
     wordmark = RACINE / "docs" / "brand" / "monl-wordmark.svg"
     marque.write_text(_svg((48, 48), signe, "Monl"), encoding="utf-8")
     wordmark.write_text(_svg(vue, mot, "Monl Compiler"), encoding="utf-8")
-    print(f"artwork : {source.name} {image.width}x{image.height}")
-    print(f"emprise : {vue[0]}x{vue[1]} · séparation x={separation}, coupe y={coupe}")
-    print("fidélité : " + " · ".join(f"{n} {e:.2%}" for n, e in ecarts.items())
-          + f" (tolérance {TOLERANCE:.0%})")
-    print(f"écrit : {cible.relative_to(RACINE)}, {marque.relative_to(RACINE)}, "
+    print(f"artwork: {source.name} {image.width}x{image.height}")
+    print(f"extent: {vue[0]}x{vue[1]} · split x={separation}, cut y={coupe}")
+    print("fidelity: " + " · ".join(f"{n} {e:.2%}" for n, e in ecarts.items())
+          + f" (tolerance {TOLERANCE:.0%})")
+    print(f"written: {cible.relative_to(RACINE)}, {marque.relative_to(RACINE)}, "
           f"{wordmark.relative_to(RACINE)}")
     return 0
 

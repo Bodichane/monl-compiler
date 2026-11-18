@@ -3,10 +3,8 @@ app StudioNova
 # ─────────────────────────────────────────────────────────────────────
 # COMPLETE PORTFOLIO — fictional design studio.
 # Public showcase (project gallery) + administration area + contact form.
-# The
-# demo data below ('seed' block) makes the site show up FILLED from the
-# first
-# opening, with real images.
+# The demo data below ('seed' block) makes the site show up FILLED from
+# the first opening, with real images.
 # ─────────────────────────────────────────────────────────────────────
 
 # BRICK 13 (point 83): the files supplied by the human, CHECKED PRESENT at
@@ -61,8 +59,7 @@ workflow ManagePortfolio for Admin
     Read Message
 
 # Demo data: 6 real projects with images (picsum.photos, free and stable
-# by
-# 'seed'). The site opens already populated.
+# by 'seed'). The site opens already populated.
 seed Project
     title: "Refonte Aurora", cover: "assets/aurora.svg", category: "Identité", year: 2024, description: "Direction artistique et système de design complet pour une marque de cosmétiques.", imageUrl: "https://picsum.photos/seed/aurora/800/600"
     title: "App Meridian", cover: "assets/meridian.svg", category: "Produit", year: 2024, description: "Application mobile de suivi d'habitudes, du concept aux écrans finaux.", imageUrl: "https://picsum.photos/seed/meridian/800/600"

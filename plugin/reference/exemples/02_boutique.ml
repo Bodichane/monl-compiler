@@ -4,8 +4,7 @@ app AtelierBoutique
 # COMPLETE E-COMMERCE SHOP — furniture & design objects.
 # Public catalog (shop archetype: price, stock, buy button) + seller
 # administration + orders. The demo data fills the storefront from the
-# first
-# opening, with real product images.
+# first opening, with real product images.
 # ─────────────────────────────────────────────────────────────────────
 
 entity Product
@@ -33,8 +32,7 @@ entity Order
     totalAmount: Money
     status: String
     # Brick 16 (point 89): the moment the order was born. Written by the
-    # server,
-    # never by the client — see the rule below.
+    # server, never by the client — see the rule below.
     placedAt: DateTime
 
 # An order holds several LINES: that is what distinguishes it from a
@@ -48,10 +46,8 @@ entity OrderLine
 relation Customer hasMany Order
 relation Order hasMany OrderLine
 # The variant belongs to its product. This relation names NO owner: it
-# is a
-# catalog link, and its column carries the product's id — not that of
-# the
-# seller who created it (point 99).
+# is a catalog link, and its column carries the product's id — not
+# that of the seller who created it (point 99).
 relation Product hasMany Variant
 # What the line carries: this relation is what lets the SERVER read the
 # catalog price. It targets the VARIANT and not the product, since the variant
@@ -71,10 +67,8 @@ rule Variant.stock min 0
 rule Order.Read ownedBy Customer
 
 # TRANSITIVE OWNERSHIP (point 81): a line belongs to whoever owns its
-# order.
-# Without this rule, monl would refuse to compile — a line nobody owns
-# could
-# be added to anyone's cart.
+# order. Without this rule, monl would refuse to compile — a line
+# nobody owns could be added to anyone's cart.
 rule OrderLine.Read ownedBy Order
 rule OrderLine.Update ownedBy Order
 rule OrderLine.Delete ownedBy Order
@@ -99,11 +93,11 @@ rule Order.totalAmount sumOf OrderLine.subTotal
 
 # BRICK 14 (point 86): stock follows orders. 'decrements' could only remove a
 # CONSTANT ('by 3') — it now removes WHAT THE CLIENT ASKED FOR. And it
-# refuses
-# to go below the floor declared above by 'rule Variant.stock min 0': without
-# this safeguard, the shop would show -3 pairs available after charging for
-# the eight it did not have. The floor is not wired into the compiler — it is
-# DECLARED in the spec, and its presence is what arms the check.
+# refuses to go below the floor declared above by 'rule Variant.stock min 0':
+# without this safeguard, the shop would show -3 pairs available after
+# charging for the eight it did not have. The floor is not wired into the
+# compiler — it is DECLARED in the spec, and its presence is what arms the
+# check.
 rule OrderLine.Create decrements Variant.stock by quantity
 
 # The named field carries the AMOUNT: so it is the order that gets charged.
