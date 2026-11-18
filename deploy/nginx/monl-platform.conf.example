@@ -1,7 +1,7 @@
-# Exemple Nginx pour monl.example.com et les sites compilés.
-# Remplacer monl.example.com, puis obtenir le certificat (y compris le
-# wildcard) avec le mécanisme ACME de votre hébergeur avant d'activer le bloc
-# HTTPS. Un certificat wildcard nécessite généralement un challenge DNS.
+# Nginx example for monl.example.com and the compiled sites.
+# Replace monl.example.com, then obtain the certificate (wildcard included)
+# with your host's ACME mechanism before enabling the HTTPS block. A wildcard
+# certificate usually requires a DNS challenge.
 
 server {
     listen 80;
@@ -24,13 +24,13 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/monl.example.com/privkey.pem;
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
-    # Ce bloc dessert AUSSI les sites compilés hébergés sous *.monl.example.com
-    # (server_name plus haut). Une règle `upload max N` (en octets) déclarée
-    # dans une spec peut aller jusqu'à 32 Mio (mesuré dans la suite du
-    # compilateur, tests/test_depot_depuis_le_dialogue.py) : un plafond bas ici
-    # rejetterait en 413, AVANT d'atteindre l'application, un dépôt que le
-    # backend compilé accepterait — relever cette valeur si un projet hébergé
-    # déclare une limite d'upload plus haute.
+    # This block ALSO serves the compiled sites hosted under *.monl.example.com
+    # (server_name above). An `upload max N` rule (in bytes) declared in a spec
+    # can go up to 32 MiB (measured in the compiler's suite,
+    # tests/test_depot_depuis_le_dialogue.py): a low ceiling here would reject
+    # with 413, BEFORE reaching the application, an upload the compiled backend
+    # would accept — raise this value if a hosted project declares a higher
+    # upload limit.
     client_max_body_size 50m;
     location / {
         proxy_pass http://127.0.0.1:8022;

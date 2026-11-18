@@ -1,15 +1,17 @@
-# Intégration continue — point 63.
+# Continuous integration — point 63.
 #
-# Trois outils ne servent à rien s'il faut penser à les lancer. Ce workflow
-# est le seul endroit où « prouvé par exécution réelle » devient une
-# contrainte plutôt qu'une habitude : la suite démarre de vrais serveurs
-# éphémères et exécute le vrai dialogue, elle est donc lente — c'est assumé.
+# Three tools are useless if one has to remember to run them. This workflow
+# is the only place where "proven by real execution" becomes a constraint
+# rather than a habit: the suite starts real ephemeral servers and runs the
+# real dialogue, so it is slow — on purpose.
 name: CI
 
-# Sur TOUTES les branches, pas seulement main : une CI qui ne se déclenche
-# qu'à la fusion arrive trop tard pour servir. Les pull requests rejouent
-# donc la même chose une seconde fois — un doublon assumé, le retour
-# immédiat vaut mieux que l'élégance du graphe d'exécutions.
+# On ALL branches, not only main: a CI that only fires on merge arrives
+# too
+# late to be useful. Pull requests therefore replay the same thing a
+# second
+# time — an assumed duplicate, immediate feedback beats an elegant run
+# graph.
 on: [push, pull_request]
 
 jobs:
@@ -33,8 +35,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # La borne basse déclarée dans pyproject.toml, une version supportée
-        # intermédiaire et la version récente éprouvée localement.
+        # The lower bound declared in pyproject.toml, an intermediate
+        # supported
+        # version and the recent version exercised locally.
         python-version: ["3.10", "3.12", "3.14", "3.15"]
 
     steps:
@@ -45,11 +48,14 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
-      # Node n'est pas une dépendance du produit : il ANALYSE le JavaScript
-      # que les pages servent. Sans lui, tests/test_console_javascript.py
-      # échoue au lieu de sauter — un saut dirait « rien à vérifier ici »
-      # alors qu'il dirait « je n'ai pas vérifié » (point 140). Il est déclaré
-      # ici, là où la CI l'installe, exactement comme Pillow au point 158bis.
+      # Node is not a product dependency: it PARSES the JavaScript the pages
+      # serve.
+      # Without it, tests/test_console_javascript.py fails instead of skipping
+      # — a
+      # skip would say "nothing to check here" when it means "I did not check"
+      # (point 140). It is declared here, where CI installs it, exactly like
+      # Pillow
+      # at point 158bis.
       - uses: actions/setup-node@v4.4.0
         with:
           node-version: "22"
@@ -59,19 +65,26 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev,postgres]"  # paquet + outils + PostgreSQL réel
 
-      # Ce que la suite ne dit pas : que le paquet s'installe et que la
-      # commande existe. Un dépôt vert dont le 'pip install' échoue n'est
-      # utilisable que par son auteur (point 65).
+      # What the suite does not say: that the package installs and the
+      # command
+      # exists. A green repository whose 'pip install' fails is usable
+      # only by its
+      # author (point 65).
       - name: Le paquet s'installe et la commande répond
         run: |
           monl --help
           cd "$(mktemp -d)" && python -c "import monl; print(monl.__version__)"
-          # La plateforme et le serveur MCP sont livrés par le PAQUET, pas
-          # seulement présents dans l'arbre de travail. Un motif `.gitignore`
-          # non ancré avait fait disparaître src/monl_platform/app.py du dépôt
-          # sans un mot : `monl-platform` ne démarrait plus, et aucune étape
-          # d'ici ne le voyait — seule la suite l'a dit, en s'arrêtant à la
-          # collecte. Deux lignes ferment la porte au bon niveau.
+          # The platform and the MCP server are shipped by the PACKAGE, not
+          # only
+          # present in the working tree. An unanchored `.gitignore` pattern
+          # had made
+          # src/monl_platform/app.py vanish from the repository without a
+          # word:
+          # `monl-platform` no longer started, and no step here saw it — only
+          # the suite
+          # said so, by stopping at collection. Two lines close the door at
+          # the right
+          # level.
           cd "$(mktemp -d)" && python -c "import monl_platform.app, monl_platform.mcp_server"
 
       - name: Linter (jeu de règles de pyproject.toml)
@@ -84,36 +97,46 @@ jobs:
         run: vulture src/monl --min-confidence 90
 
       - name: Suite complète, en mesurant les DEUX paquets
-        # `--cov-fail-under=0` n'abaisse aucune exigence : les barrières sont
-        # tirées de cette exécution à l'étape suivante, une par paquet. Sans
-        # ce 0, la barrière de `pyproject.toml` s'appliquerait au TOTAL des
-        # deux paquets — un nombre qui ne veut rien dire, et qui laisserait un
-        # paquet compenser l'autre.
+        # `--cov-fail-under=0` lowers no requirement: the gates are drawn from
+        # this
+        # run at the next step, one per package. Without this 0, the
+        # `pyproject.toml`
+        # gate would apply to the TOTAL of both packages — a number that means
+        # nothing, and would let one package make up for the other.
         #
-        # PAS de `-q` ici : `pyproject.toml` en pose déjà un dans `addopts`, et
-        # deux `-q` valent `-qq`, qui SUPPRIME la ligne de décompte et la
-        # section de résumé. Un saut ne se voyait alors que comme un `s` perdu
-        # au milieu d'un mur de points — c'est ainsi que le saut de Pillow a
-        # vécu dans cette CI sans que personne ne le lise. `-rs` NOMME chaque
-        # test sauté avec son motif : un saut ne dit pas « rien à vérifier
-        # ici », il dit « je n'ai pas vérifié » (point 140).
+        # NO `-q` here: `pyproject.toml` already sets one in `addopts`, and two
+        # `-q`
+        # make `-qq`, which REMOVES the count line and the summary section. A
+        # skip
+        # then only showed as an `s` lost in a wall of dots — that is how the
+        # Pillow
+        # skip lived in this CI without anyone reading it. `-rs` NAMES each
+        # skipped
+        # test with its reason: a skip does not say "nothing to check here", it
+        # says
+        # "I did not check" (point 140).
         run: >-
           python -m pytest tests/ -rs --cov=src/monl --cov=src/monl_platform
           --cov-report=term-missing --cov-fail-under=0
 
       - name: Deux barrières à 90 %, tirées de la MÊME exécution
-        # La plateforme était mesurée sur une LISTE DE FICHIERS écrite à la
-        # main (`tests/test_platform_*.py tests/test_oauth.py …`). Mesuré :
-        # cinq fichiers l'exerçaient hors de cette liste, dont
-        # `tests/test_console_javascript.py` qui garde les pages mortes du
-        # point 163 — leurs lignes ne comptaient pas dans les 90 %, et un test
-        # rangé sous un autre nom en serait sorti sans un mot (point 169).
+        # The platform was measured on a hand-written LIST OF FILES
+        # (`tests/test_platform_*.py tests/test_oauth.py …`). Measured: five
+        # files
+        # exercised it outside that list, including
+        # `tests/test_console_javascript.py`
+        # which guards the dead pages of point 163 — their lines did not count
+        # in the
+        # 90 %, and a test filed under another name would have dropped out
+        # without a
+        # word (point 169).
         #
-        # `coverage report --include=…` relit les données de l'étape
-        # précédente : la suite tourne UNE fois, chaque paquet garde SA
-        # barrière, et il n'y a plus de liste à tenir à jour. La portée reste
-        # celle du point 63 — `src/monl` et non `src/` — mais elle est
-        # désormais exprimée par paquet plutôt que par sélection de tests.
+        # `coverage report --include=…` rereads the previous step's data: the
+        # suite
+        # runs ONCE, each package keeps ITS gate, and there is no list left to
+        # maintain. The scope stays that of point 63 — `src/monl` and not
+        # `src/` —
+        # but it is now expressed per package rather than by test selection.
         run: |
           python -m coverage report --include='src/monl/*' --fail-under=90
           python -m coverage report --include='src/monl_platform/*' --fail-under=90

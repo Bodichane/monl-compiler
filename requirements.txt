@@ -1,11 +1,10 @@
-# Dépendances du compilateur monl et des applications générées.
-# Installation : pip install -r requirements.txt
+# Dependencies of the monl compiler and of the generated applications.
+# Installation: pip install -r requirements.txt
 #
-# Bornes hautes ajoutées en bêta pour la reproductibilité : on suit les
-# correctifs mineurs sans absorber une version majeure potentiellement
-# incompatible sans revalidation. Ce fichier couvre le runtime de base ; les
-# outils de développement et le fournisseur IA sont dans les extras du
-# pyproject.toml (`.[dev]` et `.[ai]`).
+# Upper bounds added in beta for reproducibility: minor fixes are followed
+# without absorbing a potentially incompatible major version without
+# revalidation. This file covers the base runtime; development tools and the
+# AI provider are in the pyproject.toml extras (`.[dev]` and `.[ai]`).
 fastapi>=0.110,<1.0
 uvicorn>=0.29,<1.0
 lark>=1.1,<2.0

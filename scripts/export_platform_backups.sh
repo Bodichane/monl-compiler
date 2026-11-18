@@ -44,8 +44,8 @@ if [ -z "$conteneur" ]; then
     exit 1
 fi
 
-# `cp` lit le montage /backups du conteneur sans lancer une image auxiliaire
-# ni demander un téléchargement réseau. La source n'est jamais modifiée.
+# `cp` reads the container's /backups mount without starting an auxiliary
+# image or requiring a network download. The source is never modified.
 "$container_runtime" cp "$conteneur:/backups/." "$destination/"
 
 printf 'Sauvegardes exportées vers %s\n' "$destination"

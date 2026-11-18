@@ -28,8 +28,9 @@ esac
 
 compose() {
     if [ "$container_runtime" = podman ]; then
-        # OCI ne transporte pas HEALTHCHECK. Le format Docker le conserve
-        # lorsque le fournisseur podman-compose construit l'image.
+        # OCI does not carry HEALTHCHECK. The Docker format keeps it when
+        # the
+        # podman-compose provider builds the image.
         "$container_runtime" compose --podman-build-args="--format docker" "$@"
     else
         "$container_runtime" compose "$@"
@@ -84,9 +85,9 @@ else
 fi
 compose --env-file "$env_file" -f "$compose_file" ps
 
-# `up -d` rend la main avant la readiness, et une première connexion peut être
-# réinitialisée pendant l'initialisation. Une boucle explicite couvre aussi ce
-# cas que `curl --retry` ne retente pas toujours.
+# `up -d` returns before readiness, and a first connection can be reset
+# during initialization. An explicit loop also covers this case, which `curl
+# --retry` does not always retry.
 pret=false
 for tentative in $(seq 1 90); do
     if curl --fail --silent --show-error --max-time 2 \
