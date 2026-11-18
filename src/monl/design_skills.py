@@ -8,7 +8,7 @@ SKILL_PROFILES = {
     "monl-design-system": {
         "purpose": "explicit visual direction before writing the frontend",
         "requirements": [
-            "lire docs/DESIGN_SYSTEM.md, docs/DESIGN_SPEC.md et docs/ASSET_MANIFEST.json avant de coder",
+            "read docs/DESIGN_SYSTEM.md, docs/DESIGN_SPEC.md and docs/ASSET_MANIFEST.json before coding",
             "choose a page pattern and a hierarchy before decorative details",
             "treat anti-patterns, contrast, keyboard, mobile and reduced motion as delivery criteria",
             "make local assets actually present and referenced, never remote placeholders",
