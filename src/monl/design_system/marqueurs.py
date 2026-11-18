@@ -1,18 +1,17 @@
-"""Les sections EXIGÉES, et la matière qu'elles doivent porter.
+"""The REQUIRED sections, and the substance they must carry.
 
-Point 143 : un marqueur NOMME une section, il ne prouve pas qu'elle
-contient quelque chose. Les seuils voyagent dans `ASSET_MANIFEST.json`."""
+Point 143: a marker NAMES a section, it does not prove that it contains
+anything. The thresholds travel in `ASSET_MANIFEST.json`."""
 
 from ..section_substance import rule_for
 from .profil import _entity_media, _slug
 
 
 def _required_markers(contract: dict, profile: dict) -> list[str]:
-    # Une spec purement API n'a pas demandé de site éditorial. Elle reçoit
-    # bien un design system pour le jour où un frontend sera ajouté, mais
-    # Monl ne doit pas lui imposer des sections de landing qu'elle n'a jamais
-    # déclarées (compatibilité avec les projets historiques et les backends
-    # sans interface).
+    # A purely API spec did not ask for an editorial site. It does receive a
+    # design system for the day a frontend is added, but Monl must not impose
+    # on it landing sections it never declared (compatibility with historical
+    # projects and backends without an interface).
     if not (contract.get("brief") or contract.get("sections") or contract.get("faq")):
         return []
     markers = [pattern["marker"] for pattern in profile.get("ui_patterns", [])]
@@ -25,23 +24,23 @@ def _required_markers(contract: dict, profile: dict) -> list[str]:
         markers.extend(['data-monl-section="catalogue"', 'data-monl-section="panier"'])
     if profile["kind"] == "operations":
         markers.append('data-monl-section="workspace"')
-    # Un marqueur identifie l'élément qui porte la section, il n'exige jamais
-    # un bloc séparé. Quand le pattern `editorial` est présent, cet élément vit
-    # à l'intérieur du bloc éditorial : un seul élément, un seul marqueur, un
-    # seul rendu. La garantie « chaque section déclarée est rendue » reste donc
-    # active sans pousser l'IA à dupliquer « À propos ».
+    # A marker identifies the element that carries the section, it never
+    # requires a separate block. When the `editorial` pattern is present, this
+    # element lives inside the editorial block: a single element, a single
+    # marker, a single rendering. The "every declared section is rendered"
+    # guarantee therefore stays active without pushing the AI to duplicate
+    # "About".
     markers.extend(_declared_section_markers(contract))
     if contract.get("faq"):
         markers.append('data-monl-section="faq"')
-    # BRIQUE 30 : le pied de page est le dernier endroit où un site produit se
-    # dénonce comme une maquette — deux mots gris, aucun lien, aucune mention.
-    # Il était exigé NULLE PART : le plancher du point 143 comptait quatre
-    # sections et s'arrêtait au-dessus de lui.
+    # BRICK 30: the footer is the last place where a produced site gives itself
+    # away as a mockup — two gray words, no link, no notice. It was required
+    # NOWHERE: point 143's floor counted four sections and stopped above it.
     markers.append('data-monl-section="footer"')
     return list(dict.fromkeys(markers))
 
 def _declared_section_markers(contract: dict) -> list[str]:
-    """Retourne un marqueur distinct pour chaque section, dans l'ordre déclaré."""
+    """Returns a distinct marker for each section, in declared order."""
     used_slugs = set()
     next_rank_by_slug = {}
     markers = []
@@ -58,13 +57,12 @@ def _declared_section_markers(contract: dict) -> list[str]:
     return markers
 
 def _section_substance(contract: dict, profile: dict) -> dict[str, dict]:
-    """Apparie chaque section obligatoire à ce qu'elle doit CONTENIR.
+    """Pairs each mandatory section with what it must CONTAIN.
 
-    Une section écrite par l'auteur est jugée sur ce qu'il a lui-même
-    déclaré : réclamer cent caractères à une rubrique qui en compte
-    cinquante ferait échouer une spec honnête. Le seuil est donc plafonné par
-    la longueur du corps, jamais deviné.
-    """
+    A section written by the author is judged on what they declared
+    themselves: requiring a hundred characters of a section that has fifty
+    would make an honest spec fail. The threshold is therefore capped by the
+    body's length, never guessed."""
     longueurs = {}
     for section, marker in zip(contract.get("sections") or [],
                                _declared_section_markers(contract), strict=False):
@@ -79,8 +77,8 @@ def _section_substance(contract: dict, profile: dict) -> dict[str, dict]:
         regles[marker] = rule_for(slug, longueurs.get(marker))
     return regles
 
-# Les deux langues : un manifeste écrit avant la migration anglaise porte
-# encore le rôle français, et doit continuer à placer son image.
+# Both languages: a manifest written before the English migration still carries
+# the French role, and must keep placing its image.
 ROLE_BANDEAU = ("main banner", "bandeau principal")
 ROLE_VIGNETTE = ("secondary thumbnail", "vignette secondaire")
 
@@ -91,13 +89,12 @@ def _role_est(role, formes):
 
 def _generated_image_block_markers(contract: dict, profile: dict,
                                    generated: list[dict]) -> list[str | None]:
-    """Retourne une précision de section, quand le rôle peut en recevoir une.
+    """Returns a section hint, when the role can receive one.
 
-    Le rôle du manifeste est l'appariement obligatoire. Un marqueur ne sert
-    qu'à préciser où placer le visuel lorsque le contrat offre déjà un bloc
-    correspondant ; son absence ne doit donc jamais supprimer la consigne.
-    Les rôles, et non la position dans la liste, choisissent les candidats.
-    """
+    The manifest's role is the mandatory pairing. A marker only serves to
+    specify where to place the visual when the contract already offers a
+    matching block; its absence must therefore never remove the instruction.
+    The roles, not the position in the list, choose the candidates."""
     required = _required_markers(contract, profile)
     required_set = set(required)
     hero_marker = 'data-monl-section="hero"'

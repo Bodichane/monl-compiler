@@ -1,7 +1,7 @@
-"""Les deux verbes : `add` et `list`.
+"""The two verbs: `add` and `list`.
 
-L'outil ne supprime rien, n'écrit aucun crédit, ne recompile pas —
-l'orphelin est SIGNALÉ, `monl update` reste le geste explicite."""
+The tool deletes nothing, writes no credit, does not recompile — an orphan
+is REPORTED, `monl update` stays the explicit action."""
 
 import os
 import shutil
@@ -15,10 +15,10 @@ from .specio import _charger, _revalider
 
 def ajouter_asset(spec_path, project_dir, source, pour=None, cible=None,
                   entity=None, field=None, nom=None, force=False):
-    """Copie un fichier dans le dossier d'assets et le DÉCLARE dans la spec.
+    """Copies a file into the assets folder and DECLARES it in the spec.
 
-    `pour` vise une ligne de seed par une de ses valeurs ; `cible` vaut 'logo'
-    ou 'favicon'. Retourne un rapport (dict) — l'affichage appartient au CLI."""
+    `pour` targets a seed row by one of its values; `cible` is 'logo' or
+    'favicon'. Returns a report (dict) — display belongs to the CLI."""
     if bool(pour) == bool(cible):
         raise AssetsToolError(
             "Specify a destination: --for \"<value>\" for a seed row, "
@@ -35,16 +35,17 @@ def ajouter_asset(spec_path, project_dir, source, pour=None, cible=None,
         lignes = fh.readlines()
 
     if cible:
-        # Le logo se déclare par son SEUL nom : c'est le contrat frontend qui
-        # préfixe par le dossier (_assets_contract). Écrire 'assets/logo.svg'
-        # ici donnerait '/site/assets/assets/logo.svg' au navigateur.
+        # The logo is declared by its name ALONE: it is the frontend contract
+        # that prefixes it with the folder (_assets_contract). Writing
+        # 'assets/logo.svg' here would give '/site/assets/assets/logo.svg' to
+        # the browser.
         valeur = fichier
         nouvelles, i_ligne, ancienne = _poser_prop_assets(lignes, cible, valeur, dossier)
         ou, entite, champ = f"assets.{cible}", None, None
     else:
         entite, champ, plage = _resoudre_seed(normalized, lignes, pour, entity, field)
-        # Une valeur de seed est l'URL que le navigateur demandera : elle porte
-        # donc le dossier.
+        # A seed value is the URL the browser will request: it therefore
+        # carries the folder.
         valeur = f"{dossier}/{fichier}"
         nouvelles, ancienne = _remplacer_entree(
             lignes, plage, lambda texte: _ecrire_paire(texte, champ, valeur))
@@ -65,27 +66,28 @@ def ajouter_asset(spec_path, project_dir, source, pour=None, cible=None,
         if not sur_place and not identique:
             os.makedirs(os.path.dirname(destination), exist_ok=True)
             if existait:
-                # Écraser sous --force reste réversible le temps de la
-                # revalidation : sans cette copie, un refus du compilateur
-                # laisserait l'ancien fichier détruit pour rien.
+                # Overwriting under --force stays reversible for the duration
+                # of the revalidation: without this copy, a compiler refusal
+                # would leave the old file destroyed for nothing.
                 sauvegarde = destination + ".monl-precedent"
                 shutil.copy2(destination, sauvegarde)
             shutil.copy2(source, destination)
         texte = "".join(nouvelles)
         apres = _revalider(texte, spec_path)
-        # LA garantie de la couche 2, énoncée précisément : ce que l'outil vient
-        # d'écrire résout-il vers un vrai fichier ? Vérifié avec le résolveur du
-        # COMPILATEUR (resoudre_asset), pas avec une seconde implémentation qui
-        # finirait par diverger. Cette vérification est ciblée sur notre écriture
-        # et non sur toute la spec : sinon un autre asset manquant rendrait
-        # l'outil inutilisable là où il sert justement à en poser un.
+        # THE guarantee of layer 2, stated precisely: does what the tool has
+        # just written resolve to a real file? Checked with the COMPILER's
+        # resolver (resoudre_asset), not with a second implementation that
+        # would end up diverging. This check targets our write and not the
+        # whole spec: otherwise another missing asset would make the tool
+        # unusable precisely where it serves to place one.
         if not resoudre_asset(project_dir, dossier, valeur):
             raise AssetsToolError(
                 f"Write CANCELLED — '{valeur}' does not resolve to a file after "
                 f"writing. This is exactly what layer 1 rejects during compilation, "
                 f"and the tool must not produce it.")
-        # Redéclarer ce qui l'est déjà ne doit rien écrire : réécrire un texte
-        # identique invaliderait l'empreinte de 'monl run --check' pour rien.
+        # Redeclaring what is already declared must write nothing: rewriting an
+        # identical text would invalidate the 'monl run --check' fingerprint
+        # for nothing.
         spec_changee = texte != "".join(lignes)
         if spec_changee:
             with open(spec_path, "w", encoding="utf-8") as fh:
@@ -118,11 +120,11 @@ def ajouter_asset(spec_path, project_dir, source, pour=None, cible=None,
     }
 
 def _orphelin(ancienne, valeur, normalized, project_dir):
-    """L'ancien fichier est-il devenu orphelin ? SIGNALÉ, jamais supprimé.
+    """Has the old file become an orphan? REPORTED, never deleted.
 
-    Décision assumée : un fichier déposé par l'humain ne s'efface pas sur la
-    déduction d'un outil de déclaration. Il peut servir ailleurs — le frontend
-    de SneakerLab référence en dur trois photos que la spec ignore."""
+    A deliberate decision: a file dropped by the human is not erased on the
+    deduction of a declaration tool. It may serve elsewhere — SneakerLab's
+    frontend hard-codes three photos the spec ignores."""
     if not ancienne or ancienne == valeur:
         return None
     dossier, declares = chemins_declares(normalized)
@@ -134,12 +136,12 @@ def _orphelin(ancienne, valeur, normalized, project_dir):
 
 def _avertissements(project_dir, dossier, fichier, spec_changee, normalized,
                     valeur, seed):
-    """Ce que la réussite n'implique PAS. Des pièges vécus, pas des hypothèses."""
+    """What success does NOT imply. Traps actually met, not hypotheses."""
     messages = []
-    # 0. Poser une photo ne rend pas le projet compilable : les AUTRES assets
-    # déclarés et absents le bloquent toujours. L'outil ne vérifie que ce qu'il
-    # écrit (voir _valider) — il doit donc dire ce qui manque encore, sinon
-    # 'monl update' échouerait sans qu'on sache pourquoi.
+    # 0. Placing a photo does not make the project compilable: the OTHER
+    # declared and missing assets still block it. The tool only checks what it
+    # writes (see _valider) — so it must say what is still missing, otherwise
+    # 'monl update' would fail without anyone knowing why.
     _dossier, declares = chemins_declares(normalized)
     manquants = [c for c in sorted(declares)
                  if c != valeur and not resoudre_asset(project_dir, dossier, c)]
@@ -148,18 +150,17 @@ def _avertissements(project_dir, dossier, fichier, spec_changee, normalized,
             f"{len(manquants)} other declared asset(s) are still missing: "
             + ", ".join(manquants)
             + ". Compilation will reject them — 'monl assets list' shows their status.")
-    # 1. Le seed ne nourrit qu'une base NEUVE. La migration de SneakerLab à la
-    # couche 1 l'a montré : 12 fiches gardaient l'ancien chemin, et le site
-    # aurait affiché 12 cadres vides sans que rien ne le signale. Ne concerne
-    # QUE l'édition d'un seed : le dire en posant un logo serait un
-    # avertissement hors sujet, et un avertissement hors sujet apprend à les
-    # ignorer tous.
+    # 1. The seed only feeds a FRESH database. SneakerLab's migration to layer
+    # 1 showed it: 12 items kept the old path, and the site would have shown 12
+    # empty frames with nothing reporting it. Concerns ONLY editing a seed:
+    # saying it when placing a logo would be an off-topic warning, and an
+    # off-topic warning teaches people to ignore all of them.
     if seed and spec_changee and os.path.exists(os.path.join(project_dir, "app.db")):
         messages.append(
             "The database already exists: the 'seed' block only populates a NEW "
             "database. Existing records keep their old values — update them via "
             "the API (PUT) or start with an empty database.")
-    # 2. Crédits : complétude, jamais véracité (point 83).
+    # 2. Credits: completeness, never truthfulness (point 83).
     for candidat in NOMS_DE_CREDITS:
         chemin = os.path.join(project_dir, dossier, candidat)
         if not os.path.exists(chemin):
@@ -170,7 +171,7 @@ def _avertissements(project_dir, dossier, fichier, spec_changee, normalized,
                     f"{dossier}/{candidat} does not mention '{fichier}'. monl cannot "
                     f"verify attribution; it can only report that it is missing.")
         break
-    # 3. La spec a changé : les artefacts ne l'ont pas suivie.
+    # 3. The spec changed: the artifacts did not follow it.
     if spec_changee:
         messages.append("Spec changed: run 'monl update' to resynchronize the "
                         "backend and contract.")
@@ -178,7 +179,7 @@ def _avertissements(project_dir, dossier, fichier, spec_changee, normalized,
 
 # ----------------------------------------------------------------- list --
 def lister_assets(spec_path, project_dir):
-    """Ce que la spec déclare, ce qui est présent, ce qui traîne sans être déclaré."""
+    """What the spec declares, what is present, what lies around undeclared."""
     project_dir = os.path.abspath(project_dir)
     normalized = _charger(spec_path)
     dossier, declares = chemins_declares(normalized)
@@ -192,15 +193,15 @@ def lister_assets(spec_path, project_dir):
             "chemin": chemin,
             "origines": declares[chemin],
             "present": bool(trouve),
-            # Un logo est déclaré par son seul nom : dire OÙ il a été trouvé
-            # évite de laisser croire qu'il vit à la racine du projet.
+            # A logo is declared by its name alone: saying WHERE it was found
+            # avoids suggesting it lives at the project root.
             "resolu": os.path.relpath(trouve, project_dir) if trouve else None,
             "taille": os.path.getsize(trouve) if trouve else None,
         })
 
-    # « Orphelin » n'est pas un reproche : un fichier de crédits, ou une photo
-    # posée en dur dans une page du frontend, vit légitimement ici sans que la
-    # spec la déclare. Le rapport constate, il ne juge pas.
+    # "Orphan" is not a reproach: a credits file, or a photo hard-coded in a
+    # frontend page, legitimately lives here without the spec declaring it. The
+    # report observes, it does not judge.
     racine = os.path.join(project_dir, dossier)
     orphelins = []
     if os.path.isdir(racine):

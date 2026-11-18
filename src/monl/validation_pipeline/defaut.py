@@ -1,6 +1,6 @@
-"""L'ordre par défaut. C'est LUI qui décide quel refus tombe en premier —
-et plusieurs points du journal reposent sur cet ordre (le recoupement de
-`payable` arrive APRÈS les deux boucles, point 79)."""
+"""The default order. It is WHAT decides which refusal comes first — and
+several points of the journal rest on this order (the `payable`
+cross-check comes AFTER the two loops, point 79)."""
 
 from .contrats import ValidationPipeline
 from .passes import (

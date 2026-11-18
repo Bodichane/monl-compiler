@@ -1,10 +1,11 @@
-"""Le système de design : ce que monl DÉCRIT du site sans rien en décider.
+"""The design system: what monl DESCRIBES about the site without deciding
+anything.
 
-Point 72 : le compilateur ne choisit ni palette, ni typographie, ni
-rayon. Il déduit un PROFIL de la spec, exige des marqueurs de section,
-et rend un document que l'IA d'interface doit suivre.
+Point 72: the compiler picks neither palette, nor typography, nor radius.
+It deduces a PROFILE from the spec, requires section markers, and returns
+a document the interface AI must follow.
 
-La surface publique n'a pas bougé en devenant un paquet."""
+The public surface did not move when it became a package."""
 
 from .manifeste import activate_asset_manifest, build_asset_manifest
 from .marqueurs import _declared_section_markers, _section_substance
@@ -17,21 +18,21 @@ from .noms import (
 from .profil import infer_design_profile
 from .rendu import ensure_design_artifacts, plan_generated_images
 
-# POINT 139 : il n'y a PLUS de palette ici, et il ne doit pas y en avoir.
-# Cinq palettes indexées sur le type d'activité vivaient à cet endroit. Le
-# point 72 l'interdit — « le compilateur ne décide RIEN du visuel : ni palette,
-# ni typographie, ni rayon » — et trois faits l'ont tranché plutôt qu'un
-# argument : les cinq couleurs `:root` de projets/AtelierNaya sont identiques à
-# l'octet à la palette « service », écrite quarante minutes plus tôt ; le
-# garde-fou ne regardait que le contrat, pendant que la palette voyageait par
-# DESIGN_SYSTEM.md ; et cette palette échouait au contraste qu'elle promettait
-# elle-même dans le même document (blanc sur #D07A4B : 3,20:1 pour un seuil
-# annoncé de 4,5:1, mesuré sur le bouton « Réserver »).
+# POINT 139: there is NO palette here anymore, and there must not be one. Five
+# palettes indexed on the kind of business lived in this place. Point 72
+# forbids it — "the compiler decides NOTHING visual: neither palette, nor
+# typography, nor radius" — and three facts settled it rather than an argument:
+# the five `:root` colors of projets/AtelierNaya are byte-identical to the
+# "service" palette, written forty minutes earlier; the safeguard only looked
+# at the contract, while the palette traveled through DESIGN_SYSTEM.md; and
+# that palette failed the contrast it promised itself in the same document
+# (white on #D07A4B: 3.20:1 for an announced threshold of 4.5:1, measured on
+# the "Book" button).
 #
-# La ligne retenue est plus fine que « méthode contre goût » : une échelle, un
-# rythme, une durée ou une rupture deviennent du GOÛT dès que le compilateur en
-# choisit les VALEURS. Ce fichier peut donc exiger qu'une échelle existe et
-# qu'elle soit suivie ; il ne peut pas dire laquelle.
+# The line drawn is finer than "method versus taste": a scale, a rhythm, a
+# duration or a break become TASTE as soon as the compiler picks their VALUES.
+# This file can therefore require that a scale exists and is followed; it
+# cannot say which one.
 
 __all__ = [
     "ASSET_MANIFEST_FILENAME",

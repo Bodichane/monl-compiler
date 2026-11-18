@@ -1,4 +1,4 @@
-"""Une passe par famille de refus, dans l'ordre où le pilote les joue."""
+"""One pass per family of refusals, in the order the driver plays them."""
 
 from dataclasses import dataclass
 
@@ -7,7 +7,8 @@ from .contrats import ValidationContext
 
 @dataclass(frozen=True, slots=True)
 class FieldConstraintValidationPass:
-    """Valide ``required``, ``unique``, ``min`` et ``max`` avant les autres règles."""
+    """Validates ``required``, ``unique``, ``min`` and ``max`` before the other
+    rules."""
 
     name: str = "field_constraints"
 
@@ -17,7 +18,7 @@ class FieldConstraintValidationPass:
 
 @dataclass(frozen=True, slots=True)
 class AccessControlValidationPass:
-    """Construit et valide les politiques d'accès avant les règles de présentation."""
+    """Builds and validates the access policies before the presentation rules."""
 
     name: str = "access_control"
 
@@ -27,7 +28,7 @@ class AccessControlValidationPass:
 
 @dataclass(frozen=True, slots=True)
 class PublicVisibilityValidationPass:
-    """Valide les règles ``public`` et ``publicWhen``."""
+    """Validates the ``public`` and ``publicWhen`` rules."""
 
     name: str = "public_visibility"
 
@@ -37,7 +38,8 @@ class PublicVisibilityValidationPass:
 
 @dataclass(frozen=True, slots=True)
 class OncePerValidationPass:
-    """Valide les contraintes d'unicité métier liées au compte courant."""
+    """Validates the business uniqueness constraints tied to the current
+    account."""
 
     name: str = "once_per"
 
@@ -47,7 +49,7 @@ class OncePerValidationPass:
 
 @dataclass(frozen=True, slots=True)
 class RestrictedFieldValidationPass:
-    """Vérifie les restrictions de lecture de champs par rôle."""
+    """Checks the per-role field read restrictions."""
 
     name: str = "restricted_fields"
 
@@ -57,7 +59,7 @@ class RestrictedFieldValidationPass:
 
 @dataclass(frozen=True, slots=True)
 class HiddenFieldValidationPass:
-    """Prépare les champs masqués pour les validations et générateurs suivants."""
+    """Prepares the hidden fields for the following validations and generators."""
 
     name: str = "hidden_fields"
 
@@ -67,7 +69,7 @@ class HiddenFieldValidationPass:
 
 @dataclass(frozen=True, slots=True)
 class CategorizedFieldValidationPass:
-    """Valide les catégories calculées destinées aux réponses de lecture."""
+    """Validates the computed categories meant for read responses."""
 
     name: str = "categorized_fields"
 
@@ -77,7 +79,7 @@ class CategorizedFieldValidationPass:
 
 @dataclass(frozen=True, slots=True)
 class GeneratedFieldValidationPass:
-    """Valide les champs remplis depuis l'identité de l'appelant."""
+    """Validates the fields filled from the caller's identity."""
 
     name: str = "generated_fields"
 
@@ -87,7 +89,7 @@ class GeneratedFieldValidationPass:
 
 @dataclass(frozen=True, slots=True)
 class TimestampFieldValidationPass:
-    """Valide les instants de création gérés par le serveur."""
+    """Validates the creation moments managed by the server."""
 
     name: str = "timestamp_fields"
 
@@ -97,7 +99,7 @@ class TimestampFieldValidationPass:
 
 @dataclass(frozen=True, slots=True)
 class NumberedFieldValidationPass:
-    """Valide les identifiants lisibles gérés par le serveur."""
+    """Validates the readable identifiers managed by the server."""
 
     name: str = "numbered_fields"
 
@@ -107,7 +109,7 @@ class NumberedFieldValidationPass:
 
 @dataclass(frozen=True, slots=True)
 class EnumeratedFieldValidationPass:
-    """Valide les champs texte limités à des valeurs explicites."""
+    """Validates the text fields limited to explicit values."""
 
     name: str = "enumerated_fields"
 
@@ -117,15 +119,14 @@ class EnumeratedFieldValidationPass:
 
 @dataclass(frozen=True, slots=True)
 class ListQueryCapabilityValidationPass:
-    """Valide les filtres exacts et tris déclarés sur les listes."""
+    """Validates the exact filters and sorts declared on lists."""
 
     name: str = "list_query_capabilities"
 
     def run(self, context: ValidationContext) -> list[str]:
-        # La pipeline est aussi exercée par des faux contextes de tests et par
-        # des intégrations historiques. Une nouvelle passe optionnelle ne doit
-        # pas rendre ces contextes incapables de vérifier l'ordre des passes
-        # qu'ils connaissaient déjà.
+        # The pipeline is also exercised by fake test contexts and by
+        # historical integrations. A new optional pass must not make these
+        # contexts unable to check the order of the passes they already knew.
         validation = getattr(context, "_valider_capacites_de_liste", None)
         if validation is not None:
             validation()
@@ -133,7 +134,7 @@ class ListQueryCapabilityValidationPass:
 
 @dataclass(frozen=True, slots=True)
 class CreationPaymentPrerequisitePass:
-    """Valide les prérequis de propriété et d'encaissement."""
+    """Validates the ownership and payment prerequisites."""
 
     name: str = "creation_payment_prerequisites"
 
@@ -143,7 +144,7 @@ class CreationPaymentPrerequisitePass:
 
 @dataclass(frozen=True, slots=True)
 class DerivedFieldValidationPass:
-    """Valide les montants calculés depuis une ligne liée."""
+    """Validates the amounts calculated from a linked row."""
 
     name: str = "derived_fields"
 
@@ -153,7 +154,7 @@ class DerivedFieldValidationPass:
 
 @dataclass(frozen=True, slots=True)
 class AggregatedFieldValidationPass:
-    """Valide les totaux calculés par agrégation de lignes enfants."""
+    """Validates the totals calculated by aggregating child rows."""
 
     name: str = "aggregated_fields"
 
@@ -163,7 +164,8 @@ class AggregatedFieldValidationPass:
 
 @dataclass(frozen=True, slots=True)
 class CalculationPaymentSafetyPass:
-    """Recoupe les champs calculés avec les bornes et les montants payables."""
+    """Cross-checks the calculated fields against the bounds and the payable
+    amounts."""
 
     name: str = "calculation_payment_safety"
 
@@ -173,7 +175,7 @@ class CalculationPaymentSafetyPass:
 
 @dataclass(frozen=True, slots=True)
 class CounterEffectValidationPass:
-    """Valide les incréments et décréments déclenchés par les créations."""
+    """Validates the increments and decrements triggered by creations."""
 
     name: str = "counter_effects"
 
@@ -183,7 +185,7 @@ class CounterEffectValidationPass:
 
 @dataclass(frozen=True, slots=True)
 class PayableOwnerValidationPass:
-    """Vérifie qu'un paiement remonte jusqu'à un compte propriétaire."""
+    """Checks that a payment climbs up to an owning account."""
 
     name: str = "payable_owner"
 
@@ -193,7 +195,7 @@ class PayableOwnerValidationPass:
 
 @dataclass(frozen=True, slots=True)
 class ReleaseRuleValidationPass:
-    """Valide les transitions qui rendent les compteurs consommés."""
+    """Validates the transitions that give back consumed counters."""
 
     name: str = "release_rules"
 
@@ -203,15 +205,15 @@ class ReleaseRuleValidationPass:
 
 @dataclass(frozen=True, slots=True)
 class WorkflowCollisionValidationPass:
-    """Valide les workflows et les collisions d'autorité entre acteurs."""
+    """Validates the workflows and the authority collisions between actors."""
 
     name: str = "workflow_collisions"
 
     def run(self, context: ValidationContext) -> list[str]:
         context._valider_workflows_et_collisions()
-        # B1 partage la frontière "workflows puis validations dépendantes".
-        # Le getattr garde la compatibilité avec les contextes de test et les
-        # intégrations historiques qui implémentent encore l'ancien protocole.
+        # B1 shares the "workflows then dependent validations" boundary. The
+        # getattr keeps compatibility with the test contexts and historical
+        # integrations that still implement the old protocol.
         upload_validation = getattr(context, "_valider_champs_uploades", None)
         if upload_validation is not None:
             upload_validation()
@@ -219,7 +221,7 @@ class WorkflowCollisionValidationPass:
 
 @dataclass(frozen=True, slots=True)
 class UIOverrideValidationPass:
-    """Valide les champs référencés par les préférences d'interface."""
+    """Validates the fields referenced by the interface preferences."""
 
     name: str = "ui_overrides"
 
@@ -229,7 +231,7 @@ class UIOverrideValidationPass:
 
 @dataclass(frozen=True, slots=True)
 class LandingValidationPass:
-    """Normalise le contenu éditorial transmis au frontend."""
+    """Normalizes the editorial content passed to the frontend."""
 
     name: str = "landing"
 
@@ -239,7 +241,7 @@ class LandingValidationPass:
 
 @dataclass(frozen=True, slots=True)
 class CapabilityValidationPass:
-    """Valide les capacités et leurs options d'authentification."""
+    """Validates the capabilities and their authentication options."""
 
     name: str = "capabilities"
 
@@ -249,7 +251,7 @@ class CapabilityValidationPass:
 
 @dataclass(frozen=True, slots=True)
 class MessageRuleValidationPass:
-    """Valide les messages sortants après résolution de l'identité du compte."""
+    """Validates the outgoing messages after the account identity is resolved."""
 
     name: str = "message_rules"
 
@@ -259,7 +261,7 @@ class MessageRuleValidationPass:
 
 @dataclass(frozen=True, slots=True)
 class AssetsSeedValidationPass:
-    """Valide les assets locaux et les données de démonstration."""
+    """Validates the local assets and the demo data."""
 
     name: str = "assets_seeds"
 
@@ -269,7 +271,7 @@ class AssetsSeedValidationPass:
 
 @dataclass(frozen=True, slots=True)
 class MigrationValidationPass:
-    """Valide les opérations de schéma non additives déclarées."""
+    """Validates the declared non-additive schema operations."""
 
     name: str = "migrations"
 
@@ -279,7 +281,7 @@ class MigrationValidationPass:
 
 @dataclass(frozen=True, slots=True)
 class PostPaymentValidationPass:
-    """Valide les champs réservés à l'écriture après règlement."""
+    """Validates the fields reserved for writing after payment."""
 
     name: str = "post_payment_writes"
 

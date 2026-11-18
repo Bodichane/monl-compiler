@@ -1,22 +1,21 @@
-"""L'édition TEXTUELLE de la spec, ligne à ligne.
+"""TEXTUAL editing of the spec, line by line.
 
-Jamais un aller-retour parse → regénère : la spec d'un projet réel est
-plus qu'à moitié faite de commentaires, et ce sont eux qui expliquent les
-briques employées."""
+Never a parse → regenerate round trip: a real project's spec is more than
+half comments, and they are what explains the bricks used."""
 
 import re
 
 from .fondations import DEBUTS_DE_BLOC, AssetsToolError
 
 
-# ------------------------------------------- repérage dans le TEXTE --
+# ------------------------------------------- locating in the TEXT --
 def _chaine_ouverte(texte, ouvert):
-    """Un littéral de chaîne reste-t-il ouvert à la fin de cette ligne ?
+    """Is a string literal still open at the end of this line?
 
-    `STRING_LITERAL` est compilé avec le drapeau /s et sa classe accepte le
-    retour à la ligne : une valeur de seed PEUT donc tenir sur deux lignes, et
-    le parseur l'accepte (vérifié, pas supposé). Hors chaîne, un « # » ouvre un
-    commentaire : le reste de la ligne ne compte plus."""
+    `STRING_LITERAL` is compiled with the /s flag and its class accepts line
+    breaks: a seed value CAN therefore span two lines, and the parser accepts
+    it (checked, not assumed). Outside a string, a "#" opens a comment: the
+    rest of the line no longer counts."""
     echap = False
     for c in texte:
         if ouvert:
@@ -33,18 +32,17 @@ def _chaine_ouverte(texte, ouvert):
     return ouvert
 
 def _entrees_du_bloc(lignes, i_entete):
-    """[(première ligne, dernière ligne)] par ENTRÉE du bloc indenté.
+    """[(first line, last line)] per ENTRY of the indented block.
 
-    Une plage, et pas un simple indice : une fiche de seed dont la description
-    court sur deux lignes est UNE entrée. Compter les lignes aurait décalé
-    toutes les fiches suivantes, et l'outil aurait écrit la photo sur la
-    mauvaise — en silence, puisque la spec obtenue resterait compilable.
+    A range, not a plain index: a seed item whose description runs over two
+    lines is ONE entry. Counting lines would have shifted every following
+    item, and the tool would have written the photo on the wrong one —
+    silently, since the resulting spec would stay compilable.
 
-    Les lignes vides et les lignes de commentaire sont sautées, exactement
-    comme le fait le parseur (`_strip_standalone_comment_lines`) : c'est ce qui
-    permet de faire correspondre la n-ième entrée du fichier à la n-ième de
-    l'AST. Une ligne non indentée termine le bloc — sauf en pleine chaîne, où
-    l'indentation ne veut plus rien dire."""
+    Empty lines and comment lines are skipped, exactly as the parser does
+    (`_strip_standalone_comment_lines`): that is what lets the file's n-th
+    entry match the AST's n-th. A non-indented line ends the block — except
+    in the middle of a string, where indentation no longer means anything."""
     plages, debut, ouvert = [], None, False
     for j in range(i_entete + 1, len(lignes)):
         brute = lignes[j].rstrip("\n")
@@ -62,7 +60,7 @@ def _entrees_du_bloc(lignes, i_entete):
     return plages
 
 def _remplacer_entree(lignes, plage, editeur):
-    """Applique une édition à une entrée qui peut occuper PLUSIEURS lignes."""
+    """Applies an edit to an entry that may span SEVERAL lines."""
     debut, fin = plage
     ancien = "".join(lignes[debut:fin + 1])
     nouveau, ancienne = editeur(ancien)
@@ -70,15 +68,15 @@ def _remplacer_entree(lignes, plage, editeur):
             ancienne)
 
 def _blocs_seed(lignes):
-    """[(entité, [plages de lignes]), …] dans l'ordre du fichier.
+    """[(entity, [line ranges]), …] in file order.
 
-    BRIQUE 21 (point 100) : l'en-tête accepte une désignation de parent
-    (`seed Variant for Product.name "Chaise Ligne"`). Sans l'accepter ICI, cet
-    outil sautait le bloc en silence alors que l'AST le contient : la
-    correspondance fichier ↔ AST, sur laquelle repose tout l'écriture de photos,
-    ne tenait plus. Toute brique qui change la FORME d'une ligne de spec
-    contraint aussi les outils qui la lisent textuellement — c'est la leçon des
-    points 95 et 96, appliquée hors du smoke test."""
+    BRICK 21 (point 100): the header accepts a parent designation (`seed
+    Variant for Product.name "Chaise Ligne"`). Without accepting it HERE, this
+    tool silently skipped the block while the AST contains it: the file ↔ AST
+    match, on which all photo writing rests, no longer held. Any brick that
+    changes the SHAPE of a spec line also constrains the tools that read it
+    textually — the lesson of points 95 and 96, applied outside the smoke
+    test."""
     blocs = []
     for i, ligne in enumerate(lignes):
         m = re.match(
@@ -91,18 +89,18 @@ def _blocs_seed(lignes):
     return blocs
 
 def _bloc_assets(lignes):
-    """(indice de l'en-tête, [plages des propriétés]) ou (None, [])."""
+    """(header index, [property ranges]) or (None, [])."""
     for i, ligne in enumerate(lignes):
         if re.match(r"^assets[ \t]*(#.*)?$", ligne.rstrip("\n")):
             return i, _entrees_du_bloc(lignes, i)
     return None, []
 
 def _separer_commentaire(corps):
-    """Isole un commentaire de fin de ligne, en respectant les guillemets.
+    """Isolates an end-of-line comment, respecting quotes.
 
-    La grammaire accepte `champ: "x"  # note`, et un descriptif peut contenir
-    un « # ». Couper au premier dièse rencontré mutilerait le texte de
-    l'humain — donc on suit l'état « dans une chaîne »."""
+    The grammar accepts `field: "x"  # note`, and a description can contain a
+    "#". Cutting at the first hash met would mutilate the human's text — so
+    the "inside a string" state is tracked."""
     dans_chaine = echap = False
     for i, c in enumerate(corps):
         if dans_chaine:
@@ -119,10 +117,10 @@ def _separer_commentaire(corps):
     return corps, ""
 
 def _segments(corps):
-    """Découpe une ligne de seed sur les virgules HORS chaîne.
+    """Splits a seed line on the commas OUTSIDE strings.
 
-    Un descriptif contient presque toujours une virgule : découper naïvement
-    en ferait deux champs, et l'un des deux serait du texte libre."""
+    A description almost always contains a comma: splitting naively would
+    make two fields of it, and one of the two would be free text."""
     parts, courant = [], ""
     dans_chaine = echap = False
     for c in corps:
@@ -147,12 +145,12 @@ def _segments(corps):
     return parts
 
 def _litteral(valeur):
-    """Un chemin d'asset en littéral de chaîne monl.
+    """An asset path as a monl string literal.
 
-    Les caractères qui demanderaient un échappement sont REFUSÉS plutôt
-    qu'échappés : un nom de fichier qui en contient n'a rien à faire dans une
-    URL, et l'échappement entre couches de templating est exactement le piège
-    déjà rencontré (surcharge de backslash, voir la méthode de travail)."""
+    Characters that would require escaping are REFUSED rather than escaped: a
+    file name containing them has no business in a URL, and escaping across
+    templating layers is exactly the trap already met (backslash
+    over-escaping, see the working method)."""
     if any(c in valeur for c in '"\\\n\r'):
         raise AssetsToolError(
             f"'{valeur}' contains a quote, backslash, or newline: it cannot be "
@@ -160,10 +158,10 @@ def _litteral(valeur):
     return f'"{valeur}"'
 
 def _ecrire_paire(ligne, champ, valeur):
-    """Remplace (ou ajoute en fin) `champ: "valeur"` dans une ligne de seed.
+    """Replaces (or appends) `field: "value"` in a seed line.
 
-    Préserve l'indentation, l'ordre des autres champs, l'espacement d'origine
-    et un éventuel commentaire de fin de ligne."""
+    Preserves the indentation, the order of the other fields, the original
+    spacing and any end-of-line comment."""
     fin = "\n" if ligne.endswith("\n") else ""
     corps, commentaire = _separer_commentaire(ligne.rstrip("\n"))
     blancs = corps[len(corps.rstrip()):]
@@ -183,12 +181,12 @@ def _ecrire_paire(ligne, champ, valeur):
     return ",".join(segments) + blancs + commentaire + fin, ancienne
 
 def _poser_prop_assets(lignes, cle, valeur, dossier):
-    """Écrit `logo:` ou `favicon:` dans le bloc 'assets', qu'il existe ou non.
+    """Writes `logo:` or `favicon:` in the 'assets' block, whether it exists or
+    not.
 
-    Créer le bloc absent fait partie du travail : renvoyer l'humain écrire
-    quatre lignes à la main avant de pouvoir poser son logo, ce serait rendre
-    l'outil inutile là où il sert le plus (un projet qui n'a pas encore
-    d'assets)."""
+    Creating the missing block is part of the job: sending the human to write
+    four lines by hand before they can place their logo would make the tool
+    useless where it serves most (a project that has no assets yet)."""
     lignes = list(lignes)
     i_entete, proprietes = _bloc_assets(lignes)
     if i_entete is None:
@@ -218,7 +216,7 @@ def _poser_prop_assets(lignes, cle, valeur, dossier):
             lignes[plage[0]:plage[1] + 1] = [remplacement]
             return lignes, plage[0], ancienne
 
-    # Absente : posée à la fin du bloc, avec l'indentation de ses voisines.
+    # Missing: placed at the end of the block, with its neighbors' indentation.
     dernier = proprietes[-1][1] if proprietes else i_entete
     indent = "    "
     if proprietes:

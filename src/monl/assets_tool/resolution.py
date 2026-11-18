@@ -1,4 +1,4 @@
-"""Où vit un asset déclaré, et sous quel nom on le range."""
+"""Where a declared asset lives, and under which name it is filed."""
 
 import difflib
 import os
@@ -8,13 +8,13 @@ from .edition import _blocs_seed
 from .fondations import AssetsToolError, sluggify
 
 
-# ------------------------------------------------- ce que la spec déclare --
+# ------------------------------------------------- what the spec declares --
 def chemins_declares(normalized):
-    """(dossier, {chemin déclaré: [origines lisibles]}).
+    """(folder, {declared path: [readable origins]}).
 
-    « Origine » sert aux messages : `assets.logo`, `Product[3].imageUrl`. Un
-    même fichier peut être déclaré deux fois — c'est légitime (deux fiches, la
-    même photo), et le rapport le montre plutôt que de le taire."""
+    "Origin" serves the messages: `assets.logo`, `Product[3].imageUrl`. The
+    same file can be declared twice — it is legitimate (two items, the same
+    photo), and the report shows it rather than hiding it."""
     assets = normalized.get("assets") or {}
     dossier = assets.get("dir") or DEFAULT_ASSETS_DIR
     declares = {}
@@ -32,21 +32,21 @@ def chemins_declares(normalized):
 
 # ------------------------------------------------------------------ add --
 def _resoudre_seed(normalized, lignes, pour, entity, field):
-    """Quelle fiche de seed, et quel champ 'Image' de cette fiche.
+    """Which seed item, and which 'Image' field of that item.
 
-    La fiche est désignée par une de ses VALEURS (« Halo RS ») et non par un
-    numéro : c'est ce que l'humain a sous les yeux. Une désignation ambiguë est
-    refusée en nommant les candidates — deviner écrirait la photo sur la
-    mauvaise fiche, et personne ne le verrait avant la mise en ligne."""
+    The item is designated by one of its VALUES ("Halo RS") and not by a
+    number: it is what the human has in front of them. An ambiguous
+    designation is refused, naming the candidates — guessing would write the
+    photo on the wrong item, and nobody would see it before going live."""
     blocs_fichier = _blocs_seed(lignes)
     blocs_ast = normalized.get("seeds") or []
     if not blocs_ast:
         raise AssetsToolError(
             "This spec has no 'seed' block to attach a photo to. Add the block, "
             "or use --logo / --favicon.")
-    # Filet : la correspondance fichier ↔ AST est ce sur quoi tout repose. Si
-    # elle ne tient pas, s'arrêter vaut mieux qu'écrire sur une autre fiche —
-    # une spec où la photo est sur la mauvaise ligne compile parfaitement.
+    # Safety net: the file ↔ AST match is what everything rests on. If it does
+    # not hold, stopping is better than writing on another item — a spec where
+    # the photo is on the wrong line compiles perfectly.
     if (len(blocs_fichier) != len(blocs_ast)
             or any(f[0] != a["entity"] for f, a in zip(blocs_fichier, blocs_ast, strict=True))
             or any(len(f[1]) != len(a["rows"]) for f, a in zip(blocs_fichier, blocs_ast, strict=True))):
@@ -64,7 +64,7 @@ def _resoudre_seed(normalized, lignes, pour, entity, field):
             toutes_valeurs.extend(textes)
             if any(v.strip() == pour.strip() for v in textes):
                 candidats.append((ent, plages[k], row))
-    if not candidats:  # deuxième passe, insensible à la casse
+    if not candidats:  # second pass, case-insensitive
         for (ent, plages), bloc in zip(blocs_fichier, blocs_ast, strict=True):
             if entity and ent != entity:
                 continue
