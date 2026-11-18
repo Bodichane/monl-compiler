@@ -1,8 +1,8 @@
-"""Ce qui a changé depuis la dernière construction.
+"""What changed since the last build.
 
-`_rapporter_delta` est PARTAGÉ par `update` et `diff` : deux calculs de
-delta divergeraient, et c'est le calcul que six points ont eu du mal à
-tenir juste."""
+`_rapporter_delta` is SHARED by `update` and `diff`: two delta
+calculations would diverge, and it is the calculation six points struggled
+to keep right."""
 
 import contextlib
 import io
@@ -14,8 +14,8 @@ from ..frontend_ai import UPDATE_PROMPT_FILENAME
 from . import construction, emplacement, signature
 
 # ----------------------------------------------------------------- update --
-# Les noms des deux briefs d'évolution vivent dans frontend_ai (qui les
-# CONSOMME) et sont importés en tête de ce module (qui les ÉCRIT).
+# The names of the two evolution briefs live in frontend_ai (which CONSUMES
+# them) and are imported at the top of this module (which WRITES them).
 
 def _write_update_brief(project_dir, added_routes, removed_routes,
                         added_fields, removed_fields,
@@ -26,14 +26,14 @@ def _write_update_brief(project_dir, added_routes, removed_routes,
                         added_contenus=(), removed_contenus=(),
                         modifies_contenus=(), changed_liens=(),
                         changed_types=()):
-    """Point 3 du pivot : le delta n'est pas qu'informatif, il devient une
-    CONSIGNE prête à donner à l'IA frontend — la boucle se ferme sans que
-    l'humain ait à reformuler le changement."""
+    """Point 3 of the pivot: the delta is not just informative, it becomes an
+    INSTRUCTION ready to give to the frontend AI — the loop closes without the
+    human having to rephrase the change."""
     def bullet(items, verb):
         return "\n".join(f"- {verb} `{i}`" for i in sorted(items))
     sections = []
-    # Une table plutôt que dix-sept `if` : l'ordre des sections est celui
-    # des lignes, et une consigne de plus n'ajoute pas de branche.
+    # A table rather than seventeen `if`s: the order of the sections is the
+    # order of the rows, and one more instruction adds no branch.
     consignes = (
         (added_routes,
          "## New routes to use\n",
@@ -53,10 +53,10 @@ def _write_update_brief(project_dir, added_routes, removed_routes,
          "adapt input validation, formatting, and error messages to the "
          "new type.\n",
          "adapt"),
-        # POINT 88 : un rôle qui gagne l'accès à une route existante n'ajoute aucune
-        # route, mais réclame souvent tout un écran (un back-office, une vue de
-        # supervision). C'est le cas le plus silencieux du delta : rien n'est cassé,
-        # et pourtant il manque quelque chose.
+        # POINT 88: a role that gains access to an existing route adds no
+        # route, but often calls for a whole screen (a back office, a
+        # supervision view). It is the delta's most silent case: nothing is
+        # broken, and yet something is missing.
         (added_acces,
          "## Newly authorized roles — plan screens\n"
          "These routes already existed; one more role can now call them. "
@@ -66,10 +66,11 @@ def _write_update_brief(project_dir, added_routes, removed_routes,
         (removed_acces,
          "## REMOVED access — hide actions that will return 403\n",
          "stop offering to"),
-        # POINT 99 : la clé étrangère change de nature sans changer de nom. Deux
-        # conséquences bien distinctes pour l'interface — une jointure à refaire, ou
-        # un champ obligatoire de plus au formulaire de création — d'où les deux
-        # consignes séparées plutôt qu'une phrase qui couvrirait les deux à moitié.
+        # POINT 99: the foreign key changes nature without changing name. Two
+        # quite distinct consequences for the interface — a join to redo, or
+        # one more mandatory field in the creation form — hence the two
+        # separate instructions rather than one sentence that would half cover
+        # both.
         (changed_liens,
          "## Relationships whose kind changed\n"
          "For each one: if the line says ‘an account identifier’, join "
@@ -78,9 +79,9 @@ def _write_update_brief(project_dir, added_routes, removed_routes,
          "CHOOSE the related record (a dropdown populated by the matching "
          "read route); without this field, creation returns 422.\n",
          "review"),
-        # POINT 89 : le champ existe toujours et porte le même nom — seul son sens a
-        # changé. C'est le second cas silencieux du delta : rien n'est cassé, et
-        # pourtant un formulaire est devenu un affichage.
+        # POINT 89: the field still exists and carries the same name — only its
+        # meaning changed. It is the delta's second silent case: nothing is
+        # broken, and yet a form has become a display.
         (scelles,
          "## Fields now READ-ONLY — remove from forms\n"
          "The server now calculates or timestamps these fields itself. "
@@ -90,8 +91,8 @@ def _write_update_brief(project_dir, added_routes, removed_routes,
         (liberes,
          "## Fields editable again\n",
          "offer for input"),
-        # POINT 90 : la route n'a pas bougé, son PRÉALABLE oui. C'est le parcours
-        # utilisateur qu'il faut reprendre, pas un champ à ajouter.
+        # POINT 90: the route did not move, its PREREQUISITE did. It is the
+        # user journey that must be reworked, not a field to add.
         (added_prea,
          "## Added PREREQUISITES — the user flow changes, not just the screen\n"
          "These routes already existed and now return 409 until the caller "
@@ -102,10 +103,10 @@ def _write_update_brief(project_dir, added_routes, removed_routes,
         (removed_prea,
          "## Removed PREREQUISITES — the intermediate step is no longer needed\n",
          "stop requiring"),
-        # POINT 91 : la route n'a pas bougé, elle a gagné un REFUS conditionnel.
-        # C'est un bouton à masquer selon l'état de l'enregistrement affiché — pas
-        # un écran de plus, pas un champ de plus : le cas le plus facile à manquer
-        # en relisant la seule liste des routes.
+        # POINT 91: the route did not move, it gained a conditional REFUSAL. It
+        # is a button to hide depending on the state of the displayed record —
+        # not one more screen, not one more field: the easiest case to miss
+        # when rereading only the list of routes.
         (added_verrous,
          "## PAYMENT LOCKS — hide actions on a paid record\n"
          "These routes already existed and now return 409 once the record "
@@ -118,9 +119,9 @@ def _write_update_brief(project_dir, added_routes, removed_routes,
         (removed_verrous,
          "## Removed locks — the action is available again after payment\n",
          "stop conditioning"),
-        # POINT 94 : du CONTENU, pas des données. Aucune route ne le sert — il
-        # n'existe que dans le contrat, donc une IA qui ne le lit pas ici ne
-        # l'apprendra nulle part ailleurs.
+        # POINT 94: CONTENT, not data. No route serves it — it exists only in
+        # the contract, so an AI that does not read it here will learn it
+        # nowhere else.
         (added_contenus,
          "## ADDED editorial content — publish on the home page\n"
          "The full text is in `FRONTEND_PROMPT.md` (the ‘Editorial content’ "
@@ -161,13 +162,13 @@ will install it with `monl import <file> <project>`.
     return path
 
 def _rapporter_delta(ancienne, nouvelle, project_dir, ecrire_brief=True):
-    """Compare deux signatures de contrat, imprime le delta, et rend True s'il
-    y a de quoi réécrire quelque chose.
+    """Compares two contract signatures, prints the delta, and returns True if
+    there is something to rewrite.
 
-    POINT 103 : extrait de `cmd_update` pour que `monl diff` en soit le MÊME
-    rapport, et pas une deuxième implémentation. Deux calculs de delta
-    finiraient par diverger — et c'est précisément le calcul dont cinq points
-    (88 à 91, 94, 99) ont montré qu'il est difficile à tenir juste."""
+    POINT 103: extracted from `cmd_update` so that `monl diff` is the SAME
+    report, not a second implementation. Two delta calculations would
+    eventually diverge — and it is precisely the calculation that five points
+    (88 to 91, 94, 99) showed is hard to keep right."""
     (old_routes, old_fields, old_acces, old_ro, old_prea, old_verrous,
      old_contenus, old_liens, old_types, old_sections) = ancienne
     (new_routes, new_fields, new_acces, new_ro, new_prea, new_verrous,
@@ -175,49 +176,49 @@ def _rapporter_delta(ancienne, nouvelle, project_dir, ecrire_brief=True):
 
     added_routes, removed_routes = new_routes - old_routes, old_routes - new_routes
     added_fields, removed_fields = new_fields - old_fields, old_fields - new_fields
-    # Les accès d'une route qui vient d'apparaître ou de disparaître sont déjà
-    # dits par les deux listes ci-dessus : ne garder que les routes qui EXISTAIENT
-    # des deux côtés, sinon chaque ajout serait rapporté deux fois.
+    # The access of a route that just appeared or disappeared is already stated
+    # by the two lists above: keep only the routes that EXISTED on both sides,
+    # otherwise every addition would be reported twice.
     stables = new_routes & old_routes
     added_acces = {a for a in new_acces - old_acces if a.split(" → ")[0] in stables}
     removed_acces = {a for a in old_acces - new_acces if a.split(" → ")[0] in stables}
-    # POINT 89 : même filtre, même raison — un champ qui vient d'apparaître est
-    # déjà décrit par `added_fields`, où sa lecture seule est annotée.
+    # POINT 89: same filter, same reason — a field that just appeared is
+    # already described by `added_fields`, where its read-only status is
+    # annotated.
     champs_stables = new_fields & old_fields
     scelles = (new_ro - old_ro) & champs_stables
     liberes = (old_ro - new_ro) & champs_stables
-    # Même filtre que pour les accès : une route qui vient d'apparaître porte
-    # son préalable dans « route ajoutée », l'y compter deux fois noierait le
-    # signal.
+    # Same filter as for access: a route that just appeared carries its
+    # prerequisite in "route added", counting it twice would drown the signal.
     added_prea = {p for p in new_prea - old_prea if p.split(" → ")[0] in stables}
     removed_prea = {p for p in old_prea - new_prea if p.split(" → ")[0] in stables}
-    # POINT 91 : même filtre, quatrième fois. Poser `payable` fige des routes
-    # qui existaient déjà — le frontend doit retirer un bouton, sans qu'aucun
-    # chemin, acteur ou champ n'ait changé.
+    # POINT 91: same filter, fourth time. Setting `payable` freezes routes that
+    # already existed — the frontend must remove a button, without any path,
+    # actor or field having changed.
     added_verrous = {v for v in new_verrous - old_verrous
                      if v.split(" → ")[0] in stables}
     removed_verrous = {v for v in old_verrous - new_verrous
                        if v.split(" → ")[0] in stables}
-    # POINT 94 : trois cas, pas deux — un contenu peut être RÉÉCRIT sans changer
-    # de titre, et c'est le cas le plus silencieux des trois.
+    # POINT 94: three cases, not two — content can be REWRITTEN without
+    # changing its title, and it is the most silent of the three.
     added_contenus = set(new_contenus) - set(old_contenus)
     removed_contenus = set(old_contenus) - set(new_contenus)
     modifies_contenus = {c for c in set(new_contenus) & set(old_contenus)
                          if new_contenus[c] != old_contenus[c]}
-    # POINT 99 : même arbitrage anti-doublon qu'aux points 88 à 91, appliqué aux
-    # entités plutôt qu'aux routes. Les rattachements d'une entité qui vient
-    # d'apparaître sont déjà dits par ses routes et ses champs ; seuls ceux
-    # d'une entité qui existait des deux côtés méritent une ligne.
+    # POINT 99: the same anti-duplication trade-off as in points 88 to 91,
+    # applied to entities rather than routes. The attachments of an entity that
+    # just appeared are already stated by its routes and fields; only those of
+    # an entity that existed on both sides deserve a line.
     entites_stables = {f.split(".", 1)[0] for f in new_fields & old_fields}
     changed_liens = {li for li in (new_liens - old_liens)
                      if li.split(".", 1)[0] in entites_stables}
     changed_types = {f"{field}: {old_types[field]} → {new_types[field]}"
                      for field in (new_fields & old_fields)
                      if old_types.get(field) != new_types.get(field)}
-    # POINT 119 : trois cas comme pour le contenu (point 94) — une section
-    # peut apparaître, disparaître, ou voir sa règle DURCIE sans changer de
-    # nom. Le troisième est le silencieux : relever le texte exigé de `trust`
-    # ne renomme rien et rend pourtant le site non conforme.
+    # POINT 119: three cases as for content (point 94) — a section can appear,
+    # disappear, or have its rule TIGHTENED without changing name. The third is
+    # the silent one: raising the text required by `trust` renames nothing and
+    # yet makes the site non-compliant.
     added_sections = set(new_sections) - set(old_sections)
     removed_sections = set(old_sections) - set(new_sections)
     modifies_sections = {c for c in set(new_sections) & set(old_sections)
@@ -228,9 +229,9 @@ def _rapporter_delta(ancienne, nouvelle, project_dir, ecrire_brief=True):
                    added_contenus, removed_contenus, modifies_contenus,
                    changed_liens, changed_types,
                    added_sections, removed_sections, modifies_sections))
-    # Le nom seul ne dit pas qu'un champ neuf est en lecture seule ; la rubrique
-    # du brief s'intitule « à afficher/saisir », ce qui serait un contresens sur
-    # un horodatage ou un total calculé.
+    # The name alone does not say a new field is read-only; the brief's section
+    # is titled "to display/enter", which would be a misreading for a timestamp
+    # or a calculated total.
     added_fields = {f"{c} (read-only — set by the server)" if c in new_ro else c
                     for c in added_fields}
 
@@ -300,23 +301,23 @@ def cmd_update(project_dir):
           "additive migration at startup (docs/MIGRATIONS.md).")
 
 # ------------------------------------------------------------------- diff --
-# POINT 103 : `monl update` écrit PUIS rapporte. Tant que le rapport dit ce
-# qu'on attendait, l'ordre est sans conséquence ; le jour où il annonce un
-# écran entier à réécrire, on aimerait l'avoir su avant d'avoir recompilé et
-# remplacé le contrat de référence.
+# POINT 103: `monl update` writes THEN reports. As long as the report says what
+# was expected, the order has no consequence; the day it announces a whole
+# screen to rewrite, one would have liked to know before recompiling and
+# replacing the reference contract.
 #
-# `monl diff` répond à la même question sans rien toucher : il compile dans un
-# dossier TEMPORAIRE, compare, imprime, et s'en va. Aucun fichier du projet
-# n'est écrit — ni app.py, ni le contrat, ni monl.json, ni la consigne
-# d'évolution.
+# `monl diff` answers the same question without touching anything: it compiles
+# into a TEMPORARY folder, compares, prints, and leaves. No project file is
+# written — neither app.py, nor the contract, nor monl.json, nor the evolution
+# instruction.
 def cmd_diff(project_dir):
     project_dir, spec_path = emplacement._situer_projet(project_dir, "compare")
     ancienne = emplacement._signature_precedente(project_dir)
 
-    # Le dossier de sortie est jetable, mais `base_dir` doit rester le VRAI
-    # projet : c'est lui qui porte les assets déclarés, et les vérifier dans un
-    # dossier vide ferait échouer la compilation pour une raison qui n'existe
-    # pas (brique 13, point 83).
+    # The output folder is throwaway, but `base_dir` must stay the REAL
+    # project: it is the one carrying the declared assets, and checking them in
+    # an empty folder would make compilation fail for a reason that does not
+    # exist (brick 13, point 83).
     with tempfile.TemporaryDirectory(prefix="monl-diff-") as atelier:
         tampon = io.StringIO()
         try:
@@ -324,8 +325,8 @@ def cmd_diff(project_dir):
                 nouveau = construction.compile_project(spec_path, atelier,
                                           base_dir=project_dir, save_state=False)
         except MonlError as err:
-            # La compilation a échoué : c'est SON message qui est utile, pas le
-            # nôtre. Les interruptions système remontent naturellement.
+            # Compilation failed: it is ITS message that is useful, not ours.
+            # System interrupts propagate naturally.
             print(tampon.getvalue(), end="")
             print(f" ❌ {err}")
             raise SystemExit(1) from err

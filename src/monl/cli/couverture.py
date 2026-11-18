@@ -1,9 +1,9 @@
-"""Le frontend appelle-t-il vraiment les routes du contrat.
+"""Does the frontend really call the contract's routes.
 
-POINT 150 : une mesure INDÉTERMINÉE n'est pas une mesure NULLE. Le
-contrôle suit le FLUX du paramètre (direct, gabarit, variable locale) —
-compter zéro sur un site qui appelle cinq routes, c'est accuser un site
-correct."""
+POINT 150: an UNDETERMINED measurement is not a NULL measurement. The
+check follows the parameter's FLOW (direct, template, local variable) —
+counting zero on a site that calls five routes means accusing a correct
+site."""
 
 import os
 import re
@@ -13,17 +13,16 @@ from . import couverture_fetch
 
 
 def _frontend_fetch_calls(frontend_dir):
-    """Retourne les appels ``fetch`` statiquement identifiables."""
+    """Returns the statically identifiable ``fetch`` calls."""
     return couverture_fetch.frontend_fetch_calls(frontend_dir)
 
 def _frontend_contract_paths(contract):
-    """Retourne les chemins exposés au frontend par le contrat.
+    """Returns the paths exposed to the frontend by the contract.
 
-    Les routes métier vivent dans ``routes``. L'authentification est une
-    exception historique : ``/register``, ``/login`` et ``/logout`` sont
-    décrits dans ``api.auth`` mais ne font pas partie de cette liste. Ils sont
-    ajoutés ici depuis le contrat, jamais recopiés en dur dans le contrôle.
-    """
+    Business routes live in ``routes``. Authentication is a historical
+    exception: ``/register``, ``/login`` and ``/logout`` are described in
+    ``api.auth`` but are not part of that list. They are added here from the
+    contract, never hard-coded in the check."""
     chemins = []
     for route in contract.get("routes", []):
         chemin = route.get("path")
@@ -41,18 +40,17 @@ def _frontend_contract_paths(contract):
     return list(dict.fromkeys(chemins)), list(dict.fromkeys(chemins_auth))
 
 def _frontend_contract_path_matches(appele, declare):
-    """Indique si un chemin normalisé correspond à un chemin du contrat."""
+    """Tells whether a normalized path matches a contract path."""
     motif = re.escape(declare)
     motif = re.sub(r"\\\{[^{}]+\\\}", r"[^/?#]+", motif)
     return re.fullmatch(motif, appele) is not None
 
 def _frontend_fetch_path_label(chemin):
-    """Réduit un chemin d'appel à sa partie certaine pour le message.
+    """Reduces a call path to its certain part, for the message.
 
-    ``/auth/{id}`` vient d'un gabarit que l'analyse sait assez réduire pour
-    constater l'erreur, mais ``{id}`` n'est pas un chemin que l'utilisateur a
-    réellement écrit. Le nom utile du défaut est donc ``/auth``.
-    """
+    ``/auth/{id}`` comes from a template the analysis can reduce enough to
+    notice the error, but ``{id}`` is not a path the user really wrote. The
+    useful name of the defect is therefore ``/auth``."""
     certains = []
     for segment in chemin.split("/"):
         if not segment:
@@ -63,7 +61,7 @@ def _frontend_fetch_path_label(chemin):
     return "/" + "/".join(certains) if certains else chemin
 
 def _frontend_fetch_path_suggestions(chemin, chemins, chemins_auth):
-    """Suggère des chemins contractuels sans prétendre comprendre le JS."""
+    """Suggests contract paths without pretending to understand the JS."""
     label = _frontend_fetch_path_label(chemin)
     if label == "/auth" and chemins_auth:
         return sorted(chemins_auth)
@@ -76,12 +74,11 @@ def _frontend_fetch_path_suggestions(chemin, chemins, chemins_auth):
     })
 
 def _frontend_fetch_contract_errors(contract, appels):
-    """Refuse les appels ``fetch`` dont le chemin n'est pas contractuel.
+    """Refuses the ``fetch`` calls whose path is not in the contract.
 
-    ``appels`` vient exclusivement de ``_frontend_fetch_calls``. Une forme
-    dynamique que cette analyse ne sait pas réduire n'entre donc pas ici et
-    ne déclenche rien, conformément à l'arbitrage conservateur du parcours.
-    """
+    ``appels`` comes exclusively from ``_frontend_fetch_calls``. A dynamic form
+    this analysis cannot reduce therefore never enters here and triggers
+    nothing, in line with the journey's conservative trade-off."""
     chemins, chemins_auth = _frontend_contract_paths(contract)
     errors = []
     for _methode, appele in sorted(appels, key=lambda appel: (appel[1], appel[0] or "")):
@@ -101,14 +98,14 @@ def _frontend_fetch_contract_errors(contract, appels):
     return list(dict.fromkeys(errors))
 
 def _route_est_appelee(route, appels):
-    """Teste une route contractuelle contre les appels normalisés du frontend."""
+    """Tests a contract route against the frontend's normalized calls."""
     chemin = route["path"]
     motif = re.escape(chemin).replace(r"\{id\}", r"[^/?#]+")
     return any(methode == route["method"] and re.fullmatch(motif, appele)
                for methode, appele in appels)
 
 def _route_correspond_aux_action(route, action):
-    """Associe une action de workflow aux routes qu'elle produit réellement."""
+    """Maps a workflow action to the routes it really produces."""
     type_action = action["type"]
     cible = action["target"]
     entite = cible.split(".", 1)[0]
@@ -120,14 +117,14 @@ def _route_label(route):
     return f"{route['method']} {route['path']}"
 
 def _frontend_route_coverage(project_dir, spec_path, contract, appels=None):
-    """Vérifie la couverture du frontend livré, sans exécuter une intention.
+    """Checks the coverage of the delivered frontend, without running an
+    intention.
 
-    Les routes sont lues dans le contrat sur disque et confrontées aux
-    ``fetch`` présents dans les fichiers livrés. Les workflows viennent de la
-    spec, source de leur nom et de leur acteur. Le webhook est le seul cas
-    explicitement hors écran : le contrat interdit déjà au navigateur de
-    l'appeler.
-    """
+    The routes are read from the contract on disk and matched against the
+    ``fetch`` calls present in the delivered files. The workflows come from
+    the spec, the source of their name and actor. The webhook is the only case
+    explicitly off screen: the contract already forbids the browser from
+    calling it."""
     frontend_dir = os.path.join(project_dir, "frontend")
     if appels is None:
         appels = _frontend_fetch_calls(frontend_dir)
@@ -137,7 +134,7 @@ def _frontend_route_coverage(project_dir, spec_path, contract, appels=None):
 
     try:
         workflows = parse_monl_file(spec_path).get("workflows", [])
-    except Exception as exc:  # pragma: no cover - artefact déjà validé en amont
+    except Exception as exc:  # pragma: no cover - artifact already validated upstream
         return [], ["Frontend workflow coverage cannot be determined: "
                     f"reading workflows failed ({exc})."]
 
@@ -176,11 +173,11 @@ def _frontend_route_coverage(project_dir, spec_path, contract, appels=None):
             "are referenced by frontend/. Routes never called: "
             + "; ".join(missing_labels)
         )
-        # Une route isolée n'est pas nécessairement un écran : un détail peut
-        # être rendu depuis la liste, et une écriture de service peut être
-        # absente d'une vitrine. Le refus porte donc sur le plancher mesurable
-        # (un workflow utilisateur sans aucune entrée), tandis que cette
-        # liste exhaustive reste un avertissement actionnable.
+        # A single route is not necessarily a screen: a detail can be rendered
+        # from the list, and a service write can be absent from a storefront.
+        # The refusal therefore applies to the measurable floor (a user
+        # workflow with no entry at all), while this exhaustive list stays an
+        # actionable warning.
         warnings.append(message)
 
     for workflow, actions in parcours_manquants:

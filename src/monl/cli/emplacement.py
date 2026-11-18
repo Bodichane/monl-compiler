@@ -1,9 +1,9 @@
-"""Où vit un projet, et ce que monl sait de lui.
+"""Where a project lives, and what monl knows about it.
 
-POINT 105 : le dossier existe-t-il, PUIS porte-t-il un projet.
-`_erreur_de_chemin` pose la PREMIÈRE question, partagée par les quatre
-points d'entrée — sans elle, `monl frontend` conseillait « lancer 'monl
-compile' » pour un dossier jamais trouvé."""
+POINT 105: does the folder exist, THEN does it hold a project.
+`_erreur_de_chemin` asks the FIRST question, shared by the four entry
+points — without it, `monl frontend` advised "run 'monl compile'" for a
+folder never found."""
 
 import hashlib
 import json
@@ -27,19 +27,19 @@ def _load_state(project_dir):
         return json.load(fh)
 
 def _erreur_de_chemin(project_dir, *, fichier_requis=None):
-    """Message d'erreur pour un dossier ou un artefact frontend absent.
+    """Error message for a missing folder or frontend artifact.
 
-    POINT 105 : « monl.json introuvable — ce dossier n'est pas un projet monl »
-    s'affichait aussi quand le dossier n'existait pas du tout, et `monl frontend`
-    allait jusqu'à conseiller « lancer 'monl compile' ». Le message envoyait donc
-    corriger une compilation absente alors que c'est le CHEMIN qui était faux —
-    une hypothèse affichée comme un diagnostic, exactement ce que le point 97
-    reproche au conseil de reformulation.
+    POINT 105: "monl.json not found — this folder is not a monl project" was
+    also shown when the folder did not exist at all, and `monl frontend` went
+    as far as advising "run 'monl compile'". The message thus sent people to
+    fix a missing compilation when it was the PATH that was wrong — an
+    assumption shown as a diagnosis, exactly what point 97 holds against the
+    rephrasing advice.
 
-    Deux niveaux, dans l'ordre où les questions se posent : le dossier
-    existe-t-il, PUIS porte-t-il un projet. Le brief frontend est le niveau
-    suivant pour la commande qui doit le donner à une IA : le nommer ici évite
-    de laisser une ouverture de fichier répondre à la place du CLI."""
+    Two levels, in the order the questions arise: does the folder exist, THEN
+    does it hold a project. The frontend brief is the next level for the
+    command that must give it to an AI: naming it here avoids letting a file
+    open answer in place of the CLI."""
     if os.path.isdir(project_dir):
         if fichier_requis and not os.path.isfile(
                 os.path.join(project_dir, fichier_requis)):
@@ -47,10 +47,10 @@ def _erreur_de_chemin(project_dir, *, fichier_requis=None):
                     "run 'monl compile' first.")
         return None
     lignes = [f" ❌ Directory not found: {project_dir}"]
-    # La faute la plus courante, et celle qui a motivé ce point : un chemin
-    # RELATIF écrit avec une barre oblique de tête. `/projets/X` n'est pas
-    # « projets/X ici » — c'est « X dans le dossier projets À LA RACINE DU
-    # SYSTÈME », qui n'existe évidemment pas.
+    # The most common mistake, and the one that motivated this point: a
+    # RELATIVE path written with a leading slash. `/projets/X` is not
+    # "projets/X here" — it is "X in the projets folder AT THE SYSTEM ROOT",
+    # which obviously does not exist.
     if project_dir.startswith(os.sep):
         voisin = project_dir.lstrip(os.sep)
         if os.path.isdir(voisin):
@@ -67,21 +67,21 @@ def _save_state(project_dir, spec_relpath, spec_source_path=None):
     spec_path = spec_source_path or os.path.join(project_dir, spec_relpath)
     state = {
         "spec": spec_relpath,
-        # POINT 85 : avec QUOI ce projet a été construit. Purement informatif —
-        # la détection d'un artefact périmé (point 81) reste fondée sur une
-        # régénération, parce qu'un numéro de version peut ne pas bouger quand
-        # la génération, elle, a changé. C'est exactement ce qui s'est produit
-        # des points 74 à 84. Le numéro sert à NOMMER l'écart, pas à le trouver.
+        # POINT 85: WHAT this project was built with. Purely informative —
+        # detecting a stale artifact (point 81) stays based on a regeneration,
+        # because a version number may not move when generation has changed.
+        # That is exactly what happened from points 74 to 84. The number serves
+        # to NAME the gap, not to find it.
         "compiler_version": __version__,
         "language_version": LANGUAGE_VERSION,
         "spec_sha256": _sha256_file(spec_path),
         "contract_sha256": contract_sha256(project_dir),
-        # POINT 64 : empreinte du backend généré. « app.py reste scellé » était
-        # une promesse que RIEN ne mesurait : la cohérence ne vérifiait que
-        # l'existence de ces fichiers, et une retouche à la main passait sans
-        # bruit — alors que 'monl run' annonce « spec ↔ backend ↔ contrat ↔
-        # frontend » vérifiés. Découvert en écrivant le premier test du
-        # parcours de commandes, pas en relisant le code.
+        # POINT 64: fingerprint of the generated backend. "app.py stays sealed"
+        # was a promise NOTHING measured: the consistency check only verified
+        # that these files existed, and a hand edit went by silently — while
+        # 'monl run' announces "spec ↔ backend ↔ contract ↔ frontend" as
+        # verified. Discovered while writing the first test of the command
+        # journey, not by rereading the code.
         "backend_sha256": {
             nom: _sha256_file(os.path.join(project_dir, nom))
             for nom in nomenclature.SCELLE_ARTEFACTS
@@ -93,10 +93,10 @@ def _save_state(project_dir, spec_relpath, spec_source_path=None):
     return state
 
 def _situer_projet(project_dir, geste):
-    """(dossier absolu, chemin de la spec) — ou sortie en erreur.
+    """(absolute folder, spec path) — or exit with an error.
 
-    Partagé par 'update' et 'diff' : les deux partent du même état, et un seul
-    des deux qui saurait le lire serait une divergence de plus."""
+    Shared by 'update' and 'diff': both start from the same state, and only
+    one of them knowing how to read it would be one more divergence."""
     project_dir = os.path.abspath(project_dir)
     souci = _erreur_de_chemin(project_dir)
     if souci:
@@ -111,8 +111,8 @@ def _situer_projet(project_dir, geste):
     return project_dir, spec_path
 
 def _signature_precedente(project_dir):
-    """La signature du contrat DÉJÀ posé, ou des ensembles vides s'il n'y en a
-    pas encore — auquel cas tout est « ajouté », ce qui est exact."""
+    """The signature of the contract ALREADY in place, or empty sets if there is
+    none yet — in which case everything is "added", which is accurate."""
     contract_path = os.path.join(project_dir, CONTRACT_FILENAME)
     if not os.path.exists(contract_path):
         return (set(), set(), set(), set(), set(), set(), {}, set(), {}, {})
@@ -121,11 +121,11 @@ def _signature_precedente(project_dir):
 
 # ----------------------------------------------------------------- assets --
 def _spec_du_projet(project_dir):
-    """Chemin de la spec d'un projet compilé, d'après monl.json.
+    """Path of a compiled project's spec, according to monl.json.
 
-    Passer le chemin à assets_tool plutôt que de lui faire relire monl.json :
-    l'état du projet est une affaire du CLI, et un second lecteur de monl.json
-    serait un second endroit à corriger."""
+    Pass the path to assets_tool rather than making it reread monl.json: the
+    project state is the CLI's business, and a second reader of monl.json
+    would be a second place to fix."""
     souci = _erreur_de_chemin(os.path.abspath(project_dir))
     if souci:
         print(souci)
@@ -143,11 +143,11 @@ def _spec_du_projet(project_dir):
     return spec_path
 
 def _assets_dir_du_projet(project_dir):
-    """Dossier d'assets déclaré, lu dans le CONTRAT et non dans la spec.
+    """Declared assets folder, read from the CONTRACT and not from the spec.
 
-    Le contrat est déjà dérivé de la spec et vérifié cohérent avec elle : le
-    relire ici éviterait un second parseur à faire dériver. Retourne None si le
-    projet n'en déclare pas — le wrapper n'ajoute alors aucun montage."""
+    The contract is already derived from the spec and checked consistent with
+    it: rereading it here avoids a second parser to drift. Returns None if
+    the project declares none — the wrapper then adds no mount."""
     chemin = os.path.join(project_dir, CONTRACT_FILENAME)
     if not os.path.exists(chemin):
         return None

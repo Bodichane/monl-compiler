@@ -1,11 +1,12 @@
-"""Corriger sans reconstruire.
+"""Fix without rebuilding.
 
-POINT 93 : il n'y a qu'UNE voie vers l'IA — `_lancer_ia`, partagée par
-`frontend` et `retouche`. Recopier ces lignes ferait deux endroits où les
-garde-fous peuvent diverger.
-POINT 105 : `retouche` est le SEUL geste dont le premier argument n'est pas
-le dossier ; l'inversion est donc l'erreur attendue, elle est DÉTECTÉE et
-NOMMÉE — jamais corrigée d'office."""
+POINT 93: there is only ONE path to the AI — `_lancer_ia`, shared by
+`frontend` and `retouche`. Copying these lines would make two places where
+the safeguards can diverge.
+
+POINT 105: `retouche` is the ONLY command whose first argument is not the
+folder; the inversion is therefore the expected error, it is DETECTED and
+NAMED — never corrected automatically."""
 
 import os
 import sys
@@ -15,24 +16,23 @@ from . import emplacement, nomenclature
 
 
 # --------------------------------------------------------------- retouche --
-# POINT 93 : entre « le site est juste au regard du contrat » et « le site est
-# raté », monl n'avait aucun geste. `monl frontend` RECONSTRUIT — on jette un
-# site bon à 95 % pour un tirage non déterministe ; `monl update` ne parle que
-# du delta de spec, et se tait quand la spec n'a pas bougé. Restait l'édition à
-# la main, hors de la boucle de vérification.
+# POINT 93: between "the site is right with respect to the contract" and "the
+# site is a failure", monl had no command. `monl frontend` REBUILDS — throwing
+# away a 95% good site for a non-deterministic draw; `monl update` only talks
+# about the spec delta, and stays silent when the spec has not moved. What
+# remained was editing by hand, outside the verification loop.
 #
-# La retouche ne fait donc RIEN de neuf : elle réutilise la voie d'évolution du
-# point 4 en changeant la seule chose qui manquait — l'origine du brief, une
-# phrase humaine au lieu d'un diff. Tout le reste est commun, et doit le
-# rester : empreinte des artefacts protégés, empreinte du frontend qui DOIT
-# bouger (point 73), cohérence + smoke test, une correction au plus.
+# The touch-up therefore does NOTHING new: it reuses the evolution path of
+# point 4, changing the only thing that was missing — the origin of the brief,
+# a human sentence instead of a diff. Everything else is shared, and must stay
+# so: fingerprint of the protected artifacts, fingerprint of the frontend that
+# MUST move (point 73), consistency + smoke test, at most one correction.
 #
-# CE QUE MONL NE PROMET PAS, et il faut le dire ici : que le résultat soit plus
-# BEAU. Le smoke test prouve que la page tourne encore et respecte le contrat,
-# jamais que le cadrage s'est amélioré. Même honnêteté qu'au point 83 — monl
-# vérifie la complétude, pas le goût. D'où la sauvegarde systématique : la
-# seule garantie qu'on peut offrir sur une question de goût, c'est de pouvoir
-# revenir en arrière.
+# WHAT MONL DOES NOT PROMISE, and it must be said here: that the result is more
+# BEAUTIFUL. The smoke test proves that the page still runs and honors the
+# contract, never that the framing improved. Same honesty as point 83 — monl
+# checks completeness, not taste. Hence the systematic backup: the only
+# guarantee one can offer on a matter of taste is being able to go back.
 def _write_retouche_brief(project_dir, demande):
     body = f"""# Requested touch-up (instruction written by 'monl retouche')
 
@@ -77,13 +77,12 @@ After the change, `monl run` will revalidate everything (static consistency
     return path
 
 def sauvegarder_frontend(project_dir, say=print):
-    """Copie frontend/ dans frontend.precedent/ avant une retouche.
+    """Copies frontend/ into frontend.precedent/ before a touch-up.
 
-    `monl import` sauvegarde depuis toujours (« rien n'est perdu ») ; la
-    retouche en a plus besoin encore, puisqu'elle porte sur un site qui MARCHE
-    et qu'aucune vérification automatique ne peut trancher une question de
-    goût. C'est une COPIE et non un déplacement : l'IA doit trouver l'existant
-    en place pour le faire évoluer."""
+    `monl import` has always backed up ("nothing is lost"); the touch-up needs
+    it even more, since it works on a site that WORKS and no automatic check
+    can settle a matter of taste. It is a COPY and not a move: the AI must
+    find the existing site in place to evolve it."""
     import shutil
     source = os.path.join(project_dir, "frontend")
     if not os.path.isdir(source):
@@ -95,12 +94,12 @@ def sauvegarder_frontend(project_dir, say=print):
     return backup
 
 def _lancer_ia(args, update_mode=False, retouche_mode=False):
-    """La voie vers l'IA, partagée par 'frontend' et 'retouche' (point 93).
+    """The path to the AI, shared by 'frontend' and 'retouche' (point 93).
 
-    Elle était écrite en ligne dans le dispatch ; la recopier pour la retouche
-    aurait fait DEUX chemins vers le modèle, donc deux endroits où les
-    garde-fous peuvent diverger. CLAUDE.md l'interdit nommément : « ne jamais
-    contourner le garde-fou d'empreinte en ajoutant une voie »."""
+    It was written inline in the dispatch; copying it for the touch-up would
+    have made TWO paths to the model, hence two places where the safeguards
+    can diverge. CLAUDE.md forbids it by name: "never bypass the fingerprint
+    safeguard by adding a path"."""
     from ..frontend_ai import (
         CLI_AGENTS,
         DEFAULT_MAX_TURNS,
@@ -135,8 +134,8 @@ def _lancer_ia(args, update_mode=False, retouche_mode=False):
                 generate_images=getattr(args, "generate_images", False),
                 image_provider=image_provider)
         else:
-            # Le modèle par défaut n'existe QUE pour la voie Anthropic ;
-            # ailleurs, openai_provider exige --model et le dit.
+            # The default model exists ONLY for the Anthropic path; elsewhere,
+            # openai_provider requires --model and says so.
             defaut = DEFAULT_MODEL if args.provider == "claude" else None
             def provider_factory(model):
                 return PROVIDERS[args.provider](model=model)
@@ -157,35 +156,35 @@ def _lancer_ia(args, update_mode=False, retouche_mode=False):
         sys.exit(1)
 
 def _arguments_inverses(demande, dossier):
-    """`monl retouche <dossier> "<ce qui cloche>"` — l'erreur attendue.
+    """`monl retouche <folder> "<what looks wrong>"` — the expected error.
 
-    POINT 105 : `retouche` est le SEUL geste dont le premier argument n'est pas
-    le dossier ; `run`, `update`, `diff`, `compile` et `frontend` le prennent
-    tous en tête. Écrire le dossier en premier est donc le réflexe, et monl
-    répondait « ce dossier n'est pas un projet monl » en parlant de la PHRASE.
+    POINT 105: `retouche` is the ONLY command whose first argument is not the
+    folder; `run`, `update`, `diff`, `compile` and `frontend` all take it
+    first. Writing the folder first is therefore the reflex, and monl answered
+    "this folder is not a monl project" while talking about the SENTENCE.
 
-    Le diagnostic NOMME l'inversion, il ne la corrige pas : remettre les
-    arguments en place à la place de l'auteur, ce serait deviner — et se
-    tromper le jour où une demande ressemble à un chemin. Même arbitrage que
-    partout ailleurs dans ce dépôt."""
+    The diagnosis NAMES the inversion, it does not correct it: putting the
+    arguments back in place for the author would be guessing — and getting it
+    wrong the day a request looks like a path. Same trade-off as everywhere
+    else in this repository."""
     demande, dossier = demande or "", dossier or ""
     ressemble_a_un_chemin = " " not in demande and (
         os.sep in demande or os.path.isdir(demande))
     return ressemble_a_un_chemin and " " in dossier
 
 def cmd_retouche(project_dir, demande, say=print):
-    """Écrit la consigne et prépare le terrain. L'appel à l'IA est fait par
-    l'appelant (main), qui porte déjà le choix du fournisseur — la retouche
-    n'ouvre AUCUNE voie nouvelle vers le modèle."""
+    """Writes the instruction and prepares the ground. The AI call is made by
+    the caller (main), which already carries the provider choice — the
+    touch-up opens NO new path to the model."""
     if _arguments_inverses(demande, project_dir):
         say(" ❌ The two arguments appear to be reversed.")
         say(f"    ‘{demande}’ looks like a directory, and ‘{project_dir[:50]}"
             f"{'…' if len(project_dir) > 50 else ''}’ like a description of the issue.")
         say("    'retouche' expects the REQUEST first (it is the only command "
             "that works this way):")
-        # La commande proposée doit MARCHER telle quelle : recopier un chemin
-        # dont on sait déjà qu'il est faux ferait buter l'auteur une deuxième
-        # fois, sur un autre message.
+        # The suggested command must WORK as is: copying a path already known
+        # to be wrong would make the author stumble a second time, on another
+        # message.
         cible = demande
         if not os.path.isdir(cible) and cible.startswith(os.sep) \
                 and os.path.isdir(cible.lstrip(os.sep)):

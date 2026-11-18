@@ -1,4 +1,4 @@
-"""Les assets et le contenu éditorial, en ligne de commande."""
+"""Assets and editorial content, from the command line."""
 
 import os
 import sys

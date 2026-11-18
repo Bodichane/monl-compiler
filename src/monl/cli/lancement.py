@@ -1,4 +1,5 @@
-"""`monl run` : monter le site sur /site du serveur qui porte déjà l'API."""
+"""`monl run`: mount the site on /site of the server that already hosts the
+API."""
 
 import os
 import subprocess
@@ -9,8 +10,8 @@ from . import coherence, emplacement
 
 
 def _eprouver_avant_lancement(project_dir):
-    """Le smoke test qui précède `monl run` ; quitte en code 1 s'il échoue.
-    Extrait de `cmd_run` (plafond de complexité) ; sorties inchangées."""
+    """The smoke test that precedes `monl run`; exits with code 1 if it fails.
+    Extracted from `cmd_run` (complexity ceiling); outputs unchanged."""
     from ..smoke_test import run_smoke_test
     print(" -> Behavioral smoke test (temporary server, fresh database)…")
     smoke_ok, smoke_errors, smoke_warnings = run_smoke_test(project_dir)
@@ -37,10 +38,10 @@ def cmd_run(project_dir, check_only=False, port=8000, skip_smoke=False):
         sys.exit(1)
     print(" ✅ Static consistency verified (spec ↔ backend ↔ contract ↔ frontend).")
 
-    # Point 1 du pivot : la cohérence statique ne garantit pas que ça
-    # FONCTIONNE. Smoke test comportemental sur serveur éphémère (base
-    # neuve, données réelles intouchées) : routes du contrat éprouvées en
-    # HTTP réel, frontend exécuté dans jsdom si Node est disponible.
+    # Point 1 of the pivot: static consistency does not guarantee that it
+    # WORKS. A behavioral smoke test on an ephemeral server (fresh database,
+    # real data untouched): the contract's routes exercised over real HTTP, the
+    # frontend run in jsdom if Node is available.
     if not skip_smoke:
         _eprouver_avant_lancement(project_dir)
     if check_only:
@@ -49,23 +50,24 @@ def cmd_run(project_dir, check_only=False, port=8000, skip_smoke=False):
     project_dir = os.path.abspath(project_dir)
     has_frontend = os.path.isdir(os.path.join(project_dir, "frontend"))
     assets_dir = emplacement._assets_dir_du_projet(project_dir)
-    # POINT 133 : TOUJOURS `serve:app`, avec ou sans frontend. Le wrapper sait
-    # désormais démarrer sans lui — et lancer `app:app` ici pendant que l'image
-    # Docker lance `serve:app` ferait deux comportements pour un seul projet,
-    # dont un seul serait éprouvé.
+    # POINT 133: ALWAYS `serve:app`, with or without a frontend. The wrapper
+    # can now start without one — and running `app:app` here while the Docker
+    # image runs `serve:app` would make two behaviors for one project, only one
+    # of which would be exercised.
     #
-    # POINT 134 : mais il n'est PLUS réécrit à chaque lancement. Il l'était,
-    # et depuis qu'il est scellé cette réécriture retournait contre le projet :
-    # qu'une version ultérieure de monl change le rendu du wrapper, et 'monl
-    # run' écrivait un texte que `monl.json` ne reconnaît pas — le lancement
-    # SUIVANT refusait de démarrer en accusant à tort une « modification à la
-    # main ». Une commande qui invalide l'état qu'elle vient de vérifier.
+    # POINT 134: but it is NO LONGER rewritten on every launch. It used to be,
+    # and since it was sealed this rewrite turned against the project: should a
+    # later monl version change the wrapper's rendering, 'monl run' wrote a
+    # text `monl.json` does not recognize — the NEXT launch refused to start,
+    # wrongly blaming a "manual modification". A command that invalidates the
+    # state it has just checked.
     #
-    # Il n'est donc écrit que s'il MANQUE, ou si l'état ne le scelle pas —
-    # c'est-à-dire pour un projet compilé par un monl antérieur, qui n'a rien
-    # à contredire. Un wrapper scellé vient d'être vérifié à l'octet par la
-    # cohérence : le réécrire n'apporterait rien. Le rafraîchir reste le
-    # travail de 'monl update', qui recompile ET réenregistre l'empreinte.
+    # It is therefore written only if it is MISSING, or if the state does not
+    # seal it — that is, for a project compiled by an earlier monl, which has
+    # nothing to contradict. A sealed wrapper has just been checked byte for
+    # byte by the consistency check: rewriting it would bring nothing.
+    # Refreshing it stays the job of 'monl update', which recompiles AND
+    # re-records the fingerprint.
     wrapper = os.path.join(project_dir, "serve.py")
     etat = emplacement._load_state(project_dir) or {}
     scelle = "serve.py" in (etat.get("backend_sha256") or {})

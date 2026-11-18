@@ -1,10 +1,10 @@
-"""`./monl` : l'orchestrateur, un module par sous-commande.
+"""`./monl`: the orchestrator, one module per subcommand.
 
-La surface publique n'a pas bougé en devenant un paquet. RÈGLE INTERNE
-(point 153) : une référence entre modules passe par l'objet MODULE
-(`emplacement._load_state(...)`), jamais par un nom lié — donc un test
-écrit `monkeypatch.setattr(cli.dispatch, "cmd_run", ...)` et non
-`setattr(cli, ...)`, qui ne mordrait plus."""
+The public surface did not move when it became a package. INTERNAL RULE
+(point 153): a reference between modules goes through the MODULE object
+(`emplacement._load_state(...)`), never through a bound name — so a test
+writes `monkeypatch.setattr(cli.dispatch, "cmd_run", ...)` and not
+`setattr(cli, ...)`, which would no longer bite."""
 
 import subprocess
 
