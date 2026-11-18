@@ -31,46 +31,7 @@ class AccesMixin:
         self.ownership_rules = {}
         for rule in self.rules:
             if rule["type"] == "ownedBy":
-                if "." not in rule["reference"]:
-                    raise ASTValidationError(
-                        f"Structure: the 'ownedBy' rule must reference 'Entity.Action', got '{rule['reference']}'."
-                    )
-                entity, act_type = rule["reference"].split(".", 1)
-                owner_entity = rule["value"]
-
-                if entity not in self.entities:
-                    raise ASTValidationError(f"Structure: the 'ownedBy' rule targets entity '{entity}', which does not exist.")
-                if act_type not in ("Create", "Read", "Update", "Delete"):
-                    raise ASTValidationError(f"Structure: invalid action '{act_type}' in the 'ownedBy' rule on '{entity}'.")
-                # FIX (beta 3): 'Create' was accepted while the generator did
-                # nothing with it — a security rule accepted then silently
-                # ignored is worse than its absence, because the spec's author
-                # believes the protection is in place. At creation, the owner
-                # is the caller by construction: the rule has nothing to
-                # restrict.
-                if act_type == "Create":
-                    raise ASTValidationError(
-                        f"Structure: 'ownedBy' is not meaningful on '{entity}.Create' — "
-                        "on creation, the owner is the caller by definition. "
-                        "Use 'ownedBy' on Read, Update, or Delete.")
-
-                # FIX (roadmap): checking the required relation is now
-                # generalized to the 3 types (hasMany, hasOne, belongsTo),
-                # consistent with _compute_fk_placements() in generator.py —
-                # before, only 'hasMany' was recognized here, whereas
-                # 'belongsTo'/'hasOne' also provide a valid ownership column
-                # according to their own placement convention.
-                has_matching_relation = any(
-                    (rel["type"] in ("hasMany", "hasOne") and rel["source"] == owner_entity and rel["target"] == entity)
-                    or (rel["type"] == "belongsTo" and rel["target"] == owner_entity and rel["source"] == entity)
-                    for rel in self.relations
-                )
-                if not has_matching_relation:
-                    raise ASTValidationError(
-                        f"Structure: the 'ownedBy' rule on '{entity}.{act_type}' references owner "
-                        f"'{owner_entity}', but no compatible relationship ('{owner_entity} hasMany {entity}', "
-                        f"'{owner_entity} hasOne {entity}', or '{entity} belongsTo {owner_entity}') is declared."
-                    )
+                entity, act_type, owner_entity = self._exiger_regle_owned_by(rule)
 
                 # The named owner is either an ACTOR (direct ownership, the
                 # historical brick) or an ENTITY (TRANSITIVE ownership, brick
@@ -110,49 +71,8 @@ class AccesMixin:
             # full depth, link by link, up to an ACTOR. Each link must be owned
             # by ONE SINGLE owner (otherwise ambiguity: which path to check?)
             # and the walk must neither loop nor end in a void.
-            maillon = owner_entity
-            vus = set()
-            chaine = []
-            while maillon not in self.actors:
-                if maillon in vus:
-                    raise ASTValidationError(
-                        f"Structure: the ownership chain for '{entity}' loops at '{maillon}' "
-                        f"('{entity}' -> {' -> '.join(chaine)} ...) -- the server cannot resolve it. "
-                        f"Break the cycle."
-                    )
-                vus.add(maillon)
-                chaine.append(maillon)
-                parents = proprietaires_par_entite.get(maillon, set())
-                if not parents:
-                    raise ASTValidationError(
-                        f"Structure: the 'ownedBy' rule on '{entity}.{act_type}' designates "
-                        f"'{owner_entity}' as owner, but the chain '{entity}' -> "
-                        f"{' -> '.join(chaine)} does not lead to ANY actor -- the server cannot "
-                        f"verify WHO owns a '{entity}'. Add a rule "
-                        f"'<last link>.Read ownedBy <Actor>', or attach '{entity}' "
-                        f"directly to an actor."
-                    )
-                if len(parents) > 1:
-                    raise ASTValidationError(
-                        f"Structure: the ownership chain for '{entity}' is ambiguous at "
-                        f"'{maillon}': it is owned by multiple different entities "
-                        f"({', '.join(sorted(parents))}) -- the server cannot determine which one "
-                        f"to check. Designate only one on '{maillon}'."
-                    )
-                maillon = next(iter(parents))
-            acteur = maillon
-            # Mixing direct and transitive ownership on the SAME entity would
-            # make its foreign key both filled from the token (for one rule)
-            # and supplied by the client (for the other): two contradictory
-            # treatments on a single column.
-            autres = proprietaires_par_entite.get(entity, set()) - {owner_entity}
-            if autres:
-                raise ASTValidationError(
-                    f"Structure: '{entity}' is owned through '{owner_entity}' (transitive "
-                    f"ownership) but also designates '{', '.join(sorted(autres))}' as owner "
-                    f"-- its ownership foreign key would be supplied by the client and "
-                    f"derived from the token. Designate only one owner for '{entity}'."
-                )
+            chaine, acteur = self._resoudre_chaine_de_propriete(
+                entity, act_type, owner_entity, proprietaires_par_entite)
             self.transitive_ownership[entity] = {"chain": chaine, "actor": acteur}
 
         # ADDED (roadmap, capability ecosystem -- "two-party access" brick):
@@ -166,57 +86,7 @@ class AccesMixin:
         for rule in self.rules:
             if rule["type"] != "accessibleBy":
                 continue
-            if "." not in rule["reference"]:
-                raise ASTValidationError(
-                        f"Structure: the 'accessibleBy' rule must reference 'Entity.Action', got '{rule['reference']}'."
-                )
-            entity, act_type = rule["reference"].split(".", 1)
-            columns = rule["value"]
-
-            if entity not in self.entities:
-                raise ASTValidationError(f"Structure: the 'accessibleBy' rule targets entity '{entity}', which does not exist.")
-            if act_type not in ("Read", "Update", "Delete"):
-                raise ASTValidationError(
-                    f"Structure: invalid action '{act_type}' in the 'accessibleBy' rule on '{entity}' "
-                    f"(only Read/Update/Delete apply to an existing record whose parties can be checked)."
-                )
-            if len(set(columns)) < 2:
-                raise ASTValidationError(
-                    f"Structure: the 'accessibleBy' rule on '{entity}.{act_type}' must list at least two "
-                    f"distinct columns — with only one party, use 'ownedBy'."
-                )
-
-            # Foreign key columns an incoming relation provides to this entity
-            # (same convention as _compute_fk_placements in generator.py:
-            # '<source>_id').
-            relation_fk_columns = set()
-            for rel in self.relations:
-                if rel["type"] in ("hasMany", "hasOne") and rel["target"] == entity:
-                    relation_fk_columns.add(f"{rel['source'].lower()}_id")
-                elif rel["type"] == "belongsTo" and rel["source"] == entity:
-                    relation_fk_columns.add(f"{rel['target'].lower()}_id")
-
-            for col in columns:
-                declared_type = self.entities[entity].get(col)
-                if col in relation_fk_columns:
-                    continue
-                if declared_type is None:
-                    raise ASTValidationError(
-                        f"Structure: the 'accessibleBy' rule on '{entity}.{act_type}' references column "
-                        f"'{col}', which is neither a declared field of '{entity}' nor an incoming relationship column "
-                        f"({', '.join(sorted(relation_fk_columns)) or 'no incoming relationship'})."
-                    )
-                if declared_type != "Integer":
-                    raise ASTValidationError(
-                        f"Structure: the 'accessibleBy' rule on '{entity}.{act_type}' requires '{col}' to be "
-                        f"of type Integer (user identifier), got '{declared_type}'."
-                    )
-
-            if (entity, act_type) in self.ownership_rules:
-                raise ASTValidationError(
-                    f"Conflict: '{entity}.{act_type}' has both 'ownedBy' and 'accessibleBy' — "
-                    f"choose one ('accessibleBy' generalizes 'ownedBy' to multiple parties)."
-                )
+            entity, act_type, columns = self._exiger_regle_accessible_by(rule)
 
             self.access_party_rules[(entity, act_type)] = list(columns)
 
@@ -232,6 +102,157 @@ class AccesMixin:
             superviseurs = self._superviseurs_declares(entity, act_type)
             if superviseurs:
                 self.access_supervisors[(entity, act_type)] = superviseurs
+
+    def _exiger_regle_owned_by(self, rule):
+        """One 'ownedBy' rule, checked: returns (entity, action, owner)."""
+        if "." not in rule["reference"]:
+            raise ASTValidationError(
+                f"Structure: the 'ownedBy' rule must reference 'Entity.Action', got '{rule['reference']}'."
+            )
+        entity, act_type = rule["reference"].split(".", 1)
+        owner_entity = rule["value"]
+
+        if entity not in self.entities:
+            raise ASTValidationError(f"Structure: the 'ownedBy' rule targets entity '{entity}', which does not exist.")
+        if act_type not in ("Create", "Read", "Update", "Delete"):
+            raise ASTValidationError(f"Structure: invalid action '{act_type}' in the 'ownedBy' rule on '{entity}'.")
+        # FIX (beta 3): 'Create' was accepted while the generator did
+        # nothing with it — a security rule accepted then silently
+        # ignored is worse than its absence, because the spec's author
+        # believes the protection is in place. At creation, the owner
+        # is the caller by construction: the rule has nothing to
+        # restrict.
+        if act_type == "Create":
+            raise ASTValidationError(
+                f"Structure: 'ownedBy' is not meaningful on '{entity}.Create' — "
+                "on creation, the owner is the caller by definition. "
+                "Use 'ownedBy' on Read, Update, or Delete.")
+
+        # FIX (roadmap): checking the required relation is now
+        # generalized to the 3 types (hasMany, hasOne, belongsTo),
+        # consistent with _compute_fk_placements() in generator.py —
+        # before, only 'hasMany' was recognized here, whereas
+        # 'belongsTo'/'hasOne' also provide a valid ownership column
+        # according to their own placement convention.
+        has_matching_relation = any(
+            (rel["type"] in ("hasMany", "hasOne") and rel["source"] == owner_entity and rel["target"] == entity)
+            or (rel["type"] == "belongsTo" and rel["target"] == owner_entity and rel["source"] == entity)
+            for rel in self.relations
+        )
+        if not has_matching_relation:
+            raise ASTValidationError(
+                f"Structure: the 'ownedBy' rule on '{entity}.{act_type}' references owner "
+                f"'{owner_entity}', but no compatible relationship ('{owner_entity} hasMany {entity}', "
+                f"'{owner_entity} hasOne {entity}', or '{entity} belongsTo {owner_entity}') is declared."
+            )
+        return entity, act_type, owner_entity
+
+    def _resoudre_chaine_de_propriete(self, entity, act_type, owner_entity,
+                                      proprietaires_par_entite):
+        """Climbs the ownership chain up to an ACTOR: returns (chain, actor)."""
+        maillon = owner_entity
+        vus = set()
+        chaine = []
+        while maillon not in self.actors:
+            if maillon in vus:
+                raise ASTValidationError(
+                    f"Structure: the ownership chain for '{entity}' loops at '{maillon}' "
+                    f"('{entity}' -> {' -> '.join(chaine)} ...) -- the server cannot resolve it. "
+                    f"Break the cycle."
+                )
+            vus.add(maillon)
+            chaine.append(maillon)
+            parents = proprietaires_par_entite.get(maillon, set())
+            if not parents:
+                raise ASTValidationError(
+                    f"Structure: the 'ownedBy' rule on '{entity}.{act_type}' designates "
+                    f"'{owner_entity}' as owner, but the chain '{entity}' -> "
+                    f"{' -> '.join(chaine)} does not lead to ANY actor -- the server cannot "
+                    f"verify WHO owns a '{entity}'. Add a rule "
+                    f"'<last link>.Read ownedBy <Actor>', or attach '{entity}' "
+                    f"directly to an actor."
+                )
+            if len(parents) > 1:
+                raise ASTValidationError(
+                    f"Structure: the ownership chain for '{entity}' is ambiguous at "
+                    f"'{maillon}': it is owned by multiple different entities "
+                    f"({', '.join(sorted(parents))}) -- the server cannot determine which one "
+                    f"to check. Designate only one on '{maillon}'."
+                )
+            maillon = next(iter(parents))
+        acteur = maillon
+        # Mixing direct and transitive ownership on the SAME entity would
+        # make its foreign key both filled from the token (for one rule)
+        # and supplied by the client (for the other): two contradictory
+        # treatments on a single column.
+        autres = proprietaires_par_entite.get(entity, set()) - {owner_entity}
+        if autres:
+            raise ASTValidationError(
+                f"Structure: '{entity}' is owned through '{owner_entity}' (transitive "
+                f"ownership) but also designates '{', '.join(sorted(autres))}' as owner "
+                f"-- its ownership foreign key would be supplied by the client and "
+                f"derived from the token. Designate only one owner for '{entity}'."
+            )
+        return chaine, acteur
+
+    def _exiger_regle_accessible_by(self, rule):
+        """One 'accessibleBy' rule, checked: returns (entity, action, columns)."""
+        if "." not in rule["reference"]:
+            raise ASTValidationError(
+                    f"Structure: the 'accessibleBy' rule must reference 'Entity.Action', got '{rule['reference']}'."
+            )
+        entity, act_type = rule["reference"].split(".", 1)
+        columns = rule["value"]
+
+        if entity not in self.entities:
+            raise ASTValidationError(f"Structure: the 'accessibleBy' rule targets entity '{entity}', which does not exist.")
+        if act_type not in ("Read", "Update", "Delete"):
+            raise ASTValidationError(
+                f"Structure: invalid action '{act_type}' in the 'accessibleBy' rule on '{entity}' "
+                f"(only Read/Update/Delete apply to an existing record whose parties can be checked)."
+            )
+        if len(set(columns)) < 2:
+            raise ASTValidationError(
+                f"Structure: the 'accessibleBy' rule on '{entity}.{act_type}' must list at least two "
+                f"distinct columns — with only one party, use 'ownedBy'."
+            )
+
+        self._exiger_colonnes_de_parties(entity, act_type, columns)
+
+        if (entity, act_type) in self.ownership_rules:
+            raise ASTValidationError(
+                f"Conflict: '{entity}.{act_type}' has both 'ownedBy' and 'accessibleBy' — "
+                f"choose one ('accessibleBy' generalizes 'ownedBy' to multiple parties)."
+            )
+        return entity, act_type, columns
+
+    def _exiger_colonnes_de_parties(self, entity, act_type, columns):
+        """Each party column is an incoming relation column or an Integer field."""
+        # Foreign key columns an incoming relation provides to this entity
+        # (same convention as _compute_fk_placements in generator.py:
+        # '<source>_id').
+        relation_fk_columns = set()
+        for rel in self.relations:
+            if rel["type"] in ("hasMany", "hasOne") and rel["target"] == entity:
+                relation_fk_columns.add(f"{rel['source'].lower()}_id")
+            elif rel["type"] == "belongsTo" and rel["source"] == entity:
+                relation_fk_columns.add(f"{rel['target'].lower()}_id")
+
+        for col in columns:
+            declared_type = self.entities[entity].get(col)
+            if col in relation_fk_columns:
+                continue
+            if declared_type is None:
+                raise ASTValidationError(
+                    f"Structure: the 'accessibleBy' rule on '{entity}.{act_type}' references column "
+                    f"'{col}', which is neither a declared field of '{entity}' nor an incoming relationship column "
+                    f"({', '.join(sorted(relation_fk_columns)) or 'no incoming relationship'})."
+                )
+            if declared_type != "Integer":
+                raise ASTValidationError(
+                    f"Structure: the 'accessibleBy' rule on '{entity}.{act_type}' requires '{col}' to be "
+                    f"of type Integer (user identifier), got '{declared_type}'."
+                )
 
     def _superviseurs_declares(self, entity, act_type):
         """The roles named by a 'sharedBy' carrying the exact reference.
