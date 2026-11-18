@@ -1,8 +1,9 @@
-"""Le brief remis à l'IA d'interface.
+"""The brief handed to the interface AI.
 
-POINT 72 : le compilateur ne décide RIEN du visuel — ni palette, ni
-typographie, ni rayon. La direction vient du DIALOGUE et voyage par ici. Ne
-pas y réintroduire de suggestion « facultative » : elle oriente quand même."""
+POINT 72: the compiler decides NOTHING visual — neither palette, nor
+typography, nor radius. The direction comes from the DIALOGUE and travels
+through here. Do not reintroduce an "optional" suggestion here: it still
+steers."""
 
 from ..design_skills import render_skill_block
 from . import marqueurs, roles_de_champs
@@ -17,15 +18,15 @@ def _render_prompt(contract):
         elif r["allowed_actors"]:
             auth = f"JWT ({', '.join(r['allowed_actors'])})"
         else:
-            # Point 74 : le webhook de paiement est authentifié, mais pas par
-            # un JWT — par une signature du prestataire. Annoncer « JWT () »
-            # laisserait croire à une route ouverte à tout compte connecté.
+            # Point 74: the payment webhook is authenticated, but not by a JWT
+            # — by a signature from the provider. Announcing "JWT ()" would
+            # suggest a route open to any logged-in account.
             auth = "provider signature, not a JWT"
 
-        # Le corps attendu n'apparaissait NULLE PART dans le brief : l'IA
-        # devait le déduire de la liste des champs, sans jamais voir les
-        # colonnes de rattachement (article_id d'un commentaire). Elle ne
-        # pouvait pas les deviner, et le serveur répondait 422 (point 57).
+        # The expected body appeared NOWHERE in the brief: the AI had to deduce
+        # it from the list of fields, without ever seeing the attachment
+        # columns (a comment's article_id). It could not guess them, and the
+        # server answered 422 (point 57).
         corps = (f" — body: `{{{', '.join(r['request_fields'])}}}`"
                  if r.get("request_fields") else "")
         if r.get("upload"):
@@ -33,10 +34,10 @@ def _render_prompt(contract):
             corps = (f" — multipart/form-data, file field `{upload['field_name']}`, "
                      f"{upload['max_bytes']} bytes maximum, types: "
                      f"{', '.join(upload['accepted_types'])}")
-        # Point 74 : les notes de route existaient dans le contrat JSON mais
-        # n'atteignaient PAS le brief — or c'est le brief que l'IA lit. La
-        # forme de la réponse paginée y manquait depuis toujours, et la
-        # marche à suivre du règlement y aurait manqué de même.
+        # Point 74: the route notes existed in the JSON contract but did NOT
+        # reach the brief — and the brief is what the AI reads. The shape of
+        # the paginated response had always been missing from it, and the
+        # payment steps would have been missing just the same.
         note = f" — {r['note']}" if r.get("note") else ""
         routes_lines.append(f"- `{r['method']} {r['path']}` — {r['action']} "
                             f"{r['entity']} — {auth}{corps}{note}")
@@ -70,15 +71,15 @@ def _render_prompt(contract):
                     f"{', '.join(upload['accepted_types'])}. Do not send it as JSON.")
             if f["categorized_in_reads"]:
                 marks.append("read as a category label")
-            # BRIQUE 19 (point 96) : l'IA lit le brief, pas le JSON. Y écrire la
-            # liste, c'est la différence entre un menu déroulant et un champ
-            # texte qui récolte un 422 sur la valeur que l'utilisateur invente.
+            # BRICK 19 (point 96): the AI reads the brief, not the JSON.
+            # Writing the list there is the difference between a dropdown menu
+            # and a text field that gets a 422 on the value the user makes up.
             if f.get("allowed_values"):
                 marks.append("DROPDOWN MENU, fixed values (422 otherwise): "
                              + ", ".join(f"“{v}”" for v in f["allowed_values"]))
-            # Point 76 : dire à quoi sert le champ, pas seulement qu'il existe.
-            # Sans les valeurs possibles, l'IA doit deviner quoi comparer pour
-            # savoir si c'est réglé — et devinera 'paid'.
+            # Point 76: say what the field is for, not only that it exists.
+            # Without the possible values, the AI has to guess what to compare
+            # to know whether it is settled — and will guess 'paid'.
             if f.get("note"):
                 marks.append(f["note"])
             suffix = f" ({'; '.join(marks)})" if marks else ""
@@ -86,10 +87,10 @@ def _render_prompt(contract):
         forme = roles_de_champs.ARCHETYPE_GUIDANCE[spec["archetype"]]
         anatomie = roles_de_champs.ARCHETYPE_ANATOMY[spec["archetype"]]
         attendus = "\n".join(f"  - {a}" for a in anatomie["attendus"])
-        # POINT 88 : les colonnes de liaison sortent dans les réponses (SELECT *)
-        # mais n'apparaissaient QUE dans le JSON. Or c'est ici que se joue la
-        # jointure la plus facile à rater — celle qui rattache un enregistrement
-        # à son titulaire — et une page d'administration ne fait presque que ça.
+        # POINT 88: the link columns come out in the responses (SELECT *) but
+        # appeared ONLY in the JSON. Yet it is here that the easiest join to
+        # get wrong is at stake — the one that attaches a record to its holder
+        # — and an administration page does little else.
         liaisons = ""
         if spec["foreign_keys"]:
             lignes_liens = [
@@ -110,9 +111,9 @@ def _render_prompt(contract):
 
     brief_line = (f"\n**Product brief:** {contract['brief']}\n" if contract.get("brief") else "")
 
-    # Contenu éditorial (point 55). Écrit en toutes lettres que ce texte doit
-    # être RENDU tel quel : c'est du contenu, pas une consigne de style, et
-    # rien d'autre dans le contrat n'en fournit.
+    # Editorial content (point 55). Written out in full that this text must be
+    # RENDERED as is: it is content, not a style instruction, and nothing else
+    # in the contract provides any.
     sections_block = ""
     if contract.get("sections"):
         corps = "\n\n".join(f"### {s['title']}\n{s['body']}"
@@ -128,21 +129,21 @@ def _render_prompt(contract):
             "block carries these elements inside it: do not then create a "
             "second block repeating the same title or text. "
             "Each section must appear only once.\n\n"
-            # Point 59 : sans cette phrase, ces textes finissaient derrière un
-            # lien de menu, sur une page à part. Un visiteur qui n'ouvre que
-            # l'accueil ne les voyait jamais — pour un « à propos », c'est
-            # manquer sa raison d'être.
+            # Point 59: without this sentence, these texts ended up behind a
+            # menu link, on a separate page. A visitor who opens only the home
+            # page never saw them — for an "about", that misses its reason to
+            # exist.
             "**On the home page, not only behind a link.** Each section must "
             "be readable as one scrolls the home page. A long text may appear "
             "there in a short version and continue on its own page, but it "
             "must never be absent from it.\n\n"
             + corps + "\n")
 
-    # POINT 94 : la FAQ, dite comme une LISTE. Rendue dans la même rubrique que
-    # les sections, elle redevenait un pavé de prose — c'est exactement le
-    # défaut constaté sur SneakerLab, où quatre questions tenaient dans une
-    # seule chaîne et sortaient collées en un paragraphe. L'interface était
-    # fidèle : c'est le contrat qui ne savait pas dire « questions/réponses ».
+    # POINT 94: the FAQ, stated as a LIST. Rendered in the same section as the
+    # sections, it became a block of prose again — exactly the defect seen on
+    # SneakerLab, where four questions fit in a single string and came out
+    # stuck together in one paragraph. The interface was faithful: it was the
+    # contract that could not say "questions/answers".
     faq_block = ""
     if contract.get("faq"):
         couples = "\n\n".join(f"**{q['question']}**\n{q['answer']}"
@@ -158,13 +159,13 @@ def _render_prompt(contract):
             "Do not rewrite these texts, do not add any, do not reorder "
             "them.\n\n"
             + couples + "\n")
-    # POINT 72 — monl ne décide RIEN du visuel. Il ne calculait pas une
-    # palette pour rendre service : il la calculait pour que deux projets ne
-    # se ressemblent pas (point 20). Mais ce que le compilateur devine du
-    # goût d'un projet, il le devine mal — et une suggestion posée dans le
-    # contrat pèse, même annoncée comme facultative. La seule direction
-    # légitime est celle que l'auteur a formulée lui-même, dans le dialogue :
-    # elle voyage dans le brief, pas dans un bloc de couleurs inventé.
+    # POINT 72 — monl decides NOTHING visual. It did not compute a palette to
+    # be helpful: it computed it so that two projects would not look alike
+    # (point 20). But what the compiler guesses about a project's taste, it
+    # guesses badly — and a suggestion placed in the contract carries weight,
+    # even when announced as optional. The only legitimate direction is the one
+    # the author formulated themselves, in the dialogue: it travels in the
+    # brief, not in an invented block of colors.
     design_block = """## Design direction — it does NOT come from monl
 
 The compiler has **no** opinion on visuals: no palette, no typography, no
@@ -218,10 +219,10 @@ This freedom covers writing and presentation only. It authorizes no route,
 business data, permission or promise absent from the contract.
 """
 
-    # POINT 74 : la note de la route le dit déjà, mais c'est ici que l'IA lit
-    # ce qui n'est pas négociable. Le règlement est le seul parcours du
-    # frontend où une erreur d'interface coûte de l'argent — il mérite sa
-    # ligne, pas seulement une mention dans l'inventaire des routes.
+    # POINT 74: the route's note already says it, but it is here that the AI
+    # reads what is not negotiable. Payment is the only frontend journey where
+    # an interface mistake costs money — it deserves its own line, not just a
+    # mention in the inventory of routes.
     paiement = [r for r in contract["routes"] if r["action"] == "Pay"]
     paiement_block = ""
     if paiement:
@@ -360,7 +361,7 @@ will be pasted back here for correction.
 
 
 def _instructions_verification(auth_features):
-    """Parcours de confirmation, sans augmenter la complexité du brief."""
+    """Confirmation flow, without increasing the brief's complexity."""
     auth_feature_lines = []
     if "verify_email" in auth_features:
         auth_feature_lines.append(

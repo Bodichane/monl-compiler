@@ -1,15 +1,14 @@
-"""Les deux documents d'accueil déposés dans le projet compilé.
+"""The two welcome documents dropped into the compiled project.
 
-`AGENTS.md` cadre la session d'une IA qui travaille SUR un site produit —
-à ne pas confondre avec le CLAUDE.md du dépôt monl lui-même. `README.md`
-s'adresse à l'humain qui vient d'ouvrir l'archive et cherche comment la
-démarrer : la page d'accueil de la plateforme le PROMET depuis toujours dans
-son aperçu d'arborescence, et il n'existait pas.
+`AGENTS.md` frames the session of an AI that works ON a produced site —
+not to be confused with the CLAUDE.md of the monl repository itself.
+`README.md` addresses the human who has just opened the archive and is
+looking for how to start it: the platform's home page has always
+PROMISED it in its tree preview, and it did not exist.
 
-Le nom `AGENTS.md` remplace `CLAUDE.md` : le frontend peut être écrit par
-claude-code, codex ou gemini (point 69), et nommer ce fichier d'après un seul
-d'entre eux en fait un fichier que les deux autres ne lisent pas.
-"""
+The name `AGENTS.md` replaces `CLAUDE.md`: the frontend can be written by
+claude-code, codex or gemini (point 69), and naming this file after only
+one of them makes it a file the other two do not read."""
 
 import os
 
@@ -109,11 +108,10 @@ Never modify `app.py` directly — the next compilation would overwrite it.
 
 
 def _ecrire_si_a_nous(path, marker, contenu):
-    """N'écrase jamais un document repris en main par l'utilisateur.
+    """Never overwrites a document the user has taken over.
 
-    L'absence du marqueur signe un fichier que quelqu'un a écrit ou réécrit :
-    le remplacer effacerait son travail sans le dire.
-    """
+    The absence of the marker signals a file someone wrote or rewrote:
+    replacing it would erase their work without saying so."""
     if os.path.exists(path):
         with open(path, encoding="utf-8") as fh:
             if marker not in fh.read():
@@ -124,7 +122,7 @@ def _ecrire_si_a_nous(path, marker, contenu):
 
 
 def write_project_claude_md(app_name, output_dir, spec_name="spec.ml", auth_features=None):
-    """Écrit AGENTS.md et README.md du PROJET (pas ceux du dépôt monl)."""
+    """Writes the PROJECT's AGENTS.md and README.md (not the monl repository's)."""
     _ecrire_si_a_nous(
         os.path.join(output_dir, AGENTS_FILENAME),
         PROJECT_CLAUDE_MD_MARKER,

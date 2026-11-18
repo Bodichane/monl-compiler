@@ -1,39 +1,39 @@
-"""Encaissement : les deux routes, la devise, le prestataire, l'après-paiement.
+"""Payment: the two routes, the currency, the provider, post-payment.
 
-La DEVISE fait partie de l'interface : sans elle, une boutique de Cotonou
-affiche des euros sur des francs CFA. Le PRESTATAIRE aussi — « Payer par
-carte » et « Payer par Mobile Money » ne se dessinent pas pareil."""
+The CURRENCY is part of the interface: without it, a shop in Cotonou shows
+euros on CFA francs. The PROVIDER too — "Pay by card" and "Pay by Mobile
+Money" are not drawn the same way."""
 
 from ..ir import PAYMENT_STATUS_COLUMN
 from . import champs
 
 
 def _paiement_du_contrat(plans, routes):
-    """Encaissement : les deux routes, la devise, le prestataire, et ce qui
-    reste modifiable APRÈS règlement (point 113)."""
-    # BRIQUE PAIEMENT (point 74). Ces deux routes ne sortent PAS de
-    # route_map — elles ne naissent pas d'un workflow mais d'une règle
-    # `payable` — et le contrat les ignorait donc. Conséquence concrète :
-    # l'IA d'interface ne pouvait pas dessiner le bouton de règlement, et
-    # se le serait de toute façon interdit, puisque le contrat lui défend
-    # d'appeler un chemin absent de `routes`. Une brique que le contrat ne
-    # décrit pas est une brique sans interface.
+    """Payment: the two routes, the currency, the provider, and what stays
+    editable AFTER payment (point 113)."""
+    # PAYMENT BRICK (point 74). These two routes do NOT come out of route_map —
+    # they are born not from a workflow but from a `payable` rule — and the
+    # contract therefore ignored them. Concrete consequence: the interface AI
+    # could not draw the payment button, and would have forbidden itself to
+    # anyway, since the contract forbids it to call a path absent from
+    # `routes`. A brick the contract does not describe is a brick without an
+    # interface.
     payables = plans.payable_by_entity
-    # BRIQUE 2a : la DEVISE fait partie de l'interface. Sans elle, l'IA écrit
-    # « € » parce que c'est ce qu'elle a vu partout ailleurs, et une boutique
-    # de Cotonou affiche des euros sur des francs CFA. L'exposant voyage avec
-    # le code : c'est lui qui dit s'il faut diviser `montant_centimes` par cent
-    # (euro) ou pas du tout (franc CFA).
+    # BRICK 2a: the CURRENCY is part of the interface. Without it, the AI
+    # writes "€" because that is what it has seen everywhere else, and a shop
+    # in Cotonou shows euros on CFA francs. The exponent travels with the code:
+    # it is what says whether `montant_centimes` must be divided by a hundred
+    # (euro) or not at all (CFA franc).
     devise = plans.payment_currency or {"code": "EUR", "exponent": 2}
-    # BRIQUE 2b : le prestataire fait partie de l'interface. « Payer par
-    # carte » et « Payer par Mobile Money » ne se dessinent pas pareil, et
-    # l'IA écrirait « carte bancaire » par défaut faute de le savoir.
+    # BRICK 2b: the provider is part of the interface. "Pay by card" and "Pay
+    # by Mobile Money" are not drawn the same way, and the AI would write "bank
+    # card" by default for lack of knowing.
     prestataire = plans.payment_provider or "stripe"
     for entite, champ in sorted(payables.items()):
-        # POINT 87 : sous propriété transitive, « appartient » se lit à travers
-        # l'intermédiaire, et un enregistrement dont l'intermédiaire a disparu
-        # répond 404. L'interface doit connaître les deux, sinon elle traite un
-        # 404 comme une erreur technique là où c'est une réponse métier.
+        # POINT 87: under transitive ownership, "belongs" is read through the
+        # intermediate, and a record whose intermediate has disappeared answers
+        # 404. The interface must know both, otherwise it treats a 404 as a
+        # technical error where it is a business answer.
         chaine = plans.transitive_ownership.get(entite)
         premier = chaine["chain"][0] if chaine else None
         via = (f"This {entite} belongs to whoever owns its "
@@ -49,12 +49,12 @@ def _paiement_du_contrat(plans, routes):
                   f"`{champ}`, never received from the client. Response: {{status, url, "
                   "session_id, montant_centimes, devise, montant} — redirect "
                   "the browser to `url`. "
-                  # Le nom `montant_centimes` est conservé (point 95 : le
-                  # renommer casserait le bouton « Payer » de tout projet
-                  # existant), mais il ne veut PAS dire « centimes » partout :
-                  # c'est l'unité mineure de la devise. Le dire est la seule
-                  # façon d'empêcher une interface de diviser par cent un
-                  # montant en francs CFA.
+                  # The name `montant_centimes` is kept (point 95: renaming it
+                  # would break the "Pay" button of every existing project),
+                  # but it does NOT mean "cents" everywhere: it is the
+                  # currency's minor unit. Saying so is the only way to stop an
+                  # interface from dividing an amount in CFA francs by a
+                  # hundred.
                   + (f"Payment goes through **{prestataire}**: "
                      + ("the payer chooses their MOBILE MONEY operator "
                         "(MTN MoMo, Moov, Wave) on the provider's page — "
@@ -71,10 +71,10 @@ def _paiement_du_contrat(plans, routes):
                   + "403 if the record belongs to "
                   "someone else, 409 if it is already paid, 503 if the "
                   "server has no payment key configured. "
-                  # Point 76 : boucler la boucle. Savoir ouvrir un règlement
-                  # ne dit pas comment en montrer l'issue ; c'est le champ de
-                  # suivi qui la porte, et il n'est PAS à jour au retour du
-                  # prestataire (c'est son webhook qui l'écrit, plus tard).
+                  # Point 76: closing the loop. Knowing how to open a payment
+                  # does not say how to show its outcome; the tracking field
+                  # carries it, and it is NOT up to date on return from the
+                  # provider (its webhook writes it, later).
                   f"The outcome is read in the {entite}'s "
                   f"`{PAYMENT_STATUS_COLUMN}` ('en_attente' / 'payee'): do not "
                   "announce it paid when the user comes back, the provider's "
@@ -87,10 +87,10 @@ def _paiement_du_contrat(plans, routes):
                   "Listed here so the route list stays exhaustive, not to "
                   "be called.")))
 
-    # BRIQUE writableAfterPayment. Cette route est générée hors de route_map,
-    # comme celles de paiement ci-dessus : elle doit donc rejoindre le contrat
-    # explicitement. Sinon les champs sont bien marqués `postpayment_only`,
-    # mais l'interface n'a aucun chemin autorisé pour les modifier.
+    # writableAfterPayment BRICK. This route is generated outside route_map,
+    # like the payment ones above: it must therefore join the contract
+    # explicitly. Otherwise the fields are marked `postpayment_only`, but the
+    # interface has no allowed path to change them.
     postpayment = plans.postpayment_writable_by_entity
     for entite, config in sorted(postpayment.items()):
         fields = list(config["fields"])

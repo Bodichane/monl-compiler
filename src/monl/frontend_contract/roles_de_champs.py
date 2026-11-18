@@ -1,30 +1,30 @@
-"""Le rôle de chaque champ, et l'archétype de l'application.
+"""The role of each field, and the application's archetype.
 
-L'archétype dépend de QUI peut lire, pas seulement des champs : il se calcule
-donc depuis `_compute_route_map`, jamais depuis une logique parallèle.
-Trois emplacements « méta » au plus (point 35) — une colonne ajoutée par une
-brique doit être déclarée APRÈS l'attribution, sinon elle en vole un."""
+The archetype depends on WHO can read, not only on the fields: it is
+therefore computed from `_compute_route_map`, never from parallel logic.
+At most three "meta" slots (point 35) — a column added by a brick must be
+declared AFTER assignment, otherwise it steals one."""
 
 from . import fondations
 
 
 def _assign_field_roles(fields):
-    """Attribue un rôle à chaque champ VISIBLE, dans l'ordre de priorité du
-    point 35 : média, titre, description, prix, catégorie, puis méta (3 au
-    plus). Les champs `hidden` n'en reçoivent aucun — ils ne sont jamais
-    rendus, leur donner un rôle inviterait l'IA à les afficher."""
-    # Un Upload n'est pas un média fourni par l'auteur et ne se rend pas comme
-    # un champ de lecture JSON : ses routes multipart sont décrites à part.
+    """Assigns a role to each VISIBLE field, in the priority order of point 35:
+    media, title, description, price, category, then meta (at most 3).
+    `hidden` fields get none — they are never rendered, giving them a role
+    would invite the AI to display them."""
+    # An Upload is not media supplied by the author and is not rendered as a
+    # JSON read field: its multipart routes are described separately.
     visibles = [f for f in fields
                 if not f["hidden_in_reads"] and f["type"] != "Upload"]
     roles = {}
 
-    # AJOUT (brique 13, point 83) : le type DÉCLARÉ prime sur la devinette par
-    # nom. Jusqu'ici le média se reconnaissait uniquement à son nom
-    # (`MEDIA_HINTS`) : `imageUrl` marchait par chance, `apercu` ou `cliche` non,
-    # et l'IA d'interface n'en faisait alors pas une image. Un champ 'Image' dit
-    # ce qu'il est ; l'heuristique ne sert plus que de repli pour les specs qui
-    # n'ont pas encore adopté le type.
+    # ADDED (brick 13, point 83): the DECLARED type takes precedence over
+    # guessing by name. Until then media was recognized only by its name
+    # (`MEDIA_HINTS`): `imageUrl` worked by luck, `apercu` or `cliche` did not,
+    # and the interface AI then did not make it an image. An 'Image' field says
+    # what it is; the heuristic now serves only as a fallback for specs that
+    # have not adopted the type yet.
     media = next((f["name"] for f in visibles if f["type"] == "Image"), None)
     if not media:
         media = next((f["name"] for f in visibles
@@ -32,9 +32,9 @@ def _assign_field_roles(fields):
                       and any(h in f["name"].lower() for h in fondations.MEDIA_HINTS)), None)
     if media:
         roles[media] = "media"
-    # Le titre est le premier String qui n'est pas déjà le média : sur une
-    # entité dont le seul String est `imageUrl`, prendre ce champ comme titre
-    # afficherait une URL en guise de nom (défaut réel du repli).
+    # The title is the first String that is not already the media: on an entity
+    # whose only String is `imageUrl`, taking that field as the title would
+    # display a URL as a name (a real defect of the fallback).
     titre = next((f["name"] for f in visibles
                   if f["type"] == "String" and f["name"] not in roles), None)
     if titre:
@@ -57,31 +57,29 @@ def _assign_field_roles(fields):
                       and any(h in f["name"].lower() for h in fondations.CATEGORY_HINTS)), None)
     if categorie:
         roles[categorie] = "category"
-    for f in visibles:                       # méta : 3 au plus (point 35)
+    for f in visibles:                       # meta: at most 3 (point 35)
         if f["name"] not in roles and sum(1 for r in roles.values() if r == "meta") < 3:
             roles[f["name"]] = "meta"
     return roles
 
 def _archetype(roles, lisible, public):
-    """Forme d'interface déduite des rôles présents ET de qui peut lire.
+    """Interface shape deduced from the roles present AND from who can read.
 
-    La lisibilité PUBLIQUE est une condition du point 35 que la première
-    version de cette fonction avait laissée tomber — et le défaut s'est vu
-    tout de suite : l'entité `Message` d'un formulaire de contact (auteur +
-    contenu) se voyait conseiller « grandes vignettes en grille ». Une
-    collection interne se gère, elle ne se parcourt pas : elle mérite un
-    tableau dense, jamais une vitrine.
+    PUBLIC readability is a point 35 condition that the first version of
+    this function had dropped — and the defect showed at once: the `Message`
+    entity of a contact form (author + content) was advised "large thumbnails
+    in a grid". An internal collection is managed, not browsed: it deserves a
+    dense table, never a storefront.
 
-    `shop` l'emporte sur `gallery` : un prix commande la mise en page bien
-    plus qu'une image (le point 35 déclenchait déjà la boutique sur un champ
-    Money). `list` reste le repli — sans rien à montrer, une galerie
-    n'apporterait qu'une grille nue.
+    `shop` wins over `gallery`: a price drives the layout far more than an
+    image (point 35 already triggered the shop on a Money field). `list` stays
+    the fallback — with nothing to show, a gallery would only bring a bare
+    grid.
 
-    ÉCART ASSUMÉ avec le point 35, qui exigeait un titre ET (un média OU une
-    description) : un média SEUL suffit désormais. Une entité `photo + légende`
-    sans champ titre — cas banal d'un portfolio — retombait en liste, et son
-    image, sa seule raison d'être, se réduisait à une rangée de tableau.
-    """
+    DELIBERATE DEPARTURE from point 35, which required a title AND (a media OR
+    a description): a media ALONE is now enough. A `photo + caption` entity
+    without a title field — an ordinary portfolio case — fell back to a list,
+    and its image, its only reason to exist, shrank to a table row."""
     if not lisible:
         return "form"
     if not public:
@@ -107,13 +105,13 @@ ARCHETYPE_GUIDANCE = {
              "no list view, just the input"),
 }
 
-# ANATOMIE ATTENDUE PAR FORME (point 60) — relevé sur les recensements
-# publics de « ce que contient une page de ce type » (fiche produit,
-# article de blog, portfolio, carte kanban, annonce, page de réservation).
-# Le contrat disait à l'IA quelles DONNÉES existent, jamais ce qu'un visiteur
-# s'attend à trouver sur une page de cette nature. Deux sites du même genre se
-# ressemblent parce qu'ils répondent aux mêmes attentes : les nommer donne au
-# modèle un repère, là où la seule liste des champs le laissait improviser.
+# EXPECTED ANATOMY PER SHAPE (point 60) — drawn from public surveys of "what a
+# page of this type contains" (product page, blog article, portfolio, kanban
+# card, classified ad, booking page). The contract told the AI which DATA
+# exists, never what a visitor expects to find on a page of this nature. Two
+# sites of the same kind look alike because they meet the same expectations:
+# naming them gives the model a landmark, where the list of fields alone left
+# it improvising.
 ARCHETYPE_ANATOMY = {
     "gallery": {
         "attendus": ["a dominant visual, never a timid thumbnail",

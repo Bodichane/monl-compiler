@@ -1,18 +1,18 @@
-"""Les routes annoncées au frontend.
+"""The routes announced to the frontend.
 
-Même regroupement que la génération FastAPI réelle — `_compute_route_map` est
-la source unique, partagée (voir generator/core.py). Un test confronte le
-contrat aux décorateurs réellement écrits dans app.py."""
+Same grouping as the real FastAPI generation — `_compute_route_map` is the
+single, shared source (see generator/core.py). A test matches the contract
+against the decorators actually written in app.py."""
 
 from . import champs, notes_de_contrat
 
 
 def _routes_du_contrat(entity_specs, plans, route_map):
-    """Les routes — CRUD depuis le MÊME regroupement que la génération FastAPI
-    (`_compute_route_map`, jamais une logique parallèle), puis les routes de
-    téléversement, qui ne sortent d'aucun workflow."""
-    # Routes — mêmes clés de regroupement que la génération FastAPI réelle
-    # (route_map et public sont calculés plus haut, pour les archétypes).
+    """The routes — CRUD from the SAME grouping as FastAPI generation
+    (`_compute_route_map`, never parallel logic), then the upload routes,
+    which come from no workflow."""
+    # Routes — same grouping keys as the real FastAPI generation (route_map and
+    # public are computed above, for the archetypes).
     routes = []
     for (act_type, target), plan in route_map.items():
         base = plan.base_target
@@ -21,10 +21,10 @@ def _routes_du_contrat(entity_specs, plans, route_map):
         is_public = access.public
         actors = sorted(access.actors)
         if act_type == "Create":
-            # POINT 90 : sans cette note, une IA d'interface bâtit un tunnel
-            # d'achat qui bute en 409 au tout dernier écran — le seul endroit où
-            # l'utilisateur a déjà tout rempli. La contrainte doit se voir AVANT,
-            # pas se découvrir à la fin.
+            # POINT 90: without this note, an interface AI builds a checkout
+            # flow that hits a 409 on the very last screen — the only place
+            # where the user has already filled in everything. The constraint
+            # must show BEFORE, not be discovered at the end.
             requise = plans.required_profiles.get(base)
             note_create = (
                 f"PREREQUISITE: the caller must already own a {requise}. Otherwise "
@@ -32,13 +32,13 @@ def _routes_du_contrat(entity_specs, plans, route_map):
                 f"(GET /{requise.lower()} returns theirs) and offer to create "
                 f"the profile BEFORE the form, not after."
                 if requise else None)
-            # POINT 91 : la création AUSSI est verrouillée — mais seulement par
-            # un PARENT réglé, jamais par l'entité elle-même : rien n'empêche
-            # d'ouvrir une commande de plus, c'est y AJOUTER une ligne qui
-            # remonterait le total déjà encaissé. D'où `inclure_soi=False`.
-            # Le contrat le taisait alors que le backend refusait déjà : une IA
-            # fidèle dessinait un « + Ajouter un article » sur une commande
-            # payée (vérifié sur `exemples/02_boutique.ml`).
+            # POINT 91: creation is locked TOO — but only by a settled PARENT,
+            # never by the entity itself: nothing prevents opening one more
+            # order, it is ADDING a line to it that would raise the already
+            # charged total. Hence `inclure_soi=False`. The contract kept quiet
+            # about it while the backend already refused: a faithful AI drew a
+            # "+ Add an item" on a paid order (checked on
+            # `exemples/02_boutique.ml`).
             verrou_parent = notes_de_contrat._verrou_paiement(plans, base, inclure_soi=False)
             message = plans.message_rules_by_trigger.get(base)
             routes.append(champs._route("POST", f"/{low}", act_type, base, is_public, actors,
@@ -51,11 +51,11 @@ def _routes_du_contrat(entity_specs, plans, route_map):
             if verrou_parent:
                 routes[-1]["payment_locked"] = verrou_parent
         elif act_type == "Read":
-            # AJOUT (brique 23, point 106) : un rôle superviseur (declare via
-            # 'sharedBy' sur la meme reference que 'accessibleBy') transperce
-            # le controle par colonnes. Sans cette note, une IA d'interface
-            # appliquerait le filtre de parties au moderateur lui-meme et lui
-            # taillerait une vue vide — alors que le backend lui montre tout.
+            # ADDED (brick 23, point 106): a supervisor role (declared through
+            # 'sharedBy' on the same reference as 'accessibleBy') pierces the
+            # column check. Without this note, an interface AI would apply the
+            # party filter to the moderator themselves and carve out an empty
+            # view — while the backend shows them everything.
             _sup_lecture = sorted(access.supervisors)
             _note_lecture = notes_de_contrat._note_superviseurs(_sup_lecture, "lecture")
             list_query = champs._list_query_contract(plans, base)
@@ -73,13 +73,14 @@ def _routes_du_contrat(entity_specs, plans, route_map):
                 routes[-1]["supervisors"] = _sup_lecture
                 routes[-2]["supervisors"] = _sup_lecture
         elif act_type == "Update":
-            # AJOUT (point 81) : le schéma Pydantic est UNIQUE par entité, donc
-            # ces clés étrangères doivent être envoyées (sinon 422) -- mais la
-            # route Update de monl ne les écrit pas : un rattachement se fixe à
-            # la création. Sans cette note, le contrat laissait croire qu'une
-            # interface pouvait déplacer une ligne d'un panier à l'autre, ce que
-            # le backend accepte (200) sans rien changer. Même exigence que les
-            # points 76 et 79 : le contrat décrit ce que le backend FAIT.
+            # ADDED (point 81): the Pydantic schema is UNIQUE per entity, so
+            # these foreign keys must be sent (otherwise 422) -- but monl's
+            # Update route does not write them: an attachment is fixed at
+            # creation. Without this note, the contract suggested that an
+            # interface could move a line from one cart to another, which the
+            # backend accepts (200) without changing anything. Same requirement
+            # as points 76 and 79: the contract describes what the backend
+            # DOES.
             liens = list(entity_specs.get(base, {}).get("client_foreign_keys", []))
             note_liens = None
             if liens:
@@ -90,16 +91,16 @@ def _routes_du_contrat(entity_specs, plans, route_map):
                 note_liens = (
                     f"{', '.join(liens)} {accord}: an attachment is set on creation. "
                     f"Do not offer to change it — send back the current value.")
-            # POINT 91 : quatrième forme de l'angle mort des points 88 à 90. Une
-            # route ne change ni de chemin, ni d'acteurs, ni de champs, et gagne
-            # pourtant un refus : dès l'encaissement, elle répond 409. Sans cette
-            # note, une interface fidèle au contrat dessine un bouton « Modifier »
-            # sur une commande payée — et l'utilisateur découvre le refus après
-            # avoir rempli le formulaire.
+            # POINT 91: fourth form of the blind spot of points 88 to 90. A
+            # route changes neither path, nor actors, nor fields, and yet gains
+            # a refusal: as soon as payment is made, it answers 409. Without
+            # this note, an interface faithful to the contract draws an "Edit"
+            # button on a paid order — and the user discovers the refusal after
+            # filling in the form.
             verrou = notes_de_contrat._verrou_paiement(plans, base)
-            # POINT 98 : la valeur qui LIBÈRE, et l'aller sans retour. Sans
-            # cette note, une interface propose « repasser en préparation » sur
-            # une commande annulée et découvre un 409 au clic.
+            # POINT 98: the value that RELEASES, and the one-way trip. Without
+            # this note, an interface offers "back to preparation" on a
+            # cancelled order and discovers a 409 on click.
             liberation = (plans.release_rules_by_entity.get(base) or [None])[0]
             routes.append(champs._route("PUT", f"/{low}/{{id}}", act_type, base, is_public, actors,
                                  note=notes_de_contrat._joindre(note_liens, notes_de_contrat._note_verrou(verrou),
@@ -113,8 +114,8 @@ def _routes_du_contrat(entity_specs, plans, route_map):
                     "releases": liberation["releases"], "terminal": True}
         elif act_type == "Delete":
             verrou = notes_de_contrat._verrou_paiement(plans, base)
-            # AJOUT (brique 23, point 106) : voir le bloc Read — un superviseur
-            # de la suppression voit/supprime tous les enregistrements.
+            # ADDED (brick 23, point 106): see the Read block — a deletion
+            # supervisor sees/deletes every record.
             _sup_delete = sorted(access.supervisors)
             routes.append(champs._route("DELETE", f"/{low}/{{id}}", act_type, base, is_public,
                                  actors,
@@ -129,10 +130,10 @@ def _routes_du_contrat(entity_specs, plans, route_map):
             routes.append(champs._route("POST", f"/workflow/{tag.lower()}/{target.lower()}",
                                  "Execute", target, is_public, actors))
 
-    # BRIQUE B1 : ces routes ne sont pas des CRUD JSON. Elles sont produites
-    # par une déclaration Upload et doivent donc être décrites séparément dans
-    # le contrat : nom multipart, limite explicite, types réellement reconnus,
-    # dépôt POST et lecture GET privée.
+    # BRICK B1: these routes are not JSON CRUD. They are produced by an Upload
+    # declaration and must therefore be described separately in the contract:
+    # multipart name, explicit limit, types really recognized, POST upload and
+    # private GET read.
     for upload in plans.upload_fields:
         entite = upload["entity"]
         champ = upload["field"]

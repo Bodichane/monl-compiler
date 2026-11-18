@@ -1,31 +1,31 @@
-"""Les constantes du contrat, et les deux outils que tout le paquet emprunte.
+"""The contract's constants, and the two tools the whole package borrows.
 
-`paragraphes()` retraduit le séparateur `¶` (point 64) : la grammaire
-interdit le saut de ligne dans un STRING_LITERAL, et c'est ainsi qu'une
-`section` porte plusieurs paragraphes sans brique nouvelle."""
+`paragraphes()` translates back the `¶` separator (point 64): the grammar
+forbids line breaks in a STRING_LITERAL, and that is how a `section`
+carries several paragraphs without a new brick."""
 
 from ..artifacts import DOCS_DIR
 from ..ir import CompilationPlans
 
-CONTRACT_VERSION = 9  # 2 : base_url même origine (51) · 3 : rôles + archétypes (54)
-#                     # 4 : champs de suivi du paiement déclarés (76)
-#                     # 5 : assets déclarés — logo, favicon, dossier (83)
-#                     # 6 : route d'écriture après paiement déclarée (113)
-#                     # 7 : indicatif téléphone transmis au frontend (95)
-#                     # 8 : design skills de densité sélectionnés
-#                     # 9 : règles métier — publicWhen et oncePer (116)
-# Les numéros entre parenthèses renvoient à docs/design_decisions.md. Ceux des
-# versions 6 et 7 désignaient les points 107-109, qui parlent d'autre chose
-# (émission SQL typée, contrôle d'accès, spike Rust) : corrigés ici plutôt que
-# laissés induire en erreur — ce fichier cite ces numéros pour qu'on les suive.
+CONTRACT_VERSION = 9  # 2: same-origin base_url (51) · 3: roles + archetypes (54)
+#                     # 4: declared payment tracking fields (76)
+#                     # 5: declared assets — logo, favicon, folder (83)
+#                     # 6: declared post-payment write route (113)
+#                     # 7: phone calling code passed to the frontend (95)
+#                     # 8: selected density design skills
+#                     # 9: business rules — publicWhen and oncePer (116)
+# The numbers in parentheses refer to docs/design_decisions.md. Those of
+# versions 6 and 7 used to designate points 107-109, which are about something
+# else (typed SQL emission, access control, Rust spike): corrected here rather
+# than left to mislead — this file cites these numbers so they get followed.
 
-# RÔLES DE CHAMPS ET ARCHÉTYPES (point 54) — restauration, dans le CONTRAT,
-# de ce que le point 35 dérivait pour le frontend que monl générait lui-même,
-# et que le pivot (point 41) a supprimé sans le transposer. Sans ces rôles,
-# un champ n'est qu'un `{nom, type}` : l'IA UI doit redeviner depuis les noms
-# lequel est le titre, lequel est l'image de couverture, alors que monl sait
-# le déduire de façon déterministe. Même philosophie qu'aux thèmes : dérivé
-# de la spec, jamais déclaré dans le DSL métier.
+# FIELD ROLES AND ARCHETYPES (point 54) — restoring, in the CONTRACT, what
+# point 35 derived for the frontend monl used to generate itself, and which the
+# pivot (point 41) removed without carrying it over. Without these roles, a
+# field is just a `{name, type}`: the UI AI has to guess again from the names
+# which one is the title, which one the cover image, whereas monl can deduce it
+# deterministically. Same philosophy as for themes: derived from the spec,
+# never declared in the business DSL.
 MEDIA_HINTS = ("image", "photo", "cover", "couverture", "avatar", "picture",
                "thumbnail", "vignette", "banner", "banniere", "illustration",
                "visuel", "url")
@@ -33,8 +33,8 @@ MEDIA_HINTS = ("image", "photo", "cover", "couverture", "avatar", "picture",
 CATEGORY_HINTS = ("category", "categorie", "genre", "kind", "tag", "rubrique",
                   "status", "statut", "etat", "type")
 
-# La disponibilité est un essentiel de fiche produit, au même rang que le prix
-# (point 60) : la reléguer en « méta » la faisait traiter comme un détail.
+# Availability is an essential of a product page, on a par with the price
+# (point 60): relegating it to "meta" made it treated as a detail.
 STOCK_HINTS = ("stock", "quantity", "quantite", "inventaire", "disponib",
                "available", "restant")
 
@@ -56,20 +56,18 @@ FRONTEND_ARTIFACTS = (CONTRACT_FILENAME, PROMPT_FILENAME,
                       AGENTS_FILENAME, README_FILENAME)
 
 def paragraphes(texte):
-    """Retraduit le séparateur de paragraphes de la spec en vrais sauts
-    (point 64). La grammaire interdit le retour à la ligne dans un
-    STRING_LITERAL : un « à propos » de trois paragraphes voyage donc en une
-    seule ligne, marquée. Le contrat est le premier endroit où cette
-    contrainte d'écriture cesse d'exister — et l'IA d'interface reçoit du
-    texte structuré au lieu d'un bloc sans césure.
+    """Translates the spec's paragraph separator back into real breaks (point
+    64). The grammar forbids line breaks in a STRING_LITERAL: a three-paragraph
+    "about" therefore travels on a single, marked line. The contract is the
+    first place where this writing constraint stops existing — and the
+    interface AI receives structured text instead of an unbroken block.
 
-    Sans marqueur, le texte ressort tel quel : un contrat écrit avant le
-    point 64, ou une spec rédigée à la main, se lit exactement comme avant.
-    """
+    Without a marker, the text comes out as is: a contract written before
+    point 64, or a hand-written spec, reads exactly as before."""
     return "\n\n".join(p.strip() for p in texte.split("¶") if p.strip())
 
 def _coerce_plans(source) -> CompilationPlans:
-    """Compatibilité de bibliothèque pour les anciens appels avec générateur."""
+    """Library compatibility for old calls with a generator."""
     if isinstance(source, CompilationPlans):
         return source
     return source.build_compilation_plans()

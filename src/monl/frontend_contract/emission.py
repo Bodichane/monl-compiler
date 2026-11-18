@@ -1,4 +1,4 @@
-"""Écrire le contrat et le brief, et les sceller."""
+"""Write the contract and the brief, and seal them."""
 
 import hashlib
 import json
@@ -16,7 +16,7 @@ from . import assemblage, brief, fondations, projet
 
 def generate_frontend_contract(normalized_ast: CompilationIR, plans_or_generator,
                                output_dir, spec_name="spec.ml"):
-    """Écrit le contrat depuis l'IR et les plans partagés, transactionnellement."""
+    """Writes the contract from the IR and the shared plans, transactionally."""
     contract = assemblage.build_contract(normalized_ast, plans_or_generator)
 
     target_dir = os.path.abspath(output_dir)

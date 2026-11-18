@@ -1,4 +1,4 @@
-"""Le contrat de chaque entité : champs, rôles, ce que le serveur peuple."""
+"""Each entity's contract: fields, roles, what the server fills."""
 
 from ..ast_validator.champs import ChampsMixin
 from ..ir import PAYMENT_REF_COLUMN, PAYMENT_STATUS_COLUMN
@@ -6,26 +6,29 @@ from . import champs, roles_de_champs
 
 
 def _specs_des_entites(entities, fk_placements, lisibles, plans):
-    """Le contrat de chaque entité : champs, rôles, ce que le serveur peuple."""
-    # POINT 79 : un champ 'derivedFrom' est CALCULÉ par le serveur, donc absent
-    # des corps de requête — exactement comme un champ 'generated'. Le contrat
-    # devait le dire : sans cela il annonçait `total` parmi les champs à
-    # envoyer, et une IA d'interface fidèle au contrat aurait bâti un
-    # formulaire de prix que le serveur ignore. C'est le défaut du point 76,
-    # reproduit sur la brique qui venait de le corriger — la leçon « déclarer
-    # ce que le backend fait VRAIMENT » vaut aussi quand une brique retire
-    # quelque chose, pas seulement quand elle ajoute une colonne.
-    # POINT 82 : même exigence pour 'sumOf'. Le défaut du point 76 s'est déjà
-    # reproduit deux fois (points 79 et 81) : le déclarer d'emblée ici plutôt
-    # que d'attendre qu'une IA d'interface bâtisse un champ « total » que le
-    # serveur recalcule. Un total de panier est le cas où l'écart se voit le
-    # plus vite — il change à chaque ligne ajoutée.
-    # POINT 89 : quatrième membre de la même famille. Le défaut du point 76 s'est
-    # reproduit sur chacune des trois précédentes ; celle-ci arrive déclarée.
-    # POINT 102 : cinquième membre de la même famille, déclarée d'emblée elle
-    # aussi. Sans ça le contrat annoncerait un « numéro de commande » parmi les
-    # champs à saisir, et une IA d'interface fidèle au contrat dessinerait un
-    # formulaire que le serveur ignore.
+    """Each entity's contract: fields, roles, what the server fills."""
+    # POINT 79: a 'derivedFrom' field is CALCULATED by the server, hence absent
+    # from request bodies — exactly like a 'generated' field. The contract had
+    # to say so: without it, it announced `total` among the fields to send, and
+    # an interface AI faithful to the contract would have built a price form
+    # the server ignores. It is the point 76 defect, reproduced on the brick
+    # that had just fixed it — the lesson "declare what the backend REALLY
+    # does" also holds when a brick removes something, not only when it adds a
+    # column.
+    #
+    # POINT 82: same requirement for 'sumOf'. The point 76 defect has already
+    # reproduced twice (points 79 and 81): declare it here from the start
+    # rather than wait for an interface AI to build a "total" field the server
+    # recomputes. A cart total is the case where the gap shows fastest — it
+    # changes with every line added.
+    #
+    # POINT 89: fourth member of the same family. The point 76 defect
+    # reproduced on each of the three previous ones; this one arrives declared.
+    #
+    # POINT 102: fifth member of the same family, declared from the start too.
+    # Without it the contract would announce an "order number" among the fields
+    # to enter, and an interface AI faithful to the contract would draw a form
+    # the server ignores.
     entity_specs = {}
     for ent, fields in entities.items():
         field_list = []
@@ -39,28 +42,29 @@ def _specs_des_entites(entities, fk_placements, lisibles, plans):
             champ = {
                 "name": fname,
                 "type": ftype,
-                # POINT 91 : ce que le SERVEUR exige, pas ce que la spec déclare.
-                # Le contrat reflétait `rule X.y required` — or les schémas
-                # Pydantic générés rendent obligatoire TOUT champ d'entrée, sans
-                # exception (point 85 : « required reste une assertion, les
-                # schémas rendent déjà tout champ obligatoire »). Un frontend
-                # fidèle au contrat omettait donc les champs non déclarés et
-                # récoltait un 422. Vu en vrai : ajouter `email` et `address` à
-                # une fiche client a cassé le formulaire d'un site en marche,
-                # alors que le contrat les annonçait facultatifs.
+                # POINT 91: what the SERVER requires, not what the spec
+                # declares. The contract reflected `rule X.y required` — yet
+                # the generated Pydantic schemas make EVERY input field
+                # mandatory, without exception (point 85: "required stays an
+                # assertion, the schemas already make every field mandatory").
+                # A frontend faithful to the contract therefore omitted the
+                # undeclared fields and got a 422. Seen for real: adding
+                # `email` and `address` to a customer profile broke the form of
+                # a running site, while the contract announced them as
+                # optional.
                 "required": not peuple_par_le_serveur and not policy.upload_rule,
-                # hidden : jamais présent dans les réponses de lecture
+                # hidden: never present in read responses
                 "hidden_in_reads": policy.hidden_in_reads,
-                # generated, derivedFrom ou sumOf : à NE PAS envoyer, le serveur
-                # le peuple lui-même (et l'ignorerait dans le corps de requête)
+                # generated, derivedFrom or sumOf: NOT to be sent, the server
+                # fills it itself (and would ignore it in the request body)
                 "server_generated": peuple_par_le_serveur,
-                # categorized : la lecture renvoie un libellé, pas le nombre
+                # categorized: reading returns a label, not the number
                 "categorized_in_reads": policy.categorized_in_reads,
                 "postpayment_only": policy.postpayment_only,
             }
-            # BRIQUE B3 : seules les déclarations de la spec apparaissent.
-            # L'absence de ces clés signifie « non filtrable/triable » ; cela
-            # garde le contrat des specs historiques inchangé à l'octet.
+            # BRICK B3: only the spec's declarations appear. The absence of
+            # these keys means "not filterable/sortable"; that keeps the
+            # contract of historical specs byte-identical.
             if fname in plans.filterable_fields.get(ent, ()):
                 valeurs_filtre = (list(policy.allowed_values)
                                    if policy.allowed_values else None)
@@ -75,10 +79,10 @@ def _specs_des_entites(entities, fk_placements, lisibles, plans):
             if fname in plans.sortable_fields.get(ent, ()):
                 champ["sortable"] = True
             if policy.upload_rule:
-                # BRIQUE B1 : le champ est une entrée multipart dédiée, pas
-                # une valeur JSON et pas un asset Image. Le contrat expose la
-                # limite, les types, le nom exact du champ et les deux routes
-                # ajoutées plus bas ; l'IA frontend n'a rien à deviner.
+                # BRICK B1: the field is a dedicated multipart input, not a
+                # JSON value and not an Image asset. The contract exposes the
+                # limit, the types, the exact field name and the two routes
+                # added below; the frontend AI has nothing to guess.
                 champ["upload"] = {
                     "field_name": fname,
                     "max_bytes": policy.upload_rule.max_bytes,
@@ -89,20 +93,20 @@ def _specs_des_entites(entities, fk_placements, lisibles, plans):
                              "by byte signature; private read according to the "
                              "row's ACL, as a byte-for-byte download"),
                 }
-            # BRIQUE 19 (point 96) : les valeurs permises. Sans elles, l'IA
-            # dessine un champ TEXTE et l'utilisateur invente un statut qui
-            # récolte un 422 — alors que la liste tient dans un menu déroulant.
-            # Même raison que les bornes ci-dessous : le contrat décrit ce que le
-            # backend REFUSE autant que ce qu'il accepte.
+            # BRICK 19 (point 96): the allowed values. Without them, the AI
+            # draws a TEXT field and the user makes up a status that gets a 422
+            # — while the list fits in a dropdown menu. Same reason as the
+            # bounds below: the contract describes what the backend REFUSES as
+            # much as what it accepts.
             choix = policy.allowed_values
             if choix:
                 champ["allowed_values"] = list(choix)
-            # POINT 85 : les bornes 'min'/'max' donnent un 422 avant tout INSERT.
-            # Le contrat DOIT les annoncer : une interface qui les ignore laisse
-            # l'utilisateur remplir un formulaire pour se faire refuser au bout,
-            # alors qu'elle pouvait le dire tout de suite. Même raison que pour
-            # `server_generated` (point 79) — le contrat décrit ce que le backend
-            # fait VRAIMENT, y compris ce qu'il REFUSE.
+            # POINT 85: the 'min'/'max' bounds give a 422 before any INSERT.
+            # The contract MUST announce them: an interface that ignores them
+            # lets the user fill in a form only to be refused at the end, when
+            # it could have said so right away. Same reason as for
+            # `server_generated` (point 79) — the contract describes what the
+            # backend REALLY does, including what it REFUSES.
             for nom, borne in (("min", policy.constraints.minimum),
                                ("max", policy.constraints.maximum)):
                 if borne:
@@ -161,18 +165,18 @@ def _specs_des_entites(entities, fk_placements, lisibles, plans):
                     + "MAY BE EMPTY on records created before the rule was "
                       "added: show a dash, never an invented number.")
             field_list.append(champ)
-        # POINT 88 : une clé étrangère de monl référence l'une de DEUX choses,
-        # et le contrat n'en disait qu'une. Celles que la route Create peuple
-        # depuis le jeton portent un identifiant de COMPTE (`_monl_users.id`) ;
-        # les autres portent l'`id` de la table métier. `schema.sql` écrit
-        # d'ailleurs deux `REFERENCES` différents — le contrat, lui, annonçait
-        # « references: Customer » dans les deux cas.
+        # POINT 88: a monl foreign key references one of TWO things, and the
+        # contract said only one. Those the Create route fills from the token
+        # carry an ACCOUNT identifier (`_monl_users.id`); the others carry the
+        # business table's `id`. `schema.sql` even writes two different
+        # `REFERENCES` — the contract, however, announced "references:
+        # Customer" in both cases.
         #
-        # Ce que ça coûtait : une interface qui suit le contrat joint
-        # `order.customer_id` à `customer.id`, alors que la bonne jointure est
-        # `customer.customer_id`. Une jointure qui marche À MOITIÉ — juste tant
-        # que l'id de compte et l'id de fiche coïncident, c'est-à-dire sur les
-        # premiers enregistrements, c'est-à-dire pendant les tests.
+        # What it cost: an interface following the contract joins
+        # `order.customer_id` to `customer.id`, whereas the right join is
+        # `customer.customer_id`. A join that HALF works — only as long as the
+        # account id and the profile id coincide, that is, on the first
+        # records, that is, during testing.
         identity_cols = plans.identity_foreign_keys.get(ent, frozenset())
         fks = []
         for p in fk_placements.get(ent, []):
@@ -180,8 +184,9 @@ def _specs_des_entites(entities, fk_placements, lisibles, plans):
                     "unique": p["unique"]}
             if p["fk_column"] in identity_cols:
                 lien["references_account"] = True
-                # La fiche métier se retrouve par la colonne HOMONYME, qui porte
-                # le même identifiant de compte — pas par son `id`.
+                # The business profile is found through the column of the SAME
+                # NAME, which carries the same account identifier — not through
+                # its `id`.
                 lien["note"] = (
                     f"contains an ACCOUNT identifier (the holder's), "
                     f"not the `id` of a {p['owner_entity']} record. To "
@@ -196,24 +201,24 @@ def _specs_des_entites(entities, fk_placements, lisibles, plans):
         roles = roles_de_champs._assign_field_roles(field_list)
         for f in field_list:
             f["role"] = roles.get(f["name"])
-        # POINT 76 : les deux colonnes de suivi de la brique 'payable' sont
-        # présentes dans toutes les réponses de lecture (le générateur fait un
-        # SELECT *) mais n'étaient déclarées NULLE PART dans le contrat. Une IA
-        # d'interface qui le suit à la lettre ne pouvait donc pas savoir
-        # qu'elles existent, et ne pouvait pas afficher l'état d'un règlement :
-        # le bouton de paiement était dessinable, son résultat non.
+        # POINT 76: the two tracking columns of the 'payable' brick are present
+        # in every read response (the generator does a SELECT *) but were
+        # declared NOWHERE in the contract. An interface AI following it to the
+        # letter therefore could not know they exist, and could not display a
+        # payment's state: the payment button could be drawn, its result could
+        # not.
         #
-        # Ajoutées APRÈS l'attribution des rôles, volontairement : passées à
-        # _assign_field_roles, elles auraient pris deux des trois emplacements
-        # « méta » (point 35) et se seraient fait afficher comme des
-        # informations secondaires quelconques, en évinçant de vrais champs de
-        # la spec. Elles n'ont donc aucun rôle — ce qu'il faut en faire est dit
-        # en toutes lettres dans le brief, pas déduit d'un rôle de mise en page.
+        # Added AFTER role assignment, on purpose: passed to
+        # _assign_field_roles, they would have taken two of the three "meta"
+        # slots (point 35) and been displayed as any secondary information,
+        # pushing out real spec fields. They therefore have no role — what to
+        # do with them is spelled out in the brief, not deduced from a layout
+        # role.
         if ent in plans.payable_by_entity:
-            # Chaque colonne porte SA propre explication : les décrire d'une
-            # seule phrase commune faisait annoncer « 'en_attente' / 'payee' »
-            # pour `payment_ref`, qui contient une référence de session — vu en
-            # relisant le brief produit, pas le code.
+            # Each column carries ITS OWN explanation: describing them in one
+            # shared sentence made `payment_ref`, which holds a session
+            # reference, announce "'en_attente' / 'payee'" — seen when
+            # rereading the produced brief, not the code.
             suivi = (
                 (PAYMENT_STATUS_COLUMN,
                  "payment state, written by the server alone: 'en_attente' "
@@ -233,7 +238,8 @@ def _specs_des_entites(entities, fk_placements, lisibles, plans):
                     "type": "String",
                     "required": False,
                     "hidden_in_reads": False,
-                    # Jamais fourni par le client : même interdit que 'generated'.
+                    # Never supplied by the client: the same prohibition as
+                    # 'generated'.
                     "server_generated": True,
                     "categorized_in_reads": False,
                     "payment_tracking": True,

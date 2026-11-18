@@ -1,13 +1,13 @@
-"""Les marqueurs de section exigés du frontend livré.
+"""The section markers required of the delivered frontend.
 
-Un marqueur NOMME une section, il ne prouve pas qu'elle contient quelque
-chose : la matière se mesure ailleurs (point 143, section_substance.py)."""
+A marker NAMES a section, it does not prove that it contains anything:
+substance is measured elsewhere (point 143, section_substance.py)."""
 
 from ..design_system import build_asset_manifest, infer_design_profile
 
 
 def _marker_block_description(marker):
-    """Décrit le bloc HTML qui porte un marqueur du manifeste."""
+    """Describes the HTML block that carries a manifest marker."""
     if marker.startswith('data-monl-media="'):
         entity = marker.split('"', 2)[1]
         return f"the area that renders the images of the entity `{entity}`"
@@ -27,7 +27,7 @@ def _marker_block_description(marker):
     return descriptions.get(section, f"the HTML block of the section `{section}`")
 
 def _required_markers_block(contract):
-    """Rend dans le brief la carte exécutable des marqueurs obligatoires."""
+    """Renders in the brief the executable map of the mandatory markers."""
     manifest = build_asset_manifest(contract, infer_design_profile(contract))
     markers = (manifest.get("required_markers") or {}).get("index.html") or []
     if not markers:
