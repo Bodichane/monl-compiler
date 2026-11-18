@@ -81,27 +81,25 @@ CASE_OUTCOMES = {
 }
 
 CASE_SNIPPETS = {
-    "vitrine": """rule Realisation.Read public
+    "vitrine": """rule Project.Read public
 
-workflow Gerer for Admin
-    Create Realisation
-    Update Realisation
-    Delete Realisation""",
-    "rendez-vous": """rule Demande.Read ownedBy Visiteur
-rule Demande.Read sharedBy Praticien
-rule Demande.Create requiresOwn Client
-rule Demande.statut oneOf
-    \"deposee\", \"confirmee\", \"honoree\"""",
-    "boutique": """rule Ligne.sousTotal derivedFrom Produit.prix by quantite
-rule Commande.total sumOf Ligne.sousTotal
-rule Ligne.Create decrements Produit.stock by quantite
-rule Commande.total payable""",
-    "communaute": """rule Membre.pseudo generated \"MBR-{NNNN}\"
-rule Jaime.Create oncePer Membre, Message
-rule Jaime.Create increments Message.jaimes by 1
-rule Message.Read publicWhen statut \"publie\"""",
+workflow Manage for Admin
+    Create Project
+    Update Project
+    Delete Project""",
+    "rendez-vous": """rule Request.Read ownedBy Visitor
+rule Request.Read sharedBy Practitioner
+rule Request.Create requiresOwn Client
+rule Request.status oneOf "submitted", "confirmed", "honored", "cancelled\"""",
+    "boutique": """rule OrderLine.subtotal derivedFrom Product.price by quantity
+rule Order.total sumOf OrderLine.subtotal
+rule OrderLine.Create decrements Product.stock by quantity
+rule Order.total payable""",
+    "communaute": """rule Post.author generated
+rule Upvote.Create oncePer Member, Post
+rule Upvote.Create increments Post.upvotes by 1
+rule Post.Read publicWhen status "published\"""",
 }
-
 
 def case_tab(item: dict, index: int) -> str:
     selected = ' aria-selected="true"' if index == 0 else ' aria-selected="false"'
