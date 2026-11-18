@@ -424,7 +424,6 @@ EXCEPTIONS_DE_COMPLEXITE = {
     "monl/generator/schemas.py:_generate_schema_lines": (34, "Émission de schéma ligne par ligne : liste plate légitime, hors des cinq cibles."),
     "monl/parser/transformer_structure.py:app": (30, "Transformation d'AST hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/smoke_test/etapes.py:_eprouver_les_routes": (27, "Parcours de smoke test hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
-    "monl/ui_patterns.py:select_ui_patterns": (23, "Sélection de motifs hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
 }
 
 
