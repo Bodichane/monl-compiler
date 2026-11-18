@@ -90,8 +90,8 @@ if(new URLSearchParams(location.search).get('erreur')==='refus'){
  error.textContent='Sign-in cancelled. You can try again or use your email address.';
  error.className='form-error show';
 }
-/* Un tableau par mode plutôt que des ternaires empilés : à trois modes, la
-   forme « login ? a : b » cesse de dire la vérité sans qu'on le voie. */
+/* One table per mode rather than stacked ternaries: with three modes, the
+   form "login ? a : b" stops telling the truth without anyone seeing it. */
 const MODES={
  login:{titre:'Sign in',bouton:'Sign in',
   intro:'Find your projects and carry on with your compilations.',
@@ -112,10 +112,9 @@ function basculer(nouveau){mode=nouveau;const conf=MODES[mode];
  document.querySelector('#password').autocomplete=conf.autocomplete;
  oauthZone.hidden=(mode==='recover');
  champCode.classList.toggle('masque',mode!=='recover');
- /* `required` doit suivre l'AFFICHAGE : un champ obligatoire mais masqué fait
-    échouer la validation sur un champ que personne ne peut ni voir ni
-    atteindre, et le bouton semble ne rien faire — le défaut que `novalidate`
-    a déjà servi à réparer ici. */
+ /* `required` must follow what is DISPLAYED: a required but hidden field makes
+    validation fail on a field nobody can see or reach, and the button seems
+    to do nothing — the defect `novalidate` already served to repair here. */
  document.querySelector('#code').required=(mode==='recover');
  aide.hidden=(mode!=='recover');
  error.className='form-error';succes.className='form-succes';}
@@ -125,11 +124,11 @@ passwordToggle.onclick=()=>{const champ=document.querySelector('#password');cons
 fetch('/auth/fournisseurs').then(response=>response.ok?response.json():{providers:[]}).then(data=>{
  const fournisseurs=Array.isArray(data.providers)?data.providers:[];
  const githubIcon='<svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.58 2 12.24c0 4.52 2.87 8.35 6.84 9.71.5.1.68-.22.68-.49v-1.71c-2.78.62-3.37-1.39-3.37-1.39-.45-1.19-1.11-1.51-1.11-1.51-.91-.64.07-.63.07-.63 1 .08 1.53 1.06 1.53 1.06.9 1.59 2.35 1.13 2.92.86.09-.67.35-1.13.64-1.39-2.22-.26-4.56-1.15-4.56-5.09 0-1.12.39-2.04 1.03-2.76-.1-.26-.45-1.31.1-2.73 0 0 .84-.28 2.75 1.05A9.2 9.2 0 0 1 12 7.9c.85 0 1.71.12 2.5.35 1.91-1.33 2.75-1.05 2.75-1.05.55 1.42.2 2.47.1 2.73.64.72 1.03 1.64 1.03 2.76 0 3.95-2.34 4.83-4.57 5.08.36.32.68.95.68 1.92v2.84c0 .27.18.59.69.49A10.2 10.2 0 0 0 22 12.24C22 6.58 17.52 2 12 2Z"/></svg>';
- /* Le bouton est construit par le DOM, jamais par innerHTML : le nom part
-    dans l'adresse ENCODÉ, le libellé part dans le texte, et seule l'icône —
-    une constante de cette page — est du balisage. Nom et libellé viennent
-    aujourd'hui d'une table du serveur ; une défense qui suppose la source sûre
-    cesse de défendre le jour où elle change (issue #75). */
+ /* The button is built through the DOM, never through innerHTML: the name goes
+    into the address ENCODED, the label goes into the text, and only the icon —
+    a constant of this page — is markup. Name and label come from a server
+    table today; a defense that assumes its source is safe stops defending the
+    day the source changes (issue #75). */
  oauthZone.replaceChildren(...fournisseurs.map(provider=>{
   const bouton=document.createElement('a');bouton.className='secondary oauth-button';
   bouton.setAttribute('href','/auth/'+encodeURIComponent(provider.name));
@@ -137,21 +136,22 @@ fetch('/auth/fournisseurs').then(response=>response.ok?response.json():{provider
   bouton.append('Continue with '+provider.label);return bouton;}));
 }).catch(()=>{oauthZone.replaceChildren();});
 form.onsubmit=async event=>{event.preventDefault();error.className='form-error';
- /* Le formulaire porte `novalidate` pour que CE code voie l'envoi. Sans lui,
-    le navigateur bloquait tout seul sur une adresse sans « @ » : aucune
-    requête ne partait, la bannière de la page restait VIDE, et le seul
-    message était une bulle native — celle que la fenêtre d'un gestionnaire de
-    mots de passe recouvre. Le bouton semblait ne rien faire. Le message n'est
-    pas réécrit : on reprend celui du navigateur, déjà traduit. */
+ /* The form carries `novalidate` so that THIS code sees the submission.
+    Without it, the browser blocked on its own on an address without "@": no
+    request left, the page banner stayed EMPTY, and the only message was a
+    native bubble — the one a password manager's window covers. The button
+    seemed to do nothing. The message is not rewritten: the browser's own,
+    already translated, is reused. */
  const invalide=[...form.elements].find(champ=>champ.willValidate&&!champ.checkValidity());
  if(invalide){error.textContent=invalide.validationMessage;error.className='form-error show';invalide.focus();return;}
  const button=form.querySelector('button[type=submit]');button.disabled=true;form.setAttribute('aria-busy','true');
  const envoi={email:email.value,password:password.value};
  if(mode==='recover')envoi.code=document.querySelector('#code').value;
  try{const response=await fetch('/api/auth/'+mode,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(envoi)});
- /* La récupération répond 204, SANS corps : demander son JSON lèverait sur le
-    seul cas qui réussit, et la personne verrait une erreur après avoir brûlé
-    un de ses huit codes. Le refus, lui, porte bien un détail. */
+ /* Recovery answers 204, WITHOUT a body: asking for its JSON would throw on
+    the only case that succeeds, and the person would see an error after
+    burning one of their eight codes. The refusal, for its part, does carry a
+    detail. */
  if(!response.ok){let detail='Unable to continue.';
   try{detail=(await response.json()).detail||detail;}catch(_){}
   throw new Error(detail);}

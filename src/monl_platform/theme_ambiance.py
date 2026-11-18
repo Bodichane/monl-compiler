@@ -1,7 +1,7 @@
 """Decorative ambiance shared by every page of the platform."""
 
 CSS = """
-/* ---------- ambiance partagée ---------- */
+/* ---------- shared ambience ---------- */
 .site-ambient { position:fixed; inset:68px 0 0; z-index:0; overflow:hidden;
   pointer-events:none; contain:strict; opacity:.72; }
 .ambient-grid { position:absolute; inset:0;

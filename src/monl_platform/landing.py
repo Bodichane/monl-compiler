@@ -75,9 +75,9 @@ EXTRA_CSS = """
 .demo-bar span::before { content:"";width:6px;height:6px;border-radius:50%;background:var(--code-accent);box-shadow:0 0 0 4px rgba(229,164,95,.16); }
 .demo-code { padding:22px 20px 18px;font:12px/1.85 var(--mono);color:var(--code-muted); }
 .demo-code b, .demo-code strong { font-weight:500 }
-/* Le balayage dit qu'il se passe quelque chose ; il ne dit rien de plus,
-   donc il n'a pas besoin de l'accent. En encre de code, le mouvement reste
-   et une couleur de moins traverse la page. */
+/* The sweep says something is happening; it says nothing more, so it does
+   not need the accent. In code ink, the movement stays and one color fewer
+   crosses the page. */
 .scan-line { height:1px;background:linear-gradient(90deg,transparent,var(--code-ink),transparent);opacity:.5;animation:scan 3.2s ease-in-out infinite; }
 .demo-result { display:grid;grid-template-columns:1.25fr repeat(3,.6fr);gap:1px;background:rgba(255,255,255,.1);border-top:1px solid rgba(255,255,255,.1); }
 .demo-result div { padding:14px;background:var(--code-bg); }.demo-result b{display:block;color:var(--code-ink);font:600 16px var(--mono)}
@@ -109,11 +109,11 @@ EXTRA_CSS = """
 .flow-stage:last-child { border-right:0; }
 .flow-stage:nth-child(2) { background:var(--code-bg); color:var(--code-ink); }
 .flow-stage:nth-child(2) p { color:var(--code-muted); }
-/* Le titre en HAUT, les étiquettes en BAS. Avant, c'était l'inverse :
-   `margin-top:auto` sur le titre le poussait d'un espace libre qui
-   dépend de la longueur du paragraphe, donc les trois titres se posaient
-   à trois hauteurs différentes. Le surtitre le masquait — lui était
-   aligné — et le défaut est apparu en le retirant. */
+/* The title at the TOP, the tags at the BOTTOM. It used to be the other way
+   round: `margin-top:auto` on the title pushed it by a free space that
+   depends on the paragraph's length, so the three titles sat at three
+   different heights. The overline hid it — it was aligned — and the defect
+   appeared when it was removed. */
 .flow-stage h3 { margin:0 0 10px; font-size:clamp(22px,2.4vw,29px); }
 .flow-stage p { color:var(--muted); margin:0; }
 .flow-stage .stage-tags { display:flex; flex-wrap:wrap; gap:6px;
@@ -160,13 +160,13 @@ EXTRA_CSS = """
 .feature-icon .icon { width:21px; height:21px; }
 .pipeline h3,.bento h3 { margin-bottom:var(--space-2); font-size:19px; }
 .pipeline p,.bento p { color:var(--muted); margin:0; font-size:15px; }
-/* UNE SEULE couleur de fond pour toute la page. Les bandes alternaient
-   --surface-2, le rail --surface et le pied --surface : trois fonds en plus
-   du --bg de la page, donc un changement de couleur presque à chaque section.
-   Le filet reste : il marque la même césure que le fond marquait, sans
-   repeindre. Les CARTES gardent --surface — une carte doit se détacher du
-   fond, c'est ce qui la fait lire comme une carte, et le bloc final est une
-   carte arrondie et non une bande. */
+/* ONE background color for the whole page. The bands alternated
+   --surface-2, the rail --surface and the footer --surface: three
+   backgrounds on top of the page's --bg, so a color change at almost every
+   section. The rule line stays: it marks the same break the background
+   marked, without repainting. CARDS keep --surface — a card must stand out
+   from the background, that is what makes it read as a card, and the final
+   block is a rounded card, not a band. */
 .band { border-block:1px solid var(--line); }
 .bento { display:grid; grid-template-columns:repeat(3,1fr); gap:var(--space-3); }
 .bento article { min-height:220px; }

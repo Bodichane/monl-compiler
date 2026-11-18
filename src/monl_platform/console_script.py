@@ -8,8 +8,9 @@ const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 let validee = false, projet = null, exemples = [];
 
-// Même complétion que monl.dialogue_engine.adresse_de_lien côté serveur.
-// Une adresse incomprise est refusée ; le navigateur ne devine jamais.
+// Same completion as monl.dialogue_engine.adresse_de_lien on the server.
+// An address that is not understood is refused; the browser never
+// guesses.
 function adresseDeLien(saisie) {
   saisie = (saisie || '').trim();
   if (!saisie) return null;
@@ -63,7 +64,7 @@ async function api(chemin, corps) {
   return data;
 }
 
-/* ----- dialogue guidé : le serveur reste l'unique moteur ----- */
+/* ----- guided dialogue: the server stays the only engine ----- */
 let dialogueAnswers = [];
 function rendreDialogue(messages) {
   const journal = $('#dialogue-log');
@@ -74,11 +75,11 @@ function rendreDialogue(messages) {
     journal.appendChild(bloc);
   });
 }
-// POINT 171 : le moteur calculait la liste des choix depuis toujours et la
-// JETAIT ; la console ne recevait que le texte de TERMINAL et le collait dans
-// un <pre>, ce qui donnait onze modèles en une bouillie de crochets. Chaque
-// option porte sa VALEUR depuis le serveur — « aucun » se répond par 0 et non
-// par son rang, et cette règle ne doit pas être réécrite ici (point 146).
+// POINT 171: the engine had always computed the list of choices and THREW IT
+// AWAY; the console received only the TERMINAL text and stuck it in a <pre>,
+// which gave eleven templates in a mush of brackets. Each option carries its
+// VALUE from the server — "none" is answered with 0 and not by its rank, and
+// that rule must not be rewritten here (point 146).
 function rendreChoix(boite, data) {
   boite.replaceChildren();
   const options = Array.isArray(data.options) ? data.options : null;
@@ -131,12 +132,12 @@ function afficherDialogue(data) {
     return;
   }
   const enChoix = rendreChoix(boite, data);
-  // Avec des boutons, le <pre> ne garde que l'INTITULÉ : répéter le menu de
-  // terminal en dessous ferait lire deux fois la même chose.
-  // Avec des boutons, le <pre> ne garde que l'INTITULÉ, envoyé TEL QUEL par
-  // le serveur : le redécouper ici demanderait un retour à la ligne dans une
-  // chaîne JS, et ce gabarit Python le transformerait en vrai saut de ligne —
-  // la page entière cesserait de s'exécuter (point 163, mesuré en l'écrivant).
+  // With buttons, the <pre> keeps only the TITLE: repeating the terminal menu
+  // below would make people read the same thing twice. With buttons, the <pre>
+  // keeps only the TITLE, sent AS IS by the server: splitting it again here
+  // would require a line break inside a JS string, and this Python template
+  // would turn it into a real newline — the whole page would stop running
+  // (point 163, measured while writing it).
   question.textContent = enChoix
     ? (data.title || data.question || '')
     : (data.question || '');
@@ -157,9 +158,9 @@ async function rejouerDialogue(reponse) {
     const corps = { answers: dialogueAnswers };
     if (reponse !== undefined) corps.answer = reponse;
     const data = await api('/api/dialogue', corps);
-    // La liste FAISANT AUTORITÉ vient du serveur : une réponse qu'il a refusée
-    // n'y entre pas. Le navigateur ne décide donc jamais ce qui compte comme
-    // une réponse valide — il adopte ce que le moteur a retenu.
+    // The AUTHORITATIVE list comes from the server: an answer it refused does
+    // not enter it. So the browser never decides what counts as a valid answer
+    // — it adopts what the engine kept.
     dialogueAnswers = data.answers || dialogueAnswers;
     afficherDialogue(data);
   } catch (erreur) {
@@ -182,7 +183,7 @@ function verifierDialogue() {
   valider();
 }
 
-/* ----- catalogue d'exemples, servi par l'API ----- */
+/* ----- example catalog, served by the API ----- */
 async function chargerCatalogue() {
   try {
     const data = await (await fetch('/api/examples')).json();
@@ -190,10 +191,10 @@ async function chargerCatalogue() {
   } catch (e) { exemples = []; }
   const galerie = $('#gallery');
   if (!exemples.length) { galerie.remove(); return; }
-  // Les mots-clés du DSL (`public`, `seed`, `derivedFrom`…) ne sont PAS sur ces
-  // cartes : ils débordaient de la troisième et se coupaient en plein mot, et
-  // ils ne servent qu'à qui connaît déjà le langage — pas à qui choisit un
-  // exemple. Ils restent sur la page d'accueil, où ils sont le sujet.
+  // The DSL keywords (`public`, `seed`, `derivedFrom`…) are NOT on these cards:
+  // they overflowed the third one and broke mid-word, and they only help
+  // someone who already knows the language — not someone picking an example.
+  // They stay on the home page, where they are the subject.
   galerie.innerHTML = exemples.map(e =>
     '<button class="example" type="button" data-id="' + echapper(e.id) + '" aria-pressed="false">' +
     '<b>' + echapper(e.name) + '</b><span>' + echapper(e.summary) +
@@ -211,12 +212,12 @@ async function charger(id) {
   $('#validation-feedback').className = 'feedback';
 }
 
-/* ----- historique persistant du compte ----- */
+/* ----- the account's persistent history ----- */
 function retenir() { rendreHistorique(); }
 async function rendreHistorique() {
   const el = $('#history');
   let liste = [];
-  try { liste = (await (await fetch('/api/projects')).json()).projects || []; } catch (e) { /* réseau */ }
+  try { liste = (await (await fetch('/api/projects')).json()).projects || []; } catch (e) { /* network */ }
   if (!liste.length) {
     el.innerHTML = '<li class="muted">No compilations yet.</li>';
     return;
@@ -341,7 +342,7 @@ async function compiler() {
   } finally { occupe(bouton, false); }
 }
 
-/* ----- câblage ----- */
+/* ----- wiring ----- */
 $('#spec-input').addEventListener('input', compter);
 $$('.rail button').forEach((b, index, boutons) => {
   b.onclick = () => panneau(b.dataset.panel);

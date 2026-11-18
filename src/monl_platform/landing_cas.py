@@ -21,15 +21,15 @@ EXTRA_CSS = """
 .case-tab { position:relative; z-index:1; width:100%; border:0; border-radius:10px; padding:16px; background:transparent; color:var(--muted); text-align:left;
   cursor:pointer; display:block; transition:background .18s,color .18s; }
 .case-tab:hover { color:var(--ink); }.case-tab[aria-selected="true"] { background:var(--surface); color:var(--ink); }
-/* Le fond de l'onglet actif devient un repère unique qui GLISSE d'un onglet à
-   l'autre. Il n'est cédé que si le script a réellement posé le repère
-   (classe `glisse`) : sans JavaScript, la règle `[aria-selected]` reste seule
-   et l'onglet garde son fond. Sa spécificité est plus forte (0,3,1 contre 0,2,1),
-   donc l'ordre des règles n'a pas à être défendu. */
+/* The active tab's background becomes a single marker that SLIDES from one
+   tab to another. It is only handed over if the script really placed the
+   marker (class `glisse`): without JavaScript, the `[aria-selected]` rule
+   stays alone and the tab keeps its background. Its specificity is higher
+   (0,3,1 against 0,2,1), so rule order does not need defending. */
 .case-tabs.glisse .case-tab[aria-selected="true"] { background:transparent; }
-/* Et le fond de l'onglet cesse d'être animé dès que le repère prend le relais :
-   sans ça, l'onglet quitté s'éteint en .18s pendant que le repère met .34s à
-   arriver, et les deux mouvements se contredisent. */
+/* And the tab's background stops being animated as soon as the marker takes
+   over: without that, the tab left behind fades out in .18s while the marker
+   takes .34s to arrive, and the two movements contradict each other. */
 .case-tabs.glisse .case-tab { transition:color .18s; }
 .case-repere {
   position:absolute; top:0; left:0; z-index:0; pointer-events:none;
@@ -59,13 +59,13 @@ EXTRA_CSS = """
   .case-tabs { border-right:0; border-bottom:1px solid var(--line); display:flex; overflow-x:auto; }
   .case-tab { width:190px; flex:none; }.case-tab span { display:none; }
   .case-panel.active { grid-template-columns:1fr; }
-  /* Une seule colonne sous 760px. Cette règle DOIT vivre ici et non dans
-     landing.py : une @media n'ajoute AUCUNE spécificité, et `extra_css`
-     concatène landing.EXTRA_CSS AVANT celui-ci — la règle nue ci-dessus
-     (`.case-explorer { grid-template-columns:minmax(230px,.7fr) … }`, même
-     poids 0,1,0) écrasait donc la version responsive écrite là-bas. Mesuré
-     à 375px : colonnes `230px 103px`, soit un panneau de cas métier de
-     103 pixels de large, clippé par l'`overflow:hidden` de la carte. */
+  /* A single column below 760px. This rule MUST live here and not in
+     landing.py: an @media adds NO specificity, and `extra_css` concatenates
+     landing.EXTRA_CSS BEFORE this one — so the bare rule above
+     (`.case-explorer { grid-template-columns:minmax(230px,.7fr) … }`, same
+     weight 0,1,0) overrode the responsive version written there. Measured
+     at 375px: columns `230px 103px`, i.e. a business-case panel 103 pixels
+     wide, clipped by the card's `overflow:hidden`. */
   .case-explorer { grid-template-columns:1fr; min-height:0; }
 }
 @media(prefers-reduced-motion:reduce){.case-repere,.case-open .icon{transition:none}.case-panel.active{animation:none}}
@@ -146,12 +146,12 @@ CASE_SCRIPT = """<script>
     liste.insertBefore(repere, liste.firstChild);
     liste.classList.add('glisse');
   }
-  /* offsetTop/offsetLeft se mesurent depuis le bord de PADDING du parent
-     positionné, exactement là où `top:0; left:0` pose un absolu. L'onglet est
-     posé dans la boite de CONTENU, donc offsetLeft vaut le padding (12px
-     mesurés) et le translate reconduit le repère pile sur l'onglet : écart
-     mesuré 0,0 au navigateur. Une seule mesure couvre la colonne verticale du
-     bureau et la rangée horizontale du mobile. */
+  /* offsetTop/offsetLeft are measured from the PADDING edge of the positioned
+     parent, exactly where `top:0; left:0` places an absolute element. The tab
+     sits in the CONTENT box, so offsetLeft equals the padding (12px measured)
+     and the translate brings the marker right onto the tab: a gap of 0.0
+     measured in the browser. A single measurement covers the desktop's
+     vertical column and the mobile's horizontal row. */
   function placer(tab, anime) {
     if (!repere) return;
     if (!anime) repere.style.transition = 'none';
@@ -186,9 +186,9 @@ CASE_SCRIPT = """<script>
       select(tabs[(index + direction + tabs.length) % tabs.length], true);
     });
   });
-  /* Premier placement SANS animation : sinon le repère traverse la liste
-     depuis l'angle au chargement. Et replacement au redimensionnement, la
-     grille passant de la colonne à la rangée sous 900px. */
+  /* First placement WITHOUT animation: otherwise the marker crosses the list
+     from the corner on load. And re-placement on resize, the grid switching
+     from column to row below 900px. */
   var actif = tabs.filter(function (t) { return t.getAttribute('aria-selected') === 'true'; })[0] || tabs[0];
   if (actif) placer(actif, false);
   window.addEventListener('resize', function () {
