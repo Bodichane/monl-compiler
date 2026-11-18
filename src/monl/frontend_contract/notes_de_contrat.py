@@ -7,8 +7,8 @@ deux vérités finiraient par diverger."""
 
 from ..ir import CompilationPlans
 
-_LIBELLES_IDENTIFIANT = {"email": "une adresse e-mail",
-                         "phone": "un numéro de téléphone"}
+_LIBELLES_IDENTIFIANT = {"email": "an email address",
+                         "phone": "a phone number"}
 
 def _libelle_identifiant(formes):
     """Ce que le champ 'username' doit RÉELLEMENT contenir (point 95)."""
@@ -16,7 +16,7 @@ def _libelle_identifiant(formes):
               if f in _LIBELLES_IDENTIFIANT]
     if not formes:
         return "str"
-    return "str — " + " ou ".join(_LIBELLES_IDENTIFIANT[f] for f in formes)
+    return "str — " + " or ".join(_LIBELLES_IDENTIFIANT[f] for f in formes)
 
 def _note_identifiant(formes, phone_prefix=None):
     """Sans cette note, l'IA étiquette « nom d'utilisateur » et laisse un champ
@@ -25,34 +25,34 @@ def _note_identifiant(formes, phone_prefix=None):
     formes = [f for f in (formes or []) if f in _LIBELLES_IDENTIFIANT]
     if not formes:
         return None
-    quoi = " ou ".join(_LIBELLES_IDENTIFIANT[f] for f in formes)
+    quoi = " or ".join(_LIBELLES_IDENTIFIANT[f] for f in formes)
     saisie = ("type=\"email\"" if formes == ["email"]
               else "type=\"tel\"" if formes == ["phone"]
-              else "un champ texte acceptant les deux")
+              else "a text field accepting both")
     prefix_note = (
-        f" Pour le téléphone, l'indicatif déclaré est `{phone_prefix}` : "
-        "accepter aussi la notation nationale et l'annoncer près du champ."
+        f" For phone numbers, the declared calling code is `{phone_prefix}`: "
+        "also accept the national notation and say so next to the field."
         if phone_prefix and "phone" in formes else ""
     )
-    return (f"IDENTIFIANT : le champ `username` doit contenir {quoi} — 422 "
-            f"sinon. L'étiqueter en conséquence à l'inscription ET à la "
-            f"connexion (utiliser {saisie}), jamais « nom d'utilisateur ». "
-            f"Le serveur met la valeur sous forme canonique (adresse en "
-            f"minuscules, numéro réduit à ses chiffres) : deux écritures de la "
-            f"même adresse sont le MÊME compte, et la connexion accepte l'une "
-            f"comme l'autre.{prefix_note}")
+    return (f"IDENTIFIER: the `username` field must contain {quoi} — 422 "
+            f"otherwise. Label it accordingly on sign-up AND on sign-in "
+            f"(use {saisie}), never \"username\". "
+            f"The server puts the value in canonical form (address in lower "
+            f"case, number reduced to its digits): two spellings of the same "
+            f"address are the SAME account, and sign-in accepts either "
+            f"one.{prefix_note}")
 
 def _note_liberation(regle):
     """Ce que l'interface doit savoir d'une valeur qui libère (point 98)."""
     if not regle:
         return None
-    return (f"LIBÉRATION : passer `{regle['field']}` à « {regle['value']} » rend "
-            f"ce que les {regle['releases']} liés avaient décompté (le stock, "
-            f"typiquement). L'opération n'a lieu qu'à la TRANSITION : y repasser "
-            f"une seconde fois ne rend rien de plus. Et c'est un aller SANS "
-            f"retour — toute autre valeur est ensuite refusée en 409, car rien "
-            f"ne garantit que ce qui a été rendu soit encore disponible. Ne pas "
-            f"proposer de réactiver : proposer d'en créer un nouveau.")
+    return (f"RELEASE: setting `{regle['field']}` to “{regle['value']}” returns "
+            f"what the linked {regle['releases']} had deducted (the stock, "
+            f"typically). It happens only on the TRANSITION: setting it a "
+            f"second time returns nothing more. And it is a ONE-WAY trip — any "
+            f"other value is then refused with 409, since nothing guarantees "
+            f"that what was returned is still available. Do not offer to "
+            f"reactivate: offer to create a new one.")
 
 def _verrou_paiement(plans: CompilationPlans, entite, inclure_soi=True):
     """Entité dont l'encaissement FIGE les écritures sur 'entite' — elle-même si
@@ -73,24 +73,24 @@ def _verrou_paiement(plans: CompilationPlans, entite, inclure_soi=True):
 def _note_verrou(verrou, creation=False):
     if not verrou:
         return None
-    action = ("cette route refuse d'y rattacher un enregistrement de plus"
-              if creation else "cette route répond 409 et n'écrit rien")
-    return (f"VERROU : dès que le/la {verrou} est réglé (payment_status vaut "
-            f"'payee'), {action} — 409. Masquer ou "
-            f"désactiver l'action sur un enregistrement payé plutôt que de "
-            f"laisser l'utilisateur la découvrir refusée — un montant encaissé "
-            f"ne se modifie plus, il se rembourse chez le prestataire.")
+    action = ("this route refuses to attach one more record to it"
+              if creation else "this route answers 409 and writes nothing")
+    return (f"LOCK: as soon as the {verrou} is paid (payment_status is "
+            f"'payee'), {action} — 409. Hide or "
+            f"disable the action on a paid record rather than letting the "
+            f"user discover it refused — a charged amount can no longer be "
+            f"changed, it is refunded through the provider.")
 
 def _note_message(regle):
     """Note de contrat pour une notification déclenchée par Create."""
     if not regle:
         return None
     return (
-        "NOTIFICATION : après le commit réussi de cette création, une tentative "
-        f"asynchrone envoie à l'adresse du compte le sujet « {regle['subject']} ». "
-        "Afficher qu'une tentative de message a été lancée, sans promettre la "
-        "remise : une panne SMTP n'annule pas l'écriture et est journalisée côté "
-        "serveur.")
+        "NOTIFICATION: after this creation commits successfully, an "
+        f"asynchronous attempt sends the subject “{regle['subject']}” to the "
+        "account's address. Show that a message attempt was started, without "
+        "promising delivery: an SMTP failure does not cancel the write and is "
+        "logged server-side.")
 
 def _joindre(*notes):
     retenues = [n for n in notes if n]
@@ -104,10 +104,10 @@ def _note_superviseurs(supers, action_nom):
     if not supers:
         return None
     roles = ", ".join(supers)
-    return (f"SUPERVISION ({action_nom}) : le rôle {roles} accède à TOUS les "
-            f"enregistrements, sans restriction de parties. Les autres rôles "
-            f"autorisés ici ne voient/modifient que les enregistrements dont "
-            f"ils sont une des parties.")
+    return (f"SUPERVISION ({action_nom}): the role {roles} accesses ALL "
+            f"records, with no party restriction. The other roles allowed "
+            f"here only see/modify the records they are one of the parties "
+            f"of.")
 
 def _note_list_query(query):
     """Texte court transmis à l'IA frontend avec le contrat JSON."""
@@ -118,15 +118,15 @@ def _note_list_query(query):
         filtres = []
         for item in query["filters"]:
             valeurs = item["allowed_values"]
-            suffixe = (" parmi " + ", ".join(repr(v) for v in valeurs)
-                       if valeurs is not None else " une valeur exacte du type du champ")
-            filtres.append(f"paramètre {item['parameter']}{suffixe}")
-        notes.append("FILTRAGE exact, seulement sur les champs déclarés : "
+            suffixe = (" among " + ", ".join(repr(v) for v in valeurs)
+                       if valeurs is not None else " an exact value of the field's type")
+            filtres.append(f"parameter {item['parameter']}{suffixe}")
+        notes.append("Exact FILTERING, only on the declared fields: "
                      + "; ".join(filtres))
     if query.get("sort"):
         tri = query["sort"]
-        notes.append("TRI : paramètre sort parmi "
+        notes.append("SORT: parameter sort among "
                      + ", ".join(tri["fields"])
-                     + ", avec direction=asc ou direction=desc. Aucun autre "
-                     "champ, opérateur ou langage de recherche n'est accepté.")
+                     + ", with direction=asc or direction=desc. No other "
+                     "field, operator or query language is accepted.")
     return " ".join(notes)

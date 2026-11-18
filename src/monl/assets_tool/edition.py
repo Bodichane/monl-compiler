@@ -197,8 +197,8 @@ def _poser_prop_assets(lignes, cle, valeur, dossier):
                       and ligne.strip().split(" ")[0] in DEBUTS_DE_BLOC),
                      len(lignes))
         lignes[cible:cible] = [
-            "# Fichiers fournis par l'humain (brique 13). Chaque chemin déclaré ici\n",
-            "# est vérifié PRÉSENT à la compilation.\n",
+            "# Files supplied by the human (brick 13). Each path declared here\n",
+            "# is checked PRESENT at compilation.\n",
             "assets\n",
             f'    dir: "{dossier}"\n',
             "\n",

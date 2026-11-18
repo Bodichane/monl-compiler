@@ -163,7 +163,7 @@ class SchemasMixin:
 """).substitute())
 
         # 2. Schémas stricts pour les entrées des fonctions 'custom'
-        api_lines.append("# --- SCHÉMAS DE VALIDATION DÉDIÉS POUR LA SANDBOX IA ---")
+        api_lines.append("# --- VALIDATION SCHEMAS DEDICATED TO THE AI SANDBOX ---")
         for func in self.custom_functions:
             func_name = func["name"]
             inputs = func.get("input", [])

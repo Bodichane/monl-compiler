@@ -10,7 +10,7 @@ from monl.usage import build_usage_report
 
 def _target(prompt):
     line = next(line for line in prompt.splitlines()
-                 if line.startswith("Le fichier cible est exactement : "))
+                 if line.startswith("The target file is exactly: "))
     return line.rsplit(": ", 1)[1]
 
 

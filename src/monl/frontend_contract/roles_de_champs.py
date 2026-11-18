@@ -94,17 +94,17 @@ def _archetype(roles, lisible, public):
     return "list"
 
 ARCHETYPE_GUIDANCE = {
-    "gallery": ("galerie — le média commande la mise en page : grandes "
-                "vignettes en grille, titre et catégorie en accompagnement, "
-                "vue de détail au clic"),
-    "shop": ("boutique — le prix est l'information décisive : il doit rester "
-             "lisible sans effort à côté de chaque article, avec un appel à "
-             "l'action clair"),
-    "list": ("liste — rien à mettre en vitrine ici, ou collection réservée "
-             "aux comptes autorisés : lecture dense et rapide, en rangées "
-             "plutôt qu'en cartes"),
-    "form": ("formulaire seul — cette entité s'écrit mais ne se lit nulle "
-             "part : ne construire aucune vue de liste, juste la saisie"),
+    "gallery": ("gallery — the media drives the layout: large thumbnails "
+                "in a grid, title and category alongside, detail view on "
+                "click"),
+    "shop": ("shop — the price is the decisive information: it must stay "
+             "readable without effort next to each item, with a clear call "
+             "to action"),
+    "list": ("list — nothing to showcase here, or a collection reserved to "
+             "authorized accounts: dense, fast reading, in rows rather than "
+             "cards"),
+    "form": ("form only — this entity is written but read nowhere: build "
+             "no list view, just the input"),
 }
 
 # ANATOMIE ATTENDUE PAR FORME (point 60) — relevé sur les recensements
@@ -116,33 +116,33 @@ ARCHETYPE_GUIDANCE = {
 # modèle un repère, là où la seule liste des champs le laissait improviser.
 ARCHETYPE_ANATOMY = {
     "gallery": {
-        "attendus": ["un visuel dominant, jamais une vignette timide",
-                     "le titre lisible sans survol",
-                     "une vue de détail qui donne le contexte, pas seulement l'image en grand",
-                     "un filtre ou un regroupement dès qu'il y a une catégorie"],
-        "voisins": ("les pages projet d'une agence, une fiche d'article de "
-                    "magazine en ligne, une galerie de photographe"),
+        "attendus": ["a dominant visual, never a timid thumbnail",
+                     "the title readable without hovering",
+                     "a detail view that gives context, not just the image enlarged",
+                     "a filter or a grouping as soon as there is a category"],
+        "voisins": ("an agency's project pages, an online magazine article "
+                    "page, a photographer's gallery"),
     },
     "shop": {
-        "attendus": ["prix et disponibilité visibles sans défiler",
-                     "un appel à l'action évident sur chaque article",
-                     "plusieurs vues du produit si les données le permettent",
-                     "la description structurée (usage, matière, dimensions)"],
-        "voisins": ("une vitrine de commerce en ligne standard : liste "
-                    "filtrable, fiche produit dense, panier explicite"),
+        "attendus": ["price and availability visible without scrolling",
+                     "an obvious call to action on each item",
+                     "several views of the product if the data allows",
+                     "the structured description (use, material, dimensions)"],
+        "voisins": ("a standard online store front: filterable list, dense "
+                    "product page, explicit cart"),
     },
     "list": {
-        "attendus": ["des rangées scannables, alignées en colonnes",
-                     "un tri et une recherche dès que la liste s'allonge",
-                     "les actions d'édition à portée, sans changer de page",
-                     "un état vide qui explique quoi faire"],
-        "voisins": ("un tableau de bord d'administration, une grille de "
-                    "gestion interne, un tableau de suivi"),
+        "attendus": ["scannable rows, aligned in columns",
+                     "sorting and search as soon as the list grows",
+                     "editing actions within reach, without changing page",
+                     "an empty state that explains what to do"],
+        "voisins": ("an administration dashboard, an internal management "
+                    "grid, a tracking board"),
     },
     "form": {
-        "attendus": ["un formulaire court, un champ par ligne",
-                     "les erreurs affichées au champ concerné",
-                     "une confirmation explicite après envoi"],
-        "voisins": "un formulaire de contact ou de demande",
+        "attendus": ["a short form, one field per line",
+                     "errors shown at the field concerned",
+                     "an explicit confirmation after sending"],
+        "voisins": "a contact or request form",
     },
 }

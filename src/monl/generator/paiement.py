@@ -54,6 +54,6 @@ class PaiementMixin:
             Template(r"""${indent}if ${var} and ${var_2}[0] == 'payee':""").substitute(indent=indent, var=var, var_2=var),
             Template(r"""${indent}    conn.close()""").substitute(indent=indent),
             Template(r"""${indent}    raise HTTPException(status_code=409, detail=(""").substitute(indent=indent),
-            Template(r"""${indent}        '${entity} déjà réglé : un enregistrement encaissé ne peut plus être '""").substitute(indent=indent, entity=entity),
-            Template(r"""${indent}        'modifié ni supprimé. Passez par un remboursement chez le prestataire.'))""").substitute(indent=indent),
+            Template(r"""${indent}        '${entity} already paid: a charged record can no longer be '""").substitute(indent=indent, entity=entity),
+            Template(r"""${indent}        'modified or deleted. Go through a refund with the provider.'))""").substitute(indent=indent),
         ]

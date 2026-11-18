@@ -142,7 +142,7 @@ def test_cors_refuse_etoile_au_demarrage(projet):
 
     assert processus.returncode != 0
     assert "MONL_CORS_ORIGINS" in sortie
-    assert "origine '*'" in sortie
+    assert "origin '*'" in sortie
 
 
 def test_logs_json_sont_structures_et_ne_contiennent_pas_le_mot_de_passe(projet):
@@ -274,7 +274,7 @@ def test_le_wrapper_demarre_sans_frontend(projet):
     with _serveur(projet, module="serve:app") as (base, processus):
         assert requests.get(f"{base}/health", timeout=5).status_code == 200
         assert requests.get(f"{base}/site/", timeout=5).status_code == 404
-    assert "frontend/ absent" in (processus._monl_sortie or "")
+    assert "frontend/ missing" in (processus._monl_sortie or "")
 
 
 def test_le_wrapper_sert_le_site_quand_le_frontend_existe(projet):

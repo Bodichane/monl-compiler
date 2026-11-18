@@ -143,7 +143,7 @@ def test_avec_les_jetons_de_rafraichissement_la_reponse_gagne_un_champ(tmp_path)
     sortie = _compiler(tmp_path, SPEC_REFRESH)
     reponse_contrat = _contrat(sortie)["api"]["auth"]["login"]["response"]
     assert "refresh_token" in reponse_contrat
-    assert "pas un JWT" in reponse_contrat["refresh_token"], (
+    assert "not a JWT" in reponse_contrat["refresh_token"], (
         "le contrat doit dire que ce jeton est OPAQUE : envoyé en "
         "'Authorization: Bearer', il serait refusé")
 

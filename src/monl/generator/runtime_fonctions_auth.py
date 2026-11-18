@@ -72,7 +72,7 @@ def _clear_account_failures(user_id):
 ''').substitute().split("\n"),
                 ])
             lines.extend([
-                *Template(r'''# --- RÉINITIALISATION DE MOT DE PASSE (brique B4) ---
+                *Template(r'''# --- PASSWORD RESET (brick B4) ---
 PASSWORD_RESET_TTL_SECONDS = ${recovery_ttl}
 PASSWORD_RESET_RESPONSE_FLOOR = 0.05
 RESET_LOGGER = logging.getLogger('monl.password_reset')
@@ -86,48 +86,48 @@ def _send_password_reset(user_id, raw_token):
         finally:
             conn.close()
         if not row:
-            raise RuntimeError('compte destinataire introuvable')
+            raise RuntimeError('recipient account not found')
         recipient = row[0]
-        _message_header_safe(recipient, 'Le destinataire')
+        _message_header_safe(recipient, 'The recipient')
         if not _RE_EMAIL.fullmatch(recipient):
-            raise ValueError('Le compte ne porte pas une adresse e-mail utilisable')
+            raise ValueError('The account does not carry a usable email address')
         host = (os.environ.get('MONL_SMTP_HOST') or '').strip()
         sender = (os.environ.get('MONL_SMTP_FROM') or '').strip()
         if not host or not sender:
             missing = 'MONL_SMTP_HOST' if not host else 'MONL_SMTP_FROM'
-            raise RuntimeError(f"la variable d'environnement {missing} est absente")
-        _message_header_safe(sender, "L'expéditeur")
+            raise RuntimeError(f"the environment variable {missing} is missing")
+        _message_header_safe(sender, "The sender")
         if not _RE_EMAIL.fullmatch(sender):
-            raise ValueError('MONL_SMTP_FROM ne porte pas une adresse e-mail utilisable')
+            raise ValueError('MONL_SMTP_FROM does not carry a usable email address')
         try:
             port = int(os.environ.get('MONL_SMTP_PORT', '587'))
         except ValueError as error:
-            raise RuntimeError('MONL_SMTP_PORT doit être un entier') from error
+            raise RuntimeError('MONL_SMTP_PORT must be an integer') from error
         url = (os.environ.get('MONL_PASSWORD_RESET_URL') or '').strip()
-        body = 'Voici votre jeton de réinitialisation : ' + raw_token
+        body = 'Here is your reset token: ' + raw_token
         if url:
-            body = 'Ouvrez ' + url + '?token=' + urllib.parse.quote(raw_token) + '\n\n' + body
+            body = 'Open ' + url + '?token=' + urllib.parse.quote(raw_token) + '\n\n' + body
         message = EmailMessage()
         message['From'] = sender; message['To'] = recipient
-        message['Subject'] = 'Réinitialisation de votre mot de passe'
+        message['Subject'] = 'Reset your password'
         message.set_content(body)
         username = (os.environ.get('MONL_SMTP_USERNAME') or '').strip()
         password = os.environ.get('MONL_SMTP_PASSWORD') or ''
         if bool(username) != bool(password):
-            raise RuntimeError('MONL_SMTP_USERNAME et MONL_SMTP_PASSWORD doivent être fournis ensemble')
+            raise RuntimeError('MONL_SMTP_USERNAME and MONL_SMTP_PASSWORD must be provided together')
         with smtplib.SMTP(host, port, timeout=5) as smtp:
             if username:
                 smtp.login(username, password)
             smtp.send_message(message)
-        RESET_LOGGER.info('[MONL_PASSWORD_RESET] tentative de message lancée pour le compte %s', user_id)
+        RESET_LOGGER.info('[MONL_PASSWORD_RESET] message attempt started for account %s', user_id)
     except Exception as error:
-        RESET_LOGGER.exception('[MONL_PASSWORD_RESET] message non envoyé pour le compte %s : %s', user_id, error)
+        RESET_LOGGER.exception('[MONL_PASSWORD_RESET] message not sent for account %s: %s', user_id, error)
 ''').substitute(recovery_ttl=features.get('password_reset', features.get('verify_email'))).split("\n"),
             ])
 
         if features.get("refresh_tokens"):
             lines.extend([
-                *Template(r'''# --- JETONS DE RAFRAÎCHISSEMENT (brique B4) ---
+                *Template(r'''# --- REFRESH TOKENS (brick B4) ---
 REFRESH_TOKEN_TTL_SECONDS = ${refresh_ttl}
 def _refresh_token_hash(raw_token):
     return hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
@@ -238,14 +238,14 @@ def password_reset_request(req: PasswordResetRequest, request: Request):
         time.sleep(PASSWORD_RESET_RESPONSE_FLOOR - elapsed)
     if row:
         threading.Thread(target=_send_password_reset, args=(row[0], raw_token), daemon=True, name='monl-password-reset').start()
-    return {'status': 'accepted', 'detail': 'Si le compte existe, un message a été envoyé.'}
+    return {'status': 'accepted', 'detail': 'If the account exists, a message has been sent.'}
 
 @app.post('/password-reset/confirm', tags=['Authentication'])
 def password_reset_confirm(req: PasswordResetConfirmRequest):
     if len(req.password) < 8:
-        raise HTTPException(status_code=400, detail='Le mot de passe doit contenir au moins 8 caractères.')
+        raise HTTPException(status_code=400, detail='The password must contain at least 8 characters.')
     if len(req.password) > 256:
-        raise HTTPException(status_code=400, detail='Mot de passe trop long (256 caractères maximum).')
+        raise HTTPException(status_code=400, detail='Password too long (256 characters maximum).')
     identifier = _normalize_identifier(req.username)
     token_hash = hashlib.sha256(req.token.encode('utf-8')).hexdigest()
     now = datetime.datetime.now(datetime.timezone.utc).timestamp()
@@ -256,18 +256,18 @@ def password_reset_confirm(req: PasswordResetConfirmRequest):
     valid = bool(row and fingerprint_ok and row[3] is None and row[4] > now and hmac.compare_digest(row[2], identifier))
     if not valid:
         conn.close()
-        raise HTTPException(status_code=400, detail='Jeton de réinitialisation invalide ou expiré.')
+        raise HTTPException(status_code=400, detail='Invalid or expired reset token.')
     salt_hex = os.urandom(16).hex()
     cursor.execute('UPDATE _monl_password_reset_tokens SET used_at = ? WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?', (now, token_hash, now))
     if cursor.rowcount != 1:
         conn.close()
-        raise HTTPException(status_code=400, detail='Jeton de réinitialisation invalide ou expiré.')
+        raise HTTPException(status_code=400, detail='Invalid or expired reset token.')
     cursor.execute('UPDATE _monl_users SET password_hash = ?, salt = ?, token_version = token_version + 1 WHERE id = ?', (_hash_password(req.password, salt_hex), salt_hex, row[1]))
     cursor.execute('UPDATE _monl_password_reset_tokens SET used_at = COALESCE(used_at, ?) WHERE user_id = ?', (now, row[1]))''').substitute().split("\n"),
                 *([*Template(r'''    cursor.execute('UPDATE _monl_account_lockouts SET failed_count = 0, first_failed_at = ?, locked_until = NULL WHERE user_id = ?', (now, row[1]))''').substitute().split("\n")] if features.get("lockout") else []),
                 *([*Template(r'''    cursor.execute('UPDATE _monl_refresh_tokens SET revoked_at = ? WHERE user_id = ?', (now, row[1]))''').substitute().split("\n")] if features.get("refresh_tokens") else []),
                 *Template(r'''    conn.commit(); conn.close()
-    return {'status': 'success', 'detail': 'Mot de passe réinitialisé.'}
+    return {'status': 'success', 'detail': 'Password reset.'}
 ''').substitute().split("\n"),
             ])
 
@@ -288,16 +288,16 @@ def refresh(req: RefreshRequest):
         fingerprint_ok = hmac.compare_digest(token_row[0], presented_hash) if token_row else hmac.compare_digest(_DUMMY_RESET_HASH, presented_hash)
         if not token_row or not fingerprint_ok or token_row[2] <= now or token_row[3] is not None:
             cursor.execute('ROLLBACK')
-            raise HTTPException(status_code=401, detail='Jeton de rafraîchissement invalide ou expiré.')
+            raise HTTPException(status_code=401, detail='Invalid or expired refresh token.')
         cursor.execute('UPDATE _monl_refresh_tokens SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL AND expires_at > ?', (now, presented_hash, now))
         if cursor.rowcount != 1:
             cursor.execute('ROLLBACK')
-            raise HTTPException(status_code=401, detail='Jeton de rafraîchissement invalide ou expiré.')
+            raise HTTPException(status_code=401, detail='Invalid or expired refresh token.')
         cursor.execute('SELECT id, username, actor, anon_handle, token_version FROM _monl_users WHERE id = ?', (token_row[1],))
         user_row = cursor.fetchone()
         if not user_row:
             cursor.execute('ROLLBACK')
-            raise HTTPException(status_code=401, detail='Jeton de rafraîchissement invalide ou expiré.')
+            raise HTTPException(status_code=401, detail='Invalid or expired refresh token.')
         access_token = _access_token_for_user(user_row)
         new_refresh = _issue_refresh_token(cursor, token_row[1], now)
         cursor.execute('COMMIT')
@@ -329,9 +329,9 @@ def totp_setup(credentials: HTTPAuthorizationCredentials = Depends(security_bear
     cursor.execute('SELECT username, totp_enabled FROM _monl_users WHERE id = ?', (user_id,))
     row = cursor.fetchone()
     if not row:
-        conn.close(); raise HTTPException(status_code=401, detail='Session invalide.')
+        conn.close(); raise HTTPException(status_code=401, detail='Invalid session.')
     if row[1]:
-        conn.close(); raise HTTPException(status_code=409, detail='Le double facteur est déjà activé.')
+        conn.close(); raise HTTPException(status_code=409, detail='Two-factor authentication is already enabled.')
     secret = _new_totp_secret()
     cursor.execute('UPDATE _monl_users SET totp_secret = ?, totp_enabled = NULL, totp_last_step = NULL WHERE id = ?', (secret, user_id))
     conn.commit(); conn.close()
@@ -345,18 +345,18 @@ def totp_enable(req: TotpCodeRequest, credentials: HTTPAuthorizationCredentials 
     cursor.execute('SELECT totp_secret, totp_enabled, password_hash, salt FROM _monl_users WHERE id = ?', (user_id,))
     row = cursor.fetchone()
     if not row or not row[0] or row[1]:
-        conn.close(); raise HTTPException(status_code=409, detail='Initialiser le double facteur avant activation.')
+        conn.close(); raise HTTPException(status_code=409, detail='Set up two-factor authentication before enabling it.')
     password_ok = hmac.compare_digest(_hash_password(req.password, row[3]), row[2])
     code_ok = _totp_code_is_current(row[0], req.code)
     if not password_ok or not code_ok:
-        conn.close(); raise HTTPException(status_code=401, detail='Identifiants invalides.')
+        conn.close(); raise HTTPException(status_code=401, detail='Invalid credentials.')
     cursor.execute('UPDATE _monl_users SET totp_enabled = TRUE, totp_last_step = NULL, token_version = token_version + 1 WHERE id = ? AND token_version = ? AND password_hash = ? AND totp_secret = ? AND (totp_enabled IS NULL OR totp_enabled = FALSE)', (user_id, payload.get('token_version', 0), row[2], row[0]))
     if cursor.rowcount != 1:
         conn.rollback(); conn.close()
-        raise HTTPException(status_code=401, detail='Identifiants invalides.')''').substitute().split("\n"),
+        raise HTTPException(status_code=401, detail='Invalid credentials.')''').substitute().split("\n"),
                 *([*Template(r'''    cursor.execute('UPDATE _monl_refresh_tokens SET revoked_at = ? WHERE user_id = ?', (datetime.datetime.now(datetime.timezone.utc).timestamp(), user_id))''').substitute().split("\n")] if features.get("refresh_tokens") else []),
                 *Template(r'''    conn.commit(); conn.close()
-    return {'status': 'enabled', 'detail': 'Sessions invalidées : reconnectez-vous avec le double facteur.'}
+    return {'status': 'enabled', 'detail': 'Sessions invalidated: sign in again with two-factor authentication.'}
 ''').substitute().split("\n"),
             ])
         return [*lines, *self._generate_verification_routes()]

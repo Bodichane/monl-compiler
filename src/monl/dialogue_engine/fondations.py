@@ -40,29 +40,29 @@ PARAGRAPH_SEP = " ¶ "
 # entrée porte un libellé court pour l'écran et une phrase pour le brief.
 DESIGN_REGISTERS = [
     ("Formal and institutional",
-     "registre sobre et institutionnel : lisibilité et confiance avant tout, "
-     "peu d'effets, hiérarchie typographique nette"),
+     "restrained, institutional register: readability and trust above all, "
+     "few effects, a clear typographic hierarchy"),
     ("Warm and editorial",
-     "registre chaleureux et éditorial : longues plages de texte, respiration "
-     "généreuse, matière et nuances plutôt que contrastes brutaux"),
+     "warm, editorial register: long stretches of text, generous breathing "
+     "room, texture and nuance rather than harsh contrasts"),
     ("Dense and functional",
-     "registre dense et fonctionnel : l'outil prime sur la vitrine, "
-     "information compacte, l'utilisateur va vite et revient souvent"),
+     "dense, functional register: the tool comes before the showcase, "
+     "compact information, the user moves fast and comes back often"),
     ("Bold and graphic",
-     "registre affirmé et graphique : grandes échelles typographiques, "
-     "contrastes marqués, parti pris visuel assumé"),
+     "bold, graphic register: large typographic scales, strong contrasts, "
+     "an assertive visual stance"),
 ]
 
 DESIGN_IMAGERY = [
     ("Images define the site",
-     "les images portent le site (photo, œuvre, produit) : elles occupent de "
-     "grandes surfaces et commandent la mise en page"),
+     "the images carry the site (photo, artwork, product): they take up "
+     "large areas and drive the layout"),
     ("Text first, supporting images",
-     "le texte porte le site, les images viennent en appui et restent "
-     "secondaires dans la mise en page"),
+     "the text carries the site, images play a supporting role and stay "
+     "secondary in the layout"),
     ("No images",
-     "aucune image : tout repose sur la typographie, l'espacement et la "
-     "couleur"),
+     "no images: everything rests on typography, spacing and "
+     "color"),
 ]
 
 class DialogueError(Exception):

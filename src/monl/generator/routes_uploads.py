@@ -26,7 +26,7 @@ class UploadsRoutesMixin:
                 *Template(r"""    _row = _cursor.fetchone()
     if not _row:
         _conn.close()
-        raise HTTPException(status_code=404, detail='Enregistrement introuvable')
+        raise HTTPException(status_code=404, detail='Record not found')
     _old_reference = _row[0]
     _new_reference = None
     try:""").substitute().split("\n"),
@@ -57,10 +57,10 @@ class UploadsRoutesMixin:
                 Template(r"""    _cursor.execute('SELECT "${field}" FROM "${table}" WHERE id = ?', (id,))""").substitute(field=field, table=table),
                 *Template(r"""    _row = _cursor.fetchone(); _conn.close()
     if not _row or not _row[0]:
-        raise HTTPException(status_code=404, detail='Fichier introuvable')""").substitute().split("\n"),
+        raise HTTPException(status_code=404, detail='File not found')""").substitute().split("\n"),
                 Template(r"""    _file_path = _upload_path(${table}, id, ${field}, _row[0])""").substitute(table=repr(table), field=repr(field)),
                 *Template(r"""    if not _file_path or not os.path.isfile(_file_path):
-        raise HTTPException(status_code=404, detail='Fichier introuvable')
+        raise HTTPException(status_code=404, detail='File not found')
     return FileResponse(_file_path, media_type='application/octet-stream', filename='download', headers={'X-Content-Type-Options': 'nosniff'})
 """).substitute().split("\n"),
             ])

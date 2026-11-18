@@ -27,10 +27,10 @@ def _routes_du_contrat(entity_specs, plans, route_map):
             # pas se découvrir à la fin.
             requise = plans.required_profiles.get(base)
             note_create = (
-                f"PRÉALABLE : l'appelant doit déjà posséder un {requise}. Sinon "
-                f"cette route répond 409 sans rien créer. Vérifier au chargement "
-                f"(GET /{requise.lower()} renvoie les siens) et proposer la "
-                f"création de la fiche AVANT le formulaire, pas après."
+                f"PREREQUISITE: the caller must already own a {requise}. Otherwise "
+                f"this route answers 409 and creates nothing. Check on load "
+                f"(GET /{requise.lower()} returns theirs) and offer to create "
+                f"the profile BEFORE the form, not after."
                 if requise else None)
             # POINT 91 : la création AUSSI est verrouillée — mais seulement par
             # un PARENT réglé, jamais par l'entité elle-même : rien n'empêche
@@ -62,7 +62,7 @@ def _routes_du_contrat(entity_specs, plans, route_map):
             routes.append(champs._route(
                 "GET", f"/{low}", "List", base, is_public, actors,
                 note=notes_de_contrat._joindre(
-                    "Paramètres : limit (max 200), offset. Réponse : "
+                    "Parameters: limit (max 200), offset. Response: "
                     "{status, total, limit, offset, data: [...]}.",
                     notes_de_contrat._note_list_query(list_query), _note_lecture)))
             if list_query:
@@ -83,13 +83,13 @@ def _routes_du_contrat(entity_specs, plans, route_map):
             liens = list(entity_specs.get(base, {}).get("client_foreign_keys", []))
             note_liens = None
             if liens:
-                accord = ("doivent figurer dans le corps (schéma unique par entité) mais ne "
-                          "sont PAS modifiés" if len(liens) > 1 else
-                          "doit figurer dans le corps (schéma unique par entité) mais n'est "
-                          "PAS modifié")
+                accord = ("must appear in the body (one schema per entity) but are "
+                          "NOT modified" if len(liens) > 1 else
+                          "must appear in the body (one schema per entity) but is "
+                          "NOT modified")
                 note_liens = (
-                    f"{', '.join(liens)} {accord} : un rattachement se fixe à la création. "
-                    f"Ne pas proposer de le changer — renvoyer la valeur actuelle.")
+                    f"{', '.join(liens)} {accord}: an attachment is set on creation. "
+                    f"Do not offer to change it — send back the current value.")
             # POINT 91 : quatrième forme de l'angle mort des points 88 à 90. Une
             # route ne change ni de chemin, ni d'acteurs, ni de champs, et gagne
             # pourtant un refus : dès l'encaissement, elle répond 409. Sans cette
@@ -139,16 +139,16 @@ def _routes_du_contrat(entity_specs, plans, route_map):
         chemin = f"/{entite.lower()}/{{id}}/{champ}"
         for action, method, contract_action, note in (
                 ("Update", "POST", "Upload", (
-                    f"multipart/form-data obligatoire, champ de fichier '{champ}'. "
-                    f"Limite exacte : {upload['max_bytes']} octets. Types acceptés "
-                    f"par signature d'octets : {', '.join(upload['accepted_types'])}. "
-                    "Le nom de fichier et le Content-Type déclarés par le client "
-                    "sont ignorés ; le dépôt remplace l'ancien fichier après "
+                    f"multipart/form-data required, file field '{champ}'. "
+                    f"Exact limit: {upload['max_bytes']} bytes. Types accepted "
+                    f"by byte signature: {', '.join(upload['accepted_types'])}. "
+                    "The file name and Content-Type declared by the client "
+                    "are ignored; the upload replaces the previous file after "
                     "validation.")),
                 ("Read", "GET", "Download", (
-                    "réponse octet/octet en téléchargement avec Content-Type "
-                    "application/octet-stream et nosniff ; l'ACL de la ligne "
-                    "s'applique aussi au fichier, un chemin connu ne suffit pas.")),
+                    "byte-for-byte download response with Content-Type "
+                    "application/octet-stream and nosniff; the row's ACL "
+                    "applies to the file too, a known path is not enough.")),
         ):
             access = plans.access_policies[(entite, action)]
             route = champs._route(method, chemin, contract_action, entite, False,

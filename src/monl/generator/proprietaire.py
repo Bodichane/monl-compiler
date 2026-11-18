@@ -22,9 +22,9 @@ class ProprietaireMixin:
             if p["owner_entity"] == parent:
                 return p["fk_column"]
         raise ValueError(
-            f"Génération : aucune colonne de clé étrangère de '{child}' ne désigne "
-            f"'{parent}', alors que le validateur exigeait cette relation pour une "
-            f"chaîne de propriété transitive."
+            f"Generation: no foreign-key column of '{child}' points to "
+            f"'{parent}', although the validator required this relation for a "
+            f"transitive ownership chain."
         )
 
     def _transitive_chain(self, entity):
@@ -47,9 +47,9 @@ class ProprietaireMixin:
         acteur = chaine["actor"]
         if not hops_raw:
             raise ValueError(
-                f"Génération : '{entity}' est en propriété transitive mais sa chaîne "
-                f"est vide -- le validateur a divergé. Echec plutôt que jointure "
-                f"sur rien."
+                f"Generation: '{entity}' has transitive ownership but its chain "
+                f"is empty -- the validator diverged. Failing rather than joining "
+                f"on nothing."
             )
         # Maillon du bas : la clé étrangère sur 'entity' vers le premier maillon.
         hop_bas = {"table": hops_raw[0].lower(),

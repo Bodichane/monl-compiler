@@ -38,17 +38,17 @@ def build_generation_prompt(project_dir, update_mode, retouche_mode=False):
 
     brief_path = os.path.join(project_dir, brief)
     if not os.path.exists(brief_path):
-        origine = ("'monl retouche' n'a pas écrit sa consigne"
-                   if retouche_mode else "lancer d'abord 'monl update'")
-        raise fondations.FrontendAIError(f"{brief} est absent — {origine}.")
+        origine = ("'monl retouche' did not write its instruction"
+                   if retouche_mode else "run 'monl update' first")
+        raise fondations.FrontendAIError(f"{brief} is missing — {origine}.")
     with open(brief_path, encoding="utf-8") as fh:
         delta = fh.read()
     existing = reponse._read_existing_frontend(project_dir)
     files_block = "\n\n".join(
         f"### frontend/{p}\n```\n{c}\n```" for p, c in sorted(existing.items()))
-    return (f"{delta}\n\n## Fichiers actuels du frontend (à faire évoluer, "
-            f"pas à réécrire de zéro)\n{files_block}\n\n## Rappel du contrat "
-            f"d'origine\n{base_prompt}{fournisseurs.RESPONSE_FORMAT_INSTRUCTIONS}")
+    return (f"{delta}\n\n## Current frontend files (to evolve, "
+            f"not to rewrite from scratch)\n{files_block}\n\n## Reminder of the "
+            f"original contract\n{base_prompt}{fournisseurs.RESPONSE_FORMAT_INSTRUCTIONS}")
 
 def ampleur_du_contrat(project_dir):
     """Ce que le frontend doit couvrir : nombre de routes et d'entités.

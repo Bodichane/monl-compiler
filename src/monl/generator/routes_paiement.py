@@ -60,24 +60,24 @@ class PaiementRoutesMixin:
         else:
             lignes = [
                 "",
-                "# ── Paiement (brique 'payable') ──────────────────────────────",
+                "# ── Payment ('payable' brick) ─────────────────────────────────",
                 "STRIPE_SECRET_KEY = (os.environ.get('STRIPE_SECRET_KEY') or '').strip()",
                 "STRIPE_WEBHOOK_SECRET = (os.environ.get('STRIPE_WEBHOOK_SECRET') or '').strip()",
-                "# Point de terminaison surchargeable : indispensable pour éprouver",
-                "# le parcours complet sans appeler Stripe (voir tests).",
+                "# Overridable endpoint: essential to exercise the full flow",
+                "# without calling Stripe (see tests).",
                 "STRIPE_BASE_URL = (os.environ.get('MONL_STRIPE_BASE_URL')",
                 "                   or 'https://api.stripe.com').rstrip('/')",
                 "",
                 "def _exiger_cle_paiement(nom, valeur):",
                 "    if not valeur:",
                 "        raise HTTPException(status_code=503, detail=(",
-                "            f\"Paiement indisponible : la variable d'environnement {nom} n'est pas \"",
-                "            'définie sur le serveur. Aucun règlement ne peut être accepté tant '",
-                "            \"qu'elle manque.\"))",
+                "            f'Payment unavailable: the environment variable {nom} is not set '",
+                "            'on the server. No payment can be accepted while it is '",
+                "            'missing.'))",
                 "",
                 "def _session_paiement(montant_centimes, devise, reference, retour):",
-                "    \"\"\"Crée une session de règlement. Le montant est en CENTIMES,",
-                "    calculé côté serveur depuis la base.\"\"\"",
+                "    \"\"\"Creates a checkout session. The amount is in CENTS,",
+                "    calculated server-side from the database.\"\"\"",
                 "    corps = urllib.parse.urlencode({",
                 "        'mode': 'payment',",
                 "        'success_url': retour + '?paiement=ok',",
@@ -86,7 +86,7 @@ class PaiementRoutesMixin:
                 "        'line_items[0][quantity]': '1',",
                 "        'line_items[0][price_data][currency]': devise,",
                 "        'line_items[0][price_data][unit_amount]': str(montant_centimes),",
-                "        'line_items[0][price_data][product_data][name]': f'Commande {reference}',",
+                "        'line_items[0][price_data][product_data][name]': f'Order {reference}',",
                 "    }).encode()",
                 "    requete = urllib.request.Request(",
                 "        STRIPE_BASE_URL + '/v1/checkout/sessions', data=corps, method='POST')",
@@ -99,10 +99,10 @@ class PaiementRoutesMixin:
                 "        with e:",
                 "            detail = (e.read() or b'')[:400].decode('utf-8', 'replace')",
                 "        raise HTTPException(status_code=502, detail=(",
-                "            f'Le prestataire de paiement a refusé la demande ({e.code}) : {detail}'))",
+                "            f'The payment provider refused the request ({e.code}): {detail}'))",
                 "    except urllib.error.URLError as e:",
                 "        raise HTTPException(status_code=502, detail=(",
-                "            f'Prestataire de paiement injoignable : {e.reason}'))",
+                "            f'Payment provider unreachable: {e.reason}'))",
                 "",
             ]
         for entite, champ in sorted(self.payable_by_entity.items()):
@@ -139,9 +139,9 @@ class PaiementRoutesMixin:
                 # qu'écrire une route de paiement sans contrôle d'accès, même
                 # raisonnement que `plan_derivations`.
                 raise ValueError(
-                    f"Génération : '{entite}' est 'payable' mais aucune colonne ne "
-                    f"porte l'identifiant du compte propriétaire — la route de "
-                    f"règlement ne pourrait opposer de 403 à personne.")
+                    f"Generation: '{entite}' is 'payable' but no column carries "
+                    f"the owning account's identifier — the payment route could "
+                    f"answer 403 to nobody.")
             if chaine:
                 # Briques 11 et 24 : une chaîne de JOIN, une par maillon, jusqu'au
                 # compte. Montant, état et propriétaire sortent de la MÊME lecture.
@@ -165,17 +165,17 @@ class PaiementRoutesMixin:
                 # rend aucun résultat : elle n'appartient à personne, et 404 est
                 # la bonne réponse — surtout pas « payable par quiconque ».
                 "    if not ligne:",
-                "        raise HTTPException(status_code=404, detail='Introuvable.')",
+                "        raise HTTPException(status_code=404, detail='Not found.')",
             ]
             lignes += [
                 "    montant, etat, proprietaire = ligne",
                 "    if proprietaire is not None and proprietaire != current_user_id:",
                 "        raise HTTPException(status_code=403, detail="
-                "'Cet enregistrement ne vous appartient pas.')",
+                "'This record does not belong to you.')",
             ]
             lignes += [
                 "    if etat == 'payee':",
-                "        raise HTTPException(status_code=409, detail='Déjà réglé.')",
+                "        raise HTTPException(status_code=409, detail='Already paid.')",
                 # BRIQUE 2a : le prestataire attend un ENTIER dans l'unité
                 # mineure de la devise, donc `montant × 10**exposant`. Le `×100`
                 # figé d'avant était juste pour l'euro et faux partout ailleurs :
@@ -186,7 +186,7 @@ class PaiementRoutesMixin:
                 f"{10 ** exposant_devise}))",
                 "    if centimes <= 0:",
                 "        raise HTTPException(status_code=400, detail=(",
-                "            'Montant nul ou négatif : rien à encaisser.'))",
+                "            'Zero or negative amount: nothing to charge.'))",
                 "    retour = str(request.base_url).rstrip('/') + '/site/'",
                 # CORRECTIF SÉCURITÉ : la référence porte désormais le nom de
                 # l'entité. Un simple id numérique se confondait avec celui
@@ -247,56 +247,55 @@ class PaiementRoutesMixin:
             "    except ValueError:",
             "        _taille_annoncee = None",
             "    if _taille_annoncee is not None and _taille_annoncee > WEBHOOK_MAX_BYTES:",
-            "        raise HTTPException(status_code=413, detail='Webhook trop volumineux.')",
+            "        raise HTTPException(status_code=413, detail='Webhook too large.')",
             "    _blocs, _taille = [], 0",
             "    async for _bloc in request.stream():",
             "        _taille += len(_bloc)",
             "        if _taille > WEBHOOK_MAX_BYTES:",
-            "            raise HTTPException(status_code=413, detail='Webhook trop volumineux.')",
+            "            raise HTTPException(status_code=413, detail='Webhook too large.')",
             "        _blocs.append(_bloc)",
             "    brut = b''.join(_blocs)",
             f"    entete = request.headers.get('{entete_signature}', '')",
-            f"    # Signature : t=<horodatage>,{schema_signature}=<hmac sha256 de \"t.corps\">.",
-            "    # Sans cette vérification, n'importe qui marquerait n'importe",
-            "    # quelle commande comme payée avec un simple curl.",
+            f"    # Signature: t=<timestamp>,{schema_signature}=<hmac sha256 of \"t.body\">.",
+            "    # Without this check, anyone could mark any order as paid",
+            "    # with a plain curl.",
             "    horodatage, signatures = None, []",
             "    for morceau in entete.split(','):",
             "        cle, _, valeur = morceau.partition('=')",
             "        if cle.strip() == 't': horodatage = valeur.strip()",
             f"        elif cle.strip() == '{schema_signature}': signatures.append(valeur.strip())",
             "    if not horodatage or not signatures:",
-            "        raise HTTPException(status_code=400, detail='Signature absente ou malformée.')",
-            "    # POINT 91 : l'horodatage était LU pour vérifier la signature, mais",
-            "    # jamais daté. Un appel signé capté une fois restait donc rejouable",
-            "    # indéfiniment — c'est la parade que Stripe documente, et elle ne",
-            "    # coûte que ces trois lignes. Tolérance de cinq minutes : au-delà,",
-            "    # ce n'est plus un réseau lent, c'est un rejeu.",
+            "        raise HTTPException(status_code=400, detail='Missing or malformed signature.')",
+            "    # POINT 91: the timestamp was READ to check the signature, but never",
+            "    # dated. A signed call captured once stayed replayable forever —",
+            "    # this is the defense Stripe documents, and it costs only these",
+            "    # three lines. Five minutes of tolerance: beyond that it is no",
+            "    # longer a slow network, it is a replay.",
             "    try:",
             "        _age = abs(datetime.datetime.now(datetime.timezone.utc).timestamp()",
             "                   - int(horodatage))",
             "    except ValueError:",
-            "        raise HTTPException(status_code=400, detail='Horodatage de signature illisible.')",
+            "        raise HTTPException(status_code=400, detail='Unreadable signature timestamp.')",
             "    if _age > 300:",
             "        raise HTTPException(status_code=400, detail=(",
-            "            'Signature expirée : cet appel a plus de cinq minutes.'))",
+            "            'Expired signature: this call is more than five minutes old.'))",
             f"    attendue = hmac.new({secret_var}.encode(),",
             "                        (horodatage + '.').encode() + brut, hashlib.sha256).hexdigest()",
             "    if not any(hmac.compare_digest(attendue, s) for s in signatures):",
-            "        raise HTTPException(status_code=400, detail='Signature invalide.')",
+            "        raise HTTPException(status_code=400, detail='Invalid signature.')",
             "    evenement = json.loads(brut or b'{}')",
         ]
         if prestataire == "fedapay":
             lignes += [
-            "    # La clé `entity` est PROUVÉE : le plugin Odoo officiel de",
-            "    # FedaPay (fedapay/fedapay-odoo, controllers/main.py) lit le",
-            "    # corps brut du webhook et fait `data.get('entity', {})`. Ce",
-            "    # qui reste non prouvé, c'est que `merchant_reference` soit",
-            "    # RÉÉMIS dans cette charge utile — la documentation l'établit",
-            "    # sur la transaction, jamais sur l'événement. D'où le repli",
-            "    # ci-dessous par l'identifiant du prestataire, et le",
-            "    # FAIL-CLOSED si aucune des deux voies ne reconnaît la ligne :",
-            "    # un règlement non enregistré coûte un appel au support, le",
-            "    # mauvais enregistrement marqué payé coûte de l'argent.",
+            "    # The `entity` key is PROVEN: FedaPay's official Odoo plugin",
+            "    # (fedapay/fedapay-odoo, controllers/main.py) reads the raw",
+            "    # webhook body and does `data.get('entity', {})`. What remains",
+            "    # unproven is that `merchant_reference` is SENT BACK in this",
+            "    # payload — the documentation establishes it on the transaction,",
+            "    # never on the event. Hence the fallback below on the provider's",
+            "    # identifier, and FAIL-CLOSED if neither path recognizes the row:",
+            "    # an unrecorded payment costs a support call, the wrong record",
+            "    # marked paid costs money.",
             "    objet = (evenement.get('entity')",
             "             or (evenement.get('data') or {}).get('object') or {})",
             "    reference = (objet.get('merchant_reference')",
@@ -339,9 +338,9 @@ class PaiementRoutesMixin:
             "    _attendu = 'checkout.session.completed'",
             ]
         lignes += [
-            "    # La référence est 'EntiteQualifiee:id' (voir la création de session",
-            "    # ci-dessus) : un id nu se confondrait avec celui d'une AUTRE entité",
-            "    # payable de la même app, et marquerait payé le mauvais enregistrement.",
+            "    # The reference is 'QualifiedEntity:id' (see session creation",
+            "    # above): a bare id would be confused with one of ANOTHER payable",
+            "    # entity of the same app, and would mark the wrong record paid.",
             "    entite_ref, _, id_texte = str(reference).partition(':')",
             "    if _type_evenement != _attendu or not id_texte.isdigit():",
             "        return {'status': 'ignored'}",

@@ -29,27 +29,27 @@ def test_la_reservation_prime_sur_le_prix():
         entities={"Creneau": {"archetype": "shop"}},
         sections=[{"title": "Réserver un créneau", "body": "Prenez rendez-vous."}]))
     assert profil["kind"] == "service"
-    assert "disponibilité" in profil["pattern"]
+    assert "availability" in profil["pattern"]
 
 
 def test_une_action_de_paiement_suffit_a_faire_un_commerce():
     profil = infer_design_profile(_contrat(routes=[{"action": "Pay"}]))
     assert profil["kind"] == "commerce"
-    assert "Catalogue" in profil["pages"]
-    assert "Panier ou récapitulatif" in profil["pages"]
+    assert "Catalog" in profil["pages"]
+    assert "Cart or summary" in profil["pages"]
 
 
 def test_la_competence_operations_donne_un_espace_de_travail():
     profil = infer_design_profile(_contrat(design_skills=["monl-operations"]))
     assert profil["kind"] == "operations"
-    assert "Espace de travail par rôle" in profil["pages"]
+    assert "Workspace per role" in profil["pages"]
 
 
 def test_des_sections_sans_autre_signal_donnent_un_site_editorial():
     profil = infer_design_profile(_contrat(
         sections=[{"title": "Notre atelier", "body": "Depuis 2019."}]))
     assert profil["kind"] == "editorial"
-    assert "Hero narratif" in profil["pattern"]
+    assert "Narrative hero" in profil["pattern"]
 
 
 def test_sans_aucun_signal_le_profil_reste_generique():
@@ -61,7 +61,7 @@ def test_sans_aucun_signal_le_profil_reste_generique():
 
 def test_une_faq_ajoute_son_ecran():
     profil = infer_design_profile(_contrat(faq=[{"question": "Où ?", "answer": "Ici."}]))
-    assert "FAQ structurée" in profil["pages"]
+    assert "Structured FAQ" in profil["pages"]
 
 
 def test_le_mot_service_suffit_quand_rien_dautre_ne_parle():

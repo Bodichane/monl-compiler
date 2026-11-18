@@ -200,7 +200,7 @@ def test_les_choix_arrivent_jusqua_la_route(running_platform):
     options = data["options"]
     assert len(options) == 11, options
     assert [o["value"] for o in options] == [str(n) for n in range(1, 12)]
-    assert options[0]["label"] == "Portfolio / site vitrine"
+    assert options[0]["label"] == "Portfolio / showcase site"
     # Le texte de terminal reste servi : un client qui l'affichait continue.
     assert "[1] Portfolio" in data["question"]
 

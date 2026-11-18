@@ -35,16 +35,16 @@ class SuppressionRoutesMixin:
                 "    _p_conn = _connect(); _p_cur = _p_conn.cursor()",
                 f"    _p_cur.execute('SELECT {cols_literal} FROM \"{base_target.lower()}\" WHERE id = ?', (id,))",
                 "    _p_row = _p_cur.fetchone(); _p_conn.close()",
-                "    if not _p_row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
+                "    if not _p_row: raise HTTPException(status_code=404, detail='Record not found')",
             ]
             if apply_delete_super:
                 _superset = ", ".join(f'"{s}"' for s in delete_supers)
                 ownership_check_lines.append(f"    if current_actor not in {{{_superset}}}:")
                 ownership_check_lines.append("        if current_user_id not in _p_row: raise HTTPException(status_code=403, ")
-                ownership_check_lines.append("        detail=\"Contrôle d'accès : seules les parties de la ressource peuvent exécuter cette action\")")
+                ownership_check_lines.append("        detail=\"Access control: only the resource's parties can perform this action\")")
             else:
                 ownership_check_lines.append("    if current_user_id not in _p_row: raise HTTPException(status_code=403, ")
-                ownership_check_lines.append("        detail=\"Contrôle d'accès : seules les parties de la ressource peuvent exécuter cette action\")")
+                ownership_check_lines.append("        detail=\"Access control: only the resource's parties can perform this action\")")
         elif apply_ownership:
             check_actor, owner_select = self._owner_lookup_sql(base_target, owner_entity)
             delete_deps += ", current_user_id: int = Depends(get_current_user_id)" if delete_deps else "current_user_id: int = Depends(get_current_user_id)"
@@ -56,9 +56,9 @@ class SuppressionRoutesMixin:
                 "        _owner_conn = _connect(); _owner_cur = _owner_conn.cursor()",
                 f"        _owner_cur.execute({owner_select.text!r}, {sql.params_tuple(owner_select)})",
                 "        _owner_row = _owner_cur.fetchone(); _owner_conn.close()",
-                "        if not _owner_row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
+                "        if not _owner_row: raise HTTPException(status_code=404, detail='Record not found')",
                 "        if _owner_row[0] != current_user_id: raise HTTPException(status_code=403, "
-                "detail=\"Contrôle d'accès : seul le propriétaire de la ressource peut exécuter cette action\")",
+                "detail=\"Access control: only the resource's owner can perform this action\")",
             ]
 
         delete_deps_suffix = f", {delete_deps}" if delete_deps else ""
@@ -95,10 +95,10 @@ class SuppressionRoutesMixin:
                     # Le nom de l'entité tel que la SPEC l'écrit :
                     # c'est le vocabulaire que l'auteur du projet
                     # reconnaît, et celui du contrat frontend.
-                    f"                f'Suppression impossible : {{_dep}} "
-                    f"enregistrement(s) {nom} dépendent de cette fiche. '",
-                    "                'Sans elle, ils ne seraient plus rattachés à "
-                    "personne.'))",
+                    f"                f'Deletion impossible: {{_dep}} "
+                    f"{nom} record(s) depend on this profile. '",
+                    "                'Without it, they would no longer be attached to "
+                    "anyone.'))",
                 ]
         # BRIQUE 18 (point 91) : supprimer efface la trace d'un
         # encaissement. Le 409 que renvoyait la clé étrangère ne
@@ -206,8 +206,8 @@ class SuppressionRoutesMixin:
         api_lines.append("    except _DATABASE_INTEGRITY_ERRORS:")
         api_lines.append("        conn.rollback(); conn.close()")
         api_lines.append("        raise HTTPException(status_code=409, detail=(")
-        api_lines.append("            \"Suppression impossible : cet enregistrement est encore référencé \"")
-        api_lines.append("            'par des données liées. Supprimez-les d\\'abord.'")
+        api_lines.append("            'Deletion impossible: this record is still referenced '")
+        api_lines.append("            'by linked data. Delete them first.'")
         api_lines.append("        ))")
         api_lines.append("    conn.close()")
         for upload, ref_var in upload_refs:

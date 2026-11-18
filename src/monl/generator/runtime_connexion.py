@@ -44,7 +44,7 @@ class ConnexionRuntimeMixin:
                     # `None` : aucune ligne ne peut correspondre à cette
                     # valeur factice, donc aucun UPDATE ne peut être émis.
                     *Template(r"""    if _account_lock_active(db_user_id):
-        raise HTTPException(status_code=401, detail='Identifiants invalides.')""").substitute().split("\n"),
+        raise HTTPException(status_code=401, detail='Invalid credentials.')""").substitute().split("\n"),
                 ])
             lookup_lines.extend([
                 Template(r"""    if not hmac.compare_digest(_candidate_hash, stored_hash):""").substitute(),
@@ -52,7 +52,7 @@ class ConnexionRuntimeMixin:
             if self.auth_features.get("lockout"):
                 lookup_lines.append("        if db_user_id is not None: _record_account_failure(db_user_id)")
             lookup_lines.extend([
-                Template(r"""        raise HTTPException(status_code=401, detail='Identifiants invalides.')""").substitute(),
+                Template(r"""        raise HTTPException(status_code=401, detail='Invalid credentials.')""").substitute(),
             ])
             if self.auth_features.get("totp"):
                 lookup_lines.extend([
@@ -61,7 +61,7 @@ class ConnexionRuntimeMixin:
                 if self.auth_features.get("lockout"):
                     lookup_lines.append("        _record_account_failure(db_user_id)")
                 lookup_lines.extend([
-                    Template(r"""        raise HTTPException(status_code=401, detail='Identifiants invalides.')""").substitute(),
+                    Template(r"""        raise HTTPException(status_code=401, detail='Invalid credentials.')""").substitute(),
                 ])
         else:
             lookup_lines = [
@@ -69,10 +69,10 @@ class ConnexionRuntimeMixin:
     row = cursor.fetchone(); conn.close()
     if not row:
         hmac.compare_digest(_hash_password(req.password[:256], _DUMMY_SALT_HEX), _DUMMY_HASH)
-        raise HTTPException(status_code=401, detail='Identifiants invalides.')
+        raise HTTPException(status_code=401, detail='Invalid credentials.')
     db_user_id, stored_hash, salt_hex, actor, anon_handle = row
     if not hmac.compare_digest(_hash_password(req.password, salt_hex), stored_hash):
-        raise HTTPException(status_code=401, detail='Identifiants invalides.')""").substitute().split("\n"),
+        raise HTTPException(status_code=401, detail='Invalid credentials.')""").substitute().split("\n"),
             ]
         lookup_lines = self._lookup_avec_version(lookup_lines, auth_checks)
         lookup_lines = self._lookup_avec_verification(lookup_lines)
@@ -121,11 +121,11 @@ class ConnexionRuntimeMixin:
             Template(r"""def _hash_password(password: str, salt_hex: str) -> str:""").substitute(),
             Template(r"""    return hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), bytes.fromhex(salt_hex), 100_000).hex()
 """).substitute(),
-            *Template(r"""# CORRECTIF (bêta 3, énumération de comptes par canal temporel) :
-# '/login' renvoyait 401 immédiatement quand le compte n'existait pas,
-# sans dérouler les 100 000 itérations PBKDF2 — l'écart de temps de
-# réponse (~100 ms) révélait quels noms d'utilisateur existent.
-# On hache donc toujours, contre ce sel factice fixe le cas échéant.
+            *Template(r"""# FIX (beta 3, account enumeration through a timing channel):
+# '/login' returned 401 immediately when the account did not exist,
+# without running the 100,000 PBKDF2 iterations — the response-time gap
+# (~100 ms) revealed which usernames exist. So we always hash, against
+# this fixed dummy salt when needed.
 _DUMMY_SALT_HEX = '6d6f6e6c2d64756d6d792d73616c742d'""").substitute().split("\n"),
             Template(r"""_DUMMY_HASH = _hash_password('monl-dummy-password', _DUMMY_SALT_HEX)
 """).substitute(),
@@ -142,13 +142,13 @@ _DUMMY_SALT_HEX = '6d6f6e6c2d64756d6d792d73616c742d'""").substitute().split("\n"
             Template(r"""RATE_LIMIT_WINDOW_SECONDS = 60""").substitute(),
             Template(r"""RATE_LIMIT_MAX_ATTEMPTS = 5
 """).substitute(),
-            *Template(r"""# AJOUT (bêta, déploiement derrière un proxy) : par défaut on utilise
-# l'IP de la connexion directe (request.client.host). Si l'application
-# tourne derrière un reverse proxy de confiance (nginx, Traefik...),
-# activer MONL_TRUST_PROXY=1 fait lire la première IP de l'en-tête
-# X-Forwarded-For — sinon un client direct pourrait usurper cet en-tête
-# pour contourner la limitation de débit. On ne fait donc confiance à
-# l'en-tête QUE si l'opérateur l'a explicitement autorisé.
+            *Template(r"""# ADDED (beta, deployment behind a proxy): by default we use the IP of
+# the direct connection (request.client.host). If the application runs
+# behind a trusted reverse proxy (nginx, Traefik...), setting
+# MONL_TRUST_PROXY=1 reads the first IP of the X-Forwarded-For header —
+# otherwise a direct client could spoof that header to bypass rate
+# limiting. So the header is trusted ONLY if the operator explicitly
+# allowed it.
 _TRUST_PROXY = os.environ.get('MONL_TRUST_PROXY', '').lower() in ('1', 'true', 'yes')
 def _client_ip(request: Request) -> str:
     if _TRUST_PROXY:
@@ -181,7 +181,7 @@ def _check_rate_limit(bucket: str, client_ip: str):
         recent = cursor.fetchone()[0]
         if recent >= RATE_LIMIT_MAX_ATTEMPTS:
             cursor.execute('COMMIT')
-            raise HTTPException(status_code=429, detail=f'Trop de tentatives ({bucket}). Réessayez dans {RATE_LIMIT_WINDOW_SECONDS} secondes.')
+            raise HTTPException(status_code=429, detail=f'Too many attempts ({bucket}). Try again in {RATE_LIMIT_WINDOW_SECONDS} seconds.')
         cursor.execute('INSERT INTO _monl_rate_limit (bucket, client_ip, attempted_at) VALUES (?, ?, ?)', (bucket, client_ip, now))
         cursor.execute('COMMIT')
     finally:""").substitute().split("\n"),
@@ -192,16 +192,16 @@ def _check_rate_limit(bucket: str, client_ip: str):
 def register(req: RegisterRequest, request: Request):
     _check_rate_limit('register', _client_ip(request))
     if req.actor not in VALID_ACTORS:
-        raise HTTPException(status_code=400, detail=f"Acteur invalide. Acteurs valides : {VALID_ACTORS}")
+        raise HTTPException(status_code=400, detail=f"Invalid actor. Valid actors: {VALID_ACTORS}")
     if req.actor not in SELF_REGISTER_ACTORS:
         raise HTTPException(status_code=403, detail=(
-            f"Le rôle '{req.actor}' n'est pas ouvert à l'inscription libre. "
-            'Les comptes de ce rôle sont créés hors ligne : python3 manage.py adduser.'
+            f"The role '{req.actor}' is not open to self-registration. "
+            'Accounts with this role are created offline: python3 manage.py adduser.'
         ))
     if len(req.password) < 8:
-        raise HTTPException(status_code=400, detail='Le mot de passe doit contenir au moins 8 caractères.')
+        raise HTTPException(status_code=400, detail='The password must contain at least 8 characters.')
     if len(req.password) > 256:
-        raise HTTPException(status_code=400, detail='Mot de passe trop long (256 caractères maximum).')
+        raise HTTPException(status_code=400, detail='Password too long (256 characters maximum).')
     _identifiant = _normalize_identifier(req.username)
     _check_identifier(_identifiant)
     conn = _connect(); cursor = conn.cursor()
@@ -220,7 +220,7 @@ def register(req: RegisterRequest, request: Request):
             break
     if anon_handle is None:
         conn.close()
-        raise HTTPException(status_code=500, detail='Impossible de générer un pseudonyme unique, réessayez.')
+        raise HTTPException(status_code=500, detail='Unable to generate a unique pseudonym, try again.')
     cursor.execute('INSERT INTO _monl_users (username, password_hash, salt, actor, anon_handle) VALUES (?, ?, ?, ?, ?) RETURNING id',
                    (_identifiant, pwd_hash, salt_hex, req.actor, anon_handle))
     new_user_id = cursor.fetchone()[0]""").substitute().split("\n"),
@@ -266,17 +266,17 @@ def logout(credentials: HTTPAuthorizationCredentials = Depends(security_bearer))
     payload = _decode_and_verify_token(credentials)
     jti = payload.get('jti')
     if not jti:
-        raise HTTPException(status_code=400, detail='Ce token ne supporte pas la révocation (jti manquant).')
+        raise HTTPException(status_code=400, detail='This token does not support revocation (missing jti).')
     conn = _connect(); cursor = conn.cursor()
     cursor.execute('INSERT INTO _monl_revoked_tokens (jti, revoked_at, expires_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING',
                    (jti, datetime.datetime.now(datetime.timezone.utc).isoformat(), payload.get('exp')))
     _purge_revoked_tokens(cursor)""").substitute().split("\n"),
             *([Template(r"""    cursor.execute('UPDATE _monl_refresh_tokens SET revoked_at = ? WHERE user_id = ?', (datetime.datetime.now(datetime.timezone.utc).timestamp(), payload.get('user_id')))""").substitute() ] if self.auth_features.get("refresh_tokens") else []),
             Template(r"""    conn.commit(); conn.close()""").substitute(),
-            Template(r"""    return {'status': 'success', 'detail': 'Token révoqué.'}
+            Template(r"""    return {'status': 'success', 'detail': 'Token revoked.'}
 """).substitute(),
             *self._generate_auth_feature_routes(),
-            Template(r"""# --- VALIDATION STRICTE DES DONNÉES CRUD (PYDANTIC) ---""").substitute()
+            Template(r"""# --- STRICT CRUD DATA VALIDATION (PYDANTIC) ---""").substitute()
         ])
         return self._verification_registration_flow(api_lines)
 

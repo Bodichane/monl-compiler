@@ -29,17 +29,17 @@ class MigrationsRuntimeMixin:
         totp_migration_lines = []
         if self.auth_features.get("totp"):
             totp_migration_lines = [
-                *Template(r'''            # BRIQUE B4 : les colonnes TOTP restent NULL pour les comptes
-            # historiques ; elles sont comptées, jamais remplies au démarrage.
+                *Template(r'''            # BRICK B4: the TOTP columns stay NULL for historical accounts;
+            # they are counted, never filled at startup.
             _totp_columns = _table_columns(_sys_cur, '_monl_users')
             for _name, _type in (('totp_secret', 'VARCHAR(64)'), ('totp_enabled', 'BOOLEAN'), ('totp_last_step', 'BIGINT')):
                 if _name not in _totp_columns:
                     _sys_cur.execute(f'ALTER TABLE _monl_users ADD COLUMN {_name} {_type}')
-                    print(f'🔧 Migration : colonne "{_name}" ajoutée à "_monl_users" ({_type}).')
+                    print(f'🔧 Migration: column "{_name}" added to "_monl_users" ({_type}).')
             conn.commit()
             _sans_totp = conn.execute("SELECT COUNT(*) FROM _monl_users WHERE totp_secret IS NULL").fetchone()[0]
             if _sans_totp:
-                print(f"ℹ️ {_sans_totp} compte(s) restent sans double facteur TOTP : aucune activation n\'est inventée.")''').substitute().split("\n"),
+                print(f"ℹ️ {_sans_totp} account(s) remain without TOTP two-factor authentication: no activation is invented.")''').substitute().split("\n"),
             ]
         if self.auth_features:
             totp_migration_lines.extend([
@@ -167,29 +167,29 @@ def _refuser_schema_non_additif(conn, missing, extra, types):
     _messages = []
     for _table, _field, _actual, _expected in types:
         _name = _migration_for_type(_table, _field, _actual, _expected)
-        _suffix = f" Exécuter : monl migrate . --name {_name}" if _name else " Aucun 'alter ... from ... to ...' déclaré ne permet de l'appliquer automatiquement."
-        _messages.append(f"type de {_table}.{_field} : base={_actual}, spec={_expected}.{_suffix}")
+        _suffix = f" Run: monl migrate . --name {_name}" if _name else " No declared 'alter ... from ... to ...' can apply it automatically."
+        _messages.append(f"type of {_table}.{_field}: database={_actual}, spec={_expected}.{_suffix}")
     for _table, _field in extra:
         _renames = [(_new, _migration_for_rename(_table, _field, _new)) for _t, _new, _type_ in missing if _t == _table and _migration_for_rename(_table, _field, _new)]
         if _renames:
             _new, _name = _renames[0]
-            _messages.append(f"renommage non appliqué : {_table}.{_field} -> {_table}.{_new} (migration '{_name}'). Exécuter : monl migrate . --name {_name}")
+            _messages.append(f"rename not applied: {_table}.{_field} -> {_table}.{_new} (migration '{_name}'). Run: monl migrate . --name {_name}")
         else:
             _name = _migration_for_drop(_table, _field)
-            _suffix = f" Exécuter : monl migrate . --name {_name}" if _name else " Aucun 'drop' explicite ne permet de supprimer cette colonne."
-            _messages.append(f"colonne retirée de la spec mais encore présente : {_table}.{_field}.{_suffix}")
-    if extra and missing and not any('renommage non appliqué' in _message for _message in _messages):
-        _messages.append('Une suppression et un ajout ne prouvent pas un renommage : aucune correspondance n\'est devinée.')
+            _suffix = f" Run: monl migrate . --name {_name}" if _name else " No explicit 'drop' allows removing this column."
+            _messages.append(f"column removed from the spec but still present: {_table}.{_field}.{_suffix}")
+    if extra and missing and not any('rename not applied' in _message for _message in _messages):
+        _messages.append('A removal and an addition do not prove a rename: no correspondence is guessed.')
     if _messages:
-        print('❌ Schéma non additif détecté :')
+        print('❌ Non-additive schema detected:')
         for _message in _messages:
             print(f'   {_message}')
-        raise RuntimeError('Démarrage refusé : migration non additive requise ; la base ne sera pas servie.')
+        raise RuntimeError('Startup refused: a non-additive migration is required; the database will not be served.')
 
 def _sqlite_replace_column_type(create_sql, field, old_type, new_type):
     _start, _end = create_sql.find('('), create_sql.rfind(')')
     if _start < 0 or _end <= _start:
-        raise RuntimeError(f"CREATE TABLE introuvable pour la migration de {field}.")
+        raise RuntimeError(f"CREATE TABLE not found for the migration of {field}.")
     _body, _parts, _depth, _last = create_sql[_start + 1:_end], [], 0, 0
     for _position, _char in enumerate(_body):
         if _char == '(':
@@ -205,12 +205,12 @@ def _sqlite_replace_column_type(create_sql, field, old_type, new_type):
         if _count:
             _parts[_index] = _new_part
             return create_sql[:_start + 1] + ','.join(_parts) + create_sql[_end:]
-    raise RuntimeError(f"Impossible de remplacer le type de {field} dans le SQL SQLite existant.")
+    raise RuntimeError(f"Unable to replace the type of {field} in the existing SQLite SQL.")
 
 def _sqlite_alter_type(conn, table, field, old_type, new_type):
     _row = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone()
     if not _row or not _row[0]:
-        raise RuntimeError(f"SQL de la table SQLite '{table}' introuvable.")
+        raise RuntimeError(f"SQL of the SQLite table '{table}' not found.")
     _indexes = [row[0] for row in conn.execute("SELECT sql FROM sqlite_master WHERE type='index' AND tbl_name=? AND sql IS NOT NULL", (table,)).fetchall()]
     _columns = list(_table_column_types(conn.cursor(), table))
     _temporary = '__monl_type_' + secrets.token_hex(5)
@@ -230,27 +230,27 @@ def _sqlite_alter_type(conn, table, field, old_type, new_type):
 def _apply_migration_operation(conn, operation, direction):
     _table, _kind = operation['table'], operation['kind']
     if not _table_exists(conn.cursor(), _table):
-        raise RuntimeError(f"Table '{_table}' absente : précondition de migration impossible.")
+        raise RuntimeError(f"Table '{_table}' missing: migration precondition impossible.")
     _types = _table_column_types(conn.cursor(), _table)
     if _kind == 'rename':
         _old, _new = (operation['old'], operation['new']) if direction == 'up' else (operation['new'], operation['old'])
         if _old not in _types or _new in _types:
-            raise RuntimeError(f"Précondition du renommage {_table}.{_old} -> {_table}.{_new} non satisfaite (colonnes présentes : {sorted(_types)}).")
+            raise RuntimeError(f"Precondition of the rename {_table}.{_old} -> {_table}.{_new} not met (columns present: {sorted(_types)}).")
         conn.execute(f'ALTER TABLE "{_table}" RENAME COLUMN "{_old}" TO "{_new}"')
         return
     if _kind == 'drop':
         if direction != 'up':
-            raise RuntimeError(f"La suppression de {_table}.{operation['old']} est irréversible sans sauvegarde ; aucune descente ne sera prétendue.")
+            raise RuntimeError(f"Removing {_table}.{operation['old']} is irreversible without a backup; no rollback will be pretended.")
         _old = operation['old']
         if _old not in _types:
-            raise RuntimeError(f"Précondition du DROP {_table}.{_old} non satisfaite.")
+            raise RuntimeError(f"Precondition of the DROP {_table}.{_old} not met.")
         conn.execute(f'ALTER TABLE "{_table}" DROP COLUMN "{_old}"')
         return
     _field = operation['field']
     _source = operation['from_sql_type'] if direction == 'up' else operation['to_sql_type']
     _target = operation['to_sql_type'] if direction == 'up' else operation['from_sql_type']
     if _field not in _types or _normalize_sql_type(_types[_field]) != _normalize_sql_type(_source):
-        raise RuntimeError(f"Précondition du changement de type {_table}.{_field} non satisfaite (base={_types.get(_field)!r}, attendu={_source!r}).")
+        raise RuntimeError(f"Precondition of the type change {_table}.{_field} not met (database={_types.get(_field)!r}, expected={_source!r}).")
     if _DATABASE_KIND == 'postgresql':
         conn.execute(f'ALTER TABLE "{_table}" ALTER COLUMN "{_field}" TYPE {_target} USING "{_field}"::{_target}')
     else:

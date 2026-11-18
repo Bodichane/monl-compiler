@@ -40,7 +40,7 @@ class RuntimeMixin(
 
     def _cors_methods(self):
         """Méthodes réellement émises par l'application générée."""
-        methods = {"GET", "POST"}  # racine, santé et authentification
+        methods = {"GET", "POST"}  # root, health and authentication
         action_methods = {
             "Read": "GET",
             "Create": "POST",

@@ -33,14 +33,14 @@ CHUNK_RETRY_OUTPUT_TOKEN_FACTOR = 2.0
 CHUNK_RETRY_MAX_OUTPUT_TOKENS = 32_000
 
 RESPONSE_FORMAT_INSTRUCTIONS = """
-## Format de réponse EXIGÉ
-Répondre UNIQUEMENT avec un objet JSON, sans préambule ni balises Markdown :
-{"files": {"index.html": "<contenu complet>", "app.js": "<contenu complet>", ...}}
-Chemins relatifs à frontend/ (pas de sous-dossier remontant, pas de chemin
-absolu). Extensions autorisées : .html, .css, .js, .svg, .json.
-'index.html' est obligatoire.
-Les images matricielles du manifeste sont déjà écrites dans le dossier
-d'assets ; elles ne sont pas des fichiers texte à rendre dans cette réponse.
+## REQUIRED response format
+Answer ONLY with a JSON object, with no preamble and no Markdown fences:
+{"files": {"index.html": "<complete content>", "app.js": "<complete content>", ...}}
+Paths relative to frontend/ (no parent-directory climb, no absolute path).
+Allowed extensions: .html, .css, .js, .svg, .json.
+'index.html' is required.
+The manifest's raster images are already written in the assets folder;
+they are not text files to return in this response.
 """
 
 def _requests_module():
@@ -49,7 +49,7 @@ def _requests_module():
         import requests
     except ImportError as exc:
         raise fondations.FrontendAIError(
-            "Le fournisseur frontend par API nécessite l'extra optionnel : "
+            "The API frontend provider requires the optional extra: "
             "pip install 'monl-compiler[ai]'."
         ) from exc
     return requests
@@ -62,9 +62,9 @@ def _max_output_tokens():
     try:
         value = int(raw)
     except ValueError as exc:
-        raise fondations.FrontendAIError("MONL_AI_MAX_TOKENS doit être un entier positif.") from exc
+        raise fondations.FrontendAIError("MONL_AI_MAX_TOKENS must be a positive integer.") from exc
     if value <= 0:
-        raise fondations.FrontendAIError("MONL_AI_MAX_TOKENS doit être un entier positif.")
+        raise fondations.FrontendAIError("MONL_AI_MAX_TOKENS must be a positive integer.")
     return value
 
 def _chunk_max_output_tokens():
@@ -77,9 +77,9 @@ def _chunk_max_output_tokens():
         value = int(raw)
     except ValueError as exc:
         raise fondations.FrontendAIError(
-            "MONL_AI_CHUNK_MAX_TOKENS doit être un entier positif.") from exc
+            "MONL_AI_CHUNK_MAX_TOKENS must be a positive integer.") from exc
     if value <= 0:
-        raise fondations.FrontendAIError("MONL_AI_CHUNK_MAX_TOKENS doit être un entier positif.")
+        raise fondations.FrontendAIError("MONL_AI_CHUNK_MAX_TOKENS must be a positive integer.")
     return value
 
 # ------------------------------------------------------------- providers --
@@ -90,8 +90,8 @@ def claude_provider(model=DEFAULT_MODEL):
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         raise fondations.FrontendAIError(
-            "ANTHROPIC_API_KEY absent de l'environnement — exporter la clé "
-            "avant 'monl frontend --provider claude'.")
+            "ANTHROPIC_API_KEY missing from the environment — export the key "
+            "before 'monl frontend --provider claude'.")
 
     def call(prompt):
         requests = _requests_module()
@@ -179,20 +179,20 @@ def openai_provider(model=None, base_url=None, key_env="MONL_AI_API_KEY",
     la voie Anthropic, elle vaut pour toutes)."""
     if not base_url:
         raise fondations.FrontendAIError(
-            "base_url manquante — préciser MONL_AI_BASE_URL pour "
-            f"'--provider {GENERIC_PROVIDER}', ou choisir un fournisseur "
-            "de la table : " + ", ".join(sorted(OPENAI_COMPATIBLE)))
+            "base_url missing — set MONL_AI_BASE_URL for "
+            f"'--provider {GENERIC_PROVIDER}', or choose a provider "
+            "from the table: " + ", ".join(sorted(OPENAI_COMPATIBLE)))
     if not model:
         raise fondations.FrontendAIError(
-            "modèle manquant — préciser '--model <identifiant>'. monl ne code "
-            "aucun modèle par défaut hors voie Anthropic : les catalogues "
-            "changent, et un identifiant périmé en dur donnerait un 404 "
-            "obscur au lieu de ce message.")
+            "model missing — set '--model <identifier>'. monl hard-codes "
+            "no default model outside the Anthropic path: catalogs change, "
+            "and a stale hard-coded identifier would give an obscure 404 "
+            "instead of this message.")
     api_key = os.environ.get(key_env)
     if not api_key and key_required:
         raise fondations.FrontendAIError(
-            f"{key_env} absent de l'environnement — exporter la clé avant "
-            "'monl frontend' (jamais en argument : le shell l'archiverait).")
+            f"{key_env} missing from the environment — export the key before "
+            "'monl frontend' (never as an argument: the shell would record it).")
 
     def call(prompt):
         requests = _requests_module()
@@ -211,14 +211,14 @@ def openai_provider(model=None, base_url=None, key_env="MONL_AI_API_KEY",
                 timeout=300)
         except requests.RequestException as exc:
             raise fondations.FrontendAIError(
-                f"API {base_url} inaccessible ou trop lente : {exc}. "
-                "Réessayer, ou réduire MONL_AI_MAX_TOKENS.") from exc
+                f"API {base_url} unreachable or too slow: {exc}. "
+                "Try again, or lower MONL_AI_MAX_TOKENS.") from exc
         if resp.status_code != 200:
-            raise fondations.FrontendAIError(f"API {base_url} : {resp.status_code} — {resp.text[:300]}")
+            raise fondations.FrontendAIError(f"API {base_url}: {resp.status_code} — {resp.text[:300]}")
         payload = resp.json()
         choices = payload.get("choices", [])
         if not choices:
-            raise fondations.FrontendAIError(f"API {base_url} : réponse sans 'choices' — {resp.text[:300]}")
+            raise fondations.FrontendAIError(f"API {base_url}: response without 'choices' — {resp.text[:300]}")
         usage = payload.get("usage") or {}
         call.last_usage = {
             "duration_seconds": round(time.monotonic() - started, 3),
@@ -241,14 +241,14 @@ def _openai_preset(name):
         if name == "yandex":
             if not os.environ.get(key_env):
                 raise fondations.FrontendAIError(
-                    f"{key_env} absent de l'environnement — exporter la clé "
-                    "avant 'monl frontend' (jamais en argument : le shell "
-                    "l'archiverait).")
+                    f"{key_env} missing from the environment — export the key "
+                    "before 'monl frontend' (never as an argument: the shell "
+                    "would record it).")
             folder = os.environ.get("YANDEX_FOLDER_ID")
             if not folder:
                 raise fondations.FrontendAIError(
-                    "YANDEX_FOLDER_ID absent de l'environnement — c'est "
-                    "l'identifiant du dossier Yandex Cloud qui porte le modèle.")
+                    "YANDEX_FOLDER_ID missing from the environment — it is the "
+                    "identifier of the Yandex Cloud folder that holds the model.")
             model_uri = model
             if model and not re.match(r"^[A-Za-z][A-Za-z0-9+.-]*://", model):
                 model_uri = f"gpt://{folder}/{model}"
@@ -267,9 +267,9 @@ def _openai_preset(name):
             if reasoning_effort not in (*_YANDEX_REASONING_EFFORTS, "none", None):
                 allowed = ", ".join(_YANDEX_REASONING_EFFORTS)
                 raise fondations.FrontendAIError(
-                    "MONL_YANDEX_REASONING_EFFORT invalide : "
-                    f"{reasoning_effort!r}. Valeurs permises : {allowed} "
-                    "(ou 'none' pour omettre le champ).")
+                    "MONL_YANDEX_REASONING_EFFORT invalid: "
+                    f"{reasoning_effort!r}. Allowed values: {allowed} "
+                    "(or 'none' to omit the field).")
             extra_body = {
                 "temperature": 0.3,
                 # Certains modèles AI Studio comptent leur raisonnement
@@ -280,7 +280,7 @@ def _openai_preset(name):
                     "type": "json_schema",
                     "json_schema": {
                         "name": "frontend_files",
-                        "description": "Fichiers statiques du frontend.",
+                        "description": "Static frontend files.",
                         "schema": _FRONTEND_FILES_SCHEMA,
                         "strict": True,
                     },

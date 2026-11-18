@@ -56,21 +56,21 @@ class ParcoursMixin:
         l'IA frontend à faire son métier éditorial et visuel à partir du modèle.
         """
         name = template["name"]
-        if name in {"Portfolio / site vitrine", "Blog"}:
+        if name in {"Portfolio / showcase site", "Blog"}:
             register, imagery = DESIGN_REGISTERS[1][1], DESIGN_IMAGERY[0][1]
-        elif name in {"Gestion de tâches", "Inventaire / gestion de stock",
-                      "Suivi de dépenses personnelles"}:
+        elif name in {"Task management", "Inventory / stock management",
+                      "Personal expense tracking"}:
             register, imagery = DESIGN_REGISTERS[2][1], DESIGN_IMAGERY[1][1]
-        elif name in {"Boutique en ligne", "Classement communautaire"}:
+        elif name in {"Online shop", "Community ranking"}:
             register, imagery = DESIGN_REGISTERS[3][1], DESIGN_IMAGERY[0][1]
         else:
             register, imagery = DESIGN_REGISTERS[1][1], DESIGN_IMAGERY[0][1]
         return (
-            "utiliser immédiatement le parcours principal attendu pour cette "
-            f"catégorie ; {register} ; {imagery} ; mode express : l’IA frontend "
-            "rédige les textes de présentation manquants, crée une page dense en "
-            "blocs utiles et produit des illustrations SVG locales cohérentes, "
-            "sans inventer de donnée, de route ni de fonctionnalité"
+            "use the main flow expected for this category right away ; "
+            f"{register} ; {imagery} ; express mode: the frontend AI "
+            "writes the missing presentation texts, builds a page dense with "
+            "useful blocks and produces consistent local SVG illustrations, "
+            "without inventing any data, route or feature"
         )
 
     @staticmethod
@@ -120,16 +120,16 @@ class ParcoursMixin:
         idée encore confidentielle.
         """
         return {
-            "Portfolio / site vitrine": "creative-studio",
+            "Portfolio / showcase site": "creative-studio",
             "Blog": "editorial",
-            "Boutique en ligne": "products",
-            "Gestion de tâches": "workspace",
-            "Forum / réseau social": "community",
-            "Petites annonces": "marketplace",
-            "Réservation de rendez-vous": "wellness-service",
-            "Inventaire / gestion de stock": "warehouse",
-            "Suivi de dépenses personnelles": "finance-desk",
-            "Classement communautaire": "competition",
+            "Online shop": "products",
+            "Task management": "workspace",
+            "Forum / social network": "community",
+            "Classified ads": "marketplace",
+            "Appointment booking": "wellness-service",
+            "Inventory / stock management": "warehouse",
+            "Personal expense tracking": "finance-desk",
+            "Community ranking": "competition",
         }.get(template["name"], "abstract")
 
     def _run_from_template(self, template):

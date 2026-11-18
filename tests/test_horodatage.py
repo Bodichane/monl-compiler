@@ -237,7 +237,7 @@ def test_le_contrat_annonce_le_champ_comme_peuple_par_le_serveur(tmp_path, capsy
     assert champ["created_at"] is True
     # Le contrat doit AUSSI avertir du vide possible : c'est le seul cas du
     # compilateur où une colonne ajoutée ne peut pas être rattrapée.
-    assert "VIDE" in champ["note"]
+    assert "MAY BE EMPTY" in champ["note"]
 
 
 # --------------------------------------------------------------------------
@@ -403,5 +403,5 @@ def test_les_enregistrements_anterieurs_restent_sans_date_et_le_serveur_le_dit(t
         assert par_reference[f"VIEILLE-{i}"] is None, (
             "une date inventée après coup serait fausse : le vide est la seule "
             "réponse honnête")
-    assert "3 enregistrement(s)" in serveur.journal, (
+    assert "3 record(s)" in serveur.journal, (
         "le serveur doit NOMMER les enregistrements qui n'auront jamais de date")

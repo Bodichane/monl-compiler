@@ -81,7 +81,7 @@ def test_le_premier_vote_passe(scene):
 def test_le_second_vote_du_meme_compte_sur_la_meme_cible_est_refuse(scene):
     reponse = _voter(scene, "p1", 1, "n-p1-e1-bis")
     assert reponse.status_code == 409
-    assert "déjà" in reponse.json()["detail"]
+    assert "already" in reponse.json()["detail"]
 
 
 def test_le_meme_compte_vote_une_autre_cible(scene):
@@ -109,7 +109,7 @@ def test_le_doublon_de_champ_unique_garde_son_propre_message(scene):
     point 85 avait fermé, rouvert par la brique suivante."""
     reponse = _voter(scene, "p2", 2, "n-p1-e1")
     assert reponse.status_code == 409
-    assert "note doit être unique" in reponse.json()["detail"]
+    assert "note must be unique" in reponse.json()["detail"]
 
 
 def test_lindex_compose_existe_reellement_en_base(scene):

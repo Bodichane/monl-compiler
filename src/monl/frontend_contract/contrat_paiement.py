@@ -36,56 +36,56 @@ def _paiement_du_contrat(plans, routes):
         # 404 comme une erreur technique là où c'est une réponse métier.
         chaine = plans.transitive_ownership.get(entite)
         premier = chaine["chain"][0] if chaine else None
-        via = (f"Ce {entite} appartient à qui possède son/sa "
-               f"{premier} : c'est cette chaîne (de profondeur "
-               f"{len(chaine['chain'])} maillon(s)) que le 403 vérifie, et "
-               f"un {entite} dont le/la {premier} n'existe plus répond "
+        via = (f"This {entite} belongs to whoever owns its "
+               f"{premier}: this chain (of depth "
+               f"{len(chaine['chain'])} link(s)) is what the 403 checks, and "
+               f"a {entite} whose {premier} no longer exists answers "
                f"404. " if premier else "")
         routes.append(champs._route(
             "POST", f"/{entite.lower()}/{{id}}/paiement", "Pay", entite,
             False, sorted(plans.actors),
-            note=(via + "Ouvre une session de règlement pour cet enregistrement. "
-                  "AUCUN corps : le montant est lu dans la base depuis "
-                  f"`{champ}`, jamais reçu du client. Réponse : {{status, url, "
-                  "session_id, montant_centimes, devise, montant} — rediriger "
-                  "le navigateur vers `url`. "
+            note=(via + "Opens a payment session for this record. "
+                  "NO body: the amount is read from the database in "
+                  f"`{champ}`, never received from the client. Response: {{status, url, "
+                  "session_id, montant_centimes, devise, montant} — redirect "
+                  "the browser to `url`. "
                   # Le nom `montant_centimes` est conservé (point 95 : le
                   # renommer casserait le bouton « Payer » de tout projet
                   # existant), mais il ne veut PAS dire « centimes » partout :
                   # c'est l'unité mineure de la devise. Le dire est la seule
                   # façon d'empêcher une interface de diviser par cent un
                   # montant en francs CFA.
-                  + (f"Le règlement passe par **{prestataire}** : "
-                     + ("le payeur choisit son opérateur de MOBILE MONEY "
-                        "(MTN MoMo, Moov, Wave) sur la page du prestataire — "
-                        "ne pas écrire « carte bancaire ». "
+                  + (f"Payment goes through **{prestataire}**: "
+                     + ("the payer chooses their MOBILE MONEY operator "
+                        "(MTN MoMo, Moov, Wave) on the provider's page — "
+                        "do not write \"credit card\". "
                         if prestataire == "fedapay"
-                        else "le payeur règle par carte sur la page du "
-                             "prestataire. "))
-                  + f"Les montants sont en **{devise['code']}** : afficher "
-                  f"`montant` tel quel avec ce code, et ne JAMAIS diviser "
-                  f"`montant_centimes` par cent sans regarder l'exposant — "
-                  + ("cette devise n'a pas de sous-unité, les deux champs "
-                     "portent la même valeur. " if devise["exponent"] == 0
-                     else f"ici l'exposant vaut {devise['exponent']}. ")
-                  + "403 si l'enregistrement appartient à "
-                  "quelqu'un d'autre, 409 s'il est déjà réglé, 503 si le "
-                  "serveur n'a pas de clé de paiement configurée. "
+                        else "the payer pays by card on the provider's "
+                             "page. "))
+                  + f"Amounts are in **{devise['code']}**: show "
+                  f"`montant` as is with this code, and NEVER divide "
+                  f"`montant_centimes` by a hundred without checking the exponent — "
+                  + ("this currency has no minor unit, both fields "
+                     "hold the same value. " if devise["exponent"] == 0
+                     else f"here the exponent is {devise['exponent']}. ")
+                  + "403 if the record belongs to "
+                  "someone else, 409 if it is already paid, 503 if the "
+                  "server has no payment key configured. "
                   # Point 76 : boucler la boucle. Savoir ouvrir un règlement
                   # ne dit pas comment en montrer l'issue ; c'est le champ de
                   # suivi qui la porte, et il n'est PAS à jour au retour du
                   # prestataire (c'est son webhook qui l'écrit, plus tard).
-                  f"L'issue se lit dans `{PAYMENT_STATUS_COLUMN}` de "
-                  f"{entite} ('en_attente' / 'payee') : ne pas l'annoncer "
-                  "payé au retour de l'utilisateur, le webhook du "
-                  "prestataire peut n'être pas encore arrivé.")))
+                  f"The outcome is read in the {entite}'s "
+                  f"`{PAYMENT_STATUS_COLUMN}` ('en_attente' / 'payee'): do not "
+                  "announce it paid when the user comes back, the provider's "
+                  "webhook may not have arrived yet.")))
     if payables:
         routes.append(champs._route(
             "POST", "/paiement/webhook", "Webhook", "Paiement", False, [],
-            note=("Appelée par le PRESTATAIRE de paiement, jamais par le "
-                  "frontend : elle exige une signature que seul le "
-                  "prestataire sait produire. Listée ici pour que la liste "
-                  "des routes reste exhaustive, pas pour être appelée.")))
+            note=("Called by the payment PROVIDER, never by the frontend: "
+                  "it requires a signature only the provider can produce. "
+                  "Listed here so the route list stays exhaustive, not to "
+                  "be called.")))
 
     # BRIQUE writableAfterPayment. Cette route est générée hors de route_map,
     # comme celles de paiement ci-dessus : elle doit donc rejoindre le contrat
@@ -98,9 +98,9 @@ def _paiement_du_contrat(plans, routes):
             "PUT", f"/{entite.lower()}/{{id}}/apres-paiement",
             "UpdateAfterPayment", entite, False, [config["actor"]],
             request_fields=fields,
-            note=("Écriture réservée au rôle superviseur après règlement : "
-                  f"permet de renseigner {', '.join(f'`{f}`' for f in fields)}. "
-                  "Tous les champs sont facultatifs dans le corps ; envoyer "
-                  "uniquement ceux qui changent. 404 si l'enregistrement "
-                  "n'existe pas, 403 pour tout autre rôle.")))
+            note=("Write reserved to the supervisor role after payment: "
+                  f"lets it fill {', '.join(f'`{f}`' for f in fields)}. "
+                  "Every field is optional in the body; send only those "
+                  "that change. 404 if the record does not exist, 403 for "
+                  "any other role.")))
     return devise, payables, prestataire

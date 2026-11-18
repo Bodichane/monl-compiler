@@ -99,7 +99,7 @@ def test_coherence_refuse_une_image_locale_absente(project):
     activate_asset_manifest(str(project))
     from monl.frontend_ai import _frontend_local_reference_errors
     errors = _frontend_local_reference_errors(str(project))
-    assert any("ressource locale absente" in error for error in errors)
+    assert any("local resource missing" in error for error in errors)
 
 
 def test_coherence_refuse_chacun_des_trois_svg_locaux_absents(project):
@@ -117,7 +117,7 @@ def test_coherence_refuse_chacun_des_trois_svg_locaux_absents(project):
     from monl.frontend_ai import _frontend_local_reference_errors
 
     errors = _frontend_local_reference_errors(str(project))
-    missing = [error for error in errors if "ressource locale absente" in error]
+    missing = [error for error in errors if "local resource missing" in error]
     assert len(missing) == len(chemins)
     for chemin in chemins:
         assert sum(chemin in error for error in missing) == 1
@@ -185,7 +185,7 @@ def test_un_dossier_dassets_declare_mais_absent_retombe_sur_frontend(project):
     # Le dossier racine existe : c'est LUI qui est monté, et le fichier
     # cherché là — un frontend/assets/ homonyme ne le sauve plus.
     (project / "assets").mkdir()
-    assert any("ressource locale absente" in error
+    assert any("local resource missing" in error
                for error in _frontend_local_reference_errors(str(project)))
 
 
@@ -243,7 +243,7 @@ def test_svg_standard_est_accepte_mais_une_ressource_distante_est_refusee():
     assert parse_single_file_payload(
         json.dumps({"files": {"hero.svg": svg}}), "hero.svg")["hero.svg"] == svg
     distant = '<svg xmlns="http://www.w3.org/2000/svg"><image href="https://exemple.test/photo.png"/></svg>'
-    with pytest.raises(FrontendAIError, match="ressource externe"):
+    with pytest.raises(FrontendAIError, match="external resource"):
         parse_single_file_payload(
             json.dumps({"files": {"hero.svg": distant}}), "hero.svg")
 
@@ -256,7 +256,7 @@ def test_coherence_repere_un_id_dataset_compare_sans_conversion(project):
         encoding="utf-8")
     from monl.frontend_ai import _frontend_behavioral_quality_errors
     errors = _frontend_behavioral_quality_errors(str(project))
-    assert any("identifiant DOM non normalisé" in error for error in errors)
+    assert any("unnormalized DOM identifier" in error for error in errors)
 
     (front / "app.js").write_text(
         "const id = Number(button.dataset.id); state.items.find((item) => item.id === id);",
@@ -275,7 +275,7 @@ def test_design_refuse_image_generee_reutilisee_et_texte_editorial_duplique(proj
     )
     image_errors = _generated_asset_reuse_errors(
         str(front), [{"path": "hero.svg"}])
-    assert any("asset généré réutilisé" in error for error in image_errors)
+    assert any("generated asset reused" in error for error in image_errors)
 
     section_body = ("Maison Serein propose une parenthèse calme, avec des gestes "
                     "précis et une écoute attentive pour chaque personne reçue.")
@@ -284,7 +284,7 @@ def test_design_refuse_image_generee_reutilisee_et_texte_editorial_duplique(proj
     }), encoding="utf-8")
     text_errors = _editorial_content_errors(
         str(project), section_body + " " + section_body)
-    assert any("contenu éditorial répété" in error for error in text_errors)
+    assert any("editorial content repeated" in error for error in text_errors)
 
 
 def test_boucle_ia_corrige_puis_reussit(project):
@@ -299,7 +299,7 @@ def test_boucle_ia_corrige_puis_reussit(project):
     assert ok, errors
     assert len(calls) == 2
     # la 2e tentative embarque les erreurs réellement constatées
-    assert "ÉCHEC DE LA VÉRIFICATION" in calls[1]
+    assert "CHECK FAILED" in calls[1]
     assert "casse" in calls[1] or "/fantome" in calls[1]
 
 
@@ -345,7 +345,7 @@ def test_une_correction_qui_degrade_ne_remplace_pas_la_tentative_precedente(proj
     conserve = (project / "frontend" / "index.html").read_text(encoding="utf-8")
     assert conserve == BAD_FRONT, (
         "la tentative dégradée a été conservée alors qu'elle est pire")
-    assert any("Tentative 1 restaurée" in ligne for ligne in dits), dits
+    assert any("Attempt 1 restored" in ligne for ligne in dits), dits
     # Les erreurs RAPPORTÉES doivent décrire les fichiers conservés : rendre
     # celles de la tentative écartée décrirait un frontend absent du disque.
     assert not any("/autre-fantome" in e for e in errors), errors
@@ -507,7 +507,7 @@ def test_claude_code_recoit_les_erreurs_et_se_corrige(project, tmp_path):
     msgs = []
     ok, errors = generate_with_claude_code(str(project), command=agent, say=msgs.append)
     assert ok, errors
-    assert any("Correction automatique" in m for m in msgs)
+    assert any("Automatic correction" in m for m in msgs)
 
 
 MAXTURNS_AGENT = """os.makedirs("frontend", exist_ok=True)
@@ -543,8 +543,8 @@ def test_budget_epuise_sans_rien_produire_passe_par_la_correction(project, tmp_p
     msgs = []
     ok, errors = generate_with_claude_code(str(project), command=agent, say=msgs.append)
     assert not ok
-    assert any("index.html absent" in e for e in errors), errors
-    assert any("Correction automatique" in m for m in msgs)
+    assert any("index.html missing" in e for e in errors), errors
+    assert any("Automatic correction" in m for m in msgs)
 
 
 def test_une_vraie_erreur_dagent_reste_une_erreur(project, tmp_path):
@@ -750,7 +750,7 @@ def test_yandex_frontend_est_genere_fichier_par_fichier(project, monkeypatch):
         def __call__(self, prompt):
             calls.append(prompt)
             ligne = next(texte for texte in prompt.splitlines()
-                         if texte.startswith("Le fichier cible est exactement : "))
+                         if texte.startswith("The target file is exactly: "))
             cible = ligne.rsplit(": ", 1)[1]
             contenus = {
                 "index.html": GOOD_SPLIT_HTML,
@@ -766,7 +766,7 @@ def test_yandex_frontend_est_genere_fichier_par_fichier(project, monkeypatch):
     ok, errors = generate_and_verify(str(project), provider, say=_quiet)
     assert ok, errors
     assert len(calls) == 3
-    assert all("une seule pièce" in prompt for prompt in calls)
+    assert all("one piece at a time" in prompt for prompt in calls)
     assert (project / "frontend" / "index.html").exists()
     assert (project / "frontend" / "styles.css").exists()
     assert (project / "frontend" / "app.js").exists()
@@ -990,9 +990,9 @@ def test_le_prompt_de_retouche_porte_la_demande_les_fichiers_et_le_contrat(proje
 
     prompt = build_generation_prompt(str(project), False, retouche_mode=True)
     assert DEMANDE in prompt
-    assert "Fichiers actuels du frontend" in prompt
+    assert "Current frontend files" in prompt
     assert "fetch('/item?limit=5')" in prompt, "l'existant doit être joint"
-    assert "Rappel du contrat d'origine" in prompt
+    assert "Reminder of the original contract" in prompt
 
 
 def test_la_retouche_demande_linterpretation_la_plus_etroite(project):
@@ -1004,11 +1004,11 @@ def test_la_retouche_demande_linterpretation_la_plus_etroite(project):
     _projet_avec_frontend(project)
     chemin = cmd_retouche(str(project), DEMANDE, say=_quiet)
     consigne = pathlib.Path(chemin).read_text(encoding="utf-8")
-    assert "ÉTROITE" in consigne
-    assert "ne pas refaire la mise en page générale" in consigne.lower()
+    assert "NARROWEST" in consigne
+    assert "do not redo the overall layout" in consigne.lower()
     # Et le garde-fou de contenu : ce qui vient de la spec ne se rattrape pas
     # par une astuce d'affichage (c'est le cas de la FAQ, point 94).
-    assert "structure devinée" in consigne
+    assert "guessed structure" in consigne
 
 
 def test_lagent_recoit_une_instruction_de_retouche_et_non_de_construction(project, tmp_path):
@@ -1030,8 +1030,8 @@ json.dump(sys.argv, open({str(mouchard)!r}, "w"))
     argv = json.loads(mouchard.read_text(encoding="utf-8"))
     instruction = " ".join(argv)
     assert RETOUCHE_PROMPT_FILENAME in instruction
-    assert "défaut CONSTATÉ" in instruction
-    assert "construis le frontend demandé" not in instruction
+    assert "defect OBSERVED" in instruction
+    assert "build the requested frontend" not in instruction
 
 
 def test_une_retouche_qui_ne_change_rien_est_un_echec(project, tmp_path):
@@ -1051,7 +1051,7 @@ def test_une_retouche_qui_ne_change_rien_est_un_echec(project, tmp_path):
                                          retouche_mode=True)
 
     assert not ok
-    assert any("retouche non appliquée" in e for e in errors), errors
+    assert any("touch-up not applied" in e for e in errors), errors
 
 
 def test_la_retouche_ne_peut_pas_davantage_toucher_le_backend(project, tmp_path):
@@ -1121,7 +1121,7 @@ def test_quand_lagent_decline_sa_raison_est_affichee(project, tmp_path):
     assert not ok
     assert "elle vient du bloc 'landing' de la spec" in sortie, sortie
     # Et l'ancienne hypothèse ne doit PLUS s'afficher quand l'agent a parlé.
-    assert "Reformuler la demande" not in sortie, sortie
+    assert "Rephrasing the request" not in sortie, sortie
     # …remplacée par le geste qui convient vraiment.
     assert "monl update" in sortie, sortie
 
@@ -1141,7 +1141,7 @@ def test_sans_explication_le_conseil_de_reformulation_reste(project, tmp_path):
     generate_with_cli_agent(str(project), command=agent, say=msgs.append,
                             retouche_mode=True)
 
-    assert "Reformuler la demande" in "\n".join(msgs)
+    assert "Rephrasing the request" in "\n".join(msgs)
 
 
 # ---- Le filet du bloc clôturé (point 148) ----
@@ -1179,10 +1179,10 @@ def test_un_bloc_qui_contient_le_json_n_est_pas_pris_pour_un_fichier():
 
 def test_le_filet_passe_par_les_memes_garde_fous():
     """Aucune voie ne contourne la validation : c'est la règle du dépôt."""
-    with pytest.raises(FrontendAIError, match="extension refusée"):
+    with pytest.raises(FrontendAIError, match="extension refused"):
         parse_single_file_payload("```\nrm -rf /\n```", "script.sh")
     # Un bloc vide n'est pas un fichier : on garde l'erreur JSON d'origine.
-    with pytest.raises(FrontendAIError, match="illisible"):
+    with pytest.raises(FrontendAIError, match="unreadable"):
         parse_single_file_payload("pas de json, pas de bloc", "app.js")
 
 
@@ -1207,7 +1207,7 @@ def test_une_reponse_tronquee_ne_passe_jamais_par_le_filet():
     tronquee = ("Je commence par :\n```js\nfetch('/item');\n```\n"
                 "Voici le fichier complet :\n```js\n" + "const x = 1;\n" * 40)
 
-    with pytest.raises(FrontendAIError, match="illisible"):
+    with pytest.raises(FrontendAIError, match="unreadable"):
         parse_single_file_payload(tronquee, "app.js")
 
 

@@ -187,4 +187,4 @@ assert FakePsycopg.calls == 2
         database_url="postgresql://fake",
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    assert result.stdout.count("psycopg_pool absent") == 1, result.stdout
+    assert result.stdout.count("psycopg_pool missing") == 1, result.stdout

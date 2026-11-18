@@ -420,7 +420,7 @@ def _wait_for_message(smtp, count):
     assert len(smtp.messages) >= count
     body = smtp.messages[count - 1].get_body(
         preferencelist=("plain",)).get_content()
-    match = re.search(r"réinitialisation\s*:\s*([A-Za-z0-9_-]+)", body,
+    match = re.search(r"reset token\s*:\s*([A-Za-z0-9_-]+)", body,
                       re.IGNORECASE)
     assert match, body
     return match.group(1)
@@ -496,10 +496,10 @@ def test_authentification_b4_complete_sur_les_deux_moteurs(b4_application):
     for index in range(3):
         failed = _login(base, alice, "mauvais-pass", ip=f"lock-fail-{index}")
         assert failed.status_code == 401
-        assert failed.json()["detail"] == "Identifiants invalides."
+        assert failed.json()["detail"] == "Invalid credentials."
     locked = _login(base, alice, "motdepasse8", ip="lock-correct")
     assert locked.status_code == 401
-    assert locked.json()["detail"] == "Identifiants invalides."
+    assert locked.json()["detail"] == "Invalid credentials."
     bob_token = _token(_login(base, bob, "motdepasse8", ip="bob-before-totp"))
     assert _login(base, alice, "motdepasse8", ip="lock-still-closed").status_code == 401
     time.sleep(10.5)
@@ -517,10 +517,10 @@ def test_authentification_b4_complete_sur_les_deux_moteurs(b4_application):
         failed = _login(mesure_base, mesure_alice, "mauvais-pass",
                         ip=f"mesure-lock-fail-{index}")
         assert failed.status_code == 401
-        assert failed.json()["detail"] == "Identifiants invalides."
+        assert failed.json()["detail"] == "Invalid credentials."
     locked = _login(mesure_base, mesure_alice, "motdepasse8", ip="mesure-lock-correct")
     assert locked.status_code == 401
-    assert locked.json()["detail"] == "Identifiants invalides."
+    assert locked.json()["detail"] == "Invalid credentials."
 
     # Le témoin est pris immédiatement AVANT la mesure, mais APRÈS avoir posé
     # le verrou : sur le banc long, même l'escalade complète ne peut plus le
@@ -794,7 +794,7 @@ def test_b4_activation_exige_le_mot_de_passe(b4_application):
     assert wrong.status_code == 401, "Activation TOTP acceptée avec un mot de passe incorrect"
     bad_code = _call("POST", base, "/totp/enable", token=session["access_token"],
                      body={"code": "invalide", "password": "motdepasse8"})
-    assert wrong.json() == bad_code.json() == {"detail": "Identifiants invalides."}, (
+    assert wrong.json() == bad_code.json() == {"detail": "Invalid credentials."}, (
         "Le code et le mot de passe incorrects doivent partager le refus générique")
     assert _login(base, username, "motdepasse8", ip="victime-intacte").status_code == 200
 

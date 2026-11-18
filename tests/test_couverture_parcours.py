@@ -217,12 +217,14 @@ def test_un_chemin_fetch_irreductible_ne_declenche_rien(tmp_path):
 
 def test_le_brief_enonce_le_plancher_des_workflows(tmp_path):
     project, _contract = _project(tmp_path)
-    brief = (project / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    # Prose repliée sur 79 colonnes : on compare sur les espaces normalisés.
+    brief = " ".join(
+        (project / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8").split())
 
-    assert "PLANCHER DE PARCOURS" in brief
-    assert "workflows déclarés par la spec" in brief
-    assert "Pour CHAQUE workflow" in brief
-    assert "compte les routes appelées" in brief
+    assert "WORKFLOW FLOOR" in brief
+    assert "workflows declared by the spec" in brief
+    assert "For EACH workflow" in brief
+    assert "counts the routes called" in brief
 
 
 def test_le_brief_interdit_les_images_locales_hors_manifeste_et_nomme_svg_en_ligne(
@@ -235,11 +237,11 @@ def test_le_brief_interdit_les_images_locales_hors_manifeste_et_nomme_svg_en_lig
     brief = " ".join(
         (project / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8").split())
 
-    assert "INTERDICTION EXPLICITE" in brief
+    assert "EXPLICIT BAN" in brief
     assert (
-        "aucun fichier image local qui n'est pas listé par `ASSET_MANIFEST.json`"
+        "any local image file that is not listed by `ASSET_MANIFEST.json`"
     ) in brief
-    assert "SVG EN LIGNE dans le HTML" in brief
+    assert "SVG INLINE in the HTML" in brief
     assert "OBLIGATION DE LIVRAISON" not in brief
     assert "generated_assets: []" not in brief
 
@@ -255,11 +257,11 @@ def test_le_brief_enumere_les_marqueurs_avec_fichier_et_bloc(tmp_path):
     assert markers
     assert 'data-monl-section="panier"' in markers
     assert 'data-monl-media="product"' in markers
-    assert "Marqueurs visuels obligatoires — fichier et bloc exacts" in brief
+    assert "Required visual markers — exact file and block" in brief
     for marker in markers:
         assert (
-            f"Fichier exact : `frontend/index.html` — marqueur exact : `{marker}` — "
-            "bloc exact :"
+            f"Exact file: `frontend/index.html` — exact marker: `{marker}` — "
+            "exact block:"
         ) in brief
 
 

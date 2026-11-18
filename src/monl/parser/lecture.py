@@ -106,12 +106,12 @@ def _nombre_trop_long(err, original, file_path):
     cause = err.orig_exc
     if isinstance(cause, NombreHorsLimites):
         motif = re.escape(str(cause))
-        message = (f"nombre hors limites : {str(cause)[:40]} ne tient dans "
-                   "aucune colonne numérique.")
+        message = (f"number out of range: {str(cause)[:40]} fits in no "
+                   "numeric column.")
     elif isinstance(cause, ValueError) and "integer string conversion" in str(cause):
         motif = r"\d{1000,}"
-        message = ("nombre trop long : monl n'accepte pas un entier de plusieurs "
-                   "milliers de chiffres.")
+        message = ("number too long: monl does not accept an integer with "
+                   "thousands of digits.")
     else:
         return None
     lignes = original.split("\n")

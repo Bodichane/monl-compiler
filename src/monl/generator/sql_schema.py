@@ -8,7 +8,7 @@ lors du découpage en package — voir docs/design_decisions.md.
 class SqlSchemaMixin:
     def _generate_sql(self):
         """Génère un schéma SQL déterministe préservant les données existantes (Bug #3)."""
-        sql_lines = [f"-- Socle DB Déterministe généré automatiquement pour {self.app_name}\n"]
+        sql_lines = [f"-- Deterministic DB foundation generated automatically for {self.app_name}\n"]
 
         # AJOUT (roadmap) : table système du registre d'utilisateurs réel. Elle
         # existe indépendamment de la spec (toute application générée en a

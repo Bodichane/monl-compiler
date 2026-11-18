@@ -206,9 +206,9 @@ seed Entry
                                json={"note": "note-1", "entry_id": 2}, timeout=10)
         foreign = requests.post(f"{base}/vote", headers=user,
                                 json={"note": "note-3", "entry_id": 999999}, timeout=10)
-        assert once.status_code == 409 and "déjà été effectuée" in once.json()["detail"]
+        assert once.status_code == 409 and "already been performed" in once.json()["detail"]
         assert unique.status_code == 409 and "note" in unique.json()["detail"]
-        assert foreign.status_code == 409 and "Référence invalide" in foreign.json()["detail"]
+        assert foreign.status_code == 409 and "Invalid reference" in foreign.json()["detail"]
 
 
 def test_stock_concurrent_condition_et_ecriture_sont_une_instruction(postgres_dsn):
@@ -437,10 +437,10 @@ migration note_fields
         _compile_cli(spec_v2, directory)
         returncode, output = _server_expected_failure(directory, env)
         assert returncode != 0
-        assert "Schéma non additif détecté" in output
-        assert "renommage non appliqué" in output
-        assert "type de note.priority" in output
-        assert "colonne retirée" in output
+        assert "Non-additive schema detected" in output
+        assert "rename not applied" in output
+        assert "type of note.priority" in output
+        assert "column removed from the spec" in output
         assert "base ne sera pas servie" in output
 
         cli_env = {**env, "PYTHONPATH": str(Path(__file__).parents[1] / "src")}
@@ -450,7 +450,7 @@ migration note_fields
             capture_output=True, text=True, check=False,
         )
         assert applied.returncode == 0, applied.stdout + applied.stderr
-        assert "Migration 'note_fields' (up) appliquée" in applied.stdout
+        assert "Migration 'note_fields' (up) applied" in applied.stdout
 
         with uvicorn_server(directory, env=env) as base:
             # L'état est vérifié directement en base ; le serveur prouve que
@@ -487,7 +487,7 @@ migration note_fields
             capture_output=True, text=True, check=False,
         )
         assert refused_down.returncode != 0
-        assert "DROP irréversible" in refused_down.stdout
+        assert "irreversible DROP" in refused_down.stdout
 
 
 def test_migration_postgresql_echec_atomique_ne_sert_pas_une_moitie(postgres_dsn):
@@ -535,7 +535,7 @@ migration broken
             capture_output=True, text=True, check=False,
         )
         assert failed.returncode != 0
-        assert "Précondition du changement de type" in failed.stdout
+        assert "Precondition of the type change" in failed.stdout
 
         psycopg = _psycopg()
         conn = psycopg.connect(postgres_dsn)

@@ -49,6 +49,12 @@ workflow Lire for Reader
 # POINT 201 : les trois bancs gagnent l'import field_validator dans app.py.
 # monl.json scelle cette empreinte et language_version (point 200).
 # Tous les autres artefacts mesurés restent identiques à l'octet.
+# MIGRATION ANGLAISE, LOT 3 : tout artefact qui porte du texte LU change —
+# messages d'erreur d'app.py et de manage.py, en-tête de schema.sql, wrapper
+# serve.py, notes du contrat, brief frontend, AGENTS.md et README.md ; monl.json
+# scelle ces empreintes. Le contrôle de portée tient : Dockerfile,
+# requirements.txt et .dockerignore restent identiques à l'octet — traduire
+# ne touche ni aux dépendances ni au déploiement.
 GOLDENS = {
     # CHANTIER A1 : app.py porte le choix de dialecte au démarrage, les
     # migrations PostgreSQL et les intégrités structurées. schema.sql change
@@ -84,8 +90,8 @@ GOLDENS = {
     # POINT 191 : le diff réel ajoute la liste des colonnes oneOf réservées à
     # l'après-paiement et généralise l'UNIQUE boucle du point 89 qui compte les
     # NULL irrécupérables. Aucune route ni aucun contrat ne change ici.
-    "app.py": "1c95f8cdf45356cc71294eb195d0040f0befcd0e0159bde74a8157bd9414b0ce",
-    "schema.sql": "244eb93ba9a727aa855bca0a96d76b2a329f8ee69c6b5bf2ba693d4c6eacba1f",
+    "app.py": "f0c594c68d7c84772d50316b7eaa06bdefd74aca22d14b344ca69e83565717b0",
+    "schema.sql": "e33bc5b4cf0dbf78cb0290372e41521db6752de5691f43a9566b79e8137641be",
     # `sandbox_ai.py` SORT des empreintes, et ce n'est pas un relâchement : la
     # spec de banc n'a aucun bloc `custom`, donc le module n'est plus produit.
     # Il ne contenait qu'un commentaire, `app.py` l'importait sans jamais
@@ -94,7 +100,7 @@ GOLDENS = {
     # ci-dessous plutôt que simplement cessée d'être regardée, et sa présence
     # avec un bloc `custom` est gardée par `tests/test_bloc_custom_absent.py`.
     # app.py perd donc sa ligne d'import : son empreinte change avec.
-    "manage.py": "bc1529315536d6f9599efe8635d10b87827abc180b7d1dd77d793fc1f3d1f37f",
+    "manage.py": "252dc4b6f1c87a488be8f84423a418b7c348e56cc28fa3752a0669b2e4cadc83",
     # POINT 133 : le Dockerfile lançait `app:app`, donc l'image servait l'API
     # et répondait 404 sur /site et sur les photos — le wrapper qui les monte
     # n'était écrit que par 'monl run'. Il est désormais produit par
@@ -102,7 +108,7 @@ GOLDENS = {
     # produit et non figé serait un angle mort, et c'est lui qui décide quels
     # dossiers sont servis. app.py, schema.sql, manage.py et sandbox_ai.py ne
     # bougent PAS — le contrôle de portée du changement.
-    "serve.py": "cf2526ab9a4660201617e9204b74b394440b1e08eecf71641e11103f1ca2f3f2",
+    "serve.py": "296e9e24632d408026ae6e745432319d21dad7a245d21cb36d9acf101ac23c33",
     # LE DOCKERFILE N'ÉNUMÈRE PLUS AUCUNE DÉPENDANCE : il installe
     # `-r requirements.txt`. Deux listes à tenir d'accord divergent toujours,
     # et celle-ci divergeait déjà — le gabarit n'ajoutait 'python-multipart'
@@ -137,7 +143,7 @@ GOLDENS = {
     # le contrat, le brief et monl.json changent — app.py, schema.sql et
     # manage.py restent identiques a l'octet, la preuve que la brique porte
     # sur ce que le frontend doit DESSINER et pas sur ce que le backend fait.
-    "frontend_contract.json": "7ae58f38c5ac1d6baa2769cd40a20d9baf0b6d208884db0e55df365515466079",
+    "frontend_contract.json": "d3cfebcebc8bdc43f98bc59363d67f62b7baf652f49d73030312041f7972a92c",
     # Le brief gagne le plancher de couverture des workflows, l'interdiction
     # explicite des fichiers image locaux hors manifeste et l'alternative SVG
     # inline, puis la carte exécutable des marqueurs obligatoires : cette
@@ -152,9 +158,9 @@ GOLDENS = {
     # LE CONTRÔLE DE PORTÉE : app.py, schema.sql, manage.py, serve.py, le
     # contrat, le Dockerfile et monl.json restent identiques à l'octet — un
     # rangement de fichiers ne touche rien de ce que le backend FAIT.
-    "docs/FRONTEND_PROMPT.md": "3b3226c932f1139b2b247a1e689aea91b0a3076a2384f6ddcb02e78918d82f80",
-    "AGENTS.md": "391c122e231bba4634597f498965767fd6427e734e50b9c17c747bd27d80c8a1",
-    "README.md": "e325fa18c21c24dda20c8e56c1829dce44db91dbc7f0e494b7c3eeb437cf79b1",
+    "docs/FRONTEND_PROMPT.md": "601fee644aff85931b9ae09ebeadd4f5d12e92715c86a53c6092b5b95dd8b7d4",
+    "AGENTS.md": "cdf84f9c37cbc5b23818d9f769704285a11c52ce7f48149f390bb19d3a5188c8",
+    "README.md": "a20e092d4391b8de165f8ec3b705b55828dcb3ed89373a20492c198ff7c89be7",
     # Revue A2 : manage.py NOMME le remède au lieu de laisser filer une
     # trace quand la base attend une migration. app.py ne bouge PAS —
     # la preuve que le correctif ne touche que la commande d'administration.
@@ -176,7 +182,7 @@ GOLDENS = {
     # beta.9 puis beta.10 ne montre que `compiler_version` (et le
     # `.jwt_secret`, tiré au hasard, hors de ce test). Cinquième version de
     # suite.
-    "monl.json": "0082f406d507fa42e47ae61150678ed1e68558bfee9a8facd0ffd805c9cb8a10",
+    "monl.json": "448e062e01151367bec7f0db8c079edfe6f614c968d9020d332f22e446b6607c",
 }
 
 # POINT 203 : app.py gagne l’enveloppe ASGI de sécurité globale ;
@@ -194,11 +200,11 @@ LOOKUP_GOLDENS = {
     # (`recipient_id` dans `_LOOKUP_INDEXES`), et rien d'autre n'a bougé.
     # POINT 191 : même diff runtime que le golden principal — nouvelle liste
     # post-paiement vide ici, et comptage mutualisé avec l'horodatage.
-    "app.py": "152a6e33f88d2fd65c4aa2698e0e5b3db28eeed6730bc1606db9dd5b55435120",
+    "app.py": "1f3c39085a72944053cbff9288b6f02381a64e772d9a9a6953a2fac6c2fb8b7e",
     # 0.9.0-beta.9 : monl.json seul, pour la même raison que ci-dessus.
     # POINT 191 : le diff réel ne change que l'empreinte app.py scellée.
     # 0.9.0-beta.10 : monl.json seul, `compiler_version`, comme ci-dessus.
-    "monl.json": "eb2da81233322514cafe8448497cbcda139092540557349800234affa86c274d",
+    "monl.json": "0f4452418d50b260143044b8ad6a0e5dbaf69a70fa5764836872dc1911e559a5",
 }
 
 
@@ -272,12 +278,12 @@ def _aucun_module_custom_inutile(project_dir: Path):
 # passe requis pour TOTP, la récupération opérateur et leur documentation.
 # Les deux bancs historiques ci-dessus restent inchangés à l'octet près.
 B4_GOLDENS = {
-    'app.py': '29ec2b1c9c3d9e49dbadd5ee5294c05072ffd635f017b99efdaeb6a2ef3f4003',
-    'schema.sql': 'b7ce5934827e96aefd45d91677d166da749cd28f7a088568538c1de96db7f570',
-    'manage.py': '2720f78d744692f86ac3b2b42ae47fbe3644e522a1006f703a1a8e77c8aab2cb',
-    'frontend_contract.json': 'bad9074237ea4aa83fe28c533a2a50978843d7ce419043edf2be0308767568d6',
-    'README.md': '2f6f6acf57a40e0e4bd685aa43a1e3477a1e0e5bcee83ab86adb617ebac2290e',
-    'monl.json': '245e79501c838f8c91625c0af8549b8a66189e1c00e092bdf468d01f2093e2e2',
+    'app.py': 'e7b429ab5f32b5113f872326ce4214a1ea731a5e05f2f50a5828e4f735c0918b',
+    'schema.sql': 'e433095c18c9ecdbd10fe9b91e47d4ed9d68ad1907260dd4ae72963cd5078117',
+    'manage.py': '8890b92555cde836199dca66d97721f38eeb52c23eccae563134ae3d2a0df310',
+    'frontend_contract.json': 'd401b1bb32e18760c2d4731ce0f506fe0265efe6744639d5200a304a5825a482',
+    'README.md': 'e443518e613cc0c531ad30c7c7ad54290873380700cc70f6e7cee100821f6d6d',
+    'monl.json': '831a7574674434c23c1cd0b7d105c8b57aee621178082edffaa6de25ea4d69dd',
 }
 
 

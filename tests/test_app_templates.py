@@ -176,7 +176,7 @@ def test_boutique_options_tissees_jusqu_aux_seeds():
     spec = _run_template(3, "o", want_seed=True)   # Boutique en ligne
     # stock : acquis depuis le point 60 ; category : encore optionnelle.
     assert "category: String" in spec and "stock: Integer" in spec
-    assert 'category: "Théières"' in spec and "stock: 12" in spec
+    assert 'category: "Teapots"' in spec and "stock: 12" in spec
     assert "rule Order.Update ownedBy Customer" in spec
     assert "entity Customer" in spec and "relation Customer hasMany Order" in spec
 
@@ -198,7 +198,7 @@ def test_la_boutique_guidee_date_ses_commandes():
 def test_le_dialogue_derive_filtre_et_tri_dans_les_deux_sens():
     """oneOf devient filtre, timestamp devient tri, sans question dédiée."""
     task_index = next(i for i, t in enumerate(TEMPLATES, 1)
-                      if t["name"] == "Gestion de tâches")
+                      if t["name"] == "Task management")
     task_prompts = []
     task_rules = [line for line in _run_template(
         task_index, "n", False, prompts=task_prompts).splitlines()
@@ -210,7 +210,7 @@ def test_le_dialogue_derive_filtre_et_tri_dans_les_deux_sens():
                    for prompt in task_prompts)
 
     ranking_index = next(i for i, t in enumerate(TEMPLATES, 1)
-                         if t["name"] == "Classement communautaire")
+                         if t["name"] == "Community ranking")
     ranking_rules = [line for line in _run_template(ranking_index, "n", False).splitlines()
                      if line.startswith("rule ")]
     assert "rule Entry.Read sort submittedOn" in ranking_rules
@@ -224,7 +224,7 @@ def test_le_dialogue_derive_filtre_et_tri_dans_les_deux_sens():
 
 def test_plusieurs_oneof_restent_des_filtres_avec_un_where_en_et(tmp_path):
     index = next(i for i, t in enumerate(TEMPLATES, 1)
-                 if t["name"] == "Gestion de tâches")
+                 if t["name"] == "Task management")
     spec = _run_template(index, "n", False)
     spec_path = tmp_path / "spec.ml"
     spec_path.write_text(spec, encoding="utf-8")
@@ -253,7 +253,7 @@ def test_un_justificatif_de_depense_exerce_le_depot_prive(tmp_path):
     quelqu'un d'autre : la contrainte du compilateur et le besoin coïncident.
     """
     index = next(i for i, t in enumerate(TEMPLATES, 1)
-                 if t["name"] == "Suivi de dépenses personnelles")
+                 if t["name"] == "Personal expense tracking")
     prompts = []
     spec = _run_template(index, "n", False, upload_pour="Expense",
                          prompts=prompts)
@@ -283,11 +283,11 @@ def test_un_justificatif_de_depense_exerce_le_depot_prive(tmp_path):
     # changement d'interface » en laissant tout un écran à écrire — l'angle
     # mort qui s'est reproduit HUIT fois (points 88 à 116).
     signature = _contract_signature(contract)
-    assert "upload de Expense.photo" in signature[6]
+    assert "upload of Expense.photo" in signature[6]
     # Ce modèle n'a ni statut fermé ni horodatage : aucune capacité de liste
     # n'est dérivable, et en exiger une ici ferait passer le témoin pour une
     # preuve du filtrage. Elle est éprouvée là où elle existe, ci-dessous.
-    assert not any(k.startswith("capacités de liste de ") for k in signature[6])
+    assert not any(k.startswith("list capabilities of ") for k in signature[6])
 
 
 def test_le_contrat_voit_le_filtre_et_le_tri_derives(tmp_path):
@@ -299,13 +299,13 @@ def test_le_contrat_voit_le_filtre_et_le_tri_derives(tmp_path):
     changement d'interface » en laissant l'écran à refaire.
     """
     index = next(i for i, t in enumerate(TEMPLATES, 1)
-                 if t["name"] == "Boutique en ligne")
+                 if t["name"] == "Online shop")
     spec = _run_template(index, "o", True)
     spec_path = tmp_path / "spec.ml"
     spec_path.write_text(spec, encoding="utf-8")
     contract = compile_project(str(spec_path), str(tmp_path))
     signature = _contract_signature(contract)
-    listes = [k for k in signature[6] if k.startswith("capacités de liste de ")]
+    listes = [k for k in signature[6] if k.startswith("list capabilities of ")]
     assert listes, "le contrat ne porte aucune capacité de liste"
 
     # CONTRE-ÉPREUVE : retirer la règle de tri doit CHANGER la signature.
@@ -335,7 +335,7 @@ def test_une_annonce_publique_ne_recoit_jamais_de_depot(tmp_path):
     choix produit, pas seulement l'intention écrite en commentaire.
     """
     index = next(i for i, t in enumerate(TEMPLATES, 1)
-                 if t["name"] == "Petites annonces")
+                 if t["name"] == "Classified ads")
     spec = _run_template(index, "o", True)
     assert "ListingPhoto" not in spec
     entites = {n for n, _ in re.findall(r"^entity (\w+)()$", spec, re.M)}
@@ -484,7 +484,7 @@ def test_les_rubriques_editoriales_sont_demandees_pas_proposees():
             f"la rubrique « {section['title']} » n'a jamais été demandée")
     assert not any("Ajouter du texte de présentation" in p for p in poses), (
         "l'ancienne question o/n subsiste alors que le modèle a des rubriques")
-    assert 'section "À propos": "Photographe à Lyon depuis 2015."' in spec
+    assert 'section "About": "Photographe à Lyon depuis 2015."' in spec
     assert 'section "Services": "Reportage et portrait."' in spec
     MonlAST(parse_monl_string(spec)).validate_and_audit()
 
@@ -503,8 +503,8 @@ def test_un_outil_interne_ne_se_voit_imposer_aucune_rubrique():
     """Kanban, inventaire, dépenses : aucune source ne donne de rubrique
     attendue pour un outil sans visiteur. Le dialogue retombe donc sur
     l'offre générique plutôt que d'inventer un « à propos »."""
-    for nom in ("Gestion de tâches", "Inventaire / gestion de stock",
-                "Suivi de dépenses personnelles"):
+    for nom in ("Task management", "Inventory / stock management",
+                "Personal expense tracking"):
         tpl = next(t for t in TEMPLATES if t["name"] == nom)
         assert tpl["sections"] == [], nom
 
@@ -517,9 +517,9 @@ def test_le_dialogue_a_bien_ete_allege():
     assert total == 6, f"{total} questions de suivi (6 attendues)"
     # Les modèles dont chaque élément est standard n'en posent plus aucune.
     sans_question = [t["name"] for t in TEMPLATES if not t["followups"]]
-    assert "Gestion de tâches" in sans_question
-    assert "Petites annonces" in sans_question
-    assert "Réservation de rendez-vous" in sans_question
+    assert "Task management" in sans_question
+    assert "Classified ads" in sans_question
+    assert "Appointment booking" in sans_question
 
 
 def test_le_dialogue_sait_produire_un_panier_complet():
@@ -533,7 +533,7 @@ def test_le_dialogue_sait_produire_un_panier_complet():
 
     Ce test tient la chaîne entière : sans elle, on retomberait sur une
     boutique à un article, ou pire sur un montant que l'acheteur écrit."""
-    index = next(i for i, t in enumerate(TEMPLATES, 1) if t["name"] == "Boutique en ligne")
+    index = next(i for i, t in enumerate(TEMPLATES, 1) if t["name"] == "Online shop")
     spec = _run_template(index, "o", want_seed=True)
     regles = [li for li in spec.splitlines() if li.startswith("rule ")]
 
@@ -559,7 +559,7 @@ def test_le_dialogue_sait_produire_un_panier_complet():
 def test_le_dialogue_sait_encore_produire_une_commande_simple():
     """Le témoin du test ci-dessus : répondre « non » au panier doit rendre la
     forme mono-article, pas une spec cassée."""
-    index = next(i for i, t in enumerate(TEMPLATES, 1) if t["name"] == "Boutique en ligne")
+    index = next(i for i, t in enumerate(TEMPLATES, 1) if t["name"] == "Online shop")
     tpl = TEMPLATES[index - 1]
     answers = [str(index), "AppTest", "Une boutique."]
     answers += ["n"] * len(tpl["followups"])
@@ -643,7 +643,7 @@ def test_la_ligne_de_compte_atteint_le_menu_du_dialogue():
     aides = dialogue.derniere_question["hints"]
     assert dialogue.derniere_question["title"] == \
         "What type of application are you building?"
-    assert "self-registration: Customer" in aides["Boutique en ligne"]
-    assert "accounts created by the" in aides["Portfolio / site vitrine"]
+    assert "self-registration: Customer" in aides["Online shop"]
+    assert "accounts created by the" in aides["Portfolio / showcase site"]
     # Et l'aide d'origine n'a pas été REMPLACÉE par la ligne de compte.
-    assert "catalogue public" in aides["Boutique en ligne"]
+    assert "public catalog" in aides["Online shop"]

@@ -275,8 +275,8 @@ def test_une_ancienne_ligne_null_est_comptee_sans_etre_rattrapee(
     processus.terminate()
     sortie, _ = processus.communicate(timeout=10)
     journal = sortie.decode("utf-8", "replace")
-    assert '"commande"."statut" : 1 enregistrement(s)' in journal
-    assert "valeur NULL hors du oneOf" in journal
+    assert '"commande"."statut": 1 record(s)' in journal
+    assert "NULL value outside the oneOf" in journal
     with _base(tmp_path) as connexion:
         assert connexion.execute(
             "SELECT statut FROM commande WHERE id = 1").fetchone()[0] is None

@@ -34,43 +34,42 @@ from . import emplacement, nomenclature
 # seule garantie qu'on peut offrir sur une question de goût, c'est de pouvoir
 # revenir en arrière.
 def _write_retouche_brief(project_dir, demande):
-    body = f"""# Retouche demandée (consigne écrite par 'monl retouche')
+    body = f"""# Requested touch-up (instruction written by 'monl retouche')
 
-Le site fonctionne et respecte le contrat. Un défaut a été CONSTATÉ dessus,
-par un humain qui l'a regardé :
+The site works and follows the contract. A defect was OBSERVED on it, by a
+human who looked at it:
 
 > {demande.strip()}
 
-## Ce qu'il faut faire
+## What to do
 
-Corriger ce défaut-là dans le frontend existant (`frontend/`), et lui seul.
-Ne pas refaire la mise en page générale, ne pas réécrire ce qui fonctionne :
-une retouche se juge à ce qu'elle laisse intact autant qu'à ce qu'elle change.
+Fix that defect in the existing frontend (`frontend/`), and only that one.
+Do not redo the overall layout, do not rewrite what works: a touch-up is
+judged by what it leaves intact as much as by what it changes.
 
-Si la demande est ambiguë, choisir l'interprétation la plus ÉTROITE — celle
-qui touche le moins de choses. Une retouche trop large ne se distingue plus
-d'une reconstruction, et c'est précisément ce que cette commande évite.
+If the request is ambiguous, choose the NARROWEST interpretation — the one
+that touches the fewest things. A touch-up that is too broad can no longer be
+told apart from a rebuild, and that is exactly what this command avoids.
 
-Si le défaut ne peut PAS se corriger dans `frontend/` — parce qu'il vient de
-ce que la spec dit, ou ne dit pas — ne pas le contourner par une astuce
-d'affichage : le signaler dans la réponse et laisser le frontend en l'état.
-Un texte qu'on découpe à l'aveugle parce que le contrat ne le structure pas
-est une structure devinée, qui se reperdra à la prochaine construction.
+If the defect CANNOT be fixed in `frontend/` — because it comes from what the
+spec says, or does not say — do not work around it with a display trick:
+report it in the response and leave the frontend as it is. A text cut up
+blindly because the contract does not structure it is a guessed structure,
+which will be lost again at the next build.
 
-## Règles inchangées
+## Unchanged rules
 
-Le contrat complet reste `frontend_contract.json`, et les règles de
-`FRONTEND_PROMPT.md` restent toutes en vigueur — mêmes routes, même origine
-d'API, même autonomie (aucun CDN). Ne modifier aucun autre fichier du projet.
+The complete contract is still `frontend_contract.json`, and the rules of
+`FRONTEND_PROMPT.md` all remain in force — same routes, same API origin, same
+self-containment (no CDN). Do not modify any other project file.
 
-Rappel sur l'iconographie, parce que « aucun CDN » se lit facilement comme
-« pas d'icônes possibles » : aucune librairie d'icônes n'est atteignable, mais
-le SVG écrit EN LIGNE dans le HTML et les fichiers `.svg` déposés dans
-`frontend/` fonctionnent et sont servis. C'est un MOYEN disponible, pas une
-consigne : rien n'oblige à en mettre.
+A reminder about iconography, because "no CDN" is easily read as "no icons
+possible": no icon library is reachable, but SVG written INLINE in the HTML
+and `.svg` files placed in `frontend/` work and are served. It is an
+available MEANS, not an instruction: nothing requires using any.
 
-Après modification, `monl run` revalidera l'ensemble (cohérence statique
-+ smoke test comportemental) avant tout lancement.
+After the change, `monl run` will revalidate everything (static consistency
++ behavioral smoke test) before any start.
 """
     path = os.path.join(project_dir, RETOUCHE_PROMPT_FILENAME)
     with open(path, "w", encoding="utf-8") as fh:

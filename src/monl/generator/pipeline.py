@@ -33,9 +33,9 @@ class PipelineMixin:
         (frontend_contract.json + FRONTEND_PROMPT.md, voir
         src/frontend_contract.py) ; '/docs' (Swagger) reste le seul front
         fourni, gratuitement, par FastAPI."""
-        print(f"🏗️  Génération du socle déterministe réel pour '{self.app_name}'...")
+        print(f"🏗️  Generating the deterministic foundation for '{self.app_name}'...")
         if self.capabilities:
-            print(f"🧩 Capacités déclarées : {', '.join(self.capabilities)} (voir docs/design_decisions.md point 24).")
+            print(f"🧩 Declared capabilities: {', '.join(self.capabilities)} (see docs/design_decisions.md point 24).")
 
         sources = self.emitters.render()
         sql_content = sources.schema
@@ -64,13 +64,13 @@ class PipelineMixin:
                     fd = os.open(secret_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
                     with os.fdopen(fd, "w", encoding="utf-8") as f:
                         f.write(secrets.token_hex(32))
-                    print("🔑 Nouveau secret JWT généré dans '.jwt_secret' (32 octets, permissions 0600).")
+                    print("🔑 New JWT secret generated in '.jwt_secret' (32 bytes, permissions 0600).")
                 else:
                     try:
                         os.chmod(secret_path, 0o600)
                     except OSError:
                         pass
-                    print("🔑 Secret JWT existant conservé ('.jwt_secret', permissions 0600).")
+                    print("🔑 Existing JWT secret kept ('.jwt_secret', permissions 0600).")
 
                 with open(sql_path, "w", encoding="utf-8") as f: f.write(sql_content)
                 with open(api_path, "w", encoding="utf-8") as f: f.write(api_content)
@@ -85,13 +85,13 @@ class PipelineMixin:
                       else sans_sandbox(BACKEND_ARTIFACTS))
             publish_files(temporary, target_dir, publie)
 
-        produits = "'schema.sql', 'app.py' et 'manage.py'"
+        produits = "'schema.sql', 'app.py' and 'manage.py'"
         if self.custom_functions:
-            produits = "'schema.sql', 'app.py', 'sandbox_ai.py' et 'manage.py'"
-        print(f"💾 Socle généré : {produits} sont prêts !")
+            produits = "'schema.sql', 'app.py', 'sandbox_ai.py' and 'manage.py'"
+        print(f"💾 Foundation generated: {produits} are ready!")
         if not self.self_register_actors:
-            print("🔒 Aucun rôle en inscription libre : créez le premier compte avec "
-                  "'python3 manage.py adduser <utilisateur> <role>'.")
+            print("🔒 No self-registration role: create the first account with "
+                  "'python3 manage.py adduser <user> <role>'.")
 
     def build_compilation_plans(self) -> CompilationPlans:
         """Expose les analyses communes aux émetteurs backend et frontend."""

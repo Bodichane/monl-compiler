@@ -126,7 +126,7 @@ def test_l_intitule_ne_repete_pas_le_menu_de_terminal(rapport_jsdom):
 def test_chaque_bouton_porte_son_rang_son_nom_et_son_aide(rapport_jsdom):
     premier = rapport_jsdom["premier"]
     assert premier["rang"] == "1"
-    assert premier["libelle"] == "Portfolio / site vitrine"
+    assert premier["libelle"] == "Portfolio / showcase site"
     # L'aide dit AUSSI si les visiteurs auront un compte — la question que la
     # console ne posait nulle part.
     assert "accounts created by the" in premier["aide"], premier["aide"]

@@ -346,7 +346,7 @@ def test_payer_l_enregistrement_d_un_autre_compte_est_refuse(application):
     refus = requests.post(f"{base}/commande/{identifiant}/paiement",
                           headers=intruse)
     assert refus.status_code == 403, refus.text
-    assert "appartient" in refus.json()["detail"]
+    assert "belong to you" in refus.json()["detail"]
 
 
 def test_un_enregistrement_inexistant_donne_404(application):

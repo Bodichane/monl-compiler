@@ -103,7 +103,7 @@ def test_un_entier_de_milliers_de_chiffres_est_refuse_proprement():
     with pytest.raises(MonlSyntaxError) as erreur:
         parse_monl_string(spec)
     assert erreur.value.line == 7
-    assert "trop long" in str(erreur.value)
+    assert "too long" in str(erreur.value)
 
 
 def test_un_exposant_est_un_decimal_et_l_infini_est_refuse():
@@ -116,4 +116,4 @@ def test_un_exposant_est_un_decimal_et_l_infini_est_refuse():
     with pytest.raises(MonlSyntaxError) as erreur:
         parse_monl_string(spec.format("1e999900"))
     assert erreur.value.line == 7
-    assert "hors limites" in str(erreur.value)
+    assert "out of range" in str(erreur.value)

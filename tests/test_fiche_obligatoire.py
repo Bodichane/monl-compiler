@@ -233,8 +233,8 @@ def test_le_contrat_annonce_le_prealable(tmp_path, capsys):
     route = next(r for r in contrat["routes"]
                  if r["method"] == "POST" and r["path"] == "/commande")
     assert route["requires_own"] == "Client"
-    assert "PRÉALABLE" in route["note"]
-    assert "AVANT" in route["note"], "le contrat doit dire QUAND, pas seulement quoi"
+    assert "PREREQUISITE" in route["note"]
+    assert "BEFORE" in route["note"], "le contrat doit dire QUAND, pas seulement quoi"
 
 
 # --------------------------------------------------------------------------
@@ -299,7 +299,7 @@ def test_commander_sans_fiche_est_refuse_et_ne_cree_rien(boutique):
 
     code, reponse = _appel(base + "/commande", {"statut": "panier"}, jeton)
     assert code == 409
-    assert "fiche Client" in reponse["detail"]
+    assert "Client profile" in reponse["detail"]
 
     _, liste = _appel(base + "/commande", jeton=jeton)
     assert liste["total"] == 0, "un refus ne doit rien avoir créé"
@@ -326,7 +326,7 @@ def test_la_fiche_dun_autre_ne_suffit_pas(boutique):
 
     code, reponse = _appel(base + "/commande", {"statut": "panier"}, sans)
     assert code == 409, "la fiche de Zoé ne doit rien ouvrir à Bob"
-    assert "fiche Client" in reponse["detail"]
+    assert "Client profile" in reponse["detail"]
 
 
 def test_toute_commande_est_desormais_attribuable(boutique):

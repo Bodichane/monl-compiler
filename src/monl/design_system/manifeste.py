@@ -20,7 +20,7 @@ def _generated_image_plan(contract: dict, profile: dict) -> list[dict]:
     planned = [{
         "kind": "generated-image",
         "path": f"{prefix}/hero.jpg",
-        "role": "bandeau principal du premier écran",
+        "role": "main banner of the first screen",
         "aspect_ratio": {"width": 16, "height": 9},
         "frontend_reference": f"{prefix}/hero.jpg",
         "required": True,
@@ -29,7 +29,7 @@ def _generated_image_plan(contract: dict, profile: dict) -> list[dict]:
         planned.append({
             "kind": "generated-image",
             "path": f"{prefix}/editorial.jpg",
-            "role": "vignette secondaire pour le récit ou la preuve",
+            "role": "secondary thumbnail for the story or the proof",
             "frontend_reference": f"{prefix}/editorial.jpg",
             "required": True,
         })
@@ -76,9 +76,9 @@ def build_asset_manifest(contract: dict, profile: dict, generate_images=False) -
             "index.html": _section_substance(contract, profile),
         },
         "notes": [
-            "Les chemins de planned_assets sont des attentes de première construction.",
-            "Après génération du frontend, Monl passe ce manifeste à active et vérifie les fichiers livrés.",
-            "Un manifeste rédigé par l'auteur remplace ce plan et n'est jamais écrasé.",
+            "The planned_assets paths are expectations for the first build.",
+            "After the frontend is generated, Monl switches this manifest to active and checks the delivered files.",
+            "A manifest written by the author replaces this plan and is never overwritten.",
         ],
     }
 

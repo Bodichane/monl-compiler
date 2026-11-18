@@ -50,16 +50,16 @@ class ModificationRoutesMixin:
                 "    _p_conn = _connect(); _p_cur = _p_conn.cursor()",
                 f"    _p_cur.execute('SELECT {cols_literal} FROM \"{base_target.lower()}\" WHERE id = ?', (id,))",
                 "    _p_row = _p_cur.fetchone(); _p_conn.close()",
-                "    if not _p_row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
+                "    if not _p_row: raise HTTPException(status_code=404, detail='Record not found')",
             ]
             if apply_update_super:
                 _superset = ", ".join(f'"{s}"' for s in update_supers)
                 ownership_check_lines.append(f"    if current_actor not in {{{_superset}}}:")
                 ownership_check_lines.append("        if current_user_id not in _p_row: raise HTTPException(status_code=403, ")
-                ownership_check_lines.append("        detail=\"Contrôle d'accès : seules les parties de la ressource peuvent exécuter cette action\")")
+                ownership_check_lines.append("        detail=\"Access control: only the resource's parties can perform this action\")")
             else:
                 ownership_check_lines.append("    if current_user_id not in _p_row: raise HTTPException(status_code=403, ")
-                ownership_check_lines.append("        detail=\"Contrôle d'accès : seules les parties de la ressource peuvent exécuter cette action\")")
+                ownership_check_lines.append("        detail=\"Access control: only the resource's parties can perform this action\")")
         elif apply_ownership:
             check_actor, owner_select = self._owner_lookup_sql(base_target, owner_entity)
             update_deps += ", current_user_id: int = Depends(get_current_user_id)" if update_deps else "current_user_id: int = Depends(get_current_user_id)"
@@ -78,9 +78,9 @@ class ModificationRoutesMixin:
                 "        _owner_conn = _connect(); _owner_cur = _owner_conn.cursor()",
                 f"        _owner_cur.execute({owner_select.text!r}, {sql.params_tuple(owner_select)})",
                 "        _owner_row = _owner_cur.fetchone(); _owner_conn.close()",
-                "        if not _owner_row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
+                "        if not _owner_row: raise HTTPException(status_code=404, detail='Record not found')",
                 "        if _owner_row[0] != current_user_id: raise HTTPException(status_code=403, "
-                "detail=\"Contrôle d'accès : seul le propriétaire de la ressource peut exécuter cette action\")",
+                "detail=\"Access control: only the resource's owner can perform this action\")",
             ]
 
         update_deps_suffix = f", {update_deps}" if update_deps else ""
@@ -144,7 +144,7 @@ class ModificationRoutesMixin:
                 f"    _lien_{champ} = cursor.fetchone()",
                 f"    if not _lien_{champ}:",
                 "        conn.close()",
-                "        raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
+                "        raise HTTPException(status_code=404, detail='Record not found')",
                 f"    cursor.execute('SELECT \"{regle.source_field}\" FROM "
                 f'"{regle.source_entity.lower()}" WHERE id = ?\', '
                 f"(_lien_{champ}[0],))",
@@ -152,12 +152,12 @@ class ModificationRoutesMixin:
                 f"    if not _src_{champ}:",
                 "        conn.close()",
                 "        raise HTTPException(status_code=409, detail=(",
-                f"            '{regle.source_entity} introuvable : impossible de recalculer "
+                f"            '{regle.source_entity} not found: unable to recalculate "
                 f"{champ}.'))",
                 f"    if data.{regle.factor} <= 0:",
                 "        conn.close()",
                 "        raise HTTPException(status_code=400, detail=(",
-                "            'La quantité doit être strictement positive.'))",
+                "            'The quantity must be strictly positive.'))",
                 f"    _calcul_{champ} = round(float(_src_{champ}[0] or 0) "
                 f"* int(data.{regle.factor}), 2)",
             ]
@@ -236,10 +236,10 @@ class ModificationRoutesMixin:
                 f"            and data.{regle['field']} != {regle['value']!r}):",
                 "        conn.close()",
                 "        raise HTTPException(status_code=409, detail=(",
-                f"            \"Cet enregistrement est {regle['value']} : ce qu'il "
-                f"avait consommé a été rendu, \"",
-                "            'et rien ne garantit que ce soit encore disponible. "
-                "En créer un nouveau.'))",
+                f"            \"This record is {regle['value']}: what it had "
+                f"consumed has been returned, \"",
+                "            'and nothing guarantees it is still available. "
+                "Create a new one.'))",
                 f"    _bascule = (_etat_avant and _etat_avant[0] != {regle['value']!r}",
                 f"                and data.{regle['field']} == {regle['value']!r})",
             ]
@@ -294,8 +294,8 @@ class ModificationRoutesMixin:
                 "        if cursor.rowcount == 0:",
                 "            conn.rollback(); conn.close()",
                 "            raise HTTPException(status_code=409, detail=(",
-                f"                '{rule.target_entity}.{vise} insuffisant : "
-                f"la quantité demandée dépasse ce qui reste disponible.'))",
+                f"                '{rule.target_entity}.{vise} insufficient: "
+                f"the requested quantity exceeds what remains available.'))",
             ]
         if ecrits:
             update_stmt = ", ".join([f'"{f}" = ?' for f in ecrits])
@@ -309,7 +309,7 @@ class ModificationRoutesMixin:
             # Entité dont TOUS les attributs sont peuplés par le serveur :
             # « SET  WHERE id = ? » serait du SQL invalide. Rien à écrire
             # n'est un succès, pas une erreur.
-            lignes_ecriture.append("pass  # aucun champ modifiable par le client")
+            lignes_ecriture.append("pass  # no field the client can modify")
         # AJOUT (brique 12, point 82) : le total du parent suit la ligne
         # modifiée. Le parent est relu EN BASE, jamais pris dans le corps
         # de requête — la route Update n'écrit pas les clés étrangères,
@@ -341,8 +341,8 @@ class ModificationRoutesMixin:
             api_lines.append("        conn.rollback(); conn.close()")
             api_lines.append("        raise HTTPException(status_code=409, detail=(")
             api_lines.append(
-                f"            'Valeur déjà utilisée : {', '.join(uniques_upd)} "
-                f"doit être unique.'))")
+                f"            'Value already in use: {', '.join(uniques_upd)} "
+                f"must be unique.'))")
             api_lines.append("    conn.close()")
         else:
             api_lines += [f"    {ligne}" for ligne in lignes_ecriture]

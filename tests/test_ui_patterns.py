@@ -20,7 +20,7 @@ def test_boutique_recoit_des_patterns_de_page_et_de_media():
     rendered = render_pattern_block(patterns)
     assert "filter-grid" in rendered
     assert 'data-monl-section="catalogue"' in rendered
-    assert "invente des données" in rendered
+    assert "invents data" in rendered
 
 
 def test_operations_prefere_une_liste_dense():
