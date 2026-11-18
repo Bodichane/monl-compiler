@@ -34,6 +34,15 @@ from .sql_colonnes import SqlColonnesMixin
 from .sql_schema import SqlSchemaMixin
 
 
+def _grouper_par_entite(elements, cle=lambda e: e["entity"], valeur=lambda e: e):
+    """{entity: [values]} in declaration order — the shape every family of
+    marked fields takes. Extracted from `__init__` (complexity ceiling): five
+    identical loops, same dictionaries, same insertion order."""
+    groupes = {}
+    for element in elements:
+        groupes.setdefault(cle(element), []).append(valeur(element))
+    return groupes
+
 class MonlSecureGenerator(
     PipelineMixin,
     ModeleMixin,
@@ -145,10 +154,10 @@ class MonlSecureGenerator(
         # detail), whoever calls the route. Grouped by entity (rather than a
         # set of tuples like public_actions) because that is the form directly
         # useful to generation: "which fields to remove for THIS entity".
-        self.hidden_fields_by_entity = {}
-        for ref in normalized_ast["security"].get("hidden_fields", []):
-            entity, field = ref.split(".", 1)
-            self.hidden_fields_by_entity.setdefault(entity, []).append(field)
+        self.hidden_fields_by_entity = _grouper_par_entite(
+            map(lambda ref: ref.split(".", 1),
+                normalized_ast["security"].get("hidden_fields", [])),
+            cle=lambda paire: paire[0], valeur=lambda paire: paire[1])
         # ADDED (roadmap, capability ecosystem -- brick 3, generalized into
         # brick 4): 'decrements'/'increments' rules grouped by triggering
         # entity — see _generate_secure_fastapi, where that entity's Create
@@ -162,17 +171,16 @@ class MonlSecureGenerator(
         # grouped by entity — see _generate_secure_fastapi, where that entity's
         # Read routes (list + detail) replace the targeted numeric field with
         # its category label before returning the response.
-        self.categorized_fields_by_entity = {}
-        for cf in normalized_ast["security"].get("categorized_fields", []):
-            self.categorized_fields_by_entity.setdefault(cf["entity"], []).append(cf)
+        self.categorized_fields_by_entity = _grouper_par_entite(
+            normalized_ast["security"].get("categorized_fields", []))
         # ADDED (roadmap, capability ecosystem -- follow-up to brick 1):
         # 'generated' fields grouped by entity -- removed from the Create
         # route's Pydantic schema (the client cannot even try to supply them)
         # and filled from the current account's anonymous pseudonym rather than
         # from the request body.
-        self.generated_fields_by_entity = {}
-        for gf in normalized_ast["security"].get("generated_fields", []):
-            self.generated_fields_by_entity.setdefault(gf["entity"], []).append(gf["field"])
+        self.generated_fields_by_entity = _grouper_par_entite(
+            normalized_ast["security"].get("generated_fields", []),
+            valeur=lambda gf: gf["field"])
         # ADDED (brick 17, point 90): {Entity: RequiredEntity} — the caller
         # must already own a record of the second to create the first.
         self.required_profiles = dict(
@@ -181,15 +189,14 @@ class MonlSecureGenerator(
         # [field]} — the validator guarantees at most ONE per entity, but the
         # list form keeps the same handling as the other families of
         # server-filled fields.
-        self.timestamp_fields_by_entity = {}
-        for tf in normalized_ast["security"].get("timestamp_fields", []):
-            self.timestamp_fields_by_entity.setdefault(tf["entity"], []).append(tf["field"])
+        self.timestamp_fields_by_entity = _grouper_par_entite(
+            normalized_ast["security"].get("timestamp_fields", []),
+            valeur=lambda tf: tf["field"])
         # BRICK 22 (point 102): {Entity: [{field, format, period}]}. Same
         # family as the timestamp above — filled by the server at creation,
         # absent from request bodies, never rewritten.
-        self.numbered_fields_by_entity = {}
-        for nf in normalized_ast["security"].get("numbered_fields", []):
-            self.numbered_fields_by_entity.setdefault(nf["entity"], []).append(nf)
+        self.numbered_fields_by_entity = _grouper_par_entite(
+            normalized_ast["security"].get("numbered_fields", []))
         # ADDED (payment brick, point 74): chargeable entity and the field
         # carrying the amount. {Entity: field} — the validator guarantees at
         # most one payable field per entity.

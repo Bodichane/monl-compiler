@@ -420,7 +420,6 @@ EXCEPTIONS_DE_COMPLEXITE = {
     "monl/frontend_contract/contrat_entites.py:_specs_des_entites": (25, "Assemblage de contrat hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/frontend_contract/contrat_routes.py:_routes_du_contrat": (21, "Assemblage de routes hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/frontend_contract/roles_de_champs.py:_assign_field_roles": (39, "Attribution de rôles hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
-    "monl/generator/core.py:__init__": (20, "Initialisation du générateur ; analyse des relations, routes et champs calculés extraite dans planning, dette restante cliquetée."),
     "monl/generator/routes_creation.py:_generate_create_route_lines": (41, "Émission de routes ligne par ligne : liste plate légitime, conservée hors des cinq cibles."),
     "monl/generator/routes_lecture.py:_generate_read_route_lines": (49, "Émission de routes ligne par ligne : liste plate légitime, conservée hors des cinq cibles."),
     "monl/generator/routes_lecture_filtree.py:_generate_read_route_lines_with_query": (51, "Émission de routes ligne par ligne : liste plate légitime, conservée hors des cinq cibles."),
