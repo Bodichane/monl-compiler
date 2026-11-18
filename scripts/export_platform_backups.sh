@@ -26,7 +26,7 @@ destination=$1
 case "$destination" in
     /*) ;;
     *)
-        printf 'Le dossier d’export doit être un chemin absolu.\n' >&2
+        printf 'The export folder must be an absolute path.\n' >&2
         exit 2
         ;;
 esac
@@ -40,12 +40,12 @@ chmod 700 "$destination"
 conteneur=$(find_container_by_service "$container_runtime" sauvegarde \
     $("$container_runtime" compose --env-file "$env_file" -f "$compose_file" ps -q) || true)
 if [ -z "$conteneur" ]; then
-    printf 'Le service sauvegarde n’est pas démarré.\n' >&2
+    printf 'The backup service is not running.\n' >&2
     exit 1
 fi
 
-# `cp` lit le montage /backups du conteneur sans lancer une image auxiliaire
-# ni demander un téléchargement réseau. La source n'est jamais modifiée.
+# `cp` reads the container's /backups mount without starting an auxiliary
+# image or requiring a network download. The source is never modified.
 "$container_runtime" cp "$conteneur:/backups/." "$destination/"
 
-printf 'Sauvegardes exportées vers %s\n' "$destination"
+printf 'Backups exported to %s\n' "$destination"

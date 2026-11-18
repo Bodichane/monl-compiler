@@ -1,4 +1,4 @@
-# Ignorer les modèles d'IA volumineux
+# Ignore large AI models
 models/*
 !models/.gitkeep
 
@@ -6,27 +6,28 @@ models/*
 __pycache__/
 *.pyc
 
-# Secret de signature et base de la démo : régénérés au premier démarrage.
-# Le .jwt_secret de la racine était ignoré depuis toujours, celui de demo/
-# avait échappé à la règle — et le dépôt est devenu public (point 66).
+# Signing secret and demo database: regenerated on first start. The root
+# .jwt_secret had always been ignored, the one in demo/ had escaped the
+# rule — and the repository became public (point 66).
 demo/.jwt_secret
 demo/app.db
 
-# Artefacts de l'audit offensif généralisé (tests/test_exploit_all.py) :
-# chaque exemple est compilé puis servi DEPUIS LA RACINE du dépôt, ce qui y
-# dépose l'application générée et sa base jetable. Les ignorer à la racine
-# évite de versionner par mégarde un secret (app.py + .jwt_secret).
+# Artifacts of the generalized offensive audit (tests/test_exploit_all.py):
+# each example is compiled then served FROM THE ROOT of the repository, which
+# drops the generated application and its throwaway database there. Ignoring
+# them at the root avoids committing a secret by mistake (app.py +
+# .jwt_secret).
 #
-# Les motifs sont ANCRÉS, et ce n'est pas du zèle. Sans barre oblique de tête,
-# `app.py` signifie « à n'importe quelle profondeur » : la règle a capturé
-# src/monl_platform/app.py, et le module qui porte TOUTE la plateforme web —
-# routes, téléchargement, point MCP HTTP — a disparu du dépôt sans un mot. Un
-# clone neuf ne pouvait plus démarrer `monl-platform`, et tests/test_platform_web.py
-# échouait à la collecte en CI. Le même défaut avait déjà coûté six tests avec
-# `projets/` (point 116). Un artefact de compilation ne naît qu'à DEUX endroits
-# du dépôt : la racine (audit offensif) et demo/ (`monl compile demo/spec.ml`,
-# docs/DEMO.md) ; partout ailleurs — build/, dist/, projets/, platform-projects/
-# — c'est le dossier entier qui est ignoré, plus bas.
+# The patterns are ANCHORED, and it is not zeal. Without a leading slash,
+# `app.py` means "at any depth": the rule caught src/monl_platform/app.py, and
+# the module carrying the WHOLE web platform — routes, download, HTTP MCP
+# endpoint — vanished from the repository without a word. A fresh clone could
+# no longer start `monl-platform`, and tests/test_platform_web.py failed at
+# collection in CI. The same defect had already cost six tests with
+# `projets/` (point 116). A compilation artifact is only born in TWO places of
+# the repository: the root (offensive audit) and demo/ (`monl compile
+# demo/spec.ml`, docs/DEMO.md); everywhere else — build/, dist/, projets/,
+# platform-projects/ — the whole folder is ignored, further down.
 /app.py
 /schema.sql
 /app.db
@@ -40,44 +41,43 @@ demo/manage.py
 demo/sandbox_ai.py
 demo/.monl_uploads/
 
-# Projets compilés localement. Tout ce qui est produit par 'monl' vit dans
-# projets/ — un seul dossier à ignorer plutôt qu'une ligne par application,
-# et la racine du dépôt cesse de se remplir d'applications au milieu du code
-# du compilateur. (demo/ est la démo de référence, suivie exprès :
-# test_demo.py s'appuie dessus. Ses ENTRÉES seules y sont versionnées —
-# spec.ml, frontend/, assets/ — jamais app.db ni .jwt_secret, ignorés
-# ci-dessus. projets/ reste le bac à sable local : y verser six .jwt_secret
-# dans un dépôt public rouvrirait le point 66.)
+# Locally compiled projects. Everything 'monl' produces lives in projets/ —
+# a single folder to ignore rather than one line per application, and the
+# repository root stops filling with applications in the middle of the
+# compiler's code. (demo/ is the reference demo, tracked on purpose:
+# test_demo.py relies on it. Only its INPUTS are versioned — spec.ml,
+# frontend/, assets/ — never app.db or .jwt_secret, ignored above. projets/
+# stays the local sandbox: pouring six .jwt_secret into a public repository
+# would reopen point 66.)
 /projets/
 
 # Rapport de couverture (point 63)
 .coverage
 htmlcov/
 
-# Graine de variation visuelle : le commentaire de generator/theme.py
-# affirmait depuis toujours qu'elle était ignorée — elle ne l'était pas.
+# Visual variation seed: the comment in generator/theme.py had always
+# claimed it was ignored — it was not.
 .monl_theme_seed
 
-# Mesures locales des appels IA : jetons/durée, jamais les prompts ni les clés.
+# Local measurements of AI calls: tokens/duration, never prompts or keys.
 .monl_ai_usage.jsonl
 
-# Artefacts de build du paquet (point 65) et archives locales de bêta
+# Package build artifacts (point 65) and local beta archives
 *.egg-info/
 archives/
-# dist/ est la sortie de `python -m build`, jointe aux releases mais jamais
-# versionnée ; build/ sert à setuptools ET au dossier de sortie que le
-# démarrage rapide propose (`--output build/...`) — deux artefacts, aucun
-# écrit à la main.
+# dist/ is the output of `python -m build`, attached to releases but never
+# versioned; build/ serves setuptools AND the output folder the quick start
+# suggests (`--output build/...`) — two artifacts, neither written by hand.
 /dist/
 /build/
 
-# État local de la plateforme web : comptes, projets et artefacts compilés.
-# Ces données ne doivent jamais entrer dans l'historique du compilateur.
+# Local state of the web platform: accounts, projects and compiled
+# artifacts. This data must never enter the compiler's history.
 /platform.db
 /platform-projects/
 
-# Réglages locaux de déploiement : l'exemple versionné reste partageable,
-# les valeurs réelles (URL, OAuth, secrets) ne doivent jamais entrer dans Git.
+# Local deployment settings: the versioned example stays shareable; the
+# real values (URL, OAuth, secrets) must never enter Git.
 .env
 .env.*
 !.env.platform.example

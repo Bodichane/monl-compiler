@@ -1,9 +1,9 @@
-# Publication sans secret : PyPI échange l'identité OIDC courte de GitHub
-# contre un droit d'envoi temporaire.
+# Publishing without a secret: PyPI exchanges GitHub's short-lived OIDC
+# identity for a temporary upload right.
 name: Publication
 
-# Seuls les tags de version déclenchent cette chaîne. Une fusion sur une
-# branche ne doit jamais publier comme effet de bord.
+# Only version tags trigger this chain. A merge on a branch must never
+# publish as a side effect.
 on:
   push:
     tags:
@@ -13,17 +13,18 @@ jobs:
   verify-tag:
     name: Vérifier le tag et la version
     runs-on: ubuntu-latest
-    # Ce travail lit le dépôt, mais ne publie rien : il n'a donc pas le droit
-    # OIDC qui permettrait de demander une identité de publication.
+    # This job reads the repository but publishes nothing: so it does not
+    # have the OIDC right that would let it ask for a publishing
+    # identity.
     permissions:
       contents: read
     steps:
-      # Version précise : une mise à jour implicite de l'action ne doit pas
-      # changer le garde-fou sans revue.
+      # Exact version: an implicit update of the action must not change the
+      # safeguard without review.
       - name: Récupérer le commit désigné par le tag
         uses: actions/checkout@v4.2.2
 
-      # Version précise, pour que la normalisation soit la même partout.
+      # Exact version, so normalization is the same everywhere.
       - name: Installer la bibliothèque de versions
         uses: actions/setup-python@v5.6.0
         with:
@@ -37,23 +38,22 @@ jobs:
   tests:
     name: Tests et lint avant construction (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
-    # La CI de main ne suffit pas : ce travail éprouve exactement le commit
-    # que le tag désigne, avant qu'un artefact ne soit construit.
+    # main's CI is not enough: this job exercises exactly the commit the tag
+    # points to, before any artifact is built.
     #
-    # La matrice reprend celle de `ci.yml`, et ce n'est pas du zèle : éprouver
-    # le tag sur une SEULE version contredirait la raison d'être de ce travail.
-    # Dire « la CI de main ne suffit pas » puis n'en rejouer qu'un tiers, c'est
-    # rendre la garantie plus étroite que la phrase qui l'annonce. Un témoin
-    # confronte les deux matrices — deux listes de versions tenues séparément
-    # finissent toujours par diverger (point 167, sur les classifieurs).
+    # The matrix repeats `ci.yml`'s, and it is not zeal: exercising the tag on
+    # a SINGLE version would contradict this job's reason for being. Saying
+    # "main's CI is not enough" and then replaying only a third of it makes
+    # the guarantee narrower than the sentence announcing it. A witness
+    # compares the two matrices — two version lists kept separately always end
+    # up diverging (point 167, on the classifiers).
     #
-    # Même raison pour l'ENVIRONNEMENT : la CI installe `.[dev,postgres]` et
-    # monte un vrai PostgreSQL. La première exécution de cette chaîne, sur le
-    # tag v0.9.0-beta.9, n'installait que `.[dev]` : un test exigeant
-    # `psycopg` a échoué sur les trois versions, et seize tests PostgreSQL
-    # auraient de toute façon SAUTÉ ici alors qu'ils s'exécutent en CI. Un
-    # témoin confronte désormais extras, service et variable aux mêmes
-    # réglages de `ci.yml`.
+    # Same reason for the ENVIRONMENT: CI installs `.[dev,postgres]` and mounts
+    # a real PostgreSQL. The first run of this chain, on tag v0.9.0-beta.9,
+    # only installed `.[dev]`: a test requiring `psycopg` failed on all three
+    # versions, and sixteen PostgreSQL tests would have SKIPPED here anyway
+    # while they run in CI. A witness now compares extras, service and variable
+    # with the same settings in `ci.yml`.
     env:
       MONL_TEST_DATABASE_URL: postgresql://postgres:monl@127.0.0.1:5432/monltest
     services:
@@ -76,13 +76,13 @@ jobs:
     permissions:
       contents: read
     steps:
-      # Version précise : le code testé doit être celui du tag, pas celui d'un
-      # checkout ultérieur.
+      # Exact version: the tested code must be the tag's, not a later
+      # checkout's.
       - name: Récupérer le commit désigné par le tag
         uses: actions/checkout@v4.2.2
 
-      # Version précise : la matrice et les témoins JavaScript doivent garder
-      # un outil connu pendant la publication.
+      # Exact version: the matrix and the JavaScript witnesses must keep a
+      # known tool during publication.
       - name: Installer Python
         uses: actions/setup-python@v5.6.0
         with:
@@ -99,13 +99,13 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev,postgres]"
 
-      # Le lint est ici, dans la chaîne de publication, pour que la CI d'une
-      # autre exécution ne puisse pas être prise pour la preuve de ce tag.
+      # Lint is here, in the publishing chain, so that another run's CI
+      # cannot be taken as the proof for this tag.
       - name: Linter avant construction
         run: ruff check src tests
 
-      # Les tests sont aussi ici et doivent réussir avant le job build : une
-      # version envoyée ne se réutilise jamais si elle contenait un défaut.
+      # The tests are also here and must pass before the build job: an
+      # uploaded version can never be reused if it contained a defect.
       - name: Suite complète avant construction
         run: python -m pytest tests/ -rs
 
@@ -113,16 +113,17 @@ jobs:
     name: Construire une seule fois
     runs-on: ubuntu-latest
     needs: [verify-tag, tests]
-    # Ce travail ne publie pas et ne doit pas pouvoir demander un jeton OIDC.
+    # This job does not publish and must not be able to ask for an OIDC
+    # token.
     permissions:
       contents: read
     steps:
-      # Version précise : le paquet doit être construit depuis le même commit
-      # vérifié et testé.
+      # Exact version: the package must be built from the same checked and
+      # tested commit.
       - name: Récupérer le commit désigné par le tag
         uses: actions/checkout@v4.2.2
 
-      # Version précise : l'outil de construction est choisi explicitement.
+      # Exact version: the build tool is chosen explicitly.
       - name: Installer Python
         uses: actions/setup-python@v5.6.0
         with:
@@ -131,16 +132,16 @@ jobs:
       - name: Installer build et twine
         run: python -m pip install --upgrade build twine
 
-      # dist/ peut survivre sur une machine de publication. Le vider avant
-      # build empêche un artefact périmé de partir avec la version courante.
+      # dist/ can survive on a publishing machine. Emptying it before build
+      # keeps a stale artifact from leaving with the current version.
       - name: Construire les distributions
         run: |
           rm -rf dist/
           python -m build
           python -m twine check dist/*
 
-      # La construction est faite exactement une fois. Les deux jobs suivants
-      # recevront ces mêmes fichiers, au lieu de reconstruire deux fois.
+      # The build happens exactly once. The next two jobs receive these same
+      # files instead of building twice.
       - name: Conserver les distributions construites
         uses: actions/upload-artifact@v4.6.2
         with:
@@ -152,22 +153,25 @@ jobs:
     name: Publier sur TestPyPI
     runs-on: ubuntu-latest
     needs: build
-    # Seul ce travail d'envoi reçoit le pouvoir OIDC, sans secret de dépôt.
+    # Only this upload job receives the OIDC power, without a repository
+    # secret.
     permissions:
       id-token: write
-    # Ce nom doit être déclaré comme environnement Trusted Publisher côté
-    # TestPyPI ; il isole aussi les règles éventuelles de cet index d'essai.
+    # This name must be declared as a Trusted Publisher environment on
+    # TestPyPI;
+    # it also isolates any rules of that test index.
     environment: testpypi
     steps:
-      # Version précise : l'artefact est téléchargé tel quel, sans rebuild.
+      # Exact version: the artifact is downloaded as is, without
+      # rebuilding.
       - name: Télécharger les distributions
         uses: actions/download-artifact@v4.3.0
         with:
           name: distributions
           path: dist/
 
-      # Version précise. Aucun champ de connexion : l'action fait l'échange
-      # OIDC avec TestPyPI et n'utilise aucun secret durable.
+      # Exact version. No login field: the action performs the OIDC
+      # exchange with TestPyPI and uses no long-lived secret.
       - name: Publier sur TestPyPI par Trusted Publishing
         uses: pypa/gh-action-pypi-publish@v1.14.2
         with:
@@ -176,25 +180,25 @@ jobs:
   publish-pypi:
     name: Publier sur PyPI
     runs-on: ubuntu-latest
-    # PyPI ne peut arriver qu'après TestPyPI et son job réussi.
+    # PyPI can only come after TestPyPI and its successful job.
     needs: publish-testpypi
-    # Cet environnement doit être protégé dans GitHub avec un approbateur
-    # requis : poser un tag par erreur ne doit pas envoyer la version pour de
-    # bon sans une décision manuelle du mainteneur.
+    # This environment must be protected in GitHub with a required reviewer:
+    # pushing a tag by mistake must not send the version for good without a
+    # manual decision by the maintainer.
     environment: pypi
-    # Seul ce travail final reçoit le pouvoir OIDC ; les tests et le build ne
-    # peuvent donc pas l'utiliser s'ils étaient compromis.
+    # Only this final job receives the OIDC power; the tests and the build
+    # therefore cannot use it if they were compromised.
     permissions:
       id-token: write
     steps:
-      # Version précise : PyPI reçoit les mêmes fichiers que TestPyPI.
+      # Exact version: PyPI receives the same files as TestPyPI.
       - name: Télécharger les distributions
         uses: actions/download-artifact@v4.3.0
         with:
           name: distributions
           path: dist/
 
-      # Version précise. Le job protégé fait le second envoi par OIDC, sans
-      # donnée de connexion durable.
+      # Exact version. The protected job performs the second upload through
+      # OIDC, without long-lived login data.
       - name: Publier sur PyPI par Trusted Publishing
         uses: pypa/gh-action-pypi-publish@v1.14.2

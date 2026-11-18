@@ -1,6 +1,6 @@
-# Image de la plateforme : testée localement, puis publiée dans GHCR.
-# Le déploiement peut encore construire localement ; cette image est une voie
-# optionnelle pour installer exactement l'artefact validé par la CI.
+# Platform image: tested locally, then published to GHCR. Deployment can
+# still build locally; this image is an optional path to install exactly the
+# artifact validated by CI.
 name: Image plateforme
 
 on:

@@ -1,18 +1,18 @@
-"""Fabrique les images raster DEPUIS les tracés de la marque, jamais d'un PNG.
+"""Makes the raster images FROM the brand's outlines, never from a PNG.
 
     python3 outils/fabriquer_images.py
 
-Trois artefacts, une seule source :
+Three artifacts, one source:
 
-  favicon.ico        16/32/48 px — les navigateurs le demandent d'office, et un
-                     404 les laisse afficher l'ANCIENNE icône gardée en cache.
-  monl-wordmark.png  le mot en raster, pour ce qui ne sait pas lire un SVG.
-  monl-social.png    1200x630 — la carte Open Graph.
+  favicon.ico        16/32/48 px — browsers ask for it unprompted, and a 404
+                     leaves them showing the OLD icon kept in cache.
+  monl-wordmark.png  the word as raster, for what cannot read an SVG.
+  monl-social.png    1200x630 — the Open Graph card.
 
-Recopiés d'un fichier image, ces trois-là dériveraient le jour où la marque
-change, sans que rien ne le dise. Ici ils viennent de `brand.py`.
-Aucun TEXTE n'y est rendu : il faudrait une police installée, et la plateforme
-refuse cette dépendance partout ailleurs.
+Copied from an image file, these three would drift the day the brand
+changes, without anything saying so. Here they come from `brand.py`.
+No TEXT is rendered: it would need an installed font, and the platform
+refuses that dependency everywhere else.
 """
 
 import pathlib
@@ -30,13 +30,13 @@ from monl_platform.brand import MARK_PATH, VUE, WORDMARK_PATH
 STATIQUE = (pathlib.Path(__file__).resolve().parent.parent
             / "src" / "monl_platform" / "static")
 
-CADRE = 48               # le viewBox des tracés d'icône
+CADRE = 48               # the icon outlines' viewBox
 TAILLES_ICO = (16, 32, 48)
-RENDU = 512              # rendu large puis réduit : le lissage vient de la réduction
+RENDU = 512              # rendered large then reduced: smoothing comes from the reduction
 FOND = (46, 43, 37)      # --brand
 ENCRE = (249, 244, 237)  # --on-brand
-PAPIER = (23, 21, 18)    # --bg sombre, pour la carte de partage
-RAYON = 11               # le même que le <rect rx> de LOGO_SVG
+PAPIER = (23, 21, 18)    # dark --bg, for the share card
+RAYON = 11               # the same as LOGO_SVG's <rect rx>
 
 
 
@@ -62,9 +62,9 @@ def fabriquer_ico(destination):
 
 
 def fabriquer_wordmark(destination, largeur=1024):
-    """Le mot sur fond TRANSPARENT : posé sur un fond en dur, il ne conviendrait
-    qu'à un seul thème. Les lettres prennent l'encre claire, le seul choix qui
-    tienne sur les supports sombres où un raster finit."""
+    """The word on a TRANSPARENT background: set on a hard background, it would
+    only suit one theme. The letters take the light ink, the only choice that
+    holds on the dark surfaces where a raster ends up."""
     echelle = largeur / VUE[0] * 4
     grand = (largeur * 4, int(VUE[1] * echelle))
     image = Image.new("RGBA", grand, (0, 0, 0, 0))
@@ -74,11 +74,11 @@ def fabriquer_wordmark(destination, largeur=1024):
 
 
 def fabriquer_social(destination, taille=(1200, 630)):
-    """La carte Open Graph : le mot centré sur le papier sombre, rien d'autre.
+    """The Open Graph card: the word centered on the dark paper, nothing else.
 
-    Pas de baseline rendue : il faudrait une police installée, et la plateforme
-    refuse cette dépendance partout ailleurs. Le titre de la page porte déjà le
-    texte, et c'est lui que les réseaux affichent à côté de l'image.
+    No tagline rendered: it would need an installed font, and the platform
+    refuses that dependency everywhere else. The page title already carries
+    the text, and it is what networks display next to the image.
     """
     facteur = 3
     grand = (taille[0] * facteur, taille[1] * facteur)
@@ -97,4 +97,4 @@ if __name__ == "__main__":
                           ("monl-wordmark.png", fabriquer_wordmark),
                           ("monl-social.png", fabriquer_social)):
         cible = fabrique(STATIQUE / nom)
-        print(f"{cible.name:20} {cible.stat().st_size:>8} octets")
+        print(f"{cible.name:20} {cible.stat().st_size:>8} bytes")

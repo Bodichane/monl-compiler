@@ -1,14 +1,14 @@
 #!/usr/bin/env sh
-# Bibliothèque partagée par les scripts de déploiement — pas un exécutable.
+# Library shared by the deployment scripts — not an executable.
 #
-# `compose ps -q <service>` (une seule cible) est du Docker Compose v2 :
-# podman-compose 1.6.0 — le fournisseur que deploy/README.md recommande pour
-# Podman — le refuse (« unrecognized arguments »), sa forme de `ps` n'accepte
-# aucun nom de service. Les DEUX fournisseurs posent en revanche le même
-# label sur chaque conteneur qu'ils créent (`com.docker.compose.service`) :
-# on le relit directement au runtime plutôt que de dépendre d'une syntaxe
-# `ps` que l'un des deux ignore. Vérifié en réel (podman + podman-compose) :
-# le premier essai était Docker Compose v2 seulement et échouait ici.
+# `compose ps -q <service>` (a single target) is Docker Compose v2:
+# podman-compose 1.6.0 — the provider deploy/README.md recommends for
+# Podman — refuses it ("unrecognized arguments"); its form of `ps` accepts
+# no service name. BOTH providers, however, set the same label on every
+# container they create (`com.docker.compose.service`): it is read back
+# directly at runtime rather than depending on a `ps` syntax one of the two
+# ignores. Checked for real (podman + podman-compose): the first attempt
+# was Docker Compose v2 only and failed here.
 find_container_by_service() {
     runtime=$1
     service=$2

@@ -30,66 +30,7 @@ class CommerceMixin:
         for rule in self.rules:
             if rule["type"] != "requiresOwn":
                 continue
-            if "." not in rule["reference"]:
-                raise ASTValidationError(
-                    f"Structure: the 'requiresOwn' rule must reference 'Entity.Action', "
-                    f"received '{rule['reference']}'."
-                )
-            entity, act_type = rule["reference"].split(".", 1)
-            requise = rule["value"]
-            if entity not in self.entities:
-                raise ASTValidationError(
-                    f"Structure: the 'requiresOwn' rule targets entity '{entity}', which does not exist."
-                )
-            # Only creation can require it: it is the moment the record is born
-            # without a named owner. On Read/Update/Delete, the record already
-            # exists — requiring a profile after the fact would make data one
-            # owns inaccessible.
-            if act_type != "Create":
-                raise ASTValidationError(
-                    f"Structure: 'requiresOwn' only applies to '{entity}.Create' "
-                    f"(received '{entity}.{act_type}') -- on a read or modification "
-                    f"action, the record already exists and its profile can no longer "
-                    f"prevent anything."
-                )
-            if requise not in self.entities:
-                raise ASTValidationError(
-                    f"Structure: the 'requiresOwn' rule on '{entity}.Create' requires "
-                    f"'{requise}', which is not a declared entity."
-                )
-            if requise == entity:
-                raise ASTValidationError(
-                    f"Structure: '{entity}.Create requiresOwn {entity}' -- an entity "
-                    f"cannot require itself: the first record could never be created."
-                )
-            # The required entity must be owned DIRECTLY by an actor: "owning
-            # one" only makes sense if ownership is deduced from the token. A
-            # transitively owned entity (brick 11) does not say which ACCOUNT
-            # it belongs to without a join, and an entity with no owner at all
-            # belongs to nobody.
-            proprietaires = {v for (ent, _act), v in self.ownership_rules.items()
-                             if ent == requise}
-            if not (proprietaires & set(self.actors)):
-                raise ASTValidationError(
-                    f"Structure: '{entity}.Create requiresOwn {requise}', but "
-                    f"'{requise}' is not owned by any actor -- 'owning one' would "
-                    f"then have no meaning. Add a rule "
-                    f"'rule {requise}.Read ownedBy <Acteur>'."
-                )
-            # A public creation has no identity: impossible to look up "its"
-            # profile. Same refusal as 'generated' and 'payable', same reason.
-            if (entity, "Create") in self.public_actions:
-                raise ASTValidationError(
-                    f"Structure: '{entity}.Create' is 'public' but still requires an "
-                    f"owned '{requise}' -- incompatible: without an identified caller, "
-                    f"no profile can be looked up."
-                )
-            if entity in self.required_profiles:
-                raise ASTValidationError(
-                    f"Structure: multiple 'requiresOwn' rules declared for "
-                    f"'{entity}.Create' -- only one is allowed."
-                )
-            self.required_profiles[entity] = requise
+            self.required_profiles.update([self._exiger_requires_own(rule)])
 
         # ADDED (roadmap, payment brick -- point 74): validation of 'payable'.
         # The rule names the field that carries the AMOUNT; the entity
@@ -100,72 +41,140 @@ class CommerceMixin:
         for rule in self.rules:
             if rule["type"] != "payable":
                 continue
-            if "." not in rule["reference"]:
-                raise ASTValidationError(
-                    f"Structure: the 'payable' rule must reference 'Entity.field', received '{rule['reference']}'."
-                )
-            entity, field = rule["reference"].split(".", 1)
-            if entity not in self.entities:
-                raise ASTValidationError(
-                    f"Structure: the 'payable' rule targets entity '{entity}', which does not exist."
-                )
-            field_type = self.entities.get(entity, {}).get(field)
-            if field_type not in ("Money", "Float", "Integer"):
-                raise ASTValidationError(
-                    f"Structure: 'payable' targets field '{entity}.{field}', which must be a declared "
-                    f"Money, Float, or Integer attribute (received: {field_type or 'field does not exist'}) -- "
-                    f"text cannot be charged."
-                )
-            # A hidden amount would be unverifiable by the paying client: they
-            # could not compare what is asked of them with what they ordered.
-            if (entity, field) in self.masked_fields:
-                raise ASTValidationError(
-                    f"Structure: '{entity}.{field}' is both 'hidden' and 'payable' -- incompatible: "
-                    f"a payer cannot verify an amount they cannot read."
-                )
-            if any(p["entity"] == entity for p in self.payable_fields):
-                raise ASTValidationError(
-                    f"Structure: '{entity}' has multiple 'payable' fields -- only one amount per entity, "
-                    f"otherwise nothing specifies which one to charge."
-                )
-            # Charging requires knowing WHO pays: a public creation has no
-            # identity to attach to the payment, nor anyone to refund.
-            if (entity, "Create") in self.public_actions:
-                raise ASTValidationError(
-                    f"Structure: '{entity}.{field}' is 'payable', but '{entity}.Create' is 'public' -- "
-                    f"incompatible: a payment requires an identified caller."
-                )
-            # SECURITY FIX: without an incoming relation, the generator can
-            # determine NO owner for the payment route, which then accepts any
-            # authenticated caller for any record (IDOR). Same requirement as
-            # for 'increments'/'decrements' below -- a relation must exist to
-            # know WHO owns the row being charged.
-            has_owner_relation = any(
-                (rel["type"] in ("hasMany", "hasOne") and rel["target"] == entity)
-                or (rel["type"] == "belongsTo" and rel["source"] == entity)
-                for rel in self.relations
-            )
-            if not has_owner_relation:
-                raise ASTValidationError(
-                    f"Structure: '{entity}.{field}' is 'payable', but no relation identifies who "
-                    f"owns a '{entity}' record (e.g. 'Client hasMany {entity}') -- without it, "
-                    f"the payment route could not verify who is allowed to pay."
-                )
-            # LIFTED AT POINT 87. Point 81 refused any TRANSITIVELY owned
-            # entity here, because the payment route compared the ownership
-            # foreign key with `current_user_id` — yet under a chain that
-            # column carries an intermediate record id, not an account id. The
-            # refusal therefore protected against a wrong comparison, not an
-            # impossibility: the same brick 11 already provided, in
-            # `_owner_lookup_sql`, the join that gives the ACCOUNT id. The
-            # route now uses it, and the comparison is exact again.
-            #
-            # What keeps the brick safe has not moved: the chain must climb to
-            # an actor (point 81 refusal, above), the amount must stay
-            # impossible for the client to compute (point 79 refusal, in the
-            # cross-check below), and an incoming relation must exist (just
-            # above). None of these three refusals is weakened.
+            entity, field = self._exiger_payable(rule)
             self.payable_fields.append({"entity": entity, "field": field})
+
+    def _exiger_requires_own(self, rule):
+        """One 'requiresOwn' rule, checked: returns (entity, required entity)."""
+        if "." not in rule["reference"]:
+            raise ASTValidationError(
+                f"Structure: the 'requiresOwn' rule must reference 'Entity.Action', "
+                f"received '{rule['reference']}'."
+            )
+        entity, act_type = rule["reference"].split(".", 1)
+        requise = rule["value"]
+        if entity not in self.entities:
+            raise ASTValidationError(
+                f"Structure: the 'requiresOwn' rule targets entity '{entity}', which does not exist."
+            )
+        # Only creation can require it: it is the moment the record is born
+        # without a named owner. On Read/Update/Delete, the record already
+        # exists — requiring a profile after the fact would make data one
+        # owns inaccessible.
+        if act_type != "Create":
+            raise ASTValidationError(
+                f"Structure: 'requiresOwn' only applies to '{entity}.Create' "
+                f"(received '{entity}.{act_type}') -- on a read or modification "
+                f"action, the record already exists and its profile can no longer "
+                f"prevent anything."
+            )
+        if requise not in self.entities:
+            raise ASTValidationError(
+                f"Structure: the 'requiresOwn' rule on '{entity}.Create' requires "
+                f"'{requise}', which is not a declared entity."
+            )
+        if requise == entity:
+            raise ASTValidationError(
+                f"Structure: '{entity}.Create requiresOwn {entity}' -- an entity "
+                f"cannot require itself: the first record could never be created."
+            )
+        # The required entity must be owned DIRECTLY by an actor: "owning
+        # one" only makes sense if ownership is deduced from the token. A
+        # transitively owned entity (brick 11) does not say which ACCOUNT
+        # it belongs to without a join, and an entity with no owner at all
+        # belongs to nobody.
+        proprietaires = {v for (ent, _act), v in self.ownership_rules.items()
+                         if ent == requise}
+        if not (proprietaires & set(self.actors)):
+            raise ASTValidationError(
+                f"Structure: '{entity}.Create requiresOwn {requise}', but "
+                f"'{requise}' is not owned by any actor -- 'owning one' would "
+                f"then have no meaning. Add a rule "
+                f"'rule {requise}.Read ownedBy <Acteur>'."
+            )
+        # A public creation has no identity: impossible to look up "its"
+        # profile. Same refusal as 'generated' and 'payable', same reason.
+        if (entity, "Create") in self.public_actions:
+            raise ASTValidationError(
+                f"Structure: '{entity}.Create' is 'public' but still requires an "
+                f"owned '{requise}' -- incompatible: without an identified caller, "
+                f"no profile can be looked up."
+            )
+        if entity in self.required_profiles:
+            raise ASTValidationError(
+                f"Structure: multiple 'requiresOwn' rules declared for "
+                f"'{entity}.Create' -- only one is allowed."
+            )
+        return entity, requise
+
+    def _exiger_payable(self, rule):
+        """One 'payable' rule, checked: returns (entity, field)."""
+        if "." not in rule["reference"]:
+            raise ASTValidationError(
+                f"Structure: the 'payable' rule must reference 'Entity.field', received '{rule['reference']}'."
+            )
+        entity, field = rule["reference"].split(".", 1)
+        if entity not in self.entities:
+            raise ASTValidationError(
+                f"Structure: the 'payable' rule targets entity '{entity}', which does not exist."
+            )
+        field_type = self.entities.get(entity, {}).get(field)
+        if field_type not in ("Money", "Float", "Integer"):
+            raise ASTValidationError(
+                f"Structure: 'payable' targets field '{entity}.{field}', which must be a declared "
+                f"Money, Float, or Integer attribute (received: {field_type or 'field does not exist'}) -- "
+                f"text cannot be charged."
+            )
+        # A hidden amount would be unverifiable by the paying client: they
+        # could not compare what is asked of them with what they ordered.
+        if (entity, field) in self.masked_fields:
+            raise ASTValidationError(
+                f"Structure: '{entity}.{field}' is both 'hidden' and 'payable' -- incompatible: "
+                f"a payer cannot verify an amount they cannot read."
+            )
+        if any(p["entity"] == entity for p in self.payable_fields):
+            raise ASTValidationError(
+                f"Structure: '{entity}' has multiple 'payable' fields -- only one amount per entity, "
+                f"otherwise nothing specifies which one to charge."
+            )
+        # Charging requires knowing WHO pays: a public creation has no
+        # identity to attach to the payment, nor anyone to refund.
+        if (entity, "Create") in self.public_actions:
+            raise ASTValidationError(
+                f"Structure: '{entity}.{field}' is 'payable', but '{entity}.Create' is 'public' -- "
+                f"incompatible: a payment requires an identified caller."
+            )
+        # SECURITY FIX: without an incoming relation, the generator can
+        # determine NO owner for the payment route, which then accepts any
+        # authenticated caller for any record (IDOR). Same requirement as
+        # for 'increments'/'decrements' below -- a relation must exist to
+        # know WHO owns the row being charged.
+        has_owner_relation = any(
+            (rel["type"] in ("hasMany", "hasOne") and rel["target"] == entity)
+            or (rel["type"] == "belongsTo" and rel["source"] == entity)
+            for rel in self.relations
+        )
+        if not has_owner_relation:
+            raise ASTValidationError(
+                f"Structure: '{entity}.{field}' is 'payable', but no relation identifies who "
+                f"owns a '{entity}' record (e.g. 'Client hasMany {entity}') -- without it, "
+                f"the payment route could not verify who is allowed to pay."
+            )
+        # LIFTED AT POINT 87. Point 81 refused any TRANSITIVELY owned
+        # entity here, because the payment route compared the ownership
+        # foreign key with `current_user_id` — yet under a chain that
+        # column carries an intermediate record id, not an account id. The
+        # refusal therefore protected against a wrong comparison, not an
+        # impossibility: the same brick 11 already provided, in
+        # `_owner_lookup_sql`, the join that gives the ACCOUNT id. The
+        # route now uses it, and the comparison is exact again.
+        #
+        # What keeps the brick safe has not moved: the chain must climb to
+        # an actor (point 81 refusal, above), the amount must stay
+        # impossible for the client to compute (point 79 refusal, in the
+        # cross-check below), and an incoming relation must exist (just
+        # above). None of these three refusals is weakened.
+        return entity, field
 
     def _valider_securite_calculs_paiement(self):
         """Cross-checks server fields, bounds and chargeable amounts."""

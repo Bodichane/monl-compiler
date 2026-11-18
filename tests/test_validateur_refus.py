@@ -1082,7 +1082,11 @@ def test_refus_de_somme_mal_formee():
         ("rule Commande.total sumOf Fantome.sousTotal", "does not exist"),
         ("rule Commande.libelle sumOf Ligne.sousTotal", "Money, Float, or Integer"),
         ("rule Commande.absent sumOf Ligne.sousTotal", "field does not exist"),
-        ("rule Commande.total sumOf Ligne.quantiteAbsente", "field does not exist"),
+        # The whole sentence: this branch read "must be a attribut Money…"
+        # while every case only checked its tail.
+        ("rule Commande.total sumOf Ligne.quantiteAbsente",
+         "which must be a declared Money, Float, or Integer attribute "
+         "(received: field does not exist)"),
         # Une entité ne peut pas s'additionner elle-même.
         ("rule Commande.total sumOf Commande.total", "cannot sum itself"),
         # Sans relation parent-enfant, la somme porterait sur la table entière.

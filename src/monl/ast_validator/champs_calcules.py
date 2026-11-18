@@ -31,77 +31,93 @@ class ChampsCalculesMixin:
                 raise ASTValidationError(f"Structure: 'derivedFrom' targets entity '{entity}', which does not exist.")
             if source_entity not in self.entities:
                 raise ASTValidationError(f"Structure: 'derivedFrom' reads entity '{source_entity}', which does not exist.")
-            field_type = self.entities[entity].get(field)
-            if field_type not in ("Money", "Float", "Integer"):
-                raise ASTValidationError(
-                    f"Structure: 'derivedFrom' calculates '{entity}.{field}', which must be a declared "
-                    f"Money, Float, or Integer attribute (received: {field_type or 'field does not exist'})."
-                )
-            source_type = self.entities[source_entity].get(source_field)
-            if source_type not in ("Money", "Float", "Integer"):
-                raise ASTValidationError(
-                    f"Structure: 'derivedFrom' reads '{source_entity}.{source_field}', which must be a declared "
-                    f"Money, Float, or Integer attribute (received: {source_type or 'field does not exist'})."
-                )
-            factor_type = self.entities[entity].get(factor)
-            if factor_type != "Integer":
-                raise ASTValidationError(
-                    f"Structure: 'derivedFrom ... by {factor}' requires '{entity}.{factor}' to be a declared "
-                    f"Integer attribute (received: {factor_type or 'field does not exist'}) -- multiplication uses a quantity."
-                )
-            required_fields = {r["reference"] for r in self.rules if r.get("type") == "required"}
-            if f"{entity}.{factor}" not in required_fields:
-                raise ASTValidationError(
-                    f"Structure: '{entity}.{factor}' is used as the multiplier for 'derivedFrom' and must therefore have "
-                    f"'rule {entity}.{factor} required' -- otherwise, a client omitting it would trigger a calculation with no value."
-                )
-            if factor == field:
-                raise ASTValidationError(f"Structure: '{entity}.{field}' cannot be its own multiplier.")
-            if (entity, field) in self.masked_fields:
-                raise ASTValidationError(
-                    f"Structure: '{entity}.{field}' is both 'hidden' and 'derivedFrom' -- incompatible: "
-                    f"a calculated amount that cannot be read cannot be verified."
-                )
-            if any(g["entity"] == entity and g["field"] == field for g in self.generated_fields):
-                raise ASTValidationError(
-                    f"Structure: '{entity}.{field}' is both 'generated' and 'derivedFrom' -- two competing ways "
-                    f"to populate it on the server; choose one."
-                )
-            if any(d["entity"] == entity and d["field"] == field for d in self.derived_fields):
-                raise ASTValidationError(
-                    f"Structure: '{entity}.{field}' has multiple 'derivedFrom' rules -- only one calculation is allowed per field."
-                )
-            has_source_relation = any(
-                (rel["type"] in ("hasMany", "hasOne")
-                 and rel["source"] == source_entity and rel["target"] == entity)
-                or (rel["type"] == "belongsTo"
-                    and rel["source"] == entity and rel["target"] == source_entity)
-                for rel in self.relations
-            )
-            if not has_source_relation:
-                raise ASTValidationError(
-                    f"Structure: 'derivedFrom' reads '{source_entity}.{source_field}' from '{entity}', which requires "
-                    f"a relation between them (e.g. '{source_entity} hasMany {entity}'), which is missing here -- without "
-                    f"it, there is no way to know WHICH row of '{source_entity}' to read."
-                )
-            owners = {v for (ent, _act), v in self.ownership_rules.items() if ent == entity}
-            if owners and source_entity in owners:
-                raise ASTValidationError(
-                    f"Structure: 'derivedFrom' reads '{source_entity}', which is also the owner of "
-                    f"'{entity}' ('ownedBy' rule) -- its foreign key comes from the token, not the client, so "
-                    f"no row from '{source_entity}' can be selected at creation time."
-                )
-            if not owners:
-                raise ASTValidationError(
-                    f"Structure: 'derivedFrom' on '{entity}.{field}' requires '{entity}' to have an owner "
-                    f"(an 'ownedBy' rule) -- this distinguishes the foreign key populated by the server "
-                    f"from the one supplied by the client to select the row to read."
-                )
+            self._exiger_types_derives(entity, field, source_entity, source_field)
+            self._exiger_multiplicateur(entity, field, factor)
+            self._refuser_double_calcul_derive(entity, field)
+            self._exiger_ligne_source(entity, field, source_entity, source_field)
             self.derived_fields.append({
                 "entity": entity, "field": field,
                 "source_entity": source_entity, "source_field": source_field,
                 "factor": factor,
             })
+
+    def _exiger_types_derives(self, entity, field, source_entity, source_field):
+        """Both sides of a derivation are numeric."""
+        field_type = self.entities[entity].get(field)
+        if field_type not in ("Money", "Float", "Integer"):
+            raise ASTValidationError(
+                f"Structure: 'derivedFrom' calculates '{entity}.{field}', which must be a declared "
+                f"Money, Float, or Integer attribute (received: {field_type or 'field does not exist'})."
+            )
+        source_type = self.entities[source_entity].get(source_field)
+        if source_type not in ("Money", "Float", "Integer"):
+            raise ASTValidationError(
+                f"Structure: 'derivedFrom' reads '{source_entity}.{source_field}', which must be a declared "
+                f"Money, Float, or Integer attribute (received: {source_type or 'field does not exist'})."
+            )
+
+    def _exiger_multiplicateur(self, entity, field, factor):
+        """The multiplier is a required Integer quantity, other than the field."""
+        factor_type = self.entities[entity].get(factor)
+        if factor_type != "Integer":
+            raise ASTValidationError(
+                f"Structure: 'derivedFrom ... by {factor}' requires '{entity}.{factor}' to be a declared "
+                f"Integer attribute (received: {factor_type or 'field does not exist'}) -- multiplication uses a quantity."
+            )
+        required_fields = {r["reference"] for r in self.rules if r.get("type") == "required"}
+        if f"{entity}.{factor}" not in required_fields:
+            raise ASTValidationError(
+                f"Structure: '{entity}.{factor}' is used as the multiplier for 'derivedFrom' and must therefore have "
+                f"'rule {entity}.{factor} required' -- otherwise, a client omitting it would trigger a calculation with no value."
+            )
+        if factor == field:
+            raise ASTValidationError(f"Structure: '{entity}.{field}' cannot be its own multiplier.")
+
+    def _refuser_double_calcul_derive(self, entity, field):
+        """One server calculation per field, and an amount that stays readable."""
+        if (entity, field) in self.masked_fields:
+            raise ASTValidationError(
+                f"Structure: '{entity}.{field}' is both 'hidden' and 'derivedFrom' -- incompatible: "
+                f"a calculated amount that cannot be read cannot be verified."
+            )
+        if any(g["entity"] == entity and g["field"] == field for g in self.generated_fields):
+            raise ASTValidationError(
+                f"Structure: '{entity}.{field}' is both 'generated' and 'derivedFrom' -- two competing ways "
+                f"to populate it on the server; choose one."
+            )
+        if any(d["entity"] == entity and d["field"] == field for d in self.derived_fields):
+            raise ASTValidationError(
+                f"Structure: '{entity}.{field}' has multiple 'derivedFrom' rules -- only one calculation is allowed per field."
+            )
+
+    def _exiger_ligne_source(self, entity, field, source_entity, source_field):
+        """The source row is linked, and chosen by the client, never the token."""
+        has_source_relation = any(
+            (rel["type"] in ("hasMany", "hasOne")
+             and rel["source"] == source_entity and rel["target"] == entity)
+            or (rel["type"] == "belongsTo"
+                and rel["source"] == entity and rel["target"] == source_entity)
+            for rel in self.relations
+        )
+        if not has_source_relation:
+            raise ASTValidationError(
+                f"Structure: 'derivedFrom' reads '{source_entity}.{source_field}' from '{entity}', which requires "
+                f"a relation between them (e.g. '{source_entity} hasMany {entity}'), which is missing here -- without "
+                f"it, there is no way to know WHICH row of '{source_entity}' to read."
+            )
+        owners = {v for (ent, _act), v in self.ownership_rules.items() if ent == entity}
+        if owners and source_entity in owners:
+            raise ASTValidationError(
+                f"Structure: 'derivedFrom' reads '{source_entity}', which is also the owner of "
+                f"'{entity}' ('ownedBy' rule) -- its foreign key comes from the token, not the client, so "
+                f"no row from '{source_entity}' can be selected at creation time."
+            )
+        if not owners:
+            raise ASTValidationError(
+                f"Structure: 'derivedFrom' on '{entity}.{field}' requires '{entity}' to have an owner "
+                f"(an 'ownedBy' rule) -- this distinguishes the foreign key populated by the server "
+                f"from the one supplied by the client to select the row to read."
+            )
 
     def _valider_champs_agreges(self):
         """Validates the fields calculated as a sum of child rows."""
@@ -121,58 +137,9 @@ class ChampsCalculesMixin:
                 raise ASTValidationError(f"Structure: 'sumOf' targets entity '{entity}', which does not exist.")
             if source_entity not in self.entities:
                 raise ASTValidationError(f"Structure: 'sumOf' sums entity '{source_entity}', which does not exist.")
-            field_type = self.entities[entity].get(field)
-            if field_type not in ("Money", "Float", "Integer"):
-                raise ASTValidationError(
-                    f"Structure: 'sumOf' calculates '{entity}.{field}', which must be a declared "
-                    f"Money, Float, or Integer attribute (received: {field_type or 'field does not exist'})."
-                )
-            source_type = self.entities[source_entity].get(source_field)
-            if source_type not in ("Money", "Float", "Integer"):
-                raise ASTValidationError(
-                    f"Structure: 'sumOf' sums '{source_entity}.{source_field}', which must be a "
-                    f"attribut Money, Float, or Integer attribute (received: {source_type or 'field does not exist'})."
-                )
-            if source_entity == entity:
-                raise ASTValidationError(
-                    f"Structure: 'sumOf' makes '{entity}.{field}' the sum of a field from '{entity}' itself "
-                    f"-- an entity cannot sum itself. The sum must cover a CHILD entity "
-                    f"(e.g. 'Order hasMany Line')."
-                )
-            child_relation = any(
-                (rel["type"] in ("hasMany", "hasOne")
-                 and rel["source"] == entity and rel["target"] == source_entity)
-                or (rel["type"] == "belongsTo"
-                    and rel["source"] == source_entity and rel["target"] == entity)
-                for rel in self.relations
-            )
-            if not child_relation:
-                raise ASTValidationError(
-                    f"Structure: 'sumOf' sums '{source_entity}' from '{entity}', which requires "
-                    f"a parent-child relation (e.g. '{entity} hasMany {source_entity}'), which is missing here -- "
-                    f"without it, there is no way to know WHICH rows of '{source_entity}' to sum, and the sum "
-                    f"would cover the entire table."
-                )
-            if (entity, field) in self.masked_fields:
-                raise ASTValidationError(
-                    f"Structure: '{entity}.{field}' is both 'hidden' and 'sumOf' -- incompatible: "
-                    f"a calculated total that cannot be read cannot be verified."
-                )
-            if any(g["entity"] == entity and g["field"] == field for g in self.generated_fields):
-                raise ASTValidationError(
-                    f"Structure: '{entity}.{field}' is both 'generated' and 'sumOf' -- two competing ways "
-                    f"to populate it on the server; choose one."
-                )
-            if any(d["entity"] == entity and d["field"] == field for d in self.derived_fields):
-                raise ASTValidationError(
-                    f"Structure: '{entity}.{field}' has both 'derivedFrom' and 'sumOf' -- two "
-                    f"competing calculations for one field. 'derivedFrom' reads ONE related row; 'sumOf' "
-                    f"sums children: choose one."
-                )
-            if any(a["entity"] == entity and a["field"] == field for a in self.aggregated_fields):
-                raise ASTValidationError(
-                    f"Structure: '{entity}.{field}' has multiple 'sumOf' rules -- only one sum is allowed per field."
-                )
+            self._exiger_types_de_somme(entity, field, source_entity, source_field)
+            self._exiger_relation_enfant(entity, source_entity)
+            self._refuser_double_calcul_de_somme(entity, field)
             source_owners = {v for (ent, _act), v in self.ownership_rules.items() if ent == source_entity}
             if not source_owners:
                 raise ASTValidationError(
@@ -185,6 +152,67 @@ class ChampsCalculesMixin:
                 "entity": entity, "field": field,
                 "source_entity": source_entity, "source_field": source_field,
             })
+
+    def _exiger_types_de_somme(self, entity, field, source_entity, source_field):
+        """A sum is numeric on both sides, and never of an entity over itself."""
+        field_type = self.entities[entity].get(field)
+        if field_type not in ("Money", "Float", "Integer"):
+            raise ASTValidationError(
+                f"Structure: 'sumOf' calculates '{entity}.{field}', which must be a declared "
+                f"Money, Float, or Integer attribute (received: {field_type or 'field does not exist'})."
+            )
+        source_type = self.entities[source_entity].get(source_field)
+        if source_type not in ("Money", "Float", "Integer"):
+            raise ASTValidationError(
+                f"Structure: 'sumOf' sums '{source_entity}.{source_field}', which must be a "
+                f"declared Money, Float, or Integer attribute (received: {source_type or 'field does not exist'})."
+            )
+        if source_entity == entity:
+            raise ASTValidationError(
+                f"Structure: 'sumOf' makes '{entity}.{field}' the sum of a field from '{entity}' itself "
+                f"-- an entity cannot sum itself. The sum must cover a CHILD entity "
+                f"(e.g. 'Order hasMany Line')."
+            )
+
+    def _exiger_relation_enfant(self, entity, source_entity):
+        """The summed rows must be CHILDREN of the entity carrying the total."""
+        child_relation = any(
+            (rel["type"] in ("hasMany", "hasOne")
+             and rel["source"] == entity and rel["target"] == source_entity)
+            or (rel["type"] == "belongsTo"
+                and rel["source"] == source_entity and rel["target"] == entity)
+            for rel in self.relations
+        )
+        if not child_relation:
+            raise ASTValidationError(
+                f"Structure: 'sumOf' sums '{source_entity}' from '{entity}', which requires "
+                f"a parent-child relation (e.g. '{entity} hasMany {source_entity}'), which is missing here -- "
+                f"without it, there is no way to know WHICH rows of '{source_entity}' to sum, and the sum "
+                f"would cover the entire table."
+            )
+
+    def _refuser_double_calcul_de_somme(self, entity, field):
+        """One server calculation per field, and a total that stays readable."""
+        if (entity, field) in self.masked_fields:
+            raise ASTValidationError(
+                f"Structure: '{entity}.{field}' is both 'hidden' and 'sumOf' -- incompatible: "
+                f"a calculated total that cannot be read cannot be verified."
+            )
+        if any(g["entity"] == entity and g["field"] == field for g in self.generated_fields):
+            raise ASTValidationError(
+                f"Structure: '{entity}.{field}' is both 'generated' and 'sumOf' -- two competing ways "
+                f"to populate it on the server; choose one."
+            )
+        if any(d["entity"] == entity and d["field"] == field for d in self.derived_fields):
+            raise ASTValidationError(
+                f"Structure: '{entity}.{field}' has both 'derivedFrom' and 'sumOf' -- two "
+                f"competing calculations for one field. 'derivedFrom' reads ONE related row; 'sumOf' "
+                f"sums children: choose one."
+            )
+        if any(a["entity"] == entity and a["field"] == field for a in self.aggregated_fields):
+            raise ASTValidationError(
+                f"Structure: '{entity}.{field}' has multiple 'sumOf' rules -- only one sum is allowed per field."
+            )
 
     # The next two methods are extracted from `_valider_effets_compteurs`
     # (complexity ceiling): same checks, same order, same messages.

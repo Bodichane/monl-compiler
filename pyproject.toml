@@ -8,13 +8,12 @@ version = "1.0.1"
 description = "Compilateur d'intention logicielle : dialogue dirigé (sans IA) → spec DSL déterministe → backend FastAPI sécurisé + contrat frontend."
 readme = "README.md"
 requires-python = ">=3.10"
-# FSL-1.1-ALv2 n'est pas un identifiant SPDX listé : `LicenseRef-` est la forme
-# PEP 639 prévue pour nommer une licence personnalisée sans la remplacer par
-# Apache ou une autre licence SPDX. Le fichier de vérité voyage aussi dans
-# chaque artefact.
+# FSL-1.1-ALv2 is not a listed SPDX identifier: `LicenseRef-` is the PEP 639
+# form meant to name a custom license without replacing it with Apache or
+# another SPDX license. The file of record also travels in every artifact.
 license = "LicenseRef-FSL-1.1-ALv2"
 license-files = ["LICENSE"]
-# Valeur confirmée par le mainteneur, alignée sur `legal.EDITEUR`.
+# Value confirmed by the maintainer, aligned with `legal.EDITEUR`.
 authors = [{ name = "Itchane Bodi" }]
 keywords = ["dsl", "compiler", "fastapi", "codegen", "low-code"]
 classifiers = [
@@ -30,8 +29,8 @@ classifiers = [
     "Topic :: Software Development :: Compilers",
 ]
 
-# Dépendances épinglées avec bornes hautes pour la reproductibilité de la bêta
-# (voir aussi requirements.txt, gardé synchronisé pour l'usage sans packaging).
+# Dependencies pinned with upper bounds for the beta's reproducibility (see
+# also requirements.txt, kept in sync for use without packaging).
 dependencies = [
     "fastapi>=0.110,<1.0",
     "uvicorn>=0.29,<1.0",
@@ -54,17 +53,17 @@ dev = [
     "requests>=2.31,<3.0",   # tests HTTP et fournisseurs frontend
     "packaging>=24,<27",      # normalisation officielle du tag de publication
     "PyYAML>=6.0,<7.0",       # parsing local du workflow de publication dans ses témoins
-    # Pillow ne vivait que dans l'extra `ai`, que la CI n'installe pas. Deux
-    # conséquences, toutes deux du point 140 : le test de réencodage JPEG
-    # SAUTAIT en silence (un saut ne dit pas « rien à vérifier », il dit « je
-    # n'ai pas vérifié »), et le test qui garde les images de marque échouait
-    # franchement. Les tests ont besoin de la bibliothèque : elle est donc
-    # déclarée là où les tests s'installent.
+    # Pillow only lived in the `ai` extra, which CI does not install. Two
+    # consequences, both from point 140: the JPEG re-encoding test SKIPPED
+    # silently (a skip does not say "nothing to check", it says "I did not
+    # check"), and the test guarding the brand images failed outright. The
+    # tests need the library: so it is declared where the tests get
+    # installed.
     "Pillow>=10.0,<13.0",
-    # `tomllib` n'entre dans la bibliothèque standard qu'en 3.11, et le dépôt
-    # supporte 3.10 : test_architecture.py lit `per-file-ignores` pour vérifier
-    # qu'aucune exception de ruff ne vise un fichier disparu. SAUTER ce test
-    # sur 3.10 le rendrait muet là où il sert le plus (point 140).
+    # `tomllib` only enters the standard library in 3.11, and the repository
+    # supports 3.10: test_architecture.py reads `per-file-ignores` to check
+    # that no ruff exception targets a vanished file. SKIPPING that test on
+    # 3.10 would silence it where it matters most (point 140).
     "tomli>=2.0; python_version < '3.11'",
 ]
 postgres = [
@@ -81,11 +80,10 @@ monl = "monl.cli:main"
 monl-platform = "monl_platform.__main__:main"
 monl-mcp = "monl_platform.mcp_server:main"
 
-# POINT 65 : vrai paquet Python. La « structure src plat » de la bêta
-# n'était installable qu'à travers un shim qui manipulait sys.path ; le code
-# vit désormais dans src/monl/ et s'importe comme n'importe quelle
-# bibliothèque — y compris depuis les tests, qui n'ont plus d'incantation en
-# tête de fichier.
+# POINT 65: a real Python package. The beta's "flat src layout" was only
+# installable through a shim that manipulated sys.path; the code now lives
+# in src/monl/ and is imported like any library — including from the
+# tests, which no longer carry an incantation at the top of the file.
 [tool.setuptools.packages.find]
 where = ["src"]
 
@@ -98,23 +96,23 @@ monl_platform = ["static/*.png", "static/*.ico"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
-# Une ressource (connexion SQLite, fichier, tube de sous-processus, réponse
-# HTTP) laissée au ramasse-miettes est un défaut, pas un bruit : 72
-# `unclosed database` sous Python 3.14 venaient de `with sqlite3.connect(...)`,
-# qui valide sans fermer (points 141 et 185), et le même filtre élargi a
-# ensuite trouvé cinq fichiers jamais fermés dans `frontend_ai`. Le second
-# filtre couvre la même alerte levée dans un destructeur, que pytest relaie
-# sous ce nom.
+# A resource (SQLite connection, file, subprocess pipe, HTTP response) left
+# to the garbage collector is a defect, not noise: 72 `unclosed database`
+# under Python 3.14 came from `with sqlite3.connect(...)`, which commits
+# without closing (points 141 and 185), and the same widened filter then
+# found five files never closed in `frontend_ai`. The second filter covers
+# the same warning raised in a destructor, which pytest relays under that
+# name.
 filterwarnings = [
     "error::ResourceWarning",
     "error::pytest.PytestUnraisableExceptionWarning",
 ]
 
 # ─────────────────────────────────────────────────────────────────────
-# Ruff — le linter. Jeu de règles CHOISI, pas le catalogue complet : un
-# linter qui crie sur du code délibéré finit ignoré, et un avertissement
-# ignoré ne vaut pas mieux que pas d'avertissement (même raisonnement
-# qu'au point 48 pour les clauses du contrat).
+# Ruff — the linter. A CHOSEN rule set, not the full catalog: a linter
+# that shouts at deliberate code ends up ignored, and an ignored warning
+# is worth no more than no warning (same reasoning as point 48 for the
+# contract's clauses).
 # ─────────────────────────────────────────────────────────────────────
 [tool.ruff]
 target-version = "py310"
@@ -123,13 +121,15 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
 ignore = [
-    # Le dépôt écrit en français : « é », « — », « … » ne sont pas des
-    # caractères ambigus à corriger, ce sont la langue du projet.
+    # « — », « … », typographic quotes and accented letters are
+    # deliberate: the design journal stays in French, and
+    # generated-file markers are French on purpose. They are not
+    # ambiguous characters to fix.
     "RUF001", "RUF002", "RUF003",
-    # Longues chaînes de brief et de grammaire : couper à 100 colonnes
-    # nuirait à la relecture de ce qui compte le plus.
+    # Long brief and grammar strings: wrapping at 100 columns would
+    # hurt the reading of what matters most.
     "E501",
-    # Style assumé du dépôt, pas des défauts :
+    # The repository's assumed style, not defects:
     "E701",    # « with open(...) as f: f.write(x) » — compact et lisible
     "RUF005",  # « liste + [x] » se lit mieux que le dépaquetage ici
     "RUF012",  # attributs de classe exigés par l'API Lark (MonlIndenter)
@@ -140,20 +140,19 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# La grammaire Lark vit dans une chaîne littérale : ses lignes vides
-# PORTENT des espaces, et y toucher modifierait le texte que Lark analyse.
-# Le linter voit des lignes physiques, pas la frontière du littéral.
+# The Lark grammar lives in a string literal: its blank lines CARRY
+# spaces, and touching them would change the text Lark parses. The
+# linter sees physical lines, not the boundary of the literal.
 "src/monl/parser/grammaire.py" = ["W293"]
-# (L'exception E402 de frontend_ai.py est TOMBÉE avec son fichier : le paquet
-# range les imports de chaque section dans l'en-tête de son propre module,
-# donc il n'y a plus rien à excuser. Un chemin qui n'existe plus n'excuse
-# rien non plus — il fait juste croire qu'une règle est encore assouplie.)
-# Trois sections successives dans un même fichier (voie API, voie import,
-# voie Claude Code), chacune avec ses imports : c'est la lecture du fichier
-# qui commande, pas la convention.
+# (The E402 exception for frontend_ai.py FELL with its file: the package
+# keeps each section's imports in the header of its own module, so there is
+# nothing left to excuse. A path that no longer exists excuses nothing either
+# — it only makes people believe a rule is still relaxed.) Three successive
+# sections in one file (API path, import path, Claude Code path), each with
+# its imports: the reading of the file decides, not the convention.
 "tests/test_smoke_and_frontend_ai.py" = ["E402"]
-# Le test construit le code d'un SOUS-PROCESSUS : « %r » y sert à citer des
-# chemins sans risque de guillemets, pas à formater un affichage.
+# The test builds the code of a SUBPROCESS: "%r" quotes paths there without
+# any quoting risk, it does not format a display.
 "tests/test_beta3_regressions.py" = ["UP031"]
 
 [tool.coverage.run]

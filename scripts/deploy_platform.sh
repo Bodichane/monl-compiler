@@ -12,7 +12,7 @@ python_bin=${PYTHON_BIN:-python3}
 case "$use_prebuilt_image" in
     0|1) ;;
     *)
-        printf 'USE_PREBUILT_IMAGE doit valoir 0 ou 1.\n' >&2
+        printf 'USE_PREBUILT_IMAGE must be 0 or 1.\n' >&2
         exit 2
         ;;
 esac
@@ -28,8 +28,8 @@ esac
 
 compose() {
     if [ "$container_runtime" = podman ]; then
-        # OCI ne transporte pas HEALTHCHECK. Le format Docker le conserve
-        # lorsque le fournisseur podman-compose construit l'image.
+        # OCI does not carry HEALTHCHECK. The Docker format keeps it when
+        # the podman-compose provider builds the image.
         "$container_runtime" compose --podman-build-args="--format docker" "$@"
     else
         "$container_runtime" compose "$@"
@@ -38,15 +38,15 @@ compose() {
 
 cd "$racine"
 if ! command -v "$container_runtime" >/dev/null 2>&1; then
-    printf 'Runtime de conteneur introuvable (%s).\n' "$container_runtime" >&2
+    printf 'Container runtime not found (%s).\n' "$container_runtime" >&2
     exit 1
 fi
 if ! command -v curl >/dev/null 2>&1; then
-    printf 'curl est requis pour vérifier la readiness locale.\n' >&2
+    printf 'curl is required to check local readiness.\n' >&2
     exit 1
 fi
 if ! command -v "$python_bin" >/dev/null 2>&1; then
-    printf 'Interpréteur Python introuvable (%s) ; définir PYTHON_BIN.\n' "$python_bin" >&2
+    printf 'Python interpreter not found (%s); set PYTHON_BIN.\n' "$python_bin" >&2
     exit 1
 fi
 "$python_bin" scripts/check_platform_env.py "$env_file"
@@ -55,7 +55,7 @@ if [ "$use_prebuilt_image" = 1 ]; then
     images=$(compose --env-file "$env_file" -f "$compose_file" config --images)
     case "$images" in
         *monl-platform:local*)
-            printf 'USE_PREBUILT_IMAGE=1 exige une image MONL_PLATFORM_IMAGE non locale.\n' >&2
+            printf 'USE_PREBUILT_IMAGE=1 requires a non-local MONL_PLATFORM_IMAGE.\n' >&2
             exit 2
             ;;
     esac
@@ -65,12 +65,12 @@ if [ "$use_prebuilt_image" = 1 ]; then
         case "$image_ref" in
             *@sha256:*) ;;
             *:latest)
-                printf 'USE_PREBUILT_IMAGE=1 refuse le tag mutable latest : %s\n' "$image" >&2
+                printf 'USE_PREBUILT_IMAGE=1 refuses the mutable tag latest: %s\n' "$image" >&2
                 exit 2
                 ;;
             *:*) ;;
             *)
-                printf 'USE_PREBUILT_IMAGE=1 exige un tag ou un digest : %s\n' "$image" >&2
+                printf 'USE_PREBUILT_IMAGE=1 requires a tag or a digest: %s\n' "$image" >&2
                 exit 2
                 ;;
         esac
@@ -84,9 +84,9 @@ else
 fi
 compose --env-file "$env_file" -f "$compose_file" ps
 
-# `up -d` rend la main avant la readiness, et une première connexion peut être
-# réinitialisée pendant l'initialisation. Une boucle explicite couvre aussi ce
-# cas que `curl --retry` ne retente pas toujours.
+# `up -d` returns before readiness, and a first connection can be reset
+# during initialization. An explicit loop also covers this case, which `curl
+# --retry` does not always retry.
 pret=false
 for tentative in $(seq 1 90); do
     if curl --fail --silent --show-error --max-time 2 \
@@ -97,7 +97,7 @@ for tentative in $(seq 1 90); do
     sleep 1
 done
 if [ "$pret" != true ]; then
-    printf 'La plateforme ne devient pas prête sur 127.0.0.1:8022.\n' >&2
+    printf 'The platform does not become ready on 127.0.0.1:8022.\n' >&2
     compose --env-file "$env_file" -f "$compose_file" logs --tail=100 platform || true
     exit 1
 fi
@@ -112,7 +112,7 @@ for tentative in $(seq 1 90); do
     sleep 1
 done
 if [ "$backup_started" != true ]; then
-    printf 'Le service sauvegarde ne démarre pas.\n' >&2
+    printf 'The backup service does not start.\n' >&2
     compose --env-file "$env_file" -f "$compose_file" logs --tail=100 sauvegarde || true
     exit 1
 fi
@@ -127,7 +127,7 @@ for tentative in $(seq 1 90); do
     sleep 1
 done
 if [ "$backup_healthy" != true ]; then
-    printf 'Le service sauvegarde ne devient pas healthy.\n' >&2
+    printf 'The backup service does not become healthy.\n' >&2
     compose --env-file "$env_file" -f "$compose_file" logs --tail=100 sauvegarde || true
     exit 1
 fi

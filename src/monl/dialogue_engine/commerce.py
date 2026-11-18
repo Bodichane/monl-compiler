@@ -62,7 +62,7 @@ class CommerceMixin:
             if not profiles:
                 continue
             labels = [
-                f"{label} — champ {field}, {maximum} octets, "
+                f"{label} — field {field}, {maximum} bytes, "
                 f"types {', '.join(accepted_types)}"
                 for label, field, maximum, accepted_types in profiles
             ]

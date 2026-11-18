@@ -254,6 +254,9 @@ def test_une_valeur_partagee_par_deux_entites_est_refusee(tmp_path):
                       pour="Sørlund Deck")
     message = str(refus.value)
     assert "2 rows" in message and "--entity" in message
+    # Each candidate is named in English ("Produit row 5"); it read
+    # "Produit ligne 5" after the migration, unseen by the check above.
+    assert " row " in message and "ligne" not in message, message
 
 
 def test_entity_leve_lambiguite(tmp_path, capsys):

@@ -45,7 +45,7 @@ def test_compose_garde_le_port_prive_et_attend_la_readiness():
     assert "MONL_PLATFORM_OAUTH_STATE_SECRET" in contenu
     assert "healthcheck:" in contenu
     assert "MONL_BACKUP_MAX_AGE_SECONDS" in contenu
-    assert "nouvel essai dans 60 s" in contenu
+    assert "retrying in 60 s" in contenu
     for variable in ("MONL_OAUTH_GITHUB_CLIENT_ID", "MONL_OAUTH_GITHUB_SECRET",
                      "MONL_OAUTH_GOOGLE_CLIENT_ID", "MONL_OAUTH_GOOGLE_SECRET"):
         assert variable in contenu
@@ -149,19 +149,19 @@ def test_script_deploiement_enchaine_validation_compose_et_readiness():
     assert 'container_runtime=${CONTAINER_RUNTIME:-docker}' in contenu
     assert 'use_prebuilt_image=${USE_PREBUILT_IMAGE:-0}' in contenu
     assert 'python_bin=${PYTHON_BIN:-python3}' in contenu
-    assert 'Runtime de conteneur introuvable' in contenu
-    assert 'curl est requis' in contenu
-    assert 'Interpréteur Python introuvable' in contenu
+    assert 'Container runtime not found' in contenu
+    assert 'curl is required' in contenu
+    assert 'Python interpreter not found' in contenu
     assert "config --images" in contenu
-    assert "MONL_PLATFORM_IMAGE non locale" in contenu
-    assert "refuse le tag mutable latest" in contenu
-    assert "exige un tag ou un digest" in contenu
+    assert "non-local MONL_PLATFORM_IMAGE" in contenu
+    assert "refuses the mutable tag latest" in contenu
+    assert "requires a tag or a digest" in contenu
     assert "@sha256:" in contenu
     assert "compose --env-file \"$env_file\" -f \"$compose_file\" pull" in contenu
     assert "http://127.0.0.1:8022/ready" in contenu
     assert "for tentative in $(seq 1 90)" in contenu
     assert 'if [ "$pret" != true ]' in contenu
-    assert "La plateforme ne devient pas prête" in contenu
+    assert "The platform does not become ready" in contenu
     assert "logs --tail=100 platform" in contenu
     # `compose ps -q <service>` est du Docker Compose v2 : podman-compose
     # 1.6.0 — le fournisseur que deploy/README.md recommande pour Podman —
@@ -174,12 +174,12 @@ def test_script_deploiement_enchaine_validation_compose_et_readiness():
     assert "find_container_by_service" in contenu
     assert 'backup_started=false' in contenu
     assert 'if [ "$backup_started" != true ]' in contenu
-    assert "Le service sauvegarde ne démarre pas" in contenu
+    assert "The backup service does not start" in contenu
     assert "logs --tail=100 sauvegarde" in contenu
     assert 'backup_healthy=false' in contenu
     assert "{{.State.Health.Status}}" in contenu
     assert 'if [ "$backup_healthy" != true ]' in contenu
-    assert "ne devient pas healthy" in contenu
+    assert "does not become healthy" in contenu
     assert 'if [ "$container_runtime" = podman ]' in contenu
     assert '--podman-build-args="--format docker"' in contenu
     assert "smoke_platform.sh http://127.0.0.1:8022" in contenu
@@ -225,7 +225,7 @@ def test_deploiement_refuse_une_image_preconstruite_mutable(tmp_path):
             text=True,
         )
         assert resultat.returncode == 2
-        assert "tag mutable latest" in resultat.stderr or "tag ou un digest" in resultat.stderr
+        assert "mutable tag latest" in resultat.stderr or "a tag or a digest" in resultat.stderr
 
 
 def test_export_des_sauvegardes_est_borne_a_un_dossier_hote():
@@ -372,7 +372,7 @@ def test_validation_refuse_un_secret_detat_oauth_trop_court():
         "MONL_OAUTH_GITHUB_SECRET": "secret",
     })
 
-    assert any("32 caractères" in erreur for erreur in erreurs)
+    assert any("32 characters" in erreur for erreur in erreurs)
 
 
 def test_validation_autorise_une_console_sur_un_hote_distinct():

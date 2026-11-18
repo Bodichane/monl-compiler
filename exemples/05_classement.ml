@@ -1,10 +1,10 @@
 app TopVote
 
 # ─────────────────────────────────────────────────────────────────────
-# CLASSEMENT COMMUNAUTAIRE COMPLET — archétype "liste classée".
-# 'Entry' est en lecture publique et porte un compteur 'score' que les votes
-# font monter : la landing en dérive un classement trié (podium pour le top
-# 3). Les entrées de démonstration remplissent le classement dès l'ouverture.
+# COMPLETE COMMUNITY RANKING — "ranked list" archetype.
+# 'Entry' is publicly readable and carries a 'score' counter that votes
+# raise: the landing derives a sorted ranking from it (podium for the top 3).
+# The demo entries fill the ranking from the first opening.
 # ─────────────────────────────────────────────────────────────────────
 
 entity Entry
@@ -30,7 +30,7 @@ workflow Submit for Participant
 workflow CastVote for Participant
     Create Vote
 
-# Entrées de démonstration avec scores variés (le tri les classera).
+# Demo entries with varied scores (sorting will rank them).
 seed Entry
     name: "Projet Solaris", score: 128, tagline: "Panneaux solaires imprimés en 3D."
     name: "Application Trille", score: 87, tagline: "Apprentissage musical par le jeu."

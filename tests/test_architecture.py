@@ -395,20 +395,12 @@ def test_chaque_exception_de_taille_vise_un_fichier_qui_depasse_encore():
 # elles sont des cliquets, pas des plafonds de confort.
 PLAFOND_COMPLEXITE = 15
 EXCEPTIONS_DE_COMPLEXITE = {
-    "monl/assets_tool/resolution.py:_resoudre_seed": (37, "Le résolveur conserve plusieurs cas métier liés aux seeds ; il est hors périmètre et borné par son cliquet."),
-    "monl/ast_validator/acces.py:_valider_controle_dacces": (38, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
-    "monl/ast_validator/capacites.py:_valider_capacites": (43, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
-    "monl/ast_validator/champs_calcules.py:_valider_champs_agreges": (30, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
-    "monl/ast_validator/champs_calcules.py:_valider_champs_derives": (34, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
-    "monl/ast_validator/commerce.py:_valider_requires_own_et_payable": (28, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
-    "monl/ast_validator/uploads.py:_valider_champs_uploades": (41, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
     "monl/cli/delta.py:_rapporter_delta": (46, "Rapport de delta hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/cli/signature.py:_contract_signature": (53, "Sérialisation et émission de signature conservées ligne par ligne ; cas plat hors des cinq cibles."),
     "monl/dialogue_engine/commerce.py:_ask_payable": (32, "Parcours de dialogue hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/dialogue_engine/libre.py:_run_free": (46, "Parcours de dialogue hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/dialogue_engine/parcours.py:_run_from_template": (36, "Parcours de dialogue hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/frontend_ai/agents.py:generate_with_cli_agent": (34, "Orchestration d'agent hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
-    "monl/frontend_ai/orchestration.py:generate_and_verify": (29, "Orchestration frontend hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/frontend_contract/brief.py:_render_prompt": (46, "Émission de prompt ligne par ligne conservée pour rester lisible ; cas plat hors des cinq cibles."),
     "monl/frontend_contract/roles_de_champs.py:_assign_field_roles": (39, "Attribution de rôles hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/generator/routes_creation.py:_generate_create_route_lines": (41, "Émission de routes ligne par ligne : liste plate légitime, conservée hors des cinq cibles."),
@@ -416,7 +408,6 @@ EXCEPTIONS_DE_COMPLEXITE = {
     "monl/generator/routes_lecture_filtree.py:_generate_read_route_lines_with_query": (51, "Émission de routes ligne par ligne : liste plate légitime, conservée hors des cinq cibles."),
     "monl/generator/routes_modification.py:_generate_update_route_lines": (35, "Émission de routes ligne par ligne : liste plate légitime ; la restitution de la brique 20 est passée en source unique partagée avec la route après-paiement."),
     "monl/generator/schemas.py:_generate_schema_lines": (34, "Émission de schéma ligne par ligne : liste plate légitime, hors des cinq cibles."),
-    "monl/parser/transformer_structure.py:app": (30, "Transformation d'AST hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
 }
 
 

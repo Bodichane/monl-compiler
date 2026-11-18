@@ -107,6 +107,16 @@ class CapacitesMixin:
         self.capabilities = list(dict.fromkeys(names))
         self.auth_identifier = self._valider_identifiant_de_compte(self.capabilities_raw)
 
+        features = self._lire_les_options()
+
+        self._valider_options_auth(features)
+        self.auth_features = features
+
+        self._refuser_paiement_sans_payable()
+        self._exiger_devise_du_prestataire()
+
+    def _lire_les_options(self):
+        """Ties each option to its capability; returns the auth features."""
         allowed_auth_options = {
             "name", "identifier", "phone_prefix", "lockout", "password_reset",
             "refresh_tokens", "totp", "verify_email", "verify_resend",
@@ -129,49 +139,64 @@ class CapacitesMixin:
             permises = options_par_capacite.get(nom, set())
             hors_sujet = options - permises
             if hors_sujet:
-                # Name the capability that ACCEPTS the option, when it exists:
-                # "currency makes no sense here" would send people looking for
-                # a typo when the line is simply in the wrong place.
-                accueil = {opt: cap
-                           for cap, opts in options_par_capacite.items()
-                           for opt in opts}
-                remedes = sorted(
-                    f"'{opt}' belongs under 'capability {accueil[opt]}'"
-                    for opt in hors_sujet if opt in accueil)
-                inconnues = sorted(opt for opt in hors_sujet if opt not in accueil)
-                detail = "; ".join(remedes + [f"'{o}' is unknown" for o in inconnues])
-                raise ASTValidationError(
-                    f"Structure: misplaced or unknown option(s) on "
-                    f"'capability {nom}'—{detail}.")
-            if nom == "payment" and "provider" in capability:
-                if self.payment_provider is not None:
-                    raise ASTValidationError(
-                        "Structure: the payment provider is declared twice— "
-                        "an application can accept payments through only ONE "
-                        "provider, or the webhook cannot know which signature "
-                        "to verify.")
-                self.payment_provider = self._valider_prestataire(
-                    capability["provider"])
-            if nom == "payment" and "currency" in capability:
-                if self.payment_currency is not None:
-                    raise ASTValidationError(
-                        "Structure: the currency is declared twice—an "
-                        "application accepts payments in only ONE currency, "
-                        "or 'montant' no longer has a consistent meaning "
-                        "across orders.")
-                self.payment_currency = self._valider_devise(capability["currency"])
+                self._refuser_options_hors_sujet(nom, hors_sujet, options_par_capacite)
+            self._lire_option_paiement(nom, capability)
             if nom != "auth":
                 continue
-            for option in ("lockout", "password_reset", "refresh_tokens", "totp",
-                           "verify_email", "verify_resend"):
-                if option not in capability:
-                    continue
-                if option in features:
-                    raise ASTValidationError(
-                        f"Structure: option '{option}' is declared twice "
-                        "on 'capability auth'.")
-                features[option] = capability[option]
+            self._lire_options_auth(capability, features)
+        return features
 
+    def _refuser_options_hors_sujet(self, nom, hors_sujet, options_par_capacite):
+        """Names the capability that ACCEPTS a misplaced option."""
+        # Name the capability that ACCEPTS the option, when it exists:
+        # "currency makes no sense here" would send people looking for
+        # a typo when the line is simply in the wrong place.
+        accueil = {opt: cap
+                   for cap, opts in options_par_capacite.items()
+                   for opt in opts}
+        remedes = sorted(
+            f"'{opt}' belongs under 'capability {accueil[opt]}'"
+            for opt in hors_sujet if opt in accueil)
+        inconnues = sorted(opt for opt in hors_sujet if opt not in accueil)
+        detail = "; ".join(remedes + [f"'{o}' is unknown" for o in inconnues])
+        raise ASTValidationError(
+            f"Structure: misplaced or unknown option(s) on "
+            f"'capability {nom}'—{detail}.")
+
+    def _lire_option_paiement(self, nom, capability):
+        """One provider and one currency at most, each validated."""
+        if nom == "payment" and "provider" in capability:
+            if self.payment_provider is not None:
+                raise ASTValidationError(
+                    "Structure: the payment provider is declared twice— "
+                    "an application can accept payments through only ONE "
+                    "provider, or the webhook cannot know which signature "
+                    "to verify.")
+            self.payment_provider = self._valider_prestataire(
+                capability["provider"])
+        if nom == "payment" and "currency" in capability:
+            if self.payment_currency is not None:
+                raise ASTValidationError(
+                    "Structure: the currency is declared twice—an "
+                    "application accepts payments in only ONE currency, "
+                    "or 'montant' no longer has a consistent meaning "
+                    "across orders.")
+            self.payment_currency = self._valider_devise(capability["currency"])
+
+    def _lire_options_auth(self, capability, features):
+        """Collects the B4 options, each declared once."""
+        for option in ("lockout", "password_reset", "refresh_tokens", "totp",
+                       "verify_email", "verify_resend"):
+            if option not in capability:
+                continue
+            if option in features:
+                raise ASTValidationError(
+                    f"Structure: option '{option}' is declared twice "
+                    "on 'capability auth'.")
+            features[option] = capability[option]
+
+    def _valider_options_auth(self, features):
+        """Positive durations, and an email address for password reset."""
         lockout = features.get("lockout")
         if lockout:
             if lockout["max_attempts"] < 1:
@@ -192,8 +217,9 @@ class CapacitesMixin:
                 "'identifier: email': the recovery message needs an account "
                 "address; a business field cannot be guessed.")
         self._valider_verification_email(features)
-        self.auth_features = features
 
+    def _refuser_paiement_sans_payable(self):
+        """A payment configuration with nothing to charge has no effect."""
         # BRICK 2a: a currency declared with nothing to charge produces
         # NOTHING. It is point 85 word for word — refuse a rule with no effect
         # rather than silently ignore it, otherwise the author believes they
@@ -223,6 +249,8 @@ class CapacitesMixin:
                     f"have no effect. Add "
                     f"'rule Entite.field payable', or remove these lines.")
 
+    def _exiger_devise_du_prestataire(self):
+        """The EFFECTIVE currency must be one the provider accepts."""
         # BRICK 2b, CONTINUED: the provider and the currency are declared
         # separately, so nothing prevented declaring them INCOMPATIBLE. The
         # EFFECTIVE currency is compared, not just the declared one: without a

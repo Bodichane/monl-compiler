@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Boîte à outils du tracé : contours, simplification, lissage, émission.
+"""Outline toolbox: contours, simplification, smoothing, emission.
 
-Extraite de `vectoriser_marque.py`, qui vectorisait la bannière retirée au
-profit du logo au « o » orange. Ces fonctions-là ne dépendaient d'aucun
-artwork : ce sont elles qu'on garde, et l'outil qui visait l'ancien dessin est
-parti avec lui plutôt que de rester en place à pouvoir réécrire `brand.py`
-avec une marque qui n'existe plus.
+Extracted from `vectoriser_marque.py`, which vectorized the banner retired in
+favor of the logo with the orange "o". These functions depended on no
+artwork: they are what is kept, and the tool aimed at the old drawing left
+with it rather than staying in place, able to rewrite `brand.py` with a brand
+that no longer exists.
 
-Deux choses à ne pas défaire. `contours` marche sur les ARÊTES de la grille et
-jamais sur les pixels : c'est ce qui garantit des boucles fermées, trous
-compris. Et `envelopper` coupe le tracé sur les marqueurs `MLQZ`, jamais au
-milieu d'un nombre.
+Two things not to undo. `contours` walks the grid's EDGES and never the
+pixels: that is what guarantees closed loops, holes included. And
+`envelopper` wraps the outline at the `MLQZ` markers, never in the middle of
+a number.
 """
 
 import re
@@ -22,14 +22,15 @@ RACINE = Path(__file__).resolve().parent.parent
 
 
 def contours(m, L, H):
-    """Marching squares : les frontieres fermées entre encre et fond.
+    """Marching squares: the closed boundaries between ink and background.
 
-    On marche sur les ARÊTES de la grille, jamais sur les pixels : c'est ce
-    qui garantit des boucles fermées, trous compris."""
+    It walks the grid's EDGES, never the pixels: that is what guarantees
+    closed loops, holes included."""
     def dedans(x, y):
         return 0 <= x < L and 0 <= y < H and m[y][x]
 
-    # Arêtes orientées : l'encre reste toujours à GAUCHE du sens de marche.
+    # Oriented edges: ink always stays on the LEFT of the direction of
+    # travel.
     aretes = {}
     for y in range(H):
         for x in range(L):
@@ -71,7 +72,7 @@ def _distance(p, a, b):
 
 
 def simplifier(points, epsilon):
-    """Douglas-Peucker. Retire les sommets qu'une droite remplace déjà."""
+    """Douglas-Peucker. Removes the vertices a straight line already replaces."""
     if len(points) < 3:
         return points
     pire, index = 0.0, 0
@@ -86,10 +87,10 @@ def simplifier(points, epsilon):
 
 
 def lisser(points, seuil_angle=0.55):
-    """Chemin SVG : courbes quadratiques, sauf aux VRAIS coins.
+    """SVG path: quadratic curves, except at REAL corners.
 
-    Sans le seuil d'angle, les empattements du glyphe — qui sont des coins
-    nets — s'arrondiraient et la lettre changerait de caractere."""
+    Without the angle threshold, the glyph's serifs — which are sharp corners
+    — would round off and the letter would change character."""
     import math
     n = len(points)
     def milieu(a, b):
@@ -109,7 +110,7 @@ def lisser(points, seuil_angle=0.55):
     segments.append(f"M{depart[0]:.2f} {depart[1]:.2f}")
     for i in range(n):
         a, b, c = points[i - 1], points[i], points[(i + 1) % n]
-        if angle(a, b, c) > seuil_angle:          # coin : on y va tout droit
+        if angle(a, b, c) > seuil_angle:          # corner: go straight there
             segments.append(f"L{b[0]:.2f} {b[1]:.2f}")
             m = milieu(b, c)
             segments.append(f"L{m[0]:.2f} {m[1]:.2f}")
@@ -129,7 +130,7 @@ def redimensionner(chemin, k):
 
 
 def normaliser(chemin, cible, marge):
-    """Ramener un tracé dans un carré `cible`, centré."""
+    """Brings an outline into a `cible` square, centered."""
     nombres = [float(v) for v in re.findall(r"-?\d+\.?\d*", chemin)]
     xs, ys = nombres[0::2], nombres[1::2]
     x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
@@ -163,15 +164,15 @@ def envelopper(nom, chemin, largeur=76):
     return f"{nom} = (\n{corps}\n)\n"
 
 
-SEGMENTS = 16  # découpe d'une quadratique en segments
+SEGMENTS = 16  # how many segments a quadratic is cut into
 
 
 def sous_chemins(chemin, echelle, decalage=(0, 0)):
-    """Aplatit chaque sous-chemin en une liste de points.
+    """Flattens each subpath into a list of points.
 
-    Les tracés n'emploient que M, L, Q et Z. Toute autre commande fait échouer
-    plutôt que d'être ignorée : un chemin à moitié rendu produirait une image
-    fausse mais plausible, ce qui est pire qu'une erreur.
+    The outlines only use M, L, Q and Z. Any other command fails rather than
+    being ignored: a half-rendered path would produce a wrong but plausible
+    image, which is worse than an error.
     """
     dx, dy = decalage
     courant, position = [], (0.0, 0.0)
@@ -185,12 +186,12 @@ def sous_chemins(chemin, echelle, decalage=(0, 0)):
             courant = []
         if commande in ("M", "L"):
             if len(valeurs) != 2:
-                raise ValueError(f"{commande} attend 2 nombres, reçu {len(valeurs)}")
+                raise ValueError(f"{commande} expects 2 numbers, got {len(valeurs)}")
             position = (valeurs[0], valeurs[1])
             courant.append((position[0] + dx, position[1] + dy))
         elif commande == "Q":
             if len(valeurs) != 4:
-                raise ValueError(f"Q attend 4 nombres, reçu {len(valeurs)}")
+                raise ValueError(f"Q expects 4 numbers, got {len(valeurs)}")
             (x0, y0), (cx, cy), (x1, y1) = position, valeurs[:2], valeurs[2:]
             for pas in range(1, SEGMENTS + 1):
                 t = pas / SEGMENTS
@@ -203,16 +204,16 @@ def sous_chemins(chemin, echelle, decalage=(0, 0)):
 
 
 def rendre(chemin, taille, echelle, decalage=(0, 0)):
-    """Rend un tracé en OU EXCLUSIF : c'est la règle `evenodd`.
+    """Renders an outline in EXCLUSIVE OR: that is the `evenodd` rule.
 
-    Empilés, les sous-chemins rempliraient les contre-formes des lettres et
-    les ouvertures du signe. Le point 157 avait mesuré ce piège : une
-    vérification qui EMPILE annonçait 8,08 % d'écart pour 0,49 % réels.
+    Stacked, the subpaths would fill the letters' counters and the sign's
+    openings. Point 157 had measured this trap: a check that STACKS reported
+    an 8.08 % gap for 0.49 % in reality.
 
-    Cette fonction vit dans la feuille du paquet parce que DEUX outils en
-    dépendent — celui qui fabrique les images et celui qui vectorise. Deux
-    rasteriseurs finiraient par diverger, et le second sert à VÉRIFIER le
-    travail du premier : ils doivent rendre exactement la même chose.
+    This function lives in the package's leaf because TWO tools depend on it
+    — the one that makes the images and the one that vectorizes. Two
+    rasterizers would end up diverging, and the second serves to CHECK the
+    first one's work: they must render exactly the same thing.
     """
     rendu = Image.new("1", taille, 0)
     for points in sous_chemins(chemin, echelle, decalage):
@@ -225,15 +226,15 @@ def rendre(chemin, taille, echelle, decalage=(0, 0)):
 
 
 def ecart_de_rendu(reference, chemin, echelle=1.0, decalage=(0, 0)):
-    """La part de l'encre du dessin d'ORIGINE que le tracé ne retrouve pas.
+    """The share of the ORIGINAL drawing's ink the outline does not recover.
 
-    Rapportée à l'encre de la référence et non au nombre total de pixels :
-    une image très vide rendrait tout écart négligeable, et la mesure
-    cesserait de mordre exactement sur les signes les plus fins.
+    Relative to the reference's ink and not to the total pixel count: a very
+    empty image would make any gap negligible, and the measurement would stop
+    biting exactly on the finest signs.
     """
     encre = sum(1 for p in reference.get_flattened_data() if p)
     if not encre:
-        raise ValueError("référence vide : la mesure porterait sur du néant")
+        raise ValueError("empty reference: the measurement would be about nothing")
     divergents = ImageChops.logical_xor(reference, rendre(chemin, reference.size,
                                                           echelle, decalage))
     return sum(1 for p in divergents.get_flattened_data() if p) / encre

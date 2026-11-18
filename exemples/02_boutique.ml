@@ -1,10 +1,10 @@
 app AtelierBoutique
 
 # ─────────────────────────────────────────────────────────────────────
-# BOUTIQUE E-COMMERCE COMPLÈTE — mobilier & objets design.
-# Catalogue public (archétype boutique : prix, stock, bouton d'achat) +
-# gestion vendeur + commandes. Les données de démonstration remplissent la
-# vitrine dès l'ouverture, avec de vraies images produit.
+# COMPLETE E-COMMERCE SHOP — furniture & design objects.
+# Public catalog (shop archetype: price, stock, buy button) + seller
+# administration + orders. The demo data fills the storefront from the
+# first opening, with real product images.
 # ─────────────────────────────────────────────────────────────────────
 
 entity Product
@@ -13,16 +13,15 @@ entity Product
     imageUrl: String
     category: String
 
-# BRIQUE 21 (point 100) : le produit est ce qu'on MONTRE, la variante est ce
-# qu'on VEND. Une chaise existe en chêne et en noyer : deux prix, deux stocks,
-# une seule fiche au catalogue. C'est le modèle qu'un vrai marchand tient (un
-# stock par référence vendable), et il ne demande AUCUNE syntaxe nouvelle au
-# compilateur — seulement une relation. Il est resté hors de portée jusqu'au
-# point 99 pour deux raisons distinctes, toutes deux corrigées : la clé
-# étrangère d'un enfant de table métier recevait l'id du COMPTE créateur au lieu
-# de celui du produit (point 99), et un bloc 'seed' ne savait pas rattacher un
-# enfant à son parent (point 100) — la vitrine se serait ouverte sur un
-# catalogue dont rien n'était commandable.
+# BRICK 21 (point 100): the product is what is SHOWN, the variant is what is
+# SOLD. A chair exists in oak and in walnut: two prices, two stocks, a single
+# catalog entry. It is the model a real merchant keeps (one stock per sellable
+# reference), and it asks NO new syntax of the compiler — only a relation. It
+# stayed out of reach until point 99 for two distinct reasons, both fixed: the
+# foreign key of a child of a business table received the id of the creating
+# ACCOUNT instead of the product's (point 99), and a 'seed' block could not
+# attach a child to its parent (point 100) — the storefront would have opened
+# on a catalog where nothing could be ordered.
 entity Variant
     finish: String
     price: Money
@@ -32,27 +31,27 @@ entity Order
     reference: String
     totalAmount: Money
     status: String
-    # Brique 16 (point 89) : l'instant où la commande est née. Écrit par le
-    # serveur, jamais par le client — voir la règle plus bas.
+    # Brick 16 (point 89): the moment the order was born. Written by the
+    # server, never by the client — see the rule below.
     placedAt: DateTime
 
-# Une commande contient plusieurs LIGNES : c'est ce qui la distingue d'un panier
-# à un seul article. Chaque ligne dit quel produit et en quelle quantité ; son
-# sous-total est calculé par le serveur, et le total de la commande en est la
-# somme (briques 10, 11 et 12 — points 77, 81 et 82).
+# An order holds several LINES: that is what distinguishes it from a
+# single-item cart. Each line says which product and in what quantity; its
+# subtotal is calculated by the server, and the order total is their sum
+# (bricks 10, 11 and 12 — points 77, 81 and 82).
 entity OrderLine
     quantity: Integer
     subTotal: Money
 
 relation Customer hasMany Order
 relation Order hasMany OrderLine
-# La variante appartient à son produit. Cette relation ne désigne AUCUN
-# propriétaire : c'est un lien de catalogue, et sa colonne porte l'id du
-# produit — pas celui du vendeur qui l'a créée (point 99).
+# The variant belongs to its product. This relation names NO owner: it
+# is a catalog link, and its column carries the product's id — not
+# that of the seller who created it (point 99).
 relation Product hasMany Variant
-# Ce que la ligne porte : c'est cette relation qui permet au SERVEUR de lire
-# le prix au catalogue. Elle vise la VARIANTE et non le produit, puisque c'est
-# la variante qui porte le prix et le stock.
+# What the line carries: this relation is what lets the SERVER read the
+# catalog price. It targets the VARIANT and not the product, since the variant
+# carries the price and the stock.
 relation Variant hasMany OrderLine
 
 actor Customer selfRegister
@@ -62,75 +61,75 @@ rule Product.name required
 rule Product.Read public
 rule Variant.Read public
 rule Variant.price min 0
-# Ce plancher-ci ARME la vérification de disponibilité du décompte plus bas
-# (point 86) : sans lui, la boutique vendrait des paires qu'elle n'a pas.
+# This floor ARMS the availability check of the countdown below (point 86):
+# without it, the shop would sell pairs it does not have.
 rule Variant.stock min 0
 rule Order.Read ownedBy Customer
 
-# PROPRIÉTÉ TRANSITIVE (point 81) : une ligne appartient à qui possède sa
-# commande. Sans cette règle, monl refuserait de compiler — une ligne dont
-# personne n'est propriétaire serait ajoutable au panier de n'importe qui.
+# TRANSITIVE OWNERSHIP (point 81): a line belongs to whoever owns its
+# order. Without this rule, monl would refuse to compile — a line
+# nobody owns could be added to anyone's cart.
 rule OrderLine.Read ownedBy Order
 rule OrderLine.Update ownedBy Order
 rule OrderLine.Delete ownedBy Order
 
-# La quantité est le seul chiffre que le client fournit, et elle est obligatoire
-# (sans quoi le calcul ci-dessous porterait sur du vide).
+# The quantity is the only number the client supplies, and it is required
+# (otherwise the calculation below would operate on nothing).
 rule OrderLine.quantity required
 
-# Le sous-total de la ligne est CALCULÉ PAR LE SERVEUR : prix du produit au
-# catalogue multiplié par la quantité. Il disparaît donc des corps de requête, à
-# la création comme à la modification. Sans cette règle, le client envoyait
-# lui-même le montant — et `payable` le relisait en base en croyant le tenir de
-# source sûre : deux exploits de trois requêtes suffisaient à encaisser un
-# centime pour des centaines d'euros de marchandise (points 77 et 78).
+# The line subtotal is CALCULATED BY THE SERVER: the product's catalog price
+# multiplied by the quantity. It therefore disappears from request bodies, at
+# creation as at modification. Without this rule, the client sent the amount
+# itself — and `payable` reread it from the database believing it came from a
+# safe source: two three-request exploits were enough to charge one cent for
+# hundreds of euros of goods (points 77 and 78).
 rule OrderLine.subTotal derivedFrom Variant.price by quantity
 
-# Le total de la commande est la SOMME de ses lignes, recalculée par le serveur à
-# chaque ligne ajoutée, modifiée ou supprimée (point 82). Sommer un sous-total
-# que le client écrirait serait la même faille en une addition de plus : monl le
-# refuse à la compilation.
+# The order total is the SUM of its lines, recalculated by the server on every
+# line added, modified or deleted (point 82). Summing a subtotal the client
+# writes would be the same flaw with one more addition: monl refuses it at
+# compile time.
 rule Order.totalAmount sumOf OrderLine.subTotal
 
-# BRIQUE 14 (point 86) : le stock suit les commandes. 'decrements' ne savait
-# retirer qu'une CONSTANTE ('by 3') — il retire désormais CE QUE LE CLIENT A
-# DEMANDÉ. Et il refuse de descendre sous le plancher déclaré plus haut par
-# 'rule Variant.stock min 0' : sans ce garde-fou, la boutique afficherait -3
-# paires disponibles après avoir encaissé les huit qu'elle n'avait pas. Le
-# plancher n'est pas câblé dans le compilateur — il est DÉCLARÉ dans la spec,
-# et c'est sa présence qui arme la vérification.
+# BRICK 14 (point 86): stock follows orders. 'decrements' could only remove a
+# CONSTANT ('by 3') — it now removes WHAT THE CLIENT ASKED FOR. And it
+# refuses to go below the floor declared above by 'rule Variant.stock min 0':
+# without this safeguard, the shop would show -3 pairs available after
+# charging for the eight it did not have. The floor is not wired into the
+# compiler — it is DECLARED in the spec, and its presence is what arms the
+# check.
 rule OrderLine.Create decrements Variant.stock by quantity
 
-# Le champ nommé porte le MONTANT : c'est donc la commande qu'on encaisse.
-# monl en dérive POST /order/{id}/paiement (aucun corps — le montant est relu
-# en base à chaque appel) et POST /paiement/webhook, dont la signature est
-# vérifiée avant toute écriture. Sans STRIPE_SECRET_KEY, ces deux routes
-# répondent 503 en nommant la variable ; le reste de la boutique fonctionne.
-# Depuis le point 79, cette règle EXIGE que le montant soit calculé par le
-# serveur : un montant que le payeur peut écrire fait échouer la compilation.
+# The named field carries the AMOUNT: so it is the order that gets charged.
+# monl derives POST /order/{id}/paiement from it (no body — the amount is
+# reread from the database on every call) and POST /paiement/webhook, whose
+# signature is checked before any write. Without STRIPE_SECRET_KEY, both
+# routes answer 503 naming the variable; the rest of the shop works. Since
+# point 79, this rule REQUIRES the amount to be calculated by the server: an
+# amount the payer can write makes compilation fail.
 rule Order.totalAmount payable
 
-# Brique 16 (point 89) : la date d'arrivée de la commande, écrite par le serveur
-# à la création et jamais ensuite. Elle disparaît des corps de requête — création
-# ET modification : une date qu'on se donne à soi-même n'atteste de rien, et un
-# carnet où chacun choisit ses dates ne dit plus dans quel ordre honorer.
-# Format ISO 8601 UTC, à la milliseconde : trier ces chaînes, c'est trier le
-# temps, sans conversion et sans ex aequo entre deux commandes rapprochées.
+# Brick 16 (point 89): the order's arrival date, written by the server at
+# creation and never afterwards. It disappears from request bodies — creation
+# AND modification: a date you give yourself attests to nothing, and a book
+# where everyone picks their dates no longer says in which order to fulfill.
+# ISO 8601 UTC format, to the millisecond: sorting these strings is sorting
+# time, without conversion and without ties between two close orders.
 rule Order.placedAt timestamp
 
-# BRIQUE 22 (point 102) : le numéro que l'humain lit et dicte. Ce champ était un
-# 'UUID' — c'est-à-dire, jusqu'au point 101, une chaîne libre que le CLIENT
-# remplissait : deux commandes pouvaient porter la même « référence », et rien
-# n'obligeait à en fournir une qui ressemble à quoi que ce soit. Personne ne
-# dicte un UUID au téléphone. Le serveur l'attribue donc à la création, une fois,
-# depuis un compteur en base qui repart à 1 chaque année. Il disparaît des corps
-# de requête (création ET modification) et porte un index unique sans qu'on ait
-# à déclarer 'unique' : un numéro en double n'est pas un numéro.
+# BRICK 22 (point 102): the number a human reads and dictates. This field was
+# a 'UUID' — that is, until point 101, a free string the CLIENT filled: two
+# orders could carry the same "reference", and nothing required providing one
+# that looked like anything. Nobody dictates a UUID over the phone. So the
+# server assigns it at creation, once, from a counter in the database that
+# restarts at 1 every year. It disappears from request bodies (creation AND
+# modification) and carries a unique index without 'unique' having to be
+# declared: a duplicated number is not a number.
 rule Order.reference numbered "CMD-{YYYY}-{NNNN}"
 
-# BRIQUE 25 (points 96, 98 et 113) : le statut était encore du texte libre, le
-# stock ne revenait pas à l'annulation, et le verrou de paiement empêchait
-# ensuite tout le monde de faire avancer la commande.
+# BRICK 25 (points 96, 98 and 113): the status was still free text, stock did
+# not come back on cancellation, and the payment lock then kept everyone from
+# moving the order forward.
 rule Order.status oneOf "panier", "à régler", "en préparation", "expédiée", "livrée", "annulée"
 rule Order.status "annulée" releases OrderLine
 rule Order.status writableAfterPayment ShopManager
@@ -154,8 +153,8 @@ workflow ManageShop for ShopManager
     Delete Variant
     Update Order.status
 
-# Catalogue de démonstration : 6 produits avec images réelles. Le prix et le
-# stock ne vivent plus ici — ils sont portés par les variantes ci-dessous.
+# Demo catalog: 6 products with real images. Price and stock no longer live
+# here — they are carried by the variants below.
 seed Product
     name: "Chaise Ligne", category: "Assises", description: "Chêne massif et cannage tressé main.", imageUrl: "https://picsum.photos/seed/chaise/700/560"
     name: "Lampe Arc", category: "Luminaires", description: "Laiton brossé, abat-jour orientable.", imageUrl: "https://picsum.photos/seed/lampe/700/560"
@@ -164,16 +163,16 @@ seed Product
     name: "Fauteuil Coque", category: "Assises", description: "Assise moulée, piètement compas.", imageUrl: "https://picsum.photos/seed/fauteuil/700/560"
     name: "Vase Galet", category: "Objets", description: "Grès émaillé, pièce unique tournée main.", imageUrl: "https://picsum.photos/seed/vase/700/560"
 
-# BRIQUE 21 (point 100) : chaque bloc rattache ses lignes à UN produit, désigné
-# par son nom. Un rang aurait été illisible et se serait décalé à la première
-# insertion ; monl refuse à la compilation une désignation qui ne correspond à
-# rien, ou qui correspond à deux lignes. Les blocs 'seed Variant' viennent
-# APRÈS 'seed Product' — les données sont insérées dans l'ordre déclaré, et le
-# compilateur refuse l'ordre inverse plutôt que de le corriger en silence.
+# BRICK 21 (point 100): each block attaches its rows to ONE product, named by
+# its name. A rank would have been unreadable and would have shifted at the
+# first insertion; monl refuses at compile time a designation that matches
+# nothing, or that matches two rows. The 'seed Variant' blocks come AFTER
+# 'seed Product' — data is inserted in declared order, and the compiler
+# refuses the reverse order rather than silently fixing it.
 #
-# Stock varié à dessein, comme avant : une finition épuisée (Table Onde en
-# noyer), une en stock faible (Fauteuil Coque), pour que la vitrine montre les
-# deux cas dès l'ouverture.
+# Stock deliberately varied, as before: one finish sold out (Table Onde in
+# walnut), one low in stock (Fauteuil Coque), so the storefront shows both
+# cases from the first opening.
 seed Variant for Product.name "Chaise Ligne"
     finish: "Chêne naturel", price: 249.90, stock: 12
     finish: "Noyer fumé", price: 289.00, stock: 5

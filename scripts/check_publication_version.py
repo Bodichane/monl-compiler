@@ -1,4 +1,4 @@
-"""Refuse une publication quand le tag et la version déclarée divergent."""
+"""Refuses a publication when the tag and the declared version diverge."""
 
 from __future__ import annotations
 
@@ -15,26 +15,26 @@ from packaging.version import InvalidVersion, Version
 
 
 class PublicationVersionError(ValueError):
-    """Le tag ne décrit pas la version que le paquet va publier."""
+    """The tag does not describe the version the package is about to publish."""
 
 
 def read_declared_version(pyproject: Path = Path("pyproject.toml")) -> str:
-    """Lit la version de distribution dans le fichier de métadonnées."""
+    """Reads the distribution version from the metadata file."""
     with pyproject.open("rb") as fichier:
         project = tomllib.load(fichier)["project"]
     return project["version"]
 
 
 def validate_tag_version(tag: str, declared_version: str) -> None:
-    """Lève une erreur si *tag* et *declared_version* ne sont pas équivalents.
+    """Raises if *tag* and *declared_version* are not equivalent.
 
-    ``Version`` est la normalisation officielle de Packaging : elle reconnaît
-    par exemple ``0.9.0-beta.8`` et ``0.9.0b8`` comme une même version Python.
-    Une égalité de chaînes refuserait à tort cette publication correcte.
+    ``Version`` is Packaging's official normalization: it recognizes, for
+    example, ``0.9.0-beta.8`` and ``0.9.0b8`` as one and the same Python
+    version. String equality would wrongly refuse this correct publication.
     """
     if not tag.startswith("v") or tag == "v":
         raise PublicationVersionError(
-            f"Publication refusée : le tag {tag!r} doit commencer par v et porter une version"
+            f"Publication refused: tag {tag!r} must start with v and carry a version"
         )
 
     tag_text = tag[1:]
@@ -43,25 +43,25 @@ def validate_tag_version(tag: str, declared_version: str) -> None:
         project_version = Version(declared_version)
     except InvalidVersion as error:
         raise PublicationVersionError(
-            f"Publication refusée : tag {tag!r} et pyproject.toml {declared_version!r} "
-            "ne portent pas des versions Python valides"
+            f"Publication refused: tag {tag!r} and pyproject.toml {declared_version!r} "
+            "do not carry valid Python versions"
         ) from error
 
     if tag_version != project_version:
         raise PublicationVersionError(
-            f"Publication refusée : tag {tag!r} (version {tag_text!r}) et "
-            f"pyproject.toml {declared_version!r} divergent"
+            f"Publication refused: tag {tag!r} (version {tag_text!r}) and "
+            f"pyproject.toml {declared_version!r} diverge"
         )
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("tag", help="nom du tag GitHub, par exemple v0.9.0b8")
+    parser.add_argument("tag", help="GitHub tag name, for example v0.9.0b8")
     parser.add_argument(
         "--pyproject",
         type=Path,
         default=Path("pyproject.toml"),
-        help="fichier pyproject.toml à vérifier",
+        help="pyproject.toml file to check",
     )
     args = parser.parse_args(argv)
 
@@ -73,8 +73,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     print(
-        f"Version validée : tag {args.tag!r} et pyproject.toml {declared_version!r} "
-        "désignent la même version Python"
+        f"Version validated: tag {args.tag!r} and pyproject.toml {declared_version!r} "
+        "designate the same Python version"
     )
     return 0
 

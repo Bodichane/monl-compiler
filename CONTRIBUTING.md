@@ -82,12 +82,12 @@ Format `type(scope): imperative summary`, followed by a body explaining
 change corresponds to a journal point, cite it by number.
 
 ```
-fix(cohérence): le scellé du backend n'était mesuré par rien
+fix(coherence): nothing measured the backend seal
 
-Point 64 du journal. check_coherence vérifiait l'empreinte de la spec et
-celle du contrat, mais seulement l'EXISTENCE de app.py — une retouche
-manuelle passait sans un mot, pendant que 'monl run' affichait
-« Cohérence statique vérifiée ».
+Journal point 64. check_coherence checked the fingerprints of the spec and
+of the contract, but only the EXISTENCE of app.py — a manual touch-up got
+through without a word, while 'monl run' displayed
+"Static consistency verified".
 ```
 
 ## Where to make changes

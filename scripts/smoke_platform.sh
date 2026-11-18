@@ -10,4 +10,4 @@ for endpoint in /health /ready; do
     printf 'OK\n'
 done
 
-printf 'Plateforme joignable et prête : %s\n' "$base_url"
+printf 'Platform reachable and ready: %s\n' "$base_url"

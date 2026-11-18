@@ -1,6 +1,6 @@
-"""Exécute le code custom hostile sous chaque isolation et mesure le surcoût.
+"""Runs the hostile custom code under each isolation and measures the overhead.
 
-Usage : python3 mesure.py  (écrit mesures.json à côté)
+Usage: python3 mesure.py  (writes mesures.json next to it)
 """
 
 import json
@@ -27,7 +27,7 @@ def limites():
 
 
 def en_processus():
-    # Référence : l'appel actuel, dans le processus du backend.
+    # Reference: the current call, in the backend's process.
     sys.path.insert(0, str(ICI))
     os.environ["MONL_JWT_SECRET"] = "ETUDE_JWT_ENV"
     import hostile_abs
@@ -47,7 +47,7 @@ def commande(argv, **kw):
 
 def options():
     tmp = tempfile.mkdtemp()
-    yield "a. processus actuel (référence)", en_processus()
+    yield "a. current process (reference)", en_processus()
     yield (
         "b. sous-processus -I, env vide, cwd tmp, RLIMIT",
         commande([sys.executable, "-I", str(SCRIPT)], env={}, cwd=tmp, preexec_fn=limites),
@@ -82,7 +82,7 @@ def options():
         "/tmp",
     ]
     yield (
-        "c. bubblewrap (namespaces, FS vide, pas de réseau)",
+        "c. bubblewrap (namespaces, empty FS, no network)",
         commande(
             bwrap + ["/usr/bin/python3", "-I", "/sandbox/custom.py"], env={}, preexec_fn=limites
         ),

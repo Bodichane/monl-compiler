@@ -158,7 +158,7 @@ GOLDENS = {
     # LE CONTRÔLE DE PORTÉE : app.py, schema.sql, manage.py, serve.py, le
     # contrat, le Dockerfile et monl.json restent identiques à l'octet — un
     # rangement de fichiers ne touche rien de ce que le backend FAIT.
-    "docs/FRONTEND_PROMPT.md": "601fee644aff85931b9ae09ebeadd4f5d12e92715c86a53c6092b5b95dd8b7d4",
+    "docs/FRONTEND_PROMPT.md": "584f80272c12f7b8a2df9e9cfc63de854ee520a7a67b68a42567cf6481d4e403",
     "AGENTS.md": "cdf84f9c37cbc5b23818d9f769704285a11c52ce7f48149f390bb19d3a5188c8",
     "README.md": "a20e092d4391b8de165f8ec3b705b55828dcb3ed89373a20492c198ff7c89be7",
     # Revue A2 : manage.py NOMME le remède au lieu de laisser filer une
