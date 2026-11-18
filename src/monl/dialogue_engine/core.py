@@ -1,8 +1,8 @@
-"""La classe `GuidedDialogue`, recomposée par mixins.
+"""The `GuidedDialogue` class, recomposed from mixins.
 
-Une question nouvelle s'ajoute dans le mixin de sa famille — saisie,
-direction, parcours, commerce, comptes — jamais ici. Ce fichier ne
-porte que l'état du dialogue."""
+A new question is added in its family's mixin — input, direction,
+journey, commerce, accounts — never here. This file carries only the
+dialogue's state."""
 
 from .commerce import CommerceMixin
 from .comptes import ComptesMixin
@@ -22,33 +22,33 @@ class GuidedDialogue(
     ComptesMixin,
     EmissionMixin,
 ):
-    """Le dialogue guidé, sans IA et sans réseau."""
+    """The guided dialogue, without AI and without network."""
 
     def __init__(self, ask, say=None, max_retries=3, ui=None, express=False,
                  choose_experience=False, express_links=()):
-        """Dialogue guidé à règles, entièrement déterministe : aucune IA,
-        aucun appel réseau. Chaque réponse est validée en saisie stricte
-        (numéros, o/n, identifiants) et redemandée tant qu'elle est invalide.
-        La spécification produite est ensuite revalidée par le vrai parseur
-        avant d'être écrite."""
+        """Rule-based guided dialogue, entirely deterministic: no AI, no network
+        call. Each answer is validated with strict input (numbers, y/n,
+        identifiers) and asked again as long as it is invalid. The produced
+        specification is then revalidated by the real parser before being
+        written."""
         self._ask_fn = ask
         self._say = say or (lambda *_: None)
         self.max_retries = max_retries
         self.express = express
         self.choose_experience = choose_experience
-        # Le mode express ne pose AUCUNE question de finition — c'est sa
-        # raison d'être. Ses liens de pied de page arrivent donc par
-        # l'appelant (la console web), jamais par une question de plus.
+        # Express mode asks NO finishing question — that is its reason to
+        # exist. Its footer links therefore come through the caller (the web
+        # console), never through one more question.
         self.express_links = tuple(express_links or ())
-        # AJOUT (bêta 3) : couche de présentation. Par défaut, rendu nu —
-        # chaînes strictement identiques à l'historique, donc les tests
-        # scriptés et toute sortie redirigée sont insensibles à l'habillage.
-        # L'entrée interactive (run_interactive_dialogue) injecte le rendu
-        # stylé. Le moteur, lui, ne connaît que cette interface.
+        # ADDED (beta 3): presentation layer. By default, plain rendering —
+        # strings strictly identical to the historical ones, so scripted tests
+        # and any redirected output are insensitive to the styling. Interactive
+        # input (run_interactive_dialogue) injects the styled rendering. The
+        # engine itself only knows this interface.
         from ..tui import PlainDialogueUI
         self.ui = ui or PlainDialogueUI()
-        # Ce que le moteur SAIT de la question en cours (point 171) : sa
-        # nature, ses options, leurs aides. Écrit par `_ask` avant chaque
-        # appel, jamais relu par le moteur — une couche de présentation qui
-        # ne rend pas du texte de terminal en a besoin, le dialogue non.
+        # What the engine KNOWS about the current question (point 171): its
+        # kind, its options, their help texts. Written by `_ask` before each
+        # call, never read back by the engine — a presentation layer that does
+        # not render terminal text needs it, the dialogue does not.
         self.derniere_question = None

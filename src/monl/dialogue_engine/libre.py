@@ -1,13 +1,13 @@
-"""Le chemin sans modèle : l'usager décrit ses entités."""
+"""The path without a template: the user describes their entities."""
 
 from .fondations import FIELD_TYPES, RELATION_TYPES
 
 
 class LibreMixin:
-    """Le chemin sans modèle : l'usager décrit ses entités."""
+    """The path without a template: the user describes their entities."""
 
     def _run_free(self):
-        """Le dialogue libre historique — inchangé, derrière « partir de zéro »."""
+        """The historical free dialogue — unchanged, behind "start from scratch"."""
         self._show(self.ui.plan(["Project identity", "Data", "Public access",
                                  "Actors", "Write permissions", "Relations",
                                  "Finishing touches"]))
@@ -15,7 +15,7 @@ class LibreMixin:
         app_name = self._ask_identifier("Application name (e.g. StudioNova) > ")
         description = self._ask_free_text("Describe the project in one sentence (used on the homepage) > ")
 
-        # Entités et champs
+        # Entities and fields
         entities = {}   # name -> [(field, type)]
         self._show(self.ui.phase(1))
         self._show(self.ui.section(
@@ -42,7 +42,8 @@ class LibreMixin:
 
         entity_names = list(entities.keys())
 
-        # Vitrine publique (lecture sans compte) et création publique (contact)
+        # Public storefront (reading without an account) and public creation
+        # (contact)
         self._show(self.ui.phase(2))
         public_read = []
         for ent in entity_names:
@@ -65,12 +66,12 @@ class LibreMixin:
                 break
             actors.append(a)
 
-        # Gestion en écriture : un acteur unique par défaut (aucune collision
-        # possible, règle stricte n° 1 respectée PAR CONSTRUCTION), ou un
-        # partage EXPLICITE entre plusieurs acteurs — auquel cas le dialogue
-        # émet les règles 'sharedBy' correspondantes, exactement la voie
-        # légitime prévue par le compilateur (point 1 du journal).
-        managers = {}  # ent -> [acteurs] (1 seul, ou 2+ si partagé)
+        # Write management: a single actor by default (no collision possible,
+        # strict rule no. 1 respected BY CONSTRUCTION), or an EXPLICIT sharing
+        # between several actors — in which case the dialogue emits the
+        # matching 'sharedBy' rules, exactly the legitimate path the compiler
+        # provides (point 1 of the journal).
+        managers = {}  # ent -> [actors] (only 1, or 2+ if shared)
         for ent in entity_names:
             if len(actors) == 1:
                 managers[ent] = [actors[0]]
@@ -89,12 +90,12 @@ class LibreMixin:
                 shared = [shared[0] if shared else actors[0]]
             managers[ent] = shared
 
-        # Propriété par enregistrement (ownedBy) : seul le créateur d'un
-        # enregistrement peut le modifier/supprimer. Nécessite une entité
-        # "propriétaire" homonyme de l'acteur + la relation qui fournit la
-        # colonne de clé étrangère (motif canonique : exemples/03, point 5
-        # du journal). Non proposé quand la gestion est partagée (v1).
-        owned = {}  # ent -> entité propriétaire
+        # Per-record ownership (ownedBy): only a record's creator can
+        # update/delete it. Requires an "owner" entity named like the actor +
+        # the relation that provides the foreign key column (canonical pattern:
+        # exemples/03, point 5 of the journal). Not offered when management is
+        # shared (v1).
+        owned = {}  # ent -> owning entity
         for ent in entity_names:
             if len(managers[ent]) != 1:
                 continue
@@ -112,7 +113,7 @@ class LibreMixin:
                     f"Owner entity '{actor}' created automatically "
                     f"(displayName: String), linked by '{actor} hasMany {ent}'."))
 
-        # Lecteurs supplémentaires (les lectures ne créent pas de collision)
+        # Additional readers (reads create no collision)
         readers = {ent: set() for ent in entity_names}
         for ent in entity_names:
             for act in actors:
@@ -150,8 +151,8 @@ class LibreMixin:
         sections = self._ask_editorial_sections() if want_landing else []
         links = self._ask_footer_links() if want_landing else []
 
-        # Entités propriétaires + relations de propriété (helper partagé
-        # avec le chemin « modèle » ; dédupliqué si déjà déclaré à la main).
+        # Owning entities + ownership relations (helper shared with the
+        # "template" path; deduplicated if already declared by hand).
         readers = {e: readers.get(e, set()) for e in entities}
         managers = {e: managers.get(e, [actors[0]]) for e in entities}
         self._ensure_ownership_structure(entities, managers, readers, owned, relations)
@@ -171,10 +172,9 @@ class LibreMixin:
                                payable=payable,
                                extra_rules=upload_rules)
 
-        # Garantie finale : la spec émise DOIT compiler. On la revalide par le
-        # vrai pipeline — si ce n'est pas le cas, c'est un bug du moteur, pas
-        # de l'utilisateur, et on échoue bruyamment plutôt que de rendre un
-        # fichier cassé.
+        # Final guarantee: the emitted spec MUST compile. It is revalidated
+        # through the real pipeline — if it does not, it is an engine bug, not
+        # the user's, and we fail loudly rather than return a broken file.
         from ..ast_validator import MonlAST
         from ..parser import parse_monl_string
         MonlAST(parse_monl_string(spec)).validate_and_audit()
@@ -182,10 +182,10 @@ class LibreMixin:
 
     @staticmethod
     def _ensure_ownership_structure(entities, managers, readers, owned, relations):
-        """Toute règle ownedBy exige une entité propriétaire homonyme de
-        l'acteur + la relation qui fournit la clé étrangère (point 5, motif
-        de exemples/03). Créées ici si absentes — partagé entre le chemin
-        « modèle » et le chemin libre."""
+        """Every ownedBy rule requires an owning entity named like the actor + the
+        relation that provides the foreign key (point 5, the exemples/03
+        pattern). Created here if missing — shared between the "template" path
+        and the free path."""
         for ent, owner in list(owned.items()):
             if owner not in entities:
                 entities[owner] = [("displayName", "String")]
@@ -196,8 +196,8 @@ class LibreMixin:
 
     @staticmethod
     def _nom_de_ligne(entite, entities):
-        """Un nom d'entité libre pour la ligne de panier. Une collision
-        silencieuse écraserait une entité de l'utilisateur."""
+        """A free entity name for the cart line. A silent collision would overwrite
+        one of the user's entities."""
         base = f"Ligne{entite}"
         nom, n = base, 2
         while nom in entities:

@@ -1,6 +1,6 @@
-"""Le dialogue guidé : de la question posée à la spec écrite.
+"""The guided dialogue: from the question asked to the spec written.
 
-La surface publique n'a pas bougé en devenant un paquet."""
+The public surface did not move when it became a package."""
 
 
 from .core import GuidedDialogue
@@ -8,15 +8,14 @@ from .fondations import DialogueError, adresse_de_lien
 
 
 def run_interactive_dialogue():
-    """Point d'entrée réel (stdin/stdout) utilisé par cli.py.
+    """Real entry point (stdin/stdout) used by cli.py.
 
-    C'est le seul endroit où le rendu stylé est injecté : partout ailleurs
-    (tests, sortie redirigée), le moteur reste en rendu nu.
-    """
+    It is the only place where styled rendering is injected: everywhere else
+    (tests, redirected output), the engine stays in plain rendering."""
     from ..tui import PlainDialogueUI, StyledDialogueUI, Terminal
     terminal = Terminal()
-    # Hors terminal interactif (sortie redirigée, CI), rendu nu : un journal
-    # ne doit contenir ni séquence ANSI ni caractère de dessin.
+    # Outside an interactive terminal (redirected output, CI), plain rendering:
+    # a log must contain neither ANSI sequences nor box-drawing characters.
     ui = StyledDialogueUI(terminal) if terminal.color else PlainDialogueUI()
     dialogue = GuidedDialogue(ask=input, say=print, ui=ui,
                               choose_experience=True)
