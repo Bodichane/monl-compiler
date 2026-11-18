@@ -402,7 +402,6 @@ EXCEPTIONS_DE_COMPLEXITE = {
     "monl/ast_validator/champs_calcules.py:_valider_champs_agreges": (30, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
     "monl/ast_validator/champs_calcules.py:_valider_champs_derives": (34, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
     "monl/ast_validator/champs_calcules.py:_valider_effets_compteurs": (21, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
-    "monl/ast_validator/collisions.py:_valider_workflows_et_collisions": (20, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
     "monl/ast_validator/commerce.py:_valider_requires_own_et_payable": (28, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
     "monl/ast_validator/cycle_de_vie.py:_valider_regle_apres_paiement": (23, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
     "monl/ast_validator/uploads.py:_valider_champs_uploades": (41, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),

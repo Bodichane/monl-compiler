@@ -130,11 +130,18 @@ class CollisionsMixin:
 
     def _valider_workflows_et_collisions(self):
         """Valide les workflows et détecte les collisions d'autorité."""
-        access_matrix = {}
         shared_permissions = {
             rule["reference"]: set(rule["value"])
             for rule in self.rules if rule["type"] == "sharedBy"
         }
+        access_matrix = self._matrice_d_acces()
+        self._verifier_collisions(access_matrix, shared_permissions)
+
+    def _matrice_d_acces(self):
+        """{entité: {action: {acteurs}}} déclarée par les workflows, actions
+        publiques exclues — avec les refus de structure en chemin. Extraite
+        de `_valider_workflows_et_collisions` (plafond de complexité)."""
+        access_matrix = {}
         for workflow in self.workflows:
             actor = workflow["actor"]
             if actor not in self.actors:
@@ -158,7 +165,12 @@ class CollisionsMixin:
                 if (entity, action_type) in self.public_actions:
                     continue
                 access_matrix.setdefault(entity, {}).setdefault(action_type, set()).add(actor)
+        return access_matrix
 
+    def _verifier_collisions(self, access_matrix, shared_permissions):
+        """Plusieurs acteurs sur une même écriture : partage déclaré, propriété
+        ou parties, sinon CRITICAL_COLLISION. Extrait de
+        `_valider_workflows_et_collisions` ; messages et ordre inchangés."""
         for entity, actions in access_matrix.items():
             for action_type, authorized_actors in actions.items():
                 if len(authorized_actors) <= 1 or action_type not in ("Create", "Update", "Delete"):
