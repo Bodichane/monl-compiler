@@ -395,7 +395,6 @@ def test_chaque_exception_de_taille_vise_un_fichier_qui_depasse_encore():
 # elles sont des cliquets, pas des plafonds de confort.
 PLAFOND_COMPLEXITE = 15
 EXCEPTIONS_DE_COMPLEXITE = {
-    "monl/assets_tool/commandes.py:ajouter_asset": (25, "La commande assemble une liste de contrôles et reste hors des cinq cibles refactorées."),
     "monl/assets_tool/resolution.py:_resoudre_seed": (37, "Le résolveur conserve plusieurs cas métier liés aux seeds ; il est hors périmètre et borné par son cliquet."),
     "monl/ast_validator/acces.py:_valider_controle_dacces": (38, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
     "monl/ast_validator/capacites.py:_valider_capacites": (43, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),

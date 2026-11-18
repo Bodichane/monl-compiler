@@ -13,6 +13,41 @@ from .resolution import _nom_de_fichier, _resoudre_seed, chemins_declares
 from .specio import _charger, _revalider
 
 
+# The next two functions are extracted from `ajouter_asset` (complexity
+# ceiling): same checks, same message, same rollback.
+def _etat_destination(project_dir, dossier, fichier, source, force):
+    """(destination, in place, existed, identical) — refuses to overwrite
+    DIFFERENT contents without --force."""
+    destination = os.path.join(project_dir, dossier, fichier)
+    sur_place = os.path.abspath(destination) == os.path.abspath(source)
+    existait = os.path.exists(destination)
+    identique = existait and _sha256(destination) == _sha256(source)
+    if existait and not identique and not sur_place and not force:
+        raise AssetsToolError(
+            f"'{dossier}/{fichier}' already exists with DIFFERENT contents. "
+            f"Run again with --force to overwrite it, or choose --as <another-name>.")
+    return destination, sur_place, existait, identique
+
+
+def _annuler_copie(sauvegarde, destination, existait, sur_place):
+    """Puts the disk back as it was: the overwritten file is restored, a newly
+    copied one is removed. Once moved back, the backup no longer exists, so
+    the caller's `finally` has nothing left to delete."""
+    if sauvegarde and os.path.exists(sauvegarde):
+        shutil.move(sauvegarde, destination)
+    elif not existait and not sur_place and os.path.exists(destination):
+        os.remove(destination)
+
+
+def _drapeaux_du_rapport(existait, identique, sur_place, ancienne, valeur):
+    """The report's three derived flags, in their display order."""
+    return {
+        "ecrase": bool(existait and not identique and not sur_place),
+        "deja_en_place": sur_place or identique,
+        "remplace": ancienne if ancienne and ancienne != valeur else None,
+    }
+
+
 def ajouter_asset(spec_path, project_dir, source, pour=None, cible=None,
                   entity=None, field=None, nom=None, force=False):
     """Copies a file into the assets folder and DECLARES it in the spec.
@@ -52,14 +87,8 @@ def ajouter_asset(spec_path, project_dir, source, pour=None, cible=None,
         i_ligne = plage[0]
         ou = f"{entite}.{champ}"
 
-    destination = os.path.join(project_dir, dossier, fichier)
-    sur_place = os.path.abspath(destination) == os.path.abspath(source)
-    existait = os.path.exists(destination)
-    identique = existait and _sha256(destination) == _sha256(source)
-    if existait and not identique and not sur_place and not force:
-        raise AssetsToolError(
-            f"'{dossier}/{fichier}' already exists with DIFFERENT contents. "
-            f"Run again with --force to overwrite it, or choose --as <another-name>.")
+    destination, sur_place, existait, identique = _etat_destination(
+        project_dir, dossier, fichier, source, force)
 
     sauvegarde = None
     try:
@@ -93,11 +122,7 @@ def ajouter_asset(spec_path, project_dir, source, pour=None, cible=None,
             with open(spec_path, "w", encoding="utf-8") as fh:
                 fh.write(texte)
     except Exception:
-        if sauvegarde and os.path.exists(sauvegarde):
-            shutil.move(sauvegarde, destination)
-            sauvegarde = None
-        elif not existait and not sur_place and os.path.exists(destination):
-            os.remove(destination)
+        _annuler_copie(sauvegarde, destination, existait, sur_place)
         raise
     finally:
         if sauvegarde and os.path.exists(sauvegarde):
@@ -110,9 +135,7 @@ def ajouter_asset(spec_path, project_dir, source, pour=None, cible=None,
         "entite": entite,
         "champ": champ,
         "ligne": i_ligne + 1,
-        "ecrase": bool(existait and not identique and not sur_place),
-        "deja_en_place": sur_place or identique,
-        "remplace": ancienne if ancienne and ancienne != valeur else None,
+        **_drapeaux_du_rapport(existait, identique, sur_place, ancienne, valeur),
         "spec_changee": spec_changee,
         "orphelin": _orphelin(ancienne, valeur, apres, project_dir),
         "avertissements": _avertissements(project_dir, dossier, fichier, spec_changee,
