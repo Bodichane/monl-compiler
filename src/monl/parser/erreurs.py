@@ -1,4 +1,4 @@
-"""Traduire une erreur Lark en phrase lisible par un humain."""
+"""Turn a Lark error into a sentence a human can read."""
 
 import os
 
@@ -6,12 +6,11 @@ from ..errors import ParseError
 
 
 class MonlSyntaxError(ParseError):
-    """AJOUT (roadmap, erreurs lisibles) : erreur de syntaxe monl avec
-    ligne/colonne du FICHIER SOURCE (pas du texte nettoyé des commentaires),
-    extrait de la ligne fautive, curseur, et suggestions quand Lark les
-    connaît. Avant : l'utilisateur recevait l'exception Lark brute
-    (UnexpectedToken avec numéro de ligne décalé si la spec contenait des
-    lignes de commentaire)."""
+    """ADDED (roadmap, readable errors): monl syntax error with the line/column
+    of the SOURCE FILE (not of the text stripped of comments), an excerpt of
+    the faulty line, a cursor, and suggestions when Lark knows them. Before:
+    the user received the raw Lark exception (UnexpectedToken with a shifted
+    line number if the spec contained comment lines)."""
 
     def __init__(self, message, line=None, column=None, source_line=None, file_path=None):
         self.line = line
@@ -37,13 +36,13 @@ class MonlSyntaxError(ParseError):
 
 
 class NombreHorsLimites(ValueError):
-    """Point 204 : un nombre que la grammaire accepte mais qu'aucune base ne
-    stocke (`1e999900` vaut l'infini). Levé pendant la transformation, donc
-    enveloppé par Lark ; `lecture.py` le traduit en `MonlSyntaxError`."""
+    """Point 204: a number the grammar accepts but no database stores
+    (`1e999900` is infinity). Raised during transformation, hence wrapped by
+    Lark; `lecture.py` translates it into `MonlSyntaxError`."""
 
 
-# Traduction des noms de tokens de la grammaire vers le vocabulaire du DSL,
-# pour que "attendu : ..." parle à l'utilisateur plutôt qu'au mainteneur.
+# Translation of the grammar's token names into the DSL's vocabulary, so that
+# "expected: ..." speaks to the user rather than to the maintainer.
 _TOKEN_LABELS = {
     "NAME": "a name (entity, actor, field...)",
     "TYPE": "a type (String, Integer, Boolean, Email, Float...)",
@@ -69,7 +68,8 @@ def _format_lark_error(err, original_content, line_map, file_path=None):
     real_line = None
     source_line = None
     if isinstance(line, int) and line >= 1:
-        # Reporte la ligne du texte nettoyé sur la ligne du fichier original.
+        # Carries the line of the cleaned text over to the line of the original
+        # file.
         real_line = line_map[line - 1] if line - 1 < len(line_map) else line
         if real_line - 1 < len(original_lines):
             source_line = original_lines[real_line - 1]

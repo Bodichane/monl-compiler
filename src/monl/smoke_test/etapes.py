@@ -1,10 +1,10 @@
-"""Les six étapes du smoke test, dans l'ordre où elles s'exécutent.
+"""The six steps of the smoke test, in the order they run.
 
-« Existe » n'est pas « servi » (point 83) : les deux étapes du milieu posent
-la même question — le serveur rend-il ce fichier à l'URL annoncée ? — l'une
-sur les assets DÉCLARÉS, l'autre sur ce que l'IA a inventé en écrivant la
-page. Un fichier absent ne lève AUCUNE exception : jsdom reçoit le 404 et
-continue, comme un vrai navigateur."""
+"Exists" is not "served" (point 83): the two middle steps ask the same
+question — does the server return this file at the announced URL? — one
+on the DECLARED assets, the other on what the AI invented while writing
+the page. A missing file raises NO exception: jsdom receives the 404 and
+carries on, like a real browser."""
 
 import json
 import os
@@ -15,23 +15,21 @@ from . import fichiers_reclames, fondations, sondes, verification_email
 
 
 def _compte_de_test(base, contract, errors, warnings):
-    """Inscrire puis connecter un compte réel, et rendre son jeton."""
-    # --- 2a. compte réel : register → login → jeton ---
-    # CORRECTIF (bêta 3) : le compte de test était créé avec le premier
-    # rôle par ordre alphabétique, qui est souvent un rôle privilégié
-    # — désormais refusé à l'inscription (403). On prend un rôle
-    # ouvert à l'inscription libre ; si la spec n'en déclare aucun,
-    # l'application n'a pas de parcours d'inscription à éprouver.
+    """Register then log in a real account, and return its token."""
+    # --- 2a. real account: register → login → token ---
+    # FIX (beta 3): the test account was created with the first role in
+    # alphabetical order, which is often a privileged role — now refused at
+    # registration (403). We take a role open to self-registration; if the spec
+    # declares none, the application has no registration flow to exercise.
     self_register = contract.get("self_register_actors") or []
     actor, token = None, None
     if self_register:
         actor = self_register[0]
-        # POINT 95 : l'identifiant du compte de test doit respecter la
-        # forme que l'application EXIGE. Codé en dur, 'smoke' recevait un
-        # 422 sur toute app déclarant 'identifier: email' — et le smoke
-        # test, censé prouver que l'app fonctionne, échouait sur sa
-        # propre inscription. Le vérificateur ne peut pas ignorer une
-        # règle qu'il fait par ailleurs appliquer.
+        # POINT 95: the test account's identifier must respect the form the
+        # application REQUIRES. Hard-coded, 'smoke' got a 422 on every app
+        # declaring 'identifier: email' — and the smoke test, meant to prove
+        # the app works, failed on its own registration. The verifier cannot
+        # ignore a rule it enforces elsewhere.
         identifiant = fondations._identifiant_smoke(contract)
         status, _b = fondations._http("POST", base + "/register",
                            {"username": identifiant, "password": "smokepass123",
@@ -42,9 +40,9 @@ def _compte_de_test(base, contract, errors, warnings):
                              {"username": identifiant, "password": "smokepass123"})
         token = verification_email.verifier_connexion(
             base, contract, status, body, errors, warnings)
-        # Un rôle NON ouvert à l'inscription ne doit jamais pouvoir être
-        # obtenu par un simple appel HTTP : c'est la faille corrigée en
-        # bêta 3, éprouvée ici à chaque lancement.
+        # A role NOT open to registration must never be obtainable through a
+        # plain HTTP call: that is the flaw fixed in beta 3, exercised here on
+        # every run.
         for rang, provisioned in enumerate(
                 [a for a in contract["actors"] if a not in self_register], start=1):
             status, _b = fondations._http("POST", base + "/register",
@@ -59,16 +57,15 @@ def _compte_de_test(base, contract, errors, warnings):
     return verification_email.acteur_connecte(actor, contract), token
 
 def _eprouver_les_routes(actor, base, contract, errors, token):
-    """Chaque route du contrat, appelée pour de vrai."""
-    # --- 2b. chaque route du contrat, en conditions réelles ---
+    """Each contract route, called for real."""
+    # --- 2b. each contract route, under real conditions ---
     for route in contract["routes"]:
         path, method = route["path"], route["method"]
         concrete = path.replace("{id}", "1")
         if route.get("auth_mode") == "refresh_token":
-            # BRIQUE B4 : /refresh est authentifiée par un jeton
-            # opaque dédié, jamais par le JWT d'accès. Une requête
-            # vide doit être refusée, sans exiger un Bearer qui n'a
-            # précisément rien à faire ici.
+            # BRICK B4: /refresh is authenticated by a dedicated opaque token,
+            # never by the access JWT. An empty request must be refused,
+            # without requiring a Bearer that has precisely no business here.
             status, _b = fondations._http(method, base + concrete,
                                body={} if method in ("POST", "PUT") else None)
             if status < 400:
@@ -81,12 +78,12 @@ def _eprouver_les_routes(actor, base, contract, errors, token):
                 errors.append(f"{method} {path} without a token returned {status} "
                               f"(expected a 401/403 refusal)")
         elif route["auth_required"]:
-            # POINT 74 : une route protégée AUTREMENT que par un JWT —
-            # le webhook de paiement, authentifié par la signature du
-            # prestataire. Aucun acteur ne l'ouvre, donc exiger 401/403
-            # n'a pas de sens : sans clé configurée elle répond 503, et
-            # avec clé 400 (signature absente). Ce qui doit être vrai
-            # dans tous les cas, c'est qu'une requête nue est REFUSÉE.
+            # POINT 74: a route protected OTHERWISE than by a JWT — the payment
+            # webhook, authenticated by the provider's signature. No actor
+            # opens it, so requiring 401/403 makes no sense: without a
+            # configured key it answers 503, and with a key 400 (missing
+            # signature). What must hold in every case is that a bare request
+            # is REFUSED.
             status, _b = fondations._http(method, base + concrete,
                                body={} if method in ("POST", "PUT") else None)
             if status < 400:
@@ -120,19 +117,18 @@ def _eprouver_les_routes(actor, base, contract, errors, token):
                               f"(expected 200)")
 
 def _eprouver_une_creation(actor, base, contract, errors, token, warnings):
-    """Une création réelle, pour éprouver le corps de requête de bout en bout."""
-    # Une création réelle sur la première entité créable par l'acteur,
-    # pour éprouver le corps de requête du contrat de bout en bout.
+    """A real creation, to exercise the request body end to end."""
+    # A real creation on the first entity the actor can create, to exercise the
+    # contract's request body end to end.
     for route in contract["routes"]:
         if route["action"] != "Create" or actor not in route["allowed_actors"]:
             continue
         entite = contract["entities"][route["entity"]]
         fields = {f["name"]: f for f in entite["fields"]}
-        # Le corps se construit depuis request_fields DU CONTRAT, pas
-        # depuis la liste des champs de l'entité : les colonnes de
-        # rattachement (l'article d'un commentaire) n'en font pas
-        # partie, et le probe se disait « conforme au contrat » tout
-        # en omettant ce que le contrat exige (point 57).
+        # The body is built from the CONTRACT's request_fields, not from the
+        # entity's field list: the attachment columns (a comment's article) are
+        # not part of it, and the probe called itself "contract-compliant"
+        # while omitting what the contract requires (point 57).
         references = {fk["column"]: fk["references"]
                       for fk in entite["foreign_keys"]}
         payload, parent_absent = {}, None
@@ -141,9 +137,9 @@ def _eprouver_une_creation(actor, base, contract, errors, token, warnings):
             if spec:
                 payload[nom] = sondes._sample_value(spec["type"], nom, spec)
                 continue
-            # Les clés étrangères sont CONTRAINTES en base : inventer
-            # un identifiant ferait échouer l'insertion pour une
-            # raison qui n'a rien à voir avec le contrat.
+            # Foreign keys are CONSTRAINED in the database: inventing an
+            # identifier would make the insertion fail for a reason unrelated
+            # to the contract.
             parent = references.get(nom)
             identifiant = sondes._premier_id(base, parent, token) if parent else None
             if identifiant is None:
@@ -166,13 +162,13 @@ def _eprouver_une_creation(actor, base, contract, errors, token, warnings):
         break
 
 def _assets_reellement_servis(assets_dir, assets_src, base, contract, errors, has_assets):
-    """Les assets DÉCLARÉS répondent-ils à l'URL que le contrat annonce ?"""
-    # --- 2c. assets déclarés : réellement servis ? (brique 13) ---
-    # Le validateur a déjà vérifié que chaque fichier EXISTE sur disque.
-    # Ce contrôle-ci répond à l'autre moitié de la question, la seule
-    # qui compte pour un navigateur : le serveur le rend-il, à l'URL que
-    # le contrat annonce ? Un montage placé après celui de /site
-    # existerait sans jamais répondre, et rien ne l'aurait dit.
+    """Do the DECLARED assets answer at the URL the contract announces?"""
+    # --- 2c. declared assets: really served? (brick 13) --- The validator has
+    # already checked that each file EXISTS on disk. This check answers the
+    # other half of the question, the only one that matters for a browser: does
+    # the server return it, at the URL the contract announces? A mount placed
+    # after the /site one would exist without ever answering, and nothing would
+    # have said so.
     if has_assets:
         assets = contract.get("assets") or {}
         for cle in ("logo", "favicon"):
@@ -184,8 +180,8 @@ def _assets_reellement_servis(assets_dir, assets_src, base, contract, errors, ha
                 errors.append(
                     f"declared asset '{cle}' ({assets[cle]}) returned {status} at "
                     f"/site/{assets[cle]}: the file exists but is not SERVED.")
-        # Un dossier d'assets déclaré mais monté nulle part est un piège
-        # silencieux : on l'éprouve sur un fichier réel du dossier.
+        # An assets folder declared but mounted nowhere is a silent trap: it is
+        # exercised on a real file of the folder.
         temoin = next((n for n in sorted(os.listdir(assets_src))
                        if os.path.isfile(os.path.join(assets_src, n))), None)
         if temoin:
@@ -196,12 +192,11 @@ def _assets_reellement_servis(assets_dir, assets_src, base, contract, errors, ha
                     f"/site/{assets_dir}/{temoin} returned {status}.")
 
 def _fichiers_reclames_servis(base, errors, has_frontend, workdir):
-    """Les fichiers que l'IA a RÉCLAMÉS sont-ils livrés ? (brique 29)"""
-    # --- 2d. fichiers RÉCLAMÉS par le frontend : réellement servis ?
-    # (brique 29, point 137) — même question que 2c, posée sur ce que
-    # l'IA a écrit et non sur ce que la spec déclare. Le point 83
-    # éprouvait les assets DÉCLARÉS ; ceux-là, personne ne les avait
-    # déclarés : l'IA les a inventés en écrivant la page.
+    """Are the files the AI CLAIMED delivered? (brick 29)"""
+    # --- 2d. files CLAIMED by the frontend: really served? (brick 29, point
+    # 137) — the same question as 2c, asked about what the AI wrote and not
+    # about what the spec declares. Point 83 exercised the DECLARED assets;
+    # nobody had declared these: the AI invented them while writing the page.
     if has_frontend:
         front_dir = os.path.join(workdir, "frontend")
         for page, chemin in fichiers_reclames._references_locales(front_dir):
@@ -217,11 +212,11 @@ def _fichiers_reclames_servis(base, errors, has_frontend, workdir):
                       f"{url} returned {status}.")
             if chemin.lower().endswith(
                     (".png", ".jpg", ".jpeg", ".webp", ".gif", ".avif")):
-                # Cause fréquente et silencieuse : `monl import` ne
-                # RETIENT que la liste blanche, donc une photo présente
-                # dans l'archive est écartée sans un mot, et la page qui
-                # la réclame reste. Sa place est le dossier d'assets
-                # (brique 13), qui est versionné et vérifié.
+                # A frequent and silent cause: `monl import` KEEPS only the
+                # allowlist, so a photo present in the archive is discarded
+                # without a word, and the page that claims it stays. Its place
+                # is the assets folder (brick 13), which is versioned and
+                # checked.
                 detail += (" An image delivered with the frontend is not "
                            "retained: declare it in the spec's 'assets'.")
             else:
@@ -229,8 +224,8 @@ def _fichiers_reclames_servis(base, errors, has_frontend, workdir):
             errors.append(detail)
 
 def _premier_rapport_json(sortie):
-    """La première ligne JSON de la sortie du runner jsdom, ou None.
-    Extrait de `_frontend_dans_jsdom` (plafond de complexité)."""
+    """The first JSON line of the jsdom runner's output, or None. Extracted from
+    `_frontend_dans_jsdom` (complexity ceiling)."""
     for line in sortie.splitlines():
         try:
             return json.loads(line)
@@ -240,8 +235,8 @@ def _premier_rapport_json(sortie):
 
 
 def _frontend_dans_jsdom(base, contract, errors, has_frontend, say, warnings, workdir):
-    """Le frontend, chargé dans un vrai navigateur sans écran."""
-    # --- 3. frontend réel dans jsdom (si Node disponible) ---
+    """The frontend, loaded in a real headless browser."""
+    # --- 3. real frontend in jsdom (if Node is available) ---
     if has_frontend:
         node = shutil.which("node")
         if not node:
@@ -266,7 +261,7 @@ def _frontend_dans_jsdom(base, contract, errors, has_frontend, say, warnings, wo
                     errors.append("the jsdom runner produced no report: "
                                   + (proc.stderr or proc.stdout)[-300:])
                 else:
-                    for err in dict.fromkeys(report["js_errors"]):  # dédoublonné (onerror + listener)
+                    for err in dict.fromkeys(report["js_errors"]):  # deduplicated (onerror + listener)
                         errors.append(f"JavaScript exception in frontend: {err}")
                     known = {r["path"].split("/")[1] for r in contract["routes"]}
                     known |= {"register", "login", "logout", "docs", "site"}

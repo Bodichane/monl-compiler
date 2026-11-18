@@ -1,8 +1,8 @@
-"""Lire une spec : nettoyage amont, parseur en cache, points d'entrée.
+"""Read a spec: upstream cleaning, cached parser, entry points.
 
-POINT 110 : le parseur Lark est construit UNE fois (`_get_parser`). La
-construction coûtait ~50 ms et dominait le parsing ; en cache, 0,4 ms par
-analyse. Ne pas le reconstruire ailleurs."""
+POINT 110: the Lark parser is built ONCE (`_get_parser`). Construction
+cost ~50 ms and dominated parsing; cached, 0.4 ms per parse. Do not
+rebuild it elsewhere."""
 
 import re
 
@@ -13,36 +13,35 @@ from .erreurs import MonlSyntaxError, NombreHorsLimites, _format_lark_error
 from .grammaire import grammar
 from .transformer import MonlIndenter, MonlTransformer
 
-# CORRECTIF (roadmap, découvert en assemblant le réseau social anonyme,
-# point 29 de docs/design_decisions.md) : une ligne de commentaire SEULE
-# (rien d'autre que des espaces avant le '#') casse la fusion contiguë du
-# terminal _NL -- son regex (`(\r?\n[\t ]*)+`) ne peut matcher que des
-# retours à la ligne consécutifs, et le texte du commentaire interrompt
-# cette contiguïté, produisant DEUX tokens _NL séparés au lieu d'un seul.
-# Au niveau racine, ça laissait passer un Tree('block', []) non transformé
-# (voir le correctif défensif dans app() ci-dessus) ; À L'INTÉRIEUR d'un
-# bloc indenté (entity/workflow/...), ça faisait carrément échouer le
-# parsing (`UnexpectedToken`), car aucune des règles `attribute+`/`action+`
-# etc. n'a d'alternative pour absorber un _NL isolé.
-# CORRIGÉ EN AMONT DU LEXER plutôt que règle de grammaire par règle (5
-# endroits différents à corriger et tester séparément, avec le risque de
-# perturber l'indenteur sur chacun) : toute ligne qui n'est QUE du
-# commentaire est retirée du texte source avant même que Lark ne le voie --
-# la ligne disparaît complètement, comme si elle n'avait jamais existé,
-# donc la contiguïté du run de retours à la ligne qui l'entourait est
-# restaurée. Les commentaires en fin de ligne réelle (ex.
-# "rule Post.author hidden  # note") ne sont PAS concernés par cette regex
-# (il y a du contenu non-blanc avant le '#') -- ils restent gérés par
-# `%ignore COMMENT` dans la grammaire, comme avant.
+# FIX (roadmap, discovered while assembling the anonymous social network, point
+# 29 of docs/design_decisions.md): a comment line ALONE (nothing but spaces
+# before the '#') breaks the contiguous merging of the _NL terminal -- its
+# regex (`(\r?\n[\t ]*)+`) can only match consecutive line breaks, and the
+# comment text interrupts that contiguity, producing TWO separate _NL tokens
+# instead of one. At the root level, it let an untransformed Tree('block', [])
+# through (see the defensive fix in app() above); INSIDE an indented block
+# (entity/workflow/...), it made parsing fail outright (`UnexpectedToken`),
+# since none of the `attribute+`/`action+` etc. rules has an alternative to
+# absorb an isolated _NL.
+#
+# FIXED UPSTREAM OF THE LEXER rather than grammar rule by grammar rule (5
+# different places to fix and test separately, with the risk of disturbing the
+# indenter on each): every line that is ONLY a comment is removed from the
+# source text before Lark even sees it -- the line disappears completely, as if
+# it had never existed, so the contiguity of the run of line breaks around it
+# is restored. Comments at the end of a real line (e.g. "rule Post.author
+# hidden  # note") are NOT affected by this regex (there is non-blank content
+# before the '#') -- they are still handled by `%ignore COMMENT` in the
+# grammar, as before.
 _STANDALONE_COMMENT_LINE = re.compile(r"^[ \t]*#[^\n]*$")
 
 def _strip_standalone_comment_lines(content):
-    """Retire les lignes qui ne sont QUE du commentaire (voir bloc de
-    commentaires ci-dessus) et retourne (texte_nettoye, table_de_lignes) où
-    table_de_lignes[i] = numéro (1-based) de la ligne ORIGINALE correspondant
-    à la ligne i+1 du texte nettoyé. AJOUT (roadmap, erreurs lisibles) : la
-    table permet de reporter les erreurs de syntaxe sur la vraie ligne du
-    fichier de l'utilisateur, pas sur la ligne du texte nettoyé."""
+    """Removes the lines that are ONLY a comment (see the comment block above)
+    and returns (cleaned_text, line_table) where line_table[i] = number
+    (1-based) of the ORIGINAL line matching line i+1 of the cleaned text.
+    ADDED (roadmap, readable errors): the table lets syntax errors be carried
+    over to the real line of the user's file, not the line of the cleaned
+    text."""
     kept_lines = []
     line_map = []
     for idx, line in enumerate(content.split("\n")):
@@ -57,13 +56,13 @@ _PARSER = None
 
 
 def _get_parser():
-    """Le parseur Lark, construit UNE fois et réutilisé (point 110).
+    """The Lark parser, built ONCE and reused (point 110).
 
-    Sa construction — la compilation de la grammaire LALR — coûte ~50 ms ; la
-    refaire à chaque appel dominait le temps de parsing (mesuré : parseur en
-    cache 0,4 ms/parse contre 50 ms en le reconstruisant). Un parseur Lark est
-    réutilisable entre parses ; seul le Transformer est réinstancié à chaque
-    appel, pour rester sans état."""
+    Its construction — compiling the LALR grammar — costs ~50 ms; redoing it
+    on every call dominated parsing time (measured: cached parser 0.4
+    ms/parse versus 50 ms when rebuilding it). A Lark parser is reusable
+    across parses; only the Transformer is reinstantiated on every call, to
+    stay stateless."""
     global _PARSER
     if _PARSER is None:
         _PARSER = Lark(grammar, parser='lalr', postlex=MonlIndenter())
@@ -71,11 +70,10 @@ def _get_parser():
 
 
 def parse_monl_string(content, file_path=None):
-    """Parse une chaîne monl directement (sans passer par un fichier).
-    Utilisé par parse_monl_file pour valider
-    une spec générée par l'IA avant de l'écrire sur disque.
-    Lève MonlSyntaxError (message localisé : fichier, ligne, colonne,
-    extrait) plutôt que l'exception Lark brute."""
+    """Parses a monl string directly (without going through a file). Used by
+    parse_monl_file to validate a spec generated by the AI before writing it
+    to disk. Raises MonlSyntaxError (localized message: file, line, column,
+    excerpt) rather than the raw Lark exception."""
     from lark.exceptions import UnexpectedInput
     from lark.indenter import DedentError
     parser = _get_parser()
@@ -98,11 +96,12 @@ def parse_monl_string(content, file_path=None):
 
 
 def _nombre_trop_long(err, original, file_path):
-    """Point 204 : deux nombres que la grammaire accepte mais que Python ne
-    convertit pas — plus de 4 300 chiffres, ou un exposant qui donne l'infini.
-    L'erreur remontait enveloppée dans un `VisitError` de Lark, sans ligne.
-    Aucun usage réel n'écrit un tel nombre : on le refuse en nommant la ligne. Toute AUTRE erreur de transformation reste un défaut
-    du compilateur et remonte telle quelle — l'avaler ici le cacherait."""
+    """Point 204: two numbers the grammar accepts but Python does not convert —
+    more than 4,300 digits, or an exponent that gives infinity. The error came
+    up wrapped in a Lark `VisitError`, without a line. No real use writes such
+    a number: it is refused, naming the line. Any OTHER transformation error
+    stays a compiler defect and comes up as is — swallowing it here would hide
+    it."""
     cause = err.orig_exc
     if isinstance(cause, NombreHorsLimites):
         motif = re.escape(str(cause))

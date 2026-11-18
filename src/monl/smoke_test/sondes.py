@@ -1,4 +1,4 @@
-"""De quoi fabriquer un appel plausible sur une route qu'on ne connaît pas."""
+"""What it takes to make a plausible call on a route we do not know."""
 
 import urllib.request
 
@@ -6,10 +6,10 @@ from . import fondations
 
 
 def _premier_id(base, entite, token):
-    """Identifiant d'un enregistrement RÉEL de l'entité parente, ou None si
-    la liste est vide ou hors de portée de cet acteur. Sert à rattacher une
-    création à une cible qui existe : les clés étrangères sont contraintes
-    (PRAGMA foreign_keys = ON dans le backend généré)."""
+    """Identifier of a REAL record of the parent entity, or None if the list is
+    empty or out of this actor's reach. Used to attach a creation to a target
+    that exists: foreign keys are constrained (PRAGMA foreign_keys = ON in the
+    generated backend)."""
     if not entite:
         return None
     status, corps = fondations._http("GET", f"{base}/{entite.lower()}?limit=1", token=token)
@@ -19,12 +19,11 @@ def _premier_id(base, entite, token):
     return donnees[0].get("id") if donnees else None
 
 def _sample_value(ftype, fname, spec=None):
-    # POINT 96 : un champ `oneOf` n'accepte QUE ses valeurs — 'smoke-status'
-    # récolterait un 422, et le smoke test déclarerait cassée une application
-    # saine. Deuxième occurrence de la leçon du point 95 : le vérificateur est
-    # un client comme un autre, et toute brique qui contraint une ENTRÉE le
-    # contraint aussi. La première valeur déclarée fait l'affaire — sur un
-    # statut, c'est l'état initial.
+    # POINT 96: a `oneOf` field accepts ONLY its values — 'smoke-status' would
+    # get a 422, and the smoke test would declare a healthy application broken.
+    # Second occurrence of the point 95 lesson: the verifier is a client like
+    # any other, and any brick that constrains an INPUT constrains it too. The
+    # first declared value will do — on a status, it is the initial state.
     choix = (spec or {}).get("allowed_values")
     if choix:
         return choix[0]
@@ -36,23 +35,23 @@ def _sample_value(ftype, fname, spec=None):
         return True
     if ftype == "Email":
         return "smoke@exemple.fr"
-    # POINT 101 : TROISIÈME occurrence de la leçon des points 95 et 96. Le type
-    # 'UUID' vérifie enfin sa forme ; `smoke-reference` récolterait donc un 422
-    # et le smoke test déclarerait cassée une boutique saine. Valeur FIXE et non
-    # tirée au sort : un vérificateur doit donner deux fois le même verdict sur
-    # la même application.
+    # POINT 101: THIRD occurrence of the lesson of points 95 and 96. The 'UUID'
+    # type finally checks its form; `smoke-reference` would therefore get a 422
+    # and the smoke test would declare a healthy shop broken. A FIXED value,
+    # not a random one: a verifier must give the same verdict twice on the same
+    # application.
     if ftype == "UUID":
         return "3f2504e0-4f89-41d3-9a0c-0305e82c3301"
-    # Un champ d'illustration recevait ici une URL `picsum.photos`. Le
-    # vérificateur est un client comme un autre (points 95, 96, 100) : il n'a
-    # pas à nommer un hôte distant que le reste du projet ne nomme plus. Il
-    # tombe donc dans le repli générique — non vide, pour qu'une contrainte
-    # `min` de longueur (point 85) continue de passer, et déterministe, parce
-    # qu'un vérificateur doit rendre deux fois le même verdict.
+    # An illustration field used to receive a `picsum.photos` URL here. The
+    # verifier is a client like any other (points 95, 96, 100): it has no
+    # business naming a remote host the rest of the project no longer names. It
+    # therefore falls into the generic fallback — non-empty, so that a length
+    # `min` constraint (point 85) keeps passing, and deterministic, because a
+    # verifier must give the same verdict twice.
     return f"smoke-{fname}"
 
 def _list_query_probe(route, contract):
-    """Construit une requête de liste conforme aux capacités déclarées."""
+    """Builds a list request matching the declared capabilities."""
     query = route.get("list_query") or {}
     if not query:
         return ""

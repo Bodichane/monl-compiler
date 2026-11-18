@@ -1,15 +1,15 @@
-"""La grammaire Lark du DSL monl.
+"""The Lark grammar of the monl DSL.
 
-CE FICHIER DÉPASSE 400 LIGNES, ET C'EST VOULU. Ce n'est pas du code : c'est
-UN artefact déclaratif — une chaîne, et les commentaires qui expliquent
-pourquoi chaque production a la forme qu'elle a. Le couper en deux moitiés
-n'aurait aucune frontière à suivre : Lark ignore l'ordre des règles, donc la
-coupure serait arbitraire, et elle nuirait exactement à ce que la règle des
-400 lignes protège — pouvoir lire d'un trait ce qui se lit d'un trait.
+THIS FILE EXCEEDS 400 LINES, ON PURPOSE. It is not code: it is ONE
+declarative artifact — a string, and the comments that explain why each
+production has the shape it has. Cutting it into two halves would have no
+boundary to follow: Lark ignores rule order, so the cut would be
+arbitrary, and it would harm exactly what the 400-line rule protects —
+being able to read in one go what reads in one go.
 
-Ne rien ajouter ici qui ne soit pas la grammaire."""
+Add nothing here that is not the grammar."""
 
-# Grammaire monl v6 - Support des descriptions multi-lignes (Bug #1)
+# monl grammar v6 - Support for multi-line descriptions (Bug #1)
 grammar = r"""
     ?start: app
     

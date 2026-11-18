@@ -1,9 +1,9 @@
-"""Les `rule` — une production NOMMÉE par règle.
+"""The `rule`s — one NAMED production per rule.
 
-Le piège qui a fondé cette forme (point 6) : un mot-clé littéral anonyme est
-filtré par Lark AVANT le transformateur, donc une production partagée ne
-sait pas quelle règle elle traite. `restrictedTo` n'atteignait jamais le
-Transformer, et l'audit de sécurité ne se déclenchait donc jamais."""
+The trap that founded this shape (point 6): an anonymous literal keyword
+is filtered by Lark BEFORE the transformer, so a shared production does
+not know which rule it handles. `restrictedTo` never reached the
+Transformer, so the security audit never fired."""
 
 import ast as py_ast
 
@@ -12,14 +12,14 @@ from lark import Transformer, v_args
 
 @v_args(inline=True)
 class ReglesMixin(Transformer):
-    """Les `rule` — une production NOMMÉE par règle.
+    """The `rule`s — one NAMED production per rule.
 
-    HÉRITE DE ``Transformer`` À DESSEIN, et porte son PROPRE ``@v_args``.
-    Lark applique ce décorateur en SAUTANT tout nom déjà présent dans la MRO
-    au-dessus de la classe décorée : les méthodes d'un mixin nu ne seraient
-    donc jamais enveloppées, et recevraient une LISTE d'enfants au lieu
-    d'arguments inlinés. Rien ne planterait — le sens du parsing changerait.
-    """
+    INHERITS FROM ``Transformer`` ON PURPOSE, and carries its OWN
+    ``@v_args``. Lark applies this decorator by SKIPPING any name already
+    present in the MRO above the decorated class: a bare mixin's methods would
+    therefore never be wrapped, and would receive a LIST of children instead
+    of inlined arguments. Nothing would crash — the meaning of the parse would
+    change."""
 
     def constraint_rule(self, reference, valid_type, value=None):
         data = {"reference": str(reference), "type": str(valid_type)}
@@ -47,9 +47,9 @@ class ReglesMixin(Transformer):
             try:
                 return str(py_ast.literal_eval(str(token)))
             except (SyntaxError, ValueError):
-                # Le lexer a déjà garanti un STRING_LITERAL. Ce repli garde un
-                # diagnostic de validation lisible si une future évolution de
-                # la grammaire accepte une séquence d'échappement inconnue.
+                # The lexer has already guaranteed a STRING_LITERAL. This
+                # fallback keeps a readable validation diagnostic if a future
+                # grammar change accepts an unknown escape sequence.
                 return str(token)[1:-1]
 
         return {"rule": {
@@ -98,9 +98,9 @@ class ReglesMixin(Transformer):
         return {"rule": {"reference": str(reference), "type": "hidden"}}
 
     def _quantite(self, amount):
-        """« by 3 » ou « by quantity » — l'un est une constante, l'autre un champ
-        de l'entité déclenchante (brique 14, point 86). Le type du jeton Lark
-        les distingue : ne pas le perdre ici, le validateur en a besoin."""
+        """"by 3" or "by quantity" — one is a constant, the other a field of the
+        triggering entity (brick 14, point 86). The Lark token's type tells them
+        apart: do not lose it here, the validator needs it."""
         if amount is None:
             return {"amount": 1, "amount_field": None}
         if getattr(amount, "type", None) == "INT" or str(amount).isdigit():
