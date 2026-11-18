@@ -32,120 +32,113 @@ def _write_update_brief(project_dir, added_routes, removed_routes,
     def bullet(items, verb):
         return "\n".join(f"- {verb} `{i}`" for i in sorted(items))
     sections = []
-    if added_routes:
-        sections.append("## New routes to use\n"
-                        + bullet(added_routes, "connect"))
-    if removed_routes:
-        sections.append("## REMOVED routes — remove every call\n"
-                        + bullet(removed_routes, "stop calling"))
-    if added_fields:
-        sections.append("## New fields to display or enter\n"
-                        + bullet(added_fields, "integrate"))
-    if removed_fields:
-        sections.append("## REMOVED fields — remove from views and forms\n"
-                        + bullet(removed_fields, "remove"))
-    if changed_types:
-        sections.append(
-            "## CHANGED field types — review input and display\n"
-            "The field name is unchanged, but its expected value is: "
-            "adapt input validation, formatting, and error messages to the "
-            "new type.\n"
-            + bullet(changed_types, "adapt"))
-    # POINT 88 : un rôle qui gagne l'accès à une route existante n'ajoute aucune
-    # route, mais réclame souvent tout un écran (un back-office, une vue de
-    # supervision). C'est le cas le plus silencieux du delta : rien n'est cassé,
-    # et pourtant il manque quelque chose.
-    if added_acces:
-        sections.append(
-            "## Newly authorized roles — plan screens\n"
-            "These routes already existed; one more role can now call them. "
-            "Make sure the interface offers them to that role, and that a "
-            "supervisor role can see all records, not only its own.\n"
-            + bullet(added_acces, "make available to"))
-    if removed_acces:
-        sections.append(
-            "## REMOVED access — hide actions that will return 403\n"
-            + bullet(removed_acces, "stop offering to"))
-    # POINT 99 : la clé étrangère change de nature sans changer de nom. Deux
-    # conséquences bien distinctes pour l'interface — une jointure à refaire, ou
-    # un champ obligatoire de plus au formulaire de création — d'où les deux
-    # consignes séparées plutôt qu'une phrase qui couvrirait les deux à moitié.
-    if changed_liens:
-        sections.append(
-            "## Relationships whose kind changed\n"
-            "For each one: if the line says ‘an account identifier’, join "
-            "through the matching profile column, never its `id`. If it says "
-            "‘provided by the client’, the creation form must let the user "
-            "CHOOSE the related record (a dropdown populated by the matching "
-            "read route); without this field, creation returns 422.\n"
-            + bullet(changed_liens, "review"))
-    # POINT 89 : le champ existe toujours et porte le même nom — seul son sens a
-    # changé. C'est le second cas silencieux du delta : rien n'est cassé, et
-    # pourtant un formulaire est devenu un affichage.
-    if scelles:
-        sections.append(
-            "## Fields now READ-ONLY — remove from forms\n"
-            "The server now calculates or timestamps these fields itself. "
-            "Sending them does not fail: they are simply ignored, which is "
-            "worse because users think they entered a value.\n"
-            + bullet(scelles, "stop sending; display only"))
-    if liberes:
-        sections.append(
-            "## Fields editable again\n"
-            + bullet(liberes, "offer for input"))
-    # POINT 90 : la route n'a pas bougé, son PRÉALABLE oui. C'est le parcours
-    # utilisateur qu'il faut reprendre, pas un champ à ajouter.
-    if added_prea:
-        sections.append(
-            "## Added PREREQUISITES — the user flow changes, not just the screen\n"
-            "These routes already existed and now return 409 until the caller "
-            "owns the named record. Check during loading and offer creation "
-            "BEFORE the form: if discovered at the end, the refusal arrives "
-            "after the user has filled everything in.\n"
-            + bullet(added_prea, "plan for"))
-    if removed_prea:
-        sections.append(
-            "## Removed PREREQUISITES — the intermediate step is no longer needed\n"
-            + bullet(removed_prea, "stop requiring"))
-    # POINT 91 : la route n'a pas bougé, elle a gagné un REFUS conditionnel.
-    # C'est un bouton à masquer selon l'état de l'enregistrement affiché — pas
-    # un écran de plus, pas un champ de plus : le cas le plus facile à manquer
-    # en relisant la seule liste des routes.
-    if added_verrous:
-        sections.append(
-            "## PAYMENT LOCKS — hide actions on a paid record\n"
-            "These routes already existed and now return 409 once the record "
-            "has been paid (`payment_status` is `payee`). Show the button only "
-            "when this field allows it; read routes already return it. If "
-            "discovered on click, the refusal comes after the user changed "
-            "their cart. A captured payment cannot be edited; refund it through "
-            "the provider.\n"
-            + bullet(added_verrous, "condition"))
-    if removed_verrous:
-        sections.append(
-            "## Removed locks — the action is available again after payment\n"
-            + bullet(removed_verrous, "stop conditioning"))
-    # POINT 94 : du CONTENU, pas des données. Aucune route ne le sert — il
-    # n'existe que dans le contrat, donc une IA qui ne le lit pas ici ne
-    # l'apprendra nulle part ailleurs.
-    if added_contenus:
-        sections.append(
-            "## ADDED editorial content — publish on the home page\n"
-            "The full text is in `FRONTEND_PROMPT.md` (the ‘Editorial content’ "
-            "and ‘Frequently asked questions’ sections). Render each FAQ item "
-            "separately, never as one paragraph.\n"
-            + bullet(added_contenus, "publish"))
-    if removed_contenus:
-        sections.append(
-            "## REMOVED content — remove from the page\n"
-            + bullet(removed_contenus, "remove"))
-    if modifies_contenus:
-        sections.append(
-            "## REWRITTEN content — same title, different text\n"
-            "The title is unchanged, but the text changed: use the current "
-            "version in `FRONTEND_PROMPT.md`. This is the easiest change to "
-            "miss because nothing appears to have moved.\n"
-            + bullet(modifies_contenus, "replace the text of"))
+    # Une table plutôt que dix-sept `if` : l'ordre des sections est celui
+    # des lignes, et une consigne de plus n'ajoute pas de branche.
+    consignes = (
+        (added_routes,
+         "## New routes to use\n",
+         "connect"),
+        (removed_routes,
+         "## REMOVED routes — remove every call\n",
+         "stop calling"),
+        (added_fields,
+         "## New fields to display or enter\n",
+         "integrate"),
+        (removed_fields,
+         "## REMOVED fields — remove from views and forms\n",
+         "remove"),
+        (changed_types,
+         "## CHANGED field types — review input and display\n"
+         "The field name is unchanged, but its expected value is: "
+         "adapt input validation, formatting, and error messages to the "
+         "new type.\n",
+         "adapt"),
+        # POINT 88 : un rôle qui gagne l'accès à une route existante n'ajoute aucune
+        # route, mais réclame souvent tout un écran (un back-office, une vue de
+        # supervision). C'est le cas le plus silencieux du delta : rien n'est cassé,
+        # et pourtant il manque quelque chose.
+        (added_acces,
+         "## Newly authorized roles — plan screens\n"
+         "These routes already existed; one more role can now call them. "
+         "Make sure the interface offers them to that role, and that a "
+         "supervisor role can see all records, not only its own.\n",
+         "make available to"),
+        (removed_acces,
+         "## REMOVED access — hide actions that will return 403\n",
+         "stop offering to"),
+        # POINT 99 : la clé étrangère change de nature sans changer de nom. Deux
+        # conséquences bien distinctes pour l'interface — une jointure à refaire, ou
+        # un champ obligatoire de plus au formulaire de création — d'où les deux
+        # consignes séparées plutôt qu'une phrase qui couvrirait les deux à moitié.
+        (changed_liens,
+         "## Relationships whose kind changed\n"
+         "For each one: if the line says ‘an account identifier’, join "
+         "through the matching profile column, never its `id`. If it says "
+         "‘provided by the client’, the creation form must let the user "
+         "CHOOSE the related record (a dropdown populated by the matching "
+         "read route); without this field, creation returns 422.\n",
+         "review"),
+        # POINT 89 : le champ existe toujours et porte le même nom — seul son sens a
+        # changé. C'est le second cas silencieux du delta : rien n'est cassé, et
+        # pourtant un formulaire est devenu un affichage.
+        (scelles,
+         "## Fields now READ-ONLY — remove from forms\n"
+         "The server now calculates or timestamps these fields itself. "
+         "Sending them does not fail: they are simply ignored, which is "
+         "worse because users think they entered a value.\n",
+         "stop sending; display only"),
+        (liberes,
+         "## Fields editable again\n",
+         "offer for input"),
+        # POINT 90 : la route n'a pas bougé, son PRÉALABLE oui. C'est le parcours
+        # utilisateur qu'il faut reprendre, pas un champ à ajouter.
+        (added_prea,
+         "## Added PREREQUISITES — the user flow changes, not just the screen\n"
+         "These routes already existed and now return 409 until the caller "
+         "owns the named record. Check during loading and offer creation "
+         "BEFORE the form: if discovered at the end, the refusal arrives "
+         "after the user has filled everything in.\n",
+         "plan for"),
+        (removed_prea,
+         "## Removed PREREQUISITES — the intermediate step is no longer needed\n",
+         "stop requiring"),
+        # POINT 91 : la route n'a pas bougé, elle a gagné un REFUS conditionnel.
+        # C'est un bouton à masquer selon l'état de l'enregistrement affiché — pas
+        # un écran de plus, pas un champ de plus : le cas le plus facile à manquer
+        # en relisant la seule liste des routes.
+        (added_verrous,
+         "## PAYMENT LOCKS — hide actions on a paid record\n"
+         "These routes already existed and now return 409 once the record "
+         "has been paid (`payment_status` is `payee`). Show the button only "
+         "when this field allows it; read routes already return it. If "
+         "discovered on click, the refusal comes after the user changed "
+         "their cart. A captured payment cannot be edited; refund it through "
+         "the provider.\n",
+         "condition"),
+        (removed_verrous,
+         "## Removed locks — the action is available again after payment\n",
+         "stop conditioning"),
+        # POINT 94 : du CONTENU, pas des données. Aucune route ne le sert — il
+        # n'existe que dans le contrat, donc une IA qui ne le lit pas ici ne
+        # l'apprendra nulle part ailleurs.
+        (added_contenus,
+         "## ADDED editorial content — publish on the home page\n"
+         "The full text is in `FRONTEND_PROMPT.md` (the ‘Editorial content’ "
+         "and ‘Frequently asked questions’ sections). Render each FAQ item "
+         "separately, never as one paragraph.\n",
+         "publish"),
+        (removed_contenus,
+         "## REMOVED content — remove from the page\n",
+         "remove"),
+        (modifies_contenus,
+         "## REWRITTEN content — same title, different text\n"
+         "The title is unchanged, but the text changed: use the current "
+         "version in `FRONTEND_PROMPT.md`. This is the easiest change to "
+         "miss because nothing appears to have moved.\n",
+         "replace the text of"),
+    )
+    sections.extend(entete + bullet(items, verbe)
+                    for items, entete, verbe in consignes if items)
     body = f"""# Frontend update (delta generated by 'monl update')
 
 The backend has changed. Update the existing frontend in `frontend/` to

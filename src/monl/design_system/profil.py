@@ -106,35 +106,35 @@ def _guarantees(contract: dict) -> list[str]:
     section vide — c'est-à-dire le défaut qu'on répare. Ces phrases sont
     dérivées du contrat, donc vérifiables une par une sur le serveur généré.
     """
-    faits = []
     routes = contract.get("routes") or []
     entities = contract.get("entities") or {}
     champs = [champ for spec in entities.values()
               for champ in (spec.get("fields") or [])]
 
-    if any("/paiement" in (r.get("path") or "") for r in routes):
-        faits.append(
-            "Payment goes through a provider; the site never sees a card "
-            "number, and the amount is reread from the database at the "
-            "moment of charging.")
-    if any(c.get("server_generated") for c in champs):
-        faits.append(
-            "Amounts and references are calculated by the server: they "
-            "cannot be changed from the browser.")
-    if any(c.get("postpayment_only") for c in champs):
-        faits.append(
-            "A paid order is frozen: nobody can change its content or its "
-            "total any more.")
-    if any(c.get("numbered_as") for c in champs):
-        faits.append(
-            "Each record receives a readable number, assigned once and "
-            "never reassigned.")
-    if any(r.get("auth_required") for r in routes):
-        faits.append(
-            "Each account's data stays separate: reading and modification are "
-            "controlled server-side, not hidden on the page.")
-    if contract.get("self_register_actors"):
-        faits.append(
-            "Registration is open only to the roles the specification "
-            "provides for; nobody can grant themselves a privileged role.")
-    return faits
+    def champ(cle):
+        return any(c.get(cle) for c in champs)
+
+    # Une table plutôt qu'une suite de `if` : l'ordre des phrases est celui
+    # des lignes, et ajouter une garantie n'ajoute pas de branche.
+    garanties = (
+        (any("/paiement" in (r.get("path") or "") for r in routes),
+         "Payment goes through a provider; the site never sees a card "
+         "number, and the amount is reread from the database at the "
+         "moment of charging."),
+        (champ("server_generated"),
+         "Amounts and references are calculated by the server: they "
+         "cannot be changed from the browser."),
+        (champ("postpayment_only"),
+         "A paid order is frozen: nobody can change its content or its "
+         "total any more."),
+        (champ("numbered_as"),
+         "Each record receives a readable number, assigned once and "
+         "never reassigned."),
+        (any(r.get("auth_required") for r in routes),
+         "Each account's data stays separate: reading and modification are "
+         "controlled server-side, not hidden on the page."),
+        (bool(contract.get("self_register_actors")),
+         "Registration is open only to the roles the specification "
+         "provides for; nobody can grant themselves a privileged role."),
+    )
+    return [phrase for vrai, phrase in garanties if vrai]

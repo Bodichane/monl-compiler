@@ -162,33 +162,41 @@ class ChampsMixin:
             seen_fields.add((entity, field))
 
             clauses = rule["value"]
-            if len(clauses) < 2:
-                raise ASTValidationError(
-                    f"Structure: 'categorized' on '{entity}.{field}' must declare at least one threshold ('below') "
-                    f"and a fallback tier ('otherwise')."
-                )
-            for clause in clauses[:-1]:
-                if "otherwise" in clause:
-                    raise ASTValidationError(
-                    f"Structure: 'categorized' on '{entity}.{field}'—only the LAST tier can be "
-                        f"'otherwise' (fallback tier); it appeared earlier in the list."
-                    )
-            if "otherwise" not in clauses[-1]:
-                raise ASTValidationError(
-                    f"Structure: 'categorized' on '{entity}.{field}' must end with an 'otherwise' tier "
-                    f"(the fallback tier that covers every value beyond the last threshold)."
-                )
-            thresholds = [clause["below"] for clause in clauses[:-1]]
-            if thresholds != sorted(set(thresholds)) or len(thresholds) != len(set(thresholds)):
-                raise ASTValidationError(
-                    f"Structure: 'categorized' on '{entity}.{field}' —'below' thresholds must be "
-                    f"strictly increasing (got: {thresholds})."
-                )
-            if any(not clause["label"].strip() for clause in clauses):
-                raise ASTValidationError(
-                    f"Structure: 'categorized' on '{entity}.{field}' —each tier must have a non-empty label."
-                )
+            self._valider_paliers_categorises(entity, field, clauses)
             self.categorized_fields.append({"entity": entity, "field": field, "clauses": clauses})
+
+    @staticmethod
+    def _valider_paliers_categorises(entity, field, clauses):
+        """Les paliers d'un `categorized` : au moins un seuil, `otherwise` en
+        dernier et seulement là, seuils strictement croissants, libellés non
+        vides. Extrait de `_valider_champs_categorises` (plafond de
+        complexité) ; refus et messages inchangés."""
+        if len(clauses) < 2:
+            raise ASTValidationError(
+                f"Structure: 'categorized' on '{entity}.{field}' must declare at least one threshold ('below') "
+                f"and a fallback tier ('otherwise')."
+            )
+        for clause in clauses[:-1]:
+            if "otherwise" in clause:
+                raise ASTValidationError(
+                    f"Structure: 'categorized' on '{entity}.{field}'—only the LAST tier can be "
+                    f"'otherwise' (fallback tier); it appeared earlier in the list."
+                )
+        if "otherwise" not in clauses[-1]:
+            raise ASTValidationError(
+                f"Structure: 'categorized' on '{entity}.{field}' must end with an 'otherwise' tier "
+                f"(the fallback tier that covers every value beyond the last threshold)."
+            )
+        thresholds = [clause["below"] for clause in clauses[:-1]]
+        if thresholds != sorted(set(thresholds)) or len(thresholds) != len(set(thresholds)):
+            raise ASTValidationError(
+                f"Structure: 'categorized' on '{entity}.{field}' —'below' thresholds must be "
+                f"strictly increasing (got: {thresholds})."
+            )
+        if any(not clause["label"].strip() for clause in clauses):
+            raise ASTValidationError(
+                f"Structure: 'categorized' on '{entity}.{field}' —each tier must have a non-empty label."
+            )
 
     def _valider_champs_enumeres(self):
         """Valide les champs texte limités à une liste de valeurs."""
