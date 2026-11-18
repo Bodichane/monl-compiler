@@ -35,7 +35,7 @@ class ToolError(MonlError):
 
 
 class FrontendError(ToolError):
-    """Erreur d'un fournisseur ou d'un agent frontend."""
+    """Error from a provider or a frontend agent."""
 
 
 class CompilationInputError(CompilationError):

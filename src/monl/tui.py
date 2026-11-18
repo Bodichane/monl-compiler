@@ -64,11 +64,11 @@ class Terminal:
     # Palette: a single accent, two grays, an error red. 256-color codes
     # (widely supported) rather than the 16-color palette, whose rendering
     # varies too much from one theme to another to be controlled.
-    ACCENT = "38;5;36"      # vert-bleu profond : l'accent unique
+    ACCENT = "38;5;36"      # deep blue-green: the single accent
     MUTED = "38;5;245"      # mid gray: hints, units, captions
-    FAINT = "38;5;240"      # gris sombre : filets, rail
-    ALERT = "38;5;167"      # rouge brique : erreurs de saisie
-    LIGHT = "38;5;252"      # gris clair : valeurs
+    FAINT = "38;5;240"      # dark gray: rules, rail
+    ALERT = "38;5;167"      # brick red: input errors
+    LIGHT = "38;5;252"      # light gray: values
 
     def paint(self, text, *codes):
         if not self.color or not codes:

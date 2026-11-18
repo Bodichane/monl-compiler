@@ -42,13 +42,13 @@ EXTRA_CSS = """
 .note p:last-child { margin-bottom: 0; }
 .method { font: 600 12px var(--mono); color: var(--brand); }
 @media (max-width: 900px) {
-  /* `minmax(0,…)` et non `1fr` : le plancher `auto` d'un `1fr` est la largeur
-     MIN-CONTENT de l'enfant, ici les lignes de spec non sécables des blocs de
-     code. Mesuré à 375px avant correction : une piste de 550px dans un écran
-     de 375, donc 351 éléments coupés par l'`overflow-x:clip` du `body` — le
-     guide entier illisible sur téléphone. Le défilement reste offert par le
-     `overflow-x:auto` du bloc de code lui-même : plancherer la piste sans
-     cela ne ferait que DÉPLACER la coupure. */
+  /* `minmax(0,…)` and not `1fr`: the `auto` floor of a `1fr` is the child's
+     MIN-CONTENT width, here the unbreakable spec lines of the code blocks.
+     Measured at 375px before the fix: a 550px track in a 375 screen, so 351
+     elements clipped by the `body`'s `overflow-x:clip` — the whole guide
+     unreadable on a phone. Scrolling is still offered by the code block's
+     own `overflow-x:auto`: flooring the track without it would only MOVE the
+     clipping. */
   .doc { grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
   .toc { position: static; border-bottom: 1px solid var(--line); padding-bottom: var(--space-4); }
   .toc ol { display: flex; flex-wrap: wrap; gap: var(--space-1); }

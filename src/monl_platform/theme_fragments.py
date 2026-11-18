@@ -103,12 +103,11 @@ main,.footer-wrap { position:relative; z-index:1; }
 }
 .skip:focus { left: 0; }
 /* ---------- barre de navigation ---------- */
-/* Fond OPAQUE, et pas 92 % : à 92 % le texte qui défile dessous transparaît
-   et se lit comme une ligne coupée en deux — mesuré sur /console. Le
-   `backdrop-filter` disparaît avec : il ne floute plus rien derrière un fond
-   opaque. Ce commentaire vit HORS de la règle, un commentaire CSS étant du
-   CONTENU de page (point 156) — dedans, il faisait échouer son propre
-   témoin. */
+/* OPAQUE background, not 92 %: at 92 % the text scrolling underneath shows
+   through and reads like a line cut in two — measured on /console. The
+   `backdrop-filter` goes with it: it no longer blurs anything behind an
+   opaque background. This comment lives OUTSIDE the rule, a CSS comment
+   being page CONTENT (point 156) — inside, it made its own witness fail. */
 .topbar {
   position: sticky; top: 0; z-index: 30;
   background: var(--bg);
@@ -123,8 +122,8 @@ main,.footer-wrap { position:relative; z-index:1; }
   display: inline-flex; align-items: center; min-height: 44px;
   color:var(--ink); font-weight: 700; letter-spacing: -.02em; text-decoration: none;
 }
-/* Le lockup compact ne garde que MONL : à 112 px il fait 32 px de haut,
-   suffisamment lisible sans prendre le dessus sur la navigation. */
+/* The compact lockup keeps only MONL: at 112 px it is 32 px high, readable
+   enough without taking over the navigation. */
 .brand-wordmark { width:112px; height:auto; display:block; flex:none; }
 .mark {
   width: 34px; height: 34px; border-radius: 10px; flex: none;
@@ -151,7 +150,7 @@ main,.footer-wrap { position:relative; z-index:1; }
 .navlinks .nav-cta { border-radius:11px; padding-inline:18px; }
 .navlinks .nav-cta::after { display:none; }
 
-/* ---------- contrôles ---------- */
+/* ---------- controls ---------- */
 .primary, .secondary, .ghost, .nav-cta {
   min-height: 44px; border-radius: 11px; padding: 0 18px;
   border: 1px solid transparent; cursor: pointer; text-decoration: none;
@@ -210,31 +209,30 @@ main,.footer-wrap { position:relative; z-index:1; }
   border-radius: var(--radius); padding: var(--space-5);
   overflow-x: auto; font: 13px/1.7 var(--mono); white-space: pre;
 }
-/* Coloration syntaxique. UNE seule palette pour les deux thèmes : le fond de
-   code est sombre des deux côtés (#2E2B25 en clair, #0F0E0C en sombre), donc
-   une variante par thème serait une deuxième vérité à entretenir pour rien.
-   Les sept valeurs sont mesurées sur le PLUS CLAIR des deux fonds — celui où
-   c'est le plus dur — et tiennent toutes 4,5:1, le seuil du TEXTE et non celui
-   des graphiques : du code se lit.
-   L'or (--s-act) n'a plus qu'UN emploi, les actions CRUD. Avant, `.kw` le
-   donnait à tout mot-clé de toute spec : c'est ce qui le faisait revenir
-   partout sur le site.
-   Le contraste ENTRE deux jetons n'est pas la bonne mesure : WCAG parle du
-   fond, et deux couleurs de même clarté séparées par la teinte se distinguent
-   très bien. La règle tenue ici — et VÉRIFIÉE par un test — est qu'aucune
-   paire de jetons SATURÉS ne soit proche à la fois en teinte (< 35°) et en
-   clarté (< 1,35:1). Elle a coûté trois valeurs : les noms déclarés étaient
-   crème, donc à 1,06:1 de l'encre du bloc — une classe qui ne distinguait
-   rien ; le rose des mots-clés et l'olive des chaînes tombaient chacun à 32°
-   de l'or. */
+/* Syntax highlighting. ONE palette for both themes: the code background is
+   dark on both sides (#2E2B25 in light, #0F0E0C in dark), so a variant per
+   theme would be a second truth to maintain for nothing.
+   The seven values are measured on the LIGHTER of the two backgrounds — the
+   harder one — and all hold 4.5:1, the TEXT threshold and not the graphics
+   one: code is read.
+   Gold (--s-act) now has only ONE use, the CRUD actions. Before, `.kw` gave
+   it to every keyword of every spec: that is what made it come back
+   everywhere on the site.
+   Contrast BETWEEN two tokens is not the right measure: WCAG talks about the
+   background, and two colors of the same lightness separated by hue are told
+   apart very well. The rule held here — and VERIFIED by a test — is that no
+   pair of SATURATED tokens is close in both hue (< 35°) and lightness
+   (< 1.35:1). It cost three values: declared names were cream, so 1.06:1
+   from the block's ink — a class that distinguished nothing; the keywords'
+   pink and the strings' olive each fell 32° from gold. */
 :root {
-  --s-kw: #e88ba6;    /* entity, rule, relation, workflow…  5,83:1 */
-  --s-act: #e7b875;   /* Create, Read, Update, Delete       7,73:1 */
-  --s-type: #9ec8a8;  /* String, Money, DateTime…           7,58:1 */
-  --s-nom: #c4b0dd;   /* les noms declares                  7,12:1 */
-  --s-str: #b9d489;   /* "chaines"                          8,63:1 */
-  --s-num: #9fbeda;   /* nombres                            7,29:1 */
-  --s-cm: #9d9488;    /* # commentaires                     4,72:1 */
+  --s-kw: #e88ba6;    /* entity, rule, relation, workflow…  5.83:1 */
+  --s-act: #e7b875;   /* Create, Read, Update, Delete       7.73:1 */
+  --s-type: #9ec8a8;  /* String, Money, DateTime…           7.58:1 */
+  --s-nom: #c4b0dd;   /* declared names                     7.12:1 */
+  --s-str: #b9d489;   /* "strings"                          8.63:1 */
+  --s-num: #9fbeda;   /* numbers                            7.29:1 */
+  --s-cm: #9d9488;    /* # comments                         4.72:1 */
 }
 .s-kw { color: var(--s-kw); }
 .s-act { color: var(--s-act); }
@@ -243,8 +241,8 @@ main,.footer-wrap { position:relative; z-index:1; }
 .s-str { color: var(--s-str); }
 .s-num { color: var(--s-num); }
 .s-cm { color: var(--s-cm); }
-/* `.kw` et `.cm` restent pour ce qui n'est PAS une spec monl — les blocs shell
-   du guide portent des commentaires marqués à la main. */
+/* `.kw` and `.cm` remain for what is NOT a monl spec — the guide's shell
+   blocks carry hand-marked comments. */
 .codeblock .kw { color: var(--s-kw); }
 .codeblock .cm { color: var(--s-cm); }
 .copy {
@@ -296,11 +294,11 @@ table.grid td code { background: var(--surface-2); padding: 2px 6px; border-radi
   }
 }
 
-/* Bascule de thème en révélation circulaire. Le fondu par défaut de l'API est
-   retiré : les deux calques restent opaques et c'est le clip-path du nouveau
-   qui découvre la page. Le bloc @media (prefers-reduced-motion) ne porte PAS
-   sur ces pseudo-éléments (aucun n'est atteint par `*`) — le refus du
-   mouvement est donc tenu en JavaScript, avant même d'ouvrir la transition. */
+/* Theme switch as a circular reveal. The API's default fade is removed: both
+   layers stay opaque and the new one's clip-path uncovers the page. The
+   @media (prefers-reduced-motion) block does NOT apply to these
+   pseudo-elements (none is reached by `*`) — so refusing motion is handled
+   in JavaScript, before the transition is even opened. */
 ::view-transition-old(root), ::view-transition-new(root) {
   animation: none; mix-blend-mode: normal;
 }
@@ -320,7 +318,7 @@ THEME_BOOT = """
     if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       document.documentElement.classList.add('motion-ready');
     }
-  } catch (e) { /* stockage refusé : le thème système suffit */ }
+  } catch (e) { /* storage refused: the system theme is enough */ }
 })();
 """
 
@@ -342,7 +340,7 @@ THEME_TOGGLE = """
   function basculer() {
     var suivant = courant() === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', suivant);
-    try { localStorage.setItem('monl-theme', suivant); } catch (e) { /* ignoré */ }
+    try { localStorage.setItem('monl-theme', suivant); } catch (e) { /* ignored */ }
     annoncer();
   }
   var doux = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -359,7 +357,7 @@ THEME_TOGGLE = """
                      'circle(' + rayon + 'px at ' + x + 'px ' + y + 'px)'] },
         { duration: 420, easing: 'cubic-bezier(.4, 0, .2, 1)',
           pseudoElement: '::view-transition-new(root)' });
-    }, function () { /* transition refusée : le thème a déjà basculé */ });
+    }, function () { /* transition refused: the theme has already switched */ });
   });
 })();
 

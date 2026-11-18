@@ -210,7 +210,7 @@ class LectureFiltreeRoutesMixin:
             "    total = cursor.fetchone()[0]",
             f"    cursor.execute('SELECT * FROM \"{table}\"' + _query_where + _order_by + ' LIMIT ? OFFSET ?', _query_params + (limit, offset))",
             "    rows = cursor.fetchall()",
-            "    _columns = [d[0] for d in cursor.description]  # ordre réel en base (robuste aux migrations)",
+            "    _columns = [d[0] for d in cursor.description]  # real column order in the database (robust to migrations)",
             "    conn.close()",
             "    named_rows = [dict(zip(_columns, row)) for row in rows]",
         ]
@@ -230,7 +230,7 @@ class LectureFiltreeRoutesMixin:
             "    conn = _connect(); cursor = conn.cursor()",
             f"    cursor.execute('SELECT * FROM \"{table}\" WHERE id = ?', (id,))",
             "    row = cursor.fetchone()",
-            "    _columns = [d[0] for d in cursor.description]  # ordre réel en base (robuste aux migrations)",
+            "    _columns = [d[0] for d in cursor.description]  # real column order in the database (robust to migrations)",
             "    conn.close()",
             "    if not row: raise HTTPException(status_code=404, detail='Record not found')",
             "    named_row = dict(zip(_columns, row))",

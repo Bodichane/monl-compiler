@@ -168,7 +168,7 @@ class CommerceMixin:
             self.payable_fields.append({"entity": entity, "field": field})
 
     def _valider_securite_calculs_paiement(self):
-        """Recoupe champs serveur, bornes et montants encaissables."""
+        """Cross-checks server fields, bounds and chargeable amounts."""
         derived = {(item["entity"], item["field"]) for item in self.derived_fields}
         sums = {(item["entity"], item["field"]): item for item in self.aggregated_fields}
         server_fields = (

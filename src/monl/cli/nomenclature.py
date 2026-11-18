@@ -65,10 +65,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \\
 COPY . .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# OBLIGATOIRE au démarrage : le conteneur s'arrête sans lui.
+# REQUIRED at startup: the container stops without it.
 #   docker run -e MONL_JWT_SECRET="$(openssl rand -hex 32)" -p 8000:8000 <image>
-# Le garder hors de l'image est délibéré : un secret cuit dans une image se
-# diffuse avec elle.
+# Keeping it out of the image is deliberate: a secret baked into an image
+# spreads with it.
 EXPOSE 8000
 CMD ["uvicorn", "serve:app", "--host", "0.0.0.0", "--port", "8000"]
 """
@@ -123,10 +123,31 @@ EXPOSE 8000
 CMD ["uvicorn", "{cible}", "--host", "0.0.0.0", "--port", "8000"]
 """
 
-# Four forms really emitted: `app:app` before point 133, `serve:app` since —
-# each with and without the Upload dependency.
+# The fifth form: `-r requirements.txt` with the secret instructions still in
+# French, emitted until the English migration of the generated comments.
+_HERITE_REQUIREMENTS_FR = """FROM python:3.12-slim
+
+WORKDIR /app
+ENV PYTHONDONTWRITEBYTECODE=1 \\
+    PYTHONUNBUFFERED=1 \\
+    MONL_ENV=production
+
+COPY . .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# OBLIGATOIRE au démarrage : le conteneur s'arrête sans lui.
+#   docker run -e MONL_JWT_SECRET="$(openssl rand -hex 32)" -p 8000:8000 <image>
+# Le garder hors de l'image est délibéré : un secret cuit dans une image se
+# diffuse avec elle.
+EXPOSE 8000
+CMD ["uvicorn", "serve:app", "--host", "0.0.0.0", "--port", "8000"]
+"""
+
+# Five forms really emitted: `app:app` before point 133, `serve:app` since —
+# each with and without the Upload dependency — then the requirements.txt form
+# with French comments.
 DOCKERFILES_HERITES = tuple(
     entete + _HERITE_PIED.format(cible=cible)
     for entete in (_HERITE_ENTETE, _HERITE_ENTETE_UPLOAD)
     for cible in ("app:app", "serve:app")
-)
+) + (_HERITE_REQUIREMENTS_FR,)

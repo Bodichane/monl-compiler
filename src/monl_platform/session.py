@@ -1,4 +1,4 @@
-"""Configuration et pose de l'unique cookie de session de la plateforme."""
+"""Configuration and setting of the platform's single session cookie."""
 
 from __future__ import annotations
 

@@ -15,7 +15,7 @@ PRICES_ENVIRONMENT = "MONL_USAGE_PRICES"
 
 
 class UsagePriceError(ValueError):
-    """Table de prix absente ou inexploitable."""
+    """Price table missing or unusable."""
 
 
 def _decimal(value, label):

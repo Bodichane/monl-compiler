@@ -19,7 +19,7 @@ class IdentityCredentialsMixin:
 
     @classmethod
     def _login_identifier(cls, value: Any) -> str | None:
-        """Accepte l'email humain ou l'identifiant OAuth namespace."""
+        """Accepts a human email or a namespaced OAuth identifier."""
         raw = str(value or "").strip().lower()
         try:
             return cls._email(raw)

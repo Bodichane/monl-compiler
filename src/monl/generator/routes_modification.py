@@ -8,10 +8,10 @@ from . import sql
 
 
 class ModificationRoutesMixin:
-    """La route `Update`."""
+    """The `Update` route."""
 
     def _generate_update_route_lines(self, plan, context, act_type):
-        """Rend la famille de route ``Update``."""
+        """Renders the ``Update`` route family."""
         api_lines = []
         base_target = context["base_target"]
         tag = context["tag"]

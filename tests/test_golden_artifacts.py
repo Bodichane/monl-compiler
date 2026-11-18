@@ -90,7 +90,7 @@ GOLDENS = {
     # POINT 191 : le diff réel ajoute la liste des colonnes oneOf réservées à
     # l'après-paiement et généralise l'UNIQUE boucle du point 89 qui compte les
     # NULL irrécupérables. Aucune route ni aucun contrat ne change ici.
-    "app.py": "f0c594c68d7c84772d50316b7eaa06bdefd74aca22d14b344ca69e83565717b0",
+    "app.py": "0cb4c86e4ef7e1a9b469862489884c5deec653ba1d34317eb55f036169c9833c",
     "schema.sql": "e33bc5b4cf0dbf78cb0290372e41521db6752de5691f43a9566b79e8137641be",
     # `sandbox_ai.py` SORT des empreintes, et ce n'est pas un relâchement : la
     # spec de banc n'a aucun bloc `custom`, donc le module n'est plus produit.
@@ -108,7 +108,7 @@ GOLDENS = {
     # produit et non figé serait un angle mort, et c'est lui qui décide quels
     # dossiers sont servis. app.py, schema.sql, manage.py et sandbox_ai.py ne
     # bougent PAS — le contrôle de portée du changement.
-    "serve.py": "296e9e24632d408026ae6e745432319d21dad7a245d21cb36d9acf101ac23c33",
+    "serve.py": "29767912bcffa904b3b9afca78d22b449c8862298572b5367e3ec80b29e40993",
     # LE DOCKERFILE N'ÉNUMÈRE PLUS AUCUNE DÉPENDANCE : il installe
     # `-r requirements.txt`. Deux listes à tenir d'accord divergent toujours,
     # et celle-ci divergeait déjà — le gabarit n'ajoutait 'python-multipart'
@@ -120,7 +120,7 @@ GOLDENS = {
     # manage.py, le contrat, le brief et le wrapper restent à l'octet près :
     # c'est le contrôle de portée d'un changement qui ne touche que le
     # déploiement.
-    "Dockerfile": "8296f97a1cb627bc8420715306de7c69cb926153c06eba9809e532686ada93a7",
+    "Dockerfile": "4c19d2ee5a783537c784ddfcc69472c658ec9381088e6e17efc9aff488a31f0f",
     # requirements.txt n'était suivi par AUCUNE empreinte alors qu'il est
     # livré dans chaque archive : un artefact que personne ne regarde peut
     # changer sans qu'on le sache.
@@ -182,7 +182,7 @@ GOLDENS = {
     # beta.9 puis beta.10 ne montre que `compiler_version` (et le
     # `.jwt_secret`, tiré au hasard, hors de ce test). Cinquième version de
     # suite.
-    "monl.json": "448e062e01151367bec7f0db8c079edfe6f614c968d9020d332f22e446b6607c",
+    "monl.json": "045e6e116e2d43a62952a5bfd5a24c4e8dbafdc8658cc861b5e1a3a897ec4da9",
 }
 
 # POINT 203 : app.py gagne l’enveloppe ASGI de sécurité globale ;
@@ -200,11 +200,11 @@ LOOKUP_GOLDENS = {
     # (`recipient_id` dans `_LOOKUP_INDEXES`), et rien d'autre n'a bougé.
     # POINT 191 : même diff runtime que le golden principal — nouvelle liste
     # post-paiement vide ici, et comptage mutualisé avec l'horodatage.
-    "app.py": "1f3c39085a72944053cbff9288b6f02381a64e772d9a9a6953a2fac6c2fb8b7e",
+    "app.py": "6c96a32742129565c9027ea1e6b28e3d64a750d0933bf36f49d403282af04037",
     # 0.9.0-beta.9 : monl.json seul, pour la même raison que ci-dessus.
     # POINT 191 : le diff réel ne change que l'empreinte app.py scellée.
     # 0.9.0-beta.10 : monl.json seul, `compiler_version`, comme ci-dessus.
-    "monl.json": "0f4452418d50b260143044b8ad6a0e5dbaf69a70fa5764836872dc1911e559a5",
+    "monl.json": "1291a22be672f206e608f0b5b515127faf2171fd34498d2453a0963223fe483a",
 }
 
 
@@ -278,12 +278,12 @@ def _aucun_module_custom_inutile(project_dir: Path):
 # passe requis pour TOTP, la récupération opérateur et leur documentation.
 # Les deux bancs historiques ci-dessus restent inchangés à l'octet près.
 B4_GOLDENS = {
-    'app.py': 'e7b429ab5f32b5113f872326ce4214a1ea731a5e05f2f50a5828e4f735c0918b',
+    'app.py': '0d08ea56e0dc1b5a29db96a8e768e5bf9e3316767143497f015df55eddc54bf3',
     'schema.sql': 'e433095c18c9ecdbd10fe9b91e47d4ed9d68ad1907260dd4ae72963cd5078117',
     'manage.py': '8890b92555cde836199dca66d97721f38eeb52c23eccae563134ae3d2a0df310',
     'frontend_contract.json': 'd401b1bb32e18760c2d4731ce0f506fe0265efe6744639d5200a304a5825a482',
     'README.md': 'e443518e613cc0c531ad30c7c7ad54290873380700cc70f6e7cee100821f6d6d',
-    'monl.json': '831a7574674434c23c1cd0b7d105c8b57aee621178082edffaa6de25ea4d69dd',
+    'monl.json': '1c081522d4bb96d3689528e91d2d3aedb7beadf32614d65f982b987ebc631618',
 }
 
 

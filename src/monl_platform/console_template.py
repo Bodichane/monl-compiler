@@ -29,9 +29,9 @@ EXTRA_CSS = """
 .lights i { width: 8px; height: 8px; border-radius: 50%; background: var(--code-muted); }
 .terminal pre { margin: 0; padding: 24px; min-height: 340px; white-space: pre-wrap;
                 font: 13px/1.72 var(--mono); }
-/* `.kw` a disparu avec la coloration écrite à la main. `.arrow` marque les
-   lignes de RÉSULTAT du terminal : un état, pas un mot du langage — c'est
-   le genre d'emploi que l'accent garde. */
+/* `.kw` disappeared with hand-written highlighting. `.arrow` marks the
+   terminal's RESULT lines: a state, not a word of the language — the kind of
+   use the accent keeps. */
 .cm { color: var(--s-cm); } .arrow { color: var(--code-accent); }
 
 .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
@@ -72,9 +72,9 @@ EXTRA_CSS = """
                      border: 1px solid var(--line); border-radius: var(--radius);
                      white-space: pre-wrap; overflow-wrap: anywhere;
                      font: 14px/1.65 var(--mono); }
-/* Les choix du dialogue sont des BOUTONS, pas un menu de terminal recopié.
-   `min(100%, 260px)` et non `260px` : une piste plus large que son conteneur
-   déborde à 375 px sans que rien ne le signale (point 165). */
+/* The dialogue's choices are BUTTONS, not a copied terminal menu.
+   `min(100%, 260px)` and not `260px`: a track wider than its container
+   overflows at 375 px without anything reporting it (point 165). */
 .dialogue-choices { display: grid; gap: var(--space-3);
                     margin: 0 0 var(--space-4);
                     grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }

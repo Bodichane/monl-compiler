@@ -173,19 +173,19 @@ EXTRA_CSS = """
   background:var(--danger-bg); color:var(--danger);
   border:1px solid var(--danger-line);
 }
-/* Une hauteur inconnue s'anime par la GRILLE : `height:auto` ne se transitionne
-   pas, et figer une hauteur en pixels casse dès que le texte se replie. */
+/* An unknown height is animated through the GRID: `height:auto` cannot be
+   transitioned, and freezing a height in pixels breaks as soon as the text
+   wraps. */
 .refus .fold { display:grid; grid-template-rows:0fr; transition:grid-template-rows .26s cubic-bezier(.2,.8,.2,1); }
 .refus details[open] .fold { grid-template-rows:1fr; }
 .refus .fold > div { overflow:hidden; }
-/* `minmax(0,1fr)` et non `1fr` : un `1fr` vaut `minmax(auto,1fr)`, et ce
-   plancher `auto` est la largeur MIN-CONTENT de l'enfant — soit, ici, la ligne
-   de spec non sécable du bloc de code. Mesuré à 375px avant correction : une
-   colonne unique de 497px dans un conteneur de 333, coupée par
-   l'`overflow:hidden` du dépliant, donc du texte perdu sans moyen de
-   l'atteindre. Le `min-width:0` sur l'enfant fait la même chose pour la taille
-   minimale automatique de l'élément de grille ; il faut les DEUX. Le
-   défilement reste offert par le `overflow-x:auto` du bloc de code lui-même. */
+/* `minmax(0,1fr)` and not `1fr`: a `1fr` equals `minmax(auto,1fr)`, and that
+   `auto` floor is the child's MIN-CONTENT width — here, the code block's
+   unbreakable spec line. Measured at 375px before the fix: a single 497px
+   column in a 333 container, clipped by the disclosure's `overflow:hidden`,
+   so text lost with no way to reach it. The `min-width:0` on the child does
+   the same for the grid item's automatic minimum size; BOTH are needed.
+   Scrolling is still offered by the code block's own `overflow-x:auto`. */
 .refus-body {
   display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:1px;
   background:var(--line); border-top:1px solid var(--line);

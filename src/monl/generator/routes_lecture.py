@@ -10,7 +10,7 @@ class LectureRoutesMixin:
     """The read routes: list and detail."""
 
     def _generate_read_route_lines(self, plan, context, act_type):
-        """Rend la famille de route ``Read``."""
+        """Renders the ``Read`` route family."""
         # BRICK B3: keep the historical path byte for byte when the spec
         # declares no list capability. The new emission is isolated below so
         # that pagination and the golden artifacts stay unchanged for every
@@ -196,7 +196,7 @@ class LectureRoutesMixin:
             else:
                 api_lines.append(f"    cursor.execute('SELECT * FROM \"{base_target.lower()}\" LIMIT ? OFFSET ?', (limit, offset))")
         api_lines.append("    rows = cursor.fetchall()")
-        api_lines.append("    _columns = [d[0] for d in cursor.description]  # ordre réel en base (robuste aux migrations)")
+        api_lines.append("    _columns = [d[0] for d in cursor.description]  # real column order in the database (robust to migrations)")
         api_lines.append("    conn.close()")
         api_lines.append("    named_rows = [dict(zip(_columns, row)) for row in rows]")
         row_loop_lines = []
@@ -216,7 +216,7 @@ class LectureRoutesMixin:
         api_lines.append("    conn = _connect(); cursor = conn.cursor()")
         api_lines.append(f"    cursor.execute('SELECT * FROM \"{base_target.lower()}\" WHERE id = ?', (id,))")
         api_lines.append("    row = cursor.fetchone()")
-        api_lines.append("    _columns = [d[0] for d in cursor.description]  # ordre réel en base (robuste aux migrations)")
+        api_lines.append("    _columns = [d[0] for d in cursor.description]  # real column order in the database (robust to migrations)")
         api_lines.append("    conn.close()")
         api_lines.append("    if not row: raise HTTPException(status_code=404, detail='Record not found')")
         api_lines.append("    named_row = dict(zip(_columns, row))")
