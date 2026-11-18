@@ -167,7 +167,7 @@ class MonlAST(
                 # canonical. Declared, never guessed: monl does not know where
                 # the user calls from.
                 "auth_phone_prefix": self.auth_phone_prefix,
-                # BRIQUE 19 (point 96) : {Entite: {champ: [valeurs]}}.
+                # BRICK 19 (point 96): {Entity: {field: [values]}}.
                 "enumerated_fields": self.enumerated_fields,
                 # BRICK B3: list capabilities declared one by one. These lists
                 # are the compile-time whitelist consumed by the generator; the

@@ -109,8 +109,8 @@ class ChampsServeurMixin:
 
         Deduced from the date milestones present, never declared separately: two
         ways of saying the same thing would end up contradicting each other."""
-        présents = [j for j in self.JALONS_DATE if "{" + j + "}" in gabarit]
-        return "-".join(présents)
+        milestones = [j for j in self.JALONS_DATE if "{" + j + "}" in gabarit]
+        return "-".join(milestones)
 
     def _valider_gabarit_de_numero(self, entity, field, gabarit):
         """Five refusals on the shape of the template itself."""
@@ -145,12 +145,12 @@ class ChampsServeurMixin:
         #
         # strict=False on purpose: each milestone is paired with the NEXT one,
         # so the two sequences deliberately do not have the same length.
-        for précédent, suivant in zip(self.JALONS_DATE, self.JALONS_DATE[1:],
-                                      strict=False):
-            if "{" + suivant + "}" in gabarit and "{" + précédent + "}" not in gabarit:
+        for previous, suivant in zip(self.JALONS_DATE, self.JALONS_DATE[1:],
+                                     strict=False):
+            if "{" + suivant + "}" in gabarit and "{" + previous + "}" not in gabarit:
                 raise ASTValidationError(
                     f"Structure: the 'numbered' format for '{entity}.{field}' uses "
-                    f"'{{{suivant}}}' without '{{{précédent}}}' -- the sequence would reset "
+                    f"'{{{suivant}}}' without '{{{previous}}}' -- the sequence would reset "
                     f"without the number identifying the period, and "
                     f"two records would eventually have the same number.")
 

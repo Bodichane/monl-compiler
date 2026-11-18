@@ -25,7 +25,7 @@ import struct''').substitute().split("\n")]
         return api_lines
 
     def _socle_imports_et_connexion(self, message_imports, totp_imports):
-        """Imports, application FastAPI, secret, quota, et l'enveloppe SQLite."""
+        """Imports, FastAPI application, secret, quota, and the SQLite wrapper."""
         return [
             *Template(r'''# Deterministic API, secure by default - Do not edit by hand
 from fastapi import FastAPI, HTTPException, Header, Depends, Request${upload_imports}

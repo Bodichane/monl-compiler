@@ -8,7 +8,7 @@ from . import sql
 
 
 class ModificationRoutesMixin:
-    """La route `Update`."""
+    """The `Update` route."""
 
     def _generate_update_route_lines(self, plan, context, act_type):
         """Renders the ``Update`` route family."""

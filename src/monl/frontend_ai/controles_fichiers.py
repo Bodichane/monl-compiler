@@ -115,7 +115,7 @@ def _frontend_local_reference_errors(project_dir):
             chemin = os.path.join(project_dir, reste)
         else:
             chemin = os.path.join(frontend_dir, reste)
-        # StaticFiles(html=True) sert l'index d'un dossier.
+        # StaticFiles(html=True) serves a folder's index.
         if os.path.isdir(chemin):
             chemin = os.path.join(chemin, "index.html")
         return chemin

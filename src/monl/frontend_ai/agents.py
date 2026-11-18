@@ -209,7 +209,7 @@ def run_cli_agent(project_dir, instruction, max_turns=DEFAULT_MAX_TURNS,
     if proc.returncode != 0:
         if "max turns" in sortie.lower():
             return sortie          # budget exhausted: verification will decide
-        raise fondations.FrontendAIError(f"l'agent '{agent}' a terminé en erreur : "
+        raise fondations.FrontendAIError(f"agent '{agent}' exited with an error: "
                               + sortie[-400:])
     return proc.stdout
 

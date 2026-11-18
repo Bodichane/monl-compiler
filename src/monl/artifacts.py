@@ -49,7 +49,7 @@ def copy_preserved_files(source_dir: str | os.PathLike[str],
 
 
 def _replace(source: Path, destination: Path) -> None:
-    """Indirection testable autour de ``os.replace``."""
+    """Testable indirection around ``os.replace``."""
     os.replace(source, destination)
 
 

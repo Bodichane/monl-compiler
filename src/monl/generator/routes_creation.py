@@ -9,7 +9,7 @@ from . import sql
 
 
 class CreationRoutesMixin:
-    """La route `Create`."""
+    """The `Create` route."""
 
     def _generate_create_route_lines(self, plan, context, act_type):
         """Renders the ``Create`` route family."""
