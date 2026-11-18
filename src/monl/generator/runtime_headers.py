@@ -60,7 +60,7 @@ class _SecurityFastAPI(FastAPI):
         stack = super().build_middleware_stack()
         if os.environ.get('MONL_SECURITY_HEADERS', 'on').strip().lower() == 'off':
             return stack
-        # Hors ServerErrorMiddleware : même les réponses 500 portent les en-têtes.
+        # Outside ServerErrorMiddleware: even 500 responses carry the headers.
         return _SecurityHeadersMiddleware(stack)
 '''
     return source.strip().splitlines() + ['']

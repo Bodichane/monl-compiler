@@ -15,7 +15,7 @@ class QuestionsMixin:
         if rendu:
             self._say(rendu)
 
-    # ---------- primitives de question (chacune valide et redemande) ----------
+    # ---------- question primitives (each one validates and asks again) ----------
     def _ask(self, prompt, validate, error_msg, kind="free_text", options=None,
              hints=None, title=None):
         # POINT 171: `kind` and `options` had always been received and NEVER

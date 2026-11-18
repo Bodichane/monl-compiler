@@ -31,8 +31,8 @@ NOMS_DE_CREDITS = ("CREDITS.json", "CREDITS.md", "CREDITS.txt", "credits.json")
 
 # ------------------------------------------------------------------ slug --
 def sluggify(texte):
-    """« Halo RS » → « halo-rs ». Un nom de fichier servi par un navigateur :
-    minuscules, ASCII, tirets. Retourne "" si rien d'utilisable ne reste."""
+    """"Halo RS" → "halo-rs". A file name served by a browser: lowercase,
+    ASCII, hyphens. Returns "" if nothing usable remains."""
     base = "".join(TRANSLITTERATIONS.get(c.lower(), c) for c in texte)
     base = unicodedata.normalize("NFKD", base)
     base = "".join(c for c in base if not unicodedata.combining(c))

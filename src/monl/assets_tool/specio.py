@@ -12,7 +12,7 @@ from ..parser import parse_monl_string
 from .fondations import AssetsToolError
 
 
-# ------------------------------------------------- lecture de la spec --
+# -------------------------------------------------- reading the spec --
 def _valider(texte, spec_path):
     """The real parser and the real validator, WITHOUT base_dir. On purpose.
 

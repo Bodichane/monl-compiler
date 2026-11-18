@@ -350,3 +350,26 @@ def test_le_gabarit_herite_upload_est_rafraichi_aussi(projet):
     dockerfile.write_text(DOCKERFILES_HERITES[1], encoding="utf-8")
     compile_project(str(projet / "spec.ml"), str(projet))
     assert '"serve:app"' in dockerfile.read_text(encoding="utf-8")
+
+
+def test_le_gabarit_herite_aux_commentaires_francais_est_rafraichi(projet):
+    """The requirements.txt form with French secret instructions was emitted
+    until the generated comments moved to English. A project compiled with it
+    and never edited must receive the current template — the inherited copy
+    is written out in full, so a single wrong byte in it would freeze every
+    such Dockerfile forever, silently (point 164)."""
+    import hashlib
+
+    from monl.cli import DOCKERFILES_HERITES
+    from monl.cli.nomenclature import DEFAULT_DOCKERFILE
+    ancien = DOCKERFILES_HERITES[-1]
+    # The fingerprint of the bytes REALLY emitted, taken from the template as
+    # it stood before the migration. Writing the inherited form into the
+    # project and checking it gets refreshed proves nothing about those
+    # bytes: a corrupted copy stays consistent with itself (measured).
+    assert hashlib.sha256(ancien.encode("utf-8")).hexdigest() == (
+        "8296f97a1cb627bc8420715306de7c69cb926153c06eba9809e532686ada93a7")
+    dockerfile = projet / "Dockerfile"
+    dockerfile.write_text(ancien, encoding="utf-8")
+    compile_project(str(projet / "spec.ml"), str(projet))
+    assert dockerfile.read_text(encoding="utf-8") == DEFAULT_DOCKERFILE

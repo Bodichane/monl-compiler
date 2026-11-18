@@ -12,7 +12,7 @@ class CreationRoutesMixin:
     """La route `Create`."""
 
     def _generate_create_route_lines(self, plan, context, act_type):
-        """Rend la famille de route ``Create``."""
+        """Renders the ``Create`` route family."""
         api_lines = []
         base_target = context["base_target"]
         tag = context["tag"]

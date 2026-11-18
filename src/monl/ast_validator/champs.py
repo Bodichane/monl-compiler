@@ -9,7 +9,7 @@ from .socle import ASTValidationError
 
 
 class ChampsMixin:
-    """Ce qu'un champ accepte, et ce qu'il montre."""
+    """What a field accepts, and what it shows."""
 
     # The grammar's four VALIDATION_TYPEs, and what they bound depending on the
     # field's type. Length for text, value for a number: it is the only natural
@@ -85,7 +85,7 @@ class ChampsMixin:
                 contraintes[type_regle] = True
                 continue
 
-            # 'min'/'max' : la grammaire n'accepte qu'un entier positif.
+            # 'min'/'max': the grammar only accepts a positive integer.
             try:
                 borne = int(rule.get("value"))
             except (TypeError, ValueError):

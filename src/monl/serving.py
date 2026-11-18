@@ -22,24 +22,24 @@ import sys
 from fastapi.staticfiles import StaticFiles
 from app import app
 
-# BRIQUE 13 (point 83) : les assets fournis par l'HUMAIN vivent hors de
-# frontend/, parce que ce dossier-là est renommé à chaque construction par
-# 'monl frontend' et que sa liste blanche n'accepte pas les .jpg — les photos
-# qu'on y déposait finissaient dans frontend.precedent/ sans un mot.
+# BRICK 13 (point 83): the assets supplied by the HUMAN live outside
+# frontend/, because that folder is renamed on every build by 'monl frontend'
+# and its allowlist does not accept .jpg — photos dropped there ended up in
+# frontend.precedent/ without a word.
 #
-# Le montage doit venir AVANT celui de /site : Starlette teste les routes dans
-# l'ordre d'enregistrement, et '/site' monté en premier absorberait
-# '/site/<dossier>/…' pour aller le chercher dans frontend/, où il n'est pas.
+# The mount must come BEFORE the /site one: Starlette tests routes in
+# registration order, and '/site' mounted first would swallow
+# '/site/<folder>/…' to look for it in frontend/, where it is not.
 _ASSETS_DIR = {assets_dir!r}
 if _ASSETS_DIR and os.path.isdir(_ASSETS_DIR):
     app.mount("/site/" + _ASSETS_DIR,
               StaticFiles(directory=_ASSETS_DIR), name="assets")
 
-# Le frontend est construit APRÈS la compilation ('monl frontend'), donc ce
-# wrapper est émis avant que frontend/ n'existe et doit démarrer quand même :
-# sinon l'image produite par 'monl compile' ne démarrerait pas du tout. Mais
-# l'absence est DITE — un /site en 404 silencieux est précisément le défaut
-# que ce wrapper existe pour empêcher.
+# The frontend is built AFTER compilation ('monl frontend'), so this wrapper
+# is emitted before frontend/ exists and must start anyway: otherwise the
+# image produced by 'monl compile' would not start at all. But the absence is
+# SAID — a silent 404 on /site is precisely the defect this wrapper exists to
+# prevent.
 if os.path.isdir("frontend"):
     app.mount("/site", StaticFiles(directory="frontend", html=True), name="site")
 else:

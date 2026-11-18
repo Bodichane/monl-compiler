@@ -15,7 +15,7 @@ class FonctionsAuthRuntimeMixin:
         lockout = features.get("lockout")
         if lockout:
             lines.extend([
-                *Template(r'''# --- VERROUILLAGE PAR COMPTE (brique B4) ---
+                *Template(r'''# --- PER-ACCOUNT LOCKOUT (brick B4) ---
 ACCOUNT_LOCKOUT_MAX_ATTEMPTS = ${max_attempts}
 ACCOUNT_LOCKOUT_WINDOW_SECONDS = ${window_seconds}
 def _account_lock_active(user_id):
@@ -229,8 +229,8 @@ def password_reset_request(req: PasswordResetRequest, request: Request):
         cursor.execute('INSERT INTO _monl_password_reset_tokens (token_hash, user_id, created_at, expires_at, used_at) VALUES (?, ?, ?, ?, NULL)', (token_hash, row[0], now, now + PASSWORD_RESET_TTL_SECONDS))
         conn.commit()
     else:
-        # Même travail cryptographique pour une adresse absente ;
-        # la réponse et le plancher de durée restent identiques.
+        # The same cryptographic work for a missing address; the
+        # response and the duration floor stay identical.
         hmac.compare_digest(token_hash, _DUMMY_RESET_HASH)
     conn.close()
     elapsed = time.perf_counter() - started

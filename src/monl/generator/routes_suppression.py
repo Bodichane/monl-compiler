@@ -118,7 +118,7 @@ class SuppressionRoutesMixin:
         return api_lines, restitutions
 
     def _generate_delete_route_lines(self, plan, context, act_type):
-        """Rend la famille de route ``Delete``."""
+        """Renders the ``Delete`` route family."""
         api_lines = []
         base_target = context["base_target"]
         tag = context["tag"]
@@ -236,7 +236,7 @@ class SuppressionRoutesMixin:
         return api_lines
 
     def _generate_execute_route_lines(self, plan, context, act_type):
-        """Rend la famille de route ``Execute``."""
+        """Renders the ``Execute`` route family."""
         api_lines = []
         target = context["target"]
         tag = context["tag"]

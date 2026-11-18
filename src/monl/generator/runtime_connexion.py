@@ -163,19 +163,15 @@ def _client_ip(request: Request) -> str:
             return fwd.split(',')[0].strip() or 'unknown'""").substitute().split("\n"),
             Template(r"""    return request.client.host if request.client else 'unknown'
 """).substitute(),
-            *Template(r"""# AJOUT (roadmap long terme, rate limiting multi-workers) : compteur
-# de tentatives persisté en base plutôt qu'en mémoire de processus,
-# pour que le quota soit partagé par tous les workers uvicorn/gunicorn
-# (voir _monl_rate_limit dans schema.sql). Fenêtre glissante :
-# on compte les tentatives récentes, on purge les anciennes, puis on
-# enregistre la tentative courante.
-# CORRECTIF (bêta 3, TOCTOU) : le comptage et l'enregistrement de la
-# tentative se faisaient en deux exécutions autocommit distinctes —
-# N requêtes parallèles lisaient toutes le même compteur avant que
-# l'une d'elles ne l'incrémente, et passaient donc toutes le quota.
-# Le tout est désormais dans une transaction en écriture immédiate :
-# SQLite sérialise les writers, le quota redevient exact, y compris
-# entre workers puisqu'il est persisté en base.
+            *Template(r"""# ADDED (long-term roadmap, multi-worker rate limiting): attempt counter persisted in the
+# database rather than in process memory, so that the quota is shared by all uvicorn/gunicorn
+# workers (see _monl_rate_limit in schema.sql). Sliding window: recent attempts are counted,
+# old ones purged, then the current attempt is recorded.
+# FIX (beta 3, TOCTOU): counting and recording the attempt happened in two separate autocommit
+# executions — N parallel requests all read the same counter before one of them incremented
+# it, and so all passed the quota. The whole thing is now in an immediate write transaction:
+# SQLite serializes the writers, the quota is exact again, including across workers since it
+# is persisted in the database.
 def _check_rate_limit(bucket: str, client_ip: str):
     now = datetime.datetime.now(datetime.timezone.utc).timestamp()
     cutoff = now - RATE_LIMIT_WINDOW_SECONDS
