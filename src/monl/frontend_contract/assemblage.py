@@ -24,14 +24,13 @@ def _contenu_et_regles(devise, entity_specs, normalized_ast, plans, prestataire,
     message_contracts = [
         {
             "trigger": f"{rule['trigger_entity']}.{rule['trigger_action']}",
-            "recipient": "le compte authentifié, via son identifiant email",
+            "recipient": "the authenticated account, through its email identifier",
             "subject": rule["subject"],
             "body": fondations.paragraphes(rule["body"]),
-            "delivery": "tentative asynchrone après commit, sans retry ni garantie de remise",
-            "note": ("Après le succès de la création, informer l'utilisateur "
-                     "qu'une tentative de message a été lancée. Ne pas "
-                     "promettre la remise ; les échecs sont journalisés "
-                     "côté serveur."),
+            "delivery": "asynchronous attempt after commit, with no retry and no delivery guarantee",
+            "note": ("After the creation succeeds, tell the user that a "
+                     "message attempt was started. Do not promise delivery; "
+                     "failures are logged server-side."),
         }
         for rule in sorted(
             plans.message_rules_by_trigger.values(),
@@ -121,7 +120,7 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
         # de page vide, et c'est très exactement ce qu'on répare.
         "links": [{"label": lien["label"], "url": lien["url"]}
                   for lien in (landing.get("links") or [])],
-        "source_of_truth": "spec monl (.ml) — ne jamais modifier le backend à la main",
+        "source_of_truth": "monl spec (.ml) — never modify the backend by hand",
         # AJOUT (brique 13, point 83) : les assets FOURNIS PAR L'HUMAIN. Le
         # contrat n'en disait rien, donc une IA d'interface ne pouvait pas savoir
         # qu'un logo existait — l'en-tête de la boutique de démonstration était
@@ -137,9 +136,9 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
             # smoke test, qui rejetait alors le frontend pour avoir suivi le
             # contrat à la lettre (point 51 du journal).
             "base_url": "",
-            "base_url_note": ("même origine que la page : appeler les routes "
-                              "en chemins relatifs (/entite), jamais d'URL "
-                              "absolue ni de port codé en dur"),
+            "base_url_note": ("same origin as the page: call the routes with "
+                              "relative paths (/entity), never an absolute "
+                              "URL or a hard-coded port"),
             "auth": auth_contract,
         },
         "actors": sorted(plans.actors),
@@ -154,14 +153,14 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
         "frontend_rules": {
             "output_dir": "frontend/",
             "entry_point": "frontend/index.html",
-            "served_at": "/site (par 'monl run', sans toucher app.py)",
-            "forbidden": ["modifier app.py, schema.sql, sandbox_ai.py, landing.html, "
-                          "dashboard.html ou la spec .ml",
-                          "appeler des chemins d'API absents de 'routes'",
-                          "envoyer un champ server_generated à la création"]
-                         + (["appeler POST /paiement/webhook : c'est la route "
-                             "du prestataire de paiement, elle exige une "
-                             "signature et refusera toute requête du navigateur"]
+            "served_at": "/site (by 'monl run', without touching app.py)",
+            "forbidden": ["modify app.py, schema.sql, sandbox_ai.py, landing.html, "
+                          "dashboard.html or the .ml spec",
+                          "call API paths absent from 'routes'",
+                          "send a server_generated field on creation"]
+                         + (["call POST /paiement/webhook: it is the payment "
+                             "provider's route, it requires a signature and "
+                             "will refuse any request from the browser"]
                             if payables else []),
         },
     }

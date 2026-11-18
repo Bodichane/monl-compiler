@@ -261,7 +261,7 @@ def test_une_commande_reglee_refuse_la_modification(application, alice):
                                  "courriel": "acheteuse@exemple.fr"})
 
     assert reponse.status_code == 409, reponse.text
-    assert "réglé" in reponse.json()["detail"]
+    assert "already paid" in reponse.json()["detail"]
     with _base(dossier) as cnx:
         assert cnx.execute('SELECT libelle FROM commande WHERE id = ?',
                            (identifiant,)).fetchone()[0] == "panier"
@@ -368,7 +368,7 @@ def test_un_webhook_signe_mais_vieux_est_refuse(application, alice):
     reponse = _webhook(base, identifiant, decalage=-600)
 
     assert reponse.status_code == 400, reponse.text
-    assert "expirée" in reponse.json()["detail"]
+    assert "Expired" in reponse.json()["detail"]
     assert _etat(dossier, identifiant) == "en_attente"
 
 

@@ -39,12 +39,12 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
     etages._validate_model_routing(project_dir, model_routes)
     if generate_images and image_provider is None:
         raise fondations.FrontendAIError(
-            "--generate-images exige un fournisseur d'images injectable.")
+            "--generate-images requires an injectable image provider.")
     if model_routes and not getattr(provider, "chunked_generation", False):
         declared = ", ".join(
             f"{target}={model}" for target, model in sorted(model_routes.items()))
-        say(" -> Routage par étage non appliqué : la voie monolithique ne comporte "
-            f"qu'un seul appel (correspondances déclarées : {declared}).")
+        say(" -> Per-stage routing not applied: the monolithic path makes only "
+            f"one call (declared mappings: {declared}).")
     run_id = uuid.uuid4().hex
     operation = ("retouche" if retouche_mode else
                  ("update" if update_mode else "construction"))
@@ -62,12 +62,12 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
     meilleure = None
     for attempt in (1, 2):
         if attempt == 2:
-            say(" -> Correction automatique : erreurs renvoyées au modèle (1 seule fois)…")
-            prompt = (prompt + "\n\n## ÉCHEC DE LA VÉRIFICATION — À CORRIGER\n"
-                      "Votre précédente réponse a échoué à la vérification monl :\n"
+            say(" -> Automatic correction: errors sent back to the model (once only)…")
+            prompt = (prompt + "\n\n## CHECK FAILED — TO FIX\n"
+                      "Your previous response failed the monl check:\n"
                       + "\n".join(f"- {e}" for e in last_errors)
-                      + "\nRendre une version corrigée, même format de réponse.")
-        say(f" -> Génération du frontend par l'IA (tentative {attempt}/2)…")
+                      + "\nReturn a corrected version, same response format.")
+        say(f" -> Frontend generation by the AI (attempt {attempt}/2)…")
         try:
             if getattr(provider, "chunked_generation", False):
                 files = etages._generate_chunked_files(
@@ -87,15 +87,15 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
                                        run_id=run_id)
                 files = reponse.parse_files_payload(raw)
         except fondations._ChunkOutputLimitError as exc:
-            last_errors = [f"échec de génération : {exc}"]
+            last_errors = [f"generation failed: {exc}"]
             say(f" ❌ {last_errors[0]}")
             return False, last_errors
         except fondations._ChunkGenerationError as exc:
-            last_errors = [f"échec de génération : {exc}"]
+            last_errors = [f"generation failed: {exc}"]
             say(f" ❌ {last_errors[0]}")
             return False, last_errors
         except fondations.FrontendAIError as exc:
-            last_errors = [f"échec de génération : {exc}"]
+            last_errors = [f"generation failed: {exc}"]
             say(f" ❌ {last_errors[0]}")
             continue
         reponse._write_files(project_dir, files)
@@ -104,10 +104,10 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
         # obligation vérifiable : les assets et marqueurs attendus entrent
         # ainsi dans la correction automatique avec les erreurs d'API.
         activate_asset_manifest(project_dir)
-        say(f" -> {len(files)} fichier(s) écrits dans frontend/ "
+        say(f" -> {len(files)} file(s) written in frontend/ "
             f"({', '.join(sorted(files))})")
 
-        say(" -> Re-vérification automatique (cohérence + smoke test)…")
+        say(" -> Automatic recheck (consistency + smoke test)…")
         ok, errors, warnings = check_coherence(project_dir)
         if ok:
             smoke_ok, smoke_errors, smoke_warnings = run_smoke_test(project_dir, say=say)
@@ -119,7 +119,7 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
         for w in warnings:
             say(f" ⚠️  {w}")
         if ok:
-            say(" ✅ Frontend généré et vérifié : l'ensemble est cohérent et fonctionne.")
+            say(" ✅ Frontend generated and verified: everything is consistent and works.")
             return True, []
         last_errors = errors
         for e in errors:
@@ -133,8 +133,8 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
             meilleure = (score, reponse._read_existing_frontend(project_dir), attempt,
                          list(errors))
         if image_failures:
-            say(" ❌ Livraison refusée : le manifeste reste l'autorité pour les "
-                "images planifiées ; relancez après disponibilité du fournisseur.")
+            say(" ❌ Delivery refused: the manifest remains the authority for the "
+                "planned images; run again once the provider is available.")
             return False, last_errors
 
     if meilleure is not None and meilleure[2] != attempt:
@@ -143,15 +143,15 @@ def generate_and_verify(project_dir, provider, update_mode=False, say=print,
         # rapporter celles de la tentative écartée décrirait un frontend qui
         # n'est plus sur le disque.
         last_errors = meilleure[3]
-        say(f" ↩  Tentative {meilleure[2]} restaurée : la correction a rendu un "
-            f"frontend plus dégradé ({score[0]} erreur(s) et {score[1]} "
-            f"avertissement(s), contre {meilleure[0][0]} et {meilleure[0][1]}). "
-            "Ce qui est conservé est le moins mauvais des deux, pas le dernier.")
+        say(f" ↩  Attempt {meilleure[2]} restored: the correction produced a "
+            f"more degraded frontend ({score[0]} error(s) and {score[1]} "
+            f"warning(s), against {meilleure[0][0]} and {meilleure[0][1]}). "
+            "What is kept is the less bad of the two, not the last one.")
         for e in last_errors:
             say(f" ❌ {e}")
-    say(" ❌ Le frontend généré échoue encore après correction — les fichiers "
-        "sont conservés dans frontend/ pour inspection, mais 'monl run' "
-        "refusera de lancer tant que le smoke test échoue.")
+    say(" ❌ The generated frontend still fails after correction — the files "
+        "are kept in frontend/ for inspection, but 'monl run' "
+        "will refuse to start while the smoke test fails.")
     return False, last_errors
 
 def _collect_from_directory(root):
@@ -164,8 +164,8 @@ def _collect_from_directory(root):
         if "index.html" in names:
             index_candidates.append(dirpath)
     if not index_candidates:
-        raise fondations.FrontendAIError("aucun 'index.html' trouvé dans la source — "
-                              "c'est le point d'entrée exigé par le contrat.")
+        raise fondations.FrontendAIError("no 'index.html' found in the source — "
+                              "it is the entry point the contract requires.")
     base = min(index_candidates, key=lambda p: len(os.path.relpath(p, root).split(os.sep)))
 
     files, skipped = {}, []
@@ -187,7 +187,7 @@ def load_frontend_source(source):
     Retourne ({chemin: contenu}, [fichiers ignorés])."""
     source = os.path.abspath(source)
     if not os.path.exists(source):
-        raise fondations.FrontendAIError(f"source introuvable : {source}")
+        raise fondations.FrontendAIError(f"source not found: {source}")
 
     if os.path.isdir(source):
         return _collect_from_directory(source)
@@ -201,7 +201,7 @@ def load_frontend_source(source):
                     norm = info.filename.replace("\\", "/")
                     # Protection zip-slip : rien ne sort du dossier d'extraction.
                     if norm.startswith("/") or ".." in norm.split("/"):
-                        raise fondations.FrontendAIError(f"archive refusée : chemin suspect '{info.filename}'")
+                        raise fondations.FrontendAIError(f"archive refused: suspicious path '{info.filename}'")
                 zf.extractall(tmp)
             return _collect_from_directory(tmp)
         finally:
@@ -215,8 +215,8 @@ def load_frontend_source(source):
         with open(source, encoding="utf-8", errors="replace") as fh:
             return reponse.parse_files_payload(fh.read()), []
 
-    raise fondations.FrontendAIError(f"format non reconnu : {os.path.basename(source)} "
-                          "(attendu : .zip, .html, dossier, ou JSON {'files': ...})")
+    raise fondations.FrontendAIError(f"unrecognized format: {os.path.basename(source)} "
+                          "(expected: .zip, .html, folder, or JSON {'files': ...})")
 
 def import_and_verify(project_dir, source, say=print):
     """'monl import' : installer la source dans frontend/ puis re-vérifier
@@ -231,23 +231,23 @@ def import_and_verify(project_dir, source, say=print):
     # conversation, elle est traitée comme une entrée non fiable.
     total = sum(len(c.encode("utf-8")) for c in files.values())
     if total > fondations.MAX_TOTAL_BYTES:
-        raise fondations.FrontendAIError(f"source trop volumineuse ({total} octets)")
+        raise fondations.FrontendAIError(f"source too large ({total} bytes)")
     if "index.html" not in files:
-        raise fondations.FrontendAIError("'index.html' absent après filtrage — point d'entrée obligatoire.")
+        raise fondations.FrontendAIError("'index.html' missing after filtering — required entry point.")
 
     frontend_dir = os.path.join(project_dir, "frontend")
     if os.path.isdir(frontend_dir):
         backup = frontend_dir + ".precedent"
         shutil.rmtree(backup, ignore_errors=True)
         os.rename(frontend_dir, backup)
-        say(" -> Frontend existant conservé dans frontend.precedent/ (rien n'est perdu).")
+        say(" -> Existing frontend kept in frontend.precedent/ (nothing is lost).")
     reponse._write_files(project_dir, files)
     activate_asset_manifest(project_dir)
-    say(f" -> {len(files)} fichier(s) installés dans frontend/ ({', '.join(sorted(files))})")
+    say(f" -> {len(files)} file(s) installed in frontend/ ({', '.join(sorted(files))})")
     for rel in skipped:
-        say(f" ⚠️  ignoré (extension hors liste blanche .html/.css/.js/.svg/.json) : {rel}")
+        say(f" ⚠️  ignored (extension outside the .html/.css/.js/.svg/.json allowlist): {rel}")
 
-    say(" -> Re-vérification automatique (cohérence + smoke test)…")
+    say(" -> Automatic recheck (consistency + smoke test)…")
     ok, errors, warnings = check_coherence(project_dir)
     if ok:
         smoke_ok, smoke_errors, smoke_warnings = run_smoke_test(project_dir, say=say)
@@ -256,11 +256,11 @@ def import_and_verify(project_dir, source, say=print):
     for w in warnings:
         say(f" ⚠️  {w}")
     if ok:
-        say(" ✅ Frontend importé et vérifié : 'monl run' est prêt.")
+        say(" ✅ Frontend imported and verified: 'monl run' is ready.")
         return True, []
     for e in errors:
         say(f" ❌ {e}")
-    say(" ❌ Vérification échouée. Recollez les erreurs ci-dessus dans votre "
-        "conversation Claude, demandez un correctif, puis réimportez "
-        "(les fichiers restent dans frontend/ pour inspection).")
+    say(" ❌ Check failed. Paste the errors above back into your Claude "
+        "conversation, ask for a fix, then import again "
+        "(the files stay in frontend/ for inspection).")
     return False, errors

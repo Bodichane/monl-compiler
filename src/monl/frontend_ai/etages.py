@@ -40,17 +40,17 @@ def _parse_model_routing(declarations):
     for declaration in declarations or []:
         if not isinstance(declaration, str):
             raise fondations.FrontendAIError(
-                "routage de modèle invalide : la forme attendue est CIBLE=MODELE.")
+                "invalid model routing: the expected form is TARGET=MODEL.")
         target, separator, model = declaration.partition("=")
         target = target.strip().replace("\\", "/")
         model = model.strip()
         if not separator or not target or not model:
             raise fondations.FrontendAIError(
-                f"routage de modèle invalide : {declaration!r} — "
-                "la forme attendue est CIBLE=MODELE.")
+                f"invalid model routing: {declaration!r} — "
+                "the expected form is TARGET=MODEL.")
         if target in routes:
             raise fondations.FrontendAIError(
-                f"cible répétée dans le routage des modèles : {target!r}.")
+                f"target repeated in the model routing: {target!r}.")
         routes[target] = model
     return routes
 
@@ -65,8 +65,8 @@ def _validate_model_routing(project_dir, routes):
         rendered = ", ".join(repr(target) for target in unknown)
         known_targets = ", ".join(sorted(known))
         raise fondations.FrontendAIError(
-            f"cible inconnue dans le routage des modèles : {rendered}. "
-            f"Cibles connues : {known_targets}.")
+            f"unknown target in the model routing: {rendered}. "
+            f"Known targets: {known_targets}.")
 
 def _provider_for_chunk(provider, target, routes, provider_factory):
     """Retourne le provider global ou celui construit pour une cible."""
@@ -75,8 +75,8 @@ def _provider_for_chunk(provider, target, routes, provider_factory):
         return provider
     if provider_factory is None:
         raise fondations.FrontendAIError(
-            f"routage déclaré pour frontend/{target}, mais aucun constructeur "
-            "de provider n'est disponible.")
+            f"routing declared for frontend/{target}, but no provider "
+            "builder is available.")
     return provider_factory(model)
 
 def _chunk_context(files, target=None):
@@ -94,22 +94,22 @@ def _chunk_context(files, target=None):
             continue
         if path == "index.html":
             content = squelette._html_selector_skeleton(files[path])
-            label = "squelette HTML (structure, class, id et data-*)"
+            label = "HTML skeleton (structure, class, id and data-*)"
         else:
             # Le JS ne dépend pas des propriétés CSS : les sélecteurs déclarés
             # suffisent à conserver les mêmes points d'accroche sans repayer
             # les règles et leurs valeurs, souvent beaucoup plus longues.
             content = squelette._css_selector_skeleton(files[path])
-            label = "sélecteurs CSS déclarés (sans les règles)"
+            label = "declared CSS selectors (without the rules)"
         morceaux.append(f"### frontend/{path} — {label}\n```\n{content}\n```")
 
     # Le contenu d'un SVG ne sert ni aux sélecteurs CSS ni aux branchements JS.
     # Son chemin suffit pour que les morceaux suivants le référencent.
     for path in sorted(path for path in files if path.endswith(".svg")):
         morceaux.append(
-            f"### frontend/{path}\n(fichier SVG déjà produit ; le nom suffit)"
+            f"### frontend/{path}\n(SVG file already produced; the name is enough)"
         )
-    return "\n\n".join(morceaux) or "(aucun fichier généré pour le moment)"
+    return "\n\n".join(morceaux) or "(no file generated yet)"
 
 def _chunk_response_reached_limit(provider):
     """Indique si le fournisseur a consommé tout son plafond de sortie."""
@@ -146,20 +146,20 @@ def _generate_chunked_files(project_dir, provider, base_prompt, operation,
         stage_provider = _provider_for_chunk(
             provider, target, model_routes, provider_factory)
         initial_output_limit = getattr(stage_provider, "max_output_tokens", None)
-        say(f" -> Génération de frontend/{target}…")
+        say(f" -> Generating frontend/{target}…")
         try:
             for retry in range(fournisseurs.CHUNK_MAX_RETRIES + 1):
                 if retry:
-                    say(f" -> Reprise de frontend/{target} "
+                    say(f" -> Retrying frontend/{target} "
                         f"({retry}/{fournisseurs.CHUNK_MAX_RETRIES})…")
                 chunk_prompt = _build_chunk_prompt(base_prompt, target, files,
                                                    ampleur)
                 if retry:
                     chunk_prompt += (
-                        "\n\n## Reprise de génération\n"
-                        "La réponse précédente pour ce fichier était illisible. "
-                        "Rends à nouveau le fichier complet dans un JSON fermé, "
-                        "sans reprendre une réponse tronquée."
+                        "\n\n## Generation retry\n"
+                        "The previous response for this file was unreadable. "
+                        "Return the complete file again in a closed JSON, "
+                        "without resuming a truncated response."
                     )
                 # Un appel en erreur ne doit pas réutiliser le compteur d'un appel
                 # précédent. Le fournisseur peut néanmoins renseigner last_usage
@@ -189,18 +189,18 @@ def _generate_chunked_files(project_dir, provider, base_prompt, operation,
                     enlarged = _raise_chunk_output_limit(stage_provider)
                     if not enlarged:
                         raise fondations._ChunkOutputLimitError(
-                            f"frontend/{target} : le modèle tronque encore au plafond "
-                            f"maximal de sortie "
-                            f"({fournisseurs.CHUNK_RETRY_MAX_OUTPUT_TOKENS} jetons) ; "
-                            "aucune seconde tentative complète ne sera lancée, car "
-                            "elle rejouerait la même configuration condamnée. "
-                            f"Dernière erreur : {error}") from error
+                            f"frontend/{target}: the model still truncates at the maximum "
+                            f"output ceiling "
+                            f"({fournisseurs.CHUNK_RETRY_MAX_OUTPUT_TOKENS} tokens); "
+                            "no second complete attempt will be started, since "
+                            "it would replay the same doomed configuration. "
+                            f"Last error: {error}") from error
                 if retry == fournisseurs.CHUNK_MAX_RETRIES:
                     raise fondations._ChunkGenerationError(
-                        f"frontend/{target} : échec après "
-                        f"{fournisseurs.CHUNK_MAX_RETRIES} reprise(s) ; aucune seconde tentative "
-                        "complète ne sera lancée. "
-                        f"Dernière erreur : {error}") from error
+                        f"frontend/{target}: failed after "
+                        f"{fournisseurs.CHUNK_MAX_RETRIES} retry(ies); no second complete "
+                        "attempt will be started. "
+                        f"Last error: {error}") from error
         finally:
             # Une hausse accordée à un fichier tronqué ne doit pas augmenter le
             # coût de tous les fichiers suivants partageant le même fournisseur.
@@ -239,11 +239,11 @@ def _build_chunk_prompt(base_prompt, target, files, ampleur=None):
     asset_rule = ""
     if planned_assets:
         asset_rule = (
-            "\nAssets graphiques obligatoires de cette construction : "
+            "\nRequired graphic assets for this build: "
             + ", ".join(planned_assets)
-            + ". Ces images matricielles sont déjà écrites hors de frontend/. "
-            "Référence exactement ces noms ; ne crée ni ne référence un autre "
-            "fichier graphique local.\n"
+            + ". These raster images are already written outside frontend/. "
+            "Reference exactly these names; do not create or reference any "
+            "other local graphic file.\n"
         )
     index_tokens = _budget(INDEX_SOCLE_TOKENS, INDEX_TOKENS_PAR_ROUTE,
                            ampleur, 1_600)
@@ -255,65 +255,64 @@ def _build_chunk_prompt(base_prompt, target, files, ampleur=None):
     plancher = ""
     if ampleur:
         plancher = (
-            f" Ce contrat porte {ampleur['routes']} routes sur "
-            f"{ampleur['entites']} entités : un fichier qui n'en appelle que "
-            "deux ou trois sera REFUSÉ. Chaque parcours déclaré doit avoir son "
-            "point d'entrée."
+            f" This contract carries {ampleur['routes']} routes over "
+            f"{ampleur['entites']} entities: a file that calls only two or "
+            "three of them will be REFUSED. Each declared flow must have its "
+            "entry point."
         )
     instructions = {
         "index.html": (
-            "Produis maintenant uniquement frontend/index.html. Construis la "
-            "structure complète de l'application et de son parcours principal, "
-            "ses états vides/chargement/erreur, ses zones de formulaire, de "
-            "contenu et de compte selon le contrat, puis charge styles.css et "
-            "app.js avec des chemins locaux. Donne à chaque section obligatoire "
-            "une vraie structure et un texte utile ; ne remplace pas le brief "
-            f"par trois cartes génériques. Vise environ {index_tokens} tokens. "
-            f"Limite dure : termine avant {index_tokens * 4} caractères."
+            "Now produce only frontend/index.html. Build the complete "
+            "structure of the application and of its main flow, its "
+            "empty/loading/error states, its form, content and account areas "
+            "according to the contract, then load styles.css and app.js with "
+            "local paths. Give each required section a real structure and "
+            "useful text; do not replace the brief with three generic cards. "
+            f"Aim for about {index_tokens} tokens. "
+            f"Hard limit: finish before {index_tokens * 4} characters."
             + asset_rule
         ),
         "styles.css": (
-            "Produis maintenant uniquement frontend/styles.css. Donne un "
-            "style complet, dense, responsive et accessible à la structure "
-            "index.html ; ne remplace pas le CSS par une librairie externe. "
-            "Vise environ 2 000 tokens et réutilise les "
-            "sélecteurs plutôt que de dupliquer les règles. Limite dure : "
-            "termine le JSON avant 16 000 caractères."
+            "Now produce only frontend/styles.css. Give the index.html "
+            "structure a complete, dense, responsive and accessible style; "
+            "do not replace the CSS with an external library. "
+            "Aim for about 2,000 tokens and reuse "
+            "selectors rather than duplicating rules. Hard limit: "
+            "finish the JSON before 16,000 characters."
             + asset_rule
         ),
         "app.js": (
-            "Produis maintenant uniquement frontend/app.js. Implémente les "
-            "interactions et les appels aux routes autorisées du contrat, "
-            "avec états de chargement, erreur, formulaires et authentification "
-            "adaptés au type d'application ; n'invente aucune route. Implémente "
-            "les états locaux et les messages près des champs, sans sacrifier "
-            "les parcours principaux. Les valeurs de `dataset.*` sont des "
-            "chaînes : convertir avec Number() avant de les comparer aux IDs "
-            "numériques de l'API, puis vérifier mentalement les clics Créer, "
-            f"Modifier et Supprimer.{plancher} Vise environ {app_tokens} tokens "
-            f"et factorise le code. Limite dure : termine avant "
-            f"{app_tokens * 4} caractères."
+            "Now produce only frontend/app.js. Implement the interactions "
+            "and the calls to the contract's allowed routes, with loading, "
+            "error, form and authentication states suited to the type of "
+            "application; invent no route. Implement local states and "
+            "messages next to the fields, without sacrificing the main "
+            "flows. `dataset.*` values are strings: convert them with "
+            "Number() before comparing them with the API's numeric IDs, then "
+            "mentally check the Create, Edit and Delete clicks."
+            f"{plancher} Aim for about {app_tokens} tokens "
+            f"and factor the code. Hard limit: finish before "
+            f"{app_tokens * 4} characters."
             + asset_rule
         ),
     }
     if target.endswith(".svg"):
         instructions[target] = (
-            f"Produis maintenant uniquement frontend/{target}. Crée une "
-            "illustration SVG originale, légère et autonome, cohérente avec "
-            "le brief. Utilise un viewBox, des formes vectorielles lisibles "
-            "et des couleurs définies dans le SVG ; aucun href externe, aucune "
-            "image raster distante, aucun texte qui remplace l'illustration. "
-            "Le fichier doit être un SVG valide et complet."
+            f"Now produce only frontend/{target}. Create an original, light, "
+            "self-contained SVG illustration consistent with the brief. Use "
+            "a viewBox, readable vector shapes and colors defined in the SVG; "
+            "no external href, no remote raster image, no text replacing the "
+            "illustration. The file must be a valid, complete SVG."
         )
     return (
         f"{base_prompt}\n\n"
-        "## Génération séquentielle — une seule pièce à la fois\n"
+        "## Sequential generation — one piece at a time\n"
         f"{instructions[target]}\n"
-        f"Le fichier cible est exactement : {target}\n"
-        "Réponds UNIQUEMENT avec un objet JSON de cette forme, sans Markdown :\n"
-        f'{{"files": {{"{target}": "contenu complet du fichier"}}}}\n'
-        "Ne rends aucun autre fichier, ne tronque pas le contenu et ne mets "
-        "jamais de commentaire hors JSON.\n\n"
-        "## Fichiers déjà générés — à respecter\n"
+        f"The target file is exactly: {target}\n"
+        "Answer ONLY with a JSON object of this shape, without Markdown:\n"
+        f'{{"files": {{"{target}": "complete file content"}}}}\n'
+        "Return no other file, do not truncate the content and never put "
+        "a comment outside the JSON.\n\n"
+        "## Files already generated — to respect\n"
         f"{_chunk_context(files, target)}"
     )

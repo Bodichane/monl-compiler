@@ -243,11 +243,11 @@ migration note_fields
 
         returncode, output = _serve_expected_failure(workdir)
         assert returncode != 0
-        assert "Schéma non additif détecté" in output
-        assert "renommage non appliqué" in output
-        assert "type de note.priority" in output
-        assert "colonne retirée" in output
-        assert "base ne sera pas servie" in output
+        assert "Non-additive schema detected" in output
+        assert "rename not applied" in output
+        assert "type of note.priority" in output
+        assert "column removed from the spec" in output
+        assert "the database will not be served" in output
 
         migrate = subprocess.run(
             [sys.executable, "-m", "monl.cli", "migrate", workdir,
@@ -256,7 +256,7 @@ migration note_fields
             capture_output=True, text=True, check=False,
         )
         assert migrate.returncode == 0, migrate.stdout + migrate.stderr
-        assert "Migration 'note_fields' (up) appliquée" in migrate.stdout
+        assert "Migration 'note_fields' (up) applied" in migrate.stdout
 
         subprocess.run(
             [sys.executable, "-c", (
@@ -370,7 +370,7 @@ migration broken
             text=True, check=False,
         )
         assert failed.returncode != 0
-        assert "Précondition du changement de type" in failed.stdout
+        assert "Precondition of the type change" in failed.stdout
         subprocess.run(
             [sys.executable, "-c", (
                 "import app; c=app._connect(); info=c.execute('PRAGMA table_info(\\\"note\\\")').fetchall(); "
@@ -380,7 +380,7 @@ migration broken
             )], cwd=workdir, check=True,
         )
         returncode, output = _serve_expected_failure(workdir)
-        assert returncode != 0 and "base ne sera pas servie" in output
+        assert returncode != 0 and "the database will not be served" in output
 
 
 def test_manage_py_nomme_le_remede_au_lieu_de_dechirer_une_trace():

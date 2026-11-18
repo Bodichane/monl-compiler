@@ -79,6 +79,16 @@ def _section_substance(contract: dict, profile: dict) -> dict[str, dict]:
         regles[marker] = rule_for(slug, longueurs.get(marker))
     return regles
 
+# Les deux langues : un manifeste écrit avant la migration anglaise porte
+# encore le rôle français, et doit continuer à placer son image.
+ROLE_BANDEAU = ("main banner", "bandeau principal")
+ROLE_VIGNETTE = ("secondary thumbnail", "vignette secondaire")
+
+
+def _role_est(role, formes):
+    return any(forme in role for forme in formes)
+
+
 def _generated_image_block_markers(contract: dict, profile: dict,
                                    generated: list[dict]) -> list[str | None]:
     """Retourne une précision de section, quand le rôle peut en recevoir une.
@@ -103,9 +113,9 @@ def _generated_image_block_markers(contract: dict, profile: dict,
     used = set()
     for item in generated:
         role = str(item.get("role") or "").casefold()
-        if "bandeau principal" in role:
+        if _role_est(role, ROLE_BANDEAU):
             candidates = [hero_marker]
-        elif "vignette secondaire" in role:
+        elif _role_est(role, ROLE_VIGNETTE):
             candidates = declared_sections + fallback_sections + [
                 marker for marker in required
                 if marker.startswith('data-monl-section="')

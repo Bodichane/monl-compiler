@@ -89,15 +89,16 @@ def test_brief_express_autorise_textes_blocs_et_images_matricielles_locales(tmp_
     spec.write_text(spec_text, encoding="utf-8")
     compile_project(str(spec), str(proj))
     prompt = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
-    assert "Mode express" in prompt
-    assert "page dense en blocs réellement utiles" in prompt
+    assert "Express mode" in prompt
+    assert "page dense with genuinely useful blocks" in prompt
     # Renversement explicite : le texte peut organiser la page, mais les
     # octets d'une image sont désormais produits par le fournisseur image et
     # écrits dans assets/ avant l'appel au modèle texte.
-    assert "images matricielles" in prompt
-    assert "ne pas tenter de produire ses octets" in prompt
+    assert "raster images" in prompt
+    assert "do not try to produce its bytes" in " ".join(prompt.split())
     assert "illustrations `.svg` originales" not in prompt
-    assert "Ne jamais fabriquer côté navigateur de faux produits" in prompt
+    assert "original `.svg` illustrations" not in prompt
+    assert "Never fabricate in the browser fake products" in prompt
 
 
 def test_contrat_correspond_aux_routes_reelles_de_app_py(tmp_path):
@@ -126,7 +127,7 @@ def test_contrat_impose_la_meme_origine_jamais_un_port_code_en_dur(tmp_path):
     brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     absolue = re.findall(r"`https?://[^`]+`", brief)
     assert not absolue, f"le brief impose encore une URL absolue : {absolue}"
-    assert "RELATIFS" in brief
+    assert "RELATIVE" in brief
 
 
 def test_champs_du_contrat_marquent_requis(tmp_path):
@@ -394,9 +395,9 @@ def test_le_brief_transmet_la_forme_conseillee(tmp_path):
     proj = tmp_path / "formes"
     _contrat_archetypes(tmp_path)
     brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
-    assert "Forme conseillée : galerie" in brief
-    assert "Forme conseillée : boutique" in brief
-    assert "MÉDIA" in brief and "TITRE" in brief
+    assert "Suggested form: gallery" in brief
+    assert "Suggested form: shop" in brief
+    assert "MEDIA" in brief and "TITLE" in brief
 
 
 # ---- Le contenu éditorial traverse jusqu'au brief (point 55) ----
@@ -422,7 +423,7 @@ def test_contenu_editorial_transmis_tel_quel(tmp_path):
     # Le texte doit arriver INTACT : c'est du contenu, pas une consigne de
     # style que l'IA pourrait reformuler.
     assert "Atelier fondé en 2015, spécialisé dans la pièce unique." in brief
-    assert "publier tel quel" in brief
+    assert "publish as is" in brief
 
 
 def test_sans_section_aucun_bloc_editorial_dans_le_brief(tmp_path):
@@ -567,7 +568,7 @@ def test_le_brief_annonce_le_corps_attendu(tmp_path):
     (proj / "spec.ml").write_text(SPEC_DEUX_PARENTS, encoding="utf-8")
     compile_project(str(proj / "spec.ml"), str(proj))
     brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
-    assert "corps : `{content, article_id}`" in brief
+    assert "body: `{content, article_id}`" in brief
 
 
 def test_une_route_de_navigation_n_est_pas_un_chemin_hors_contrat(tmp_path):
@@ -596,9 +597,9 @@ def test_le_contenu_editorial_est_exige_sur_la_page_d_accueil(tmp_path):
     (proj / "spec.ml").write_text(SPEC_EDITORIALE, encoding="utf-8")
     compile_project(str(proj / "spec.ml"), str(proj))
     brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
-    assert "page d'accueil, pas seulement derrière un lien" in brief
+    assert "home page, not only behind a link" in brief
     # Un texte long garde le droit d'avoir sa propre page EN PLUS.
-    assert "se prolonger sur sa propre page" in brief
+    assert "continue on its own page" in brief
 
 
 def test_le_brief_donne_l_anatomie_et_les_voisins(tmp_path):
@@ -610,11 +611,11 @@ def test_le_brief_donne_l_anatomie_et_les_voisins(tmp_path):
     proj = tmp_path / "formes"
     _contrat_archetypes(tmp_path)
     brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
-    assert "Proche de :" in brief
-    assert "Ce qu'un visiteur s'attend à y trouver" in brief
+    assert "Close to:" in brief
+    assert "What a visitor expects to find there" in brief
     # Chaque forme apporte ses propres attentes, jamais une liste unique.
-    assert "prix et disponibilité visibles sans défiler" in brief   # shop
-    assert "un visuel dominant" in brief                            # gallery
+    assert "price and availability visible without scrolling" in brief   # shop
+    assert "a dominant visual" in brief                                 # gallery
 
 
 def test_la_disponibilite_n_est_pas_une_donnee_secondaire(tmp_path):
@@ -640,7 +641,7 @@ workflow W for Admin
     contract = compile_project(str(proj / "spec.ml"), str(proj))
     roles = {f["name"]: f["role"] for f in contract["entities"]["Product"]["fields"]}
     assert roles["stock"] == "stock"
-    assert "DISPONIBILITÉ" in (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
+    assert "AVAILABILITY" in (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
 
 
 # ------------------------------------------- paiement (point 74) ------------
@@ -715,14 +716,14 @@ def test_le_brief_dit_comment_regler_et_de_ne_pas_appeler_le_webhook(tmp_path):
     proj, _contract = _projet_payable(tmp_path)
     brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
     assert "POST /commande/{id}/paiement" in brief
-    assert "AUCUN corps" in brief and "montant_centimes" in brief
-    assert "jamais par le frontend" in brief
+    assert "NO body" in brief and "montant_centimes" in brief
+    assert "never by the frontend" in brief
     # Et pas seulement dans l'inventaire des routes : le règlement est le seul
     # parcours du frontend où une erreur coûte de l'argent, il figure dans les
     # règles non négociables, que l'IA lit avant la liste.
-    regles = brief.split("## Entités")[0].split("## Règles non négociables")[1]
-    assert "sans aucun corps" in regles
-    assert "Ne JAMAIS appeler `POST /paiement/webhook`" in regles
+    regles = brief.split("## Entities")[0].split("## Non-negotiable rules")[1]
+    assert "with no body at all" in regles
+    assert "NEVER call `POST /paiement/webhook`" in regles
 
 
 def test_sans_payable_le_brief_ne_parle_jamais_de_paiement(tmp_path):
@@ -940,9 +941,9 @@ def test_une_cle_de_compte_dit_comment_retrouver_la_fiche(tmp_path):
     lien = next(li for li in contrat["entities"]["Commande"]["foreign_keys"]
                 if li["column"] == "client_id")
     assert lien["references_account"] is True
-    assert "COMPTE" in lien["note"]
-    assert "`client_id` vaut cette même valeur" in lien["note"]
-    assert "jamais celui dont `id`" in lien["note"]
+    assert "ACCOUNT" in lien["note"]
+    assert "`client_id` has this same value" in lien["note"]
+    assert "never the one whose `id`" in lien["note"]
 
 
 def test_le_delta_signale_un_role_nouvellement_autorise(tmp_path, capsys):
@@ -1066,7 +1067,7 @@ def test_le_delta_signale_un_prealable_ajoute(tmp_path, capsys):
     sortie = capsys.readouterr().out
 
     assert "no interface changes" not in sortie, sortie
-    assert "prerequisite added: POST /commande → exige un Client" in sortie, sortie
+    assert "prerequisite added: POST /commande → requires a Client" in sortie, sortie
     # Rien d'autre n'a bougé : c'est bien la CONDITION seule qui change.
     assert "route added" not in sortie, sortie
     assert "field added" not in sortie, sortie
@@ -1153,7 +1154,7 @@ VERROU_PAYABLE = "rule Commande.total payable\n"
 # le VERROU des autres lectures de `payment_status` — notamment celle de la
 # route de règlement, qui refuse un second paiement pour une raison à elle,
 # déjà décrite dans sa propre note.
-GARDE_VERROU = "déjà réglé : un enregistrement encaissé"
+GARDE_VERROU = "already paid: a charged record"
 
 
 def _routes_verrouillees_dans_app(app_code):
@@ -1199,7 +1200,7 @@ def test_le_contrat_porte_tous_les_verrous_reellement_generes(tmp_path):
     # sert à l'IA, qui ne lit que le brief.
     for route in contract["routes"]:
         if route.get("payment_locked"):
-            assert "VERROU" in (route.get("note") or ""), route["path"]
+            assert "LOCK" in (route.get("note") or ""), route["path"]
 
 
 def test_sans_payable_aucune_route_n_est_verrouillee(tmp_path):
@@ -1237,9 +1238,9 @@ def test_le_delta_signale_un_verrou_de_paiement(tmp_path, capsys):
     sortie = capsys.readouterr().out
 
     assert "no interface changes" not in sortie, sortie
-    assert "payment lock: PUT /commande/{id} → figé une fois Commande réglé" \
+    assert "payment lock: PUT /commande/{id} → frozen once Commande is paid" \
         in sortie, sortie
-    assert "payment lock: POST /ligne → figé une fois Commande réglé" \
+    assert "payment lock: POST /ligne → frozen once Commande is paid" \
         in sortie, sortie
     brief = (proj / "docs/FRONTEND_UPDATE_PROMPT.md").read_text(encoding="utf-8")
     assert "PAYMENT LOCKS" in brief
@@ -1325,8 +1326,8 @@ def test_le_brief_dit_que_la_faq_est_une_liste_et_jamais_un_paragraphe(tmp_path)
     prose qu'on répare."""
     proj, _contract = _projet_faq(tmp_path)
     brief = (proj / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
-    assert "Questions fréquentes — une LISTE" in brief
-    assert "Jamais en un seul paragraphe" in brief
+    assert "Frequently asked questions — a LIST" in brief
+    assert "Never as a single paragraph" in brief
     assert "**Comment choisir ma taille ?**" in brief
     assert "Nos paires taillent normalement." in brief
 
@@ -1375,8 +1376,8 @@ def test_le_delta_signale_une_question_ajoutee_et_un_texte_reecrit(tmp_path, cap
     sortie = capsys.readouterr().out
 
     assert "no interface changes" not in sortie, sortie
-    assert "content added: question « Livrez-vous en Europe ? »" in sortie, sortie
-    assert "content rewritten: section « À propos »" in sortie, sortie
+    assert "content added: question “Livrez-vous en Europe ?”" in sortie, sortie
+    assert "content rewritten: section “À propos”" in sortie, sortie
     # Rien d'autre n'a bougé : ni route, ni champ.
     assert "route added" not in sortie, sortie
     assert "field added" not in sortie, sortie

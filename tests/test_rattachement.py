@@ -277,10 +277,10 @@ def test_le_delta_voit_le_changement_de_nature(tmp_path, capsys):
     liens_metier = _contract_signature(contrat_metier)[7]
     liens_acteur = _contract_signature(contrat_acteur)[7]
     assert liens_metier != liens_acteur
-    assert any("produit_id" in li and "à envoyer par le client" in li
+    assert any("produit_id" in li and "to be sent by the client" in li
                for li in liens_metier)
-    assert any("client_id" in li and "identifiant de compte" in li
-               and "renseigné par le serveur" in li for li in liens_acteur)
+    assert any("client_id" in li and "account identifier" in li
+               and "filled by the server" in li for li in liens_acteur)
 
 
 # --------------------------------------------------------------------------
@@ -558,7 +558,7 @@ def test_le_plancher_tient_par_variante(boutique):
                            {"quantite": 3, "commande_id": commande["id"],
                             "variante_id": variante["id"]}, client)
     assert code == 409
-    assert "insuffisant" in json.dumps(reponse)
+    assert "insufficient" in json.dumps(reponse)
     _, apres = _appel(f"{base}/variante/{variante['id']}")
     assert apres["data"]["stock"] == 2, "un refus ne doit rien avoir consommé"
 

@@ -222,7 +222,7 @@ class LectureRoutesMixin:
         api_lines.append("    row = cursor.fetchone()")
         api_lines.append("    _columns = [d[0] for d in cursor.description]  # ordre réel en base (robuste aux migrations)")
         api_lines.append("    conn.close()")
-        api_lines.append("    if not row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')")
+        api_lines.append("    if not row: raise HTTPException(status_code=404, detail='Record not found')")
         api_lines.append("    named_row = dict(zip(_columns, row))")
         if public_condition:
             # POINT 116 : mêmes exemptions qu'en liste, sans quoi le
@@ -243,7 +243,7 @@ class LectureRoutesMixin:
                         f"== _ident.get('user_id'))")
                 garde += " and not (" + " or ".join(exemptions) + ")"
             api_lines.append(
-                garde + ": raise HTTPException(status_code=404, detail='Enregistrement introuvable')")
+                garde + ": raise HTTPException(status_code=404, detail='Record not found')")
         if apply_read_owner:
             # 404 et non 403 : sur une entité dont les identifiants sont
             # séquentiels, un 403 confirmerait l'existence de
@@ -266,12 +266,12 @@ class LectureRoutesMixin:
                     f"        _tcur.execute({_sql_lit}, {_params_lit})",
                     "        _tr = _tcur.fetchone(); _tc.close()",
                     "        if not _tr or _tr[0] is None or _tr[0] != current_user_id:",
-                    "            raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
+                    "            raise HTTPException(status_code=404, detail='Record not found')",
                 ]
             else:
                 api_lines.append(f"    if current_actor == \"{read_actor}\" and "
                                  f"named_row.get('{read_owner.lower()}_id') != current_user_id:")
-                api_lines.append("        raise HTTPException(status_code=404, detail='Enregistrement introuvable')")
+                api_lines.append("        raise HTTPException(status_code=404, detail='Record not found')")
         if apply_read_parties:
             # La vérification se fait AVANT le masquage 'hidden' :
             # une colonne de partie peut légitimement être masquée
@@ -281,10 +281,10 @@ class LectureRoutesMixin:
                 _superset = ", ".join(f'"{s}"' for s in read_supers)
                 api_lines.append(f"    if current_actor not in {{{_superset}}}:")
                 api_lines.append(f"        if current_user_id not in ({parties_tuple}):")
-                api_lines.append("            raise HTTPException(status_code=403, detail=\"Contrôle d'accès : seules les parties de la ressource peuvent la consulter\")")
+                api_lines.append("            raise HTTPException(status_code=403, detail=\"Access control: only the resource's parties can read it\")")
             else:
                 api_lines.append(f"    if current_user_id not in ({parties_tuple}):")
-                api_lines.append("        raise HTTPException(status_code=403, detail=\"Contrôle d'accès : seules les parties de la ressource peuvent la consulter\")")
+                api_lines.append("        raise HTTPException(status_code=403, detail=\"Access control: only the resource's parties can read it\")")
         if masked:
             api_lines.append(f"    for _f in [{mask_literal}]: named_row.pop(_f, None)")
         for cf in categorized_here:

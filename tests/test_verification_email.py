@@ -91,8 +91,8 @@ def _token(smtp, account, count):
     assert messages
     body = messages[-1].get_content()
     assert 'https://example.test/site/confirmation?token=' in body
-    assert messages[-1]['Subject'] == 'Confirmation de votre adresse e-mail'
-    return re.search(r'jeton : ([A-Za-z0-9_-]+)', body)[1]
+    assert messages[-1]['Subject'] == 'Confirm your email address'
+    return re.search(r'token: ([A-Za-z0-9_-]+)', body)[1]
 
 def _register_two(base, smtp, actor="User"):
     _register_two.responses = []
@@ -126,7 +126,7 @@ def _assert_login(base):
         wrong = _login(base, account, 'mot-de-passe-faux')
         missing = _login(base, 'absent@example.test', 'mot-de-passe-faux')
         assert wrong.status_code == missing.status_code == 401
-        assert wrong.json() == missing.json() == {'detail': 'Identifiants invalides.'}
+        assert wrong.json() == missing.json() == {'detail': 'Invalid credentials.'}
 
 def _confirm(base, account, token):
     return _post(base, '/verify-email', username=account, token=token)
@@ -146,7 +146,7 @@ def _assert_expiration(base, tokens, directory):
     assert _login(base, ACCOUNTS[1]).status_code == 200
 
 def _assert_limit(base, smtp, directory):
-    expected = {'status': 'accepted', 'detail': 'Si le compte existe, un message a été envoyé.'}
+    expected = {'status': 'accepted', 'detail': 'If the account exists, a message has been sent.'}
     for attempt in range(4):
         for account in (ACCOUNTS[0], 'absent@example.test'):
             started = time.perf_counter()
@@ -249,7 +249,7 @@ def test_comptes_anterieurs_et_manage_restent_confirmes(tmp_path, faux_smtp):
             assert _login(base, account).status_code == 200
     _compile(tmp_path)
     with _uvicorn_with_output(tmp_path, env) as server:
-        server.attendre('2 compte(s) antérieurs restent confirmés')
+        server.attendre('2 older account(s) remain confirmed')
         assert all(_login(server.base, a).status_code == 200 for a in ACCOUNTS)
         result = subprocess.run([sys.executable, 'manage.py', 'adduser', 'service', 'Admin'],
                                 cwd=tmp_path, env=env, input=PASSWORD + '\n' + PASSWORD + '\n', capture_output=True, text=True)
@@ -282,7 +282,7 @@ def test_contrat_signature_et_monl_update(tmp_path, capsys):
     before = copy.deepcopy(current)
     del before['api']['auth']['features']['verify_email']['unconfirmed_registration']
     assert _contract_signature(before) != _contract_signature(current)
-    assert 'remplace le mot de passe' in (tmp_path / 'docs' / 'FRONTEND_PROMPT.md').read_text()
+    assert 'replaces the password' in (tmp_path / 'docs' / 'FRONTEND_PROMPT.md').read_text()
     assert auth['login']['errors']['403']['code'] == 'email_not_verified'
     assert auth['features']['verify_email']['resend'] == {'max_attempts': 3, 'window_seconds': 3600}
 
@@ -352,7 +352,7 @@ def test_panne_transport_ne_casse_pas_linscription_ni_le_renvoi(tmp_path, faux_s
             assert response.status_code == 200
             assert _login(server.base, account).status_code == 403
         assert _post(server.base, '/verify-email/resend', username=ACCOUNTS[0]).status_code == 200
-        server.attendre('[MONL_PASSWORD_RESET] message non envoyé')
+        server.attendre('[MONL_PASSWORD_RESET] message not sent')
         assert _sql(tmp_path, 'SELECT COUNT(*) FROM _monl_users WHERE email_verified = 0') == [(2,)]
         assert not faux_smtp.messages
 

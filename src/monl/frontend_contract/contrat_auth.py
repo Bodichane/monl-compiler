@@ -18,34 +18,34 @@ def _fonctions_dauth(plans, routes):
         routes.extend([
             champs._route("POST", "/verify-email", "VerifyEmail", "Authentication",
                           True, [], request_fields=["username", "token"],
-                          note="Confirmation par POST : jeton opaque lié au compte, à usage unique et durée limitée. Aucun GET ne consomme le lien."),
+                          note="Confirmation by POST: opaque token bound to the account, single use and time-limited. No GET consumes the link."),
             champs._route("POST", "/verify-email/resend", "VerifyEmailResend", "Authentication",
                           True, [], request_fields=["username"],
-                          note="Renvoi limité, réponse générique avec le même plancher de durée, même quand la limite est atteinte."),
+                          note="Rate-limited resend, generic response with the same duration floor, even when the limit is reached."),
         ])
     if auth_features.get("password_reset"):
         routes.extend([
             champs._route(
                 "POST", "/password-reset/request", "PasswordResetRequest",
                 "Authentication", True, [], request_fields=["username"],
-                note=("Réponse générique et de durée plancher identique que le "
-                      "compte existe ou non ; ne jamais annoncer si un message "
-                      "est parti.")),
+                note=("Generic response with the same duration floor whether "
+                      "the account exists or not; never announce whether a "
+                      "message was sent.")),
             champs._route(
                 "POST", "/password-reset/confirm", "PasswordResetConfirm",
                 "Authentication", True, [],
                 request_fields=["username", "token", "password"],
-                note=("Jeton opaque à usage unique et durée limitée : le "
-                      "serveur ne le renvoie jamais par une route de lecture ; "
-                      "un changement de mot de passe ne change pas le rôle.")),
+                note=("Opaque, single-use, time-limited token: the server "
+                      "never returns it through a read route; a password "
+                      "change does not change the role.")),
         ])
     if auth_features.get("refresh_tokens"):
         refresh_route = champs._route(
             "POST", "/refresh", "Refresh", "Authentication", False,
             auth_actors, request_fields=["refresh_token"],
-            note=("Présenter le jeton de rafraîchissement opaque, pas le JWT "
-                  "d'accès. Chaque succès le révoque et en émet un nouveau ; "
-                  "un jeton révoqué ou expiré répond 401."))
+            note=("Present the opaque refresh token, not the access JWT. "
+                  "Each success revokes it and issues a new one; a revoked "
+                  "or expired token answers 401."))
         refresh_route["auth_mode"] = "refresh_token"
         routes.append(refresh_route)
     if auth_features.get("totp"):
@@ -53,14 +53,14 @@ def _fonctions_dauth(plans, routes):
             champs._route(
                 "POST", "/totp/setup", "TotpSetup", "Authentication", False,
                 auth_actors,
-                note=("Parcours d'activation authentifié, à afficher une seule "
-                      "fois ; ne pas transformer sa réponse en route de lecture.")),
+                note=("Authenticated activation flow, to be shown only once; "
+                      "do not turn its response into a read route.")),
             champs._route(
                 "POST", "/totp/enable", "TotpEnable", "Authentication", False,
                 auth_actors, request_fields=["code", "password"],
-                note=("Active le double facteur après vérification d'un code "
-                      "TOTP courant et du mot de passe actuel ; révoque toutes les "
-                      "sessions et exige une nouvelle connexion avec TOTP.")),
+                note=("Enables two-factor authentication after checking a "
+                      "current TOTP code and the current password; revokes every "
+                      "session and requires a new sign-in with TOTP.")),
         ])
     return auth_features
 
@@ -73,11 +73,11 @@ def _auth_du_contrat(auth_features, plans):
         # L'interface ne doit donc proposer QUE cette liste.
         "register": {"method": "POST", "path": "/register",
                      "response": {"status": "'success'",
-                                  "user_id": "int — l'identifiant du compte créé"},
+                                  "user_id": "int — the identifier of the created account"},
                      "self_register_actors": list(plans.self_register_actors),
                      "body": {"username": notes_de_contrat._libelle_identifiant(plans.auth_identifier),
-                              "password": "str (8+ caractères)",
-                              "actor": f"un rôle parmi {list(plans.self_register_actors)}"},
+                              "password": "str (8+ characters)",
+                              "actor": f"a role among {list(plans.self_register_actors)}"},
                      # POINT 95 : le champ reste nommé 'username' SUR LE
                      # FIL (le renommer casserait le formulaire de tout
                      # projet existant) — c'est ici que le contrat dit
@@ -86,10 +86,10 @@ def _auth_du_contrat(auth_features, plans):
                      "identifier_forms": list(plans.auth_identifier or ()),
                      "phone_prefix": plans.auth_phone_prefix,
                      "note": notes_de_contrat._joindre(
-                         ("403 si le rôle demandé n'est pas ouvert à l'inscription libre"
+                         ("403 if the requested role is not open to self-registration"
                           if plans.self_register_actors else
-                          "aucun rôle ouvert : l'inscription est fermée, "
-                          "les comptes sont créés par manage.py"),
+                          "no open role: registration is closed, "
+                          "accounts are created with manage.py"),
                          notes_de_contrat._note_identifiant(plans.auth_identifier,
                                            plans.auth_phone_prefix))},
         # POINT 76 APPLIQUÉ À L'AUTHENTIFICATION. Le contrat doit dire ce que
@@ -115,36 +115,36 @@ def _auth_du_contrat(auth_features, plans):
         "login": {"method": "POST", "path": "/login",
                   "body": {"username": "str", "password": "str"},
                   "response": {
-                      "access_token": "str — le JWT, à placer dans l'en-tête "
-                                      "Authorization: Bearer",
+                      "access_token": "str — the JWT, to put in the "
+                                      "Authorization: Bearer header",
                       "token_type": "'bearer'"},
-                  "returns": "un token JWT dans le champ `access_token` "
-                             "(validité 2 h par défaut, "
-                             "réglable par MONL_TOKEN_TTL_HOURS)"},
+                  "returns": "a JWT in the `access_token` field "
+                             "(valid 2 h by default, "
+                             "configurable with MONL_TOKEN_TTL_HOURS)"},
         "logout": {"method": "POST", "path": "/logout",
                    "response": {"status": "'success'", "detail": "str"}},
-        "header": "Authorization: Bearer <token> sur toute route non publique",
-        "rate_limit": "5 tentatives / 60 s / IP sur /register et /login",
+        "header": "Authorization: Bearer <token> on every non-public route",
+        "rate_limit": "5 attempts / 60 s / IP on /register and /login",
     }
     if auth_features.get("totp"):
         auth_contract["login"]["body"]["totp_code"] = (
-            "str (6 chiffres, requis après activation du double facteur)")
+            "str (6 digits, required once two-factor authentication is enabled)")
     if auth_features.get("refresh_tokens"):
         auth_contract["login"]["returns"] = (
-            "un token JWT d'accès dans `access_token` (validité réglable par "
-            "MONL_TOKEN_TTL_SECONDS) et un jeton de rafraîchissement opaque "
-            "dans `refresh_token`")
+            "an access JWT in `access_token` (validity configurable with "
+            "MONL_TOKEN_TTL_SECONDS) and an opaque refresh token "
+            "in `refresh_token`")
         auth_contract["login"]["response"]["refresh_token"] = (
-            "str — jeton OPAQUE de rafraîchissement (ce n'est pas un JWT), "
-            "à conserver et à rejouer sur POST /refresh")
+            "str — OPAQUE refresh token (it is not a JWT), "
+            "to keep and replay on POST /refresh")
     b4_contract = {}
     if auth_features.get("verify_email"):
         auth_contract["login"]["errors"] = {
-            "403": {"code": "email_not_verified", "message": "Confirmez votre adresse e-mail avant de vous connecter."},
-            "401": "Identifiants invalides. (mot de passe incorrect ou compte absent)",
+            "403": {"code": "email_not_verified", "message": "Confirm your email address before signing in."},
+            "401": "Invalid credentials. (wrong password or missing account)",
         }
         auth_contract["register"]["response"] = {"status": "pending", "user_id": "int", "detail": "str"}
-        auth_contract["register"]["note"] += " Confirmation requise, aucun jeton de session avant confirmation. Une nouvelle inscription sur une adresse non confirmée remplace le mot de passe et renvoie un message dans le quota verify_resend ; prévenir l’utilisateur."
+        auth_contract["register"]["note"] += " Confirmation required, no session token before confirmation. A new registration on an unconfirmed address replaces the password and resends a message within the verify_resend quota; warn the user."
         b4_contract["verify_email"] = {
             "confirm_path": "/verify-email", "resend_path": "/verify-email/resend",
             "confirm_body": {"username": "str", "token": "str"},
@@ -153,13 +153,13 @@ def _auth_du_contrat(auth_features, plans):
             "single_use": True, "invalidated_on_resend": True,
             "login_unconfirmed": {"status": 403, "code": "email_not_verified"},
             "online_registration_only": True,
-            "unconfirmed_registration": "Une nouvelle inscription remplace le mot de passe et renvoie un message, dans le quota verify_resend. Le frontend doit prévenir l’utilisateur.",
+            "unconfirmed_registration": "A new registration replaces the password and resends a message, within the verify_resend quota. The frontend must warn the user.",
         }
     if auth_features.get("lockout"):
         b4_contract["account_lockout"] = {
             "max_attempts": auth_features["lockout"]["max_attempts"],
             "window_seconds": auth_features["lockout"]["window_seconds"],
-            "failure_response": "401 générique, identique à un compte inexistant",
+            "failure_response": "generic 401, identical to a missing account",
         }
     if auth_features.get("password_reset"):
         b4_contract["password_reset"] = {
@@ -168,7 +168,7 @@ def _auth_du_contrat(auth_features, plans):
             "ttl_seconds": auth_features["password_reset"],
             "single_use": True,
             "invalidated_on_password_change": True,
-            "privacy": "réponse générique et durée plancher identique, sans énumération",
+            "privacy": "generic response and identical duration floor, no enumeration",
         }
     if auth_features.get("refresh_tokens"):
         b4_contract["refresh_tokens"] = {
@@ -182,7 +182,7 @@ def _auth_du_contrat(auth_features, plans):
         b4_contract["totp"] = {
             "setup_path": "/totp/setup",
             "enable_path": "/totp/enable",
-            "enable_body": {"code": "string", "password": "string (obligatoire, mot de passe actuel)"},
+            "enable_body": {"code": "string", "password": "string (required, current password)"},
             "enable_invalidates_sessions": True,
             "step_seconds": 30,
             "replay_protection": True,

@@ -100,4 +100,4 @@ def _css_selector_skeleton(content):
                 stack.pop()
             segment_start = index + 1
         index += 1
-    return "\n".join(selectors) or "(aucun sélecteur CSS déclaré)"
+    return "\n".join(selectors) or "(no CSS selector declared)"

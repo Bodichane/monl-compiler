@@ -114,7 +114,7 @@ def test_deux_utilisateurs_sont_isoles(platform):
 
 def test_un_modele_du_catalogue_produit_une_spec_qui_compile(tmp_path):
     spec = materialize_template(
-        "Portfolio / site vitrine",
+        "Portfolio / showcase site",
         app_name="CatalogueSocle",
         description="Un portfolio de démonstration.",
     )

@@ -128,7 +128,7 @@ def test_une_faute_de_casse_est_suggeree(capsys):
     proposer le champ voisin plutôt que laisser chercher."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC + "rule Membre.Pseudo required\n")
-    assert "Peut-être 'pseudo'" in str(refus.value)
+    assert "Did you mean 'pseudo'" in str(refus.value)
     capsys.readouterr()
 
 
@@ -445,5 +445,5 @@ def test_une_base_avec_doublons_le_dit_au_lieu_de_le_taire(tmp_path, capsys):
         cwd=str(tmp_path), capture_output=True, text=True,
         env={**os.environ, "PYTHONPATH": str(tmp_path)}, timeout=60)
     trace = sortie.stdout + sortie.stderr
-    assert "pseudo" in trace and "double" in trace, trace[-1500:]
+    assert "pseudo" in trace and "duplicate" in trace, trace[-1500:]
     assert sortie.returncode == 0, "le serveur doit continuer de démarrer"

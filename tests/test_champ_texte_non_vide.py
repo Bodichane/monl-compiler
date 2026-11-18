@@ -38,7 +38,7 @@ from tests.test_app_templates import _run_template
 #: (jamais borné). Un seul serveur suffit donc à éprouver la règle et sa
 #: limite.
 BOUTIQUE = next(i for i, t in enumerate(TEMPLATES, 1)
-                if t["name"] == "Boutique en ligne")
+                if t["name"] == "Online shop")
 
 
 def _spec(index, reponse="n", seed=False):

@@ -77,11 +77,11 @@ PROTECTED_ARTEFACTS = ("spec.ml", "app.py", "schema.sql", "sandbox_ai.py",
 DEFAULT_MAX_TURNS = 120
 
 CLAUDE_CODE_INSTRUCTION = (
-    "Lis {brief} et construis le frontend demandé, en écrivant UNIQUEMENT "
-    "dans le dossier frontend/ (point d'entrée frontend/index.html, "
-    "autonome : aucun CDN). Ne modifie AUCUN autre fichier du projet — "
-    "ni la spec .ml, ni app.py, ni le contrat. Le AGENTS.md du dossier "
-    "détaille le contexte."
+    "Read {brief} and build the requested frontend, writing ONLY in the "
+    "frontend/ folder (entry point frontend/index.html, self-contained: "
+    "no CDN). Do NOT modify any other project file — neither the .ml "
+    "spec, nor app.py, nor the contract. The folder's AGENTS.md gives "
+    "the context."
 )
 
 # POINT 93 : une retouche n'est pas une construction. L'instruction générique
@@ -89,11 +89,11 @@ CLAUDE_CODE_INSTRUCTION = (
 # exactement ce qu'on veut éviter — le site est bon à 95 %, et une
 # reconstruction est un tirage dont on peut perdre ce qu'on aimait.
 RETOUCHE_INSTRUCTION = (
-    "Lis {brief} : il décrit un défaut CONSTATÉ sur le site en marche. Corrige "
-    "ce défaut-là dans le frontend EXISTANT (dossier frontend/), et lui seul — "
-    "ne réécris pas ce qui fonctionne déjà, ne refais pas la mise en page "
-    "générale. Ne modifie AUCUN autre fichier du projet : ni la spec .ml, ni "
-    "app.py, ni le contrat. Le AGENTS.md du dossier détaille le contexte."
+    "Read {brief}: it describes a defect OBSERVED on the running site. Fix "
+    "that defect in the EXISTING frontend (frontend/ folder), and only that "
+    "one — do not rewrite what already works, do not redo the overall "
+    "layout. Do NOT modify any other project file: neither the .ml spec, nor "
+    "app.py, nor the contract. The folder's AGENTS.md gives the context."
 )
 
 # ─────────────────────────────────────────────────────────────────────
@@ -118,19 +118,19 @@ CLI_AGENTS = {
         "args": lambda instruction, max_turns: [
             "-p", instruction, "--permission-mode", "acceptEdits",
             "--max-turns", str(max_turns)],
-        "auth": "Claude Code : 'claude login' (abonnement, aucune clé)",
+        "auth": "Claude Code: 'claude login' (subscription, no key)",
     },
     "codex": {
         "binary": "codex",
         "args": lambda instruction, max_turns: [
             "exec", "--sandbox", "workspace-write", "--skip-git-repo-check",
             instruction],
-        "auth": "Codex CLI : 'codex login' (abonnement ChatGPT) ou OPENAI_API_KEY",
+        "auth": "Codex CLI: 'codex login' (ChatGPT subscription) or OPENAI_API_KEY",
     },
     "gemini": {
         "binary": "gemini",
         "args": lambda instruction, max_turns: ["--yolo", "-p", instruction],
-        "auth": "Gemini CLI : 'gemini' (compte Google) ou GEMINI_API_KEY",
+        "auth": "Gemini CLI: 'gemini' (Google account) or GEMINI_API_KEY",
     },
 }
 
@@ -143,17 +143,17 @@ def build_agent_argv(agent, instruction, max_turns, agent_command=None):
     if agent_command:
         parts = shlex.split(agent_command)
         if not parts:
-            raise fondations.FrontendAIError("--agent-command est vide.")
+            raise fondations.FrontendAIError("--agent-command is empty.")
         if not any("{instruction}" in p for p in parts):
             raise fondations.FrontendAIError(
-                "--agent-command doit contenir {instruction} — sans lui, "
-                "l'agent serait lancé sans savoir quoi faire.")
+                "--agent-command must contain {instruction} — without it, "
+                "the agent would start without knowing what to do.")
         argv = [p.replace("{instruction}", instruction) for p in parts]
         return argv[0], argv[1:]
     if agent not in CLI_AGENTS:
         raise fondations.FrontendAIError(
-            f"agent inconnu : {agent} — connus : {', '.join(sorted(CLI_AGENTS))} "
-            "(ou --agent-command pour tout autre).")
+            f"unknown agent: {agent} — known: {', '.join(sorted(CLI_AGENTS))} "
+            "(or --agent-command for any other).")
     entry = CLI_AGENTS[agent]
     return entry["binary"], entry["args"](instruction, max_turns)
 
@@ -202,11 +202,11 @@ def run_cli_agent(project_dir, instruction, max_turns=DEFAULT_MAX_TURNS,
     if not binary:
         auth = CLI_AGENTS.get(agent, {}).get("auth", "")
         raise fondations.FrontendAIError(
-            f"l'exécutable '{wanted}' est introuvable — l'installer puis "
-            "s'authentifier" + (f" ({auth})" if auth else "")
-            + ". Sans agent en ligne de commande, deux voies restent : "
-              "'monl frontend --provider <api>' avec une clé, ou 'monl import' "
-              "après un copier/coller dans n'importe quel chat.")
+            f"the executable '{wanted}' was not found — install it, then "
+            "authenticate" + (f" ({auth})" if auth else "")
+            + ". Without a command-line agent, two paths remain: "
+              "'monl frontend --provider <api>' with a key, or 'monl import' "
+              "after a copy/paste in any chat.")
     proc = subprocess.run(
         [binary] + args,
         cwd=project_dir, capture_output=True, text=True, timeout=1800)
@@ -253,27 +253,27 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
     if generate_images:
         if image_provider is None:
             raise fondations.FrontendAIError(
-                "--generate-images exige un fournisseur d'images injectable.")
+                "--generate-images requires an injectable image provider.")
         _generated, image_failures = images._generate_planned_images(
             project_dir, image_provider, operation, 1, run_id, say=say)
     brief = redaction.brief_evolution(update_mode, retouche_mode) or PROMPT_FILENAME
     if not os.path.exists(os.path.join(project_dir, brief)):
-        origine = ("'monl retouche' n'a pas écrit sa consigne" if retouche_mode
-                   else "lancer d'abord 'monl update'" if update_mode
-                   else "lancer d'abord 'monl compile'")
-        raise fondations.FrontendAIError(f"{brief} absent du projet — {origine}.")
+        origine = ("'monl retouche' did not write its instruction" if retouche_mode
+                   else "run 'monl update' first" if update_mode
+                   else "run 'monl compile' first")
+        raise fondations.FrontendAIError(f"{brief} missing from the project — {origine}.")
     gabarit = RETOUCHE_INSTRUCTION if retouche_mode else CLAUDE_CODE_INSTRUCTION
     instruction = gabarit.format(brief=brief)
 
     last_errors = []
     for attempt in (1, 2):
         if attempt == 2:
-            say(f" -> Correction automatique : erreurs renvoyées à {nom} (1 seule fois)…")
+            say(f" -> Automatic correction: errors sent back to {nom} (once only)…")
             instruction = (gabarit.format(brief=brief)
-                           + " Ta précédente tentative a échoué à la vérification "
-                             "monl, corrige le frontend en conséquence : "
+                           + " Your previous attempt failed the monl check; "
+                             "fix the frontend accordingly: "
                            + " ; ".join(last_errors))
-        say(f" -> {nom} travaille dans {project_dir} (tentative {attempt}/2)…")
+        say(f" -> {nom} is working in {project_dir} (attempt {attempt}/2)…")
         before = _fingerprint_protected(project_dir)
         front_avant = _fingerprint_frontend(project_dir)
         started = time.monotonic()
@@ -301,15 +301,15 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
         touched = sorted(set(before) ^ set(after)
                          | {n for n in before if n in after and before[n] != after[n]})
         if touched:
-            say(f" ❌ {nom} a modifié des artefacts protégés : "
+            say(f" ❌ {nom} modified protected artifacts: "
                 + ", ".join(touched))
-            say("    Restaurer depuis votre gestion de versions, puis relancer — "
-                "le frontend est le SEUL périmètre autorisé.")
-            return False, [f"artefact protégé modifié : {n}" for n in touched]
+            say("    Restore them from your version control, then run again — "
+                "the frontend is the ONLY allowed scope.")
+            return False, [f"protected artifact modified: {n}" for n in touched]
 
         if not os.path.exists(os.path.join(project_dir, "frontend", "index.html")):
-            last_errors = ["frontend/index.html absent après l'exécution — le "
-                           "point d'entrée exigé par le contrat n'a pas été produit"]
+            last_errors = ["frontend/index.html missing after the run — the "
+                           "entry point required by the contract was not produced"]
             say(f" ❌ {last_errors[0]}")
             continue
 
@@ -325,39 +325,39 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
             # d'un rapport honnête, et le point 73 dit déjà qu'on ne félicite
             # pas un agent pour le travail de son prédécesseur.
             if retouche_mode:
-                say(f" ❌ {nom} n'a modifié AUCUN fichier de frontend/ — la "
-                    "retouche demandée n'a pas été faite.")
+                say(f" ❌ {nom} modified NO file in frontend/ — the "
+                    "requested touch-up was not made.")
                 explication = (reponse_agent or "").strip()
                 if explication:
                     # LE point : deviner à la place de l'agent, c'est ce qui
                     # rendait le message faux. Il a une raison, elle est là.
-                    say("    Ce que l'agent répond :")
+                    say("    What the agent answers:")
                     for ligne in explication.splitlines()[-12:]:
                         if ligne.strip():
                             say(f"      {ligne.rstrip()}")
-                    say("    Si la demande touche au CONTENU (une rubrique à "
-                        "retirer, un texte à structurer),")
-                    say("    elle se règle dans la spec puis 'monl update' — "
-                        "pas par une retouche d'affichage.")
+                    say("    If the request concerns CONTENT (a section to "
+                        "remove, a text to structure),")
+                    say("    it is settled in the spec, then 'monl update' — "
+                        "not by a display touch-up.")
                 else:
-                    say("    Reformuler la demande en nommant l'écran et l'élément "
-                        "(« les images de la section Tendances sont mal cadrées »)")
-                    say("    donne à l'IA de quoi la situer.")
-                return False, ["aucune modification du frontend : retouche non appliquée"]
-            say(f" ⚠️  {nom} n'a modifié AUCUN fichier de frontend/.")
-            say("    Un frontend valide existait déjà : l'agent a jugé qu'il")
-            say("    répondait au contrat et n'a rien réécrit. Rien n'est cassé,")
-            say("    mais rien n'a été construit non plus.")
-            say("    Pour forcer une réécriture, videz frontend/ d'abord ")
-            say("    (sauvegardez-le), ou utilisez 'monl frontend --update' pour")
-            say("    demander une ÉVOLUTION de l'existant.")
+                    say("    Rephrasing the request by naming the screen and the element "
+                        "(\"the images in the Trends section are badly framed\")")
+                    say("    gives the AI something to locate it.")
+                return False, ["no frontend change: touch-up not applied"]
+            say(f" ⚠️  {nom} modified NO file in frontend/.")
+            say("    A valid frontend already existed: the agent judged that it")
+            say("    met the contract and rewrote nothing. Nothing is broken,")
+            say("    but nothing was built either.")
+            say("    To force a rewrite, empty frontend/ first ")
+            say("    (back it up), or use 'monl frontend --update' to")
+            say("    ask for an EVOLUTION of what exists.")
             return True, []
 
         # La transition est opérée par l'orchestrateur, après le contrôle de
         # périmètre de l'agent : modifier le manifeste ne peut donc pas servir
         # à masquer une écriture hors de frontend/.
         activate_asset_manifest(project_dir)
-        say(" -> Re-vérification automatique (cohérence + smoke test)…")
+        say(" -> Automatic recheck (consistency + smoke test)…")
         ok, errors, warnings = check_coherence(project_dir)
         if ok:
             smoke_ok, smoke_errors, smoke_warnings = run_smoke_test(project_dir, say=say)
@@ -370,18 +370,18 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
         if image_failures:
             for error in errors:
                 say(f" ❌ {error}")
-            say(" ❌ Livraison refusée : le manifeste reste l'autorité pour les "
-                "images planifiées ; relancez après disponibilité du fournisseur.")
+            say(" ❌ Delivery refused: the manifest remains the authority for the "
+                "planned images; run again once the provider is available.")
             return False, errors
         if ok:
-            say(f" ✅ Frontend construit par {nom} et vérifié : 'monl run' est prêt.")
+            say(f" ✅ Frontend built by {nom} and verified: 'monl run' is ready.")
             return True, []
         last_errors = errors
         for e in errors:
             say(f" ❌ {e}")
 
-    say(" ❌ Échec après correction — les fichiers restent dans frontend/ pour "
-        "inspection ; 'monl run' refusera de lancer tant que le smoke test échoue.")
+    say(" ❌ Failed after correction — the files stay in frontend/ for "
+        "inspection; 'monl run' will refuse to start while the smoke test fails.")
     return False, last_errors
 
 def generate_with_claude_code(project_dir, update_mode=False, say=print,

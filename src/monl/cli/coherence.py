@@ -151,7 +151,7 @@ def _outdated_artifact_warnings(project_dir, state, spec_path):
         return []
     from .. import __version__
     construit_avec = state.get("compiler_version")
-    depuis = (f" (construit avec monl {construit_avec}, courant "
+    depuis = (f" (built with monl {construit_avec}, current "
               f"{__version__})" if construit_avec else "")
     return [
         f"Artifacts produced by an earlier compiler: {', '.join(perimes)}"

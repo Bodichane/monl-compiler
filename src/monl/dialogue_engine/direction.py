@@ -30,7 +30,7 @@ class DirectionMixin:
                                   [court for court, _ in DESIGN_IMAGERY])
         phrase_registre = dict(DESIGN_REGISTERS)[registre]
         phrase_images = dict(DESIGN_IMAGERY)[images]
-        return (f"le visiteur doit pouvoir {action.rstrip('.')} ; "
+        return (f"the visitor must be able to {action.rstrip('.')} ; "
                 f"{phrase_registre} ; {phrase_images}")
 
     def _ask_image_topic(self):
@@ -60,8 +60,8 @@ class DirectionMixin:
     #: liste est PROPOSÉE, jamais imposée : chaque entrée se passe en laissant
     #: vide, exactement comme les rubriques du point 61.
     LIENS_PROPOSES = (
-        {"label": "Courriel", "ask": "contact address"},
-        {"label": "Téléphone", "ask": "phone number"},
+        {"label": "Email", "ask": "contact address"},
+        {"label": "Phone", "ask": "phone number"},
         {"label": "Instagram", "ask": "account address"},
         {"label": "Facebook", "ask": "page address"},
         {"label": "LinkedIn", "ask": "page address"},

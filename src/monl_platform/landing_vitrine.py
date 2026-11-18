@@ -25,51 +25,51 @@ from __future__ import annotations
 #: Elle compile. Le `required` sur le multiplicateur n'est pas décoratif : le
 #: compilateur REFUSE `derivedFrom` sans lui (point 77), et l'écrire ici montre
 #: précisément ce que la page promet — une règle incohérente est refusée.
-SPEC_VITRINE = """app PetiteBoutique
+SPEC_VITRINE = """app LittleShop
 
-entity Produit
-    nom: String
-    prix: Money
+entity Product
+    name: String
+    price: Money
     stock: Integer
 
-entity Commande
+entity Order
     total: Money
-    passeeLe: DateTime
+    placedAt: DateTime
 
-entity Ligne
-    quantite: Integer
-    montant: Money
+entity OrderLine
+    quantity: Integer
+    amount: Money
 
-actor Client selfRegister
+actor Customer selfRegister
 
-relation Client hasMany Commande
-relation Commande hasMany Ligne
-relation Produit hasMany Ligne
+relation Customer hasMany Order
+relation Order hasMany OrderLine
+relation Product hasMany OrderLine
 
-rule Produit.prix min 0
-rule Produit.stock min 0
-rule Produit.Read public
-rule Commande.Read ownedBy Client
-rule Ligne.Read ownedBy Commande
-rule Ligne.quantite required
-rule Ligne.montant derivedFrom Produit.prix by quantite
-rule Commande.total sumOf Ligne.montant
-rule Commande.passeeLe timestamp
-rule Commande.total payable
-rule Ligne.Create decrements Produit.stock by quantite
+rule Product.price min 0
+rule Product.stock min 0
+rule Product.Read public
+rule Order.Read ownedBy Customer
+rule OrderLine.Read ownedBy Order
+rule OrderLine.quantity required
+rule OrderLine.amount derivedFrom Product.price by quantity
+rule Order.total sumOf OrderLine.amount
+rule Order.placedAt timestamp
+rule Order.total payable
+rule OrderLine.Create decrements Product.stock by quantity
 
-workflow Acheter for Client
-    Create Commande
-    Create Ligne
-    Read Produit
-    Read Commande
+workflow Buy for Customer
+    Create Order
+    Create OrderLine
+    Read Product
+    Read Order
 """
 
 #: L'extrait affiché : tout ce qui concerne UNE entité, découpé dans la spec
 #: réelle. Le découpage se fait par ce que les lignes CONCERNENT et non par des
 #: bornes de position — un numéro de ligne se décale à la première règle
 #: ajoutée, en silence, et l'extrait montrerait alors autre chose.
-ENTITE_MONTREE = "Produit"
+ENTITE_MONTREE = "Product"
 
 
 def extrait_affiche() -> str:

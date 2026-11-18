@@ -15,18 +15,17 @@ class JetonsRuntimeMixin:
     def _socle_jetons(self):
         """Schéma attendu, jeu de démonstration, unicités, et lecture du jeton."""
         return [
-            *Template(r"""# AJOUT (roadmap long terme, migrations sans perte de données) :
-# schéma de colonnes attendu par table (hors 'id'), consommé par
-# init_db() pour appliquer les ALTER TABLE ADD COLUMN manquants au
-# démarrage. Injecté via repr() pour un littéral Python toujours
-# valide, quel que soit le nom des colonnes.""").substitute().split("\n"),
+            *Template(r"""# ADDED (long-term roadmap, lossless migrations): expected column
+# schema per table (excluding 'id'), consumed by init_db() to apply the
+# missing ALTER TABLE ADD COLUMN at startup. Injected through repr()
+# for a Python literal that is always valid, whatever the column names.""").substitute().split("\n"),
             Template(r"""_EXPECTED_COLUMNS = ${expected_columns}
 """).substitute(expected_columns=repr(self._compute_expected_columns())),
             Template(r"""_MIGRATIONS = ${migrations}
 """).substitute(migrations=repr(self._compute_migrations())),
-            *Template(r"""# AJOUT (roadmap frontend, bloc 'seed') : données de démonstration
-# regroupées par table, injectées via repr() pour un littéral toujours
-# valide. Consommées par init_db() (insertion idempotente si vide).""").substitute().split("\n"),
+            *Template(r"""# ADDED (frontend roadmap, 'seed' block): demo data grouped by table,
+# injected through repr() for an always-valid literal. Consumed by
+# init_db() (idempotent insertion when empty).""").substitute().split("\n"),
             Template(r"""_SEED_DATA = ${seed_data}
 """).substitute(seed_data=repr(self._compute_seed_data())),
             # POINT 85 : 'rule Entite.champ unique' ne produisait RIEN — deux
@@ -38,13 +37,13 @@ class JetonsRuntimeMixin:
             # promesse de migration additive (point 32) est donc tenue.
             Template(r"""_UNIQUE_INDEXES = ${unique_indexes}
 """).substitute(unique_indexes=repr(self._compute_unique_indexes())),
-            Template(r"""# Index de recherche des clés étrangères et des champs filtrables,
+            Template(r"""# Lookup indexes for foreign keys and filterable fields,
 """).substitute(),
-            Template(r"""# créés au démarrage pour aussi rattraper les bases déjà en service.
+            Template(r"""# created at startup so databases already in service catch up too.
 """).substitute(),
             Template(r"""_LOOKUP_INDEXES = ${lookup_indexes}
 """).substitute(lookup_indexes=repr(self._compute_lookup_indexes())),
-            Template(r"""# Unicités métier multi-colonnes (ex. un vote par compte et par entrée).
+            Template(r"""# Multi-column business uniqueness (e.g. one vote per account and entry).
 """).substitute(),
             Template(r"""_ONCE_PER_INDEXES = ${once_per_indexes}
 """).substitute(once_per_indexes=repr(self._compute_once_per_indexes())),
@@ -65,9 +64,9 @@ class JetonsRuntimeMixin:
             # deux dépendances ci-dessous — avant, chacune redécodait le token
             # indépendamment, ce qui aurait pu faire oublier la vérification
             # de révocation dans l'une des deux lors d'une future modification.
-            *Template(r"""# CORRECTIF (bêta 3) : purge des jetons révoqués déjà expirés — leur
-# signature n'est plus acceptée de toute façon, les garder ne faisait
-# que gonfler la table consultée à chaque requête authentifiée.
+            *Template(r"""# FIX (beta 3): purge revoked tokens that have already expired — their
+# signature is no longer accepted anyway, keeping them only bloated the
+# table read on every authenticated request.
 def _purge_revoked_tokens(cursor):
     cursor.execute('DELETE FROM _monl_revoked_tokens WHERE expires_at IS NOT NULL AND expires_at < ?',""").substitute().split("\n"),
             Template(r"""                   (datetime.datetime.now(datetime.timezone.utc).timestamp(),))
@@ -76,14 +75,14 @@ def _purge_revoked_tokens(cursor):
     try:
         payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
     except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail='Token invalide ou expiré')
+        raise HTTPException(status_code=401, detail='Invalid or expired token')
     jti = payload.get('jti')
     if jti:
         conn = _connect(); cursor = conn.cursor()
         cursor.execute('SELECT 1 FROM _monl_revoked_tokens WHERE jti = ?', (jti,))
         revoked = cursor.fetchone(); conn.close()
         if revoked:
-            raise HTTPException(status_code=401, detail='Ce token a été révoqué (déconnexion effectuée).')""").substitute().split("\n"),
+            raise HTTPException(status_code=401, detail='This token has been revoked (signed out).')""").substitute().split("\n"),
             *([
                 *Template(r"""    conn = _connect()
     try:
@@ -91,7 +90,7 @@ def _purge_revoked_tokens(cursor):
     finally:
         conn.close()
     if not row or payload.get('token_version', 0) != row[0]:
-        raise HTTPException(status_code=401, detail='Session invalidée : reconnectez-vous.')""").substitute().split("\n"),
+        raise HTTPException(status_code=401, detail='Session invalidated: sign in again.')""").substitute().split("\n"),
             ] if self.auth_features else []),
             Template(r"""    return payload
 """).substitute(),
@@ -164,20 +163,20 @@ def _purge_revoked_tokens(cursor):
             # l'e-mail).
             *Template(r'''
 def _normalize_identifier(valeur: str) -> str:
-    """Forme canonique de l'identifiant : c'est elle qui est STOCKÉE
-    et c'est sur elle que porte l'unicité."""
+    """Canonical form of the identifier: it is what gets STORED and
+    what uniqueness applies to."""
     valeur = (valeur or '').strip()
     if not AUTH_IDENTIFIER_FORMS:
         return valeur
     if '@' in valeur:
-        # Seul le domaine est officiellement insensible à la casse,
-        # mais aucun fournisseur réel ne distingue la partie locale :
-        # ne pas l'abaisser laisserait ouvrir deux comptes pour une
-        # seule boîte, ce que l'unicité est censée empêcher.
+        # Only the domain is officially case-insensitive, but no real
+        # provider distinguishes the local part: not lowering it would
+        # allow two accounts for one mailbox, which uniqueness is meant
+        # to prevent.
         return valeur.lower()
     if _RE_PHONE.match(valeur):
-        # Un numéro se tape avec des espaces, des points, des tirets
-        # ou des parenthèses — jamais deux fois pareil.
+        # A number is typed with spaces, dots, dashes or parentheses —
+        # never the same way twice.
         chiffres = ''.join(c for c in valeur if c.isdigit())
         if valeur.lstrip().startswith('+'):
             return '+' + chiffres
@@ -194,9 +193,9 @@ _RE_EMAIL = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]{2,}$$')
 _RE_PHONE = re.compile(r'^\+?[0-9][0-9 .\-()]{4,20}$$')
 
 def _forme_valide(valeur: str) -> bool:
-    """Prédicat pur : sert au refus de '/register' ET au décompte des
-    comptes antérieurs au démarrage. Deux implémentations de « est-ce
-    une adresse ? » finiraient par ne plus dire la même chose."""
+    """Pure predicate: used by the '/register' refusal AND by the startup
+    count of older accounts. Two implementations of "is this an address?"
+    would end up saying different things."""
     if not AUTH_IDENTIFIER_FORMS or 'libre' in AUTH_IDENTIFIER_FORMS:
         return True
     if 'email' in AUTH_IDENTIFIER_FORMS and _RE_EMAIL.match(valeur):
@@ -207,20 +206,20 @@ def _forme_valide(valeur: str) -> bool:
 
 def _conflit_identifiant() -> str:
     if AUTH_IDENTIFIER_FORMS == ['email']:
-        return 'Cette adresse e-mail est déjà utilisée.'
+        return 'This email address is already in use.'
     if AUTH_IDENTIFIER_FORMS == ['phone']:
-        return 'Ce numéro de téléphone est déjà utilisé.'
+        return 'This phone number is already in use.'
     if AUTH_IDENTIFIER_FORMS and 'libre' not in AUTH_IDENTIFIER_FORMS:
-        return 'Cet identifiant est déjà utilisé.'
-    return "Ce nom d'utilisateur existe déjà."
+        return 'This identifier is already in use.'
+    return "This username already exists."
 
 def _check_identifier(valeur: str) -> None:
     if not _forme_valide(valeur):
-        _attendu = {'email': 'une adresse e-mail',
-                    'phone': 'un numéro de téléphone'}
-        _libelle = ' ou '.join(_attendu[f] for f in AUTH_IDENTIFIER_FORMS
+        _attendu = {'email': 'an email address',
+                    'phone': 'a phone number'}
+        _libelle = ' or '.join(_attendu[f] for f in AUTH_IDENTIFIER_FORMS
                                if f in _attendu)
         raise HTTPException(status_code=422, detail=(
-            f"L'identifiant de compte doit être {_libelle}."))
+            f"The account identifier must be {_libelle}."))
 ''').substitute().split("\n"),
         ]

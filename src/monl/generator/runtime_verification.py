@@ -12,10 +12,10 @@ class VerificationRuntimeMixin:
         replacements = {
             'def _send_password_reset(user_id, raw_token):':
                 "def _send_password_reset(user_id, raw_token, purpose='password_reset'):",
-            "        body = 'Voici votre jeton de réinitialisation : ' + raw_token":
-                "        body = ('Confirmez votre adresse e-mail avec ce jeton : ' if purpose == 'verify_email' else 'Voici votre jeton de réinitialisation : ') + raw_token",
-            "        message['Subject'] = 'Réinitialisation de votre mot de passe'":
-                "        message['Subject'] = 'Confirmation de votre adresse e-mail' if purpose == 'verify_email' else 'Réinitialisation de votre mot de passe'",
+            "        body = 'Here is your reset token: ' + raw_token":
+                "        body = ('Confirm your email address with this token: ' if purpose == 'verify_email' else 'Here is your reset token: ') + raw_token",
+            "        message['Subject'] = 'Reset your password'":
+                "        message['Subject'] = 'Confirm your email address' if purpose == 'verify_email' else 'Reset your password'",
         }
         return [replacements.get(line, line) for line in lines]
 
@@ -46,7 +46,7 @@ CREATE INDEX IF NOT EXISTS idx_verify_resend ON _monl_verify_email_resends (iden
     _historical = conn.execute('SELECT COUNT(*) FROM _monl_users').fetchone()[0]
     _sys_cur.execute('ALTER TABLE _monl_users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 1')
     conn.commit()
-    print(f'ℹ️ {_historical} compte(s) antérieurs restent confirmés : aucune conversion des comptes existants.')
+    print(f'ℹ️ {_historical} older account(s) remain confirmed: existing accounts are not converted.')
 '''.splitlines()]
 
     def _lookup_avec_verification(self, lines):
@@ -72,7 +72,7 @@ CREATE INDEX IF NOT EXISTS idx_verify_resend ON _monl_verify_email_resends (iden
     finally:
         _verify_conn.close()
     if not _confirmed:
-        raise HTTPException(status_code=403, detail={'code': 'email_not_verified', 'message': 'Confirmez votre adresse e-mail avant de vous connecter.'})
+        raise HTTPException(status_code=403, detail={'code': 'email_not_verified', 'message': 'Confirm your email address before signing in.'})
 '''.splitlines()
 
     def _verification_registration_flow(self, lines):
@@ -85,7 +85,7 @@ CREATE INDEX IF NOT EXISTS idx_verify_resend ON _monl_verify_email_resends (iden
     new_user_id, verification_token = _register_verification(_identifiant, pwd_hash, salt_hex, req.actor)
     if verification_token:
         _dispatch_verification(new_user_id, verification_token)
-    return {'status': 'pending', 'user_id': new_user_id, 'detail': 'Confirmez votre adresse e-mail avant de vous connecter.'}
+    return {'status': 'pending', 'user_id': new_user_id, 'detail': 'Confirm your email address before signing in.'}
 
 """.splitlines() + lines[end:]
 
@@ -120,7 +120,7 @@ CREATE INDEX IF NOT EXISTS idx_verify_resend ON _monl_verify_email_resends (iden
                     anon_handle = candidate
                     break
             if anon_handle is None:
-                raise HTTPException(status_code=500, detail='Impossible de générer un pseudonyme unique, réessayez.')
+                raise HTTPException(status_code=500, detail='Unable to generate a unique pseudonym, try again.')
             cursor.execute('INSERT INTO _monl_users (username, password_hash, salt, actor, anon_handle, email_verified) VALUES (?, ?, ?, ?, ?, 0) RETURNING id', (identifier, pwd_hash, salt_hex, actor, anon_handle))
             user_id = cursor.fetchone()[0]
         token = _issue_verification_token(cursor, user_id)
@@ -145,7 +145,7 @@ CREATE INDEX IF NOT EXISTS idx_verify_resend ON _monl_verify_email_resends (iden
         if not self.auth_features.get('verify_email'):
             return ["    return {'status': 'success', 'user_id': new_user_id}\n"]
         return '''    _dispatch_verification(new_user_id, verification_token)
-    return {'status': 'pending', 'user_id': new_user_id, 'detail': 'Confirmez votre adresse e-mail avant de vous connecter.'}
+    return {'status': 'pending', 'user_id': new_user_id, 'detail': 'Confirm your email address before signing in.'}
 '''.splitlines() + ['']
 
     def _generate_verification_helpers(self):
@@ -216,7 +216,7 @@ def verify_email_resend(req: VerifyEmailResendRequest):
         time.sleep(PASSWORD_RESET_RESPONSE_FLOOR - elapsed)
     if delivery:
         _dispatch_verification(*delivery)
-    return {'status': 'accepted', 'detail': 'Si le compte existe, un message a été envoyé.'}
+    return {'status': 'accepted', 'detail': 'If the account exists, a message has been sent.'}
 
 @app.post('/verify-email', tags=['Authentication'])
 def verify_email(req: VerifyEmailRequest):
@@ -230,13 +230,13 @@ def verify_email(req: VerifyEmailRequest):
         row = cursor.fetchone()
         fingerprint_ok = hmac.compare_digest(row[0], token_hash) if row else hmac.compare_digest(_DUMMY_RESET_HASH, token_hash)
         if not row or not fingerprint_ok or not hmac.compare_digest(row[2].encode('utf-8'), identifier.encode('utf-8')):
-            raise HTTPException(status_code=400, detail='Jeton de confirmation invalide ou expiré.')
+            raise HTTPException(status_code=400, detail='Invalid or expired confirmation token.')
         cursor.execute('UPDATE _monl_verify_email_tokens SET used_at = ? WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?', (now, token_hash, now))
         if cursor.rowcount != 1:
-            raise HTTPException(status_code=400, detail='Jeton de confirmation invalide ou expiré.')
+            raise HTTPException(status_code=400, detail='Invalid or expired confirmation token.')
         cursor.execute('UPDATE _monl_users SET email_verified = 1 WHERE id = ?', (row[1],))
         cursor.execute('COMMIT')
-        return {'status': 'success', 'detail': 'Adresse e-mail confirmée.'}
+        return {'status': 'success', 'detail': 'Email address confirmed.'}
     except Exception:
         cursor.execute('ROLLBACK')
         raise

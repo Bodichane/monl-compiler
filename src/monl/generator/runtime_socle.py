@@ -27,7 +27,7 @@ import struct''').substitute().split("\n")]
     def _socle_imports_et_connexion(self, message_imports, totp_imports):
         """Imports, application FastAPI, secret, quota, et l'enveloppe SQLite."""
         return [
-            *Template(r'''# API Déterministe Sécurisée par défaut - Ne pas modifier à la main
+            *Template(r'''# Deterministic API, secure by default - Do not edit by hand
 from fastapi import FastAPI, HTTPException, Header, Depends, Request${upload_imports}
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field, field_validator''').substitute(upload_imports=', UploadFile, File' if self.upload_fields else '').split("\n"),
@@ -64,7 +64,7 @@ import urllib.error''').substitute().split("\n"),
             # projet : un fichier d'UNE ligne, jamais appelé, et dont la
             # suppression faisait échouer le démarrage sur `ModuleNotFoundError`
             # — un fichier qui ne fait rien et qu'on ne peut pas enlever.
-            *([*Template(r'''import sandbox_ai  # Fonctions 'custom' écrites à la main (module isolé)
+            *([*Template(r'''import sandbox_ai  # Hand-written 'custom' functions (isolated module)
 ''').substitute().split("\n")]
               if self.custom_functions else []),
             *Template(r'''from contextlib import asynccontextmanager
@@ -80,11 +80,11 @@ _psycopg = None
 _psycopg_pool = None
 if MONL_DATABASE_URL:
     if not MONL_DATABASE_URL.startswith(('postgresql://', 'postgres://')):
-        raise RuntimeError("MONL_DATABASE_URL doit commencer par postgresql:// ou postgres://.")
+        raise RuntimeError("MONL_DATABASE_URL must start with postgresql:// or postgres://.")
     try:
         import psycopg as _psycopg
     except ImportError as _err:
-        raise RuntimeError("PostgreSQL demande la dépendance optionnelle '.[postgres]' (pip install monl-compiler[postgres]).") from _err
+        raise RuntimeError("PostgreSQL requires the optional dependency '.[postgres]' (pip install monl-compiler[postgres]).") from _err
     try:
         import psycopg_pool as _psycopg_pool
     except ImportError:
@@ -226,9 +226,9 @@ def _connect():
 
 
 def _database_integrity_kind(error, once_names=(), once_signatures=()):
-    """Classe une intégrité violée sans parser un message PostgreSQL.
-    PostgreSQL expose SQLSTATE et diag.constraint_name ; SQLite reste
-    compatible avec son message historique comme solution de repli."""
+    """Classifies an integrity violation without parsing a PostgreSQL message.
+    PostgreSQL exposes SQLSTATE and diag.constraint_name; SQLite stays
+    compatible with its historical message as a fallback."""
     sqlstate = getattr(error, 'sqlstate', None)
     constraint = getattr(getattr(error, 'diag', None), 'constraint_name', None)
     if sqlstate == '23505':
@@ -314,15 +314,15 @@ def _attribuer_numero(cursor, entite, champ, gabarit, gabarit_periode):
 _MONL_ENV = os.environ.get('MONL_ENV', '').strip().lower()
 if _MONL_ENV == 'production' and not JWT_SECRET:
     raise RuntimeError(
-        'MONL_ENV=production exige la variable MONL_JWT_SECRET ; '
-        'aucun secret JWT ne sera généré ni lu depuis .jwt_secret.'
+        'MONL_ENV=production requires the MONL_JWT_SECRET variable; '
+        'no JWT secret will be generated or read from .jwt_secret.'
     )
 if not JWT_SECRET:
     try:
         with open('.jwt_secret', 'r', encoding='utf-8') as _f:
             JWT_SECRET = _f.read().strip()
         if not JWT_SECRET:
-            raise ValueError('.jwt_secret est vide')
+            raise ValueError('.jwt_secret is empty')
     except FileNotFoundError:
         JWT_SECRET = secrets.token_hex(32)
         try:
@@ -331,13 +331,13 @@ if not JWT_SECRET:
             with open('.jwt_secret', 'r', encoding='utf-8') as _f:
                 JWT_SECRET = _f.read().strip()
         except OSError as _e:
-            raise RuntimeError("Impossible de créer .jwt_secret : définissez "
-                               "MONL_JWT_SECRET ou rendez le dossier inscriptible.") from _e
+            raise RuntimeError("Unable to create .jwt_secret: set "
+                               "MONL_JWT_SECRET or make the folder writable.") from _e
         else:
             with os.fdopen(_fd, 'w', encoding='utf-8') as _f:
                 _f.write(JWT_SECRET)
     if not JWT_SECRET:
-        raise RuntimeError('Le fichier .jwt_secret est vide')
+        raise RuntimeError('The .jwt_secret file is empty')
 JWT_ALGORITHM = 'HS256'
 VALID_ACTORS = [${actors}]''').substitute(actors=actors_literal).split("\n"),
             # CORRECTIF (bêta 3, faille critique d'élévation de privilège) :

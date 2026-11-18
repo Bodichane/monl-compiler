@@ -84,10 +84,10 @@ def _specs_des_entites(entities, fk_placements, lisibles, plans):
                     "max_bytes": policy.upload_rule.max_bytes,
                     "accepted_types": list(policy.upload_rule.accepted_types),
                     "storage": "server_disk_reference",
-                    "note": ("octets reçus à l'exécution ; le nom de fichier et le "
-                             "Content-Type client sont ignorés, le type est établi "
-                             "par signature d'octets ; lecture privée selon l'ACL de "
-                             "la ligne, en téléchargement octet/octet"),
+                    "note": ("bytes received at runtime; the client's file name and "
+                             "Content-Type are ignored, the type is established "
+                             "by byte signature; private read according to the "
+                             "row's ACL, as a byte-for-byte download"),
                 }
             # BRIQUE 19 (point 96) : les valeurs permises. Sans elles, l'IA
             # dessine un champ TEXTE et l'utilisateur invente un statut qui
@@ -111,55 +111,55 @@ def _specs_des_entites(entities, fk_placements, lisibles, plans):
             champ.update(_non_blank_constraint(ftype, policy))
             if policy.constraints.unique:
                 champ["unique"] = True
-                champ["unique_note"] = ("valeur unique imposée par la base : une "
-                                        "création ou une modification en doublon "
-                                        "répond 409, pas 422 — le dire à l'utilisateur "
-                                        "plutôt que de rejouer la requête.")
+                champ["unique_note"] = ("unique value enforced by the database: a "
+                                        "duplicate creation or update answers "
+                                        "409, not 422 — tell the user rather "
+                                        "than replaying the request.")
             if derive:
                 champ["derived_from"] = (f"{derive.source_entity}."
                                          f"{derive.source_field}")
                 champ["derived_factor"] = derive.factor
                 champ["note"] = (
-                    f"calculé par le serveur : {derive.source_entity}."
-                    f"{derive.source_field} × {derive.factor}. Ne pas "
-                    f"l'envoyer, et ne pas le calculer côté navigateur pour "
-                    f"l'afficher avant création — relire la valeur renvoyée par "
-                    f"le serveur, c'est elle qui sera encaissée.")
+                    f"calculated by the server: {derive.source_entity}."
+                    f"{derive.source_field} × {derive.factor}. Do not "
+                    f"send it, and do not calculate it in the browser to "
+                    f"show it before creation — reread the value returned by "
+                    f"the server, it is the one that will be charged.")
             if somme:
                 champ["summed_from"] = (f"{somme.source_entity}."
                                         f"{somme.source_field}")
                 champ["note"] = (
-                    f"total recalculé par le serveur : somme des "
-                    f"{somme.source_entity}.{somme.source_field} rattachés. "
-                    f"Ne pas l'envoyer. Il change à chaque {somme.source_entity} "
-                    f"ajouté, modifié ou supprimé : relire le "
-                    f"{ent} après chaque écriture de ligne plutôt que de tenir un "
-                    f"total côté navigateur, qui divergerait.")
+                    f"total recalculated by the server: sum of the attached "
+                    f"{somme.source_entity}.{somme.source_field}. "
+                    f"Do not send it. It changes with each {somme.source_entity} "
+                    f"added, modified or deleted: reread the "
+                    f"{ent} after each line write rather than keeping a "
+                    f"total in the browser, which would drift.")
             if policy.timestamped:
                 champ["created_at"] = True
                 champ["note"] = (
-                    "instant de création, écrit par le serveur en ISO 8601 UTC "
-                    "(ex. '2026-07-31T04:18:22.310+00:00'), et jamais modifié ensuite. "
-                    "Ne pas l'envoyer : ni à la création, ni à la modification. "
-                    "Il se trie comme du texte — comparer les chaînes suffit, "
-                    "inutile de les convertir pour ordonner une liste. "
-                    "PEUT ÊTRE VIDE sur les enregistrements créés avant l'ajout "
-                    "de la règle : afficher un tiret, jamais la date du jour — "
-                    "cette date-là n'a pas été perdue, elle n'a jamais existé.")
+                    "creation instant, written by the server in ISO 8601 UTC "
+                    "(e.g. '2026-07-31T04:18:22.310+00:00'), and never changed afterwards. "
+                    "Do not send it: neither on creation nor on update. "
+                    "It sorts as text — comparing the strings is enough, "
+                    "no need to convert them to order a list. "
+                    "MAY BE EMPTY on records created before the rule was "
+                    "added: show a dash, never today's date — that date "
+                    "was not lost, it never existed.")
             if numero:
                 champ["numbered_as"] = numero.format
                 champ["note"] = (
-                    f"numéro lisible attribué par le serveur à la création, sur le "
-                    f"gabarit « {numero.format} », et jamais modifié ensuite. "
-                    f"Ne pas l'envoyer : ni à la création, ni à la modification. "
-                    f"C'est la référence que l'humain lit et dicte — l'AFFICHER "
-                    f"partout où l'enregistrement est identifié (liste, détail, "
-                    f"accusé de commande), de préférence avant l'`id` technique, "
-                    f"et la rendre copiable. "
-                    + ("Il se trie comme du texte, la partie séquence étant "
-                       "complétée par des zéros. " if "{N" in numero.format else "")
-                    + "PEUT ÊTRE VIDE sur les enregistrements créés avant l'ajout "
-                      "de la règle : afficher un tiret, jamais un numéro inventé.")
+                    f"readable number assigned by the server on creation, on the "
+                    f"template “{numero.format}”, and never changed afterwards. "
+                    f"Do not send it: neither on creation nor on update. "
+                    f"It is the reference a human reads and dictates — SHOW it "
+                    f"wherever the record is identified (list, detail, order "
+                    f"confirmation), preferably before the technical `id`, "
+                    f"and make it copyable. "
+                    + ("It sorts as text, the sequence part being padded "
+                       "with zeros. " if "{N" in numero.format else "")
+                    + "MAY BE EMPTY on records created before the rule was "
+                      "added: show a dash, never an invented number.")
             field_list.append(champ)
         # POINT 88 : une clé étrangère de monl référence l'une de DEUX choses,
         # et le contrat n'en disait qu'une. Celles que la route Create peuple
@@ -183,15 +183,15 @@ def _specs_des_entites(entities, fk_placements, lisibles, plans):
                 # La fiche métier se retrouve par la colonne HOMONYME, qui porte
                 # le même identifiant de compte — pas par son `id`.
                 lien["note"] = (
-                    f"contient un identifiant de COMPTE (celui du titulaire), "
-                    f"pas l'`id` d'un enregistrement {p['owner_entity']}. Pour "
-                    f"retrouver la fiche : chercher le {p['owner_entity']} dont "
-                    f"`{p['fk_column']}` vaut cette même valeur — jamais celui "
-                    f"dont `id` la vaut, la correspondance serait fortuite.")
+                    f"contains an ACCOUNT identifier (the holder's), "
+                    f"not the `id` of a {p['owner_entity']} record. To "
+                    f"find the record: look for the {p['owner_entity']} whose "
+                    f"`{p['fk_column']}` has this same value — never the one "
+                    f"whose `id` has it, the match would be accidental.")
             else:
                 lien["references_account"] = False
-                lien["note"] = (f"contient l'`id` d'un enregistrement "
-                                f"{p['owner_entity']}.")
+                lien["note"] = (f"contains the `id` of a "
+                                f"{p['owner_entity']} record.")
             fks.append(lien)
         roles = roles_de_champs._assign_field_roles(field_list)
         for f in field_list:
@@ -216,16 +216,16 @@ def _specs_des_entites(entities, fk_placements, lisibles, plans):
             # relisant le brief produit, pas le code.
             suivi = (
                 (PAYMENT_STATUS_COLUMN,
-                 "état du règlement, écrit par le serveur seul : 'en_attente' "
-                 "tant que rien n'est encaissé, 'payee' une fois le webhook du "
-                 "prestataire reçu — c'est ce champ qui dit si c'est payé"),
+                 "payment state, written by the server alone: 'en_attente' "
+                 "while nothing is charged, 'payee' once the provider's "
+                 "webhook is received — this field says whether it is paid"),
                 (PAYMENT_REF_COLUMN,
-                 "référence de la session chez le prestataire, écrite par le "
-                 "serveur seul ; utile pour un rapprochement comptable, sans "
-                 "intérêt pour le visiteur. Elle peut être renseignée DÈS "
-                 "l'ouverture de la session, avant tout encaissement : ce "
-                 "n'est donc pas un indicateur de règlement, c'est "
-                 "payment_status qui dit si c'est payé"),
+                 "the session reference at the provider, written by the "
+                 "server alone; useful for accounting reconciliation, of no "
+                 "interest to the visitor. It may be filled AS SOON AS the "
+                 "session opens, before any charge: so it is not a payment "
+                 "indicator, payment_status is what says whether it is "
+                 "paid"),
             )
             for colonne, explication in suivi:
                 field_list.append({

@@ -13,21 +13,21 @@ class PreparationRuntimeMixin:
         """Le socle : WAL, verrou passager, préparation, application, init_db."""
         return [
             *Template(r'''def _activer_wal(connection):
-    """Bascule en WAL sans jamais faire échouer le démarrage.
+    """Switches to WAL without ever failing the startup.
 
-    Le mode de journal est une propriété PERSISTANTE du FICHIER,
-    pas de la connexion : le premier processus qui y arrive le
-    règle pour tous les suivants. Or ce pragma est le seul endroit
-    du socle que `busy_timeout` ne protège PAS — mesuré : face à
-    une transaction d'ÉCRITURE il échoue en 0,00 s. Démarré avec
-    `--workers 2`, un worker écrivait le schéma pendant que l'autre
-    exécutait ce pragma. On réessaie donc soi-même, dans le budget
-    de `busy_timeout` (attente native coupée pendant les essais,
-    pour qu'un lecteur ne prolonge pas l'échéance).
+    The journal mode is a PERSISTENT property of the FILE, not of
+    the connection: the first process to get there sets it for all
+    the following ones. And this pragma is the only place in the
+    foundation that `busy_timeout` does NOT protect — measured: facing
+    a WRITE transaction it fails in 0.00 s. Started with
+    `--workers 2`, one worker was writing the schema while the other
+    ran this pragma. So we retry ourselves, within the `busy_timeout`
+    budget (native waiting switched off during the attempts, so a
+    reader does not extend the deadline).
 
-    À l'échéance, on renonce sans erreur : sans WAL la base retombe
-    sur le journal de restauration, le mode par défaut de SQLite.
-    Échouer ici ne coûte que de la concurrence, jamais une donnée.
+    At the deadline we give up without error: without WAL the
+    database falls back to the rollback journal, SQLite's default
+    mode. Failing here only costs concurrency, never data.
     """
     busy_ms = connection.execute('PRAGMA busy_timeout').fetchone()[0]
     echeance = time.monotonic() + busy_ms / 1000
@@ -46,12 +46,11 @@ class PreparationRuntimeMixin:
         connection.execute(f'PRAGMA busy_timeout = {busy_ms}')
 
 def _verrou_passager(erreur):
-    """Cette erreur dit-elle « quelqu'un d'autre écrit en ce moment » ?
+    """Does this error say "someone else is writing right now"?
 
-    Distinguer importe : un verrou passager se réessaie, un schéma
-    fautif doit remonter tout de suite. Réessayer une vraie erreur
-    de schéma ne ferait que retarder le diagnostic de vingt
-    secondes.
+    The distinction matters: a transient lock is retried, a faulty
+    schema must surface at once. Retrying a real schema error would
+    only delay the diagnosis by twenty seconds.
     """
     return (isinstance(erreur, sqlite3.OperationalError)
             and ('locked' in str(erreur).lower()
@@ -60,12 +59,12 @@ def _verrou_passager(erreur):
 def _prepare_database(conn):
     if _DATABASE_KIND == 'sqlite':
         _activer_wal(conn)
-    # RÉESSAI PLUTÔT QU'INSTRUCTION PAR INSTRUCTION. `busy_timeout`
-    # ne couvre ni le changement de mode de journal ni le COMMIT
-    # implicite d'`executescript` — corriger la seule instruction
-    # observée laisserait la suivante tomber au prochain démarrage
-    # concurrent. Le DDL du socle est idempotent (CREATE TABLE IF
-    # NOT EXISTS), donc le rejouer ne coûte rien.
+    # RETRY RATHER THAN STATEMENT BY STATEMENT. `busy_timeout` covers
+    # neither the journal-mode change nor the implicit COMMIT of
+    # `executescript` — fixing only the observed statement would let
+    # the next one fail on the next concurrent startup. The
+    # foundation's DDL is idempotent (CREATE TABLE IF NOT EXISTS), so
+    # replaying it costs nothing.
     _limite = time.time() + 20.0
     while True:
         try:
@@ -82,23 +81,23 @@ def _prepare_database(conn):
             if _verrou_passager(_error) and time.time() < _limite:
                 time.sleep(0.25)
                 continue
-            raise RuntimeError(f'Initialisation du schéma échouée : {_error}') from _error
+            raise RuntimeError(f'Schema initialization failed: {_error}') from _error
 
 def apply_migration(name, direction='up'):
     if direction not in ('up', 'down'):
-        raise ValueError("direction de migration inconnue")
+        raise ValueError("unknown migration direction")
     conn = _connect()
     try:
         _prepare_database(conn)
         _migration = next((_item for _item in _MIGRATIONS if _item['name'] == name), None)
         if _migration is None:
-            raise RuntimeError(f"Migration inconnue : '{name}'.")
+            raise RuntimeError(f"Unknown migration: '{name}'.")
         if direction == 'up' and _migration_is_applied(conn, _migration):
-            raise RuntimeError(f"Migration déjà appliquée : '{name}'.")
+            raise RuntimeError(f"Migration already applied: '{name}'.")
         if direction == 'down' and not _migration_is_applied(conn, _migration):
-            raise RuntimeError(f"Migration non appliquée : '{name}'.")
+            raise RuntimeError(f"Migration not applied: '{name}'.")
         if direction == 'down' and any(not _item['reversible'] for _item in _migration['operations']):
-            raise RuntimeError(f"La migration '{name}' contient un DROP irréversible sans sauvegarde ; la descente est refusée.")
+            raise RuntimeError(f"The migration '{name}' contains an irreversible DROP with no backup; rolling it back is refused.")
         conn.execute('BEGIN')
         _items = list(enumerate(_migration['operations'], start=1))
         if direction == 'down':
@@ -107,7 +106,7 @@ def apply_migration(name, direction='up'):
             _apply_migration_operation(conn, _operation, direction)
             _record_migration(conn, name, _index, _operation, direction, _operation)
         conn.commit()
-        print(f"✅ Migration '{name}' ({direction}) appliquée. Empreinte : {_schema_fingerprint(conn)}")
+        print(f"✅ Migration '{name}' ({direction}) applied. Fingerprint: {_schema_fingerprint(conn)}")
     except Exception:
         conn.rollback()
         raise
@@ -126,7 +125,7 @@ def init_db():
         for _auto_index, (_table, _col, _sql_type) in enumerate(_missing, start=1):
             _cur.execute(f'ALTER TABLE "{_table}" ADD COLUMN "{_col}" {_sql_type}')
             _record_migration(conn, '__auto_add_column__', _auto_index, {'kind': 'add_column', 'table': _table, 'column': _col, 'sql_type': _sql_type}, 'up', {'table': _table, 'column': _col, 'sql_type': _sql_type})
-            print(f'🔧 Migration additive : colonne "{_col}" ajoutée à "{_table}" ({_sql_type}).')
+            print(f'🔧 Additive migration: column "{_col}" added to "{_table}" ({_sql_type}).')
         if _missing:
             conn.commit()
         for _table, _col, _index in _UNIQUE_INDEXES:
@@ -136,17 +135,17 @@ def init_db():
             except _DATABASE_INTEGRITY_ERRORS:
                 conn.rollback()
                 _dups = conn.execute(f'SELECT COUNT(*) FROM (SELECT "{_col}" FROM "{_table}" GROUP BY "{_col}" HAVING COUNT(*) > 1)').fetchone()[0]
-                print(f'❌ "{_table}"."{_col}" est déclaré unique dans la spec, mais la base contient déjà {_dups} valeur(s) en double : l\'unicité NE PEUT PAS être appliquée. Dédoublonner, puis redémarrer (docs/MIGRATIONS.md).')
+                print(f'❌ "{_table}"."{_col}" is declared unique in the spec, but the database already holds {_dups} duplicated value(s): uniqueness CANNOT be enforced. Remove the duplicates, then restart (docs/MIGRATIONS.md).')
             except Exception as _error:
                 conn.rollback()
-                print(f'⚠️ Index unique sur "{_table}"."{_col}" non appliqué : {_error}')
+                print(f'⚠️ Unique index on "{_table}"."{_col}" not applied: {_error}')
         for _table, _col, _index in _LOOKUP_INDEXES:
             try:
                 conn.execute(f'CREATE INDEX IF NOT EXISTS "{_index}" ON "{_table}" ("{_col}")')
                 conn.commit()
             except Exception as _error:
                 conn.rollback()
-                print(f'⚠️ Index de recherche sur "{_table}"."{_col}" non appliqué : {_error}')
+                print(f'⚠️ Lookup index on "{_table}"."{_col}" not applied: {_error}')
         for _table, _cols, _index in _ONCE_PER_INDEXES:
             try:
                 _columns = ', '.join(f'"{_col}"' for _col in _cols)
@@ -154,32 +153,32 @@ def init_db():
                 conn.commit()
             except _DATABASE_INTEGRITY_ERRORS:
                 conn.rollback()
-                print(f'❌ Unicité métier déjà violée sur "{_table}" ({_columns}) : corriger les doublons avant de redémarrer.')
+                print(f'❌ Business uniqueness already violated on "{_table}" ({_columns}): fix the duplicates before restarting.')
             except Exception as _error:
                 conn.rollback()
-                print(f'⚠️ Index oncePer sur "{_table}" non appliqué : {_error}')
+                print(f'⚠️ oncePer index on "{_table}" not applied: {_error}')
         _colonnes_vides_irreparables = [
-            (_TIMESTAMP_COLUMNS, 'créé(s) avant l\'ajout de l\'horodatage restent sans date. Elle ne peut pas être reconstituée — les dater après coup serait faux.'),
-            (_POSTPAYMENT_ENUM_COLUMNS, 'existant(s) ont une valeur NULL hors du oneOf. Ils restent inchangés — les rattraper inventerait un état initial qui n\'a pas été observé.'),
+            (_TIMESTAMP_COLUMNS, 'created before the timestamp was added remain undated. The date cannot be reconstructed — dating them afterwards would be false.'),
+            (_POSTPAYMENT_ENUM_COLUMNS, 'already present have a NULL value outside the oneOf. They are left unchanged — filling them in would invent an initial state that was never observed.'),
         ]
         for _colonnes, _constat in _colonnes_vides_irreparables:
             for _table, _col in _colonnes:
                 _sans = conn.execute(f'SELECT COUNT(*) FROM "{_table}" WHERE "{_col}" IS NULL').fetchone()[0]
                 if _sans:
-                    print(f'ℹ️ "{_table}"."{_col}" : {_sans} enregistrement(s) {_constat}')
+                    print(f'ℹ️ "{_table}"."{_col}": {_sans} record(s) {_constat}')
         for _table, _col in _NUMBERED_COLUMNS:
             _sans = conn.execute(f'SELECT COUNT(*) FROM "{_table}" WHERE "{_col}" IS NULL').fetchone()[0]
             if _sans:
-                print(f'ℹ️ "{_table}"."{_col}" : {_sans} enregistrement(s) créé(s) avant l\'ajout de la numérotation restent sans numéro. La séquence repart de 1 ; leur attribuer un numéro maintenant inventerait un ordre d\'arrivée.')
+                print(f'ℹ️ "{_table}"."{_col}": {_sans} record(s) created before numbering was added remain unnumbered. The sequence starts again at 1; numbering them now would invent an order of arrival.')
         if AUTH_IDENTIFIER_FORMS and 'libre' not in AUTH_IDENTIFIER_FORMS:
             _anciens = [r[0] for r in conn.execute('SELECT username FROM _monl_users').fetchall()]
             _hors = [u for u in _anciens if not _forme_valide(u)]
             if _hors:
-                print(f'ℹ️ {len(_hors)} compte(s) existant(s) ne suivent pas la forme d\'identifiant déclarée ({", ".join(AUTH_IDENTIFIER_FORMS)}) : {", ".join(_hors[:5])}{"…" if len(_hors) > 5 else ""}. Ils continuent de fonctionner ; la règle ne vaut que pour les inscriptions à venir.')
+                print(f'ℹ️ {len(_hors)} existing account(s) do not follow the declared identifier form ({", ".join(AUTH_IDENTIFIER_FORMS)}): {", ".join(_hors[:5])}{"…" if len(_hors) > 5 else ""}. They keep working; the rule only applies to future sign-ups.')
         try:
             _sys_cur = conn.cursor()
             if not _table_exists(_sys_cur, '_monl_revoked_tokens'):
-                raise RuntimeError('table _monl_revoked_tokens absente')
+                raise RuntimeError('table _monl_revoked_tokens missing')
             if 'expires_at' not in _table_columns(_sys_cur, '_monl_revoked_tokens'):
                 _sys_cur.execute('ALTER TABLE _monl_revoked_tokens ADD COLUMN expires_at DOUBLE PRECISION')
                 _record_migration(conn, '__auto_system__', 1, {'kind': 'add_column', 'table': '_monl_revoked_tokens', 'column': 'expires_at', 'sql_type': 'DOUBLE PRECISION'}, 'up', {'table': '_monl_revoked_tokens', 'column': 'expires_at'})
@@ -203,7 +202,7 @@ def init_db():
                         _scur.execute(f'SELECT id FROM "{_p["table"]}" WHERE "{_p["field"]}" = ?', (_p['value'],))
                         _cible = _scur.fetchone()
                         if not _cible:
-                            print(f'⚠️ Donnée de démonstration ignorée : aucun "{_p["table"]}" dont {_p["field"]} vaut "{_p["value"]}" pour y rattacher une ligne de "{_table}".')
+                            print(f'⚠️ Demo data skipped: no "{_p["table"]}" whose {_p["field"]} is "{_p["value"]}" to attach a "{_table}" row to.')
                             continue
                         _row[_p['column']] = _cible[0]
                     _cols = list(_row.keys())
@@ -212,11 +211,11 @@ def init_db():
                     _scur.execute(f'INSERT INTO "{_table}" ({_colnames}) VALUES ({_placeholders})', tuple(_row.values()))
                     _poses += 1
                 if _poses:
-                    print(f'🌱 Données de démonstration insérées dans "{_table}" ({_poses}).')
+                    print(f'🌱 Demo data inserted into "{_table}" ({_poses}).')
             conn.commit()
         except Exception as _error:
             conn.rollback()
-            print(f'⚠️ Données de démonstration ignorées : {_error}')
+            print(f'⚠️ Demo data skipped: {_error}')
     except Exception:
         conn.rollback()
         raise

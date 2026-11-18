@@ -39,7 +39,7 @@ PNG = bytes.fromhex(
 def serveur_depuis_le_dialogue():
     """Compile ce que le dialogue produit, et le fait vraiment tourner."""
     index = next(i for i, t in enumerate(TEMPLATES, 1)
-                 if t["name"] == "Suivi de dépenses personnelles")
+                 if t["name"] == "Personal expense tracking")
     with contextlib.redirect_stdout(io.StringIO()):
         spec = _run_template(index, "n", False, upload_pour="Expense")
     assert "rule Expense.photo upload max" in spec, spec

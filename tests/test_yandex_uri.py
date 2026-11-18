@@ -88,7 +88,7 @@ def test_la_telemetrie_regroupe_sur_le_nom_lisible(monkeypatch, tmp_path):
 def test_model_absent_reste_refuse(monkeypatch):
     _configure_yandex(monkeypatch)
 
-    with pytest.raises(frontend_ai.FrontendAIError, match="modèle manquant"):
+    with pytest.raises(frontend_ai.FrontendAIError, match="model missing"):
         frontend_ai.PROVIDERS["yandex"](model=None)
 
 

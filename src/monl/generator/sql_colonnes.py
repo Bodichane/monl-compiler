@@ -33,8 +33,8 @@ class SqlColonnesMixin:
                      if p["owner_entity"] == parent), None)
                 if not placement:
                     raise ValueError(
-                        f"Génération : aucune clé étrangère de '{entity}' ne désigne "
-                        f"'{parent}', alors que 'oncePer' l'exige.")
+                        f"Generation: no foreign key of '{entity}' points to "
+                        f"'{parent}', although 'oncePer' requires it.")
                 # POINT 116 : un index composite sur une colonne que la route
                 # Create n'écrit JAMAIS ne refuse rien — SQLite tient deux NULL
                 # pour distincts, donc la règle passe la compilation, crée son
@@ -53,12 +53,12 @@ class SqlColonnesMixin:
                 ecrites |= set(self._counter_fk_columns(entity))
                 if placement["fk_column"] not in ecrites:
                     raise ValueError(
-                        f"Génération : 'oncePer' sur '{entity}' désigne '{parent}', "
-                        f"mais la colonne '{placement['fk_column']}' n'est jamais "
-                        f"écrite à la création — l'unicité ne refuserait rien. "
-                        f"Déclarer la relation vers l'acteur AVANT celle visée par "
-                        f"un 'increments'/'decrements', pour que la colonne du "
-                        f"parent reste fournie par le client.")
+                        f"Generation: 'oncePer' on '{entity}' points to '{parent}', "
+                        f"but the column '{placement['fk_column']}' is never "
+                        f"written at creation — uniqueness would refuse nothing. "
+                        f"Declare the relation to the actor BEFORE the one targeted "
+                        f"by an 'increments'/'decrements', so the parent column "
+                        f"stays supplied by the client.")
                 columns.append(placement["fk_column"])
             index_name = "idx_once_per_{}_{}".format(
                 entity.lower(), "_".join(c.lower() for c in columns))

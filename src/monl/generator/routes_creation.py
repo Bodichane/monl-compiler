@@ -94,10 +94,10 @@ class CreationRoutesMixin:
                 "        raise HTTPException(status_code=409, detail=(",
                 # Pas d'article devant le nom de l'entité : il n'a pas de
                 # genre, et « un Commande » se lisait mal.
-                f"            \"Créez d'abord votre fiche "
-                f"{self.required_profiles[base_target]} : un enregistrement \"",
-                f"            '{base_target} sans elle ne pourrait être "
-                f"rattaché à personne.'))",
+                f"            \"Create your {self.required_profiles[base_target]} "
+                f"profile first: a \"",
+                f"            '{base_target} record without it could not be "
+                f"attached to anyone.'))",
             ]
         # AJOUT (brique 11, point 81) : la vérification qui remplace le
         # peuplement depuis le jeton. Sans elle, la brique ouvrirait un
@@ -131,8 +131,8 @@ class CreationRoutesMixin:
                 "    if not _parent or _parent[0] is None or _parent[0] != current_user_id:",
                 "        conn.close()",
                 "        raise HTTPException(status_code=403, detail=(",
-                f"            \"Contrôle d'accès : ce {chaine_create['via']} ne vous \"",
-                "            'appartient pas, ou n\\'existe pas.'))",
+                f"            \"Access control: this {chaine_create['via']} does not \"",
+                "            'belong to you, or does not exist.'))",
             ]
         # AJOUT (brique 18, point 91) : on n'ajoute pas une ligne à une
         # commande DÉJÀ RÉGLÉE. Le parent vient de `data.<fk>` ici — le
@@ -161,12 +161,12 @@ class CreationRoutesMixin:
                 f"    if not _src_{regle.field}:",
                 "        conn.close()",
                 "        raise HTTPException(status_code=409, detail=(",
-                f"            '{regle.source_entity} introuvable : impossible de calculer "
+                f"            '{regle.source_entity} not found: unable to calculate "
                 f"{regle.field}.'))",
                 f"    if data.{regle.factor} <= 0:",
                 "        conn.close()",
                 "        raise HTTPException(status_code=400, detail=(",
-                "            'La quantité doit être strictement positive.'))",
+                "            'The quantity must be strictly positive.'))",
                 f"    {var} = round(float(_src_{regle.field}[0] or 0) "
                 f"* int(data.{regle.factor}), 2)",
             ]
@@ -313,8 +313,8 @@ class CreationRoutesMixin:
                 api_lines += [
                     "        if cursor.rowcount == 0:",
                     "            raise HTTPException(status_code=409, detail=(",
-                    f"                '{rule.target_entity}.{target_field} insuffisant : "
-                    f"la quantité demandée dépasse ce qui reste disponible.'))",
+                    f"                '{rule.target_entity}.{target_field} insufficient: "
+                    f"the requested quantity exceeds what remains available.'))",
                 ]
             else:
                 api_lines.append(
@@ -361,8 +361,8 @@ class CreationRoutesMixin:
             api_lines.append("        if _integrity_kind == 'once_per':")
             api_lines.append("            raise HTTPException(status_code=409, detail=(")
             api_lines.append(
-                "                'Cette action a déjà été effectuée pour cette "
-                "cible par ce compte.'))")
+                "                'This action has already been performed on this "
+                "target by this account.'))")
         # La branche `unique` est émise MÊME sans champ `unique` déclaré : la
         # brique 22 (`numbered`) pose un index unique sans qu'on le déclare,
         # et le point 85 en pose un par `unique`. Ne l'émettre que sur la
@@ -371,19 +371,19 @@ class CreationRoutesMixin:
         api_lines.append("            raise HTTPException(status_code=409, detail=(")
         if uniques_ici:
             api_lines.append(
-                f"                'Valeur déjà utilisée : {', '.join(uniques_ici)} "
-                f"doit être unique.'))")
+                f"                'Value already in use: {', '.join(uniques_ici)} "
+                f"must be unique.'))")
         else:
             api_lines.append(
-                "                'Valeur déjà utilisée : cet enregistrement "
-                "existe déjà.'))")
+                "                'Value already in use: this record "
+                "already exists.'))")
         api_lines.append("        if _integrity_kind == 'foreign_key':")
         api_lines.append("            raise HTTPException(status_code=409, detail=(")
-        api_lines.append("                'Référence invalide : un identifiant lié fourni ne correspond à aucun '")
-        api_lines.append("                'enregistrement existant.'))")
+        api_lines.append("                'Invalid reference: a linked identifier supplied matches no '")
+        api_lines.append("                'existing record.'))")
         api_lines.append("        raise HTTPException(status_code=409, detail=(")
-        api_lines.append("            \"Conflit d'intégrité en base : l'écriture a été annulée, \"")
-        api_lines.append("            'rien n\\'a été enregistré.'))")
+        api_lines.append("            'Database integrity conflict: the write was cancelled, '")
+        api_lines.append("            'nothing was saved.'))")
         api_lines.append("    except Exception:")
         api_lines.append("        conn.rollback(); conn.close(); raise")
         api_lines.append("    conn.close()")

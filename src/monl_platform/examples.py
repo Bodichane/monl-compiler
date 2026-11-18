@@ -23,267 +23,267 @@ from __future__ import annotations
 
 from typing import Any
 
-VITRINE = """app AtelierVitrine
+VITRINE = """app WorkshopShowcase
 
-# Le cas le plus simple : un catalogue que tout le monde lit, que seul
-# l'atelier modifie. `public` retire l'authentification de la LECTURE, et
-# d'elle seule — créer, modifier et supprimer restent réservés à l'Admin.
+# The simplest case: a catalog everyone reads and only the workshop changes.
+# `public` removes authentication from READING, and from reading alone —
+# creating, updating and deleting stay reserved to the Admin.
 
-entity Realisation
-    titre: String
-    resume: Text
-    categorie: String
+entity Project
+    title: String
+    summary: Text
+    category: String
     imageUrl: String
 
 actor Admin
 
-rule Realisation.titre required
-rule Realisation.Read public
+rule Project.title required
+rule Project.Read public
 
-workflow Gerer for Admin
-    Create Realisation
-    Read Realisation
-    Update Realisation
-    Delete Realisation
+workflow Manage for Admin
+    Create Project
+    Read Project
+    Update Project
+    Delete Project
 
-# Le bloc `seed` remplit la base au premier démarrage, et une seule fois :
-# une vitrine vide ne se juge pas.
-seed Realisation
-    titre: "Comptoir Nord", categorie: "Agencement", resume: "Chene massif et laiton brosse.", imageUrl: ""
-    titre: "Bibliotheque Faille", categorie: "Rangements", resume: "Modules asymetriques sur mesure.", imageUrl: ""
-    titre: "Table Onde", categorie: "Tables", resume: "Plateau en frene ondee, edition limitee.", imageUrl: ""
+# The `seed` block fills the database on first start, and only once: an
+# empty showcase cannot be judged.
+seed Project
+    title: "North Counter", category: "Fittings", summary: "Solid oak and brushed brass.", imageUrl: ""
+    title: "Fault Bookcase", category: "Storage", summary: "Asymmetric made-to-measure modules.", imageUrl: ""
+    title: "Wave Table", category: "Tables", summary: "Rippled ash top, limited edition.", imageUrl: ""
 
 landing
-    brief: "L'Atelier Vitrine presente les realisations d'un menuisier : mobilier sur mesure et agencement d'interieur."
-    section "L'atelier": "Nous dessinons et fabriquons dans le meme lieu. Chaque piece est unique."
+    brief: "Workshop Showcase presents a cabinetmaker's work: made-to-measure furniture and interior fittings."
+    section "The workshop": "We design and build in the same place. Every piece is unique."
 """
 
-RENDEZ_VOUS = """app CarnetRendezVous
+RENDEZ_VOUS = """app AppointmentBook
 
-# La propriete : chacun ne voit QUE ses propres demandes. `ownedBy` filtre la
-# lecture autant que l'ecriture — liste comprise, ce qui est le piege
-# classique d'un controle d'acces fait a la main.
+# Ownership: everyone sees ONLY their own requests. `ownedBy` filters reading
+# as much as writing — the list included, which is the classic trap of a
+# hand-written access check.
 
 entity Client
-    nom: String
-    telephone: String
+    name: String
+    phone: String
 
-entity Demande
-    motif: Text
-    creneau: String
-    statut: String
-    deposeeLe: DateTime
+entity Request
+    reason: Text
+    slot: String
+    status: String
+    submittedAt: DateTime
 
-actor Praticien
-actor Visiteur selfRegister
+actor Practitioner
+actor Visitor selfRegister
 
-relation Visiteur hasMany Client
-relation Visiteur hasMany Demande
+relation Visitor hasMany Client
+relation Visitor hasMany Request
 
-# Sans forme imposee, deux ecritures d'un meme numero font deux comptes.
+# Without an enforced form, two spellings of the same number make two accounts.
 capability auth
     identifier: phone
     phone_prefix: "+229"
 
-rule Client.nom required
-rule Client.Read ownedBy Visiteur
-rule Client.Update ownedBy Visiteur
+rule Client.name required
+rule Client.Read ownedBy Visitor
+rule Client.Update ownedBy Visitor
 
-rule Demande.Read ownedBy Visiteur
-rule Demande.Update ownedBy Visiteur
-rule Demande.Delete ownedBy Visiteur
-rule Demande.Read sharedBy Praticien
-rule Demande.Update sharedBy Praticien
+rule Request.Read ownedBy Visitor
+rule Request.Update ownedBy Visitor
+rule Request.Delete ownedBy Visitor
+rule Request.Read sharedBy Practitioner
+rule Request.Update sharedBy Practitioner
 
-# On ne prend pas rendez-vous sans fiche : une demande qu'on ne peut
-# rattacher a personne n'est pas honorable.
-rule Demande.Create requiresOwn Client
+# No appointment without a profile: a request that cannot be tied to anyone
+# cannot be honored.
+rule Request.Create requiresOwn Client
 
-# Le statut est une valeur PARMI UNE LISTE : sans cela le client se declare
-# « honoree » lui-meme. La date est ecrite par le serveur.
-rule Demande.statut oneOf "deposee", "confirmee", "honoree", "annulee"
-rule Demande.deposeeLe timestamp
+# The status is a value FROM A LIST: otherwise the client declares itself
+# "honored". The date is written by the server.
+rule Request.status oneOf "submitted", "confirmed", "honored", "cancelled"
+rule Request.submittedAt timestamp
 
-workflow Prendre for Visiteur
+workflow Book for Visitor
     Create Client
     Read Client
     Update Client
-    Create Demande
-    Read Demande
-    Update Demande
-    Delete Demande
+    Create Request
+    Read Request
+    Update Request
+    Delete Request
 
-workflow Tenir for Praticien
-    Read Demande
-    Update Demande
+workflow Handle for Practitioner
+    Read Request
+    Update Request
 
 landing
-    brief: "Le Carnet de rendez-vous permet a chacun de deposer une demande et d'en suivre l'etat."
-    question "Comment annuler ?": "Ouvrez la demande depuis votre espace et passez son statut a annulee."
+    brief: "Appointment Book lets everyone submit a request and follow its status."
+    question "How do I cancel?": "Open the request from your space and set its status to cancelled."
 """
 
-BOUTIQUE = """app PetiteBoutique
+BOUTIQUE = """app LittleShop
 
-# La chaine marchande entiere. Le point a retenir : AUCUN montant n'est
-# ecrit par le client. Le sous-total est calcule depuis le prix du catalogue
-# (`derivedFrom`), le total est la somme des lignes (`sumOf`), et c'est ce
-# total-la qu'on encaisse.
+# The whole commerce chain. The point to remember: NO amount is written by
+# the client. The subtotal is computed from the catalog price
+# (`derivedFrom`), the total is the sum of the lines (`sumOf`), and that
+# total is what gets charged.
 
-entity Produit
-    nom: String
+entity Product
+    name: String
     description: Text
-    prix: Money
+    price: Money
     stock: Integer
 
-entity Commande
+entity Order
     reference: String
     total: Money
-    statut: String
-    passeeLe: DateTime
+    status: String
+    placedAt: DateTime
 
-entity Ligne
-    quantite: Integer
-    sousTotal: Money
+entity OrderLine
+    quantity: Integer
+    subtotal: Money
 
-relation Client hasMany Commande
-relation Commande hasMany Ligne
-relation Produit hasMany Ligne
+relation Customer hasMany Order
+relation Order hasMany OrderLine
+relation Product hasMany OrderLine
 
-actor Client selfRegister
-actor Vendeur
+actor Customer selfRegister
+actor Seller
 
-rule Produit.nom required
-rule Produit.Read public
-rule Produit.prix min 0
-rule Produit.stock min 0
+rule Product.name required
+rule Product.Read public
+rule Product.price min 0
+rule Product.stock min 0
 
-# Une ligne appartient a qui possede sa commande : la propriete traverse un
-# cran (`ownedBy Commande`, et non `ownedBy Client`).
-rule Commande.Read ownedBy Client
-rule Ligne.Read ownedBy Commande
-rule Ligne.Update ownedBy Commande
-rule Ligne.Delete ownedBy Commande
+# A line belongs to whoever owns its order: ownership crosses one step
+# (`ownedBy Order`, not `ownedBy Customer`).
+rule Order.Read ownedBy Customer
+rule OrderLine.Read ownedBy Order
+rule OrderLine.Update ownedBy Order
+rule OrderLine.Delete ownedBy Order
 
-rule Ligne.quantite required
-rule Ligne.quantite min 1
-rule Ligne.sousTotal derivedFrom Produit.prix by quantite
-rule Commande.total sumOf Ligne.sousTotal
+rule OrderLine.quantity required
+rule OrderLine.quantity min 1
+rule OrderLine.subtotal derivedFrom Product.price by quantity
+rule Order.total sumOf OrderLine.subtotal
 
-# `min 0` sur le stock ARME la verification : sans lui, on vend douze paires
-# a cinquante clients. C'est la seule facon declarative de distinguer un
-# stock d'un compteur qui a le droit de passer sous zero.
-rule Ligne.Create decrements Produit.stock by quantite
+# `min 0` on the stock ARMS the check: without it, twelve pairs are sold to
+# fifty customers. It is the only declarative way to tell a stock from a
+# counter that is allowed to go below zero.
+rule OrderLine.Create decrements Product.stock by quantity
 
-rule Commande.total payable
-rule Commande.passeeLe timestamp
-rule Commande.reference numbered "CMD-{YYYY}-{NNNN}"
-rule Commande.statut oneOf "panier", "reglee", "expediee", "annulee"
-rule Commande.statut "annulee" releases Ligne
-rule Commande.statut writableAfterPayment Vendeur
+rule Order.total payable
+rule Order.placedAt timestamp
+rule Order.reference numbered "ORD-{YYYY}-{NNNN}"
+rule Order.status oneOf "cart", "paid", "shipped", "cancelled"
+rule Order.status "cancelled" releases OrderLine
+rule Order.status writableAfterPayment Seller
 
-workflow Acheter for Client
-    Read Produit
-    Create Commande
-    Read Commande
-    Create Ligne
-    Read Ligne
-    Update Ligne
-    Delete Ligne
+workflow Buy for Customer
+    Read Product
+    Create Order
+    Read Order
+    Create OrderLine
+    Read OrderLine
+    Update OrderLine
+    Delete OrderLine
 
-workflow Tenir for Vendeur
-    Create Produit
-    Read Produit
-    Update Produit
-    Delete Produit
-    Update Commande.statut
+workflow Run for Seller
+    Create Product
+    Read Product
+    Update Product
+    Delete Product
+    Update Order.status
 
-seed Produit
-    nom: "Carnet cousu", prix: 14.00, stock: 40, description: "96 pages, papier ivoire 100g."
-    nom: "Stylo plume Ecole", prix: 29.50, stock: 12, description: "Plume acier, corps resine."
-    nom: "Encre Bleu Nuit", prix: 9.90, stock: 60, description: "Flacon 30 ml."
+seed Product
+    name: "Sewn notebook", price: 14.00, stock: 40, description: "96 pages, 100gsm ivory paper."
+    name: "School fountain pen", price: 29.50, stock: 12, description: "Steel nib, resin body."
+    name: "Midnight Blue ink", price: 9.90, stock: 60, description: "30 ml bottle."
 
 landing
-    brief: "La Petite Boutique vend de la papeterie : carnets, stylos et encres."
+    brief: "Little Shop sells stationery: notebooks, pens and inks."
 """
 
-COMMUNAUTE = """app FilCommun
+COMMUNAUTE = """app CommonThread
 
-# Un fil ou l'on publie sous pseudonyme. Trois idees : le pseudo est GENERE
-# par le serveur (personne ne choisit son identite), un compte n'aime qu'une
-# fois par message, et un message masque cesse d'etre lisible par son URL.
+# A thread where people post under a pseudonym. Three ideas: the pseudonym is
+# GENERATED by the server (nobody picks their identity), an account upvotes a
+# post only once, and a hidden post stops being readable through its URL.
 
-entity Membre
-    pseudo: String
+entity Member
+    handle: String
 
-entity Message
-    contenu: Text
-    auteur: String
-    statut: String
-    jaimes: Integer
+entity Post
+    content: Text
+    author: String
+    status: String
+    upvotes: Integer
     score: Integer
-    publieLe: DateTime
+    publishedAt: DateTime
 
-entity Jaime
+entity Upvote
     note: String
 
-entity Signalement
-    motif: String
+entity Report
+    reason: String
 
-relation Membre hasMany Message
-relation Membre hasMany Jaime
-relation Message hasMany Jaime
-relation Membre hasMany Signalement
-relation Message hasMany Signalement
+relation Member hasMany Post
+relation Member hasMany Upvote
+relation Post hasMany Upvote
+relation Member hasMany Report
+relation Post hasMany Report
 
-actor Membre selfRegister
-actor Moderateur
+actor Member selfRegister
+actor Moderator
 
-# `generated` retire le champ du corps de requete : le serveur y ecrit un
-# pseudonyme stable par compte. Un champ libre ne garantit aucune identite.
-rule Message.auteur generated
-rule Message.contenu required
-rule Message.statut oneOf "publie", "masque"
+# `generated` removes the field from the request body: the server writes a
+# stable pseudonym per account into it. A free field guarantees no identity.
+rule Post.author generated
+rule Post.content required
+rule Post.status oneOf "published", "hidden"
 
-# Lecture publique SOUS CONDITION : la liste est filtree et le detail repond
-# 404 tant que le statut ne vaut pas « publie ». Le moderateur, lui, voit
-# tout — sans quoi il ne pourrait plus rouvrir ce qu'il vient de masquer.
-rule Message.Read publicWhen statut "publie"
-rule Message.Read sharedBy Moderateur
-rule Message.Update sharedBy Moderateur
-rule Message.Delete sharedBy Moderateur
-rule Message.publieLe timestamp
+# CONDITIONAL public read: the list is filtered and the detail answers 404
+# as long as the status is not "published". The moderator sees everything —
+# otherwise they could not reopen what they have just hidden.
+rule Post.Read publicWhen status "published"
+rule Post.Read sharedBy Moderator
+rule Post.Update sharedBy Moderator
+rule Post.Delete sharedBy Moderator
+rule Post.publishedAt timestamp
 
-# Le compteur devient un libelle a la lecture : on montre une tendance, pas
-# un nombre exact.
-rule Message.jaimes categorized: "discret" below 10, "suivi" below 100, "viral" otherwise
+# The counter becomes a label when read: it shows a trend, not an exact
+# number.
+rule Post.upvotes categorized: "quiet" below 10, "followed" below 100, "viral" otherwise
 
-# L'unicite tient a un index composite, jamais a une verification applicative
-# — c'est lui qui protege aussi deux requetes simultanees.
-rule Jaime.Create oncePer Membre, Message
-rule Jaime.Create increments Message.jaimes by 1
-# Un signalement vise un MESSAGE, une fois par compte : 'Membre' est aussi
-# l'acteur, et un compteur sur ses fiches toucherait une fiche au hasard.
-rule Signalement.Create oncePer Membre, Message
-rule Signalement.Create decrements Message.score by 10
+# Uniqueness rests on a composite index, never on an application check — it
+# is what also protects two simultaneous requests.
+rule Upvote.Create oncePer Member, Post
+rule Upvote.Create increments Post.upvotes by 1
+# A report targets a POST, once per account: 'Member' is also the actor, and
+# a counter on its profiles would hit a random profile.
+rule Report.Create oncePer Member, Post
+rule Report.Create decrements Post.score by 10
 
-workflow Rejoindre for Membre
-    Create Membre
+workflow Join for Member
+    Create Member
 
-workflow Publier for Membre
-    Create Message
-    Read Message
+workflow Publish for Member
+    Create Post
+    Read Post
 
-workflow Reagir for Membre
-    Create Jaime
-    Create Signalement
+workflow React for Member
+    Create Upvote
+    Create Report
 
-workflow Moderer for Moderateur
-    Read Message
-    Update Message
-    Delete Message
+workflow Moderate for Moderator
+    Read Post
+    Update Post
+    Delete Post
 
 landing
-    brief: "Le Fil Commun est un fil de discussion ou l'on publie sous pseudonyme."
+    brief: "Common Thread is a discussion thread where people post under a pseudonym."
 """
 
 EXAMPLES: list[dict[str, Any]] = [

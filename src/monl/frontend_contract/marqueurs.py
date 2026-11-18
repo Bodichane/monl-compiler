@@ -10,21 +10,21 @@ def _marker_block_description(marker):
     """Décrit le bloc HTML qui porte un marqueur du manifeste."""
     if marker.startswith('data-monl-media="'):
         entity = marker.split('"', 2)[1]
-        return f"la zone qui rend les images de l'entité `{entity}`"
+        return f"the area that renders the images of the entity `{entity}`"
     if not marker.startswith('data-monl-section="'):
-        return "l'élément HTML du bloc visuel correspondant"
+        return "the HTML element of the matching visual block"
     section = marker.split('"', 2)[1]
     descriptions = {
-        "hero": "le bloc hero / bandeau principal",
-        "catalogue": "le bloc catalogue qui rend la liste des produits",
-        "panier": "le bloc panier ou récapitulatif de commande",
-        "workspace": "le bloc espace de travail du rôle concerné",
-        "faq": "le bloc FAQ structuré",
-        "editorial": "le bloc du récit éditorial",
-        "trust": "le bloc de preuve ou de réassurance",
-        "closing-cta": "le bloc d'appel à l'action final",
+        "hero": "the hero block / main banner",
+        "catalogue": "the catalogue block that renders the product list",
+        "panier": "the cart or order summary block",
+        "workspace": "the workspace block of the role concerned",
+        "faq": "the structured FAQ block",
+        "editorial": "the editorial story block",
+        "trust": "the proof or reassurance block",
+        "closing-cta": "the final call-to-action block",
     }
-    return descriptions.get(section, f"le bloc HTML de la section `{section}`")
+    return descriptions.get(section, f"the HTML block of the section `{section}`")
 
 def _required_markers_block(contract):
     """Rend dans le brief la carte exécutable des marqueurs obligatoires."""
@@ -33,17 +33,16 @@ def _required_markers_block(contract):
     if not markers:
         return ""
     lines = "\n".join(
-        f"- Fichier exact : `frontend/index.html` — marqueur exact : `{marker}` — "
-        f"bloc exact : {_marker_block_description(marker)}."
+        f"- Exact file: `frontend/index.html` — exact marker: `{marker}` — "
+        f"exact block: {_marker_block_description(marker)}."
         for marker in markers
     )
     return f"""
-## Marqueurs visuels obligatoires — fichier et bloc exacts
+## Required visual markers — exact file and block
 
-Le manifeste exige les marqueurs suivants. Écris chacun dans le fichier et
-sur le bloc indiqués ci-dessous ; le texte du marqueur doit être recopié
-exactement, guillemets compris. Ne le remplace pas par une classe CSS ou par
-un commentaire.
+The manifest requires the following markers. Write each one in the file and
+on the block given below; the marker text must be copied exactly, quotes
+included. Do not replace it with a CSS class or a comment.
 
 {lines}
 """

@@ -85,11 +85,11 @@ def _declared_asset_errors(manifest, project_dir, frontend_dir, assets_dir):
     for group in ("products", "editorial"):
         values = manifest.get(group, {})
         if not isinstance(values, dict):
-            errors.append(f"ASSET_MANIFEST.json : section '{group}' invalide")
+            errors.append(f"ASSET_MANIFEST.json: invalid section '{group}'")
             continue
         for rel in values.values():
             if not isinstance(rel, str) or rel.startswith("/") or ".." in rel.split("/"):
-                errors.append(f"asset refusé dans le manifeste : {rel}")
+                errors.append(f"asset refused in the manifest: {rel}")
             elif not os.path.isfile(_asset_disk_path(
                     project_dir, frontend_dir, assets_dir, rel)):
                 errors.append(f"asset manquant : {rel}")
@@ -120,13 +120,13 @@ def _generated_asset_errors(generated_assets, project_dir, frontend_dir,
     for item in generated_assets:
         rel = item.get("path") if isinstance(item, dict) else item
         if not isinstance(rel, str) or rel.startswith("/") or ".." in rel.split("/"):
-            errors.append(f"asset généré refusé dans le manifeste : {rel}")
+            errors.append(f"generated asset refused in the manifest: {rel}")
             continue
         if not os.path.isfile(_asset_disk_path(
                 project_dir, frontend_dir, assets_dir, rel)):
-            errors.append(f"asset généré manquant : {rel}")
+            errors.append(f"generated asset missing: {rel}")
         elif rel not in rendered_source:
-            errors.append(f"asset généré non utilisé : {rel}")
+            errors.append(f"generated asset unused: {rel}")
     return errors
 
 
@@ -136,7 +136,7 @@ def _required_marker_errors(manifest, frontend_dir):
     for filename, markers in (manifest.get("required_markers") or {}).items():
         path = os.path.join(frontend_dir, filename)
         if not os.path.isfile(path):
-            errors.append(f"fichier visuel obligatoire absent : frontend/{filename}")
+            errors.append(f"required visual file missing: frontend/{filename}")
             continue
         with open(path, encoding="utf-8", errors="ignore") as fh:
             content = fh.read()
@@ -156,13 +156,13 @@ def _marker_errors(content, markers, unique_markers):
         count = content.count(marker)
         if marker in unique_markers and count != 1:
             if count == 0:
-                errors.append(f"section visuelle obligatoire absente : {marker}")
+                errors.append(f"required visual section missing: {marker}")
             else:
                 errors.append(
-                    f"section visuelle obligatoire présente {count} fois : {marker}"
+                    f"required visual section present {count} times: {marker}"
                 )
         elif marker not in unique_markers and count == 0:
-            errors.append(f"section visuelle obligatoire absente : {marker}")
+            errors.append(f"required visual section missing: {marker}")
     return errors
 
 def _generated_asset_reuse_errors(frontend_dir, generated_assets):
@@ -191,8 +191,8 @@ def _generated_asset_reuse_errors(frontend_dir, generated_assets):
         count = refs.count(os.path.normpath(rel))
         if count > 1:
             errors.append(
-                f"asset généré réutilisé {count} fois : frontend/{rel} — "
-                "chaque illustration doit avoir un rôle visuel unique.")
+                f"generated asset reused {count} times: frontend/{rel} — "
+                "each illustration must have a single visual role.")
     return errors
 
 def _editorial_content_errors(project_dir, rendered_source):
@@ -213,8 +213,8 @@ def _editorial_content_errors(project_dir, rendered_source):
             continue
         count = source.count(body)
         if count > 1:
-            title = section.get("title") or "section sans titre"
+            title = section.get("title") or "untitled section"
             errors.append(
-                f"contenu éditorial répété {count} fois : « {title} » — "
-                "chaque section déclarée doit être rendue une seule fois.")
+                f"editorial content repeated {count} times: “{title}” — "
+                "each declared section must be rendered only once.")
     return errors

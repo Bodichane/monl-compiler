@@ -85,15 +85,15 @@ def _assets_contract(assets):
     contrat = {
         "dir": dossier,
         "served_at": f"/site/{dossier}/",
-        "note": (f"Fichiers fournis par l'humain (photos, logo). Les référencer en chemin "
-                 f"RELATIF depuis la page : '{dossier}/…'. Ne jamais les modifier ni les "
-                 f"déplacer : ils ne sont pas produits par l'IA, et ce dossier vit HORS de "
-                 f"frontend/ pour survivre à une reconstruction du frontend."),
+        "note": (f"Files supplied by the human (photos, logo). Reference them with a "
+                 f"RELATIVE path from the page: '{dossier}/…'. Never modify or move "
+                 f"them: they are not produced by the AI, and this folder lives OUTSIDE "
+                 f"frontend/ to survive a frontend rebuild."),
     }
     for cle in ("logo", "favicon"):
         if assets.get(cle):
             contrat[cle] = f"{dossier}/{assets[cle]}"
     if "logo" in contrat:
-        contrat["logo_note"] = ("Un vrai logo est fourni : l'utiliser dans l'en-tête plutôt "
-                                "qu'un mot-symbole en texte.")
+        contrat["logo_note"] = ("A real logo is supplied: use it in the header rather "
+                                "than a text wordmark.")
     return contrat

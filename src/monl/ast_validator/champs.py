@@ -58,7 +58,7 @@ class ChampsMixin:
             type_champ = self.entities[entite].get(champ)
             if type_champ is None:
                 proches = [c for c in self.entities[entite] if c.lower() == champ.lower()]
-                indice = f" Peut-être '{proches[0]}' ?" if proches else ""
+                indice = f" Did you mean '{proches[0]}'?" if proches else ""
                 raise ASTValidationError(
                     f"Structure: '{ou}' references field '{champ}', which entity "
                     f"'{entite}' does not declare.{indice} Fields of {entite}: "

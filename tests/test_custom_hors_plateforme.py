@@ -21,13 +21,13 @@ def test_description_custom_reste_exactement_une_coquille(tmp_path):
     service = CompilationService(tmp_path)
     resultat = service.compile(spec)
     source = (tmp_path / resultat['id'] / 'sandbox_ai.py').read_text(encoding='utf-8')
-    attendu = "# BLOCS 'custom' — logique métier à compléter à la main (déterministe)\n\n"
+    attendu = "# 'custom' BLOCKS — business logic to complete by hand (deterministic)\n\n"
     for i, description in enumerate(descriptions):
         description = description.replace('\\', '\\\\')
         attendu += (
             f'def Bloc{i}(context: dict) -> dict:\n    """\n'
-            f'    Objectif : {description}\n    """\n    # TODO:\n'
-            f"    return {{'message': 'Coquille vide déterministe pour Bloc{i}'}}\n"
+            f'    Purpose: {description}\n    """\n    # TODO:\n'
+            f"    return {{'message': 'Deterministic empty shell for Bloc{i}'}}\n"
             + ('\n' if i < len(descriptions) - 1 else '')
         )
     assert source == attendu
@@ -43,7 +43,7 @@ def test_description_custom_reste_exactement_une_coquille(tmp_path):
         assert isinstance(fonction.body[0].value.value, str)
         assert isinstance(fonction.body[1], ast.Return)
         assert ast.literal_eval(fonction.body[1].value) == {
-            'message': f'Coquille vide déterministe pour Bloc{i}'
+            'message': f'Deterministic empty shell for Bloc{i}'
         }
 
 

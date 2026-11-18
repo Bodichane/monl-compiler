@@ -161,7 +161,7 @@ def test_un_lien_declare_absent_du_site_est_refuse(projet):
 
     fautes = livrer(avec_liens=False)
 
-    manquants = [f for f in fautes if f.startswith("lien déclaré absent")]
+    manquants = [f for f in fautes if f.startswith("declared link missing")]
     assert len(manquants) == 2, fautes
     assert "instagram.com/atelier" in " ".join(manquants)
     assert "mailto:bonjour@atelier.fr" in " ".join(manquants)
@@ -183,9 +183,9 @@ def test_le_brief_dit_quoi_mettre_dans_le_pied_de_page(tmp_path):
 
     brief = (tmp_path / "docs/DESIGN_SYSTEM.md").read_text(encoding="utf-8")
 
-    assert "## Pied de page" in brief
+    assert "## Footer" in brief
     assert "https://instagram.com/atelier" in brief
     # Une barrière que l'IA ne connaît pas ne produit pas de la qualité, elle
     # produit des reprises facturées.
-    assert "fait échouer la construction" in brief
-    assert "Ne JAMAIS inventer" in brief
+    assert "makes the build fail" in brief
+    assert "NEVER invent" in brief

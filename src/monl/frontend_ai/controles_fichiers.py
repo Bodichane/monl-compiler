@@ -61,7 +61,7 @@ def _declared_link_errors(project_dir, rendered_source):
         return []
     source = unescape(rendered_source)
     return [
-        f"lien déclaré absent du site : « {lien['label']} » → {lien['url']}"
+        f"declared link missing from the site: “{lien['label']}” → {lien['url']}"
         for lien in liens if lien["url"] not in source
     ]
 
@@ -125,7 +125,7 @@ def _frontend_local_reference_errors(project_dir):
         if not ref or ref.startswith(("#", "data:", "blob:", "mailto:", "tel:")):
             return
         if re.match(r"^(?:https?:)?//", ref, re.IGNORECASE):
-            errors.append(f"ressource externe interdite (CDN ou URL distante) : {origin} → {ref}")
+            errors.append(f"forbidden external resource (CDN or remote URL): {origin} → {ref}")
             return
         # monl ne peut rien affirmer d'une référence construite à l'exécution :
         # il se tait plutôt que de deviner un fichier (même arbitrage que le
@@ -147,7 +147,7 @@ def _frontend_local_reference_errors(project_dir):
             return
         if not os.path.isfile(candidat):
             relatif = os.path.relpath(candidat, project_dir).replace(os.sep, "/")
-            errors.append(f"ressource locale absente : {relatif} (référencée par {origin})")
+            errors.append(f"local resource missing: {relatif} (referenced by {origin})")
 
     for root, _dirs, names in os.walk(frontend_dir):
         for name in names:
@@ -203,7 +203,7 @@ def _frontend_behavioral_quality_errors(project_dir):
                 if re.search(rf"\.id\s*===\s*{re.escape(variable)}\b", content):
                     origin = os.path.relpath(path, frontend_dir).replace(os.sep, "/")
                     errors.append(
-                        f"identifiant DOM non normalisé dans frontend/{origin} : "
-                        f"{variable} vient de dataset et est comparé à un ID API ; "
-                        "convertir avec Number() ou parseInt() avant Modifier/Supprimer.")
+                        f"unnormalized DOM identifier in frontend/{origin}: "
+                        f"{variable} comes from dataset and is compared with an API ID; "
+                        "convert it with Number() or parseInt() before Edit/Delete.")
     return list(dict.fromkeys(errors))

@@ -175,7 +175,7 @@ def test_sans_plancher_declare_le_decompte_reste_libre(tmp_path, capsys):
     capsys.readouterr()
     genere = (tmp_path / "app.py").read_text(encoding="utf-8")
     assert "rowcount == 0" not in genere
-    assert "insuffisant" not in genere
+    assert "insufficient" not in genere
 
 
 # --------------------------------------------------------------------------
@@ -273,7 +273,7 @@ def test_commander_plus_que_le_stock_est_refuse(boutique):
     code, reponse = _appel(base + "/ligne", {"quantite": 4, "commande_id": commande,
                                              "produit_id": halo}, jeton)
     assert code == 409
-    assert "insuffisant" in reponse["detail"]
+    assert "insufficient" in reponse["detail"]
     assert _stock(base, halo) == 3, "un refus ne doit rien avoir décompté"
     # Et la ligne ne doit pas exister : le refus arrive DANS la transaction.
     base_donnees = sqlite3.connect(dossier / "app.db")
@@ -374,7 +374,7 @@ def test_une_quantite_qui_depasse_le_stock_est_refusee_au_put(boutique):
                             "produit_id": halo}, jeton, methode="PUT")
 
     assert code == 409, reponse
-    assert "insuffisant" in reponse["detail"]
+    assert "insufficient" in reponse["detail"]
     assert _stock(base, halo) == 2, "un refus ne doit rien avoir décompté"
     _, relue = _appel(f"{base}/ligne/{ligne}", jeton=jeton)
     assert relue["data"]["quantite"] == 1, (

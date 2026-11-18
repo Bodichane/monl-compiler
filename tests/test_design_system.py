@@ -45,9 +45,9 @@ def test_compile_prepare_design_system_et_manifest(tmp_path):
                  ASSET_MANIFEST_FILENAME):
         assert (tmp_path / name).is_file(), name
     design_system = (tmp_path / DESIGN_SYSTEM_FILENAME).read_text(encoding="utf-8")
-    assert "Pattern :" in design_system
+    assert "Pattern:" in design_system
     assert "Anti-patterns" in design_system
-    assert "Contraste" in design_system
+    assert "Contrast" in design_system
 
     manifest = _manifest(tmp_path / ASSET_MANIFEST_FILENAME)
     assert manifest["status"] == "planned"
@@ -162,14 +162,14 @@ def test_frontend_refuse_l_absence_d_une_section_declaree(tmp_path):
     errors, manifest = _active_manifest_errors(tmp_path, section_count=0)
     marker = manifest["unique_section_markers"]["index.html"][0]
 
-    assert any(marker in error and "absente" in error for error in errors)
+    assert any(marker in error and "missing" in error for error in errors)
 
 
 def test_frontend_refuse_la_duplication_d_une_section_declaree(tmp_path):
     errors, manifest = _active_manifest_errors(tmp_path, section_count=2)
     marker = manifest["unique_section_markers"]["index.html"][0]
 
-    assert any(marker in error and "2 fois" in error for error in errors)
+    assert any(marker in error and "2 times" in error for error in errors)
 
 
 def test_frontend_accepte_un_marqueur_media_sur_plusieurs_cartes(tmp_path):

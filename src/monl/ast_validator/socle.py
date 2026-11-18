@@ -70,12 +70,12 @@ PRESTATAIRE_PAR_DEFAUT = "stripe"
 # le message vaut mieux que « prestataire inconnu », qui enverrait chercher
 # une faute de frappe dans un nom parfaitement correct.
 PRESTATAIRES_ECARTES = {
-    "kkiapay": ("sa documentation publique ne donne ni l'algorithme ni les "
-                "données signées de son webhook ; monl ne devinera pas une "
-                "vérification de signature"),
-    "cinetpay": ("son webhook exige une revalidation par un second appel, non "
-                 "encore écrite, et ses bacs à sable sont annoncés "
-                 "indisponibles"),
+    "kkiapay": ("its public documentation gives neither the algorithm nor the "
+                "signed data of its webhook; monl will not guess a signature "
+                "check"),
+    "cinetpay": ("its webhook requires revalidation through a second call, not "
+                 "written yet, and its sandboxes are announced as "
+                 "unavailable"),
 }
 
 # DEVISES RÉELLEMENT ENCAISSABLES PAR PRESTATAIRE. `None` = pas de restriction

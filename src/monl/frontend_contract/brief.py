@@ -20,18 +20,18 @@ def _render_prompt(contract):
             # Point 74 : le webhook de paiement est authentifié, mais pas par
             # un JWT — par une signature du prestataire. Annoncer « JWT () »
             # laisserait croire à une route ouverte à tout compte connecté.
-            auth = "signature du prestataire, pas un JWT"
+            auth = "provider signature, not a JWT"
 
         # Le corps attendu n'apparaissait NULLE PART dans le brief : l'IA
         # devait le déduire de la liste des champs, sans jamais voir les
         # colonnes de rattachement (article_id d'un commentaire). Elle ne
         # pouvait pas les deviner, et le serveur répondait 422 (point 57).
-        corps = (f" — corps : `{{{', '.join(r['request_fields'])}}}`"
+        corps = (f" — body: `{{{', '.join(r['request_fields'])}}}`"
                  if r.get("request_fields") else "")
         if r.get("upload"):
             upload = r["upload"]
-            corps = (f" — multipart/form-data, champ fichier `{upload['field_name']}`, "
-                     f"{upload['max_bytes']} octets maximum, types : "
+            corps = (f" — multipart/form-data, file field `{upload['field_name']}`, "
+                     f"{upload['max_bytes']} bytes maximum, types: "
                      f"{', '.join(upload['accepted_types'])}")
         # Point 74 : les notes de route existaient dans le contrat JSON mais
         # n'atteignaient PAS le brief — or c'est le brief que l'IA lit. La
@@ -41,13 +41,13 @@ def _render_prompt(contract):
         routes_lines.append(f"- `{r['method']} {r['path']}` — {r['action']} "
                             f"{r['entity']} — {auth}{corps}{note}")
     entities_lines = []
-    ROLE_LABELS = {"title": "TITRE — l'identifie d'un coup d'œil",
-                   "media": "MÉDIA — l'image de l'enregistrement",
-                   "description": "DESCRIPTION — le texte long",
-                   "price": "PRIX",
-                   "stock": "DISPONIBILITÉ — à montrer près du prix, pas en note de bas de page",
-                   "category": "CATÉGORIE — bon pour un filtre",
-                   "meta": "méta — information secondaire"}
+    ROLE_LABELS = {"title": "TITLE — identifies it at a glance",
+                   "media": "MEDIA — the record's image",
+                   "description": "DESCRIPTION — the long text",
+                   "price": "PRICE",
+                   "stock": "AVAILABILITY — show it near the price, not as a footnote",
+                   "category": "CATEGORY — good for a filter",
+                   "meta": "meta — secondary information"}
     for ent, spec in contract["entities"].items():
         flags = []
         for f in spec["fields"]:
@@ -55,27 +55,27 @@ def _render_prompt(contract):
             if f.get("role"):
                 marks.append(ROLE_LABELS[f["role"]])
             if f["required"]:
-                marks.append("requis")
+                marks.append("required")
             if f["hidden_in_reads"]:
-                marks.append("jamais renvoyé en lecture")
+                marks.append("never returned on read")
             if f["server_generated"]:
-                marks.append("généré serveur — NE PAS envoyer")
+                marks.append("server-generated — DO NOT send")
             if f.get("postpayment_only"):
-                marks.append("modifiable uniquement via la route après paiement")
+                marks.append("editable only through the after-payment route")
             if f.get("upload"):
                 upload = f["upload"]
                 marks.append(
-                    f"Upload multipart via POST/GET sur le champ `{upload['field_name']}`, "
-                    f"{upload['max_bytes']} octets maximum ; types : "
-                    f"{', '.join(upload['accepted_types'])}. Ne pas l'envoyer en JSON.")
+                    f"Multipart upload via POST/GET on the field `{upload['field_name']}`, "
+                    f"{upload['max_bytes']} bytes maximum; types: "
+                    f"{', '.join(upload['accepted_types'])}. Do not send it as JSON.")
             if f["categorized_in_reads"]:
-                marks.append("lu comme libellé de catégorie")
+                marks.append("read as a category label")
             # BRIQUE 19 (point 96) : l'IA lit le brief, pas le JSON. Y écrire la
             # liste, c'est la différence entre un menu déroulant et un champ
             # texte qui récolte un 422 sur la valeur que l'utilisateur invente.
             if f.get("allowed_values"):
-                marks.append("MENU DÉROULANT, valeurs imposées (422 sinon) : "
-                             + ", ".join(f"« {v} »" for v in f["allowed_values"]))
+                marks.append("DROPDOWN MENU, fixed values (422 otherwise): "
+                             + ", ".join(f"“{v}”" for v in f["allowed_values"]))
             # Point 76 : dire à quoi sert le champ, pas seulement qu'il existe.
             # Sans les valeurs possibles, l'IA doit deviner quoi comparer pour
             # savoir si c'est réglé — et devinera 'paid'.
@@ -94,21 +94,21 @@ def _render_prompt(contract):
         if spec["foreign_keys"]:
             lignes_liens = [
                 f"  - `{li['column']}` → "
-                + (f"identifiant de COMPTE. Retrouver la fiche {li['references']} "
-                   f"dont `{li['column']}` porte la MÊME valeur — pas celle dont "
-                   f"`id` la porte." if li["references_account"]
-                   else f"`id` d'un enregistrement {li['references']}.")
+                + (f"ACCOUNT identifier. Find the {li['references']} record "
+                   f"whose `{li['column']}` holds the SAME value — not the one whose "
+                   f"`id` holds it." if li["references_account"]
+                   else f"`id` of a {li['references']} record.")
                 for li in spec["foreign_keys"]
             ]
-            liaisons = ("\nColonnes de liaison présentes dans les réponses :\n"
+            liaisons = ("\nLink columns present in responses:\n"
                         + "\n".join(lignes_liens))
         entities_lines.append(
-            f"### {ent}\n_Forme conseillée : {forme}._\n"
-            f"_Proche de : {anatomie['voisins']}._\n"
-            f"Ce qu'un visiteur s'attend à y trouver :\n{attendus}\n"
+            f"### {ent}\n_Suggested form: {forme}._\n"
+            f"_Close to: {anatomie['voisins']}._\n"
+            f"What a visitor expects to find there:\n{attendus}\n"
             + "\n".join(flags) + liaisons)
 
-    brief_line = (f"\n**Brief produit :** {contract['brief']}\n" if contract.get("brief") else "")
+    brief_line = (f"\n**Product brief:** {contract['brief']}\n" if contract.get("brief") else "")
 
     # Contenu éditorial (point 55). Écrit en toutes lettres que ce texte doit
     # être RENDU tel quel : c'est du contenu, pas une consigne de style, et
@@ -118,24 +118,24 @@ def _render_prompt(contract):
         corps = "\n\n".join(f"### {s['title']}\n{s['body']}"
                             for s in contract["sections"])
         sections_block = (
-            "\n## Contenu éditorial à publier tel quel\n"
-            "Ces textes sont fournis par l'auteur du projet : ils doivent "
-            "apparaître dans l'interface, chacun dans sa propre section, avec "
-            "le titre donné et son propre élément portant "
-            "`data-monl-section=\"<slug>\"`. Ne pas les réécrire, ne pas les "
-            "inventer ailleurs — aucune route d'API ne les sert, ils "
-            "n'existent qu'ici. Si le pattern editorial est présent, le bloc "
-            "éditorial porte ces éléments à l'intérieur de lui : ne pas créer "
-            "ensuite un second bloc qui répète le même titre ou le même texte. "
-            "Chaque section doit apparaître une seule fois.\n\n"
+            "\n## Editorial content to publish as is\n"
+            "These texts are supplied by the project's author: they must "
+            "appear in the interface, each in its own section, with the given "
+            "title and its own element carrying "
+            "`data-monl-section=\"<slug>\"`. Do not rewrite them, do not "
+            "invent them elsewhere — no API route serves them, they exist "
+            "only here. If the editorial pattern is present, the editorial "
+            "block carries these elements inside it: do not then create a "
+            "second block repeating the same title or text. "
+            "Each section must appear only once.\n\n"
             # Point 59 : sans cette phrase, ces textes finissaient derrière un
             # lien de menu, sur une page à part. Un visiteur qui n'ouvre que
             # l'accueil ne les voyait jamais — pour un « à propos », c'est
             # manquer sa raison d'être.
-            "**Sur la page d'accueil, pas seulement derrière un lien.** Chaque "
-            "section doit être lisible au fil de l'accueil. Un texte long peut "
-            "y figurer en version courte et se prolonger sur sa propre page, "
-            "mais il ne doit jamais en être absent.\n\n"
+            "**On the home page, not only behind a link.** Each section must "
+            "be readable as one scrolls the home page. A long text may appear "
+            "there in a short version and continue on its own page, but it "
+            "must never be absent from it.\n\n"
             + corps + "\n")
 
     # POINT 94 : la FAQ, dite comme une LISTE. Rendue dans la même rubrique que
@@ -148,16 +148,15 @@ def _render_prompt(contract):
         couples = "\n\n".join(f"**{q['question']}**\n{q['answer']}"
                               for q in contract["faq"])
         faq_block = (
-            "\n## Questions fréquentes — une LISTE, pas un texte suivi\n"
-            "Chaque couple ci-dessous est une question et sa réponse, dans "
-            "l'ordre voulu par l'auteur. Les rendre comme des entrées "
-            "DISTINCTES et repérables au premier coup d'œil — accordéon, liste "
-            "de définitions, ou question en gras suivie de sa réponse. Jamais "
-            "en un seul paragraphe : une FAQ dont les questions se touchent ne "
-            "se lit pas, et c'est le format qui porte l'information autant que "
-            "le texte.\n\n"
-            "Ne pas réécrire ces textes, ne pas en ajouter, ne pas les "
-            "réordonner.\n\n"
+            "\n## Frequently asked questions — a LIST, not running text\n"
+            "Each pair below is a question and its answer, in the order the "
+            "author chose. Render them as DISTINCT entries that can be spotted "
+            "at a glance — accordion, definition list, or a bold question "
+            "followed by its answer. Never as a single paragraph: an FAQ whose "
+            "questions run together cannot be read, and the format carries the "
+            "information as much as the text.\n\n"
+            "Do not rewrite these texts, do not add any, do not reorder "
+            "them.\n\n"
             + couples + "\n")
     # POINT 72 — monl ne décide RIEN du visuel. Il ne calculait pas une
     # palette pour rendre service : il la calculait pour que deux projets ne
@@ -166,60 +165,57 @@ def _render_prompt(contract):
     # contrat pèse, même annoncée comme facultative. La seule direction
     # légitime est celle que l'auteur a formulée lui-même, dans le dialogue :
     # elle voyage dans le brief, pas dans un bloc de couleurs inventé.
-    design_block = """## Direction de design — elle ne vient PAS de monl
+    design_block = """## Design direction — it does NOT come from monl
 
-Le compilateur n'a **aucun** avis sur le visuel : ni palette, ni typographie,
-ni rayon, ni grille, ni mise en page. Il n'en propose pas davantage qu'il n'en
-impose — il ne sait pas à quoi ce projet doit ressembler, et il ne fait pas
-semblant de le savoir.
+The compiler has **no** opinion on visuals: no palette, no typography, no
+radius, no grid, no layout. It suggests none any more than it imposes any — it
+does not know what this project should look like, and it does not pretend to.
 
-La direction est celle que l'auteur a formulée : le **brief** ci-dessus
-(intention, registre, place des images), la forme conseillée de chaque entité,
-le contenu éditorial. C'est cela qu'il faut servir. Pour le reste — familles
-typographiques, gamme chromatique, échelles, rythme, surfaces sombres ou
-claires — la décision vous appartient entièrement, c'est votre métier.
+The direction is the one the author expressed: the **brief** above (intent,
+register, place of images), each entity's suggested form, the editorial
+content. That is what must be served. For the rest — type families, color
+range, scales, rhythm, dark or light surfaces — the decision is entirely
+yours; it is your craft.
 
-Deux exigences seulement, et ce ne sont pas des questions de goût :
-- **Contraste** : au moins 4,5:1 entre un texte et son fond (WCAG AA), 3:1
-  pour les grands titres. Une interface illisible n'est pas un parti pris.
-- **Autonomie** : tout vit dans `frontend/`, aucune ressource distante (voir
-  les règles ci-dessous). Les familles déjà présentes sur les machines
-  suffisent à porter une identité — c'est leur traitement qui la fait.
+Only two requirements, and neither is a matter of taste:
+- **Contrast**: at least 4.5:1 between a text and its background (WCAG AA),
+  3:1 for large headings. An unreadable interface is not a stylistic choice.
+- **Self-containment**: everything lives in `frontend/`, no remote resource
+  (see the rules below). The families already present on machines are enough
+  to carry an identity — it is how they are treated that makes it.
 """
 
     generated_assets_block = """
-## Images matricielles produites par la construction
+## Raster images produced by the build
 
-Si `ASSET_MANIFEST.json` liste des `generated_assets`, Monl a déjà écrit ces
-images matricielles dans le dossier d'assets déclaré par la spec avant votre
-appel. Référencer exactement chaque chemin fourni par le manifeste depuis le
-HTML/CSS : ne jamais inventer un nom, ne pas recopier une image dans
-`frontend/` et ne pas tenter de produire ses octets dans la réponse texte.
-Chaque fichier généré doit être rendu une seule fois, dans le bloc qui porte
-son rôle visuel ; ne jamais réutiliser son chemin dans un autre bloc. La
-rubrique « Assets graphiques produits par la construction » de
-`DESIGN_SYSTEM.md` donne, lorsqu'il y en a, le fichier, son rôle et la
-précision de section correspondante.
+If `ASSET_MANIFEST.json` lists `generated_assets`, Monl has already written
+these raster images into the assets folder declared by the spec before your
+call. Reference each path supplied by the manifest exactly from the HTML/CSS:
+never invent a name, do not copy an image into `frontend/` and do not try to
+produce its bytes in the text response. Each generated file must be rendered
+only once, in the block that carries its visual role; never reuse its path in
+another block. The "Graphic assets produced by the build" section of
+`DESIGN_SYSTEM.md` gives, when there are any, the file, its role and the
+matching section detail.
 """
 
     express_block = ""
-    if "mode express" in (contract.get("brief") or "").lower():
+    if "express mode" in (contract.get("brief") or "").lower():
         express_block = """
-## Mode express — compléter la matière éditoriale et visuelle
+## Express mode — fill in the editorial and visual material
 
-L'auteur a volontairement fourni un brief court. À partir de celui-ci et de
-la catégorie décrite par le contrat :
-- rédiger les textes d'interface et de présentation nécessaires (accroche,
-  bénéfices, méthode, réassurance, appels à l'action, textes d'états vides) ;
-- construire une page dense en blocs réellement utiles, pas une simple liste
-  suivie d'un formulaire ;
-- rendre les vraies images et les vraies fiches renvoyées par l'API quand elles
-  existent. Ne jamais fabriquer côté navigateur de faux produits, projets,
-  rendez-vous ou autres enregistrements qui contrediraient la base.
+The author deliberately supplied a short brief. From it and from the category
+the contract describes:
+- write the interface and presentation texts that are needed (hook, benefits,
+  method, reassurance, calls to action, empty-state texts);
+- build a page dense with genuinely useful blocks, not a bare list followed by
+  a form;
+- render the real images and the real records returned by the API when they
+  exist. Never fabricate in the browser fake products, projects, appointments
+  or other records that would contradict the database.
 
-Cette liberté concerne la rédaction et la présentation seulement. Elle
-n'autorise aucune route, donnée métier, permission ou promesse absente du
-contrat.
+This freedom covers writing and presentation only. It authorizes no route,
+business data, permission or promise absent from the contract.
 """
 
     # POINT 74 : la note de la route le dit déjà, mais c'est ici que l'IA lit
@@ -231,11 +227,11 @@ contrat.
     if paiement:
         chemins = ", ".join(f"`{r['path']}`" for r in paiement)
         paiement_block = (
-            f"\n- Règlement : {chemins} s'appelle **sans aucun corps** — le "
-            "montant vient de la base, pas de vous. Rediriger ensuite le "
-            "navigateur vers l'`url` renvoyée. Ne JAMAIS appeler "
-            "`POST /paiement/webhook` : c'est la route du prestataire, elle "
-            "exige une signature et refusera toute requête du navigateur.")
+            f"\n- Payment: {chemins} is called **with no body at all** — the "
+            "amount comes from the database, not from you. Then redirect the "
+            "browser to the returned `url`. NEVER call "
+            "`POST /paiement/webhook`: it is the provider's route, it requires "
+            "a signature and will refuse any request from the browser.")
 
     identifiant_note = contract["api"]["auth"]["register"].get("note")
     identifiant_block = (f"\n- {identifiant_note}" if identifiant_note else "")
@@ -244,126 +240,122 @@ contrat.
     if "account_lockout" in auth_features:
         lockout = auth_features["account_lockout"]
         auth_feature_lines.append(
-            f"- Verrouillage de compte : après {lockout['max_attempts']} échecs "
-            f"dans {lockout['window_seconds']} s, afficher l'échec générique "
-            "sans tenter de deviner si l'adresse existe.")
+            f"- Account lockout: after {lockout['max_attempts']} failures "
+            f"within {lockout['window_seconds']} s, show the generic failure "
+            "without trying to guess whether the address exists.")
     auth_feature_lines += _instructions_verification(auth_features)
     if "password_reset" in auth_features:
         reset = auth_features["password_reset"]
         auth_feature_lines.append(
-            f"- Réinitialisation : afficher les deux écrans "
-            f"{reset['request_path']} puis {reset['confirm_path']}. "
-            "La première réponse est volontairement générique ; le jeton reçu "
-            "par le canal de message se rejoue dans le second écran une seule fois "
-            "avant expiration.")
+            f"- Password reset: show the two screens "
+            f"{reset['request_path']} then {reset['confirm_path']}. "
+            "The first response is deliberately generic; the token received "
+            "through the message channel is replayed in the second screen only once "
+            "before it expires.")
     if "refresh_tokens" in auth_features:
         refresh = auth_features["refresh_tokens"]
         auth_feature_lines.append(
-            f"- Session : stocker et rejouer le jeton opaque refresh_token sur "
-            f"{refresh['path']} ; chaque succès le remplace. Ne jamais l'envoyer "
-            "comme Authorization: Bearer, qui reste réservé au JWT d'accès.")
+            f"- Session: store and replay the opaque refresh_token on "
+            f"{refresh['path']}; each success replaces it. Never send it "
+            "as Authorization: Bearer, which stays reserved to the access JWT.")
     if "totp" in auth_features:
         totp = auth_features["totp"]
         auth_feature_lines.append(
-            f"- Double facteur : proposer l'activation via {totp['setup_path']} "
-            f"puis {totp['enable_path']}, et demander totp_code à la connexion "
-            "après activation. Un code ne se rejoue pas.")
+            f"- Two-factor authentication: offer activation via {totp['setup_path']} "
+            f"then {totp['enable_path']}, and ask for totp_code at sign-in "
+            "after activation. A code cannot be replayed.")
     auth_feature_block = ("\n" + "\n".join(auth_feature_lines)
                           if auth_feature_lines else "")
 
     markers_block = marqueurs._required_markers_block(contract)
 
-    return f"""# Brief frontend — {contract['app']} (généré par monl)
+    return f"""# Frontend brief — {contract['app']} (generated by monl)
 {brief_line}
-Vous êtes une IA spécialisée en interfaces. Générez le frontend de
-l'application **{contract['app']}** en respectant STRICTEMENT le contrat
-ci-dessous. Le backend existe déjà et ne doit pas être modifié.
+You are an AI specialized in interfaces. Generate the frontend of the
+**{contract['app']}** application, STRICTLY following the contract below.
+The backend already exists and must not be modified.
 
 {design_block}{skills_block}{generated_assets_block}{express_block}
-## Système de design préparé avant le code
+## Design system prepared before the code
 
-Avant d'écrire le frontend, lire `DESIGN_SYSTEM.md` lorsqu'il est présent :
-il contient le pattern de page, les tokens de départ, les anti-patterns et la
-checklist UX sélectionnés pour ce projet. Lire aussi `DESIGN_SPEC.md` et
-`ASSET_MANIFEST.json` lorsqu'ils existent. Ces documents orientent la
-composition ; le contrat ci-dessous reste l'autorité pour les routes, les
-données, les permissions et les états métier.
+Before writing the frontend, read `DESIGN_SYSTEM.md` when it is present: it
+contains the page pattern, starting tokens, anti-patterns and UX checklist
+selected for this project. Also read `DESIGN_SPEC.md` and
+`ASSET_MANIFEST.json` when they exist. These documents guide the composition;
+the contract below remains the authority for routes, data, permissions and
+business states.
 
-## Règles non négociables
-- Écrire tous les fichiers dans `frontend/`, avec `frontend/index.html`
-  comme point d'entrée (HTML/CSS/JS statiques, aucun build requis).
-- Frontend AUTONOME : aucune librairie CDN, aucun script externe — tout le
-  JS/CSS vit dans `frontend/` (c'est ce qui rend le smoke test possible).
-- Visuels locaux — INTERDICTION EXPLICITE : ne crée, n'écris ni ne référence
-  aucun fichier image local qui n'est pas listé par `ASSET_MANIFEST.json`.
-  Cette interdiction vaut pour les chemins HTML (`<img src>`), CSS
-  (`url(...)`, `background-image`) et JavaScript, y compris dans
-  `frontend/` et dans tout dossier d'assets. Pour tout visuel qui n'est pas
-  listé par le manifeste, l'alternative autorisée et nommée est d'écrire le
-  **SVG EN LIGNE dans le HTML**, dans le bloc qui l'utilise. N'invente donc
-  jamais un chemin comme `product/default.svg`, `hero.svg` ou `hero.jpg` ;
-  vérifie d'abord la liste du manifeste.
-- Iconographie : aucune librairie d'icônes (Font Awesome, Material, Lucide,
-  Bootstrap Icons…) n'est atteignable, puisque aucun CDN ne l'est — et une
-  police d'icônes distante ne le serait pas davantage. Ce qui FONCTIONNE et est
-  servi : le SVG écrit EN LIGNE dans le HTML, et les fichiers `.svg` explicitement
-  listés par le manifeste. Les fichiers graphiques non listés restent interdits ;
-  monl ne dit pas s'il faut des
-  icônes, ni lesquelles, ni dans quel style — il dit seulement par quel moyen
-  elles sont possibles, parce que la règle ci-dessus, lue seule, laisse croire
-  qu'elles ne le sont pas.
-- N'appeler QUE les routes listées plus bas, en chemins RELATIFS —
-  `fetch('/entite')`, JAMAIS `fetch('http://127.0.0.1:8000/entite')`. Le
-  frontend est servi sur `/site` par le serveur qui porte l'API : l'origine
-  est déjà la bonne. Une URL absolue avec un port codé en dur casse au
-  premier `monl run --port` et fait échouer le smoke test.
-- PLANCHER DE PARCOURS : les workflows déclarés par la spec sont des promesses
-  de produit. Pour CHAQUE workflow, livrer au moins une entrée d'interface
-  atteignable (écran, bouton, formulaire ou gestionnaire) qui appelle une de
-  ses routes ; un simple catalogue ne couvre pas un parcours de commande, de
-  compte ou de gestion. Les autres routes appelables du workflow doivent être
-  raccordées aux actions qu'elles exposent. La vérification lit les fichiers
-  réellement livrés, compte les routes appelées et nomme celles qui ne le sont
-  par aucun écran. Les routes de service explicitement interdites par le
-  contrat restent hors écran et ne doivent jamais être appelées.
-- Authentification : `POST /register` (username, password 8+, actor parmi
-  {contract['self_register_actors'] or "AUCUN — inscription fermée, ne pas "
-   "construire de formulaire d'inscription"}) → `{{status, user_id}}`,
-  `POST /login` → `{{access_token, token_type}}`. Le JWT est dans
-  `access_token` — le lire sous CE nom exact, puis l'envoyer en en-tête
-  `Authorization: Bearer <access_token>` sur toute route non publique. Lire
-  un autre nom ne lève aucune erreur : la requête part avec
-  `Bearer undefined` et le serveur répond 401 sans que rien ne dise pourquoi. Les rôles déclarés mais absents de cette liste
-  ({[a for a in contract['actors'] if a not in contract['self_register_actors']] or "aucun"})
-  sont provisionnés hors ligne : ils se connectent par `/login`, jamais par
+## Non-negotiable rules
+- Write every file in `frontend/`, with `frontend/index.html` as the entry
+  point (static HTML/CSS/JS, no build required).
+- SELF-CONTAINED frontend: no CDN library, no external script — all the
+  JS/CSS lives in `frontend/` (that is what makes the smoke test possible).
+- Local visuals — EXPLICIT BAN: do not create, write or reference any local
+  image file that is not listed by `ASSET_MANIFEST.json`. This ban applies to
+  HTML paths (`<img src>`), CSS (`url(...)`, `background-image`) and
+  JavaScript, including inside `frontend/` and any assets folder. For any
+  visual not listed by the manifest, the named, allowed alternative is to
+  write the **SVG INLINE in the HTML**, in the block that uses it. So never
+  invent a path such as `product/default.svg`, `hero.svg` or `hero.jpg`;
+  check the manifest's list first.
+- Iconography: no icon library (Font Awesome, Material, Lucide, Bootstrap
+  Icons…) is reachable, since no CDN is — and a remote icon font would not be
+  either. What WORKS and is served: SVG written INLINE in the HTML, and the
+  `.svg` files explicitly listed by the manifest. Unlisted graphic files stay
+  forbidden; monl does not say whether icons are needed, nor which ones, nor in
+  what style — it only says by what means they are possible, because the rule
+  above, read alone, suggests they are not.
+- Call ONLY the routes listed below, with RELATIVE paths —
+  `fetch('/entity')`, NEVER `fetch('http://127.0.0.1:8000/entity')`. The
+  frontend is served at `/site` by the server that carries the API: the
+  origin is already right. An absolute URL with a hard-coded port breaks at
+  the first `monl run --port` and makes the smoke test fail.
+- WORKFLOW FLOOR: the workflows declared by the spec are product promises. For
+  EACH workflow, deliver at least one reachable interface entry (screen,
+  button, form or handler) that calls one of its routes; a plain catalog does
+  not cover an ordering, account or management flow. The workflow's other
+  callable routes must be wired to the actions they expose. The check reads
+  the files actually delivered, counts the routes called and names those no
+  screen calls. Service routes the contract explicitly forbids stay off-screen
+  and must never be called.
+- Authentication: `POST /register` (username, password 8+, actor among
+  {contract['self_register_actors'] or "NONE — registration closed, do not "
+   "build a registration form"}) → `{{status, user_id}}`,
+  `POST /login` → `{{access_token, token_type}}`. The JWT is in
+  `access_token` — read it under THAT exact name, then send it in the
+  `Authorization: Bearer <access_token>` header on every non-public route.
+  Reading another name raises no error: the request goes out with
+  `Bearer undefined` and the server answers 401 with nothing saying why. Roles declared but absent from this list
+  ({[a for a in contract['actors'] if a not in contract['self_register_actors']] or "none"})
+  are provisioned offline: they sign in through `/login`, never through
   `/register`.{identifiant_block}{auth_feature_block}
-- Les routes de liste sont paginées : `?limit=&offset=`, réponse
+- List routes are paginated: `?limit=&offset=`, response
   `{{status, total, limit, offset, data}}`.
-- Ne jamais envoyer un champ marqué « généré serveur » à la création.
-- Ne pas modifier `app.py`, `schema.sql`, la spec `.ml` ni les autres
-  artefacts monl.{paiement_block}
+- Never send a field marked "server-generated" on creation.
+- Do not modify `app.py`, `schema.sql`, the `.ml` spec or the other monl
+  artifacts.{paiement_block}
 
 {sections_block}{faq_block}{markers_block}
-## Entités
+## Entities
 {chr(10).join(entities_lines)}
 
-## Routes disponibles
+## Available routes
 {chr(10).join(routes_lines)}
 
-## Contrat machine-lisible complet
-Le fichier `frontend_contract.json` (même dossier) contient la version
-exhaustive de ce contrat — s'y référer en cas de doute.
+## Complete machine-readable contract
+The `frontend_contract.json` file (same folder) holds the exhaustive version
+of this contract — refer to it when in doubt.
 
 ---
 
-## Vous lisez ceci dans une conversation (claude.ai, sans clé API) ?
-Générez le frontend demandé, puis rendez-le sous une forme téléchargeable :
-soit un fichier ZIP contenant les fichiers (index.html à la racine ou dans
-un unique sous-dossier), soit un `index.html` AUTONOME (CSS et JS inclus
-dans le fichier). L'utilisateur l'installera ensuite avec :
-`monl import <fichier téléchargé> <dossier du projet>` — monl
-re-vérifiera automatiquement l'ensemble (cohérence + smoke test) et, en cas
-d'erreurs, elles vous seront recollées ici pour correction.
+## Reading this in a conversation (claude.ai, no API key)?
+Generate the requested frontend, then return it in a downloadable form:
+either a ZIP file containing the files (index.html at the root or in a single
+subfolder), or a SELF-CONTAINED `index.html` (CSS and JS included in the
+file). The user will then install it with:
+`monl import <downloaded file> <project folder>` — monl will automatically
+recheck everything (consistency + smoke test) and, if there are errors, they
+will be pasted back here for correction.
 """
 
 
@@ -372,10 +364,10 @@ def _instructions_verification(auth_features):
     auth_feature_lines = []
     if "verify_email" in auth_features:
         auth_feature_lines.append(
-            "- Prévenir l’utilisateur : une nouvelle inscription sur une adresse non confirmée remplace le mot de passe et renvoie un message, dans le quota verify_resend. "
-            "Confirmation e-mail : après /register, afficher l'attente de confirmation, sans session. "
-            "Traiter /login 403 detail.code=email_not_verified en proposant POST /verify-email/resend "
-            "avec username ; afficher sa réponse générique même à la limite. Le lien reçu ouvre un écran : "
-            "demander une action explicite puis POST /verify-email avec username et token dans le corps, "
-            "jamais de confirmation automatique par GET. Après confirmation, proposer /login.")
+            "- Warn the user: a new registration on an unconfirmed address replaces the password and resends a message, within the verify_resend quota. "
+            "Email confirmation: after /register, show the waiting-for-confirmation state, with no session. "
+            "Handle /login 403 detail.code=email_not_verified by offering POST /verify-email/resend "
+            "with username; show its generic response even at the limit. The link received opens a screen: "
+            "ask for an explicit action, then POST /verify-email with username and token in the body, "
+            "never an automatic confirmation by GET. After confirmation, offer /login.")
     return auth_feature_lines

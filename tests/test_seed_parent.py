@@ -367,7 +367,7 @@ def test_un_parent_introuvable_au_demarrage_est_nomme(compile_banc):
     journal = _arreter(processus)
 
     assert "Table Onde" in journal
-    assert "ignorée" in journal
+    assert "Demo data skipped" in journal
     # « Chaise Ligne » non plus n'existe pas : les trois lignes sont écartées,
     # et le serveur tourne quand même.
     assert _variantes(compile_banc / "app.db") == []

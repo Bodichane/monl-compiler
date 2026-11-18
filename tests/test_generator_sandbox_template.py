@@ -85,12 +85,12 @@ def test_sandbox_custom_octets_et_execution(tmp_path):
     source = AVEC_CUSTOM.replace('Publie une note', 'Publie ${name} {note} $5 \\n')
     folder = _compiler(source, tmp_path / 'custom')
     generated = (folder / 'sandbox_ai.py').read_bytes()
-    expected = b"# BLOCS 'custom' \xe2\x80\x94 logique m\xc3\xa9tier \xc3\xa0 compl\xc3\xa9ter \xc3\xa0 la main (d\xc3\xa9terministe)\n\ndef Publier(context: dict) -> dict:\n    \"\"\"\n    Objectif : Publie ${name} {note} $5 \\\\n\n    \"\"\"\n    # TODO:\n    return {'message': 'Coquille vide d\xc3\xa9terministe pour Publier'}\n"
+    expected = b"# 'custom' BLOCKS \xe2\x80\x94 business logic to complete by hand (deterministic)\n\ndef Publier(context: dict) -> dict:\n    \"\"\"\n    Purpose: Publie ${name} {note} $5 \\\\n\n    \"\"\"\n    # TODO:\n    return {'message': 'Deterministic empty shell for Publier'}\n"
     assert generated == expected
     namespace = {}
     exec(compile(generated, 'sandbox_ai.py', 'exec'), namespace)
     assert namespace['Publier']({}) == {
-        'message': 'Coquille vide déterministe pour Publier',
+        'message': 'Deterministic empty shell for Publier',
     }
 
 
@@ -124,7 +124,7 @@ def test_sandbox_description_antislash_litteral(tmp_path, description):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     assert module.Publier({}) == {
-        "message": "Coquille vide déterministe pour Publier",
+        "message": "Deterministic empty shell for Publier",
     }
     # Python 3.13+ désindente __doc__ : on compare la ligne, pas l'indentation.
-    assert module.Publier.__doc__.strip() == f"Objectif : {description}"
+    assert module.Publier.__doc__.strip() == f"Purpose: {description}"

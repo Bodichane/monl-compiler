@@ -224,7 +224,7 @@ def test_le_contrat_annonce_un_champ_en_lecture_seule(tmp_path, capsys):
                  if f["name"] == "reference")
     assert champ["server_generated"] is True
     assert champ["numbered_as"] == "CMD-{YYYY}-{NNNN}"
-    assert "Ne pas l'envoyer" in champ["note"]
+    assert "Do not send it" in champ["note"]
     route = next(r for r in contrat["routes"]
                  if r["method"] == "POST" and r["path"] == "/commande")
     assert "reference" not in route["request_fields"]
@@ -415,7 +415,7 @@ def test_les_enregistrements_anterieurs_restent_sans_numero(tmp_path):
     # L'ancienne garde ce qu'elle avait, la nouvelle repart de 1.
     assert refs[-1].endswith("0001")
     assert refs[0] != refs[-1]
-    assert "sans numéro" in journal or refs[0] == ""
+    assert "remain unnumbered" in journal or refs[0] == ""
 
 
 def test_un_numero_en_double_rend_409_et_jamais_un_succes(carnet):

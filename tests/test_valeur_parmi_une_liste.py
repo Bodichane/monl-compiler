@@ -169,8 +169,8 @@ def test_le_contrat_et_le_brief_portent_la_liste(tmp_path, capsys):
                  if f["name"] == "statut")
     assert champ["allowed_values"] == ["panier", "en préparation", "expédiée", "livrée"]
     brief = (tmp_path / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
-    assert "MENU DÉROULANT" in brief
-    assert "« en préparation »" in brief
+    assert "DROPDOWN MENU" in brief
+    assert "“en préparation”" in brief
 
 
 def test_sans_regle_aucune_liste_dans_le_contrat(tmp_path, capsys):
@@ -202,7 +202,7 @@ def test_le_delta_signale_une_liste_qui_change(tmp_path, capsys):
     sortie = capsys.readouterr().out
 
     assert "no interface changes" not in sortie, sortie
-    assert "content rewritten: choix de Commande.statut" in sortie, sortie
+    assert "content rewritten: choices of Commande.statut" in sortie, sortie
     assert "field added" not in sortie, sortie
 
 

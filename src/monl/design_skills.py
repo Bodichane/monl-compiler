@@ -7,42 +7,42 @@ module en garde le noyau déterministe destiné aux artefacts compilés.
 
 SKILL_PROFILES = {
     "monl-design-system": {
-        "purpose": "direction visuelle explicite avant l'écriture du frontend",
+        "purpose": "explicit visual direction before writing the frontend",
         "requirements": [
             "lire docs/DESIGN_SYSTEM.md, docs/DESIGN_SPEC.md et docs/ASSET_MANIFEST.json avant de coder",
-            "choisir un pattern de page et une hiérarchie avant les détails décoratifs",
-            "traiter les anti-patterns, le contraste, le clavier, le mobile et le mouvement réduit comme des critères de livraison",
-            "rendre les assets locaux réellement présents et référencés, jamais des placeholders distants",
+            "choose a page pattern and a hierarchy before decorative details",
+            "treat anti-patterns, contrast, keyboard, mobile and reduced motion as delivery criteria",
+            "make local assets actually present and referenced, never remote placeholders",
         ],
     },
     "monl-showcase": {
-        "purpose": "socle de qualité démonstration, dense et professionnel",
+        "purpose": "demo-quality foundation, dense and professional",
         "requirements": [
-            "cartographier chaque parcours principal vers une entrée d'interface claire",
-            "prévoir chargement, vide, succès, validation, refus et indisponibilité",
-            "adapter la composition au mobile, au clavier et aux mouvements réduits",
-            "présenter les opérations métier avec des contrôles humains, jamais du JSON brut",
-            "utiliser des données réelles de l'API et une hiérarchie visuelle propre au brief",
+            "map each main flow to a clear interface entry",
+            "plan for loading, empty, success, validation, refusal and unavailability",
+            "adapt the composition to mobile, keyboard and reduced motion",
+            "present business operations with human controls, never raw JSON",
+            "use real API data and a visual hierarchy specific to the brief",
         ],
     },
     "monl-commerce": {
-        "purpose": "parcours commercial complet, du catalogue à la livraison",
+        "purpose": "complete commercial flow, from catalog to delivery",
         "requirements": [
-            "montrer prix et disponibilité au point de décision",
-            "rendre catalogue, panier ou récapitulatif, commande et historique cohérents",
-            "traiter paiement en attente, échec et service indisponible sans inventer le succès",
-            "séparer clairement l'expérience acheteur des contrôles vendeur ou administrateur",
-            "exposer le suivi après paiement quand le contrat fournit cette route",
+            "show price and availability at the point of decision",
+            "make catalog, cart or summary, order and history consistent",
+            "handle pending payment, failure and unavailable service without inventing success",
+            "clearly separate the buyer experience from seller or administrator controls",
+            "expose after-payment tracking when the contract provides that route",
         ],
     },
     "monl-operations": {
-        "purpose": "espace opérationnel organisé autour des décisions et files de travail",
+        "purpose": "operational space organized around decisions and work queues",
         "requirements": [
-            "fournir une vue d'ensemble issue des vraies données",
-            "regrouper les outils par objectif et par rôle plutôt que par table de base de données",
-            "proposer recherche, filtre ou segmentation quand les champs le permettent",
-            "relier listes denses, inspection détaillée et actions contextualisées",
-            "rendre propriété, modération et actions privilégiées immédiatement compréhensibles",
+            "provide an overview drawn from the real data",
+            "group tools by goal and by role rather than by database table",
+            "offer search, filter or segmentation when the fields allow it",
+            "connect dense lists, detailed inspection and contextual actions",
+            "make ownership, moderation and privileged actions immediately understandable",
         ],
     },
 }
@@ -82,8 +82,8 @@ def render_skill_block(names):
         rules = "\n".join(f"  - {rule}" for rule in profile["requirements"])
         chunks.append(f"### ${name}\n_{profile['purpose']}._\n{rules}")
     return (
-        "## Design skills sélectionnés par Monl\n\n"
-        "Ces compétences fixent le niveau de profondeur et de finition, pas "
-        "la palette ni la typographie. Les appliquer ensemble ; la direction "
-        "artistique reste celle du brief de l'auteur.\n\n" + "\n\n".join(chunks) + "\n\n"
+        "## Design skills selected by Monl\n\n"
+        "These skills set the level of depth and finish, not the palette or "
+        "the typography. Apply them together; the art direction remains the "
+        "one in the author's brief.\n\n" + "\n\n".join(chunks) + "\n\n"
     )

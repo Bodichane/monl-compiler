@@ -25,9 +25,9 @@ _DB_POOL_WARNING_EMITTED = False""").substitute(DB_POOL_MIN_ENV=repr(DB_POOL_MIN
     try:
         value = int(raw)
     except ValueError as error:
-        raise RuntimeError(f'{name} doit être un entier positif.') from error
+        raise RuntimeError(f'{name} must be a positive integer.') from error
     if value < 1:
-        raise RuntimeError(f'{name} doit être supérieur ou égal à 1.')
+        raise RuntimeError(f'{name} must be greater than or equal to 1.')
     return value""").substitute(),
             Template(r"""""").substitute(),
             Template(r"""def _database_pool():
@@ -39,7 +39,7 @@ _DB_POOL_WARNING_EMITTED = False""").substitute(DB_POOL_MIN_ENV=repr(DB_POOL_MIN
             _min_size = _database_pool_size((os.environ.get(_DB_POOL_MIN_ENV) or str(_DB_POOL_DEFAULT_MIN)).strip(), _DB_POOL_MIN_ENV)
             _max_size = _database_pool_size((os.environ.get(_DB_POOL_MAX_ENV) or str(_DB_POOL_DEFAULT_MAX)).strip(), _DB_POOL_MAX_ENV)
             if _max_size < _min_size:
-                raise RuntimeError(f'{_DB_POOL_MAX_ENV} doit être supérieur ou égal à {_DB_POOL_MIN_ENV}.')
+                raise RuntimeError(f'{_DB_POOL_MAX_ENV} must be greater than or equal to {_DB_POOL_MIN_ENV}.')
             _DB_POOL = _psycopg_pool.ConnectionPool(conninfo=MONL_DATABASE_URL, min_size=_min_size, max_size=_max_size, kwargs={'connect_timeout': 10}, open=False)
             try:
                 _DB_POOL.open(wait=True)
@@ -52,7 +52,7 @@ _DB_POOL_WARNING_EMITTED = False""").substitute(DB_POOL_MIN_ENV=repr(DB_POOL_MIN
             Template(r"""def _announce_database_pool_fallback():
     global _DB_POOL_WARNING_EMITTED
     if not _DB_POOL_WARNING_EMITTED:
-        print("⚠️ psycopg_pool absent : PostgreSQL reste en connexion par requête. Installez l'extra '.[postgres]' (pip install 'monl-compiler[postgres]').")
+        print("⚠️ psycopg_pool missing: PostgreSQL stays on one connection per request. Install the '.[postgres]' extra (pip install 'monl-compiler[postgres]').")
         _DB_POOL_WARNING_EMITTED = True""").substitute(),
             Template(r"""""").substitute(),
             Template(r"""def _close_database_pool():

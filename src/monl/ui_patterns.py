@@ -12,89 +12,89 @@ from collections.abc import Iterable
 
 PATTERN_LIBRARY = {
     "hero": {
-        "purpose": "faire comprendre l'offre et l'action principale dès le premier écran",
+        "purpose": "make the offer and the main action understood from the first screen",
         "variants": {
-            "split-editorial": "copie courte à gauche, média local dominant à droite, CTA principal et lien secondaire",
-            "centered-conversion": "promesse centrée, preuve courte sous le titre, CTA principal puis signal de confiance",
-            "workspace-entry": "titre orienté tâche, résumé de l'état courant et action de travail immédiatement disponible",
+            "split-editorial": "short copy on the left, dominant local media on the right, main CTA and secondary link",
+            "centered-conversion": "centered promise, short proof under the heading, main CTA then a trust signal",
+            "workspace-entry": "task-oriented heading, summary of the current state and a work action immediately available",
         },
-        "must_have": ["identité", "promesse", "action principale", "état ou preuve utile"],
-        "avoid": "un hero décoratif sans action ni information réelle",
+        "must_have": ["identity", "promise", "main action", "useful state or proof"],
+        "avoid": "a decorative hero with no action and no real information",
         "marker": 'data-monl-section="hero"',
     },
     "catalogue": {
-        "purpose": "rendre une collection parcourable sans sacrifier le détail important",
+        "purpose": "make a collection browsable without sacrificing the important detail",
         "variants": {
-            "featured-rail": "une sélection horizontale mise en avant suivie d'un lien vers la collection complète",
-            "filter-grid": "filtres visibles, grille de cartes, prix/disponibilité près de l'action",
-            "dense-list": "liste compacte avec recherche, statut, méta utile et inspection au clic",
+            "featured-rail": "a featured horizontal selection followed by a link to the full collection",
+            "filter-grid": "visible filters, card grid, price/availability near the action",
+            "dense-list": "compact list with search, status, useful meta and inspection on click",
         },
-        "must_have": ["données réelles", "recherche ou classification si disponible", "état vide", "chargement local"],
-        "avoid": "une grille de cartes identiques qui masque la hiérarchie ou invente des données",
+        "must_have": ["real data", "search or classification if available", "empty state", "local loading"],
+        "avoid": "a grid of identical cards that hides the hierarchy or invents data",
         "marker": 'data-monl-section="catalogue"',
     },
     "editorial": {
-        "purpose": "transformer le contenu fourni par l'auteur en rythme de lecture",
+        "purpose": "turn the content supplied by the author into a reading rhythm",
         "variants": {
-            "split-story": "texte structuré d'un côté, image ou matière locale de l'autre",
-            "proof-bento": "blocs de tailles variées pour valeurs, chiffres, méthode ou savoir-faire",
-            "longform-rail": "colonne de lecture maîtrisée, repères latéraux et progression narrative",
+            "split-story": "structured text on one side, image or local material on the other",
+            "proof-bento": "blocks of varied sizes for values, figures, method or know-how",
+            "longform-rail": "controlled reading column, side markers and narrative progression",
         },
-        "must_have": ["titre exact", "contenu de la spec", "respiration", "continuité vers l'action suivante"],
-        "avoid": "cacher le contenu éditorial derrière un menu ou l'aplatir en un paragraphe",
+        "must_have": ["exact title", "spec content", "breathing room", "continuity toward the next action"],
+        "avoid": "hiding the editorial content behind a menu or flattening it into one paragraph",
         "marker": 'data-monl-section="editorial"',
     },
     "trust": {
-        "purpose": "réduire l'hésitation sans fabriquer de preuve",
+        "purpose": "reduce hesitation without fabricating proof",
         "variants": {
-            "value-grid": "trois à quatre engagements explicites avec une explication courte",
-            "process-steps": "étapes numérotées du service ou de la commande, reliées à des états réels",
-            "evidence-strip": "indicateurs issus du contrat ou du contenu, jamais de faux logos ou faux avis",
+            "value-grid": "three to four explicit commitments with a short explanation",
+            "process-steps": "numbered steps of the service or the order, tied to real states",
+            "evidence-strip": "indicators drawn from the contract or the content, never fake logos or fake reviews",
         },
-        "must_have": ["preuve réelle ou engagement vérifiable", "libellés compréhensibles", "proximité avec l'action concernée"],
-        "avoid": "témoignages, statistiques, logos ou garanties inventés par le frontend",
+        "must_have": ["real proof or verifiable commitment", "understandable labels", "proximity to the action concerned"],
+        "avoid": "testimonials, statistics, logos or guarantees invented by the frontend",
         "marker": 'data-monl-section="trust"',
     },
     "faq": {
-        "purpose": "répondre aux objections sous forme de questions distinctes",
+        "purpose": "answer objections as distinct questions",
         "variants": {
-            "accordion": "questions séparées, une réponse visible à la fois, ouverture clavier accessible",
-            "two-column": "questions courtes à gauche et réponses alignées à droite sur grand écran",
-            "definition-list": "liste compacte de questions/réponses sans animation obligatoire",
+            "accordion": "separate questions, one answer visible at a time, accessible keyboard opening",
+            "two-column": "short questions on the left and answers aligned on the right on a large screen",
+            "definition-list": "compact list of questions/answers with no mandatory animation",
         },
-        "must_have": ["une entrée par question de la spec", "réponse non réécrite", "état ouvert/fermé accessible"],
-        "avoid": "coller toutes les réponses dans un bloc de texte ou en ajouter de fictives",
+        "must_have": ["one entry per spec question", "answer not rewritten", "accessible open/closed state"],
+        "avoid": "pasting every answer into one block of text or adding fictional ones",
         "marker": 'data-monl-section="faq"',
     },
     "contact": {
-        "purpose": "offrir une sortie claire vers le contact ou la prochaine action",
+        "purpose": "offer a clear way out toward contact or the next action",
         "variants": {
-            "form-aside": "formulaire court d'un côté, coordonnées et disponibilité de l'autre",
-            "contact-card": "carte de contact très lisible, actions téléphone/email explicites",
-            "closing-form": "formulaire placé après la preuve et le contenu, avec retour d'état proche du bouton",
+            "form-aside": "short form on one side, contact details and availability on the other",
+            "contact-card": "very readable contact card, explicit phone/email actions",
+            "closing-form": "form placed after the proof and the content, with state feedback near the button",
         },
-        "must_have": ["canal réel", "libellés précis", "validation et erreur visibles", "retour après envoi"],
-        "avoid": "un formulaire qui promet un envoi sans route ou qui perd les données saisies en cas d'erreur",
+        "must_have": ["real channel", "precise labels", "visible validation and error", "feedback after sending"],
+        "avoid": "a form that promises sending without a route or loses the entered data on error",
         "marker": 'data-monl-section="contact"',
     },
     "booking": {
-        "purpose": "faire passer de la découverte à une réservation réelle sans inventer un calendrier",
+        "purpose": "move from discovery to a real booking without inventing a calendar",
         "variants": {
-            "booking-flow": "service choisi, date et créneau lisibles, formulaire court, confirmation et erreurs proches de l'action",
+            "booking-flow": "chosen service, readable date and slot, short form, confirmation and errors near the action",
         },
-        "must_have": ["offres réelles", "champs du contrat uniquement", "état de disponibilité explicite", "confirmation ou erreur visible"],
-        "avoid": "un calendrier fictif, une disponibilité inventée ou un formulaire sans route de création",
+        "must_have": ["real offers", "contract fields only", "explicit availability state", "visible confirmation or error"],
+        "avoid": "a fictional calendar, invented availability or a form without a creation route",
         "marker": 'data-monl-section="booking"',
     },
     "closing-cta": {
-        "purpose": "terminer la page avec une action cohérente avec la promesse",
+        "purpose": "end the page with an action consistent with the promise",
         "variants": {
-            "quiet-band": "bandeau sobre, rappel de la promesse et un seul CTA",
-            "image-overlap": "média local partiellement superposé à un bloc de conversion",
-            "next-step": "prochaine étape explicite après un parcours de consultation ou de travail",
+            "quiet-band": "restrained band, reminder of the promise and a single CTA",
+            "image-overlap": "local media partly overlapping a conversion block",
+            "next-step": "explicit next step after a browsing or work flow",
         },
-        "must_have": ["une seule action prioritaire", "rappel de valeur", "alternative de navigation non concurrente"],
-        "avoid": "répéter plusieurs boutons concurrents ou ajouter une promesse non présente dans le brief",
+        "must_have": ["a single priority action", "value reminder", "non-competing navigation alternative"],
+        "avoid": "repeating several competing buttons or adding a promise absent from the brief",
         "marker": 'data-monl-section="closing-cta"',
     },
 }
@@ -182,7 +182,8 @@ def select_ui_patterns(contract: dict, kind: str) -> list[dict]:
         selected.append("catalogue")
     brief = (contract.get("brief") or "").lower()
     express_editorial = any(signal in brief for signal in (
-        "mode express", "images portent", "page dense",
+        "mode express", "express mode", "images portent", "images carry",
+        "page dense",
     ))
     if contract.get("sections") or express_editorial:
         selected.append("editorial")
@@ -223,20 +224,20 @@ def render_pattern_block(patterns: Iterable[dict]) -> str:
     for pattern in patterns:
         required = ", ".join(pattern["must_have"])
         chunks.append(
-            f"### {pattern['name']} — variante `{pattern['variant']}`\n"
+            f"### {pattern['name']} — variant `{pattern['variant']}`\n"
             f"_{pattern['purpose']}._\n"
-            f"- Structure : {pattern['variants'][pattern['variant']]}\n"
-            f"- À garantir : {required}\n"
-            f"- À éviter : {pattern['avoid']}\n"
-            f"- Marqueur : `{pattern['marker']}`"
+            f"- Structure: {pattern['variants'][pattern['variant']]}\n"
+            f"- To guarantee: {required}\n"
+            f"- To avoid: {pattern['avoid']}\n"
+            f"- Marker: `{pattern['marker']}`"
         )
     if not chunks:
         return ""
     return (
-        "## Patterns de composition Monl\n\n"
-        "Ce sont des structures de page locales, compatibles avec HTML/CSS/JS "
-        "autonome. Les adapter au brief et au contrat ; ne pas copier une "
-        "apparence générique ni inventer le contenu absent.\n\n"
+        "## Monl composition patterns\n\n"
+        "These are local page structures, compatible with self-contained "
+        "HTML/CSS/JS. Adapt them to the brief and the contract; do not copy a "
+        "generic look or invent missing content.\n\n"
         + "\n\n".join(chunks)
         + "\n\n"
     )

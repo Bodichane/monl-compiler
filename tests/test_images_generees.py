@@ -218,20 +218,20 @@ def test_option_explicite_produit_des_octets_dans_assets_et_les_reference(tmp_pa
     assert not any((project / "frontend" / path).exists() for path in paths)
     assert all(path in text.prompts[0] for path in paths)
     assert (
-        "`media/generated/hero.jpg` — rôle : bandeau principal du premier écran — "
-        "emploi unique obligatoire : rendre ce fichier une seule fois — "
-        "précision : bloc HTML exact : `data-monl-section=\"hero\"`"
+        "`media/generated/hero.jpg` — role: main banner of the first screen — "
+        "single use required: render this file only once — "
+        "detail: exact HTML block: `data-monl-section=\"hero\"`"
         in text.prompts[0]
     )
     assert (
-        "`media/generated/editorial.jpg` — rôle : vignette secondaire pour le récit ou la "
-        "preuve — emploi unique obligatoire : rendre ce fichier une seule fois — "
-        "précision : bloc HTML exact : `data-monl-section=\"notre-matiere\"`"
+        "`media/generated/editorial.jpg` — role: secondary thumbnail for the story or the "
+        "proof — single use required: render this file only once — "
+        "detail: exact HTML block: `data-monl-section=\"notre-matiere\"`"
         in text.prompts[0]
     )
     # Le prompt image est désormais une composition dédiée ; il ne recopie
     # plus le bloc de consignes destiné au modèle de code.
-    assert all("Sujet :" in prompt for prompt in images.prompts)
+    assert all("Subject:" in prompt for prompt in images.prompts)
     assert all("Chaque pièce naît" in prompt for prompt in images.prompts)
 
 
@@ -254,11 +254,12 @@ def test_appariement_par_role_et_emploi_unique_sans_section(tmp_path):
     for item in generated:
         line = next(line for line in prompt_lines if item["path"] in line)
         assert line.startswith(
-            f"- `{item['path']}` — rôle : {item['role']} — emploi unique "
-            "obligatoire : rendre ce fichier une seule fois"
+            f"- `{item['path']}` — role: {item['role']} — single use "
+            "required: render this file only once"
         )
         assert line.count(item["path"]) == 1
     assert "bloc HTML distinct à choisir" not in text.prompts[0]
+    assert "distinct HTML block to choose" not in text.prompts[0]
 
 
 def test_la_verification_refuse_la_reutilisation_meme_sans_section(tmp_path):
@@ -273,9 +274,9 @@ def test_la_verification_refuse_la_reutilisation_meme_sans_section(tmp_path):
 
     assert not ok
     assert len([error for error in errors
-                if "asset généré réutilisé" in error]) == 2
+                if "generated asset reused" in error]) == 2
     assert all(
-        f"`{item['path']}` — rôle : {item['role']} — emploi unique obligatoire"
+        f"`{item['path']}` — role: {item['role']} — single use required"
         in text.prompts[0]
         for item in _manifest(project)["generated_assets"]
     )
@@ -293,7 +294,7 @@ def test_la_reutilisation_est_denommee_une_fois_par_asset(tmp_path):
 
     assert not ok
     reuse_errors = [error for error in errors
-                    if "asset généré réutilisé" in error]
+                    if "generated asset reused" in error]
     assert len(reuse_errors) == 2
     assert sum("media/generated/hero.jpg" in error for error in reuse_errors) == 1
     assert sum("media/generated/editorial.jpg" in error for error in reuse_errors) == 1
@@ -303,18 +304,19 @@ def test_prompt_image_compose_un_projet_bavard_dans_le_plafond_et_garde_la_matie
         tmp_path):
     project = _verbose_project(tmp_path)
     prompt = _image_prompt(
-        str(project), {"role": "bandeau principal du premier écran"},
+        str(project), {"role": "main banner of the first screen"},
         max_chars=YANDEXART_MAX_PROMPT_CHARS)
 
     assert len(prompt) <= YANDEXART_MAX_PROMPT_CHARS
     assert "céramique artisanale" in prompt
     assert "products" in prompt
-    assert "bandeau principal du premier écran" in prompt
+    assert "main banner of the first screen" in prompt
     assert "registre affirmé et graphique" in prompt
     assert "media/generated/hero.jpg" not in prompt
     assert "frontend" not in prompt.lower()
     assert "route" not in prompt.lower()
     assert "fonctionnalité" not in prompt.lower()
+    assert "feature" not in prompt.lower()
     assert "illustrations svg" not in prompt.lower()
 
 
@@ -367,8 +369,8 @@ def test_echec_image_laisse_ecrire_le_frontend_puis_le_manifeste_refuse(
     assert not ok
     assert len(text.prompts) == 1
     assert (project / "frontend" / "index.html").is_file()
-    assert any("Image non générée" in message for message in messages)
-    assert any("asset généré manquant" in error for error in errors)
+    assert any("Image not generated" in message for message in messages)
+    assert any("generated asset missing" in error for error in errors)
 
 
 def test_le_role_declare_le_rapport_et_le_fournisseur_le_recoit(tmp_path):
@@ -383,7 +385,7 @@ def test_le_role_declare_le_rapport_et_le_fournisseur_le_recoit(tmp_path):
 
     assert ok, errors
     generated = _manifest(project)["generated_assets"]
-    assert generated[0]["role"] == "bandeau principal du premier écran"
+    assert generated[0]["role"] == "main banner of the first screen"
     assert generated[0]["aspect_ratio"] == {"width": 16, "height": 9}
     assert "aspect_ratio" not in generated[1]
     assert images.aspect_ratios == [{"width": 16, "height": 9}, None]

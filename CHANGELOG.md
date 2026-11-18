@@ -27,6 +27,27 @@
     purpose: `tests/test_console_javascript.py` guards the point 163 escaping
     trap, and a label without an apostrophe would leave that counter-proof
     checking nothing.
+- What the compiler produces speaks English (English migration, PR 2, third
+  batch): the generated backend's error and startup messages (`app.py`,
+  `manage.py`, `serve.py`, the `schema.sql` header), the frontend contract
+  notes and `FRONTEND_PROMPT.md`, the frontend AI prompts and checks,
+  `DESIGN_SYSTEM.md` and `DESIGN_SPEC.md`, the project `AGENTS.md` and
+  `README.md`, the ten application templates (names, demo data, sections,
+  `oneOf` values) and the text the guided dialogue writes into a spec. The
+  golden fingerprints were regenerated on purpose: every artifact carrying
+  readable text changes, while `Dockerfile`, `requirements.txt` and
+  `.dockerignore` stay byte-identical. Kept on purpose:
+  - the `<!-- généré par monl … -->` markers: they recognize files monl
+    generated in existing projects, and changing them would make every
+    earlier `AGENTS.md`, `README.md` or `DESIGN_SYSTEM.md` look hand-written,
+    hence frozen forever;
+  - backward reading of French briefs: a spec written by the earlier dialogue
+    still triggers the express block and still yields its image subject and
+    visual register (both spellings are read);
+  - route paths, tags and generated identifiers (`/paiement`, `payee`,
+    `montant_centimes`), which are part of the API.
+  Not in this batch: the four platform example specs and their excerpts, and
+  code comments and docstrings (PR 3).
 
 ### Fixed
 

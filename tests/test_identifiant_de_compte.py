@@ -224,7 +224,7 @@ def test_deux_ecritures_de_la_meme_adresse_sont_UN_seul_compte(serveur):
 
     assert code == 409, reponse
     # Et le message nomme ce qui est vraiment en conflit.
-    assert "adresse" in reponse["detail"] or "identifiant" in reponse["detail"]
+    assert "address" in reponse["detail"] or "identifier" in reponse["detail"]
 
 
 def test_deux_ecritures_du_meme_numero_sont_UN_seul_compte(serveur):

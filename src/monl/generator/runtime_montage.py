@@ -51,8 +51,8 @@ async def _lifespan(_app: FastAPI):
     'MONL_CORS_ORIGINS', '').split(',') if origin.strip()]
 if '*' in _CORS_ORIGINS:
     raise RuntimeError(
-        "MONL_CORS_ORIGINS refuse l'origine '*' : listez des origines "
-        'explicites, séparées par des virgules.'
+        "MONL_CORS_ORIGINS refuses the origin '*': list explicit "
+        'origins, separated by commas.'
     )
 if _CORS_ORIGINS:
     from fastapi.middleware.cors import CORSMiddleware

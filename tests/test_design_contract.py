@@ -108,7 +108,7 @@ def test_le_contrat_porte_des_competences_de_finition_sans_theme_visuel():
         contrat, brief = _brief(BASE, workdir)
     assert contrat["design_skills"][0] == "monl-showcase"
     assert "$monl-showcase" in brief
-    assert "niveau de profondeur et de finition" in brief
+    assert "level of depth and finish" in brief
 
 
 def test_le_contrat_ne_contient_aucune_couleur_ecrite_en_dur():
@@ -151,8 +151,8 @@ def test_le_brief_garde_les_deux_exigences_qui_ne_sont_pas_du_gout():
     avec elle."""
     with tempfile.TemporaryDirectory() as workdir:
         _contrat_, brief = _brief(BASE, workdir)
-    assert "4,5:1" in brief and "WCAG" in brief
-    assert "aucune ressource distante" in brief
+    assert "4.5:1" in brief and "WCAG" in brief
+    assert "no remote resource" in brief
 
 
 def test_le_brief_dit_par_quel_moyen_une_icone_est_possible():
@@ -166,7 +166,7 @@ def test_le_brief_dit_par_quel_moyen_une_icone_est_possible():
     with tempfile.TemporaryDirectory() as workdir:
         _contrat_, brief = _brief(BASE, workdir)
     assert "SVG" in brief
-    assert "en liste blanche" in brief or ".svg" in brief
+    assert "allowlist" in brief or ".svg" in brief
 
 
 def test_le_brief_ne_recommande_aucune_icone_ni_aucun_style_dicone():
@@ -178,11 +178,11 @@ def test_le_brief_ne_recommande_aucune_icone_ni_aucun_style_dicone():
         _contrat_, brief = _brief(BASE, workdir)
     bas = brief.lower()
     # Les librairies ne sont nommées que pour dire qu'elles sont HORS D'ATTEINTE.
-    for interdit in ("style d'icône", "icônes arrondies", "icônes pleines",
-                     "jeu d'icônes recommandé", "utiliser des icônes pour",
-                     "ajouter une icône"):
+    for interdit in ("icon style", "rounded icons", "filled icons",
+                     "recommended icon set", "use icons for",
+                     "add an icon"):
         assert interdit not in bas, interdit
-    assert "n'est atteignable" in bas or "atteignable" in bas
+    assert "is reachable" in bas or "reachable" in bas
 
 
 def test_le_brief_dit_explicitement_que_le_visuel_ne_vient_pas_du_compilateur():
@@ -190,7 +190,7 @@ def test_le_brief_dit_explicitement_que_le_visuel_ne_vient_pas_du_compilateur():
     sinon l'IA d'interface cherchera la direction qu'elle croit manquante."""
     with tempfile.TemporaryDirectory() as workdir:
         _contrat_, brief = _brief(BASE, workdir)
-    assert "ne vient PAS de monl" in brief
+    assert "does NOT come from monl" in brief
 
 
 # ------------------------------------------------------ le bloc 'ui' est inerte --
@@ -219,9 +219,9 @@ def test_deux_projets_de_domaines_opposes_recoivent_le_meme_silence():
     assert "design" not in c1 and "design" not in c2
     # Le paragraphe de direction de design est le MÊME mot pour mot : il ne
     # dépend plus d'aucune déduction sur le domaine.
-    extrait = "## Direction de design — elle ne vient PAS de monl"
-    bloc1 = b1[b1.index(extrait):b1.index("## Règles non négociables")]
-    bloc2 = b2[b2.index(extrait):b2.index("## Règles non négociables")]
+    extrait = "## Design direction — it does NOT come from monl"
+    bloc1 = b1[b1.index(extrait):b1.index("## Non-negotiable rules")]
+    bloc2 = b2[b2.index(extrait):b2.index("## Non-negotiable rules")]
     assert bloc1 == bloc2, "la direction de design dépend encore du domaine"
 
 
@@ -244,5 +244,5 @@ def test_la_consigne_de_retouche_rappelle_le_moyen_des_icones():
     # quelle échouerait au premier retour à la ligne inséré au milieu.
     continu = " ".join(texte.split())
     assert "SVG" in continu
-    assert "pas une consigne" in continu, \
+    assert "not an instruction" in continu, \
         "le rappel doit dire que c'est un MOYEN, jamais une prescription"

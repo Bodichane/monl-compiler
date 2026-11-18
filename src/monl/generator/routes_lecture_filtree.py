@@ -197,10 +197,10 @@ class LectureFiltreeRoutesMixin:
                 "    if sort is not None:",
                 "        _sort_column = _sort_columns.get(sort)",
                 "        if _sort_column is None:",
-                "            raise HTTPException(status_code=422, detail='Colonne de tri non déclarée')",
+                "            raise HTTPException(status_code=422, detail='Undeclared sort column')",
                 "        _sort_direction = _sort_directions.get(direction.lower())",
                 "        if _sort_direction is None:",
-                "            raise HTTPException(status_code=422, detail=\"Sens de tri attendu : asc ou desc\")",
+                "            raise HTTPException(status_code=422, detail=\"Expected sort direction: asc or desc\")",
                 "        _order_by = ' ORDER BY ' + _sort_column + ' ' + _sort_direction",
             ]
         else:
@@ -233,7 +233,7 @@ class LectureFiltreeRoutesMixin:
             "    row = cursor.fetchone()",
             "    _columns = [d[0] for d in cursor.description]  # ordre réel en base (robuste aux migrations)",
             "    conn.close()",
-            "    if not row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
+            "    if not row: raise HTTPException(status_code=404, detail='Record not found')",
             "    named_row = dict(zip(_columns, row))",
         ]
         if public_condition:
@@ -250,7 +250,7 @@ class LectureFiltreeRoutesMixin:
                     for column in condition_owner_columns)
                 guard += " and not (" + " or ".join(exemptions) + ")"
             api_lines.append(
-                guard + ": raise HTTPException(status_code=404, detail='Enregistrement introuvable')")
+                guard + ": raise HTTPException(status_code=404, detail='Record not found')")
         if apply_read_owner:
             if chain:
                 owner_query = self._chain_owner_scalar(
@@ -262,12 +262,12 @@ class LectureFiltreeRoutesMixin:
                     f"        _tcur.execute({sql_literal}, {params_literal})",
                     "        _tr = _tcur.fetchone(); _tc.close()",
                     "        if not _tr or _tr[0] is None or _tr[0] != current_user_id:",
-                    "            raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
+                    "            raise HTTPException(status_code=404, detail='Record not found')",
                 ]
             else:
                 api_lines += [
                     f"    if current_actor == {read_actor!r} and named_row.get('{read_owner.lower()}_id') != current_user_id:",
-                    "        raise HTTPException(status_code=404, detail='Enregistrement introuvable')",
+                    "        raise HTTPException(status_code=404, detail='Record not found')",
                 ]
         if apply_read_parties:
             parties_tuple = ", ".join(f"named_row.get('{column}')"
@@ -278,12 +278,12 @@ class LectureFiltreeRoutesMixin:
                 api_lines += [
                     f"    if current_actor not in {{{supervisors}}}:",
                     f"        if current_user_id not in ({parties_tuple},):",
-                    "            raise HTTPException(status_code=403, detail=\"Contrôle d'accès : seules les parties de la ressource peuvent la consulter\")",
+                    "            raise HTTPException(status_code=403, detail=\"Access control: only the resource's parties can read it\")",
                 ]
             else:
                 api_lines += [
                     f"    if current_user_id not in ({parties_tuple},):",
-                    "        raise HTTPException(status_code=403, detail=\"Contrôle d'accès : seules les parties de la ressource peuvent la consulter\")",
+                    "        raise HTTPException(status_code=403, detail=\"Access control: only the resource's parties can read it\")",
                 ]
         if masked:
             api_lines.append(f"    for _f in [{mask_literal}]: named_row.pop(_f, None)")

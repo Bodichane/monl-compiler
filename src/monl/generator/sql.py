@@ -39,7 +39,7 @@ def kw(text):
     `?` — un paramètre ne s'écrit qu'avec `bind()`, pour qu'aucune valeur ne
     puisse se glisser dans un fragment réputé sans paramètre."""
     if "?" in text:
-        raise ValueError("Un '?' ne s'écrit qu'avec bind(), jamais dans kw()")
+        raise ValueError("A '?' is written only with bind(), never inside kw()")
     return Sql(text)
 
 
@@ -49,7 +49,7 @@ def ident(name):
     colonne validée n'en porte jamais, et deviner l'échappement masquerait une
     divergence en amont."""
     if '"' in name:
-        raise ValueError(f"Identifiant SQL invalide : {name!r} contient un guillemet")
+        raise ValueError(f"Invalid SQL identifier: {name!r} contains a quote")
     return Sql(f'"{name}"')
 
 
@@ -60,7 +60,7 @@ def bind(py_expr):
     `current_user_id`, `named_row.get('commande_id')`)."""
     py_expr = py_expr.strip()
     if not py_expr:
-        raise ValueError("bind() exige une expression Python non vide")
+        raise ValueError("bind() requires a non-empty Python expression")
     return Sql("?", (py_expr,))
 
 
@@ -79,8 +79,8 @@ def _check(query):
     # publier une requête déséquilibrée si un builder venait à être mal écrit.
     if query.text.count("?") != len(query.params):
         raise ValueError(
-            f"Requête déséquilibrée : {query.text.count('?')} '?' pour "
-            f"{len(query.params)} paramètre(s) — {query.text!r}")
+            f"Unbalanced query: {query.text.count('?')} '?' for "
+            f"{len(query.params)} parameter(s) — {query.text!r}")
 
 
 def params_tuple(query):

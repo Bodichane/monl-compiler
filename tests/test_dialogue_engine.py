@@ -67,10 +67,10 @@ def test_mode_express_ne_pose_que_identite_et_description_apres_le_modele():
     assert normalized["meta"]["appName"] == "StudioExpress"
     assert normalized["seeds"]
     assert "landing" in spec
-    assert "mode express" in spec
+    assert "express mode" in spec
     # Le mode express déduit un sujet d'illustration du modèle choisi ; il
     # part dans le brief, plus dans une URL distante.
-    assert "Les illustrations doivent évoquer : creative-studio" in spec
+    assert "The illustrations should evoke: creative-studio" in spec
     assert "loremflickr" not in spec and "picsum" not in spec
 
 
@@ -150,12 +150,12 @@ def test_le_dialogue_produit_reellement_des_liens_de_pied_de_page():
 
     # Personne ne tape « mailto: » ni « https:// » : le dialogue complète, et
     # ne complète que là où il n'existe qu'une lecture.
-    assert 'link "Courriel": "mailto:contact@studio.fr"' in spec
-    assert 'link "Téléphone": "tel:+33612345678"' in spec
+    assert 'link "Email": "mailto:contact@studio.fr"' in spec
+    assert 'link "Phone": "tel:+33612345678"' in spec
     assert 'link "Instagram": "https://instagram.com/studio"' in spec
     normalise = MonlAST(parse_monl_string(spec)).validate_and_audit()
     assert [lien["label"] for lien in normalise["landing"]["links"]] == [
-        "Courriel", "Téléphone", "Instagram"]
+        "Email", "Phone", "Instagram"]
 
 
 def test_une_adresse_incomprehensible_est_passee_et_dite():
@@ -192,11 +192,11 @@ def test_le_sujet_dillustration_part_dans_le_brief_et_non_dans_une_url():
     scenario[scenario.index("n", scenario.index("o", 28))] = "o"   # sujet précis
     scenario.insert(scenario.index("o", 28) + 2, "cybersecurity")
     spec = _run(scenario)
-    assert "Les illustrations doivent évoquer : cybersecurity" in spec
+    assert "The illustrations should evoke: cybersecurity" in spec
     # Écrit AUSSI en commentaire : sans bloc `landing`, la spec n'aurait pas de
     # brief où le porter, et l'humain qui rouvre le fichier doit retrouver ce
     # qu'il avait demandé.
-    assert "# Sujet des illustrations : cybersecurity" in spec
+    assert "# Illustration subject: cybersecurity" in spec
     for hote in ("picsum", "loremflickr", "http://", "https://"):
         assert hote not in spec
     MonlAST(parse_monl_string(spec)).validate_and_audit()
@@ -314,10 +314,12 @@ def test_intention_visuelle_arrive_dans_le_brief():
     routes décrites au champ près. Une interface sans intention retombe sur le
     dénominateur commun (point 53)."""
     spec = _run(_scenario_portfolio(["parcourir la galerie", "4", "1"]))
-    ligne = next(x for x in spec.splitlines() if "brief:" in x)
+    # La ligne DÉCLARÉE du bloc `landing`, pas le commentaire d'en-tête :
+    # « # Project brief: » contient lui aussi « brief: ».
+    ligne = next(x for x in spec.splitlines() if x.lstrip().startswith("brief:"))
     assert "parcourir la galerie" in ligne
-    assert "affirmé et graphique" in ligne          # registre n° 4
-    assert "les images portent le site" in ligne    # imagerie n° 1
+    assert "bold, graphic register" in ligne        # registre n° 4
+    assert "the images carry the site" in ligne     # imagerie n° 1
     # La description d'origine reste en tête du brief.
     assert ligne.index("Un portfolio") < ligne.index("parcourir la galerie")
     MonlAST(parse_monl_string(spec)).validate_and_audit()

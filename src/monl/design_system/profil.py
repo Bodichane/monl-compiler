@@ -53,40 +53,40 @@ def infer_design_profile(contract: dict) -> dict:
 
     if scheduling_signal:
         kind = "service"
-        pattern = "Promesse claire + offres + disponibilité + prise de contact"
+        pattern = "Clear promise + offers + availability + getting in touch"
     elif "monl-commerce" in skills or "shop" in archetypes or "Pay" in actions:
         kind = "commerce"
-        pattern = "Hero produit + catalogue guidé + réassurance + conversion"
+        pattern = "Product hero + guided catalog + reassurance + conversion"
     elif "monl-operations" in skills:
         kind = "operations"
-        pattern = "Vue d'ensemble + files de travail + détail contextuel"
+        pattern = "Overview + work queues + contextual detail"
     elif contract.get("sections") or contract.get("faq") or "gallery" in archetypes:
         kind = "editorial"
-        pattern = "Hero narratif + preuves de confiance + récit structuré + appel final"
+        pattern = "Narrative hero + trust proofs + structured story + final call"
     elif any(word in text for word in ("rendez-vous", "appointment", "réserver", "service")):
         kind = "service"
-        pattern = "Promesse claire + offres + disponibilité + prise de contact"
+        pattern = "Clear promise + offers + availability + getting in touch"
     else:
         kind = "generic"
-        pattern = "Entrée claire + contenu principal + preuve + action suivante"
+        pattern = "Clear entry + main content + proof + next action"
 
     media_entities = [
         {"entity": name, "fields": [field for field, _type in _entity_media(spec)]}
         for name, spec in entities.items()
         if _entity_media(spec)
     ]
-    pages = ["Accueil / entrée principale"]
+    pages = ["Home / main entry"]
     if kind == "commerce":
-        pages.extend(["Catalogue", "Fiche détaillée", "Panier ou récapitulatif"])
+        pages.extend(["Catalog", "Detail page", "Cart or summary"])
     elif kind == "service":
-        pages.append("Prestations, disponibilité et réservation")
+        pages.append("Services, availability and booking")
     if "monl-operations" in skills:
-        pages.append("Espace de travail par rôle")
+        pages.append("Workspace per role")
     if contract.get("sections"):
-        pages.append("Sections éditoriales sur l'accueil, avec prolongement si nécessaire")
+        pages.append("Editorial sections on the home page, continued elsewhere if needed")
     if contract.get("faq"):
-        pages.append("FAQ structurée")
-    pages.append("Compte, authentification et états d'erreur utiles")
+        pages.append("Structured FAQ")
+    pages.append("Account, authentication and useful error states")
 
     profile = {
         "kind": kind,
@@ -114,27 +114,27 @@ def _guarantees(contract: dict) -> list[str]:
 
     if any("/paiement" in (r.get("path") or "") for r in routes):
         faits.append(
-            "Le paiement passe par un prestataire ; le site ne voit jamais un "
-            "numéro de carte, et le montant est relu en base au moment de "
-            "l'encaissement.")
+            "Payment goes through a provider; the site never sees a card "
+            "number, and the amount is reread from the database at the "
+            "moment of charging.")
     if any(c.get("server_generated") for c in champs):
         faits.append(
-            "Les montants et les références sont calculés par le serveur : ils "
-            "ne peuvent pas être modifiés depuis le navigateur.")
+            "Amounts and references are calculated by the server: they "
+            "cannot be changed from the browser.")
     if any(c.get("postpayment_only") for c in champs):
         faits.append(
-            "Une commande réglée est figée : plus personne ne peut en changer "
-            "le contenu ni le total.")
+            "A paid order is frozen: nobody can change its content or its "
+            "total any more.")
     if any(c.get("numbered_as") for c in champs):
         faits.append(
-            "Chaque enregistrement reçoit un numéro lisible, attribué une "
-            "seule fois et jamais réattribué.")
+            "Each record receives a readable number, assigned once and "
+            "never reassigned.")
     if any(r.get("auth_required") for r in routes):
         faits.append(
-            "Les données de chaque compte restent séparées : la lecture et la "
-            "modification sont contrôlées côté serveur, pas cachées côté page.")
+            "Each account's data stays separate: reading and modification are "
+            "controlled server-side, not hidden on the page.")
     if contract.get("self_register_actors"):
         faits.append(
-            "L'inscription est ouverte aux seuls rôles prévus par la "
-            "spécification ; on ne s'attribue pas un rôle privilégié.")
+            "Registration is open only to the roles the specification "
+            "provides for; nobody can grant themselves a privileged role.")
     return faits

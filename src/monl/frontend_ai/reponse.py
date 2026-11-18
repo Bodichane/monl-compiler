@@ -33,34 +33,34 @@ def _refuser_caracteres_de_controle(path, content):
     nombre = sum(content.count(caractere) for caractere in fautifs)
     noms = ", ".join(f"U+{ord(c):04X}" for c in sorted(fautifs))
     raise fondations.FrontendAIError(
-        f"caractère de contrôle interdit dans {path} : {noms} "
-        f"({nombre} occurrence(s)) — un accent mal échappé produit ce défaut, "
-        "et le fichier reste de l'UTF-8 valide.")
+        f"forbidden control character in {path}: {noms} "
+        f"({nombre} occurrence(s)) — a badly escaped accent produces this defect, "
+        "and the file is still valid UTF-8.")
 
 def _validate_files(files, require_index=True):
     """Valide une map de fichiers sans imposer son format de transport."""
     if not isinstance(files, dict) or not files:
-        raise fondations.FrontendAIError("réponse du modèle sans clé 'files' exploitable")
+        raise fondations.FrontendAIError("model response without a usable 'files' key")
     if require_index and "index.html" not in files:
-        raise fondations.FrontendAIError("'index.html' absent de la réponse (obligatoire)")
+        raise fondations.FrontendAIError("'index.html' missing from the response (required)")
 
     total = 0
     for path, content in files.items():
         norm = path.replace("\\", "/")
         if norm.startswith("/") or ".." in norm.split("/"):
-            raise fondations.FrontendAIError(f"chemin refusé (doit rester dans frontend/) : {path}")
+            raise fondations.FrontendAIError(f"path refused (must stay inside frontend/): {path}")
         if not norm.endswith(fondations.ALLOWED_EXTENSIONS):
-            raise fondations.FrontendAIError(f"extension refusée : {path}")
+            raise fondations.FrontendAIError(f"extension refused: {path}")
         if not isinstance(content, str):
-            raise fondations.FrontendAIError(f"contenu non textuel pour : {path}")
+            raise fondations.FrontendAIError(f"non-text content for: {path}")
         _refuser_caracteres_de_controle(path, content)
         if norm.lower().endswith(".svg"):
             try:
                 root = ElementTree.fromstring(content)
             except ElementTree.ParseError as exc:
-                raise fondations.FrontendAIError(f"SVG invalide ou incomplet : {path}") from exc
+                raise fondations.FrontendAIError(f"invalid or incomplete SVG: {path}") from exc
             if root.tag.rsplit("}", 1)[-1].lower() != "svg":
-                raise fondations.FrontendAIError(f"SVG invalide ou incomplet : {path}")
+                raise fondations.FrontendAIError(f"invalid or incomplete SVG: {path}")
             # Le namespace XML standard `xmlns="http://www.w3.org/2000/svg"`
             # est obligatoire et ne télécharge rien. Ne pas le confondre avec
             # une vraie ressource distante dans href/src/url().
@@ -69,10 +69,10 @@ def _validate_files(files, require_index=True):
                     r"(?:https?:|//)|\burl\(\s*['\"]?(?:https?:|//))",
                     content, re.IGNORECASE):
                 raise fondations.FrontendAIError(
-                    f"SVG non autonome (ressource externe) : {path}")
+                    f"non-self-contained SVG (external resource): {path}")
         total += len(content.encode("utf-8"))
     if total > fondations.MAX_TOTAL_BYTES:
-        raise fondations.FrontendAIError(f"réponse trop volumineuse ({total} octets)")
+        raise fondations.FrontendAIError(f"response too large ({total} bytes)")
     return files
 
 def _json_payload(raw_text):
@@ -84,7 +84,7 @@ def _json_payload(raw_text):
     try:
         return json.loads(text)
     except json.JSONDecodeError as e:
-        raise fondations.FrontendAIError(f"réponse du modèle illisible (JSON attendu) : {e}") from e
+        raise fondations.FrontendAIError(f"unreadable model response (JSON expected): {e}") from e
 
 def parse_files_payload(raw_text):
     """Extrait {chemin: contenu} de la réponse du modèle, avec les mêmes
@@ -154,7 +154,7 @@ def parse_single_file_payload(raw_text, expected_path):
     if set(files) != {expected_path}:
         rendus = ", ".join(sorted(files))
         raise fondations.FrontendAIError(
-            f"l'étape devait rendre uniquement {expected_path}, reçu : {rendus}")
+            f"the stage was to return only {expected_path}, received: {rendus}")
     return files
 
 def _write_files(project_dir, files):
@@ -201,5 +201,5 @@ def _project_guidance(project_dir):
         path = os.path.join(project_dir, name)
         if os.path.exists(path):
             with open(path, encoding="utf-8") as fh:
-                blocks.append(f"\n\n## {name} — source de vérité\n{fh.read()}")
+                blocks.append(f"\n\n## {name} — source of truth\n{fh.read()}")
     return "".join(blocks)

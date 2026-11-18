@@ -17,27 +17,35 @@ def _image_brief_material(brief):
     """Sépare la matière visuelle des consignes destinées au modèle texte."""
     text = _clean_image_text(brief)
     topic_match = re.search(
-        r"Les illustrations doivent évoquer\s*:\s*(.+?)(?:[.!?](?:\s|$)|$)",
+        r"(?:Les illustrations doivent évoquer|The illustrations should evoke)"
+        r"\s*:\s*(.+?)(?:[.!?](?:\s|$)|$)",
         text, re.IGNORECASE)
     topic = _clean_image_text(topic_match.group(1)) if topic_match else ""
     if topic_match:
         text = text[:topic_match.start()].rstrip(" .")
 
-    text = re.split(r"\bmode express\s*:", text, maxsplit=1,
+    text = re.split(r"\b(?:mode express|express mode)\s*:", text, maxsplit=1,
                     flags=re.IGNORECASE)[0].rstrip(" ;,.")
-    text = re.sub(r"\bsans inventer\b.*$", "", text,
+    text = re.sub(r"\b(?:sans inventer|without inventing)\b.*$", "", text,
                   flags=re.IGNORECASE).rstrip(" ;,.")
 
     subject = text.split(" — ", 1)[0].strip(" ;,.")
     subject = re.split(
-        r"\s*,\s*(?=(?:ton|registre|les images|le visiteur)\b)",
+        r"\s*,\s*(?=(?:ton|registre|les images|le visiteur"
+        r"|tone|the images|the visitor)\b)",
         subject, maxsplit=1, flags=re.IGNORECASE)[0].strip(" ;,.")
     if not subject:
-        subject = text or "matière déclarée par le projet"
+        subject = text or "material declared by the project"
 
     register = []
+    # Deux grammaires : le français ouvre la clause par « registre … » ou
+    # « les images portent … » (specs écrites avant la migration anglaise),
+    # l'anglais place le mot à la fin des adjectifs (« bold, graphic
+    # register: … ») — on garde alors la clause entière qui le contient.
     for match in re.finditer(
-            r"\b(?:ton|registre|les images portent)\b.+?(?=;| — |$)",
+            r"\b(?:ton|registre|les images portent)\b.+?(?=;| — |$)"
+            r"|[^;—]*\b(?:register|tone)\b[^;—]*"
+            r"|\bthe images carry\b.+?(?=;| — |$)",
             text, re.IGNORECASE):
         clause = _clean_image_text(match.group(0))
         if clause and clause.lower() not in {item.lower() for item in register}:
@@ -73,7 +81,7 @@ def _fit_image_prompt(parts, max_chars):
     parts = [list(part) for part in parts if part[1]]
 
     def render():
-        return "\n".join(f"{label} : {value}" for label, value, _required in parts)
+        return "\n".join(f"{label}: {value}" for label, value, _required in parts)
 
     # Les sections sont utiles, mais le sujet, le rôle, le registre et les
     # interdits sont prioritaires pour une image. On retire donc les sections
@@ -103,7 +111,7 @@ def _fit_image_prompt(parts, max_chars):
                 # Ce cas ne devrait concerner qu'une limite fournisseur
                 # irréaliste ; le message reste une erreur monl exploitable.
                 raise fondations.FrontendAIError(
-                    f"prompt image impossible à composer sous {max_chars} caractères")
+                    f"image prompt cannot be composed under {max_chars} characters")
             parts.pop(index)
             continue
         parts[index] = [label, shortened, required]
@@ -111,7 +119,7 @@ def _fit_image_prompt(parts, max_chars):
     prompt = render()
     if len(prompt) > max_chars:
         raise fondations.FrontendAIError(
-            f"prompt image trop long après composition ({len(prompt)} caractères, "
+            f"image prompt too long after composition ({len(prompt)} characters, "
             f"maximum {max_chars})")
     return prompt
 
@@ -123,7 +131,7 @@ def _image_prompt(project_dir, item, max_chars=None):
             contract = json.load(fh)
     except (OSError, json.JSONDecodeError) as exc:
         raise fondations.FrontendAIError(
-            f"contrat frontend illisible avant la génération d'image : {exc}"
+            f"frontend contract unreadable before image generation: {exc}"
         ) from exc
 
     subject, register, topic = _image_brief_material(contract.get("brief"))
@@ -131,18 +139,18 @@ def _image_prompt(project_dir, item, max_chars=None):
     if topic:
         subject = f"{subject} ; {topic}"
     parts = [
-        ["Sujet", subject, True],
-        ["Rôle", _clean_image_text(item.get("role") or "visuel du projet"), True],
-        ["Registre visuel", register, True],
-        ["Médium", "image matricielle", True],
+        ["Subject", subject, True],
+        ["Role", _clean_image_text(item.get("role") or "project visual"), True],
+        ["Visual register", register, True],
+        ["Medium", "raster image", True],
     ]
     for section in contract.get("sections") or []:
         title = _clean_image_text(section.get("title") or "Section")
         body = _clean_image_text(section.get("body"))
-        parts.append(["Matière", f"{title} — {body}" if body else title, False])
-    parts.append(["Interdits", "pas de texte lisible, de logo ni de marque", True])
+        parts.append(["Material", f"{title} — {body}" if body else title, False])
+    parts.append(["Forbidden", "no readable text, logo or brand", True])
     if max_chars is None:
-        return "\n".join(f"{label} : {value}" for label, value, _required in parts if value)
+        return "\n".join(f"{label}: {value}" for label, value, _required in parts if value)
     return _fit_image_prompt(parts, max_chars)
 
 def _image_provider_accepts_aspect_ratio(provider):
@@ -168,8 +176,8 @@ def _call_image_provider(provider, prompt, aspect_ratio):
     limit = _image_provider_prompt_limit(provider)
     if limit is not None and len(prompt) > limit:
         raise fondations.FrontendAIError(
-            f"monl : prompt image trop long pour le fournisseur "
-            f"({len(prompt)} caractères, maximum {limit})")
+            f"monl: image prompt too long for the provider "
+            f"({len(prompt)} characters, maximum {limit})")
     if aspect_ratio is None or not _image_provider_accepts_aspect_ratio(provider):
         return provider(prompt)
     return provider(prompt, aspect_ratio=aspect_ratio)
@@ -180,13 +188,13 @@ def _generate_planned_images(project_dir, image_provider, operation, attempt, ru
     generated = plan_generated_images(project_dir)
     if not generated:
         raise fondations.FrontendAIError(
-            "la génération d'images est activée mais le manifeste ne peut pas "
-            "être planifié")
+            "image generation is enabled but the manifest cannot be "
+            "planned")
     failures = []
     for item in generated:
         path = item.get("path")
         if not isinstance(path, str) or path.startswith("/") or ".." in path.split("/"):
-            raise fondations.FrontendAIError(f"chemin d'image générée refusé : {path}")
+            raise fondations.FrontendAIError(f"generated image path refused: {path}")
         destination = os.path.join(project_dir, path)
         if os.path.isfile(destination):
             continue
@@ -195,35 +203,35 @@ def _generate_planned_images(project_dir, image_provider, operation, attempt, ru
             max_chars=_image_provider_prompt_limit(image_provider))
         if hasattr(image_provider, "last_usage"):
             image_provider.last_usage = None
-        say(f" -> Génération de l'image {path}…")
+        say(f" -> Generating the image {path}…")
         try:
             image = _call_image_provider(image_provider, prompt, item.get("aspect_ratio"))
         except ImageProviderError as exc:
             record_image_usage(project_dir, image_provider, operation, attempt,
                                run_id=run_id, stage="image", path=path,
                                status="error")
-            failure = f"{path} : {exc}"
+            failure = f"{path}: {exc}"
             failures.append(failure)
-            say(f" ⚠️ Image non générée — {failure}. La vérification du manifeste "
-                "tranchera après la construction du frontend.")
+            say(f" ⚠️ Image not generated — {failure}. The manifest check will "
+                "decide after the frontend is built.")
             continue
         except Exception as exc:
             record_image_usage(project_dir, image_provider, operation, attempt,
                                run_id=run_id, stage="image", path=path,
                                status="error")
-            failure = f"{path} : fournisseur d'image en erreur : {exc}"
+            failure = f"{path}: image provider error: {exc}"
             failures.append(failure)
-            say(f" ⚠️ Image non générée — {failure}. La vérification du manifeste "
-                "tranchera après la construction du frontend.")
+            say(f" ⚠️ Image not generated — {failure}. The manifest check will "
+                "decide after the frontend is built.")
             continue
         if not isinstance(image, (bytes, bytearray, memoryview)) or not image:
             record_image_usage(project_dir, image_provider, operation, attempt,
                                run_id=run_id, stage="image", path=path,
                                status="error")
-            failure = f"{path} : le fournisseur d'image n'a pas rendu des octets"
+            failure = f"{path}: the image provider returned no bytes"
             failures.append(failure)
-            say(f" ⚠️ Image non générée — {failure}. La vérification du manifeste "
-                "tranchera après la construction du frontend.")
+            say(f" ⚠️ Image not generated — {failure}. The manifest check will "
+                "decide after the frontend is built.")
             continue
         image, notice = optimize_image_bytes(bytes(image))
         if notice:

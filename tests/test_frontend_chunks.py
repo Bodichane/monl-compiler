@@ -61,7 +61,7 @@ def project(tmp_path):
 
 def _target(prompt):
     line = next(line for line in prompt.splitlines()
-                 if line.startswith("Le fichier cible est exactement : "))
+                 if line.startswith("The target file is exactly: "))
     return line.rsplit(": ", 1)[1]
 
 
@@ -261,7 +261,7 @@ def test_un_morceau_toujours_tronque_n_effectue_pas_une_seconde_generation_compl
     assert paliers[-1] == CHUNK_RETRY_MAX_OUTPUT_TOKENS, (
         "la dernière reprise n'atteint pas la borne déclarée : celle-ci ne "
         "contraint alors rien, et le message d'erreur qui la cite ment")
-    assert "aucune seconde tentative complète" in errors[0]
+    assert "no second complete attempt" in errors[0]
     events = [json.loads(line) for line in
               (project / USAGE_FILENAME).read_text(encoding="utf-8").splitlines()]
     assert {event["attempt"] for event in events} == {1}
@@ -302,7 +302,7 @@ def test_timeout_d_un_morceau_ne_rejoue_pas_les_fichiers_deja_payes(project):
     ok, errors = generate_and_verify(str(project), provider, say=lambda _msg: None)
 
     assert not ok
-    assert "aucune seconde tentative complète" in errors[0]
+    assert "no second complete attempt" in errors[0]
     assert provider.calls == [
         "index.html", "styles.css",
         "app.js", "app.js", "app.js",
@@ -337,7 +337,7 @@ def test_le_budget_d_app_js_suit_le_nombre_de_routes(tmp_path):
 
     assert _vise(grand) > _vise(petit), (_vise(petit), _vise(grand))
     assert _vise(grand) >= 6_000, "un contrat à 15 routes ne tient pas en moins"
-    assert "1 500 tokens" not in grand and "1500 tokens" not in grand
+    assert "1,500 tokens" not in grand and "1500 tokens" not in grand
 
 
 def test_le_budget_ne_depasse_jamais_le_plafond_de_l_etage(tmp_path):
@@ -357,7 +357,7 @@ def test_la_limite_dure_ne_contredit_plus_le_budget(tmp_path):
 
     prompt = _build_chunk_prompt("brief", "app.js", {},
                                  ampleur_du_contrat(_contrat(tmp_path / "d", 15)))
-    caracteres = int(re.search(r"termine avant (\d+) caractères", prompt).group(1))
+    caracteres = int(re.search(r"finish before (\d+) characters", prompt).group(1))
 
     assert caracteres >= _vise(prompt) * 3, (
         "la limite dure recoupe le budget demandé : le modèle obéit à la plus "
@@ -373,7 +373,7 @@ def test_le_plancher_de_routes_est_ENONCE_au_modele(tmp_path):
                                  ampleur_du_contrat(_contrat(tmp_path / "e", 15)))
 
     assert "15 routes" in prompt
-    assert "REFUSÉ" in prompt
+    assert "REFUSED" in prompt
 
 
 def test_sans_contrat_lisible_le_dimensionnement_ne_casse_pas(tmp_path):
@@ -382,8 +382,8 @@ def test_sans_contrat_lisible_le_dimensionnement_ne_casse_pas(tmp_path):
 
     assert ampleur_du_contrat(str(tmp_path / "nulle-part")) is None
     prompt = _build_chunk_prompt("brief", "app.js", {}, None)
-    assert "Vise environ" in prompt
+    assert "Aim for about" in prompt
 
 
 def _vise(prompt):
-    return int(re.search(r"Vise environ (\d+) tokens", prompt).group(1))
+    return int(re.search(r"Aim for about (\d+) tokens", prompt).group(1))

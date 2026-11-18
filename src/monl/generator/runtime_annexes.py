@@ -15,7 +15,7 @@ class AnnexesRuntimeMixin:
         référence hexadécimale aléatoire.
         """
         return [
-            *Template(r'''# --- STOCKAGE DES UPLOADS CLIENTS (hors frontend et artefacts) ---
+            *Template(r'''# --- CLIENT UPLOAD STORAGE (outside the frontend and artifacts) ---
 UPLOADS_ROOT = os.path.abspath(os.environ.get('MONL_UPLOADS_DIR') or '.monl_uploads')
 _UPLOAD_SIGNATURES = {
     'image/png': (b'\x89PNG\r\n\x1a\n',),
@@ -52,7 +52,7 @@ def _remove_upload(table, row_id, field, reference):
         os.unlink(_path)
         return True
     except OSError as _error:
-        print(f'⚠️ Upload non supprimé après suppression de la ligne : {_error}')
+        print(f'⚠️ Upload not removed after deleting the row: {_error}')
         return False
 
 def _save_upload(upload_file, table, row_id, field, max_bytes, accepted_types):
@@ -77,7 +77,7 @@ def _save_upload(upload_file, table, row_id, field, max_bytes, accepted_types):
                 _written += len(_chunk)
         _actual_type = _detect_upload_type(_prefix)
         if _actual_type not in accepted_types:
-            raise HTTPException(status_code=415, detail='Type de fichier interdit : signature d\'octets non autorisée.')
+            raise HTTPException(status_code=415, detail='Forbidden file type: byte signature not allowed.')
         os.replace(_temporary, _final)
         return _reference, _written, _actual_type
     except Exception:
@@ -115,28 +115,28 @@ def _envoyer_message(rule, user_id, record_id):
         finally:
             _conn.close()
         if not _row:
-            raise RuntimeError(f'compte {user_id} introuvable')
+            raise RuntimeError(f'account {user_id} not found')
         _destinataire = _row[0]
-        _message_header_safe(_destinataire, 'Le destinataire')
+        _message_header_safe(_destinataire, 'The recipient')
         if not _RE_EMAIL.fullmatch(_destinataire):
-            raise ValueError('Le compte ne porte pas une adresse e-mail utilisable')
+            raise ValueError('The account does not carry a usable email address')
         _hote = (os.environ.get('MONL_SMTP_HOST') or '').strip()
         if not _hote:
-            raise RuntimeError('la variable d\'environnement MONL_SMTP_HOST est absente')
+            raise RuntimeError('the environment variable MONL_SMTP_HOST is missing')
         _expediteur = (os.environ.get('MONL_SMTP_FROM') or '').strip()
         if not _expediteur:
-            raise RuntimeError('la variable d\'environnement MONL_SMTP_FROM est absente')
-        _message_header_safe(_expediteur, 'L\'expéditeur')
+            raise RuntimeError('the environment variable MONL_SMTP_FROM is missing')
+        _message_header_safe(_expediteur, 'The sender')
         if not _RE_EMAIL.fullmatch(_expediteur):
-            raise ValueError('MONL_SMTP_FROM ne porte pas une adresse e-mail utilisable')
+            raise ValueError('MONL_SMTP_FROM does not carry a usable email address')
         try:
             _port = int(os.environ.get('MONL_SMTP_PORT', '587'))
         except ValueError as _error:
-            raise RuntimeError('MONL_SMTP_PORT doit être un entier') from _error
+            raise RuntimeError('MONL_SMTP_PORT must be an integer') from _error
         _utilisateur = (os.environ.get('MONL_SMTP_USERNAME') or '').strip()
         _mot_de_passe = os.environ.get('MONL_SMTP_PASSWORD') or ''
         if bool(_utilisateur) != bool(_mot_de_passe):
-            raise RuntimeError('MONL_SMTP_USERNAME et MONL_SMTP_PASSWORD doivent être fournis ensemble')
+            raise RuntimeError('MONL_SMTP_USERNAME and MONL_SMTP_PASSWORD must be provided together')
         _courriel = EmailMessage()
         _courriel['From'] = _expediteur
         _courriel['To'] = _destinataire
@@ -146,14 +146,14 @@ def _envoyer_message(rule, user_id, record_id):
             if _utilisateur:
                 _smtp.login(_utilisateur, _mot_de_passe)
             _smtp.send_message(_courriel)
-        MESSAGE_LOGGER.info('[MONL_MESSAGE] message envoyé : %s#%s vers %s',
+        MESSAGE_LOGGER.info('[MONL_MESSAGE] message sent: %s#%s to %s',
                             rule['trigger_entity'], record_id, _destinataire)
     except Exception as _error:
-        # Le métier est déjà committé. La panne est volontairement
-        # détachée de la réponse HTTP, mais jamais avalée : la trace
-        # explicite permet à l'exploitant de savoir que le message n'est
-        # pas parti et pourquoi.
-        MESSAGE_LOGGER.exception('[MONL_MESSAGE] envoi non effectué pour %s#%s : %s',
+        # The business write is already committed. The failure is
+        # deliberately detached from the HTTP response, but never
+        # swallowed: the explicit trace lets the operator know the
+        # message did not leave, and why.
+        MESSAGE_LOGGER.exception('[MONL_MESSAGE] message not sent for %s#%s: %s',
                                  rule.get('trigger_entity'), record_id, _error)
 
 def _declencher_message(entity, user_id, record_id):

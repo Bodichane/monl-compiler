@@ -20,17 +20,17 @@ class AccesRoutesMixin:
         allowed_actors = sorted(access.actors)
         is_public = access.public
         if is_public:
-            security_check = Template(r"""    pass  # Route publique (règle 'public') : aucune authentification requise""").substitute()
+            security_check = Template(r"""    pass  # Public route ('public' rule): no authentication required""").substitute()
             dependency_injection = ""
         elif len(allowed_actors) == 1:
             security_check = (
-                Template(r"""    if current_actor != "${actor}": raise HTTPException(status_code=403, detail="Contrôle d'accès : Rôle ${actor} requis")""").substitute(actor=allowed_actors[0])
+                Template(r"""    if current_actor != "${actor}": raise HTTPException(status_code=403, detail="Access control: role ${actor} required")""").substitute(actor=allowed_actors[0])
             )
             dependency_injection = "current_actor: str = Depends(verify_jwt_and_get_actor)"
         else:
             allowed_set_literal = ", ".join(Template(r'''"${actor}"''').substitute(actor=actor) for actor in allowed_actors)
             security_check = (
-                Template(r"""    if current_actor not in {${allowed_set_literal}}: raise HTTPException(status_code=403, detail="Contrôle d'accès : Rôle parmi [${actors}] requis")""").substitute(allowed_set_literal=allowed_set_literal, actors=", ".join(allowed_actors))
+                Template(r"""    if current_actor not in {${allowed_set_literal}}: raise HTTPException(status_code=403, detail="Access control: one of the roles [${actors}] required")""").substitute(allowed_set_literal=allowed_set_literal, actors=", ".join(allowed_actors))
             )
             dependency_injection = "current_actor: str = Depends(verify_jwt_and_get_actor)"
         return {
@@ -59,19 +59,19 @@ class AccesRoutesMixin:
                 Template(r"""    _acl_conn = _connect(); _acl_cur = _acl_conn.cursor()""").substitute(),
                 Template(r"""    _acl_cur.execute('SELECT ${columns} FROM "${entity}" WHERE id = ?', (id,))""").substitute(columns=columns, entity=entity.lower()),
                 *Template(r"""    _acl_row = _acl_cur.fetchone(); _acl_conn.close()
-    if not _acl_row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')""").substitute().split("\n"),
+    if not _acl_row: raise HTTPException(status_code=404, detail='Record not found')""").substitute().split("\n"),
             ])
             supervisors = sorted(access.supervisors)
             if supervisors:
                 literal = ", ".join(repr(actor) for actor in supervisors)
                 lines.extend([
                     Template(r"""    if current_actor not in {${literal}} and current_user_id not in _acl_row:""").substitute(literal=literal),
-                    Template(r"""        raise HTTPException(status_code=404, detail='Fichier introuvable')""").substitute(),
+                    Template(r"""        raise HTTPException(status_code=404, detail='File not found')""").substitute(),
                 ])
             else:
                 lines.extend([
                     *Template(r"""    if current_user_id not in _acl_row:
-        raise HTTPException(status_code=404, detail='Fichier introuvable')""").substitute().split("\n"),
+        raise HTTPException(status_code=404, detail='File not found')""").substitute().split("\n"),
                 ])
         elif access.owner_entity:
             check_actor, owner_select = self._owner_lookup_sql(
@@ -82,11 +82,11 @@ class AccesRoutesMixin:
                 Template(r"""        _acl_conn = _connect(); _acl_cur = _acl_conn.cursor()""").substitute(),
                 Template(r"""        _acl_cur.execute(${text}, ${sql})""").substitute(text=repr(owner_select.text), sql=sql.params_tuple(owner_select)),
                 *Template(r"""        _acl_row = _acl_cur.fetchone(); _acl_conn.close()
-        if not _acl_row: raise HTTPException(status_code=404, detail='Enregistrement introuvable')
+        if not _acl_row: raise HTTPException(status_code=404, detail='Record not found')
         if _acl_row[0] != current_user_id:
-            raise HTTPException(status_code=404, detail='Fichier introuvable')""").substitute().split("\n"),
+            raise HTTPException(status_code=404, detail='File not found')""").substitute().split("\n"),
             ])
         else:
             raise ValueError(
-                Template(r"""Génération : aucune ACL par ligne pour ${entity}.${action} Upload""").substitute(entity=entity, action=action))
+                Template(r"""Generation: no per-row ACL for ${entity}.${action} Upload""").substitute(entity=entity, action=action))
         return context, dependencies, lines

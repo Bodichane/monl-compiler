@@ -168,8 +168,8 @@ def test_le_contrat_annonce_la_liberation_et_laller_sans_retour(tmp_path, capsys
                  if r["method"] == "PUT" and r["path"] == "/commande/{id}")
     assert route["releases_on"] == {"field": "statut", "value": "annulée",
                                     "releases": "Ligne", "terminal": True}
-    assert "LIBÉRATION" in route["note"]
-    assert "SANS retour" in route["note"]
+    assert "RELEASE" in route["note"]
+    assert "ONE-WAY" in route["note"]
 
 
 def test_le_delta_signale_une_liberation_ajoutee(tmp_path, capsys):
@@ -188,7 +188,7 @@ def test_le_delta_signale_une_liberation_ajoutee(tmp_path, capsys):
     sortie = capsys.readouterr().out
 
     assert "no interface changes" not in sortie, sortie
-    assert "libération de PUT /commande/{id}" in sortie, sortie
+    assert "release on PUT /commande/{id}" in sortie, sortie
     assert "route added" not in sortie, sortie
 
 

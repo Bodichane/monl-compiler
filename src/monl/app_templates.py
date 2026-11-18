@@ -71,8 +71,8 @@ def _img(_seed=None):
 
 TEMPLATES = [
     {
-        "name": "Portfolio / site vitrine",
-        "hint": "galerie publique de projets + zone d'administration",
+        "name": "Portfolio / showcase site",
+        "hint": "public project gallery + administration area",
         "actors": ["Admin"],
         "entities": {
             "Project": {"fields": [("title", "String"), ("description", "Text"),
@@ -90,25 +90,25 @@ TEMPLATES = [
         # POINT 61 : « about » et une offre lisible figurent dans toutes les
         # listes d'essentiels d'un portfolio, au même titre que la galerie.
         "sections": [
-            {"title": "À propos",
-             "ask": "qui vous êtes, depuis quand, ce qui distingue votre travail"},
+            {"title": "About",
+             "ask": "who you are, since when, what sets your work apart"},
             {"title": "Services",
-             "ask": "ce que vous proposez concrètement, et pour qui"},
+             "ask": "what you concretely offer, and for whom"},
         ],
         "seeds": {"Project": [
-            {"title": "Refonte Aurora", "description": "Identité complète pour une marque de cosmétiques.", "imageUrl": _img("aurora")},
-            {"title": "App Meridian", "description": "Application mobile de suivi d'habitudes.", "imageUrl": _img("meridian")},
-            {"title": "Site Horizon", "description": "Site éditorial pour un festival de musique.", "imageUrl": _img("horizon")},
+            {"title": "Aurora redesign", "description": "Complete identity for a cosmetics brand.", "imageUrl": _img("aurora")},
+            {"title": "Meridian app", "description": "Mobile habit-tracking application.", "imageUrl": _img("meridian")},
+            {"title": "Horizon site", "description": "Editorial site for a music festival.", "imageUrl": _img("horizon")},
         ]},
         "followups": [
-            {"ask": "Classer les projets par catégorie ?",
+            {"ask": "Sort the projects by category?",
              "effects": {"add_fields": {"Project": [("category", "String")]},
-                         "add_seed_fields": {"Project": {"category": ["Identité", "Produit", "Web"]}}}},
+                         "add_seed_fields": {"Project": {"category": ["Identity", "Product", "Web"]}}}},
         ],
     },
     {
         "name": "Blog",
-        "hint": "articles publics, commentaires des lecteurs",
+        "hint": "public articles, readers' comments",
         "actors": ["Author", "Reader", "Moderator"],
         "entities": {
             # ACQUIS (point 60) : l'auteur humanise le billet, la date dit si
@@ -145,18 +145,18 @@ TEMPLATES = [
         # site d'écriture ; la ligne éditoriale dit au lecteur s'il est au bon
         # endroit — ce qu'aucune liste d'articles ne raconte.
         "sections": [
-            {"title": "À propos de l'auteur",
-             "ask": "qui écrit ici, et pourquoi on devrait vous lire"},
-            {"title": "Ligne éditoriale",
-             "ask": "de quoi parle ce blog, à quel rythme, pour quel lecteur"},
+            {"title": "About the author",
+             "ask": "who writes here, and why people should read you"},
+            {"title": "Editorial line",
+             "ask": "what this blog is about, how often, for which reader"},
         ],
         "seeds": {"Article": [
-            {"title": "Pourquoi j'ai quitté les frameworks", "content": "Retour d'expérience après un an de vanilla.", "imageUrl": _img("blog1"), "author": "Camille Roy", "publishedOn": "2026-05-12", "status": "published"},
-            {"title": "Le guide du télétravail durable", "content": "Trois ans de distance, ce qui marche vraiment.", "imageUrl": _img("blog2"), "author": "Camille Roy", "publishedOn": "2026-06-03", "status": "published"},
-            {"title": "Apprendre en public", "content": "Documenter ses progrès change tout.", "imageUrl": _img("blog3"), "author": "Sacha Nedel", "publishedOn": "2026-07-01", "status": "published"},
+            {"title": "Why I left frameworks", "content": "Lessons learned after a year of vanilla.", "imageUrl": _img("blog1"), "author": "Camille Roy", "publishedOn": "2026-05-12", "status": "published"},
+            {"title": "The sustainable remote-work guide", "content": "Three years apart, what really works.", "imageUrl": _img("blog2"), "author": "Camille Roy", "publishedOn": "2026-06-03", "status": "published"},
+            {"title": "Learning in public", "content": "Documenting your progress changes everything.", "imageUrl": _img("blog3"), "author": "Sacha Nedel", "publishedOn": "2026-07-01", "status": "published"},
         ]},
         "followups": [
-            {"ask": "Permettre aux lecteurs inscrits de commenter (chacun gère ses commentaires) ?",
+            {"ask": "Let registered readers comment (each manages their own comments)?",
              "effects": {"add_actors": ["Reader"],
                          "add_entities": {"Comment": {"fields": [("content", "Text")],
                                                       "manager": "Reader", "readers": ["Author"],
@@ -165,8 +165,8 @@ TEMPLATES = [
         ],
     },
     {
-        "name": "Boutique en ligne",
-        "hint": "catalogue public, commandes des clients",
+        "name": "Online shop",
+        "hint": "public catalog, customers' orders",
         "actors": ["Admin", "Customer"],
         "entities": {
             # ACQUIS (point 60) : la disponibilité figure au-dessus de la ligne
@@ -186,27 +186,27 @@ TEMPLATES = [
         # recensements e-commerce placent au-dessus du reste — ils lèvent les
         # objections d'achat, qu'aucune fiche produit ne peut porter.
         "sections": [
-            {"title": "À propos de la boutique",
-             "ask": "qui fabrique ou sélectionne, d'où viennent les produits"},
-            {"title": "Livraison et retours",
-             "ask": "délais, frais, conditions de retour"},
-            {"title": "Questions fréquentes",
-             "ask": "les questions que les clients posent avant d'acheter"},
+            {"title": "About the shop",
+             "ask": "who makes or selects, where the products come from"},
+            {"title": "Shipping and returns",
+             "ask": "lead times, fees, return conditions"},
+            {"title": "Frequently asked questions",
+             "ask": "the questions customers ask before buying"},
         ],
         "seeds": {"Product": [
-            {"name": "Théière Kyoto", "price": 39.5, "description": "Fonte émaillée, 0,8 L.", "imageUrl": _img("shop1"), "stock": 12},
-            {"name": "Tasse Duo", "price": 18.0, "description": "Grès artisanal, lot de deux.", "imageUrl": _img("shop2"), "stock": 40},
-            {"name": "Thé vert Sencha", "price": 12.5, "description": "Récolte de printemps, 100 g.", "imageUrl": _img("shop3"), "stock": 87},
+            {"name": "Kyoto teapot", "price": 39.5, "description": "Enameled cast iron, 0.8 L.", "imageUrl": _img("shop1"), "stock": 12},
+            {"name": "Duo cup", "price": 18.0, "description": "Handmade stoneware, set of two.", "imageUrl": _img("shop2"), "stock": 40},
+            {"name": "Sencha green tea", "price": 12.5, "description": "Spring harvest, 100 g.", "imageUrl": _img("shop3"), "stock": 87},
         ]},
         "followups": [
-            {"ask": "Classer les produits par catégorie ?",
+            {"ask": "Sort the products by category?",
              "effects": {"add_fields": {"Product": [("category", "String")]},
-                         "add_seed_fields": {"Product": {"category": ["Théières", "Tasses", "Thés"]}}}},
+                         "add_seed_fields": {"Product": {"category": ["Teapots", "Cups", "Teas"]}}}},
         ],
     },
     {
-        "name": "Gestion de tâches",
-        "hint": "chaque membre gère ses propres tâches (kanban)",
+        "name": "Task management",
+        "hint": "each member manages their own tasks (kanban)",
         "actors": ["Member"],
         "entities": {
             # ACQUIS (point 60) : « title, assignee, due date, and a simple
@@ -224,16 +224,16 @@ TEMPLATES = [
         # propos » à un kanban d'équipe.
         "relations": [],
         "extra_rules": [
-            'rule Task.status oneOf "à faire", "en cours", "terminée"',
-            'rule Task.priority oneOf "basse", "moyenne", "haute"',
+            'rule Task.status oneOf "to do", "in progress", "done"',
+            'rule Task.priority oneOf "low", "medium", "high"',
         ],
         "seeds": {}, "sections": [],
         "followups": [
         ],
     },
     {
-        "name": "Forum / réseau social",
-        "hint": "publications, commentaires, appréciations",
+        "name": "Forum / social network",
+        "hint": "posts, comments, likes",
         "actors": ["Member", "Moderator"],
         "entities": {
             "Post": {"fields": [("content", "Text"), ("likes", "Integer"),
@@ -278,18 +278,18 @@ TEMPLATES = [
         # premier levier de modération cité par les guides de communauté ;
         # le « à propos » dit à qui la communauté s'adresse.
         "sections": [
-            {"title": "À propos de la communauté",
-             "ask": "qui se retrouve ici et autour de quoi"},
-            {"title": "Règles de la communauté",
-             "ask": "ce qui est attendu, ce qui est interdit, ce qui arrive en cas d'écart"},
+            {"title": "About the community",
+             "ask": "who gathers here and around what"},
+            {"title": "Community rules",
+             "ask": "what is expected, what is forbidden, what happens when someone steps out of line"},
         ],
         "seeds": {"Post": [
-            {"content": "Premier fil de la communauté — présentez-vous ici.", "likes": 24, "status": "published"},
-            {"content": "Quels outils utilisez-vous au quotidien ?", "likes": 51, "status": "published"},
-            {"content": "Retour sur le meetup de jeudi, merci à tous !", "likes": 13, "status": "published"},
+            {"content": "First community thread — introduce yourself here.", "likes": 24, "status": "published"},
+            {"content": "Which tools do you use every day?", "likes": 51, "status": "published"},
+            {"content": "Looking back on Thursday's meetup, thanks everyone!", "likes": 13, "status": "published"},
         ]},
         "followups": [
-            {"ask": "Permettre les commentaires (chacun gère les siens) ?",
+            {"ask": "Allow comments (each person manages their own)?",
              "effects": {"add_entities": {"Comment": {"fields": [("content", "Text")],
                                                       "manager": "Member", "readers": [], "public_read": True,
                                                       "public_create": False, "owned": True}},
@@ -297,8 +297,8 @@ TEMPLATES = [
         ],
     },
     {
-        "name": "Petites annonces",
-        "hint": "annonces publiques, chaque vendeur gère les siennes",
+        "name": "Classified ads",
+        "hint": "public listings, each seller manages their own",
         "actors": ["Seller", "Buyer"],
         "entities": {
             # ACQUIS (point 60) : l'acheteur regarde le lieu pour savoir si
@@ -330,9 +330,9 @@ TEMPLATES = [
         # proposé là où « privé » est le but (un justificatif de dépense).
         "relations": [("Listing", "hasMany", "Purchase")],
         "extra_rules": [
-            'rule Purchase.status oneOf "en attente", "payée", "annulée"',
+            'rule Purchase.status oneOf "pending", "paid", "cancelled"',
             'rule Purchase.quantity min 1',
-            'rule Purchase.deliveryStatus oneOf "à préparer", "expédiée", "livrée"',
+            'rule Purchase.deliveryStatus oneOf "to prepare", "shipped", "delivered"',
             'rule Purchase.deliveryStatus writableAfterPayment Seller',
             'rule Purchase.trackingNumber writableAfterPayment Seller',
         ],
@@ -341,22 +341,22 @@ TEMPLATES = [
         # qu'elle prend en charge et ce qu'elle laisse aux deux parties — les
         # guides de sécurité en font le point de départ de tout le reste.
         "sections": [
-            {"title": "Comment ça marche",
-             "ask": "publier, contacter un vendeur, conclure — en quelques phrases"},
-            {"title": "Conseils de sécurité",
-             "ask": "lieux de rencontre, moyens de paiement, signalement d'une annonce"},
+            {"title": "How it works",
+             "ask": "posting, contacting a seller, closing the deal — in a few sentences"},
+            {"title": "Safety tips",
+             "ask": "meeting places, payment methods, reporting a listing"},
         ],
         "seeds": {"Listing": [
-            {"title": "Vélo de ville", "price": 120.0, "description": "Bon état, révisé en mai.", "imageUrl": _img("annonce1"), "location": "Lyon"},
-            {"title": "Bureau en chêne", "price": 85.0, "description": "140 × 70, à venir chercher.", "imageUrl": _img("annonce2"), "location": "Nantes"},
-            {"title": "Appareil photo argentique", "price": 60.0, "description": "Testé, fonctionne.", "imageUrl": _img("annonce3"), "location": "Lille"},
+            {"title": "City bike", "price": 120.0, "description": "Good condition, serviced in May.", "imageUrl": _img("annonce1"), "location": "Lyon"},
+            {"title": "Oak desk", "price": 85.0, "description": "140 × 70, collection only.", "imageUrl": _img("annonce2"), "location": "Nantes"},
+            {"title": "Film camera", "price": 60.0, "description": "Tested, works.", "imageUrl": _img("annonce3"), "location": "Lille"},
         ]},
         "followups": [
         ],
     },
     {
-        "name": "Réservation de rendez-vous",
-        "hint": "prestations publiques, réservations des clients",
+        "name": "Appointment booking",
+        "hint": "public services, customers' bookings",
         "actors": ["Admin", "Client"],
         "entities": {
             # ACQUIS (point 60) : nom, description, durée et prix forment le
@@ -375,23 +375,23 @@ TEMPLATES = [
         # AVEC le formulaire de réservation, pas dans un coin ; horaires et
         # accès sont l'autre information qu'on cherche avant de réserver.
         "sections": [
-            {"title": "À propos",
-             "ask": "qui vous êtes, votre approche, votre équipe"},
-            {"title": "Horaires et accès",
-             "ask": "jours et heures d'ouverture, adresse, comment venir"},
-            {"title": "Politique d'annulation",
-             "ask": "délai pour annuler ou déplacer, frais éventuels, comment prévenir"},
+            {"title": "About",
+             "ask": "who you are, your approach, your team"},
+            {"title": "Opening hours and access",
+             "ask": "opening days and hours, address, how to get there"},
+            {"title": "Cancellation policy",
+             "ask": "notice to cancel or move, possible fees, how to let you know"},
         ],
         "seeds": {"Service": [
-            {"name": "Coupe & coiffage", "duration": 45, "price": 38.0, "description": "Shampoing, coupe et coiffage inclus."},
-            {"name": "Coloration", "duration": 90, "price": 72.0, "description": "Couleur complète, produit professionnel."},
-            {"name": "Soin barbe", "duration": 30, "price": 22.0, "description": "Taille, contours et soin à l'huile."},
+            {"name": "Cut & style", "duration": 45, "price": 38.0, "description": "Shampoo, cut and styling included."},
+            {"name": "Coloring", "duration": 90, "price": 72.0, "description": "Full color, professional product."},
+            {"name": "Beard care", "duration": 30, "price": 22.0, "description": "Trim, edges and oil treatment."},
         ]},
         "followups": [],
     },
     {
-        "name": "Inventaire / gestion de stock",
-        "hint": "articles internes, quantités, emplacements",
+        "name": "Inventory / stock management",
+        "hint": "internal items, quantities, locations",
         "actors": ["Admin"],
         "entities": {
             "Item": {"fields": [("name", "String"), ("quantity", "Integer"),
@@ -420,23 +420,23 @@ TEMPLATES = [
             'rule StockIssue.occurredAt timestamp',
         ],
         "seeds": {"Item": [
-            {"name": "Cartons d'expédition", "quantity": 84, "location": "A-01"},
-            {"name": "Étiquettes thermiques", "quantity": 240, "location": "A-02"},
-            {"name": "Câbles USB-C", "quantity": 18, "location": "B-04"},
+            {"name": "Shipping boxes", "quantity": 84, "location": "A-01"},
+            {"name": "Thermal labels", "quantity": 240, "location": "A-02"},
+            {"name": "USB-C cables", "quantity": 18, "location": "B-04"},
         ]}, "sections": [],
         "followups": [
-            {"ask": "Suivre les fournisseurs (entité liée aux articles) ?",
+            {"ask": "Track suppliers (an entity linked to the items)?",
              "effects": {"add_entities": {"Supplier": {"fields": [("name", "String"), ("email", "Email")],
                                                        "manager": "Admin", "readers": [], "public_read": False,
                                                        "public_create": False, "owned": False}},
                          "add_relations": [("Supplier", "hasMany", "Item")]}},
-            {"ask": "Ajouter un seuil d'alerte par article ?",
+            {"ask": "Add an alert threshold per item?",
              "effects": {"add_fields": {"Item": [("alertThreshold", "Integer")]}}},
         ],
     },
     {
-        "name": "Suivi de dépenses personnelles",
-        "hint": "chacun ne voit et ne gère que ses dépenses",
+        "name": "Personal expense tracking",
+        "hint": "each person sees and manages only their own expenses",
         "actors": ["User"],
         "entities": {
             "Expense": {"fields": [("label", "String"), ("amount", "Money"),
@@ -462,8 +462,8 @@ TEMPLATES = [
         "seeds": {}, "sections": [], "followups": [],
     },
     {
-        "name": "Classement communautaire",
-        "hint": "liste publique, votes qui font monter le score",
+        "name": "Community ranking",
+        "hint": "public list, votes that raise the score",
         "actors": ["Participant"],
         "entities": {
             "Entry": {"fields": [("name", "String"), ("tagline", "Text"),
@@ -484,21 +484,21 @@ TEMPLATES = [
         # POINT 61 : un classement n'est crédible que si la règle du vote est
         # écrite — qui peut voter, combien de fois, comment on départage.
         "sections": [
-            {"title": "À propos du classement",
-             "ask": "ce qui est classé, par qui, dans quel but"},
-            {"title": "Comment fonctionne le vote",
-             "ask": "qui peut voter, combien de fois, comment on départage une égalité"},
+            {"title": "About the ranking",
+             "ask": "what is ranked, by whom, for what purpose"},
+            {"title": "How voting works",
+             "ask": "who can vote, how many times, how a tie is broken"},
         ],
         "seeds": {"Entry": [
-            {"name": "Projet Solaris", "tagline": "Panneaux solaires imprimés en 3D.", "score": 128},
-            {"name": "Réseau Maillage", "tagline": "Internet communautaire hors réseau.", "score": 203},
-            {"name": "Atelier Récup", "tagline": "Réparation d'objets entre voisins.", "score": 45},
+            {"name": "Solaris project", "tagline": "3D-printed solar panels.", "score": 128},
+            {"name": "Mesh network", "tagline": "Off-grid community internet.", "score": 203},
+            {"name": "Repair workshop", "tagline": "Neighbors fixing things together.", "score": 45},
         ]},
         "followups": [],
     },
 ]
 
-FREE_MODE_LABEL = "Partir de zéro (décrire librement mes entités)"
+FREE_MODE_LABEL = "Start from scratch (describe my entities freely)"
 
 
 def apply_effects(template, effects):
