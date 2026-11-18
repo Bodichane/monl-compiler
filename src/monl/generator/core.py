@@ -1,8 +1,7 @@
-"""Classe principale du générateur : état issu de l'AST et orchestration.
+"""Main generator class: state derived from the AST, and orchestration.
 
-Extrait de l'ancien module monolithique src/generator.py (1307 lignes)
-lors du découpage en package — voir docs/design_decisions.md.
-"""
+Extracted from the former monolithic module src/generator.py (1307 lines)
+when it was split into a package — see docs/design_decisions.md."""
 import os
 
 from ..ir import CompilationIR
@@ -51,19 +50,19 @@ class MonlSecureGenerator(
     SandboxMixin,
 ):
     def __init__(self, normalized_ast: CompilationIR, output_dir=None):
-        # AJOUT (roadmap, compilation multi-projets) : 'output_dir' permet de
-        # compiler chaque spec dans son propre dossier (option --output de
-        # main.py) au lieu d'écraser systématiquement les artefacts à la
-        # racine du dépôt. Par défaut (None), le comportement historique est
-        # conservé : tout est écrit à la racine du dépôt.
-        # POINT 65 : le défaut est le DOSSIER COURANT, plus un chemin déduit
-        # de l'emplacement du module. Tant que le code vivait dans le dépôt,
-        # remonter de deux niveaux depuis src/generator/ tombait sur la racine
-        # et faisait illusion ; une fois monl installé (site-packages), le même
-        # calcul écrivait l'application au milieu des paquets Python. Le
-        # dossier courant est ce qu'attend n'importe quel outil en ligne de
-        # commande, et il coïncide avec l'ancien comportement quand on lance
-        # depuis la racine du dépôt.
+        # ADDED (roadmap, multi-project compilation): 'output_dir' lets each
+        # spec be compiled into its own folder (--output option of main.py)
+        # instead of always overwriting the artifacts at the repository root.
+        # By default (None), the historical behavior is kept: everything is
+        # written at the repository root.
+        #
+        # POINT 65: the default is the CURRENT DIRECTORY, no longer a path
+        # deduced from the module's location. As long as the code lived in the
+        # repository, climbing two levels from src/generator/ landed on the
+        # root and seemed to work; once monl is installed (site-packages), the
+        # same calculation wrote the application among the Python packages. The
+        # current directory is what any command line tool expects, and it
+        # matches the old behavior when run from the repository root.
         self.output_dir = os.path.abspath(output_dir or os.getcwd())
         os.makedirs(self.output_dir, exist_ok=True)
         self.ast = normalized_ast
@@ -71,233 +70,231 @@ class MonlSecureGenerator(
         self.entities = normalized_ast["schema"]["entities"]
         self.relations = normalized_ast["schema"]["relations"]
         self.relation_models = plan_relations(self.relations)
-        # Deux analyses que les émetteurs interrogent depuis leurs boucles :
-        # calculées à la première demande, puis relues. Voir les méthodes qui
-        # les peuplent (`modele.py`, `proprietaire.py`) pour la mesure qui a
-        # rendu ces caches nécessaires.
+        # Two analyses the emitters query from their loops: computed on first
+        # request, then reread. See the methods that fill them (`modele.py`,
+        # `proprietaire.py`) for the measurement that made these caches
+        # necessary.
         self._fk_placements_caches = None
         self._identity_fk_caches = None
         self.workflows = normalized_ast["security"]["workflows"]
         self.actors = normalized_ast["security"]["actors"]
-        # AJOUT (bêta 3, correctif d'élévation de privilège) : seuls ces
-        # rôles peuvent être choisis par un client à l'inscription
-        # (marqueur 'selfRegister' dans la spec). Les autres sont
-        # provisionnés hors ligne via le manage.py généré.
+        # ADDED (beta 3, privilege-escalation fix): only these roles can be
+        # chosen by a client at registration ('selfRegister' marker in the
+        # spec). The others are provisioned offline through the generated
+        # manage.py.
         self.self_register_actors = normalized_ast["security"].get("self_register_actors", [])
         self.custom_functions = normalized_ast["sandbox_ai"]["custom_functions"]
-        # AJOUT (post-v6, roadmap) : map "Entite.Action" -> entité propriétaire,
-        # issue des règles 'ownedBy' validées par ast_validator.py.
+        # ADDED (post-v6, roadmap): map "Entity.Action" -> owning entity, from
+        # the 'ownedBy' rules validated by ast_validator.py.
         self.ownership = normalized_ast["security"].get("ownership", {})
-        # AJOUT (brique 11, point 81) : propriété TRANSITIVE — {entité:
-        # {"via", "actor"}}. L'entité n'appartient pas directement à un acteur
-        # mais à un enregistrement intermédiaire, lui-même possédé par un
-        # acteur. Conséquence sur toute la génération : la clé étrangère de
-        # propriété n'est PLUS peuplée depuis le jeton, elle est fournie par le
-        # client puis VÉRIFIÉE, et le contrôle d'accès devient une jointure.
+        # ADDED (brick 11, point 81): TRANSITIVE ownership — {entity: {"via",
+        # "actor"}}. The entity does not belong directly to an actor but to an
+        # intermediate record, itself owned by an actor. Consequence for the
+        # whole generation: the ownership foreign key is NO LONGER filled from
+        # the token, it is supplied by the client then CHECKED, and access
+        # control becomes a join.
         self.transitive_ownership = normalized_ast["security"].get("transitive_ownership", {})
-        # AJOUT (brique 13, point 83) : assets déclarés (dossier, logo, favicon),
-        # validés à la compilation — chaque fichier nommé existe réellement.
+        # ADDED (brick 13, point 83): declared assets (folder, logo, favicon),
+        # validated at compile time — every named file really exists.
         self.assets = normalized_ast.get("assets") or {}
-        # BRIQUE B1 : Upload est distinct d'Image. La colonne ne contient
-        # qu'une référence opaque ; les octets vivent dans .monl_uploads/ au
-        # runtime, jamais dans les artefacts compilés.
+        # BRICK B1: Upload is distinct from Image. The column only holds an
+        # opaque reference; the bytes live in .monl_uploads/ at runtime, never
+        # in the compiled artifacts.
         self.upload_fields = normalized_ast["security"].get("upload_fields", [])
         self.upload_fields_by_entity = {}
         for upload in self.upload_fields:
             self.upload_fields_by_entity.setdefault(upload["entity"], []).append(upload)
-        # BRIQUE B2 : un seul message sortant par création déclarée. Le
-        # validateur a déjà exigé une identité de compte e-mail ; ce dictionnaire
-        # sert à brancher la route Create et le contrat sur la même règle.
+        # BRICK B2: a single outgoing message per declared creation. The
+        # validator has already required an email account identity; this
+        # dictionary connects the Create route and the contract to the same
+        # rule.
         self.message_rules_by_trigger = {
             rule["trigger_entity"]: dict(rule)
             for rule in normalized_ast["security"].get("message_rules", [])
         }
-        # AJOUT (roadmap, brique "accès à deux parties") : table
-        # {"Entite.Action": [colonnes]} issue des règles 'accessibleBy'
-        # validées par ast_validator.py — chaque colonne contient
-        # l'identifiant d'un utilisateur autorisé sur l'enregistrement.
+        # ADDED (roadmap, "two-party access" brick): table {"Entity.Action":
+        # [columns]} from the 'accessibleBy' rules validated by
+        # ast_validator.py — each column holds the identifier of a user allowed
+        # on the record.
         self.access_parties = normalized_ast["security"].get("access_parties", {})
-        # AJOUT (brique 23, point 106) : table {\"Entite.Action\": [rôles]}
-        # des rôles SUPERVISEURS qui transpercent le contrôle 'accessibleBy'.
-        # Un rôle listé lit/modifie/supprime TOUS les enregistrements de
-        # l'action, sans restriction de partie — les autres restent confinés
-        # à leurs colonnes.
+        # ADDED (brick 23, point 106): table {"Entity.Action": [roles]} of the
+        # SUPERVISOR roles that pierce the 'accessibleBy' check. A listed role
+        # reads/updates/deletes ALL the action's records, with no party
+        # restriction — the others stay confined to their columns.
         self.access_supervisors = normalized_ast["security"].get("access_supervisors", {})
-        # AJOUT (roadmap, cas d'usage portfolio) : ensemble des "Entite.Action"
-        # marquées 'public' — ces routes ne requièrent aucune authentification.
-        # Reconstruit en tuples (entité, action) pour être comparable
-        # directement à (base_target, act_type) lors de la génération des routes.
+        # ADDED (roadmap, portfolio use case): the set of "Entity.Action"
+        # marked 'public' — these routes require no authentication. Rebuilt as
+        # (entity, action) tuples to be directly comparable with (base_target,
+        # act_type) during route generation.
         self.public_actions = {
             tuple(ref.split(".", 1)) for ref in normalized_ast["security"].get("public", [])
         }
-        # BRIQUE visibilité conditionnelle : un contenu marqué publicWhen
-        # reste filtré par l'API, liste et détail compris.
+        # Conditional visibility BRICK: content marked publicWhen stays
+        # filtered by the API, list and detail included.
         self.public_conditions = {
             tuple(ref.split(".", 1)): value
             for ref, value in normalized_ast["security"].get(
                 "public_conditions", {}).items()
         }
-        # BRIQUE unicité métier : une combinaison de clés étrangères ne peut
-        # être créée deux fois pour le même compte et la même cible.
+        # Business uniqueness BRICK: a combination of foreign keys cannot be
+        # created twice for the same account and the same target.
         self.once_per_rules = normalized_ast["security"].get("once_per", [])
-        # AJOUT (roadmap, écosystème de capacités -- brique 2) : ensemble des
-        # "Entite.champ" marquées 'hidden' — voir _generate_secure_fastapi,
-        # où ces champs sont retirés des réponses de lecture (liste et
-        # détail) de leur entité, quel que soit qui appelle la route.
-        # Regroupé par entité (plutôt qu'un set de tuples comme
-        # public_actions) car c'est la forme directement utile à la
-        # génération : "quels champs retirer pour CETTE entité".
+        # ADDED (roadmap, capability ecosystem -- brick 2): the set of
+        # "Entity.field" marked 'hidden' — see _generate_secure_fastapi, where
+        # these fields are removed from their entity's read responses (list and
+        # detail), whoever calls the route. Grouped by entity (rather than a
+        # set of tuples like public_actions) because that is the form directly
+        # useful to generation: "which fields to remove for THIS entity".
         self.hidden_fields_by_entity = {}
         for ref in normalized_ast["security"].get("hidden_fields", []):
             entity, field = ref.split(".", 1)
             self.hidden_fields_by_entity.setdefault(entity, []).append(field)
-        # AJOUT (roadmap, écosystème de capacités -- brique 3, généralisée en
-        # brique 4) : règles 'decrements'/'increments' regroupées par entité
-        # déclenchante — voir _generate_secure_fastapi, où la route Create de
-        # cette entité gagne une étape supplémentaire après l'insertion
-        # (incrémenter/décrémenter le champ ciblé sur la ligne liée,
-        # retrouvée via la colonne de clé étrangère que la relation validée
-        # garantit d'exister).
+        # ADDED (roadmap, capability ecosystem -- brick 3, generalized into
+        # brick 4): 'decrements'/'increments' rules grouped by triggering
+        # entity — see _generate_secure_fastapi, where that entity's Create
+        # route gains an extra step after the insertion (increment/decrement
+        # the targeted field on the linked row, found through the foreign key
+        # column the validated relation guarantees to exist).
         self.reputation_rules_by_trigger = plan_counters(
             normalized_ast["security"].get("reputation_rules", []), self.relation_models,
             normalized_ast["security"].get("field_constraints", {}))
-        # AJOUT (roadmap, écosystème de capacités -- brique 5) : règles
-        # 'categorized' regroupées par entité — voir _generate_secure_fastapi,
-        # où les routes Read (liste + détail) de cette entité remplacent le
-        # champ numérique ciblé par son libellé de catégorie avant de
-        # renvoyer la réponse.
+        # ADDED (roadmap, capability ecosystem -- brick 5): 'categorized' rules
+        # grouped by entity — see _generate_secure_fastapi, where that entity's
+        # Read routes (list + detail) replace the targeted numeric field with
+        # its category label before returning the response.
         self.categorized_fields_by_entity = {}
         for cf in normalized_ast["security"].get("categorized_fields", []):
             self.categorized_fields_by_entity.setdefault(cf["entity"], []).append(cf)
-        # AJOUT (roadmap, écosystème de capacités -- suite de la brique 1) :
-        # champs 'generated' regroupés par entité -- retirés du schéma
-        # Pydantic de la route Create (le client ne peut même pas tenter de
-        # les fournir) et peuplés depuis le pseudonyme anonyme du compte
-        # courant plutôt que depuis le corps de requête.
+        # ADDED (roadmap, capability ecosystem -- follow-up to brick 1):
+        # 'generated' fields grouped by entity -- removed from the Create
+        # route's Pydantic schema (the client cannot even try to supply them)
+        # and filled from the current account's anonymous pseudonym rather than
+        # from the request body.
         self.generated_fields_by_entity = {}
         for gf in normalized_ast["security"].get("generated_fields", []):
             self.generated_fields_by_entity.setdefault(gf["entity"], []).append(gf["field"])
-        # AJOUT (brique 17, point 90) : {Entite: EntiteExigee} — l'appelant doit
-        # déjà posséder un enregistrement de la seconde pour créer la première.
+        # ADDED (brick 17, point 90): {Entity: RequiredEntity} — the caller
+        # must already own a record of the second to create the first.
         self.required_profiles = dict(
             normalized_ast["security"].get("required_profiles", {}))
-        # AJOUT (brique 16, point 89) : champs horodatés à la création.
-        # {Entite: [champ]} — le validateur garantit au plus UN par entité,
-        # mais la forme liste garde le même maniement que les autres familles
-        # de champs peuplés par le serveur.
+        # ADDED (brick 16, point 89): fields timestamped at creation. {Entity:
+        # [field]} — the validator guarantees at most ONE per entity, but the
+        # list form keeps the same handling as the other families of
+        # server-filled fields.
         self.timestamp_fields_by_entity = {}
         for tf in normalized_ast["security"].get("timestamp_fields", []):
             self.timestamp_fields_by_entity.setdefault(tf["entity"], []).append(tf["field"])
-        # BRIQUE 22 (point 102) : {Entite: [{champ, format, periode}]}. Même
-        # famille que l'horodatage ci-dessus — peuplé par le serveur à la
-        # création, absent des corps de requête, jamais réécrit.
+        # BRICK 22 (point 102): {Entity: [{field, format, period}]}. Same
+        # family as the timestamp above — filled by the server at creation,
+        # absent from request bodies, never rewritten.
         self.numbered_fields_by_entity = {}
         for nf in normalized_ast["security"].get("numbered_fields", []):
             self.numbered_fields_by_entity.setdefault(nf["entity"], []).append(nf)
-        # AJOUT (brique paiement, point 74) : entité encaissable et champ
-        # portant le montant. {Entite: champ} — le validateur garantit au
-        # plus un champ payable par entité.
+        # ADDED (payment brick, point 74): chargeable entity and the field
+        # carrying the amount. {Entity: field} — the validator guarantees at
+        # most one payable field per entity.
         self.payable_by_entity = {
             pf["entity"]: pf["field"]
             for pf in normalized_ast["security"].get("payable_fields", [])
         }
         self.postpayment_writable_by_entity = normalized_ast["security"].get(
             "writable_after_payment", {})
-        # AJOUT (brique 10, point 77) : champs CALCULÉS PAR LE SERVEUR depuis
-        # une ligne liée. {Entite: [règle, ...]} — le validateur garantit au
-        # plus une règle par champ, mais une entité peut en porter plusieurs.
-        # AJOUT (brique 12, point 82) : sommes 'sumOf'. Deux index, parce que la
-        # brique se lit dans les deux sens — depuis le PARENT pour retirer le
-        # champ des corps de requête, depuis l'ENFANT pour savoir quoi recalculer
-        # après chaque écriture de ligne.
+        # ADDED (brick 10, point 77): fields CALCULATED BY THE SERVER from a
+        # linked row. {Entity: [rule, ...]} — the validator guarantees at most
+        # one rule per field, but an entity can carry several.
+        #
+        # ADDED (brick 12, point 82): 'sumOf' sums. Two indexes, because the
+        # brick reads both ways — from the PARENT to remove the field from
+        # request bodies, from the CHILD to know what to recompute after each
+        # line write.
         aggregations = plan_aggregations(
             normalized_ast["security"].get("aggregated_fields", []), self.relation_models)
         self.aggregated_by_entity = aggregations.by_entity
         self.aggregations_by_source = aggregations.by_source
         self.derived_by_entity = plan_derivations(
             normalized_ast["security"].get("derived_fields", []), self.relation_models)
-        # POINT 85 : 'required'/'unique'/'min'/'max' ne produisaient RIEN — la
-        # sortie était identique à l'octet avec ou sans elles. Regroupées par
-        # entité : les bornes partent dans le schéma Pydantic (schemas.py),
-        # 'unique' devient un index unique (sql_schema.py).
+        # POINT 85: 'required'/'unique'/'min'/'max' produced NOTHING — the
+        # output was byte-identical with or without them. Grouped by entity:
+        # the bounds go into the Pydantic schema (schemas.py), 'unique' becomes
+        # a unique index (sql_schema.py).
         self.field_constraints = {}
         for (entite, champ), contraintes in normalized_ast["security"].get(
                 "field_constraints", {}).items():
             self.field_constraints.setdefault(entite, {})[champ] = contraintes
-        # AJOUT (roadmap, contrôle du rendu visuel) : surcharges explicites du
-        # thème/ordre/champ principal par entité, issues des blocs 'ui'.
+        # ADDED (roadmap, visual rendering control): explicit per-entity
+        # overrides of theme/order/main field, from the 'ui' blocks.
         self.ui_overrides = normalized_ast.get("ui", {})
-        # AJOUT (roadmap, écosystème de capacités -- brique 1) : capacités
-        # déclarées via 'capability'. Purement informatif à ce stade -- rien
-        # dans generate_all() ne branche encore dessus, puisque
-        # l'authentification (seule capacité connue pour l'instant) est déjà
-        # générée systématiquement quoi qu'il arrive. Les capacités futures
-        # (masquage de champ, accès à deux parties) seront les premières à
-        # réellement changer un comportement de génération selon ce qui est
-        # déclaré ici.
+        # ADDED (roadmap, capability ecosystem -- brick 1): capabilities
+        # declared through 'capability'. Purely informative at this stage --
+        # nothing in generate_all() hooks into it yet, since authentication
+        # (the only known capability so far) is already generated
+        # systematically regardless. Future capabilities (field masking,
+        # two-party access) will be the first to really change generation
+        # behavior according to what is declared here.
         self.capabilities = normalized_ast.get("capabilities", [])
-        # POINT 95 : la brique 1 se réveille. 'capability auth' était déclaratif
-        # depuis toujours — il contraint désormais la FORME de l'identifiant de
-        # compte. None = rien de déclaré = comportement historique intact.
+        # POINT 95: brick 1 wakes up. 'capability auth' had always been
+        # declarative — it now constrains the FORM of the account identifier.
+        # None = nothing declared = historical behavior intact.
         self.auth_identifier = (normalized_ast.get("security", {})
                                 .get("auth_identifier"))
-        # Indicatif déclaré : sans lui, '06…' et '+336…' restent deux comptes.
+        # Declared calling code: without it, '06…' and '+336…' stay two
+        # accounts.
         self.auth_phone_prefix = (normalized_ast.get("security", {})
                                 .get("auth_phone_prefix"))
-        # BRIQUE B4 : aucune branche runtime n'est émise quand ce dictionnaire
-        # est vide ; c'est la garantie byte-for-byte des specs historiques.
+        # BRICK B4: no runtime branch is emitted when this dictionary is empty;
+        # that is the byte-for-byte guarantee for historical specs.
         self.auth_features = dict(normalized_ast.get("security", {})
                                    .get("auth_features") or {})
-        # BRIQUE 2a : la devise d'encaissement, DEJA resolue en
-        # {code, exponent} par le validateur. None quand rien n'est declare —
-        # le defaut n'est applique qu'a l'endroit ou l'on encaisse.
+        # BRICK 2a: the charging currency, ALREADY resolved into {code,
+        # exponent} by the validator. None when nothing is declared — the
+        # default is applied only where the charge happens.
         self.payment_currency = (normalized_ast.get("security", {})
                                  .get("payment_currency"))
-        # BRIQUE 2b : 'stripe' ou 'fedapay', resolu par le validateur. None
-        # quand rien n'est declare — le defaut n'est applique qu'a l'endroit
-        # ou l'on encaisse, comme pour la devise.
+        # BRICK 2b: 'stripe' or 'fedapay', resolved by the validator. None when
+        # nothing is declared — the default is applied only where the charge
+        # happens, as for the currency.
         self.payment_provider = (normalized_ast.get("security", {})
                                  .get("payment_provider"))
-        # BRIQUE 19 (point 96) : {Entite: {champ: [valeurs]}} — un statut est un
-        # état parmi quelques-uns, pas du texte libre.
+        # BRICK 19 (point 96): {Entity: {field: [values]}} — a status is one
+        # state among a few, not free text.
         self.enumerated_fields = (normalized_ast.get("security", {})
                                   .get("enumerated_fields") or {})
-        # BRIQUE B3 : whitelists de compilation pour les paramètres des listes.
-        # Les routes et le contrat lisent la même analyse, afin qu'un champ
-        # annoncé filtrable/triable soit exactement celui que le backend accepte.
+        # BRICK B3: compile-time whitelists for list parameters. The routes and
+        # the contract read the same analysis, so that a field announced as
+        # filterable/sortable is exactly the one the backend accepts.
         self.filterable_fields_by_entity = {}
         for item in normalized_ast["security"].get("filterable_fields", []):
             self.filterable_fields_by_entity.setdefault(item["entity"], []).append(item["field"])
         self.sortable_fields_by_entity = {}
         for item in normalized_ast["security"].get("sortable_fields", []):
             self.sortable_fields_by_entity.setdefault(item["entity"], []).append(item["field"])
-        # BRIQUE 20 (point 98) : {Entite: [règle]} — atteindre une valeur rend
-        # ce que les enfants ont décompté. Indexé par l'entité PORTEUSE du
-        # champ, qui est celle dont la route Update déclenche la libération.
+        # BRICK 20 (point 98): {Entity: [rule]} — reaching a value gives back
+        # what the children counted down. Indexed by the entity CARRYING the
+        # field, which is the one whose Update route triggers the release.
         self.release_rules_by_entity = {}
         for regle in (normalized_ast.get("security", {}).get("release_rules") or []):
             self.release_rules_by_entity.setdefault(regle["entity"], []).append(regle)
-        # AJOUT (roadmap frontend, bloc 'seed') : données de démonstration à
-        # insérer au démarrage si les tables sont vides (voir init_db).
+        # ADDED (frontend roadmap, 'seed' block): demo data to insert at
+        # startup if the tables are empty (see init_db).
         self.seeds = normalized_ast.get("seeds", [])
         self.migrations = normalized_ast.get("migrations", [])
-        # Vue typée commune aux consommateurs de la sémantique des champs.
-        # Les dictionnaires historiques restent disponibles pendant la
-        # migration des émetteurs SQL et API.
+        # Typed view shared by the consumers of field semantics. The historical
+        # dictionaries stay available during the migration of the SQL and API
+        # emitters.
         self.event_counters = event_counter_fields(normalized_ast["security"])
-        # Point 202 : la création initialise ces compteurs à 0, par entité.
+        # Point 202: creation initializes these counters to 0, per entity.
         self.event_counters_by_entity = event_counters_by_entity(normalized_ast["security"])
         self.entity_models = plan_entity_models(
             self.entities, normalized_ast["security"], self.derived_by_entity,
             self.aggregated_by_entity)
-        # Carte de routes calculée avant les politiques qui en dépendent.
+        # Route map computed before the policies that depend on it.
         self.route_plans = plan_routes(self.workflows)
         self.access_policies = plan_access_policies(normalized_ast["security"], self.route_plans)
         self.effect_plans = self._build_effect_plans()
-        # Le catalogue de plans devient l'analyse canonique de cette instance.
-        # Les anciens attributs restent exposés aux mixins pendant la migration,
-        # mais les consommateurs modernes réutilisent désormais cet objet.
+        # The plan catalog becomes this instance's canonical analysis. The old
+        # attributes stay exposed to the mixins during the migration, but
+        # modern consumers now reuse this object.
         self.compilation_plans = self.build_compilation_plans()
-        # Façade composée : les mixins restent l'implémentation historique,
-        # mais l'orchestrateur ne choisit plus chaque couche individuellement.
+        # Composed facade: the mixins stay the historical implementation, but
+        # the orchestrator no longer picks each layer individually.
         self.emitters = BackendEmitter(self)
