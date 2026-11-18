@@ -60,61 +60,87 @@ def _eprouver_les_routes(actor, base, contract, errors, token):
     """Each contract route, called for real."""
     # --- 2b. each contract route, under real conditions ---
     for route in contract["routes"]:
-        path, method = route["path"], route["method"]
-        concrete = path.replace("{id}", "1")
-        if route.get("auth_mode") == "refresh_token":
-            # BRICK B4: /refresh is authenticated by a dedicated opaque token,
-            # never by the access JWT. An empty request must be refused,
-            # without requiring a Bearer that has precisely no business here.
-            status, _b = fondations._http(method, base + concrete,
-                               body={} if method in ("POST", "PUT") else None)
-            if status < 400:
-                errors.append(f"{method} {path} accepted an empty refresh "
-                              f"(response {status})")
-        elif route["auth_required"] and route["allowed_actors"]:
-            status, _b = fondations._http(method, base + concrete,
-                               body={} if method in ("POST", "PUT") else None)
-            if status not in (401, 403):
-                errors.append(f"{method} {path} without a token returned {status} "
-                              f"(expected a 401/403 refusal)")
-        elif route["auth_required"]:
-            # POINT 74: a route protected OTHERWISE than by a JWT — the payment
-            # webhook, authenticated by the provider's signature. No actor
-            # opens it, so requiring 401/403 makes no sense: without a
-            # configured key it answers 503, and with a key 400 (missing
-            # signature). What must hold in every case is that a bare request
-            # is REFUSED.
-            status, _b = fondations._http(method, base + concrete,
-                               body={} if method in ("POST", "PUT") else None)
-            if status < 400:
-                errors.append(f"{method} {path} accepted a request without "
-                              f"any authentication (response {status})")
-        if method == "GET" and not route["auth_required"]:
-            status, _b = fondations._http("GET", base + concrete)
-            if route["action"] == "List" and status != 200:
-                errors.append(f"GET {path} (public) returned {status} (expected 200)")
-            if route["action"] == "Read" and status not in (200, 404):
-                errors.append(f"GET {path} (public) returned {status} (expected 200/404)")
-        if method == "GET" and route["auth_required"] and token \
-                and actor in route["allowed_actors"] and route["action"] == "List":
-            status, _b = fondations._http("GET", base + concrete, token=token)
-            if status != 200:
-                errors.append(f"GET {path} with {actor} token returned {status} "
-                              f"(expected 200)")
-            if status == 200 and route.get("list_query"):
-                probe = sondes._list_query_probe(route, contract)
-                status, _b = fondations._http("GET", base + concrete + probe,
-                                   token=token)
-                if status != 200:
-                    errors.append(f"GET {path}{probe} with the contract's list "
-                                  f"capabilities returned {status} (expected 200)")
-        if method == "GET" and not route["auth_required"] \
-                and route["action"] == "List" and route.get("list_query"):
-            probe = sondes._list_query_probe(route, contract)
-            status, _b = fondations._http("GET", base + concrete + probe)
-            if status != 200:
-                errors.append(f"GET {path}{probe} (public) returned {status} "
-                              f"(expected 200)")
+        concrete = route["path"].replace("{id}", "1")
+        _eprouver_le_refus(route, base, concrete, errors)
+        if route["method"] != "GET":
+            continue
+        if route["auth_required"]:
+            _eprouver_la_lecture_authentifiee(route, actor, base, concrete,
+                                              contract, errors, token)
+        else:
+            _eprouver_la_lecture_publique(route, base, concrete, contract, errors)
+
+
+# The three functions below are extracted from `_eprouver_les_routes`
+# (complexity ceiling): same calls, same expected statuses, same messages.
+# The two read checks are mutually exclusive (auth_required or not), so
+# grouping them does not change the order of the calls made for a route.
+def _eprouver_le_refus(route, base, concrete, errors):
+    """What a request without the right credential must get."""
+    path, method = route["path"], route["method"]
+    if route.get("auth_mode") == "refresh_token":
+        # BRICK B4: /refresh is authenticated by a dedicated opaque token,
+        # never by the access JWT. An empty request must be refused,
+        # without requiring a Bearer that has precisely no business here.
+        status, _b = fondations._http(method, base + concrete,
+                           body={} if method in ("POST", "PUT") else None)
+        if status < 400:
+            errors.append(f"{method} {path} accepted an empty refresh "
+                          f"(response {status})")
+    elif route["auth_required"] and route["allowed_actors"]:
+        status, _b = fondations._http(method, base + concrete,
+                           body={} if method in ("POST", "PUT") else None)
+        if status not in (401, 403):
+            errors.append(f"{method} {path} without a token returned {status} "
+                          f"(expected a 401/403 refusal)")
+    elif route["auth_required"]:
+        # POINT 74: a route protected OTHERWISE than by a JWT — the payment
+        # webhook, authenticated by the provider's signature. No actor
+        # opens it, so requiring 401/403 makes no sense: without a
+        # configured key it answers 503, and with a key 400 (missing
+        # signature). What must hold in every case is that a bare request
+        # is REFUSED.
+        status, _b = fondations._http(method, base + concrete,
+                           body={} if method in ("POST", "PUT") else None)
+        if status < 400:
+            errors.append(f"{method} {path} accepted a request without "
+                          f"any authentication (response {status})")
+
+
+def _eprouver_la_lecture_publique(route, base, concrete, contract, errors):
+    """A public GET answers, and so does its declared list query."""
+    path = route["path"]
+    status, _b = fondations._http("GET", base + concrete)
+    if route["action"] == "List" and status != 200:
+        errors.append(f"GET {path} (public) returned {status} (expected 200)")
+    if route["action"] == "Read" and status not in (200, 404):
+        errors.append(f"GET {path} (public) returned {status} (expected 200/404)")
+    if route["action"] == "List" and route.get("list_query"):
+        probe = sondes._list_query_probe(route, contract)
+        status, _b = fondations._http("GET", base + concrete + probe)
+        if status != 200:
+            errors.append(f"GET {path}{probe} (public) returned {status} "
+                          f"(expected 200)")
+
+
+def _eprouver_la_lecture_authentifiee(route, actor, base, concrete, contract,
+                                      errors, token):
+    """A protected list answers the test account, list query included."""
+    path = route["path"]
+    if not (token and actor in route["allowed_actors"] and route["action"] == "List"):
+        return
+    status, _b = fondations._http("GET", base + concrete, token=token)
+    if status != 200:
+        errors.append(f"GET {path} with {actor} token returned {status} "
+                      f"(expected 200)")
+    if status == 200 and route.get("list_query"):
+        probe = sondes._list_query_probe(route, contract)
+        status, _b = fondations._http("GET", base + concrete + probe,
+                           token=token)
+        if status != 200:
+            errors.append(f"GET {path}{probe} with the contract's list "
+                          f"capabilities returned {status} (expected 200)")
+
 
 def _eprouver_une_creation(actor, base, contract, errors, token, warnings):
     """A real creation, to exercise the request body end to end."""

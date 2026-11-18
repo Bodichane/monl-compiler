@@ -418,7 +418,6 @@ EXCEPTIONS_DE_COMPLEXITE = {
     "monl/generator/routes_suppression.py:_generate_delete_route_lines": (27, "Émission de routes ligne par ligne : liste plate légitime, conservée hors des cinq cibles."),
     "monl/generator/schemas.py:_generate_schema_lines": (34, "Émission de schéma ligne par ligne : liste plate légitime, hors des cinq cibles."),
     "monl/parser/transformer_structure.py:app": (30, "Transformation d'AST hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
-    "monl/smoke_test/etapes.py:_eprouver_les_routes": (27, "Parcours de smoke test hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
 }
 
 
