@@ -1,4 +1,4 @@
-"""Les images générées : leur brief, leur appel, leur optimisation."""
+"""Generated images: their brief, their call, their optimization."""
 
 import inspect
 import json
@@ -14,7 +14,8 @@ def _clean_image_text(value):
     return re.sub(r"\s+", " ", str(value or "")).strip()
 
 def _image_brief_material(brief):
-    """Sépare la matière visuelle des consignes destinées au modèle texte."""
+    """Separates the visual material from the instructions meant for the text
+    model."""
     text = _clean_image_text(brief)
     topic_match = re.search(
         r"(?:Les illustrations doivent évoquer|The illustrations should evoke)"
@@ -38,10 +39,10 @@ def _image_brief_material(brief):
         subject = text or "material declared by the project"
 
     register = []
-    # Deux grammaires : le français ouvre la clause par « registre … » ou
-    # « les images portent … » (specs écrites avant la migration anglaise),
-    # l'anglais place le mot à la fin des adjectifs (« bold, graphic
-    # register: … ») — on garde alors la clause entière qui le contient.
+    # Two grammars: French opens the clause with « registre … » or « les images
+    # portent … » (specs written before the English migration), English puts
+    # the word after the adjectives ("bold, graphic register: …") — the whole
+    # clause containing it is then kept.
     for match in re.finditer(
             r"\b(?:ton|registre|les images portent)\b.+?(?=;| — |$)"
             r"|[^;—]*\b(?:register|tone)\b[^;—]*"
@@ -53,12 +54,12 @@ def _image_brief_material(brief):
     return subject, " ; ".join(register), topic
 
 def _image_text_chunks(value):
-    """Retourne des morceaux supprimables sans casser une phrase déclarée."""
+    """Returns pieces that can be removed without breaking a declared sentence."""
     chunks = re.split(r"(?<=[.!?])\s+|;\s+|,\s+", _clean_image_text(value))
     return [chunk.strip(" ;") for chunk in chunks if chunk.strip(" ;")]
 
 def _compact_image_value(value, limit):
-    """Réduit un champ en retirant des phrases ou clauses entières."""
+    """Shrinks a field by removing whole sentences or clauses."""
     value = _clean_image_text(value)
     if limit <= 0:
         return ""
@@ -77,15 +78,15 @@ def _compact_image_value(value, limit):
     return ""
 
 def _fit_image_prompt(parts, max_chars):
-    """Assemble un prompt borné sans tronquer un token ni une phrase."""
+    """Assembles a bounded prompt without truncating a token or a sentence."""
     parts = [list(part) for part in parts if part[1]]
 
     def render():
         return "\n".join(f"{label}: {value}" for label, value, _required in parts)
 
-    # Les sections sont utiles, mais le sujet, le rôle, le registre et les
-    # interdits sont prioritaires pour une image. On retire donc les sections
-    # entières avant de réduire la matière visuelle elle-même.
+    # The sections are useful, but the subject, role, register and prohibitions
+    # take priority for an image. Whole sections are therefore removed before
+    # the visual material itself is shrunk.
     while len(render()) > max_chars:
         optional = [index for index, (_label, _value, required) in enumerate(parts)
                     if not required]
@@ -108,8 +109,8 @@ def _fit_image_prompt(parts, max_chars):
             shortened = value.rsplit(" ", 1)[0] if " " in value else ""
         if not shortened:
             if required:
-                # Ce cas ne devrait concerner qu'une limite fournisseur
-                # irréaliste ; le message reste une erreur monl exploitable.
+                # This case should only concern an unrealistic provider limit;
+                # the message stays an actionable monl error.
                 raise fondations.FrontendAIError(
                     f"image prompt cannot be composed under {max_chars} characters")
             parts.pop(index)
@@ -124,7 +125,7 @@ def _fit_image_prompt(parts, max_chars):
     return prompt
 
 def _image_prompt(project_dir, item, max_chars=None):
-    """Construit le prompt image depuis la matière déclarée par le projet."""
+    """Builds the image prompt from the material declared by the project."""
     contract_path = os.path.join(project_dir, "frontend_contract.json")
     try:
         with open(contract_path, encoding="utf-8") as fh:
@@ -171,8 +172,8 @@ def _image_provider_prompt_limit(provider):
     return None
 
 def _call_image_provider(provider, prompt, aspect_ratio):
-    # Les fournisseurs injectables historiques restent prompt -> octets. Le
-    # fournisseur YandexART, lui, accepte le rapport optionnel explicitement.
+    # The historical injectable providers stay prompt -> bytes. The YandexART
+    # provider, however, explicitly accepts the optional report.
     limit = _image_provider_prompt_limit(provider)
     if limit is not None and len(prompt) > limit:
         raise fondations.FrontendAIError(
@@ -184,7 +185,8 @@ def _call_image_provider(provider, prompt, aspect_ratio):
 
 def _generate_planned_images(project_dir, image_provider, operation, attempt, run_id,
                              say=print):
-    """Écrit les images planifiées et rapporte les échecs sans interrompre l'IA."""
+    """Writes the planned images and reports failures without interrupting the
+    AI."""
     generated = plan_generated_images(project_dir)
     if not generated:
         raise fondations.FrontendAIError(

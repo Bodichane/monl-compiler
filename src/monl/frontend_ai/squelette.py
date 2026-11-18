@@ -1,11 +1,11 @@
-"""Le squelette d'un HTML et d'un CSS — sélecteurs, sans le contenu."""
+"""The skeleton of an HTML and a CSS file — selectors, without the content."""
 
 from html import escape
 from html.parser import HTMLParser
 
 
 class _HTMLSelectorSkeleton(HTMLParser):
-    """Conserve la structure HTML et les attributs utiles aux sélecteurs."""
+    """Keeps the HTML structure and the attributes useful to selectors."""
 
     def __init__(self):
         super().__init__(convert_charrefs=False)
@@ -42,7 +42,7 @@ def _html_selector_skeleton(content):
     return "".join(parser.parts)
 
 def _css_without_comments(content):
-    """Supprime les commentaires CSS sans toucher aux chaînes de caractères."""
+    """Removes CSS comments without touching strings."""
     result = []
     index = 0
     quote = None
@@ -67,7 +67,7 @@ def _css_without_comments(content):
     return "".join(result)
 
 def _css_selector_skeleton(content):
-    """Retourne les sélecteurs CSS, sans recopier les déclarations."""
+    """Returns the CSS selectors, without copying the declarations."""
     source = _css_without_comments(content)
     selectors = []
     stack = []

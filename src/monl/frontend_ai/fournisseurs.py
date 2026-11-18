@@ -1,4 +1,4 @@
-"""Les fournisseurs d'IA, et le seul endroit qui appelle le réseau."""
+"""The AI providers, and the only place that calls the network."""
 
 import json
 import os
@@ -12,22 +12,22 @@ DEFAULT_MODEL = "claude-sonnet-4-6"
 
 DEFAULT_MAX_OUTPUT_TOKENS = 16_000
 
-# Un fichier peut encore contenir plusieurs milliers de lignes de CSS/JS et
-# un modèle de raisonnement consomme une partie du plafond avant son JSON.
-# Le découpage limite la taille totale de la réponse ; il ne faut pas limiter
-# chaque pièce au plafond qui a cassé la réponse monolithique.
+# A file can still contain several thousand lines of CSS/JS, and a reasoning
+# model uses part of the ceiling before its JSON. Splitting limits the total
+# size of the response; each piece must not be limited to the ceiling that
+# broke the monolithic response.
 DEFAULT_CHUNK_MAX_OUTPUT_TOKENS = 8_000
 
-# Une réponse JSON tronquée ne doit pas faire perdre les morceaux précédents.
-# Deux reprises suffisent à corriger une coupe sans transformer un appel en
-# boucle ouverte ; la hausse du plafond est explicite et reste bornée.
+# A truncated JSON response must not lose the previous pieces. Two retries are
+# enough to fix a cut without turning a call into an open loop; raising the
+# ceiling is explicit and stays bounded.
 CHUNK_MAX_RETRIES = 2
 
-# Le facteur DOIT amener la dernière reprise sur la borne ci-dessous, sinon
-# celle-ci ne contraint jamais rien — une constante qui ne produit rien est
-# ce que le point 85 interdit. À 1,5, l'échelle montait 8 000 → 12 000 →
-# 18 000 et les 32 000 déclarés n'étaient jamais atteints ; à 2,0 elle monte
-# 8 000 → 16 000 → 32 000. Un test tient cet accord entre les trois nombres.
+# The factor MUST bring the last retry onto the bound below, otherwise the
+# bound never constrains anything — a constant that produces nothing is what
+# point 85 forbids. At 1.5, the ladder went 8,000 → 12,000 → 18,000 and the
+# declared 32,000 was never reached; at 2.0 it goes 8,000 → 16,000 → 32,000. A
+# test holds this agreement between the three numbers.
 CHUNK_RETRY_OUTPUT_TOKEN_FACTOR = 2.0
 
 CHUNK_RETRY_MAX_OUTPUT_TOKENS = 32_000
@@ -44,7 +44,7 @@ they are not text files to return in this response.
 """
 
 def _requests_module():
-    """Charge le client HTTP uniquement pour l'extra ``.[ai]``."""
+    """Loads the HTTP client only for the ``.[ai]`` extra."""
     try:
         import requests
     except ImportError as exc:
@@ -55,7 +55,7 @@ def _requests_module():
     return requests
 
 def _max_output_tokens():
-    """Plafond API réglable, distinct du budget de tours des agents CLI."""
+    """Configurable API ceiling, distinct from the CLI agents' turn budget."""
     raw = (os.environ.get("MONL_AI_MAX_TOKENS") or "").strip()
     if not raw:
         return DEFAULT_MAX_OUTPUT_TOKENS
@@ -68,8 +68,8 @@ def _max_output_tokens():
     return value
 
 def _chunk_max_output_tokens():
-    """Plafond par fichier pour les modèles dont la réponse complète est
-    trop longue pour tenir dans un seul JSON (notamment DeepSeek via Yandex)."""
+    """Per-file ceiling for models whose complete response is too long to fit in
+    a single JSON (notably DeepSeek through Yandex)."""
     raw = (os.environ.get("MONL_AI_CHUNK_MAX_TOKENS") or "").strip()
     if not raw:
         return DEFAULT_CHUNK_MAX_OUTPUT_TOKENS
@@ -84,9 +84,9 @@ def _chunk_max_output_tokens():
 
 # ------------------------------------------------------------- providers --
 def claude_provider(model=DEFAULT_MODEL):
-    """Fournisseur API Anthropic. La clé vient de ANTHROPIC_API_KEY —
-    jamais d'un fichier du projet, jamais en argument de ligne de commande
-    (elle finirait dans l'historique shell)."""
+    """Anthropic API provider. The key comes from ANTHROPIC_API_KEY — never from
+    a project file, never as a command line argument (it would end up in the
+    shell history)."""
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         raise fondations.FrontendAIError(
@@ -123,21 +123,20 @@ def claude_provider(model=DEFAULT_MODEL):
     return call
 
 # ─────────────────────────────────────────────────────────────────────
-# POINT 69 : « n'importe quelle clé API ». Deux dialectes couvrent le
-# marché — Anthropic Messages (ci-dessus) et OpenAI Chat Completions, que
-# parlent Groq, OpenAI, OpenRouter, DeepSeek, Mistral, xAI, Together et
-# tout serveur local (Ollama, llama.cpp, vLLM). Plutôt qu'un fournisseur
-# par marque — code dupliqué, liste toujours en retard d'un acteur — un
-# seul fournisseur paramétré, et une table de préréglages qui n'épargne
-# que la frappe de l'URL et du nom de variable.
+# POINT 69: "any API key". Two dialects cover the market — Anthropic Messages
+# (above) and OpenAI Chat Completions, spoken by Groq, OpenAI, OpenRouter,
+# DeepSeek, Mistral, xAI, Together and any local server (Ollama, llama.cpp,
+# vLLM). Rather than one provider per brand — duplicated code, a list always
+# one player behind — a single parameterized provider, and a table of presets
+# that only saves typing the URL and the variable name.
 #
-# AUCUN modèle par défaut n'est codé pour ces fournisseurs, à dessein :
-# les catalogues changent tous les mois, et un identifiant périmé en dur
-# transforme une erreur claire ('--model manquant') en 404 obscur six mois
-# plus tard. '--model' est donc exigé hors voie Anthropic.
+# NO default model is coded for these providers, on purpose: catalogs change
+# every month, and a stale hard-coded identifier turns a clear error ('--model
+# missing') into an obscure 404 six months later. '--model' is therefore
+# required outside the Anthropic path.
 # ─────────────────────────────────────────────────────────────────────
 OPENAI_COMPATIBLE = {
-    # nom            base_url                         variable d'environnement portant la clé
+    # name           base_url                         environment variable holding the key
     "groq":       ("https://api.groq.com/openai/v1",  "GROQ_API_KEY"),
     "openai":     ("https://api.openai.com/v1",       "OPENAI_API_KEY"),
     "openrouter": ("https://openrouter.ai/api/v1",    "OPENROUTER_API_KEY"),
@@ -146,14 +145,14 @@ OPENAI_COMPATIBLE = {
     "together":   ("https://api.together.xyz/v1",     "TOGETHER_API_KEY"),
     "xai":        ("https://api.x.ai/v1",             "XAI_API_KEY"),
     "yandex":     ("https://ai.api.cloud.yandex.net/v1", "YANDEX_API_KEY"),
-    # Serveur local : pas de clé, mais l'en-tête Bearer reste accepté.
+    # Local server: no key, but the Bearer header is still accepted.
     "ollama":     ("http://localhost:11434/v1",       "OLLAMA_API_KEY"),
 }
 
 _YANDEX_REASONING_EFFORTS = ("low", "medium", "high")
 
-# Échappatoire totale, pour un point de terminaison que la table ignore :
-# --provider openai-compatible + MONL_AI_BASE_URL (+ MONL_AI_API_KEY).
+# Full escape hatch, for an endpoint the table does not know: --provider
+# openai-compatible + MONL_AI_BASE_URL (+ MONL_AI_API_KEY).
 GENERIC_PROVIDER = "openai-compatible"
 
 _FRONTEND_FILES_SCHEMA = {
@@ -171,12 +170,12 @@ _FRONTEND_FILES_SCHEMA = {
 def openai_provider(model=None, base_url=None, key_env="MONL_AI_API_KEY",
                     key_required=True, auth_scheme="Bearer", extra_headers=None,
                     provider_name=None, extra_body=None):
-    """Fournisseur au dialecte OpenAI (POST {base_url}/chat/completions).
+    """Provider using the OpenAI dialect (POST {base_url}/chat/completions).
 
-    Même contrat que claude_provider : rend une fonction prompt -> texte.
-    La clé vient de l'environnement, JAMAIS d'un argument de ligne de
-    commande — elle finirait dans l'historique du shell (règle posée pour
-    la voie Anthropic, elle vaut pour toutes)."""
+    Same contract as claude_provider: returns a prompt -> text function. The
+    key comes from the environment, NEVER from a command line argument — it
+    would end up in the shell history (a rule set for the Anthropic path, it
+    holds for all)."""
     if not base_url:
         raise fondations.FrontendAIError(
             "base_url missing — set MONL_AI_BASE_URL for "
@@ -234,7 +233,7 @@ def openai_provider(model=None, base_url=None, key_env="MONL_AI_API_KEY",
     return call
 
 def _openai_preset(name):
-    """Construit le fournisseur d'un préréglage de OPENAI_COMPATIBLE."""
+    """Builds the provider of an OPENAI_COMPATIBLE preset."""
     base_url, key_env = OPENAI_COMPATIBLE[name]
 
     def build(model=None):
@@ -252,17 +251,17 @@ def _openai_preset(name):
             model_uri = model
             if model and not re.match(r"^[A-Za-z][A-Za-z0-9+.-]*://", model):
                 model_uri = f"gpt://{folder}/{model}"
-            # DeepSeek V4 Flash sait raisonner, mais le raisonnement interne
-            # consomme le même plafond que le JSON de fichiers. Pour une
-            # sortie structurée, la vérification Monl est le raisonnement :
-            # ne rien envoyer par défaut rend la construction fiable et
-            # laisse une surcharge explicite pour les cas qui en ont besoin.
+            # DeepSeek V4 Flash can reason, but internal reasoning uses the
+            # same ceiling as the files JSON. For structured output, Monl's
+            # verification is the reasoning: sending nothing by default makes
+            # the build reliable and leaves an explicit override for the cases
+            # that need it.
             raw_reasoning_effort = os.environ.get("MONL_YANDEX_REASONING_EFFORT")
             reasoning_effort = ((raw_reasoning_effort or "").strip()
                                 if raw_reasoning_effort is not None else None)
             if reasoning_effort == "":
-                # Compatibilité : « none » reste un alias explicite pour
-                # omettre le champ, même si Yandex ne l'accepte pas lui-même.
+                # Compatibility: "none" stays an explicit alias to omit the
+                # field, even though Yandex itself does not accept it.
                 reasoning_effort = "none"
             if reasoning_effort not in (*_YANDEX_REASONING_EFFORTS, "none", None):
                 allowed = ", ".join(_YANDEX_REASONING_EFFORTS)
@@ -272,10 +271,10 @@ def _openai_preset(name):
                     "(or 'none' to omit the field).")
             extra_body = {
                 "temperature": 0.3,
-                # Certains modèles AI Studio comptent leur raisonnement
-                # interne dans le plafond de complétion. Ici le résultat
-                # est un fichier, pas une question à résoudre : réserver
-                # ce budget au HTML/CSS/JS évite un JSON tronqué.
+                # Some AI Studio models count their internal reasoning in the
+                # completion ceiling. Here the result is a file, not a question
+                # to solve: reserving that budget for the HTML/CSS/JS avoids a
+                # truncated JSON.
                 "response_format": {
                     "type": "json_schema",
                     "json_schema": {
@@ -292,13 +291,13 @@ def _openai_preset(name):
                 model=model_uri, base_url=base_url, key_env=key_env,
                 auth_scheme="Api-Key", extra_headers={"OpenAI-Project": folder},
                 provider_name=name, extra_body=extra_body)
-            # Yandex attend l'URI complète sur le fil, mais l'identifiant de
-            # modèle lisible est la clé de la télémétrie et de ses regroupements.
+            # Yandex expects the full URI on the wire, but the readable model
+            # identifier is the key of the telemetry and its groupings.
             provider.model = model
-            # DeepSeek peut produire un frontend riche, mais pas trois gros
-            # fichiers dans une seule réponse JSON. Le mode séquentiel est
-            # activé au niveau du fournisseur, sans changer le contrat des
-            # autres APIs compatibles OpenAI.
+            # DeepSeek can produce a rich frontend, but not three large files
+            # in a single JSON response. Sequential mode is enabled at the
+            # provider level, without changing the contract of the other
+            # OpenAI-compatible APIs.
             provider.chunked_generation = True
             provider.max_output_tokens = _chunk_max_output_tokens()
             return provider
@@ -307,7 +306,7 @@ def _openai_preset(name):
     return build
 
 def _generic_openai(model=None):
-    """--provider openai-compatible : tout est dans l'environnement."""
+    """--provider openai-compatible: everything is in the environment."""
     return openai_provider(model=model,
                            base_url=os.environ.get("MONL_AI_BASE_URL"),
                            key_env="MONL_AI_API_KEY",
@@ -321,14 +320,13 @@ USAGE_FILENAME = ".monl_ai_usage.jsonl"
 
 def _record_provider_usage(project_dir, provider, operation, attempt, *,
                            run_id, stage=None, retry=None, usage=None):
-    """Conserve les compteurs de coût, jamais le prompt, la réponse ou la clé.
+    """Keeps the cost counters, never the prompt, the response or the key.
 
-    ``run_id`` est OBLIGATOIRE : sans lui, deux exécutions successives donnent
-    des événements indiscernables et « ce que ce site a coûté » cesse d'être
-    calculable — le défaut que cette colonne vient fermer. Un repli qui en
-    fabriquerait un par événement serait pire que l'absence : le rapport
-    montrerait autant d'exécutions que d'appels, et il aurait l'air juste.
-    """
+    ``run_id`` is MANDATORY: without it, two successive runs give
+    indistinguishable events and "what this site cost" stops being
+    computable — the defect this column closes. A fallback that made one up
+    per event would be worse than nothing: the report would show as many runs
+    as calls, and it would look right."""
     usage = usage if usage is not None else getattr(provider, "last_usage", None)
     usage = usage or {}
     event = {

@@ -1,4 +1,4 @@
-"""Lire la réponse du modèle, et l'écrire sur le disque."""
+"""Read the model's response, and write it to disk."""
 
 import json
 import os
@@ -8,22 +8,21 @@ from xml.etree import ElementTree
 from ..design_system import ASSET_MANIFEST_FILENAME, DESIGN_SPEC_FILENAME, DESIGN_SYSTEM_FILENAME
 from . import fondations
 
-# ------------------------------------------------------- parsing + gardes --
-# Tabulation, saut de ligne et retour chariot sont les seuls caractères de
-# contrôle légitimes dans un fichier texte livré.
+# ------------------------------------------------------ parsing + guards --
+# Tab, line feed and carriage return are the only legitimate control characters
+# in a delivered text file.
 _CONTROLES_AUTORISES = {"\t", "\n", "\r"}
 
 def _refuser_caracteres_de_controle(path, content):
-    """Refuse un fichier porteur de caractères de contrôle, NUL en tête.
+    """Refuses a file carrying control characters, NUL first and foremost.
 
-    Un modèle qui écrit ses accents en échappement Unicode peut produire
-    `\\u0000` là où il visait `\\u00e8` : `json.loads` rend alors un octet NUL,
-    le fichier reste de l'UTF-8 PARFAITEMENT VALIDE, et plus rien en aval ne
-    s'en aperçoit. Mesuré sur un site réellement construit — « Animalière »
-    livré en « Animali\x00re », trente et un octets NUL dans un index.html
-    déclaré réussi. Refuser ici plutôt que plus loin donne au modèle sa reprise
-    ciblée, au lieu de publier un texte français mutilé.
-    """
+    A model that writes its accents as Unicode escapes can produce `\\u0000`
+    where it aimed at `\\u00e8`: `json.loads` then returns a NUL byte, the file
+    stays PERFECTLY VALID UTF-8, and nothing downstream notices anymore.
+    Measured on a really built site — « Animalière » delivered as « Animali
+    re », thirty-one NUL bytes in an index.html declared successful. Refusing
+    here rather than further on gives the model its targeted retry, instead
+    of publishing a mutilated French text."""
     fautifs = {
         caractere for caractere in content
         if ord(caractere) < 32 and caractere not in _CONTROLES_AUTORISES
@@ -38,7 +37,7 @@ def _refuser_caracteres_de_controle(path, content):
         "and the file is still valid UTF-8.")
 
 def _validate_files(files, require_index=True):
-    """Valide une map de fichiers sans imposer son format de transport."""
+    """Validates a file map without imposing its transport format."""
     if not isinstance(files, dict) or not files:
         raise fondations.FrontendAIError("model response without a usable 'files' key")
     if require_index and "index.html" not in files:
@@ -61,9 +60,9 @@ def _validate_files(files, require_index=True):
                 raise fondations.FrontendAIError(f"invalid or incomplete SVG: {path}") from exc
             if root.tag.rsplit("}", 1)[-1].lower() != "svg":
                 raise fondations.FrontendAIError(f"invalid or incomplete SVG: {path}")
-            # Le namespace XML standard `xmlns="http://www.w3.org/2000/svg"`
-            # est obligatoire et ne télécharge rien. Ne pas le confondre avec
-            # une vraie ressource distante dans href/src/url().
+            # The standard XML namespace `xmlns="http://www.w3.org/2000/svg"`
+            # is mandatory and downloads nothing. Do not confuse it with a real
+            # remote resource in href/src/url().
             if re.search(
                     r"(?:\b(?:href|src|xlink:href)\s*=\s*['\"]"
                     r"(?:https?:|//)|\burl\(\s*['\"]?(?:https?:|//))",
@@ -76,7 +75,7 @@ def _validate_files(files, require_index=True):
     return files
 
 def _json_payload(raw_text):
-    """Décode une réponse JSON, avec tolérance aux clôtures Markdown."""
+    """Decodes a JSON response, tolerating Markdown fences."""
     text = raw_text.strip()
     fence = re.match(r"^```(?:json)?\s*(.*?)\s*```$", text, re.DOTALL)
     if fence:
@@ -87,8 +86,8 @@ def _json_payload(raw_text):
         raise fondations.FrontendAIError(f"unreadable model response (JSON expected): {e}") from e
 
 def parse_files_payload(raw_text):
-    """Extrait {chemin: contenu} de la réponse du modèle, avec les mêmes
-    garde-fous que pour toute entrée non fiable."""
+    """Extracts {path: content} from the model's response, with the same
+    safeguards as for any untrusted input."""
     payload = _json_payload(raw_text)
     return _validate_files(payload.get("files"), require_index=True)
 
@@ -97,52 +96,50 @@ def parse_files_payload(raw_text):
 _BLOC_CLOTURE = re.compile(r"```[a-zA-Z0-9_+-]*\s*\n(.*?)\n?```", re.DOTALL)
 
 def _fichier_depuis_un_bloc(raw_text, expected_path):
-    """Repli : le modèle a rendu le FICHIER, pas un JSON qui le contient.
+    """Fallback: the model returned the FILE, not a JSON that contains it.
 
-    Une étape séquentielle doit emballer tout un fichier JavaScript dans une
-    chaîne JSON — chaque saut de ligne échappé, chaque guillemet doublé. C'est
-    là que les modèles bon marché cassent, et le prix est lourd : mesuré sur
-    une construction réelle, `app.js` a échoué deux fois puis rendu 834 jetons
-    — un fichier minuscule mais ANALYSABLE. La boucle de reprise optimise la
-    lisibilité, jamais la complétude, et un quart du budget est parti là.
+    A sequential step has to wrap a whole JavaScript file in a JSON string —
+    every line break escaped, every quote doubled. That is where cheap models
+    break, and the price is heavy: measured on a real build, `app.js` failed
+    twice then returned 834 tokens — a tiny but PARSABLE file. The retry loop
+    optimizes for readability, never completeness, and a quarter of the budget
+    went there.
 
-    L'enveloppe JSON n'apporte d'ailleurs rien ici : l'étape SAIT quel fichier
-    elle attend. Le contrat JSON reste la voie normale — ceci n'est qu'un
-    filet, et il passe par les MÊMES garde-fous (`_validate_files`) : extension,
-    confinement, taille, caractères de contrôle. Aucune voie ne les contourne.
-    """
-    # Une réponse TRONQUÉE ne doit jamais passer par ici. Un nombre IMPAIR de
-    # clôtures dit qu'un bloc est resté ouvert : la réponse a été coupée. Sans
-    # ce contrôle, un modèle qui illustre par un petit extrait fermé puis se
-    # fait couper au milieu du vrai fichier verrait son EXTRAIT écrit dans
-    # app.js — et l'échelle d'agrandissement du plafond, qui existe justement
-    # pour ce cas, ne serait jamais atteinte.
+    The JSON envelope brings nothing here anyway: the step KNOWS which file it
+    expects. The JSON contract stays the normal path — this is only a net, and
+    it goes through the SAME safeguards (`_validate_files`): extension,
+    confinement, size, control characters. No path bypasses them."""
+    # A TRUNCATED response must never come through here. An ODD number of
+    # fences says a block was left open: the response was cut. Without this
+    # check, a model that illustrates with a small closed excerpt then gets cut
+    # in the middle of the real file would have its EXCERPT written into app.js
+    # — and the ceiling enlargement ladder, which exists precisely for this
+    # case, would never be reached.
     if raw_text.count("```") % 2:
         return None
     blocs = [bloc for bloc in _BLOC_CLOTURE.findall(raw_text) if bloc.strip()]
     if not blocs:
         return None
-    # Le PLUS GROS bloc : un modèle bavard commente sa réponse par de petits
-    # extraits avant de rendre le fichier.
+    # The BIGGEST block: a chatty model comments on its response with small
+    # excerpts before returning the file.
     contenu = max(blocs, key=len)
-    # Un bloc qui EST le JSON attendu n'est pas un fichier : l'écrire tel quel
-    # déposerait `{"files": …}` dans app.js, ce qui parse et ne marche pas.
+    # A block that IS the expected JSON is not a file: writing it as is would
+    # drop `{"files": …}` into app.js, which parses and does not work.
     if contenu.lstrip().startswith("{"):
         return None
-    # La clôture avale le dernier saut de ligne : un fichier source se termine
-    # par un saut de ligne, on le rétablit plutôt que de livrer une dernière
-    # ligne collée à rien.
+    # The fence swallows the last line break: a source file ends with a line
+    # break, it is restored rather than delivering a last line stuck to
+    # nothing.
     contenu = contenu.rstrip("\n") + "\n"
     return _validate_files({expected_path: contenu}, require_index=False)
 
 def parse_single_file_payload(raw_text, expected_path):
-    """Décode la réponse d'une étape de génération séquentielle.
+    """Decodes the response of a sequential generation step.
 
-    Le transport normal reste ``{"files": {…}}`` — même contrat JSON que la
-    voie monolithique. Quand il est illisible, on retombe sur le fichier rendu
-    en bloc clôturé plutôt que de brûler une reprise (voir
-    ``_fichier_depuis_un_bloc``).
-    """
+    The normal transport stays ``{"files": {…}}`` — the same JSON contract as
+    the monolithic path. When it is unreadable, we fall back on the file
+    returned in a fenced block rather than burning a retry (see
+    ``_fichier_depuis_un_bloc``)."""
     try:
         payload = _json_payload(raw_text)
         files = _validate_files(payload.get("files"), require_index=False)
@@ -168,12 +165,11 @@ def _write_files(project_dir, files):
     return frontend_dir
 
 def _restaurer_frontend(project_dir, instantane):
-    """Remet le frontend dans l'état exact d'un instantané.
+    """Puts the frontend back in the exact state of a snapshot.
 
-    Ciblée à dessein : seuls les fichiers de la LISTE BLANCHE sont touchés.
-    Effacer le dossier emporterait les images générées, qui n'y sont pas
-    soumises et que personne ne rejouerait sans repayer.
-    """
+    Targeted on purpose: only the ALLOWLISTED files are touched. Wiping the
+    folder would take away the generated images, which are not subject to it
+    and which nobody would replay without paying again."""
     frontend_dir = os.path.join(project_dir, "frontend")
     for rel in set(_read_existing_frontend(project_dir)) - set(instantane):
         os.remove(os.path.join(frontend_dir, rel))
@@ -194,7 +190,7 @@ def _read_existing_frontend(project_dir):
     return snapshot
 
 def _project_guidance(project_dir):
-    """Ajoute les artefacts de direction préparés par l'auteur au brief IA."""
+    """Adds the direction artifacts prepared by the author to the AI brief."""
     blocks = []
     for name in (DESIGN_SYSTEM_FILENAME, DESIGN_SPEC_FILENAME,
                  ASSET_MANIFEST_FILENAME):

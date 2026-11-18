@@ -1,29 +1,28 @@
 # ─────────────────────────────────────────────────────────────────────
-# GÉNÉRATION DU FRONTEND PAR IA — pivot orchestrateur, point 4 : fermer
-# complètement la boucle. 'monl frontend' envoie le brief
-# (docs/FRONTEND_PROMPT.md, ou docs/FRONTEND_UPDATE_PROMPT.md + fichiers existants en
-# mode --update) à une IA spécialisée, écrit les fichiers rendus dans
-# frontend/, puis RE-VÉRIFIE automatiquement l'ensemble (cohérence statique
-# + smoke test comportemental). En cas d'échec, les erreurs constatées sont
-# renvoyées UNE FOIS au modèle pour correction : jamais de boucle infinie,
-# jamais d'échec silencieux.
+# AI FRONTEND GENERATION — orchestrator pivot, point 4: fully close the loop.
+# 'monl frontend' sends the brief (docs/FRONTEND_PROMPT.md, or
+# docs/FRONTEND_UPDATE_PROMPT.md + existing files in --update mode) to a
+# specialized AI, writes the returned files into frontend/, then automatically
+# RE-CHECKS the whole (static consistency + behavioral smoke test). On failure,
+# the errors found are sent back ONCE to the model for correction: never an
+# infinite loop, never a silent failure.
 #
-# Fournisseurs : 'claude' (API Anthropic, clé dans ANTHROPIC_API_KEY) en
-# premier ; l'abstraction est une simple fonction provider(prompt) -> str,
-# ce qui rend le module testable par exécution réelle avec un fournisseur
-# factice (tests/test_frontend_ai.py) et extensible (GPT ou autre) sans
-# toucher à la boucle d'orchestration.
+# Providers: 'claude' (Anthropic API, key in ANTHROPIC_API_KEY) first; the
+# abstraction is a plain function provider(prompt) -> str, which makes the
+# module testable by real execution with a fake provider
+# (tests/test_frontend_ai.py) and extensible (GPT or other) without touching
+# the orchestration loop.
 #
-# Garde-fous (le frontend rendu vient d'un modèle, il est traité comme une
-# entrée non fiable — même philosophie que le garde-fou des blocs 'custom',
-# point 4 du journal) :
-#   - chemins strictement relatifs, confinés à frontend/ (ni '..' ni '/')
-#   - extensions autorisées : .html .css .js .svg .json uniquement
-#   - 'index.html' obligatoire, taille totale plafonnée
+# Safeguards (the returned frontend comes from a model, it is treated as
+# untrusted input — the same philosophy as the 'custom' block safeguard, point
+# 4 of the journal):
+#   - strictly relative paths, confined to frontend/ (neither '..' nor '/')
+#   - allowed extensions: .html .css .js .svg .json only
+#   - 'index.html' mandatory, total size capped
 # ─────────────────────────────────────────────────────────────────────
 #
-# Ce module est un PAQUET depuis le point 153 : un fichier par
-# préoccupation. La surface publique n'a pas bougé.
+# This module has been a PACKAGE since point 153: one file per concern. The
+# public surface did not move.
 
 from ..design_system import activate_asset_manifest
 from ..frontend_contract import PROMPT_FILENAME
