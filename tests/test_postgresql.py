@@ -441,7 +441,7 @@ migration note_fields
         assert "rename not applied" in output
         assert "type of note.priority" in output
         assert "column removed from the spec" in output
-        assert "base ne sera pas servie" in output
+        assert "the database will not be served" in output
 
         cli_env = {**env, "PYTHONPATH": str(Path(__file__).parents[1] / "src")}
         applied = subprocess.run(
@@ -554,7 +554,7 @@ migration broken
         assert history_count == 0
 
         returncode, output = _server_expected_failure(directory, env)
-        assert returncode != 0 and "base ne sera pas servie" in output
+        assert returncode != 0 and "the database will not be served" in output
 
 
 def test_migration_postgresql_down_retablit_noms_types_et_donnees(postgres_dsn):
