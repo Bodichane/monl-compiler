@@ -1,10 +1,12 @@
 app FluxBoard
 
 # ─────────────────────────────────────────────────────────────────────
-# TABLEAU KANBAN COMPLET — suivi de tâches d'équipe.
-# Vue publique en colonnes (archétype kanban : une colonne par statut,
-# découverte à l'exécution) + gestion manager. Les tâches de démonstration
-# remplissent les colonnes dès l'ouverture.
+# COMPLETE KANBAN BOARD — team task tracking.
+# Public column view (kanban archetype: one column per status, discovered
+# at
+# runtime) + manager administration. The demo tasks fill the columns from
+# the
+# first opening.
 # ─────────────────────────────────────────────────────────────────────
 
 entity Task
@@ -30,8 +32,8 @@ workflow WorkBoard for Contributor
     Read Task
     Update Task.status
 
-# Tâches de démonstration réparties sur plusieurs statuts (les colonnes du
-# tableau sont déduites de ces valeurs) et priorités.
+# Demo tasks spread over several statuses (the board's columns are deduced
+# from these values) and priorities.
 seed Task
     title: "Cadrage du projet", assignee: "Ana", priority: "Haute", status: "À faire", description: "Définir le périmètre et les livrables."
     title: "Recherche utilisateurs", assignee: "Bo", priority: "Moyenne", status: "À faire", description: "5 entretiens à mener cette semaine."

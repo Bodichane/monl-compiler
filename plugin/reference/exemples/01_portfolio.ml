@@ -1,16 +1,18 @@
 app StudioNova
 
 # ─────────────────────────────────────────────────────────────────────
-# PORTFOLIO COMPLET — studio de design fictif.
-# Vitrine publique (galerie de projets) + zone d'administration + formulaire
-# de contact. Les données de démonstration ci-dessous (bloc 'seed') font que
-# le site s'affiche REMPLI dès la première ouverture, avec de vraies images.
+# COMPLETE PORTFOLIO — fictional design studio.
+# Public showcase (project gallery) + administration area + contact form.
+# The
+# demo data below ('seed' block) makes the site show up FILLED from the
+# first
+# opening, with real images.
 # ─────────────────────────────────────────────────────────────────────
 
-# BRIQUE 13 (point 83) : les fichiers fournis par l'humain, VÉRIFIÉS PRÉSENTS à
-# la compilation. Ce dossier vit hors de frontend/, qui est renommé à chaque
-# construction par 'monl frontend'. Ces trois lignes se posent aussi à la
-# commande : 'monl assets add logo.svg --logo' (point 84).
+# BRICK 13 (point 83): the files supplied by the human, CHECKED PRESENT at
+# compile time. This folder lives outside frontend/, which is renamed on every
+# build by 'monl frontend'. These three lines can also be set from the command
+# line: 'monl assets add logo.svg --logo' (point 84).
 assets
     dir: "assets"
     logo: "studionova.svg"
@@ -19,14 +21,14 @@ assets
 entity Project
     title: String
     description: Text
-    # DEUX images sur la même entité, et c'est délibéré — c'est la distinction
-    # que la brique 13 introduit, montrée côte à côte :
-    #   'cover' est un fichier LOCAL du projet. Type 'Image' : le compilateur
-    #   refuse de compiler s'il manque, parce qu'une image cassée ne se voit
-    #   qu'à l'œil, en ligne.
-    #   'imageUrl' est une adresse DISTANTE. Elle reste 'String' : monl ne fait
-    #   aucun appel réseau, il ne pourrait rien affirmer d'une URL — mieux vaut
-    #   ne rien promettre que promettre à faux.
+    # TWO images on the same entity, and on purpose — it is the distinction
+    # brick 13 introduces, shown side by side:
+    #   'cover' is a LOCAL file of the project. Type 'Image': the compiler
+    #   refuses to compile if it is missing, because a broken image is only
+    #   noticed by eye, once live.
+    #   'imageUrl' is a REMOTE address. It stays 'String': monl makes no
+    #   network call, it could assert nothing about a URL — better to promise
+    #   nothing than to promise falsely.
     cover: Image
     imageUrl: String
     category: String
@@ -44,7 +46,8 @@ rule Project.title required
 rule Project.Read public
 rule Message.Create public
 
-# Les visiteurs consultent la galerie sans compte ; l'admin gère les projets.
+# Visitors browse the gallery without an account; the admin manages the
+# projects.
 workflow BrowsePortfolio for Visitor
     Read Project
 
@@ -57,8 +60,9 @@ workflow ManagePortfolio for Admin
     Delete Project
     Read Message
 
-# Données de démonstration : 6 projets réels avec images (picsum.photos,
-# libres et stables par 'seed'). Le site s'ouvre déjà peuplé.
+# Demo data: 6 real projects with images (picsum.photos, free and stable
+# by
+# 'seed'). The site opens already populated.
 seed Project
     title: "Refonte Aurora", cover: "assets/aurora.svg", category: "Identité", year: 2024, description: "Direction artistique et système de design complet pour une marque de cosmétiques.", imageUrl: "https://picsum.photos/seed/aurora/800/600"
     title: "App Meridian", cover: "assets/meridian.svg", category: "Produit", year: 2024, description: "Application mobile de suivi d'habitudes, du concept aux écrans finaux.", imageUrl: "https://picsum.photos/seed/meridian/800/600"
