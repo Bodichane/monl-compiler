@@ -40,6 +40,14 @@ def _resoudre_seed(normalized, lignes, pour, entity, field):
     photo on the wrong item, and nobody would see it before going live."""
     blocs_fichier = _blocs_seed(lignes)
     blocs_ast = normalized.get("seeds") or []
+    _verifier_correspondance_seed(blocs_fichier, blocs_ast)
+    candidats, toutes_valeurs = _candidats_seed(blocs_fichier, blocs_ast, entity, pour)
+    _refuser_designation(candidats, toutes_valeurs, pour, entity)
+    ent, plage, _row = candidats[0]
+    return _champ_image(normalized, ent, field, plage)
+
+def _verifier_correspondance_seed(blocs_fichier, blocs_ast):
+    """The file and the AST list the same seed blocks, row for row."""
     if not blocs_ast:
         raise AssetsToolError(
             "This spec has no 'seed' block to attach a photo to. Add the block, "
@@ -55,24 +63,34 @@ def _resoudre_seed(normalized, lignes, pour, entity, field):
             "(different number of rows). The tool stops rather than writing to "
             "a different row from the one requested.")
 
-    candidats, toutes_valeurs = [], []
+
+def _lignes_seed(blocs_fichier, blocs_ast, entity):
+    """Every seed row as (entity, line range, values), filtered by --entity."""
     for (ent, plages), bloc in zip(blocs_fichier, blocs_ast, strict=True):
         if entity and ent != entity:
             continue
         for k, row in enumerate(bloc["rows"]):
-            textes = [v for v in row.values() if isinstance(v, str)]
-            toutes_valeurs.extend(textes)
-            if any(v.strip() == pour.strip() for v in textes):
-                candidats.append((ent, plages[k], row))
-    if not candidats:  # second pass, case-insensitive
-        for (ent, plages), bloc in zip(blocs_fichier, blocs_ast, strict=True):
-            if entity and ent != entity:
-                continue
-            for k, row in enumerate(bloc["rows"]):
-                if any(isinstance(v, str) and v.strip().lower() == pour.strip().lower()
-                       for v in row.values()):
-                    candidats.append((ent, plages[k], row))
+            yield ent, plages[k], row
 
+
+def _candidats_seed(blocs_fichier, blocs_ast, entity, pour):
+    """Rows carrying the value: exact first, case-insensitive second."""
+    lignes = list(_lignes_seed(blocs_fichier, blocs_ast, entity))
+    candidats, toutes_valeurs = [], []
+    for ent, plage, row in lignes:
+        textes = [v for v in row.values() if isinstance(v, str)]
+        toutes_valeurs.extend(textes)
+        if any(v.strip() == pour.strip() for v in textes):
+            candidats.append((ent, plage, row))
+    if not candidats:  # second pass, case-insensitive
+        candidats = [(ent, plage, row) for ent, plage, row in lignes
+                     if any(isinstance(v, str) and v.strip().lower() == pour.strip().lower()
+                            for v in row.values())]
+    return candidats, toutes_valeurs
+
+
+def _refuser_designation(candidats, toutes_valeurs, pour, entity):
+    """Exactly one row must match: none or several is refused, with help."""
     if not candidats:
         proches = difflib.get_close_matches(pour, toutes_valeurs, n=3, cutoff=0.5)
         indice = (" Maybe: " + ", ".join(f"'{p}'" for p in proches)) if proches else ""
@@ -80,12 +98,14 @@ def _resoudre_seed(normalized, lignes, pour, entity, field):
             f"No seed row has the value '{pour}'"
             + (f" in entity {entity}" if entity else "") + f".{indice}")
     if len(candidats) > 1:
-        ou = ", ".join(f"{e} ligne {plage[0] + 1}" for e, plage, _ in candidats)
+        ou = ", ".join(f"{e} row {plage[0] + 1}" for e, plage, _ in candidats)
         raise AssetsToolError(
             f"'{pour}' matches {len(candidats)} rows ({ou}): specify --entity, "
             f"or use a value that belongs to only one row.")
 
-    ent, plage, _row = candidats[0]
+
+def _champ_image(normalized, ent, field, plage):
+    """The 'Image' field of the designated row: named, or the only one."""
     champs = normalized["schema"]["entities"].get(ent, {})
     images = [nom for nom, type_ in champs.items() if type_ == "Image"]
     if field:
@@ -108,6 +128,7 @@ def _resoudre_seed(normalized, lignes, pour, entity, field):
         raise AssetsToolError(
             f"{ent} has multiple 'Image' fields ({', '.join(images)}): specify --field.")
     return ent, images[0], plage
+
 
 def _nom_de_fichier(source, nom, pour, cible):
     if nom:

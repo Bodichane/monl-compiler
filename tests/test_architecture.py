@@ -395,7 +395,6 @@ def test_chaque_exception_de_taille_vise_un_fichier_qui_depasse_encore():
 # elles sont des cliquets, pas des plafonds de confort.
 PLAFOND_COMPLEXITE = 15
 EXCEPTIONS_DE_COMPLEXITE = {
-    "monl/assets_tool/resolution.py:_resoudre_seed": (37, "Le résolveur conserve plusieurs cas métier liés aux seeds ; il est hors périmètre et borné par son cliquet."),
     "monl/cli/delta.py:_rapporter_delta": (46, "Rapport de delta hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/cli/signature.py:_contract_signature": (53, "Sérialisation et émission de signature conservées ligne par ligne ; cas plat hors des cinq cibles."),
     "monl/dialogue_engine/commerce.py:_ask_payable": (32, "Parcours de dialogue hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
