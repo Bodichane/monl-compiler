@@ -426,7 +426,6 @@ EXCEPTIONS_DE_COMPLEXITE = {
     "monl/parser/transformer_structure.py:app": (30, "Transformation d'AST hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/smoke_test/etapes.py:_eprouver_les_routes": (27, "Parcours de smoke test hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/ui_patterns.py:select_ui_patterns": (23, "Sélection de motifs hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
-    "monl/usage.py:_load_prices": (23, "Chargement de tarifs hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
 }
 
 
