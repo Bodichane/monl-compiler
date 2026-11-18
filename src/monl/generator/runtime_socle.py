@@ -1,5 +1,5 @@
-"""Le haut de app.py : imports, application, secret, quota, enveloppe SQLite,
-et ce que le serveur généré sait faire seul (horodatage, numérotation)."""
+"""The top of app.py: imports, application, secret, quota, SQLite wrapper,
+and what the generated server can do on its own (timestamping, numbering)."""
 from string import Template
 
 DB_POOL_MIN_ENV = "MONL_DB_POOL_MIN"
@@ -7,10 +7,10 @@ DB_POOL_MAX_ENV = "MONL_DB_POOL_MAX"
 
 
 class SocleRuntimeMixin:
-    """Le haut de app.py : imports, application, secret, quota, enveloppe SQLite,"""
+    """The top of app.py: imports, application, secret, quota, SQLite wrapper,"""
 
     def _socle_et_schemas(self):
-        """Imports, application FastAPI, secret, quota, schémas Pydantic."""
+        """Imports, FastAPI application, secret, quota, Pydantic schemas."""
         actors_literal = ", ".join(Template(r'''"${actor}"''').substitute(actor=actor) for actor in self.actors)
         self_register_literal = ", ".join(Template(r'''"${actor}"''').substitute(actor=actor) for actor in self.self_register_actors)
         message_imports = ([
@@ -31,10 +31,10 @@ import struct''').substitute().split("\n")]
 from fastapi import FastAPI, HTTPException, Header, Depends, Request${upload_imports}
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field, field_validator''').substitute(upload_imports=', UploadFile, File' if self.upload_fields else '').split("\n"),
-            # BRIQUE 19 (point 96) : 'Literal' porte les listes de valeurs
-            # autorisées dans les schémas Pydantic. Absent, le app.py généré
-            # ne démarre pas — même défaut que 're' au point 95, et trouvé
-            # pareillement en lançant le serveur.
+            # BRICK 19 (point 96): 'Literal' carries the allowed value lists in
+            # the Pydantic schemas. Without it, the generated app.py does not
+            # start — the same defect as 're' in point 95, found the same way
+            # by starting the server.
             *Template(r'''from typing import List, Optional, Any, Literal
 import sqlite3
 import jwt
@@ -47,23 +47,23 @@ import time
 import threading''').substitute().split("\n"),
             *message_imports,
             *totp_imports,
-            # POINT 95 : la forme de l'identifiant de compte se vérifie par
-            # motif. Absent, le app.py généré ne démarrait même pas
-            # (NameError sur 're') — trouvé en lançant le serveur, jamais
-            # visible en relisant le générateur.
+            # POINT 95: the form of the account identifier is checked with a
+            # pattern. Without it, the generated app.py did not even start
+            # (NameError on 're') — found by starting the server, never visible
+            # when rereading the generator.
             *Template(r'''import re''').substitute().split("\n"),
-            # BRIQUE PAIEMENT (point 74) : premier appel SORTANT du backend
-            # généré. json/urllib ne servaient à rien tant que monl restait
-            # hors-ligne ; encaisser change cela, et il faut le dire.
+            # PAYMENT BRICK (point 74): the generated backend's first OUTGOING
+            # call. json/urllib served no purpose while monl stayed offline;
+            # charging changes that, and it must be said.
             *Template(r'''import json
 import urllib.parse
 import urllib.request
 import urllib.error''').substitute().split("\n"),
-            # L'import ne s'écrit QUE si la spec porte des blocs `custom`.
-            # Écrit en dur, il rendait `sandbox_ai.py` obligatoire pour tout
-            # projet : un fichier d'UNE ligne, jamais appelé, et dont la
-            # suppression faisait échouer le démarrage sur `ModuleNotFoundError`
-            # — un fichier qui ne fait rien et qu'on ne peut pas enlever.
+            # The import is written ONLY if the spec carries `custom` blocks.
+            # Hard-coded, it made `sandbox_ai.py` mandatory for every project:
+            # a ONE-line file, never called, whose deletion made startup fail
+            # with `ModuleNotFoundError` — a file that does nothing and cannot
+            # be removed.
             *([*Template(r'''import sandbox_ai  # Hand-written 'custom' functions (isolated module)
 ''').substitute().split("\n")]
               if self.custom_functions else []),
@@ -71,9 +71,9 @@ import urllib.error''').substitute().split("\n"),
 
 DB_FILE = 'app.db'
 ''').substitute().split("\n"),
-            # A1 : le moteur est un choix de DÉMARRAGE, jamais de compilation.
-            # L'artefact scellé peut donc tourner en développement sur SQLite
-            # et en production sur PostgreSQL sans être recompilé.
+            # A1: the engine is a STARTUP choice, never a compile-time one. The
+            # sealed artifact can therefore run on SQLite in development and on
+            # PostgreSQL in production without being recompiled.
             *Template(r'''MONL_DATABASE_URL = (os.environ.get('MONL_DATABASE_URL') or '').strip()
 _DATABASE_KIND = 'sqlite'
 _psycopg = None
@@ -197,7 +197,7 @@ class _DatabaseConnection:
         ]
 
     def _socle_outils_generes(self, actors_literal, self_register_literal):
-        """Ce que le serveur généré sait faire seul : schéma, horodatage, numéro."""
+        """What the generated server can do on its own: schema, timestamp, number."""
         return [
             *self._pool_runtime_lines(),
             *Template(r'''def _schema_for_database(script):
@@ -242,34 +242,32 @@ def _database_integrity_kind(error, once_names=(), once_signatures=()):
         return 'foreign_key'
     return None
 ''').substitute().split("\n"),
-            # AJOUT (brique 16, point 89) : l'instant de création d'un
-            # enregistrement, en ISO 8601 UTC. Deux choix qui tiennent la
-            # brique :
-            #  - UTC, jamais l'heure locale du serveur : une machine
-            #    redéployée ailleurs ne doit pas faire reculer les dates.
-            #  - texte trié lexicographiquement = trié chronologiquement,
-            #    parce que le décalage est TOUJOURS '+00:00' et le format de
-            #    largeur fixe. C'est ce qui rend 'ORDER BY' juste sur une
-            #    colonne TEXT, donc ce qui dispense d'un type SQLite qui
-            #    n'existe pas.
-            # La milliseconde n'est pas de la précision pour la précision :
-            # à la seconde, deux commandes passées coup sur coup portent la
-            # MÊME date et ne sont plus ordonnables — ce qui vide de son sens
-            # la propriété qu'on vient d'annoncer. Quatre caractères de plus,
-            # et le tri redevient total.
+            # ADDED (brick 16, point 89): the moment a record was created, in
+            # ISO 8601 UTC. Two choices hold the brick together:
+            # - UTC, never the server's local time: a machine redeployed
+            #   elsewhere must not make dates go backwards.
+            # - text sorted lexicographically = sorted chronologically, because
+            #   the offset is ALWAYS '+00:00' and the format has a fixed width.
+            #   That is what makes 'ORDER BY' correct on a TEXT column, hence
+            #   what spares us a SQLite type that does not exist.
+            #
+            # The millisecond is not precision for its own sake: to the second,
+            # two orders placed back to back carry the SAME date and can no
+            # longer be ordered — which empties the property just announced of
+            # its meaning. Four more characters, and the sort is total again.
             *Template(r'''def _horodatage():
     return datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='milliseconds')
 ''').substitute().split("\n"),
-            # BRIQUE 22 (point 102) : le numéro lisible. Le compteur vit dans une
-            # table SYSTÈME et non dans la table métier : compter les lignes
-            # existantes redonnerait le numéro d'un enregistrement supprimé, et
-            # `MAX(...) + 1` se tromperait dès que deux créations se croisent.
+            # BRICK 22 (point 102): the readable number. The counter lives in a
+            # SYSTEM table and not in the business table: counting the existing
+            # rows would give back the number of a deleted record, and
+            # `MAX(...) + 1` would go wrong as soon as two creations cross.
             #
-            # L'UPDATE conditionnel puis le test de `rowcount` sont le même
-            # motif qu'au décompte de stock (point 86) : une seule instruction
-            # porte la lecture et l'écriture, donc deux transactions ne peuvent
-            # pas lire le même compteur. L'INSERT d'amorçage vient AVANT, et son
-            # 'ON CONFLICT DO NOTHING' rend l'ordre indifférent.
+            # The conditional UPDATE then the `rowcount` test are the same
+            # pattern as the stock count (point 86): a single statement carries
+            # the read and the write, so two transactions cannot read the same
+            # counter. The bootstrap INSERT comes FIRST, and its 'ON CONFLICT
+            # DO NOTHING' makes the order irrelevant.
             *Template(r'''def _periode_courante(gabarit_periode):
     if not gabarit_periode:
         return ''
@@ -296,20 +294,20 @@ def _attribuer_numero(cursor, entite, champ, gabarit, gabarit_periode):
                             ('MM', f'{_m.month:02d}'),
                             ('DD', f'{_m.day:02d}')):
         numero = numero.replace('{' + _jalon + '}', _valeur)''').substitute().split("\n"),
-            # La largeur vient du nombre de N écrits dans le gabarit. Un rang qui
-            # la dépasse n'est PAS tronqué : mieux vaut un numéro plus long que
-            # deux enregistrements portant le même.
+            # The width comes from the number of N written in the template. A
+            # rank that exceeds it is NOT truncated: a longer number is better
+            # than two records carrying the same one.
             *Template(r'''    _seq = re.search(r'\{(N+)\}', numero)
     if _seq:
         numero = numero.replace(_seq.group(0), str(rang).zfill(len(_seq.group(1))))
     return numero
 ''').substitute().split("\n"),
-            # CORRECTIF (bêta, hygiène de secret) : le secret JWT est lu en
-            # priorité depuis la variable d'environnement MONL_JWT_SECRET
-            # (recommandé en production — le secret ne touche jamais le disque
-            # ni un dépôt), et retombe sinon sur le fichier '.jwt_secret'.
-            # Une archive livrée sans secret peut ainsi en créer un au premier
-            # démarrage, sur la machine qui l'héberge.
+            # FIX (beta, secret hygiene): the JWT secret is read first from the
+            # MONL_JWT_SECRET environment variable (recommended in production —
+            # the secret never touches the disk or a repository), and otherwise
+            # falls back to the '.jwt_secret' file. An archive shipped without
+            # a secret can thus create one on first start, on the machine that
+            # hosts it.
             *Template(r'''JWT_SECRET = (os.environ.get('MONL_JWT_SECRET') or '').strip()
 _MONL_ENV = os.environ.get('MONL_ENV', '').strip().lower()
 if _MONL_ENV == 'production' and not JWT_SECRET:
@@ -340,19 +338,18 @@ if not JWT_SECRET:
         raise RuntimeError('The .jwt_secret file is empty')
 JWT_ALGORITHM = 'HS256'
 VALID_ACTORS = [${actors}]''').substitute(actors=actors_literal).split("\n"),
-            # CORRECTIF (bêta 3, faille critique d'élévation de privilège) :
-            # '/register' acceptait n'importe quel rôle déclaré, envoyé par le
-            # client. Le rôle porté par le jeton provenait bien du compte réel,
-            # mais ce compte se choisissait lui-même son rôle : s'inscrire
-            # comme administrateur suffisait. Seuls les rôles marqués
-            # 'selfRegister' dans la spec sont désormais ouverts à
-            # l'inscription ; les autres sont provisionnés hors ligne
-            # (manage.py). Liste vide = aucune inscription libre.
+            # FIX (beta 3, critical privilege-escalation flaw): '/register'
+            # accepted any declared role sent by the client. The role carried
+            # by the token did come from the real account, but that account
+            # chose its own role: registering as an administrator was enough.
+            # Only roles marked 'selfRegister' in the spec are now open to
+            # registration; the others are provisioned offline (manage.py).
+            # Empty list = no open registration.
             *Template(r'''SELF_REGISTER_ACTORS = [${self_register_actors}]''').substitute(self_register_actors=self_register_literal).split("\n"),
-            # CORRECTIF (bêta 3) : la durée de vie était écrite en dur (2 h)
-            # alors que le contrat remis à l'IA frontend annonçait 1 h. Valeur
-            # unique, réglable au déploiement, et publiée telle quelle dans le
-            # contrat — une promesse de sécurité invérifiable ne vaut rien.
+            # FIX (beta 3): the lifetime was hard-coded (2 h) while the
+            # contract given to the frontend AI announced 1 h. A single value,
+            # configurable at deployment, and published as is in the contract —
+            # an unverifiable security promise is worth nothing.
             *Template(r'''TOKEN_TTL_HOURS = int(os.environ.get('MONL_TOKEN_TTL_HOURS', '2'))
 ''').substitute().split("\n"),
             *( [*Template(r'''TOKEN_TTL_SECONDS = int(os.environ.get('MONL_TOKEN_TTL_SECONDS', str(TOKEN_TTL_HOURS * 3600)))

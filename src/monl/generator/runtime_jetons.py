@@ -1,19 +1,19 @@
-"""Le jeton, et la forme de l'identifiant de compte.
+"""The token, and the form of the account identifier.
 
-POINT 95 : la substance n'est pas la validation, c'est la NORMALISATION —
-sans forme canonique, l'unicité se contourne en changeant une majuscule.
-Elle s'applique aux TROIS endroits : `/register`, `/login` et `manage.py`,
-le troisième étant celui qu'on oublie. Le champ reste nommé `username` SUR
-LE FIL : c'est le CONTRAT qui dit ce qu'il doit contenir."""
+POINT 95: the substance is not validation, it is NORMALIZATION — without a
+canonical form, uniqueness can be bypassed by changing a capital letter.
+It applies in THREE places: `/register`, `/login` and `manage.py`, the
+third being the one people forget. The field stays named `username` ON THE
+WIRE: it is the CONTRACT that says what it must contain."""
 
 from string import Template
 
 
 class JetonsRuntimeMixin:
-    """Le jeton, et la forme de l'identifiant de compte."""
+    """The token, and the form of the account identifier."""
 
     def _socle_jetons(self):
-        """Schéma attendu, jeu de démonstration, unicités, et lecture du jeton."""
+        """Expected schema, demo dataset, uniqueness, and token reading."""
         return [
             *Template(r"""# ADDED (long-term roadmap, lossless migrations): expected column
 # schema per table (excluding 'id'), consumed by init_db() to apply the
@@ -28,13 +28,13 @@ class JetonsRuntimeMixin:
 # init_db() (idempotent insertion when empty).""").substitute().split("\n"),
             Template(r"""_SEED_DATA = ${seed_data}
 """).substitute(seed_data=repr(self._compute_seed_data())),
-            # POINT 85 : 'rule Entite.champ unique' ne produisait RIEN — deux
-            # lignes de même valeur étaient acceptées (vérifié contre un vrai
-            # serveur). Un INDEX plutôt qu'une contrainte de colonne, pour une
-            # raison qui commande : SQLite ne sait pas ajouter UNIQUE à une
-            # colonne existante, alors que CREATE UNIQUE INDEX IF NOT EXISTS
-            # s'applique à une table déjà peuplée et reste idempotent. La
-            # promesse de migration additive (point 32) est donc tenue.
+            # POINT 85: 'rule Entity.field unique' produced NOTHING — two rows
+            # with the same value were accepted (checked against a real
+            # server). An INDEX rather than a column constraint, for a decisive
+            # reason: SQLite cannot add UNIQUE to an existing column, whereas
+            # CREATE UNIQUE INDEX IF NOT EXISTS applies to an already populated
+            # table and stays idempotent. The additive migration promise (point
+            # 32) is therefore kept.
             Template(r"""_UNIQUE_INDEXES = ${unique_indexes}
 """).substitute(unique_indexes=repr(self._compute_unique_indexes())),
             Template(r"""# Lookup indexes for foreign keys and filterable fields,
@@ -47,10 +47,10 @@ class JetonsRuntimeMixin:
 """).substitute(),
             Template(r"""_ONCE_PER_INDEXES = ${once_per_indexes}
 """).substitute(once_per_indexes=repr(self._compute_once_per_indexes())),
-            # POINT 89 : les colonnes horodatées, pour que le démarrage puisse
-            # DIRE combien d'enregistrements n'auront jamais de date. Voir le
-            # bloc de migration : c'est le seul cas du compilateur où une
-            # colonne ajoutée ne peut pas être rattrapée.
+            # POINT 89: the timestamped columns, so that startup can SAY how
+            # many records will never have a date. See the migration block: it
+            # is the only case in the compiler where an added column cannot be
+            # caught up.
             Template(r"""_TIMESTAMP_COLUMNS = ${timestamp_columns}
 """).substitute(timestamp_columns=repr(self._compute_timestamp_columns())),
             Template(r"""_POSTPAYMENT_ENUM_COLUMNS = ${postpayment_enumerated_columns}
@@ -59,11 +59,11 @@ class JetonsRuntimeMixin:
 """).substitute(numbered_columns=repr(self._compute_numbered_columns())),
             Template(r"""security_bearer = HTTPBearer()
 """).substitute(),
-            # CORRECTIF (roadmap, révocation de token) : la vérification du
-            # token est centralisée dans une seule fonction, appelée par les
-            # deux dépendances ci-dessous — avant, chacune redécodait le token
-            # indépendamment, ce qui aurait pu faire oublier la vérification
-            # de révocation dans l'une des deux lors d'une future modification.
+            # FIX (roadmap, token revocation): token verification is
+            # centralized in a single function, called by the two dependencies
+            # below — before, each decoded the token on its own, which could
+            # have let a future change forget the revocation check in one of
+            # the two.
             *Template(r"""# FIX (beta 3): purge revoked tokens that have already expired — their
 # signature is no longer accepted anyway, keeping them only bloated the
 # table read on every authenticated request.
@@ -95,12 +95,12 @@ def _purge_revoked_tokens(cursor):
             Template(r"""    return payload
 """).substitute(),
 
-            # Une seule dépendance FastAPI stricte porte le décodage et le
-            # contrôle de révocation. Les trois consommateurs partagent son
-            # identité de callable, donc FastAPI la met en cache une fois par
-            # requête. `get_optional_identity`, émise séparément pour les
-            # routes publiques, reste volontairement distincte : elle rend
-            # `{}` au lieu de 401 pour un jeton absent, invalide ou révoqué.
+            # A single strict FastAPI dependency carries decoding and the
+            # revocation check. The three consumers share its callable
+            # identity, so FastAPI caches it once per request.
+            # `get_optional_identity`, emitted separately for public routes,
+            # stays deliberately distinct: it returns `{}` instead of 401 for a
+            # missing, invalid or revoked token.
             Template(r"""def _identite_du_jeton(credentials: HTTPAuthorizationCredentials = Depends(security_bearer)) -> dict:""").substitute(),
             Template(r"""    return _decode_and_verify_token(credentials)
 """).substitute(),
@@ -109,58 +109,60 @@ def _purge_revoked_tokens(cursor):
             Template(r"""    return payload.get('actor')
 """).substitute(),
 
-            # AJOUT (post-v6, roadmap) : dépendance séparée pour récupérer l'identité
-            # numérique (user_id) portée par le token, utilisée par le contrôle
-            # d'accès par propriété ('ownedBy') et par le peuplement automatique
-            # des colonnes de clé étrangère à la création d'un enregistrement.
+            # ADDED (post-v6, roadmap): a separate dependency to fetch the
+            # numeric identity (user_id) carried by the token, used by
+            # ownership access control ('ownedBy') and by automatically filling
+            # foreign key columns when a record is created.
             Template(r"""def get_current_user_id(payload: dict = Depends(_identite_du_jeton)) -> int:""").substitute(),
             Template(r"""    return payload.get('user_id', 0)
 """).substitute(),
 
-            # AJOUT (roadmap, écosystème de capacités -- suite de la brique 1) :
-            # dépendance séparée pour récupérer le pseudonyme anonyme stable
-            # du compte courant, utilisée par les champs 'generated' -- déjà
-            # porté par le JWT depuis /login (voir plus bas), pas besoin
-            # d'une requête DB supplémentaire à chaque appel.
+            # ADDED (roadmap, capability ecosystem -- follow-up to brick 1): a
+            # separate dependency to fetch the current account's stable
+            # anonymous pseudonym, used by 'generated' fields -- already
+            # carried by the JWT since /login (see below), so no extra DB query
+            # on every call.
             Template(r"""def get_current_anon_handle(payload: dict = Depends(_identite_du_jeton)) -> str:""").substitute(),
             Template(r"""    return payload.get('anon_handle', '')
 """).substitute(),
         ]
 
     def _generate_identifier_helpers(self):
-        """Normalisation + contrôle de forme de l'identifiant de compte (95).
+        """Normalization + form check of the account identifier (95).
 
-        Émis MÊME sans déclaration : la fonction existe alors et rend la valeur
-        inchangée. Un seul chemin de code dans le app.py généré vaut mieux que
-        deux, dont un jamais exercé — et `/register`, `/login` et `manage.py`
-        DOIVENT s'accorder, sinon on crée des comptes auxquels on ne peut pas
-        se connecter."""
+        Emitted EVEN without a declaration: the function then exists and returns
+        the value unchanged. One code path in the generated app.py is better than
+        two, one of which is never exercised — and `/register`, `/login` and
+        `manage.py` MUST agree, otherwise we create accounts nobody can log into."""
         formes = self.auth_identifier or []
         return [
             Template(r"""AUTH_IDENTIFIER_FORMS = ${formes}""").substitute(formes=repr(formes)),
             Template(r"""AUTH_PHONE_PREFIX = ${auth_phone_prefix}""").substitute(auth_phone_prefix=repr(self.auth_phone_prefix)),
-            # Un numéro NATIONAL ('06 12 34 56 78') désigne la même ligne que sa
-            # forme internationale — mais seulement si l'on sait de quel pays.
-            # Déclaré, on canonicalise ; sinon on laisse tel quel, et les deux
-            # notations restent deux comptes (limite énoncée, pas devinée).
-            # POINT 138 : le `0` initial n'est PAS universel. La règle d'origine
-            # ne canonicalisait qu'un numéro commençant par zéro — un préfixe
-            # interurbain européen ('06…' → '+336…'). Au Bénin, où le numéro
-            # local s'écrit sans zéro de tête, `phone_prefix: "+229"` ne
-            # produisait RIEN : la personne inscrite en '97…' ne se
-            # reconnaissait pas en '+22997…', soit exactement les deux comptes
-            # que l'indicatif existe pour empêcher. Une règle déclarée qui ne
-            # produit rien est ce que le point 85 refuse.
-            # Numéro déjà international mais tapé sans le '+' : le préfixer une
-            # seconde fois ('+229' + '229…') fabriquerait un troisième compte.
-            # Motif d'e-mail identique à celui du type `Email` (point 91) : deux
-            # motifs différents pour la même chose finiraient par diverger.
-            # Volontairement large : indicatif optionnel, séparateurs usuels,
-            # 6 à 15 chiffres (E.164 plafonne à 15). monl vérifie la FORME ; il
-            # ne peut pas attester qu'une ligne existe — cela demanderait un
-            # appel sortant, que le compilateur s'interdit partout ailleurs que
-            # chez le prestataire de paiement (même limite qu'au point 91 pour
-            # l'e-mail).
+            # A NATIONAL number ('06 12 34 56 78') designates the same line as
+            # its international form — but only if we know which country.
+            # Declared, we canonicalize; otherwise we leave it as is, and the
+            # two notations remain two accounts (a stated limit, not a guess).
+            #
+            # POINT 138: the leading `0` is NOT universal. The original rule
+            # only canonicalized a number starting with zero — a European trunk
+            # prefix ('06…' → '+336…'). In Benin, where the local number is
+            # written without a leading zero, `phone_prefix: "+229"` produced
+            # NOTHING: the person registered as '97…' was not recognized as
+            # '+22997…', exactly the two accounts the calling code exists to
+            # prevent. A declared rule that produces nothing is what point 85
+            # refuses.
+            #
+            # A number already international but typed without the '+':
+            # prefixing it a second time ('+229' + '229…') would make a third
+            # account.
+            #
+            # Email pattern identical to the `Email` type's (point 91): two
+            # different patterns for the same thing would eventually diverge.
+            # Deliberately broad: optional calling code, usual separators, 6 to
+            # 15 digits (E.164 caps at 15). monl checks the FORM; it cannot
+            # attest that a line exists — that would need an outgoing call,
+            # which the compiler forbids itself everywhere except at the
+            # payment provider (same limit as point 91 for email).
             *Template(r'''
 def _normalize_identifier(valeur: str) -> str:
     """Canonical form of the identifier: it is what gets STORED and
