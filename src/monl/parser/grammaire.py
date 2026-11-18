@@ -22,142 +22,138 @@ grammar = r"""
     
     relation: "relation" NAME RELATION_TYPE NAME _NL
     
-    # CORRECTIF (bêta 3, faille d'élévation de privilège) : un acteur n'est
-    # PAS inscriptible librement par défaut. Sans le marqueur 'selfRegister',
-    # les comptes portant ce rôle sont provisionnés hors ligne (manage.py) —
-    # sans quoi n'importe qui pouvait s'inscrire en choisissant le rôle le
-    # plus privilégié de l'application. Ex. :
+    # FIX (beta 3, privilege escalation flaw): an actor is NOT freely
+    # registrable by default. Without the 'selfRegister' marker, accounts
+    # with this role are provisioned offline (manage.py) — otherwise anyone
+    # could register by choosing the application's most privileged role.
+    # E.g.:
     #   actor Customer selfRegister
     #   actor ShopManager
     actor: "actor" NAME SELF_REGISTER? _NL
     SELF_REGISTER: "selfRegister"
     
-    # CORRECTIF (post-v6) : la règle "rule" est éclatée en 3 productions nommées.
-    # Raison : dans la grammaire précédente, les mots-clés "restrictedTo"/"sharedBy"
-    # étaient des littéraux anonymes filtrés par Lark avant transformation, ce qui
-    # empêchait la méthode rule() de savoir quel type de règle elle traitait
-    # (le mot-clé "restrictedTo" n'atteignait jamais le Transformer). Conséquence :
-    # rule["type"] ne valait jamais "restrictedTo", et l'audit de sécurité associé
-    # dans ast_validator.py ne se déclenchait donc jamais. Même classe de bug que
-    # celui déjà corrigé sur le bloc "custom" en v3.
+    # FIX (post-v6): the "rule" rule is split into 3 named productions. Reason: in
+    # the previous grammar, the keywords "restrictedTo"/"sharedBy" were anonymous
+    # literals filtered by Lark before transformation, which kept the rule() method
+    # from knowing which kind of rule it was handling (the "restrictedTo" keyword
+    # never reached the Transformer). Consequence: rule["type"] was never
+    # "restrictedTo", so the related security audit in ast_validator.py never fired.
+    # Same class of bug as the one already fixed on the "custom" block in v3.
     ?rule: constraint_rule | restriction_rule | postpayment_rule | sharing_rule | ownership_rule | access_rule | visibility_rule | conditional_visibility_rule | uniqueness_rule | masking_rule | decrement_rule | increment_rule | categorization_rule | generation_rule | payable_rule | derivation_rule | aggregation_rule | timestamp_rule | numbering_rule | requirement_rule | oneof_rule | release_rule | upload_rule | send_rule | filter_rule | sort_rule
 
     constraint_rule: "rule" REFERENCE VALIDATION_TYPE _NL
                    | "rule" REFERENCE VALIDATION_TYPE INT _NL
-    # AJOUT (brique 19, point 96) : une valeur PARMI UNE LISTE. Nommée comme
-    # « la prochaine brique évidente » aux points 91 et 92, et pour cause : sur
-    # une commande NON réglée, le client posait `status: "livrée"` et le serveur
-    # l'acceptait. Un statut n'est pas du texte, c'est un état parmi quelques-uns
-    # — et une pointure n'est pas une chaîne libre.
-    #   rule Order.status oneOf "panier", "en préparation", "expédiée"
+    # ADDED (brick 19, point 96): one value FROM A LIST. Named "the next obvious
+    # brick" at points 91 and 92, and for good reason: on an UNPAID order, the
+    # client set `status: "delivered"` and the server accepted it. A status is
+    # not text, it is one state among a few — and a shoe size is not a free
+    # string.
+    #   rule Order.status oneOf "cart", "preparing", "shipped"
     oneof_rule: "rule" REFERENCE "oneOf" STRING_LITERAL ("," STRING_LITERAL)* _NL
-    # AJOUT (brique 20, point 98) : atteindre une VALEUR défait un effet.
-    # Le seul bug vivant que la comparaison à une boutique classique avait
-    # laissé (point 96) : annuler une commande la passait en « annulée » et
-    # gardait ses lignes — donc le stock restait consommé. Supprimer les lignes
-    # le rendait (point 92), mais effaçait l'historique ; un marchand veut les
-    # deux. `oneOf` était le préalable : il fallait pouvoir désigner un état.
-    #   rule Order.status "annulée" releases OrderLine
+    # ADDED (brick 20, point 98): reaching a VALUE undoes an effect. The only
+    # live bug the comparison with a classic shop had left (point 96):
+    # cancelling an order set it to "cancelled" and kept its lines — so the
+    # stock stayed consumed. Deleting the lines returned it (point 92), but
+    # erased the history; a merchant wants both. `oneOf` was the prerequisite:
+    # a state had to be nameable.
+    #   rule Order.status "cancelled" releases OrderLine
     release_rule: "rule" REFERENCE STRING_LITERAL "releases" NAME _NL
-    # BRIQUE B1 : un Upload est un fichier envoyé à l'exécution par le client.
-    # Il ne partage volontairement pas la sémantique d'Image : Image est un
-    # chemin d'asset fourni à la compilation, tandis qu'Upload est une colonne
-    # de référence opaque accompagnée d'une route multipart générée.
-    # La limite et les types sont obligatoires : une déclaration qui ne produit
-    # pas un refus observable (taille/type) serait une syntaxe de confort vide.
-    # Le type réel est déterminé côté backend par signature d'octets, jamais par
-    # l'extension ou le nom fournis par le client.
+    # BRICK B1: an Upload is a file sent at runtime by the client. It
+    # deliberately does not share Image's semantics: Image is an asset path
+    # supplied at compile time, while Upload is an opaque reference column with
+    # a generated multipart route. The limit and the types are mandatory: a
+    # declaration that produces no observable refusal (size/type) would be empty
+    # convenience syntax. The real type is determined on the backend by byte
+    # signature, never by the extension or name supplied by the client.
     upload_rule: "rule" REFERENCE "upload" "max" INT "types" STRING_LITERAL ("," STRING_LITERAL)* _NL
-    # BRIQUE B2 : un message part après une création métier réussie. Le
-    # séparateur '¶' structure le corps en paragraphes ; inventer une grammaire
-    # multiligne ici ferait traverser à nouveau la frontière d'indentation.
-    #   rule Order.Create sends "Commande reçue" "Votre commande¶est prise en compte"
+    # BRICK B2: a message leaves after a successful business creation. The '¶'
+    # separator structures the body into paragraphs; inventing a multi-line grammar
+    # here would cross the indentation boundary again.
+    #   rule Order.Create sends "Order received" "Your order¶is being processed"
     send_rule: "rule" REFERENCE "sends" STRING_LITERAL STRING_LITERAL _NL
-    # BRIQUE B3 : capacités de lecture explicites, sans langage de requête.
-    # Chaque champ est déclaré séparément ; le client ne choisit jamais un
-    # opérateur ni une expression. Ex. :
+    # BRICK B3: explicit read capabilities, without a query language. Each
+    # field is declared separately; the client never chooses an operator or
+    # an expression. E.g.:
     #   rule Order.Read filter status
     #   rule Order.Read sort placedAt
-    # La direction est une des deux valeurs fixes de la route (asc/desc), pas
-    # un fragment SQL envoyé par le client.
+    # The direction is one of the route's two fixed values (asc/desc), not an
+    # SQL fragment sent by the client.
     filter_rule: "rule" REFERENCE "filter" NAME _NL
     sort_rule: "rule" REFERENCE "sort" NAME _NL
     restriction_rule: "rule" REFERENCE "restrictedTo" NAME _NL
     postpayment_rule: "rule" REFERENCE "writableAfterPayment" NAME _NL
     sharing_rule: "rule" REFERENCE "sharedBy" NAME ("," NAME)* _NL
-    # AJOUT (post-v6, roadmap) : "ownedBy" restreint une action Update/Delete au
-    # seul enregistrement appartenant à l'acteur courant, via la relation FK
-    # existante entre l'entité et l'acteur propriétaire. Ex. :
+    # ADDED (post-v6, roadmap): "ownedBy" restricts an Update/Delete action to
+    # the record belonging to the current actor alone, through the existing FK
+    # relation between the entity and the owning actor. E.g.:
     #   relation User hasMany Todo
     #   rule Todo.Update ownedBy User
     ownership_rule: "rule" REFERENCE "ownedBy" NAME _NL
 
-    # AJOUT (roadmap, écosystème de capacités -- brique "accès à deux
-    # parties") : 'ownedBy' ne couvre qu'un seul propriétaire ; une
-    # messagerie privée a besoin qu'expéditeur ET destinataire accèdent au
-    # même enregistrement. 'accessibleBy' liste les COLONNES (au moins
-    # deux, imposé par la grammaire -- avec une seule, 'ownedBy' suffit)
-    # de l'entité qui contiennent chacune un identifiant d'utilisateur
-    # autorisé. Production Lark nommée distincte, comme pour
-    # decrement_rule/increment_rule (même piège de filtrage Lark, voir
-    # CLAUDE.md).
+    # ADDED (roadmap, capability ecosystem -- "two-party access" brick):
+    # 'ownedBy' covers a single owner only; private messaging needs both
+    # sender AND recipient to reach the same record. 'accessibleBy' lists
+    # the entity's
+    # COLUMNS (at least two, enforced by the grammar -- with one,
+    # 'ownedBy' is enough) that each contain an authorized user id. A
+    # distinct named Lark production, as for decrement_rule/increment_rule
+    # (same Lark filtering trap, see CLAUDE.md).
     access_rule: "rule" REFERENCE "accessibleBy" NAME ("," NAME)+ _NL
-    # AJOUT (roadmap, cas d'usage portfolio) : "public" retire l'obligation
-    # d'authentification pour une action précise (ex. lire des articles sans
-    # compte, envoyer un message de contact sans compte). Ex. :
+    # ADDED (roadmap, portfolio use case): "public" removes the
+    # authentication requirement for one specific action (e.g. reading
+    # articles without an account, sending a contact message without an
+    # account). E.g.:
     #   rule Project.Read public
     #   rule Message.Create public
     visibility_rule: "rule" REFERENCE "public" _NL
-    # Publication conditionnelle : une ressource peut être publique seulement
-    # dans un état métier précis. Exemple :
+    # Conditional publication: a resource can be public only in a specific
+    # business state. Example:
     #   rule Article.Read publicWhen status "published"
-    # La condition est appliquée côté API (liste ET détail), jamais seulement
-    # dans le frontend : un contenu modéré ne doit pas rester accessible par
-    # son identifiant.
+    # The condition is applied on the API side (list AND detail), never only
+    # in the frontend: moderated content must not stay reachable through its
+    # id.
     conditional_visibility_rule: "rule" REFERENCE "publicWhen" NAME STRING_LITERAL _NL
-    # Un vote ou un like est souvent unique par compte et par cible. Une règle
-    # composite vaut mieux qu'un champ-fingerprint fourni par le client : les
-    # colonnes de relation sont déterminées par le serveur et l'index SQLite
-    # protège aussi les requêtes concurrentes.
+    # A vote or a like is often unique per account and per target. A composite
+    # rule beats a fingerprint field supplied by the client: the relation
+    # columns are determined by the server and the SQLite index also protects
+    # concurrent requests.
     uniqueness_rule: "rule" REFERENCE "oncePer" NAME ("," NAME)+ _NL
 
-    # AJOUT (roadmap, écosystème de capacités -- brique 2) : "hidden" retire
-    # un CHAMP (pas une action) de toutes les réponses de lecture de son
-    # entité -- liste et détail -- sans le retirer de la base ni empêcher
-    # son utilisation en écriture. Cas d'usage : un réseau social où les
-    # posts sont publics mais leur auteur ne doit jamais apparaître dans la
-    # réponse API. Contrairement à "restrictedTo" (qui exige un acteur
-    # précis), "hidden" masque pour TOUT LE MONDE, y compris les acteurs
-    # authentifiés -- c'est la différence de fond entre "confidentiel" et
-    # "anonyme". Ex. :
+    # ADDED (roadmap, capability ecosystem -- brick 2): "hidden" removes a
+    # FIELD (not an action) from every read response of its entity -- list
+    # and detail -- without removing it from the database or preventing its
+    # use in writes. Use case: a social network where posts are public but
+    # their author must never appear in the API response. Unlike
+    # "restrictedTo" (which requires a specific actor), "hidden" masks for
+    # EVERYONE, authenticated actors included -- that is the substantive
+    # difference between "confidential" and "anonymous". E.g.:
     #   rule Post.author hidden
     masking_rule: "rule" REFERENCE "hidden" _NL
 
-    # AJOUT (roadmap, écosystème de capacités -- brique 3) : "decrements"
-    # déclenche, à la création d'un enregistrement d'une entité (typiquement
-    # un signalement), la décrémentation d'un champ numérique sur l'entité
-    # liée dont il dépend (via une relation existante, ex.
-    # "Member hasMany Report"). Ex. :
+    # ADDED (roadmap, capability ecosystem -- brick 3): "decrements" triggers,
+    # when a record of an entity is created (typically a report), the decrement
+    # of a numeric field on the linked entity it depends on (through an
+    # existing relation, e.g. "Member hasMany Report"). E.g.:
     #   rule Report.Create decrements Post.score
     #   rule Report.Create decrements Post.score by 10
-    # Le montant par défaut (sans "by N") est 1.
+    # The default amount (without "by N") is 1.
     #
-    # AJOUT (roadmap, écosystème de capacités -- brique 4) : "increments",
-    # symétrique de "decrements" pour les likes/appréciations. Ex. :
+    # ADDED (roadmap, capability ecosystem -- brick 4): "increments", symmetric
+    # to "decrements" for likes/appreciations. E.g.:
     #   rule Like.Create increments Post.likes
-    # DÉLIBÉRÉMENT deux productions Lark nommées séparées plutôt qu'une seule
-    # règle paramétrée par un mot-clé partagé : "decrements"/"increments" sont
-    # des littéraux de chaîne anonymes, filtrés par Lark avant d'atteindre le
-    # Transformer (même piège déjà rencontré et corrigé pour
-    # "restrictedTo"/"sharedBy", voir plus haut) -- un essai précédent de
-    # règle unique avait donc silencieusement étiqueté tout "increments" comme
-    # "decrements" et a été retiré plutôt que laissé à moitié fait.
-    # AJOUT (brique 14, point 86) : « by » accepte un NOM DE CHAMP en plus d'un
-    # entier. 'by 1' retire toujours la même chose (une réputation, un like) ;
-    # 'by quantity' retire CE QUE LE CLIENT A DEMANDÉ — c'est ce qui manquait
-    # pour qu'une boutique décompte son stock. Deux alternatives distinctes
-    # plutôt qu'un terminal commun : INT et NAME ne se lisent pas pareil, et le
-    # transformateur doit savoir lequel il a reçu.
+    # DELIBERATELY two separate named Lark productions rather than a single
+    # rule parameterized by a shared keyword: "decrements"/"increments" are
+    # anonymous string literals, filtered by Lark before reaching the
+    # Transformer (same trap already met and fixed for
+    # "restrictedTo"/"sharedBy", see above) -- an earlier single-rule attempt
+    # had therefore silently labeled every "increments" as "decrements" and was
+    # removed rather than left half done.
+    # ADDED (brick 14, point 86): "by" accepts a FIELD NAME as well as an
+    # integer. 'by 1' always removes the same thing (a reputation, a like); 'by
+    # quantity' removes WHAT THE CLIENT ASKED FOR — that was what a shop needed
+    # to count down its stock. Two distinct alternatives rather than a shared
+    # terminal: INT and NAME are not read the same way, and the transformer
+    # must know which one it received.
     decrement_rule: "rule" REFERENCE "decrements" REFERENCE _NL
                    | "rule" REFERENCE "decrements" REFERENCE "by" INT _NL
                    | "rule" REFERENCE "decrements" REFERENCE "by" NAME _NL
@@ -165,140 +161,135 @@ grammar = r"""
                    | "rule" REFERENCE "increments" REFERENCE "by" INT _NL
                    | "rule" REFERENCE "increments" REFERENCE "by" NAME _NL
 
-    # AJOUT (roadmap, écosystème de capacités -- brique 5) : "categorized"
-    # remplace un champ numérique (Integer/Float) par un libellé de
-    # catégorie dans toutes les réponses de lecture -- sur le même principe
-    # que "hidden" (retire un champ), mais en le substituant par une donnée
-    # dérivée plutôt qu'en le supprimant purement. Cas d'usage déclencheur :
-    # des likes affichés en catégories ("peu"/"populaire"/"viral") plutôt
-    # qu'en nombre exact. Chaque palier est soit "below" (seuil strict,
-    # exclusif), soit "otherwise" (palier de secours, un seul autorisé,
-    # obligatoirement en dernière position -- voir ast_validator.py pour la
-    # validation complète). Ex. :
-    #   rule Post.likes categorized: "peu" below 10, "populaire" below 100, "viral" otherwise
+    # ADDED (roadmap, capability ecosystem -- brick 5): "categorized" replaces a numeric
+    # field (Integer/Float) with a category label in every read response -- on the same
+    # principle as "hidden" (removes a field), but substituting it with derived data rather
+    # than deleting it outright. Triggering use case: likes shown as categories
+    # ("few"/"popular"/"viral") rather than as an exact number. Each tier is either "below"
+    # (strict, exclusive threshold) or "otherwise" (fallback tier, only one allowed,
+    # necessarily last -- see ast_validator.py for the full validation). E.g.:
+    #   rule Post.likes categorized: "few" below 10, "popular" below 100, "viral" otherwise
     categorization_rule: "rule" REFERENCE "categorized" ":" category_clause ("," category_clause)* _NL
     ?category_clause: category_below | category_otherwise
     category_below: STRING_LITERAL "below" INT
     category_otherwise: STRING_LITERAL "otherwise"
 
-    # AJOUT (roadmap, écosystème de capacités -- suite de la brique 1,
-    # "capability auth") : "generated" retire un champ String du corps de
-    # requête attendu par la route Create de son entité -- le serveur le
-    # peuple seul, à partir d'un pseudonyme anonyme stable généré une seule
-    # fois par compte à l'inscription (voir /register dans generator.py),
-    # jamais fourni ni contrôlable par le client. Cas d'usage déclencheur :
-    # un champ "author" dont l'intégrité doit être garantie (contrairement
-    # à un "author" en String libre rempli à la main par le client, voir
-    # docs/design_decisions.md point 29). Ex. :
+    # ADDED (roadmap, capability ecosystem -- continuation of brick 1,
+    # "capability auth"): "generated" removes a String field from the
+    # request body expected by its entity's Create route -- the server
+    # fills it alone, from a stable anonymous pseudonym generated once per
+    # account at registration (see /register in generator.py), never
+    # supplied or controllable by the client. Triggering use case: an
+    # "author" field whose integrity must be guaranteed (unlike an "author"
+    # as free String filled by hand by the client, see
+    # docs/design_decisions.md point 29). E.g.:
     #   rule Post.author generated
     generation_rule: "rule" REFERENCE "generated" _NL
 
-    # AJOUT (roadmap, écosystème de capacités -- brique paiement, point 74) :
+    # ADDED (roadmap, capability ecosystem -- payment brick, point 74):
     #   rule Order.total payable
-    # désigne le champ qui porte le MONTANT, donc l'entité à encaisser. Une
-    # production nommée à part, comme pour 'increments'/'decrements' : un
-    # mot-clé partagé rouvrirait le piège de filtrage Lark du point 27.
+    # names the field that carries the AMOUNT, hence the entity to charge. A
+    # separate named production, as for 'increments'/'decrements': a shared
+    # keyword would reopen the Lark filtering trap of point 27.
     payable_rule: "rule" REFERENCE "payable" _NL
 
-    # AJOUT (roadmap, écosystème de capacités -- brique 10, point 77) :
+    # ADDED (roadmap, capability ecosystem -- brick 10, point 77):
     #   rule Order.total derivedFrom Product.price by quantity
-    # le champ nommé à gauche est CALCULÉ PAR LE SERVEUR depuis un champ d'une
-    # ligne liée, multiplié par un champ de l'entité elle-même. Il disparaît
-    # des corps de requête (création ET modification) : c'est tout l'objet de
-    # la brique. Sans elle, `payable` relisait en base un montant que le client
-    # y avait écrit -- deux exploits prouvés, voir point 77.
-    # Production nommée à part, comme 'increments'/'decrements' et 'payable' :
-    # un mot-clé partagé rouvrirait le piège de filtrage Lark du point 27.
+    # the field named on the left is CALCULATED BY THE SERVER from a field of a
+    # linked row, multiplied by a field of the entity itself. It disappears
+    # from request bodies (creation AND modification): that is the whole point
+    # of the brick. Without it, `payable` reread from the database an amount
+    # the client had written there -- two proven exploits, see point 77. A
+    # separate named production, like 'increments'/'decrements' and 'payable':
+    # a shared keyword would reopen the Lark filtering trap of point 27.
     derivation_rule: "rule" REFERENCE "derivedFrom" REFERENCE "by" NAME _NL
 
-    # AJOUT (roadmap, écosystème de capacités -- brique 12, point 82) :
-    #   rule Commande.total sumOf Ligne.sousTotal
-    # le champ nommé à gauche est la SOMME d'un champ de toutes les lignes
-    # enfants. Recalculé par le serveur à chaque écriture d'une ligne (création,
-    # modification, suppression), donc absent des corps de requête comme un
-    # champ 'derivedFrom'. C'est la brique qui rend une commande à plusieurs
-    # articles chiffrable -- `derivedFrom` ne sait lire qu'UNE ligne liée.
-    # Production nommée à part, même raison que ci-dessus (piège Lark, point 27).
+    # ADDED (roadmap, capability ecosystem -- brick 12, point 82):
+    #   rule Order.total sumOf Line.subtotal
+    # the field named on the left is the SUM of a field of all child rows.
+    # Recalculated by the server on every write of a row (creation, modification,
+    # deletion), so absent from request bodies like a 'derivedFrom' field. This
+    # is the brick that makes a multi-item order priceable -- `derivedFrom` can
+    # only read ONE linked row. A separate named production, same reason as above
+    # (Lark trap, point 27).
     aggregation_rule: "rule" REFERENCE "sumOf" REFERENCE _NL
 
-    # AJOUT (roadmap, écosystème de capacités -- brique 16, point 89) :
+    # ADDED (roadmap, capability ecosystem -- brick 16, point 89):
     #   rule Order.placedAt timestamp
-    # le champ nommé porte l'instant de CRÉATION de l'enregistrement, écrit par
-    # le serveur et jamais ensuite. Absent des corps de requête comme un champ
-    # 'generated' : une date qu'on peut se donner n'atteste de rien.
-    # Production nommée à part, même raison que ci-dessus (piège Lark, point 27).
+    # the named field carries the record's CREATION instant, written by the
+    # server and never afterwards. Absent from request bodies like a 'generated'
+    # field: a date you can give yourself attests to nothing. A separate named
+    # production, same reason as above (Lark trap, point 27).
     timestamp_rule: "rule" REFERENCE "timestamp" _NL
 
-    # AJOUT (brique 22, point 102) :
+    # ADDED (brick 22, point 102):
     #   rule Order.reference numbered "CMD-{YYYY}-{NNNN}"
-    # le champ nommé porte un NUMÉRO LISIBLE, attribué par le serveur à la
-    # création et jamais ensuite. Même famille que 'timestamp' : absent des corps
-    # de requête, création comme modification. Le mot-clé n'est pas 'reference' —
-    # il se confondrait avec le nom du champ qu'on lui donne presque toujours,
-    # et 'rule Order.reference reference …' ne se lit pas.
+    # the named field carries a READABLE NUMBER, assigned by the server at
+    # creation and never afterwards. Same family as 'timestamp': absent from
+    # request bodies, for creation as for modification. The keyword is not
+    # 'reference' — it would be confused with the name almost always given to the
+    # field, and 'rule Order.reference reference …' does not read.
     numbering_rule: "rule" REFERENCE "numbered" STRING_LITERAL _NL
 
-    # AJOUT (roadmap, écosystème de capacités -- brique 17, point 90) :
+    # ADDED (roadmap, capability ecosystem -- brick 17, point 90):
     #   rule Order.Create requiresOwn Customer
-    # l'appelant doit DÉJÀ posséder un enregistrement de l'entité nommée pour
-    # pouvoir créer celui-ci. Née d'un constat sur une boutique réelle : deux
-    # commandes portaient un compte sans aucune fiche client, donc sans nom ni
-    # adresse — des commandes qu'on ne peut pas expédier.
-    # Production nommée à part, même raison que ci-dessus (piège Lark, point 27).
+    # the caller must ALREADY own a record of the named entity to be able to
+    # create this one. Born from a finding on a real shop: two orders carried an
+    # account with no customer record at all, so no name or address — orders that
+    # cannot be shipped. A separate named production, same reason as above (Lark
+    # trap, point 27).
     requirement_rule: "rule" REFERENCE "requiresOwn" NAME _NL
 
-    # AJOUT (roadmap, contrôle du rendu visuel) : bloc optionnel "ui" pour
-    # surcharger ce que le générateur devine automatiquement. Ex. :
+    # ADDED (roadmap, visual rendering control): optional "ui" block to
+    # override what the generator guesses automatically. E.g.:
     #   ui Project
     #       theme: market
     #       primary: title
     #       order: title, price, stock
-    # SUPPRESSION (roadmap, sur demande explicite) : monl ne génère plus
-    # de back-office CRUD par entité (voir generate_all).
-    # POINT 72 : "theme" n'a plus d'effet non plus — le compilateur ne décide
-    # RIEN du visuel, il n'a donc plus de thème à épingler. Les trois clés
-    # restent ACCEPTÉES par la grammaire pour ne casser aucune spec
-    # existante (même politique qu'au point 41 pour 'landing mode/template'),
-    # mais aucune n'influence quoi que ce soit. La direction de design vient
-    # du dialogue, et voyage par le brief.
+    # REMOVED (roadmap, on explicit request): monl no longer generates a CRUD
+    # back office per entity (see generate_all).
+    # POINT 72: "theme" has no effect either — the compiler decides NOTHING
+    # about visuals, so it no longer has a theme to pin. The three keys stay
+    # ACCEPTED by the grammar so as to break no existing spec (same policy as
+    # point 41 for 'landing mode/template'), but none influences anything.
+    # Design direction comes from the dialogue, and travels through the
+    # brief.
     ui_block: "ui" NAME _NL _INDENT ui_prop+ _DEDENT
     ?ui_prop: ui_theme | ui_primary | ui_order
     ui_theme: "theme" ":" NAME _NL
     ui_primary: "primary" ":" NAME _NL
     ui_order: "order" ":" NAME ("," NAME)* _NL
 
-    # AJOUT (roadmap, écosystème de capacités -- brique 1) : bloc "capability",
-    # volontairement le plus simple possible pour l'instant -- une simple
-    # déclaration, sans sous-propriétés. Objectif de cette première brique :
-    # prouver que le concept de "capacité" tient dans tout le pipeline
-    # (grammaire -> validateur -> AST normalisé -> générateur) SANS changer
-    # aucun comportement existant. L'authentification (register/login/JWT)
-    # est déjà générée systématiquement pour toute app -- ce bloc la rend
-    # seulement explicite/déclarée plutôt qu'implicite dans le code. Les
-    # capacités futures (masquage de champ, accès à deux parties...) sont
-    # celles qui changeront réellement le comportement ; celle-ci sert de
-    # gabarit sûr, testé sur le portfolio, avant d'aller plus loin.
-    # AJOUT (point 95) : 'capability auth' gagne sa PREMIÈRE fonction, après
-    # avoir été purement déclaratif depuis la brique 1. Le bloc indenté est
-    # OPTIONNEL — toute spec écrite avant ce point continue de compiler à
-    # l'identique, ce qui est la condition pour qu'une brique dormante se
-    # réveille sans casser ce qui existe.
+    # ADDED (roadmap, capability ecosystem -- brick 1): "capability" block,
+    # deliberately as simple as possible for now -- a plain declaration,
+    # without sub-properties. Goal of this first brick: prove that the concept
+    # of "capability" holds throughout the pipeline (grammar -> validator ->
+    # normalized AST -> generator) WITHOUT changing any existing behavior.
+    # Authentication (register/login/JWT) is already generated systematically
+    # for every app -- this block only makes it explicit/declared rather than
+    # implicit in the code. Future capabilities (field masking, two-party
+    # access...) are the ones that will really change behavior; this one serves
+    # as a safe template, tested on the portfolio, before going further.
+    # ADDED (point 95): 'capability auth' gains its FIRST function, after being
+    # purely declarative since brick 1. The indented block is OPTIONAL — every
+    # spec written before this point keeps compiling identically, which is the
+    # condition for a dormant brick to wake up without breaking what exists.
     #   capability auth
     #       identifier: email, phone
     capability_block: "capability" NAME _NL [_INDENT capability_prop+ _DEDENT]
     ?capability_prop: capability_identifier | capability_phone_prefix | capability_lockout | capability_password_reset | capability_refresh_tokens | capability_totp | capability_verify_email | capability_verify_resend | capability_currency | capability_provider
     capability_identifier: "identifier" ":" NAME ("," NAME)* _NL
-    # AJOUT (point 95, trouvé en éprouvant la brique sur un vrai site) :
-    # '06 12 34 56 78' et '+33612345678' sont le MÊME numéro, et faisaient deux
-    # comptes. monl ne peut pas le deviner — l'indicatif dépend du pays, et
-    # rien dans une spec ne le dit. Il le fait donc DÉCLARER, faute de quoi la
-    # promesse « deux écritures = un compte » serait fausse dans le cas le plus
-    # courant.
+    # ADDED (point 95, found while exercising the brick on a real site): '06 12
+    # 34 56 78' and '+33612345678' are the SAME number, and made two accounts.
+    # monl cannot guess it — the calling code depends on the country, and
+    # nothing in a spec says it. So it makes it DECLARED, failing which the
+    # promise "two spellings = one account" would be false in the most common
+    # case.
     #       phone_prefix: "+33"
     capability_phone_prefix: "phone_prefix" ":" STRING_LITERAL _NL
-    # BRIQUE B4 : options d'authentification déclaratives. Les durées sont en
-    # secondes et aucune valeur par défaut n'est injectée dans une spec qui ne
-    # demande pas la capacité.
+    # BRICK B4: declarative authentication options. Durations are in seconds
+    # and no default value is injected into a spec that does not ask for the
+    # capability.
     #   lockout: 5 in 300
     #   password_reset: 900
     #   refresh_tokens: 2592000
@@ -309,40 +300,40 @@ grammar = r"""
     capability_password_reset: ("password_reset" | "passwordReset") ":" INT _NL
     capability_refresh_tokens: ("refresh_tokens" | "refreshTokens") ":" INT _NL
     capability_totp: "totp" _NL | "totp" ":" "true" _NL
-    # BRIQUE 2a : la DEVISE de l'encaissement, déclarée sur 'capability payment'.
-    # Elle existe parce que le code figeait 'eur' et multipliait tout montant
-    # par 100 — or le franc CFA n'a PAS de sous-unité : facturer 5 000 XOF
-    # aurait envoyé 500 000 au prestataire. Ce n'est pas une préférence de
-    # présentation, c'est l'unité dans laquelle on encaisse.
+    # BRICK 2a: the payment CURRENCY, declared on 'capability payment'. It exists
+    # because the code froze 'eur' and multiplied every amount by 100 — yet the
+    # CFA franc has NO minor unit: billing 5,000 XOF would have sent 500,000 to
+    # the provider. This is not a display preference, it is the unit money is
+    # collected in.
     #   capability payment
     #       currency: XOF
     capability_currency: "currency" ":" NAME _NL
-    # BRIQUE 2b : le PRESTATAIRE d'encaissement. Stripe n'opère pas en Afrique
-    # de l'Ouest, où l'argent passe par le mobile money derrière un agrégateur.
+    # BRICK 2b: the payment PROVIDER. Stripe does not operate in West Africa,
+    # where money goes through mobile money behind an aggregator.
     #   capability payment
     #       provider: fedapay
     #       currency: XOF
     capability_provider: "provider" ":" NAME _NL
 
-    # Bloc optionnel "landing" : transmet un brief marketing (titre, ton,
-    # intention) au contrat frontend, pour orienter l'IA d'interface. C'est
-    # une simple donnée textuelle — monl ne génère aucune page lui-même.
-    # Seule la clé "brief" a un effet. Les clés "mode" et "template" sont
-    # acceptées pour compatibilité avec d'anciennes specs mais sont sans
-    # effet (l'audit émet un avertissement). Sans bloc "landing", "/"
-    # redirige vers "/docs" (documentation Swagger/OpenAPI de FastAPI).
-    # AJOUT (point 55) : "section" répétable — le seul endroit du contrat où
-    # du contenu ÉDITORIAL peut vivre. Tout le reste décrit des DONNÉES ;
-    # une page « à propos » n'a aucune entité, aucun champ, aucune route
-    # d'où naître, et l'IA d'interface n'avait donc rien pour la construire.
+    # Optional "landing" block: passes a marketing brief (title, tone, intent)
+    # to the frontend contract, to steer the interface AI. It is plain text
+    # data — monl generates no page itself. Only the "brief" key has an effect.
+    # The "mode" and "template" keys are accepted for compatibility with old
+    # specs but have no effect (the audit emits a warning). Without a "landing"
+    # block, "/" redirects to "/docs" (FastAPI's Swagger/OpenAPI
+    # documentation).
+    # ADDED (point 55): repeatable "section" — the only place in the contract
+    # where EDITORIAL content can live. Everything else describes DATA; an
+    # "about" page has no entity, no field, no route to be born from, so the
+    # interface AI had nothing to build it with.
     #   landing
     #       brief: "…"
-    #       section "À propos": "Photographe basée à Lyon depuis 2015…"
-    # AJOUT (roadmap, brique 13 -- point 83) : bloc optionnel "assets", qui
-    # déclare les fichiers fournis par l'HUMAIN (logo, icône, photos) et le
-    # dossier où ils vivent. Il existe parce que monl ne savait pas qu'un asset
-    # existe : un chemin d'image faux compilait en silence, et `monl frontend`
-    # renommait frontend/ -- donc égarait les photos qu'on y avait déposées.
+    #       section "About": "Photographer based in Lyon since 2015…"
+    # ADDED (roadmap, brick 13 -- point 83): optional "assets" block, which
+    # declares the files supplied by the HUMAN (logo, icon, photos) and the
+    # folder where they live. It exists because monl did not know an asset
+    # existed: a wrong image path compiled silently, and `monl frontend`
+    # renamed frontend/ -- thereby mislaying the photos dropped there.
     #   assets
     #       dir: "assets"
     #       logo: "logo.svg"
@@ -353,9 +344,9 @@ grammar = r"""
     assets_logo: "logo" ":" STRING_LITERAL _NL
     assets_favicon: "favicon" ":" STRING_LITERAL _NL
 
-    # Une migration non additive doit être NOMMÉE et exécutée explicitement.
-    # La spec décrit l'état cible ; l'opération conserve assez d'information
-    # pour vérifier sa précondition et, quand c'est possible, la défaire.
+    # A non-additive migration must be NAMED and run explicitly. The spec
+    # describes the target state; the operation keeps enough information to
+    # check its precondition and, when possible, undo it.
     migration_block: "migration" NAME _NL _INDENT migration_operation+ _DEDENT
     ?migration_operation: rename_migration | alter_migration | drop_migration
     rename_migration: "rename" REFERENCE "to" NAME _NL
@@ -369,28 +360,28 @@ grammar = r"""
     landing_template: "template" ":" STRING_LITERAL _NL
     landing_brief: "brief" ":" STRING_LITERAL _NL
     landing_section: "section" STRING_LITERAL ":" STRING_LITERAL _NL
-    # AJOUT (point 94) : "question" répétable — une FAQ est une LISTE de
-    # couples, et `section` ne savait dire qu'un titre et un texte. Les quatre
-    # questions de `projets/SneakerLab` tenaient donc dans UNE chaîne, et
-    # l'interface les rendait collées en un seul paragraphe : elle était
-    # fidèle, c'est le modèle de contenu qui ne savait pas dire « une FAQ ».
-    # Forme PLATE, comme `section` : une FAQ est la collection des `question`
-    # du bloc. Un sous-bloc indenté aurait ajouté un niveau à la seule
-    # grammaire où l'indentation a déjà coûté deux bugs (point 6).
+    # ADDED (point 94): repeatable "question" — an FAQ is a LIST of pairs, and
+    # `section` could only say a title and a text. The four questions of
+    # `projets/SneakerLab` therefore fit in ONE string, and the interface
+    # rendered them stuck together in a single paragraph: it was faithful, it
+    # was the content model that could not say "an FAQ". FLAT form, like
+    # `section`: an FAQ is the collection of the block's `question` entries.
+    # An indented sub-block would have added a level to the only grammar where
+    # indentation has already cost two bugs (point 6).
     #   landing
-    #       question "Comment choisir ma taille ?": "Nos paires taillent…"
+    #       question "How do I choose my size?": "Our pairs fit…"
     landing_question: "question" STRING_LITERAL ":" STRING_LITERAL _NL
 
-    # BRIQUE 30 : "link" répétable — l'adresse SORTANTE d'un site.
-    # Un pied de page sans réseaux, sans mentions et sans contact est le
-    # dernier endroit où un site produit se dénonce comme une maquette. Or
-    # monl ne peut pas les DEVINER : une adresse Instagram inventée mène chez
-    # quelqu'un d'autre. Même arbitrage qu'aux points 83 et 86 — monl fait
-    # DÉCLARER ce qu'il ne peut pas savoir, puis l'exige.
-    # Forme PLATE et ORDRE conservé, comme `section` et `question`.
+    # BRICK 30: repeatable "link" — a site's OUTGOING address. A footer
+    # without social networks, legal notice or contact is the last place
+    # where a product site gives itself away as a mockup. Yet monl cannot
+    # GUESS them: an invented Instagram address leads to someone else's page.
+    # Same trade-off as points 83 and 86 — monl makes people DECLARE what it
+    # cannot know, then requires it. FLAT form and ORDER preserved, like
+    # `section` and `question`.
     #   landing
     #       link "Instagram": "https://instagram.com/atelier-horizon"
-    #       link "Nous écrire": "mailto:bonjour@atelier-horizon.fr"
+    #       link "Write to us": "mailto:hello@atelier-horizon.example"
     landing_link: "link" STRING_LITERAL ":" STRING_LITERAL _NL
 
     workflow: "workflow" NAME "for" NAME _NL _INDENT action+ _DEDENT
@@ -405,25 +396,23 @@ grammar = r"""
     output_prop: "output" ":" io_param _NL
     description_prop: "description" ":" STRING_LITERAL _NL
 
-    # AJOUT (roadmap frontend, "je veux des sites complets") : bloc 'seed' —
-    # données de démonstration pré-remplies, insérées au démarrage si la
-    # table est vide (idempotent). Une app data-driven paraît vide sans
-    # données ; ce bloc fait qu'un portfolio, une boutique ou un fil social
-    # s'affichent avec des éléments réels dès la première ouverture. Une ligne =
-    # un enregistrement (paires 'champ: valeur'). Les valeurs peuvent être
-    # des chaînes (avec URLs d'images publiques), des entiers ou des
-    # décimaux. Ex. :
+    # ADDED (frontend roadmap, "I want complete sites"): 'seed' block —
+    # pre-filled demo data, inserted at startup if the table is empty
+    # (idempotent). A data-driven app looks empty without data; this block makes
+    # a portfolio, a shop or a social feed show real items from the first
+    # opening. One line = one record ('field: value' pairs). Values can be
+    # strings (with public image URLs), integers or decimals. E.g.:
     #   seed Project
-    #       title: "Refonte Aurora", imageUrl: "assets/aurora.jpg", year: 2024
+    #       title: "Aurora Redesign", imageUrl: "assets/aurora.jpg", year: 2024
     #
-    # BRIQUE 21 (point 100) : un seed d'ENFANT désigne sa ligne parente. Sans
-    # cette forme, une entité fille d'une table métier ne pouvait pas figurer
-    # dans les données de démonstration -- sa clé étrangère n'est pas un champ
-    # déclaré, donc le validateur la refusait. Le parent est nommé par un CHAMP
-    # et une VALEUR, jamais par un rang : un numéro de ligne ne dit rien à la
-    # lecture, et se décale dès qu'on insère une ligne au milieu. Ex. :
-    #   seed Variant for Product.name "Chaise Ligne"
-    #       finish: "Chêne naturel", price: 249.90, stock: 12
+    # BRICK 21 (point 100): a CHILD seed names its parent row. Without this
+    # form, a child entity of a business table could not appear in demo data --
+    # its foreign key is not a declared field, so the validator refused it. The
+    # parent is named by a FIELD and a VALUE, never by a rank: a row number says
+    # nothing when read, and shifts as soon as a row is inserted in the middle.
+    # E.g.:
+    #   seed Variant for Product.name "Line Chair"
+    #       finish: "Natural oak", price: 249.90, stock: 12
     seed_block: "seed" NAME seed_parent? _NL _INDENT seed_row+ _DEDENT
     seed_parent: "for" NAME "." NAME STRING_LITERAL
     seed_row: seed_pair ("," seed_pair)* _NL
@@ -441,7 +430,7 @@ grammar = r"""
     NAME: /[a-zA-Z_][a-zA-Z0-9_]*/
     REFERENCE: /[a-zA-Z_][a-zA-Z0-9_]*\.[a-zA-Z_][a-zA-Z0-9_]*/
     
-    # CORRECTIF BUG v6 #1 : Ajout du flag /s pour autoriser les retours à la ligne dans les guillemets
+    # BUG FIX v6 #1: add the /s flag to allow line breaks inside quotes
     STRING_LITERAL: /"(?:[^"\\]|\\.)*"/s
     
     _NL: /(\r?\n[\t ]*)+/
