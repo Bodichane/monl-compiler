@@ -1,19 +1,19 @@
-"""Les champs dont le serveur calcule la valeur depuis d'autres lignes.
+"""The fields whose value the server calculates from other rows.
 
-`derivedFrom` (point 77, né de deux exploits prouvés), `sumOf` (point 82),
-les compteurs `increments`/`decrements` et l'unicité composite `oncePer`.
-Un montant que le client peut écrire est un montant qu'il fixe lui-même :
-c'est la raison d'être de la moitié des refus rassemblés ici."""
+`derivedFrom` (point 77, born from two proven exploits), `sumOf` (point
+82), the `increments`/`decrements` counters and the `oncePer` composite
+uniqueness. An amount the client can write is an amount they set
+themselves: that is the reason for half the refusals gathered here."""
 
 from ..ir import AggregatedFieldIR, CounterRuleIR, DerivedFieldIR
 from .socle import ASTValidationError
 
 
 class ChampsCalculesMixin:
-    """Les champs dont le serveur calcule la valeur depuis d'autres lignes."""
+    """The fields whose value the server calculates from other rows."""
 
     def _valider_champs_derives(self):
-        """Valide les champs numériques calculés depuis une ligne liée."""
+        """Validates the numeric fields calculated from a linked row."""
         self.derived_fields: list[DerivedFieldIR] = []
         for rule in self.rules:
             if rule["type"] != "derivedFrom":
@@ -104,7 +104,7 @@ class ChampsCalculesMixin:
             })
 
     def _valider_champs_agreges(self):
-        """Valide les champs calculés par somme des lignes enfants."""
+        """Validates the fields calculated as a sum of child rows."""
         self.aggregated_fields: list[AggregatedFieldIR] = []
         for rule in self.rules:
             if rule["type"] != "sumOf":
@@ -187,7 +187,7 @@ class ChampsCalculesMixin:
             })
 
     def _valider_effets_compteurs(self):
-        """Valide les effets de compteur déclenchés à la création."""
+        """Validates the counter effects triggered at creation."""
         self.reputation_rules: list[CounterRuleIR] = []
         for rule in self.rules:
             if rule["type"] not in ("decrements", "increments"):
@@ -252,15 +252,14 @@ class ChampsCalculesMixin:
             })
 
     def _refuser_compteur_sur_acteur(self, direction, target_entity, target_field):
-        """Refuse un compteur dont la cible porte le nom d'un acteur (issue #89).
+        """Refuses a counter whose target is named like an actor (issue #89).
 
-        Les lignes d'une telle entité ne sont liées à aucun compte, alors que
-        toute clé homonyme lisible par un client (`member_id` sur un post)
-        porte un id de COMPTE (point 88). Le décompte viserait la fiche dont
-        l'id de LIGNE coïncide avec l'id de compte reçu : mesuré, signaler
-        l'auteur d'un post faisait baisser la réputation du signaleur.
-        Refuser plutôt que produire une règle qui frappe au hasard (point 85).
-        """
+        The rows of such an entity are linked to no account, whereas any
+        same-named key readable by a client (`member_id` on a post) carries an
+        ACCOUNT id (point 88). The count would hit the profile whose ROW id
+        matches the account id received: measured, reporting a post's author
+        lowered the reporter's reputation. Refuse rather than produce a rule that
+        strikes at random (point 85)."""
         if target_entity in self.actors:
             raise ASTValidationError(
                 f"Structure: '{direction}' targets '{target_entity}.{target_field}', but "
@@ -271,10 +270,10 @@ class ChampsCalculesMixin:
             )
 
     def _verifier_parents_once_per(self, reference, entity, parents):
-        """Au moins deux parents distincts, existants, reliés à `entity`, dont
-        un acteur. Extrait de `_valider_regles_once_per` (plafond de
-        complexité) ; la relation se lit par `_relation_parent_enfant`, la même
-        que pour le rattachement d'un `seed`, plutôt qu'une seconde copie."""
+        """At least two distinct, existing parents, linked to `entity`, one of them
+        an actor. Extracted from `_valider_regles_once_per` (complexity ceiling);
+        the relation is read through `_relation_parent_enfant`, the same as for a
+        `seed` attachment, rather than a second copy."""
         if len(parents) < 2 or len(set(parents)) != len(parents):
             raise ASTValidationError(
                 f"Structure: 'oncePer' on '{reference}' requires at least two distinct parents."
@@ -295,12 +294,12 @@ class ChampsCalculesMixin:
             )
 
     def _valider_regles_once_per(self):
-        """Valide l'unicité métier d'une action par compte et par cibles.
+        """Validates the business uniqueness of an action per account and per
+        targets.
 
-        `oncePer Member, Entry` désigne les deux relations qui composent la
-        clé unique de Vote. Le parent acteur est alimenté depuis le JWT ; les
-        autres parents restent fournis comme clés étrangères normales.
-        """
+        `oncePer Member, Entry` designates the two relations that make up Vote's
+        unique key. The actor parent is filled from the JWT; the other parents
+        are still supplied as normal foreign keys."""
         self.once_per_rules = []
         for rule in self.rules:
             if rule["type"] != "oncePer":

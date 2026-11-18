@@ -1,24 +1,22 @@
-"""Ce qui se dispute une même route, et la restriction par champ.
+"""What competes for the same route, and per-field restriction.
 
-`restrictedTo` (point 2, dont l'existence des références est vérifiée depuis
-le point 112), les règles de message, et la matrice de collision entre deux
-acteurs qui visent la même action."""
+`restrictedTo` (point 2, whose references have been checked for existence
+since point 112), message rules, and the collision matrix between two
+actors targeting the same action."""
 
 from .socle import ASTValidationError
 
 
 class CollisionsMixin:
-    """Ce qui se dispute une même route, et la restriction par champ."""
+    """What competes for the same route, and per-field restriction."""
 
     def _valider_regle_restrictedTo(self):
-        """Valide la règle 'restrictedTo' (point 112). Contrairement à
-        'public'/'ownedBy'/'requiresOwn', rien ne vérifiait qu'un champ ou un
-        acteur référencé par 'restrictedTo' existe réellement. Une faute de
-        frappe sur le nom du champ ou de l'acteur désactivait silencieusement
-        la restriction : _audit_security_rules ne trouverait jamais de
-        correspondance, sans qu'aucun avertissement n'apparaisse -- exactement
-        le genre de défaut que ownedBy/requiresOwn refusent déjà à la
-        compilation."""
+        """Validates the 'restrictedTo' rule (point 112). Unlike
+        'public'/'ownedBy'/'requiresOwn', nothing checked that a field or actor
+        referenced by 'restrictedTo' really exists. A typo in the field or actor
+        name silently disabled the restriction: _audit_security_rules would never
+        find a match, without any warning appearing -- exactly the kind of defect
+        ownedBy/requiresOwn already refuse at compile time."""
         for rule in self.rules:
             if rule["type"] != "restrictedTo":
                 continue
@@ -49,9 +47,9 @@ class CollisionsMixin:
 
     @staticmethod
     def _valider_texte_du_message(reference, subject, body):
-        """Sujet et corps non vides, sans saut de ligne brut — le sujet en
-        particulier, sinon injection d'en-têtes SMTP. Extrait de
-        `_valider_regles_message` (plafond de complexité) ; refus inchangés."""
+        """Non-empty subject and body, with no raw line break — the subject in
+        particular, otherwise SMTP header injection. Extracted from
+        `_valider_regles_message` (complexity ceiling); refusals unchanged."""
         if not subject.strip():
             raise ASTValidationError(
                 f"Structure: the subject of message '{reference}' cannot be empty.")
@@ -68,13 +66,12 @@ class CollisionsMixin:
                 "Use the '¶' separator between paragraphs.")
 
     def _valider_regles_message(self):
-        """Valide les notifications e-mail déclenchées par une création.
+        """Validates the email notifications triggered by a creation.
 
-        B2 choisit délibérément une seule transition : Create. La cible
-        est le compte authentifié qui vient de créer la ligne, donc son
-        identifiant canonique en base. Aucun champ métier libre nommé
-        email ne participe à cette décision.
-        """
+        B2 deliberately picks a single transition: Create. The target is the
+        authenticated account that just created the row, hence its canonical
+        identifier in the database. No free business field named email takes part
+        in this decision."""
         self.message_rules = []
         references = set()
         for rule in self.rules:
@@ -129,7 +126,7 @@ class CollisionsMixin:
             })
 
     def _valider_workflows_et_collisions(self):
-        """Valide les workflows et détecte les collisions d'autorité."""
+        """Validates workflows and detects authority collisions."""
         shared_permissions = {
             rule["reference"]: set(rule["value"])
             for rule in self.rules if rule["type"] == "sharedBy"
@@ -138,9 +135,9 @@ class CollisionsMixin:
         self._verifier_collisions(access_matrix, shared_permissions)
 
     def _matrice_d_acces(self):
-        """{entité: {action: {acteurs}}} déclarée par les workflows, actions
-        publiques exclues — avec les refus de structure en chemin. Extraite
-        de `_valider_workflows_et_collisions` (plafond de complexité)."""
+        """{entity: {action: {actors}}} declared by the workflows, public actions
+        excluded — with the structure refusals along the way. Extracted from
+        `_valider_workflows_et_collisions` (complexity ceiling)."""
         access_matrix = {}
         for workflow in self.workflows:
             actor = workflow["actor"]
@@ -168,9 +165,9 @@ class CollisionsMixin:
         return access_matrix
 
     def _verifier_collisions(self, access_matrix, shared_permissions):
-        """Plusieurs acteurs sur une même écriture : partage déclaré, propriété
-        ou parties, sinon CRITICAL_COLLISION. Extrait de
-        `_valider_workflows_et_collisions` ; messages et ordre inchangés."""
+        """Several actors on the same write: declared sharing, ownership or parties,
+        otherwise CRITICAL_COLLISION. Extracted from
+        `_valider_workflows_et_collisions`; messages and order unchanged."""
         for entity, actions in access_matrix.items():
             for action_type, authorized_actors in actions.items():
                 if len(authorized_actors) <= 1 or action_type not in ("Create", "Update", "Delete"):

@@ -1,18 +1,18 @@
-"""Ce que la spec dit de l'ÉCRAN, sans rien décider du visuel.
+"""What the spec says about the SCREEN, without deciding anything visual.
 
-Point 72 : le compilateur ne décide RIEN — ni palette, ni typographie. Il
-vérifie la forme de `ui`, de `landing` et des liens de pied de page
-(brique 30, point 144), dont l'adresse doit porter un schéma sans quoi le
-navigateur la lit comme un chemin RELATIF du site lui-même."""
+Point 72: the compiler decides NOTHING — neither palette nor typography.
+It checks the shape of `ui`, of `landing` and of the footer links (brick
+30, point 144), whose address must carry a scheme, otherwise the browser
+reads it as a RELATIVE path on the site itself."""
 
 from .socle import ASTValidationError
 
 
 class PresentationMixin:
-    """Ce que la spec dit de l'ÉCRAN, sans rien décider du visuel."""
+    """What the spec says about the SCREEN, without deciding anything visual."""
 
     def _valider_ui_overrides(self):
-        """Valide les entités et champs référencés par le bloc ``ui``."""
+        """Validates the entities and fields referenced by the ``ui`` block."""
         self.ui_overrides = {}
         for override in self.ui_overrides_raw:
             entity = override["entity"]
@@ -35,7 +35,7 @@ class PresentationMixin:
             }
 
     def _valider_landing(self):
-        """Normalise le contenu éditorial conservé pour le contrat frontend."""
+        """Normalizes the editorial content kept for the frontend contract."""
         self.landing = None
         if self.landing_raw is None:
             return
@@ -50,8 +50,8 @@ class PresentationMixin:
                         "faq": faq, "links": self._valider_liens_sortants()}
 
     def _paires_editoriales(self, cle, nom, premier, second):
-        """Rubriques et questions ont la même forme : deux textes non vides.
-        Un seul parcours, donc un seul message de refus à tenir juste."""
+        """Sections and questions have the same shape: two non-empty texts. A single
+        walk, hence a single refusal message to keep right."""
         paires = []
         for entree in self.landing_raw.get(cle) or []:
             a = (entree.get(premier) or "").strip()
@@ -64,21 +64,20 @@ class PresentationMixin:
             paires.append({premier: a, second: b})
         return paires
 
-    #: Ce qu'un navigateur sait ouvrir depuis un pied de page. `tel:` et
-    #: `mailto:` en font partie : sur un site de commerce, ce sont souvent les
-    #: DEUX liens qui comptent le plus.
+    #: What a browser can open from a footer. `tel:` and `mailto:` are among
+    #: them: on a commerce site, they are often the TWO links that matter
+    #: most.
     SCHEMES_DE_LIEN = ("https://", "http://", "mailto:", "tel:")
 
     def _valider_liens_sortants(self):
-        """Normalise les liens du pied de page — ou refuse en l'expliquant.
+        """Normalizes the footer links — or refuses and explains why.
 
-        monl ne VÉRIFIE pas qu'une adresse répond : il ne fait aucun appel
-        réseau, et le prétendre serait mentir (même frontière qu'au point 83
-        pour les images distantes). Ce qu'il vérifie, c'est qu'un navigateur
-        saura l'ouvrir — un « instagram.com/atelier » sans schéma est lu comme
-        un chemin RELATIF et mène à une page inexistante du site lui-même.
-        Un lien qui ne marche pas est pire qu'un lien absent : il se voit.
-        """
+        monl does NOT CHECK that an address responds: it makes no network call,
+        and claiming otherwise would be lying (same boundary as point 83 for
+        remote images). What it checks is that a browser will be able to open it
+        — an "instagram.com/atelier" without a scheme is read as a RELATIVE path
+        and leads to a nonexistent page on the site itself. A link that does not
+        work is worse than a missing link: it shows."""
         liens, libelles, adresses = [], set(), set()
         for entree in self.landing_raw.get("links") or []:
             label = (entree.get("label") or "").strip()

@@ -1,18 +1,18 @@
-"""Les migrations déclarées, et ce qu'elles ont le droit de faire.
+"""Declared migrations, and what they are allowed to do.
 
-La règle du point 32, tenue depuis : une migration est ADDITIVE. Elle
-rattrape une colonne, jamais son contenu (points 89 et 99)."""
+The point 32 rule, held ever since: a migration is ADDITIVE. It catches up
+a column, never its content (points 89 and 99)."""
 
 from .socle import ASTValidationError
 
 
 class MigrationsMixin:
-    """Les migrations déclarées, et ce qu'elles ont le droit de faire."""
+    """Declared migrations, and what they are allowed to do."""
 
     def _operation_de_migration(self, name, reference, entity, field, operation, known_types):
-        """Une opération `rename`, `alter` ou `drop`, validée et normalisée.
-        Extraite de `_valider_migrations` (plafond de complexité) ; refus,
-        messages et forme de l'opération inchangés."""
+        """A `rename`, `alter` or `drop` operation, validated and normalized.
+        Extracted from `_valider_migrations` (complexity ceiling); refusals,
+        messages and the operation's shape unchanged."""
         kind = operation["kind"]
         if kind == "rename":
             new_field = operation["new_name"]
@@ -64,14 +64,13 @@ class MigrationsMixin:
         }
 
     def _valider_migrations(self):
-        """Valide les opérations de schéma qui ne sont pas additives.
+        """Validates the schema operations that are not additive.
 
-        Une migration décrit l'état cible de la spec, donc son ancienne
-        colonne peut légitimement ne plus figurer dans ``self.entities``.
-        L'ancienne forme est néanmoins conservée dans l'opération afin que le
-        runtime puisse vérifier la précondition au moment où l'opérateur la
-        lance, plutôt que de deviner un renommage depuis deux noms proches.
-        """
+        A migration describes the spec's target state, so its old column may
+        legitimately no longer appear in ``self.entities``. The old form is
+        nevertheless kept in the operation so the runtime can check the
+        precondition when the operator runs it, rather than guessing a rename
+        from two similar names."""
         self.migrations = []
         names = set()
         seen_operations = set()

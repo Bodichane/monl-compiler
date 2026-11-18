@@ -1,11 +1,11 @@
-"""Les fichiers fournis par l'HUMAIN, et le jeu de démonstration.
+"""The files supplied by the HUMAN, and the demo dataset.
 
-Brique 13 (point 83) : deux familles de contrôles, séparées à dessein — de
-FORME (chemin absolu, remontée `..`, URL distante sous `Image`), toujours
-actifs car purs ; d'EXISTENCE seulement quand `base_dir` est connu, sinon
-le validateur se TAIT plutôt que de deviner. S'y ajoute le rattachement
-d'un `seed` enfant (brique 21, point 100), qui désigne son parent par une
-VALEUR et jamais par un rang."""
+Brick 13 (point 83): two families of checks, deliberately separate — FORM
+(absolute path, `..` traversal, remote URL under `Image`), always active
+because they are pure; EXISTENCE only when `base_dir` is known, otherwise
+the validator stays QUIET rather than guessing. Added to it is the
+attachment of a child `seed` (brick 21, point 100), which designates its
+parent by a VALUE and never by a rank."""
 
 import os
 
@@ -13,40 +13,39 @@ from .socle import DEFAULT_ASSETS_DIR, ASTValidationError
 
 
 def candidats_asset(base_dir, dossier, chemin):
-    """Les deux endroits où un asset déclaré peut vivre, dans l'ordre d'essai.
+    """The two places where a declared asset can live, in the order tried.
 
-    Une valeur de seed vaut déjà 'assets/x.jpg' (c'est l'URL que le navigateur
-    demandera) ; un logo est déclaré par son SEUL nom, le contrat préfixant
-    ensuite par le dossier. Les deux formes sont donc légitimes."""
+    A seed value is already 'assets/x.jpg' (it is the URL the browser will
+    request); a logo is declared by its name ALONE, the contract then
+    prefixing it with the folder. Both forms are therefore legitimate."""
     chemin = chemin.strip()
     return [os.path.join(base_dir, chemin),
             os.path.join(base_dir, dossier, chemin)]
 
 
 def resoudre_asset(base_dir, dossier, chemin):
-    """Où vit réellement un asset déclaré, ou None.
+    """Where a declared asset really lives, or None.
 
-    SOURCE UNIQUE de la résolution (point 84) : le validateur s'en sert pour
-    REFUSER à la compilation, l'outil 'monl assets' pour RAPPORTER. Deux
-    implémentations finiraient par diverger — l'outil dirait « présent » là où
-    le compilateur dirait « absent »."""
+    SINGLE SOURCE of resolution (point 84): the validator uses it to REFUSE at
+    compile time, the 'monl assets' tool to REPORT. Two implementations would
+    eventually diverge — the tool would say "present" where the compiler would
+    say "missing"."""
     return next((c for c in candidats_asset(base_dir, dossier, chemin)
                  if os.path.isfile(c)), None)
 
 
 class AssetsMixin:
-    """Les fichiers fournis par l'HUMAIN, et le jeu de démonstration."""
+    """The files supplied by the HUMAN, and the demo dataset."""
 
     def _verifier_forme_chemin_asset(self, valeur, ou, image=False):
-        """Contrôles PURS sur un chemin d'asset — aucun accès disque, donc
-        toujours actifs, y compris quand la spec est validée en mémoire.
+        """PURE checks on an asset path — no disk access, hence always active,
+        including when the spec is validated in memory.
 
-        Un chemin absolu ou remontant sort du projet : servi tel quel par le
-        navigateur il ne mènerait à rien, et écrit dans un seed il donne
-        l'illusion d'un asset. Une URL distante, elle, est légitime — mais pas
-        sous le type 'Image', dont toute la valeur est d'être vérifiable : le
-        compilateur ne fait aucun appel réseau, il ne peut donc rien affirmer
-        d'une URL. `String` reste là pour ce cas."""
+        An absolute or climbing path leaves the project: served as is by the
+        browser it would lead nowhere, and written in a seed it gives the illusion
+        of an asset. A remote URL is legitimate — but not under the 'Image' type,
+        whose whole value is to be verifiable: the compiler makes no network call,
+        so it can assert nothing about a URL. `String` remains for that case."""
         if not isinstance(valeur, str) or not valeur.strip():
             raise ASTValidationError(
                 f"Structure: {ou} expects a non-empty file path.")
@@ -68,11 +67,11 @@ class AssetsMixin:
                 f"must live in the project to be deployed with it.")
 
     def _verifier_asset_present(self, valeur, ou):
-        """Contrôle d'EXISTENCE — seulement quand on sait où est le projet.
+        """EXISTENCE check — only when we know where the project is.
 
-        Sans 'base_dir' (spec validée en mémoire), on se TAIT plutôt que de
-        deviner : un faux refus serait pire que l'absence de contrôle. Le
-        silence est explicite, pas accidentel."""
+        Without 'base_dir' (spec validated in memory), we stay QUIET rather than
+        guessing: a false refusal would be worse than no check. The silence is
+        explicit, not accidental."""
         if not self.base_dir:
             return
         chemin = valeur.strip()
@@ -86,14 +85,14 @@ class AssetsMixin:
             f"A declared but missing asset produces a broken image online, detectable only "
             f"by looking at the page -- that is why compilation fails here.")
 
-    # Types sur lesquels une valeur de seed peut DÉSIGNER une ligne parente.
-    # Un nombre est exclu : rapprocher deux flottants est déjà douteux, et un
-    # prix ou un stock ne nomme rien — la désignation doit se lire.
+    # Types on which a seed value can DESIGNATE a parent row. A number is
+    # excluded: matching two floats is already dubious, and a price or a stock
+    # names nothing — the designation must be readable.
     TYPES_DESIGNATION = ("String", "Text", "Email", "UUID")
 
     def _relation_parent_enfant(self, parent, enfant):
-        """Vrai si une relation déclarée relie `parent` à `enfant`, dans un
-        sens ou dans l'autre. Extrait de `_valider_parent_de_seed` (plafond)."""
+        """True if a declared relation links `parent` to `child`, in either
+        direction. Extracted from `_valider_parent_de_seed` (ceiling)."""
         return any(
             (rel["type"] in ("hasMany", "hasOne")
              and rel["source"] == parent and rel["target"] == enfant)
@@ -103,13 +102,13 @@ class AssetsMixin:
         )
 
     def _valider_parent_de_seed(self, entity, parent):
-        """BRIQUE 21 (point 100) : `seed Enfant for Parent.champ "valeur"`.
+        """BRICK 21 (point 100): `seed Child for Parent.field "value"`.
 
-        Sept refus, et le premier est celui qui porte la brique : la ligne
-        parente doit être désignée SANS AMBIGUÏTÉ à la compilation. Un seed qui
-        rattacherait « au hasard parmi deux » produirait une vitrine différente
-        d'une compilation à l'autre, et personne ne le verrait avant de regarder
-        l'écran."""
+        Seven refusals, and the first is the one that carries the brick: the
+        parent row must be designated WITHOUT AMBIGUITY at compile time. A seed
+        that attached "at random among two" would produce a different storefront
+        from one compilation to the next, and nobody would see it before looking
+        at the screen."""
         cible = parent["entity"]
         champ = parent["field"]
         valeur = parent["value"]
@@ -117,17 +116,17 @@ class AssetsMixin:
             raise ASTValidationError(
                 f"Structure: the 'seed {entity}' block is attached to '{cible}', "
                 f"which is not a declared entity.")
-        # Même convention de relation que partout ailleurs (voir
-        # _compute_fk_placements) : sans elle, aucune colonne ne porterait le
-        # rattachement.
+        # Same relation convention as everywhere else (see
+        # _compute_fk_placements): without it, no column would carry the
+        # attachment.
         if not self._relation_parent_enfant(cible, entity):
             raise ASTValidationError(
                 f"Structure: the 'seed {entity}' block is attached to '{cible}', but "
                 f"no relation links them (e.g. '{cible} hasMany {entity}') -- there "
                 f"is no column to store this attachment.")
-        # POINT 99 : la colonne d'un parent ACTEUR porte un identifiant de
-        # COMPTE, pas l'id d'une ligne. Un seed s'insère avant qu'aucun compte
-        # n'existe : il n'y a rien à y désigner.
+        # POINT 99: an ACTOR parent's column carries an ACCOUNT identifier, not
+        # a row id. A seed is inserted before any account exists: there is
+        # nothing to designate there.
         if cible in self.actors:
             raise ASTValidationError(
                 f"Structure: the 'seed {entity}' block is attached to actor "
@@ -145,12 +144,11 @@ class AssetsMixin:
                 f"'{cible}.{champ}', of type {type_declare}. Designating a row "
                 f"requires a field that NAMES it: "
                 f"{', '.join(self.TYPES_DESIGNATION)}.")
-        # L'ordre compte pour de vrai : les données de démonstration sont
-        # insérées table par table, dans l'ordre de DÉCLARATION des blocs. Un
-        # parent semé après son enfant ne serait pas encore en base au moment de
-        # rattacher, et la ligne serait écartée au démarrage. Refuser ici plutôt
-        # que de réordonner en silence : la spec dirait une chose et le serveur
-        # en ferait une autre.
+        # The order really matters: demo data is inserted table by table, in
+        # the DECLARATION order of the blocks. A parent seeded after its child
+        # would not yet be in the database when attaching, and the row would be
+        # discarded at startup. Refuse here rather than silently reorder: the
+        # spec would say one thing and the server would do another.
         deja = [s for s in self.seeds if s["entity"] == cible]
         if not deja:
             raise ASTValidationError(
@@ -173,7 +171,7 @@ class AssetsMixin:
                 f"Designate it using a field whose values are distinct.")
 
     def _valider_assets_et_seeds(self):
-        """Valide les assets locaux et les données de démonstration."""
+        """Validates the local assets and the demo data."""
         self.assets = dict(self.assets_raw)
         assets_dir = self.assets.get("dir", DEFAULT_ASSETS_DIR)
         self._verifier_forme_chemin_asset(assets_dir, "assets.dir")
@@ -199,9 +197,9 @@ class AssetsMixin:
             self.seeds.append(seed)
 
     def _verifier_cellule_de_seed(self, entity, entity_fields, index, field, value):
-        """Une valeur de `seed` : champ déclaré, type respecté, jamais d'Upload,
-        image présente. Extraite de `_valider_assets_et_seeds` (plafond de
-        complexité) ; refus et messages inchangés."""
+        """A `seed` value: declared field, type respected, never an Upload, image
+        present. Extracted from `_valider_assets_et_seeds` (complexity ceiling);
+        refusals and messages unchanged."""
         numeric_types = {"Integer", "Float", "Money"}
         if field not in entity_fields:
             raise ASTValidationError(

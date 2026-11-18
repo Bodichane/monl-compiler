@@ -1,9 +1,9 @@
-"""Ce qu'un champ accepte, et ce qu'il montre.
+"""What a field accepts, and what it shows.
 
-Les quatre contraintes du point 85 (`required`, `unique`, `min`, `max` —
-les plus anciennes règles du compilateur, qui ne produisaient RIEN avant
-lui), le masquage `hidden`, la substitution `categorized`, et la liste
-fermée `oneOf` (point 96)."""
+The four constraints of point 85 (`required`, `unique`, `min`, `max` — the
+compiler's oldest rules, which produced NOTHING before it), `hidden`
+masking, `categorized` substitution, and the `oneOf` closed list (point
+96)."""
 
 from .socle import ASTValidationError
 
@@ -11,22 +11,22 @@ from .socle import ASTValidationError
 class ChampsMixin:
     """Ce qu'un champ accepte, et ce qu'il montre."""
 
-    # Les quatre VALIDATION_TYPE de la grammaire, et ce qu'ils bornent selon le
-    # type du champ. La longueur pour du texte, la valeur pour un nombre : c'est
-    # la seule lecture naturelle de « min 3 » sur un nom et de « min 0 » sur un
-    # prix, et elle doit être écrite quelque part plutôt que devinée.
+    # The grammar's four VALIDATION_TYPEs, and what they bound depending on the
+    # field's type. Length for text, value for a number: it is the only natural
+    # reading of "min 3" on a name and "min 0" on a price, and it must be
+    # written down somewhere rather than guessed.
     BORNES_TEXTE = ("String", "Text", "Email")
 
     BORNES_NOMBRE = ("Integer", "Float", "Money")
 
-    # Longueur maximale de la colonne SQL correspondante (correctif bêta 3) :
-    # un 'max' au-delà promettrait une donnée que la colonne ne peut pas tenir.
+    # Maximum length of the matching SQL column (beta 3 fix): a 'max' beyond it
+    # would promise data the column cannot hold.
     LONGUEUR_COLONNE = {"String": 255, "Email": 320, "Text": 20000}
 
     def _champ_contraint(self, reference, ou):
-        """(entité, champ, type) visés par une contrainte, ou un refus qui dit
-        pourquoi. Extrait de `_valider_contraintes_de_champ` (plafond de
-        complexité) ; refus et messages inchangés."""
+        """(entity, field, type) targeted by a constraint, or a refusal that says
+        why. Extracted from `_valider_contraintes_de_champ` (complexity ceiling);
+        refusals and messages unchanged."""
         if "." not in reference:
             raise ASTValidationError(
                 f"Structure: '{ou}' must reference 'Entity.field', got '{reference}'.")
@@ -52,22 +52,22 @@ class ChampsMixin:
         return entite, champ, type_champ
 
     def _valider_contraintes_de_champ(self):
-        """POINT 85 : les quatre règles qui ne faisaient rien.
+        """POINT 85: the four rules that did nothing.
 
-        `required`, `unique`, `min` et `max` — les plus anciennes du compilateur —
-        étaient acceptées sans que RIEN ne les vérifie ni ne les applique. Deux
-        constats, tous deux obtenus par exécution :
+        `required`, `unique`, `min` and `max` — the compiler's oldest — were
+        accepted without ANYTHING checking or enforcing them. Two findings, both
+        obtained by execution:
 
-        * une référence fantôme passait en silence. `rule Product.nom required`
-          au lieu de `name` : l'auteur croit tenir une contrainte, il n'en a
-          aucune, et rien ne le dit ;
-        * la sortie était IDENTIQUE À L'OCTET avec ou sans ces règles.
-          `exemples/02_boutique.ml` déclare `rule Product.price min 0`, et le
-          serveur acceptait `price: -99` — dans une boutique où le prix se
-          multiplie en sous-total, se somme en total et part chez Stripe.
+        * a phantom reference passed silently. `rule Product.nom required` instead
+          of `name`: the author believes they hold a constraint, they have none,
+          and nothing says so;
+        * the output was BYTE-IDENTICAL with or without these rules.
+          `exemples/02_boutique.ml` declares `rule Product.price min 0`, and the
+          server accepted `price: -99` — in a shop where the price is multiplied
+          into a subtotal, summed into a total and sent to Stripe.
 
-        Cette méthode ferme la première moitié (les références), et remplit
-        `self.field_constraints` dont le générateur applique la seconde."""
+        This method closes the first half (the references), and fills
+        `self.field_constraints`, whose second half the generator enforces."""
         self.field_constraints = {}
         for rule in self.rules:
             type_regle = rule["type"]
@@ -117,7 +117,7 @@ class ChampsMixin:
                     f"max {haut['valeur']}: no value satisfies both.")
 
     def _valider_champs_masques(self):
-        """Valide les règles ``hidden`` et prépare les champs à masquer."""
+        """Validates the ``hidden`` rules and prepares the fields to mask."""
         self.masked_fields = set()
         for rule in self.rules:
             if rule["type"] != "hidden":
@@ -137,7 +137,7 @@ class ChampsMixin:
             self.masked_fields.add((entity, field))
 
     def _valider_champs_categorises(self):
-        """Valide les règles ``categorized`` après les champs ``hidden``."""
+        """Validates the ``categorized`` rules after the ``hidden`` fields."""
         self.categorized_fields = []
         seen_fields = set()
         for rule in self.rules:
@@ -173,10 +173,10 @@ class ChampsMixin:
 
     @staticmethod
     def _valider_paliers_categorises(entity, field, clauses):
-        """Les paliers d'un `categorized` : au moins un seuil, `otherwise` en
-        dernier et seulement là, seuils strictement croissants, libellés non
-        vides. Extrait de `_valider_champs_categorises` (plafond de
-        complexité) ; refus et messages inchangés."""
+        """The tiers of a `categorized`: at least one threshold, `otherwise` last and
+        only there, strictly increasing thresholds, non-empty labels. Extracted
+        from `_valider_champs_categorises` (complexity ceiling); refusals and
+        messages unchanged."""
         if len(clauses) < 2:
             raise ASTValidationError(
                 f"Structure: 'categorized' on '{entity}.{field}' must declare at least one threshold ('below') "
@@ -206,8 +206,8 @@ class ChampsMixin:
 
     @staticmethod
     def _valider_liste_de_choix(entity, field, values):
-        """Au moins deux valeurs, aucune vide, aucune répétée. Extrait de
-        `_valider_champs_enumeres` (plafond de complexité) ; refus inchangés."""
+        """At least two values, none empty, none repeated. Extracted from
+        `_valider_champs_enumeres` (complexity ceiling); refusals unchanged."""
         if len(values) < 2:
             raise ASTValidationError(
                 f"Structure: 'oneOf' on '{entity}.{field}' lists only one value—"
@@ -228,7 +228,7 @@ class ChampsMixin:
             )
 
     def _valider_champs_enumeres(self):
-        """Valide les champs texte limités à une liste de valeurs."""
+        """Validates the text fields limited to a list of values."""
         self.enumerated_fields = {}
         for rule in self.rules:
             if rule["type"] != "oneOf":

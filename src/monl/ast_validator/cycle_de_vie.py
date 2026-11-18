@@ -1,18 +1,18 @@
-"""Ce qu'un enregistrement devient APRÈS son règlement.
+"""What a record becomes AFTER its payment.
 
-`releases` (point 98 — atteindre une valeur défait un effet, une seule
-fois, vers un état terminal) et `writableAfterPayment` (point 113, la
-seule voie pour faire avancer un champ sans toucher au verrou générique
-d'Update, qui reste absolu)."""
+`releases` (point 98 — reaching a value undoes an effect, only once,
+toward a terminal state) and `writableAfterPayment` (point 113, the only
+way to move a field forward without touching the generic Update lock,
+which stays absolute)."""
 
 from .socle import ASTValidationError
 
 
 class CycleDeVieMixin:
-    """Ce qu'un enregistrement devient APRÈS son règlement."""
+    """What a record becomes AFTER its payment."""
 
     def _refuser_premier_etat_libere(self, entity, field):
-        """Un nouvel objet ne peut pas naître dans son état terminal."""
+        """A new object cannot be born in its terminal state."""
         choix = self.enumerated_fields.get(entity, {}).get(field)
         liberation = next((item for item in self.release_rules
                            if item["entity"] == entity
@@ -26,9 +26,9 @@ class CycleDeVieMixin:
                 f"'{entity}.{field}'.")
 
     def _verifier_entite_liberee(self, entity, released_entity):
-        """L'entité libérée existe, porte un `decrements`, et dépend de
-        `entity`. Extrait de `_valider_regles_liberation` (plafond de
-        complexité) ; refus et messages inchangés."""
+        """The released entity exists, carries a `decrements`, and depends on
+        `entity`. Extracted from `_valider_regles_liberation` (complexity
+        ceiling); refusals and messages unchanged."""
         if released_entity not in self.entities:
             raise ASTValidationError(
                 f"Structure: 'releases' names entity '{released_entity}', which does not exist."
@@ -49,7 +49,7 @@ class CycleDeVieMixin:
             )
 
     def _valider_regles_liberation(self):
-        """Valide les transitions qui rendent un compteur décrémenté."""
+        """Validates the transitions that give back a decremented counter."""
         self.release_rules = []
         for rule in self.rules:
             if rule["type"] != "releases":
@@ -88,7 +88,7 @@ class CycleDeVieMixin:
             })
 
     def _valider_regle_apres_paiement(self):
-        """Valide le canal d'écriture réservé qui contourne le CRUD verrouillé."""
+        """Validates the reserved write channel that bypasses the locked CRUD."""
         self.postpayment_writable = {}
         champs_vus = set()
         regles_serveur = (

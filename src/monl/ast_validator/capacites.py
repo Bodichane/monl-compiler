@@ -1,8 +1,8 @@
-"""Les blocs `capability`, et la forme de l'identifiant de compte.
+"""The `capability` blocks, and the form of the account identifier.
 
-POINT 95 : `capability auth` contraint la FORME de l'identifiant. La
-substance n'est pas la validation, c'est la NORMALISATION — sans forme
-canonique, l'unicité se contourne en changeant une majuscule."""
+POINT 95: `capability auth` constrains the FORM of the identifier. The
+substance is not validation, it is NORMALIZATION — without a canonical
+form, uniqueness can be bypassed by changing a capital letter."""
 
 from .socle import (
     DEVISE_PAR_DEFAUT,
@@ -16,20 +16,20 @@ from .socle import (
 
 
 class CapacitesMixin:
-    """Les blocs `capability`, et la forme de l'identifiant de compte."""
+    """The `capability` blocks, and the form of the account identifier."""
 
-    # POINT 95 : formes reconnues pour l'identifiant de compte. 'libre' est le
-    # comportement historique (n'importe quelle chaîne) et reste le défaut :
-    # une spec qui ne dit rien compile exactement comme avant.
+    # POINT 95: recognized forms for the account identifier. 'libre' is the
+    # historical behavior (any string) and stays the default: a spec that says
+    # nothing compiles exactly as before.
     FORMES_IDENTIFIANT = ("email", "phone", "libre")
 
     @staticmethod
     def _indicatif_valide(brut):
-        """L'indicatif `phone_prefix` nettoyé, ou un refus. Extrait de
-        `_valider_identifiant_de_compte` (plafond de complexité)."""
+        """The cleaned `phone_prefix` calling code, or a refusal. Extracted from
+        `_valider_identifiant_de_compte` (complexity ceiling)."""
         valeur = brut.strip()
-        # Un indicatif est un '+' suivi de 1 à 4 chiffres : pas de
-        # motif à importer pour si peu, et une dépendance de moins.
+        # A calling code is a '+' followed by 1 to 4 digits: no pattern to
+        # import for so little, and one dependency fewer.
         if not (valeur.startswith("+") and valeur[1:].isdigit()
                 and 1 <= len(valeur) - 1 <= 4):
             raise ASTValidationError(
@@ -39,8 +39,8 @@ class CapacitesMixin:
         return valeur
 
     def _formes_demandees(self, brutes):
-        """Les formes d'identifiant d'une liste, dédoublonnées dans l'ordre, ou
-        un refus. Extrait de `_valider_identifiant_de_compte` (plafond)."""
+        """The identifier forms of a list, deduplicated in order, or a refusal.
+        Extracted from `_valider_identifiant_de_compte` (ceiling)."""
         demandees = list(dict.fromkeys(brutes))
         inconnues = [f for f in demandees if f not in self.FORMES_IDENTIFIANT]
         if inconnues:
@@ -48,9 +48,9 @@ class CapacitesMixin:
                 f"Structure: unknown identifier form(s): "
                 f"{', '.join(inconnues)}. Recognized forms: "
                 f"{', '.join(self.FORMES_IDENTIFIANT)}.")
-        # 'libre' accepte tout : le cumuler avec une forme stricte annule
-        # cette dernière sans le dire. Un refus vaut mieux qu'une règle
-        # écrite qui ne produit rien — c'est tout le point 85.
+        # 'libre' accepts everything: combining it with a strict form cancels
+        # the latter without saying so. A refusal is better than a written rule
+        # that produces nothing — that is all of point 85.
         if "libre" in demandees and len(demandees) > 1:
             raise ASTValidationError(
                 "Structure: 'identifier: libre' already accepts any "
@@ -60,11 +60,11 @@ class CapacitesMixin:
         return demandees
 
     def _valider_identifiant_de_compte(self, capacites):
-        """Formes acceptées par '/register', déclarées sur 'capability auth'.
+        """Forms accepted by '/register', declared on 'capability auth'.
 
-        Retourne None quand rien n'est déclaré — et ce None compte : il vaut
-        « aucune contrainte », pas « email par défaut ». Deviner ici
-        verrouillerait tous les projets existants au premier recompilage."""
+        Returns None when nothing is declared — and that None matters: it means
+        "no constraint", not "email by default". Guessing here would lock every
+        existing project on its first recompilation."""
         formes, prefixe = None, None
         for capacite in capacites:
             if "phone_prefix" in capacite:
@@ -83,8 +83,9 @@ class CapacitesMixin:
                     "'capability auth'—there must be one list; otherwise, "
                     "which one applies?")
             formes = demandees
-        # Un indicatif sans forme 'phone' ne produirait RIEN : c'est ce que le
-        # point 85 refuse. Le dire vaut mieux que le laisser croire appliqué.
+        # A calling code without a 'phone' form would produce NOTHING: that is
+        # what point 85 refuses. Saying so is better than letting people
+        # believe it applies.
         if prefixe and not (formes and "phone" in formes):
             raise ASTValidationError(
                 "Structure: 'phone_prefix' only makes sense with "
@@ -94,7 +95,7 @@ class CapacitesMixin:
         return formes
 
     def _valider_capacites(self):
-        """Valide les capacités déclarées et prépare l'authentification B4."""
+        """Validates the declared capabilities and prepares B4 authentication."""
         known_capabilities = {"auth", "payment"}
         names = [capability["name"] for capability in self.capabilities_raw]
         unknown = [name for name in names if name not in known_capabilities]
@@ -110,10 +111,10 @@ class CapacitesMixin:
             "name", "identifier", "phone_prefix", "lockout", "password_reset",
             "refresh_tokens", "totp", "verify_email", "verify_resend",
         }
-        # BRIQUE 2a : 'currency' est la première option qui n'appartient PAS à
-        # 'capability auth'. La grammaire partage un seul jeu de propriétés
-        # entre toutes les capacités — c'est donc ici, et nulle part ailleurs,
-        # que chaque option est rattachée à sa capacité.
+        # BRICK 2a: 'currency' is the first option that does NOT belong to
+        # 'capability auth'. The grammar shares a single set of properties
+        # across all capabilities — so it is here, and nowhere else, that each
+        # option is tied to its capability.
         allowed_payment_options = {"currency", "provider"}
         options_par_capacite = {
             "auth": allowed_auth_options - {"name"},
@@ -128,10 +129,9 @@ class CapacitesMixin:
             permises = options_par_capacite.get(nom, set())
             hors_sujet = options - permises
             if hors_sujet:
-                # Nommer la capacité qui ACCEPTE l'option, quand elle existe :
-                # « currency n'a pas de sens ici » enverrait chercher une faute
-                # de frappe alors que la ligne est simplement au mauvais
-                # endroit.
+                # Name the capability that ACCEPTS the option, when it exists:
+                # "currency makes no sense here" would send people looking for
+                # a typo when the line is simply in the wrong place.
                 accueil = {opt: cap
                            for cap, opts in options_par_capacite.items()
                            for opt in opts}
@@ -194,21 +194,21 @@ class CapacitesMixin:
         self._valider_verification_email(features)
         self.auth_features = features
 
-        # BRIQUE 2a : une devise déclarée sans rien à encaisser ne produit
-        # RIEN. C'est le point 85 mot pour mot — refuser une règle sans effet
-        # plutôt que l'ignorer en silence, sinon l'auteur croit avoir configuré
-        # son application.
+        # BRICK 2a: a currency declared with nothing to charge produces
+        # NOTHING. It is point 85 word for word — refuse a rule with no effect
+        # rather than silently ignore it, otherwise the author believes they
+        # configured their application.
         #
-        # LE RECOUPEMENT VIT ICI, ET C'EST UNE QUESTION D'ORDRE, PAS DE GOÛT.
-        # Écrit d'abord dans `_valider_securite_calculs_paiement` — l'endroit
-        # « logique », auprès des autres refus de paiement — il ne se
-        # déclenchait JAMAIS : le pipeline y passe à l'étape 261, et
-        # `_valider_capacites` ne pose `payment_currency` qu'à l'étape 344. La
-        # garde lisait donc toujours `None`. Elle est ici parce que c'est le
-        # premier moment où les DEUX informations existent : `payable_fields`
-        # est posé dès l'étape 228. Même famille que le point 92 — une garde
-        # qui lit une variable pas encore assignée est une garde qui ment, et
-        # seul un test qui EXIGE le refus le révèle.
+        # THE CROSS-CHECK LIVES HERE, AND IT IS A MATTER OF ORDER, NOT OF
+        # TASTE. Written first in `_valider_securite_calculs_paiement` — the
+        # "logical" place, next to the other payment refusals — it NEVER fired:
+        # the pipeline reaches it at step 261, and `_valider_capacites` sets
+        # `payment_currency` only at step 344. The guard therefore always read
+        # `None`. It is here because this is the first moment where BOTH pieces
+        # of information exist: `payable_fields` is set as early as step 228.
+        # Same family as point 92 — a guard that reads a variable not yet
+        # assigned is a guard that lies, and only a test that REQUIRES the
+        # refusal reveals it.
         if not self.payable_fields:
             declare = []
             if self.payment_currency:
@@ -223,14 +223,13 @@ class CapacitesMixin:
                     f"have no effect. Add "
                     f"'rule Entite.field payable', or remove these lines.")
 
-        # BRIQUE 2b, SUITE : le prestataire et la devise sont déclarés
-        # séparément, donc rien n'empêchait de les déclarer INCOMPATIBLES.
-        # La devise EFFECTIVE est comparée, pas seulement la déclarée : sans
-        # ligne `currency`, le défaut est l'euro (DEVISE_PAR_DEFAUT), et
-        # `provider: fedapay` tout seul partait donc encaisser en euros chez
-        # un prestataire qui n'en accepte pas. Le refus NOMME la devise
-        # attendue — un message qui dirait seulement « incompatible »
-        # laisserait chercher.
+        # BRICK 2b, CONTINUED: the provider and the currency are declared
+        # separately, so nothing prevented declaring them INCOMPATIBLE. The
+        # EFFECTIVE currency is compared, not just the declared one: without a
+        # `currency` line, the default is the euro (DEVISE_PAR_DEFAUT), and
+        # `provider: fedapay` alone therefore set off to charge in euros at a
+        # provider that accepts none. The refusal NAMES the expected currency —
+        # a message that only said "incompatible" would leave people searching.
         prestataire = self.payment_provider or PRESTATAIRE_PAR_DEFAUT
         acceptees = DEVISES_PAR_PRESTATAIRE.get(prestataire)
         effective = (self.payment_currency or {}).get("code") or DEVISE_PAR_DEFAUT
@@ -248,7 +247,7 @@ class CapacitesMixin:
                 f"{attendue.split(', ')[0]}' to the 'capability payment' block.")
 
     def _valider_verification_email(self, features):
-        """Deux réglages ensemble, un destinataire exclusivement e-mail."""
+        """Two settings together, an email-only recipient."""
         if ("verify_email" in features) != ("verify_resend" in features):
             raise ASTValidationError("Structure: verify_email and verify_resend must be declared together.")
         if "verify_email" not in features:
@@ -262,7 +261,7 @@ class CapacitesMixin:
             raise ASTValidationError("Structure: verify_resend requires a positive maximum and window.")
 
     def _valider_prestataire(self, nom):
-        """Résout le prestataire d'encaissement — ou refuse en l'expliquant."""
+        """Resolves the payment provider — or refuses and explains why."""
         nom = str(nom).lower()
         if nom in PRESTATAIRES:
             return nom
@@ -276,17 +275,16 @@ class CapacitesMixin:
             f"Available providers: {', '.join(sorted(PRESTATAIRES))}.")
 
     def _valider_devise(self, code):
-        """Résout un code ISO en {code, exponent} — ou refuse en l'expliquant.
+        """Resolves an ISO code into {code, exponent} — or refuses and explains why.
 
-        L'exposant est calculé ICI et une seule fois : le générateur le LIT, il
-        ne le redérive pas. Deux tables finiraient par diverger, et une
-        divergence d'unité se paie sur le relevé bancaire (voir DEVISES).
-        """
+        The exponent is computed HERE and only once: the generator READS it, it
+        does not derive it again. Two tables would eventually diverge, and a unit
+        divergence is paid for on the bank statement (see DEVISES)."""
         code = str(code).upper()
         if code in DEVISES:
             return {"code": code, "exponent": DEVISES[code]}
-        # Trois décimales : refusées NOMMÉMENT, pour que le message n'envoie
-        # pas chercher une faute de frappe dans un code parfaitement valide.
+        # Three decimals: refused BY NAME, so that the message does not send
+        # people looking for a typo in a perfectly valid code.
         if code in {"BHD", "IQD", "JOD", "KWD", "LYD", "OMR", "TND"}:
             raise ASTValidationError(
                 f"Structure: currency '{code}' has three decimal places, and "
