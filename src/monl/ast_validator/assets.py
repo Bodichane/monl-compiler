@@ -91,6 +91,17 @@ class AssetsMixin:
     # prix ou un stock ne nomme rien — la désignation doit se lire.
     TYPES_DESIGNATION = ("String", "Text", "Email", "UUID")
 
+    def _relation_parent_enfant(self, parent, enfant):
+        """Vrai si une relation déclarée relie `parent` à `enfant`, dans un
+        sens ou dans l'autre. Extrait de `_valider_parent_de_seed` (plafond)."""
+        return any(
+            (rel["type"] in ("hasMany", "hasOne")
+             and rel["source"] == parent and rel["target"] == enfant)
+            or (rel["type"] == "belongsTo"
+                and rel["source"] == enfant and rel["target"] == parent)
+            for rel in self.relations
+        )
+
     def _valider_parent_de_seed(self, entity, parent):
         """BRIQUE 21 (point 100) : `seed Enfant for Parent.champ "valeur"`.
 
@@ -109,14 +120,7 @@ class AssetsMixin:
         # Même convention de relation que partout ailleurs (voir
         # _compute_fk_placements) : sans elle, aucune colonne ne porterait le
         # rattachement.
-        lie = any(
-            (rel["type"] in ("hasMany", "hasOne")
-             and rel["source"] == cible and rel["target"] == entity)
-            or (rel["type"] == "belongsTo"
-                and rel["source"] == entity and rel["target"] == cible)
-            for rel in self.relations
-        )
-        if not lie:
+        if not self._relation_parent_enfant(cible, entity):
             raise ASTValidationError(
                 f"Structure: the 'seed {entity}' block is attached to '{cible}', but "
                 f"no relation links them (e.g. '{cible} hasMany {entity}') -- there "

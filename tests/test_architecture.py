@@ -398,7 +398,6 @@ EXCEPTIONS_DE_COMPLEXITE = {
     "monl/assets_tool/commandes.py:ajouter_asset": (25, "La commande assemble une liste de contrôles et reste hors des cinq cibles refactorées."),
     "monl/assets_tool/resolution.py:_resoudre_seed": (37, "Le résolveur conserve plusieurs cas métier liés aux seeds ; il est hors périmètre et borné par son cliquet."),
     "monl/ast_validator/acces.py:_valider_controle_dacces": (38, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
-    "monl/ast_validator/assets.py:_valider_parent_de_seed": (18, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
     "monl/ast_validator/capacites.py:_valider_capacites": (43, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
     "monl/ast_validator/champs.py:_valider_champs_enumeres": (20, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
     "monl/ast_validator/champs.py:_valider_contraintes_de_champ": (19, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
@@ -409,10 +408,8 @@ EXCEPTIONS_DE_COMPLEXITE = {
     "monl/ast_validator/collisions.py:_valider_regles_message": (20, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
     "monl/ast_validator/collisions.py:_valider_workflows_et_collisions": (20, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
     "monl/ast_validator/commerce.py:_valider_requires_own_et_payable": (28, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
-    "monl/ast_validator/commerce.py:_valider_securite_calculs_paiement": (18, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
     "monl/ast_validator/cycle_de_vie.py:_valider_regle_apres_paiement": (23, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
     "monl/ast_validator/cycle_de_vie.py:_valider_regles_liberation": (19, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
-    "monl/ast_validator/migrations.py:_valider_migrations": (18, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
     "monl/ast_validator/uploads.py:_valider_champs_uploades": (41, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
     "monl/cli/couverture.py:_frontend_route_coverage": (26, "Contrôle de couverture hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/cli/delta.py:_rapporter_delta": (46, "Rapport de delta hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
@@ -443,7 +440,6 @@ EXCEPTIONS_DE_COMPLEXITE = {
     "monl/parser/transformer_structure.py:app": (30, "Transformation d'AST hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/smoke_test/etapes.py:_eprouver_les_routes": (27, "Parcours de smoke test hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/ui_patterns.py:select_ui_patterns": (23, "Sélection de motifs hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
-    "monl/usage.py:_aggregate": (19, "Agrégation de métriques hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/usage.py:_load_prices": (23, "Chargement de tarifs hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
 }
 
