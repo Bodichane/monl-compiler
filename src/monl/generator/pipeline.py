@@ -109,19 +109,8 @@ class PipelineMixin:
                 entity: frozenset(columns)
                 for entity, columns in identity.items()
             },
-            client_foreign_keys={
-                entity: tuple(self._client_fk_columns(entity))
-                for entity in self.entities
-            },
-            incoming_relations={
-                entity: (dict(relation) if relation else None)
-                for entity in self.entities
-                for relation in [self._get_incoming_relation(entity)]
-            },
-            payment_locked_parents={
-                entity: tuple(dict(lock) for lock in self._payment_locked_parents(entity))
-                for entity in self.entities
-            },
+            **self._plans_par_entite(),
+            **self._tables_recopiees(),
             reputation_rules_by_trigger=self.reputation_rules_by_trigger,
             entity_models=self.entity_models,
             access_policies=self.access_policies,
@@ -135,28 +124,54 @@ class PipelineMixin:
             public_conditions=self.public_conditions,
             required_profiles=self.required_profiles,
             payable_by_entity=self.payable_by_entity,
-            release_rules_by_entity={
-                entity: tuple(dict(rule) for rule in rules)
-                for entity, rules in self.release_rules_by_entity.items()
-            },
             transitive_ownership=self.transitive_ownership,
             postpayment_writable_by_entity=self.postpayment_writable_by_entity,
             assets=self.assets,
             once_per_rules=tuple(dict(rule) for rule in self.once_per_rules),
             upload_fields=tuple(dict(field) for field in self.upload_fields),
-            message_rules_by_trigger={
+        )
+
+    # Les deux méthodes suivantes sont extraites de `build_compilation_plans`
+    # (plafond de complexité) : mêmes clés, mêmes valeurs, mêmes copies.
+    def _plans_par_entite(self):
+        """Les analyses calculées entité par entité."""
+        return {
+            "client_foreign_keys": {
+                entity: tuple(self._client_fk_columns(entity))
+                for entity in self.entities
+            },
+            "incoming_relations": {
+                entity: (dict(relation) if relation else None)
+                for entity in self.entities
+                for relation in [self._get_incoming_relation(entity)]
+            },
+            "payment_locked_parents": {
+                entity: tuple(dict(lock) for lock in self._payment_locked_parents(entity))
+                for entity in self.entities
+            },
+        }
+
+    def _tables_recopiees(self):
+        """Les tables de l'IR recopiées pour que le plan ne partage rien de
+        mutable avec elle."""
+        return {
+            "release_rules_by_entity": {
+                entity: tuple(dict(rule) for rule in rules)
+                for entity, rules in self.release_rules_by_entity.items()
+            },
+            "message_rules_by_trigger": {
                 entity: dict(rule)
                 for entity, rule in self.message_rules_by_trigger.items()
             },
-            filterable_fields={
+            "filterable_fields": {
                 entity: tuple(fields)
                 for entity, fields in self.filterable_fields_by_entity.items()
             },
-            sortable_fields={
+            "sortable_fields": {
                 entity: tuple(fields)
                 for entity, fields in self.sortable_fields_by_entity.items()
             },
-        )
+        }
 
     def _generate_secure_fastapi(self):
         """Assemble app.py à partir des trois couches générées séparément :

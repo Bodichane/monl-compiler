@@ -23,6 +23,34 @@ class ChampsMixin:
     # un 'max' au-delà promettrait une donnée que la colonne ne peut pas tenir.
     LONGUEUR_COLONNE = {"String": 255, "Email": 320, "Text": 20000}
 
+    def _champ_contraint(self, reference, ou):
+        """(entité, champ, type) visés par une contrainte, ou un refus qui dit
+        pourquoi. Extrait de `_valider_contraintes_de_champ` (plafond de
+        complexité) ; refus et messages inchangés."""
+        if "." not in reference:
+            raise ASTValidationError(
+                f"Structure: '{ou}' must reference 'Entity.field', got '{reference}'.")
+        entite, champ = reference.split(".", 1)
+        if entite not in self.entities:
+            raise ASTValidationError(
+                f"Structure: '{ou}' references entity '{entite}', which does not exist. "
+                f"Declared entities: {', '.join(sorted(self.entities))}.")
+        type_champ = self.entities[entite].get(champ)
+        if type_champ is None:
+            proches = [c for c in self.entities[entite] if c.lower() == champ.lower()]
+            indice = f" Did you mean '{proches[0]}'?" if proches else ""
+            raise ASTValidationError(
+                f"Structure: '{ou}' references field '{champ}', which entity "
+                f"'{entite}' does not declare.{indice} Fields of {entite}: "
+                f"{', '.join(self.entities[entite])}. A constraint on a nonexistent field "
+                f"does not apply to anything—and suggests otherwise.")
+        if type_champ == "Upload":
+            raise ASTValidationError(
+                f"Structure: '{ou}' does not apply to '{reference}' of type Upload. "
+                "Constrain an upload with 'upload max … types …', which produces "
+                "real multipart rejections in the backend.")
+        return entite, champ, type_champ
+
     def _valider_contraintes_de_champ(self):
         """POINT 85 : les quatre règles qui ne faisaient rien.
 
@@ -47,29 +75,7 @@ class ChampsMixin:
                 continue
             reference = rule["reference"]
             ou = f"rule {reference} {type_regle}"
-            if "." not in reference:
-                raise ASTValidationError(
-                    f"Structure: '{ou}' must reference 'Entity.field', got '{reference}'.")
-            entite, champ = reference.split(".", 1)
-            if entite not in self.entities:
-                raise ASTValidationError(
-                    f"Structure: '{ou}' references entity '{entite}', which does not exist. "
-                    f"Declared entities: {', '.join(sorted(self.entities))}.")
-            type_champ = self.entities[entite].get(champ)
-            if type_champ is None:
-                proches = [c for c in self.entities[entite] if c.lower() == champ.lower()]
-                indice = f" Did you mean '{proches[0]}'?" if proches else ""
-                raise ASTValidationError(
-                    f"Structure: '{ou}' references field '{champ}', which entity "
-                    f"'{entite}' does not declare.{indice} Fields of {entite}: "
-                    f"{', '.join(self.entities[entite])}. A constraint on a nonexistent field "
-                    f"does not apply to anything—and suggests otherwise.")
-
-            if type_champ == "Upload":
-                raise ASTValidationError(
-                    f"Structure: '{ou}' does not apply to '{reference}' of type Upload. "
-                    "Constrain an upload with 'upload max … types …', which produces "
-                    "real multipart rejections in the backend.")
+            entite, champ, type_champ = self._champ_contraint(reference, ou)
 
             contraintes = self.field_constraints.setdefault((entite, champ), {})
             if type_regle in contraintes:
