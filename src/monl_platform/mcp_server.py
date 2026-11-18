@@ -20,14 +20,13 @@ PROTOCOL_VERSION = "2025-06-18"
 
 
 def _adresse_de_telechargement(project_id: str) -> str:
-    """L'adresse à laquelle un agent récupère l'archive, avec sa clé MCP.
+    """The address at which an agent fetches the archive, with its MCP key.
 
-    POINT 162 : absolue quand ``MONL_PLATFORM_PUBLIC_URL`` est déclarée,
-    relative sinon. Elle n'est JAMAIS déduite de l'en-tête ``Host``, qu'un
-    tiers contrôle — même frontière qu'au point 145 pour l'adresse de retour
-    OAuth. Une adresse absolue fausse enverrait l'archive d'un compte vers un
-    serveur que quelqu'un d'autre a nommé.
-    """
+    POINT 162: absolute when ``MONL_PLATFORM_PUBLIC_URL`` is declared,
+    relative otherwise. It is NEVER deduced from the ``Host`` header, which a
+    third party controls — the same boundary as point 145 for the OAuth return
+    address. A wrong absolute address would send an account's archive to a
+    server someone else named."""
     chemin = f"/api/projects/{project_id}/download"
     base = (os.environ.get("MONL_PLATFORM_PUBLIC_URL") or "").rstrip("/")
     return base + chemin if base else chemin
@@ -132,9 +131,9 @@ class MCPDispatcher:
                 result = {
                     "protocolVersion": PROTOCOL_VERSION,
                     "capabilities": {"tools": {"listChanged": False}},
-                    # La version du PAQUET, jamais une valeur recopiée : écrite en
-                    # dur, elle annonçait 0.1.0 aux clients MCP pendant que le
-                    # paquet était en 0.9.0-beta.10 (issue #90).
+                    # The PACKAGE's version, never a copied value: hard-coded,
+                    # it announced 0.1.0 to MCP clients while the package was
+                    # at 0.9.0-beta.10 (issue #90).
                     "serverInfo": {"name": "monl-compiler", "version": VERSION_DU_PAQUET},
                     "instructions": (
                         "Use Monl to validate and compile business rules. "
@@ -221,12 +220,11 @@ class MCPDispatcher:
         raise PlatformInputError(f"Unknown tool: {name}")
 
     def _projet_du_compte(self, project_id: str, user_id: str | None) -> str:
-        """Même réponse pour « n'existe pas » et « pas à vous ».
+        """The same response for "does not exist" and "not yours".
 
-        L'identifiant opaque ne devient pas un oracle d'existence — c'est la
-        règle déjà tenue par ``_require_project`` côté HTTP, et la répéter
-        ici n'est pas un doublon : le chemin MCP ne passe pas par elle.
-        """
+        The opaque identifier does not become an existence oracle — it is the
+        rule already held by ``_require_project`` on the HTTP side, and repeating
+        it here is not a duplicate: the MCP path does not go through it."""
         if self.identities and (not user_id or not self.identities.owns_project(
                 user_id, project_id)):
             raise PlatformNotFoundError("Project not found.")
@@ -239,7 +237,7 @@ class MCPDispatcher:
 
 
 def run_stdio(service: CompilationService | None = None) -> None:
-    """Serveur MCP stdio, une trame JSON compacte par ligne."""
+    """Stdio MCP server, one compact JSON frame per line."""
     dispatcher = MCPDispatcher(service or CompilationService())
     for line in sys.stdin:
         if not line.strip():

@@ -1,9 +1,9 @@
-"""L'assemblage du contrat.
+"""Assembling the contract.
 
-Chaque section vit dans son module ; `build_contract` les appelle dans
-l'ordre et scelle le résultat. Toute brique qui ajoute une promesse au
-contrat doit se demander si `_contract_signature` (cli/signature.py) la
-voit — six fois la réponse a été non."""
+Each section lives in its own module; `build_contract` calls them in order
+and seals the result. Every brick that adds a promise to the contract must
+ask whether `_contract_signature` (cli/signature.py) sees it — six times
+the answer was no."""
 
 from ..design_skills import select_design_skills
 from ..ir import CompilationIR
@@ -11,13 +11,15 @@ from . import champs, contrat_auth, contrat_entites, contrat_paiement, contrat_r
 
 
 def _contenu_et_regles(devise, entity_specs, normalized_ast, plans, prestataire, public_conditions, routes):
-    """Contenu éditorial, messages et règles métier annoncés au frontend."""
+    """Editorial content, messages and business rules announced to the
+    frontend."""
     routes.sort(key=lambda r: (r["entity"], r["path"], r["method"]))
 
-    # POINT 72 : plus AUCUNE identité visuelle calculée. Le contrat décrit ce
-    # que monl sait — structure, rôles, routes, contenu, intention déclarée —
-    # et rien de ce qu'il devinait : ni palette, ni typographies, ni rayon.
-    # La direction de design remonte du dialogue, par le brief.
+    # POINT 72: NO computed visual identity anymore. The contract describes
+    # what monl knows — structure, roles, routes, content, declared intent —
+    # and nothing of what it used to guess: neither palette, nor typefaces, nor
+    # radius. The design direction comes up from the dialogue, through the
+    # brief.
     landing = normalized_ast.get("landing") or {}
 
     design_skills = select_design_skills(entity_specs, routes)
@@ -45,43 +47,41 @@ def _contenu_et_regles(devise, entity_specs, normalized_ast, plans, prestataire,
     }
     if message_contracts:
         business_rules["messages"] = message_contracts
-    # BRIQUE 2a : la devise n'est déclarée QUE s'il y a quelque chose à
-    # encaisser. Une spec sans `payable` n'ajoute donc aucune clé, et son
-    # contrat reste identique à l'octet — condition pour qu'une brique nouvelle
-    # ne réécrive pas les projets qui ne s'en servent pas.
+    # BRICK 2a: the currency is declared ONLY if there is something to charge.
+    # A spec without `payable` therefore adds no key, and its contract stays
+    # byte-identical — the condition for a new brick not to rewrite the
+    # projects that do not use it.
     if plans.payable_by_entity:
         business_rules["payment"] = {
             "provider": prestataire,
             "currency": devise["code"],
-            # L'exposant est DONNÉ, pas laissé à déduire : c'est lui qui dit si
-            # `montant_centimes` se divise par cent ou pas, et une interface
-            # qui devrait connaître la liste des devises sans sous-unité
-            # finirait par se tromper sur la moins courante.
+            # The exponent is GIVEN, not left to deduce: it is what says
+            # whether `montant_centimes` is divided by a hundred or not, and an
+            # interface that had to know the list of currencies without a
+            # subunit would end up wrong on the least common one.
             "minor_unit_exponent": devise["exponent"],
         }
     return business_rules, design_skills, landing
 
 def build_contract(normalized_ast: CompilationIR, plans_or_generator):
-    """Construit le contrat depuis l'IR et les analyses communes.
+    """Builds the contract from the IR and the shared analyses.
 
-    La voie de production transmet ``CompilationPlans``. L'acceptation d'un
-    générateur reste volontairement conservée pour les intégrations Python
-    historiques ; elle ne fait que construire l'objet de plans une fois.
-    """
+    The production path passes ``CompilationPlans``. Accepting a generator is
+    deliberately kept for historical Python integrations; it only builds the
+    plans object once."""
     plans = fondations._coerce_plans(plans_or_generator)
     app_name = normalized_ast["meta"]["appName"]
     entities = normalized_ast["schema"]["entities"]
-    # POINT 91 : la liste des 'rule X.y required' ne sert PLUS à peupler le
-    # `required` du contrat — les schémas générés rendent tout champ d'entrée
-    # obligatoire, déclaré ou non, et le contrat doit dire ce que le serveur
-    # exige. Elle n'est donc plus lue ici : la garder pour « information »
-    # rouvrirait la porte à ce qu'on vient de fermer, deux sources pour une
-    # même question.
+    # POINT 91: the list of 'rule X.y required' NO LONGER fills the contract's
+    # `required` — the generated schemas make every input field mandatory,
+    # declared or not, and the contract must say what the server requires. It
+    # is therefore no longer read here: keeping it "for information" would
+    # reopen the door just closed, two sources for one question.
     fk_placements = plans.foreign_key_placements
 
-    # Calculés AVANT les entités : l'archétype dépend de qui peut lire, pas
-    # seulement des champs (voir _archetype). Même source de vérité que la
-    # génération FastAPI — _compute_route_map, jamais une logique parallèle.
+    # Computed BEFORE the entities: the archetype depends on who can read, not
+    # only on the fields (see _archetype). Same source of truth as FastAPI
+    # generation — _compute_route_map, never parallel logic.
     route_map = plans.route_map
     public_conditions = plans.public_conditions
     lisibles = {plan.base_target for (act, _t), plan in route_map.items()
@@ -98,43 +98,43 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
     business_rules, design_skills, landing = _contenu_et_regles(devise, entity_specs, normalized_ast, plans, prestataire, public_conditions, routes)
     auth_contract, b4_contract = contrat_auth._auth_du_contrat(auth_features, plans)
     contract = {
-        # Une spec sans B4 conserve la version et la forme historiques à
-        # l'octet ; une spec B4 rend son delta visible au frontend.
+        # A spec without B4 keeps the historical version and shape byte for
+        # byte; a B4 spec makes its delta visible to the frontend.
         "monl_contract_version": fondations.CONTRACT_VERSION + (1 if b4_contract else 0),
         "app": app_name,
         "brief": landing.get("brief"),
         "design_skills": design_skills,
-        # Contenu éditorial statique (point 55) : aucune entité, aucune route
-        # ne peut le porter — c'est la seule matière du contrat qui ne soit
-        # pas une donnée.
+        # Static editorial content (point 55): no entity, no route can carry it
+        # — it is the only material in the contract that is not data.
         "sections": [{"title": s["title"], "body": fondations.paragraphes(s["body"])}
                      for s in (landing.get("sections") or [])],
-        # POINT 94 : la FAQ est une LISTE, et le contrat doit le dire. Rendue
-        # comme une section, elle redevient le pavé de prose qu'elle était —
-        # l'interface ne peut pas deviner une structure qu'on ne lui donne pas.
+        # POINT 94: the FAQ is a LIST, and the contract must say so. Rendered
+        # as a section, it becomes the block of prose it used to be again — the
+        # interface cannot guess a structure it is not given.
         "faq": [{"question": q["question"], "answer": fondations.paragraphes(q["answer"])}
                 for q in (landing.get("faq") or [])],
-        # BRIQUE 30 : les adresses SORTANTES, dans l'ordre déclaré. Le contrat
-        # les porte parce que le pied de page est une promesse d'interface au
-        # même titre qu'une route : une IA qui ne les voit pas dessine un pied
-        # de page vide, et c'est très exactement ce qu'on répare.
+        # BRICK 30: the OUTGOING addresses, in declared order. The contract
+        # carries them because the footer is an interface promise just like a
+        # route: an AI that does not see them draws an empty footer, and that
+        # is exactly what is being fixed.
         "links": [{"label": lien["label"], "url": lien["url"]}
                   for lien in (landing.get("links") or [])],
         "source_of_truth": "monl spec (.ml) — never modify the backend by hand",
-        # AJOUT (brique 13, point 83) : les assets FOURNIS PAR L'HUMAIN. Le
-        # contrat n'en disait rien, donc une IA d'interface ne pouvait pas savoir
-        # qu'un logo existait — l'en-tête de la boutique de démonstration était
-        # un simple mot en texte, faute de mieux. Chaque fichier nommé ici a été
-        # vérifié présent à la compilation : l'IA peut s'y référer sans risque.
+        # ADDED (brick 13, point 83): the assets SUPPLIED BY THE HUMAN. The
+        # contract said nothing about them, so an interface AI could not know a
+        # logo existed — the demo shop's header was a plain word of text, for
+        # lack of anything better. Every file named here was checked present at
+        # compile time: the AI can refer to it safely.
         "assets": champs._assets_contract(plans.assets or {}),
         "api": {
-            # MÊME ORIGINE, jamais d'URL absolue : 'monl run' monte frontend/
-            # sur /site du serveur qui sert déjà l'API (SERVE_WRAPPER, cli.py),
-            # donc l'origine de la page EST celle de l'API. Une base absolue
-            # codée en dur (ce champ valait "http://127.0.0.1:8000") casse dès
-            # que le port change — 'monl run --port', et le port éphémère du
-            # smoke test, qui rejetait alors le frontend pour avoir suivi le
-            # contrat à la lettre (point 51 du journal).
+            # SAME ORIGIN, never an absolute URL: 'monl run' mounts frontend/
+            # on /site of the server that already serves the API
+            # (SERVE_WRAPPER, cli.py), so the page's origin IS the API's. A
+            # hard-coded absolute base (this field used to be
+            # "http://127.0.0.1:8000") breaks as soon as the port changes —
+            # 'monl run --port', and the smoke test's ephemeral port, which
+            # then rejected the frontend for following the contract to the
+            # letter (point 51 of the journal).
             "base_url": "",
             "base_url_note": ("same origin as the page: call the routes with "
                               "relative paths (/entity), never an absolute "
@@ -143,10 +143,10 @@ def build_contract(normalized_ast: CompilationIR, plans_or_generator):
         },
         "actors": sorted(plans.actors),
         "self_register_actors": list(plans.self_register_actors),
-        # Règles métier qui ne se réduisent pas à un simple CRUD : le contrat
-        # frontend doit savoir qu'un contenu public est filtré par son statut
-        # et qu'un compte ne peut créer qu'une occurrence par combinaison de
-        # cibles (like/vote, par exemple).
+        # Business rules that do not reduce to plain CRUD: the frontend
+        # contract must know that public content is filtered by its status and
+        # that an account can create only one occurrence per combination of
+        # targets (like or vote, for example).
         "business_rules": business_rules,
         "entities": entity_specs,
         "routes": routes,

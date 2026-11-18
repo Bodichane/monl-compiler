@@ -1,4 +1,4 @@
-"""Ce que le site livré doit CONTENIR : sections, matière, images."""
+"""What the delivered site must CONTAIN: sections, substance, images."""
 
 import json
 import os
@@ -11,13 +11,12 @@ from . import controles_fichiers
 
 
 def _design_completeness_errors(project_dir):
-    """Contrôles de complétude visuelle propres aux projets qui les déclarent.
+    """Visual completeness checks specific to the projects that declare them.
 
-    Le contrat Monl vérifie l'API et le fonctionnement. Ce contrôle séparé
-    vérifie qu'un projet doté d'un design spec a aussi livré ses assets et ses
-    sections obligatoires ; les projets historiques sans manifeste restent
-    compatibles.
-    """
+    The Monl contract checks the API and behavior. This separate check
+    verifies that a project with a design spec has also delivered its assets
+    and its mandatory sections; historical projects without a manifest stay
+    compatible."""
     manifest, read_errors = _load_manifest(project_dir)
     if read_errors:
         return read_errors
@@ -57,7 +56,8 @@ def _load_manifest(project_dir):
 
 
 def _manifest_is_planned(manifest):
-    """Le plan préparatoire informe l'IA sans bloquer l'interface existante."""
+    """The preparatory plan informs the AI without blocking the existing
+    interface."""
     return manifest.get("generated_by") == "monl" and manifest.get("status") == "planned"
 
 
@@ -74,7 +74,7 @@ def _manifest_assets_dir(project_dir):
 
 
 def _asset_disk_path(project_dir, frontend_dir, assets_dir, rel):
-    """Résout les nouveaux assets hors frontend, avec repli historique."""
+    """Resolves the new assets outside frontend, with a historical fallback."""
     if rel == assets_dir or rel.startswith(assets_dir + "/"):
         return os.path.join(project_dir, rel)
     return os.path.join(frontend_dir, rel)
@@ -115,7 +115,7 @@ def _frontend_source(frontend_dir):
 
 def _generated_asset_errors(generated_assets, project_dir, frontend_dir,
                             assets_dir, rendered_source):
-    """Vérifie présence et emploi des visuels produits par l'IA."""
+    """Checks the presence and use of the visuals produced by the AI."""
     errors = []
     for item in generated_assets:
         rel = item.get("path") if isinstance(item, dict) else item
@@ -166,7 +166,7 @@ def _marker_errors(content, markers, unique_markers):
     return errors
 
 def _generated_asset_reuse_errors(frontend_dir, generated_assets):
-    """Refuse qu'une illustration dédiée soit copiée dans plusieurs images."""
+    """Refuses a dedicated illustration copied into several images."""
     html_sources = []
     for root, _dirs, names in os.walk(frontend_dir):
         for name in names:
@@ -196,7 +196,7 @@ def _generated_asset_reuse_errors(frontend_dir, generated_assets):
     return errors
 
 def _editorial_content_errors(project_dir, rendered_source):
-    """Détecte la répétition exacte d'un texte éditorial déclaré."""
+    """Detects the exact repetition of a declared editorial text."""
     contract_path = os.path.join(project_dir, "frontend_contract.json")
     if not os.path.exists(contract_path):
         return []

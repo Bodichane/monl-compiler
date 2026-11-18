@@ -1,20 +1,18 @@
-"""La lecture avec filtrage et tri déclarés (brique B3)."""
+"""Reading with declared filtering and sorting (brick B3)."""
 
 from . import sql
 
 
 class LectureFiltreeRoutesMixin:
-    """La lecture avec filtrage et tri déclarés (brique B3)."""
+    """Reading with declared filtering and sorting (brick B3)."""
 
     def _generate_read_route_lines_with_query(self, plan, context, act_type):
-        """Liste avec filtres exacts et tri whitelisté (brique B3).
+        """List with exact filters and whitelisted sorting (brick B3).
 
-        Cette voie est conditionnelle. Elle compose toujours le WHERE d'ACL
-        avant d'y ajouter les égalités de filtre. Les fragments de colonne et
-        de direction sont produits par ``generator.sql`` au moment de la
-        compilation ; à l'exécution le client ne choisit qu'une clé déjà
-        présente dans les dictionnaires générés.
-        """
+        This path is conditional. It always composes the ACL WHERE before adding
+        the filter equalities. The column and direction fragments are produced by
+        ``generator.sql`` at compile time; at runtime the client only picks a key
+        already present in the generated dictionaries."""
         api_lines = []
         base_target = context["base_target"]
         tag = context["tag"]
@@ -73,8 +71,8 @@ class LectureFiltreeRoutesMixin:
 
         filter_fragments = {}
         for field in filter_fields:
-            # La valeur est le nom de la variable Python générée pour ce champ;
-            # sql.bind refuse toute autre porte d'entrée.
+            # The value is the name of the Python variable generated for this
+            # field; sql.bind refuses any other entry point.
             fragment = sql.cat(sql.ident(field), sql.kw(" = "), sql.bind(field))
             filter_fragments[field] = fragment
 
@@ -103,8 +101,9 @@ class LectureFiltreeRoutesMixin:
                 f"        _base_params = {sql.params_tuple(owner_where)}",
             ]
         elif apply_read_super:
-            # `sql.cat` n'est pas un builder de listes : construire ce fragment
-            # explicitement garde chaque colonne issue de la spec sous ident().
+            # `sql.cat` is not a list builder: building this fragment
+            # explicitly keeps
+            # every column coming from the spec under ident().
             party_parts = [sql.kw(" WHERE (")]
             for index, column in enumerate(read_parties):
                 if index:

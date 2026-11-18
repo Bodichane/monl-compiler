@@ -1,4 +1,4 @@
-"""Ce que tout l'outil lit, et qui ne lit rien en retour."""
+"""What the whole tool reads, and which reads nothing back."""
 
 import hashlib
 import re
@@ -10,23 +10,23 @@ from ..errors import ToolError
 class AssetsToolError(ToolError):
     pass
 
-# Lettres que la décomposition Unicode NFKD ne sépare pas : sans cette table,
-# « Sørlund » donne « srlund » et « Bæk » donne « bk » — un slug muet là où le
-# nom était lisible. Le catalogue de SneakerLab porte déjà une maison nordique :
-# le cas n'est pas théorique.
+# Letters that Unicode NFKD decomposition does not split: without this table,
+# "Sørlund" gives "srlund" and "Bæk" gives "bk" — a mute slug where the name
+# was readable. SneakerLab's catalog already carries a Nordic brand: the case
+# is not theoretical.
 TRANSLITTERATIONS = {
     "ø": "o", "æ": "ae", "œ": "oe", "ß": "ss", "þ": "th", "ð": "d",
     "đ": "d", "ł": "l", "ħ": "h", "ı": "i", "ŋ": "n", "ə": "e",
 }
 
-# Les mots qui ouvrent un bloc de premier niveau. Sert à placer un bloc
-# 'assets' créé de toutes pièces : après l'en-tête du fichier (le nom de
-# l'app et ses commentaires de tête), avant la première déclaration.
+# The words that open a top-level block. Used to place an 'assets' block
+# created from scratch: after the file's header (the app name and its leading
+# comments), before the first declaration.
 DEBUTS_DE_BLOC = ("entity", "relation", "actor", "rule", "workflow", "seed",
                   "landing", "ui", "capability", "custom", "migration",
                   "assets")
 
-# Noms de fichiers de crédits reconnus — convention de projet, pas format monl.
+# Recognized credits file names — a project convention, not a monl format.
 NOMS_DE_CREDITS = ("CREDITS.json", "CREDITS.md", "CREDITS.txt", "credits.json")
 
 # ------------------------------------------------------------------ slug --

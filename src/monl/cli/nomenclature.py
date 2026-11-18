@@ -1,8 +1,8 @@
-"""Les noms de fichiers d'un projet, en un seul endroit.
+"""A project's file names, in one place.
 
-Feuille du paquet : ces constantes sont lues par l'emplacement ET par le
-conteneur, qui se liraient l'un l'autre si elles restaient chez l'un des
-deux."""
+The package's leaf: these constants are read by the location module AND
+by the container module, which would read each other if the constants
+stayed in one of the two."""
 
 from ..design_system import (
     ASSET_MANIFEST_FILENAME,
@@ -18,14 +18,14 @@ from ..frontend_contract import (
 
 STATE_FILENAME = "monl.json"
 
-# Ce que la spec produit et que personne ne doit retoucher à la main
-# (manage.py et sandbox_ai.py compris : ils portent des droits).
+# What the spec produces and nobody must touch up by hand (manage.py and
+# sandbox_ai.py included: they carry permissions).
 SCELLE_ARTEFACTS = ("app.py", "schema.sql", "sandbox_ai.py", "manage.py",
                     "serve.py")
 
-# Artefacts de déploiement éditables par l'auteur. Ils sont publiés avec la
-# compilation, mais ne sont ni scellés ni inclus dans les empreintes backend :
-# une adaptation locale du conteneur doit survivre à `monl compile`.
+# Deployment artifacts the author can edit. They are published with the
+# compilation, but are neither sealed nor included in the backend fingerprints:
+# a local adaptation of the container must survive `monl compile`.
 CONTAINER_ARTEFACTS = ("Dockerfile", ".dockerignore", "requirements.txt")
 
 PROJECT_ARTEFACTS = (
@@ -42,19 +42,19 @@ PROJECT_ARTEFACTS = (
     STATE_FILENAME,
 )
 
-# Le Dockerfile installe depuis requirements.txt et n'énumère AUCUNE
-# dépendance : deux listes à tenir d'accord finissent par diverger, et la
-# divergence portait déjà — le gabarit n'ajoutait 'python-multipart' que si la
-# spec déclare un Upload, quand requirements.txt le listait toujours. Une
-# seule liste, et c'est celle que l'archive documente.
+# The Dockerfile installs from requirements.txt and lists NO dependency: two
+# lists to keep in agreement end up diverging, and the divergence already bit —
+# the template added 'python-multipart' only if the spec declared an Upload,
+# while requirements.txt always listed it. A single list, and it is the one the
+# archive documents.
 #
-# MONL_ENV=production rend MONL_JWT_SECRET OBLIGATOIRE (aucun secret n'est
-# généré ni lu sur le disque en production) : le conteneur REFUSE de démarrer
-# sans lui, et c'est voulu — un secret fabriqué au démarrage changerait à
-# chaque redémarrage, invalidant toutes les sessions, et un secret cuit dans
-# l'image serait pire. Le dire ICI est le point du correctif : le message
-# d'erreur du serveur nomme déjà la variable, mais il faut avoir lancé le
-# conteneur et lu ses journaux pour le découvrir.
+# MONL_ENV=production makes MONL_JWT_SECRET MANDATORY (no secret is generated
+# or read from disk in production): the container REFUSES to start without it,
+# on purpose — a secret made at startup would change on every restart,
+# invalidating all sessions, and a secret baked into the image would be worse.
+# Saying it HERE is the point of the fix: the server's error message already
+# names the variable, but one has to start the container and read its logs to
+# discover it.
 DEFAULT_DOCKERFILE = """FROM python:3.12-slim
 
 WORKDIR /app
@@ -79,11 +79,10 @@ __pycache__
 frontend.precedent/
 """
 
-# LA liste de dépendances du projet : le Dockerfile l'installe, l'archive la
-# documente, et 'pip install -r requirements.txt' fonctionne sur une machine
-# nue. 'python-multipart' n'y entre que si la spec déclare un Upload —
-# l'ajouter d'office ferait installer, à tout projet, une bibliothèque qu'il
-# n'emploie pas.
+# THE project's dependency list: the Dockerfile installs it, the archive
+# documents it, and 'pip install -r requirements.txt' works on a bare machine.
+# 'python-multipart' enters only if the spec declares an Upload — adding it by
+# default would make every project install a library it does not use.
 DEFAULT_REQUIREMENTS = """fastapi>=0.110,<1.0
 uvicorn>=0.29,<1.0
 PyJWT>=2.8,<3.0
@@ -91,18 +90,17 @@ PyJWT>=2.8,<3.0
 
 REQUIREMENTS_UPLOAD = DEFAULT_REQUIREMENTS + "python-multipart>=0.0.9,<1.0\n"
 
-# GABARITS HÉRITÉS — un Dockerfile RESTÉ IDENTIQUE à l'un d'eux n'a jamais été
-# touché par personne : le rafraîchir est un service, pas une intrusion. Un
-# fichier réellement personnalisé reste, lui, sous la responsabilité de son
-# auteur.
+# INHERITED TEMPLATES — a Dockerfile that STAYED IDENTICAL to one of them was
+# never touched by anyone: refreshing it is a service, not an intrusion. A
+# really customized file stays its author's responsibility.
 #
-# ILS SONT ÉCRITS EN TOUTES LETTRES, jamais dérivés de DEFAULT_DOCKERFILE.
-# Ils l'étaient — par `.replace()` sur le gabarit courant — et la première
-# évolution de ce gabarit les a fait désigner des formes qui n'ont jamais été
-# émises : la détection cessait de reconnaître les vrais fichiers hérités,
-# donc tout projet existant voyait son Dockerfile traité comme personnalisé et
-# gelé pour toujours. Silencieusement. Un « hérité » décrit le PASSÉ : il ne
-# peut pas se déduire du présent.
+# THEY ARE WRITTEN OUT IN FULL, never derived from DEFAULT_DOCKERFILE. They
+# used to be — through `.replace()` on the current template — and the first
+# change to that template made them designate forms that were never emitted:
+# detection stopped recognizing the real inherited files, so every existing
+# project saw its Dockerfile treated as customized and frozen forever.
+# Silently. "Inherited" describes the PAST: it cannot be deduced from the
+# present.
 _HERITE_ENTETE = """FROM python:3.12-slim
 
 WORKDIR /app
@@ -125,8 +123,8 @@ EXPOSE 8000
 CMD ["uvicorn", "{cible}", "--host", "0.0.0.0", "--port", "8000"]
 """
 
-# Quatre formes réellement émises : `app:app` avant le point 133, `serve:app`
-# depuis — chacune avec et sans la dépendance d'Upload.
+# Four forms really emitted: `app:app` before point 133, `serve:app` since —
+# each with and without the Upload dependency.
 DOCKERFILES_HERITES = tuple(
     entete + _HERITE_PIED.format(cible=cible)
     for entete in (_HERITE_ENTETE, _HERITE_ENTETE_UPLOAD)

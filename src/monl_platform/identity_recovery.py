@@ -11,30 +11,29 @@ from .identity_primitives import IdentityError
 
 class IdentityRecoveryMixin:
     # ------------------------------------------------------------------
-    # Codes de secours
+    # Recovery codes
     # ------------------------------------------------------------------
     #
-    # Sans courriel, un mot de passe perdu rendait le compte et ses projets
-    # définitivement inaccessibles. Le remède ne peut pas être « on vous
-    # envoie un lien » : monl n'envoie rien, et une brique « savoir envoyer un
-    # message » ouvrirait un serveur SMTP, un domaine à réputation et une
-    # dépendance réseau dans un service qui n'en a aucune.
+    # Without email, a lost password made the account and its projects
+    # permanently inaccessible. The remedy cannot be "we will send you a link":
+    # monl sends nothing, and a "knowing how to send a message" brick would
+    # open an SMTP server, a domain with a reputation and a network dependency
+    # in a service that has none.
     #
-    # Un code de secours déplace la garde chez la personne : elle reçoit des
-    # codes UNE fois, elle les range où elle veut. C'est exactement le contrat
-    # déjà passé pour les clés d'API — montrées une fois, hachées ensuite —
-    # donc ni une nouvelle promesse, ni un nouveau mode de stockage.
+    # A recovery code moves custody to the person: they receive codes ONCE,
+    # they store them where they want. It is exactly the contract already made
+    # for API keys — shown once, hashed afterwards — so neither a new promise
+    # nor a new storage mode.
 
     NB_CODES = 8
 
     def create_recovery_codes(self, user_id: str, /, *, session: str | None = None,
                               revoke_access: bool = False) -> list[str]:
-        """Remplace TOUS les codes du compte et rend les nouveaux, en clair.
+        """Replaces ALL of the account's codes and returns the new ones, in clear.
 
-        Remplacer plutôt qu'ajouter : quelqu'un qui régénère ses codes le fait
-        souvent parce qu'il craint que les anciens aient fuité. Les cumuler
-        laisserait vivre exactement ce dont il veut se débarrasser.
-        """
+        Replacing rather than adding: someone who regenerates their codes often
+        does so because they fear the old ones leaked. Accumulating them would
+        keep alive exactly what they want to get rid of."""
         codes = [secrets.token_urlsafe(12) for _ in range(self.NB_CODES)]
         maintenant = int(time.time())
         with self._connect() as db:
@@ -64,17 +63,15 @@ class IdentityRecoveryMixin:
 
     def consume_recovery_code(self, email: Any, code: Any, password: Any
                               ) -> dict[str, str] | None:
-        """Vérifie un code, change le mot de passe, et rend le compte.
+        """Checks a code, changes the password, and returns the account.
 
-        Le code est CONSOMMÉ dans la même transaction que le changement de mot
-        de passe : hors d'elle, un échec de l'écriture laisserait un code
-        brûlé pour rien, et la personne aurait perdu une chance sur huit sans
-        rien obtenir.
+        The code is CONSUMED in the same transaction as the password change:
+        outside it, a failed write would leave a code burned for nothing, and the
+        person would have lost one chance in eight without getting anything.
 
-        Toutes les sessions tombent. Une réinitialisation de mot de passe qui
-        laisserait vivre les sessions ouvertes ne servirait à rien dans le cas
-        qui compte — celui où quelqu'un d'autre est déjà entré.
-        """
+        All sessions go away. A password reset that kept open sessions alive
+        would be useless in the case that matters — the one where someone else
+        has already got in."""
         try:
             normalise = self._email(email)
             secret = self._password(password)

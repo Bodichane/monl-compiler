@@ -1,38 +1,37 @@
-"""Erreurs publiques du compilateur et de ses outils.
+"""Public errors of the compiler and its tools.
 
-Les fonctions de bibliothèque lèvent ces exceptions ; seules les frontières
-CLI les traduisent en messages et codes de sortie. Les sous-classes historiques
-(``MonlSyntaxError``, ``ASTValidationError``...) restent les erreurs détaillées
-que les appelants connaissent déjà.
-"""
+Library functions raise these exceptions; only the CLI boundaries turn
+them into messages and exit codes. The historical subclasses
+(``MonlSyntaxError``, ``ASTValidationError``...) stay the detailed errors
+callers already know."""
 
 
 class MonlError(Exception):
-    """Base commune des erreurs attendues par un appelant de MONL."""
+    """Common base of the errors a MONL caller expects."""
 
 
 class CompilationError(MonlError):
-    """Erreur survenue dans le pipeline de compilation."""
+    """Error raised in the compilation pipeline."""
 
 
 class ParseError(CompilationError):
-    """La source ne peut pas être transformée en AST brut."""
+    """The source cannot be turned into a raw AST."""
 
 
 class ValidationError(CompilationError):
-    """L'AST brut viole une règle du langage ou de sécurité."""
+    """The raw AST violates a language or security rule."""
 
 
 class GenerationError(CompilationError):
-    """La génération d'un artefact a échoué après validation."""
+    """Generating an artifact failed after validation."""
 
 
 class ProjectStateError(MonlError):
-    """L'état ou la publication d'un projet est inexploitable."""
+    """A project's state or publication is unusable."""
 
 
 class ToolError(MonlError):
-    """Erreur attendue d'un outil auxiliaire du CLI."""
+    """Expected error from a CLI helper tool."""
 
 
 class FrontendError(ToolError):
@@ -40,8 +39,8 @@ class FrontendError(ToolError):
 
 
 class CompilationInputError(CompilationError):
-    """La spec ou un chemin d'entrée est inexploitable."""
+    """The spec or an input path is unusable."""
 
 
 class CompilationGenerationError(GenerationError):
-    """Version détaillée de l'échec de génération pour l'API de compilation."""
+    """Detailed version of the generation failure for the compilation API."""

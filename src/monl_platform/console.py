@@ -11,10 +11,10 @@ from .console_template import BODY, EXTRA_CSS, TERMINAL
 from .theme import page
 
 CONSOLE_HTML = page(
-    # La console portait mot pour mot le titre de l'ACCUEIL. Toutes les autres
-    # pages se nomment (« MCP — … », « Votre compte — … ») : avec plusieurs
-    # onglets ouverts, celui de la console était indiscernable de la page
-    # d'accueil, et un signet ne disait pas où il menait.
+    # The console carried the HOME page's title word for word. Every other page
+    # names itself ("MCP — …", "Your account — …"): with several tabs open, the
+    # console's was indistinguishable from the home page, and a bookmark did
+    # not say where it led.
     title="Console — MONL",
     description="Describe your business rules. Monl compiles a standalone backend, "
                 "its SQL schema and its frontend contract.",

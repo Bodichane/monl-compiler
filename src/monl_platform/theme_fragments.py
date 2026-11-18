@@ -308,8 +308,8 @@ table.grid td code { background: var(--surface-2); padding: 2px 6px; border-radi
 ::view-transition-new(root) { z-index: 1; }
 """
 
-# Appliqué avant le rendu : après, la page clignote en clair chez qui a
-# choisi le sombre.
+# Applied before rendering: afterwards, the page flashes light for whoever
+# chose dark.
 THEME_BOOT = """
 (function () {
   try {

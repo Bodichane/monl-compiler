@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-# Les douze types de la grammaire (`TYPE` dans src/monl/parser.py). Un test
-# refuse toute divergence, dans les deux sens.
+# The grammar's twelve types (`TYPE` in src/monl/parser/grammaire.py). A test
+# refuses any divergence, in both directions.
 TYPES: list[tuple[str, str]] = [
     ("String", "Short single-line text: a name, a reference, a category."),
     ("Text", "Long, multi-line text: a description, a message."),

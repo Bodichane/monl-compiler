@@ -1,7 +1,7 @@
-"""L'enchaînement d'une compilation, et la carte des routes qu'elle produit.
+"""The sequence of a compilation, and the route map it produces.
 
-Les routes sont analysées par `planning`, puis partagées entre la génération
-FastAPI et le contrat frontend sans recalcul dans les émetteurs."""
+Routes are analyzed by `planning`, then shared between FastAPI generation
+and the frontend contract with no recomputation in the emitters."""
 
 import os
 import secrets
@@ -9,12 +9,11 @@ import secrets
 from ..artifacts import copy_preserved_files, publish_files, sans_sandbox, staging_directory
 from ..ir import CompilationPlans, RoutePlan
 
-# Colonnes de suivi ajoutées par la brique 'payable' (point 74). Jamais
-# fournies par le client, toujours présentes dans les réponses de lecture.
-# Source unique de vérité : ces deux noms étaient écrits en dur dans quatre
-# couches (schéma SQL, liste de colonnes, routes, et — depuis le point 76 —
-# le contrat frontend). Quatre copies d'un nom de colonne, c'est quatre
-# occasions de le faire dériver.
+# Tracking columns added by the 'payable' brick (point 74). Never supplied
+# by the client, always present in read responses. Single source of truth:
+# these two names were hard-coded in four layers (SQL schema, column list,
+# routes, and — since point 76 — the frontend contract). Four copies of a
+# column name are four chances for it to drift.
 BACKEND_ARTIFACTS = ("app.py", "schema.sql", "sandbox_ai.py", "manage.py",
                      ".jwt_secret")
 
@@ -22,17 +21,16 @@ BACKEND_ARTIFACTS = ("app.py", "schema.sql", "sandbox_ai.py", "manage.py",
 
 
 class PipelineMixin:
-    """L'enchaînement d'une compilation, et la carte des routes qu'elle produit."""
+    """The sequence of a compilation, and the route map it produces."""
 
     def generate_all(self):
-        """Déclenche la génération déterministe du BACKEND et les coquilles
-        vides des blocs 'custom' (à compléter à la main). PIVOT (point 41 de
-        docs/design_decisions.md) : monl ne génère plus AUCUN frontend
-        (landing, dashboard, archétypes — tous retirés). L'interface est
-        déléguée à une IA spécialisée via le contrat frontend
-        (frontend_contract.json + FRONTEND_PROMPT.md, voir
-        src/frontend_contract.py) ; '/docs' (Swagger) reste le seul front
-        fourni, gratuitement, par FastAPI."""
+        """Runs the deterministic generation of the BACKEND and the empty shells of
+        the 'custom' blocks (to complete by hand). PIVOT (point 41 of
+        docs/design_decisions.md): monl no longer generates ANY frontend (landing,
+        dashboard, archetypes — all removed). The interface is delegated to a
+        specialized AI through the frontend contract (frontend_contract.json +
+        FRONTEND_PROMPT.md, see src/frontend_contract.py); '/docs' (Swagger) stays
+        the only front end provided, for free, by FastAPI."""
         print(f"🏗️  Generating the deterministic foundation for '{self.app_name}'...")
         if self.capabilities:
             print(f"🧩 Declared capabilities: {', '.join(self.capabilities)} (see docs/design_decisions.md point 24).")
@@ -43,9 +41,9 @@ class PipelineMixin:
         sandbox_content = sources.sandbox
         manage_content = sources.manage
 
-        # Détermination des chemins physiques dans un staging voisin. La
-        # publication ne touche au projet courant qu'après la génération
-        # complète des cinq artefacts backend.
+        # Physical paths are resolved in a neighboring staging directory.
+        # Publishing touches the current project only after the five backend
+        # artifacts have been fully generated.
         target_dir = self.output_dir
         with staging_directory(target_dir) as temporary:
             copy_preserved_files(target_dir, temporary, (".jwt_secret",))
@@ -58,8 +56,9 @@ class PipelineMixin:
             secret_path = os.path.join(base_dir, ".jwt_secret")
 
             try:
-                # Le secret est généré une fois par projet, conservé entre
-                # compilations et toujours publié avec le mode propriétaire seul.
+                # The secret is generated once per project, kept across
+                # compilations and
+                # always published with owner-only permissions.
                 if not os.path.exists(secret_path):
                     fd = os.open(secret_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
                     with os.fdopen(fd, "w", encoding="utf-8") as f:
@@ -79,8 +78,9 @@ class PipelineMixin:
                 with open(manage_path, "w", encoding="utf-8") as f: f.write(manage_content)
             finally:
                 self.output_dir = target_dir
-            # `publish_files` exige que tout nom listé EXISTE : la condition
-            # doit donc porter sur la liste, pas seulement sur l'écriture.
+            # `publish_files` requires every listed name to EXIST: the
+            # condition must therefore apply to the list, not only to the
+            # write.
             publie = (BACKEND_ARTIFACTS if self.custom_functions
                       else sans_sandbox(BACKEND_ARTIFACTS))
             publish_files(temporary, target_dir, publie)
@@ -94,7 +94,7 @@ class PipelineMixin:
                   "'python3 manage.py adduser <user> <role>'.")
 
     def build_compilation_plans(self) -> CompilationPlans:
-        """Expose les analyses communes aux émetteurs backend et frontend."""
+        """Exposes the analyses shared by the backend and frontend emitters."""
         if hasattr(self, "compilation_plans"):
             return self.compilation_plans
         placements = self._compute_fk_placements()
@@ -131,10 +131,10 @@ class PipelineMixin:
             upload_fields=tuple(dict(field) for field in self.upload_fields),
         )
 
-    # Les deux méthodes suivantes sont extraites de `build_compilation_plans`
-    # (plafond de complexité) : mêmes clés, mêmes valeurs, mêmes copies.
+    # The next two methods are extracted from `build_compilation_plans`
+    # (complexity ceiling): same keys, same values, same copies.
     def _plans_par_entite(self):
-        """Les analyses calculées entité par entité."""
+        """The analyses computed entity by entity."""
         return {
             "client_foreign_keys": {
                 entity: tuple(self._client_fk_columns(entity))
@@ -152,8 +152,7 @@ class PipelineMixin:
         }
 
     def _tables_recopiees(self):
-        """Les tables de l'IR recopiées pour que le plan ne partage rien de
-        mutable avec elle."""
+        """The IR tables copied so that the plan shares nothing mutable with it."""
         return {
             "release_rules_by_entity": {
                 entity: tuple(dict(rule) for rule in rules)
@@ -174,13 +173,13 @@ class PipelineMixin:
         }
 
     def _generate_secure_fastapi(self):
-        """Assemble app.py à partir des trois couches générées séparément :
-        socle runtime (auth, DB, migrations), schémas d'entrée, routes."""
+        """Assembles app.py from the three separately generated layers: runtime
+        foundation (auth, DB, migrations), input schemas, routes."""
         api_lines = self._generate_runtime_lines()
         api_lines += self._generate_schema_lines()
         api_lines += self._generate_route_lines()
         return "\n".join(api_lines)
 
     def _compute_route_map(self) -> dict[tuple[str, str], RoutePlan]:
-        """Accès compatible au plan analysé une fois avant les émetteurs."""
+        """Compatible access to the plan analyzed once before the emitters."""
         return self.route_plans

@@ -20,7 +20,8 @@ FENETRE_COMPILATIONS_SECONDES = 3600
 
 
 def _liens_de_pied(brut):
-    """Normalise les liens déclarés par la console, sans deviner les autres."""
+    """Normalizes the links declared by the console, without guessing the
+    others."""
     from monl.dialogue_engine import adresse_de_lien
 
     liens, vus = [], set()
@@ -52,7 +53,7 @@ def _require_user(request: Request, identities: IdentityStore) -> dict[str, str]
 
 
 def _cle_mcp(request: Request) -> str | None:
-    """La clé portée par l'en-tête ``Authorization: Bearer …``, ou rien."""
+    """The key carried by the ``Authorization: Bearer …`` header, or nothing."""
     autorisation = request.headers.get("authorization", "")
     if not autorisation.lower().startswith("bearer "):
         return None
@@ -60,20 +61,18 @@ def _cle_mcp(request: Request) -> str | None:
 
 
 def _require_user_ou_cle(request: Request, identities: IdentityStore) -> dict[str, str]:
-    """La session du navigateur OU une clé MCP.
+    """The browser session OR an MCP key.
 
-    POINT 162. Récupérer son archive était la SEULE chose qu'un agent ne
-    pouvait pas faire sans ouvrir un navigateur — exactement le passage que le
-    cap veut supprimer. Ce n'est pas une seconde porte : c'est le MÊME chemin
-    d'authentification que ``/mcp`` (``api_key_user``), avec le même contrôle
-    de propriété derrière (``_require_project``). Le renversement à comprendre :
-    une clé MCP identifie un COMPTE, pas une capacité — lui refuser ce que la
-    session du même compte obtient n'était pas une protection, seulement une
-    dépendance au navigateur.
+    POINT 162. Fetching one's archive was the ONLY thing an agent could not do
+    without opening a browser — exactly the step the direction wants to
+    remove. It is not a second door: it is the SAME authentication path as
+    ``/mcp`` (``api_key_user``), with the same ownership check behind it
+    (``_require_project``). The reversal to understand: an MCP key identifies
+    an ACCOUNT, not a capability — refusing it what the same account's session
+    gets was not protection, only a dependency on the browser.
 
-    La session est essayée en PREMIER : dans un navigateur, un en-tête
-    ``Authorization`` traînant ne doit jamais l'emporter sur qui est connecté.
-    """
+    The session is tried FIRST: in a browser, a stray ``Authorization`` header
+    must never win over whoever is logged in."""
     user = identities.session_user(request.cookies.get("monl_session"))
     if user:
         return user
@@ -90,8 +89,8 @@ def _require_user_ou_cle(request: Request, identities: IdentityStore) -> dict[st
 
 def _require_project(identities: IdentityStore, user_id: str, project_id: str) -> None:
     if not identities.owns_project(user_id, project_id):
-        # Même réponse pour un projet absent et celui d'un autre compte :
-        # l'identifiant opaque ne devient pas un oracle d'existence.
+        # The same response for a missing project and another account's: the
+        # opaque identifier does not become an existence oracle.
         raise HTTPException(status_code=404, detail="Project not found.")
 
 
@@ -107,8 +106,8 @@ def _rate_limit(request: Request, identities: IdentityStore, scope: str,
                 subject: str, limit: int, window: int) -> None:
     retry = identities.consume_limit(scope, subject, limit=limit, window=window)
     if retry is not None:
-        # `sujet` n'est PAS journalisé : c'est une adresse IP ou un identifiant
-        # de compte. La portée et l'attente suffisent à constater un abus.
+        # `sujet` is NOT logged: it is an IP address or an account identifier.
+        # The scope and the wait are enough to notice abuse.
         anomalie("debit_depasse", portee=scope, attente_s=retry)
         raise HTTPException(
             status_code=429,
@@ -117,11 +116,11 @@ def _rate_limit(request: Request, identities: IdentityStore, scope: str,
         )
 
 
-#: Les outils MCP qui font tourner le COMPILATEUR, donc qui doivent prendre
-#: une place au sémaphore de `MONL_MAX_CONCURRENT_COMPILES`. POINT 162 : le
-#: diff et la mise à jour compilent eux aussi (dans un dossier jetable pour le
-#: premier, dans le projet pour le second) — les oublier ici laisserait la
-#: borne de concurrence intacte à la lecture et contournée à l'exécution.
+#: The MCP tools that run the COMPILER, and therefore must take a slot in the
+#: `MONL_MAX_CONCURRENT_COMPILES` semaphore. POINT 162: diff and update compile
+#: too (in a throwaway folder for the first, in the project for the second) —
+#: forgetting them here would leave the concurrency bound intact when read and
+#: bypassed when executed.
 OUTILS_QUI_COMPILENT = frozenset({
     "monl_compile_backend", "monl_diff_spec", "monl_update_backend",
 })
@@ -187,7 +186,7 @@ async def _json_body(request: Request) -> dict:
 
 @contextlib.asynccontextmanager
 async def _admission_compilation(request, identities, compile_slots, preparer=None):
-    """Partage le quota et la place d'exécution de toute compilation HTTP."""
+    """Shares the quota and the execution slot of every HTTP compilation."""
     _rate_limit(
         request,
         identities,
@@ -212,8 +211,8 @@ async def _admission_compilation(request, identities, compile_slots, preparer=No
 def mount_error_handler(application):
     @application.exception_handler(404)
     async def introuvable(request: Request, exc: HTTPException):
-        # Un visiteur reçoit une page, un client d'API reçoit du JSON. Servir
-        # du HTML à curl rendrait l'erreur illisible là où elle doit être lue.
+        # A visitor receives a page, an API client receives JSON. Serving HTML
+        # to curl would make the error unreadable where it must be read.
         detail = getattr(exc, "detail", "Introuvable.")
         if _veut_du_json(request):
             return JSONResponse({"detail": detail}, status_code=404)

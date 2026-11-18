@@ -1,4 +1,4 @@
-"""La construction par ÉTAGES, et le budget de chacun."""
+"""Building in STAGES, and each stage's budget."""
 
 import json
 import os
@@ -10,11 +10,10 @@ from . import fondations, fournisseurs, redaction, reponse, squelette
 CHUNKED_FRONTEND_FILES = ("index.html", "styles.css", "app.js")
 
 def _planned_generated_asset_paths(project_dir):
-    """Retourne les SVG texte d'un manifeste historique uniquement.
+    """Returns the text SVGs of a historical manifest only.
 
-    Les images matricielles sont produites avant cette étape par le fournisseur
-    d'images et ne doivent jamais devenir des cibles du modèle texte.
-    """
+    Raster images are produced before this step by the image provider and
+    must never become targets of the text model."""
     path = os.path.join(project_dir, ASSET_MANIFEST_FILENAME)
     if not os.path.exists(path):
         return []
@@ -35,7 +34,7 @@ def _planned_generated_asset_paths(project_dir):
     return list(dict.fromkeys(paths))
 
 def _parse_model_routing(declarations):
-    """Transforme les options ``CIBLE=MODELE`` en table de routage."""
+    """Turns the ``TARGET=MODEL`` options into a routing table."""
     routes = {}
     for declaration in declarations or []:
         if not isinstance(declaration, str):
@@ -55,7 +54,7 @@ def _parse_model_routing(declarations):
     return routes
 
 def _validate_model_routing(project_dir, routes):
-    """Refuse toute cible qui ne sera jamais une étape de génération."""
+    """Refuses any target that will never be a generation step."""
     if not routes:
         return
     known = set(CHUNKED_FRONTEND_FILES)
@@ -69,7 +68,7 @@ def _validate_model_routing(project_dir, routes):
             f"Known targets: {known_targets}.")
 
 def _provider_for_chunk(provider, target, routes, provider_factory):
-    """Retourne le provider global ou celui construit pour une cible."""
+    """Returns the global provider or the one built for a target."""
     model = routes.get(target)
     if model is None:
         return provider
@@ -80,7 +79,7 @@ def _provider_for_chunk(provider, target, routes, provider_factory):
     return provider_factory(model)
 
 def _chunk_context(files, target=None):
-    """Rend le contexte structurel utile à la cible, jamais les fichiers entiers."""
+    """Renders the structural context useful to the target, never whole files."""
     if target == "styles.css":
         useful_paths = ("index.html",)
     elif target == "app.js" or target is None:
@@ -96,15 +95,15 @@ def _chunk_context(files, target=None):
             content = squelette._html_selector_skeleton(files[path])
             label = "HTML skeleton (structure, class, id and data-*)"
         else:
-            # Le JS ne dépend pas des propriétés CSS : les sélecteurs déclarés
-            # suffisent à conserver les mêmes points d'accroche sans repayer
-            # les règles et leurs valeurs, souvent beaucoup plus longues.
+            # The JS does not depend on CSS properties: the declared selectors
+            # are enough to keep the same hook points without paying again for
+            # the rules and their values, often much longer.
             content = squelette._css_selector_skeleton(files[path])
             label = "declared CSS selectors (without the rules)"
         morceaux.append(f"### frontend/{path} — {label}\n```\n{content}\n```")
 
-    # Le contenu d'un SVG ne sert ni aux sélecteurs CSS ni aux branchements JS.
-    # Son chemin suffit pour que les morceaux suivants le référencent.
+    # An SVG's content serves neither the CSS selectors nor the JS hooks. Its
+    # path is enough for the following pieces to refer to it.
     for path in sorted(path for path in files if path.endswith(".svg")):
         morceaux.append(
             f"### frontend/{path}\n(SVG file already produced; the name is enough)"
@@ -112,7 +111,7 @@ def _chunk_context(files, target=None):
     return "\n\n".join(morceaux) or "(no file generated yet)"
 
 def _chunk_response_reached_limit(provider):
-    """Indique si le fournisseur a consommé tout son plafond de sortie."""
+    """Tells whether the provider used up its whole output ceiling."""
     usage = getattr(provider, "last_usage", None) or {}
     output_tokens = usage.get("output_tokens")
     maximum = getattr(provider, "max_output_tokens", None)
@@ -122,7 +121,7 @@ def _chunk_response_reached_limit(provider):
             else False)
 
 def _raise_chunk_output_limit(provider):
-    """Augmente le plafond d'une reprise, sans dépasser la borne définie."""
+    """Raises a retry's ceiling, without exceeding the defined bound."""
     maximum = getattr(provider, "max_output_tokens", None)
     if not isinstance(maximum, int) or isinstance(maximum, bool) or maximum <= 0:
         return False
@@ -136,7 +135,7 @@ def _raise_chunk_output_limit(provider):
 def _generate_chunked_files(project_dir, provider, base_prompt, operation,
                             attempt, say, run_id=None, model_routes=None,
                             provider_factory=None):
-    """Génère puis valide chaque fichier d'un frontend DeepSeek/Yandex."""
+    """Generates then validates each file of a DeepSeek/Yandex frontend."""
     model_routes = model_routes or {}
     _validate_model_routing(project_dir, model_routes)
     files = reponse._read_existing_frontend(project_dir)
@@ -161,9 +160,9 @@ def _generate_chunked_files(project_dir, provider, base_prompt, operation,
                         "Return the complete file again in a closed JSON, "
                         "without resuming a truncated response."
                     )
-                # Un appel en erreur ne doit pas réutiliser le compteur d'un appel
-                # précédent. Le fournisseur peut néanmoins renseigner last_usage
-                # avant de lever, ce qui permet alors de mesurer l'échec.
+                # A failed call must not reuse a previous call's counter. The
+                # provider may nevertheless fill last_usage before raising,
+                # which then allows measuring the failure.
                 if hasattr(stage_provider, "last_usage"):
                     stage_provider.last_usage = None
                 try:
@@ -202,16 +201,16 @@ def _generate_chunked_files(project_dir, provider, base_prompt, operation,
                         "attempt will be started. "
                         f"Last error: {error}") from error
         finally:
-            # Une hausse accordée à un fichier tronqué ne doit pas augmenter le
-            # coût de tous les fichiers suivants partageant le même fournisseur.
+            # An increase granted to a truncated file must not raise the cost
+            # of every following file sharing the same provider.
             if hasattr(stage_provider, "max_output_tokens"):
                 stage_provider.max_output_tokens = initial_output_limit
     return files
 
-#: Budget de sortie d'`app.js`, en jetons : un socle, puis ce que coûte
-#: RÉELLEMENT une route (appel, état de chargement, erreur, formulaire).
-#: Mesuré à l'envers sur les frontends complets du dépôt — 26 à 43 Ko pour une
-#: quinzaine de routes, soit 7 000 à 11 000 jetons.
+#: Output budget of `app.js`, in tokens: a base, then what a route REALLY costs
+#: (call, loading state, error, form). Measured backwards on the repository's
+#: complete frontends — 26 to 43 KB for some fifteen routes, that is 7,000 to
+#: 11,000 tokens.
 APPJS_SOCLE_TOKENS = 1_200
 
 APPJS_TOKENS_PAR_ROUTE = 400
@@ -227,12 +226,11 @@ def _budget(socle, par_route, ampleur, defaut):
                fournisseurs.DEFAULT_CHUNK_MAX_OUTPUT_TOKENS)
 
 def _build_chunk_prompt(base_prompt, target, files, ampleur=None):
-    """Demande une seule pièce complète du frontend.
+    """Requests a single complete piece of the frontend.
 
-    Le brief complet reste présent : le modèle conserve le contrat API et la
-    direction produit. Le contexte des fichiers précédents garantit toutefois
-    que le CSS et le JS s'accordent sur les mêmes classes et identifiants.
-    """
+    The full brief stays present: the model keeps the API contract and the
+    product direction. The context of the previous files nevertheless ensures
+    that the CSS and the JS agree on the same classes and identifiers."""
     planned_assets = list(dict.fromkeys(re.findall(
         r"((?:assets|frontend)/[A-Za-z0-9._/-]+\.(?:jpg|jpeg|png|webp|svg))",
         base_prompt, re.IGNORECASE)))
@@ -249,9 +247,10 @@ def _build_chunk_prompt(base_prompt, target, files, ampleur=None):
                            ampleur, 1_600)
     app_tokens = _budget(APPJS_SOCLE_TOKENS, APPJS_TOKENS_PAR_ROUTE,
                          ampleur, 1_500)
-    # La limite dure suit le budget au lieu de le contredire : ~4 caractères
-    # par jeton. Elle valait 12 000 caractères pour un fichier dont les
-    # exemples réussis du dépôt pèsent 26 à 43 Ko — trois fois trop peu.
+    # The hard limit follows the budget instead of contradicting it: ~4
+    # characters per token. It was 12,000 characters for a file whose
+    # successful examples in the repository weigh 26 to 43 KB — three times too
+    # little.
     plancher = ""
     if ampleur:
         plancher = (

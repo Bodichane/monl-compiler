@@ -1,15 +1,15 @@
-"""De l'AST validé au modèle que le générateur manipule."""
+"""From the validated AST to the model the generator works with."""
 
 from ..ir import EffectPlan, ForeignKeyPlacement
 from ..planning import plan_foreign_keys
 
 
 class ModeleMixin:
-    """De l'AST validé au modèle que le générateur manipule."""
+    """From the validated AST to the model the generator works with."""
 
 
     def _build_effect_plans(self) -> tuple[EffectPlan, ...]:
-        """Réunit les effets validés dans un catalogue commun et ordonné."""
+        """Gathers the validated effects into one shared, ordered catalog."""
         plans = []
         for entity, rules in self.derived_by_entity.items():
             plans.extend(EffectPlan(
@@ -59,41 +59,36 @@ class ModeleMixin:
                 and (target is None or plan.target_entity == target)]
 
     def _compute_fk_placements(self) -> dict[str, list[ForeignKeyPlacement]]:
-        """Adaptateur des émetteurs vers l'analyse typée des clés étrangères.
+        """Adapter from the emitters to the typed foreign key analysis.
 
-        Le placement ne dépend que de `relation_models`, figé à la
-        construction : il est donc calculé UNE fois. Les émetteurs
-        l'interrogent depuis des boucles imbriquées — mesuré à 270 305 appels
-        pour une spec de 1 668 lignes, soit 102 s passés à reconstruire le
-        même index. Le recalculer à chaque appel rendait le coût de
-        compilation cubique en nombre d'entités.
-        """
+        The placement depends only on `relation_models`, frozen at construction:
+        it is therefore computed ONCE. The emitters query it from nested loops —
+        measured at 270,305 calls for a 1,668-line spec, i.e. 102 s spent
+        rebuilding the same index. Recomputing it on every call made compilation
+        cost cubic in the number of entities."""
         if self._fk_placements_caches is None:
             self._fk_placements_caches = plan_foreign_keys(self.relation_models)
         return self._fk_placements_caches
 
     def _compute_seed_data(self):
-        """AJOUT (roadmap frontend, bloc 'seed') : regroupe les données de
-        démonstration par nom de table (lowercase), dans l'ordre de
-        déclaration. Retourne {table: [ {champ: valeur}, ... ]}. Plusieurs
-        blocs 'seed' visant la même entité sont concaténés.
+        """ADDED (frontend roadmap, 'seed' block): groups demo data by table name
+        (lowercase), in declaration order. Returns {table: [ {field: value}, ...
+        ]}. Several 'seed' blocks targeting the same entity are concatenated.
 
-        Les champs 'generated' (ex. pseudonyme anonyme d'auteur) ne sont pas
-        renseignés par l'utilisateur dans le seed (le validateur le tolère
-        car ils sont retirés du schéma d'entrée) ; comme à la création réelle
-        ils sont assignés par le serveur, on leur donne ici une valeur
-        synthétique déterministe ('Anon#1000', 'Anon#1001'…) pour que le seed
-        produise des enregistrements complets et cohérents avec le rendu
-        (fil social, etc.).
+        'generated' fields (e.g. an anonymous author pseudonym) are not filled in
+        by the user in the seed (the validator tolerates it because they are
+        removed from the input schema); as at a real creation they are assigned by
+        the server, so they get a deterministic synthetic value here ('Anon#1000',
+        'Anon#1001'…) so the seed produces complete records consistent with the
+        rendering (social feed, etc.).
 
-        BRIQUE 21 (point 100) : chaque entrée est désormais un COUPLE
-        {"values": {...}, "parent": None | {...}}, et non plus la seule ligne.
-        Le rattachement d'un enfant ne peut pas être résolu ici : l'`id` du
-        parent n'existe qu'une fois la ligne insérée, et le socle ne sème une
-        table que si elle est VIDE — un parent déjà peuplé par de vraies données
-        ne serait donc pas réinséré, et un rang calculé à la compilation
-        désignerait la mauvaise ligne. La désignation voyage telle quelle et se
-        résout par un SELECT au démarrage."""
+        BRICK 21 (point 100): each entry is now a PAIR
+        {"values": {...}, "parent": None | {...}}, no longer the row alone.
+        A child's attachment cannot be resolved here: the parent's `id` exists only
+        once the row is inserted, and the foundation seeds a table only if it is
+        EMPTY — a parent already populated with real data would therefore not be
+        reinserted, and a rank computed at compile time would designate the wrong
+        row. The designation travels as is and is resolved by a SELECT at startup."""
         seed_data = {}
         for seed in self.seeds:
             entity = seed["entity"]
@@ -113,7 +108,7 @@ class ModeleMixin:
                 filled = dict(row)
                 for gfield in generated:
                     if gfield not in filled:
-                        # Pseudonyme synthétique stable, unique par ligne.
+                        # Stable synthetic pseudonym, unique per row.
                         filled[gfield] = f"Anon#{1000 + len(seed_data[table])}"
                 seed_data[table].append({"values": filled, "parent": rattachement})
         return seed_data

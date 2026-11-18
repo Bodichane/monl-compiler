@@ -1,27 +1,28 @@
-"""Ce qui dépend du prestataire, et ce qui vient APRÈS le règlement.
+"""What depends on the provider, and what comes AFTER payment.
 
-`writableAfterPayment` (point 113) : route dédiée, réservée à l'acteur
-nommé, sans toucher au verrou générique d'`Update` qui reste absolu."""
+`writableAfterPayment` (point 113): a dedicated route, reserved to the
+named actor, without touching the generic `Update` lock, which stays
+absolute."""
 
 from . import sql
 
 
 class PrestatairesRoutesMixin:
-    """Ce qui dépend du prestataire, et ce qui vient APRÈS le règlement."""
+    """What depends on the provider, and what comes AFTER payment."""
 
     # ─────────────────────────────────────────────────────────────────
-    # BRIQUE 2b — FedaPay. Stripe n'opère pas en Afrique de l'Ouest, où
-    # l'argent passe par le mobile money (MTN MoMo, Moov, Wave) derrière un
-    # agrégateur.
+    # BRICK 2b — FedaPay. Stripe does not operate in West Africa, where money
+    # goes through mobile money (MTN MoMo, Moov, Wave) behind an aggregator.
     #
-    # DEUX appels là où Stripe en fait un : `POST /v1/transactions` rend un
-    # `id`, puis `POST /v1/transactions/{id}/token` rend l'`url` de paiement.
-    # La création seule ne donne AUCUNE URL — s'arrêter là livrerait un bouton
-    # « Payer » qui ne mène nulle part.
+    # TWO calls where Stripe makes one: `POST /v1/transactions` returns an
+    # `id`, then `POST /v1/transactions/{id}/token` returns the payment `url`.
+    # Creation alone gives NO URL — stopping there would ship a "Pay" button
+    # that leads nowhere.
     #
-    # Les invariants des points 74, 75 et 91 sont tenus à l'identique : le
-    # montant est celui lu en base et passé par le seul appelant, la référence
-    # est qualifiée par l'entité, la clé absente donne 503 en la nommant.
+    # The invariants of points 74, 75 and 91 hold identically: the amount is
+    # the one read from the database and passed by the sole caller, the
+    # reference is qualified by the entity, a missing key gives 503 and names
+    # it.
     # ─────────────────────────────────────────────────────────────────
     def _prelude_fedapay(self, code_devise):
         return [
@@ -96,22 +97,21 @@ class PrestatairesRoutesMixin:
         ]
 
     def _lignes_bascule_apres_paiement(self, entite, config, table):
-        """Libération d'un effet depuis la route après-paiement (brique 20).
+        """Releasing an effect from the post-payment route (brick 20).
 
-        Le champ visé par `releases` peut appartenir à CETTE route et non à
-        l'Update générique : c'est alors ici qu'un statut atteint sa valeur
-        libératrice, donc ici que le stock doit revenir.
+        The field targeted by `releases` can belong to THIS route rather than to
+        the generic Update: it is then here that a status reaches its releasing
+        value, so here that the stock must come back.
 
-        Deux différences avec la route générique, toutes deux dues au schéma
-        de cette route où les champs sont FACULTATIFS. La garde de
-        réactivation exige `is not None` : sans elle, un appel qui ne touche
-        qu'au numéro de suivi refuserait la commande annulée qu'il ne modifie
-        pas. Et la bascule ne vaut que si le champ est réellement fourni.
-        """
+        Two differences from the generic route, both due to this route's schema
+        where fields are OPTIONAL. The reactivation guard requires `is not None`:
+        without it, a call that only touches the tracking number would refuse the
+        cancelled order it does not change. And the transition only counts if the
+        field is actually supplied."""
         lignes = []
         for regle in self.release_rules_by_entity.get(entite, []):
             if regle["field"] not in config["fields"]:
-                continue  # l'Update générique garde ce champ, et sa bascule
+                continue  # the generic Update keeps this field, and its transition
             enfant = regle["releases"]
             fk_enfant = self._fk_enfant_libere(entite, enfant)
             if not fk_enfant:
@@ -121,9 +121,9 @@ class PrestatairesRoutesMixin:
                 f"    cursor.execute('SELECT \"{champ}\" FROM "
                 f'"{table}" WHERE id = ?\', (id,))',
                 "    _etat_avant = cursor.fetchone()",
-                # L'état libéré est TERMINAL : ce qui a été rendu n'est plus
-                # garanti disponible, et reprendre la commande donnerait du
-                # stock gratuit — famille du point 77.
+                # The released state is TERMINAL: what was returned is no
+                # longer guaranteed available, and reopening the order would
+                # give free stock — the point 77 family.
                 f"    if (_etat_avant and _etat_avant[0] == {valeur!r}",
                 f"            and data.{champ} is not None "
                 f"and data.{champ} != {valeur!r}):",
@@ -141,10 +141,10 @@ class PrestatairesRoutesMixin:
         return lignes
 
     def _ligne_schema_apres_paiement(self, entite, field):
-        """La ligne Pydantic d'un champ de la route après paiement : type,
-        liste de choix, bornes déclarées et plafond de longueur. Extraite de
-        `_generate_postpayment_routes` (plafond de complexité) ; texte émis
-        inchangé à l'octet."""
+        """The Pydantic line of a post-payment route field: type, choice list,
+        declared bounds and length ceiling. Extracted from
+        `_generate_postpayment_routes` (complexity ceiling); emitted text
+        byte-identical."""
         field_type = self.entities[entite][field]
         py_type = {"Integer": "int", "Float": "float", "Money": "float",
                    "Boolean": "bool"}.get(field_type, "str")
@@ -211,11 +211,12 @@ class PrestatairesRoutesMixin:
                 "        raise HTTPException(status_code=409, detail=(",
                 "            'Action available only after the payment is confirmed'))",
             ]
-            # BRIQUE 20 sur un champ que cette route s'est réservé. Quand
-            # `writableAfterPayment` prend le champ d'une règle `releases`, il
-            # le retire du schéma de l'Update générique : la bascule doit donc
-            # vivre ICI, sinon annuler une commande PAYÉE ne rendrait jamais
-            # son stock — une perte silencieuse, pire que le 500 qu'on répare.
+            # BRICK 20 on a field this route has reserved for itself. When
+            # `writableAfterPayment` takes the field of a `releases` rule, it
+            # removes it from the generic Update schema: the transition must
+            # therefore live HERE, otherwise cancelling a PAID order would
+            # never return its stock — a silent loss, worse than the 500 being
+            # fixed.
             lignes += self._lignes_bascule_apres_paiement(entite, config, table)
             for field in config["fields"]:
                 update = sql.cat(

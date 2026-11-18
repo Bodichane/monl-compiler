@@ -1,7 +1,7 @@
-"""Le document rendu à l'IA d'interface, et le plan des images.
+"""The document handed to the interface AI, and the image plan.
 
-`plan_generated_images` vit ICI et non avec le manifeste : il appelle le
-rendu, qui appelle le manifeste. Le placer là-bas ferait un cycle."""
+`plan_generated_images` lives HERE and not with the manifest: it calls the
+rendering, which calls the manifest. Placing it there would make a cycle."""
 
 import json
 import shutil
@@ -228,7 +228,7 @@ def _write_generated(path: Path, content: str, marker: str = GENERATED_MARKER) -
 
 def ensure_design_artifacts(project_dir: str, staging_dir: str, contract: dict,
                             generate_images=False) -> dict:
-    """Émet les artefacts visuels générés, sans écraser le travail humain."""
+    """Emits the generated visual artifacts, without overwriting human work."""
     project = Path(project_dir)
     staging = Path(staging_dir)
     design_system = _write_generated(
@@ -265,8 +265,8 @@ the author.
         manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
     manifest_written = _write_generated(staging / ASSET_MANIFEST_FILENAME, manifest_text)
 
-    # ``copy_preserved_files`` s'occupe déjà des cahiers humains. Ce fallback
-    # rend la fonction sûre lorsqu'elle est appelée indépendamment du pipeline.
+    # ``copy_preserved_files`` already handles the human briefs. This fallback
+    # makes the function safe when called independently of the pipeline.
     for name, written in ((DESIGN_SPEC_FILENAME, design_spec_written),
                           (ASSET_MANIFEST_FILENAME, manifest_written)):
         if not written and not (staging / name).exists() and (project / name).exists():
@@ -279,13 +279,12 @@ the author.
     }
 
 def plan_generated_images(project_dir: str) -> list[dict]:
-    """Active le plan d'images après le choix explicite de l'IA image.
+    """Activates the image plan after the explicit choice of the image AI.
 
-    ``monl compile`` reste sans image par défaut. Cette étape est appelée par
-    ``monl frontend --generate-images`` juste avant la construction, afin que
-    le manifeste et le brief texte contiennent les noms avant l'écriture du
-    premier fichier HTML.
-    """
+    ``monl compile`` stays without images by default. This step is called by
+    ``monl frontend --generate-images`` just before the build, so that the
+    manifest and the text brief contain the names before the first HTML file
+    is written."""
     project = Path(project_dir)
     contract_path = project / "frontend_contract.json"
     manifest_path = project / ASSET_MANIFEST_FILENAME

@@ -1,42 +1,42 @@
-"""Connexion par un compte Google ou GitHub.
+"""Login with a Google or GitHub account.
 
-Née d'un constat : la plateforme dépense de l'argent réel à chaque
-construction, et n'importe qui pouvait ouvrir un compte avec une chaîne de
-caractères quelconque. Le point 95 du journal ferme la vérification par
-courriel — « monl vérifie la forme, jamais qu'une boîte reçoit » — et cette
-frontière tient toujours : ce module n'envoie AUCUN message. Il délègue la
-vérification à un fournisseur qui, lui, l'a déjà faite.
+Born from an observation: the platform spends real money on each build,
+and anyone could open an account with any string of characters. Point 95
+of the journal rules out email verification — "monl checks the form,
+never that an inbox receives" — and that boundary still holds: this module
+sends NO message. It delegates verification to a provider that has
+already done it.
 
-QUATRE DÉCISIONS, et aucune n'est cosmétique.
+FOUR DECISIONS, and none is cosmetic.
 
-1. **Les comptes OAuth vivent dans leur PROPRE espace de noms**
-   (``github:12345``, ``google:1078…``), jamais sous l'adresse de courriel.
-   Rattacher un compte OAuth à un compte mot de passe portant la même adresse
-   serait une prise de contrôle : les comptes mot de passe ne sont vérifiés
-   par personne, donc n'importe qui peut s'inscrire sous ``alice@exemple.fr``
-   AVANT Alice et récupérer sa session le jour où elle se connecte par Google.
-   Le prix de ce choix est énoncé : un compte créé au mot de passe ne se
-   retrouve pas en se connectant par Google, ce sont deux comptes.
+1. **OAuth accounts live in their OWN namespace** (``github:12345``,
+   ``google:1078…``), never under the email address. Attaching an OAuth
+   account to a password account carrying the same address would be a
+   takeover: password accounts are verified by nobody, so anyone can
+   register under ``alice@exemple.fr`` BEFORE Alice and recover her session
+   the day she logs in with Google. The price of this choice is stated: an
+   account created with a password is not found again by logging in with
+   Google, they are two accounts.
 
-2. **Seule une adresse VÉRIFIÉE par le fournisseur est acceptée.** GitHub
-   marque ses adresses ``verified``, Google renseigne ``email_verified``. Sans
-   ce contrôle, la brique ne vérifierait rien du tout — elle déplacerait
-   simplement la chaîne de caractères quelconque d'un formulaire à un autre.
+2. **Only an address VERIFIED by the provider is accepted.** GitHub marks
+   its addresses ``verified``, Google fills in ``email_verified``. Without
+   this check, the brick would verify nothing at all — it would simply move
+   the arbitrary string of characters from one form to another.
 
-3. **Le ``state`` est SIGNÉ et DATÉ.** Signé, il empêche qu'un tiers déclenche
-   une connexion depuis son propre site (CSRF) ; daté, il empêche qu'un aller
-   capté une fois reste rejouable indéfiniment — même raisonnement, et même
-   tolérance de dix minutes, que la signature du webhook de paiement.
+3. **The ``state`` is SIGNED and DATED.** Signed, it prevents a third party
+   from triggering a login from their own site (CSRF); dated, it prevents a
+   request captured once from staying replayable forever — the same
+   reasoning, and the same ten-minute tolerance, as the payment webhook's
+   signature.
 
-4. **L'adresse de retour vient de la CONFIGURATION, jamais de l'en-tête
-   ``Host``.** Le Host est fourni par le client : le lire pour composer le
-   ``redirect_uri`` laisserait détourner l'aller-retour vers un domaine
-   choisi par l'attaquant.
+4. **The return address comes from the CONFIGURATION, never from the
+   ``Host`` header.** The Host is supplied by the client: reading it to
+   compose the ``redirect_uri`` would let the round trip be diverted to a
+   domain chosen by the attacker.
 
-Les secrets viennent de l'environnement, comme la clé de paiement (point 74) :
-un fournisseur non configuré n'est simplement pas proposé, et sa route répond
-503 en NOMMANT la variable absente plutôt qu'en échouant sans rien dire.
-"""
+The secrets come from the environment, like the payment key (point 74):
+an unconfigured provider is simply not offered, and its route answers 503
+NAMING the missing variable rather than failing without a word."""
 
 from __future__ import annotations
 
@@ -50,15 +50,14 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-#: Tolérance d'un aller-retour, en secondes. Même durée que la signature du
-#: webhook de paiement : assez pour une connexion humaine, trop court pour un
-#: rejeu.
+#: Tolerance of a round trip, in seconds. The same duration as the payment
+#: webhook's signature: enough for a human login, too short for a replay.
 STATE_TTL = 600
 OAUTH_FLOW_COOKIE = "monl_oauth_flow"
 OAUTH_FLOW_PATH = "/auth/"
 
-#: Ce qu'il faut pour proposer un fournisseur. La valeur de gauche est la
-#: variable d'environnement, celle de droite ce qu'elle contient.
+#: What it takes to offer a provider. The left value is the environment
+#: variable, the right one what it contains.
 PROVIDERS = {
     "github": {
         "label": "GitHub",
@@ -68,8 +67,8 @@ PROVIDERS = {
         "token": "https://github.com/login/oauth/access_token",
         "api": "https://api.github.com",
         "scope": "read:user user:email",
-        # Pour éprouver la brique sans appeler le vrai GitHub, comme
-        # MONL_STRIPE_BASE_URL le fait pour le paiement (point 74).
+        # To exercise the brick without calling the real GitHub, as
+        # MONL_STRIPE_BASE_URL does for payment (point 74).
         "base_env": "MONL_OAUTH_GITHUB_BASE_URL",
     },
     "google": {
@@ -84,12 +83,12 @@ PROVIDERS = {
     },
 }
 
-#: L'adresse publique de la plateforme, celle que le fournisseur rappellera.
+#: The platform's public address, the one the provider will call back.
 PUBLIC_URL_ENV = "MONL_PLATFORM_PUBLIC_URL"
 
 
 class OAuthError(Exception):
-    """Échec attribuable au fournisseur ou à la configuration."""
+    """Failure attributable to the provider or the configuration."""
 
     def __init__(self, message, status_code=502):
         super().__init__(message)
@@ -97,7 +96,7 @@ class OAuthError(Exception):
 
 
 class OAuthNotConfigured(OAuthError):
-    """Le fournisseur n'a pas ses secrets : on NOMME la variable manquante."""
+    """The provider lacks its secrets: the missing variable is NAMED."""
 
     def __init__(self, variable):
         super().__init__(
@@ -115,11 +114,10 @@ def _env(name, environ=None):
 
 
 def configured_providers(environ=None):
-    """Les fournisseurs réellement utilisables, dans un ordre stable.
+    """The really usable providers, in a stable order.
 
-    Un bouton qui mène à un 503 est pire que pas de bouton : on ne propose
-    que ce qui est configuré.
-    """
+    A button that leads to a 503 is worse than no button: only what is
+    configured is offered."""
     prets = []
     for nom, spec in PROVIDERS.items():
         if _env(spec["client_id_env"], environ) and _env(spec["secret_env"], environ):
@@ -146,7 +144,7 @@ def _credentials(provider, environ=None):
 
 
 def _base_url(provider, cle, environ=None):
-    """Adresse d'un point d'entrée du fournisseur, surchargeable pour les tests."""
+    """Address of a provider endpoint, overridable for tests."""
     spec = _spec(provider)
     remplacement = _env(spec["base_env"], environ)
     if not remplacement:
@@ -156,11 +154,10 @@ def _base_url(provider, cle, environ=None):
 
 
 def redirect_uri(provider, environ=None):
-    """L'adresse de retour, prise dans la CONFIGURATION.
+    """The return address, taken from the CONFIGURATION.
 
-    Jamais reconstruite depuis l'en-tête ``Host`` : il est fourni par le
-    client, et le lire ici laisserait détourner l'aller-retour.
-    """
+    Never rebuilt from the ``Host`` header: it is supplied by the client, and
+    reading it here would let the round trip be diverted."""
     public = _env(PUBLIC_URL_ENV, environ)
     if not public:
         raise OAuthNotConfigured(PUBLIC_URL_ENV)
@@ -174,7 +171,7 @@ def _signer(secret, charge):
 
 
 def make_browser_secret():
-    """Crée le secret éphémère qui ne quitte que le navigateur initiateur."""
+    """Creates the ephemeral secret that only leaves the initiating browser."""
     return secrets.token_urlsafe(32)
 
 
@@ -187,7 +184,7 @@ def _browser_digest(secret, browser_secret):
 
 
 def make_state(provider, secret, browser_secret, *, maintenant=None):
-    """Un jeton d'aller signé, daté et lié au navigateur initiateur."""
+    """An outbound token, signed, dated and bound to the initiating browser."""
     horodatage = int(maintenant if maintenant is not None else time.time())
     empreinte = _browser_digest(secret, browser_secret)
     charge = f"{provider}.{horodatage}.{secrets.token_urlsafe(16)}.{empreinte}"
@@ -195,7 +192,7 @@ def make_state(provider, secret, browser_secret, *, maintenant=None):
 
 
 def check_state(state, provider, secret, browser_secret, *, maintenant=None):
-    """Refuse un état forgé, rejoué ou venu d'un autre fournisseur."""
+    """Refuses a forged, replayed state or one from another provider."""
     morceaux = str(state or "").split(".")
     if len(morceaux) != 5:
         raise OAuthError("unreadable sign-in state", status_code=400)
@@ -237,7 +234,7 @@ def authorize_url(provider, state, environ=None):
             + urllib.parse.urlencode(parametres))
 
 
-# ──────────────────────────────────────────────── échange et identité ──
+# ──────────────────────────────────────────────── exchange and identity ──
 def _post_json(url, donnees, entetes=None, timeout=15):
     corps = urllib.parse.urlencode(donnees).encode("utf-8")
     requete = urllib.request.Request(url, data=corps, method="POST")
@@ -287,11 +284,10 @@ def exchange_code(provider, code, environ=None):
 
 
 def fetch_identity(provider, jeton, environ=None):
-    """Rend ``(identifiant, libellé)`` — ou refuse une adresse non vérifiée.
+    """Returns ``(identifier, label)`` — or refuses an unverified address.
 
-    Sans le contrôle de vérification, la brique ne vérifierait rien : elle
-    déplacerait la chaîne quelconque d'un formulaire vers un autre.
-    """
+    Without the verification check, the brick would verify nothing: it would
+    move the arbitrary string from one form to another."""
     api = _base_url(provider, "api", environ)
     if provider == "github":
         compte = _get_json(f"{api}/user", jeton)

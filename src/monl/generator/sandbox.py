@@ -1,4 +1,4 @@
-"""Coquilles vides des blocs 'custom' (sandbox_ai.py)."""
+"""Empty shells of the 'custom' blocks (sandbox_ai.py)."""
 
 from string import Template
 
@@ -12,19 +12,18 @@ _CUSTOM_FUNCTION = Template('''def ${name}(context: dict) -> dict:
 
 
 def _docstring_litterale(texte):
-    """Un antislash de la spec reste un antislash dans la docstring émise."""
+    """A backslash in the spec stays a backslash in the emitted docstring."""
     return texte.replace("\\", "\\\\")
 
 
 class SandboxMixin:
     def _generate_ai_sandbox(self):
-        """Génère les coquilles à compléter à la main, sans normaliser les octets.
+        """Generates the shells to complete by hand, without normalizing the bytes.
 
-        substitute ne réinterprète pas les dollars/accolades des valeurs ; la
-        description est insérée dans une docstring NON raw, donc ses antislashs
-        sont doublés : sinon `\\N` ou `\\x` rendent sandbox_ai.py invalide.
-        Le SQL reste exclusivement derrière la frontière generator/sql.py.
-        """
+        substitute does not reinterpret dollars/braces in the values; the
+        description is inserted into a NON-raw docstring, so its backslashes are
+        doubled: otherwise `\\N` or `\\x` make sandbox_ai.py invalid.
+        SQL stays exclusively behind the generator/sql.py boundary."""
         sb_lines = ["# 'custom' BLOCKS — business logic to complete by hand (deterministic)\n"]
         for func in self.custom_functions:
             sb_lines.append(_CUSTOM_FUNCTION.substitute(

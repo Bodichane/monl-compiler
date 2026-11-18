@@ -1,18 +1,18 @@
-"""La migration additive (point 32) et son refus du non-additif.
+"""The additive migration (point 32) and its refusal of non-additive changes.
 
-Une migration additive rattrape une COLONNE, jamais son CONTENU : les
-enregistrements antérieurs restent vides et sont COMPTÉS au démarrage.
-Un `DEFAULT CURRENT_TIMESTAMP` daterait d'aujourd'hui les commandes
-d'avant-hier — une base qui MENT, pire qu'une case vide (point 89)."""
+An additive migration catches up a COLUMN, never its CONTENT: earlier
+records stay empty and are COUNTED at startup. A
+`DEFAULT CURRENT_TIMESTAMP` would date the day-before-yesterday's orders as
+today — a database that LIES, worse than an empty cell (point 89)."""
 
 from string import Template
 
 
 class MigrationsRuntimeMixin:
-    """La migration additive (point 32) et son refus du non-additif."""
+    """The additive migration (point 32) and its refusal of non-additive changes."""
 
     def _generate_database_runtime_lines(self):
-        """Lignes générées pour le socle DB et les migrations explicites."""
+        """Lines generated for the DB foundation and the explicit migrations."""
         system_tables = [
             "_monl_users", "_monl_revoked_tokens", "_monl_rate_limit",
             "_monl_sequences", "_monl_migrations",
@@ -52,7 +52,7 @@ class MigrationsRuntimeMixin:
                 *self._lignes_de_base(totp_migration_lines)]
 
     def _lignes_de_migration(self, system_tables_literal):
-        """Les primitives de migration : empreinte, différences, refus, ALTER."""
+        """The migration primitives: fingerprint, differences, refusal, ALTER."""
         return [
             *Template(r"""def _table_exists(cursor, table):
     if _DATABASE_KIND == 'postgresql':

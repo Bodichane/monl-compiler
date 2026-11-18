@@ -1,31 +1,31 @@
-"""L'encaissement : qui paie, quoi, et sur quel montant.
+"""Charging: who pays, for what, and on which amount.
 
-`payable` (brique 9) et le préalable `requiresOwn` (point 90). Le refus
-cassant du point 79 vit ici : un montant que le client peut écrire fait
-échouer la compilation, parce que le propriétaire est le seul à pouvoir
-payer — donc un montant écrivable est un montant que le payeur fixe."""
+`payable` (brick 9) and the `requiresOwn` prerequisite (point 90). The
+breaking refusal of point 79 lives here: an amount the client can write
+makes compilation fail, because the owner is the only one who can pay —
+so a writable amount is an amount the payer sets."""
 
 from .socle import ASTValidationError
 
 
 class CommerceMixin:
-    """L'encaissement : qui paie, quoi, et sur quel montant."""
+    """Charging: who pays, for what, and on which amount."""
 
     def _valider_requires_own_et_payable(self):
-        """'requiresOwn' (brique 17) et 'payable' (brique paiement) — les
-        prérequis de création qui protègent qui peut agir et qui peut encaisser
-        (point 111). Extraits ensemble parce qu'ils partagent les prérequis de
-        propriété, de visibilité publique et de champs masqués."""
-        # AJOUT (roadmap, écosystème de capacités -- brique 17, point 90) :
-        # validation de 'requiresOwn'. L'appelant doit DÉJÀ posséder un
-        # enregistrement de l'entité nommée pour pouvoir créer celui-ci.
+        """'requiresOwn' (brick 17) and 'payable' (payment brick) — the creation
+        prerequisites that protect who can act and who can charge (point 111).
+        Extracted together because they share the ownership, public visibility
+        and hidden field prerequisites."""
+        # ADDED (roadmap, capability ecosystem -- brick 17, point 90):
+        # validation of 'requiresOwn'. The caller must ALREADY own a record of
+        # the named entity to be able to create this one.
         #
-        # Le constat qui l'a fait naître, sur une boutique réelle : deux
-        # commandes portaient un compte SANS aucune fiche client. Rien
-        # n'obligeait à en créer une avant de commander, et le registre des
-        # comptes n'est exposé par aucune route — l'administrateur voyait donc
-        # une commande qu'il ne pouvait attribuer à personne. Pour une boutique,
-        # ce n'est pas un défaut d'affichage : c'est une commande inexpédiable.
+        # The finding that gave birth to it, on a real shop: two orders carried
+        # an account WITHOUT any customer profile. Nothing required creating
+        # one before ordering, and the accounts registry is exposed by no route
+        # — so the administrator saw an order they could attribute to nobody.
+        # For a shop, that is not a display defect: it is an order that cannot
+        # be shipped.
         self.required_profiles = {}
         for rule in self.rules:
             if rule["type"] != "requiresOwn":
@@ -41,10 +41,10 @@ class CommerceMixin:
                 raise ASTValidationError(
                     f"Structure: the 'requiresOwn' rule targets entity '{entity}', which does not exist."
                 )
-            # Seule la création peut l'exiger : c'est le moment où
-            # l'enregistrement naît sans propriétaire nommé. Sur Read/Update/
-            # Delete, l'enregistrement existe déjà — exiger une fiche a
-            # posteriori rendrait inaccessibles des données qu'on possède.
+            # Only creation can require it: it is the moment the record is born
+            # without a named owner. On Read/Update/Delete, the record already
+            # exists — requiring a profile after the fact would make data one
+            # owns inaccessible.
             if act_type != "Create":
                 raise ASTValidationError(
                     f"Structure: 'requiresOwn' only applies to '{entity}.Create' "
@@ -62,11 +62,11 @@ class CommerceMixin:
                     f"Structure: '{entity}.Create requiresOwn {entity}' -- an entity "
                     f"cannot require itself: the first record could never be created."
                 )
-            # L'entité exigée doit être possédée DIRECTEMENT par un acteur :
-            # « en posséder un » n'a de sens que si la propriété se déduit du
-            # jeton. Une entité possédée transitivement (brique 11) ne dit pas
-            # à quel COMPTE elle appartient sans jointure, et une entité sans
-            # propriétaire du tout n'appartient à personne.
+            # The required entity must be owned DIRECTLY by an actor: "owning
+            # one" only makes sense if ownership is deduced from the token. A
+            # transitively owned entity (brick 11) does not say which ACCOUNT
+            # it belongs to without a join, and an entity with no owner at all
+            # belongs to nobody.
             proprietaires = {v for (ent, _act), v in self.ownership_rules.items()
                              if ent == requise}
             if not (proprietaires & set(self.actors)):
@@ -76,8 +76,8 @@ class CommerceMixin:
                     f"then have no meaning. Add a rule "
                     f"'rule {requise}.Read ownedBy <Acteur>'."
                 )
-            # Une création publique n'a aucune identité : impossible de chercher
-            # « sa » fiche. Même refus que 'generated' et 'payable', même raison.
+            # A public creation has no identity: impossible to look up "its"
+            # profile. Same refusal as 'generated' and 'payable', same reason.
             if (entity, "Create") in self.public_actions:
                 raise ASTValidationError(
                     f"Structure: '{entity}.Create' is 'public' but still requires an "
@@ -91,11 +91,11 @@ class CommerceMixin:
                 )
             self.required_profiles[entity] = requise
 
-        # AJOUT (roadmap, brique paiement -- point 74) : validation de
-        # 'payable'. La règle nomme le champ qui porte le MONTANT ; l'entité
-        # qui le contient est celle qu'on encaisse. Les refus ci-dessous sont
-        # le cœur de la brique : un paiement mal déclaré doit échouer à la
-        # compilation, jamais au moment d'encaisser.
+        # ADDED (roadmap, payment brick -- point 74): validation of 'payable'.
+        # The rule names the field that carries the AMOUNT; the entity
+        # containing it is the one being charged. The refusals below are the
+        # heart of the brick: a badly declared payment must fail at compile
+        # time, never at charging time.
         self.payable_fields = []
         for rule in self.rules:
             if rule["type"] != "payable":
@@ -116,9 +116,8 @@ class CommerceMixin:
                     f"Money, Float, or Integer attribute (received: {field_type or 'field does not exist'}) -- "
                     f"text cannot be charged."
                 )
-            # Un montant masqué serait invérifiable par le client qui paie :
-            # il ne pourrait pas confronter ce qu'on lui demande à ce qu'il a
-            # commandé.
+            # A hidden amount would be unverifiable by the paying client: they
+            # could not compare what is asked of them with what they ordered.
             if (entity, field) in self.masked_fields:
                 raise ASTValidationError(
                     f"Structure: '{entity}.{field}' is both 'hidden' and 'payable' -- incompatible: "
@@ -129,20 +128,18 @@ class CommerceMixin:
                     f"Structure: '{entity}' has multiple 'payable' fields -- only one amount per entity, "
                     f"otherwise nothing specifies which one to charge."
                 )
-            # Encaisser exige de savoir QUI paie : une création publique n'a
-            # aucune identité à rattacher au règlement, ni personne à qui
-            # rendre l'argent.
+            # Charging requires knowing WHO pays: a public creation has no
+            # identity to attach to the payment, nor anyone to refund.
             if (entity, "Create") in self.public_actions:
                 raise ASTValidationError(
                     f"Structure: '{entity}.{field}' is 'payable', but '{entity}.Create' is 'public' -- "
                     f"incompatible: a payment requires an identified caller."
                 )
-            # CORRECTIF SÉCURITÉ : sans relation entrante, le générateur ne
-            # peut déterminer AUCUN propriétaire pour la route de règlement,
-            # qui accepte alors n'importe quel appelant authentifié pour
-            # n'importe quel enregistrement (IDOR). Même exigence que pour
-            # 'increments'/'decrements' ci-dessous -- une relation doit
-            # exister pour savoir QUI possède la ligne qu'on encaisse.
+            # SECURITY FIX: without an incoming relation, the generator can
+            # determine NO owner for the payment route, which then accepts any
+            # authenticated caller for any record (IDOR). Same requirement as
+            # for 'increments'/'decrements' below -- a relation must exist to
+            # know WHO owns the row being charged.
             has_owner_relation = any(
                 (rel["type"] in ("hasMany", "hasOne") and rel["target"] == entity)
                 or (rel["type"] == "belongsTo" and rel["source"] == entity)
@@ -154,20 +151,20 @@ class CommerceMixin:
                     f"owns a '{entity}' record (e.g. 'Client hasMany {entity}') -- without it, "
                     f"the payment route could not verify who is allowed to pay."
                 )
-            # LEVÉ AU POINT 87. Le point 81 refusait ici toute entité possédée
-            # TRANSITIVEMENT, parce que la route de règlement comparait la clé
-            # étrangère de propriété à `current_user_id` — or sous chaîne cette
-            # colonne porte un id d'enregistrement intermédiaire, pas un id de
-            # compte. Le refus protégeait donc d'une comparaison fausse, pas
-            # d'une impossibilité : la même brique 11 fournissait déjà, dans
-            # `_owner_lookup_sql`, la jointure qui rend l'id de COMPTE. La route
-            # l'emploie désormais, et la comparaison redevient exacte.
+            # LIFTED AT POINT 87. Point 81 refused any TRANSITIVELY owned
+            # entity here, because the payment route compared the ownership
+            # foreign key with `current_user_id` — yet under a chain that
+            # column carries an intermediate record id, not an account id. The
+            # refusal therefore protected against a wrong comparison, not an
+            # impossibility: the same brick 11 already provided, in
+            # `_owner_lookup_sql`, the join that gives the ACCOUNT id. The
+            # route now uses it, and the comparison is exact again.
             #
-            # Ce qui garde la brique sûre n'a pas bougé : la chaîne doit
-            # remonter à un acteur (refus du point 81, plus haut), le montant
-            # doit rester incalculable par le client (refus du point 79, dans le
-            # recoupement plus bas), et une relation entrante doit exister
-            # (juste au-dessus). Aucun de ces trois refus n'est affaibli.
+            # What keeps the brick safe has not moved: the chain must climb to
+            # an actor (point 81 refusal, above), the amount must stay
+            # impossible for the client to compute (point 79 refusal, in the
+            # cross-check below), and an incoming relation must exist (just
+            # above). None of these three refusals is weakened.
             self.payable_fields.append({"entity": entity, "field": field})
 
     def _valider_securite_calculs_paiement(self):
@@ -204,9 +201,9 @@ class CommerceMixin:
 
     @staticmethod
     def _verifier_montant_calcule(entity, field, derived, sums):
-        """Un montant `payable` doit être calculé par le serveur, et une somme
-        ne doit additionner que des lignes elles-mêmes calculées. Extrait de
-        `_valider_securite_calculs_paiement` (plafond de complexité)."""
+        """A `payable` amount must be calculated by the server, and a sum must only
+        add up lines that are themselves calculated. Extracted from
+        `_valider_securite_calculs_paiement` (complexity ceiling)."""
         if (entity, field) not in derived and (entity, field) not in sums:
             raise ASTValidationError(
                 f"Structure: '{entity}.{field}' is 'payable' but the client can write it -- "
@@ -231,7 +228,7 @@ class CommerceMixin:
             )
 
     def _valider_proprietaire_paiement(self):
-        """Vérifie qu'un montant payable remonte réellement jusqu'à un compte."""
+        """Checks that a payable amount really climbs up to an account."""
         for payable in self.payable_fields:
             entity = payable["entity"]
             if entity in self.transitive_ownership:

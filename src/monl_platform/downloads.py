@@ -1,13 +1,12 @@
-"""Artefacts téléchargeables de monl, servis par la plateforme.
+"""Downloadable monl artifacts, served by the platform.
 
-Une page qui propose un téléchargement doit proposer un fichier qui EXISTE :
-ce module lit un dossier réel, mesure ce qu'il y trouve et en publie
-l'empreinte. Rien n'est annoncé qui ne soit pas sur le disque.
+A page that offers a download must offer a file that EXISTS: this module
+reads a real folder, measures what it finds there and publishes its
+fingerprint. Nothing is announced that is not on disk.
 
-Le nom demandé est comparé à la liste des fichiers RÉELLEMENT présents, jamais
-assemblé à partir de ce que le client envoie : c'est la seule façon de rendre
-la remontée de chemin impossible plutôt que simplement improbable.
-"""
+The requested name is compared to the list of files REALLY present, never
+assembled from what the client sends: it is the only way to make path
+traversal impossible rather than merely unlikely."""
 
 from __future__ import annotations
 
@@ -16,20 +15,19 @@ import os
 import re
 from pathlib import Path
 
-#: Extensions publiables. Un dossier de distribution peut contenir autre chose
-#: (dossiers temporaires, RECORD, journaux de construction) : on ne publie que
-#: ce qui s'installe.
+#: Publishable extensions. A distribution folder can contain other things
+#: (temporary folders, RECORD, build logs): only what installs is published.
 PUBLISHABLE_SUFFIXES = (".whl", ".tar.gz")
 
-#: Un nom d'artefact Python est déjà très contraint ; le vérifier avant même de
-#: regarder le disque évite de transformer une entrée hostile en accès fichier.
+#: A Python artifact name is already very constrained; checking it before even
+#: looking at the disk avoids turning a hostile input into a file access.
 ARTIFACT_NAME = re.compile(r"^[A-Za-z0-9._+-]{1,120}$")
 
 _CHUNK = 1024 * 1024
 
 
 class DownloadError(RuntimeError):
-    """Le dossier de téléchargement est inexploitable."""
+    """The download folder is unusable."""
 
 
 def _is_publishable(path: Path) -> bool:
@@ -52,11 +50,10 @@ def _kind(name: str) -> str:
 
 
 def list_artifacts(directory) -> list[dict]:
-    """Décrit les artefacts publiables d'un dossier, du plus récent au plus ancien.
+    """Describes a folder's publishable artifacts, from newest to oldest.
 
-    Un dossier absent n'est pas une erreur : la plateforme peut tourner sans
-    distribution construite, et la page dira alors comment partir des sources.
-    """
+    A missing folder is not an error: the platform can run without a built
+    distribution, and the page will then say how to start from the sources."""
     if not directory:
         return []
     root = Path(directory)
@@ -74,8 +71,8 @@ def list_artifacts(directory) -> list[dict]:
             "sha256": checksum,
             "modified_at": int(path.stat().st_mtime),
         })
-    # La roue d'abord : c'est ce qui s'installe. L'archive des sources est un
-    # repli, la proposer en tête ferait choisir le chemin le plus long.
+    # The wheel first: it is what installs. The source archive is a fallback,
+    # offering it first would make people choose the longer path.
     artifacts.sort(key=lambda item: (
         0 if item["kind"] == "wheel" else 1,
         -item["modified_at"],
@@ -85,11 +82,10 @@ def list_artifacts(directory) -> list[dict]:
 
 
 def resolve_artifact(directory, name):
-    """Rend le chemin d'un artefact publiable, ou ``None``.
+    """Returns the path of a publishable artifact, or ``None``.
 
-    La comparaison se fait sur le nom des fichiers trouvés, sans jamais
-    concaténer l'entrée du client à un chemin.
-    """
+    The comparison is made on the names of the files found, without ever
+    concatenating the client's input to a path."""
     if not directory or not isinstance(name, str) or not ARTIFACT_NAME.match(name):
         return None
     root = Path(directory)
@@ -102,7 +98,7 @@ def resolve_artifact(directory, name):
 
 
 def default_directory(environ=None) -> str | None:
-    """Dossier de distribution, déclaré par l'environnement uniquement."""
+    """Distribution folder, declared by the environment only."""
     environ = os.environ if environ is None else environ
     value = environ.get("MONL_PLATFORM_DOWNLOADS")
     if value is None:

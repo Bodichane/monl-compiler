@@ -1,17 +1,17 @@
-"""Le contrat d'authentification et les parcours de la brique B4.
+"""The authentication contract and the flows of brick B4.
 
-Une spec historique ne gagne ni route ni octet de contrat par défaut : les
-parcours ne sont ajoutés que si la spec les déclare."""
+A historical spec gains neither a route nor a contract byte by default:
+the flows are added only if the spec declares them."""
 
 from . import champs, notes_de_contrat
 
 
 def _fonctions_dauth(plans, routes):
-    """Les parcours d'authentification déclarés (brique B4)."""
-    # BRIQUE B4 : ces parcours ne viennent d'aucun workflow métier. Ils sont
-    # donc ajoutés ici, exactement comme les routes de paiement, et seulement
-    # si la spec les déclare. Une spec historique ne gagne ainsi ni route ni
-    # octet de contrat par défaut.
+    """The declared authentication flows (brick B4)."""
+    # BRICK B4: these flows come from no business workflow. They are therefore
+    # added here, exactly like the payment routes, and only if the spec
+    # declares them. A historical spec thus gains neither a route nor a
+    # contract byte by default.
     auth_features = dict(plans.auth_features or {})
     auth_actors = sorted(plans.actors)
     if auth_features.get("verify_email"):
@@ -65,12 +65,12 @@ def _fonctions_dauth(plans, routes):
     return auth_features
 
 def _auth_du_contrat(auth_features, plans):
-    """Le contrat d'authentification, assemblé."""
+    """The authentication contract, assembled."""
     auth_contract = {
-        # AJOUT (bêta 3) : seuls les rôles marqués 'selfRegister' dans la
-        # spec peuvent être choisis à l'inscription — les autres sont
-        # provisionnés hors ligne (manage.py) et renvoient 403 ici.
-        # L'interface ne doit donc proposer QUE cette liste.
+        # ADDED (beta 3): only the roles marked 'selfRegister' in the spec can
+        # be chosen at registration — the others are provisioned offline
+        # (manage.py) and get 403 here. The interface must therefore offer ONLY
+        # this list.
         "register": {"method": "POST", "path": "/register",
                      "response": {"status": "'success'",
                                   "user_id": "int — the identifier of the created account"},
@@ -78,11 +78,11 @@ def _auth_du_contrat(auth_features, plans):
                      "body": {"username": notes_de_contrat._libelle_identifiant(plans.auth_identifier),
                               "password": "str (8+ characters)",
                               "actor": f"a role among {list(plans.self_register_actors)}"},
-                     # POINT 95 : le champ reste nommé 'username' SUR LE
-                     # FIL (le renommer casserait le formulaire de tout
-                     # projet existant) — c'est ici que le contrat dit
-                     # ce qu'il doit vraiment contenir, et l'IA qui
-                     # étiquette l'écran en conséquence.
+                     # POINT 95: the field stays named 'username' ON THE WIRE
+                     # (renaming it would break the form of every existing
+                     # project) — it is here that the contract says what it
+                     # must really contain, and the AI labels the screen
+                     # accordingly.
                      "identifier_forms": list(plans.auth_identifier or ()),
                      "phone_prefix": plans.auth_phone_prefix,
                      "note": notes_de_contrat._joindre(
@@ -92,26 +92,25 @@ def _auth_du_contrat(auth_features, plans):
                           "accounts are created with manage.py"),
                          notes_de_contrat._note_identifiant(plans.auth_identifier,
                                            plans.auth_phone_prefix))},
-        # POINT 76 APPLIQUÉ À L'AUTHENTIFICATION. Le contrat doit dire ce que
-        # le backend renvoie VRAIMENT, pas seulement qu'il renvoie quelque
-        # chose. `returns` annonçait « un token JWT » sans jamais NOMMER la
-        # clé JSON : une IA d'interface devait deviner entre `token`,
-        # `access_token` et `jwt`. Trompée, elle envoie
-        # `Authorization: Bearer undefined` — et c'est le pire cas de figure :
-        # aucune exception JavaScript, aucun appel hors contrat, donc LE SMOKE
-        # TEST PASSE et personne ne peut se connecter.
+        # POINT 76 APPLIED TO AUTHENTICATION. The contract must say what the
+        # backend REALLY returns, not only that it returns something. `returns`
+        # announced "a JWT token" without ever NAMING the JSON key: an
+        # interface AI had to guess between `token`, `access_token` and `jwt`.
+        # Misled, it sends `Authorization: Bearer undefined` — and that is the
+        # worst case: no JavaScript exception, no off-contract call, so THE
+        # SMOKE TEST PASSES and nobody can log in.
         #
-        # Que ce soit un oubli et non un choix se lit dans le brief lui-même :
-        # la réponse paginée y est nommée au caractère près depuis toujours
-        # (`{status, total, limit, offset, data}`), et la brique B4 nomme son
-        # `refresh_token`. Seule la réponse d'origine ne s'était jamais
-        # décrite.
+        # That it was an oversight and not a choice can be read in the brief
+        # itself: the paginated response has always been named there to the
+        # character (`{status, total, limit, offset, data}`), and brick B4
+        # names its `refresh_token`. Only the original response had never
+        # described itself.
         #
-        # AUCUNE entrée nouvelle dans `_contract_signature` (cli.py), et c'est
-        # délibéré : la seule chose qui fasse varier cette forme est
-        # `capability refresh_tokens`, dont la configuration est déjà hachée
-        # sous « authentification B4 ». Ajouter un second témoin de la même
-        # variation ferait rapporter deux fois le même changement.
+        # NO new entry in `_contract_signature` (cli.py), on purpose: the only
+        # thing that varies this shape is `capability refresh_tokens`, whose
+        # configuration is already hashed under "B4 authentication". Adding a
+        # second witness of the same variation would report the same change
+        # twice.
         "login": {"method": "POST", "path": "/login",
                   "body": {"username": "str", "password": "str"},
                   "response": {

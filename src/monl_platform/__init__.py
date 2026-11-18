@@ -1,8 +1,7 @@
-"""Plateforme légère autour du compilateur déterministe Monl.
+"""Lightweight platform around the deterministic Monl compiler.
 
-La plateforme n'est pas un second compilateur. Le web et MCP délèguent tous
-deux à :class:`CompilationService`, qui appelle le pipeline public de Monl.
-"""
+The platform is not a second compiler. The web and MCP both delegate to
+:class:`CompilationService`, which calls Monl's public pipeline."""
 
 from .service import CompilationService
 

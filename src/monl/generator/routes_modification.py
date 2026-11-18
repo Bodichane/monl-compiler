@@ -1,8 +1,8 @@
-"""La route `Update`.
+"""The `Update` route.
 
-Le montant est RECALCULÉ ici depuis la clé étrangère STOCKÉE, jamais celle
-du corps de requête — leçon du point 78 : calculer sur `data.<fk>` laissait
-facturer 89 € un article à 189 €."""
+The amount is RECOMPUTED here from the STORED foreign key, never the one
+in the request body — the point 78 lesson: computing from `data.<fk>` let
+someone be billed €89 for a €189 item."""
 
 from . import sql
 
@@ -19,24 +19,21 @@ class ModificationRoutesMixin:
         is_public = context["is_public"]
         security_check = context["security_check"]
         dependency_injection = context["dependency_injection"]
-        # AJOUT (post-v6, roadmap) : si une règle 'ownedBy' cible cette
-        # action, un contrôle supplémentaire vérifie que l'acteur courant
-        # est bien le propriétaire de l'enregistrement, en plus du
-        # contrôle de rôle habituel.
+        # ADDED (post-v6, roadmap): if an 'ownedBy' rule targets this action,
+        # an extra check verifies that the current actor really owns the
+        # record, on top of the usual role check.
         owner_entity = access.owner_entity
-        # 'ownedBy' suppose une identité appelante (current_actor) —
-        # incompatible avec une route 'public', qui n'en a aucune.
-        # Si les deux sont déclarées sur la même action, 'public'
-        # l'emporte : la route reste ouverte, sans contrôle de
-        # propriété (voir docs/design_decisions.md).
+        # 'ownedBy' assumes a caller identity (current_actor) — incompatible
+        # with a 'public' route, which has none. If both are declared on the
+        # same action, 'public' wins: the route stays open, without an
+        # ownership check (see docs/design_decisions.md).
         apply_ownership = owner_entity and not is_public
-        # AJOUT (roadmap, brique "accès à deux parties") : même
-        # principe que 'ownedBy' mais l'appelant doit être l'UNE des
-        # colonnes-parties listées. Contrairement à 'ownedBy', le
-        # contrôle s'applique à tous les acteurs de la route, sauf à
-        # un rôle SUPERVISEUR déclaré via sharedBy sur la même
-        # référence (brique 23, point 106) — celui-là transperce le
-        # contrôle et modifie tous les enregistrements.
+        # ADDED (roadmap, "two-party access" brick): same principle as
+        # 'ownedBy' but the caller must be ONE of the listed party columns.
+        # Unlike 'ownedBy', the check applies to every actor of the route,
+        # except a SUPERVISOR role declared through sharedBy on the same
+        # reference (brick 23, point 106) — that one pierces the check and
+        # updates every record.
         update_parties = access.party_fields
         apply_update_parties = bool(update_parties) and not is_public
         update_supers = access.supervisors
@@ -63,16 +60,14 @@ class ModificationRoutesMixin:
         elif apply_ownership:
             check_actor, owner_select = self._owner_lookup_sql(base_target, owner_entity)
             update_deps += ", current_user_id: int = Depends(get_current_user_id)" if update_deps else "current_user_id: int = Depends(get_current_user_id)"
-            # CORRECTIF (roadmap, combinaison ownedBy + sharedBy) : si
-            # cette route est partagée par plusieurs acteurs (ex. un
-            # 'Agent' qui gère tous les tickets, en plus du 'Customer'
-            # propriétaire), le contrôle de propriété ne doit s'appliquer
-            # qu'à l'acteur explicitement désigné comme propriétaire par
-            # la règle 'ownedBy' — pas aux autres acteurs qui partagent
-            # la route par ailleurs via leur propre rôle. Sans cette
-            # condition, un acteur légitimement privilégié (Agent) se
-            # retrouverait bloqué à tort, puisqu'il ne "possède" jamais
-            # la ressource au sens de la relation hasMany/belongsTo.
+            # FIX (roadmap, ownedBy + sharedBy combination): if this route is
+            # shared by several actors (e.g. an 'Agent' who handles every
+            # ticket, besides the owning 'Customer'), the ownership check must
+            # apply only to the actor explicitly designated as owner by the
+            # 'ownedBy' rule — not to the other actors that share the route
+            # through their own role. Without this condition, a legitimately
+            # privileged actor (Agent) would be wrongly blocked, since they
+            # never "own" the resource in the hasMany/belongsTo sense.
             ownership_check_lines = [
                 f"    if current_actor == \"{check_actor}\":",
                 "        _owner_conn = _connect(); _owner_cur = _owner_conn.cursor()",
@@ -89,18 +84,17 @@ class ModificationRoutesMixin:
         api_lines.append(security_check)
         api_lines.extend(ownership_check_lines)
         api_lines.append("    conn = _connect(); cursor = conn.cursor()")
-        # BRIQUE 18 (point 91) : un enregistrement encaissé est FIGÉ.
-        # La garde est posée avant toute lecture et tout calcul.
+        # BRICK 18 (point 91): a charged record is FROZEN. The guard is placed
+        # before any read and any calculation.
         if self._payment_lock_field(base_target):
             api_lines += self._payment_lock_lines(
                 base_target.lower(), "id", base_target)
-        # …et une ligne d'une commande réglée l'est tout autant : c'est
-        # par elle que le total remontait à 594 € après un règlement de
-        # 89 €. Le parent est relu EN BASE depuis la clé étrangère
-        # STOCKÉE, jamais `data.<fk>` — cette route n'écrit pas les clés
-        # étrangères, donc le corps de requête peut désigner une autre
-        # commande que celle à laquelle la ligne appartient (leçon du
-        # point 78).
+        # …and a line of a settled order is just as frozen: it is through it
+        # that the total climbed to €594 after an €89 payment. The parent is
+        # reread FROM THE DATABASE from the STORED foreign key, never
+        # `data.<fk>` — this route does not write foreign keys, so the request
+        # body can designate a different order than the one the line belongs to
+        # (point 78 lesson).
         for verrou in self._payment_locked_parents(base_target):
             lien = f"_verrou_{verrou['fk_column']}"
             api_lines += [
@@ -113,32 +107,31 @@ class ModificationRoutesMixin:
                 verrou["table"], f"{lien}[0]", verrou["entity"],
                 indent="        ", var="_parent_regle")
         fields = list(self.entities[base_target].keys())
-        # CORRECTIF (point 78) : un champ 'generated' n'est PAS dans le
-        # schéma Pydantic, et cette route lisait pourtant `data.<champ>`
-        # pour TOUS les attributs -- donc 500 (AttributeError) sur toute
-        # entité combinant 'generated' et 'Update'. Latent jusqu'ici :
-        # aucun exemple ne les combinait. Un champ peuplé par le serveur
-        # n'a pas à être réécrit depuis le corps de requête ; l'exclure
-        # préserve aussi sa valeur (le pseudonyme ne doit pas changer).
+        # FIX (point 78): a 'generated' field is NOT in the Pydantic schema,
+        # yet this route read `data.<field>` for ALL attributes -- hence 500
+        # (AttributeError) on every entity combining 'generated' and 'Update'.
+        # Latent until now: no example combined them. A field filled by the
+        # server has no business being rewritten from the request body;
+        # excluding it also preserves its value (the pseudonym must not
+        # change).
         generated_upd = self.generated_fields_by_entity.get(base_target, [])
-        # AJOUT (brique 10, point 77) : un champ 'derivedFrom' est
-        # RECALCULÉ ici. Le laisser tel quel déplacerait simplement la
-        # faille : créer à quantité 1 puis modifier à quantité 5 sans
-        # recalcul donnerait cinq articles au prix d'un.
+        # ADDED (brick 10, point 77): a 'derivedFrom' field is RECOMPUTED here.
+        # Leaving it as is would merely move the flaw: create at quantity 1
+        # then update to quantity 5 without recomputing would give five items
+        # for the price of one.
         derives_upd = self.derived_by_entity.get(base_target, ())
         noms_derives = {r.field for r in derives_upd}
         for regle in derives_upd:
             fk_col = regle.source_fk
             champ = regle.field
             api_lines += [
-                # La ligne liée est celle STOCKÉE, relue en base — jamais
-                # celle que le corps de requête déclare. Les deux sens ont
-                # été essayés contre un serveur réel : cette route n'écrit
-                # pas les colonnes de clé étrangère, donc la FK en base est
-                # la seule vérité sur « quel article ». Calculer depuis
-                # `data.<fk>` laissait un client abaisser le montant en
-                # déclarant un article bon marché qu'il ne pointait pas
-                # (189 € facturés 89 €, vérifié).
+                # The linked row is the STORED one, reread from the database —
+                # never the one the request body declares. Both directions were
+                # tried against a real server: this route does not write
+                # foreign key columns, so the FK in the database is the only
+                # truth about "which item". Computing from `data.<fk>` let a
+                # client lower the amount by declaring a cheap item it did not
+                # point to (€189 billed as €89, checked).
                 f"    cursor.execute('SELECT \"{fk_col}\" FROM "
                 f'"{base_target.lower()}" WHERE id = ?\', (id,))',
                 f"    _lien_{champ} = cursor.fetchone()",
@@ -161,24 +154,24 @@ class ModificationRoutesMixin:
                 f"    _calcul_{champ} = round(float(_src_{champ}[0] or 0) "
                 f"* int(data.{regle.factor}), 2)",
             ]
-        # AJOUT (brique 12, point 82) : un champ 'sumOf' n'est pas dans
-        # `data` et n'a rien à faire dans le SET — le réécrire depuis la
-        # requête serait rendre au client le total qu'on vient de lui
-        # retirer, et lire `data.<champ>` donnerait 500 (le défaut du
-        # point 78, sur une autre brique).
+        # ADDED (brick 12, point 82): a 'sumOf' field is not in `data` and has
+        # no place in the SET — rewriting it from the request would hand back
+        # to the client the total just taken away from them, and reading
+        # `data.<field>` would give 500 (the point 78 defect, on another
+        # brick).
         sommes_upd = set(self._aggregated_field_names(base_target))
-        # AJOUT (brique 16, point 89) : l'instant de création est écrit
-        # à la création, un point c'est tout. L'exclure du SET est ce
-        # qui le rend digne de foi ; l'y laisser aurait en plus donné
-        # 500 (`data.<champ>` absent du schéma), le défaut du point 78.
+        # ADDED (brick 16, point 89): the creation moment is written at
+        # creation, period. Excluding it from the SET is what makes it
+        # trustworthy; leaving it there would also have given 500
+        # (`data.<field>` absent from the schema), the point 78 defect.
         horodates_upd = set(self.timestamp_fields_by_entity.get(base_target, []))
-        # BRIQUE 22 (point 102) : un numéro de commande qui change n'est
-        # plus une référence — le client l'a noté, le vendeur aussi.
+        # BRICK 22 (point 102): an order number that changes is no longer a
+        # reference — the client wrote it down, and so did the seller.
         horodates_upd |= {n["field"] for n
                           in self.numbered_fields_by_entity.get(base_target, [])}
-        # Même exclusion sur l'Update générique : ces champs n'existent
-        # pas dans son schéma Pydantic et ne s'écrivent que par la route
-        # dédiée au superviseur.
+        # Same exclusion on the generic Update: these fields do not exist in
+        # its Pydantic schema and are written only through the route dedicated
+        # to the supervisor.
         postpaiement_upd = set(
             self.postpayment_writable_by_entity.get(
                 base_target, {}).get("fields", []))
@@ -188,50 +181,48 @@ class ModificationRoutesMixin:
                   and f not in horodates_upd
                   and f not in postpaiement_upd
                   and self.entities[base_target][f] != "Upload"]
-        # POINT 85 : les écritures sont rassemblées AVANT d'être émises,
-        # pour pouvoir les envelopper d'un try quand l'entité porte un
-        # 'unique'. C'est SQLite qui lève à l'`execute`, pas au `commit` —
-        # une garde autour du seul commit donnait 500 (vérifié contre un
-        # vrai serveur, pas déduit).
+        # POINT 85: the writes are gathered BEFORE being emitted, so they can
+        # be wrapped in a try when the entity carries a 'unique'. SQLite raises
+        # at `execute`, not at `commit` — a guard around the commit alone gave
+        # 500 (checked against a real server, not inferred).
         lignes_ecriture = []
-        # BRIQUE 20 (point 98) : atteindre une valeur DÉFAIT un effet.
-        # Annuler une commande la passait en « annulée » et gardait ses
-        # lignes : le stock restait consommé. La restitution existait
-        # depuis le point 92, mais seulement à la SUPPRESSION — ce qui
-        # efface l'historique, et un marchand veut les deux.
+        # BRICK 20 (point 98): reaching a value UNDOES an effect. Cancelling an
+        # order set it to "cancelled" and kept its lines: the stock stayed
+        # consumed. Restoration had existed since point 92, but only on
+        # DELETION — which erases the history, and a merchant wants both.
         #
-        # LE point de la brique : ne rendre QU'UNE FOIS. L'état est lu
-        # AVANT l'écriture, et la libération n'a lieu que sur la
-        # TRANSITION — deux PUT successifs à « annulée » rendraient
-        # sinon le stock deux fois, et la boutique s'inventerait des
-        # paires. C'est ce que seul un vrai serveur montre.
+        # THE point of the brick: give back ONLY ONCE. The state is read BEFORE
+        # the write, and release happens only on the TRANSITION — two
+        # successive PUTs to "cancelled" would otherwise give the stock back
+        # twice, and the shop would invent pairs for itself. Only a real server
+        # shows this.
         for regle in self.release_rules_by_entity.get(base_target, []):
             enfant = regle["releases"]
             fk_enfant = self._fk_enfant_libere(base_target, enfant)
             if not fk_enfant:
                 continue
-            # Le champ peut avoir été retiré de CETTE route par
-            # `writableAfterPayment` : il n'est alors pas dans son schéma
-            # Pydantic, et lire `data.<champ>` ici répondait 500 à tout appel
-            # (mesuré sur `exemples/02_boutique.ml`, pour le seul rôle qui a le
-            # droit d'appeler la route). La bascule vit dans la route qui écrit
-            # RÉELLEMENT le champ — voir `_generate_postpayment_routes`.
+            # The field may have been removed from THIS route by
+            # `writableAfterPayment`: it is then not in its Pydantic schema,
+            # and reading `data.<field>` here answered 500 to every call
+            # (measured on `exemples/02_boutique.ml`, for the only role allowed
+            # to call the route). The transition lives in the route that
+            # ACTUALLY writes the field — see `_generate_postpayment_routes`.
             if regle["field"] in postpaiement_upd:
                 continue
-            # L'état est lu AVANT la transaction : le refus qui suit doit
-            # pouvoir fermer la connexion, ce que le `except
-            # IntegrityError` des écritures ne ferait pas pour lui.
+            # The state is read BEFORE the transaction: the refusal that
+            # follows must be able to close the connection, which the writes'
+            # `except IntegrityError` would not do for it.
             api_lines += [
                 f"    cursor.execute('SELECT \"{regle['field']}\" FROM "
                 f'"{base_target.lower()}" WHERE id = ?\', (id,))',
                 "    _etat_avant = cursor.fetchone()",
-                # LE trou que la première version laissait ouverte :
-                # annuler rendait le stock, puis RÉACTIVER la commande la
-                # laissait vivante sans rien consommer — du stock gratuit,
-                # de la même famille que les exploits du point 77. Le
-                # reprendre au retour supposerait qu'il soit encore
-                # disponible, ce que rien ne garantit : l'état libéré est
-                # donc TERMINAL, et le message dit quoi faire à la place.
+                # THE hole the first version left open: cancelling gave the
+                # stock back, then REACTIVATING the order left it alive without
+                # consuming anything — free stock, the same family as the point
+                # 77 exploits. Taking it back on return would assume it is
+                # still available, which nothing guarantees: the released state
+                # is therefore TERMINAL, and the message says what to do
+                # instead.
                 f"    if (_etat_avant and _etat_avant[0] == {regle['value']!r}",
                 f"            and data.{regle['field']} != {regle['value']!r}):",
                 "        conn.close()",
@@ -244,38 +235,37 @@ class ModificationRoutesMixin:
                 f"                and data.{regle['field']} == {regle['value']!r})",
             ]
             lignes_ecriture.append("if _bascule:")
-            # Aucun plancher : on rend un état qui a existé et qui était
-            # valide (même raison qu'au point 92). Source unique partagée
-            # avec la route après-paiement.
+            # No floor: we give back a state that existed and was valid (same
+            # reason as point 92). Single source shared with the post-payment
+            # route.
             lignes_ecriture += self._lignes_restitution(enfant, fk_enfant)
-        # BRIQUE 19 (point 91) : le décompte suit la quantité MODIFIÉE.
-        # `decrements` ne s'armait qu'à la création : créer une ligne à 1
-        # puis la passer à 4 facturait quatre paires et n'en décomptait
-        # qu'une (vérifié — stock 16 -> 15 pour 528 € facturés). C'est le
-        # défaut du point 78 déplacé de l'argent vers la marchandise.
+        # BRICK 19 (point 91): the count follows the UPDATED quantity.
+        # `decrements` was armed only at creation: creating a line at 1 then
+        # setting it to 4 billed four pairs and counted down only one (checked
+        # — stock 16 -> 15 for €528 billed). It is the point 78 defect moved
+        # from money to goods.
         #
-        # On applique le DELTA, pas la nouvelle quantité : la ligne a
-        # déjà consommé son ancienne valeur. Un delta négatif rend du
-        # stock, et la condition `>= plancher` reste vraie — inutile de
-        # traiter les deux sens séparément. Quantité et clé étrangère
-        # sont relues EN BASE : cette route n'écrit pas les clés
-        # étrangères (point 78 encore).
-        # CORRECTIF (point 92) : cette boucle lisait `reputation_rules_here`,
-        # variable de la branche `Create` — donc les règles de la DERNIÈRE
-        # entité créée, pas de celle qu'on modifie. Deux conséquences, les
-        # deux vérifiées : une spec qui a un `Update` sans aucun `Create`
-        # faisait PLANTER le compilateur (variable jamais assignée), et un
-        # `Update` précédé de la création d'une AUTRE entité héritait de ses
-        # règles — modifier un avis décomptait le stock d'un produit. Le
-        # défaut est né avec le décompte au PUT (point 91) : une branche
-        # qui lit la variable d'une autre marche tant que l'ordre des
-        # routes les met côte à côte.
+        # We apply the DELTA, not the new quantity: the line has already
+        # consumed its old value. A negative delta gives stock back, and the
+        # `>= floor` condition stays true — no need to handle both directions
+        # separately. Quantity and foreign key are reread FROM THE DATABASE:
+        # this route does not write foreign keys (point 78 again).
+        #
+        # FIX (point 92): this loop read `reputation_rules_here`, a variable of
+        # the `Create` branch — hence the rules of the LAST entity created, not
+        # of the one being updated. Two consequences, both checked: a spec with
+        # an `Update` and no `Create` at all made the compiler CRASH (variable
+        # never assigned), and an `Update` preceded by the creation of ANOTHER
+        # entity inherited its rules — editing a review counted down a
+        # product's stock. The defect was born with the count on PUT (point
+        # 91): a branch that reads another's variable works as long as route
+        # order puts them side by side.
         for rule in self.reputation_rules_by_trigger.get(base_target, []):
             if not rule.amount_field:
-                continue  # décompte d'une constante : rien ne varie
+                continue  # counting down a constant: nothing varies
             plancher = rule.minimum
             if plancher is None or rule.direction != "decrements":
-                continue  # sans plancher déclaré, rien à garantir (point 86)
+                continue  # without a declared floor, nothing to guarantee (point 86)
             fk_cible = rule.target_fk
             champ = rule.amount_field
             cible = rule.target_entity.lower()
@@ -306,17 +296,16 @@ class ModificationRoutesMixin:
             ])
             lignes_ecriture.append(f"cursor.execute(query, ({values_list}, id))")
         else:
-            # Entité dont TOUS les attributs sont peuplés par le serveur :
-            # « SET  WHERE id = ? » serait du SQL invalide. Rien à écrire
-            # n'est un succès, pas une erreur.
+            # Entity whose attributes are ALL filled by the server: "SET  WHERE
+            # id = ?" would be invalid SQL. Nothing to write is a success, not
+            # an error.
             lignes_ecriture.append("pass  # no field the client can modify")
-        # AJOUT (brique 12, point 82) : le total du parent suit la ligne
-        # modifiée. Le parent est relu EN BASE, jamais pris dans le corps
-        # de requête — la route Update n'écrit pas les clés étrangères,
-        # donc `data.<fk>` peut désigner un parent auquel cette ligne
-        # n'appartient pas : on recalculerait le total d'une autre
-        # commande, et pas celui de la vraie. Exactement la leçon du
-        # point 78, sur une autre brique.
+        # ADDED (brick 12, point 82): the parent's total follows the updated
+        # line. The parent is reread FROM THE DATABASE, never taken from the
+        # request body — the Update route does not write foreign keys, so
+        # `data.<fk>` can designate a parent this line does not belong to: we
+        # would recompute another order's total, and not the real one's.
+        # Exactly the point 78 lesson, on another brick.
         for recalcul in self._aggregation_recomputes(base_target):
             var = f"_parent_{recalcul['fk_column']}"
             lignes_ecriture += [
@@ -326,12 +315,11 @@ class ModificationRoutesMixin:
                 f"if {var}:",
                 f"    cursor.execute({recalcul['sql']!r}, ({var}[0], {var}[0]))",
             ]
-        # POINT 85 : la route Update n'écrivait AUCUNE clé étrangère, donc
-        # elle ne pouvait pas lever d'IntegrityError — d'où l'absence de
-        # garde jusqu'ici. 'unique' change ça : un PUT qui duplique une
-        # valeur unique donnait 500 et laissait la connexion ouverte.
-        # Garde posée seulement quand l'entité porte un 'unique', pour que
-        # la sortie reste identique partout ailleurs.
+        # POINT 85: the Update route wrote NO foreign key, so it could not
+        # raise an IntegrityError — hence the absence of a guard until now.
+        # 'unique' changes that: a PUT duplicating a unique value gave 500 and
+        # left the connection open. The guard is placed only when the entity
+        # carries a 'unique', so the output stays identical everywhere else.
         uniques_upd = self._unique_fields(base_target)
         if uniques_upd:
             api_lines.append("    try:")

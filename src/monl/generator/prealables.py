@@ -1,27 +1,25 @@
-"""Ce qu'il faut DÉJÀ avoir, et qui échappe à une condition.
+"""What you must ALREADY have, and who escapes a condition.
 
-`requiresOwn` (point 90) et son pendant à la suppression (point 96), plus
-les deux exemptions DÉCLARATIVES de `publicWhen` (point 116) — le
-superviseur et le propriétaire. `_condition_exemptions` est la source
-unique partagée par la route et le runtime."""
+`requiresOwn` (point 90) and its counterpart on deletion (point 96), plus
+the two DECLARATIVE exemptions of `publicWhen` (point 116) — the supervisor
+and the owner. `_condition_exemptions` is the single source shared by the
+route and the runtime."""
 
 from string import Template
 
 
 class PrealablesMixin:
-    """Ce qu'il faut DÉJÀ avoir, et qui échappe à une condition."""
+    """What you must ALREADY have, and who escapes a condition."""
 
     def _condition_exemptions(self, entity):
-        """POINT 116 : QUI échappe à la condition 'publicWhen' de cette entité.
+        """POINT 116: WHO escapes this entity's 'publicWhen' condition.
 
-        Rend (superviseurs déclarés, colonnes d'identité du propriétaire).
-        Source UNIQUE des deux exemptions : la route de lecture les émet, et
-        `runtime.py` s'en sert pour n'écrire la dépendance d'identité
-        facultative QUE si au moins une exemption existe — sans quoi une spec
-        sans superviseur ni propriétaire porterait une fonction que rien
-        n'appelle. Deux calculs séparés finiraient par diverger, et c'est le
-        genre d'écart qui rouvre un contrôle d'accès.
-        """
+        Returns (declared supervisors, owner identity columns). SINGLE source of
+        the two exemptions: the read route emits them, and `runtime.py` uses it to
+        write the optional identity dependency ONLY if at least one exemption
+        exists — otherwise a spec with neither supervisor nor owner would carry a
+        function nothing calls. Two separate computations would eventually
+        diverge, and that is the kind of gap that reopens an access check."""
         if (entity, "Read") not in self.public_conditions:
             return [], []
         superviseurs = sorted(self.access_supervisors.get(Template(r"""${entity}.Read""").substitute(entity=entity), []))
@@ -29,20 +27,20 @@ class PrealablesMixin:
         return superviseurs, proprietaire
 
     def _condition_identity_needed(self):
-        """Vrai si au moins une lecture conditionnée porte une exemption."""
+        """True if at least one conditional read carries an exemption."""
         return any(any(self._condition_exemptions(entity))
                    for entity, action in self.public_conditions
                    if action == "Read")
 
     def _profile_lookup(self, entity):
-        """POINT 90 : (table, colonne) où chercher la fiche que 'requiresOwn'
-        exige, ou None si la règle ne s'applique pas à cette entité.
+        """POINT 90: (table, column) where to look for the profile that
+        'requiresOwn' requires, or None if the rule does not apply to this entity.
 
-        La colonne est celle que la route Create de l'entité EXIGÉE peuple
-        depuis le jeton — donc celle qui porte un identifiant de COMPTE. Elle
-        vient de `_identity_fk_columns`, source unique de cette distinction
-        depuis le point 88 : la retrouver autrement, c'est réécrire la moitié du
-        bug que ce point-là a corrigé."""
+        The column is the one that the REQUIRED entity's Create route fills from
+        the token — hence the one that carries an ACCOUNT identifier. It comes from
+        `_identity_fk_columns`, the single source of that distinction since point
+        88: finding it another way means rewriting half of the bug that point
+        fixed."""
         requise = self.required_profiles.get(entity)
         if not requise:
             return None
@@ -52,32 +50,31 @@ class PrealablesMixin:
         return requise.lower(), sorted(colonnes)[0]
 
     def _profile_dependents(self, entity):
-        """POINT 96 : entités qui EXIGENT une fiche de 'entity' pour exister.
+        """POINT 96: entities that REQUIRE a profile of 'entity' to exist.
 
-        Pendant exact de `_profile_lookup`, à l'autre bout du cycle de vie.
-        `requiresOwn` gardait la CRÉATION et rien d'autre : sur
-        `projets/SneakerLab`, supprimer sa fiche client laissait la commande en
-        base — une commande en carnet sans destinataire, exactement l'état que
-        le point 90 avait été écrit pour empêcher. Le trou se rouvrait par
-        l'autre bout.
+        Exact counterpart of `_profile_lookup`, at the other end of the life
+        cycle. `requiresOwn` guarded CREATION and nothing else: on
+        `projets/SneakerLab`, deleting one's customer profile left the order in
+        the database — an order on the books with no recipient, exactly the state
+        point 90 was written to prevent. The hole reopened from the other end.
 
-        Retourne [(table, colonne de compte)] : où chercher les enregistrements
-        qui deviendraient orphelins."""
+        Returns [(table, account column)]: where to look for the records that
+        would become orphans."""
         dependantes = []
         for dependante, requise in sorted(self.required_profiles.items()):
             if requise != entity:
                 continue
             colonnes = self._identity_fk_columns().get(dependante, set())
             if not colonnes:
-                # Sans colonne d'identité, rien ne relie la dépendante à un
-                # compte : on ne devine pas plutôt que de refuser à tort.
+                # Without an identity column, nothing links the dependent to an
+                # account: we do not guess rather than refuse wrongly.
                 continue
             dependantes.append((dependante, dependante.lower(), sorted(colonnes)[0]))
         return dependantes
 
     def _profile_account_column(self, entity):
-        """Colonne de compte de l'entité EXIGÉE elle-même — pour compter les
-        fiches restantes. `requiresOwn` demande « au moins une » : supprimer
-        l'avant-dernière est donc légitime, seule la DERNIÈRE est refusée."""
+        """Account column of the REQUIRED entity itself — to count the remaining
+        profiles. `requiresOwn` asks for "at least one": deleting the second to
+        last is therefore legitimate, only the LAST one is refused."""
         colonnes = self._identity_fk_columns().get(entity, set())
         return sorted(colonnes)[0] if colonnes else None

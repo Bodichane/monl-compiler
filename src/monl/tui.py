@@ -1,30 +1,29 @@
 # ─────────────────────────────────────────────────────────────────────
-# PRÉSENTATION TERMINAL DU DIALOGUE GUIDÉ
+# TERMINAL PRESENTATION OF THE GUIDED DIALOGUE
 #
-# Le dialogue est le premier contact avec monl : il doit ressembler à un
-# instrument de précision, pas à un assistant bavard. D'où le parti pris
-# de ce module — un plan d'entretien visible dès la première seconde
-# (l'utilisateur sait combien d'étapes il reste, et laquelle est en
-# cours), des menus alignés, une seule couleur d'accent, aucune animation.
+# The dialogue is the first contact with monl: it must look like a precision
+# instrument, not a chatty assistant. Hence this module's stance — an interview
+# plan visible from the first second (the user knows how many steps remain, and
+# which one is in progress), aligned menus, a single accent color, no
+# animation.
 #
-# Trois contraintes de conception :
-#   1. AUCUNE dépendance (rich, colorama…) — le projet est hors-ligne et
-#      son socle doit le rester ; tout passe par des séquences ANSI.
-#   2. DÉGRADATION SILENCIEUSE : hors terminal (sortie redirigée, CI,
-#      tests scriptés), NO_COLOR, TERM=dumb ou encodage non-UTF-8, on
-#      retombe sur du texte nu — jamais de caractères parasites dans un
-#      fichier de log.
-#   3. Le MOTEUR ne connaît pas ce module : il appelle une interface
-#      (PlainDialogueUI) dont la version nue reproduit exactement les
-#      chaînes historiques. Les tests scriptés sont donc insensibles à
-#      tout ce qui suit.
+# Three design constraints:
+#   1. NO dependency (rich, colorama…) — the project is offline and its
+#      foundation must stay so; everything goes through ANSI sequences.
+#   2. SILENT DEGRADATION: outside a terminal (redirected output, CI,
+#      scripted tests), NO_COLOR, TERM=dumb or a non-UTF-8 encoding, we
+#      fall back on plain text — never stray characters in a log file.
+#   3. The ENGINE does not know this module: it calls an interface
+#      (PlainDialogueUI) whose plain version reproduces exactly the
+#      historical strings. Scripted tests are therefore insensitive to
+#      everything that follows.
 # ─────────────────────────────────────────────────────────────────────
 import os
 import shutil
 import sys
 
 
-# --------------------------------------------------------------- capacités --
+# ------------------------------------------------------------- capabilities --
 def _supports_color(stream):
     if os.environ.get("NO_COLOR") or os.environ.get("MONL_NO_COLOR"):
         return False
@@ -33,8 +32,8 @@ def _supports_color(stream):
     if not hasattr(stream, "isatty") or not stream.isatty():
         return False
     if sys.platform == "win32":
-        # Terminal Windows moderne uniquement : on tente d'activer le mode
-        # séquences virtuelles, et on renonce proprement si indisponible.
+        # Modern Windows terminal only: we try to enable virtual terminal
+        # sequence mode, and give up cleanly if it is unavailable.
         try:
             import ctypes
             kernel32 = ctypes.windll.kernel32
@@ -54,7 +53,7 @@ def _supports_unicode(stream):
 
 
 class Terminal:
-    """Capacités du terminal courant, résolues une seule fois."""
+    """Capabilities of the current terminal, resolved only once."""
 
     def __init__(self, stream=None):
         self.stream = stream or sys.stdout
@@ -62,11 +61,11 @@ class Terminal:
         self.unicode = _supports_unicode(self.stream)
         self.width = max(58, min(shutil.get_terminal_size((80, 24)).columns, 96))
 
-    # Palette : un seul accent, deux gris, un rouge d'erreur. Codes 256
-    # couleurs (largement supportés) plutôt que la palette 16, dont le
-    # rendu varie trop d'un thème à l'autre pour être maîtrisé.
+    # Palette: a single accent, two grays, an error red. 256-color codes
+    # (widely supported) rather than the 16-color palette, whose rendering
+    # varies too much from one theme to another to be controlled.
     ACCENT = "38;5;36"      # vert-bleu profond : l'accent unique
-    MUTED = "38;5;245"      # gris moyen : hints, unités, légendes
+    MUTED = "38;5;245"      # mid gray: hints, units, captions
     FAINT = "38;5;240"      # gris sombre : filets, rail
     ALERT = "38;5;167"      # rouge brique : erreurs de saisie
     LIGHT = "38;5;252"      # gris clair : valeurs
@@ -82,12 +81,12 @@ class Terminal:
 
 # ------------------------------------------------------- interface neutre --
 class PlainDialogueUI:
-    """Rendu nu — chaînes strictement identiques à l'historique du moteur.
+    """Plain rendering — strings strictly identical to the engine's historical
+    ones.
 
-    C'est le comportement par défaut du moteur de dialogue : les tests
-    scriptés et toute sortie redirigée passent par ici, donc aucune
-    évolution esthétique ne peut modifier ce que produit le dialogue.
-    """
+    It is the dialogue engine's default behavior: scripted tests and any
+    redirected output go through here, so no aesthetic change can alter what
+    the dialogue produces."""
 
     def plan(self, phases):
         return None
@@ -124,16 +123,16 @@ class PlainDialogueUI:
         return "\n".join(lignes)
 
 
-# ------------------------------------------------------------ rendu stylé --
+# --------------------------------------------------------- styled rendering --
 class StyledDialogueUI(PlainDialogueUI):
-    """Rendu terminal du dialogue : plan d'entretien, rail, menus alignés."""
+    """Terminal rendering of the dialogue: interview plan, rail, aligned menus."""
 
     def __init__(self, terminal=None):
         self.t = terminal or Terminal()
         self._phases = []
         self._current = -1
 
-    # -- éléments de structure ------------------------------------------
+    # -- structural elements ------------------------------------------------
     def banner(self):
         t = self.t
         titre = t.paint("monl", t.ACCENT, "1")
@@ -142,18 +141,17 @@ class StyledDialogueUI(PlainDialogueUI):
                        "deterministic backend", t.MUTED)
         garantie = t.paint(f"rules-based dialogue {point} no AI {point} "
                            "offline", t.FAINT)
-        # Le filet épouse la ligne de titre plutôt que la fenêtre : un trait
-        # de 90 colonnes au-dessus de trois mots écrase le reste de l'écran.
+        # The rule follows the title line rather than the window: a 90-column
+        # line above three words crushes the rest of the screen.
         filet = t.glyph("─", "-") * 58
         return f"\n{titre}  {sous}\n{garantie}\n{t.paint(filet, t.FAINT)}"
 
     def plan(self, phases):
-        """Affiche le déroulé complet AVANT la première question.
+        """Displays the complete flow BEFORE the first question.
 
-        C'est le geste central de cet écran : un entretien dont on ne voit
-        pas la fin est subi. En montrant les étapes et en marquant celle en
-        cours, on transforme une file de questions en parcours situé.
-        """
+        It is this screen's central move: an interview whose end one cannot see
+        is endured. By showing the steps and marking the current one, a queue of
+        questions becomes a journey one can place oneself in."""
         self._phases, self._current = list(phases), -1
         t = self.t
         lignes = [t.paint("Dialogue outline", t.MUTED)]
@@ -164,7 +162,7 @@ class StyledDialogueUI(PlainDialogueUI):
         return "\n" + "\n".join(lignes)
 
     def phase(self, index):
-        """En-tête de l'étape en cours : rang, intitulé, avancement."""
+        """Header of the current step: rank, title, progress."""
         if not self._phases or not 0 <= index < len(self._phases):
             return None
         self._current = index
@@ -189,17 +187,15 @@ class StyledDialogueUI(PlainDialogueUI):
         return self.t.paint(self.t.glyph("│", "|"), self.t.FAINT)
 
     def menu(self, prompt, options, allow_none=False, hints=None):
-        """Menu numéroté, libellés et descriptions en colonnes alignées.
+        """Numbered menu, labels and descriptions in aligned columns.
 
-        Les descriptions sont tronquées à la largeur réelle du terminal :
-        une ligne qui repasse à la ligne casse l'alignement, et un menu
-        désaligné se lit deux fois plus lentement.
-        """
+        Descriptions are truncated to the terminal's real width: a line that
+        wraps breaks the alignment, and a misaligned menu reads twice as slowly."""
         t = self.t
         hints = hints or {}
         largeur_num = len(str(len(options)))
-        # Colonne de libellés bornée : une seule entrée très longue ne doit
-        # pas comprimer la colonne d'explications de toutes les autres.
+        # Bounded label column: a single very long entry must not squeeze the
+        # explanation column of all the others.
         largeur_lib = min(max((len(o) for o in options), default=0), 32)
         reste = t.width - largeur_num - largeur_lib - 8
 
@@ -207,7 +203,7 @@ class StyledDialogueUI(PlainDialogueUI):
         for i, option in enumerate(options, 1):
             numero = t.paint(f"{i:>{largeur_num}}", t.ACCENT)
             ligne = f"  {self._rail()} {numero}  {t.paint(option, t.LIGHT)}"
-            if hints:  # remplissage HORS séquence de couleur
+            if hints:  # padding OUTSIDE the color sequence
                 ligne += " " * max(0, largeur_lib - len(option))
             aide = hints.get(option)
             if aide and reste > 12:
@@ -222,8 +218,8 @@ class StyledDialogueUI(PlainDialogueUI):
         return "\n".join(lignes)
 
     def field(self, prompt):
-        """Transforme « Nom de l'application (ex. StudioNova) > » en une
-        question titrée + une aide grisée + une invite sur sa propre ligne."""
+        """Turns "Application name (e.g. StudioNova) >" into a titled question + a
+        grayed hint + a prompt on its own line."""
         t = self.t
         texte = prompt.rstrip()
         indente = texte.startswith("  ")
@@ -265,12 +261,11 @@ class StyledDialogueUI(PlainDialogueUI):
         return f"  {t.paint(t.glyph('→', '->'), t.ACCENT)} {t.paint(message, t.MUTED)}"
 
     def recap(self, title, rows):
-        """Récapitulatif avant compilation : ce que la spec va contenir.
+        """Summary before compilation: what the spec will contain.
 
-        Dernier moment où l'utilisateur peut constater un écart entre ce
-        qu'il croit avoir déclaré et ce qui sera écrit — la spec reste la
-        source de vérité, autant la donner à lire avant de la compiler.
-        """
+        The last moment when the user can notice a gap between what they believe
+        they declared and what will be written — the spec stays the source of
+        truth, so it might as well be given to read before compiling it."""
         t = self.t
         filet = t.glyph("─", "-") * min(t.width, 62)
         largeur_cle = max((len(str(c)) for c, _ in rows), default=0)

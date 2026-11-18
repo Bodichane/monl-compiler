@@ -1,8 +1,8 @@
-"""Structures sérialisables produites par la validation du DSL.
+"""Serializable structures produced by the validation of the DSL.
 
-Les plans d'analyse immuables vivent dans ir.py. Cette séparation conserve
-les dictionnaires normalisés sans les confondre avec leurs analyses résolues.
-"""
+The immutable analysis plans live in ir.py. This separation keeps the
+normalized dictionaries without confusing them with their resolved
+analyses."""
 
 from typing import Any, Literal, TypedDict
 
@@ -40,7 +40,7 @@ class ForeignKeyPlacement(TypedDict):
 
 
 class DerivedFieldIR(TypedDict):
-    """Règle derivedFrom normalisée par le validateur."""
+    """derivedFrom rule normalized by the validator."""
 
     entity: str
     field: str
@@ -50,7 +50,7 @@ class DerivedFieldIR(TypedDict):
 
 
 class AggregatedFieldIR(TypedDict):
-    """Somme validée d'un champ sur les lignes enfants d'une entité."""
+    """Validated sum of a field over an entity's child rows."""
 
     entity: str
     field: str
@@ -154,10 +154,10 @@ class SecurityIR(TypedDict):
     auth_identifier: list[str] | None
     auth_phone_prefix: str | None
     auth_features: dict[str, Any]
-    # BRIQUE 2a : {'code': 'XOF', 'exponent': 0} ou None. L'exposant est
-    # RESOLU par le validateur, jamais recalcule ici : deux tables de devises
-    # finiraient par diverger, et une divergence d'unite se paie sur le releve
-    # bancaire.
+    # BRICK 2a: {'code': 'XOF', 'exponent': 0} or None. The exponent is
+    # RESOLVED by the validator, never recomputed here: two currency tables
+    # would eventually diverge, and a unit divergence is paid for on the bank
+    # statement.
     payment_currency: dict[str, Any] | None
     payment_provider: str | None
     enumerated_fields: dict[str, dict[str, list[str]]]
@@ -173,7 +173,7 @@ class SandboxIR(TypedDict):
 
 
 class CompilationIR(TypedDict):
-    """Représentation validée, source commune de tous les émetteurs."""
+    """Validated representation, the shared source of all emitters."""
 
     meta: MetaIR
     schema: SchemaIR

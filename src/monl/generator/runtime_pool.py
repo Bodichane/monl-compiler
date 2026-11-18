@@ -1,4 +1,4 @@
-"""Pool PostgreSQL paresseux du runtime généré."""
+"""Lazy PostgreSQL pool of the generated runtime."""
 
 from string import Template
 
@@ -6,13 +6,13 @@ from .runtime_socle import DB_POOL_MAX_ENV, DB_POOL_MIN_ENV
 
 
 class PoolRuntimeMixin:
-    """Émet l'état et les primitives du pool PostgreSQL."""
+    """Emits the state and primitives of the PostgreSQL pool."""
 
     def _pool_runtime_lines(self):
-        """Lignes générées avant `_connect()`, sans toucher au chemin SQLite."""
+        """Lines generated before `_connect()`, without touching the SQLite path."""
         return [
-            # Les constantes permettent au garde-fou de documentation de
-            # résoudre les noms par AST, comme au point 172.
+            # The constants let the documentation safeguard resolve the names
+            # through AST, as in point 172.
             (Template(r"""_DB_POOL_MIN_ENV = ${DB_POOL_MIN_ENV}
 _DB_POOL_MAX_ENV = ${DB_POOL_MAX_ENV}
 _DB_POOL_DEFAULT_MIN = 1

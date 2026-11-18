@@ -19,30 +19,27 @@ class IdentityDatabaseMixin:
 
     @contextlib.contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:
-        """Ouvre, valide (ou annule), puis FERME.
+        """Opens, commits (or rolls back), then CLOSES.
 
-        `with sqlite3.connect(...)` valide la transaction mais ne ferme pas la
-        connexion — et un objet `Connection` de CPython prend part à des cycles
-        de références, donc il n'est rendu que par le ramasse-miettes
-        cyclique, pas au retour de la méthode. Mesuré : 500 lectures laissaient
-        **197 descripteurs** ouverts sur la base, tous rendus d'un coup par un
-        `gc.collect()` manuel. Ce n'est pas une fuite éternelle, c'est pire à
-        exploiter — un serveur sous charge peut atteindre sa limite de
-        descripteurs avant qu'une collecte de génération 2 ne survienne, et
-        l'incident ne ressemble alors à rien de connu.
+        `with sqlite3.connect(...)` commits the transaction but does not close the
+        connection — and a CPython `Connection` object takes part in reference
+        cycles, so it is only released by the cyclic garbage collector, not when
+        the method returns. Measured: 500 reads left **197 descriptors** open on
+        the database, all released at once by a manual `gc.collect()`. It is not
+        an eternal leak, it is worse to operate — a server under load can reach
+        its descriptor limit before a generation 2 collection happens, and the
+        incident then looks like nothing known.
 
-        Deuxième conséquence, celle qui a révélé la première : tant qu'une
-        connexion vit, SQLite ne rabat pas le journal WAL dans le fichier
-        principal. La base restait à 4 096 octets avec 111 Ko de WAL à côté —
-        et la restauration documentée dans `docs/EXPLOITATION.md` échouait sur
-        un « disk I/O error » en remettant le fichier en place.
+        Second consequence, the one that revealed the first: as long as a
+        connection lives, SQLite does not fold the WAL journal back into the main
+        file. The database stayed at 4,096 bytes with 111 KB of WAL next to it —
+        and the restore documented in `docs/EXPLOITATION.md` failed with a "disk
+        I/O error" when putting the file back.
 
-        Le `with connection:` interne conserve exactement l'ancienne sémantique
-        (validation en sortie propre, annulation sur exception) ; seule la
-        fermeture est ajoutée. Les deux appelants qui lisent `cursor.rowcount`
-        APRÈS le bloc continuent de fonctionner : la valeur est figée à
-        l'exécution, pas relue dans la connexion.
-        """
+        The inner `with connection:` keeps exactly the old semantics (commit on a
+        clean exit, rollback on exception); only the close is added. The two
+        callers that read `cursor.rowcount` AFTER the block keep working: the
+        value is frozen at execution, not read back from the connection."""
         connection = sqlite3.connect(self.path, timeout=10)
         try:
             connection.row_factory = sqlite3.Row

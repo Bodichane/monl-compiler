@@ -1,13 +1,13 @@
-"""Le harnais : le pilote jsdom, le port, l'appel HTTP, l'identifiant.
+"""The harness: the jsdom driver, the port, the HTTP call, the identifier.
 
-LE VÉRIFICATEUR EST UN CLIENT COMME UN AUTRE (points 95, 96, 100) : toute
-brique qui contraint une ENTRÉE contraint aussi le smoke test, qui code ses
-valeurs en dur et n'a aucun moyen de le savoir. Deux fois de suite il a
-déclaré cassée une application saine. `_identifiant_smoke` dérive donc
-l'identifiant du CONTRAT, il ne l'invente pas.
+THE VERIFIER IS A CLIENT LIKE ANY OTHER (points 95, 96, 100): any brick
+that constrains an INPUT also constrains the smoke test, which hard-codes
+its values and has no way of knowing. Twice in a row it declared a healthy
+application broken. `_identifiant_smoke` therefore derives the identifier
+from the CONTRACT, it does not invent it.
 
-Le fetch de jsdom DOIT être injecté via `beforeParse` : assigné après
-construction, il n'est jamais vu par les scripts de la page."""
+jsdom's fetch MUST be injected through `beforeParse`: assigned after
+construction, it is never seen by the page's scripts."""
 
 import json
 import os
@@ -119,20 +119,20 @@ def _free_port():
         return s.getsockname()[1]
 
 def _identifiant_smoke(contract, rang=0):
-    """Identifiant de compte de test conforme à ce que l'app EXIGE (point 95).
+    """Test account identifier matching what the app REQUIRES (point 95).
 
-    `rang` distingue les comptes d'un même passage : la boucle d'élévation de
-    privilège en essaie un par rôle provisionné, et deux inscriptions sous le
-    même identifiant donneraient un 409 qu'on lirait à tort comme un refus de
-    rôle. Le domaine `.test` est réservé par la RFC 2606 — jamais routable,
-    donc jamais un vrai destinataire par accident."""
+    `rang` distinguishes the accounts of a single pass: the
+    privilege-escalation loop tries one per provisioned role, and two
+    registrations under the same identifier would give a 409 that would be
+    wrongly read as a role refusal. The `.test` domain is reserved by RFC 2606
+    — never routable, hence never a real recipient by accident."""
     formes = (contract.get("api", {}).get("auth", {}).get("register", {})
               .get("identifier_forms") or [])
     suffixe = f"-{rang}" if rang else ""
     if "email" in formes:
         return f"smoke{suffixe}@monl.test"
     if "phone" in formes:
-        # Plage 06 99 00 00 xx : de la longueur d'un vrai numéro, sans en être un.
+        # Range 06 99 00 00 xx: the length of a real number, without being one.
         return f"+3369900{rang:04d}"
     return f"smoke{suffixe}"
 
@@ -149,29 +149,29 @@ def _http(method, url, body=None, token=None):
             try:
                 return resp.status, json.loads(raw or b"{}")
             except (json.JSONDecodeError, UnicodeDecodeError):
-                # /docs et consorts renvoient du HTML, et depuis la brique 13 on
-                # récupère aussi des assets BINAIRES (png, jpg) — seul le statut
-                # compte. `UnicodeDecodeError` n'est PAS un `JSONDecodeError` :
-                # ne l'attraper qu'en JSON faisait remonter la trace complète
-                # dès le premier octet non-UTF-8. Défaut latent jusqu'ici parce
-                # que rien de binaire n'était jamais demandé.
+                # /docs and the like return HTML, and since brick 13 BINARY
+                # assets (png, jpg) are fetched too — only the status matters.
+                # `UnicodeDecodeError` is NOT a `JSONDecodeError`: catching it
+                # only for JSON surfaced the full traceback at the first
+                # non-UTF-8 byte. A latent defect until now because nothing
+                # binary was ever requested.
                 return resp.status, {}
     except urllib.error.HTTPError as e:
-        # Un HTTPError EST la réponse : le lire ne suffit pas, il faut le
-        # fermer. Sans ce close, chaque 401 attendu (et le smoke test en
-        # provoque à dessein, pour vérifier que les routes protégées le sont)
-        # laissait un descripteur derrière lui.
+        # An HTTPError IS the response: reading it is not enough, it must be
+        # closed. Without this close, every expected 401 (and the smoke test
+        # causes some on purpose, to check that protected routes are protected)
+        # left a descriptor behind.
         with e:
             try:
                 payload = json.loads(e.read() or b"{}")
             except Exception:
                 payload = {}
-        return e.code, payload  # corps d'erreur non-JSON toléré aussi
+        return e.code, payload  # non-JSON error body tolerated too
     except urllib.error.URLError:
         return 0, {}
 
-# jsdom est installé UNE FOIS dans un cache utilisateur (~/.monl/jsdom),
-# jamais dans le projet : volumineux, hors dépôt, réutilisable entre projets.
+# jsdom is installed ONCE in a user cache (~/.monl/jsdom), never in the
+# project: large, outside the repository, reusable across projects.
 def _jsdom_cache_dir():
     return os.path.join(os.path.expanduser("~"), ".monl", "jsdom")
 

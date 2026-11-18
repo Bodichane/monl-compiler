@@ -1,27 +1,26 @@
-"""Ce que le frontend RÉCLAME : les fichiers cités par le HTML et le CSS.
+"""What the frontend CLAIMS: the files cited by the HTML and the CSS.
 
-La limite est ÉNONCÉE (point 137) : seules les références portant une
-extension connue sont retenues, pour ne jamais confondre un fichier avec une
-route (`/item`) ou une navigation (`#/panier`). Une référence enracinée
-(`/photo.svg`) n'est PAS réécrite vers `/site/` : c'est un vrai défaut, et le
-réécrire le masquerait."""
+The limit is STATED (point 137): only references carrying a known
+extension are kept, so a file is never confused with a route (`/item`) or
+a navigation (`#/panier`). A rooted reference (`/photo.svg`) is NOT
+rewritten to `/site/`: it is a real defect, and rewriting it would hide
+it."""
 
 import os
 import posixpath
 import re
 
-# ---- références locales du frontend (brique 29, point 137) ----------------
-# Un fichier que la page RÉCLAME mais que personne n'a livré ne casse aucun
-# script : le navigateur affiche un trou, jsdom ne bronche pas, et le smoke
-# test déclarait vert. C'est ce qui est arrivé à AtelierNaya — six SVG
-# référencés, aucun livré, `monl run --check` au vert.
+# ---- the frontend's local references (brick 29, point 137) ---------------- A
+# file the page CLAIMS but nobody delivered breaks no script: the browser shows
+# a hole, jsdom does not flinch, and the smoke test declared green. That is
+# what happened to AtelierNaya — six SVGs referenced, none delivered, `monl run
+# --check` green.
 #
-# On ne retient que les références portant une EXTENSION de fichier connue.
-# La limite est ÉNONCÉE plutôt que devinée : `<img src="/photos/hero">` (sans
-# extension) n'est pas contrôlé. C'est le prix à payer pour ne JAMAIS dénoncer
-# une route du contrat ni un lien de navigation `#/x` — un avertissement qui se
-# trompe sur un site correct apprend à ne plus lire les avertissements
-# (points 57 et 92).
+# Only references carrying a known file EXTENSION are kept. The limit is STATED
+# rather than guessed: `<img src="/photos/hero">` (without an extension) is not
+# checked. It is the price for NEVER reporting a contract route or a `#/x`
+# navigation link — a warning that is wrong about a correct site teaches people
+# to stop reading warnings (points 57 and 92).
 EXTENSIONS_REFERENCEES = (
     ".html", ".css", ".js", ".json", ".svg", ".png", ".jpg", ".jpeg",
     ".webp", ".gif", ".avif", ".ico", ".bmp", ".woff", ".woff2", ".ttf",
@@ -37,24 +36,22 @@ _REF_CSS_URL = re.compile(r'url\(\s*["\']?([^)"\']+?)["\']?\s*\)', re.I)
 _SCHEMA_URL = re.compile(r'^[a-zA-Z][a-zA-Z0-9+.\-]*:')
 
 def _est_reference_locale(ref):
-    """Vrai si la référence désigne un fichier de CE site.
+    """True if the reference designates a file of THIS site.
 
-    Écartés : les ancres et la navigation par fragment (`#`, `#/panier`), les
-    URL absolues et protocol-relative (`//cdn…`), et tout ce qui porte un
-    schéma (`data:`, `mailto:`, `tel:`, `javascript:`, `http:`…).
-    """
+    Excluded: anchors and fragment navigation (`#`, `#/panier`), absolute and
+    protocol-relative URLs (`//cdn…`), and anything carrying a scheme
+    (`data:`, `mailto:`, `tel:`, `javascript:`, `http:`…)."""
     ref = ref.strip()
     if not ref or ref.startswith(("#", "//")):
         return False
     return not _SCHEMA_URL.match(ref)
 
 def _references_locales(frontend_dir):
-    """Les fichiers locaux réclamés par le frontend, en couples (page, chemin).
+    """The local files claimed by the frontend, as (page, path) pairs.
 
-    Ne lit que le HTML et le CSS : une URL construite en JavaScript ne se
-    connaît qu'à l'exécution, et la deviner produirait des faux positifs — la
-    couche jsdom, elle, éprouve déjà les `fetch()`.
-    """
+    Reads only the HTML and the CSS: a URL built in JavaScript is only known
+    at runtime, and guessing it would produce false positives — the jsdom
+    layer already exercises the `fetch()` calls."""
     trouvees, vues = [], set()
     for racine, _dirs, fichiers in os.walk(frontend_dir):
         for nom in sorted(fichiers):
@@ -80,12 +77,11 @@ def _references_locales(frontend_dir):
     return trouvees
 
 def _url_de_reference(page, chemin):
-    """L'URL que le NAVIGATEUR demanderait, la page étant servie sous /site/.
+    """The URL the BROWSER would request, the page being served under /site/.
 
-    Une référence enracinée (`/photo.svg`) part à la racine du serveur, pas
-    dans /site/ : c'est un vrai défaut, et le 404 le dira. On ne la réécrit
-    pas — réécrire, c'est masquer.
-    """
+    A rooted reference (`/photo.svg`) goes to the server root, not into
+    /site/: it is a real defect, and the 404 will say so. It is not rewritten
+    — rewriting means hiding."""
     if chemin.startswith("/"):
         return chemin
     resolu = posixpath.normpath(posixpath.join(posixpath.dirname(page), chemin))

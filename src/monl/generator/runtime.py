@@ -1,10 +1,9 @@
-"""Socle runtime de l'application générée : imports, secret JWT,
-init_db/migrations/seed, inscription, connexion, révocation de jeton,
-limitation de débit.
+"""Runtime foundation of the generated application: imports, JWT secret,
+init_db/migrations/seed, registration, login, token revocation, rate
+limiting.
 
-Extrait de l'ancien module monolithique src/generator.py (1307 lignes)
-lors du découpage en package — voir docs/design_decisions.md.
-"""
+Extracted from the former monolithic module src/generator.py (1307 lines)
+when it was split into a package — see docs/design_decisions.md."""
 
 
 from .runtime_annexes import AnnexesRuntimeMixin
@@ -31,15 +30,15 @@ class RuntimeMixin(
     FonctionsAuthRuntimeMixin,
     AnnexesRuntimeMixin,
 ):
-    """Le socle du app.py généré, par famille.
+    """The foundation of the generated app.py, by family.
 
-    Les deux méthodes qui restent ici sont celles qui ORCHESTRENT :
-    `_generate_runtime_lines` assemble les trois étages dans l'ordre, et
-    `_cors_methods` est lue par plusieurs d'entre eux. Tout le reste vit
-    dans le module de sa famille."""
+    The two methods left here are the ones that ORCHESTRATE:
+    `_generate_runtime_lines` assembles the three stages in order, and
+    `_cors_methods` is read by several of them. Everything else lives in its
+    family's module."""
 
     def _cors_methods(self):
-        """Méthodes réellement émises par l'application générée."""
+        """Methods actually emitted by the generated application."""
         methods = {"GET", "POST"}  # root, health and authentication
         action_methods = {
             "Read": "GET",
@@ -60,30 +59,30 @@ class RuntimeMixin(
                 if method in methods]
 
     def _generate_runtime_lines(self):
-        """Lignes de app.py jusqu'aux schémas Pydantic (incluses)."""
+        """Lines of app.py up to the Pydantic schemas (included)."""
         api_lines = self._socle_et_schemas()
-        # POINT 116 : identité FACULTATIVE, et elle n'existe que pour les
-        # lectures publiques conditionnées ('publicWhen'). Une route publique
-        # ne doit JAMAIS répondre 401 : un jeton absent, invalide ou révoqué
-        # laisse simplement l'appelant anonyme. Cette dépendance ne peut donc
-        # que DONNER des droits (superviseur, propriétaire), jamais en retirer
-        # — c'est ce qui la rend sûre sur une route ouverte à tous. Émise
-        # seulement si une EXEMPTION existe (`_condition_exemptions`, source
-        # unique) : sans superviseur ni propriétaire, aucune route ne l'appelle
-        # et l'app.py produit reste celui d'avant le point 116.
+        # POINT 116: OPTIONAL identity, and it exists only for conditional
+        # public reads ('publicWhen'). A public route must NEVER answer 401: a
+        # missing, invalid or revoked token simply leaves the caller anonymous.
+        # This dependency can therefore only GRANT permissions (supervisor,
+        # owner), never remove any — that is what makes it safe on a route open
+        # to everyone. Emitted only if an EXEMPTION exists
+        # (`_condition_exemptions`, single source): with neither supervisor nor
+        # owner, no route calls it and the produced app.py stays the one from
+        # before point 116.
         api_lines = self._socle_base_et_uploads(api_lines)
 
-        # ── POINT 95 : la forme de l'identifiant de compte ──────────────
-        # Le champ reste nommé 'username' SUR LE FIL. Le renommer en 'email'
-        # aurait cassé le formulaire d'inscription de tout projet existant,
-        # pour un gain cosmétique ; c'est le CONTRAT qui dit désormais quelle
-        # forme il attend, et l'IA d'interface qui étiquette le champ.
+        # ── POINT 95: the form of the account identifier ──
+        # The field stays named 'username' ON THE WIRE. Renaming it to 'email'
+        # would have broken the registration form of every existing project for
+        # a cosmetic gain; it is the CONTRACT that now says which form it
+        # expects, and the interface AI that labels the field.
         #
-        # LA substance de la brique n'est pas la validation, c'est la
-        # NORMALISATION. 'Jean@Ex.com' et 'jean@ex.com' sont la même boîte,
-        # '06 12 34 56 78' et '+33612345678' le même numéro : sans forme
-        # canonique, le contrôle d'unicité est contournable (deux comptes pour
-        # une personne) et la connexion échoue selon la façon dont on tape.
+        # THE substance of the brick is not validation, it is NORMALIZATION.
+        # 'Jean@Ex.com' and 'jean@ex.com' are the same mailbox, '06 12 34 56
+        # 78' and '+33612345678' the same number: without a canonical form, the
+        # uniqueness check can be bypassed (two accounts for one person) and
+        # login fails depending on how it is typed.
         api_lines += self._generate_identifier_helpers()
         api_lines += self._generate_message_runtime_lines()
         api_lines += self._generate_auth_feature_helpers()

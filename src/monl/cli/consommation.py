@@ -1,4 +1,4 @@
-"""Ce qu'une construction a coûté."""
+"""What a build cost."""
 
 import json
 import os
@@ -88,7 +88,7 @@ def _print_usage_report(report):
         print(f" ⚠️ Line {malformed['line']} ignored: {malformed['error']}.")
 
 def cmd_usage(project_dir, prices_path=None, json_output=False):
-    """Lire un journal de consommation sans estimer les lignes non tarifées."""
+    """Read a consumption log without estimating the unpriced lines."""
     project_dir = os.path.abspath(project_dir)
     souci = emplacement._erreur_de_chemin(project_dir)
     if souci:

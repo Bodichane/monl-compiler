@@ -1,4 +1,4 @@
-"""Ce que le site livré RÉCLAME, et qui doit être servi."""
+"""What the delivered site CLAIMS, and which must be served."""
 
 import json
 import os
@@ -6,9 +6,9 @@ import posixpath
 import re
 from html import unescape
 
-# Une référence construite à l'exécution (gabarit JS, moteur de template)
-# n'est pas un chemin de fichier : `src="${esc(p.imageUrl)}"` désigne une
-# image que l'API renverra, pas un fichier à trouver sur le disque.
+# A reference built at runtime (JS template, template engine) is not a file
+# path: `src="${esc(p.imageUrl)}"` designates an image the API will return, not
+# a file to find on disk.
 _REFERENCE_DYNAMIQUE = re.compile(r"\$\{|\{\{|<%")
 
 _BALISE_RESSOURCE = re.compile(
@@ -17,8 +17,8 @@ _BALISE_RESSOURCE = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 
-# Seulement les affectations de ressource explicites. Ne pas confondre un
-# fetch('/booking') ou un lien de navigation avec un fichier statique.
+# Only explicit resource assignments. Do not confuse a fetch('/booking') or a
+# navigation link with a static file.
 _RESSOURCE_JS = re.compile(
     r"\.(?:src|href)\s*=\s*['\"]([^'\"]+)['\"]|"
     r"setAttribute\(\s*['\"](?:src|href)['\"]\s*,\s*['\"]([^'\"]+)['\"]",
@@ -28,29 +28,27 @@ _RESSOURCE_JS = re.compile(
 _URL_CSS = re.compile(r"url\(\s*['\"]?([^)'\"]+)['\"]?\s*\)", re.IGNORECASE)
 
 def _sans_corps_de_script(html):
-    """Retire le CORPS des <script>, en gardant les balises elles-mêmes.
+    """Removes the BODY of <script>s, keeping the tags themselves.
 
-    Le contenu d'un <script> n'est pas du balisage : le lire comme tel fait
-    prendre le gabarit `<img src="${...}">` d'une fonction de rendu pour une
-    vraie balise. La balise ouvrante est conservée, sans quoi le
-    `<script src="app.js">` légitime disparaîtrait du contrôle.
-    """
+    A <script>'s content is not markup: reading it as such makes a render
+    function's `<img src="${...}">` template pass for a real tag. The opening
+    tag is kept, otherwise the legitimate `<script src="app.js">` would
+    disappear from the check."""
     return re.sub(r"(<script\b[^>]*>)(.*?)(</script\s*>)",
                   lambda m: m.group(1) + m.group(3), html,
                   flags=re.IGNORECASE | re.DOTALL)
 
 def _declared_link_errors(project_dir, rendered_source):
-    """Un lien déclaré dans la spec doit se retrouver dans le site livré.
+    """A link declared in the spec must be found in the delivered site.
 
-    C'est le pendant exact du contrôle des assets (point 83) : monl ne
-    vérifie pas qu'une adresse RÉPOND — il ne fait aucun appel réseau — mais
-    il vérifie qu'elle est bien PRÉSENTE. Sans ça, l'auteur déclare son
-    Instagram, l'IA l'oublie, et personne ne s'en aperçoit avant de chercher
-    le lien sur le site en ligne.
+    It is the exact counterpart of the asset check (point 83): monl does not
+    check that an address RESPONDS — it makes no network call — but it does
+    check that it is PRESENT. Without this, the author declares their
+    Instagram, the AI forgets it, and nobody notices before looking for the
+    link on the live site.
 
-    La comparaison porte sur l'adresse et non sur le libellé : un libellé peut
-    légitimement être reformulé par l'interface, une adresse jamais.
-    """
+    The comparison is on the address and not on the label: a label can
+    legitimately be reworded by the interface, an address never."""
     contract_path = os.path.join(project_dir, "frontend_contract.json")
     if not os.path.exists(contract_path):
         return []
@@ -66,8 +64,8 @@ def _declared_link_errors(project_dir, rendered_source):
     ]
 
 def _dossier_assets_du_contrat(project_dir):
-    """Le dossier d'assets déclaré par le contrat, ou None s'il est illisible.
-    Extrait de `_frontend_local_reference_errors` (plafond de complexité)."""
+    """The assets folder declared by the contract, or None if it is unreadable.
+    Extracted from `_frontend_local_reference_errors` (complexity ceiling)."""
     contract_path = os.path.join(project_dir, "frontend_contract.json")
     if not os.path.exists(contract_path):
         return None
@@ -79,44 +77,41 @@ def _dossier_assets_du_contrat(project_dir):
 
 
 def _frontend_local_reference_errors(project_dir):
-    """Vérifie les ressources locales réellement référencées par le site.
+    """Checks the local resources actually referenced by the site.
 
-    Le smoke test exécute le JavaScript et les routes API, mais ne télécharge
-    pas les images et ne charge pas les feuilles CSS comme un navigateur. Ce
-    contrôle complète donc le smoke test : il refuse les CDN, les chemins qui
-    ne sont servis par aucun montage, et chaque fichier local absent. Les
-    liens externes de navigation restent légitimes.
+    The smoke test runs the JavaScript and the API routes, but does not
+    download images or load stylesheets like a browser. This check therefore
+    complements the smoke test: it refuses CDNs, paths served by no mount,
+    and every missing local file. External navigation links stay legitimate.
 
-    La résolution suit la carte RÉELLE de ``serve.py`` (voir serving.py), pas
-    une intuition sur ``frontend/`` : ``frontend/`` est monté sur ``/site`` et
-    le dossier d'assets déclaré par la spec sur ``/site/<assets_dir>``. Chaque
-    référence est donc calculée en URL comme le ferait le navigateur, puis
-    ramenée au disque par ces deux montages. Un chemin absolu n'est pas fautif
-    en soi — ``/site/assets/photo.png`` est exactement ce que sert le wrapper ;
-    c'est ``/assets/photo.png``, servi par personne, qui l'est.
-    """
+    Resolution follows the REAL map of ``serve.py`` (see serving.py), not an
+    intuition about ``frontend/``: ``frontend/`` is mounted on ``/site`` and
+    the assets folder declared by the spec on ``/site/<assets_dir>``. Each
+    reference is therefore computed as a URL the way the browser would, then
+    brought back to disk through these two mounts. An absolute path is not
+    faulty in itself — ``/site/assets/photo.png`` is exactly what the wrapper
+    serves; it is ``/assets/photo.png``, served by nobody, that is."""
     frontend_dir = os.path.join(project_dir, "frontend")
     errors = []
     prefixe_assets = (_dossier_assets_du_contrat(project_dir) or "").strip("/")
-    # Le wrapper ne monte le dossier d'assets que `if os.path.isdir(...)` :
-    # déclaré dans la spec ne veut pas dire présent sur le disque. Quand il
-    # est absent, aucune route n'est enregistrée et Starlette laisse la
-    # requête retomber sur /site, donc `assets/x.webp` est servi depuis
-    # `frontend/assets/x.webp`. Vérifié contre un vrai serveur : croire le
-    # contrat sur parole faisait refuser trois images de KoraMaison qui
-    # répondent 200.
+    # The wrapper mounts the assets folder only `if os.path.isdir(...)`:
+    # declared in the spec does not mean present on disk. When it is missing,
+    # no route is registered and Starlette lets the request fall through to
+    # /site, so `assets/x.webp` is served from `frontend/assets/x.webp`.
+    # Checked against a real server: taking the contract at its word made three
+    # KoraMaison images that answer 200 get refused.
     monte_assets = bool(prefixe_assets) and os.path.isdir(
         os.path.join(project_dir, prefixe_assets))
 
     def fichier_servi(url):
-        """Le fichier disque servi pour une URL, ou None si rien ne la sert."""
+        """The disk file served for a URL, or None if nothing serves it."""
         if url != "/site" and not url.startswith("/site/"):
             return None
         reste = url[len("/site"):].lstrip("/")
         if monte_assets and (reste == prefixe_assets
                              or reste.startswith(prefixe_assets + "/")):
-            # Monté AVANT /site par le wrapper : ce dossier vit hors de
-            # frontend/, à la racine du projet (brique 13, point 83).
+            # Mounted BEFORE /site by the wrapper: this folder lives outside
+            # frontend/, at the project root (brick 13, point 83).
             chemin = os.path.join(project_dir, reste)
         else:
             chemin = os.path.join(frontend_dir, reste)
@@ -132,9 +127,9 @@ def _frontend_local_reference_errors(project_dir):
         if re.match(r"^(?:https?:)?//", ref, re.IGNORECASE):
             errors.append(f"forbidden external resource (CDN or remote URL): {origin} → {ref}")
             return
-        # monl ne peut rien affirmer d'une référence construite à l'exécution :
-        # il se tait plutôt que de deviner un fichier (même arbitrage que le
-        # contrôle d'existence des assets, point 83).
+        # monl can assert nothing about a reference built at runtime: it stays
+        # quiet rather than guessing a file (same trade-off as the asset
+        # existence check, point 83).
         if _REFERENCE_DYNAMIQUE.search(ref):
             return
         clean = ref.split("#", 1)[0].split("?", 1)[0].strip()
@@ -178,14 +173,12 @@ def _frontend_local_reference_errors(project_dir):
     return list(dict.fromkeys(errors))
 
 def _frontend_behavioral_quality_errors(project_dir):
-    """Repère un piège fréquent des interfaces générées : les IDs DOM.
+    """Spots a frequent trap of generated interfaces: DOM IDs.
 
-    ``dataset`` fournit toujours des chaînes alors que les IDs JSON sont
-    généralement numériques. Une recherche stricte non normalisée rend les
-    actions Modifier/Supprimer visuellement présentes mais inopérantes.
-    Ce contrôle reste volontairement étroit pour ne pas prétendre parser le
-    JavaScript ; il bloque uniquement le motif prouvé et corrigeable.
-    """
+    ``dataset`` always provides strings while JSON IDs are usually numeric. A
+    strict, non-normalized lookup makes the Edit/Delete actions visually
+    present but inoperative. This check stays deliberately narrow so as not to
+    pretend to parse JavaScript; it only blocks the proven, fixable pattern."""
     frontend_dir = os.path.join(project_dir, "frontend")
     errors = []
     for root, _dirs, names in os.walk(frontend_dir):

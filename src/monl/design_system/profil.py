@@ -1,7 +1,7 @@
-"""Ce que la spec dit du site, déduit sans rien inventer.
+"""What the spec says about the site, deduced without inventing anything.
 
-`_guarantees` tire la matière de la section `trust` du CONTRAT, jamais de
-l'imagination (point 143)."""
+`_guarantees` draws the material of the `trust` section from the
+CONTRACT, never from imagination (point 143)."""
 
 import re
 import unicodedata
@@ -30,22 +30,21 @@ def _entity_media(entity: dict) -> list[tuple[str, str]]:
     ]
 
 def infer_design_profile(contract: dict) -> dict:
-    """Déduit une direction initiale à partir de signaux du contrat.
+    """Deduces an initial direction from signals in the contract.
 
-    Les signaux sont structurels (routes, archétypes, contenu), pas des noms
-    magiques d'entités. La direction peut ensuite être remplacée par le
-    cahier visuel écrit par l'auteur.
-    """
+    The signals are structural (routes, archetypes, content), not magic
+    entity names. The direction can then be replaced by the visual brief
+    written by the author."""
     skills = set(contract.get("design_skills") or [])
     entities = contract.get("entities") or {}
     routes = contract.get("routes") or []
     text = _all_text(contract)
     archetypes = {item.get("archetype") for item in entities.values()}
     actions = {route.get("action") for route in routes}
-    # Un service réservable peut porter un prix et donc ressembler à une
-    # boutique au niveau de l'archétype. Le signal métier explicite de
-    # réservation doit toutefois primer : l'interface attendue est un
-    # parcours de disponibilité et de prise de rendez-vous, pas un panier.
+    # A bookable service can carry a price and thus look like a shop at the
+    # archetype level. The explicit business signal of booking must
+    # nevertheless take precedence: the expected interface is an availability
+    # and appointment flow, not a cart.
     scheduling_signal = any(word in text for word in (
         "rendez-vous", "réserver", "réservation", "appointment", "booking",
         "créneau", "disponibilité",
@@ -98,14 +97,13 @@ def infer_design_profile(contract: dict) -> dict:
     return profile
 
 def _guarantees(contract: dict) -> list[str]:
-    """Ce que le backend garantit VRAIMENT, en phrases utilisables telles quelles.
+    """What the backend REALLY guarantees, in sentences usable as is.
 
-    La section de réassurance est le premier endroit où une IA invente : un
-    avis, un logo, « 10 000 clients satisfaits ». Lui interdire d'inventer
-    sans rien lui donner ne produit pas une section honnête, il produit une
-    section vide — c'est-à-dire le défaut qu'on répare. Ces phrases sont
-    dérivées du contrat, donc vérifiables une par une sur le serveur généré.
-    """
+    The trust section is the first place where an AI invents: a review, a
+    logo, "10,000 satisfied customers". Forbidding it to invent without giving
+    it anything does not produce an honest section, it produces an empty one
+    — that is, the defect being fixed. These sentences are derived from the
+    contract, hence verifiable one by one on the generated server."""
     routes = contract.get("routes") or []
     entities = contract.get("entities") or {}
     champs = [champ for spec in entities.values()
@@ -114,8 +112,8 @@ def _guarantees(contract: dict) -> list[str]:
     def champ(cle):
         return any(c.get(cle) for c in champs)
 
-    # Une table plutôt qu'une suite de `if` : l'ordre des phrases est celui
-    # des lignes, et ajouter une garantie n'ajoute pas de branche.
+    # A table rather than a series of `if`s: the order of the sentences is the
+    # order of the rows, and adding a guarantee adds no branch.
     garanties = (
         (any("/paiement" in (r.get("path") or "") for r in routes),
          "Payment goes through a provider; the site never sees a card "

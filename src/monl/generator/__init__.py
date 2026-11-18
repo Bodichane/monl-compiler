@@ -1,8 +1,7 @@
-"""Générateur monl : spec validée (AST) -> schema.sql, app.py, sandbox_ai.py.
+"""monl generator: validated spec (AST) -> schema.sql, app.py, sandbox_ai.py.
 
-Package issu du découpage de l'ancien module monolithique du même nom.
-L'import historique `from generator import MonlSecureGenerator` reste valide.
-"""
+Package born from splitting the former monolithic module of the same name.
+The historical import `from generator import MonlSecureGenerator` still works."""
 
 from .core import MonlSecureGenerator
 

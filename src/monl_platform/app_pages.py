@@ -85,8 +85,8 @@ def mount_page_routes(application: FastAPI, identities: IdentityStore, service):
 
     @application.get("/favicon.svg", include_in_schema=False)
     def favicon(v: str = ""):
-        # Sans elle, chaque visite laisse un 404 dans les journaux du serveur —
-        # et un journal qui contient du bruit normal cesse d'être lu.
+        # Without it, every visit leaves a 404 in the server logs — and a log
+        # that contains normal noise stops being read.
         return Response(
             FAVICON, media_type="image/svg+xml",
             headers=cache_icone(v, VERSION_SVG),
@@ -94,12 +94,12 @@ def mount_page_routes(application: FastAPI, identities: IdentityStore, service):
 
     @application.get("/favicon.ico", include_in_schema=False)
     def favicon_ico(v: str = ""):
-        # Les navigateurs demandent /favicon.ico D'OFFICE, même quand la page
-        # déclare un SVG. Ce chemin répondait 404, et un 404 ne remplace rien :
-        # le navigateur gardait l'ANCIENNE icône de son cache. Le fichier est
-        # fabriqué depuis les tracés de la marque par outils/fabriquer_images.py,
-        # donc il ne peut pas dire autre chose que /favicon.svg.
-        # L'empreinte reçue décide du cache : voir cache_icone (theme.py).
+        # Browsers request /favicon.ico BY DEFAULT, even when the page declares
+        # an SVG. This path answered 404, and a 404 replaces nothing: the
+        # browser kept the OLD icon from its cache. The file is made from the
+        # brand's paths by outils/fabriquer_images.py, so it cannot say
+        # anything other than /favicon.svg. The received fingerprint decides
+        # the caching: see cache_icone (theme.py).
         return FileResponse(
             ICONE_ICO, media_type="image/x-icon",
             headers=cache_icone(v, VERSION_ICO),
@@ -121,8 +121,8 @@ def mount_page_routes(application: FastAPI, identities: IdentityStore, service):
 
     @application.get("/brand/monl-social.png", include_in_schema=False)
     def social():
-        """L'image des cartes de partage. Raster obligatoire : aucun robot
-        social ne rend un SVG."""
+        """The image of the share cards. Raster is mandatory: no social bot renders
+        an SVG."""
         return FileResponse(
             SOCIAL, media_type="image/png",
             headers={"Cache-Control": "public, max-age=86400"},

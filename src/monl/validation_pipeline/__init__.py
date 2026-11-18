@@ -1,10 +1,10 @@
-"""Le pilote de validation : l'ORDRE dans lequel les refus s'appliquent.
+"""The validation driver: the ORDER in which refusals apply.
 
-Chaque passe nomme la méthode du validateur qu'elle déclenche. C'est
-cette antériorité qui a rendu le découpage du validateur évident au
-point 152 : les frontières existaient déjà, écrites ici.
+Each pass names the validator method it triggers. It is this precedence
+that made splitting the validator obvious at point 152: the boundaries
+already existed, written here.
 
-La surface publique n'a pas bougé en devenant un paquet."""
+The public surface did not move when it became a package."""
 
 from .contrats import ValidationPipeline
 from .defaut import DEFAULT_VALIDATION_PIPELINE

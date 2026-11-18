@@ -40,13 +40,13 @@ class IdentityAuthMixin:
                 "FROM users WHERE email = ?", (normalized,)
             ).fetchone()
         if not row:
-            # Coût similaire pour limiter la distinction compte absent / mauvais secret.
+            # Similar cost to limit telling a missing account from a wrong
+            # secret.
             self._password_hash(str(password or ""), b"monl-missing-user")
             return None
-        # Un compte OAuth possède volontairement un hash et un sel aléatoires
-        # pour respecter NOT NULL. Ils ne sont pas un mot de passe de secours :
-        # le refus doit arriver AVANT tout calcul et être exactement celui d'un
-        # mauvais mot de passe.
+        # An OAuth account deliberately has a random hash and salt to respect
+        # NOT NULL. They are not a fallback password: the refusal must come
+        # BEFORE any computation and be exactly that of a wrong password.
         if row["auth_provider"] is not None:
             return None
         candidate = self._password_hash(str(password or ""), row["password_salt"])
@@ -55,19 +55,17 @@ class IdentityAuthMixin:
         return {"id": row["id"], "email": row["email"]}
 
     def upsert_oauth_account(self, identifier, provider, display_name=None):
-        """Crée ou retrouve une identité OAuth sans fabriquer de mot de passe.
+        """Creates or finds an OAuth identity without making up a password.
 
-        ``identifier`` appartient à l'espace de noms du fournisseur
-        (``github:4242`` ou ``google:...``). La colonne ``email`` conserve cet
-        identifiant de connexion ; le libellé vérifié est consommé par la couche
-        OAuth qui prépare la session, car le schéma d'identité ne porte pas de
-        nom d'affichage séparé.
+        ``identifier`` belongs to the provider's namespace (``github:4242`` or
+        ``google:...``). The ``email`` column keeps this login identifier; the
+        verified label is consumed by the OAuth layer that prepares the session,
+        since the identity schema carries no separate display name.
 
-        ``display_name`` reste un argument accepté pour que la migration de
-        l'ancien appelant ne perde pas le libellé vérifié, mais il n'est jamais
-        utilisé comme identifiant : rattacher ce libellé à un compte mot de
-        passe serait précisément la prise de contrôle écartée.
-        """
+        ``display_name`` stays an accepted argument so that migrating the old
+        caller does not lose the verified label, but it is never used as an
+        identifier: attaching this label to a password account would be precisely
+        the takeover that was ruled out."""
         del display_name
         identifier = str(identifier).strip()
         provider = str(provider).strip()
@@ -84,8 +82,8 @@ class IdentityAuthMixin:
                     raise IdentityError("OAuth identity already attached to another provider")
                 return row["id"], False
             user_id = uuid.uuid4().hex
-            # Ces octets ne sont pas un digest calculé depuis un secret connu.
-            # Ils existent uniquement pour satisfaire les NOT NULL du registre.
+            # These bytes are not a digest computed from a known secret. They
+            # exist only to satisfy the registry's NOT NULLs.
             password_hash = secrets.token_bytes(32)
             password_salt = secrets.token_bytes(16)
             db.execute(

@@ -1,8 +1,8 @@
-"""Le validateur : de l'AST brut à l'AST normalisé, ou un refus.
+"""The validator: from the raw AST to the normalized AST, or a refusal.
 
-La surface publique n'a pas bougé en devenant un paquet — `MonlAST`,
-`ASTValidationError`, `DEFAULT_ASSETS_DIR` et `resoudre_asset`
-s'importent depuis `monl.ast_validator` exactement comme avant."""
+The public surface did not move when it became a package — `MonlAST`,
+`ASTValidationError`, `DEFAULT_ASSETS_DIR` and `resoudre_asset` are
+imported from `monl.ast_validator` exactly as before."""
 
 from .assets import candidats_asset, resoudre_asset
 from .core import MonlAST

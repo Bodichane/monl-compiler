@@ -1,24 +1,24 @@
-"""Ce que le site doit MONTRER : registre visuel, images, textes, pied de page.
+"""What the site must SHOW: visual register, images, texts, footer.
 
-Point 72 : le dialogue recueille une DIRECTION, il ne choisit ni palette ni
-typographie. Brique 30 (point 146) : les liens de pied de page sont
-DÉCLARÉS ici — une brique sans producteur n'existe pas."""
+Point 72: the dialogue gathers a DIRECTION, it picks neither palette nor
+typography. Brick 30 (point 146): the footer links are DECLARED here — a
+brick without a producer does not exist."""
 
 from .fondations import DESIGN_IMAGERY, DESIGN_REGISTERS, adresse_de_lien
 
 
 class DirectionMixin:
-    """Ce que le site doit MONTRER : registre visuel, images, textes, pied de page."""
+    """What the site must SHOW: visual register, images, texts, footer."""
 
     def _ask_design_intent(self):
-        """Intention visuelle (point 53) — posée UNIQUEMENT si l'utilisateur
-        transmet un brief : sans page d'accueil à écrire, ces réponses
-        n'auraient personne à qui servir. Rend la phrase ajoutée au brief.
+        """Visual intent (point 53) — asked ONLY if the user passes a brief: with no
+        home page to write, these answers would serve no one. Returns the
+        sentence added to the brief.
 
-        Ce que la structure ne dit pas : une même spec (entités, routes,
-        rôles) sert aussi bien un portfolio contemplatif qu'un back-office
-        pressé. L'IA UI ne peut pas trancher, et sans indication elle rend
-        le dénominateur commun."""
+        What the structure does not say: the same spec (entities, routes, roles)
+        serves a contemplative portfolio as well as a hurried back office. The UI
+        AI cannot decide, and without guidance it renders the lowest common
+        denominator."""
         self._show(self.ui.section(
             "Visual direction — what the structure does not tell the AI "
             "that will design the interface."))
@@ -34,15 +34,15 @@ class DirectionMixin:
                 f"{phrase_registre} ; {phrase_images}")
 
     def _ask_image_topic(self):
-        """Sujet des illustrations (point 59, réécrit). Le compilateur ne peut
-        pas le déduire : « Blog pour des experts en cyber » est une phrase
-        libre, en français, dont extraire un mot-clé relèverait de
-        l'interprétation — ce que le dialogue s'interdit.
+        """Subject of the illustrations (point 59, rewritten). The compiler cannot
+        deduce it: "Blog for cyber experts" is a free sentence, from which
+        extracting a keyword would be interpretation — which the dialogue forbids
+        itself.
 
-        Ce que la réponse produit a CHANGÉ : plus aucune URL distante, mais
-        une phrase du brief qui dit à l'IA d'interface ce que les visuels
-        doivent évoquer. La question garde donc un effet ; ce sont les images
-        de démonstration livrées par un tiers qui ont disparu."""
+        What the answer produces has CHANGED: no remote URL anymore, but a
+        sentence of the brief that tells the interface AI what the visuals must
+        evoke. The question therefore keeps an effect; it is the demo images
+        delivered by a third party that have disappeared."""
         if not self._ask_yes_no(
                 "Should the illustrations evoke a specific subject? "
                 "(otherwise: no visual guidance)"):
@@ -56,9 +56,9 @@ class DirectionMixin:
         return any(k in nom.lower() for k in ("image", "photo", "cover", "avatar",
                                               "picture", "visuel", "illustration"))
 
-    #: Ce qu'un pied de page porte SOUVENT, dans l'ordre où on y pense. La
-    #: liste est PROPOSÉE, jamais imposée : chaque entrée se passe en laissant
-    #: vide, exactement comme les rubriques du point 61.
+    #: What a footer OFTEN carries, in the order one thinks of it. The list is
+    #: OFFERED, never imposed: each entry is skipped by leaving it empty,
+    #: exactly like the sections of point 61.
     LIENS_PROPOSES = (
         {"label": "Email", "ask": "contact address"},
         {"label": "Phone", "ask": "phone number"},
@@ -67,25 +67,22 @@ class DirectionMixin:
         {"label": "LinkedIn", "ask": "page address"},
     )
 
-    #: La complétion vit au niveau du module : la console web de la
-    #: plateforme la partage sans instancier un dialogue.
+    #: Completion lives at module level: the platform's web console shares it
+    #: without instantiating a dialogue.
     _adresse_complete = staticmethod(adresse_de_lien)
 
     def _ask_footer_links(self):
-        """Les liens du pied de page (brique 30).
+        """The footer links (brick 30).
 
-        La brique existait depuis le point 144 et RIEN ne la produisait : ni
-        ce dialogue ni aucun des dix modèles ne déclarait un seul lien, donc
-        tout site sortait avec un pied de page sans destination. Une règle qui
-        ne produit rien est exactement ce que le point 85 interdit au
-        compilateur ; l'interdit vaut autant pour le dialogue qui écrit la
-        spec.
+        The brick had existed since point 144 and NOTHING produced it: neither
+        this dialogue nor any of the ten templates declared a single link, so
+        every site came out with a footer without a destination. A rule that
+        produces nothing is exactly what point 85 forbids the compiler; the
+        prohibition holds just as much for the dialogue that writes the spec.
 
-        monl ne vérifie PAS qu'une adresse répond — il ne fait aucun appel
-        réseau (même frontière qu'au point 83 pour les images distantes). Il
-        vérifie qu'un navigateur saura l'ouvrir, et c'est tout ce qu'il
-        promet.
-        """
+        monl does NOT check that an address responds — it makes no network call
+        (same boundary as point 83 for remote images). It checks that a browser
+        will be able to open it, and that is all it promises."""
         liens, vus = [], set()
 
         def retenir(label, saisie):
@@ -125,16 +122,15 @@ class DirectionMixin:
         return liens
 
     def _ask_editorial_sections(self, defaults=()):
-        """Contenu éditorial statique (point 55). Une entité, un champ, une
-        route décrivent des DONNÉES : rien dans une spec ne peut porter un
-        « à propos ». Sans ces sections, l'IA n'a littéralement aucune
-        matière pour autre chose qu'une liste et un formulaire.
+        """Static editorial content (point 55). An entity, a field, a route describe
+        DATA: nothing in a spec can carry an "about". Without these sections, the
+        AI literally has no material for anything other than a list and a form.
 
-        POINT 61 : quand le modèle choisi porte des rubriques attendues de sa
-        catégorie, on n'en demande plus l'EXISTENCE — on en demande le TEXTE,
-        rubrique par rubrique. Demander « voulez-vous un à propos ? » à qui
-        construit un portfolio est la même faute qu'au point 60. Une réponse
-        vide passe la rubrique : le standard est proposé, jamais imposé."""
+        POINT 61: when the chosen template carries sections expected for its
+        category, we no longer ask whether they EXIST — we ask for their TEXT,
+        section by section. Asking "do you want an about?" of someone building a
+        portfolio is the same mistake as in point 60. An empty answer skips the
+        section: the standard is offered, never imposed."""
         sections = []
         entete_montree = False
         for spec in defaults:

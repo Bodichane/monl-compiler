@@ -13,12 +13,11 @@ def compile_monl(
     output_dir: str | None = None,
     base_dir: str | None = None,
 ) -> CompilationResult:
-    """Compile une spécification MONL sans terminer le processus appelant.
+    """Compiles a MONL specification without terminating the calling process.
 
-    Cette fonction est l'API de bibliothèque du compilateur : elle lève des
-    erreurs MONL attendues, tandis que les entrées CLI les convertissent en
-    messages et codes de sortie. Le pipeline reste déterministe et hors ligne.
-    """
+    This function is the compiler's library API: it raises expected MONL
+    errors, while the CLI entry points turn them into messages and exit codes.
+    The pipeline stays deterministic and offline."""
     if not os.path.exists(file_path):
         raise CompilationInputError(
             f"Specification file '{file_path}' does not exist.")
@@ -28,20 +27,20 @@ def compile_monl(
     print(f" ⚙️  MONL COMPILER: {filename}")
     print("=" * 65)
 
-    # --- ÉTAPE 1 : PARSING ---
+    # --- STEP 1: PARSING ---
     print("\n [1/3] Parsing...")
     raw_json = parse_monl_file(file_path)
     print("    └─ Base AST extracted successfully.")
 
-    # --- ÉTAPE 2 : AUDIT STATIQUE ---
+    # --- STEP 2: STATIC AUDIT ---
     print("\n [2/3] Static architecture and restrictions audit...")
-    # Le dossier de la SPEC est la référence des assets : c'est là que vivent
-    # les photos, le logo et le favicon déclarés.
+    # The SPEC's folder is the reference for assets: that is where the declared
+    # photos, logo and favicon live.
     reference_dir = base_dir or os.path.dirname(os.path.abspath(file_path))
     ast_manager = MonlAST(raw_json, base_dir=reference_dir)
     normalized_ast = ast_manager.validate_and_audit()
 
-    # --- ÉTAPE 3 : GÉNÉRATION DU SOCLE ---
+    # --- STEP 3: GENERATING THE FOUNDATION ---
     print("\n [3/3] Generating deterministic foundation...")
     generator = MonlSecureGenerator(normalized_ast, output_dir=output_dir)
     try:
@@ -63,7 +62,7 @@ def compile_monl(
         print("                     (logic to be written by hand).")
     print("=" * 65 + "\n")
 
-    # Le contrat frontend réutilise exactement ce résultat dans la couche CLI.
+    # The frontend contract reuses exactly this result in the CLI layer.
     return CompilationResult(
         ir=normalized_ast,
         generator=generator,
@@ -72,7 +71,7 @@ def compile_monl(
 
 
 def main(argv=None) -> int:
-    """Point d'entrée CLI : seule cette frontière traduit les erreurs attendues."""
+    """CLI entry point: only this boundary translates the expected errors."""
     parser = argparse.ArgumentParser(description="monl compiler.")
     parser.add_argument(
         "fichier", type=str, nargs="?", metavar="file",

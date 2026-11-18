@@ -29,9 +29,9 @@ from ..frontend_contract.projet import (
 )
 from . import conteneur, emplacement, nomenclature
 
-#: Ce qui a changé de place. Écrit ici en toutes lettres et jamais dérivé des
-#: constantes courantes : un « ancien emplacement » décrit le PASSÉ, il ne peut
-#: pas se déduire du présent — leçon des Dockerfiles hérités (point 164).
+#: What moved. Written out here in full and never derived from the current
+#: constants: an "old location" describes the PAST, it cannot be deduced from
+#: the present — the lesson of the inherited Dockerfiles (point 164).
 _DOCUMENTS_RANGES = (
     PROMPT_FILENAME,
     "docs/FRONTEND_UPDATE_PROMPT.md",
@@ -42,19 +42,18 @@ _DOCUMENTS_RANGES = (
 
 
 def _ranger_les_documents(project_dir):
-    """Range un projet compilé par une version antérieure, une seule fois.
+    """Tidies up a project compiled by an earlier version, only once.
 
-    Deux gestes, pour la même raison : ne rien laisser de périmé à côté du
-    fichier qui le remplace. Écrire au nouvel emplacement sans déplacer
-    l'ancien produirait deux vérités, dont une fausse — et c'est la fausse
-    qu'un agent lirait, puisqu'elle est à la racine.
-    """
+    Two moves, for the same reason: leave nothing stale next to the file that
+    replaces it. Writing to the new location without moving the old one would
+    produce two truths, one of them false — and it is the false one an agent
+    would read, since it is at the root."""
     deplaces = list(artifacts.deplacer_vers_docs(project_dir, _DOCUMENTS_RANGES))
     ancien = os.path.join(project_dir, LEGACY_AGENTS_FILENAME)
     nouveau = os.path.join(project_dir, nomenclature.AGENTS_FILENAME)
-    # Un CLAUDE.md SANS notre marqueur appartient à l'utilisateur : il reste où
-    # il est, intact. Le renommer déplacerait son travail sous un nom que monl
-    # écrase à la compilation suivante.
+    # A CLAUDE.md WITHOUT our marker belongs to the user: it stays where it is,
+    # intact. Renaming it would move their work under a name monl overwrites on
+    # the next compilation.
     if os.path.isfile(ancien) and not os.path.exists(nouveau):
         with open(ancien, encoding="utf-8") as fh:
             if PROJECT_CLAUDE_MD_MARKER in fh.read():
@@ -67,35 +66,32 @@ def _ranger_les_documents(project_dir):
 
 # ---------------------------------------------------------------- compile --
 def compile_project(spec_path, project_dir, base_dir=None, save_state=True):
-    """Pipeline complet : spec → backend + contrat frontend + état.
-    Réutilise compile_monl (main.py) pour le backend et son résultat validé,
-    puis ajoute la couche contrat sans reparsing ni second audit.
+    """Full pipeline: spec → backend + frontend contract + state. Reuses
+    compile_monl (main.py) for the backend and its validated result, then
+    adds the contract layer without reparsing or a second audit.
 
-    POINT 103 : `base_dir` et `save_state` existent pour `monl diff`, qui
-    compile dans un dossier JETABLE. Les assets déclarés vivent, eux, dans le
-    vrai projet — les chercher dans le dossier temporaire ferait échouer la
-    compilation pour une raison qui n'existe pas. Hors `diff`, le projet de
-    référence est par défaut le dossier de la spec, pas le dossier de sortie :
-    c'est ce qui permet à `monl compile spec.ml --output build/` de fonctionner
-    avec des assets voisins de la spec. Un dry-run, lui, n'a pas à déposer
-    d'état."""
+    POINT 103: `base_dir` and `save_state` exist for `monl diff`, which
+    compiles into a THROWAWAY folder. The declared assets live in the real
+    project — looking for them in the temporary folder would make compilation
+    fail for a reason that does not exist. Outside `diff`, the reference
+    project defaults to the spec's folder, not the output folder: that is what
+    lets `monl compile spec.ml --output build/` work with assets next to the
+    spec. A dry run has no business leaving a state behind."""
     from ..main import compile_monl
     reference_dir = base_dir or os.path.dirname(os.path.abspath(spec_path))
     spec_abs = os.path.abspath(spec_path)
     proj_abs = os.path.abspath(project_dir)
     spec_rel = (os.path.relpath(spec_abs, proj_abs)
                 if spec_abs.startswith(proj_abs + os.sep) else spec_abs)
-    # Ranger AVANT de copier ce qu'on préserve : un DESIGN_SPEC.md retouché à
-    # la main est resté à la racine tant qu'on ne l'a pas déplacé, et la copie
-    # préservée irait le chercher dans `docs/` où il n'est pas encore. On
-    # déplacerait alors du travail humain dans l'oubli, en le remplaçant par
-    # un document tout neuf.
+    # Tidy up BEFORE copying what is preserved: a hand-edited DESIGN_SPEC.md
+    # stays at the root until it is moved, and the preserved copy would look
+    # for it in `docs/`, where it is not yet. Human work would then be moved
+    # into oblivion and replaced by a brand-new document.
     _ranger_les_documents(proj_abs)
     with staging_directory(proj_abs) as temporary:
-        # Le secret, les documents d'accueil et les deux artefacts de
-        # conteneur ne sont jamais régénérés depuis zéro dans le staging : ils
-        # survivent à la compilation et restent protégés contre un
-        # remplacement accidentel.
+        # The secret, the welcome documents and the two container artifacts are
+        # never regenerated from scratch in staging: they survive compilation
+        # and stay protected against accidental replacement.
         copy_preserved_files(
             proj_abs, temporary,
             (".jwt_secret", nomenclature.AGENTS_FILENAME,
@@ -129,9 +125,9 @@ def compile_project(spec_path, project_dir, base_dir=None, save_state=True):
 
 # ------------------------------------------------------------------- init --
 def cmd_init(project_dir=None):
-    # Dialogue guidé à règles, entièrement déterministe (aucune IA, aucun
-    # appel réseau). La spec produite est revalidée par le vrai parseur avant
-    # d'être écrite.
+    # Rule-based guided dialogue, entirely deterministic (no AI, no network
+    # call). The produced spec is revalidated by the real parser before being
+    # written.
     from ..dialogue_engine import DialogueError, run_interactive_dialogue
     try:
         spec_text = run_interactive_dialogue()
@@ -140,7 +136,7 @@ def cmd_init(project_dir=None):
               file=sys.stderr)
         raise SystemExit(130 if isinstance(err, KeyboardInterrupt) else 2) from None
     except DialogueError as err:
-        # Le moteur garde son détail de question pour les autres appelants.
+        # The engine keeps its question detail for the other callers.
         message = str(err).split(" : ", 1)[0]
         print(f"{message}: nothing was written; rerun `monl init`.", file=sys.stderr)
         raise SystemExit(2) from None
@@ -160,7 +156,7 @@ def cmd_init(project_dir=None):
     return project_dir
 
 def cmd_migrate(project_dir, name=None, down=False, list_only=False):
-    """Applique explicitement une migration du backend déjà compilé."""
+    """Explicitly applies a migration to the already compiled backend."""
     project_dir, _spec_path = emplacement._situer_projet(project_dir, "migrate")
     app_path = os.path.join(project_dir, "app.py")
     if not os.path.exists(app_path):

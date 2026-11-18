@@ -206,8 +206,8 @@ kbd { font: 11px var(--mono); border: 1px solid var(--line); border-bottom-width
 @media(prefers-reduced-motion:reduce){.panel.active,.console-ambient::before,.console-node{animation:none}}
 """
 
-# La SPEC passe par le coloriseur ; les lignes de résultat gardent leurs
-# flèches, qui ne sont pas du langage.
+# The SPEC goes through the highlighter; the result lines keep their arrows,
+# which are not language.
 TERMINAL = coloriser("""app WorkshopNotebook
 
 entity Note

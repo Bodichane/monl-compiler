@@ -1,4 +1,4 @@
-"""Ce qu'un projet emporte pour tourner ailleurs."""
+"""What a project takes along to run elsewhere."""
 
 import os
 
@@ -7,13 +7,13 @@ from . import nomenclature
 
 
 def _ensure_container_artifacts(staging_dir, uploads=False):
-    """Émet les gabarits de conteneur sans écraser ceux de l'auteur."""
+    """Emits the container templates without overwriting the author's."""
     dockerfile = nomenclature.DEFAULT_DOCKERFILE
     dockerignore = nomenclature.DEFAULT_DOCKERIGNORE
     requirements = nomenclature.DEFAULT_REQUIREMENTS
     if uploads:
-        # Le Dockerfile ne bouge plus : il installe `-r requirements.txt`,
-        # donc la dépendance d'Upload n'a plus qu'UN endroit où s'ajouter.
+        # The Dockerfile no longer moves: it installs `-r requirements.txt`, so
+        # the Upload dependency has only ONE place to be added.
         requirements = nomenclature.REQUIREMENTS_UPLOAD
         dockerignore += ".monl_uploads/\n"
     defaults = {
@@ -27,26 +27,25 @@ def _ensure_container_artifacts(staging_dir, uploads=False):
             with open(path, "w", encoding="utf-8") as fh:
                 fh.write(content)
             continue
-        # Un gabarit émis lors d'une compilation antérieure se rafraîchit ;
-        # un fichier Docker réellement personnalisé reste, lui, sous la
-        # responsabilité de l'auteur.
+        # A template emitted during an earlier compilation is refreshed; a
+        # really customized Docker file stays the author's responsibility.
         with open(path, encoding="utf-8") as fh:
             actuel = fh.read()
         if name == "Dockerfile":
-            # `content` est le gabarit courant, Upload appliqué ou non : les
-            # DEUX formes courantes doivent être reconnues comme « jamais
-            # touchées », sinon une spec qui perd son Upload garderait la
-            # dépendance devenue inutile.
+            # `content` is the current template, with or without Upload
+            # applied: BOTH current forms must be recognized as "never
+            # touched", otherwise a spec that loses its Upload would keep the
+            # now useless dependency.
             connus = (nomenclature.DEFAULT_DOCKERFILE, content, *nomenclature.DOCKERFILES_HERITES)
         elif name == ".dockerignore":
             connus = (nomenclature.DEFAULT_DOCKERIGNORE,)
         else:
-            # Les DEUX formes (avec et sans Upload) comptent comme « jamais
-            # touchée » : une spec qui perd son Upload doit voir la
-            # dépendance disparaître, comme pour le Dockerfile ci-dessus.
-            # REQUIREMENTS_UPLOAD est AUSSI la forme émise avant que la
-            # dépendance ne devienne conditionnelle : une seule entrée suffit
-            # donc, et en ajouter une identique ne protégerait de rien.
+            # BOTH forms (with and without Upload) count as "never touched": a
+            # spec that loses its Upload must see the dependency disappear, as
+            # for the Dockerfile above. REQUIREMENTS_UPLOAD is ALSO the form
+            # emitted before the dependency became conditional: a single entry
+            # is therefore enough, and adding an identical one would protect
+            # against nothing.
             connus = (nomenclature.DEFAULT_REQUIREMENTS,
                       nomenclature.REQUIREMENTS_UPLOAD)
         if actuel in connus and actuel != content:
@@ -54,22 +53,21 @@ def _ensure_container_artifacts(staging_dir, uploads=False):
                 fh.write(content)
 
 def _emettre_wrapper(staging_dir, contract):
-    """Écrit serve.py DÈS LA COMPILATION, et non plus au seul 'monl run'.
+    """Writes serve.py AT COMPILE TIME, no longer only at 'monl run'.
 
-    POINT 133. Le Dockerfile produit par 'monl compile' lançait `app:app` :
-    l'image servait l'API et répondait 404 sur /site et sur les photos, parce
-    que le wrapper qui les monte n'était écrit que par 'monl run'. Un produit
-    dont l'argument est « un site livré » livrait donc une API sans site.
-    Vérifié en construisant réellement l'image, pas en relisant le code.
+    POINT 133. The Dockerfile produced by 'monl compile' ran `app:app`: the
+    image served the API and answered 404 on /site and on the photos, because
+    the wrapper that mounts them was written only by 'monl run'. A product
+    whose selling point is "a delivered site" thus delivered an API without a
+    site. Checked by really building the image, not by rereading the code.
 
-    Le dossier d'assets vient du CONTRAT, déjà dérivé de la spec et vérifié
-    cohérent avec elle — relire la spec ici ferait un second parseur à faire
-    dériver (même raison qu'`_assets_dir_du_projet`, dont ceci est le pendant
-    à la compilation).
+    The assets folder comes from the CONTRACT, already derived from the spec
+    and checked consistent with it — rereading the spec here would make a
+    second parser to drift (same reason as `_assets_dir_du_projet`, of which
+    this is the compile-time counterpart).
 
-    Écrit sans condition : c'est du code généré, pas un gabarit que l'auteur
-    adapte. Le Dockerfile, lui, reste éditable — d'où deux traitements.
-    """
+    Written unconditionally: it is generated code, not a template the author
+    adapts. The Dockerfile stays editable — hence two treatments."""
     assets_dir = (contract.get("assets") or {}).get("dir") or None
     with open(os.path.join(staging_dir, "serve.py"), "w", encoding="utf-8") as fh:
         fh.write(rendre_wrapper(assets_dir))

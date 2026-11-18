@@ -1,9 +1,9 @@
-"""Analyse pure des workflows, relations et dérivations déjà validés.
+"""Pure analysis of the already validated workflows, relations and
+derivations.
 
-Les plans ne dépendent ni des émetteurs, ni du système de fichiers. L'ordre
-de déclaration est conservé pour stabiliser les routes, leurs tags et le SQL.
-Chaque appel crée ses propres conteneurs sans modifier l'IR d'entrée.
-"""
+The plans depend neither on the emitters nor on the file system.
+Declaration order is kept to stabilize the routes, their tags and the
+SQL. Each call creates its own containers without modifying the input IR."""
 
 from collections.abc import Mapping, Sequence
 from types import MappingProxyType
@@ -26,7 +26,7 @@ from .ir import (
 
 
 def plan_routes(workflows: Sequence[WorkflowIR]) -> dict[tuple[str, str], RoutePlan]:
-    """Fusionne les droits CRUD par entité et les Execute par cible complète."""
+    """Merges the CRUD permissions per entity and the Executes per full target."""
     routes: dict[tuple[str, str], RoutePlan] = {}
     for workflow in workflows:
         for action in workflow["actions"]:
@@ -44,7 +44,7 @@ def plan_routes(workflows: Sequence[WorkflowIR]) -> dict[tuple[str, str], RouteP
 
 
 def plan_relations(relations: Sequence[RelationIR]) -> list[RelationModel]:
-    """Oriente les relations de l'IR sans état de générateur intermédiaire."""
+    """Orients the IR's relations without intermediate generator state."""
     return [RelationModel(source=relation["source"], kind=relation["type"],
                           target=relation["target"]) for relation in relations]
 
@@ -52,7 +52,7 @@ def plan_relations(relations: Sequence[RelationIR]) -> list[RelationModel]:
 def plan_foreign_keys(
     relations: Sequence[RelationModel],
 ) -> dict[str, list[ForeignKeyPlacement]]:
-    """Place les clés du côté enfant ; hasOne ajoute la contrainte d'unicité."""
+    """Places the keys on the child side; hasOne adds the uniqueness constraint."""
     placements: dict[str, list[ForeignKeyPlacement]] = {}
     for relation in relations:
         placements.setdefault(relation.held_entity, []).append({
@@ -64,7 +64,7 @@ def plan_foreign_keys(
 
 
 def _foreign_key_index(relations: Sequence[RelationModel]) -> dict[tuple[str, str], str]:
-    """Index (enfant, parent) commun aux analyses des champs calculés."""
+    """(child, parent) index shared by the analyses of calculated fields."""
     foreign_keys: dict[tuple[str, str], str] = {}
     for entity, placements in plan_foreign_keys(relations).items():
         for placement in placements:
@@ -76,12 +76,12 @@ def _foreign_key_index(relations: Sequence[RelationModel]) -> dict[tuple[str, st
 def plan_derivations(
     fields: Sequence[DerivedFieldIR], relations: Sequence[RelationModel],
 ) -> dict[str, tuple[DerivedPlan, ...]]:
-    """Résout une fois la clé de la ligne source de chaque calcul.
+    """Resolves once the key of each calculation's source row.
 
-    L'IR est déjà validée. Une relation absente indique une divergence entre
-    validation et analyse : on refuse de produire un calcul sans ligne source.
-    Les règles sont copiées dans des plans immuables, dans l'ordre déclaré.
-    """
+    The IR is already validated. A missing relation indicates a divergence
+    between validation and analysis: we refuse to produce a calculation
+    without a source row. The rules are copied into immutable plans, in
+    declared order."""
     foreign_keys = _foreign_key_index(relations)
     plans: dict[str, list[DerivedPlan]] = {}
     for rule in fields:
@@ -102,7 +102,7 @@ def plan_derivations(
 def plan_aggregations(
     fields: Sequence[AggregatedFieldIR], relations: Sequence[RelationModel],
 ) -> AggregationPlans:
-    """Résout les sommes par parent et par événement sur une ligne enfant."""
+    """Resolves the sums per parent and per event on a child row."""
     foreign_keys = _foreign_key_index(relations)
     by_entity: dict[str, list[AggregatePlan]] = {}
     by_source: dict[str, list[AggregatePlan]] = {}
@@ -130,7 +130,7 @@ def plan_counters(
     rules: Sequence[CounterRuleIR], relations: Sequence[RelationModel],
     constraints: Mapping[tuple[str, str], FieldConstraintsIR],
 ) -> Mapping[str, tuple[CounterPlan, ...]]:
-    """Résout les effets de stock et de réputation indépendamment des routes."""
+    """Resolves the stock and reputation effects independently of the routes."""
     foreign_keys = _foreign_key_index(relations)
     plans: dict[str, list[CounterPlan]] = {}
     for rule in rules:

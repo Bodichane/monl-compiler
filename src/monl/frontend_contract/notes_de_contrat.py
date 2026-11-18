@@ -1,9 +1,9 @@
-"""Ce que le contrat DIT à l'IA d'interface, en toutes lettres.
+"""What the contract TELLS the interface AI, in so many words.
 
-Une brique que le contrat ne décrit pas est une brique sans interface : ces
-notes sont donc du produit, pas du commentaire. `_verrou_paiement` appelle
-`_payment_locked_parents` du générateur et ne recalcule RIEN (point 91) —
-deux vérités finiraient par diverger."""
+A brick the contract does not describe is a brick without an interface:
+these notes are therefore product, not commentary. `_verrou_paiement` calls
+the generator's `_payment_locked_parents` and recomputes NOTHING (point 91)
+— two truths would eventually diverge."""
 
 from ..ir import CompilationPlans
 
@@ -11,7 +11,7 @@ _LIBELLES_IDENTIFIANT = {"email": "an email address",
                          "phone": "a phone number"}
 
 def _libelle_identifiant(formes):
-    """Ce que le champ 'username' doit RÉELLEMENT contenir (point 95)."""
+    """What the 'username' field must REALLY contain (point 95)."""
     formes = [f for f in (formes or [])
               if f in _LIBELLES_IDENTIFIANT]
     if not formes:
@@ -19,9 +19,9 @@ def _libelle_identifiant(formes):
     return "str — " + " or ".join(_LIBELLES_IDENTIFIANT[f] for f in formes)
 
 def _note_identifiant(formes, phone_prefix=None):
-    """Sans cette note, l'IA étiquette « nom d'utilisateur » et laisse un champ
-    texte libre : l'utilisateur saisit un pseudo, récolte un 422, et l'écran ne
-    lui dit pas pourquoi (point 95)."""
+    """Without this note, the AI labels it "username" and leaves a free text
+    field: the user types a nickname, gets a 422, and the screen does not tell
+    them why (point 95)."""
     formes = [f for f in (formes or []) if f in _LIBELLES_IDENTIFIANT]
     if not formes:
         return None
@@ -43,7 +43,7 @@ def _note_identifiant(formes, phone_prefix=None):
             f"one.{prefix_note}")
 
 def _note_liberation(regle):
-    """Ce que l'interface doit savoir d'une valeur qui libère (point 98)."""
+    """What the interface must know about a releasing value (point 98)."""
     if not regle:
         return None
     return (f"RELEASE: setting `{regle['field']}` to “{regle['value']}” returns "
@@ -55,16 +55,16 @@ def _note_liberation(regle):
             f"reactivate: offer to create a new one.")
 
 def _verrou_paiement(plans: CompilationPlans, entite, inclure_soi=True):
-    """Entité dont l'encaissement FIGE les écritures sur 'entite' — elle-même si
-    elle est payable, sinon le parent dont elle alimente le total (point 91).
+    """Entity whose payment FREEZES writes on 'entite' — itself if it is
+    payable, otherwise the parent whose total it feeds (point 91).
 
-    `inclure_soi=False` pour la CRÉATION : une entité payable ne se verrouille
-    pas elle-même à la création (elle n'existe pas encore), seul un parent déjà
-    réglé refuse une ligne de plus.
+    `inclure_soi=False` for CREATION: a payable entity does not lock itself at
+    creation (it does not exist yet), only an already settled parent refuses
+    one more line.
 
-    Source unique partagée avec le générateur : `_payment_locked_parents` est ce
-    qui produit réellement les gardes dans app.py. Recalculer la chaîne ici en
-    ferait deux vérités, dont l'une finirait fausse."""
+    Single source shared with the generator: `_payment_locked_parents` is what
+    really produces the guards in app.py. Recomputing the chain here would
+    make two truths, one of which would end up false."""
     if inclure_soi and entite in plans.payable_by_entity:
         return entite
     verrous = plans.payment_locked_parents.get(entite, ())
@@ -82,7 +82,7 @@ def _note_verrou(verrou, creation=False):
             f"changed, it is refunded through the provider.")
 
 def _note_message(regle):
-    """Note de contrat pour une notification déclenchée par Create."""
+    """Contract note for a notification triggered by Create."""
     if not regle:
         return None
     return (
@@ -97,10 +97,10 @@ def _joindre(*notes):
     return " ".join(retenues) if retenues else None
 
 def _note_superviseurs(supers, action_nom):
-    """AJOUT (brique 23, point 106) : le rôle superviseur (declare via
-    'sharedBy' sur une action regie par 'accessibleBy') transperce le controle
-    par colonnes. Note de contrat : l'IA d'interface doit donner à ce rôle la
-    vision/maîtrise de TOUT, et aux autres rôles seulement leurs parties."""
+    """ADDED (brick 23, point 106): the supervisor role (declared through
+    'sharedBy' on an action governed by 'accessibleBy') pierces the column
+    check. Contract note: the interface AI must give this role sight/control
+    of EVERYTHING, and the other roles only their own parts."""
     if not supers:
         return None
     roles = ", ".join(supers)
@@ -110,7 +110,7 @@ def _note_superviseurs(supers, action_nom):
             f"of.")
 
 def _note_list_query(query):
-    """Texte court transmis à l'IA frontend avec le contrat JSON."""
+    """Short text passed to the frontend AI with the JSON contract."""
     if not query:
         return None
     notes = []

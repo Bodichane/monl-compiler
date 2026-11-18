@@ -1,20 +1,20 @@
-"""Les routes de lecture : liste et détail.
+"""The read routes: list and detail.
 
-Un `SELECT *` : toute colonne ajoutée par une brique sort dans les réponses
-et doit donc être déclarée au contrat (point 76)."""
+A `SELECT *`: any column added by a brick comes out in the responses and
+must therefore be declared in the contract (point 76)."""
 
 from . import sql
 
 
 class LectureRoutesMixin:
-    """Les routes de lecture : liste et détail."""
+    """The read routes: list and detail."""
 
     def _generate_read_route_lines(self, plan, context, act_type):
         """Rend la famille de route ``Read``."""
-        # BRIQUE B3 : conserver le chemin historique byte pour byte quand la
-        # spec ne déclare aucune capacité de liste. La nouvelle émission est
-        # isolée ci-dessous afin que pagination et golden artifacts restent
-        # inchangés pour toutes les specs existantes.
+        # BRICK B3: keep the historical path byte for byte when the spec
+        # declares no list capability. The new emission is isolated below so
+        # that pagination and the golden artifacts stay unchanged for every
+        # existing spec.
         if (self.filterable_fields_by_entity.get(context["base_target"])
                 or self.sortable_fields_by_entity.get(context["base_target"])):
             return self._generate_read_route_lines_with_query(plan, context, act_type)
@@ -25,49 +25,49 @@ class LectureRoutesMixin:
         is_public = context["is_public"]
         security_check = context["security_check"]
         dep_suffix = context["dep_suffix"]
-        # AJOUT (roadmap point 3, complété) : route de liste, en plus
-        # de la lecture par ID déjà existante — jusqu'ici il n'existait
-        # aucun moyen d'énumérer les enregistrements d'une entité sans
-        # déjà connaître leurs identifiants un par un.
-        # AJOUT (roadmap, pagination) : 'limit'/'offset' en paramètres
-        # de requête (défaut 50, plafonné à 200), plus le nombre total
-        # d'enregistrements — sans ça, une table volumineuse renverrait
-        # tout d'un coup, sans borne.
-        # CORRECTIF (roadmap, front visuel) : les lignes sont désormais
-        # renvoyées comme des objets nommés {colonne: valeur} plutôt
-        # que des tableaux positionnels bruts — un front (ou tout
-        # client) n'a plus besoin de connaître l'ordre exact des
-        # colonnes SQL pour afficher les données correctement.
-        # AJOUT (roadmap, écosystème de capacités -- brique 2) :
-        # champs masqués (règle 'hidden') retirés de la réponse,
-        # après construction du dict nommé mais avant de le renvoyer
-        # -- jamais retirés de la base, jamais visibles par personne
-        # via cette route, quel que soit qui l'appelle (contrairement
-        # à 'restrictedTo', qui autorise un acteur précis).
+        # ADDED (roadmap point 3, completed): a list route, in addition to the
+        # existing read by ID — until then there was no way to enumerate an
+        # entity's records without already knowing their identifiers one by
+        # one.
+        #
+        # ADDED (roadmap, pagination): 'limit'/'offset' as query parameters
+        # (default 50, capped at 200), plus the total number of records —
+        # without it, a large table would return everything at once, unbounded.
+        #
+        # FIX (roadmap, visual front end): rows are now returned as named
+        # objects {column: value} rather than raw positional arrays — a front
+        # end (or any client) no longer needs to know the exact order of the
+        # SQL columns to display the data correctly.
+        #
+        # ADDED (roadmap, capability ecosystem -- brick 2): hidden fields
+        # ('hidden' rule) are removed from the response, after the named dict
+        # is built but before it is returned -- never removed from the
+        # database, never visible to anyone through this route, whoever calls
+        # it (unlike 'restrictedTo', which allows a specific actor).
         masked = self.hidden_fields_by_entity.get(base_target, [])
         mask_literal = ", ".join(f"'{f}'" for f in masked)
-        # AJOUT (roadmap, écosystème de capacités -- brique 5) :
-        # champs 'categorized' remplacés par leur libellé de
-        # catégorie, dans la même passe que le masquage ci-dessus —
-        # un seul parcours par ligne pour les deux transformations.
+        # ADDED (roadmap, capability ecosystem -- brick 5): 'categorized'
+        # fields replaced by their category label, in the same pass as the
+        # masking above — a single walk per row for both transformations.
         categorized_here = self.categorized_fields_by_entity.get(base_target, [])
         public_condition = access.public_condition
         condition_fragment = None
-        # POINT 116 : QUI échappe à la condition. Sans exemption, 'publicWhen'
-        # cachait le contenu filtré À TOUT LE MONDE — le modérateur qui venait
-        # de masquer un post ne pouvait plus ni le lister ni le relire (404),
-        # et l'auteur d'un brouillon ne retrouvait jamais son brouillon. Une
-        # modération à sens unique, vérifiée contre un vrai serveur.
+        # POINT 116: WHO escapes the condition. Without an exemption,
+        # 'publicWhen' hid the filtered content FROM EVERYONE — the moderator
+        # who had just hidden a post could neither list nor reread it (404),
+        # and a draft's author never found their draft again. One-way
+        # moderation, checked against a real server.
         #
-        # Deux exemptions, toutes deux DÉCLARATIVES :
-        #   - le SUPERVISEUR nommé par 'sharedBy' sur la même référence : le
-        #     pendant exact du superviseur d'accessibleBy (brique 23,
-        #     point 106) et d'ownedBy (point 88) — même mot-clé, même sens ;
-        #   - le PROPRIÉTAIRE, par sa colonne d'identité (point 99) : il voit
-        #     ses propres enregistrements quel que soit leur état.
-        # Rien d'implicite : un rôle qui lit l'entité sans être déclaré
-        # superviseur reste soumis à la condition, sinon « masqué » ne
-        # voudrait plus rien dire dès qu'on est connecté.
+        # Two exemptions, both DECLARATIVE:
+        # - the SUPERVISOR named by 'sharedBy' on the same reference: the exact
+        #   counterpart of the supervisor of accessibleBy (brick 23, point 106)
+        #   and of ownedBy (point 88) — same keyword, same meaning;
+        # - the OWNER, through their identity column (point 99): they see their
+        #   own records whatever their state.
+        #
+        # Nothing implicit: a role that reads the entity without being declared
+        # supervisor stays subject to the condition, otherwise "hidden" would
+        # mean nothing as soon as someone is logged in.
         condition_supervisors, condition_owner_columns = (
             self._condition_exemptions(base_target))
         apply_condition_identity = bool(
@@ -76,13 +76,11 @@ class LectureRoutesMixin:
             condition_fragment = sql.cat(
                 sql.ident(public_condition.field), sql.kw(" = "),
                 sql.bind(repr(public_condition.value)))
-        # AJOUT (roadmap, brique "accès à deux parties") : si une
-        # règle 'accessibleBy' cible Read, la liste ne renvoie que
-        # les enregistrements dont l'appelant est l'une des parties
-        # (WHERE col1 = ? OR col2 = ? ...), et la lecture par ID
-        # vérifie l'appartenance avant de répondre. Comme pour
-        # 'ownedBy', 'public' l'emporte si les deux sont déclarés
-        # (pas d'identité appelante sur une route publique).
+        # ADDED (roadmap, "two-party access" brick): if an 'accessibleBy' rule
+        # targets Read, the list returns only the records where the caller is
+        # one of the parties (WHERE col1 = ? OR col2 = ? ...), and the read by
+        # ID checks membership before answering. As for 'ownedBy', 'public'
+        # wins if both are declared (no caller identity on a public route).
         read_parties = access.party_fields
         apply_read_parties = bool(read_parties) and not is_public
         read_supers = access.supervisors
@@ -96,29 +94,27 @@ class LectureRoutesMixin:
             parties_where = " OR ".join(f'\"{c}\" = ?' for c in read_parties)
             parties_params = ", ".join(["current_user_id"] * len(read_parties))
 
-        # CORRECTIF (bêta 3, fuite de données entre comptes) : une règle
-        # 'ownedBy' sur Read restreint désormais réellement la lecture.
-        # Le filtre est construit à l'exécution parce qu'il dépend du
-        # rôle de l'appelant : seul l'acteur désigné propriétaire est
-        # limité à ses enregistrements ; un rôle tiers autorisé à lire
-        # l'entité (gestionnaire, responsable) continue de tout voir.
+        # FIX (beta 3, data leak between accounts): an 'ownedBy' rule on Read
+        # now really restricts reading. The filter is built at runtime because
+        # it depends on the caller's role: only the actor designated as owner
+        # is limited to their records; a third role allowed to read the entity
+        # (manager, supervisor) still sees everything.
         read_owner = access.owner_entity
         apply_read_owner = bool(read_owner) and not is_public and not apply_read_parties
-        # AJOUT (brique 11, point 81) : sous propriété transitive, le
-        # propriétaire nommé est une ENTITÉ, jamais une valeur que
-        # `current_actor` puisse prendre — l'acteur à comparer est celui
-        # du bout de la chaîne. Et le filtre devient une sous-requête
-        # sur l'intermédiaire : comparer la colonne directement à
-        # `current_user_id` mettrait en regard un id d'enregistrement et
-        # un id de compte, ce qui était le défaut du point 80.
+        # ADDED (brick 11, point 81): under transitive ownership, the named
+        # owner is an ENTITY, never a value `current_actor` could take — the
+        # actor to compare is the one at the end of the chain. And the filter
+        # becomes a subquery on the intermediate: comparing the column directly
+        # with `current_user_id` would set a record id against an account id,
+        # which was the point 80 defect.
         chaine_lecture = self._transitive_chain(base_target) if apply_read_owner else None
         read_actor = own_where_sql = None
         if apply_read_owner:
             if chaine_lecture:
                 read_actor = chaine_lecture["actor"]
-                # Briques 11 et 24 : le filtre est un IN imbriqué par
-                # maillon, quelle que soit la profondeur de la chaîne.
-                # Le compte est lié (sql.bind), jamais collé dans le texte.
+                # Bricks 11 and 24: the filter is an IN nested per link,
+                # whatever the depth of the chain. The account is bound
+                # (sql.bind), never pasted into the text.
                 own_where_sql = self._chain_read_where(
                     base_target, sql.bind("current_user_id"))
             else:
@@ -143,20 +139,20 @@ class LectureRoutesMixin:
             api_lines.append(f"        _own_where = {own_where_sql.text!r}")
             api_lines.append(f"        _own_params = {sql.params_tuple(own_where_sql)}")
         elif apply_read_super:
-            # Le superviseur voit tout (WHERE vide) ; les parties restent
-            # confinees a leurs colonnes. Meme mecanisme conditionnel que la
-            # branche ownedBy juste au-dessus.
+            # The supervisor sees everything (empty WHERE); the parties stay
+            # confined to their columns. Same conditional mechanism as the
+            # ownedBy branch just above.
             _superset = ", ".join(f'"{s}"' for s in read_supers)
             api_lines.append("    _own_where, _own_params = '', ()")
             api_lines.append(f"    if current_actor not in {{{_superset}}}:")
             api_lines.append(f"        _own_where = ' WHERE {parties_where}'")
             api_lines.append(f"        _own_params = ({parties_params},)")
         elif apply_condition_identity:
-            # POINT 116 : le WHERE de 'publicWhen' se décide à l'exécution,
-            # exactement comme les deux branches ci-dessus. Par défaut la
-            # condition s'applique ; un superviseur déclaré la lève entièrement,
-            # un propriétaire y AJOUTE ses propres lignes (OR), il ne la
-            # remplace pas — sinon il perdrait le contenu public des autres.
+            # POINT 116: the 'publicWhen' WHERE is decided at runtime, exactly
+            # like the two branches above. By default the condition applies; a
+            # declared supervisor lifts it entirely, an owner ADDS their own
+            # rows to it (OR), it does not replace it — otherwise they would
+            # lose the others' public content.
             base_where = sql.cat(sql.kw(" WHERE "), condition_fragment)
             api_lines.append(f"    _own_where = {base_where.text!r}")
             api_lines.append(f"    _own_params = {sql.params_tuple(base_where)}")
@@ -225,11 +221,11 @@ class LectureRoutesMixin:
         api_lines.append("    if not row: raise HTTPException(status_code=404, detail='Record not found')")
         api_lines.append("    named_row = dict(zip(_columns, row))")
         if public_condition:
-            # POINT 116 : mêmes exemptions qu'en liste, sans quoi le
-            # superviseur listerait un enregistrement qu'il ne pourrait pas
-            # ouvrir. 404 et jamais 403 pour les autres : sur des identifiants
-            # séquentiels, distinguer « n'existe pas » de « masqué » laisserait
-            # dénombrer ce qui a été retiré.
+            # POINT 116: the same exemptions as in the list, otherwise the
+            # supervisor would list a record they could not open. 404 and never
+            # 403 for the others: on sequential identifiers, distinguishing
+            # "does not exist" from "hidden" would let someone count what was
+            # removed.
             garde = (f"    if named_row.get({public_condition.field!r}) != "
                      f"{public_condition.value!r}")
             if apply_condition_identity:
@@ -245,17 +241,16 @@ class LectureRoutesMixin:
             api_lines.append(
                 garde + ": raise HTTPException(status_code=404, detail='Record not found')")
         if apply_read_owner:
-            # 404 et non 403 : sur une entité dont les identifiants sont
-            # séquentiels, un 403 confirmerait l'existence de
-            # l'enregistrement d'autrui — il suffirait d'énumérer les
-            # identifiants pour compter les dépenses ou les commandes
-            # d'un tiers. Un enregistrement qu'on n'a pas le droit de
-            # lire doit être indiscernable d'un enregistrement absent.
+            # 404 and not 403: on an entity with sequential identifiers, a 403
+            # would confirm that someone else's record exists — enumerating the
+            # identifiers would be enough to count a third party's expenses or
+            # orders. A record one is not allowed to read must be
+            # indistinguishable from a missing one.
             if chaine_lecture:
-                # Une seule sous-requête scalaire remonte toute la chaîne
-                # jusqu'au compte, quelle que soit sa profondeur. Un
-                # maillon absent rend NULL donc « appartient à personne »,
-                # et 404 est la bonne réponse pour les deux cas.
+                # A single scalar subquery climbs the whole chain up to the
+                # account, whatever its depth. A missing link gives NULL hence
+                # "belongs to nobody", and 404 is the right answer for both
+                # cases.
                 _owner_q = self._chain_owner_scalar(
                     base_target,
                     sql.bind(f"named_row.get('{chaine_lecture['via_fk']}')"))
@@ -273,9 +268,8 @@ class LectureRoutesMixin:
                                  f"named_row.get('{read_owner.lower()}_id') != current_user_id:")
                 api_lines.append("        raise HTTPException(status_code=404, detail='Record not found')")
         if apply_read_parties:
-            # La vérification se fait AVANT le masquage 'hidden' :
-            # une colonne de partie peut légitimement être masquée
-            # en lecture tout en servant au contrôle d'accès.
+            # The check happens BEFORE 'hidden' masking: a party column can
+            # legitimately be hidden on read while serving access control.
             parties_tuple = ", ".join(f"named_row.get('{c}')" for c in read_parties)
             if apply_read_super:
                 _superset = ", ".join(f'"{s}"' for s in read_supers)
@@ -295,7 +289,7 @@ class LectureRoutesMixin:
         return api_lines
 
     def _list_query_annotation(self, entity, field):
-        """Type FastAPI du paramètre de filtre exact déclaré en spec."""
+        """FastAPI type of the exact filter parameter declared in the spec."""
         choices = self.enumerated_fields.get(entity, {}).get(field)
         if choices:
             return "Optional[Literal[{}]]".format(

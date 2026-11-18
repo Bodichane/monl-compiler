@@ -1,31 +1,29 @@
-"""Les fichiers que le CLIENT téléverse.
+"""The files the CLIENT uploads.
 
-À ne pas confondre avec `assets.py`, qui porte les fichiers fournis par
-l'HUMAIN à la compilation (brique 13). Ici c'est un tiers qui écrit, d'où
-une liste fermée de formats : ni HTML ni SVG, qui seraient interprétés
-comme du code depuis l'origine de l'application."""
+Not to be confused with `assets.py`, which carries the files supplied by
+the HUMAN at compile time (brick 13). Here a third party writes, hence a
+closed list of formats: neither HTML nor SVG, which would be interpreted
+as code from the application's origin."""
 
 from .socle import ASTValidationError
 
 
 class UploadsMixin:
-    """Les fichiers que le CLIENT téléverse."""
+    """The files the CLIENT uploads."""
 
-    # Formats dont le détecteur d'octets et le service de lecture ont une
-    # politique sûre. HTML et SVG ne sont pas acceptés : ils pourraient être
-    # interprétés comme du code depuis l'origine de l'application.
+    # Formats for which the byte detector and the read service have a safe
+    # policy. HTML and SVG are not accepted: they could be interpreted as code
+    # from the application's origin.
     UPLOAD_TYPES = {
         "image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf",
     }
 
     def _valider_champs_uploades(self):
-        """Valide la déclaration complète d'un dépôt client.
+        """Validates the complete declaration of a client upload.
 
-        ``Image`` reste un chemin d'asset contrôlé à la compilation. Un
-        ``Upload`` n'est accepté que s'il est relié à une règle complète, à
-        une route d'écriture et de lecture, et à une ACL privée par
-        enregistrement.
-        """
+        ``Image`` stays an asset path checked at compile time. An ``Upload`` is
+        accepted only if it is tied to a complete rule, to a write and a read
+        route, and to a private per-record ACL."""
         for custom in self.custom_logic.values():
             for input_ in custom.get("input", []):
                 reference = input_.get("reference")

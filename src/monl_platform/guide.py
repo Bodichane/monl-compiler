@@ -23,7 +23,7 @@ def _tableau(entetes: tuple[str, str], lignes: list[tuple[str, str]]) -> str:
 
 
 def _sections() -> list[tuple[str, str, str, str]]:
-    """(ancre, titre court, compteur affiché, contenu HTML)."""
+    """(anchor, short title, displayed counter, HTML content)."""
     routes = "".join(
         f'<tr><td><span class="method">{verbe}</span> <code>{chemin}</code></td>'
         f"<td>{quoi}</td></tr>"
@@ -181,9 +181,8 @@ monl run MyProject        <span class="cm"># consistency, smoke test, then launc
 
 
 def _compteur(valeur: str) -> str:
-    """Le compteur du sommaire, hors f-string : une f-string ne peut pas
-    contenir de barre oblique inverse avant Python 3.12, et la CI compile
-    encore en 3.10."""
+    """The table of contents counter, outside an f-string: an f-string cannot
+    contain a backslash before Python 3.12, and CI still compiles on 3.10."""
     return f'<span class="count">{valeur}</span>' if valeur else ""
 
 

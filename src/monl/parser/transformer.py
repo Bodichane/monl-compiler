@@ -1,7 +1,7 @@
-"""Le transformateur, recomposé par mixins, et l'indenteur.
+"""The transformer, recomposed from mixins, and the indenter.
 
-Une production nouvelle s'ajoute dans le mixin de sa famille — charpente,
-règle, ou bloc de premier niveau — jamais ici."""
+A new production is added in its family's mixin — framework, rule, or
+top-level block — never here."""
 
 from lark import Transformer, v_args
 from lark.indenter import DedentError, PythonIndenter
@@ -14,12 +14,11 @@ from .transformer_structure import StructureMixin
 @v_args(inline=True)
 class MonlTransformer(StructureMixin, ReglesMixin, BlocsMixin,
                       Transformer):
-    """L'arbre Lark transformé en dictionnaires Python.
+    """The Lark tree transformed into Python dictionaries.
 
-    Toutes les productions vivent dans les trois mixins ; cette classe
-    ne fait que les réunir. Le décorateur reste ici pour la forme —
-    il ne trouve plus rien à envelopper, chaque mixin ayant le sien.
-    """
+    All productions live in the three mixins; this class only brings them
+    together. The decorator stays here for form — it finds nothing left to
+    wrap, each mixin having its own."""
 
 
 class MonlIndenter(PythonIndenter):
@@ -31,10 +30,10 @@ class MonlIndenter(PythonIndenter):
     tab_len = 4
 
     def handle_NL(self, token):
-        """Point 204 : Lark lève `DedentError` SANS position, et hors de la
-        famille `UnexpectedInput` que la lecture traduit — une ligne revenue à
-        une colonne qu'aucun bloc n'a ouverte arrivait brute à l'utilisateur.
-        On y attache la ligne et la colonne du jeton pour pouvoir la situer."""
+        """Point 204: Lark raises `DedentError` WITHOUT a position, and outside the
+        `UnexpectedInput` family that reading translates — a line returning to a
+        column no block opened reached the user raw. The token's line and column
+        are attached to it so it can be located."""
         try:
             yield from super().handle_NL(token)
         except DedentError as err:

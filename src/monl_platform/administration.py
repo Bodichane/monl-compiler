@@ -1,25 +1,25 @@
-"""`monl-platform admin` — les gestes d'exploitation sur les comptes.
+"""`monl-platform admin` — operational actions on accounts.
 
-**Pourquoi une ligne de commande et pas un panneau web.** Toute intervention
-sur un compte passait par `sqlite3` à la main, serveur arrêté : tenable à dix
-comptes, pas à cent, et chaque geste risquait une requête tapée de travers,
-sans trace de qui l'avait faite. Un panneau web aurait demandé sa propre
-authentification, une colonne de privilège dans `users`, et serait devenu la
-cible la plus intéressante du service — celle dont une seule faille donne
-tous les comptes.
+**Why a command line and not a web panel.** Every intervention on an
+account went through `sqlite3` by hand, with the server stopped: workable
+at ten accounts, not at a hundred, and each action risked a mistyped
+query, with no trace of who made it. A web panel would have required its
+own authentication, a privilege column in `users`, and would have become
+the service's most interesting target — the one where a single flaw gives
+away every account.
 
-Or **qui possède le shell possède déjà la base**. La ligne de commande
-n'ajoute donc aucune surface d'attaque : elle rend sûrs et traçables des
-gestes qu'on faisait déjà, en plus mal.
+Yet **whoever owns the shell already owns the database**. The command
+line therefore adds no attack surface: it makes safe and traceable actions
+that were already done, only worse.
 
-**Tout geste qui écrit est journalisé**, avec le même journal que le serveur.
-Sans ça, « qui a supprimé ce compte ? » n'a pas de réponse — et c'est
-précisément la question qu'on pose le jour où ça tourne mal.
+**Every action that writes is logged**, with the same log as the server.
+Without it, "who deleted this account?" has no answer — and that is
+precisely the question asked the day things go wrong.
 
-**Rien n'est demandé deux fois, sauf ce qui ne se défait pas.** La suppression
-d'un compte exige `--confirmer` : elle efface le compte, ses clés, ses projets
-en base et les dossiers sur le disque, sans rien qui puisse être rendu.
-"""
+**Nothing is asked twice, except what cannot be undone.** Deleting an
+account requires `--confirmer`: it erases the account, its keys, its
+projects in the database and the folders on disk, with nothing that can
+be given back."""
 
 from __future__ import annotations
 
@@ -46,11 +46,11 @@ def _date(instant: int | None) -> str:
 
 
 def _echeance(instant: int | None) -> str:
-    """La date, et surtout ce qu'elle veut dire aujourd'hui.
+    """The date, and above all what it means today.
 
-    Une colonne de dates seule oblige à faire la soustraction de tête, sur la
-    ligne où l'on décide s'il faut prolonger. Le mot « échu » se lit d'un coup.
-    """
+    A column of dates alone forces one to subtract in one's head, on the very
+    line where one decides whether to extend. The word "expired" reads at a
+    glance."""
     if instant is None:
         return "never"
     reste = instant - int(time.time())
@@ -87,9 +87,9 @@ def _comptes(magasin: IdentityStore, _service, args) -> int:
               f"{ligne['projets']:>7d} {ligne['cles']:>5d} {ligne['codes']:>6d}")
     manquants = [ligne["email"] for ligne in lignes if ligne["codes"] == 0]
     if manquants:
-        # Un compte sans code n'a AUCUN moyen de reprendre la main sur un mot
-        # de passe perdu. C'est la seule colonne de ce tableau qui annonce une
-        # perte de données à venir : elle est répétée en clair.
+        # An account without codes has NO way to recover from a lost password.
+        # It is the only column of this table that announces a coming data
+        # loss: it is repeated in plain words.
         print(f"\n{len(manquants)} account(s) without recovery codes: "
               f"a lost password would be final there.")
     return 0
@@ -131,7 +131,7 @@ def _projets(magasin: IdentityStore, _service, args) -> int:
 
 
 def _journal(magasin: IdentityStore, service: CompilationService, args) -> int:
-    """Lit la sortie d'un site depuis le shell, après masquage des secrets."""
+    """Reads a site's output from the shell, after masking secrets."""
     projet = next(
         (ligne for ligne in magasin.tous_les_projets()
          if ligne["project_id"] == args.projet),
@@ -162,16 +162,15 @@ def _journal(magasin: IdentityStore, service: CompilationService, args) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Écritures — toutes journalisées
+# Writes — all logged
 # ---------------------------------------------------------------------------
 
 def _codes(magasin: IdentityStore, _service, args) -> int:
-    """Le geste de dépannage : quelqu'un a perdu son mot de passe ET ses codes.
+    """The troubleshooting action: someone lost their password AND their codes.
 
-    C'est la commande la plus puissante du lot — elle donne accès au compte.
-    Elle est journalisée pour cette raison précise : une reprise de compte par
-    l'exploitant doit laisser une trace qu'on peut relire après coup.
-    """
+    It is the most powerful command of the set — it gives access to the
+    account. It is logged for that precise reason: an account takeover by the
+    operator must leave a trace that can be reread afterwards."""
     compte = _compte_ou_sortir(magasin, args.email)
     codes = magasin.create_recovery_codes(compte["id"], revoke_access=True)
     evenement("codes_regeneres_par_exploitant", compte=court(compte["id"]))
@@ -196,11 +195,10 @@ def _prolonger(magasin: IdentityStore, _service, args) -> int:
 
 
 def _expirer(magasin: IdentityStore, _service, args) -> int:
-    """Fait expirer sans effacer : c'est la purge qui nettoiera.
+    """Expires without erasing: the purge will clean up.
 
-    Effacer ici doublerait le chemin de suppression, et deux chemins finissent
-    par diverger — celui qu'on emprunte le moins étant celui qui se casse.
-    """
+    Erasing here would duplicate the deletion path, and two paths end up
+    diverging — the one taken least being the one that breaks."""
     if not magasin.deplacer_echeance(args.projet, -1):
         print(f"No project {args.projet!r}.", file=sys.stderr)
         return 1
@@ -239,23 +237,23 @@ def _supprimer(magasin: IdentityStore, service: CompilationService, args) -> int
 
 
 # ---------------------------------------------------------------------------
-# Analyse des arguments
+# Argument parsing
 # ---------------------------------------------------------------------------
 
 def construire_parseur() -> argparse.ArgumentParser:
     parseur = argparse.ArgumentParser(
         prog="monl-platform admin",
         description="Operator actions on accounts and projects.")
-    # `--workspace` est déclaré DEUX fois : sur le parseur principal et sur
-    # chaque sous-verbe, via un parent commun. Trouvé en l'exécutant — argparse
-    # n'accepte une option de premier niveau qu'AVANT le sous-verbe, alors
-    # qu'on la tape naturellement à la fin. Refuser la commande pour la place
-    # d'un argument, c'est faire chercher une faute là où il n'y en a pas.
+    # `--workspace` is declared TWICE: on the main parser and on each sub-verb,
+    # through a shared parent. Found by running it — argparse only accepts a
+    # top-level option BEFORE the sub-verb, whereas one naturally types it at
+    # the end. Refusing the command because of an argument's position makes
+    # people look for a mistake where there is none.
     commun = argparse.ArgumentParser(add_help=False)
-    # `SUPPRESS` et non `None` : avec un défaut ordinaire, le sous-parseur
-    # écrase la valeur donnée AVANT le sous-verbe par son propre défaut, et
-    # `admin --workspace X comptes` cesse de marcher. Corriger une position
-    # en cassant l'autre n'est pas une correction.
+    # `SUPPRESS` and not `None`: with an ordinary default, the sub-parser
+    # overwrites the value given BEFORE the sub-verb with its own default, and
+    # `admin --workspace X comptes` stops working. Fixing one position by
+    # breaking the other is not a fix.
     commun.add_argument("--workspace", default=argparse.SUPPRESS,
                         help="Workspace (default: MONL_PLATFORM_WORKSPACE).")
     parseur.add_argument("--workspace", default=None, help=argparse.SUPPRESS)

@@ -1,10 +1,10 @@
-"""Quelles routes écrire, et dans quel ordre."""
+"""Which routes to write, and in what order."""
 
 class OrchestrationRoutesMixin:
-    """Quelles routes écrire, et dans quel ordre."""
+    """Which routes to write, and in what order."""
 
     def _generate_route_lines(self):
-        """Assemble les familles de routes dans un ordre stable."""
+        """Assembles the route families in a stable order."""
         api_lines = ["# --- JWT ACCESS-CONTROL ENFORCEMENT AND PERSISTENCE ---"]
         api_lines.extend(self._generate_crud_and_action_route_lines())
         api_lines.extend(self._generate_upload_route_lines())
@@ -13,24 +13,23 @@ class OrchestrationRoutesMixin:
         return api_lines
 
     def _generate_crud_and_action_route_lines(self):
-        """Rend les routes issues des workflows : CRUD et ``Execute``.
+        """Renders the routes coming from workflows: CRUD and ``Execute``.
 
-        Les familles paiement et post-paiement sont volontairement hors de
-        cette méthode : elles naissent de règles métier dédiées et sont
-        assemblées par ``_generate_route_lines`` avec la même liste de plans.
-        """
+        The payment and post-payment families are deliberately outside this
+        method: they come from dedicated business rules and are assembled by
+        ``_generate_route_lines`` with the same list of plans."""
         api_lines = []
 
-        # CORRECTIF (post-v6) : les routes sont désormais regroupées par couple
-        # (type d'action, cible), et non plus générées une fois par workflow.
-        # Raison : avant ce correctif, deux workflows différents visant la même
-        # action sur la même entité (ex. deux acteurs autorisés à faire "Delete Post"
-        # via une règle 'sharedBy') produisaient deux définitions de route FastAPI
-        # sur le même chemin ('@app.delete(\"/post/{id}\")' deux fois) — seule la
-        # première déclarée restait effectivement joignable, la seconde était
-        # silencieusement masquée, et son acteur recevait un 403 malgré une spec
-        # valide. Le regroupement ci-dessous fusionne les acteurs autorisés en un
-        # seul contrôle d'accès par route, listant tous les acteurs légitimes.
+        # FIX (post-v6): routes are now grouped by (action type, target) pair,
+        # and no longer generated once per workflow. Reason: before this fix,
+        # two different workflows targeting the same action on the same entity
+        # (e.g. two actors allowed to "Delete Post" through a 'sharedBy' rule)
+        # produced two FastAPI route definitions on the same path
+        # ('@app.delete("/post/{id}")' twice) — only the first declared one
+        # stayed reachable, the second was silently shadowed, and its actor got
+        # a 403 despite a valid spec. The grouping below merges the allowed
+        # actors into a single access check per route, listing every legitimate
+        # actor.
         route_map = self.compilation_plans.route_map
 
         for (act_type, _key), plan in route_map.items():

@@ -1,24 +1,24 @@
-"""Le chemin guidé : le catalogue de modèles, et le mode express."""
+"""The guided path: the template catalog, and express mode."""
 
 from .fondations import DESIGN_IMAGERY, DESIGN_REGISTERS, FIELD_TYPES
 
 
 class ParcoursMixin:
-    """Le chemin guidé : le catalogue de modèles, et le mode express."""
+    """The guided path: the template catalog, and express mode."""
 
-    # ---------- déroulé du dialogue ----------
+    # ---------- dialogue flow ----------
     def run(self):
-        """Mène la conversation complète et retourne le texte de la spec .ml.
-        REFONTE (point 45) : le dialogue ouvre sur le catalogue des 10 types
-        d'applications les plus construits par les devs web — choisir un
-        modèle pré-remplit tout et ne pose que les questions de suivi
-        propres au modèle. « Partir de zéro » conserve le dialogue libre."""
+        """Leads the complete conversation and returns the text of the .ml spec.
+        REWORK (point 45): the dialogue opens on the catalog of the 10 types of
+        applications web developers build most — choosing a template prefills
+        everything and asks only the follow-up questions specific to the template.
+        "Start from scratch" keeps the free dialogue."""
         from ..app_templates import FREE_MODE_LABEL, TEMPLATES
         self._show(self.ui.banner())
-        # AJOUT (bêta 3) : le libellé et son explication sont désormais deux
-        # colonnes distinctes du menu, au lieu d'une seule chaîne « nom — aide »
-        # qui débordait sur les terminaux étroits. La valeur de retour reste la
-        # chaîne complète : le reste du moteur est inchangé.
+        # ADDED (beta 3): the label and its explanation are now two distinct
+        # columns of the menu, instead of a single "name — help" string that
+        # overflowed on narrow terminals. The return value stays the full
+        # string: the rest of the engine is unchanged.
         labels = [f"{t['name']} — {t['hint']}" for t in TEMPLATES] + [FREE_MODE_LABEL]
         courts = {label: TEMPLATES[i]["name"] for i, label in enumerate(labels[:-1])}
         courts[FREE_MODE_LABEL] = FREE_MODE_LABEL.split(" (")[0]
@@ -50,11 +50,10 @@ class ParcoursMixin:
 
     @staticmethod
     def _express_intent(template):
-        """Direction sûre et suffisamment précise pour le mode express.
+        """A safe and precise enough direction for express mode.
 
-        Elle ne change jamais le contrat fonctionnel : elle autorise seulement
-        l'IA frontend à faire son métier éditorial et visuel à partir du modèle.
-        """
+        It never changes the functional contract: it only allows the frontend AI
+        to do its editorial and visual job from the template."""
         name = template["name"]
         if name in {"Portfolio / showcase site", "Blog"}:
             register, imagery = DESIGN_REGISTERS[1][1], DESIGN_IMAGERY[0][1]
@@ -75,23 +74,22 @@ class ParcoursMixin:
 
     @staticmethod
     def _ligne_de_compte(template):
-        """Les visiteurs auront-ils un compte ? DÉRIVÉ, jamais écrit à la main.
+        """Will visitors have an account? DERIVED, never written by hand.
 
-        La question « site web ou application ? » n'existe pas dans le
-        dialogue, et c'est volontaire : tout ce que monl produit a un serveur
-        et une base. Ce qui varie, c'est si quelqu'un s'inscrit — et on ne
-        choisit pas dans une liste sans savoir ce qu'elle implique.
+        The question "website or application?" does not exist in the dialogue,
+        and that is deliberate: everything monl produces has a server and a
+        database. What varies is whether someone registers — and one does not
+        pick from a list without knowing what it implies.
 
-        La réponse vient de `_default_self_register`, celle-là même que le
-        dialogue emploie comme défaut : la ligne affichée ne peut donc pas
-        diverger de ce qui sera réellement construit. Écrire une table à la
-        main la ferait cesser de border au premier modèle ajouté — point 146.
+        The answer comes from `_default_self_register`, the very one the dialogue
+        uses as a default: the displayed line therefore cannot diverge from what
+        will really be built. Writing a table by hand would make it stop keeping
+        up with the first template added — point 146.
 
-        Le sens de cette fonction est ÉTROIT et la phrase le respecte : elle
-        dit quel rôle serait offert à l'inscription libre, PAS si le site est
-        lisible sans compte. « Inventaire » n'a pas de rôle public et n'est
-        pourtant pas une vitrine.
-        """
+        This function's meaning is NARROW and the sentence respects it: it says
+        which role would be offered at open registration, NOT whether the site is
+        readable without an account. "Inventory" has no public role and yet is
+        not a storefront."""
         managers = {n: [m["manager"]] for n, m in template["entities"].items()}
         owned = {n: m["manager"] for n, m in template["entities"].items()
                  if m["owned"]}
@@ -102,7 +100,8 @@ class ParcoursMixin:
 
     @staticmethod
     def _default_self_register(actors, managers, owned):
-        """Choix prudent du rôle public, pendant déterministe de la question."""
+        """Cautious choice of the public role, the deterministic counterpart of the
+        question."""
         privilegies = {
             actor
             for entity, entity_managers in managers.items()
@@ -113,12 +112,11 @@ class ParcoursMixin:
 
     @staticmethod
     def _express_image_topic(template):
-        """Mot-clé public par catégorie, sans divulguer le brief libre.
+        """Public keyword per category, without disclosing the free brief.
 
-        Les URL sont chargées chez un tiers par le navigateur. Y injecter la
-        description transmettrait potentiellement un client, un lieu ou une
-        idée encore confidentielle.
-        """
+        The URLs are loaded from a third party by the browser. Injecting the
+        description into them could pass on a client, a place or an idea that is
+        still confidential."""
         return {
             "Portfolio / showcase site": "creative-studio",
             "Blog": "editorial",
@@ -133,9 +131,9 @@ class ParcoursMixin:
         }.get(template["name"], "abstract")
 
     def _run_from_template(self, template):
-        """Chemin « modèle » : questions de suivi spécifiques, puis les
-        finitions communes. Le modèle est copié en profondeur — le catalogue
-        n'est jamais muté entre deux exécutions (déterminisme)."""
+        """"Template" path: specific follow-up questions, then the shared
+        finishing touches. The template is deep-copied — the catalog is never
+        mutated between two runs (determinism)."""
         import copy
 
         from ..app_templates import apply_effects
@@ -184,7 +182,7 @@ class ParcoursMixin:
             if self._ask_yes_no(followup["ask"]):
                 apply_effects(template, followup["effects"])
 
-        # Conversion du modèle vers le format de l'émetteur
+        # Conversion from the template to the emitter's format
         entities = {name: list(meta["fields"]) for name, meta in template["entities"].items()}
         actors = list(template["actors"])
         managers = {name: [meta["manager"]] for name, meta in template["entities"].items()}
@@ -194,7 +192,7 @@ class ParcoursMixin:
         owned = {n: m["manager"] for n, m in template["entities"].items() if m["owned"]}
         relations = list(template["relations"])
 
-        # Échappatoire : une entité personnalisée en plus du modèle.
+        # Escape hatch: one custom entity on top of the template.
         while self._ask_yes_no("Add a custom entity in addition to the template?"):
             name = self._ask_identifier("  Entity name > ", forbidden=entities.keys())
             fields = []

@@ -1,10 +1,9 @@
-"""Les noms de fichiers du système de design, en un seul endroit.
+"""The design system's file names, in one place.
 
-Ce sont des chemins RELATIFS au projet, pas de simples noms : la direction
-visuelle se LIT, donc elle vit dans `docs/`. Le préfixe est porté ici plutôt
-qu'à chaque appel — une trentaine de sites les emploient, et les ajouter un
-par un laisserait forcément un oubli silencieux.
-"""
+These are paths RELATIVE to the project, not mere names: the visual
+direction is READ, so it lives in `docs/`. The prefix is carried here
+rather than at each call — some thirty places use them, and adding them
+one by one would inevitably leave a silent omission."""
 
 from ..artifacts import DOCS_DIR
 

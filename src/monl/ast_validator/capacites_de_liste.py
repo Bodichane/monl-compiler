@@ -1,20 +1,18 @@
-"""Le filtrage et le tri déclarés sur une route de liste (brique B3).
+"""The filtering and sorting declared on a list route (brick B3).
 
-Seuls les types dont une égalité ou un tri a une sémantique de donnée
-ordinaire sont acceptés : `Image` reste un chemin d'asset et `Upload` une
-référence de fichier — ni l'un ni l'autre ne devient un critère par
-accident."""
+Only types for which equality or sorting has ordinary data semantics are
+accepted: `Image` stays an asset path and `Upload` a file reference —
+neither becomes a criterion by accident."""
 
 from .socle import ASTValidationError
 
 
 class CapacitesDeListeMixin:
-    """Le filtrage et le tri déclarés sur une route de liste (brique B3)."""
+    """The filtering and sorting declared on a list route (brick B3)."""
 
-    # BRIQUE B3 : ce sont les seuls types dont une égalité ou un tri a une
-    # sémantique de donnée ordinaire. `Image` reste un chemin d'asset, et
-    # `Upload` une référence de fichier : ni l'un ni l'autre ne devient un
-    # critère d'énumération par accident.
+    # BRICK B3: these are the only types for which equality or sorting has
+    # ordinary data semantics. `Image` stays an asset path, and `Upload` a file
+    # reference: neither becomes an enumeration criterion by accident.
     LIST_QUERY_TYPES = (
         "String", "Text", "Integer", "Float", "Boolean", "Date", "DateTime",
         "Email", "UUID", "Money",
@@ -27,15 +25,14 @@ class CapacitesDeListeMixin:
     )
 
     def _valider_capacites_de_liste(self):
-        """Valide les filtres et tris déclarés, sans ouvrir un langage de requête.
+        """Validates the declared filters and sorts, without opening a query
+        language.
 
-        BRIQUE B3. La route ne reçoit ni opérateur, ni expression, ni champ
-        libre : chaque paramètre de filtre et chaque colonne de tri sont
-        nommés dans la spec. Les champs retirés ou transformés en lecture sont
-        refusés ici, car un filtre exact permettrait d'en déduire la valeur par
-        différence de compte (oracle), même si la réponse ne contient jamais
-        le champ.
-        """
+        BRICK B3. The route receives no operator, no expression, no free field:
+        every filter parameter and every sort column is named in the spec. Fields
+        removed or transformed on read are refused here, because an exact filter
+        would let someone deduce the value from a difference in counts (an
+        oracle), even if the response never contains the field."""
         self.filterable_fields = []
         self.sortable_fields = []
         seen_filters = set()

@@ -208,8 +208,8 @@ def feature(symbol: str, title: str, text: str, delay: int = 0) -> str:
 
 
 
-#: Texte brut, confronté ligne à ligne à `SPEC_VITRINE` par un témoin : un
-#: extrait recopié à la main finit toujours par montrer une règle inexistante.
+#: Plain text, compared line by line to `SPEC_VITRINE` by a witness: an excerpt
+#: copied by hand always ends up showing a rule that does not exist.
 DEMO_HERO_SOURCE = """app LittleShop
 
 entity Product
@@ -222,9 +222,9 @@ DEMO_HERO = en_lignes(DEMO_HERO_SOURCE)
 
 MINI_SPEC = coloriser(extrait_affiche())
 
-#: Chaque nom vient de `ARBRE`, dont le témoin exige qu'il figure dans
-#: l'archive réellement compilée. Écrire un nom ici ne suffit plus à le
-#: faire exister — c'est tout l'objet de `landing_vitrine`.
+#: Each name comes from `ARBRE`, which the witness requires to appear in the
+#: really compiled archive. Writing a name here is no longer enough to make it
+#: exist — that is the whole point of `landing_vitrine`.
 ARBRE_HTML = "<br>".join(
     f'{"└──" if i == len(ARBRE) - 1 else "├──"} {nom} <span>{role}</span>'
     for i, (nom, role) in enumerate(ARBRE))

@@ -24,13 +24,12 @@ from .session import verifier_configuration_cookie
 
 
 def create_app(*, workspace=None, domain=None, downloads_dir=None) -> FastAPI:
-    """POINT 162 : plus aucun fournisseur IA à injecter.
+    """POINT 162: no AI provider to inject anymore.
 
-    Les huit paramètres retirés (provider, provider_factory, quota_limit,
-    prices_path, poll_interval, start_worker, et les deux d'images) servaient
-    tous le constructeur frontend. La plateforme ne construit plus d'interface
-    et n'appelle plus aucun modèle : ce qu'elle fait, elle le fait hors ligne.
-    """
+    The eight removed parameters (provider, provider_factory, quota_limit,
+    prices_path, poll_interval, start_worker, and the two for images) all
+    served the frontend builder. The platform no longer builds interfaces and
+    no longer calls any model: what it does, it does offline."""
     verifier_configuration_cookie()
     configurer()
     service = CompilationService(workspace)

@@ -1,4 +1,4 @@
-"""Point d'entrée : servir la plateforme, la sauvegarder, ou l'administrer."""
+"""Entry point: serve the platform, back it up, or administer it."""
 
 from __future__ import annotations
 
@@ -9,9 +9,9 @@ import uvicorn
 
 
 def _resume(fonction) -> str:
-    """La première ligne de la docstring d'un verbe : c'est ce que `--help`
-    en dit. Un verbe sans docstring fait échouer plutôt que d'afficher une
-    ligne vide — une aide muette est le défaut de l'issue #84."""
+    """The first line of a verb's docstring: it is what `--help` says about it.
+    A verb without a docstring fails rather than displaying an empty line — a
+    mute help is the defect of issue #84."""
     doc = (fonction.__doc__ or "").strip()
     if not doc:
         raise ValueError(f"verb {fonction.__name__} has no docstring")
@@ -19,13 +19,13 @@ def _resume(fonction) -> str:
 
 
 def _aide_des_verbes() -> str:
-    """L'épilogue de `monl-platform --help`, DÉRIVÉ de `VERBES`.
+    """The epilog of `monl-platform --help`, DERIVED from `VERBES`.
 
-    Avant l'issue #84, l'aide de premier niveau ne décrivait que `--host` et
-    `--port` : `admin` et `sauvegarde` n'étaient découvrables que par
-    `docs/EXPLOITATION.md`, qui ne voyage pas dans la roue. Lire la table du
-    dispatch (point 190) garantit qu'un verbe servi est un verbe annoncé.
-    """
+    Before issue #84, the top-level help only described `--host` and
+    `--port`: `admin` and `sauvegarde` could only be discovered through
+    `docs/EXPLOITATION.md`, which does not travel in the wheel. Reading the
+    dispatch table (point 190) guarantees that a served verb is an announced
+    verb."""
     largeur = max(len(nom) for nom in VERBES)
     lignes = [f"  {nom.ljust(largeur)}  {_resume(fonction)}"
               for nom, fonction in VERBES.items()]
@@ -46,23 +46,22 @@ def _build_serve_parser() -> argparse.ArgumentParser:
 
 
 def _administrer(argv: list[str]) -> int:
-    """Gestes d'exploitation sur les comptes et les projets.
+    """Operational actions on accounts and projects.
 
-    Import PARESSEUX : l'administration tire la base, servir n'en a pas besoin.
-    """
+    LAZY import: administration pulls in the database, serving does not need
+    it."""
     from .administration import main as administrer
 
     return administrer(argv)
 
 
 def _sauvegarder(argv: list[str]) -> int:
-    """Copie cohérente de la base de comptes, serveur en marche.
+    """Consistent copy of the accounts database, with the server running.
 
     `monl-platform sauvegarde <destination>`.
-    Passe par l'API de sauvegarde en ligne de SQLite plutôt que par une copie
-    de fichier : la plateforme écrit en WAL, donc copier le `.sqlite3` d'un
-    serveur en marche peut rendre une base amputée des dernières transactions.
-    """
+    Goes through SQLite's online backup API rather than a file copy: the
+    platform writes in WAL, so copying the `.sqlite3` of a running server can
+    yield a database missing its latest transactions."""
     from .identity import IdentityStore
     from .service import CompilationService
 
@@ -88,22 +87,20 @@ def _sauvegarder(argv: list[str]) -> int:
 
 
 def _rotation(cible, garder: int) -> list:
-    """Retire les sauvegardes en trop, et rend la liste de ce qui est parti.
+    """Removes the extra backups, and returns the list of what went.
 
-    Une sauvegarde périodique sans rotation remplit le disque, et un disque
-    plein arrête le service qu'elle était censée protéger — la sauvegarde
-    devient alors la panne. La rotation vit ICI plutôt que dans un script de
-    l'exploitant : c'est la même commande qui écrit et qui range, donc les
-    deux ne peuvent pas diverger.
+    A periodic backup without rotation fills the disk, and a full disk stops
+    the service it was meant to protect — the backup then becomes the outage.
+    Rotation lives HERE rather than in an operator's script: it is the same
+    command that writes and tidies, so the two cannot diverge.
 
-    Le tri se fait sur la date de modification, jamais sur le NOM : un gabarit
-    de nom est au choix de l'exploitant, et un tri alphabétique sur
-    `base-2026-8-9` contre `base-2026-12-1` effacerait la mauvaise.
+    Sorting is done on the modification date, never on the NAME: a name
+    pattern is the operator's choice, and an alphabetical sort of
+    `base-2026-8-9` against `base-2026-12-1` would erase the wrong one.
 
-    Ne touche qu'aux fichiers du même dossier portant le même suffixe que la
-    cible : un dossier de sauvegardes partagé avec autre chose ne doit pas
-    être vidé par inadvertance.
-    """
+    Only touches files in the same folder carrying the same suffix as the
+    target: a backup folder shared with something else must not be emptied by
+    accident."""
     if garder <= 0:
         return []
     voisines = sorted(
@@ -117,13 +114,13 @@ def _rotation(cible, garder: int) -> list:
     return retirees
 
 
-#: Les verbes de ``monl-platform``, et ce qu'ils appellent. C'est une TABLE et
-#: non une suite de ``if`` parce que le dispatch la LIT : un verbe ajouté ici
-#: est servi, et un verbe servi est forcément ici. La documentation est
-#: confrontée à cette table (`tests/test_documentation.py`), ce qui n'aurait
-#: aucune valeur si le témoin lisait une liste écrite pour lui — c'est
-#: exactement le défaut du point 164, où la page `/mcp` annonçait quatre outils
-#: inexistants parce que sa liste était recopiée à la main.
+#: The verbs of ``monl-platform``, and what they call. It is a TABLE and not a
+#: series of ``if``s because the dispatch READS it: a verb added here is
+#: served, and a served verb is necessarily here. The documentation is compared
+#: to this table (`tests/test_documentation.py`), which would have no value if
+#: the witness read a list written for it — it is exactly the defect of point
+#: 164, where the `/mcp` page announced four nonexistent tools because its list
+#: was copied by hand.
 VERBES = {
     "sauvegarde": _sauvegarder,
     "admin": _administrer,

@@ -1,4 +1,4 @@
-"""La charpente : entités, relations, acteurs, workflows, seeds."""
+"""The framework: entities, relations, actors, workflows, seeds."""
 
 import math
 
@@ -9,28 +9,27 @@ from .erreurs import NombreHorsLimites
 
 @v_args(inline=True)
 class StructureMixin(Transformer):
-    """La charpente : entités, relations, acteurs, workflows, seeds.
+    """The framework: entities, relations, actors, workflows, seeds.
 
-    HÉRITE DE ``Transformer`` À DESSEIN, et porte son PROPRE ``@v_args``.
-    Lark applique ce décorateur en SAUTANT tout nom déjà présent dans la MRO
-    au-dessus de la classe décorée : les méthodes d'un mixin nu ne seraient
-    donc jamais enveloppées, et recevraient une LISTE d'enfants au lieu
-    d'arguments inlinés. Rien ne planterait — le sens du parsing changerait.
-    """
+    INHERITS FROM ``Transformer`` ON PURPOSE, and carries its OWN
+    ``@v_args``. Lark applies this decorator by SKIPPING any name already
+    present in the MRO above the decorated class: a bare mixin's methods would
+    therefore never be wrapped, and would receive a LIST of children instead
+    of inlined arguments. Nothing would crash — the meaning of the parse would
+    change."""
 
     def app(self, name, *blocks):
-        # CORRECTIF (roadmap, découvert en assemblant le réseau social anonyme) :
-        # une ligne de commentaire seule entre deux blocs de premier niveau (ex.
-        # un commentaire pour expliquer la règle suivante) casse la fusion
-        # contiguë du terminal '_NL' -- le lexer produit alors DEUX tokens _NL
-        # séparés (avant et après le commentaire) au lieu d'un seul. Le second,
-        # rencontré seul comme alternative de '?block', ne matche aucune règle
-        # transformée : Lark ne l'inline pas (0 enfant, pas 1) et laisse passer
-        # un Tree('block', []) brut -- jamais rencontré avant, car aucun exemple
-        # existant n'utilisait de commentaire sur sa propre ligne. isinstance()
-        # filtre ce nœud fantôme plutôt que de le laisser faire planter la
-        # compréhension de liste ci-dessous avec 'argument of type Tree is not
-        # a container or iterable'.
+        # FIX (roadmap, discovered while assembling the anonymous social
+        # network): a comment line alone between two top-level blocks (e.g. a
+        # comment explaining the next rule) breaks the contiguous merging of
+        # the '_NL' terminal -- the lexer then produces TWO separate _NL tokens
+        # (before and after the comment) instead of one. The second, met alone
+        # as an alternative of '?block', matches no transformed rule: Lark does
+        # not inline it (0 children, not 1) and lets a raw Tree('block', [])
+        # through -- never met before, because no existing example used a
+        # comment on its own line. isinstance() filters this phantom node
+        # rather than letting it crash the list comprehension below with
+        # 'argument of type Tree is not a container or iterable'.
         valid_blocks = [b for b in blocks if isinstance(b, dict)]
         return {
             "app": str(name),
@@ -60,8 +59,8 @@ class StructureMixin(Transformer):
         return {"relation": {"source": str(source), "type": str(rel_type), "target": str(target)}}
 
     def actor(self, name, self_register=None):
-        # 'self_register' est le token SELF_REGISTER quand il est présent
-        # dans la spec, None sinon (production Lark nommée, cf. CLAUDE.md).
+        # 'self_register' is the SELF_REGISTER token when present in the spec,
+        # None otherwise (named Lark production, see CLAUDE.md).
         return {"actor": str(name), "self_register": self_register is not None}
 
     def workflow(self, name, actor_name, *actions):
@@ -94,12 +93,12 @@ class StructureMixin(Transformer):
             return {"name": str(name_or_ref), "type": str(type_str)}
         return {"reference": str(name_or_ref)}
 
-    # AJOUT (roadmap frontend, bloc 'seed') : données de démonstration.
+    # ADDED (frontend roadmap, 'seed' block): demo data.
     def seed_block(self, name, *reste):
-        # BRIQUE 21 : la désignation de parent est OPTIONNELLE et arrive, quand
-        # elle existe, avant les lignes. On la reconnaît à sa clé plutôt qu'à sa
-        # position : une spec sans `for` doit produire exactement ce qu'elle
-        # produisait avant ce point.
+        # BRICK 21: the parent designation is OPTIONAL and arrives, when it
+        # exists, before the rows. It is recognized by its key rather than its
+        # position: a spec without `for` must produce exactly what it produced
+        # before this point.
         parent, rows = None, []
         for item in reste:
             if isinstance(item, dict) and "__seed_parent__" in item:
@@ -124,13 +123,13 @@ class StructureMixin(Transformer):
     def seed_pair(self, name, value):
         token = str(value)
         if token.startswith('"'):
-            # Chaîne : on retire les guillemets et déséchappe les \" et \\.
+            # String: strip the quotes and unescape \" and \\.
             parsed = token[1:-1].replace('\\"', '"').replace('\\\\', '\\')
         else:
-            # Nombre : entier ou décimal (les Money/Float acceptent un point).
-            # La grammaire accepte aussi l'exposant (`1e3`) : c'est un décimal,
-            # jamais un `int()`, qui plantait (point 204). Un exposant démesuré
-            # donne l'infini, qu'aucune base ne sait stocker : refusé.
+            # Number: integer or decimal (Money/Float accept a dot). The
+            # grammar also accepts the exponent (`1e3`): it is a decimal, never
+            # an `int()`, which crashed (point 204). An outsized exponent gives
+            # infinity, which no database can store: refused.
             if any(c in token for c in ".eE"):
                 parsed = float(token)
                 if not math.isfinite(parsed):

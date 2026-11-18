@@ -1,4 +1,4 @@
-"""Ce qu'une passe doit savoir faire, et ce que le pilote attend d'elle."""
+"""What a pass must be able to do, and what the driver expects of it."""
 
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -6,7 +6,7 @@ from typing import Protocol
 
 
 class ValidationContext(Protocol):
-    """Surface dont les passes actuelles ont besoin."""
+    """The surface the current passes need."""
 
     def _valider_contraintes_de_champ(self) -> None: ...
 

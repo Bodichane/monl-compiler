@@ -11,21 +11,20 @@ _VALEURS_VRAIES = {"1", "true", "yes"}
 
 
 def cookie_secure(environ=None) -> bool:
-    """Indique si le cookie de session doit porter l'attribut ``Secure``."""
-    # Le nom vient de la CONSTANTE dans les deux branches : écrit en dur ici,
-    # il survivrait à un renommage et la lecture par défaut irait chercher une
-    # variable qui n'existe plus — le cookie redeviendrait non sûr en silence.
+    """Says whether the session cookie must carry the ``Secure`` attribute."""
+    # The name comes from the CONSTANT in both branches: hard-coded here, it
+    # would survive a rename and the default read would look for a variable
+    # that no longer exists — the cookie would silently become insecure again.
     source = os.environ if environ is None else environ
     return str(source.get(COOKIE_SECURE_ENV, "")).strip().lower() in _VALEURS_VRAIES
 
 
 def verifier_configuration_cookie(environ=None) -> None:
-    """Refuse la seule configuration qui contredit la sécurité annoncée.
+    """Refuses the only configuration that contradicts the announced security.
 
-    Une URL publique absente ou en HTTP reste permise : elles correspondent au
-    développement local et aux réseaux internes. La contradiction est
-    précisément HTTPS annoncé avec un cookie qui accepte encore HTTP.
-    """
+    A missing or HTTP public URL stays allowed: they correspond to local
+    development and internal networks. The contradiction is precisely HTTPS
+    announced with a cookie that still accepts HTTP."""
     source = os.environ if environ is None else environ
     public_url = str(source.get(PUBLIC_URL_ENV, "")).strip()
     if (public_url and urlsplit(public_url).scheme.lower() == "https"
@@ -38,7 +37,7 @@ def verifier_configuration_cookie(environ=None) -> None:
 
 
 def set_session_cookie(response, token) -> None:
-    """Pose le cookie de session, source unique pour tous les appelants."""
+    """Sets the session cookie, the single source for every caller."""
     response.set_cookie(
         "monl_session", token, max_age=30 * 24 * 3600, path="/",
         httponly=True, samesite="strict", secure=cookie_secure(),

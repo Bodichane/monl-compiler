@@ -1,24 +1,24 @@
-"""Les blocs de premier niveau : `ui`, `landing`, `assets`,
-`migration`, `capability`.
+"""The top-level blocks: `ui`, `landing`, `assets`, `migration`,
+`capability`.
 
-Forme PLATE pour `section`, `question` et `link` (points 55, 94, 144) : un
-sous-bloc indenté aurait ajouté un niveau à la seule grammaire où
-l'indentation a déjà coûté deux bugs. L'ORDRE de déclaration est conservé —
-dans une FAQ ou un pied de page il porte du sens."""
+A FLAT form for `section`, `question` and `link` (points 55, 94, 144): an
+indented sub-block would have added a level to the only grammar where
+indentation has already cost two bugs. The declaration ORDER is kept — in
+a FAQ or a footer it carries meaning."""
 
 from lark import Transformer, v_args
 
 
 @v_args(inline=True)
 class BlocsMixin(Transformer):
-    """Les blocs de premier niveau : `ui`, `landing`, `assets`,
+    """The top-level blocks: `ui`, `landing`, `assets`,
 
-    HÉRITE DE ``Transformer`` À DESSEIN, et porte son PROPRE ``@v_args``.
-    Lark applique ce décorateur en SAUTANT tout nom déjà présent dans la MRO
-    au-dessus de la classe décorée : les méthodes d'un mixin nu ne seraient
-    donc jamais enveloppées, et recevraient une LISTE d'enfants au lieu
-    d'arguments inlinés. Rien ne planterait — le sens du parsing changerait.
-    """
+    INHERITS FROM ``Transformer`` ON PURPOSE, and carries its OWN
+    ``@v_args``. Lark applies this decorator by SKIPPING any name already
+    present in the MRO above the decorated class: a bare mixin's methods would
+    therefore never be wrapped, and would receive a LIST of children instead
+    of inlined arguments. Nothing would crash — the meaning of the parse would
+    change."""
 
     def ui_theme(self, name):
         return {"theme": str(name)}
@@ -46,21 +46,21 @@ class BlocsMixin(Transformer):
         return {"brief": str(string_literal).strip('"')}
 
     def landing_section(self, titre, corps):
-        # Marqueur temporaire : les sections s'ACCUMULENT, alors que les
-        # autres clés du bloc s'écrasent. Un simple merge les perdrait
-        # toutes sauf la dernière.
+        # Temporary marker: the sections ACCUMULATE, whereas the block's other
+        # keys overwrite each other. A plain merge would lose all of them but
+        # the last.
         return {"_section": {"title": str(titre).strip('"'),
                              "body": str(corps).strip('"')}}
 
     def landing_question(self, question, reponse):
-        # Même marqueur temporaire que les sections, même raison : les
-        # questions s'ACCUMULENT là où les autres clés s'écrasent.
+        # Same temporary marker as the sections, same reason: the questions
+        # ACCUMULATE where the other keys overwrite each other.
         return {"_question": {"question": str(question).strip('"'),
                               "answer": str(reponse).strip('"')}}
 
     def landing_link(self, libelle, adresse):
-        # Même marqueur temporaire que les sections et les questions : les
-        # liens s'ACCUMULENT là où les autres clés s'écrasent.
+        # Same temporary marker as the sections and the questions: the links
+        # ACCUMULATE where the other keys overwrite each other.
         return {"_link": {"label": str(libelle).strip('"'),
                           "url": str(adresse).strip('"')}}
 
@@ -79,13 +79,13 @@ class BlocsMixin(Transformer):
                 merged.update(p)
         if sections:
             merged["sections"] = sections
-        # L'ORDRE DE DÉCLARATION est conservé : dans une FAQ il porte du sens
-        # (on répond d'abord à ce qu'on demande le plus), et rien ne permet de
-        # le retrouver après coup.
+        # The DECLARATION ORDER is kept: in a FAQ it carries meaning (one
+        # answers first what is asked most), and nothing allows recovering it
+        # afterwards.
         if faq:
             merged["faq"] = faq
-        # Même raison que la FAQ : dans un pied de page, l'ordre déclaré est
-        # celui qu'on veut voir, et rien ne permet de le retrouver après coup.
+        # Same reason as the FAQ: in a footer, the declared order is the one
+        # one wants to see, and nothing allows recovering it afterwards.
         if links:
             merged["links"] = links
         return {"landing": merged}
@@ -148,20 +148,20 @@ class BlocsMixin(Transformer):
         return {"totp": True}
 
     def capability_provider(self, nom):
-        # Minuscules dès le parsing : 'FedaPay' et 'fedapay' sont le même
-        # prestataire, et laisser passer les deux ferait deux specs pour une
-        # seule intention (même raison que pour la devise).
+        # Lowercased at parse time: 'FedaPay' and 'fedapay' are the same
+        # provider, and letting both through would make two specs for a single
+        # intent (same reason as for the currency).
         return {"provider": str(nom).lower()}
 
     def capability_currency(self, code):
-        # Normalisé en majuscules dès le parsing : 'xof' et 'XOF' sont le même
-        # code ISO, et laisser passer les deux ferait deux specs différentes
-        # pour une seule intention.
+        # Normalized to uppercase at parse time: 'xof' and 'XOF' are the same
+        # ISO code, and letting both through would make two different specs for
+        # a single intent.
         return {"currency": str(code).upper()}
 
     def capability_block(self, name, *props):
-        # Le bloc indenté étant optionnel, Lark passe None quand il est absent :
-        # une capacité sans propriété reste exactement ce qu'elle était.
+        # The indented block being optional, Lark passes None when it is
+        # absent: a capability without properties stays exactly what it was.
         options = {}
         for p in props:
             if p:

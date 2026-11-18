@@ -1,4 +1,4 @@
-"""La voie unique vers l'IA : le brief, et l'ampleur qu'il annonce."""
+"""The single path to the AI: the brief, and the scope it announces."""
 
 import json
 import os
@@ -9,15 +9,14 @@ from . import fondations, fournisseurs, reponse
 
 # ------------------------------------------------------------ orchestration --
 def brief_evolution(update_mode, retouche_mode):
-    """Nom du brief d'ÉVOLUTION à donner à l'IA, ou None pour une construction
-    neuve (point 93).
+    """Name of the EVOLUTION brief to give the AI, or None for a new build
+    (point 93).
 
-    Les deux modes d'évolution ne diffèrent QUE par l'origine du brief : un
-    delta de spec pour `monl update`, une phrase humaine pour `monl retouche`.
-    Tout le reste — joindre les fichiers actuels, rappeler le contrat,
-    re-vérifier, empreindre — leur est commun, et le rester est le but : une
-    seconde voie vers l'IA qui aurait ses propres garde-fous serait une voie
-    par laquelle les contourner."""
+    The two evolution modes differ ONLY in the origin of the brief: a spec
+    delta for `monl update`, a human sentence for `monl retouche`. Everything
+    else — attaching the current files, recalling the contract, re-checking,
+    fingerprinting — is shared, and keeping it so is the goal: a second path
+    to the AI with its own safeguards would be a path to bypass them."""
     if retouche_mode:
         return fondations.RETOUCHE_PROMPT_FILENAME
     if update_mode:
@@ -51,14 +50,12 @@ def build_generation_prompt(project_dir, update_mode, retouche_mode=False):
             f"original contract\n{base_prompt}{fournisseurs.RESPONSE_FORMAT_INSTRUCTIONS}")
 
 def ampleur_du_contrat(project_dir):
-    """Ce que le frontend doit couvrir : nombre de routes et d'entités.
+    """What the frontend must cover: number of routes and entities.
 
-    Sert à DIMENSIONNER la demande faite au modèle. Sans elle, monl réclamait
-    « environ 1 500 tokens » pour `app.js` quel que soit le contrat — et le
-    modèle obéissait au jeton près (1 698 mesurés sur une boutique à quinze
-    routes) avant d'être refusé pour incomplétude. On demandait l'impossible,
-    puis on le rejetait.
-    """
+    Used to SIZE the request made to the model. Without it, monl asked for
+    "about 1,500 tokens" for `app.js` whatever the contract — and the model
+    obeyed to the token (1,698 measured on a fifteen-route shop) before being
+    refused for incompleteness. We asked for the impossible, then rejected it."""
     chemin = os.path.join(project_dir, "frontend_contract.json")
     try:
         with open(chemin, encoding="utf-8") as fh:

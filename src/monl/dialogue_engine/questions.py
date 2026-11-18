@@ -1,40 +1,40 @@
-"""Poser une question, et n'accepter qu'une réponse valide.
+"""Ask a question, and accept only a valid answer.
 
-Saisie STRICTE et entièrement déterministe : aucune IA, aucun appel
-réseau. Le rendu n'est pas ici — le moteur ne connaît `tui` que par
-l'interface `PlainDialogueUI`."""
+STRICT and entirely deterministic input: no AI, no network call. Rendering
+is not here — the engine knows `tui` only through the `PlainDialogueUI`
+interface."""
 
 from .fondations import IDENT_RE, PARAGRAPH_SEP, DialogueError
 
 
 class QuestionsMixin:
-    """Poser une question, et n'accepter qu'une réponse valide."""
+    """Ask a question, and accept only a valid answer."""
 
     def _show(self, rendu):
-        """N'affiche que ce que la couche de présentation a produit."""
+        """Displays only what the presentation layer produced."""
         if rendu:
             self._say(rendu)
 
     # ---------- primitives de question (chacune valide et redemande) ----------
     def _ask(self, prompt, validate, error_msg, kind="free_text", options=None,
              hints=None, title=None):
-        # POINT 171 : `kind` et `options` étaient reçus depuis toujours et
-        # JAMAIS employés — le point 85 sous une autre forme. La console web
-        # ne recevait donc que le texte de TERMINAL et le collait dans un
-        # <pre> : onze modèles en une bouillie « [1] … [2] … ». On les
-        # enregistre ici, au plus près de l'appel, pour que toute couche de
-        # présentation puisse rendre autre chose qu'une chaîne.
+        # POINT 171: `kind` and `options` had always been received and NEVER
+        # used — point 85 in another form. The web console therefore only
+        # received the TERMINAL text and stuck it in a <pre>: eleven templates
+        # in a "[1] … [2] …" mush. They are recorded here, as close to the call
+        # as possible, so that any presentation layer can render something
+        # other than a string.
         #
-        # L'état est écrasé à chaque question et n'est JAMAIS lu par le
-        # moteur : il ne peut pas changer une décision du dialogue, qui reste
-        # entièrement déterministe.
+        # The state is overwritten at each question and is NEVER read by the
+        # engine: it cannot change a dialogue decision, which stays entirely
+        # deterministic.
         self.derniere_question = {
             "kind": kind,
-            # L'intitulé SEUL, tel que le moteur l'a reçu. Le reconstruire en
-            # découpant le texte de terminal obligerait la couche de
-            # présentation à connaître sa mise en forme — et, dans un gabarit
-            # Python non brut, à écrire un `\n` qui devient un vrai retour à
-            # la ligne au milieu d'une chaîne JavaScript (point 163).
+            # The title ALONE, as the engine received it. Rebuilding it by
+            # splitting the terminal text would force the presentation layer to
+            # know its formatting — and, in a non-raw Python template, to write
+            # a `\n` that becomes a real line break in the middle of a
+            # JavaScript string (point 163).
             "title": title,
             "options": [dict(o) for o in options] if options else None,
             "hints": dict(hints) if hints else None,
@@ -59,7 +59,7 @@ class QuestionsMixin:
                          kind="identifier")
 
     def _ask_optional_identifier(self, prompt, forbidden=()):
-        """Comme _ask_identifier mais une réponse vide signifie 'terminé'."""
+        """Like _ask_identifier but an empty answer means 'done'."""
         prompt = self.ui.field(prompt)
 
         def validate(a):
@@ -81,11 +81,10 @@ class QuestionsMixin:
             if a.isdigit() and 1 <= int(a) <= len(options):
                 return True, options[int(a) - 1]
             return False, None
-        # Chaque option porte la VALEUR à répondre, et pas seulement son
-        # libellé : « aucun » se répond par 0 et non par son rang. Laisser
-        # une couche de présentation redécouvrir cette règle, ce serait deux
-        # mises en œuvre d'une même règle — elles divergent toujours
-        # (point 146).
+        # Each option carries the VALUE to answer, not only its label: "none"
+        # is answered with 0 and not with its rank. Letting a presentation
+        # layer rediscover this rule would mean two implementations of the same
+        # rule — they always diverge (point 146).
         choix = [{"label": libelle, "value": str(rang)}
                  for rang, libelle in enumerate(options, start=1)]
         if allow_none:
@@ -108,7 +107,7 @@ class QuestionsMixin:
         prompt = self.ui.field(prompt)
 
         def validate(a):
-            # Les guillemets doubles casseraient le STRING_LITERAL émis.
+            # Double quotes would break the emitted STRING_LITERAL.
             if a and '"' not in a and "\n" not in a:
                 return True, a
             return False, None
@@ -116,7 +115,7 @@ class QuestionsMixin:
                          kind="free_text")
 
     def _ask_optional_free_text(self, prompt):
-        """Comme _ask_free_text, mais une réponse vide vaut « passer »."""
+        """Like _ask_free_text, but an empty answer means "skip"."""
         prompt = self.ui.field(prompt)
 
         def validate(a):
@@ -130,18 +129,17 @@ class QuestionsMixin:
                          kind="free_text")
 
     def _ask_paragraphs(self, prompt):
-        """Un texte éditorial en PLUSIEURS paragraphes (point 64).
+        """An editorial text in SEVERAL paragraphs (point 64).
 
-        Une saisie d'une seule ligne était un piège silencieux : un « à
-        propos » collé depuis un traitement de texte arrivait aplati, ses
-        paragraphes recollés sans même une espace (« …8 ans.Mon travail… »),
-        et l'IA d'interface recevait un mur de texte sans césure possible.
-        Le retour à la ligne reste interdit — il casserait le
-        STRING_LITERAL émis — donc on demande les paragraphes l'un après
-        l'autre, et on les joint par un séparateur que le contrat retraduit
-        en vrais sauts de paragraphe.
+        Single-line input was a silent trap: an "about" pasted from a word
+        processor arrived flattened, its paragraphs glued back together without
+        even a space ("…8 years.My work…"), and the interface AI received a wall
+        of text with no possible break. The line break stays forbidden — it would
+        break the emitted STRING_LITERAL — so the paragraphs are asked one after
+        the other, and joined with a separator the contract translates back into
+        real paragraph breaks.
 
-        Rend None si le premier paragraphe est vide (rubrique passée)."""
+        Returns None if the first paragraph is empty (section skipped)."""
         premier = self._ask_optional_free_text(prompt)
         if not premier:
             return None

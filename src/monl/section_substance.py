@@ -1,39 +1,37 @@
-"""Ce qu'une section doit CONTENIR pour ne pas être une coquille vide.
+"""What a section must CONTAIN so as not to be an empty shell.
 
-Le contrôle de complétude (point 118) vérifiait qu'un marqueur était PRÉSENT.
-Un marqueur nomme une section, il ne prouve pas qu'il y a quelque chose
-dedans : `<section data-monl-section="hero"></section>` passait tous les
-contrôles, et le test du dépôt l'affirmait noir sur blanc. Un site fait de
-huit balises vides était donc déclaré complet.
+The completeness check (point 118) verified that a marker was PRESENT. A
+marker names a section, it does not prove there is something in it:
+`<section data-monl-section="hero"></section>` passed every check, and the
+repository's test stated it in black and white. A site made of eight
+empty tags was therefore declared complete.
 
-Ce module mesure la MATIÈRE d'une section. Trois principes, chacun né d'une
-façon différente de se tromper :
+This module measures a section's SUBSTANCE. Three principles, each born
+from a different way of getting it wrong:
 
-1. **On ne demande jamais ce qui vient de l'API.** Un catalogue se remplit à
-   l'exécution ; exiger des lignes de produits dans le HTML statique
-   pousserait l'IA à en inventer — exactement ce que monl refuse partout
-   ailleurs. On exige le contenant, le titre et l'état vide, jamais les
-   données.
-2. **Le seuil est PAR SECTION, pas global.** Un bandeau de conclusion tient
-   en une phrase et un bouton ; lui réclamer deux cents caractères ferait
-   produire du remplissage, c'est-à-dire l'inverse de la qualité visée.
-3. **Une section déclarée dans la spec est jugée sur CE QU'ELLE DÉCLARE.**
-   Demander cent caractères à une section dont l'auteur en a écrit cinquante
-   ferait échouer une spec honnête.
+1. **Never ask for what comes from the API.** A catalog fills at runtime;
+   requiring product rows in the static HTML would push the AI to invent
+   some — exactly what monl refuses everywhere else. We require the
+   container, the title and the empty state, never the data.
+2. **The threshold is PER SECTION, not global.** A closing banner fits in
+   one sentence and a button; asking two hundred characters of it would
+   produce filler, that is, the opposite of the quality sought.
+3. **A section declared in the spec is judged on WHAT IT DECLARES.**
+   Asking a hundred characters of a section whose author wrote fifty would
+   make an honest spec fail.
 
-Les pratiques de référence — cinq à huit blocs pour une page produit, un
-menu/adresse/réservation pour un restaurant, travaux + à-propos + preuve +
-contact pour un portfolio — disent toutes la même chose : le nombre de
-sections ET la matière de chacune. Le nombre vit dans `ui_patterns.py`, la
-matière ici.
-"""
+The reference practices — five to eight blocks for a product page, a
+menu/address/booking for a restaurant, work + about + proof + contact for
+a portfolio — all say the same thing: the number of sections AND the
+substance of each. The number lives in `ui_patterns.py`, the substance
+here."""
 
 from __future__ import annotations
 
 from html.parser import HTMLParser
 
-#: Éléments qui ne se referment pas : les compter comme ouverts ferait fuir
-#: la profondeur et avaler toute la fin du document dans la première section.
+#: Elements that are never closed: counting them as open would make the depth
+#: leak and swallow the whole end of the document into the first section.
 VOID_ELEMENTS = frozenset({
     "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
     "meta", "param", "source", "track", "wbr",
@@ -41,11 +39,11 @@ VOID_ELEMENTS = frozenset({
 
 HEADINGS = frozenset({"h1", "h2", "h3", "h4"})
 ACTIONS = frozenset({"a", "button"})
-#: Le corps d'un script ou d'un style n'est pas du texte lu par un humain.
+#: The body of a script or a style is not text a human reads.
 OPAQUE = frozenset({"script", "style", "template"})
 
-#: Ce que chaque famille de section doit porter. `text` est un nombre de
-#: caractères visibles, titre compris.
+#: What each family of section must carry. `text` is a number of visible
+#: characters, title included.
 SUBSTANCE_RULES = {
     "hero": {"heading": True, "text": 80, "action": True},
     "catalogue": {"heading": True, "text": 40},
@@ -57,22 +55,21 @@ SUBSTANCE_RULES = {
     "contact": {"heading": True, "form": True},
     "booking": {"heading": True, "form": True},
     "closing-cta": {"heading": True, "action": True},
-    # Le pied de page n'a PAS de titre : lui en imposer un ferait écrire
-    # « Pied de page » en gros, ce qu'aucun site réel ne fait. Ce qu'il doit
-    # porter, c'est de quoi partir ailleurs et de quoi savoir qui parle.
+    # The footer has NO title: imposing one would make people write "Footer" in
+    # large type, which no real site does. What it must carry is a way to go
+    # elsewhere and a way to know who is speaking.
     "footer": {"text": 60, "action": True},
 }
 
-#: Une section déclarée par l'auteur : titre, et le texte qu'il a écrit.
+#: A section declared by the author: title, and the text they wrote.
 DEFAULT_TEXT = 100
 
 
 def rule_for(slug: str, declared_body_length: int | None = None) -> dict:
-    """Règle de substance d'une section, par son slug.
+    """A section's substance rule, by its slug.
 
-    `declared_body_length` n'est fourni que pour une section écrite dans la
-    spec : on n'exige alors jamais plus que ce que l'auteur a déclaré.
-    """
+    `declared_body_length` is supplied only for a section written in the
+    spec: we then never require more than what the author declared."""
     if slug in SUBSTANCE_RULES:
         return dict(SUBSTANCE_RULES[slug])
     seuil = DEFAULT_TEXT
@@ -82,12 +79,11 @@ def rule_for(slug: str, declared_body_length: int | None = None) -> dict:
 
 
 class _Sonde(HTMLParser):
-    """Relève la matière portée par chaque élément marqué.
+    """Records the substance carried by each marked element.
 
-    Les sections peuvent s'imbriquer (une section déclarée vit à l'intérieur
-    du bloc éditorial), d'où une PILE : ce qu'on rencontre est compté pour
-    toutes les sections ouvertes, pas seulement la dernière.
-    """
+    Sections can nest (a declared section lives inside the editorial block),
+    hence a STACK: what is met is counted for every open section, not only the
+    last one."""
 
     def __init__(self, markers):
         super().__init__(convert_charrefs=True)
@@ -99,12 +95,12 @@ class _Sonde(HTMLParser):
         self._pile: list[tuple[str, dict | None]] = []
         self._opaque = 0
 
-    # -- suivi de profondeur ------------------------------------------------
-    # La pile porte le NOM de la balise, pas seulement le relevé : une balise
-    # jamais refermée — un `<p>` sans `</p>` est du HTML5 parfaitement légal —
-    # ferait sinon fuir la profondeur, et la section compterait le texte de
-    # tout ce qui la suit. Une barrière qui compte le texte du voisin ne
-    # refuse plus rien.
+    # -- depth tracking ------------------------------------------------------
+    # The stack carries the tag's NAME, not only the record: a tag never closed
+    # — a `<p>` without `</p>` is perfectly legal HTML5 — would otherwise make
+    # the depth leak, and the section would count the text of everything that
+    # follows it. A barrier that counts its neighbor's text no longer refuses
+    # anything.
     def handle_starttag(self, tag, attrs):
         if tag in OPAQUE:
             self._opaque += 1
@@ -138,8 +134,8 @@ class _Sonde(HTMLParser):
             if self._pile[rang][0] == tag:
                 del self._pile[rang:]
                 return
-        # Balise fermante orpheline : on l'ignore plutôt que de dépiler au
-        # hasard, ce qui refermerait une section qui n'a rien demandé.
+        # Orphan closing tag: ignore it rather than pop at random, which would
+        # close a section that asked for nothing.
 
     def handle_data(self, data):
         if self._opaque:
@@ -151,7 +147,7 @@ class _Sonde(HTMLParser):
             if releve is not None:
                 releve["text"] = (releve["text"] + " " + texte).strip()
 
-    # -- relevé -------------------------------------------------------------
+    # -- recording -----------------------------------------------------------
     def _noter(self, tag):
         if tag in HEADINGS:
             cle = "heading"
@@ -167,11 +163,10 @@ class _Sonde(HTMLParser):
 
 
 def substance_errors(html: str, rules: dict[str, dict]) -> list[str]:
-    """Refuse toute section marquée qui ne porte pas sa matière.
+    """Refuses any marked section that does not carry its substance.
 
-    Une section ABSENTE n'est pas signalée ici : c'est déjà le rôle du
-    contrôle de présence, et le dire deux fois brouillerait le rapport.
-    """
+    A MISSING section is not reported here: that is already the job of the
+    presence check, and saying it twice would muddle the report."""
     if not rules:
         return []
     sonde = _Sonde(rules)

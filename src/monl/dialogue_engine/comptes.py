@@ -1,34 +1,32 @@
-"""Qui s'inscrit, et sous quelle forme d'identifiant.
+"""Who registers, and with which form of identifier.
 
-POINT 138 : la question de l'identifiant n'était posée par PERSONNE — tout
-projet né du dialogue acceptait `'!!!'` comme identifiant de compte. Une
-brique qui contraint une ENTRÉE doit être branchée au dialogue, sinon elle
-ne protège que les specs écrites à la main."""
+POINT 138: the identifier question was asked by NOBODY — every project
+born from the dialogue accepted `'!!!'` as an account identifier. A brick
+that constrains an INPUT must be wired into the dialogue, otherwise it
+only protects hand-written specs."""
 
 from .fondations import PHONE_PREFIX_RE
 
 
 class ComptesMixin:
-    """Qui s'inscrit, et sous quelle forme d'identifiant."""
+    """Who registers, and with which form of identifier."""
 
     def _ask_self_register(self, actors, managers, owned):
-        """Quel rôle peut créer son compte depuis le site ?
+        """Which role can create its account from the site?
 
-        Question de sécurité, donc posée — jamais devinée. L'ordre des
-        options porte la recommandation : d'abord les rôles qui ne gèrent
-        aucune donnée en écriture (un visiteur, un client), car ouvrir
-        l'inscription à un rôle gestionnaire revient à laisser n'importe qui
-        s'attribuer les droits d'écriture.
-        """
+        A security question, therefore asked — never guessed. The order of the
+        options carries the recommendation: first the roles that manage no data
+        in writing (a visitor, a customer), because opening registration to a
+        managing role amounts to letting anyone grant themselves write
+        permissions."""
         if not actors:
             return None
-        # Un rôle est « privilégié » s'il écrit sur des données COMMUNES.
-        # Écrire uniquement sur ses propres enregistrements (règle ownedBy)
-        # ou sur sa propre fiche de profil (entité homonyme de l'acteur) ne
-        # l'est pas : c'est précisément ce que fait un client ou un membre.
-        # Sans cette distinction, un modèle où chaque rôle gère quelque
-        # chose proposerait l'administrateur en tête — soit exactement la
-        # faille d'élévation de privilège corrigée par ailleurs.
+        # A role is "privileged" if it writes to SHARED data. Writing only to
+        # its own records (ownedBy rule) or to its own profile (an entity named
+        # like the actor) is not: that is precisely what a customer or a member
+        # does. Without this distinction, a template where each role manages
+        # something would offer the administrator first — exactly the
+        # privilege-escalation flaw fixed elsewhere.
         privilegies = set()
         for entite, gestionnaires in managers.items():
             for acteur in gestionnaires:
@@ -51,28 +49,26 @@ class ComptesMixin:
         return choisi
 
     def _ask_account_identifier(self, self_register):
-        """Avec quoi les comptes se connectent-ils ? (brique 1, point 95)
+        """What do accounts log in with? (brick 1, point 95)
 
-        La brique existe depuis le point 95 et le dialogue ne l'a jamais
-        proposée : aucune spec issue d'un modèle ne déclarait d'identifiant, et
-        `username` restait du texte libre. Constaté sur `projets/AtelierNaya`,
-        atelier de beauté à Cotonou : `'!!!'` et même deux espaces créaient un
-        compte, et l'atelier recevait des réservations qu'il ne pouvait
-        honorer faute de pouvoir joindre qui que ce soit. Même famille que le
-        point 90 — une commande sans destinataire est inexpédiable.
+        The brick had existed since point 95 and the dialogue never offered it: no
+        spec coming from a template declared an identifier, and `username` stayed
+        free text. Seen on `projets/AtelierNaya`, a beauty workshop in Cotonou:
+        `'!!!'` and even two spaces created an account, and the workshop received
+        bookings it could not honor for lack of a way to reach anyone. Same
+        family as point 90 — an order without a recipient cannot be shipped.
 
-        La question n'est posée QUE si quelqu'un s'inscrit en ligne : sans
-        inscription, les comptes naissent dans `manage.py`, d'où le contrôle
-        de forme est volontairement absent (rôles de service sans adresse).
+        The question is asked ONLY if someone registers online: without
+        registration, accounts are born in `manage.py`, where the form check is
+        deliberately absent (service roles without an address).
 
-        L'ORDRE des options porte la recommandation, comme dans
-        `_ask_self_register`. Le téléphone vient en tête : sur le marché visé,
-        c'est le canal de rappel réel, bien avant le courriel.
+        The ORDER of the options carries the recommendation, as in
+        `_ask_self_register`. The phone comes first: in the targeted market, it is
+        the real callback channel, well ahead of email.
 
-        Ne rien choisir laisse la spec SANS bloc `capability auth` — pas un
-        bloc vide. `None` n'est pas `[]` (point 95) : c'est ce qui garantit
-        qu'une spec écrite avant cette question compile à l'identique.
-        """
+        Choosing nothing leaves the spec WITHOUT a `capability auth` block — not
+        an empty block. `None` is not `[]` (point 95): that is what guarantees
+        that a spec written before this question compiles identically."""
         if not self_register:
             return None
         choix = self._ask_choice(
@@ -95,9 +91,9 @@ class ComptesMixin:
 
         prefixe = None
         if "phone" in formes:
-            # POINT 95 : sans indicatif, « 97… » et « +22997… » sont DEUX
-            # comptes pour une seule personne. monl fait DÉCLARER ce qu'il ne
-            # peut pas deviner — il ne connaît pas le pays de l'application.
+            # POINT 95: without a calling code, "97…" and "+22997…" are TWO
+            # accounts for one person. monl makes people DECLARE what it cannot
+            # guess — it does not know the application's country.
             def valide(a):
                 if a == "":
                     return True, None
@@ -119,7 +115,7 @@ class ComptesMixin:
         return configuration
 
     def _ask_email_verification(self):
-        """Le producteur de la brique : uniquement une inscription par e-mail."""
+        """The brick's producer: only an email registration."""
         if not self._ask_yes_no("Require email address confirmation before sign-in?"):
             return {}
         duree = self._ask_positive_seconds("Confirmation link validity, in seconds")

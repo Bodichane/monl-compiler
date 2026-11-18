@@ -1,8 +1,8 @@
-"""Le vérificateur : un serveur ÉPHÉMÈRE, de vrais appels, un vrai jsdom.
+"""The verifier: an EPHEMERAL server, real calls, a real jsdom.
 
-Il démarre dans un dossier temporaire et ne touche JAMAIS l'app.db du
-projet. Un test qui saute ne dit pas « rien à vérifier ici », il dit « je
-n'ai pas vérifié » (point 140)."""
+It starts in a temporary folder and NEVER touches the project's app.db. A
+skipped test does not say "nothing to check here", it says "I did not
+check" (point 140)."""
 
 import json
 import os
@@ -20,18 +20,17 @@ from .sondes import _sample_value
 
 
 def _wrapper_necessaire(has_frontend, has_assets):
-    """Le smoke test monte le projet comme `monl run` le fera (point 83).
+    """The smoke test mounts the project the way `monl run` will (point 83).
 
-    Des assets déclarés sans frontend — l'état normal juste après
-    `monl compile`, avant tout `monl frontend` — exigent aussi le wrapper :
-    servis par `app:app` nu, ils répondaient 404 et `monl run --check`
-    refusait une application saine (trouvé en corrigeant l'issue #82).
-    """
+    Declared assets without a frontend — the normal state just after
+    `monl compile`, before any `monl frontend` — also require the wrapper:
+    served by bare `app:app`, they answered 404 and `monl run --check` refused
+    a healthy application (found while fixing issue #82)."""
     return has_frontend or has_assets
 
 
 def run_smoke_test(project_dir, say=print):
-    """Retourne (ok, erreurs, avertissements). Lève seulement sur bug interne."""
+    """Returns (ok, errors, warnings). Raises only on an internal bug."""
     errors, warnings = [], []
     project_dir = os.path.abspath(project_dir)
     with open(os.path.join(project_dir, CONTRACT_FILENAME), encoding="utf-8") as fh:
@@ -39,7 +38,7 @@ def run_smoke_test(project_dir, say=print):
 
     workdir = tempfile.mkdtemp(prefix="monl_smoke_")
     try:
-        # Copie des artefacts : base neuve, données réelles intouchées.
+        # Copy of the artifacts: fresh database, real data untouched.
         for name in ("app.py", "schema.sql", "sandbox_ai.py", ".jwt_secret"):
             src = os.path.join(project_dir, name)
             if os.path.exists(src):
@@ -48,11 +47,11 @@ def run_smoke_test(project_dir, say=print):
         has_frontend = os.path.isdir(frontend_src)
         if has_frontend:
             shutil.copytree(frontend_src, os.path.join(workdir, "frontend"))
-        # AJOUT (brique 13, point 83) : les assets déclarés sont copiés et
-        # SERVIS, via le même wrapper que 'monl run'. Jusqu'ici le smoke test
-        # lançait `app:app` : ni /site ni les assets ne passaient par HTTP,
-        # donc « servi » n'était vérifié nulle part — seul l'œil, sur la page,
-        # aurait vu un montage mal placé.
+        # ADDED (brick 13, point 83): the declared assets are copied and
+        # SERVED, through the same wrapper as 'monl run'. Until then the smoke
+        # test ran `app:app`: neither /site nor the assets went through HTTP,
+        # so "served" was checked nowhere — only the eye, on the page, would
+        # have seen a misplaced mount.
         assets_dir = (contract.get("assets") or {}).get("dir")
         assets_src = os.path.join(project_dir, assets_dir) if assets_dir else None
         has_assets = bool(assets_src and os.path.isdir(assets_src))
@@ -99,9 +98,9 @@ def run_smoke_test(project_dir, say=print):
                 server.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 server.kill()
-            # `stderr=PIPE` ouvre un descripteur que ni terminate() ni wait()
-            # ne referment. Sans ce close, chaque smoke test en laisse un
-            # derrière lui — et le smoke test tourne à chaque `monl run`.
+            # `stderr=PIPE` opens a descriptor that neither terminate() nor
+            # wait() closes. Without this close, every smoke test leaves one
+            # behind — and the smoke test runs on every `monl run`.
             if server.stderr:
                 server.stderr.close()
     finally:

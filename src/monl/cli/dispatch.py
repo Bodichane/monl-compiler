@@ -1,4 +1,4 @@
-"""L'aiguillage des sous-commandes."""
+"""Subcommand dispatch."""
 
 import argparse
 import os
@@ -12,7 +12,7 @@ from . import consommation, construction, contenu_editorial, delta, lancement, r
 
 # ----------------------------------------------------------- construction --
 def build_parser():
-    """Construire le parseur public, source de vérité de la CLI ``monl``."""
+    """Build the public parser, the source of truth of the ``monl`` CLI."""
     parser = argparse.ArgumentParser(
         prog="monl",
         description="monl — orchestration platform: guided dialogue → "
@@ -111,9 +111,9 @@ def build_parser():
         "--image-provider", choices=sorted(IMAGE_PROVIDERS), default="yandexart",
         help="Image provider used with --generate-images (default: yandexart).")
 
-    # POINT 93 : corriger un défaut CONSTATÉ sur le site, sans le reconstruire.
-    # Les options sont rigoureusement celles de 'frontend' — c'est la même voie
-    # vers l'IA, avec les mêmes garde-fous ; seule l'origine du brief change.
+    # POINT 93: fix a defect SEEN on the site, without rebuilding it. The
+    # options are strictly those of 'frontend' — it is the same path to the AI,
+    # with the same safeguards; only the origin of the brief changes.
     p_ret = sub.add_parser(
         "retouche", help="Fix an observed issue on the site (layout, "
                          "framing, readability) without rebuilding the frontend.")
@@ -133,10 +133,10 @@ def build_parser():
                        help="Write FRONTEND_RETOUCHE_PROMPT.md and stop — "
                             "to give it to an AI yourself, then run 'monl import'.")
 
-    # BRIQUE 13, COUCHE 2 (point 84) : poser un fichier de l'humain et le
-    # DÉCLARER, en une commande. L'outil écrit, le compilateur prouve : la spec
-    # obtenue est revalidée avant d'être écrite, donc la couche 2 ne peut pas
-    # produire ce que la couche 1 refuse.
+    # BRICK 13, LAYER 2 (point 84): drop a human's file and DECLARE it, in one
+    # command. The tool writes, the compiler proves: the resulting spec is
+    # revalidated before being written, so layer 2 cannot produce what layer 1
+    # refuses.
     p_assets = sub.add_parser(
         "assets", help="Install user-provided files (photos, "
                        "logo, favicon) and declare them in the spec.")
@@ -189,7 +189,7 @@ def build_parser():
 
 
 def _subparser(parser, command):
-    """Retrouver un sous-parseur pour afficher son aide contextuelle."""
+    """Find a subparser to display its contextual help."""
     return next(
         action.choices[command]
         for action in parser._actions
@@ -261,7 +261,7 @@ def _dispatch(argv=None):
             sys.exit(1)
 
 def main(argv=None):
-    """Point d'entrée CLI : traduit les erreurs MONL en code de sortie."""
+    """CLI entry point: translates MONL errors into an exit code."""
     try:
         return _dispatch(argv)
     except MonlError as err:

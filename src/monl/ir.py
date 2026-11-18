@@ -1,10 +1,9 @@
-"""Types de l'interface entre validation, analyse et génération.
+"""Types of the interface between validation, analysis and generation.
 
-L'IR reste volontairement composée de conteneurs Python simples : les
-émetteurs existants peuvent donc être migrés progressivement, sans conversion
-globale ni changement du JSON produit. Ces ``TypedDict`` rendent toutefois la
-frontière explicite et vérifiable par un analyseur de types.
-"""
+The IR deliberately stays made of plain Python containers: the existing
+emitters can therefore be migrated gradually, without a global conversion
+or a change in the produced JSON. These ``TypedDict``s nevertheless make
+the boundary explicit and checkable by a type checker."""
 
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -64,8 +63,8 @@ EffectKind = Literal[
     "message",
 ]
 
-# Colonnes sémantiques communes au schéma, au runtime et au contrat frontend.
-# Elles appartiennent à l'IR, pas à un émetteur particulier.
+# Semantic columns shared by the schema, the runtime and the frontend contract.
+# They belong to the IR, not to a particular emitter.
 PAYMENT_STATUS_COLUMN = "payment_status"
 PAYMENT_REF_COLUMN = "payment_ref"
 PAYMENT_TRACKING_COLUMNS = (PAYMENT_STATUS_COLUMN, PAYMENT_REF_COLUMN)
@@ -73,7 +72,7 @@ PAYMENT_TRACKING_COLUMNS = (PAYMENT_STATUS_COLUMN, PAYMENT_REF_COLUMN)
 
 
 class CompilationGenerator(Protocol):
-    """Surface minimale du générateur exposée par ``CompilationResult``."""
+    """Minimal generator surface exposed by ``CompilationResult``."""
 
     ast: CompilationIR
     app_name: str
@@ -82,12 +81,11 @@ class CompilationGenerator(Protocol):
 
 @dataclass(slots=True)
 class RoutePlan:
-    """Route logique fusionnée depuis un ou plusieurs workflows.
+    """Logical route merged from one or more workflows.
 
-    Une route n'est pas encore du code FastAPI ni une entrée du contrat JSON :
-    c'est le plan commun que ces deux émetteurs rendent ensuite chacun dans
-    leur format.
-    """
+    A route is not yet FastAPI code nor an entry of the JSON contract: it is
+    the shared plan that these two emitters then each render in their own
+    format."""
 
     action: ActionKind
     key: str
@@ -104,7 +102,8 @@ class RoutePlan:
 
 @dataclass(frozen=True, slots=True)
 class DerivedPlan:
-    """Calcul serveur résolu, partagé par les routes et le contrat frontend."""
+    """Resolved server calculation, shared by the routes and the frontend
+    contract."""
 
     entity: str
     field: str
@@ -114,7 +113,7 @@ class DerivedPlan:
     source_fk: str
 
     def as_ir(self) -> DerivedFieldIR:
-        """Copie au format historique pour le catalogue générique d'effets."""
+        """Copy in the historical format for the generic effects catalog."""
         return {
             "entity": self.entity, "field": self.field,
             "source_entity": self.source_entity, "source_field": self.source_field,
@@ -124,7 +123,7 @@ class DerivedPlan:
 
 @dataclass(frozen=True, slots=True)
 class AggregatePlan:
-    """Somme résolue ; parent_fk se trouve sur l'entité source enfant."""
+    """Resolved sum; parent_fk sits on the child source entity."""
 
     entity: str
     field: str
@@ -141,7 +140,7 @@ class AggregatePlan:
 
 @dataclass(frozen=True, slots=True)
 class AggregationPlans:
-    """Deux index d'un même jeu de calculs : cible et événement source."""
+    """Two indexes of the same set of calculations: target and source event."""
 
     by_entity: Mapping[str, tuple[AggregatePlan, ...]]
     by_source: Mapping[str, tuple[AggregatePlan, ...]]
@@ -149,7 +148,7 @@ class AggregationPlans:
 
 @dataclass(frozen=True, slots=True)
 class CounterPlan:
-    """Effet sur une ligne liée ; la cible et son plancher sont déjà résolus."""
+    """Effect on a linked row; the target and its floor are already resolved."""
 
     trigger_entity: str
     target_entity: str
@@ -196,7 +195,7 @@ class UploadPlan:
 
 @dataclass(frozen=True, slots=True)
 class FieldPolicy:
-    """Sémantique consolidée d'un champ après validation."""
+    """Consolidated semantics of a field after validation."""
 
     name: str
     type: str
@@ -215,7 +214,7 @@ class FieldPolicy:
 
 @dataclass(frozen=True, slots=True)
 class EntityModel:
-    """Entité et politiques de ses champs, indexées par leur nom."""
+    """Entity and its fields' policies, indexed by their name."""
 
     name: str
     fields: Mapping[str, FieldPolicy]
@@ -223,7 +222,7 @@ class EntityModel:
 
 @dataclass(frozen=True, slots=True)
 class RelationModel:
-    """Relation validée et orientation physique de sa clé étrangère."""
+    """Validated relation and the physical orientation of its foreign key."""
 
     source: str
     kind: RelationKind
@@ -260,7 +259,7 @@ class TransitiveOwnership:
 
 @dataclass(frozen=True, slots=True)
 class AccessPolicy:
-    """Décision d'accès consolidée pour une action sur une cible."""
+    """Consolidated access decision for an action on a target."""
 
     entity: str
     action: str
@@ -275,7 +274,7 @@ class AccessPolicy:
 
 @dataclass(frozen=True, slots=True)
 class EffectPlan:
-    """Effet métier validé, indépendant de son rendu SQL ou HTTP."""
+    """Validated business effect, independent of its SQL or HTTP rendering."""
 
     kind: EffectKind
     trigger_entity: str
@@ -288,12 +287,12 @@ class EffectPlan:
 
 @dataclass(frozen=True, slots=True)
 class CompilationPlans:
-    """Analyses dérivées partagées par les émetteurs.
+    """Derived analyses shared by the emitters.
 
-    Le générateur reste l'implémentation historique de ces calculs, mais le
-    contrat frontend reçoit désormais ce résultat nommé plutôt que de lire ses
-    méthodes privées. Les deux émetteurs consomment donc la même analyse.
-    """
+    The generator stays the historical implementation of these calculations,
+    but the frontend contract now receives this named result rather than
+    reading its private methods. Both emitters therefore consume the same
+    analysis."""
 
     route_map: Mapping[tuple[str, str], RoutePlan]
     foreign_key_placements: Mapping[str, tuple[ForeignKeyPlacement, ...]]
@@ -327,7 +326,7 @@ class CompilationPlans:
 
 @dataclass(frozen=True, slots=True)
 class CompilationResult:
-    """Résultat nommé d'une compilation backend réussie."""
+    """Named result of a successful backend compilation."""
 
     ir: CompilationIR
     generator: CompilationGenerator

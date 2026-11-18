@@ -1,8 +1,8 @@
-"""Charger la spec, et faire PROUVER le résultat par le compilateur.
+"""Load the spec, and have the compiler PROVE the result.
 
-La revalidation se fait SANS `base_dir` : l'existence de ce que l'outil
-écrit est vérifiée à part. Une garantie trop large n'est pas plus sûre,
-elle est fausse ailleurs (point 84)."""
+Revalidation runs WITHOUT `base_dir`: the existence of what the tool
+writes is checked separately. A guarantee that is too broad is not safer,
+it is wrong elsewhere (point 84)."""
 
 import contextlib
 import io
@@ -14,31 +14,31 @@ from .fondations import AssetsToolError
 
 # ------------------------------------------------- lecture de la spec --
 def _valider(texte, spec_path):
-    """Le vrai parseur et le vrai validateur, SANS base_dir. Volontairement.
+    """The real parser and the real validator, WITHOUT base_dir. On purpose.
 
-    C'est la portée exacte dont l'outil a besoin, et elle vient de la coupure
-    forme/existence de la couche 1 : les contrôles de forme sont purs, donc ils
-    s'appliquent ; la vérification d'EXISTENCE, non — et c'est ce qu'il faut.
+    It is the exact scope the tool needs, and it comes from layer 1's
+    form/existence split: the form checks are pure, so they apply; the
+    EXISTENCE check does not — and that is what is needed.
 
-    Deux raisons, toutes deux découvertes en éprouvant l'outil, pas en le
-    relisant. `monl assets list` ne pouvait pas rapporter un asset manquant :
-    charger la spec avec base_dir échouait sur ce manquant même, si bien que le
-    rapport refusait de tourner dans le seul cas où il servait. Et `add` était
-    inutilisable sur une spec qui déclare deux photos absentes — impossible
-    d'en poser une, puisque l'autre faisait échouer la revalidation.
+    Two reasons, both discovered by exercising the tool, not by rereading it.
+    `monl assets list` could not report a missing asset: loading the spec
+    with base_dir failed on that very missing asset, so the report refused to
+    run in the only case where it was useful. And `add` was unusable on a
+    spec declaring two missing photos — impossible to place one, since the
+    other made revalidation fail.
 
-    L'existence de ce que l'outil ÉCRIT est vérifiée séparément, avec le même
-    résolveur que le compilateur (`resoudre_asset`) : la garantie reste, elle
-    est simplement énoncée juste. Le validateur affiche son audit de sécurité —
-    déjà vu à la compilation : on l'étouffe."""
+    The existence of what the tool WRITES is checked separately, with the
+    same resolver as the compiler (`resoudre_asset`): the guarantee remains,
+    it is simply stated correctly. The validator prints its security audit —
+    already seen at compile time: it is muted."""
     with contextlib.redirect_stdout(io.StringIO()):
         raw = parse_monl_string(texte, file_path=spec_path)
         return MonlAST(raw).validate_and_audit()
 
 def _charger(spec_path):
-    """État de départ. Refuser tôt sur une spec déjà cassée n'est pas du zèle :
-    sans ce contrôle, l'échec de la revalidation d'après édition ferait accuser
-    l'outil d'un défaut qui existait avant lui."""
+    """Starting state. Refusing early on an already broken spec is not
+    excessive zeal: without this check, the failure of the post-edit
+    revalidation would blame the tool for a defect that existed before it."""
     with open(spec_path, encoding="utf-8") as fh:
         texte = fh.read()
     try:
@@ -50,12 +50,11 @@ def _charger(spec_path):
             f"the next failure could appear to come from the tool.") from None
 
 def _revalider(texte, spec_path):
-    """LE contrôle qui rend cet outil sûr : la spec obtenue est-elle valide ?
+    """THE check that makes this tool safe: is the resulting spec valid?
 
-    Reparsée par le vrai parseur, revalidée par le vrai validateur — tous les
-    refus du compilateur s'appliquent donc à ce que l'outil vient d'écrire.
-    C'est ce qui fait que la couche 2 ne peut pas produire ce que la couche 1
-    refuse."""
+    Reparsed by the real parser, revalidated by the real validator — all of
+    the compiler's refusals therefore apply to what the tool has just written.
+    That is what ensures layer 2 cannot produce what layer 1 refuses."""
     try:
         return _valider(texte, spec_path)
     except Exception as err:

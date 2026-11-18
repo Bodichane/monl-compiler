@@ -1,43 +1,43 @@
-"""Ce que tout le dialogue lit, et qui ne lit rien en retour.
+"""What the whole dialogue reads, and which reads nothing back.
 
-`adresse_de_lien` est la SOURCE UNIQUE de la complétion d'adresse côté
-Python (point 146). La console web en a nécessairement une copie
-JavaScript, et l'accord des deux est VÉRIFIÉ par un test : deux mises en
-oeuvre d'une même règle divergent toujours."""
+`adresse_de_lien` is the SINGLE SOURCE of address completion on the
+Python side (point 146). The web console necessarily has a JavaScript
+copy, and the agreement of the two is CHECKED by a test: two
+implementations of the same rule always diverge."""
 
 import re
 
 IDENT_RE = re.compile(r"^[A-Za-z][A-Za-z0-9]*$")
 
-# Indicatif téléphonique international : '+' puis 1 à 4 chiffres (+229 Bénin,
-# +33 France, +7 Russie). Vérifié ici plutôt que laissé au compilateur, pour
-# que la faute se voie pendant le dialogue et non trois écrans plus loin.
+# International calling code: '+' then 1 to 4 digits (+229 Benin, +33 France,
+# +7 Russia). Checked here rather than left to the compiler, so that the
+# mistake shows during the dialogue and not three screens later.
 PHONE_PREFIX_RE = re.compile(r"^\+\d{1,4}$")
 
-# Types proposés dans le menu — sous-ensemble sûr des types de la grammaire
-# (Date/UUID exclus du menu v1 : peu utiles sans widget de saisie dédié).
+# Types offered in the menu — a safe subset of the grammar's types (Date/UUID
+# excluded from the v1 menu: not very useful without a dedicated input widget).
 FIELD_TYPES = ["String", "Text", "Integer", "Float", "Money", "Boolean", "Email", "DateTime"]
 
-# Types qu'on sait seeder de façon déterministe (la grammaire 'seed' n'accepte
-# que STRING_LITERAL et SIGNED_NUMBER — pas de booléen ni de date).
+# Types that can be seeded deterministically (the 'seed' grammar accepts only
+# STRING_LITERAL and SIGNED_NUMBER — no boolean or date).
 SEEDABLE_TYPES = {"String", "Text", "Integer", "Float", "Money", "Email"}
 
 RELATION_TYPES = ["hasMany", "hasOne", "belongsTo"]
 
-# POINT 64 : séparateur de paragraphes dans un texte éditorial. La grammaire
-# n'accepte pas de retour à la ligne dans un STRING_LITERAL ; ce caractère
-# tient sa place dans la spec et n'existe QUE là — le contrat frontend le
-# retraduit en saut de paragraphe (frontend_contract.paragraphes). Choisi
-# parce qu'il ne se tape pas par accident dans de la prose française.
+# POINT 64: paragraph separator in an editorial text. The grammar does not
+# accept a line break in a STRING_LITERAL; this character takes its place in
+# the spec and exists ONLY there — the frontend contract translates it back
+# into a paragraph break (frontend_contract.paragraphes). Chosen because it is
+# not typed by accident in prose.
 PARAGRAPH_SEP = " ¶ "
 
-# AJOUT (point 53) : intention visuelle. Le brief transmis à l'IA UI se
-# résumait à la phrase de description — souvent trois mots — face à un contrat
-# qui décrit les routes au champ près. L'IA recevait donc toute la structure et
-# presque aucune intention, et rendait le dénominateur commun. Ces deux menus
-# captent ce qu'aucune spec ne peut déduire : le registre voulu et la place des
-# images. Menus FERMÉS (le dialogue reste déterministe et sans IA) ; chaque
-# entrée porte un libellé court pour l'écran et une phrase pour le brief.
+# ADDED (point 53): visual intent. The brief passed to the UI AI came down to
+# the description sentence — often three words — facing a contract that
+# describes the routes down to the field. The AI therefore received the whole
+# structure and almost no intent, and rendered the lowest common denominator.
+# These two menus capture what no spec can deduce: the desired register and the
+# place of images. CLOSED menus (the dialogue stays deterministic and AI-free);
+# each entry carries a short label for the screen and a sentence for the brief.
 DESIGN_REGISTERS = [
     ("Formal and institutional",
      "restrained, institutional register: readability and trust above all, "
@@ -66,29 +66,28 @@ DESIGN_IMAGERY = [
 ]
 
 class DialogueError(Exception):
-    """Réponse invalide répétée ou incohérence — le moteur ne devine jamais."""
+    """Repeated invalid answer or inconsistency — the engine never guesses."""
 
 def adresse_de_lien(saisie):
-    """Rend l'adresse telle qu'un navigateur saura l'ouvrir, ou None.
+    """Returns the address as a browser will be able to open it, or None.
 
-    SOURCE UNIQUE, partagée par le dialogue guidé et par la console web de
-    la plateforme : deux règles de complétion finiraient par diverger, et
-    c'est celle qui décide si un lien de pied de page mène quelque part.
+    SINGLE SOURCE, shared by the guided dialogue and by the platform's web
+    console: two completion rules would eventually diverge, and it is the
+    one that decides whether a footer link leads somewhere.
 
-    Personne ne tape « mailto: » ni « https:// » spontanément, et une adresse
-    sans schéma est lue comme un chemin RELATIF : le lien mène alors à une
-    page inexistante du site lui-même. Compléter n'est pas deviner tant qu'il
-    n'existe qu'UNE lecture — et l'appelant DIT ce qu'il a complété, ce qui
-    est toute la différence avec le fait de corriger d'office (point 105).
-    """
+    Nobody types "mailto:" or "https://" spontaneously, and an address without
+    a scheme is read as a RELATIVE path: the link then leads to a nonexistent
+    page on the site itself. Completing is not guessing as long as there is
+    only ONE reading — and the caller SAYS what it completed, which is the
+    whole difference from correcting automatically (point 105)."""
     saisie = saisie.strip()
     if not saisie:
         return None
     if saisie.lower().startswith(("https://", "http://", "mailto:", "tel:")):
         return saisie
-    # Le téléphone AVANT le refus des espaces : « +33 6 12 34 56 78 » est
-    # la façon dont tout le monde écrit un numéro, et c'est la seule
-    # valeur de cette liste qui en contienne légitimement.
+    # The phone BEFORE refusing spaces: "+33 6 12 34 56 78" is how everyone
+    # writes a number, and it is the only value in this list that legitimately
+    # contains them.
     compact = saisie.replace(" ", "")
     if re.fullmatch(r"\+?[0-9.\-]{6,20}", compact):
         return "tel:" + compact

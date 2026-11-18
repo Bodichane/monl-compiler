@@ -1,7 +1,7 @@
-"""Le contexte d'accès d'une route : qui peut, et sur quelles lignes.
+"""The access context of a route: who may, and on which rows.
 
-POINT 108 : tout le SQL de contrôle d'accès passe par `generator/sql.py`.
-Ne jamais reconstruire une requête de contrôle par f-string."""
+POINT 108: all access-control SQL goes through `generator/sql.py`.
+Never rebuild an access-control query with an f-string."""
 
 from string import Template
 
@@ -9,10 +9,10 @@ from . import sql
 
 
 class AccesRoutesMixin:
-    """Le contexte d'accès d'une route : qui peut, et sur quelles lignes."""
+    """The access context of a route: who may, and on which rows."""
 
     def _route_access_context(self, plan):
-        """Prépare les invariants de sécurité communs à chaque route."""
+        """Prepares the security invariants shared by every route."""
         base_target = plan.base_target
         target = plan.target
         tag = plan.tags[0]
@@ -46,7 +46,7 @@ class AccesRoutesMixin:
         }
 
     def _upload_access_context(self, action, entity):
-        """ACL de la ligne pour le dépôt ou la relecture d'un Upload."""
+        """Row ACL for uploading or reading back an Upload."""
         plan = self.compilation_plans.route_map[(action, entity)]
         context = self._route_access_context(plan)
         access = context["access"]

@@ -1,8 +1,8 @@
-"""Le parseur : du texte d'une spec à un arbre transformé.
+"""The parser: from the text of a spec to a transformed tree.
 
-La surface publique n'a pas bougé en devenant un paquet — `parse_monl_string`,
-`parse_monl_file` et `MonlSyntaxError` s'importent depuis `monl.parser`
-exactement comme avant."""
+The public surface did not move when it became a package —
+`parse_monl_string`, `parse_monl_file` and `MonlSyntaxError` are imported
+from `monl.parser` exactly as before."""
 
 from .erreurs import MonlSyntaxError
 from .grammaire import grammar

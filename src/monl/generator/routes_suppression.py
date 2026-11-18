@@ -1,13 +1,13 @@
-"""La route `Delete`, et les actions de workflow.
+"""The `Delete` route, and workflow actions.
 
-Le parent est lu AVANT le `DELETE` : après, la clé étrangère a disparu et
-plus rien ne dit quoi rendre ni à qui (points 82 et 92)."""
+The parent is read BEFORE the `DELETE`: afterwards the foreign key is gone
+and nothing says what to give back or to whom (points 82 and 92)."""
 
 from . import sql
 
 
 class SuppressionRoutesMixin:
-    """La route `Delete`, et les actions de workflow."""
+    """The `Delete` route, and workflow actions."""
 
     def _generate_delete_route_lines(self, plan, context, act_type):
         """Rend la famille de route ``Delete``."""
@@ -20,8 +20,8 @@ class SuppressionRoutesMixin:
         dependency_injection = context["dependency_injection"]
         owner_entity = access.owner_entity
         apply_ownership = owner_entity and not is_public
-        # AJOUT (roadmap, brique "accès à deux parties") — voir le
-        # commentaire équivalent sur la route Update.
+        # ADDED (roadmap, "two-party access" brick) — see the equivalent
+        # comment on the Update route.
         delete_parties = access.party_fields
         apply_delete_parties = bool(delete_parties) and not is_public
         delete_supers = access.supervisors
@@ -48,9 +48,9 @@ class SuppressionRoutesMixin:
         elif apply_ownership:
             check_actor, owner_select = self._owner_lookup_sql(base_target, owner_entity)
             delete_deps += ", current_user_id: int = Depends(get_current_user_id)" if delete_deps else "current_user_id: int = Depends(get_current_user_id)"
-            # Voir le commentaire équivalent dans le bloc "Update" ci-dessus :
-            # le contrôle de propriété ne s'applique qu'à l'acteur
-            # explicitement désigné comme propriétaire par 'ownedBy'.
+            # See the equivalent comment in the "Update" block above: the
+            # ownership check applies only to the actor explicitly designated
+            # as owner by 'ownedBy'.
             ownership_check_lines = [
                 f"    if current_actor == \"{check_actor}\":",
                 "        _owner_conn = _connect(); _owner_cur = _owner_conn.cursor()",
@@ -67,13 +67,12 @@ class SuppressionRoutesMixin:
         api_lines.append(security_check)
         api_lines.extend(ownership_check_lines)
         api_lines.append("    conn = _connect(); cursor = conn.cursor()")
-        # POINT 96 : le pendant de `requiresOwn` à la SUPPRESSION. La
-        # règle garde la création depuis le point 90 ; rien n'empêchait
-        # ensuite de supprimer sa fiche et de laisser la commande sans
-        # destinataire — vérifié sur `projets/SneakerLab` : 1 commande,
-        # 0 fiche. Le contrôle porte sur la DERNIÈRE fiche seulement :
-        # `requiresOwn` exige « au moins une », donc supprimer
-        # l'avant-dernière reste légitime.
+        # POINT 96: the counterpart of `requiresOwn` on DELETION. The rule has
+        # guarded creation since point 90; nothing then prevented deleting
+        # one's profile and leaving the order without a recipient — checked on
+        # `projets/SneakerLab`: 1 order, 0 profiles. The check applies to the
+        # LAST profile only: `requiresOwn` requires "at least one", so deleting
+        # the second to last stays legitimate.
         dependantes = self._profile_dependents(base_target)
         col_compte = self._profile_account_column(base_target)
         if dependantes and col_compte:
@@ -92,18 +91,16 @@ class SuppressionRoutesMixin:
                     "        if _dep:",
                     "            conn.close()",
                     "            raise HTTPException(status_code=409, detail=(",
-                    # Le nom de l'entité tel que la SPEC l'écrit :
-                    # c'est le vocabulaire que l'auteur du projet
-                    # reconnaît, et celui du contrat frontend.
+                    # The entity name as the SPEC writes it: the vocabulary the
+                    # project's author recognizes, and the frontend contract's.
                     f"                f'Deletion impossible: {{_dep}} "
                     f"{nom} record(s) depend on this profile. '",
                     "                'Without it, they would no longer be attached to "
                     "anyone.'))",
                 ]
-        # BRIQUE 18 (point 91) : supprimer efface la trace d'un
-        # encaissement. Le 409 que renvoyait la clé étrangère ne
-        # protégeait rien — il suffisait de retirer les lignes d'abord,
-        # et la commande réglée disparaissait de la base (vérifié).
+        # BRICK 18 (point 91): deleting erases the trace of a charge. The 409
+        # the foreign key returned protected nothing — removing the lines first
+        # was enough, and the paid order vanished from the database (checked).
         if self._payment_lock_field(base_target):
             api_lines += self._payment_lock_lines(
                 base_target.lower(), "id", base_target)
@@ -118,17 +115,16 @@ class SuppressionRoutesMixin:
             api_lines += self._payment_lock_lines(
                 verrou["table"], f"{lien}[0]", verrou["entity"],
                 indent="        ", var="_parent_regle")
-        # CORRECTIF (bêta 3) : les clés étrangères sont désormais
-        # réellement appliquées (PRAGMA foreign_keys), donc supprimer un
-        # enregistrement encore référencé lève une IntegrityError. On la
-        # traduit en 409 explicite plutôt qu'en 500 : c'est une erreur du
-        # client (ordre de suppression), pas une panne du serveur.
-        # AJOUT (brique 12, point 82) : le parent est lu AVANT la
-        # suppression — après, la ligne n'existe plus et sa clé étrangère
-        # avec elle, donc plus rien ne dit quel total recalculer. Retirer
-        # un article d'un panier sans faire redescendre le total est
-        # précisément le cas où la somme mentirait, et sur une entité
-        # 'payable' on encaisserait un article rendu.
+        # FIX (beta 3): foreign keys are now really enforced (PRAGMA
+        # foreign_keys), so deleting a record that is still referenced raises
+        # an IntegrityError. It is translated into an explicit 409 rather than
+        # a 500: it is a client error (deletion order), not a server failure.
+        #
+        # ADDED (brick 12, point 82): the parent is read BEFORE the deletion —
+        # afterwards the row no longer exists and its foreign key with it, so
+        # nothing says which total to recompute. Removing an item from a cart
+        # without bringing the total down is exactly where the sum would lie,
+        # and on a 'payable' entity we would charge for a returned item.
         recalculs_del = self._aggregation_recomputes(base_target)
         for recalcul in recalculs_del:
             var = f"_parent_{recalcul['fk_column']}"
@@ -137,31 +133,29 @@ class SuppressionRoutesMixin:
                 f'"{base_target.lower()}" WHERE id = ?\', (id,))',
                 f"    {var} = cursor.fetchone()",
             ]
-        # BRIQUE 15 (point 92) : la suppression DÉFAIT le décompte. Le
-        # troisième branchement, celui qu'on oublie — le point 82 l'avait
-        # nommé pour l'agrégation et l'avait traité ; le décompte, lui, ne
-        # s'armait qu'à la création (point 86) puis à la modification
-        # (point 91), jamais à la suppression. Mesuré sur SneakerLab :
-        # commander trois paires puis vider son panier laissait le stock à
-        # 9 sur 12. Le total du parent, lui, redescendait bien à zéro —
-        # une base qui se contredit elle-même, et un catalogue qui
-        # s'épuise sans qu'une seule paire soit vendue.
+        # BRICK 15 (point 92): deletion UNDOES the count. The third branch, the
+        # one people forget — point 82 had named it for aggregation and handled
+        # it; the count, however, was armed only on creation (point 86) and
+        # then on update (point 91), never on deletion. Measured on SneakerLab:
+        # ordering three pairs then emptying the cart left the stock at 9 out
+        # of 12. The parent's total did come back down to zero — a database
+        # contradicting itself, and a catalog running out without a single pair
+        # sold.
         #
-        # La restitution ne porte AUCUN garde-fou de plancher, et c'est
-        # voulu : elle rend un état qui a existé et qui était valide. Un
-        # `decrements` rendu ne fait que remonter, un `increments` repris
-        # ne redescend pas plus bas que la valeur d'avant la création.
-        # Refuser une suppression pour cause de plancher interdirait
-        # d'annuler une commande — exactement ce qu'on répare ici.
+        # The restoration carries NO floor safeguard, on purpose: it restores a
+        # state that existed and was valid. A returned `decrements` only goes
+        # up, a taken back `increments` does not go below the value before
+        # creation. Refusing a deletion because of a floor would forbid
+        # cancelling an order — exactly what is being fixed here.
         restitutions = []
         for indice, rule in enumerate(
                 self.reputation_rules_by_trigger.get(base_target, [])):
             fk_cible = rule.target_fk
             var = f"_rendu_{indice}"
             champ = rule.amount_field
-            # La quantité et la clé étrangère sont lues AVANT le DELETE :
-            # après, la ligne n'existe plus et rien ne dit quoi rendre ni
-            # à qui. Même raison qu'au point 82, deux lignes plus haut.
+            # The quantity and the foreign key are read BEFORE the DELETE:
+            # afterwards the row no longer exists and nothing says what to give
+            # back or to whom. Same reason as point 82, two lines above.
             colonnes = f'"{champ}", "{fk_cible}"' if champ else f'"{fk_cible}"'
             api_lines += [
                 f"    cursor.execute('SELECT {colonnes} FROM "
@@ -170,7 +164,7 @@ class SuppressionRoutesMixin:
             ]
             restitutions.append({
                 "var": var,
-                # Décompter, c'est retrancher : rendre, c'est ajouter.
+                # Counting down subtracts: giving back adds.
                 "op": "+" if rule.direction == "decrements" else "-",
                 "table": rule.target_entity.lower(),
                 "champ": rule.target_field,
@@ -230,12 +224,12 @@ class SuppressionRoutesMixin:
         api_lines.append(f"@app.post('/workflow/{tag.lower()}/{target.lower()}', tags=['{tag}'])")
         api_lines.append(f"def execute_{target.lower()}(payload: {target}InputSchema, {dependency_injection}):")
         api_lines.append(security_check)
-        # CORRECTIF (point 85) : `.dict()` est DÉPRÉCIÉ en Pydantic v2 et
-        # sera retiré en v3 — vérifié en le déclenchant. Tout backend
-        # généré portant un bloc 'custom' aurait cessé de fonctionner à
-        # la première installation sur Pydantic 3, sans que rien dans le
-        # dépôt ne le signale (aucun exemple, aucun test n'exerçait ce
-        # chemin : c'est le trou de couverture qui l'a fait trouver).
+        # FIX (point 85): `.dict()` is DEPRECATED in Pydantic v2 and will be
+        # removed in v3 — checked by triggering it. Every generated backend
+        # with a 'custom' block would have stopped working on its first install
+        # on Pydantic 3, without anything in the repository saying so (no
+        # example, no test exercised this path: the coverage gap is what found
+        # it).
         api_lines.append(f"    result = sandbox_ai.{target}(payload.model_dump())")
         api_lines.append("    return {'status': 'executed', 'sandbox_result': result}")
         api_lines.append("")

@@ -11,13 +11,12 @@ class StoreProjectsMixin:
     def create_project(
         self, user_id, project_id, slug, *, model_routes=None, generate_images=False
     ):
-        """Ajoute les métadonnées constructeur d'un projet déjà identitaire.
+        """Adds the builder metadata of a project that already has an identity.
 
-        Le projet lui-même doit d'abord être créé par
-        ``IdentityStore.add_project(user_id, project_id, name)``. Les clés
-        étrangères rendent cet ordre vérifiable et laissent l'identité
-        posséder la suppression en cascade.
-        """
+        The project itself must first be created by
+        ``IdentityStore.add_project(user_id, project_id, name)``. The foreign
+        keys make this order verifiable and let identity own the cascading
+        deletion."""
         if not isinstance(user_id, str) or not user_id or "\x00" in user_id:
             raise ValueError("invalid user identifier")
         if not isinstance(project_id, str) or not project_id or "\x00" in project_id:
@@ -28,10 +27,10 @@ class StoreProjectsMixin:
         if not isinstance(generate_images, bool):
             raise ValueError("generate_images must be a boolean")
         routes = self._normalize_model_routes(model_routes)
-        # Le slug est choisi LIBRE, sous le verrou, et l'écriture suit
-        # immédiatement : une vérification faite hors du verrou laisserait deux
-        # appels simultanés lire « libre » tous les deux. L'index global de
-        # `store_core` refuse la collision même si ce chemin est contourné.
+        # The slug is chosen FREE, under the lock, and the write follows
+        # immediately: a check made outside the lock would let two simultaneous
+        # calls both read "free". The global index of `store_core` refuses the
+        # collision even if this path is bypassed.
         with self._lock, self._connect() as db:
             slug = self._slug_libre(db, slug)
             db.execute(
@@ -42,31 +41,30 @@ class StoreProjectsMixin:
             )
             return slug
 
-    #: Au-delà, on refuse plutôt que de boucler : un nom qui a déjà cent
-    #: homonymes est le signe d'autre chose qu'un usage normal.
+    #: Beyond that, refuse rather than loop: a name that already has a hundred
+    #: namesakes is the sign of something other than normal use.
     HOMONYMES_MAX = 100
 
     @staticmethod
     def _slug_libre(db, base):
-        """La première adresse libre : `nom`, puis `nom-2`, `nom-3`…
+        """The first free address: `name`, then `name-2`, `name-3`…
 
-        Le PREMIER projet garde l'adresse que son nom annonce — c'est celui
-        qui était déjà en ligne, et la lui retirer casserait un site qui
-        marche. Ce sont les suivants qui portent le suffixe.
+        The FIRST project keeps the address its name announces — it is the one
+        that was already online, and taking it away would break a working site.
+        It is the following ones that carry the suffix.
 
-        L'adresse est un sous-domaine, donc l'unicité est GLOBALE et non par
-        compte : sans cela, un inconnu qui nomme son projet comme le vôtre
-        rendait les deux injoignables (`project_for_host` refuse de servir
-        quand deux projets répondent au même hôte, et il a raison de refuser).
-        """
-        # `.lower()` n'est pas redondant avec le `COLLATE NOCASE` : celui-ci
-        # gouverne la SÉLECTION, le repli ci-dessous gouverne la COMPARAISON en
-        # Python. Sans lui, une ligne ANTÉRIEURE écrite « myOwn » — du temps où
-        # le slug gardait sa casse — était bien remontée par la requête, puis
-        # jugée différente de « myown » : deux projets pour un seul hôte, donc
-        # `project_for_host` refusant de servir les deux. C'est le défaut (b)
-        # survivant sur les bases déjà en service, trouvé par un témoin et non
-        # par relecture. Replier d'un seul côté d'une comparaison ne replie rien.
+        The address is a subdomain, so uniqueness is GLOBAL and not per account:
+        otherwise, a stranger who names their project like yours made both
+        unreachable (`project_for_host` refuses to serve when two projects answer
+        the same host, and it is right to refuse)."""
+        # `.lower()` is not redundant with the `COLLATE NOCASE`: the latter
+        # governs the SELECTION, the folding below governs the COMPARISON in
+        # Python. Without it, an EARLIER row written "myOwn" — from the time
+        # when the slug kept its case — was indeed returned by the query, then
+        # judged different from "myown": two projects for a single host, hence
+        # `project_for_host` refusing to serve both. It is defect (b) surviving
+        # on databases already in service, found by a witness and not by
+        # rereading. Folding only one side of a comparison folds nothing.
         prise = {ligne["slug"].lower() for ligne in db.execute(
             "SELECT slug FROM builder_projects WHERE slug = ? COLLATE NOCASE "
             "OR slug LIKE ? COLLATE NOCASE", (base, f"{base}-%"))}
@@ -81,12 +79,11 @@ class StoreProjectsMixin:
             f"({StoreProjectsMixin.HOMONYMES_MAX} at most)")
 
     def discard_project(self, user_id, project_id):
-        """Supprime un projet tout juste créé si son initialisation échoue.
+        """Deletes a just-created project if its initialization fails.
 
-        Cette primitive n'est pas une API utilisateur : elle sert de
-        compensation à l'écriture de ``spec.ml`` dans la même requête HTTP.
-        Un projet possédant déjà une construction ne peut pas être écarté.
-        """
+        This primitive is not a user API: it serves as compensation for writing
+        ``spec.ml`` in the same HTTP request. A project that already has a build
+        cannot be discarded."""
         if not isinstance(user_id, str) or not isinstance(project_id, str):
             raise ValueError("invalid project identifier")
         with self._lock, self._connect() as db:
@@ -97,11 +94,11 @@ class StoreProjectsMixin:
             )
             if row is None:
                 return False
-            # POINT 162 : plus rien n'écrit dans 'builds'. La table et ce
-            # garde-fou survivent pour les bases ANTÉRIEURES, qui portent de
-            # vraies lignes : une migration additive rattrape une colonne,
-            # jamais un contenu (points 32 et 89). Sur une base neuve, la
-            # table reste vide et cette lecture ne refuse jamais rien.
+            # POINT 162: nothing writes to 'builds' anymore. The table and this
+            # safeguard survive for EARLIER databases, which carry real rows:
+            # an additive migration catches up a column, never content (points
+            # 32 and 89). On a new database, the table stays empty and this
+            # read never refuses anything.
             build = self._row(
                 db,
                 "SELECT id FROM builds WHERE project_id = ? LIMIT 1", (project_id,)
@@ -143,10 +140,10 @@ class StoreProjectsMixin:
             )
 
     def list_projects_by_slug(self, slug):
-        # COLLATE NOCASE, et pas seulement une comparaison sur la forme
-        # canonique : les projets créés avant la normalisation portent encore
-        # leur majuscule en base, et ce sont des sites déjà construits et déjà
-        # payés. Une comparaison stricte les laisserait injoignables.
+        # COLLATE NOCASE, and not only a comparison on the canonical form:
+        # projects created before normalization still carry their capital
+        # letter in the database, and they are sites already built and already
+        # paid for. A strict comparison would leave them unreachable.
         with self._lock, self._connect() as db:
             return self._project_rows(
                 db,

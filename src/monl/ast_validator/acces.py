@@ -1,34 +1,33 @@
-"""Le contrôle d'accès : QUI a le droit, et sur QUELLES lignes.
+"""Access control: WHO has the right, and on WHICH rows.
 
-POINT 109 : le modèle de contrôle d'accès vit ici et nulle part ailleurs —
-`ownedBy` (direct et transitif), `accessibleBy`, le superviseur, et la
-visibilité anonyme. C'est le versant DÉCISION de la sécurité ; le versant
-ÉMISSION est `generator/sql.py` (point 108)."""
+POINT 109: the access-control model lives here and nowhere else —
+`ownedBy` (direct and transitive), `accessibleBy`, the supervisor, and
+anonymous visibility. It is the DECISION side of security; the EMISSION
+side is `generator/sql.py` (point 108)."""
 
 from .socle import ASTValidationError
 
 
 class AccesMixin:
-    """Le contrôle d'accès : QUI a le droit, et sur QUELLES lignes."""
+    """Access control: WHO has the right, and on WHICH rows."""
 
     def _valider_controle_dacces(self):
-        """Le noyau du contrôle d'accès — frontière de sécurité (point 109).
+        """The core of access control — a security boundary (point 109).
 
-        Rassemble, dans une passe dédiée du pipeline, TOUT ce qui décide QUI
-        peut toucher QUOI : les règles 'ownedBy' (propriété
-        directe), la résolution de la chaîne transitive jusqu'à un acteur
-        (briques 11 et 24), les règles 'accessibleBy' (accès à plusieurs
-        parties) et le rôle superviseur (brique 23). Peuple self.ownership_rules,
-        self.transitive_ownership et self.access_supervisors, lus ensuite par le
-        générateur via _transitive_chain / _owner_lookup_sql.
+        Gathers, in a dedicated pipeline pass, EVERYTHING that decides WHO may
+        touch WHAT: the 'ownedBy' rules (direct ownership), the resolution of the
+        transitive chain up to an actor (bricks 11 and 24), the 'accessibleBy'
+        rules (multi-party access) and the supervisor role (brick 23). Fills
+        self.ownership_rules, self.transitive_ownership and
+        self.access_supervisors, then read by the generator through
+        _transitive_chain / _owner_lookup_sql.
 
-        N'utilise que self.* et constitue une frontière autonome du pipeline.
-        """
-        # AJOUT (post-v6, roadmap) : les règles 'ownedBy' restreignent une action
-        # au seul enregistrement appartenant à l'acteur courant. Elles nécessitent
-        # qu'une relation 'hasMany' existe entre l'entité "propriétaire" déclarée
-        # et l'entité cible, pour fournir la colonne de clé étrangère qui stocke
-        # le propriétaire (générée automatiquement en <source>_id).
+        Uses only self.* and forms a self-contained pipeline boundary."""
+        # ADDED (post-v6, roadmap): 'ownedBy' rules restrict an action to the
+        # sole record belonging to the current actor. They require a 'hasMany'
+        # relation between the declared "owner" entity and the target entity,
+        # to provide the foreign key column that stores the owner
+        # (automatically generated as <source>_id).
         self.ownership_rules = {}
         for rule in self.rules:
             if rule["type"] == "ownedBy":
@@ -43,24 +42,24 @@ class AccesMixin:
                     raise ASTValidationError(f"Structure: the 'ownedBy' rule targets entity '{entity}', which does not exist.")
                 if act_type not in ("Create", "Read", "Update", "Delete"):
                     raise ASTValidationError(f"Structure: invalid action '{act_type}' in the 'ownedBy' rule on '{entity}'.")
-                # CORRECTIF (bêta 3) : 'Create' était accepté alors que le
-                # générateur n'en fait rien — une règle de sécurité acceptée
-                # puis silencieusement ignorée est pire que son absence, car
-                # l'auteur de la spec croit la protection en place. À la
-                # création, le propriétaire est l'appelant par construction :
-                # la règle n'a rien à restreindre.
+                # FIX (beta 3): 'Create' was accepted while the generator did
+                # nothing with it — a security rule accepted then silently
+                # ignored is worse than its absence, because the spec's author
+                # believes the protection is in place. At creation, the owner
+                # is the caller by construction: the rule has nothing to
+                # restrict.
                 if act_type == "Create":
                     raise ASTValidationError(
                         f"Structure: 'ownedBy' is not meaningful on '{entity}.Create' — "
                         "on creation, the owner is the caller by definition. "
                         "Use 'ownedBy' on Read, Update, or Delete.")
 
-                # CORRECTIF (roadmap) : la vérification de la relation nécessaire
-                # est désormais généralisée aux 3 types (hasMany, hasOne,
-                # belongsTo), cohérente avec _compute_fk_placements() dans
-                # generator.py — avant, seul 'hasMany' était reconnu ici, alors
-                # que 'belongsTo'/'hasOne' fournissent aussi une colonne de
-                # propriété valide selon leur propre convention de placement.
+                # FIX (roadmap): checking the required relation is now
+                # generalized to the 3 types (hasMany, hasOne, belongsTo),
+                # consistent with _compute_fk_placements() in generator.py —
+                # before, only 'hasMany' was recognized here, whereas
+                # 'belongsTo'/'hasOne' also provide a valid ownership column
+                # according to their own placement convention.
                 has_matching_relation = any(
                     (rel["type"] in ("hasMany", "hasOne") and rel["source"] == owner_entity and rel["target"] == entity)
                     or (rel["type"] == "belongsTo" and rel["target"] == owner_entity and rel["source"] == entity)
@@ -73,32 +72,30 @@ class AccesMixin:
                         f"'{owner_entity} hasOne {entity}', or '{entity} belongsTo {owner_entity}') is declared."
                     )
 
-                # Le propriétaire nommé est soit un ACTEUR (propriété directe,
-                # brique historique), soit une ENTITÉ (propriété TRANSITIVE,
-                # brique 11 / point 81) -- ce second cas est résolu après cette
-                # boucle, qui a besoin de connaître TOUTES les règles 'ownedBy'
-                # pour remonter la chaîne jusqu'à un compte.
+                # The named owner is either an ACTOR (direct ownership, the
+                # historical brick) or an ENTITY (TRANSITIVE ownership, brick
+                # 11 / point 81) -- this second case is resolved after this
+                # loop, which needs to know ALL the 'ownedBy' rules to climb
+                # the chain up to an account.
                 self.ownership_rules[(entity, act_type)] = owner_entity
 
-        # AJOUT (roadmap, écosystème de capacités -- brique 11, point 81) :
-        # propriété TRANSITIVE. « Cette ligne de commande appartient à qui
-        # possède sa commande » : le propriétaire nommé est une ENTITÉ, pas un
-        # acteur, et la chaîne remonte jusqu'à un compte par la règle 'ownedBy'
-        # de cet intermédiaire.
+        # ADDED (roadmap, capability ecosystem -- brick 11, point 81):
+        # TRANSITIVE ownership. "This order line belongs to whoever owns its
+        # order": the named owner is an ENTITY, not an actor, and the chain
+        # climbs to an account through that intermediate's 'ownedBy' rule.
         #
-        # Pourquoi cette résolution vit APRÈS la boucle : elle a besoin des
-        # règles 'ownedBy' de l'intermédiaire, qui peuvent être déclarées plus
-        # bas dans la spec que celle qui s'y réfère. Même motif que le
-        # recoupement du point 79.
+        # Why this resolution lives AFTER the loop: it needs the intermediate's
+        # 'ownedBy' rules, which may be declared further down in the spec than
+        # the one referring to it. Same reason as the point 79 cross-check.
         #
-        # Ce que le point 80 avait trouvé, et qui reste refusé ici : nommer une
-        # entité qui ne remonte à AUCUN compte compilait en silence et
-        # produisait du code incohérent — clé étrangère annoncée vers la table
-        # des comptes, identifiant de l'appelant écrit à la place du
-        # rattachement demandé, filtre de lecture comparant un id
-        # d'enregistrement à un id de compte. Vérifié à l'exécution : une ligne
-        # de commande se rattachait au compte de l'acheteur, jamais à la
-        # commande nommée. La chaîne doit donc aboutir, sinon refus.
+        # What point 80 had found, and which stays refused here: naming an
+        # entity that climbs to NO account compiled silently and produced
+        # inconsistent code — a foreign key announced toward the accounts
+        # table, the caller's identifier written instead of the requested
+        # attachment, a read filter comparing a record id with an account id.
+        # Checked at runtime: an order line attached itself to the buyer's
+        # account, never to the named order. The chain must therefore lead
+        # somewhere, otherwise refusal.
         self.transitive_ownership = {}
         proprietaires_par_entite = {}
         for (ent, _act), owner in self.ownership_rules.items():
@@ -108,12 +105,11 @@ class AccesMixin:
             if owner_entity in self.actors:
                 continue
 
-            # AJOUT (brique 24, point 107) : la chaîne remontait jadis UN seul
-            # intermédiaire ('{entity} -> via -> acteur'). Elle remonte
-            # désormais toute la profondeur, maillon par maillon, jusqu'à un
-            # ACTEUR. Chaque maillon doit être possédé par UN SEUL propriétaire
-            # (sinon ambiguïté : quel chemin vérifier ?) et la marche ne doit
-            # ni boucler ni aboutir dans le vide.
+            # ADDED (brick 24, point 107): the chain used to climb ONE
+            # intermediate only ('{entity} -> via -> actor'). It now climbs the
+            # full depth, link by link, up to an ACTOR. Each link must be owned
+            # by ONE SINGLE owner (otherwise ambiguity: which path to check?)
+            # and the walk must neither loop nor end in a void.
             maillon = owner_entity
             vus = set()
             chaine = []
@@ -145,10 +141,10 @@ class AccesMixin:
                     )
                 maillon = next(iter(parents))
             acteur = maillon
-            # Mélanger propriété directe et transitive sur la MÊME entité
-            # rendrait sa clé étrangère à la fois peuplée depuis le jeton (pour
-            # l'une des règles) et fournie par le client (pour l'autre) : deux
-            # traitements contradictoires sur une seule colonne.
+            # Mixing direct and transitive ownership on the SAME entity would
+            # make its foreign key both filled from the token (for one rule)
+            # and supplied by the client (for the other): two contradictory
+            # treatments on a single column.
             autres = proprietaires_par_entite.get(entity, set()) - {owner_entity}
             if autres:
                 raise ASTValidationError(
@@ -159,14 +155,13 @@ class AccesMixin:
                 )
             self.transitive_ownership[entity] = {"chain": chaine, "actor": acteur}
 
-        # AJOUT (roadmap, écosystème de capacités -- brique "accès à deux
-        # parties") : les règles 'accessibleBy' restreignent une action aux
-        # seuls enregistrements dont l'une des colonnes listées contient
-        # l'identifiant de l'appelant. Cas d'usage canonique : messagerie
-        # privée (expéditeur via la colonne de relation auto-peuplée,
-        # destinataire via un champ Integer déclaré). Chaque colonne doit
-        # être soit un champ Integer déclaré de l'entité, soit la colonne de
-        # clé étrangère dérivée d'une relation entrante (ex. 'user_id').
+        # ADDED (roadmap, capability ecosystem -- "two-party access" brick):
+        # 'accessibleBy' rules restrict an action to the records where one of
+        # the listed columns contains the caller's identifier. Canonical use
+        # case: private messaging (sender through the auto-filled relation
+        # column, recipient through a declared Integer field). Each column must
+        # be either a declared Integer field of the entity, or the foreign key
+        # column derived from an incoming relation (e.g. 'user_id').
         self.access_party_rules = {}
         for rule in self.rules:
             if rule["type"] != "accessibleBy":
@@ -191,9 +186,9 @@ class AccesMixin:
                     f"distinct columns — with only one party, use 'ownedBy'."
                 )
 
-            # Colonnes de clé étrangère qu'une relation entrante fournit à
-            # cette entité (même convention que _compute_fk_placements dans
-            # generator.py : '<source>_id').
+            # Foreign key columns an incoming relation provides to this entity
+            # (same convention as _compute_fk_placements in generator.py:
+            # '<source>_id').
             relation_fk_columns = set()
             for rel in self.relations:
                 if rel["type"] in ("hasMany", "hasOne") and rel["target"] == entity:
@@ -225,29 +220,27 @@ class AccesMixin:
 
             self.access_party_rules[(entity, act_type)] = list(columns)
 
-            # AJOUT (brique 23, point 106) : un rôle SUPERVISEUR peut
-            # transpercer ce contrôle par colonnes. Syntaxe : une règle
-            # 'sharedBy' portant la MÊME référence — 'rule Message.Delete
-            # sharedBy Moderator' posé à côté de 'rule Message.Delete
-            # accessibleBy member_id, recipient_id'. Le rôle ainsi nommé
-            # voit/supprime/modifie tous les enregistrements ; les parties,
-            # elles, restent confinées aux leurs. C'est pour 'accessibleBy' le
-            # pendant exact du superviseur déjà acquis pour 'ownedBy' au
-            # point 88 ('rule X.Update sharedBy Proprietaire, Patron'). Les
-            # rôles nommés doivent être des acteurs déclarés.
+            # ADDED (brick 23, point 106): a SUPERVISOR role can pierce this
+            # column check. Syntax: a 'sharedBy' rule carrying the SAME
+            # reference — 'rule Message.Delete sharedBy Moderator' placed next
+            # to 'rule Message.Delete accessibleBy member_id, recipient_id'.
+            # The role so named sees/deletes/ updates every record; the parties
+            # stay confined to their own. It is, for 'accessibleBy', the exact
+            # counterpart of the supervisor already acquired for 'ownedBy' at
+            # point 88 ('rule X.Update sharedBy Proprietaire, Patron'). The
+            # named roles must be declared actors.
             superviseurs = self._superviseurs_declares(entity, act_type)
             if superviseurs:
                 self.access_supervisors[(entity, act_type)] = superviseurs
 
     def _superviseurs_declares(self, entity, act_type):
-        """Les rôles nommés par un 'sharedBy' portant la référence exacte.
+        """The roles named by a 'sharedBy' carrying the exact reference.
 
-        Source UNIQUE du superviseur, partagée par 'accessibleBy' (brique 23,
-        point 106) et par 'publicWhen' (point 116). Deux résolutions
-        parallèles finiraient par diverger sur la validation des rôles — et
-        c'est justement cette validation qui empêche qu'une faute de frappe
-        désactive silencieusement la supervision (même leçon qu'au point 112).
-        """
+        SINGLE source of the supervisor, shared by 'accessibleBy' (brick 23, point
+        106) and by 'publicWhen' (point 116). Two parallel resolutions would
+        eventually diverge on role validation — and it is precisely that
+        validation that prevents a typo from silently disabling supervision (same
+        lesson as point 112)."""
         ref = f"{entity}.{act_type}"
         superviseurs = []
         for r in self.rules:
@@ -263,13 +256,12 @@ class AccesMixin:
         return superviseurs
 
     def _valider_regle_public(self):
-        """La règle 'public' — une action qui n'exige plus d'authentification
-        (point 111). N'utilise que self.rules, self.entities,
-        self.public_actions."""
-        # AJOUT (roadmap, cas d'usage portfolio) : validation des règles
-        # 'public' — une action ainsi marquée n'exige plus d'authentification
-        # sur la route générée (ex. lecture d'un portfolio sans compte,
-        # envoi d'un message de contact sans compte).
+        """The 'public' rule — an action that no longer requires authentication
+        (point 111). Uses only self.rules, self.entities, self.public_actions."""
+        # ADDED (roadmap, portfolio use case): validation of 'public' rules —
+        # an action so marked no longer requires authentication on the
+        # generated route (e.g. reading a portfolio without an account, sending
+        # a contact message without an account).
         for rule in self.rules:
             if rule["type"] == "public":
                 if "." not in rule["reference"]:
@@ -321,12 +313,11 @@ class AccesMixin:
                 self.public_conditions[(entity, act_type)] = {
                     "field": field, "value": rule.get("value", "")
                 }
-                # POINT 116 : un 'sharedBy' sur la MÊME référence nomme les
-                # rôles qui transpercent la condition — même mot-clé et même
-                # sens que le superviseur d'accessibleBy (brique 23). Sans
-                # lui, masquer un contenu le retirait AUSSI au modérateur qui
-                # venait de le masquer : il ne pouvait plus ni le relire ni
-                # revenir en arrière.
+                # POINT 116: a 'sharedBy' on the SAME reference names the roles
+                # that pierce the condition — same keyword and same meaning as
+                # the accessibleBy supervisor (brick 23). Without it, hiding
+                # content ALSO took it away from the moderator who had just
+                # hidden it: they could neither reread it nor undo the action.
                 superviseurs = self._superviseurs_declares(entity, act_type)
                 if superviseurs:
                     self.access_supervisors[(entity, act_type)] = superviseurs

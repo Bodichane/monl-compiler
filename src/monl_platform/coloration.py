@@ -1,20 +1,20 @@
-"""Coloration syntaxique d'une spécification monl, côté SERVEUR.
+"""Syntax highlighting of a monl specification, on the SERVER side.
 
-Il n'y avait rien à colorier sur la page d'accueil, et ailleurs les `<span>`
-étaient écrits À LA MAIN dans les chaînes — donc deux classes en tout, `.kw` et
-`.cm`, et le même or pour tout mot-clé de toute spec, sur toutes les pages.
-C'est ce qui faisait revenir la couleur d'accent partout.
+There was nothing to highlight on the home page, and elsewhere the
+`<span>`s were written BY HAND in the strings — hence two classes in all,
+`.kw` and `.cm`, and the same gold for every keyword of every spec, on
+every page. That is what brought the accent color back everywhere.
 
-**Aucun mot-clé n'est écrit ici.** Les trois tables sont DÉRIVÉES des terminaux
-de la vraie grammaire (`monl.parser.grammaire.grammar`) : une brique qui ajoute
-un mot-clé le voit coloré sans qu'on y pense, et un mot qui disparaît de la
-grammaire cesse d'être coloré. Une liste recopiée aurait divergé au premier
-point de journal — c'est le reproche du point 146, appliqué à la coloration.
+**No keyword is written here.** The three tables are DERIVED from the
+terminals of the real grammar (`monl.parser.grammaire.grammar`): a brick
+that adds a keyword sees it highlighted without anyone thinking of it, and
+a word that leaves the grammar stops being highlighted. A copied list
+would have diverged at the first journal point — it is the reproach of
+point 146, applied to highlighting.
 
-Le rendu est fait au serveur, sans une ligne de JavaScript : une page qui
-n'exécute rien montre déjà le code coloré, et la plateforme n'ajoute aucune
-dépendance de coloration.
-"""
+Rendering is done on the server, without a line of JavaScript: a page
+that runs nothing already shows the highlighted code, and the platform
+adds no highlighting dependency."""
 
 from __future__ import annotations
 
@@ -25,12 +25,11 @@ from monl.parser.grammaire import grammar
 
 
 def _terminal(nom: str) -> frozenset:
-    """Les alternatives littérales d'un terminal de la grammaire.
+    """The literal alternatives of a grammar terminal.
 
-    Échoue plutôt que de rendre un ensemble vide : un terminal renommé
-    laisserait sinon toute une famille de mots sans couleur, en silence — et
-    une coloration qui manque ne ressemble pas à une panne.
-    """
+    Fails rather than returning an empty set: a renamed terminal would
+    otherwise leave a whole family of words without color, silently — and
+    missing highlighting does not look like a failure."""
     trouve = re.search(rf"^\s*{nom}:\s*(.+)$", grammar, re.M)
     if not trouve:
         raise RuntimeError(f"terminal {nom} not found in the grammar")
@@ -41,13 +40,13 @@ def _terminal(nom: str) -> frozenset:
 
 
 TYPES = _terminal("TYPE")
-ACTIONS = _terminal("ACTION_TYPE") | {"Execute"}   # Execute vit hors du terminal
+ACTIONS = _terminal("ACTION_TYPE") | {"Execute"}   # Execute lives outside the terminal
 VALIDATIONS = _terminal("VALIDATION_TYPE")
 RELATIONS = _terminal("RELATION_TYPE")
 
-# Tout le reste des littéraux de la grammaire est un mot-clé. Prendre le
-# complément plutôt qu'une liste garantit qu'aucun mot ne passe entre les
-# mailles : un mot-clé neuf est coloré le jour où il entre dans la grammaire.
+# All the rest of the grammar's literals are keywords. Taking the complement
+# rather than a list guarantees no word slips through: a new keyword is
+# highlighted the day it enters the grammar.
 _LITTERAUX = frozenset(re.findall(r'"([a-zA-Z][a-zA-Z_]{1,24})"', grammar))
 MOTS_CLES = _LITTERAUX - TYPES - ACTIONS
 
@@ -73,21 +72,21 @@ def _classe_du_mot(mot: str) -> str | None:
         return "s-act"
     if mot in VALIDATIONS or mot in RELATIONS or mot in MOTS_CLES:
         return "s-kw"
-    # Un identifiant capitalisé est un nom DÉCLARÉ (entité, acteur, workflow).
-    # Le reste — noms de champs, valeurs libres — garde l'encre du bloc : tout
-    # colorier ne distingue plus rien.
+    # A capitalized identifier is a DECLARED name (entity, actor, workflow).
+    # The rest — field names, free values — keeps the block's ink: highlighting
+    # everything no longer distinguishes anything.
     if mot[:1].isupper():
         return "s-nom"
     return None
 
 
 def coloriser(source: str) -> str:
-    """Rend une spécification monl en HTML coloré, échappée.
+    """Renders a monl specification as highlighted, escaped HTML.
 
-    L'échappement se fait ICI et pas avant : le texte est parcouru brut, et
-    chaque morceau est échappé au moment d'être écrit. Échapper d'abord ferait
-    voir `&quot;` au motif de chaîne, qui ne reconnaîtrait plus rien.
-    """
+    Escaping happens HERE and not before: the text is walked raw, and each
+    piece is escaped at the moment it is written. Escaping first would make
+    the string pattern see `&quot;`, and it would no longer recognize
+    anything."""
     morceaux, position = [], 0
     for trouve in _MOTIF.finditer(source):
         morceaux.append(html.escape(source[position:trouve.start()]))
@@ -102,22 +101,21 @@ def coloriser(source: str) -> str:
 
 
 def en_lignes(source: str) -> str:
-    """Même coloration, rendue avec `<br>` plutôt que dans un `<pre>`.
+    """The same highlighting, rendered with `<br>` rather than in a `<pre>`.
 
-    Le terminal du héros n'est pas un bloc préformaté : il portait sa PROPRE
-    coloration, en `<b>` doré, donc un troisième endroit où l'or marquait tout
-    mot-clé. Une fonction de plus vaut mieux qu'une convention de plus.
-    """
+    The hero's terminal is not a preformatted block: it carried its OWN
+    highlighting, in gold `<b>`, hence a third place where gold marked every
+    keyword. One more function is better than one more convention."""
     lignes = []
     for ligne in coloriser(source).split("\n"):
-        # Toute la CREUSE de tête, quelle qu'elle soit : hors d'un `<pre>` les
-        # espaces consécutives se réduisent à une seule, et l'indentation de la
-        # spec disparaîtrait sans bruit.
+        # All the leading WHITESPACE, whatever it is: outside a `<pre>`
+        # consecutive spaces collapse into one, and the spec's indentation
+        # would disappear without a sound.
         creux = len(ligne) - len(ligne.lstrip(" "))
         lignes.append("&nbsp;" * creux + ligne[creux:])
     return "<br>".join(lignes)
 
 
 def bloc(source: str, classes: str = "codeblock") -> str:
-    """Un `<pre>` complet, prêt à poser dans une page."""
+    """A complete `<pre>`, ready to place in a page."""
     return f'<pre class="{classes}"><code>{coloriser(source)}</code></pre>'

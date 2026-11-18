@@ -1,16 +1,16 @@
-"""WAL, verrou passager, préparation de la base, `init_db`.
+"""WAL, transient lock, database preparation, `init_db`.
 
-Le socle ne sème que dans une table VIDE : c'est pourquoi un rattachement
-de `seed` se résout au DÉMARRAGE et non à la compilation (point 100)."""
+The foundation seeds only into an EMPTY table: that is why a `seed`
+attachment is resolved at STARTUP and not at compile time (point 100)."""
 
 from string import Template
 
 
 class PreparationRuntimeMixin:
-    """WAL, verrou passager, préparation de la base, `init_db`."""
+    """WAL, transient lock, database preparation, `init_db`."""
 
     def _lignes_de_base(self, totp_migration_lines):
-        """Le socle : WAL, verrou passager, préparation, application, init_db."""
+        """The foundation: WAL, transient lock, preparation, application, init_db."""
         return [
             *Template(r'''def _activer_wal(connection):
     """Switches to WAL without ever failing the startup.

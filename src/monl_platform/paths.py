@@ -1,11 +1,11 @@
-"""Chemins de projets, confinés à un espace de travail de plateforme."""
+"""Project paths, confined to a platform workspace."""
 
 import os
 from pathlib import Path
 
 
 class ProjectPathError(ValueError):
-    """Un chemin fourni pour un projet ne respecte pas la frontière."""
+    """A path supplied for a project does not respect the boundary."""
 
 
 def _safe_component(value, label):
@@ -18,13 +18,12 @@ def _safe_component(value, label):
 
 
 def project_directory(workspace_root, account_id, project_id, *, create=True):
-    """Retourne le dossier privé d'un projet et vérifie ses symlinks.
+    """Returns a project's private folder and checks its symlinks.
 
-    Les identifiants opaques texte issus de l'identité sont les seuls
-    composants du chemin. Le slug reste une donnée de catalogue, jamais un
-    chemin fourni par l'utilisateur. Un lien symbolique existant est refusé :
-    sinon un dossier du compte A pourrait pointer vers les fichiers du compte B.
-    """
+    The opaque text identifiers coming from identity are the only components
+    of the path. The slug stays catalog data, never a user-supplied path. An
+    existing symbolic link is refused: otherwise a folder of account A could
+    point to the files of account B."""
     account = _safe_component(account_id, "account identifier")
     project = _safe_component(project_id, "project identifier")
     root = Path(workspace_root).absolute()

@@ -31,15 +31,15 @@ PROJECT_ID = re.compile(r"^[0-9a-f]{32}$")
 
 
 class PlatformInputError(ValueError):
-    """Entrée refusée avant toute compilation."""
+    """Input refused before any compilation."""
 
 
 class PlatformNotFoundError(LookupError):
-    """Projet compilé absent de l'espace de travail."""
+    """Compiled project missing from the workspace."""
 
 
 class PlatformExecutionError(RuntimeError):
-    """Le worker de compilation n'a pas pu terminer proprement."""
+    """The compilation worker could not finish cleanly."""
 
 
 @dataclass(frozen=True)
@@ -117,7 +117,7 @@ def contract_summary(contract: dict[str, Any]) -> dict[str, Any]:
 
 
 class CompilationService:
-    """Façade sûre et sans état global pour le web et le serveur MCP."""
+    """Safe façade without global state for the web and the MCP server."""
 
     def __init__(self, workspace: str | os.PathLike[str] | None = None):
         default = os.environ.get("MONL_PLATFORM_WORKSPACE")
@@ -125,13 +125,12 @@ class CompilationService:
         self.workspace.mkdir(parents=True, exist_ok=True)
 
     def contract_version(self) -> int:
-        """La version de BASE du contrat frontend.
+        """The BASE version of the frontend contract.
 
-        Le contrat réellement émis peut valoir un cran de plus selon ce que la
-        spec déclare : c'est le manifeste d'une compilation qui porte le
-        chiffre exact, jamais celui-ci. Il sert à savoir contre quelle
-        génération de contrat la plateforme compile, pas à dater un projet.
-        """
+        The contract really emitted can be one notch higher depending on what the
+        spec declares: it is a compilation's manifest that carries the exact
+        number, never this one. It serves to know against which generation of the
+        contract the platform compiles, not to date a project."""
         return CONTRACT_VERSION
 
     def list_templates(self) -> list[dict[str, Any]]:
@@ -160,12 +159,11 @@ class CompilationService:
         return ValidationResult(True, _ir_summary(ir), [])
 
     def compile(self, spec: str, *, account_id: str | None = None) -> dict[str, Any]:
-        """Compile directement dans le dossier privé du compte, si authentifié.
+        """Compiles directly into the account's private folder, if authenticated.
 
-        Le MCP local sans compte conserve son espace de travail historique.
-        Comme /compiler, ce chemin appelle uniquement compiler_dans : aucune
-        seconde décision d’isolation ni copie du backend produit.
-        """
+        Local MCP without an account keeps its historical workspace. Like
+        /compiler, this path calls only compiler_dans: no second isolation
+        decision and no copy of the produced backend."""
         spec = _bounded_spec(spec)
         validation = self.validate(spec)
         if not validation.valid:
@@ -184,8 +182,8 @@ class CompilationService:
                 (project_dir / "frontend_contract.json").read_text(encoding="utf-8")
             )
         except Exception:
-            # Aucun projet partiel ne devient visible : l'identifiant n'est
-            # communiqué qu'après la publication complète du manifeste.
+            # No partial project becomes visible: the identifier is
+            # communicated only after the manifest is fully published.
             shutil.rmtree(project_dir)
             raise
 
@@ -232,8 +230,8 @@ class CompilationService:
     def _project_dir(self, project_id: str) -> Path:
         if not PROJECT_ID.fullmatch(project_id or ""):
             raise PlatformNotFoundError("Project not found.")
-        # Les anciens projets et le MCP local restent lisibles à la racine.
-        # Les projets privés sont résolus sur disque, sans accès aux comptes.
+        # Old projects and local MCP stay readable at the root. Private
+        # projects are resolved on disk, without access to the accounts.
         directory = self.workspace / project_id
         candidates = list(self.workspace.glob(
             f"accounts/*/projects/{project_id}/platform-manifest.json"))
@@ -278,15 +276,13 @@ class CompilationService:
 
 
 def compiler_dans(spec_path: Path, project_dir: Path) -> str:
-    """Compile une spec dans un dossier et rend la sortie du compilateur.
+    """Compiles a spec into a folder and returns the compiler's output.
 
-    SOURCE UNIQUE de la décision d'isolation (point 162) : le socle
-    (``/api/compile``) et la compilation d'un projet de compte
-    (``compilation.py``) passent tous deux par ici. Deux lectures de
-    ``MONL_ISOLATE_COMPILES`` finiraient par diverger, et la divergence
-    porterait sur la seule barrière qui empêche une spec fournie de
-    s'exécuter dans l'interpréteur de la plateforme.
-    """
+    SINGLE SOURCE of the isolation decision (point 162): the foundation
+    (``/api/compile``) and compiling an account's project (``compilation.py``)
+    both go through here. Two reads of ``MONL_ISOLATE_COMPILES`` would
+    eventually diverge, and the divergence would concern the only barrier that
+    prevents a supplied spec from executing in the platform's interpreter."""
     output = io.StringIO()
     if os.environ.get("MONL_ISOLATE_COMPILES", "1").lower() in {"1", "true", "yes"}:
         output.write(CompilationService.compiler_isole(spec_path, project_dir))
@@ -297,7 +293,7 @@ def compiler_dans(spec_path: Path, project_dir: Path) -> str:
 
 
 def _worker_limits() -> None:
-    """Bornes du sous-processus ; le conteneur reste la seconde frontière."""
+    """Bounds of the subprocess; the container stays the second boundary."""
     import resource
 
     cpu = max(5, int(os.environ.get("MONL_COMPILE_CPU_SECONDS", "30")))

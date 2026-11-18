@@ -1,10 +1,11 @@
-"""Un compte non confirmé est un résultat attendu, pas une application cassée."""
+"""An unconfirmed account is an expected result, not a broken application."""
 
 from . import fondations
 
 
 def verifier_connexion(base, contract, status, body, errors, warnings):
-    """Éprouve le refus et la présence des deux POST sans consommer de lien."""
+    """Exercises the refusal and the presence of both POSTs without consuming a
+    link."""
     if not contract.get('api', {}).get('auth', {}).get('features', {}).get('verify_email'):
         token = body.get('token') or body.get('access_token')
         if status != 200 or not token:

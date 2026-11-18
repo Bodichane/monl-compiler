@@ -1,19 +1,17 @@
-"""Conditions d'utilisation et politique de confidentialité.
+"""Terms of use and privacy policy.
 
-Deux règles ont guidé l'écriture, et elles se voient dans le texte.
+Two rules guided the writing, and they show in the text.
 
-**Rien n'est inventé.** L'éditeur du service — nom, forme juridique, adresse,
-contact — n'est pas déductible du code : ces emplacements portent un
-marqueur `À COMPLÉTER` bien visible plutôt qu'une identité plausible.
-Fabriquer une mention légale serait produire un faux document.
+**Nothing is invented.** The service's publisher — name, legal form,
+address, contact — cannot be deduced from the code: these slots carry a
+clearly visible `TO BE COMPLETED` marker rather than a plausible
+identity. Making up a legal notice would be producing a false document.
 
-**Ce qui est dit est vérifiable dans le code.** La liste des données
-conservées est confrontée au schéma SQLite réel par
-`tests/test_platform_legal.py` : une table qui garde de la donnée
-personnelle et que la page ne nomme pas fait échouer la suite. Une politique
-de confidentialité qui se désynchronise du code est pire qu'absente — elle
-affirme.
-"""
+**What is said is verifiable in the code.** The list of retained data is
+compared to the real SQLite schema by `tests/test_platform_exploitation.py`: a
+table that keeps personal data and that the page does not name makes the
+suite fail. A privacy policy that drifts out of sync with the code is worse
+than absent — it makes a claim."""
 
 from __future__ import annotations
 
@@ -23,35 +21,34 @@ MARQUEUR = "TO BE COMPLETED"
 
 EDITEUR = "Itchane Bodi"
 CONTACT = "contact@monl.dev"
-# Contrairement aux deux constantes ci-dessus, celle-ci est un fait PUBLIC :
-# OVH publie sa propre identité légale pour que ses clients la citent. Elle est
-# donc renseignée — relevée sur https://www.ovhcloud.com/fr/terms-and-conditions/
-# le 26/08/2026, pas écrite de mémoire. Le téléphone ne figure sur aucune des
-# pages publiques d'OVH ; la LCEN le demande pour l'hébergeur, il reste donc à
-# ajouter si le service relève du droit français.
+# Unlike the two constants above, this one is a PUBLIC fact: OVH publishes its
+# own legal identity so that its customers cite it. It is therefore filled in —
+# taken from https://www.ovhcloud.com/fr/terms-and-conditions/ on 26/08/2026,
+# not written from memory. The phone number appears on none of OVH's public
+# pages; the LCEN requires it for the host, so it remains to be added if the
+# service falls under French law.
 #
-# Précision utile : nommer l'hébergeur n'est PAS une exigence du RGPD, qui
-# porte sur l'identité du responsable de traitement et les droits des
-# personnes. C'est la LCEN française qui l'impose, et elle s'applique selon
-# l'établissement de l'éditeur et le public visé — pas selon le pays du
-# serveur. La mention est gardée parce qu'elle ne coûte rien et couvre ce cas.
+# A useful clarification: naming the host is NOT a GDPR requirement, which
+# concerns the identity of the data controller and people's rights. It is the
+# French LCEN that imposes it, and it applies according to the publisher's
+# establishment and the targeted public — not according to the server's
+# country. The notice is kept because it costs nothing and covers that case.
 HEBERGEUR = ("OVH SAS, SAS with a share capital of €50,000,000 — "
              "2 rue Kellermann, 59100 Roubaix, France — RCS 424 761 419")
 
 
 def est_complete() -> bool:
-    """Vrai quand les trois emplacements portent une vraie identité."""
+    """True when the three slots carry a real identity."""
     return all(MARQUEUR not in valeur for valeur in (EDITEUR, CONTACT, HEBERGEUR))
 
 
 def _lignes_manquantes() -> str:
-    """Nomme ce qui reste à renseigner, et rien d'autre.
+    """Names what remains to be filled in, and nothing else.
 
-    Un décompte figé (« ces trois emplacements ») enverrait corriger ce qui
-    est déjà juste dès qu'une seule valeur manque — même reproche qu'au
-    point 97 du compilateur : une hypothèse affichée comme un diagnostic est
-    pire qu'un message vague.
-    """
+    A fixed count ("these three slots") would send people to fix what is
+    already correct as soon as a single value is missing — the same reproach
+    as point 97 of the compiler: an assumption displayed as a diagnosis is
+    worse than a vague message."""
     manquants = [nom for nom, valeur in (("the publisher", EDITEUR),
                                          ("the contact address", CONTACT),
                                          ("the host", HEBERGEUR))
@@ -134,8 +131,8 @@ CSS = """
 @media (max-width: 620px) { .legal td:first-child { white-space: normal; } }
 """
 
-# Ce que chaque table conserve. Le test confronte cette liste au schéma réel :
-# ajouter une table sans l'inscrire ici fait échouer la suite.
+# What each table retains. The test compares this list to the real schema:
+# adding a table without listing it here makes the suite fail.
 DONNEES = [
     ("users", "Email address, scrypt fingerprint of the password, creation date.",
      "As long as the account exists."),

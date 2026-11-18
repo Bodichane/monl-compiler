@@ -1,4 +1,4 @@
-"""Preuve de réauthentification avant suppression irréversible."""
+"""Proof of reauthentication before an irreversible deletion."""
 
 import time
 

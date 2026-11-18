@@ -1,9 +1,8 @@
-"""Compétences de composition injectées dans le brief frontend.
+"""Composition skills injected into the frontend brief.
 
-Elles prescrivent une profondeur vérifiable, jamais une identité visuelle.
-Les dossiers ``plugin/skills/`` portent leur version utilisable par les agents ; ce
-module en garde le noyau déterministe destiné aux artefacts compilés.
-"""
+They prescribe a verifiable depth, never a visual identity. The
+``plugin/skills/`` folders carry their version usable by agents; this
+module keeps the deterministic core meant for the compiled artifacts."""
 
 SKILL_PROFILES = {
     "monl-design-system": {
@@ -49,13 +48,12 @@ SKILL_PROFILES = {
 
 
 def select_design_skills(entities, routes):
-    """Sélectionne les compétences par signaux structurels, sans lire le brief."""
+    """Selects the skills by structural signals, without reading the brief."""
     selected = ["monl-showcase"]
     actions = {route["action"] for route in routes}
-    # Ne jamais classifier par le NOM d'une entité : « Product » sans prix
-    # n'est pas plus commercial que « Article ». Seuls des comportements ou
-    # rôles de champs réellement dérivés de la spec peuvent sélectionner un
-    # skill spécialisé.
+    # Never classify by an entity's NAME: "Product" without a price is no more
+    # commercial than "Article". Only behaviors or field roles really derived
+    # from the spec can select a specialized skill.
     commerce = bool(actions & {"Pay", "UpdateAfterPayment"})
     if commerce:
         selected.append("monl-commerce")
@@ -70,9 +68,9 @@ def select_design_skills(entities, routes):
 
 
 def render_skill_block(names):
-    """Rend le noyau des skills dans le prompt autonome du projet."""
-    # La profondeur métier dépend du contrat ; la lecture d'un design system
-    # préparé avant le code, elle, est commune à toute interface Monl.
+    """Renders the core of the skills into the project's standalone prompt."""
+    # Business depth depends on the contract; reading a design system prepared
+    # before the code, however, is common to every Monl interface.
     names = list(names)
     if "monl-design-system" not in names:
         names.insert(0, "monl-design-system")

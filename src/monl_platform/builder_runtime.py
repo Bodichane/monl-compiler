@@ -32,7 +32,7 @@ def _require_user(request: Request, identities):
 
 
 def _slug(name, project_id):
-    """Déduit une adresse stable pour un projet créé par le socle."""
+    """Deduces a stable address for a project created by the foundation."""
     value = re.sub(r"[^a-z0-9]+", "-", str(name or "").strip().lower()).strip("-")
     return value[:80] or f"projet-{project_id[:12]}"
 
@@ -47,13 +47,12 @@ def _identity_project(identities, user_id, project_id):
 
 
 def _ensure_builder_project(runtime, user, project_id):
-    """Rattache paresseusement un projet compilé au constructeur.
+    """Lazily attaches a compiled project to the builder.
 
-    ``/api/compile`` est la création de projet du socle.  Le constructeur ne
-    crée donc jamais une seconde ligne métier : à la première route de build,
-    il ajoute seulement ses métadonnées dans ``builder_projects`` et recopie
-    la spec déjà publiée vers le dossier privé du compte.
-    """
+    ``/api/compile`` is the foundation's project creation. The builder
+    therefore never creates a second business row: at the first build route,
+    it only adds its metadata in ``builder_projects`` and copies the already
+    published spec to the account's private folder."""
     identity_project = _identity_project(runtime.identities, user["id"], project_id)
     if identity_project is None:
         _http_error("Project not found.", status.HTTP_404_NOT_FOUND)
@@ -102,7 +101,7 @@ def _set_session_cookie(response, token):
 
 @dataclass
 class BuilderRuntime:
-    """Les dépendances des routes de projet, sans une seule d'IA (point 162)."""
+    """The project routes' dependencies, without a single AI one (point 162)."""
 
     service: object
     identities: object
@@ -120,7 +119,7 @@ class BuilderRuntime:
         self.sites.stop_all()
 
     def remove_project(self, user_id, project_id):
-        """Retire le dossier privé d'un projet précis, s'il existe."""
+        """Removes the private folder of a given project, if it exists."""
         try:
             directory = project_directory(
                 self.workspace_root, user_id, project_id, create=False
@@ -132,12 +131,11 @@ class BuilderRuntime:
 
 
 def create_runtime(service, identities, *, domain=None, downloads_dir=None):
-    """Construit les dépendances des routes de projet, sans monter de route.
+    """Builds the project routes' dependencies, without mounting any route.
 
-    POINT 162 : plus de fournisseur IA, plus de quota, plus de worker. Ce qui
-    reste — le magasin, l'hébergement local — est déterministe, donc rien
-    n'est plus à injecter pour rendre la plateforme éprouvable hors ligne.
-    """
+    POINT 162: no more AI provider, no more quota, no more worker. What
+    remains — the store, local hosting — is deterministic, so nothing is left
+    to inject to make the platform testable offline."""
     store = PlatformStore(service.workspace)
     sites = SiteManager(
         store, service.workspace, domain or os.environ.get("MONL_PLATFORM_DOMAIN", "localhost")

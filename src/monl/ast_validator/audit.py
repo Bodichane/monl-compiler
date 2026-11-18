@@ -1,17 +1,17 @@
-"""L'audit `[SECURITY_AUDIT]` — ce qui AVERTIT sans refuser.
+"""The `[SECURITY_AUDIT]` audit — what WARNS without refusing.
 
-À garder distinct des refus : un avertissement qui bloquerait immobiliserait
-des projets sains, et un refus qui n'avertirait que ferait passer une faille
-pour un détail de style."""
+Keep it distinct from refusals: a warning that blocked would freeze healthy
+projects, and a refusal that only warned would pass a flaw off as a
+matter of style."""
 
 
 
 
 class AuditMixin:
-    """L'audit `[SECURITY_AUDIT]` — ce qui AVERTIT sans refuser."""
+    """The `[SECURITY_AUDIT]` audit — what WARNS without refusing."""
 
     def _audit_security_rules(self):
-        """Moteur d'analyse statique traquant les vulnérabilités complexes."""
+        """Static analysis engine hunting for complex vulnerabilities."""
         reports = []
         restricted_fields = {}
 
@@ -44,9 +44,9 @@ class AuditMixin:
         return reports
 
     def _audit_blocs_custom(self, restricted_fields, custom_callers):
-        """Un bloc `custom` lancé par un acteur qui n'a pas droit à une donnée
-        `restrictedTo` qu'il lit. Extrait de `_audit_security_rules` (plafond
-        de complexité) ; rapports et ordre inchangés."""
+        """A `custom` block run by an actor with no right to a `restrictedTo` field
+        it reads. Extracted from `_audit_security_rules` (complexity ceiling);
+        reports and order unchanged."""
         reports = []
         for c_name, c_bloc in self.custom_logic.items():
             calling_actors = custom_callers.get(c_name, set())
@@ -61,7 +61,7 @@ class AuditMixin:
         return reports
 
     def _audit_self_registration(self):
-        """Rapporte le périmètre d'inscription libre déclaré par la spec."""
+        """Reports the open-registration scope declared by the spec."""
         reports = []
         provisioned = [a for a in self.actors if a not in self.self_register_actors]
         if self.self_register_actors:

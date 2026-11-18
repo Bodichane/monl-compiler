@@ -1,4 +1,4 @@
-"""Analyse conservatrice des appels ``fetch`` du frontend livré."""
+"""Conservative analysis of the ``fetch`` calls in the delivered frontend."""
 
 import os
 import posixpath
@@ -134,7 +134,7 @@ def _source_fetch_calls(source):
 
 
 def frontend_fetch_calls(frontend_dir):
-    """Retourne les appels ``fetch`` statiquement identifiables."""
+    """Returns the statically identifiable ``fetch`` calls."""
     calls = set()
     for root, _dirs, names in os.walk(frontend_dir):
         for name in names:

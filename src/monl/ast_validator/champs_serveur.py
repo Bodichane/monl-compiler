@@ -1,9 +1,9 @@
-"""Les champs que le SERVEUR peuple, et que le client ne peut pas écrire.
+"""The fields the SERVER fills, which the client cannot write.
 
-`generated` (brique 7), `timestamp` (point 89) et `numbered` (point 102).
-Leur point commun est le point 78 : un champ peuplé par le serveur doit
-sortir du schéma d'entrée ET de la route Update, sinon la valeur est
-écartée en silence — pire qu'un refus."""
+`generated` (brick 7), `timestamp` (point 89) and `numbered` (point 102).
+What they share is point 78: a server-filled field must leave the input
+schema AND the Update route, otherwise the value is silently discarded —
+worse than a refusal."""
 
 import re
 
@@ -11,10 +11,10 @@ from .socle import ASTValidationError
 
 
 class ChampsServeurMixin:
-    """Les champs que le SERVEUR peuple, et que le client ne peut pas écrire."""
+    """The fields the SERVER fills, which the client cannot write."""
 
     def _valider_champs_generes(self):
-        """Valide les pseudonymes générés côté serveur."""
+        """Validates the pseudonyms generated on the server side."""
         self.generated_fields = []
         seen_fields = set()
         for rule in self.rules:
@@ -52,7 +52,7 @@ class ChampsServeurMixin:
             self.generated_fields.append({"entity": entity, "field": field})
 
     def _valider_champs_horodates(self):
-        """Valide les instants de création attribués par le serveur."""
+        """Validates the creation moments assigned by the server."""
         self.timestamp_fields = []
         seen_fields = set()
         for rule in self.rules:
@@ -97,26 +97,26 @@ class ChampsServeurMixin:
             seen_fields.add((entity, field))
             self.timestamp_fields.append({"entity": entity, "field": field})
 
-    # Jalons acceptés dans un gabarit de numéro. La séquence est le seul
-    # obligatoire : sans elle, tous les enregistrements porteraient le même
-    # numéro — une règle qui ne produit rien (point 85), doublée d'un index
-    # unique qui refuserait la deuxième création.
+    # Milestones accepted in a number template. The sequence is the only
+    # mandatory one: without it, every record would carry the same number — a
+    # rule that produces nothing (point 85), plus a unique index that would
+    # refuse the second creation.
     JALONS_DATE = ("YYYY", "MM", "DD")
 
     def _periode_du_gabarit(self, gabarit):
-        """Sur quoi la séquence se REMET À ZÉRO : '' (jamais), 'YYYY',
-        'YYYY-MM' ou 'YYYY-MM-DD'.
+        """What the sequence RESETS on: '' (never), 'YYYY', 'YYYY-MM' or
+        'YYYY-MM-DD'.
 
-        Déduite des jalons de date présents, jamais déclarée à part : deux
-        façons de dire la même chose finiraient par se contredire."""
+        Deduced from the date milestones present, never declared separately: two
+        ways of saying the same thing would end up contradicting each other."""
         présents = [j for j in self.JALONS_DATE if "{" + j + "}" in gabarit]
         return "-".join(présents)
 
     def _valider_gabarit_de_numero(self, entity, field, gabarit):
-        """Cinq refus sur la forme du gabarit lui-même."""
+        """Five refusals on the shape of the template itself."""
         jalons = re.findall(r"\{([^{}]*)\}", gabarit)
-        # Une accolade orpheline ne serait pas vue par la recherche ci-dessus :
-        # la compter séparément, sinon 'CMD-{YYYY' passerait pour du texte.
+        # An orphan brace would not be seen by the search above: count it
+        # separately, otherwise 'CMD-{YYYY' would pass for text.
         if gabarit.count("{") != len(jalons) or gabarit.count("}") != len(jalons):
             raise ASTValidationError(
                 f"Structure: the 'numbered' format for '{entity}.{field}' has an "
@@ -139,11 +139,12 @@ class ChampsServeurMixin:
             raise ASTValidationError(
                 f"Structure: the 'numbered' format for '{entity}.{field}' contains "
                 f"{len(sequences)} sequences -- nothing says which one to increment.")
-        # Une date incomplète fait se répéter la séquence : 'CMD-{MM}-{NNNN}'
-        # redonne 'CMD-03-0001' tous les mois de mars. L'index unique
-        # l'attraperait, mais un an plus tard et en production.
-        # strict=False assumé : on apparie chaque jalon avec le SUIVANT, donc
-        # les deux suites n'ont volontairement pas la même longueur.
+        # An incomplete date makes the sequence repeat: 'CMD-{MM}-{NNNN}' gives
+        # 'CMD-03-0001' again every March. The unique index would catch it, but
+        # a year later and in production.
+        #
+        # strict=False on purpose: each milestone is paired with the NEXT one,
+        # so the two sequences deliberately do not have the same length.
         for précédent, suivant in zip(self.JALONS_DATE, self.JALONS_DATE[1:],
                                       strict=False):
             if "{" + suivant + "}" in gabarit and "{" + précédent + "}" not in gabarit:
@@ -154,7 +155,7 @@ class ChampsServeurMixin:
                     f"two records would eventually have the same number.")
 
     def _valider_champs_numerotes(self):
-        """Valide les numéros lisibles générés côté serveur."""
+        """Validates the readable numbers generated on the server side."""
         self.numbered_fields = []
         for rule in self.rules:
             if rule["type"] != "numbered":

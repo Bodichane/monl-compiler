@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from .hosting import SiteHostingError, SiteNotCompiledError
 from .hosting_admission import SITE_INACTIVITY_SECONDS
 
-# Au-dessus des 32 Mio d'upload applicatif, sous les 50 Mio de Nginx.
+# Above the 32 MiB of application upload, below Nginx's 50 MiB.
 SITE_MAX_BODY_BYTES = 40 * 1024 * 1024
 
 

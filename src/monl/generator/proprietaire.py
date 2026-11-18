@@ -1,23 +1,23 @@
-"""À QUI appartient une ligne — directement, ou par une chaîne.
+"""WHO owns a row — directly, or through a chain.
 
-`_transitive_chain` et `_owner_lookup_sql` sont la source UNIQUE de la
-jointure de propriété (briques 11 et 24) : ne pas la réécrire ailleurs.
-POINT 99 : `_identity_fk_columns` tranche entre une clé étrangère qui
-désigne le registre des COMPTES et une qui désigne une table métier — et
-seuls les parents ACTEURS sont candidats."""
+`_transitive_chain` and `_owner_lookup_sql` are the SINGLE source of the
+ownership join (bricks 11 and 24): do not rewrite it elsewhere.
+POINT 99: `_identity_fk_columns` decides between a foreign key that
+designates the ACCOUNTS registry and one that designates a business table
+— and only ACTOR parents are candidates."""
 
 from . import sql
 
 
 class ProprietaireMixin:
-    """À QUI appartient une ligne — directement, ou par une chaîne."""
+    """WHO owns a row — directly, or through a chain."""
 
     def _fk_to(self, child, parent):
-        """Colonne de clé étrangère sur 'child' qui désigne 'parent'.
+        """Foreign key column on 'child' that designates 'parent'.
 
-        Même convention et même garde que plan_derivations : si la colonne
-        manque, la validation et le placement des clés étrangères ont divergé —
-        et écrire une jointure sur None rendrait tout visible à tous."""
+        Same convention and same guard as plan_derivations: if the column is
+        missing, validation and foreign key placement have diverged — and writing
+        a join on None would make everything visible to everyone."""
         for p in self._compute_fk_placements().get(child, []):
             if p["owner_entity"] == parent:
                 return p["fk_column"]
@@ -28,18 +28,17 @@ class ProprietaireMixin:
         )
 
     def _transitive_chain(self, entity):
-        """Chaîne de propriété transitive de 'entity', ou None (briques 11 et 24).
+        """Transitive ownership chain of 'entity', or None (bricks 11 and 24).
 
-        Retourne ce qu'il faut pour TOUTES les jointures de contrôle d'accès,
-        quelle que soit la profondeur : l'acteur au bout de la chaîne, la
-        colonne qui, sur le DERNIER maillon, porte l'identifiant du compte
-        propriétaire ('actor_fk'), et la liste 'hops' des maillons, de bas en
-        haut, chacun avec sa table et la colonne de clé étrangère qui, sur le
-        niveau juste dessous, désigne ce maillon :
-          - hops[0].ref : sur 'entity', pointe vers hops[0].table ;
-          - hops[i].ref : sur hops[i-1].table, pointe vers hops[i].table.
-        Source unique de vérité de la brique : routes, schémas et contrat
-        frontend passent tous par ici."""
+        Returns what ALL access-control joins need, whatever the depth: the actor
+        at the end of the chain, the column that, on the LAST link, carries the
+        owning account's identifier ('actor_fk'), and the 'hops' list of links,
+        from bottom to top, each with its table and the foreign key column that,
+        on the level just below, designates that link:
+          - hops[0].ref: on 'entity', points to hops[0].table;
+          - hops[i].ref: on hops[i-1].table, points to hops[i].table.
+        Single source of truth for the brick: routes, schemas and the frontend
+        contract all go through here."""
         chaine = self.transitive_ownership.get(entity)
         if not chaine:
             return None
@@ -51,7 +50,7 @@ class ProprietaireMixin:
                 f"is empty -- the validator diverged. Failing rather than joining "
                 f"on nothing."
             )
-        # Maillon du bas : la clé étrangère sur 'entity' vers le premier maillon.
+        # Bottom link: the foreign key on 'entity' toward the first link.
         hop_bas = {"table": hops_raw[0].lower(),
                    "ref": self._fk_to(entity, hops_raw[0])}
         hops = [hop_bas]
@@ -64,16 +63,15 @@ class ProprietaireMixin:
                 "actor_fk": actor_fk, "hops": hops, "len": len(hops)}
 
     def _chain_read_where(self, entity, actor_frag):
-        """Fragment SQL 'WHERE' (objet sql.Sql) qui borne 'entity' aux lignes du
-        compte courant. 'actor_frag' est la valeur du compte, liée par sql.bind
-        — jamais un fragment de texte.
+        """SQL 'WHERE' fragment (sql.Sql object) that limits 'entity' to the current
+        account's rows. 'actor_frag' is the account value, bound by sql.bind —
+        never a text fragment.
 
-        Sous chaîne à un ou plusieurs maillons, un 'IN' imbriqué par maillon :
-        la colonne de clé étrangère du niveau courant est comparée aux
-        identifiants du maillon suivant, jusqu'au maillon final filtré par
-        'actor_fk = ?'. Un maillon absent ne rend aucune ligne (une ligne
-        orpheline n'appartient à personne). Retourne None si 'entity' n'est pas
-        en propriété transitive."""
+        Under a chain of one or more links, one nested 'IN' per link: the current
+        level's foreign key column is compared with the next link's identifiers,
+        up to the final link filtered by 'actor_fk = ?'. A missing link yields no
+        row (an orphan row belongs to nobody). Returns None if 'entity' is not
+        under transitive ownership."""
         chaine = self._transitive_chain(entity)
         if not chaine:
             return None
@@ -85,17 +83,17 @@ class ProprietaireMixin:
         return sql.cat(sql.kw(" WHERE "), frag)
 
     def _chain_owner_scalar(self, entity, first_hop):
-        """Sous-requête scalaire (objet sql.Sql) qui rend l'id de COMPTE du
-        propriétaire d'un enregistrement, à partir de l'id du PREMIER maillon.
-        'first_hop' est ce PREMIER maillon sous forme de fragment sql.Sql — soit
-        une valeur liée (sql.bind, cas des routes qui reçoivent la clé étrangère
-        du client), soit une sous-requête (cas de _chain_owner_from_row). Dans
-        tous les cas, aucune valeur ne traverse le texte SQL.
+        """Scalar subquery (sql.Sql object) that returns the ACCOUNT id of a
+        record's owner, starting from the id of the FIRST link. 'first_hop' is
+        that FIRST link as an sql.Sql fragment — either a bound value (sql.bind,
+        for routes that receive the foreign key from the client) or a subquery
+        (the _chain_owner_from_row case). In every case, no value crosses the SQL
+        text.
 
-        Grimpe la chaîne maillon par maillon : la colonne de clé étrangère du
-        niveau courant désigne le maillon suivant, et la dernière sélection
-        'actor_fk' rend le compte. Tout maillon absent rend NULL donc
-        « appartient à personne ». None si 'entity' n'est pas transitive."""
+        Climbs the chain link by link: the current level's foreign key column
+        designates the next link, and the final 'actor_fk' selection returns the
+        account. Any missing link gives NULL hence "belongs to nobody". None if
+        'entity' is not transitive."""
         chaine = self._transitive_chain(entity)
         if not chaine:
             return None
@@ -113,10 +111,10 @@ class ProprietaireMixin:
                        sql.kw(' WHERE id = '), expr, sql.kw(')'))
 
     def _chain_owner_from_row(self, entity, id_frag=None):
-        """id de COMPTE du propriétaire d'une ligne de 'entity' (objet sql.Sql),
-        sous chaîne transitive de profondeur quelconque. None si non transitive.
-        'id_frag' est l'identifiant de la ligne sous forme de fragment sql.Sql
-        (par défaut la valeur liée 'id', l'usage de _owner_lookup_sql)."""
+        """ACCOUNT id of the owner of a row of 'entity' (sql.Sql object), under a
+        transitive chain of any depth. None if not transitive. 'id_frag' is the
+        row's identifier as an sql.Sql fragment (by default the bound value 'id',
+        the _owner_lookup_sql use)."""
         chaine = self._transitive_chain(entity)
         if not chaine:
             return None
@@ -129,16 +127,16 @@ class ProprietaireMixin:
         return self._chain_owner_scalar(entity, first_hop)
 
     def _chain_join(self, entity, alias_root="t"):
-        """Séquence de JOIN qui fait remonter 'entity' jusqu'au maillon final.
+        """Sequence of JOINs that climbs from 'entity' up to the final link.
 
-        Retourne (depuis_sql, alias_dernier_maillon, acteur_fk) pour les routes
-        de règlement : chaque maillon rejoint son parent par sa clé étrangère,
-        et le dernier maillon 'alias_dernier_maillon' porte la colonne 'acteur_fk'
-        du compte. Le montant, l'état et le propriétaire sortent ainsi de la
-        MÊME lecture — l'invariant du point 87. Ne porte aucune valeur client,
-        rien que des identifiants et des alias internes."""
+        Returns (from_sql, last_link_alias, actor_fk) for the payment routes: each
+        link joins its parent through its foreign key, and the last link
+        'last_link_alias' carries the account's 'actor_fk' column. The amount, the
+        state and the owner thus come out of the SAME read — the point 87
+        invariant. Carries no client value, only identifiers and internal
+        aliases."""
         chaine = self._transitive_chain(entity)
-        # (appelé seulement quand chaine n'est pas None ; sinon erreur claire)
+        # (called only when the chain is not None; otherwise a clear error)
         depuis = sql.cat(sql.ident(entity.lower()), sql.kw(f" {alias_root}"))
         cur = alias_root
         for i, h in enumerate(chaine["hops"]):
@@ -150,22 +148,21 @@ class ProprietaireMixin:
         return depuis.text, cur, chaine["actor_fk"]
 
     def _owner_lookup_sql(self, entity, owner_entity):
-        """Requête qui rend l'id de COMPTE du propriétaire d'un enregistrement,
-        et l'acteur auquel opposer le contrôle. Partagée par Update et Delete
-        (routes.py) — deux blocs jusqu'ici identiques, qu'il aurait fallu
-        corriger deux fois.
+        """Query that returns the ACCOUNT id of a record's owner, and the actor to
+        check against. Shared by Update and Delete (routes.py) — two blocks
+        identical until then, which would have had to be fixed twice.
 
-        Sous propriété transitive (brique 11), c'est une jointure sur
-        l'intermédiaire ; elle renvoie la même chose qu'en propriété directe
-        (un id de compte), donc la comparaison qui suit chez l'appelant est
-        inchangée. Un intermédiaire absent ne rend aucune ligne : une ligne
-        orpheline n'appartient à personne, et le 404 de l'appelant convient."""
+        Under transitive ownership (brick 11), it is a join on the intermediate;
+        it returns the same thing as under direct ownership (an account id), so
+        the comparison that follows at the caller is unchanged. A missing
+        intermediate yields no row: an orphan row belongs to nobody, and the
+        caller's 404 fits."""
         chaine = self._transitive_chain(entity)
         if chaine:
-            # Briques 11 et 24 : une sous-requête scalaire remonte toute la
-            # chaîne jusqu'au compte, quelle que soit sa profondeur. Elle rend
-            # un id de compte (None si un maillon manque), donc la comparaison
-            # chez l'appelant est inchangée par rapport à la propriété directe.
+            # Bricks 11 and 24: a scalar subquery climbs the whole chain up to
+            # the account, whatever its depth. It returns an account id (None
+            # if a link is missing), so the comparison at the caller is
+            # unchanged compared with direct ownership.
             return chaine["actor"], sql.cat(
                 sql.kw("SELECT "), self._chain_owner_from_row(entity))
         return owner_entity, sql.cat(
@@ -174,96 +171,92 @@ class ProprietaireMixin:
             sql.kw(" WHERE id = "), sql.bind("id"))
 
     def _get_incoming_relation(self, entity):
-        """Retourne la première relation entrante sur 'entity' (hasMany, hasOne,
-        ou belongsTo — toutes désormais gérées, voir _compute_fk_placements),
-        celle qui fournit la colonne de clé étrangère dans schema.sql, ou None
-        s'il n'y en a pas. Utilisé pour peupler cette colonne à la création et
-        pour le contrôle d'accès par propriété ('ownedBy')."""
+        """Returns the first incoming relation on 'entity' (hasMany, hasOne, or
+        belongsTo — all handled now, see _compute_fk_placements), the one that
+        provides the foreign key column in schema.sql, or None if there is none.
+        Used to fill that column at creation and for ownership access control
+        ('ownedBy')."""
         placements = self._compute_fk_placements().get(entity, [])
         if not placements:
             return None
-        # CORRECTIF (bêta 3) : avec plusieurs relations entrantes, prendre la
-        # première déclarée revenait à désigner le « propriétaire » au hasard
-        # de l'ordre d'écriture de la spec. Les règles 'ownedBy' nomment
-        # explicitement l'entité propriétaire : c'est elle qui fait foi quand
-        # elle existe. À défaut, on conserve la première relation déclarée.
+        # FIX (beta 3): with several incoming relations, taking the first
+        # declared one amounted to picking the "owner" by the accident of the
+        # spec's writing order. 'ownedBy' rules explicitly name the owning
+        # entity: it is authoritative when it exists. Failing that, we keep the
+        # first declared relation.
         owners = {v for k, v in self.ownership.items() if k.split(".", 1)[0] == entity}
         chosen = next((p for p in placements if p["owner_entity"] in owners), placements[0])
         return {"source": chosen["owner_entity"], "fk_column": chosen["fk_column"]}
 
     def _client_fk_columns(self, entity):
-        """Colonnes de clé étrangère que le CLIENT doit fournir à la création.
+        """Foreign key columns the CLIENT must supply at creation.
 
-        Le complément exact de `_identity_fk_columns` : tout parent que le
-        jeton ne désigne pas doit être désigné par l'appelant, sans quoi la
-        colonne reste NULL et le rattachement demandé disparaît (un commentaire
-        sans son article, une variante sans son produit). Deux exclusions, et
-        deux seulement — la colonne d'identité, peuplée depuis le JWT, et la
-        cible d'un compteur, déclarée à part par `schemas.py` et la branche
-        `is_reputation_fk` de `routes.py` : la répéter ici l'écrirait deux fois.
+        The exact complement of `_identity_fk_columns`: every parent the token
+        does not designate must be designated by the caller, otherwise the column
+        stays NULL and the requested attachment disappears (a comment without its
+        article, a variant without its product). Two exclusions, and only two —
+        the identity column, filled from the JWT, and a counter's target, declared
+        separately by `schemas.py` and the `is_reputation_fk` branch of
+        `routes.py`: repeating it here would write it twice.
 
-        Sur une création publique, aucune identité n'est disponible et le
-        comportement historique (colonnes laissées à NULL) est conservé.
+        On a public creation, no identity is available and the historical
+        behavior (columns left NULL) is kept.
 
-        POINT 99 : le cas « aucune colonne d'identité » n'est plus réservé aux
-        entités transitives. Une entité fille d'une table MÉTIER (une variante
-        et son produit) n'a pas de propriétaire déduit du jeton : toutes ses
-        clés étrangères viennent donc du client.
-        """
+        POINT 99: the "no identity column" case is no longer reserved to
+        transitive entities. A child entity of a BUSINESS table (a variant and its
+        product) has no owner deduced from the token: all its foreign keys
+        therefore come from the client."""
         if (entity, "Create") in self.public_actions:
             return []
         placements = self._compute_fk_placements().get(entity, [])
         if not placements:
             return []
         exclues = set(self._identity_fk_columns().get(entity, set()))
-        # POINT 92 : la colonne d'une cible de compteur est celle que
-        # le plan compteur désigne pour CHAQUE règle, pas celle de la
-        # première relation entrante. Avec deux relations (Post et Member),
-        # `_get_incoming_relation` peut désigner Post alors que l'identité
-        # peuple member_id ; l'ancienne décision excluait alors post_id de
-        # l'INSERT et créait une ligne orpheline. La branche
-        # `is_reputation_fk` de routes.py écrit déjà chaque cible : on l'exclut
-        # ici pour qu'elle soit écrite exactement une fois.
+        # POINT 92: a counter target's column is the one the counter plan
+        # designates for EACH rule, not the one of the first incoming relation.
+        # With two relations (Post and Member), `_get_incoming_relation` may
+        # designate Post while the identity fills member_id; the old decision
+        # then excluded post_id from the INSERT and created an orphan row. The
+        # `is_reputation_fk` branch of routes.py already writes each target: it
+        # is excluded here so it is written exactly once.
         exclues.update(self._counter_fk_columns(entity))
-        # Brique 11 (point 81) : sous propriété transitive, le parent
-        # « propriétaire » est justement celui que le CLIENT doit désigner (« je
-        # rattache cette ligne à CETTE commande ») -- il n'est plus déduit du
-        # jeton. Il rejoint donc les autres parents (aucune colonne d'identité
-        # n'existe alors), et la route Create vérifie ensuite que
-        # l'enregistrement désigné appartient bien à l'appelant.
+        # Brick 11 (point 81): under transitive ownership, the "owner" parent
+        # is precisely the one the CLIENT must designate ("I attach this line
+        # to THIS order") -- it is no longer deduced from the token. It
+        # therefore joins the other parents (no identity column exists then),
+        # and the Create route then checks that the designated record really
+        # belongs to the caller.
         return [p["fk_column"] for p in placements if p["fk_column"] not in exclues]
 
     def _identity_fk_columns(self):
-        """Colonnes de clé étrangère peuplées depuis l'identité JWT de l'appelant.
+        """Foreign key columns filled from the caller's JWT identity.
 
-        Retourne {entité: {colonnes}}. Ce sont celles que la route Create
-        remplit avec 'current_user_id' (identifiant de compte), et non avec
-        une valeur du corps de requête — elles référencent donc le registre
-        des comptes, pas la table métier homonyme. C'est la source UNIQUE de
-        cette distinction : le schéma SQL en tire son 'REFERENCES', le contrat
-        son 'references_account', la route Create son 'populate_owner', la
-        route de règlement la colonne qu'elle compare à l'appelant, et
-        'requiresOwn' la colonne où chercher une fiche.
+        Returns {entity: {columns}}. These are the ones the Create route fills
+        with 'current_user_id' (an account identifier), not with a value from the
+        request body — they therefore reference the accounts registry, not the
+        business table of the same name. It is the SINGLE source of that
+        distinction: the SQL schema draws its 'REFERENCES' from it, the contract
+        its 'references_account', the Create route its 'populate_owner', the
+        payment route the column it compares with the caller, and 'requiresOwn'
+        the column where to look for a profile.
 
-        POINT 99 : le parent doit être un ACTEUR. « Peuplée depuis l'identité de
-        l'appelant » n'a de sens que si le parent EST un compte : une entité
-        fille d'une table métier (une variante et son produit) n'a pas de
-        propriétaire à déduire du jeton. Sans cette condition, une telle colonne
-        recevait `current_user_id` et se déclarait `REFERENCES _monl_users` — la
-        variante était rattachée au vendeur qui l'avait créée, jamais à son
-        produit, et le client ne pouvait désigner aucun parent. Le nom de la
-        colonne disait une chose, son contenu une autre : le défaut du point 80,
-        par l'autre bout du même mécanisme.
+        POINT 99: the parent must be an ACTOR. "Filled from the caller's
+        identity" only makes sense if the parent IS an account: a child entity of
+        a business table (a variant and its product) has no owner to deduce from
+        the token. Without this condition, such a column received
+        `current_user_id` and declared itself `REFERENCES _monl_users` — the
+        variant was attached to the seller who created it, never to its product,
+        and the client could designate no parent. The column's name said one
+        thing, its content another: the point 80 defect, from the other end of the
+        same mechanism.
 
-        Le choix ne dépend PAS de l'ordre de déclaration des relations : seuls
-        les parents acteurs sont candidats, et la règle 'ownedBy' tranche entre
-        eux s'il y en a plusieurs.
+        The choice does NOT depend on the declaration order of relations: only
+        actor parents are candidates, and the 'ownedBy' rule decides between them
+        if there are several.
 
-        Le résultat ne dépend que de l'IR, figée à la construction : il est
-        calculé UNE fois. Sept émetteurs l'interrogent depuis leurs boucles —
-        mesuré à 5 352 appels sur une spec de 1 668 lignes, chacun rebalayant
-        toutes les entités et toutes les relations.
-        """
+        The result depends only on the IR, frozen at construction: it is computed
+        ONCE. Seven emitters query it from their loops — measured at 5,352 calls
+        on a 1,668-line spec, each rescanning every entity and every relation."""
         if self._identity_fk_caches is not None:
             return self._identity_fk_caches
         route_map = self._compute_route_map()
@@ -279,24 +272,24 @@ class ProprietaireMixin:
         return identity_cols
 
     def _colonne_d_identite(self, entity, creatable, placements):
-        """La colonne qu'une entité peuple depuis le jeton, ou None.
+        """The column an entity fills from the token, or None.
 
-        Extraite de `_identity_fk_columns` pour tenir sous le plafond de
-        complexité ; les trois exclusions et le choix restent ceux-là."""
+        Extracted from `_identity_fk_columns` to stay under the complexity
+        ceiling; the three exclusions and the choice stay the same."""
         if entity not in creatable:
             return None
         if (entity, "Create") in self.public_actions:
-            return None  # aucune identité fiable : la colonne reste NULL
+            return None  # no reliable identity: the column stays NULL
         if entity in self.transitive_ownership:
-            # Brique 11 : la colonne contient un id d'enregistrement
-            # intermédiaire, pas un id de compte -- elle référence donc la
-            # vraie table métier, et non '_monl_users'.
+            # Brick 11: the column contains an intermediate record id, not an
+            # account id -- it therefore references the real business table,
+            # not '_monl_users'.
             return None
         cibles_compteur = {r.target_entity
                            for r in self.reputation_rules_by_trigger.get(entity, [])}
         candidats = [p for p in placements.get(entity, [])
                      if p["owner_entity"] in self.actors
-                     # cible choisie par le client : vraie référence métier
+                     # target chosen by the client: a real business reference
                      and p["owner_entity"] not in cibles_compteur]
         if not candidats:
             return None

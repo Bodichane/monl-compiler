@@ -1,22 +1,21 @@
-"""Compiler un projet DANS son dossier privé, sans une once d'IA.
+"""Compile a project IN its private folder, without an ounce of AI.
 
-POINT 162. C'est ce qui reste de ``builder.py`` une fois le constructeur
-frontend retiré. L'ancien ``build_project`` enchaînait cinq choses — quota,
-écriture de la spec, compilation, ``generate_and_verify`` (l'IA), snapshot —
-et facturait les quatre dernières à la plateforme. Le cap ayant changé, seule
-la troisième subsiste : la plateforme compile, l'usager construit son
-interface chez lui avec SON fournisseur.
+POINT 162. It is what remains of ``builder.py`` once the frontend builder
+is removed. The old ``build_project`` chained five things — quota, writing
+the spec, compilation, ``generate_and_verify`` (the AI), snapshot — and
+billed the last four to the platform. The direction having changed, only
+the third remains: the platform compiles, the user builds their interface
+at home with THEIR provider.
 
-Ce que ça retire, et qu'on ne remet pas : le quota (il n'y a plus rien à
-facturer), la file de constructions (une compilation dure une seconde, elle
-n'a pas besoin d'être mise en attente ni suivie à la trace), et le snapshot
-(il datait d'un temps où le dossier servi pouvait différer du dossier
-compilé — désormais c'est le même, voir ``hosting.py``).
+What this removes, and what we do not put back: the quota (there is
+nothing left to bill), the build queue (a compilation lasts one second, it
+does not need to be queued or tracked step by step), and the snapshot (it
+dated from a time when the served folder could differ from the compiled
+folder — it is now the same, see ``hosting.py``).
 
-L'isolation de la compilation est celle du socle : ``compiler_isole`` lance le
-compilateur dans un sous-processus limité. La plateforme compile des specs
-FOURNIES, elle ne les exécute jamais dans son propre interpréteur.
-"""
+The compilation's isolation is the foundation's: ``compiler_isole`` runs
+the compiler in a limited subprocess. The platform compiles SUPPLIED
+specs, it never executes them in its own interpreter."""
 
 from __future__ import annotations
 
@@ -32,16 +31,17 @@ from .service import (
 
 
 class ProjectIsolationError(RuntimeError):
-    """Le projet demandé n'appartient pas au compte, ou son chemin n'est pas sûr."""
+    """The requested project does not belong to the account, or its path is not
+    safe."""
 
 
 def compiler_le_projet(project_id, *, account_id, store, workspace_root, service=None):
-    """Compile ``spec.ml`` du dossier privé d'un projet et rend son contrat.
+    """Compiles the ``spec.ml`` of a project's private folder and returns its
+    contract.
 
-    ``service`` sert uniquement à valider la spec avant de lancer le worker :
-    un refus du validateur est une faute d'entrée (message lisible), pas une
-    panne d'exécution — la distinction porte le code HTTP de la route.
-    """
+    ``service`` is used only to validate the spec before launching the
+    worker: a validator refusal is an input fault (readable message), not an
+    execution failure — the distinction carries the route's HTTP code."""
     project = store.get_project_for_user(account_id, project_id)
     if project is None:
         raise ProjectIsolationError(

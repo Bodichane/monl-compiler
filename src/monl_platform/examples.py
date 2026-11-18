@@ -1,23 +1,23 @@
-"""Les spécifications d'exemple servies par la plateforme.
+"""The example specifications served by the platform.
 
-Pourquoi elles vivent ICI, et pas dans `exemples/` du dépôt. Le paquet
-installé ne contient que du Python : un `wheel` n'emporte ni `exemples/*.ml`
-ni aucun fichier de données, donc une plateforme installée par `pip` servirait
-un catalogue vide. C'est exactement le défaut qui a fait disparaître
-`app.py` du dépôt — quelque chose d'absent qui ne lève aucune erreur. Les
-specs sont donc du code, et le test les COMPILE réellement : ce qui compte
-n'est pas qu'elles ressemblent aux exemples du dépôt, c'est qu'aucune ne
-puisse pourrir en silence.
+Why they live HERE, and not in the repository's `exemples/`. The installed
+package contains only Python: a `wheel` carries neither `exemples/*.ml`
+nor any data file, so a platform installed by `pip` would serve an empty
+catalog. It is exactly the defect that made `app.py` disappear from the
+repository — something missing that raises no error. The specs are
+therefore code, and the test really COMPILES them: what matters is not
+that they look like the repository's examples, it is that none can rot
+silently.
 
-Chacune est courte à dessein : elle enseigne une famille de règles, elle ne
-démontre pas tout. `exemples/` reste la référence complète, commentée.
+Each one is short on purpose: it teaches one family of rules, it does not
+demonstrate everything. `exemples/` stays the complete, commented
+reference.
 
-Aucune ne déclare d'`assets` : la plateforme n'offre aucun moyen de déposer
-un fichier AVANT la compilation, et un asset déclaré mais absent la fait
-échouer (brique 13). Une vitrine en ligne montre donc ses images par
-`String`, jamais par une valeur `Image`. Le fichier envoyé à l'EXÉCUTION est
-une autre affaire, et il fonctionne : voir la brique 32 (`Upload`).
-"""
+None declares `assets`: the platform offers no way to drop a file BEFORE
+compilation, and a declared but missing asset makes it fail (brick 13). An
+online showcase therefore shows its images through `String`, never
+through an `Image` value. The file sent at RUNTIME is another matter, and
+it works: see brick 32 (`Upload`)."""
 
 from __future__ import annotations
 
@@ -328,7 +328,7 @@ BY_ID = {example["id"]: example for example in EXAMPLES}
 
 
 def catalogue() -> list[dict[str, Any]]:
-    """Les exemples SANS leur spec : de quoi peupler une galerie."""
+    """The examples WITHOUT their spec: enough to populate a gallery."""
     return [
         {key: value for key, value in example.items() if key != "spec"}
         for example in EXAMPLES
@@ -336,5 +336,5 @@ def catalogue() -> list[dict[str, Any]]:
 
 
 def spec_of(example_id: str) -> str:
-    """La spec d'un exemple, ou KeyError si l'identifiant est inconnu."""
+    """An example's spec, or KeyError if the identifier is unknown."""
     return BY_ID[example_id]["spec"]

@@ -13,27 +13,25 @@ from .identity_primitives import IdentityError
 
 class IdentityAdminMixin:
     def comptes_sans_codes(self) -> int:
-        """Combien de comptes n'ont aucun code de secours.
+        """How many accounts have no recovery code.
 
-        Les comptes ANTÉRIEURS n'en ont pas : la migration additive rattrape
-        une table, jamais son contenu (point 89, mot pour mot). Leur en
-        fabriquer au démarrage serait pire — il faudrait les afficher, et
-        personne ne les lirait. Ils sont donc COMPTÉS et nommés, et la page du
-        compte propose d'en générer.
-        """
+        EARLIER accounts have none: the additive migration catches up a table,
+        never its content (point 89, word for word). Making some for them at
+        startup would be worse — they would have to be displayed, and nobody
+        would read them. They are therefore COUNTED and named, and the account
+        page offers to generate some."""
         with self._connect() as db:
             return db.execute(
                 "SELECT COUNT(*) FROM users WHERE id NOT IN "
                 "(SELECT DISTINCT user_id FROM recovery_codes)").fetchone()[0]
 
     def comptes_herites(self) -> int:
-        """Compte les anciennes lignes ``accounts`` sans les convertir.
+        """Counts the old ``accounts`` rows without converting them.
 
-        L'ancien registre utilisait un autre hachage et des identifiants
-        entiers. Aucun mot de passe ne peut être deviné ou fabriqué pour le
-        transférer honnêtement dans ``users`` ; la table reste donc intacte et
-        le démarrage nomme seulement le nombre de comptes non repris.
-        """
+        The old registry used another hash and integer identifiers. No password
+        can be guessed or made up to transfer them honestly into ``users``; the
+        table therefore stays intact and startup only names the number of
+        accounts not carried over."""
         with self._connect() as db:
             existe = db.execute(
                 "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'accounts'"
@@ -45,23 +43,22 @@ class IdentityAdminMixin:
     count_legacy_accounts = comptes_herites
 
     # ------------------------------------------------------------------
-    # Lectures et gestes d'exploitation
+    # Reads and operational actions
     # ------------------------------------------------------------------
     #
-    # Ces méthodes n'ont AUCUNE route HTTP. Toute intervention sur un compte
-    # passait par `sqlite3` à la main, serveur arrêté : tenable à dix comptes,
-    # pas à cent, et chaque geste risquait une requête tapée de travers sans
-    # trace de qui l'avait faite.
+    # These methods have NO HTTP route. Every intervention on an account went
+    # through `sqlite3` by hand, with the server stopped: workable at ten
+    # accounts, not at a hundred, and each action risked a mistyped query with
+    # no trace of who made it.
     #
-    # Le choix d'une ligne de commande plutôt que d'un panneau web n'est pas
-    # de la paresse. Un panneau demanderait sa propre authentification et une
-    # colonne de privilège, et deviendrait la cible la plus intéressante du
-    # service. Qui possède le shell possède déjà la base : la ligne de
-    # commande n'ajoute donc AUCUNE surface d'attaque, elle rend seulement
-    # sûrs et traçables des gestes qu'on faisait déjà.
+    # Choosing a command line rather than a web panel is not laziness. A panel
+    # would require its own authentication and a privilege column, and would
+    # become the service's most interesting target. Whoever owns the shell
+    # already owns the database: the command line therefore adds NO attack
+    # surface, it only makes safe and traceable actions that were already done.
 
     def comptes(self) -> list[dict[str, Any]]:
-        """Tous les comptes, avec de quoi décider sans requête de plus."""
+        """All accounts, with enough to decide without another query."""
         with self._connect() as db:
             lignes = db.execute("""
                 SELECT users.id, users.email, users.created_at,
@@ -75,12 +72,11 @@ class IdentityAdminMixin:
         return [dict(ligne) for ligne in lignes]
 
     def compte_par_adresse(self, email: Any) -> dict[str, str] | None:
-        """Retrouve un compte par son adresse, sans mot de passe.
+        """Finds an account by its address, without a password.
 
-        L'adresse est NORMALISÉE comme à l'inscription : sans ça, l'exploitant
-        taperait l'adresse telle qu'on la lui a dictée et ne trouverait rien,
-        alors que le compte existe.
-        """
+        The address is NORMALIZED as at registration: otherwise, the operator
+        would type the address as it was dictated to them and find nothing, while
+        the account exists."""
         try:
             normalise = self._email(email)
         except IdentityError:
@@ -103,12 +99,11 @@ class IdentityAdminMixin:
         return [dict(ligne) for ligne in lignes]
 
     def deplacer_echeance(self, project_id: str, secondes: int | None) -> bool:
-        """Repousse (ou avance) l'expiration d'un projet. `None` = jamais.
+        """Pushes back (or brings forward) a project's expiry. `None` = never.
 
-        Compté depuis MAINTENANT et non depuis l'échéance actuelle : « garde-le
-        trente jours de plus » se dit après coup, souvent sur un projet déjà
-        échu, et repartir de l'ancienne date ne prolongerait rien.
-        """
+        Counted from NOW and not from the current due date: "keep it thirty more
+        days" is said after the fact, often on an already expired project, and
+        restarting from the old date would extend nothing."""
         echeance = None if secondes is None else int(time.time()) + secondes
         with self._connect() as db:
             curseur = db.execute("UPDATE projects SET expires_at = ? WHERE project_id = ?",
@@ -116,12 +111,11 @@ class IdentityAdminMixin:
         return curseur.rowcount == 1
 
     def revoquer_cle_par_id(self, key_id: str) -> dict[str, str] | None:
-        """Révoque une clé sans connaître son propriétaire.
+        """Revokes a key without knowing its owner.
 
-        `revoke_api_key` exige l'identifiant du compte, parce qu'une route HTTP
-        ne doit toucher que les clés de l'appelant. L'exploitant, lui, a devant
-        lui un préfixe de clé lu dans un journal et pas grand-chose d'autre.
-        """
+        `revoke_api_key` requires the account identifier, because an HTTP route
+        must only touch the caller's keys. The operator, however, has in front of
+        them a key prefix read in a log and not much else."""
         with self._connect() as db:
             ligne = db.execute(
                 "SELECT api_keys.id, api_keys.name, users.email FROM api_keys "
@@ -138,29 +132,26 @@ class IdentityAdminMixin:
         return self.api_keys(user_id)
 
     def sauvegarder(self, destination: str | os.PathLike[str]) -> Path:
-        """Copie la base par l'API de sauvegarde en ligne de SQLite.
+        """Copies the database through SQLite's online backup API.
 
-        Un `cp` sur une base ouverte peut rendre un fichier DÉCHIRÉ : la
-        plateforme écrit en WAL, donc le `.sqlite3` seul ne contient pas les
-        transactions encore dans le journal. `Connection.backup()` prend une
-        copie cohérente pendant que le serveur continue de servir — c'est la
-        seule raison d'être de cette méthode plutôt que d'une ligne de shell.
+        A `cp` on an open database can yield a TORN file: the platform writes in
+        WAL, so the `.sqlite3` alone does not contain the transactions still in
+        the journal. `Connection.backup()` takes a consistent copy while the
+        server keeps serving — it is the only reason for this method rather than
+        a shell line.
 
-        `backup()` copie aussi l'EN-TÊTE de page 1 de la source, qui porte le
-        mode journal : la copie hérite donc du WAL et sqlite3 lui laisse ses
-        fichiers annexes `-wal`/`-shm` en la fermant. Mesuré en conditions
-        réelles (podman compose, sauvegardes toutes les 20 s pendant 18 h) :
-        **719 paires `-wal`/`-shm` orphelines** pour 14 fichiers `.sqlite3`
-        — `_rotation` (`__main__.py`) ne filtre que sur `cible.suffix`
-        (`.sqlite3`), qui ne correspond ni à `.sqlite3-wal` ni à
-        `.sqlite3-shm` : ces annexes ne sont JAMAIS purgées, quel que soit
-        `--garder`. Un service de sauvegarde sans rotation efficace remplit
-        le disque — la sauvegarde devient la panne qu'elle devait empêcher.
-        Repasser la copie en DELETE avant de la fermer force un checkpoint
-        complet et fait disparaître les deux fichiers : une sauvegarde doit
-        être un unique fichier portable, jamais un couple qui ne se comprend
-        qu'ensemble.
-        """
+        `backup()` also copies the source's page 1 HEADER, which carries the
+        journal mode: the copy therefore inherits WAL and sqlite3 leaves it its
+        `-wal`/`-shm` sidecar files when closing it. Measured under real
+        conditions (podman compose, backups every 20 s for 18 h): **719 orphan
+        `-wal`/`-shm` pairs** for 14 `.sqlite3` files — `_rotation`
+        (`__main__.py`) only filters on `cible.suffix` (`.sqlite3`), which matches
+        neither `.sqlite3-wal` nor `.sqlite3-shm`: these sidecars are NEVER purged,
+        whatever `--garder`. A backup service without effective rotation fills the
+        disk — the backup becomes the outage it was meant to prevent. Switching
+        the copy back to DELETE before closing it forces a full checkpoint and
+        makes both files disappear: a backup must be a single portable file, never
+        a pair that only makes sense together."""
         cible = Path(destination).resolve()
         cible.parent.mkdir(parents=True, exist_ok=True)
         source = sqlite3.connect(self.path, timeout=30)

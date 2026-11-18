@@ -1,8 +1,8 @@
 """`python -m monl.cli`.
 
-Remplace le `if __name__ == "__main__"` que portait le module d'origine :
-un paquet ne peut pas s'exécuter par son `__init__`. Le point d'entrée
-installé reste `monl = monl.cli:main` (pyproject.toml)."""
+Replaces the `if __name__ == "__main__"` the original module carried: a
+package cannot run through its `__init__`. The installed entry point stays
+`monl = monl.cli:main` (pyproject.toml)."""
 
 from . import main
 

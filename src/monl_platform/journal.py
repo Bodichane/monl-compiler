@@ -1,17 +1,16 @@
-"""Le journal d'exploitation de la plateforme.
+"""The platform's operations log.
 
-Sans lui, un incident ne laisse rien à lire : la plateforme stocke des
-comptes et des clés d'API, et rien ne disait qui s'était connecté, quelle clé
-avait servi, ni pourquoi une compilation avait échoué.
+Without it, an incident leaves nothing to read: the platform stores
+accounts and API keys, and nothing said who logged in, which key was
+used, or why a compilation failed.
 
-**Le journal ne peut PAS écrire un secret.** C'est la décision qui porte ce
-module : `evenement()` masque toute valeur dont le NOM annonce un secret, et
-toute valeur dont la FORME en est une (une clé `monl_…`, un jeton de forte
-entropie). Compter sur la discipline de chaque point d'appel aurait suffi
-jusqu'au jour où quelqu'un journalise `mot_de_passe=` par commodité — c'est
-la même logique qu'à la frontière d'émission SQL du point 108 : rendre la
-faute impossible plutôt que la recommander.
-"""
+**The log CANNOT write a secret.** That is the decision this module
+carries: `evenement()` masks any value whose NAME announces a secret, and
+any value whose SHAPE is one (a `monl_…` key, a high-entropy token).
+Relying on the discipline of each call site would have been enough until
+the day someone logs `mot_de_passe=` for convenience — it is the same
+logic as the SQL emission boundary of point 108: make the fault impossible
+rather than recommend against it."""
 
 from __future__ import annotations
 
@@ -24,14 +23,13 @@ from typing import Any
 NOM = "monl.plateforme"
 journal = logging.getLogger(NOM)
 
-# Un nom de champ qui annonce un secret. Comparé en minuscules, par sous-chaîne :
-# `mot_de_passe`, `password`, `api_key`, `session_token` tombent tous dedans.
+# A field name that announces a secret. Compared in lowercase, by substring:
+# `mot_de_passe`, `password`, `api_key`, `session_token` all fall into it.
 NOMS_SENSIBLES = ("password", "mot_de_passe", "secret", "token", "jeton",
                   "key_raw", "cle_brute", "authorization", "cookie")
 
-# Une valeur qui EST un secret, quel que soit le nom du champ. Les clés d'API
-# de la plateforme commencent par `monl_` ; les jetons de session sont des
-# chaînes URL-safe longues et sans espace.
+# A value that IS a secret, whatever the field's name. The platform's API keys
+# start with `monl_`; session tokens are long URL-safe strings without spaces.
 FORMES_SENSIBLES = re.compile(r"^(monl_[A-Za-z0-9_-]{8,}|[A-Za-z0-9_-]{32,})$")
 FORMES_SENSIBLES_DANS_TEXTE = re.compile(
     r"(?<![A-Za-z0-9_-])(?:monl_[A-Za-z0-9_-]{8,}|[A-Za-z0-9_-]{32,})"
@@ -48,32 +46,30 @@ MASQUE = "[masked]"
 
 
 def court(identifiant: Any) -> str:
-    """Le préfixe d'un identifiant, assez long pour rattacher, trop court pour
-    ressembler à un secret.
+    """The prefix of an identifier, long enough to correlate, too short to look
+    like a secret.
 
-    Trouvé en exécutant, pas en relisant : un identifiant de compte est un
-    `uuid4().hex` de 32 caractères, donc `FORMES_SENSIBLES` l'avalait et le
-    journal écrivait `compte=[masqué]` sur TOUTES les lignes. Un journal qui
-    masque le compte ne dit plus si deux cents connexions refusées viennent
-    d'un compte ou de deux cents — c'est-à-dire qu'il ne sert plus à rien.
+    Found by running, not by rereading: an account identifier is a
+    32-character `uuid4().hex`, so `FORMES_SENSIBLES` swallowed it and the log
+    wrote `compte=[masqué]` on EVERY line. A log that masks the account no
+    longer says whether two hundred refused logins come from one account or
+    two hundred — that is, it is no longer of any use.
 
-    Le remède ne touche PAS au masquage — l'affaiblir par une liste de noms
-    exemptés rouvrirait exactement le trou que ce module ferme. C'est ce qu'on
-    LUI PASSE qui change : huit caractères suffisent à recouper des lignes
-    entre elles, et ne reconstituent aucun jeton.
-    """
+    The remedy does NOT touch masking — weakening it with a list of exempted
+    names would reopen exactly the hole this module closes. It is what is
+    PASSED TO IT that changes: eight characters are enough to correlate lines
+    with one another, and reconstruct no token."""
     texte = str(identifiant or "")
     return texte[:8] or "-"
 
 
 def configurer(flux: Any = None) -> logging.Logger:
-    """Arme le journal une fois. Rappelable sans effet de bord.
+    """Arms the log once. Can be called again without side effects.
 
-    Le niveau vient de `MONL_LOG_LEVEL` (INFO par défaut). La sortie va sur
-    la sortie d'erreur, que Docker, systemd et les hébergeurs collectent tous
-    sans configuration — un fichier demanderait une rotation que personne
-    n'écrirait.
-    """
+    The level comes from `MONL_LOG_LEVEL` (INFO by default). Output goes to
+    standard error, which Docker, systemd and hosting providers all collect
+    without configuration — a file would require a rotation nobody would
+    write."""
     journal.setLevel(os.environ.get("MONL_LOG_LEVEL", "INFO").upper())
     if not journal.handlers:
         sortie = logging.StreamHandler(flux or sys.stderr)
@@ -97,13 +93,12 @@ def _valeur(nom: str, valeur: Any) -> str:
 
 
 def masquer_texte(texte: Any) -> str:
-    """Masque les secrets dans une sortie libre, notamment une URL.
+    """Masks secrets in free output, notably a URL.
 
-    Les journaux d'un site ne sont pas structurés en ``champ=valeur`` : un
-    jeton peut donc se trouver au milieu d'une URL. Cette frontière réutilise
-    les deux mêmes garanties que ``evenement`` — nom sensible des paramètres
-    et forme sensible de la valeur — avant que la CLI ne rende le texte.
-    """
+    A site's logs are not structured as ``field=value``: a token can
+    therefore sit in the middle of a URL. This boundary reuses the same two
+    guarantees as ``evenement`` — sensitive parameter name and sensitive value
+    shape — before the CLI returns the text."""
     texte = str(texte)
     texte = PARAMETRES_SENSIBLES.sub(r"\1" + MASQUE, texte)
     texte = AUTHENTIFICATION_SENSIBLE.sub(r"\1" + MASQUE, texte)
@@ -111,16 +106,15 @@ def masquer_texte(texte: Any) -> str:
 
 
 def evenement(_nom: str, /, *, niveau: int = logging.INFO, **champs: Any) -> str:
-    """Écrit une ligne `nom cle=valeur …` et rend le texte émis.
+    """Writes a `name key=value …` line and returns the emitted text.
 
-    Le retour existe pour les tests : ils vérifient ce qui SORT, pas ce que
-    l'appelant croit avoir passé.
+    The return value exists for the tests: they check what COMES OUT, not
+    what the caller believes it passed.
 
-    Le nom de l'événement est **positionnel uniquement** (`/`). Sans ça, un
-    champ appelé `nom=` — le plus naturel de tous en français — entrait en
-    collision avec le paramètre et levait un `TypeError` au moment précis où
-    l'on veut journaliser. Trouvé par le test, pas par relecture.
-    """
+    The event name is **positional only** (`/`). Without it, a field called
+    `nom=` — the most natural of all in French — collided with the parameter
+    and raised a `TypeError` at the very moment one wants to log. Found by
+    the test, not by rereading."""
     ligne = " ".join([_nom] + [f"{cle}={_valeur(cle, val)}"
                                for cle, val in champs.items() if val is not None])
     journal.log(niveau, ligne)

@@ -1,4 +1,4 @@
-"""Le manifeste des assets : ce que le site DÉCLARE porter."""
+"""The asset manifest: what the site DECLARES it carries."""
 
 import json
 from pathlib import Path
@@ -9,12 +9,11 @@ from .profil import _slug
 
 
 def _generated_image_plan(contract: dict, profile: dict) -> list[dict]:
-    """Retourne le plan explicite d'images matricielles.
+    """Returns the explicit plan of raster images.
 
-    L'absence de plan est le défaut. Cette fonction ne lit donc jamais le
-    brief pour chercher un mot-clé : le booléen ``generate_images`` est la
-    décision humaine qui l'appelle.
-    """
+    The absence of a plan is the default. This function therefore never reads
+    the brief looking for a keyword: the ``generate_images`` boolean is the
+    human decision that calls it."""
     assets_dir = ((contract.get("assets") or {}).get("dir") or "assets").strip("/")
     prefix = f"{assets_dir}/generated"
     planned = [{
@@ -36,7 +35,7 @@ def _generated_image_plan(contract: dict, profile: dict) -> list[dict]:
     return planned
 
 def build_asset_manifest(contract: dict, profile: dict, generate_images=False) -> dict:
-    """Construit un plan d'assets sans prétendre que les fichiers existent déjà."""
+    """Builds an asset plan without claiming the files already exist."""
     planned = []
     for media in profile["media_entities"]:
         for field in media["fields"]:
@@ -68,10 +67,10 @@ def build_asset_manifest(contract: dict, profile: dict, generate_images=False) -
         "unique_section_markers": {
             "index.html": _declared_section_markers(contract),
         },
-        # Un marqueur nomme une section, il ne prouve pas qu'il y a quelque
-        # chose dedans. La règle de substance voyage donc AVEC le marqueur :
-        # un projet compilé par une version antérieure n'en a pas et reste
-        # accepté tel quel, comme pour `required_markers` en son temps.
+        # A marker names a section, it does not prove there is something in it.
+        # The substance rule therefore travels WITH the marker: a project
+        # compiled by an earlier version has none and stays accepted as is, as
+        # was the case for `required_markers` in its time.
         "section_substance": {
             "index.html": _section_substance(contract, profile),
         },
@@ -83,7 +82,8 @@ def build_asset_manifest(contract: dict, profile: dict, generate_images=False) -
     }
 
 def activate_asset_manifest(project_dir: str) -> bool:
-    """Passe le manifeste généré en mode vérifiable après écriture du frontend."""
+    """Switches the generated manifest to verifiable mode after the frontend is
+    written."""
     path = Path(project_dir) / ASSET_MANIFEST_FILENAME
     if not path.exists():
         return False
