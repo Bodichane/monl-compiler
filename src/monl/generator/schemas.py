@@ -1,8 +1,7 @@
-"""Génération des schémas Pydantic (entrées CRUD et blocs 'custom').
+"""Generation of the Pydantic schemas (CRUD inputs and 'custom' blocks).
 
-Extrait de l'ancien module monolithique src/generator.py (1307 lignes)
-lors du découpage en package — voir docs/design_decisions.md.
-"""
+Extracted from the former monolithic module src/generator.py (1307 lines)
+when it was split into a package — see docs/design_decisions.md."""
 
 from string import Template
 
@@ -11,44 +10,44 @@ from ..ast_validator.champs import ChampsMixin
 
 class SchemasMixin:
     def _generate_schema_lines(self):
-        """Schémas d'entrée : un par entité, un par bloc 'custom'."""
+        """Input schemas: one per entity, one per 'custom' block."""
         api_lines = []
-        # 1. Génération des schémas CRUD standards
+        # 1. Generation of the standard CRUD schemas
         for ent_name, attrs in self.entities.items():
             api_lines.append(Template(r"""class ${ent_name}Schema(BaseModel):""").substitute(ent_name=ent_name))
-            # AJOUT (roadmap, écosystème de capacités -- suite de la brique 1) :
-            # un champ 'generated' n'apparaît PAS dans le schéma Pydantic --
-            # le client ne peut même pas tenter de le fournir dans le corps de
-            # requête (comme la colonne de clé étrangère 'ownedBy', qui n'y
-            # figure pas non plus). Il est peuplé plus bas, à la création,
-            # depuis le pseudonyme anonyme du compte courant.
+            # ADDED (roadmap, capability ecosystem -- follow-up to brick 1): a
+            # 'generated' field does NOT appear in the Pydantic schema -- the
+            # client cannot even try to supply it in the request body (like the
+            # 'ownedBy' foreign key column, which is not there either). It is
+            # filled further down, at creation, from the current account's
+            # anonymous pseudonym.
             generated_here_schema = self.generated_fields_by_entity.get(ent_name, [])
-            # AJOUT (brique 10, point 77) : un champ 'derivedFrom' est calculé
-            # par le serveur, donc absent du schéma pour la même raison qu'un
-            # champ 'generated'. Ce schéma sert à la création ET à la
-            # modification (un seul {Ent}Schema) : l'en retirer ferme d'un coup
-            # les deux chemins par lesquels le client écrivait le montant que
-            # `payable` relisait ensuite.
+            # ADDED (brick 10, point 77): a 'derivedFrom' field is calculated
+            # by the server, hence absent from the schema for the same reason
+            # as a 'generated' field. This schema serves creation AND update (a
+            # single {Ent}Schema): removing it from there closes at once both
+            # paths through which the client wrote the amount that `payable`
+            # then reread.
             derives_ici = self._derived_field_names(ent_name)
-            # AJOUT (brique 12, point 82) : un champ 'sumOf' est recalculé par le
-            # serveur à chaque écriture d'une ligne enfant. Même traitement, même
-            # raison : le laisser dans le schéma reviendrait à laisser le client
-            # écrire le total d'un panier, c'est-à-dire la faille du point 77
-            # revenue par le panier.
+            # ADDED (brick 12, point 82): a 'sumOf' field is recomputed by the
+            # server on every write of a child line. Same treatment, same
+            # reason: leaving it in the schema would let the client write a
+            # cart's total, i.e. the point 77 flaw coming back through the
+            # cart.
             sommes_ici = self._aggregated_field_names(ent_name)
-            # AJOUT (brique 16, point 89) : un champ 'timestamp' est écrit par le
-            # serveur à la création. Le laisser dans le schéma rendrait la date
-            # déclarative — c'est-à-dire sans valeur : un carnet de commandes
-            # dont chacun choisit ses dates n'atteste de rien.
+            # ADDED (brick 16, point 89): a 'timestamp' field is written by the
+            # server at creation. Leaving it in the schema would make the date
+            # declarative — that is, worthless: an order book where everyone
+            # picks their own dates attests to nothing.
             horodates_ici = self.timestamp_fields_by_entity.get(ent_name, [])
-            # BRIQUE 22 (point 102) : un numéro que le client pourrait écrire ne
-            # numéroterait rien — il choisirait le sien, et deux clients
-            # choisiraient le même.
+            # BRICK 22 (point 102): a number the client could write would
+            # number nothing — they would pick their own, and two clients would
+            # pick the same.
             horodates_ici = [*horodates_ici, *[
                 n["field"] for n in self.numbered_fields_by_entity.get(ent_name, [])]]
-            # BRIQUE 25 (point 113) : un champ 'writableAfterPayment' ne doit
-            # être écrit QUE par la route dédiée, et jamais par les routes de
-            # création ou de modification générique accessibles au client.
+            # BRICK 25 (point 113): a 'writableAfterPayment' field must be
+            # written ONLY by the dedicated route, never by the generic create
+            # or update routes the client can reach.
             postpaiement_ici = self.postpayment_writable_by_entity.get(
                 ent_name, {}).get("fields", [])
             has_schema_field = False
@@ -65,27 +64,28 @@ class SchemasMixin:
                 if attr_type == "Integer": py_type = "int"
                 if attr_type in ["Float", "Money"]: py_type = "float"
                 if attr_type == "Boolean": py_type = "bool"
-                # CORRECTIF (bêta 3) : les champs texte n'avaient AUCUNE borne
-                # de longueur — une chaîne de plusieurs Mo était acceptée et
-                # écrite en base, ce qui suffit à remplir le disque avec une
-                # boucle de dix lignes. La borne reflète la colonne SQL
-                # correspondante (VARCHAR(255) pour String, VARCHAR(320) pour
-                # Email, texte long pour Text) : le refus arrive à la
-                # validation d'entrée, avec un 422 explicite, plutôt qu'au
-                # milieu d'un INSERT.
-                # POINT 85 : 'min'/'max' n'avaient AUCUN effet. Ils arrivent ici,
-                # au seul endroit où une borne d'entrée peut vivre — la
-                # validation Pydantic, donc un 422 avant tout INSERT. Le
-                # validateur a déjà tranché ce que chaque borne signifie selon le
-                # type (longueur pour du texte, valeur pour un nombre) et refusé
-                # ce qu'elle ne sait pas borner : ici on ne fait que l'écrire.
-                # BRIQUE 19 (point 96) : une valeur PARMI UNE LISTE. `Literal`
-                # plutôt qu'un motif : Pydantic refuse en 422 AVANT tout INSERT
-                # (même place que les bornes du point 85), et la liste sort
-                # telle quelle dans le schéma OpenAPI — donc dans /docs, sans
-                # qu'on ait à la recopier. Les valeurs passent par `repr()` :
-                # jamais d'interpolation manuelle entre guillemets, c'est la
-                # leçon de `categorized` (brique 5).
+                # FIX (beta 3): text fields had NO length bound — a string of
+                # several MB was accepted and written to the database, which is
+                # enough to fill the disk with a ten-line loop. The bound
+                # mirrors the matching SQL column (VARCHAR(255) for String,
+                # VARCHAR(320) for Email, long text for Text): the refusal
+                # comes at input validation, with an explicit 422, rather than
+                # in the middle of an INSERT.
+                #
+                # POINT 85: 'min'/'max' had NO effect. They arrive here, in the
+                # only place an input bound can live — Pydantic validation,
+                # hence a 422 before any INSERT. The validator has already
+                # decided what each bound means for each type (length for text,
+                # value for a number) and refused what it cannot bound: here we
+                # only write it.
+                #
+                # BRICK 19 (point 96): a value FROM A LIST. `Literal` rather
+                # than a pattern: Pydantic refuses with 422 BEFORE any INSERT
+                # (same place as the point 85 bounds), and the list comes out
+                # as is in the OpenAPI schema — hence in /docs, without having
+                # to copy it. The values go through `repr()`: never manual
+                # interpolation between quotes, that is the lesson of
+                # `categorized` (brick 5).
                 choix = self.enumerated_fields.get(ent_name, {}).get(attr_name)
                 if choix:
                     valeurs = ", ".join(repr(v) for v in choix)
@@ -103,32 +103,33 @@ class SchemasMixin:
                     bornes.append(Template(r"""${mot}=${value}""").substitute(mot=mot, value=borne_regle['valeur']))
                 if py_type == "str":
                     borne = {"Text": 20000, "Email": 320, "UUID": 36}.get(attr_type, 255)
-                    # Un 'max' déclaré l'emporte sur la borne de colonne : le
-                    # validateur a vérifié qu'il ne la dépasse pas.
+                    # A declared 'max' wins over the column bound: the
+                    # validator checked it does not exceed it.
                     if not any(b.startswith("max_length=") for b in bornes):
                         bornes.append(Template(r"""max_length=${borne}""").substitute(borne=borne))
-                    # POINT 91 : le type 'Email' ne fixait qu'une LONGUEUR —
-                    # 'pas-un-courriel' entrait en base avec un 200. Un type qui
-                    # nomme une adresse et n'en vérifie aucune est exactement ce
-                    # que le point 85 refuse : une règle qui ne produit rien.
-                    # Le motif est volontairement large (une arobase, un point
-                    # après, aucun espace) : monl vérifie la FORME, il ne peut
-                    # pas attester qu'une boîte existe — cela demanderait un
-                    # envoi, donc un appel sortant que le compilateur s'interdit.
+                    # POINT 91: the 'Email' type only fixed a LENGTH —
+                    # 'not-an-email' went into the database with a 200. A type
+                    # that names an address and checks none is exactly what
+                    # point 85 refuses: a rule that produces nothing. The
+                    # pattern is deliberately broad (one at sign, a dot after
+                    # it, no space): monl checks the FORM, it cannot attest
+                    # that a mailbox exists — that would need sending
+                    # something, hence an outgoing call the compiler forbids
+                    # itself.
                     if attr_type == "Email":
                         bornes.append(r"pattern=r'^[^@\s]+@[^@\s]+\.[^@\s]{2,}$'")
-                    # POINT 101 : le type frère avait le même défaut, et il est
-                    # resté debout dix points de plus. 'UUID' ne fixait qu'une
-                    # longueur de 255 : `smoke-reference` entrait en base sous un
-                    # nom qui promet un identifiant universellement unique. Le
-                    # raisonnement du point 91 s'applique mot pour mot — un type
-                    # qui NOMME une chose et n'en vérifie aucune est une règle
-                    # qui ne produit rien (point 85).
+                    # POINT 101: the sibling type had the same defect, and it
+                    # stood ten points longer. 'UUID' only fixed a length of
+                    # 255: `smoke-reference` went into the database under a
+                    # name that promises a universally unique identifier. The
+                    # point 91 reasoning applies word for word — a type that
+                    # NAMES a thing and checks none of it is a rule that
+                    # produces nothing (point 85).
                     #
-                    # La forme canonique, et rien de plus : ni version ni
-                    # variante. Exiger le chiffre de version rejetterait l'UUID
-                    # nul et les versions à venir, alors qu'ils sont bien formés
-                    # -- monl vérifie la FORME, il ne juge pas la provenance.
+                    # The canonical form, and nothing more: neither version nor
+                    # variant. Requiring the version digit would reject the nil
+                    # UUID and future versions, though they are well formed --
+                    # monl checks the FORM, it does not judge provenance.
                     if attr_type == "UUID":
                         bornes.append(
                             Template(r"""pattern=r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$$'""").substitute())
@@ -138,31 +139,29 @@ class SchemasMixin:
                 else:
                     api_lines.append(Template(r"""    ${attr_name}: ${py_type}""").substitute(attr_name=attr_name, py_type=py_type))
                 has_schema_field = True
-            # AJOUT (roadmap, écosystème de capacités -- brique 3, généralisée
-            # en brique 4) : chaque relation vers une cible de
-            # 'decrements'/'increments' est un choix du client ("je
-            # signale/j'apprécie CETTE cible précise"), quelle que soit sa
-            # position parmi les relations entrantes. La source unique de la
-            # colonne vient du plan compteur via `_counter_fk_columns`.
+            # ADDED (roadmap, capability ecosystem -- brick 3, generalized into
+            # brick 4): every relation to a 'decrements'/'increments' target is
+            # a client choice ("I report/like THIS precise target"), whatever
+            # its position among the incoming relations. The column's single
+            # source is the counter plan through `_counter_fk_columns`.
             for _counter_fk in self._counter_fk_columns(ent_name):
                 api_lines.append(Template(r"""    ${counter_fk}: int""").substitute(counter_fk=_counter_fk))
                 has_schema_field = True
-            # AJOUT (bêta 3) : parents autres que le propriétaire — le client
-            # doit pouvoir dire à quel enregistrement lié il se rattache.
+            # ADDED (beta 3): parents other than the owner — the client must be
+            # able to say which linked record it attaches to.
             for _client_fk in self._client_fk_columns(ent_name):
                 api_lines.append(Template(r"""    ${client_fk}: int""").substitute(client_fk=_client_fk))
                 has_schema_field = True
-            # Filet de sécurité syntaxique : si TOUS les attributs d'une
-            # entité sont 'generated' (aucun autre champ, pas de colonne FK
-            # ajoutée ci-dessus), le corps de la classe serait vide --
-            # invalide en Python.
+            # Syntactic safety net: if ALL of an entity's attributes are
+            # 'generated' (no other field, no FK column added above), the class
+            # body would be empty -- invalid in Python.
             if not has_schema_field:
                 api_lines.append("    pass")
             api_lines.extend(_blank_validator_lines(non_blank))
             api_lines.append(Template(r"""
 """).substitute())
 
-        # 2. Schémas stricts pour les entrées des fonctions 'custom'
+        # 2. Strict schemas for the inputs of 'custom' functions
         api_lines.append("# --- VALIDATION SCHEMAS DEDICATED TO THE AI SANDBOX ---")
         for func in self.custom_functions:
             func_name = func["name"]
