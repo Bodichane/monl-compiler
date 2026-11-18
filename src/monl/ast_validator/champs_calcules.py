@@ -186,6 +186,44 @@ class ChampsCalculesMixin:
                 "source_entity": source_entity, "source_field": source_field,
             })
 
+    # The next two methods are extracted from `_valider_effets_compteurs`
+    # (complexity ceiling): same checks, same order, same messages.
+    def _exiger_relation_de_compteur(self, direction, trigger_entity,
+                                     target_entity, target_field):
+        """A counter needs a relation between the triggering and the target
+        entity — it is the foreign key the effect follows."""
+        matching_relation = any(
+            (rel["type"] in ("hasMany", "hasOne")
+             and rel["source"] == target_entity and rel["target"] == trigger_entity)
+            or (rel["type"] == "belongsTo"
+                and rel["target"] == target_entity and rel["source"] == trigger_entity)
+            for rel in self.relations
+        )
+        if not matching_relation:
+            raise ASTValidationError(
+                f"Structure: '{direction}' on '{trigger_entity}.Create' to '{target_entity}.{target_field}' "
+                f"requires a relation between them (e.g. '{target_entity} hasMany {trigger_entity}'), which is missing here."
+            )
+
+    def _valider_quantite_de_compteur(self, direction, trigger_entity, amount_field):
+        """`by <field>`: an Integer of the triggering entity, and required."""
+        if not amount_field:
+            return
+        amount_type = self.entities[trigger_entity].get(amount_field)
+        if amount_type != "Integer":
+            raise ASTValidationError(
+                f"Structure: '{direction} ... by {amount_field}' refers to a field on "
+                f"'{trigger_entity}' which must be a declared Integer "
+                f"(received: {amount_type or 'field does not exist'})."
+            )
+        required = {r["reference"] for r in self.rules if r.get("type") == "required"}
+        if f"{trigger_entity}.{amount_field}" not in required:
+            raise ASTValidationError(
+                f"Structure: '{trigger_entity}.{amount_field}' is used as the quantity for "
+                f"'{direction}': it requires 'rule {trigger_entity}.{amount_field} "
+                f"required', otherwise a client omitting it would trigger a decrement with no value."
+            )
+
     def _valider_effets_compteurs(self):
         """Validates the counter effects triggered at creation."""
         self.reputation_rules: list[CounterRuleIR] = []
@@ -217,34 +255,10 @@ class ChampsCalculesMixin:
                     f"Structure: '{direction}' targets field '{target_entity}.{target_field}', which must be "
                     f"a declared Integer or Float attribute (received: {target_type or 'field does not exist'})."
                 )
-            matching_relation = any(
-                (rel["type"] in ("hasMany", "hasOne")
-                 and rel["source"] == target_entity and rel["target"] == trigger_entity)
-                or (rel["type"] == "belongsTo"
-                    and rel["target"] == target_entity and rel["source"] == trigger_entity)
-                for rel in self.relations
-            )
-            if not matching_relation:
-                raise ASTValidationError(
-                    f"Structure: '{direction}' on '{trigger_entity}.Create' to '{target_entity}.{target_field}' "
-                    f"requires a relation between them (e.g. '{target_entity} hasMany {trigger_entity}'), which is missing here."
-                )
+            self._exiger_relation_de_compteur(
+                direction, trigger_entity, target_entity, target_field)
             amount_field = rule.get("amount_field")
-            if amount_field:
-                amount_type = self.entities[trigger_entity].get(amount_field)
-                if amount_type != "Integer":
-                    raise ASTValidationError(
-                        f"Structure: '{direction} ... by {amount_field}' refers to a field on "
-                        f"'{trigger_entity}' which must be a declared Integer "
-                        f"(received: {amount_type or 'field does not exist'})."
-                    )
-                required = {r["reference"] for r in self.rules if r.get("type") == "required"}
-                if f"{trigger_entity}.{amount_field}" not in required:
-                    raise ASTValidationError(
-                        f"Structure: '{trigger_entity}.{amount_field}' is used as the quantity for "
-                        f"'{direction}': it requires 'rule {trigger_entity}.{amount_field} "
-                        f"required', otherwise a client omitting it would trigger a decrement with no value."
-                    )
+            self._valider_quantite_de_compteur(direction, trigger_entity, amount_field)
             self.reputation_rules.append({
                 "trigger_entity": trigger_entity, "target_entity": target_entity,
                 "target_field": target_field, "amount": rule.get("amount"),

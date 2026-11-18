@@ -219,46 +219,71 @@ def _dispatch(argv=None):
     elif args.command == "migrate":
         construction.cmd_migrate(args.dir, name=args.name, down=args.down, list_only=args.list)
     elif args.command == "assets":
-        if args.assets_command == "add":
-            if args.logo and args.favicon:
-                print(" ❌ --logo and --favicon declare two different "
-                      "things; set them in separate commands.")
-                sys.exit(1)
-            cible = "logo" if args.logo else ("favicon" if args.favicon else None)
-            contenu_editorial.cmd_assets_add(args.dir, args.fichier, pour=args.pour, cible=cible,
-                           entity=args.entity, field=args.field, nom=args.nom,
-                           force=args.force)
-        elif args.assets_command == "list":
-            contenu_editorial.cmd_assets_list(args.dir)
-        else:
-            _subparser(parser, "assets").print_help()
-            sys.exit(1)
+        _commande_assets(parser, args)
     elif args.command == "content":
-        if args.content_command == "export":
-            contenu_editorial.cmd_content_export(args.dir)
-        elif args.content_command == "import":
-            contenu_editorial.cmd_content_import(args.dir)
-        else:
-            _subparser(parser, "content").print_help()
-            sys.exit(1)
+        _commande_content(parser, args)
     elif args.command == "frontend":
         retouche._lancer_ia(args, update_mode=args.update)
     elif args.command == "retouche":
-        retouche.cmd_retouche(args.dir, args.demande)
-        if args.consigne_seule:
-            print("  → Give this file to an AI, then install the result "
-                  "with 'monl import'.")
-        else:
-            retouche._lancer_ia(args, retouche_mode=True)
+        _commande_retouche(args)
     elif args.command == "import":
-        from ..frontend_ai import FrontendAIError, import_and_verify
-        try:
-            ok, _errors = import_and_verify(args.dir, args.source)
-        except FrontendAIError as e:
-            print(f" ❌ {e}")
+        _commande_import(args)
+
+
+# The four functions below are extracted from `_dispatch` (complexity
+# ceiling): same calls, same messages, same exit codes. They still reach
+# the commands through their MODULE objects, so tests that monkeypatch
+# them keep working.
+def _commande_assets(parser, args):
+    """`monl assets add|list`."""
+    if args.assets_command == "add":
+        if args.logo and args.favicon:
+            print(" ❌ --logo and --favicon declare two different "
+                  "things; set them in separate commands.")
             sys.exit(1)
-        if not ok:
-            sys.exit(1)
+        cible = "logo" if args.logo else ("favicon" if args.favicon else None)
+        contenu_editorial.cmd_assets_add(args.dir, args.fichier, pour=args.pour, cible=cible,
+                       entity=args.entity, field=args.field, nom=args.nom,
+                       force=args.force)
+    elif args.assets_command == "list":
+        contenu_editorial.cmd_assets_list(args.dir)
+    else:
+        _subparser(parser, "assets").print_help()
+        sys.exit(1)
+
+
+def _commande_content(parser, args):
+    """`monl content export|import`."""
+    if args.content_command == "export":
+        contenu_editorial.cmd_content_export(args.dir)
+    elif args.content_command == "import":
+        contenu_editorial.cmd_content_import(args.dir)
+    else:
+        _subparser(parser, "content").print_help()
+        sys.exit(1)
+
+
+def _commande_retouche(args):
+    """`monl retouche`."""
+    retouche.cmd_retouche(args.dir, args.demande)
+    if args.consigne_seule:
+        print("  → Give this file to an AI, then install the result "
+              "with 'monl import'.")
+    else:
+        retouche._lancer_ia(args, retouche_mode=True)
+
+
+def _commande_import(args):
+    """`monl import`."""
+    from ..frontend_ai import FrontendAIError, import_and_verify
+    try:
+        ok, _errors = import_and_verify(args.dir, args.source)
+    except FrontendAIError as e:
+        print(f" ❌ {e}")
+        sys.exit(1)
+    if not ok:
+        sys.exit(1)
+
 
 def main(argv=None):
     """CLI entry point: translates MONL errors into an exit code."""

@@ -73,45 +73,8 @@ def _routes_du_contrat(entity_specs, plans, route_map):
                 routes[-1]["supervisors"] = _sup_lecture
                 routes[-2]["supervisors"] = _sup_lecture
         elif act_type == "Update":
-            # ADDED (point 81): the Pydantic schema is UNIQUE per entity, so
-            # these foreign keys must be sent (otherwise 422) -- but monl's
-            # Update route does not write them: an attachment is fixed at
-            # creation. Without this note, the contract suggested that an
-            # interface could move a line from one cart to another, which the
-            # backend accepts (200) without changing anything. Same requirement
-            # as points 76 and 79: the contract describes what the backend
-            # DOES.
-            liens = list(entity_specs.get(base, {}).get("client_foreign_keys", []))
-            note_liens = None
-            if liens:
-                accord = ("must appear in the body (one schema per entity) but are "
-                          "NOT modified" if len(liens) > 1 else
-                          "must appear in the body (one schema per entity) but is "
-                          "NOT modified")
-                note_liens = (
-                    f"{', '.join(liens)} {accord}: an attachment is set on creation. "
-                    f"Do not offer to change it — send back the current value.")
-            # POINT 91: fourth form of the blind spot of points 88 to 90. A
-            # route changes neither path, nor actors, nor fields, and yet gains
-            # a refusal: as soon as payment is made, it answers 409. Without
-            # this note, an interface faithful to the contract draws an "Edit"
-            # button on a paid order — and the user discovers the refusal after
-            # filling in the form.
-            verrou = notes_de_contrat._verrou_paiement(plans, base)
-            # POINT 98: the value that RELEASES, and the one-way trip. Without
-            # this note, an interface offers "back to preparation" on a
-            # cancelled order and discovers a 409 on click.
-            liberation = (plans.release_rules_by_entity.get(base) or [None])[0]
-            routes.append(champs._route("PUT", f"/{low}/{{id}}", act_type, base, is_public, actors,
-                                 note=notes_de_contrat._joindre(note_liens, notes_de_contrat._note_verrou(verrou),
-                                               notes_de_contrat._note_liberation(liberation)),
-                                 request_fields=champs._creatable_fields(entity_specs.get(base))))
-            if verrou:
-                routes[-1]["payment_locked"] = verrou
-            if liberation:
-                routes[-1]["releases_on"] = {
-                    "field": liberation["field"], "value": liberation["value"],
-                    "releases": liberation["releases"], "terminal": True}
+            routes.append(_route_de_modification(
+                entity_specs, plans, base, low, act_type, is_public, actors))
         elif act_type == "Delete":
             verrou = notes_de_contrat._verrou_paiement(plans, base)
             # ADDED (brick 23, point 106): see the Read block — a deletion
@@ -130,6 +93,59 @@ def _routes_du_contrat(entity_specs, plans, route_map):
             routes.append(champs._route("POST", f"/workflow/{tag.lower()}/{target.lower()}",
                                  "Execute", target, is_public, actors))
 
+    routes.extend(_routes_de_depot(plans))
+    return routes
+
+
+def _route_de_modification(entity_specs, plans, base, low, act_type, is_public, actors):
+    """The PUT route and its notes. Extracted from `_routes_du_contrat`
+    (complexity ceiling); same route, same keys, same order."""
+    # ADDED (point 81): the Pydantic schema is UNIQUE per entity, so
+    # these foreign keys must be sent (otherwise 422) -- but monl's
+    # Update route does not write them: an attachment is fixed at
+    # creation. Without this note, the contract suggested that an
+    # interface could move a line from one cart to another, which the
+    # backend accepts (200) without changing anything. Same requirement
+    # as points 76 and 79: the contract describes what the backend
+    # DOES.
+    liens = list(entity_specs.get(base, {}).get("client_foreign_keys", []))
+    note_liens = None
+    if liens:
+        accord = ("must appear in the body (one schema per entity) but are "
+                  "NOT modified" if len(liens) > 1 else
+                  "must appear in the body (one schema per entity) but is "
+                  "NOT modified")
+        note_liens = (
+            f"{', '.join(liens)} {accord}: an attachment is set on creation. "
+            f"Do not offer to change it — send back the current value.")
+    # POINT 91: fourth form of the blind spot of points 88 to 90. A
+    # route changes neither path, nor actors, nor fields, and yet gains
+    # a refusal: as soon as payment is made, it answers 409. Without
+    # this note, an interface faithful to the contract draws an "Edit"
+    # button on a paid order — and the user discovers the refusal after
+    # filling in the form.
+    verrou = notes_de_contrat._verrou_paiement(plans, base)
+    # POINT 98: the value that RELEASES, and the one-way trip. Without
+    # this note, an interface offers "back to preparation" on a
+    # cancelled order and discovers a 409 on click.
+    liberation = (plans.release_rules_by_entity.get(base) or [None])[0]
+    route = champs._route("PUT", f"/{low}/{{id}}", act_type, base, is_public, actors,
+                         note=notes_de_contrat._joindre(note_liens, notes_de_contrat._note_verrou(verrou),
+                                       notes_de_contrat._note_liberation(liberation)),
+                         request_fields=champs._creatable_fields(entity_specs.get(base)))
+    if verrou:
+        route["payment_locked"] = verrou
+    if liberation:
+        route["releases_on"] = {
+            "field": liberation["field"], "value": liberation["value"],
+            "releases": liberation["releases"], "terminal": True}
+    return route
+
+
+def _routes_de_depot(plans):
+    """The upload routes, which come from no workflow. Extracted from
+    `_routes_du_contrat` (complexity ceiling); same routes, same order."""
+    routes = []
     # BRICK B1: these routes are not JSON CRUD. They are produced by an Upload
     # declaration and must therefore be described separately in the contract:
     # multipart name, explicit limit, types really recognized, POST upload and

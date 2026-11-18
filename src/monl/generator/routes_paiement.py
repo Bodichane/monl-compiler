@@ -20,6 +20,73 @@ class PaiementRoutesMixin:
     # smoke test stays green offline.
     # ─────────────────────────────────────────────────────────────────
 
+    def _parametres_prestataire(self, prestataire, code_devise):
+        """The webhook names, the key names and the prelude of a provider.
+
+        Extracted from `_generate_payment_routes` (complexity ceiling); emitted
+        text byte-identical. Returns (secret_var, secret_env, signature header,
+        signature scheme, key_var, key_env, prelude lines)."""
+        if prestataire == "fedapay":
+            return ("FEDAPAY_WEBHOOK_SECRET", "MONL_FEDAPAY_WEBHOOK_SECRET",
+                    "x-fedapay-signature", "s",
+                    "FEDAPAY_SECRET_KEY", "MONL_FEDAPAY_SECRET_KEY",
+                    self._prelude_fedapay(code_devise.upper()))
+        return ("STRIPE_WEBHOOK_SECRET", "STRIPE_WEBHOOK_SECRET",
+                "stripe-signature", "v1",
+                "STRIPE_SECRET_KEY", "STRIPE_SECRET_KEY",
+                self._prelude_stripe())
+
+    def _prelude_stripe(self):
+        """The Stripe prelude: keys, overridable endpoint, checkout session."""
+        return [
+            "",
+            "# ── Payment ('payable' brick) ─────────────────────────────────",
+            "STRIPE_SECRET_KEY = (os.environ.get('STRIPE_SECRET_KEY') or '').strip()",
+            "STRIPE_WEBHOOK_SECRET = (os.environ.get('STRIPE_WEBHOOK_SECRET') or '').strip()",
+            "# Overridable endpoint: essential to exercise the full flow",
+            "# without calling Stripe (see tests).",
+            "STRIPE_BASE_URL = (os.environ.get('MONL_STRIPE_BASE_URL')",
+            "                   or 'https://api.stripe.com').rstrip('/')",
+            "",
+            "def _exiger_cle_paiement(nom, valeur):",
+            "    if not valeur:",
+            "        raise HTTPException(status_code=503, detail=(",
+            "            f'Payment unavailable: the environment variable {nom} is not set '",
+            "            'on the server. No payment can be accepted while it is '",
+            "            'missing.'))",
+            "",
+            "def _session_paiement(montant_centimes, devise, reference, retour):",
+            "    \"\"\"Creates a checkout session. The amount is in CENTS,",
+            "    calculated server-side from the database.\"\"\"",
+            "    corps = urllib.parse.urlencode({",
+            "        'mode': 'payment',",
+            "        'success_url': retour + '?paiement=ok',",
+            "        'cancel_url': retour + '?paiement=annule',",
+            "        'client_reference_id': str(reference),",
+            "        'line_items[0][quantity]': '1',",
+            "        'line_items[0][price_data][currency]': devise,",
+            "        'line_items[0][price_data][unit_amount]': str(montant_centimes),",
+            "        'line_items[0][price_data][product_data][name]': f'Order {reference}',",
+            "    }).encode()",
+            "    requete = urllib.request.Request(",
+            "        STRIPE_BASE_URL + '/v1/checkout/sessions', data=corps, method='POST')",
+            "    requete.add_header('Authorization', 'Bearer ' + STRIPE_SECRET_KEY)",
+            "    requete.add_header('Content-Type', 'application/x-www-form-urlencoded')",
+            "    try:",
+            "        with urllib.request.urlopen(requete, timeout=15) as reponse:",
+            "            return json.loads(reponse.read() or b'{}')",
+            "    except urllib.error.HTTPError as e:",
+            "        with e:",
+            "            detail = (e.read() or b'')[:400].decode('utf-8', 'replace')",
+            "        raise HTTPException(status_code=502, detail=(",
+            "            f'The payment provider refused the request ({e.code}): {detail}'))",
+            "    except urllib.error.URLError as e:",
+            "        raise HTTPException(status_code=502, detail=(",
+            "            f'Payment provider unreachable: {e.reason}'))",
+            "",
+        ]
+
+
     def _generate_payment_routes(self):
         if not self.payable_by_entity:
             return []
@@ -47,65 +114,9 @@ class PaiementRoutesMixin:
         # its official SDK (Webhook.ts: EXPECTED_SCHEME = 's',
         # `${timestamp}.${payload}`, sha256 hex, DEFAULT_TOLERANCE = 300),
         # never inferred from prose.
-        if prestataire == "fedapay":
-            secret_var = "FEDAPAY_WEBHOOK_SECRET"
-            secret_env = "MONL_FEDAPAY_WEBHOOK_SECRET"
-            entete_signature, schema_signature = "x-fedapay-signature", "s"
-            cle_var, cle_env = "FEDAPAY_SECRET_KEY", "MONL_FEDAPAY_SECRET_KEY"
-        else:
-            secret_var = secret_env = "STRIPE_WEBHOOK_SECRET"
-            entete_signature, schema_signature = "stripe-signature", "v1"
-            cle_var = cle_env = "STRIPE_SECRET_KEY"
-        if prestataire == "fedapay":
-            lignes = self._prelude_fedapay(code_devise.upper())
-        else:
-            lignes = [
-                "",
-                "# ── Payment ('payable' brick) ─────────────────────────────────",
-                "STRIPE_SECRET_KEY = (os.environ.get('STRIPE_SECRET_KEY') or '').strip()",
-                "STRIPE_WEBHOOK_SECRET = (os.environ.get('STRIPE_WEBHOOK_SECRET') or '').strip()",
-                "# Overridable endpoint: essential to exercise the full flow",
-                "# without calling Stripe (see tests).",
-                "STRIPE_BASE_URL = (os.environ.get('MONL_STRIPE_BASE_URL')",
-                "                   or 'https://api.stripe.com').rstrip('/')",
-                "",
-                "def _exiger_cle_paiement(nom, valeur):",
-                "    if not valeur:",
-                "        raise HTTPException(status_code=503, detail=(",
-                "            f'Payment unavailable: the environment variable {nom} is not set '",
-                "            'on the server. No payment can be accepted while it is '",
-                "            'missing.'))",
-                "",
-                "def _session_paiement(montant_centimes, devise, reference, retour):",
-                "    \"\"\"Creates a checkout session. The amount is in CENTS,",
-                "    calculated server-side from the database.\"\"\"",
-                "    corps = urllib.parse.urlencode({",
-                "        'mode': 'payment',",
-                "        'success_url': retour + '?paiement=ok',",
-                "        'cancel_url': retour + '?paiement=annule',",
-                "        'client_reference_id': str(reference),",
-                "        'line_items[0][quantity]': '1',",
-                "        'line_items[0][price_data][currency]': devise,",
-                "        'line_items[0][price_data][unit_amount]': str(montant_centimes),",
-                "        'line_items[0][price_data][product_data][name]': f'Order {reference}',",
-                "    }).encode()",
-                "    requete = urllib.request.Request(",
-                "        STRIPE_BASE_URL + '/v1/checkout/sessions', data=corps, method='POST')",
-                "    requete.add_header('Authorization', 'Bearer ' + STRIPE_SECRET_KEY)",
-                "    requete.add_header('Content-Type', 'application/x-www-form-urlencoded')",
-                "    try:",
-                "        with urllib.request.urlopen(requete, timeout=15) as reponse:",
-                "            return json.loads(reponse.read() or b'{}')",
-                "    except urllib.error.HTTPError as e:",
-                "        with e:",
-                "            detail = (e.read() or b'')[:400].decode('utf-8', 'replace')",
-                "        raise HTTPException(status_code=502, detail=(",
-                "            f'The payment provider refused the request ({e.code}): {detail}'))",
-                "    except urllib.error.URLError as e:",
-                "        raise HTTPException(status_code=502, detail=(",
-                "            f'Payment provider unreachable: {e.reason}'))",
-                "",
-            ]
+        (secret_var, secret_env, entete_signature, schema_signature,
+         cle_var, cle_env, lignes) = self._parametres_prestataire(
+            prestataire, code_devise)
         for entite, champ in sorted(self.payable_by_entity.items()):
             table = entite.lower()
             # POINT 99: the column compared with `current_user_id` must carry

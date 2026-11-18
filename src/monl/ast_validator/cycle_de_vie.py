@@ -8,6 +8,18 @@ which stays absolute)."""
 from .socle import ASTValidationError
 
 
+def _refuser_champ_serveur(regles_serveur, entity, field):
+    """A field the server fills cannot also be written after payment.
+    Extracted from `_valider_regle_apres_paiement` (complexity ceiling)."""
+    for type_regle, champs in regles_serveur:
+        if any(c["entity"] == entity and c["field"] == field
+               for c in champs):
+            raise ASTValidationError(
+                f"Structure: '{entity}.{field}' is both "
+                f"'writableAfterPayment' and '{type_regle}' — incompatible: "
+                f"'{type_regle}' forbids all client writes.")
+
+
 class CycleDeVieMixin:
     """What a record becomes AFTER its payment."""
 
@@ -87,6 +99,25 @@ class CycleDeVieMixin:
                 "entity": entity, "field": field, "value": rule["value"], "releases": released_entity,
             })
 
+    def _refuser_proprietaire_apres_paiement(self, entity, field, actor):
+        """The named actor must not be the entity's owner, who could then
+        bypass the payment lock. Extracted from `_valider_regle_apres_paiement`
+        (complexity ceiling); same check, same message."""
+        proprietaire = self.transitive_ownership.get(entity, {}).get("actor")
+        if proprietaire is None:
+            proprietaires_directs = {
+                owner for (owned_entity, _action), owner
+                in self.ownership_rules.items()
+                if owned_entity == entity and owner in self.actors
+            }
+            if len(proprietaires_directs) == 1:
+                proprietaire = next(iter(proprietaires_directs))
+        if proprietaire == actor:
+            raise ASTValidationError(
+                f"Structure: the 'writableAfterPayment' rule on "
+                f"'{entity}.{field}' names '{actor}', who already owns "
+                f"'{entity}' — its owner could bypass the payment lock.")
+
     def _valider_regle_apres_paiement(self):
         """Validates the reserved write channel that bypasses the locked CRUD."""
         self.postpayment_writable = {}
@@ -125,27 +156,8 @@ class CycleDeVieMixin:
                     f"Structure: the 'writableAfterPayment' rule on "
                     f"'{entity}.{field}' names actor '{actor}', which is not "
                     f"a declared actor.")
-            for type_regle, champs in regles_serveur:
-                if any(c["entity"] == entity and c["field"] == field
-                       for c in champs):
-                    raise ASTValidationError(
-                        f"Structure: '{entity}.{field}' is both "
-                        f"'writableAfterPayment' and '{type_regle}' — incompatible: "
-                        f"'{type_regle}' forbids all client writes.")
-            proprietaire = self.transitive_ownership.get(entity, {}).get("actor")
-            if proprietaire is None:
-                proprietaires_directs = {
-                    owner for (owned_entity, _action), owner
-                    in self.ownership_rules.items()
-                    if owned_entity == entity and owner in self.actors
-                }
-                if len(proprietaires_directs) == 1:
-                    proprietaire = next(iter(proprietaires_directs))
-            if proprietaire == actor:
-                raise ASTValidationError(
-                    f"Structure: the 'writableAfterPayment' rule on "
-                    f"'{entity}.{field}' names '{actor}', who already owns "
-                    f"'{entity}' — its owner could bypass the payment lock.")
+            _refuser_champ_serveur(regles_serveur, entity, field)
+            self._refuser_proprietaire_apres_paiement(entity, field, actor)
             config = self.postpayment_writable.get(entity)
             if config and config["actor"] != actor:
                 raise ASTValidationError(

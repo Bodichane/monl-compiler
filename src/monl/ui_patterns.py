@@ -147,17 +147,36 @@ def _variant(name: str, kind: str) -> str:
     return choices.get(name, choices["hero"])
 
 
+def _route_ecrite_mentionnant(routes, mots):
+    """Is there a Create/Update route whose entity or path mentions one of
+    the words? Extracted from `select_ui_patterns` (complexity ceiling): the
+    booking and contact detections were the same expression twice."""
+    return any(
+        route.get("action") in {"Create", "Update"}
+        and any(word in (f"{route.get('entity', '')} {route.get('path', '')}").lower()
+                for word in mots)
+        for route in routes
+    )
+
+
+def _brief_express(contract):
+    """Does the brief come from express mode (or ask for image-led pages)?
+    Both languages: specs written before the English migration still carry
+    the French signals. Extracted from `select_ui_patterns`."""
+    brief = (contract.get("brief") or "").lower()
+    return any(signal in brief for signal in (
+        "mode express", "express mode", "images portent", "images carry",
+        "page dense",
+    ))
+
+
 def select_ui_patterns(contract: dict, kind: str) -> list[dict]:
     """Selects the patterns without inventing business content."""
     entities = contract.get("entities") or {}
     archetypes = {entity.get("archetype") for entity in entities.values()}
     routes = contract.get("routes") or []
-    booking_route = any(
-        route.get("action") in {"Create", "Update"}
-        and any(word in (f"{route.get('entity', '')} {route.get('path', '')}").lower()
-                for word in ("booking", "appointment", "reservation", "rendez-vous"))
-        for route in routes
-    )
+    booking_route = _route_ecrite_mentionnant(
+        routes, ("booking", "appointment", "reservation", "rendez-vous"))
     selected = ["hero"]
     # A priced service can be classified `shop` by the fields' archetype, but
     # its journey is availability/booking, not a catalog and a cart. It is the
@@ -178,11 +197,7 @@ def select_ui_patterns(contract: dict, kind: str) -> list[dict]:
     if "catalogue" not in selected and entities and not booking_route \
             and kind != "operations":
         selected.append("catalogue")
-    brief = (contract.get("brief") or "").lower()
-    express_editorial = any(signal in brief for signal in (
-        "mode express", "express mode", "images portent", "images carry",
-        "page dense",
-    ))
+    express_editorial = _brief_express(contract)
     if contract.get("sections") or express_editorial:
         selected.append("editorial")
     # `trust` was reserved to commerce and services. Yet the material of a
@@ -197,12 +212,7 @@ def select_ui_patterns(contract: dict, kind: str) -> list[dict]:
         selected.append("faq")
     if booking_route:
         selected.append("booking")
-    contact_route = any(
-        route.get("action") in {"Create", "Update"}
-        and any(word in (f"{route.get('entity', '')} {route.get('path', '')}").lower()
-                for word in ("message", "contact"))
-        for route in routes
-    )
+    contact_route = _route_ecrite_mentionnant(routes, ("message", "contact"))
     if contact_route:
         selected.append("contact")
     selected.append("closing-cta")

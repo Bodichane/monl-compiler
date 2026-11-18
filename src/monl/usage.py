@@ -30,6 +30,29 @@ def _decimal(value, label):
     return result
 
 
+def _tarif_du_modele(provider, model, rates):
+    """One model's rates, checked then converted. Extracted from
+    `_load_prices` (complexity ceiling); same checks, same messages."""
+    if not isinstance(model, str) or not isinstance(rates, dict):
+        raise UsagePriceError("each model must contain a rate object")
+    input_rate = rates.get("input_per_million_tokens")
+    output_rate = rates.get("output_per_million_tokens")
+    request_rate = rates.get("per_request")
+    if ((input_rate is None or output_rate is None)
+            and request_rate is None):
+        raise UsagePriceError(
+            f"incomplete rates for {provider}/{model}: "
+            "declare both token rates or per_request")
+    return {
+        "input": (_decimal(input_rate, f"{provider}/{model} input")
+                  if input_rate is not None else None),
+        "output": (_decimal(output_rate, f"{provider}/{model} output")
+                   if output_rate is not None else None),
+        "request": (_decimal(request_rate, f"{provider}/{model} per_request")
+                    if request_rate is not None else None),
+    }
+
+
 def _load_prices(path):
     if not path:
         return {"currency": None, "prices": {}, "path": None}
@@ -58,24 +81,7 @@ def _load_prices(path):
             raise UsagePriceError("each provider must contain a model object")
         prices[provider] = {}
         for model, rates in models.items():
-            if not isinstance(model, str) or not isinstance(rates, dict):
-                raise UsagePriceError("each model must contain a rate object")
-            input_rate = rates.get("input_per_million_tokens")
-            output_rate = rates.get("output_per_million_tokens")
-            request_rate = rates.get("per_request")
-            if ((input_rate is None or output_rate is None)
-                    and request_rate is None):
-                raise UsagePriceError(
-                    f"incomplete rates for {provider}/{model}: "
-                    "declare both token rates or per_request")
-            prices[provider][model] = {
-                "input": (_decimal(input_rate, f"{provider}/{model} input")
-                          if input_rate is not None else None),
-                "output": (_decimal(output_rate, f"{provider}/{model} output")
-                           if output_rate is not None else None),
-                "request": (_decimal(request_rate, f"{provider}/{model} per_request")
-                            if request_rate is not None else None),
-            }
+            prices[provider][model] = _tarif_du_modele(provider, model, rates)
     return {"currency": currency.strip() if isinstance(currency, str) else None,
             "prices": prices, "path": os.path.abspath(path)}
 

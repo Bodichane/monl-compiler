@@ -19,6 +19,26 @@ from .noms import (
 from .profil import _guarantees, infer_design_profile
 
 
+def _lignes_de_substance(contract, profile):
+    """The "what each section must carry" list. Extracted from
+    `render_design_system` (complexity ceiling); text byte-identical."""
+    return "\n".join(
+        "- `{}`: {}".format(
+            marker.partition("=")[2].strip('"'),
+            ", ".join(
+                part for part in (
+                    "a heading" if regle.get("heading") else "",
+                    "a form" if regle.get("form") else "",
+                    "an action button or link" if regle.get("action") else "",
+                    (f"at least {regle['text']} characters of readable text"
+                     if regle.get("text") else ""),
+                ) if part
+            ),
+        )
+        for marker, regle in _section_substance(contract, profile).items()
+    ) or "- No required section for this project."
+
+
 def render_design_system(contract: dict, generate_images=False) -> str:
     profile = infer_design_profile(contract)
     pages = "\n".join(f"- {page}" for page in profile["pages"])
@@ -52,21 +72,7 @@ def render_design_system(contract: dict, generate_images=False) -> str:
     garanties = "\n".join(f"- {phrase}" for phrase in _guarantees(contract)) or (
         "- No guarantee derivable from the contract: claim nothing rather "
         "than invent a proof.")
-    substance = "\n".join(
-        "- `{}`: {}".format(
-            marker.partition("=")[2].strip('"'),
-            ", ".join(
-                part for part in (
-                    "a heading" if regle.get("heading") else "",
-                    "a form" if regle.get("form") else "",
-                    "an action button or link" if regle.get("action") else "",
-                    (f"at least {regle['text']} characters of readable text"
-                     if regle.get("text") else ""),
-                ) if part
-            ),
-        )
-        for marker, regle in _section_substance(contract, profile).items()
-    ) or "- No required section for this project."
+    substance = _lignes_de_substance(contract, profile)
     return f"""{GENERATED_MARKER}
 # {contract.get('app', 'Monl')} — initial design system
 
