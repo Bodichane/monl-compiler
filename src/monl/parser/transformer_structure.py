@@ -7,6 +7,16 @@ from lark import Transformer, v_args
 from .erreurs import NombreHorsLimites
 
 
+def _tous(blocs, cle):
+    """Every top-level block of one kind, in declaration order."""
+    return [b[cle] for b in blocs if cle in b]
+
+
+def _premier(blocs, cle):
+    """The first top-level block of a kind that appears at most once."""
+    return next((b[cle] for b in blocs if cle in b), None)
+
+
 @v_args(inline=True)
 class StructureMixin(Transformer):
     """The framework: entities, relations, actors, workflows, seeds.
@@ -33,20 +43,20 @@ class StructureMixin(Transformer):
         valid_blocks = [b for b in blocks if isinstance(b, dict)]
         return {
             "app": str(name),
-            "entities": [b["entity"] for b in valid_blocks if "entity" in b],
-            "relations": [b["relation"] for b in valid_blocks if "relation" in b],
-            "actors": [b["actor"] for b in valid_blocks if "actor" in b],
+            "entities": _tous(valid_blocks, "entity"),
+            "relations": _tous(valid_blocks, "relation"),
+            "actors": _tous(valid_blocks, "actor"),
             "self_register_actors": [b["actor"] for b in valid_blocks
                                      if "actor" in b and b.get("self_register")],
-            "rules": [b["rule"] for b in valid_blocks if "rule" in b],
-            "workflows": [b["workflow"] for b in valid_blocks if "workflow" in b],
-            "custom_logic": [b["custom"] for b in valid_blocks if "custom" in b],
-            "ui_overrides": [b["ui"] for b in valid_blocks if "ui" in b],
-            "landing": next((b["landing"] for b in valid_blocks if "landing" in b), None),
-            "capabilities": [b["capability"] for b in valid_blocks if "capability" in b],
-            "seeds": [b["seed"] for b in valid_blocks if "seed" in b],
-            "assets": next((b["assets"] for b in valid_blocks if "assets" in b), None),
-            "migrations": [b["migration"] for b in valid_blocks if "migration" in b],
+            "rules": _tous(valid_blocks, "rule"),
+            "workflows": _tous(valid_blocks, "workflow"),
+            "custom_logic": _tous(valid_blocks, "custom"),
+            "ui_overrides": _tous(valid_blocks, "ui"),
+            "landing": _premier(valid_blocks, "landing"),
+            "capabilities": _tous(valid_blocks, "capability"),
+            "seeds": _tous(valid_blocks, "seed"),
+            "assets": _premier(valid_blocks, "assets"),
+            "migrations": _tous(valid_blocks, "migration"),
         }
 
     def entity(self, name, *attributes):
