@@ -405,7 +405,6 @@ EXCEPTIONS_DE_COMPLEXITE = {
     "monl/ast_validator/uploads.py:_valider_champs_uploades": (41, "Validation emmêlée non traitée dans ce chantier ; l'exception rend cette dette visible et bornée."),
     "monl/cli/couverture.py:_frontend_route_coverage": (26, "Contrôle de couverture hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/cli/delta.py:_rapporter_delta": (46, "Rapport de delta hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
-    "monl/cli/dispatch.py:_dispatch": (25, "Routage de commandes hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/cli/signature.py:_contract_signature": (53, "Sérialisation et émission de signature conservées ligne par ligne ; cas plat hors des cinq cibles."),
     "monl/dialogue_engine/commerce.py:_ask_payable": (32, "Parcours de dialogue hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
     "monl/dialogue_engine/libre.py:_run_free": (46, "Parcours de dialogue hors des cinq cibles ; sa dette est conservée explicitement et cliquetée."),
