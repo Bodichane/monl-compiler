@@ -1,14 +1,13 @@
-"""Les routes du backend généré, recomposées par famille.
+"""The routes of the generated backend, recomposed by family.
 
-Ce module ne contient plus AUCUNE génération : chaque famille de routes vit
-dans son propre `routes_*.py`, et `RoutesMixin` les recompose. Une route
-nouvelle s'ajoute dans le module de sa famille, jamais ici.
+This module no longer contains ANY generation: each route family lives in
+its own `routes_*.py`, and `RoutesMixin` recomposes them. A new route is
+added in its family's module, never here.
 
-Tout le SQL de contrôle d'accès passe par la couche d'émission typée `sql`
-(point 108) : une valeur ne peut y entrer que liée en paramètre, jamais collée
-dans le texte. Voir generator/sql.py — les modules de famille l'importent
-chacun pour leur propre compte.
-"""
+All access-control SQL goes through the typed emission layer `sql`
+(point 108): a value can enter it only as a bound parameter, never pasted
+into the text. See generator/sql.py — the family modules each import it on
+their own."""
 
 from .routes_acces import AccesRoutesMixin
 from .routes_creation import CreationRoutesMixin
@@ -34,7 +33,7 @@ class RoutesMixin(
     PaiementRoutesMixin,
     PrestatairesRoutesMixin,
 ):
-    """Toutes les routes du backend généré, par famille.
+    """All the routes of the generated backend, by family.
 
-    Une route nouvelle s'ajoute dans le module de sa famille, jamais
-    ici. `RoutesMixin` reste le nom composé par `core.py`."""
+    A new route is added in its family's module, never here. `RoutesMixin`
+    remains the name composed by `core.py`."""

@@ -1,13 +1,13 @@
-"""Les routes de téléversement (brique B1)."""
+"""Upload routes (brick B1)."""
 
 from string import Template
 
 
 class UploadsRoutesMixin:
-    """Les routes de téléversement (brique B1)."""
+    """Upload routes (brick B1)."""
 
     def _generate_upload_route_lines(self):
-        """Routes multipart et téléchargement privé des champs Upload."""
+        """Multipart routes and private download for Upload fields."""
         api_lines = []
         for upload in self.upload_fields:
             entity = upload["entity"]

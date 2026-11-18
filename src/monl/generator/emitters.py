@@ -1,9 +1,8 @@
-"""Façade composée pour les émetteurs backend historiques.
+"""Composed facade for the historical backend emitters.
 
-Les mixins restent conservés comme implémentations compatibles pendant la
-migration. Cette façade donne toutefois à l'orchestrateur un seul contrat de
-sortie : un jeu complet de sources, prêt à être écrit dans le staging.
-"""
+The mixins are kept as compatible implementations during the migration.
+This facade nevertheless gives the orchestrator a single output contract: a
+complete set of sources, ready to be written to staging."""
 
 from __future__ import annotations
 
@@ -23,7 +22,7 @@ class _GeneratorBackend(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class BackendSources:
-    """Sources complètes produites avant toute écriture disque."""
+    """Complete sources produced before any disk write."""
 
     schema: str
     app: str
@@ -32,7 +31,7 @@ class BackendSources:
 
 
 class BackendEmitter:
-    """Compose les émetteurs spécialisés derrière un contrat unique."""
+    """Composes the specialized emitters behind a single contract."""
 
     def __init__(self, generator: _GeneratorBackend):
         self.generator = generator

@@ -1,12 +1,11 @@
-"""Confirmation de l'adresse à l'inscription en ligne, opt-in (point 209).
+"""Opt-in confirmation of the address at online registration (point 209).
 
-Le transport reste celui de password_reset : même configuration, même thread
-après commit, une panne n'est jamais une erreur de la route.
-"""
+The transport is the one of password_reset: same configuration, same thread
+after commit; a failure is never an error of the route."""
 
 
 class VerificationRuntimeMixin:
-    """Émission conditionnelle ; aucun changement pour les specs historiques."""
+    """Conditional emission; no change for historical specs."""
 
     def _verification_sender_lines(self, lines):
         replacements = {

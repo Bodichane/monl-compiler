@@ -1,15 +1,15 @@
-"""Les parcours d'authentification déclarés (brique B4).
+"""The declared authentication flows (brick B4).
 
-Une spec historique ne gagne ni route ni octet par défaut."""
+A historical spec gains neither a route nor a byte by default."""
 
 from string import Template
 
 
 class FonctionsAuthRuntimeMixin:
-    """Les parcours d'authentification déclarés (brique B4)."""
+    """The declared authentication flows (brick B4)."""
 
     def _generate_auth_feature_helpers(self):
-        """Émet les helpers/routes transverses des options B4 déclarées."""
+        """Emits the cross-cutting helpers/routes of the declared B4 options."""
         features = self.auth_features
         lines = []
         lockout = features.get("lockout")
@@ -201,7 +201,7 @@ def _totp_uri(username, secret):
         return lines
 
     def _generate_auth_feature_routes(self):
-        """Émet les endpoints B4 conditionnels, après /login et /logout."""
+        """Emits the conditional B4 endpoints, after /login and /logout."""
         features = self.auth_features
         lines = []
         if features.get("password_reset"):

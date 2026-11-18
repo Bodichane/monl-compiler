@@ -1,12 +1,10 @@
-"""Génération de manage.py : provisionnement hors ligne des comptes.
+"""Generation of manage.py: offline account provisioning.
 
-AJOUT (bêta 3, correctif d'élévation de privilège). Les rôles non marqués
-'selfRegister' ne peuvent plus être choisis à l'inscription. Il faut donc un
-chemin légitime pour créer ces comptes : c'est ce fichier, exécuté par
-l'opérateur sur la machine qui héberge la base — la possession du serveur
-devient la condition d'obtention d'un rôle privilégié, au lieu d'un simple
-appel HTTP anonyme.
-"""
+ADDED (beta 3, privilege-escalation fix). Roles not marked 'selfRegister'
+can no longer be chosen at registration. A legitimate path to create those
+accounts is therefore needed: this file, run by the operator on the
+machine that hosts the database — owning the server becomes the condition
+for obtaining a privileged role, instead of a mere anonymous HTTP call."""
 
 
 from string import Template
@@ -14,17 +12,21 @@ from string import Template
 
 class AdminCliMixin:
     def _generate_manage_cli(self):
-        """Retourne le source de manage.py pour cette application."""
+        """Returns the source of manage.py for this application."""
         actors = ", ".join(repr(a) for a in self.actors)
         self_reg = ", ".join(repr(a) for a in self.self_register_actors)
-        # POINT 95 : manage.py doit appliquer la MÊME normalisation que
-        # '/register' et '/login'. Sans elle, un compte créé hors ligne avec
-        # 'Patron@Ex.com' serait stocké tel quel, et la connexion — qui
-        # normalise, elle — chercherait 'patron@ex.com' : un compte qu'on vient
-        # de créer et auquel on ne peut pas se connecter. Le contrôle de forme,
-        # en revanche, n'est PAS appliqué ici : l'administrateur travaille sur
-        # la machine qui héberge la base, et provisionne parfois des rôles de
-        # service ('supervision', 'sauvegarde') qui n'ont ni adresse ni numéro.
+        # POINT 95: manage.py must apply the SAME normalization as '/register'
+        # and
+        # '/login'. Without it, an account created offline as 'Patron@Ex.com'
+        # would
+        # be stored as is, and login — which does normalize — would look up
+        # 'patron@ex.com': an account just created that nobody can log into.
+        # The
+        # form check, however, is NOT applied here: the administrator works on
+        # the
+        # machine that hosts the database, and sometimes provisions service
+        # roles
+        # ('monitoring', 'backup') that have neither an address nor a number.
         formes = self.auth_identifier or []
         prefixe = self.auth_phone_prefix
         password_invalidation = []

@@ -1,13 +1,12 @@
-"""Enveloppe ASGI globale, y compris erreurs et montages ajoutés par serve.py."""
+"""Global ASGI wrapper, including errors and the mounts added by serve.py."""
 
 
 def security_headers_lines():
-    """Émet la politique par chemin sans dépendance au compilateur à l'exécution.
+    """Emits the per-path policy with no runtime dependency on the compiler.
 
-    Swagger et ReDoc sont autorisés par HÔTE (cdn.jsdelivr.net), jamais par URL
-    exacte : FastAPI change ces URL d'une version à l'autre, et une CSP figée
-    casserait /docs sans bruit. Le CDN reste confiné à /docs et /redoc.
-    """
+    Swagger and ReDoc are allowed by HOST (cdn.jsdelivr.net), never by exact
+    URL: FastAPI changes these URLs from one version to the next, and a frozen
+    CSP would silently break /docs. The CDN stays confined to /docs and /redoc."""
     source = '''
 def _security_csp(path):
     base = "default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"

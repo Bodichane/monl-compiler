@@ -1,19 +1,18 @@
-"""Téléversements et messagerie : deux socles qui n'existent que si déclarés."""
+"""Uploads and messaging: two foundations that exist only when declared."""
 
 from string import Template
 
 
 class AnnexesRuntimeMixin:
-    """Téléversements et messagerie : deux socles qui n'existent que si déclarés."""
+    """Uploads and messaging: two foundations that exist only when declared."""
 
     def _generate_upload_runtime_lines(self):
-        """Socle disque des Uploads, émis uniquement quand la spec en porte.
+        """Disk foundation for Uploads, emitted only when the spec carries some.
 
-        Le nom du client et son ``Content-Type`` ne servent jamais à choisir
-        le chemin ou le type. Le fichier est écrit dans un temporaire sous la
-        racine dédiée, contrôlé par signature d'octets, puis renommé vers une
-        référence hexadécimale aléatoire.
-        """
+        The client's file name and its ``Content-Type`` are never used to choose
+        the path or the type. The file is written to a temporary file under the
+        dedicated root, checked by byte signature, then renamed to a random
+        hexadecimal reference."""
         return [
             *Template(r'''# --- CLIENT UPLOAD STORAGE (outside the frontend and artifacts) ---
 UPLOADS_ROOT = os.path.abspath(os.environ.get('MONL_UPLOADS_DIR') or '.monl_uploads')
@@ -91,7 +90,7 @@ def _save_upload(upload_file, table, row_id, field, max_bytes, accepted_types):
         ]
 
     def _generate_message_runtime_lines(self):
-        """Socle d'envoi asynchrone d'un message B2, émis à la demande."""
+        """Asynchronous sending foundation for a B2 message, emitted on demand."""
         if not self.message_rules_by_trigger:
             return []
         return [
