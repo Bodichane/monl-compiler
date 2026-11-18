@@ -32,18 +32,7 @@ class AuditMixin:
                         custom_callers[target] = set()
                     custom_callers[target].add(actor)
 
-        for c_name, c_bloc in self.custom_logic.items():
-            inputs = c_bloc.get("input", [])
-            calling_actors = custom_callers.get(c_name, set())
-
-            for inp in inputs:
-                if "reference" in inp:
-                    ref = inp["reference"]
-                    if ref in restricted_fields:
-                        allowed_actor = restricted_fields[ref]
-                        for caller in calling_actors:
-                            if caller != allowed_actor:
-                                reports.append(f"🔒 [SECURITY_AUDIT] AI logic block '{c_name}' (run by '{caller}') uses sensitive data '{ref}', restricted to actor '{allowed_actor}'.")
+        reports.extend(self._audit_blocs_custom(restricted_fields, custom_callers))
 
         if not reports:
             print("🛡️  Audit: No vulnerabilities or excessive privileges detected in the specification.")
@@ -52,6 +41,23 @@ class AuditMixin:
             for r in reports:
                 print(f"   {r}")
 
+        return reports
+
+    def _audit_blocs_custom(self, restricted_fields, custom_callers):
+        """Un bloc `custom` lancé par un acteur qui n'a pas droit à une donnée
+        `restrictedTo` qu'il lit. Extrait de `_audit_security_rules` (plafond
+        de complexité) ; rapports et ordre inchangés."""
+        reports = []
+        for c_name, c_bloc in self.custom_logic.items():
+            calling_actors = custom_callers.get(c_name, set())
+            for inp in c_bloc.get("input", []):
+                ref = inp.get("reference")
+                if ref is None or ref not in restricted_fields:
+                    continue
+                allowed_actor = restricted_fields[ref]
+                for caller in calling_actors:
+                    if caller != allowed_actor:
+                        reports.append(f"🔒 [SECURITY_AUDIT] AI logic block '{c_name}' (run by '{caller}') uses sensitive data '{ref}', restricted to actor '{allowed_actor}'.")
         return reports
 
     def _audit_self_registration(self):

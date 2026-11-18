@@ -96,6 +96,26 @@ def _valeur_csv(valeur, type_):
     return str(valeur)
 
 
+def _aide_de_colonne(entite, colonne, champs, choix, contraintes):
+    """Ce que LISEZMOI dit d'une colonne. Extrait de `_lisez_moi` (plafond de
+    complexité) ; texte inchangé."""
+    if colonne == "_parent":
+        return "the value of a record in the parent entity to which this row should be linked"
+    details = []
+    enum = choix.get(entite, {}).get(colonne)
+    if enum:
+        details.append("allowed values: " + ", ".join(enum))
+    regles = contraintes.get((entite, colonne), {})
+    if regles.get("required"):
+        details.append("required")
+    for borne in ("min", "max"):
+        if borne in regles:
+            details.append(f"{borne} {regles[borne]['valeur']}")
+    if champs[colonne] == "Image":
+        details.append("put the file in `assets/` and enter only its name here")
+    return "; ".join(details) if details else "free text"
+
+
 def _lisez_moi(normalized, exports, ignores):
     security = normalized.get("security", {})
     contraintes = security.get("field_constraints") or {}
@@ -111,22 +131,7 @@ def _lisez_moi(normalized, exports, ignores):
         lignes.extend(["\n", f"{entite}.csv\n"])
         champs = normalized["schema"]["entities"][entite]
         for colonne in info["colonnes"]:
-            if colonne == "_parent":
-                texte = "the value of a record in the parent entity to which this row should be linked"
-            else:
-                details = []
-                enum = choix.get(entite, {}).get(colonne)
-                if enum:
-                    details.append("allowed values: " + ", ".join(enum))
-                regles = contraintes.get((entite, colonne), {})
-                if regles.get("required"):
-                    details.append("required")
-                for borne in ("min", "max"):
-                    if borne in regles:
-                        details.append(f"{borne} {regles[borne]['valeur']}")
-                if champs[colonne] == "Image":
-                    details.append("put the file in `assets/` and enter only its name here")
-                texte = "; ".join(details) if details else "free text"
+            texte = _aide_de_colonne(entite, colonne, champs, choix, contraintes)
             lignes.append(f"- {colonne}: {texte}.\n")
         booleens = [n for n, t in champs.items() if t == "Boolean"]
         if booleens:

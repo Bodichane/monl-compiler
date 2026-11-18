@@ -8,6 +8,25 @@ from ..serving import rendre_wrapper
 from . import coherence, emplacement
 
 
+def _eprouver_avant_lancement(project_dir):
+    """Le smoke test qui précède `monl run` ; quitte en code 1 s'il échoue.
+    Extrait de `cmd_run` (plafond de complexité) ; sorties inchangées."""
+    from ..smoke_test import run_smoke_test
+    print(" -> Behavioral smoke test (temporary server, fresh database)…")
+    smoke_ok, smoke_errors, smoke_warnings = run_smoke_test(project_dir)
+    for w in smoke_warnings:
+        print(f" ⚠️  {w}")
+    if not smoke_ok:
+        for e in smoke_errors:
+            print(f" ❌ {e}")
+        print(" ❌ Smoke test failed — the application will not be started "
+              "(bypass knowingly with --skip-smoke).")
+        sys.exit(1)
+    print(" ✅ Smoke test passed: the API responds according to the contract"
+          + (" and the frontend runs without errors." if os.path.isdir(
+              os.path.join(os.path.abspath(project_dir), "frontend")) else "."))
+
+
 def cmd_run(project_dir, check_only=False, port=8000, skip_smoke=False):
     ok, errors, warnings = coherence.check_coherence(project_dir)
     for w in warnings:
@@ -23,20 +42,7 @@ def cmd_run(project_dir, check_only=False, port=8000, skip_smoke=False):
     # neuve, données réelles intouchées) : routes du contrat éprouvées en
     # HTTP réel, frontend exécuté dans jsdom si Node est disponible.
     if not skip_smoke:
-        from ..smoke_test import run_smoke_test
-        print(" -> Behavioral smoke test (temporary server, fresh database)…")
-        smoke_ok, smoke_errors, smoke_warnings = run_smoke_test(project_dir)
-        for w in smoke_warnings:
-            print(f" ⚠️  {w}")
-        if not smoke_ok:
-            for e in smoke_errors:
-                print(f" ❌ {e}")
-            print(" ❌ Smoke test failed — the application will not be started "
-                  "(bypass knowingly with --skip-smoke).")
-            sys.exit(1)
-        print(" ✅ Smoke test passed: the API responds according to the contract"
-              + (" and the frontend runs without errors." if os.path.isdir(
-                  os.path.join(os.path.abspath(project_dir), "frontend")) else "."))
+        _eprouver_avant_lancement(project_dir)
     if check_only:
         return
 

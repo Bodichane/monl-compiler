@@ -181,7 +181,6 @@ class AssetsMixin:
             self._verifier_forme_chemin_asset(value, f"assets.{key}")
             self._verifier_asset_present(value, f"assets.{key}")
 
-        numeric_types = {"Integer", "Float", "Money"}
         self.seeds = []
         for seed in self.seeds_raw:
             entity = seed["entity"]
@@ -192,30 +191,37 @@ class AssetsMixin:
                 self._valider_parent_de_seed(entity, seed["parent"])
             for index, row in enumerate(seed["rows"], start=1):
                 for field, value in row.items():
-                    if field not in entity_fields:
-                        raise ASTValidationError(
-                            f"Structure: the 'seed {entity}' block (row {index}) references field "
-                            f"'{field}', which is not declared on '{entity}'."
-                        )
-                    declared_type = entity_fields[field]
-                    is_number = isinstance(value, (int, float)) and not isinstance(value, bool)
-                    if declared_type in numeric_types and not is_number:
-                        raise ASTValidationError(
-                            f"Structure: 'seed {entity}' (row {index}), field '{field}' of type "
-                            f"{declared_type} expects a number, received a string."
-                        )
-                    if declared_type not in numeric_types and is_number:
-                        raise ASTValidationError(
-                            f"Structure: 'seed {entity}' (row {index}), field '{field}' of type "
-                            f"{declared_type} expects a quoted string, received a number."
-                        )
-                    if declared_type == "Upload":
-                        raise ASTValidationError(
-                            f"Structure: a seed cannot provide '{entity}.{field}' "
-                            "of type Upload. Bytes arrive only at runtime through "
-                            "the multipart route, never in the spec or sealed artifacts.")
-                    if declared_type == "Image":
-                        location = f"seed {entity} (row {index}), field '{field}'"
-                        self._verifier_forme_chemin_asset(value, location, image=True)
-                        self._verifier_asset_present(value, location)
+                    self._verifier_cellule_de_seed(entity, entity_fields, index, field, value)
             self.seeds.append(seed)
+
+    def _verifier_cellule_de_seed(self, entity, entity_fields, index, field, value):
+        """Une valeur de `seed` : champ déclaré, type respecté, jamais d'Upload,
+        image présente. Extraite de `_valider_assets_et_seeds` (plafond de
+        complexité) ; refus et messages inchangés."""
+        numeric_types = {"Integer", "Float", "Money"}
+        if field not in entity_fields:
+            raise ASTValidationError(
+                f"Structure: the 'seed {entity}' block (row {index}) references field "
+                f"'{field}', which is not declared on '{entity}'."
+            )
+        declared_type = entity_fields[field]
+        is_number = isinstance(value, (int, float)) and not isinstance(value, bool)
+        if declared_type in numeric_types and not is_number:
+            raise ASTValidationError(
+                f"Structure: 'seed {entity}' (row {index}), field '{field}' of type "
+                f"{declared_type} expects a number, received a string."
+            )
+        if declared_type not in numeric_types and is_number:
+            raise ASTValidationError(
+                f"Structure: 'seed {entity}' (row {index}), field '{field}' of type "
+                f"{declared_type} expects a quoted string, received a number."
+            )
+        if declared_type == "Upload":
+            raise ASTValidationError(
+                f"Structure: a seed cannot provide '{entity}.{field}' "
+                "of type Upload. Bytes arrive only at runtime through "
+                "the multipart route, never in the spec or sealed artifacts.")
+        if declared_type == "Image":
+            location = f"seed {entity} (row {index}), field '{field}'"
+            self._verifier_forme_chemin_asset(value, location, image=True)
+            self._verifier_asset_present(value, location)

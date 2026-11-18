@@ -15,6 +15,15 @@ from .sqlite_database import activate_wal
 BUILD_STATES = ("en_attente", "en_cours", "reussie", "echouee")
 
 
+def _types_de_colonnes(db, table):
+    """{colonne: TYPE en majuscules} d'une table, vide si elle n'existe pas.
+    `table` est une constante interne, jamais une valeur reçue."""
+    return {
+        row["name"]: (row["type"] or "").upper()
+        for row in db.execute(f"PRAGMA table_info({table})")
+    }
+
+
 def normalize_slug(slug):
     """Return the canonical, case-insensitive site slug."""
     return str(slug).strip().lower()
@@ -203,14 +212,8 @@ class StoreCoreMixin:
         donc le démarrage en nommant la procédure manuelle, tout en laissant
         intactes les données héritées.
         """
-        builder = {
-            row["name"]: (row["type"] or "").upper()
-            for row in db.execute("PRAGMA table_info(builder_projects)")
-        }
-        builds = {
-            row["name"]: (row["type"] or "").upper()
-            for row in db.execute("PRAGMA table_info(builds)")
-        }
+        builder = _types_de_colonnes(db, "builder_projects")
+        builds = _types_de_colonnes(db, "builds")
         if not builder and not builds:
             return
         if "id" in builder or "account_id" in builder:

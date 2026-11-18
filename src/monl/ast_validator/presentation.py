@@ -44,28 +44,25 @@ class PresentationMixin:
                 print(f"⚠️  'landing / {obsolete}' has been obsolete since the pivot "
                       f"(point 41 in docs/design_decisions.md): monl no longer generates "
                       f"a home page — only 'brief' is passed to the frontend AI.")
-        sections = []
-        for section in self.landing_raw.get("sections") or []:
-            title = (section.get("title") or "").strip()
-            body = (section.get("body") or "").strip()
-            if not title or not body:
-                raise ValueError(
-                    "SEMANTIC_ERROR: a 'section' in 'landing' requires a non-empty title AND body "
-                    f"(found: title={title!r}, body={body!r})."
-                )
-            sections.append({"title": title, "body": body})
-        faq = []
-        for entry in self.landing_raw.get("faq") or []:
-            question = (entry.get("question") or "").strip()
-            answer = (entry.get("answer") or "").strip()
-            if not question or not answer:
-                raise ValueError(
-                    "SEMANTIC_ERROR: a 'question' in 'landing' requires a non-empty question AND answer "
-                    f"(found: question={question!r}, answer={answer!r})."
-                )
-            faq.append({"question": question, "answer": answer})
+        sections = self._paires_editoriales("sections", "section", "title", "body")
+        faq = self._paires_editoriales("faq", "question", "question", "answer")
         self.landing = {"brief": self.landing_raw.get("brief"), "sections": sections,
                         "faq": faq, "links": self._valider_liens_sortants()}
+
+    def _paires_editoriales(self, cle, nom, premier, second):
+        """Rubriques et questions ont la même forme : deux textes non vides.
+        Un seul parcours, donc un seul message de refus à tenir juste."""
+        paires = []
+        for entree in self.landing_raw.get(cle) or []:
+            a = (entree.get(premier) or "").strip()
+            b = (entree.get(second) or "").strip()
+            if not a or not b:
+                raise ValueError(
+                    f"SEMANTIC_ERROR: a '{nom}' in 'landing' requires a non-empty "
+                    f"{premier} AND {second} (found: {premier}={a!r}, {second}={b!r})."
+                )
+            paires.append({premier: a, second: b})
+        return paires
 
     #: Ce qu'un navigateur sait ouvrir depuis un pied de page. `tel:` et
     #: `mailto:` en font partie : sur un site de commerce, ce sont souvent les
