@@ -116,6 +116,45 @@ def _route_correspond_aux_action(route, action):
 def _route_label(route):
     return f"{route['method']} {route['path']}"
 
+# The next two functions are extracted from `_frontend_route_coverage`
+# (complexity ceiling): same walk, same lists, same messages.
+def _parcours_des_workflows(workflows, routes, couverts):
+    """({route id: [workflow names]}, [(workflow, missing actions)]).
+
+    A workflow counts as covered as soon as ONE of its actions has a called
+    route; only an entirely uncovered workflow is reported."""
+    route_workflows = {id(route): [] for route in routes}
+    parcours_manquants = []
+    for workflow in workflows:
+        actions_manquantes = []
+        workflow_couvert = False
+        for action in workflow.get("actions", []):
+            candidates = [route for route in routes
+                          if _route_correspond_aux_action(route, action)]
+            if any(id(route) in couverts for route in candidates):
+                workflow_couvert = True
+                for route in candidates:
+                    route_workflows[id(route)].append(workflow["name"])
+                continue
+            for route in candidates:
+                route_workflows[id(route)].append(workflow["name"])
+            actions_manquantes.append(f"{action['type']} {action['target']}")
+        if not workflow_couvert and actions_manquantes:
+            parcours_manquants.append((workflow, actions_manquantes))
+    return route_workflows, parcours_manquants
+
+
+def _libelles_manquants(missing_routes, route_workflows):
+    """Each never-called route, with the workflows it belongs to."""
+    missing_labels = []
+    for route in missing_routes:
+        workflows_noms = sorted(set(route_workflows[id(route)]))
+        suffix = (f" (workflows: {', '.join(workflows_noms)})"
+                  if workflows_noms else " (auxiliary contract route)")
+        missing_labels.append(_route_label(route) + suffix)
+    return missing_labels
+
+
 def _frontend_route_coverage(project_dir, spec_path, contract, appels=None):
     """Checks the coverage of the delivered frontend, without running an
     intention.
@@ -139,32 +178,11 @@ def _frontend_route_coverage(project_dir, spec_path, contract, appels=None):
                     f"reading workflows failed ({exc})."]
 
     self_register = set(contract.get("self_register_actors") or [])
-    route_workflows = {id(route): [] for route in routes}
-    parcours_manquants = []
-    for workflow in workflows:
-        actions_manquantes = []
-        workflow_couvert = False
-        for action in workflow.get("actions", []):
-            candidates = [route for route in routes
-                          if _route_correspond_aux_action(route, action)]
-            if any(id(route) in couverts for route in candidates):
-                workflow_couvert = True
-                for route in candidates:
-                    route_workflows[id(route)].append(workflow["name"])
-                continue
-            for route in candidates:
-                route_workflows[id(route)].append(workflow["name"])
-            actions_manquantes.append(f"{action['type']} {action['target']}")
-        if not workflow_couvert and actions_manquantes:
-            parcours_manquants.append((workflow, actions_manquantes))
+    route_workflows, parcours_manquants = _parcours_des_workflows(
+        workflows, routes, couverts)
 
     missing_routes = [route for route in routes if id(route) not in couverts]
-    missing_labels = []
-    for route in missing_routes:
-        workflows_noms = sorted(set(route_workflows[id(route)]))
-        suffix = (f" (workflows: {', '.join(workflows_noms)})"
-                  if workflows_noms else " (auxiliary contract route)")
-        missing_labels.append(_route_label(route) + suffix)
+    missing_labels = _libelles_manquants(missing_routes, route_workflows)
 
     errors, warnings = [], []
     if missing_routes:
