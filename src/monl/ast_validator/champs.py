@@ -204,6 +204,29 @@ class ChampsMixin:
                 f"Structure: 'categorized' on '{entity}.{field}' —each tier must have a non-empty label."
             )
 
+    @staticmethod
+    def _valider_liste_de_choix(entity, field, values):
+        """Au moins deux valeurs, aucune vide, aucune répétée. Extrait de
+        `_valider_champs_enumeres` (plafond de complexité) ; refus inchangés."""
+        if len(values) < 2:
+            raise ASTValidationError(
+                f"Structure: 'oneOf' on '{entity}.{field}' lists only one value—"
+                f"a field with only one possible value does not need to be entered."
+            )
+        empty_values = [value for value in values if not value.strip()]
+        if empty_values:
+            raise ASTValidationError(
+                f"Structure: 'oneOf' on '{entity}.{field}' contains an empty value—"
+                f"it would be indistinguishable from an unfilled field on screen."
+            )
+        duplicates = [value for value in set(values) if values.count(value) > 1]
+        if duplicates:
+            raise ASTValidationError(
+                f"Structure: 'oneOf' on '{entity}.{field}' repeats "
+                f"{', '.join(repr(duplicate) for duplicate in sorted(duplicates))}—a choice list "
+                f"that offers the same option twice is a data entry error."
+            )
+
     def _valider_champs_enumeres(self):
         """Valide les champs texte limités à une liste de valeurs."""
         self.enumerated_fields = {}
@@ -225,24 +248,7 @@ class ChampsMixin:
                     f"'categorized' already provide this."
                 )
             values = rule["value"]
-            if len(values) < 2:
-                raise ASTValidationError(
-                    f"Structure: 'oneOf' on '{entity}.{field}' lists only one value—"
-                    f"a field with only one possible value does not need to be entered."
-                )
-            empty_values = [value for value in values if not value.strip()]
-            if empty_values:
-                raise ASTValidationError(
-                    f"Structure: 'oneOf' on '{entity}.{field}' contains an empty value—"
-                    f"it would be indistinguishable from an unfilled field on screen."
-                )
-            duplicates = [value for value in set(values) if values.count(value) > 1]
-            if duplicates:
-                raise ASTValidationError(
-                    f"Structure: 'oneOf' on '{entity}.{field}' repeats "
-                    f"{', '.join(repr(duplicate) for duplicate in sorted(duplicates))}—a choice list "
-                    f"that offers the same option twice is a data entry error."
-                )
+            self._valider_liste_de_choix(entity, field, values)
             if entity in self.enumerated_fields and field in self.enumerated_fields[entity]:
                 raise ASTValidationError(
                     f"Structure: two 'oneOf' rules on '{entity}.{field}'—which list would apply?"

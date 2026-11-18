@@ -47,6 +47,26 @@ class CollisionsMixin:
                     f"which is not a declared actor."
                 )
 
+    @staticmethod
+    def _valider_texte_du_message(reference, subject, body):
+        """Sujet et corps non vides, sans saut de ligne brut — le sujet en
+        particulier, sinon injection d'en-têtes SMTP. Extrait de
+        `_valider_regles_message` (plafond de complexité) ; refus inchangés."""
+        if not subject.strip():
+            raise ASTValidationError(
+                f"Structure: the subject of message '{reference}' cannot be empty.")
+        if not body.strip():
+            raise ASTValidationError(
+                f"Structure: the body of message '{reference}' cannot be empty.")
+        if "\r" in subject or "\n" in subject:
+            raise ASTValidationError(
+                f"Structure: the subject of '{reference}' contains a line break. "
+                "Rejected to prevent SMTP header injection (Bcc, Cc, etc.).")
+        if "\r" in body or "\n" in body:
+            raise ASTValidationError(
+                f"Structure: the body of '{reference}' contains a raw line break. "
+                "Use the '¶' separator between paragraphs.")
+
     def _valider_regles_message(self):
         """Valide les notifications e-mail déclenchées par une création.
 
@@ -100,20 +120,7 @@ class CollisionsMixin:
 
             subject = rule.get("subject", "")
             body = rule.get("body", "")
-            if not subject.strip():
-                raise ASTValidationError(
-                    f"Structure: the subject of message '{reference}' cannot be empty.")
-            if not body.strip():
-                raise ASTValidationError(
-                    f"Structure: the body of message '{reference}' cannot be empty.")
-            if "\r" in subject or "\n" in subject:
-                raise ASTValidationError(
-                    f"Structure: the subject of '{reference}' contains a line break. "
-                    "Rejected to prevent SMTP header injection (Bcc, Cc, etc.).")
-            if "\r" in body or "\n" in body:
-                raise ASTValidationError(
-                    f"Structure: the body of '{reference}' contains a raw line break. "
-                    "Use the '¶' separator between paragraphs.")
+            self._valider_texte_du_message(reference, subject, body)
             self.message_rules.append({
                 "trigger_entity": entity,
                 "trigger_action": action,

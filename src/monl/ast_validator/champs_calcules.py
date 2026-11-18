@@ -270,6 +270,30 @@ class ChampsCalculesMixin:
                 f"counter on a business entity (e.g. '{direction} Post.score')."
             )
 
+    def _verifier_parents_once_per(self, reference, entity, parents):
+        """Au moins deux parents distincts, existants, reliés à `entity`, dont
+        un acteur. Extrait de `_valider_regles_once_per` (plafond de
+        complexité) ; la relation se lit par `_relation_parent_enfant`, la même
+        que pour le rattachement d'un `seed`, plutôt qu'une seconde copie."""
+        if len(parents) < 2 or len(set(parents)) != len(parents):
+            raise ASTValidationError(
+                f"Structure: 'oncePer' on '{reference}' requires at least two distinct parents."
+            )
+        for parent in parents:
+            if parent not in self.entities and parent not in self.actors:
+                raise ASTValidationError(
+                    f"Structure: 'oncePer' references parent '{parent}', which does not exist."
+                )
+            if not self._relation_parent_enfant(parent, entity):
+                raise ASTValidationError(
+                    f"Structure: 'oncePer' requires a relation between '{parent}' and '{entity}'."
+                )
+        if not any(parent in self.actors for parent in parents):
+            raise ASTValidationError(
+                f"Structure: 'oncePer' on '{reference}' must include an actor parent "
+                "to identify the current account."
+            )
+
     def _valider_regles_once_per(self):
         """Valide l'unicité métier d'une action par compte et par cibles.
 
@@ -296,31 +320,7 @@ class ChampsCalculesMixin:
                     f"Structure: 'oncePer' only applies to 'Create' (received '{reference}')."
                 )
             parents = list(rule.get("parents") or [])
-            if len(parents) < 2 or len(set(parents)) != len(parents):
-                raise ASTValidationError(
-                    f"Structure: 'oncePer' on '{reference}' requires at least two distinct parents."
-                )
-            for parent in parents:
-                if parent not in self.entities and parent not in self.actors:
-                    raise ASTValidationError(
-                        f"Structure: 'oncePer' references parent '{parent}', which does not exist."
-                    )
-                relie = any(
-                    (rel["type"] in ("hasMany", "hasOne")
-                     and rel["source"] == parent and rel["target"] == entity)
-                    or (rel["type"] == "belongsTo"
-                        and rel["target"] == parent and rel["source"] == entity)
-                    for rel in self.relations
-                )
-                if not relie:
-                    raise ASTValidationError(
-                        f"Structure: 'oncePer' requires a relation between '{parent}' and '{entity}'."
-                    )
-            if not any(parent in self.actors for parent in parents):
-                raise ASTValidationError(
-                    f"Structure: 'oncePer' on '{reference}' must include an actor parent "
-                    "to identify the current account."
-                )
+            self._verifier_parents_once_per(reference, entity, parents)
             if (entity, "Create") in self.public_actions:
                 raise ASTValidationError(
                     f"Structure: '{reference}' is public, so no account can enforce "
