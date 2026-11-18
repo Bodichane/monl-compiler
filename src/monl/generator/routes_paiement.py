@@ -1,51 +1,52 @@
-"""Les deux routes d'encaissement.
+"""The two payment routes.
 
-Trois invariants à ne jamais assouplir : le montant est lu EN BASE et la
-route n'accepte AUCUN corps ; la signature du webhook est vérifiée avant
-toute écriture — c'est le SEUL endroit du backend généré où un tiers non
-authentifié écrit ; une clé absente donne 503 en la NOMMANT, sans empêcher
-le reste du serveur de fonctionner."""
+Three invariants never to loosen: the amount is read FROM THE DATABASE and
+the route accepts NO body; the webhook signature is checked before any
+write — it is the ONLY place in the generated backend where an
+unauthenticated third party writes; a missing key gives 503 and NAMES it,
+without preventing the rest of the server from working."""
 
 class PaiementRoutesMixin:
-    """Les deux routes d'encaissement."""
+    """The two payment routes."""
 
     # ─────────────────────────────────────────────────────────────────
-    # BRIQUE PAIEMENT (point 74). Deux routes seulement, et un principe :
-    # le montant encaissé vient de la BASE, jamais du client. Un panier
-    # qui envoie son propre prix est un panier qu'on peut négocier.
+    # PAYMENT BRICK (point 74). Two routes only, and one principle: the amount
+    # charged comes from the DATABASE, never from the client. A cart that sends
+    # its own price is a cart one can haggle over.
     #
-    # Les secrets viennent de l'environnement (même règle que le secret
-    # JWT). Absents, les routes existent mais répondent 503 en nommant la
-    # variable manquante : un paiement doit refuser bruyamment, jamais
-    # échouer en silence — et le smoke test reste vert hors ligne.
+    # Secrets come from the environment (same rule as the JWT secret). When
+    # they are missing, the routes exist but answer 503 naming the missing
+    # variable: a payment must refuse loudly, never fail silently — and the
+    # smoke test stays green offline.
     # ─────────────────────────────────────────────────────────────────
 
     def _generate_payment_routes(self):
         if not self.payable_by_entity:
             return []
-        # BRIQUE 2a : la devise vient du validateur DÉJÀ résolue en
-        # {code, exponent} ; ici on ne fait que la lire. Le défaut n'est
-        # appliqué qu'à cet endroit — pas dans le validateur — pour qu'une spec
-        # muette continue de produire exactement ce qu'elle produisait
-        # (`payment_currency is None` ⇒ EUR, exposant 2 ⇒ ×100 comme avant).
+        # BRICK 2a: the currency comes from the validator ALREADY resolved into
+        # {code, exponent}; here we only read it. The default is applied only
+        # in this place — not in the validator — so that a silent spec keeps
+        # producing exactly what it produced (`payment_currency is None` ⇒ EUR,
+        # exponent 2 ⇒ ×100 as before).
         devise = self.payment_currency or {"code": "EUR", "exponent": 2}
         code_devise = devise["code"].lower()
         exposant_devise = devise["exponent"]
-        # BRIQUE 2b : le prestataire. `None` ⇒ Stripe, et l'émission Stripe est
-        # laissée INTACTE à l'octet — condition pour qu'aucun projet existant ne
-        # voie son app.py bouger. FedaPay est une SECONDE émission, pas une
-        # généralisation de la première : ce qui se factorise est le noyau de
-        # sécurité (montant lu en base, signature vérifiée avant toute écriture,
-        # 503 nommant la variable, référence qualifiée), pas la forme du fil.
+        # BRICK 2b: the provider. `None` ⇒ Stripe, and the Stripe emission is
+        # left byte-for-byte INTACT — the condition for no existing project to
+        # see its app.py move. FedaPay is a SECOND emission, not a
+        # generalization of the first: what is factored out is the security
+        # core (amount read from the database, signature checked before any
+        # write, 503 naming the variable, qualified reference), not the wire
+        # format.
         prestataire = self.payment_provider or "stripe"
-        # Ce qui DIFFÈRE d'un prestataire à l'autre au webhook : le nom du
-        # secret, l'en-tête, et la lettre du schéma de signature. Le reste — le
-        # HMAC-SHA256 de « horodatage.corps brut », la tolérance de cinq
-        # minutes, la vérification AVANT toute écriture — est identique, et
-        # c'est précisément ce qui se factorise. La recette FedaPay a été
-        # relue dans son SDK officiel (Webhook.ts : EXPECTED_SCHEME = 's',
+        # What DIFFERS from one provider to another at the webhook: the
+        # secret's name, the header, and the letter of the signature scheme.
+        # The rest — the HMAC-SHA256 of "timestamp.raw body", the five-minute
+        # tolerance, the check BEFORE any write — is identical, and that is
+        # precisely what gets factored out. The FedaPay recipe was reread in
+        # its official SDK (Webhook.ts: EXPECTED_SCHEME = 's',
         # `${timestamp}.${payload}`, sha256 hex, DEFAULT_TOLERANCE = 300),
-        # jamais déduite d'une prose.
+        # never inferred from prose.
         if prestataire == "fedapay":
             secret_var = "FEDAPAY_WEBHOOK_SECRET"
             secret_env = "MONL_FEDAPAY_WEBHOOK_SECRET"
@@ -107,44 +108,43 @@ class PaiementRoutesMixin:
             ]
         for entite, champ in sorted(self.payable_by_entity.items()):
             table = entite.lower()
-            # POINT 99 : la colonne comparée à `current_user_id` doit porter un
-            # identifiant de COMPTE — donc celle de `_identity_fk_columns`, et
-            # non la première relation entrante venue. Sur une entité fille
-            # d'une table métier, cette première relation porte l'id d'une ligne
-            # de catalogue : la comparaison aurait été fausse dans les deux sens
-            # (le propriétaire ne peut plus payer, un inconnu le peut si les
-            # deux identifiants coïncident). Le validateur refuse désormais ce
-            # cas ; l'assertion plus bas garantit qu'aucune divergence entre lui
-            # et cette ligne ne puisse écrire une route sans contrôle.
+            # POINT 99: the column compared with `current_user_id` must carry
+            # an ACCOUNT identifier — hence the one from
+            # `_identity_fk_columns`, not the first incoming relation that
+            # comes along. On a child entity of a business table, that first
+            # relation carries the id of a catalog row: the comparison would
+            # have been wrong both ways (the owner can no longer pay, a
+            # stranger can if the two identifiers coincide). The validator now
+            # refuses this case; the assertion below guarantees that no
+            # divergence between it and this line can write a route without a
+            # check.
             colonnes_compte = self._identity_fk_columns().get(entite, set())
             proprio = ({"fk_column": sorted(colonnes_compte)[0]}
                        if colonnes_compte else None)
-            # POINT 87 : sous propriété TRANSITIVE, la clé étrangère de l'entité
-            # désigne l'intermédiaire, pas un compte — c'est pourquoi le
-            # point 81 refusait d'encaisser ici. Une jointure d'un cran rend
-            # l'id de COMPTE, donc la comparaison qui suit est identique au cas
-            # direct : rien d'autre ne change dans cette route.
+            # POINT 87: under TRANSITIVE ownership, the entity's foreign key
+            # designates the intermediate, not an account — which is why point
+            # 81 refused to charge here. A one-level join gives the ACCOUNT id,
+            # so the comparison that follows is identical to the direct case:
+            # nothing else changes in this route.
             #
-            # L'invariant à ne PAS casser : le montant, l'état et le
-            # propriétaire sortent de la MÊME lecture. Deux requêtes séparées
-            # rouvriraient la fenêtre entre le contrôle d'accès et le calcul du
-            # montant — donc la jointure entre DANS le SELECT, elle ne s'ajoute
-            # pas à côté.
+            # The invariant NOT to break: the amount, the state and the owner
+            # come out of the SAME read. Two separate queries would reopen the
+            # window between the access check and the amount calculation — so
+            # the join goes INTO the SELECT, it is not added beside it.
             chaine = self._transitive_chain(entite)
             if not chaine and not proprio:
-                # POINT 99 : sans propriétaire, la route encaisserait n'importe
-                # quel enregistrement pour n'importe quel appelant authentifié
-                # (IDOR). Le validateur l'interdit — arriver ici signifie qu'il a
-                # divergé de cette couche. Échouer à la génération vaut mieux
-                # qu'écrire une route de paiement sans contrôle d'accès, même
-                # raisonnement que `plan_derivations`.
+                # POINT 99: without an owner, the route would charge any record
+                # for any authenticated caller (IDOR). The validator forbids it
+                # — reaching here means it has diverged from this layer.
+                # Failing at generation is better than writing a payment route
+                # without access control, same reasoning as `plan_derivations`.
                 raise ValueError(
                     f"Generation: '{entite}' is 'payable' but no column carries "
                     f"the owning account's identifier — the payment route could "
                     f"answer 403 to nobody.")
             if chaine:
-                # Briques 11 et 24 : une chaîne de JOIN, une par maillon, jusqu'au
-                # compte. Montant, état et propriétaire sortent de la MÊME lecture.
+                # Bricks 11 and 24: a chain of JOINs, one per link, up to the
+                # account. Amount, state and owner come out of the SAME read.
                 _depuis, _cur, _fk = self._chain_join(entite)
                 colonnes = f't."{champ}", t.payment_status, {_cur}."{_fk}"'
                 depuis = _depuis
@@ -161,9 +161,9 @@ class PaiementRoutesMixin:
                 f"{'t.' if chaine else ''}id = ?', (id,))",
                 "    ligne = cursor.fetchone()",
                 "    conn.close()",
-                # Sous jointure, une ligne ORPHELINE (intermédiaire disparu) ne
-                # rend aucun résultat : elle n'appartient à personne, et 404 est
-                # la bonne réponse — surtout pas « payable par quiconque ».
+                # Under a join, an ORPHAN row (intermediate gone) gives no
+                # result: it belongs to nobody, and 404 is the right answer —
+                # certainly not "payable by anyone".
                 "    if not ligne:",
                 "        raise HTTPException(status_code=404, detail='Not found.')",
             ]
@@ -176,59 +176,60 @@ class PaiementRoutesMixin:
             lignes += [
                 "    if etat == 'payee':",
                 "        raise HTTPException(status_code=409, detail='Already paid.')",
-                # BRIQUE 2a : le prestataire attend un ENTIER dans l'unité
-                # mineure de la devise, donc `montant × 10**exposant`. Le `×100`
-                # figé d'avant était juste pour l'euro et faux partout ailleurs :
-                # le franc CFA n'a pas de sous-unité, une commande de 5 000 FCFA
-                # serait partie pour 500 000. La variable garde le nom
-                # `centimes` — c'est le mot du code, pas du fil (voir plus bas).
+                # BRICK 2a: the provider expects an INTEGER in the currency's
+                # minor unit, hence `amount × 10**exponent`. The fixed `×100`
+                # from before was right for the euro and wrong everywhere else:
+                # the CFA franc has no subunit, an order of 5,000 FCFA would
+                # have gone out as 500,000. The variable keeps the name
+                # `centimes` — it is the code's word, not the wire's (see
+                # below).
                 "    centimes = int(round(float(montant or 0) * "
                 f"{10 ** exposant_devise}))",
                 "    if centimes <= 0:",
                 "        raise HTTPException(status_code=400, detail=(",
                 "            'Zero or negative amount: nothing to charge.'))",
                 "    retour = str(request.base_url).rstrip('/') + '/site/'",
-                # CORRECTIF SÉCURITÉ : la référence porte désormais le nom de
-                # l'entité. Un simple id numérique se confondait avec celui
-                # d'une AUTRE entité payable de la même app -- le webhook
-                # marquait alors comme payé un enregistrement d'une table
-                # totalement différente, portant seulement le même id.
+                # SECURITY FIX: the reference now carries the entity name. A
+                # plain numeric id was confused with that of ANOTHER payable
+                # entity in the same app -- the webhook then marked as paid a
+                # record from a completely different table, which merely had
+                # the same id.
                 f"    reference = '{entite}:' + str(id)",
                 f"    session = _session_paiement(centimes, '{code_devise}', "
                 "reference, retour)",
             ]
             if prestataire == "fedapay":
                 lignes += [
-                    # PROUVÉ, PAS DEVINÉ : le plugin Odoo officiel de FedaPay
-                    # (fedapay/fedapay-odoo, payment_transaction.py) retrouve
-                    # sa commande par `notification_data.get('id')`, l'id de
-                    # transaction qu'il a mémorisé à la création. On mémorise
-                    # donc le même, ce qui donne au webhook une seconde façon
-                    # de reconnaître l'enregistrement — indépendante de
-                    # `merchant_reference`, dont l'écho dans la charge utile
-                    # n'est établi par aucune documentation.
+                    # PROVEN, NOT GUESSED: FedaPay's official Odoo plugin
+                    # (fedapay/fedapay-odoo, payment_transaction.py) finds its
+                    # order through `notification_data.get('id')`, the
+                    # transaction id it stored at creation. We therefore store
+                    # the same one, which gives the webhook a second way to
+                    # recognize the record — independent of
+                    # `merchant_reference`, whose echo in the payload is
+                    # established by no documentation.
                     #
-                    # Écrit AVANT de répondre : le webhook ne peut arriver
-                    # qu'après que le client a payé, donc après cette ligne.
-                    # Un second appel à la route écrase la référence — c'est
-                    # voulu, la session la plus récente est celle que le client
-                    # a sous les yeux ; l'ancienne reste rattrapée par
-                    # `merchant_reference`, qui ne bouge pas. Les deux voies se
-                    # couvrent l'une l'autre.
+                    # Written BEFORE answering: the webhook can only arrive
+                    # after the client has paid, hence after this line. A
+                    # second call to the route overwrites the reference — on
+                    # purpose, the most recent session is the one the client
+                    # has in front of them; the old one is still caught by
+                    # `merchant_reference`, which does not change. The two
+                    # paths cover each other.
                     "    _c_ref = _connect()",
                     f"    _c_ref.execute('UPDATE \"{table}\" SET payment_ref = ? "
                     "WHERE id = ?', (str(session.get('id')), id))",
                     "    _c_ref.commit(); _c_ref.close()",
                 ]
             lignes += [
-                # POINT 95 APPLIQUÉ AU FIL : `montant_centimes` GARDE son nom.
-                # Le renommer casserait le bouton « Payer » de tout projet
-                # existant, pour un gain cosmétique — c'est le raisonnement
-                # exact tenu pour `username`. Le contrat dit ce que le champ
-                # CONTIENT (le montant dans l'unité mineure de la devise ; pour
-                # une devise sans sous-unité comme le XOF, c'est le montant
-                # lui-même), et `devise` + `montant` sont ajoutés à côté pour
-                # qu'aucune interface n'ait plus à diviser par cent au hasard.
+                # POINT 95 APPLIED TO THE WIRE: `montant_centimes` KEEPS its
+                # name. Renaming it would break the "Pay" button of every
+                # existing project for a cosmetic gain — exactly the reasoning
+                # held for `username`. The contract says what the field
+                # CONTAINS (the amount in the currency's minor unit; for a
+                # currency without a subunit such as XOF, it is the amount
+                # itself), and `devise` + `montant` are added beside it so that
+                # no interface has to divide by a hundred at random anymore.
                 "    return {'status': 'success', 'url': session.get('url'),",
                 "            'session_id': session.get('id'), "
                 "'montant_centimes': centimes,",
@@ -303,12 +304,12 @@ class PaiementRoutesMixin:
             "                 or '')",
             "    _type_evenement = evenement.get('name') or evenement.get('type')",
             "    _attendu = 'transaction.approved'",
-            # REPLI PAR L'IDENTIFIANT DU PRESTATAIRE. C'est la voie que le
-            # plugin Odoo officiel emploie (`notification_data.get('id')`
-            # confronté à l'id mémorisé à la création) — la seule des deux qui
-            # soit établie par du code en production plutôt que déduite. Elle
-            # ne sert QUE si la référence qualifiée n'est pas revenue : quand
-            # elle est là, rien n'est écrasé.
+            # FALLBACK THROUGH THE PROVIDER'S IDENTIFIER. It is the path the
+            # official Odoo plugin uses (`notification_data.get('id')` matched
+            # against the id stored at creation) — the only one of the two
+            # established by code in production rather than inferred. It serves
+            # ONLY if the qualified reference did not come back: when it is
+            # there, nothing is overwritten.
             "    if not str(reference).partition(':')[2].isdigit():",
             "        _ref_prestataire = str(objet.get('id') or '')",
             "        _repli = ''",
