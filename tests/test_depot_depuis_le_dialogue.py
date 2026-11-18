@@ -165,3 +165,19 @@ def test_les_limites_declarees_par_le_dialogue_mordent_reellement(deux_comptes):
         files={"photo": ("faux.png", b"<svg>x</svg>", "image/png")},
         headers=alice, timeout=10)
     assert deguise.status_code == 415, deguise.status_code
+
+
+def test_la_question_de_depot_parle_anglais():
+    """The upload choices are read by the person being guided: each one says
+    its field, its byte limit and its types in English. One label stayed
+    "— champ photo, 5242880 octets" after the migration; nothing read the
+    printed question, since every test discarded the dialogue's output."""
+    index = next(i for i, t in enumerate(TEMPLATES, 1)
+                 if t["name"] == "Personal expense tracking")
+    questions = []
+    with contextlib.redirect_stdout(io.StringIO()):
+        _run_template(index, "n", False, upload_pour="Expense", prompts=questions)
+    texte = next((q for q in questions if "Which file upload for Expense?" in q), "")
+    assert texte, questions
+    assert "— field photo, " in texte and " bytes, types " in texte, texte
+    assert "octets" not in texte and "champ" not in texte
