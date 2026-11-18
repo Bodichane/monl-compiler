@@ -9,15 +9,10 @@ from . import sql
 class SuppressionRoutesMixin:
     """The `Delete` route, and workflow actions."""
 
-    def _generate_delete_route_lines(self, plan, context, act_type):
-        """Rend la famille de route ``Delete``."""
-        api_lines = []
-        base_target = context["base_target"]
-        tag = context["tag"]
-        access = context["access"]
-        is_public = context["is_public"]
-        security_check = context["security_check"]
-        dependency_injection = context["dependency_injection"]
+    # The three methods below are extracted from `_generate_delete_route_lines`
+    # (complexity ceiling); emitted text byte-identical.
+    def _controle_de_suppression(self, base_target, access, is_public, dependency_injection):
+        """(dependencies, ownership check lines) of a Delete route."""
         owner_entity = access.owner_entity
         apply_ownership = owner_entity and not is_public
         # ADDED (roadmap, "two-party access" brick) — see the equivalent
@@ -60,19 +55,11 @@ class SuppressionRoutesMixin:
                 "        if _owner_row[0] != current_user_id: raise HTTPException(status_code=403, "
                 "detail=\"Access control: only the resource's owner can perform this action\")",
             ]
+        return delete_deps, ownership_check_lines
 
-        delete_deps_suffix = f", {delete_deps}" if delete_deps else ""
-        api_lines.append(f"@app.delete('/{base_target.lower()}/{{id}}', tags=['{tag}'])")
-        api_lines.append(f"def delete_{base_target.lower()}(id: int{delete_deps_suffix}):")
-        api_lines.append(security_check)
-        api_lines.extend(ownership_check_lines)
-        api_lines.append("    conn = _connect(); cursor = conn.cursor()")
-        # POINT 96: the counterpart of `requiresOwn` on DELETION. The rule has
-        # guarded creation since point 90; nothing then prevented deleting
-        # one's profile and leaving the order without a recipient — checked on
-        # `projets/SneakerLab`: 1 order, 0 profiles. The check applies to the
-        # LAST profile only: `requiresOwn` requires "at least one", so deleting
-        # the second to last stays legitimate.
+    def _garde_dernier_profil(self, base_target):
+        """Refuses to delete the last profile that other records depend on."""
+        api_lines = []
         dependantes = self._profile_dependents(base_target)
         col_compte = self._profile_account_column(base_target)
         if dependantes and col_compte:
@@ -98,6 +85,63 @@ class SuppressionRoutesMixin:
                     "                'Without it, they would no longer be attached to "
                     "anyone.'))",
                 ]
+        return api_lines
+
+    def _lectures_de_restitution(self, base_target):
+        """Reads, BEFORE the DELETE, what each counter rule must give back."""
+        api_lines = []
+        restitutions = []
+        for indice, rule in enumerate(
+                self.reputation_rules_by_trigger.get(base_target, [])):
+            fk_cible = rule.target_fk
+            var = f"_rendu_{indice}"
+            champ = rule.amount_field
+            # The quantity and the foreign key are read BEFORE the DELETE:
+            # afterwards the row no longer exists and nothing says what to give
+            # back or to whom. Same reason as point 82, two lines above.
+            colonnes = f'"{champ}", "{fk_cible}"' if champ else f'"{fk_cible}"'
+            api_lines += [
+                f"    cursor.execute('SELECT {colonnes} FROM "
+                f'"{base_target.lower()}" WHERE id = ?\', (id,))',
+                f"    {var} = cursor.fetchone()",
+            ]
+            restitutions.append({
+                "var": var,
+                # Counting down subtracts: giving back adds.
+                "op": "+" if rule.direction == "decrements" else "-",
+                "table": rule.target_entity.lower(),
+                "champ": rule.target_field,
+                "montant": (f"int({var}[0] or 0)" if champ
+                            else str(rule.amount)),
+                "fk_index": 1 if champ else 0,
+            })
+        return api_lines, restitutions
+
+    def _generate_delete_route_lines(self, plan, context, act_type):
+        """Rend la famille de route ``Delete``."""
+        api_lines = []
+        base_target = context["base_target"]
+        tag = context["tag"]
+        access = context["access"]
+        is_public = context["is_public"]
+        security_check = context["security_check"]
+        dependency_injection = context["dependency_injection"]
+        delete_deps, ownership_check_lines = self._controle_de_suppression(
+            base_target, access, is_public, dependency_injection)
+
+        delete_deps_suffix = f", {delete_deps}" if delete_deps else ""
+        api_lines.append(f"@app.delete('/{base_target.lower()}/{{id}}', tags=['{tag}'])")
+        api_lines.append(f"def delete_{base_target.lower()}(id: int{delete_deps_suffix}):")
+        api_lines.append(security_check)
+        api_lines.extend(ownership_check_lines)
+        api_lines.append("    conn = _connect(); cursor = conn.cursor()")
+        # POINT 96: the counterpart of `requiresOwn` on DELETION. The rule has
+        # guarded creation since point 90; nothing then prevented deleting
+        # one's profile and leaving the order without a recipient — checked on
+        # `projets/SneakerLab`: 1 order, 0 profiles. The check applies to the
+        # LAST profile only: `requiresOwn` requires "at least one", so deleting
+        # the second to last stays legitimate.
+        api_lines += self._garde_dernier_profil(base_target)
         # BRICK 18 (point 91): deleting erases the trace of a charge. The 409
         # the foreign key returned protected nothing — removing the lines first
         # was enough, and the paid order vanished from the database (checked).
@@ -147,31 +191,8 @@ class SuppressionRoutesMixin:
         # up, a taken back `increments` does not go below the value before
         # creation. Refusing a deletion because of a floor would forbid
         # cancelling an order — exactly what is being fixed here.
-        restitutions = []
-        for indice, rule in enumerate(
-                self.reputation_rules_by_trigger.get(base_target, [])):
-            fk_cible = rule.target_fk
-            var = f"_rendu_{indice}"
-            champ = rule.amount_field
-            # The quantity and the foreign key are read BEFORE the DELETE:
-            # afterwards the row no longer exists and nothing says what to give
-            # back or to whom. Same reason as point 82, two lines above.
-            colonnes = f'"{champ}", "{fk_cible}"' if champ else f'"{fk_cible}"'
-            api_lines += [
-                f"    cursor.execute('SELECT {colonnes} FROM "
-                f'"{base_target.lower()}" WHERE id = ?\', (id,))',
-                f"    {var} = cursor.fetchone()",
-            ]
-            restitutions.append({
-                "var": var,
-                # Counting down subtracts: giving back adds.
-                "op": "+" if rule.direction == "decrements" else "-",
-                "table": rule.target_entity.lower(),
-                "champ": rule.target_field,
-                "montant": (f"int({var}[0] or 0)" if champ
-                            else str(rule.amount)),
-                "fk_index": 1 if champ else 0,
-            })
+        lignes_restitution, restitutions = self._lectures_de_restitution(base_target)
+        api_lines += lignes_restitution
         upload_refs = []
         for upload in self.upload_fields_by_entity.get(base_target, []):
             ref_var = f"_upload_ref_{upload['field']}"
