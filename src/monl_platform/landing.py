@@ -208,14 +208,17 @@ def feature(symbol: str, title: str, text: str, delay: int = 0) -> str:
 
 
 
-DEMO_HERO = en_lignes("""app PetiteBoutique
+#: Texte brut, confronté ligne à ligne à `SPEC_VITRINE` par un témoin : un
+#: extrait recopié à la main finit toujours par montrer une règle inexistante.
+DEMO_HERO_SOURCE = """app LittleShop
 
-entity Produit
-  prix: Money
+entity Product
+  price: Money
   stock: Integer
 
-rule Produit.stock min 0
-rule Produit.Read public""")
+rule Product.stock min 0
+rule Product.Read public"""
+DEMO_HERO = en_lignes(DEMO_HERO_SOURCE)
 
 MINI_SPEC = coloriser(extrait_affiche())
 
@@ -281,7 +284,7 @@ BODY = f"""
 <div class="section-head" data-reveal><h2>A clear rule becomes a usable backend.</h2>
 <p>Here is what Monl produces from a shop spec: the results are rechecked every time the compiler changes.</p></div>
 <div class="output-flow" data-reveal><pre class="codeblock mini-spec"><code>{MINI_SPEC}</code></pre>
-<span class="flow-arrow">{icon('arrow')}</span><div class="artifact"><div class="artifact-head"><b>PetiteBoutique</b><span class="muted">self-contained archive</span></div>
+<span class="flow-arrow">{icon('arrow')}</span><div class="artifact"><div class="artifact-head"><b>LittleShop</b><span class="muted">self-contained archive</span></div>
 <div class="artifact-body"><div class="artifact-stats"><div><b>{ENTITES}</b><span>entities</span></div><div><b>{ROUTES}</b><span>API routes</span></div><div><b>{FICHIERS}</b><span>files</span></div></div>
 <div class="tree"><b>backend/</b><br>{ARBRE_HTML}</div></div></div></div>
 </div></section>

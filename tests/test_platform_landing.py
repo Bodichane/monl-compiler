@@ -853,3 +853,28 @@ def test_la_page_servie_ne_nomme_que_des_fichiers_reels(platform, tmp_path):
     assert not absents, (
         f"la page servie nomme des fichiers que l'archive ne contient pas : "
         f"{absents}")
+
+
+def _lignes(texte):
+    return {ligne.strip() for ligne in texte.splitlines() if ligne.strip()}
+
+
+def test_chaque_extrait_de_cas_figure_dans_la_spec_de_son_exemple():
+    """L'extrait « communaute » affichait `rule Membre.pseudo generated
+    "MBR-{NNNN}"` : absente de la spec, et invalide (`generated` ne prend pas
+    de gabarit). Recopié à la main, rien ne le confrontait à la spec servie."""
+    from monl_platform import examples, landing_cas
+
+    assert set(landing_cas.CASE_SNIPPETS) == set(examples.BY_ID)
+    for ident, extrait in landing_cas.CASE_SNIPPETS.items():
+        absentes = _lignes(extrait) - _lignes(examples.spec_of(ident))
+        assert _lignes(extrait), ident
+        assert not absentes, (ident, absentes)
+
+
+def test_la_demo_du_hero_est_prise_dans_la_spec_qui_compile():
+    from monl_platform import landing
+
+    absentes = _lignes(landing.DEMO_HERO_SOURCE) - _lignes(landing_vitrine.SPEC_VITRINE)
+    assert _lignes(landing.DEMO_HERO_SOURCE)
+    assert not absentes, absentes
