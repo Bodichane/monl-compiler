@@ -255,73 +255,73 @@ LANDING_MOTION = """<script>
 
 BODY = f"""
 <section class="shell landing-hero"><div class="landing-network" aria-hidden="true"><i class="landing-node landing-node-a"></i><i class="landing-node landing-node-b"></i><i class="landing-node landing-node-c"></i><i class="landing-node landing-node-d"></i><i class="landing-node landing-node-e"></i><i class="landing-node landing-node-f"></i></div>
-<div class="hero-copy"><h1 data-reveal style="--reveal-delay:60ms">Décrivez votre métier.<span>Monl construit le backend.</span></h1>
-<p class="lede" data-reveal style="--reveal-delay:120ms">Déclarez vos données, les personnes qui agissent et les règles à ne jamais contourner. Monl les vérifie puis vous remet une API, son schéma SQL et un contrat exact pour vos interfaces.</p>
+<div class="hero-copy"><h1 data-reveal style="--reveal-delay:60ms">Describe your business.<span>Monl builds the backend.</span></h1>
+<p class="lede" data-reveal style="--reveal-delay:120ms">Declare your data, the people who act on it and the rules that must never be bypassed. Monl checks them, then hands you an API, its SQL schema and an exact contract for your interfaces.</p>
 <div class="hero-actions" data-reveal style="--reveal-delay:180ms">
-<a class="primary" href="/console">{icon('terminal')} Essayer dans la console</a>
-<a class="secondary" href="/docs">{icon('book')} Lire la documentation</a>
-<a class="secondary github-link" href="{GITHUB_URL}" target="_blank" rel="noopener">{GITHUB_ICON} Voir le projet sur GitHub</a></div>
+<a class="primary" href="/console">{icon('terminal')} Try it in the console</a>
+<a class="secondary" href="/docs">{icon('book')} Read the documentation</a>
+<a class="secondary github-link" href="{GITHUB_URL}" target="_blank" rel="noopener">{GITHUB_ICON} View the project on GitHub</a></div>
 <div class="trust" data-reveal style="--reveal-delay:220ms">
-<span>{icon('check')} Commencez avec un exemple</span><span>{icon('check')} Vérifiez avant de compiler</span>
-<span>{icon('check')} Exécutez où vous voulez</span></div></div>
-<div class="hero-visual" data-reveal style="--reveal-delay:120ms"><aside class="start-card" aria-label="Une compilation Monl">
-<div class="demo-window"><div class="demo-bar"><i></i><i></i><i></i><span>specification vérifiée</span></div>
+<span>{icon('check')} Start from an example</span><span>{icon('check')} Check before you compile</span>
+<span>{icon('check')} Run it wherever you want</span></div></div>
+<div class="hero-visual" data-reveal style="--reveal-delay:120ms"><aside class="start-card" aria-label="A Monl compilation">
+<div class="demo-window"><div class="demo-bar"><i></i><i></i><i></i><span>verified specification</span></div>
 <div class="demo-code">{DEMO_HERO}</div>
-<div class="scan-line"></div><div class="demo-result"><div class="verified"><b>{icon('check')} valide</b><span>audit métier</span></div>
-<div><b>{ENTITES}</b><span>entités</span></div><div><b>{ROUTES}</b><span>routes</span></div><div><b>{FICHIERS}</b><span>fichiers</span></div></div></div></aside>
-<span class="float-card float-a" aria-hidden="true">{icon('shield')} Droits vérifiés</span><span class="float-card float-b" aria-hidden="true">{icon('package')} Archive autonome</span></div>
+<div class="scan-line"></div><div class="demo-result"><div class="verified"><b>{icon('check')} valid</b><span>business audit</span></div>
+<div><b>{ENTITES}</b><span>entities</span></div><div><b>{ROUTES}</b><span>routes</span></div><div><b>{FICHIERS}</b><span>files</span></div></div></div></aside>
+<span class="float-card float-a" aria-hidden="true">{icon('shield')} Verified permissions</span><span class="float-card float-b" aria-hidden="true">{icon('package')} Self-contained archive</span></div>
 </section>
 
-<section class="shell proof-deck proof-rail" aria-label="Preuves du compilateur" data-reveal>
-<div><b>4</b><span>exemples pour commencer</span></div><div><b>0</b><span>appel réseau pour compiler</span></div>
-<div><b class="proof-word">Vérifié</b><span>avant de produire l’archive</span></div><div><b class="proof-word">À vous</b><span>backend autonome, sans verrouillage</span></div>
+<section class="shell proof-deck proof-rail" aria-label="Compiler evidence" data-reveal>
+<div><b>4</b><span>examples to start from</span></div><div><b>0</b><span>network calls to compile</span></div>
+<div><b class="proof-word">Verified</b><span>before the archive is produced</span></div><div><b class="proof-word">Yours</b><span>self-contained backend, no lock-in</span></div>
 </section>
 
 <section class="band"><div class="shell section compiler-layout">
-<div class="section-head" data-reveal><h2>Une règle claire devient un backend utilisable.</h2>
-<p>Voici ce que Monl produit à partir d’une spec de boutique : les résultats sont revérifiés à chaque évolution du compilateur.</p></div>
+<div class="section-head" data-reveal><h2>A clear rule becomes a usable backend.</h2>
+<p>Here is what Monl produces from a shop spec: the results are rechecked every time the compiler changes.</p></div>
 <div class="output-flow" data-reveal><pre class="codeblock mini-spec"><code>{MINI_SPEC}</code></pre>
-<span class="flow-arrow">{icon('arrow')}</span><div class="artifact"><div class="artifact-head"><b>PetiteBoutique</b><span class="muted">archive autonome</span></div>
-<div class="artifact-body"><div class="artifact-stats"><div><b>{ENTITES}</b><span>entités</span></div><div><b>{ROUTES}</b><span>routes API</span></div><div><b>{FICHIERS}</b><span>fichiers</span></div></div>
+<span class="flow-arrow">{icon('arrow')}</span><div class="artifact"><div class="artifact-head"><b>PetiteBoutique</b><span class="muted">self-contained archive</span></div>
+<div class="artifact-body"><div class="artifact-stats"><div><b>{ENTITES}</b><span>entities</span></div><div><b>{ROUTES}</b><span>API routes</span></div><div><b>{FICHIERS}</b><span>files</span></div></div>
 <div class="tree"><b>backend/</b><br>{ARBRE_HTML}</div></div></div></div>
 </div></section>
 
 <section class="shell section" aria-labelledby="position-title">
-<div class="section-head" data-reveal><h2 id="position-title">Gardez votre infrastructure. Rendez le métier non négociable.</h2>
-<p>Votre cloud et PostgreSQL exécutent l’application. Monl transforme vos règles en comportements que le serveur applique, quelle que soit l’interface qui appelle l’API.</p></div>
+<div class="section-head" data-reveal><h2 id="position-title">Keep your infrastructure. Make the business rules non-negotiable.</h2>
+<p>Your cloud and PostgreSQL run the application. Monl turns your rules into behavior the server enforces, whatever interface calls the API.</p></div>
 <div class="platform-flow" data-reveal>
-<article class="flow-stage"><h3>Les fondations</h3><p>Base de données, calcul, stockage et réseau restent chez le fournisseur que vous choisissez.</p><div class="stage-tags"><span>Postgres</span><span>cloud</span><span>self-hosted</span></div></article>
-<article class="flow-stage"><h3>Le métier vérifié</h3><p>Acteurs, droits, propriété, paiements et invariants deviennent une API et un contrat cohérents. Le même moteur pour les agents MCP.</p><div class="stage-tags"><span>spec.ml</span><span>audit</span><span>contrat</span></div></article>
-<article class="flow-stage"><h3>Chaque expérience</h3><p>Web, mobile et agents utilisent les mêmes routes et autorisations sans les deviner.</p><div class="stage-tags"><span>web</span><span>mobile</span><span>MCP</span></div></article>
+<article class="flow-stage"><h3>The foundations</h3><p>Database, compute, storage and network stay with the provider you choose.</p><div class="stage-tags"><span>Postgres</span><span>cloud</span><span>self-hosted</span></div></article>
+<article class="flow-stage"><h3>Verified business rules</h3><p>Actors, permissions, ownership, payments and invariants become a consistent API and contract. The same engine for MCP agents.</p><div class="stage-tags"><span>spec.ml</span><span>audit</span><span>contract</span></div></article>
+<article class="flow-stage"><h3>Every experience</h3><p>Web, mobile and agents use the same routes and permissions without guessing them.</p><div class="stage-tags"><span>web</span><span>mobile</span><span>MCP</span></div></article>
 </div></section>
 
 {landing_pourquoi.SECTIONS}
 <section class="band"><div class="shell section editorial">
-<div class="section-head" data-reveal><h2>La sécurité n’est pas une consigne donnée au frontend.</h2>
-<p>Elle est dérivée de la spécification et répétée dans chaque couche produite. Les limites restent explicites.</p>
-<a class="secondary" href="/security">Lire le modèle de sécurité {icon('arrow')}</a></div>
+<div class="section-head" data-reveal><h2>Security is not an instruction given to the frontend.</h2>
+<p>It is derived from the specification and repeated in every layer produced. The limits stay explicit.</p>
+<a class="secondary" href="/security">Read the security model {icon('arrow')}</a></div>
 <div class="capability-grid">
-<article class="capability" data-reveal><span class="feature-icon">{icon('shield')}</span><h3>Droits compilés par acteur</h3><p>Lecture publique, session, propriété et rôle privilégié sont distingués route par route.</p></article>
-<article class="capability" data-reveal><span class="feature-icon">{icon('check')}</span><h3>Invariants côté serveur</h3><p>Stock, montants, unicité, états autorisés et gel après paiement ne dépendent jamais du navigateur.</p></article>
-<article class="capability" data-reveal><span class="feature-icon">{icon('code')}</span><h3>Contrat frontend exact</h3><p>Chaque interface reçoit les routes, champs, actions et exigences d’authentification disponibles.</p></article>
-<article class="capability" data-reveal><span class="feature-icon">{icon('key')}</span><h3>Secrets créés chez vous</h3><p>Le secret JWT ne voyage pas dans l’archive et reste sous le contrôle de l’exploitant.</p></article>
+<article class="capability" data-reveal><span class="feature-icon">{icon('shield')}</span><h3>Permissions compiled per actor</h3><p>Public read, session, ownership and privileged role are distinguished route by route.</p></article>
+<article class="capability" data-reveal><span class="feature-icon">{icon('check')}</span><h3>Server-side invariants</h3><p>Stock, amounts, uniqueness, allowed states and the freeze after payment never depend on the browser.</p></article>
+<article class="capability" data-reveal><span class="feature-icon">{icon('code')}</span><h3>An exact frontend contract</h3><p>Each interface receives the available routes, fields, actions and authentication requirements.</p></article>
+<article class="capability" data-reveal><span class="feature-icon">{icon('key')}</span><h3>Secrets created on your side</h3><p>The JWT secret does not travel in the archive and stays under the operator’s control.</p></article>
 </div></div></section>
 
-<section class="shell section"><div class="section-head" data-reveal><h2>Quatre applications, quatre familles de règles réellement testées.</h2>
-<p>Chaque exemple est une spécification complète servie par la plateforme. Ouvrez-la dans la console, adaptez-la puis compilez son backend.</p></div>
+<section class="shell section"><div class="section-head" data-reveal><h2>Four applications, four families of rules actually tested.</h2>
+<p>Each example is a complete specification served by the platform. Open it in the console, adapt it, then compile its backend.</p></div>
 {landing_cas.EXPLORATEUR}</section>
 
 <section class="shell final" data-reveal>
-<h2>Compilez une règle métier réelle.</h2>
-<p>Vos projets restent disponibles dans votre compte et chaque archive demeure autonome.</p>
-<a class="secondary" href="/console">Ouvrir la console {icon('arrow')}</a>
+<h2>Compile a real business rule.</h2>
+<p>Your projects stay available in your account and every archive remains self-contained.</p>
+<a class="secondary" href="/console">Open the console {icon('arrow')}</a>
 </section>
 """
 
 
 LANDING_HTML = page(
-    title="MONL — le métier est compilé",
-    description="Monl compile vos règles métier en backend autonome et contrat frontend vérifiable.",
+    title="MONL — the business is compiled",
+    description="Monl compiles your business rules into a self-contained backend and a verifiable frontend contract.",
     body=BODY,
     active="home",
     extra_css=EXTRA_CSS + landing_cas.EXTRA_CSS + landing_pourquoi.EXTRA_CSS,

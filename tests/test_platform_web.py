@@ -52,41 +52,41 @@ def test_page_explique_compile_et_mcp(tmp_path):
         session = _compte(base)
         page = requests.get(base + "/", timeout=30)
         assert page.status_code == 200
-        assert "Décrivez votre métier" in page.text
-        assert "Une compilation Monl" in page.text
-        assert "specification vérifiée" in page.text
+        assert "Describe your business" in page.text
+        assert "A Monl compilation" in page.text
+        assert "verified specification" in page.text
         assert "scroll-progress" in page.text
-        assert "Gardez votre infrastructure. Rendez le métier non négociable." in page.text
-        assert "0</b><span>appel réseau pour compiler" in page.text
-        assert "Essayer dans la console" in page.text
-        assert "Une règle claire devient un backend utilisable." in page.text
+        assert "Keep your infrastructure. Make the business rules non-negotiable." in page.text
+        assert "0</b><span>network calls to compile" in page.text
+        assert "Try it in the console" in page.text
+        assert "A clear rule becomes a usable backend." in page.text
         # Le TITRE de la section, pas son accroche : les accroches ont été
         # retirées du site, et un test accroché à un ornement retient une
         # décoration au lieu du contenu.
-        assert "Quatre applications, quatre familles de règles" in page.text
+        assert "Four applications, four families of rules" in page.text
         assert 'href="/security"' in page.text
-        assert "Le même moteur pour les agents" in page.text
+        assert "The same engine for MCP agents" in page.text
         assert 'href="/console"' in page.text
         assert 'href="/console" target="_blank" rel="noopener"' in page.text
-        assert "Référence DSL" in page.text
-        assert "Service opérationnel" in page.text
+        assert "DSL reference" in page.text
+        assert "Service operational" in page.text
         assert 'id="spec-input"' not in page.text
 
         assert requests.get(base + "/console", allow_redirects=False, timeout=30).status_code == 303
         console = session.get(base + "/console", timeout=30)
         assert console.status_code == 200
-        assert "Console de compilation" in console.text
+        assert "Compilation console" in console.text
         assert 'id="spec-input"' in console.text
-        assert "Votre interface est libre" not in console.text
+        assert "Your interface is free" not in console.text
         assert 'href="/docs"' in console.text
         account = session.get(base + "/account", timeout=30)
         assert account.status_code == 200
-        assert "Vos projets" in account.text
-        assert "Clés MCP" not in account.text
+        assert "Your projects" in account.text
+        assert "<h2>MCP keys" not in account.text
         mcp_page = session.get(base + "/mcp", timeout=30)
         assert mcp_page.status_code == 200
-        assert "Clés d’accès" in mcp_page.text
-        assert "Créer une clé" in mcp_page.text
+        assert "Access keys" in mcp_page.text
+        assert "Create a key" in mcp_page.text
         for tool in (
             "monl_list_templates", "monl_validate_spec", "monl_compile_backend",
             "monl_list_projects", "monl_inspect_contract", "monl_diff_spec",
@@ -98,17 +98,17 @@ def test_page_explique_compile_et_mcp(tmp_path):
 
         docs = requests.get(base + "/docs", timeout=30)
         assert docs.status_code == 200
-        assert "Écrire une spécification Monl" in docs.text
-        assert "Les mots-clés essentiels" in docs.text
-        assert "Accès et sécurité" in docs.text
+        assert "Write a Monl specification" in docs.text
+        assert "The essential keywords" in docs.text
+        assert "Access and security" in docs.text
         assert 'href="/api-docs"' in docs.text
         assert requests.get(base + "/api-docs", timeout=30).status_code == 200
 
         security = requests.get(base + "/security", timeout=30)
         assert security.status_code == 200
-        assert "Les règles sont exécutées" in security.text
-        assert "Ce que la suite essaie réellement de casser" in security.text
-        assert "Le déploiement doit garantir" in security.text
+        assert "The rules are enforced" in security.text
+        assert "What the suite actually tries to break" in security.text
+        assert "The deployment must guarantee" in security.text
 
         assert requests.get(base + "/health", timeout=30).json()["status"] == "ok"
         templates = requests.get(base + "/api/templates", timeout=30).json()

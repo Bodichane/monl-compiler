@@ -121,9 +121,9 @@ def test_la_console_sert_le_bouton_de_demarrage_avec_son_apostrophe(client):
     node = _node()
     blocs = _scripts_de(client, "/console")
     entier = "\n".join(blocs)
-    assert "Démarrer l" in entier, "le bouton a disparu du script servi"
+    assert "Start the project" in entier, "le bouton a disparu du script servi"
     # L'apostrophe doit être ÉCHAPPÉE dans le littéral, pas nue.
-    assert "Démarrer l\\'API" in entier, (
+    assert "Start the project\\'s API" in entier, (
         "l'apostrophe est nue dans le littéral JavaScript servi : "
         "une couche de templating Python a mangé l'antislash"
     )

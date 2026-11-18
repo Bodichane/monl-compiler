@@ -67,7 +67,7 @@ def _magasin(workspace):
 def _compte_ou_sortir(magasin: IdentityStore, adresse: str) -> dict:
     compte = magasin.compte_par_adresse(adresse)
     if not compte:
-        print(f"Aucun compte pour {adresse!r}.", file=sys.stderr)
+        print(f"No account for {adresse!r}.", file=sys.stderr)
         raise SystemExit(1)
     return compte
 
@@ -97,12 +97,12 @@ def _comptes(magasin: IdentityStore, _service, args) -> int:
 
 def _compte(magasin: IdentityStore, _service, args) -> int:
     compte = _compte_ou_sortir(magasin, args.email)
-    print(f"Compte   {compte['email']}")
+    print(f"Account  {compte['email']}")
     print(f"         {compte['id']}")
-    print(f"Codes de secours restants : {magasin.count_recovery_codes(compte['id'])}")
+    print(f"Recovery codes left: {magasin.count_recovery_codes(compte['id'])}")
 
     projets = magasin.tous_les_projets(compte["id"])
-    print(f"\nProjets ({len(projets)})")
+    print(f"\nProjects ({len(projets)})")
     for projet in projets:
         print(f"  {projet['project_id']}  {projet['name'][:30]:30s} "
               f"{_echeance(projet['expires_at'])}")
@@ -143,7 +143,7 @@ def _journal(magasin: IdentityStore, service: CompilationService, args) -> int:
     try:
         chemin = site_log_path(service.workspace, projet)
     except (ProjectPathError, SiteHostingError) as exc:
-        print(f"Journal illisible : {exc}", file=sys.stderr)
+        print(f"Unreadable log: {exc}", file=sys.stderr)
         return 1
     if chemin.is_symlink():
         print("Unreadable log: the file is a symbolic link.", file=sys.stderr)
@@ -190,8 +190,8 @@ def _prolonger(magasin: IdentityStore, _service, args) -> int:
         return 1
     evenement("echeance_deplacee", projet=court(args.projet),
               jours=None if args.jamais else args.jours)
-    quand = "jamais" if args.jamais else f"dans {args.jours} jours"
-    print(f"Projet {args.projet} : expire {quand}.")
+    quand = "never" if args.jamais else f"in {args.jours} days"
+    print(f"Project {args.projet}: expires {quand}.")
     return 0
 
 
@@ -286,11 +286,11 @@ def construire_parseur() -> argparse.ArgumentParser:
     codes.set_defaults(faire=_codes)
 
     prolonger = sous.add_parser(
-"prolonger", parents=[commun], help="Repousse l'expiration d'un projet.")
+"prolonger", parents=[commun], help="Push back a project's expiry.")
     prolonger.add_argument("projet")
     prolonger.add_argument("--jours", type=int, default=30)
     prolonger.add_argument("--jamais", action="store_true",
-                           help="Le projet n'expire plus.")
+                           help="The project no longer expires.")
     prolonger.set_defaults(faire=_prolonger)
 
     expirer = sous.add_parser(
@@ -304,7 +304,7 @@ def construire_parseur() -> argparse.ArgumentParser:
     revoquer.set_defaults(faire=_revoquer)
 
     supprimer = sous.add_parser(
-"supprimer-compte", parents=[commun], help="Efface un compte et tout ce qui lui appartient.")
+"supprimer-compte", parents=[commun], help="Erase an account and everything that belongs to it.")
     supprimer.add_argument("email")
     supprimer.add_argument("--confirmer", action="store_true")
     supprimer.set_defaults(faire=_supprimer)

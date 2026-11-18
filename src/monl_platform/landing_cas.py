@@ -74,10 +74,10 @@ EXTRA_CSS = """
 
 
 CASE_OUTCOMES = {
-    "vitrine": "Lecture publique, administration privée et catalogue initialisé dès le premier démarrage.",
-    "rendez-vous": "Chaque client reste isolé ; le praticien retrouve toutes les demandes et maîtrise leurs statuts.",
-    "boutique": "Prix calculés côté serveur, stock jamais négatif, commande numérotée et paiement verrouillé.",
-    "communaute": "Pseudonymes générés, une réaction par compte, signalement et modération sans contournement.",
+    "vitrine": "Public read, private administration and a catalog seeded on first start.",
+    "rendez-vous": "Each client stays isolated; the practitioner finds every request and controls their statuses.",
+    "boutique": "Server-calculated prices, stock that never goes negative, numbered orders and a locked payment.",
+    "communaute": "Generated pseudonyms, one reaction per account, reporting and moderation with no way around them.",
 }
 
 CASE_SNIPPETS = {
@@ -120,10 +120,10 @@ def case_panel(item: dict, index: int) -> str:
     snippet = coloriser(CASE_SNIPPETS[item["id"]])
     return f"""<section class="case-panel{active}" id="case-{item['id']}" role="tabpanel"
 aria-labelledby="tab-{item['id']}"{hidden}><div><h3>{item['name']}</h3><p>{CASE_OUTCOMES[item['id']]}</p>
-<div class="case-rules" aria-label="Règles démontrées">{rules}</div>
-<div class="case-result" style="margin-top:28px"><span><b>{result['entities']}</b>entités</span>
-<span><b>{result['routes']}</b>routes</span><span><b>{result['files']}</b>fichiers</span></div>
-<a class="case-open" href="/console?example={item['id']}">Ouvrir dans la console {icon('arrow')}</a></div>
+<div class="case-rules" aria-label="Rules demonstrated">{rules}</div>
+<div class="case-result" style="margin-top:28px"><span><b>{result['entities']}</b>entities</span>
+<span><b>{result['routes']}</b>routes</span><span><b>{result['files']}</b>files</span></div>
+<a class="case-open" href="/console?example={item['id']}">Open in the console {icon('arrow')}</a></div>
 <div class="case-spec"><pre class="codeblock"><code>{snippet}</code></pre></div></section>"""
 
 CATALOGUE = examples.catalogue()
@@ -132,7 +132,7 @@ CASE_PANELS = "".join(case_panel(item, index) for index, item in enumerate(CATAL
 
 
 EXPLORATEUR = f"""<div class="case-explorer" data-reveal>\
-<div class="case-tabs" role="tablist" aria-label="Cas métier">{CASE_TABS}</div>
+<div class="case-tabs" role="tablist" aria-label="Business cases">{CASE_TABS}</div>
 <div class="case-panels">{CASE_PANELS}</div></div>"""
 
 

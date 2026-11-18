@@ -83,7 +83,7 @@ def test_un_corps_chunked_borne_et_valide_reste_accepte(plateforme):
     )
 
     assert statut == 401
-    assert contenu["detail"] == "Email ou mot de passe incorrect."
+    assert contenu["detail"] == "Incorrect email or password."
 
 
 def test_content_length_trop_grand_est_refuse_avant_lecture(plateforme):

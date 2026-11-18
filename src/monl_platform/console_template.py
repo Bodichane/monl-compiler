@@ -208,141 +208,141 @@ kbd { font: 11px var(--mono); border: 1px solid var(--line); border-bottom-width
 
 # La SPEC passe par le coloriseur ; les lignes de résultat gardent leurs
 # flèches, qui ne sont pas du langage.
-TERMINAL = coloriser("""app CarnetAtelier
+TERMINAL = coloriser("""app WorkshopNotebook
 
-entity Fiche
-    titre: String
-    statut: String
+entity Note
+    title: String
+    status: String
 
-actor Auteur selfRegister
+actor Author selfRegister
 
-relation Auteur hasMany Fiche
+relation Author hasMany Note
 
-rule Fiche.statut oneOf "brouillon", "publiee"
-rule Fiche.Read publicWhen statut "publiee"
-rule Fiche.Update ownedBy Auteur
+rule Note.status oneOf "draft", "published"
+rule Note.Read publicWhen status "published"
+rule Note.Update ownedBy Author
 
-workflow Ecrire for Auteur
-    Create Fiche
-    Read Fiche
-    Update Fiche""") + """
+workflow Write for Author
+    Create Note
+    Read Note
+    Update Note""") + """
 
-<span class="s-cm"># résultat déterministe</span>
-<span class="arrow">✓</span> API FastAPI + comptes
-<span class="arrow">✓</span> Schéma SQL et index
-<span class="arrow">✓</span> Contrôle d'accès par enregistrement
-<span class="arrow">✓</span> Contrat frontend"""
+<span class="s-cm"># deterministic result</span>
+<span class="arrow">✓</span> FastAPI API + accounts
+<span class="arrow">✓</span> SQL schema and indexes
+<span class="arrow">✓</span> Per-record access control
+<span class="arrow">✓</span> Frontend contract"""
 
 BODY = f"""
 <div class="console-stage"><div class="console-ambient" aria-hidden="true"><i class="console-node console-node-a"></i><i class="console-node console-node-b"></i><i class="console-node console-node-c"></i><i class="console-node console-node-d"></i><i class="console-node console-node-e"></i><i class="console-node console-node-f"></i></div>
 <section class="shell console-head" data-reveal>
-<div><h1>Console de compilation</h1>
-<p>Répondez au dialogue guidé ou écrivez une spécification, vérifiez ses règles
-puis téléchargez un backend autonome et son contrat frontend.</p></div>
-<span class="console-badge">{icon('shield')} Compilation locale et vérifiable</span>
+<div><h1>Compilation console</h1>
+<p>Answer the guided dialogue or write a specification, check its rules,
+then download a self-contained backend and its frontend contract.</p></div>
+<span class="console-badge">{icon('shield')} Local, verifiable compilation</span>
 </section>
 
 <section id="studio" class="shell" style="padding-bottom:var(--space-8)" data-reveal>
 <div class="studio">
-<aside class="rail" role="tablist" aria-label="Étapes du parcours">
-<p class="rail-title">Parcours</p>
-<button data-panel="dialogue" role="tab" aria-controls="panel-dialogue" aria-selected="false" type="button">{icon('terminal')} Dialogue guidé</button>
-<button class="active" data-panel="spec" role="tab" aria-controls="panel-spec" aria-selected="true" type="button">{icon('code')} Spécification</button>
-<button data-panel="review" role="tab" aria-controls="panel-review" aria-selected="false" type="button">{icon('check')} Vérification</button>
-<button data-panel="contract" role="tab" aria-controls="panel-contract" aria-selected="false" type="button">{icon('shield')} Contrat</button>
-<button data-panel="delivery" role="tab" aria-controls="panel-delivery" aria-selected="false" type="button">{icon('package')} Livraison</button>
+<aside class="rail" role="tablist" aria-label="Steps of the path">
+<p class="rail-title">Path</p>
+<button data-panel="dialogue" role="tab" aria-controls="panel-dialogue" aria-selected="false" type="button">{icon('terminal')} Guided dialogue</button>
+<button class="active" data-panel="spec" role="tab" aria-controls="panel-spec" aria-selected="true" type="button">{icon('code')} Specification</button>
+<button data-panel="review" role="tab" aria-controls="panel-review" aria-selected="false" type="button">{icon('check')} Review</button>
+<button data-panel="contract" role="tab" aria-controls="panel-contract" aria-selected="false" type="button">{icon('shield')} Contract</button>
+<button data-panel="delivery" role="tab" aria-controls="panel-delivery" aria-selected="false" type="button">{icon('package')} Delivery</button>
 </aside>
 <div class="workspace">
 
 <section class="panel" id="panel-dialogue">
-<h2>Construisez par questions</h2>
-<p class="lede">Le même dialogue déterministe que <code>monl</code>. La console
-rejoue les réponses déjà données et vous montre la question suivante.</p>
+<h2>Build it by answering questions</h2>
+<p class="lede">The same deterministic dialogue as <code>monl</code>. The console
+replays the answers already given and shows you the next question.</p>
 <div class="dialogue-card">
-<div id="dialogue-log" class="dialogue-log" aria-label="Journal du dialogue"></div>
+<div id="dialogue-log" class="dialogue-log" aria-label="Dialogue log"></div>
 <p id="dialogue-status" class="dialogue-status" role="status" aria-live="polite">
-Commencez quand vous êtes prêt.</p>
+Start whenever you are ready.</p>
 <pre id="dialogue-question" class="dialogue-question hidden"></pre>
 <div id="dialogue-choices" class="dialogue-choices hidden" role="group"
-     aria-label="Choix proposés"></div>
+     aria-label="Choices offered"></div>
 <form id="dialogue-form" class="dialogue-form hidden">
-<div class="dialogue-field"><label for="dialogue-answer">Votre réponse</label>
+<div class="dialogue-field"><label for="dialogue-answer">Your answer</label>
 <input id="dialogue-answer" name="answer" type="text" autocomplete="off"></div>
 <div class="dialogue-actions"><button class="primary" id="dialogue-submit" type="submit">
-<span class="btn-label">Envoyer la réponse</span><i class="spinner hidden"></i></button>
-<button class="ghost" id="dialogue-reset" type="button">Recommencer</button></div>
+<span class="btn-label">Send the answer</span><i class="spinner hidden"></i></button>
+<button class="ghost" id="dialogue-reset" type="button">Start over</button></div>
 </form>
 <div id="dialogue-start" class="dialogue-complete">
-<button class="primary" type="button">Commencer le dialogue</button>
+<button class="primary" type="button">Start the dialogue</button>
 </div>
 <div id="dialogue-complete" class="dialogue-complete hidden">
-<p class="feedback ok show">La spec est prête. Elle sera repassée par
-<code>/api/validate</code> avant toute compilation.</p>
-<button class="primary" id="dialogue-validate" type="button">Vérifier la spec et continuer</button>
+<p class="feedback ok show">The spec is ready. It will go through
+<code>/api/validate</code> again before any compilation.</p>
+<button class="primary" id="dialogue-validate" type="button">Check the spec and continue</button>
 </div>
 </div>
 </section>
 
 <section class="panel active" id="panel-spec">
-<h2>Décrivez l'application</h2>
-<p class="lede">Collez une spec, importez un fichier ou passez par le dialogue
-guidé. Les exemples ci-dessous sont des spécifications entières, pas des extraits.</p>
-<div class="gallery" id="gallery" role="group" aria-label="Exemples de spécification"></div>
+<h2>Describe the application</h2>
+<p class="lede">Paste a spec, import a file or go through the guided dialogue.
+The examples below are complete specifications, not excerpts.</p>
+<div class="gallery" id="gallery" role="group" aria-label="Specification examples"></div>
 <div class="field-head">
-<label for="spec-input">Spécification monl</label>
-<small id="char-count">0 caractère</small>
+<label for="spec-input">Monl specification</label>
+<small id="char-count">0 characters</small>
 </div>
 <textarea id="spec-input" spellcheck="false" aria-describedby="spec-help"></textarea>
-<p id="spec-help" class="hint">Fichier <code>.ml</code>, 256 ko au plus.
-<a href="/guide#dsl">Référence de la syntaxe</a></p>
+<p id="spec-help" class="hint"><code>.ml</code> file, 256 KB at most.
+<a href="/guide#dsl">Syntax reference</a></p>
 <div class="toolbar">
 <div class="toolbar-group">
-<label class="secondary file-label">{icon('upload')} Importer un .ml<input id="file-input" type="file" accept=".ml,.yaml,text/plain"></label>
-<button class="ghost" id="reset-btn" type="button">Réinitialiser</button>
+<label class="secondary file-label">{icon('upload')} Import a .ml<input id="file-input" type="file" accept=".ml,.yaml,text/plain"></label>
+<button class="ghost" id="reset-btn" type="button">Reset</button>
 </div>
 <div class="toolbar-group">
-<span class="hint"><kbd>Ctrl</kbd> + <kbd>Entrée</kbd></span>
+<span class="hint"><kbd>Ctrl</kbd> + <kbd>Enter</kbd></span>
 <button class="primary" id="validate-btn" type="button">{icon('check')}
-<span class="btn-label">Vérifier la spec</span><i class="spinner hidden"></i></button>
+<span class="btn-label">Check the spec</span><i class="spinner hidden"></i></button>
 </div>
 </div>
 <div class="feedback" id="validation-feedback" role="status" aria-live="polite"></div>
 </section>
 
 <section class="panel" id="panel-review">
-<h2>Vérification métier</h2>
-<p class="lede">Ce résumé vient du vrai parseur monl, pas d'une interprétation parallèle.</p>
-<div id="review-content" class="empty">Validez d'abord une spécification.</div>
+<h2>Business review</h2>
+<p class="lede">This summary comes from the real monl parser, not from a parallel interpretation.</p>
+<div id="review-content" class="empty">Validate a specification first.</div>
 <div class="toolbar"><span></span>
 <button class="primary" id="compile-btn" type="button">{icon('terminal')}
-<span class="btn-label">Compiler le backend</span><i class="spinner hidden"></i></button></div>
+<span class="btn-label">Compile the backend</span><i class="spinner hidden"></i></button></div>
 <div class="feedback" id="compile-feedback" role="status" aria-live="polite"></div>
 </section>
 
 <section class="panel" id="panel-contract" role="tabpanel" tabindex="0">
-<h2>Backend et contrat</h2>
-<p class="lede">Routes, entités et droits : de quoi construire n'importe quelle interface.</p>
-<div id="contract-content" class="empty">Aucune compilation disponible.</div>
-<div class="panel-actions"><button class="primary" id="delivery-next" type="button">Voir la livraison {icon('arrow')}</button></div>
+<h2>Backend and contract</h2>
+<p class="lede">Routes, entities and permissions: everything needed to build any interface.</p>
+<div id="contract-content" class="empty">No compilation available.</div>
+<div class="panel-actions"><button class="primary" id="delivery-next" type="button">See the delivery {icon('arrow')}</button></div>
 </section>
 
 <section class="panel" id="panel-delivery" role="tabpanel" tabindex="0">
-<h2>Livraison reproductible</h2>
-<p class="lede">Le backend, le schéma SQL, le contrat et les instructions sont
-réunis dans une archive. Le secret JWT n'y est pas : il naît au premier démarrage.</p>
-<div id="delivery-content" class="empty">Compilez un backend pour obtenir son archive.</div>
+<h2>Reproducible delivery</h2>
+<p class="lede">The backend, the SQL schema, the contract and the instructions are
+gathered in one archive. The JWT secret is not in it: it is created on first start.</p>
+<div id="delivery-content" class="empty">Compile a backend to get its archive.</div>
 <div class="builder-card" id="builder-card">
-<h3>Essayer l'API</h3>
-<p>monl démarre le backend compilé et vous donne son adresse locale : la
-documentation interactive et toutes les routes du contrat répondent pour de
-vrai. L'interface, elle, se construit chez vous — avec l'archive, le contrat
-et votre propre fournisseur.</p>
-<div id="builder-content" class="empty">Compilez d'abord un projet pour démarrer son API.</div>
+<h3>Try the API</h3>
+<p>monl starts the compiled backend and gives you its local address: the
+interactive documentation and every route in the contract really respond. The
+interface is built on your side — with the archive, the contract and your own
+provider.</p>
+<div id="builder-content" class="empty">Compile a project first to start its API.</div>
 </div>
-<h3 style="margin-top:var(--space-6)">Vos compilations</h3>
-<p class="hint">Conservées dans votre compte et accessibles uniquement par vous.</p>
+<h3 style="margin-top:var(--space-6)">Your compilations</h3>
+<p class="hint">Kept in your account and accessible only by you.</p>
 <ul class="history" id="history"></ul>
-<div class="panel-actions"><button class="secondary" id="contract-back" type="button">{icon('arrow')} Revoir le contrat</button></div>
+<div class="panel-actions"><button class="secondary" id="contract-back" type="button">{icon('arrow')} Back to the contract</button></div>
 </section>
 
 </div></div>

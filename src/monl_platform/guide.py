@@ -21,6 +21,7 @@ def _tableau(entetes: tuple[str, str], lignes: list[tuple[str, str]]) -> str:
             f"<tbody>{corps}</tbody></table></div>")
 
 
+
 def _sections() -> list[tuple[str, str, str, str]]:
     """(ancre, titre court, compteur affiché, contenu HTML)."""
     routes = "".join(
@@ -35,119 +36,120 @@ def _sections() -> list[tuple[str, str, str, str]]:
         f"<tr><td><b>{titre}</b></td><td>{texte}</td></tr>" for titre, texte in LIMITES
     )
     return [
-        ("frontiere", "Ce que Monl produit", "", """
-<h2>Monl compile le backend. L’interface est une étape séparée.</h2>
-<p class="lede">Vous écrivez les règles du métier. La compilation produit une API,
-une base de données et des garanties serveur. Elle ne rend ni ne sert un site.</p>
-<div class="boundary" aria-label="Ce que Monl compile et ce qu'il laisse à l'interface">
-<article><span class="step-no">VOUS ÉCRIVEZ</span><h3>Une spec métier</h3>
-<p>Entités, acteurs, relations, droits et invariants.</p></article>
-<article><span class="step-no">MONL COMPILE</span><h3>Un backend vérifiable</h3>
-<p>SQL, API, authentification et contrôle d’accès par enregistrement.</p></article>
-<article><span class="step-no">ÉTAPE OPTIONNELLE</span><h3>Une interface est générée ou écrite</h3>
-<p>Votre équipe ou <code>monl frontend</code> utilise le contrat et les briefs fournis.</p></article>
+        ("frontiere", "What Monl produces", "", """
+<h2>Monl compiles the backend. The interface is a separate step.</h2>
+<p class="lede">You write the business rules. Compilation produces an API,
+a database and server-side guarantees. It neither renders nor serves a site.</p>
+<div class="boundary" aria-label="What Monl compiles and what it leaves to the interface">
+<article><span class="step-no">YOU WRITE</span><h3>A business spec</h3>
+<p>Entities, actors, relations, permissions and invariants.</p></article>
+<article><span class="step-no">MONL COMPILES</span><h3>A verifiable backend</h3>
+<p>SQL, API, authentication and per-record access control.</p></article>
+<article><span class="step-no">OPTIONAL STEP</span><h3>An interface is generated or written</h3>
+<p>Your team or <code>monl frontend</code> uses the contract and the briefs provided.</p></article>
 </div>
-<h3>Contrat, brief et interface : trois choses différentes</h3>
-<p>Le <code>frontend_contract.json</code> est une description lisible par une IA,
-une équipe web ou une application mobile. Il ne contient ni HTML, ni React, ni
-navigation. Il répond simplement à la question : <i>« quelles
-opérations cette interface a-t-elle vraiment le droit d’appeler ? »</i></p>
+<h3>Contract, brief and interface: three different things</h3>
+<p>The <code>frontend_contract.json</code> is a description readable by an AI,
+a web team or a mobile app. It contains no HTML, no React, no navigation. It
+simply answers the question: <i>“which operations is this interface really
+allowed to call?”</i></p>
 <p><code>FRONTEND_PROMPT.md</code>, <code>DESIGN_SYSTEM.md</code>,
-<code>DESIGN_SPEC.md</code> et <code>ASSET_MANIFEST.json</code> sont des
-instructions et ressources pour cette étape UI. Un <code>DESIGN_SPEC.md</code>
-écrit par l’auteur est prioritaire. Ils ne sont pas l’interface elle-même.</p>
-<p>Si vous lancez <code>monl frontend</code>, un agent IA écrit l’interface dans
-<code>frontend/</code>, puis Monl la contrôle contre le contrat. Vous pouvez tout
-aussi bien faire écrire cette interface par votre équipe ou par une application
-mobile : le backend, lui, reste le même.</p>
-<div class="note"><p><b>Rien n'est deviné.</b> Le dialogue, la validation et la
-génération sont entièrement déterministes : même spec, mêmes octets. Une règle
-sans effet est refusée à la compilation plutôt qu'ignorée en silence, et une
-règle qui désigne un champ inexistant aussi — une contrainte à laquelle rien ne
-correspond laisse croire à une protection qui n'existe pas.</p></div>
-<h3>Ce que vous récupérez</h3>
+<code>DESIGN_SPEC.md</code> and <code>ASSET_MANIFEST.json</code> are
+instructions and resources for that UI step. A <code>DESIGN_SPEC.md</code>
+written by the author takes priority. They are not the interface itself.</p>
+<p>If you run <code>monl frontend</code>, an AI agent writes the interface in
+<code>frontend/</code>, then Monl checks it against the contract. You can just as
+well have the interface written by your team or by a mobile app: the backend
+stays the same.</p>
+<div class="note"><p><b>Nothing is guessed.</b> The dialogue, validation and
+generation are fully deterministic: same spec, same bytes. A rule with no effect
+is refused at compile time rather than silently ignored, and so is a rule that
+names a missing field — a constraint that matches nothing suggests a protection
+that does not exist.</p></div>
+<h3>What you get</h3>
 <ul>
-<li><code>app.py</code> — l'API FastAPI complète, comptes et sessions compris.</li>
-<li><code>schema.sql</code> — le schéma, avec ses index et ses clés étrangères.</li>
-<li><code>frontend_contract.json</code> — les routes, champs et droits réellement disponibles.</li>
-<li><code>FRONTEND_PROMPT.md</code> — un brief pour l’agent ou l’équipe qui construira l’interface.</li>
-<li><code>manage.py</code> — la création des comptes privilégiés, hors ligne.</li>
-<li><code>Dockerfile</code>, <code>serve.py</code> — de quoi le mettre en ligne.</li>
-<li><code>DESIGN_SYSTEM.md</code>, <code>DESIGN_SPEC.md</code> — les contraintes de
-composition et le cahier visuel utilisés lors d’une génération UI optionnelle.</li>
-<li><code>ASSET_MANIFEST.json</code> — les visuels attendus et leur contrôle lors de cette même étape.</li>
+<li><code>app.py</code> — the complete FastAPI API, accounts and sessions included.</li>
+<li><code>schema.sql</code> — the schema, with its indexes and foreign keys.</li>
+<li><code>frontend_contract.json</code> — the routes, fields and permissions actually available.</li>
+<li><code>FRONTEND_PROMPT.md</code> — a brief for the agent or team that will build the interface.</li>
+<li><code>manage.py</code> — creation of privileged accounts, offline.</li>
+<li><code>Dockerfile</code>, <code>serve.py</code> — what you need to put it online.</li>
+<li><code>DESIGN_SYSTEM.md</code>, <code>DESIGN_SPEC.md</code> — the composition
+constraints and visual brief used by an optional UI generation.</li>
+<li><code>ASSET_MANIFEST.json</code> — the expected visuals and how that same step checks them.</li>
 </ul>"""),
 
-        ("demarrer", "Premier backend", "3 étapes", f"""
-<h2>Compilez d’abord un backend réel</h2>
-<p class="lede">Partez de cette spec complète, validez-la dans la console, puis
-récupérez une archive qui démarre localement. Chaque étape produit un résultat
-que vous pouvez contrôler.</p>
-<h3>1. Décrivez le métier</h3>
+        ("demarrer", "First backend", "3 steps", f"""
+<h2>Compile a real backend first</h2>
+<p class="lede">Start from this complete spec, validate it in the console, then
+download an archive that starts locally. Each step produces a result you can
+check.</p>
+<h3>1. Describe the business</h3>
 <pre class="codeblock"><code>{SPEC_EXEMPLE}</code></pre>
-<p><a class="primary" href="/console">Ouvrir la console et compiler une spec</a></p>
-<h3>2. Vérifiez puis compilez</h3>
-<p>Le parseur et l’audit signalent les règles impossibles ou incomplètes. Si la
-spec est valide, l’archive contient l’API, le schéma SQL et le contrat qui
-décrit exactement ses capacités.</p>
-<h3>3. Lancez l’archive</h3>
-<pre class="codeblock"><code>unzip monl-backend-*.zip -d carnet &amp;&amp; cd carnet
+<p><a class="primary" href="/console">Open the console and compile a spec</a></p>
+<h3>2. Check, then compile</h3>
+<p>The parser and the audit report impossible or incomplete rules. If the spec
+is valid, the archive contains the API, the SQL schema and the contract that
+describes exactly what it can do.</p>
+<h3>3. Start the archive</h3>
+<pre class="codeblock"><code>unzip monl-backend-*.zip -d notebook &amp;&amp; cd notebook
 pip install -r requirements.txt
 python3 -m uvicorn app:app --port 8000
-<span class="cm"># la documentation OpenAPI du backend : http://127.0.0.1:8000/docs</span></code></pre>
-<h3>Facultatif : construire une interface ensuite</h3>
-<p>Une fois le backend démarré, vous pouvez garder votre propre interface ou
-demander à l’étape IA d’en construire une, séparément :</p>
-<pre class="codeblock"><code>cd carnet
-monl frontend . <span class="cm"># utilise FRONTEND_PROMPT.md et écrit frontend/</span></code></pre>
-<p>Cette commande nécessite un fournisseur IA configuré. Elle ne modifie pas la
-spec, le schéma, l’API ni le contrat.</p>"""),
+<span class="cm"># the backend's OpenAPI documentation: http://127.0.0.1:8000/docs</span></code></pre>
+<h3>Optional: build an interface afterwards</h3>
+<p>Once the backend is running, you can keep your own interface or ask the AI
+step to build one, separately:</p>
+<pre class="codeblock"><code>cd notebook
+monl frontend . <span class="cm"># uses FRONTEND_PROMPT.md and writes frontend/</span></code></pre>
+<p>This command requires a configured AI provider. It does not change the spec,
+the schema, the API or the contract.</p>"""),
 
-        ("dsl", "Lire la référence", "", """
-<h2>Quand utiliser la documentation du langage</h2>
-<p class="lede">Le guide vous accompagne pour créer et lancer un premier backend.
-La documentation est l’endroit où retrouver une syntaxe précise pendant que
-vous écrivez votre spec.</p>
-<div class="boundary" aria-label="Ce que contient la documentation du langage">
-<article><span class="step-no">STRUCTURE</span><h3>Les blocs</h3>
+        ("dsl", "Read the reference", "", """
+<h2>When to use the language documentation</h2>
+<p class="lede">The guide walks you through creating and starting a first
+backend. The documentation is where you look up a precise syntax while you write
+your spec.</p>
+<div class="boundary" aria-label="What the language documentation contains">
+<article><span class="step-no">STRUCTURE</span><h3>The blocks</h3>
 <p><code>app</code>, <code>entity</code>, <code>actor</code>, <code>relation</code>,
-<code>workflow</code> et <code>rule</code>.</p></article>
-<article><span class="step-no">RÉFÉRENCE</span><h3>Les types et contraintes</h3>
-<p>Types de champ, validations, calculs serveur, compteurs et encaissement.</p></article>
-<article><span class="step-no">SÉCURITÉ</span><h3>Les droits réellement appliqués</h3>
-<p>Lecture, propriété, rôles et autorisations sont décrits à côté de leur syntaxe.</p></article>
+<code>workflow</code> and <code>rule</code>.</p></article>
+<article><span class="step-no">REFERENCE</span><h3>Types and constraints</h3>
+<p>Field types, validations, server calculations, counters and payment.</p></article>
+<article><span class="step-no">SECURITY</span><h3>The permissions actually enforced</h3>
+<p>Reads, ownership, roles and authorizations are described next to their syntax.</p></article>
 </div>
-<p><a class="primary" href="/docs">Ouvrir la référence de la spec</a></p>
-<p class="muted">Vous cherchez l’API de la plateforme ou le serveur MCP ? Les
-sections suivantes les documentent séparément.</p>"""),
+<p><a class="primary" href="/docs">Open the spec reference</a></p>
+<p class="muted">Looking for the platform API or the MCP server? The next
+sections document them separately.</p>"""),
 
-        ("api", "API HTTP", f"{len(ROUTES_API)} routes", f"""
-<h2>L'API de la plateforme</h2>
-<p class="lede">Tout ce que fait la console passe par ces routes : rien n'est
-réservé à l'interface.</p>
-<div class="tablewrap"><table class="grid"><thead><tr><th>Route</th><th>Effet</th></tr></thead><tbody>{routes}</tbody></table></div>
-<h3>Compiler en une commande</h3>
-<pre class="codeblock"><code><span class="cm"># une fois : créer le compte et conserver la session</span>
+        ("api", "HTTP API", f"{len(ROUTES_API)} routes", f"""
+<h2>The platform API</h2>
+<p class="lede">Everything the console does goes through these routes: nothing
+is reserved to the interface.</p>
+<div class="tablewrap"><table class="grid"><thead><tr><th>Route</th><th>Effect</th></tr></thead><tbody>{routes}</tbody></table></div>
+<h3>Compile in one command</h3>
+<pre class="codeblock"><code><span class="cm"># once: create the account and keep the session</span>
 curl -c monl.cookies -X POST http://127.0.0.1:8022/api/auth/register \\
   -H 'Content-Type: application/json' \\
-  -d '{{"email":"vous@example.com","password":"une-phrase-secrete"}}'
+  -d '{{"email":"you@example.com","password":"a-secret-passphrase"}}'
 
 curl -b monl.cookies -X POST http://127.0.0.1:8022/api/compile \\
   -H 'Content-Type: application/json' \\
-  -d "$(jq -Rs '{{spec: .}}' ma-spec.ml)"</code></pre>
-<div class="note"><p>Une spécification est bornée à <b>256 ko</b>. Aucun chemin de
-sortie fourni par le client n'est accepté : chaque projet reçoit un identifiant
-opaque, et une compilation qui échoue ne laisse aucun projet partiel visible.</p></div>
-<p class="muted">La documentation développeur est servie sur <a href="/docs">/docs</a>,
-l’explorateur interactif sur <a href="/api-docs">/api-docs</a>
-et <a href="/openapi.json">/openapi.json</a>.</p>"""),
+  -d "$(jq -Rs '{{spec: .}}' my-spec.ml)"</code></pre>
+<div class="note"><p>A specification is limited to <b>256 KB</b>. No output path
+supplied by the client is accepted: each project receives an opaque identifier,
+and a failed compilation leaves no visible partial project.</p></div>
+<p class="muted">The developer documentation is served at <a href="/docs">/docs</a>,
+the interactive explorer at <a href="/api-docs">/api-docs</a>
+and <a href="/openapi.json">/openapi.json</a>.</p>"""),
 
-        ("mcp", "Serveur MCP", f"{len(OUTILS_MCP)} outils", f"""
-<h2>Pour les agents</h2>
-<p class="lede">Le même pipeline, exposé en MCP. Un agent valide et compile sans
-installer le dépôt — et sans qu'un second générateur existe quelque part.</p>
-<div class="tablewrap"><table class="grid"><thead><tr><th>Outil</th><th>Effet</th></tr></thead><tbody>{outils}</tbody></table></div>
-<h3>En local, par stdio</h3>
+        ("mcp", "MCP server", f"{len(OUTILS_MCP)} tools", f"""
+<h2>For agents</h2>
+<p class="lede">The same pipeline, exposed over MCP. An agent validates and
+compiles without installing the repository — and without a second generator
+existing anywhere.</p>
+<div class="tablewrap"><table class="grid"><thead><tr><th>Tool</th><th>Effect</th></tr></thead><tbody>{outils}</tbody></table></div>
+<h3>Locally, over stdio</h3>
 <pre class="codeblock"><code>{{
   "mcpServers": {{
     "monl": {{
@@ -155,28 +157,26 @@ installer le dépôt — et sans qu'un second générateur existe quelque part.<
     }}
   }}
 }}</code></pre>
-<h3>Ou en HTTP</h3>
+<h3>Or over HTTP</h3>
 <pre class="codeblock"><code>curl -s -X POST http://127.0.0.1:8022/mcp \\
   -H 'Content-Type: application/json' \\
-  -H 'Authorization: Bearer monl_VOTRE_CLE' \\
+  -H 'Authorization: Bearer monl_YOUR_KEY' \\
   -d '{{"jsonrpc":"2.0","id":1,"method":"tools/list"}}'</code></pre>
-<div class="note"><p><b>Clés par utilisateur :</b> créez la clé dans votre compte.
-Elle n'est affichée qu'une fois ; Monl n'en conserve que l'empreinte et permet
-sa révocation. Le client MCP la transmet avec
-<code>Authorization: Bearer monl_…</code>.</p></div>"""),
+<div class="note"><p><b>Per-user keys:</b> create the key in your account. It
+is shown only once; Monl keeps only its fingerprint and lets you revoke it. The
+MCP client sends it with <code>Authorization: Bearer monl_…</code>.</p></div>"""),
 
-        ("limites", "Limites", "", f"""
-<h2>Ce que cette plateforme ne fait pas</h2>
-<p class="lede">Énoncé plutôt que découvert en cours de route.</p>
-<div class="tablewrap"><table class="grid"><thead><tr><th>Limite</th><th>Pourquoi, et le contournement</th></tr></thead><tbody>{limites}</tbody></table></div>
-<h3>Pour aller plus loin</h3>
-<p>Le compilateur en local ouvre le dialogue guidé, les assets, le contenu en CSV
-et la reconstruction d'interface par IA. Il n'est publié sur aucun index de
-paquets : on l'installe depuis une copie du dépôt.</p>
-<pre class="codeblock"><code>git clone https://github.com/Bodichane/monl-compiler
-pip install ./monl-compiler
-monl                      <span class="cm"># dialogue guidé : spec + backend + contrat</span>
-monl run MonProjet        <span class="cm"># cohérence, smoke test, puis lancement</span></code></pre>""")
+        ("limites", "Limits", "", f"""
+<h2>What this platform does not do</h2>
+<p class="lede">Stated up front rather than discovered along the way.</p>
+<div class="tablewrap"><table class="grid"><thead><tr><th>Limit</th><th>Why, and the workaround</th></tr></thead><tbody>{limites}</tbody></table></div>
+<h3>Going further</h3>
+<p>The local compiler opens the guided dialogue, assets, CSV content and
+AI-driven interface rebuilds. It is published on PyPI as
+<code>monl-compiler</code>.</p>
+<pre class="codeblock"><code>pip install monl-compiler
+monl                      <span class="cm"># guided dialogue: spec + backend + contract</span>
+monl run MyProject        <span class="cm"># consistency, smoke test, then launch</span></code></pre>""")
     ]
 
 
@@ -198,7 +198,7 @@ def guide_html() -> str:
     )
     body = f"""
 <div class="shell doc">
-<nav class="toc" aria-label="Sommaire du guide">
+<nav class="toc" aria-label="Guide contents">
 <h2>Guide</h2>
 <ol>{toc}</ol>
 </nav>
@@ -206,7 +206,7 @@ def guide_html() -> str:
 </div>"""
     return page(
         title="Guide — MONL",
-        description="Tutoriel pour compiler un premier backend Monl, utiliser la plateforme et le serveur MCP.",
+        description="Tutorial for compiling a first Monl backend and using the platform and the MCP server.",
         body=body,
         active="guide",
         scripts=SCRIPT,

@@ -102,7 +102,7 @@ def test_le_detail_dun_compte_nomme_ses_projets_et_ses_cles(tmp_path):
     assert projet.json()["id"] in rendu.stdout
     assert identifiant_cle in rendu.stdout
     assert "poste-fixe" in rendu.stdout
-    assert "Codes de secours restants : 8" in rendu.stdout
+    assert "Recovery codes left: 8" in rendu.stdout
 
 
 def test_ladresse_est_normalisee_comme_a_linscription(tmp_path):
@@ -119,7 +119,7 @@ def test_un_compte_inconnu_echoue_franchement(tmp_path):
     IdentityStore(tmp_path)
     rendu = admin(tmp_path, "compte", "personne@exemple.test")
     assert rendu.returncode == 1
-    assert "Aucun compte" in rendu.stderr
+    assert "No account for" in rendu.stderr
 
 
 # ---------------------------------------------------------------------------
@@ -391,7 +391,7 @@ def test_la_cli_nomme_les_entrees_invalides_et_les_positions_d_options(tmp_path,
     with pytest.raises(SystemExit) as erreur:
         administration._compte_ou_sortir(magasin, "absent@exemple.test")
     assert erreur.value.code == 1
-    assert "Aucun compte" in capsys.readouterr().err
+    assert "No account for" in capsys.readouterr().err
 
     assert administration._prolonger(
         magasin, None, Namespace(projet="absent", jours=30, jamais=False)

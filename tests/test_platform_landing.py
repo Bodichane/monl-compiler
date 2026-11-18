@@ -73,10 +73,10 @@ def test_la_racine_presente_le_produit(platform):
 
     assert reponse.status_code == 200
     assert "text/html" in reponse.headers["content-type"]
-    assert '<html lang="fr">' in reponse.text
+    assert '<html lang="en">' in reponse.text
     # Ce qu'une page produit doit dire : ce que c'est, et comment l'obtenir.
-    assert "compilateur" in reponse.text.lower()
-    assert "Essayer dans la console" in reponse.text
+    assert "compiler" in reponse.text.lower()
+    assert "Try it in the console" in reponse.text
 
 
 def test_la_page_conduit_a_la_console(platform):
@@ -138,8 +138,8 @@ def test_la_console_n_est_plus_a_la_racine(platform):
     console = session.get(f"{platform}/console", timeout=10).text
 
     assert racine != console
-    assert "Console de compilation" in console
-    assert "Console de compilation" not in racine
+    assert "Compilation console" in console
+    assert "Compilation console" not in racine
 
 
 def test_la_pastille_de_marque_garde_sa_couleur_d_encre():
@@ -231,10 +231,10 @@ def test_la_demonstration_montre_de_vraies_sorties_de_compilation(platform):
     """
     page = requests.get(platform, timeout=10).text
 
-    assert "specification vérifiée" in page
+    assert "verified specification" in page
     # Les quatre exemples réellement compilés par les tests de la plateforme.
-    for modele in ("Vitrine publique", "Carnet de rendez-vous",
-                   "Boutique et paiement", "Fil communautaire"):
+    for modele in ("Public showcase", "Appointment book",
+                   "Shop and payment", "Community feed"):
         assert modele in page
     assert "frontend_contract.json" in page
 
@@ -293,10 +293,10 @@ def test_la_comparaison_dit_aussi_ce_que_monl_napporte_pas():
     n'est pas une politesse : c'est ce qui rend le reste lisible."""
     from monl_platform.landing_pourquoi import COMPARAISON
     axes = [axe for axe, _eux, _nous in COMPARAISON]
-    assert "Ce qu'il n'apporte pas" in axes, axes
+    assert "What it does not provide" in axes, axes
     limites = next(nous for axe, _e, nous in COMPARAISON
-                   if axe == "Ce qu'il n'apporte pas")
-    for absent in ("hébergement", "temps réel", "stockage"):
+                   if axe == "What it does not provide")
+    for absent in ("hosting", "real-time", "storage"):
         assert absent in limites, f"limite non énoncée : {absent}"
     assert limites in LANDING_HTML, "la ligne des limites n'est pas servie"
 
@@ -306,8 +306,8 @@ def test_aucun_jugement_de_valeur_dans_la_comparaison():
     simple », « plus moderne », « plus sûr » ne se vérifient pas et ne
     survivent pas à un lecteur qui connaît l'autre produit."""
     from monl_platform.landing_pourquoi import COMPARAISON
-    interdits = ("plus simple", "plus moderne", "plus sûr", "plus rapide",
-                 "meilleur", "supérieur", "obsolète")
+    interdits = ("simpler", "more modern", "safer", "more secure", "faster",
+                 "better", "superior", "obsolete")
     texte = " ".join(f"{a} {b} {c}".lower() for a, b, c in COMPARAISON)
     fautifs = [mot for mot in interdits if mot in texte]
     assert not fautifs, f"jugement de valeur dans la comparaison : {fautifs}"
@@ -843,8 +843,8 @@ def test_la_page_servie_ne_nomme_que_des_fichiers_reels(platform, tmp_path):
     texte = requests.get(platform, timeout=10).text
     fichiers, _routes, _entites = _archive_de_la_vitrine(tmp_path)
 
-    assert f"<b>{landing_vitrine.ROUTES}</b><span>routes API</span>" in texte
-    assert f"<b>{landing_vitrine.FICHIERS}</b><span>fichiers</span>" in texte
+    assert f"<b>{landing_vitrine.ROUTES}</b><span>API routes</span>" in texte
+    assert f"<b>{landing_vitrine.FICHIERS}</b><span>files</span>" in texte
 
     arbre = texte.split('class="tree"')[1].split("</div>")[0]
     noms = re.findall(r"[├└]──\s*([^\s<]+)", arbre)

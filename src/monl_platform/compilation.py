@@ -67,7 +67,7 @@ def compiler_le_projet(project_id, *, account_id, store, workspace_root, service
     contrat_path = project_dir / "frontend_contract.json"
     if not contrat_path.is_file():
         raise PlatformExecutionError(
-            "La compilation n'a produit aucun contrat frontend."
+            "The compilation produced no frontend contract."
         )
     contrat = json.loads(contrat_path.read_text(encoding="utf-8"))
     return {

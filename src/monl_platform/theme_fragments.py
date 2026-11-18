@@ -334,9 +334,9 @@ THEME_TOGGLE = """
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
   function annoncer() {
-    var vers = courant() === 'dark' ? 'clair' : 'sombre';
-    button.setAttribute('aria-label', 'Basculer en thème ' + vers);
-    button.setAttribute('title', 'Thème ' + vers);
+    var vers = courant() === 'dark' ? 'light' : 'dark';
+    button.setAttribute('aria-label', 'Switch to ' + vers + ' theme');
+    button.setAttribute('title', vers.charAt(0).toUpperCase() + vers.slice(1) + ' theme');
   }
   annoncer();
   function basculer() {

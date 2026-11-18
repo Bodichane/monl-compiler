@@ -91,7 +91,7 @@ def contrat_dune_spec(service, spec):
         compiler_dans(spec_path, chemin)
         contrat = chemin / "frontend_contract.json"
         if not contrat.is_file():
-            raise PlatformInputError("La compilation n'a produit aucun contrat.")
+            raise PlatformInputError("The compilation produced no contract.")
         return json.loads(contrat.read_text(encoding="utf-8"))
 
 
@@ -123,7 +123,7 @@ def recompiler(service, project_id, spec):
         compiler_dans(spec_path, neuf)
         contrat_path = neuf / "frontend_contract.json"
         if not contrat_path.is_file():
-            raise PlatformInputError("La compilation n'a produit aucun contrat.")
+            raise PlatformInputError("The compilation produced no contract.")
         nouveau_contrat = json.loads(contrat_path.read_text(encoding="utf-8"))
         rapport = delta_de_contrat(ancien_contrat, nouveau_contrat)
 

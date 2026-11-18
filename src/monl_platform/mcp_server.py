@@ -155,7 +155,7 @@ class MCPDispatcher:
             return {"jsonrpc": "2.0", "id": request_id,
                     "result": _text_result(str(exc), is_error=True)}
         except Exception as exc:
-            return self._error(request_id, -32603, f"Erreur interne Monl : {exc}")
+            return self._error(request_id, -32603, f"Internal Monl error: {exc}")
 
     def _call_tool(self, params: dict[str, Any], user_id: str | None = None) -> dict[str, Any]:
         name = params.get("name")
@@ -178,7 +178,7 @@ class MCPDispatcher:
                     "GET with the 'Authorization: Bearer <your MCP key>' header — "
                     "the same key as for this call, no browser required."
                 ),
-                "next": "Appelez monl_inspect_contract avec project_id.",
+                "next": "Call monl_inspect_contract with project_id.",
             })
         if name == "monl_list_projects":
             if not (self.identities and user_id):
@@ -218,7 +218,7 @@ class MCPDispatcher:
                 "project": self.service.inspect(project_id),
                 "contract": self.service.contract(project_id),
             })
-        raise PlatformInputError(f"Outil inconnu : {name}")
+        raise PlatformInputError(f"Unknown tool: {name}")
 
     def _projet_du_compte(self, project_id: str, user_id: str | None) -> str:
         """Même réponse pour « n'existe pas » et « pas à vous ».
@@ -248,7 +248,7 @@ def run_stdio(service: CompilationService | None = None) -> None:
             message = json.loads(line)
             response = dispatcher.dispatch(message)
         except json.JSONDecodeError as exc:
-            response = MCPDispatcher._error(None, -32700, f"JSON invalide : {exc}")
+            response = MCPDispatcher._error(None, -32700, f"Invalid JSON: {exc}")
         if response is not None:
             sys.stdout.write(json.dumps(response, ensure_ascii=False, separators=(",", ":")) + "\n")
             sys.stdout.flush()

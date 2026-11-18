@@ -292,7 +292,7 @@ def test_les_garde_fous_http_normalisent_et_refusent_les_entrees_invalides(
     token = identities.create_session(user["id"])
     authenticated = _request(headers=(("cookie", f"monl_session={token}"),))
     assert app_http._require_user(authenticated, identities)["id"] == user["id"]
-    with pytest.raises(HTTPException, match="Connectez-vous"):
+    with pytest.raises(HTTPException, match="Sign in to continue"):
         app_http._require_user(_request(), identities)
     with pytest.raises(HTTPException, match="Project not found"):
         app_http._require_project(identities, user["id"], "absent")
@@ -327,11 +327,11 @@ def test_les_garde_fous_http_normalisent_et_refusent_les_entrees_invalides(
         asyncio.run(app_http._json_body(_request(
             headers=(("content-length", "300001"),), body=b"{}"
         )))
-    with pytest.raises(HTTPException, match="Content-Length invalide"):
+    with pytest.raises(HTTPException, match="Invalid Content-Length"):
         asyncio.run(app_http._json_body(_request(
             headers=(("content-length", "non"),), body=b"{}"
         )))
-    with pytest.raises(HTTPException, match="Corps JSON invalide"):
+    with pytest.raises(HTTPException, match="Invalid JSON body"):
         asyncio.run(app_http._json_body(_request(body=b"pas-json")))
     with pytest.raises(HTTPException, match="JSON object"):
         asyncio.run(app_http._json_body(_request(body=b"[]")))

@@ -27,7 +27,7 @@ def _http_error(message, code):
 def _require_user(request: Request, identities):
     user = identities.session_user(request.cookies.get("monl_session"))
     if not user:
-        raise HTTPException(status_code=401, detail="Connectez-vous pour continuer.")
+        raise HTTPException(status_code=401, detail="Sign in to continue.")
     return user
 
 

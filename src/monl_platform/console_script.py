@@ -31,7 +31,7 @@ function echapper(v) {
 }
 function compter() {
   const n = [...$('#spec-input').value].length;
-  $('#char-count').textContent = n.toLocaleString('fr-FR') + ' caractère' + (n > 1 ? 's' : '');
+  $('#char-count').textContent = n.toLocaleString('en-GB') + ' character' + (n === 1 ? '' : 's');
   validee = false;
 }
 function panneau(nom) {
@@ -59,7 +59,7 @@ async function api(chemin, corps) {
     body: JSON.stringify(corps)
   });
   const data = await reponse.json();
-  if (!reponse.ok) throw new Error(data.detail || 'La requête a échoué.');
+  if (!reponse.ok) throw new Error(data.detail || 'The request failed.');
   return data;
 }
 
@@ -125,7 +125,7 @@ function afficherDialogue(data) {
     formulaire.classList.add('hidden');
     depart.classList.add('hidden');
     termine.classList.remove('hidden');
-    $('#dialogue-status').textContent = 'Dialogue terminé : la spec est prête à vérifier.';
+    $('#dialogue-status').textContent = 'Dialogue finished: the spec is ready to check.';
     $('#spec-input').value = data.spec || '';
     compter();
     return;
@@ -145,8 +145,8 @@ function afficherDialogue(data) {
   depart.classList.add('hidden');
   termine.classList.add('hidden');
   $('#dialogue-status').textContent = data.accepted === false
-    ? 'Réponse refusée par le moteur : voyez le message ci-dessus.'
-    : 'Question suivante.';
+    ? 'Answer refused by the engine: see the message above.'
+    : 'Next question.';
   $('#dialogue-answer').value = '';
   $('#dialogue-answer').focus();
 }
@@ -163,15 +163,15 @@ async function rejouerDialogue(reponse) {
     dialogueAnswers = data.answers || dialogueAnswers;
     afficherDialogue(data);
   } catch (erreur) {
-    $('#dialogue-status').textContent = 'Réponse refusée : ' + erreur.message +
-      ' Vous pouvez recommencer le dialogue.';
+    $('#dialogue-status').textContent = 'Answer refused: ' + erreur.message +
+      ' You can start the dialogue over.';
     if (!dialogueAnswers.length) $('#dialogue-start').classList.remove('hidden');
   } finally { if (bouton) occupe(bouton, false); }
 }
 function recommencerDialogue() {
   dialogueAnswers = [];
   rendreDialogue([]);
-  $('#dialogue-status').textContent = 'Commencez quand vous êtes prêt.';
+  $('#dialogue-status').textContent = 'Start whenever you are ready.';
   $('#dialogue-question').classList.add('hidden');
   $('#dialogue-form').classList.add('hidden');
   $('#dialogue-complete').classList.add('hidden');
@@ -218,14 +218,14 @@ async function rendreHistorique() {
   let liste = [];
   try { liste = (await (await fetch('/api/projects')).json()).projects || []; } catch (e) { /* réseau */ }
   if (!liste.length) {
-    el.innerHTML = '<li class="muted">Aucune compilation pour le moment.</li>';
+    el.innerHTML = '<li class="muted">No compilations yet.</li>';
     return;
   }
   el.innerHTML = liste.map(x =>
     '<li><span><b>' + echapper(x.name) + '</b> <span class="when">' +
-    echapper(new Date(x.created_at * 1000).toLocaleString('fr-FR')) + '</span></span>' +
+    echapper(new Date(x.created_at * 1000).toLocaleString('en-GB')) + '</span></span>' +
     '<a class="secondary" href="/api/projects/' + encodeURIComponent(x.project_id) +
-    '/download">Télécharger</a></li>').join('');
+    '/download">Download</a></li>').join('');
 }
 
 /* ----- rendus ----- */
@@ -233,14 +233,14 @@ function rendreVerification(s) {
   $('#review-content').className = '';
   $('#review-content').innerHTML =
     '<div class="metric-grid">' +
-    '<div class="metric"><b>' + s.entity_count + '</b><span>entités</span></div>' +
-    '<div class="metric"><b>' + s.actor_count + '</b><span>acteurs</span></div>' +
-    '<div class="metric"><b>✓</b><span>syntaxe</span></div>' +
-    '<div class="metric"><b>✓</b><span>audit statique</span></div></div>' +
+    '<div class="metric"><b>' + s.entity_count + '</b><span>entities</span></div>' +
+    '<div class="metric"><b>' + s.actor_count + '</b><span>actors</span></div>' +
+    '<div class="metric"><b>✓</b><span>syntax</span></div>' +
+    '<div class="metric"><b>✓</b><span>static audit</span></div></div>' +
     '<div class="entity-grid">' +
-    '<div class="entity"><h3>Entités</h3><div class="chips">' +
+    '<div class="entity"><h3>Entities</h3><div class="chips">' +
     s.entities.map(e => '<i class="chip">' + echapper(e) + '</i>').join('') + '</div></div>' +
-    '<div class="entity"><h3>Acteurs</h3><div class="chips">' +
+    '<div class="entity"><h3>Actors</h3><div class="chips">' +
     s.actors.map(a => '<i class="chip">' + echapper(a) + '</i>').join('') + '</div></div></div>';
 }
 function rendreContrat(s) {
@@ -248,30 +248,30 @@ function rendreContrat(s) {
   $('#contract-content').className = '';
   $('#contract-content').innerHTML =
     '<div class="metric-grid">' +
-    '<div class="metric"><b>' + c.entities + '</b><span>entités</span></div>' +
+    '<div class="metric"><b>' + c.entities + '</b><span>entities</span></div>' +
     '<div class="metric"><b>' + c.routes + '</b><span>routes API</span></div>' +
-    '<div class="metric"><b>' + c.public_routes + '</b><span>publiques</span></div>' +
-    '<div class="metric"><b>' + c.actors + '</b><span>acteurs</span></div>' +
-    '<div class="metric"><b>' + c.business_rules + '</b><span>règles</span></div></div>' +
+    '<div class="metric"><b>' + c.public_routes + '</b><span>public</span></div>' +
+    '<div class="metric"><b>' + c.actors + '</b><span>actors</span></div>' +
+    '<div class="metric"><b>' + c.business_rules + '</b><span>rules</span></div></div>' +
     '<div class="routes">' + s.routes.map(r =>
       '<div class="route"><span class="method">' + echapper(r.method) + '</span>' +
       '<span class="path">' + echapper(r.path) + '</span>' +
-      '<span class="lock">' + (r.auth_required === false ? 'public' : 'authentifié') +
+      '<span class="lock">' + (r.auth_required === false ? 'public' : 'authenticated') +
       '</span></div>').join('') + '</div>';
 }
 function rendreLivraison(p) {
   $('#delivery-content').className = '';
   $('#delivery-content').innerHTML =
     '<div class="download-card"><div><h3>' + echapper(p.summary.app) + '</h3>' +
-    '<p>' + p.files.length + ' fichiers · backend FastAPI · contrat v' +
+    '<p>' + p.files.length + ' files · FastAPI backend · contract v' +
     echapper(p.summary.contract_version) + '</p></div>' +
     '<a class="primary" href="/api/projects/' + encodeURIComponent(p.id) +
-    '/download">Télécharger le backend</a></div>' +
+    '/download">Download the backend</a></div>' +
     '<div class="chips">' + p.files.map(f =>
       '<i class="chip">' + echapper(f) + '</i>').join('') + '</div>';
   $('#builder-content').className = '';
   $('#builder-content').innerHTML =
-    '<button class="primary" id="build-btn" type="button">Démarrer l\\'API</button>' +
+    '<button class="primary" id="build-btn" type="button">Start the project\\'s API</button>' +
     '<div class="builder-status" id="builder-status" role="status" aria-live="polite"></div>';
   $('#build-btn').onclick = () => demarrerAPI(p.id);
 }
@@ -282,20 +282,20 @@ async function demarrerAPI(id) {
   bouton.disabled = true;
   const statut = $('#builder-status');
   try {
-    statut.textContent = 'Compilation du projet…';
+    statut.textContent = 'Compiling the project…';
     const compile = await fetch('/api/projects/' + encodeURIComponent(id) + '/compiler',
       { method: 'POST' });
     const compileData = await compile.json();
-    if (!compile.ok) throw new Error(compileData.detail || 'La compilation a échoué.');
-    statut.textContent = 'Démarrage du serveur…';
+    if (!compile.ok) throw new Error(compileData.detail || 'The compilation failed.');
+    statut.textContent = 'Starting the server…';
     const reponse = await fetch('/api/projects/' + encodeURIComponent(id) + '/start',
       { method: 'POST' });
     const data = await reponse.json();
-    if (!reponse.ok) throw new Error(data.detail || 'Le démarrage a échoué.');
-    statut.innerHTML = 'API en marche sur <b>http://127.0.0.1:' + data.port +
+    if (!reponse.ok) throw new Error(data.detail || 'The start failed.');
+    statut.innerHTML = 'API running at <b>http://127.0.0.1:' + data.port +
       '</b> — ' + compileData.routes + ' routes. ' +
       '<a href="http://127.0.0.1:' + data.port + '/docs" target="_blank" rel="noopener">' +
-      'Ouvrir la documentation interactive</a>';
+      'Open the interactive documentation</a>';
   } catch (erreur) {
     statut.textContent = erreur.message;
   } finally { bouton.disabled = false; }
@@ -308,23 +308,23 @@ async function valider() {
   try {
     const data = await api('/api/validate', { spec: $('#spec-input').value });
     if (!data.valid) {
-      message('#validation-feedback', 'error', 'Cette spécification est refusée.',
+      message('#validation-feedback', 'error', 'This specification is refused.',
         data.errors.join('\\n\\n'));
       return;
     }
     validee = true;
     rendreVerification(data.summary);
-    message('#validation-feedback', 'ok', 'Spécification valide : ' +
-      data.summary.entity_count + ' entité(s), ' + data.summary.actor_count + ' acteur(s).');
+    message('#validation-feedback', 'ok', 'Valid specification: ' +
+      data.summary.entity_count + ' entity(ies), ' + data.summary.actor_count + ' actor(s).');
     panneau('review');
   } catch (erreur) {
-    message('#validation-feedback', 'error', 'Vérification impossible.', erreur.message);
+    message('#validation-feedback', 'error', 'Unable to check.', erreur.message);
   } finally { occupe(bouton, false); }
 }
 async function compiler() {
   if (!validee) {
     panneau('spec');
-    message('#validation-feedback', 'error', 'La spec a changé : vérifiez-la avant de compiler.');
+    message('#validation-feedback', 'error', 'The spec has changed: check it before compiling.');
     return;
   }
   const bouton = $('#compile-btn');
@@ -334,10 +334,10 @@ async function compiler() {
     rendreContrat(projet.summary);
     rendreLivraison(projet);
     retenir(projet);
-    message('#compile-feedback', 'ok', 'Backend compilé et contrat vérifié.');
+    message('#compile-feedback', 'ok', 'Backend compiled and contract checked.');
     panneau('contract');
   } catch (erreur) {
-    message('#compile-feedback', 'error', 'La compilation a échoué.', erreur.message);
+    message('#compile-feedback', 'error', 'The compilation failed.', erreur.message);
   } finally { occupe(bouton, false); }
 }
 
@@ -375,7 +375,7 @@ $('#file-input').onchange = async e => {
   const fichier = e.target.files[0];
   if (!fichier) return;
   if (fichier.size > 256000) {
-    message('#validation-feedback', 'error', 'Ce fichier dépasse 256 ko.');
+    message('#validation-feedback', 'error', 'This file exceeds 256 KB.');
     return;
   }
   $('#spec-input').value = await fichier.text();
@@ -389,13 +389,13 @@ document.querySelectorAll('.codeblock').forEach(bloc => {
   const bouton = document.createElement('button');
   bouton.type = 'button';
   bouton.className = 'copy';
-  bouton.textContent = 'Copier';
+  bouton.textContent = 'Copy';
   bouton.addEventListener('click', () => {
     const cible = bloc.querySelector('code') || bloc;
     navigator.clipboard.writeText(cible.innerText).then(() => {
-      bouton.textContent = 'Copié';
-      setTimeout(() => { bouton.textContent = 'Copier'; }, 1800);
-    }, () => { bouton.textContent = 'Échec'; });
+      bouton.textContent = 'Copied';
+      setTimeout(() => { bouton.textContent = 'Copy'; }, 1800);
+    }, () => { bouton.textContent = 'Failed'; });
   });
   bloc.appendChild(bouton);
 });

@@ -90,14 +90,14 @@ def test_la_console_est_servie_sans_ressource_distante(running_platform):
 
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
-    assert '<html lang="fr">' in response.text
+    assert '<html lang="en">' in response.text
     # L'apostrophe est ÉCHAPPÉE dans le littéral JavaScript servi. Cette
     # assertion cherchait la forme NUE et passait donc exactement parce que la
     # page était morte : le script levait `SyntaxError: Unexpected identifier
     # 'API'` et plus un bouton ne répondait. Une chaîne présente dans du HTML
     # ne distingue pas une page qui marche d'une page qui ne marche pas —
     # c'est tests/test_console_javascript.py qui tranche, en l'analysant.
-    assert "Démarrer l\\'API" in response.text
+    assert "Start the project\\'s API" in response.text
     assert "prefers-reduced-motion" in response.text
     assert not RESSOURCE_EXTERNE.search(response.text)
 
@@ -180,7 +180,7 @@ def test_le_routage_par_hote_sert_l_api_et_reste_distinct_de_la_console(running_
     assert servi.status_code == 200, servi.text
     assert "data" in servi.json()
     assert console.status_code == 200
-    assert "Console de compilation" in console.text
+    assert "Compilation console" in console.text
     session.post(f"{base}/api/projects/{project_id}/stop", timeout=30)
 
 

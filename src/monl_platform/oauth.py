@@ -130,7 +130,7 @@ def configured_providers(environ=None):
 def _spec(provider):
     spec = PROVIDERS.get(provider)
     if spec is None:
-        raise OAuthError(f"fournisseur inconnu : {provider}", status_code=404)
+        raise OAuthError(f"unknown provider: {provider}", status_code=404)
     return spec
 
 

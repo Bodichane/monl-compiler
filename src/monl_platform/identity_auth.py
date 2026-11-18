@@ -72,9 +72,9 @@ class IdentityAuthMixin:
         identifier = str(identifier).strip()
         provider = str(provider).strip()
         if not identifier or "\x00" in identifier:
-            raise IdentityError("identifiant OAuth vide ou invalide")
+            raise IdentityError("empty or invalid OAuth identifier")
         if not provider or "\x00" in provider:
-            raise IdentityError("fournisseur OAuth vide ou invalide")
+            raise IdentityError("empty or invalid OAuth provider")
         with self._connect() as db:
             row = db.execute(
                 "SELECT id, auth_provider FROM users WHERE email = ?", (identifier,)

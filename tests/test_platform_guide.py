@@ -85,10 +85,10 @@ def test_le_guide_documente_les_outils_que_le_serveur_mcp_declare():
 
 def test_le_guide_ne_promet_pas_de_fausses_cles_mcp():
     html = guide.guide_html()
-    assert "Clés par utilisateur" in html
+    assert "Per-user keys" in html
     assert "Authorization: Bearer" in html
-    assert "l'empreinte" in html
-    assert "révocation" in html
+    assert "its fingerprint" in html
+    assert "revoke it" in html
 
 
 def test_la_documentation_oriente_avant_de_detailler_la_reference():
@@ -96,8 +96,8 @@ def test_la_documentation_oriente_avant_de_detailler_la_reference():
     commencer, chercher la syntaxe ou vérifier les droits avant de plonger
     dans les tableaux complets."""
     html = docs_page.DOCS_HTML
-    for texte in ("Choisissez votre point de départ", "Première spec",
-                  "Référence du langage", "Sécurité et droits",
+    for texte in ("Choose your starting point", "First spec",
+                  "Language reference", "Security and permissions",
                   'href="#premiere-spec"', 'href="#mots-cles"',
                   'href="#acces"'):
         assert texte in html

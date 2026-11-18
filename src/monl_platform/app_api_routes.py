@@ -55,7 +55,7 @@ def mount_api_routes(
             # L'adresse essayée n'est pas journalisée : elle serait une donnée
             # personnelle dans un fichier que tout l'hébergement peut lire.
             anomalie("connexion_refusee", ip=_client_ip(request))
-            raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect.")
+            raise HTTPException(status_code=401, detail="Incorrect email or password.")
         evenement("connexion", compte=court(user["id"]))
         return _session_response(identities, user)
 

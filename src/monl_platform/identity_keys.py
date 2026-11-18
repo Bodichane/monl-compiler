@@ -23,7 +23,7 @@ class IdentityKeysMixin:
             if session is not None and not db.execute(
                     "SELECT 1 FROM sessions WHERE user_id = ? AND token_hash = ? "
                     "AND expires_at > ?", (user_id, self._token_hash(session), now)).fetchone():
-                raise IdentityError("Connectez-vous pour continuer.")
+                raise IdentityError("Sign in to continue.")
             db.execute("INSERT INTO api_keys VALUES (?, ?, ?, ?, ?, ?, NULL, NULL)",
                        (key_id, user_id, label, raw[:13], self._token_hash(raw), now))
         return {"id": key_id, "name": label, "prefix": raw[:13], "key": raw,

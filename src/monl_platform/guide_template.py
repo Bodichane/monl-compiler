@@ -74,13 +74,13 @@ SCRIPT = """
     var bouton = document.createElement('button');
     bouton.type = 'button';
     bouton.className = 'copy';
-    bouton.textContent = 'Copier';
+    bouton.textContent = 'Copy';
     bouton.addEventListener('click', function () {
       var texte = bloc.querySelector('code') ? bloc.querySelector('code').innerText : bloc.innerText;
       navigator.clipboard.writeText(texte).then(function () {
-        bouton.textContent = 'Copié';
-        setTimeout(function () { bouton.textContent = 'Copier'; }, 1800);
-      }, function () { bouton.textContent = 'Échec'; });
+        bouton.textContent = 'Copied';
+        setTimeout(function () { bouton.textContent = 'Copy'; }, 1800);
+      }, function () { bouton.textContent = 'Failed'; });
     });
     bloc.appendChild(bouton);
   });
@@ -88,30 +88,30 @@ SCRIPT = """
 </script>
 """
 
-SPEC_EXEMPLE = coloriser("""# Une spécification complète tient en une page.
-app CarnetAtelier
+SPEC_EXEMPLE = coloriser("""# A complete specification fits on one page.
+app WorkshopNotebook
 
-entity Fiche
-    titre: String
-    contenu: Text
-    statut: String
+entity Note
+    title: String
+    content: Text
+    status: String
 
-actor Auteur selfRegister
-actor Relecteur
+actor Author selfRegister
+actor Reviewer
 
-relation Auteur hasMany Fiche
+relation Author hasMany Note
 
-rule Fiche.titre required
-rule Fiche.statut oneOf "brouillon", "publiee"
-rule Fiche.Read publicWhen statut "publiee"
-rule Fiche.Update ownedBy Auteur
-rule Fiche.Update sharedBy Relecteur
+rule Note.title required
+rule Note.status oneOf "draft", "published"
+rule Note.Read publicWhen status "published"
+rule Note.Update ownedBy Author
+rule Note.Update sharedBy Reviewer
 
-workflow Ecrire for Auteur
-    Create Fiche
-    Read Fiche
-    Update Fiche
+workflow Write for Author
+    Create Note
+    Read Note
+    Update Note
 
-workflow Relire for Relecteur
-    Read Fiche
-    Update Fiche""")
+workflow Review for Reviewer
+    Read Note
+    Update Note""")

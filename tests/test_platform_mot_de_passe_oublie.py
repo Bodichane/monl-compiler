@@ -153,9 +153,9 @@ def test_la_page_de_connexion_offre_le_chemin(parcours):
     assert parcours["onglet_present"], (
         "aucun moyen d'employer ses codes depuis la page — il faudrait "
         "connaître l'API et forger la requête à la main")
-    assert parcours["titre"] == "Retrouver votre compte", parcours["titre"]
-    assert parcours["bouton"] == "Changer le mot de passe", parcours["bouton"]
-    assert parcours["label_motdepasse"] == "Nouveau mot de passe"
+    assert parcours["titre"] == "Recover your account", parcours["titre"]
+    assert parcours["bouton"] == "Change the password", parcours["bouton"]
+    assert parcours["label_motdepasse"] == "New password"
 
 
 def test_le_champ_de_code_suit_le_mode_choisi(parcours):
@@ -193,8 +193,8 @@ def test_un_code_valide_change_le_mot_de_passe_pour_de_vrai(parcours):
 def test_la_page_ramene_a_la_connexion_et_le_dit(parcours):
     """Sans message, un 204 silencieux ressemble à un formulaire qui n'a rien fait."""
     assert parcours["succes_affiche"], parcours
-    assert "Connectez-vous" in parcours["texte_succes"], parcours["texte_succes"]
-    assert parcours["revenu_en_connexion"] == "Se connecter"
+    assert "Sign in with the new password" in parcours["texte_succes"], parcours["texte_succes"]
+    assert parcours["revenu_en_connexion"] == "Sign in"
     assert parcours["code_vide_apres"], "le code consommé reste dans le formulaire"
     assert parcours["email_conserve"] == "oubli@example.test", (
         "l'adresse est perdue : il faut la retaper pour se connecter")

@@ -224,18 +224,18 @@ def rapport_connexion_jsdom(tmp_path, plateforme):
 
 def test_la_vraie_page_de_connexion_fonctionne_dans_jsdom(rapport_connexion_jsdom):
     assert rapport_connexion_jsdom["github"] == {
-        "texte": "Continuer avec GitHub", "chemin": "/auth/github"}
+        "texte": "Continue with GitHub", "chemin": "/auth/github"}
     assert rapport_connexion_jsdom["oauth_vide"]
     assert rapport_connexion_jsdom["configuration_absente"]
-    assert "Connexion annulée" in rapport_connexion_jsdom["refus"]
-    assert rapport_connexion_jsdom["apres_affichage"] == ["text", "Masquer", "true"]
-    assert rapport_connexion_jsdom["apres_masquage"] == ["password", "Afficher", "false"]
-    assert rapport_connexion_jsdom["onglet"] == ["Créer un compte", "true"]
+    assert "Sign-in cancelled" in rapport_connexion_jsdom["refus"]
+    assert rapport_connexion_jsdom["apres_affichage"] == ["text", "Hide", "true"]
+    assert rapport_connexion_jsdom["apres_masquage"] == ["password", "Show", "false"]
+    assert rapport_connexion_jsdom["onglet"] == ["Create an account", "true"]
     assert rapport_connexion_jsdom["code_visible"]
     assert rapport_connexion_jsdom["erreurs"] == []
 
 
-LOGIN = {"titre": "Se connecter", "code_masque": True, "lien": "Mot de passe oublié ?"}
+LOGIN = {"titre": "Sign in", "code_masque": True, "lien": "Forgot your password?"}
 
 
 def test_la_reprise_masque_les_fournisseurs_puis_ramene_a_la_connexion(
@@ -249,8 +249,8 @@ def test_la_reprise_masque_les_fournisseurs_puis_ramene_a_la_connexion(
     """
     assert rapport_connexion_jsdom["reprise_avant"] == {**LOGIN, "oauth_masque": False}
     assert rapport_connexion_jsdom["reprise_ouverte"] == {
-        "titre": "Retrouver votre compte", "code_masque": False,
-        "lien": "← Retour à la connexion", "oauth_masque": True}
+        "titre": "Recover your account", "code_masque": False,
+        "lien": "← Back to sign in", "oauth_masque": True}
     assert rapport_connexion_jsdom["reprise_fermee"] == {**LOGIN, "oauth_masque": False}
 
 
@@ -259,7 +259,7 @@ def test_un_fournisseur_ne_peut_ni_detourner_l_adresse_ni_injecter_du_balisage(
     """Issue #75, M2 : le nom est ENCODÉ dans l'adresse, le libellé reste du texte."""
     assert rapport_connexion_jsdom["piege"] == {
         "chemin": "/auth/x%2Fy%3F%23",
-        "texte": 'Continuer avec <img src="x" id="injecte">Piège',
+        "texte": 'Continue with <img src="x" id="injecte">Piège',
         "injecte": False,
     }
 
@@ -312,7 +312,7 @@ def test_l_accueil_a_un_ambient_visuel_discret_et_accessible():
 def test_l_accueil_pointe_vers_le_depot_github_officiel():
     assert GITHUB_URL == "https://github.com/Bodichane/monl-compiler"
     assert f'href="{GITHUB_URL}" target="_blank" rel="noopener"' in LANDING_HTML
-    assert "Voir le projet sur GitHub" in LANDING_HTML
+    assert "View the project on GitHub" in LANDING_HTML
 
 
 def test_toutes_les_pages_recoivent_l_ambiance_partagee():

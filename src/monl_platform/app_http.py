@@ -47,7 +47,7 @@ def _session_response(identities: IdentityStore, user: dict[str, str],
 def _require_user(request: Request, identities: IdentityStore) -> dict[str, str]:
     user = identities.session_user(request.cookies.get("monl_session"))
     if not user:
-        raise HTTPException(status_code=401, detail="Connectez-vous pour continuer.")
+        raise HTTPException(status_code=401, detail="Sign in to continue.")
     return user
 
 
@@ -166,7 +166,7 @@ async def _json_body(request: Request) -> dict:
             if int(request.headers["content-length"]) > TAILLE_MAX_CORPS_JSON:
                 raise HTTPException(status_code=413, detail="Request too large.")
         except ValueError:
-            raise HTTPException(status_code=400, detail="Content-Length invalide.") from None
+            raise HTTPException(status_code=400, detail="Invalid Content-Length.") from None
     try:
         morceaux = []
         taille = 0
@@ -179,7 +179,7 @@ async def _json_body(request: Request) -> dict:
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=400, detail="Corps JSON invalide.") from exc
+        raise HTTPException(status_code=400, detail="Invalid JSON body.") from exc
     if not isinstance(payload, dict):
         raise HTTPException(status_code=400, detail="A JSON object is expected.")
     return payload

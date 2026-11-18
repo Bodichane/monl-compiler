@@ -112,7 +112,7 @@ def test_aucune_limite_ne_nie_le_televersement_a_l_execution(tmp_path):
 
     for titre, texte in LIMITES:
         entier = f"{titre} {texte}".lower()
-        assert "aucun téléversement" not in entier, (
+        assert "no upload" not in entier, (
             f"la table nie le téléversement alors qu'une spec `Upload` "
             f"compile : « {titre} »")
 
@@ -121,7 +121,7 @@ def test_la_limite_des_fichiers_nomme_les_deux_moments():
     """Une limite qui ne dit pas QUAND le fichier arrive laisse croire que la
     plateforme n'en accepte aucun — c'est la lecture qui s'est périmée."""
     ligne = next((f"{t} {x}" for t, x in LIMITES
-                  if "compilation" in t.lower()), None)
+                  if "compile" in t.lower()), None)
     assert ligne, f"aucune ligne sur les fichiers de compilation : {LIMITES}"
     assert "Upload" in ligne
     assert "assets" in ligne

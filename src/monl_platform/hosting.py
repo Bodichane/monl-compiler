@@ -73,7 +73,7 @@ class SiteManager:
     ):
         domain = str(domain).strip().lower().strip(".")
         if not domain or "/" in domain or "\\" in domain:
-            raise ValueError("domaine de plateforme invalide")
+            raise ValueError("invalid platform domain")
         self.store = store
         self.workspace_root = workspace_root
         self.domain = domain
