@@ -12,8 +12,7 @@ class PoolRuntimeMixin:
         """Lines generated before `_connect()`, without touching the SQLite path."""
         return [
             # The constants let the documentation safeguard resolve the names
-            # through
-            # AST, as in point 172.
+            # through AST, as in point 172.
             (Template(r"""_DB_POOL_MIN_ENV = ${DB_POOL_MIN_ENV}
 _DB_POOL_MAX_ENV = ${DB_POOL_MAX_ENV}
 _DB_POOL_DEFAULT_MIN = 1

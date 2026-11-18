@@ -16,17 +16,13 @@ class AdminCliMixin:
         actors = ", ".join(repr(a) for a in self.actors)
         self_reg = ", ".join(repr(a) for a in self.self_register_actors)
         # POINT 95: manage.py must apply the SAME normalization as '/register'
-        # and
-        # '/login'. Without it, an account created offline as 'Patron@Ex.com'
-        # would
-        # be stored as is, and login — which does normalize — would look up
-        # 'patron@ex.com': an account just created that nobody can log into.
-        # The
-        # form check, however, is NOT applied here: the administrator works on
-        # the
-        # machine that hosts the database, and sometimes provisions service
-        # roles
-        # ('monitoring', 'backup') that have neither an address nor a number.
+        # and '/login'. Without it, an account created offline as
+        # 'Patron@Ex.com' would be stored as is, and login — which does
+        # normalize — would look up 'patron@ex.com': an account just created
+        # that nobody can log into. The form check, however, is NOT applied
+        # here: the administrator works on the machine that hosts the database,
+        # and sometimes provisions service roles ('monitoring', 'backup') that
+        # have neither an address nor a number.
         formes = self.auth_identifier or []
         prefixe = self.auth_phone_prefix
         password_invalidation = []

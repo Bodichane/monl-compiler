@@ -74,8 +74,7 @@ def cat(*frags):
 def _check(query):
     # Safeguard: by construction the number of '?' equals the number of
     # parameters; checking it at emission time makes it impossible to publish
-    # an
-    # unbalanced query if a builder were ever written wrong.
+    # an unbalanced query if a builder were ever written wrong.
     if query.text.count("?") != len(query.params):
         raise ValueError(
             f"Unbalanced query: {query.text.count('?')} '?' for "

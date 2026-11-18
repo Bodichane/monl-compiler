@@ -62,33 +62,27 @@ class RuntimeMixin(
         """Lines of app.py up to the Pydantic schemas (included)."""
         api_lines = self._socle_et_schemas()
         # POINT 116: OPTIONAL identity, and it exists only for conditional
-        # public
-        # reads ('publicWhen'). A public route must NEVER answer 401: a
-        # missing,
-        # invalid or revoked token simply leaves the caller anonymous. This
-        # dependency can therefore only GRANT permissions (supervisor, owner),
-        # never
-        # remove any — that is what makes it safe on a route open to everyone.
-        # Emitted only if an EXEMPTION exists (`_condition_exemptions`, single
-        # source): with neither supervisor nor owner, no route calls it and the
-        # produced app.py stays the one from before point 116.
+        # public reads ('publicWhen'). A public route must NEVER answer 401: a
+        # missing, invalid or revoked token simply leaves the caller anonymous.
+        # This dependency can therefore only GRANT permissions (supervisor,
+        # owner), never remove any — that is what makes it safe on a route open
+        # to everyone. Emitted only if an EXEMPTION exists
+        # (`_condition_exemptions`, single source): with neither supervisor nor
+        # owner, no route calls it and the produced app.py stays the one from
+        # before point 116.
         api_lines = self._socle_base_et_uploads(api_lines)
 
         # ── POINT 95: the form of the account identifier ──
         # The field stays named 'username' ON THE WIRE. Renaming it to 'email'
-        # would
-        # have broken the registration form of every existing project for a
-        # cosmetic gain; it is the CONTRACT that now says which form it
-        # expects, and
-        # the interface AI that labels the field.
+        # would have broken the registration form of every existing project for
+        # a cosmetic gain; it is the CONTRACT that now says which form it
+        # expects, and the interface AI that labels the field.
         #
         # THE substance of the brick is not validation, it is NORMALIZATION.
         # 'Jean@Ex.com' and 'jean@ex.com' are the same mailbox, '06 12 34 56
-        # 78' and
-        # '+33612345678' the same number: without a canonical form, the
-        # uniqueness
-        # check can be bypassed (two accounts for one person) and login fails
-        # depending on how it is typed.
+        # 78' and '+33612345678' the same number: without a canonical form, the
+        # uniqueness check can be bypassed (two accounts for one person) and
+        # login fails depending on how it is typed.
         api_lines += self._generate_identifier_helpers()
         api_lines += self._generate_message_runtime_lines()
         api_lines += self._generate_auth_feature_helpers()

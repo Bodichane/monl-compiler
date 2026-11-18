@@ -72,8 +72,7 @@ class LectureFiltreeRoutesMixin:
         filter_fragments = {}
         for field in filter_fields:
             # The value is the name of the Python variable generated for this
-            # field;
-            # sql.bind refuses any other entry point.
+            # field; sql.bind refuses any other entry point.
             fragment = sql.cat(sql.ident(field), sql.kw(" = "), sql.bind(field))
             filter_fragments[field] = fragment
 

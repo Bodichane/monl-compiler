@@ -21,19 +21,15 @@ class OrchestrationRoutesMixin:
         api_lines = []
 
         # FIX (post-v6): routes are now grouped by (action type, target) pair,
-        # and
-        # no longer generated once per workflow. Reason: before this fix, two
-        # different workflows targeting the same action on the same entity
-        # (e.g. two
-        # actors allowed to "Delete Post" through a 'sharedBy' rule) produced
-        # two
-        # FastAPI route definitions on the same path
-        # ('@app.delete("/post/{id}")'
-        # twice) — only the first declared one stayed reachable, the second was
-        # silently shadowed, and its actor got a 403 despite a valid spec. The
-        # grouping below merges the allowed actors into a single access check
-        # per
-        # route, listing every legitimate actor.
+        # and no longer generated once per workflow. Reason: before this fix,
+        # two different workflows targeting the same action on the same entity
+        # (e.g. two actors allowed to "Delete Post" through a 'sharedBy' rule)
+        # produced two FastAPI route definitions on the same path
+        # ('@app.delete("/post/{id}")' twice) — only the first declared one
+        # stayed reachable, the second was silently shadowed, and its actor got
+        # a 403 despite a valid spec. The grouping below merges the allowed
+        # actors into a single access check per route, listing every legitimate
+        # actor.
         route_map = self.compilation_plans.route_map
 
         for (act_type, _key), plan in route_map.items():

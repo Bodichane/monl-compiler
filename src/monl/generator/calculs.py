@@ -1,41 +1,41 @@
-"""Rendu des calculs à partir des plans métier résolus.
+"""Rendering of the calculations from the resolved business plans.
 
-Les clés des dérivations, agrégations et compteurs sont déterminées par
-`planning`. Les émetteurs de création, modification et suppression lisent
-les mêmes plans pour conserver la cible de chaque effet."""
+The keys of derivations, aggregations and counters are determined by
+`planning`. The create, update and delete emitters read the same plans to
+keep each effect's target."""
 
 from string import Template
 
 
 class CalculsMixin:
-    """Ce que le serveur CALCULE : dérivation, somme, compteurs."""
+    """What the server CALCULATES: derivation, sum, counters."""
 
     def _valeur_initiale_postpaiement(self, entity, field):
-        """Premier état fermé, ou absence légitime de valeur connue."""
+        """First closed state, or the legitimate absence of a known value."""
         choix = self.enumerated_fields.get(entity, {}).get(field)
         return repr(choix[0]) if choix else "None"
 
     def _derived_field_names(self, entity: str) -> list[str]:
-        """Champs de 'entity' calculés par le serveur (brique 10, point 77).
+        """Fields of 'entity' calculated by the server (brick 10, point 77).
 
-        Ils doivent être traités comme les champs 'generated' partout où le
-        client pourrait les fournir : absents du schéma Pydantic, et exclus des
-        valeurs d'écriture qu'on lit dans `data`."""
+        They must be treated like 'generated' fields wherever the client could
+        supply them: absent from the Pydantic schema, and excluded from the write
+        values read from `data`."""
         return [plan.field for plan in self.derived_by_entity.get(entity, ())]
 
     def _aggregated_field_names(self, entity: str) -> list[str]:
-        """Champs de 'entity' qui sont une SOMME de ses enfants (brique 12).
+        """Fields of 'entity' that are a SUM of its children (brick 12).
 
-        Traités partout comme les champs 'derivedFrom' : absents du schéma
-        Pydantic, et jamais lus dans `data`."""
+        Treated everywhere like 'derivedFrom' fields: absent from the Pydantic
+        schema, and never read from `data`."""
         return [plan.field for plan in self.aggregated_by_entity.get(entity, ())]
 
     def _aggregation_recomputes(self, source_entity):
-        """Sommes à recalculer après toute écriture sur 'source_entity'.
+        """Sums to recompute after any write on 'source_entity'.
 
-        La requête recalcule les lignes du parent dans la transaction de
-        l'écriture. COALESCE donne zéro à un panier vide et ROUND conserve
-        l'arrondi monétaire attendu par les routes existantes."""
+        The query recomputes the parent's lines inside the write's transaction.
+        COALESCE gives zero to an empty cart and ROUND keeps the monetary rounding
+        the existing routes expect."""
         recalculs = []
         for plan in self.aggregations_by_source.get(source_entity, ()):
             fk = plan.parent_fk
@@ -46,17 +46,15 @@ class CalculsMixin:
         return recalculs
 
     def _lignes_restitution(self, enfant, fk_enfant, indent="    "):
-        """Rend au parent ce que ses lignes enfants avaient consommé.
+        """Gives back to the parent what its child lines had consumed.
 
-        Source UNIQUE de la restitution de la brique 20, partagée par les DEUX
-        routes qui peuvent faire basculer un champ vers sa valeur libératrice :
-        l'Update générique et, quand `writableAfterPayment` lui a pris le
-        champ, la route après-paiement. La recopier dans la seconde, c'est
-        rouvrir la porte du point 92 — un effet dont chaque branche garde sa
-        propre version finit par diverger.
+        SINGLE source of brick 20's restoration, shared by the TWO routes that can
+        flip a field to its releasing value: the generic Update and, when
+        `writableAfterPayment` has taken the field from it, the post-payment
+        route. Copying it into the second would reopen the point 92 door — an
+        effect where each branch keeps its own version ends up diverging.
 
-        Aucun plancher : on rétablit un état qui a existé et qui était valide.
-        """
+        No floor: we restore a state that existed and was valid."""
         lignes = []
         for decompte in self.reputation_rules_by_trigger.get(enfant, []):
             if decompte.direction != "decrements":
@@ -73,34 +71,32 @@ class CalculsMixin:
         return lignes
 
     def _fk_enfant_libere(self, parent, enfant):
-        """Colonne de l'enfant qui désigne le parent dont l'état bascule."""
+        """Child column designating the parent whose state flips."""
         return next(
             (p["fk_column"] for p in self._compute_fk_placements().get(enfant, [])
              if p["owner_entity"] == parent), None)
 
     def _counter_fk_columns(self, trigger_entity: str) -> list[str]:
-        """Clés choisies par le client, dédoublonnées dans l'ordre des effets."""
+        """Keys chosen by the client, deduplicated in effect order."""
         return list(dict.fromkeys(
             plan.target_fk for plan in self.reputation_rules_by_trigger.get(trigger_entity, ())
         ))
 
     def _emit_categorization_lines(self, categorized_field, row_var, indent):
-        """AJOUT (roadmap, écosystème de capacités -- brique 5) : génère le
-        code source Python qui remplace, sur un dict de ligne déjà nommé
-        (row_var), un champ numérique par son libellé de catégorie
-        (ex. 'likes' -> 'likes_category'). La validation dans
-        ast_validator.py garantit que 'clauses' se termine toujours par
-        exactement un palier 'otherwise', et que tous les paliers 'below'
-        qui précèdent sont strictement croissants -- donc la chaîne
-        if/elif/.../else générée ici est toujours syntaxiquement valide et
-        couvre nécessairement toute valeur possible."""
+        """ADDED (roadmap, capability ecosystem -- brick 5): generates the Python
+        source that replaces, on an already-named row dict (row_var), a numeric
+        field with its category label (e.g. 'likes' -> 'likes_category'). The
+        validation in ast_validator.py guarantees that 'clauses' always ends with
+        exactly one 'otherwise' tier, and that every preceding 'below' tier is
+        strictly increasing -- so the if/elif/.../else chain generated here is
+        always syntactically valid and necessarily covers every possible value."""
         field = categorized_field["field"]
         clauses = categorized_field["clauses"]
         cat_key = Template(r"""${field}_category""").substitute(field=field)
-        # repr() plutôt qu'une interpolation manuelle entre guillemets : le
-        # libellé vient d'un STRING_LITERAL utilisateur et peut contenir des
-        # apostrophes/antislashs -- repr() produit toujours un littéral
-        # Python syntaxiquement valide, quel que soit le contenu.
+        # repr() rather than manual interpolation between quotes: the label
+        # comes from a user STRING_LITERAL and may contain
+        # apostrophes/backslashes -- repr() always produces a syntactically
+        # valid Python literal, whatever the content.
         lines = [Template(r"""${indent}_v = ${row_var}.pop('${field}')""").substitute(indent=indent, row_var=row_var, field=field)]
         for i, clause in enumerate(clauses):
             label_literal = repr(clause["label"])

@@ -1,20 +1,20 @@
-"""Inscription, connexion, déconnexion, et les gardes qui les entourent.
+"""Registration, login, logout, and the guards around them.
 
-Un rôle n'est inscriptible que s'il porte `selfRegister` : c'est cette
-frontière qui empêche un client anonyme de s'attribuer un rôle privilégié.
-401 et jamais 422 à la connexion — un identifiant mal formé n'existe pas,
-et le dire apprendrait la règle à un attaquant."""
+A role can register only if it carries `selfRegister`: that boundary is
+what prevents an anonymous client from granting itself a privileged role.
+401 and never 422 at login — a malformed identifier does not exist, and
+saying so would teach the rule to an attacker."""
 
 from string import Template
 
 
 class ConnexionRuntimeMixin:
-    """Inscription, connexion, déconnexion, et les gardes qui les entourent."""
+    """Registration, login, logout, and the guards around them."""
 
     def _lignes_connexion_gardee(self):
-        """Lecture du compte à la connexion quand `lockout` ou `totp` arment
-        des gardes. Extraite de `_socle_authentification` pour tenir sous le
-        plafond de complexité ; les lignes émises sont inchangées."""
+        """Reads the account at login when `lockout` or `totp` arm guards. Extracted
+        from `_socle_authentification` to stay under the complexity ceiling; the
+        emitted lines are unchanged."""
         select = Template(r"""SELECT id, password_hash, salt, actor, anon_handle${version}""").substitute(version=self._colonne_version())
         if self.auth_features.get("totp"):
             select = Template(r"""${select}, totp_secret, totp_enabled, totp_last_step""").substitute(select=select)
@@ -38,9 +38,9 @@ class ConnexionRuntimeMixin:
         ])
         if self.auth_features.get("lockout"):
             lookup_lines.extend([
-                # Le compte absent paie aussi la lecture du verrou, sur
-                # `None` : aucune ligne ne peut correspondre à cette
-                # valeur factice, donc aucun UPDATE ne peut être émis.
+                # The missing account also pays for reading the lock, on
+                # `None`: no row can
+                # match this dummy value, so no UPDATE can be emitted.
                 *Template(r"""    if _account_lock_active(db_user_id):
         raise HTTPException(status_code=401, detail='Invalid credentials.')""").substitute().split("\n"),
             ])
@@ -64,7 +64,7 @@ class ConnexionRuntimeMixin:
         return lookup_lines
 
     def _socle_authentification(self, api_lines):
-        """Inscription, connexion, déconnexion — et les gardes qui les entourent."""
+        """Registration, login, logout — and the guards around them."""
         auth_checks = bool(self.auth_features.get("lockout") or self.auth_features.get("totp"))
         login_request_extra = ([Template(r"""    totp_code: Optional[str] = None""").substitute()]
                                if self.auth_features.get("totp") else [])
@@ -100,31 +100,30 @@ class ConnexionRuntimeMixin:
             ]
 
         api_lines.extend([
-            # POINT 95 : la forme est contrôlée AVANT toute écriture, et la
-            # valeur normalisée AVANT le contrôle d'unicité — l'inverse
-            # laisserait 'Jean@Ex.com' passer à côté de 'jean@ex.com'.
-            # Le message doit nommer ce qui est réellement en conflit : sur une
-            # inscription par e-mail, « ce nom d'utilisateur » ne veut rien dire
-            # — et le conflit est souvent invisible pour l'appelant, puisqu'il
-            # porte sur la forme NORMALISÉE de ce qu'il a tapé.
-            # AJOUT (roadmap, écosystème de capacités -- suite de la brique 1) :
-            # pseudonyme anonyme stable, généré une seule fois ici (jamais
-            # recalculé, jamais fourni par le client) -- 'Anon#' suivi de 4
-            # chiffres aléatoires, avec quelques tentatives en cas de
-            # collision (contrainte UNIQUE sur la colonne) plutôt qu'un échec
-            # d'inscription pour une coïncidence statistiquement rare.
-            # POINT 95 : MÊME normalisation qu'à l'inscription, et c'est la
-            # moitié qui compte. Normaliser d'un seul côté crée des comptes
-            # auxquels on ne peut plus se connecter — la casse d'une adresse ne
-            # se retient pas. Aucun contrôle de FORME ici en revanche : un
-            # identifiant mal formé n'existe simplement pas en base, et le 401
-            # habituel répond sans révéler la règle.
-            # AJOUT (roadmap, écosystème de capacités -- suite de la brique 1) :
-            # porté par le JWT comme 'actor'/'user_id', pour que les champs
-            # 'generated' n'aient jamais besoin d'une requête DB séparée.
-            # AJOUT (roadmap, révocation de token) : identifiant unique par
-            # token (jti), nécessaire pour pouvoir le révoquer individuellement
-            # via /logout sans avoir à invalider tous les tokens de l'utilisateur.
+            # POINT 95: the form is checked BEFORE any write, and the value
+            # normalized BEFORE the uniqueness check — the reverse would let
+            # 'Jean@Ex.com' slip past 'jean@ex.com'. The message must name what
+            # is really in conflict: for an email registration, "this username"
+            # means nothing — and the conflict is often invisible to the
+            # caller, since it is on the NORMALIZED form of what they typed.
+            # ADDED (roadmap, capability ecosystem -- follow-up to brick 1): a
+            # stable anonymous pseudonym, generated only once here (never
+            # recomputed, never supplied by the client) -- 'Anon#' followed by
+            # 4 random digits, with a few retries on collision (UNIQUE
+            # constraint on the column) rather than a registration failure for
+            # a statistically rare coincidence.
+            # POINT 95: the SAME normalization as at registration, and this is
+            # the half that matters. Normalizing on one side only creates
+            # accounts nobody can log into anymore — nobody remembers the case
+            # of an address. No FORM check here, however: a malformed
+            # identifier simply does not exist in the database, and the usual
+            # 401 answers without revealing the rule.
+            # ADDED (roadmap, capability ecosystem -- follow-up to brick 1):
+            # carried by the JWT as 'actor'/'user_id', so that 'generated'
+            # fields never need a separate DB query.
+            # ADDED (roadmap, token revocation): a unique identifier per token
+            # (jti), needed to revoke it individually through /logout without
+            # invalidating all of the user's tokens.
             Template(r"""def _hash_password(password: str, salt_hex: str) -> str:""").substitute(),
             Template(r"""    return hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), bytes.fromhex(salt_hex), 100_000).hex()
 """).substitute(),
@@ -137,15 +136,15 @@ _DUMMY_SALT_HEX = '6d6f6e6c2d64756d6d792d73616c742d'""").substitute().split("\n"
             Template(r"""_DUMMY_HASH = _hash_password('monl-dummy-password', _DUMMY_SALT_HEX)
 """).substitute(),
 
-            # CORRECTIF (roadmap) : limitation de débit généralisée à un
-            # nom de "bucket" (au lieu d'être câblée uniquement pour /login),
-            # pour pouvoir protéger /register également — sans ça, /register
-            # pouvait être utilisée pour créer des comptes en masse ou pour
-            # énumérer les noms d'utilisateur déjà pris (via le code 409).
-            # LIMITE ASSUMÉE (prototype) : compteur en mémoire du processus,
-            # non distribué, remis à zéro au redémarrage du serveur —
-            # suffisant pour freiner un script naïf, pas une attaque distribuée
-            # à grande échelle (nécessiterait Redis ou équivalent en prod).
+            # FIX (roadmap): rate limiting generalized to a "bucket" name
+            # (instead of being wired only for /login), so /register can be
+            # protected too — without it, /register could be used to create
+            # accounts en masse or to enumerate usernames already taken
+            # (through the 409 code).
+            # ACCEPTED LIMIT (prototype): an in-process memory counter, not
+            # distributed, reset when the server restarts — enough to slow down
+            # a naive script, not a large-scale distributed attack (that would
+            # need Redis or equivalent in production).
             Template(r"""RATE_LIMIT_WINDOW_SECONDS = 60""").substitute(),
             Template(r"""RATE_LIMIT_MAX_ATTEMPTS = 5
 """).substitute(),
@@ -264,10 +263,10 @@ def login(req: LoginRequest, request: Request):
             *success_lines,
             *login_return_lines,
 
-            # AJOUT (roadmap, révocation de token) : /logout enregistre le jti
-            # du token courant dans une liste noire persistante — toute
-            # présentation ultérieure de ce même token est alors rejetée,
-            # même s'il n'a pas encore atteint sa date d'expiration naturelle.
+            # ADDED (roadmap, token revocation): /logout records the current
+            # token's jti in a persistent blocklist — any later presentation of
+            # that same token is then rejected, even if it has not yet reached
+            # its natural expiry date.
             *Template(r"""@app.post('/logout', tags=['Authentication'])
 def logout(credentials: HTTPAuthorizationCredentials = Depends(security_bearer)):
     payload = _decode_and_verify_token(credentials)
@@ -287,9 +286,9 @@ def logout(credentials: HTTPAuthorizationCredentials = Depends(security_bearer))
         ])
         return self._verification_registration_flow(api_lines)
 
-    # BRIQUE B4 (D3–D5) : la version de jeton du compte voyage dans le JWT ;
-    # sans option B4, aucune de ces lignes n'est émise (sortie historique
-    # inchangée à l'octet).
+    # BRICK B4 (D3–D5): the account's token version travels in the JWT; without
+    # a B4 option, none of these lines is emitted (historical output
+    # byte-identical).
     def _colonne_version(self):
         return ", token_version" if self.auth_features else ""
 
