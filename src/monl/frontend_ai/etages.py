@@ -207,10 +207,10 @@ def _generate_chunked_files(project_dir, provider, base_prompt, operation,
                 stage_provider.max_output_tokens = initial_output_limit
     return files
 
-#: Budget de sortie d'`app.js`, en jetons : un socle, puis ce que coûte
-#: RÉELLEMENT une route (appel, état de chargement, erreur, formulaire).
-#: Mesuré à l'envers sur les frontends complets du dépôt — 26 à 43 Ko pour une
-#: quinzaine de routes, soit 7 000 à 11 000 jetons.
+#: Output budget of `app.js`, in tokens: a base, then what a route REALLY costs
+#: (call, loading state, error, form). Measured backwards on the repository's
+#: complete frontends — 26 to 43 KB for some fifteen routes, that is 7,000 to
+#: 11,000 tokens.
 APPJS_SOCLE_TOKENS = 1_200
 
 APPJS_TOKENS_PAR_ROUTE = 400

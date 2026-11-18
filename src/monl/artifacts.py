@@ -1,12 +1,11 @@
-"""Publication transactionnelle des artefacts produits par MONL.
+"""Transactional publication of the artifacts MONL produces.
 
-La génération écrit d'abord dans un dossier temporaire situé sur le même
-filesystem que le projet. ``publish_files`` remplace ensuite les fichiers
-avec sauvegarde et restauration en cas d'échec. Cela ne prétend pas rendre
-plusieurs fichiers atomiques au niveau POSIX ; cela garantit en revanche qu'une
-erreur de publication ne laisse pas un mélange backend/contrat/état issu de
-deux compilations différentes.
-"""
+Generation first writes into a temporary folder on the same filesystem as
+the project. ``publish_files`` then replaces the files with backup and
+restore on failure. This does not claim to make several files atomic at
+the POSIX level; it does guarantee, however, that a publication error
+does not leave a mix of backend/contract/state coming from two different
+compilations."""
 
 from __future__ import annotations
 
@@ -20,16 +19,14 @@ from .errors import ProjectStateError
 
 
 class ArtifactPublicationError(ProjectStateError):
-    """Erreur de publication, après tentative de restauration du projet."""
+    """Publication error, after an attempt to restore the project."""
 
 
 def staging_directory(target_dir: str | os.PathLike[str]) -> tempfile.TemporaryDirectory:
-    """Retourne un dossier de staging voisin de ``target_dir``.
+    """Returns a staging folder next to ``target_dir``.
 
-    Le voisinage est important : ``os.replace`` reste ainsi sur le même
-    filesystem et conserve son comportement de remplacement sans copie
-    partielle.
-    """
+    Being next to it matters: ``os.replace`` thus stays on the same filesystem
+    and keeps its replace-without-partial-copy behavior."""
     target = Path(target_dir).absolute()
     target.parent.mkdir(parents=True, exist_ok=True)
     return tempfile.TemporaryDirectory(prefix=f".{target.name}.monl-stage-",
@@ -39,7 +36,7 @@ def staging_directory(target_dir: str | os.PathLike[str]) -> tempfile.TemporaryD
 def copy_preserved_files(source_dir: str | os.PathLike[str],
                          staging_dir: str | os.PathLike[str],
                          names: Iterable[str]) -> None:
-    """Copie dans le staging les fichiers que la compilation doit préserver."""
+    """Copies into staging the files the compilation must preserve."""
     source = Path(source_dir)
     staging = Path(staging_dir)
     for name in names:
@@ -56,32 +53,29 @@ def _replace(source: Path, destination: Path) -> None:
     os.replace(source, destination)
 
 
-#: Le module des blocs `custom`. Nommé ici parce que DEUX couches décident de
-#: le publier ou non — la génération et la ligne de commande — et que deux
-#: mises en œuvre d'une même règle finissent toujours par diverger.
+#: The `custom` blocks module. Named here because TWO layers decide whether to
+#: publish it — generation and the command line — and two implementations of
+#: the same rule always end up diverging.
 SANDBOX_FILENAME = "sandbox_ai.py"
 
 
 def sans_sandbox(noms):
-    """Retire le module `custom` d'une liste d'artefacts.
+    """Removes the `custom` module from a list of artifacts.
 
-    Un projet sans bloc `custom` n'en reçoit pas : le fichier ne contenait
-    qu'un commentaire, `app.py` l'importait sans jamais l'appeler, et le
-    supprimer faisait échouer le démarrage. Un fichier qui ne fait rien et
-    qu'on ne peut pas enlever n'a pas sa place dans une archive livrée.
-    """
+    A project without a `custom` block gets none: the file only contained a
+    comment, `app.py` imported it without ever calling it, and deleting it
+    made startup fail. A file that does nothing and cannot be removed has no
+    place in a delivered archive."""
     return tuple(nom for nom in noms if nom != SANDBOX_FILENAME)
 
 
 def publish_files(staging_dir: str | os.PathLike[str],
                   target_dir: str | os.PathLike[str],
                   names: Iterable[str]) -> None:
-    """Publie ``names`` avec rollback complet si un remplacement échoue.
+    """Publishes ``names`` with full rollback if a replacement fails.
 
-    Les sources doivent toutes exister avant le premier remplacement. Les
-    fichiers non listés, notamment ``frontend/`` et les assets utilisateur,
-    ne sont jamais touchés.
-    """
+    The sources must all exist before the first replacement. Unlisted files,
+    notably ``frontend/`` and the user's assets, are never touched."""
     staging = Path(staging_dir).absolute()
     target = Path(target_dir).absolute()
     selected = tuple(dict.fromkeys(names))
@@ -100,11 +94,11 @@ def publish_files(staging_dir: str | os.PathLike[str],
             source = staging / name
             destination = target / name
             backup = backup_dir / name
-            # Un artefact peut vivre dans un sous-dossier (`docs/…`) : sans ce
-            # `mkdir`, `os.replace` lève `FileNotFoundError` sur un dossier
-            # absent — et la publication entière serait annulée pour un dossier
-            # qu'il suffisait de créer. `copy_preserved_files` le faisait déjà
-            # de son côté ; les deux couches se répondent maintenant.
+            # An artifact can live in a subfolder (`docs/…`): without this
+            # `mkdir`, `os.replace` raises `FileNotFoundError` on a missing
+            # folder — and the whole publication would be cancelled for a
+            # folder that only needed to be created. `copy_preserved_files`
+            # already did it on its side; the two layers now match.
             destination.parent.mkdir(parents=True, exist_ok=True)
             backup.parent.mkdir(parents=True, exist_ok=True)
             if destination.exists():
@@ -113,13 +107,13 @@ def publish_files(staging_dir: str | os.PathLike[str],
             _replace(source, destination)
             installed.append(name)
     except Exception as exc:
-        # Retirer les nouveaux fichiers, y compris ceux dont l'ancien contenu
-        # n'existait pas.
+        # Remove the new files, including those whose old content did not
+        # exist.
         for name in reversed(installed):
             destination = target / name
             if destination.exists():
                 destination.unlink()
-        # Restaurer chaque ancien fichier déplacé dans le backup.
+        # Restore each old file moved into the backup.
         for name in reversed(backups):
             backup = backup_dir / name
             destination = target / name
@@ -132,37 +126,35 @@ def publish_files(staging_dir: str | os.PathLike[str],
         shutil.rmtree(backup_dir, ignore_errors=True)
 
 
-#: Les documents qui se LISENT vivent dans `docs/` ; la racine garde ce qui
-#: s'EXÉCUTE. Une archive dont les quinze fichiers sont à plat ne se lit pas :
-#: on ne distingue pas ce qu'on lance de ce qu'on consulte.
+#: Documents that are READ live in `docs/`; the root keeps what is EXECUTED. An
+#: archive whose fifteen files are flat cannot be read: one cannot tell what is
+#: run from what is consulted.
 DOCS_DIR = "docs"
 
 
 def chemin_pret(base, nom):
-    """Le chemin d'un artefact, son dossier créé si besoin.
+    """The path of an artifact, its folder created if needed.
 
-    Un artefact peut vivre dans `docs/` : l'ouvrir en écriture sans avoir créé
-    le dossier lève `FileNotFoundError`, et le staging est toujours neuf, donc
-    le dossier n'y existe jamais la première fois.
-    """
+    An artifact can live in `docs/`: opening it for writing without having
+    created the folder raises `FileNotFoundError`, and the staging is always
+    fresh, so the folder never exists there the first time."""
     cible = Path(base) / nom
     cible.parent.mkdir(parents=True, exist_ok=True)
     return cible
 
 
 def deplacer_vers_docs(project_dir, chemins):
-    """Range une seule fois les documents restés à la racine.
+    """Tidies up, only once, the documents left at the root.
 
-    Les projets compilés AVANT ce rangement portent ces fichiers à la racine.
-    Écrire simplement au nouvel emplacement les laisserait sur place, périmés
-    et sans un mot — c'est exactement le reproche fait à `sandbox_ai.py`, et
-    le défaut serait pire ici : un `DESIGN_SPEC.md` retouché à la main est du
-    travail humain, et la copie préservée irait le chercher où il n'est plus.
+    Projects compiled BEFORE this tidy-up carry these files at the root.
+    Simply writing to the new location would leave them in place, stale and
+    without a word — exactly the reproach made to `sandbox_ai.py`, and the
+    defect would be worse here: a hand-edited `DESIGN_SPEC.md` is human work,
+    and the preserved copy would look for it where it no longer is.
 
-    On DÉPLACE donc, ce qui garde la personnalisation et n'orpheline rien. Un
-    fichier déjà présent au nouvel emplacement gagne : c'est lui que la
-    compilation vient de produire ou que l'auteur tient à jour.
-    """
+    We therefore MOVE, which keeps the customization and orphans nothing. A
+    file already present at the new location wins: it is the one the
+    compilation just produced or the author keeps up to date."""
     racine = Path(project_dir)
     deplaces = []
     for chemin in chemins:

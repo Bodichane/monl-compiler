@@ -17,9 +17,9 @@ from .fondations import AGENTS_FILENAME, README_FILENAME
 PROJECT_CLAUDE_MD_MARKER = "<!-- généré par monl — orchestration frontend -->"
 PROJECT_README_MARKER = "<!-- généré par monl — démarrage du projet -->"
 
-#: L'ancien nom, gardé pour le déplacement des projets déjà compilés. Il ne
-#: doit PAS disparaître de la source : sans lui, un CLAUDE.md produit par une
-#: version antérieure resterait à côté d'AGENTS.md, périmé et sans un mot.
+#: The old name, kept to move already compiled projects. It must NOT disappear
+#: from the source: without it, a CLAUDE.md produced by an earlier version
+#: would stay next to AGENTS.md, stale and without a word.
 LEGACY_AGENTS_FILENAME = "CLAUDE.md"
 
 PROJECT_CLAUDE_MD = """{marker}

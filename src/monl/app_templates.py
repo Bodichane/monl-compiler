@@ -1,71 +1,69 @@
 # ─────────────────────────────────────────────────────────────────────
-# CATALOGUE DE MODÈLES D'APPLICATIONS — point 45 du journal. Le dialogue
-# ne part plus d'une page blanche : il ouvre sur les 10 types
-# d'applications les plus construits par les développeurs web. Choisir un
-# modèle pré-remplit entités, acteurs, règles et données de démonstration
-# RÉALISTES, puis des questions de suivi PROPRES AU MODÈLE affinent
-# (catégories ? stock ? commentaires ? likes ?). « Partir de zéro » reste
-# disponible et conserve le dialogue libre intact.
+# CATALOG OF APPLICATION TEMPLATES — point 45 of the journal. The dialogue no
+# longer starts from a blank page: it opens on the 10 kinds of applications web
+# developers build most. Choosing a template pre-fills entities, actors, rules
+# and REALISTIC demo data, then follow-up questions SPECIFIC TO THE TEMPLATE
+# refine it (categories? stock? comments? likes?). "Start from scratch" stays
+# available and keeps the free dialogue intact.
 #
-# Chaque modèle est de la DONNÉE, pas du code : le dialogue les assemble
-# via le même émetteur déterministe, et la spec finale repasse par le vrai
-# parseur + l'audit AST — un modèle du catalogue ne peut pas produire une
-# spec cassée sans casser les tests (chaque modèle est compilé dans
-# tests/test_app_templates.py, chemins « tout non » ET « tout oui »).
+# Each template is DATA, not code: the dialogue assembles them through the same
+# deterministic emitter, and the final spec goes back through the real parser +
+# the AST audit — a catalog template cannot produce a broken spec without
+# breaking the tests (each template is compiled in tests/test_app_templates.py,
+# "all no" AND "all yes" paths).
 #
-# Structure d'un modèle :
-#   name / hint         : ce qu'affiche le menu
-#   entities            : {Nom: {"fields": [(champ, Type)],
-#                                "manager": acteur, "readers": [acteurs],
+# Structure of a template:
+#   name / hint         : what the menu shows
+#   entities            : {Name: {"fields": [(field, Type)],
+#                                "manager": actor, "readers": [actors],
 #                                "public_read": bool, "public_create": bool,
-#                                "owned": bool}}  # ownedBy par le manager
-#   actors              : liste d'acteurs
-#   relations           : [(source, type, cible)] déclarées en plus de
-#                         celles que 'owned' crée automatiquement
-#   extra_rules         : lignes de règles émises telles quelles (briques
-#                         avancées : increments, hidden, categorized…)
-#   seeds               : {Entité: [ {champ: valeur} ]} — données de démo
-#                         réalistes (sinon repli sur le seed générique)
-#   sections            : [{"title": titre de rubrique, "ask": ce qu'on
-#                         attend dedans}] — rubriques éditoriales que les
-#                         recensements publics donnent comme attendues sur un
-#                         site de ce genre (point 61). Le dialogue en demande
-#                         DIRECTEMENT le texte, il ne demande plus s'il en
-#                         faut ; une réponse vide passe la rubrique. Liste
-#                         vide = outil interne, aucune rubrique standard.
-#   followups           : [{"ask": question o/n, "effects": {...}}] où les
-#                         effets fusionnent dans le modèle si "o" :
+#                                "owned": bool}}  # ownedBy the manager
+#   actors              : list of actors
+#   relations           : [(source, type, target)] declared in addition to
+#                         those 'owned' creates automatically
+#   extra_rules         : rule lines emitted as is (advanced bricks:
+#                         increments, hidden, categorized…)
+#   seeds               : {Entity: [ {field: value} ]} — realistic demo
+#                         data (otherwise fallback on the generic seed)
+#   sections            : [{"title": section title, "ask": what is
+#                         expected in it}] — editorial sections that public
+#                         surveys list as expected on a site of this kind
+#                         (point 61). The dialogue asks DIRECTLY for their
+#                         text, it no longer asks whether one is needed; an
+#                         empty answer skips the section. Empty list =
+#                         internal tool, no standard section.
+#   followups           : [{"ask": y/n question, "effects": {...}}] where
+#                         the effects merge into the template on "y":
 #                         add_fields / add_entities / add_relations /
 #                         add_rules / add_seeds
 # ─────────────────────────────────────────────────────────────────────
 
 def _img(_seed=None):
-    """Champ d'illustration d'une fiche de démonstration : VIDE, et c'est le
-    sujet de la brique.
+    """Illustration field of a demo item: EMPTY, and that is the point of the
+    brick.
 
-    Ces fiches portaient une URL `picsum.photos` (et `loremflickr` dès qu'un
-    sujet était choisi). Le résultat contredisait la promesse la plus nette du
-    projet : une application monl est AUTONOME et son compilateur n'appelle
-    jamais l'extérieur — mais la toute première page que le prospect ouvrait
-    allait chercher ses images chez un tiers. Hors ligne, sur une connexion
-    lente ou sur un forfait de données compté, la vitrine s'ouvrait cassée.
+    These items carried a `picsum.photos` URL (and `loremflickr` as soon as a
+    subject was chosen). The result contradicted the project's clearest
+    promise: a monl application is SELF-CONTAINED and its compiler never calls
+    the outside world — yet the very first page the prospect opened fetched
+    its images from a third party. Offline, on a slow connection or on a
+    metered data plan, the showcase opened broken.
 
-    Trois raisons de laisser VIDE plutôt que de mettre autre chose :
+    Three reasons to leave it EMPTY rather than put something else:
 
-    * une image en `data:` URI tiendrait dans le champ, mais mettrait 250
-      caractères illisibles dans chaque ligne `seed` de la spec — or la spec
-      est faite pour être lue et modifiée à la main, et `monl content export`
-      la déverse en CSV ;
-    * une photo livrée avec monl serait un choix VISUEL du compilateur, ce que
-      le point 72 lui interdit explicitement ;
-    * le vrai chemin d'une vraie photo existe déjà et il est documenté :
-      `monl assets add <fichier> --for "<fiche>"` (brique 13, point 84), qui
-      vérifie le fichier à la compilation au lieu d'espérer un serveur distant.
+    * a `data:` URI image would fit in the field, but would put 250
+      unreadable characters in every `seed` line of the spec — yet the spec is
+      made to be read and edited by hand, and `monl content export` dumps it
+      to CSV;
+    * a photo shipped with monl would be a VISUAL choice of the compiler,
+      which point 72 explicitly forbids;
+    * the real path for a real photo already exists and is documented:
+      `monl assets add <file> --for "<item>"` (brick 13, point 84), which
+      checks the file at compile time instead of hoping for a remote server.
 
-    Le sujet d'illustration demandé par le dialogue n'est pas perdu : il part
-    dans le brief du contrat, pour que l'IA d'interface sache ce que les
-    visuels doivent évoquer (voir `_emit_spec`).
-    """
+    The illustration subject asked by the dialogue is not lost: it goes into
+    the contract's brief, so the interface AI knows what the visuals must
+    evoke (see `_emit_spec`)."""
     return ""
 
 
@@ -79,16 +77,16 @@ TEMPLATES = [
                                    ("imageUrl", "String")],
                         "manager": "Admin", "readers": [], "public_read": True,
                         "public_create": False, "owned": False},
-            # ACQUIS (point 60) : « a clear contact method » figure dans toutes
-            # les listes d'essentiels d'un portfolio — c'était une question.
+            # ACQUIRED (point 60): "a clear contact method" appears in every
+            # list of a portfolio's essentials — it used to be a question.
             "Message": {"fields": [("author", "String"), ("email", "Email"),
                                    ("content", "Text")],
                         "manager": "Admin", "readers": [], "public_read": False,
                         "public_create": True, "owned": False},
         },
         "relations": [], "extra_rules": [],
-        # POINT 61 : « about » et une offre lisible figurent dans toutes les
-        # listes d'essentiels d'un portfolio, au même titre que la galerie.
+        # POINT 61: "about" and a readable offer appear in every list of a
+        # portfolio's essentials, on a par with the gallery.
         "sections": [
             {"title": "About",
              "ask": "who you are, since when, what sets your work apart"},
@@ -111,10 +109,10 @@ TEMPLATES = [
         "hint": "public articles, readers' comments",
         "actors": ["Author", "Reader", "Moderator"],
         "entities": {
-            # ACQUIS (point 60) : l'auteur humanise le billet, la date dit si
-            # l'information est encore d'actualité. Les deux sont donnés comme
-            # essentiels par l'anatomie d'un article ; la date était une
-            # question, l'auteur manquait purement et simplement.
+            # ACQUIRED (point 60): the author humanizes the post, the date says
+            # whether the information is still current. Both are given as
+            # essentials by the anatomy of an article; the date was a question,
+            # the author was simply missing.
             "Article": {"fields": [("title", "String"), ("content", "Text"),
                                    ("imageUrl", "String"), ("author", "String"),
                                    ("publishedOn", "String"), ("status", "String")],
@@ -141,9 +139,9 @@ TEMPLATES = [
                           ("Read", "Report"), ("Update", "Report"),
                           ("Delete", "Report")]},
         ],
-        # POINT 61 : la bio de l'auteur est donnée comme page centrale d'un
-        # site d'écriture ; la ligne éditoriale dit au lecteur s'il est au bon
-        # endroit — ce qu'aucune liste d'articles ne raconte.
+        # POINT 61: the author's bio is given as a central page of a writing
+        # site; the editorial line tells readers whether they are in the right
+        # place — which no list of posts tells.
         "sections": [
             {"title": "About the author",
              "ask": "who writes here, and why people should read you"},
@@ -169,9 +167,9 @@ TEMPLATES = [
         "hint": "public catalog, customers' orders",
         "actors": ["Admin", "Customer"],
         "entities": {
-            # ACQUIS (point 60) : la disponibilité figure au-dessus de la ligne
-            # de flottaison d'une fiche produit, au même titre que le nom, le
-            # prix et l'image. C'était une question.
+            # ACQUIRED (point 60): availability sits above the fold of a
+            # product page, on a par with the name, the price and the image. It
+            # used to be a question.
             "Product": {"fields": [("name", "String"), ("price", "Money"),
                                    ("description", "Text"), ("imageUrl", "String"),
                                    ("stock", "Integer")],
@@ -182,9 +180,9 @@ TEMPLATES = [
                       "public_create": False, "owned": True},
         },
         "relations": [], "extra_rules": [],
-        # POINT 61 : livraison/retours et FAQ sont les deux textes que les
-        # recensements e-commerce placent au-dessus du reste — ils lèvent les
-        # objections d'achat, qu'aucune fiche produit ne peut porter.
+        # POINT 61: shipping/returns and FAQ are the two texts e-commerce
+        # surveys place above the rest — they remove purchase objections, which
+        # no product page can carry.
         "sections": [
             {"title": "About the shop",
              "ask": "who makes or selects, where the products come from"},
@@ -209,19 +207,19 @@ TEMPLATES = [
         "hint": "each member manages their own tasks (kanban)",
         "actors": ["Member"],
         "entities": {
-            # ACQUIS (point 60) : « title, assignee, due date, and a simple
-            # priority signal right on the card » — les deux étaient des
-            # questions alors qu'aucune carte kanban ne s'en passe.
+            # ACQUIRED (point 60): "title, assignee, due date, and a simple
+            # priority signal right on the card" — both were questions while no
+            # kanban card does without them.
             "Task": {"fields": [("title", "String"), ("status", "String"),
                                 ("priority", "String"), ("dueDate", "String"),
                                 ("assignee", "String")],
                      "manager": "Member", "readers": [], "public_read": False,
                      "public_create": False, "owned": True},
         },
-        # POINT 61 : outil interne, ouvert sur un tableau et non sur une page
-        # d'accueil. Aucune rubrique standard ne s'impose — le dialogue
-        # retombe donc sur l'offre générique plutôt que d'inventer un « à
-        # propos » à un kanban d'équipe.
+        # POINT 61: an internal tool, opening on a board and not on a home
+        # page. No standard section is called for — the dialogue therefore
+        # falls back on the generic offer rather than inventing an "about" for
+        # a team kanban.
         "relations": [],
         "extra_rules": [
             'rule Task.status oneOf "to do", "in progress", "done"',
@@ -240,15 +238,15 @@ TEMPLATES = [
                                    ("status", "String")],
                      "manager": "Member", "readers": [], "public_read": True,
                      "public_create": False, "owned": True},
-            # Acquis : un signalement ouvre une file de modération ; le
-            # modérateur change le statut du post, et publicWhen empêche qu'un
-            # post masqué reste lisible par son URL.
+            # Acquired: a report opens a moderation queue; the moderator
+            # changes the post's status, and publicWhen prevents a hidden post
+            # from staying readable through its URL.
             "Report": {"fields": [("reason", "Text"), ("status", "String")],
                         "manager": "Moderator", "readers": [], "public_read": False,
                         "public_create": False, "owned": False},
-            # Le like est possédé par son compte : cela permet à oncePer de
-            # composer une unicité solide (compte + post), sans fingerprint
-            # fourni par le navigateur.
+            # The like is owned by its account: this lets oncePer compose a
+            # solid uniqueness (account + post), without a fingerprint supplied
+            # by the browser.
             "Like": {"fields": [("note", "String")],
                       "manager": "Member", "readers": [], "public_read": False,
                       "public_create": False, "owned": True},
@@ -274,9 +272,9 @@ TEMPLATES = [
                           ("Read", "Report"), ("Update", "Report"),
                           ("Delete", "Report")]},
         ],
-        # POINT 61 : des règles écrites et visibles depuis l'accueil sont le
-        # premier levier de modération cité par les guides de communauté ;
-        # le « à propos » dit à qui la communauté s'adresse.
+        # POINT 61: written rules visible from the home page are the first
+        # moderation lever cited by community guides; the "about" says who the
+        # community is for.
         "sections": [
             {"title": "About the community",
              "ask": "who gathers here and around what"},
@@ -301,9 +299,9 @@ TEMPLATES = [
         "hint": "public listings, each seller manages their own",
         "actors": ["Seller", "Buyer"],
         "entities": {
-            # ACQUIS (point 60) : l'acheteur regarde le lieu pour savoir si
-            # l'objet est proche, et attend de pouvoir joindre le vendeur.
-            # Les deux étaient des questions.
+            # ACQUIRED (point 60): the buyer looks at the location to know
+            # whether the item is nearby, and expects to be able to reach the
+            # seller. Both were questions.
             "Listing": {"fields": [("title", "String"), ("price", "Money"),
                                    ("description", "Text"), ("imageUrl", "String"),
                                    ("location", "String")],
@@ -312,9 +310,9 @@ TEMPLATES = [
             "Inquiry": {"fields": [("email", "Email"), ("content", "Text")],
                         "manager": "Seller", "readers": [], "public_read": False,
                         "public_create": True, "owned": False},
-            # Transaction métier : l'acheteur possède sa demande, son montant
-            # est calculé depuis l'annonce, puis le vendeur renseigne la
-            # livraison sur la route dédiée après paiement.
+            # Business transaction: the buyer owns their request, its amount is
+            # calculated from the ad, then the seller fills in the delivery on
+            # the dedicated route after payment.
             "Purchase": {"fields": [("status", "String"), ("quantity", "Integer"),
                                       ("deliveryAddress", "Text"), ("total", "Money"),
                                       ("deliveryStatus", "String"),
@@ -322,12 +320,11 @@ TEMPLATES = [
                          "manager": "Buyer", "readers": ["Seller"],
                          "public_read": False, "public_create": False, "owned": True},
         },
-        # PAS de fiche photo ici : une photo d'annonce doit être vue par les
-        # ACHETEURS, et monl refuse (à juste titre) qu'un fichier déposé soit
-        # lisible publiquement. Une photo privée sur une annonce publique
-        # donnerait un catalogue dont personne ne voit les images — mesuré :
-        # l'acheteur récolte 403 sur la route du fichier. Le dépôt reste
-        # proposé là où « privé » est le but (un justificatif de dépense).
+        # NO photo field here: an ad's photo must be seen by BUYERS, and monl
+        # (rightly) refuses to make an uploaded file publicly readable. A
+        # private photo on a public ad would give a catalog whose images nobody
+        # sees — measured: the buyer gets 403 on the file route. Uploading
+        # stays offered where "private" is the purpose (an expense receipt).
         "relations": [("Listing", "hasMany", "Purchase")],
         "extra_rules": [
             'rule Purchase.status oneOf "pending", "paid", "cancelled"',
@@ -337,9 +334,9 @@ TEMPLATES = [
             'rule Purchase.trackingNumber writableAfterPayment Seller',
         ],
         "extra_workflows": [],
-        # POINT 61 : une place de marché entre particuliers doit dire ce
-        # qu'elle prend en charge et ce qu'elle laisse aux deux parties — les
-        # guides de sécurité en font le point de départ de tout le reste.
+        # POINT 61: a marketplace between individuals must say what it takes
+        # care of and what it leaves to the two parties — safety guides make it
+        # the starting point of everything else.
         "sections": [
             {"title": "How it works",
              "ask": "posting, contacting a seller, closing the deal — in a few sentences"},
@@ -359,9 +356,10 @@ TEMPLATES = [
         "hint": "public services, customers' bookings",
         "actors": ["Admin", "Client"],
         "entities": {
-            # ACQUIS (point 60) : nom, description, durée et prix forment le
-            # socle d'une prestation ; « clear descriptions increase conversion
-            # and reduce no-shows ». C'était l'unique question du modèle.
+            # ACQUIRED (point 60): name, description, duration and price form
+            # the foundation of a service; "clear descriptions increase
+            # conversion and reduce no-shows". It was the template's only
+            # question.
             "Service": {"fields": [("name", "String"), ("duration", "Integer"),
                                    ("price", "Money"), ("description", "Text")],
                         "manager": "Admin", "readers": ["Client"], "public_read": True,
@@ -371,9 +369,9 @@ TEMPLATES = [
                         "public_create": False, "owned": True},
         },
         "relations": [("Service", "hasMany", "Booking")], "extra_rules": [],
-        # POINT 61 : la politique d'annulation est donnée comme devant figurer
-        # AVEC le formulaire de réservation, pas dans un coin ; horaires et
-        # accès sont l'autre information qu'on cherche avant de réserver.
+        # POINT 61: the cancellation policy is given as having to appear WITH
+        # the booking form, not in a corner; opening hours and access are the
+        # other information one looks for before booking.
         "sections": [
             {"title": "About",
              "ask": "who you are, your approach, your team"},
@@ -407,7 +405,8 @@ TEMPLATES = [
                            "manager": "Admin", "readers": [], "public_read": False,
                            "public_create": False, "owned": False},
         },
-        # POINT 61 : outil interne — voir la note du modèle « Gestion de tâches ».
+        # POINT 61: internal tool — see the note of the "Task management"
+        # template.
         "relations": [("Item", "hasMany", "StockReceipt"),
                        ("Item", "hasMany", "StockIssue")],
         "extra_rules": [
@@ -448,16 +447,16 @@ TEMPLATES = [
                        "manager": "User", "readers": [], "public_read": False,
                        "public_create": False, "owned": True},
         },
-        # POINT 61 : outil personnel, sans visiteur à convaincre.
+        # POINT 61: personal tool, with no visitor to convince.
         "relations": [("Budget", "hasMany", "Expense")],
         "extra_rules": [
             'rule Expense.amount min 0',
             'rule Budget.limit min 0',
             'rule Budget.spent sumOf Expense.amount',
         ],
-        # Un budget personnel sert à piloter les dépenses, pas à encaisser un
-        # paiement. Cette décision évite que le détecteur générique transforme
-        # les deux montants du suivi en faux catalogue de paiement.
+        # A personal budget serves to steer expenses, not to collect a payment.
+        # This decision prevents the generic detector from turning the
+        # tracker's two amounts into a fake payment catalog.
         "accept_payments": False,
         "seeds": {}, "sections": [], "followups": [],
     },
@@ -481,8 +480,8 @@ TEMPLATES = [
             "rule Vote.Create oncePer Participant, Entry",
             "rule Entry.submittedOn timestamp",
         ],
-        # POINT 61 : un classement n'est crédible que si la règle du vote est
-        # écrite — qui peut voter, combien de fois, comment on départage.
+        # POINT 61: a ranking is only credible if the voting rule is written —
+        # who can vote, how many times, how ties are broken.
         "sections": [
             {"title": "About the ranking",
              "ask": "what is ranked, by whom, for what purpose"},
@@ -502,8 +501,8 @@ FREE_MODE_LABEL = "Start from scratch (describe my entities freely)"
 
 
 def apply_effects(template, effects):
-    """Fusionne les effets d'une question de suivi acceptée dans le modèle.
-    Pure fonction sur des dicts — testable sans dialogue."""
+    """Merges the effects of an accepted follow-up question into the template.
+    A pure function on dicts — testable without a dialogue."""
     for ent, fields in effects.get("add_fields", {}).items():
         template["entities"][ent]["fields"].extend(fields)
     for ent, meta in effects.get("add_entities", {}).items():
@@ -515,14 +514,14 @@ def apply_effects(template, effects):
     template["extra_rules"].extend(effects.get("add_rules", []))
     for ent, rows in effects.get("add_seeds", {}).items():
         template["seeds"].setdefault(ent, []).extend(rows)
-    # Enrichir les lignes de seed existantes avec les nouveaux champs
-    # (une valeur réaliste par ligne, dans l'ordre).
+    # Enrich the existing seed rows with the new fields (one realistic value
+    # per row, in order).
     for ent, per_field in effects.get("add_seed_fields", {}).items():
         for field, values in per_field.items():
-            # strict=True : un modèle qui fournit 2 valeurs pour 3 lignes de
-            # seed doit ÉCHOUER ici, pas produire en silence une ligne à qui
-            # il manque un champ que les autres ont (le catalogue est testé
-            # modèle par modèle, la CI attrape donc l'erreur immédiatement).
+            # strict=True: a template that supplies 2 values for 3 seed rows
+            # must FAIL here, not silently produce a row missing a field the
+            # others have (the catalog is tested template by template, so CI
+            # catches the error immediately).
             for row, value in zip(template["seeds"].get(ent, []), values,
                                   strict=True):
                 row[field] = value

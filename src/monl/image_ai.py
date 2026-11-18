@@ -1,10 +1,9 @@
-"""Fournisseurs d'images matricielles pour la construction frontend.
+"""Raster image providers for the frontend build.
 
-Le fournisseur d'images est volontairement séparé de ``frontend_ai`` : le
-modèle texte ne peut rendre que des chaînes dans des fichiers autorisés, alors
-qu'une image doit traverser la frontière sous forme d'octets et être écrite
-dans le dossier d'assets du projet.
-"""
+The image provider is deliberately separate from ``frontend_ai``: the text
+model can only return strings in allowed files, whereas an image must
+cross the boundary as bytes and be written into the project's assets
+folder."""
 
 from __future__ import annotations
 
@@ -29,7 +28,7 @@ DEFAULT_IMAGE_POLL_TIMEOUT = 600.0
 
 
 class ImageProviderError(FrontendError):
-    """Erreur de service image ; la plateforme la traite comme indisponibilité."""
+    """Image service error; the platform treats it as unavailability."""
 
     status_code = 503
 
@@ -73,7 +72,7 @@ def _image_from_operation(payload):
 
 
 def _pillow_image_class():
-    """Charge Pillow seulement quand une image doit être optimisée."""
+    """Loads Pillow only when an image has to be optimized."""
     try:
         from PIL import Image
     except ImportError:
@@ -82,12 +81,11 @@ def _pillow_image_class():
 
 
 def optimize_image_bytes(image):
-    """Réduit un JPEG sans changer ses dimensions, avec un repli sûr.
+    """Shrinks a JPEG without changing its dimensions, with a safe fallback.
 
-    Pillow reste une aide de livraison, pas une condition de construction :
-    son absence, ou une image que Pillow ne sait pas décoder, conserve les
-    octets reçus et retourne un message destiné à l'utilisateur.
-    """
+    Pillow stays a delivery aid, not a build requirement: its absence, or an
+    image Pillow cannot decode, keeps the received bytes and returns a
+    message meant for the user."""
     original = bytes(image)
     image_class = _pillow_image_class()
     if image_class is None:
@@ -141,8 +139,9 @@ def _yandex_aspect_ratio(aspect_ratio):
 
 
 def _attendre_image(requests, api_key, operation_id):
-    """Interroge l'opération YandexART jusqu'à l'image, l'échec ou le délai.
-    Extrait de `call` (plafond de complexité) ; erreurs et délais inchangés."""
+    """Polls the YandexART operation until the image, the failure or the
+    timeout. Extracted from `call` (complexity ceiling); errors and timeouts
+    unchanged."""
     deadline = time.monotonic() + _poll_setting(
         "MONL_IMAGE_POLL_TIMEOUT", DEFAULT_IMAGE_POLL_TIMEOUT)
     while time.monotonic() < deadline:
@@ -184,12 +183,11 @@ def _attendre_image(requests, api_key, operation_id):
 
 def yandexart_provider(model=None, *, key_env="YANDEX_API_KEY",
                        folder_env="YANDEX_FOLDER_ID"):
-    """Construit un fournisseur d'octets JPEG basé sur YandexART.
+    """Builds a JPEG bytes provider based on YandexART.
 
-    La clé et le dossier viennent uniquement de l'environnement. Le modèle
-    peut être surchargé pour les environnements qui exposent une version
-    différente, mais le préréglage reste déterministe.
-    """
+    The key and the folder come only from the environment. The model can be
+    overridden for environments that expose a different version, but the
+    preset stays deterministic."""
     api_key = (os.environ.get(key_env) or "").strip()
     if not api_key:
         raise ImageProviderError(
@@ -271,7 +269,7 @@ IMAGE_PROVIDERS = {"yandexart": yandexart_provider}
 
 def record_image_usage(project_dir, provider, operation, attempt, *, run_id,
                        stage=None, path=None, status="success"):
-    """Ajoute une requête image sans fabriquer de compteurs de jetons."""
+    """Adds an image request without making up token counters."""
     usage = getattr(provider, "last_usage", None) or {}
     event = {
         "timestamp": datetime.now(timezone.utc).isoformat(),

@@ -91,8 +91,8 @@ def parse_files_payload(raw_text):
     payload = _json_payload(raw_text)
     return _validate_files(payload.get("files"), require_index=True)
 
-#: Un bloc clôturé Markdown, avec ou sans nom de langage. Le contenu est
-#: capturé tel quel : c'est un FICHIER, pas du JSON.
+#: A fenced Markdown block, with or without a language name. The content is
+#: captured as is: it is a FILE, not JSON.
 _BLOC_CLOTURE = re.compile(r"```[a-zA-Z0-9_+-]*\s*\n(.*?)\n?```", re.DOTALL)
 
 def _fichier_depuis_un_bloc(raw_text, expected_path):

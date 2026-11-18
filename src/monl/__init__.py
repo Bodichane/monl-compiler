@@ -1,21 +1,19 @@
-"""monl — compilateur d'intention logicielle et orchestrateur frontend.
+"""monl — software intent compiler and frontend orchestrator.
 
-Le paquet expose la chaîne complète : parseur (grammaire Lark), validateur
-et audit de sécurité, générateur de backend, contrat frontend, dialogue
-guidé et interface en ligne de commande.
+The package exposes the complete chain: parser (Lark grammar), validator
+and security audit, backend generator, frontend contract, guided dialogue
+and command line interface.
 
-POINT 65 : jusqu'à la bêta 3, ces modules vivaient à plat dans src/ et
-n'étaient importables qu'en manipulant sys.path — dans le shim d'entrée
-comme en tête de chaque fichier de tests. C'est désormais un vrai paquet :
-`from monl.parser import parse_monl_string` fonctionne partout où monl est
-installé, sans préparatif.
-"""
+POINT 65: until beta 3, these modules lived flat in src/ and could only be
+imported by manipulating sys.path — in the entry shim as at the top of
+each test file. It is now a real package: `from monl.parser import
+parse_monl_string` works wherever monl is installed, with no preparation."""
 
-# POINT 85 : ce numéro n'avait pas bougé des points 74 à 85 — cinq briques, un
-# outil, un correctif de sécurité. Il ne disait donc rien, et le point 81 a dû
-# construire sa détection d'artefacts périmés sur une RÉGÉNÉRATION plutôt que
-# sur lui. Il reste secondaire par construction : la version n'est pas une
-# preuve, la recompilation en est une. Mais un numéro faux est pire qu'un
-# numéro secondaire — il est désormais enregistré dans monl.json, pour que
-# l'avertissement du point 81 puisse dire AVEC QUOI le projet a été construit.
+# POINT 85: this number had not moved from points 74 to 85 — five bricks, one
+# tool, one security fix. It therefore said nothing, and point 81 had to build
+# its stale-artifact detection on a REGENERATION rather than on it. It stays
+# secondary by construction: the version is not a proof, the recompilation is.
+# But a wrong number is worse than a secondary one — it is now recorded in
+# monl.json, so that the point 81 warning can say WHAT the project was built
+# with.
 __version__ = "1.0.1"

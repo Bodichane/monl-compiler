@@ -1,4 +1,4 @@
-"""Étapes nommées de l'import du contenu CSV dans la spec."""
+"""Named steps of importing CSV content into the spec."""
 
 import itertools
 import os

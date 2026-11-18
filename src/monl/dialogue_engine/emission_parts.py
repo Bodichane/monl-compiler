@@ -3,10 +3,10 @@
 from ..ast_validator.champs import ChampsMixin
 from .fondations import SEEDABLE_TYPES
 
-#: Les types sur lesquels `min` compte des CARACTÈRES et non une valeur.
-#: Lue chez le validateur, jamais recopiée : une seconde liste finirait par
-#: diverger, et le dialogue émettrait alors une règle que le compilateur
-#: refuse — le pire résultat pour qui est guidé (point 173).
+#: The types on which `min` counts CHARACTERS and not a value. Read from the
+#: validator, never copied: a second list would eventually diverge, and the
+#: dialogue would then emit a rule the compiler refuses — the worst outcome for
+#: someone being guided (point 173).
 TYPES_TEXTE = ChampsMixin.BORNES_TEXTE
 
 

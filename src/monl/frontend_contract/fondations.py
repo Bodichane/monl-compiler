@@ -40,14 +40,14 @@ STOCK_HINTS = ("stock", "quantity", "quantite", "inventaire", "disponib",
 
 CONTRACT_FILENAME = "frontend_contract.json"
 
-#: Le brief se LIT : il part dans `docs/`. Le contrat, lui, reste à la racine —
-#: c'est l'interface MACHINE du projet, celle qu'un outil ouvre sans rien
-#: connaître de l'arborescence.
+#: The brief is READ: it goes into `docs/`. The contract, however, stays at the
+#: root — it is the project's MACHINE interface, the one a tool opens without
+#: knowing anything about the tree.
 PROMPT_FILENAME = f"{DOCS_DIR}/FRONTEND_PROMPT.md"
 
-#: La mémoire du projet s'appelle AGENTS.md et non CLAUDE.md : le frontend peut
-#: être écrit par claude-code, codex ou gemini (point 69), et nommer le fichier
-#: d'après un seul d'entre eux en fait un fichier que les autres ne lisent pas.
+#: The project memory is called AGENTS.md and not CLAUDE.md: the frontend can
+#: be written by claude-code, codex or gemini (point 69), and naming the file
+#: after only one of them makes it a file the others do not read.
 AGENTS_FILENAME = "AGENTS.md"
 
 README_FILENAME = "README.md"

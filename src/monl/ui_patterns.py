@@ -1,10 +1,9 @@
-"""Catalogue de patterns de composition pour les frontends Monl.
+"""Catalog of composition patterns for Monl frontends.
 
-Ce catalogue est inspiré des registres de références UI, mais il ne contient
-ni code React, ni Tailwind, ni dépendance externe. Il décrit des structures que
-DeepSeek peut traduire en HTML/CSS/JS autonome et que le contrat Monl peut
-ensuite contrôler.
-"""
+This catalog is inspired by UI reference registries, but it contains
+neither React code, nor Tailwind, nor any external dependency. It describes
+structures DeepSeek can translate into standalone HTML/CSS/JS and that the
+Monl contract can then check."""
 
 from __future__ import annotations
 
@@ -149,7 +148,7 @@ def _variant(name: str, kind: str) -> str:
 
 
 def select_ui_patterns(contract: dict, kind: str) -> list[dict]:
-    """Sélectionne les patterns sans inventer de contenu métier."""
+    """Selects the patterns without inventing business content."""
     entities = contract.get("entities") or {}
     archetypes = {entity.get("archetype") for entity in entities.values()}
     routes = contract.get("routes") or []
@@ -160,23 +159,22 @@ def select_ui_patterns(contract: dict, kind: str) -> list[dict]:
         for route in routes
     )
     selected = ["hero"]
-    # Une prestation tarifée peut être classée `shop` par l'archétype des
-    # champs, mais son parcours est la disponibilité/réservation, pas un
-    # catalogue et un panier. C'est le PARCOURS RÉELLEMENT OFFERT qui tranche,
-    # jamais le `kind` : `kind != "service"` faisait perdre son catalogue à
-    # `projets/KoraMaison` — une boutique (Customer/Order/OrderLine/Product)
-    # que l'inférence classe `service`, et qui n'a aucune route de réservation
-    # pour recevoir `booking` à la place.
+    # A priced service can be classified `shop` by the fields' archetype, but
+    # its journey is availability/booking, not a catalog and a cart. It is the
+    # JOURNEY REALLY OFFERED that decides, never the `kind`: `kind !=
+    # "service"` made `projets/KoraMaison` lose its catalog — a shop
+    # (Customer/Order/OrderLine/Product) that the inference classifies
+    # `service`, and which has no booking route to receive `booking` instead.
     if kind == "commerce" or ("shop" in archetypes and not booking_route):
         selected.append("catalogue")
-    # LE PLANCHER (point 119). Un site dont la MATIÈRE n'apparaît sur aucun
-    # écran obligatoire est une coquille, quel que soit son nombre de
-    # sections : `exemples/05_classement.ml` exigeait `hero` et
-    # `closing-cta`, et rien du tout pour le classement lui-même — le sujet
-    # du site n'était requis nulle part. Toute application qui expose des
-    # entités doit donc porter une section de collection, sauf quand une
-    # autre section joue déjà ce rôle : `booking` pour une réservation,
-    # `workspace` pour un poste de travail (ajouté par design_system).
+    # THE FLOOR (point 119). A site whose SUBSTANCE appears on no mandatory
+    # screen is a shell, whatever its number of sections:
+    # `exemples/05_classement.ml` required `hero` and `closing-cta`, and
+    # nothing at all for the ranking itself — the site's subject was required
+    # nowhere. Every application that exposes entities must therefore carry a
+    # collection section, except when another section already plays that role:
+    # `booking` for a booking, `workspace` for a workstation (added by
+    # design_system).
     if "catalogue" not in selected and entities and not booking_route \
             and kind != "operations":
         selected.append("catalogue")
@@ -187,13 +185,13 @@ def select_ui_patterns(contract: dict, kind: str) -> list[dict]:
     ))
     if contract.get("sections") or express_editorial:
         selected.append("editorial")
-    # `trust` était réservé au commerce et au service. Or la matière d'une
-    # section de réassurance ne vient pas du secteur : elle vient du CONTRAT,
-    # qui sait ce que le backend garantit vraiment — compte obligatoire,
-    # montant calculé côté serveur, stock décompté, commande figée après
-    # paiement. Ces phrases-là sont vraies pour toute application monl, et ce
-    # sont les seules autorisées : la section reste interdite d'inventer un
-    # avis, un logo ou un chiffre.
+    # `trust` was reserved to commerce and services. Yet the material of a
+    # trust section does not come from the industry: it comes from the
+    # CONTRACT, which knows what the backend really guarantees — mandatory
+    # account, server-side calculated amount, counted-down stock, order frozen
+    # after payment. These sentences are true for every monl application, and
+    # they are the only ones allowed: the section is still forbidden to invent
+    # a review, a logo or a figure.
     selected.append("trust")
     if contract.get("faq"):
         selected.append("faq")
@@ -219,7 +217,7 @@ def select_ui_patterns(contract: dict, kind: str) -> list[dict]:
 
 
 def render_pattern_block(patterns: Iterable[dict]) -> str:
-    """Rend le catalogue sélectionné dans le document lu par l'IA."""
+    """Renders the selected catalog into the document read by the AI."""
     chunks = []
     for pattern in patterns:
         required = ", ".join(pattern["must_have"])

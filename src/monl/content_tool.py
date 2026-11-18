@@ -1,4 +1,4 @@
-"""Export et import du contenu de démonstration sans édition manuelle du DSL."""
+"""Export and import of demo content without hand-editing the DSL."""
 import csv
 import os
 import re
@@ -97,8 +97,8 @@ def _valeur_csv(valeur, type_):
 
 
 def _aide_de_colonne(entite, colonne, champs, choix, contraintes):
-    """Ce que LISEZMOI dit d'une colonne. Extrait de `_lisez_moi` (plafond de
-    complexité) ; texte inchangé."""
+    """What LISEZMOI says about a column. Extracted from `_lisez_moi`
+    (complexity ceiling); text unchanged."""
     if colonne == "_parent":
         return "the value of a record in the parent entity to which this row should be linked"
     details = []

@@ -56,9 +56,9 @@ class DirectionMixin:
         return any(k in nom.lower() for k in ("image", "photo", "cover", "avatar",
                                               "picture", "visuel", "illustration"))
 
-    #: Ce qu'un pied de page porte SOUVENT, dans l'ordre où on y pense. La
-    #: liste est PROPOSÉE, jamais imposée : chaque entrée se passe en laissant
-    #: vide, exactement comme les rubriques du point 61.
+    #: What a footer OFTEN carries, in the order one thinks of it. The list is
+    #: OFFERED, never imposed: each entry is skipped by leaving it empty,
+    #: exactly like the sections of point 61.
     LIENS_PROPOSES = (
         {"label": "Email", "ask": "contact address"},
         {"label": "Phone", "ask": "phone number"},
@@ -67,8 +67,8 @@ class DirectionMixin:
         {"label": "LinkedIn", "ask": "page address"},
     )
 
-    #: La complétion vit au niveau du module : la console web de la
-    #: plateforme la partage sans instancier un dialogue.
+    #: Completion lives at module level: the platform's web console shares it
+    #: without instantiating a dialogue.
     _adresse_complete = staticmethod(adresse_de_lien)
 
     def _ask_footer_links(self):

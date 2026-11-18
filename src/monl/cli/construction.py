@@ -29,9 +29,9 @@ from ..frontend_contract.projet import (
 )
 from . import conteneur, emplacement, nomenclature
 
-#: Ce qui a changé de place. Écrit ici en toutes lettres et jamais dérivé des
-#: constantes courantes : un « ancien emplacement » décrit le PASSÉ, il ne peut
-#: pas se déduire du présent — leçon des Dockerfiles hérités (point 164).
+#: What moved. Written out here in full and never derived from the current
+#: constants: an "old location" describes the PAST, it cannot be deduced from
+#: the present — the lesson of the inherited Dockerfiles (point 164).
 _DOCUMENTS_RANGES = (
     PROMPT_FILENAME,
     "docs/FRONTEND_UPDATE_PROMPT.md",

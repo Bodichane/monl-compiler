@@ -1,4 +1,4 @@
-"""Politiques de champs et d'accès, indépendantes du rendu SQL et HTTP."""
+"""Field and access policies, independent of SQL and HTTP rendering."""
 
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -37,7 +37,7 @@ class _FieldDirectives:
 
 
 def event_counter_fields(security: SecurityIR) -> frozenset[FieldKey]:
-    """Point 202 : événements constants uniquement, jamais un budget réglable."""
+    """Point 202: constant events only, never a configurable budget."""
     events: set[FieldKey] = set()
     budgets: set[FieldKey] = set()
     for rule in security.get("reputation_rules", []):
@@ -50,7 +50,7 @@ def event_counter_fields(security: SecurityIR) -> frozenset[FieldKey]:
 
 
 def event_counters_by_entity(security: SecurityIR) -> dict[str, list[str]]:
-    """Les compteurs d'événements groupés par entité, que la création met à 0."""
+    """The event counters grouped by entity, which creation sets to 0."""
     groupes: dict[str, list[str]] = {}
     for entity, field in sorted(event_counter_fields(security)):
         groupes.setdefault(entity, []).append(field)
@@ -86,7 +86,7 @@ def plan_entity_models(
     derivations: Mapping[str, tuple[DerivedPlan, ...]],
     aggregations: Mapping[str, tuple[AggregatePlan, ...]],
 ) -> Mapping[str, EntityModel]:
-    """Consolide les marqueurs validés sans lire l'état d'un générateur."""
+    """Consolidates the validated markers without reading a generator's state."""
     directives = _field_directives(security)
     events = event_counter_fields(security)
     models: dict[str, EntityModel] = {}
@@ -115,7 +115,7 @@ def plan_entity_models(
 def plan_access_policies(
     security: SecurityIR, routes: Mapping[tuple[str, str], RoutePlan],
 ) -> Mapping[tuple[str, str], AccessPolicy]:
-    """Fige les décisions d'accès et copie leurs paramètres métier."""
+    """Freezes the access decisions and copies their business parameters."""
     policies: dict[tuple[str, str], AccessPolicy] = {}
     public = frozenset(security["public"])
     for (action, _key), route in routes.items():

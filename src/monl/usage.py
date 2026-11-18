@@ -1,11 +1,9 @@
-"""Lecture honnête du journal de consommation des fournisseurs IA.
+"""An honest reading of the AI providers' consumption log.
 
-Les tarifs ne vivent pas dans monl : ils sont fournis par l'exploitant. Ce
-module ne fait donc que vérifier la forme de la table, agréger les événements
-et calculer les coûts quand le tarif et les compteurs nécessaires sont
-présents. Les images sont facturées à la requête et n'ont volontairement
-aucun compteur de jetons.
-"""
+Prices do not live in monl: the operator supplies them. This module
+therefore only checks the table's shape, aggregates the events and
+computes costs when the price and the required counters are present.
+Images are billed per request and deliberately have no token counter."""
 
 import json
 import math
@@ -126,9 +124,9 @@ def _price_label(provider, model):
 
 
 def _cout_d_un_evenement(event, price_table):
-    """(coût, libellé de prix manquant ou None, compteur manquant) d'un
-    événement. Extrait de `_aggregate` (plafond de complexité) : un événement
-    sans tarif ou sans compteur coûte zéro et le DIT, jamais en silence."""
+    """(cost, missing price label or None, missing counter) of an event.
+    Extracted from `_aggregate` (complexity ceiling): an event without a price
+    or without a counter costs zero and SAYS so, never silently."""
     provider = event.get("provider")
     model = event.get("model")
     rates = price_table["prices"].get(provider, {}).get(model)
@@ -235,7 +233,7 @@ def _execution(run_id, events, price_table):
 
 
 def build_usage_report(project_dir, prices_path=None):
-    """Construit un rapport JSON-sérialisable sans regrouper par intuition."""
+    """Builds a JSON-serializable report without grouping by intuition."""
     resolved_prices = prices_path or os.environ.get(PRICES_ENVIRONMENT)
     price_table = _load_prices(resolved_prices)
     journal_path = os.path.join(project_dir, USAGE_FILENAME)
