@@ -11,58 +11,65 @@ from string import Template
 class ConnexionRuntimeMixin:
     """Inscription, connexion, déconnexion, et les gardes qui les entourent."""
 
+    def _lignes_connexion_gardee(self):
+        """Lecture du compte à la connexion quand `lockout` ou `totp` arment
+        des gardes. Extraite de `_socle_authentification` pour tenir sous le
+        plafond de complexité ; les lignes émises sont inchangées."""
+        select = Template(r"""SELECT id, password_hash, salt, actor, anon_handle${version}""").substitute(version=self._colonne_version())
+        if self.auth_features.get("totp"):
+            select = Template(r"""${select}, totp_secret, totp_enabled, totp_last_step""").substitute(select=select)
+        lookup_lines = [
+            Template(r"""    cursor.execute('${select} FROM _monl_users WHERE username = ?', (_identifiant,))""").substitute(select=select),
+            *Template(r"""    row = cursor.fetchone(); conn.close()
+    if not row:
+        db_user_id, stored_hash, salt_hex, actor, anon_handle = None, _DUMMY_HASH, _DUMMY_SALT_HEX, '', ''""").substitute().split("\n"),
+        ]
+        if self.auth_features.get("totp"):
+            lookup_lines.append("        totp_secret, totp_enabled, totp_last_step = None, False, None")
+        lookup_lines.extend([
+            Template(r"""    else:""").substitute(),
+        ])
+        if self.auth_features.get("totp"):
+            lookup_lines.append("        db_user_id, stored_hash, salt_hex, actor, anon_handle, token_version, totp_secret, totp_enabled, totp_last_step = row")
+        else:
+            lookup_lines.append("        db_user_id, stored_hash, salt_hex, actor, anon_handle, token_version = row")
+        lookup_lines.extend([
+            Template(r"""    _candidate_hash = _hash_password(req.password if row else req.password[:256], salt_hex)""").substitute(),
+        ])
+        if self.auth_features.get("lockout"):
+            lookup_lines.extend([
+                # Le compte absent paie aussi la lecture du verrou, sur
+                # `None` : aucune ligne ne peut correspondre à cette
+                # valeur factice, donc aucun UPDATE ne peut être émis.
+                *Template(r"""    if _account_lock_active(db_user_id):
+        raise HTTPException(status_code=401, detail='Invalid credentials.')""").substitute().split("\n"),
+            ])
+        lookup_lines.extend([
+            Template(r"""    if not hmac.compare_digest(_candidate_hash, stored_hash):""").substitute(),
+        ])
+        if self.auth_features.get("lockout"):
+            lookup_lines.append("        if db_user_id is not None: _record_account_failure(db_user_id)")
+        lookup_lines.extend([
+            Template(r"""        raise HTTPException(status_code=401, detail='Invalid credentials.')""").substitute(),
+        ])
+        if self.auth_features.get("totp"):
+            lookup_lines.extend([
+                Template(r"""    if totp_enabled and not _consume_totp(db_user_id, totp_secret, req.totp_code):""").substitute(),
+            ])
+            if self.auth_features.get("lockout"):
+                lookup_lines.append("        _record_account_failure(db_user_id)")
+            lookup_lines.extend([
+                Template(r"""        raise HTTPException(status_code=401, detail='Invalid credentials.')""").substitute(),
+            ])
+        return lookup_lines
+
     def _socle_authentification(self, api_lines):
         """Inscription, connexion, déconnexion — et les gardes qui les entourent."""
         auth_checks = bool(self.auth_features.get("lockout") or self.auth_features.get("totp"))
         login_request_extra = ([Template(r"""    totp_code: Optional[str] = None""").substitute()]
                                if self.auth_features.get("totp") else [])
         if auth_checks:
-            select = Template(r"""SELECT id, password_hash, salt, actor, anon_handle${version}""").substitute(version=self._colonne_version())
-            if self.auth_features.get("totp"):
-                select = Template(r"""${select}, totp_secret, totp_enabled, totp_last_step""").substitute(select=select)
-            lookup_lines = [
-                Template(r"""    cursor.execute('${select} FROM _monl_users WHERE username = ?', (_identifiant,))""").substitute(select=select),
-                *Template(r"""    row = cursor.fetchone(); conn.close()
-    if not row:
-        db_user_id, stored_hash, salt_hex, actor, anon_handle = None, _DUMMY_HASH, _DUMMY_SALT_HEX, '', ''""").substitute().split("\n"),
-            ]
-            if self.auth_features.get("totp"):
-                lookup_lines.append("        totp_secret, totp_enabled, totp_last_step = None, False, None")
-            lookup_lines.extend([
-                Template(r"""    else:""").substitute(),
-            ])
-            if self.auth_features.get("totp"):
-                lookup_lines.append("        db_user_id, stored_hash, salt_hex, actor, anon_handle, token_version, totp_secret, totp_enabled, totp_last_step = row")
-            else:
-                lookup_lines.append("        db_user_id, stored_hash, salt_hex, actor, anon_handle, token_version = row")
-            lookup_lines.extend([
-                Template(r"""    _candidate_hash = _hash_password(req.password if row else req.password[:256], salt_hex)""").substitute(),
-            ])
-            if self.auth_features.get("lockout"):
-                lookup_lines.extend([
-                    # Le compte absent paie aussi la lecture du verrou, sur
-                    # `None` : aucune ligne ne peut correspondre à cette
-                    # valeur factice, donc aucun UPDATE ne peut être émis.
-                    *Template(r"""    if _account_lock_active(db_user_id):
-        raise HTTPException(status_code=401, detail='Invalid credentials.')""").substitute().split("\n"),
-                ])
-            lookup_lines.extend([
-                Template(r"""    if not hmac.compare_digest(_candidate_hash, stored_hash):""").substitute(),
-            ])
-            if self.auth_features.get("lockout"):
-                lookup_lines.append("        if db_user_id is not None: _record_account_failure(db_user_id)")
-            lookup_lines.extend([
-                Template(r"""        raise HTTPException(status_code=401, detail='Invalid credentials.')""").substitute(),
-            ])
-            if self.auth_features.get("totp"):
-                lookup_lines.extend([
-                    Template(r"""    if totp_enabled and not _consume_totp(db_user_id, totp_secret, req.totp_code):""").substitute(),
-                ])
-                if self.auth_features.get("lockout"):
-                    lookup_lines.append("        _record_account_failure(db_user_id)")
-                lookup_lines.extend([
-                    Template(r"""        raise HTTPException(status_code=401, detail='Invalid credentials.')""").substitute(),
-                ])
+            lookup_lines = self._lignes_connexion_gardee()
         else:
             lookup_lines = [
                 *Template(r"""    cursor.execute('SELECT id, password_hash, salt, actor, anon_handle FROM _monl_users WHERE username = ?', (_identifiant,))

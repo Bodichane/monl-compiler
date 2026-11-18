@@ -200,28 +200,35 @@ class CommerceMixin:
                 )
 
         for payable in self.payable_fields:
-            entity, field = payable["entity"], payable["field"]
-            if (entity, field) not in derived and (entity, field) not in sums:
-                raise ASTValidationError(
-                    f"Structure: '{entity}.{field}' is 'payable' but the client can write it -- "
-                    f"the creator of a '{entity}' becomes its owner, and therefore the payer: they "
-                    f"would set the amount they pay. Add a rule that makes the server calculate the "
-                    f"amount, for example "
-                    f"'rule {entity}.{field} derivedFrom Article.prix by quantite', ou "
-                    f"'rule {entity}.{field} sumOf Ligne.sousTotal' for a cart."
-                )
-            total = sums.get((entity, field))
-            if total is not None:
-                source = (total["source_entity"], total["source_field"])
-                if source not in derived and source not in sums:
-                    raise ASTValidationError(
-                        f"Structure: '{entity}.{field}' is 'payable' and sums "
-                        f"'{total['source_entity']}.{total['source_field']}', which the client can "
-                        f"write -- adding an amount supplied by the payer still lets the payer set "
-                        f"the total, with one extra addition. Make the line calculated by the "
-                        f"server, for example 'rule {total['source_entity']}."
-                        f"{total['source_field']} derivedFrom Article.prix by quantite'."
-                    )
+            self._verifier_montant_calcule(payable["entity"], payable["field"], derived, sums)
+
+    @staticmethod
+    def _verifier_montant_calcule(entity, field, derived, sums):
+        """Un montant `payable` doit être calculé par le serveur, et une somme
+        ne doit additionner que des lignes elles-mêmes calculées. Extrait de
+        `_valider_securite_calculs_paiement` (plafond de complexité)."""
+        if (entity, field) not in derived and (entity, field) not in sums:
+            raise ASTValidationError(
+                f"Structure: '{entity}.{field}' is 'payable' but the client can write it -- "
+                f"the creator of a '{entity}' becomes its owner, and therefore the payer: they "
+                f"would set the amount they pay. Add a rule that makes the server calculate the "
+                f"amount, for example "
+                f"'rule {entity}.{field} derivedFrom Product.price by quantity', or "
+                f"'rule {entity}.{field} sumOf OrderLine.subtotal' for a cart."
+            )
+        total = sums.get((entity, field))
+        if total is None:
+            return
+        source = (total["source_entity"], total["source_field"])
+        if source not in derived and source not in sums:
+            raise ASTValidationError(
+                f"Structure: '{entity}.{field}' is 'payable' and sums "
+                f"'{total['source_entity']}.{total['source_field']}', which the client can "
+                f"write -- adding an amount supplied by the payer still lets the payer set "
+                f"the total, with one extra addition. Make the line calculated by the "
+                f"server, for example 'rule {total['source_entity']}."
+                f"{total['source_field']} derivedFrom Product.price by quantity'."
+            )
 
     def _valider_proprietaire_paiement(self):
         """Vérifie qu'un montant payable remonte réellement jusqu'à un compte."""

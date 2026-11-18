@@ -272,27 +272,36 @@ class ProprietaireMixin:
         placements = self._compute_fk_placements()
         identity_cols = {}
         for entity in self.entities:
-            if entity not in creatable:
-                continue
-            if (entity, "Create") in self.public_actions:
-                continue  # aucune identité fiable : la colonne reste NULL
-            if entity in self.transitive_ownership:
-                # Brique 11 : la colonne contient un id d'enregistrement
-                # intermédiaire, pas un id de compte -- elle référence donc la
-                # vraie table métier, et non '_monl_users'.
-                continue
-            cibles_compteur = {r.target_entity
-                               for r in self.reputation_rules_by_trigger.get(entity, [])}
-            candidats = [p for p in placements.get(entity, [])
-                         if p["owner_entity"] in self.actors
-                         # cible choisie par le client : vraie référence métier
-                         and p["owner_entity"] not in cibles_compteur]
-            if not candidats:
-                continue
-            proprietaires = {v for k, v in self.ownership.items()
-                             if k.split(".", 1)[0] == entity}
-            choisi = next((p for p in candidats if p["owner_entity"] in proprietaires),
-                          candidats[0])
-            identity_cols.setdefault(entity, set()).add(choisi["fk_column"])
+            colonne = self._colonne_d_identite(entity, creatable, placements)
+            if colonne is not None:
+                identity_cols.setdefault(entity, set()).add(colonne)
         self._identity_fk_caches = identity_cols
         return identity_cols
+
+    def _colonne_d_identite(self, entity, creatable, placements):
+        """La colonne qu'une entité peuple depuis le jeton, ou None.
+
+        Extraite de `_identity_fk_columns` pour tenir sous le plafond de
+        complexité ; les trois exclusions et le choix restent ceux-là."""
+        if entity not in creatable:
+            return None
+        if (entity, "Create") in self.public_actions:
+            return None  # aucune identité fiable : la colonne reste NULL
+        if entity in self.transitive_ownership:
+            # Brique 11 : la colonne contient un id d'enregistrement
+            # intermédiaire, pas un id de compte -- elle référence donc la
+            # vraie table métier, et non '_monl_users'.
+            return None
+        cibles_compteur = {r.target_entity
+                           for r in self.reputation_rules_by_trigger.get(entity, [])}
+        candidats = [p for p in placements.get(entity, [])
+                     if p["owner_entity"] in self.actors
+                     # cible choisie par le client : vraie référence métier
+                     and p["owner_entity"] not in cibles_compteur]
+        if not candidats:
+            return None
+        proprietaires = {v for k, v in self.ownership.items()
+                         if k.split(".", 1)[0] == entity}
+        choisi = next((p for p in candidats if p["owner_entity"] in proprietaires),
+                      candidats[0])
+        return choisi["fk_column"]

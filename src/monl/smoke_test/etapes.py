@@ -228,6 +228,17 @@ def _fichiers_reclames_servis(base, errors, has_frontend, workdir):
                 detail += " This file was not delivered."
             errors.append(detail)
 
+def _premier_rapport_json(sortie):
+    """La première ligne JSON de la sortie du runner jsdom, ou None.
+    Extrait de `_frontend_dans_jsdom` (plafond de complexité)."""
+    for line in sortie.splitlines():
+        try:
+            return json.loads(line)
+        except json.JSONDecodeError:
+            continue
+    return None
+
+
 def _frontend_dans_jsdom(base, contract, errors, has_frontend, say, warnings, workdir):
     """Le frontend, chargé dans un vrai navigateur sans écran."""
     # --- 3. frontend réel dans jsdom (si Node disponible) ---
@@ -250,13 +261,7 @@ def _frontend_dans_jsdom(base, contract, errors, has_frontend, say, warnings, wo
                     [node, runner, os.path.join(workdir, "frontend"), base],
                     cwd=workdir, capture_output=True, text=True, timeout=60,
                     env={**os.environ, "NODE_PATH": fondations._jsdom_node_path()})
-                report = None
-                for line in proc.stdout.splitlines():
-                    try:
-                        report = json.loads(line)
-                        break
-                    except json.JSONDecodeError:
-                        continue
+                report = _premier_rapport_json(proc.stdout)
                 if report is None:
                     errors.append("the jsdom runner produced no report: "
                                   + (proc.stderr or proc.stdout)[-300:])

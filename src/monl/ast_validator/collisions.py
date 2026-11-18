@@ -47,6 +47,26 @@ class CollisionsMixin:
                     f"which is not a declared actor."
                 )
 
+    @staticmethod
+    def _valider_texte_du_message(reference, subject, body):
+        """Sujet et corps non vides, sans saut de ligne brut — le sujet en
+        particulier, sinon injection d'en-têtes SMTP. Extrait de
+        `_valider_regles_message` (plafond de complexité) ; refus inchangés."""
+        if not subject.strip():
+            raise ASTValidationError(
+                f"Structure: the subject of message '{reference}' cannot be empty.")
+        if not body.strip():
+            raise ASTValidationError(
+                f"Structure: the body of message '{reference}' cannot be empty.")
+        if "\r" in subject or "\n" in subject:
+            raise ASTValidationError(
+                f"Structure: the subject of '{reference}' contains a line break. "
+                "Rejected to prevent SMTP header injection (Bcc, Cc, etc.).")
+        if "\r" in body or "\n" in body:
+            raise ASTValidationError(
+                f"Structure: the body of '{reference}' contains a raw line break. "
+                "Use the '¶' separator between paragraphs.")
+
     def _valider_regles_message(self):
         """Valide les notifications e-mail déclenchées par une création.
 
@@ -100,20 +120,7 @@ class CollisionsMixin:
 
             subject = rule.get("subject", "")
             body = rule.get("body", "")
-            if not subject.strip():
-                raise ASTValidationError(
-                    f"Structure: the subject of message '{reference}' cannot be empty.")
-            if not body.strip():
-                raise ASTValidationError(
-                    f"Structure: the body of message '{reference}' cannot be empty.")
-            if "\r" in subject or "\n" in subject:
-                raise ASTValidationError(
-                    f"Structure: the subject of '{reference}' contains a line break. "
-                    "Rejected to prevent SMTP header injection (Bcc, Cc, etc.).")
-            if "\r" in body or "\n" in body:
-                raise ASTValidationError(
-                    f"Structure: the body of '{reference}' contains a raw line break. "
-                    "Use the '¶' separator between paragraphs.")
+            self._valider_texte_du_message(reference, subject, body)
             self.message_rules.append({
                 "trigger_entity": entity,
                 "trigger_action": action,
@@ -123,11 +130,18 @@ class CollisionsMixin:
 
     def _valider_workflows_et_collisions(self):
         """Valide les workflows et détecte les collisions d'autorité."""
-        access_matrix = {}
         shared_permissions = {
             rule["reference"]: set(rule["value"])
             for rule in self.rules if rule["type"] == "sharedBy"
         }
+        access_matrix = self._matrice_d_acces()
+        self._verifier_collisions(access_matrix, shared_permissions)
+
+    def _matrice_d_acces(self):
+        """{entité: {action: {acteurs}}} déclarée par les workflows, actions
+        publiques exclues — avec les refus de structure en chemin. Extraite
+        de `_valider_workflows_et_collisions` (plafond de complexité)."""
+        access_matrix = {}
         for workflow in self.workflows:
             actor = workflow["actor"]
             if actor not in self.actors:
@@ -151,7 +165,12 @@ class CollisionsMixin:
                 if (entity, action_type) in self.public_actions:
                     continue
                 access_matrix.setdefault(entity, {}).setdefault(action_type, set()).add(actor)
+        return access_matrix
 
+    def _verifier_collisions(self, access_matrix, shared_permissions):
+        """Plusieurs acteurs sur une même écriture : partage déclaré, propriété
+        ou parties, sinon CRITICAL_COLLISION. Extrait de
+        `_valider_workflows_et_collisions` ; messages et ordre inchangés."""
         for entity, actions in access_matrix.items():
             for action_type, authorized_actors in actions.items():
                 if len(authorized_actors) <= 1 or action_type not in ("Create", "Update", "Delete"):

@@ -23,6 +23,42 @@ class CapacitesMixin:
     # une spec qui ne dit rien compile exactement comme avant.
     FORMES_IDENTIFIANT = ("email", "phone", "libre")
 
+    @staticmethod
+    def _indicatif_valide(brut):
+        """L'indicatif `phone_prefix` nettoyé, ou un refus. Extrait de
+        `_valider_identifiant_de_compte` (plafond de complexité)."""
+        valeur = brut.strip()
+        # Un indicatif est un '+' suivi de 1 à 4 chiffres : pas de
+        # motif à importer pour si peu, et une dépendance de moins.
+        if not (valeur.startswith("+") and valeur[1:].isdigit()
+                and 1 <= len(valeur) - 1 <= 4):
+            raise ASTValidationError(
+                f"Structure: 'phone_prefix' must be an international "
+                f"calling code—a '+' followed by 1 to 4 digits "
+                f"(found: {valeur!r}).")
+        return valeur
+
+    def _formes_demandees(self, brutes):
+        """Les formes d'identifiant d'une liste, dédoublonnées dans l'ordre, ou
+        un refus. Extrait de `_valider_identifiant_de_compte` (plafond)."""
+        demandees = list(dict.fromkeys(brutes))
+        inconnues = [f for f in demandees if f not in self.FORMES_IDENTIFIANT]
+        if inconnues:
+            raise ASTValidationError(
+                f"Structure: unknown identifier form(s): "
+                f"{', '.join(inconnues)}. Recognized forms: "
+                f"{', '.join(self.FORMES_IDENTIFIANT)}.")
+        # 'libre' accepte tout : le cumuler avec une forme stricte annule
+        # cette dernière sans le dire. Un refus vaut mieux qu'une règle
+        # écrite qui ne produit rien — c'est tout le point 85.
+        if "libre" in demandees and len(demandees) > 1:
+            raise ASTValidationError(
+                "Structure: 'identifier: libre' already accepts any "
+                "string—combining it with "
+                f"{', '.join(f for f in demandees if f != 'libre')} "
+                "would add no constraint and imply otherwise.")
+        return demandees
+
     def _valider_identifiant_de_compte(self, capacites):
         """Formes acceptées par '/register', déclarées sur 'capability auth'.
 
@@ -32,16 +68,7 @@ class CapacitesMixin:
         formes, prefixe = None, None
         for capacite in capacites:
             if "phone_prefix" in capacite:
-                valeur = capacite["phone_prefix"].strip()
-                # Un indicatif est un '+' suivi de 1 à 4 chiffres : pas de
-                # motif à importer pour si peu, et une dépendance de moins.
-                if not (valeur.startswith("+") and valeur[1:].isdigit()
-                        and 1 <= len(valeur) - 1 <= 4):
-                    raise ASTValidationError(
-                        f"Structure: 'phone_prefix' must be an international "
-                        f"calling code—a '+' followed by 1 to 4 digits "
-                        f"(found: {valeur!r}).")
-                prefixe = valeur
+                prefixe = self._indicatif_valide(capacite["phone_prefix"])
             if "identifier" not in capacite:
                 continue
             if capacite["name"] != "auth":
@@ -49,22 +76,7 @@ class CapacitesMixin:
                     f"Structure: 'identifier' only makes sense on "
                     f"'capability auth' (found on '{capacite['name']}')— "
                     "it constrains registration.")
-            demandees = list(dict.fromkeys(capacite["identifier"]))
-            inconnues = [f for f in demandees if f not in self.FORMES_IDENTIFIANT]
-            if inconnues:
-                raise ASTValidationError(
-                    f"Structure: unknown identifier form(s): "
-                    f"{', '.join(inconnues)}. Recognized forms: "
-                    f"{', '.join(self.FORMES_IDENTIFIANT)}.")
-            # 'libre' accepte tout : le cumuler avec une forme stricte annule
-            # cette dernière sans le dire. Un refus vaut mieux qu'une règle
-            # écrite qui ne produit rien — c'est tout le point 85.
-            if "libre" in demandees and len(demandees) > 1:
-                raise ASTValidationError(
-                    "Structure: 'identifier: libre' already accepts any "
-                    "string—combining it with "
-                    f"{', '.join(f for f in demandees if f != 'libre')} "
-                    "would add no constraint and imply otherwise.")
+            demandees = self._formes_demandees(capacite["identifier"])
             if formes is not None:
                 raise ASTValidationError(
                     "Structure: 'identifier' declared twice on "

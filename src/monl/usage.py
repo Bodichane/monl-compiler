@@ -125,6 +125,33 @@ def _price_label(provider, model):
     return f"{provider or 'unknown provider'}/{model or 'unknown model'}"
 
 
+def _cout_d_un_evenement(event, price_table):
+    """(coût, libellé de prix manquant ou None, compteur manquant) d'un
+    événement. Extrait de `_aggregate` (plafond de complexité) : un événement
+    sans tarif ou sans compteur coûte zéro et le DIT, jamais en silence."""
+    provider = event.get("provider")
+    model = event.get("model")
+    rates = price_table["prices"].get(provider, {}).get(model)
+    if rates is None:
+        return Decimal("0"), _price_label(provider, model), False
+    if event.get("billing_unit") == "request":
+        request_value = _counter(event, "requests")
+        if rates.get("request") is None:
+            return Decimal("0"), _price_label(provider, model), False
+        if request_value is None:
+            return Decimal("0"), None, True
+        return Decimal(str(request_value)) * rates["request"], None, False
+    input_value = _counter(event, "input_tokens")
+    output_value = _counter(event, "output_tokens")
+    if (input_value is None or output_value is None
+            or rates.get("input") is None or rates.get("output") is None):
+        return Decimal("0"), None, True
+    return (
+        Decimal(str(input_value)) * rates["input"] / Decimal("1000000")
+        + Decimal(str(output_value)) * rates["output"] / Decimal("1000000")
+    ), None, False
+
+
 def _aggregate(events, price_table):
     token_events = _token_events(events)
     request_events = _request_events(events)
@@ -146,31 +173,11 @@ def _aggregate(events, price_table):
     missing_prices = []
     missing_counters = False
     for event in events:
-        provider = event.get("provider")
-        model = event.get("model")
-        rates = price_table["prices"].get(provider, {}).get(model)
-        if rates is None:
-            missing_prices.append(_price_label(provider, model))
-            continue
-        if event.get("billing_unit") == "request":
-            request_value = _counter(event, "requests")
-            if rates.get("request") is None:
-                missing_prices.append(_price_label(provider, model))
-            elif request_value is None:
-                missing_counters = True
-            else:
-                priced_cost += Decimal(str(request_value)) * rates["request"]
-            continue
-        input_value = _counter(event, "input_tokens")
-        output_value = _counter(event, "output_tokens")
-        if (input_value is None or output_value is None
-                or rates.get("input") is None or rates.get("output") is None):
-            missing_counters = True
-            continue
-        priced_cost += (
-            Decimal(str(input_value)) * rates["input"] / Decimal("1000000")
-            + Decimal(str(output_value)) * rates["output"] / Decimal("1000000")
-        )
+        cout, prix_absent, compteur_absent = _cout_d_un_evenement(event, price_table)
+        priced_cost += cout
+        if prix_absent is not None:
+            missing_prices.append(prix_absent)
+        missing_counters = missing_counters or compteur_absent
 
     if not events:
         cost = Decimal("0")

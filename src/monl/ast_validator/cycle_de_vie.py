@@ -25,6 +25,29 @@ class CycleDeVieMixin:
                 f"First declare the initial state in the 'oneOf' of "
                 f"'{entity}.{field}'.")
 
+    def _verifier_entite_liberee(self, entity, released_entity):
+        """L'entité libérée existe, porte un `decrements`, et dépend de
+        `entity`. Extrait de `_valider_regles_liberation` (plafond de
+        complexité) ; refus et messages inchangés."""
+        if released_entity not in self.entities:
+            raise ASTValidationError(
+                f"Structure: 'releases' names entity '{released_entity}', which does not exist."
+            )
+        decrements = [
+            item for item in self.reputation_rules
+            if item["trigger_entity"] == released_entity and item["direction"] == "decrements"
+        ]
+        if not decrements:
+            raise ASTValidationError(
+                f"Structure: 'releases {released_entity}' would release nothing — this entity has "
+                f"no 'decrements' rule. It is what a decrement consumed that gets returned."
+            )
+        if not any(rel["source"] == entity and rel["target"] == released_entity for rel in self.relations):
+            raise ASTValidationError(
+                f"Structure: 'releases' requires a '{entity} hasMany {released_entity}' relation — "
+                f"without it, nothing specifies which {released_entity} rows depend on this {entity}."
+            )
+
     def _valider_regles_liberation(self):
         """Valide les transitions qui rendent un compteur décrémenté."""
         self.release_rules = []
@@ -54,24 +77,7 @@ class CycleDeVieMixin:
                     f"({', '.join(repr(choice) for choice in choices)}) — it would never occur."
                 )
             released_entity = rule["entity"]
-            if released_entity not in self.entities:
-                raise ASTValidationError(
-                    f"Structure: 'releases' names entity '{released_entity}', which does not exist."
-                )
-            decrements = [
-                item for item in self.reputation_rules
-                if item["trigger_entity"] == released_entity and item["direction"] == "decrements"
-            ]
-            if not decrements:
-                raise ASTValidationError(
-                    f"Structure: 'releases {released_entity}' would release nothing — this entity has "
-                    f"no 'decrements' rule. It is what a decrement consumed that gets returned."
-                )
-            if not any(rel["source"] == entity and rel["target"] == released_entity for rel in self.relations):
-                raise ASTValidationError(
-                    f"Structure: 'releases' requires a '{entity} hasMany {released_entity}' relation — "
-                    f"without it, nothing specifies which {released_entity} rows depend on this {entity}."
-                )
+            self._verifier_entite_liberee(entity, released_entity)
             if any(item["entity"] == entity and item["field"] == field for item in self.release_rules):
                 raise ASTValidationError(
                     f"Structure: two 'releases' rules on '{entity}.{field}' — the first release "

@@ -9,6 +9,60 @@ from .socle import ASTValidationError
 class MigrationsMixin:
     """Les migrations déclarées, et ce qu'elles ont le droit de faire."""
 
+    def _operation_de_migration(self, name, reference, entity, field, operation, known_types):
+        """Une opération `rename`, `alter` ou `drop`, validée et normalisée.
+        Extraite de `_valider_migrations` (plafond de complexité) ; refus,
+        messages et forme de l'opération inchangés."""
+        kind = operation["kind"]
+        if kind == "rename":
+            new_field = operation["new_name"]
+            if field == new_field:
+                raise ASTValidationError(
+                    f"Structure: migration '{name}' renames "
+                    f"'{reference}' to itself.")
+            if field in self.entities[entity]:
+                raise ASTValidationError(
+                    f"Structure: source column '{reference}' still exists "
+                    "in the target spec; remove it before renaming it.")
+            if new_field not in self.entities[entity]:
+                raise ASTValidationError(
+                    f"Structure: rename '{reference}' to "
+                    f"'{entity}.{new_field}' cannot find the target column "
+                    "in the current spec.")
+            return {
+                "kind": kind, "entity": entity, "table": entity.lower(),
+                "old": field, "new": new_field, "reversible": True,
+            }
+        if kind == "alter":
+            old_type = operation["from_type"]
+            new_type = operation["to_type"]
+            if old_type not in known_types or new_type not in known_types:
+                raise ASTValidationError(
+                    f"Structure: migration '{name}' has unknown types "
+                    f"({old_type} -> {new_type}).")
+            if old_type == new_type:
+                raise ASTValidationError(
+                    f"Structure: migration '{name}' does not change the type "
+                    f"of '{reference}'.")
+            actual_type = self.entities[entity].get(field)
+            if actual_type != new_type:
+                raise ASTValidationError(
+                    f"Structure: target spec for '{name}' declares '{reference}' "
+                    f"as {actual_type}, but the operation specifies {new_type}.")
+            return {
+                "kind": kind, "entity": entity, "table": entity.lower(),
+                "field": field, "from_type": old_type, "to_type": new_type,
+                "reversible": True,
+            }
+        if field in self.entities[entity]:
+            raise ASTValidationError(
+                f"Structure: dropped column '{reference}' still exists "
+                "in the target spec; remove it before the explicit DROP.")
+        return {
+            "kind": kind, "entity": entity, "table": entity.lower(),
+            "old": field, "reversible": False,
+        }
+
     def _valider_migrations(self):
         """Valide les opérations de schéma qui ne sont pas additives.
 
@@ -54,53 +108,6 @@ class MigrationsMixin:
                         f"Structure: operation {index} of migration '{name}' "
                         "is declared more than once.")
                 seen_operations.add(key)
-                if kind == "rename":
-                    new_field = operation["new_name"]
-                    if field == new_field:
-                        raise ASTValidationError(
-                            f"Structure: migration '{name}' renames "
-                            f"'{reference}' to itself.")
-                    if field in self.entities[entity]:
-                        raise ASTValidationError(
-                            f"Structure: source column '{reference}' still exists "
-                            "in the target spec; remove it before renaming it.")
-                    if new_field not in self.entities[entity]:
-                        raise ASTValidationError(
-                            f"Structure: rename '{reference}' to "
-                            f"'{entity}.{new_field}' cannot find the target column "
-                            "in the current spec.")
-                    operations.append({
-                        "kind": kind, "entity": entity, "table": entity.lower(),
-                        "old": field, "new": new_field, "reversible": True,
-                    })
-                elif kind == "alter":
-                    old_type = operation["from_type"]
-                    new_type = operation["to_type"]
-                    if old_type not in known_types or new_type not in known_types:
-                        raise ASTValidationError(
-                            f"Structure: migration '{name}' has unknown types "
-                            f"({old_type} -> {new_type}).")
-                    if old_type == new_type:
-                        raise ASTValidationError(
-                            f"Structure: migration '{name}' does not change the type "
-                            f"of '{reference}'.")
-                    actual_type = self.entities[entity].get(field)
-                    if actual_type != new_type:
-                        raise ASTValidationError(
-                            f"Structure: target spec for '{name}' declares '{reference}' "
-                            f"as {actual_type}, but the operation specifies {new_type}.")
-                    operations.append({
-                        "kind": kind, "entity": entity, "table": entity.lower(),
-                        "field": field, "from_type": old_type, "to_type": new_type,
-                        "reversible": True,
-                    })
-                else:
-                    if field in self.entities[entity]:
-                        raise ASTValidationError(
-                            f"Structure: dropped column '{reference}' still exists "
-                            "in the target spec; remove it before the explicit DROP.")
-                    operations.append({
-                        "kind": kind, "entity": entity, "table": entity.lower(),
-                        "old": field, "reversible": False,
-                    })
+                operations.append(self._operation_de_migration(
+                    name, reference, entity, field, operation, known_types))
             self.migrations.append({"name": name, "operations": operations})

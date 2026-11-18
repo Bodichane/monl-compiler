@@ -23,6 +23,34 @@ class ChampsMixin:
     # un 'max' au-delà promettrait une donnée que la colonne ne peut pas tenir.
     LONGUEUR_COLONNE = {"String": 255, "Email": 320, "Text": 20000}
 
+    def _champ_contraint(self, reference, ou):
+        """(entité, champ, type) visés par une contrainte, ou un refus qui dit
+        pourquoi. Extrait de `_valider_contraintes_de_champ` (plafond de
+        complexité) ; refus et messages inchangés."""
+        if "." not in reference:
+            raise ASTValidationError(
+                f"Structure: '{ou}' must reference 'Entity.field', got '{reference}'.")
+        entite, champ = reference.split(".", 1)
+        if entite not in self.entities:
+            raise ASTValidationError(
+                f"Structure: '{ou}' references entity '{entite}', which does not exist. "
+                f"Declared entities: {', '.join(sorted(self.entities))}.")
+        type_champ = self.entities[entite].get(champ)
+        if type_champ is None:
+            proches = [c for c in self.entities[entite] if c.lower() == champ.lower()]
+            indice = f" Did you mean '{proches[0]}'?" if proches else ""
+            raise ASTValidationError(
+                f"Structure: '{ou}' references field '{champ}', which entity "
+                f"'{entite}' does not declare.{indice} Fields of {entite}: "
+                f"{', '.join(self.entities[entite])}. A constraint on a nonexistent field "
+                f"does not apply to anything—and suggests otherwise.")
+        if type_champ == "Upload":
+            raise ASTValidationError(
+                f"Structure: '{ou}' does not apply to '{reference}' of type Upload. "
+                "Constrain an upload with 'upload max … types …', which produces "
+                "real multipart rejections in the backend.")
+        return entite, champ, type_champ
+
     def _valider_contraintes_de_champ(self):
         """POINT 85 : les quatre règles qui ne faisaient rien.
 
@@ -47,29 +75,7 @@ class ChampsMixin:
                 continue
             reference = rule["reference"]
             ou = f"rule {reference} {type_regle}"
-            if "." not in reference:
-                raise ASTValidationError(
-                    f"Structure: '{ou}' must reference 'Entity.field', got '{reference}'.")
-            entite, champ = reference.split(".", 1)
-            if entite not in self.entities:
-                raise ASTValidationError(
-                    f"Structure: '{ou}' references entity '{entite}', which does not exist. "
-                    f"Declared entities: {', '.join(sorted(self.entities))}.")
-            type_champ = self.entities[entite].get(champ)
-            if type_champ is None:
-                proches = [c for c in self.entities[entite] if c.lower() == champ.lower()]
-                indice = f" Did you mean '{proches[0]}'?" if proches else ""
-                raise ASTValidationError(
-                    f"Structure: '{ou}' references field '{champ}', which entity "
-                    f"'{entite}' does not declare.{indice} Fields of {entite}: "
-                    f"{', '.join(self.entities[entite])}. A constraint on a nonexistent field "
-                    f"does not apply to anything—and suggests otherwise.")
-
-            if type_champ == "Upload":
-                raise ASTValidationError(
-                    f"Structure: '{ou}' does not apply to '{reference}' of type Upload. "
-                    "Constrain an upload with 'upload max … types …', which produces "
-                    "real multipart rejections in the backend.")
+            entite, champ, type_champ = self._champ_contraint(reference, ou)
 
             contraintes = self.field_constraints.setdefault((entite, champ), {})
             if type_regle in contraintes:
@@ -162,33 +168,64 @@ class ChampsMixin:
             seen_fields.add((entity, field))
 
             clauses = rule["value"]
-            if len(clauses) < 2:
-                raise ASTValidationError(
-                    f"Structure: 'categorized' on '{entity}.{field}' must declare at least one threshold ('below') "
-                    f"and a fallback tier ('otherwise')."
-                )
-            for clause in clauses[:-1]:
-                if "otherwise" in clause:
-                    raise ASTValidationError(
-                    f"Structure: 'categorized' on '{entity}.{field}'—only the LAST tier can be "
-                        f"'otherwise' (fallback tier); it appeared earlier in the list."
-                    )
-            if "otherwise" not in clauses[-1]:
-                raise ASTValidationError(
-                    f"Structure: 'categorized' on '{entity}.{field}' must end with an 'otherwise' tier "
-                    f"(the fallback tier that covers every value beyond the last threshold)."
-                )
-            thresholds = [clause["below"] for clause in clauses[:-1]]
-            if thresholds != sorted(set(thresholds)) or len(thresholds) != len(set(thresholds)):
-                raise ASTValidationError(
-                    f"Structure: 'categorized' on '{entity}.{field}' —'below' thresholds must be "
-                    f"strictly increasing (got: {thresholds})."
-                )
-            if any(not clause["label"].strip() for clause in clauses):
-                raise ASTValidationError(
-                    f"Structure: 'categorized' on '{entity}.{field}' —each tier must have a non-empty label."
-                )
+            self._valider_paliers_categorises(entity, field, clauses)
             self.categorized_fields.append({"entity": entity, "field": field, "clauses": clauses})
+
+    @staticmethod
+    def _valider_paliers_categorises(entity, field, clauses):
+        """Les paliers d'un `categorized` : au moins un seuil, `otherwise` en
+        dernier et seulement là, seuils strictement croissants, libellés non
+        vides. Extrait de `_valider_champs_categorises` (plafond de
+        complexité) ; refus et messages inchangés."""
+        if len(clauses) < 2:
+            raise ASTValidationError(
+                f"Structure: 'categorized' on '{entity}.{field}' must declare at least one threshold ('below') "
+                f"and a fallback tier ('otherwise')."
+            )
+        for clause in clauses[:-1]:
+            if "otherwise" in clause:
+                raise ASTValidationError(
+                    f"Structure: 'categorized' on '{entity}.{field}'—only the LAST tier can be "
+                    f"'otherwise' (fallback tier); it appeared earlier in the list."
+                )
+        if "otherwise" not in clauses[-1]:
+            raise ASTValidationError(
+                f"Structure: 'categorized' on '{entity}.{field}' must end with an 'otherwise' tier "
+                f"(the fallback tier that covers every value beyond the last threshold)."
+            )
+        thresholds = [clause["below"] for clause in clauses[:-1]]
+        if thresholds != sorted(set(thresholds)) or len(thresholds) != len(set(thresholds)):
+            raise ASTValidationError(
+                f"Structure: 'categorized' on '{entity}.{field}' —'below' thresholds must be "
+                f"strictly increasing (got: {thresholds})."
+            )
+        if any(not clause["label"].strip() for clause in clauses):
+            raise ASTValidationError(
+                f"Structure: 'categorized' on '{entity}.{field}' —each tier must have a non-empty label."
+            )
+
+    @staticmethod
+    def _valider_liste_de_choix(entity, field, values):
+        """Au moins deux valeurs, aucune vide, aucune répétée. Extrait de
+        `_valider_champs_enumeres` (plafond de complexité) ; refus inchangés."""
+        if len(values) < 2:
+            raise ASTValidationError(
+                f"Structure: 'oneOf' on '{entity}.{field}' lists only one value—"
+                f"a field with only one possible value does not need to be entered."
+            )
+        empty_values = [value for value in values if not value.strip()]
+        if empty_values:
+            raise ASTValidationError(
+                f"Structure: 'oneOf' on '{entity}.{field}' contains an empty value—"
+                f"it would be indistinguishable from an unfilled field on screen."
+            )
+        duplicates = [value for value in set(values) if values.count(value) > 1]
+        if duplicates:
+            raise ASTValidationError(
+                f"Structure: 'oneOf' on '{entity}.{field}' repeats "
+                f"{', '.join(repr(duplicate) for duplicate in sorted(duplicates))}—a choice list "
+                f"that offers the same option twice is a data entry error."
+            )
 
     def _valider_champs_enumeres(self):
         """Valide les champs texte limités à une liste de valeurs."""
@@ -211,24 +248,7 @@ class ChampsMixin:
                     f"'categorized' already provide this."
                 )
             values = rule["value"]
-            if len(values) < 2:
-                raise ASTValidationError(
-                    f"Structure: 'oneOf' on '{entity}.{field}' lists only one value—"
-                    f"a field with only one possible value does not need to be entered."
-                )
-            empty_values = [value for value in values if not value.strip()]
-            if empty_values:
-                raise ASTValidationError(
-                    f"Structure: 'oneOf' on '{entity}.{field}' contains an empty value—"
-                    f"it would be indistinguishable from an unfilled field on screen."
-                )
-            duplicates = [value for value in set(values) if values.count(value) > 1]
-            if duplicates:
-                raise ASTValidationError(
-                    f"Structure: 'oneOf' on '{entity}.{field}' repeats "
-                    f"{', '.join(repr(duplicate) for duplicate in sorted(duplicates))}—a choice list "
-                    f"that offers the same option twice is a data entry error."
-                )
+            self._valider_liste_de_choix(entity, field, values)
             if entity in self.enumerated_fields and field in self.enumerated_fields[entity]:
                 raise ASTValidationError(
                     f"Structure: two 'oneOf' rules on '{entity}.{field}'—which list would apply?"

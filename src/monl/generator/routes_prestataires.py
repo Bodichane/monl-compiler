@@ -140,6 +140,41 @@ class PrestatairesRoutesMixin:
             lignes += self._lignes_restitution(enfant, fk_enfant, indent="        ")
         return lignes
 
+    def _ligne_schema_apres_paiement(self, entite, field):
+        """La ligne Pydantic d'un champ de la route après paiement : type,
+        liste de choix, bornes déclarées et plafond de longueur. Extraite de
+        `_generate_postpayment_routes` (plafond de complexité) ; texte émis
+        inchangé à l'octet."""
+        field_type = self.entities[entite][field]
+        py_type = {"Integer": "int", "Float": "float", "Money": "float",
+                   "Boolean": "bool"}.get(field_type, "str")
+        choix = self.enumerated_fields.get(entite, {}).get(field)
+        if choix:
+            valeurs = ", ".join(repr(v) for v in choix)
+            py_type = f"Literal[{valeurs}]"
+        contraintes = self.field_constraints.get(entite, {}).get(field, {})
+        bornes = []
+        for nom, mot_texte, mot_nombre in (("min", "min_length", "ge"),
+                                            ("max", "max_length", "le")):
+            borne = contraintes.get(nom)
+            if borne:
+                mot = mot_texte if borne["portee"] == "longueur" else mot_nombre
+                bornes.append(f"{mot}={borne['valeur']}")
+        if py_type == "str":
+            limite = {"Text": 20000, "Email": 320, "UUID": 36}.get(
+                field_type, 255)
+            if not any(b.startswith("max_length=") for b in bornes):
+                bornes.append(f"max_length={limite}")
+            if field_type == "Email":
+                bornes.append(r"pattern=r'^[^@\s]+@[^@\s]+\.[^@\s]{2,}$'")
+            if field_type == "UUID":
+                bornes.append(
+                    r"pattern=r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-"
+                    r"[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'")
+        if bornes and not choix:
+            return f"    {field}: Optional[{py_type}] = Field(None, {', '.join(bornes)})"
+        return f"    {field}: Optional[{py_type}] = None"
+
     def _generate_postpayment_routes(self):
         lignes = []
         for entite, config in sorted(self.postpayment_writable_by_entity.items()):
@@ -147,42 +182,7 @@ class PrestatairesRoutesMixin:
             schema = f"{entite}ApresPaiementSchema"
             lignes += ["", f"class {schema}(BaseModel):"]
             for field in config["fields"]:
-                field_type = self.entities[entite][field]
-                py_type = "str"
-                if field_type == "Integer":
-                    py_type = "int"
-                elif field_type in ("Float", "Money"):
-                    py_type = "float"
-                elif field_type == "Boolean":
-                    py_type = "bool"
-                choix = self.enumerated_fields.get(entite, {}).get(field)
-                if choix:
-                    valeurs = ", ".join(repr(v) for v in choix)
-                    py_type = f"Literal[{valeurs}]"
-                contraintes = self.field_constraints.get(entite, {}).get(field, {})
-                bornes = []
-                for nom, mot_texte, mot_nombre in (("min", "min_length", "ge"),
-                                                    ("max", "max_length", "le")):
-                    borne = contraintes.get(nom)
-                    if borne:
-                        mot = mot_texte if borne["portee"] == "longueur" else mot_nombre
-                        bornes.append(f"{mot}={borne['valeur']}")
-                if py_type == "str":
-                    limite = {"Text": 20000, "Email": 320, "UUID": 36}.get(
-                        field_type, 255)
-                    if not any(b.startswith("max_length=") for b in bornes):
-                        bornes.append(f"max_length={limite}")
-                    if field_type == "Email":
-                        bornes.append(r"pattern=r'^[^@\s]+@[^@\s]+\.[^@\s]{2,}$'")
-                    if field_type == "UUID":
-                        bornes.append(
-                            r"pattern=r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-"
-                            r"[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'")
-                if bornes and not choix:
-                    lignes.append(
-                        f"    {field}: Optional[{py_type}] = Field(None, {', '.join(bornes)})")
-                else:
-                    lignes.append(f"    {field}: Optional[{py_type}] = None")
+                lignes.append(self._ligne_schema_apres_paiement(entite, field))
 
             lignes.extend(self._required_text_validator(entite, config["fields"]))
 

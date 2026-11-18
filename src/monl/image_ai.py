@@ -140,6 +140,48 @@ def _yandex_aspect_ratio(aspect_ratio):
     return {"widthRatio": width, "heightRatio": height}
 
 
+def _attendre_image(requests, api_key, operation_id):
+    """Interroge l'opération YandexART jusqu'à l'image, l'échec ou le délai.
+    Extrait de `call` (plafond de complexité) ; erreurs et délais inchangés."""
+    deadline = time.monotonic() + _poll_setting(
+        "MONL_IMAGE_POLL_TIMEOUT", DEFAULT_IMAGE_POLL_TIMEOUT)
+    while time.monotonic() < deadline:
+        time.sleep(_poll_setting(
+            "MONL_IMAGE_POLL_INTERVAL", DEFAULT_IMAGE_POLL_INTERVAL))
+        try:
+            status = requests.get(
+                YANDEXART_OPERATION_URL.format(operation_id=operation_id),
+                headers={"Authorization": f"Api-Key {api_key}"},
+                timeout=60,
+            )
+        except requests.RequestException as exc:
+            raise ImageProviderError(
+                f"YandexART: unable to read operation — {exc}"
+            ) from exc
+        if status.status_code != 200:
+            raise ImageProviderError(
+                f"YandexART: operation read returned {status.status_code} — "
+                f"{status.text[:300]}"
+            )
+        try:
+            operation = status.json()
+        except (ValueError, json.JSONDecodeError) as exc:
+            raise ImageProviderError(
+                "YandexART returned an invalid operation status."
+            ) from exc
+        if operation.get("error"):
+            detail = operation["error"].get("message", "unknown error")
+            raise ImageProviderError(f"YandexART : {detail}")
+        image = _image_from_operation(operation)
+        if image is not None:
+            return image
+        if operation.get("done"):
+            raise ImageProviderError(
+                "YandexART completed without returning image data."
+            )
+    raise ImageProviderError("YandexART: operation timed out.")
+
+
 def yandexart_provider(model=None, *, key_env="YANDEX_API_KEY",
                        folder_env="YANDEX_FOLDER_ID"):
     """Construit un fournisseur d'octets JPEG basé sur YandexART.
@@ -209,44 +251,7 @@ def yandexart_provider(model=None, *, key_env="YANDEX_API_KEY",
             raise ImageProviderError("YandexART returned an operation without an ID.")
 
         if image is None:
-            deadline = time.monotonic() + _poll_setting(
-                "MONL_IMAGE_POLL_TIMEOUT", DEFAULT_IMAGE_POLL_TIMEOUT)
-            while time.monotonic() < deadline:
-                time.sleep(_poll_setting(
-                    "MONL_IMAGE_POLL_INTERVAL", DEFAULT_IMAGE_POLL_INTERVAL))
-                try:
-                    status = requests.get(
-                        YANDEXART_OPERATION_URL.format(operation_id=operation_id),
-                        headers={"Authorization": f"Api-Key {api_key}"},
-                        timeout=60,
-                    )
-                except requests.RequestException as exc:
-                    raise ImageProviderError(
-                        f"YandexART: unable to read operation — {exc}"
-                    ) from exc
-                if status.status_code != 200:
-                    raise ImageProviderError(
-                        f"YandexART: operation read returned {status.status_code} — "
-                        f"{status.text[:300]}"
-                    )
-                try:
-                    operation = status.json()
-                except (ValueError, json.JSONDecodeError) as exc:
-                    raise ImageProviderError(
-                        "YandexART returned an invalid operation status."
-                    ) from exc
-                if operation.get("error"):
-                    detail = operation["error"].get("message", "unknown error")
-                    raise ImageProviderError(f"YandexART : {detail}")
-                image = _image_from_operation(operation)
-                if image is not None:
-                    break
-                if operation.get("done"):
-                    raise ImageProviderError(
-                        "YandexART completed without returning image data."
-                    )
-            if image is None:
-                raise ImageProviderError("YandexART: operation timed out.")
+            image = _attendre_image(requests, api_key, operation_id)
 
         call.last_usage = {
             "duration_seconds": round(time.monotonic() - started, 3),

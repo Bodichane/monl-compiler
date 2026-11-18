@@ -65,6 +65,19 @@ def _declared_link_errors(project_dir, rendered_source):
         for lien in liens if lien["url"] not in source
     ]
 
+def _dossier_assets_du_contrat(project_dir):
+    """Le dossier d'assets déclaré par le contrat, ou None s'il est illisible.
+    Extrait de `_frontend_local_reference_errors` (plafond de complexité)."""
+    contract_path = os.path.join(project_dir, "frontend_contract.json")
+    if not os.path.exists(contract_path):
+        return None
+    try:
+        with open(contract_path, encoding="utf-8") as fh:
+            return (json.load(fh).get("assets") or {}).get("dir")
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
 def _frontend_local_reference_errors(project_dir):
     """Vérifie les ressources locales réellement référencées par le site.
 
@@ -84,15 +97,7 @@ def _frontend_local_reference_errors(project_dir):
     """
     frontend_dir = os.path.join(project_dir, "frontend")
     errors = []
-    assets_dir = None
-    contract_path = os.path.join(project_dir, "frontend_contract.json")
-    if os.path.exists(contract_path):
-        try:
-            with open(contract_path, encoding="utf-8") as fh:
-                assets_dir = (json.load(fh).get("assets") or {}).get("dir")
-        except (OSError, json.JSONDecodeError):
-            assets_dir = None
-    prefixe_assets = (assets_dir or "").strip("/")
+    prefixe_assets = (_dossier_assets_du_contrat(project_dir) or "").strip("/")
     # Le wrapper ne monte le dossier d'assets que `if os.path.isdir(...)` :
     # déclaré dans la spec ne veut pas dire présent sur le disque. Quand il
     # est absent, aucune route n'est enregistrée et Starlette laisse la
