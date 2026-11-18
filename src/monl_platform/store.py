@@ -1,9 +1,8 @@
-"""Façade de persistance du magasin de plateforme.
+"""Persistence façade of the platform store.
 
-POINT 162 : le mixin des constructions a disparu avec la file de builds. Ne
-restent que la base et les projets — un catalogue de slugs, pas un historique
-de travaux facturés.
-"""
+POINT 162: the builds mixin disappeared with the build queue. Only the
+database and the projects remain — a catalog of slugs, not a history of
+billed jobs."""
 
 from __future__ import annotations
 
@@ -12,7 +11,7 @@ from .store_projects import StoreProjectsMixin
 
 
 class PlatformStore(StoreCoreMixin, StoreProjectsMixin):
-    """Magasin SQLite des métadonnées de projets."""
+    """SQLite store of project metadata."""
 
 
 Store = PlatformStore

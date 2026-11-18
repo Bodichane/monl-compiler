@@ -10,8 +10,8 @@
 # Providers: 'claude' (Anthropic API, key in ANTHROPIC_API_KEY) first; the
 # abstraction is a plain function provider(prompt) -> str, which makes the
 # module testable by real execution with a fake provider
-# (tests/test_frontend_ai.py) and extensible (GPT or other) without touching
-# the orchestration loop.
+# (tests/test_smoke_and_frontend_ai.py) and extensible (GPT or other) without
+# touching the orchestration loop.
 #
 # Safeguards (the returned frontend comes from a model, it is treated as
 # untrusted input — the same philosophy as the 'custom' block safeguard, point

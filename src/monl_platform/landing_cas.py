@@ -1,13 +1,12 @@
-"""L'explorateur de cas métier de la page d'accueil.
+"""The home page's business case explorer.
 
-Extrait de `landing.py` quand celle-ci a franchi le plafond de 400 lignes du
-point 155 — un fichier de plus, pas une exception de plus : ce module est du
-CODE, pas un littéral de données comme les deux seules exceptions écrites.
+Extracted from `landing.py` when that file crossed point 155's 400-line
+ceiling — one more file, not one more exception: this module is CODE, not
+a data literal like the only two written exceptions.
 
-L'ensemble se tient : la feuille, les données des quatre cas, le balisage et
-le script du repère qui glisse. Les séparer aurait mis la classe `glisse` dans
-un fichier et la règle qui la lit dans un autre.
-"""
+The whole holds together: the stylesheet, the data of the four cases, the
+markup and the script of the sliding marker. Separating them would have
+put the `glisse` class in one file and the rule that reads it in another."""
 
 from __future__ import annotations
 
@@ -113,8 +112,8 @@ def case_panel(item: dict, index: int) -> str:
     rules = "".join(f"<span>{rule}</span>" for rule in item["teaches"])
     active = " active" if index == 0 else ""
     hidden = "" if index == 0 else " hidden"
-    # Colorié ICI et non dans la table : la table reste du texte nu,
-    # relisible et comparable à une vraie spec.
+    # Highlighted HERE and not in the table: the table stays plain text,
+    # rereadable and comparable to a real spec.
     snippet = coloriser(CASE_SNIPPETS[item["id"]])
     return f"""<section class="case-panel{active}" id="case-{item['id']}" role="tabpanel"
 aria-labelledby="tab-{item['id']}"{hidden}><div><h3>{item['name']}</h3><p>{CASE_OUTCOMES[item['id']]}</p>

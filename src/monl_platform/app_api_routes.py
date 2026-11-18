@@ -41,8 +41,8 @@ def mount_api_routes(
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         codes = identities.create_recovery_codes(user["id"])
         evenement("compte_cree", compte=court(user["id"]))
-        # Les codes ne sortent QU'ICI et à la régénération. Comme une clé
-        # d'API, ils ne sont pas relisibles : seule leur empreinte est gardée.
+        # The codes come out ONLY here and on regeneration. Like an API key,
+        # they cannot be read back: only their fingerprint is kept.
         return _session_response(identities, user, status_code=201,
                                  extra={"recovery_codes": codes})
 
@@ -52,8 +52,8 @@ def mount_api_routes(
         payload = await _json_body(request)
         user = identities.authenticate(payload.get("email"), payload.get("password"))
         if not user:
-            # L'adresse essayée n'est pas journalisée : elle serait une donnée
-            # personnelle dans un fichier que tout l'hébergement peut lire.
+            # The address tried is not logged: it would be personal data in a
+            # file the whole hosting can read.
             anomalie("connexion_refusee", ip=_client_ip(request))
             raise HTTPException(status_code=401, detail="Incorrect email or password.")
         evenement("connexion", compte=court(user["id"]))
@@ -79,17 +79,15 @@ def mount_api_routes(
 
     @application.post("/api/auth/recover", status_code=204)
     async def recuperer(request: Request):
-        """Reprendre la main sur un compte dont le mot de passe est perdu.
+        """Taking back control of an account whose password is lost.
 
-        BORNÉE PAR L'ADRESSE IP, comme la connexion. Un code fait 16
-        caractères tirés au sort, mais huit codes vivants par compte font huit
-        chances par essai : sans plafond, la seule chose qui protégerait
-        serait la patience de l'attaquant.
+        BOUNDED BY IP ADDRESS, like login. A code is 16 random characters, but
+        eight live codes per account make eight chances per attempt: without a
+        ceiling, the only thing protecting it would be the attacker's patience.
 
-        Le refus est le MÊME pour un code faux, une adresse inconnue et un
-        mot de passe trop court — 401 et rien d'autre. Distinguer apprendrait
-        à un attaquant laquelle des trois il tient déjà.
-        """
+        The refusal is the SAME for a wrong code, an unknown address and a
+        password that is too short — 401 and nothing else. Telling them apart
+        would teach an attacker which of the three they already have."""
         _rate_limit(request, identities, "recover", _client_ip(request), 5, 3600)
         payload = await _json_body(request)
         user = identities.consume_recovery_code(
@@ -179,17 +177,16 @@ def mount_api_routes(
 
     @application.post("/api/dialogue")
     async def dialogue(request: Request):
-        """Rejouer le dialogue guidé jusqu'à la prochaine question.
+        """Replays the guided dialogue up to the next question.
 
-        La liste complète vient du navigateur à chaque appel ; elle n'est
-        jamais persistée par la plateforme. Le dialogue reste le seul endroit
-        qui sait valider les réponses et construire le DSL.
+        The complete list comes from the browser on every call; it is never
+        persisted by the platform. The dialogue stays the only place that knows
+        how to validate the answers and build the DSL.
 
-        La réponse porte ``answers`` : la liste FAISANT AUTORITÉ, celle que le
-        navigateur doit adopter telle quelle. Une réponse refusée n'y entre
-        pas — sinon elle brûlerait une des trois tentatives du moteur et trois
-        fautes de frappe tueraient le dialogue (voir ``soumettre``).
-        """
+        The response carries ``answers``: the AUTHORITATIVE list, the one the
+        browser must adopt as is. A refused answer does not enter it — otherwise
+        it would burn one of the engine's three attempts and three typos would
+        kill the dialogue (see ``soumettre``)."""
         user = _require_user(request, identities)
         _rate_limit(request, identities, "dialogue", user["id"], 120, 60)
         payload = await _json_body(request)

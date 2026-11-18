@@ -1,4 +1,4 @@
-"""Point d'entrée non interactif vers le catalogue d'applications monl."""
+"""Non-interactive entry point to the monl application catalog."""
 
 import contextlib
 import io
@@ -30,13 +30,12 @@ def materialize_template(
     say=None,
     links=(),
 ):
-    """Matérialise un modèle en spec en passant par le vrai dialogue.
+    """Materializes a template into a spec by going through the real dialogue.
 
-    Le mode express ne fabrique pas une spec parallèle : il demande au
-    ``GuidedDialogue`` de choisir le modèle, puis laisse son émetteur et sa
-    revalidation parser/audit produire le DSL. ``template`` accepte le numéro
-    1-based du catalogue ou son nom exact.
-    """
+    Express mode does not make a parallel spec: it asks the
+    ``GuidedDialogue`` to choose the template, then lets its emitter and its
+    parser/audit revalidation produce the DSL. ``template`` accepts the
+    catalog's 1-based number or its exact name."""
     index = _template_index(template)
     if description is None:
         description = f"Application built from the {TEMPLATES[index - 1]['name']} template."

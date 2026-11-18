@@ -16,8 +16,8 @@ BUILD_STATES = ("en_attente", "en_cours", "reussie", "echouee")
 
 
 def _types_de_colonnes(db, table):
-    """{colonne: TYPE en majuscules} d'une table, vide si elle n'existe pas.
-    `table` est une constante interne, jamais une valeur reçue."""
+    """{column: uppercase TYPE} of a table, empty if it does not exist. `table`
+    is an internal constant, never a received value."""
     return {
         row["name"]: (row["type"] or "").upper()
         for row in db.execute(f"PRAGMA table_info({table})")
@@ -43,7 +43,7 @@ class StoreCoreMixin:
 
     @contextlib.contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:
-        """Ouvre, valide (ou annule), puis ferme une connexion SQLite."""
+        """Opens, commits (or rolls back), then closes a SQLite connection."""
         connection = sqlite3.connect(
             self.database, check_same_thread=False, timeout=30
         )
@@ -57,16 +57,15 @@ class StoreCoreMixin:
             connection.close()
 
     def close(self):
-        """Compatibilité avec les appelants : aucune connexion ne persiste."""
+        """Compatibility with callers: no connection persists."""
         return None
 
     def _migrate(self):
-        """Crée le schéma puis ajoute seulement les colonnes manquantes.
+        """Creates the schema then adds only the missing columns.
 
-        Une exécution répétée est sans effet. Une évolution future doit
-        ajouter une entrée à ``columns`` plutôt que supprimer ou renommer une
-        colonne : c'est la discipline des migrations additives de monl.
-        """
+        A repeated run has no effect. A future change must add an entry to
+        ``columns`` rather than delete or rename a column: it is the discipline of
+        monl's additive migrations."""
         with self._lock, self._connect() as db:
             self._reject_non_additive_project_schema(db, complete=False)
             db.executescript(
@@ -164,23 +163,22 @@ class StoreCoreMixin:
 
     @staticmethod
     def _armer_unicite_du_slug(db):
-        """L'adresse d'un site est UNIQUE sur toute la plateforme.
+        """A site's address is UNIQUE across the whole platform.
 
-        C'est un sous-domaine : deux projets qui la partagent rendent l'hôte
-        ambigu, et `SiteManager.project_for_host` refuse alors de servir — il
-        a raison de refuser, mais rien n'empêchait d'en arriver là.
-        `UNIQUE(user_id, slug)` ne protégeait que d'un homonyme du MÊME compte.
+        It is a subdomain: two projects sharing it make the host ambiguous, and
+        `SiteManager.project_for_host` then refuses to serve — it is right to
+        refuse, but nothing prevented getting there. `UNIQUE(user_id, slug)` only
+        protected against a namesake in the SAME account.
 
-        Un INDEX, et pas une vérification applicative : c'est lui qui tient
-        aussi deux écritures concurrentes. Et `IF NOT EXISTS`, comme au
-        point 85 — la migration additive du dépôt ajoute, elle ne réécrit pas.
+        An INDEX, and not an application check: it is what also holds two
+        concurrent writes. And `IF NOT EXISTS`, as in point 85 — the repository's
+        additive migration adds, it does not rewrite.
 
-        SUR UNE BASE DÉJÀ EN DOUBLON, la création échoue. On ne renomme PAS :
-        changer l'adresse d'un site en ligne au démarrage serait pire que le
-        défaut qu'on corrige. Les doublons sont COMPTÉS et NOMMÉS — même
-        arbitrage qu'au point 89 pour les enregistrements sans horodatage —
-        et l'exploitant tranche en supprimant les projets en trop.
-        """
+        ON A DATABASE ALREADY HOLDING DUPLICATES, the creation fails. We do NOT
+        rename: changing a live site's address at startup would be worse than the
+        defect being fixed. The duplicates are COUNTED and NAMED — the same
+        trade-off as point 89 for records without a timestamp — and the operator
+        decides by deleting the extra projects."""
         try:
             db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_builder_projects_slug "
                        "ON builder_projects(slug)")
@@ -203,15 +201,14 @@ class StoreCoreMixin:
 
     @staticmethod
     def _reject_non_additive_project_schema(db, *, complete=True):
-        """Refuse une ancienne forme qui demanderait reconstruction ou DROP.
+        """Refuses an old shape that would require a rebuild or a DROP.
 
-        La tranche précédente a créé ``builder_projects.id`` et
-        ``builder_projects.account_id``. SQLite ne permet pas de transformer
-        honnêtement cette table en place : il faudrait déplacer des lignes et
-        réécrire les clés étrangères. La migration additive du dépôt refuse
-        donc le démarrage en nommant la procédure manuelle, tout en laissant
-        intactes les données héritées.
-        """
+        The previous slice created ``builder_projects.id`` and
+        ``builder_projects.account_id``. SQLite does not allow honestly
+        transforming this table in place: rows would have to be moved and foreign
+        keys rewritten. The repository's additive migration therefore refuses to
+        start, naming the manual procedure, while leaving the inherited data
+        intact."""
         builder = _types_de_colonnes(db, "builder_projects")
         builds = _types_de_colonnes(db, "builds")
         if not builder and not builds:
@@ -258,7 +255,7 @@ class StoreCoreMixin:
 
     @staticmethod
     def _normalize_model_routes(routes):
-        """Valide la forme, en laissant les cibles au compilateur."""
+        """Validates the shape, leaving the targets to the compiler."""
         if routes is None:
             return {}
         if isinstance(routes, dict):
@@ -312,7 +309,7 @@ class StoreCoreMixin:
         return [self._project_values(row) for row in self._rows(db, query, parameters)]
 
     def legacy_account_count(self):
-        """Compte les lignes de l'ancien registre sans jamais les employer."""
+        """Counts the rows of the old registry without ever using them."""
         with self._lock, self._connect() as db:
             return db.execute("SELECT COUNT(*) FROM accounts").fetchone()[0]
 

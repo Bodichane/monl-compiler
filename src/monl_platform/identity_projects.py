@@ -39,17 +39,16 @@ class IdentityProjectsMixin:
         return cursor.rowcount == 1
 
     def delete_user(self, user_id: str) -> list[str]:
-        """Efface un compte et rend les projets à retirer du disque.
+        """Erases an account and returns the projects to remove from disk.
 
-        Les sessions, projets et clés tombent par `ON DELETE CASCADE` — d'où
-        l'importance du `PRAGMA foreign_keys = ON` posé à chaque connexion :
-        SQLite ignore les clés étrangères par défaut, et sans lui la ligne
-        `users` partirait en laissant tout le reste orphelin.
+        Sessions, projects and keys go away through `ON DELETE CASCADE` — hence
+        the importance of the `PRAGMA foreign_keys = ON` set on every connection:
+        SQLite ignores foreign keys by default, and without it the `users` row
+        would go away leaving everything else orphaned.
 
-        Les identifiants de projet sont relus AVANT la suppression : après,
-        plus rien ne dit quels dossiers effacer. Même raisonnement qu'au
-        point 92 du compilateur, sur la restitution de stock.
-        """
+        The project identifiers are read BEFORE the deletion: afterwards, nothing
+        says which folders to erase. Same reasoning as point 92 of the compiler,
+        on returning stock."""
         with self._connect() as db:
             rows = db.execute("SELECT project_id FROM projects WHERE user_id = ?",
                               (user_id,)).fetchall()

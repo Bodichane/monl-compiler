@@ -1,4 +1,4 @@
-"""Ambiance décorative partagée par toutes les pages de la plateforme."""
+"""Decorative ambiance shared by every page of the platform."""
 
 CSS = """
 /* ---------- ambiance partagée ---------- */

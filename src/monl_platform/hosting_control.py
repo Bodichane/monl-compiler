@@ -1,4 +1,4 @@
-"""Relais local des arrêts demandés par la CLI au gestionnaire vivant."""
+"""Local relay of the stops the CLI requests from the live manager."""
 
 import hashlib
 import os

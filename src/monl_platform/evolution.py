@@ -1,17 +1,17 @@
-"""Ce qui a changé entre deux compilations d'un même projet.
+"""What changed between two compilations of the same project.
 
-POINT 162. Un agent pouvait compiler par MCP, jamais RECOMPILER : il fallait
-repartir d'un projet neuf, donc d'une adresse neuve, sans jamais savoir ce que
-le changement de spec impliquait pour l'interface déjà écrite. Or c'est TOUT le
-geste après la première compilation — et le journal montre dix fois (points 88
-à 119) qu'un delta incomplet laisse un écran entier à réécrire sans que rien ne
-le dise.
+POINT 162. An agent could compile through MCP, never RECOMPILE: it had to
+start again from a new project, hence a new address, without ever knowing
+what the spec change implied for the already written interface. Yet that
+is THE WHOLE action after the first compilation — and the journal shows
+ten times (points 88 to 119) that an incomplete delta leaves an entire
+screen to rewrite with nothing saying so.
 
-**Le delta n'est pas recalculé ici.** ``_contract_signature`` (monl.cli) est la
-source unique des dix ensembles que le contrat promet ; deux calculs de delta
-divergeraient, et c'est le calcul que dix points ont eu du mal à tenir juste.
-Ce module se borne à le lire pour DEUX contrats et à nommer l'écart.
-"""
+**The delta is not recomputed here.** ``_contract_signature`` (monl.cli)
+is the single source of the ten sets the contract promises; two delta
+calculations would diverge, and it is the calculation ten points struggled
+to keep right. This module only reads it for TWO contracts and names the
+gap."""
 
 from __future__ import annotations
 
@@ -24,11 +24,11 @@ from monl.cli.signature import _contract_signature
 
 from .service import PlatformInputError, compiler_dans, contract_summary
 
-#: Le nom de chaque ensemble rendu par ``_contract_signature``, dans l'ordre.
-#: Les neuf premiers sont comparés comme des ensembles ; les deux
-#: DICTIONNAIRES (contenus, sections obligatoires) portent une empreinte par
-#: clé — une valeur qui change sans que la clé bouge est un vrai changement
-#: d'interface (leçon des points 89, 94 et 96), donc « modifié » existe.
+#: The name of each set returned by ``_contract_signature``, in order. The
+#: first nine are compared as sets; the two DICTIONARIES (contents, mandatory
+#: sections) carry one fingerprint per key — a value that changes without the
+#: key moving is a real interface change (lesson of points 89, 94 and 96), so
+#: "modified" exists.
 RUBRIQUES = (
     ("routes", "ensemble"),
     ("champs", "ensemble"),
@@ -56,11 +56,11 @@ def _ecart(ancienne, nouvelle, forme):
 
 
 def delta_de_contrat(ancien, nouveau):
-    """Nomme tout ce qui a changé entre deux contrats frontend.
+    """Names everything that changed between two frontend contracts.
 
-    Rend un dictionnaire par rubrique, plus ``interface_inchangee`` — le seul
-    verdict qui compte pour qui a déjà écrit son interface.
-    """
+    Returns one dictionary per heading, plus ``interface_inchangee`` — the
+    only verdict that matters for someone who has already written their
+    interface."""
     avant = _contract_signature(ancien)
     apres = _contract_signature(nouveau)
     rapport = {
@@ -75,12 +75,11 @@ def delta_de_contrat(ancien, nouveau):
 
 
 def contrat_dune_spec(service, spec):
-    """Compile une spec DANS UN DOSSIER JETABLE et rend son contrat.
+    """Compiles a spec IN A THROWAWAY FOLDER and returns its contract.
 
-    Rien n'est écrit dans l'espace du compte : c'est la discipline de
-    ``monl diff`` (point 103), qui pose la question de ``monl update`` sans
-    rien modifier.
-    """
+    Nothing is written in the account's space: it is the discipline of
+    ``monl diff`` (point 103), which asks the question of ``monl update``
+    without modifying anything."""
     validation = service.validate(spec)
     if not validation.valid:
         raise PlatformInputError(validation.errors[0])
@@ -96,19 +95,17 @@ def contrat_dune_spec(service, spec):
 
 
 def recompiler(service, project_id, spec):
-    """Remplace les artefacts d'un projet par ceux d'une spec nouvelle.
+    """Replaces a project's artifacts with those of a new spec.
 
-    Le nouveau dossier est produit EN ENTIER dans un dossier jetable avant que
-    l'ancien ne soit touché : une compilation qui échoue laisse le projet
-    exactement comme il était. Le delta est calculé AVANT le remplacement —
-    après, l'ancien contrat n'existe plus, et c'est lui qui dit ce qu'il reste
-    à écrire.
+    The new folder is produced IN FULL in a throwaway folder before the old
+    one is touched: a failing compilation leaves the project exactly as it
+    was. The delta is computed BEFORE the replacement — afterwards, the old
+    contract no longer exists, and it is what says what remains to be written.
 
-    L'identité du projet SURVIT (``id``, ``created_at``) : c'est tout l'intérêt
-    de recompiler plutôt que de repartir d'un projet neuf — l'adresse de
-    téléchargement ne change pas. Le résumé, lui, est refait depuis le NOUVEAU
-    contrat : le garder ferait mentir ``/api/projects/{id}``.
-    """
+    The project's identity SURVIVES (``id``, ``created_at``): that is the
+    whole point of recompiling rather than starting from a new project — the
+    download address does not change. The summary, however, is rebuilt from
+    the NEW contract: keeping it would make ``/api/projects/{id}`` lie."""
     ancien_contrat = service.contract(project_id)
     directory = service._project_dir(project_id)
     validation = service.validate(spec)

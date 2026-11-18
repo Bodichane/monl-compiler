@@ -1,4 +1,4 @@
-"""Lancement et relais des applications produites par monl."""
+"""Launching and relaying the applications produced by monl."""
 
 import http.client
 import socket
@@ -15,32 +15,31 @@ from .paths import ProjectPathError, project_directory
 
 
 class SiteHostingError(RuntimeError):
-    """Le site ne peut pas être lancé ou relayé."""
+    """The site cannot be launched or relayed."""
 
 
 class SiteNotCompiledError(SiteHostingError):
-    """Le projet ne possède pas encore de backend compilé.
+    """The project does not have a compiled backend yet.
 
-    POINT 162. Avant le recentrage, « héberger » voulait dire servir le
-    SNAPSHOT d'une construction IA réussie : sans build en base, rien ne
-    démarrait jamais. Le constructeur retiré, ce qu'on met en marche est le
-    backend COMPILÉ par le dialogue — déterministe, présent dès 'monl compile'.
-    Le frontend reste FACULTATIF : c'est le wrapper serve.py qui le dit
-    (« l'API répond, /site renverra 404 »), et voir l'API tourner est
-    précisément l'usage que ce module garde.
-    """
+    POINT 162. Before the refocus, "hosting" meant serving the SNAPSHOT of a
+    successful AI build: without a build in the database, nothing ever
+    started. With the builder removed, what we start is the backend COMPILED
+    by the dialogue — deterministic, present as soon as 'monl compile' runs.
+    The frontend stays OPTIONAL: it is the serve.py wrapper that says so ("the
+    API answers, /site will return 404"), and seeing the API run is precisely
+    the use this module keeps."""
 
 
 SITE_LOG_FILENAME = "site.log"
 SITE_LOG_MAX_BYTES = 1_048_576
-# On laisse le fichier grossir jusqu'au double avant de compacter : compacter à
-# chaque bloc relirait tout le journal huit mille fois par mégaoctet. Le disque
-# reste borné, par 2 Mio et non par 1.
+# The file is allowed to grow up to twice the bound before compacting:
+# compacting at every chunk would reread the whole log eight thousand times per
+# megabyte. The disk stays bounded, by 2 MiB rather than 1.
 SITE_LOG_COMPACT_BYTES = SITE_LOG_MAX_BYTES * 2
 
 
 def site_log_path(workspace_root, project):
-    """Retourne le journal d'un projet après le même contrôle de chemin."""
+    """Returns a project's log after the same path check."""
     try:
         return project_directory(
             workspace_root,
@@ -65,7 +64,7 @@ class _RunningSite:
 
 
 class SiteManager:
-    """Associe un hôte de projet à un processus ``serve.py`` local."""
+    """Maps a project host to a local ``serve.py`` process."""
 
     def __init__(
         self, store, workspace_root, domain="localhost", *, startup_timeout=5,
@@ -98,7 +97,7 @@ class SiteManager:
             raise SiteHostingError(str(exc)) from exc
 
     def site_log_path(self, project):
-        """Le fichier de sortie privé du projet, lisible par la CLI seulement."""
+        """The project's private output file, readable by the CLI only."""
         return site_log_path(self.workspace_root, project)
 
     def _require_site(self, project):
@@ -130,16 +129,14 @@ class SiteManager:
 
     @staticmethod
     def _capture_output(stream, log_path):
-        """Copie la sortie de l'enfant en gardant la FIN, jamais le début.
+        """Copies the child's output keeping the END, never the beginning.
 
-        La première version cessait d'écrire une fois la borne atteinte. La
-        borne était donc tenue — et le journal gardait le mégaoctet le moins
-        utile : mesuré, un site qui bavarde puis plante perdait entièrement la
-        trace de son plantage, parce qu'elle arrive en DERNIER. Un test qui
-        vérifie seulement la taille du fichier passe dans les deux cas ; c'est
-        la raison pour laquelle il faut mesurer ce qu'on GARDE, pas ce qu'on
-        jette.
-        """
+        The first version stopped writing once the bound was reached. The bound
+        was therefore held — and the log kept the least useful megabyte: measured,
+        a site that chatters then crashes entirely lost the trace of its crash,
+        because it comes LAST. A test that only checks the file's size passes in
+        both cases; that is why one must measure what is KEPT, not what is thrown
+        away."""
         try:
             with log_path.open("a+b") as journal:
                 lire = getattr(stream, "read1", stream.read)
@@ -151,14 +148,14 @@ class SiteManager:
                     bloc = lire(8192)
                     if not bloc:
                         break
-                    # Compacter AVANT d'écrire, jamais après. Compacter après
-                    # laisse le fichier DÉPASSER la borne pendant toute la
-                    # durée du compactage — qui relit tout le journal, tronque
-                    # et réécrit. Mesuré : 2 101 261 octets sur disque pour une
-                    # borne annoncée à 2 097 152, et c'est exactement l'instant
-                    # que la CI a photographié. Une borne de disque est une
-                    # promesse sur ce qu'on OCCUPE : elle doit tenir à chaque
-                    # instant, pas seulement quand le fil a fini son travail.
+                    # Compact BEFORE writing, never after. Compacting after
+                    # lets the file EXCEED the bound for the whole duration of
+                    # the compaction — which rereads the whole log, truncates
+                    # and rewrites. Measured: 2,101,261 bytes on disk for an
+                    # announced bound of 2,097,152, and it is exactly the
+                    # instant CI captured. A disk bound is a promise about what
+                    # is OCCUPIED: it must hold at every instant, not only when
+                    # the thread has finished its work.
                     if taille + len(bloc) > SITE_LOG_COMPACT_BYTES:
                         taille = SiteManager._compacter_journal(journal)
                     journal.write(bloc)
@@ -169,12 +166,12 @@ class SiteManager:
 
     @staticmethod
     def _compacter_journal(journal):
-        """Ne garder que la fin, coupée sur une ligne entière."""
+        """Keep only the end, cut on a whole line."""
         journal.seek(0)
         garde = journal.read()[-SITE_LOG_MAX_BYTES:]
-        # La coupe tombe au milieu d'une ligne : la jeter évite un fragment
-        # illisible en tête de journal, qu'on prendrait pour un message tronqué
-        # par le site lui-même.
+        # The cut falls in the middle of a line: dropping it avoids an
+        # unreadable fragment at the top of the log, which would be taken for a
+        # message truncated by the site itself.
         coupe = garde.find(b"\n")
         if 0 <= coupe < len(garde) - 1:
             garde = garde[coupe + 1:]
@@ -274,7 +271,7 @@ class SiteManager:
             return True
 
     def is_running(self, project_id):
-        """Indique si le relais d'un projet est encore vivant."""
+        """Says whether a project's relay is still alive."""
         with self._lock:
             running = self._running.get(project_id)
             if running is None:

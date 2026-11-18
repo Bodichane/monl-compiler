@@ -1,4 +1,4 @@
-"""Sonde de validité de la dernière sauvegarde du service Compose."""
+"""Validity probe of the Compose service's latest backup."""
 
 from __future__ import annotations
 
@@ -13,18 +13,17 @@ DEFAULT_MAX_AGE = 172800
 
 
 def _sqlite_valide(chemin: Path) -> bool:
-    """Vérifie qu'une copie récente est réellement lisible par SQLite.
+    """Checks that a recent copy is really readable by SQLite.
 
-    `with sqlite3.connect(...)` valide la transaction mais ne FERME pas la
-    connexion (point 141, identity_database.py) : un objet `Connection` de
-    CPython prend part à des cycles de références, donc il n'est rendu qu'au
-    ramasse-miettes cyclique. Cette sonde tourne toutes les 30 s dans le
-    conteneur de sauvegarde — sans fermeture explicite, elle accumule un
-    descripteur par appel jusqu'à heurter la limite du conteneur, moment où
-    `sqlite3.connect` lève à son tour une erreur que ce bloc absorbe déjà :
-    le healthcheck se déclarerait alors unhealthy pour une sauvegarde
-    pourtant valide.
-    """
+    `with sqlite3.connect(...)` commits the transaction but does NOT CLOSE the
+    connection (point 141, identity_database.py): a CPython `Connection`
+    object takes part in reference cycles, so it is only released by the
+    cyclic garbage collector. This probe runs every 30 s in the backup
+    container — without an explicit close, it accumulates one descriptor per
+    call until it hits the container's limit, at which point
+    `sqlite3.connect` itself raises an error this block already swallows: the
+    healthcheck would then declare itself unhealthy for a backup that is
+    valid."""
     try:
         connexion = sqlite3.connect(f"file:{chemin}?mode=ro", uri=True)
     except (OSError, sqlite3.Error):
@@ -44,7 +43,7 @@ def sauvegarde_recente(
     maintenant: float | None = None,
     age_maximal: int = DEFAULT_MAX_AGE,
 ) -> bool:
-    """Indique si le dossier contient une copie SQLite récente et intègre."""
+    """Says whether the folder contains a recent and intact SQLite copy."""
     instant = time.time() if maintenant is None else maintenant
     try:
         candidates = sorted(

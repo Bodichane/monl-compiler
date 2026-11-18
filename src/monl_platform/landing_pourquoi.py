@@ -1,20 +1,21 @@
-"""Les trois sections que la page d'accueil ne portait pas.
+"""The three sections the home page did not carry.
 
-Le site expliquait CE QUE monl fait sans jamais répondre aux trois questions
-qu'un visiteur pose vraiment : pourquoi celui-ci plutôt qu'un autre, en quoi
-il diffère de ce qu'il connaît déjà, et faut-il choisir entre les deux.
+The site explained WHAT monl does without ever answering the three
+questions a visitor really asks: why this one rather than another, how it
+differs from what they already know, and whether they must choose between
+the two.
 
-**Aucune affirmation inventée.** Chaque exploit cité ci-dessous a été mesuré
-sur un vrai serveur et porte son point de `docs/design_decisions.md` ; la
-combinaison avec un PostgreSQL managé est éprouvée par
-`tests/test_postgresql.py` contre un vrai serveur. Une page de comparaison qui
-force le trait est une page qu'on cesse de croire à la première vérification —
-et la comparaison est écrite pour être JUSTE, pas pour gagner : Supabase et
-monl ne répondent pas à la même question.
+**No invented claim.** Each exploit cited below was measured on a real
+server and carries its point in `docs/design_decisions.md`; the
+combination with a managed PostgreSQL is proven by
+`tests/test_postgresql.py` against a real server. A comparison page that
+exaggerates is a page people stop believing at the first check — and the
+comparison is written to be FAIR, not to win: Supabase and monl do not
+answer the same question.
 
-Ce module vit à côté de `landing.py` parce que ce dernier atteignait déjà son
-plafond de lignes ; la découpe suit celle du reste du paquet.
-"""
+This module lives next to `landing.py` because the latter had already
+reached its line ceiling; the split follows that of the rest of the
+package."""
 
 from __future__ import annotations
 
@@ -26,9 +27,9 @@ from .theme import icon
 # Contenu
 # ---------------------------------------------------------------------------
 
-# Trois écritures que le client tentait, et ce que le compilateur en fait.
-# Chacune vient d'un défaut RÉEL, trouvé sur un serveur en marche — jamais en
-# relisant du code. Les montants sont ceux qui ont été mesurés.
+# Three writes the client attempted, and what the compiler does with them. Each
+# comes from a REAL defect, found on a running server — never by rereading
+# code. The amounts are the ones that were measured.
 REFUS = [
     {
         "titre": "A calculated value came from the client",
@@ -63,9 +64,9 @@ REFUS = [
     },
 ]
 
-# La comparaison. Chaque ligne est un FAIT vérifiable des deux côtés, jamais un
-# jugement : « plus simple », « plus moderne » et « plus sûr » n'ont pas leur
-# place ici. Le lecteur tranche.
+# The comparison. Each row is a FACT verifiable on both sides, never a
+# judgment: "simpler", "more modern" and "safer" have no place here. The reader
+# decides.
 COMPARAISON = [
     ("What you receive",
      "A hosted service: database, API, authentication, storage.",
@@ -95,10 +96,10 @@ COMPARAISON = [
      "admin dashboard."),
 ]
 
-# Trois montages réels. Le premier est ÉPROUVÉ : `tests/test_postgresql.py`
-# démarre les artefacts générés contre un vrai PostgreSQL et fait de vrais
-# appels. Les deux autres sont des usages du contrat, pas des intégrations —
-# la nuance est écrite, pour ne rien promettre qui ne soit vérifié.
+# Three real setups. The first is PROVEN: `tests/test_postgresql.py` starts the
+# generated artifacts against a real PostgreSQL and makes real calls. The other
+# two are uses of the contract, not integrations — the nuance is written down,
+# so as to promise nothing that is not verified.
 MONTAGES = [
     {
         "titre": "Postgres is managed, the rules are compiled",
@@ -137,14 +138,14 @@ MONTAGES = [
 
 
 # ---------------------------------------------------------------------------
-# Présentation
+# Presentation
 # ---------------------------------------------------------------------------
 
-# Les motifs empruntés aux bibliothèques de référence sont TRANSPOSÉS, jamais
-# copiés : la plateforme sert du HTML sans build, sans React et sans Motion.
-# Ce qui traverse, c'est la mécanique — la ligne de comparaison à pastilles
-# d'état, et l'ouverture par `grid-template-rows: 0fr -> 1fr`, qui anime une
-# hauteur inconnue sans une ligne de JavaScript.
+# The patterns borrowed from reference libraries are TRANSPOSED, never copied:
+# the platform serves HTML without a build, without React and without Motion.
+# What crosses over is the mechanics — the comparison row with status dots, and
+# opening through `grid-template-rows: 0fr -> 1fr`, which animates an unknown
+# height without a line of JavaScript.
 EXTRA_CSS = """
 .refus { display:grid; gap:14px; margin-top:32px; }
 .refus > details {
@@ -234,7 +235,7 @@ EXTRA_CSS = """
 
 
 def _refus(item: dict, index: int) -> str:
-    """Une tentative, repliée. Ouverte, le pourquoi et le comment."""
+    """An attempt, folded. Opened, the why and the how."""
     return f"""<details data-reveal style="--reveal-delay:{index * 60}ms">
 <summary><span class="tag-refus">rule enforced</span>{item['titre']}
 <span class="chev">{icon('arrow')}</span></summary>
@@ -259,12 +260,12 @@ def _montage(item: dict, index: int) -> str:
     libelle = ("verified by the tests" if item["etat"] == "verifie"
                else "stated limit")
     symbole = "check" if item["etat"] == "verifie" else "shield"
-    # Une LIGNE par commande. Tassées sur une seule, elles sortaient du
-    # cadre et se faisaient couper : on lisait « postgresql://… python3 -m »
-    # sans la fin, et deux commandes séparées par un point médian ne se
-    # copiaient pas. La première carte gagne son `export` au passage : un
-    # préfixe `VAR=… commande` est UNE invocation, donc le couper en deux
-    # aurait donné une ligne qui ne fait rien.
+    # One LINE per command. Squeezed onto a single one, they overflowed the
+    # frame and got cut: one read "postgresql://… python3 -m" without the end,
+    # and two commands separated by a middle dot could not be copied. The first
+    # card gains its `export` along the way: a `VAR=… command` prefix is ONE
+    # invocation, so cutting it in two would have given a line that does
+    # nothing.
     lignes = "\n".join(html.escape(ligne) for ligne in item["code"])
     code = f'<pre><code>{lignes}</code></pre>' if lignes else ""
     return f"""<article class="montage" data-reveal style="--reveal-delay:{index * 70}ms">

@@ -1,10 +1,9 @@
-"""Compilation d'un projet de compte et cycle de vie de son API.
+"""Compiling an account's project and the life cycle of its API.
 
-POINT 162. Ce module portait la file de constructions IA — mise en attente,
-suivi d'étapes, historique et coût. Le constructeur retiré, il ne reste que
-deux gestes, et ils sont déterministes : COMPILER la spec du projet dans son
-dossier privé, puis DÉMARRER le backend obtenu pour l'essayer.
-"""
+POINT 162. This module carried the AI build queue — queuing, step
+tracking, history and cost. With the builder removed, only two actions
+remain, and they are deterministic: COMPILE the project's spec in its
+private folder, then START the resulting backend to try it."""
 
 from __future__ import annotations
 

@@ -54,18 +54,18 @@ def icon(name: str) -> str:
             f'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" '
             f'stroke-linejoin="round" aria-hidden="true">{path}</svg>')
 
-# Le cœur du compilateur, vectorisé depuis l'artwork. Monochrome et sans fond,
-# il hérite de l'encre de la page et reste donc lisible dans les deux thèmes.
+# The compiler's core, vectorized from the artwork. Monochrome and without a
+# background, it inherits the page's ink and so stays readable in both themes.
 LOGO_MARK = (
     f'<svg viewBox="0 0 48 48" role="img" aria-label="Monl">'
     f'<path d="{MARK_PATH}" fill="currentColor" fill-rule="evenodd"/>'
     '</svg>'
 )
 
-# Le favicon, lui, ne peut PAS être en currentColor : il vit dans un onglet,
-# hors de toute page, sans couleur héritée. Il porte donc sa pastille en dur —
-# c'est la seule place où un fond est justifié, et l'onglet d'un navigateur en
-# attend un.
+# The favicon, however, CANNOT be in currentColor: it lives in a tab, outside
+# any page, with no inherited color. It therefore carries its badge hard-coded
+# — it is the only place where a background is justified, and a browser tab
+# expects one.
 LOGO_SVG = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" '
     'aria-label="Monl">'
@@ -79,16 +79,15 @@ ICONE_ICO = Path(__file__).with_name("static") / "favicon.ico"
 
 
 def _empreinte(donnees: bytes) -> str:
-    """Huit caractères DÉRIVÉS du contenu de l'icône.
+    """Eight characters DERIVED from the icon's content.
 
-    Ils voyagent dans l'URL déclarée par la page. Sans eux, `/favicon.ico` est
-    une adresse qui ne change JAMAIS : le navigateur garde l'icône qu'il a déjà,
-    et l'ancienne « réapparaît » sans que le serveur y soit pour rien — le
-    défaut rapporté sur le changement de logo. Un numéro de version écrit à la
-    main aurait le même effet le jour où on oublie de l'incrémenter ; une
-    empreinte du contenu change exactement quand l'image change, jamais avant,
-    jamais après.
-    """
+    They travel in the URL declared by the page. Without them, `/favicon.ico`
+    is an address that NEVER changes: the browser keeps the icon it already
+    has, and the old one "reappears" through no fault of the server — the
+    defect reported on the logo change. A hand-written version number would
+    have the same effect the day someone forgets to increment it; a
+    fingerprint of the content changes exactly when the image changes, never
+    before, never after."""
     return hashlib.sha256(donnees).hexdigest()[:8]
 
 
@@ -97,22 +96,23 @@ VERSION_SVG = _empreinte(FAVICON.encode())
 
 
 def cache_icone(demandee: str, attendue: str) -> dict:
-    """L'en-tête de cache d'une icône, selon que l'URL porte son empreinte.
+    """An icon's cache header, depending on whether the URL carries its
+    fingerprint.
 
-    Une URL versionnée peut être gardée un an : son contenu ne changera pas,
-    puisqu'un contenu différent porterait une autre adresse. Une URL NUE, elle,
-    est celle que le navigateur demande d'office sans lire la page — on ne peut
-    pas la versionner, donc elle se garde peu, pour qu'une icône périmée expire
-    d'elle-même au lieu de survivre une journée.
-    """
+    A versioned URL can be kept for a year: its content will not change, since
+    different content would carry another address. A BARE URL, however, is
+    the one the browser requests by default without reading the page — it
+    cannot be versioned, so it is kept briefly, so that a stale icon expires
+    by itself instead of surviving a day."""
     if demandee == attendue:
         return {"Cache-Control": "public, max-age=31536000, immutable"}
     return {"Cache-Control": "public, max-age=300"}
 
-# Le wordmark est INLINE, et c'est un correctif, pas une préférence : servi en
-# `<img>`, il porterait le fond sombre de l'artwork quel que soit le thème —
-# soit un logo qui disparaît de l'en-tête clair (mesuré 1,29:1 sur l'ancien).
-# En SVG dans la page, tout le lockup suit l'encre et son fond reste transparent.
+# The wordmark is INLINE, and it is a fix, not a preference: served as an
+# `<img>`, it would carry the artwork's dark background whatever the theme —
+# that is, a logo that disappears from the light header (measured 1.29:1 on the
+# old one). As SVG in the page, the whole lockup follows the ink and its
+# background stays transparent.
 WORDMARK = (
     '<svg class="brand-wordmark brand-wordmark-full" xmlns="http://www.w3.org/2000/svg" '
     f'viewBox="0 0 {VUE[0]} {VUE[1]}" role="img" aria-label="monl">'
@@ -140,13 +140,13 @@ def _lien(href: str, libelle: str, actif: str, cle: str) -> str:
 
 
 def _social(title: str, description: str) -> str:
-    """Les balises de partage.
+    """The share tags.
 
-    Sans elles, une adresse collée dans Slack, X ou WhatsApp n'affiche qu'un
-    lien nu. L'image doit être ABSOLUE pour qu'un robot la récupère : elle
-    n'est donc émise que si `MONL_PLATFORM_PUBLIC_URL` est déclarée — jamais
-    devinée depuis l'en-tête `Host`, qu'un tiers contrôle (même frontière
-    qu'au point 145 pour l'adresse de retour OAuth)."""
+    Without them, an address pasted into Slack, X or WhatsApp only shows a
+    bare link. The image must be ABSOLUTE for a bot to fetch it: it is
+    therefore emitted only if `MONL_PLATFORM_PUBLIC_URL` is declared — never
+    guessed from the `Host` header, which a third party controls (the same
+    boundary as point 145 for the OAuth return address)."""
     base = (os.environ.get("MONL_PLATFORM_PUBLIC_URL") or "").rstrip("/")
     commun = (
         f'<meta property="og:type" content="website">'
@@ -172,7 +172,7 @@ def _social(title: str, description: str) -> str:
 
 def page(*, title: str, description: str, body: str, active: str = "",
          scripts: str = "", extra_css: str = "") -> str:
-    """Le gabarit commun. `body` est inséré tel quel dans `<main>`."""
+    """The shared template. `body` is inserted as is into `<main>`."""
     return f"""<!doctype html>
 <html lang="en">
 <head>

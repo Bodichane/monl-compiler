@@ -86,10 +86,10 @@ def mount_builder_auth_routes(application, runtime):
         error: str = "",
     ):
         if error:
-            # La console est protégée : y renvoyer une personne qui vient de
-            # refuser OAuth la faisait rebondir vers /login en PERDANT le
-            # fragment et donc toute explication. Le refus appartient à la
-            # page où la connexion a commencé.
+            # The console is protected: sending someone who has just refused
+            # OAuth there made them bounce to /login, LOSING the fragment and
+            # therefore any explanation. The refusal belongs to the page where
+            # the login started.
             return RedirectResponse("/login?erreur=refus", status_code=303)
         secret = os.environ.get("MONL_PLATFORM_OAUTH_STATE_SECRET", "").strip()
         if not secret:

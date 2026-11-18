@@ -1,10 +1,9 @@
-"""Admission bornée des processus de sites hébergés.
+"""Bounded admission of hosted site processes.
 
-Sans plafond, une requête sur un hôte de projet démarrait un `serve.py` de
-plus, sans aucune limite : autant de processus Python que de projets visités,
-sur une machine qui en porte déjà deux par site. Ce module décide QUI a le
-droit de tourner, et qui cède sa place.
-"""
+Without a ceiling, a request on a project host started one more
+`serve.py`, with no limit at all: as many Python processes as projects
+visited, on a machine that already carries two per site. This module
+decides WHO is allowed to run, and who gives up their place."""
 
 import os
 
@@ -24,20 +23,19 @@ def _positive_integer(value, default):
 
 
 def hosting_limits():
-    """Lit les deux plafonds ensemble et replie toute valeur impropre.
+    """Reads both ceilings together and falls back on any improper value.
 
-    **Lu UNE fois, à la construction du `SiteManager`** : changer la variable
-    d'environnement d'un serveur en marche ne déplace aucun plafond, il faut le
-    redémarrer. C'est la même règle que les autres réglages de
-    `docs/EXPLOITATION.md`, et elle vaut mieux qu'une lecture par requête, qui
-    ferait dépendre une décision d'admission de l'état de l'environnement au
-    moment exact de l'appel. Corollaire pour les tests : poser l'environnement
-    AVANT de construire l'application, jamais après.
+    **Read ONCE, when the `SiteManager` is built**: changing the environment
+    variable of a running server moves no ceiling, it must be restarted. It is
+    the same rule as the other settings of `docs/EXPLOITATION.md`, and it is
+    better than a per-request read, which would make an admission decision
+    depend on the state of the environment at the exact moment of the call.
+    Corollary for tests: set the environment BEFORE building the application,
+    never after.
 
-    Une valeur impropre (texte, zéro, négatif) replie sur le défaut plutôt que
-    de faire échouer le démarrage : un plafond mal tapé ne doit pas rendre la
-    plateforme indémarrable, alors qu'un plafond par défaut la garde servante.
-    """
+    An improper value (text, zero, negative) falls back on the default rather
+    than making startup fail: a mistyped ceiling must not make the platform
+    unable to start, whereas a default ceiling keeps it serving."""
     return (
         _positive_integer(
             os.environ.get(MAX_RUNNING_SITES_ENV, str(DEFAULT_MAX_RUNNING_SITES)),
@@ -54,28 +52,27 @@ def hosting_limits():
 
 
 def eviction_candidate(running, user_id, now, global_limit, account_limit):
-    """Choisit le plus ancien site dont l'éviction résout le plafond atteint.
+    """Chooses the oldest site whose eviction resolves the reached ceiling.
 
-    Rend `(candidat, plafond_atteint)`. Un `plafond_atteint` vrai sans candidat
-    signifie « tous les sites en place servent encore » : l'appelant refuse
-    alors, il n'évince pas au hasard.
+    Returns `(candidate, ceiling_reached)`. A true `ceiling_reached` without a
+    candidate means "every site in place is still serving": the caller then
+    refuses, it does not evict at random.
 
-    **Le plafond du COMPTE passe avant celui de la plateforme**, et c'est ce
-    qui rend le reste acceptable : un compte n'occupe jamais plus de
-    `account_limit` places, donc il ne peut pas remplir la plateforme à lui
-    seul et provoquer l'éviction des autres en boucle.
+    **The ACCOUNT's ceiling comes before the platform's**, and that is what
+    makes the rest acceptable: an account never occupies more than
+    `account_limit` places, so it cannot fill the platform on its own and
+    cause the others to be evicted in a loop.
 
-    **Quand le plafond GLOBAL est atteint, le candidat peut appartenir à un
-    AUTRE compte.** Décision assumée : un site inactif depuis cinq minutes
-    n'est pas supprimé, il est arrêté — la requête suivante le relance, au prix
-    d'un démarrage. C'est un cache à remplacement, pas une expulsion, et le
-    plafond par compte ci-dessus en borne l'abus. L'alternative — ne jamais
-    toucher au site d'un tiers — ferait refuser un compte parce que d'autres
-    ont laissé des sites endormis, ce qui punit le mauvais.
+    **When the GLOBAL ceiling is reached, the candidate can belong to ANOTHER
+    account.** A deliberate decision: a site inactive for five minutes is not
+    deleted, it is stopped — the next request starts it again, at the cost of
+    a startup. It is a replacement cache, not an eviction, and the per-account
+    ceiling above bounds its abuse. The alternative — never touching a third
+    party's site — would refuse an account because others left sleeping
+    sites, which punishes the wrong one.
 
-    L'inactivité est une condition NÉCESSAIRE : on n'arrête jamais un site qui
-    a servi dans les cinq dernières minutes, même pour faire de la place.
-    """
+    Inactivity is a NECESSARY condition: a site that has served within the
+    last five minutes is never stopped, even to make room."""
     live = list(running.values())
     same_account = [site for site in live if site.user_id == user_id]
     if len(same_account) >= account_limit:

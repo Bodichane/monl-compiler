@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from .coloration import coloriser
 
-# Lu depuis `guide_data`, la SOURCE, et non à travers `guide` : ce détour
-# faisait de `guide` un simple tuyau, et ruff signalait ses imports comme
-# morts alors qu'ils portaient cette page-ci.
+# Read from `guide_data`, the SOURCE, and not through `guide`: that detour made
+# `guide` a mere pipe, and ruff reported its imports as dead while they carried
+# this very page.
 from .guide_data import (
     REGLES_ACCES,
     REGLES_CHAMPS,
@@ -41,9 +41,9 @@ EXTRA_CSS = """
 @media(prefers-reduced-motion:reduce){.docs-path{transition:none}.docs-path:hover,.docs-path:focus-visible{transform:none}}
 """
 
-# Écrit en TEXTE NU : la coloration est faite par le coloriseur, dont les
-# mots-clés viennent de la grammaire. Marqués à la main, ils dataient du jour
-# où on les avait écrits.
+# Written as PLAIN TEXT: highlighting is done by the highlighter, whose
+# keywords come from the grammar. Marked by hand, they dated from the day they
+# were written.
 EXAMPLE = coloriser("""app LocalShop
 
 entity Product
