@@ -1,19 +1,18 @@
-# Les frontières d'architecture, rendues EXÉCUTABLES (point 63).
+# The architecture boundaries, made EXECUTABLE (point 63).
 #
-# CLAUDE.md les énonce depuis longtemps — « le compilateur ignore
-# l'orchestrateur », « aucune logique de dialogue dans tui.py », « le
-# catalogue est de la donnée, pas du code ». Elles tenaient parce qu'on
-# s'en souvenait. Une clause que rien ne vérifie n'est pas une clause
-# (point 48) : ce fichier les vérifie.
+# CLAUDE.md has stated them for a long time — "the compiler ignores the
+# orchestrator", "no dialogue logic in tui.py", "the catalog is data, not
+# code". They held because people remembered them. A clause nothing checks is
+# not a clause (point 48): this file checks them.
 #
-# Pourquoi ce test plutôt qu'import-linter : l'outil est désormais utilisable
-# (src/monl/ est un vrai paquet depuis le point 65), mais il ajouterait une
-# dépendance et une étape de CI pour ce que 60 lignes de stdlib obtiennent
-# déjà — en tournant dans la suite existante. Il devient le bon choix le jour
-# où les contrats se compteront par dizaines, pas par six.
+# Why this test rather than import-linter: the tool is now usable (src/monl/
+# has been a real package since point 65), but it would add a dependency and a
+# CI step for what 60 lines of stdlib already achieve — while running in the
+# existing suite. It becomes the right choice the day contracts are counted by
+# the dozen, not by six.
 #
-# Les imports DANS les fonctions comptent autant que ceux en tête de
-# fichier : c'est précisément là que les dépendances interdites se cachent.
+# Imports INSIDE functions count as much as those at the top of the file: that
+# is precisely where forbidden dependencies hide.
 import ast
 import fnmatch
 import os
@@ -27,14 +26,14 @@ from monl.parser.version import LANGUAGE_VERSION
 SRC = os.path.join(os.path.dirname(__file__), "..", "src", "monl")
 
 
-def _litteraux_de_la_grammaire():
-    """Dérive les mots littéraux des productions Lark, sans liste recopiée.
+def _grammar_literals():
+    """Derives the literal words from the Lark productions, without a copied list.
 
-    Les commentaires et leurs exemples ne sont pas des productions : les
-    retirer avant l'extraction empêche un nom de produit ou d'illustration
-    cité dans une explication de devenir par accident un mot-clé du DSL.
-    Comme `_terminal` dans `coloration.py`, cette fonction ÉCHOUE si elle ne
-    trouve rien : un extracteur muet ne doit pas rendre la garde verte.
+    Comments and their examples are not productions: removing them before
+    extraction prevents a product or illustration name cited in an explanation
+    from accidentally becoming a DSL keyword. Like `_terminal` in `coloration.py`,
+    this function FAILS if it finds nothing: a mute extractor must not turn the
+    guard green.
     """
     productions = "\n".join(
         ligne.split("#", 1)[0] for ligne in grammar.splitlines())
@@ -58,26 +57,25 @@ def _passages_de_code(texte):
         r"```.*?```", texte, flags=re.S)
 
 
-def _ecrit_comme_du_code(texte, mot):
-    """Le mot doit être écrit comme un MOT-CLÉ, pas croisé dans une phrase.
+def _written_as_code(texte, mot):
+    """The word must be written as a KEYWORD, not met in a sentence.
 
-    C'est la seule différence qui rend la garde utile, et elle est MESURÉE sur
-    la dérive réelle qu'on répare ici : chercher le mot n'importe où en attrape
-    5 sur 11, l'exiger dans un passage de code en attrape 6 — et sur la mémoire
-    corrigée, la règle stricte ne réclame rien à tort.
+    It is the only difference that makes the guard useful, and it is MEASURED on
+    the real drift fixed here: looking for the word anywhere catches 5 out of 11,
+    requiring it in a code passage catches 6 — and on the corrected memory, the
+    strict rule wrongly requests nothing.
     """
     motif = rf"(?<![A-Za-z0-9_]){re.escape(mot)}(?![A-Za-z0-9_])"
     return any(re.search(motif, passage) for passage in _passages_de_code(texte))
 
-# Les modules du projet. Un PAQUET compte pour un seul nœud : son découpage
-# interne est une affaire de couches, pas de frontières.
+# The project's modules. A PACKAGE counts as a single node: its internal split
+# is a matter of layers, not boundaries.
 #
-# La liste est LUE SUR LE DISQUE, jamais écrite à la main. Elle nommait
-# `generator` en dur, et le jour où `ast_validator` est devenu un paquet à son
-# tour il a disparu de MODULES sans un mot — son contrat serait resté dans
-# INTERDITS en ne regardant plus rien. C'est le défaut que l'en-tête de ce
-# fichier dénonce, arrivé par la porte de la liste plutôt que par celle des
-# imports relatifs.
+# The list is READ FROM DISK, never written by hand. It named `generator`
+# hard-coded, and the day `ast_validator` became a package in turn it vanished
+# from MODULES without a word — its contract would have stayed in INTERDITS
+# looking at nothing. It is the defect this file's header denounces, arriving
+# through the list's door rather than relative imports'.
 MODULES = sorted(
     [f[:-3] for f in os.listdir(SRC)
      if f.endswith(".py") and f not in ("main.py", "__init__.py")]
@@ -85,17 +83,16 @@ MODULES = sorted(
        if os.path.isfile(os.path.join(SRC, d, "__init__.py"))])
 
 
-def _imports_du_projet(chemin, profondeur=0):
-    """Tous les modules du projet importés par un fichier, où que l'import
-    se trouve — en tête, dans une fonction, dans une méthode.
+def _project_imports(chemin, profondeur=0):
+    """All the project modules imported by a file, wherever the import is — at
+    the top, in a function, in a method.
 
-    PIÈGE (point 65) : depuis le passage en paquet, les dépendances internes
-    s'écrivent en RELATIF (`from .parser import …`). Les ignorer, comme le
-    faisait la première version, aurait rendu ce test muet du jour au
-    lendemain — il aurait continué à passer en ne regardant plus rien.
-    `profondeur` dit à quel étage du paquet vit le fichier : un `from .x`
-    dans monl/ désigne un module de premier niveau, le même écrit dans
-    monl/generator/ désigne un voisin du sous-paquet."""
+    TRAP (point 65): since the move to a package, internal dependencies are
+    written RELATIVE (`from .parser import …`). Ignoring them, as the first
+    version did, would have made this test mute overnight — it would have kept
+    passing while looking at nothing. `profondeur` says at which level of the
+    package the file lives: a `from .x` in monl/ designates a top-level module,
+    the same written in monl/generator/ designates a neighbor in the subpackage."""
     with open(chemin, encoding="utf-8") as fh:
         arbre = ast.parse(fh.read(), filename=chemin)
     trouves = set()
@@ -108,9 +105,8 @@ def _imports_du_projet(chemin, profondeur=0):
                 if noeud.module:
                     trouves.add(noeud.module.split(".")[0])
             elif noeud.level == profondeur + 1:
-                # Remonte jusqu'à la racine du paquet : c'est un module de
-                # premier niveau. `from . import generator` compte aussi,
-                # via les noms importés.
+                # Walk up to the package root: it is a top-level module. `from
+                # . import generator` counts too, through the imported names.
                 if noeud.module:
                     trouves.add(noeud.module.split(".")[0])
                 else:
@@ -119,24 +115,23 @@ def _imports_du_projet(chemin, profondeur=0):
 
 
 def _depend_de(module):
-    """Le graphe de dépendance d'un module du projet, ses PAQUETS compris.
+    """The dependency graph of a project module, its PACKAGES included.
 
-    Le graphe d'un paquet est l'union de ceux de ses modules, moins lui-même :
-    un sous-module qui importe son voisin (`from .socle import …`) ne franchit
-    aucune frontière, et `profondeur=1` fait justement remonter les `..` au
-    premier étage."""
+    A package's graph is the union of its modules', minus itself: a submodule
+    importing its neighbor (`from .socle import …`) crosses no boundary, and
+    `profondeur=1` precisely makes the `..` go up to the first level."""
     dossier = os.path.join(SRC, module)
     if os.path.isdir(dossier):
         vus = set()
         for nom in sorted(os.listdir(dossier)):
             if nom.endswith(".py"):
-                vus |= _imports_du_projet(os.path.join(dossier, nom), profondeur=1)
+                vus |= _project_imports(os.path.join(dossier, nom), profondeur=1)
         return vus - {module}
-    return _imports_du_projet(os.path.join(SRC, module + ".py"))
+    return _project_imports(os.path.join(SRC, module + ".py"))
 
 
-# ---- Les contrats ---------------------------------------------------
-# (source, interdits, pourquoi) — le « pourquoi » s'affiche à l'échec.
+# ---- The contracts ---------------------------------------------------
+# (source, forbidden, why) — the "why" is displayed on failure.
 INTERDITS = [
     ("policies", [module for module in MODULES if module not in ("policies", "ir")],
      "les politiques de champs et d'accès dépendent seulement de l'IR"),
@@ -174,7 +169,7 @@ INTERDITS = [
 ]
 
 
-def test_les_frontieres_darchitecture_tiennent():
+def test_the_architecture_boundaries_hold():
     violations = []
     for source, interdits, pourquoi in INTERDITS:
         for cible in _depend_de(source) & set(interdits):
@@ -182,18 +177,18 @@ def test_les_frontieres_darchitecture_tiennent():
     assert not violations, "frontières franchies :\n  " + "\n  ".join(violations)
 
 
-def test_le_compilateur_reste_utilisable_seul():
-    """Conséquence concrète des contrats ci-dessus : la chaîne de
-    compilation doit s'importer sans rien tirer de l'orchestrateur."""
+def test_the_compiler_stays_usable_alone():
+    """Concrete consequence of the contracts above: the compilation chain must
+    import without pulling anything from the orchestrator."""
     orchestration = {"cli", "dialogue_engine", "frontend_ai", "tui",
                      "app_templates", "smoke_test"}
     for module in ("parser", "ast_validator", "generator"):
         assert not _depend_de(module) & orchestration, module
 
 
-def test_aucun_module_ne_simporte_lui_meme_en_cercle():
-    """Un cycle direct (A importe B qui importe A) est toléré nulle part
-    ailleurs qu'entre cli et frontend_ai, où il est connu et documenté."""
+def test_no_module_imports_itself_in_a_cycle():
+    """A direct cycle (A imports B which imports A) is tolerated nowhere except
+    between cli and frontend_ai, where it is known and documented."""
     connu = {("cli", "frontend_ai"), ("frontend_ai", "cli")}
     cycles = set()
     graphe = {m: _depend_de(m) for m in MODULES}
@@ -204,17 +199,17 @@ def test_aucun_module_ne_simporte_lui_meme_en_cercle():
     assert cycles <= connu, f"nouveaux cycles d'import : {sorted(cycles - connu)}"
 
 
-def test_le_graphe_voit_vraiment_quelque_chose():
-    """Garde-fou du garde-fou : un test de frontières qui ne détecte plus
-    aucune dépendance passerait toujours, et ne dirait plus rien. Les
-    dépendances connues du dépôt doivent donc apparaître."""
+def test_the_graph_really_sees_something():
+    """The safeguard's safeguard: a boundary test that no longer detects any
+    dependency would always pass, and would say nothing any more. The
+    repository's known dependencies must therefore appear."""
     assert {"parser", "generator", "frontend_contract"} <= _depend_de("cli")
     assert {"tui", "app_templates", "parser"} <= _depend_de("dialogue_engine")
     assert "frontend_contract" in _depend_de("smoke_test")
 
 
-def test_monl_ne_simporte_jamais_monl_platform():
-    """La plateforme dépend du compilateur, jamais l'inverse."""
+def test_monl_never_imports_monl_platform():
+    """The platform depends on the compiler, never the reverse."""
     violations = []
     for root, _dirs, files in os.walk(SRC):
         for filename in files:
@@ -236,14 +231,15 @@ def test_monl_ne_simporte_jamais_monl_platform():
     assert not violations, "monl importe monl_platform : " + ", ".join(violations)
 
 
-def test_chaque_contrat_porte_sur_un_module_que_le_graphe_connait():
-    """Un contrat dont la SOURCE a disparu de MODULES ne refuse plus rien.
+def test_each_contract_applies_to_a_module_the_graph_knows():
+    """A contract whose SOURCE disappeared from MODULES no longer refuses
+    anything.
 
-    Le cas s'est produit : `MODULES` nommait `generator` en dur, et le jour où
-    `ast_validator` est devenu un paquet il est sorti de la liste — son contrat
-    restait écrit dans INTERDITS, entièrement muet. Rien ne serait devenu rouge.
-    Ce témoin porte sur la LISTE, pas sur les imports : c'est l'autre façon dont
-    un test d'architecture cesse de regarder."""
+    It happened: `MODULES` named `generator` hard-coded, and the day
+    `ast_validator` became a package it left the list — its contract stayed
+    written in INTERDITS, entirely mute. Nothing would have turned red. This
+    witness is about the LIST, not the imports: it is the other way an
+    architecture test stops looking."""
     inconnus = [source for source, _, _ in INTERDITS if source not in MODULES]
     assert not inconnus, (
         "contrat sans module : " + ", ".join(inconnus)
@@ -251,13 +247,13 @@ def test_chaque_contrat_porte_sur_un_module_que_le_graphe_connait():
           "paquet a dû casser la correspondance")
 
 
-def test_le_socle_du_validateur_ne_lit_rien_de_son_paquet():
-    """`ast_validator/socle.py` est la FEUILLE : c'est ce qui rend un cycle
-    d'import impossible dans le paquet.
+def test_the_validator_base_reads_nothing_from_its_package():
+    """`ast_validator/socle.py` is the LEAF: that is what makes an import cycle
+    impossible in the package.
 
-    Sa docstring l'affirme ; sans ce test l'affirmation ne tiendrait qu'à la
-    discipline, et le premier `from .core import …` glissé dedans casserait
-    l'import du compilateur entier — au chargement, donc partout à la fois."""
+    Its docstring claims it; without this test the claim would rest on
+    discipline alone, and the first `from .core import …` slipped into it would
+    break the whole compiler's import — at load time, hence everywhere at once."""
     chemin = os.path.join(SRC, "ast_validator", "socle.py")
     with open(chemin, encoding="utf-8") as fh:
         arbre = ast.parse(fh.read(), filename=chemin)
@@ -269,20 +265,19 @@ def test_le_socle_du_validateur_ne_lit_rien_de_son_paquet():
         + " — il doit ne dépendre que de la stdlib et de `..errors`")
 
 
-def test_aucune_exception_de_ruff_ne_vise_un_fichier_disparu():
-    """Une exception `per-file-ignores` dont le chemin n'existe plus n'excuse
-    rien — elle fait croire qu'une règle est encore assouplie là où elle ne
-    l'est plus, et personne ne s'en aperçoit.
+def test_no_ruff_exception_targets_a_vanished_file():
+    """A `per-file-ignores` exception whose path no longer exists excuses
+    nothing — it suggests a rule is still relaxed where it no longer is, and
+    nobody notices.
 
-    Le cas s'est produit deux fois d'un coup : `src/monl/parser.py` et
-    `src/monl/frontend_ai.py` sont devenus des PAQUETS, et leurs deux
-    exceptions ont continué de vivre dans `pyproject.toml` en ne portant plus
-    sur rien. Même famille que le contrat d'architecture devenu muet : ce qui
-    cesse de regarder ne fait pas de bruit."""
+    It happened twice at once: `src/monl/parser.py` and `src/monl/frontend_ai.py`
+    became PACKAGES, and their two exceptions kept living in `pyproject.toml`
+    applying to nothing. Same family as the architecture contract gone mute: what
+    stops looking makes no noise."""
     try:
         import tomllib
     except ModuleNotFoundError:      # 3.10 : `tomllib` n'arrive qu'en 3.11
-        import tomli as tomllib      # noqa: I001  (déclaré dans l'extra `dev`)
+        import tomli as tomllib      # noqa: I001  (declared in the `dev` extra)
 
     racine = os.path.join(os.path.dirname(__file__), "..")
     with open(os.path.join(racine, "pyproject.toml"), "rb") as fh:
@@ -298,23 +293,21 @@ def test_aucune_exception_de_ruff_ne_vise_un_fichier_disparu():
 
 
 # ─────────────────────────────────────────────────────────────────────
-# LA TAILLE DES FICHIERS, ET DES FONCTIONS (point 155)
+# FILE AND FUNCTION SIZE (point 155)
 #
-# Neuf fichiers du compilateur pesaient de 700 à 2 800 lignes, et deux
-# fonctions dépassaient 900. Les découper n'a de valeur que si rien ne les
-# laisse regrossir : une règle que rien ne vérifie n'est pas une règle
-# (point 48, déjà l'argument de l'en-tête de ce fichier).
+# Nine compiler files weighed 700 to 2,800 lines, and two functions exceeded
+# 900. Splitting them is only worth something if nothing lets them grow back:
+# a rule nothing checks is not a rule (point 48, already this file's header
+# argument).
 #
-# Le plafond porte sur `src/`, pas sur `tests/` : un fichier de test est une
-# suite de cas indépendants qu'on lit un par un, pas une pièce dont la
-# complexité croît avec la longueur. Le découper le rendrait plus dur à
-# retrouver, pas plus simple.
+# The ceiling applies to `src/`, not `tests/`: a test file is a sequence of
+# independent cases read one by one, not a component whose complexity grows
+# with length. Splitting it would make it harder to find things, not simpler.
 #
-# Les exceptions portent chacune SA RAISON, comme celles de ruff dans
-# pyproject.toml. Toutes deux sont de la DONNÉE : un catalogue et une
-# grammaire. Le plafond vise la complexité, et un littéral n'en a pas — le
-# couper en deux moitiés arbitraires rendrait le fichier plus dur à lire, ce
-# qui est exactement l'inverse du but.
+# Each exception carries ITS REASON, like ruff's in pyproject.toml. Both are
+# DATA: a catalog and a grammar. The ceiling targets complexity, and a literal
+# has none — cutting it into two arbitrary halves would make the file harder
+# to read, exactly the opposite of the goal.
 PLAFOND_FICHIER = 400
 PLAFOND_FONCTION = 400
 EXCEPTIONS_DE_TAILLE = {
@@ -343,7 +336,7 @@ def _fichiers_de_src():
                 yield rel, chemin
 
 
-def test_aucun_fichier_de_src_ne_depasse_le_plafond():
+def test_no_src_file_exceeds_the_ceiling():
     trop = {}
     for rel, chemin in _fichiers_de_src():
         with open(chemin, encoding="utf-8") as fh:
@@ -355,8 +348,8 @@ def test_aucun_fichier_de_src_ne_depasse_le_plafond():
         f"écrite : {trop}")
 
 
-def test_aucune_fonction_ne_depasse_le_plafond():
-    """Un fichier court fait de deux fonctions de 500 lignes n'a rien gagné."""
+def test_no_function_exceeds_the_ceiling():
+    """A short file made of two 500-line functions has gained nothing."""
     trop = {}
     for rel, chemin in _fichiers_de_src():
         with open(chemin, encoding="utf-8") as fh:
@@ -369,11 +362,12 @@ def test_aucune_fonction_ne_depasse_le_plafond():
     assert not trop, f"fonctions au-dessus de {PLAFOND_FONCTION} lignes : {trop}"
 
 
-def test_chaque_exception_de_taille_vise_un_fichier_qui_depasse_encore():
-    """Une exception qui ne dispense plus de rien doit DISPARAÎTRE.
+def test_each_size_exception_targets_a_file_still_over():
+    """An exception that no longer exempts anything must DISAPPEAR.
 
-    Le pendant exact de `test_aucune_exception_de_ruff_ne_vise_un_fichier_disparu` :
-    une dispense oubliée finit par couvrir un fichier qu'on croyait tenu."""
+    The exact counterpart of
+    `test_no_ruff_exception_targets_a_vanished_file`: a forgotten exemption ends
+    up covering a file one believed held."""
     tailles = {}
     for rel, chemin in _fichiers_de_src():
         with open(chemin, encoding="utf-8") as fh:
@@ -386,29 +380,29 @@ def test_chaque_exception_de_taille_vise_un_fichier_qui_depasse_encore():
         assert len(raison) > 40, f"exception sans raison écrite : {rel}"
 
 
-# ---- La complexité cyclomatique ------------------------------------
+# ---- Cyclomatic complexity ---------------------------------------------
 #
-# Ruff mesure utilement la complexité, mais ce garde-fou doit rester
-# exécutable avec la suite minimale du projet : il compte donc lui-même son
-# AST. Le plafond est volontairement 15, le seuil au-delà duquel le chantier
-# a commencé. Les exceptions sont explicites et portent la valeur observée ;
-# elles sont des cliquets, pas des plafonds de confort.
+# Ruff usefully measures complexity, but this safeguard must stay runnable
+# with the project's minimal suite: it therefore counts its AST itself. The
+# ceiling is deliberately 15, the threshold above which the workstream began.
+# The exceptions are explicit and carry the observed value; they are
+# ratchets, not comfort ceilings.
 PLAFOND_COMPLEXITE = 15
 EXCEPTIONS_DE_COMPLEXITE = {
 }
 
 
 class _CompteurComplexite(ast.NodeVisitor):
-    """Compteur local et déterministe, distinct de la définition de Ruff.
+    """Local, deterministic counter, distinct from Ruff's definition.
 
-    Le score commence à 1 et ajoute un point pour chaque ``if`` (donc chaque
-    ``elif``, représenté par un ``if`` dans le ``orelse``), ``for``/``async
-    for``, ``while``, gestionnaire ``except``, ternaire ``IfExp``, nœud
-    booléen ``and``/``or``, générateur de compréhension et filtre ``if`` de
-    compréhension, ainsi que pour chaque ``assert``. Les fonctions, lambdas
-    et classes imbriquées sont volontairement ignorées pendant la visite de
-    leur parente ; ``ast.walk`` les mesure séparément. Une compréhension à
-    plusieurs générateurs compte donc chaque générateur et chaque filtre.
+    The score starts at 1 and adds a point for each ``if`` (hence each ``elif``,
+    represented by an ``if`` in the ``orelse``), ``for``/``async for``,
+    ``while``, ``except`` handler, ``IfExp`` ternary, boolean ``and``/``or``
+    node, comprehension generator and comprehension ``if`` filter, as well as for
+    each ``assert``. Nested functions, lambdas and classes are deliberately
+    ignored while visiting their parent; ``ast.walk`` measures them separately. A
+    comprehension with several generators therefore counts each generator and
+    each filter.
     """
 
     def __init__(self):
@@ -488,8 +482,8 @@ def _violations_de_complexite(fonctions, exceptions):
     return violations
 
 
-def test_aucune_fonction_de_src_ne_depasse_le_plafond_de_complexite():
-    """Le plafond commun s'applique aussi aux fonctions nouvelles."""
+def test_no_src_function_exceeds_the_complexity_ceiling():
+    """The common ceiling also applies to new functions."""
     violations = _violations_de_complexite(
         _fonctions_de_src(), EXCEPTIONS_DE_COMPLEXITE)
     assert not violations, (
@@ -497,16 +491,16 @@ def test_aucune_fonction_de_src_ne_depasse_le_plafond_de_complexite():
         f"{violations}")
 
 
-def test_chaque_exception_de_complexite_sert_encore():
-    """Une exception repassée sous le plafond doit être retirée.
+def test_each_complexity_exception_is_still_needed():
+    """An exception back under the ceiling must be removed.
 
-    C'EST ICI que vit le cliquet, dans l'égalité stricte au score enregistré
-    — pas dans un test à part. Un second test rejouant
-    `_violations_de_complexite` a existé sous le nom « le cliquet interdit
-    toute régression » : mesuré, il ne rougissait JAMAIS seul (contre-épreuve
-    faite sur les trois façons de casser le garde-fou), il refaisait mot pour
-    mot l'assertion du plafond. Un témoin qui annonce une garantie portée
-    ailleurs finit par la faire croire deux fois gardée — point 167bis.
+    THIS is where the ratchet lives, in strict equality with the recorded score —
+    not in a separate test. A second test replaying `_violations_de_complexite`
+    existed under the name "the ratchet forbids any regression": measured, it
+    NEVER turned red alone (counter-proof done on the three ways of breaking the
+    safeguard), it repeated the ceiling assertion word for word. A witness
+    announcing a guarantee carried elsewhere ends up making it look guarded twice
+    — point 167bis.
     """
     fonctions = dict(_fonctions_de_src())
     for nom, (valeur, raison) in EXCEPTIONS_DE_COMPLEXITE.items():
@@ -520,7 +514,7 @@ def test_chaque_exception_de_complexite_sert_encore():
         assert len(raison) > 40, f"exception sans raison écrite : {nom}"
 
 
-def test_le_compteur_de_complexite_compte_les_constructions_annoncees():
+def test_the_complexity_counter_counts_the_announced_constructs():
     source = """\
 def probe(values):
     def nested(value):
@@ -547,7 +541,7 @@ def probe(values):
     assert scores == {"probe": 12, "nested": 2}
 
 
-def test_le_garde_fou_rougit_pour_une_fonction_trop_complexe():
+def test_the_safeguard_turns_red_for_a_too_complex_function():
     source = "def trop_complexe(value):\n" + "".join(
         "    if value:\n        pass\n" for _ in range(16))
     arbre = ast.parse(source, filename="synthetic.py")
@@ -558,7 +552,7 @@ def test_le_garde_fou_rougit_pour_une_fonction_trop_complexe():
         "synthetic.py:trop_complexe": {"mesure": 17, "limite": 15}}
 
 
-def test_le_garde_fou_rougit_si_on_retire_une_exception_utile():
+def test_the_safeguard_turns_red_when_a_needed_exception_is_removed():
     """The ceiling must bite, even once the exception table is empty.
 
     Removing an existing exception was the counter-proof while there were
@@ -583,22 +577,21 @@ def test_le_garde_fou_rougit_si_on_retire_une_exception_utile():
     assert set(violations) == {"synthetique:trop_complexe"}
 
 
-def test_aucun_test_ne_saute_faute_de_bibliotheque():
-    """`pytest.importorskip` rend du vert sans rien vérifier.
+def test_no_test_skips_for_lack_of_a_library():
+    """`pytest.importorskip` returns green without checking anything.
 
-    Trouvé par la CI, pas en local : Pillow n'était déclaré que dans l'extra
-    `ai`, que la CI n'installe pas. Le test de réencodage JPEG SAUTAIT donc à
-    chaque exécution — et le seul motif pour lequel on l'a su est qu'un test
-    voisin, lui, échouait franchement. Le saut, lui, n'aurait jamais parlé.
+    Found by CI, not locally: Pillow was only declared in the `ai` extra, which CI
+    does not install. The JPEG re-encoding test therefore SKIPPED on every run —
+    and the only reason we found out is that a neighboring test failed outright.
+    The skip would never have spoken.
 
-    C'est le point 140 par une autre porte : un saut ne dit pas « rien à
-    vérifier ici », il dit « je n'ai pas vérifié ». Une bibliothèque dont un
-    test a besoin se DÉCLARE dans l'extra `dev` — celui que la CI installe —
-    au lieu d'être contournée.
+    It is point 140 through another door: a skip does not say "nothing to check
+    here", it says "I did not check". A library a test needs is DECLARED in the
+    `dev` extra — the one CI installs — instead of being worked around.
 
-    Les `pytest.skip` conditionnels restent permis : ils gardent une
-    intégration qu'on peut légitimement ne pas demander (un vrai PostgreSQL),
-    et ils la NOMMENT. Une bibliothèque Python installable, non.
+    Conditional `pytest.skip` stays allowed: it keeps an integration one can
+    legitimately not require (a real PostgreSQL), and it NAMES it. An installable
+    Python library, no.
     """
     dossier = os.path.dirname(__file__)
     fautifs = []
@@ -619,27 +612,26 @@ def test_aucun_test_ne_saute_faute_de_bibliotheque():
         "dans l'extra `dev` : " + ", ".join(fautifs))
 
 
-def test_tout_fichier_statique_de_la_plateforme_est_embarque_dans_le_paquet():
-    """Un fichier non déclaré dans `package-data` n'est PAS installé.
+def test_every_platform_static_file_is_shipped_in_the_package():
+    """A file not declared in `package-data` is NOT installed.
 
-    Mesuré, pas supposé : `package-data` ne déclarait que `static/*.png`, donc
-    `favicon.ico` restait dans l'arbre de travail et jamais dans le paquet. Or
-    `theme.py` le lit AU NIVEAU DU MODULE (pour en dériver l'empreinte de
-    cache) : depuis une installation normale, `import monl_platform.app`
-    levait `FileNotFoundError` — **la plateforme entière était indéployable**.
+    Measured, not assumed: `package-data` only declared `static/*.png`, so
+    `favicon.ico` stayed in the working tree and never in the package. But
+    `theme.py` reads it AT MODULE LEVEL (to derive the cache fingerprint): from a
+    normal installation, `import monl_platform.app` raised `FileNotFoundError` —
+    **the whole platform was undeployable**.
 
-    Pourquoi la CI ne l'a pas vu : son garde-fou « le paquet s'installe et la
-    commande répond » tourne après un `pip install -e .`, donc les modules
-    pointent vers l'arbre source où le fichier EST. L'installation éditable
-    masque exactement cette classe de défaut.
+    Why CI did not see it: its "the package installs and the command answers"
+    safeguard runs after a `pip install -e .`, so modules point to the source tree
+    where the file IS. Editable installation hides exactly this class of defect.
 
-    Ce test se lit sur le DISQUE et non sur une liste écrite à la main : un
-    `.svg` ou un `.woff2` ajouté demain rouvrirait le même trou en silence.
+    This test reads the DISK and not a hand-written list: a `.svg` or `.woff2`
+    added tomorrow would silently reopen the same hole.
     """
     try:
         import tomllib
     except ModuleNotFoundError:      # 3.10 : `tomllib` n'arrive qu'en 3.11
-        import tomli as tomllib      # noqa: I001  (déclaré dans l'extra `dev`)
+        import tomli as tomllib      # noqa: I001  (declared in the `dev` extra)
 
     racine = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     statiques = os.path.join(racine, "src", "monl_platform", "static")
@@ -657,23 +649,22 @@ def test_tout_fichier_statique_de_la_plateforme_est_embarque_dans_le_paquet():
         f"motif à [tool.setuptools.package-data] : {', '.join(absents)}")
 
 
-def test_aucun_test_ne_monte_la_plateforme_avec_testclient():
-    """`starlette.testclient` exige `httpx2`, que la CI n'installe pas.
+def test_no_test_mounts_the_platform_with_testclient():
+    """`starlette.testclient` requires `httpx2`, which CI does not install.
 
-    La décision est ÉCRITE depuis longtemps, en tête de
-    `tests/test_platform_web.py` : ce fichier montait la plateforme avec
-    `TestClient`, la suite s'arrêtait à la COLLECTE sur les trois versions de
-    Python, et tout a été refait contre un uvicorn éphémère.
+    The decision has long been WRITTEN, at the top of `tests/test_platform_web.py`:
+    that file mounted the platform with `TestClient`, the suite stopped at
+    COLLECTION on the three Python versions, and everything was redone against an
+    ephemeral uvicorn.
 
-    Rien ne la gardait. Un test neuf a donc réintroduit `TestClient` et rougi
-    la CI exactement de la même façon — vert en local avec un simple
-    avertissement de dépréciation, cassé là où ça compte. **Une décision
-    écrite mais non gardée se réapprend en la cassant** ; c'est le point 152
-    (« une garantie qui cesse de porter ne fait aucun bruit ») appliqué à une
-    consigne de prose.
+    Nothing guarded it. A new test therefore reintroduced `TestClient` and turned
+    CI red exactly the same way — green locally with a mere deprecation warning,
+    broken where it counts. **A decision written but not guarded is relearned by
+    breaking it**; it is point 152 ("a guarantee that stops applying makes no
+    noise") applied to a prose instruction.
 
-    Le remède n'est pas d'ajouter `httpx2` : un client en processus ne
-    traverse ni la couche ASGI réelle, ni le démarrage du serveur.
+    The remedy is not to add `httpx2`: an in-process client crosses neither the
+    real ASGI layer nor server startup.
     """
     dossier = os.path.dirname(__file__)
     fautifs = []
@@ -697,11 +688,11 @@ def test_aucun_test_ne_monte_la_plateforme_avec_testclient():
 
 
 def _ouvertures_sqlite_nues(source, nom):
-    """Lignes où `sqlite3.connect(...)` sert DIRECTEMENT de gestionnaire `with`.
+    """Lines where `sqlite3.connect(...)` DIRECTLY serves as a `with` manager.
 
-    Ce `with` valide ou annule la transaction, il ne FERME pas la connexion
-    (points 141 et 185). Lu par AST : un commentaire, une docstring ou une
-    chaîne émise dans le code généré qui citent le piège ne comptent pas.
+    This `with` commits or rolls back the transaction, it does not CLOSE the
+    connection (points 141 and 185). Read by AST: a comment, a docstring or a
+    string emitted in generated code that cite the trap do not count.
     """
     lignes = []
     for noeud in ast.walk(ast.parse(source, filename=nom)):
@@ -718,15 +709,15 @@ def _ouvertures_sqlite_nues(source, nom):
     return lignes
 
 
-def test_aucune_connexion_sqlite_n_est_ouverte_par_un_with_nu():
-    """`with sqlite3.connect(...)` laisse la connexion au ramasse-miettes.
+def test_no_sqlite_connection_is_opened_by_a_bare_with():
+    """`with sqlite3.connect(...)` leaves the connection to the garbage collector.
 
-    72 `ResourceWarning: unclosed database` sous Python 3.14 venaient de ce
-    seul motif, 33 fois dans `tests/` ; le code livré l'avait déjà quitté
-    (`identity_database`, `backup_healthcheck`, `store_core`). Le filtre
-    `error::ResourceWarning` de `pyproject.toml` attrape une fuite QUAND un
-    test la produit ; cette garde refuse le motif avant qu'il serve.
-    Utiliser `tests.support.sqlite.base_sqlite` (ou `try/finally` + `close`).
+    72 `ResourceWarning: unclosed database` under Python 3.14 came from this one
+    pattern, 33 times in `tests/`; the shipped code had already left it
+    (`identity_database`, `backup_healthcheck`, `store_core`). `pyproject.toml`'s
+    `error::ResourceWarning` filter catches a leak WHEN a test produces it; this
+    guard refuses the pattern before it is used. Use
+    `tests.support.sqlite.base_sqlite` (or `try/finally` + `close`).
     """
     racine = pathlib.Path(__file__).resolve().parent.parent
     fautifs = []
@@ -744,12 +735,12 @@ OUVERTURES_A_FERMER = {"open", "io.open", "codecs.open", "urllib.request.urlopen
 
 
 def _ouvertures_hors_with(source, nom):
-    """Lignes où un fichier ou une réponse HTTP est ouvert HORS d'un `with`.
+    """Lines where a file or HTTP response is opened OUTSIDE a `with`.
 
-    `open(p).read()` et `urlopen(u).read()` ferment au gré du ramasse-miettes :
-    cinq lectures de `frontend_ai` et huit attentes de serveur dans les tests
-    l'ont fait jusqu'à ce que `error::ResourceWarning` les rende visibles.
-    Lu par AST : seule la forme `with ouverture(...) as x:` est admise.
+    `open(p).read()` and `urlopen(u).read()` close whenever the garbage collector
+    feels like it: five `frontend_ai` reads and eight server waits in the tests
+    did so until `error::ResourceWarning` made them visible. Read by AST: only the
+    `with opening(...) as x:` form is allowed.
     """
     arbre = ast.parse(source, filename=nom)
     gerees = {id(item.context_expr) for noeud in ast.walk(arbre)
@@ -759,10 +750,10 @@ def _ouvertures_hors_with(source, nom):
                   and ast.unparse(noeud.func) in OUVERTURES_A_FERMER)
 
 
-def test_aucun_fichier_ni_reponse_http_n_est_ouvert_hors_d_un_with():
-    """Le filtre `error::ResourceWarning` n'attrape une fuite que si un test
-    EXÉCUTE le chemin qui fuit ; cette garde refuse le motif partout, même
-    dans une branche qu'aucun test ne parcourt."""
+def test_no_file_or_http_response_is_opened_outside_a_with():
+    """The `error::ResourceWarning` filter only catches a leak if a test RUNS the
+    leaking path; this guard refuses the pattern everywhere, even in a branch no
+    test goes through."""
     racine = pathlib.Path(__file__).resolve().parent.parent
     fautifs = []
     for arbre in ("tests", "src"):
@@ -775,8 +766,8 @@ def test_aucun_fichier_ni_reponse_http_n_est_ouvert_hors_d_un_with():
         "le ramasse-miettes — " + ", ".join(fautifs))
 
 
-def test_lextracteur_d_ouvertures_hors_with_voit_le_motif():
-    """Contre-épreuve de la garde ci-dessus (point 161)."""
+def test_the_outside_with_opening_extractor_sees_the_pattern():
+    """Counter-proof of the guard above (point 161)."""
     fautif = (
         "import urllib.request\n"
         "texte = open('a').read()\n"
@@ -793,9 +784,9 @@ def test_lextracteur_d_ouvertures_hors_with_voit_le_motif():
     assert _ouvertures_hors_with(sain, "sain.py") == []
 
 
-def test_lextracteur_de_connexions_nues_voit_le_motif():
-    """Contre-épreuve : sans elle, un extracteur qui ne trouve jamais rien
-    rendrait la garde verte sans rien regarder (point 161)."""
+def test_the_bare_connection_extractor_sees_the_pattern():
+    """Counter-proof: without it, an extractor that never finds anything would
+    turn the guard green without looking at anything (point 161)."""
     fautif = (
         "import sqlite3\n"
         "def f(p):\n"
@@ -817,23 +808,23 @@ def test_lextracteur_de_connexions_nues_voit_le_motif():
     assert _ouvertures_sqlite_nues(sain, "sain.py") == []
 
 
-# Les arbres du dépôt que les tests exercent. `outils/` en fait partie parce
-# que Pillow n'y entre que par `outils/fabriquer_images.py`, et `scripts/`
-# parce que le garde-fou de publication y vit (point 168).
+# The repository trees the tests exercise. `outils/` is among them because
+# Pillow only enters through `outils/fabriquer_images.py`, and `scripts/`
+# because the publication safeguard lives there (point 168).
 ARBRES_EXERCES = ("tests", "outils", "scripts")
 
 
 def _normalise_distribution(nom):
-    """PEP 503 : `PyYAML`, `pyyaml` et `Py_Yaml` sont la MÊME distribution."""
+    """PEP 503: `PyYAML`, `pyyaml` and `Py_Yaml` are the SAME distribution."""
     return re.sub(r"[-_.]+", "-", nom).lower()
 
 
-def _distributions_du_module(module):
-    """Rend les distributions qui fournissent *module*, ou None si inconnu.
+def _module_distributions(module):
+    """Returns the distributions providing *module*, or None if unknown.
 
-    None ne veut pas dire « aucune » mais « pas installé ici, donc pas
-    mesurable » : la correspondance nom d'import → nom de distribution est
-    portée par l'environnement, pas par le code.
+    None does not mean "none" but "not installed here, hence not measurable": the
+    import name → distribution name mapping is carried by the environment, not by
+    the code.
     """
     from importlib.metadata import packages_distributions
 
@@ -843,8 +834,8 @@ def _distributions_du_module(module):
     return {_normalise_distribution(nom) for nom in fournisseurs}
 
 
-def _modules_du_depot():
-    """Tout ce qui vit dans l'arbre : ni à déclarer, ni à installer."""
+def _repository_modules():
+    """Everything living in the tree: neither to declare nor to install."""
     racine = os.path.join(os.path.dirname(__file__), "..")
     noms = set(ARBRES_EXERCES)
     for base in ARBRES_EXERCES + ("src",):
@@ -859,16 +850,15 @@ def _modules_du_depot():
     return noms
 
 
-def _modules_tiers_importes_par_les_tests():
-    """Les modules de TIERCE PARTIE importés sous `tests/`, par l'AST.
+def _third_party_modules_imported_by_tests():
+    """The THIRD-PARTY modules imported under `tests/`, by AST.
 
-    Par l'AST et non par `grep` : un import multi-lignes ou un accès par
-    attribut échappe au texte (point 153). Les modules entrés dans la
-    bibliothèque standard APRÈS la version minimale sont écartés — sur
-    Python 3.10, `tomllib` n'est pas dans `sys.stdlib_module_names` et serait
-    pris pour une dépendance de tierce partie.
+    By AST and not `grep`: a multi-line import or attribute access escapes text
+    (point 153). Modules that entered the standard library AFTER the minimum
+    version are discarded — on Python 3.10, `tomllib` is not in
+    `sys.stdlib_module_names` and would be taken for a third-party dependency.
     """
-    interne = _modules_du_depot()
+    interne = _repository_modules()
     standard = set(sys.stdlib_module_names) | set(APRES_LA_VERSION_MINIMALE)
     vus = {}
     dossier = os.path.join(os.path.dirname(__file__))
@@ -891,42 +881,41 @@ def _modules_tiers_importes_par_les_tests():
     return vus
 
 
-def test_les_bibliotheques_dont_les_tests_ont_besoin_sont_dans_dev():
-    """Le pendant du test ci-dessus : la déclaration, pas seulement l'absence
-    de contournement.
+def test_the_libraries_tests_need_are_in_dev():
+    """The previous test's counterpart: the declaration, not only the absence of
+    workaround.
 
-    Sans lui, retirer Pillow de l'extra `dev` ferait échouer la CI sans qu'un
-    test explique POURQUOI — et la tentation serait de remettre un saut.
+    Without it, removing Pillow from the `dev` extra would make CI fail without a
+    test explaining WHY — and the temptation would be to put a skip back.
 
-    **La liste des bibliothèques est DÉRIVÉE, jamais écrite ici.** Elle l'a
-    été, et elle nommait `pytest`, `requests` et `pillow` — trois sur les neuf
-    que les tests importaient réellement. Une borne exprimée par une liste de
-    noms cesse de borner dès qu'un nom s'ajoute, et sans faire de bruit : c'est
-    le défaut du point 162bis (`OUTILS_QUI_COMPILENT`), du point 164 (la page
-    `/mcp`) et du point 167 (les versions de Python). Ajouter `packaging` et
-    `PyYAML` au point 168 n'aurait rien réveillé.
+    **The list of libraries is DERIVED, never written here.** It used to be, and
+    it named `pytest`, `requests` and `pillow` — three of the nine the tests
+    really imported. A bound expressed as a list of names stops bounding as soon
+    as a name is added, without making noise: it is the defect of point 162bis
+    (`OUTILS_QUI_COMPILENT`), point 164 (the `/mcp` page) and point 167 (the
+    Python versions). Adding `packaging` and `PyYAML` at point 168 would have
+    woken nothing.
 
-    **Sa limite est ÉNONCÉE** : associer un module à sa distribution
-    (`PIL` → `pillow`, `yaml` → `PyYAML`) exige que le module soit INSTALLÉ,
-    car c'est l'environnement qui porte cette correspondance. Ce qu'on ne peut
-    pas associer, on ne le juge pas — on le NOMME dans le message, plutôt que
-    de deviner un nom de distribution et de refuser une déclaration correcte
-    (même arbitrage qu'au point 83 : sans `base_dir`, le validateur se tait).
-    Sur la CI la question ne se pose pas : un module qu'aucune installation ne
-    fournit fait échouer la collecte du fichier qui l'importe.
+    **Its limit is STATED**: mapping a module to its distribution (`PIL` →
+    `pillow`, `yaml` → `PyYAML`) requires the module to be INSTALLED, since the
+    environment carries that mapping. What cannot be mapped is not judged — it is
+    NAMED in the message, rather than guessing a distribution name and refusing a
+    correct declaration (same arbitration as at point 83: without `base_dir`, the
+    validator stays silent). On CI the question does not arise: a module no
+    installation provides makes collection of the importing file fail.
     """
     try:
         import tomllib
     except ModuleNotFoundError:      # 3.10 : `tomllib` n'arrive qu'en 3.11
-        import tomli as tomllib      # noqa: I001  (déclaré dans l'extra `dev`)
+        import tomli as tomllib      # noqa: I001  (declared in the `dev` extra)
 
     racine = os.path.join(os.path.dirname(__file__), "..")
     with open(os.path.join(racine, "pyproject.toml"), "rb") as fh:
         config = tomllib.load(fh)
 
-    # Ce que `pip install -e ".[dev,postgres]"` — la ligne exacte de ci.yml —
-    # pose réellement. Pas seulement `dev` : une bibliothèque déclarée dans
-    # les dépendances du paquet est là aussi.
+    # What `pip install -e ".[dev,postgres]"` — ci.yml's exact line — really
+    # installs. Not only `dev`: a library declared in the package's
+    # dependencies is there too.
     requis = list(config["project"].get("dependencies", []))
     for extra in ("dev", "postgres"):
         requis += config["project"]["optional-dependencies"].get(extra, [])
@@ -934,10 +923,10 @@ def test_les_bibliotheques_dont_les_tests_ont_besoin_sont_dans_dev():
                   for ligne in requis}
 
     manquantes, non_mesurables = [], []
-    for module, fichiers in sorted(_modules_tiers_importes_par_les_tests().items()):
-        distributions = _distributions_du_module(module)
+    for module, fichiers in sorted(_third_party_modules_imported_by_tests().items()):
+        distributions = _module_distributions(module)
         if distributions is None:
-            non_mesurables.append(module)      # non installé : voir docstring
+            non_mesurables.append(module)      # not installed: see docstring
         elif not (distributions & installees):
             manquantes.append(f"{module} (distribution {sorted(distributions)}, "
                               f"importé par {sorted(fichiers)[0]})")
@@ -949,29 +938,28 @@ def test_les_bibliotheques_dont_les_tests_ont_besoin_sont_dans_dev():
         f"vérifié » (point 140). Non mesurables ici : {non_mesurables or 'aucun'}")
 
 
-# Modules entrés dans la bibliothèque standard APRÈS la version minimale
-# déclarée par `requires-python` (3.10). Les importer EN TÊTE de fichier fait
-# échouer la COLLECTE sur la plus vieille version que la CI couvre — donc tout
-# le fichier, pas seulement le test concerné.
+# Modules that entered the standard library AFTER the minimum version declared
+# by `requires-python` (3.10). Importing them AT THE TOP of a file makes
+# COLLECTION fail on the oldest version CI covers — hence the whole file, not
+# only the concerned test.
 APRES_LA_VERSION_MINIMALE = {
     "tomllib": "3.11",     # lecture de pyproject.toml
     "asyncio.taskgroups": "3.11",
 }
 
 
-def test_aucun_test_n_importe_en_tete_un_module_absent_de_la_version_minimale():
-    """Un import de tête tue la COLLECTE, pas seulement son test.
+def test_no_test_imports_at_top_a_module_missing_from_the_minimum_version():
+    """A top-level import kills COLLECTION, not only its test.
 
-    `import tomllib` posé en tête de `test_architecture.py` a rendu la CI rouge
-    sur Python 3.10 (`ModuleNotFoundError`) alors que la suite était verte en
-    local : cette machine est en 3.14, où le module existe. Le fichier portait
-    DÉJÀ deux fois le repli correct — un `try/except ModuleNotFoundError` dans
-    la fonction — et l'import de tête le contournait.
+    `import tomllib` placed at the top of `test_architecture.py` turned CI red on
+    Python 3.10 (`ModuleNotFoundError`) while the suite was green locally: this
+    machine runs 3.14, where the module exists. The file ALREADY carried the
+    correct fallback twice — a `try/except ModuleNotFoundError` in the function —
+    and the top-level import bypassed it.
 
-    Le repli doit rester DANS la fonction : là, seul le test qui a besoin du
-    module échoue si `tomli` manque, et il le dit. En tête, c'est le fichier
-    entier qui disparaît de la collecte, ce qui ressemble à « rien à vérifier »
-    (point 140).
+    The fallback must stay INSIDE the function: there, only the test needing the
+    module fails if `tomli` is missing, and it says so. At the top, the whole file
+    disappears from collection, which looks like "nothing to check" (point 140).
     """
     dossier = os.path.dirname(os.path.abspath(__file__))
     fichiers = sorted(nom for nom in os.listdir(dossier)
@@ -982,7 +970,7 @@ def test_aucun_test_n_importe_en_tete_un_module_absent_de_la_version_minimale():
     for nom_fichier in fichiers:
         with open(os.path.join(dossier, nom_fichier), encoding="utf-8") as fh:
             arbre = ast.parse(fh.read())
-        for noeud in arbre.body:            # le CORPS du module, pas les fonctions
+        for noeud in arbre.body:            # the module BODY, not the functions
             if isinstance(noeud, ast.Import):
                 noms = [alias.name for alias in noeud.names]
             elif isinstance(noeud, ast.ImportFrom):
@@ -1001,40 +989,39 @@ def test_aucun_test_n_importe_en_tete_un_module_absent_de_la_version_minimale():
         "fichier ENTIER échoue sur cette version : " + " ; ".join(fautes))
 
 
-def test_lextracteur_de_mots_cles_ne_regarde_pas_dans_le_vide():
-    """Le témoin du garde-fou : l'extracteur trouve des productions réelles.
+def test_the_keyword_extractor_does_not_look_at_nothing():
+    """The safeguard's witness: the extractor finds real productions.
 
-    Tester seulement que l'extracteur existe permettrait une fonction qui
-    rend toujours ``frozenset()``. Ces trois formes couvrent un bloc, une règle
-    et un type ajouté tardivement : elles doivent toutes venir de la grammaire
-    importée, pas d'une liste locale de mots-clés.
+    Testing only that the extractor exists would allow a function always
+    returning ``frozenset()``. These three forms cover a block, a rule and a type
+    added late: they must all come from the imported grammar, not from a local
+    keyword list.
     """
-    mots = _litteraux_de_la_grammaire()
+    mots = _grammar_literals()
     assert len(mots) >= 50
     assert {"app", "rule", "Upload"} <= mots
 
 
 def _paragraphe_de_reference(memoire):
-    """Le paragraphe de `CLAUDE.md` qui ÉNUMÈRE les mots-clés du DSL."""
+    """The `CLAUDE.md` paragraph that LISTS the DSL keywords."""
     debut = memoire.index("**DSL keyword reference.**")
     fin = memoire.index("none is a standalone brick.", debut)
     return memoire[debut:fin]
 
 
-def test_la_reference_des_mots_cles_ne_nomme_rien_qui_ait_disparu():
-    """L'autre sens : la mémoire ne doit pas annoncer un mot-clé retiré.
+def test_the_keyword_reference_names_nothing_that_vanished():
+    """The other direction: the memory must not announce a removed keyword.
 
-    Le paragraphe de référence est une liste ÉCRITE À LA MAIN — la forme
-    exacte que les points 164, 167 et 169 ont vu cesser de border trois fois.
-    On ne peut pas la dériver, `CLAUDE.md` étant un document ; on peut en
-    revanche la CONFRONTER, comme le point 169 confronte le tableau de
-    l'éditeur de confiance à `[project.urls]`. Une brique retirée de la
-    grammaire fait donc échouer ici, au lieu d'être promise pour toujours.
+    The reference paragraph is a HAND-WRITTEN list — the exact form points 164,
+    167 and 169 saw stop bounding three times. It cannot be derived, `CLAUDE.md`
+    being a document; it can however be CONFRONTED, as point 169 confronts the
+    trusted publisher table with `[project.urls]`. A brick removed from the
+    grammar therefore fails here, instead of being promised forever.
     """
     racine = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     with open(os.path.join(racine, "CLAUDE.md"), encoding="utf-8") as fh:
         reference = _paragraphe_de_reference(fh.read())
-    reels = _litteraux_de_la_grammaire()
+    reels = _grammar_literals()
     annonces = set(re.findall(r"`([a-zA-Z][a-zA-Z_]{1,24})`", reference))
     fantomes = sorted(annonces - reels)
     assert not fantomes, (
@@ -1042,26 +1029,26 @@ def test_la_reference_des_mots_cles_ne_nomme_rien_qui_ait_disparu():
         "n'implémente pas : " + ", ".join(fantomes))
 
 
-def test_tous_les_mots_cles_de_la_grammaire_sont_nommes_dans_claude():
-    """La mémoire ne doit pas perdre un mot quand la grammaire en gagne un.
+def test_every_grammar_keyword_is_named_in_claude():
+    """The memory must not lose a word when the grammar gains one.
 
-    La liste attendue est calculée depuis les productions Lark. Le test ne
-    connaît donc pas les briques à venir ; il ne recopie que les exceptions de
-    liaison, chacune justifiée et gardée par le test voisin.
+    The expected list is computed from the Lark productions. The test therefore
+    does not know future bricks; it only copies the linking exceptions, each
+    justified and guarded by the neighboring test.
     """
     racine = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     with open(os.path.join(racine, "CLAUDE.md"), encoding="utf-8") as fh:
         memoire = fh.read()
     absents = sorted(
-        mot for mot in _litteraux_de_la_grammaire()
-        if not _ecrit_comme_du_code(memoire, mot))
+        mot for mot in _grammar_literals()
+        if not _written_as_code(memoire, mot))
     assert not absents, (
         "mots-clés de la grammaire absents de CLAUDE.md : "
         + ", ".join(absents))
 
 
-def test_chaque_test_python_exerce_une_assertion():
-    """Un test collecté doit pouvoir rougir sur son propre scénario."""
+def test_each_python_test_exercises_an_assertion():
+    """A collected test must be able to turn red on its own scenario."""
     racine = pathlib.Path(__file__).resolve().parent
     fonctions = []
     sans_temoin = []
@@ -1103,16 +1090,16 @@ def test_chaque_test_python_exerce_une_assertion():
                     sans_temoin.append(f"{identifiant}:{fonction.lineno}")
     assert len(fonctions) >= 1000, f"extracteur de tests trop pauvre : {len(fonctions)}"
     assert not sans_temoin, "tests sans assertion : " + ", ".join(sans_temoin)
-    # Une exemption qui ne sert plus (test disparu, ou qui porte désormais
-    # une assertion) fait échouer : sinon elle excuserait en silence le
-    # prochain test qui prendrait ce nom (point 155).
+    # An exemption no longer used (test gone, or now carrying an assertion)
+    # makes the test fail: otherwise it would silently excuse the next test
+    # taking that name (point 155).
     perimees = sorted(set(exemptions) - exemptions_servies)
     assert not perimees, "exemptions qui ne servent plus : " + ", ".join(perimees)
 
 
 def test_language_compatibility_ratchet():
     """Keep historical witnesses; additions must be declared in the current one."""
-    current = _litteraux_de_la_grammaire()
+    current = _grammar_literals()
     witnesses = sorted(pathlib.Path(__file__).parent.glob("grammaire_v*.txt"))
     assert witnesses, "no language compatibility witnesses"
     versions = set()
@@ -1137,4 +1124,4 @@ def test_language_extractor_refuses_empty_grammar(monkeypatch):
 
     monkeypatch.setitem(globals(), "grammar", "TYPE: /[A-Z]+/")
     with pytest.raises(AssertionError, match="aucun littéral"):
-        _litteraux_de_la_grammaire()
+        _grammar_literals()

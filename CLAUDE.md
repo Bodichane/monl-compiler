@@ -1379,7 +1379,7 @@ making a touch-up: does the content really say what we want to see?
   repeated the ceiling assertion word for word: tested against the THREE ways
   to break the safeguard, it turned red exactly when the other one did, never
   on its own. The ratchet lives in the strict equality of
-  `test_chaque_exception_de_complexite_sert_encore`. **A witness that announces
+  `test_each_complexity_exception_is_still_needed`. **A witness that announces
   in its NAME a guarantee carried elsewhere makes people believe it is
   protected twice**—point 167bis from the other end (there it checked
   nothing, here it checks the same thing twice).
@@ -1686,7 +1686,7 @@ making a touch-up: does the content really say what we want to see?
   green locally (simple deprecation warning), RED on all three CI versions,
   with `starlette.testclient` requiring `httpx2`. The instruction existed
   explicitly at the top of `tests/test_platform_web.py`, and nothing enforced
-  it. `test_aucun_test_ne_monte_la_plateforme_avec_testclient` makes it
+  it. `test_no_test_mounts_the_platform_with_testclient` makes it
   executable through AST. See point 163.
 - **POINT 162: the platform no longer builds interfaces — and removing a
   feature is proven the way a brick is proven.** Removed:
