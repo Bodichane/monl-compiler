@@ -15,10 +15,38 @@ class ModificationRoutesMixin:
         api_lines = []
         base_target = context["base_target"]
         tag = context["tag"]
+        update_deps, ownership_check_lines = self._controle_dacces_update(context)
+        update_deps_suffix = f", {update_deps}" if update_deps else ""
+        api_lines.append(f"@app.put('/{base_target.lower()}/{{id}}', tags=['{tag}'])")
+        api_lines.append(f"def update_{base_target.lower()}(id: int, data: {base_target}Schema{update_deps_suffix}):")
+        api_lines.append(context["security_check"])
+        api_lines.extend(ownership_check_lines)
+        api_lines.append("    conn = _connect(); cursor = conn.cursor()")
+        api_lines += self._verrous_de_paiement_update(base_target)
+        derives_upd = self.derived_by_entity.get(base_target, ())
+        api_lines += self._recalculs_derives_update(base_target, derives_upd)
+        postpaiement_upd, ecrits = self._champs_ecrits_update(base_target)
+        # POINT 85: the writes are gathered BEFORE being emitted, so they can
+        # be wrapped in a try when the entity carries a 'unique'. SQLite raises
+        # at `execute`, not at `commit` — a guard around the commit alone gave
+        # 500 (checked against a real server, not inferred).
+        etats, lignes_ecriture = self._liberations_update(base_target, postpaiement_upd)
+        api_lines += etats
+        lignes_ecriture += self._decomptes_update(base_target)
+        lignes_ecriture += self._ecriture_update(
+            base_target, ecrits, {r.field for r in derives_upd})
+        lignes_ecriture += self._recalculs_agreges_update(base_target)
+        api_lines += self._envelopper_ecritures(base_target, lignes_ecriture)
+        api_lines.append("    return {'status': 'success', 'id': id}")
+        api_lines.append("")
+
+        return api_lines
+
+    def _controle_dacces_update(self, context):
+        """Dependencies and party/owner checks of the Update route."""
+        base_target = context["base_target"]
         access = context["access"]
         is_public = context["is_public"]
-        security_check = context["security_check"]
-        dependency_injection = context["dependency_injection"]
         # ADDED (post-v6, roadmap): if an 'ownedBy' rule targets this action,
         # an extra check verifies that the current actor really owns the
         # record, on top of the usual role check.
@@ -38,7 +66,7 @@ class ModificationRoutesMixin:
         apply_update_parties = bool(update_parties) and not is_public
         update_supers = access.supervisors
         apply_update_super = bool(update_supers) and apply_update_parties
-        update_deps = dependency_injection
+        update_deps = context["dependency_injection"]
         ownership_check_lines = []
         if apply_update_parties:
             update_deps += ", current_user_id: int = Depends(get_current_user_id)" if update_deps else "current_user_id: int = Depends(get_current_user_id)"
@@ -77,13 +105,11 @@ class ModificationRoutesMixin:
                 "        if _owner_row[0] != current_user_id: raise HTTPException(status_code=403, "
                 "detail=\"Access control: only the resource's owner can perform this action\")",
             ]
+        return update_deps, ownership_check_lines
 
-        update_deps_suffix = f", {update_deps}" if update_deps else ""
-        api_lines.append(f"@app.put('/{base_target.lower()}/{{id}}', tags=['{tag}'])")
-        api_lines.append(f"def update_{base_target.lower()}(id: int, data: {base_target}Schema{update_deps_suffix}):")
-        api_lines.append(security_check)
-        api_lines.extend(ownership_check_lines)
-        api_lines.append("    conn = _connect(); cursor = conn.cursor()")
+    def _verrous_de_paiement_update(self, base_target):
+        """The payment lock of the record and of its settled parents."""
+        api_lines = []
         # BRICK 18 (point 91): a charged record is FROZEN. The guard is placed
         # before any read and any calculation.
         if self._payment_lock_field(base_target):
@@ -106,21 +132,15 @@ class ModificationRoutesMixin:
             api_lines += self._payment_lock_lines(
                 verrou["table"], f"{lien}[0]", verrou["entity"],
                 indent="        ", var="_parent_regle")
-        fields = list(self.entities[base_target].keys())
-        # FIX (point 78): a 'generated' field is NOT in the Pydantic schema,
-        # yet this route read `data.<field>` for ALL attributes -- hence 500
-        # (AttributeError) on every entity combining 'generated' and 'Update'.
-        # Latent until now: no example combined them. A field filled by the
-        # server has no business being rewritten from the request body;
-        # excluding it also preserves its value (the pseudonym must not
-        # change).
-        generated_upd = self.generated_fields_by_entity.get(base_target, [])
+        return api_lines
+
+    def _recalculs_derives_update(self, base_target, derives_upd):
+        """Recomputes each derivedFrom amount from the STORED linked row."""
         # ADDED (brick 10, point 77): a 'derivedFrom' field is RECOMPUTED here.
         # Leaving it as is would merely move the flaw: create at quantity 1
         # then update to quantity 5 without recomputing would give five items
         # for the price of one.
-        derives_upd = self.derived_by_entity.get(base_target, ())
-        noms_derives = {r.field for r in derives_upd}
+        api_lines = []
         for regle in derives_upd:
             fk_col = regle.source_fk
             champ = regle.field
@@ -154,6 +174,20 @@ class ModificationRoutesMixin:
                 f"    _calcul_{champ} = round(float(_src_{champ}[0] or 0) "
                 f"* int(data.{regle.factor}), 2)",
             ]
+        return api_lines
+
+    def _champs_ecrits_update(self, base_target):
+        """The fields the client may rewrite, and the post-payment ones."""
+        fields = list(self.entities[base_target].keys())
+        # FIX (point 78): a 'generated' field is NOT in the Pydantic schema,
+        # yet this route read `data.<field>` for ALL attributes -- hence 500
+        # (AttributeError) on every entity combining 'generated' and 'Update'.
+        # Latent until now: no example combined them. A field filled by the
+        # server has no business being rewritten from the request body;
+        # excluding it also preserves its value (the pseudonym must not
+        # change).
+        generated_upd = self.generated_fields_by_entity.get(base_target, [])
+        generated_upd = self.generated_fields_by_entity.get(base_target, [])
         # ADDED (brick 12, point 82): a 'sumOf' field is not in `data` and has
         # no place in the SET — rewriting it from the request would hand back
         # to the client the total just taken away from them, and reading
@@ -181,11 +215,11 @@ class ModificationRoutesMixin:
                   and f not in horodates_upd
                   and f not in postpaiement_upd
                   and self.entities[base_target][f] != "Upload"]
-        # POINT 85: the writes are gathered BEFORE being emitted, so they can
-        # be wrapped in a try when the entity carries a 'unique'. SQLite raises
-        # at `execute`, not at `commit` — a guard around the commit alone gave
-        # 500 (checked against a real server, not inferred).
-        lignes_ecriture = []
+        return postpaiement_upd, ecrits
+
+    def _liberations_update(self, base_target, postpaiement_upd):
+        """State reads before the write, and the release on transition."""
+        api_lines, lignes_ecriture = [], []
         # BRICK 20 (point 98): reaching a value UNDOES an effect. Cancelling an
         # order set it to "cancelled" and kept its lines: the stock stayed
         # consumed. Restoration had existed since point 92, but only on
@@ -239,6 +273,11 @@ class ModificationRoutesMixin:
             # reason as point 92). Single source shared with the post-payment
             # route.
             lignes_ecriture += self._lignes_restitution(enfant, fk_enfant)
+        return api_lines, lignes_ecriture
+
+    def _decomptes_update(self, base_target):
+        """Applies the quantity DELTA to a floored stock."""
+        lignes_ecriture = []
         # BRICK 19 (point 91): the count follows the UPDATED quantity.
         # `decrements` was armed only at creation: creating a line at 1 then
         # setting it to 4 billed four pairs and counted down only one (checked
@@ -287,19 +326,29 @@ class ModificationRoutesMixin:
                 f"                '{rule.target_entity}.{vise} insufficient: "
                 f"the requested quantity exceeds what remains available.'))",
             ]
+        return lignes_ecriture
+
+    def _ecriture_update(self, base_target, ecrits, noms_derives):
+        """The UPDATE statement, or nothing when the server fills everything."""
+        lignes = []
         if ecrits:
             update_stmt = ", ".join([f'"{f}" = ?' for f in ecrits])
-            lignes_ecriture.append(f"query = 'UPDATE \"{base_target.lower()}\" SET {update_stmt} WHERE id = ?'")
+            lignes.append(f"query = 'UPDATE \"{base_target.lower()}\" SET {update_stmt} WHERE id = ?'")
             values_list = ", ".join([
                 f"_calcul_{f}" if f in noms_derives else f"data.{f}"
                 for f in ecrits
             ])
-            lignes_ecriture.append(f"cursor.execute(query, ({values_list}, id))")
+            lignes.append(f"cursor.execute(query, ({values_list}, id))")
         else:
             # Entity whose attributes are ALL filled by the server: "SET  WHERE
             # id = ?" would be invalid SQL. Nothing to write is a success, not
             # an error.
-            lignes_ecriture.append("pass  # no field the client can modify")
+            lignes.append("pass  # no field the client can modify")
+        return lignes
+
+    def _recalculs_agreges_update(self, base_target):
+        """Recomputes the parent total of the updated line."""
+        lignes_ecriture = []
         # ADDED (brick 12, point 82): the parent's total follows the updated
         # line. The parent is reread FROM THE DATABASE, never taken from the
         # request body — the Update route does not write foreign keys, so
@@ -315,6 +364,11 @@ class ModificationRoutesMixin:
                 f"if {var}:",
                 f"    cursor.execute({recalcul['sql']!r}, ({var}[0], {var}[0]))",
             ]
+        return lignes_ecriture
+
+    def _envelopper_ecritures(self, base_target, lignes_ecriture):
+        """Commits the writes, inside a try when the entity has a unique."""
+        api_lines = []
         # POINT 85: the Update route wrote NO foreign key, so it could not
         # raise an IntegrityError — hence the absence of a guard until now.
         # 'unique' changes that: a PUT duplicating a unique value gave 500 and
@@ -335,7 +389,4 @@ class ModificationRoutesMixin:
         else:
             api_lines += [f"    {ligne}" for ligne in lignes_ecriture]
             api_lines.append("    conn.commit(); conn.close()")
-        api_lines.append("    return {'status': 'success', 'id': id}")
-        api_lines.append("")
-
         return api_lines
