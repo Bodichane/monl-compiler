@@ -97,7 +97,7 @@ def _valide(spec):
 # Ce que la compilation doit refuser
 # --------------------------------------------------------------------------
 
-def test_la_spec_du_banc_compile(capsys):
+def test_the_bench_spec_compiles(capsys):
     """Le témoin des refus qui suivent."""
     ast = _valide(SPEC)
     assert ast["security"]["required_profiles"] == {"Commande": "Client"}
@@ -194,7 +194,7 @@ def _compile(dossier, spec, capsys):
     return (dossier / "app.py").read_text(encoding="utf-8")
 
 
-def test_la_regle_change_vraiment_la_sortie(tmp_path, capsys):
+def test_the_rule_really_changes_the_output(tmp_path, capsys):
     """Discipline du point 85 : aucune brique ne repart sans ce test."""
     assert _compile(tmp_path / "a", SPEC, capsys) != _compile(tmp_path / "b",
                                                              SANS_REGLE, capsys)

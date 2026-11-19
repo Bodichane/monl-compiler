@@ -91,7 +91,7 @@ def _valide(spec):
 # Ce que la compilation doit refuser
 # --------------------------------------------------------------------------
 
-def test_la_spec_du_banc_compile(capsys):
+def test_the_bench_spec_compiles(capsys):
     """Le témoin des sept refus qui suivent."""
     ast = _valide(SPEC)
     blocs = [s for s in ast["seeds"] if s["entity"] == "Variante"]

@@ -85,7 +85,7 @@ def _valide(spec):
 # Ce que la compilation refuse
 # --------------------------------------------------------------------------
 
-def test_la_spec_du_banc_compile(capsys):
+def test_the_bench_spec_compiles(capsys):
     ast = _valide(SPEC)
     assert ast["security"]["release_rules"] == [
         {"entity": "Commande", "field": "statut", "value": "annulée",
@@ -138,14 +138,14 @@ def test_une_entite_inconnue_est_refusee(capsys):
     capsys.readouterr()
 
 
-def test_deux_regles_sur_le_meme_champ_sont_refusees(capsys):
+def test_two_rules_on_the_same_field_are_refused(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC + 'rule Commande.statut "panier" releases Ligne\n')
     assert "the second would return it a second time" in str(refus.value)
     capsys.readouterr()
 
 
-def test_la_regle_change_vraiment_la_sortie(tmp_path, capsys):
+def test_the_rule_really_changes_the_output(tmp_path, capsys):
     """Le test qui interdit une règle décorative (point 85)."""
     (tmp_path / "a.ml").write_text(SPEC, encoding="utf-8")
     (tmp_path / "b.ml").write_text(SANS_REGLE, encoding="utf-8")

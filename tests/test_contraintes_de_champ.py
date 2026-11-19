@@ -93,7 +93,7 @@ def test_une_spec_bien_formee_compile(capsys):
     capsys.readouterr()
 
 
-def test_un_champ_inexistant_est_refuse(capsys):
+def test_a_nonexistent_field_is_refused(capsys):
     """LE défaut du point 85 : ces quatre lignes compilaient sans un mot.
     L'auteur croit tenir une contrainte, il n'en a aucune, et rien ne le dit."""
     table = [

@@ -1,21 +1,21 @@
-"""Brique 19 : une valeur parmi une liste — point 96.
+"""Brick 19: one value from a list — point 96.
 
-Nommée « la prochaine brique évidente » aux points 91 et 92, et pour cause : sur
-une commande NON réglée, le client posait `status: "livrée"` et le serveur
-l'acceptait. Un statut n'est pas du texte, c'est un état parmi quelques-uns.
+Called "the next obvious brick" at points 91 and 92, and for good reason: on
+an UNPAID order, the client set `status: "livrée"` and the server accepted
+it. A status is not text, it is one state among a few.
 
-Ce que la brique décide :
+What the brick decides:
 
-* **`Literal` plutôt qu'un motif.** Le refus tombe à la validation Pydantic —
-  un 422 AVANT tout INSERT, même place que les bornes du point 85 — et la liste
-  sort telle quelle dans le schéma OpenAPI, donc dans `/docs`, sans qu'on ait à
-  la recopier ;
-* **types TEXTE seulement.** Pour un nombre, `min`/`max` (point 85) et
-  `categorized` (brique 5) disent déjà cela ; une troisième façon d'exprimer la
-  même contrainte finirait par en contredire une autre ;
-* **le contrat porte la liste.** Sans elle l'IA dessine un champ texte, et
-  l'utilisateur invente une valeur qui récolte un 422 — alors que la liste tient
-  dans un menu déroulant.
+* **`Literal` rather than a pattern.** The refusal falls at Pydantic
+  validation — a 422 BEFORE any INSERT, same place as point 85's bounds — and
+  the list comes out as is in the OpenAPI schema, hence in `/docs`, without
+  having to copy it;
+* **TEXT types only.** For a number, `min`/`max` (point 85) and
+  `categorized` (brick 5) already say that; a third way to express the same
+  constraint would end up contradicting another;
+* **the contract carries the list.** Without it the AI draws a text field,
+  and the user invents a value that collects a 422 — while the list fits in a
+  dropdown menu.
 """
 import json
 import subprocess
@@ -61,34 +61,34 @@ def _valide(spec):
 
 
 # --------------------------------------------------------------------------
-# Ce que la compilation refuse
+# What compilation refuses
 # --------------------------------------------------------------------------
 
-def test_la_spec_du_banc_compile(capsys):
+def test_the_bench_spec_compiles(capsys):
     ast = _valide(SPEC)
     assert ast["security"]["enumerated_fields"]["Commande"]["statut"] == [
         "panier", "en préparation", "expédiée", "livrée"]
     capsys.readouterr()
 
 
-def test_lordre_declare_est_conserve(capsys):
-    """Sur un statut, l'ordre est celui du cycle de vie — il porte du sens, et
-    c'est celui qu'un menu déroulant doit présenter."""
+def test_the_declared_order_is_kept(capsys):
+    """For a status, the order is the lifecycle's — it carries meaning, and it is
+    the one a dropdown menu must present."""
     ast = _valide(SPEC)
     assert ast["security"]["enumerated_fields"]["Commande"]["statut"][0] == "panier"
     capsys.readouterr()
 
 
-def test_un_champ_inexistant_est_refuse(capsys):
+def test_a_nonexistent_field_is_refused(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace("Commande.statut oneOf", "Commande.fantome oneOf"))
     assert "nonexistent field" in str(refus.value)
     capsys.readouterr()
 
 
-def test_un_champ_numerique_est_refuse(capsys):
-    """Trois façons d'exprimer la même contrainte finiraient par se
-    contredire : pour un nombre, 'min'/'max' et 'categorized' existent déjà."""
+def test_a_numeric_field_is_refused(capsys):
+    """Three ways to express the same constraint would end up contradicting each
+    other: for a number, 'min'/'max' and 'categorized' already exist."""
     spec = SPEC.replace("    note: String", "    montant: Integer")
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec.replace("Commande.statut oneOf", "Commande.montant oneOf"))
@@ -96,9 +96,9 @@ def test_un_champ_numerique_est_refuse(capsys):
     capsys.readouterr()
 
 
-def test_une_seule_valeur_est_refusee(capsys):
-    """Un champ qui n'a qu'une valeur possible n'a pas besoin d'être saisi —
-    et une règle qui ne produit rien est ce que le point 85 refuse."""
+def test_a_single_value_is_refused(capsys):
+    """A field with a single possible value need not be entered — and a rule
+    producing nothing is what point 85 refuses."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace(
             'oneOf "panier", "en préparation", "expédiée", "livrée"', 'oneOf "panier"'))
@@ -106,30 +106,30 @@ def test_une_seule_valeur_est_refusee(capsys):
     capsys.readouterr()
 
 
-def test_une_valeur_vide_est_refusee(capsys):
+def test_an_empty_value_is_refused(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace('"panier",', '"   ",'))
     assert "empty value" in str(refus.value)
     capsys.readouterr()
 
 
-def test_un_doublon_est_refuse(capsys):
+def test_a_duplicate_is_refused(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace('"livrée"', '"panier"'))
     assert "repeats" in str(refus.value)
     capsys.readouterr()
 
 
-def test_deux_regles_sur_le_meme_champ_sont_refusees(capsys):
+def test_two_rules_on_the_same_field_are_refused(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC + 'rule Commande.statut oneOf "a", "b"\n')
     assert "which list" in str(refus.value)
     capsys.readouterr()
 
 
-def test_cumul_avec_generated_est_refuse(capsys):
-    """Le serveur écrit le champ lui-même : la liste ne serait jamais lue, et
-    l'écran proposerait un menu inerte."""
+def test_combining_with_generated_is_refused(capsys):
+    """The server writes the field itself: the list would never be read, and the
+    screen would offer an inert menu."""
     spec = SPEC + "rule Commande.note generated\n"
     spec = spec.replace('rule Commande.statut oneOf "panier", "en préparation", '
                         '"expédiée", "livrée"',
@@ -141,12 +141,12 @@ def test_cumul_avec_generated_est_refuse(capsys):
 
 
 # --------------------------------------------------------------------------
-# Ce que la génération écrit
+# What generation writes
 # --------------------------------------------------------------------------
 
-def test_la_regle_change_vraiment_la_sortie(tmp_path, capsys):
-    """Le test qui interdit une règle décorative (point 85) : compiler AVEC et
-    SANS doit donner des sorties différentes."""
+def test_the_rule_really_changes_the_output(tmp_path, capsys):
+    """The test forbidding a decorative rule (point 85): compiling WITH and
+    WITHOUT must give different outputs."""
     (tmp_path / "a.ml").write_text(SPEC, encoding="utf-8")
     (tmp_path / "b.ml").write_text(SANS_REGLE, encoding="utf-8")
     compile_project(str(tmp_path / "a.ml"), str(tmp_path / "a"))
@@ -159,9 +159,9 @@ def test_la_regle_change_vraiment_la_sortie(tmp_path, capsys):
     assert "Literal[" not in sans
 
 
-def test_le_contrat_et_le_brief_portent_la_liste(tmp_path, capsys):
-    """L'IA lit le brief, pas le JSON — les deux doivent la porter, sinon elle
-    dessine un champ texte et l'utilisateur récolte un 422."""
+def test_the_contract_and_brief_carry_the_list(tmp_path, capsys):
+    """The AI reads the brief, not the JSON — both must carry it, otherwise it
+    draws a text field and the user collects a 422."""
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     contrat = compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     capsys.readouterr()
@@ -173,8 +173,8 @@ def test_le_contrat_et_le_brief_portent_la_liste(tmp_path, capsys):
     assert "“en préparation”" in brief
 
 
-def test_sans_regle_aucune_liste_dans_le_contrat(tmp_path, capsys):
-    """Le témoin : une règle absente ne doit laisser aucune trace."""
+def test_without_rule_no_list_in_the_contract(tmp_path, capsys):
+    """The witness: an absent rule must leave no trace."""
     (tmp_path / "spec.ml").write_text(SANS_REGLE, encoding="utf-8")
     contrat = compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     capsys.readouterr()
@@ -184,10 +184,10 @@ def test_sans_regle_aucune_liste_dans_le_contrat(tmp_path, capsys):
         tmp_path / "docs/FRONTEND_PROMPT.md").read_text(encoding="utf-8")
 
 
-def test_le_delta_signale_une_liste_qui_change(tmp_path, capsys):
-    """POINT 96 : sixième fois. Poser `oneOf` ne renomme rien, et la liste peut
-    changer sans que le champ bouge — un champ texte devient un menu, et le menu
-    gagne une entrée. Comparer les seuls noms serait l'erreur du point 89."""
+def test_the_delta_reports_a_changing_list(tmp_path, capsys):
+    """POINT 96: the sixth time. Setting `oneOf` renames nothing, and the list
+    can change without the field moving — a text field becomes a menu, and the
+    menu gains an entry. Comparing names alone would be point 89's mistake."""
     from monl.cli import cmd_update
 
     proj = tmp_path / "p"
@@ -260,34 +260,33 @@ def serveur(tmp_path):
 
 
 @pytest.mark.parametrize("valide", ["panier", "en préparation", "expédiée", "livrée"])
-def test_les_valeurs_declarees_sont_acceptees(serveur, valide):
+def test_the_declared_values_are_accepted(serveur, valide):
     base, jeton = serveur
     code, reponse = _appel(base + "/commande", {"statut": valide, "note": "x"}, jeton)
     assert code == 200, reponse
 
 
 @pytest.mark.parametrize("invalide", ["livrée par moi", "", "PANIER", "expediee"])
-def test_toute_autre_valeur_est_refusee(serveur, invalide):
-    """LE défaut mesuré sur la boutique réelle : le client se déclarait
-    « livrée » tout seul, sur une commande non réglée."""
+def test_any_other_value_is_refused(serveur, invalide):
+    """THE defect measured on the real shop: the client declared itself
+    "delivered" on its own, on an unpaid order."""
     base, jeton = serveur
     code, _ = _appel(base + "/commande", {"statut": invalide, "note": "x"}, jeton)
     assert code == 422
 
 
-def test_le_refus_enumere_les_valeurs_permises(serveur):
-    """Un 422 qui ne dit pas ce qu'il attend oblige à lire la documentation.
-    La liste est dans le message, elle vient de `Literal`."""
+def test_the_refusal_lists_the_allowed_values(serveur):
+    """A 422 that does not say what it expects forces reading the documentation.
+    The list is in the message, it comes from `Literal`."""
     base, jeton = serveur
     _, reponse = _appel(base + "/commande", {"statut": "inventé", "note": "x"}, jeton)
     message = json.dumps(reponse, ensure_ascii=False)
     assert "panier" in message and "livrée" in message
 
 
-def test_la_contrainte_tient_AUSSI_a_la_modification(serveur):
-    """Le branchement qu'on oublie (points 91, 92) : le schéma Pydantic est
-    unique par entité, donc le PUT est couvert — mais il faut le VÉRIFIER,
-    pas le supposer."""
+def test_the_constraint_ALSO_holds_on_update(serveur):
+    """The branch one forgets (points 91, 92): the Pydantic schema is unique per
+    entity, so PUT is covered — but it must be CHECKED, not assumed."""
     base, jeton = serveur
     _, cree = _appel(base + "/commande", {"statut": "panier", "note": "x"}, jeton)
 
@@ -302,9 +301,9 @@ def test_la_contrainte_tient_AUSSI_a_la_modification(serveur):
     assert relue["data"]["statut"] == "expédiée"
 
 
-def test_un_refus_ne_laisse_rien_en_base(serveur):
-    """422 avant tout INSERT : la garde vit dans la validation d'entrée, pas
-    au milieu d'une écriture."""
+def test_a_refusal_leaves_nothing_in_the_database(serveur):
+    """422 before any INSERT: the guard lives in input validation, not in the
+    middle of a write."""
     base, jeton = serveur
     _appel(base + "/commande", {"statut": "inventé", "note": "x"}, jeton)
     _, liste = _appel(base + "/commande", jeton=jeton)

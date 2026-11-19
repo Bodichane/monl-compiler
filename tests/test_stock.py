@@ -108,7 +108,7 @@ def _valide(spec):
 # Ce que la compilation doit refuser
 # --------------------------------------------------------------------------
 
-def test_la_spec_du_banc_compile(capsys):
+def test_the_bench_spec_compiles(capsys):
     """Le témoin des refus qui suivent."""
     ast = _valide(SPEC)
     regle = next(r for r in ast["security"]["reputation_rules"]

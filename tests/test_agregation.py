@@ -1,25 +1,26 @@
-"""Brique 12 (`sumOf`) éprouvée contre un vrai serveur — point 82.
+"""Brick 12 (`sumOf`) tested against a real server — point 82.
 
-Pourquoi ce fichier existe. `derivedFrom` (brique 10) calcule un montant depuis
-UNE ligne liée : une commande ne pouvait donc porter qu'un seul article. La
-propriété transitive (brique 11) a donné à la commande des lignes correctement
-protégées, mais la commande ne savait toujours pas ce qu'elle coûtait — le total
-restait un champ que le client écrivait, ou n'existait pas. `sumOf` ferme la
-troisième et dernière brique du panier cadrée au point 80.
+Why this file exists. `derivedFrom` (brick 10) calculates an amount from ONE
+linked row: an order could therefore carry only one item. Transitive
+ownership (brick 11) gave the order properly protected lines, but the order
+still did not know what it cost — the total stayed a field the client wrote,
+or did not exist. `sumOf` closes the third and last cart brick scoped at
+point 80.
 
-Ce que ces tests exigent, et qu'une relecture ne prouve pas :
+What these tests require, and what a review does not prove:
 
-* le total suit les lignes dans les TROIS sens — ajout, modification,
-  suppression. Recalculer à la création seulement laisserait la faille du
-  point 77 revenir par la quantité, puis par le retrait d'un article ;
-* un panier vidé retombe à 0 et non à NULL (qu'aucune interface n'affiche) ;
-* le montant ENCAISSÉ est la somme, vérifié sur ce que le prestataire reçoit
-  réellement — c'est la seule affirmation qui compte pour une boutique, et elle
-  demande un faux Stripe, pas une lecture de la base ;
-* le total d'un tiers ne bouge pas quand on tente d'ajouter une ligne à sa
-  commande (composition avec la brique 11 : le 403 ne suffit pas, il faut que
-  RIEN n'ait été recalculé) ;
-* la somme est arrondie : additionner des flottants dérive, et c'est un montant.
+* the total follows the lines in all THREE directions — add, update, delete.
+  Recalculating on creation only would let point 77's flaw come back through
+  the quantity, then through removing an item;
+* an emptied cart falls back to 0 and not to NULL (which no interface
+  displays);
+* the CHARGED amount is the sum, checked on what the provider really
+  receives — it is the only statement that counts for a shop, and it requires
+  a fake Stripe, not a database read;
+* a third party's total does not move when one tries to add a line to their
+  order (composition with brick 11: the 403 is not enough, NOTHING must have
+  been recalculated);
+* the sum is rounded: adding floats drifts, and this is an amount.
 """
 import contextlib
 import json
@@ -86,22 +87,22 @@ workflow Acheter for Client
 MOT_DE_PASSE = "motdepasse123"
 CLE_SECRETE = "sk_test_banc_agregation"
 CLE_WEBHOOK = "whsec_banc_agregation"
-# Prix CHOISIS pour que la somme dérive réellement en flottant :
-# round(10.05*3, 2) + round(10.15*7, 2) == 101.19999999999999, et non 101.2.
-# Mes premières valeurs (12.35 et 7.80) ne dérivaient pas, ce qui rendait le
-# test d'arrondi tautologique : il passait avec ou sans le ROUND. Vérifié en
-# Python avant d'être écrit ici.
+# Prices CHOSEN so that the sum really drifts in floating point: round(10.05*3,
+# 2) + round(10.15*7, 2) == 101.19999999999999, not 101.2. My first values
+# (12.35 and 7.80) did not drift, which made the rounding test tautological: it
+# passed with or without the ROUND. Checked in Python before being written
+# here.
 PRIX_A, PRIX_B = 10.05, 10.15
-# La quantité qui déclenche la dérive, utilisée par le test d'arrondi.
+# The quantity that triggers the drift, used by the rounding test.
 QTE_A, QTE_B = 3, 7
 
 
 class _PrestataireFactice(BaseHTTPRequestHandler):
-    """Même faux Stripe que tests/test_paiement.py : il DÉCODE le corps qu'on
-    lui envoie, ce qui est la seule façon d'affirmer quel montant a réellement
-    été demandé — lire la base ne dirait que ce que monl croit encaisser."""
+    """Same fake Stripe as tests/test_paiement.py: it DECODES the body it is
+    sent, which is the only way to state which amount was really requested —
+    reading the database would only tell what monl believes it charges."""
 
-    def do_POST(self):  # nom imposé par BaseHTTPRequestHandler
+    def do_POST(self):  # name imposed by BaseHTTPRequestHandler
         brut = self.rfile.read(int(self.headers.get("Content-Length", 0)))
         self.server.recu.append({
             "chemin": self.path,
@@ -206,7 +207,7 @@ def _commande(base, entetes, libelle):
     return reponse.json()["id"]
 
 
-def _ligne(base, entetes, commande_id, article_id, quantite):
+def _line(base, entetes, commande_id, article_id, quantite):
     return requests.post(f"{base}/ligne", headers=entetes,
                          json={"commande_id": commande_id,
                                "article_id": article_id,
@@ -220,63 +221,63 @@ def _total(base, entetes, commande_id):
 
 
 # --------------------------------------------------------------------------
-# Le total sort des corps de requête
+# The total leaves the request bodies
 # --------------------------------------------------------------------------
 
-def test_le_total_n_est_pas_un_champ_de_requete(application):
+def test_the_total_is_not_a_request_field(application):
     base, _ = application
     champs = requests.get(f"{base}/openapi.json").json()[
         "components"]["schemas"]["CommandeSchema"]["properties"]
     assert "total" not in champs, (
         "le client pourrait écrire le total d'un panier — la faille du point 77 "
         "revenue par le panier")
-    assert "libelle" in champs  # témoin : le schéma n'est pas vide
+    assert "libelle" in champs  # witness: the schema is not empty
 
 
-def test_une_commande_naît_a_zero_et_non_a_null(application, alice):
-    """NULL n'est pas 0 : aucune interface ne sait afficher « null € », et une
-    somme partant de NULL resterait NULL en SQLite."""
+def test_an_order_starts_at_zero_not_null(application, alice):
+    """NULL is not 0: no interface can display "null €", and a sum starting from
+    NULL would stay NULL in SQLite."""
     base, _ = application
     commande = _commande(base, alice, "panier vide")
     assert _total(base, alice, commande) == 0
 
 
-def test_le_total_envoye_par_le_client_est_ignore(application, alice):
+def test_the_total_sent_by_the_client_is_ignored(application, alice):
     base, dossier = application
     commande = _commande(base, alice, "tentative")
     article = _id_article(dossier, PRIX_A)
-    _ligne(base, alice, commande, article, 1)
-    # Le champ n'existe pas dans le schéma : Pydantic l'ignore en silence.
+    _line(base, alice, commande, article, 1)
+    # The field does not exist in the schema: Pydantic silently ignores it.
     requests.put(f"{base}/commande/{commande}", headers=alice,
                  json={"libelle": "tentative", "total": 0.01})
     assert _total(base, alice, commande) == pytest.approx(PRIX_A)
 
 
 # --------------------------------------------------------------------------
-# Le total suit les lignes dans les trois sens
+# The total follows the lines in all three directions
 # --------------------------------------------------------------------------
 
-def test_le_total_est_la_somme_de_plusieurs_articles(application, alice):
-    """Le cœur de la brique : ce que `derivedFrom` ne savait pas faire."""
+def test_the_total_is_the_sum_of_several_items(application, alice):
+    """The heart of the brick: what `derivedFrom` could not do."""
     base, dossier = application
     commande = _commande(base, alice, "deux articles")
-    assert _ligne(base, alice, commande, _id_article(dossier, PRIX_A),
+    assert _line(base, alice, commande, _id_article(dossier, PRIX_A),
                   2).status_code in (200, 201)
     assert _total(base, alice, commande) == pytest.approx(PRIX_A * 2)
 
-    assert _ligne(base, alice, commande, _id_article(dossier, PRIX_B),
+    assert _line(base, alice, commande, _id_article(dossier, PRIX_B),
                   3).status_code in (200, 201)
     attendu = round(PRIX_A * 2 + PRIX_B * 3, 2)
     assert _total(base, alice, commande) == pytest.approx(attendu)
 
 
 def test_the_total_follows_the_updated_quantity(application, alice):
-    """Sans recalcul au PUT, la faille se déplacerait de la ligne vers la
-    quantité : ajouter un article à 1 puis passer à 10."""
+    """Without recalculation on PUT, the flaw would move from the line to the
+    quantity: add an item at 1 then switch to 10."""
     base, dossier = application
     commande = _commande(base, alice, "modification")
     article = _id_article(dossier, PRIX_A)
-    ligne = _ligne(base, alice, commande, article, 1).json()["id"]
+    ligne = _line(base, alice, commande, article, 1).json()["id"]
     assert _total(base, alice, commande) == pytest.approx(PRIX_A)
 
     requests.put(f"{base}/ligne/{ligne}", headers=alice,
@@ -285,14 +286,14 @@ def test_the_total_follows_the_updated_quantity(application, alice):
     assert _total(base, alice, commande) == pytest.approx(PRIX_A * 10)
 
 
-def test_le_total_redescend_quand_une_ligne_est_supprimee(application, alice):
-    """Le sens qu'on oublie : sans lui, retirer un article du panier laisserait
-    payer un article rendu."""
+def test_the_total_goes_down_when_a_line_is_deleted(application, alice):
+    """The direction one forgets: without it, removing an item from the cart
+    would let a returned item be paid for."""
     base, dossier = application
     commande = _commande(base, alice, "suppression")
-    ligne_a = _ligne(base, alice, commande, _id_article(dossier, PRIX_A),
+    ligne_a = _line(base, alice, commande, _id_article(dossier, PRIX_A),
                      1).json()["id"]
-    _ligne(base, alice, commande, _id_article(dossier, PRIX_B), 1)
+    _line(base, alice, commande, _id_article(dossier, PRIX_B), 1)
     assert _total(base, alice, commande) == pytest.approx(
         round(PRIX_A + PRIX_B, 2))
 
@@ -304,22 +305,22 @@ def test_le_total_redescend_quand_une_ligne_est_supprimee(application, alice):
 def test_un_panier_vide_de_ses_lignes_retombe_a_zero(application, alice):
     base, dossier = application
     commande = _commande(base, alice, "à vider")
-    ligne = _ligne(base, alice, commande, _id_article(dossier, PRIX_A),
+    ligne = _line(base, alice, commande, _id_article(dossier, PRIX_A),
                    2).json()["id"]
     requests.delete(f"{base}/ligne/{ligne}", headers=alice)
     assert _total(base, alice, commande) == 0, "un panier vidé doit valoir 0"
 
 
-def test_la_somme_est_arrondie(application, alice):
-    """Additionner des flottants dérive. Sur un montant, un centime de dérive
-    est un centime encaissé en trop ou en moins."""
+def test_the_sum_is_rounded(application, alice):
+    """Adding floats drifts. On an amount, a cent of drift is a cent charged too
+    much or too little."""
     base, dossier = application
     commande = _commande(base, alice, "arrondi")
-    _ligne(base, alice, commande, _id_article(dossier, PRIX_A), QTE_A)
-    _ligne(base, alice, commande, _id_article(dossier, PRIX_B), QTE_B)
+    _line(base, alice, commande, _id_article(dossier, PRIX_A), QTE_A)
+    _line(base, alice, commande, _id_article(dossier, PRIX_B), QTE_B)
     total = _total(base, alice, commande)
-    # Ces quantités-là dérivent : la somme brute vaut 101.19999999999999. Le
-    # test ne prouverait rien avec des valeurs qui tombent juste.
+    # These quantities drift: the raw sum is 101.19999999999999. The test would
+    # prove nothing with values that fall right.
     brute = round(PRIX_A * QTE_A, 2) + round(PRIX_B * QTE_B, 2)
     assert brute != round(brute, 2), (
         "les prix du banc ne dérivent plus : ce test redevient tautologique")
@@ -327,38 +328,38 @@ def test_la_somme_est_arrondie(application, alice):
 
 
 # --------------------------------------------------------------------------
-# Composition avec la brique 11 : le total d'un tiers
+# Composition with brick 11: a third party's total
 # --------------------------------------------------------------------------
 
-def test_le_total_d_autrui_ne_bouge_pas(application, alice, bob):
-    """Le 403 de la brique 11 ne suffit pas à l'affirmer : il faut vérifier que
-    RIEN n'a été recalculé sur la commande visée."""
+def test_someone_elses_total_does_not_move(application, alice, bob):
+    """Brick 11's 403 is not enough to assert it: we must check that NOTHING was
+    recalculated on the targeted order."""
     base, dossier = application
     commande = _commande(base, alice, "privée")
-    _ligne(base, alice, commande, _id_article(dossier, PRIX_A), 1)
+    _line(base, alice, commande, _id_article(dossier, PRIX_A), 1)
     avant = _total(base, alice, commande)
 
-    refuse = _ligne(base, bob, commande, _id_article(dossier, PRIX_B), 100)
+    refuse = _line(base, bob, commande, _id_article(dossier, PRIX_B), 100)
     assert refuse.status_code == 403, refuse.text
     assert _total(base, alice, commande) == pytest.approx(avant)
 
 
 # --------------------------------------------------------------------------
-# Ce qui est réellement encaissé
+# What is really charged
 # --------------------------------------------------------------------------
 
-def test_le_montant_encaisse_est_la_somme_du_panier(application, alice, faux_stripe):
-    """L'affirmation qui compte pour une boutique. Elle porte sur ce que le
-    PRESTATAIRE reçoit, décodé de son corps de requête — pas sur ce que la base
-    contient, ni sur ce que monl croit envoyer.
+def test_the_charged_amount_is_the_cart_sum(application, alice, faux_stripe):
+    """The statement that counts for a shop. It is about what the PROVIDER
+    receives, decoded from its request body — not about what the database holds,
+    nor what monl believes it sends.
 
-    C'est aussi la preuve que la chaîne complète tient : brique 10 calcule
-    chaque ligne, brique 11 la rattache et la protège, brique 12 les somme,
-    brique 9 encaisse le résultat."""
+    It is also the proof that the full chain holds: brick 10 calculates each
+    line, brick 11 attaches and protects it, brick 12 sums them, brick 9 charges
+    the result."""
     base, dossier = application
     commande = _commande(base, alice, "à régler")
-    _ligne(base, alice, commande, _id_article(dossier, PRIX_A), 2)
-    _ligne(base, alice, commande, _id_article(dossier, PRIX_B), 3)
+    _line(base, alice, commande, _id_article(dossier, PRIX_A), 2)
+    _line(base, alice, commande, _id_article(dossier, PRIX_B), 3)
     attendu_centimes = str(round(round(PRIX_A * 2 + PRIX_B * 3, 2) * 100))
 
     avant = len(faux_stripe.recu)
@@ -371,18 +372,18 @@ def test_le_montant_encaisse_est_la_somme_du_panier(application, alice, faux_str
     assert demande["champs"][
         "line_items[0][price_data][unit_amount]"] == attendu_centimes, (
         f"montant encaissé faux : {demande['champs']}")
-    # La référence reste qualifiée par l'entité (point 75).
+    # The reference stays qualified by the entity (point 75).
     assert demande["champs"]["client_reference_id"] == f"Commande:{commande}"
 
 
-def test_le_montant_encaisse_suit_une_ligne_retiree(application, alice, faux_stripe):
-    """Le cas qui distingue « recalculé » de « calculé une fois » : on ne doit
-    pas encaisser un article rendu avant le règlement."""
+def test_the_charged_amount_follows_a_removed_line(application, alice, faux_stripe):
+    """The case that tells "recalculated" from "calculated once": a returned item
+    must not be charged before payment."""
     base, dossier = application
     commande = _commande(base, alice, "panier corrigé")
-    ligne_a = _ligne(base, alice, commande, _id_article(dossier, PRIX_A),
+    ligne_a = _line(base, alice, commande, _id_article(dossier, PRIX_A),
                      4).json()["id"]
-    _ligne(base, alice, commande, _id_article(dossier, PRIX_B), 1)
+    _line(base, alice, commande, _id_article(dossier, PRIX_B), 1)
     requests.delete(f"{base}/ligne/{ligne_a}", headers=alice)
 
     avant = len(faux_stripe.recu)

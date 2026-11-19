@@ -123,7 +123,7 @@ def _compile(tmp_path, spec=SPEC):
 # Ce que la génération doit écrire
 # --------------------------------------------------------------------------
 
-def test_la_spec_du_banc_compile(tmp_path, capsys):
+def test_the_bench_spec_compiles(tmp_path, capsys):
     """Le témoin de tout ce qui suit."""
     contrat, _, _ = _compile(tmp_path)
     assert "Variante" in contrat["entities"]

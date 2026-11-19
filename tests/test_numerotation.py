@@ -70,7 +70,7 @@ def _valide(spec):
 # Ce que la compilation doit refuser
 # --------------------------------------------------------------------------
 
-def test_la_spec_du_banc_compile(capsys):
+def test_the_bench_spec_compiles(capsys):
     ast = _valide(SPEC)
     regle = ast["security"]["numbered_fields"][0]
     assert regle == {"entity": "Commande", "field": "reference",
@@ -78,7 +78,7 @@ def test_la_spec_du_banc_compile(capsys):
     capsys.readouterr()
 
 
-def test_un_champ_inexistant_est_refuse(capsys):
+def test_a_nonexistent_field_is_refused(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace("Commande.reference numbered",
                              "Commande.fantome numbered"))
@@ -114,7 +114,7 @@ def test_un_champ_masque_est_refuse(capsys):
     capsys.readouterr()
 
 
-def test_deux_regles_sur_le_meme_champ_sont_refusees(capsys):
+def test_two_rules_on_the_same_field_are_refused(capsys):
     spec = SPEC.replace('rule Commande.reference numbered "CMD-{YYYY}-{NNNN}"',
                         'rule Commande.reference numbered "CMD-{YYYY}-{NNNN}"\n'
                         'rule Commande.reference numbered "AUTRE-{NNNN}"')

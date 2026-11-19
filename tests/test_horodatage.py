@@ -90,7 +90,7 @@ def _valide(spec):
 # Ce que la compilation doit refuser
 # --------------------------------------------------------------------------
 
-def test_la_spec_du_banc_compile(capsys):
+def test_the_bench_spec_compiles(capsys):
     """Le témoin des refus qui suivent."""
     ast = _valide(SPEC)
     assert ast["security"]["timestamp_fields"] == [
@@ -117,7 +117,7 @@ def test_un_champ_date_est_refuse_en_le_disant(capsys):
     capsys.readouterr()
 
 
-def test_un_champ_inexistant_est_refuse(capsys):
+def test_a_nonexistent_field_is_refused(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC.replace("rule Commande.placedAt timestamp",
                              "rule Commande.fantome timestamp"))
@@ -152,7 +152,7 @@ def test_deux_horodatages_sur_la_meme_entite_sont_refuses(capsys):
     capsys.readouterr()
 
 
-def test_deux_regles_sur_le_meme_champ_sont_refusees(capsys):
+def test_two_rules_on_the_same_field_are_refused(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC + "rule Commande.placedAt timestamp\n")
     assert "only one is allowed" in str(refus.value)
@@ -192,7 +192,7 @@ def _compile(dossier, spec, capsys):
     return (dossier / "app.py").read_text(encoding="utf-8")
 
 
-def test_la_regle_change_vraiment_la_sortie(tmp_path, capsys):
+def test_the_rule_really_changes_the_output(tmp_path, capsys):
     """La leçon du point 85 : quatre règles anciennes ne produisaient RIEN, et
     rien ne l'avait jamais vérifié. Aucune brique ne repart sans ce test."""
     avec = _compile(tmp_path / "a", SPEC, capsys)
