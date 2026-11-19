@@ -267,3 +267,21 @@ def test_le_dossier_courant_est_le_defaut_des_commandes_de_projet(monkeypatch):
 
     assert vus == {"update": ".", "frontend": "."}
     assert os.path.isdir(".")
+
+
+def test_retouche_prompt_only_ecrit_la_consigne_sans_appeler_lia(monkeypatch):
+    """`--prompt-only` (and its French alias `--consigne-seule`) writes the
+    instruction and stops; without it, the AI path is taken. Nothing tested
+    this option before: removing it would have left the suite green."""
+    from monl.cli import retouche as module_retouche
+    trace = []
+    monkeypatch.setattr(module_retouche, "cmd_retouche",
+                        lambda d, demande: trace.append(("consigne", d, demande)))
+    monkeypatch.setattr(module_retouche, "_lancer_ia",
+                        lambda args, **kw: trace.append(("ia", args.dir)))
+
+    for option in ("--prompt-only", "--consigne-seule"):
+        cli.main(["retouche", "le titre déborde", "/un/projet", option])
+    assert trace == [("consigne", "/un/projet", "le titre déborde")] * 2
+    cli.main(["retouche", "le titre déborde", "/un/projet"])
+    assert trace[-1] == ("ia", "/un/projet")

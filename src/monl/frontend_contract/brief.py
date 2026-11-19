@@ -6,159 +6,18 @@ through here. Do not reintroduce an "optional" suggestion here: it still
 steers."""
 
 from ..design_skills import render_skill_block
-from . import marqueurs, roles_de_champs
+from . import brief_blocs, marqueurs
 
 
 def _render_prompt(contract):
-    routes_lines = []
     skills_block = render_skill_block(contract.get("design_skills", ["monl-showcase"]))
-    for r in contract["routes"]:
-        if not r["auth_required"]:
-            auth = "public"
-        elif r["allowed_actors"]:
-            auth = f"JWT ({', '.join(r['allowed_actors'])})"
-        else:
-            # Point 74: the payment webhook is authenticated, but not by a JWT
-            # — by a signature from the provider. Announcing "JWT ()" would
-            # suggest a route open to any logged-in account.
-            auth = "provider signature, not a JWT"
-
-        # The expected body appeared NOWHERE in the brief: the AI had to deduce
-        # it from the list of fields, without ever seeing the attachment
-        # columns (a comment's article_id). It could not guess them, and the
-        # server answered 422 (point 57).
-        corps = (f" — body: `{{{', '.join(r['request_fields'])}}}`"
-                 if r.get("request_fields") else "")
-        if r.get("upload"):
-            upload = r["upload"]
-            corps = (f" — multipart/form-data, file field `{upload['field_name']}`, "
-                     f"{upload['max_bytes']} bytes maximum, types: "
-                     f"{', '.join(upload['accepted_types'])}")
-        # Point 74: the route notes existed in the JSON contract but did NOT
-        # reach the brief — and the brief is what the AI reads. The shape of
-        # the paginated response had always been missing from it, and the
-        # payment steps would have been missing just the same.
-        note = f" — {r['note']}" if r.get("note") else ""
-        routes_lines.append(f"- `{r['method']} {r['path']}` — {r['action']} "
-                            f"{r['entity']} — {auth}{corps}{note}")
-    entities_lines = []
-    ROLE_LABELS = {"title": "TITLE — identifies it at a glance",
-                   "media": "MEDIA — the record's image",
-                   "description": "DESCRIPTION — the long text",
-                   "price": "PRICE",
-                   "stock": "AVAILABILITY — show it near the price, not as a footnote",
-                   "category": "CATEGORY — good for a filter",
-                   "meta": "meta — secondary information"}
-    for ent, spec in contract["entities"].items():
-        flags = []
-        for f in spec["fields"]:
-            marks = []
-            if f.get("role"):
-                marks.append(ROLE_LABELS[f["role"]])
-            if f["required"]:
-                marks.append("required")
-            if f["hidden_in_reads"]:
-                marks.append("never returned on read")
-            if f["server_generated"]:
-                marks.append("server-generated — DO NOT send")
-            if f.get("postpayment_only"):
-                marks.append("editable only through the after-payment route")
-            if f.get("upload"):
-                upload = f["upload"]
-                marks.append(
-                    f"Multipart upload via POST/GET on the field `{upload['field_name']}`, "
-                    f"{upload['max_bytes']} bytes maximum; types: "
-                    f"{', '.join(upload['accepted_types'])}. Do not send it as JSON.")
-            if f["categorized_in_reads"]:
-                marks.append("read as a category label")
-            # BRICK 19 (point 96): the AI reads the brief, not the JSON.
-            # Writing the list there is the difference between a dropdown menu
-            # and a text field that gets a 422 on the value the user makes up.
-            if f.get("allowed_values"):
-                marks.append("DROPDOWN MENU, fixed values (422 otherwise): "
-                             + ", ".join(f"“{v}”" for v in f["allowed_values"]))
-            # Point 76: say what the field is for, not only that it exists.
-            # Without the possible values, the AI has to guess what to compare
-            # to know whether it is settled — and will guess 'paid'.
-            if f.get("note"):
-                marks.append(f["note"])
-            suffix = f" ({'; '.join(marks)})" if marks else ""
-            flags.append(f"  - `{f['name']}: {f['type']}`{suffix}")
-        forme = roles_de_champs.ARCHETYPE_GUIDANCE[spec["archetype"]]
-        anatomie = roles_de_champs.ARCHETYPE_ANATOMY[spec["archetype"]]
-        attendus = "\n".join(f"  - {a}" for a in anatomie["attendus"])
-        # POINT 88: the link columns come out in the responses (SELECT *) but
-        # appeared ONLY in the JSON. Yet it is here that the easiest join to
-        # get wrong is at stake — the one that attaches a record to its holder
-        # — and an administration page does little else.
-        liaisons = ""
-        if spec["foreign_keys"]:
-            lignes_liens = [
-                f"  - `{li['column']}` → "
-                + (f"ACCOUNT identifier. Find the {li['references']} record "
-                   f"whose `{li['column']}` holds the SAME value — not the one whose "
-                   f"`id` holds it." if li["references_account"]
-                   else f"`id` of a {li['references']} record.")
-                for li in spec["foreign_keys"]
-            ]
-            liaisons = ("\nLink columns present in responses:\n"
-                        + "\n".join(lignes_liens))
-        entities_lines.append(
-            f"### {ent}\n_Suggested form: {forme}._\n"
-            f"_Close to: {anatomie['voisins']}._\n"
-            f"What a visitor expects to find there:\n{attendus}\n"
-            + "\n".join(flags) + liaisons)
+    routes_lines = brief_blocs.lignes_de_routes(contract)
+    entities_lines = brief_blocs.lignes_d_entites(contract)
 
     brief_line = (f"\n**Product brief:** {contract['brief']}\n" if contract.get("brief") else "")
 
-    # Editorial content (point 55). Written out in full that this text must be
-    # RENDERED as is: it is content, not a style instruction, and nothing else
-    # in the contract provides any.
-    sections_block = ""
-    if contract.get("sections"):
-        corps = "\n\n".join(f"### {s['title']}\n{s['body']}"
-                            for s in contract["sections"])
-        sections_block = (
-            "\n## Editorial content to publish as is\n"
-            "These texts are supplied by the project's author: they must "
-            "appear in the interface, each in its own section, with the given "
-            "title and its own element carrying "
-            "`data-monl-section=\"<slug>\"`. Do not rewrite them, do not "
-            "invent them elsewhere — no API route serves them, they exist "
-            "only here. If the editorial pattern is present, the editorial "
-            "block carries these elements inside it: do not then create a "
-            "second block repeating the same title or text. "
-            "Each section must appear only once.\n\n"
-            # Point 59: without this sentence, these texts ended up behind a
-            # menu link, on a separate page. A visitor who opens only the home
-            # page never saw them — for an "about", that misses its reason to
-            # exist.
-            "**On the home page, not only behind a link.** Each section must "
-            "be readable as one scrolls the home page. A long text may appear "
-            "there in a short version and continue on its own page, but it "
-            "must never be absent from it.\n\n"
-            + corps + "\n")
-
-    # POINT 94: the FAQ, stated as a LIST. Rendered in the same section as the
-    # sections, it became a block of prose again — exactly the defect seen on
-    # SneakerLab, where four questions fit in a single string and came out
-    # stuck together in one paragraph. The interface was faithful: it was the
-    # contract that could not say "questions/answers".
-    faq_block = ""
-    if contract.get("faq"):
-        couples = "\n\n".join(f"**{q['question']}**\n{q['answer']}"
-                              for q in contract["faq"])
-        faq_block = (
-            "\n## Frequently asked questions — a LIST, not running text\n"
-            "Each pair below is a question and its answer, in the order the "
-            "author chose. Render them as DISTINCT entries that can be spotted "
-            "at a glance — accordion, definition list, or a bold question "
-            "followed by its answer. Never as a single paragraph: an FAQ whose "
-            "questions run together cannot be read, and the format carries the "
-            "information as much as the text.\n\n"
-            "Do not rewrite these texts, do not add any, do not reorder "
-            "them.\n\n"
-            + couples + "\n")
+    sections_block = brief_blocs.bloc_sections(contract)
+    faq_block = brief_blocs.bloc_faq(contract)
     # POINT 72 — monl decides NOTHING visual. It did not compute a palette to
     # be helpful: it computed it so that two projects would not look alike
     # (point 20). But what the compiler guesses about a project's taste, it
@@ -219,54 +78,9 @@ This freedom covers writing and presentation only. It authorizes no route,
 business data, permission or promise absent from the contract.
 """
 
-    # POINT 74: the route's note already says it, but it is here that the AI
-    # reads what is not negotiable. Payment is the only frontend journey where
-    # an interface mistake costs money — it deserves its own line, not just a
-    # mention in the inventory of routes.
-    paiement = [r for r in contract["routes"] if r["action"] == "Pay"]
-    paiement_block = ""
-    if paiement:
-        chemins = ", ".join(f"`{r['path']}`" for r in paiement)
-        paiement_block = (
-            f"\n- Payment: {chemins} is called **with no body at all** — the "
-            "amount comes from the database, not from you. Then redirect the "
-            "browser to the returned `url`. NEVER call "
-            "`POST /paiement/webhook`: it is the provider's route, it requires "
-            "a signature and will refuse any request from the browser.")
+    paiement_block = brief_blocs.bloc_paiement(contract)
 
-    identifiant_note = contract["api"]["auth"]["register"].get("note")
-    identifiant_block = (f"\n- {identifiant_note}" if identifiant_note else "")
-    auth_features = contract["api"]["auth"].get("features") or {}
-    auth_feature_lines = []
-    if "account_lockout" in auth_features:
-        lockout = auth_features["account_lockout"]
-        auth_feature_lines.append(
-            f"- Account lockout: after {lockout['max_attempts']} failures "
-            f"within {lockout['window_seconds']} s, show the generic failure "
-            "without trying to guess whether the address exists.")
-    auth_feature_lines += _instructions_verification(auth_features)
-    if "password_reset" in auth_features:
-        reset = auth_features["password_reset"]
-        auth_feature_lines.append(
-            f"- Password reset: show the two screens "
-            f"{reset['request_path']} then {reset['confirm_path']}. "
-            "The first response is deliberately generic; the token received "
-            "through the message channel is replayed in the second screen only once "
-            "before it expires.")
-    if "refresh_tokens" in auth_features:
-        refresh = auth_features["refresh_tokens"]
-        auth_feature_lines.append(
-            f"- Session: store and replay the opaque refresh_token on "
-            f"{refresh['path']}; each success replaces it. Never send it "
-            "as Authorization: Bearer, which stays reserved to the access JWT.")
-    if "totp" in auth_features:
-        totp = auth_features["totp"]
-        auth_feature_lines.append(
-            f"- Two-factor authentication: offer activation via {totp['setup_path']} "
-            f"then {totp['enable_path']}, and ask for totp_code at sign-in "
-            "after activation. A code cannot be replayed.")
-    auth_feature_block = ("\n" + "\n".join(auth_feature_lines)
-                          if auth_feature_lines else "")
+    identifiant_block, auth_feature_block = _blocs_auth(contract)
 
     markers_block = marqueurs._required_markers_block(contract)
 
@@ -358,6 +172,44 @@ file). The user will then install it with:
 recheck everything (consistency + smoke test) and, if there are errors, they
 will be pasted back here for correction.
 """
+
+
+def _blocs_auth(contract):
+    """The register-identifier note and the declared auth features."""
+    identifiant_note = contract["api"]["auth"]["register"].get("note")
+    identifiant_block = (f"\n- {identifiant_note}" if identifiant_note else "")
+    auth_features = contract["api"]["auth"].get("features") or {}
+    auth_feature_lines = []
+    if "account_lockout" in auth_features:
+        lockout = auth_features["account_lockout"]
+        auth_feature_lines.append(
+            f"- Account lockout: after {lockout['max_attempts']} failures "
+            f"within {lockout['window_seconds']} s, show the generic failure "
+            "without trying to guess whether the address exists.")
+    auth_feature_lines += _instructions_verification(auth_features)
+    if "password_reset" in auth_features:
+        reset = auth_features["password_reset"]
+        auth_feature_lines.append(
+            f"- Password reset: show the two screens "
+            f"{reset['request_path']} then {reset['confirm_path']}. "
+            "The first response is deliberately generic; the token received "
+            "through the message channel is replayed in the second screen only once "
+            "before it expires.")
+    if "refresh_tokens" in auth_features:
+        refresh = auth_features["refresh_tokens"]
+        auth_feature_lines.append(
+            f"- Session: store and replay the opaque refresh_token on "
+            f"{refresh['path']}; each success replaces it. Never send it "
+            "as Authorization: Bearer, which stays reserved to the access JWT.")
+    if "totp" in auth_features:
+        totp = auth_features["totp"]
+        auth_feature_lines.append(
+            f"- Two-factor authentication: offer activation via {totp['setup_path']} "
+            f"then {totp['enable_path']}, and ask for totp_code at sign-in "
+            "after activation. A code cannot be replayed.")
+    auth_feature_block = ("\n" + "\n".join(auth_feature_lines)
+                          if auth_feature_lines else "")
+    return identifiant_block, auth_feature_block
 
 
 def _instructions_verification(auth_features):

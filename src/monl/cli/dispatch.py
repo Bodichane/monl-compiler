@@ -129,7 +129,8 @@ def build_parser():
                             "with {instruction} substituted.")
     p_ret.add_argument("--max-turns", type=int, default=None,
                        help="Agent turn budget. Default: 120.")
-    p_ret.add_argument("--consigne-seule", action="store_true",
+    p_ret.add_argument("--prompt-only", "--consigne-seule", dest="consigne_seule",
+                       action="store_true",
                        help="Write FRONTEND_RETOUCHE_PROMPT.md and stop — "
                             "to give it to an AI yourself, then run 'monl import'.")
 

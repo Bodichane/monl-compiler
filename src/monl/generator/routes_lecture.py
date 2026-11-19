@@ -3,6 +3,8 @@
 A `SELECT *`: any column added by a brick comes out in the responses and
 must therefore be declared in the contract (point 76)."""
 
+from types import SimpleNamespace
+
 from . import sql
 
 
@@ -21,10 +23,72 @@ class LectureRoutesMixin:
         api_lines = []
         base_target = context["base_target"]
         tag = context["tag"]
+        security_check = context["security_check"]
+        e = self._etat_lecture(context)
+        masked = e.masked
+        categorized_here = e.categorized_here
+        read_dep_suffix = e.read_dep_suffix
+        mask_literal = ", ".join(f"'{f}'" for f in e.masked)
+        parties_where = parties_params = ""
+        if e.apply_read_parties:
+            parties_where = " OR ".join(f'\"{c}\" = ?' for c in e.read_parties)
+            parties_params = ", ".join(["current_user_id"] * len(e.read_parties))
+        list_params = f"limit: int = 50, offset: int = 0{read_dep_suffix}"
+        api_lines.append(f"@app.get('/{base_target.lower()}', tags=['{tag}'])")
+        api_lines.append(f"def list_{base_target.lower()}({list_params}):")
+        api_lines.append(security_check)
+        api_lines.append("    limit = max(1, min(limit, 200))")
+        api_lines.append("    offset = max(0, offset)")
+        api_lines += self._where_liste_lecture(e, parties_where, parties_params)
+        api_lines.append("    conn = _connect(); cursor = conn.cursor()")
+        api_lines += self._requetes_liste_lecture(
+            base_target, e, parties_where, parties_params)
+        api_lines.append("    rows = cursor.fetchall()")
+        api_lines.append("    _columns = [d[0] for d in cursor.description]  # real column order in the database (robust to migrations)")
+        api_lines.append("    conn.close()")
+        api_lines.append("    named_rows = [dict(zip(_columns, row)) for row in rows]")
+        row_loop_lines = []
+        if masked:
+            row_loop_lines.append(f"        for _f in [{mask_literal}]: _r.pop(_f, None)")
+        for cf in categorized_here:
+            row_loop_lines.extend(self._emit_categorization_lines(cf, "_r", "        "))
+        if row_loop_lines:
+            api_lines.append("    for _r in named_rows:")
+            api_lines.extend(row_loop_lines)
+        api_lines.append("    return {'status': 'success', 'total': total, 'limit': limit, 'offset': offset, 'data': named_rows}")
+        api_lines.append("")
+
+        api_lines.append(f"@app.get('/{base_target.lower()}/{{id}}', tags=['{tag}'])")
+        api_lines.append(f"def read_{base_target.lower()}(id: int{read_dep_suffix}):")
+        api_lines.append(security_check)
+        api_lines.append("    conn = _connect(); cursor = conn.cursor()")
+        api_lines.append(f"    cursor.execute('SELECT * FROM \"{base_target.lower()}\" WHERE id = ?', (id,))")
+        api_lines.append("    row = cursor.fetchone()")
+        api_lines.append("    _columns = [d[0] for d in cursor.description]  # real column order in the database (robust to migrations)")
+        api_lines.append("    conn.close()")
+        api_lines.append("    if not row: raise HTTPException(status_code=404, detail='Record not found')")
+        api_lines.append("    named_row = dict(zip(_columns, row))")
+        api_lines += self._gardes_detail_lecture(base_target, e)
+        if masked:
+            api_lines.append(f"    for _f in [{mask_literal}]: named_row.pop(_f, None)")
+        for cf in categorized_here:
+            api_lines.extend(self._emit_categorization_lines(cf, "named_row", "    "))
+        api_lines.append("    return {'status': 'success', 'data': named_row}")
+        api_lines.append("")
+
+        return api_lines
+
+
+    def _etat_lecture(self, context):
+        """Who may list and read what: shared by both Read emitters.
+
+        Masking, the publicWhen condition and its exemptions, the parties,
+        the direct or transitive owner, and the dependencies they need.
+        Computed once here so the filtered list (brick B3) cannot drift."""
+        base_target = context["base_target"]
         access = context["access"]
         is_public = context["is_public"]
-        security_check = context["security_check"]
-        dep_suffix = context["dep_suffix"]
+        read_dep_suffix = context["dep_suffix"]
         # ADDED (roadmap point 3, completed): a list route, in addition to the
         # existing read by ID — until then there was no way to enumerate an
         # entity's records without already knowing their identifiers one by
@@ -45,7 +109,6 @@ class LectureRoutesMixin:
         # database, never visible to anyone through this route, whoever calls
         # it (unlike 'restrictedTo', which allows a specific actor).
         masked = self.hidden_fields_by_entity.get(base_target, [])
-        mask_literal = ", ".join(f"'{f}'" for f in masked)
         # ADDED (roadmap, capability ecosystem -- brick 5): 'categorized'
         # fields replaced by their category label, in the same pass as the
         # masking above — a single walk per row for both transformations.
@@ -85,14 +148,10 @@ class LectureRoutesMixin:
         apply_read_parties = bool(read_parties) and not is_public
         read_supers = access.supervisors
         apply_read_super = bool(read_supers) and apply_read_parties
-        read_dep_suffix = dep_suffix
         if apply_condition_identity:
             read_dep_suffix += ", _ident: dict = Depends(get_optional_identity)"
-        parties_where = parties_params = ""
         if apply_read_parties:
             read_dep_suffix += ", current_user_id: int = Depends(get_current_user_id)"
-            parties_where = " OR ".join(f'\"{c}\" = ?' for c in read_parties)
-            parties_params = ", ".join(["current_user_id"] * len(read_parties))
 
         # FIX (beta 3, data leak between accounts): an 'ownedBy' rule on Read
         # now really restricts reading. The filter is built at runtime because
@@ -127,12 +186,38 @@ class LectureRoutesMixin:
                     own_where_sql, sql.kw(" AND "), condition_fragment)
             if ", current_user_id" not in read_dep_suffix:
                 read_dep_suffix += ", current_user_id: int = Depends(get_current_user_id)"
-        list_params = f"limit: int = 50, offset: int = 0{read_dep_suffix}"
-        api_lines.append(f"@app.get('/{base_target.lower()}', tags=['{tag}'])")
-        api_lines.append(f"def list_{base_target.lower()}({list_params}):")
-        api_lines.append(security_check)
-        api_lines.append("    limit = max(1, min(limit, 200))")
-        api_lines.append("    offset = max(0, offset)")
+        return SimpleNamespace(
+            masked=masked,
+            categorized_here=categorized_here,
+            public_condition=public_condition,
+            condition_fragment=condition_fragment,
+            condition_supervisors=condition_supervisors,
+            condition_owner_columns=condition_owner_columns,
+            apply_condition_identity=apply_condition_identity,
+            read_parties=read_parties,
+            apply_read_parties=apply_read_parties,
+            read_supers=read_supers,
+            apply_read_super=apply_read_super,
+            read_dep_suffix=read_dep_suffix,
+            read_owner=read_owner,
+            apply_read_owner=apply_read_owner,
+            chaine_lecture=chaine_lecture,
+            read_actor=read_actor,
+            own_where_sql=own_where_sql,
+        )
+
+    def _where_liste_lecture(self, e, parties_where, parties_params):
+        """The runtime WHERE of the list: owner, supervisor or publicWhen."""
+        condition_fragment = e.condition_fragment
+        condition_supervisors = e.condition_supervisors
+        condition_owner_columns = e.condition_owner_columns
+        apply_condition_identity = e.apply_condition_identity
+        read_supers = e.read_supers
+        apply_read_super = e.apply_read_super
+        apply_read_owner = e.apply_read_owner
+        read_actor = e.read_actor
+        own_where_sql = e.own_where_sql
+        api_lines = []
         if apply_read_owner:
             api_lines.append("    _own_where, _own_params = '', ()")
             api_lines.append(f"    if current_actor == \"{read_actor}\":")
@@ -169,7 +254,16 @@ class LectureRoutesMixin:
                 _condset = ", ".join(f'"{s}"' for s in condition_supervisors)
                 api_lines.append(f"    if _ident.get('actor') in {{{_condset}}}:")
                 api_lines.append("        _own_where, _own_params = '', ()")
-        api_lines.append("    conn = _connect(); cursor = conn.cursor()")
+        return api_lines
+
+    def _requetes_liste_lecture(self, base_target, e, parties_where, parties_params):
+        """COUNT then page query, under the ACL WHERE."""
+        condition_fragment = e.condition_fragment
+        apply_condition_identity = e.apply_condition_identity
+        apply_read_parties = e.apply_read_parties
+        apply_read_super = e.apply_read_super
+        apply_read_owner = e.apply_read_owner
+        api_lines = []
         if apply_read_owner or apply_read_super or apply_condition_identity:
             api_lines.append(f"    cursor.execute('SELECT COUNT(*) FROM \"{base_target.lower()}\"' + _own_where, _own_params)")
             api_lines.append("    total = cursor.fetchone()[0]")
@@ -195,31 +289,23 @@ class LectureRoutesMixin:
                     f"{params[:-1]}limit, offset))")
             else:
                 api_lines.append(f"    cursor.execute('SELECT * FROM \"{base_target.lower()}\" LIMIT ? OFFSET ?', (limit, offset))")
-        api_lines.append("    rows = cursor.fetchall()")
-        api_lines.append("    _columns = [d[0] for d in cursor.description]  # real column order in the database (robust to migrations)")
-        api_lines.append("    conn.close()")
-        api_lines.append("    named_rows = [dict(zip(_columns, row)) for row in rows]")
-        row_loop_lines = []
-        if masked:
-            row_loop_lines.append(f"        for _f in [{mask_literal}]: _r.pop(_f, None)")
-        for cf in categorized_here:
-            row_loop_lines.extend(self._emit_categorization_lines(cf, "_r", "        "))
-        if row_loop_lines:
-            api_lines.append("    for _r in named_rows:")
-            api_lines.extend(row_loop_lines)
-        api_lines.append("    return {'status': 'success', 'total': total, 'limit': limit, 'offset': offset, 'data': named_rows}")
-        api_lines.append("")
+        return api_lines
 
-        api_lines.append(f"@app.get('/{base_target.lower()}/{{id}}', tags=['{tag}'])")
-        api_lines.append(f"def read_{base_target.lower()}(id: int{read_dep_suffix}):")
-        api_lines.append(security_check)
-        api_lines.append("    conn = _connect(); cursor = conn.cursor()")
-        api_lines.append(f"    cursor.execute('SELECT * FROM \"{base_target.lower()}\" WHERE id = ?', (id,))")
-        api_lines.append("    row = cursor.fetchone()")
-        api_lines.append("    _columns = [d[0] for d in cursor.description]  # real column order in the database (robust to migrations)")
-        api_lines.append("    conn.close()")
-        api_lines.append("    if not row: raise HTTPException(status_code=404, detail='Record not found')")
-        api_lines.append("    named_row = dict(zip(_columns, row))")
+    def _gardes_detail_lecture(self, base_target, e):
+        """Detail read guards: publicWhen 404, owner 404, parties 403."""
+        public_condition = e.public_condition
+        condition_supervisors = e.condition_supervisors
+        condition_owner_columns = e.condition_owner_columns
+        apply_condition_identity = e.apply_condition_identity
+        read_parties = e.read_parties
+        apply_read_parties = e.apply_read_parties
+        read_supers = e.read_supers
+        apply_read_super = e.apply_read_super
+        read_owner = e.read_owner
+        apply_read_owner = e.apply_read_owner
+        chaine_lecture = e.chaine_lecture
+        read_actor = e.read_actor
+        api_lines = []
         if public_condition:
             # POINT 116: the same exemptions as in the list, otherwise the
             # supervisor would list a record they could not open. 404 and never
@@ -279,13 +365,6 @@ class LectureRoutesMixin:
             else:
                 api_lines.append(f"    if current_user_id not in ({parties_tuple}):")
                 api_lines.append("        raise HTTPException(status_code=403, detail=\"Access control: only the resource's parties can read it\")")
-        if masked:
-            api_lines.append(f"    for _f in [{mask_literal}]: named_row.pop(_f, None)")
-        for cf in categorized_here:
-            api_lines.extend(self._emit_categorization_lines(cf, "named_row", "    "))
-        api_lines.append("    return {'status': 'success', 'data': named_row}")
-        api_lines.append("")
-
         return api_lines
 
     def _list_query_annotation(self, entity, field):

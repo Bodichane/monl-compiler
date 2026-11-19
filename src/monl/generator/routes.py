@@ -11,6 +11,7 @@ their own."""
 
 from .routes_acces import AccesRoutesMixin
 from .routes_creation import CreationRoutesMixin
+from .routes_creation_transaction import CreationTransactionRoutesMixin
 from .routes_lecture import LectureRoutesMixin
 from .routes_lecture_filtree import LectureFiltreeRoutesMixin
 from .routes_modification import ModificationRoutesMixin
@@ -26,6 +27,7 @@ class RoutesMixin(
     AccesRoutesMixin,
     UploadsRoutesMixin,
     CreationRoutesMixin,
+    CreationTransactionRoutesMixin,
     LectureRoutesMixin,
     LectureFiltreeRoutesMixin,
     ModificationRoutesMixin,

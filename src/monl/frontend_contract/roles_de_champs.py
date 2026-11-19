@@ -8,6 +8,54 @@ declared AFTER assignment, otherwise it steals one."""
 from . import fondations
 
 
+def _nomme(f, indices):
+    return any(h in f["name"].lower() for h in indices)
+
+
+def _est_titre(f):
+    return f["type"] == "String"
+
+
+def _est_description(f):
+    return f["type"] == "Text"
+
+
+def _est_prix(f):
+    return f["type"] == "Money"
+
+
+def _est_stock(f):
+    return f["type"] in ("Integer", "Float") and _nomme(f, fondations.STOCK_HINTS)
+
+
+def _est_categorie(f):
+    return _nomme(f, fondations.CATEGORY_HINTS)
+
+
+# After the media, one field per role, in the point 35 priority order: each
+# role takes the first visible field no earlier role has claimed.
+_ROLES_UNIQUES = (("title", _est_titre), ("description", _est_description),
+                  ("price", _est_prix), ("stock", _est_stock),
+                  ("category", _est_categorie))
+
+
+def _champ_media(visibles):
+    """The declared Image field, else a text field named like a media."""
+    media = next((f["name"] for f in visibles if f["type"] == "Image"), None)
+    if not media:
+        media = next((f["name"] for f in visibles
+                      if f["type"] in ("String", "Text")
+                      and any(h in f["name"].lower() for h in fondations.MEDIA_HINTS)), None)
+    return media
+
+
+def _ajouter_les_meta(visibles, roles):
+    """The remaining visible fields become meta, at most 3."""
+    for f in visibles:                       # meta: at most 3 (point 35)
+        if f["name"] not in roles and sum(1 for r in roles.values() if r == "meta") < 3:
+            roles[f["name"]] = "meta"
+
+
 def _assign_field_roles(fields):
     """Assigns a role to each VISIBLE field, in the priority order of point 35:
     media, title, description, price, category, then meta (at most 3).
@@ -25,41 +73,18 @@ def _assign_field_roles(fields):
     # and the interface AI then did not make it an image. An 'Image' field says
     # what it is; the heuristic now serves only as a fallback for specs that
     # have not adopted the type yet.
-    media = next((f["name"] for f in visibles if f["type"] == "Image"), None)
-    if not media:
-        media = next((f["name"] for f in visibles
-                      if f["type"] in ("String", "Text")
-                      and any(h in f["name"].lower() for h in fondations.MEDIA_HINTS)), None)
+    media = _champ_media(visibles)
     if media:
         roles[media] = "media"
     # The title is the first String that is not already the media: on an entity
     # whose only String is `imageUrl`, taking that field as the title would
     # display a URL as a name (a real defect of the fallback).
-    titre = next((f["name"] for f in visibles
-                  if f["type"] == "String" and f["name"] not in roles), None)
-    if titre:
-        roles[titre] = "title"
-    description = next((f["name"] for f in visibles
-                        if f["type"] == "Text" and f["name"] not in roles), None)
-    if description:
-        roles[description] = "description"
-    prix = next((f["name"] for f in visibles
-                 if f["type"] == "Money" and f["name"] not in roles), None)
-    if prix:
-        roles[prix] = "price"
-    dispo = next((f["name"] for f in visibles
-                  if f["type"] in ("Integer", "Float") and f["name"] not in roles
-                  and any(h in f["name"].lower() for h in fondations.STOCK_HINTS)), None)
-    if dispo:
-        roles[dispo] = "stock"
-    categorie = next((f["name"] for f in visibles
-                      if f["name"] not in roles
-                      and any(h in f["name"].lower() for h in fondations.CATEGORY_HINTS)), None)
-    if categorie:
-        roles[categorie] = "category"
-    for f in visibles:                       # meta: at most 3 (point 35)
-        if f["name"] not in roles and sum(1 for r in roles.values() if r == "meta") < 3:
-            roles[f["name"]] = "meta"
+    for role, convient in _ROLES_UNIQUES:
+        nom = next((f["name"] for f in visibles
+                    if f["name"] not in roles and convient(f)), None)
+        if nom:
+            roles[nom] = role
+    _ajouter_les_meta(visibles, roles)
     return roles
 
 def _archetype(roles, lisible, public):

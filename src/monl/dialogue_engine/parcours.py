@@ -145,37 +145,7 @@ class ParcoursMixin:
             "Describe the project in one sentence (used as the frontend brief) > ")
 
         if self.express:
-            entities = {name: list(meta["fields"])
-                        for name, meta in template["entities"].items()}
-            actors = list(template["actors"])
-            managers = {name: [meta["manager"]]
-                        for name, meta in template["entities"].items()}
-            readers = {name: set(meta["readers"])
-                       for name, meta in template["entities"].items()}
-            public_read = [name for name, meta in template["entities"].items()
-                           if meta["public_read"]]
-            public_create = [name for name, meta in template["entities"].items()
-                             if meta["public_create"]]
-            owned = {name: meta["manager"]
-                     for name, meta in template["entities"].items() if meta["owned"]}
-            relations = list(template["relations"])
-            self._ensure_ownership_structure(
-                entities, managers, readers, owned, relations)
-            self_register = self._default_self_register(actors, managers, owned)
-            self._recap(app_name, entities, actors, self_register, public_read, owned)
-            spec = self._emit_spec(
-                app_name, description, entities, relations, actors, managers,
-                readers, public_read, public_create, owned,
-                want_seed=bool(template["seeds"]), want_landing=True,
-                design_intent=self._express_intent(template), sections=(),
-                links=self.express_links,
-                image_topic=self._express_image_topic(template),
-                self_register=self_register,
-                extra_rules=template["extra_rules"], custom_seeds=template["seeds"])
-            from ..ast_validator import MonlAST
-            from ..parser import parse_monl_string
-            MonlAST(parse_monl_string(spec)).validate_and_audit()
-            return spec
+            return self._parcours_express(template, app_name, description)
 
         self._show(self.ui.phase(2))
         for followup in template["followups"]:
@@ -183,35 +153,11 @@ class ParcoursMixin:
                 apply_effects(template, followup["effects"])
 
         # Conversion from the template to the emitter's format
-        entities = {name: list(meta["fields"]) for name, meta in template["entities"].items()}
-        actors = list(template["actors"])
-        managers = {name: [meta["manager"]] for name, meta in template["entities"].items()}
-        readers = {name: set(meta["readers"]) for name, meta in template["entities"].items()}
-        public_read = [n for n, m in template["entities"].items() if m["public_read"]]
-        public_create = [n for n, m in template["entities"].items() if m["public_create"]]
-        owned = {n: m["manager"] for n, m in template["entities"].items() if m["owned"]}
-        relations = list(template["relations"])
+        (entities, actors, managers, readers, public_read, public_create,
+         owned, relations) = self._depuis_le_modele(template)
 
         # Escape hatch: one custom entity on top of the template.
-        while self._ask_yes_no("Add a custom entity in addition to the template?"):
-            name = self._ask_identifier("  Entity name > ", forbidden=entities.keys())
-            fields = []
-            while True:
-                taken = [f for f, _ in fields]
-                fprompt = (f"  First field for {name} > " if not fields
-                           else f"  Another field for {name} (leave blank to finish) > ")
-                fname = (self._ask_identifier(fprompt, forbidden=taken) if not fields
-                         else self._ask_optional_identifier(fprompt, forbidden=taken))
-                if fname is None:
-                    break
-                ftype = self._ask_choice(f"  Type of {name}.{fname}?", FIELD_TYPES)
-                fields.append((fname, ftype))
-            entities[name] = fields
-            managers[name] = [actors[0] if len(actors) == 1
-                              else self._ask_choice(f"  Who manages {name} for writing?", actors)]
-            readers[name] = set()
-            if self._ask_yes_no(f"  Should {name} be readable without an account?"):
-                public_read.append(name)
+        self._entites_sur_mesure(entities, actors, managers, readers, public_read)
 
         self._ensure_ownership_structure(entities, managers, readers, owned, relations)
 
@@ -246,6 +192,71 @@ class ParcoursMixin:
                                extra_workflows=template.get("extra_workflows", ()),
                                custom_seeds=template["seeds"],
                                payable=payable)
+        return self._revalider_la_spec(spec)
+
+    def _parcours_express(self, template, app_name, description):
+        """Express mode: the template as is, no question asked."""
+        (entities, actors, managers, readers, public_read, public_create,
+         owned, relations) = self._depuis_le_modele(template)
+        self._ensure_ownership_structure(
+            entities, managers, readers, owned, relations)
+        self_register = self._default_self_register(actors, managers, owned)
+        self._recap(app_name, entities, actors, self_register, public_read, owned)
+        spec = self._emit_spec(
+            app_name, description, entities, relations, actors, managers,
+            readers, public_read, public_create, owned,
+            want_seed=bool(template["seeds"]), want_landing=True,
+            design_intent=self._express_intent(template), sections=(),
+            links=self.express_links,
+            image_topic=self._express_image_topic(template),
+            self_register=self_register,
+            extra_rules=template["extra_rules"], custom_seeds=template["seeds"])
+        return self._revalider_la_spec(spec)
+
+    @staticmethod
+    def _depuis_le_modele(template):
+        """The template converted to the emitter's format."""
+        entities = {name: list(meta["fields"]) for name, meta in template["entities"].items()}
+        actors = list(template["actors"])
+        managers = {name: [meta["manager"]] for name, meta in template["entities"].items()}
+        readers = {name: set(meta["readers"]) for name, meta in template["entities"].items()}
+        public_read = [n for n, m in template["entities"].items() if m["public_read"]]
+        public_create = [n for n, m in template["entities"].items() if m["public_create"]]
+        owned = {n: m["manager"] for n, m in template["entities"].items() if m["owned"]}
+        relations = list(template["relations"])
+        return (entities, actors, managers, readers, public_read, public_create,
+                owned, relations)
+
+    def _entites_sur_mesure(self, entities, actors, managers, readers, public_read):
+        """Custom entities added on top of the template, one at a time."""
+        while self._ask_yes_no("Add a custom entity in addition to the template?"):
+            name = self._ask_identifier("  Entity name > ", forbidden=entities.keys())
+            fields = self._champs_sur_mesure(name)
+            entities[name] = fields
+            managers[name] = [actors[0] if len(actors) == 1
+                              else self._ask_choice(f"  Who manages {name} for writing?", actors)]
+            readers[name] = set()
+            if self._ask_yes_no(f"  Should {name} be readable without an account?"):
+                public_read.append(name)
+
+    def _champs_sur_mesure(self, name):
+        """The fields of a custom entity: at least one, blank to finish."""
+        fields = []
+        while True:
+            taken = [f for f, _ in fields]
+            fprompt = (f"  First field for {name} > " if not fields
+                       else f"  Another field for {name} (leave blank to finish) > ")
+            fname = (self._ask_identifier(fprompt, forbidden=taken) if not fields
+                     else self._ask_optional_identifier(fprompt, forbidden=taken))
+            if fname is None:
+                break
+            ftype = self._ask_choice(f"  Type of {name}.{fname}?", FIELD_TYPES)
+            fields.append((fname, ftype))
+        return fields
+
+    @staticmethod
+    def _revalider_la_spec(spec):
+        """The produced spec goes through the real parser and validator."""
         from ..ast_validator import MonlAST
         from ..parser import parse_monl_string
         MonlAST(parse_monl_string(spec)).validate_and_audit()

@@ -22,7 +22,7 @@ def _aide_des_verbes() -> str:
     """The epilog of `monl-platform --help`, DERIVED from `VERBES`.
 
     Before issue #84, the top-level help only described `--host` and
-    `--port`: `admin` and `sauvegarde` could only be discovered through
+    `--port`: `admin` and `backup` could only be discovered through
     `docs/EXPLOITATION.md`, which does not travel in the wheel. Reading the
     dispatch table (point 190) guarantees that a served verb is an announced
     verb."""
@@ -37,7 +37,7 @@ def _aide_des_verbes() -> str:
 def _build_serve_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="monl-platform",
-        description="Plateforme web Monl",
+        description="Monl web platform",
         epilog=_aide_des_verbes(),
         formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--host", default="127.0.0.1")
@@ -58,7 +58,7 @@ def _administrer(argv: list[str]) -> int:
 def _sauvegarder(argv: list[str]) -> int:
     """Consistent copy of the accounts database, with the server running.
 
-    `monl-platform sauvegarde <destination>`.
+    `monl-platform backup <destination>` (`sauvegarde` still accepted).
     Goes through SQLite's online backup API rather than a file copy: the
     platform writes in WAL, so copying the `.sqlite3` of a running server can
     yield a database missing its latest transactions."""
@@ -66,12 +66,13 @@ def _sauvegarder(argv: list[str]) -> int:
     from .service import CompilationService
 
     parser = argparse.ArgumentParser(
-        prog="monl-platform sauvegarde",
+        prog="monl-platform backup",
         description="Consistent copy of the accounts database, with the server running.")
     parser.add_argument("destination", help="Path of the backup file to write.")
     parser.add_argument("--workspace", default=None,
                         help="Workspace (default: MONL_PLATFORM_WORKSPACE).")
-    parser.add_argument("--garder", type=int, default=0, metavar="N",
+    parser.add_argument("--keep", "--garder", dest="garder", type=int, default=0,
+                        metavar="N",
                         help="Keep only the N most recent backups "
                              "in the same folder. 0 (default) deletes nothing.")
     args = parser.parse_args(argv)
@@ -122,15 +123,21 @@ def _rotation(cible, garder: int) -> list:
 #: 164, where the `/mcp` page announced four nonexistent tools because its list
 #: was copied by hand.
 VERBES = {
-    "sauvegarde": _sauvegarder,
+    "backup": _sauvegarder,
     "admin": _administrer,
 }
+
+#: The French names the verbs had before the English migration. They stay
+#: accepted: crontabs, compose files and runbooks written with them must
+#: keep working. The dispatch reads this table too, so an alias here is an
+#: alias served.
+ALIAS_DES_VERBES = {"sauvegarde": "backup"}
 
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
-    if argv and argv[0] in VERBES:
-        return VERBES[argv[0]](argv[1:])
+    if argv and ALIAS_DES_VERBES.get(argv[0], argv[0]) in VERBES:
+        return VERBES[ALIAS_DES_VERBES.get(argv[0], argv[0])](argv[1:])
 
     parser = _build_serve_parser()
     args = parser.parse_args(argv)

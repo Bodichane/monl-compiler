@@ -10,7 +10,7 @@ import uuid
 
 from ..design_system import activate_asset_manifest
 from ..frontend_contract import PROMPT_FILENAME
-from . import fondations, fournisseurs, images, redaction
+from . import fondations, fournisseurs, orchestration, redaction
 
 # ─────────────────────────────────────────────────────────────────────
 # CLAUDE CODE — the work done DIRECTLY in the target folder (point 43 of the
@@ -234,28 +234,14 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
     POINT 69: the body is strictly the one written for Claude Code. A
     third-party agent loosens NO safeguard — that is the point of the
     generalization: what protects the project does not depend on who writes."""
-    from ..cli import check_coherence
-    from ..smoke_test import run_smoke_test
-
     nom = agent_command.split()[0] if agent_command else agent
     project_dir = os.path.abspath(project_dir)
     run_id = uuid.uuid4().hex
-    operation = ("retouche" if retouche_mode else
-                 ("update" if update_mode else "construction"))
-    image_failures = []
-    if generate_images:
-        if image_provider is None:
-            raise fondations.FrontendAIError(
-                "--generate-images requires an injectable image provider.")
-        _generated, image_failures = images._generate_planned_images(
-            project_dir, image_provider, operation, 1, run_id, say=say)
-    brief = redaction.brief_evolution(update_mode, retouche_mode) or PROMPT_FILENAME
-    if not os.path.exists(os.path.join(project_dir, brief)):
-        origine = ("'monl retouche' did not write its instruction" if retouche_mode
-                   else "run 'monl update' first" if update_mode
-                   else "run 'monl compile' first")
-        raise fondations.FrontendAIError(f"{brief} missing from the project — {origine}.")
-    gabarit = RETOUCHE_INSTRUCTION if retouche_mode else CLAUDE_CODE_INSTRUCTION
+    operation = orchestration._nom_de_loperation(update_mode, retouche_mode)
+    orchestration._exiger_fournisseur_dimages(generate_images, image_provider)
+    image_failures = orchestration._generer_les_images(
+        project_dir, generate_images, image_provider, operation, run_id, say)
+    brief, gabarit = _brief_et_gabarit(project_dir, update_mode, retouche_mode)
     instruction = gabarit.format(brief=brief)
 
     last_errors = []
@@ -269,30 +255,17 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
         say(f" -> {nom} is working in {project_dir} (attempt {attempt}/2)…")
         before = _fingerprint_protected(project_dir)
         front_avant = _fingerprint_frontend(project_dir)
-        started = time.monotonic()
         # POINT 97: the agent's response is KEPT. It used to be thrown away,
         # and it is precisely what must be read when nothing moved: an agent
         # that declines explains why — the touch-up instruction even asks it to
         # — and monl displayed a false assumption instead ("rephrase by naming
         # the screen"), on a request that named them.
-        reponse_agent = run_cli_agent(
-            project_dir, instruction, max_turns=max_turns,
-            command=command, agent=agent, agent_command=agent_command)
-        agent_usage = type("AgentUsage", (), {
-            "provider_name": "agent",
-            "model": agent if agent in CLI_AGENTS else "custom",
-        })()
-        fournisseurs._record_provider_usage(
-            project_dir, agent_usage, operation=("retouche" if retouche_mode else
-                                                ("update" if update_mode else "construction")),
-            attempt=attempt, run_id=run_id,
-            usage={"duration_seconds": round(time.monotonic() - started, 3),
-                   "input_tokens": None, "output_tokens": None, "total_tokens": None})
+        reponse_agent = _executer_lagent(
+            project_dir, instruction, max_turns, command, agent, agent_command,
+            operation, attempt, run_id)
 
         # Safeguard: nothing other than frontend/ must have moved.
-        after = _fingerprint_protected(project_dir)
-        touched = sorted(set(before) ^ set(after)
-                         | {n for n in before if n in after and before[n] != after[n]})
+        touched = _artefacts_touches(before, _fingerprint_protected(project_dir))
         if touched:
             say(f" ❌ {nom} modified protected artifacts: "
                 + ", ".join(touched))
@@ -312,50 +285,14 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
         # that did not happen. We say so, rather than congratulating the agent
         # on its predecessor's work.
         if _fingerprint_frontend(project_dir) == front_avant:
-            # POINT 93: on a TOUCH-UP, changing nothing is not a neutral state
-            # — it is the request left unhandled. The human reported a defect
-            # they SEE; answering "all is well" would be the opposite of an
-            # honest report, and point 73 already says we do not congratulate
-            # an agent on its predecessor's work.
-            if retouche_mode:
-                say(f" ❌ {nom} modified NO file in frontend/ — the "
-                    "requested touch-up was not made.")
-                explication = (reponse_agent or "").strip()
-                if explication:
-                    # THE point: guessing in the agent's place is what made the
-                    # message wrong. It has a reason, and here it is.
-                    say("    What the agent answers:")
-                    for ligne in explication.splitlines()[-12:]:
-                        if ligne.strip():
-                            say(f"      {ligne.rstrip()}")
-                    say("    If the request concerns CONTENT (a section to "
-                        "remove, a text to structure),")
-                    say("    it is settled in the spec, then 'monl update' — "
-                        "not by a display touch-up.")
-                else:
-                    say("    Rephrasing the request by naming the screen and the element "
-                        "(\"the images in the Trends section are badly framed\")")
-                    say("    gives the AI something to locate it.")
-                return False, ["no frontend change: touch-up not applied"]
-            say(f" ⚠️  {nom} modified NO file in frontend/.")
-            say("    A valid frontend already existed: the agent judged that it")
-            say("    met the contract and rewrote nothing. Nothing is broken,")
-            say("    but nothing was built either.")
-            say("    To force a rewrite, empty frontend/ first ")
-            say("    (back it up), or use 'monl frontend --update' to")
-            say("    ask for an EVOLUTION of what exists.")
-            return True, []
+            return _rien_na_change(nom, retouche_mode, reponse_agent, say)
 
         # The transition is performed by the orchestrator, after the agent's
         # scope check: modifying the manifest therefore cannot serve to hide a
         # write outside frontend/.
         activate_asset_manifest(project_dir)
         say(" -> Automatic recheck (consistency + smoke test)…")
-        ok, errors, warnings = check_coherence(project_dir)
-        if ok:
-            smoke_ok, smoke_errors, smoke_warnings = run_smoke_test(project_dir, say=say)
-            errors, warnings = smoke_errors, warnings + smoke_warnings
-            ok = smoke_ok
+        ok, errors, warnings = orchestration._reverifier(project_dir, say)
         # Same rule as in the API path: check_coherence() is the single
         # collection of completeness errors for this verification.
         for w in warnings:
@@ -372,10 +309,86 @@ def generate_with_cli_agent(project_dir, update_mode=False, say=print,
         last_errors = errors
         for e in errors:
             say(f" ❌ {e}")
-
     say(" ❌ Failed after correction — the files stay in frontend/ for "
         "inspection; 'monl run' will refuse to start while the smoke test fails.")
     return False, last_errors
+
+
+def _brief_et_gabarit(project_dir, update_mode, retouche_mode):
+    """The brief to read and the instruction template; refuses a missing brief."""
+    brief = redaction.brief_evolution(update_mode, retouche_mode) or PROMPT_FILENAME
+    if not os.path.exists(os.path.join(project_dir, brief)):
+        origine = ("'monl retouche' did not write its instruction" if retouche_mode
+                   else "run 'monl update' first" if update_mode
+                   else "run 'monl compile' first")
+        raise fondations.FrontendAIError(f"{brief} missing from the project — {origine}.")
+    return brief, RETOUCHE_INSTRUCTION if retouche_mode else CLAUDE_CODE_INSTRUCTION
+
+
+def _executer_lagent(project_dir, instruction, max_turns, command, agent,
+                     agent_command, operation, attempt, run_id):
+    """Runs the agent once, records its duration, returns its answer."""
+    started = time.monotonic()
+    reponse_agent = run_cli_agent(
+        project_dir, instruction, max_turns=max_turns,
+        command=command, agent=agent, agent_command=agent_command)
+    modele = agent if agent in CLI_AGENTS else "custom"
+    agent_usage = type("AgentUsage", (), {"provider_name": "agent", "model": modele})()
+    fournisseurs._record_provider_usage(
+        project_dir, agent_usage, operation=operation,
+        attempt=attempt, run_id=run_id,
+        usage={"duration_seconds": round(time.monotonic() - started, 3),
+               "input_tokens": None, "output_tokens": None, "total_tokens": None})
+    return reponse_agent
+
+
+def _artefacts_touches(before, after):
+    """Protected artifacts added, removed or changed by the agent."""
+    return sorted(set(before) ^ set(after)
+                  | {n for n in before if n in after and before[n] != after[n]})
+
+
+def _rien_na_change(nom, retouche_mode, reponse_agent, say):
+    """The agent wrote nothing in frontend/: a failure on a touch-up only."""
+    # POINT 93: on a TOUCH-UP, changing nothing is not a neutral state
+    # — it is the request left unhandled. The human reported a defect
+    # they SEE; answering "all is well" would be the opposite of an
+    # honest report, and point 73 already says we do not congratulate
+    # an agent on its predecessor's work.
+    if retouche_mode:
+        say(f" ❌ {nom} modified NO file in frontend/ — the "
+            "requested touch-up was not made.")
+        _expliquer_le_refus(reponse_agent, say)
+        return False, ["no frontend change: touch-up not applied"]
+    say(f" ⚠️  {nom} modified NO file in frontend/.")
+    say("    A valid frontend already existed: the agent judged that it")
+    say("    met the contract and rewrote nothing. Nothing is broken,")
+    say("    but nothing was built either.")
+    say("    To force a rewrite, empty frontend/ first ")
+    say("    (back it up), or use 'monl frontend --update' to")
+    say("    ask for an EVOLUTION of what exists.")
+    return True, []
+
+
+def _expliquer_le_refus(reponse_agent, say):
+    """Shows the agent's own reason, or how to rephrase when it gave none."""
+    explication = (reponse_agent or "").strip()
+    if explication:
+        # THE point: guessing in the agent's place is what made the
+        # message wrong. It has a reason, and here it is.
+        say("    What the agent answers:")
+        for ligne in explication.splitlines()[-12:]:
+            if ligne.strip():
+                say(f"      {ligne.rstrip()}")
+        say("    If the request concerns CONTENT (a section to "
+            "remove, a text to structure),")
+        say("    it is settled in the spec, then 'monl update' — "
+            "not by a display touch-up.")
+    else:
+        say("    Rephrasing the request by naming the screen and the element "
+            "(\"the images in the Trends section are badly framed\")")
+        say("    gives the AI something to locate it.")
+
 
 def generate_with_claude_code(project_dir, update_mode=False, say=print,
                               command=None, max_turns=DEFAULT_MAX_TURNS):

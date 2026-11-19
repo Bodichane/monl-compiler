@@ -169,6 +169,96 @@ def _rapporter_delta(ancienne, nouvelle, project_dir, ecrire_brief=True):
     report, not a second implementation. Two delta calculations would
     eventually diverge — and it is precisely the calculation that five points
     (88 to 91, 94, 99) showed is hard to keep right."""
+    delta = _calculer_delta(ancienne, nouvelle)
+    changes = any(delta.values())
+    # The name alone does not say a new field is read-only; the brief's section
+    # is titled "to display/enter", which would be a misreading for a timestamp
+    # or a calculated total.
+    delta["added_fields"] = {f"{c} (read-only — set by the server)" if c in nouvelle[3] else c
+                    for c in delta["added_fields"]}
+
+    print("\n─── Frontend contract delta ───")
+    for cle, gabarit in _LIGNES_DU_DELTA:
+        for item in sorted(delta[cle]):
+            print(gabarit.format(item))
+    if not changes:
+        print("  (no interface changes — the existing frontend remains valid)")
+    elif ecrire_brief:
+        brief_path = _write_update_brief(project_dir, *(delta[cle] for cle in _CLES_DU_BRIEF))
+        print(f"  → Instructions ready for the frontend AI: {os.path.basename(brief_path)}")
+    print("──────────────────────────────────────────────────────────────────")
+    return changes
+
+
+_LIGNES_DU_DELTA = (
+    ('added_routes', '  + route added: {}'),
+    ('removed_routes', '  - route removed: {}'),
+    ('added_fields', '  + field added: {}'),
+    ('removed_fields', '  - field removed: {}'),
+    ('added_acces', '  + access granted: {}'),
+    ('removed_acces', '  - access removed: {}'),
+    ('scelles', '  ! field is now read-only: {}'),
+    ('liberes', '  ! field is editable again: {}'),
+    ('added_prea', '  ! prerequisite added: {}'),
+    ('removed_prea', '  ! prerequisite removed: {}'),
+    ('added_verrous', '  ! payment lock: {}'),
+    ('removed_verrous', '  ! payment lock removed: {}'),
+    ('changed_liens', '  ! relationship: {}'),
+    ('changed_types', '  ! field type changed: {}'),
+    ('added_contenus', '  + content added: {}'),
+    ('removed_contenus', '  - content removed: {}'),
+    ('modifies_contenus', '  ! content rewritten: {}'),
+    ('added_sections', '  + required section: {} — add to the home page'),
+    ('removed_sections', '  - required section removed: {}'),
+    ('modifies_sections', '  ! required section strengthened: {} — its minimum content changed'),
+)
+
+# The arguments of _write_update_brief, in its parameter order.
+_CLES_DU_BRIEF = ("added_routes", "removed_routes", "added_fields", "removed_fields",
+                  "added_acces", "removed_acces", "scelles", "liberes",
+                  "added_prea", "removed_prea", "added_verrous", "removed_verrous",
+                  "added_contenus", "removed_contenus", "modifies_contenus",
+                  "changed_liens", "changed_types")
+
+
+def _calculer_delta(ancienne, nouvelle):
+    """Every difference between two signatures, as named sets."""
+    (old_routes, old_fields, old_acces, old_ro, old_prea, old_verrous,
+     old_contenus, old_liens, old_types, old_sections) = ancienne
+    (new_routes, new_fields, new_acces, new_ro, new_prea, new_verrous,
+     new_contenus, new_liens, new_types, new_sections) = nouvelle
+
+    delta = _delta_des_routes(ancienne, nouvelle)
+    # POINT 94: three cases, not two — content can be REWRITTEN without
+    # changing its title, and it is the most silent of the three.
+    added_contenus = set(new_contenus) - set(old_contenus)
+    removed_contenus = set(old_contenus) - set(new_contenus)
+    modifies_contenus = {c for c in set(new_contenus) & set(old_contenus)
+                         if new_contenus[c] != old_contenus[c]}
+    # POINT 99: the same anti-duplication trade-off as in points 88 to 91,
+    # applied to entities rather than routes. The attachments of an entity that
+    # just appeared are already stated by its routes and fields; only those of
+    # an entity that existed on both sides deserve a line.
+    entites_stables = {f.split(".", 1)[0] for f in new_fields & old_fields}
+    changed_liens = {li for li in (new_liens - old_liens)
+                     if li.split(".", 1)[0] in entites_stables}
+    changed_types = {f"{field}: {old_types[field]} → {new_types[field]}"
+                     for field in (new_fields & old_fields)
+                     if old_types.get(field) != new_types.get(field)}
+    # POINT 119: three cases as for content (point 94) — a section can appear,
+    # disappear, or have its rule TIGHTENED without changing name. The third is
+    # the silent one: raising the text required by `trust` renames nothing and
+    # yet makes the site non-compliant.
+    added_sections = set(new_sections) - set(old_sections)
+    removed_sections = set(old_sections) - set(new_sections)
+    modifies_sections = {c for c in set(new_sections) & set(old_sections)
+                         if new_sections[c] != old_sections[c]}
+    delta.update(added_contenus=added_contenus, removed_contenus=removed_contenus, modifies_contenus=modifies_contenus, changed_liens=changed_liens, changed_types=changed_types, added_sections=added_sections, removed_sections=removed_sections, modifies_sections=modifies_sections)
+    return delta
+
+
+def _delta_des_routes(ancienne, nouvelle):
+    """Routes, fields, access, read-only status, prerequisites and locks."""
     (old_routes, old_fields, old_acces, old_ro, old_prea, old_verrous,
      old_contenus, old_liens, old_types, old_sections) = ancienne
     (new_routes, new_fields, new_acces, new_ro, new_prea, new_verrous,
@@ -199,98 +289,7 @@ def _rapporter_delta(ancienne, nouvelle, project_dir, ecrire_brief=True):
                      if v.split(" → ")[0] in stables}
     removed_verrous = {v for v in old_verrous - new_verrous
                        if v.split(" → ")[0] in stables}
-    # POINT 94: three cases, not two — content can be REWRITTEN without
-    # changing its title, and it is the most silent of the three.
-    added_contenus = set(new_contenus) - set(old_contenus)
-    removed_contenus = set(old_contenus) - set(new_contenus)
-    modifies_contenus = {c for c in set(new_contenus) & set(old_contenus)
-                         if new_contenus[c] != old_contenus[c]}
-    # POINT 99: the same anti-duplication trade-off as in points 88 to 91,
-    # applied to entities rather than routes. The attachments of an entity that
-    # just appeared are already stated by its routes and fields; only those of
-    # an entity that existed on both sides deserve a line.
-    entites_stables = {f.split(".", 1)[0] for f in new_fields & old_fields}
-    changed_liens = {li for li in (new_liens - old_liens)
-                     if li.split(".", 1)[0] in entites_stables}
-    changed_types = {f"{field}: {old_types[field]} → {new_types[field]}"
-                     for field in (new_fields & old_fields)
-                     if old_types.get(field) != new_types.get(field)}
-    # POINT 119: three cases as for content (point 94) — a section can appear,
-    # disappear, or have its rule TIGHTENED without changing name. The third is
-    # the silent one: raising the text required by `trust` renames nothing and
-    # yet makes the site non-compliant.
-    added_sections = set(new_sections) - set(old_sections)
-    removed_sections = set(old_sections) - set(new_sections)
-    modifies_sections = {c for c in set(new_sections) & set(old_sections)
-                         if new_sections[c] != old_sections[c]}
-    changes = any((added_routes, removed_routes, added_fields, removed_fields,
-                   added_acces, removed_acces, scelles, liberes,
-                   added_prea, removed_prea, added_verrous, removed_verrous,
-                   added_contenus, removed_contenus, modifies_contenus,
-                   changed_liens, changed_types,
-                   added_sections, removed_sections, modifies_sections))
-    # The name alone does not say a new field is read-only; the brief's section
-    # is titled "to display/enter", which would be a misreading for a timestamp
-    # or a calculated total.
-    added_fields = {f"{c} (read-only — set by the server)" if c in new_ro else c
-                    for c in added_fields}
-
-    print("\n─── Frontend contract delta ───")
-    for item in sorted(added_routes):
-        print(f"  + route added: {item}")
-    for item in sorted(removed_routes):
-        print(f"  - route removed: {item}")
-    for item in sorted(added_fields):
-        print(f"  + field added: {item}")
-    for item in sorted(removed_fields):
-        print(f"  - field removed: {item}")
-    for item in sorted(added_acces):
-        print(f"  + access granted: {item}")
-    for item in sorted(removed_acces):
-        print(f"  - access removed: {item}")
-    for item in sorted(scelles):
-        print(f"  ! field is now read-only: {item}")
-    for item in sorted(liberes):
-        print(f"  ! field is editable again: {item}")
-    for item in sorted(added_prea):
-        print(f"  ! prerequisite added: {item}")
-    for item in sorted(removed_prea):
-        print(f"  ! prerequisite removed: {item}")
-    for item in sorted(added_verrous):
-        print(f"  ! payment lock: {item}")
-    for item in sorted(removed_verrous):
-        print(f"  ! payment lock removed: {item}")
-    for item in sorted(changed_liens):
-        print(f"  ! relationship: {item}")
-    for item in sorted(changed_types):
-        print(f"  ! field type changed: {item}")
-    for item in sorted(added_contenus):
-        print(f"  + content added: {item}")
-    for item in sorted(removed_contenus):
-        print(f"  - content removed: {item}")
-    for item in sorted(modifies_contenus):
-        print(f"  ! content rewritten: {item}")
-    for item in sorted(added_sections):
-        print(f"  + required section: {item} — add to the home page")
-    for item in sorted(removed_sections):
-        print(f"  - required section removed: {item}")
-    for item in sorted(modifies_sections):
-        print(f"  ! required section strengthened: {item} — its minimum content changed")
-    if not changes:
-        print("  (no interface changes — the existing frontend remains valid)")
-    elif ecrire_brief:
-        brief_path = _write_update_brief(project_dir, added_routes, removed_routes,
-                                         added_fields, removed_fields,
-                                         added_acces, removed_acces,
-                                         scelles, liberes,
-                                         added_prea, removed_prea,
-                                         added_verrous, removed_verrous,
-                                         added_contenus, removed_contenus,
-                                         modifies_contenus, changed_liens,
-                                         changed_types)
-        print(f"  → Instructions ready for the frontend AI: {os.path.basename(brief_path)}")
-    print("──────────────────────────────────────────────────────────────────")
-    return changes
+    return dict(added_routes=added_routes, removed_routes=removed_routes, added_fields=added_fields, removed_fields=removed_fields, added_acces=added_acces, removed_acces=removed_acces, scelles=scelles, liberes=liberes, added_prea=added_prea, removed_prea=removed_prea, added_verrous=added_verrous, removed_verrous=removed_verrous)
 
 def cmd_update(project_dir):
     project_dir, spec_path = emplacement._situer_projet(project_dir, "update")

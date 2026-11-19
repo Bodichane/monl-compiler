@@ -9,6 +9,7 @@ import subprocess
 from pathlib import Path
 
 from monl.cli.dispatch import build_parser as build_monl_parser
+from monl_platform.__main__ import ALIAS_DES_VERBES
 from monl_platform.__main__ import VERBES as VERBES_PLATEFORME
 
 RACINE = Path(__file__).resolve().parents[1]
@@ -287,7 +288,9 @@ def test_la_documentation_respecte_les_invariants_du_depot():
     # EXÉCUTE, jamais une liste tenue pour le test.
     commandes_valides = {
         "monl": _commandes(build_monl_parser()),
-        "monl-platform": set(VERBES_PLATEFORME),
+        # The French aliases are served by the same dispatch: the design
+        # journal, which stays in French, may cite them.
+        "monl-platform": set(VERBES_PLATEFORME) | set(ALIAS_DES_VERBES),
     }
     assert all(commandes_valides.values()), (
         "extracteur inopérant : un programme ne déclare aucun verbe")

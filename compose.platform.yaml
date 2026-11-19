@@ -79,7 +79,7 @@ services:
     depends_on:
       platform:
         condition: service_healthy
-    # `--garder 14`: without rotation, a daily backup ends up filling the
+    # `--keep 14`: without rotation, a daily backup ends up filling the
     # disk, and a full disk stops the service it protected. The backup
     # would then become the outage.
     command:
@@ -87,9 +87,9 @@ services:
       - -c
       - >
         while true; do
-        if ! monl-platform sauvegarde
+        if ! monl-platform backup
         "/backups/base-$$(date +%Y%m%d-%H%M%S).sqlite3"
-        --workspace /data --garder 14; then
+        --workspace /data --keep 14; then
         echo "backup failed, retrying in 60 s" >&2;
         sleep 60;
         continue;

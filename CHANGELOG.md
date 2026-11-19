@@ -4,6 +4,16 @@
 
 ### Changed
 
+- English command names, French ones kept as aliases:
+  `monl-platform backup --keep N` (was `sauvegarde --garder N`);
+  `monl-platform admin accounts | account | projects --account | log |
+  extend --days/--never | expire | revoke-key | delete-account --confirm`
+  (was `comptes`, `compte`, `projets --compte`, `journal`, `prolonger
+  --jours/--jamais`, `expirer`, `revoquer-cle`, `supprimer-compte
+  --confirmer`); `monl retouche --prompt-only` (was `--consigne-seule`). The
+  old names still work, so existing crontabs, compose files and runbooks need
+  no change; the shipped compose file and the runbook now use the new names.
+
 - The compiler speaks English (English migration, PR 2, first batch): parser
   errors, every validator refusal, CLI help and output, guided-dialogue
   questions, `monl assets` and the smoke test. English replaces French; no
