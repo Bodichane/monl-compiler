@@ -1,22 +1,21 @@
-"""Encaisser par mobile money — brique 2b, prestataire FedaPay.
+"""Charging by mobile money — brick 2b, FedaPay provider.
 
-Stripe n'opère pas en Afrique de l'Ouest, où l'argent passe par MTN MoMo, Moov
-et Wave derrière un agrégateur. FedaPay est le premier ajouté.
+Stripe does not operate in West Africa, where money goes through MTN MoMo,
+Moov and Wave behind an aggregator. FedaPay is the first one added.
 
-**Ce qui est PROUVÉ ici** : que monl parle le protocole qu'on lui a décrit —
-deux appels de création, une URL de paiement rendue au navigateur, et une
-vérification de signature de webhook conforme à la recette du SDK officiel
-(`Webhook.ts` : schéma `s`, message `timestamp + "." + corps brut`,
-HMAC-SHA256 hexadécimal, tolérance de 300 secondes).
+**What is PROVEN here**: that monl speaks the protocol it was described — two
+creation calls, a payment URL returned to the browser, and a webhook
+signature check matching the official SDK's recipe (`Webhook.ts`: scheme `s`,
+message `timestamp + "." + raw body`, hexadecimal HMAC-SHA256, 300-second
+tolerance).
 
-**Ce qui ne l'est PAS** : qu'un vrai FedaPay accepte ce corps de requête, et
-surtout le CHEMIN JSON exact de la référence marchand dans l'événement de
-webhook. La documentation publique établit que `merchant_reference` et
-`custom_metadata` existent, mais n'imprime aucune charge utile complète. Le
-code généré est donc *fail-closed* : référence introuvable ⇒ aucune écriture.
-Ces deux points restent à confirmer sur un compte de bac à sable réel, et le
-faux prestataire de ce fichier ne les remplace pas — il prouve monl, pas
-FedaPay.
+**What is NOT**: that a real FedaPay accepts this request body, and above all
+the exact JSON PATH of the merchant reference in the webhook event. The
+public documentation establishes that `merchant_reference` and
+`custom_metadata` exist, but prints no complete payload. The generated code
+is therefore *fail-closed*: reference not found ⇒ no write. These two points
+remain to be confirmed on a real sandbox account, and this file's fake
+provider does not replace them — it proves monl, not FedaPay.
 """
 import contextlib
 import hashlib
@@ -56,17 +55,17 @@ def _valide(spec):
 
 
 # --------------------------------------------------------------------------
-# Ce que le validateur refuse — et le refus qui explique au lieu de fermer
+# What the validator refuses — and the refusal that explains instead of closing
 # --------------------------------------------------------------------------
 
-def test_kkiapay_est_refuse_en_disant_pourquoi():
-    """Refuser en NOMMANT la raison : « prestataire inconnu » enverrait
-    chercher une faute de frappe dans un nom parfaitement correct.
+def test_kkiapay_is_refused_saying_why():
+    """Refuse by NAMING the reason: "unknown provider" would send people looking
+    for a typo in a perfectly correct name.
 
-    KKiaPay ne publie ni l'algorithme ni les données signées de son webhook.
-    Le construire par analogie avec Stripe ou FedaPay ne serait pas une
-    approximation : ce serait un trou de sécurité à l'unique endroit du
-    backend généré où un tiers non authentifié écrit en base.
+    KKiaPay publishes neither the algorithm nor the signed data of its webhook.
+    Building it by analogy with Stripe or FedaPay would not be an approximation:
+    it would be a security hole at the only place of the generated backend where
+    an unauthenticated third party writes to the database.
     """
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC_BOUTIQUE + "\ncapability payment\n    provider: kkiapay\n")
@@ -75,13 +74,13 @@ def test_kkiapay_est_refuse_en_disant_pourquoi():
     assert "is not implemented by monl, and this is intentional" in message
 
 
-def test_un_prestataire_inconnu_est_refuse():
+def test_an_unknown_provider_is_refused():
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC_BOUTIQUE + "\ncapability payment\n    provider: banqueX\n")
     assert "unknown payment provider" in str(refus.value)
 
 
-def test_deux_prestataires_ne_compilent_pas():
+def test_two_providers_do_not_compile():
     spec = (SPEC_BOUTIQUE + "\ncapability payment\n    provider: stripe\n"
             + "\ncapability payment\n    provider: fedapay\n")
     with pytest.raises(ASTValidationError) as refus:
@@ -89,27 +88,27 @@ def test_deux_prestataires_ne_compilent_pas():
     assert "payment provider is declared twice" in str(refus.value)
 
 
-def test_un_prestataire_sans_rien_a_encaisser_est_refuse():
+def test_a_provider_with_nothing_to_charge_is_refused():
     sans = SPEC_BOUTIQUE.replace("rule Commande.total payable\n", "")
     with pytest.raises(ASTValidationError) as refus:
         _valide(sans + "\ncapability payment\n    provider: fedapay\n")
     assert "payable" in str(refus.value)
 
 
-def test_une_spec_muette_reste_sur_stripe():
-    """Témoin de non-régression : rien de déclaré, rien de changé."""
+def test_a_silent_spec_stays_on_stripe():
+    """Non-regression witness: nothing declared, nothing changed."""
     assert _valide(SPEC_BOUTIQUE)["security"]["payment_provider"] is None
 
 
 # --------------------------------------------------------------------- faux --
 class _FedaPayFactice(BaseHTTPRequestHandler):
-    """Parle le dialecte FedaPay et RETIENT ce qu'on lui a envoyé.
+    """Speaks the FedaPay dialect and KEEPS what it was sent.
 
-    Le corps est du JSON : le décoder ici plutôt que de faire confiance au code
-    généré est ce qui permet d'affirmer quel montant a réellement été demandé.
+    The body is JSON: decoding it here rather than trusting the generated code is
+    what lets us state which amount was really requested.
     """
 
-    def do_POST(self):  # nom imposé par BaseHTTPRequestHandler
+    def do_POST(self):  # name imposed by BaseHTTPRequestHandler
         brut = self.rfile.read(int(self.headers.get("Content-Length", 0) or 0))
         corps = json.loads(brut or b"{}") if brut else {}
         self.server.recu.append({
@@ -191,8 +190,8 @@ def _commande(base, dossier, montant, identifiant):
 
 
 def _signer(corps, secret=CLE_WEBHOOK, horodatage=None):
-    """Reproduit EXACTEMENT la recette du SDK officiel : HMAC-SHA256 de
-    « horodatage.corps », hexadécimal, sous le schéma `s`."""
+    """Reproduces EXACTLY the official SDK's recipe: HMAC-SHA256 of
+    "timestamp.body", hexadecimal, under scheme `s`."""
     t = str(int(horodatage if horodatage is not None else time.time()))
     signature = hmac.new(secret.encode(), (t + ".").encode() + corps,
                          hashlib.sha256).hexdigest()
@@ -218,12 +217,12 @@ def _reference(dossier, identifiant):
 
 
 # --------------------------------------------------------------------------
-# Le parcours réel
+# The real journey
 # --------------------------------------------------------------------------
 
-def test_les_deux_appels_partent_avec_le_montant_de_la_base(faux_fedapay):
-    """Création puis jeton : la création seule ne rend AUCUNE URL, s'y arrêter
-    livrerait un bouton « Payer » qui ne mène nulle part."""
+def test_both_calls_go_out_with_the_database_amount(faux_fedapay):
+    """Creation then token: creation alone returns NO URL, stopping there would
+    deliver a "Pay" button leading nowhere."""
     with _application(faux_fedapay) as (base, dossier):
         identifiant, entetes = _commande(base, dossier, 5000, "awa@example.com")
         faux_fedapay.recu.clear()
@@ -237,12 +236,12 @@ def test_les_deux_appels_partent_avec_le_montant_de_la_base(faux_fedapay):
 
         creation = faux_fedapay.recu[0]
         assert creation["autorisation"] == f"Bearer {CLE_SECRETE}"
-        # Le franc CFA n'a pas de sous-unité (brique 2a) : 5 000 partent
-        # pour 5 000, jamais 500 000.
+        # The CFA franc has no subunit (brick 2a): 5,000 goes out as 5,000,
+        # never 500,000.
         assert creation["corps"]["amount"] == 5000
         assert creation["corps"]["currency"] == {"iso": "XOF"}
-        # Référence QUALIFIÉE (point 75) : un id nu se confondrait avec celui
-        # d'une autre entité payable de la même application.
+        # QUALIFIED reference (point 75): a bare id would be confused with
+        # another payable entity's in the same application.
         assert creation["corps"]["merchant_reference"] == f"Commande:{identifiant}"
         assert (creation["corps"]["custom_metadata"]["monl_reference"]
                 == f"Commande:{identifiant}")
@@ -251,7 +250,7 @@ def test_les_deux_appels_partent_avec_le_montant_de_la_base(faux_fedapay):
         assert reglement.json()["devise"] == "XOF"
 
 
-def test_le_webhook_signe_marque_la_commande_payee(faux_fedapay):
+def test_the_signed_webhook_marks_the_order_paid(faux_fedapay):
     with _application(faux_fedapay) as (base, dossier):
         identifiant, entetes = _commande(base, dossier, 5000, "leo@example.com")
         requests.post(f"{base}/commande/{identifiant}/paiement",
@@ -271,7 +270,7 @@ def test_le_webhook_signe_marque_la_commande_payee(faux_fedapay):
         assert _etat(dossier, identifiant) == "payee"
 
 
-def test_un_webhook_mal_signe_ne_paie_rien(faux_fedapay):
+def test_a_badly_signed_webhook_pays_nothing(faux_fedapay):
     table = [
         "",
         "t=1,s=deadbeef",
@@ -296,13 +295,13 @@ def test_un_webhook_mal_signe_ne_paie_rien(faux_fedapay):
     verifier_chaque_cas([(valeur,) for valeur in table], cas)
 
 
-def test_une_signature_datee_du_futur_est_refusee(faux_fedapay):
-    """monl est PLUS STRICT que le SDK officiel, délibérément.
+def test_a_signature_dated_in_the_future_is_refused(faux_fedapay):
+    """monl is STRICTER than the official SDK, on purpose.
 
-    `Webhook.ts` ne teste que `timestampAge > tolerance` : un horodatage dans
-    le FUTUR y passe. monl refuse `abs(maintenant - t) > 300`, parce qu'un
-    horodatage qu'on ne contrôle pas dans les deux sens n'est plus une
-    protection contre le rejeu (point 91).
+    `Webhook.ts` only tests `timestampAge > tolerance`: a timestamp in the FUTURE
+    gets through. monl refuses `abs(now - t) > 300`, because a timestamp not
+    checked in both directions is no longer a protection against replay (point
+    91).
     """
     with _application(faux_fedapay) as (base, dossier):
         identifiant, entetes = _commande(base, dossier, 5000, "futur@example.com")
@@ -320,11 +319,11 @@ def test_une_signature_datee_du_futur_est_refusee(faux_fedapay):
         assert _etat(dossier, identifiant) == "en_attente"
 
 
-def test_une_charge_utile_de_forme_inconnue_nécrit_rien(faux_fedapay):
-    """FAIL-CLOSED. Le chemin JSON de la référence n'est pas prouvé par la
-    documentation publique : si la forme reçue n'est pas celle attendue, le
-    serveur n'écrit RIEN plutôt que de deviner. Se tromper coûte alors un
-    règlement non enregistré, pas le mauvais enregistrement marqué payé."""
+def test_a_payload_of_unknown_shape_writes_nothing(faux_fedapay):
+    """FAIL-CLOSED. The reference's JSON path is not proven by the public
+    documentation: if the received shape is not the expected one, the server
+    writes NOTHING rather than guessing. Being wrong then costs an unrecorded
+    payment, not the wrong record marked paid."""
     with _application(faux_fedapay) as (base, dossier):
         identifiant, entetes = _commande(base, dossier, 5000, "forme@example.com")
         requests.post(f"{base}/commande/{identifiant}/paiement",
@@ -340,80 +339,81 @@ def test_une_charge_utile_de_forme_inconnue_nécrit_rien(faux_fedapay):
         assert _etat(dossier, identifiant) == "en_attente"
 
 
-def test_sans_cle_le_serveur_refuse_en_nommant_la_variable(faux_fedapay):
-    """Invariant du point 74 : 503 en nommant la variable absente, et le reste
-    du serveur intact — `monl run` et le smoke test restent verts hors ligne."""
+def test_without_key_the_server_refuses_naming_the_variable(faux_fedapay):
+    """Point 74's invariant: 503 naming the missing variable, and the rest of the
+    server intact — `monl run` and the smoke test stay green offline."""
     with _application(faux_fedapay, avec_cles=False) as (base, dossier):
         identifiant, entetes = _commande(base, dossier, 5000, "sanscle@example.com")
         reponse = requests.post(f"{base}/commande/{identifiant}/paiement",
                                 headers=entetes, timeout=10)
         assert reponse.status_code == 503
         assert "MONL_FEDAPAY_SECRET_KEY" in reponse.text
-        # Le reste du serveur répond quand même : c'est la moitié de
-        # l'invariant, et c'est elle qui garde `monl run` et le smoke test
-        # verts hors ligne. La commande du client se lit toujours.
+        # The rest of the server answers anyway: that is the invariant's other
+        # half, and it keeps `monl run` and the smoke test green offline. The
+        # customer's order is still readable.
         assert requests.get(f"{base}/commande", headers=entetes,
                             timeout=10).status_code == 200
 
 
 # --------------------------------------------------------------------------
-# La devise que le prestataire encaisse réellement
+# The currency the provider really charges
 # --------------------------------------------------------------------------
 
-def test_fedapay_refuse_une_devise_quil_nencaisse_pas():
-    """FedaPay ne règle QU'EN XOF — sa propre documentation le dit, et son
-    module Odoo officiel ne déclare que ça. Sans ce refus, la spec compile et
-    l'auteur ne l'apprend qu'au premier vrai encaissement, en 502, devant un
-    client qui voulait payer."""
+def test_fedapay_refuses_a_currency_it_does_not_charge():
+    """FedaPay settles ONLY IN XOF — its own documentation says so, and its
+    official Odoo module declares only that. Without this refusal, the spec
+    compiles and the author only learns it at the first real charge, with a 502,
+    in front of a customer who wanted to pay."""
     with pytest.raises(ASTValidationError) as erreur:
         _valide(SPEC_BOUTIQUE + "\ncapability payment\n"
                 "    provider: fedapay\n    currency: EUR\n")
     message = str(erreur.value)
     assert "XOF" in message and "EUR" in message
-    # Le message doit dire QUOI ÉCRIRE : « incompatible » laisserait chercher.
+    # The message must say WHAT TO WRITE: "incompatible" would leave people
+    # searching.
     assert "currency: XOF" in message
 
 
-def test_fedapay_sans_devise_declaree_est_refuse():
-    """La devise EFFECTIVE est comparée, pas seulement la déclarée. Sans ligne
-    `currency`, le défaut est l'euro : `provider: fedapay` tout seul partait
-    donc encaisser en euros chez un prestataire qui n'en accepte pas."""
+def test_fedapay_without_declared_currency_is_refused():
+    """The EFFECTIVE currency is compared, not only the declared one. Without a
+    `currency` line, the default is the euro: `provider: fedapay` alone therefore
+    went charging in euros at a provider that accepts none."""
     with pytest.raises(ASTValidationError) as erreur:
         _valide(SPEC_BOUTIQUE + "\ncapability payment\n    provider: fedapay\n")
     assert "XOF" in str(erreur.value)
 
 
-def test_stripe_nest_contraint_a_aucune_devise():
-    """La table ne dit `None` que là où monl ne SAIT pas — et ne rien savoir
-    n'autorise pas à interdire. Le témoin du refus précédent : sans lui, une
-    garde trop large casserait toutes les specs en euros."""
+def test_stripe_is_bound_to_no_currency():
+    """The table only says `None` where monl does not KNOW — and knowing nothing
+    does not allow forbidding. The previous refusal's witness: without it, a too
+    broad guard would break every euro spec."""
     assert _valide(SPEC_BOUTIQUE + "\ncapability payment\n"
                    "    provider: stripe\n    currency: EUR\n"
                    )["security"]["payment_provider"] == "stripe"
 
 
 # --------------------------------------------------------------------------
-# L'appariement du webhook par l'identifiant du prestataire
+# Matching the webhook by the provider's identifier
 # --------------------------------------------------------------------------
 
-def test_la_reference_du_prestataire_est_memorisee_des_louverture(faux_fedapay):
-    """Sans cette mémorisation, le repli du webhook n'a rien à comparer."""
+def test_the_provider_reference_is_memorized_at_opening(faux_fedapay):
+    """Without this memorization, the webhook fallback has nothing to compare."""
     with _application(faux_fedapay) as (base, dossier):
         identifiant, entetes = _commande(base, dossier, 5000, "memo@example.com")
         assert _reference(dossier, identifiant) in (None, "")
         requests.post(f"{base}/commande/{identifiant}/paiement",
                       headers=entetes, timeout=10)
         assert _reference(dossier, identifiant) == str(ID_TRANSACTION)
-        # Mémoriser n'est PAS encaisser : c'est `payment_status` qui dit si
-        # c'est payé, et le contrat le dit désormais en toutes lettres.
+        # Remembering is NOT charging: `payment_status` says whether it is
+        # paid, and the contract now says so in plain words.
         assert _etat(dossier, identifiant) == "en_attente"
 
 
-def test_un_webhook_sans_reference_marchande_est_apparie_par_lidentifiant(faux_fedapay):
-    """La voie que le plugin Odoo officiel de FedaPay emploie : retrouver la
-    ligne par l'id de transaction mémorisé à la création. C'est la seule des
-    deux qui soit établie par du code en production — `merchant_reference` est
-    documenté sur la transaction, jamais sur la charge utile du webhook."""
+def test_a_webhook_without_merchant_reference_is_matched_by_id(faux_fedapay):
+    """The path FedaPay's official Odoo plugin uses: finding the row by the
+    transaction id memorized at creation. It is the only one of the two
+    established by code in production — `merchant_reference` is documented on the
+    transaction, never on the webhook payload."""
     with _application(faux_fedapay) as (base, dossier):
         identifiant, entetes = _commande(base, dossier, 5000, "repli@example.com")
         requests.post(f"{base}/commande/{identifiant}/paiement",
@@ -430,10 +430,10 @@ def test_un_webhook_sans_reference_marchande_est_apparie_par_lidentifiant(faux_f
         assert _etat(dossier, identifiant) == "payee"
 
 
-def test_un_identifiant_de_transaction_inconnu_napparie_rien(faux_fedapay):
-    """Le témoin du repli : il ne doit reconnaître QUE ce qu'il a mémorisé.
-    Un repli qui marquerait payé le premier venu serait pire que pas de repli
-    du tout — c'est le fail-closed qui tient toute la brique."""
+def test_an_unknown_transaction_id_matches_nothing(faux_fedapay):
+    """The fallback's witness: it must recognize ONLY what it memorized. A
+    fallback marking the first comer paid would be worse than no fallback at all —
+    fail-closed is what holds the whole brick."""
     with _application(faux_fedapay) as (base, dossier):
         identifiant, entetes = _commande(base, dossier, 5000, "inconnu@example.com")
         requests.post(f"{base}/commande/{identifiant}/paiement",

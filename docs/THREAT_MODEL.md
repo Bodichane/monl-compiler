@@ -88,8 +88,8 @@ bounded timestamp age before processing the event; references qualify entity IDs
 | Threat (STRIDE) | Existing mitigation | Test evidence |
 | --- | --- | --- |
 | Client changes payable amount or pays another account's record (T, E) | Database amount and owner check, not a request-body price. | tests/test_paiement.py::test_le_montant_encaisse_vient_de_la_base_jamais_du_client; tests/test_paiement.py::test_payer_l_enregistrement_d_un_autre_compte_est_refuse |
-| Forged/rebound Stripe event (S, T) | HMAC verification binds signature to raw body and configured secret. | tests/test_paiement.py::test_un_webhook_mal_signe_ne_paie_rien; tests/test_paiement.py::test_une_signature_valide_pour_un_autre_corps_est_refusee |
-| Forged FedaPay event or future timestamp (S, T) | Provider signature and timestamp tolerance. | tests/test_fedapay.py::test_un_webhook_mal_signe_ne_paie_rien; tests/test_fedapay.py::test_une_signature_datee_du_futur_est_refusee |
+| Forged/rebound Stripe event (S, T) | HMAC verification binds signature to raw body and configured secret. | tests/test_paiement.py::test_a_badly_signed_webhook_pays_nothing; tests/test_paiement.py::test_une_signature_valide_pour_un_autre_corps_est_refusee |
+| Forged FedaPay event or future timestamp (S, T) | Provider signature and timestamp tolerance. | tests/test_fedapay.py::test_a_badly_signed_webhook_pays_nothing; tests/test_fedapay.py::test_a_signature_dated_in_the_future_is_refused |
 | Browser declares its own paid state (T, E) | Payment tracking columns excluded from client input. | tests/test_paiement.py::test_le_client_ne_peut_pas_se_declarer_paye_a_la_creation |
 | Oversized webhook exhausts resources (D) | Bounded raw body even without Content-Length. | tests/test_paiement.py::test_un_webhook_trop_volumineux_est_refuse_avec_ou_sans_content_length |
 | Provider denies settlement or signed event is duplicated (R, T) | Signed events authenticate origin, not financial settlement or durable nonrepudiation. | No end-to-end reconciliation/nonrepudiation proof: see Known gaps. |

@@ -1,31 +1,29 @@
-"""Les quatre règles qui ne faisaient rien : required, unique, min, max — point 85.
+"""The four rules that did nothing: required, unique, min, max — point 85.
 
-Pourquoi ce fichier existe. `required`, `unique`, `min` et `max` sont les plus
-ANCIENNES règles du compilateur, présentes avant toutes les briques. Elles
-étaient acceptées par la grammaire, et **c'est tout**. Deux constats, tous deux
-obtenus par exécution :
+Why this file exists. `required`, `unique`, `min` and `max` are the compiler's
+OLDEST rules, present before all the bricks. They were accepted by the
+grammar, and **that was all**. Two findings, both obtained by execution:
 
-* une référence fantôme passait en silence. `rule Colis.champFantome required`
-  compilait ; `rule Fantome.reference required` aussi. Toutes les briques
-  ajoutées depuis (`hidden`, `generated`, `categorized`, `payable`,
-  `derivedFrom`, `sumOf`) validaient leur référence — les quatre d'origine,
-  jamais ;
-* **la sortie était identique à l'octet** avec ou sans elles. Compilé deux fois
-  le même projet, une fois avec `rule X.f required` et `rule X.g unique`, une
-  fois sans : `diff` muet sur `app.py` ET sur `schema.sql`.
+* a phantom reference went through silently. `rule Colis.champFantome
+  required` compiled; so did `rule Fantome.reference required`. Every brick
+  added since (`hidden`, `generated`, `categorized`, `payable`,
+  `derivedFrom`, `sumOf`) validated its reference — the original four, never;
+* **the output was byte-identical** with or without them. The same project
+  compiled twice, once with `rule X.f required` and `rule X.g unique`, once
+  without: `diff` silent on `app.py` AND on `schema.sql`.
 
-Le premier dépôt à en souffrir était le dépôt lui-même. `exemples/02_boutique.ml`
-déclare `rule Product.price min 0` et `rule Product.stock min 0` ; le serveur
-acceptait `price: -99, stock: -5` et les écrivait en base. Dans une boutique où
-le prix se multiplie en sous-total (`derivedFrom`), se somme en total (`sumOf`)
-et part chez le prestataire (`payable`), cette borne était la dernière chose
-entre le catalogue et un montant négatif encaissé.
+The first repository to suffer from it was the repository itself.
+`exemples/02_boutique.ml` declares `rule Product.price min 0` and
+`rule Product.stock min 0`; the server accepted `price: -99, stock: -5` and
+wrote them to the database. In a shop where the price is multiplied into a
+subtotal (`derivedFrom`), summed into a total (`sumOf`) and sent to the
+provider (`payable`), this bound was the last thing between the catalog and a
+charged negative amount.
 
-Ce que ce fichier garde, et dans cet ordre : les refus de référence (la moitié
-« on ne promet pas ce qu'on n'applique pas »), puis le comportement contre un
-vrai serveur (la moitié « on applique ce qu'on promet »). La couverture de
-compilation seule n'aurait rien vu : elle n'a rien vu pendant toute la vie du
-projet.
+What this file guards, and in this order: reference refusals (the "we do not
+promise what we do not enforce" half), then behavior against a real server
+(the "we enforce what we promise" half). Compile coverage alone would have
+seen nothing: it saw nothing for the project's whole life.
 """
 import json
 import os
@@ -70,8 +68,8 @@ def _valide(spec):
     return MonlAST(parse_monl_string(spec)).validate_and_audit()
 
 
-def _sans_contraintes(spec):
-    """La même spec, privée de ses quatre règles de contrainte."""
+def _without_constraints(spec):
+    """The same spec, without its four constraint rules."""
     return "\n".join(li for li in spec.splitlines()
                      if not any(li.strip().endswith(f" {mot}")
                                 or f" {mot} " in li for mot in
@@ -79,12 +77,12 @@ def _sans_contraintes(spec):
 
 
 # --------------------------------------------------------------------------
-# Ce qui ne doit plus compiler : une contrainte qui ne s'applique à rien
+# What must no longer compile: a constraint that applies to nothing
 # --------------------------------------------------------------------------
 
-def test_une_spec_bien_formee_compile(capsys):
-    """Le témoin de tous les refus : sans lui, un validateur qui refuserait
-    TOUTE contrainte les passerait tous."""
+def test_a_well_formed_spec_compiles(capsys):
+    """The witness of all refusals: without it, a validator refusing EVERY
+    constraint would pass them all."""
     ast = _valide(SPEC)
     contraintes = ast["security"]["field_constraints"]
     assert contraintes[("Membre", "pseudo")]["unique"] is True
@@ -94,8 +92,8 @@ def test_une_spec_bien_formee_compile(capsys):
 
 
 def test_a_nonexistent_field_is_refused(capsys):
-    """LE défaut du point 85 : ces quatre lignes compilaient sans un mot.
-    L'auteur croit tenir une contrainte, il n'en a aucune, et rien ne le dit."""
+    """THE point 85 defect: these four lines compiled without a word. The author
+    believes they hold a constraint, they have none, and nothing says so."""
     table = [
         "rule Membre.champFantome required",
         "rule Membre.champFantome unique",
@@ -109,7 +107,7 @@ def test_a_nonexistent_field_is_refused(capsys):
         message = str(refus.value)
         assert "champFantome" in message
         assert "does not declare" in message
-        # Le message doit dire POURQUOI le refus est là, pas seulement refuser.
+        # The message must say WHY the refusal is there, not only refuse.
         assert "does not apply to anything" in message
         capsys.readouterr()
 
@@ -123,16 +121,16 @@ def test_a_nonexistent_entity_is_refused(capsys):
     capsys.readouterr()
 
 
-def test_une_faute_de_casse_est_suggeree(capsys):
-    """La faute la plus probable est une faute de frappe : le refus doit
-    proposer le champ voisin plutôt que laisser chercher."""
+def test_a_case_typo_gets_a_suggestion(capsys):
+    """The most likely mistake is a typo: the refusal must suggest the
+    neighboring field rather than leave people searching."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC + "rule Membre.Pseudo required\n")
     assert "Did you mean 'pseudo'" in str(refus.value)
     capsys.readouterr()
 
 
-def test_une_borne_sur_un_type_qui_ne_se_borne_pas_est_refusee(capsys):
+def test_a_bound_on_an_unboundable_type_is_refused(capsys):
     spec = SPEC.replace("    age: Integer", "    age: Integer\n    actif: Boolean")
     with pytest.raises(ASTValidationError) as refus:
         _valide(spec + "rule Membre.actif min 1\n")
@@ -140,26 +138,26 @@ def test_une_borne_sur_un_type_qui_ne_se_borne_pas_est_refusee(capsys):
     capsys.readouterr()
 
 
-def test_un_max_au_dela_de_la_colonne_est_refuse(capsys):
-    """La contrainte promettrait une donnée que la base ne peut pas tenir :
-    String est une colonne VARCHAR(255)."""
+def test_a_max_beyond_the_column_is_refused(capsys):
+    """The constraint would promise data the database cannot hold: String is a
+    VARCHAR(255) column."""
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC + "rule Membre.pseudo max 400\n")
     assert "255" in str(refus.value)
     capsys.readouterr()
 
 
-def test_des_bornes_contradictoires_sont_refusees(capsys):
+def test_contradictory_bounds_are_refused(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC + "rule Membre.courriel min 40\nrule Membre.courriel max 10\n")
     assert "no value satisfies both" in str(refus.value)
     capsys.readouterr()
 
 
-def test_une_borne_sur_un_champ_calcule_par_le_serveur_est_refusee(capsys):
-    """Une borne vit dans le schéma Pydantic, donc dans le corps de requête. Sur
-    un champ que le serveur peuple, ce champ n'y est PAS : la borne ne
-    s'appliquerait à rien — c'est-à-dire la faute même que le point 85 corrige."""
+def test_a_bound_on_a_server_calculated_field_is_refused(capsys):
+    """A bound lives in the Pydantic schema, hence in the request body. On a
+    field the server fills, that field is NOT there: the bound would apply to
+    nothing — that is, the very fault point 85 fixes."""
     spec = """app BancSomme
 
 entity Ligne
@@ -173,13 +171,13 @@ entity Client
 
 relation Client hasMany Panier
 relation Panier hasMany Ligne
-# Porte la colonne de propriété de la fiche client elle-même : sans elle,
-# 'Client.Read ownedBy Client' est refusé AVANT la borne qu'on veut éprouver.
+# Carries the ownership column of the customer record itself: without it,
+# 'Client.Read ownedBy Client' is refused BEFORE the bound we want to test.
 relation Client hasMany Client
 
-# Acteur HOMONYME de l'entité propriétaire : 'ownedBy Client' doit remonter à un
-# compte. Nommer l'acteur autrement fait tomber sur le refus de chaîne du
-# point 81, et le test n'éprouverait plus ce qu'il annonce.
+# Actor NAMED LIKE the owning entity: 'ownedBy Client' must lead back to an
+# account. Naming the actor otherwise hits point 81's chain refusal, and the
+# test would no longer test what it announces.
 actor Client selfRegister
 
 rule Ligne.quantite required
@@ -205,7 +203,7 @@ workflow Acheter for Client
     capsys.readouterr()
 
 
-def test_la_meme_contrainte_deux_fois_est_refusee(capsys):
+def test_the_same_constraint_twice_is_refused(capsys):
     with pytest.raises(ASTValidationError) as refus:
         _valide(SPEC + "rule Membre.pseudo unique\n")
     assert "declared twice on the same field" in str(refus.value)
@@ -213,15 +211,15 @@ def test_la_meme_contrainte_deux_fois_est_refusee(capsys):
 
 
 # --------------------------------------------------------------------------
-# Ce que la génération doit produire — et ne produisait pas
+# What generation must produce — and did not
 # --------------------------------------------------------------------------
 
-def test_les_contraintes_changent_la_sortie(tmp_path, capsys):
-    """Le constat qui a ouvert le point 85, retourné en garde : compiler avec
-    et sans les quatre règles donnait un `diff` MUET sur app.py et schema.sql.
-    Ce test échoue le jour où l'une d'elles redevient décorative."""
+def test_the_constraints_change_the_output(tmp_path, capsys):
+    """The finding that opened point 85, turned into a guard: compiling with and
+    without the four rules gave a SILENT `diff` on app.py and schema.sql. This
+    test fails the day one of them becomes decorative again."""
     avec, sans = tmp_path / "avec", tmp_path / "sans"
-    for dossier, spec in ((avec, SPEC), (sans, _sans_contraintes(SPEC))):
+    for dossier, spec in ((avec, SPEC), (sans, _without_constraints(SPEC))):
         dossier.mkdir()
         (dossier / "spec.ml").write_text(spec, encoding="utf-8")
         compile_project(str(dossier / "spec.ml"), str(dossier))
@@ -236,11 +234,11 @@ def test_les_contraintes_changent_la_sortie(tmp_path, capsys):
     assert "idx_unique_membre_pseudo" not in app_sans
 
 
-def test_le_contrat_annonce_les_contraintes(tmp_path, capsys):
-    """Une interface qui ignore les bornes laisse remplir un formulaire pour se
-    faire refuser au bout, alors qu'elle pouvait le dire tout de suite. Même
-    raison que pour `server_generated` au point 79 : le contrat décrit ce que le
-    backend fait vraiment, y compris ce qu'il REFUSE."""
+def test_the_contract_announces_the_constraints(tmp_path, capsys):
+    """An interface ignoring the bounds lets a form be filled only to be refused
+    at the end, while it could have said so right away. Same reason as for
+    `server_generated` at point 79: the contract describes what the backend
+    really does, including what it REFUSES."""
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     capsys.readouterr()
@@ -253,11 +251,11 @@ def test_le_contrat_annonce_les_contraintes(tmp_path, capsys):
     assert champs["age"]["max_value"] == 120
 
 
-def test_les_blocs_custom_nappellent_plus_une_methode_depreciee(tmp_path, capsys):
-    """`payload.dict()` est déprécié en Pydantic v2 et RETIRÉ en v3 : tout
-    backend portant un bloc 'custom' aurait cessé de fonctionner à la première
-    installation sur Pydantic 3. Aucun exemple, aucun test n'exerçait ce
-    chemin — c'est le trou de couverture de schemas.py qui l'a fait trouver."""
+def test_custom_blocks_no_longer_call_a_deprecated_method(tmp_path, capsys):
+    """`payload.dict()` is deprecated in Pydantic v2 and REMOVED in v3: every
+    backend carrying a 'custom' block would have stopped working at the first
+    installation on Pydantic 3. No example, no test exercised this path —
+    schemas.py's coverage hole is what found it."""
     spec = """app BancCustom
 
 entity Colis
@@ -309,7 +307,7 @@ def _appel(url, corps=None, jeton=None, methode=None):
 
 @pytest.fixture
 def serveur(tmp_path):
-    """Un vrai serveur éphémère sur la spec du banc."""
+    """A real ephemeral server on the bench spec."""
     (tmp_path / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     port = _port_libre()
@@ -324,8 +322,8 @@ def serveur(tmp_path):
                 sortie = processus.stdout.read().decode("utf-8", "replace")
                 pytest.fail(f"le serveur s'est arrêté :\n{sortie[-2000:]}")
             try:
-                # /docs renvoie du HTML : sonder avec _appel (qui décode du
-                # JSON) ferait passer un serveur PRÊT pour un serveur muet.
+                # /docs returns HTML: probing with _appel (which decodes JSON)
+                # would make a READY server pass for a silent one.
                 with urllib.request.urlopen(base + "/docs", timeout=5):
                     pass
                 break
@@ -349,17 +347,17 @@ def serveur(tmp_path):
             processus.stdout.close()
 
 
-def test_unique_refuse_un_doublon_a_la_creation(serveur):
-    """Avant le point 85 : les deux POST répondaient 200 et la base portait
-    deux lignes. Vérifié, pas supposé."""
+def test_unique_refuses_a_duplicate_on_creation(serveur):
+    """Before point 85: both POSTs answered 200 and the database carried two
+    rows. Checked, not assumed."""
     base, jeton, dossier = serveur
     membre = {"pseudo": "zoe", "courriel": "z@x.fr", "age": 30}
     code1, _ = _appel(base + "/membre", membre, jeton)
     code2, corps2 = _appel(base + "/membre", membre, jeton)
     assert code1 == 200
     assert code2 == 409
-    # Le message doit nommer la CAUSE : le même 409 servait déjà aux clés
-    # étrangères, et « référence invalide » enverrait chercher ailleurs.
+    # The message must name the CAUSE: the same 409 already served for foreign
+    # keys, and "invalid reference" would send people looking elsewhere.
     assert "unique" in corps2["detail"] and "pseudo" in corps2["detail"]
 
     base_donnees = sqlite3.connect(dossier / "app.db")
@@ -371,10 +369,10 @@ def test_unique_refuse_un_doublon_a_la_creation(serveur):
     assert lignes == 1, "l'unicité doit tenir EN BASE, pas seulement dans la réponse"
 
 
-def test_unique_refuse_un_doublon_a_la_modification(serveur):
-    """La route Update n'écrivait aucune clé étrangère, donc elle n'avait aucune
-    garde : le premier essai de cette brique donnait 500 et laissait la
-    connexion ouverte. SQLite lève à l'`execute`, pas au `commit`."""
+def test_unique_refuses_a_duplicate_on_update(serveur):
+    """The Update route wrote no foreign key, so it had no guard: the first try
+    of this brick gave a 500 and left the connection open. SQLite raises at
+    `execute`, not at `commit`."""
     base, jeton, _ = serveur
     _appel(base + "/membre", {"pseudo": "zoe", "courriel": "z@x.fr", "age": 30}, jeton)
     _appel(base + "/membre", {"pseudo": "autre", "courriel": "b@x.fr", "age": 40}, jeton)
@@ -383,7 +381,7 @@ def test_unique_refuse_un_doublon_a_la_modification(serveur):
                          {"pseudo": "autre", "courriel": "z@x.fr", "age": 30},
                          jeton, methode="PUT")
     assert code == 409, f"500 = la garde manque ou entoure le mauvais appel ({corps})"
-    # Témoin : une modification légitime passe toujours.
+    # Witness: a legitimate update still passes.
     code_ok, _ = _appel(base + "/membre/1",
                         {"pseudo": "zoe2", "courriel": "z@x.fr", "age": 31},
                         jeton, methode="PUT")
@@ -395,7 +393,7 @@ def test_unique_refuse_un_doublon_a_la_modification(serveur):
     ({"pseudo": "abc", "courriel": "a@x.fr", "age": 17}, "age"),     # min 18
     ({"pseudo": "abd", "courriel": "a@x.fr", "age": 130}, "age"),    # max 120
 ])
-def test_les_bornes_donnent_un_422_avant_tout_insert(serveur, corps, champ):
+def test_bounds_give_a_422_before_any_insert(serveur, corps, champ):
     base, jeton, dossier = serveur
     code, reponse = _appel(base + "/membre", corps, jeton)
     assert code == 422
@@ -407,24 +405,24 @@ def test_les_bornes_donnent_un_422_avant_tout_insert(serveur, corps, champ):
         base_donnees.close()
 
 
-def test_une_valeur_dans_les_bornes_passe(serveur):
-    """Le témoin des trois refus ci-dessus."""
+def test_a_value_within_bounds_passes(serveur):
+    """The witness of the three refusals above."""
     base, jeton, _ = serveur
     code, _ = _appel(base + "/membre",
                      {"pseudo": "zoe", "courriel": "z@x.fr", "age": 18}, jeton)
     assert code == 200
 
 
-def test_une_base_avec_doublons_le_dit_au_lieu_de_le_taire(tmp_path, capsys):
-    """Un index unique ne peut PAS naître sur des données déjà en doublon. C'est
-    un changement non automatisable (docs/MIGRATIONS.md) : le serveur doit le
-    NOMMER au démarrage, et continuer de tourner — pas avaler l'erreur dans le
-    « ℹ️ DB déjà initialisée » qui masquerait tout le reste du script."""
-    (tmp_path / "spec.ml").write_text(_sans_contraintes(SPEC), encoding="utf-8")
+def test_a_database_with_duplicates_says_so_instead_of_hiding_it(tmp_path, capsys):
+    """A unique index CANNOT be created on data already duplicated. It is a
+    non-automatable change (docs/MIGRATIONS.md): the server must NAME it at
+    startup, and keep running — not swallow the error in the "ℹ️ DB already
+    initialized" that would hide the rest of the script."""
+    (tmp_path / "spec.ml").write_text(_without_constraints(SPEC), encoding="utf-8")
     compile_project(str(tmp_path / "spec.ml"), str(tmp_path))
     capsys.readouterr()
 
-    # Une base peuplée AVANT que 'unique' n'existe dans la spec.
+    # A database populated BEFORE 'unique' existed in the spec.
     base_donnees = sqlite3.connect(tmp_path / "app.db")
     try:
         with base_donnees:

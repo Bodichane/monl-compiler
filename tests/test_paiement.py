@@ -477,7 +477,7 @@ def test_un_webhook_trop_volumineux_est_refuse_avec_ou_sans_content_length(
     assert decoupe.status_code == 413, decoupe.text
 
 
-def test_un_webhook_mal_signe_ne_paie_rien(application):
+def test_a_badly_signed_webhook_pays_nothing(application):
     """LE test de sécurité de la brique. Sans vérification de signature,
     n'importe qui marque n'importe quelle commande comme payée avec un simple
     `curl` — c'est le seul endroit du backend généré où un tiers non
