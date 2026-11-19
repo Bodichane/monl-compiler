@@ -1,16 +1,15 @@
-"""Démarrer un projet, c'est démarrer son BACKEND COMPILÉ — pas un build IA.
+"""Starting a project means starting its COMPILED BACKEND — not an AI build.
 
-POINT 162. Tant que la plateforme construisait le frontend, « héberger »
-voulait dire servir le SNAPSHOT d'une construction réussie : ``start_project``
-interrogeait la file de builds et refusait tout projet qui n'en avait aucun.
-Le constructeur retiré, cette porte ne s'ouvrait plus jamais — l'hébergement
-serait devenu du code mort alors que voir l'API tourner est justement l'usage
-qu'on garde.
+POINT 162. As long as the platform built the frontend, "hosting" meant
+serving the SNAPSHOT of a successful build: ``start_project`` queried the
+build queue and refused any project that had none. With the builder removed,
+this door never opened again — hosting would have become dead code while
+seeing the API run is precisely the use we keep.
 
-Ce que ces tests prouvent, contre un vrai processus et de vraies requêtes :
-un projet COMPILÉ démarre et répond, même SANS frontend (le wrapper serve.py
-le dit lui-même : « l'API répond, /site renverra 404 »), et un projet non
-compilé est refusé en NOMMANT le fichier absent.
+What these tests prove, against a real process and real requests: a COMPILED
+project starts and answers, even WITHOUT a frontend (the serve.py wrapper says
+it itself: "the API answers, /site will return 404"), and an uncompiled
+project is refused by NAMING the missing file.
 """
 
 import hashlib
@@ -85,16 +84,17 @@ def plateforme(tmp_path):
 
 @pytest.fixture()
 def application_hebergement(tmp_path, request):
-    """Fabrique une app après réglage de l'environnement et nettoie en finally."""
+    """Builds an app after setting the environment and cleans up in finally."""
     def construire():
         app = create_app(workspace=tmp_path / "projets", domain="localhost")
 
         def arreter():
-            # Arrête même si le test lève : le finalizer appartient au fixture.
+            # Stops even if the test raises: the finalizer belongs to the
+            # fixture.
             sites = app.state.sites
             pids = [site.process.pid for site in sites._running.values()]
             sites.stop_all()
-            if request.node.name == "test_le_fixture_arrete_un_site_qui_a_repondu":
+            if request.node.name == "test_the_fixture_stops_a_site_that_answered":
                 assert pids, "le témoin de nettoyage n'a vu aucun site démarrer"
             for pid in pids:
                 with pytest.raises(ProcessLookupError):
@@ -106,7 +106,7 @@ def application_hebergement(tmp_path, request):
     return construire
 
 
-def test_le_fixture_arrete_un_site_qui_a_repondu(tmp_path, application_hebergement):
+def test_the_fixture_stops_a_site_that_answered(tmp_path, application_hebergement):
     app = application_hebergement()
     projet = _projet_compile(
         app.state.store, app.state.identity_store, tmp_path / "projets",
@@ -117,7 +117,7 @@ def test_le_fixture_arrete_un_site_qui_a_repondu(tmp_path, application_hebergeme
 
 
 def _compiler(projet, racine, tmp_path):
-    """Compile la spec DANS le dossier privé du projet, comme le fera la console."""
+    """Compiles the spec IN the project's private folder, as the console will."""
     dossier = project_directory(racine, projet["user_id"], projet["project_id"])
     (dossier / "spec.ml").write_text(SPEC, encoding="utf-8")
     compile_project(str(dossier / "spec.ml"), str(dossier))
@@ -146,7 +146,7 @@ def _attendre_marqueur(chemin, marqueur):
 
 
 @pytest.mark.parametrize("valeur", ["invalide", "0", "-1"])
-def test_les_plafonds_invalides_replient_sur_les_defauts(monkeypatch, valeur):
+def test_invalid_caps_fall_back_to_defaults(monkeypatch, valeur):
     monkeypatch.setenv("MONL_MAX_RUNNING_SITES", valeur)
     monkeypatch.setenv("MONL_MAX_RUNNING_SITES_PER_ACCOUNT", valeur)
 
@@ -184,7 +184,7 @@ def _projet_compile(store, identities, racine, email, slug):
     return projet
 
 
-def test_plafond_global_refuse_sans_creer_de_processus_et_repond_503(
+def test_global_cap_refuses_without_creating_a_process_and_answers_503(
         tmp_path, monkeypatch, capsys, application_hebergement):
     monkeypatch.setenv("MONL_MAX_RUNNING_SITES", "2")
     monkeypatch.setenv("MONL_MAX_RUNNING_SITES_PER_ACCOUNT", "10")
@@ -210,7 +210,7 @@ def test_plafond_global_refuse_sans_creer_de_processus_et_repond_503(
         assert {site.process.pid for site in sites._running.values()} == processus
 
 
-def test_eviction_du_plus_ancien_inactif_et_refus_quand_tous_sont_recents(
+def test_evicting_the_oldest_idle_and_refusing_when_all_are_recent(
         tmp_path, monkeypatch, capsys, application_hebergement):
     monkeypatch.setenv("MONL_MAX_RUNNING_SITES", "2")
     monkeypatch.setenv("MONL_MAX_RUNNING_SITES_PER_ACCOUNT", "10")
@@ -239,7 +239,7 @@ def test_eviction_du_plus_ancien_inactif_et_refus_quand_tous_sont_recents(
     assert len(sites._running) == 2
 
 
-def test_plafond_par_compte_nempeche_pas_un_autre_compte(
+def test_per_account_cap_does_not_block_another_account(
         tmp_path, monkeypatch, capsys, application_hebergement):
     monkeypatch.setenv("MONL_MAX_RUNNING_SITES", "10")
     monkeypatch.setenv("MONL_MAX_RUNNING_SITES_PER_ACCOUNT", "1")
@@ -268,18 +268,17 @@ def test_plafond_par_compte_nempeche_pas_un_autre_compte(
     assert _get(running_bob.port, "/openapi.json")[0] == 200
 
 
-def _annoncer_sans_envoyer(base, hote, taille):
-    """Forge un `Content-Length` mensonger, et n'envoie AUCUN octet de corps.
+def _announce_without_sending(base, hote, taille):
+    """Forges a lying `Content-Length`, and sends NO body byte.
 
-    `requests` recalcule toujours l'en-tête depuis le corps qu'on lui donne :
-    l'annonce forgée n'atteint jamais le serveur, qui voit la taille réelle et
-    répond 200 à juste titre. Mesuré — la première version de ce témoin passait
-    à côté de ce qu'elle croyait mesurer. Il faut donc parler HTTP en brut.
+    `requests` always recomputes the header from the body it is given: the
+    forged announcement never reaches the server, which sees the real size and
+    rightly answers 200. Measured — the first version of this witness missed what
+    it thought it measured. So raw HTTP is needed.
 
-    N'envoyer aucun corps est délibéré : c'est ce qui rend le témoin
-    INCONTOURNABLE. Un serveur qui ne lirait pas l'annonce attendrait les
-    40 Mio promis et le test échouerait sur un dépassement de délai, jamais par
-    accident sur un 200.
+    Sending no body is deliberate: it is what makes the witness UNAVOIDABLE. A
+    server that did not read the announcement would wait for the promised 40 MiB
+    and the test would fail on a timeout, never by accident on a 200.
     """
     connexion = http.client.HTTPConnection(base.removeprefix("http://"), timeout=10)
     try:
@@ -293,7 +292,7 @@ def _annoncer_sans_envoyer(base, hote, taille):
         connexion.close()
 
 
-def test_relais_borne_le_corps_et_transmet_un_corps_legitime_intact(
+def test_relay_bounds_the_body_and_forwards_a_legitimate_body_intact(
         tmp_path, monkeypatch, capsys, application_hebergement):
     monkeypatch.setenv("MONL_MAX_RUNNING_SITES", "2")
     app = application_hebergement()
@@ -329,7 +328,7 @@ async def echo(request: Request):
             headers={"Host": "relais.localhost"},
             timeout=30,
         )
-        refuse_annonce = _annoncer_sans_envoyer(
+        refuse_annonce = _announce_without_sending(
             base, "relais.localhost", SITE_MAX_BODY_BYTES + 1
         )
 
@@ -346,7 +345,7 @@ def test_un_projet_compile_demarre_et_son_api_repond(plateforme, capsys):
     store, projet, sites, tmp_path = plateforme
     dossier = _compiler(projet, tmp_path / "projets", tmp_path)
     capsys.readouterr()
-    # Le frontend n'est PAS construit par la plateforme : c'est tout le cap.
+    # The frontend is NOT built by the platform: that is the whole heading.
     assert not (dossier / "frontend").exists()
 
     running = sites.start_project(projet)
@@ -357,12 +356,12 @@ def test_un_projet_compile_demarre_et_son_api_repond(plateforme, capsys):
     assert sites.is_running(projet["project_id"])
 
 
-def test_un_projet_non_compile_est_refuse_en_nommant_ce_qui_manque(plateforme):
-    """La contre-épreuve : sans backend compilé, le démarrage doit ÉCHOUER.
+def test_an_uncompiled_project_is_refused_naming_what_is_missing(plateforme):
+    """The counter-proof: without a compiled backend, starting must FAIL.
 
-    Sans elle, un ``_require_site`` qui n'exigerait plus rien laisserait
-    ``uvicorn`` mourir sur un dossier vide et l'erreur parlerait de démarrage,
-    jamais de compilation — on chercherait la panne du mauvais côté.
+    Without it, a ``_require_site`` requiring nothing any more would let
+    ``uvicorn`` die on an empty folder and the error would talk about startup,
+    never compilation — one would look for the failure on the wrong side.
     """
     store, projet, sites, tmp_path = plateforme
     project_directory(tmp_path / "projets", projet["user_id"], projet["project_id"])
@@ -373,8 +372,8 @@ def test_un_projet_non_compile_est_refuse_en_nommant_ce_qui_manque(plateforme):
     assert "app.py" in str(echec.value)
 
 
-def test_le_frontend_reste_facultatif_et_le_site_le_dit(plateforme, capsys):
-    """/site renvoie 404 sans frontend, mais l'API, elle, répond."""
+def test_the_frontend_stays_optional_and_the_site_says_so(plateforme, capsys):
+    """/site returns 404 without a frontend, but the API does answer."""
     store, projet, sites, tmp_path = plateforme
     _compiler(projet, tmp_path / "projets", tmp_path)
     capsys.readouterr()
@@ -385,8 +384,8 @@ def test_le_frontend_reste_facultatif_et_le_site_le_dit(plateforme, capsys):
     assert _get(running.port, "/openapi.json")[0] == 200
 
 
-def test_un_site_qui_plante_laisse_la_trace_de_son_erreur(plateforme, capsys):
-    """Le fichier doit expliquer un crash, pas seulement prouver sa présence."""
+def test_a_crashing_site_leaves_the_trace_of_its_error(plateforme, capsys):
+    """The file must explain a crash, not only prove its presence."""
     _store, projet, sites, tmp_path = plateforme
     dossier = _compiler(projet, tmp_path / "projets", tmp_path)
     capsys.readouterr()
@@ -416,8 +415,8 @@ def crash():
     assert "erreur volontaire du site" in contenu
 
 
-def test_la_sortie_dun_site_reste_bornee(plateforme, capsys):
-    """Une boucle de sortie ne doit pas transformer le journal en panne disque."""
+def test_a_sites_output_stays_bounded(plateforme, capsys):
+    """An output loop must not turn the log into a disk failure."""
     _store, projet, sites, tmp_path = plateforme
     dossier = _compiler(projet, tmp_path / "projets", tmp_path)
     capsys.readouterr()
@@ -439,25 +438,25 @@ def bruit():
     assert _get(running.port, "/bruit")[0] == 200
     journal = sites.site_log_path(projet)
     _attendre_marqueur(journal, "SITE_OUTPUT")
-    # La borne DISQUE est le seuil de compactage, pas la taille conservée : le
-    # journal grossit jusqu'au double avant d'être ramené à sa fin, parce que
-    # compacter à chaque bloc relirait tout le fichier à chaque 8 Kio.
+    # The DISK bound is the compaction threshold, not the kept size: the log
+    # grows up to double before being brought back to its end, because
+    # compacting at every block would reread the whole file every 8 KiB.
     assert journal.stat().st_size <= SITE_LOG_COMPACT_BYTES
 
 
-def test_la_borne_du_journal_tient_PENDANT_le_compactage(tmp_path, monkeypatch):
-    """Une borne de disque se tient à chaque instant, pas seulement à la fin.
+def test_the_log_bound_holds_DURING_compaction(tmp_path, monkeypatch):
+    """A disk bound holds at every moment, not only at the end.
 
-    LE DÉFAUT MESURÉ. Le compactage avait lieu APRÈS l'écriture du bloc : le
-    fichier dépassait donc la borne, puis y revenait — et le compactage relit
-    tout le journal, tronque et réécrit, ce qui dure. La CI a photographié cet
-    instant : 2 101 261 octets pour une borne annoncée à 2 097 152. Le témoin
-    de taille qui existait déjà passait ou tombait selon la quantité de bruit
-    écrite AVANT par uvicorn, c'est-à-dire selon rien du tout.
+    THE MEASURED DEFECT. Compaction happened AFTER writing the block: the file
+    therefore exceeded the bound, then came back to it — and compaction rereads
+    the whole log, truncates and rewrites, which takes time. CI photographed that
+    moment: 2,101,261 bytes for an announced bound of 2,097,152. The size witness
+    that already existed passed or failed depending on the amount of noise
+    uvicorn wrote BEFORE, that is depending on nothing at all.
 
-    Ce témoin-ci ne change aucune taille : il allonge seulement la fenêtre qui
-    existe déjà, en faisant patienter le compactage au moment où il commence,
-    et il photographie le disque pendant ce temps.
+    This witness changes no size: it only lengthens the window that already
+    exists, by making compaction wait when it starts, and it photographs the disk
+    meanwhile.
     """
     journal = tmp_path / "site.log"
     journal.touch()
@@ -466,13 +465,13 @@ def test_la_borne_du_journal_tient_PENDANT_le_compactage(tmp_path, monkeypatch):
     sortir = threading.Event()
     vrai_compactage = SiteManager._compacter_journal
 
-    def compactage_qui_patiente(fichier):
+    def waiting_compaction(fichier):
         entre.set()
         sortir.wait(10)
         return vrai_compactage(fichier)
 
     monkeypatch.setattr(
-        SiteManager, "_compacter_journal", staticmethod(compactage_qui_patiente)
+        SiteManager, "_compacter_journal", staticmethod(waiting_compaction)
     )
 
     ligne = b"SITE_OUTPUT " + b"x" * (SITE_LOG_COMPACT_BYTES + 4096) + b"\n"
@@ -494,17 +493,17 @@ def test_la_borne_du_journal_tient_PENDANT_le_compactage(tmp_path, monkeypatch):
     )
 
 
-def test_le_journal_borne_garde_la_FIN_et_jamais_le_debut():
-    """Une borne tenue ne dit pas que ce qu'on garde sert à quelque chose.
+def test_the_bounded_log_keeps_the_END_never_the_beginning():
+    """A bound that holds does not say what is kept is useful.
 
-    La première version cessait d'écrire une fois la borne atteinte : la taille
-    du fichier était juste, et le mégaoctet conservé était le moins utile. Un
-    site qui bavarde puis plante perdait ENTIÈREMENT la trace de son plantage,
-    parce qu'elle arrive en dernier — mesuré, pas supposé.
+    The first version stopped writing once the bound was reached: the file size
+    was right, and the megabyte kept was the least useful. A site that chatters
+    then crashes lost its crash trace ENTIRELY, because it comes last —
+    measured, not assumed.
 
-    Le témoin de taille qui existait passait dans les deux cas. C'est pourquoi
-    celui-ci mesure ce qu'on GARDE : la dernière ligne écrite par le site doit
-    se retrouver dans son journal, et la première doit être entière.
+    The existing size witness passed in both cases. That is why this one
+    measures what is KEPT: the last line the site wrote must be found in its log,
+    and the first must be whole.
     """
     with tempfile.TemporaryDirectory() as base:
         journal = Path(base) / "site.log"
@@ -517,14 +516,14 @@ def test_le_journal_borne_garde_la_FIN_et_jamais_le_debut():
         assert len(contenu) < len(bavardage), "aucun compactage n'a eu lieu"
         assert b"TRACE-DU-PLANTAGE" in contenu, "la trace du plantage est perdue"
         assert contenu.rstrip(b"\n").split(b"\n")[-1].startswith(b"TRACE-DU-PLANTAGE")
-        # Pas de fragment en tête : on le prendrait pour un message tronqué par
-        # le site lui-même plutôt que par la borne.
+        # No fragment at the head: it would be taken for a message truncated by
+        # the site itself rather than by the bound.
         assert contenu.split(b"\n")[0] == b"ligne de trafic ordinaire"
 
 
 @pytest.mark.parametrize("canal", ["api", "mcp"])
 def test_creation_compilee_demarre_directement(application_hebergement, canal):
-    """Issue #115 : aucun /compiler intermédiaire, sur un vrai serveur."""
+    """Issue #115: no intermediate /compiler, on a real server."""
     app = application_hebergement()
     spec = (Path(__file__).parents[1] / "exemples/02_boutique.ml").read_text()
     try:

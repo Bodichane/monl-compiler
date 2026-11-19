@@ -106,7 +106,7 @@ environment. Browser account isolation and process isolation are distinct.
 | Threat (STRIDE) | Existing mitigation | Test evidence |
 | --- | --- | --- |
 | Another tenant obtains private project records (S, I, E) | Identity store checks project ownership. Witness covers store authorization, not hostile process reads. | tests/test_platform_identity.py::test_projects_belong_to_a_single_account |
-| One tenant exhausts site slots / oversized relay body (D) | Global/per-account admission and relay byte limit. | tests/test_platform_hebergement.py::test_plafond_par_compte_nempeche_pas_un_autre_compte; tests/test_platform_hebergement.py::test_relais_borne_le_corps_et_transmet_un_corps_legitime_intact |
+| One tenant exhausts site slots / oversized relay body (D) | Global/per-account admission and relay byte limit. | tests/test_platform_hebergement.py::test_per_account_cap_does_not_block_another_account; tests/test_platform_hebergement.py::test_relay_bounds_the_body_and_forwards_a_legitimate_body_intact |
 | Deleted tenant leaves a live site or private database (I, T) | Shared deletion path stops sites and removes owned directories and rows. | tests/test_platform_exploitation.py::test_supprimer_son_compte_efface_tout_y_compris_sur_le_disque |
 | Hosted code reads platform/provider secrets or modifies another tenant (I, T, E) | No dedicated OS/environment sandbox in the inspected launcher. | No containment test: see Known gaps. |
 | Tenant disputes hosted activity (R) | Operational logs exist; no tamper-resistant site activity ledger established. | No nonrepudiation test: see Known gaps. |

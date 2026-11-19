@@ -1,29 +1,27 @@
-"""Brique 11 (propriété transitive) éprouvée contre un vrai serveur — point 81.
+"""Brick 11 (transitive ownership) tested against a real server — point 81.
 
-Pourquoi ce fichier existe. Un panier multi-articles a besoin d'une entité
-« ligne de commande », et une ligne n'appartient à personne directement : elle
-appartient à qui possède sa commande. Jusqu'au point 80, `ownedBy` ne savait
-désigner qu'un ACTEUR ; nommer une entité compilait en silence et produisait un
-rattachement faux — l'identifiant du compte appelant écrit à la place de la
-commande demandée.
+Why this file exists. A multi-item cart needs an "order line" entity, and a
+line belongs to nobody directly: it belongs to whoever owns its order. Until
+point 80, `ownedBy` could only designate an ACTOR; naming an entity compiled
+silently and produced a false attachment — the calling account's id written
+instead of the requested order.
 
-Ce que ces tests exigent, et qu'une relecture ne prouve pas :
+What these tests require, and what a review does not prove:
 
-* la clé étrangère stockée est bien la COMMANDE désignée, jamais l'identifiant
-  du compte appelant (le défaut exact du point 80, qui compilait sans un mot) ;
-* rattacher une ligne à la commande d'autrui est refusé — sans cette
-  vérification, la brique ouvrirait un trou plus large que celui qu'elle ferme,
-  puisque la clé étrangère n'est plus déduite du jeton mais fournie par le
-  client ;
-* les quatre chemins de lecture/écriture filtrent par la JOINTURE (liste,
-  détail, modification, suppression), pas par une comparaison de colonne ;
-* la composition avec `derivedFrom` tient : le montant de la ligne reste calculé
-  par le serveur.
+* the stored foreign key is indeed the designated ORDER, never the calling
+  account's id (point 80's exact defect, which compiled without a word);
+* attaching a line to someone else's order is refused — without this check,
+  the brick would open a wider hole than the one it closes, since the foreign
+  key is no longer deduced from the token but provided by the client;
+* the four read/write paths filter by the JOIN (list, detail, update,
+  delete), not by a column comparison;
+* the composition with `derivedFrom` holds: the line amount stays calculated
+  by the server.
 
-Les identifiants sont volontairement DIVERGENTS (plusieurs commandes créées
-avant celles qui servent aux assertions) : le premier essai de la sonde n'avait
-rien montré parce que « utilisateur 1 » et « commande 1 » coïncidaient, et une
-comparaison fausse passait pour juste.
+The identifiers are deliberately DIVERGENT (several orders created before
+those used for the assertions): the probe's first try had shown nothing
+because "user 1" and "order 1" coincided, and a wrong comparison looked
+right.
 """
 import contextlib
 import os
@@ -63,7 +61,7 @@ rule Commande.Read ownedBy Client
 rule Commande.Update ownedBy Client
 rule Commande.Delete ownedBy Client
 
-# La brique : une ligne appartient à qui possède sa commande.
+# The brick: a line belongs to whoever owns its order.
 rule Ligne.Read ownedBy Commande
 rule Ligne.Update ownedBy Commande
 rule Ligne.Delete ownedBy Commande
@@ -136,10 +134,9 @@ def _entetes(application, identifiant):
 @pytest.fixture(scope="module")
 def alice(application):
     entetes = _entetes(application, "alice")
-    # Trois commandes avant toute assertion : les identifiants de commande
-    # cessent ainsi de coïncider avec ceux des comptes. Sans cet écart, une
-    # comparaison qui confond « id de commande » et « id de compte » passe pour
-    # juste — c'est précisément ce qui a masqué le défaut du point 80.
+    # Three orders before any assertion: order ids thus stop coinciding with
+    # account ids. Without this gap, a comparison confusing "order id" and
+    # "account id" looks right — that is precisely what hid point 80's defect.
     base, _ = application
     for libelle in ("brouillon", "abandonnée", "en cours"):
         _commande(base, entetes, libelle)
@@ -164,7 +161,7 @@ def _commande(base, entetes, libelle):
     return reponse.json()["id"]
 
 
-def _ligne(base, entetes, commande_id, article_id, quantite):
+def _line(base, entetes, commande_id, article_id, quantite):
     return requests.post(f"{base}/ligne", headers=entetes,
                          json={"commande_id": commande_id,
                                "article_id": article_id,
@@ -178,35 +175,35 @@ def _id_compte(dossier, identifiant):
 
 
 # --------------------------------------------------------------------------
-# Ce que la brique doit produire dans le contrat d'entrée
+# What the brick must produce in the input contract
 # --------------------------------------------------------------------------
 
-def test_le_client_designe_la_commande_dans_le_corps(application):
-    """La clé étrangère du parent propriétaire est FOURNIE par le client.
+def test_the_client_designates_the_order_in_the_body(application):
+    """The owning parent's foreign key is PROVIDED by the client.
 
-    C'est le renversement de la brique : en propriété directe, cette colonne
-    est déduite du jeton et n'apparaît pas dans le schéma. Ici, sans elle, le
-    client ne pourrait rattacher sa ligne à aucune commande."""
+    It is the brick's reversal: in direct ownership, this column is deduced from
+    the token and does not appear in the schema. Here, without it, the client
+    could attach its line to no order."""
     base, _ = application
     schema = requests.get(f"{base}/openapi.json").json()
     champs = schema["components"]["schemas"]["LigneSchema"]["properties"]
     assert "commande_id" in champs
     assert "article_id" in champs
-    # Composition avec la brique 10 : le montant reste calculé par le serveur.
+    # Composition with brick 10: the amount stays calculated by the server.
     assert "sousTotal" not in champs
 
 
 # --------------------------------------------------------------------------
-# Le défaut du point 80, en test de non-régression
+# Point 80's defect, as a non-regression test
 # --------------------------------------------------------------------------
 
-def test_la_commande_stockee_est_celle_qui_a_ete_demandee(application, alice):
-    """Le défaut exact du point 80 : le rattachement demandé était ignoré et
-    remplacé par l'identifiant du compte appelant, en silence."""
+def test_the_stored_order_is_the_one_requested(application, alice):
+    """Point 80's exact defect: the requested attachment was ignored and
+    replaced with the calling account's id, silently."""
     base, dossier = application
     commande = _commande(base, alice, "panier réel")
     article = _id_article(dossier, PRIX_CHER)
-    reponse = _ligne(base, alice, commande, article, 2)
+    reponse = _line(base, alice, commande, article, 2)
     assert reponse.status_code in (200, 201), reponse.text
     ligne_id = reponse.json()["id"]
 
@@ -215,34 +212,34 @@ def test_la_commande_stockee_est_celle_qui_a_ete_demandee(application, alice):
                              (ligne_id,)).fetchone()[0]
     compte = _id_compte(dossier, "alice")
     assert stocke == commande, "la commande désignée n'a pas été enregistrée"
-    # L'assertion qui compte : les deux valeurs DIVERGENT, donc l'égalité
-    # ci-dessus ne peut pas être un hasard.
+    # The assertion that counts: the two values DIVERGE, so the equality above
+    # cannot be chance.
     assert commande != compte, "identifiants confondus : le test ne prouve rien"
     assert stocke != compte
 
 
-def test_le_montant_de_la_ligne_est_calcule_par_le_serveur(application, alice):
-    """Composition brique 10 + brique 11 : neuf briques testées une par une ne
-    testent pas leurs paires (leçon du point 78)."""
+def test_the_line_amount_is_calculated_by_the_server(application, alice):
+    """Brick 10 + brick 11 composition: nine bricks tested one by one do not test
+    their pairs (point 78's lesson)."""
     base, dossier = application
     commande = _commande(base, alice, "calcul")
     article = _id_article(dossier, PRIX_CHER)
-    ligne_id = _ligne(base, alice, commande, article, 3).json()["id"]
+    ligne_id = _line(base, alice, commande, article, 3).json()["id"]
     detail = requests.get(f"{base}/ligne/{ligne_id}", headers=alice).json()
     assert detail["data"]["sousTotal"] == pytest.approx(PRIX_CHER * 3)
 
 
 # --------------------------------------------------------------------------
-# Écriture : rattacher une ligne à la commande d'autrui
+# Writing: attaching a line to someone else's order
 # --------------------------------------------------------------------------
 
-def test_rattacher_une_ligne_a_la_commande_d_autrui_est_refuse(application, alice, bob):
-    """Sans cette vérification, la brique ouvrirait un trou plus large que
-    celui qu'elle ferme : la clé étrangère n'est plus déduite du jeton."""
+def test_attaching_a_line_to_someone_elses_order_is_refused(application, alice, bob):
+    """Without this check, the brick would open a wider hole than the one it
+    closes: the foreign key is no longer deduced from the token."""
     base, dossier = application
     commande_alice = _commande(base, alice, "privée")
     article = _id_article(dossier, PRIX_CHER)
-    reponse = _ligne(base, bob, commande_alice, article, 1)
+    reponse = _line(base, bob, commande_alice, article, 1)
     assert reponse.status_code == 403, reponse.text
 
     with _base(dossier) as cnx:
@@ -252,26 +249,26 @@ def test_rattacher_une_ligne_a_la_commande_d_autrui_est_refuse(application, alic
     assert compte == 0, "la ligne a été écrite malgré le refus"
 
 
-def test_une_commande_inexistante_donne_la_meme_reponse(application, bob):
-    """Distinguer « n'existe pas » de « pas à vous » permettrait d'énumérer les
-    commandes des autres — même raison que le 404 de la lecture détail."""
+def test_a_nonexistent_order_gives_the_same_answer(application, bob):
+    """Telling "does not exist" from "not yours" would allow enumerating others'
+    orders — same reason as the detail read's 404."""
     base, dossier = application
     article = _id_article(dossier, PRIX_CHER)
-    reponse = _ligne(base, bob, 99999, article, 1)
+    reponse = _line(base, bob, 99999, article, 1)
     assert reponse.status_code == 403, reponse.text
 
 
 # --------------------------------------------------------------------------
-# Lecture : la jointure filtre-t-elle vraiment ?
+# Reading: does the join really filter?
 # --------------------------------------------------------------------------
 
-def test_la_liste_ne_montre_que_ses_propres_lignes(application, alice, bob):
+def test_the_list_only_shows_ones_own_lines(application, alice, bob):
     base, dossier = application
     article = _id_article(dossier, PRIX_CHER)
     commande_alice = _commande(base, alice, "liste alice")
-    ligne_alice = _ligne(base, alice, commande_alice, article, 1).json()["id"]
+    ligne_alice = _line(base, alice, commande_alice, article, 1).json()["id"]
     commande_bob = _commande(base, bob, "liste bob")
-    ligne_bob = _ligne(base, bob, commande_bob, article, 1).json()["id"]
+    ligne_bob = _line(base, bob, commande_bob, article, 1).json()["id"]
 
     vues_bob = [ligne["id"] for ligne
                 in requests.get(f"{base}/ligne", headers=bob).json()["data"]]
@@ -284,12 +281,12 @@ def test_la_liste_ne_montre_que_ses_propres_lignes(application, alice, bob):
     assert ligne_bob not in vues_alice
 
 
-def test_le_detail_d_une_ligne_d_autrui_est_indiscernable_d_une_absence(
+def test_the_detail_of_someone_elses_line_is_indistinguishable_from_absence(
         application, alice, bob):
     base, dossier = application
     commande = _commande(base, alice, "détail")
     article = _id_article(dossier, PRIX_CHER)
-    ligne_id = _ligne(base, alice, commande, article, 1).json()["id"]
+    ligne_id = _line(base, alice, commande, article, 1).json()["id"]
 
     assert requests.get(f"{base}/ligne/{ligne_id}",
                         headers=alice).status_code == 200
@@ -301,11 +298,11 @@ def test_le_detail_d_une_ligne_d_autrui_est_indiscernable_d_une_absence(
 # Modification et suppression
 # --------------------------------------------------------------------------
 
-def test_modifier_la_ligne_d_autrui_est_refuse(application, alice, bob):
+def test_updating_someone_elses_line_is_refused(application, alice, bob):
     base, dossier = application
     commande = _commande(base, alice, "put")
     article = _id_article(dossier, PRIX_CHER)
-    ligne_id = _ligne(base, alice, commande, article, 1).json()["id"]
+    ligne_id = _line(base, alice, commande, article, 1).json()["id"]
 
     refuse = requests.put(f"{base}/ligne/{ligne_id}", headers=bob,
                           json={"quantite": 50, "commande_id": commande,
@@ -317,11 +314,11 @@ def test_modifier_la_ligne_d_autrui_est_refuse(application, alice, bob):
     assert quantite == 1, "la ligne a été modifiée malgré le refus"
 
 
-def test_supprimer_la_ligne_d_autrui_est_refuse(application, alice, bob):
+def test_deleting_someone_elses_line_is_refused(application, alice, bob):
     base, dossier = application
     commande = _commande(base, alice, "delete")
     article = _id_article(dossier, PRIX_CHER)
-    ligne_id = _ligne(base, alice, commande, article, 1).json()["id"]
+    ligne_id = _line(base, alice, commande, article, 1).json()["id"]
 
     refuse = requests.delete(f"{base}/ligne/{ligne_id}", headers=bob)
     assert refuse.status_code == 403, refuse.text
@@ -331,13 +328,13 @@ def test_supprimer_la_ligne_d_autrui_est_refuse(application, alice, bob):
     assert reste == 1, "la ligne a été supprimée malgré le refus"
 
 
-def test_le_proprietaire_modifie_et_supprime_sa_propre_ligne(application, alice):
-    """Le pendant indispensable des trois refus ci-dessus : une brique qui
-    refuse tout le monde passerait ces tests sans rien permettre."""
+def test_the_owner_updates_and_deletes_their_own_line(application, alice):
+    """The indispensable counterpart of the three refusals above: a brick
+    refusing everyone would pass these tests while allowing nothing."""
     base, dossier = application
     commande = _commande(base, alice, "à moi")
     article = _id_article(dossier, PRIX_CHER)
-    ligne_id = _ligne(base, alice, commande, article, 1).json()["id"]
+    ligne_id = _line(base, alice, commande, article, 1).json()["id"]
 
     modifie = requests.put(f"{base}/ligne/{ligne_id}", headers=alice,
                            json={"quantite": 4, "commande_id": commande,
@@ -345,8 +342,8 @@ def test_le_proprietaire_modifie_et_supprime_sa_propre_ligne(application, alice)
     assert modifie.status_code == 200, modifie.text
     detail = requests.get(f"{base}/ligne/{ligne_id}", headers=alice).json()
     assert detail["data"]["quantite"] == 4
-    # Le montant suit la quantité : sinon la faille du point 77 se déplacerait
-    # simplement du montant vers la quantité.
+    # The amount follows the quantity: otherwise point 77's flaw would simply
+    # move from the amount to the quantity.
     assert detail["data"]["sousTotal"] == pytest.approx(PRIX_CHER * 4)
 
     assert requests.delete(f"{base}/ligne/{ligne_id}",
@@ -357,16 +354,16 @@ def test_le_proprietaire_modifie_et_supprime_sa_propre_ligne(application, alice)
     assert reste == 0
 
 
-def test_deplacer_sa_ligne_vers_la_commande_d_autrui_est_impossible(
+def test_moving_ones_line_to_someone_elses_order_is_impossible(
         application, alice, bob):
-    """La route Update de monl n'écrit pas les clés étrangères. Ce test fige ce
-    comportement : s'il changeait, un client pourrait déposer une ligne dans le
-    panier d'un tiers en passant par la modification."""
+    """monl's Update route does not write foreign keys. This test pins that
+    behavior: if it changed, a client could drop a line into a third party's cart
+    through an update."""
     base, dossier = application
     commande_bob = _commande(base, bob, "cible")
     commande_alice = _commande(base, alice, "source")
     article = _id_article(dossier, PRIX_CHER)
-    ligne_id = _ligne(base, alice, commande_alice, article, 1).json()["id"]
+    ligne_id = _line(base, alice, commande_alice, article, 1).json()["id"]
 
     requests.put(f"{base}/ligne/{ligne_id}", headers=alice,
                  json={"quantite": 2, "commande_id": commande_bob,
