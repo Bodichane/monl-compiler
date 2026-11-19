@@ -1,4 +1,4 @@
-"""Invariants transverses de la documentation du dépôt."""
+"""Cross-cutting invariants of the repository's documentation."""
 
 from __future__ import annotations
 
@@ -14,8 +14,8 @@ from monl_platform.__main__ import VERBES as VERBES_PLATEFORME
 
 RACINE = Path(__file__).resolve().parents[1]
 
-# Ces documents racontent un état passé : leurs références sont des preuves,
-# pas des instructions à appliquer à l'arbre courant.
+# These documents tell a past state: their references are evidence, not
+# instructions to apply to the current tree.
 DOCUMENTS_HISTORIQUES = {
     "CHANGELOG.md": "journal des versions passées",
     "CLAUDE.md": "journal de travail conservé par le mainteneur",
@@ -33,8 +33,9 @@ DOCUMENTS_HISTORIQUES = {
     },
 }
 
-# Ces noms désignent des artefacts produits dans un projet compilé. Leur
-# absence du dépôt est donc normale, mais chaque exception doit rester utilisée.
+# These names designate artifacts produced in a compiled project. Their absence
+# from the repository is therefore normal, but every exception must stay in
+# use.
 FICHIERS_GENERES = {
     "app.py": "backend FastAPI produit par la compilation",
     "schema.sql": "schéma SQL produit par la compilation",
@@ -105,17 +106,17 @@ def _commandes(parseur: argparse.ArgumentParser) -> set[str]:
 
 
 def _racines_de_paquets() -> tuple[str, ...]:
-    """Les préfixes que le PACKAGING retire, lus sur `pyproject.toml`.
+    """The prefixes PACKAGING removes, read from `pyproject.toml`.
 
-    Un document qui décrit le contenu d'une ROUE cite `monl_platform/static/`,
-    et ce chemin n'existe pas dans le dépôt : il y vit sous `src/`. Refuser
-    cette écriture forcerait à documenter `src/monl_platform/static/`, ce qui
-    serait FAUX — c'est arrivé en écrivant ce témoin, et il a fallu défaire la
-    correction qu'il avait provoquée. *Une garantie trop large n'est pas plus
-    sûre, elle est fausse ailleurs* (point 84).
+    A document describing the contents of a WHEEL cites `monl_platform/static/`,
+    and that path does not exist in the repository: it lives under `src/` there.
+    Refusing this spelling would force documenting `src/monl_platform/static/`,
+    which would be FALSE — it happened while writing this witness, and the
+    correction it caused had to be undone. *A guarantee that is too broad is not
+    safer, it is wrong elsewhere* (point 84).
 
-    La liste est DÉRIVÉE de `package-dir`, jamais écrite ici : le jour où le
-    dépôt change de disposition, le témoin suit au lieu de mentir.
+    The list is DERIVED from `package-dir`, never written here: the day the
+    repository changes layout, the witness follows instead of lying.
     """
     texte = (RACINE / "pyproject.toml").read_text(encoding="utf-8")
     bloc = re.search(r"\[tool\.setuptools\.package-dir\](.*?)(?:\n\[|\Z)",
@@ -137,13 +138,13 @@ def _resout(citation: str, document: str, fichiers: set[str]) -> bool:
         return True
     normalise = os.path.normpath((Path(document).parent / cible).as_posix())
     racine = os.path.normpath(cible)
-    # Un basename seul est une ellipse admise s'il est non ambigu quant à
-    # l'existence : la documentation n'est pas tenue de répéter src/monl/.
+    # A bare basename is an accepted ellipsis if it is unambiguous as to
+    # existence: the documentation is not bound to repeat src/monl/.
     if "/" not in cible:
         noms = {Path(f).name for f in fichiers} | {Path(f).parent.name for f in fichiers}
         return cible in noms or (cible.endswith(".py") and cible[:-3] in noms)
-    # Un chemin tel qu'il apparaît dans un paquet INSTALLÉ est valide aussi :
-    # le packaging retire le préfixe déclaré par `package-dir`.
+    # A path as it appears in an INSTALLED package is valid too: packaging
+    # removes the prefix declared by `package-dir`.
     candidats = [normalise, racine]
     candidats += [f"{prefixe}/{c}" for prefixe in RACINES_DE_PAQUETS
                   for c in (normalise, racine) if prefixe]
@@ -157,30 +158,30 @@ def _commandes_citees(texte: str) -> list[tuple[str, str]]:
     return [commande for code in MOTIF_CODE.findall(texte) for commande in MOTIF_CLI.findall(code)]
 
 
-#: Le tableau du README qui fait office de référence des commandes. Un verbe
-#: livré et absent de ce tableau n'existe pour personne.
+#: The README table that serves as the command reference. A verb shipped and
+#: absent from this table exists for nobody.
 TABLEAU_DES_COMMANDES = "README.md"
 
-#: Les verbes qu'on ne met pas dans le tableau, avec leur raison. `init` est le
-#: dialogue guidé, que le README présente partout comme `monl` tout court —
-#: l'y répéter sous son nom interne embrouillerait au lieu d'informer.
+#: The verbs left out of the table, with their reason. `init` is the guided
+#: dialogue, which the README presents everywhere as plain `monl` — repeating
+#: it there under its internal name would confuse instead of inform.
 VERBES_HORS_TABLEAU = {
     "init": "c'est `monl` sans argument, présenté comme tel dans tout le README",
 }
 
 
-def test_tout_verbe_livre_est_documente():
-    """Le sens INVERSE : une commande qu'on livre et que personne ne nomme.
+def test_every_shipped_verb_is_documented():
+    """The REVERSE direction: a command we ship and nobody names.
 
-    L'autre témoin refuse un verbe cité qui n'existe pas. Celui-ci refuse un
-    verbe qui existe et que rien ne cite — le défaut symétrique, et le plus
-    silencieux des deux : `monl usage` était livré, fonctionnel, et documenté
-    NULLE PART. C'est l'arbitrage du point 169 sur les versions de Python
-    (*toute version éprouvée doit être annoncée*), transposé aux commandes.
+    The other witness refuses a cited verb that does not exist. This one refuses
+    a verb that exists and that nothing cites — the symmetric defect, and the
+    quieter of the two: `monl usage` was shipped, working, and documented
+    NOWHERE. It is point 169's ruling on Python versions (*every tested version
+    must be announced*), transposed to commands.
 
-    La mesure porte sur le TABLEAU du README et pas sur « le mot apparaît
-    quelque part » : trois verbes étaient mentionnés au détour d'une phrase
-    ailleurs, ce qui ne fait pas une référence consultable.
+    The measurement covers the README TABLE and not "the word appears somewhere":
+    three verbs were mentioned in passing in a sentence elsewhere, which does not
+    make a reference one can look up.
     """
     attendus = _commandes(build_monl_parser()) - set(VERBES_HORS_TABLEAU)
     assert attendus, "extracteur inopérant : aucun verbe lu sur le parseur"
@@ -200,18 +201,18 @@ def test_tout_verbe_livre_est_documente():
     assert not perimes, f"exemption de verbe devenue inutile : {perimes}"
 
 
-def test_un_chemin_de_projet_compile_pointe_ou_le_fichier_sort_vraiment(tmp_path):
-    """Ce que l'exemption des fichiers générés laissait passer.
+def test_a_compiled_project_path_points_where_the_file_really_goes(tmp_path):
+    """What the generated-files exemption let through.
 
-    `FRONTEND_PROMPT.md` est produit par la compilation, donc absent du dépôt,
-    donc exempté par l'autre témoin — qui ne pouvait donc pas voir que le
-    README envoyait vers `Boutique/FRONTEND_PROMPT.md` alors que le fichier
-    sort dans `Boutique/docs/`. *Une garantie trop large n'est pas plus sûre,
-    elle est fausse ailleurs* (point 84).
+    `FRONTEND_PROMPT.md` is produced by compilation, hence absent from the
+    repository, hence exempted by the other witness — which therefore could not
+    see that the README pointed to `Boutique/FRONTEND_PROMPT.md` while the file
+    comes out in `Boutique/docs/`. *A guarantee that is too broad is not safer,
+    it is wrong elsewhere* (point 84).
 
-    Le remède n'est pas de retirer l'exemption — l'absence du dépôt est
-    normale — mais de confronter ces chemins à une VRAIE compilation. Celle-ci
-    est déterministe et hors ligne, donc la mesure est fiable et rejouable.
+    The remedy is not to remove the exemption — absence from the repository is
+    normal — but to check these paths against a REAL compilation. It is
+    deterministic and offline, so the measurement is reliable and repeatable.
     """
     from monl.cli import compile_project
 
@@ -223,12 +224,11 @@ def test_un_chemin_de_projet_compile_pointe_ou_le_fichier_sort_vraiment(tmp_path
     for chemin in produits:
         par_nom.setdefault(Path(chemin).name, []).append(chemin)
 
-    # La recherche porte sur TOUT le texte, pas seulement sur ce qui est entre
-    # backticks : le défaut d'origine vivait dans un commentaire à l'intérieur
-    # d'un bloc `bash`, c'est-à-dire exactement là où un lecteur copie-colle.
-    # Le motif reste étroit — il ne juge que les fichiers dont la compilation
-    # a réellement produit un homonyme — donc élargir la fenêtre n'élargit pas
-    # ce qu'on accuse.
+    # The search covers ALL the text, not only what is between backticks: the
+    # original defect lived in a comment inside a `bash` block, that is exactly
+    # where a reader copy-pastes. The pattern stays narrow — it only judges
+    # files whose compilation really produced a namesake — so widening the
+    # window does not widen what is accused.
     noms_juges = "|".join(re.escape(n) for n in sorted(par_nom) if n in FICHIERS_GENERES)
     assert noms_juges, "extracteur inopérant : aucun artefact généré à confronter"
     motif = re.compile(rf"([A-Za-z<][\w<>./-]*)/({noms_juges})\b")
@@ -239,15 +239,15 @@ def test_un_chemin_de_projet_compile_pointe_ou_le_fichier_sort_vraiment(tmp_path
         if doc in DOCUMENTS_HISTORIQUES:
             continue
         for prefixe, nom in motif.findall(texte):
-            # Un préfixe qui EST un dossier du dépôt parle du dépôt, pas d'un
-            # projet compilé.
+            # A prefix that IS a folder of the repository talks about the
+            # repository, not about a compiled project.
             if prefixe.split("/")[0] in {"src", "docs", "tests", "exemples",
                                          "deploy", "scripts", "demo"}:
                 continue
             reels = par_nom[nom]
             attendu = {Path(r).parent.as_posix() for r in reels}
-            # Le préfixe est le nom du projet (`Boutique`, `<App>`) suivi ou
-            # non d'un sous-dossier : on compare ce qui vient APRÈS le nom.
+            # The prefix is the project name (`Boutique`, `<App>`) followed or
+            # not by a subfolder: we compare what comes AFTER the name.
             sous = prefixe.split("/", 1)[1] if "/" in prefixe else ""
             if sous not in attendu:
                 fautes.append(
@@ -257,7 +257,7 @@ def test_un_chemin_de_projet_compile_pointe_ou_le_fichier_sort_vraiment(tmp_path
     assert not fautes, "\n" + "\n".join(fautes)
 
 
-def test_les_extracteurs_ne_peuvent_pas_reussir_a_vide():
+def test_the_extractors_cannot_succeed_on_nothing():
     exemple = (
         "Voir `src/monl/cli/dispatch.py`, lancer `monl compile`, puis "
         "[le guide](docs/GUIDE.md). La suite avait 12 tests et 91,5 % de couverture."
@@ -269,7 +269,7 @@ def test_les_extracteurs_ne_peuvent_pas_reussir_a_vide():
     assert MOTIF_COUVERTURE.search(exemple)
 
 
-def test_la_documentation_respecte_les_invariants_du_depot():
+def test_the_documentation_respects_the_repository_invariants():
     documents = _documents()
     assert documents, "extracteur inopérant : aucun document Markdown lu"
     fichiers = set(subprocess.check_output(
@@ -283,9 +283,9 @@ def test_la_documentation_respecte_les_invariants_du_depot():
     assert sum(map(len, citations.values())), "extracteur inopérant : aucun chemin extrait"
     assert sum(map(len, commandes.values())), "extracteur inopérant : aucun verbe CLI extrait"
 
-    # Les deux programmes dispatchent différemment, donc la vérité se lit à
-    # deux endroits différents — mais dans les DEUX cas c'est ce que le code
-    # EXÉCUTE, jamais une liste tenue pour le test.
+    # The two programs dispatch differently, so the truth is read in two
+    # different places — but in BOTH cases it is what the code RUNS, never a
+    # list kept for the test.
     commandes_valides = {
         "monl": _commandes(build_monl_parser()),
         # The French aliases are served by the same dispatch: the design

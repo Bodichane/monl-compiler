@@ -1,10 +1,10 @@
-"""Brique 28 (point 116) : `oncePer`, éprouvé contre un vrai serveur.
+"""Brick 28 (point 116): `oncePer`, tested against a real server.
 
-Le piège du banc d'essai : avec UN seul compte et UNE seule cible, « le second
-vote est-il refusé ? » passerait même si la règle refusait tout second vote,
-d'où qu'il vienne. Ces tests emploient donc DEUX comptes et DEUX cibles, et
-vérifient les trois combinaisons — celle qui doit être refusée, et les deux qui
-doivent passer.
+The test-bench trap: with ONE account and ONE target, "is the second vote
+refused?" would pass even if the rule refused every second vote, wherever it
+came from. These tests therefore use TWO accounts and TWO targets, and check
+the three combinations — the one that must be refused, and the two that must
+pass.
 """
 
 import sqlite3
@@ -46,7 +46,7 @@ MOT_DE_PASSE = "MotDePasse123!"
 
 @pytest.fixture(scope="module")
 def scene(tmp_path_factory):
-    """Deux participants, deux entrées : le minimum pour départager la règle."""
+    """Two participants, two entries: the minimum to settle the rule."""
     projet = tmp_path_factory.mktemp("unicite_composite")
     spec = projet / "spec.ml"
     spec.write_text(SPEC, encoding="utf-8")
@@ -74,47 +74,48 @@ def _voter(scene, compte, entry_id, note):
         json={"note": note, "entry_id": entry_id})
 
 
-def test_le_premier_vote_passe(scene):
+def test_the_first_vote_passes(scene):
     assert _voter(scene, "p1", 1, "n-p1-e1").status_code == 200
 
 
-def test_le_second_vote_du_meme_compte_sur_la_meme_cible_est_refuse(scene):
+def test_the_same_accounts_second_vote_on_the_same_target_is_refused(scene):
     reponse = _voter(scene, "p1", 1, "n-p1-e1-bis")
     assert reponse.status_code == 409
     assert "already" in reponse.json()["detail"]
 
 
-def test_le_meme_compte_vote_une_autre_cible(scene):
-    """Contre-épreuve : une règle qui figerait tout passerait le test ci-dessus."""
+def test_the_same_account_votes_another_target(scene):
+    """Counter-proof: a rule freezing everything would pass the test above."""
     assert _voter(scene, "p1", 2, "n-p1-e2").status_code == 200
 
 
-def test_un_autre_compte_vote_la_meme_cible(scene):
-    """Seconde contre-épreuve, sur l'autre colonne de la paire."""
+def test_another_account_votes_the_same_target(scene):
+    """Second counter-proof, on the pair's other column."""
     assert _voter(scene, "p2", 1, "n-p2-e1").status_code == 200
 
 
-def test_le_compteur_ne_compte_que_les_votes_acceptes(scene):
-    """Le refus doit annuler l'INCRÉMENT autant que l'insertion : sans la
-    transaction commune, un revote gonflerait le score sans laisser de vote."""
+def test_the_counter_only_counts_accepted_votes(scene):
+    """The refusal must cancel the INCREMENT as well as the insertion: without
+    the shared transaction, a re-vote would inflate the score without leaving a
+    vote."""
     entrees = requests.get(f"{scene['base_url']}/entry", timeout=10).json()["data"]
     scores = {e["titre"]: e["score"] for e in entrees}
     assert scores == {"Photo A": 2, "Photo B": 1}
 
 
-def test_le_doublon_de_champ_unique_garde_son_propre_message(scene):
-    """POINT 116 : `oncePer` avait volé la phrase de `unique` — un simple
-    doublon de champ, sur une AUTRE cible et un AUTRE compte, s'entendait
-    répondre « vous l'avez déjà fait pour cette cible ». C'est le défaut que le
-    point 85 avait fermé, rouvert par la brique suivante."""
+def test_a_unique_field_duplicate_keeps_its_own_message(scene):
+    """POINT 116: `oncePer` had stolen `unique`'s sentence — a plain duplicate
+    field, on ANOTHER target and ANOTHER account, was answered "you already did
+    it for this target". It is the defect point 85 had closed, reopened by the
+    next brick."""
     reponse = _voter(scene, "p2", 2, "n-p1-e1")
     assert reponse.status_code == 409
     assert "note must be unique" in reponse.json()["detail"]
 
 
 def test_lindex_compose_existe_reellement_en_base(scene):
-    """L'unicité tient à un index SQLite, pas à une vérification applicative :
-    c'est lui qui protège aussi deux requêtes concurrentes."""
+    """Uniqueness rests on a SQLite index, not an application check: it is the
+    index that also protects two concurrent requests."""
     connexion = sqlite3.connect(scene["projet"] / "app.db")
     index = {ligne[0] for ligne in connexion.execute(
         "SELECT name FROM sqlite_master WHERE type = 'index'")}
@@ -122,9 +123,9 @@ def test_lindex_compose_existe_reellement_en_base(scene):
     assert "idx_once_per_vote_participant_id_entry_id" in index
 
 
-def test_le_contrat_annonce_la_regle(scene):
-    """Sans ça, une IA d'interface dessine un bouton « voter » qui récolte un
-    409 que rien n'avait annoncé."""
+def test_the_contract_announces_the_rule(scene):
+    """Without it, an interface AI draws a "vote" button that collects a 409
+    nothing had announced."""
     import json
     contrat = json.loads(
         (scene["projet"] / "frontend_contract.json").read_text(encoding="utf-8"))

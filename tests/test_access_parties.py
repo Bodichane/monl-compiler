@@ -1,15 +1,14 @@
-"""AJOUT (roadmap, écosystème de capacités -- brique "accès à deux parties") :
-teste la règle 'rule Entite.Action accessibleBy col1, col2' sur l'exemple
-canonique de la messagerie privée (exemples/19_private_messages.ml).
+"""ADDED (roadmap, capability ecosystem -- "two-party access" brick): tests
+the rule 'rule Entite.Action accessibleBy col1, col2' on the canonical
+private messaging example (exemples/19_private_messages.ml).
 
-Deux volets :
-  1. validations de compilation (sans serveur) : colonnes inconnues, mauvais
-     type, action Create interdite, conflit avec 'ownedBy', parties non
-     distinctes ;
-  2. scénario réel (serveur uvicorn éphémère, compilé via --output dans un
-     dossier temporaire) : l'expéditeur et le destinataire voient/suppriment
-     le message, un tiers du même rôle est filtré de la liste et reçoit 403
-     sur l'accès direct.
+Two parts:
+  1. compile-time validations (no server): unknown columns, wrong type,
+     forbidden Create action, conflict with 'ownedBy', non-distinct parties;
+  2. real scenario (ephemeral uvicorn server, compiled through --output into
+     a temporary folder): sender and recipient see/delete the message, a
+     third party with the same role is filtered out of the list and gets 403
+     on direct access.
 """
 import hashlib
 import os
@@ -27,7 +26,7 @@ from monl.generator import MonlSecureGenerator
 from monl.parser import parse_monl_string
 from tests.support.server import free_port as _find_free_port
 
-# (spec e2e désormais autonome, voir E2E_SPEC plus bas)
+# (e2e spec now self-contained, see E2E_SPEC below)
 
 BASE_SPEC = """app T
 
@@ -94,7 +93,7 @@ def test_identical_parties_are_rejected():
 
 
 # ---------------------------------------------------------------------------
-# Volet 2 : scénario réel contre l'exemple canonique
+# Part 2: real scenario against the canonical example
 # ---------------------------------------------------------------------------
 
 def _wait_for_server(port, timeout=15):
@@ -120,8 +119,8 @@ def _register_and_login(base_url, username):
     return user_id, {"Authorization": f"Bearer {token}"}
 
 
-# Spec minimale autonome pour le scénario end-to-end (n'est plus liée à un
-# fichier d'exemple, pour découpler le test de la consolidation des exemples).
+# Minimal self-contained spec for the end-to-end scenario (no longer tied to an
+# example file, to decouple the test from the examples' consolidation).
 E2E_SPEC = """app Msg
 
 entity User
@@ -165,18 +164,19 @@ def test_private_messaging_end_to_end():
             bob_id, bob = _register_and_login(base, "bob")
             carol_id, carol = _register_and_login(base, "carol")
 
-            # Alice envoie un message privé à Bob.
+            # Alice sends Bob a private message.
             r = requests.post(f"{base}/message", headers=alice,
                               json={"content": "privé", "recipient_id": bob_id})
             assert r.status_code == 200, r.text
             msg_id = r.json()["id"]
 
-            # Les deux parties voient le message dans leur liste, pas Carol.
+            # Both parties see the message in their list, Carol does not.
             assert requests.get(f"{base}/message", headers=alice).json()["total"] == 1
             assert requests.get(f"{base}/message", headers=bob).json()["total"] == 1
             assert requests.get(f"{base}/message", headers=carol).json()["total"] == 0
 
-            # Accès direct : parties OK, tiers 403 (même rôle User pourtant).
+            # Direct access: parties OK, third party 403 (same User role,
+            # though).
             assert requests.get(f"{base}/message/{msg_id}", headers=bob).status_code == 200
             assert requests.get(f"{base}/message/{msg_id}", headers=alice).status_code == 200
             assert requests.get(f"{base}/message/{msg_id}", headers=carol).status_code == 403
@@ -193,11 +193,11 @@ def test_private_messaging_end_to_end():
 
 
 # ---------------------------------------------------------------------------
-# AJOUT (brique 23, point 106) : rôle superviseur au-dessus d'accessibleBy.
-# Un role nomme via 'sharedBy' sur la MEME reference transperce le controle
-# par colonnes : il lit / modifie / supprime TOUS les enregistrements d'une
-# action regie par 'accessibleBy'. C'est pour accessibleBy le pendant du
-# superviseur deja acquis pour ownedBy au point 88.
+# ADDED (brick 23, point 106): supervisor role above accessibleBy. A role named
+# through 'sharedBy' on the SAME reference pierces the column check: it reads /
+# updates / deletes ALL records of an action governed by 'accessibleBy'. It is,
+# for accessibleBy, the counterpart of the supervisor already acquired for
+# ownedBy at point 88.
 # ---------------------------------------------------------------------------
 
 SUPER_SPEC = """app T
@@ -237,8 +237,8 @@ def test_supervisor_exported_without_collision():
         "Message.Read": ["Moderator"],
         "Message.Delete": ["Moderator"],
     }
-    # La suppression est regie par deux acteurs (User et Moderator) : grace a
-    # l'exemption 'accessibleBy' (miroir de 'ownedBy'), pas de CRITICAL_COLLISION.
+    # Deletion is governed by two actors (User and Moderator): thanks to the
+    # 'accessibleBy' exemption (mirror of 'ownedBy'), no CRITICAL_COLLISION.
     assert "Message.Delete" in ast["security"]["access_parties"]
 
 
@@ -249,14 +249,14 @@ def test_supervisor_must_be_a_declared_actor():
 
 
 def test_supervisor_from_sharedby_not_party_access():
-    """Un 'sharedBy' porte sur une action SANS 'accessibleBy' ne produit
-    aucun superviseur — c'est le partage de privilege historique, inchangé."""
-    # E2E_SPEC ne declare aucun 'sharedBy' : aucun superviseur, partout.
+    """A 'sharedBy' on an action WITHOUT 'accessibleBy' produces no supervisor —
+    it is the historical privilege sharing, unchanged."""
+    # E2E_SPEC declares no 'sharedBy': no supervisor, anywhere.
     ast = _validate(E2E_SPEC)
     assert ast["security"]["access_supervisors"] == {}
 
 
-# Spec e2e autonome du superviseur.
+# Self-contained e2e spec of the supervisor.
 SUPER_E2E_SPEC = """app MsgMod
 
 entity User
@@ -296,8 +296,8 @@ def _login(base_url, username, password):
 
 
 def _provision_moderator(workdir, username="mod", password="moderateur8"):
-    """Insere un compte Moderator dans app.db, meme hachage pbkdf2 que
-    manage.py adduser — le seul moyen de creer un role non-selfRegister."""
+    """Inserts a Moderator account into app.db, same pbkdf2 hash as manage.py
+    adduser — the only way to create a non-selfRegister role."""
     salt_hex = "6d6f6e6c2d746573742d73616c742d00"
     pwd_hash = hashlib.pbkdf2_hmac(
         "sha256", password.encode("utf-8"), bytes.fromhex(salt_hex), 100_000).hex()
@@ -337,15 +337,16 @@ def test_supervisor_moderates_private_messages_end_to_end():
             assert r.status_code == 200, r.text
             msg_id = r.json()["id"]
 
-            # Le moderateur voit TOUT (le filtre de parties est transperce).
+            # The moderator sees EVERYTHING (the parties filter is pierced).
             assert requests.get(f"{base}/message", headers=mod).json()["total"] == 1
             assert requests.get(f"{base}/message/{msg_id}", headers=mod).status_code == 200
 
-            # Carol, tier du meme role User, reste confinee : 0 en liste, 403 en direct.
+            # Carol, a third party with the same User role, stays confined: 0
+            # in the list, 403 directly.
             assert requests.get(f"{base}/message", headers=carol).json()["total"] == 0
             assert requests.get(f"{base}/message/{msg_id}", headers=carol).status_code == 403
 
-            # Le moderateur supprime ce qu'il n'expedie ni ne recoit.
+            # The moderator deletes what they neither send nor receive.
             assert requests.delete(f"{base}/message/{msg_id}", headers=mod).status_code == 200
             assert requests.get(f"{base}/message", headers=mod).json()["total"] == 0
         finally:

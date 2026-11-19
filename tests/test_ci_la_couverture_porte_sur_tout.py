@@ -32,7 +32,7 @@ from support.ci_workflow import (
     fichiers_de_tests,
     options_de_couverture,
     selection_dune_commande,
-    seuil_de_couverture_du_projet,
+    project_coverage_threshold,
 )
 
 
@@ -120,7 +120,7 @@ def test_chaque_paquet_du_depot_porte_sa_barriere():
     assert not manquants, (
         f"ces paquets de src/ n'ont plus de barrière de couverture dans "
         f"ci.yml : {manquants}")
-    plancher = seuil_de_couverture_du_projet()
+    plancher = project_coverage_threshold()
     faibles = {p: v for p, v in barrieres.items() if v < plancher}
     assert not faibles, (
         f"`pyproject.toml` déclare une barrière à {plancher} % ; ci.yml mesure "
@@ -172,7 +172,7 @@ def test_les_deux_autres_regles_mordent_sur_un_workflow_amputé():
 
     paquets, barrieres = barrieres_par_paquet(CI_AMPUTE)
     assert sorted(paquets - set(barrieres)) == ["monl_platform"]
-    assert barrieres["monl"] < seuil_de_couverture_du_projet()
+    assert barrieres["monl"] < project_coverage_threshold()
 
 
 def test_lextracteur_developpe_motifs_dossiers_et_absence_de_cible():

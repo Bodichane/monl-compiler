@@ -1,4 +1,4 @@
-"""Preuves HTTP de la console de plateforme et de sa frontière d'hôte."""
+"""HTTP proofs of the platform console and of its host boundary."""
 
 import re
 import socket
@@ -17,8 +17,8 @@ SPEC = """app ConsoleWeb
 entity Item
     label: String
 
-# Admin est provisionné hors ligne : la console ne teste pas une inscription
-# publique ni un back-office livré dans la vitrine.
+# Admin is provisioned offline: the console tests neither a public registration
+# nor a back office shipped in the showcase.
 actor Admin
 
 rule Item.Read public
@@ -83,31 +83,31 @@ def _register(base, identifier="console@example.test"):
     return session
 
 
-def test_la_console_est_servie_sans_ressource_distante(running_platform):
-    """La console vit sur /console : la racine porte la page de présentation."""
+def test_the_console_is_served_without_remote_resources(running_platform):
+    """The console lives at /console: the root carries the presentation page."""
     session = _register(running_platform, "console-page@example.test")
     response = session.get(f"{running_platform}/console", timeout=10)
 
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
     assert '<html lang="en">' in response.text
-    # L'apostrophe est ÉCHAPPÉE dans le littéral JavaScript servi. Cette
-    # assertion cherchait la forme NUE et passait donc exactement parce que la
-    # page était morte : le script levait `SyntaxError: Unexpected identifier
-    # 'API'` et plus un bouton ne répondait. Une chaîne présente dans du HTML
-    # ne distingue pas une page qui marche d'une page qui ne marche pas —
-    # c'est tests/test_console_javascript.py qui tranche, en l'analysant.
+    # The apostrophe is ESCAPED in the served JavaScript literal. This
+    # assertion looked for the BARE form and therefore passed precisely because
+    # the page was dead: the script raised `SyntaxError: Unexpected identifier
+    # 'API'` and no button answered any more. A string present in HTML cannot
+    # tell a working page from a broken one — tests/test_console_javascript.py
+    # decides, by parsing it.
     assert "Start the project\\'s API" in response.text
     assert "prefers-reduced-motion" in response.text
     assert not RESSOURCE_EXTERNE.search(response.text)
 
 
-def test_la_console_compile_puis_demarre_l_api_du_projet(running_platform):
-    """Le parcours entier de la console, contre un vrai serveur (point 162).
+def test_the_console_compiles_then_starts_the_project_api(running_platform):
+    """The console's whole journey, against a real server (point 162).
 
-    Ce que la version d'avant prouvait — une construction IA menée à son
-    terme — n'existe plus. Ce qui compte désormais : le catalogue répond, la
-    spec compile, l'API démarre, et elle RÉPOND vraiment.
+    What the earlier version proved — an AI build carried through — no longer
+    exists. What counts now: the catalog answers, the spec compiles, the API
+    starts, and it REALLY answers.
     """
     base = running_platform
     session = _register(base)
@@ -128,7 +128,7 @@ def test_la_console_compile_puis_demarre_l_api_du_projet(running_platform):
     assert started.status_code == 200, started.text
     assert started.json()["host"].endswith(".localhost")
 
-    # L'API démarrée répond POUR DE VRAI, sur son propre port.
+    # The started API REALLY answers, on its own port.
     port = started.json()["port"]
     ouvert = requests.get(f"http://127.0.0.1:{port}/item", timeout=10)
     assert ouvert.status_code == 200, ouvert.text
@@ -137,19 +137,19 @@ def test_la_console_compile_puis_demarre_l_api_du_projet(running_platform):
     assert arret.status_code == 200 and arret.json()["stopped"] is True
 
 
-def test_demarrer_sans_compiler_est_refuse_en_le_disant(running_platform, tmp_path):
-    """La contre-épreuve du point 162 : le démarrage EXIGE une compilation.
+def test_starting_without_compiling_is_refused_with_a_reason(running_platform, tmp_path):
+    """Point 162's counter-proof: starting REQUIRES a compilation.
 
-    Sans elle, un ``_require_site`` permissif laisserait uvicorn mourir sur un
-    dossier vide et la console afficherait « le serveur n'a pas démarré » —
-    on chercherait la panne du mauvais côté.
+    Without it, a permissive ``_require_site`` would let uvicorn die on an empty
+    folder and the console would show "the server did not start" — one would
+    look for the failure on the wrong side.
     """
     base = running_platform
     session = _register(base, "sans-compilation@example.test")
     cree = session.post(f"{base}/api/compile", json={"spec": SPEC}, timeout=10)
     project_id = cree.json()["id"]
 
-    # Un backend absent doit toujours être refusé, même avec un manifeste.
+    # A missing backend must always be refused, even with a manifest.
     compte = session.get(f"{base}/api/auth/me", timeout=10).json()["id"]
     dossier = project_directory(tmp_path / "projects", compte, project_id)
     (dossier / "app.py").unlink()
@@ -160,7 +160,7 @@ def test_demarrer_sans_compiler_est_refuse_en_le_disant(running_platform, tmp_pa
     assert "not compiled" in refus.json()["detail"]
 
 
-def test_le_routage_par_hote_sert_l_api_et_reste_distinct_de_la_console(running_platform):
+def test_host_routing_serves_the_api_and_stays_distinct_from_the_console(running_platform):
     base = running_platform
     session = _register(base, "host@example.test")
     created = session.post(f"{base}/api/compile", json={"spec": SPEC}, timeout=10)
@@ -169,7 +169,8 @@ def test_le_routage_par_hote_sert_l_api_et_reste_distinct_de_la_console(running_
         f"{base}/api/projects/{project_id}/compiler", timeout=60
     ).status_code == 201
 
-    # Le relais naît au premier accès au sous-domaine, sans démarrage explicite.
+    # The relay is born on the first access to the subdomain, without an
+    # explicit start.
     servi = requests.get(
         f"{base}/item",
         headers={"Host": f"consoleweb.localhost:{base.rsplit(':', 1)[1]}"},
@@ -184,8 +185,8 @@ def test_le_routage_par_hote_sert_l_api_et_reste_distinct_de_la_console(running_
     session.post(f"{base}/api/projects/{project_id}/stop", timeout=30)
 
 
-def test_un_compte_ne_peut_compiler_que_ses_propres_projets(running_platform):
-    """Compiler écrit dans un dossier privé : c'est une action possédée."""
+def test_an_account_can_only_compile_its_own_projects(running_platform):
+    """Compiling writes into a private folder: it is an owned action."""
     base = running_platform
     alice = _register(base, "compilatrice@example.test")
     bob = _register(base, "intrus@example.test")

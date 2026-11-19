@@ -16,7 +16,7 @@ again), and each carries `-rs` (otherwise the summary exists but names
 nobody).
 """
 
-from support.ci_workflow import CI, addopts_du_projet, commandes_pytest
+from support.ci_workflow import CI, project_addopts, commandes_pytest
 
 # `commandes_pytest` lives in `tests/support/ci_workflow.py` and not here: two
 # test files now read this workflow, and two readings of the same YAML folding
@@ -28,7 +28,7 @@ def test_the_project_does_set_q_in_addopts():
     """The premise witness. If `addopts` stopped carrying `-q`, the test below
     would keep a rule that no longer has a purpose — it would refuse a `-q`
     that, alone, would be legitimate. Better to learn it here."""
-    assert "-q" in addopts_du_projet(), (
+    assert "-q" in project_addopts(), (
         "addopts ne porte plus `-q` : relire la règle de ce fichier avant de "
         "continuer à interdire `-q` dans les commandes de la CI.")
 

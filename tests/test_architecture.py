@@ -1075,9 +1075,9 @@ def test_chaque_test_python_exerce_une_assertion():
             "le contrat est précisément que cmd_run termine normalement; une erreur lève SystemExit et échoue",
         "test_platform_couverture.py:test_asgi_routes_cover_responses_and_effects":
             "_dialogue fait des assertions ASGI détaillées pendant son exécution",
-        "test_publication.py:test_le_tag_qui_correspond_est_accepte":
+        "test_publication.py:test_the_matching_tag_is_accepted":
             "validate_tag_version est un validateur pur qui lève sur toute version refusée",
-        "test_publication.py:test_les_deux_ecritures_d_une_meme_version_sont_acceptees":
+        "test_publication.py:test_both_spellings_of_one_version_are_accepted":
             "les deux appels au validateur pur doivent terminer sans exception",
     }
     for chemin in sorted(racine.glob("test_*.py")):

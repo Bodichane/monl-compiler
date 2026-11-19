@@ -1,26 +1,25 @@
-"""L'archive livrée se lit : `docs/` pour les documents, la racine pour le code.
+"""The delivered archive reads well: `docs/` for documents, the root for code.
 
-TROIS DÉFAUTS CONSTATÉS SUR UNE ARCHIVE RÉELLEMENT TÉLÉCHARGÉE.
+THREE DEFECTS OBSERVED ON A REALLY DOWNLOADED ARCHIVE.
 
-  (a) Quinze fichiers à plat, sans rien pour distinguer ce qu'on LANCE de ce
-      qu'on LIT. Les quatre documents destinés à l'IA d'interface — brief et
-      direction visuelle — partent dans `docs/` ; le contrat JSON reste à la
-      racine, c'est l'interface MACHINE du projet.
+  (a) Fifteen flat files, with nothing to tell what one RUNS from what one
+      READS. The four documents meant for the interface AI — brief and visual
+      direction — go into `docs/`; the JSON contract stays at the root, it is
+      the project's MACHINE interface.
 
-  (b) La mémoire du projet s'appelait `CLAUDE.md`, quand le frontend peut être
-      écrit par claude-code, codex ou gemini (point 69). Un fichier nommé
-      d'après un seul agent est un fichier que les autres ne lisent pas :
-      c'est `AGENTS.md`.
+  (b) The project memory was called `CLAUDE.md`, while the frontend can be
+      written by claude-code, codex or gemini (point 69). A file named after
+      a single agent is a file the others do not read: it is `AGENTS.md`.
 
-  (c) Aucun `README.md`, alors que la page d'accueil de la plateforme en
-      promet un dans son aperçu d'arborescence depuis toujours.
+  (c) No `README.md`, while the platform home page has always promised one
+      in its tree preview.
 
-CE QUI SE JOUE DANS LE DÉPLACEMENT. Écrire au nouvel emplacement sans bouger
-l'ancien fichier produirait DEUX vérités, dont une périmée — et c'est la
-périmée qu'un agent lirait, puisqu'elle est à la racine. On déplace donc. Mais
-un `DESIGN_SPEC.md` retouché à la main est du travail humain : le déplacement
-doit le préserver, sans quoi la copie préservée irait le chercher là où il
-n'est plus et le remplacerait par un document tout neuf.
+WHAT IS AT STAKE IN THE MOVE. Writing to the new location without moving the
+old file would produce TWO truths, one of them stale — and the stale one is
+what an agent would read, since it is at the root. So we move. But a
+hand-edited `DESIGN_SPEC.md` is human work: the move must preserve it,
+otherwise the preserved copy would look for it where it no longer is and
+replace it with a brand-new document.
 """
 from __future__ import annotations
 
@@ -58,28 +57,28 @@ DOCUMENTS = ("FRONTEND_PROMPT.md", "DESIGN_SYSTEM.md", "DESIGN_SPEC.md",
 
 @pytest.fixture
 def projet(tmp_path):
-    """Un projet réellement compilé, pas un dossier fabriqué à la main."""
+    """A really compiled project, not a hand-made folder."""
     spec = tmp_path / "spec.ml"
     spec.write_text(SPEC, encoding="utf-8")
     compile_project(str(spec), str(tmp_path))
     return tmp_path
 
 
-def test_les_documents_vivent_dans_docs_et_le_code_a_la_racine(projet):
-    """(a) La règle en une phrase : `docs/` se lit, la racine s'exécute."""
+def test_documents_live_in_docs_and_code_at_the_root(projet):
+    """(a) The rule in one sentence: `docs/` is read, the root is run."""
     for nom in DOCUMENTS:
         assert (projet / "docs" / nom).is_file(), f"{nom} n'est pas dans docs/"
         assert not (projet / nom).exists(), f"{nom} traîne encore à la racine"
 
-    # Le contrat est l'interface MACHINE : un outil l'ouvre sans rien connaître
-    # de l'arborescence. Il reste où on le trouve sans chercher.
+    # The contract is the MACHINE interface: a tool opens it knowing nothing of
+    # the tree. It stays where it is found without searching.
     assert (projet / "frontend_contract.json").is_file()
     for nom in ("app.py", "schema.sql", "manage.py", "serve.py", "monl.json"):
         assert (projet / nom).is_file(), f"{nom} a quitté la racine"
 
 
-def test_la_memoire_du_projet_sappelle_agents_et_le_readme_existe(projet):
-    """(b) et (c), avec leur marqueur — c'est lui qui protège l'humain."""
+def test_the_project_memory_is_called_agents_and_the_readme_exists(projet):
+    """(b) and (c), with their marker — the marker is what protects the human."""
     agents = projet / "AGENTS.md"
     readme = projet / "README.md"
     assert agents.is_file(), "AGENTS.md absent"
@@ -90,12 +89,12 @@ def test_la_memoire_du_projet_sappelle_agents_et_le_readme_existe(projet):
     assert PROJECT_README_MARKER in readme.read_text(encoding="utf-8")
 
 
-def test_le_readme_nomme_la_vraie_spec_et_le_backend_demarre(projet, tmp_path):
-    """Un README qui décrit autre chose que le dossier est pire qu'absent.
+def test_the_readme_names_the_real_spec_and_the_backend_starts(projet, tmp_path):
+    """A README describing something other than the folder is worse than none.
 
-    On ne se contente pas de vérifier qu'il PARLE de démarrage : la commande
-    qu'il donne est exécutée, et le serveur doit se charger. C'est le point 163
-    — « servi » n'est pas « exécutable » — appliqué à de la documentation.
+    We do not merely check that it TALKS about startup: the command it gives is
+    run, and the server must load. It is point 163 — "served" is not
+    "executable" — applied to documentation.
     """
     readme = (projet / "README.md").read_text(encoding="utf-8")
     assert "spec.ml" in readme, "le README ne nomme pas la spec du projet"
@@ -113,7 +112,7 @@ def test_le_readme_nomme_la_vraie_spec_et_le_backend_demarre(projet, tmp_path):
 
 
 def _remettre_a_plat(projet):
-    """Refabrique la forme d'AVANT : tout à la racine, mémoire en CLAUDE.md."""
+    """Rebuilds the EARLIER form: everything at the root, memory in CLAUDE.md."""
     for nom in DOCUMENTS:
         (projet / "docs" / nom).replace(projet / nom)
     (projet / "docs").rmdir()
@@ -121,13 +120,13 @@ def _remettre_a_plat(projet):
     (projet / "README.md").unlink()
 
 
-def test_un_projet_deja_compile_est_range_sans_rien_perdre(projet):
-    """LE CAS QUI COMPTE : la personnalisation humaine survit au déplacement.
+def test_an_already_compiled_project_is_tidied_without_losing_anything(projet):
+    """THE CASE THAT COUNTS: human customization survives the move.
 
-    Un `DESIGN_SPEC.md` sans marqueur a été écrit par quelqu'un. Le déplacer
-    en le remplaçant par un document neuf effacerait son travail en silence —
-    et c'est ce qui arriverait si on écrivait dans `docs/` sans déménager la
-    racine : la copie préservée ne trouverait rien à préserver.
+    A `DESIGN_SPEC.md` without a marker was written by someone. Moving it while
+    replacing it with a new document would silently erase their work — and that
+    is what would happen if we wrote into `docs/` without moving the root: the
+    preserved copy would find nothing to preserve.
     """
     _remettre_a_plat(projet)
     ecrit_a_la_main = "# Direction écrite par l'humain\nDu vert bouteille.\n"
@@ -143,13 +142,13 @@ def test_un_projet_deja_compile_est_range_sans_rien_perdre(projet):
     assert not (projet / "CLAUDE.md").exists()
 
 
-def test_un_claude_md_personnel_nest_jamais_touche(projet):
-    """LA CONTRE-ÉPREUVE du renommage.
+def test_a_personal_claude_md_is_never_touched(projet):
+    """THE COUNTER-PROOF of the rename.
 
-    Sans marqueur, `CLAUDE.md` appartient à l'utilisateur — il a pu y écrire
-    ses propres consignes. Le renommer en AGENTS.md déplacerait son texte sous
-    un nom que monl écrase à la compilation suivante : sa mémoire disparaîtrait
-    à retardement, ce qui est pire qu'un écrasement immédiat.
+    Without a marker, `CLAUDE.md` belongs to the user — they may have written
+    their own instructions in it. Renaming it AGENTS.md would move their text
+    under a name monl overwrites at the next compilation: their memory would
+    disappear later, which is worse than an immediate overwrite.
     """
     _remettre_a_plat(projet)
     a_lui = "# Mes consignes à moi\nNe touche pas à la barre de navigation.\n"
@@ -165,8 +164,8 @@ def test_un_claude_md_personnel_nest_jamais_touche(projet):
         encoding="utf-8")
 
 
-def test_le_rangement_est_idempotent(projet):
-    """Recompiler ne doit rien annoncer ni rien déplacer une seconde fois."""
+def test_the_tidying_is_idempotent(projet):
+    """Recompiling must announce nothing and move nothing a second time."""
     avant = sorted(p.relative_to(projet).as_posix()
                    for p in projet.rglob("*") if p.is_file())
     compile_project(str(projet / "spec.ml"), str(projet))
