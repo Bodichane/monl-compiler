@@ -1,4 +1,4 @@
-"""Contrat d'orchestration des passes du validateur."""
+"""Orchestration contract of the validator's passes."""
 
 import pytest
 
@@ -205,7 +205,7 @@ class FakeContext:
 PIPELINE = DEFAULT_VALIDATION_PIPELINE
 
 
-def test_pipeline_execute_les_passes_dans_lordre_et_agrege_les_rapports():
+def test_pipeline_runs_the_passes_in_order_and_aggregates_reports():
     context = FakeContext()
 
     reports = PIPELINE.run(context)
@@ -221,7 +221,7 @@ def test_pipeline_execute_les_passes_dans_lordre_et_agrege_les_rapports():
     assert reports == ["rapport sécurité", "rapport inscription"]
 
 
-def test_pipeline_sarrete_immediatement_sur_une_validation_invalide():
+def test_pipeline_stops_immediately_on_an_invalid_validation():
     context = FakeContext(fail_post_payment_writes=True)
 
     with pytest.raises(ValueError, match="écriture post-paiement invalide"):
@@ -236,7 +236,7 @@ def test_pipeline_sarrete_immediatement_sur_une_validation_invalide():
     ]
 
 
-def test_pipeline_sarrete_avant_la_structure_si_les_contraintes_sont_invalides():
+def test_pipeline_stops_before_structure_if_constraints_are_invalid():
     context = FakeContext(fail_constraints=True)
 
     with pytest.raises(ValueError, match="contraintes de champ invalides"):
@@ -245,7 +245,7 @@ def test_pipeline_sarrete_avant_la_structure_si_les_contraintes_sont_invalides()
     assert context.calls == ["field_constraints"]
 
 
-def test_pipeline_sarrete_avant_la_structure_si_le_controle_dacces_est_invalide():
+def test_pipeline_stops_before_structure_if_access_control_is_invalid():
     context = FakeContext(fail_access=True)
 
     with pytest.raises(ValueError, match="contrôle d'accès invalide"):
@@ -254,7 +254,7 @@ def test_pipeline_sarrete_avant_la_structure_si_le_controle_dacces_est_invalide(
     assert context.calls == ["field_constraints", "access_control"]
 
 
-def test_pipeline_sarrete_avant_la_structure_si_la_visibilite_publique_est_invalide():
+def test_pipeline_stops_before_structure_if_public_visibility_is_invalid():
     context = FakeContext(fail_public_visibility=True)
 
     with pytest.raises(ValueError, match="visibilité publique invalide"):
@@ -263,7 +263,7 @@ def test_pipeline_sarrete_avant_la_structure_si_la_visibilite_publique_est_inval
     assert context.calls == ["field_constraints", "access_control", "public_visibility"]
 
 
-def test_pipeline_sarrete_avant_la_structure_si_once_per_est_invalide():
+def test_pipeline_stops_before_structure_if_once_per_is_invalid():
     context = FakeContext(fail_once_per=True)
 
     with pytest.raises(ValueError, match="unicité métier invalide"):
@@ -272,7 +272,7 @@ def test_pipeline_sarrete_avant_la_structure_si_once_per_est_invalide():
     assert context.calls == ["field_constraints", "access_control", "public_visibility", "once_per"]
 
 
-def test_pipeline_sarrete_avant_la_structure_si_restricted_to_est_invalide():
+def test_pipeline_stops_before_structure_if_restricted_to_is_invalid():
     context = FakeContext(fail_restricted_fields=True)
 
     with pytest.raises(ValueError, match="restriction de champ invalide"):
@@ -283,7 +283,7 @@ def test_pipeline_sarrete_avant_la_structure_si_restricted_to_est_invalide():
     ]
 
 
-def test_pipeline_sarrete_avant_la_structure_si_hidden_est_invalide():
+def test_pipeline_stops_before_structure_if_hidden_is_invalid():
     context = FakeContext(fail_hidden_fields=True)
 
     with pytest.raises(ValueError, match="champ masqué invalide"):
@@ -294,7 +294,7 @@ def test_pipeline_sarrete_avant_la_structure_si_hidden_est_invalide():
     ]
 
 
-def test_pipeline_sarrete_avant_la_structure_si_categorized_est_invalide():
+def test_pipeline_stops_before_structure_if_categorized_is_invalid():
     context = FakeContext(fail_categorized_fields=True)
 
     with pytest.raises(ValueError, match="champ catégorisé invalide"):
@@ -306,7 +306,7 @@ def test_pipeline_sarrete_avant_la_structure_si_categorized_est_invalide():
     ]
 
 
-def test_pipeline_sarrete_avant_la_structure_si_generated_est_invalide():
+def test_pipeline_stops_before_structure_if_generated_is_invalid():
     context = FakeContext(fail_generated_fields=True)
 
     with pytest.raises(ValueError, match="champ généré invalide"):
@@ -318,7 +318,7 @@ def test_pipeline_sarrete_avant_la_structure_si_generated_est_invalide():
     ]
 
 
-def test_pipeline_sarrete_avant_la_structure_si_timestamp_est_invalide():
+def test_pipeline_stops_before_structure_if_timestamp_is_invalid():
     context = FakeContext(fail_timestamp_fields=True)
 
     with pytest.raises(ValueError, match="champ horodaté invalide"):
@@ -330,7 +330,7 @@ def test_pipeline_sarrete_avant_la_structure_si_timestamp_est_invalide():
     ]
 
 
-def test_pipeline_sarrete_avant_la_structure_si_numbered_est_invalide():
+def test_pipeline_stops_before_structure_if_numbered_is_invalid():
     context = FakeContext(fail_numbered_fields=True)
 
     with pytest.raises(ValueError, match="champ numéroté invalide"):
@@ -342,7 +342,7 @@ def test_pipeline_sarrete_avant_la_structure_si_numbered_est_invalide():
     ]
 
 
-def test_pipeline_sarrete_avant_la_structure_si_one_of_est_invalide():
+def test_pipeline_stops_before_structure_if_one_of_is_invalid():
     context = FakeContext(fail_enumerated_fields=True)
 
     with pytest.raises(ValueError, match="champ énuméré invalide"):
@@ -354,7 +354,7 @@ def test_pipeline_sarrete_avant_la_structure_si_one_of_est_invalide():
     ]
 
 
-def test_pipeline_sarrete_avant_la_structure_si_derived_est_invalide():
+def test_pipeline_stops_before_structure_if_derived_is_invalid():
     context = FakeContext(fail_derived_fields=True)
 
     with pytest.raises(ValueError, match="champ dérivé invalide"):
@@ -367,7 +367,7 @@ def test_pipeline_sarrete_avant_la_structure_si_derived_est_invalide():
     ]
 
 
-def test_pipeline_sarrete_avant_la_structure_si_agregated_est_invalide():
+def test_pipeline_stops_before_structure_if_aggregated_is_invalid():
     context = FakeContext(fail_aggregated_fields=True)
 
     with pytest.raises(ValueError, match="champ agrégé invalide"):
@@ -380,7 +380,7 @@ def test_pipeline_sarrete_avant_la_structure_si_agregated_est_invalide():
     ]
 
 
-def test_pipeline_sarrete_avant_la_structure_si_les_prerequis_de_paiement_sont_invalides():
+def test_pipeline_stops_before_structure_if_payment_prerequisites_are_invalid():
     context = FakeContext(fail_creation_payment_prerequisites=True)
 
     with pytest.raises(ValueError, match="prérequis de création/paiement invalide"):
@@ -393,7 +393,7 @@ def test_pipeline_sarrete_avant_la_structure_si_les_prerequis_de_paiement_sont_i
     ]
 
 
-def test_pipeline_sarrete_avant_la_structure_si_la_securite_calcul_paiement_est_invalide():
+def test_pipeline_stops_before_structure_if_calculation_payment_security_is_invalid():
     context = FakeContext(fail_calculation_payment_safety=True)
 
     with pytest.raises(ValueError, match="sécurité calcul/paiement invalide"):
@@ -406,7 +406,7 @@ def test_pipeline_sarrete_avant_la_structure_si_la_securite_calcul_paiement_est_
     ]
 
 
-def test_pipeline_sarrete_avant_la_structure_si_un_effet_compteur_est_invalide():
+def test_pipeline_stops_before_structure_if_a_counter_effect_is_invalid():
     context = FakeContext(fail_counter_effects=True)
 
     with pytest.raises(ValueError, match="effet compteur invalide"):
@@ -415,7 +415,7 @@ def test_pipeline_sarrete_avant_la_structure_si_un_effet_compteur_est_invalide()
     assert context.calls[-1] == "counter_effects"
 
 
-def test_pipeline_sarrete_avant_la_structure_si_le_proprietaire_payable_est_invalide():
+def test_pipeline_stops_before_structure_if_payable_owner_is_invalid():
     context = FakeContext(fail_payable_owner=True)
 
     with pytest.raises(ValueError, match="propriétaire payable invalide"):
@@ -424,7 +424,7 @@ def test_pipeline_sarrete_avant_la_structure_si_le_proprietaire_payable_est_inva
     assert context.calls[-1] == "payable_owner"
 
 
-def test_pipeline_sarrete_avant_la_structure_si_une_liberation_est_invalide():
+def test_pipeline_stops_before_structure_if_a_release_is_invalid():
     context = FakeContext(fail_release_rules=True)
 
     with pytest.raises(ValueError, match="règle de libération invalide"):
@@ -433,7 +433,7 @@ def test_pipeline_sarrete_avant_la_structure_si_une_liberation_est_invalide():
     assert context.calls[-1] == "release_rules"
 
 
-def test_pipeline_sarrete_avant_la_structure_si_un_workflow_est_invalide():
+def test_pipeline_stops_before_structure_if_a_workflow_is_invalid():
     context = FakeContext(fail_workflow_collisions=True)
 
     with pytest.raises(ValueError, match="workflow/collision invalide"):
@@ -442,7 +442,7 @@ def test_pipeline_sarrete_avant_la_structure_si_un_workflow_est_invalide():
     assert context.calls[-1] == "workflow_collisions"
 
 
-def test_pipeline_sarrete_avant_la_structure_si_une_configuration_ui_est_invalide():
+def test_pipeline_stops_before_structure_if_a_ui_configuration_is_invalid():
     context = FakeContext(fail_ui_overrides=True)
 
     with pytest.raises(ValueError, match="préférence UI invalide"):
@@ -451,7 +451,7 @@ def test_pipeline_sarrete_avant_la_structure_si_une_configuration_ui_est_invalid
     assert context.calls[-1] == "ui_overrides"
 
 
-def test_pipeline_sarrete_avant_la_structure_si_le_landing_est_invalide():
+def test_pipeline_stops_before_structure_if_landing_is_invalid():
     context = FakeContext(fail_landing=True)
 
     with pytest.raises(ValueError, match="landing invalide"):
@@ -460,7 +460,7 @@ def test_pipeline_sarrete_avant_la_structure_si_le_landing_est_invalide():
     assert context.calls[-1] == "landing"
 
 
-def test_pipeline_sarrete_avant_la_structure_si_une_capacite_est_invalide():
+def test_pipeline_stops_before_structure_if_a_capability_is_invalid():
     context = FakeContext(fail_capabilities=True)
 
     with pytest.raises(ValueError, match="capacité invalide"):
@@ -469,7 +469,7 @@ def test_pipeline_sarrete_avant_la_structure_si_une_capacite_est_invalide():
     assert context.calls[-1] == "capabilities"
 
 
-def test_pipeline_sarrete_avant_la_structure_si_un_asset_ou_seed_est_invalide():
+def test_pipeline_stops_before_structure_if_an_asset_or_seed_is_invalid():
     context = FakeContext(fail_assets_seeds=True)
 
     with pytest.raises(ValueError, match="assets/seeds invalides"):

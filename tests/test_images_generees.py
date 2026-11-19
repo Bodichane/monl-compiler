@@ -1,4 +1,4 @@
-"""Preuves réelles du fournisseur d'images et de son branchement frontend."""
+"""Real proofs of the image provider and of its frontend wiring."""
 
 import base64
 import json
@@ -27,8 +27,8 @@ entity Project
     title: String
     description: Text
 
-# Le rôle de visiteur est provisionné hors ligne dans ce test de génération
-# d'images ; le frontend minimal ne promet pas un parcours de compte.
+# The visitor role is provisioned offline in this image generation test; the
+# minimal frontend does not promise an account journey.
 actor Visitor
 
 rule Project.Read public
@@ -172,7 +172,7 @@ def _project(tmp_path):
     return project
 
 
-def _project_sans_sections(tmp_path):
+def _project_without_sections(tmp_path):
     project = tmp_path / "projet-sans-sections"
     project.mkdir()
     spec = project / "spec.ml"
@@ -192,7 +192,7 @@ def _verbose_project(tmp_path):
     return project
 
 
-def test_aucune_image_par_defaut_meme_si_le_brief_en_parle(tmp_path):
+def test_no_image_by_default_even_if_the_brief_mentions_one(tmp_path):
     project = _project(tmp_path)
     manifest = _manifest(project)
 
@@ -200,7 +200,7 @@ def test_aucune_image_par_defaut_meme_si_le_brief_en_parle(tmp_path):
     assert not (project / "media" / "generated").exists()
 
 
-def test_option_explicite_produit_des_octets_dans_assets_et_les_reference(tmp_path):
+def test_explicit_option_produces_bytes_in_assets_and_references_them(tmp_path):
     project = _project(tmp_path)
     images = FakeImageProvider()
     text = FakeTextProvider(project)
@@ -229,14 +229,14 @@ def test_option_explicite_produit_des_octets_dans_assets_et_les_reference(tmp_pa
         "detail: exact HTML block: `data-monl-section=\"notre-matiere\"`"
         in text.prompts[0]
     )
-    # Le prompt image est désormais une composition dédiée ; il ne recopie
-    # plus le bloc de consignes destiné au modèle de code.
+    # The image prompt is now a dedicated composition; it no longer copies the
+    # instruction block meant for the code model.
     assert all("Subject:" in prompt for prompt in images.prompts)
     assert all("Chaque pièce naît" in prompt for prompt in images.prompts)
 
 
-def test_appariement_par_role_et_emploi_unique_sans_section(tmp_path):
-    project = _project_sans_sections(tmp_path)
+def test_matching_by_role_and_single_use_without_section(tmp_path):
+    project = _project_without_sections(tmp_path)
     images = FakeImageProvider()
     text = FakeTextProvider(project)
 
@@ -262,8 +262,8 @@ def test_appariement_par_role_et_emploi_unique_sans_section(tmp_path):
     assert "distinct HTML block to choose" not in text.prompts[0]
 
 
-def test_la_verification_refuse_la_reutilisation_meme_sans_section(tmp_path):
-    project = _project_sans_sections(tmp_path)
+def test_verification_refuses_reuse_even_without_section(tmp_path):
+    project = _project_without_sections(tmp_path)
     images = FakeImageProvider()
     text = ReusingTextProvider(project)
 
@@ -282,7 +282,7 @@ def test_la_verification_refuse_la_reutilisation_meme_sans_section(tmp_path):
     )
 
 
-def test_la_reutilisation_est_denommee_une_fois_par_asset(tmp_path):
+def test_reuse_is_reported_once_per_asset(tmp_path):
     project = _project(tmp_path)
     images = FakeImageProvider()
     text = ReusingTextProvider(project)
@@ -300,7 +300,7 @@ def test_la_reutilisation_est_denommee_une_fois_par_asset(tmp_path):
     assert sum("media/generated/editorial.jpg" in error for error in reuse_errors) == 1
 
 
-def test_prompt_image_compose_un_projet_bavard_dans_le_plafond_et_garde_la_matiere(
+def test_image_prompt_fits_a_verbose_project_under_the_ceiling_and_keeps_substance(
         tmp_path):
     project = _verbose_project(tmp_path)
     prompt = _image_prompt(
@@ -320,7 +320,7 @@ def test_prompt_image_compose_un_projet_bavard_dans_le_plafond_et_garde_la_matie
     assert "illustrations svg" not in prompt.lower()
 
 
-def test_reduction_prompt_image_ne_coupe_ni_mot_ni_phrase(tmp_path):
+def test_image_prompt_reduction_cuts_neither_word_nor_sentence(tmp_path):
     project = _verbose_project(tmp_path)
     contract_path = project / "frontend_contract.json"
     contract = json.loads(contract_path.read_text(encoding="utf-8"))
@@ -354,7 +354,7 @@ def test_yandexart_refuse_localement_un_prompt_au_dessus_de_son_plafond(
         provider("x" * (YANDEXART_MAX_PROMPT_CHARS + 1))
 
 
-def test_echec_image_laisse_ecrire_le_frontend_puis_le_manifeste_refuse(
+def test_image_failure_lets_the_frontend_be_written_then_the_manifest_refuses(
         tmp_path):
     project = _project(tmp_path)
     images = FailingImageProvider()
@@ -373,7 +373,7 @@ def test_echec_image_laisse_ecrire_le_frontend_puis_le_manifeste_refuse(
     assert any("generated asset missing" in error for error in errors)
 
 
-def test_le_role_declare_le_rapport_et_le_fournisseur_le_recoit(tmp_path):
+def test_the_role_declares_the_ratio_and_the_provider_receives_it(tmp_path):
     project = _project(tmp_path)
     images = AspectRatioImageProvider()
     text = FakeTextProvider(project)
@@ -391,7 +391,7 @@ def test_le_role_declare_le_rapport_et_le_fournisseur_le_recoit(tmp_path):
     assert images.aspect_ratios == [{"width": 16, "height": 9}, None]
 
 
-def test_cle_yandexart_absente_nomme_la_variable_sans_casser_le_texte(tmp_path, monkeypatch):
+def test_missing_yandexart_key_names_the_variable_without_breaking_text(tmp_path, monkeypatch):
     monkeypatch.delenv("YANDEX_API_KEY", raising=False)
     monkeypatch.setenv("YANDEX_FOLDER_ID", "folder-test")
 
@@ -403,8 +403,8 @@ def test_cle_yandexart_absente_nomme_la_variable_sans_casser_le_texte(tmp_path, 
     project = _project(tmp_path)
     text = FakeTextProvider(project)
     text.last_usage = None
-    # L'option n'étant pas demandée, le fournisseur image absent n'est jamais
-    # construit et la voie texte reste exploitable.
+    # The option not being requested, the missing image provider is never built
+    # and the text path stays usable.
     content = ("<html><body>" + sections_du_manifeste(_manifest(project))
                + "</body></html>")
     def text_provider(_prompt):
@@ -418,7 +418,7 @@ def test_cle_yandexart_absente_nomme_la_variable_sans_casser_le_texte(tmp_path, 
     assert ok, errors
 
 
-def test_prereglage_yandexart_rend_des_octets_et_son_authentification(monkeypatch):
+def test_yandexart_preset_returns_bytes_and_its_authentication(monkeypatch):
     monkeypatch.setenv("YANDEX_API_KEY", "cle-image")
     monkeypatch.setenv("YANDEX_FOLDER_ID", "folder-image")
     monkeypatch.setenv("MONL_IMAGE_POLL_INTERVAL", "0.001")
@@ -456,7 +456,7 @@ def test_prereglage_yandexart_rend_des_octets_et_son_authentification(monkeypatc
     assert calls["get"][0].endswith("/operations/operation-image")
 
 
-def test_yandexart_envoie_le_rapport_d_aspect_dans_generation_options(monkeypatch):
+def test_yandexart_sends_the_aspect_ratio_in_generation_options(monkeypatch):
     monkeypatch.setenv("YANDEX_API_KEY", "cle-image")
     monkeypatch.setenv("YANDEX_FOLDER_ID", "folder-image")
     monkeypatch.setenv("MONL_IMAGE_POLL_INTERVAL", "0.001")
@@ -498,7 +498,7 @@ def test_yandexart_envoie_le_rapport_d_aspect_dans_generation_options(monkeypatc
     assert "aspectRatio" not in calls[1][2]["generationOptions"]
 
 
-def test_yandexart_accepte_la_forme_width_ratio_du_rapport(monkeypatch):
+def test_yandexart_accepts_the_width_ratio_form(monkeypatch):
     monkeypatch.setenv("YANDEX_API_KEY", "cle-image")
     monkeypatch.setenv("YANDEX_FOLDER_ID", "folder-image")
     monkeypatch.setenv("MONL_IMAGE_POLL_INTERVAL", "0.0001")
@@ -565,7 +565,7 @@ def test_yandexart_refuse_un_rapport_d_aspect_invalide(
         (200, {}, False, "operation without an ID"),
     ],
 )
-def test_yandexart_refuse_une_reponse_initiale_inexploitable(
+def test_yandexart_refuses_an_unusable_initial_response(
         monkeypatch, status, payload, json_error, message):
     monkeypatch.setenv("YANDEX_API_KEY", "cle-image")
     monkeypatch.setenv("YANDEX_FOLDER_ID", "folder-image")
@@ -586,7 +586,7 @@ def test_yandexart_refuse_une_reponse_initiale_inexploitable(
         yandexart_provider()("matière de l'atelier")
 
 
-def test_yandexart_signale_une_panne_http_initiale(monkeypatch):
+def test_yandexart_reports_an_initial_http_failure(monkeypatch):
     monkeypatch.setenv("YANDEX_API_KEY", "cle-image")
     monkeypatch.setenv("YANDEX_FOLDER_ID", "folder-image")
     import requests
@@ -639,7 +639,7 @@ def test_yandexart_refuse_un_etat_d_operation_inexploitable(
         yandexart_provider()("matière de l'atelier")
 
 
-def test_yandexart_signale_une_panne_http_pendant_le_polling(monkeypatch):
+def test_yandexart_reports_an_http_failure_while_polling(monkeypatch):
     monkeypatch.setenv("YANDEX_API_KEY", "cle-image")
     monkeypatch.setenv("YANDEX_FOLDER_ID", "folder-image")
     monkeypatch.setenv("MONL_IMAGE_POLL_INTERVAL", "0.0001")
@@ -683,7 +683,7 @@ def test_yandexart_refuse_un_reglage_de_polling_invalide(monkeypatch, raw, messa
         yandexart_provider()("matière de l'atelier")
 
 
-def test_yandexart_signale_le_depassement_du_delai(monkeypatch):
+def test_yandexart_reports_the_timeout(monkeypatch):
     monkeypatch.setenv("YANDEX_API_KEY", "cle-image")
     monkeypatch.setenv("YANDEX_FOLDER_ID", "folder-image")
     monkeypatch.setenv("MONL_IMAGE_POLL_TIMEOUT", "1")
@@ -704,10 +704,10 @@ def test_yandexart_signale_le_depassement_du_delai(monkeypatch):
         yandexart_provider()("matière de l'atelier")
 
 
-def test_une_image_jpeg_reelle_est_reencodee_sans_perdre_ses_dimensions():
-    # Plus d'`importorskip` : Pillow est déclaré dans l'extra `dev`, donc
-    # présent partout où les tests tournent. Le saut faisait passer ce test
-    # pour exécuté en CI alors qu'il ne vérifiait rien (point 140).
+def test_a_real_jpeg_image_is_reencoded_without_losing_its_dimensions():
+    # No more `importorskip`: Pillow is declared in the `dev` extra, hence
+    # present wherever the tests run. The skip made this test look executed in
+    # CI while it checked nothing (point 140).
     from PIL import Image as image_module
     source = image_module.effect_noise((1024, 1024), 100).convert("RGB")
     original_buffer = BytesIO()
@@ -723,7 +723,7 @@ def test_une_image_jpeg_reelle_est_reencodee_sans_perdre_ses_dimensions():
         assert decoded.size == (1024, 1024)
 
 
-def test_pillow_absent_conserve_l_image_et_ne_bloque_pas_la_construction(tmp_path, monkeypatch):
+def test_missing_pillow_keeps_the_image_and_does_not_block_the_build(tmp_path, monkeypatch):
     monkeypatch.setattr(image_ai, "_pillow_image_class", lambda: None)
     project = _project(tmp_path)
     images = FakeImageProvider()
@@ -741,7 +741,7 @@ def test_pillow_absent_conserve_l_image_et_ne_bloque_pas_la_construction(tmp_pat
     assert any("Pillow is unavailable" in message for message in messages)
 
 
-def test_mesure_image_requete_sans_jetons_et_usage_ne_la_compte_pas_gratuite(tmp_path):
+def test_image_request_measured_without_tokens_and_usage_does_not_count_it_free(tmp_path):
     project = _project(tmp_path)
     images = FakeImageProvider()
     text = FakeTextProvider(project)

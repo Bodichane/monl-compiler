@@ -1,16 +1,16 @@
-# Brique 29 (point 137) — tout fichier local RÉCLAMÉ par le frontend doit
-# être réellement servi.
+# Brick 29 (point 137) — every local file CLAIMED by the frontend must really
+# be served.
 #
-# Le défaut qui a fait naître la brique est réel : AtelierNaya référençait six
-# SVG que l'IA n'avait jamais livrés, et `monl run --check` répondait vert.
-# Rien ne cassait — un fichier absent ne lève aucune exception JavaScript, donc
-# jsdom ne bronchait pas ; la page s'affichait avec six trous.
+# The defect that gave birth to the brick is real: AtelierNaya referenced six
+# SVGs the AI had never delivered, and `monl run --check` answered green.
+# Nothing broke — a missing file raises no JavaScript exception, so jsdom did
+# not flinch; the page displayed with six holes.
 #
-# Les contre-épreuves comptent autant que le contrôle : un contrôle qui refuse
-# TOUT passerait le premier test. On vérifie donc aussi qu'une route du
-# contrat, une navigation par fragment et un CDN ne sont JAMAIS dénoncés
-# (points 57 et 92 : un avertissement qui se trompe sur un site correct apprend
-# à ne plus lire les avertissements).
+# The counter-proofs count as much as the check: a check refusing EVERYTHING
+# would pass the first test. We therefore also check that a contract route,
+# fragment navigation and a CDN are NEVER denounced (points 57 and 92: a
+# warning that is wrong about a correct site teaches people to stop reading
+# warnings).
 import pytest
 
 from monl.cli import compile_project
@@ -66,28 +66,27 @@ def _page(corps):
     return f"<!doctype html><html><body>{corps}{APPEL}</body></html>"
 
 
-# ---------------------------------------------------------------- le défaut --
-def test_un_svg_reference_mais_absent_fait_echouer_le_smoke_test(projet):
-    """Le cas d'AtelierNaya, réduit à sa plus simple expression."""
+# --------------------------------------------------------------- the defect --
+def test_a_referenced_but_missing_svg_fails_the_smoke_test(projet):
+    """AtelierNaya's case, reduced to its simplest expression."""
     _frontend(projet, **{"index.html": _page('<img src="hero.svg" alt="">')})
     ok, errors, _w = run_smoke_test(str(projet), say=_quiet)
     assert not ok
     assert any("hero.svg" in e and "404" in e for e in errors), errors
 
 
-def test_le_meme_frontend_passe_des_que_le_fichier_est_livre(projet):
-    """CONTRE-ÉPREUVE indispensable : sans elle, un contrôle qui refuserait
-    tout frontend passerait le test précédent sans que rien ne le montre."""
+def test_the_same_frontend_passes_once_the_file_is_delivered(projet):
+    """Indispensable COUNTER-PROOF: without it, a check refusing every frontend
+    would pass the previous test without anything showing it."""
     _frontend(projet, **{"index.html": _page('<img src="hero.svg" alt="">'),
                          "hero.svg": '<svg xmlns="http://www.w3.org/2000/svg"/>'})
     ok, errors, _w = run_smoke_test(str(projet), say=_quiet)
     assert ok, errors
 
 
-def test_chaque_fichier_manquant_est_nomme_avec_sa_page(projet):
-    """Un rapport qui dirait « des fichiers manquent » n'aiderait personne :
-    c'est le nom du fichier ET celui de la page qui rendent la correction
-    possible sans chercher."""
+def test_each_missing_file_is_named_with_its_page(projet):
+    """A report saying "files are missing" would help nobody: the file name AND
+    the page name make the fix possible without searching."""
     _frontend(projet, **{"index.html": _page(
         '<img src="a.svg"><img src="b.png"><link rel="stylesheet" href="c.css">')})
     ok, errors, _w = run_smoke_test(str(projet), say=_quiet)
@@ -97,35 +96,34 @@ def test_chaque_fichier_manquant_est_nomme_avec_sa_page(projet):
     assert all("index.html" in e for e in errors if ".svg" in e), errors
 
 
-def test_une_image_absente_est_denoncee_avec_le_conseil_des_assets(projet):
-    """Le message doit envoyer vers les assets (brique 13), pas laisser
-    chercher. La cause est réelle et silencieuse : `monl import` ne RETIENT que
-    la liste blanche (voir le test d'archive plus bas)."""
+def test_a_missing_image_is_denounced_with_the_assets_advice(projet):
+    """The message must point to assets (brick 13), not leave people searching.
+    The cause is real and silent: `monl import` KEEPS only the allowlist (see the
+    archive test below)."""
     _frontend(projet, **{"index.html": _page('<img src="photo.jpg">')})
     ok, errors, _w = run_smoke_test(str(projet), say=_quiet)
     assert not ok
     assert any("photo.jpg" in e and "assets" in e for e in errors), errors
 
 
-def test_une_image_reellement_presente_dans_frontend_est_servie(projet):
-    """Garde-fou contre le message que je m'apprêtais à écrire : `frontend/`
-    est servi par StaticFiles, qui ne filtre RIEN. Une image déposée à la main
-    fonctionne donc parfaitement, et la dénoncer serait un faux positif. La
-    liste blanche gouverne ce que l'IA a le droit de LIVRER, pas ce que le
-    serveur rend."""
+def test_an_image_really_present_in_frontend_is_served(projet):
+    """Safeguard against the message I was about to write: `frontend/` is served
+    by StaticFiles, which filters NOTHING. An image dropped by hand therefore
+    works perfectly, and denouncing it would be a false positive. The allowlist
+    governs what the AI may DELIVER, not what the server serves."""
     front = _frontend(projet, **{"index.html": _page('<img src="photo.jpg">')})
     (front / "photo.jpg").write_bytes(b"\xff\xd8\xff\xe0 pas du texte")
     ok, errors, _w = run_smoke_test(str(projet), say=_quiet)
     assert ok, errors
 
 
-def test_une_archive_importee_perd_ses_images_et_le_smoke_test_le_dit(projet, tmp_path):
-    """La voie où le défaut arrive VRAIMENT, éprouvée de bout en bout.
+def test_an_imported_archive_loses_its_images_and_the_smoke_test_says_so(projet, tmp_path):
+    """The path where the defect REALLY arrives, tested end to end.
 
-    `monl import` retire de l'archive tout ce qui n'est pas dans la liste
-    blanche — sans un mot — puis vérifie. Avant cette brique, la page restait
-    et réclamait une photo que l'import venait de jeter : import réussi, site
-    troué. Le smoke test doit refuser."""
+    `monl import` removes from the archive everything outside the allowlist —
+    without a word — then checks. Before this brick, the page stayed and claimed
+    a photo the import had just thrown away: import successful, site full of
+    holes. The smoke test must refuse."""
     import zipfile
 
     from monl.frontend_ai import import_and_verify
@@ -141,9 +139,9 @@ def test_une_archive_importee_perd_ses_images_et_le_smoke_test_le_dit(projet, tm
     assert any("photo.jpg" in e for e in errors), errors
 
 
-def test_une_reference_du_css_compte_aussi(projet):
-    """Une image de fond ne vit pas dans le HTML. Ne lire que les pages
-    laisserait passer la moitié des références d'un site réel."""
+def test_a_css_reference_counts_too(projet):
+    """A background image does not live in the HTML. Reading only the pages
+    would let half of a real site's references through."""
     _frontend(projet, **{
         "index.html": _page('<link rel="stylesheet" href="styles.css">'),
         "styles.css": "body { background: url('fond.png') no-repeat; }"})
@@ -152,21 +150,21 @@ def test_une_reference_du_css_compte_aussi(projet):
     assert any("fond.png" in e and "styles.css" in e for e in errors), errors
 
 
-def test_une_reference_qui_sort_du_site_est_nommee(projet):
+def test_a_reference_leaving_the_site_is_named(projet):
     _frontend(projet, **{"index.html": _page('<img src="../../secret.png">')})
     ok, errors, _w = run_smoke_test(str(projet), say=_quiet)
     assert not ok
     assert any("escapes the site" in e for e in errors), errors
 
 
-# ------------------------------------------------- les faux positifs interdits --
-def test_ni_route_du_contrat_ni_navigation_ne_sont_denoncees(projet):
-    """Le contrôle ne doit JAMAIS confondre un lien avec un fichier.
+# ------------------------------------------------ forbidden false positives --
+def test_neither_contract_route_nor_navigation_is_denounced(projet):
+    """The check must NEVER confuse a link with a file.
 
-    `#/panier` est de la navigation (point 92, où le même avertissement avait
-    dénoncé quatre routes correctes), `/item` est une route du contrat, et une
-    ancre reste une ancre. Aucun des trois ne porte d'extension : c'est
-    précisément ce qui les met hors de portée du contrôle."""
+    `#/panier` is navigation (point 92, where the same warning had denounced four
+    correct routes), `/item` is a contract route, and an anchor stays an anchor.
+    None of the three carries an extension: that is precisely what puts them out
+    of the check's reach."""
     _frontend(projet, **{"index.html": _page(
         '<a href="#/panier">Panier</a><a href="/item">Articles</a>'
         '<a href="#haut">Haut</a><a href="/">Accueil</a>')})
@@ -174,10 +172,10 @@ def test_ni_route_du_contrat_ni_navigation_ne_sont_denoncees(projet):
     assert ok, errors
 
 
-def test_ni_url_absolue_ni_data_uri_ne_sont_traitees_comme_des_fichiers(projet):
-    """Une URL distante n'est pas à nous : la demander au serveur éphémère
-    produirait un 404 sur un site parfaitement correct. Le CDN, lui, a déjà
-    son propre refus ailleurs — ce n'est pas à ce contrôle-ci de le doubler."""
+def test_neither_absolute_url_nor_data_uri_is_treated_as_a_file(projet):
+    """A remote URL is not ours: asking the ephemeral server for it would give a
+    404 on a perfectly correct site. The CDN already has its own refusal
+    elsewhere — it is not this check's job to duplicate it."""
     _frontend(projet, **{"index.html": _page(
         '<img src="https://exemple.com/a.png">'
         '<img src="//cdn.exemple.com/b.svg">'
@@ -187,9 +185,9 @@ def test_ni_url_absolue_ni_data_uri_ne_sont_traitees_comme_des_fichiers(projet):
     assert ok, errors
 
 
-def test_une_reference_avec_parametre_de_version_est_resolue(projet):
-    """`styles.css?v=3` est un usage courant pour forcer le cache. Le fichier
-    existe : le dénoncer serait un faux positif."""
+def test_a_reference_with_a_version_parameter_is_resolved(projet):
+    """`styles.css?v=3` is a common way to bust the cache. The file exists:
+    denouncing it would be a false positive."""
     _frontend(projet, **{
         "index.html": _page('<link rel="stylesheet" href="styles.css?v=3">'),
         "styles.css": "body { color: #111; }"})
@@ -197,9 +195,9 @@ def test_une_reference_avec_parametre_de_version_est_resolue(projet):
     assert ok, errors
 
 
-def test_un_frontend_sans_aucune_reference_reste_vert(projet):
-    """Le cas le plus simple, et le garde-fou contre un contrôle qui
-    échouerait à vide."""
+def test_a_frontend_without_any_reference_stays_green(projet):
+    """The simplest case, and the safeguard against a check that would fail on
+    nothing."""
     _frontend(projet, **{"index.html": _page("<h1>Atelier</h1>")})
     ok, errors, _w = run_smoke_test(str(projet), say=_quiet)
     assert ok, errors
