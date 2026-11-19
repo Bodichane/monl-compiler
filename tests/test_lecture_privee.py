@@ -1,11 +1,11 @@
-"""Étanchéité des lectures entre comptes (bêta 3).
+"""Reads are sealed between accounts (beta 3).
 
-Défaut corrigé : 'ownedBy' ne protégeait que l'écriture. Sur une application
-de suivi de dépenses, deux comptes distincts se lisaient mutuellement —
-'GET /expense' renvoyait tout, et 'GET /expense/{id}' répondait 200 sur
-l'enregistrement d'autrui. Seul 'PUT' était refusé.
+Defect fixed: 'ownedBy' only protected writes. On an expense-tracking
+application, two distinct accounts read each other's data — 'GET /expense'
+returned everything, and 'GET /expense/{id}' answered 200 on someone else's
+record. Only 'PUT' was refused.
 
-Le test lance une vraie application générée et rejoue le scénario complet.
+The test starts a real generated application and replays the whole scenario.
 """
 import subprocess
 import sys
@@ -58,7 +58,7 @@ def _compte(base, nom):
 
 @pytest.fixture(scope="module")
 def application():
-    """Compile la spec, démarre le serveur, le rend à l'appelant."""
+    """Compiles the spec, starts the server, hands it to the caller."""
     with tempfile.TemporaryDirectory() as dossier:
         ast = MonlAST(parse_monl_string(SPEC_PRIVEE)).validate_and_audit()
         MonlSecureGenerator(ast, output_dir=dossier).generate_all()
@@ -66,7 +66,7 @@ def application():
             yield base, dossier
 
 
-def test_un_compte_ne_lit_pas_les_donnees_d_un_autre(application):
+def test_an_account_does_not_read_another_accounts_data(application):
     base, dossier = application
     alice, bob = _compte(base, "alice"), _compte(base, "bob")
     cree = requests.post(f"{base}/expense", headers=alice,
@@ -75,27 +75,26 @@ def test_un_compte_ne_lit_pas_les_donnees_d_un_autre(application):
     id_alice = cree.json()["id"]
     requests.post(f"{base}/expense", headers=bob, json={"label": "Courses", "amount": 42.0})
 
-    # Liste : Bob ne voit que la sienne, et le total ne compte que la sienne.
+    # List: Bob only sees his own, and the total only counts his own.
     vue_bob = requests.get(f"{base}/expense", headers=bob).json()
     assert vue_bob["total"] == 1, vue_bob
     assert [d["label"] for d in vue_bob["data"]] == ["Courses"]
 
-    # Accès direct : 404 et non 403 — un 403 confirmerait l'existence de
-    # l'enregistrement d'autrui, donc permettrait de le compter par énumération.
+    # Direct access: 404 and not 403 — a 403 would confirm that someone else's
+    # record exists, hence allow counting it by enumeration.
     assert requests.get(f"{base}/expense/{id_alice}", headers=bob).status_code == 404
-    # L'écriture reste refusée elle aussi (comportement historique conservé).
+    # Writing stays refused too (historical behavior kept).
     assert requests.put(f"{base}/expense/{id_alice}", headers=bob,
                         json={"label": "x", "amount": 1.0}).status_code in (403, 404)
-    # Le propriétaire, lui, accède bien à la sienne.
+    # The owner does reach their own.
     assert requests.get(f"{base}/expense/{id_alice}", headers=alice).status_code == 200
 
 
-def test_un_role_tiers_autorise_continue_de_tout_voir(application):
-    """Le filtre vise l'acteur propriétaire, pas les autres rôles autorisés.
+def test_an_allowed_third_role_still_sees_everything(application):
+    """The filter targets the owning actor, not the other allowed roles.
 
-    Sans cette nuance, le gestionnaire d'une boutique ne verrait aucune
-    commande et le contrôle de propriété casserait les applications qu'il est
-    censé protéger.
+    Without this nuance, a shop's manager would see no order and the ownership
+    check would break the applications it is meant to protect.
     """
     base, dossier = application
     subprocess.run([sys.executable, "manage.py", "adduser", "inspecteur", "Auditor"],
@@ -108,8 +107,8 @@ def test_un_role_tiers_autorise_continue_de_tout_voir(application):
     assert vue["total"] >= 2, vue
 
 
-def test_ownedby_sur_create_est_refuse_a_la_compilation():
-    """Une règle sans effet doit échouer, pas être ignorée en silence."""
+def test_ownedby_on_create_is_refused_at_compile_time():
+    """A rule without effect must fail, not be silently ignored."""
     from monl.ast_validator import ASTValidationError
     spec = SPEC_PRIVEE.replace("rule Expense.Read ownedBy User",
                                "rule Expense.Create ownedBy User")

@@ -1,11 +1,11 @@
-"""Le pied de page a des destinations, et deux couches disent la même chose.
+"""The footer has destinations, and two layers say the same thing.
 
-La brique 30 (point 144) permettait de DÉCLARER des liens ; rien ne les
-produisait. Ni le dialogue guidé, ni aucun des dix modèles, ni la console de
-la plateforme n'en écrivait un seul — donc tout site sortait avec un pied de
-page sans une seule destination, ce que le mainteneur a vu à l'œil avant que
-la moindre mesure ne le dise. Une règle qui ne produit rien est ce que le
-point 85 interdit au compilateur ; l'interdit vaut pour ce qui écrit la spec.
+Brick 30 (point 144) allowed DECLARING links; nothing produced them. Neither
+the guided dialogue, nor any of the ten templates, nor the platform console
+wrote a single one — so every site came out with a footer without a single
+destination, which the maintainer saw by eye before any measurement said so.
+A rule that produces nothing is what point 85 forbids the compiler; the ban
+holds for whatever writes the spec.
 """
 
 import json
@@ -19,9 +19,8 @@ from monl_platform.app import _liens_de_pied
 from monl_platform.app_templates import materialize_template
 from monl_platform.console import CONSOLE_HTML
 
-#: Les entrées qui décident. Chacune est une façon dont quelqu'un écrit
-#: réellement une adresse — la dernière colonne est ce qu'un navigateur doit
-#: recevoir.
+#: The inputs that decide. Each is a way someone really writes an address —
+#: the last column is what a browser must receive.
 CAS = [
     ("contact@atelier.fr", "mailto:contact@atelier.fr"),
     ("instagram.com/atelier", "https://instagram.com/atelier"),
@@ -29,13 +28,13 @@ CAS = [
     ("https://x.com/atelier", "https://x.com/atelier"),
     ("mailto:a@b.fr", "mailto:a@b.fr"),
     ("tel:+33612345678", "tel:+33612345678"),
-    # Le numéro s'écrit AVEC des espaces : c'est la seule valeur de cette
-    # liste qui en contienne légitimement.
+    # The number is written WITH spaces: it is the only value of this list that
+    # legitimately contains some.
     ("+33 6 12 34 56 78", "tel:+33612345678"),
     ("06 12 34 56 78", "tel:0612345678"),
     ("06.12.34.56.78", "tel:06.12.34.56.78"),
-    # Ce qui n'a qu'une lecture est complété ; le reste est ÉCARTÉ, jamais
-    # deviné — un lien qui mène ailleurs est pire qu'un lien absent.
+    # What has only one reading is completed; the rest is DISCARDED, never
+    # guessed — a link leading elsewhere is worse than a missing link.
     ("pas une adresse", None),
     ("bonjour", None),
     ("", None),
@@ -43,26 +42,25 @@ CAS = [
 ]
 
 
-def test_une_adresse_incomplete_est_completee_sans_jamais_etre_devinee():
+def test_an_incomplete_address_is_completed_never_guessed():
     for saisie, attendu in CAS:
         assert adresse_de_lien(saisie) == attendu, saisie
 
 
 def _fonction_js(nom):
-    """Extrait une fonction du script de la console, telle qu'elle est servie."""
+    """Extracts a function from the console script, as served."""
     debut = CONSOLE_HTML.index(f"function {nom}(")
     marqueur = "\n}\n"
     fin = CONSOLE_HTML.index(marqueur, debut) + len(marqueur)
     return CONSOLE_HTML[debut:fin]
 
 
-def test_la_console_et_le_serveur_completent_a_l_identique():
-    """Deux mises en œuvre de la même règle finissent par diverger.
+def test_console_and_server_complete_identically():
+    """Two implementations of the same rule end up diverging.
 
-    Celle du navigateur décide ce que l'usager voit accepté ; celle du
-    serveur décide ce qui atteint la spec. Si elles s'écartent, la console
-    annonce un lien enregistré que le serveur écarte en silence — un défaut
-    qu'aucune des deux ne peut voir seule.
+    The browser's decides what the user sees accepted; the server's decides what
+    reaches the spec. If they drift apart, the console announces a saved link the
+    server silently discards — a defect neither can see alone.
     """
     node = shutil.which("node")
     if not node:
@@ -82,12 +80,12 @@ def test_la_console_et_le_serveur_completent_a_l_identique():
     assert cote_navigateur == [attendu for _, attendu in CAS]
 
 
-def test_le_serveur_ecarte_ce_qu_il_ne_comprend_pas():
+def test_the_server_discards_what_it_does_not_understand():
     liens = _liens_de_pied([
         {"label": "Instagram", "url": "instagram.com/atelier"},
         {"label": "Bruit", "url": "pas une adresse"},
         {"label": "", "url": "https://exemple.fr"},
-        {"label": "instagram", "url": "https://autre.fr"},   # doublon de libellé
+        {"label": "instagram", "url": "https://autre.fr"},   # duplicate label
         {"label": 'Guillemet"', "url": "https://exemple.fr"},
         "pas un objet",
     ])
@@ -95,8 +93,8 @@ def test_le_serveur_ecarte_ce_qu_il_ne_comprend_pas():
     assert liens == [{"label": "Instagram", "url": "https://instagram.com/atelier"}]
 
 
-def test_un_projet_de_la_plateforme_porte_ses_liens_jusqu_a_la_spec():
-    """Le bout en bout : ce que la console envoie doit atteindre le DSL."""
+def test_a_platform_project_carries_its_links_to_the_spec():
+    """End to end: what the console sends must reach the DSL."""
     spec = materialize_template(
         1, app_name="AtelierTest", description="Un atelier de céramique.",
         links=_liens_de_pied([
@@ -109,9 +107,9 @@ def test_un_projet_de_la_plateforme_porte_ses_liens_jusqu_a_la_spec():
     assert 'link "Instagram": "https://instagram.com/atelier"' in spec
 
 
-def test_sans_lien_la_spec_reste_exactement_celle_d_avant():
-    """Contre-épreuve : la question ne doit rien changer quand on n'y répond
-    pas — sinon tout projet existant verrait sa spec bouger."""
+def test_without_links_the_spec_stays_exactly_as_before():
+    """Counter-proof: the question must change nothing when unanswered —
+    otherwise every existing project would see its spec move."""
     spec = materialize_template(1, app_name="AtelierTest",
                                 description="Un atelier de céramique.")
 

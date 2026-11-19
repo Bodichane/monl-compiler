@@ -1,15 +1,15 @@
-"""Masquage de champ — `rule Entite.champ hidden` (brique 2, point 25).
+"""Field masking — `rule Entite.champ hidden` (brick 2, point 25).
 
-Cette règle était implémentée (src/parser.py `masking_rule`,
-src/generator/routes.py) et **couverte par rien** : depuis la suppression de
-exemples/13_anon_forum_demo.yaml en bêta 3, le mot-clé `hidden` n'apparaissait
-dans aucun test ni aucun exemple. La mesure de couverture du point 63 l'a
-confirmé, CLAUDE.md l'avertissait déjà : une régression passait la CI sans
-bruit.
+This rule was implemented (src/parser.py `masking_rule`,
+src/generator/routes.py) and **covered by nothing**: since
+exemples/13_anon_forum_demo.yaml was removed in beta 3, the `hidden` keyword
+appeared in no test and no example. Point 63's coverage measurement confirmed
+it, CLAUDE.md already warned about it: a regression went through CI without a
+sound.
 
-Ce que la règle promet, et que ce fichier éprouve contre un vrai serveur :
-le champ disparaît de la LISTE et du DÉTAIL, pour tout le monde — mais il
-reste écrivable, et il reste en base.
+What the rule promises, and what this file tests against a real server: the
+field disappears from the LIST and the DETAIL, for everyone — but it stays
+writable, and it stays in the database.
 """
 import os
 import sqlite3
@@ -60,7 +60,7 @@ def _admin(base):
     return {"Authorization": "Bearer " + jeton["access_token"]}
 
 
-def test_le_champ_masque_disparait_de_la_lecture_et_reste_en_base(application):
+def test_the_hidden_field_disappears_from_reads_and_stays_stored(application):
     base, dossier = application
     entetes = _admin(base)
 
@@ -71,7 +71,7 @@ def test_le_champ_masque_disparait_de_la_lecture_et_reste_en_base(application):
     note_id = cree.json().get("id") or cree.json().get("data", {}).get("id")
     assert note_id, cree.text
 
-    # 1. La LISTE ne montre pas le champ — y compris pour l'auteur connecté.
+    # 1. The LIST does not show the field — not even to the signed-in author.
     liste = requests.get(f"{base}/note", headers=entetes).json()
     lignes = liste["data"]
     assert lignes, liste
@@ -79,26 +79,26 @@ def test_le_champ_masque_disparait_de_la_lecture_et_reste_en_base(application):
         assert "title" in ligne
         assert "internalNote" not in ligne, f"champ masqué exposé en liste : {ligne}"
 
-    # 2. Le DÉTAIL non plus.
+    # 2. Nor does the DETAIL.
     detail = requests.get(f"{base}/note/{note_id}", headers=entetes).json()
     corps = detail.get("data", detail)
     assert corps.get("title") == "Devis Aurora", detail
     assert "internalNote" not in corps, f"champ masqué exposé en détail : {detail}"
 
-    # 3. Sans compte non plus (la lecture est publique ici) : le masquage
-    #    ne dépend pas de l'appelant, contrairement à ownedBy.
+    # 3. Nor without an account (reading is public here): masking does not
+    # depend on the caller, unlike ownedBy.
     anonyme = requests.get(f"{base}/note/{note_id}").json()
     assert "internalNote" not in anonyme.get("data", anonyme)
 
-    # 4. Le champ reste ÉCRIVABLE — masquer n'est pas retirer.
+    # 4. The field stays WRITABLE — masking is not removing.
     maj = requests.put(f"{base}/note/{note_id}", headers=entetes,
                        json={"title": "Devis Aurora",
                              "internalNote": "marge revue à 38%"})
     assert maj.status_code == 200, maj.text
 
-    # 5. Et il est bien en base : masqué à la lecture, pas perdu.
+    # 5. And it is indeed in the database: hidden on read, not lost.
     cnx = sqlite3.connect(os.path.join(dossier, "app.db"))
-    try:  # `with connect(...)` valide la transaction, il ne ferme pas.
+    try:  # `with connect(...)` commits the transaction, it does not close.
         table = next(nom for (nom,) in cnx.execute(
             "SELECT name FROM sqlite_master WHERE type='table'")
             if nom.lower().startswith("note"))
@@ -109,10 +109,10 @@ def test_le_champ_masque_disparait_de_la_lecture_et_reste_en_base(application):
     assert valeur and valeur[0] == "marge revue à 38%", valeur
 
 
-def test_le_champ_masque_est_absent_du_contrat_de_lecture(application):
-    """Le contrat frontend décrit ce que les routes rendent : annoncer un
-    champ que le serveur retire enverrait l'IA d'interface dessiner une
-    colonne toujours vide."""
+def test_the_hidden_field_is_absent_from_the_read_contract(application):
+    """The frontend contract describes what the routes return: announcing a field
+    the server removes would send the interface AI drawing an always-empty
+    column."""
     base, _dossier = application
     schema = requests.get(f"{base}/openapi.json").json()
     texte = str(schema)

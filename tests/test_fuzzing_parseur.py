@@ -1,10 +1,10 @@
-"""Mutations reproductibles : compiler réellement ou refuser proprement (point 204).
+"""Reproducible mutations: really compile or refuse cleanly (point 204).
 
-Une spec abîmée doit soit compiler, soit lever une erreur monl NOMMÉE. Toute
-autre exception est un défaut du compilateur. Graine fixe : un échec se rejoue.
+A damaged spec must either compile or raise a NAMED monl error. Any other
+exception is a compiler defect. Fixed seed: a failure replays.
 
-Campagne hors suite : MONL_FUZZ_CASES=20000 MONL_FUZZ_SEED=7 pytest -q -s ce_fichier.
-Première campagne (20 000 cas) : deux plantages, gardés plus bas en régression.
+Off-suite campaign: MONL_FUZZ_CASES=20000 MONL_FUZZ_SEED=7 pytest -q -s this_file.
+First campaign (20,000 cases): two crashes, kept below as regressions.
 """
 import contextlib
 import io
@@ -22,9 +22,9 @@ from monl.parser import MonlSyntaxError
 ROOT = Path(__file__).resolve().parents[1]
 ERRORS = (MonlSyntaxError, ASTValidationError, CompilationInputError,
           CompilationGenerationError)
-# `main.py` enveloppe TOUTE exception de génération : un refus voulu du
-# générateur (le garde-fou `payable` du point 99, par exemple) y arrive comme
-# un défaut de code. La cause les distingue — ces types-là trahissent un bogue.
+# `main.py` wraps EVERY generation exception: a deliberate refusal of the
+# generator (the point 99 `payable` safeguard, for instance) arrives there like
+# a code defect. The cause tells them apart — these types betray a bug.
 CAUSES_DE_BOGUE = (KeyError, TypeError, AttributeError, IndexError, NameError,
                    AssertionError, RecursionError, ZeroDivisionError)
 
@@ -37,7 +37,7 @@ def mutations(count):
                    set(ROOT.glob('plugins/**/exemples/*.ml')))
     assert paths
     sources = [(p, p.read_text(encoding='utf-8')) for p in paths]
-    # Les originaux exercent aussi la génération et servent à la contre-épreuve.
+    # The originals also exercise generation and serve the counter-proof.
     yield from sources
     for case in range(count):
         path, source = rng.choice(sources)
@@ -75,7 +75,7 @@ def test_fuzzing_pipeline(tmp_path):
             with contextlib.redirect_stdout(io.StringIO()):
                 compile_project(str(spec), str(tmp_path / 'out'), base_dir=str(origin.parent))
         except ERRORS as exc:
-            # Une enveloppe générique ne doit pas cacher une exception interne.
+            # A generic wrapper must not hide an internal exception.
             if isinstance(exc, CompilationGenerationError):
                 assert not isinstance(exc.__cause__, CAUSES_DE_BOGUE), (
                     index, origin.name, repr(exc.__cause__), source)
@@ -83,8 +83,8 @@ def test_fuzzing_pipeline(tmp_path):
             pytest.fail(f'cas {index}, {origin.name}: {type(exc).__name__}: {exc}\n{source}')
 
 
-def test_une_ligne_desindentee_de_travers_est_situee():
-    """Plantage 1 : Lark levait `DedentError`, brut et sans ligne."""
+def test_a_wrongly_dedented_line_is_located():
+    """Crash 1: Lark raised `DedentError`, raw and without a line."""
     from monl.parser import parse_monl_string
 
     with pytest.raises(MonlSyntaxError) as erreur:
@@ -93,9 +93,9 @@ def test_une_ligne_desindentee_de_travers_est_situee():
     assert "indentation" in str(erreur.value)
 
 
-def test_un_entier_de_milliers_de_chiffres_est_refuse_proprement():
-    """Plantage 2 : Python refuse de convertir plus de 4 300 chiffres, et
-    l'erreur remontait dans un `VisitError` de Lark."""
+def test_an_integer_of_thousands_of_digits_is_refused_cleanly():
+    """Crash 2: Python refuses to convert more than 4,300 digits, and the error
+    came up inside a Lark `VisitError`."""
     from monl.parser import parse_monl_string
 
     spec = ("app X\n\nentity A\n    n: Integer\n\nseed A\n    n: "
@@ -106,9 +106,9 @@ def test_un_entier_de_milliers_de_chiffres_est_refuse_proprement():
     assert "too long" in str(erreur.value)
 
 
-def test_un_exposant_est_un_decimal_et_l_infini_est_refuse():
-    """Plantage 3 : la grammaire accepte `1e3`, mais le parseur faisait
-    `int('1e3')` ; et `1e999900` vaut l'infini, qu'aucune base ne stocke."""
+def test_an_exponent_is_a_decimal_and_infinity_is_refused():
+    """Crash 3: the grammar accepts `1e3`, but the parser did `int('1e3')`; and
+    `1e999900` is infinity, which no database stores."""
     from monl.parser import parse_monl_string
 
     spec = "app X\n\nentity A\n    n: Float\n\nseed A\n    n: {}\n"

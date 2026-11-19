@@ -1,14 +1,14 @@
-"""docs/SECURITE.md liste les variables que le backend généré lit vraiment.
+"""docs/SECURITE.md lists the variables the generated backend really reads.
 
-Une variable documentée mais jamais lue sera configurée pour rien ; une
-variable lue mais absente du document ne sera jamais configurée — c'est ce
-qui était arrivé à `MONL_CORS_ORIGINS`, livré alors que la page annonçait
-encore « pas de CORS configurable ». Même discipline que pour
-docs/EXPLOITATION.md (point 141) : comparer dans les DEUX sens.
+A documented variable never read will be configured for nothing; a variable
+read but missing from the document will never be configured — which is what
+happened to `MONL_CORS_ORIGINS`, shipped while the page still announced "no
+configurable CORS". Same discipline as for docs/EXPLOITATION.md (point 141):
+compare in BOTH directions.
 
-La vérité est lue dans le code COMPILÉ, pas dans les émetteurs : plusieurs
-noms passent par une constante (`_DB_POOL_MIN_ENV`) ou une ligne coupée,
-qu'un motif textuel sur les sources ne verrait pas (point 172).
+The truth is read in the COMPILED code, not the emitters: several names go
+through a constant (`_DB_POOL_MIN_ENV`) or a split line, which a text
+pattern on the sources would not see (point 172).
 """
 
 import ast
@@ -25,9 +25,8 @@ from tests.test_paiement import SPEC_BOUTIQUE
 from tests.test_uploads import SPEC as SPEC_UPLOADS
 
 DOC = Path(__file__).resolve().parent.parent / "docs" / "SECURITE.md"
-# Une spec par brique qui lit ses propres variables : auth B4 (SMTP,
-# réinitialisation, jetons de rafraîchissement), Stripe, FedaPay, messages,
-# dépôts de fichiers.
+# One spec per brick that reads its own variables: auth B4 (SMTP, reset,
+# refresh tokens), Stripe, FedaPay, messages, file uploads.
 SPECS = (SPEC_B4, SPEC_BOUTIQUE, SPEC_FEDAPAY, SPEC_MESSAGES, SPEC_UPLOADS)
 
 
@@ -53,7 +52,7 @@ def _argument_lu(noeud):
 
 
 def variables_lues(source):
-    """Noms d'environnement lus par un module Python ; échoue sur l'illisible."""
+    """Environment names read by a Python module; fails on what it cannot read."""
     arbre = ast.parse(source)
     constantes = _constantes(arbre)
     lues = set()
@@ -70,7 +69,7 @@ def variables_lues(source):
     return lues
 
 
-def variables_du_backend(tmp_path):
+def backend_variables(tmp_path):
     lues = set()
     for rang, spec in enumerate(SPECS):
         dossier = tmp_path / str(rang)
@@ -88,18 +87,18 @@ def variables_documentees(texte):
     return set(noms)
 
 
-def test_securite_md_et_backend_lisent_les_memes_variables(tmp_path, capsys):
-    lues = variables_du_backend(tmp_path)
+def test_securite_md_and_backend_read_the_same_variables(tmp_path, capsys):
+    lues = backend_variables(tmp_path)
     documentees = variables_documentees(DOC.read_text(encoding="utf-8"))
-    # Un extracteur qui ne trouve rien ferait passer les deux sens sans rien
-    # regarder (point 161).
+    # An extractor that finds nothing would make both directions pass while
+    # looking at nothing (point 161).
     assert len(lues) >= 15, lues
     assert len(documentees) >= 15, documentees
     assert not lues - documentees, f"lues mais non documentées : {sorted(lues - documentees)}"
     assert not documentees - lues, f"documentées mais jamais lues : {sorted(documentees - lues)}"
 
 
-def test_l_extracteur_suit_une_constante_et_refuse_l_illisible():
+def test_the_extractor_follows_a_constant_and_refuses_the_unreadable():
     source = "import os\n_NOM = 'MONL_X'\na = os.environ.get(_NOM)\nb = os.environ['MONL_Y']\n"
     assert variables_lues(source) == {"MONL_X", "MONL_Y"}
     try:
@@ -110,6 +109,6 @@ def test_l_extracteur_suit_une_constante_et_refuse_l_illisible():
         raise AssertionError("une lecture dynamique doit faire échouer l'extracteur")
 
 
-def test_l_extracteur_du_document_lit_la_forme_avec_valeur():
+def test_the_document_extractor_reads_the_form_with_a_value():
     texte = "## Deployment settings\n- `MONL_DOCS=off`: x\n- `MONL_A`, `STRIPE_B`\n## Next\n`MONL_HORS`\n"
     assert variables_documentees(texte) == {"MONL_DOCS", "MONL_A", "STRIPE_B"}
